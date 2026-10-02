@@ -13,6 +13,8 @@ const SECTIONS = Object.freeze([
 
 export function createFriendPanel({ toggle, panel, social, onRelationshipChange = () => {}, onOpenChange = () => {}, doc = document,
   fallbackFocus = () => toggle,
+  // S1-D2: { canVisit(userId), onVisit(userId) → Promise<{ ok, reason }>, reasonText(reason) } or null.
+  roomVisit = null,
   timers = { setInterval: globalThis.setInterval?.bind(globalThis), clearInterval: globalThis.clearInterval?.bind(globalThis) } }) {
   const el = (tag, className, text) => {
     const node = doc.createElement(tag);
@@ -68,6 +70,20 @@ export function createFriendPanel({ toggle, panel, social, onRelationshipChange 
         names.append(el("strong", "", person.nickname ?? ""));
         if (person.title && key === "friends") names.append(el("small", "", person.title));
         row.append(names);
+        if (key === "friends" && roomVisit) {
+          const visit = el("button", "friend-room-visit", "🏠 방 방문");
+          visit.type = "button";
+          const verdict = roomVisit.canVisit(person.userId) ?? { ok: false };
+          if (!verdict.ok) { visit.disabled = true; visit.title = roomVisit.reasonText?.(verdict.reason) ?? ""; }
+          visit.addEventListener("click", async () => {
+            visit.disabled = true;
+            const result = await roomVisit.onVisit(person.userId);
+            if (result?.ok) { setOpen(false); return; }
+            hint = roomVisit.reasonText?.(result?.reason) ?? "";
+            if (open) render();
+          });
+          row.append(visit);
+        }
         if (key === "friends") row.append(act("친구 삭제", "remove", person.userId));
         if (key === "incoming") row.append(act("수락", "accept", person.userId), act("거절", "reject", person.userId));
         if (key === "outgoing") row.append(act("취소", "cancel", person.userId));
@@ -129,3 +145,4 @@ export function createFriendPanel({ toggle, panel, social, onRelationshipChange 
     }
   };
 }
+

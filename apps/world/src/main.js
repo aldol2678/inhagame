@@ -59,6 +59,9 @@ import { createDorm1LobbyScene } from "./rooms/dorm1-lobby-renderer.js";
 import { createPersonalRoomScene } from "./rooms/personal-room-renderer.js";
 import { PersonalRoomClient } from "./rooms/personal-room-client.js";
 import { createPersonalRoomInteraction } from "./rooms/personal-room-interaction.js";
+import { FriendRoomVisitClient, FRIEND_ROOM_VISIT_TEXT, createFriendRoomVisitController } from "./rooms/friend-room-visit.js";
+import { createPersonalRoomSession } from "./rooms/room-session.js";
+import { createRoomHud } from "./rooms/room-hud.js";
 import { isLobbyShellRequested } from "./lobby/lobby-shell.js";
 import { createLobbyWorldMode } from "./lobby/lobby-world.js";
 import { bindMainGateEntry, enterMainGate } from "./lobby/lobby-main-gate.js";
@@ -461,6 +464,9 @@ let fullMap = null;
 let guestbookInteraction = null;
 let personalRoomInteraction = null;
 let lastPersonalRoomUserId = null;
+// Social S1-D2: the Personal Room Session (private world:room:<uuid> channel) and friend visits.
+let roomSession = null;
+let friendRoomVisit = null;
 const lobbyQuestHighlight = createLobbyQuestHighlight({
   root: document.getElementById("lobby-quest-highlight"),
   kickerElement: document.getElementById("lobby-quest-kicker"),
@@ -476,7 +482,9 @@ let keyboardHelp = null;
 // Declared before input handlers so an early F/M event during boot can safely observe null.
 let playerAutoMove = null;
 let unbindAutoMoveManual = null;
-const emotes = new EmoteController({ clock: { now: () => Date.now() }, send: (id) => online?.reportEmote(id) === true });
+// Inside a Personal Room the expression goes to the room channel; the campus session is paused there.
+const emotes = new EmoteController({ clock: { now: () => Date.now() },
+  send: (id) => roomSession?.active ? roomSession.reportEmote(id) : online?.reportEmote(id) === true });
 // Social S1-B sit: explicit seat anchors; while seated PlayerController does not translate the player.
 const seating = createSeatInteraction({ player, controller, emotes, places: { getCurrentPlaceZone: () => places.getCurrentPlaceZone() }, getOnline: () => online });
 const seats = seating.seats;
@@ -546,6 +554,16 @@ const chatPanel = createChatPanel({
 // Social S1-C1: Player Inspect, friends, block and report. The database is authoritative;
 // targets are user ids from Presence, never nicknames. Guests have no social layer.
 const social = new SocialClient({ getClient: () => online?.supabase ?? null, getSelfUserId: () => online?.userId ?? null });
+const friendRoomVisitClient = new FriendRoomVisitClient({
+  getClient: () => online?.supabase ?? null,
+  getSelfUserId: () => online?.userId ?? null
+});
+// Player Card and Friends panel share one visit entry; the controller exists once rooms do.
+const roomVisitEntry = Object.freeze({
+  canVisit: () => friendRoomVisit?.canVisit() ?? { ok: false, reason: "busy" },
+  onVisit: (userId) => friendRoomVisit?.visit(userId) ?? Promise.resolve({ ok: false, reason: "busy" }),
+  reasonText: (reason) => FRIEND_ROOM_VISIT_TEXT[reason] ?? ""
+});
 const playerCard = createPlayerCard({
   panel: document.getElementById("player-card"),
   social,
@@ -568,6 +586,7 @@ const playerCard = createPlayerCard({
   accompany: { canPropose: (userId) => accompany?.canPropose(userId) === true,
     propose: (userId, poiId) => accompany?.propose(userId, poiId) ?? false,
     isActive: () => accompany?.active === true },
+  roomVisit: roomVisitEntry,
   follow: {
     canFollow: (userId) => follow.canFollow(userId),
     isFollowing: (userId) => follow.isFollowing(userId),
@@ -687,6 +706,10 @@ window.addEventListener("pagehide", event => { if (!event.persisted) equipmentPr
 // visual-only Presence field. Only the loadout client's server read feeds it (never the Wardrobe UI,
 // the Inventory or storage); world-online republishes Presence only when the value changes.
 loadout.onChange((change) => online?.setLocalEquipment(change.accountId, publicEquipmentFor(change, change.accountId)));
+// Personal Room Session carries the same public equipment on the room channel.
+loadout.onChange((change) => {
+  if (change.accountId && change.accountId === online?.userId) roomSession?.setEquipment(publicEquipmentFor(change, change.accountId));
+});
 // A page restored from the back/forward cache may have missed progression / wallet / inventory changes.
 window.addEventListener("pageshow", (event) => {
   if (!event.persisted) return;
@@ -754,8 +777,11 @@ const friendPanel = createFriendPanel({
   },
   fallbackFocus: () => document.body?.dataset?.lobbyShell === "true"
     ? document.getElementById("lobby-friends-summary")
-    : document.getElementById("open-friends")
+    : document.getElementById("open-friends"),
+  roomVisit: roomVisitEntry
 });
+// Unfriend / block from any panel: a live room visit re-asks the server at once (not in 15 s).
+social.onRelationshipChange(() => { void roomSession?.revalidateNow(); });
 const guestbook = new GuestbookClient({
   getClient: () => online?.supabase ?? null,
   getSelfUserId: () => online?.userId ?? null
@@ -1139,6 +1165,65 @@ personalRoomInteraction = createPersonalRoomInteraction({
   client: personalRoom,
   rooms,
   onStatus: showWorldStatus
+});
+// Social S1-D2 · Room Session. Remote room avatars live under the shared personal room scene;
+// tapping one opens the same Player Card (friends, block, report) as on the campus.
+const roomHud = createRoomHud({
+  root: document.getElementById("room-hud"),
+  onLeave: () => rooms.exit(),
+  onSetVisibility: async (visibility) => {
+    const room = await personalRoom.setVisibility(visibility);
+    roomSession?.setVisibility(room.visibility);
+    return room;
+  }
+});
+const roomLocationLabel = (state) => state.role === "owner"
+  ? `🏠 제1생활관 · 내 방 · ${state.count}명`
+  : `🏠 제1생활관 · ${state.ownerDisplayName ?? "친구"}의 방 · ${state.count}명`;
+roomSession = createPersonalRoomSession({
+  player, controller,
+  createAvatar: createRemoteAvatarFactory({ app, parent: personalRoomScene.root, camera, canvas,
+    onInspect: (sessionId) => {
+      const remote = roomSession?.remotePlayer(sessionId);
+      if (remote && !chatPanel.open) void playerCard.openUser(remote.userId, remote.displayName);
+    } }),
+  getClient: () => online?.supabase ?? null,
+  getIdentity: () => online?.userId ? { userId: online.userId, displayName: online.identity?.displayName ?? null } : null,
+  getEquipment: () => publicEquipmentFor(loadout, online?.userId ?? null),
+  onAccessLost: ({ role, reason }) => {
+    if (rooms.currentSpace !== "ROOM_PERSONAL_BASIC") return;
+    rooms.exit({ force: true });
+    showWorldStatus(role === "owner" || reason === "IDENTITY" || reason === "SIGNED_OUT"
+      ? "개인방 연결이 끊겨 생활관 로비로 돌아왔어요."
+      : reason === "ROOM_PRIVATE" ? "친구가 방을 비공개로 바꿔 생활관 로비로 돌아왔어요."
+        : "방 방문 권한이 바뀌어 생활관 로비로 돌아왔어요.");
+  },
+  onChange: (state) => {
+    roomHud.update(state);
+    if (state.active && rooms.currentSpace === "ROOM_PERSONAL_BASIC") zoneEl.textContent = roomLocationLabel(state);
+  }
+});
+friendRoomVisit = createFriendRoomVisitController({
+  client: friendRoomVisitClient,
+  rooms,
+  isMounted: () => controller.mounted,
+  isSeated: () => seats.isSeated,
+  standUp: () => seating.standUp("room-visit"),
+  stopFollow: () => follow.stop(FollowStopReason.ROOM),
+  isLobbyShell: () => lobbyWorld.active || lobbyTransition.active,
+  onStatus: showWorldStatus
+});
+// The room scene is shared; the session (who is here, which channel) follows the room metadata.
+rooms.onChange((status) => {
+  const meta = status.roomId === "ROOM_PERSONAL_BASIC" ? status.metadata : null;
+  if (!meta?.personalRoomId || !meta?.ownerUserId) { roomSession.stop(); return; }
+  const current = roomSession.status();
+  if (current.active && current.roomId === meta.personalRoomId.toLowerCase()) return;
+  void roomSession.enter({
+    roomId: meta.personalRoomId, ownerUserId: meta.ownerUserId,
+    role: meta.visitRole === "visitor" ? "visitor" : "owner",
+    ownerDisplayName: meta.ownerDisplayName ?? null
+  });
 });
 const mcmMinigame = createMcm2026MinigameRuntime({
   roomScene: mcmRoomScene,
@@ -1823,6 +1908,7 @@ places.onPlaceZoneChanged((previous,next)=>{
 
 app.on("update", (dt) => {
   syncAudio();
+  roomSession?.update(dt);
   if (audioDebug && performance.now() - lastAudioDebugAt > 250) {
     lastAudioDebugAt = performance.now();
     audioDebug.textContent = JSON.stringify(worldAudio?.status() ?? { degraded: true }, null, 2);
@@ -2011,6 +2097,7 @@ try {
     const nextRoomUserId = online?.userId ?? null;
     inkyungSideEvent.setScope(nextRoomUserId ?? "guest");
     const roomIdentityChanged = lastPersonalRoomUserId !== null && nextRoomUserId !== lastPersonalRoomUserId;
+    if (!identity || roomIdentityChanged) roomSession?.stop();
     if ((!identity || roomIdentityChanged) && rooms?.currentSpace === "ROOM_PERSONAL_BASIC") {
       rooms.exit({ force: true });
     }
@@ -2228,6 +2315,12 @@ window.__INHAGAME_P0__ = {
   seating,
   follow,
   rooms,
+  personalRoom,
+  personalRoomInteraction,
+  roomSession,
+  friendRoomVisit,
+  friendRoomVisitClient,
+  roomHud,
   worldAudio,
   clubRoom,
   mcmEvent,
@@ -2314,7 +2407,9 @@ window.__INHAGAME_P0__ = {
       open: guestbookPanel.open,
       available: guestbook.available
     },
-    personalRoom: rooms.currentSpace === "ROOM_PERSONAL_BASIC" ? { active: true } : { active: false },
+    personalRoom: rooms.currentSpace === "ROOM_PERSONAL_BASIC"
+      ? { active: true, session: roomSession?.status() ?? null, sessionStats: roomSession?.stats ?? null }
+      : { active: false, sessionStats: roomSession?.stats ?? null },
     mcm2026: {
       preview: mcmEventPreviewMode,
       client: mcmEvent.status(),
@@ -2409,4 +2504,5 @@ boot().catch((error) => {
   if (unsupported) console.warn("INHAGAME Campus WebGPU unavailable:", error);
   else console.error("INHAGAME Campus initialization failed:", error);
 });
+
 

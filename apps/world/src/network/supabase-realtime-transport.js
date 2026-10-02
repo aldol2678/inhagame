@@ -27,10 +27,13 @@ function stripMeta(meta) {
 
 export class SupabaseRealtimeTransport {
   // allowGuest: accept an anonymous (guest) session. Members-only callers leave it false.
-  constructor(client, { windowTarget = globalThis.window, allowGuest = false } = {}) {
+  // topicFor: zone id → Realtime topic. Campus uses world:campus:AREA_*; a Personal Room Session
+  // (rooms/room-session.js) maps its single zone to world:room:<room uuid>.
+  constructor(client, { windowTarget = globalThis.window, allowGuest = false, topicFor = placeZoneTopic } = {}) {
     if (!client?.channel || !client?.auth) throw new TypeError("SupabaseRealtimeTransport needs a supabase-js client");
     this.client = client;
     this.allowGuest = allowGuest === true;
+    this.topicFor = topicFor;
     this.windowTarget = windowTarget;
     this.handlers = { status: new Set(), presence: new Set(), pose: new Set(), action: new Set() };
     this.channels = new Map();
@@ -89,7 +92,7 @@ export class SupabaseRealtimeTransport {
   }
 
   joinPlaceZone(placeZoneId, presence) {
-    const topic = placeZoneTopic(placeZoneId);
+    const topic = this.topicFor(placeZoneId);
     // Idempotent: a re-join replaces the old channel so there is never more than one live subscription.
     if (this.channels.has(placeZoneId)) this.leavePlaceZone(placeZoneId);
     const channel = this.client.channel(topic, {
@@ -170,3 +173,4 @@ export class SupabaseRealtimeTransport {
     this.windowTarget?.removeEventListener?.("offline", this.onOffline);
   }
 }
+

@@ -4,7 +4,7 @@
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ROOM_TYPES=new Set(["DORM_1_BASIC"]);
 const VISIBILITY=new Set(["private","friends"]);
-const KNOWN_ERRORS=new Set(["PERMANENT_ACCOUNT_REQUIRED","ACCOUNT_UNAVAILABLE"]);
+const KNOWN_ERRORS=new Set(["PERMANENT_ACCOUNT_REQUIRED","ACCOUNT_UNAVAILABLE","ROOM_NOT_FOUND","INVALID_VISIBILITY"]);
 
 export class PersonalRoomError extends Error {
   constructor(code){super(code);this.code=code;}
@@ -62,4 +62,24 @@ export class PersonalRoomClient{
     this.inFlight=request;
     return this.inFlight;
   }
+  // S1-D2 owner privacy: PRIVATE / FRIENDS only. The server derives the room from auth.uid().
+  async setVisibility(visibility){
+    const userId=this.getSelfUserId?.();
+    const client=this.getClient?.();
+    if(!client||!isUuid(userId))throw new PersonalRoomError("SIGNED_OUT");
+    if(!VISIBILITY.has(visibility))throw new PersonalRoomError("INVALID_VISIBILITY");
+    const generation=this.generation;
+    const {data,error}=await client.rpc("set_my_personal_room_visibility_v1",{p_visibility:visibility});
+    if(this.generation!==generation||this.getSelfUserId?.()!==userId)throw new PersonalRoomError("SIGNED_OUT");
+    if(error){
+      const code=String(error.message??"").trim();
+      throw new PersonalRoomError(KNOWN_ERRORS.has(code)?code:"FAILED");
+    }
+    const room=parsePersonalRoom(data);
+    if(!room||room.ownerUserId!==userId||room.visibility!==visibility)throw new PersonalRoomError("FAILED");
+    this.cached=room;
+    this.cachedUserId=userId;
+    return room;
+  }
 }
+

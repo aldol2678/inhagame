@@ -1,9 +1,10 @@
 // Compact, read-only Player Inspect card. DOM only; relationship rules live in the database and
 // SocialClient. The target is resolved from the trusted remote-player model by session id —
 // never from nickname or DOM text. Text is always rendered with textContent.
-// Follow (S1-C2) is injected: the card only asks canFollow/isFollowing and reports the choice;
-// FollowController owns the state. Not included on purpose: profile editing (own profile →
-// /profile/) and room visits.
+// Follow (S1-C2) and the Personal Room visit (S1-D2) are injected: the card only asks whether each
+// action is available and reports the choice; FollowController / the room visit controller own the
+// state, and the server decides whether a room may be visited. Not included on purpose: profile
+// editing (own profile → /profile/).
 
 import { AVATARS, REPORT_CATEGORIES, Relationship, SocialError } from "./social-client.js";
 import { ACCOMPANY_POIS } from "./accompany-client.js";
@@ -30,6 +31,8 @@ export const FOLLOW_LABELS = Object.freeze({
   start: "👣 친구 따라가기", stop: "■ 따라가기 중지", switch: "👣 이 친구 따라가기"
 });
 
+export const ROOM_VISIT_LABEL = "🏠 방 방문";
+
 const FOLLOW_BLOCKED_TEXT = Object.freeze({
   mounted: "탈것에서 내린 뒤 같이 갈 수 있어요.",
   not_present: "지금은 같이 갈 수 없어요.",
@@ -39,6 +42,8 @@ const FOLLOW_BLOCKED_TEXT = Object.freeze({
 export function createPlayerCard({ panel, social, getRemote, getSelfUserId, getPlaceZoneId = () => null,
   onRelationshipChange = () => {}, onOpenChange = () => {}, onMessage = null, doc = document,
   accompany = null,
+  // { canVisit(userId) → { ok, reason }, onVisit(userId) → Promise<{ ok, reason }>, reasonText(reason) }
+  roomVisit = null,
   follow = { canFollow: () => ({ ok: false, reason: "unsupported" }), isFollowing: () => false, isFollowingAnyone: () => false,
     onFollow: () => false, onStopFollow: () => false } }) {
   const el = (tag, className, text) => {
@@ -115,6 +120,22 @@ export function createPlayerCard({ panel, social, getRemote, getSelfUserId, getP
           }
           actions.append(b);
         }
+      }
+      if (roomVisit) {
+        const target = current.userId;
+        const verdict = roomVisit.canVisit(target) ?? { ok: false };
+        const visit = button(ROOM_VISIT_LABEL, async () => {
+          const opened = current;
+          visit.disabled = true;
+          const result = await roomVisit.onVisit(target);
+          if (current !== opened) return;
+          if (result?.ok) close(); else render(roomVisit.reasonText?.(result?.reason) ?? "");
+        }, "player-card-room-visit");
+        if (!verdict.ok) {
+          visit.disabled = true;
+          visit.title = roomVisit.reasonText?.(verdict.reason) ?? "";
+        }
+        actions.append(visit);
       }
       actions.append(act("친구 삭제", "remove"));
     }
@@ -242,3 +263,4 @@ export function createPlayerCard({ panel, social, getRemote, getSelfUserId, getP
     get current() { return current ? { sessionId: current.sessionId, userId: current.userId, card: current.card } : null; }
   };
 }
+

@@ -1666,6 +1666,12 @@ export type Database = {
         Returns: undefined
       }
       world_ops_read_allowed_v1: { Args: { p_token: string }; Returns: boolean }
+      world_personal_room_json_v1: {
+        Args: {
+          p_room: Database["public"]["Tables"]["world_player_rooms"]["Row"]
+        }
+        Returns: Json
+      }
       world_player_level_v1: { Args: { p_user: string }; Returns: number }
       world_progression_account_ok_v1: {
         Args: { p_user: string }
@@ -1693,6 +1699,10 @@ export type Database = {
       world_reward_result_v1: {
         Args: { p_replayed: boolean; p_reward_transaction_id: string }
         Returns: Json
+      }
+      world_room_access_v1: {
+        Args: { p_room_id: string; p_viewer: string }
+        Returns: string
       }
       world_room_caller_v1: { Args: never; Returns: string }
       world_shop_listing_block_v2: {
@@ -3694,7 +3704,12 @@ export type Database = {
         Returns: Json
       }
       block_world_user: { Args: { p_target: string }; Returns: Json }
+      can_access_world_room_realtime_v1: {
+        Args: { p_topic: string }
+        Returns: boolean
+      }
       cancel_world_friend_request: { Args: { p_target: string }; Returns: Json }
+      check_world_room_access_v1: { Args: { p_room: string }; Returns: Json }
       claim_inha_mail_badge: {
         Args: { p_primary_id: string; p_school_id: string }
         Returns: boolean
@@ -4543,6 +4558,10 @@ export type Database = {
         Args: { p_category: string; p_place_zone_id?: string; p_target: string }
         Returns: Json
       }
+      resolve_friend_personal_room_v1: {
+        Args: { p_owner: string }
+        Returns: Json
+      }
       respond_world_accompany: {
         Args: { p_accept: boolean; p_session_id: string }
         Returns: Json
@@ -4580,6 +4599,10 @@ export type Database = {
       set_my_grow_rank_visibility: {
         Args: { p_department: string; p_public: boolean }
         Returns: boolean
+      }
+      set_my_personal_room_visibility_v1: {
+        Args: { p_visibility: string }
+        Returns: Json
       }
       start_mcm_landlord_run_v1: { Args: never; Returns: Json }
       start_my_world_daily_quiz_v1: { Args: never; Returns: Json }

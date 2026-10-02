@@ -31,7 +31,7 @@ export function createRoomTransition({
   let returnContext = null;
   let nestedReturn = null;
   const listeners = new Set();
-  const stats = { enters: 0, exits: 0, nestedEnters: 0, nestedExits: 0 };
+  const stats = { enters: 0, exits: 0, nestedEnters: 0, nestedExits: 0, directNestedEnters: 0 };
 
   const setBusy = (next) => {
     const value = Boolean(next);
@@ -44,6 +44,7 @@ export function createRoomTransition({
   const status = () => ({
     space, insideRoom: space !== CAMPUS_SPACE, roomId: space === CAMPUS_SPACE ? null : space, busy,
     returnContext: returnContext ? { ...returnContext } : null,
+    ready: ready(),
     parentRoomId: nestedReturn?.roomId ?? null,
     metadata: nestedReturn?.metadata ? { ...nestedReturn.metadata } : null
   });
@@ -113,6 +114,42 @@ export function createRoomTransition({
     return true;
   }
 
+  // Social S1-D2 friend visit from the campus: straight into a nested room whose parent (the Dorm
+  // Lobby) is where leaving lands, exactly as if the player had walked in through the lobby. The
+  // parent's own entrance supplies the campus return anchor for the lobby's exit afterwards.
+  function enterNestedFromCampus(roomId, {
+    parentRoomId = null, returnPosition = null, returnYaw = 0, metadata = null, isValid = () => true
+  } = {}) {
+    if (space !== CAMPUS_SPACE || !isRoomId(roomId) || !isRoomId(parentRoomId) || roomId === parentRoomId || !ready()) return false;
+    if (!returnPosition || !Number.isFinite(returnPosition.x) || !Number.isFinite(returnPosition.z)) return false;
+    const room = rooms[roomId];
+    const entrance = entrances.find((e) => e.id === rooms[parentRoomId].entranceId) ?? null;
+    if (!entrance || !anchors[entrance.returnAnchor]) return false;
+    setBusy(true);
+    returnContext = {
+      sourceSpace: CAMPUS_SPACE, placeZoneId: world.getPlaceZoneId?.() ?? null,
+      entranceId: entrance.id, returnAnchor: entrance.returnAnchor
+    };
+    nestedReturn = {
+      roomId: parentRoomId,
+      position: { ...returnPosition },
+      yaw: Number(returnYaw) || 0,
+      metadata: metadata && typeof metadata === "object" ? { ...metadata } : null
+    };
+    fade(() => {
+      if (!isValid()) { returnContext = null; nestedReturn = null; setBusy(false); return; }
+      world.leaveCampus(room);
+      world.showRoom(room);
+      world.placePlayer(room.spawn.position, room.spawn.yaw);
+      space = roomId;
+      setBusy(false);
+      cooldownUntil = clock.now() + ROOM_TRANSITION_COOLDOWN_MS;
+      stats.directNestedEnters += 1;
+      emit("enter-nested");
+    });
+    return true;
+  }
+
   function exit({ force = false } = {}) {
     if (space === CAMPUS_SPACE || (!force && !ready())) return false;
     const room = rooms[space];
@@ -174,6 +211,7 @@ export function createRoomTransition({
   return {
     enter,
     enterNested,
+    enterNestedFromCampus,
     exit,
     contextAction,
     status,
@@ -184,3 +222,4 @@ export function createRoomTransition({
     onChange(listener) { listeners.add(listener); return () => listeners.delete(listener); }
   };
 }
+

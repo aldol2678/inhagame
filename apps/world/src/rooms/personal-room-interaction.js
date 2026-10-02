@@ -28,7 +28,7 @@ export function createPersonalRoomInteraction({
         fromRoomId:"ROOM_DORM1_LOBBY",
         returnPosition:DORM_1_LOBBY_MY_ROOM_RETURN.position,
         returnYaw:DORM_1_LOBBY_MY_ROOM_RETURN.yaw,
-        metadata:{personalRoomId:authority.roomId},
+        metadata:{personalRoomId:authority.roomId,ownerUserId:authority.ownerUserId,visitRole:"owner",visibility:authority.visibility},
         isValid:()=>client.generation===generation&&client.getSelfUserId?.()===authority.ownerUserId
       });
       if(!ok)onStatus("지금은 내 방으로 들어갈 수 없어요.");
@@ -50,3 +50,4 @@ export function createPersonalRoomInteraction({
   }
   return {contextAction,open,get opening(){return opening;}};
 }
+
