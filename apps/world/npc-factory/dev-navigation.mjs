@@ -188,5 +188,5 @@ export function createNpcNavigator(batch, { additionalAnchors = [] } = {}) {
     }
     return route(from, anchor);
   }
-  return { walkable, segmentSafe, route, wanderRoute, bounds };
+  return { walkable, segmentSafe, route, networkRoute: campusNetworkRoute, wanderRoute, bounds };
 }

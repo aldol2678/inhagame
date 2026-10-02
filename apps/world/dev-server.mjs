@@ -1,4 +1,5 @@
 import http from "node:http";
+import { worldTimePayload } from './npc-factory/npc-world-time-contract.mjs';
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -30,6 +31,13 @@ const MIME_TYPES = {
 
 const server = http.createServer((req, res) => {
   let reqPath = decodeURIComponent(req.url.split("?")[0]);
+  if (reqPath === '/api/world-time') {
+    res.writeHead(req.method === 'GET' ? 200 : 405, {
+      'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'Allow': 'GET'
+    });
+    res.end(req.method === 'GET' ? JSON.stringify(worldTimePayload()) : '');
+    return;
+  }
   if (reqPath === '/api/model-convert') {
     if (req.method === 'GET') {
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });

@@ -15,6 +15,9 @@ import { createNpcSocialNg15Bridge } from './npc-social-ng15-bridge.mjs';
 import { createObservedConversation } from './npc-observed-conversation.mjs';
 import { createObservedBubble } from './npc-observed-bubble.mjs';
 import { MAIN_NPC_ID, QUEST_NPC_ID, runtimePresence } from './npc-presence.mjs';
+import { createNpcWorldClock } from './npc-world-clock.mjs';
+import { bindSharedSchedule } from './npc-shared-schedule.mjs';
+import { worldScheduleAt, NPC_SCHEDULE_REVISION } from './npc-world-time-contract.mjs';
 import { createPurposefulRoster } from './purposeful-roster.mjs';
 import { applyCampusLifeSchedule } from './npc-campus-life-policy.mjs';
 import { mergeCampusPopulation } from './npc-campus-expansion.mjs';
@@ -159,6 +162,7 @@ async function loadCandidate() {
 }
 
 export async function createNpcDevRuntime({ app, campusRoot, player, orbit, production = false, aiPilot = false,
+  sharedSchedulePreview = false,
   socialEnabled = false, socialPreview = false, socialBehaviorPreview = false,
   observedConversationPreview = false, isObservedConversationBlocked = () => true,
   externalContextAction = false, aiEndpoint = '/npc-ai/decide', getAiSession = async () => null,
@@ -168,7 +172,21 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
   onQuestStateChange = () => {},
   onConversationOpen = () => {},
   onConversationClose = () => {} }) {
+  // Shared schedules own physical movement. Local-only scenes must not override it.
+  if (sharedSchedulePreview) {
+    socialEnabled = false; socialPreview = false;
+    socialBehaviorPreview = false; observedConversationPreview = false;
+  }
   const { batch, roster, hash } = await loadCandidate();
+  const worldClock = sharedSchedulePreview ? createNpcWorldClock() : null;
+  if (worldClock) {
+    await worldClock.sync();
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') void worldClock.sync();
+    });
+    window.addEventListener('pageshow', () => { void worldClock.sync(); });
+  }
+  let sharedFrameNow = worldClock?.now() ?? null;
   const panel = addPanel(production, externalContextAction);
   let browserStorage = null;
   try { browserStorage = aiPilot ? sessionStorage : localStorage; } catch { /* Session-only memory. */ }
@@ -177,10 +195,15 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
   const npcById = new Map(batch.npcs.map(npc => [npc.npc_id, npc]));
   const rosterById = new Map(roster.npcs.map(entry => [entry.npc_id, entry]));
   const socialGraph = createPersistentNpcSocialGraph(batch, roster, hash, browserStorage);
-  const first = snapshotForPeriod(batch, PULSE_PERIODS[0]);
+  const first = snapshotForPeriod(batch, sharedFrameNow === null ? PULSE_PERIODS[0] : worldScheduleAt(sharedFrameNow).period);
   const navigator = createNpcNavigator(batch);
   const purposefulRoster = createPurposefulRoster(batch, navigator);
-  const socialMotion = createPurposefulSocialMotion(batch, purposefulRoster, navigator);
+  if (worldClock) bindSharedSchedule(purposefulRoster, navigator, () => sharedFrameNow);
+  const socialMotion = worldClock ? {
+    status: () => ({ phase: 'SHARED_SCHEDULE', pairIds: [] }),
+    setPeriod() {}, tick() { return this.status(); },
+    shouldPauseForConversation: () => false, shouldHoldForJoin: () => false
+  } : createPurposefulSocialMotion(batch, purposefulRoster, navigator);
   const avatars = new Map(first.actors.map(actor => {
     const visual = createHumanAvatar(campusRoot, actor, appearanceFor(rosterById.get(actor.id)));
     visual.motion = { position: actor.position && { ...actor.position }, route: [], moving: false,
@@ -278,7 +301,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
   const aiEnabled = id => aiPilot && aiSignedIn && pilotAvailable && aiPilotIds.has(id);
   function purposefulStatus(id) {
     const state = purposefulRoster.get(id).controller.status(false);
-    return activeConversation?.id === id
+    return !worldClock && activeConversation?.id === id
       ? { ...state, phase: 'TALKING', interruptedPhase: state.phase, moving: false }
       : state;
   }
@@ -383,7 +406,8 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
 
   function nearestVisible() {
     const playerPos = player.getLocalPosition();
-    return snapshot.actors.filter(actor => avatars.get(actor.id).motion.position)
+    return snapshot.actors.filter(actor => avatars.get(actor.id).motion.position &&
+      (!worldClock || !purposefulRoster.get(actor.id)?.controller.status(false).moving))
       .map(actor => ({ actor, distance: Math.hypot(avatars.get(actor.id).motion.position.x - playerPos.x,
         avatars.get(actor.id).motion.position.z - playerPos.z) }))
       .sort((a, b) => a.distance - b.distance)[0];
@@ -670,6 +694,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
     drawDetail();
   }
   function setPeriod(period) {
+    if (worldClock) return false;
     const index = PULSE_PERIODS.indexOf(period);
     if (index < 0) throw new Error(`Unknown period: ${period}`);
     elapsed = index * PERIOD_SECONDS;
@@ -688,9 +713,9 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
     motion.moving = false;
     const purpose = purposefulRoster.get(actor.id);
     if (purpose) {
-      if (activeConversation?.id === actor.id || socialMotion.shouldPauseForConversation(actor.id, activeConversation?.id) ||
+      if (!worldClock && (activeConversation?.id === actor.id || socialMotion.shouldPauseForConversation(actor.id, activeConversation?.id) ||
           socialNg15Bridge?.shouldPauseForConversation(actor.id, activeConversation?.id) ||
-          socialMotion.shouldHoldForJoin(actor.id))
+          socialMotion.shouldHoldForJoin(actor.id)))
         purpose.controller.pause();
       else purpose.controller.resume();
       const state = purpose.controller.tick(dt);
@@ -876,7 +901,17 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
   }
   function update(dt) {
     if (!socialPreviewFastForward) main2Guide.update(dt);
-    if (running) {
+    if (worldClock) {
+      worldClock.refreshIfDue();
+      sharedFrameNow = worldClock.now();
+      if (sharedFrameNow !== null) {
+        const time = worldScheduleAt(sharedFrameNow);
+        elapsed = time.cycleSeconds;
+        if (time.period !== snapshot.period) applySnapshot(snapshotForPeriod(batch, time.period));
+      }
+      const state = activeConversation && purposefulRoster.get(activeConversation.id)?.controller.status(false);
+      if (state && (!state.visible || state.moving)) closeConversation(false);
+    } else if (running) {
       elapsed = (elapsed + dt) % CYCLE_SECONDS;
       const period = periodAt(elapsed);
       if (period !== snapshot.period) applySnapshot(snapshotForPeriod(batch, period));
@@ -1014,6 +1049,8 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
       largest_crowd: snapshot.largestCrowd, visible_entities: [...avatars.values()].filter(v => v.avatar.enabled).length,
       purposeful_count: purposefulRoster.size,
       purposeful_behavior: Object.fromEntries([...purposefulRoster].map(([id, { behavior }]) => [id, behavior.id])),
+      shared_schedule: worldClock ? { ...worldClock.status(), revision: NPC_SCHEDULE_REVISION,
+        frameServerNowMs: sharedFrameNow } : null,
       social_motion: socialMotion.status(),
       purposeful: Object.fromEntries([...purposefulRoster].map(([id]) => [id, purposefulStatus(id)])),
       selected_id: selectedId, selected_activity: snapshot.actors.find(a => a.id === selectedId).activity,
@@ -1034,7 +1071,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
       observed_conversation: observedConversation?.status() ?? null,
       selected_dialogue: snapshot.actors.find(a => a.id === selectedId).dialogue }),
     setPeriod, selectNpc: id => { if (!avatars.has(id)) throw new Error('Unknown NPC'); closeConversation(false); selectedId = id; socialNg1?.setSelectedNpc(id); if (select) select.value = id; drawDetail(); },
-    pause: () => { running = false; if (playButton) { playButton.textContent = '재생'; playButton.setAttribute('aria-pressed', 'false'); } },
+    pause: () => { if (worldClock) return false; running = false; if (playButton) { playButton.textContent = '재생'; playButton.setAttribute('aria-pressed', 'false'); } },
     play: () => { running = true; if (playButton) { playButton.textContent = '일시정지'; playButton.setAttribute('aria-pressed', 'true'); } }
   };
   if (!production) window.__NPC_TEST__ = api;
@@ -1045,7 +1082,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
     };
     // NG1-only previews may inspect the social model in isolation. NG1.5 must never
     // advance that clock separately from physical NPC movement.
-    if (!socialBehaviorPreview) socialPreviewApi.advanceTicks = count => {
+    if (!socialBehaviorPreview && !worldClock) socialPreviewApi.advanceTicks = count => {
       const result = socialNg1?.advanceTicks(count);
       socialNg1Panel?.render();
       return result;

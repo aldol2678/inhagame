@@ -894,6 +894,10 @@ try {
     'P0 state is exposed through the runtime status');
   const { checkObservedBubble } = await import('./npc-observed-bubble-smoke.mjs');
   await checkObservedBubble(smoke);
+  const { checkSharedSchedule } = await import('./npc-shared-schedule-smoke.mjs');
+  // Release earlier WebGL scenes before the two simultaneous NG2 clients.
+  await Promise.all([page.close(), socialPage.close(), behaviorPage.close()]);
+  await checkSharedSchedule(smoke);
   assert.deepEqual(smoke.problems, [], "no page errors, console errors or failed same-origin requests");
   console.log(JSON.stringify({ scene, hud, musicRuntime }, null, 2));
   console.log(`world boot smoke: PASS in ${((Date.now() - started) / 1000).toFixed(1)}s ` +
