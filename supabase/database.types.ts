@@ -343,6 +343,75 @@ export type Database = {
         }
         Relationships: []
       }
+      world_collection_discovery_events: {
+        Row: {
+          definition_version: number
+          discovered_at: string
+          discovery_event_id: string
+          entry_id: string
+          idempotency_key: string
+          metadata: Json | null
+          result_ref: string | null
+          source_ref: string
+          source_type: string
+          user_id: string
+        }
+        Insert: {
+          definition_version: number
+          discovered_at?: string
+          discovery_event_id?: string
+          entry_id: string
+          idempotency_key: string
+          metadata?: Json | null
+          result_ref?: string | null
+          source_ref: string
+          source_type: string
+          user_id: string
+        }
+        Update: {
+          definition_version?: number
+          discovered_at?: string
+          discovery_event_id?: string
+          entry_id?: string
+          idempotency_key?: string
+          metadata?: Json | null
+          result_ref?: string | null
+          source_ref?: string
+          source_type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      world_collection_entry_catalog: {
+        Row: {
+          category: string
+          definition_version: number
+          entry_id: string
+          owner_domain: string | null
+          owner_ref: string | null
+          persistence_mode: string
+          status: string
+        }
+        Insert: {
+          category: string
+          definition_version: number
+          entry_id: string
+          owner_domain?: string | null
+          owner_ref?: string | null
+          persistence_mode: string
+          status: string
+        }
+        Update: {
+          category?: string
+          definition_version?: number
+          entry_id?: string
+          owner_domain?: string | null
+          owner_ref?: string | null
+          persistence_mode?: string
+          status?: string
+        }
+        Relationships: []
+      }
       world_currencies: {
         Row: {
           created_at: string
@@ -984,6 +1053,98 @@ export type Database = {
         }
         Relationships: []
       }
+      world_life_skill_catalog: {
+        Row: {
+          curve_id: string
+          skill_id: string
+          status: string
+        }
+        Insert: {
+          curve_id: string
+          skill_id: string
+          status: string
+        }
+        Update: {
+          curve_id?: string
+          skill_id?: string
+          status?: string
+        }
+        Relationships: []
+      }
+      world_life_skill_thresholds: {
+        Row: {
+          created_at: string
+          curve_id: string
+          level: number
+          min_total_xp: number
+        }
+        Insert: {
+          created_at?: string
+          curve_id: string
+          level: number
+          min_total_xp: number
+        }
+        Update: {
+          created_at?: string
+          curve_id?: string
+          level?: number
+          min_total_xp?: number
+        }
+        Relationships: []
+      }
+      world_life_skill_xp_transactions: {
+        Row: {
+          amount: number
+          created_at: string
+          idempotency_key: string
+          level_after: number
+          level_before: number
+          skill_id: string
+          source_id: string
+          source_type: string
+          transaction_id: string
+          user_id: string
+          xp_after: number
+          xp_before: number
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          idempotency_key: string
+          level_after: number
+          level_before: number
+          skill_id: string
+          source_id: string
+          source_type: string
+          transaction_id?: string
+          user_id: string
+          xp_after: number
+          xp_before: number
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          idempotency_key?: string
+          level_after?: number
+          level_before?: number
+          skill_id?: string
+          source_id?: string
+          source_type?: string
+          transaction_id?: string
+          user_id?: string
+          xp_after?: number
+          xp_before?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "world_life_skill_xp_transactions_user_id_skill_id_fkey"
+            columns: ["user_id", "skill_id"]
+            isOneToOne: false
+            referencedRelation: "world_player_life_skills"
+            referencedColumns: ["user_id", "skill_id"]
+          },
+        ]
+      }
       world_mcm_reward_claims: {
         Row: {
           claim_type: string
@@ -1122,6 +1283,45 @@ export type Database = {
           },
         ]
       }
+      world_player_collection_discoveries: {
+        Row: {
+          discovery_count: number
+          entry_id: string
+          first_discovered_at: string
+          first_result_ref: string | null
+          first_source_ref: string
+          first_source_type: string
+          last_discovered_at: string
+          updated_at: string
+          user_id: string
+          version: number
+        }
+        Insert: {
+          discovery_count: number
+          entry_id: string
+          first_discovered_at: string
+          first_result_ref?: string | null
+          first_source_ref: string
+          first_source_type: string
+          last_discovered_at: string
+          updated_at?: string
+          user_id: string
+          version?: number
+        }
+        Update: {
+          discovery_count?: number
+          entry_id?: string
+          first_discovered_at?: string
+          first_result_ref?: string | null
+          first_source_ref?: string
+          first_source_type?: string
+          last_discovered_at?: string
+          updated_at?: string
+          user_id?: string
+          version?: number
+        }
+        Relationships: []
+      }
       world_player_items: {
         Row: {
           acquired_at: string
@@ -1171,6 +1371,33 @@ export type Database = {
             referencedColumns: ["grant_id"]
           },
         ]
+      }
+      world_player_life_skills: {
+        Row: {
+          created_at: string
+          skill_id: string
+          total_xp: number
+          updated_at: string
+          user_id: string
+          version: number
+        }
+        Insert: {
+          created_at?: string
+          skill_id: string
+          total_xp?: number
+          updated_at?: string
+          user_id: string
+          version?: number
+        }
+        Update: {
+          created_at?: string
+          skill_id?: string
+          total_xp?: number
+          updated_at?: string
+          user_id?: string
+          version?: number
+        }
+        Relationships: []
       }
       world_player_progression: {
         Row: {
@@ -1789,6 +2016,43 @@ export type Database = {
       }
       world_attendance_today_v1: { Args: { p_now?: string }; Returns: string }
       world_card: { Args: { p_user: string }; Returns: Json }
+      world_collection_account_ok_v1: {
+        Args: { p_user: string }
+        Returns: boolean
+      }
+      world_collection_discover_v1: {
+        Args: {
+          p_entry_id: string
+          p_idempotency_key: string
+          p_metadata?: Json
+          p_result_ref: string
+          p_source_ref: string
+          p_source_type: string
+          p_user: string
+        }
+        Returns: Json
+      }
+      world_collection_discovery_result_v1: {
+        Args: {
+          p_event: Database["private"]["Tables"]["world_collection_discovery_events"]["Row"]
+          p_status: string
+        }
+        Returns: Json
+      }
+      world_collection_entry_snapshot_v1: {
+        Args: {
+          p_entry: Database["private"]["Tables"]["world_collection_entry_catalog"]["Row"]
+          p_user: string
+        }
+        Returns: Json
+      }
+      world_collection_list_v1: { Args: { p_user: string }; Returns: Json }
+      world_collection_projection_json_v1: {
+        Args: {
+          p_projection: Database["private"]["Tables"]["world_player_collection_discoveries"]["Row"]
+        }
+        Returns: Json
+      }
       world_daily_quiz_account_ok_v1: {
         Args: { p_user: string }
         Returns: boolean
@@ -1908,6 +2172,37 @@ export type Database = {
       }
       world_landlord_pick_survivor_v1: { Args: never; Returns: string }
       world_level_for_exp_v1: { Args: { p_total_exp: number }; Returns: number }
+      world_life_skill_account_ok_v1: {
+        Args: { p_user: string }
+        Returns: boolean
+      }
+      world_life_skill_level_for_xp_v1: {
+        Args: { p_curve_id: string; p_total_xp: number }
+        Returns: number
+      }
+      world_life_skill_snapshot_v1: {
+        Args: { p_skill_id: string; p_user: string }
+        Returns: Json
+      }
+      world_life_skill_xp_apply_v1: {
+        Args: {
+          p_amount: number
+          p_idempotency_key: string
+          p_skill_id: string
+          p_source_id: string
+          p_source_type: string
+          p_user: string
+        }
+        Returns: Json
+      }
+      world_life_skill_xp_result_v1: {
+        Args: {
+          p_status: string
+          p_tx: Database["private"]["Tables"]["world_life_skill_xp_transactions"]["Row"]
+        }
+        Returns: Json
+      }
+      world_life_skills_list_v1: { Args: { p_user: string }; Returns: Json }
       world_lock_pair: {
         Args: { p_a: string; p_b: string }
         Returns: undefined
@@ -4967,6 +5262,19 @@ export type Database = {
         }
         Returns: Json
       }
+      world_collection_discover_v1: {
+        Args: {
+          p_entry_id: string
+          p_idempotency_key: string
+          p_metadata?: Json
+          p_result_ref: string
+          p_source_ref: string
+          p_source_type: string
+          p_user: string
+        }
+        Returns: Json
+      }
+      world_collection_list_v1: { Args: { p_user: string }; Returns: Json }
       world_exp_grant_v1: {
         Args: {
           p_amount: number
