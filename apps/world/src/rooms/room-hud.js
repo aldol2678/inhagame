@@ -7,7 +7,7 @@
 
 export const ROOM_VISIBILITY_TEXT = Object.freeze({ friends: "👥 친구 공개", private: "🔒 비공개" });
 
-export function createRoomHud({ root, onLeave = () => false, onSetVisibility = async () => null, doc = document }) {
+export function createRoomHud({ root, onLeave = () => false, onEdit = null, onSetVisibility = async () => null, doc = document }) {
   const el = (tag, className, text) => {
     const node = doc.createElement(tag);
     if (className) node.className = className;
@@ -45,6 +45,11 @@ export function createRoomHud({ root, onLeave = () => false, onSetVisibility = a
       privacy.setAttribute("aria-label", `공개 범위: ${ROOM_VISIBILITY_TEXT[visibility]}. 눌러서 바꾸기`);
       privacy.addEventListener("click", () => void toggleVisibility(visibility === "private" ? "friends" : "private"));
       actions.append(privacy);
+      if (onEdit) {
+        const edit = el("button", "room-hud-edit", "꾸미기"); edit.type = "button";
+        edit.disabled = state.phase === "CHECKING";
+        edit.addEventListener("click", () => onEdit()); actions.append(edit);
+      }
     }
     const leave = el("button", "room-hud-leave", "나가기");
     leave.type = "button";
@@ -84,4 +89,3 @@ export function createRoomHud({ root, onLeave = () => false, onSetVisibility = a
     get pending() { return pending; }
   };
 }
-

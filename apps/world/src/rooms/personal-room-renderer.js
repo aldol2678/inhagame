@@ -1,9 +1,10 @@
 // Social S1-D1.3 · DORM_1_BASIC template renderer.
-// Furniture is static template decoration in D1.3, not Collection ownership yet.
+// Fixed template fixtures and a separate Collection-owned placement layer.
 
 import * as pc from "playcanvas";
 import { box, surface } from "../campus-render-kit.js";
 import { PERSONAL_ROOM_BASIC, PERSONAL_ROOM_BASIC_FURNITURE } from "./personal-room-layout.js";
+import { createFurnitureLayer } from "./furniture-renderer.js";
 
 const {halfWidth:W,halfDepth:D,ceiling:H,wall:T,door}=PERSONAL_ROOM_BASIC;
 function glow(hex,intensity=1){
@@ -54,5 +55,6 @@ export function createPersonalRoomScene(app){
     const e=new pc.Entity(name);e.addComponent("light",{type:"omni",color:new pc.Color(1,0.92,0.82),intensity:0.7,range:7,castShadows:false});e.setLocalPosition(x,H-0.25,0);root.addChild(e);lights.push(e);
   }
   root.enabled=false;app.root.addChild(root);
-  return {root,lights,ambient:new pc.Color(0.43,0.41,0.39),clearColor:new pc.Color(0.17,0.16,0.15)};
+  const ownedFurniture = createFurnitureLayer(app,root);
+  return {root,lights,ownedFurniture,obstacles:ownedFurniture.obstacles,ambient:new pc.Color(0.43,0.41,0.39),clearColor:new pc.Color(0.17,0.16,0.15)};
 }

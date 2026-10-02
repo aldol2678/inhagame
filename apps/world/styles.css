@@ -4380,6 +4380,28 @@ body[data-space]:not([data-space="campus"]) > .helicopter-flight-hud-toggle { di
 }
 
 /* LANDSCAPE-HUD:start
+/* Collection furniture editor: input is owned by BLOCKING_UI while this modal is open. */
+.furniture-editor-backdrop { position:fixed; inset:0; z-index:1090; background:#10203355; }
+.furniture-editor { position:fixed; z-index:1100; right:14px; top:14px; bottom:14px; width:min(430px,calc(100vw - 28px)); overflow:auto; overscroll-behavior:contain; padding:18px; box-sizing:border-box; border:1px solid #b8c9d8; border-radius:18px; background:#f8fbff; color:#24394d; box-shadow:0 12px 50px #091b3c66; font:14px/1.5 sans-serif; }
+.furniture-editor[hidden],.furniture-editor-backdrop[hidden] { display:none; }
+.furniture-editor header,.furniture-editor footer { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.furniture-editor h2 { font-size:20px; margin:0; }
+.furniture-editor button,.furniture-editor select { min-height:44px; padding:8px 12px; border:1px solid #b7c9d8; border-radius:10px; background:white; color:#203d59; font:inherit; cursor:pointer; }
+.furniture-editor button:disabled,.furniture-editor select:disabled { opacity:.5; cursor:default; }
+.furniture-editor button:focus-visible,.furniture-editor select:focus-visible { outline:3px solid #3488ca; outline-offset:2px; }
+.furniture-help { margin:12px 0; color:#566b7e; }
+.furniture-plan { display:block; width:100%; aspect-ratio:10.8/8.4; border:2px solid #8f7760; border-radius:8px; cursor:crosshair; }
+.furniture-owned,.furniture-controls { display:flex; flex-wrap:wrap; gap:7px; margin:12px 0; }
+.furniture-owned button { flex:1 1 170px; font-size:13px; text-align:left; }
+.furniture-editor label { display:flex; align-items:center; flex-wrap:wrap; gap:8px; }
+.furniture-controls label { width:100%; }
+.furniture-note { padding:10px; border-radius:10px; background:#e5eef8; margin:12px 0; }
+.furniture-editor footer button:first-child { flex:1; background:#2868a4; border-color:#2868a4; color:white; }
+.furniture-confirm { border:1px solid #be7858; border-radius:12px; padding:10px; background:#fff0e7; }
+.furniture-confirm button { margin:4px; }
+@media(max-width:600px) { .furniture-editor { inset:8px; width:auto; padding:12px; border-radius:14px; } }
+@media(max-height:500px) and (min-width:601px) { .furniture-editor { width:390px; top:6px; bottom:6px; padding:12px; } .furniture-plan { max-height:200px; } }
+
    Mobile landscape HUD · phones held sideways (touch + landscape + short viewport).
    The portrait phone HUD keys off max-width, so a rotated phone (740–932px wide) used to fall through to the
    desktop-sized layout while joystick / jump / run were already active: the right rail and the action stack

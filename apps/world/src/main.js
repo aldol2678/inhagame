@@ -62,6 +62,9 @@ import { createPersonalRoomInteraction } from "./rooms/personal-room-interaction
 import { FriendRoomVisitClient, FRIEND_ROOM_VISIT_TEXT, createFriendRoomVisitController } from "./rooms/friend-room-visit.js";
 import { createPersonalRoomSession } from "./rooms/room-session.js";
 import { createRoomHud } from "./rooms/room-hud.js";
+import { createFurnitureClient } from "./rooms/furniture-client.js";
+import { createFurnitureEditor } from "./rooms/furniture-editor.js";
+import { PERSONAL_ROOM_BASIC_SPAWN } from "./rooms/personal-room-layout.js";
 import { isLobbyShellRequested } from "./lobby/lobby-shell.js";
 import { createLobbyWorldMode } from "./lobby/lobby-world.js";
 import { bindMainGateEntry, enterMainGate } from "./lobby/lobby-main-gate.js";
@@ -80,7 +83,7 @@ import { createMiniMapDataSource } from "./minimap/minimap-data.js";
 import { createMiniMapRenderer } from "./minimap/minimap-renderer.js";
 import { createMiniMapController } from "./minimap/minimap-controller.js";
 import { createFullMapController } from "./minimap/full-map-controller.js";
-import { createRoomMapDataSource } from "./minimap/room-map-data.js";
+import { createRoomMapDataSource, setPersonalRoomMapFurniture } from "./minimap/room-map-data.js";
 import { CAMPUS_NAV_SPACE, createCampusNavigation } from "./navigation/campus-navigation.js";
 import { createNavigationState } from "./navigation/navigation-state.js";
 import { createNavigationHud } from "./navigation/navigation-hud.js";
@@ -266,6 +269,9 @@ const fullMapInput = createInputFocusOwner({
 });
 const shopInput = createInputFocusOwner({
   manager: inputFocus, ownerId: "shop", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
+});
+const furnitureInput = createInputFocusOwner({
+  manager: inputFocus, ownerId: "room-furniture", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
 });
 const inventoryInput = createInputFocusOwner({
   manager: inputFocus, ownerId: "inventory", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
@@ -466,6 +472,9 @@ let personalRoomInteraction = null;
 let lastPersonalRoomUserId = null;
 // Social S1-D2: the Personal Room Session (private world:room:<uuid> channel) and friend visits.
 let roomSession = null;
+let roomFurniture = null;
+let furnitureEditor = null;
+let furnitureRefreshSeconds = 0;
 let friendRoomVisit = null;
 const lobbyQuestHighlight = createLobbyQuestHighlight({
   root: document.getElementById("lobby-quest-highlight"),
@@ -1105,6 +1114,7 @@ rooms = createRoomTransition({
     follow, stopFollowReason: FollowStopReason.ROOM, seating, seats, emotes,
     getOnline: () => online, places, streaming: { update: (dt, p) => streaming.update(dt, p) },
     closePanels: () => {
+      furnitureEditor?.forceClose();
       emoteMenu.setOpen(false);
       chatPanel.setOpen(false, { focus: false });
       playerCard.close();
@@ -1170,7 +1180,13 @@ personalRoomInteraction = createPersonalRoomInteraction({
 // tapping one opens the same Player Card (friends, block, report) as on the campus.
 const roomHud = createRoomHud({
   root: document.getElementById("room-hud"),
-  onLeave: () => rooms.exit(),
+  onLeave: () => furnitureEditor?.open ? furnitureEditor.requestClose(() => rooms.exit()) : rooms.exit(),
+  onEdit: () => {
+    if (!furnitureEditor?.openEditor()) {
+      showWorldStatus("저장된 방 배치를 확인 중이에요. 잠시 후 다시 눌러 주세요.");
+      void roomFurniture?.refresh();
+    }
+  },
   onSetVisibility: async (visibility) => {
     const room = await personalRoom.setVisibility(visibility);
     roomSession?.setVisibility(room.visibility);
@@ -1213,10 +1229,63 @@ friendRoomVisit = createFriendRoomVisitController({
   isLobbyShell: () => lobbyWorld.active || lobbyTransition.active,
   onStatus: showWorldStatus
 });
+// Housing D3: drafts stay account/room-scoped; visitors only receive server-authorized saved layouts.
+const moveOutOfFurniture = () => {
+  if (rooms.currentSpace !== "ROOM_PERSONAL_BASIC") return;
+  const pos = player.getLocalPosition();
+  const blocked = personalRoomScene.ownedFurniture.obstacles.some(box => box.id && !box.id.startsWith("personal_") &&
+    pos.x > box.minX - .24 && pos.x < box.maxX + .24 && pos.z > box.minZ - .24 && pos.z < box.maxZ + .24);
+  if (blocked) {
+    const spawn = PERSONAL_ROOM_BASIC_SPAWN.position;
+    controller.velocityY = 0; player.setLocalPosition(spawn.x,spawn.y,spawn.z);
+  }
+};
+let furnitureSceneSignature = "";
+roomFurniture = createFurnitureClient({
+  getClient: () => online?.supabase ?? null,
+  getUserId: () => online?.userId ?? null,
+  onChange: state => {
+    const signature = JSON.stringify(state.objects);
+    if (signature !== furnitureSceneSignature) {
+      furnitureSceneSignature = signature;
+      personalRoomScene.ownedFurniture.setObjects(state.objects);
+      setPersonalRoomMapFurniture(state.objects);
+      if (rooms.currentSpace === "ROOM_PERSONAL_BASIC") {
+        const map = createRoomMapDataSource("ROOM_PERSONAL_BASIC");
+        minimap?.setDataSource(map,{ id:map.id,indoor:true,radiusWorld:map.radiusWorld });
+        fullMap?.setDataSource(map,{ id:map.id,label:map.label });
+        if (!state.editing) moveOutOfFurniture();
+      }
+    }
+    furnitureEditor?.update(state);
+  }
+});
+furnitureEditor = createFurnitureEditor({
+  client:roomFurniture, inventory,
+  onOpenChange: open => {
+    if (open) {
+      furnitureInput.acquire();
+      inventoryPanel.setOpen(false); shopPanel.setOpen(false); wardrobePanel.setOpen(false);
+      dailyQuizPanel.setOpen(false); attendancePanel.setOpen(false); questJournal?.setOpen(false);
+      emoteMenu.setOpen(false); chatPanel.setOpen(false,{ focus:false }); playerCard.close();
+      void guestbookPanel.setOpen(false);
+    } else {
+      furnitureInput.release(); moveOutOfFurniture();
+      // Closing a conflicting draft must read the latest revision before the next edit session.
+      if (rooms.currentSpace === "ROOM_PERSONAL_BASIC" && roomFurniture?.state().roomId) void roomFurniture.refresh();
+    }
+  }
+});
+window.addEventListener("beforeunload", event => {
+  const state = roomFurniture.state();
+  if (state.editing && (state.dirty || state.pending)) { event.preventDefault(); event.returnValue = ""; }
+});
+
 // The room scene is shared; the session (who is here, which channel) follows the room metadata.
 rooms.onChange((status) => {
   const meta = status.roomId === "ROOM_PERSONAL_BASIC" ? status.metadata : null;
-  if (!meta?.personalRoomId || !meta?.ownerUserId) { roomSession.stop(); return; }
+  if (!meta?.personalRoomId || !meta?.ownerUserId) { roomSession.stop(); roomFurniture.reset(); return; }
+  void roomFurniture.bind(meta.personalRoomId.toLowerCase());
   const current = roomSession.status();
   if (current.active && current.roomId === meta.personalRoomId.toLowerCase()) return;
   void roomSession.enter({
@@ -1595,7 +1664,7 @@ try {
     getOverlayState: () => ({
       hudMenu: hudMenu.open, keyboardHelp: keyboardHelp?.open === true, friends: friendPanel.open,
       playerCard: playerCard.current != null, guestbook: guestbookPanel.open, shop: shopPanel.open, inventory: inventoryPanel.open, wardrobe: wardrobePanel.open,
-      blocking: dailyQuizPanel.open || attendancePanel.open || questJournal?.open === true,
+      blocking: furnitureEditor?.open === true || dailyQuizPanel.open || attendancePanel.open || questJournal?.open === true,
       npcConversation: npcTest?.isConversationOpen?.() === true,
       mcmEvent: mcmEventUi.openState || mcmEventRuntime.isDialogueOpen() === true,
       profile: document.getElementById("profile-panel")?.hidden === false,
@@ -1909,6 +1978,10 @@ places.onPlaceZoneChanged((previous,next)=>{
 app.on("update", (dt) => {
   syncAudio();
   roomSession?.update(dt);
+  if (rooms.currentSpace === "ROOM_PERSONAL_BASIC") {
+    furnitureRefreshSeconds += dt;
+    if (furnitureRefreshSeconds >= 15) { furnitureRefreshSeconds = 0; void roomFurniture?.refresh(); }
+  } else furnitureRefreshSeconds = 0;
   if (audioDebug && performance.now() - lastAudioDebugAt > 250) {
     lastAudioDebugAt = performance.now();
     audioDebug.textContent = JSON.stringify(worldAudio?.status() ?? { degraded: true }, null, 2);
@@ -2098,6 +2171,7 @@ try {
     inkyungSideEvent.setScope(nextRoomUserId ?? "guest");
     const roomIdentityChanged = lastPersonalRoomUserId !== null && nextRoomUserId !== lastPersonalRoomUserId;
     if (!identity || roomIdentityChanged) roomSession?.stop();
+    if (!identity || roomIdentityChanged) roomFurniture?.reset();
     if ((!identity || roomIdentityChanged) && rooms?.currentSpace === "ROOM_PERSONAL_BASIC") {
       rooms.exit({ force: true });
     }
@@ -2321,6 +2395,8 @@ window.__INHAGAME_P0__ = {
   friendRoomVisit,
   friendRoomVisitClient,
   roomHud,
+  roomFurniture,
+  furnitureEditor,
   worldAudio,
   clubRoom,
   mcmEvent,
@@ -2408,7 +2484,7 @@ window.__INHAGAME_P0__ = {
       available: guestbook.available
     },
     personalRoom: rooms.currentSpace === "ROOM_PERSONAL_BASIC"
-      ? { active: true, session: roomSession?.status() ?? null, sessionStats: roomSession?.stats ?? null }
+      ? { active: true, session: roomSession?.status() ?? null, sessionStats: roomSession?.stats ?? null, furniture: roomFurniture?.state() ?? null }
       : { active: false, sessionStats: roomSession?.stats ?? null },
     mcm2026: {
       preview: mcmEventPreviewMode,

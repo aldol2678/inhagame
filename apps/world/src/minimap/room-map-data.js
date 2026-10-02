@@ -8,6 +8,7 @@ import { PERSONAL_ROOM_BASIC, PERSONAL_ROOM_BASIC_EXIT, PERSONAL_ROOM_BASIC_FURN
 import { MCM_2026_ROOM, MCM_2026_ROOM_EXIT, MCM_2026_ROOM_FURNITURE, MCM_2026_ROOM_ID } from "../events/zombie-university-2026/minigame-room-layout.js";
 import { ROOMS } from "../rooms/room-registry.js";
 import { MAP_SURFACE, createMapPoiRegistry } from "./minimap-poi-registry.js";
+import { FURNITURE_BY_ID } from "../rooms/furniture-layout.js";
 
 export const ROOM_MAP_GEOMETRY_KIND = Object.freeze({
   ROOM_FLOOR: "ROOM_FLOOR",
@@ -66,6 +67,17 @@ function buildRoomGeometry(roomId, profile) {
 }
 
 const roomMapCache = new Map();
+let personalFurnitureGeometry = Object.freeze([]);
+let personalGeometryCache = null;
+export function setPersonalRoomMapFurniture(objects) {
+  personalGeometryCache = null;
+  personalFurnitureGeometry = Object.freeze(objects.map(object => {
+    const item = FURNITURE_BY_ID.get(object.itemId);
+    return Object.freeze({ id: `room.ROOM_PERSONAL_BASIC.owned.${object.id}`, kind: ROOM_MAP_GEOMETRY_KIND.ROOM_FURNITURE,
+      source: "COLLECTION_FURNITURE", style: "furniture",
+      rings: Object.freeze([rectangleRing(object.x,object.z,item.width,item.depth,-object.yaw)]) });
+  }));
+}
 const roomPoi = exit => Object.freeze([
   Object.freeze({
     poiId: "room.exit",
@@ -84,7 +96,8 @@ export function createRoomMapDataSource(roomId) {
   if (!profile || !ROOMS[roomId]) return null;
   if (roomMapCache.has(roomId)) return roomMapCache.get(roomId);
   const { layout, exit } = profile;
-  const geometry = buildRoomGeometry(roomId, profile);
+  const baseGeometry = buildRoomGeometry(roomId, profile);
+  const geometry = () => roomId === "ROOM_PERSONAL_BASIC" ? (personalGeometryCache ??= Object.freeze([...baseGeometry,...personalFurnitureGeometry])) : baseGeometry;
   const bounds = Object.freeze({
     minX: -layout.halfWidth, maxX: layout.halfWidth,
     minZ: -layout.halfDepth, maxZ: layout.halfDepth
@@ -106,12 +119,12 @@ export function createRoomMapDataSource(roomId) {
     indoor: true,
     radiusWorld: Math.max(layout.halfWidth, layout.halfDepth) + 0.7,
     bounds,
-    geometry: () => geometry,
+    geometry,
     poiRegistry: () => registry,
     refreshState: (context = null) => registry.list({ surface: MAP_SURFACE.MINIMAP, context }),
     status: () => Object.freeze({
       roomId,
-      geometryCount: geometry.length,
+      geometryCount: geometry().length,
       poiCount: registry.size
     })
   });

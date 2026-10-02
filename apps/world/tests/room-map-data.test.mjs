@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { CLUB_ROOM, CLUB_ROOM_EXIT, CLUB_ROOM_FURNITURE } from "../src/rooms/club-room-layout.js";
 import { DORM_1_LOBBY, DORM_1_LOBBY_EXIT } from "../src/rooms/dorm1-lobby-layout.js";
 import { PERSONAL_ROOM_BASIC, PERSONAL_ROOM_BASIC_EXIT } from "../src/rooms/personal-room-layout.js";
-import { createRoomMapDataSource, ROOM_MAP_GEOMETRY_KIND } from "../src/minimap/room-map-data.js";
+import { createRoomMapDataSource, ROOM_MAP_GEOMETRY_KIND, setPersonalRoomMapFurniture } from "../src/minimap/room-map-data.js";
 
 test("club room map source reuses authoritative room bounds and layout", () => {
   const source = createRoomMapDataSource("ROOM_CLUBHOUSE_01");
@@ -46,6 +46,25 @@ test("room exit POI follows the authoritative exit position", () => {
 
 test("unknown room ids do not invent interior maps", () => {
   assert.equal(createRoomMapDataSource("ROOM_UNKNOWN"), null);
+});
+
+test("saved Collection furniture refreshes the cached personal room map and clears across rooms", () => {
+  const personal = createRoomMapDataSource("ROOM_PERSONAL_BASIC"), club = createRoomMapDataSource("ROOM_CLUBHOUSE_01");
+  const base = personal.geometry(), clubGeometry = club.geometry();
+  const object = { id:"11111111-1111-4111-8111-111111111111",itemId:"furniture.induck_chair",surface:"floor",x:-2,z:-1,yaw:45 };
+  setPersonalRoomMapFurniture([object]);
+  try {
+    const geometry = personal.geometry();
+    assert.equal(createRoomMapDataSource("ROOM_PERSONAL_BASIC"),personal);
+    assert.equal(personal.geometry(),geometry,"geometry identity is stable between updates");
+    assert.equal(geometry.length,base.length+1);
+    assert.equal(personal.status().geometryCount,geometry.length);
+    const owned = geometry.find(item=>item.source === "COLLECTION_FURNITURE");
+    assert.equal(owned.id,`room.ROOM_PERSONAL_BASIC.owned.${object.id}`);
+    assert.ok(owned.rings[0].every(point=>Number.isFinite(point.x)&&Number.isFinite(point.z)));
+    assert.equal(club.geometry(),clubGeometry,"other interiors keep their own geometry");
+  } finally { setPersonalRoomMapFurniture([]); }
+  assert.deepEqual(personal.geometry(),base,"leaving/rebinding never leaks another owner's placement");
 });
 
 

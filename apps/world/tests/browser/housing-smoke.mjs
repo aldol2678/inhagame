@@ -131,7 +131,7 @@ async function checkRoomHud(page, label) {
     for (const other of ["topbar", "menu", "minimap", "context"])
       assert.ok(!overlap(boxes.hud, boxes[other]), `${label} ${role}: HUD overlaps ${other} ${JSON.stringify(boxes)}`);
     for (const b of boxes.buttons) assert.ok(b.height >= 36, `${label} ${role}: ${b.text} tap target ${b.height}px`);
-    assert.deepEqual(boxes.buttons.map((b) => b.text), role === "owner" ? ["👥 친구 공개", "나가기"] : ["나가기"]);
+    assert.deepEqual(boxes.buttons.map((b) => b.text), role === "owner" ? ["👥 친구 공개", "꾸미기", "나가기"] : ["나가기"]);
     out[role] = { hud: boxes.hud, buttons: boxes.buttons.length };
     // Optional evidence: HOUSING_SMOKE_SHOTS=<dir> saves one screenshot per viewport and role.
     if (process.env.HOUSING_SMOKE_SHOTS) {
@@ -146,6 +146,84 @@ async function checkRoomHud(page, label) {
     }
   }
   return out;
+}
+
+// Native editor + real PlayCanvas primitives, with an isolated in-memory authority. This is an
+// offline module integration contract, not signed-in two-account / production Supabase QA.
+async function checkFurniture(page, label) {
+  await page.evaluate(async () => {
+    const { createFurnitureClient } = await import("/src/rooms/furniture-client.js");
+    const { createFurnitureEditor } = await import("/src/rooms/furniture-editor.js");
+    const { createFurnitureLayer } = await import("/src/rooms/furniture-renderer.js");
+    const { ROOM_FURNITURE } = await import("/src/rooms/furniture-layout.js");
+    const d = window.__INHAGAME_P0__, room = d.app.root.findByName("Room_ROOM_PERSONAL_BASIC");
+    const baselineChildren = room.children.length, enabled = d.controller.inputEnabled;
+    const originalEditor = document.getElementById("furniture-editor"); originalEditor.id = "furniture-editor-inactive-smoke";
+    const layer = createFurnitureLayer(d.app,room);
+    const roomId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", userId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    let stored = { roomId,role:"owner",revision:0,objects:[] }, lostResponse = true, ui;
+    const calls = [];
+    const inventory = { state:"READY",snapshot:{items:ROOM_FURNITURE.map(item=>({ itemId:item.itemId,quantity:1 }))},
+      refresh:async()=>true,onChange:()=>()=>{} };
+    const client = createFurnitureClient({ getUserId:()=>userId,getClient:()=>({ rpc:async(name,args)=>{
+      calls.push({ name,args:structuredClone(args) });
+      if (name === "save_my_room_furniture_v1") {
+        if (JSON.stringify(stored.objects) !== JSON.stringify(args.p_objects)) stored = { ...stored,revision:stored.revision+1,objects:structuredClone(args.p_objects) };
+        if (lostResponse) { lostResponse=false; return {data:null,error:{message:"response lost"}}; }
+      }
+      return {data:structuredClone(stored),error:null};
+    }}),onChange:state=>{ layer.setObjects(state.objects); ui?.update(state); } });
+    ui = createFurnitureEditor({ client,inventory,onOpenChange:open=>{ d.controller.inputEnabled = !open; } });
+    await client.bind(roomId); ui.openEditor();
+    window.__FURNITURE_SMOKE__ = {client,ui,layer,calls,inventory,roomId,room,baselineChildren,enabled,originalEditor,
+      items:ROOM_FURNITURE.map(item=>item.itemId),visitor:()=>{stored.role="visitor";} };
+  });
+  const editor = page.locator("#furniture-editor");
+  assert.equal(await editor.isVisible(),true,`${label}: editor opens`);
+  const bounds = await editor.boundingBox(); const viewport = page.viewportSize();
+  assert.ok(bounds.x >= 0 && bounds.y >= 0 && bounds.x+bounds.width <= viewport.width && bounds.y+bounds.height <= viewport.height,`${label}: editor fits viewport`);
+  for (const itemId of await page.evaluate(()=>window.__FURNITURE_SMOKE__.items))
+    await editor.locator(`button[data-focus="${itemId}"]`).click();
+  const chairId = await page.evaluate(()=>window.__FURNITURE_SMOKE__.client.state().objects.find(row=>row.itemId==="furniture.induck_chair").id);
+  await editor.locator('select[data-focus="selection"]').selectOption(chairId);
+  const plan = editor.locator("svg.furniture-plan"), planBounds = await plan.boundingBox();
+  await plan.click({position:{x:planBounds.width*3.4/10.8,y:planBounds.height*5.2/8.4}});
+  await editor.getByRole("button",{name:"가구 이동 ↑",exact:true}).click();
+  await editor.locator('button[data-focus="rotation"]').click();
+  assert.equal(await page.evaluate(()=>window.__FURNITURE_SMOKE__.layer.root.children.length),9,`${label}: all nine real 3D models render`);
+  assert.equal(await editor.getByRole("button",{name:"저장",exact:true}).isEnabled(),true);
+  await editor.getByRole("button",{name:"저장",exact:true}).click();
+  await page.waitForFunction(()=>window.__FURNITURE_SMOKE__.client.state().error==="UNAVAILABLE");
+  assert.equal(await page.evaluate(()=>window.__FURNITURE_SMOKE__.client.state().dirty),true,`${label}: lost save response keeps draft`);
+  await editor.getByRole("button",{name:"저장",exact:true}).click();
+  await page.waitForFunction(()=>!window.__FURNITURE_SMOKE__.client.state().pending&&!window.__FURNITURE_SMOKE__.client.state().dirty);
+  const saves = await page.evaluate(()=>window.__FURNITURE_SMOKE__.calls.filter(row=>row.name.startsWith("save")));
+  assert.equal(saves.length,2);assert.deepEqual(saves[0],saves[1],`${label}: identical snapshot retry`);
+  await editor.getByRole("button",{name:"완료",exact:true}).click();
+  await page.evaluate(async()=>{const f=window.__FURNITURE_SMOKE__;f.client.reset();await f.client.bind(f.roomId);f.ui.openEditor();});
+  assert.equal(await page.evaluate(()=>window.__FURNITURE_SMOKE__.client.state().objects.length),9,`${label}: reload restores saved layout`);
+  await editor.locator('select[data-focus="selection"]').selectOption(chairId);
+  await editor.getByRole("button",{name:"회수",exact:true}).click();
+  await editor.getByRole("button",{name:"닫기",exact:true}).click();
+  await editor.getByRole("button",{name:"변경 버리고 닫기",exact:true}).click();
+  assert.equal(await page.evaluate(()=>window.__FURNITURE_SMOKE__.layer.root.children.length),9,`${label}: discard restores 3D layout`);
+  await page.evaluate(()=>window.__FURNITURE_SMOKE__.ui.openEditor());
+  await editor.locator('select[data-focus="selection"]').selectOption(chairId);
+  await editor.getByRole("button",{name:"회수",exact:true}).click();
+  await editor.getByRole("button",{name:"저장",exact:true}).click();
+  await page.waitForFunction(()=>!window.__FURNITURE_SMOKE__.client.state().pending&&!window.__FURNITURE_SMOKE__.client.state().dirty);
+  await editor.getByRole("button",{name:"완료",exact:true}).click();
+  const result = await page.evaluate(async()=>{
+    const f=window.__FURNITURE_SMOKE__;f.client.reset();await f.client.bind(f.roomId);
+    const restored=f.client.state().objects.length,quantityUnchanged=f.inventory.snapshot.items.every(row=>row.quantity===1);
+    f.client.reset();f.visitor();await f.client.bind(f.roomId);
+    const visitorDenied=f.ui.openEditor()===false&&await f.client.save(f.inventory.snapshot.items)===false;
+    f.client.reset();f.ui.dispose();f.layer.root.destroy();f.originalEditor.id="furniture-editor";window.__INHAGAME_P0__.controller.inputEnabled=f.enabled;
+    const noLeak=f.room.children.length===f.baselineChildren;delete window.__FURNITURE_SMOKE__;
+    return {restored,quantityUnchanged,visitorDenied,noLeak};
+  });
+  assert.deepEqual(result,{restored:8,quantityUnchanged:true,visitorDenied:true,noLeak:true},`${label}: recall save, visitor guard, ownership and cleanup`);
+  console.log(`furniture module smoke ${label}: nine models, lost-response retry, reload, recall and visitor guard PASS (in-memory authority)`);
 }
 
 async function runLoop(smoke, { page, fatalError }, viewport, label) {
@@ -203,7 +281,7 @@ async function runLoop(smoke, { page, fatalError }, viewport, label) {
     assert.equal(room.roomStatus.parentRoomId, "ROOM_DORM1_LOBBY");
     assert.match(room.zoneLabel, /내 방/);
     assert.equal(room.audioZone, "PERSONAL_ROOM", "audio binds the personal room zone");
-    if (cycle === 0) hud = await checkRoomHud(page, label);
+    if (cycle === 0) { hud = await checkRoomHud(page, label); await checkFurniture(page,label); }
 
     // 5. Personal Room → Dorm Lobby return anchor (never campus).
     await page.waitForTimeout(900);
@@ -253,4 +331,3 @@ try {
 } finally {
   await smoke.close();
 }
-
