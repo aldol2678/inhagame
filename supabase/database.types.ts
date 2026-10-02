@@ -181,6 +181,57 @@ export type Database = {
         }
         Relationships: []
       }
+      world_activity_attempts: {
+        Row: {
+          activated_at: string | null
+          activity_id: string
+          attempt_id: string
+          client_attempt_key: string
+          created_at: string
+          definition_version: number
+          expires_at: string | null
+          finalized_at: string | null
+          outcome_type: string | null
+          resolver_version: number
+          result_ref: string | null
+          source_ref: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          activated_at?: string | null
+          activity_id: string
+          attempt_id?: string
+          client_attempt_key: string
+          created_at?: string
+          definition_version: number
+          expires_at?: string | null
+          finalized_at?: string | null
+          outcome_type?: string | null
+          resolver_version: number
+          result_ref?: string | null
+          source_ref: string
+          status: string
+          user_id: string
+        }
+        Update: {
+          activated_at?: string | null
+          activity_id?: string
+          attempt_id?: string
+          client_attempt_key?: string
+          created_at?: string
+          definition_version?: number
+          expires_at?: string | null
+          finalized_at?: string | null
+          outcome_type?: string | null
+          resolver_version?: number
+          result_ref?: string | null
+          source_ref?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       world_appearance_transactions: {
         Row: {
           action: string
@@ -1502,6 +1553,47 @@ export type Database = {
       world_accompany_expire: { Args: { p_user: string }; Returns: undefined }
       world_accompany_lock_users: {
         Args: { p_a: string; p_b: string }
+        Returns: undefined
+      }
+      world_activity_account_ok_v1: {
+        Args: { p_user: string }
+        Returns: boolean
+      }
+      world_activity_attempt_json_v1: {
+        Args: {
+          p_attempt: Database["private"]["Tables"]["world_activity_attempts"]["Row"]
+        }
+        Returns: Json
+      }
+      world_activity_finalize_v1: {
+        Args: {
+          p_attempt_id: string
+          p_outcome_type: string
+          p_result_ref?: string
+          p_terminal_status: string
+          p_user: string
+        }
+        Returns: Json
+      }
+      world_activity_start_v1: {
+        Args: {
+          p_activity_id: string
+          p_client_attempt_key: string
+          p_definition_version: number
+          p_expires_at?: string
+          p_resolver_version: number
+          p_source_ref: string
+          p_user: string
+        }
+        Returns: Json
+      }
+      world_activity_validate_identity_v1: {
+        Args: {
+          p_activity_id: string
+          p_definition_version: number
+          p_resolver_version: number
+          p_source_ref: string
+        }
         Returns: undefined
       }
       world_admin_caller_v1: { Args: { p_permission: string }; Returns: string }
@@ -4677,6 +4769,28 @@ export type Database = {
       verify_inha_duck_ops_basic_v1: {
         Args: { p_basic_sha256: string; p_token: string }
         Returns: boolean
+      }
+      world_activity_finalize_v1: {
+        Args: {
+          p_attempt_id: string
+          p_outcome_type: string
+          p_result_ref?: string
+          p_terminal_status: string
+          p_user: string
+        }
+        Returns: Json
+      }
+      world_activity_start_v1: {
+        Args: {
+          p_activity_id: string
+          p_client_attempt_key: string
+          p_definition_version: number
+          p_expires_at?: string
+          p_resolver_version: number
+          p_source_ref: string
+          p_user: string
+        }
+        Returns: Json
       }
       world_exp_grant_v1: {
         Args: {
