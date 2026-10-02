@@ -1,3 +1,13 @@
+import { CAMPUS_BALLOON_ID } from "./mounts/campus-balloon-world.js";
+import { createCampusBalloon } from "./mounts/campus-balloon-render.js";
+import { CAMPUS_SHUTTLE_ID } from "./mounts/campus-shuttle-world.js";
+import { createCampusShuttle } from "./mounts/campus-shuttle-render.js";
+import { DUCK_BOAT_ID } from "./mounts/duck-boat-world.js";
+import { createDuckBoat } from "./mounts/duck-boat-render.js";
+import { CAMPUS_KART_ID } from "./mounts/campus-kart-world.js";
+import { createCampusKart } from "./mounts/campus-kart-render.js";
+import { CAMPUS_KICKBOARD_ID } from "./mounts/campus-kickboard-world.js";
+import { createCampusKickboard } from "./mounts/campus-kickboard-render.js";
 import * as pc from "playcanvas";
 import { composeEmotePose, emoteOffsets, REST_OFFSETS } from "./online/emotes.js";
 import { SIT_OFFSETS } from "./seat-anchors.js";
@@ -93,9 +103,18 @@ export function createCharacter(app, player) {
   function positionDuck(mounted, bob = 0, bodyEuler = duckBaseEuler) {
     const bike = mounted && ridingBike(player);
     const helicopter = mounted && ridingHelicopter(player);
-    const pose = duckPose(modelState, mounted, bike, helicopter, bob);
-    const riderZ = bike ? BIKE_RIDER_Z : helicopter ? HELICOPTER_RIDER_Z : mounted ? -0.22 : 0;
-    duckVisual.setLocalPosition(0, pose.y, riderZ);
+    const offsets = {
+      [CAMPUS_KICKBOARD_ID]: [0, 0.17, 0],
+      [CAMPUS_KART_ID]: [-0.42, 0.4, 0.35],
+      [DUCK_BOAT_ID]: [-0.3, 0.3, -0.15],
+      [CAMPUS_SHUTTLE_ID]: [0, 0.4, 0],
+      [CAMPUS_BALLOON_ID]: [0, 0.65, 0]
+    };
+    const seat = mounted ? offsets[player.mountKind] : null;
+    const pose = duckPose(modelState, seat ? false : mounted, bike, helicopter, bob);
+    if (seat) { pose.y += seat[1]; pose.feetY += seat[1]; pose.labelY += seat[1]; }
+    const riderZ = seat ? seat[2] : bike ? BIKE_RIDER_Z : helicopter ? HELICOPTER_RIDER_Z : mounted ? -0.22 : 0;
+    duckVisual.setLocalPosition(seat ? seat[0] : 0, pose.y, riderZ);
     duckVisual.setLocalEulerAngles(bodyEuler[0], bodyEuler[1], bodyEuler[2]);
     duckVisual.setLocalScale(pose.scale, pose.scale, pose.scale);
     equipment.follow({
@@ -105,11 +124,25 @@ export function createCharacter(app, player) {
     nameplateHeight = pose.labelY;
   }
   positionDuck(false);
+  const riderKickboard = createCampusKickboard(player, { rider: true });
+  const riderKart = createCampusKart(player, { rider: true });
+  const riderDuckBoat = createDuckBoat(player, { rider: true });
+  const riderShuttle = createCampusShuttle(player, { rider: true });
+  const riderBalloon = createCampusBalloon(player, { rider: true });
 
   function showMountVisuals() {
     const bike = ridingBike(player);
     const helicopter = ridingHelicopter(player);
-    dragonVisual.enabled = mountedNow && !bike && !helicopter && !firstPerson;
+    const prototypes = [
+      [CAMPUS_KICKBOARD_ID, riderKickboard], [CAMPUS_KART_ID, riderKart],
+      [DUCK_BOAT_ID, riderDuckBoat], [CAMPUS_SHUTTLE_ID, riderShuttle],
+      [CAMPUS_BALLOON_ID, riderBalloon]
+    ];
+    for (const [id, visual] of prototypes) {
+      visual.enabled = mountedNow && player.mountKind === id && !firstPerson;
+    }
+    const prototype = prototypes.some(([id]) => player.mountKind === id);
+    dragonVisual.enabled = mountedNow && !bike && !helicopter && !prototype && !firstPerson;
     riderBike.enabled = mountedNow && bike && !firstPerson;
     riderHelicopter.root.enabled = mountedNow && helicopter && !firstPerson;
   }
@@ -185,7 +218,7 @@ export function createCharacter(app, player) {
       elapsed += dt;
       const bike = ridingBike(player);
       const helicopter = ridingHelicopter(player);
-      const fly = mounted && !bike && !helicopter;
+      const fly = mounted && !bike && !helicopter && ![CAMPUS_KICKBOARD_ID, CAMPUS_KART_ID, DUCK_BOAT_ID, CAMPUS_SHUTTLE_ID, CAMPUS_BALLOON_ID].includes(player.mountKind);
       const attitude = helicopter && player.flightAttitude
         ? player.flightAttitude : { pitch: 0, roll: 0 };
       const bob = fly && modelState === 'glb' ? Math.sin(elapsed * 4) * .045
@@ -233,3 +266,4 @@ export function createCharacter(app, player) {
     }
   };
 }
+

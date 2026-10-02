@@ -6,7 +6,16 @@ import { getPlaceZoneAt } from './src/place-zone-registry.js';
 import { moveAroundObstacles, resolveHeight, cameraSafeFraction } from "./src/world-collision.js";
 import { createCampusTour } from "./src/campus-tour.js";
 import { selectContextAction } from "./src/context-action.js";
-import { movementHudState, MOVEMENT_HUD_STATES } from "./src/player-controller.js";
+import {
+  movementHudState, MOVEMENT_HUD_STATES, HELICOPTER_SUMMON_SHAPE, findHelicopterSummonPose
+} from "./src/player-controller.js";
+import {
+  MOBILITY_AVAILABILITY, MOBILITY_ACCESS, SUMMON_POLICY, getMobilityDefinition, getPlayerVisibleMobility
+} from "./src/mobility/mobility-registry.js";
+import {
+  ACTIVE_MOUNT_STORAGE_KEY, MOBILITY_FAVORITES_STORAGE_KEY,
+  readActiveMountId, readMobilityFavorites, writeActiveMountId, writeMobilityFavorites
+} from "./src/mobility/mobility-book.js";
 import { createHelicopterFlightState, HELICOPTER_FLIGHT_LIMITS, stepHelicopterFlight } from "./src/mounts/helicopter-flight.js";
 import { HELICOPTER_ASSISTED_POWER, HELICOPTER_FLIGHT_HUD_STORAGE_KEY, helicopterFlightState, helicopterFlightTelemetry, readHelicopterFlightHudEnabled, writeHelicopterFlightHudEnabled } from "./src/mounts/helicopter-flight-hud.js";
 import { createLobbyPresenceSummary } from "./src/lobby/lobby-presence-summary.js";
@@ -148,6 +157,68 @@ assert.equal(flightHudPreference.get(HELICOPTER_FLIGHT_HUD_STORAGE_KEY), "off");
 assert.equal(readHelicopterFlightHudEnabled(flightHudStorage), false, "flight HUD preference persists off");
 writeHelicopterFlightHudEnabled(true, flightHudStorage);
 assert.equal(readHelicopterFlightHudEnabled(flightHudStorage), true, "flight HUD preference can turn back on");
+
+// Mobility Book P0.8: Registry contract, hidden-policy, preferences and clear-area spawn.
+{
+  const visibleMobility = getPlayerVisibleMobility();
+  const helicopter = getMobilityDefinition("vehicle.helicopter.campus_prototype");
+  const bike = getMobilityDefinition("vehicle.bicycle.campus_prototype");
+  const dragon = getMobilityDefinition("creature.annyongi_dragon");
+  const spacecraft = getMobilityDefinition("spacecraft.inha_explorer.prototype");
+  assert.equal(helicopter.availability, MOBILITY_AVAILABILITY.EXPERIMENTAL);
+  assert.equal(helicopter.access, MOBILITY_ACCESS.TEST_ONLY);
+  assert.equal(helicopter.activeEligible, false);
+  assert.equal(helicopter.summonPolicy, SUMMON_POLICY.CLEAR_AREA);
+  assert.ok(helicopter.summonClearance.radius > 1);
+  assert.equal(bike.availability, MOBILITY_AVAILABILITY.EXPERIMENTAL);
+  assert.equal(bike.access, MOBILITY_ACCESS.TEST_ONLY);
+  assert.equal(bike.summonPolicy, SUMMON_POLICY.FIXED_ANCHOR);
+  assert.equal(bike.spawnAnchorPolicy, "MAIN_GATE_TEST_ANCHOR");
+  assert.equal(dragon.access, MOBILITY_ACCESS.EVENT);
+  assert.equal(dragon.activeEligible, false);
+  assert.equal(spacecraft.availability, MOBILITY_AVAILABILITY.HIDDEN);
+  assert.equal(visibleMobility.some((entry) => entry.mobilityId === spacecraft.mobilityId), false,
+    "HIDDEN mobility never enters the player book");
+  for (const definition of visibleMobility) {
+    for (const key of ["activeEligible", "summonPolicy", "summonClearance", "spawnDomain", "spawnAnchorPolicy"]) {
+      assert.ok(Object.hasOwn(definition, key), `Mobility definition exposes ${key}`);
+    }
+  }
+
+  const values = new Map();
+  const storage = {
+    getItem: key => values.get(key) ?? null,
+    setItem: (key, value) => values.set(key, value),
+    removeItem: key => values.delete(key)
+  };
+  assert.deepEqual([...readMobilityFavorites(storage)], []);
+  writeMobilityFavorites(new Set(["vehicle.helicopter.campus_prototype"]), storage);
+  assert.equal(values.has(MOBILITY_FAVORITES_STORAGE_KEY), true);
+  assert.deepEqual([...readMobilityFavorites(storage)], ["vehicle.helicopter.campus_prototype"]);
+  assert.equal(readActiveMountId(storage), null);
+  writeActiveMountId("mount.future.owned", storage);
+  assert.equal(values.get(ACTIVE_MOUNT_STORAGE_KEY), "mount.future.owned");
+  assert.equal(readActiveMountId(storage), "mount.future.owned");
+  writeActiveMountId(null, storage);
+  assert.equal(readActiveMountId(storage), null);
+
+  const summon = findHelicopterSummonPose({
+    origin: { x: 0, z: 0 }, yawDeg: 0, groundY: 1.15,
+    groundHeight: () => 0, overWater: () => false,
+    bounds: { minX: -20, maxX: 20, minZ: -20, maxZ: 20 },
+    canOccupyAt: (_position, shape) => shape === HELICOPTER_SUMMON_SHAPE
+  });
+  assert.ok(summon, "helicopter finds a deterministic nearby clear-area spawn");
+  assert.equal(summon.x, 0);
+  assert.equal(summon.z, 4.8);
+  assert.equal(summon.y, 0.05);
+  assert.equal(findHelicopterSummonPose({
+    origin: { x: 0, z: 0 }, groundHeight: () => 0, overWater: () => false,
+    bounds: { minX: -20, maxX: 20, minZ: -20, maxZ: 20 },
+    canOccupyAt: () => false
+  }), null, "helicopter refuses summon when no clear candidate exists");
+}
+console.log("Mobility Book P0.8 registry / summon contracts PASS");
 
 assert.equal(movementHudState({ mounted:false, grounded:true }), MOVEMENT_HUD_STATES.WALK);
 assert.equal(movementHudState({ mounted:true, grounded:true }), MOVEMENT_HUD_STATES.MOUNT_GROUND);
@@ -316,8 +387,8 @@ assert.match(autoMoveSource, /PAUSED:\s*"PAUSED"/, "P1-A adds an explicit resuma
 assert.match(autoMoveSource, /function resume\(navigationSnapshot\)/, "P1-A can resume the same destination session");
 assert.match(autoMoveSource, /autoMove\.pause|\.pause\(AUTO_MOVE_CANCEL_REASON\.MANUAL_INPUT\)/,
   "P1-A manual control pauses Auto Move instead of permanently cancelling it");
-assert.match(playerControllerSource, /\(!this\.mounted \|\| this\.onBike\) && this\.assist !== null/,
-  "P1-B allows assisted movement for the campus bike while keeping flight mounts manual-only");
+assert.match(playerControllerSource, /\(!this\.mounted \|\| this\.onGroundMount\) && this\.assist !== null/,
+  "P1-B allows assisted movement for ground mounts while keeping flight mounts manual-only");
 assert.match(campusCss, /\.nav-guidance\s*\{[^}]*position:\s*fixed[^}]*max-width:\s*min\(236px/s,
   "Guidance chip stays compact");
 assert.match(campusCss, /\.minimap-route-line\s*\{[^}]*stroke:\s*#ff7c6d/s,
@@ -325,7 +396,7 @@ assert.match(campusCss, /\.minimap-route-line\s*\{[^}]*stroke:\s*#ff7c6d/s,
 assert.match(campusCss, /\.full-map-objective\[hidden\],\s*\.full-map-destination\[hidden\][^{]*\{[^}]*display:\s*none\s*!important/s,
   "Hidden Full Map objective/destination markers really hide (display:grid must not override [hidden])");
 const m3MainSource =readFileSync(new URL("./src/main.js", import.meta.url), "utf8");
-assert.match(m3MainSource, /\(!controller\.mounted \|\| controller\.onBike\)/,
+assert.match(m3MainSource, /\(!controller\.mounted \|\| controller\.onGroundMount\)/,
   "P1-B Auto Move availability includes the campus bike but not other mounts");
 assert.match(m3MainSource, /createNavigationState\(/, "M3 Guidance State is wired into the World");
 assert.match(m3MainSource, /navigation\?\.update\(\{ position: pos, yaw: orbit\.yaw, spaceId: navigationSpaceId\(\) \}\)/,
@@ -591,6 +662,37 @@ assert.equal((campusHtml.match(/id="shop-world-label"/g) ?? []).length, 1, "one 
 assert.match(campusHtml, /id="shop-world-label"[^>]*aria-hidden="true"[^>]*hidden/, "the marker is decorative and starts hidden");
 assert.match(campusHtml, /id="open-shop"/, "the HUD menu shop entry stays");
 console.log("Student Center shop world entry static contracts PASS");
+// Mobility Book P0.8: one HUD entry, one modal, registry-backed panel and safe summon wiring.
+{
+  const mobilityBookSource = readFileSync(new URL("./src/mobility/mobility-book.js", import.meta.url), "utf8");
+  const mobilityRegistrySource = readFileSync(new URL("./src/mobility/mobility-registry.js", import.meta.url), "utf8");
+  const mobilityMainSource = readFileSync(new URL("./src/main.js", import.meta.url), "utf8");
+  assert.match(campusHtml, /id="hud-menu"[\s\S]*?id="open-mobility-book"[^>]*aria-controls="mobility-book-panel"[^>]*>🛞 탈것</,
+    "HUD menu carries the Mobility Book entry");
+  assert.equal((campusHtml.match(/id="mobility-book-panel"/g) ?? []).length, 1,
+    "Mobility Book panel is a single DOM target");
+  assert.match(campusHtml, /id="mobility-book-panel"[^>]*role="dialog"[^>]*aria-modal="true"[^>]*hidden/,
+    "Mobility Book starts as a closed modal");
+  assert.match(mobilityMainSource, /createMobilityBook\(\{/,
+    "World wires the Mobility Book controller");
+  assert.match(mobilityMainSource, /controller\.summonHelicopterNearPlayer\(\)/,
+    "Mobility Book helicopter action uses the safe summon authority");
+  assert.match(mobilityMainSource, /ownerId:\s*"mobility-book"[\s\S]*INPUT_FOCUS_POLICY\.BLOCKING_UI/s,
+    "Mobility Book suspends world actions through InputFocusManager");
+  assert.match(mobilityRegistrySource, /availability:\s*MOBILITY_AVAILABILITY\.EXPERIMENTAL[\s\S]*access:\s*MOBILITY_ACCESS\.TEST_ONLY/s,
+    "Current experimental definitions do not masquerade as public/common mounts");
+  assert.match(mobilityBookSource, /definition\.availability !== "HIDDEN"/,
+    "Mobility Book enforces HIDDEN filtering locally too");
+  assert.match(campusCss, /\.mobility-book-panel\s*\{[\s\S]*max-height:/,
+    "Mobility Book has a bounded modal layout");
+  assert.match(campusCss, /@media \(max-width:\s*720px\)[\s\S]*\.mobility-list\s*\{[^}]*grid-template-columns:\s*repeat\(2/s,
+    "Mobility Book has a compact mobile two-column list");
+  assert.equal((campusCss.match(/\/\* LANDSCAPE-HUD:start/g) ?? []).length, 1,
+    "Mobility Book preserves the single short-landscape authority");
+  assert.ok(campusCss.trimEnd().endsWith("/* LANDSCAPE-HUD:end */"),
+    "Mobility Book CSS does not append after the landscape authority");
+}
+console.log("Mobility Book P0.8 static contracts PASS");
 // Inventory P0: read-only owned items from get_my_world_inventory_v1 on the member client.
 {
   const inventoryClientSource = readFileSync(new URL("./src/inventory/inventory-client.js", import.meta.url), "utf8");
@@ -1035,4 +1137,5 @@ console.log("Hub Friends P0 static contracts PASS");
     z: definition.spawnAnchor.z
   });
 }
+
 

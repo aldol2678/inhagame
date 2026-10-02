@@ -1,3 +1,13 @@
+import {CAMPUS_BALLOON_ID,setCampusBalloonPropRoot} from "./mounts/campus-balloon-world.js";
+import {createCampusBalloon} from "./mounts/campus-balloon-render.js";
+import {setCampusShuttlePropRoot} from "./mounts/campus-shuttle-world.js";
+import {createCampusShuttle,createShuttleStations} from "./mounts/campus-shuttle-render.js";
+import { DUCK_BOAT_ID,setDuckBoatPropRoot } from "./mounts/duck-boat-world.js";
+import { createDuckBoat,createInkyungDockMarker } from "./mounts/duck-boat-render.js";
+import { CAMPUS_KART_ID, setCampusKartPropRoot } from "./mounts/campus-kart-world.js";
+import { createCampusKart } from "./mounts/campus-kart-render.js";
+import { CAMPUS_KICKBOARD_ID, setCampusKickboardPropRoot } from "./mounts/campus-kickboard-world.js";
+import { createCampusKickboard } from "./mounts/campus-kickboard-render.js";
 import * as pc from "playcanvas";
 import { PlayerController } from "./player-controller.js";
 import { OrbitCameraController } from "./orbit-camera-controller.js";
@@ -129,6 +139,7 @@ import { createInputFocusOwner } from "./input/input-focus-owner.js";
 import { createHudContext } from "./hud/hud-context.js";
 import { bindHudPresentation } from "./hud/hud-presentation.js";
 import { createHelicopterFlightHud } from "./mounts/helicopter-flight-hud.js";
+import { createMobilityBook } from "./mobility/mobility-book.js";
 
 const canvas = document.getElementById("application");
 const worldLoading = getWorldLoading();
@@ -275,6 +286,9 @@ const furnitureInput = createInputFocusOwner({
 });
 const inventoryInput = createInputFocusOwner({
   manager: inputFocus, ownerId: "inventory", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
+});
+const mobilityBookInput = createInputFocusOwner({
+  manager: inputFocus, ownerId: "mobility-book", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
 });
 const wardrobeInput = createInputFocusOwner({
   manager: inputFocus, ownerId: "wardrobe", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
@@ -839,6 +853,7 @@ const inventoryPanel = createInventoryPanel({
       inventoryInput.acquire();
       questJournal?.setOpen(false);
       shopPanel.setOpen(false);
+      mobilityBook.setOpen(false);
       wardrobePanel.setOpen(false);
       dailyQuizPanel.setOpen(false);
       attendancePanel.setOpen(false);
@@ -869,6 +884,7 @@ const shopPanel = createShopPanel({
       shopInput.acquire();
       questJournal?.setOpen(false);
       inventoryPanel.setOpen(false);
+      mobilityBook.setOpen(false);
       wardrobePanel.setOpen(false);
       dailyQuizPanel.setOpen(false);
       attendancePanel.setOpen(false);
@@ -900,6 +916,7 @@ const wardrobePanel = createWardrobePanel({
       questJournal?.setOpen(false);
       shopPanel.setOpen(false);
       inventoryPanel.setOpen(false);
+      mobilityBook.setOpen(false);
       dailyQuizPanel.setOpen(false);
       attendancePanel.setOpen(false);
       emoteMenu.setOpen(false);
@@ -912,6 +929,65 @@ const wardrobePanel = createWardrobePanel({
   }
 });
 wardrobeButton?.addEventListener("click", () => wardrobePanel.setOpen(true));
+// Mobility Book P0.8 (☰ → 🛞 탈것). Registry metadata is presentation/runtime policy only:
+// it never grants ownership. Current bike/helicopter remain EXPERIMENTAL / TEST_ONLY.
+setCampusKickboardPropRoot(createCampusKickboard(campusRoot));
+setCampusKartPropRoot(createCampusKart(campusRoot));
+setDuckBoatPropRoot(createDuckBoat(campusRoot));
+createInkyungDockMarker(campusRoot);
+setCampusShuttlePropRoot(createCampusShuttle(campusRoot));
+createShuttleStations(campusRoot,controller.shuttle.stations);
+setCampusBalloonPropRoot(createCampusBalloon(campusRoot));
+const mobilityBookButton = document.getElementById("open-mobility-book");
+const mobilityBook = createMobilityBook({
+  panel: document.getElementById("mobility-book-panel"),
+  onStatus: showWorldStatus,
+  onSummon: (definition) => {
+    if (rooms?.insideRoom || lobbyWorld.active || lobbyTransition.active || controller.mounted) {
+      showWorldStatus("지금은 탈것을 소환할 수 없어요");
+      return false;
+    }
+    if (definition.primaryAction !== "SUMMON_TEST") return false;
+    mobilityBook.setOpen(false); // Release the blocking UI owner before the controller checks input.
+    const summonActions = {
+      [CAMPUS_KICKBOARD_ID]: () => controller.summonKickboardNearPlayer(),
+      [CAMPUS_KART_ID]: () => controller.summonKartNearPlayer(),
+      [DUCK_BOAT_ID]: () => controller.summonDuckBoat(),
+      [CAMPUS_BALLOON_ID]: () => controller.summonBalloonNearPlayer(),
+      "mount.campus_helicopter.prototype": () => controller.summonHelicopterNearPlayer()
+    };
+    const summoned = summonActions[definition.mountId]?.() ?? false;
+    showWorldStatus(summoned
+      ? `${definition.emoji} 주변 안전한 곳에 ${definition.displayName} 소환 완료`
+      : definition.mountId === DUCK_BOAT_ID ? "인경호 남쪽 선착장 가까이에서 이용해 주세요." : "주변에 탈것을 놓을 안전한 공간이 없어요");
+    return summoned;
+  },
+  onLocate: (definition) => {
+    if(definition.mobilityId==="transit.campus_shuttle"){showWorldStatus("🚌 정문 승강장의 파란 표식에서 셔틀을 기다려 주세요. 정차 중에 탑승할 수 있어요.");return true;}
+    if (definition.primaryAction !== "LOCATE_TEST") return false;
+    showWorldStatus("🚲 자전거는 현재 정문 실험 위치에서 테스트할 수 있어요");
+    return true;
+  },
+  onOpenChange: (open) => {
+    mobilityBookButton?.setAttribute("aria-expanded", String(open));
+    if (open) {
+      mobilityBookInput.acquire();
+      questJournal?.setOpen(false);
+      shopPanel.setOpen(false);
+      inventoryPanel.setOpen(false);
+      wardrobePanel.setOpen(false);
+      dailyQuizPanel.setOpen(false);
+      attendancePanel.setOpen(false);
+      emoteMenu.setOpen(false);
+      chatPanel.setOpen(false, { focus: false });
+      playerCard.close();
+      void guestbookPanel.setOpen(false);
+      return;
+    }
+    mobilityBookInput.release();
+  }
+});
+mobilityBookButton?.addEventListener("click", () => mobilityBook.setOpen(true));
 // Daily Quiz panel (☰ → 📚 오늘의 퀴즈): its own modal, same input gate and one-modal-at-a-time rule.
 const dailyQuizButton = document.getElementById("open-daily-quiz");
 const dailyQuizPanel = createDailyQuizPanel({
@@ -926,6 +1002,7 @@ const dailyQuizPanel = createDailyQuizPanel({
       attendancePanel.setOpen(false);
       shopPanel.setOpen(false);
       inventoryPanel.setOpen(false);
+      mobilityBook.setOpen(false);
       wardrobePanel.setOpen(false);
       emoteMenu.setOpen(false);
       chatPanel.setOpen(false, { focus: false });
@@ -951,6 +1028,7 @@ const attendancePanel = createAttendancePanel({
       dailyQuizPanel.setOpen(false);
       shopPanel.setOpen(false);
       inventoryPanel.setOpen(false);
+      mobilityBook.setOpen(false);
       wardrobePanel.setOpen(false);
       emoteMenu.setOpen(false);
       chatPanel.setOpen(false, { focus: false });
@@ -1121,6 +1199,7 @@ rooms = createRoomTransition({
       void guestbookPanel.setOpen(false);
       shopPanel.setOpen(false);
       inventoryPanel.setOpen(false);
+      mobilityBook.setOpen(false);
       wardrobePanel.setOpen(false);
       dailyQuizPanel.setOpen(false);
       attendancePanel.setOpen(false);
@@ -1463,7 +1542,7 @@ const autoMoveHudTitle = document.getElementById("auto-move-title");
 const autoMoveHudDetail = document.getElementById("auto-move-detail");
 const autoMoveCancel = document.getElementById("auto-move-cancel");
 const autoMoveResume = document.getElementById("auto-move-resume");
-const canUseAutoMove = () => (!controller.mounted || controller.onBike) && !seats.isSeated && !rooms?.insideRoom &&
+const canUseAutoMove = () => (!controller.mounted || controller.onGroundMount) && !seats.isSeated && !rooms?.insideRoom &&
   !follow.active && !lobbyWorld.active && !lobbyTransition.active;
 const renderPlayerAutoMoveHud = () => {
   if (!autoMoveHud) return false;
@@ -1476,7 +1555,7 @@ const renderPlayerAutoMoveHud = () => {
   if (visible) {
     if (autoMoveHudTitle) autoMoveHudTitle.textContent = `${state.destinationTitle} 자동이동`;
     if (autoMoveHudDetail) autoMoveHudDetail.textContent = paused ? "일시정지됨 · 현재 위치에서 재개"
-      : state.status === "MOVING" ? (controller.onBike ? "자전거로 자동이동 중" : "자동으로 걷는 중") : "경로 준비 중";
+      : state.status === "MOVING" ? (controller.onGroundMount ? "탈것으로 자동이동 중" : "자동으로 걷는 중") : "경로 준비 중";
     if (autoMoveCancel) autoMoveCancel.hidden = !active;
     if (autoMoveResume) autoMoveResume.hidden = !paused;
   }
@@ -1485,7 +1564,7 @@ const renderPlayerAutoMoveHud = () => {
 const resumePlayerAutoMove = () => {
   if (!playerAutoMove?.paused || !navigation) return false;
   if (!canUseAutoMove()) {
-    showWorldStatus(controller.mounted && !controller.onBike
+    showWorldStatus(controller.mounted && !controller.onGroundMount
       ? "비행 탈것 자동이동은 아직 지원하지 않아요"
       : "지금은 자동이동을 재개할 수 없어요");
     return false;

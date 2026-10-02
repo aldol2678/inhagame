@@ -562,6 +562,224 @@ try {
   assert.equal(mainGateMusic.cueId, null, "leaving Biryong clears the specific Music Cue");
   assert.equal(mainGateMusic.activeSources, 0, "Biryong source is cleaned after fade-out");
 
+  {
+  await page.evaluate(() => {
+    const d = window.__INHAGAME_P0__;
+    d.controller.keys.clear(); d.controller.clearAssistedMovement();
+    d.player.setLocalPosition(0, d.controller.groundY, -98);
+    d.controller.grounded = true; d.app.fire("update", .016);
+  });
+
+  // Mobility Batch A1: real book -> summon -> mount controls -> render/network kind.
+  await page.evaluate(() => {
+    const d=window.__INHAGAME_P0__;
+    d.controller.keys.clear();
+    document.getElementById("open-mobility-book").click();
+  });
+  await page.locator("#mobility-book-panel").waitFor({state:"visible"});
+  await page.locator(".mobility-filter[data-filter='GROUND']").click();
+  await page.locator(".mobility-search").fill("킥보드");
+  const kickCard=page.locator('[data-mobility-id="vehicle.kickboard.campus_prototype"]');
+  assert.equal(await kickCard.count(),1);
+  await kickCard.locator(".mobility-card-main").click();
+  assert.equal(await page.locator(".mobility-detail .mobility-secondary").first().isDisabled(),true,
+    "test-only kickboard cannot become an owned active mount");
+  await kickCard.locator(".mobility-favorite").click();
+  assert.equal(await kickCard.locator(".mobility-favorite").getAttribute("aria-pressed"),"true");
+  await page.locator(".mobility-primary").click();
+  await page.locator("#mobility-book-panel").waitFor({state:"hidden"});
+  const kickRide=await page.evaluate(async()=>{
+    const d=window.__INHAGAME_P0__;
+    const {getCampusKickboardParkedPose}=await import("/src/mounts/campus-kickboard-world.js");
+    const a=getCampusKickboardParkedPose();
+    if(!a)return {summoned:false};
+    d.player.setLocalPosition(a.x,a.y+d.controller.groundY,a.z);
+    const before=d.controller.mounted;
+    const boarded=d.controller.transportAction();
+    d.app.fire("update",.016);
+    return {summoned:true,before,boarded,mountId:d.controller.mountId,
+      jumpHidden:document.getElementById("jump").hidden,
+      riderVisible:d.player.findByName("Rider_CampusKickboard")?.enabled,
+      parkedHidden:!d.app.root.findByName("Parked_CampusKickboard")?.enabled};
+  });
+  assert.deepEqual(kickRide,{summoned:true,before:false,boarded:true,
+    mountId:"mount.campus_kickboard.prototype",jumpHidden:true,riderVisible:true,parkedHidden:true});
+  const kickedOff=await page.evaluate(()=>{
+    const d=window.__INHAGAME_P0__;
+    const start=d.player.getLocalPosition().clone();
+    d.controller.keys.add("KeyW");d.controller.keys.add("Space");
+    for(let i=0;i<10;i++)d.controller.update(.016,0);
+    d.controller.keys.clear();
+    const moved=d.player.getLocalPosition().distance(start)>0.05;
+    const grounded=d.controller.grounded;
+    const dismounted=d.controller.transportAction();
+    d.app.fire("update",.016);
+    return {moved,grounded,dismounted,mountId:d.controller.mountId};
+  });
+  assert.deepEqual(kickedOff,{moved:true,grounded:true,dismounted:true,mountId:null});
+  }
+
+  {
+  await page.evaluate(() => {
+    const d = window.__INHAGAME_P0__;
+    d.controller.keys.clear(); d.controller.clearAssistedMovement();
+    d.player.setLocalPosition(0, d.controller.groundY, -98);
+    d.controller.grounded = true; d.app.fire("update", .016);
+  });
+
+  // Mobility Batch A1: real book -> summon -> mount controls -> render/network kind.
+  await page.evaluate(() => {
+    const d=window.__INHAGAME_P0__;
+    d.controller.keys.clear();
+    document.getElementById("open-mobility-book").click();
+  });
+  await page.locator("#mobility-book-panel").waitFor({state:"visible"});
+  await page.locator(".mobility-filter[data-filter='GROUND']").click();
+  await page.locator(".mobility-search").fill("카트");
+  const kickCard=page.locator('[data-mobility-id="vehicle.kart.campus_prototype"]');
+  assert.equal(await kickCard.count(),1);
+  await kickCard.locator(".mobility-card-main").click();
+  assert.equal(await page.locator(".mobility-detail .mobility-secondary").first().isDisabled(),true,
+    "test-only kart cannot become an owned active mount");
+  await kickCard.locator(".mobility-favorite").click();
+  assert.equal(await kickCard.locator(".mobility-favorite").getAttribute("aria-pressed"),"true");
+  await page.locator(".mobility-primary").click();
+  await page.locator("#mobility-book-panel").waitFor({state:"hidden"});
+  const kickRide=await page.evaluate(async()=>{
+    const d=window.__INHAGAME_P0__;
+    const {getCampusKartParkedPose}=await import("/src/mounts/campus-kart-world.js");
+    const a=getCampusKartParkedPose();
+    if(!a)return {summoned:false};
+    d.player.setLocalPosition(a.x,a.y+d.controller.groundY,a.z);
+    const before=d.controller.mounted;
+    const boarded=d.controller.transportAction();
+    d.app.fire("update",.016);
+    return {summoned:true,before,boarded,mountId:d.controller.mountId,
+      jumpHidden:document.getElementById("jump").hidden,
+      riderVisible:d.player.findByName("Rider_CampusKart")?.enabled,
+      parkedHidden:!d.app.root.findByName("Parked_CampusKart")?.enabled};
+  });
+  assert.deepEqual(kickRide,{summoned:true,before:false,boarded:true,
+    mountId:"mount.campus_kart.prototype",jumpHidden:true,riderVisible:true,parkedHidden:true});
+  const kickedOff=await page.evaluate(()=>{
+    const d=window.__INHAGAME_P0__;
+    const start=d.player.getLocalPosition().clone();
+    d.controller.keys.add("KeyW");d.controller.keys.add("Space");
+    for(let i=0;i<10;i++)d.controller.update(.016,0);
+    d.controller.keys.clear();
+    const moved=d.player.getLocalPosition().distance(start)>0.05;
+    const grounded=d.controller.grounded;
+    const dismounted=d.controller.transportAction();
+    d.app.fire("update",.016);
+    return {moved,grounded,dismounted,mountId:d.controller.mountId};
+  });
+  assert.deepEqual(kickedOff,{moved:true,grounded:true,dismounted:true,mountId:null});
+  }
+
+  {
+  await page.evaluate(() => {
+    const d = window.__INHAGAME_P0__;
+    d.controller.keys.clear(); d.controller.clearAssistedMovement();
+    d.player.setLocalPosition(0, d.controller.groundY, -98);
+    d.controller.grounded = true; d.app.fire("update", .016);
+  });
+
+  // A3: named dock, real Mobility Book, water runtime and safe shore exit.
+  await page.evaluate(async()=>{
+    const d=window.__INHAGAME_P0__,{INKYUNG_DOCK}=await import("/src/mounts/duck-boat-motion.js");
+    d.player.setLocalPosition(INKYUNG_DOCK.shore.x,1.15,INKYUNG_DOCK.shore.z);
+    d.app.fire("update",.016);
+    document.getElementById("open-mobility-book").click();
+  });
+  await page.locator("#mobility-book-panel").waitFor({state:"visible"});
+  await page.locator(".mobility-filter[data-filter='WATER']").click();
+  await page.locator(".mobility-search").fill("오리배");
+  await page.locator('[data-mobility-id="vessel.inkyung_duckboat"] .mobility-card-main').click();
+  assert.equal(await page.locator(".mobility-detail .mobility-secondary").first().isDisabled(),true);
+  await page.locator(".mobility-primary").click();
+  const boat=await page.evaluate(()=>{
+    const d=window.__INHAGAME_P0__;const boarded=d.controller.transportAction();d.app.fire("update",.016);
+    const visual=d.player.findByName("Rider_DuckBoat")?.enabled;
+    const y=d.player.getLocalPosition().y;
+    const jumpHidden=document.getElementById("jump").hidden;
+    const dismounted=d.controller.transportAction();
+    return {boarded,visual,y,jumpHidden,dismounted};
+  });
+  assert.ok(Math.abs(boat.y-1.175)<1e-8); delete boat.y;
+  assert.deepEqual(boat,{boarded:true,visual:true,jumpHidden:true,dismounted:true});
+  }
+
+  {
+  await page.evaluate(() => {
+    const d = window.__INHAGAME_P0__;
+    d.controller.keys.clear(); d.controller.clearAssistedMovement();
+    d.player.setLocalPosition(0, d.controller.groundY, -98);
+    d.controller.grounded = true; d.app.fire("update", .016);
+  });
+
+  // A4: actual Book station guidance, boarding and a complete autopilot station trip.
+  await page.evaluate(()=>document.getElementById("open-mobility-book").click());
+  await page.locator(".mobility-search").fill("");
+  await page.locator(".mobility-filter[data-filter='TRANSIT']").click();
+  await page.locator('[data-mobility-id="transit.campus_shuttle"] .mobility-card-main').click();
+  assert.equal(await page.locator(".mobility-detail .mobility-secondary").first().isDisabled(),true);
+  await page.locator(".mobility-primary").click();
+  assert.equal(await page.locator("#mobility-book-panel").isVisible(), false, "station guidance closes the Book");
+  const transit=await page.evaluate(()=>{
+    const d=window.__INHAGAME_P0__,c=d.controller;
+    for(let i=0;i<400&&!c.shuttle.boardingAllowed;i++)c.update(.1,0);
+    const station=c.shuttle.currentStation;
+    d.player.setLocalPosition(station.platform.x,1.15,station.platform.z);
+    const boarded=c.transportAction();d.app.fire("update",.016);
+    const visual=d.player.findByName("Rider_CampusShuttle")?.enabled;
+    const runHidden=document.getElementById("run").hidden;
+    c.keys.add("KeyD");c.keys.add("Space");
+    for(let i=0;i<400&&!(c.shuttle.currentStation.id!==station.id&&c.shuttle.boardingAllowed);i++)c.update(.1,0);
+    c.keys.clear();
+    const destination=c.shuttle.currentStation.id;
+    const dismounted=c.transportAction();d.app.fire("update",.016);
+    return {boarded,visual,runHidden,arrived:destination!==station.id,dismounted};
+  });
+  assert.deepEqual(transit,{boarded:true,visual:true,runHidden:true,arrived:true,dismounted:true});
+  }
+
+  {
+  await page.evaluate(() => {
+    const d = window.__INHAGAME_P0__;
+    d.controller.keys.clear(); d.controller.clearAssistedMovement();
+    d.player.setLocalPosition(0, d.controller.groundY, -98);
+    d.controller.grounded = true; d.app.fire("update", .016);
+  });
+
+
+  // A5: real Book -> large safe summon -> buoyancy -> landed exit.
+  await page.evaluate(()=>document.getElementById("open-mobility-book").click());
+  await page.locator(".mobility-filter[data-filter='AIR']").click();
+  await page.locator(".mobility-search").fill("열기구");
+  const balloonCard=page.locator('[data-mobility-id="aircraft.balloon.campus_prototype"]');
+  await balloonCard.locator(".mobility-card-main").click();
+  assert.equal(await page.locator(".mobility-detail .mobility-secondary").first().isDisabled(),true);
+  await balloonCard.locator(".mobility-favorite").click();
+  assert.equal(await balloonCard.locator(".mobility-favorite").getAttribute("aria-pressed"),"true");
+  await page.locator(".mobility-primary").click();
+  await page.locator("#mobility-book-panel").waitFor({state:"hidden"});
+  const balloon=await page.evaluate(async()=>{
+    const d=window.__INHAGAME_P0__,c=d.controller;
+    const {getCampusBalloonParkedPose}=await import("/src/mounts/campus-balloon-world.js");
+    const a=getCampusBalloonParkedPose();if(!a)return{summoned:false};
+    d.player.setLocalPosition(a.x,a.y+c.groundY,a.z);
+    const boarded=c.transportAction();d.app.fire("update",.016);
+    const visual=d.player.findByName("Rider_CampusBalloon")?.enabled,runHidden=document.getElementById("run").hidden;
+    c.keys.add("Space");for(let i=0;i<200;i++)c.update(.016,0);c.keys.clear();
+    const rose=d.player.getLocalPosition().y>a.y+c.groundY+1;
+    const exitRefused=c.dismountBalloon()===false;
+    c.descendHeld=true;for(let i=0;i<1000&&!c.grounded;i++)c.update(.016,0);c.descendHeld=false;
+    const landed=c.grounded,dismounted=c.transportAction();d.app.fire("update",.016);
+    return{summoned:true,boarded,visual,runHidden,rose,exitRefused,landed,dismounted};
+  });
+  assert.deepEqual(balloon,{summoned:true,boarded:true,visual:true,runHidden:true,rose:true,exitRefused:true,landed:true,dismounted:true});
+  }
+
   // NG1: ordinary campus must not mount the preview observer.
   assert.equal(await page.locator("#npc-social-ng1").count(), 0,
     "ordinary campus URL does not mount the NG1 observer");
@@ -681,4 +899,5 @@ try {
 } finally {
   await smoke.close();
 }
+
 
