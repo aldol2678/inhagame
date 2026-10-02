@@ -419,6 +419,38 @@
   <button id="run" type="button" aria-label="달리기 켜기" aria-pressed="false">RUN</button>
   <button id="jump" type="button" aria-label="점프">JUMP</button>
   <button id="descend" type="button" aria-label="하강" hidden>하강</button>
+  <section id="helicopter-flight-hud" class="helicopter-flight-hud" aria-label="헬리콥터 비행 계기" hidden>
+    <div class="helicopter-flight-column">
+      <div class="helicopter-flight-readout"><span>ALT</span><strong data-flight-alt>0.0 m</strong></div>
+      <div class="helicopter-flight-readout"><span>V/S</span><strong data-flight-vs>0.0 m/s</strong></div>
+      <div class="helicopter-flight-readout helicopter-flight-secondary"><span>PITCH</span><strong data-flight-pitch>0°</strong></div>
+      <div class="helicopter-flight-readout helicopter-flight-secondary"><span>ROLL</span><strong data-flight-roll>0°</strong></div>
+    </div>
+    <div class="helicopter-attitude">
+      <div class="helicopter-horizon" aria-hidden="true">
+        <div class="helicopter-horizon-plane" data-flight-horizon>
+          <span class="helicopter-horizon-line"></span>
+          <span class="helicopter-pitch-mark helicopter-pitch-mark-up"></span>
+          <span class="helicopter-pitch-mark helicopter-pitch-mark-down"></span>
+        </div>
+        <span class="helicopter-aircraft-symbol"></span>
+      </div>
+      <small data-flight-attitude>P 0° · R 0°</small>
+    </div>
+    <div class="helicopter-flight-column">
+      <div class="helicopter-flight-readout"><span>SPD</span><strong data-flight-spd>0.0</strong></div>
+      <div class="helicopter-flight-readout"><span>HDG</span><strong data-flight-hdg>000°</strong></div>
+      <div class="helicopter-flight-readout helicopter-flight-secondary"><span>NR</span><strong data-flight-nr>100%</strong></div>
+      <div class="helicopter-flight-readout helicopter-flight-secondary"><span>ENG</span><strong data-flight-eng>100%</strong></div>
+    </div>
+    <div class="helicopter-flight-footer">
+      <span data-flight-yaw>0°/s</span>
+      <strong data-flight-state>GROUND</strong>
+      <span data-flight-mode>ASSIST</span>
+    </div>
+  </section>
+  <button id="helicopter-flight-hud-toggle" class="helicopter-flight-hud-toggle" type="button"
+    aria-controls="helicopter-flight-hud" aria-pressed="true" aria-label="헬리콥터 계기판 끄기" hidden>계기 OFF</button>
   <div class="social-cluster" aria-label="소셜">
     <button id="nearby-toggle" type="button" aria-controls="nearby-panel" aria-expanded="false" aria-label="주변 플레이어 보기" title="주변 플레이어">👥<span>주변</span></button>
     <button id="emote-toggle" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="emote-menu" aria-label="감정표현 열기 (E)" title="감정표현 (E)">😀<span>감정</span></button>

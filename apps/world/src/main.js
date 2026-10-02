@@ -122,6 +122,7 @@ import { bindCameraInputSettings } from "./input/camera-input-settings.js";
 import { createInputFocusOwner } from "./input/input-focus-owner.js";
 import { createHudContext } from "./hud/hud-context.js";
 import { bindHudPresentation } from "./hud/hud-presentation.js";
+import { createHelicopterFlightHud } from "./mounts/helicopter-flight-hud.js";
 
 const canvas = document.getElementById("application");
 const worldLoading = getWorldLoading();
@@ -238,6 +239,13 @@ player.setLocalPosition(spawn.x,spawn.y,spawn.z);
 campusRoot.addChild(player);
 
 const controller = new PlayerController(player);
+const helicopterFlightHud = createHelicopterFlightHud({
+  root: document.getElementById("helicopter-flight-hud"),
+  toggle: document.getElementById("helicopter-flight-hud-toggle"),
+  controller,
+  getPosition: () => player.getLocalPosition(),
+  getGroundHeight: (x, z) => controller.groundY + roadviewGroundHeight(x, z)
+});
 const inputFocus = createInputFocusManager();
 const hudContext = createHudContext();
 bindHudPresentation({ context: hudContext, root: document.body });
@@ -1829,6 +1837,7 @@ app.on("update", (dt) => {
     backGateLock.refresh();
   }
   if (lobbyTransition.active) {
+    helicopterFlightHud.update({ suppressed: true });
     const pos = player.getLocalPosition();
     lobbyTransition.update(Math.min(dt, 0.05));
     streaming.update(dt, pos);
@@ -1839,6 +1848,7 @@ app.on("update", (dt) => {
     return;
   }
   if (lobbyWorld.active) {
+    helicopterFlightHud.update({ suppressed: true });
     const pos = player.getLocalPosition();
     lobbyWorld.update(Math.min(dt, 0.05));
     streaming.update(dt, pos);
@@ -1856,6 +1866,7 @@ app.on("update", (dt) => {
   follow.update();
   playerAutoMove?.update(navigation?.getSnapshot() ?? null, player.getLocalPosition());
   if (!seating.beforeController()) controller.update(Math.min(dt, 0.05), orbit.yaw);
+  helicopterFlightHud.update();
   orbit.setMounted(controller.mounted);
   character.setMounted(controller.mounted);
   character.setFirstPerson(orbit.firstPerson);
