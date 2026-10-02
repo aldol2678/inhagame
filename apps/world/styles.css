@@ -4379,6 +4379,256 @@ body[data-space]:not([data-space="campus"]) > .helicopter-flight-hud-toggle { di
   }
 }
 
+
+/* Mobility Book P0.8 · Registry browser / default-mount / summon surface. */
+.mobility-book-panel {
+  width: min(920px, calc(100vw - 24px));
+  max-width: 920px;
+  max-height: min(720px, calc(100dvh - 24px));
+  overflow: hidden;
+}
+.mobility-book-panel[hidden] { display: none; }
+.mobility-book-summary { margin: 2px 0 0; color: #92aabd; font-size: 11px; }
+.mobility-book-body {
+  display: grid;
+  grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
+  gap: 14px;
+  min-height: 0;
+  max-height: min(620px, calc(100dvh - 120px));
+  padding: 0 16px 16px;
+  overflow: hidden;
+}
+.mobility-browser {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+}
+.mobility-filters {
+  display: flex;
+  gap: 6px;
+  padding-bottom: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.mobility-filter,
+.mobility-favorite-only {
+  min-height: 32px;
+  padding: 5px 9px;
+  border: 1px solid #ffffff1f;
+  border-radius: 999px;
+  background: #ffffff08;
+  color: #a9bbc8;
+  font: 750 11px/1 system-ui, sans-serif;
+  white-space: nowrap;
+}
+.mobility-filter.active,
+.mobility-favorite-only.active {
+  border-color: #66cef777;
+  background: #66cef719;
+  color: #eafaff;
+}
+.mobility-search-row { display: flex; gap: 7px; margin-bottom: 9px; }
+.mobility-search {
+  min-width: 0;
+  flex: 1;
+  min-height: 38px;
+  border: 1px solid #ffffff1f;
+  border-radius: 11px;
+  outline: none;
+  padding: 8px 10px;
+  background: #07121de8;
+  color: #edf6ff;
+}
+.mobility-search:focus { border-color: #66cef777; }
+.mobility-favorite-only { width: 40px; padding: 0; border-radius: 11px; font-size: 17px; }
+.mobility-list {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.mobility-card {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid #ffffff1b;
+  border-radius: 14px;
+  background: #ffffff07;
+}
+.mobility-card[data-selected="true"] {
+  border-color: #66cef77a;
+  background: #66cef711;
+}
+.mobility-card-main {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 10px;
+  width: 100%;
+  min-height: 90px;
+  padding: 9px 42px 9px 9px;
+  border: 0;
+  background: transparent;
+  color: #edf6ff;
+  text-align: left;
+}
+.mobility-card-art {
+  display: grid;
+  place-items: center;
+  height: 70px;
+  border-radius: 12px;
+  background: linear-gradient(145deg, #163147, #0c1c29);
+  font-size: 34px;
+}
+.mobility-card-copy { display: flex; min-width: 0; flex-direction: column; align-items: flex-start; justify-content: center; }
+.mobility-card-name {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mobility-card-category { margin-top: 2px; color: #8fa5b5; font-size: 9px; }
+.mobility-card-domains, .mobility-detail-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.mobility-domain-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 2px 6px;
+  border: 1px solid #ffffff1f;
+  border-radius: 999px;
+  color: #bdd0dc;
+  font-size: 8px;
+}
+.mobility-status {
+  display: inline-flex;
+  width: fit-content;
+  margin-top: 6px;
+  padding: 3px 6px;
+  border: 1px solid #ffffff1f;
+  border-radius: 999px;
+  font-size: 8px;
+  font-weight: 850;
+}
+.mobility-status-experimental { border-color: #d8a6ff66; background: #d8a6ff18; color: #efd8ff; }
+.mobility-status-event { border-color: #ffdc8566; background: #ffdc8515; color: #ffe8a6; }
+.mobility-status-available { border-color: #77d79a66; background: #77d79a15; color: #baf3cd; }
+.mobility-status-soon { color: #b9c6cf; }
+.mobility-favorite {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  z-index: 2;
+  width: 30px;
+  height: 30px;
+  border: 1px solid #ffffff1f;
+  border-radius: 9px;
+  background: #08131de8;
+  color: #aebdcc;
+  font-size: 16px;
+}
+.mobility-favorite.on { border-color: #ffdc8566; background: #ffdc8512; color: #ffdc85; }
+.mobility-detail {
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 3px 4px 10px;
+}
+.mobility-detail-hero { display: flex; gap: 12px; align-items: center; }
+.mobility-detail-emoji {
+  display: grid;
+  place-items: center;
+  width: 88px;
+  height: 88px;
+  flex: 0 0 auto;
+  border: 1px solid #ffffff1b;
+  border-radius: 18px;
+  background: linear-gradient(145deg, #173650, #0d1e2d);
+  font-size: 48px;
+}
+.mobility-detail-title { min-width: 0; }
+.mobility-detail-title h3 { margin: 2px 0 0; font-size: 22px; }
+.mobility-detail-category { color: #91a9ba; font-size: 9px; font-weight: 800; letter-spacing: .05em; }
+.mobility-detail-description {
+  margin: 12px 0;
+  padding: 10px 11px;
+  border: 1px solid #ffffff18;
+  border-radius: 12px;
+  background: #ffffff05;
+  color: #c6d7e2;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.mobility-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+.mobility-fact {
+  padding: 9px;
+  border: 1px solid #ffffff17;
+  border-radius: 10px;
+  background: #07131e99;
+}
+.mobility-fact span,
+.mobility-tech-item span { display: block; color: #758c9d; font-size: 8px; }
+.mobility-fact strong,
+.mobility-tech-item strong { display: block; margin-top: 3px; color: #dceaf2; font-size: 10px; }
+.mobility-summon-hint,
+.mobility-action-note { margin: 9px 0 0; color: #a9bbc8; font-size: 9.5px; line-height: 1.45; }
+.mobility-tech {
+  margin-top: 12px;
+  overflow: hidden;
+  border: 1px solid #ffffff17;
+  border-radius: 11px;
+  background: #ffffff04;
+}
+.mobility-tech summary { padding: 9px 10px; color: #b7cad6; font-size: 10px; font-weight: 800; cursor: pointer; }
+.mobility-tech-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; padding: 0 9px 9px; }
+.mobility-tech-item { min-width: 0; padding: 7px; border-radius: 9px; background: #07131e; }
+.mobility-tech-item strong { overflow-wrap: anywhere; }
+.mobility-actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 13px; }
+.mobility-primary,
+.mobility-secondary {
+  min-height: 38px;
+  border-radius: 10px;
+  padding: 7px 11px;
+  font-size: 10px;
+  font-weight: 800;
+}
+.mobility-primary { border: 1px solid #66cef777; background: #1a5470; color: #fff; }
+.mobility-secondary { border: 1px solid #ffffff1f; background: #ffffff08; color: #d5e4ed; }
+.mobility-primary:disabled,
+.mobility-secondary:disabled { opacity: .4; cursor: not-allowed; }
+body[data-lobby-shell="true"] > #mobility-book-panel { display: none !important; }
+
+@media (max-width: 720px) {
+  .mobility-book-panel {
+    width: calc(100vw - 16px);
+    max-height: calc(100dvh - 16px);
+  }
+  .mobility-book-body {
+    display: block;
+    max-height: calc(100dvh - 86px);
+    overflow-y: auto;
+    padding: 0 10px 12px;
+  }
+  .mobility-list { grid-template-columns: repeat(2, minmax(0, 1fr)); max-height: none; overflow: visible; }
+  .mobility-card-main { display: block; min-height: 0; padding: 7px 7px 9px; }
+  .mobility-card-art { height: 68px; }
+  .mobility-card-name { margin-top: 6px; font-size: 10.5px; }
+  .mobility-card-domains { display: none; }
+  .mobility-detail {
+    margin-top: 12px;
+    padding: 11px;
+    border: 1px solid #ffffff18;
+    border-radius: 14px;
+    background: #081621cc;
+    overflow: visible;
+  }
+  .mobility-detail-emoji { width: 70px; height: 70px; font-size: 40px; }
+  .mobility-detail-title h3 { font-size: 18px; }
+  .mobility-tech-grid { grid-template-columns: 1fr; }
+}
+
 /* LANDSCAPE-HUD:start
 /* Collection furniture editor: input is owned by BLOCKING_UI while this modal is open. */
 .furniture-editor-backdrop { position:fixed; inset:0; z-index:1090; background:#10203355; }
@@ -4892,5 +5142,23 @@ body[data-space]:not([data-space="campus"]) > .helicopter-flight-hud-toggle { di
     padding: 3px 7px;
     font-size: 9px;
   }
+  /* Mobility Book P0.8: keep the modal usable on short landscape phones. */
+  body .mobility-book-panel {
+    width: min(880px, calc(100vw - 16px));
+    max-height: calc(100dvh - 12px);
+  }
+  body .mobility-book-body {
+    grid-template-columns: minmax(250px, 310px) minmax(0, 1fr);
+    max-height: calc(100dvh - 72px);
+    gap: 9px;
+    padding: 0 10px 10px;
+  }
+  body .mobility-list { max-height: calc(100dvh - 158px); }
+  body .mobility-detail-emoji { width: 62px; height: 62px; font-size: 34px; }
+  body .mobility-detail-title h3 { font-size: 17px; }
+  body .mobility-detail-description { margin: 7px 0; padding: 7px 8px; }
+  body .mobility-actions { margin-top: 8px; }
+
 }
 /* LANDSCAPE-HUD:end */
+

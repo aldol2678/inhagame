@@ -393,9 +393,10 @@ test("P1-B flight mount never consumes Auto Move assisted steering", async () =>
   }
 });
 
-test("P1-B PlayerController grants assisted movement only to walkers and the campus bike", async () => {
+test("P1-B PlayerController grants assisted movement only to walkers and ground mounts", async () => {
   const { readFile } = await import("node:fs/promises");
   const source = await readFile(new URL("../src/player-controller.js", import.meta.url), "utf8");
-  assert.match(source, /\(!this\.mounted \|\| this\.onBike\)/);
+  assert.match(source, /\(!this\.mounted \|\| this\.onGroundMount\)/);
   assert.doesNotMatch(source, /!manual\s*&&\s*this\.assist\s*!==\s*null\s*&&\s*this\.mounted/);
 });
+

@@ -189,7 +189,7 @@ test("18–19. steering goes through PlayerController collision; Follow never wr
   } finally { cleanup(); }
   const src = code("../src/social/follow-controller.js");
   assert.doesNotMatch(src, /setLocalPosition|setPosition|\.entity|teleport\(/, "no position writes in Follow");
-  assert.match(code("../src/player-controller.js"), /const velocityX = assisted \? this\.assist\.x \* speed/, "assist feeds the normal velocity path");
+  assert.match(code("../src/player-controller.js"), /(?:const|let) velocityX = assisted \? this\.assist\.x \* speed/, "assist feeds the normal velocity path");
   // The only effects are assist requests.
   const r = rig();
   r.follow.start(B);
@@ -504,3 +504,4 @@ test("39, 47. no persistence, no view-distance coupling", () => {
     assert.doesNotMatch(code(file), /follow/i, file);
   }
 });
+

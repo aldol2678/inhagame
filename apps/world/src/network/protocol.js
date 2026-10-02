@@ -19,6 +19,11 @@ const ANIM_VALUES = new Set(Object.values(Anim));
 // field keep accepting the pose (they rebuild poses from POSE_FIELDS and drop `mount`).
 // Receivers: FLY without a known `mount` is the legacy dragon; `mount` on a non-FLY pose is ignored.
 export const Mount = Object.freeze({
+  BALLOON: "balloon",
+  SHUTTLE: "shuttle",
+  DUCK_BOAT: "duckboat",
+  KART: "kart",
+  KICKBOARD: "kickboard",
   BIKE: "bike",
   DRAGON: "dragon",
   HELICOPTER: "helicopter"
