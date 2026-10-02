@@ -11,6 +11,13 @@ Contributions are welcome; merge authority rests with the maintainer.
 4. CI `verify`가 통과해야 merge됩니다. 로컬에서는 `bash scripts/public-ci.sh`와 `bash scripts/public-db.sh`로 같은 검사를 돌릴 수 있습니다.
 5. 리뷰 대화는 merge 전에 해결되어야 합니다.
 
+## Database changes
+
+- 기존 마이그레이션은 수정하거나 삭제하지 않습니다(append-only). 변경은 항상 새 forward migration으로 추가합니다.
+- 새 마이그레이션의 버전은 기존 최신 버전보다 커야 하고, 첫 파일은 `20261001213132_public_baseline.sql`입니다.
+- Production 전용 객체(Mixpanel/observer 연동 등)는 이 저장소에 두지 않습니다.
+- 위 규칙은 CI의 migration lint(`.github/ci/migration-lint.mjs`)가 검사합니다. 이 저장소의 마이그레이션은 로컬 일회용 개발 DB용이며 Production에는 적용되지 않습니다.
+
 ## Do not submit
 
 - Production secret, credential, token, 개인정보
