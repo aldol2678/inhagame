@@ -10,11 +10,37 @@ const targetId = poiId => `poi:${poiId}`;
 
 // onReward(reward): P1d. Called once with the server Reward result carried by the call that completed
 // Main 2, only while the same account is still signed in. The client never computes coins or EXP.
-export function createMain2QuestClient({ enabled, endpoint, getSession, hud, fetcher = fetch, onReward = () => {} }) {
+export function createMain2QuestClient({
+  enabled, endpoint, getSession, hud, fetcher = fetch, onReward = () => {},
+  setTimer = setTimeout, clearTimer = clearTimeout, statusRetryDelays = [1000, 3000, 8000]
+}) {
   let signedIn = false, stage = 0, available = false, pending = null, generation = 0, retryAfter = 0;
   let deferredAutoMoveDestinationId = null, refreshDeferred = false, statusReady = false;
+  let statusRetryTimer = null, statusRetryAttempt = 0, statusRecovering = false;
   const listeners = new Set();
   const objective = hud?.querySelector?.('#main2-quest-objective');
+
+  function clearStatusRetry({ resetAttempt = false } = {}) {
+    if (statusRetryTimer !== null) clearTimer(statusRetryTimer);
+    statusRetryTimer = null;
+    statusRecovering = false;
+    if (resetAttempt) statusRetryAttempt = 0;
+  }
+
+  function scheduleStatusRetry(requestGeneration) {
+    if (!enabled || !signedIn || requestGeneration !== generation || statusRetryTimer !== null) return false;
+    const delay = statusRetryDelays[statusRetryAttempt];
+    if (!Number.isFinite(delay) || delay < 0) return false;
+    statusRetryAttempt += 1;
+    statusRecovering = true;
+    publish();
+    statusRetryTimer = setTimer(() => {
+      statusRetryTimer = null;
+      if (!signedIn || requestGeneration !== generation) return;
+      void send('status').catch(() => {});
+    }, delay);
+    return true;
+  }
 
   function publish() {
     const visible = enabled && signedIn && statusReady && available && stage >= 0 && stage < 9;
@@ -33,7 +59,9 @@ export function createMain2QuestClient({ enabled, endpoint, getSession, hud, fet
       stage,
       active: Boolean(enabled && signedIn && statusReady && available && stage > 0 && stage < 9),
       complete: stage === 9,
-      objective: MAIN2_QUEST_OBJECTIVES[stage] ?? null
+      objective: MAIN2_QUEST_OBJECTIVES[stage] ?? null,
+      statusState: !signedIn ? 'SIGNED_OUT' : statusReady ? 'READY' : statusRecovering ? 'RETRY' : 'LOADING',
+      retryAttempt: statusRetryAttempt
     });
   }
 
@@ -63,11 +91,19 @@ export function createMain2QuestClient({ enabled, endpoint, getSession, hud, fet
       available = result.available;
       statusReady = true;
       retryAfter = 0;
+      clearStatusRetry({ resetAttempt: true });
       publish();
       if (reward) {
         try { onReward(reward); } catch { /* presentation only; progress already stored */ }
       }
       return result;
+    } catch (error) {
+      if (event === 'status' && requestGeneration === generation && signedIn) {
+        statusReady = false;
+        available = false;
+        scheduleStatusRetry(requestGeneration);
+      }
+      throw error;
     } finally {
       if (pending === claim) pending = null;
       if (refreshDeferred && !pending) {
@@ -114,6 +150,7 @@ export function createMain2QuestClient({ enabled, endpoint, getSession, hud, fet
     },
     setSignedIn(value) {
       generation += 1;
+      clearStatusRetry({ resetAttempt: true });
       pending = null;
       signedIn = Boolean(value);
       stage = 0;

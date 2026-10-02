@@ -36,12 +36,29 @@ function fakeClient() {
   };
 }
 
-function harness({ client = fakeClient() } = {}) {
+function harness({ client = fakeClient(), retryDelays = [1000, 3000, 8000] } = {}) {
   let current = client;
-  const progression = createProgressionClient({ getClient: () => current });
+  const timers = new Map();
+  let timerSeq = 0;
+  const setTimer = (fn, ms) => { const id = ++timerSeq; timers.set(id, { fn, ms }); return id; };
+  const clearTimer = id => timers.delete(id);
+  const progression = createProgressionClient({
+    getClient: () => current,
+    setTimer,
+    clearTimer,
+    rewardRetryDelays: retryDelays
+  });
   const changes = [];
   progression.onChange((change) => changes.push(change));
-  return { progression, client, changes, setClient: (next) => { current = next; } };
+  const runNextTimer = () => {
+    const entry = [...timers.entries()].sort((a, b) => a[0] - b[0])[0];
+    if (!entry) return false;
+    timers.delete(entry[0]);
+    entry[1].fn();
+    return entry[1].ms;
+  };
+  const flush = () => new Promise(resolve => setImmediate(resolve));
+  return { progression, client, changes, timers, runNextTimer, flush, setClient: (next) => { current = next; } };
 }
 
 test("parser keeps the server contract and rejects anything else", () => {
@@ -164,6 +181,80 @@ test("refreshes coalesce: never parallel, one follow-up request at most", async 
   await Promise.all([r1, r2, r3]);
   assert.equal(client.calls.length, 3, "exactly one coalesced follow-up");
   assert.deepEqual(progression.snapshot, LV3);
+});
+
+test("coalescing preserves CORE-15 reward semantics instead of downgrading the follow-up reason", async () => {
+  const { progression, client, changes } = harness();
+  const slowAccountRead = deferred();
+  client.respond(slowAccountRead.promise);
+  const account = progression.setAccount(A);
+
+  client.respond({ data: MID, error: null });
+  const rewardRead = progression.refresh("core15-first-campus-reward");
+  assert.equal(client.calls.length, 1, "reward readback coalesces behind the account read");
+
+  slowAccountRead.resolve({ data: FRESH, error: null });
+  await Promise.all([account, rewardRead]);
+
+  assert.equal(client.calls.length, 2, "one semantic follow-up read");
+  assert.deepEqual(progression.snapshot, MID);
+  const final = changes.at(-1);
+  assert.equal(final.reason, "core15-first-campus-reward");
+  assert.deepEqual(final.previous, FRESH, "same-account pre-reward snapshot remains the comparison baseline");
+  assert.equal(levelUpMessage(final), "LEVEL UP · Lv.2");
+});
+
+test("transient reward readback failure retries and recovers against the last READY snapshot", async () => {
+  const { progression, client, changes, timers, runNextTimer, flush } = harness();
+  client.respond({ data: FRESH, error: null });
+  await progression.setAccount(A);
+
+  client.respond({ data: null, error: { message: "network down" } });
+  assert.equal(await progression.refresh("core15-first-campus-reward"), false);
+  assert.equal(progression.state, PROGRESSION_STATE.UNAVAILABLE);
+  assert.equal(progression.snapshot, null, "stale EXP is not presented as current during the failed read");
+  assert.equal(timers.size, 1);
+  client.respond({ data: MID, error: null });
+  assert.equal(runNextTimer(), 1000);
+  await flush();
+  await flush();
+
+  assert.equal(progression.state, PROGRESSION_STATE.READY);
+  assert.deepEqual(progression.snapshot, MID);
+  const recovered = changes.at(-1);
+  assert.equal(recovered.reason, "core15-first-campus-reward");
+  assert.deepEqual(recovered.previous, FRESH, "recovery still compares against the last trusted READY snapshot");
+  assert.equal(levelUpMessage(recovered), "LEVEL UP · Lv.2");
+  assert.equal(timers.size, 0);
+});
+
+test("reward readback retries are bounded; account changes cancel stale retry timers", async () => {
+  const { progression, client, timers, runNextTimer, flush } = harness({ retryDelays: [10, 20, 30] });
+  client.respond({ data: FRESH, error: null });
+  await progression.setAccount(A);
+
+  for (let attempt = 0; attempt < 4; attempt++) {
+    client.respond({ data: null, error: { message: `down-${attempt}` } });
+    if (attempt === 0) await progression.refresh("reward");
+    else { runNextTimer(); await flush(); await flush(); }
+  }
+  assert.equal(timers.size, 0, "no fourth automatic reward readback retry");
+
+  client.respond({ data: FRESH, error: null });
+  await progression.setAccount(B);
+  assert.equal(timers.size, 0, "account boundary clears every stale retry");
+  assert.equal(progression.accountId, B);
+  assert.deepEqual(progression.snapshot, FRESH);
+});
+
+test("non-reward refresh failures do not start background retries", async () => {
+  const { progression, client, timers } = harness();
+  client.respond({ data: FRESH, error: null });
+  await progression.setAccount(A);
+  client.respond({ data: null, error: { message: "resume failed" } });
+  assert.equal(await progression.refresh("resume"), false);
+  assert.equal(progression.state, PROGRESSION_STATE.UNAVAILABLE);
+  assert.equal(timers.size, 0);
 });
 
 test("setAccount with the same id is a no-op", async () => {
