@@ -20,7 +20,8 @@ const ANIM_VALUES = new Set(Object.values(Anim));
 // Receivers: FLY without a known `mount` is the legacy dragon; `mount` on a non-FLY pose is ignored.
 export const Mount = Object.freeze({
   BIKE: "bike",
-  DRAGON: "dragon"
+  DRAGON: "dragon",
+  HELICOPTER: "helicopter"
 });
 const MOUNT_VALUES = new Set(Object.values(Mount));
 export function isValidMount(value) { return typeof value === "string" && MOUNT_VALUES.has(value); }

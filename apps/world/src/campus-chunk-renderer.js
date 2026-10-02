@@ -11,6 +11,7 @@ import { buildGardenCampusTerrain, buildLibraryGardenBase, buildLibraryGardenDet
 import { SPORTS_CUT_RING, SPORTS_FLOOR } from './stadium-stands-layout.js';
 import { buildStadiumStands } from './stadium-stands-geometry.js';
 import { buildLibraryRoute } from './library-route-geometry.js';
+import { buildCampusHelicopter } from './mounts/campus-helicopter-render.js';
 
 const count=root=>1+root.children.reduce((sum,c)=>sum+count(c),0);
 export class CampusChunkRenderer {
@@ -23,6 +24,7 @@ export class CampusChunkRenderer {
     buildCampusGrounds(base);buildCampusRoads(base);buildGateBlockout(base);buildCentralBlockout(base,app);buildPondShore(base);
     buildLibraryGardenBase(base);
     buildStadiumStands(base);
+    buildCampusHelicopter(base);
     buildLibraryRoute(base);
     for(const chunk of registry.chunks){buildCampusFacilities(base,chunk.facilities,'BASE');buildMainHallBlockout(base,chunk.buildings,'BASE');}
     this.metrics.entitiesCreated+=count(base);
