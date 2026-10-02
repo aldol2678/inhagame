@@ -681,6 +681,86 @@ export type Database = {
         }
         Relationships: []
       }
+      world_inventory_mutation_entries: {
+        Row: {
+          child_idempotency_key: string
+          child_ref: string
+          direction: string
+          item_id: string
+          mutation_id: string
+          position: number
+          quantity: number
+          quantity_after: number
+          quantity_before: number
+        }
+        Insert: {
+          child_idempotency_key: string
+          child_ref: string
+          direction: string
+          item_id: string
+          mutation_id: string
+          position: number
+          quantity: number
+          quantity_after: number
+          quantity_before: number
+        }
+        Update: {
+          child_idempotency_key?: string
+          child_ref?: string
+          direction?: string
+          item_id?: string
+          mutation_id?: string
+          position?: number
+          quantity?: number
+          quantity_after?: number
+          quantity_before?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "world_inventory_mutation_entries_mutation_id_fkey"
+            columns: ["mutation_id"]
+            isOneToOne: false
+            referencedRelation: "world_inventory_mutations"
+            referencedColumns: ["mutation_id"]
+          },
+        ]
+      }
+      world_inventory_mutations: {
+        Row: {
+          created_at: string
+          idempotency_key: string
+          mutation_id: string
+          mutation_type: string
+          plan: Json
+          source_ref: string
+          source_type: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          idempotency_key: string
+          mutation_id?: string
+          mutation_type: string
+          plan: Json
+          source_ref: string
+          source_type: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          idempotency_key?: string
+          mutation_id?: string
+          mutation_type?: string
+          plan?: Json
+          source_ref?: string
+          source_type?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       world_item_catalog: {
         Row: {
           category: string
@@ -704,6 +784,59 @@ export type Database = {
           status?: string
         }
         Relationships: []
+      }
+      world_item_consumptions: {
+        Row: {
+          consume_id: string
+          created_at: string
+          item_id: string
+          metadata: Json | null
+          parent_mutation_id: string | null
+          quantity_after: number
+          quantity_before: number
+          quantity_consumed: number
+          quantity_requested: number
+          source_ref: string
+          source_type: string
+          user_id: string
+        }
+        Insert: {
+          consume_id: string
+          created_at?: string
+          item_id: string
+          metadata?: Json | null
+          parent_mutation_id?: string | null
+          quantity_after: number
+          quantity_before: number
+          quantity_consumed: number
+          quantity_requested: number
+          source_ref: string
+          source_type: string
+          user_id: string
+        }
+        Update: {
+          consume_id?: string
+          created_at?: string
+          item_id?: string
+          metadata?: Json | null
+          parent_mutation_id?: string | null
+          quantity_after?: number
+          quantity_before?: number
+          quantity_consumed?: number
+          quantity_requested?: number
+          source_ref?: string
+          source_type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "world_item_consumptions_parent_mutation_id_fkey"
+            columns: ["parent_mutation_id"]
+            isOneToOne: false
+            referencedRelation: "world_inventory_mutations"
+            referencedColumns: ["mutation_id"]
+          },
+        ]
       }
       world_item_grants: {
         Row: {
@@ -1702,6 +1835,26 @@ export type Database = {
         Args: { p_user: string }
         Returns: boolean
       }
+      world_inventory_consume_result_v1: {
+        Args: {
+          p_consumption: Database["private"]["Tables"]["world_item_consumptions"]["Row"]
+          p_status: string
+        }
+        Returns: Json
+      }
+      world_inventory_consume_v1: {
+        Args: {
+          p_idempotency_key: string
+          p_item_id: string
+          p_metadata?: Json
+          p_parent_mutation_id?: string
+          p_quantity: number
+          p_source_ref: string
+          p_source_type: string
+          p_user: string
+        }
+        Returns: Json
+      }
       world_inventory_grant_result_v1: {
         Args: {
           p_acquired_at: string
@@ -1729,6 +1882,28 @@ export type Database = {
           p_item: Database["private"]["Tables"]["world_player_items"]["Row"]
           p_server_view: boolean
         }
+        Returns: Json
+      }
+      world_inventory_mutate_v1: {
+        Args: {
+          p_idempotency_key: string
+          p_mutation_type: string
+          p_plan: Json
+          p_source_ref: string
+          p_source_type: string
+          p_user: string
+        }
+        Returns: Json
+      }
+      world_inventory_mutation_receipt_v1: {
+        Args: {
+          p_mutation: Database["private"]["Tables"]["world_inventory_mutations"]["Row"]
+          p_status: string
+        }
+        Returns: Json
+      }
+      world_inventory_normalize_plan_v1: {
+        Args: { p_plan: Json }
         Returns: Json
       }
       world_landlord_pick_survivor_v1: { Args: never; Returns: string }
