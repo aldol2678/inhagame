@@ -1,3 +1,4 @@
+import { busyNpcIds } from './network/npc-talk-presence.js';
 import {CAMPUS_BALLOON_ID,setCampusBalloonPropRoot} from "./mounts/campus-balloon-world.js";
 import {createCampusBalloon} from "./mounts/campus-balloon-render.js";
 import {setCampusShuttlePropRoot} from "./mounts/campus-shuttle-world.js";
@@ -1969,6 +1970,8 @@ async function loadOptionalNpcRuntime() {
     const runtime = await module.createNpcDevRuntime({
       app, campusRoot, player, orbit,
       sharedSchedulePreview: npcSharedScheduleMode,
+      onNpcTalk: (id, now) => online?.network?.setNpcTalk(id, now),
+      getBusyNpcIds: now => busyNpcIds(online?.network?.remotes.inZone(online.network.placeZoneId) ?? [], now),
       production: npcSharedScheduleMode || npcProductionMode || npcPreviewMode || npcRosterPreviewMode || npcSocialPreviewMode || npcObservedConversationPreview,
       socialEnabled: npcSocialMode,
       socialPreview: npcSocialPreviewMode,
@@ -2668,5 +2671,6 @@ boot().catch((error) => {
   if (unsupported) console.warn("INHAGAME Campus WebGPU unavailable:", error);
   else console.error("INHAGAME Campus initialization failed:", error);
 });
+
 
 

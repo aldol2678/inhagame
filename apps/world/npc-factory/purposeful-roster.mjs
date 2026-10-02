@@ -67,7 +67,7 @@ export function createPurposefulRoster(batch, navigator, { duration = 12, speed 
     }
     return assignedSlots.get(key);
   }
-  for (const npc of batch.npcs) {
+  for (const npc of [...batch.npcs].sort((a,b) => a.npc_id.localeCompare(b.npc_id))) {
     if (protectedIds.has(npc.npc_id)) continue;
     const id = npc.npc_id;
     const behavior = purposefulBehaviorForNpc(id);
@@ -102,3 +102,4 @@ export function createPurposefulRoster(batch, navigator, { duration = 12, speed 
   if (result.size !== expected) throw new Error(`Expected ${expected} purposeful NPCs; got ${result.size}`);
   return result;
 }
+
