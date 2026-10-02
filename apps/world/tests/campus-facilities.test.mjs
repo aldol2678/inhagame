@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {FACILITIES,FACILITY_COLLIDERS,FACILITY_BOUNDS,partitionCourtyard,towerParts} from '../src/campus-facilities.js';
+import {FACILITIES,FACILITY_COLLIDERS,FACILITY_BOUNDS,footprintCentroid,partitionCourtyard,towerParts} from '../src/campus-facilities.js';
 import {polygonOverlap} from '../src/polygon-collision.js';
 import {buildPolygonMeshGeometry,computePolygonAreaWU,projectPolygon,getCanonicalLandmark} from '../src/reality-adapter.js';
 import {resolveHeight,moveAroundObstacles,cameraSafeFraction} from '../src/world-collision.js';
@@ -23,6 +23,28 @@ test('facility source rings survive projection and exclude similarly numbered te
   assert.deepEqual(FACILITIES.find(f=>f.id==='bldg_05').sourceWays,[218188830]);
   const student=FACILITIES.find(f=>f.id==='bldg_07');
   assert.equal(student.officialMarker.id,'7');assert.ok(student.center.x>120);
+});
+
+test('facility centers use winding-independent area centroids and subtract courtyard holes',()=>{
+  const outer=[{x:0,z:0},{x:10,z:0},{x:10,z:10},{x:0,z:10}];
+  const hole=[{x:6,z:2},{x:8,z:2},{x:8,z:4},{x:6,z:4}];
+  const expected={x:472/96,z:488/96};
+  for(const rings of [[outer,hole],[[...outer].reverse(),[...hole].reverse()]]) {
+    const center=footprintCentroid(rings);
+    assert.ok(Math.abs(center.x-expected.x)<1e-9);
+    assert.ok(Math.abs(center.z-expected.z)<1e-9);
+  }
+
+  const five=FACILITIES.find(f=>f.id==='bldg_05');
+  const oldVertexMean={
+    x:five.rings[0].reduce((s,p)=>s+p.x,0)/five.rings[0].length,
+    z:five.rings[0].reduce((s,p)=>s+p.z,0)/five.rings[0].length
+  };
+  assert.deepEqual(five.center,oldVertexMean,'legacy gameplay anchor stays stable');
+  assert.ok(Math.hypot(five.footprintCenter.x-oldVertexMean.x,five.footprintCenter.z-oldVertexMean.z)>10,
+    '5호관 map anchor must not regress to the outer-ring vertex mean');
+  assert.ok(Math.abs(five.footprintCenter.x-(-4.75))<.02);
+  assert.ok(Math.abs(five.footprintCenter.z-108.32)<.02);
 });
 
 test('5호관 courtyard remains open for walking and falling; slabs preserve outer minus inner area',()=>{

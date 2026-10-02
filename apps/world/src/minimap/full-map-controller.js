@@ -220,6 +220,7 @@ export function createFullMapController({
     svg.style.transform = transform;
     markerLayer.style.transform = transform;
     markerLayer.style.setProperty?.("--full-map-inverse-zoom", String(1 / viewport.zoom));
+    markerLayer.dataset.zoomBand = viewport.zoom >= 1.55 ? "detail" : "overview";
     zoomLabel.textContent = `${Math.round(viewport.zoom * 100)}%`;
     zoomOutButton.disabled = viewport.zoom <= FULL_MAP_ZOOM.min + 1e-9;
     zoomInButton.disabled = viewport.zoom >= FULL_MAP_ZOOM.max - 1e-9;

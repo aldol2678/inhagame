@@ -228,7 +228,10 @@ const featureById = new Map([
     id: building.id,
     center: centre(building.vertices)
   })]),
-  ...FACILITIES.map(facility => [facility.id, facility])
+  ...FACILITIES.map(facility => [facility.id, Object.freeze({
+    ...facility,
+    mapCenter: facility.footprintCenter ?? facility.center
+  })])
 ]);
 
 const pond = getCanonicalLandmark("lmk_inkyung_pond");
@@ -379,8 +382,9 @@ export function createMiniMapDataSource({
       }
       case MINIMAP_SOURCE_TYPE.WORLD_FEATURE: {
         const value = featureById.get(sourceRef.id);
-        if (!value?.center) throw new Error(`Unknown world feature source: ${sourceRef.id}`);
-        return { x: value.center.x, z: value.center.z };
+        const anchor = value?.mapCenter ?? value?.center;
+        if (!anchor) throw new Error(`Unknown world feature source: ${sourceRef.id}`);
+        return { x: anchor.x, z: anchor.z };
       }
       case MINIMAP_SOURCE_TYPE.CANONICAL_LANDMARK: {
         const value = canonicalLandmarkPosition.get(sourceRef.id);

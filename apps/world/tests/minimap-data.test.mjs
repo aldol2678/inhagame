@@ -119,7 +119,7 @@ test("student center and Jungseok POIs resolve from current runtime footprints",
   const student = FACILITIES.find(f => f.id === "bldg_07");
   const jungseok = BUILDINGS.find(f => f.id === "bldg_jungseok");
   assert.deepEqual({ x: pois.get("poi.student-center").x, z: pois.get("poi.student-center").z },
-    { x: student.center.x, z: student.center.z });
+    { x: student.footprintCenter.x, z: student.footprintCenter.z });
   const expected = centre(jungseok.vertices);
   assert.deepEqual({ x: pois.get("poi.jungseok").x, z: pois.get("poi.jungseok").z }, expected);
 });
@@ -130,7 +130,9 @@ test("Building 5 is a routable map POI sourced from the existing facility", () =
   const source = FACILITIES.find(f => f.id === "bldg_05");
   assert.equal(five.title, "5호관");
   assert.equal(five.placeZoneId, "AREA_BUILDING_5_WEST");
-  assert.deepEqual({ x: five.x, z: five.z }, { x: source.center.x, z: source.center.z });
+  assert.deepEqual({ x: five.x, z: five.z }, { x: source.footprintCenter.x, z: source.footprintCenter.z });
+  assert.ok(Math.hypot(five.x-source.center.x,five.z-source.center.z)>10,
+    "5호관 POI uses geometry centroid instead of the legacy gameplay anchor");
   assert.equal(five.presentation, MAP_POI_PRESENTATION.NORMAL);
 });
 

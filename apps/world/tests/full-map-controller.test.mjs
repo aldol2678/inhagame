@@ -155,17 +155,22 @@ test("open mounts geometry once, resets view and renders dynamic markers",()=>{
   assert.equal(r.elements.geometryLayer.children.length,1,"no geometry rebuild");
 });
 
-test("zoom buttons stay within 1x-4x and reset returns to full view",()=>{
+test("zoom buttons stay within 1x-4x, switch label density, and reset returns to full view",()=>{
   const r=rig(); r.controller.open();
+  assert.equal(r.elements.markerLayer.dataset.zoomBand,"overview");
+  r.controller.zoomAt(1.6);
+  assert.equal(r.elements.markerLayer.dataset.zoomBand,"detail");
   for(let i=0;i<20;i++) r.elements.zoomInButton.dispatch("click");
   assert.equal(r.controller.viewport.zoom,FULL_MAP_ZOOM.max);
   assert.equal(r.elements.zoomInButton.disabled,true);
   for(let i=0;i<30;i++) r.elements.zoomOutButton.dispatch("click");
   assert.equal(r.controller.viewport.zoom,FULL_MAP_ZOOM.min);
   assert.equal(r.elements.zoomOutButton.disabled,true);
+  assert.equal(r.elements.markerLayer.dataset.zoomBand,"overview");
   r.controller.zoomAt(3);
   r.elements.resetViewButton.dispatch("click");
   assert.deepEqual(r.controller.viewport,{zoom:1,panX:0,panY:0});
+  assert.equal(r.elements.markerLayer.dataset.zoomBand,"overview");
 });
 
 test("wheel zoom uses the pointer as its anchor",()=>{

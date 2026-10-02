@@ -13,6 +13,7 @@ import { FIVE_SOUTH_ENTRY_APPROACH, NORTH_LANES } from "../north-campus-layout.j
 import { LIBRARY_ROUTE_LINES } from "../library-route-layout.js";
 import { GARDEN_LIBRARY_PATHS } from "../library-garden-layout.js";
 import { DORM_1_CAMPUS_RETURN } from "../dorm1-layout.js";
+import { studentCenterFrontPoint } from "../student-center-front.js";
 import { BIRYONG_APPROACH, BIRYONG_PLAZA_PATHS } from "../biryong/biryong-layout.js";
 import { OBSTACLES, WORLD_BOUNDS } from "../campus-layout.js";
 import { polygonOverlap } from "../polygon-collision.js";
@@ -103,6 +104,7 @@ export function campusNavGraph() {
 // Building POIs are footprint centres; guidance ends at the doorway/forecourt players use.
 // Every anchor below is read from an existing runtime authority, never re-authored here.
 const libraryFront = LIBRARY_ROUTE_LINES.find(line => line.id === "library_front_link")?.nodes?.[0] ?? null;
+const studentCenterFront = studentCenterFrontPoint();
 const POI_APPROACH = Object.freeze({
   "poi.main-hall": Object.freeze({ x: MAIN_ENTRANCE.x, z: MAIN_ENTRANCE.z, arrivalRadius: 6 }),
   "poi.building-5": Object.freeze({
@@ -110,6 +112,7 @@ const POI_APPROACH = Object.freeze({
     arrivalRadius: 5, markerAtApproach: true
   }),
   "poi.dorm-1": Object.freeze({ x: DORM_1_CAMPUS_RETURN.position.x, z: DORM_1_CAMPUS_RETURN.position.z, arrivalRadius: 5 }),
+  "poi.student-center": Object.freeze({ x: studentCenterFront.x, z: studentCenterFront.z, arrivalRadius: 5 }),
   "poi.biryong-tower": BIRYONG_APPROACH.tower,
   "poi.biryong-echo-stone": BIRYONG_APPROACH.echo,
   ...(libraryFront ? { "poi.jungseok": Object.freeze({ x: libraryFront.x, z: libraryFront.z, arrivalRadius: 6 }) } : {})
