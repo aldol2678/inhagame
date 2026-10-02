@@ -29,11 +29,55 @@ export function partitionCourtyard(rings) {
   return parts;
 }
 
+const averagePoint = points => ({
+  x: points.reduce((sum, point) => sum + point.x, 0) / points.length,
+  z: points.reduce((sum, point) => sum + point.z, 0) / points.length
+});
+
+function ringAreaCentroid(points) {
+  let area2 = 0, x = 0, z = 0;
+  for (let i = 0; i < points.length; i += 1) {
+    const a = points[i], b = points[(i + 1) % points.length];
+    const cross = a.x * b.z - b.x * a.z;
+    area2 += cross;
+    x += (a.x + b.x) * cross;
+    z += (a.z + b.z) * cross;
+  }
+  if (!Number.isFinite(area2) || Math.abs(area2) < 1e-9) {
+    return { area: 0, center: averagePoint(points) };
+  }
+  return {
+    area: Math.abs(area2) / 2,
+    center: { x: x / (3 * area2), z: z / (3 * area2) }
+  };
+}
+
+// Geometric centroid of an outer footprint minus any courtyard holes.
+// Ring winding is intentionally ignored because source OSM rings are not normalized.
+export function footprintCentroid(rings) {
+  if (!Array.isArray(rings) || !rings.length || rings.some(ring => !Array.isArray(ring) || ring.length < 3)) {
+    throw new TypeError('footprintCentroid requires one or more polygon rings');
+  }
+  const outer = ringAreaCentroid(rings[0]);
+  let area = outer.area, x = outer.center.x * outer.area, z = outer.center.z * outer.area;
+  for (const hole of rings.slice(1)) {
+    const part = ringAreaCentroid(hole);
+    area -= part.area;
+    x -= part.center.x * part.area;
+    z -= part.center.z * part.area;
+  }
+  if (!(area > 1e-9) || ![x, z].every(Number.isFinite)) return averagePoint(rings[0]);
+  return { x: x / area, z: z / area };
+}
+
 export const FACILITIES = data.features.map(f => {
   const rings = f.rings?.map(r => projectPolygon(r)) || [];
   const pts = rings[0] || [geoToWorld(f.lat, f.lon)];
-  const center = { x:pts.reduce((s,p)=>s+p.x,0)/pts.length, z:pts.reduce((s,p)=>s+p.z,0)/pts.length };
-  return { ...f, rings, center, parts:rings.length ? partitionCourtyard(rings) : [],
+  // Keep the historical vertex-average center for gameplay systems that already depend on it.
+  // Consumers that need a geometry-faithful anchor (for example the Mini-map) use footprintCenter.
+  const center = averagePoint(pts);
+  const footprintCenter = rings.length ? footprintCentroid(rings) : center;
+  return { ...f, rings, center, footprintCenter, parts:rings.length ? partitionCourtyard(rings) : [],
     legacyZoneId:center.z < -50 ? 'C01_GATE' : center.x < 95 ? 'C02_MAIN_HALL' : 'C03_CENTRAL' };
 });
 

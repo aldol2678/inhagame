@@ -15,6 +15,9 @@ import { createMiniMapDataSource } from "../src/minimap/minimap-data.js";
 import { MAIN_GATE_SPAWN, BACK_GATE_SPAWN } from "../src/campus-spawn.js";
 import { MAIN_ENTRANCE } from "../src/basic-campus.js";
 import { FIVE, FIVE_SOUTH_ENTRY_APPROACH } from "../src/north-campus-layout.js";
+import { DORM_1_CAMPUS_RETURN } from "../src/dorm1-layout.js";
+import { LIBRARY_ROUTE_LINES } from "../src/library-route-layout.js";
+import { studentCenterFrontPoint } from "../src/student-center-front.js";
 
 const nav = createCampusNavigation();
 const pois = createMiniMapDataSource().poiRegistry().list({ surface: "FULL_MAP" });
@@ -76,6 +79,37 @@ test("M3A POI destinations resolve to doorway/forecourt approach anchors", () =>
   assert.equal(isCampusPointBlocked(five.approach), false, "Building 5 entrance is walkable");
   assert.ok(Math.hypot(five.x - FIVE.center.x, five.z - FIVE.center.z) > 1,
     "Building 5 destination is not its blocked footprint centre");
+
+  const studentPoi = pois.find(poi => poi.poiId === "poi.student-center");
+  const student = nav.poiTarget(studentPoi);
+  const studentFront = studentCenterFrontPoint();
+  assert.deepEqual(student.approach, { x: studentFront.x, z: studentFront.z },
+    "Student Center navigation ends at the shared terrace/shop front anchor");
+  assert.deepEqual({ x: student.x, z: student.z }, { x: studentPoi.x, z: studentPoi.z },
+    "Student Center map marker stays on the footprint centroid");
+  assert.equal(isCampusPointBlocked(student.approach), false, "Student Center front anchor is walkable");
+  assert.ok(Math.hypot(student.x-student.approach.x,student.z-student.approach.z)>1,
+    "Student Center display marker and navigation anchor stay separated");
+
+  const dormPoi = pois.find(poi => poi.poiId === "poi.dorm-1");
+  const dorm = nav.poiTarget(dormPoi);
+  assert.deepEqual(dorm.approach, {
+    x: DORM_1_CAMPUS_RETURN.position.x,
+    z: DORM_1_CAMPUS_RETURN.position.z
+  }, "Dorm guidance ends at the campus return/entrance forecourt");
+  assert.deepEqual({ x: dorm.x, z: dorm.z }, { x: dormPoi.x, z: dormPoi.z },
+    "Dorm map marker stays on its footprint centroid");
+  assert.equal(isCampusPointBlocked(dorm.approach), false, "Dorm approach is walkable");
+
+  const libraryPoi = pois.find(poi => poi.poiId === "poi.jungseok");
+  const library = nav.poiTarget(libraryPoi);
+  const libraryFront = LIBRARY_ROUTE_LINES.find(line => line.id === "library_front_link").nodes[0];
+  assert.deepEqual(library.approach, { x: libraryFront.x, z: libraryFront.z },
+    "Jungseok guidance ends at the authored front route");
+  assert.deepEqual({ x: library.x, z: library.z }, { x: libraryPoi.x, z: libraryPoi.z },
+    "Jungseok map marker stays on its building centroid");
+  assert.equal(isCampusPointBlocked(library.approach), false, "Jungseok front route is walkable");
+
   const pond = nav.poiTarget(pois.find(poi => poi.poiId === "poi.inkyung-pond"));
   assert.ok(nav.graph.nearestEdgePoint(pond.approach, { maxDistance: 0.01 }), "pond guidance ends on the nearest walkway");
 });

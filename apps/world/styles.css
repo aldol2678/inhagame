@@ -2271,6 +2271,14 @@ body {
 }
 
 /* Mini-map M0 shell: display-only SVG overlay. Runtime state is owned by MiniMapController. */
+:root {
+  --world-map-bg: #282d3e;
+  --world-map-building: #323748;
+  --world-map-road: #697088;
+  --world-map-path: #545b6e;
+  --world-map-green: #314339;
+  --world-map-water: #1e394e;
+}
 .minimap {
   --minimap-size: var(--world-right-rail-map-size, 112px);
   position: fixed;
@@ -2297,11 +2305,11 @@ body {
   overflow: visible;
 }
 .minimap-base {
-  fill: rgba(13, 29, 43, .86);
+  fill: rgba(40, 45, 62, .96);
 }
 .minimap-frame {
   fill: none;
-  stroke: rgba(188, 224, 239, .66);
+  stroke: rgba(181, 188, 208, .46);
   stroke-width: 1.4;
   vector-effect: non-scaling-stroke;
 }
@@ -2311,38 +2319,38 @@ body {
   transform-origin: 0 0;
 }
 .minimap-geometry [data-map-kind="BUILDING"] {
-  fill: rgba(213, 225, 231, .68);
-  stroke: rgba(242, 249, 252, .30);
+  fill: rgba(50, 55, 72, .98);
+  stroke: rgba(130, 140, 164, .32);
   stroke-width: .55;
   vector-effect: non-scaling-stroke;
 }
 .minimap-geometry [data-map-kind="GREEN"] {
-  fill: rgba(102, 157, 126, .56);
-  stroke: rgba(162, 210, 178, .22);
+  fill: rgba(49, 67, 57, .74);
+  stroke: rgba(91, 111, 97, .16);
   stroke-width: .45;
   vector-effect: non-scaling-stroke;
 }
 .minimap-geometry [data-map-kind="WATER"] {
-  fill: rgba(76, 151, 185, .72);
-  stroke: rgba(157, 220, 241, .42);
+  fill: rgba(30, 57, 78, .92);
+  stroke: rgba(78, 111, 135, .34);
   stroke-width: .55;
   vector-effect: non-scaling-stroke;
 }
 .minimap-geometry [data-map-kind="GROUND"] {
-  fill: rgba(164, 155, 133, .34);
-  stroke: rgba(222, 215, 195, .20);
+  fill: rgba(48, 53, 68, .66);
+  stroke: rgba(105, 113, 133, .14);
   stroke-width: .45;
   vector-effect: non-scaling-stroke;
 }
 .minimap-geometry [data-map-kind="ROAD"] {
-  fill: rgba(205, 202, 184, .58);
-  stroke: rgba(242, 238, 214, .20);
+  fill: rgba(105, 112, 136, .80);
+  stroke: rgba(169, 177, 198, .18);
   stroke-width: .35;
   vector-effect: non-scaling-stroke;
 }
 .minimap-geometry [data-map-kind="PATH"] {
-  fill: rgba(233, 229, 205, .44);
-  stroke: rgba(255, 251, 228, .16);
+  fill: rgba(84, 91, 110, .58);
+  stroke: rgba(155, 164, 185, .12);
   stroke-width: .3;
   vector-effect: non-scaling-stroke;
 }
@@ -2368,8 +2376,8 @@ body {
   vector-effect: non-scaling-stroke;
 }
 .minimap-poi-dot {
-  fill: rgba(20, 47, 65, .96);
-  stroke: rgba(241, 249, 252, .88);
+  fill: rgba(34, 39, 54, .98);
+  stroke: rgba(239, 242, 248, .82);
   stroke-width: 1.1;
   vector-effect: non-scaling-stroke;
 }
@@ -2377,7 +2385,7 @@ body {
   fill: #ffffff;
   font: 800 6.5px/1 Inter, Pretendard, system-ui, sans-serif;
   paint-order: stroke;
-  stroke: rgba(13, 29, 43, .86);
+  stroke: rgba(31, 35, 49, .90);
   stroke-width: 1.2px;
   stroke-linejoin: round;
   user-select: none;
@@ -2387,7 +2395,7 @@ body {
 }
 .minimap-poi[data-presentation="UNKNOWN"] .minimap-poi-dot,
 .minimap-poi[data-presentation="UNDISCOVERED"] .minimap-poi-dot {
-  fill: rgba(75, 88, 97, .94);
+  fill: rgba(64, 69, 84, .96);
 }
 .minimap-poi[data-presentation="NORMAL"] { opacity: 1; }
 .minimap-poi[data-presentation="LOCKED"] { opacity: .72; }
@@ -2433,16 +2441,17 @@ body {
   fill: #17353d;
 }
 .minimap-player-marker {
-  fill: #fff4bd;
-  stroke: rgba(19, 42, 58, .96);
-  stroke-width: 1.5;
+  fill: #ffffff;
+  stroke: rgba(17, 21, 31, .98);
+  stroke-width: 1.7;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,.55));
   vector-effect: non-scaling-stroke;
 }
 .minimap-compass-north {
   fill: rgba(255,255,255,.84);
   font: 800 8px/1 Inter, Pretendard, system-ui, sans-serif;
   paint-order: stroke;
-  stroke: rgba(12, 27, 39, .82);
+  stroke: rgba(28, 32, 45, .90);
   stroke-width: 2px;
   stroke-linejoin: round;
   vector-effect: non-scaling-stroke;
@@ -2552,7 +2561,7 @@ body {
   border: 1px solid rgba(178,220,239,.28);
   border-radius: 20px;
   overflow: hidden;
-  background: #0e2230;
+  background: #282d3e;
   touch-action: none;
   cursor: grab;
   user-select: none;
@@ -2566,35 +2575,35 @@ body {
   transform-origin: 0 0;
   will-change: transform;
 }
-.full-map-base { fill: #102938; }
+.full-map-base { fill: #282d3e; }
 .full-map-geometry [data-map-kind="BUILDING"] {
-  fill: rgba(214,226,232,.72);
-  stroke: rgba(248,252,253,.34);
+  fill: rgba(50,55,72,.98);
+  stroke: rgba(130,140,164,.32);
   stroke-width: 1;
 }
 .full-map-geometry [data-map-kind="GREEN"] {
-  fill: rgba(94,154,118,.62);
-  stroke: rgba(166,212,181,.22);
+  fill: rgba(49,67,57,.76);
+  stroke: rgba(91,111,97,.16);
   stroke-width: .8;
 }
 .full-map-geometry [data-map-kind="WATER"] {
-  fill: rgba(72,149,185,.76);
-  stroke: rgba(165,226,245,.44);
+  fill: rgba(30,57,78,.94);
+  stroke: rgba(78,111,135,.34);
   stroke-width: .9;
 }
 .full-map-geometry [data-map-kind="GROUND"] {
-  fill: rgba(165,154,128,.34);
-  stroke: rgba(225,218,195,.18);
+  fill: rgba(48,53,68,.68);
+  stroke: rgba(105,113,133,.14);
   stroke-width: .7;
 }
 .full-map-geometry [data-map-kind="ROAD"] {
-  fill: rgba(207,204,185,.64);
-  stroke: rgba(244,239,215,.24);
+  fill: rgba(105,112,136,.82);
+  stroke: rgba(169,177,198,.20);
   stroke-width: .65;
 }
 .full-map-geometry [data-map-kind="PATH"] {
-  fill: rgba(234,230,207,.50);
-  stroke: rgba(255,251,228,.17);
+  fill: rgba(84,91,110,.60);
+  stroke: rgba(155,164,185,.12);
   stroke-width: .55;
 }
 .full-map-geometry [data-map-kind="ROOM_FLOOR"] {
@@ -2623,9 +2632,9 @@ body {
   height: 30px;
   display: grid;
   place-items: center;
-  border: 1px solid rgba(246,250,252,.80);
+  border: 1px solid rgba(239,242,248,.78);
   border-radius: 50%;
-  background: rgba(17,45,61,.94);
+  background: rgba(34,39,54,.96);
   color: #fff;
   font: 900 11px/1 system-ui, sans-serif;
   cursor: pointer;
@@ -2638,6 +2647,47 @@ body {
   outline: none;
   border-color: #fff2b2;
   box-shadow: 0 0 0 3px rgba(255,222,112,.20), 0 4px 12px rgba(0,0,0,.34);
+}
+
+/* Map labels use text + halo instead of card chrome. Overview keeps only the
+   strongest orientation anchors; secondary labels appear after the first real zoom step. */
+.full-map-poi::after {
+  content: none;
+  position: absolute;
+  left: 50%;
+  top: 33px;
+  translate: -50% 0;
+  width: max-content;
+  max-width: 118px;
+  color: rgba(239, 242, 248, .94);
+  font: 800 9px/1.15 Inter, Pretendard, system-ui, sans-serif;
+  letter-spacing: -.01em;
+  white-space: nowrap;
+  text-shadow:
+    0 1px 2px rgba(10, 13, 20, .98),
+    1px 0 0 rgba(10, 13, 20, .92),
+    -1px 0 0 rgba(10, 13, 20, .92),
+    0 -1px 0 rgba(10, 13, 20, .92);
+  pointer-events: none;
+}
+.full-map-poi[data-poi-id="poi.main-hall"]::after,
+.full-map-poi[data-poi-id="poi.inkyung-pond"]::after,
+.full-map-poi[data-poi-id="poi.student-center"]::after,
+.full-map-poi[data-poi-id="poi.jungseok"]::after,
+.full-map-poi[data-poi-id="poi.dorm-1"]::after {
+  content: attr(aria-label);
+}
+.full-map-marker-layer[data-zoom-band="detail"] .full-map-poi[data-poi-id="poi.main-gate"]::after,
+.full-map-marker-layer[data-zoom-band="detail"] .full-map-poi[data-poi-id="poi.building-5"]::after,
+.full-map-marker-layer[data-zoom-band="detail"] .full-map-poi[data-poi-id="poi.back-gate"]::after {
+  content: attr(aria-label);
+}
+@media (max-width: 720px) {
+  .full-map-poi::after {
+    top: 32px;
+    max-width: 94px;
+    font-size: 8px;
+  }
 }
 .full-map-poi[data-presentation="LOCKED"],
 .full-map-poi[data-presentation="COMING_SOON"],
@@ -2669,9 +2719,10 @@ body {
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background: #fff0a8;
-  color: #142938;
-  border: 2px solid #173548;
+  background: #ffffff;
+  color: #11151f;
+  border: 2px solid #11151f;
+  box-shadow: 0 2px 7px rgba(0,0,0,.46);
   font-size: 13px;
   font-weight: 950;
   z-index: 5;
@@ -2700,7 +2751,7 @@ body {
   height: 13px;
   border-radius: 50%;
   background: #c0d4de;
-  border: 2px solid #173548;
+  border: 2px solid #1b1f2b;
   z-index: 3;
 }
 .full-map-social-marker[data-social-kind="friend"] {
