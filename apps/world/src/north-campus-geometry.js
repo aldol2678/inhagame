@@ -1,11 +1,11 @@
 // Independent public QA geometry: uniform primitives, no visual-reference input.
-import { NORTH_LANES, NORTH_APPROACHES, FIVE, ANNIVERSARY, exteriorFrame, FIVE_FRONT_TREES } from './north-campus-layout.js';
+import { NORTH_LANES, ANNIVERSARY_BACK_GATE_LINKS, NORTH_APPROACHES, FIVE, ANNIVERSARY, exteriorFrame, FIVE_FRONT_TREES } from './north-campus-layout.js';
 import { FACILITY_COLLIDERS } from './campus-facilities.js';
 import { BUILDINGS } from './basic-campus.js';
 import { QA, corridor, rect, box } from './public-qa-geometry.js';
 const bodies=[...FACILITY_COLLIDERS.filter(q=>q.minY===0).map(q=>q.polygon),...BUILDINGS.map(q=>q.vertices)];
 export const northSurface=rect;
-export function fillNorthRoads(b){for(const s of NORTH_LANES)corridor(b,s.frame,s.width,bodies);return b;}
+export function fillNorthRoads(b){for(const s of [...NORTH_LANES,...ANNIVERSARY_BACK_GATE_LINKS])corridor(b,s.frame,s.width,bodies);return b;}
 export function fillFiveGardenPaths(b){
   const ring=FIVE.rings[1];
   for(let i=0;i<ring.length;i++){

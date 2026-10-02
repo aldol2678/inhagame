@@ -24,7 +24,7 @@ const pois = createMiniMapDataSource().poiRegistry().list({ surface: "FULL_MAP" 
 
 test("M3C campus graph derives from runtime walkway authorities into one routable network", () => {
   const sources = new Set(campusNavPolylines().map(line => line.source));
-  for (const source of ["CAMPUS_ROADS", "SITE_FEATURES_PATH", "BACK_ROADS", "BACK_APPROACH_ROADS", "INTERIOR_PATHS", "SIDE_GATE_PATHS", "NORTH_LANES", "LIBRARY_ROUTE_LINES"]) {
+  for (const source of ["CAMPUS_ROADS", "SITE_FEATURES_PATH", "BACK_ROADS", "BACK_APPROACH_ROADS", "INTERIOR_PATHS", "SIDE_GATE_PATHS", "NORTH_LANES", "ANNIVERSARY_BACK_GATE_LINKS", "LIBRARY_ROUTE_LINES"]) {
     assert.ok(sources.has(source), `graph includes ${source}`);
   }
   assert.equal(nav.graph.components().length, 1, "campus and back-gate streets form one network");
@@ -45,6 +45,21 @@ test("M3C no walkway edge or junction connector cuts through a solid footprint",
     "J06 west-court footway does not fold back through a shortcut");
   assert.equal(connectors.some(edge => edge.lineId === "junction.library_front_link" && edge.length > 3), false,
     "J08 library front route keeps its road-edge join but removes the long internal chord");
+  assert.equal(connectors.some(edge => edge.lineId === "junction.garden_library_2"), false,
+    "J05 is a physical garden-to-road walkway instead of a virtual connector");
+  assert.equal(connectors.some(edge => edge.lineId === "junction.garden_library_spur"), false,
+    "J10 is a physical north-library walkway instead of a virtual connector");
+  assert.ok(nav.graph.edges().some(edge => edge.lineId === "garden_library_north_link"),
+    "J10 physical walkway participates in the routable graph");
+  assert.equal(connectors.some(edge => edge.lineId === "junction.interior_upper-yard"), false,
+    "J04 estimated upper-yard does not invent an extra exit to Inha-ro 47");
+  assert.equal(connectors.some(edge => edge.lineId === "junction.back_gate_216916383"), false,
+    "J15/J18 back-gate corner uses explicit physical links");
+  assert.equal(connectors.some(edge => edge.lineId === "junction.anniversary_east_lane" && edge.length > 2.5), false,
+    "J12 north end is physical; only the short south surface join may remain");
+  for (const id of ["anniversary_back_gate_link","anniversary_perimeter_join"]) {
+    assert.ok(nav.graph.edges().some(edge => edge.lineId === id), `${id} participates in the routable graph`);
+  }
 });
 
 test("M3C every selectable campus POI is routable along walkways from both gates", () => {

@@ -2,6 +2,7 @@
 import { FACILITIES } from './campus-facilities.js';
 import { polygonOverlap } from './polygon-collision.js';
 import { roadTreeClear, roadFrame } from './campus-road-layout.js';
+import { BACK_ROADS } from './back-gate-layout.js';
 export const FIVE = FACILITIES.find(f=>f.id==='bldg_05');
 export const ANNIVERSARY = FACILITIES.find(f=>f.id==='bldg_60th');
 export function exteriorFrame(ring,index,hole=false) {
@@ -31,14 +32,25 @@ export function northApproachHeight(x,z) {
   return height;
 }
 const east=exteriorFrame(ANNIVERSARY.rings[0],0);
-export const NORTH_LANES=[
-  {id:'anniversary_east_lane',frame:roadFrame(east.at(-3,3.1),east.at(east.length+2,3.1)),width:2.8},
-  ...[1,2,3,4].map(i=>{const f=exteriorFrame(ANNIVERSARY.rings[0],i);return {id:`anniversary_perimeter_lane_${i}`,frame:roadFrame(f.at(-.3,2.2),f.at(f.length+.3,2.2)),width:2.6};})
+const anniversaryEastLane={id:'anniversary_east_lane',frame:roadFrame(east.at(-3,3.1),east.at(east.length+2,3.1)),width:2.8};
+const anniversaryPerimeterLanes=[1,2,3,4].map(i=>{const f=exteriorFrame(ANNIVERSARY.rings[0],i);return {id:`anniversary_perimeter_lane_${i}`,frame:roadFrame(f.at(-.3,2.2),f.at(f.length+.3,2.2)),width:2.6};});
+export const NORTH_LANES=[anniversaryEastLane,...anniversaryPerimeterLanes];
+
+// Road Network v2 P0: source way 216916384 remains truncated before it reaches the
+// 60th Anniversary footprint. The safe bypass uses the existing east-side lane and joins
+// it to source way 216916383 at its last retained OSM node. No hand-authored world point.
+const backGateService=BACK_ROADS.find(r=>r.osmWayId===216916383);
+if(!backGateService)throw Error('Back-gate service road 216916383 is required');
+const anniversaryBackJoin=backGateService.vertices.at(-1);
+const perimeterOne=anniversaryPerimeterLanes.find(l=>l.id==='anniversary_perimeter_lane_1');
+export const ANNIVERSARY_BACK_GATE_LINKS=[
+  {id:'anniversary_back_gate_link',frame:roadFrame(anniversaryEastLane.frame.at(anniversaryEastLane.frame.length),anniversaryBackJoin),width:3.5},
+  {id:'anniversary_perimeter_join',frame:roadFrame(perimeterOne.frame.at(0),anniversaryBackJoin),width:2.8}
 ];
 export const FIVE_FRONTAGES=[2,6,7].map(i=>exteriorFrame(FIVE.rings[0],i));
 
 export function northRoadTreeClear(p,radius=1.9) {
-  return NORTH_LANES.every(s=>{
+  return [...NORTH_LANES,...ANNIVERSARY_BACK_GATE_LINKS].every(s=>{
     const a=s.frame.at(0),b=s.frame.at(s.frame.length),dx=b.x-a.x,dz=b.z-a.z;
     const t=Math.max(0,Math.min(1,((p.x-a.x)*dx+(p.z-a.z)*dz)/(dx*dx+dz*dz)));
     return Math.hypot(p.x-a.x-dx*t,p.z-a.z-dz*t)>s.width/2+radius;
