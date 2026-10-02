@@ -4,6 +4,11 @@ import { MOUNT_SHAPE, PLAYER_ORIGIN_Y } from './player-dimensions.js';
 import { roadviewGroundHeight } from './roadview-layout.js';
 import { constrainPondWalk, overPondWater } from './landmark-detail-layout.js';
 import { CAMPUS_BIKE_ID, MAIN_GATE_CAMPUS_BIKE, setCampusBikePropVisible } from './mounts/campus-bike-world.js';
+import {
+  CAMPUS_HELICOPTER_ID, CAMPUS_HELICOPTER, getCampusHelicopterParkedPose,
+  parkCampusHelicopterAt, setCampusHelicopterPropVisible
+} from './mounts/campus-helicopter-world.js';
+import { createHelicopterFlightState, HELICOPTER_FLIGHT_LIMITS, stepHelicopterFlight } from './mounts/helicopter-flight.js';
 import { DRAGON_MOUNT_ID } from './mounts/mount-kinds.js';
 
 export const MOVEMENT_HUD_STATES = Object.freeze({
@@ -26,8 +31,9 @@ const CAMPUS_OBSTACLES_WITHOUT_BIKE = Object.freeze(
   OBSTACLES.filter(({ id }) => id !== MAIN_GATE_CAMPUS_BIKE.id)
 );
 
-// NPC talk is 300. Gate bike must win while standing on the prop.
+// NPC talk is 300. Parked vehicles must win while standing on their props.
 export const BIKE_CONTEXT_PRIORITY = 320;
+export const HELICOPTER_CONTEXT_PRIORITY = 330;
 const BIKE_CRUISE = 9;
 const BIKE_BOOST = 14;
 const DRAGON_CRUISE = 11;
@@ -58,6 +64,7 @@ export class PlayerController {
     this.descendHeld = false;
     this.mounted = false;
     this.mountId = null;
+    this.helicopterFlight = createHelicopterFlightState();
     this.mountBlocked = false;
     this.landing = false;
     this.moving = false;
@@ -75,6 +82,10 @@ export class PlayerController {
 
   get onBike() {
     return this.mounted && this.mountId === CAMPUS_BIKE_ID;
+  }
+
+  get onHelicopter() {
+    return this.mounted && this.mountId === CAMPUS_HELICOPTER_ID;
   }
 
   #syncMountKind() {
@@ -251,8 +262,35 @@ export class PlayerController {
     return Math.hypot(p.x - a.x, p.z - a.z) <= a.interactionRadius;
   }
 
+  #nearParkedHelicopter() {
+    const p = this.entity.getLocalPosition();
+    const a = getCampusHelicopterParkedPose();
+    return Math.hypot(p.x - a.x, p.z - a.z) <= CAMPUS_HELICOPTER.interactionRadius;
+  }
+
   getMountContextAction() {
     if (!this.inputEnabled) return null;
+    if (this.onHelicopter) {
+      if (this.landing) {
+        return {
+          id: "mount", icon: "🚁", label: "자동 착륙 취소", compactLabel: "착륙 취소", shortcut: "M",
+          priority: HELICOPTER_CONTEXT_PRIORITY, pressed: true, trigger: () => this.cancelHelicopterLanding()
+        };
+      }
+      return {
+        id: "mount", icon: "🚁",
+        label: this.grounded ? "헬리콥터에서 내리기" : "자동 착륙",
+        compactLabel: this.grounded ? "내리기" : "착륙", shortcut: "M",
+        priority: HELICOPTER_CONTEXT_PRIORITY, pressed: true,
+        trigger: () => this.grounded ? this.dismountHelicopter() : this.startHelicopterLanding()
+      };
+    }
+    if (!this.mounted && this.grounded && this.space.allowMount && this.#nearParkedHelicopter()) {
+      return {
+        id: "mount", icon: "🚁", label: "헬리콥터 타기", compactLabel: "탑승", shortcut: "M",
+        priority: HELICOPTER_CONTEXT_PRIORITY, pressed: false, trigger: () => this.boardHelicopter()
+      };
+    }
     if (this.onBike) {
       return {
         id: "mount", icon: "🚲", label: "자전거에서 내리기", compactLabel: "내리기", shortcut: "M",
@@ -285,7 +323,7 @@ export class PlayerController {
   }
 
   // Transport authority. Keyboard M and the transport button both run the action that
-  // getMountContextAction() offers right now: board/leave the bike near it, otherwise the dragon.
+  // getMountContextAction() offers right now: local parked vehicles first, then the dragon.
   setTransportGate(gate = null) {
     this.transportGate = typeof gate === "function" ? gate : null;
   }
@@ -300,6 +338,62 @@ export class PlayerController {
   setMovementSpace(space = CAMPUS_MOVEMENT_SPACE) {
     this.space = space ?? CAMPUS_MOVEMENT_SPACE;
     this.bounds = this.space.bounds ?? WORLD_BOUNDS;
+  }
+
+  boardHelicopter() {
+    if (!this.inputEnabled || this.mounted || !this.grounded || !this.space.allowMount) return false;
+    if (!this.#nearParkedHelicopter()) return false;
+    const parked = getCampusHelicopterParkedPose();
+    this.mounted = true;
+    this.mountId = CAMPUS_HELICOPTER_ID;
+    this.landing = false;
+    this.jumpQueued = false;
+    this.velocityY = 0;
+    this.helicopterFlight = createHelicopterFlightState({ yaw: parked.yaw });
+    this.entity.flightAttitude = { ...this.helicopterFlight };
+    this.entity.setLocalEulerAngles(0, this.helicopterFlight.yaw, 0);
+    this.entity.setLocalPosition(
+      parked.x,
+      this.groundY + roadviewGroundHeight(parked.x, parked.z),
+      parked.z
+    );
+    this.grounded = true;
+    setCampusHelicopterPropVisible(false);
+    this.#updateMovementHud();
+    return true;
+  }
+
+  startHelicopterLanding() {
+    if (!this.onHelicopter || this.grounded) return false;
+    this.landing = true;
+    this.#updateMovementHud();
+    return true;
+  }
+
+  cancelHelicopterLanding() {
+    if (!this.onHelicopter || !this.landing) return false;
+    this.landing = false;
+    this.#updateMovementHud();
+    return true;
+  }
+
+  dismountHelicopter() {
+    if (!this.onHelicopter || !this.grounded) return false;
+    const p = this.entity.getLocalPosition();
+    parkCampusHelicopterAt({
+      x: p.x,
+      y: p.y - this.groundY,
+      z: p.z,
+      yaw: this.helicopterFlight.yaw
+    });
+    this.mounted = false;
+    this.mountId = null;
+    this.landing = false;
+    this.velocityY = 0;
+    this.entity.flightAttitude = null;
+    setCampusHelicopterPropVisible(true);
+    this.#updateMovementHud();
+    return true;
   }
 
   boardBike() {
@@ -328,6 +422,12 @@ export class PlayerController {
 
   toggleMount() {
     if (!this.inputEnabled) return;
+    if (this.onHelicopter) {
+      if (this.landing) this.cancelHelicopterLanding();
+      else if (this.grounded) this.dismountHelicopter();
+      else this.startHelicopterLanding();
+      return;
+    }
     if (this.onBike) {
       this.dismountBike();
       return;
@@ -382,10 +482,20 @@ export class PlayerController {
     }
     let x = 0;
     let z = 0;
-    if (this.keys.has("KeyA") || this.keys.has("ArrowLeft")) x -= 1;
-    if (this.keys.has("KeyD") || this.keys.has("ArrowRight")) x += 1;
-    if (this.keys.has("KeyW") || this.keys.has("ArrowUp")) z += 1;
-    if (this.keys.has("KeyS") || this.keys.has("ArrowDown")) z -= 1;
+    let yawInput = 0;
+    if (this.onHelicopter) {
+      if (this.keys.has("KeyA")) x -= 1;
+      if (this.keys.has("KeyD")) x += 1;
+      if (this.keys.has("KeyW") || this.keys.has("ArrowUp")) z += 1;
+      if (this.keys.has("KeyS") || this.keys.has("ArrowDown")) z -= 1;
+      if (this.keys.has("ArrowLeft")) yawInput -= 1;
+      if (this.keys.has("ArrowRight")) yawInput += 1;
+    } else {
+      if (this.keys.has("KeyA") || this.keys.has("ArrowLeft")) x -= 1;
+      if (this.keys.has("KeyD") || this.keys.has("ArrowRight")) x += 1;
+      if (this.keys.has("KeyW") || this.keys.has("ArrowUp")) z += 1;
+      if (this.keys.has("KeyS") || this.keys.has("ArrowDown")) z -= 1;
+    }
 
     x += this.touchVector.x;
     z += -this.touchVector.y;
@@ -394,6 +504,63 @@ export class PlayerController {
     if (mag > 1) {
       x /= mag;
       z /= mag;
+    }
+
+    if (this.onHelicopter) {
+      const pos = this.entity.getLocalPosition();
+      const touchActive = Math.hypot(this.touchVector.x, this.touchVector.y) > 0.04;
+      if (Math.abs(yawInput) < 0.01 && touchActive) {
+        const cameraDegrees = cameraYaw * 180 / Math.PI;
+        const delta = ((cameraDegrees - this.helicopterFlight.yaw + 540) % 360) - 180;
+        yawInput = Math.max(-1, Math.min(1, delta / 50));
+      }
+
+      const ascend = this.ascendHeld || this.keys.has("Space");
+      const descend = this.descendHeld || this.keys.has("KeyC") ||
+        this.keys.has("ControlLeft") || this.keys.has("ControlRight");
+      if (this.landing && ascend) this.landing = false;
+      const collective = this.landing ? -0.72 : ascend ? 1 : descend ? -1 : 0;
+      const boost = this.touchSprint || this.keys.has("ShiftLeft") || this.keys.has("ShiftRight");
+
+      let flight = stepHelicopterFlight(this.helicopterFlight, {
+        pitch: z,
+        roll: x,
+        yaw: yawInput,
+        collective,
+        boost
+      }, dt);
+      const mountShape = { ...MOUNT_SHAPE, footOffset: this.groundY };
+      const nextXZ = moveAroundObstacles(pos, flight.vx * dt, flight.vz * dt, undefined, mountShape);
+      const water = overPondWater(nextXZ.x, nextXZ.z);
+      const ground = this.groundY + (water ? 1 : roadviewGroundHeight(nextXZ.x, nextXZ.z));
+      const altitudeCeiling = this.groundY + HELICOPTER_FLIGHT_LIMITS.maxAltitude;
+      const requestedY = Math.min(altitudeCeiling, pos.y + flight.vy * dt);
+      let nextY = resolveHeight(
+        { x: nextXZ.x, y: pos.y, z: nextXZ.z },
+        Math.max(ground, requestedY),
+        ground,
+        undefined,
+        mountShape
+      );
+      const grounded = !water && nextY <= ground + 0.001;
+      if (grounded) {
+        nextY = ground;
+        if (flight.vy < 0) flight = { ...flight, vy: 0 };
+      }
+      const nextX = Math.max(this.bounds.minX, Math.min(this.bounds.maxX, nextXZ.x));
+      const nextZ = Math.max(this.bounds.minZ, Math.min(this.bounds.maxZ, nextXZ.z));
+
+      this.helicopterFlight = flight;
+      this.entity.flightAttitude = { pitch: flight.pitch, roll: flight.roll, yaw: flight.yaw };
+      this.entity.setLocalEulerAngles(0, flight.yaw, 0);
+      this.entity.setLocalPosition(nextX, nextY, nextZ);
+      this.grounded = grounded;
+      this.moving = Math.hypot(flight.vx, flight.vz) > 0.05 || Math.abs(flight.vy) > 0.05 ||
+        Math.hypot(x, z) > 0.04 || Math.abs(yawInput) > 0.04;
+      if (this.landing && this.grounded) this.landing = false;
+      this.#updateMovementHud();
+      this.jumpQueued = false;
+      return;
     }
 
     const manual = Math.hypot(x, z) > 0.04;

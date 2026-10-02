@@ -7,6 +7,7 @@ import { moveAroundObstacles, resolveHeight, cameraSafeFraction } from "./src/wo
 import { createCampusTour } from "./src/campus-tour.js";
 import { selectContextAction } from "./src/context-action.js";
 import { movementHudState, MOVEMENT_HUD_STATES } from "./src/player-controller.js";
+import { createHelicopterFlightState, HELICOPTER_FLIGHT_LIMITS, stepHelicopterFlight } from "./src/mounts/helicopter-flight.js";
 import { createLobbyPresenceSummary } from "./src/lobby/lobby-presence-summary.js";
 import { createLobbyQuestHighlight } from "./src/lobby/lobby-quest-highlight.js";
 import { createSpawnRegistry, SPAWN_ID } from "./src/lobby/spawn-registry.js";
@@ -31,6 +32,11 @@ assert.equal(dormRoomsQa.contextAction({ position: DORM_1_LOBBY_ENTRANCE.positio
 assert.ok(Number.isFinite(DORM_1_LOBBY_MY_ROOM_RETURN.position.x));
 const campusBikeWorldSource = readFileSync(new URL("./src/mounts/campus-bike-world.js", import.meta.url), "utf8");
 const campusBikeRiderSource = readFileSync(new URL("./src/mounts/campus-bike-rider.js", import.meta.url), "utf8");
+const campusHelicopterWorldSource = readFileSync(new URL("./src/mounts/campus-helicopter-world.js", import.meta.url), "utf8");
+const campusHelicopterRiderSource = readFileSync(new URL("./src/mounts/campus-helicopter-rider.js", import.meta.url), "utf8");
+const mountKindsSource = readFileSync(new URL("./src/mounts/mount-kinds.js", import.meta.url), "utf8");
+const protocolSourceForMounts = readFileSync(new URL("./src/network/protocol.js", import.meta.url), "utf8");
+const campusChunkRendererSource = readFileSync(new URL("./src/campus-chunk-renderer.js", import.meta.url), "utf8");
 const gateBlockoutSource = readFileSync(new URL("./src/gate-blockout.js", import.meta.url), "utf8");
 const npcRuntimeSource = readFileSync(new URL("./npc-factory/dev-runtime.mjs", import.meta.url), "utf8");
 const npcDimensionsSource = readFileSync(new URL("./npc-factory/npc-dimensions.mjs", import.meta.url), "utf8");
@@ -65,6 +71,48 @@ assert.match(campusBikeRiderSource, /function wireBasket/,
   "rider bike uses an open wire basket instead of a solid cube");
 assert.match(playerControllerSource, /CAMPUS_OBSTACLES_WITHOUT_BIKE/,
   "bike movement excludes the parked bike collider after boarding");
+
+// Helicopter P0: stadium prop, assisted flight dynamics, mount wire and player integration.
+assert.match(campusHelicopterWorldSource, /fac_stadium/,
+  "helicopter spawn derives from the authoritative stadium facility");
+assert.match(campusHelicopterWorldSource, /rideable:\s*true/,
+  "stadium helicopter is a rideable mount");
+assert.match(campusHelicopterWorldSource, /export function parkCampusHelicopterAt/,
+  "dismount can park the shared helicopter at its landing site");
+assert.match(campusHelicopterRiderSource, /mainAngle = \(mainAngle \+ step \* 900\) % 360/,
+  "helicopter rider visual spins the main rotor");
+assert.match(campusChunkRendererSource, /buildCampusHelicopter\(base\)/,
+  "persistent campus base renders the parked helicopter");
+assert.match(protocolSourceForMounts, /HELICOPTER:\s*"helicopter"/,
+  "helicopter is an optional protocol-v1 mount kind");
+assert.match(mountKindsSource, /Mount\.HELICOPTER/,
+  "local and remote mount mapping understands the helicopter");
+assert.match(playerControllerSource, /HELICOPTER_CONTEXT_PRIORITY = 330/,
+  "parked helicopter wins the shared interaction slot at close range");
+assert.match(playerControllerSource, /label:\s*this\.grounded \? "헬리콥터에서 내리기" : "자동 착륙"/,
+  "helicopter context action distinguishes ground dismount from airborne landing");
+assert.match(playerControllerSource, /pitch:\s*z,[\s\S]*roll:\s*x,[\s\S]*yaw:\s*yawInput,[\s\S]*collective,/s,
+  "helicopter cyclic, pedals and collective feed the pure flight model");
+
+const hover = stepHelicopterFlight(createHelicopterFlightState(), {}, 1 / 60);
+assert.equal(hover.vy, 0, "neutral collective holds altitude in assisted mode");
+const climb = stepHelicopterFlight(createHelicopterFlightState(), { collective: 1 }, 0.05);
+assert.ok(climb.vy > 0, "positive collective climbs");
+let forwardFlight = createHelicopterFlightState({ yaw: 0 });
+for (let i = 0; i < 60; i++) {
+  forwardFlight = stepHelicopterFlight(forwardFlight, { pitch: 1 }, 1 / 60);
+}
+assert.ok(forwardFlight.vz > 0.5, "forward cyclic accelerates along helicopter heading");
+assert.ok(Math.abs(forwardFlight.pitch) <= HELICOPTER_FLIGHT_LIMITS.maxPitchDeg + 1e-6,
+  "helicopter pitch remains bounded");
+let rollFlight = createHelicopterFlightState({ yaw: 0 });
+for (let i = 0; i < 60; i++) {
+  rollFlight = stepHelicopterFlight(rollFlight, { roll: 1 }, 1 / 60);
+}
+assert.ok(rollFlight.vx > 0.5, "right cyclic accelerates to the helicopter right");
+assert.ok(Math.abs(rollFlight.roll) <= HELICOPTER_FLIGHT_LIMITS.maxRollDeg + 1e-6,
+  "helicopter roll remains bounded");
+console.log("Helicopter flight P0 static + dynamics contracts PASS");
 
 assert.equal(movementHudState({ mounted:false, grounded:true }), MOVEMENT_HUD_STATES.WALK);
 assert.equal(movementHudState({ mounted:true, grounded:true }), MOVEMENT_HUD_STATES.MOUNT_GROUND);

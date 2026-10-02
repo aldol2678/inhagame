@@ -4,6 +4,8 @@ import { SIT_OFFSETS } from "./seat-anchors.js";
 import { HUMAN_HEIGHT, PLAYER_ORIGIN_Y } from './player-dimensions.js';
 import { CAMPUS_BIKE_ID } from './mounts/campus-bike-world.js';
 import { attachRiderBike } from './mounts/campus-bike-rider.js';
+import { CAMPUS_HELICOPTER_ID } from './mounts/campus-helicopter-world.js';
+import { attachRiderHelicopter } from './mounts/campus-helicopter-rider.js';
 import { createEquipmentAnchors } from './appearance/equipment-anchors.js';
 
 const palette = {
@@ -26,13 +28,16 @@ const BIKE_RIDER_FOOT_Y = 0.31;
 const BIKE_RIDER_Z = -0.07;
 const BIKE_RIDER_PITCH = 17;
 const BIKE_LEG_BEND = 62;
+const HELICOPTER_RIDER_FOOT_Y = 0.4;
+const HELICOPTER_RIDER_Z = 0.18;
 
-function duckPose(modelState, mounted, bike = false, bob = 0) {
+function duckPose(modelState, mounted, bike = false, helicopter = false, bob = 0) {
   const bounds = DUCK_BOUNDS[modelState === 'glb' ? 'glb' : 'fallback'];
   const scale = HUMAN_HEIGHT / (bounds.top - bounds.bottom);
   const bottomY = !mounted ? -PLAYER_ORIGIN_Y
     : bike ? BIKE_RIDER_FOOT_Y - PLAYER_ORIGIN_Y
-      : .55;
+      : helicopter ? HELICOPTER_RIDER_FOOT_Y - PLAYER_ORIGIN_Y
+        : .55;
   const y = bottomY - bounds.bottom * scale + bob;
   return { scale, y, feetY: bottomY + bob, labelY: y + bounds.top * scale + .15 };
 }
@@ -52,6 +57,10 @@ function ridingBike(player) {
   return player.mountKind === CAMPUS_BIKE_ID;
 }
 
+function ridingHelicopter(player) {
+  return player.mountKind === CAMPUS_HELICOPTER_ID;
+}
+
 export function createCharacter(app, player) {
   // Independently authored QA cuboids; no original mascot fallback recipe.
   const duck = new pc.Entity("Public_QA_Avatar");
@@ -64,6 +73,7 @@ export function createCharacter(app, player) {
   part(dragon,"QA_Platform","box",[0,0,0],[1.4,.3,1.4],"softWhite");
   const dragonWings = [-1,1].map(side => part(dragon,`QA_Pivot_${side}`,"box",[side*.7,0,0],[.1,.1,.1],"softWhite"));
   const riderBike = attachRiderBike(player);
+  const riderHelicopter = attachRiderHelicopter(player);
   // Equipment anchors live under the player (not under the active visual), so the fallback→GLB swap
   // keeps every attached equipment entity; the root copies the body pose in positionDuck.
   const equipment = createEquipmentAnchors({ createEntity: name => new pc.Entity(name), parent: player, height: HUMAN_HEIGHT });
@@ -82,12 +92,14 @@ export function createCharacter(app, player) {
   let duckBaseEuler = [0, 0, 0];
   function positionDuck(mounted, bob = 0, bodyEuler = duckBaseEuler) {
     const bike = mounted && ridingBike(player);
-    const pose = duckPose(modelState, mounted, bike, bob);
-    duckVisual.setLocalPosition(0, pose.y, bike ? BIKE_RIDER_Z : mounted ? -0.22 : 0);
+    const helicopter = mounted && ridingHelicopter(player);
+    const pose = duckPose(modelState, mounted, bike, helicopter, bob);
+    const riderZ = bike ? BIKE_RIDER_Z : helicopter ? HELICOPTER_RIDER_Z : mounted ? -0.22 : 0;
+    duckVisual.setLocalPosition(0, pose.y, riderZ);
     duckVisual.setLocalEulerAngles(bodyEuler[0], bodyEuler[1], bodyEuler[2]);
     duckVisual.setLocalScale(pose.scale, pose.scale, pose.scale);
     equipment.follow({
-      feetY: pose.feetY, pivotY: pose.y, z: bike ? BIKE_RIDER_Z : mounted ? -0.22 : 0,
+      feetY: pose.feetY, pivotY: pose.y, z: riderZ,
       euler: [bodyEuler[0] - duckBaseEuler[0], bodyEuler[1] - duckBaseEuler[1], bodyEuler[2] - duckBaseEuler[2]]
     });
     nameplateHeight = pose.labelY;
@@ -96,8 +108,10 @@ export function createCharacter(app, player) {
 
   function showMountVisuals() {
     const bike = ridingBike(player);
-    dragonVisual.enabled = mountedNow && !bike && !firstPerson;
+    const helicopter = ridingHelicopter(player);
+    dragonVisual.enabled = mountedNow && !bike && !helicopter && !firstPerson;
     riderBike.enabled = mountedNow && bike && !firstPerson;
+    riderHelicopter.root.enabled = mountedNow && helicopter && !firstPerson;
   }
 
   function loadModel(url) {
@@ -170,7 +184,10 @@ export function createCharacter(app, player) {
     update(dt, { mounted, moving, grounded, emote = null, seated = false, poseOffsets = null }) {
       elapsed += dt;
       const bike = ridingBike(player);
-      const fly = mounted && !bike;
+      const helicopter = ridingHelicopter(player);
+      const fly = mounted && !bike && !helicopter;
+      const attitude = helicopter && player.flightAttitude
+        ? player.flightAttitude : { pitch: 0, roll: 0 };
       const bob = fly && modelState === 'glb' ? Math.sin(elapsed * 4) * .045
         : !mounted && moving && grounded ? Math.sin(elapsed * 10) * .017 : 0;
       const legSwing = moving && grounded && !mounted ? Math.sin(elapsed * 11) * 22 : 0;
@@ -179,11 +196,16 @@ export function createCharacter(app, player) {
         bodyY: bob,
         bodyEuler: bike
           ? [duckBaseEuler[0] + BIKE_RIDER_PITCH, duckBaseEuler[1], duckBaseEuler[2]]
-          : duckBaseEuler,
+          : helicopter
+            ? [duckBaseEuler[0] + attitude.pitch * .35, duckBaseEuler[1], duckBaseEuler[2] - attitude.roll * .35]
+            : duckBaseEuler,
         wings: bike
           ? [[12, -72, -58], [12, 72, 58]]
-          : [0, 1].map(index => [0, 0, (index ? -1 : 1) * (22 + (moving && !mounted ? Math.sin(elapsed * 11) * 13 : 0))]),
-        legs: bike ? [BIKE_LEG_BEND + pedal, BIKE_LEG_BEND - pedal] : [legSwing, -legSwing]
+          : helicopter
+            ? [[5, -35, -42], [5, 35, 42]]
+            : [0, 1].map(index => [0, 0, (index ? -1 : 1) * (22 + (moving && !mounted ? Math.sin(elapsed * 11) * 13 : 0))]),
+        legs: bike ? [BIKE_LEG_BEND + pedal, BIKE_LEG_BEND - pedal]
+          : helicopter ? [28, 28] : [legSwing, -legSwing]
       };
       const offsets = seated && !mounted ? SIT_OFFSETS
         : poseOffsets && !mounted ? poseOffsets
@@ -191,6 +213,11 @@ export function createCharacter(app, player) {
       const pose = composeEmotePose(base, offsets);
       lastPose = pose;
       positionDuck(mounted, pose.bodyY, pose.bodyEuler);
+      riderHelicopter.update(dt, {
+        active: mounted && helicopter && !firstPerson,
+        pitch: attitude.pitch,
+        roll: attitude.roll
+      });
       activeDuckWings.forEach((wing, index) => wing.setLocalEulerAngles(...pose.wings[index]));
       activeDragonWings.forEach((wing, index) => wing.setLocalEulerAngles(0, 0,
         (index ? -1 : 1) * (fly ? Math.sin(elapsed * 8) * 28 + 12 : 10)));
