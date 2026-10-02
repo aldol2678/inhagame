@@ -4008,14 +4008,105 @@ body[data-space]:not([data-space="campus"]) > .inkyung-living-moment {
   .world-lobby-daily-loop-rows { grid-template-columns: minmax(0, 1fr); }
 }
 
+/* EXPLORE-MOBILE-HUD:start
+   Explore-mode mobile polish. This is presentation-only and is gated by the P0 HUD Context tokens:
+   touch device + EXPLORE + no blocking overlay. It keeps existing DOM, input authority, Safe Area
+   contracts and thumb controls, while giving the Mini-map + tracked quest one coherent right rail. */
+@media (pointer: coarse) {
+  body[data-hud-mode="EXPLORE"][data-hud-overlay="NONE"] .campus-topbar .return-home,
+  body[data-hud-mode="EXPLORE"][data-hud-overlay="NONE"] .hud-menu-toggle,
+  body[data-hud-mode="EXPLORE"][data-hud-overlay="NONE"] .location-chip {
+    background: rgba(13, 38, 62, .86);
+    border-color: rgba(174, 222, 245, .46);
+    box-shadow: 0 5px 18px rgba(0, 0, 0, .18);
+  }
+
+  body[data-hud-mode="EXPLORE"][data-hud-overlay="NONE"] .minimap {
+    filter: drop-shadow(0 8px 20px rgba(0,0,0,.32));
+  }
+
+  body[data-hud-mode="EXPLORE"][data-hud-overlay="NONE"] .tracked-quest-hud {
+    border-color: rgba(174, 222, 245, .34);
+    background: rgba(13, 38, 62, .84);
+    box-shadow: 0 7px 20px rgba(0,0,0,.22);
+    backdrop-filter: blur(9px);
+  }
+
+  body[data-hud-mode="EXPLORE"][data-hud-overlay="NONE"] .tracked-quest-hud-open {
+    border-radius: inherit !important;
+  }
+
+  body[data-hud-mode="EXPLORE"][data-hud-overlay="NONE"] #context-action {
+    border-color: rgba(174, 229, 255, .88);
+    background: rgba(24, 91, 137, .94);
+    box-shadow: 0 7px 22px rgba(0,0,0,.34), 0 0 0 1px rgba(255,255,255,.06) inset;
+  }
+
+  body[data-hud-mode="EXPLORE"][data-hud-overlay="NONE"] .social-cluster #nearby-toggle,
+  body[data-hud-mode="EXPLORE"][data-hud-overlay="NONE"] .social-cluster #emote-toggle {
+    opacity: .84;
+  }
+
+  body[data-hud-mode="EXPLORE"][data-hud-overlay="NONE"] .social-cluster #chat-toggle {
+    border-color: rgba(174, 229, 255, .72);
+    background: rgba(24, 91, 137, .92);
+    box-shadow: 0 5px 16px rgba(0,0,0,.24);
+  }
+}
+
+/* Portrait: Mini-map -> one tracked quest. Guidance/event UI is pushed below that rail when needed. */
+@media (pointer: coarse) and (orientation: portrait) and (max-width: 720px) {
+  body[data-hud-mode="EXPLORE"][data-hud-overlay="NONE"]:has(> #minimap:not([hidden])) > .tracked-quest-hud {
+    top: calc(var(--world-right-rail-top) + var(--world-right-rail-map-size) + 8px);
+    right: var(--world-right-rail-right);
+    left: auto;
+    width: min(204px, calc(100vw - 28px));
+    max-width: 204px;
+    min-height: 46px;
+  }
+
+  body[data-hud-mode="EXPLORE"][data-hud-overlay="NONE"] > .tracked-quest-hud .tracked-quest-hud-open {
+    min-height: 46px !important;
+    grid-template-columns: 18px minmax(0, 1fr) auto;
+    grid-template-areas: "flag objective bearing";
+    column-gap: 6px;
+    row-gap: 0;
+    padding: 6px 8px !important;
+  }
+
+  body[data-hud-mode="EXPLORE"][data-hud-overlay="NONE"] > .tracked-quest-hud .tour-heading {
+    display: none;
+  }
+
+  body[data-hud-mode="EXPLORE"][data-hud-overlay="NONE"] > .tracked-quest-hud .tour-objective {
+    max-width: 112px;
+    font-size: 11px;
+    white-space: nowrap;
+  }
+
+  body[data-hud-mode="EXPLORE"][data-hud-overlay="NONE"] > .tracked-quest-hud .tracked-quest-bearing {
+    max-width: 66px;
+    padding: 3px 6px;
+    font-size: 10px;
+    white-space: nowrap;
+  }
+
+  body[data-hud-mode="EXPLORE"][data-hud-overlay="NONE"]:has(> #quest-hud:not([hidden])) {
+    --world-right-rail-event-top: calc(
+      var(--world-right-rail-top) + var(--world-right-rail-map-size) + 62px
+    );
+  }
+}
+/* EXPLORE-MOBILE-HUD:end */
+
 /* LANDSCAPE-HUD:start
    Mobile landscape HUD · phones held sideways (touch + landscape + short viewport).
    The portrait phone HUD keys off max-width, so a rotated phone (740–932px wide) used to fall through to the
    desktop-sized layout while joystick / jump / run were already active: the right rail and the action stack
    collided on 350–450px tall screens. This block is a pure override that only matches that situation — the
    portrait and desktop rules above are untouched and no DOM or JS authority changes.
-   Layout: left = joystick + social row · right = Mini-map, then a short 2-column action cluster ·
-   top-left = one-line quest card · top rail beside the Mini-map = guidance / event chips ·
+   Layout: left = joystick + social row · right = Mini-map + one-line tracked quest, then a short 2-column action cluster ·
+   top-left = first-tour card only · top rail beside the Mini-map = guidance / event chips ·
    bottom centre "lane" (between pad and cluster) = chat / toasts / dialogue, kept clear when idle.
    Mirrors with body.joystick-right through the --ls-* side tokens. */
 @media (pointer: coarse) and (orientation: landscape) and (max-height: 500px) {
@@ -4283,7 +4374,7 @@ body[data-space]:not([data-space="campus"]) > .inkyung-living-moment {
   body .inkyung-living-moment strong { font-size: 12px; }
   body .inkyung-living-actions { font-size: 10px; line-height: 1.35; }
 
-  /* Top-left: the first-tour card and the tracked quest are one-liners; the quest title lives in the journal. */
+  /* First-tour guidance stays top-left. The tracked quest joins the Mini-map rail on the right. */
   body .tour {
     top: var(--world-right-rail-top);
     left: max(12px, env(safe-area-inset-left));
@@ -4293,7 +4384,11 @@ body[data-space]:not([data-space="campus"]) > .inkyung-living-moment {
   }
   body .tour .tour-objective { max-width: 150px; }
   body .tracked-quest-hud {
-    width: fit-content;
+    top: calc(var(--world-right-rail-top) + var(--ls-map) + 6px);
+    right: var(--world-right-rail-right);
+    left: auto;
+    width: min(210px, calc(100vw - 24px));
+    max-width: 210px;
     min-height: 36px;
     display: flex;
     align-items: center;
