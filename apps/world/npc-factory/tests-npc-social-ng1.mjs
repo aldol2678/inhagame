@@ -34,7 +34,7 @@ assert.match(runtimeSource, /if \(socialPreview\) socialNg1Panel = mountNpcSocia
   'NG1 observer panel mounts only in preview, never in production');
 assert.match(runtimeSource, /if \(socialPreview\) \{[\s\S]*const socialPreviewApi/,
   'NG1 observer controls stay preview-only');
-assert.match(runtimeSource, /if \(!socialBehaviorPreview\) socialPreviewApi\.advanceTicks/,
+assert.match(runtimeSource, /if \(!socialBehaviorPreview && !worldClock\) socialPreviewApi\.advanceTicks/,
   'NG1-only preview may fast-forward the isolated social model');
 assert.match(runtimeSource, /if \(socialBehaviorPreview\) window\.__NPC_SOCIAL_NG15__[\s\S]*advanceSeconds:[\s\S]*update\(dt\)/,
   'NG1.5 preview advances the shared NPC runtime clock instead of NG1 alone');

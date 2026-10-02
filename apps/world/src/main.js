@@ -164,6 +164,8 @@ const npcAiPilotMode = npcTestMode && startupParams.get('npcAiPilot') === '1';
 const npcProductionMode = ['inhagame.example', 'www.inhagame.example'].includes(location.hostname);
 const npcPreviewMode = location.hostname.endsWith('.vercel.app') &&
   startupParams.get('npcTest') === 'a-r1';
+// Production shares server time and deterministic NPC routes across clients.
+const npcSharedScheduleMode = npcProductionMode || (previewHost && startupParams.get('npcSync') === 'ng2');
 const npcRosterPreviewMode = previewHost && startupParams.get('campusLife') === 'roster';
 const npcSocialPreviewLevel = previewHost ? startupParams.get('npcSocial') : null;
 const npcObservedConversationPreview = previewHost && startupParams.get('npcConversation') === 'p0';
@@ -171,7 +173,7 @@ const npcSocialBehaviorPreviewMode = npcSocialPreviewLevel === 'ng15';
 const npcSocialPreviewMode = npcSocialPreviewLevel === 'ng1' || npcSocialBehaviorPreviewMode;
 const npcSocialProductionMode = npcProductionMode;
 const npcSocialMode = npcSocialProductionMode || npcSocialPreviewMode || npcObservedConversationPreview;
-const npcEnabled = npcTestMode || npcProductionMode || npcPreviewMode || npcRosterPreviewMode || npcSocialMode;
+const npcEnabled = npcSharedScheduleMode || npcTestMode || npcProductionMode || npcPreviewMode || npcRosterPreviewMode || npcSocialMode;
 const campusLifePreview = previewHost && startupParams.get('campusLife') === 'p0a';
 let lastTrackedZone = null;
 
@@ -1966,7 +1968,8 @@ async function loadOptionalNpcRuntime() {
     const module = await import('../npc-factory/dev-runtime.mjs');
     const runtime = await module.createNpcDevRuntime({
       app, campusRoot, player, orbit,
-      production: npcProductionMode || npcPreviewMode || npcRosterPreviewMode || npcSocialPreviewMode || npcObservedConversationPreview,
+      sharedSchedulePreview: npcSharedScheduleMode,
+      production: npcSharedScheduleMode || npcProductionMode || npcPreviewMode || npcRosterPreviewMode || npcSocialPreviewMode || npcObservedConversationPreview,
       socialEnabled: npcSocialMode,
       socialPreview: npcSocialPreviewMode,
       socialBehaviorPreview: npcSocialBehaviorPreviewMode,
