@@ -67,7 +67,7 @@ const decisions=()=>calls.filter(x=>x.name==='log_induck_grow_decision_v1');
   await tick();
 
   windowMock.chooseOT('academic');await tick();
-  assert.deepEqual(decisions().at(-1).args,{
+  assert.deepStrictEqual({...decisions().at(-1).args},{
     p_event_id:decisions().at(-1).args.p_event_id,
     p_session_id:decisions().at(-1).args.p_session_id,
     p_week:1,p_department:'culture',p_category:'orientation',p_decision_id:'ot',p_choice_id:'academic',
