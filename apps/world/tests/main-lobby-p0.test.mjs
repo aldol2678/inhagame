@@ -124,6 +124,54 @@ test("P0.3 MAIN_GATE start exits lobby and places the player at the canonical an
   assert.equal(documentLike.body.dataset.lobbyShell, undefined);
 });
 
+test("P0.3 MAIN_GATE skips the staged transition when already at the canonical spawn", () => {
+  const lobby = { hidden: false };
+  const documentLike = {
+    body: { dataset: { lobbyShell: "true" } },
+    getElementById(id) { return id === "world-lobby" ? lobby : null; }
+  };
+  const player = {
+    pos: { ...MAIN_GATE_SPAWN },
+    getLocalPosition() { return this.pos; },
+    setLocalPosition(x, y, z) { this.pos = { x, y, z }; },
+    setLocalEulerAngles() {}
+  };
+  const lobbyWorld = {
+    active: true,
+    leave() { this.active = false; return true; }
+  };
+  let transitionStarts = 0;
+  const transition = {
+    start() { transitionStarts++; return true; }
+  };
+
+  assert.equal(enterMainGate({ player, lobbyWorld, documentLike, transition }), true);
+  assert.equal(transitionStarts, 0);
+  assert.equal(lobbyWorld.active, false);
+  assert.equal(lobby.hidden, true);
+});
+
+test("P0.3 MAIN_GATE keeps the staged transition when a real reposition is required", () => {
+  const player = {
+    pos: { x: MAIN_GATE_SPAWN.x + 12, y: MAIN_GATE_SPAWN.y, z: MAIN_GATE_SPAWN.z },
+    getLocalPosition() { return this.pos; },
+    setLocalPosition() { throw new Error("direct move should not run"); },
+    setLocalEulerAngles() { throw new Error("direct yaw should not run"); }
+  };
+  const lobbyWorld = {
+    active: true,
+    leave() { throw new Error("transition owns the handoff"); }
+  };
+  let args = null;
+  const transition = {
+    start(next) { args = next; return true; }
+  };
+
+  assert.equal(enterMainGate({ player, lobbyWorld, transition }), true);
+  assert.deepEqual(args.position, MAIN_GATE_SPAWN);
+  assert.equal(args.cameraYaw, MAIN_GATE_SPAWN.yaw);
+});
+
 test("P0.3 MAIN_GATE start is inert outside lobby mode", () => {
   let moved = false;
   const player = { setLocalPosition() { moved = true; }, setLocalEulerAngles() { moved = true; } };
