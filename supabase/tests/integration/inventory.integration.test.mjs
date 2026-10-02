@@ -163,17 +163,18 @@ test('concurrent different grants of one UNIQUE item leave exactly one ownership
   assert.equal(rows[0].source_ref, winner.sourceRef, 'provenance is the grant that actually created it');
 });
 
-test('concurrent STACKABLE grants add up without lost updates', async () => {
-  const itemId = `${FIXTURE_PREFIX}ticket`;
-  sqlSync(`insert into private.world_item_catalog values (${lit(itemId)}, 'MEMORABILIA', 'STACKABLE', 50, 'ACTIVE')`);
+test('concurrent Life M1 MATERIAL grants add up without lost updates', async () => {
+  const itemId = 'material.campus_leaf';
   const user = createUser();
   const results = await Promise.all(Array.from({ length: 10 }, (_, i) =>
-    grant(user, itemId, `it:${user}:ticket:${i}`, { quantity: 2 })));
+    grant(user, itemId, `it:${user}:leaf:${i}`,
+      { quantity: 2, source: 'ACTIVITY', ref: 'activity.gathering.campus' })));
   assert.ok(results.every((r) => r.ok && r.value.status === 'GRANTED'), JSON.stringify(results));
-  assert.deepEqual(results.map((r) => r.value.quantityBefore).sort((a, b) => a - b),
+  assert.deepEqual(results.map((r) => r.value.quantityBefore).sort((x, y) => x - y),
     Array.from({ length: 10 }, (_, i) => i * 2), 'a gapless chain 0,2,...,18');
   const rows = ownershipRows(user);
-  assert.deepEqual([rows.length, rows[0].quantity], [1, 20]);
+  assert.deepEqual([rows.length, rows[0].item_id, rows[0].quantity, rows[0].source_type, rows[0].source_ref],
+    [1, itemId, 20, 'ACTIVITY', 'activity.gathering.campus']);
 });
 
 test('clients cannot forge, change or read other inventories through the Data API', async () => {

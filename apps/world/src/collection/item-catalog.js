@@ -7,7 +7,7 @@
 
 export const ITEM_ID_PATTERN = /^[a-z][a-z0-9_]*\.[a-z0-9_]+$/;
 
-export const ITEM_CATEGORIES = Object.freeze(['WEARABLE', 'BADGE', 'EMOTE', 'FURNITURE', 'MOUNT', 'MOUNT_COSMETIC', 'MEMORABILIA']);
+export const ITEM_CATEGORIES = Object.freeze(['WEARABLE', 'BADGE', 'EMOTE', 'FURNITURE', 'MOUNT', 'MOUNT_COSMETIC', 'MEMORABILIA', 'MATERIAL']);
 export const APPEARANCE_SLOTS = Object.freeze(['BODY', 'FACE', 'HAIR', 'HEAD', 'TOP', 'BOTTOM', 'SHOES', 'BACK', 'ACCESSORY']);
 // BADGE is a Profile Decoration slot, not a Character Appearance slot.
 export const PROFILE_SLOTS = Object.freeze(['BADGE']);
@@ -19,7 +19,8 @@ export const GRANT_BLOCKED_STATUSES = Object.freeze(['DISABLED', 'HIDDEN']);
 export const OWNERSHIP_POLICIES = Object.freeze(['UNIQUE', 'STACKABLE']);
 export const TRADE_POLICIES = Object.freeze(['ACCOUNT_BOUND']);
 export const ACQUISITION_SOURCES = Object.freeze([
-  'DEFAULT', 'QUEST', 'EXPLORATION', 'ACHIEVEMENT', 'EVENT', 'MINIGAME', 'SHOP', 'INHAGAME_REWARD', 'SYSTEM', 'ADMIN'
+  'DEFAULT', 'QUEST', 'EXPLORATION', 'ACHIEVEMENT', 'EVENT', 'MINIGAME', 'SHOP', 'INHAGAME_REWARD',
+  'ACTIVITY', 'CRAFTING', 'EQUIPMENT', 'RESEARCH', 'SYSTEM', 'ADMIN'
 ]);
 
 // ID prefix -> category (and the slot a wearable prefix implies).
@@ -27,16 +28,17 @@ const PREFIX_CATEGORY = Object.freeze({
   body: 'WEARABLE', face: 'WEARABLE', hair: 'WEARABLE', head: 'WEARABLE', top: 'WEARABLE',
   bottom: 'WEARABLE', shoes: 'WEARABLE', back: 'WEARABLE', accessory: 'WEARABLE',
   badge: 'BADGE', emote: 'EMOTE', furniture: 'FURNITURE', mount: 'MOUNT',
-  mount_cosmetic: 'MOUNT_COSMETIC', memorabilia: 'MEMORABILIA'
+  mount_cosmetic: 'MOUNT_COSMETIC', memorabilia: 'MEMORABILIA', material: 'MATERIAL'
 });
 
 const MCM_2026 = 'event.mcm_2026';
 
 function item(itemId, displayName, description, { category, rarity, equipSlot = null, subtype = null,
-  status = 'COMING_SOON', acquisition, tags = [], eventId = null, introducedVersion, modelAssetId = null }) {
+  status = 'COMING_SOON', acquisition, tags = [], eventId = null, introducedVersion, modelAssetId = null,
+  cosmeticOnly = true, ownershipPolicy = 'UNIQUE', stackable = false, maxStack = null }) {
   return Object.freeze({
     itemId, displayName, description, category, rarity, equipSlot, subtype,
-    cosmeticOnly: true, ownershipPolicy: 'UNIQUE', tradePolicy: 'ACCOUNT_BOUND', stackable: false, maxStack: null,
+    cosmeticOnly, ownershipPolicy, tradePolicy: 'ACCOUNT_BOUND', stackable, maxStack,
     iconAssetId: null, modelAssetId,
     tags: Object.freeze([...tags]), status, eventId,
     acquisition: Object.freeze(acquisition.map(a => Object.freeze({ ...a }))),
@@ -47,6 +49,8 @@ const wear = (slot, extra) => ({ category: 'WEARABLE', equipSlot: slot, ...extra
 const badge = extra => ({ category: 'BADGE', equipSlot: 'BADGE', ...extra });
 const furniture = (subtype, extra) => ({ category: 'FURNITURE', subtype, ...extra });
 const memorabilia = extra => ({ category: 'MEMORABILIA', ...extra });
+const material = extra => ({ category: 'MATERIAL', cosmeticOnly: false, ownershipPolicy: 'STACKABLE', stackable: true,
+  maxStack: 99, ...extra });
 
 export const ITEM_CATALOG = Object.freeze([
   // ---- Collection VS01 pilot 6 (C0 §1.6): foundation fixtures, kept unchanged ----
@@ -111,7 +115,18 @@ export const ITEM_CATALOG = Object.freeze([
   item('furniture.mcm_2026_landlord_figure', '건물주 미니어처', '2026 문콘경 건물주 챌린지 추가 성취 기념 미니어처.',
     furniture('DECOR', { rarity: 'SPECIAL', eventId: MCM_2026, acquisition: [{ source: 'EVENT', ref: MCM_2026 }], tags: ['event', 'mcm_2026'], introducedVersion: 'c0.v2' })),
   item('furniture.mcm_2026_poster', '2026 일일호프 포스터', '2026 문콘경 일일호프 전체 완주 기념 포스터.',
-    furniture('WALL_DECOR', { rarity: 'SPECIAL', eventId: MCM_2026, acquisition: [{ source: 'EVENT', ref: MCM_2026 }], tags: ['event', 'mcm_2026', 'vs_economy'], introducedVersion: 'c0.v2' }))
+    furniture('WALL_DECOR', { rarity: 'SPECIAL', eventId: MCM_2026, acquisition: [{ source: 'EVENT', ref: MCM_2026 }], tags: ['event', 'mcm_2026', 'vs_economy'], introducedVersion: 'c0.v2' })),
+
+  // ---- Life M1 · first persistent stackable materials ----
+  item('material.campus_leaf', '캠퍼스 낙엽', '캠퍼스 생활 채집에서 얻는 기본 자연 재료.',
+    material({ rarity: 'COMMON', status: 'ACTIVE', acquisition: [{ source: 'ACTIVITY', ref: 'activity.gathering.campus' }],
+      tags: ['life', 'gathering', 'material'], introducedVersion: 'life.m1' })),
+  item('material.fish_carp', '붕어', '인경호 낚시 활동에서 얻는 기본 어류 재료.',
+    material({ rarity: 'COMMON', status: 'ACTIVE', acquisition: [{ source: 'ACTIVITY', ref: 'activity.fishing.inkyung' }],
+      tags: ['life', 'fishing', 'material'], introducedVersion: 'life.m1' })),
+  item('material.artifact_fragment_01', '캠퍼스 유물 조각', '캠퍼스 역사 조사와 발굴에서 얻는 첫 유물 조각.',
+    material({ rarity: 'UNCOMMON', status: 'ACTIVE', acquisition: [{ source: 'ACTIVITY', ref: 'activity.archaeology.campus_history' }],
+      tags: ['life', 'archaeology', 'material'], introducedVersion: 'life.m1' }))
 ]);
 
 export const PILOT_ITEM_IDS = Object.freeze(['head.inha_cap', 'head.inkyung_duck', 'top.inha_basic', 'back.freshman_bag', 'badge.main_gate', 'emote.wave_plus']);
@@ -120,6 +135,9 @@ export const DEFAULT_ITEM_IDS = Object.freeze(['head.inha_cap', 'top.inha_basic'
 export const VS_ECONOMY_ITEM_IDS = Object.freeze([
   'top.induck_hoodie', 'head.induck_cap', 'furniture.induck_cushion', 'furniture.campus_map_poster',
   'badge.campus_first_step', 'badge.mcm_2026_landlord', 'top.mcm_2026_survivor', 'furniture.mcm_2026_poster'
+]);
+export const LIFE_M1_MATERIAL_IDS = Object.freeze([
+  'material.campus_leaf', 'material.fish_carp', 'material.artifact_fragment_01'
 ]);
 
 const BY_ID = new Map(ITEM_CATALOG.map(definition => [definition.itemId, definition]));
@@ -162,7 +180,12 @@ export function validateCatalog(items) {
     }
     if (!RARITIES.includes(d.rarity)) errors.push(`${at}: unknown rarity ${d.rarity}`);
     if (!ITEM_STATUSES.includes(d.status)) errors.push(`${at}: unknown status ${d.status}`);
-    if (d.cosmeticOnly !== true) errors.push(`${at}: cosmeticOnly must be true (Cosmetic ≠ Power)`);
+    if (d.category === 'MATERIAL') {
+      if (d.cosmeticOnly !== false) errors.push(`${at}: MATERIAL must set cosmeticOnly = false`);
+      if (d.ownershipPolicy !== 'STACKABLE') errors.push(`${at}: MATERIAL must use STACKABLE ownership`);
+    } else if (d.cosmeticOnly !== true) {
+      errors.push(`${at}: non-MATERIAL items must remain cosmeticOnly (Cosmetic ≠ Power)`);
+    }
     if (!OWNERSHIP_POLICIES.includes(d.ownershipPolicy)) errors.push(`${at}: unknown ownershipPolicy ${d.ownershipPolicy}`);
     if (!TRADE_POLICIES.includes(d.tradePolicy)) errors.push(`${at}: unknown tradePolicy ${d.tradePolicy}`);
     if (d.ownershipPolicy === 'UNIQUE' && (d.stackable !== false || d.maxStack !== null)) {
