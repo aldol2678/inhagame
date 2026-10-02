@@ -33,7 +33,7 @@ export function createNpcSocialNg15Bridge({
   roster,
   navigator,
   positionAtFn = positionAt,
-  dwellSeconds = 6,
+  dwellSeconds = 30,
   maxMembers = 3,
   travelBudgetKind = 'AUTO',
   maxTravelSeconds = null,

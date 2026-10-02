@@ -20,7 +20,7 @@ test("main owns NPC and MCM dialogue input with BLOCKING_UI claims", () => {
 test("NPC runtime emits one unified lifecycle across normal and Main 2 guide conversations", () => {
   assert.match(npcRuntime, /onConversationOpen = \(\) => \{\},\s*onConversationClose = \(\) => \{\}/s);
   assert.match(npcRuntime, /function syncConversationLifecycle\(\)[\s\S]*activeConversation[\s\S]*main2Guide\?\.isDialogueOpen/s);
-  assert.match(npcRuntime, /if \(next\) onConversationOpen\(\);\s*else onConversationClose\(\);/s);
+  assert.match(npcRuntime, /if \(next\) \{ stopObservedConversation\(\); onConversationOpen\(\); \}\s*else onConversationClose\(\);/s);
   assert.match(npcRuntime, /onConversationOpen: syncConversationLifecycle,\s*onConversationClose: syncConversationLifecycle/s);
   assert.match(npcRuntime, /closeConversation\(false, \{ sync: false \}\)/);
   assert.match(npcRuntime, /activeConversation = \{ id: actor\.id \};\s*syncConversationLifecycle\(\);/s);

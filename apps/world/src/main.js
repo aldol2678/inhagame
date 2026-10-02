@@ -166,10 +166,11 @@ const npcPreviewMode = location.hostname.endsWith('.vercel.app') &&
   startupParams.get('npcTest') === 'a-r1';
 const npcRosterPreviewMode = previewHost && startupParams.get('campusLife') === 'roster';
 const npcSocialPreviewLevel = previewHost ? startupParams.get('npcSocial') : null;
+const npcObservedConversationPreview = previewHost && startupParams.get('npcConversation') === 'p0';
 const npcSocialBehaviorPreviewMode = npcSocialPreviewLevel === 'ng15';
 const npcSocialPreviewMode = npcSocialPreviewLevel === 'ng1' || npcSocialBehaviorPreviewMode;
 const npcSocialProductionMode = npcProductionMode;
-const npcSocialMode = npcSocialProductionMode || npcSocialPreviewMode;
+const npcSocialMode = npcSocialProductionMode || npcSocialPreviewMode || npcObservedConversationPreview;
 const npcEnabled = npcTestMode || npcProductionMode || npcPreviewMode || npcRosterPreviewMode || npcSocialMode;
 const campusLifePreview = previewHost && startupParams.get('campusLife') === 'p0a';
 let lastTrackedZone = null;
@@ -1965,10 +1966,15 @@ async function loadOptionalNpcRuntime() {
     const module = await import('../npc-factory/dev-runtime.mjs');
     const runtime = await module.createNpcDevRuntime({
       app, campusRoot, player, orbit,
-      production: npcProductionMode || npcPreviewMode || npcRosterPreviewMode || npcSocialPreviewMode,
+      production: npcProductionMode || npcPreviewMode || npcRosterPreviewMode || npcSocialPreviewMode || npcObservedConversationPreview,
       socialEnabled: npcSocialMode,
       socialPreview: npcSocialPreviewMode,
       socialBehaviorPreview: npcSocialBehaviorPreviewMode,
+      observedConversationPreview: npcObservedConversationPreview,
+      isObservedConversationBlocked: () => !inputFocus.can('WORLD_ACTION') ||
+        hudContext.snapshot().mode === 'COMBAT' || lobbyWorld.active || lobbyTransition.active ||
+        rooms?.insideRoom === true || mcmEventUi.openState || mcmEventRuntime.isDialogueOpen() ||
+        fullMap?.openState === true,
       externalContextAction: true,
       aiPilot: npcAiEnabled,
       aiEndpoint: npcAiPilotMode ? '/npc-ai/decide' : '/api/npc-ai',

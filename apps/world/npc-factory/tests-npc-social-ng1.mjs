@@ -16,7 +16,9 @@ assert.match(mainSource, /const npcSocialPreviewMode = npcSocialPreviewLevel ===
   'NG1 keeps explicit ng1 preview while ng15 inherits the observer');
 assert.match(mainSource, /const npcSocialProductionMode = npcProductionMode;/,
   'NG1 is enabled on the official production host');
-assert.match(mainSource, /const npcSocialMode = npcSocialProductionMode \|\| npcSocialPreviewMode;/,
+assert.match(mainSource, /const npcObservedConversationPreview = previewHost && startupParams\.get\('npcConversation'\) === 'p0';/,
+  'observational conversations remain restricted to explicit Preview opt-in');
+assert.match(mainSource, /const npcSocialMode = npcSocialProductionMode \|\| npcSocialPreviewMode \|\| npcObservedConversationPreview;/,
   'NG1 production and preview activation share one runtime switch');
 assert.match(mainSource, /const npcSocialBehaviorPreviewMode = npcSocialPreviewLevel === 'ng15';/,
   'NG1.5 behavior is an explicit preview-only level');
