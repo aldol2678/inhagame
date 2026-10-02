@@ -84,6 +84,25 @@ test("identical messages are not merged", () => {
   assert.equal(appearances.length, 2, "shown twice, separated by a hide and a gap");
 });
 
+test("toast onShow fires when that queued toast actually becomes visible", () => {
+  const clock = fakeClock();
+  const element = { hidden: true, textContent: "" };
+  const shown = [];
+  const queue = createToastQueue({
+    element,
+    setTimer: clock.setTimer,
+    clearTimer: clock.clearTimer,
+    now: clock.now
+  });
+  queue.say("A", 1000, () => shown.push([clock.now(), "A"]));
+  queue.say("B", 1000, () => shown.push([clock.now(), "B"]));
+  assert.deepEqual(shown, [[0, "A"]], "queued B is not observed before it is visible");
+  clock.advance(1000 + G - 1);
+  assert.deepEqual(shown, [[0, "A"]]);
+  clock.advance(1);
+  assert.deepEqual(shown, [[0, "A"], [1000 + G, "B"]]);
+});
+
 test("7-8. remainingMs covers the current toast, every queued toast and the gaps; grows on enqueue", () => {
   const { clock, queue, say } = lane();
   assert.equal(queue.remainingMs(), 0, "idle");

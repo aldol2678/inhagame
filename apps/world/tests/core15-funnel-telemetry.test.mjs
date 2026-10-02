@@ -18,98 +18,161 @@ function memoryStorage(seed = {}) {
   };
 }
 
+function eventId(n) {
+  return `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+}
+
+async function settle() {
+  for (let i = 0; i < 6; i++) await new Promise(resolve => setImmediate(resolve));
+}
+
 function harness({ storage = memoryStorage(), accepted = true } = {}) {
   const sent = [];
+  let seq = 0;
   const telemetry = createCore15FunnelTelemetry({
     storage,
-    track: (eventType, surface, target) => {
-      sent.push({ eventType, surface, target });
-      return accepted ? `event-${sent.length}` : null;
+    eventIdFactory: () => eventId(++seq),
+    track: (eventType, surface, target, { eventId: stableEventId } = {}) => {
+      sent.push({ eventType, surface, target, eventId: stableEventId });
+      return Promise.resolve(accepted ? stableEventId : null);
     }
   });
   return { telemetry, sent, storage };
 }
 
-test("METRIC-1 stores each milestone once per browser session with canonical privacy-safe context", () => {
+test("METRIC-1 confirms each milestone once per browser session with canonical privacy-safe context", async () => {
   const h = harness();
   h.telemetry.startSession();
   h.telemetry.startSession();
+  h.telemetry.firstGoalSeen();
   h.telemetry.firstMove();
   h.telemetry.firstZoneArrival();
   h.telemetry.firstNpcInteraction();
+  h.telemetry.questStarted();
   h.telemetry.firstActivityStart();
   h.telemetry.firstActivityComplete();
   h.telemetry.firstReward();
   h.telemetry.coreLoopComplete();
+  h.telemetry.rewardSeen();
+  h.telemetry.growthSeen();
+  h.telemetry.nextGoalSeen();
   h.telemetry.worldReturn();
   h.telemetry.nextDiscoveryClick();
+  await settle();
 
-  assert.deepEqual(h.sent, [
-    { eventType: "first_session_start", surface: "campus", target: null },
-    { eventType: "first_move", surface: "campus", target: null },
-    { eventType: "first_zone_arrival", surface: "campus", target: null },
-    { eventType: "first_npc_interaction", surface: "campus", target: null },
-    { eventType: "first_activity_start", surface: "campus", target: "inkyung_living" },
-    { eventType: "first_activity_complete", surface: "campus", target: "inkyung_living" },
-    { eventType: "first_reward", surface: "campus", target: "first_campus" },
-    { eventType: "core_loop_complete", surface: "campus", target: "first_campus" },
-    { eventType: "world_return", surface: "campus", target: null },
-    { eventType: "next_discovery_click", surface: "campus", target: "main2_back_gate_guide" }
-  ]);
+  const eventTypes = h.sent.map(event => event.eventType);
+  for (const expected of [
+    "first_session_start","first_goal_seen","first_move","first_zone_arrival","first_npc_interaction",
+    "quest_started","first_activity_start","first_activity_complete","first_reward","core_loop_complete",
+    "reward_seen","growth_seen","next_goal_seen","core15_complete","world_return","next_discovery_click"
+  ]) assert.equal(eventTypes.filter(type => type === expected).length, 1, expected);
+
+  const byType = Object.fromEntries(h.sent.map(event => [event.eventType, event]));
+  assert.equal(byType.first_goal_seen.target, "first_campus");
+  assert.equal(byType.first_activity_start.target, "inkyung_living");
+  assert.equal(byType.next_goal_seen.target, "main2_back_gate_guide");
+  assert.equal(byType.core15_complete.target, "first_campus");
+  assert.ok(h.sent.every(event => /^00000000-0000-4000-8000-\d{12}$/.test(event.eventId)));
+
   const stored = JSON.parse(h.storage.data.get(CORE15_FUNNEL_STORAGE_KEY));
-  assert.equal(stored.length, h.sent.length);
-  assert.ok(stored.every(value => Object.values(CORE15_EVENT).includes(value)));
+  assert.equal(stored.version, 2);
+  assert.equal(stored.seen.length, h.sent.length);
+  assert.deepEqual(stored.pending, {});
+  assert.ok(stored.seen.every(value => Object.values(CORE15_EVENT).includes(value)));
 });
 
-test("METRIC-1 sessionStorage dedupe survives a page reload but not a new storage session", () => {
+test("METRIC-1 sessionStorage confirmed dedupe survives reload; legacy array storage remains readable", async () => {
   const storage = memoryStorage();
   const first = harness({ storage });
   assert.equal(first.telemetry.startSession(), true);
   assert.equal(first.telemetry.firstMove(), true);
+  await settle();
 
   const second = harness({ storage });
   assert.equal(second.telemetry.startSession(), false);
   assert.equal(second.telemetry.firstMove(), false);
+  await settle();
   assert.equal(second.sent.length, 0);
 
-  const fresh = harness();
-  assert.equal(fresh.telemetry.startSession(), true);
-  assert.equal(fresh.sent.length, 1);
+  const legacy = memoryStorage({ [CORE15_FUNNEL_STORAGE_KEY]: JSON.stringify(["first_session_start","first_move"]) });
+  const migrated = harness({ storage: legacy });
+  assert.equal(migrated.telemetry.startSession(), false);
+  assert.equal(migrated.telemetry.firstMove(), false);
+  assert.equal(migrated.telemetry.firstReward(), true);
+  await settle();
+  assert.equal(migrated.sent.length, 1);
 });
 
-test("METRIC-1 never marks a milestone as seen when telemetry transport is unavailable", () => {
+test("METRIC-1 failed confirmation stays pending and reload retries the exact same event_id", async () => {
   const storage = memoryStorage();
   const failed = harness({ storage, accepted: false });
-  assert.equal(failed.telemetry.firstReward(), false);
-  assert.equal(storage.data.get(CORE15_FUNNEL_STORAGE_KEY), undefined);
+  assert.equal(failed.telemetry.firstReward(), true);
+  await settle();
+
+  const afterFailure = JSON.parse(storage.data.get(CORE15_FUNNEL_STORAGE_KEY));
+  assert.deepEqual(afterFailure.seen, []);
+  assert.equal(afterFailure.pending.first_reward, eventId(1));
+  assert.equal(failed.telemetry.status().seen.includes("first_reward"), false);
 
   const recovered = harness({ storage, accepted: true });
-  assert.equal(recovered.telemetry.firstReward(), true);
+  await settle();
+  assert.equal(recovered.sent.length, 1, "constructor resumes the pending milestone");
   assert.equal(recovered.sent[0].eventType, "first_reward");
+  assert.equal(recovered.sent[0].eventId, eventId(1), "same id makes lost acknowledgements idempotent");
+  const afterRecovery = JSON.parse(storage.data.get(CORE15_FUNNEL_STORAGE_KEY));
+  assert.ok(afterRecovery.seen.includes("first_reward"));
+  assert.equal(afterRecovery.pending.first_reward, undefined);
 });
 
-test("METRIC-1 player encounter is proximity-based and stores no player identifier", () => {
+test("METRIC-1 Product CORE-15 completes only after all four server-confirmed product prerequisites", async () => {
+  const h = harness();
+  h.telemetry.firstReward();
+  h.telemetry.rewardSeen();
+  h.telemetry.nextGoalSeen();
+  await settle();
+  assert.equal(h.sent.some(event => event.eventType === "core15_complete"), false);
+
+  h.telemetry.growthSeen();
+  await settle();
+  assert.equal(h.sent.filter(event => event.eventType === "core15_complete").length, 1);
+
+  h.telemetry.rewardSeen();
+  h.telemetry.growthSeen();
+  h.telemetry.nextGoalSeen();
+  await settle();
+  assert.equal(h.sent.filter(event => event.eventType === "core15_complete").length, 1, "completion is confirmed once");
+});
+
+test("METRIC-1 player encounter is proximity-based and stores no player identifier", async () => {
   const h = harness();
   const position = { x: 0, z: 0 };
   assert.equal(h.telemetry.observePlayerEncounter([{ x: CORE15_ENCOUNTER_RADIUS_WORLD + 0.1, z: 0 }], position), false);
   assert.equal(h.sent.length, 0);
   assert.equal(h.telemetry.observePlayerEncounter([{ x: CORE15_ENCOUNTER_RADIUS_WORLD, z: 0 }], position), true);
-  assert.deepEqual(h.sent, [{ eventType: "first_player_encounter", surface: "campus", target: null }]);
+  await settle();
+  assert.equal(h.sent.length, 1);
+  assert.deepEqual(
+    { eventType: h.sent[0].eventType, surface: h.sent[0].surface, target: h.sent[0].target },
+    { eventType: "first_player_encounter", surface: "campus", target: null }
+  );
   assert.equal(h.telemetry.observePlayerEncounter([{ x: 0, z: 0 }], position), false, "encounter is one-shot");
 });
 
-test("METRIC-1 ignores malformed remote points and unknown event names", () => {
+test("METRIC-1 ignores malformed remote points and unknown event names", async () => {
   const h = harness();
   assert.equal(h.telemetry.observePlayerEncounter([{ userId: "secret" }, null, { x: NaN, z: 0 }], { x: 0, z: 0 }), false);
   assert.equal(h.telemetry.mark("player_secret_seen"), false);
+  await settle();
   assert.equal(h.sent.length, 0);
 });
-
 
 test("METRIC-1 main wiring observes milestones without changing gameplay authority", () => {
   const main = readFileSync(new URL("../src/main.js", import.meta.url), "utf8");
   assert.match(main, /const core15Funnel = npcTestMode \? null : createCore15FunnelTelemetry\(\)/,
     "preview/test NPC mode never emits product funnel telemetry");
+  const funnelSource = readFileSync(new URL("../src/core15-funnel-telemetry.js", import.meta.url), "utf8");
+  assert.match(funnelSource, /InhaHubTelemetry\?\.trackConfirmed/,
+    "CORE-15 uses server-confirmed telemetry rather than best-effort hub track");
   assert.match(main, /onTriggered: action => \{[\s\S]*?firstNpcInteraction\(\)[\s\S]*?firstActivityComplete\(\)/,
     "shared Context Action observes NPC and Living Moment completion after successful actions");
   assert.match(main, /!lobbyWorld\.active && !lobbyTransition\.active && next\?\.id\) core15Funnel\?\.firstZoneArrival\(\)/,
@@ -120,9 +183,17 @@ test("METRIC-1 main wiring observes milestones without changing gameplay authori
     "player encounter reuses filtered same-zone map positions without storing an identity");
   assert.match(main, /firstPlayerMovement = true;\s*core15Funnel\?\.firstMove\(\);/,
     "existing movement gate owns the first-move milestone");
-  assert.match(main, /core15Funnel\?\.firstReward\(\);[\s\S]*?reward\.status === "SUCCESS" && reward\.replayed !== true[\s\S]*?core15Funnel\?\.coreLoopComplete\(\)/,
-    "server First Campus reward owns reward and core-loop milestones");
+  assert.match(main, /onQuestStateChange: progress => \{[\s\S]*?firstGoalSeen\(\)[\s\S]*?questStarted\(\)[\s\S]*?nextGoalSeen\(\)/,
+    "authoritative quest status observes first-goal, quest-start and next-goal presentation");
+  assert.match(main, /firstCampusReward[\s\S]*?core15Funnel\?\.firstReward\(\)[\s\S]*?mcmEventUi\.showReward\([\s\S]*?core15Funnel\?\.rewardSeen\(\)/,
+    "First Campus settlement and its visible reward are distinct milestones");
+  assert.match(main, /change\.reason === "core15-first-campus-reward"[\s\S]*?PROGRESSION_STATE\.READY[\s\S]*?core15Funnel\?\.growthSeen\(\)/,
+    "server progression readback owns growth_seen");
+  assert.match(main, /freshFirstCampusReward[\s\S]*?core15Funnel\?\.coreLoopComplete\(\)/,
+    "legacy core_loop_complete remains at fresh reward settlement for historical continuity");
+  assert.doesNotMatch(main, /core15Funnel\?\.core15Complete\(/,
+    "product core15_complete is emitted only by the telemetry gate, never directly by gameplay");
   assert.match(main, /core15Funnel\?\.nextDiscoveryClick\(\)/,
-    "next discovery click uses the session-deduped funnel tracker");
+    "next discovery click remains a separate action milestone");
 });
 

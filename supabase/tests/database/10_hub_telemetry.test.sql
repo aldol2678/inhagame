@@ -55,12 +55,16 @@ select is((select count(*)::int from public.inhagame_hub_events where event_id =
 set local role anon;
 select is(public.log_inhagame_hub_event_v2(gen_random_uuid(), :s3, :v3, 'first_session_start', 'campus', null, 'direct', null), true,
   'CORE-15 first_session_start is accepted');
+select is(public.log_inhagame_hub_event_v2(gen_random_uuid(), :s3, :v3, 'first_goal_seen', 'campus', 'first_campus', 'direct', null), true,
+  'CORE-15 first goal presentation is accepted');
 select is(public.log_inhagame_hub_event_v2(gen_random_uuid(), :s3, :v3, 'first_move', 'campus', null, 'direct', null), true,
   'CORE-15 first_move is accepted');
 select is(public.log_inhagame_hub_event_v2(gen_random_uuid(), :s3, :v3, 'first_zone_arrival', 'campus', null, 'direct', null), true,
   'CORE-15 first_zone_arrival is accepted without storing a raw zone id');
 select is(public.log_inhagame_hub_event_v2(gen_random_uuid(), :s3, :v3, 'first_npc_interaction', 'campus', null, 'direct', null), true,
   'CORE-15 first_npc_interaction is accepted without storing an NPC id');
+select is(public.log_inhagame_hub_event_v2(gen_random_uuid(), :s3, :v3, 'quest_started', 'campus', 'first_campus', 'direct', null), true,
+  'CORE-15 first quest start is accepted');
 select is(public.log_inhagame_hub_event_v2(gen_random_uuid(), :s3, :v3, 'first_player_encounter', 'campus', null, 'direct', null), true,
   'CORE-15 first_player_encounter is accepted without storing another player id');
 select is(public.log_inhagame_hub_event_v2(gen_random_uuid(), :s3, :v3, 'first_activity_start', 'campus', 'inkyung_living', 'direct', null), true,
@@ -69,8 +73,16 @@ select is(public.log_inhagame_hub_event_v2(gen_random_uuid(), :s3, :v3, 'first_a
   'CORE-15 Inkyung activity completion is accepted');
 select is(public.log_inhagame_hub_event_v2(gen_random_uuid(), :s3, :v3, 'first_reward', 'campus', 'first_campus', 'direct', null), true,
   'CORE-15 First Campus reward is accepted');
+select is(public.log_inhagame_hub_event_v2(gen_random_uuid(), :s3, :v3, 'reward_seen', 'campus', 'first_campus', 'direct', null), true,
+  'CORE-15 visible First Campus reward is accepted');
+select is(public.log_inhagame_hub_event_v2(gen_random_uuid(), :s3, :v3, 'growth_seen', 'campus', 'first_campus', 'direct', null), true,
+  'CORE-15 server growth readback is accepted');
 select is(public.log_inhagame_hub_event_v2(gen_random_uuid(), :s3, :v3, 'core_loop_complete', 'campus', 'first_campus', 'direct', null), true,
-  'CORE-15 loop completion is accepted');
+  'legacy CORE-15 reward-settlement loop completion is accepted');
+select is(public.log_inhagame_hub_event_v2(gen_random_uuid(), :s3, :v3, 'next_goal_seen', 'campus', 'main2_back_gate_guide', 'direct', null), true,
+  'CORE-15 next goal presentation is accepted');
+select is(public.log_inhagame_hub_event_v2(gen_random_uuid(), :s3, :v3, 'core15_complete', 'campus', 'first_campus', 'direct', null), true,
+  'Product CORE-15 completion is accepted');
 select is(public.log_inhagame_hub_event_v2(gen_random_uuid(), :s3, :v3, 'world_return', 'campus', null, 'direct', null), true,
   'CORE-15 world_return vocabulary is reserved for RETURN-1');
 select is(public.log_inhagame_hub_event_v2(gen_random_uuid(), :s3, :v3, 'next_discovery_click', 'campus', 'main2_back_gate_guide', 'direct', null), true,
@@ -86,8 +98,12 @@ select throws_ok(
   format($$insert into public.inhagame_hub_events(event_id, session_id, visitor_id, event_type, surface, target)
     values (gen_random_uuid(), %L, %L, 'first_reward', 'campus', null)$$, :s3, :v3),
   '23514', null, 'CORE-15 first_reward with a NULL target violates the table context check');
-select is((select count(*)::int from public.inhagame_hub_events where session_id=:s3), 11,
-  'CORE-15 stores exactly the 11 canonical milestones and rejects privacy/context violations');
+select throws_ok(
+  format($$insert into public.inhagame_hub_events(event_id, session_id, visitor_id, event_type, surface, target)
+    values (gen_random_uuid(), %L, %L, 'core15_complete', 'campus', null)$$, :s3, :v3),
+  '23514', null, 'CORE-15 v2 core15_complete with a NULL target violates the table context check');
+select is((select count(*)::int from public.inhagame_hub_events where session_id=:s3), 17,
+  'CORE-15 stores exactly the 17 canonical milestones and rejects privacy/context violations');
 
 -- ---- game entry stages (as anon, like /api/hub-entry) ----
 set local role anon;

@@ -120,7 +120,14 @@ export async function startSmoke({ viewport = { width: 1280, height: 720 } } = {
       problems.push(`console.error: ${message.text()}${source ? ` (${source})` : ""}`);
     });
     page.on("requestfailed", request => {
-      if (request.url().startsWith(server.origin)) problems.push(`request failed: ${request.url()} ${request.failure()?.errorText}`);
+      if (!request.url().startsWith(server.origin)) return;
+      const url = new URL(request.url());
+      const errorText = request.failure()?.errorText;
+      // Chromium reports mocked 204 No Content fetches as ERR_ABORTED in Playwright even though
+      // this harness deliberately fulfilled the request. Keep the production 204 contract strict;
+      // ignore only this known artifact for the one confirmed telemetry endpoint we stub ourselves.
+      if (url.pathname === "/api/hub-event" && stubbed.has(url.pathname) && errorText === "net::ERR_ABORTED") return;
+      problems.push(`request failed: ${request.url()} ${errorText}`);
     });
     page.on("response", response => {
       if (response.url().startsWith(server.origin) && response.status() >= 400) {

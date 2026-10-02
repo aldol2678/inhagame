@@ -68,22 +68,51 @@
     // A restricted browser can still show the hub without analytics.
   }
   const acquisition = readAttribution();
-  function track(eventType, surface, target = null) {
-    if (!visitorId || !sessionId) return null;
-    const eventId = uuid();
-    const body = JSON.stringify({
+  function eventBody(eventId, eventType, surface, target) {
+    return JSON.stringify({
       event_id: eventId, session_id: sessionId, visitor_id: visitorId,
       event_type: eventType, surface, target,
       acquisition_source: acquisition.source, campaign: acquisition.campaign
     });
+  }
+  function track(eventType, surface, target = null) {
+    if (!visitorId || !sessionId) return null;
+    const eventId = uuid();
+    const body = eventBody(eventId, eventType, surface, target);
     const url = '/api/hub-event';
     if (navigator.sendBeacon && navigator.sendBeacon(url, new Blob([body], { type: 'text/plain' }))) return eventId;
     fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body, keepalive: true })
       .catch(() => { /* Telemetry must never interrupt navigation or gameplay. */ });
     return eventId;
   }
+  async function trackConfirmed(eventType, surface, target = null, {
+    eventId = null,
+    retryDelays = [1000, 3000, 8000]
+  } = {}) {
+    if (!visitorId || !sessionId) return null;
+    const stableEventId = valid(eventId) ? eventId : uuid();
+    const body = eventBody(stableEventId, eventType, surface, target);
+    const url = '/api/hub-event';
+    const waits = [0, ...retryDelays.filter(ms => Number.isFinite(ms) && ms >= 0)];
+    for (let attempt = 0; attempt < waits.length; attempt++) {
+      if (waits[attempt] > 0) await new Promise(resolve => setTimeout(resolve, waits[attempt]));
+      try {
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain' },
+          body
+        });
+        if (response.status === 204) return stableEventId;
+        if (response.status >= 400 && response.status < 500 && response.status !== 429) return null;
+      } catch {
+        // Confirmed telemetry is still best effort; bounded retries handle transient failures.
+      }
+    }
+    return null;
+  }
   window.InhaHubTelemetry = {
     track,
+    trackConfirmed,
     attribution: () => ({ source: acquisition.source, campaign: acquisition.campaign })
   };
 })();

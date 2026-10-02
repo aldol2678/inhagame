@@ -7,9 +7,10 @@ const EVENTS = new Set([
   'hub_visit', 'hub_panel_view', 'hub_game_click', 'campus_entry_click',
   'campus_boot_ready', 'campus_boot_error', 'campus_zone_enter', 'hub_card_impression',
   'profile_view', 'profile_edit_open', 'profile_edit_save', 'profile_game_click',
-  'first_session_start', 'first_move', 'first_zone_arrival', 'first_npc_interaction',
-  'first_player_encounter', 'first_activity_start', 'first_activity_complete',
-  'first_reward', 'core_loop_complete', 'world_return', 'next_discovery_click'
+  'first_session_start', 'first_goal_seen', 'first_move', 'first_zone_arrival', 'first_npc_interaction',
+  'quest_started', 'first_player_encounter', 'first_activity_start', 'first_activity_complete',
+  'first_reward', 'reward_seen', 'growth_seen', 'core_loop_complete', 'next_goal_seen',
+  'core15_complete', 'world_return', 'next_discovery_click'
 ]);
 module.exports = async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');

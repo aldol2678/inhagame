@@ -125,16 +125,20 @@ test("7. main.js wires onQuestReward to the existing toast lane and re-reads aut
   assert.match(runtime, /onReward: onQuestReward/);
   const block = main.slice(main.indexOf("onQuestReward:"), main.indexOf("getAiSession:", main.indexOf("onQuestReward:")));
   assert.match(block, /mcmEventUi\.showReward\(/);
-  assert.match(block, /progression\.refresh\("reward"\)/);
+  assert.match(block, /progression\.refresh\(freshFirstCampusReward \? "core15-first-campus-reward" : "reward"\)/);
   // P1d: each authority is re-read only when a server entry touched it (First Campus has no CURRENCY).
   assert.match(block, /grantType === "ITEM"\)\) void inventory\.refresh\("reward"\)/);
   assert.match(block, /grantType === "CURRENCY"\)\) void wallet\.refresh\("reward"\)/);
-  assert.match(block, /reward\.rewardId === FIRST_CAMPUS_REWARD_ID\) \{[\s\S]*?core15Funnel\?\.firstReward\(\);[\s\S]*?reward\.status === "SUCCESS" && reward\.replayed !== true\) core15Funnel\?\.coreLoopComplete\(\)/,
-    "only a fresh successful First Campus reward measures loop completion");
-  assert.doesNotMatch(block, /offerFirstCampusReward|nextDiscovery/,
+  assert.match(block, /firstCampusReward[\s\S]*?core15Funnel\?\.firstReward\(\)[\s\S]*?mcmEventUi\.showReward\([\s\S]*?freshFirstCampusReward[\s\S]*?core15Funnel\?\.rewardSeen\(\)/,
+    "First Campus reward receipt and visible reward are distinct funnel milestones");
+  assert.match(block, /freshFirstCampusReward[\s\S]*?core15Funnel\?\.coreLoopComplete\(\)/,
+    "legacy core_loop_complete remains tied to fresh reward settlement");
+  assert.doesNotMatch(block, /core15Funnel\?\.core15Complete\(/,
+    "gameplay never directly asserts Product CORE-15 completion");
+  assert.doesNotMatch(block, /offerFirstCampusReward/,
     "reward presentation does not own the persistent next-action HUD");
-  assert.match(main, /onQuestStateChange: progress => nextDiscovery\?\.syncProgress\(progress\)/,
-    "account-scoped quest status owns next-action visibility");
+  assert.match(main, /onQuestStateChange: progress => \{[\s\S]*?nextDiscovery\?\.syncProgress\(progress\)[\s\S]*?nextGoalSeen\(\)/,
+    "account-scoped quest status owns next-action visibility and next-goal observation");
   assert.match(main, /campusNavigation\?\.poiTarget\(\{[\s\S]*?poiId: "core15\.main2-guide"[\s\S]*?x: MAIN2_GUIDE_NPC\.position\.x,[\s\S]*?z: MAIN2_GUIDE_NPC\.position\.z[\s\S]*?\}, CAMPUS_NAV_SPACE\)/,
     "next discovery derives its route from the existing Main 2 guide and Campus Navigation authorities");
   assert.doesNotMatch(block, /rpc\(|world_reward_grant|\+ *1[08]0|level|balance/i,
