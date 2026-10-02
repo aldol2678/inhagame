@@ -8,3 +8,5 @@ node apps/world/qa.mjs
 (cd apps/survival && npm test && npm run check)
 (cd apps/induckup && npm ci --ignore-scripts && npm test && npm run build)
 node --test supabase/tests/edge/*.test.mjs
+node --test .github/ci/migration-lint.test.mjs
+node .github/ci/migration-lint.mjs
