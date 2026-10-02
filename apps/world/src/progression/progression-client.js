@@ -37,16 +37,52 @@ export function parseProgressionSnapshot(raw) {
  * @param {{ getClient: () => ({ rpc: Function } | null) }} options
  *   getClient returns the signed-in permanent-account Supabase client, or null (guest / signed out).
  */
-export function createProgressionClient({ getClient } = {}) {
+export function createProgressionClient({
+  getClient,
+  setTimer = setTimeout,
+  clearTimer = clearTimeout,
+  rewardRetryDelays = [1000, 3000, 8000]
+} = {}) {
   if (typeof getClient !== "function") throw new Error("Progression client requires getClient");
 
   let accountId = null;
   let generation = 0;
   let state = PROGRESSION_STATE.SIGNED_OUT;
   let snapshot = null;
+  let lastReadySnapshot = null;
   let inFlight = null;
   let rerun = false;
+  let rerunReason = null;
+  let rewardRetryTimer = null;
+  let rewardRetryAttempt = 0;
   const listeners = new Set();
+
+  const reasonPriority = reason => reason === "core15-first-campus-reward" ? 3 : reason === "reward" ? 2 : 1;
+  const isRewardReadbackReason = reason => reason === "reward" || reason === "core15-first-campus-reward";
+  const strongerReason = (a, b) => {
+    if (!a) return b;
+    if (!b) return a;
+    return reasonPriority(b) >= reasonPriority(a) ? b : a;
+  };
+
+  function clearRewardRetry({ resetAttempt = false } = {}) {
+    if (rewardRetryTimer !== null) clearTimer(rewardRetryTimer);
+    rewardRetryTimer = null;
+    if (resetAttempt) rewardRetryAttempt = 0;
+  }
+
+  function scheduleRewardRetry(reason, gen) {
+    if (!isRewardReadbackReason(reason) || !accountId || gen !== generation || rewardRetryTimer !== null) return false;
+    const delay = rewardRetryDelays[rewardRetryAttempt];
+    if (!Number.isFinite(delay) || delay < 0) return false;
+    rewardRetryAttempt += 1;
+    rewardRetryTimer = setTimer(() => {
+      rewardRetryTimer = null;
+      if (gen !== generation || !accountId) return;
+      void refresh(reason);
+    }, delay);
+    return true;
+  }
 
   function publish(change) {
     for (const listener of listeners) {
@@ -79,24 +115,41 @@ export function createProgressionClient({ getClient } = {}) {
     }
     // A newer account change (sign-out, switch) happened while this request was in flight.
     if (gen !== generation || account !== accountId) return;
-    if (next) set(PROGRESSION_STATE.READY, next, { reason });
-    else set(PROGRESSION_STATE.UNAVAILABLE, null, { reason });
+    if (next) {
+      const previousReady = lastReadySnapshot;
+      clearRewardRetry({ resetAttempt: true });
+      set(PROGRESSION_STATE.READY, next, { reason, previous: previousReady });
+      lastReadySnapshot = next;
+    } else {
+      set(PROGRESSION_STATE.UNAVAILABLE, null, { reason, previous: lastReadySnapshot });
+    }
   }
 
   function refresh(reason = "refresh") {
     if (!accountId) return Promise.resolve(false);
-    // Coalesce: while a request runs, remember one more and run it after, never in parallel.
-    if (inFlight) { rerun = true; return inFlight; }
+    // Coalesce: while a request runs, remember one more and preserve the strongest semantic reason.
+    // CORE-15 reward readback must not be downgraded to a generic account/resume refresh.
+    if (inFlight) {
+      rerun = true;
+      rerunReason = strongerReason(rerunReason, reason);
+      return inFlight;
+    }
     const gen = generation;
     const run = (async () => {
+      let currentReason = reason;
       try {
         do {
           rerun = false;
-          await fetchOnce(reason);
+          rerunReason = null;
+          await fetchOnce(currentReason);
+          if (rerun && gen === generation) currentReason = strongerReason(currentReason, rerunReason);
         } while (rerun && gen === generation);
       } finally {
         // An account change replaced this run; never clear the newer one.
         if (inFlight === run) inFlight = null;
+      }
+      if (gen === generation && state !== PROGRESSION_STATE.READY && isRewardReadbackReason(currentReason)) {
+        scheduleRewardRetry(currentReason, gen);
       }
       return gen === generation && state === PROGRESSION_STATE.READY;
     })();
@@ -109,9 +162,12 @@ export function createProgressionClient({ getClient } = {}) {
     const next = typeof nextAccountId === "string" && nextAccountId ? nextAccountId : null;
     if (next === accountId) return Promise.resolve(state === PROGRESSION_STATE.READY);
     generation += 1;
+    clearRewardRetry({ resetAttempt: true });
     accountId = next;
     rerun = false;
+    rerunReason = null;
     inFlight = null;
+    lastReadySnapshot = null;
     if (!next) {
       set(PROGRESSION_STATE.SIGNED_OUT, null, { reason: "account", sameAccount: false });
       return Promise.resolve(false);
