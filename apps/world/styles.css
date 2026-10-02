@@ -4150,6 +4150,207 @@ body[data-space]:not([data-space="campus"]) > .inkyung-living-moment {
 }
 /* EXPLORE-MOBILE-HUD:end */
 
+/* Helicopter Flight Instrument HUD P0.6 */
+.helicopter-flight-hud {
+  position: fixed;
+  z-index: 15;
+  top: max(86px, calc(env(safe-area-inset-top) + 76px));
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(520px, calc(100vw - 32px));
+  display: grid;
+  grid-template-columns: minmax(116px, 1fr) 124px minmax(116px, 1fr);
+  gap: 8px 12px;
+  align-items: center;
+  padding: 9px 12px 7px;
+  border: 1px solid rgba(166, 210, 235, .28);
+  border-radius: 18px;
+  background: rgba(7, 20, 31, .72);
+  color: #eef8ff;
+  box-shadow: 0 10px 34px rgba(0,0,0,.24);
+  backdrop-filter: blur(10px);
+  pointer-events: none;
+  font-variant-numeric: tabular-nums;
+}
+.helicopter-flight-hud[hidden] { display: none !important; }
+.helicopter-flight-column {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+}
+.helicopter-flight-readout {
+  min-width: 0;
+  padding: 4px 6px;
+  border-radius: 9px;
+  background: rgba(255,255,255,.045);
+}
+.helicopter-flight-readout span {
+  display: block;
+  color: #8fb3c8;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .11em;
+  line-height: 1.1;
+}
+.helicopter-flight-readout strong {
+  display: block;
+  margin-top: 2px;
+  color: #f4fbff;
+  font-size: 12px;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+.helicopter-attitude {
+  display: grid;
+  place-items: center;
+  gap: 3px;
+}
+.helicopter-horizon {
+  position: relative;
+  width: 112px;
+  height: 62px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,.18);
+  border-radius: 12px;
+  background: #315d7b;
+}
+.helicopter-horizon-plane {
+  --flight-horizon-roll: 0deg;
+  --flight-horizon-pitch: 0px;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 180px;
+  height: 180px;
+  transform: translate(-50%, -50%) translateY(var(--flight-horizon-pitch)) rotate(var(--flight-horizon-roll));
+  background: linear-gradient(to bottom, #315d7b 0 50%, #5b4a37 50% 100%);
+  transform-origin: center;
+}
+.helicopter-horizon-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(50% - 1px);
+  height: 2px;
+  background: rgba(255,255,255,.9);
+}
+.helicopter-pitch-mark {
+  position: absolute;
+  left: 50%;
+  width: 42px;
+  height: 1px;
+  transform: translateX(-50%);
+  background: rgba(255,255,255,.62);
+}
+.helicopter-pitch-mark-up { top: calc(50% - 16px); }
+.helicopter-pitch-mark-down { top: calc(50% + 16px); }
+.helicopter-aircraft-symbol {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 50px;
+  height: 16px;
+  transform: translate(-50%, -50%);
+}
+.helicopter-aircraft-symbol::before,
+.helicopter-aircraft-symbol::after {
+  content: "";
+  position: absolute;
+  top: 7px;
+  width: 19px;
+  height: 2px;
+  background: #67d4ff;
+}
+.helicopter-aircraft-symbol::before { left: 0; }
+.helicopter-aircraft-symbol::after { right: 0; }
+.helicopter-attitude small {
+  color: #a9c4d3;
+  font-size: 9px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.helicopter-flight-footer {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 8px;
+  color: #91adbd;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .04em;
+}
+.helicopter-flight-footer strong {
+  padding: 3px 9px;
+  border: 1px solid rgba(103,212,255,.28);
+  border-radius: 999px;
+  background: rgba(73,170,212,.13);
+  color: #dff7ff;
+  letter-spacing: .08em;
+}
+.helicopter-flight-footer span:last-child { text-align: right; }
+body[data-lobby-shell="true"] > .helicopter-flight-hud,
+body[data-space]:not([data-space="campus"]) > .helicopter-flight-hud { display: none !important; }
+
+@media (pointer: coarse) and (max-width: 560px) {
+  .helicopter-flight-hud {
+    top: max(176px, calc(env(safe-area-inset-top) + 166px));
+    width: min(300px, calc(100vw - 24px));
+    grid-template-columns: 72px 104px 72px;
+    gap: 5px 7px;
+    padding: 7px 8px 6px;
+    border-radius: 15px;
+    background: rgba(7, 20, 31, .66);
+  }
+  .helicopter-flight-column { grid-template-columns: 1fr; gap: 3px; }
+  .helicopter-flight-readout { padding: 3px 5px; border-radius: 7px; }
+  .helicopter-flight-readout span { font-size: 7px; }
+  .helicopter-flight-readout strong { font-size: 10px; }
+  .helicopter-horizon { width: 96px; height: 56px; border-radius: 10px; }
+  .helicopter-attitude small { font-size: 8px; }
+  .helicopter-flight-footer { font-size: 8px; }
+  .helicopter-flight-footer strong { padding: 2px 7px; }
+}
+
+.helicopter-flight-hud-toggle {
+  position: fixed;
+  z-index: 17;
+  top: max(92px, calc(env(safe-area-inset-top) + 82px));
+  left: 50%;
+  transform: translateX(178px);
+  min-width: 70px;
+  min-height: 30px;
+  padding: 4px 9px;
+  border: 1px solid rgba(103,212,255,.34);
+  border-radius: 999px;
+  background: rgba(7,20,31,.84);
+  color: #dff7ff;
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: .03em;
+  box-shadow: 0 5px 16px rgba(0,0,0,.22);
+  backdrop-filter: blur(8px);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.helicopter-flight-hud-toggle[hidden] { display: none !important; }
+.helicopter-flight-hud-toggle[aria-pressed="false"] {
+  border-color: rgba(255,222,134,.46);
+  color: #ffde86;
+}
+body[data-lobby-shell="true"] > .helicopter-flight-hud-toggle,
+body[data-space]:not([data-space="campus"]) > .helicopter-flight-hud-toggle { display: none !important; }
+
+@media (pointer: coarse) and (max-width: 560px) {
+  .helicopter-flight-hud-toggle {
+    top: max(182px, calc(env(safe-area-inset-top) + 172px));
+    transform: translateX(70px);
+    min-width: 66px;
+    min-height: 28px;
+    font-size: 9px;
+  }
+}
+
 /* LANDSCAPE-HUD:start
    Mobile landscape HUD · phones held sideways (touch + landscape + short viewport).
    The portrait phone HUD keys off max-width, so a rotated phone (740–932px wide) used to fall through to the
@@ -4603,5 +4804,43 @@ body[data-space]:not([data-space="campus"]) > .inkyung-living-moment {
     font-size: 18px;
   }
   body .full-map-zoom-label { min-width: 36px; font-size: 10px; }
+
+  /* Helicopter P0.6: compact instruments share the existing short-landscape HUD authority. */
+  body .helicopter-flight-hud {
+    top: var(--world-right-rail-top);
+    width: min(330px, calc(100vw - 360px));
+    grid-template-columns: 72px 96px 72px;
+    gap: 4px 7px;
+    padding: 6px 8px 5px;
+    border-radius: 14px;
+  }
+  body .helicopter-flight-hud .helicopter-flight-column {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+  body .helicopter-flight-hud .helicopter-flight-readout {
+    padding: 2px 5px;
+  }
+  body .helicopter-flight-hud .helicopter-flight-secondary {
+    display: none;
+  }
+  body .helicopter-flight-hud .helicopter-horizon {
+    width: 90px;
+    height: 50px;
+  }
+  body .helicopter-flight-hud .helicopter-flight-footer {
+    font-size: 8px;
+  }
+
+  /* Helicopter P0.7: instrument toggle shares the existing short-landscape HUD authority. */
+  body .helicopter-flight-hud-toggle {
+    top: calc(var(--world-right-rail-top) + 4px);
+    left: 50%;
+    transform: translateX(92px);
+    min-width: 64px;
+    min-height: 26px;
+    padding: 3px 7px;
+    font-size: 9px;
+  }
 }
 /* LANDSCAPE-HUD:end */

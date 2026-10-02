@@ -8,6 +8,7 @@ import { createCampusTour } from "./src/campus-tour.js";
 import { selectContextAction } from "./src/context-action.js";
 import { movementHudState, MOVEMENT_HUD_STATES } from "./src/player-controller.js";
 import { createHelicopterFlightState, HELICOPTER_FLIGHT_LIMITS, stepHelicopterFlight } from "./src/mounts/helicopter-flight.js";
+import { HELICOPTER_ASSISTED_POWER, HELICOPTER_FLIGHT_HUD_STORAGE_KEY, helicopterFlightState, helicopterFlightTelemetry, readHelicopterFlightHudEnabled, writeHelicopterFlightHudEnabled } from "./src/mounts/helicopter-flight-hud.js";
 import { createLobbyPresenceSummary } from "./src/lobby/lobby-presence-summary.js";
 import { createLobbyQuestHighlight } from "./src/lobby/lobby-quest-highlight.js";
 import { createSpawnRegistry, SPAWN_ID } from "./src/lobby/spawn-registry.js";
@@ -114,11 +115,51 @@ assert.ok(Math.abs(rollFlight.roll) <= HELICOPTER_FLIGHT_LIMITS.maxRollDeg + 1e-
   "helicopter roll remains bounded");
 console.log("Helicopter flight P0 static + dynamics contracts PASS");
 
+const helicopterHudSample = helicopterFlightTelemetry({
+  controller: {
+    onHelicopter: true,
+    grounded: false,
+    landing: false,
+    helicopterFlight: { yaw: -10, yawRate: 7, pitch: 4, roll: -6, vx: 3, vy: 1.7, vz: 4 }
+  },
+  position: { x: 0, y: 12, z: 0 },
+  groundHeight: 2
+});
+assert.equal(helicopterHudSample.altitude, 10, "flight HUD altitude is AGL from the current runtime position");
+assert.equal(helicopterHudSample.speed, 5, "flight HUD speed follows horizontal helicopter velocity");
+assert.equal(helicopterHudSample.heading, 350, "flight HUD normalizes heading into 000-359 degrees");
+assert.equal(helicopterHudSample.state, "CLIMB", "flight HUD derives a readable flight state");
+assert.equal(helicopterHudSample.rotorRpmPct, HELICOPTER_ASSISTED_POWER.rotorRpmPct);
+assert.equal(helicopterHudSample.enginePct, HELICOPTER_ASSISTED_POWER.enginePct);
+assert.equal(helicopterFlightTelemetry({ controller: { onHelicopter: false } }), null,
+  "flight HUD has no telemetry when the player is not on the helicopter");
+assert.equal(helicopterFlightState({ landing: true }), "LANDING");
+assert.equal(helicopterFlightState({ grounded: true, speed: 0.1 }), "GROUND");
+console.log("Helicopter Flight Instrument HUD P0.6 contracts PASS");
+
+const flightHudPreference = new Map();
+const flightHudStorage = {
+  getItem: key => flightHudPreference.get(key) ?? null,
+  setItem: (key, value) => flightHudPreference.set(key, value)
+};
+assert.equal(readHelicopterFlightHudEnabled(flightHudStorage), true, "flight HUD preference defaults on");
+writeHelicopterFlightHudEnabled(false, flightHudStorage);
+assert.equal(flightHudPreference.get(HELICOPTER_FLIGHT_HUD_STORAGE_KEY), "off");
+assert.equal(readHelicopterFlightHudEnabled(flightHudStorage), false, "flight HUD preference persists off");
+writeHelicopterFlightHudEnabled(true, flightHudStorage);
+assert.equal(readHelicopterFlightHudEnabled(flightHudStorage), true, "flight HUD preference can turn back on");
+
 assert.equal(movementHudState({ mounted:false, grounded:true }), MOVEMENT_HUD_STATES.WALK);
 assert.equal(movementHudState({ mounted:true, grounded:true }), MOVEMENT_HUD_STATES.MOUNT_GROUND);
 assert.equal(movementHudState({ mounted:true, grounded:false }), MOVEMENT_HUD_STATES.MOUNT_FLIGHT);
 
 const campusCss = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+assert.match(campusCss, /\.helicopter-flight-hud\s*\{[\s\S]*position:\s*fixed/,
+  "helicopter Flight HUD is a fixed non-world overlay");
+assert.match(campusCss, /\.helicopter-flight-hud\[hidden\]\s*\{[^}]*display:\s*none/,
+  "helicopter Flight HUD fully disappears off-mount");
+assert.match(campusCss, /@media \(pointer:\s*coarse\) and \(max-width:\s*560px\)[\s\S]*\.helicopter-flight-hud/,
+  "helicopter Flight HUD has a dedicated mobile compact layout");
 const mcmEventUiSource = readFileSync(new URL("./src/events/zombie-university-2026/event-ui.js", import.meta.url), "utf8");
 assert.match(campusCss, /body\[data-movement-state="MOUNT_FLIGHT"\] #jump/,
   "flight moves 상승 to the top of the right control stack");
@@ -130,6 +171,19 @@ assert.match(playerControllerSource, /this\.descendButton\.hidden = bike \|\| st
   "bike hides 하강; the control only appears for a flight mount");
 
 const campusHtml = readFileSync(new URL("./campus/index.html", import.meta.url), "utf8");
+assert.equal((campusHtml.match(/id="helicopter-flight-hud"/g) ?? []).length, 1,
+  "campus owns exactly one helicopter Flight Instrument HUD");
+assert.match(campusHtml, /id="helicopter-flight-hud"[^>]*hidden/,
+  "helicopter Flight HUD starts hidden");
+assert.match(campusHtml, /id="helicopter-flight-hud-toggle"[^>]*aria-controls="helicopter-flight-hud"[^>]*hidden/,
+  "helicopter Flight HUD toggle exists, targets the HUD and starts hidden");
+assert.match(campusCss, /\.helicopter-flight-hud-toggle\s*\{[\s\S]*position:\s*fixed/,
+  "helicopter Flight HUD toggle is a compact fixed control");
+assert.match(campusCss, /\.helicopter-flight-hud-toggle\[hidden\]\s*\{[^}]*display:\s*none/,
+  "helicopter Flight HUD toggle disappears off-mount");
+for (const metric of ["alt", "vs", "pitch", "roll", "spd", "hdg", "yaw", "nr", "eng", "mode", "state", "attitude", "horizon"]) {
+  assert.match(campusHtml, new RegExp(`data-flight-${metric}`), `flight HUD exposes ${metric}`);
+}
 assert.match(campusHtml, /id="inkyung-living-moment"[^>]*aria-label="인경호에서 해볼 것"[^>]*hidden/,
   "C15.3 Inkyung living guide exists and starts hidden");
 assert.match(campusHtml, /id="inkyung-living-actions"/,
