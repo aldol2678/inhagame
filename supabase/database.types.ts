@@ -1675,6 +1675,27 @@ export type Database = {
           },
         ]
       }
+      world_room_layouts: {
+        Row: {
+          objects: Json
+          revision: number
+          room_id: string
+          updated_at: string
+        }
+        Insert: {
+          objects?: Json
+          revision?: number
+          room_id: string
+          updated_at?: string
+        }
+        Update: {
+          objects?: Json
+          revision?: number
+          room_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       world_shop_listings: {
         Row: {
           created_at: string
@@ -1910,6 +1931,10 @@ export type Database = {
       purge_induck_grow_p2a_90d: { Args: never; Returns: number }
       purge_inhagame_hub_events_90d: { Args: never; Returns: number }
       purge_world_accompany_1d: { Args: never; Returns: number }
+      validate_world_room_furniture_v1: {
+        Args: { p_objects: Json; p_user: string }
+        Returns: undefined
+      }
       world_accompany_expire: { Args: { p_user: string }; Returns: undefined }
       world_accompany_lock_users: {
         Args: { p_a: string; p_b: string }
@@ -2267,6 +2292,18 @@ export type Database = {
         Returns: string
       }
       world_room_caller_v1: { Args: never; Returns: string }
+      world_room_furniture_v1: {
+        Args: never
+        Returns: {
+          depth: number
+          flat: boolean
+          height: number
+          item_id: string
+          solid: boolean
+          surfaces: string[]
+          width: number
+        }[]
+      }
       world_shop_listing_block_v2: {
         Args: {
           p_listing: Database["private"]["Tables"]["world_shop_listings"]["Row"]
@@ -4686,6 +4723,7 @@ export type Database = {
       get_world_online_ops_v1: { Args: { p_token: string }; Returns: Json }
       get_world_public_profile: { Args: { p_target: string }; Returns: Json }
       get_world_relationship: { Args: { p_target: string }; Returns: Json }
+      get_world_room_furniture_v1: { Args: { p_room: string }; Returns: Json }
       get_world_shop_v1: { Args: { p_shop_id: string }; Returns: Json }
       induckup_merge_meta_v1: {
         Args: { new_meta: Json; old_meta: Json }
@@ -5152,6 +5190,10 @@ export type Database = {
           p_progress: Json
         }
         Returns: string
+      }
+      save_my_room_furniture_v1: {
+        Args: { p_objects: Json; p_revision: number; p_room: string }
+        Returns: Json
       }
       send_hub_message_v1: {
         Args: { p_body: string; p_recipient: string }

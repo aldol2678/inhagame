@@ -9,8 +9,8 @@
 
 import { CAMPUS_MOVEMENT_SPACE } from "../player-controller.js";
 
-export const roomMovementSpace = (room) => Object.freeze({
-  id: room.id, obstacles: room.obstacles, bounds: room.bounds, allowMount: false,
+export const roomMovementSpace = (room, obstacles = room.obstacles) => Object.freeze({
+  id: room.id, obstacles, bounds: room.bounds, allowMount: false,
   groundHeight: () => 0, constrain: (_position, next) => next
 });
 
@@ -53,8 +53,9 @@ export function createRoomWorldAdapter({
       activeRoomScene.root.enabled = true;
       player.reparent(activeRoomScene.root);
       lighting.apply(activeRoomScene);
-      controller.setMovementSpace(roomMovementSpace(room));
-      const indoorCamera = { obstacles: room.obstacles };
+      const obstacles = nextRoomScene.obstacles ?? room.obstacles;
+      controller.setMovementSpace(roomMovementSpace(room, obstacles));
+      const indoorCamera = { obstacles };
       if (room.cameraLimits) indoorCamera.limits = room.cameraLimits;
       orbit.setIndoor(indoorCamera);
       setLocationLabel(room.locationLabel ?? `🏠 ${room.label}`);
