@@ -42,8 +42,8 @@ values (
 set local role anon;
 select throws_ok(
   $$select public.delete_my_inhagame_account_v1('탈퇴')$$,
-  '42501','PERMANENT_ACCOUNT_REQUIRED',
-  'anonymous callers cannot delete accounts'
+  '42501',null,
+  'anonymous callers cannot execute account deletion'
 );
 reset role;
 

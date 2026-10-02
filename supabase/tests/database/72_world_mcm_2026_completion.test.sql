@@ -30,7 +30,7 @@ select results_eq($$select private.world_event_state_v1(e, t::timestamptz) from 
                  '2026-09-29 23:59:59+09', '2026-09-30 00:00:00+09', '2026-09-30 17:59:59+09',
                  '2026-09-30 18:00:00+09', '2026-10-01 00:59:59+09', '2026-10-01 01:00:00+09']) with ordinality u(t, n)
   where e.event_id = 'event.mcm_2026' order by n$$,
-  $values ('SCHEDULED'::text), ('SCHEDULED'), ('SCHEDULED'), ('SCHEDULED'), ('ACTIVE'), ('ACTIVE'),
+  $$values ('SCHEDULED'::text), ('SCHEDULED'), ('SCHEDULED'), ('SCHEDULED'), ('ACTIVE'), ('ACTIVE'),
            ('ACTIVE'), ('ACTIVE'), ('ENDED')$$,
   'PRELUDE/WARNING stay SCHEDULED; ACTIVE exactly from 00:00:00 through 00:59:59; ENDED at 01:00:00');
 select is((select private.world_event_state_v1(e, '2026-09-29 15:00:00Z') from private.world_events e

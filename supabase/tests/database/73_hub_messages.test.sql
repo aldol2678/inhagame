@@ -92,9 +92,13 @@ select is(
   public.send_hub_message_v1('82000000-0000-4000-8000-000000000002','  첫 쪽지  ')->>'newConversation',
   'true','Inha-verified member starts a conversation'
 );
+-- Direct table inspection is an owner-level check; authenticated has no table SELECT.
+reset role;
 select is((select count(*) from public.hub_conversations),1::bigint,'one conversation created');
 select is((select count(*) from public.hub_conversation_members),2::bigint,'exactly two members created');
 select is((select body from public.hub_messages limit 1),'첫 쪽지','message body normalized');
+set local role authenticated;
+set local request.jwt.claims='{"sub":"81000000-0000-4000-8000-000000000001","role":"authenticated","is_anonymous":false}';
 
 select is(
   public.send_hub_message_v1('82000000-0000-4000-8000-000000000002','두 번째')->>'newConversation',
@@ -141,6 +145,12 @@ select is(jsonb_array_length(public.get_my_hub_conversations_v1(50)),0,'archived
 -- pgTAP wraps this file in one transaction, so now() is transaction-stable. Backdate the
 -- archive read marker to model the next RPC transaction before the recipient sends again.
 reset role;
+-- Same-transaction messages share one timestamp; give earlier messages distinct, older times
+-- so the read marker and the newest-first message order are deterministic.
+update public.hub_messages set created_at = created_at - case body
+  when '첫 쪽지' then interval '4 minutes' when '두 번째' then interval '3 minutes'
+  when '답장' then interval '2 minutes' end
+where body in ('첫 쪽지','두 번째','답장');
 update public.hub_conversation_members
 set last_read_at = now() - interval '1 second'
 where user_id='81000000-0000-4000-8000-000000000001';
@@ -228,7 +238,7 @@ select md5('hub-rate-'||g)::uuid,'authenticated','authenticated',
 from generate_series(1,21) g;
 
 insert into public.profiles(user_id,nickname,is_banned)
-select md5('hub-rate-'||g)::uuid,'rate-'||g,false
+select md5('hub-rate-'||g)::uuid,'rate_'||g,false
 from generate_series(1,21) g;
 
 insert into public.hub_conversations(user_low,user_high,created_by,created_at,updated_at)

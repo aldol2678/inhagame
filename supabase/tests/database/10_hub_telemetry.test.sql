@@ -82,6 +82,10 @@ select is(public.log_inhagame_hub_event_v2(gen_random_uuid(), :s3, :v3, 'first_p
 select is(public.log_inhagame_hub_event_v2(gen_random_uuid(), :s3, :v3, 'next_discovery_click', 'campus', 'unknown', 'direct', null), false,
   'CORE-15 next discovery target is allowlisted');
 reset role;
+select throws_ok(
+  format($$insert into public.inhagame_hub_events(event_id, session_id, visitor_id, event_type, surface, target)
+    values (gen_random_uuid(), %L, %L, 'first_reward', 'campus', null)$$, :s3, :v3),
+  '23514', null, 'CORE-15 first_reward with a NULL target violates the table context check');
 select is((select count(*)::int from public.inhagame_hub_events where session_id=:s3), 11,
   'CORE-15 stores exactly the 11 canonical milestones and rejects privacy/context violations');
 
