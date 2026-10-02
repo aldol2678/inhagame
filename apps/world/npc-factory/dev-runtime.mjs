@@ -12,6 +12,8 @@ import { createNpcSocialNg1Model, mountNpcSocialNg1Panel } from './npc-social-ng
 import { createPersistentNpcSocialGraph } from './npc-social-graph.mjs';
 import { createNpcSocialGroupFeasibility } from './npc-social-group-feasibility.mjs';
 import { createNpcSocialNg15Bridge } from './npc-social-ng15-bridge.mjs';
+import { createObservedConversation } from './npc-observed-conversation.mjs';
+import { createObservedBubble } from './npc-observed-bubble.mjs';
 import { MAIN_NPC_ID, QUEST_NPC_ID, runtimePresence } from './npc-presence.mjs';
 import { createPurposefulRoster } from './purposeful-roster.mjs';
 import { applyCampusLifeSchedule } from './npc-campus-life-policy.mjs';
@@ -158,6 +160,7 @@ async function loadCandidate() {
 
 export async function createNpcDevRuntime({ app, campusRoot, player, orbit, production = false, aiPilot = false,
   socialEnabled = false, socialPreview = false, socialBehaviorPreview = false,
+  observedConversationPreview = false, isObservedConversationBlocked = () => true,
   externalContextAction = false, aiEndpoint = '/npc-ai/decide', getAiSession = async () => null,
   questEnabled = false, questEndpoint = '/npc-quest',
   sideEvent = null,
@@ -221,11 +224,20 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
   let socialNg1 = null, socialNg1Panel = null, socialNg15Bridge = null;
   let main2Guide = null;
   let conversationLifecycleOpen = false;
+  const observedConversation = observedConversationPreview ? createObservedConversation() : null;
+  const observedBubble = observedConversationPreview ? createObservedBubble() : null;
+  let observedFrame = null;
+  let observedSocial = { groups: [], relations: {} }, observedSocialAt = -Infinity;
+  function stopObservedConversation() {
+    observedConversation?.stop();
+    observedBubble?.hide();
+    observedFrame = null;
+  }
   function syncConversationLifecycle() {
     const next = Boolean(activeConversation) || main2Guide?.isDialogueOpen?.() === true;
     if (next === conversationLifecycleOpen) return next;
     conversationLifecycleOpen = next;
-    if (next) onConversationOpen();
+    if (next) { stopObservedConversation(); onConversationOpen(); }
     else onConversationClose();
     return next;
   }
@@ -777,7 +789,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
     const canvasRect = app.graphicsDevice.canvas.getBoundingClientRect();
     for (const [id, label] of nameplates) {
       const visual = avatars.get(id);
-      if (!shown.has(id) || !visual.avatar.enabled) { label.hidden = true; continue; }
+      if (!shown.has(id) || !visual.avatar.enabled || observedFrame?.line.npcId === id) { label.hidden = true; continue; }
       const purpose = purposefulRoster.get(id);
       const ai = aiEnabled(id);
       label.textContent = `${ai ? '✦ AI · ' : ''}${production ? visual.actor.name : `${id.slice(-3)} · ${visual.actor.name}`}`;
@@ -804,6 +816,63 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
         label.style.top = `${point.y + canvasRect.top}px`;
       }
     }
+  }
+  function updateObservedConversation(playerPos) {
+    if (!observedConversation) return;
+    const now = performance.now() / 1000;
+    const blocked = !running || socialPreviewFastForward || document.hidden ||
+      Boolean(activeConversation) || main2Guide.isDialogueOpen() || isObservedConversationBlocked();
+    if (blocked) {
+      observedConversation.update({ now, blocked: true });
+      observedBubble.hide(); observedFrame = null; return;
+    }
+    if (now-observedSocialAt >= .5) {
+      observedSocial = socialNg1?.snapshot() ?? { groups: [], relations: {} };
+      observedSocialAt = now;
+    }
+    const bridge = socialNg15Bridge?.status();
+    const meeting = bridge?.phase === 'MEETING' ? bridge.active : null;
+    const npcs = [...purposefulRoster].map(([id, purpose]) => {
+      const state = purpose.controller.status(false), visual = avatars.get(id);
+      const meetingId = meeting?.memberNpcIds.includes(id) ? meeting.groupId : null;
+      const destination = state.destination ?? '';
+      const location = meetingId ? meeting.meetingLocation : destination.replace(/^c04\./,'').replace(`.${id}`,'');
+      return { ...state, id, name: visual.actor.name, location, meetingId,
+        position: visual.motion.position, visible: visual.avatar.enabled && state.visible,
+        busy: activeConversation?.id === id || visual.pilotFacingUntil > performance.now(),
+        department: rosterById.get(id)?.department, residence: rosterById.get(id)?.residence,
+        interests: npcById.get(id)?.interests ?? [] };
+    });
+    const forward = orbit.camera.forward;
+    observedFrame = observedConversation.update({ now, npcs, player: playerPos, forward,
+      period: snapshot.period, groups: observedSocial.groups,
+      pairInfo: (a,b) => ({ ...socialGraph.describePair(a,b),
+        affinity: observedSocial.relations[[a,b].sort().join('|')]?.affinity ?? 0 }) });
+    if (!observedFrame) { observedBubble.hide(); return; }
+    // Renderer-only yaw. Never pause a controller, change a route or write a social fact.
+    for (const id of observedFrame.members) {
+      const visual = avatars.get(id);
+      if (visual.seat) continue;
+      const other = avatars.get(observedFrame.members.find(otherId=>otherId!==id));
+      const a = visual.motion.position, b = other.motion.position;
+      const yaw = visual.avatar.getLocalEulerAngles().y;
+      const target = Math.atan2(b.x-a.x,b.z-a.z)*180/Math.PI;
+      visual.avatar.setLocalEulerAngles(0,yaw+Math.max(-35,Math.min(35,((target-yaw+540)%360)-180)),0);
+    }
+    const visual = avatars.get(observedFrame.line.npcId), world = visual.avatar.getPosition();
+    projectedPoint.set(world.x,world.y+npcNameplateOffset(visual.appearance.height)+.12,world.z);
+    const cameraPosition = orbit.camera.getPosition();
+    const inFront = (projectedPoint.x-cameraPosition.x)*forward.x +
+      (projectedPoint.y-cameraPosition.y)*forward.y + (projectedPoint.z-cameraPosition.z)*forward.z > 0;
+    const point = orbit.camera.camera.worldToScreen(projectedPoint);
+    const canvasRect = app.graphicsDevice.canvas.getBoundingClientRect();
+    nameplates.get(observedFrame.line.npcId).hidden = true;
+    const obstacles = [...document.querySelectorAll('#minimap, #quest-hud, #tour, #context-action, #world-topbar, .npc-test-tag')]
+      .filter(node=>!node.hidden && node.getClientRects().length)
+      .map(node=>node.getBoundingClientRect());
+    observedBubble.render(observedFrame,{ name:visual.actor.name,
+      point:{x:point.x+canvasRect.left,y:point.y+canvasRect.top,visible:inFront &&
+        point.x>=0 && point.y>=0 && point.x<=canvasRect.width && point.y<=canvasRect.height},obstacles });
   }
   function update(dt) {
     if (!socialPreviewFastForward) main2Guide.update(dt);
@@ -852,7 +921,8 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
       const nearSelected = actor.id === selectedId && (!aiEnabled(actor.id) || activeConversation?.id === actor.id) &&
         Math.hypot(playerPos.x - motion.position.x, playerPos.z - motion.position.z) < NPC_CONVERSATION_RELEASE_RADIUS;
       const pilotFacing = visual.pilotFacingUntil > performance.now() && Math.hypot(playerPos.x - motion.position.x, playerPos.z - motion.position.z) < NPC_NAMEPLATE_RADIUS;
-      const facing = sitting ? visual.seat.yaw : moving ? motion.heading : nearSelected || pilotFacing
+      const observing = observedFrame?.members.includes(actor.id);
+      const facing = sitting ? visual.seat.yaw : moving ? motion.heading : observing ? visual.avatar.getLocalEulerAngles().y : nearSelected || pilotFacing
         ? Math.atan2(playerPos.x - motion.position.x, playerPos.z - motion.position.z) * 180 / Math.PI : motion.heading;
       visual.avatar.setLocalEulerAngles(0, facing, 0);
     }
@@ -867,7 +937,8 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
       });
     }
     if (socialChanged && !socialPreviewFastForward) socialNg1Panel?.render();
-    if (socialPreviewFastForward) return;
+    if (socialPreviewFastForward) { stopObservedConversation(); return; }
+    updateObservedConversation(playerPos);
     uiClock += dt;
     if (uiClock < .3) return;
     uiClock = 0;
@@ -960,6 +1031,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
       social_graph: socialGraph.status(),
       social_ng1: socialNg1?.status() ?? null,
       social_ng15: socialNg15Bridge?.status() ?? null,
+      observed_conversation: observedConversation?.status() ?? null,
       selected_dialogue: snapshot.actors.find(a => a.id === selectedId).dialogue }),
     setPeriod, selectNpc: id => { if (!avatars.has(id)) throw new Error('Unknown NPC'); closeConversation(false); selectedId = id; socialNg1?.setSelectedNpc(id); if (select) select.value = id; drawDetail(); },
     pause: () => { running = false; if (playButton) { playButton.textContent = '재생'; playButton.setAttribute('aria-pressed', 'false'); } },
@@ -1008,4 +1080,3 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
   };
   return api;
 }
-

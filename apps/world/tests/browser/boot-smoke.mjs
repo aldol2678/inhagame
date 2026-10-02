@@ -822,7 +822,7 @@ try {
   await socialPage.close();
   const behaviorPage = await smoke.context.newPage();
   const behaviorFatal = smoke.watch(behaviorPage);
-  await behaviorPage.goto(`${smoke.origin}/campus/?npcSocial=ng15`,
+  await behaviorPage.goto(`${smoke.origin}/campus/?npcSocial=ng15&npcConversation=p0`,
     { waitUntil: "domcontentloaded", timeout: TIMEOUT_MS });
   await Promise.race([
     behaviorPage.waitForFunction(() =>
@@ -887,6 +887,13 @@ try {
     lastOutcome: behaviorComplete.bridge.lastOutcome
   }));
 
+  assert.equal(await behaviorPage.locator('#npc-observed-bubble').count(), 1,
+    'observational P0 mounts through the actual NPC runtime on an opted-in Preview');
+  assert.ok(await behaviorPage.evaluate(() =>
+    window.__INHAGAME_P0__.getStatus().npcTest.observed_conversation),
+    'P0 state is exposed through the runtime status');
+  const { checkObservedBubble } = await import('./npc-observed-bubble-smoke.mjs');
+  await checkObservedBubble(smoke);
   assert.deepEqual(smoke.problems, [], "no page errors, console errors or failed same-origin requests");
   console.log(JSON.stringify({ scene, hud, musicRuntime }, null, 2));
   console.log(`world boot smoke: PASS in ${((Date.now() - started) / 1000).toFixed(1)}s ` +
