@@ -16,6 +16,7 @@ import { createObservedConversation } from './npc-observed-conversation.mjs';
 import { createObservedBubble } from './npc-observed-bubble.mjs';
 import { MAIN_NPC_ID, QUEST_NPC_ID, runtimePresence } from './npc-presence.mjs';
 import { createNpcWorldClock } from './npc-world-clock.mjs';
+import { createSharedMeetings, createSharedMeetingObserver } from './npc-shared-meetings.mjs';
 import { bindSharedSchedule } from './npc-shared-schedule.mjs';
 import { worldScheduleAt, NPC_SCHEDULE_REVISION } from './npc-world-time-contract.mjs';
 import { createPurposefulRoster } from './purposeful-roster.mjs';
@@ -165,6 +166,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
   sharedSchedulePreview = false,
   socialEnabled = false, socialPreview = false, socialBehaviorPreview = false,
   observedConversationPreview = false, isObservedConversationBlocked = () => true,
+  getBusyNpcIds = () => [], onNpcTalk = () => {},
   externalContextAction = false, aiEndpoint = '/npc-ai/decide', getAiSession = async () => null,
   questEnabled = false, questEndpoint = '/npc-quest',
   sideEvent = null,
@@ -199,6 +201,9 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
   const navigator = createNpcNavigator(batch);
   const purposefulRoster = createPurposefulRoster(batch, navigator);
   if (worldClock) bindSharedSchedule(purposefulRoster, navigator, () => sharedFrameNow);
+  const sharedMeetings = worldClock ? createSharedMeetings({ batch, profiles: roster,
+    roster: purposefulRoster, navigator, now: () => sharedFrameNow }) : null;
+  const sharedObserver = worldClock ? createSharedMeetingObserver() : null;
   const socialMotion = worldClock ? {
     status: () => ({ phase: 'SHARED_SCHEDULE', pairIds: [] }),
     setPeriod() {}, tick() { return this.status(); },
@@ -248,16 +253,18 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
   let main2Guide = null;
   let conversationLifecycleOpen = false;
   const observedConversation = observedConversationPreview ? createObservedConversation() : null;
-  const observedBubble = observedConversationPreview ? createObservedBubble() : null;
+  const observedBubble = (observedConversationPreview || sharedMeetings) ? createObservedBubble() : null;
   let observedFrame = null;
   let observedSocial = { groups: [], relations: {} }, observedSocialAt = -Infinity;
   function stopObservedConversation() {
     observedConversation?.stop();
+    sharedObserver?.stop();
     observedBubble?.hide();
     observedFrame = null;
   }
   function syncConversationLifecycle() {
     const next = Boolean(activeConversation) || main2Guide?.isDialogueOpen?.() === true;
+    onNpcTalk(activeConversation?.id ?? null, sharedFrameNow);
     if (next === conversationLifecycleOpen) return next;
     conversationLifecycleOpen = next;
     if (next) { stopObservedConversation(); onConversationOpen(); }
@@ -721,6 +728,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
       const state = purpose.controller.tick(dt);
       motion.position = state.visible ? { ...state.position } : null;
       motion.heading = state.heading;
+      motion.sharedMeeting = Boolean(state.meetingId);
       motion.moving = state.moving;
       actor.position = state.visible ? { ...state.position } : null;
       actor.location = state.destination;
@@ -812,9 +820,13 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
     const shown = new Set(nearby.map(item => item.actor.id));
     if (!production) shown.add(selectedId);
     const canvasRect = app.graphicsDevice.canvas.getBoundingClientRect();
-    for (const [id, label] of nameplates) {
+    const placed = [...document.querySelectorAll('#minimap, #quest-hud, #world-topbar, #npc-observed-bubble')]
+      .filter(node => !node.hidden && node.getClientRects().length).map(node => node.getBoundingClientRect());
+    const ordered = [...nameplates].sort(([a],[b]) => (a===selectedId?-1:b===selectedId?1:
+      nearby.findIndex(n=>n.actor.id===a)-nearby.findIndex(n=>n.actor.id===b)));
+    for (const [id, label] of ordered) {
       const visual = avatars.get(id);
-      if (!shown.has(id) || !visual.avatar.enabled || observedFrame?.line.npcId === id) { label.hidden = true; continue; }
+      if (!shown.has(id) || !visual.avatar.enabled || observedFrame?.members.includes(id)) { label.hidden = true; continue; }
       const purpose = purposefulRoster.get(id);
       const ai = aiEnabled(id);
       label.textContent = `${ai ? '✦ AI · ' : ''}${production ? visual.actor.name : `${id.slice(-3)} · ${visual.actor.name}`}`;
@@ -829,7 +841,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
             READING: '독서 중', COFFEE: '커피 마시는 중', EATING: '간식 먹는 중',
             PHOTO: '사진 찍는 중', MUSIC: '음악 듣는 중', PHONE: '휴대전화 보는 중',
             TRANSIT: '잠시 머무는 중', WALK_BREAK: '산책 중', WAITING: '대기 중',
-            WALK_TOGETHER: '동행 중' })[state.activity] ?? '잠시 머무는 중';
+            WALK_TOGETHER: '동행 중', SOCIAL_MEETUP: '모임 중' })[state.activity] ?? '잠시 머무는 중';
         label.dataset.status = action;
       }
       const world = visual.avatar.getPosition();
@@ -839,18 +851,28 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
       if (!label.hidden) {
         label.style.left = `${point.x + canvasRect.left}px`;
         label.style.top = `${point.y + canvasRect.top}px`;
+        const rect = label.getBoundingClientRect();
+        if (rect.left < 6 || rect.top < 6 || rect.right > window.innerWidth-6 || rect.bottom > window.innerHeight-6 ||
+          placed.some(r => rect.left < r.right+4 && rect.right > r.left-4 && rect.top < r.bottom+4 && rect.bottom > r.top-4)) label.hidden = true;
+        else placed.push(rect);
       }
     }
   }
   function updateObservedConversation(playerPos) {
-    if (!observedConversation) return;
+    if (!observedConversation && !sharedMeetings) return;
     const now = performance.now() / 1000;
     const blocked = !running || socialPreviewFastForward || document.hidden ||
       Boolean(activeConversation) || main2Guide.isDialogueOpen() || isObservedConversationBlocked();
     if (blocked) {
-      observedConversation.update({ now, blocked: true });
+      observedConversation?.update({ now, blocked: true });
+      sharedObserver?.update({ now: sharedFrameNow === null ? null : sharedFrameNow/1000, player: playerPos, blocked: true });
       observedBubble.hide(); observedFrame = null; return;
     }
+    const forward = orbit.camera.forward;
+    if (sharedMeetings) {
+      observedFrame = sharedObserver.update({ now: sharedFrameNow === null ? null : sharedFrameNow/1000,
+        events: sharedMeetings.events(), player: playerPos, forward, busyIds: getBusyNpcIds(sharedFrameNow) });
+    } else {
     if (now-observedSocialAt >= .5) {
       observedSocial = socialNg1?.snapshot() ?? { groups: [], relations: {} };
       observedSocialAt = now;
@@ -868,14 +890,14 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
         department: rosterById.get(id)?.department, residence: rosterById.get(id)?.residence,
         interests: npcById.get(id)?.interests ?? [] };
     });
-    const forward = orbit.camera.forward;
     observedFrame = observedConversation.update({ now, npcs, player: playerPos, forward,
       period: snapshot.period, groups: observedSocial.groups,
       pairInfo: (a,b) => ({ ...socialGraph.describePair(a,b),
         affinity: observedSocial.relations[[a,b].sort().join('|')]?.affinity ?? 0 }) });
+    }
     if (!observedFrame) { observedBubble.hide(); return; }
     // Renderer-only yaw. Never pause a controller, change a route or write a social fact.
-    for (const id of observedFrame.members) {
+    for (const id of sharedMeetings ? [] : observedFrame.members) {
       const visual = avatars.get(id);
       if (visual.seat) continue;
       const other = avatars.get(observedFrame.members.find(otherId=>otherId!==id));
@@ -891,7 +913,9 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
       (projectedPoint.y-cameraPosition.y)*forward.y + (projectedPoint.z-cameraPosition.z)*forward.z > 0;
     const point = orbit.camera.camera.worldToScreen(projectedPoint);
     const canvasRect = app.graphicsDevice.canvas.getBoundingClientRect();
-    nameplates.get(observedFrame.line.npcId).hidden = true;
+    // Group nameplates must yield before measuring bubble obstacles, otherwise a
+    // neighboring participant can hide the bubble indefinitely.
+    for (const id of observedFrame.members) nameplates.get(id).hidden = true;
     const obstacles = [...document.querySelectorAll('#minimap, #quest-hud, #tour, #context-action, #world-topbar, .npc-test-tag')]
       .filter(node=>!node.hidden && node.getClientRects().length)
       .map(node=>node.getBoundingClientRect());
@@ -904,6 +928,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
     if (worldClock) {
       worldClock.refreshIfDue();
       sharedFrameNow = worldClock.now();
+      onNpcTalk(activeConversation?.id ?? null, sharedFrameNow);
       if (sharedFrameNow !== null) {
         const time = worldScheduleAt(sharedFrameNow);
         elapsed = time.cycleSeconds;
@@ -957,7 +982,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
         Math.hypot(playerPos.x - motion.position.x, playerPos.z - motion.position.z) < NPC_CONVERSATION_RELEASE_RADIUS;
       const pilotFacing = visual.pilotFacingUntil > performance.now() && Math.hypot(playerPos.x - motion.position.x, playerPos.z - motion.position.z) < NPC_NAMEPLATE_RADIUS;
       const observing = observedFrame?.members.includes(actor.id);
-      const facing = sitting ? visual.seat.yaw : moving ? motion.heading : observing ? visual.avatar.getLocalEulerAngles().y : nearSelected || pilotFacing
+      const facing = sitting ? visual.seat.yaw : moving ? motion.heading : motion.sharedMeeting && activeConversation?.id !== actor.id ? motion.heading : observing ? visual.avatar.getLocalEulerAngles().y : nearSelected || pilotFacing
         ? Math.atan2(playerPos.x - motion.position.x, playerPos.z - motion.position.z) * 180 / Math.PI : motion.heading;
       visual.avatar.setLocalEulerAngles(0, facing, 0);
     }
@@ -1049,6 +1074,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
       largest_crowd: snapshot.largestCrowd, visible_entities: [...avatars.values()].filter(v => v.avatar.enabled).length,
       purposeful_count: purposefulRoster.size,
       purposeful_behavior: Object.fromEntries([...purposefulRoster].map(([id, { behavior }]) => [id, behavior.id])),
+      shared_meetings: sharedMeetings?.status() ?? null,
       shared_schedule: worldClock ? { ...worldClock.status(), revision: NPC_SCHEDULE_REVISION,
         frameServerNowMs: sharedFrameNow } : null,
       social_motion: socialMotion.status(),
@@ -1117,3 +1143,4 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
   };
   return api;
 }
+

@@ -753,7 +753,7 @@ console.log("Local Equipment Projection P0 static contracts PASS");
   const avatarSource = readFileSync(new URL("./src/online/remote-avatar.js", import.meta.url), "utf8");
   const onlineSource = readFileSync(new URL("./src/online/world-online.js", import.meta.url), "utf8");
   assert.match(protocolSource, /export const PROTOCOL_VERSION = 1;/, "equipment is an optional v1 extension");
-  assert.match(protocolSource, /PRESENCE_OPTIONAL_FIELDS = Object\.freeze\(\["guest", "equipment"\]\)/);
+  assert.match(protocolSource, /PRESENCE_OPTIONAL_FIELDS = Object\.freeze\(\["guest", "equipment", "npcTalk"\]\)/);
   assert.doesNotMatch(protocolSource, /POSE_OPTIONAL_FIELDS = Object\.freeze\(\[[^\]]*equipment/, "equipment never rides the pose packet");
   assert.match(avatarSource, /createEquipmentProjection\(\{\s*loadout: equipmentSource/, "remote avatars reuse the Equipment Projection");
   assert.match(m3MainSource, /loadout\.onChange\(\(change\) => online\?\.setLocalEquipment\(change\.accountId, publicEquipmentFor\(change, change\.accountId\)\)\)/,

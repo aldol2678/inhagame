@@ -99,7 +99,7 @@ test("guest presence: name derived from the session, flag strict, members unchan
   assert.equal(guest.presence.displayName, "게스트 BEEF", "a guest cannot choose a member nickname");
   assert.equal(guest.presence.guest, true);
   assert.deepEqual(Object.keys(guest.presence), [...PRESENCE_FIELDS, "guest"], "a guest never carries equipment");
-  assert.deepEqual([...PRESENCE_OPTIONAL_FIELDS], ["guest", "equipment"]);
+  assert.deepEqual([...PRESENCE_OPTIONAL_FIELDS], ["guest", "equipment", "npcTalk"]);
   // Only the literal true marks a guest; members keep the exact P0 presence shape.
   for (const flag of ["true", 1, false, undefined]) {
     const member = validatePresence({ ...base, displayName: "오리친구", guest: flag }).presence;
@@ -111,3 +111,4 @@ test("guest presence: name derived from the session, flag strict, members unchan
   assert.equal(isGuestAction(ActionType.CHAT), false);
   assert.equal(isGuestAction(ActionType.EMOTE), false);
 });
+

@@ -133,6 +133,7 @@ export function validateDevCandidate(batch) {
   return batch;
 }
 
+const campusSlots = new Map();
 export function positionAt(location, slotIndex) {
   if (location === 'off_zone') return null;
   if (location === 'main_gate') return { x: LANDMARKS.gate.x + 3, z: LANDMARKS.gate.z };
@@ -142,12 +143,20 @@ export function positionAt(location, slotIndex) {
   if (localExteriorFrame) return localExteriorFrame.at(slotIndex);
   const campusAnchor = campusAnchorPoints[location];
   if (campusAnchor) {
-    const ring = [
-      [0, 0], [1.4, 0], [-1.4, 0], [0, 1.4], [0, -1.4],
-      [2.4, 1.2], [-2.4, 1.2], [2.4, -1.2], [-2.4, -1.2]
-    ];
-    const [dx, dz] = ring[slotIndex % ring.length];
-    return snapCampus({ x: campusAnchor.x + dx, z: campusAnchor.z + dz });
+    // Check separation AFTER road projection: perpendicular offsets may collapse onto
+    // the same edge point. Cache an expanding deterministic search, never wrap slots.
+    if (!Number.isInteger(slotIndex) || slotIndex < 0) throw new Error('Invalid NPC slot');
+    const slots = campusSlots.get(location) ?? [];
+    campusSlots.set(location, slots);
+    for (let radius = 0; slots.length <= slotIndex && radius <= 100; radius += 1.8) {
+      for (let angle = 0; angle < 32 && slots.length <= slotIndex; angle++) {
+        const point = snapCampus({ x: campusAnchor.x + Math.cos(angle * Math.PI / 16) * radius,
+          z: campusAnchor.z + Math.sin(angle * Math.PI / 16) * radius });
+        if (slots.every(other => Math.hypot(other.x-point.x,other.z-point.z) >= 1.6)) slots.push(point);
+      }
+    }
+    if (!slots[slotIndex]) throw new Error(`No separated NPC slot: ${location}/${slotIndex}`);
+    return { ...slots[slotIndex] };
   }
   const spec = anchorSpecs[location];
   if (!spec) throw new Error(`Unknown NPC runtime location: ${location}`);
@@ -190,3 +199,4 @@ export function snapshotForPeriod(batch, period) {
   if (largestCrowd > crowdLimit) throw new Error('Crowd exceeds NPC runtime contract');
   return { period, actors, localCount: local.length, offZoneCount: actors.length - local.length, largestCrowd };
 }
+

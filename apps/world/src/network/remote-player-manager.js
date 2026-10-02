@@ -87,6 +87,7 @@ export class RemotePlayerManager {
         joinedAt: presence.joinedAt,
         // A Presence re-track (e.g. an equipment change) updates the same player: never a re-join.
         equipment: sanitizeEquipment(presence.equipment),
+        npcTalk: presence.npcTalk ?? null,
         presence: RemotePresence.PRESENT
       });
       if (zoneChanged) existing.interpolator = new SnapshotInterpolator(this.interpolation);
@@ -103,6 +104,7 @@ export class RemotePlayerManager {
       joinedAt: presence.joinedAt,
       // Visual-only, client-declared equipment (frozen, sanitized; guests always empty).
       equipment: sanitizeEquipment(presence.equipment),
+      npcTalk: presence.npcTalk ?? null,
       presence: RemotePresence.PRESENT,
       lastSeq: -1,
       // Poses below this sequence predate a teleport and are stale even if never seen.
@@ -275,3 +277,4 @@ export class RemotePlayerManager {
     });
   }
 }
+

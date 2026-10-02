@@ -1,3 +1,4 @@
+import { sanitizeNpcTalk } from './npc-talk-presence.js';
 // Online P0 wire protocol: presence, pose and action packets plus their validators.
 // Pure data rules only. No transport, no PlayCanvas, no Supabase.
 // Pose coordinates are NON-AUTHORITATIVE visual state: never use them for rewards, ranking or outcomes.
@@ -55,7 +56,7 @@ export function isGuestAction(type) { return GUEST_ACTION_SET.has(type); }
 export const PRESENCE_FIELDS = Object.freeze(["v", "sessionId", "userId", "displayName", "placeZoneId", "joinedAt"]);
 // `guest: true` marks an anonymous guest session. Members omit it, so their presence is unchanged.
 // `equipment` (Multiplayer Equipment Projection P0): members' sparse, visual-only equipped items.
-export const PRESENCE_OPTIONAL_FIELDS = Object.freeze(["guest", "equipment"]);
+export const PRESENCE_OPTIONAL_FIELDS = Object.freeze(["guest", "equipment", "npcTalk"]);
 export const POSE_FIELDS = Object.freeze(["v", "seq", "x", "y", "z", "yaw", "vx", "vz", "anim"]);
 // Sent only while mounted (anim FLY). Never required, so older senders stay valid.
 export const POSE_OPTIONAL_FIELDS = Object.freeze(["mount"]);
@@ -178,7 +179,7 @@ export function equipmentKey(equipment) {
 // Builds the presence packet from an identity using the allowlist only.
 // Passing a full auth session here is safe: email, tokens and metadata are not copied.
 // `equipment` is sanitized and omitted when empty; a guest presence never carries it.
-export function buildPresence({ sessionId, userId, displayName, placeZoneId, joinedAt, guest = false, equipment = null }) {
+export function buildPresence({ sessionId, userId, displayName, placeZoneId, joinedAt, guest = false, equipment = null, npcTalk = null }) {
   const presence = {
     v: PROTOCOL_VERSION,
     sessionId,
@@ -192,6 +193,8 @@ export function buildPresence({ sessionId, userId, displayName, placeZoneId, joi
     const clean = sanitizeEquipment(equipment);
     if (Object.keys(clean).length) presence.equipment = clean;
   }
+  const talk = sanitizeNpcTalk(npcTalk);
+  if (talk) presence.npcTalk = talk;
   return presence;
 }
 
@@ -290,3 +293,4 @@ export function classifyAnim({ moving = false, sprint = false, grounded = true, 
   if (!moving) return Anim.IDLE;
   return sprint ? Anim.RUN : Anim.WALK;
 }
+

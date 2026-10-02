@@ -1,3 +1,4 @@
+import { sanitizeNpcTalk } from './npc-talk-presence.js';
 // Online P0 orchestrator: connection state, place-zone membership, presence, pose/action publishing
 // and the remote-player model, behind a transport-agnostic NetworkTransport.
 //
@@ -41,6 +42,7 @@ export class NetworkManager {
     // Not game authority; the world hands it in from the server loadout read. Guests never carry one.
     this.equipment = sanitizeEquipment(null);
     this.equipmentKey = "";
+    this.npcTalk = null;
     // presence = every join + republish; equipment = the republishes caused by an equipment change.
     this.sent = { pose: 0, action: 0, presence: 0, equipment: 0 };
     this.unsubscribes = [];
@@ -174,7 +176,7 @@ export class NetworkManager {
   }
 
   #presence(placeZoneId) {
-    return buildPresence({ ...this.identity, guest: this.guest, placeZoneId, joinedAt: this.joinedAt, equipment: this.equipment });
+    return buildPresence({ ...this.identity, guest: this.guest, placeZoneId, joinedAt: this.joinedAt, equipment: this.equipment, npcTalk: this.npcTalk });
   }
 
   /**
@@ -196,6 +198,19 @@ export class NetworkManager {
     if (!this.#call("publishPresence", this.joinedPlaceZoneId, presence)) return false;
     this.sent.presence += 1;
     this.sent.equipment += 1;
+    return true;
+  }
+
+  // Short-lived, visual-only talk presence. Refresh at most once every five seconds.
+  setNpcTalk(npcId, serverNow) {
+    const next = Number.isFinite(serverNow) && npcId ? sanitizeNpcTalk({npcId, until: Math.floor(serverNow+10000)}) : null;
+    if ((!next && !this.npcTalk) || (next && this.npcTalk?.npcId === next.npcId && this.npcTalk.until-serverNow > 5000)) return false;
+    this.npcTalk = next;
+    if (!this.isOnline || !this.joinedPlaceZoneId) return false;
+    const presence = this.#presence(this.joinedPlaceZoneId);
+    if (findPrivateDataViolations(presence).length) return false;
+    if (!this.#call("publishPresence", this.joinedPlaceZoneId, presence)) return false;
+    this.sent.presence += 1;
     return true;
   }
 
@@ -314,3 +329,4 @@ export class NetworkManager {
     return this.remotes.sample(this.#now());
   }
 }
+
