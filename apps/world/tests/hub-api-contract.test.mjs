@@ -206,9 +206,10 @@ test('hub-event: every hub, profile and CORE-15 event type is accepted', async (
   for (const eventType of ['hub_visit', 'hub_panel_view', 'hub_game_click', 'campus_entry_click',
     'campus_boot_ready', 'campus_boot_error', 'campus_zone_enter', 'hub_card_impression',
     'profile_view', 'profile_edit_open', 'profile_edit_save', 'profile_game_click',
-    'first_session_start', 'first_move', 'first_zone_arrival', 'first_npc_interaction',
-    'first_player_encounter', 'first_activity_start', 'first_activity_complete',
-    'first_reward', 'core_loop_complete', 'world_return', 'next_discovery_click']) {
+    'first_session_start', 'first_goal_seen', 'first_move', 'first_zone_arrival', 'first_npc_interaction',
+    'quest_started', 'first_player_encounter', 'first_activity_start', 'first_activity_complete',
+    'first_reward', 'reward_seen', 'growth_seen', 'core_loop_complete', 'next_goal_seen',
+    'core15_complete', 'world_return', 'next_discovery_click']) {
     stubUpstream();
     assert.equal((await event(eventBody({ event_type: eventType }))).statusCode, 204, eventType);
     assert.equal(calls[0].body.p_event_type, eventType);
@@ -225,8 +226,14 @@ test('hub-event: CORE-15 canonical targets are forwarded without account context
   for (const [eventType, target] of [
     ['first_activity_start', 'inkyung_living'],
     ['first_activity_complete', 'inkyung_living'],
+    ['first_goal_seen', 'first_campus'],
+    ['quest_started', 'first_campus'],
     ['first_reward', 'first_campus'],
+    ['reward_seen', 'first_campus'],
+    ['growth_seen', 'first_campus'],
     ['core_loop_complete', 'first_campus'],
+    ['next_goal_seen', 'main2_back_gate_guide'],
+    ['core15_complete', 'first_campus'],
     ['next_discovery_click', 'main2_back_gate_guide']
   ]) {
     stubUpstream();
@@ -295,7 +302,7 @@ test('hub-event: account fields are neither needed nor forwarded', async () => {
 });
 
 // ---- browser payloads ----
-function runBrowserScript(file, { hostname, search = '', game, storage = {} }) {
+function runBrowserScript(file, { hostname, search = '', game, storage = {}, fetcher = null }) {
   const sent = [];
   const store = () => {
     const data = new Map(Object.entries(storage));
@@ -310,7 +317,10 @@ function runBrowserScript(file, { hostname, search = '', game, storage = {} }) {
     document: { currentScript: { dataset: { game } }, getElementById: () => null, readyState: 'complete', addEventListener() {} },
     sessionStorage: store(), localStorage: store(),
     navigator: {},
-    fetch: (url, init) => { sent.push({ url, body: JSON.parse(init.body) }); return new Promise(() => {}); },
+    fetch: (url, init) => {
+      sent.push({ url, body: JSON.parse(init.body) });
+      return fetcher ? fetcher(url, init, sent) : new Promise(() => {});
+    },
   };
   context.window = Object.assign(window, context);
   vm.runInNewContext(readFileSync(new URL(`../${file}`, import.meta.url), 'utf8'), context);
@@ -346,4 +356,33 @@ test('browser: hub-telemetry.js sends pseudonymous browser ids and no account fi
   assert.equal(sent[0].url, '/api/hub-event');
   assert.deepEqual(Object.keys(sent[0].body).sort(),
     ['acquisition_source', 'campaign', 'event_id', 'event_type', 'session_id', 'surface', 'target', 'visitor_id']);
+});
+
+test('browser: confirmed telemetry waits for a 204 and retries the same event_id on transient failure', async () => {
+  let attempt = 0;
+  const { window, sent } = runBrowserScript('hub-telemetry.js', {
+    hostname: 'inhagame.example', game: undefined,
+    storage: { 'inhagame-hub-visitor-v1': ID.visitor, 'inhagame-hub-session-v1': ID.session },
+    fetcher: async () => new Response(null, { status: ++attempt === 1 ? 503 : 204 })
+  });
+  const confirmed = await window.InhaHubTelemetry.trackConfirmed(
+    'first_reward', 'campus', 'first_campus', { eventId: ID.event, retryDelays: [0] }
+  );
+  assert.equal(confirmed, ID.event);
+  assert.equal(sent.length, 2);
+  assert.deepEqual(sent.map(item => item.body.event_id), [ID.event, ID.event], 'retry reuses the idempotent event id');
+  assert.deepEqual(sent.map(item => item.body.event_type), ['first_reward', 'first_reward']);
+});
+
+test('browser: confirmed telemetry does not retry a permanent 4xx contract refusal', async () => {
+  const { window, sent } = runBrowserScript('hub-telemetry.js', {
+    hostname: 'inhagame.example', game: undefined,
+    storage: { 'inhagame-hub-visitor-v1': ID.visitor, 'inhagame-hub-session-v1': ID.session },
+    fetcher: async () => new Response(null, { status: 400 })
+  });
+  const confirmed = await window.InhaHubTelemetry.trackConfirmed(
+    'first_reward', 'campus', 'first_campus', { eventId: ID.event, retryDelays: [0, 0] }
+  );
+  assert.equal(confirmed, null);
+  assert.equal(sent.length, 1);
 });

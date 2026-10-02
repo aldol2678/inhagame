@@ -95,7 +95,7 @@ import { createMcm2026EventRuntime } from "./events/zombie-university-2026/event
 import { createMcm2026RoomScene } from "./events/zombie-university-2026/minigame-room-renderer.js";
 import { MCM_2026_ROOM_ID } from "./events/zombie-university-2026/minigame-room-layout.js";
 import { createMcm2026MinigameRuntime } from "./events/zombie-university-2026/minigame-room-runtime.js";
-import { createProgressionClient } from "./progression/progression-client.js";
+import { createProgressionClient, PROGRESSION_STATE } from "./progression/progression-client.js";
 import { createProgressionHud, formatProgression, levelUpMessage } from "./progression/progression-hud.js";
 import { createShopClient } from "./shop/shop-client.js";
 import { createShopPanel } from "./shop/shop-panel.js";
@@ -626,6 +626,9 @@ const progressionHud = createProgressionHud({
 progression.onChange((change) => {
   progressionHud.render(change.state, change.snapshot);
   lobbyPlayerSummary.setProgression(formatProgression(change.snapshot));
+  if (change.reason === "core15-first-campus-reward" && change.state === PROGRESSION_STATE.READY) {
+    core15Funnel?.growthSeen();
+  }
   const message = levelUpMessage(change);
   if (message) showWorldStatusAfterReward(message);
 });
@@ -1734,17 +1737,31 @@ async function loadOptionalNpcRuntime() {
       // P1c / P1d: First Campus (badge + EXP) and Main2 (coin + EXP) completions carry the server Reward
       // result. Shown through the existing reward toast lane, then the authorities the entries touched
       // are re-read (never computed here); LEVEL UP follows the toast.
-      onQuestStateChange: progress => nextDiscovery?.syncProgress(progress),
+      onQuestStateChange: progress => {
+        const next = nextDiscovery?.syncProgress(progress) ?? null;
+        const main1 = progress?.quest ?? null;
+        if (main1?.enabled === true && main1.signedIn === true && main1.ready === true &&
+            Number.isInteger(main1.stage) && main1.stage >= 0 && main1.stage < 5) {
+          core15Funnel?.firstGoalSeen();
+          if (main1.stage > 0) core15Funnel?.questStarted();
+        }
+        if (next) core15Funnel?.nextGoalSeen();
+      },
       onQuestReward: reward => {
-        mcmEventUi.showReward({ status: reward.replayed ? "ALREADY_CLAIMED" : "CLAIMED", replayed: reward.replayed,
-          rewardResult: { status: reward.status, entries: reward.entries } });
-        void progression.refresh("reward");
+        const firstCampusReward = reward.rewardId === FIRST_CAMPUS_REWARD_ID;
+        const freshFirstCampusReward = firstCampusReward && reward.status === "SUCCESS" && reward.replayed !== true;
+        if (firstCampusReward) core15Funnel?.firstReward();
+        mcmEventUi.showReward(
+          { status: reward.replayed ? "ALREADY_CLAIMED" : "CLAIMED", replayed: reward.replayed,
+            rewardResult: { status: reward.status, entries: reward.entries } },
+          freshFirstCampusReward ? { onShown: () => core15Funnel?.rewardSeen() } : undefined
+        );
+        void progression.refresh(freshFirstCampusReward ? "core15-first-campus-reward" : "reward");
         if (reward.entries.some(entry => entry.grantType === "CURRENCY")) void wallet.refresh("reward");
         if (reward.entries.some(entry => entry.grantType === "ITEM")) void inventory.refresh("reward");
-        if (reward.rewardId === FIRST_CAMPUS_REWARD_ID) {
-          core15Funnel?.firstReward();
-          if (reward.status === "SUCCESS" && reward.replayed !== true) core15Funnel?.coreLoopComplete();
-        }
+        // Historical metric remains at settlement for continuity. Product CORE-15 completion is
+        // emitted by core15-funnel-telemetry only after reward + growth + next-goal presentation.
+        if (freshFirstCampusReward) core15Funnel?.coreLoopComplete();
       },
       getAiSession: async () => {
         const client = online?.supabase;

@@ -78,6 +78,7 @@ export function createToastQueue({element,gapMs=TOAST_QUEUE_GAP_MS,setTimer=setT
     const next=pending.shift();
     if(!next){phase="idle";until=0;return;}
     phase="showing";element.textContent=next.text;element.hidden=false;until=now()+next.ms;
+    try { next.onShow?.(); } catch { /* Presentation observers never block the toast lane. */ }
     timer=setTimer(endCurrent,next.ms);
   }
   function endCurrent(){
@@ -86,9 +87,9 @@ export function createToastQueue({element,gapMs=TOAST_QUEUE_GAP_MS,setTimer=setT
     phase="gap";until=now()+gapMs;timer=setTimer(showNext,gapMs);
   }
   return Object.freeze({
-    say(text,ms){
+    say(text,ms,onShow=null){
       if(destroyed)return;
-      pending.push({text:String(text),ms});
+      pending.push({text:String(text),ms,onShow:typeof onShow==="function"?onShow:null});
       if(phase==="idle")showNext();
     },
     /** Time until the whole lane is idle: the current toast (or gap) plus every queued toast and gap. */
@@ -214,12 +215,12 @@ export function createMcm2026EventUi({client,getGuidance=()=>"",onOpenChange=()=
     return true;
   }
   const toastQueue=createToastQueue({element:toast});
-  function say(message,ms=3200){toastQueue.say(message,ms);}
+  function say(message,ms=3200,onShow=null){toastQueue.say(message,ms,onShow);}
   // Lets the World status line wait until the whole reward toast lane (current + queued) is idle (P1a/P1c0).
   function toastRemainingMs(){return toastQueue.remainingMs();}
-  function showReward(result){
+  function showReward(result,{onShown=null}={}){
     const message=rewardToastMessage(result);
-    if(message)say(message.text,message.ms);
+    if(message)say(message.text,message.ms,onShown);
   }
   chip.addEventListener("click",openInfo);modal.querySelector(".mcm26-close").addEventListener("click",close);
   modal.addEventListener("pointerdown",event=>{if(event.target===modal)close();});

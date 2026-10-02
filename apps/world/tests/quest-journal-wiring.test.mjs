@@ -25,7 +25,7 @@ test('main wires one blocking Quest Journal that closes competing modal surfaces
 });
 
 test('Quest Runtime consumes legacy state changes without owning quest writes', () => {
-  assert.match(main, /onQuestStateChange: progress => nextDiscovery\?\.syncProgress\(progress\)/);
+  assert.match(main, /onQuestStateChange: progress => \{[\s\S]*?nextDiscovery\?\.syncProgress\(progress\)/);
   assert.match(main, /onProgress: progress => questRuntime\.update\(progress\)/);
   assert.doesNotMatch(runtime, /fetch\s*\(|supabase|rpc\s*\(/i);
   assert.doesNotMatch(journal, /fetch\s*\(|supabase|rpc\s*\(/i);
