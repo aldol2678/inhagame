@@ -136,11 +136,12 @@ test('Mini-map is compact (88-100px), top-right and safe-area aware', () => {
   assert.match(before, /--world-right-rail-right: max\(12px, env\(safe-area-inset-right\)\);/);
 });
 
-test('tracked quest HUD collapses to one line and stays clear of the Mini-map', () => {
-  assert.match(block, /body \.tracked-quest-hud \{\s*width: fit-content;\s*min-height: 36px;\s*display: flex;/);
+test('tracked quest HUD collapses to one line in the Mini-map right rail', () => {
+  assert.match(block, /body \.tracked-quest-hud \{[^}]*top: calc\(var\(--world-right-rail-top\) \+ var\(--ls-map\) \+ 6px\);[^}]*right: var\(--world-right-rail-right\);[^}]*left: auto;[^}]*width: min\(210px, calc\(100vw - 24px\)\);[^}]*min-height: 36px;[^}]*display: flex;/s);
   assert.match(block, /body \.tracked-quest-hud \.tracked-quest-hud-open \{[^}]*min-height: 36px !important;[^}]*grid-template-areas: "flag objective bearing";/);
   assert.match(block, /body \.tracked-quest-hud \.tour-heading \{ display: none; \}/);
-  assert.match(block, /body \.tour \{[^}]*top: var\(--world-right-rail-top\);[^}]*max-width: min\(340px, calc\(100vw - var\(--ls-chip-right\) - 210px\)\);/);
+  // The first-tour card keeps the top-left lane; the tracked quest no longer shares it.
+  assert.match(block, /body \.tour \{[^}]*top: var\(--world-right-rail-top\);[^}]*left: max\(12px, env\(safe-area-inset-left\)\);[^}]*max-width: min\(340px, calc\(100vw - var\(--ls-chip-right\) - 210px\)\);/s);
   // The existing tracked-quest runtime contract (open-journal button, objective, bearing) is reused, not replaced.
   for (const id of ['quest-hud', 'quest-hud-open', 'quest-hud-heading', 'quest-hud-objective', 'quest-hud-bearing']) {
     assert.match(html, new RegExp(`id="${id}"`));
