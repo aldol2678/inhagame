@@ -1,0 +1,1011 @@
+import * as pc from 'playcanvas';
+import { roadviewGroundHeight } from '../src/roadview-layout.js';
+import { findSeat, SEAT_TOP_Y } from '../src/seat-anchors.js';
+import { metersToWorld } from '../src/world-scale.js';
+import { PULSE_PERIODS, PERIOD_SECONDS, CYCLE_SECONDS, periodAt, snapshotForPeriod, validateDevCandidate, inspectionPointFor } from './dev-runtime-state.mjs';
+import { appearanceFor, validateDevRoster } from './dev-appearance.mjs';
+import { createHumanAvatar } from './dev-human-avatar.mjs';
+import { npcNameplateOffset, npcSeatAnchorHeight } from './npc-dimensions.mjs';
+import { createNpcNavigator, advanceRoute } from './dev-navigation.mjs';
+import { createNpcMemory, createEncounterTracker } from './dev-memory.mjs';
+import { createNpcSocialNg1Model, mountNpcSocialNg1Panel } from './npc-social-ng1.mjs';
+import { createPersistentNpcSocialGraph } from './npc-social-graph.mjs';
+import { createNpcSocialGroupFeasibility } from './npc-social-group-feasibility.mjs';
+import { createNpcSocialNg15Bridge } from './npc-social-ng15-bridge.mjs';
+import { MAIN_NPC_ID, QUEST_NPC_ID, runtimePresence } from './npc-presence.mjs';
+import { createPurposefulRoster } from './purposeful-roster.mjs';
+import { applyCampusLifeSchedule } from './npc-campus-life-policy.mjs';
+import { mergeCampusPopulation } from './npc-campus-expansion.mjs';
+import { createPurposefulSocialMotion } from './purposeful-social-motion.mjs';
+import { purposefulActivityPose } from './purposeful-activity-motion.mjs';
+import { createQuestClient } from './quest-client.mjs';
+import { QUEST_ID } from './quest-contract.mjs';
+import { createMain2QuestClient } from './main2-quest-client.mjs';
+import { MAIN2_QUEST_ID } from './main2-quest-contract.mjs';
+import { createMain2GuideRuntime } from './main2-guide-runtime.mjs';
+
+const candidateUrl = '/npc-factory/data/repaired/INKYUNG-20-A-R1.json';
+const decisionUrl = '/npc-factory/data/fixtures/public-fixture.json';
+const rosterUrl = '/npc-factory/data/fixtures/public-roster.json';
+const expansionUrl = '/npc-factory/data/expansion/CAMPUS-28-P2A.json';
+const aiPilotIds = new Set([MAIN_NPC_ID, QUEST_NPC_ID]);
+const NPC_TALK_RADIUS = metersToWorld(3);
+const NPC_CONVERSATION_RELEASE_RADIUS = metersToWorld(5);
+const NPC_NAMEPLATE_RADIUS = metersToWorld(8);
+const periodLabels = { morning: '아침', class_time: '수업시간', lunch: '점심', evening: '저녁', night: '밤' };
+const socialPhaseLabels = { WAIT: '기다림', JOIN: '합류', WALK_TOGETHER: '이동', SEPARATE: '해산', COMPLETE: '완료', INACTIVE: '없음', FAILED: '중단' };
+const walking = new Set(['walk', 'walk_to_class', 'walk_to_club', 'leave_zone']);
+const roaming = new Set([...walking, 'idle', 'wait']);
+const hairLabels = { long: '긴 머리', bob: '단발', ponytail: '묶은 머리', bun: '올림머리', short: '짧은 머리', sidepart: '옆가르마', curly: '곱슬머리', medium: '중간 길이 머리' };
+const accessoryLabels = { sketchbook: '스케치북', glasses: '안경', apron: '앞치마', badge: '명찰', backpack: '배낭', headphones: '헤드폰', book: '책', messenger: '크로스백', scarf: '목도리' };
+const topicLabels = { architecture: '건축', birdwatching: '새 관찰', coding: '코딩', cooking: '요리', cycling: '자전거', design: '디자인', film: '영화', music: '음악', photography: '사진', plants: '식물', reading: '독서', sketching: '스케치', walking: '산책' };
+const withAnd = name => {
+  const last = name.charCodeAt(name.length - 1);
+  return `${name}${last >= 0xac00 && last <= 0xd7a3 && (last - 0xac00) % 28 ? '과' : '와'}`;
+};
+function addPanel(production = false, externalContextAction = false) {
+  const style = document.createElement('style');
+  style.textContent = `
+    #npc-test-panel{position:fixed;right:12px;top:12px;z-index:100;width:min(340px,calc(100vw - 24px));max-height:calc(100vh - 24px);overflow:auto;background:#11232cea;color:#f4f8f7;border:1px solid #73bdb4;border-radius:12px;padding:12px;font:14px/1.42 system-ui,sans-serif;box-shadow:0 8px 28px #0008}
+    #npc-test-panel h2{font-size:16px;margin:0 0 5px}#npc-test-panel p{margin:6px 0}
+    #npc-test-panel .minor{color:#bfd2d0;font-size:12px}#npc-test-panel .row{display:flex;gap:5px;flex-wrap:wrap;margin:8px 0}
+    #npc-test-panel button,#npc-test-panel select{font:inherit;color:#f4f8f7;background:#24424b;border:1px solid #7aa8a4;border-radius:6px;padding:4px 7px}
+    #npc-test-panel button[aria-pressed=true]{background:#196d65;border-color:#b3ebc9}
+    #npc-test-panel button:disabled{opacity:.5}
+    #npc-test-conversation{padding:8px;margin:7px 0;background:#203c45;border:1px solid #77a8a1;border-radius:8px}
+    #npc-test-conversation[hidden]{display:none}#npc-test-conversation .row{margin:5px 0}
+    #npc-test-panel select{width:100%;margin:3px 0 7px}#npc-test-panel .dialogue{padding:7px;background:#1d343b;border-radius:6px}
+    #npc-test-panel .dialogue p{margin:3px 0}#npc-test-panel .near{color:#f9d98a}
+    #npc-test-panel [hidden]{display:none}
+    #npc-test-panel[hidden]{display:none}
+    #npc-test-panel summary{cursor:pointer;margin:7px 0;font-weight:700}
+    #npc-test-panel.npc-live-panel{left:50%;right:auto;top:auto;bottom:115px;transform:translateX(-50%);width:min(420px,calc(100vw - 16px));max-height:min(60vh,540px);background:#102632f5;padding:10px 12px}
+    .npc-live-panel #npc-test-talk{display:block;width:100%;min-height:48px;border-radius:11px;font-weight:800;background:#277a71;border-color:#9de4cf}
+    .npc-live-panel #npc-test-talk[hidden]{display:none}
+    .npc-live-panel #npc-test-talk:disabled{background:#29414a;border-color:#5f777a;opacity:.7;cursor:not-allowed}
+    .npc-live-panel #npc-test-near{text-align:center;font-size:12px;margin:6px 0 0}
+    .npc-live-panel #npc-test-conversation{margin:0;padding:0;border:0;background:transparent}
+    .npc-live-panel .npc-dialogue-header{display:flex;align-items:center;gap:10px}
+    .npc-live-panel .npc-dialogue-portrait{display:grid;place-items:center;flex:none;width:48px;height:48px;border-radius:50%;background:var(--npc-accent,#487b83);border:2px solid #def6e9;color:#102632;font-weight:900}
+    .npc-live-panel .npc-dialogue-identity{min-width:0;flex:1}
+    .npc-live-panel .npc-dialogue-identity strong{display:block;font-size:17px}
+    .npc-live-panel .npc-dialogue-identity small{display:block;color:#c2d6d3;line-height:1.35}
+    .npc-live-panel #npc-test-close{align-self:flex-start;min-width:32px;min-height:32px;border-radius:50%}
+    .npc-live-panel #npc-test-player-line{max-width:88%;margin:12px 0 7px auto;padding:8px 11px;border-radius:12px 12px 2px 12px;background:#255c68;text-align:right}
+    .npc-live-panel #npc-test-line{margin:10px 0;padding:12px;border-radius:3px 12px 12px 12px;background:#e7f2e9;color:#152d32;font-size:15px;line-height:1.5}
+    .npc-live-panel #npc-test-choices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:10px}
+    .npc-live-panel #npc-test-choices button{min-height:42px;border-radius:9px;background:#244955;text-align:left}
+    #npc-test-labels{position:fixed;inset:0;z-index:60;pointer-events:none}
+    .npc-test-tag{position:absolute;transform:translate(-50%,-100%) scale(.88);transform-origin:50% 100%;padding:3px 7px 4px;border:2px solid;border-radius:8px;background:#14242de8;color:#fff;font:700 12px/1.15 system-ui,sans-serif;white-space:nowrap;text-align:center;text-shadow:0 1px 2px #000}
+    .npc-test-tag::after{content:attr(data-status);display:block;margin-top:2px;color:#c9d9e2;font:650 9px/1.1 system-ui,sans-serif;letter-spacing:.01em;text-shadow:0 1px 2px #000}
+    .npc-test-tag[data-status=""]::after{display:none}
+    .npc-test-tag.npc-ai-tag{background:#263052f0;border-color:#a9a2ff!important;color:#f2efff}
+    @media(max-width:650px){#npc-test-panel:not(.npc-live-panel){top:auto;bottom:8px;right:8px;max-height:48vh;width:min(340px,calc(100vw - 16px))}}
+  `;
+  document.head.appendChild(style);
+  const panel = document.createElement('section');
+  panel.id = 'npc-test-panel';
+  if (production) panel.classList.add('npc-live-panel');
+  panel.hidden = production;
+  panel.setAttribute('aria-label', production ? '인경호 NPC' : 'NPC 개발용 테스트');
+  const developmentContent = `
+    <h2>${production ? '인경호 NPC' : 'NPC Test Mode · A-R1'}</h2>
+    <p class="minor">${production ? '캠퍼스를 생활하는 48명 · 이름과 학적 정보는 가상입니다.' : '로컬 개발용 · 48명 개별 외형/명부 · 학번·학과·성별은 가상 후보'}</p>
+    <p id="npc-test-status" role="status"></p>
+    <button type="button" id="npc-test-talk" disabled>근처 NPC와 대화 (F)</button>
+    <p id="npc-test-memory-status" class="minor"></p>
+    <p id="npc-ai-pilot-status" class="minor"></p>
+    <div id="npc-test-conversation" hidden aria-label="NPC 대화">
+      <strong id="npc-test-speaker"></strong>
+      <p id="npc-test-line" aria-live="polite"></p>
+      <div id="npc-test-choices" class="row"></div>
+      <button type="button" id="npc-test-close">대화 닫기</button>
+    </div>
+    <p id="npc-test-near" class="near"></p>
+    <details ${production ? '' : 'open'}>
+    <summary>NPC 명부와 정보</summary>
+    <div id="npc-test-periods" class="row" aria-label="시간대 선택"></div>
+    <button type="button" id="npc-test-play" aria-pressed="true">일시정지</button>
+    <label for="npc-test-select">NPC 선택</label>
+    <select id="npc-test-select"></select>
+    <button type="button" id="npc-test-focus">선택 NPC 가까이 보기</button>
+    <div id="npc-test-detail" class="dialogue"></div>
+    <button type="button" id="npc-test-memory-clear">로컬 대화 기억 지우기</button>
+    <p class="minor">${production ? '기억은 이 브라우저에만 저장됩니다.' : 'WASD로 접근 · 목록에서 모든 NPC 확인 · 선택 NPC는 노란 원으로 표시'}</p>
+    </details>
+  `;
+  panel.innerHTML = production ? `
+    <button type="button" id="npc-test-talk" disabled aria-keyshortcuts="F">F · NPC와 대화</button>
+    <section id="npc-test-conversation" role="dialog" aria-label="NPC 대화" hidden>
+      <div class="npc-dialogue-header">
+        <span id="npc-test-portrait" class="npc-dialogue-portrait" aria-hidden="true"></span>
+        <div class="npc-dialogue-identity"><strong id="npc-test-speaker"></strong><small id="npc-social-profile"></small></div>
+        <button type="button" id="npc-test-close" aria-label="대화 닫기">×</button>
+      </div>
+      <p id="npc-test-player-line" hidden></p>
+      <p id="npc-test-line" aria-live="polite"></p>
+      <p id="npc-ai-login-hint" class="minor" hidden>로그인하면 나나율·가유담과 AI 대화를 할 수 있어요.</p>
+      <div id="npc-test-choices" class="row" aria-label="대답 선택"></div>
+    </section>
+  ` : developmentContent;
+  document.body.appendChild(panel);
+  if (production && externalContextAction) panel.querySelector('#npc-test-talk').hidden = true;
+  if (!production) document.getElementById('tour').hidden = true;
+  return panel;
+}
+async function loadCandidate() {
+  const [candidateResponse, decisionResponse, rosterResponse, expansionResponse] = await Promise.all([
+    fetch(candidateUrl), fetch(decisionUrl), fetch(rosterUrl), fetch(expansionUrl)
+  ]);
+  if (!candidateResponse.ok || !decisionResponse.ok || !rosterResponse.ok || !expansionResponse.ok)
+    throw new Error('NPC base candidate, decision, roster or campus expansion unavailable');
+  const bytes = await candidateResponse.arrayBuffer();
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  const actualHash = [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2, '0')).join('');
+  const decision = await decisionResponse.json();
+  if (decision.candidate_sha256 !== actualHash || decision.npc_count !== 20 ||
+      decision.kind !== 'SYNTHETIC_PUBLIC_QA' || decision.human_approval !== false) throw new Error('Public QA fixture/hash mismatch');
+  const sourceBatch = validateDevCandidate(JSON.parse(new TextDecoder().decode(bytes)));
+  const baseRoster = validateDevRoster(sourceBatch, await rosterResponse.json(), actualHash);
+  const { batch: mergedBatch, roster } = mergeCampusPopulation(
+    sourceBatch,
+    baseRoster,
+    await expansionResponse.json()
+  );
+  const batch = validateDevCandidate(mergedBatch);
+  return { batch, roster, hash: actualHash };
+}
+
+export async function createNpcDevRuntime({ app, campusRoot, player, orbit, production = false, aiPilot = false,
+  socialEnabled = false, socialPreview = false, socialBehaviorPreview = false,
+  externalContextAction = false, aiEndpoint = '/npc-ai/decide', getAiSession = async () => null,
+  questEnabled = false, questEndpoint = '/npc-quest',
+  sideEvent = null,
+  onQuestReward = () => {},
+  onQuestStateChange = () => {},
+  onConversationOpen = () => {},
+  onConversationClose = () => {} }) {
+  const { batch, roster, hash } = await loadCandidate();
+  const panel = addPanel(production, externalContextAction);
+  let browserStorage = null;
+  try { browserStorage = aiPilot ? sessionStorage : localStorage; } catch { /* Session-only memory. */ }
+  const memory = createNpcMemory(batch, hash, browserStorage);
+  const encounters = createEncounterTracker();
+  const npcById = new Map(batch.npcs.map(npc => [npc.npc_id, npc]));
+  const rosterById = new Map(roster.npcs.map(entry => [entry.npc_id, entry]));
+  const socialGraph = createPersistentNpcSocialGraph(batch, roster, hash, browserStorage);
+  const first = snapshotForPeriod(batch, PULSE_PERIODS[0]);
+  const navigator = createNpcNavigator(batch);
+  const purposefulRoster = createPurposefulRoster(batch, navigator);
+  const socialMotion = createPurposefulSocialMotion(batch, purposefulRoster, navigator);
+  const avatars = new Map(first.actors.map(actor => {
+    const visual = createHumanAvatar(campusRoot, actor, appearanceFor(rosterById.get(actor.id)));
+    visual.motion = { position: actor.position && { ...actor.position }, route: [], moving: false,
+      heading: 0, wait: Number(actor.id.slice(-3)) % 4, leg: 0 };
+    return [actor.id, visual];
+  }));
+  const labelLayer = document.createElement('div');
+  labelLayer.id = 'npc-test-labels';
+  document.body.appendChild(labelLayer);
+  const nameplates = new Map(first.actors.map(actor => {
+    const label = document.createElement('span');
+    label.className = 'npc-test-tag';
+    label.textContent = production ? actor.name : `${actor.id.slice(-3)} · ${actor.name}`;
+    label.dataset.status = '';
+    label.style.borderColor = rosterById.get(actor.id).visual.accent_color;
+    labelLayer.appendChild(label);
+    return [actor.id, label];
+  }));
+  const projectedPoint = new pc.Vec3();
+  const status = panel.querySelector('#npc-test-status');
+  const detail = panel.querySelector('#npc-test-detail');
+  const near = panel.querySelector('#npc-test-near');
+  const select = panel.querySelector('#npc-test-select');
+  const focusButton = panel.querySelector('#npc-test-focus');
+  const periodRow = panel.querySelector('#npc-test-periods');
+  const playButton = panel.querySelector('#npc-test-play');
+  const talkButton = panel.querySelector('#npc-test-talk');
+  const conversation = panel.querySelector('#npc-test-conversation');
+  const speaker = panel.querySelector('#npc-test-speaker');
+  const portrait = panel.querySelector('#npc-test-portrait');
+  const playerLine = panel.querySelector('#npc-test-player-line');
+  const line = panel.querySelector('#npc-test-line');
+  const choices = panel.querySelector('#npc-test-choices');
+  const memoryStatus = panel.querySelector('#npc-test-memory-status');
+  const pilotStatus = panel.querySelector('#npc-ai-pilot-status');
+  const aiLoginHint = panel.querySelector('#npc-ai-login-hint');
+  const socialProfile = panel.querySelector('#npc-social-profile');
+  let elapsed = 0, running = true, snapshot = first, selectedId = first.actors[0].id, uiClock = 0;
+  let activeConversation = null, aiSignedIn = false, conversationAiUsed = false;
+  let socialPreviewFastForward = false;
+  let socialNg1 = null, socialNg1Panel = null, socialNg15Bridge = null;
+  let main2Guide = null;
+  let conversationLifecycleOpen = false;
+  function syncConversationLifecycle() {
+    const next = Boolean(activeConversation) || main2Guide?.isDialogueOpen?.() === true;
+    if (next === conversationLifecycleOpen) return next;
+    conversationLifecycleOpen = next;
+    if (next) onConversationOpen();
+    else onConversationClose();
+    return next;
+  }
+  if (socialEnabled) {
+    const socialGroupFeasibility = createNpcSocialGroupFeasibility({
+      roster: purposefulRoster,
+      navigator
+    });
+    socialNg1 = createNpcSocialNg1Model(batch, {
+      relationshipGraph: socialGraph,
+      groupCandidateValidator: socialGroupFeasibility,
+      observationProvider: ({ npc, period }) => {
+        const sourcePeriod = period === 'night' ? 'evening' : period;
+        const behaviorObservation = socialNg15Bridge?.observationFor(npc.npc_id);
+        if (behaviorObservation) return behaviorObservation;
+        const presence = runtimePresence(npc, sourcePeriod).slot;
+        const motion = socialMotion.status();
+        if (motion.period === sourcePeriod && motion.pairIds.includes(npc.npc_id) &&
+            ['JOIN', 'WALK_TOGETHER', 'SEPARATE'].includes(motion.phase)) {
+          return { location: `social.${motion.sharedDestination}`, activity: 'talk_with_friend', socialMode: 'high' };
+        }
+        return { location: presence.location, activity: presence.activity, socialMode: presence.social_mode };
+      }
+    });
+    if (socialBehaviorPreview) {
+      socialNg15Bridge = createNpcSocialNg15Bridge({
+        roster: purposefulRoster,
+        navigator,
+        onRegularMeetingOutcome: ({ groupId, outcome, attendance = null }) => {
+          if (socialNg1?.recordGroupMeetingOutcome(groupId, outcome, attendance)) socialNg1Panel?.render();
+        }
+      });
+    }
+    if (socialPreview) socialNg1Panel = mountNpcSocialNg1Panel({ model: socialNg1, batch });
+  }
+  let pendingPilotAction = null, pilotAvailable = aiPilot, pilotConversationRequest = 0;
+  const pilotTopics = new Map(), pilotInFlight = new Set();
+  const aiEnabled = id => aiPilot && aiSignedIn && pilotAvailable && aiPilotIds.has(id);
+  function purposefulStatus(id) {
+    const state = purposefulRoster.get(id).controller.status(false);
+    return activeConversation?.id === id
+      ? { ...state, phase: 'TALKING', interruptedPhase: state.phase, moving: false }
+      : state;
+  }
+  const quest = createQuestClient({ enabled: questEnabled, endpoint: questEndpoint,
+    getSession: getAiSession,
+    getNpcPosition: id => avatars.get(id)?.motion?.position ? { ...avatars.get(id).motion.position } : null,
+    tour: document.getElementById('tour'),
+    onReward: onQuestReward });
+  const main2Quest = createMain2QuestClient({
+    enabled: questEnabled,
+    endpoint: questEndpoint,
+    getSession: getAiSession,
+    onReward: onQuestReward
+  });
+  main2Guide = createMain2GuideRuntime({
+    root: campusRoot,
+    player,
+    quest: main2Quest,
+    onConversationOpen: syncConversationLifecycle,
+    onConversationClose: syncConversationLifecycle
+  });
+  const publishQuestState = () => {
+    try { onQuestStateChange({ quest: quest.status(), main2Quest: main2Quest.status() }); }
+    catch { /* HUD consumers cannot block quest progress. */ }
+  };
+  const syncSideEventUnlock = () => sideEvent?.setUnlocked?.(quest.status().complete === true);
+  quest.onChange(stage => {
+    syncSideEventUnlock();
+    if (stage === 5) void main2Quest.refresh().catch(() => {});
+    publishQuestState();
+    renderQuestChoice();
+  });
+  main2Quest.onChange(() => { publishQuestState(); renderQuestChoice(); });
+  sideEvent?.onChange?.(() => renderQuestChoice());
+  syncSideEventUnlock();
+  function setAiSignedIn(signedIn) {
+    aiSignedIn = Boolean(signedIn);
+    quest.setSignedIn(aiSignedIn);
+    main2Quest.setSignedIn(aiSignedIn);
+    for (const [id, label] of nameplates) {
+      const actor = first.actors.find(item => item.id === id);
+      const ai = aiEnabled(id);
+      label.textContent = `${ai ? '✦ AI · ' : ''}${production ? actor.name : `${id.slice(-3)} · ${actor.name}`}`;
+      label.dataset.status = '';
+      label.classList.toggle('npc-ai-tag', ai);
+    }
+    if (!aiSignedIn) {
+      pendingPilotAction = null;
+      if (activeConversation && aiPilotIds.has(activeConversation.id)) closeConversation(false);
+    }
+    if (pilotStatus && aiPilot) pilotStatus.textContent = aiSignedIn
+      ? '나나율·가유담 AI 대화 · 주제와 추가 질문에 대화당 최대 2회 호출'
+      : '로그인하면 나나율·가유담의 AI 대화가 열립니다.';
+    if (aiLoginHint) aiLoginHint.hidden = !aiPilot || aiSignedIn || !aiPilotIds.has(activeConversation?.id);
+  }
+  setAiSignedIn(false);
+  const memoryScopeText = () => memory.persistent
+    ? aiPilot ? '기억: 이 탭의 파일럿 세션에만 저장 · 계정 저장 아님'
+      : '기억: 이 브라우저의 게스트 닉네임끼리 공유 · 계정 저장 아님'
+    : '기억: 현재 화면에서만 유지 · 계정 저장 아님';
+  if (memoryStatus) memoryStatus.textContent = memoryScopeText();
+  for (const actor of production ? [] : first.actors) {
+    const option = document.createElement('option');
+    option.value = actor.id;
+    const entry = rosterById.get(actor.id);
+    option.textContent = `${actor.id.slice(-3)} · ${actor.name} · ${entry.department ?? entry.affiliation}`;
+    select.appendChild(option);
+  }
+  for (const period of production ? [] : PULSE_PERIODS) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = periodLabels[period];
+    button.dataset.period = period;
+    button.addEventListener('click', () => setPeriod(period));
+    periodRow.appendChild(button);
+  }
+  playButton?.addEventListener('click', () => {
+    running = !running;
+    playButton.textContent = running ? '일시정지' : '재생';
+    playButton.setAttribute('aria-pressed', String(running));
+  });
+  select?.addEventListener('change', () => { closeConversation(false); selectedId = select.value; drawDetail(); });
+  focusButton?.addEventListener('click', focusSelected);
+  talkButton.addEventListener('click', openConversation);
+  panel.querySelector('#npc-test-close').addEventListener('click', () => closeConversation());
+  panel.querySelector('#npc-test-memory-clear')?.addEventListener('click', () => {
+    const memoryCleared = memory.clear();
+    const graphCleared = socialGraph.clear();
+    if (memoryCleared && graphCleared) {
+      pilotTopics.clear();
+      encounters.clear();
+      closeConversation(false);
+      memoryStatus.textContent = `로컬 기억과 NPC 관계망을 지웠습니다. ${memoryScopeText()}`;
+    } else memoryStatus.textContent = `브라우저 저장소의 일부 기억을 지우지 못했습니다. ${memoryScopeText()}`;
+  });
+  // Talking is the World's interaction key (F) through getContextAction(); E stays emotion-only.
+  // Only Escape is handled here, to close an open dialogue.
+  window.addEventListener('keydown', event => {
+    if (event.repeat || event.target instanceof HTMLElement && event.target.closest('input, textarea, select, [contenteditable]')) return;
+    if (event.code === 'Escape' && activeConversation) closeConversation();
+  });
+
+  function nearestVisible() {
+    const playerPos = player.getLocalPosition();
+    return snapshot.actors.filter(actor => avatars.get(actor.id).motion.position)
+      .map(actor => ({ actor, distance: Math.hypot(avatars.get(actor.id).motion.position.x - playerPos.x,
+        avatars.get(actor.id).motion.position.z - playerPos.z) }))
+      .sort((a, b) => a.distance - b.distance)[0];
+  }
+  function interactionTarget() {
+    if (production) return nearestVisible();
+    const actor = snapshot.actors.find(item => item.id === selectedId);
+    const position = avatars.get(selectedId).motion.position;
+    const playerPos = player.getLocalPosition();
+    if (actor && position) {
+      const distance = Math.hypot(position.x - playerPos.x, position.z - playerPos.z);
+      if (distance <= NPC_TALK_RADIUS) return { actor, distance };
+    }
+    return nearestVisible();
+  }
+  function handlesTalkKey() {
+    return Boolean(activeConversation || main2Guide.isDialogueOpen() ||
+      main2Guide.getContextAction() || interactionTarget()?.distance <= NPC_TALK_RADIUS);
+  }
+  function closeConversation(applyAction = true, { sync = true } = {}) {
+    activeConversation = null;
+    conversation.hidden = true;
+    if (sync) syncConversationLifecycle();
+    pilotConversationRequest++;
+    if (applyAction && pendingPilotAction) {
+      if (!applyPilotAction(pendingPilotAction.id, pendingPilotAction.action) && pilotStatus)
+        pilotStatus.textContent = '현재 위치에서 해당 행동을 실행할 수 없어 기존 일정으로 돌아갑니다.';
+    }
+    pendingPilotAction = null;
+    if (production) {
+      panel.classList.remove('npc-conversation-open');
+      talkButton.hidden = externalContextAction;
+      playerLine.hidden = true;
+      panel.hidden = externalContextAction ? true : !(interactionTarget()?.distance <= NPC_TALK_RADIUS);
+    }
+  }
+  function openConversation() {
+    if (activeConversation) closeConversation(false, { sync: false });
+    const closest = interactionTarget();
+    if (!closest || closest.distance > NPC_TALK_RADIUS) return;
+    const actor = closest.actor;
+    const before = memory.read(actor.id);
+    const newEncounter = encounters.begin(actor.id);
+    if (newEncounter) memory.encounter(actor.id, snapshot.period === 'night' ? 'evening' : snapshot.period);
+    activeConversation = { id: actor.id };
+    syncConversationLifecycle();
+    if (aiLoginHint) aiLoginHint.hidden = !aiPilot || aiSignedIn || !aiPilotIds.has(actor.id);
+    avatars.get(actor.id).motion.moving = false;
+    conversationAiUsed = false;
+    selectedId = actor.id;
+    if (select) select.value = actor.id;
+    speaker.textContent = `${aiEnabled(actor.id) ? '✦ AI · ' : ''}${production ? actor.name : `${actor.name} · ${periodLabels[snapshot.period]}`}`;
+    socialNg1?.setSelectedNpc(actor.id);
+    socialNg1Panel?.render();
+    if (socialProfile) socialProfile.textContent = socialNg1?.profileLine(actor.id) ?? '';
+    if (production) {
+      const entry = rosterById.get(actor.id);
+      portrait.textContent = actor.name.slice(0, 1);
+      portrait.style.setProperty('--npc-accent', entry.visual.accent_color);
+      playerLine.hidden = true;
+      talkButton.hidden = true;
+      panel.hidden = false;
+      panel.classList.add('npc-conversation-open');
+    }
+    const relationshipContext = socialNg1?.relationshipLine(actor.id) ?? '';
+    const greeting = !newEncounter ? `계속 이야기해요. ${actor.dialogue[0]}` : before.encounters
+      ? `또 만났네요. ${before.topic ? `지난번 ${topicLabels[before.topic]} 이야기를 기억해요. ` : ''}${actor.dialogue[0]}`
+      : `처음 뵙네요. ${actor.dialogue[0]}`;
+    line.textContent = relationshipContext ? `${greeting} ${relationshipContext}` : greeting;
+    choices.replaceChildren();
+    function addAiFollowUp(topic) {
+      const followUp = document.createElement('button');
+      followUp.type = 'button';
+      followUp.className = 'npc-ai-follow-up';
+      followUp.textContent = `${topicLabels[topic]} 더 물어보기`;
+      followUp.addEventListener('click', () => {
+        if (pilotInFlight.has(actor.id) || !aiEnabled(actor.id)) return;
+        followUp.remove();
+        const requestId = ++pilotConversationRequest;
+        if (production) { playerLine.textContent = `${topicLabels[topic]} 이야기를 조금 더 들려주세요.`; playerLine.hidden = false; }
+        line.textContent = '잠시 생각 중…';
+        requestPilot(actor.id, topic, 'topic', true).then(result => {
+          if (activeConversation?.id !== actor.id || requestId !== pilotConversationRequest) return;
+          line.textContent = result?.line ?? `${topicLabels[topic]} 이야기는 다음에 이어가요.`;
+          if (result) pendingPilotAction = { id: actor.id, action: result.action };
+        }).catch(() => {
+          if (activeConversation?.id === actor.id && requestId === pilotConversationRequest)
+            line.textContent = `${topicLabels[topic]} 이야기는 다음에 이어가요.`;
+        });
+      });
+      choices.appendChild(followUp);
+    }
+    for (const topic of npcById.get(actor.id).interests) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = `${topicLabels[topic]} 이야기`;
+      button.addEventListener('click', () => {
+        if (pilotInFlight.has(actor.id)) return;
+        choices.querySelector('.npc-ai-follow-up')?.remove();
+        pendingPilotAction = null;
+        const requestId = ++pilotConversationRequest;
+        memory.rememberTopic(actor.id, topic);
+        if (production) { playerLine.textContent = `${topicLabels[topic]} 이야기를 해요.`; playerLine.hidden = false; }
+        if (aiEnabled(actor.id) && !conversationAiUsed) {
+          conversationAiUsed = true;
+          line.textContent = '잠시 생각 중…';
+          requestPilot(actor.id, topic).then(result => {
+            if (!result && activeConversation?.id === actor.id && requestId === pilotConversationRequest) {
+              line.textContent = `${topicLabels[topic]} 이야기를 기억해 둘게요. ${actor.dialogue[0]}`;
+            } else if (result && aiEnabled(actor.id) && activeConversation?.id === actor.id && requestId === pilotConversationRequest) {
+              line.textContent = result.line;
+              pendingPilotAction = { id: actor.id, action: result.action };
+              pilotTopics.set(actor.id, topic);
+              addAiFollowUp(topic);
+            }
+          }).catch(() => {
+            if (activeConversation?.id === actor.id && requestId === pilotConversationRequest)
+              line.textContent = `${topicLabels[topic]} 이야기를 기억해 둘게요. ${actor.dialogue[0]}`;
+          });
+        } else line.textContent = `${topicLabels[topic]} 이야기를 기억해 둘게요. ${actor.dialogue[0]}`;
+        if (memoryStatus) memoryStatus.textContent = memoryScopeText();
+      });
+      choices.appendChild(button);
+    }
+    if (aiEnabled(actor.id)) {
+      const social = document.createElement('button');
+      social.type = 'button'; social.textContent = '함께 할 거리';
+      social.addEventListener('click', () => {
+        if (pilotInFlight.has(actor.id)) return;
+        choices.querySelector('.npc-ai-follow-up')?.remove();
+        const fallback = actor.id === MAIN_NPC_ID
+          ? '친구와 인경호 동쪽 벤치에서 잠깐 쉬어 봐요.'
+          : '친구와 인경호 사진 지점에서 사진 한 장 남겨 봐요.';
+        pendingPilotAction = null;
+        const requestId = ++pilotConversationRequest;
+        if (production) { playerLine.textContent = '친구와 함께 할 만한 일이 있을까요?'; playerLine.hidden = false; }
+        if (conversationAiUsed) { line.textContent = fallback; return; }
+        line.textContent = '잠시 생각 중…';
+        requestPilot(actor.id, null, 'social').then(result => {
+          if (activeConversation?.id !== actor.id || requestId !== pilotConversationRequest) return;
+          line.textContent = result?.line ?? fallback;
+          if (result && aiEnabled(actor.id)) pendingPilotAction = { id: actor.id, action: result.action };
+        }).catch(() => {
+          if (activeConversation?.id === actor.id && requestId === pilotConversationRequest) line.textContent = fallback;
+        });
+      });
+      choices.appendChild(social);
+    }
+    const recall = document.createElement('button');
+    recall.type = 'button'; recall.textContent = '기억 확인';
+    recall.addEventListener('click', () => {
+      const remembered = memory.read(actor.id);
+      if (production) { playerLine.textContent = '우리 전에 무슨 얘기를 했죠?'; playerLine.hidden = false; }
+      line.textContent = `${withAnd(actor.name)} ${remembered.encounters}번 만났어요. ${remembered.topic ? `기억하는 주제는 ${topicLabels[remembered.topic]}입니다.` : '아직 기억하는 주제는 없어요.'}`;
+    });
+    choices.appendChild(recall);
+    renderQuestChoice();
+    conversation.hidden = false;
+    drawDetail();
+  }
+
+  function renderQuestChoice() {
+    choices.querySelector('.npc-quest-choice')?.remove();
+    choices.querySelector('.npc-side-event-choice')?.remove();
+    if (!activeConversation) return;
+    const actorId = activeConversation.id;
+    const event = quest.eventForNpc(actorId);
+    if (event) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'npc-quest-choice';
+      button.textContent = event === 'start' ? '첫 탐방 시작' :
+        event === 'talk_002' ? '가유담의 부탁 듣기' : '탐방 마쳤다고 알리기';
+      button.addEventListener('click', async () => {
+        button.disabled = true;
+        line.textContent = '진행 상태 확인 중…';
+        if (production) { playerLine.textContent = button.textContent; playerLine.hidden = false; }
+        try {
+          const result = await quest.advanceNpc(actorId);
+          if (activeConversation?.id === actorId)
+            line.textContent = result?.line ?? '로그인 상태를 확인한 뒤 다시 시도해 주세요.';
+        } catch {
+          if (activeConversation?.id === actorId) line.textContent = '지금은 진행 상태를 저장하지 못했어요. 다시 시도해 주세요.';
+        } finally { if (activeConversation?.id === actorId) renderQuestChoice(); }
+      });
+      choices.prepend(button);
+    }
+
+    const sideChoice = sideEvent?.npcChoice?.(actorId);
+    if (!sideChoice) return;
+    const sideButton = document.createElement('button');
+    sideButton.type = 'button';
+    sideButton.className = 'npc-side-event-choice';
+    sideButton.textContent = sideChoice.label;
+    sideButton.addEventListener('click', () => {
+      if (production) { playerLine.textContent = sideChoice.label; playerLine.hidden = false; }
+      const result = sideEvent.advanceNpc?.(actorId, sideChoice.id);
+      if (activeConversation?.id === actorId) {
+        line.textContent = result?.line ?? '지금은 이 이야기를 이어갈 수 없어요.';
+        renderQuestChoice();
+      }
+    });
+    choices.prepend(sideButton);
+  }
+
+  function drawDetail() {
+    socialNg1?.setSelectedNpc(selectedId);
+    socialNg1Panel?.render();
+    if (socialProfile && activeConversation) socialProfile.textContent = socialNg1?.profileLine(activeConversation.id) ?? '';
+    if (production) {
+      for (const visual of avatars.values()) visual.marker.enabled = false;
+      return;
+    }
+    const actor = snapshot.actors.find(item => item.id === selectedId);
+    const entry = rosterById.get(selectedId);
+    const appearance = avatars.get(selectedId).appearance;
+    const hook = actor.dialogue[Math.floor(elapsed / 20) % actor.dialogue.length];
+    detail.replaceChildren();
+    for (const line of [
+      `${actor.id.slice(-3)} · ${actor.name} · ${actor.archetype}`,
+      `성별 ${appearance.label} · ${entry.department ? `학과 ${entry.department}` : `소속 ${entry.affiliation}`}`,
+      `모의 학번 ${entry.student_number ?? '해당 없음'}`,
+      `외형 ${hairLabels[appearance.hair_style]} · ${accessoryLabels[appearance.accessory]}`,
+      `${actor.location} · ${actor.activity} · social ${actor.social_mode}`,
+      `현장 이동 ${avatars.get(selectedId).motion.moving ? '중' : '대기'} · 좌표 ${avatars.get(selectedId).motion.position ? `${avatars.get(selectedId).motion.position.x.toFixed(1)}, ${avatars.get(selectedId).motion.position.z.toFixed(1)}` : '외부'}`,
+      `“${hook}”`
+    ]) {
+      const p = document.createElement('p'); p.textContent = line; detail.appendChild(p);
+    }
+    for (const [id, visual] of avatars) visual.marker.enabled = id === selectedId && visual.avatar.enabled;
+    focusButton.disabled = !actor.position;
+  }
+  function focusSelected() {
+    const actor = snapshot.actors.find(item => item.id === selectedId);
+    const position = avatars.get(selectedId).motion.position;
+    const point = inspectionPointFor({ ...actor, position });
+    if (!point) return;
+    player.setLocalPosition(point.x, 1.15 + roadviewGroundHeight(point.x, point.z), point.z);
+    orbit.yaw = Math.atan2(point.x - position.x, position.z - point.z) - .5;
+    orbit.pitch = .24;
+    orbit.distance = 12;
+  }
+  function applySnapshot(next, instant = false) {
+    if (instant && activeConversation) closeConversation(false);
+    if (next.period !== snapshot.period) {
+      encounters.clear();
+      socialMotion.setPeriod(next.period);
+      const index = PULSE_PERIODS.indexOf(next.period);
+      for (const { controller } of purposefulRoster.values()) controller.setScheduleIndex(index);
+    }
+    snapshot = next;
+    for (const actor of next.actors) {
+      const visual = avatars.get(actor.id);
+      visual.actor = actor;
+      const purpose = purposefulRoster.get(actor.id);
+      if (purpose) {
+        const state = purpose.controller.status(false);
+        actor.position = state.visible ? { ...state.position } : null;
+        actor.location = state.destination;
+        actor.activity = state.activity ?? state.currentGoal;
+        visual.seat = null;
+        visual.avatar.enabled = state.visible;
+        visual.motion.position = state.visible ? { ...state.position } : null;
+        visual.motion.route = [];
+        visual.motion.moving = state.moving;
+        continue;
+      }
+      visual.seat = actor.activity === 'sit' && actor.position ? findSeat(actor.position, { range: 1 }) : null;
+      visual.avatar.enabled = Boolean(actor.position);
+      const motion = visual.motion;
+      motion.moving = false;
+      if (!actor.position) {
+        motion.position = null; motion.route = [];
+      } else if (!motion.position || instant) {
+        motion.position = { ...actor.position }; motion.route = [];
+        motion.wait = Number(actor.id.slice(-3)) % 4;
+      } else {
+        motion.route = navigator.route(motion.position, actor.position);
+        if (!motion.route) throw new Error(`No safe NPC route for ${actor.id}/${next.period}`);
+        motion.wait = 0;
+      }
+    }
+    for (const button of periodRow?.children ?? []) button.setAttribute('aria-pressed', String(button.dataset.period === next.period));
+    drawDetail();
+  }
+  function setPeriod(period) {
+    const index = PULSE_PERIODS.indexOf(period);
+    if (index < 0) throw new Error(`Unknown period: ${period}`);
+    elapsed = index * PERIOD_SECONDS;
+    applySnapshot(snapshotForPeriod(batch, period), true);
+    drawStatus();
+  }
+  function drawStatus() {
+    if (production) return;
+    const remaining = Math.ceil(CYCLE_SECONDS - elapsed);
+    const movingCount = [...avatars.values()].filter(visual => visual.motion.moving).length;
+    const localCount = [...avatars.values()].filter(visual => visual.motion.position).length;
+    status.textContent = `${periodLabels[snapshot.period]} · 현장 ${localCount}/20 (목표 ${snapshot.localCount}) · 목적 이동 ${movingCount} · 외부 ${20 - localCount} · 동행 ${socialPhaseLabels[socialMotion.status().phase]} · ${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, '0')}`;
+  }
+  function advanceMotion(visual, dt) {
+    const motion = visual.motion, actor = visual.actor;
+    motion.moving = false;
+    const purpose = purposefulRoster.get(actor.id);
+    if (purpose) {
+      if (activeConversation?.id === actor.id || socialMotion.shouldPauseForConversation(actor.id, activeConversation?.id) ||
+          socialNg15Bridge?.shouldPauseForConversation(actor.id, activeConversation?.id) ||
+          socialMotion.shouldHoldForJoin(actor.id))
+        purpose.controller.pause();
+      else purpose.controller.resume();
+      const state = purpose.controller.tick(dt);
+      motion.position = state.visible ? { ...state.position } : null;
+      motion.heading = state.heading;
+      motion.moving = state.moving;
+      actor.position = state.visible ? { ...state.position } : null;
+      actor.location = state.destination;
+      actor.activity = state.activity ?? state.currentGoal;
+      visual.avatar.enabled = state.visible;
+      visual.seat = state.phase === 'ACTING' && state.activity === 'RESTING'
+        ? findSeat(state.position, { range: 2 }) : null;
+      return;
+    }
+    if (activeConversation?.id === actor.id) return;
+    if (!dt || !motion.position || !actor.position) return;
+    if (!motion.route.length) {
+      motion.wait -= dt;
+      if (motion.wait > 0 || !roaming.has(actor.activity) || aiPilotIds.has(actor.id)) return;
+      motion.route = navigator.wanderRoute(motion.position, actor.position, actor.id, motion.leg++, walking.has(actor.activity) ? 12 : 5) ?? [];
+      if (!motion.route.length) { motion.wait = 4; return; }
+    }
+    const step = advanceRoute(motion.position, motion.route, dt * (walking.has(actor.activity) ? 1.15 : .85));
+    motion.position = step.position;
+    if (step.moved > 0) { motion.heading = step.heading; motion.moving = true; }
+    if (!motion.route.length) motion.wait = walking.has(actor.activity) ? 1 + Number(actor.id.slice(-3)) % 3 : 4;
+  }
+  function pilotActions(id) {
+    const visual = avatars.get(id);
+    const allowed = ['stay', 'look_at_player', 'walk_nearby'];
+    if (visual.seat) allowed.push('stand');
+    else if (visual.motion.position && findSeat(visual.motion.position, { range: 1 })) allowed.push('sit_at_bench');
+    return allowed;
+  }
+  async function requestPilot(id, topic, trigger = 'topic', followUp = false) {
+    if (!aiEnabled(id) || pilotInFlight.has(id)) return null;
+    pilotInFlight.add(id);
+    try {
+      const token = await getAiSession();
+      if (!token || !aiEnabled(id)) return null;
+      const availableActions = production ? ['stay'] : trigger === 'social' ? ['stay', 'look_at_player'] : pilotActions(id);
+      const response = await fetch(aiEndpoint, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ npc_id: id, period: snapshot.period === 'night' ? 'evening' : snapshot.period, trigger, topic,
+          prior_topic: pilotTopics.get(id) ?? null, follow_up: followUp, available_actions: availableActions })
+      });
+      if (response.status === 429) {
+        const error = await response.json();
+        if (error.error === 'PILOT_CALL_LIMIT') { pilotAvailable = false; setAiSignedIn(aiSignedIn); }
+        if (pilotStatus) pilotStatus.textContent = error.error === 'PILOT_CALL_LIMIT'
+          ? '오늘 AI 대화 호출 상한에 도달했습니다.'
+          : error.error === 'PILOT_USER_DAILY_LIMIT' ? '오늘의 AI 대화 3회를 모두 사용했습니다.'
+            : error.error === 'PILOT_GLOBAL_DAILY_LIMIT' ? '오늘의 전체 AI 대화 상한에 도달했습니다.'
+              : '잠시 뒤 다시 대화해 주세요.';
+        return null;
+      }
+      if (response.status === 401) return null;
+      if (!response.ok) throw Error(`NPC AI HTTP ${response.status}`);
+      const result = await response.json();
+      if (result.npc_id !== id || !availableActions.includes(result.action)) throw Error('NPC AI action mismatch');
+      if (pilotStatus) pilotStatus.textContent = `${id.slice(-3)} AI 결정: ${result.action}`;
+      return result;
+    } catch {
+      if (pilotStatus) pilotStatus.textContent = 'AI 답변을 받지 못했습니다. 다음 대화에서 다시 시도해 주세요.';
+      return null;
+    } finally { pilotInFlight.delete(id); }
+  }
+  function applyPilotAction(id, action) {
+    const visual = avatars.get(id), motion = visual?.motion;
+    if (!motion?.position || !pilotActions(id).includes(action)) return false;
+    if (action === 'walk_nearby') {
+      const route = navigator.wanderRoute(motion.position, visual.actor.position, id, motion.leg++, 5);
+      if (!route?.length) return false;
+      visual.seat = null;
+      motion.route = route;
+      motion.wait = 0;
+    } else if (action === 'sit_at_bench') {
+      const seat = findSeat(motion.position, { range: 1 });
+      if (!seat) return false;
+      visual.seat = seat; motion.route = []; motion.wait = 8;
+    } else if (action === 'stand') {
+      visual.seat = null; motion.route = []; motion.wait = 8;
+    } else if (action === 'look_at_player') {
+      visual.pilotFacingUntil = performance.now() + 8000; motion.route = []; motion.wait = 8;
+    } else { motion.route = []; motion.wait = 8; }
+    return true;
+  }
+  function drawNameplates(playerPos) {
+    const nearby = snapshot.actors.filter(actor => actor.position)
+      .map(actor => ({ actor, distance: Math.hypot(avatars.get(actor.id).motion.position.x - playerPos.x,
+        avatars.get(actor.id).motion.position.z - playerPos.z) }))
+      .filter(item => item.distance <= NPC_NAMEPLATE_RADIUS)
+      .sort((a, b) => a.distance - b.distance).slice(0, 4);
+    const shown = new Set(nearby.map(item => item.actor.id));
+    if (!production) shown.add(selectedId);
+    const canvasRect = app.graphicsDevice.canvas.getBoundingClientRect();
+    for (const [id, label] of nameplates) {
+      const visual = avatars.get(id);
+      if (!shown.has(id) || !visual.avatar.enabled) { label.hidden = true; continue; }
+      const purpose = purposefulRoster.get(id);
+      const ai = aiEnabled(id);
+      label.textContent = `${ai ? '✦ AI · ' : ''}${production ? visual.actor.name : `${id.slice(-3)} · ${visual.actor.name}`}`;
+      label.classList.toggle('npc-ai-tag', ai);
+      label.dataset.status = '';
+      if (purpose) {
+        const state = purposefulStatus(id);
+        const action = state.phase === 'TALKING' ? '대화 중' :
+          state.phase === 'MOVING' && state.interrupted ? '함께 이동 중' :
+          state.phase === 'MOVING' ? `${purpose.destinations[state.destination]?.label ?? '다음 장소'}로 이동 중` :
+          ({ ACADEMIC: '수업 중', CLUB: '동아리 활동 중', RESTING: '휴식 중',
+            READING: '독서 중', COFFEE: '커피 마시는 중', EATING: '간식 먹는 중',
+            PHOTO: '사진 찍는 중', MUSIC: '음악 듣는 중', PHONE: '휴대전화 보는 중',
+            TRANSIT: '잠시 머무는 중', WALK_BREAK: '산책 중', WAITING: '대기 중',
+            WALK_TOGETHER: '동행 중' })[state.activity] ?? '잠시 머무는 중';
+        label.dataset.status = action;
+      }
+      const world = visual.avatar.getPosition();
+      projectedPoint.set(world.x, world.y + npcNameplateOffset(visual.appearance.height), world.z);
+      const point = orbit.camera.camera.worldToScreen(projectedPoint);
+      label.hidden = point.x < 0 || point.x > canvasRect.width || point.y < 0 || point.y > canvasRect.height;
+      if (!label.hidden) {
+        label.style.left = `${point.x + canvasRect.left}px`;
+        label.style.top = `${point.y + canvasRect.top}px`;
+      }
+    }
+  }
+  function update(dt) {
+    if (!socialPreviewFastForward) main2Guide.update(dt);
+    if (running) {
+      elapsed = (elapsed + dt) % CYCLE_SECONDS;
+      const period = periodAt(elapsed);
+      if (period !== snapshot.period) applySnapshot(snapshotForPeriod(batch, period));
+    }
+    const playerPos = socialPreviewFastForward ? null : player.getLocalPosition();
+    if (!socialPreviewFastForward) {
+      encounters.retain(snapshot.actors.filter(actor => {
+        const position = avatars.get(actor.id).motion.position;
+        return position && Math.hypot(position.x - playerPos.x, position.z - playerPos.z) <= NPC_CONVERSATION_RELEASE_RADIUS;
+      }).map(actor => actor.id));
+      if (activeConversation) {
+        const position = avatars.get(activeConversation.id).motion.position;
+        if (!position || Math.hypot(position.x - playerPos.x, position.z - playerPos.z) > NPC_CONVERSATION_RELEASE_RADIUS) closeConversation(false);
+      }
+    }
+    for (const visual of avatars.values()) {
+      const actor = visual.actor, motion = visual.motion;
+      advanceMotion(visual, running ? dt : 0);
+      if (!motion.position || socialPreviewFastForward) continue;
+      const moving = motion.moving;
+      const purposeful = purposefulRoster.get(actor.id);
+      const behavior = purposeful?.behavior;
+      const animationPace = behavior?.animationPace ?? 1;
+      const motionEnergy = behavior?.motionEnergy ?? 1;
+      const phase = elapsed * 6 * animationPace + Number(actor.id.slice(-3));
+      const bob = moving ? Math.abs(Math.sin(phase)) * .035 * motionEnergy :
+        Math.sin(elapsed * 2 * animationPace + Number(actor.id.slice(-3))) * .015 * motionEnergy;
+      const sitting = Boolean(visual.seat && !moving && !motion.route.length);
+      const purposefulActivity = purposeful?.controller.status(false).activity;
+      const activityPose = purposefulActivityPose(purposefulActivity, { phase, motionEnergy, sitting });
+      const renderPosition = sitting ? visual.seat.position : motion.position;
+      const y = roadviewGroundHeight(renderPosition.x, renderPosition.z) +
+        (sitting ? SEAT_TOP_Y - npcSeatAnchorHeight(visual.appearance.height) : bob);
+      visual.avatar.setLocalPosition(renderPosition.x, y, renderPosition.z);
+      visual.arms.forEach((arm, index) => arm.setLocalEulerAngles(
+        moving ? Math.sin(phase) * (index ? -23 : 23) : activityPose.armPitch[index],
+        moving ? 0 : activityPose.armYaw[index],
+        moving ? 0 : activityPose.armRoll[index]
+      ));
+      visual.legs.forEach((leg, index) => leg.setLocalEulerAngles(
+        moving ? Math.sin(phase) * (index ? 27 : -27) : activityPose.legPitch[index], 0, 0));
+      const nearSelected = actor.id === selectedId && (!aiEnabled(actor.id) || activeConversation?.id === actor.id) &&
+        Math.hypot(playerPos.x - motion.position.x, playerPos.z - motion.position.z) < NPC_CONVERSATION_RELEASE_RADIUS;
+      const pilotFacing = visual.pilotFacingUntil > performance.now() && Math.hypot(playerPos.x - motion.position.x, playerPos.z - motion.position.z) < NPC_NAMEPLATE_RADIUS;
+      const facing = sitting ? visual.seat.yaw : moving ? motion.heading : nearSelected || pilotFacing
+        ? Math.atan2(playerPos.x - motion.position.x, playerPos.z - motion.position.z) * 180 / Math.PI : motion.heading;
+      visual.avatar.setLocalEulerAngles(0, facing, 0);
+    }
+    const socialMotionState = socialMotion.tick(running ? dt : 0, activeConversation?.id);
+    const socialChanged = socialNg1?.update(running ? dt : 0) ?? false;
+    if (socialNg15Bridge && socialNg1) {
+      const scriptedBusy = ['WAIT', 'JOIN', 'WALK_TOGETHER', 'SEPARATE'].includes(socialMotionState.phase)
+        ? socialMotionState.pairIds : [];
+      socialNg15Bridge.tick(running ? dt : 0, socialNg1.viewSnapshot(), {
+        blockedNpcIds: scriptedBusy,
+        conversationId: activeConversation?.id ?? null
+      });
+    }
+    if (socialChanged && !socialPreviewFastForward) socialNg1Panel?.render();
+    if (socialPreviewFastForward) return;
+    uiClock += dt;
+    if (uiClock < .3) return;
+    uiClock = 0;
+    drawStatus();
+    drawDetail();
+    drawNameplates(playerPos);
+    const closest = nearestVisible();
+    const target = interactionTarget();
+    talkButton.disabled = !target || target.distance > NPC_TALK_RADIUS;
+    if (production) {
+      panel.hidden = externalContextAction ? !activeConversation : !activeConversation && talkButton.disabled;
+      talkButton.hidden = externalContextAction || Boolean(activeConversation);
+    }
+    talkButton.textContent = production
+      ? talkButton.disabled ? 'F · 가까운 NPC와 대화' : `F · ${withAnd(target.actor.name)} 대화`
+      : talkButton.disabled ? '근처 NPC와 대화 (F)' : `${withAnd(target.actor.name)} 대화 (F)`;
+    if (near) near.textContent = closest?.distance <= NPC_TALK_RADIUS
+      ? `근처: ${closest.actor.name} · ${closest.actor.dialogue[Math.floor(elapsed / 20) % closest.actor.dialogue.length]}`
+      : '근처에 NPC가 없습니다.';
+  }
+
+  applySnapshot(first, true);
+  if (!production) focusSelected();
+  drawStatus();
+  app.on('update', update);
+  function getContextAction() {
+    if (activeConversation || main2Guide.isDialogueOpen()) return null;
+    const guideAction = main2Guide.getContextAction();
+    const target = interactionTarget();
+    const npcAction = !target || target.distance > NPC_TALK_RADIUS ? null : {
+      id: 'npc-talk',
+      icon: '💬',
+      label: `${withAnd(target.actor.name)} 대화`,
+      compactLabel: '대화',
+      shortcut: 'F',
+      priority: 300,
+      distance: target.distance,
+      trigger: openConversation
+    };
+    if (!guideAction) return npcAction;
+    if (!npcAction) return guideAction;
+    return guideAction.priority > npcAction.priority ||
+      guideAction.priority === npcAction.priority && guideAction.distance <= npcAction.distance
+      ? guideAction : npcAction;
+  }
+
+  const api = {
+    handlesTalkKey,
+    setAiSignedIn,
+    observePlace: (placeId, position) => {
+      quest.observePlace(placeId, position);
+      main2Quest.observePlace(placeId, position);
+    },
+    observeNavigation: snapshot => main2Quest.observeNavigation(snapshot),
+    observeAutoMove: (state, event) => main2Quest.observeAutoMove(state, event),
+    getContextAction,
+    getQuestMapObjective: legacyProgressId =>
+      legacyProgressId === QUEST_ID ? quest.mapTarget()
+        : legacyProgressId === MAIN2_QUEST_ID ? main2Quest.mapTarget()
+          : null,
+    getMapObjective: () => main2Quest.mapTarget() ?? quest.mapTarget() ??
+      sideEvent?.mapTarget?.(id => avatars.get(id)?.motion?.position ? { ...avatars.get(id).motion.position } : null) ?? null,
+    isConversationOpen: () => Boolean(activeConversation) || main2Guide.isDialogueOpen(),
+    closeConversation: () => {
+      let closed = false;
+      if (activeConversation) { closeConversation(); closed = true; }
+      if (main2Guide.closeDialogue()) closed = true;
+      return closed;
+    },
+    getStatus: () => ({ status: 'READY', candidate_sha256: hash, npc_count: batch.npcs.length,
+      period: snapshot.period, local_count: [...avatars.values()].filter(v => v.motion.position).length,
+      off_zone_count: [...avatars.values()].filter(v => !v.motion.position).length,
+      largest_crowd: snapshot.largestCrowd, visible_entities: [...avatars.values()].filter(v => v.avatar.enabled).length,
+      purposeful_count: purposefulRoster.size,
+      purposeful_behavior: Object.fromEntries([...purposefulRoster].map(([id, { behavior }]) => [id, behavior.id])),
+      social_motion: socialMotion.status(),
+      purposeful: Object.fromEntries([...purposefulRoster].map(([id]) => [id, purposefulStatus(id)])),
+      selected_id: selectedId, selected_activity: snapshot.actors.find(a => a.id === selectedId).activity,
+      selected_gender: rosterById.get(selectedId).gender,
+      selected_student_number: rosterById.get(selectedId).student_number,
+      selected_department: rosterById.get(selectedId).department,
+      moving_count: [...avatars.values()].filter(visual => visual.motion.moving).length,
+      selected_position: avatars.get(selectedId).motion.position && { ...avatars.get(selectedId).motion.position },
+      conversation_active: activeConversation?.id ?? null, selected_memory: memory.read(selectedId),
+      ai_signed_in: aiSignedIn, ai_npc_ids: [...aiPilotIds].filter(aiEnabled),
+      quest_stage: quest.stage, quest: quest.status(),
+      main2_quest_stage: main2Quest.stage, main2Quest: main2Quest.status(),
+      main2_guide: main2Guide.status(),
+      side_event: sideEvent?.status?.() ?? null,
+      social_graph: socialGraph.status(),
+      social_ng1: socialNg1?.status() ?? null,
+      social_ng15: socialNg15Bridge?.status() ?? null,
+      selected_dialogue: snapshot.actors.find(a => a.id === selectedId).dialogue }),
+    setPeriod, selectNpc: id => { if (!avatars.has(id)) throw new Error('Unknown NPC'); closeConversation(false); selectedId = id; socialNg1?.setSelectedNpc(id); if (select) select.value = id; drawDetail(); },
+    pause: () => { running = false; if (playButton) { playButton.textContent = '재생'; playButton.setAttribute('aria-pressed', 'false'); } },
+    play: () => { running = true; if (playButton) { playButton.textContent = '일시정지'; playButton.setAttribute('aria-pressed', 'true'); } }
+  };
+  if (!production) window.__NPC_TEST__ = api;
+  if (socialPreview) {
+    const socialPreviewApi = {
+      status: () => socialNg1?.status(),
+      selectNpc: id => { socialNg1?.setSelectedNpc(id); socialNg1Panel?.render(); }
+    };
+    // NG1-only previews may inspect the social model in isolation. NG1.5 must never
+    // advance that clock separately from physical NPC movement.
+    if (!socialBehaviorPreview) socialPreviewApi.advanceTicks = count => {
+      const result = socialNg1?.advanceTicks(count);
+      socialNg1Panel?.render();
+      return result;
+    };
+    window.__NPC_SOCIAL_NG1__ = socialPreviewApi;
+  }
+  if (socialBehaviorPreview) window.__NPC_SOCIAL_NG15__ = {
+    status: () => socialNg15Bridge?.status() ?? null,
+    // Preview-only deterministic stepping uses the exact NPC runtime update path so
+    // schedules, physical movement, NG1 and NG1.5 all consume the same game-time dt.
+    advanceSeconds: (seconds, stepSeconds = .1, { render = true, includeSocial = true } = {}) => {
+      if (!Number.isFinite(seconds) || seconds < 0) throw new Error('Invalid NG1.5 preview seconds');
+      if (!Number.isFinite(stepSeconds) || stepSeconds <= 0 || stepSeconds > .1)
+        throw new Error('Invalid NG1.5 preview step');
+      let remaining = seconds;
+      socialPreviewFastForward = true;
+      try {
+        while (remaining > 1e-9) {
+          const dt = Math.min(stepSeconds, remaining);
+          update(dt);
+          remaining -= dt;
+        }
+      } finally {
+        socialPreviewFastForward = false;
+      }
+      if (render) socialNg1Panel?.render();
+      return {
+        social: includeSocial ? socialNg1?.status() ?? null : null,
+        bridge: socialNg15Bridge?.status() ?? null
+      };
+    }
+  };
+  return api;
+}
+

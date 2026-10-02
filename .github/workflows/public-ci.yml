@@ -1,0 +1,21 @@
+name: Public local checks
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - uses: supabase/setup-cli@v3
+        with:
+          version: 2.117.0
+      - run: bash scripts/public-ci.sh
+      - run: bash scripts/public-db.sh

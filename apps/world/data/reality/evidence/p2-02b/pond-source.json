@@ -1,0 +1,246 @@
+{
+  "canonicalStatus": "SOURCE SNAPSHOT / PROMOTED_GEOMETRY",
+  "retrievedAt": "2026-09-25T11:25:05.873Z",
+  "sourceId": "osm_way_218264623",
+  "wayUrl": "https://api.openstreetmap.org/api/0.6/way/218264623.json",
+  "nodesUrl": "https://api.openstreetmap.org/api/0.6/nodes.json?nodes=2275291907,2275291900,2275291879,2275291878,2275291882,2275291883,2275291885,2275291887,2275291889,2275291893,2275291895,2275291898,2275291905",
+  "license": "ODbL — © OpenStreetMap contributors",
+  "way": {
+    "id": 218264623,
+    "version": 7,
+    "timestamp": "2017-03-18T17:04:18Z",
+    "changeset": 46961468,
+    "tags": {
+      "name": "인경호",
+      "natural": "water"
+    },
+    "nodes": [
+      2275291907,
+      2275291900,
+      2275291879,
+      2275291878,
+      2275291882,
+      2275291883,
+      2275291885,
+      2275291887,
+      2275291889,
+      2275291893,
+      2275291895,
+      2275291898,
+      2275291905,
+      2275291907
+    ]
+  },
+  "nodes": [
+    {
+      "id": 2275291878,
+      "lat": 37.449236,
+      "lon": 126.6558375,
+      "version": 3,
+      "timestamp": "2022-09-28T09:22:47Z"
+    },
+    {
+      "id": 2275291879,
+      "lat": 37.4492675,
+      "lon": 126.6559039,
+      "version": 2,
+      "timestamp": "2013-08-23T10:38:17Z"
+    },
+    {
+      "id": 2275291882,
+      "lat": 37.4493481,
+      "lon": 126.6555556,
+      "version": 3,
+      "timestamp": "2022-09-28T09:22:47Z"
+    },
+    {
+      "id": 2275291883,
+      "lat": 37.449444,
+      "lon": 126.6555303,
+      "version": 2,
+      "timestamp": "2013-08-23T10:38:17Z"
+    },
+    {
+      "id": 2275291885,
+      "lat": 37.4495302,
+      "lon": 126.6556041,
+      "version": 3,
+      "timestamp": "2013-09-03T07:41:49Z"
+    },
+    {
+      "id": 2275291887,
+      "lat": 37.4495863,
+      "lon": 126.6556973,
+      "version": 3,
+      "timestamp": "2013-09-04T03:48:46Z"
+    },
+    {
+      "id": 2275291889,
+      "lat": 37.4496535,
+      "lon": 126.6558446,
+      "version": 2,
+      "timestamp": "2013-08-23T10:38:17Z"
+    },
+    {
+      "id": 2275291893,
+      "lat": 37.4497712,
+      "lon": 126.6559424,
+      "version": 2,
+      "timestamp": "2013-08-23T10:38:18Z"
+    },
+    {
+      "id": 2275291895,
+      "lat": 37.4498418,
+      "lon": 126.6559751,
+      "version": 2,
+      "timestamp": "2013-08-23T10:38:18Z"
+    },
+    {
+      "id": 2275291898,
+      "lat": 37.4499454,
+      "lon": 126.6560225,
+      "version": 2,
+      "timestamp": "2013-08-23T10:38:18Z"
+    },
+    {
+      "id": 2275291900,
+      "lat": 37.4500732,
+      "lon": 126.6563875,
+      "version": 3,
+      "timestamp": "2013-09-03T07:41:49Z"
+    },
+    {
+      "id": 2275291905,
+      "lat": 37.4500913,
+      "lon": 126.656067,
+      "version": 2,
+      "timestamp": "2013-08-23T10:38:18Z"
+    },
+    {
+      "id": 2275291907,
+      "lat": 37.4501596,
+      "lon": 126.6561144,
+      "version": 2,
+      "timestamp": "2013-08-23T10:38:18Z"
+    }
+  ],
+  "polygon": [
+    [
+      37.4501596,
+      126.6561144
+    ],
+    [
+      37.4500732,
+      126.6563875
+    ],
+    [
+      37.4492675,
+      126.6559039
+    ],
+    [
+      37.449236,
+      126.6558375
+    ],
+    [
+      37.4493481,
+      126.6555556
+    ],
+    [
+      37.449444,
+      126.6555303
+    ],
+    [
+      37.4495302,
+      126.6556041
+    ],
+    [
+      37.4495863,
+      126.6556973
+    ],
+    [
+      37.4496535,
+      126.6558446
+    ],
+    [
+      37.4497712,
+      126.6559424
+    ],
+    [
+      37.4498418,
+      126.6559751
+    ],
+    [
+      37.4499454,
+      126.6560225
+    ],
+    [
+      37.4500913,
+      126.656067
+    ],
+    [
+      37.4501596,
+      126.6561144
+    ]
+  ],
+  "derived": {
+    "area_m2": 2830.1351002840374,
+    "centroid": {
+      "lat": 37.449664980476,
+      "lon": 126.65596360247206
+    },
+    "worldBounds": {
+      "minX": 103.41541786798724,
+      "maxX": 141.29419246795055,
+      "minZ": -4.6022399999145875,
+      "maxZ": 46.747611000092945
+    },
+    "bounds": {
+      "minLat": 37.449236,
+      "maxLat": 37.4501596,
+      "minLon": 126.6555303,
+      "maxLon": 126.6563875
+    },
+    "orientation": "clockwise",
+    "relations": [
+      {
+        "reference": "Main Hall (existing runtime/OSM center)",
+        "referencePosition": {
+          "lat": 37.44941,
+          "lon": 126.65443
+        },
+        "pondEastOffset_m": 135.53658974536148,
+        "pondNorthOffset_m": 28.352554028910077,
+        "distance_m": 138.47033790586596
+      },
+      {
+        "reference": "Agora canonical centroid",
+        "referencePosition": {
+          "lat": 37.449281,
+          "lon": 126.65614
+        },
+        "pondEastOffset_m": -15.589645825343638,
+        "pondNorthOffset_m": 42.6967090290386,
+        "distance_m": 45.45377892837999
+      },
+      {
+        "reference": "Student Center official marker (not government footprint)",
+        "referencePosition": {
+          "lat": 37.449682,
+          "lon": 126.656588
+        },
+        "pondEastOffset_m": -55.18295198733321,
+        "pondNorthOffset_m": -1.8924859713670799,
+        "distance_m": 55.21539362522143
+      }
+    ]
+  },
+  "crossCheck": {
+    "rule": "RULE_B",
+    "sources": [
+      "https://www.inha.ac.kr/kr/1121/subview.do",
+      "https://www.inha.ac.kr/sites/kr/files/campusmap_front.jpg",
+      "https://uol.de/fileadmin/io/partnerhochschulen/asien/inha-university/uni-oldenburg-inha-campusplan.pdf"
+    ],
+    "observation": "Named pond northeast of Main Hall, north/west of Agora, west of official Student Center marker. Official illustrated map confirms identity and relative location, not survey-level boundary precision. Polygon is copied from OSM only; no official survey accuracy claimed."
+  }
+}

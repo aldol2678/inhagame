@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+.vercel/
+supabase/.temp/
+supabase/.branches/
+coverage/
+playwright-report/
+test-results/
+*.pem
+*.key
+*.p12
+*.pfx

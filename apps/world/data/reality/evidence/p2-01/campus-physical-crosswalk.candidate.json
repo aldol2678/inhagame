@@ -1,0 +1,215 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "INHA WORLD Campus Semantic to Physical Feature Crosswalk (Candidate)",
+  "canonicalStatus": "CANDIDATE / NON-CANONICAL",
+  "description": "Non-1:1 crosswalk mapping between campus semantic entities (building numbers and named spaces) and physical geospatial features from 국토교통부 GIS건물통합정보 and 건축행정시스템(세움터) building register ledgers.",
+  "version": "1.1.0",
+  "updatedAt": "2026-09-25T19:06:00+09:00",
+  "promotionRules": {
+    "description": "Rules required to promote a candidate physical mapping to canonical Reality Base status. Attribute-only matches are strictly insufficient for footprint promotion.",
+    "allowedMappingStates": [
+      "VERIFIED_PART",
+      "ATTRIBUTE_MATCH_ONLY",
+      "SPATIAL_CANDIDATE",
+      "CONNECTED_PART",
+      "CONFLICT",
+      "UNKNOWN"
+    ],
+    "criteria": {
+      "RULE_A": "Authoritative registered dong name directly identifies the semantic building (e.g. '7동 (7호관 학생회관)').",
+      "RULE_B": "Multiple authoritative sources independently identify the same physical feature.",
+      "RULE_C": "Official campus spatial geometry and government GIS feature align without contradiction."
+    }
+  },
+  "entities": [
+    {
+      "semanticId": "bldg_07",
+      "officialName": "7호관(학생회관)",
+      "officialNameEn": "Building 7 (Student Center)",
+      "canonicalStatus": "PROMOTED_VERIFIED",
+      "currentAuthority": {
+        "status": "VERIFIED_PART",
+        "notes": "Current authoritative campus semantic identity is 7호관 (verified via official campus map). Cadastral entity is located in the western sector (Feature #39, 254m WNW of Agora), with registeredDongName '7동 (7호관 학생회관)' satisfying Promotion Rule A.",
+        "promotionRuleSatisfied": "RULE_A"
+      },
+      "physicalParts": [
+        {
+          "sourceId": "molit_gis_building_integrated",
+          "featureId": "dt_d010.fid--41a449d9_1a0d7e38e03_-5723",
+          "gisId": "1980169232404388511200000000",
+          "registeredDongName": "7동 (7호관 학생회관)",
+          "relation": "VERIFIED_PART",
+          "status": "VERIFIED_PART",
+          "confidence": "high",
+          "spatialRelationToAgora": {
+            "minDistance_m": 254.25,
+            "side": "West-Northwest",
+            "touching": false
+          },
+          "evidence": [
+            "Registered dong name explicitly reads '7동 (7호관 학생회관)'.",
+            "Total gross floor area is 15,764.76 m², matching both the official air quality report (15,764.76 m²) and AURUM architectural record (15,758 m², architect Sungryong Cho, 1986).",
+            "Floors (G6/B1) and reinforced concrete structure match AURUM and campus records."
+          ],
+          "discrepancies": [
+            "OSM Way #218038027 historically misapplied the 'Student Center' tag to Feature #1 next to Agora Plaza, which this crosswalk refutes."
+          ]
+        }
+      ]
+    },
+    {
+      "semanticId": "bldg_06",
+      "officialName": "6호관",
+      "officialNameEn": "Building 6",
+      "canonicalStatus": "UNRESOLVED_CONFLICT",
+      "currentAuthority": {
+        "status": "CONFLICT",
+        "notes": "Building 6 remains unresolved. Feature #1 is registered as 5-5동 (5북서관) despite housing the vernacular Business School wing flanking Agora Plaza. Feature #28 matches total floor area exactly but is spatially distant (218m NW). Neither satisfies canonical promotion rules for Building 6 footprint."
+      },
+      "physicalParts": [
+        {
+          "sourceId": "molit_gis_building_integrated",
+          "featureId": "dt_d010.fid--41a449d9_1a0d7e38e03_-573c",
+          "gisId": "1983169543854386672600000000",
+          "registeredDongName": "5-5동 (5북서관)",
+          "relation": "CONNECTED_PART",
+          "status": "CONFLICT",
+          "confidence": "medium",
+          "spatialRelationToAgora": {
+            "minDistance_m": 10.19,
+            "side": "North-East",
+            "touching": false
+          },
+          "evidence": [
+            "Physically wraps directly around the northern and eastern boundary of Agora Plaza (10.19m minimum distance).",
+            "Official campus maps depict Building 6 (Business School) occupying the eastern wing of this continuous courtyard structure.",
+            "Vernacular student documentation describes Agora Plaza as enclosed in a ㄷ-shape by Buildings 6 and 9."
+          ],
+          "discrepancies": [
+            "Government cadastral register designates this physical mass under the Building 5 complex identifier (5-5동, 5북서관) rather than Building 6.",
+            "The physical mass has 3,907.61 m² footprint and 20,186.11 m² gross floor area, representing an agglomerated academic complex."
+          ]
+        },
+        {
+          "sourceId": "molit_gis_building_integrated",
+          "featureId": "dt_d010.fid--41a449d9_1a0d7e38e03_-5727",
+          "gisId": "1982169337024388123400000000",
+          "registeredDongName": "6동 (6호관)",
+          "relation": "ATTRIBUTE_MATCH_ONLY",
+          "status": "CONFLICT",
+          "confidence": "high_for_cadastral_register",
+          "spatialRelationToAgora": {
+            "minDistance_m": 218.39,
+            "side": "North-West",
+            "touching": false
+          },
+          "evidence": [
+            "Government building register explicitly lists dong name as '6동 (6호관)'.",
+            "Total gross floor area in register is 12,268.57 m², exactly matching the Inha official indoor air quality inspection report (12,268.57 m²).",
+            "Approval date is 1982-04-01, matching the early 1982 construction timeline."
+          ],
+          "discrepancies": [
+            "Spatial location is 218.39 m northwest of Agora Plaza, contradicting vernacular descriptions of Building 6 immediately bordering Agora Plaza."
+          ]
+        }
+      ]
+    },
+    {
+      "semanticId": "bldg_09",
+      "officialName": "9호관",
+      "officialNameEn": "Building 9",
+      "canonicalStatus": "UNRESOLVED_CANDIDATE",
+      "currentAuthority": {
+        "status": "SPATIAL_CANDIDATE",
+        "notes": "Building 9 remains unresolved. Feature #12 matches the official completion date to the exact day (1981-08-06), but total gross floor area differs and it is separated by 93.30m from Agora Plaza. It is classified as ATTRIBUTE_MATCH_ONLY and cannot be promoted to canonical footprint."
+      },
+      "physicalParts": [
+        {
+          "sourceId": "molit_gis_building_integrated",
+          "featureId": "dt_d010.fid--41a449d9_1a0d7e38e03_-573b",
+          "gisId": "1981169461664384633900000000",
+          "registeredDongName": null,
+          "relation": "ATTRIBUTE_MATCH_ONLY",
+          "status": "SPATIAL_CANDIDATE",
+          "confidence": "high_attribute_medium_footprint",
+          "spatialRelationToAgora": {
+            "minDistance_m": 93.30,
+            "side": "South-West",
+            "touching": false
+          },
+          "evidence": [
+            "Approval date is 1981-08-06 (81.08.06), exactly matching Inha University's official building completion register for Building 9 to the exact day.",
+            "Footprint area is 2,733.35 m² with G5/B1 floor configuration.",
+            "Positioned in the southern campus wing south of Agora Plaza, matching the general campus map placement of College of Social Sciences."
+          ],
+          "discrepancies": [
+            "Distance to Agora Plaza is 93.30m across an open lawn/plaza; it does not touch the Agora polygon boundary directly.",
+            "Total floor area in GIS is 17,340.2 m², whereas air quality report listed 7,900.67 m² (indicating possible sub-dong partition in the air quality scope)."
+          ]
+        }
+      ]
+    },
+    {
+      "semanticId": "bldg_05",
+      "officialName": "5호관",
+      "officialNameEn": "Building 5",
+      "canonicalStatus": "PROMOTED_VERIFIED_PART",
+      "currentAuthority": {
+        "status": "VERIFIED_PART",
+        "notes": "Large multi-wing complex constructed between 1979 and 1983. Feature #1 is registered as 5-5동 (5북서관) and satisfies Promotion Rule A for Building 5.",
+        "promotionRuleSatisfied": "RULE_A"
+      },
+      "physicalParts": [
+        {
+          "sourceId": "molit_gis_building_integrated",
+          "featureId": "dt_d010.fid--41a449d9_1a0d7e38e03_-573c",
+          "gisId": "1983169543854386672600000000",
+          "registeredDongName": "5-5동 (5북서관)",
+          "relation": "VERIFIED_PART",
+          "status": "VERIFIED_PART",
+          "confidence": "high_cadastral",
+          "spatialRelationToAgora": {
+            "minDistance_m": 10.19,
+            "side": "North-East",
+            "touching": false
+          },
+          "evidence": [
+            "Cadastral dong name directly confirms assignment to Building 5 complex (5-5동, 5북서관).",
+            "Approval date 1983-09-09 aligns with the multi-phase construction of Building 5 extensions.",
+            "3,907.61 m² footprint forms the primary physical enclosure of Agora Plaza."
+          ]
+        }
+      ]
+    },
+    {
+      "semanticId": "lmk_agora_plaza",
+      "officialName": "아고라 광장",
+      "officialNameEn": "Agora Plaza",
+      "canonicalStatus": "PROMOTED_VERIFIED",
+      "currentAuthority": {
+        "status": "VERIFIED_PART",
+        "notes": "Officially verified outdoor plaza between Building 5/6 and Building 9. Polygon geometry verified from OpenStreetMap Way #1099894035.",
+        "promotionRuleSatisfied": "RULE_C"
+      },
+      "physicalParts": [
+        {
+          "sourceId": "osm_way_1099894035",
+          "featureId": "osm_way_1099894035",
+          "relation": "VERIFIED_PART",
+          "status": "VERIFIED_PART",
+          "confidence": "high",
+          "spatialRelationToAgora": {
+            "minDistance_m": 0.0,
+            "side": "Center",
+            "touching": true
+          },
+          "evidence": [
+            "8-vertex WGS84 closed polygon representing the paved plaza surface.",
+            "Directly surveyed in OSM with area 599.0 m².",
+            "Sits 10.19m southwest of Feature #1 (5-5동) and 93.30m northeast of Feature #12 (Building 9 candidate)."
+          ]
+        }
+      ]
+    }
+  ]
+}

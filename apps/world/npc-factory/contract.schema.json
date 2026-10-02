@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://inhagame.example/contracts/npc-factory-p0-0.1.schema.json",
+  "title": "INKYUNG-20 Population NPC batch",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["batch_id", "schema_version", "zone", "npc_count", "npcs"],
+  "properties": {
+    "batch_id": {"enum": ["INKYUNG-20-A", "INKYUNG-20-B", "INKYUNG-20-C"]},
+    "schema_version": {"const": "0.1"},
+    "zone": {"const": "C04_INKYUNG"},
+    "npc_count": {"const": 20},
+    "npcs": {"type": "array", "minItems": 20, "maxItems": 20, "items": {"$ref": "#/$defs/npc"}}
+  },
+  "$defs": {
+    "slot": {
+      "type": "object", "additionalProperties": false,
+      "required": ["location", "activity", "social_mode"],
+      "properties": {
+        "location": {"enum": ["inkyung_spawn", "inkyung_bench_east", "inkyung_bench_west", "inkyung_walkway", "inkyung_waterfront", "inkyung_photo_point", "transit_to_main_hall", "transit_to_student_center", "transit_to_building", "class_building_2", "class_building_4", "class_building_5", "class_building_6", "class_building_9", "class_hitech", "class_seoho", "class_lawschool", "class_60th", "study_jungseok", "life_student_center", "life_back_market_67", "life_back_market_91", "life_back_market_west", "life_back_market_north", "life_back_gate", "life_dorm_1", "life_dorm_2", "off_zone"]},
+        "activity": {"enum": ["idle", "walk", "sit", "drink_coffee", "use_phone", "read", "talk_with_friend", "take_photo", "listen_to_music", "eat_snack", "wait", "walk_to_class", "walk_to_club", "leave_zone"]},
+        "social_mode": {"enum": ["low", "medium", "high"]}
+      }
+    },
+    "hooks": {"type": "array", "minItems": 2, "maxItems": 4, "items": {"type": "string", "minLength": 2, "maxLength": 100}},
+    "relationship": {
+      "type": "object", "additionalProperties": false, "required": ["target_id", "type"],
+      "properties": {"target_id": {"type": "string", "pattern": "^INKYUNG-NPC-[0-9]{3}$"}, "type": {"enum": ["friend", "acquaintance", "clubmate", "coworker"]}}
+    },
+    "npc": {
+      "type": "object", "additionalProperties": false,
+      "required": ["npc_id", "archetype", "identity", "personality", "speech", "interests", "home_zone", "schedule", "relationships", "dialogue_hooks", "behavior_tags", "constraints"],
+      "properties": {
+        "npc_id": {"type": "string", "pattern": "^INKYUNG-NPC-[0-9]{3}$"},
+        "archetype": {"enum": ["student", "club_member", "teaching_assistant", "staff", "faculty", "shop_worker"]},
+        "identity": {
+          "type": "object", "additionalProperties": false,
+          "required": ["name", "age_band", "department_type", "year_level"],
+          "properties": {
+            "name": {"type": "string", "minLength": 2, "maxLength": 30},
+            "age_band": {"enum": ["early_20s", "mid_20s", "late_20s", "30s", "40s", "50s_plus"]},
+            "department_type": {"enum": ["humanities", "social_sciences", "engineering", "natural_sciences", "arts", "administration", "campus_service"]},
+            "year_level": {"type": ["integer", "null"], "minimum": 1, "maximum": 4}
+          }
+        },
+        "personality": {
+          "type": "object", "additionalProperties": false,
+          "required": ["traits", "social_energy", "talkativeness", "routine_preference"],
+          "properties": {
+            "traits": {"type": "array", "minItems": 2, "maxItems": 3, "uniqueItems": true, "items": {"enum": ["curious", "calm", "cheerful", "thoughtful", "patient", "wry", "practical", "gentle", "focused", "playful", "cautious", "generous"]}},
+            "social_energy": {"type": "number", "minimum": 0, "maximum": 1},
+            "talkativeness": {"type": "number", "minimum": 0, "maximum": 1},
+            "routine_preference": {"type": "number", "minimum": 0, "maximum": 1}
+          }
+        },
+        "speech": {
+          "type": "object", "additionalProperties": false, "required": ["tone", "tempo", "quirks"],
+          "properties": {
+            "tone": {"enum": ["casual_polite", "warm", "reserved", "crisp", "lighthearted"]},
+            "tempo": {"enum": ["slow", "normal", "quick"]},
+            "quirks": {"type": "array", "maxItems": 2, "uniqueItems": true, "items": {"enum": ["short_sentences", "soft_questions", "dry_humor", "precise_words", "gentle_pauses"]}}
+          }
+        },
+        "interests": {"type": "array", "minItems": 2, "maxItems": 3, "uniqueItems": true, "items": {"enum": ["reading", "photography", "music", "coffee", "sketching", "walking", "film", "plants", "design", "coding", "languages", "birdwatching", "cooking", "cycling", "architecture"]}},
+        "home_zone": {"const": "C04_INKYUNG"},
+        "schedule": {
+          "type": "object", "additionalProperties": false,
+          "required": ["morning", "class_time", "lunch", "evening"],
+          "properties": {"morning": {"$ref": "#/$defs/slot"}, "class_time": {"$ref": "#/$defs/slot"}, "lunch": {"$ref": "#/$defs/slot"}, "evening": {"$ref": "#/$defs/slot"}}
+        },
+        "relationships": {"type": "array", "maxItems": 3, "items": {"$ref": "#/$defs/relationship"}},
+        "dialogue_hooks": {
+          "type": "object", "additionalProperties": false,
+          "required": ["morning", "class_time", "lunch", "evening"],
+          "properties": {"morning": {"$ref": "#/$defs/hooks"}, "class_time": {"$ref": "#/$defs/hooks"}, "lunch": {"$ref": "#/$defs/hooks"}, "evening": {"$ref": "#/$defs/hooks"}}
+        },
+        "behavior_tags": {"type": "array", "minItems": 1, "maxItems": 3, "uniqueItems": true, "items": {"enum": ["observant", "reserved", "outgoing", "reader", "photographer", "coffee_fan", "club_goer", "helpful", "commuter", "music_fan", "routine_oriented", "slow_paced"]}},
+        "constraints": {
+          "type": "object", "additionalProperties": false,
+          "required": ["is_authored_npc", "can_start_quest", "can_change_world_state", "can_create_group", "can_modify_relationships_autonomously"],
+          "properties": {"is_authored_npc": {"const": false}, "can_start_quest": {"const": false}, "can_change_world_state": {"const": false}, "can_create_group": {"const": false}, "can_modify_relationships_autonomously": {"const": false}}
+        }
+      }
+    }
+  }
+}

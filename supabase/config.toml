@@ -1,0 +1,15 @@
+project_id = "p2-public-local"
+[api]
+port = 54321
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 17
+[db.seed]
+enabled = false
+[functions.ranked-run-start]
+verify_jwt = true
+[functions.ranked-run-finish]
+verify_jwt = true
+[functions.verify-inha-mail]
+verify_jwt = false

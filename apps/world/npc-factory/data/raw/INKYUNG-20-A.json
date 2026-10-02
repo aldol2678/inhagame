@@ -1,0 +1,1686 @@
+{
+  "batch_id": "INKYUNG-20-A",
+  "schema_version": "0.1",
+  "zone": "C04_INKYUNG",
+  "npc_count": 20,
+  "npcs": [
+    {
+      "npc_id": "INKYUNG-NPC-001",
+      "archetype": "student",
+      "identity": {
+        "name": "나나율",
+        "age_band": "mid_20s",
+        "department_type": "humanities",
+        "year_level": 4
+      },
+      "personality": {
+        "traits": [
+          "thoughtful",
+          "gentle",
+          "curious"
+        ],
+        "social_energy": 0.84,
+        "talkativeness": 0.62,
+        "routine_preference": 0.32
+      },
+      "speech": {
+        "tone": "casual_polite",
+        "tempo": "normal",
+        "quirks": [
+          "short_sentences"
+        ]
+      },
+      "interests": [
+        "architecture",
+        "cooking",
+        "sketching"
+      ],
+      "home_zone": "C04_INKYUNG",
+      "schedule": {
+        "morning": {
+          "location": "inkyung_spawn",
+          "activity": "idle",
+          "social_mode": "high"
+        },
+        "class_time": {
+          "location": "inkyung_waterfront",
+          "activity": "read",
+          "social_mode": "high"
+        },
+        "lunch": {
+          "location": "inkyung_bench_east",
+          "activity": "sit",
+          "social_mode": "high"
+        },
+        "evening": {
+          "location": "off_zone",
+          "activity": "leave_zone",
+          "social_mode": "low"
+        }
+      },
+      "relationships": [
+        {
+          "target_id": "INKYUNG-NPC-006",
+          "type": "friend"
+        }
+      ],
+      "dialogue_hooks": {
+        "morning": [
+          "인경호 쪽에서 잠깐 숨을 고르고 있어요. 여기서 조금 멈춰 있을게요.",
+          "아침에는 잠깐 여유를 두고 싶어요. 건물의 선을 따라 시선이 가요."
+        ],
+        "class_time": [
+          "호수 물가를 보니 마음이 가라앉아요. 읽던 글의 다음 문장이 궁금해요.",
+          "수업 시간에는 조금 조용해져요. 오늘 먹을 간단한 음식을 떠올려요."
+        ],
+        "lunch": [
+          "이 벤치에 앉으면 생각이 정리돼요. 잠깐 앉아 쉬어야겠어요.",
+          "점심에는 걸음이 느려지네요. 작은 풍경을 스케치하고 싶어요."
+        ],
+        "evening": [
+          "잠깐 자리를 떠났어요. 나중에 봐요. 다음에 또 들를게요.",
+          "저녁에는 말수가 줄어드는 편이에요. 건물의 선을 따라 시선이 가요."
+        ]
+      },
+      "behavior_tags": [
+        "slow_paced",
+        "outgoing"
+      ],
+      "constraints": {
+        "is_authored_npc": false,
+        "can_start_quest": false,
+        "can_change_world_state": false,
+        "can_create_group": false,
+        "can_modify_relationships_autonomously": false
+      }
+    },
+    {
+      "npc_id": "INKYUNG-NPC-002",
+      "archetype": "teaching_assistant",
+      "identity": {
+        "name": "가유담",
+        "age_band": "late_20s",
+        "department_type": "engineering",
+        "year_level": null
+      },
+      "personality": {
+        "traits": [
+          "wry",
+          "cautious"
+        ],
+        "social_energy": 0.74,
+        "talkativeness": 0.66,
+        "routine_preference": 0.8
+      },
+      "speech": {
+        "tone": "casual_polite",
+        "tempo": "quick",
+        "quirks": []
+      },
+      "interests": [
+        "photography",
+        "plants"
+      ],
+      "home_zone": "C04_INKYUNG",
+      "schedule": {
+        "morning": {
+          "location": "inkyung_spawn",
+          "activity": "wait",
+          "social_mode": "medium"
+        },
+        "class_time": {
+          "location": "transit_to_student_center",
+          "activity": "walk",
+          "social_mode": "medium"
+        },
+        "lunch": {
+          "location": "inkyung_photo_point",
+          "activity": "use_phone",
+          "social_mode": "medium"
+        },
+        "evening": {
+          "location": "inkyung_walkway",
+          "activity": "talk_with_friend",
+          "social_mode": "medium"
+        }
+      },
+      "relationships": [],
+      "dialogue_hooks": {
+        "morning": [
+          "인경호 쪽에서 잠깐 숨을 고르고 있어요. 조금만 더 기다려 볼게요.",
+          "아침에는 천천히 시작하는 편이에요. 길가의 잎 모양이 눈에 들어와요."
+        ],
+        "class_time": [
+          "이제 학생회관 쪽으로 이동해요. 천천히 걷는 중이에요.",
+          "수업 시간이라 주변 발걸음이 달라졌네요. 빛이 바뀌는 순간이 눈에 들어와요."
+        ],
+        "lunch": [
+          "여기 사진 포인트는 빛이 재미있어요. 휴대폰으로 메모를 확인해요.",
+          "점심 무렵에는 잠깐 쉬어 가요. 길가의 잎 모양이 눈에 들어와요."
+        ],
+        "evening": [
+          "이 길은 걸음 속도를 늦추게 해요. 친구와 짧게 이야기를 나눠요.",
+          "저녁에는 말수가 줄어드는 편이에요. 빛이 바뀌는 순간이 눈에 들어와요."
+        ]
+      },
+      "behavior_tags": [
+        "reserved",
+        "observant"
+      ],
+      "constraints": {
+        "is_authored_npc": false,
+        "can_start_quest": false,
+        "can_change_world_state": false,
+        "can_create_group": false,
+        "can_modify_relationships_autonomously": false
+      }
+    },
+    {
+      "npc_id": "INKYUNG-NPC-003",
+      "archetype": "shop_worker",
+      "identity": {
+        "name": "나수현",
+        "age_band": "30s",
+        "department_type": "campus_service",
+        "year_level": null
+      },
+      "personality": {
+        "traits": [
+          "curious",
+          "patient"
+        ],
+        "social_energy": 0.72,
+        "talkativeness": 0.57,
+        "routine_preference": 0.42
+      },
+      "speech": {
+        "tone": "casual_polite",
+        "tempo": "slow",
+        "quirks": []
+      },
+      "interests": [
+        "music",
+        "coding"
+      ],
+      "home_zone": "C04_INKYUNG",
+      "schedule": {
+        "morning": {
+          "location": "inkyung_waterfront",
+          "activity": "read",
+          "social_mode": "medium"
+        },
+        "class_time": {
+          "location": "transit_to_building",
+          "activity": "walk_to_class",
+          "social_mode": "medium"
+        },
+        "lunch": {
+          "location": "transit_to_main_hall",
+          "activity": "leave_zone",
+          "social_mode": "medium"
+        },
+        "evening": {
+          "location": "transit_to_main_hall",
+          "activity": "walk_to_class",
+          "social_mode": "medium"
+        }
+      },
+      "relationships": [
+        {
+          "target_id": "INKYUNG-NPC-012",
+          "type": "coworker"
+        }
+      ],
+      "dialogue_hooks": {
+        "morning": [
+          "인경호 물가에 잠깐 머물렀어요. 짧은 글을 읽는 중이에요.",
+          "아침 공기가 아직 차분하네요. 아까 들은 멜로디가 맴돌아요."
+        ],
+        "class_time": [
+          "다음 건물로 걸어가고 있어요. 수업에 맞춰 걸어가는 중이에요.",
+          "수업 시간에는 흐름을 따라 움직여요. 막혔던 코드 흐름이 문득 풀릴 것 같아요."
+        ],
+        "lunch": [
+          "이제 본관 쪽으로 이동해요. 다음에 또 들를게요.",
+          "점심 무렵에는 잠깐 쉬어 가요. 아까 들은 멜로디가 맴돌아요."
+        ],
+        "evening": [
+          "본관 쪽으로 이동하는 길이에요. 수업에 맞춰 걸어가는 중이에요.",
+          "저녁 공기가 조금 달라졌어요. 막혔던 코드 흐름이 문득 풀릴 것 같아요."
+        ]
+      },
+      "behavior_tags": [
+        "slow_paced",
+        "photographer"
+      ],
+      "constraints": {
+        "is_authored_npc": false,
+        "can_start_quest": false,
+        "can_change_world_state": false,
+        "can_create_group": false,
+        "can_modify_relationships_autonomously": false
+      }
+    },
+    {
+      "npc_id": "INKYUNG-NPC-004",
+      "archetype": "teaching_assistant",
+      "identity": {
+        "name": "나도윤",
+        "age_band": "50s_plus",
+        "department_type": "social_sciences",
+        "year_level": null
+      },
+      "personality": {
+        "traits": [
+          "playful",
+          "curious"
+        ],
+        "social_energy": 0.49,
+        "talkativeness": 0.23,
+        "routine_preference": 0.64
+      },
+      "speech": {
+        "tone": "casual_polite",
+        "tempo": "slow",
+        "quirks": [
+          "short_sentences"
+        ]
+      },
+      "interests": [
+        "design",
+        "photography"
+      ],
+      "home_zone": "C04_INKYUNG",
+      "schedule": {
+        "morning": {
+          "location": "transit_to_main_hall",
+          "activity": "leave_zone",
+          "social_mode": "medium"
+        },
+        "class_time": {
+          "location": "inkyung_photo_point",
+          "activity": "take_photo",
+          "social_mode": "medium"
+        },
+        "lunch": {
+          "location": "inkyung_bench_east",
+          "activity": "sit",
+          "social_mode": "medium"
+        },
+        "evening": {
+          "location": "inkyung_walkway",
+          "activity": "talk_with_friend",
+          "social_mode": "medium"
+        }
+      },
+      "relationships": [],
+      "dialogue_hooks": {
+        "morning": [
+          "이제 본관 쪽으로 이동해요. 다음에 또 들를게요.",
+          "아침에는 잠깐 여유를 두고 싶어요. 빛이 바뀌는 순간이 눈에 들어와요."
+        ],
+        "class_time": [
+          "여기 사진 포인트는 빛이 재미있어요. 지금 사진 한 장 찍어 볼게요.",
+          "수업 시간이라 주변 발걸음이 달라졌네요. 모양과 색 배치를 살펴보게 돼요."
+        ],
+        "lunch": [
+          "동쪽 벤치가 잠시 쉬기 좋네요. 앉아서 숨을 고르고 있어요.",
+          "점심 시간이 되니 숨을 돌리게 돼요. 빛이 바뀌는 순간이 눈에 들어와요."
+        ],
+        "evening": [
+          "산책로 쪽으로 발길이 가네요. 친구 말을 듣고 있어요.",
+          "저녁에는 하루를 천천히 접어요. 모양과 색 배치를 살펴보게 돼요."
+        ]
+      },
+      "behavior_tags": [
+        "outgoing",
+        "slow_paced"
+      ],
+      "constraints": {
+        "is_authored_npc": false,
+        "can_start_quest": false,
+        "can_change_world_state": false,
+        "can_create_group": false,
+        "can_modify_relationships_autonomously": false
+      }
+    },
+    {
+      "npc_id": "INKYUNG-NPC-005",
+      "archetype": "faculty",
+      "identity": {
+        "name": "나민서",
+        "age_band": "40s",
+        "department_type": "humanities",
+        "year_level": null
+      },
+      "personality": {
+        "traits": [
+          "curious",
+          "thoughtful"
+        ],
+        "social_energy": 0.86,
+        "talkativeness": 0.34,
+        "routine_preference": 0.72
+      },
+      "speech": {
+        "tone": "warm",
+        "tempo": "quick",
+        "quirks": []
+      },
+      "interests": [
+        "music",
+        "reading",
+        "walking"
+      ],
+      "home_zone": "C04_INKYUNG",
+      "schedule": {
+        "morning": {
+          "location": "transit_to_student_center",
+          "activity": "walk_to_club",
+          "social_mode": "medium"
+        },
+        "class_time": {
+          "location": "transit_to_student_center",
+          "activity": "walk_to_club",
+          "social_mode": "medium"
+        },
+        "lunch": {
+          "location": "transit_to_building",
+          "activity": "walk",
+          "social_mode": "medium"
+        },
+        "evening": {
+          "location": "transit_to_main_hall",
+          "activity": "leave_zone",
+          "social_mode": "medium"
+        }
+      },
+      "relationships": [],
+      "dialogue_hooks": {
+        "morning": [
+          "이제 학생회관 쪽으로 이동해요. 동아리 모임 장소로 이동해요.",
+          "아침에는 천천히 시작하는 편이에요. 읽던 글 한 줄이 자꾸 떠올라요."
+        ],
+        "class_time": [
+          "이제 학생회관 쪽으로 이동해요. 동아리 쪽으로 걸어가요.",
+          "수업 시간이라 주변 발걸음이 달라졌네요. 걷다 보면 생각이 정돈돼요."
+        ],
+        "lunch": [
+          "다음 건물로 걸어가고 있어요. 걸으면서 생각을 정리해요.",
+          "점심에는 걸음이 느려지네요. 아까 들은 멜로디가 맴돌아요."
+        ],
+        "evening": [
+          "본관 쪽으로 이동하는 길이에요. 이제 이 구역을 떠나요.",
+          "저녁에는 말수가 줄어드는 편이에요. 읽던 글 한 줄이 자꾸 떠올라요."
+        ]
+      },
+      "behavior_tags": [
+        "slow_paced",
+        "reserved"
+      ],
+      "constraints": {
+        "is_authored_npc": false,
+        "can_start_quest": false,
+        "can_change_world_state": false,
+        "can_create_group": false,
+        "can_modify_relationships_autonomously": false
+      }
+    },
+    {
+      "npc_id": "INKYUNG-NPC-006",
+      "archetype": "student",
+      "identity": {
+        "name": "나보민",
+        "age_band": "mid_20s",
+        "department_type": "natural_sciences",
+        "year_level": 2
+      },
+      "personality": {
+        "traits": [
+          "cautious",
+          "focused",
+          "generous"
+        ],
+        "social_energy": 0.74,
+        "talkativeness": 0.34,
+        "routine_preference": 0.88
+      },
+      "speech": {
+        "tone": "casual_polite",
+        "tempo": "normal",
+        "quirks": []
+      },
+      "interests": [
+        "birdwatching",
+        "reading"
+      ],
+      "home_zone": "C04_INKYUNG",
+      "schedule": {
+        "morning": {
+          "location": "transit_to_student_center",
+          "activity": "walk_to_club",
+          "social_mode": "high"
+        },
+        "class_time": {
+          "location": "inkyung_photo_point",
+          "activity": "take_photo",
+          "social_mode": "high"
+        },
+        "lunch": {
+          "location": "inkyung_spawn",
+          "activity": "idle",
+          "social_mode": "high"
+        },
+        "evening": {
+          "location": "inkyung_bench_west",
+          "activity": "sit",
+          "social_mode": "high"
+        }
+      },
+      "relationships": [
+        {
+          "target_id": "INKYUNG-NPC-001",
+          "type": "friend"
+        }
+      ],
+      "dialogue_hooks": {
+        "morning": [
+          "학생회관 쪽으로 이동 중이에요. 동아리 모임 장소로 이동해요.",
+          "아침에는 잠깐 여유를 두고 싶어요. 읽던 글 한 줄이 자꾸 떠올라요."
+        ],
+        "class_time": [
+          "여기 사진 포인트는 빛이 재미있어요. 사진 구도를 조금 바꿔 봐요.",
+          "수업 시간에는 조금 조용해져요. 새소리가 들리면 잠깐 귀를 기울여요."
+        ],
+        "lunch": [
+          "인경호 쪽에서 잠깐 숨을 고르고 있어요. 여기서 조금 멈춰 있을게요.",
+          "점심 시간이 되니 숨을 돌리게 돼요. 읽던 글 한 줄이 자꾸 떠올라요."
+        ],
+        "evening": [
+          "이 벤치가 오늘은 조용하네요. 잠깐 앉아 쉬어야겠어요.",
+          "저녁에는 하루를 천천히 접어요. 새소리가 들리면 잠깐 귀를 기울여요."
+        ]
+      },
+      "behavior_tags": [
+        "music_fan",
+        "routine_oriented"
+      ],
+      "constraints": {
+        "is_authored_npc": false,
+        "can_start_quest": false,
+        "can_change_world_state": false,
+        "can_create_group": false,
+        "can_modify_relationships_autonomously": false
+      }
+    },
+    {
+      "npc_id": "INKYUNG-NPC-007",
+      "archetype": "student",
+      "identity": {
+        "name": "가이든",
+        "age_band": "early_20s",
+        "department_type": "arts",
+        "year_level": 2
+      },
+      "personality": {
+        "traits": [
+          "wry",
+          "calm"
+        ],
+        "social_energy": 0.63,
+        "talkativeness": 0.71,
+        "routine_preference": 0.22
+      },
+      "speech": {
+        "tone": "crisp",
+        "tempo": "normal",
+        "quirks": [
+          "gentle_pauses"
+        ]
+      },
+      "interests": [
+        "design",
+        "reading"
+      ],
+      "home_zone": "C04_INKYUNG",
+      "schedule": {
+        "morning": {
+          "location": "off_zone",
+          "activity": "leave_zone",
+          "social_mode": "low"
+        },
+        "class_time": {
+          "location": "off_zone",
+          "activity": "leave_zone",
+          "social_mode": "low"
+        },
+        "lunch": {
+          "location": "inkyung_waterfront",
+          "activity": "drink_coffee",
+          "social_mode": "medium"
+        },
+        "evening": {
+          "location": "inkyung_waterfront",
+          "activity": "drink_coffee",
+          "social_mode": "medium"
+        }
+      },
+      "relationships": [
+        {
+          "target_id": "INKYUNG-NPC-013",
+          "type": "acquaintance"
+        }
+      ],
+      "dialogue_hooks": {
+        "morning": [
+          "이제 이 구역 밖으로 나가요. 다음에 또 들를게요.",
+          "아침에는 잠깐 여유를 두고 싶어요. 모양과 색 배치를 살펴보게 돼요."
+        ],
+        "class_time": [
+          "오늘은 이만 떠나요. 나중에 만나요. 이제 이 구역을 떠나요.",
+          "수업 시간에는 조금 조용해져요. 읽던 글 한 줄이 자꾸 떠올라요."
+        ],
+        "lunch": [
+          "호수 옆 공기가 시원하네요. 커피를 한 모금 마시고 있어요.",
+          "점심에는 걸음이 느려지네요. 모양과 색 배치를 살펴보게 돼요."
+        ],
+        "evening": [
+          "호수 물가를 보니 마음이 가라앉아요. 커피가 아직 따뜻하네요.",
+          "저녁에는 말수가 줄어드는 편이에요. 읽던 글 한 줄이 자꾸 떠올라요."
+        ]
+      },
+      "behavior_tags": [
+        "routine_oriented",
+        "observant"
+      ],
+      "constraints": {
+        "is_authored_npc": false,
+        "can_start_quest": false,
+        "can_change_world_state": false,
+        "can_create_group": false,
+        "can_modify_relationships_autonomously": false
+      }
+    },
+    {
+      "npc_id": "INKYUNG-NPC-008",
+      "archetype": "club_member",
+      "identity": {
+        "name": "가하람",
+        "age_band": "early_20s",
+        "department_type": "social_sciences",
+        "year_level": 3
+      },
+      "personality": {
+        "traits": [
+          "cautious",
+          "playful"
+        ],
+        "social_energy": 0.5,
+        "talkativeness": 0.83,
+        "routine_preference": 0.46
+      },
+      "speech": {
+        "tone": "crisp",
+        "tempo": "normal",
+        "quirks": []
+      },
+      "interests": [
+        "cooking",
+        "cycling"
+      ],
+      "home_zone": "C04_INKYUNG",
+      "schedule": {
+        "morning": {
+          "location": "transit_to_building",
+          "activity": "leave_zone",
+          "social_mode": "medium"
+        },
+        "class_time": {
+          "location": "transit_to_building",
+          "activity": "leave_zone",
+          "social_mode": "medium"
+        },
+        "lunch": {
+          "location": "off_zone",
+          "activity": "leave_zone",
+          "social_mode": "low"
+        },
+        "evening": {
+          "location": "off_zone",
+          "activity": "leave_zone",
+          "social_mode": "low"
+        }
+      },
+      "relationships": [
+        {
+          "target_id": "INKYUNG-NPC-011",
+          "type": "clubmate"
+        }
+      ],
+      "dialogue_hooks": {
+        "morning": [
+          "다음 건물로 걸어가고 있어요. 다음에 또 들를게요.",
+          "아침 공기가 아직 차분하네요. 자전거 타기 좋은 바람이네요."
+        ],
+        "class_time": [
+          "건물 쪽으로 이동하는 중이에요. 다음에 또 들를게요.",
+          "수업 시간에는 흐름을 따라 움직여요. 오늘 먹을 간단한 음식을 떠올려요."
+        ],
+        "lunch": [
+          "오늘은 이만 떠나요. 나중에 만나요. 이제 이 구역을 떠나요.",
+          "점심 시간이 되니 숨을 돌리게 돼요. 자전거 타기 좋은 바람이네요."
+        ],
+        "evening": [
+          "잠깐 자리를 떠났어요. 나중에 봐요. 다음에 또 들를게요.",
+          "저녁에는 말수가 줄어드는 편이에요. 오늘 먹을 간단한 음식을 떠올려요."
+        ]
+      },
+      "behavior_tags": [
+        "photographer",
+        "reader"
+      ],
+      "constraints": {
+        "is_authored_npc": false,
+        "can_start_quest": false,
+        "can_change_world_state": false,
+        "can_create_group": false,
+        "can_modify_relationships_autonomously": false
+      }
+    },
+    {
+      "npc_id": "INKYUNG-NPC-009",
+      "archetype": "student",
+      "identity": {
+        "name": "나유담",
+        "age_band": "early_20s",
+        "department_type": "humanities",
+        "year_level": 4
+      },
+      "personality": {
+        "traits": [
+          "focused",
+          "patient"
+        ],
+        "social_energy": 0.36,
+        "talkativeness": 0.82,
+        "routine_preference": 0.26
+      },
+      "speech": {
+        "tone": "warm",
+        "tempo": "slow",
+        "quirks": []
+      },
+      "interests": [
+        "music",
+        "cycling",
+        "coding"
+      ],
+      "home_zone": "C04_INKYUNG",
+      "schedule": {
+        "morning": {
+          "location": "inkyung_photo_point",
+          "activity": "wait",
+          "social_mode": "low"
+        },
+        "class_time": {
+          "location": "inkyung_walkway",
+          "activity": "listen_to_music",
+          "social_mode": "low"
+        },
+        "lunch": {
+          "location": "inkyung_bench_west",
+          "activity": "read",
+          "social_mode": "low"
+        },
+        "evening": {
+          "location": "transit_to_building",
+          "activity": "walk",
+          "social_mode": "low"
+        }
+      },
+      "relationships": [],
+      "dialogue_hooks": {
+        "morning": [
+          "사진 한 장 찍고 지나갈까 해요. 잠깐 기다리는 중이에요.",
+          "아침에는 잠깐 여유를 두고 싶어요. 막혔던 코드 흐름이 문득 풀릴 것 같아요."
+        ],
+        "class_time": [
+          "산책로를 따라 천천히 걷고 있어요. 음악 한 곡을 듣고 있어요.",
+          "수업 시간이라 주변 발걸음이 달라졌네요. 아까 들은 멜로디가 맴돌아요."
+        ],
+        "lunch": [
+          "서쪽 벤치에서 쉬어 가고 있어요. 짧은 글을 읽는 중이에요.",
+          "점심에는 걸음이 느려지네요. 자전거 타기 좋은 바람이네요."
+        ],
+        "evening": [
+          "건물 쪽으로 이동하는 중이에요. 천천히 걷는 중이에요.",
+          "저녁 공기가 조금 달라졌어요. 막혔던 코드 흐름이 문득 풀릴 것 같아요."
+        ]
+      },
+      "behavior_tags": [
+        "routine_oriented",
+        "photographer"
+      ],
+      "constraints": {
+        "is_authored_npc": false,
+        "can_start_quest": false,
+        "can_change_world_state": false,
+        "can_create_group": false,
+        "can_modify_relationships_autonomously": false
+      }
+    },
+    {
+      "npc_id": "INKYUNG-NPC-010",
+      "archetype": "student",
+      "identity": {
+        "name": "가나율",
+        "age_band": "early_20s",
+        "department_type": "natural_sciences",
+        "year_level": 3
+      },
+      "personality": {
+        "traits": [
+          "cautious",
+          "calm"
+        ],
+        "social_energy": 0.7,
+        "talkativeness": 0.36,
+        "routine_preference": 0.81
+      },
+      "speech": {
+        "tone": "casual_polite",
+        "tempo": "slow",
+        "quirks": [
+          "gentle_pauses"
+        ]
+      },
+      "interests": [
+        "sketching",
+        "coding"
+      ],
+      "home_zone": "C04_INKYUNG",
+      "schedule": {
+        "morning": {
+          "location": "inkyung_walkway",
+          "activity": "talk_with_friend",
+          "social_mode": "medium"
+        },
+        "class_time": {
+          "location": "inkyung_spawn",
+          "activity": "use_phone",
+          "social_mode": "medium"
+        },
+        "lunch": {
+          "location": "inkyung_photo_point",
+          "activity": "use_phone",
+          "social_mode": "medium"
+        },
+        "evening": {
+          "location": "off_zone",
+          "activity": "leave_zone",
+          "social_mode": "low"
+        }
+      },
+      "relationships": [],
+      "dialogue_hooks": {
+        "morning": [
+          "산책로 쪽으로 발길이 가네요. 친구와 짧게 이야기를 나눠요.",
+          "아침 공기가 아직 차분하네요. 막혔던 코드 흐름이 문득 풀릴 것 같아요."
+        ],
+        "class_time": [
+          "입구에서 사람 흐름을 보고 있어요. 휴대폰으로 메모를 확인해요.",
+          "수업 시간이라 주변 발걸음이 달라졌네요. 작은 풍경을 스케치하고 싶어요."
+        ],
+        "lunch": [
+          "여기 사진 포인트는 빛이 재미있어요. 휴대폰으로 메모를 확인해요.",
+          "점심에는 걸음이 느려지네요. 막혔던 코드 흐름이 문득 풀릴 것 같아요."
+        ],
+        "evening": [
+          "이제 이 구역 밖으로 나가요. 다음에 또 들를게요.",
+          "저녁에는 말수가 줄어드는 편이에요. 작은 풍경을 스케치하고 싶어요."
+        ]
+      },
+      "behavior_tags": [
+        "coffee_fan",
+        "helpful"
+      ],
+      "constraints": {
+        "is_authored_npc": false,
+        "can_start_quest": false,
+        "can_change_world_state": false,
+        "can_create_group": false,
+        "can_modify_relationships_autonomously": false
+      }
+    },
+    {
+      "npc_id": "INKYUNG-NPC-011",
+      "archetype": "club_member",
+      "identity": {
+        "name": "가서안",
+        "age_band": "early_20s",
+        "department_type": "engineering",
+        "year_level": 3
+      },
+      "personality": {
+        "traits": [
+          "curious",
+          "playful",
+          "calm"
+        ],
+        "social_energy": 0.84,
+        "talkativeness": 0.54,
+        "routine_preference": 0.85
+      },
+      "speech": {
+        "tone": "casual_polite",
+        "tempo": "quick",
+        "quirks": []
+      },
+      "interests": [
+        "coding",
+        "walking"
+      ],
+      "home_zone": "C04_INKYUNG",
+      "schedule": {
+        "morning": {
+          "location": "transit_to_building",
+          "activity": "leave_zone",
+          "social_mode": "high"
+        },
+        "class_time": {
+          "location": "transit_to_main_hall",
+          "activity": "walk_to_class",
+          "social_mode": "high"
+        },
+        "lunch": {
+          "location": "inkyung_bench_west",
+          "activity": "drink_coffee",
+          "social_mode": "high"
+        },
+        "evening": {
+          "location": "inkyung_bench_west",
+          "activity": "read",
+          "social_mode": "high"
+        }
+      },
+      "relationships": [
+        {
+          "target_id": "INKYUNG-NPC-008",
+          "type": "clubmate"
+        }
+      ],
+      "dialogue_hooks": {
+        "morning": [
+          "건물 쪽으로 이동하는 중이에요. 다음에 또 들를게요.",
+          "아침 공기가 아직 차분하네요. 막혔던 코드 흐름이 문득 풀릴 것 같아요."
+        ],
+        "class_time": [
+          "이제 본관 쪽으로 이동해요. 수업 쪽으로 발걸음을 옮겨요.",
+          "수업 시간에는 흐름을 따라 움직여요. 걷다 보면 생각이 정돈돼요."
+        ],
+        "lunch": [
+          "서쪽 벤치에서 쉬어 가고 있어요. 커피를 한 모금 마시고 있어요.",
+          "점심 시간이 되니 숨을 돌리게 돼요. 막혔던 코드 흐름이 문득 풀릴 것 같아요."
+        ],
+        "evening": [
+          "이 벤치가 오늘은 조용하네요. 읽던 글의 다음 문장이 궁금해요.",
+          "저녁에는 하루를 천천히 접어요. 걷다 보면 생각이 정돈돼요."
+        ]
+      },
+      "behavior_tags": [
+        "club_goer",
+        "helpful"
+      ],
+      "constraints": {
+        "is_authored_npc": false,
+        "can_start_quest": false,
+        "can_change_world_state": false,
+        "can_create_group": false,
+        "can_modify_relationships_autonomously": false
+      }
+    },
+    {
+      "npc_id": "INKYUNG-NPC-012",
+      "archetype": "shop_worker",
+      "identity": {
+        "name": "가지안",
+        "age_band": "late_20s",
+        "department_type": "campus_service",
+        "year_level": null
+      },
+      "personality": {
+        "traits": [
+          "generous",
+          "playful"
+        ],
+        "social_energy": 0.89,
+        "talkativeness": 0.61,
+        "routine_preference": 0.5
+      },
+      "speech": {
+        "tone": "lighthearted",
+        "tempo": "normal",
+        "quirks": []
+      },
+      "interests": [
+        "coding",
+        "cooking"
+      ],
+      "home_zone": "C04_INKYUNG",
+      "schedule": {
+        "morning": {
+          "location": "inkyung_waterfront",
+          "activity": "read",
+          "social_mode": "medium"
+        },
+        "class_time": {
+          "location": "inkyung_bench_west",
+          "activity": "drink_coffee",
+          "social_mode": "medium"
+        },
+        "lunch": {
+          "location": "transit_to_building",
+          "activity": "walk_to_class",
+          "social_mode": "medium"
+        },
+        "evening": {
+          "location": "transit_to_building",
+          "activity": "leave_zone",
+          "social_mode": "medium"
+        }
+      },
+      "relationships": [
+        {
+          "target_id": "INKYUNG-NPC-003",
+          "type": "coworker"
+        }
+      ],
+      "dialogue_hooks": {
+        "morning": [
+          "인경호 물가에 잠깐 머물렀어요. 읽던 글의 다음 문장이 궁금해요.",
+          "아침 공기가 아직 차분하네요. 오늘 먹을 간단한 음식을 떠올려요."
+        ],
+        "class_time": [
+          "서쪽 벤치에서 쉬어 가고 있어요. 커피가 아직 따뜻하네요.",
+          "수업 시간에는 흐름을 따라 움직여요. 막혔던 코드 흐름이 문득 풀릴 것 같아요."
+        ],
+        "lunch": [
+          "건물 방향으로 발길을 돌려요. 수업 쪽으로 발걸음을 옮겨요.",
+          "점심에는 걸음이 느려지네요. 오늘 먹을 간단한 음식을 떠올려요."
+        ],
+        "evening": [
+          "건물 쪽으로 이동하는 중이에요. 다음에 또 들를게요.",
+          "저녁에는 말수가 줄어드는 편이에요. 막혔던 코드 흐름이 문득 풀릴 것 같아요."
+        ]
+      },
+      "behavior_tags": [
+        "photographer",
+        "routine_oriented"
+      ],
+      "constraints": {
+        "is_authored_npc": false,
+        "can_start_quest": false,
+        "can_change_world_state": false,
+        "can_create_group": false,
+        "can_modify_relationships_autonomously": false
+      }
+    },
+    {
+      "npc_id": "INKYUNG-NPC-013",
+      "archetype": "club_member",
+      "identity": {
+        "name": "가태린",
+        "age_band": "early_20s",
+        "department_type": "natural_sciences",
+        "year_level": 2
+      },
+      "personality": {
+        "traits": [
+          "playful",
+          "generous"
+        ],
+        "social_energy": 0.76,
+        "talkativeness": 0.88,
+        "routine_preference": 0.26
+      },
+      "speech": {
+        "tone": "casual_polite",
+        "tempo": "normal",
+        "quirks": [
+          "short_sentences"
+        ]
+      },
+      "interests": [
+        "film",
+        "walking",
+        "cooking"
+      ],
+      "home_zone": "C04_INKYUNG",
+      "schedule": {
+        "morning": {
+          "location": "off_zone",
+          "activity": "leave_zone",
+          "social_mode": "low"
+        },
+        "class_time": {
+          "location": "transit_to_main_hall",
+          "activity": "walk",
+          "social_mode": "medium"
+        },
+        "lunch": {
+          "location": "inkyung_walkway",
+          "activity": "walk",
+          "social_mode": "medium"
+        },
+        "evening": {
+          "location": "inkyung_bench_east",
+          "activity": "sit",
+          "social_mode": "medium"
+        }
+      },
+      "relationships": [],
+      "dialogue_hooks": {
+        "morning": [
+          "오늘은 이만 떠나요. 나중에 만나요. 다음에 또 들를게요.",
+          "아침 공기가 아직 차분하네요. 어제 본 영화 장면을 다시 생각해요."
+        ],
+        "class_time": [
+          "본관 쪽으로 이동하는 길이에요. 걸으면서 생각을 정리해요.",
+          "수업 시간에는 흐름을 따라 움직여요. 걷다 보면 생각이 정돈돼요."
+        ],
+        "lunch": [
+          "산책로를 따라 천천히 걷고 있어요. 걸으면서 생각을 정리해요.",
+          "점심 시간이 되니 숨을 돌리게 돼요. 오늘 먹을 간단한 음식을 떠올려요."
+        ],
+        "evening": [
+          "동쪽 벤치에는 바람이 가볍게 와요. 잠깐 앉아 쉬어야겠어요.",
+          "저녁에는 말수가 줄어드는 편이에요. 어제 본 영화 장면을 다시 생각해요."
+        ]
+      },
+      "behavior_tags": [
+        "slow_paced",
+        "reader"
+      ],
+      "constraints": {
+        "is_authored_npc": false,
+        "can_start_quest": false,
+        "can_change_world_state": false,
+        "can_create_group": false,
+        "can_modify_relationships_autonomously": false
+      }
+    },
+    {
+      "npc_id": "INKYUNG-NPC-014",
+      "archetype": "staff",
+      "identity": {
+        "name": "나서안",
+        "age_band": "40s",
+        "department_type": "administration",
+        "year_level": null
+      },
+      "personality": {
+        "traits": [
+          "cautious",
+          "curious"
+        ],
+        "social_energy": 0.5,
+        "talkativeness": 0.32,
+        "routine_preference": 0.37
+      },
+      "speech": {
+        "tone": "casual_polite",
+        "tempo": "normal",
+        "quirks": []
+      },
+      "interests": [
+        "architecture",
+        "plants"
+      ],
+      "home_zone": "C04_INKYUNG",
+      "schedule": {
+        "morning": {
+          "location": "inkyung_photo_point",
+          "activity": "wait",
+          "social_mode": "medium"
+        },
+        "class_time": {
+          "location": "inkyung_walkway",
+          "activity": "walk",
+          "social_mode": "medium"
+        },
+        "lunch": {
+          "location": "transit_to_student_center",
+          "activity": "walk_to_club",
+          "social_mode": "medium"
+        },
+        "evening": {
+          "location": "inkyung_photo_point",
+          "activity": "wait",
+          "social_mode": "medium"
+        }
+      },
+      "relationships": [],
+      "dialogue_hooks": {
+        "morning": [
+          "여기 사진 포인트는 빛이 재미있어요. 잠깐 기다리는 중이에요.",
+          "아침에는 천천히 시작하는 편이에요. 길가의 잎 모양이 눈에 들어와요."
+        ],
+        "class_time": [
+          "이 길은 걸음 속도를 늦추게 해요. 걸으면서 생각을 정리해요.",
+          "수업 시간에는 흐름을 따라 움직여요. 건물의 선을 따라 시선이 가요."
+        ],
+        "lunch": [
+          "학생회관 방향으로 걸음을 옮겨요. 동아리 모임 장소로 이동해요.",
+          "점심 시간이 되니 숨을 돌리게 돼요. 길가의 잎 모양이 눈에 들어와요."
+        ],
+        "evening": [
+          "사진 포인트에서 구도를 살펴봐요. 조금만 더 기다려 볼게요.",
+          "저녁 공기가 조금 달라졌어요. 건물의 선을 따라 시선이 가요."
+        ]
+      },
+      "behavior_tags": [
+        "observant",
+        "outgoing"
+      ],
+      "constraints": {
+        "is_authored_npc": false,
+        "can_start_quest": false,
+        "can_change_world_state": false,
+        "can_create_group": false,
+        "can_modify_relationships_autonomously": false
+      }
+    },
+    {
+      "npc_id": "INKYUNG-NPC-015",
+      "archetype": "student",
+      "identity": {
+        "name": "가도윤",
+        "age_band": "early_20s",
+        "department_type": "arts",
+        "year_level": 3
+      },
+      "personality": {
+        "traits": [
+          "playful",
+          "cheerful"
+        ],
+        "social_energy": 0.5,
+        "talkativeness": 0.49,
+        "routine_preference": 0.37
+      },
+      "speech": {
+        "tone": "warm",
+        "tempo": "normal",
+        "quirks": []
+      },
+      "interests": [
+        "cycling",
+        "design"
+      ],
+      "home_zone": "C04_INKYUNG",
+      "schedule": {
+        "morning": {
+          "location": "inkyung_bench_east",
+          "activity": "read",
+          "social_mode": "medium"
+        },
+        "class_time": {
+          "location": "off_zone",
+          "activity": "leave_zone",
+          "social_mode": "low"
+        },
+        "lunch": {
+          "location": "inkyung_walkway",
+          "activity": "talk_with_friend",
+          "social_mode": "medium"
+        },
+        "evening": {
+          "location": "inkyung_photo_point",
+          "activity": "take_photo",
+          "social_mode": "medium"
+        }
+      },
+      "relationships": [],
+      "dialogue_hooks": {
+        "morning": [
+          "동쪽 벤치가 잠시 쉬기 좋네요. 읽던 글의 다음 문장이 궁금해요.",
+          "아침에는 천천히 시작하는 편이에요. 자전거 타기 좋은 바람이네요."
+        ],
+        "class_time": [
+          "잠깐 자리를 떠났어요. 나중에 봐요. 이제 이 구역을 떠나요.",
+          "수업 시간이라 주변 발걸음이 달라졌네요. 모양과 색 배치를 살펴보게 돼요."
+        ],
+        "lunch": [
+          "산책로를 따라 천천히 걷고 있어요. 친구와 짧게 이야기를 나눠요.",
+          "점심 무렵에는 잠깐 쉬어 가요. 자전거 타기 좋은 바람이네요."
+        ],
+        "evening": [
+          "여기 사진 포인트는 빛이 재미있어요. 사진 구도를 조금 바꿔 봐요.",
+          "저녁 공기가 조금 달라졌어요. 모양과 색 배치를 살펴보게 돼요."
+        ]
+      },
+      "behavior_tags": [
+        "coffee_fan",
+        "slow_paced"
+      ],
+      "constraints": {
+        "is_authored_npc": false,
+        "can_start_quest": false,
+        "can_change_world_state": false,
+        "can_create_group": false,
+        "can_modify_relationships_autonomously": false
+      }
+    },
+    {
+      "npc_id": "INKYUNG-NPC-016",
+      "archetype": "student",
+      "identity": {
+        "name": "가라온",
+        "age_band": "early_20s",
+        "department_type": "natural_sciences",
+        "year_level": 3
+      },
+      "personality": {
+        "traits": [
+          "patient",
+          "practical",
+          "generous"
+        ],
+        "social_energy": 0.72,
+        "talkativeness": 0.37,
+        "routine_preference": 0.63
+      },
+      "speech": {
+        "tone": "crisp",
+        "tempo": "slow",
+        "quirks": [
+          "dry_humor"
+        ]
+      },
+      "interests": [
+        "birdwatching",
+        "walking"
+      ],
+      "home_zone": "C04_INKYUNG",
+      "schedule": {
+        "morning": {
+          "location": "transit_to_main_hall",
+          "activity": "leave_zone",
+          "social_mode": "high"
+        },
+        "class_time": {
+          "location": "inkyung_bench_west",
+          "activity": "drink_coffee",
+          "social_mode": "high"
+        },
+        "lunch": {
+          "location": "off_zone",
+          "activity": "leave_zone",
+          "social_mode": "low"
+        },
+        "evening": {
+          "location": "transit_to_student_center",
+          "activity": "leave_zone",
+          "social_mode": "high"
+        }
+      },
+      "relationships": [],
+      "dialogue_hooks": {
+        "morning": [
+          "이제 본관 쪽으로 이동해요. 다음에 또 들를게요.",
+          "아침에는 잠깐 여유를 두고 싶어요. 걷다 보면 생각이 정돈돼요."
+        ],
+        "class_time": [
+          "서쪽 벤치에서 쉬어 가고 있어요. 커피를 한 모금 마시고 있어요.",
+          "수업 시간에는 흐름을 따라 움직여요. 새소리가 들리면 잠깐 귀를 기울여요."
+        ],
+        "lunch": [
+          "잠깐 자리를 떠났어요. 나중에 봐요. 다음에 또 들를게요.",
+          "점심 무렵에는 잠깐 쉬어 가요. 걷다 보면 생각이 정돈돼요."
+        ],
+        "evening": [
+          "이제 학생회관 쪽으로 이동해요. 이제 이 구역을 떠나요.",
+          "저녁 공기가 조금 달라졌어요. 새소리가 들리면 잠깐 귀를 기울여요."
+        ]
+      },
+      "behavior_tags": [
+        "club_goer",
+        "slow_paced"
+      ],
+      "constraints": {
+        "is_authored_npc": false,
+        "can_start_quest": false,
+        "can_change_world_state": false,
+        "can_create_group": false,
+        "can_modify_relationships_autonomously": false
+      }
+    },
+    {
+      "npc_id": "INKYUNG-NPC-017",
+      "archetype": "student",
+      "identity": {
+        "name": "가수현",
+        "age_band": "mid_20s",
+        "department_type": "social_sciences",
+        "year_level": 2
+      },
+      "personality": {
+        "traits": [
+          "practical",
+          "curious"
+        ],
+        "social_energy": 0.35,
+        "talkativeness": 0.4,
+        "routine_preference": 0.77
+      },
+      "speech": {
+        "tone": "warm",
+        "tempo": "normal",
+        "quirks": []
+      },
+      "interests": [
+        "design",
+        "photography",
+        "cycling"
+      ],
+      "home_zone": "C04_INKYUNG",
+      "schedule": {
+        "morning": {
+          "location": "inkyung_bench_west",
+          "activity": "sit",
+          "social_mode": "low"
+        },
+        "class_time": {
+          "location": "inkyung_waterfront",
+          "activity": "walk",
+          "social_mode": "low"
+        },
+        "lunch": {
+          "location": "inkyung_spawn",
+          "activity": "use_phone",
+          "social_mode": "low"
+        },
+        "evening": {
+          "location": "inkyung_waterfront",
+          "activity": "read",
+          "social_mode": "low"
+        }
+      },
+      "relationships": [],
+      "dialogue_hooks": {
+        "morning": [
+          "이 벤치가 오늘은 조용하네요. 앉아서 숨을 고르고 있어요.",
+          "아침에는 잠깐 여유를 두고 싶어요. 빛이 바뀌는 순간이 눈에 들어와요."
+        ],
+        "class_time": [
+          "호수 옆 공기가 시원하네요. 천천히 걷는 중이에요.",
+          "수업 시간에는 흐름을 따라 움직여요. 자전거 타기 좋은 바람이네요."
+        ],
+        "lunch": [
+          "입구에서 사람 흐름을 보고 있어요. 휴대폰으로 메모를 확인해요.",
+          "점심 무렵에는 잠깐 쉬어 가요. 모양과 색 배치를 살펴보게 돼요."
+        ],
+        "evening": [
+          "호수 옆 공기가 시원하네요. 짧은 글을 읽는 중이에요.",
+          "저녁에는 말수가 줄어드는 편이에요. 빛이 바뀌는 순간이 눈에 들어와요."
+        ]
+      },
+      "behavior_tags": [
+        "reserved",
+        "music_fan"
+      ],
+      "constraints": {
+        "is_authored_npc": false,
+        "can_start_quest": false,
+        "can_change_world_state": false,
+        "can_create_group": false,
+        "can_modify_relationships_autonomously": false
+      }
+    },
+    {
+      "npc_id": "INKYUNG-NPC-018",
+      "archetype": "staff",
+      "identity": {
+        "name": "가민서",
+        "age_band": "30s",
+        "department_type": "administration",
+        "year_level": null
+      },
+      "personality": {
+        "traits": [
+          "curious",
+          "practical"
+        ],
+        "social_energy": 0.54,
+        "talkativeness": 0.81,
+        "routine_preference": 0.77
+      },
+      "speech": {
+        "tone": "crisp",
+        "tempo": "normal",
+        "quirks": []
+      },
+      "interests": [
+        "film",
+        "cooking"
+      ],
+      "home_zone": "C04_INKYUNG",
+      "schedule": {
+        "morning": {
+          "location": "inkyung_bench_east",
+          "activity": "use_phone",
+          "social_mode": "medium"
+        },
+        "class_time": {
+          "location": "inkyung_bench_east",
+          "activity": "sit",
+          "social_mode": "medium"
+        },
+        "lunch": {
+          "location": "transit_to_main_hall",
+          "activity": "walk_to_class",
+          "social_mode": "medium"
+        },
+        "evening": {
+          "location": "off_zone",
+          "activity": "leave_zone",
+          "social_mode": "low"
+        }
+      },
+      "relationships": [],
+      "dialogue_hooks": {
+        "morning": [
+          "동쪽 벤치에는 바람이 가볍게 와요. 휴대폰 화면을 잠깐 보고 있어요.",
+          "아침에는 천천히 시작하는 편이에요. 오늘 먹을 간단한 음식을 떠올려요."
+        ],
+        "class_time": [
+          "이 벤치에 앉으면 생각이 정리돼요. 앉아서 숨을 고르고 있어요.",
+          "수업 시간에는 흐름을 따라 움직여요. 어제 본 영화 장면을 다시 생각해요."
+        ],
+        "lunch": [
+          "이제 본관 쪽으로 이동해요. 수업 쪽으로 발걸음을 옮겨요.",
+          "점심 시간이 되니 숨을 돌리게 돼요. 오늘 먹을 간단한 음식을 떠올려요."
+        ],
+        "evening": [
+          "오늘은 이만 떠나요. 나중에 만나요. 다음에 또 들를게요.",
+          "저녁 공기가 조금 달라졌어요. 어제 본 영화 장면을 다시 생각해요."
+        ]
+      },
+      "behavior_tags": [
+        "slow_paced",
+        "club_goer"
+      ],
+      "constraints": {
+        "is_authored_npc": false,
+        "can_start_quest": false,
+        "can_change_world_state": false,
+        "can_create_group": false,
+        "can_modify_relationships_autonomously": false
+      }
+    },
+    {
+      "npc_id": "INKYUNG-NPC-019",
+      "archetype": "student",
+      "identity": {
+        "name": "나라온",
+        "age_band": "early_20s",
+        "department_type": "engineering",
+        "year_level": 2
+      },
+      "personality": {
+        "traits": [
+          "patient",
+          "wry"
+        ],
+        "social_energy": 0.64,
+        "talkativeness": 0.35,
+        "routine_preference": 0.44
+      },
+      "speech": {
+        "tone": "casual_polite",
+        "tempo": "normal",
+        "quirks": [
+          "short_sentences"
+        ]
+      },
+      "interests": [
+        "film",
+        "music"
+      ],
+      "home_zone": "C04_INKYUNG",
+      "schedule": {
+        "morning": {
+          "location": "inkyung_walkway",
+          "activity": "walk",
+          "social_mode": "medium"
+        },
+        "class_time": {
+          "location": "inkyung_spawn",
+          "activity": "use_phone",
+          "social_mode": "medium"
+        },
+        "lunch": {
+          "location": "inkyung_waterfront",
+          "activity": "walk",
+          "social_mode": "medium"
+        },
+        "evening": {
+          "location": "transit_to_student_center",
+          "activity": "walk_to_club",
+          "social_mode": "medium"
+        }
+      },
+      "relationships": [],
+      "dialogue_hooks": {
+        "morning": [
+          "이 길은 걸음 속도를 늦추게 해요. 천천히 걷는 중이에요.",
+          "아침에는 잠깐 여유를 두고 싶어요. 어제 본 영화 장면을 다시 생각해요."
+        ],
+        "class_time": [
+          "인경호 입구가 오늘은 차분하네요. 휴대폰 화면을 잠깐 보고 있어요.",
+          "수업 시간에는 조금 조용해져요. 아까 들은 멜로디가 맴돌아요."
+        ],
+        "lunch": [
+          "호수 물가를 보니 마음이 가라앉아요. 천천히 걷는 중이에요.",
+          "점심 무렵에는 잠깐 쉬어 가요. 어제 본 영화 장면을 다시 생각해요."
+        ],
+        "evening": [
+          "이제 학생회관 쪽으로 이동해요. 동아리 모임 장소로 이동해요.",
+          "저녁 공기가 조금 달라졌어요. 아까 들은 멜로디가 맴돌아요."
+        ]
+      },
+      "behavior_tags": [
+        "routine_oriented",
+        "photographer"
+      ],
+      "constraints": {
+        "is_authored_npc": false,
+        "can_start_quest": false,
+        "can_change_world_state": false,
+        "can_create_group": false,
+        "can_modify_relationships_autonomously": false
+      }
+    },
+    {
+      "npc_id": "INKYUNG-NPC-020",
+      "archetype": "student",
+      "identity": {
+        "name": "가보민",
+        "age_band": "early_20s",
+        "department_type": "social_sciences",
+        "year_level": 1
+      },
+      "personality": {
+        "traits": [
+          "wry",
+          "playful"
+        ],
+        "social_energy": 0.63,
+        "talkativeness": 0.76,
+        "routine_preference": 0.84
+      },
+      "speech": {
+        "tone": "reserved",
+        "tempo": "slow",
+        "quirks": []
+      },
+      "interests": [
+        "architecture",
+        "cycling"
+      ],
+      "home_zone": "C04_INKYUNG",
+      "schedule": {
+        "morning": {
+          "location": "inkyung_bench_west",
+          "activity": "read",
+          "social_mode": "medium"
+        },
+        "class_time": {
+          "location": "inkyung_bench_east",
+          "activity": "sit",
+          "social_mode": "medium"
+        },
+        "lunch": {
+          "location": "transit_to_student_center",
+          "activity": "walk",
+          "social_mode": "medium"
+        },
+        "evening": {
+          "location": "inkyung_bench_east",
+          "activity": "sit",
+          "social_mode": "medium"
+        }
+      },
+      "relationships": [],
+      "dialogue_hooks": {
+        "morning": [
+          "이 벤치가 오늘은 조용하네요. 읽던 글의 다음 문장이 궁금해요.",
+          "아침에는 잠깐 여유를 두고 싶어요. 자전거 타기 좋은 바람이네요."
+        ],
+        "class_time": [
+          "동쪽 벤치가 잠시 쉬기 좋네요. 잠깐 앉아 쉬어야겠어요.",
+          "수업 시간에는 조금 조용해져요. 건물의 선을 따라 시선이 가요."
+        ],
+        "lunch": [
+          "이제 학생회관 쪽으로 이동해요. 걸으면서 생각을 정리해요.",
+          "점심 시간이 되니 숨을 돌리게 돼요. 자전거 타기 좋은 바람이네요."
+        ],
+        "evening": [
+          "동쪽 벤치에는 바람이 가볍게 와요. 앉아서 숨을 고르고 있어요.",
+          "저녁 공기가 조금 달라졌어요. 건물의 선을 따라 시선이 가요."
+        ]
+      },
+      "behavior_tags": [
+        "club_goer",
+        "photographer"
+      ],
+      "constraints": {
+        "is_authored_npc": false,
+        "can_start_quest": false,
+        "can_change_world_state": false,
+        "can_create_group": false,
+        "can_modify_relationships_autonomously": false
+      }
+    }
+  ]
+}
