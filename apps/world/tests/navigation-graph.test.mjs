@@ -42,8 +42,20 @@ test("M3C dangling ends join nearby walkways only within tolerance and when allo
   const connector = joined.edges().find(e => e.kind === NAV_EDGE_KIND.CONNECTOR);
   assert.ok(connector && Math.abs(connector.length - 5) < 1e-9, "connector is the 5-unit gap");
   assert.equal(graphOf(polylines, { junctionTolerance: 4 }).components().length, 2, "outside tolerance stays apart");
-  const vetoed = graphOf(polylines, { junctionTolerance: 6, canConnect: () => false });
+  const contexts = [];
+  const vetoed = graphOf(polylines, {
+    junctionTolerance: 6,
+    canConnect: (_from, _to, context) => {
+      contexts.push(context);
+      return false;
+    }
+  });
   assert.equal(vetoed.components().length, 2, "a world veto (e.g. a wall) blocks the connector");
+  assert.ok(contexts.some(context =>
+    context.fromLineId === "spur" &&
+    context.toLineId === "main" &&
+    Math.abs(context.distance - 5) < 1e-9
+  ), "junction veto receives source/target line ids and candidate distance");
 });
 
 test("M3C serialized graph round-trips and rejects foreign schemas", () => {

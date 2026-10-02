@@ -30,7 +30,8 @@ export function buildNavGraph({
   polylines = [],
   mergeTolerance = 0.05,
   junctionTolerance = 0,
-  // Optional world check for junction connectors, e.g. "does not cross a building".
+  // Optional world check for junction connectors. The third argument describes the
+  // candidate source/target lines so world adapters can reject known semantic shortcuts.
   canConnect = null
 } = {}) {
   if (!Array.isArray(polylines)) throw new TypeError("Navigation polylines must be an array");
@@ -125,7 +126,12 @@ export function buildNavGraph({
         if (edge.lineId === end.lineId || edge.a === end.node.id || edge.b === end.node.id) continue;
         const hit = projectOnSegment(end.node, byId.get(edge.a), byId.get(edge.b));
         if (hit.distance > junctionTolerance || (best && hit.distance >= best.hit.distance)) continue;
-        if (canConnect && hit.distance > mergeTolerance && !canConnect(end.node, hit)) continue;
+        const context = Object.freeze({
+          fromLineId: end.lineId,
+          toLineId: edge.lineId,
+          distance: hit.distance
+        });
+        if (canConnect && hit.distance > mergeTolerance && !canConnect(end.node, hit, context)) continue;
         best = { edge, hit };
       }
       if (!best) continue;

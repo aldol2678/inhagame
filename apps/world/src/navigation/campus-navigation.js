@@ -84,6 +84,25 @@ export function isCampusSegmentClear(a, b, step = 0.5) {
   return true;
 }
 
+// P0 Road Network audit 2026-10-02: these automatic junctions were proven to be
+// shortcuts rather than missing physical surfaces. Keep the generic 9 WU bridge rule for
+// legitimate cross-authority joins, but veto these semantic false positives.
+const BLOCKED_JUNCTION_PAIRS = new Set([
+  ["inha_67_entrance", "inha_67_spur"].sort().join("|"),
+  ["west_court_access", "west_court_bend"].sort().join("|")
+]);
+
+export function canConnectCampusJunction(a, b, context = {}) {
+  if (!isCampusSegmentClear(a, b)) return false;
+  const { fromLineId = "", toLineId = "", distance = 0 } = context;
+  const pair = [fromLineId, toLineId].sort().join("|");
+  if (BLOCKED_JUNCTION_PAIRS.has(pair)) return false;
+  // library_front_link still needs its 2.5 WU road-edge join; only the longer
+  // 3.698 WU internal chord discovered as J08 is rejected.
+  if ((fromLineId === "library_front_link" || toLineId === "library_front_link") && distance > 3) return false;
+  return true;
+}
+
 let cachedData = null;
 let cachedGraph = null;
 // Serialized campus graph (the World Editor-facing form), pruned to the routable component.
@@ -92,7 +111,7 @@ export function campusNavGraphData() {
     polylines: campusNavPolylines(),
     mergeTolerance: CAMPUS_NAV_TOLERANCE.merge,
     junctionTolerance: CAMPUS_NAV_TOLERANCE.junction,
-    canConnect: isCampusSegmentClear
+    canConnect: canConnectCampusJunction
   }));
   return cachedData;
 }

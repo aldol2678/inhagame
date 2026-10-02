@@ -39,6 +39,12 @@ test("M3C no walkway edge or junction connector cuts through a solid footprint",
   const connectors = nav.graph.edges().filter(edge => edge.kind === "CONNECTOR");
   assert.ok(connectors.length > 0);
   assert.ok(connectors.every(edge => edge.length <= 9), "junction connectors stay within the tolerance");
+  assert.equal(connectors.some(edge => edge.lineId === "junction.inha_67_spur"), false,
+    "J02 dead-end spur does not reconnect to its parent street");
+  assert.equal(connectors.some(edge => edge.lineId === "junction.west_court_bend"), false,
+    "J06 west-court footway does not fold back through a shortcut");
+  assert.equal(connectors.some(edge => edge.lineId === "junction.library_front_link" && edge.length > 3), false,
+    "J08 library front route keeps its road-edge join but removes the long internal chord");
 });
 
 test("M3C every selectable campus POI is routable along walkways from both gates", () => {
