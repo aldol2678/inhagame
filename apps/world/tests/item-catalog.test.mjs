@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  ITEM_CATALOG, PILOT_ITEM_IDS, DEFAULT_ITEM_IDS, VS_ECONOMY_ITEM_IDS, ITEM_ID_PATTERN,
+  ITEM_CATALOG, PILOT_ITEM_IDS, DEFAULT_ITEM_IDS, VS_ECONOMY_ITEM_IDS, LIFE_M1_MATERIAL_IDS, ITEM_ID_PATTERN,
   getItemDefinition, validateCatalog, describeOwnedItem, catalogAuthorityRow
 } from '../src/collection/item-catalog.js';
 
@@ -18,10 +18,10 @@ test('the committed catalog passes every C0 rule', () => {
   assert.deepEqual(validateCatalog(ITEM_CATALOG), []);
 });
 
-test('catalog is the 6 pilot fixtures plus the Starter Catalog 20, with stable lowercase ids', () => {
+test('catalog is the 6 pilot fixtures plus Starter Catalog 20 plus Life M1 materials, with stable lowercase ids', () => {
   const ids = ITEM_CATALOG.map(d => d.itemId);
-  assert.deepEqual(ids, [...PILOT_ITEM_IDS, ...STARTER_20], 'order and membership are the committed contract');
-  assert.equal(new Set(ids).size, 26);
+  assert.deepEqual(ids, [...PILOT_ITEM_IDS, ...STARTER_20, ...LIFE_M1_MATERIAL_IDS], 'order and membership are the committed contract');
+  assert.equal(new Set(ids).size, 29);
   for (const id of ids) assert.match(id, ITEM_ID_PATTERN);
   assert.ok(ids.every(id => id === id.toLowerCase()), 'no uppercase COSMETIC_* style ids');
   for (const id of VS_ECONOMY_ITEM_IDS) assert.ok(getItemDefinition(id), `vertical slice item ${id} exists`);
@@ -46,22 +46,37 @@ test('pilot fixtures keep their C0 §1.6 contract', () => {
   assert.deepEqual(DEFAULT_ITEM_IDS, ['head.inha_cap', 'top.inha_basic', 'back.freshman_bag']);
 });
 
-test('every item is cosmetic, account bound, unique and price-free in P0-B', () => {
-  for (const d of ITEM_CATALOG) {
+test('legacy items stay cosmetic UNIQUE while Life M1 materials are gameplay STACKABLE', () => {
+  const materials = ITEM_CATALOG.filter(d => d.category === 'MATERIAL');
+  const legacy = ITEM_CATALOG.filter(d => d.category !== 'MATERIAL');
+
+  assert.deepEqual(materials.map(d => d.itemId), [...LIFE_M1_MATERIAL_IDS], 'the three M1 material fixtures are committed');
+  for (const d of legacy) {
     assert.equal(d.cosmeticOnly, true, d.itemId);
     assert.equal(d.tradePolicy, 'ACCOUNT_BOUND', d.itemId);
     assert.equal(d.ownershipPolicy, 'UNIQUE', d.itemId);
     assert.equal(d.stackable, false, d.itemId);
+    assert.equal(d.maxStack, null, d.itemId);
     assert.ok(!('price' in d) && !('cost' in d), `${d.itemId} carries no price`);
     assert.ok(Object.isFrozen(d), `${d.itemId} is immutable`);
   }
+  for (const d of materials) {
+    assert.equal(d.cosmeticOnly, false, d.itemId);
+    assert.equal(d.tradePolicy, 'ACCOUNT_BOUND', d.itemId);
+    assert.equal(d.ownershipPolicy, 'STACKABLE', d.itemId);
+    assert.equal(d.stackable, true, d.itemId);
+    assert.equal(d.maxStack, 99, d.itemId);
+    assert.equal(d.acquisition[0].source, 'ACTIVITY', d.itemId);
+    assert.ok(Object.isFrozen(d), `${d.itemId} is immutable`);
+  }
+
   const event = ITEM_CATALOG.filter(d => d.tags.includes('mcm_2026'));
   assert.equal(event.length, 5);
   assert.ok(event.every(d => d.eventId === 'event.mcm_2026' && d.acquisition[0].source === 'EVENT'));
   const furniture = ITEM_CATALOG.filter(d => d.category === 'FURNITURE');
   assert.ok(furniture.every(d => d.subtype && d.equipSlot === null), 'furniture carries a placement subtype, no slot');
-  assert.deepEqual(Object.keys(catalogAuthorityRow(getItemDefinition('furniture.induck_cushion'))).sort(),
-    ['category', 'item_id', 'max_stack', 'ownership_policy', 'status'], 'no position/rotation in the catalog');
+  assert.deepEqual(Object.keys(catalogAuthorityRow(getItemDefinition('material.campus_leaf'))).sort(),
+    ['category', 'item_id', 'max_stack', 'ownership_policy', 'status'], 'material mirror stays grant-authority only');
 });
 
 test('invalid fixtures fail validation', () => {
@@ -90,7 +105,11 @@ test('invalid fixtures fail validation', () => {
   }
   const stackable = { ...getItemDefinition('memorabilia.campus_mug'), itemId: 'memorabilia.ticket',
     ownershipPolicy: 'STACKABLE', stackable: true, maxStack: 99 };
-  assert.deepEqual(validateCatalog([stackable]), [], 'the STACKABLE shape is structurally valid');
+  assert.deepEqual(validateCatalog([stackable]), [], 'a legacy category can still be structurally STACKABLE');
+  const material = getItemDefinition('material.campus_leaf');
+  assert.ok(validateCatalog([{ ...material, cosmeticOnly: true }]).some(e => /MATERIAL must set cosmeticOnly/.test(e)));
+  assert.ok(validateCatalog([{ ...material, ownershipPolicy: 'UNIQUE', stackable: false, maxStack: null }])
+    .some(e => /MATERIAL must use STACKABLE/.test(e)));
 });
 
 test('an owned item missing from the catalog is kept as an UNKNOWN_ITEM placeholder', () => {

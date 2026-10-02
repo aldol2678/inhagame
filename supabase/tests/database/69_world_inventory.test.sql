@@ -24,7 +24,7 @@ select has_table('private', 'world_item_grants', 'grant log exists');
 select col_is_pk('private', 'world_item_catalog', array['item_id'], 'item ids are unique');
 select col_is_unique('private', 'world_player_items', array['user_id', 'item_id'], 'one ownership row per (user, item)');
 select col_is_pk('private', 'world_item_grants', array['grant_id'], 'a grant key is used once');
-select is((select count(*) from private.world_item_catalog), 26::bigint, '6 pilot fixtures + Starter Catalog 20');
+select is((select count(*) from private.world_item_catalog), 29::bigint, '6 pilot fixtures + Starter Catalog 20 + Life M1 materials 3');
 select is(
   array(select item_id from private.world_item_catalog where item_id = any(array[
     'top.induck_hoodie', 'head.induck_cap', 'furniture.induck_cushion', 'furniture.campus_map_poster',
@@ -39,6 +39,13 @@ select results_eq($$select item_id, status from private.world_item_catalog
   $$values ('back.freshman_bag'::text, 'ACTIVE'::text), ('badge.main_gate', 'COMING_SOON'), ('emote.wave_plus', 'COMING_SOON'),
            ('head.inha_cap', 'ACTIVE'), ('head.inkyung_duck', 'COMING_SOON'), ('top.inha_basic', 'ACTIVE')$$,
   'pilot fixtures are kept with their C0 statuses');
+select results_eq($$select item_id, category, ownership_policy, max_stack, status
+  from private.world_item_catalog where item_id like 'material.%' order by item_id$$,
+  $$values
+    ('material.artifact_fragment_01'::text, 'MATERIAL'::text, 'STACKABLE'::text, 99, 'ACTIVE'::text),
+    ('material.campus_leaf', 'MATERIAL', 'STACKABLE', 99, 'ACTIVE'),
+    ('material.fish_carp', 'MATERIAL', 'STACKABLE', 99, 'ACTIVE')$$,
+  'Life M1 materials are real stackable catalog entries');
 select throws_ok($$insert into private.world_item_catalog values ('head.inha_cap', 'WEARABLE', 'UNIQUE', null, 'ACTIVE')$$,
   '23505', null, 'duplicate item id is refused');
 select throws_ok($$insert into private.world_item_catalog values ('COSMETIC_INDUCK_HOODIE', 'WEARABLE', 'UNIQUE', null, 'ACTIVE')$$,
@@ -231,6 +238,23 @@ reset role;
 select is((select count(*) from private.world_item_grants where item_id = 'memorabilia.p0b_test_ticket'), 2::bigint,
   'each stack top-up is its own grant log row');
 
+-- ---- Life M1 source vocabulary + real MATERIAL fixture ----
+set local role service_role;
+set local request.jwt.claims = '{"role":"service_role"}';
+select is(public.world_inventory_grant_item_v1(
+  'a4000000-0000-4000-8000-0000000000a4', 'material.campus_leaf', 1, v.source_type,
+  'life-m1:' || lower(v.source_type), 'life-m1:a4:' || lower(v.source_type))->>'status',
+  'GRANTED', format('%s is an accepted inventory grant source', v.source_type))
+from (values ('ACTIVITY'::text), ('CRAFTING'), ('EQUIPMENT'), ('RESEARCH')) v(source_type);
+reset role;
+select results_eq($$select source_type, quantity_requested from private.world_item_grants
+  where item_id = 'material.campus_leaf' order by created_at, source_type$$,
+  $$values ('ACTIVITY'::text, 1), ('CRAFTING', 1), ('EQUIPMENT', 1), ('RESEARCH', 1)$$,
+  'the four M1 grant sources are preserved in the append-only grant log');
+select is((select quantity from private.world_player_items
+  where user_id = 'a4000000-0000-4000-8000-0000000000a4' and item_id = 'material.campus_leaf'),
+  4, 'the real M1 material stacks through the existing grant authority');
+
 -- ---- disabled / hidden / unknown items never lose ownership ----
 update private.world_item_catalog set status = 'DISABLED' where item_id = 'top.mcm_2026_survivor';
 update private.world_item_catalog set status = 'HIDDEN' where item_id = 'furniture.mcm_2026_poster';
@@ -258,7 +282,7 @@ select results_eq($$select x->>'itemId', x->>'catalogStatus', x->>'sourceRef'
   'player still reads disabled, hidden and catalog-missing items with provenance');
 
 -- ---- player read contract: own inventory only, no server-only fields ----
-select is(jsonb_array_length(public.get_my_world_inventory_v1()->'items'), 9, 'A reads all 9 owned rows');
+select is(jsonb_array_length(public.get_my_world_inventory_v1()->'items'), 10, 'A reads all 10 owned rows (incl. the Life M1 material stack)');
 select ok(not exists (select 1 from jsonb_array_elements(public.get_my_world_inventory_v1()->'items') x
   where x ? 'grantId' or x ? 'acquisitionMetadata'), 'player read hides grant ids and server metadata');
 set local request.jwt.claims = '{"role":"authenticated","sub":"b4000000-0000-4000-8000-0000000000b4","is_anonymous":false}';
