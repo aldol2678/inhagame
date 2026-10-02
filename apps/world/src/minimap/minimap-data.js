@@ -14,6 +14,9 @@ import { MARKET_MAP_BUILDINGS } from "../back-market-layout.js";
 import { INTERIOR_BUILDINGS } from "../market-interior-layout.js";
 import { INTERIOR_PATHS, INTERIOR_COURTS } from "../market-interior-plan.js";
 import { GATE_DORM_CORRIDORS } from "../main-gate-road-layout.js";
+import { GARDEN_LIBRARY_ROAD_LINK } from "../library-garden-layout.js";
+import { LIBRARY_ROUTE_LINES } from "../library-route-layout.js";
+import { ANNIVERSARY_BACK_GATE_LINKS } from "../north-campus-layout.js";
 import { SPAWN_ID, SPAWN_STATE, createSpawnRegistry } from "../lobby/spawn-registry.js";
 import { BIRYONG_PLACE_ID, BIRYONG_PLACE_ZONE_ID, ECHO_CENTER } from "../biryong/biryong-layout.js";
 import {
@@ -126,6 +129,34 @@ function buildGeometry() {
       kind: MINIMAP_GEOMETRY_KIND.PATH,
       source: "SITE_FEATURES_PATH",
       style: "path"
+    });
+  }
+  addCorridorSegments(add, {
+    id: "garden_library_road_link",
+    vertices: GARDEN_LIBRARY_ROAD_LINK,
+    width: 1.3,
+    kind: MINIMAP_GEOMETRY_KIND.PATH,
+    source: "GARDEN_LIBRARY_PATHS",
+    style: "path"
+  });
+  const gardenNorthLink = LIBRARY_ROUTE_LINES.find(line => line.id === "garden_library_north_link");
+  if (!gardenNorthLink) throw new Error("garden_library_north_link is required");
+  addCorridorSegments(add, {
+    id: gardenNorthLink.id,
+    vertices: gardenNorthLink.nodes,
+    width: gardenNorthLink.width,
+    kind: MINIMAP_GEOMETRY_KIND.PATH,
+    source: "LIBRARY_ROUTE_LINES",
+    style: "path"
+  });
+  for (const link of ANNIVERSARY_BACK_GATE_LINKS) {
+    addCorridorSegments(add, {
+      id: link.id,
+      vertices: [link.frame.at(0), link.frame.at(link.frame.length)],
+      width: link.width,
+      kind: MINIMAP_GEOMETRY_KIND.ROAD,
+      source: "ANNIVERSARY_BACK_GATE_LINKS",
+      style: "road"
     });
   }
 

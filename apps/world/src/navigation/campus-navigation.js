@@ -9,7 +9,7 @@ import { BACK_ROADS } from "../back-gate-layout.js";
 import { BACK_APPROACH_ROADS } from "../back-approach-layout.js";
 import { INTERIOR_PATHS } from "../market-interior-plan.js";
 import { SIDE_GATE_PATHS } from "../north-side-gate-layout.js";
-import { FIVE_SOUTH_ENTRY_APPROACH, NORTH_LANES } from "../north-campus-layout.js";
+import { FIVE_SOUTH_ENTRY_APPROACH, NORTH_LANES, ANNIVERSARY_BACK_GATE_LINKS } from "../north-campus-layout.js";
 import { LIBRARY_ROUTE_LINES } from "../library-route-layout.js";
 import { GARDEN_LIBRARY_PATHS } from "../library-garden-layout.js";
 import { DORM_1_CAMPUS_RETURN } from "../dorm1-layout.js";
@@ -55,6 +55,7 @@ export function campusNavPolylines() {
   }
   for (const path of SIDE_GATE_PATHS) lines.push(frameLine(path.id, path.frame, NAV_EDGE_KIND.PATH, "SIDE_GATE_PATHS"));
   for (const lane of NORTH_LANES) lines.push(frameLine(lane.id, lane.frame, NAV_EDGE_KIND.PATH, "NORTH_LANES"));
+  for (const link of ANNIVERSARY_BACK_GATE_LINKS) lines.push(frameLine(link.id, link.frame, NAV_EDGE_KIND.ROAD, "ANNIVERSARY_BACK_GATE_LINKS"));
   // P0 graph is ground-level: the raised library walk (y > 0) needs a height-aware graph.
   for (const route of LIBRARY_ROUTE_LINES.filter(line => line.nodes.every(node => (node.y ?? 0) <= 0.5))) {
     lines.push({ id: route.id, kind: NAV_EDGE_KIND.PATH, source: "LIBRARY_ROUTE_LINES", points: route.nodes });
@@ -89,7 +90,8 @@ export function isCampusSegmentClear(a, b, step = 0.5) {
 // legitimate cross-authority joins, but veto these semantic false positives.
 const BLOCKED_JUNCTION_PAIRS = new Set([
   ["inha_67_entrance", "inha_67_spur"].sort().join("|"),
-  ["west_court_access", "west_court_bend"].sort().join("|")
+  ["west_court_access", "west_court_bend"].sort().join("|"),
+  ["culture_47_junction", "interior_upper-yard"].sort().join("|")
 ]);
 
 export function canConnectCampusJunction(a, b, context = {}) {

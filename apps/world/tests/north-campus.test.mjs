@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { NORTH_APPROACHES, NORTH_LANES, FIVE, exteriorFrame } from '../src/north-campus-layout.js';
+import { NORTH_APPROACHES, NORTH_LANES, ANNIVERSARY_BACK_GATE_LINKS, FIVE, exteriorFrame } from '../src/north-campus-layout.js';
 import { fillNorthRoads, fillFiveGardenPaths, fillNorthEntrances } from '../src/north-campus-geometry.js';
 import { FACILITY_COLLIDERS } from '../src/campus-facilities.js';
 import { BUILDINGS } from '../src/basic-campus.js';
@@ -27,7 +27,9 @@ test('new north pavements stay flat, face up and never cover a building or court
 test('courtyard facade points into open garden; new lanes retain walking capsule clearance',()=>{
   const ring=FIVE.rings[1];
   for(let i=0;i<ring.length;i++){const f=exteriorFrame(ring,i,true),p=f.at(f.length/2,.2);assert.ok(polygonOverlap(p.x,p.z,ring));}
-  for(const lane of NORTH_LANES)for(let u=.8;u<lane.frame.length-.8;u+=.5){const p=lane.frame.at(u);for(const b of bodies)assert.ok(!polygonOverlap(p.x,p.z,b.polygon,.65),lane.id);}
+  for(const lane of [...NORTH_LANES,...ANNIVERSARY_BACK_GATE_LINKS])for(let u=.15;u<lane.frame.length-.15;u+=.25){const p=lane.frame.at(u);for(const b of bodies)assert.ok(!polygonOverlap(p.x,p.z,b.polygon,.65),lane.id);}
+  assert.deepEqual(ANNIVERSARY_BACK_GATE_LINKS.map(link=>link.id),['anniversary_back_gate_link','anniversary_perimeter_join']);
+  assert.ok(ANNIVERSARY_BACK_GATE_LINKS.every(link=>link.frame.length>1&&link.frame.length<6),'bypass only closes the audited north-east corner gaps');
 });
 globalThis.window={addEventListener(){}};
 globalThis.document={getElementById(){return null;}};

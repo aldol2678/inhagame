@@ -6,6 +6,9 @@ import { CAMPUS_PATH_WIDTHS, CAMPUS_ROADS } from "../src/campus-road-layout.js";
 import { BACK_APPROACH_ROADS } from "../src/back-approach-layout.js";
 import { INTERIOR_PATHS } from "../src/market-interior-plan.js";
 import { GATE_DORM_ROADS, GATE_DORM_PATHS, GATE_DORM_CROSSINGS } from '../src/main-gate-road-layout.js';
+import { GARDEN_LIBRARY_ROAD_LINK } from "../src/library-garden-layout.js";
+import { LIBRARY_ROUTE_LINES } from "../src/library-route-layout.js";
+import { ANNIVERSARY_BACK_GATE_LINKS } from "../src/north-campus-layout.js";
 import { LANDMARKS, WORLD_BOUNDS } from "../src/campus-layout.js";
 import { SPAWN_ID, SPAWN_STATE, createSpawnRegistry } from "../src/lobby/spawn-registry.js";
 import { MAP_GATE_STATE, MAP_POI_PRESENTATION } from "../src/minimap/minimap-poi-registry.js";
@@ -60,11 +63,18 @@ test("M0 geometry includes runtime-aligned roads, authored paths, green and wate
   assert.ok(geometry.some(item => item.kind === MINIMAP_GEOMETRY_KIND.PATH));
   assert.ok(ids.has("lmk_inkyung_pond"), "canonical pond polygon is present");
 
-  const expectedRoadSegments = [...CAMPUS_ROADS,...BACK_APPROACH_ROADS,...INTERIOR_PATHS,...GATE_DORM_ROADS].reduce((sum, road) => sum + road.vertices.length - 1, 0);
+  const expectedRoadSegments = [...CAMPUS_ROADS,...BACK_APPROACH_ROADS,...INTERIOR_PATHS,...GATE_DORM_ROADS].reduce((sum, road) => sum + road.vertices.length - 1, 0)
+    + ANNIVERSARY_BACK_GATE_LINKS.length;
   const expectedPathSegments = [...SITE_FEATURES.filter(feature => feature.kind === "path"),...GATE_DORM_PATHS,...GATE_DORM_CROSSINGS]
-    .reduce((sum, feature) => sum + feature.vertices.length - 1, 0);
+    .reduce((sum, feature) => sum + feature.vertices.length - 1, 0)
+    + GARDEN_LIBRARY_ROAD_LINK.length - 1
+    + (LIBRARY_ROUTE_LINES.find(line => line.id === "garden_library_north_link")?.nodes.length ?? 1) - 1;
   assert.equal(geometry.filter(item => item.kind === MINIMAP_GEOMETRY_KIND.ROAD).length, expectedRoadSegments);
   assert.equal(geometry.filter(item => item.kind === MINIMAP_GEOMETRY_KIND.PATH).length, expectedPathSegments);
+  assert.ok(ids.has("mappath.garden_library_road_link.0"), "J05 physical walkway is visible on the map");
+  assert.ok(ids.has("mappath.garden_library_north_link.0"), "J10 physical walkway is visible on the map");
+  assert.ok(ids.has("maproad.anniversary_back_gate_link.0"), "J12/J15 physical bypass is visible on the map");
+  assert.ok(ids.has("maproad.anniversary_perimeter_join.0"), "J18 perimeter join is visible on the map");
 });
 
 test("road and path strips are centred on the same runtime centerlines used by the 3D world", () => {

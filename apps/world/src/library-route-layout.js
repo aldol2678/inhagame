@@ -1,7 +1,7 @@
 import { BUILDINGS, SITE_FEATURES } from './basic-campus.js';
 import { exteriorFrame } from './north-campus-layout.js';
 import { roadSegment } from './campus-road-layout.js';
-import { GARDEN_FRAME } from './library-garden-layout.js';
+import { GARDEN_FRAME, GARDEN_LIBRARY_PATHS, nearestPolylinePoint } from './library-garden-layout.js';
 import { polygonOverlap } from './polygon-collision.js';
 
 // Existing library entrance level; relative route grades are presentation estimates.
@@ -18,6 +18,7 @@ function corner(a,b,out){
 const front=frames[3],road=roadSegment(481241685,2).frame;
 export const LIBRARY_FRONT_STAIR={inset:1.8,landing:1.4,run:6.6};
 const northStart=frames[0].at(5,.7);
+const northGardenJoin=nearestPolylinePoint(northStart,GARDEN_LIBRARY_PATHS[2]);
 const upper=[node(northStart,0),...frames.slice(0,-1).map((f,i)=>node(corner(f,frames[i+1],.7),LIBRARY_ENTRY_HEIGHT)),
   node(front.at(front.length/2,1.05),LIBRARY_ENTRY_HEIGHT)];
 const foot=front.at(front.length/2,8),apron=front.at(front.length/2,11.5);
@@ -27,6 +28,7 @@ const mainWalk=SITE_FEATURES.find(p=>p.id==='site_481241657').vertices;
 const gateLink=SITE_FEATURES.find(p=>p.id==='site_481241689').vertices;
 export const LIBRARY_ROUTE_LINES=[
   {id:'garden_library_spur',width:1.2,nodes:[node(GARDEN_FRAME.at(14,-2),0),node(northStart,0)]},
+  {id:'garden_library_north_link',width:1.3,nodes:[node(northStart,0),node(northGardenJoin,0)]},
   {id:'library_upper_walk',width:1.2,nodes:upper,rails:true},
   {id:'library_front_link',width:1.3,nodes:[foot,apron,road.at(roadU,-2.5)].map(p=>node(p,0))},
   {id:'library_gate_corner',width:1.3,nodes:[road.at(43,-2.5),road.at(road.length,-2.5),cross[0]].map(p=>node(p,0))},
