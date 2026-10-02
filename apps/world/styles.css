@@ -4059,6 +4059,34 @@ body[data-space]:not([data-space="campus"]) > .inkyung-living-moment {
   .world-lobby-daily-loop-rows { grid-template-columns: minmax(0, 1fr); }
 }
 
+/* Social S1-D2 · Personal Room HUD: the Tour slot (top-left), clear of the Mini-map rail. */
+.room-hud {
+  position: fixed; z-index: 15;
+  top: max(66px, calc(env(safe-area-inset-top) + 56px));
+  left: max(12px, env(safe-area-inset-left));
+  max-width: min(320px, calc(100vw - var(--minimap-size, 112px) - 44px));
+  display: grid; gap: 4px; padding: 8px 10px; border-radius: 14px;
+  background: rgba(16,40,60,.86); border: 1px solid rgba(178,220,239,.36); color: #fff;
+  box-shadow: 0 6px 16px rgba(0,0,0,.25); pointer-events: auto;
+}
+.room-hud[hidden] { display: none; }
+.room-hud-title { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.room-hud-meta { font-size: 12px; color: #d6ebf9; }
+.room-hud-note { font-size: 11.5px; color: #ffdf90; }
+.room-hud-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.room-hud-actions button {
+  min-height: 36px; padding: 4px 10px; border-radius: 10px; border: 1px solid #9fd3ea;
+  background: #263e52; color: #fff; font-size: 12.5px; font-weight: 700;
+}
+.room-hud-actions button:disabled { opacity: .6; }
+.room-hud-leave { border-color: #ffd486 !important; }
+@media (pointer: coarse) {
+  .room-hud-actions button { min-height: 44px; }
+}
+@media (max-width: 560px) {
+  .room-hud { max-width: calc(100vw - 96px - 44px); top: max(58px, calc(env(safe-area-inset-top) + 50px)); }
+}
+
 /* EXPLORE-MOBILE-HUD:start
    Explore-mode mobile polish. This is presentation-only and is gated by the P0 HUD Context tokens:
    touch device + EXPLORE + no blocking overlay. It keeps existing DOM, input authority, Safe Area

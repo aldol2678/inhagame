@@ -119,6 +119,11 @@ select set_eq($$select unnest(pg_temp.exec_surface('authenticated', 'anon'))$$, 
   'update_world_guestbook_entry_v2(uuid,text)',
   'delete_world_guestbook_entry_v2(uuid)',
   'get_or_create_my_personal_room_v1()',
+  -- Housing S1-D2 (20261002130000): friend visit, access check, owner privacy, Realtime predicate.
+  'resolve_friend_personal_room_v1(uuid)',
+  'check_world_room_access_v1(uuid)',
+  'set_my_personal_room_visibility_v1(text)',
+  'can_access_world_room_realtime_v1(text)',
   'delete_my_inhagame_account_v1(text)',
   'delete_my_grow_progress(timestamp with time zone)',
   'get_my_game_progress(text)',
@@ -266,3 +271,4 @@ select ok(to_regprocedure('public.get_inha_duck_observer_runtime_v1(integer)') i
 
 select * from finish();
 rollback;
+

@@ -9,8 +9,10 @@ npm ci --prefix "$dir" --no-audit --no-fund
 export WORLD_SMOKE_DISABLE_WEBGPU=1
 node "$dir/boot-smoke.mjs"
 node "$dir/lobby-layout-smoke.mjs"
+node "$dir/housing-smoke.mjs"
 node "$dir/studio-shell-smoke.mjs"
 node "$dir/editor-smoke.mjs"
 node "$dir/music-editor-smoke.mjs"
 node "$dir/music-place-preview-smoke.mjs"
 node "$dir/music-editor-acceptance.mjs"
+
