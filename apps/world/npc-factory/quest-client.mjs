@@ -10,12 +10,34 @@ const pond = { x: POND_RING.reduce((sum, point) => sum + point.x, 0) / POND_RING
 
 // onReward(reward): P1c. Called once with the server Reward result carried by the call that completed
 // the walk, only while the same account is still signed in. The client never computes EXP or items.
+// CORE-15: a failed status read is retried on statusRetryDelays (same lane as Main 2), and the
+// quest can be switched on after the runtime is built (setEnabled) when its flag resolves late.
 export function createQuestClient({ enabled, endpoint, getSession, getNpcPosition = () => null, hud, tour, fetcher = fetch,
-  onReward = () => {} }) {
+  onReward = () => {}, setTimer = setTimeout, clearTimer = clearTimeout, statusRetryDelays = [1000, 3000, 8000] }) {
   let signedIn = false, stage = 0, generation = 0, pending = null, retryAfter = 0;
   let statusReady = false;
+  let statusRetryTimer = null, statusRetryAttempt = 0, statusRecovering = false;
   const listeners = new Set();
   const objective = hud?.querySelector('#npc-quest-objective');
+  function clearStatusRetry() {
+    if (statusRetryTimer !== null) clearTimer(statusRetryTimer);
+    statusRetryTimer = null;
+    statusRecovering = false;
+    statusRetryAttempt = 0;
+  }
+  function scheduleStatusRetry(requestGeneration) {
+    if (!enabled || !signedIn || requestGeneration !== generation || statusRetryTimer !== null) return false;
+    const delay = statusRetryDelays[statusRetryAttempt];
+    if (!Number.isFinite(delay) || delay < 0) { statusRecovering = false; return false; }
+    statusRetryAttempt += 1;
+    statusRecovering = true;
+    statusRetryTimer = setTimer(() => {
+      statusRetryTimer = null;
+      if (!signedIn || requestGeneration !== generation) return;
+      void send('status').catch(() => {});
+    }, delay);
+    return true;
+  }
   function publish() {
     const visible = enabled && signedIn && statusReady && stage >= 0 && stage < 5;
     if (hud) hud.hidden = !visible;
@@ -45,12 +67,30 @@ export function createQuestClient({ enabled, endpoint, getSession, getNpcPositio
       stage = result.stage;
       statusReady = true;
       retryAfter = 0;
+      clearStatusRetry();
       publish();
       if (reward) {
         try { onReward(reward); } catch { /* presentation only; progress already stored */ }
       }
       return result;
+    } catch (error) {
+      if (event === 'status' && requestGeneration === generation && signedIn && !statusReady) {
+        scheduleStatusRetry(requestGeneration);
+        publish();
+      }
+      throw error;
     } finally { if (pending === claim) pending = null; }
+  }
+  function setSignedIn(value) {
+    generation++;
+    clearStatusRetry();
+    pending = null;
+    signedIn = Boolean(value);
+    stage = 0;
+    statusReady = false;
+    publish();
+    if (!signedIn || !enabled) return Promise.resolve(null);
+    return send('status').catch(() => null);
   }
   return {
     get stage() { return stage; },
@@ -62,7 +102,10 @@ export function createQuestClient({ enabled, endpoint, getSession, getNpcPositio
         stage,
         active: Boolean(enabled && signedIn && statusReady && stage > 0 && stage < 5),
         complete: stage === 5,
-        objective: QUEST_OBJECTIVES[stage] ?? null
+        objective: QUEST_OBJECTIVES[stage] ?? null,
+        statusState: !enabled ? 'DISABLED' : !signedIn ? 'SIGNED_OUT' : statusReady ? 'READY'
+          : statusRecovering ? 'RETRY' : statusRetryAttempt > 0 ? 'UNAVAILABLE' : 'LOADING',
+        retryAttempt: statusRetryAttempt
       };
     },
     mapTarget() {
@@ -80,22 +123,12 @@ export function createQuestClient({ enabled, endpoint, getSession, getNpcPositio
       return Object.freeze({ x: position.x, z: position.z, kind: 'quest-npc', npcId, stage, label: QUEST_OBJECTIVES[stage] });
     },
     onChange(listener) { listeners.add(listener); return () => listeners.delete(listener); },
-    setSignedIn(value) {
-      generation++;
-      pending = null;
-      signedIn = Boolean(value);
-      stage = 0;
-      statusReady = false;
-      publish();
-      if (!signedIn) return Promise.resolve(null);
-      const requestGeneration = generation;
-      return send('status').catch(() => {
-        if (requestGeneration === generation) {
-          statusReady = false;
-          publish();
-        }
-        return null;
-      });
+    setSignedIn,
+    setEnabled(value) {
+      const next = Boolean(value);
+      if (next === Boolean(enabled)) return Promise.resolve(null);
+      enabled = next;
+      return setSignedIn(signedIn);
     },
     eventForNpc(id) { return signedIn && enabled ? questEventForNpc(stage, id) : null; },
     async advanceNpc(id) {
