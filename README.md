@@ -81,3 +81,5 @@ All Rights Reserved. 이 저장소의 공개는 MIT, Apache 등 오픈소스 라
 [NOTICE.md](NOTICE.md)에 기록되어 있고, 대학 등 제3자의 상표 사용 허가나 보증은 암시되지 않습니다.
 자세한 내용은 [LICENSE](LICENSE)를 참고하세요. 캐릭터/장비 아트워크는 독립 생성된 QA용 단순 도형이며
 [ASSET_PROVENANCE.json](ASSET_PROVENANCE.json)에 기록되어 있습니다.
+
+<!-- Temporary docs-only CI acceptance; this branch must not be merged. -->
