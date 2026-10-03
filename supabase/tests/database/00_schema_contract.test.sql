@@ -15,7 +15,7 @@ select has_table('public', t, format('table public.%s exists', t)) from unnest(a
   'ops_alert_state', 'ops_event_contracts', 'ops_event_mappings', 'ops_lifecycle_profiles',
   'player_bests', 'player_identity_links', 'players', 'profiles', 'ranked_recovery_eligibility',
   'ranked_recovery_records', 'ranked_runs', 'ranked_sessions', 'runs', 'user_achievements', 'user_game_progress',
-  'world_online_sessions'
+  'world_online_sessions', 'world_runtime_flags'
 ]) as t;
 select has_view('public', 'leaderboard_public', 'view public.leaderboard_public exists');
 select has_table('private','inhagame_member_activity_daily','private member activity ledger exists');
