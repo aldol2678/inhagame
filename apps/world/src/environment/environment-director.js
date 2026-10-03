@@ -19,7 +19,8 @@ function mutableFrame(source) {
     ambientColor: [...source.ambientColor],
     exposure: source.exposure,
     clearColor: [...source.clearColor],
-    shadowIntensity: source.shadowIntensity
+    shadowIntensity: source.shadowIntensity,
+    artificialLightFactor: source.artificialLightFactor
   };
 }
 
@@ -44,6 +45,7 @@ function copyFrame(out, source) {
   out.exposure = source.exposure;
   copyTuple(out.clearColor, source.clearColor);
   out.shadowIntensity = source.shadowIntensity;
+  out.artificialLightFactor = source.artificialLightFactor;
 }
 
 function copyFogFrame(out, source) {
@@ -65,6 +67,7 @@ function mixFrame(out, from, to, t) {
   out.exposure = from.exposure + (to.exposure - from.exposure) * t;
   mixTuple(out.clearColor, from.clearColor, to.clearColor, t);
   out.shadowIntensity = from.shadowIntensity + (to.shadowIntensity - from.shadowIntensity) * t;
+  out.artificialLightFactor = from.artificialLightFactor + (to.artificialLightFactor - from.artificialLightFactor) * t;
 }
 
 function mixFogFrame(out, from, to, t) {
@@ -212,6 +215,7 @@ export function createEnvironmentDirector({
       progress,
       settled: progress >= 1,
       exposure: current.exposure,
+      artificialLightFactor: current.artificialLightFactor,
       targetWeather,
       weatherProgress: fogProgress,
       weatherSettled: fogProgress >= 1,
