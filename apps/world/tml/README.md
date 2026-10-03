@@ -12,6 +12,8 @@ TML is used here as a semantic/state-transition layer above the existing game im
 - `runtime/conformance.mjs` — generic Module ↔ Profile semantic conformance validator
 - `runtime/quest-read-adapter.mjs` — P3 read-only `world.quest.read` adapter producing authoritative TML Facts/Observations
 - `runtime/capability-registry.mjs` — P3 read-only capability registry; mutating capabilities are intentionally unbound
+- `runtime/verification.mjs` — P4 authority-aware Evidence/Verification evaluator with SATISFIED / UNSATISFIED / UNKNOWN / CONFLICT states
+- `runtime/trace.mjs` — P4 Trace recorder for Observation / Fact / Evidence / Verification records
 - `fixtures/` — executable-domain conformance fixtures tied to current INHA WORLD contracts
 
 ## Boundary
@@ -20,7 +22,7 @@ INHA WORLD-specific vocabulary belongs to profiles/fixtures, not to generic TML 
 
 Provider success is not equivalent to verified state change. Mutating flows must be observable through authoritative readback before they can be treated as satisfied.
 
-The first fixture mirrors Main 2 (`campus_navigation_intro_v1`) and is checked by the public test suite against the live source contract in `npc-factory/main2-quest-contract.mjs`. The P2 semantic validator checks Module ↔ Profile identity, declared predicates/events/capabilities, action argument shape/types, duplicate IDs, and authoritative postcondition readback for mutating capabilities. P3 binds only `world.quest.read` to the existing quest-store `status` boundary and converts the server result into `server.quest` Facts/Observations; `world.quest.advance` remains deliberately unavailable at runtime.
+The first fixture mirrors Main 2 (`campus_navigation_intro_v1`) and is checked by the public test suite against the live source contract in `npc-factory/main2-quest-contract.mjs`. The P2 semantic validator checks Module ↔ Profile identity, declared predicates/events/capabilities, action argument shape/types, duplicate IDs, and authoritative postcondition readback for mutating capabilities. P3 binds only `world.quest.read` to the existing quest-store `status` boundary and converts the server result into `server.quest` Facts/Observations; `world.quest.advance` remains deliberately unavailable at runtime. P4 evaluates conditions only from the profile-declared authoritative source, preserves missing evidence as `UNKNOWN`, preserves same-snapshot disagreement as `CONFLICT`, and evaluates the latest authoritative observation snapshot so normal state progression is not misclassified as a conflict.
 
 ## Current status
 
