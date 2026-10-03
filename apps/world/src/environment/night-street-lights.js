@@ -59,6 +59,7 @@ export function createNightStreetLights({
   const material = createGlowMaterial();
   const bulbs = lamps.map(lamp => createBulb(root, lamp, material));
   const pool = Array.from({ length: NIGHT_LIGHT_BUDGET.high }, (_, i) => createOmni(root, i));
+  const registered = new Set();
 
   let elapsed = rebalanceSeconds;
   let factor = -1;
@@ -72,7 +73,10 @@ export function createNightStreetLights({
     factor = safe;
     material.emissiveIntensity = safe * 3.2;
     material.update();
-    for (const light of pool) light.light.intensity = safe * 0.82;
+    for (const lamp of registered) lamp.setArtificialLightFactor?.(safe);
+    for (let i = 0; i < pool.length; i++) {
+      pool[i].light.intensity = safe * (lamps[activeIndices[i]]?.intensity ?? .82);
+    }
     if (safe <= 0.002) {
       activeIndices = [];
       for (const light of pool) light.enabled = false;
@@ -92,11 +96,33 @@ export function createNightStreetLights({
         entity.enabled = false;
         continue;
       }
-      const head = lamps[lampIndex].head;
-      entity.setLocalPosition(head.x, head.y - 0.28, head.z);
-      entity.light.intensity = factor * 0.82;
+      const lamp = lamps[lampIndex], head = lamp.head;
+      entity.setLocalPosition(head.x, head.y + (lamp.lightOffsetY ?? -.28), head.z);
+      entity.light.range = lamp.range ?? 9.5;
+      entity.light.intensity = factor * (lamp.intensity ?? .82);
       entity.enabled = true;
     }
+  }
+
+  // A loaded static prop joins the same nearest-player selection and four-slot
+  // allocation. Its visual lifetime owns the returned idempotent unregister.
+  function registerLamp(lamp) {
+    if (destroyed) return () => {};
+    if (lamps.some(existing => existing.id === lamp.id)) throw new Error(`Lamp already registered: ${lamp.id}`);
+    lamps.push(lamp);
+    registered.add(lamp);
+    try { lamp.setArtificialLightFactor?.(Math.max(0, factor)); }
+    catch (error) {
+      registered.delete(lamp);
+      lamps.pop();
+      throw error;
+    }
+    rebalance();
+    return () => {
+      if (!registered.delete(lamp)) return;
+      lamps.splice(lamps.indexOf(lamp), 1);
+      if (!destroyed) rebalance();
+    };
   }
 
   function update(dt) {
@@ -118,6 +144,8 @@ export function createNightStreetLights({
       dynamicBudget: nightLightBudget(tier ?? (getGraphicsTier?.() ?? 'medium')),
       activeDynamicLights: activeIndices.length,
       activeLampIndices: Object.freeze([...activeIndices]),
+      activeLampIds: Object.freeze(activeIndices.map(index => lamps[index].id)),
+      registeredLampCount: registered.size,
       artificialLightFactor: Math.max(0, factor)
     });
   }
@@ -125,10 +153,13 @@ export function createNightStreetLights({
   function destroy() {
     if (destroyed) return;
     destroyed = true;
+    activeIndices = [];
+    for (const lamp of registered) lamps.splice(lamps.indexOf(lamp), 1);
+    registered.clear();
     for (const bulb of bulbs) bulb.destroy();
     for (const light of pool) light.destroy();
     material.destroy();
   }
 
-  return Object.freeze({ update, status, destroy });
+  return Object.freeze({ update, status, destroy, registerLamp });
 }

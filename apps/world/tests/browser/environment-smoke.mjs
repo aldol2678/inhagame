@@ -31,7 +31,7 @@ try {
   assert.equal(initial.environment.artificialLightFactor, 0.18);
   assert.equal(initial.streetLights.artificialLightFactor, 0.18);
   assert.ok(initial.streetLights.lampCount > 0);
-  assert.equal(initial.streetLights.bulbCount, initial.streetLights.lampCount);
+  assert.equal(initial.streetLights.bulbCount + initial.streetLights.registeredLampCount, initial.streetLights.lampCount);
   assert.ok(initial.streetLights.dynamicBudget >= 0 && initial.streetLights.dynamicBudget <= 4);
   assert.ok(initial.streetLights.activeDynamicLights <= initial.streetLights.dynamicBudget);
 

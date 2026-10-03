@@ -89,10 +89,10 @@ for (const spec of [
     assert.deepEqual(scene.localScale, [1, 1, 1]);
     assert.deepEqual(scene.parentScale, [.5, .5, .5]);
     assert.deepEqual(scene.emissive.color, [.92, .8, .55]);
-    near(scene.emissive.intensity, .35, 'diffuser emissive intensity');
+    near(scene.emissive.intensity, 0, 'daytime diffuser is off');
     assert.equal(scene.emissive.ownedClone, true);
     assert.deepEqual(scene.emissive.original, [0, 0, 0], 'source container material unchanged');
-    assert.equal(scene.lampLights, 0, 'no realtime light belongs to the lamp');
+    assert.equal(scene.lampLights, 0, 'real light is owned by the shared pool, never by the GLB');
     assert.ok([...scene.transform, ...scene.min, ...scene.max].every(Number.isFinite));
     const [x, y, z] = scene.expectedPosition;
     near(scene.worldPosition[0], x, 'world X'); near(scene.worldPosition[1], y, 'ground origin'); near(scene.worldPosition[2], -z, 'one inherited Z reflection');
@@ -213,6 +213,115 @@ for (const spec of [
     }, { hidden: hidden.toString('base64'), visible: visible.toString('base64'), crop: result.visibility.crop });
     assert.ok(result.visibility.changedPixels > 25, 'streetlamp on/off changes visible framebuffer pixels inside its projected bounds');
 
+    // Prove actual illumination with unchanged geometry/emission/environment:
+    // freeze motion and switch only this lamp's pooled omni intensity off/on.
+    // Compare a projected ground polygon to the right of the pole (not the bulb).
+    const readLighting = () => page.evaluate(() => {
+      const d = window.__INHAGAME_P0__, status = window.__INHAGAME_NIGHT_LIGHTS__.status();
+      const index = status.activeLampIds.indexOf('prop.campus-streetlamp-001');
+      const light = index >= 0 ? d.app.root.findByName(`night_street_omni_${index}`) : null;
+      const material = d.app.root.findByName('PROP_STREETLAMP_CAMPUS_001').findComponents('render')
+        .flatMap(r => r.meshInstances).find(m => m.material.name === 'Lamp_Diffuser').material;
+      return { ...status, ownedAssignments: status.activeLampIds.filter(id => id === 'prop.campus-streetlamp-001').length,
+        selectedLampId: index >= 0 ? status.activeLampIds[index] : null,
+        pose: { player: d.player.getPosition().toArray(), camera: d.orbit.camera.getPosition().toArray(),
+          cameraEuler: d.orbit.camera.getEulerAngles().toArray() },
+        emissiveIntensity: material.emissiveIntensity, light: light ? { type: light.light.type, range: light.light.range,
+          intensity: light.light.intensity, castShadows: light.light.castShadows,
+          color: light.light.color.toArray(), position: light.getLocalPosition().toArray() } : null };
+    });
+    const setTime = async time => {
+      await page.evaluate(time => window.__INHAGAME_ENVIRONMENT__.setTimeOfDay(time, { immediate: true }), time);
+      const expected = { day: 0, sunset: .18, night: 1 }[time];
+      await page.waitForFunction(f => window.__INHAGAME_NIGHT_LIGHTS__.status().artificialLightFactor === f, expected);
+    };
+    result.lighting = { day: await readLighting(), tiers: {} };
+    assert.equal(result.lighting.day.ownedAssignments, 0);
+    await setTime('night');
+    for (const [tier, budget] of [['low', 0], ['medium', 2], ['high', 4]]) {
+      await page.locator('#graphics-quality').selectOption(tier, { force: true });
+      await page.waitForFunction(tier => window.__INHAGAME_NIGHT_LIGHTS__.status().graphicsTier === tier, tier);
+      const reading = result.lighting.tiers[tier] = await readLighting();
+      assert.equal(reading.dynamicBudget, budget);
+      assert.ok(reading.activeDynamicLights <= budget);
+      assert.equal(reading.ownedAssignments, budget ? 1 : 0);
+      near(reading.emissiveIntensity, 3.2, 'night emission on all tiers');
+      if (budget) {
+        assert.equal(reading.light.type, 'omni'); assert.equal(reading.light.castShadows, false);
+        near(reading.light.range, 3.5, 'bounded approved lamp range');
+        near(reading.light.intensity, .82, 'night light intensity');
+      }
+    }
+    await setTime('sunset');
+    result.lighting.sunset = await readLighting();
+    near(result.lighting.sunset.light.intensity, .18 * .82, 'sunset light intensity');
+    near(result.lighting.sunset.emissiveIntensity, .18 * 3.2, 'sunset diffuser');
+    await setTime('night');
+    const groundSetup = await page.evaluate(async () => {
+      const pc = await import('playcanvas'), d = window.__INHAGAME_P0__;
+      const { CAMPUS_STREETLAMP_WORLD: w } = await import('/src/campus-streetlamp-layout.js');
+      const [x, , z] = w.entities[0].transform.position.map(v => v / 2);
+      d.orbit.yaw = Math.atan2(-.325, -2.425); d.orbit.pitch = .27;
+      d.app.timeScale = 0;
+      return { x, z, frame: d.app.frame };
+    });
+    await waitFrames(groundSetup.frame);
+    result.lighting.ground = await page.evaluate(async ({ x, z }) => {
+      const pc = await import('playcanvas'), d = window.__INHAGAME_P0__;
+      return { polygon: [[.55,.15],[1.3,.15],[1.3,1.0],[.55,1.0]].map(([dx,dz]) => {
+        const world = new pc.Vec3(x + dx, .019, -(z + dz));
+        const p = d.orbit.camera.camera.worldToScreen(world);
+        return { x: p.x, y: p.y, depth: d.orbit.camera.forward.dot(world.sub(d.orbit.camera.getPosition())) };
+      }) };
+    }, groundSetup);
+    assert.ok(result.lighting.ground.polygon.every(p => Number.isFinite(p.x) && Number.isFinite(p.y) && p.depth > 0), 'ground polygon must be finite and in front of camera');
+    const illuminated = await page.screenshot({ path: resolve(output, `${spec.name}-night-light-on.png`) });
+    result.lighting.ground.on = await readLighting();
+    const offFrame = await page.evaluate(() => {
+      const d = window.__INHAGAME_P0__, s = window.__INHAGAME_NIGHT_LIGHTS__.status();
+      const light = d.app.root.findByName(`night_street_omni_${s.activeLampIds.indexOf('prop.campus-streetlamp-001')}`);
+      light.light.intensity = 0;
+      return d.app.frame;
+    });
+    await waitFrames(offFrame);
+    const unlit = await page.screenshot({ path: resolve(output, `${spec.name}-night-light-off.png`) });
+    result.lighting.ground.off = await readLighting();
+    assert.equal(result.lighting.ground.on.selectedLampId, 'prop.campus-streetlamp-001');
+    assert.equal(result.lighting.ground.off.selectedLampId, result.lighting.ground.on.selectedLampId);
+    near(result.lighting.ground.on.light.intensity, .82, 'on screenshot real-light intensity');
+    assert.equal(result.lighting.ground.off.light.intensity, 0, 'off screenshot light stays off');
+    assert.equal(result.lighting.ground.off.emissiveIntensity, result.lighting.ground.on.emissiveIntensity);
+    assert.equal(result.lighting.ground.off.artificialLightFactor, result.lighting.ground.on.artificialLightFactor);
+    assert.deepEqual(result.lighting.ground.off.pose, result.lighting.ground.on.pose, 'camera/player stay fixed during light-only pixel comparison');
+    result.lighting.ground.changedPixels = await page.evaluate(async ({ on, off, polygon }) => {
+      const pixels = async data => {
+        const image = new Image(); image.src = `data:image/png;base64,${data}`; await image.decode();
+        const canvas = document.createElement('canvas'); canvas.width = image.width; canvas.height = image.height;
+        const ctx = canvas.getContext('2d'); ctx.drawImage(image, 0, 0);
+        return { data: ctx.getImageData(0, 0, canvas.width, canvas.height).data, width: canvas.width, height: canvas.height };
+      };
+      const [a, b] = await Promise.all([pixels(on), pixels(off)]);
+      const inside = (x, y) => {
+        let found = false;
+        for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+          const p = polygon[i], q = polygon[j];
+          if ((p.y > y) !== (q.y > y) && x < (q.x-p.x)*(y-p.y)/(q.y-p.y)+p.x) found = !found;
+        }
+        return found;
+      };
+      let changed = 0;
+      for (let y = 0; y < a.height; y++) for (let x = 0; x < a.width; x++) if (inside(x+.5,y+.5)) {
+        const i = (y*a.width+x)*4;
+        if (Math.max(a.data[i]-b.data[i],a.data[i+1]-b.data[i+1],a.data[i+2]-b.data[i+2]) > 2) changed++;
+      }
+      window.__INHAGAME_P0__.app.timeScale = 1;
+      return changed;
+    }, { on: illuminated.toString('base64'), off: unlit.toString('base64'), polygon: result.lighting.ground.polygon });
+    assert.ok(result.lighting.ground.changedPixels > 25, 'the actual pooled light brightens the ground, independently of emissive geometry');
+    await setTime('day');
+    assert.equal((await readLighting()).ownedAssignments, 0);
+    await page.locator('#graphics-quality').selectOption('auto', { force: true });
+
     // Force real chunk eviction/reentry; BASE holds exactly the same streetlamp and
     // registry resource while streamed near/detail roots are destroyed/rebuilt.
     result.streaming = await page.evaluate(async () => {
@@ -237,6 +346,7 @@ for (const spec of [
     assert.equal(result.afterChunks.instances, 1);
     assert.equal(result.afterChunks.assetContainers, 1);
     assert.deepEqual(result.afterChunks.lights, scene.lights);
+    assert.equal((await readLighting()).registeredLampCount, 1);
     assert.equal(result.assetResponses.length, 1, 'streaming does not refetch the streetlamp');
     await page.reload({ waitUntil: 'domcontentloaded', timeout: TIMEOUT_MS });
     await settled();
@@ -246,6 +356,7 @@ for (const spec of [
     assert.equal(result.reload.assetContainers, 1);
     assert.deepEqual(result.reload.lights, scene.lights);
     assert.deepEqual(result.reload.emissive, scene.emissive);
+    assert.equal((await readLighting()).registeredLampCount, 1);
     assert.deepEqual(result.assetResponses, [200, 200]);
     result.problems = [...smoke.problems];
     assert.deepEqual(result.problems, []);

@@ -1543,9 +1543,9 @@ const campusBench = createCampusBenchRuntime(createPlayCanvasRuntimeContext({
 const campusStreetlamp = createCampusStreetlampRuntime(createPlayCanvasRuntimeContext({
   app, parent: chunkRenderer.base, metersPerUnit: CAMPUS_STREETLAMP_METERS_PER_UNIT,
   assetShadow: assetOptimizationShadow
-}));
+}), { nightStreetLights });
 window.addEventListener('pagehide', event => {
-  if (!event.persisted) { void campusBench.dispose(); void campusStreetlamp.dispose(); }
+  if (!event.persisted) { void campusBench.dispose(); void campusStreetlamp.dispose(); nightStreetLights.destroy(); }
 });
 const streaming = new RenderChunkStreaming(registry,chunkRenderer,{intervalMs:250});
 const inkyungSideEvent = createInkyungMechanicalDuckEvent();
@@ -2845,6 +2845,5 @@ boot().catch((error) => {
   if (unsupported) console.warn("INHAGAME Campus WebGPU unavailable:", error);
   else console.error("INHAGAME Campus initialization failed:", error);
 });
-
 
 

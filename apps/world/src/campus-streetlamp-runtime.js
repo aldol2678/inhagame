@@ -1,10 +1,9 @@
-import { CAMPUS_STREETLAMP_WORLD } from './campus-streetlamp-layout.js';
+import { CAMPUS_STREETLAMP_WORLD, CAMPUS_STREETLAMP_LIGHT } from './campus-streetlamp-layout.js';
 import { createCampusStaticPropRuntime } from './campus-static-prop-runtime.js';
 
-// P2 visual integration = emissive-only. The source GLB has a non-emissive
-// Lamp_Diffuser. Clone only that material on the instance, never mutate the
-// container-cache material or add realtime light/shadow entities.
-export function createCampusStreetlampRuntime(context) {
+// The visual owns its cloned diffuser and a registration in the existing night
+// pool. It never owns another light entity or mutates the cached GLB material.
+export function createCampusStreetlampRuntime(context, { nightStreetLights } = {}) {
   const instanceContext = {
     ...context,
     createRenderable(asset, data) {
@@ -17,14 +16,35 @@ export function createCampusStreetlampRuntime(context) {
           if (!clones.has(original)) {
             const surface = original.clone();
             surface.emissive.set(.92, .8, .55);
-            surface.emissiveIntensity = .35;
+            surface.emissiveIntensity = 0;
             surface.update();
             clones.set(original, surface);
           }
           mesh.material = clones.get(original);
         }
       }
-      visual.on('destroy', () => { for (const surface of clones.values()) surface.destroy(); clones.clear(); });
+      let unregister;
+      visual.on('destroy', () => {
+        unregister?.(); unregister = null;
+        for (const surface of clones.values()) surface.destroy();
+        clones.clear();
+      });
+      try {
+        if (clones.size) unregister = nightStreetLights?.registerLamp({
+          ...CAMPUS_STREETLAMP_LIGHT,
+          setArtificialLightFactor(factor) {
+            for (const surface of clones.values()) {
+              surface.emissiveIntensity = factor * 3.2;
+              surface.update();
+            }
+          }
+        });
+      } catch (error) {
+        // The adapter has not attached this visual yet. Release its clone even
+        // if registration rejects (for example a duplicate live instance).
+        visual.destroy();
+        throw error;
+      }
       return visual;
     }
   };

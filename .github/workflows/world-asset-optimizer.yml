@@ -17,11 +17,13 @@ on:
       - 'apps/world/src/campus-bench-*.js'
       - 'apps/world/src/campus-streetlamp-*.js'
       - 'apps/world/src/campus-static-prop-runtime.js'
+      - 'apps/world/src/environment/night-street-lights.js'
       - 'apps/world/src/campus-layout.js'
       - 'apps/world/tests/campus-bench.test.mjs'
       - 'apps/world/tests/campus-streetlamp.test.mjs'
       - 'apps/world/tests/browser/campus-bench-smoke.mjs'
       - 'apps/world/tests/browser/campus-streetlamp-smoke.mjs'
+      - 'apps/world/tests/browser/night-street-lights.test.mjs'
       - 'apps/world/tests/asset-optimization-shadow.test.mjs'
       - 'apps/world/tests/asset-authority-canary.test.mjs'
       - 'apps/world/tests/asset-production-canary.test.mjs'
@@ -105,7 +107,9 @@ jobs:
         env:
           WORLD_SMOKE_DISABLE_WEBGPU: '1'
           WORLD_SMOKE_BROWSER: chrome
-        run: node apps/world/tests/browser/campus-streetlamp-smoke.mjs
+        run: |
+          node --test apps/world/tests/browser/night-street-lights.test.mjs
+          node apps/world/tests/browser/campus-streetlamp-smoke.mjs
       - name: Upload campus streetlamp browser evidence
         if: always()
         uses: actions/upload-artifact@v4

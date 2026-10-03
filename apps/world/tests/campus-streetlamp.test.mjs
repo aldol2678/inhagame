@@ -106,7 +106,7 @@ function context({ cache = new Map(), wait = Promise.resolve(), fail = false } =
     resolveAssetUri: a => a.uri,
     createRoot: w => { const n = node(w.worldId); roots.push(n); return n; }, createEntity: e => node(e.name),
     attach: (p, c) => { p.children.push(c); c.parent = p; }, setLocalTransform: (n, t) => { n.transform = t; },
-    createRenderable: () => { const mesh = { material: original }, v = { ...node('visual'), findComponents: () => [{ meshInstances: [mesh] }], on: (event, f) => { v.destroyCallback = f; }, mesh }; visuals.push(v); return v; },
+    createRenderable: () => { const mesh = { material: original }, v = { ...node('visual'), findComponents: () => [{ meshInstances: [mesh] }], on: (event, f) => { v.destroyCallback = f; }, destroy() { v.destroyed = (v.destroyed ?? 0) + 1; v.destroyCallback?.(); }, mesh }; visuals.push(v); return v; },
     createPlaceholder: () => node('missing'),
     destroyRoot: r => { r.destroyed = true; for (const e of r.children) for (const v of e.children) v.destroyCallback?.(); r.children.length = 0; },
     dispose: () => { ctx.released++; }
@@ -122,7 +122,7 @@ test('shared owner reuses resolver cache, destroys cloned emissive once and recr
     assert.equal(owner.status().assetId, 'PROP_STREETLAMP_CAMPUS_001');
     assert.equal(c.materials.length, 1); assert.equal(c.visuals[0].mesh.material, c.materials[0]);
     assert.deepEqual(c.original.emissive.value, [0, 0, 0], 'cached imported material must remain untouched');
-    assert.deepEqual(c.materials[0].emissive.value, [.92, .8, .55]); assert.equal(c.materials[0].emissiveIntensity, .35);
+    assert.deepEqual(c.materials[0].emissive.value, [.92, .8, .55]); assert.equal(c.materials[0].emissiveIntensity, 0);
     assert.equal(c.materials[0].updated, true);
     await owner.dispose(); await owner.dispose();
     assert.equal(r.bindings.size, 0); assert.equal(c.released, 1); assert.equal(c.materials[0].destroyed, true);
@@ -130,12 +130,68 @@ test('shared owner reuses resolver cache, destroys cloned emissive once and recr
   }
 });
 
+test('loaded lamp registers one shared-budget source and unregisters before material disposal', async () => {
+  const { createCampusStreetlampRuntime } = await ownerModule();
+  const { CAMPUS_STREETLAMP_LIGHT: lamp } = await layout();
+  const c = context(), registered = [];
+  let released = 0;
+  const nightStreetLights = { registerLamp(source) {
+    registered.push(source);
+    source.setArtificialLightFactor(.18);
+    return () => { assert.notEqual(c.materials[0].destroyed, true); released++; };
+  } };
+  const owner = createCampusStreetlampRuntime(c, { nightStreetLights });
+  await owner.ready;
+  assert.equal(registered.length, 1);
+  assert.equal(registered[0].id, 'prop.campus-streetlamp-001');
+  assert.deepEqual(registered[0].head, lamp.head);
+  assert.equal(c.materials[0].emissiveIntensity, .18 * 3.2);
+  registered[0].setArtificialLightFactor(1);
+  assert.equal(c.materials[0].emissiveIntensity, 3.2);
+  registered[0].setArtificialLightFactor(0);
+  assert.equal(c.materials[0].emissiveIntensity, 0);
+  await owner.dispose(); await owner.dispose();
+  assert.equal(released, 1);
+  assert.deepEqual(c.original.emissive.value, [0, 0, 0]);
+});
+
+test('light head derives from the approved diffuser and the same document transform', async () => {
+  const { CAMPUS_STREETLAMP_LIGHT: lamp, CAMPUS_STREETLAMP_WORLD: world } = await layout();
+  assert.ok(lamp, 'shared-pool light descriptor exists');
+  const bytes = readFileSync(new URL('../assets/prop_streetlamp_campus_001.glb', import.meta.url));
+  const gltf = JSON.parse(bytes.toString('utf8', 20, 20 + bytes.readUInt32LE(12)));
+  const mesh = gltf.meshes.find(m => m.name === 'DiffuserMesh');
+  const bounds = gltf.accessors[mesh.primitives[0].attributes.POSITION];
+  const expected = bounds.min.map((v, axis) => (world.entities[0].transform.position[axis] + (v + bounds.max[axis]) / 2) / 2);
+  [lamp.head.x, lamp.head.y, lamp.head.z].forEach((v, axis) => assert.ok(Math.abs(v - expected[axis]) < 1e-6));
+  assert.ok(lamp.range > lamp.head.y && lamp.range <= 4);
+});
+
 test('pending or failed streetlamp loading disposes without late visuals/material leaks', async () => {
   const { createCampusStreetlampRuntime } = await ownerModule();
-  let release; const c = context({ wait: new Promise(r => { release = r; }) }), o = createCampusStreetlampRuntime(c);
+  let registrations = 0, unregistered = 0;
+  const nightStreetLights = { registerLamp() { registrations++; return () => unregistered++; } };
+  let release; const c = context({ wait: new Promise(r => { release = r; }) }), o = createCampusStreetlampRuntime(c, { nightStreetLights });
   const pending = o.dispose(); release(); await pending;
   assert.equal(o.status().state, 'disposed'); assert.equal(c.released, 1); assert.equal(c.materials[0].destroyed, true);
-  const failed = context({ fail: true }), missing = createCampusStreetlampRuntime(failed); await missing.ready;
+  assert.equal(registrations, 1); assert.equal(unregistered, 1, 'late-loaded light registration is immediately released');
+  const failed = context({ fail: true }), missing = createCampusStreetlampRuntime(failed, { nightStreetLights }); await missing.ready;
   assert.equal(missing.status().state, 'ready-with-warnings'); assert.equal(missing.status().diagnostics[0].code, 'R_ASSET_LOAD_FAILED');
   await missing.dispose(); assert.equal(failed.materials.length, 0); assert.equal(failed.released, 1); assert.equal(failed.assetCache.size, 0);
+  assert.equal(registrations, 1, 'failed source never registers a light');
+});
+
+
+test('rejected light registration destroys the unattached visual and cloned material', async () => {
+  const { createCampusStreetlampRuntime } = await ownerModule();
+  const c = context(), owner = createCampusStreetlampRuntime(c, {
+    nightStreetLights: { registerLamp() { throw new Error('Lamp already registered: prop.campus-streetlamp-001'); } }
+  });
+  await owner.ready;
+  assert.equal(owner.status().state, 'ready-with-warnings');
+  assert.equal(c.visuals[0].destroyed, 1);
+  assert.equal(c.materials[0].destroyed, true);
+  assert.deepEqual(c.original.emissive.value, [0, 0, 0]);
+  await owner.dispose();
+  assert.equal(c.visuals[0].destroyed, 1, 'rejected visual is never attached or destroyed twice');
 });

@@ -36,6 +36,19 @@ export const CAMPUS_STREETLAMP_WORLD = Object.freeze({
 // Base is wide only at ground level; the tall pole is narrow. Float bounds are
 // rounded conservatively. These are owned by OBSTACLES, alongside CampusBase.
 const transform = CAMPUS_STREETLAMP_WORLD.entities[0].transform;
+// Centre of the unchanged GLB's DiffuserMesh in source metres. Convert through
+// the same document placement once; CampusCoordinateFrame owns Z reflection.
+export const CAMPUS_STREETLAMP_LIGHT = Object.freeze({
+  id: CAMPUS_STREETLAMP_WORLD.entities[0].id,
+  head: Object.freeze({
+    x: metersToWorld(transform.position[0] + .4),
+    y: metersToWorld(transform.position[1] + 3.365),
+    z: metersToWorld(transform.position[2])
+  }),
+  lightOffsetY: -.04,
+  range: 3.5,
+  intensity: .82
+});
 export const CAMPUS_STREETLAMP_COLLIDERS = Object.freeze([
   { part: 'base', min: [-.18, 0, -.18], max: [.18, .12, .18] },
   { part: 'pole', min: [-.065, .06, -.065], max: [.065, 3.400001, .065] }

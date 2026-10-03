@@ -46,18 +46,33 @@ Existing immutable `OBSTACLES` authority owns two minimum polygon prisms derived
 
 Head/arm have no collision; no triangle mesh physics. The base is wide only at ground level, avoiding a full-height base-width wall. NPC grid uses both; existing campus guidance includes the tall pole and excludes low base/bench. Flight and camera reuse existing height-aware checks. Existing camera triangle padding is deliberately unchanged and is more conservative than walking collision.
 
-## Lighting decision
+## Functional lighting connection
 
-**P2 visual integration = emissive-only**
+P2 originally used an emissive-only diffuser. This follow-on connects the same
+unchanged asset to the existing Environment P2 night-light pool from merged #62.
+The loader, placement, collision and shared-cache ownership remain unchanged.
 
-Original `Lamp_Diffuser` has no emissiveFactor, so imported emission is black. On instantiation, only the diffuser is cloned; clone emissionRGB`[.92,.8,.55]`, intensity`.35`. Original base colour/PBR data remain inherited. This is a modest self-lit diffuser, not illumination of the ground. The clone is destroyed with its visual; the cached source remains black/unmodified.
+- Loaded visual registers exactly one candidate; no fifth pool light is created
+- Existing shared total budgets: LOW 0, MEDIUM 2, HIGH 4, nearest player first,
+  maximum selection distance 38 WU, normal rebalance at 5 Hz
+- Approved lamp head: original DiffuserMesh centre `[.4,3.365,0]` metres,
+  transformed through the same document placement into logical campus space
+- Omni offset .04 WU below diffuser centre, range 3.5 WU (7 m), intensity .82 at
+  night, warm RGB `[1,.8,.52]`, `castShadows=false`
+- Existing Environment factor controls intensity: day 0, sunset .18, night 1
+- Only the instance diffuser is cloned, emission RGB `[.92,.8,.55]`, intensity
+  `3.2 * factor`. Cached source remains black/unmodified
+- LOW retains night emission but no actual illumination, matching the existing
+  mobile budget. Distant/unselected lamps likewise remain emissive-only
+- Visual destruction unregisters before destroying its cloned material. Pending
+  loads and failed loads retain the existing owner cleanup contract
+- The shared pool is destroyed on non-persisted pagehide. Repeated destruction
+  is safe. Chunk eviction does not duplicate the persistent BASE registration
+- No new lighting engine, day/night schedule, shadows or GLB edits
 
-- Added point/spot light count:0
-- Range/intensity/color/shadow of realtime lamp: not applicable
-- Added realtime shadow lights:0. Existing sun/mesh shadow policy is unchanged
-- Dependency base has the existing campus directional sun. Shadowless omni-light patterns already exist in personal-room, dorm1-lobby, club-room and event-room renderers, scoped to those room roots. They establish engine capability, not a campus streetlight budget or lifecycle contract; P2 deliberately does not copy them
-- Current main has #57 Environment P0 `createEnvironmentDirector`, manual day/sunset/night presets and interpolated sun/ambient/exposure. That does not exist in the mandated #56 base; P2 does not cherry-pick/rebase it
-- Future hook: after dependencies reconcile, Campus Lighting System P3 may consume environment target/settled state and establish explicit finite light budgets. P2 adds no schedule, automatic on/off, lighting engine or new day/night contract
+Integration verification uses a local-only workspace containing main at
+`9f9481f` and the still-unmerged #56/#60 assets. The lighting patch remains
+separate from those dependency changes; this does not merge or rebase either PR.
 
 ## Reproduction and acceptance evidence
 
@@ -65,9 +80,10 @@ Original `Lamp_Diffuser` has no emissiveFactor, so imported emission is black. O
 - `node --test apps/world/tests/*.test.mjs`
 - `bash scripts/public-ci.sh`
 - `bash scripts/public-db.sh` only in the CI disposable database
+- `node --test apps/world/tests/browser/night-street-lights.test.mjs` after installing the pinned browser dependencies
 - `WORLD_SMOKE_DISABLE_WEBGPU=1 WORLD_SMOKE_BROWSER=chrome node apps/world/tests/browser/campus-streetlamp-smoke.mjs`
 
-The browser smoke uses actual Chromium/full Campus/PlayerController in the existing offline harness. Backend/Supabase traffic is isolated. It checks desktop1440×900, portrait390×844, landscape844×390; actual GLB200, imported material/clone emission, grounded bounds/scale, four-direction collision/retreat, a walking circuit, rendered meshes/framebuffer delta, reload, all streamed-chunk eviction/recreation, one persistent instance/container, and unchanged light counts. Three screenshots and a JSON report are uploaded by the asset CI workflow. The PR records exact-head pass/fail evidence; this document alone is not an execution receipt.
+The browser smoke uses actual Chromium/full Campus/PlayerController in the existing offline harness. Backend/Supabase traffic is isolated. It checks desktop1440×900, portrait390×844, landscape844×390; actual GLB200, imported material/clone emission, grounded bounds/scale, four-direction collision/retreat, a walking circuit, rendered meshes/framebuffer delta, reload, all streamed-chunk eviction/recreation, one persistent instance/container, and unchanged pool allocation. The light-specific checks cover all tiers and day/sunset/night, then freeze geometry/emission/environment and toggle only the selected omni intensity to compare a projected ground polygon. Daytime and night on/off screenshots and a JSON report are uploaded by the asset CI workflow. The PR records exact-head pass/fail evidence; this document alone is not an execution receipt.
 
 Persistent BASE scenery is intentionally not destroyed when NEAR/DETAIL chunks unload. Browser tests must show the same lamp survives those chunk transitions, never a second lamp. Shared owner unit tests separately destroy/recreate the actual adapter document and verify delayed disposal, load failures, cache reuse, and cloned-material cleanup.
 
