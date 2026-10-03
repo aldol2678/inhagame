@@ -54,6 +54,54 @@ try {
   assert.ok(initial.streetLights.activeDynamicLights <= initial.streetLights.dynamicBudget);
 
   await page.evaluate(() => {
+    window.__INHAGAME_ENVIRONMENT__.setTimeOfDay('day', { immediate: true });
+    window.__INHAGAME_ENVIRONMENT__.setWeather('clear', { immediate: true });
+  });
+  await page.waitForFunction(
+    () => window.__INHAGAME_ENVIRONMENT__.status().targetWeather === 'CLEAR' &&
+      window.__INHAGAME_ENVIRONMENT__.status().weatherSettled &&
+      window.__INHAGAME_SKY__.status().sunVisible === true,
+    null,
+    { timeout: TIMEOUT_MS }
+  );
+  const dayClear = await page.evaluate(() => ({
+    environment: window.__INHAGAME_ENVIRONMENT__.status(),
+    rain: window.__INHAGAME_RAIN__.status(),
+    sky: window.__INHAGAME_SKY__.status()
+  }));
+  assert.equal(dayClear.environment.targetWeather, 'CLEAR');
+  assert.equal(dayClear.environment.fog.type, 'none');
+  assert.equal(dayClear.environment.rainIntensity, 0);
+  assert.equal(dayClear.environment.wetness, 0);
+  assert.equal(dayClear.rain.rainEnabled, false);
+  assert.equal(dayClear.rain.wetGroundEnabled, false);
+
+  await page.evaluate(() => window.__INHAGAME_ENVIRONMENT__.setWeather('cloudy'));
+  await page.waitForFunction(
+    () => window.__INHAGAME_ENVIRONMENT__.status().targetWeather === 'CLOUDY' &&
+      window.__INHAGAME_ENVIRONMENT__.status().weatherSettled,
+    null,
+    { timeout: TIMEOUT_MS }
+  );
+  const cloudy = await page.evaluate(() => ({
+    environment: window.__INHAGAME_ENVIRONMENT__.status(),
+    rain: window.__INHAGAME_RAIN__.status(),
+    sky: window.__INHAGAME_SKY__.status()
+  }));
+  assert.equal(cloudy.environment.targetWeather, 'CLOUDY');
+  assert.equal(cloudy.environment.fog.type, 'none');
+  assert.equal(cloudy.environment.rainIntensity, 0);
+  assert.equal(cloudy.environment.wetness, 0);
+  assert.equal(cloudy.rain.rainEnabled, false);
+  assert.equal(cloudy.rain.wetGroundEnabled, false);
+  assert.ok(cloudy.environment.cloudCover > dayClear.environment.cloudCover);
+  assert.ok(cloudy.sky.cloudCover > dayClear.sky.cloudCover);
+  assert.ok(cloudy.sky.cloudOpacity > dayClear.sky.cloudOpacity);
+  assert.ok(cloudy.sky.sunOpacity < dayClear.sky.sunOpacity);
+  assert.ok(cloudy.sky.sunLightScale < dayClear.sky.sunLightScale);
+  assert.equal(cloudy.sky.sunVisible, true);
+
+  await page.evaluate(() => {
     window.__INHAGAME_ENVIRONMENT__.setTimeOfDay('night');
     window.__INHAGAME_ENVIRONMENT__.setWeather('rain');
   });
@@ -198,7 +246,7 @@ try {
   assert.equal(mobileStatus.streetLights.artificialLightFactor, 1);
   assert.ok(mobileStatus.streetLights.activeDynamicLights <= mobileStatus.streetLights.dynamicBudget);
   assert.deepEqual(smoke.problems, []);
-  console.log('world environment smoke: PASS (day/sunset/night, procedural clouds + sun, fog/rain, street lights, wet roads, Inkyung pond response, 390px mobile)');
+  console.log('world environment smoke: PASS (CLEAR/CLOUDY/FOG/RAIN, day/sunset/night, clouds + sun, street lights, wet roads, Inkyung pond, 390px mobile)');
 } finally {
   await smoke.close();
 }
