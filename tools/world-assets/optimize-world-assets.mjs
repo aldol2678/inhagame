@@ -59,14 +59,17 @@ export async function readOptimizerConfig(configPath = DEFAULT_CONFIG_PATH) {
         item.minSavingsPercent < 0 || item.minSavingsPercent > 100) {
       throw new Error(`E_ASSET_OPTIMIZER_SAVINGS:${item.file}`);
     }
+    if (item.keepEmptyLeafNodes !== undefined && typeof item.keepEmptyLeafNodes !== "boolean") {
+      throw new Error(`E_ASSET_OPTIMIZER_KEEP_LEAVES:${item.file}`);
+    }
   }
   return raw;
 }
 
-export async function transformGlb(sourcePath, outputPath) {
+export async function transformGlb(sourcePath, outputPath, { keepEmptyLeafNodes = false } = {}) {
   const io = new NodeIO().registerExtensions(ALL_EXTENSIONS);
   const document = await io.read(sourcePath);
-  await document.transform(dedup(), prune());
+  await document.transform(dedup(), prune({ keepLeaves: keepEmptyLeafNodes }));
   await io.write(outputPath, document);
 }
 
@@ -74,6 +77,7 @@ export async function optimizeFile({
   sourcePath,
   outputPath,
   minSavingsPercent = 0,
+  transformOptions = {},
   transformer = transformGlb
 }) {
   const sourceReal = path.resolve(sourcePath);
@@ -88,7 +92,7 @@ export async function optimizeFile({
 
   try {
     try {
-      await transformer(sourceReal, tempOutput);
+      await transformer(sourceReal, tempOutput, transformOptions);
       const optimizedBytes = await readFile(tempOutput);
       const savingsPercent = ((sourceStat.size - optimizedBytes.length) / sourceStat.size) * 100;
 
@@ -156,12 +160,14 @@ export async function optimizeConfiguredAssets({
     const result = await optimizeFile({
       sourcePath,
       outputPath,
-      minSavingsPercent: asset.minSavingsPercent
+      minSavingsPercent: asset.minSavingsPercent,
+      transformOptions: { keepEmptyLeafNodes: asset.keepEmptyLeafNodes === true }
     });
     results.push(Object.freeze({
       file: asset.file,
       source: path.relative(REPO_ROOT, sourcePath).split(path.sep).join("/"),
       output: path.relative(REPO_ROOT, outputPath).split(path.sep).join("/"),
+      keepEmptyLeafNodes: asset.keepEmptyLeafNodes === true,
       ...result
     }));
   }
