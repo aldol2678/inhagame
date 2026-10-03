@@ -161,6 +161,16 @@ test('P16 creates a non-executable canary execution contract with all required b
   assert.ok(contract.requirements.includes('SEPARATE_HUMAN_ACTIVATION_REQUIRED'));
   assert.ok(contract.requirements.includes('EXTERNAL_ROUTER_IMPLEMENTATION_REQUIRED'));
   assert.equal(contract.nextAction, 'HUMAN_REVIEW_EXECUTION_ADAPTER_DESIGN_ONLY');
+
+  assert.throws(() => {
+    contract.phase.audiencePercent = 100;
+  }, TypeError);
+  assert.throws(() => {
+    contract.humanApproval.approverRef = 'other';
+  }, TypeError);
+  assert.throws(() => {
+    contract.handles.rollback = 'changed';
+  }, TypeError);
 });
 
 test('P16 proposal fingerprint is canonical and binds the exact P14 proposal', async () => {
