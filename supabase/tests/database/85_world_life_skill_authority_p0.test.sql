@@ -26,7 +26,7 @@ select col_is_pk('private','world_player_life_skills',array['user_id','skill_id'
 select col_is_unique('private','world_life_skill_xp_transactions',array['idempotency_key'],
   'Life Skill XP idempotency key is globally unique');
 
-select is((select count(*) from private.world_life_skill_catalog),11::bigint,'12 long-term Life Skills are mirrored');
+select is((select count(*) from private.world_life_skill_catalog),12::bigint,'12 long-term Life Skills are mirrored');
 select is((select count(*) from private.world_life_skill_catalog where status='COMING_SOON'),12::bigint,
   'M5 does not activate any Life Skill');
 select results_eq($$
