@@ -29,6 +29,7 @@ TML is used here as a semantic/state-transition layer above the existing game im
 - `runtime/canary-dry-run.mjs` — P15 virtual cohort canary simulator; no routing, deployment or authority effect
 - `runtime/canary-execution-contract.mjs` — P16 short-lived immutable execution-input contract; still no router or activation logic
 - `runtime/canary-adapter-interfaces.mjs` — P17 reference-only external adapter interface pack; no adapter invocation
+- `runtime/canary-adapter-conformance.mjs` — P18 MOCK_ONLY conformance harness for P17 interfaces; never accepts live adapters
 - `fixtures/` — executable-domain conformance fixtures tied to current INHA WORLD contracts
 
 ## Boundary
@@ -462,3 +463,41 @@ current authority: legacy-main2
 ```
 
 P17 deliberately does not wire any adapter into `main.js`, the NPC runtime, routing, deployment, persistence, or authority switching.
+
+
+## P18 Adapter Mock / Conformance
+
+P18 verifies the P17 interface contracts using explicitly branded `TEST_MOCK` adapters only.
+
+The harness invokes synthetic mock methods for:
+
+- Cohort Resolver;
+- Activation Preflight;
+- Observability Adapter;
+- Rollback Adapter;
+- Expiry Guard.
+
+The harness refuses unbranded/live-looking adapters before any invocation. It also rejects missing methods, unexpected callable methods and P17 interface-pack boundary drift.
+
+Synthetic conformance probes verify:
+
+- cohort inspection returns metadata only and embeds no membership;
+- activation preflight never activates;
+- observability is read-only and returns bounded metric snapshots;
+- rollback returns proposal-only output and never executes rollback;
+- expiry guard returns `VALID` or `EXPIRED` without mutating expiry.
+
+Every result carries:
+
+```text
+mockOnly: true
+liveAdapterInvocationAllowed: false
+routingEffect: NONE
+deploymentEffect: NONE
+runtimeEffect: NONE
+persistenceEffect: NONE
+authorityChangeAllowed: false
+current authority: legacy-main2
+```
+
+P18 is not wired into `main.js`, NPC runtime, routing, deployment or production traffic. It is a conformance test harness for future adapter implementations.
