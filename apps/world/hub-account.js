@@ -405,7 +405,7 @@
         options: {
           shouldCreateUser: true,
           // Production Auth template discriminator for the 6-digit Inha OTP email.
-          emailRedirectTo: 'https://duck.inhagame.example/verify-inha.html'
+          emailRedirectTo: 'https://duck.inhagame.app/verify-inha.html'
         }
       });
       if (error) throw error;
