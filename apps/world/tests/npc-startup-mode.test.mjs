@@ -1,22 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { runInNewContext } from 'node:vm';
-
-const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
-const previewHostDeclaration = main.match(/^const previewHost = .*;$/m)?.[0];
-const modes = main.slice(main.indexOf('const npcTestMode ='), main.indexOf('const campusLifePreview ='));
-assert.ok(previewHostDeclaration && modes.startsWith('const npcTestMode ='), 'exercise the actual boot declarations');
+import { resolveWorldStartupConfig } from '../src/startup/startup-config.js';
 
 function startup(url) {
-  const location = new URL(url);
-  return runInNewContext(`
-    const startupParams = new URLSearchParams(location.search);
-    ${previewHostDeclaration}
-    ${modes}
-    ({ enabled: npcEnabled, production: npcProductionMode, shared: npcSharedScheduleMode,
-       social: npcSocialProductionMode, test: npcTestMode, aiPilot: npcAiPilotMode });
-  `, { location, URLSearchParams });
+  const config = resolveWorldStartupConfig(new URL(url));
+  return {
+    enabled: config.npcEnabled,
+    production: config.npcProductionMode,
+    shared: config.npcSharedScheduleMode,
+    social: config.npcSocialProductionMode,
+    test: config.npcTestMode,
+    aiPilot: config.npcAiPilotMode
+  };
 }
 
 test('ordinary custom-domain entry starts NPCs with shared schedules without query flags', () => {
