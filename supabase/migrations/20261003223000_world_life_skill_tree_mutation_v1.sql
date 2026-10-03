@@ -228,7 +228,7 @@ begin
     return private.world_life_skill_tree_transaction_result_v1(v_existing,true);
   end if;
 
-  select n.*, t.status into v_node, v_tree_status
+  select n, t.status into v_node, v_tree_status
     from private.world_life_skill_nodes n
     join private.world_life_skill_tree_catalog t on t.tree_id=n.tree_id
    where n.node_id=p_node_id;
