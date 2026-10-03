@@ -118,6 +118,14 @@ export function createTmlRewardReceiptRead({ reward, observedAt, sequence = 1 } 
       extensions: { reward_version: reward.rewardVersion ?? null, reward_transaction_id: reward.rewardTransactionId ?? null }
     }),
     makeRewardFact({
+      id: `fact.${token(rewardSubject)}.reward.version.${token(observedAt)}.${sequence}`,
+      subject: rewardSubject,
+      predicate: 'reward.version',
+      value: { type: 'number', value: reward.rewardVersion },
+      observedAt,
+      sequence
+    }),
+    makeRewardFact({
       id: `fact.${token(rewardSubject)}.reward.replayed.${token(observedAt)}.${sequence}`,
       subject: rewardSubject,
       predicate: 'reward.replayed',
@@ -161,6 +169,12 @@ function expectedPostState({ rewardSpec, preWallet, preProgression }) {
       subject: rewardSpec.reward_id,
       predicate: 'reward.status',
       value: { type: 'string', value: 'SUCCESS' }
+    },
+    {
+      op: 'eq',
+      subject: rewardSpec.reward_id,
+      predicate: 'reward.version',
+      value: { type: 'number', value: rewardSpec.reward_version }
     },
     {
       op: 'eq',
