@@ -3,20 +3,30 @@ import { GATE_FRAME } from './roadview-layout.js';
 import { roadFrame } from './campus-road-layout.js';
 import { roadSurface } from './campus-road-geometry.js';
 import { FLAT_GROUND_Y as G } from './flat-ground-surface.js';
-import { MAIN_GATE_LEVELS as L } from './main-gate-terrain-layout.js';
+import { gateRibbonTop, MAIN_GATE_LEVELS as L } from './main-gate-terrain-layout.js';
+
+import { MAIN_GATE_FORECOURT_QUADS } from './main-gate-forecourt.js';
 
 export function fillMainGateRoads(batch) {
-  const asphalt='#666f70',paving='#b9b4a6',white='#eee9da',yellow='#d6b65a';
+  const asphalt='#666f70',paving='#b9bdbb',white='#eee9da',yellow='#d6b65a';
+  for(const quad of MAIN_GATE_FORECOURT_QUADS)batch.quad(asphalt,...quad.map(p=>[p.x,L.road,p.z]));
   const crossings=new Set(GATE_DORM_CROSSINGS.map(q=>q.id));
   // Roads first, then a flush sidewalk overlay above the lawn/asphalt owner.
-  for(const s of GATE_DORM_SEGMENTS.filter(s=>!crossings.has(s.road.id))) {
+  for(const s of GATE_DORM_SEGMENTS.filter(s=>!crossings.has(s.road.id)&&s.road.id!=='main_gate_approach')) {
     const f=s.frame,h=s.road.width/2,path=s.road.kind==='PATH';
     const surfaceY=path?L.sidewalk:L.road;
-    roadSurface(batch,path?paving:asphalt,f,-.08,f.length+.08,-h,h,surfaceY);
+    const red=s.road.role==='red-promenade';
+    if(s.road.id==='main_gate_pedestrian_exit'){
+      // One joined ribbon follows the curb; no overlapping segment end caps.
+      if(s===GATE_DORM_SEGMENTS.find(q=>q.road.id===s.road.id))
+        for(const face of gateRibbonTop(s.road.vertices.map(p=>({...p,y:surfaceY})),s.road.width))batch.quad(paving,...face);
+      continue;
+    }
+    roadSurface(batch,red?'#a76264':path?paving:asphalt,f,-.08,f.length+.08,-h,h,surfaceY);
     if(path) {
       const edgeY=L.paint,detailY=L.joint;
-      for(const side of [-1,1])roadSurface(batch,'#d5d0bf',f,0,f.length,side*h-.04,side*h+.04,edgeY);
-      for(let u=.5;u<f.length;u+=1.1)roadSurface(batch,'#aaa798',f,u,Math.min(u+.018,f.length),-h,h,detailY);
+      for(const side of [-1,1])roadSurface(batch,'#d8dcda',f,0,f.length,side*h-.04,side*h+.04,edgeY);
+      if(!red)for(let u=.5;u<f.length;u+=1.1)roadSurface(batch,'#929997',f,u,Math.min(u+.018,f.length),-h,h,detailY);
     }
   }
   const f=roadFrame(...SOSUNG_RO.vertices);
@@ -51,3 +61,4 @@ export function fillMainGateRoads(batch) {
   }
   return batch;
 }
+
