@@ -20,6 +20,8 @@ TML is used here as a semantic/state-transition layer above the existing game im
 - `runtime/economic-read-adapters.mjs` — P7 authoritative Wallet / Progression readback adapters
 - `runtime/reward-settlement.mjs` — P7 Reward receipt + Wallet + EXP settlement Evidence/Verification
 - `runtime/reward-aware-pipeline.mjs` — P8 explicit ordinary P5 plan + final P7 settlement pipeline
+- `runtime/main2-shadow-contract.mjs` — P9 browser-safe shadow contract aligned to the TML fixtures
+- `runtime/main2-shadow.mjs` — P9 memory-only Main 2 observer; no request, write, persistence or external telemetry
 - `fixtures/` — executable-domain conformance fixtures tied to current INHA WORLD contracts
 
 ## Boundary
@@ -94,3 +96,29 @@ quest completed but settlement unsure -> REWARD_UNVERIFIED
 ```
 
 P8 also verifies `reward.version` from `server.reward` against the reward fixture version.
+
+
+## P9 Main 2 Shadow Mode
+
+P9 connects TML to the live Main 2 browser runtime without making TML authoritative.
+
+The existing Main 2 client still owns every request and every gameplay state update. After a valid server response has already been accepted, it emits an isolated copy to the TML shadow observer. Observer errors are swallowed and cannot block quest progress.
+
+Shadow Mode compares:
+
+- observed Main 2 event / previous stage / returned stage against the TML transition contract;
+- the final server Reward receipt against the TML reward contract;
+- the existing Wallet and Progression readbacks against the expected +180 coin / +100 EXP settlement.
+
+Economic readbacks are not requested by Shadow Mode. It only consumes the Wallet/Progression snapshots already refreshed by the existing reward path. Because those authorities can update independently, partial refreshes remain `PENDING` until both are available.
+
+P9 has no external telemetry sink. Its comparison state exists only in memory and is exposed through the existing NPC runtime debug status as `tml_main2_shadow`.
+
+The rollout invariant is:
+
+```text
+legacy Main 2 = authoritative execution
+TML shadow    = read-only comparison
+```
+
+No TML shadow result changes a request, stage, reward, wallet, progression state or player-facing UI.
