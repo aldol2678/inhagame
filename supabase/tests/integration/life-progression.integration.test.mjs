@@ -52,5 +52,5 @@ test('Life Progression P0 server authority functions are installed', () => {
   const rows = query(
     "select concat_ws(',', to_regprocedure('private.world_life_progression_snapshot_v1(uuid)') is not null, to_regprocedure('private.world_life_skill_tree_snapshot_v1(uuid,text)') is not null, to_regprocedure('private.world_life_node_unlock_v1(uuid,text,text)') is not null)"
   );
-  assert.equal(rows, 'true,true,true');
+  assert.equal(rows, 't,t,t');
 });
