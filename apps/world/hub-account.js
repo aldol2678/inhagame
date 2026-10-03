@@ -27,10 +27,15 @@
   const googleLinkBadge = document.getElementById('hub-google-link-badge');
   const googleLinkStatus = document.getElementById('hub-google-link-status');
   const modeButtons = Array.from(document.querySelectorAll('[data-auth-mode]'));
-  const client = window.supabase?.createClient?.(
-    ((globalThis.__INHAGAME_PUBLIC_SUPABASE__||{}).url),
-    ((globalThis.__INHAGAME_PUBLIC_SUPABASE__||{}).publishableKey)
-  );
+  const publicConfig = globalThis.__INHAGAME_PUBLIC_SUPABASE__ || {};
+  let client = null;
+  try {
+    if (publicConfig.url && publicConfig.publishableKey) {
+      client = window.supabase?.createClient?.(publicConfig.url, publicConfig.publishableKey) || null;
+    }
+  } catch (error) {
+    console.warn('Hub Supabase client bootstrap failed', error);
+  }
   if (!client) { status.textContent = '계정 서비스를 불러올 수 없습니다.'; return; }
   window.InhaHubAccountClient = client;
 
@@ -328,7 +333,7 @@
         password,
         options: {
           data: { nickname },
-          emailRedirectTo: 'https://inhagame.example/?panel=account'
+          emailRedirectTo: new URL('/?panel=account', location.origin).href
         }
       });
       if (error) throw error;
