@@ -6,6 +6,7 @@ import {
   tmlMain2ShadowTransition
 } from './main2-shadow-contract.mjs';
 import { evaluateTmlMain2ShadowReadiness } from './shadow-readiness.mjs';
+import { buildTmlMain2HumanPromotionReview } from './human-promotion-gate.mjs';
 
 export const TML_MAIN2_SHADOW_STATUS = Object.freeze({
   MATCH: 'MATCH',
@@ -391,6 +392,12 @@ export function createTmlMain2Shadow({ enabled = true, readinessThresholds } = {
     observeQuestResult,
     observeEconomicState,
     resetScope,
+    promotionReview({ generatedAt } = {}) {
+      return buildTmlMain2HumanPromotionReview({
+        shadowStatus: this.status(),
+        ...(generatedAt ? { generatedAt } : {})
+      });
+    },
     status() {
       const paritySnapshot = parity.snapshot();
       return Object.freeze({
