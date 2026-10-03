@@ -21,7 +21,7 @@ async function run(mode) {
   assert.equal(state.renderer, "WebGL2");
   assert.equal(state.before.modelState, "glb");
   assert.equal(state.before.visualAttached, true);
-  assert.equal(state.before.production.percentage, 1);
+  assert.equal(state.before.production.percentage, 100);
   assert.equal(state.before.production.authority.productionWired, true);
   return state;
 }
@@ -29,7 +29,7 @@ async function run(mode) {
 try {
   const control = await run("control");
   assert.equal(control.before.selected, false);
-  assert.equal(control.before.character, null, "non-selected local player never enters canary preparation");
+  assert.equal(control.before.character, null, "remote-disabled control never enters optimized preparation");
 
   const selected = await run("selected");
   assert.equal(selected.before.selected, true);
@@ -48,7 +48,7 @@ try {
   assert.equal(rollback.after.production.authority.counts.rolledBack, 1);
 
   assert.deepEqual(smoke.problems, []);
-  console.log("production asset canary 1%: PASS", JSON.stringify({
+  console.log("production optimized asset rollout 100%: PASS", JSON.stringify({
     control: control.before.character,
     selected: selected.before.character,
     rollback: rollback.after.character
