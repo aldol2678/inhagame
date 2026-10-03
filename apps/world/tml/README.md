@@ -27,3 +27,10 @@ The first fixture mirrors Main 2 (`campus_navigation_intro_v1`) and is checked b
 ## Current status
 
 TML IR v0.1 is an integration contract under active validation. The sui surface syntax, VM/runtime implementation, and broader language features are not frozen by this directory.
+
+
+## P5 design
+
+The next mutating-runtime design is documented in [design/P5_VERIFIED_WRITE_RUNTIME.md](design/P5_VERIFIED_WRITE_RUNTIME.md).
+
+P5 is intentionally not bound yet. The design requires precondition verification, exactly one mutation attempt, mandatory authoritative readback, P4 Evidence/Verification, and no automatic mutation retry after timeout or ambiguous provider failure.
