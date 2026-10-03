@@ -248,6 +248,18 @@ export function createEnvironmentDirector({
     return fogCurrent.wetness;
   }
 
+  function copySkyVisualState(out) {
+    if (!out) return null;
+    if (!Array.isArray(out.sunColor) || out.sunColor.length < 3) out.sunColor = [0, 0, 0];
+    if (!Array.isArray(out.sunEuler) || out.sunEuler.length < 3) out.sunEuler = [0, 0, 0];
+    copyTuple(out.sunColor, current.sunColor);
+    copyTuple(out.sunEuler, current.sunEuler);
+    out.sunIntensity = current.sunIntensity;
+    out.artificialLightFactor = current.artificialLightFactor;
+    out.rainIntensity = fogCurrent.rainIntensity;
+    return out;
+  }
+
   return Object.freeze({
     setTimeOfDay,
     setWeather,
@@ -255,6 +267,7 @@ export function createEnvironmentDirector({
     status,
     artificialLightFactor,
     rainIntensity,
-    wetnessFactor
+    wetnessFactor,
+    copySkyVisualState
   });
 }

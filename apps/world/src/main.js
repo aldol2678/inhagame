@@ -26,6 +26,7 @@ import { createEnvironmentDirector } from './environment/environment-director.js
 import { resolveEnvironmentRuntimeTime, resolveEnvironmentRuntimeWeather } from './environment/environment-clock.js';
 import { createNightStreetLights } from './environment/night-street-lights.js';
 import { createRainWeatherEffects } from './environment/rain-weather-effects.js';
+import { createSkyVisuals } from './environment/sky-visuals.js';
 import { createInkyungDuckSystem } from './ambient-ducks.js';
 import { createInkyungMechanicalDuckEvent } from './inkyung-mechanical-duck-event.js';
 import { createBiryongSystem } from './biryong/biryong-system.js';
@@ -289,6 +290,17 @@ window.__INHAGAME_ENVIRONMENT__ = Object.freeze({
     setTimeOfDay: (value, options) => environment.setTimeOfDay(value, options),
     setWeather: (value, options) => environment.setWeather(value, options)
   } : {})
+});
+
+const skyVisuals = createSkyVisuals({
+  app,
+  camera,
+  copyEnvironmentSkyState: out => environment.copySkyVisualState(out),
+  getGraphicsTier: () => graphics.tier
+});
+app.on("update", dt => skyVisuals.update(dt));
+window.__INHAGAME_SKY__ = Object.freeze({
+  status: () => skyVisuals.status()
 });
 
 const player = new pc.Entity("Player");
