@@ -34,6 +34,17 @@ jobs:
       - name: Run strict optimizer verification
         working-directory: tools/world-assets
         run: npm run verify -- --output-root "$RUNNER_TEMP/inhagame-world-assets"
+      - name: Generate shadow-consumer assets
+        working-directory: tools/world-assets
+        run: npm run verify
+      - name: Install World browser smoke dependencies
+        working-directory: apps/world/tests/browser
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Run asset optimization shadow smoke
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+        run: node apps/world/tests/browser/asset-optimization-shadow-smoke.mjs
       - name: Upload optimizer receipt and generated samples
         uses: actions/upload-artifact@v4
         with:

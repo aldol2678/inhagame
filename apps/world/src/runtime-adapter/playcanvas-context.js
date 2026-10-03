@@ -50,7 +50,8 @@ export function createPlayCanvasRuntimeContext({
   assetBaseUrl = new URL("/", location.href).href,
   registries = {},
   assetCache = new Map(),
-  resolveAssetUri = null
+  resolveAssetUri = null,
+  assetShadow = null
 }) {
   if (!app || !parent) throw new TypeError("PlayCanvas app and parent are required");
   const placeholderMaterial = material(0.95, 0.15, 0.45);
@@ -69,7 +70,10 @@ export function createPlayCanvasRuntimeContext({
     loadAsset: uri => new Promise((resolve, reject) => {
       app.assets.loadFromUrl(uri, "container", (error, asset) => {
         if (error || !asset?.resource) reject(error || new Error(`R_ASSET_EMPTY:${uri}`));
-        else resolve(asset);
+        else {
+          void assetShadow?.observeResource?.(uri, asset, { consumer: "runtime-adapter" });
+          resolve(asset);
+        }
       });
     }),
     createRoot: world => {

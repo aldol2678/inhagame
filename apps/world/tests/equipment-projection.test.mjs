@@ -383,7 +383,7 @@ test("33. projection code: no Supabase, RPC, Wardrobe, Inventory, Realtime or Sk
 });
 test("34. main.js wiring: loadout-driven projection, character anchors, status exposure, cleanup", () => {
   const main = source("../src/main.js");
-  assert.match(main, /createEquipmentProjection\(\{\s*loadout,\s*getAnchor: \(slot\) => character\.getEquipmentAnchor\(slot\),\s*loadModel: createEquipmentModelLoader\(\{ app \}\)\s*\}\)/);
+  assert.match(main, /createEquipmentProjection\(\{\s*loadout,\s*getAnchor: \(slot\) => character\.getEquipmentAnchor\(slot\),\s*loadModel: createEquipmentModelLoader\(\{ app, assetShadow: assetOptimizationShadow \}\)\s*\}\)/);
   assert.match(main, /equipmentProjection: Object\.freeze\(\{ status: \(\) => equipmentProjection\.status\(\) \}\)/);
   assert.match(main, /equipment: equipmentProjection\.status\(\)/);
   assert.match(main, /pagehide[^\n]*equipmentProjection\.destroy\(\)/);

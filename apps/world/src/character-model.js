@@ -71,7 +71,7 @@ function ridingHelicopter(player) {
   return player.mountKind === CAMPUS_HELICOPTER_ID;
 }
 
-export function createCharacter(app, player) {
+export function createCharacter(app, player, { assetShadow = null } = {}) {
   // Independently authored QA cuboids; no original mascot fallback recipe.
   const duck = new pc.Entity("Public_QA_Avatar");
   player.addChild(duck);
@@ -162,6 +162,7 @@ export function createCharacter(app, player) {
           return;
         }
         try {
+          void assetShadow?.observeResource?.(url, asset, { consumer: "character" });
           resolve(asset.resource.instantiateRenderEntity({ castShadows: true, receiveShadows: true }));
         } catch (cause) {
           reject(cause);
