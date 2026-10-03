@@ -41,10 +41,6 @@ const walking = new Set(['walk', 'walk_to_class', 'walk_to_club', 'leave_zone'])
 const roaming = new Set([...walking, 'idle', 'wait']);
 const hairLabels = { long: '긴 머리', bob: '단발', ponytail: '묶은 머리', bun: '올림머리', short: '짧은 머리', sidepart: '옆가르마', curly: '곱슬머리', medium: '중간 길이 머리' };
 const accessoryLabels = { sketchbook: '스케치북', glasses: '안경', apron: '앞치마', badge: '명찰', backpack: '배낭', headphones: '헤드폰', book: '책', messenger: '크로스백', scarf: '목도리' };
-const withAnd = name => {
-  const last = name.charCodeAt(name.length - 1);
-  return `${name}${last >= 0xac00 && last <= 0xd7a3 && (last - 0xac00) % 28 ? '과' : '와'}`;
-};
 function addPanel(production = false, externalContextAction = false) {
   const style = document.createElement('style');
   style.textContent = `
@@ -479,6 +475,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
   function showDialogueHome({ keepLine = false } = {}) {
     const actor = activeDialogueActor();
     if (!actor || !dialogueSession) return;
+    pilotConversationRequest++;
     dialogueSession.home();
     setPlayerDialogueLine(null);
     if (!keepLine) line.textContent = homeGreeting(actor);
@@ -653,10 +650,13 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
         setPlayerDialogueLine(button.textContent);
         try {
           const result = await quest.advanceNpc(actorId);
-          if (activeConversation?.id === actorId)
+          if (activeConversation?.id === actorId &&
+              dialogueSession?.snapshot().state === NPC_DIALOGUE_STATE.QUEST)
             line.textContent = result?.line ?? '로그인 상태를 확인한 뒤 다시 시도해 주세요.';
         } catch {
-          if (activeConversation?.id === actorId) line.textContent = '지금은 진행 상태를 저장하지 못했어요. 다시 시도해 주세요.';
+          if (activeConversation?.id === actorId &&
+              dialogueSession?.snapshot().state === NPC_DIALOGUE_STATE.QUEST)
+            line.textContent = '지금은 진행 상태를 저장하지 못했어요. 다시 시도해 주세요.';
         } finally {
           if (activeConversation?.id === actorId && dialogueSession?.snapshot().state === NPC_DIALOGUE_STATE.QUEST)
             renderQuestMenu(actor, { keepLine: true });
