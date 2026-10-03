@@ -135,3 +135,51 @@ test("manual rollback destroys optimized canary and restores canonical authority
   assert.equal(rollback.outcome, ASSET_CANARY_OUTCOME.ROLLED_BACK_MANUAL);
   assert.equal(canary.status().counts.rolledBack, 1);
 });
+
+
+test("optimized validation failure fails closed to canonical before authority switch", async () => {
+  const key = selectedKey();
+  const shadow = {
+    optimizedUrlFor: () => "/optimized.glb",
+    observeResource: async () => ({ status: "MATCH" })
+  };
+  const canary = createAssetAuthorityCanary({
+    app: app(),
+    shadow,
+    enabled: true,
+    percentage: 25,
+    productionWired: true,
+    optimizedLoader: async () => asset("optimized")
+  });
+  const prepared = await canary.prepare("/canonical.glb", asset("canonical"), {
+    subjectKey: key,
+    consumer: "test",
+    validateCanonicalEntity: () => true,
+    validateOptimizedEntity: () => false
+  });
+  assert.equal(prepared.activeEntity.name, "canonical");
+  assert.equal(prepared.receipt.authority, ASSET_CANARY_AUTHORITY.CANONICAL);
+  assert.equal(prepared.receipt.outcome, ASSET_CANARY_OUTCOME.ROLLED_BACK_VALIDATION_FAILURE);
+  assert.equal(canary.status().productionWired, true);
+});
+
+test("invalid canonical validation throws before optimized authority is considered", async () => {
+  const key = selectedKey();
+  const shadow = {
+    optimizedUrlFor: () => "/optimized.glb",
+    observeResource: async () => ({ status: "MATCH" })
+  };
+  const canary = createAssetAuthorityCanary({
+    app: app(),
+    shadow,
+    enabled: true,
+    percentage: 25
+  });
+  await assert.rejects(
+    canary.prepare("/canonical.glb", asset("canonical"), {
+      subjectKey: key,
+      validateCanonicalEntity: () => false
+    }),
+    /E_ASSET_CANARY_CANONICAL_VALIDATION/
+  );
+});
