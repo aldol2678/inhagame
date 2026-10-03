@@ -74,3 +74,18 @@ test("main wires production canary only into the local character and disables it
   assert.match(remote, /createCharacter\(app, entity\);/);
   assert.doesNotMatch(remote, /assetCanary|asset-production-canary/);
 });
+
+test("main production wiring is remote-gated, polled and fail-closed", () => {
+  const main = readFileSync(new URL("../src/main.js", import.meta.url), "utf8");
+  assert.match(main, /createAssetCanaryRemoteControl\(\)/);
+  assert.match(main, /assetCanaryRemoteControl\.start\(\)/);
+  assert.match(main, /assetCanaryRemoteState === FLAG_ENABLED/);
+  assert.match(main, /assetCanaryRemoteControl\.subscribe\(next =>/);
+  assert.match(main, /next === FLAG_ENABLED/);
+  assert.match(main, /REMOTE_KILL_/);
+  assert.match(main, /assetCanaryTelemetry\.selected\(\)/);
+  assert.match(main, /assetCanaryTelemetry\.active\(\)/);
+  assert.match(main, /assetCanaryTelemetry\.rollback\(\)/);
+  assert.match(main, /assetCanaryTelemetry\.failure\(\)/);
+  assert.match(main, /assetCanaryRemoteControl\.stop\(\)/);
+});

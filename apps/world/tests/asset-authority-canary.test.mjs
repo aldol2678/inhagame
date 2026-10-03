@@ -183,3 +183,26 @@ test("invalid canonical validation throws before optimized authority is consider
     /E_ASSET_CANARY_CANONICAL_VALIDATION/
   );
 });
+
+test("closed activation guard prevents optimized authority after successful preflight", async () => {
+  const key = selectedKey();
+  const shadow = {
+    optimizedUrlFor: () => "/optimized.glb",
+    observeResource: async () => ({ status: "MATCH" })
+  };
+  const canary = createAssetAuthorityCanary({
+    app: app(),
+    shadow,
+    enabled: true,
+    percentage: 25,
+    activationGuard: () => false,
+    optimizedLoader: async () => asset("optimized")
+  });
+  const prepared = await canary.prepare("/canonical.glb", asset("canonical"), {
+    subjectKey: key, consumer: "test"
+  });
+  assert.equal(prepared.activeEntity.name, "canonical");
+  assert.equal(prepared.receipt.authority, ASSET_CANARY_AUTHORITY.CANONICAL);
+  assert.equal(prepared.receipt.outcome, ASSET_CANARY_OUTCOME.ROLLED_BACK_ACTIVATION_GUARD);
+  assert.equal(prepared.receipt.reason, "ACTIVATION_GUARD_CLOSED");
+});

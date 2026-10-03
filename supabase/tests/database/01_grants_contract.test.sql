@@ -183,11 +183,11 @@ select set_eq($$select unnest(pg_temp.exec_surface('authenticated', 'anon'))$$, 
 -- privileges (the migrations revoked only insert/update/delete). PostgREST never issues them,
 -- so they are not reachable through the Data API; recorded as a known ambiguity, not changed.
 select set_eq($$select unnest(pg_temp.table_surface('anon'))$$, array[
-  'departments:S,T,R,G', 'inha_duck_ops_refresh:S'
+  'departments:S,T,R,G', 'inha_duck_ops_refresh:S', 'world_runtime_flags:S'
 ], 'anon table privileges');
 select set_eq($$select unnest(pg_temp.table_surface('authenticated'))$$, array[
   'departments:S,T,R,G', 'inha_duck_ops_refresh:S', 'profiles:S,ci,cu',
-  'user_achievements:S', 'user_game_progress:S,I,U'
+  'user_achievements:S', 'user_game_progress:S,I,U', 'world_runtime_flags:S'
 ], 'authenticated table privileges');
 
 -- Endless runs have no verified submission path; no Data API role can record a best.

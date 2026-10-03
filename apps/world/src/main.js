@@ -29,6 +29,8 @@ import { BIRYONG_PLACE_ID, isNearBiryong } from './biryong/biryong-layout.js';
 import { createBackGateArrivalEvent } from './back-gate-arrival-event.js';
 import { createAssetOptimizationShadow } from './asset-optimization-shadow.js';
 import { createProductionAssetCanary } from './asset-production-canary.js';
+import { createAssetCanaryRemoteControl } from './asset-canary-remote-control.js';
+import { createAssetCanaryTelemetry } from './asset-canary-telemetry.js';
 import { createWorldGraphicsDevice, GraphicsUnavailableError } from './webgpu-device.js';
 import { createCharacter } from "./character-model.js";
 import { createCampusProfile } from "./campus-profile.js";
@@ -144,7 +146,7 @@ import { createHudContext } from "./hud/hud-context.js";
 import { bindHudPresentation } from "./hud/hud-presentation.js";
 import { createHelicopterFlightHud } from "./mounts/helicopter-flight-hud.js";
 import { createMobilityBook } from "./mobility/mobility-book.js";
-import { FLAG_ENABLED, FLAG_UNAVAILABLE, probeFeatureFlag, retryFeatureFlag } from "./npc-feature-flags.js";
+import { FLAG_DISABLED, FLAG_ENABLED, FLAG_UNAVAILABLE, probeFeatureFlag, retryFeatureFlag } from "./npc-feature-flags.js";
 
 const canvas = document.getElementById("application");
 const worldLoading = getWorldLoading();
@@ -216,12 +218,18 @@ if (assetOptimizationShadow.enabled) {
   });
 }
 
+const assetCanaryRemoteControl = createAssetCanaryRemoteControl();
+const assetCanaryRemoteInitial = previewHost
+  ? Promise.resolve(FLAG_DISABLED)
+  : assetCanaryRemoteControl.start();
+const assetCanaryRemoteState = await assetCanaryRemoteInitial;
 const assetProductionCanary = createProductionAssetCanary({
   app,
-  enabled: !previewHost,
-  storage: globalThis.localStorage,
-  cryptoImpl: globalThis.crypto
+  enabled: !previewHost && assetCanaryRemoteState === FLAG_ENABLED,
+  activationGuard: () => assetCanaryRemoteControl.enabled
 });
+const assetCanaryTelemetry = createAssetCanaryTelemetry();
+if (assetProductionCanary.selected) assetCanaryTelemetry.selected();
 
 worldLoading?.setPhase("WORLD");
 
@@ -413,12 +421,47 @@ const character = createCharacter(app, player, {
   assetCanary: assetProductionCanary.canary,
   assetCanarySubjectKey: assetProductionCanary.subjectKey
 });
+let assetCanaryRemoteStateCurrent = assetCanaryRemoteState;
+const unbindAssetCanaryRemote = assetCanaryRemoteControl.subscribe(next => {
+  assetCanaryRemoteStateCurrent = next;
+  if (next === FLAG_ENABLED || character.assetCanary?.authority !== "OPTIMIZED_CANARY") return;
+  const receipt = character.rollbackAssetCanary(`REMOTE_KILL_${next}`);
+  if (receipt?.authority === "CANONICAL") assetCanaryTelemetry.rollback();
+});
+
+void character.ready.then(() => {
+  if (!assetProductionCanary.selected) return;
+  let receipt = character.assetCanary;
+  if (assetCanaryRemoteStateCurrent !== FLAG_ENABLED && receipt?.authority === "OPTIMIZED_CANARY") {
+    receipt = character.rollbackAssetCanary("REMOTE_KILL_" + assetCanaryRemoteStateCurrent);
+    if (receipt?.authority === "CANONICAL") assetCanaryTelemetry.rollback();
+    return;
+  }
+  if (receipt?.authority === "OPTIMIZED_CANARY") assetCanaryTelemetry.active();
+  else assetCanaryTelemetry.failure();
+});
+
+window.addEventListener("pagehide", () => {
+  unbindAssetCanaryRemote();
+  assetCanaryRemoteControl.stop();
+}, { once: true });
+
 window.__INHAGAME_ASSET_PRODUCTION_CANARY__ = Object.freeze({
   status: () => Object.freeze({
     ...assetProductionCanary.status(),
+    remote: assetCanaryRemoteControl.status(),
+    remoteState: assetCanaryRemoteStateCurrent,
+    telemetry: assetCanaryTelemetry.status(),
     character: character.assetCanary ?? null
   }),
-  rollback: reason => character.rollbackAssetCanary(reason || "OPERATOR_ROLLBACK")
+  rollback: reason => {
+    const before = character.assetCanary?.authority;
+    const receipt = character.rollbackAssetCanary(reason || "OPERATOR_ROLLBACK");
+    if (before === "OPTIMIZED_CANARY" && receipt?.authority === "CANONICAL") {
+      assetCanaryTelemetry.rollback();
+    }
+    return receipt;
+  }
 });
 worldLoading?.setPhase("CHARACTER");
 const lobbyWorld = createLobbyWorldMode({
@@ -2704,6 +2747,9 @@ window.__INHAGAME_P0__ = {
     characterModel: character.modelState,
     assetProductionCanary: {
       ...assetProductionCanary.status(),
+      remote: assetCanaryRemoteControl.status(),
+      remoteState: assetCanaryRemoteStateCurrent,
+      telemetry: assetCanaryTelemetry.status(),
       character: character.assetCanary ?? null
     },
     landing: controller.landing,

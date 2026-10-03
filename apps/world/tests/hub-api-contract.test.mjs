@@ -209,7 +209,8 @@ test('hub-event: every hub, profile and CORE-15 event type is accepted', async (
     'first_session_start', 'first_goal_seen', 'first_move', 'first_zone_arrival', 'first_npc_interaction',
     'quest_started', 'first_player_encounter', 'first_activity_start', 'first_activity_complete',
     'first_reward', 'reward_seen', 'growth_seen', 'core_loop_complete', 'next_goal_seen',
-    'core15_complete', 'world_return', 'next_discovery_click']) {
+    'core15_complete', 'world_return', 'next_discovery_click',
+    'asset_canary_selected', 'asset_canary_active', 'asset_canary_rollback', 'asset_canary_failure']) {
     stubUpstream();
     assert.equal((await event(eventBody({ event_type: eventType }))).statusCode, 204, eventType);
     assert.equal(calls[0].body.p_event_type, eventType);
@@ -234,7 +235,11 @@ test('hub-event: CORE-15 canonical targets are forwarded without account context
     ['core_loop_complete', 'first_campus'],
     ['next_goal_seen', 'main2_back_gate_guide'],
     ['core15_complete', 'first_campus'],
-    ['next_discovery_click', 'main2_back_gate_guide']
+    ['next_discovery_click', 'main2_back_gate_guide'],
+    ['asset_canary_selected', 'induck_v3'],
+    ['asset_canary_active', 'induck_v3'],
+    ['asset_canary_rollback', 'induck_v3'],
+    ['asset_canary_failure', 'induck_v3']
   ]) {
     stubUpstream();
     const res = await event(eventBody({ event_type: eventType, surface: 'campus', target }));
