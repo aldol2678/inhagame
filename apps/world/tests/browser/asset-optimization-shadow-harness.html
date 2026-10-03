@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=512,height=512,initial-scale=1">
+  <title>INHAGAME asset optimization shadow consumer harness</title>
+  <script type="importmap">
+    { "imports": { "playcanvas": "https://cdn.jsdelivr.net/npm/playcanvas@2.22.4/build/playcanvas.mjs" } }
+  </script>
+</head>
+<body>
+<canvas id="stage" width="512" height="512"></canvas>
+<script type="module">
+  import * as pc from "playcanvas";
+  import { createAssetOptimizationShadow } from "/src/asset-optimization-shadow.js";
+  import { createEquipmentModelLoader } from "/src/appearance/equipment-asset-loader.js";
+  import { createPlayCanvasRuntimeContext } from "/src/runtime-adapter/playcanvas-context.js";
+
+  const canvas = document.getElementById("stage");
+
+  function loadContainer(app, url) {
+    return new Promise((resolve, reject) => {
+      app.assets.loadFromUrl(url, "container", (error, asset) => {
+        if (error || !asset?.resource) reject(error || new Error("asset unavailable: " + url));
+        else resolve(asset);
+      });
+    });
+  }
+
+  function renderShape(entity) {
+    const renders = entity?.findComponents?.("render") ?? [];
+    const meshInstances = renders.flatMap(render => render?.meshInstances ?? []);
+    return {
+      renderComponents: renders.length,
+      meshInstances: meshInstances.length,
+      materials: new Set(meshInstances.map(instance => instance.material).filter(Boolean)).size
+    };
+  }
+
+  try {
+    const device = await pc.createGraphicsDevice(canvas, {
+      deviceTypes: [pc.DEVICETYPE_WEBGL2],
+      powerPreference: "high-performance",
+      antialias: false
+    });
+
+    const options = new pc.AppOptions();
+    options.graphicsDevice = device;
+    options.componentSystems = [pc.RenderComponentSystem, pc.CameraComponentSystem, pc.LightComponentSystem];
+    options.resourceHandlers = [pc.TextureHandler, pc.ContainerHandler];
+
+    const app = new pc.AppBase(canvas);
+    app.init(options);
+    app.start();
+
+    const enabled = new URLSearchParams(location.search).get("shadow") === "1";
+    const shadow = createAssetOptimizationShadow({ app, enabled });
+
+    // 1) Character path: canonical GLB is the real scene consumer.
+    const characterAsset = await loadContainer(app, "/assets/induck-v3.glb");
+    const characterEntity = characterAsset.resource.instantiateRenderEntity({
+      castShadows: false,
+      receiveShadows: false
+    });
+    characterEntity.name = "CanonicalCharacter";
+    app.root.addChild(characterEntity);
+    await shadow.observeResource("/assets/induck-v3.glb", characterAsset, { consumer: "character-harness" });
+
+    // 2) Equipment path: exercise the real createEquipmentModelLoader().
+    const equipmentLoader = createEquipmentModelLoader({ app, assetShadow: shadow });
+    const backpackEntity = await equipmentLoader("equipment.back.induck_backpack.v1");
+    backpackEntity.name = "CanonicalBackpack";
+    app.root.addChild(backpackEntity);
+
+    // 3) Runtime-adapter path: exercise the real PlayCanvas runtime context loader.
+    const runtimeContext = createPlayCanvasRuntimeContext({
+      app,
+      parent: app.root,
+      assetShadow: shadow
+    });
+    const buildingAsset = await runtimeContext.loadAsset("/assets/p0-qa-building.glb");
+    const buildingEntity = runtimeContext.createRenderable(buildingAsset, {
+      visible: true,
+      castShadow: false,
+      receiveShadow: false
+    });
+    buildingEntity.name = "CanonicalBuilding";
+    app.root.addChild(buildingEntity);
+
+    const status = await shadow.whenIdle();
+
+    window.__ASSET_SHADOW_HARNESS__ = {
+      ready: true,
+      renderer: device.isWebGL2 ? "WebGL2" : device.isWebGPU ? "WebGPU" : "UNKNOWN",
+      canonicalAttached: {
+        character: app.root.findByName("CanonicalCharacter") === characterEntity,
+        backpack: app.root.findByName("CanonicalBackpack") === backpackEntity,
+        building: app.root.findByName("CanonicalBuilding") === buildingEntity
+      },
+      canonicalShape: {
+        character: renderShape(characterEntity),
+        backpack: renderShape(backpackEntity),
+        building: renderShape(buildingEntity)
+      },
+      status
+    };
+  } catch (error) {
+    window.__ASSET_SHADOW_HARNESS__ = {
+      ready: false,
+      error: String(error?.stack || error)
+    };
+  }
+</script>
+</body>
+</html>

@@ -27,6 +27,7 @@ import { createInkyungMechanicalDuckEvent } from './inkyung-mechanical-duck-even
 import { createBiryongSystem } from './biryong/biryong-system.js';
 import { BIRYONG_PLACE_ID, isNearBiryong } from './biryong/biryong-layout.js';
 import { createBackGateArrivalEvent } from './back-gate-arrival-event.js';
+import { createAssetOptimizationShadow } from './asset-optimization-shadow.js';
 import { createWorldGraphicsDevice, GraphicsUnavailableError } from './webgpu-device.js';
 import { createCharacter } from "./character-model.js";
 import { createCampusProfile } from "./campus-profile.js";
@@ -202,6 +203,18 @@ app.setCanvasFillMode(pc.FILLMODE_FILL_WINDOW);
 app.scene.ambientLight = new pc.Color(0.48, 0.54, 0.61);
 app.scene.exposure = 1.05;
 app.start();
+
+const assetOptimizationShadow = createAssetOptimizationShadow({
+  app,
+  enabled: previewHost && startupParams.get("assetShadow") === "1"
+});
+if (assetOptimizationShadow.enabled) {
+  window.__ASSET_OPTIMIZATION_SHADOW__ = Object.freeze({
+    status: () => assetOptimizationShadow.status(),
+    whenIdle: () => assetOptimizationShadow.whenIdle()
+  });
+}
+
 worldLoading?.setPhase("WORLD");
 
 window.addEventListener("resize", () => app.resizeCanvas());
@@ -387,7 +400,7 @@ const cameraInputSettings = bindCameraInputSettings({
   status: document.getElementById("view-settings-status")
 });
 orbit.yaw=spawn.yaw;
-const character = createCharacter(app, player);
+const character = createCharacter(app, player, { assetShadow: assetOptimizationShadow });
 worldLoading?.setPhase("CHARACTER");
 const lobbyWorld = createLobbyWorldMode({
   player, controller, orbit, character, root: document.body,
@@ -738,7 +751,7 @@ const loadout = createLoadoutClient({ getClient: () => online?.supabase ?? null 
 const equipmentProjection = createEquipmentProjection({
   loadout,
   getAnchor: (slot) => character.getEquipmentAnchor(slot),
-  loadModel: createEquipmentModelLoader({ app })
+  loadModel: createEquipmentModelLoader({ app, assetShadow: assetOptimizationShadow })
 });
 window.addEventListener("pagehide", event => { if (!event.persisted) equipmentProjection.destroy(); });
 // Multiplayer Equipment Projection P0: other players see the same READY server loadout through a sparse,
@@ -2448,6 +2461,7 @@ if (editorWorldRequested) {
       app,
       parent: campusRoot,
       registries,
+      assetShadow: assetOptimizationShadow,
       resolveAssetUri: createEditorAssetResolver({ store, worldId: parsed.worldId, objectUrls })
     });
     const runtime = await loadWorldDocument(text, context);

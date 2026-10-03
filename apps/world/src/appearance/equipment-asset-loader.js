@@ -20,7 +20,7 @@ export const EQUIPMENT_MODEL_REGISTRY = Object.freeze({
  * @param {{ app: object, registry?: Record<string, string> }} options
  * @returns {(modelAssetId: string) => Promise<object>} resolves to a render entity (not yet parented)
  */
-export function createEquipmentModelLoader({ app, registry = EQUIPMENT_MODEL_REGISTRY } = {}) {
+export function createEquipmentModelLoader({ app, registry = EQUIPMENT_MODEL_REGISTRY, assetShadow = null } = {}) {
   return function loadEquipmentModel(modelAssetId) {
     const url = Object.prototype.hasOwnProperty.call(registry, modelAssetId) ? registry[modelAssetId] : null;
     if (typeof url !== "string" || !url) return Promise.reject(new Error("UNREGISTERED_MODEL_ASSET"));
@@ -28,6 +28,7 @@ export function createEquipmentModelLoader({ app, registry = EQUIPMENT_MODEL_REG
       app.assets.loadFromUrl(url, "container", (error, asset) => {
         if (error || !asset?.resource) { reject(error || new Error("MODEL_ASSET_UNAVAILABLE")); return; }
         try {
+          void assetShadow?.observeResource?.(url, asset, { consumer: "equipment" });
           const entity = asset.resource.instantiateRenderEntity({ castShadows: true, receiveShadows: true });
           entity.name = `Equipment_Model_${modelAssetId}`;
           resolve(entity);
