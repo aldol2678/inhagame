@@ -10,7 +10,8 @@
   "assets": [
     {
       "file": "induck-v3.glb",
-      "minSavingsPercent": 1
+      "minSavingsPercent": 1,
+      "keepEmptyLeafNodes": true
     },
     {
       "file": "induck-backpack-v1.glb",
