@@ -63,6 +63,9 @@ test('RPC exposes only allowlisted SQL errors', async () => {
     ['IDEMPOTENCY_CONFLICT', 'IDEMPOTENCY_CONFLICT', 409],
     ['ATTEMPT_NOT_FOUND', 'ATTEMPT_NOT_FOUND', 404],
     ['FISHING_RATE_LIMITED', 'FISHING_RATE_LIMITED', 429],
+    ['MAX_STACK_EXCEEDED', 'MAX_STACK_EXCEEDED', 409],
+    ['LIFE_SKILL_INACTIVE', 'LIFE_SKILL_INACTIVE', 409],
+    ['COLLECTION_ENTRY_INACTIVE', 'COLLECTION_ENTRY_INACTIVE', 409],
     ['private row and server-secret', 'FISHING_UNAVAILABLE', 503]
   ]) {
     const rpc = createFishingRpc({ url: 'https://configured.example', serviceKey: 'server-secret',
