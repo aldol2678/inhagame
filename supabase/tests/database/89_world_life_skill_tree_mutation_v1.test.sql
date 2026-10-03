@@ -50,19 +50,17 @@ from unnest(array['anon','authenticated','service_role']) r,
      ]) t,
      unnest(array['SELECT','INSERT','UPDATE','DELETE']) p;
 
--- ---- pre-activation gate ----
+-- ---- inactive tree gate ----
 set local role authenticated;
 set local request.jwt.claims =
   '{"role":"authenticated","sub":"a8900000-0000-4000-8000-0000000000a8","is_anonymous":false}';
-select throws_ok($$
+select throws_ok($
   select public.rank_up_my_world_life_skill_node_v1(
-    'life_node.fishing.steady_hands','life-tree:a:prelive')
-$$,'P0001','LIFE_SKILL_NODE_INACTIVE','COMING_SOON nodes cannot spend SP');
+    'life_node.sailing.seamanship','life-tree:a:prelive')
+$,'P0001','LIFE_SKILL_NODE_INACTIVE','COMING_SOON trees cannot spend SP');
 reset role;
 
--- Test-only activation. Rollback preserves committed COMING_SOON status.
-update private.world_life_skill_tree_catalog set status='ACTIVE' where tree_id='life_tree.fishing';
-update private.world_life_skill_nodes set status='ACTIVE' where tree_id='life_tree.fishing';
+-- Fishing is the first committed ACTIVE tree in the later read/UI migration.
 
 -- ---- rank-up / replay / prerequisites / cost ----
 set local role authenticated;
