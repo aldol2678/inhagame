@@ -84,8 +84,8 @@ select ok(not has_function_privilege(r,
   'private.world_life_progression_snapshot_v1(uuid)','execute'),
   format('%s cannot call private aggregate Life snapshot',r))
 from unnest(array['anon','authenticated','service_role']) r;
-select ok(to_regprocedure('public.get_my_world_life_progression_v1()') is null,
-  'P0 exposes no player-facing Life progression RPC yet');
+select ok(to_regprocedure('public.get_my_world_life_progression_v1()') is not null,
+  'later read-model migration exposes the player-facing Life progression RPC');
 
 -- ---- fresh read is derived and does not provision state ----
 select is((private.world_life_progression_snapshot_v1(
