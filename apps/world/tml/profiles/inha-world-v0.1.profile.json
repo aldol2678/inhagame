@@ -24,7 +24,8 @@
     "progression.total_exp",
     "progression.level",
     "reward.status",
-    "reward.granted"
+    "reward.granted",
+    "reward.replayed"
   ],
   "events": [
     "world.quest.event",
@@ -116,6 +117,10 @@
     },
     {
       "predicate": "reward.granted",
+      "authority": "server.reward"
+    },
+    {
+      "predicate": "reward.replayed",
       "authority": "server.reward"
     }
   ],
