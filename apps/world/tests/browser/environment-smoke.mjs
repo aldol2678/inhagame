@@ -13,6 +13,7 @@ try {
     () => window.__INHAGAME_ENVIRONMENT__?.status?.().settled &&
       window.__INHAGAME_ENVIRONMENT__?.status?.().weatherSettled &&
       window.__INHAGAME_NIGHT_LIGHTS__?.status?.().artificialLightFactor >= 0.17 &&
+      window.__INHAGAME_RAIN__?.status &&
       window.__INHAGAME_P0__?.getStatus?.().loading?.finished,
     null,
     { timeout: TIMEOUT_MS }
@@ -21,11 +22,16 @@ try {
   const initial = await page.evaluate(() => ({
     environment: window.__INHAGAME_ENVIRONMENT__.status(),
     streetLights: window.__INHAGAME_NIGHT_LIGHTS__.status(),
+    rain: window.__INHAGAME_RAIN__.status(),
     graphics: window.__INHAGAME_P0__.getStatus().graphics
   }));
   assert.equal(initial.environment.targetTime, 'SUNSET');
   assert.equal(initial.environment.targetWeather, 'FOG');
   assert.equal(initial.environment.fog.type, 'linear');
+  assert.equal(initial.environment.rainIntensity, 0);
+  assert.equal(initial.environment.wetness, 0);
+  assert.equal(initial.rain.rainEnabled, false);
+  assert.equal(initial.rain.wetGroundEnabled, false);
   assert.ok(initial.environment.fog.start < initial.environment.fog.end);
   assert.ok(initial.environment.exposure < 1.05 && initial.environment.exposure > 0.82);
   assert.equal(initial.environment.artificialLightFactor, 0.18);
@@ -35,65 +41,76 @@ try {
   assert.ok(initial.streetLights.dynamicBudget >= 0 && initial.streetLights.dynamicBudget <= 4);
   assert.ok(initial.streetLights.activeDynamicLights <= initial.streetLights.dynamicBudget);
 
-  await page.evaluate(() => window.__INHAGAME_ENVIRONMENT__.setTimeOfDay('night'));
+  await page.evaluate(() => {
+    window.__INHAGAME_ENVIRONMENT__.setTimeOfDay('night');
+    window.__INHAGAME_ENVIRONMENT__.setWeather('rain');
+  });
   await page.waitForFunction(
     () => window.__INHAGAME_ENVIRONMENT__.status().settled &&
+      window.__INHAGAME_ENVIRONMENT__.status().weatherSettled &&
       window.__INHAGAME_ENVIRONMENT__.status().targetTime === 'NIGHT' &&
-      window.__INHAGAME_NIGHT_LIGHTS__.status().artificialLightFactor >= 0.999,
+      window.__INHAGAME_ENVIRONMENT__.status().targetWeather === 'RAIN' &&
+      window.__INHAGAME_NIGHT_LIGHTS__.status().artificialLightFactor >= 0.999 &&
+      window.__INHAGAME_RAIN__.status().rainIntensity >= 0.999 &&
+      window.__INHAGAME_RAIN__.status().wetness >= 0.999,
     null,
     { timeout: TIMEOUT_MS }
   );
-  const night = await page.evaluate(() => ({
+  const nightRain = await page.evaluate(() => ({
     environment: window.__INHAGAME_ENVIRONMENT__.status(),
     streetLights: window.__INHAGAME_NIGHT_LIGHTS__.status(),
+    rain: window.__INHAGAME_RAIN__.status(),
     graphics: window.__INHAGAME_P0__.getStatus().graphics
   }));
-  assert.equal(night.environment.targetTime, 'NIGHT');
-  assert.equal(night.environment.fog.type, 'linear');
-  assert.equal(night.environment.artificialLightFactor, 1);
-  assert.equal(night.streetLights.artificialLightFactor, 1);
-  assert.ok(night.environment.exposure < initial.environment.exposure);
-  assert.ok(night.streetLights.activeDynamicLights <= night.streetLights.dynamicBudget);
+  assert.equal(nightRain.environment.targetTime, 'NIGHT');
+  assert.equal(nightRain.environment.targetWeather, 'RAIN');
+  assert.equal(nightRain.environment.fog.type, 'linear');
+  assert.equal(nightRain.environment.rainIntensity, 1);
+  assert.equal(nightRain.environment.wetness, 1);
+  assert.equal(nightRain.rain.rainEnabled, true);
+  assert.equal(nightRain.rain.wetGroundEnabled, true);
+  assert.equal(nightRain.rain.rainDrawMeshes, 1);
+  assert.equal(nightRain.rain.wetRoadDrawMeshes, 1);
+  assert.ok(nightRain.rain.streakBudget >= 28 && nightRain.rain.streakBudget <= 96);
+  assert.ok(nightRain.rain.rainOpacity > 0);
+  assert.ok(nightRain.rain.wetRoadOpacity > 0);
+  assert.equal(nightRain.environment.artificialLightFactor, 1);
+  assert.equal(nightRain.streetLights.artificialLightFactor, 1);
+  assert.ok(nightRain.environment.exposure < initial.environment.exposure);
+  assert.ok(nightRain.streetLights.activeDynamicLights <= nightRain.streetLights.dynamicBudget);
   for (const field of ['tier', 'castShadows', 'shadowResolution', 'shadowDistance'])
-    assert.equal(night.graphics[field], initial.graphics[field], `environment must not own graphics field ${field}`);
-
-  await page.evaluate(() => window.__INHAGAME_ENVIRONMENT__.setWeather('clear'));
-  await page.waitForFunction(
-    () => window.__INHAGAME_ENVIRONMENT__.status().weatherSettled &&
-      window.__INHAGAME_ENVIRONMENT__.status().targetWeather === 'CLEAR',
-    null,
-    { timeout: TIMEOUT_MS }
-  );
-  const clear = await page.evaluate(() => window.__INHAGAME_ENVIRONMENT__.status());
-  assert.equal(clear.fog.type, 'none');
+    assert.equal(nightRain.graphics[field], initial.graphics[field], `environment must not own graphics field ${field}`);
 
   await page.evaluate(() => {
-    window.__INHAGAME_ENVIRONMENT__.setWeather('fog', { immediate: true });
+    window.__INHAGAME_ENVIRONMENT__.setWeather('clear');
     window.__INHAGAME_ENVIRONMENT__.setTimeOfDay('day', { immediate: true });
   });
   await page.waitForFunction(
-    () => window.__INHAGAME_NIGHT_LIGHTS__.status().artificialLightFactor === 0,
+    () => window.__INHAGAME_ENVIRONMENT__.status().weatherSettled &&
+      window.__INHAGAME_ENVIRONMENT__.status().targetWeather === 'CLEAR' &&
+      window.__INHAGAME_RAIN__.status().rainIntensity === 0 &&
+      window.__INHAGAME_RAIN__.status().wetness === 0,
     null,
     { timeout: TIMEOUT_MS }
   );
-  const dayFog = await page.evaluate(() => ({
+  const clear = await page.evaluate(() => ({
     environment: window.__INHAGAME_ENVIRONMENT__.status(),
+    rain: window.__INHAGAME_RAIN__.status(),
     streetLights: window.__INHAGAME_NIGHT_LIGHTS__.status()
   }));
-  assert.equal(dayFog.environment.targetTime, 'DAY');
-  assert.equal(dayFog.environment.targetWeather, 'FOG');
-  assert.equal(dayFog.environment.fog.type, 'linear');
-  assert.equal(dayFog.environment.settled, true);
-  assert.equal(dayFog.environment.weatherSettled, true);
-  assert.equal(dayFog.environment.exposure, 1.05);
-  assert.equal(dayFog.environment.artificialLightFactor, 0);
-  assert.equal(dayFog.streetLights.artificialLightFactor, 0);
-  assert.equal(dayFog.streetLights.activeDynamicLights, 0);
+  assert.equal(clear.environment.fog.type, 'none');
+  assert.equal(clear.environment.rainIntensity, 0);
+  assert.equal(clear.environment.wetness, 0);
+  assert.equal(clear.rain.rainEnabled, false);
+  assert.equal(clear.rain.wetGroundEnabled, false);
+  assert.equal(clear.rain.rainDrawMeshes, 0);
+  assert.equal(clear.rain.wetRoadDrawMeshes, 0);
+  assert.equal(clear.streetLights.artificialLightFactor, 0);
 
   const mobile = await smoke.context.newPage();
   smoke.watch(mobile);
   await mobile.setViewportSize({ width: 390, height: 844 });
-  await mobile.goto(`${smoke.origin}/campus/?envTime=night&envWeather=fog`, {
+  await mobile.goto(`${smoke.origin}/campus/?envTime=night&envWeather=rain`, {
     waitUntil: 'domcontentloaded',
     timeout: TIMEOUT_MS
   });
@@ -101,22 +118,29 @@ try {
     () => window.__INHAGAME_ENVIRONMENT__?.status?.().settled &&
       window.__INHAGAME_ENVIRONMENT__?.status?.().weatherSettled &&
       window.__INHAGAME_NIGHT_LIGHTS__?.status?.().artificialLightFactor >= 0.999 &&
+      window.__INHAGAME_RAIN__?.status?.().rainIntensity >= 0.999 &&
       window.__INHAGAME_P0__?.getStatus?.().loading?.finished,
     null,
     { timeout: TIMEOUT_MS }
   );
   const mobileStatus = await mobile.evaluate(() => ({
     environment: window.__INHAGAME_ENVIRONMENT__.status(),
-    streetLights: window.__INHAGAME_NIGHT_LIGHTS__.status()
+    streetLights: window.__INHAGAME_NIGHT_LIGHTS__.status(),
+    rain: window.__INHAGAME_RAIN__.status(),
+    graphics: window.__INHAGAME_P0__.getStatus().graphics
   }));
   assert.equal(mobileStatus.environment.targetTime, 'NIGHT');
-  assert.equal(mobileStatus.environment.targetWeather, 'FOG');
+  assert.equal(mobileStatus.environment.targetWeather, 'RAIN');
   assert.equal(mobileStatus.environment.fog.type, 'linear');
+  assert.equal(mobileStatus.rain.rainEnabled, true);
+  assert.equal(mobileStatus.rain.wetGroundEnabled, true);
+  assert.equal(mobileStatus.rain.graphicsTier, mobileStatus.graphics.tier);
+  assert.ok(mobileStatus.rain.streakBudget <= 96);
+  if (mobileStatus.graphics.tier === 'low') assert.equal(mobileStatus.rain.streakBudget, 28);
   assert.equal(mobileStatus.streetLights.artificialLightFactor, 1);
-  assert.ok(mobileStatus.streetLights.dynamicBudget <= 4);
   assert.ok(mobileStatus.streetLights.activeDynamicLights <= mobileStatus.streetLights.dynamicBudget);
   assert.deepEqual(smoke.problems, []);
-  console.log('world environment smoke: PASS (day/sunset/night, fog fade, pooled street lights, graphics ownership, 390px mobile)');
+  console.log('world environment smoke: PASS (day/sunset/night, fog/rain, pooled street lights, wet roads, 390px mobile)');
 } finally {
   await smoke.close();
 }

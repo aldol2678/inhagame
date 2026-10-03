@@ -29,7 +29,9 @@ function mutableFogFrame(source) {
     fogStart: source.fogStart,
     fogEnd: source.fogEnd,
     fogColorMix: source.fogColorMix,
-    fogTint: [...source.fogTint]
+    fogTint: [...source.fogTint],
+    rainIntensity: source.rainIntensity,
+    wetness: source.wetness
   };
 }
 
@@ -53,6 +55,8 @@ function copyFogFrame(out, source) {
   out.fogEnd = source.fogEnd;
   out.fogColorMix = source.fogColorMix;
   copyTuple(out.fogTint, source.fogTint);
+  out.rainIntensity = source.rainIntensity;
+  out.wetness = source.wetness;
 }
 
 function mixTuple(out, from, to, t) {
@@ -75,6 +79,8 @@ function mixFogFrame(out, from, to, t) {
   out.fogEnd = from.fogEnd + (to.fogEnd - from.fogEnd) * t;
   out.fogColorMix = from.fogColorMix + (to.fogColorMix - from.fogColorMix) * t;
   mixTuple(out.fogTint, from.fogTint, to.fogTint, t);
+  out.rainIntensity = from.rainIntensity + (to.rainIntensity - from.rainIntensity) * t;
+  out.wetness = from.wetness + (to.wetness - from.wetness) * t;
 }
 
 function setColor(target, tuple) {
@@ -224,7 +230,9 @@ export function createEnvironmentDirector({
         start: fogCurrent.fogStart,
         end: fogCurrent.fogEnd,
         color: Object.freeze([...fogColor])
-      })
+      }),
+      rainIntensity: fogCurrent.rainIntensity,
+      wetness: fogCurrent.wetness
     });
   }
 
@@ -232,5 +240,21 @@ export function createEnvironmentDirector({
     return current.artificialLightFactor;
   }
 
-  return Object.freeze({ setTimeOfDay, setWeather, update, status, artificialLightFactor });
+  function rainIntensity() {
+    return fogCurrent.rainIntensity;
+  }
+
+  function wetnessFactor() {
+    return fogCurrent.wetness;
+  }
+
+  return Object.freeze({
+    setTimeOfDay,
+    setWeather,
+    update,
+    status,
+    artificialLightFactor,
+    rainIntensity,
+    wetnessFactor
+  });
 }
