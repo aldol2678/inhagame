@@ -19,6 +19,9 @@ import { loadRuntimeMusicProject } from './audio/music-runtime-config.js';
 import { RenderChunkRegistry } from './render-chunk-registry.js';
 import { RenderChunkStreaming } from './render-chunk-streaming.js';
 import { CampusChunkRenderer } from './campus-chunk-renderer.js';
+import { CAMPUS_BENCH_METERS_PER_UNIT } from './campus-bench-layout.js';
+import { createCampusBenchRuntime } from './campus-bench-runtime.js';
+import { createPlayCanvasRuntimeContext } from './runtime-adapter/playcanvas-context.js';
 import { legacyTelemetryTarget } from './legacy-zone-compat.js';
 import { createViewDistanceSettings } from './view-distance-settings.js';
 import { createGraphicsPresetController } from './graphics-presets.js';
@@ -1498,6 +1501,13 @@ const mcmMinigame = createMcm2026MinigameRuntime({
 });
 const registry = new RenderChunkRegistry();
 const chunkRenderer = new CampusChunkRenderer(app,campusRoot,registry);
+// The one approved bench is persistent BASE scenery, alongside its persistent
+// logical collider. Streamed NEAR/DETAIL rebuilds must never instantiate it again.
+const campusBench = createCampusBenchRuntime(createPlayCanvasRuntimeContext({
+  app, parent: chunkRenderer.base, metersPerUnit: CAMPUS_BENCH_METERS_PER_UNIT,
+  assetShadow: assetOptimizationShadow
+}));
+window.addEventListener('pagehide', event => { if (!event.persisted) void campusBench.dispose(); });
 const streaming = new RenderChunkStreaming(registry,chunkRenderer,{intervalMs:250});
 const inkyungSideEvent = createInkyungMechanicalDuckEvent();
 if (previewHost && startupParams.get("inkyungDuckEvent") === "1") inkyungSideEvent.setUnlocked(true);
@@ -2631,6 +2641,7 @@ window.__INHAGAME_P0__ = {
   worldLoading,
   getStatus: () => ({
     renderer: rendererName,
+    campusBench: campusBench.status(),
     graphics: graphics.status(),
     editorWorld: editorWorldStatus && {
       state: editorWorldStatus.state,
