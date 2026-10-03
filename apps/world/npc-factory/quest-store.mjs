@@ -85,6 +85,33 @@ export function createSupabaseQuestStore({ serviceRoleKey, fetcher = fetch, supa
       const rewardAllowed = (main1 && result.stage === 5) || (main2 && result.stage === 9);
       if (!rewardAllowed || !isQuestRewardResult(result.reward)) throw Error('QUEST_STORE_UNAVAILABLE');
     }
+    // P04: a lost completing response must not require another grant. The old `reward`
+    // field stays completing-call-only; older clients safely ignore this additive receipt.
+    // Do not replay on status: returning accounts must not emit a new first_reward event.
+    if (main1 && result.stage === 5 && result.reward == null && event === 'talk_001') {
+      const key = `grant:quest.first_campus:${userId}`;
+      try {
+        const receiptResponse = await fetcher(`${supabaseUrl}/rest/v1/rpc/world_reward_get_result_v1`, {
+          method: 'POST', signal: AbortSignal.timeout(2000),
+          headers: { apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}`,
+            'Content-Type': 'application/json' },
+          body: JSON.stringify({ p_idempotency_key: key })
+        });
+        const receipt = receiptResponse.ok ? await receiptResponse.json() : null;
+        if (isQuestRewardResult(receipt) && receipt.rewardId === 'reward.quest.first_campus' &&
+            receipt.replayed === true && receipt.userId === userId && receipt.idempotencyKey === key &&
+            typeof receipt.rewardTransactionId === 'string' && receipt.rewardTransactionId.length > 0) {
+          return { ...result, rewardReceipt: {
+            rewardId: receipt.rewardId, rewardVersion: receipt.rewardVersion,
+            rewardTransactionId: receipt.rewardTransactionId, status: receipt.status,
+            replayed: receipt.replayed, completedAt: receipt.completedAt,
+            entries: receipt.entries.map(({ grantType, targetId, requested, granted, status, reason }) =>
+              ({ grantType, targetId, requested, granted, status, reason }))
+          } };
+        }
+      } catch { /* Keep known quest progress when optional receipt readback is unavailable. */ }
+      // No receipt (including pre-reward legacy completions) is never a reason to grant/backfill.
+    }
     return result;
   };
 }
