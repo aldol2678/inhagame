@@ -4,7 +4,7 @@ const html=fs.readFileSync('index.html','utf8');
 // see README.md "Module layout".
 const APP_SCRIPTS=['js/dom.js','js/online.js','js/game.js','js/boot.js'];
 const srcs=[...html.matchAll(/<script\b[^>]*\bsrc="([^"]+)"[^>]*><\/script>/g)].map(m=>m[1]);
-assert.deepEqual(srcs,['badge-system.js','secret-run.js','https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2','js/supabase-public-config.js',...APP_SCRIPTS],
+assert.deepEqual(srcs,['badge-system.js','secret-run.js','https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2','js/supabase-public-config.js',...APP_SCRIPTS],
   'Script tags and their order changed');
 const styles=[...html.matchAll(/<link rel="stylesheet" href="([^"]+)">/g)].map(m=>m[1]);
 assert.deepEqual(styles,['classic.css','secret-session.css'],'Stylesheets and their cascade order changed');
