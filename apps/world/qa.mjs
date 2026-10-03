@@ -907,7 +907,7 @@ assert.match(hubHtml, /Google 계정의 이름과 프로필 사진은 INHAGAME �
   "Hub explains OAuth metadata minimization");
 assert.match(hubHtml, /Google 로그인 시 계정 생성·연결을 위해 Google 계정 식별자, 이메일, 이메일 확인 여부/,
   "Hub discloses Google OAuth account data processing before sign-in");
-assert.match(hubHtml, /href="https:\/\/duck\.inhagame\.example\/privacy\.html#google-login"/,
+assert.match(hubHtml, /href="https:\/\/duck\.inhagame\.app\/privacy\.html#google-login"/,
   "Hub Google disclosure links to the matching privacy-policy section");
 assert.match(hubCss, /\.google-auth-button\s*\{/,
   "Hub P1-B styles the Google sign-in control");
@@ -979,7 +979,7 @@ assert.match(hubHtml, /hub-account\.js[\s\S]*hub-messages-client\.js[\s\S]*hub-m
   "shared account client loads before the messages client and UI");
 assert.match(hubAccountSource, /window\.InhaHubAccountClient = client/,
   "messages reuse the existing Hub account Supabase client");
-assert.match(hubAccountSource, /emailRedirectTo:\s*'https:\/\/duck\.inhagame\.example\/verify-inha\.html'/,
+assert.match(hubAccountSource, /emailRedirectTo:\s*'https:\/\/duck\.inhagame\.app\/verify-inha\.html'/,
   "Hub Inha verification requests the reserved public-example OTP redirect");
 assert.doesNotMatch(hubMessagesClientSource, /createClient\(/,
   "messages client never creates another Supabase client");
