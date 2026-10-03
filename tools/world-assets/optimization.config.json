@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "mode": "allowlist",
+  "sourceRoot": "apps/world/assets",
+  "outputRoot": "apps/world/.generated/assets-optimized",
+  "policy": {
+    "onTransformError": "copy-source",
+    "strictRejectsFallback": true
+  },
+  "assets": [
+    {
+      "file": "induck-v3.glb",
+      "minSavingsPercent": 1,
+      "keepEmptyLeafNodes": true
+    },
+    {
+      "file": "induck-backpack-v1.glb",
+      "minSavingsPercent": 1
+    },
+    {
+      "file": "p0-qa-building.glb",
+      "minSavingsPercent": 1
+    }
+  ]
+}
