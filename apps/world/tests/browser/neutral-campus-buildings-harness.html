@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Public campus neutral building preview</title>
+  <script type="importmap">{"imports":{"playcanvas":"https://cdn.jsdelivr.net/npm/playcanvas@2.22.4/build/playcanvas.mjs"}}</script>
+  <style>
+    body { margin:0; background:#dce5eb; color:#20313a; font:16px system-ui,sans-serif }
+    canvas { display:block; width:100vw; height:100vh }
+    aside { position:fixed; top:24px; left:24px; right:24px; max-width:460px; padding:16px 20px; background:#fffffff0; border-radius:12px }
+    h1 { margin:0 0 6px; font-size:22px } p { margin:5px 0; font-size:13px; line-height:1.5 }
+  </style>
+</head>
+<body>
+<canvas id="stage"></canvas>
+<aside><h1 id="heading">Neutral campus buildings</h1><p>Public OSM outlines · Existing gameplay heights · New generic facades</p><p>Illustrative reconstruction, not an exact real-building replica<br>WorldForge-validated Draft geometry · Local preview only</p></aside>
+<script type="module">
+  import * as pc from 'playcanvas';
+  import { buildCampusFacilities } from '/src/facility-blockout.js';
+  import { FACILITIES } from '/src/campus-facilities.js';
+  import { surface } from '/src/campus-render-kit.js';
+
+  try {
+    const canvas = document.getElementById('stage');
+    canvas.width = innerWidth; canvas.height = innerHeight;
+    const device = await pc.createGraphicsDevice(canvas,{deviceTypes:[pc.DEVICETYPE_WEBGL2],antialias:true});
+    const app = new pc.Application(canvas,{graphicsDevice:device});
+    app.scene.ambientLight = new pc.Color(.65,.65,.65);
+    const world = new pc.Entity('RuntimeWorld'); app.root.addChild(world);
+    const root = new pc.Entity('NeutralCampus'); world.addChild(root);
+    const near = new pc.Entity('NeutralNear'); world.addChild(near);
+    const facilities = FACILITIES.filter(f => f.kind === 'building');
+    const ids = facilities.map(f => f.id);
+    buildCampusFacilities(root,ids,'BASE');
+    buildCampusFacilities(near,ids,'NEAR');
+
+    const light = new pc.Entity('Sun');
+    light.addComponent('light',{type:'directional',intensity:1.35,castShadows:false});
+    light.setLocalEulerAngles(45,35,0);app.root.addChild(light);
+    const floor = new pc.Entity('PreviewGround');
+    floor.addComponent('render',{type:'plane'});floor.render.material=surface('#aab89c');
+    floor.setLocalScale(600,1,600);floor.setLocalPosition(50,-.04,40);app.root.addChild(floor);
+    const camera = new pc.Entity('PreviewCamera');
+    camera.addComponent('camera',{clearColor:new pc.Color(.86,.9,.93),farClip:1500,fov:48});app.root.addChild(camera);
+
+    const envelopes = node => node.findComponents('render').filter(r => r.entity.name.includes('_neutral_envelope_'));
+    const facades = node => node.findComponents('render').filter(r => r.entity.name.includes('_neutral_facade_'));
+    function stats(node=root) {
+      const renders=envelopes(node),instances=renders.flatMap(r=>r.meshInstances);
+      const details=facades(near).flatMap(r=>r.meshInstances);
+      return { buildings:facilities.length,meshes:instances.length,materials:new Set(instances.map(m=>m.material)).size,
+        detailMeshes:details.length,detailMaterials:new Set(details.map(m=>m.material)).size,
+        detailBias:details.every(m=>m.material.depthBias===-1&&m.material.slopeDepthBias===-1),
+        castShadows:renders.every(r=>r.castShadows),maxVertices:Math.max(0,...instances.map(m=>m.mesh.vertexBuffer.numVertices)),
+        groups:ids.map(id=>({id,meshes:envelopes(node.findByName(id)).length})) };
+    }
+    let reflection=-1;
+    const placeCamera=(x,y,z,tx,ty,tz)=>{camera.setPosition(x,y,z*reflection);camera.lookAt(tx,ty,tz*reflection);};
+    function view(id='overview',reflected=true,{details=true,orbit=0}={}) {
+      reflection=reflected?-1:1;world.setLocalScale(1,1,reflection);
+      root.enabled=true;near.enabled=true;
+      for(const render of envelopes(root))render.entity.enabled=true;
+      // Keep existing trees/entrance dressing fixed: pixel differences must come
+      // from the newly generated facade, not an unrelated NEAR-tier object.
+      for(const render of facades(near))render.entity.enabled=details;
+      const courtyard=id.startsWith('courtyard');
+      for(const child of root.children)child.enabled=id==='overview'||child.name===id||courtyard&&child.name==='bldg_05';
+      for(const child of near.children)child.enabled=id==='overview'||child.name===id+'_NEAR'||courtyard&&child.name==='bldg_05_NEAR';
+      const fit=Math.max(1,canvas.height/canvas.width);
+      if(id==='overview') {
+        placeCamera(45+275*fit,310*fit,25+355*fit,45,0,25);
+        document.getElementById('heading').textContent='21 campus buildings · Public reconstruction';
+      } else {
+        const f=facilities.find(f=>f.id===(courtyard?'bldg_05':id));
+        const xs=f.rings[0].map(p=>p.x),zs=f.rings[0].map(p=>p.z);
+        const x=(Math.min(...xs)+Math.max(...xs))/2,z=(Math.min(...zs)+Math.max(...zs))/2;
+        const span=Math.max(Math.max(...xs)-Math.min(...xs),Math.max(...zs)-Math.min(...zs),f.height*2);
+        if(courtyard){
+          const hole=f.rings[1],center=hole.reduce((s,p)=>({x:s.x+p.x/hole.length,z:s.z+p.z/hole.length}),{x:0,z:0});
+          if(id==='courtyard-top')placeCamera(center.x,80,center.z+1,center.x,0,center.z);
+          else placeCamera(center.x,7,center.z,hole[0].x,6,hole[0].z);
+        }else{
+          const angle=Math.PI/4+orbit,distance=span*1.25*fit;
+          placeCamera(x+Math.cos(angle)*distance,f.height+span*.6*fit,z+Math.sin(angle)*distance,x,f.height*.35,z);
+        }
+        document.getElementById('heading').textContent=f.name+(courtyard?' · Open courtyard':' · Generic facade');
+      }
+      app.renderNextFrame=true;
+    }
+    let previousPixels=null;
+    function pixels({compare=false,sample=null}={}){
+      return new Promise(resolve=>{
+        app.autoRender=false;
+        app.once('postrender',()=>{
+          const gl=device.gl,width=gl.drawingBufferWidth,height=gl.drawingBufferHeight,data=new Uint8Array(width*height*4);
+          const previousRead=gl.getParameter(gl.READ_FRAMEBUFFER_BINDING);gl.finish();
+          try{gl.bindFramebuffer(gl.READ_FRAMEBUFFER,null);gl.readPixels(0,0,width,height,gl.RGBA,gl.UNSIGNED_BYTE,data);}
+          finally{gl.bindFramebuffer(gl.READ_FRAMEBUFFER,previousRead);}
+          let changed=0,hash=2166136261;
+          for(let i=0;i<data.length;i+=4){
+            if(compare&&previousPixels&&Math.abs(data[i]-previousPixels[i])+Math.abs(data[i+1]-previousPixels[i+1])+Math.abs(data[i+2]-previousPixels[i+2])>15)changed++;
+            hash=Math.imul((hash^data[i])>>>0,16777619);hash=Math.imul((hash^data[i+1])>>>0,16777619);hash=Math.imul((hash^data[i+2])>>>0,16777619);
+          }
+          const sampled=[];
+          if(sample){
+            const p=camera.camera.worldToScreen(new pc.Vec3(sample.x,sample.y,sample.z*reflection));
+            const x=Math.round(p.x),y=height-1-Math.round(p.y);
+            if(x>0&&x<width-1&&y>0&&y<height-1)for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+              const index=((y+dy)*width+x+dx)*4;sampled.push(...data.slice(index,index+3));
+            }
+          }
+          previousPixels=data;
+          const visible=list=>list.filter(r=>r.entity.enabled).flatMap(r=>r.meshInstances).filter(m=>m.visibleThisFrame).length;
+          resolve({width,height,changed,hash:hash>>>0,glError:gl.getError(),sampled,
+            visibleBase:visible(envelopes(root)),visibleNear:near.enabled?visible(facades(near)):0,scaleSign:world.worldScaleSign});
+        });app.renderNextFrame=true;
+      });
+    }
+    function courtyardSample(){
+      const ring=facilities.find(f=>f.id==='bldg_05').rings[1];
+      return {x:ring.reduce((s,p)=>s+p.x,0)/ring.length,y:-.04,z:ring.reduce((s,p)=>s+p.z,0)/ring.length};
+    }
+    function rebuildCheck(){
+      const canonical=new Set(envelopes(root).flatMap(r=>r.meshInstances.map(m=>m.material)));
+      for(let cycle=0;cycle<3;cycle++){
+        const repeat=new pc.Entity('RepeatedBase');app.root.addChild(repeat);buildCampusFacilities(repeat,ids,'BASE');
+        const result=stats(repeat);
+        if(result.meshes!==42||result.materials!==2)throw Error('rebuild envelope budget changed');
+        if(!envelopes(repeat).every(r=>r.meshInstances.every(m=>canonical.has(m.material))))throw Error('material reuse failed');
+        const detail=new pc.Entity('StreamedDetails');app.root.addChild(detail);
+        buildCampusFacilities(detail,ids,'NEAR');buildCampusFacilities(detail,ids,'DETAIL');
+        if(envelopes(detail).length)throw Error('streaming duplicated base facades');
+        if(facades(detail).length!==42)throw Error('streaming duplicated near facades');
+        for(const r of facades(detail))for(const m of r.meshInstances){
+          const cloned=m.material.clone();
+          if(cloned.depthBias!==-1||cloned.slopeDepthBias!==-1)throw Error('chunk fade clone lost decal bias');
+          cloned.destroy();
+        }
+        detail.destroy();repeat.destroy();
+      }
+      return {cycles:3,materialReuse:true,streamedFacadeDuplicates:0};
+    }
+    window.__NEUTRAL_BUILDING_QA__={app,stats,view,pixels,rebuildCheck,courtyardSample,ids,
+      hideEnvelopes:()=>{for(const render of envelopes(root))render.entity.enabled=false;},
+      hideBuildings:()=>{root.enabled=false;near.enabled=false;}};
+    app.start();view();window.__NEUTRAL_BUILDING_QA__.ready=true;
+  }catch(error){window.__NEUTRAL_BUILDING_QA__={error:error.stack||String(error)};throw error;}
+</script>
+</body>
+</html>
