@@ -4698,6 +4698,7 @@ export type Database = {
           ranked_grade: string
         }[]
       }
+      get_my_room_knock_v1: { Args: { p_knock: string }; Returns: Json }
       get_my_world_accompany: { Args: never; Returns: Json }
       get_my_world_admin_access_v1: { Args: never; Returns: Json }
       get_my_world_appearance_loadout_v1: { Args: never; Returns: Json }
@@ -4731,6 +4732,8 @@ export type Database = {
       }
       is_inha_mail: { Args: { p_email: string }; Returns: boolean }
       is_permanent_account: { Args: never; Returns: boolean }
+      knock_friend_personal_room_v1: { Args: { p_owner: string }; Returns: Json }
+      list_my_room_knocks_v1: { Args: never; Returns: Json }
       log_general_progression_event_v1: {
         Args: {
           p_balance_version: string
@@ -5160,6 +5163,10 @@ export type Database = {
       }
       resolve_friend_personal_room_v1: {
         Args: { p_owner: string }
+        Returns: Json
+      }
+      respond_room_knock_v1: {
+        Args: { p_accept: boolean; p_knock: string }
         Returns: Json
       }
       respond_world_accompany: {
