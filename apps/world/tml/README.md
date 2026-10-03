@@ -26,6 +26,7 @@ TML is used here as a semantic/state-transition layer above the existing game im
 - `runtime/human-promotion-gate.mjs` — P12 immutable human-review packet builder; no approval or authority-switch action
 - `runtime/human-attestation.mjs` — P13 immutable human review attestation record; no persistence or runtime effect
 - `runtime/promotion-proposal-pack.mjs` — P14 non-executable canary/rollback/observability proposal pack
+- `runtime/canary-dry-run.mjs` — P15 virtual cohort canary simulator; no routing, deployment or authority effect
 - `fixtures/` — executable-domain conformance fixtures tied to current INHA WORLD contracts
 
 ## Boundary
@@ -327,3 +328,49 @@ current authority: legacy-main2
 ```
 
 P14 exposes no runtime wiring and no automatic rollout mechanism. It is a design artifact for later human review only.
+
+
+## P15 Canary Dry-Run Simulator
+
+P15 simulates the P14 canary proposal against virtual cohorts and synthetic failure scenarios. It never assigns a real player, writes a feature flag, changes routing, deploys code, or switches authority.
+
+The simulator returns only:
+
+- `HOLD`
+- `ADVANCE_PROPOSED`
+- `ROLLBACK_PROPOSED`
+
+Decision order:
+
+1. missing entry human approval -> `HOLD`;
+2. any rollback condition -> `ROLLBACK_PROPOSED`;
+3. insufficient dry-run evidence -> `HOLD`;
+4. missing exit human approval -> `HOLD`;
+5. healthy intermediate phase -> `ADVANCE_PROPOSED`;
+6. healthy 25% phase -> `HOLD`, because P14 does not include full rollout.
+
+P15 accepts only the strict P14 boundary:
+
+- 1% -> 5% -> 25% phases;
+- human approval required for every phase entry and exit;
+- zero mismatch budget;
+- 100% Reward settlement coverage during canary;
+- rollback target remains `legacy-main2`;
+- automatic rollback remains disabled;
+- full rollout remains excluded.
+
+Synthetic scenario fields include virtual population, resolved writes, transition / Reward receipt / Reward settlement mismatch counts, Verification UNKNOWN / CONFLICT counts, settlement coverage, and an explicit human stop signal.
+
+Every dry-run result carries:
+
+```text
+advisoryOnly: true
+executable: false
+runtimeEffect: NONE
+persistenceEffect: NONE
+routingEffect: NONE
+authorityChangeAllowed: false
+current authority: legacy-main2
+```
+
+P15 is intentionally not wired into `main.js`, NPC runtime routing, feature flags, deployment systems, or production traffic.
