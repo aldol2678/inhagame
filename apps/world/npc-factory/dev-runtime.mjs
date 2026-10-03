@@ -138,7 +138,7 @@ function addPanel(production = false, externalContextAction = false) {
 export async function createNpcDevRuntime({ app, campusRoot, player, orbit, production = false, aiPilot = false,
   sharedSchedulePreview = false,
   socialEnabled = false, socialPreview = false, socialBehaviorPreview = false,
-  observedConversationPreview = false, isObservedConversationBlocked = () => true,
+  observedConversationEnabled = false, isObservedConversationBlocked = () => true,
   getBusyNpcIds = () => [], onNpcTalk = () => {},
   externalContextAction = false, aiEndpoint = '/npc-ai/decide', getAiSession = async () => null,
   questEnabled = false, questEndpoint = '/npc-quest',
@@ -152,7 +152,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
   // Shared schedules own physical movement. Local-only scenes must not override it.
   if (sharedSchedulePreview) {
     socialEnabled = false; socialPreview = false;
-    socialBehaviorPreview = false; observedConversationPreview = false;
+    socialBehaviorPreview = false;
   }
   // CORE-15: the base 20 carries both first-walk quest NPCs; the campus expansion is optional.
   const { batch, roster, hash, expansion: populationExpansion } = await loadNpcPopulation({
@@ -230,8 +230,8 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
   let socialNg1 = null, socialNg1Panel = null, socialNg15Bridge = null;
   let main2Guide = null;
   let conversationLifecycleOpen = false;
-  const observedConversation = observedConversationPreview ? createObservedConversation() : null;
-  const observedBubble = (observedConversationPreview || sharedMeetings) ? createObservedBubble() : null;
+  const observedConversation = observedConversationEnabled ? createObservedConversation() : null;
+  const observedBubble = (observedConversationEnabled || sharedMeetings) ? createObservedBubble() : null;
   let observedFrame = null;
   let observedSocial = { groups: [], relations: {} }, observedSocialAt = -Infinity;
   function stopObservedConversation() {
@@ -859,10 +859,13 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
       observedBubble.hide(); observedFrame = null; return;
     }
     const forward = orbit.camera.forward;
-    if (sharedMeetings) {
-      observedFrame = sharedObserver.update({ now: sharedFrameNow === null ? null : sharedFrameNow/1000,
-        events: sharedMeetings.events(), player: playerPos, forward, busyIds: getBusyNpcIds(sharedFrameNow) });
-    } else {
+    observedFrame = sharedMeetings
+      ? sharedObserver.update({ now: sharedFrameNow === null ? null : sharedFrameNow/1000,
+          events: sharedMeetings.events(), player: playerPos, forward, busyIds: getBusyNpcIds(sharedFrameNow) })
+      : null;
+    // Shared deterministic meeting scenes win. When none is nearby, the local
+    // observation layer may surface a non-authoritative ambient conversation.
+    if (!observedFrame && observedConversation) {
     if (now-observedSocialAt >= .5) {
       observedSocial = socialNg1?.snapshot() ?? { groups: [], relations: {} };
       observedSocialAt = now;
