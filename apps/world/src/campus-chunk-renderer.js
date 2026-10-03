@@ -15,13 +15,13 @@ import { buildCampusHelicopter } from './mounts/campus-helicopter-render.js';
 
 const count=root=>1+root.children.reduce((sum,c)=>sum+count(c),0);
 export class CampusChunkRenderer {
-  constructor(app,parent,registry) {
+  constructor(app,parent,registry,environmentSignals={}) {
     this.parent=parent;this.metrics={entitiesCreated:0,entitiesDestroyed:0,nearBuilds:0,detailBuilds:0,baseBuilds:1};
     this.fades=new Map();
     // Small campus P0: persistent terrain/roads/silhouettes avoid holes and invisible walls.
     const base=new pc.Entity('CampusBase');parent.addChild(base);this.base=base;
     buildGardenCampusTerrain(base,WORLD_BOUNDS,[{polygon:SPORTS_CUT_RING,floor:SPORTS_FLOOR}]);
-    buildCampusGrounds(base);buildCampusRoads(base);buildGateBlockout(base);buildCentralBlockout(base,app);buildPondShore(base);
+    buildCampusGrounds(base);buildCampusRoads(base);buildGateBlockout(base);this.pondWeather=buildCentralBlockout(base,app,environmentSignals);buildPondShore(base);
     buildLibraryGardenBase(base);
     buildStadiumStands(base);
     buildCampusHelicopter(base);
@@ -79,4 +79,5 @@ export class CampusChunkRenderer {
   }
   destroy(handle) { this.metrics.entitiesDestroyed+=count(handle.root);handle.root.destroy(); }
   getMetrics() { return {...this.metrics}; }
+  getPondWeatherStatus() { return this.pondWeather?.status?.() ?? null; }
 }
