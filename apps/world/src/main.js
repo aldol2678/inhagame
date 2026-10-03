@@ -226,8 +226,7 @@ const assetCanaryRemoteState = await assetCanaryRemoteInitial;
 const assetProductionCanary = createProductionAssetCanary({
   app,
   enabled: !previewHost && assetCanaryRemoteState === FLAG_ENABLED,
-  storage: globalThis.localStorage,
-  cryptoImpl: globalThis.crypto
+  activationGuard: () => assetCanaryRemoteControl.enabled
 });
 const assetCanaryTelemetry = createAssetCanaryTelemetry();
 if (assetProductionCanary.selected) assetCanaryTelemetry.selected();
@@ -432,7 +431,12 @@ const unbindAssetCanaryRemote = assetCanaryRemoteControl.subscribe(next => {
 
 void character.ready.then(() => {
   if (!assetProductionCanary.selected) return;
-  const receipt = character.assetCanary;
+  let receipt = character.assetCanary;
+  if (assetCanaryRemoteStateCurrent !== FLAG_ENABLED && receipt?.authority === "OPTIMIZED_CANARY") {
+    receipt = character.rollbackAssetCanary("REMOTE_KILL_" + assetCanaryRemoteStateCurrent);
+    if (receipt?.authority === "CANONICAL") assetCanaryTelemetry.rollback();
+    return;
+  }
   if (receipt?.authority === "OPTIMIZED_CANARY") assetCanaryTelemetry.active();
   else assetCanaryTelemetry.failure();
 });
