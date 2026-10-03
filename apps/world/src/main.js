@@ -185,10 +185,12 @@ const npcSharedScheduleMode = npcProductionMode || (previewHost && startupParams
 const npcRosterPreviewMode = previewHost && startupParams.get('campusLife') === 'roster';
 const npcSocialPreviewLevel = previewHost ? startupParams.get('npcSocial') : null;
 const npcObservedConversationPreview = previewHost && startupParams.get('npcConversation') === 'p0';
+// Ambient observed conversations are presentation-only and safe to enable on normal deployments.
+const npcObservedConversationMode = npcProductionMode || npcObservedConversationPreview;
 const npcSocialBehaviorPreviewMode = npcSocialPreviewLevel === 'ng15';
 const npcSocialPreviewMode = npcSocialPreviewLevel === 'ng1' || npcSocialBehaviorPreviewMode;
 const npcSocialProductionMode = npcProductionMode;
-const npcSocialMode = npcSocialProductionMode || npcSocialPreviewMode || npcObservedConversationPreview;
+const npcSocialMode = npcSocialProductionMode || npcSocialPreviewMode || npcObservedConversationMode;
 const npcEnabled = npcSharedScheduleMode || npcTestMode || npcProductionMode || npcPreviewMode || npcRosterPreviewMode || npcSocialMode;
 const campusLifePreview = previewHost && startupParams.get('campusLife') === 'p0a';
 let lastTrackedZone = null;
@@ -2176,11 +2178,11 @@ async function loadOptionalNpcRuntime() {
       sharedSchedulePreview: npcSharedScheduleMode,
       onNpcTalk: (id, now) => online?.network?.setNpcTalk(id, now),
       getBusyNpcIds: now => busyNpcIds(online?.network?.remotes.inZone(online.network.placeZoneId) ?? [], now),
-      production: npcSharedScheduleMode || npcProductionMode || npcPreviewMode || npcRosterPreviewMode || npcSocialPreviewMode || npcObservedConversationPreview,
+      production: npcSharedScheduleMode || npcProductionMode || npcPreviewMode || npcRosterPreviewMode || npcSocialPreviewMode || npcObservedConversationMode,
       socialEnabled: npcSocialMode,
       socialPreview: npcSocialPreviewMode,
       socialBehaviorPreview: npcSocialBehaviorPreviewMode,
-      observedConversationPreview: npcObservedConversationPreview,
+      observedConversationEnabled: npcObservedConversationMode,
       isObservedConversationBlocked: () => !inputFocus.can('WORLD_ACTION') ||
         hudContext.snapshot().mode === 'COMBAT' || lobbyWorld.active || lobbyTransition.active ||
         rooms?.insideRoom === true || mcmEventUi.openState || mcmEventRuntime.isDialogueOpen() ||
