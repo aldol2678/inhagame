@@ -40,7 +40,8 @@ export function createProductionAssetCanary({
   enabled = true,
   storage = null,
   cryptoImpl = null,
-  subjectKeyOverride = null
+  subjectKeyOverride = null,
+  activationGuard = null
 } = {}) {
   const subjectKey = subjectKeyOverride ??
     getOrCreateAssetCanarySubjectKey({ storage, cryptoImpl });
@@ -61,7 +62,8 @@ export function createProductionAssetCanary({
     shadow,
     enabled: selected,
     percentage: ASSET_PRODUCTION_CANARY_PERCENTAGE,
-    productionWired: true
+    productionWired: true,
+    activationGuard
   });
 
   return Object.freeze({
