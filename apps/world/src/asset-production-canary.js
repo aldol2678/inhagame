@@ -7,7 +7,7 @@ import {
   createAssetAuthorityCanary
 } from "./asset-authority-canary.js";
 
-export const ASSET_PRODUCTION_CANARY_PERCENTAGE = 1;
+export const ASSET_PRODUCTION_CANARY_PERCENTAGE = 100;
 export const ASSET_PRODUCTION_CANARY_SOURCE = "/assets/induck-v3.glb";
 export const ASSET_PRODUCTION_CANARY_OPTIMIZED =
   ASSET_OPTIMIZATION_SHADOW_MAP[ASSET_PRODUCTION_CANARY_SOURCE];
