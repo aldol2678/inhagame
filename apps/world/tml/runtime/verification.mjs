@@ -57,9 +57,15 @@ function authoritativeFacts(facts, profile, subject, predicate) {
   if (validTimes.length === 0) return { rule, facts: authoritative };
 
   const latest = Math.max(...validTimes);
+  const latestFacts = authoritative.filter((fact) => Date.parse(fact.observed_at) === latest);
+  const sequences = latestFacts
+    .map((fact) => fact?.extensions?.observation_sequence)
+    .filter(Number.isInteger);
+  if (sequences.length === 0) return { rule, facts: latestFacts };
+  const latestSequence = Math.max(...sequences);
   return {
     rule,
-    facts: authoritative.filter((fact) => Date.parse(fact.observed_at) === latest)
+    facts: latestFacts.filter((fact) => fact?.extensions?.observation_sequence === latestSequence)
   };
 }
 
