@@ -24,6 +24,7 @@ import { createViewDistanceSettings } from './view-distance-settings.js';
 import { createGraphicsPresetController } from './graphics-presets.js';
 import { createEnvironmentDirector } from './environment/environment-director.js';
 import { resolveEnvironmentRuntimeTime, resolveEnvironmentRuntimeWeather } from './environment/environment-clock.js';
+import { createNightStreetLights } from './environment/night-street-lights.js';
 import { createInkyungDuckSystem } from './ambient-ducks.js';
 import { createInkyungMechanicalDuckEvent } from './inkyung-mechanical-duck-event.js';
 import { createBiryongSystem } from './biryong/biryong-system.js';
@@ -307,6 +308,18 @@ let firstPlayerMovement = false;
 const spawn=campusSpawn(location);
 player.setLocalPosition(spawn.x,spawn.y,spawn.z);
 campusRoot.addChild(player);
+
+const nightStreetLights = createNightStreetLights({
+  root: campusRoot,
+  app,
+  getPlayerPosition: () => player.getLocalPosition(),
+  getEnvironment: () => environment.status(),
+  getGraphicsTier: () => graphics.tier
+});
+app.on("update", dt => nightStreetLights.update(dt));
+window.__INHAGAME_NIGHT_LIGHTS__ = Object.freeze({
+  status: () => nightStreetLights.status()
+});
 
 const controller = new PlayerController(player);
 const helicopterFlightHud = createHelicopterFlightHud({
