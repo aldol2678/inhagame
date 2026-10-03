@@ -21,7 +21,7 @@ function project(frame,p){
   const u=Math.max(0,Math.min(frame.length,dx*frame.tx+dz*frame.tz));
   const q=frame.at(u);
   const v=(p.x-q.x)*(-frame.tz)+(p.z-q.z)*frame.tx;
-  return {u,v,distance:Math.abs(v),q};
+  return {u,v,distance:Math.hypot(p.x-q.x,p.z-q.z),q};
 }
 const projections=vertices.slice(1).map((b,i)=>{
   const frame=segmentFrame(vertices[i],b);
