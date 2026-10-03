@@ -124,6 +124,8 @@ import { MCM_2026_ROOM_ID } from "./events/zombie-university-2026/minigame-room-
 import { createMcm2026MinigameRuntime } from "./events/zombie-university-2026/minigame-room-runtime.js";
 import { createProgressionClient, PROGRESSION_STATE } from "./progression/progression-client.js";
 import { createProgressionHud, formatProgression, levelUpMessage } from "./progression/progression-hud.js";
+import { createLifeProgressionClient } from "./life-skills/life-progression-client.js";
+import { createLifeSkillPanel } from "./life-skills/life-skill-panel.js";
 import { createShopClient } from "./shop/shop-client.js";
 import { createShopPanel } from "./shop/shop-panel.js";
 import { createWalletClient } from "./wallet/wallet-client.js";
@@ -386,6 +388,10 @@ const furnitureInput = createInputFocusOwner({
 const inventoryInput = createInputFocusOwner({
   manager: inputFocus, ownerId: "inventory", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
 });
+const lifeSkillInput = createInputFocusOwner({
+  manager: inputFocus, ownerId: "life-skill", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
+});
+let lifeSkillPanel = null;
 const mobilityBookInput = createInputFocusOwner({
   manager: inputFocus, ownerId: "mobility-book", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
 });
@@ -806,6 +812,7 @@ const showWorldStatusAfterReward = createStatusAfterReward({
 });
 // P0-F3a: read-only server progression on the signed-in member client (never a new client).
 const progression = createProgressionClient({ getClient: () => online?.supabase ?? null });
+const lifeProgression = createLifeProgressionClient({ getClient: () => online?.supabase ?? null });
 const progressionHud = createProgressionHud({
   pill: document.getElementById("progression-hud"),
   pillLevel: document.getElementById("progression-level"),
@@ -892,6 +899,7 @@ loadout.onChange((change) => {
 window.addEventListener("pageshow", (event) => {
   if (!event.persisted) return;
   void progression.refresh("resume");
+  void lifeProgression.refresh("resume");
   void wallet.refresh("resume");
   void inventory.refresh("resume");
   void loadout.refresh("resume");
@@ -1022,6 +1030,32 @@ const inventoryPanel = createInventoryPanel({
   }
 });
 inventoryButton?.addEventListener("click", () => inventoryPanel.setOpen(true));
+const lifeSkillButton = document.getElementById("open-life-skills");
+lifeSkillPanel = createLifeSkillPanel({
+  panel: document.getElementById("life-skill-panel"),
+  life: lifeProgression,
+  onStatus: showWorldStatus,
+  onOpenChange: (open) => {
+    lifeSkillButton?.setAttribute("aria-expanded", String(open));
+    if (open) {
+      lifeSkillInput.acquire();
+      questJournal?.setOpen(false);
+      shopPanel.setOpen(false);
+      inventoryPanel.setOpen(false);
+      mobilityBook.setOpen(false);
+      wardrobePanel.setOpen(false);
+      dailyQuizPanel.setOpen(false);
+      attendancePanel.setOpen(false);
+      emoteMenu.setOpen(false);
+      chatPanel.setOpen(false, { focus: false });
+      playerCard.close();
+      void guestbookPanel.setOpen(false);
+      return;
+    }
+    lifeSkillInput.release();
+  }
+});
+lifeSkillButton?.addEventListener("click", () => lifeSkillPanel.setOpen(true));
 const shopButton = document.getElementById("open-shop");
 const shopPanel = createShopPanel({
   panel: document.getElementById("shop-panel"),
@@ -1039,6 +1073,7 @@ const shopPanel = createShopPanel({
       shopInput.acquire();
       questJournal?.setOpen(false);
       inventoryPanel.setOpen(false);
+      lifeSkillPanel?.setOpen(false);
       mobilityBook.setOpen(false);
       wardrobePanel.setOpen(false);
       dailyQuizPanel.setOpen(false);
@@ -1071,6 +1106,7 @@ const wardrobePanel = createWardrobePanel({
       questJournal?.setOpen(false);
       shopPanel.setOpen(false);
       inventoryPanel.setOpen(false);
+      lifeSkillPanel?.setOpen(false);
       mobilityBook.setOpen(false);
       dailyQuizPanel.setOpen(false);
       attendancePanel.setOpen(false);
@@ -1144,6 +1180,7 @@ const mobilityBook = createMobilityBook({
       questJournal?.setOpen(false);
       shopPanel.setOpen(false);
       inventoryPanel.setOpen(false);
+      lifeSkillPanel?.setOpen(false);
       wardrobePanel.setOpen(false);
       dailyQuizPanel.setOpen(false);
       attendancePanel.setOpen(false);
@@ -1171,6 +1208,7 @@ const dailyQuizPanel = createDailyQuizPanel({
       attendancePanel.setOpen(false);
       shopPanel.setOpen(false);
       inventoryPanel.setOpen(false);
+      lifeSkillPanel?.setOpen(false);
       mobilityBook.setOpen(false);
       wardrobePanel.setOpen(false);
       emoteMenu.setOpen(false);
@@ -1197,6 +1235,7 @@ const attendancePanel = createAttendancePanel({
       dailyQuizPanel.setOpen(false);
       shopPanel.setOpen(false);
       inventoryPanel.setOpen(false);
+      lifeSkillPanel?.setOpen(false);
       mobilityBook.setOpen(false);
       wardrobePanel.setOpen(false);
       emoteMenu.setOpen(false);
@@ -1401,6 +1440,7 @@ rooms = createRoomTransition({
       void guestbookPanel.setOpen(false);
       shopPanel.setOpen(false);
       inventoryPanel.setOpen(false);
+      lifeSkillPanel?.setOpen(false);
       mobilityBook.setOpen(false);
       wardrobePanel.setOpen(false);
       dailyQuizPanel.setOpen(false);
@@ -1546,7 +1586,8 @@ furnitureEditor = createFurnitureEditor({
   onOpenChange: open => {
     if (open) {
       furnitureInput.acquire();
-      inventoryPanel.setOpen(false); shopPanel.setOpen(false); wardrobePanel.setOpen(false);
+      inventoryPanel.setOpen(false);
+      lifeSkillPanel?.setOpen(false); shopPanel.setOpen(false); wardrobePanel.setOpen(false);
       dailyQuizPanel.setOpen(false); attendancePanel.setOpen(false); questJournal?.setOpen(false);
       emoteMenu.setOpen(false); chatPanel.setOpen(false,{ focus:false }); playerCard.close();
       void guestbookPanel.setOpen(false);
@@ -1950,7 +1991,7 @@ try {
     getRoomState: () => rooms?.status?.() ?? { insideRoom: false },
     getOverlayState: () => ({
       hudMenu: hudMenu.open, keyboardHelp: keyboardHelp?.open === true, friends: friendPanel.open,
-      playerCard: playerCard.current != null, guestbook: guestbookPanel.open, shop: shopPanel.open, inventory: inventoryPanel.open, wardrobe: wardrobePanel.open,
+      playerCard: playerCard.current != null, guestbook: guestbookPanel.open, shop: shopPanel.open, inventory: inventoryPanel.open, lifeSkill: lifeSkillPanel?.open === true, wardrobe: wardrobePanel.open,
       blocking: furnitureEditor?.open === true || dailyQuizPanel.open || attendancePanel.open || questJournal?.open === true,
       npcConversation: npcTest?.isConversationOpen?.() === true,
       mcmEvent: mcmEventUi.openState || mcmEventRuntime.isDialogueOpen() === true,
@@ -2031,6 +2072,7 @@ try {
       void guestbookPanel.setOpen(false);
       shopPanel.setOpen(false);
       inventoryPanel.setOpen(false);
+      lifeSkillPanel?.setOpen(false);
       wardrobePanel.setOpen(false);
       dailyQuizPanel.setOpen(false);
       attendancePanel.setOpen(false);
@@ -2084,6 +2126,7 @@ questJournal = createQuestJournal({
       hudMenu.setOpen(false, { focus: false });
       shopPanel.setOpen(false);
       inventoryPanel.setOpen(false);
+      lifeSkillPanel?.setOpen(false);
       wardrobePanel.setOpen(false);
       dailyQuizPanel.setOpen(false);
       attendancePanel.setOpen(false);
@@ -2473,6 +2516,7 @@ try {
   online.onIdentity((identity) => {
     void syncBiryongAccount(identity);
     void progression.setAccount(identity ? online?.userId ?? null : null);
+    void lifeProgression.setAccount(identity ? online?.userId ?? null : null);
     shop.setAccount(identity ? online?.userId ?? null : null);
     void wallet.setAccount(identity ? online?.userId ?? null : null);
     void inventory.setAccount(identity ? online?.userId ?? null : null);
