@@ -826,8 +826,9 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
         const action = state.phase === 'TALKING' ? '대화 중' :
           state.phase === 'MOVING' && state.interrupted ? '함께 이동 중' :
           state.phase === 'MOVING' ? `${purpose.destinations[state.destination]?.label ?? '다음 장소'}로 이동 중` :
-          ({ ACADEMIC: '수업 중', CLUB: '동아리 활동 중', RESTING: '휴식 중',
-            READING: '독서 중', COFFEE: '커피 마시는 중', EATING: '간식 먹는 중',
+          state.phase === 'WAITING' ? '다음 일정 준비 중' :
+          ({ ACADEMIC: state.scheduleIndex === 0 ? '수업 준비 중' : '수업 중', CLUB: '동아리 활동 중', RESTING: '휴식 중',
+            READING: '독서 중', COFFEE: '커피 마시는 중', EATING: '식사 중',
             PHOTO: '사진 찍는 중', MUSIC: '음악 듣는 중', PHONE: '휴대전화 보는 중',
             TRANSIT: '잠시 머무는 중', WALK_BREAK: '산책 중', WAITING: '대기 중',
             WALK_TOGETHER: '동행 중', SOCIAL_MEETUP: '모임 중' })[state.activity] ?? '잠시 머무는 중';
@@ -1141,4 +1142,3 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
   };
   return api;
 }
-
