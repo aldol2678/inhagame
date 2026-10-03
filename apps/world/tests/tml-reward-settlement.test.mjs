@@ -188,7 +188,7 @@ test('P7 verifies Main 2 reward receipt + wallet + EXP as one settlement', async
   assert.equal(result.transition.provider.ok, true);
   assert.deepEqual(result.transition.provider.output.reward, rewardReceipt);
   assert.equal(result.receiptPresent, true);
-  assert.equal(h.mutationCalls, 9, '8 setup transitions + exactly one final transition');
+  assert.equal(h.mutationCalls, 1, 'P7 executes exactly one final transition; stage-8 setup uses the base fixture directly');
   assert.equal(h.coins, 180);
   assert.equal(h.exp, 200);
 
