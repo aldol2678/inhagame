@@ -80,7 +80,7 @@ export function createNpcDialogueSession({ npcId } = {}) {
     if (next === NPC_DIALOGUE_STATE.TOPIC_RESPONSE) {
       if (typeof selectedTopic !== 'string' || !selectedTopic) throw new Error('Topic response requires selected topic');
       topic = selectedTopic;
-    } else if (next !== NPC_DIALOGUE_STATE.TOPICS) {
+    } else {
       topic = null;
     }
     state = next;
