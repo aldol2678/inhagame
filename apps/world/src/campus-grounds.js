@@ -2,25 +2,38 @@ import * as pc from 'playcanvas';
 import { SITE_FEATURES } from './basic-campus.js';
 import { polygon,segment,surface,box } from './campus-render-kit.js';
 import { pondWaterMaterial } from './pond-water.js';
-import { CAMPUS_PATH_WIDTHS } from './campus-road-layout.js';
+import { CAMPUS_PATH_WIDTHS, roadFrame } from './campus-road-layout.js';
+import { FacilityMeshBatch } from './facility-mesh-batch.js';
+import { roadSurface } from './campus-road-geometry.js';
+import { MAIN_GATE_CAMPUS_LINK_IDS, MAIN_GATE_CAMPUS_LINK_LEVELS as L, MAIN_GATE_CENTRAL_POOL_ID, gateCentralPoolRimFaces } from './main-gate-terrain-layout.js';
 
 export function buildCampusGrounds(root) {
+  const gateBatch=new FacilityMeshBatch();
   for(const feature of SITE_FEATURES) {
     const points=feature.vertices;
     if(feature.kind==='path') {
       for(let i=1;i<points.length;i++) {
         // Width is a presentation estimate; the source centreline is retained.
         const width=CAMPUS_PATH_WIDTHS[feature.id]||3.5;
+        if(i===1&&MAIN_GATE_CAMPUS_LINK_IDS.includes(feature.id)){
+          const f=roadFrame(points[i-1],points[i]);
+          roadSurface(gateBatch,'#b4b4a8',f,0,f.length,-(width+2.1)/2,(width+2.1)/2,L.edge);
+          roadSurface(gateBatch,'#747d7b',f,0,f.length,-width/2,width/2,L.road);
+          continue;
+        }
         segment(root,`${feature.id}_sidewalk_${i}`,points[i-1],points[i],width+2.1,surface('#b4b4a8'),.035);
         segment(root,`${feature.id}_${i}`,points[i-1],points[i],width,surface('#747d7b'),.055);
       }
     } else if(feature.kind==='reflecting_pool') {
       polygon(root,feature.id,points,pondWaterMaterial(pc.Application.getApplication().graphicsDevice),{y:.025});
-      for(let i=0;i<points.length;i++)segment(root,`${feature.id}_rim_${i}`,points[i],points[(i+1)%points.length],.3,surface('#c8c7b4'),.04,.08);
+      if(feature.id===MAIN_GATE_CENTRAL_POOL_ID){
+        for(const face of gateCentralPoolRimFaces(points))gateBatch.quad('#c8c7b4',...face);
+      }else for(let i=0;i<points.length;i++)segment(root,`${feature.id}_rim_${i}`,points[i],points[(i+1)%points.length],.3,surface('#c8c7b4'),.04,.08);
     } else {
       polygon(root,feature.id,points,surface('#729451'),{y:.018});
     }
   }
+  gateBatch.finish(root,'main_gate_campus_ground_links');
 }
 
 export function buildCampusTrees(root,trees) {

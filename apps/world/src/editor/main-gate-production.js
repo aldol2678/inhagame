@@ -41,6 +41,8 @@ export function mainGateEditorEntity(productionId){
   return entity;
 }
 export function mainGateProductionPath(productionId){
+  // Keep transformed authored Y: curb-return paths own their visible curb top.
+  // Corridor/decal path Y is not a replacement for the gameplay ground resolver.
   const entity=mainGateEditorEntity(productionId),data=entity.components['world.path'],meta=entity.metadata.production;
   if(!data)throw Error(`E_MAIN_GATE_EDITOR_PATH_MISSING:${productionId}`);
   return Object.freeze({

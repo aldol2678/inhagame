@@ -1,5 +1,6 @@
 import { cameraSafeFraction } from "./world-collision.js";
 import { CAMPUS_BIKE_ID } from "./mounts/campus-bike-world.js";
+import { inMainGateCameraArea } from './main-gate-camera-collision.js';
 
 const WALK = { initial: 3.5, min: 1.5, max: 7 };
 const FLIGHT = { initial: Math.hypot(7.3, 18.5), min: 12, max: 36 };
@@ -29,6 +30,7 @@ export class OrbitCameraController {
     this.distance = WALK.initial;
     this.mounted = false;
     this.firstPerson = false;
+    this.localVisualOccluded = false;
     this.distances = { walk: WALK.initial, flight: FLIGHT.initial };
     this.thirdPersonPitch = this.pitch;
     this.firstPersonPitch = 0;
@@ -192,6 +194,7 @@ export class OrbitCameraController {
   }
 
   apply(position, eyeHeight = -0.35) {
+    this.localVisualOccluded = false;
     const sin = Math.sin(this.yaw);
     const cos = Math.cos(this.yaw);
     if (this.firstPerson) {
@@ -223,6 +226,11 @@ export class OrbitCameraController {
     const cameraX = eye[0] + (candidate[0] - eye[0]) * fraction;
     const cameraY = eye[1] + (candidate[1] - eye[1]) * fraction;
     const cameraZ = -(eye[2] + (candidate[2] - eye[2]) * fraction);
+    // A real wall/prop can legitimately compress the chase orbit. Hide only the
+    // local body/equipment when that camera enters their envelope; keep third
+    // person input, chosen zoom, the obstacle and all other actors unchanged.
+    this.localVisualOccluded = !this.indoor && !this.mounted && inMainGateCameraArea(eye) &&
+      Math.hypot(cameraX - eye[0], cameraY - eye[1], -cameraZ - eye[2]) < .6;
     this.camera.setPosition(cameraX, cameraY, cameraZ);
     if (viewPitch < THIRD_PERSON_PITCH.orbitMin) {
       const viewHorizontal = Math.cos(viewPitch);

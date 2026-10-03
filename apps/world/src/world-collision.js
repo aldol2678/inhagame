@@ -1,6 +1,7 @@
 import { OBSTACLES } from "./campus-layout.js";
 import { polygonOverlap, moveAroundPolygons, polygonCameraFraction } from './polygon-collision.js';
 import { WALK_SHAPE } from './player-dimensions.js';
+import { inMainGateCameraArea, mainGatePolygonCameraFraction } from './main-gate-camera-collision.js';
 
 const { radius: RADIUS, footOffset: FOOT_OFFSET, headOffset: HEAD_OFFSET } = WALK_SHAPE;
 const EPSILON = 0.001;
@@ -65,10 +66,17 @@ export function resolveHeight(position, requestedY, groundY = FOOT_OFFSET, obsta
 }
 
 // Segment vs expanded AABB, used to move the chase camera in front of a wall.
-export function cameraSafeFraction(from, to, obstacles = OBSTACLES) {
+export function cameraSafeFraction(from, to, obstacles) {
   let fraction = 1;
-  for (const box of obstacles) {
-    if (box.polygon) { fraction = Math.min(fraction, polygonCameraFraction(from, to, box)); continue; }
+  const mainGate = obstacles === undefined && inMainGateCameraArea(from);
+  const cameraObstacles = obstacles === undefined ? OBSTACLES : obstacles;
+  for (const box of cameraObstacles) {
+    if (box.polygon) {
+      fraction = Math.min(fraction, mainGate
+        ? mainGatePolygonCameraFraction(from, to, box)
+        : polygonCameraFraction(from, to, box));
+      continue;
+    }
     const bounds = [[box.minX - 0.35, box.maxX + 0.35], [box.minY, box.maxY + 0.35], [box.minZ - 0.35, box.maxZ + 0.35]];
     let enter = 0;
     let leave = 1;

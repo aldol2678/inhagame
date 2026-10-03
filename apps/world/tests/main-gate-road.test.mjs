@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { GATE_DORM_CORRIDORS, GATE_DORM_SEGMENTS, GATE_DORM_WALK_ROUTE, GATE_DORM_ROUTE_SPAWN } from '../src/main-gate-road-layout.js';
 import { fillMainGateRoads } from '../src/main-gate-road-geometry.js';
 import { FLAT_GROUND_Y, FLAT_GROUND_MAX_Y } from '../src/flat-ground-surface.js';
+import { MAIN_GATE_LEVELS } from '../src/main-gate-terrain-layout.js';
 import { createMiniMapDataSource } from '../src/minimap/minimap-data.js';
 import { canOccupy, moveAroundObstacles } from '../src/world-collision.js';
 import { WORLD_BOUNDS, OBSTACLES } from '../src/campus-layout.js';
@@ -37,14 +38,15 @@ test('legacy gate sidewalk and zebra box overlays stay removed; flat tactile dre
   assert.doesNotMatch(detail,/c2aa63|e0c982|939c96|d0b04e/);
 });
 
-test('inner gate zebra is restored as flat paint and gate-adjacent sidewalks stay extra-flush',()=>{
+test('inner gate zebra and sidewalks stay above their visible pavement owner',()=>{
   const quads=[];
   fillMainGateRoads({quad(color,a,b,c,d){quads.push({color,vertices:[a,b,c,d]});},box(){}});
-  const zebra=quads.filter(q=>q.color==='#eee9da'&&q.vertices.every(p=>p[1]===.010));
+  const zebra=quads.filter(q=>q.color==='#eee9da'&&q.vertices.every(p=>p[1]===MAIN_GATE_LEVELS.zebra));
   assert.equal(zebra.length,11,'inner gate zebra keeps eleven flat white stripes');
-  const flush=quads.filter(q=>q.color==='#b9b4a6'&&q.vertices.every(p=>p[1]===.006));
-  assert.ok(flush.length>=3,'west/east gate sidewalks and pedestrian exit render near y=0');
-  assert.ok(flush.every(q=>q.vertices.every(p=>p[1]<FLAT_GROUND_Y.UNDERLAY)));
+  const flush=quads.filter(q=>q.color==='#b9b4a6'&&q.vertices.every(p=>p[1]===MAIN_GATE_LEVELS.sidewalk));
+  assert.ok(flush.length>=3,'gate sidewalks and pedestrian exit remain flush overlays');
+  assert.ok(MAIN_GATE_LEVELS.sidewalk>MAIN_GATE_LEVELS.road);
+  assert.ok(MAIN_GATE_LEVELS.zebra>MAIN_GATE_LEVELS.joint);
 });
 
 test('minimap and full map consume every same-width world corridor without building overlap',()=>{

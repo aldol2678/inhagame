@@ -3,23 +3,18 @@ import { GATE_FRAME } from './roadview-layout.js';
 import { roadFrame } from './campus-road-layout.js';
 import { roadSurface } from './campus-road-geometry.js';
 import { FLAT_GROUND_Y as G } from './flat-ground-surface.js';
-
-// Around the gate, actor feet are visually tiny enough that the generic .02-.03 presentation
-// envelope can still occlude them. Keep the gate's flat walkable dressing closer to logical y=0.
-// This is still presentation-only: no real curb/step is introduced.
-const GF=Object.freeze({surface:.006,edge:.008,paint:.010,detail:.012});
-const gateFlushPath=id=>id.startsWith('sosung_north_sidewalk_')||id==='main_gate_pedestrian_exit';
+import { MAIN_GATE_LEVELS as L } from './main-gate-terrain-layout.js';
 
 export function fillMainGateRoads(batch) {
   const asphalt='#666f70',paving='#b9b4a6',white='#eee9da',yellow='#d6b65a';
   const crossings=new Set(GATE_DORM_CROSSINGS.map(q=>q.id));
-  // Roads first, then walkways. Gate-adjacent sidewalks are deliberately extra-flush.
+  // Roads first, then a flush sidewalk overlay above the lawn/asphalt owner.
   for(const s of GATE_DORM_SEGMENTS.filter(s=>!crossings.has(s.road.id))) {
-    const f=s.frame,h=s.road.width/2,path=s.road.kind==='PATH',flush=gateFlushPath(s.road.id);
-    const surfaceY=path?(flush?GF.surface:G.EDGE):G.SURFACE;
+    const f=s.frame,h=s.road.width/2,path=s.road.kind==='PATH';
+    const surfaceY=path?L.sidewalk:L.road;
     roadSurface(batch,path?paving:asphalt,f,-.08,f.length+.08,-h,h,surfaceY);
     if(path) {
-      const edgeY=flush?GF.edge:G.PAINT,detailY=flush?GF.detail:G.DETAIL;
+      const edgeY=L.paint,detailY=L.joint;
       for(const side of [-1,1])roadSurface(batch,'#d5d0bf',f,0,f.length,side*h-.04,side*h+.04,edgeY);
       for(let u=.5;u<f.length;u+=1.1)roadSurface(batch,'#aaa798',f,u,Math.min(u+.018,f.length),-h,h,detailY);
     }
@@ -41,7 +36,7 @@ export function fillMainGateRoads(batch) {
   {
     const c=roadFrame(...MAIN_GATE_INNER_ZEBRA.vertices),h=MAIN_GATE_INNER_ZEBRA.width/2;
     for(let v=-h+.325;v<=h-.325+1e-9;v+=1.1)
-      roadSurface(batch,white,c,0,c.length,v-.325,v+.325,GF.paint);
+      roadSurface(batch,white,c,0,c.length,v-.325,v+.325,L.zebra);
   }
 
   for(const crossing of GATE_DORM_CROSSINGS) {

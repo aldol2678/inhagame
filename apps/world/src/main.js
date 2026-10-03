@@ -2212,6 +2212,7 @@ app.on("update", (dt) => {
     if (window.InhaGameEntry?.result()) window.InhaGameEntry.clear();
   }
   orbit.apply(pos, character.eyeHeight);
+  character.setCameraOccluded(orbit.localVisualOccluded);
   if (!inside) {
     biryong?.applyCamera();
     backGateArrival?.applyCamera();
@@ -2363,6 +2364,7 @@ if (lobbyWorld.active) {
   if (!npcTestMode) tour.update(player.getLocalPosition(), places.update(player.getLocalPosition())?.id, orbit.yaw);
   else places.update(player.getLocalPosition());
   orbit.apply(player.getLocalPosition(), character.eyeHeight);
+  character.setCameraOccluded(orbit.localVisualOccluded);
   profile.update(false, character.nameplateHeight);
 }
 

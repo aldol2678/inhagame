@@ -97,6 +97,7 @@ export function createCharacter(app, player) {
   let activeDuckLegs = [];
   let mountedNow = false;
   let firstPerson = false;
+  let cameraOccluded = false;
   let modelState = "loading";
   let nameplateHeight = 0;
   let duckBaseEuler = [0, 0, 0];
@@ -139,12 +140,18 @@ export function createCharacter(app, player) {
       [CAMPUS_BALLOON_ID, riderBalloon]
     ];
     for (const [id, visual] of prototypes) {
-      visual.enabled = mountedNow && player.mountKind === id && !firstPerson;
+      visual.enabled = mountedNow && player.mountKind === id && !firstPerson && !cameraOccluded;
     }
     const prototype = prototypes.some(([id]) => player.mountKind === id);
-    dragonVisual.enabled = mountedNow && !bike && !helicopter && !prototype && !firstPerson;
-    riderBike.enabled = mountedNow && bike && !firstPerson;
-    riderHelicopter.root.enabled = mountedNow && helicopter && !firstPerson;
+    dragonVisual.enabled = mountedNow && !bike && !helicopter && !prototype && !firstPerson && !cameraOccluded;
+    riderBike.enabled = mountedNow && bike && !firstPerson && !cameraOccluded;
+    riderHelicopter.root.enabled = mountedNow && helicopter && !firstPerson && !cameraOccluded;
+  }
+
+  function syncCameraVisibility() {
+    duckVisual.enabled = !firstPerson && !cameraOccluded;
+    equipment.setVisible(!firstPerson && !cameraOccluded);
+    showMountVisuals();
   }
 
   function loadModel(url) {
@@ -177,7 +184,7 @@ export function createCharacter(app, player) {
     }
     loadedDuck.name = "Induck_GLB_Visual";
     loadedDragon.name = "Annyongi_GLB_Visual";
-    loadedDuck.enabled = !firstPerson;
+    loadedDuck.enabled = !firstPerson && !cameraOccluded;
     player.addChild(loadedDuck);
     player.addChild(loadedDragon);
     duck.enabled = false;
@@ -209,9 +216,13 @@ export function createCharacter(app, player) {
     get equipmentVisible() { return equipment.visible; },
     setFirstPerson(value) {
       firstPerson = value;
-      duckVisual.enabled = !value;
-      equipment.setVisible(!value);
-      showMountVisuals();
+      syncCameraVisibility();
+    },
+    setCameraOccluded(value) {
+      const next = value === true;
+      if (cameraOccluded === next) return;
+      cameraOccluded = next;
+      syncCameraVisibility();
     },
     // poseOffsets: a local-only scripted pose (e.g. the 울림돌 shout) that outranks emotes, not sitting.
     update(dt, { mounted, moving, grounded, emote = null, seated = false, poseOffsets = null }) {
@@ -247,7 +258,7 @@ export function createCharacter(app, player) {
       lastPose = pose;
       positionDuck(mounted, pose.bodyY, pose.bodyEuler);
       riderHelicopter.update(dt, {
-        active: mounted && helicopter && !firstPerson,
+        active: mounted && helicopter && !firstPerson && !cameraOccluded,
         pitch: attitude.pitch,
         roll: attitude.roll
       });
