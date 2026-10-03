@@ -7,14 +7,15 @@ export const ENVIRONMENT_TIME = Object.freeze({
 export const DEFAULT_ENVIRONMENT_TIME = ENVIRONMENT_TIME.DAY;
 
 const tuple = values => Object.freeze([...values]);
-const preset = ({ sunColor, sunIntensity, sunEuler, ambientColor, exposure, clearColor, shadowIntensity }) => Object.freeze({
+const preset = ({ sunColor, sunIntensity, sunEuler, ambientColor, exposure, clearColor, shadowIntensity, artificialLightFactor }) => Object.freeze({
   sunColor: tuple(sunColor),
   sunIntensity,
   sunEuler: tuple(sunEuler),
   ambientColor: tuple(ambientColor),
   exposure,
   clearColor: tuple(clearColor),
-  shadowIntensity
+  shadowIntensity,
+  artificialLightFactor
 });
 
 export const ENVIRONMENT_PRESETS = Object.freeze({
@@ -25,7 +26,8 @@ export const ENVIRONMENT_PRESETS = Object.freeze({
     ambientColor: [0.48, 0.54, 0.61],
     exposure: 1.05,
     clearColor: [0.52, 0.71, 0.84],
-    shadowIntensity: 0.48
+    shadowIntensity: 0.48,
+    artificialLightFactor: 0
   }),
   [ENVIRONMENT_TIME.SUNSET]: preset({
     sunColor: [1, 0.58, 0.34],
@@ -34,7 +36,8 @@ export const ENVIRONMENT_PRESETS = Object.freeze({
     ambientColor: [0.38, 0.31, 0.37],
     exposure: 0.96,
     clearColor: [0.74, 0.41, 0.30],
-    shadowIntensity: 0.50
+    shadowIntensity: 0.50,
+    artificialLightFactor: 0.18
   }),
   [ENVIRONMENT_TIME.NIGHT]: preset({
     sunColor: [0.38, 0.46, 0.68],
@@ -43,7 +46,8 @@ export const ENVIRONMENT_PRESETS = Object.freeze({
     ambientColor: [0.10, 0.14, 0.24],
     exposure: 0.82,
     clearColor: [0.04, 0.07, 0.14],
-    shadowIntensity: 0.32
+    shadowIntensity: 0.32,
+    artificialLightFactor: 1
   })
 });
 
