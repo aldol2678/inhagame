@@ -28,6 +28,7 @@ TML is used here as a semantic/state-transition layer above the existing game im
 - `runtime/promotion-proposal-pack.mjs` — P14 non-executable canary/rollback/observability proposal pack
 - `runtime/canary-dry-run.mjs` — P15 virtual cohort canary simulator; no routing, deployment or authority effect
 - `runtime/canary-execution-contract.mjs` — P16 short-lived immutable execution-input contract; still no router or activation logic
+- `runtime/canary-adapter-interfaces.mjs` — P17 reference-only external adapter interface pack; no adapter invocation
 - `fixtures/` — executable-domain conformance fixtures tied to current INHA WORLD contracts
 
 ## Boundary
@@ -428,3 +429,36 @@ The contract also explicitly states that future execution would still require:
 - an expiry check at activation time.
 
 P16 does not provide any of those implementations. It is only the bounded input contract for a future adapter design.
+
+
+## P17 Canary Adapter Interfaces
+
+P17 defines the contracts that future external Canary components would have to implement. It still does not implement or invoke those components.
+
+Required interfaces:
+
+- `Cohort Resolver`: inspect externally managed cohort metadata only;
+- `Activation Preflight`: read-only check before any future activation request;
+- `Observability Adapter`: inspect observability capability and read metric snapshots;
+- `Rollback Adapter`: inspect rollback capability and produce rollback proposals only;
+- `Expiry Guard`: pure expiry check for the P16 contract.
+
+The P17 interface pack contains only implementation references, version references and owner references. Executable handlers and user membership are rejected.
+
+The pack preserves the P16 source contract fingerprint, phase, cohort id, rollback handle, observability handle and expiry.
+
+Every P17 pack carries:
+
+```text
+advisoryOnly: true
+executable: false
+adapterInvocationAllowed: false
+routingEffect: NONE
+deploymentEffect: NONE
+runtimeEffect: NONE
+persistenceEffect: NONE
+authorityChangeAllowed: false
+current authority: legacy-main2
+```
+
+P17 deliberately does not wire any adapter into `main.js`, the NPC runtime, routing, deployment, persistence, or authority switching.
