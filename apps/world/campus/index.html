@@ -282,6 +282,7 @@
     <button id="open-quest-journal" type="button" aria-controls="quest-journal-panel" aria-expanded="false" aria-keyshortcuts="Q">📜 퀘스트</button>
     <button id="open-shop" type="button" aria-controls="shop-panel" aria-expanded="false">🛍 상점</button>
     <button id="open-inventory" type="button" aria-controls="inventory-panel" aria-expanded="false">🎒 인벤토리</button>
+    <button id="open-life-skills" type="button" aria-controls="life-skill-panel" aria-expanded="false">🌱 생활 성장</button>
     <button id="open-mobility-book" type="button" aria-controls="mobility-book-panel" aria-expanded="false">🛞 탈것</button>
     <button id="open-wardrobe" type="button" aria-controls="wardrobe-panel" aria-expanded="false">👕 옷장</button>
     <button id="open-daily-quiz" type="button" aria-controls="daily-quiz-panel" aria-expanded="false">📚 오늘의 퀴즈</button>
@@ -386,6 +387,8 @@
   <section id="backgate-transit-panel" class="profile-panel shop-panel transit-panel" role="dialog" aria-modal="true" aria-labelledby="backgate-transit-title" hidden></section>
   <!-- Inventory P0: read-only owned items, rendered by src/inventory/inventory-panel.js from get_my_world_inventory_v1. -->
   <section id="inventory-panel" class="profile-panel shop-panel inventory-panel" role="dialog" aria-modal="true" aria-labelledby="inventory-panel-title" hidden></section>
+  <!-- Life Progression v1: aggregate Life Level/SP + server-authoritative skill trees. -->
+  <section id="life-skill-panel" class="profile-panel shop-panel inventory-panel life-skill-panel" role="dialog" aria-modal="true" aria-labelledby="life-skill-panel-title" hidden></section>
   <!-- Mobility Book P0.8: player-facing registry browser; no ownership authority. -->
   <section id="mobility-book-panel" class="profile-panel shop-panel mobility-book-panel" role="dialog" aria-modal="true" aria-labelledby="mobility-book-title" hidden></section>
   <!-- Wardrobe P0: server loadout + owned wearables, rendered by src/appearance/wardrobe-panel.js. -->
