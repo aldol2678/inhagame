@@ -2,6 +2,8 @@ import {
   executeTmlVerifiedWriteTransition,
   TML_P5_DISPOSITION
 } from './verified-write-runtime.mjs';
+import { captureTmlAdapterMethod, prepareTmlWriteTransition } from './write-admission.mjs';
+import { snapshotTmlData, summarizeTmlError } from './value-snapshot.mjs';
 
 export const TML_P6_PLAN_STATUS = Object.freeze({
   VERIFIED: 'VERIFIED',
@@ -47,21 +49,21 @@ function validateTransitionPlan(module, transitionIds) {
 }
 
 function actionForTransition(transition) {
-  const writes = transition.actions.filter((action) => action.capability === 'world.quest.advance');
-  if (writes.length !== 1) {
+  if (!Array.isArray(transition.actions) || transition.actions.length !== 1 ||
+      transition.actions[0]?.capability !== 'world.quest.advance') {
     planError(
       'TRANSITION_PLAN_ACTION_INVALID',
-      `transition ${transition.id} must contain exactly one world.quest.advance action`
+      `transition ${transition.id} must contain only one world.quest.advance action`
     );
   }
-  return writes[0];
+  return transition.actions[0];
 }
 
 function defaultPlanExecutionKey({ planId, index, action }) {
   return `${planId}.step-${index + 1}.${action.id}`;
 }
 
-export async function executeTmlVerifiedWritePlan({
+export function prepareTmlVerifiedWritePlan({
   module,
   profile,
   transitionIds,
@@ -91,27 +93,33 @@ export async function executeTmlVerifiedWritePlan({
   if (typeof now !== 'function') throw new TypeError('now must be a function');
   if (typeof createExecutionKey !== 'function') throw new TypeError('createExecutionKey must be a function');
 
-  validateTransitionPlan(module, transitionIds);
+  const moduleSnapshot = snapshotTmlData(module);
+  const profileSnapshot = snapshotTmlData(profile);
+  const contextSnapshot = snapshotTmlData(context);
+  const selectedIds = snapshotTmlData(transitionIds);
+  validateTransitionPlan(moduleSnapshot, selectedIds);
 
-  const steps = [];
+  const preparedSteps = [];
+  const executionKeys = new Set();
+  const capturedReadAdapter = captureTmlAdapterMethod(readAdapter, 'read', 'quest read adapter');
+  const capturedAdvanceAdapter = captureTmlAdapterMethod(advanceAdapter, 'advance', 'quest advance adapter');
 
-  for (let index = 0; index < transitionIds.length; index += 1) {
-    const transitionId = transitionIds[index];
-    const transition = module.transitions.find((item) => item.id === transitionId);
+  for (let index = 0; index < selectedIds.length; index += 1) {
+    const transitionId = selectedIds[index];
+    const transition = moduleSnapshot.transitions.find((item) => item.id === transitionId);
     const action = actionForTransition(transition);
-
-    const result = await executeTmlVerifiedWriteTransition({
-      module,
-      profile,
+    const prepared = prepareTmlWriteTransition({
+      module: moduleSnapshot,
+      profile: profileSnapshot,
       transitionId,
       actionId: action.id,
       context: {
-        ...context,
+        ...contextSnapshot,
         planId,
         planIndex: index
       },
-      readAdapter,
-      advanceAdapter,
+      readAdapter: capturedReadAdapter,
+      advanceAdapter: capturedAdvanceAdapter,
       traceId: `${planId}.trace.${index + 1}`,
       now,
       createExecutionKey: ({ module: currentModule, profile: currentProfile, transition: currentTransition, action: currentAction, context: currentContext }) =>
@@ -126,23 +134,110 @@ export async function executeTmlVerifiedWritePlan({
         })
     });
 
+    if (executionKeys.has(prepared.executionKey)) {
+      planError('TRANSITION_PLAN_EXECUTION_KEY_DUPLICATE', 'each planned action requires a distinct execution key');
+    }
+    executionKeys.add(prepared.executionKey);
+    preparedSteps.push(prepared);
+  }
+
+  return Object.freeze({
+    module: moduleSnapshot,
+    profile: profileSnapshot,
+    context: contextSnapshot,
+    transitionIds: selectedIds,
+    readAdapter: capturedReadAdapter,
+    advanceAdapter: capturedAdvanceAdapter,
+    planId,
+    now,
+    steps: Object.freeze(preparedSteps)
+  });
+}
+
+function dispatchStatusForSteps(steps) {
+  if (steps.some((step) => step.dispatchStatus === 'ATTEMPTED')) return 'ATTEMPTED';
+  if (steps.some((step) => step.dispatchStatus === 'UNKNOWN')) return 'UNKNOWN';
+  return 'NOT_ATTEMPTED';
+}
+
+function stoppedPlan(planId, steps, index, transitionId) {
+  return Object.freeze({
+    status: TML_P6_PLAN_STATUS.STOPPED,
+    planId,
+    completedSteps: steps.filter((step) => step.disposition === TML_P5_DISPOSITION.VERIFIED).length,
+    stoppedAt: index,
+    stoppedTransitionId: transitionId,
+    dispatchStatus: dispatchStatusForSteps(steps),
+    automaticMutationRetryAllowed: false,
+    steps: Object.freeze([...steps])
+  });
+}
+
+export async function executeTmlVerifiedWritePlan(options = {}) {
+  const preparedPlan = prepareTmlVerifiedWritePlan(options);
+  const { planId } = preparedPlan;
+  const steps = [];
+
+  for (let index = 0; index < preparedPlan.steps.length; index += 1) {
+    const prepared = preparedPlan.steps[index];
+    const transitionId = prepared.transition.id;
+    const actionId = prepared.action.id;
+    let result;
+    try {
+      result = await executeTmlVerifiedWriteTransition({
+        module: prepared.module,
+        profile: prepared.profile,
+        transitionId,
+        actionId,
+        context: prepared.context,
+        readAdapter: prepared.readAdapter,
+        advanceAdapter: prepared.advanceAdapter,
+        traceId: prepared.traceId,
+        now: prepared.now,
+        createExecutionKey: () => prepared.executionKey
+      });
+    } catch (error) {
+      // An escaped child error cannot prove that its provider was never called.
+      const attempt = Object.freeze({
+        requestedExecutionKey: prepared.executionKey,
+        dispatchStatus: 'UNKNOWN',
+        error: summarizeTmlError(error)
+      });
+      result = Object.freeze({
+        disposition: TML_P5_DISPOSITION.EXECUTION_OUTCOME_UNKNOWN,
+        transitionId,
+        actionId,
+        executionKey: prepared.executionKey,
+        dispatchStatus: 'UNKNOWN',
+        automaticMutationRetryAllowed: false,
+        attempt,
+        precondition: null,
+        provider: null,
+        postcondition: null,
+        trace: null
+      });
+    }
+
+    const dispatchStatus = result.dispatchStatus ?? 'UNKNOWN';
+    const attempt = result.attempt ?? Object.freeze({
+      requestedExecutionKey: prepared.executionKey,
+      dispatchStatus
+    });
+
     steps.push(Object.freeze({
       index,
       transitionId,
-      actionId: action.id,
+      actionId,
+      executionKey: prepared.executionKey,
       disposition: result.disposition,
+      dispatchStatus,
+      automaticMutationRetryAllowed: false,
+      attempt,
       result
     }));
 
     if (result.disposition !== TML_P5_DISPOSITION.VERIFIED) {
-      return Object.freeze({
-        status: TML_P6_PLAN_STATUS.STOPPED,
-        planId,
-        completedSteps: steps.filter((step) => step.disposition === TML_P5_DISPOSITION.VERIFIED).length,
-        stoppedAt: index,
-        stoppedTransitionId: transitionId,
-        steps: Object.freeze([...steps])
-      });
+      return stoppedPlan(planId, steps, index, transitionId);
     }
   }
 
@@ -152,6 +247,8 @@ export async function executeTmlVerifiedWritePlan({
     completedSteps: steps.length,
     stoppedAt: null,
     stoppedTransitionId: null,
+    dispatchStatus: dispatchStatusForSteps(steps),
+    automaticMutationRetryAllowed: false,
     steps: Object.freeze([...steps])
   });
 }

@@ -224,3 +224,162 @@ test('P6 can execute an explicit verified sub-plan without inferring omitted tra
   const status = await pair.readAdapter.read({ userId: USER_ID, questRef: QUEST_REF });
   assert.equal(status.facts.find((fact) => fact.predicate === 'quest.stage').value.value, 1);
 });
+
+test('PR1 D11a P6 rejects a later unsupported action before any read or mutation', async () => {
+  const module = structuredClone(moduleFixture);
+  module.transitions[1].actions = [];
+  let reads = 0;
+  let mutations = 0;
+  const pair = createAdapters(async (_userId, event, questId) => {
+    if (event === 'status') reads += 1;
+    else mutations += 1;
+    return { quest_id: questId, stage: 0, available: true };
+  });
+
+  await assert.rejects(
+    () => executeTmlVerifiedWritePlan(planOptions(pair, {
+      module,
+      transitionIds: TRANSITION_IDS.slice(0, 2)
+    })),
+    (error) => error.code === 'TRANSITION_PLAN_ACTION_INVALID'
+  );
+  assert.equal(reads, 0);
+  assert.equal(mutations, 0);
+});
+
+test('PR1 D11a P6 rejects a later invalid or throwing execution key before dispatch', async (t) => {
+  for (const mode of ['empty', 'throws', 'duplicate']) {
+    await t.test(mode, async () => {
+      let reads = 0;
+      let mutations = 0;
+      const keys = [];
+      const pair = createAdapters(async (_userId, event, questId) => {
+        if (event === 'status') reads += 1;
+        else mutations += 1;
+        return { quest_id: questId, stage: 0, available: true };
+      });
+      await assert.rejects(() => executeTmlVerifiedWritePlan(planOptions(pair, {
+        transitionIds: TRANSITION_IDS.slice(0, 2),
+        createExecutionKey: ({ index }) => {
+          keys.push(index);
+          if (mode === 'duplicate') return 'exec.shared';
+          if (index === 1) {
+            if (mode === 'throws') throw new Error('key unavailable');
+            return '';
+          }
+          return 'exec.first';
+        }
+      })));
+      assert.deepEqual(keys, [0, 1]);
+      assert.equal(reads, 0);
+      assert.equal(mutations, 0);
+    });
+  }
+});
+
+test('PR1 P6 prepares each external key once and preserves configuration and captured adapter methods', async () => {
+  const baseStore = createLocalQuestStore();
+  await unlockMain2(baseStore);
+  const mutationEvents = [];
+  const pair = createAdapters(async (userId, event, questId) => {
+    assert.equal(userId, USER_ID);
+    if (event !== 'status') mutationEvents.push(event);
+    return baseStore(userId, event, questId);
+  });
+  const readAdapter = { ...pair.readAdapter };
+  const advanceAdapter = { ...pair.advanceAdapter };
+  const module = structuredClone(moduleFixture);
+  const context = { userId: USER_ID };
+  const transitionIds = TRANSITION_IDS.slice(0, 2);
+  const keyCalls = [];
+
+  const result = await executeTmlVerifiedWritePlan(planOptions({ readAdapter, advanceAdapter }, {
+    module,
+    context,
+    transitionIds,
+    createExecutionKey: ({ index, action }) => {
+      keyCalls.push(index);
+      assert.equal(mutationEvents.length, 0, 'all keys are prepared before the first mutation');
+      if (index === 0) {
+        module.transitions[1].actions[0].args.event.value = 'status';
+        context.userId = 'changed-user';
+        transitionIds.pop();
+        readAdapter.read = () => { throw new Error('changed read method must not run'); };
+        advanceAdapter.advance = () => { throw new Error('changed advance method must not run'); };
+      }
+      return `exec.prepared.${index}.${action.id}`;
+    }
+  }));
+
+  assert.equal(result.status, TML_P6_PLAN_STATUS.VERIFIED);
+  assert.equal(result.completedSteps, 2);
+  assert.deepEqual(keyCalls, [0, 1]);
+  assert.deepEqual(mutationEvents, EXPECTED_EVENTS.slice(0, 2));
+  assert.equal(result.dispatchStatus, 'ATTEMPTED');
+  assert.equal(result.automaticMutationRetryAllowed, false);
+  assert.ok(result.steps.every((step) => step.dispatchStatus === 'ATTEMPTED'));
+  assert.ok(result.steps.every((step) => step.automaticMutationRetryAllowed === false));
+});
+
+test('PR1 P6 retains the verified prefix when a later dynamic pre-read fails', async () => {
+  const baseStore = createLocalQuestStore();
+  await unlockMain2(baseStore);
+  const mutationEvents = [];
+  let reads = 0;
+  const pair = createAdapters(async (userId, event, questId) => {
+    if (event === 'status') {
+      reads += 1;
+      if (reads === 3) throw Object.assign(new Error('later read unavailable'), { code: 'LATER_READ_DOWN' });
+    } else mutationEvents.push(event);
+    return baseStore(userId, event, questId);
+  });
+
+  const result = await executeTmlVerifiedWritePlan(planOptions(pair, {
+    transitionIds: TRANSITION_IDS.slice(0, 3)
+  }));
+
+  assert.equal(result.status, TML_P6_PLAN_STATUS.STOPPED);
+  assert.equal(result.completedSteps, 1);
+  assert.equal(result.stoppedAt, 1);
+  assert.equal(result.stoppedTransitionId, TRANSITION_IDS[1]);
+  assert.equal(result.steps.length, 2);
+  assert.equal(result.steps[0].disposition, TML_P5_DISPOSITION.VERIFIED);
+  assert.equal(result.steps[0].dispatchStatus, 'ATTEMPTED');
+  assert.equal(result.steps[1].disposition, TML_P5_DISPOSITION.HOLD_BEFORE_EXECUTION);
+  assert.equal(result.steps[1].dispatchStatus, 'NOT_ATTEMPTED');
+  assert.equal(result.steps[1].result.preReadError.code, 'LATER_READ_DOWN');
+  assert.equal(result.dispatchStatus, 'ATTEMPTED');
+  assert.equal(result.automaticMutationRetryAllowed, false);
+  assert.deepEqual(mutationEvents, [EXPECTED_EVENTS[0]]);
+  assert.equal(reads, 3);
+});
+
+test('PR1 P6 retains an acknowledged later attempt and the completed prefix when its clock fails', async () => {
+  const baseStore = createLocalQuestStore();
+  await unlockMain2(baseStore);
+  const mutationEvents = [];
+  const pair = createAdapters(async (userId, event, questId) => {
+    if (event !== 'status') mutationEvents.push(event);
+    return baseStore(userId, event, questId);
+  });
+
+  const result = await executeTmlVerifiedWritePlan(planOptions(pair, {
+    transitionIds: TRANSITION_IDS.slice(0, 3),
+    now: () => {
+      if (mutationEvents.length === 2) throw new Error('clock failed after second write');
+      return NOW;
+    }
+  }));
+
+  assert.equal(result.status, TML_P6_PLAN_STATUS.STOPPED);
+  assert.equal(result.completedSteps, 1);
+  assert.equal(result.steps.length, 2);
+  assert.equal(result.steps[0].disposition, TML_P5_DISPOSITION.VERIFIED);
+  assert.equal(result.steps[1].dispatchStatus, 'ATTEMPTED');
+  assert.equal(result.steps[1].result.provider.ok, true);
+  assert.notEqual(result.steps[1].disposition, TML_P5_DISPOSITION.VERIFIED);
+  assert.equal(result.stoppedTransitionId, TRANSITION_IDS[1]);
+  assert.equal(result.automaticMutationRetryAllowed, false);
+  assert.deepEqual(mutationEvents, EXPECTED_EVENTS.slice(0, 2));
+  assert.equal((await baseStore(USER_ID, 'status', MAIN2_QUEST_ID)).stage, 2);
+});
