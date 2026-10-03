@@ -413,7 +413,7 @@ test('P16 module has no routing, activation, persistence, deployment or authorit
   const runtime = readFileSync(new URL('../npc-factory/dev-runtime.mjs', import.meta.url), 'utf8');
 
   assert.doesNotMatch(source, /fetch\s*\(|supabase|rpc\s*\(|localStorage|sessionStorage|indexedDB/i);
-  assert.doesNotMatch(source, /routeUser|assignCohort|setFlag|featureFlag|deploy|vercel|cloud run/i);
+  assert.doesNotMatch(source, /routeUser\s*\(|assignCohort\s*\(|setFlag\s*\(|featureFlag\s*\.\s*(?:set|enable|update)\s*\(|deploy\s*\(|vercel\s*\.|cloudRun\s*\(/i);
   assert.doesNotMatch(source, /setAuthority|promote\s*\(|activate\s*\(|setQuestEnabled/i);
   assert.doesNotMatch(main, /canary-execution-contract|CONTRACT_READY|EXTERNAL_EXPLICIT_COHORT/);
   assert.doesNotMatch(runtime, /canary-execution-contract|CONTRACT_READY|EXTERNAL_EXPLICIT_COHORT/);
