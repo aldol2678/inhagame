@@ -19,6 +19,7 @@ TML is used here as a semantic/state-transition layer above the existing game im
 - `runtime/verified-write-plan.mjs` — P6 explicit ordered plan runner that chains verified writes and stops on the first non-VERIFIED step
 - `runtime/economic-read-adapters.mjs` — P7 authoritative Wallet / Progression readback adapters
 - `runtime/reward-settlement.mjs` — P7 Reward receipt + Wallet + EXP settlement Evidence/Verification
+- `runtime/reward-aware-pipeline.mjs` — P8 explicit ordinary P5 plan + final P7 settlement pipeline
 - `fixtures/` — executable-domain conformance fixtures tied to current INHA WORLD contracts
 
 ## Boundary
@@ -70,3 +71,26 @@ Current Main 2 reward fixture:
 The amounts are not recomputed by the UI. The TML fixture is tied to the existing public DB/application reward contracts and is used only to build the expected authoritative post-state.
 
 If the provider times out after the atomic server transaction, P5 may still verify stage 9 by readback. P7 remains `UNKNOWN` unless the Reward receipt itself is also available, even when Wallet and EXP moved correctly. This preserves the distinction between inferred settlement and fully evidenced settlement.
+
+
+## P8 Main 2 reward-aware pipeline
+
+P8 combines the previously independent P6 and P7 flows into one explicit execution pipeline.
+
+For Main 2:
+
+- transitions `0 -> 1` through `7 -> 8` run through the ordinary P5 verified-write plan;
+- transition `8 -> 9 / visit_back_gate` is executed through P7 reward settlement verification;
+- the reward transition is selected by the supplied reward spec's `source_transition`, not inferred from position or naming;
+- if any ordinary transition is not VERIFIED, the reward transition is never attempted;
+- if stage 9 is verified but Reward/Wallet/Progression settlement is not, the pipeline returns `REWARD_UNVERIFIED`, not success.
+
+The current Main 2 pipeline therefore distinguishes:
+
+```text
+quest completed + reward settled      -> VERIFIED
+ordinary quest step stopped           -> STOPPED
+quest completed but settlement unsure -> REWARD_UNVERIFIED
+```
+
+P8 also verifies `reward.version` from `server.reward` against the reward fixture version.
