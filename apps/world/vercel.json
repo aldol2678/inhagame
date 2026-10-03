@@ -1,0 +1,13 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "rewrites": [
+    {
+      "source": "/assets/induck-v3.glb",
+      "destination": "https://inhagame-campus-p0-b9v6bcouy-aldol.vercel.app/assets/induck-v3.glb"
+    },
+    {
+      "source": "/.generated/assets-optimized/induck-v3.glb",
+      "destination": "https://inhagame-campus-p0-b9v6bcouy-aldol.vercel.app/assets/induck-v3.glb"
+    }
+  ]
+}
