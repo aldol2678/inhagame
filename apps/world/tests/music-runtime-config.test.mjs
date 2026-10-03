@@ -92,9 +92,16 @@ test("P1 runtime loader fetches JSON and validates before returning", async () =
 });
 
 
-test("public music configuration is schema-valid and silent",()=>{
+test("public music configuration restores the sanitized Biryong production pilot",()=>{
  const raw=JSON.parse(readFileSync(new URL("../data/music/music.json",import.meta.url),"utf8"));
  const value=validateRuntimeMusicProject(raw);
- assert.deepEqual(value.assets,[]); assert.deepEqual(value.cues,[]); assert.deepEqual(value.bindings,[]);
- assert.deepEqual(raw.metadata,{});
+ assert.equal(value.assets.length,1);
+ assert.equal(value.assets[0].id,"music.biryong-tower-01");
+ assert.equal(value.assets[0].uri,"/assets/audio/biryong-tower-01.mp3");
+ assert.equal(value.assets[0].rights.approved,true);
+ assert.equal(value.cues[0].id,"cue.biryong-tower.explore");
+ assert.equal(value.bindings[0].targetId,"PLACE_BIRYONG_TOWER");
+ assert.equal(raw.metadata.runtimeSha256,"f6ee6defc4ce3955d32fc8a3798831d7304fdd2694cbbb3c551980ff315aecc9");
+ assert.equal(raw.metadata.sourceDriveFileId,undefined);
+ assert.equal(raw.metadata.sourceFile,undefined);
 });
