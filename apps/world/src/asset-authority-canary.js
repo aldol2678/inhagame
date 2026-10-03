@@ -11,6 +11,7 @@ export const ASSET_CANARY_OUTCOME = Object.freeze({
   ROLLED_BACK_PREFLIGHT: "ROLLED_BACK_PREFLIGHT",
   ROLLED_BACK_LOAD_FAILURE: "ROLLED_BACK_LOAD_FAILURE",
   ROLLED_BACK_INSTANTIATION_FAILURE: "ROLLED_BACK_INSTANTIATION_FAILURE",
+  ROLLED_BACK_VALIDATION_FAILURE: "ROLLED_BACK_VALIDATION_FAILURE",
   ROLLED_BACK_MANUAL: "ROLLED_BACK_MANUAL"
 });
 
@@ -52,7 +53,8 @@ export function createAssetAuthorityCanary({
   shadow,
   enabled = false,
   percentage = 0,
-  optimizedLoader = null
+  optimizedLoader = null,
+  productionWired = false
 } = {}) {
   if (!app?.assets?.loadFromUrl) throw new TypeError("PlayCanvas asset registry is required");
   if (!shadow?.observeResource || !shadow?.optimizedUrlFor) throw new TypeError("Asset optimization shadow is required");
@@ -70,9 +72,15 @@ export function createAssetAuthorityCanary({
   async function prepare(canonicalUrl, canonicalAsset, {
     subjectKey,
     consumer = "unknown",
-    instantiateOptions = { castShadows: false, receiveShadows: false }
+    instantiateOptions = { castShadows: false, receiveShadows: false },
+    validateCanonicalEntity = null,
+    validateOptimizedEntity = null
   } = {}) {
     const canonicalEntity = instantiate(canonicalAsset, instantiateOptions);
+    if (typeof validateCanonicalEntity === "function" && validateCanonicalEntity(canonicalEntity) !== true) {
+      try { canonicalEntity?.destroy?.(); } catch {}
+      throw new Error("E_ASSET_CANARY_CANONICAL_VALIDATION");
+    }
     const selected = enabled && assetCanarySelected(subjectKey, percentage);
     const optimizedUrl = shadow.optimizedUrlFor(canonicalUrl);
 
@@ -168,6 +176,38 @@ export function createAssetAuthorityCanary({
       });
     }
 
+    if (typeof validateOptimizedEntity === "function") {
+      let valid = false;
+      let validationReason = "E_ASSET_CANARY_OPTIMIZED_VALIDATION";
+      try {
+        valid = validateOptimizedEntity(optimizedEntity) === true;
+      } catch (error) {
+        validationReason = String(error?.message ?? error);
+      }
+      if (!valid) {
+        try { optimizedEntity?.destroy?.(); } catch {}
+        try { optimizedAsset?.unload?.(); } catch {}
+        try { app.assets.remove?.(optimizedAsset); } catch {}
+        const receipt = record({
+          canonicalUrl,
+          optimizedUrl,
+          subjectKey,
+          consumer,
+          selected: true,
+          authority: ASSET_CANARY_AUTHORITY.CANONICAL,
+          outcome: ASSET_CANARY_OUTCOME.ROLLED_BACK_VALIDATION_FAILURE,
+          reason: validationReason
+        });
+        return Object.freeze({
+          activeEntity: canonicalEntity,
+          canonicalEntity,
+          optimizedEntity: null,
+          receipt,
+          rollback: () => receipt
+        });
+      }
+    }
+
     let currentAuthority = ASSET_CANARY_AUTHORITY.OPTIMIZED_CANARY;
     let currentEntity = optimizedEntity;
     let currentReceipt = record({
@@ -217,7 +257,7 @@ export function createAssetAuthorityCanary({
     return Object.freeze({
       enabled: Boolean(enabled),
       percentage,
-      productionWired: false,
+      productionWired: Boolean(productionWired),
       allowedPercentages: Object.freeze([...ALLOWED_PERCENTAGES]),
       counts: Object.freeze({
         canonical: latest.filter(entry => entry.authority === ASSET_CANARY_AUTHORITY.CANONICAL).length,

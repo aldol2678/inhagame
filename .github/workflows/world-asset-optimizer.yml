@@ -7,10 +7,15 @@ on:
       - 'apps/world/assets/*.glb'
       - 'apps/world/src/asset-optimization-shadow.js'
       - 'apps/world/src/asset-authority-canary.js'
+      - 'apps/world/src/asset-production-canary.js'
+      - 'apps/world/src/character-model.js'
+      - 'apps/world/src/main.js'
       - 'apps/world/tests/asset-optimization-shadow.test.mjs'
       - 'apps/world/tests/asset-authority-canary.test.mjs'
+      - 'apps/world/tests/asset-production-canary.test.mjs'
       - 'apps/world/tests/browser/asset-optimization-shadow-*'
       - 'apps/world/tests/browser/asset-authority-canary-*'
+      - 'apps/world/tests/browser/asset-production-canary-*'
       - '.github/workflows/world-asset-optimizer.yml'
 
 permissions:
@@ -56,6 +61,11 @@ jobs:
           WORLD_SMOKE_DISABLE_WEBGPU: '1'
           WORLD_SMOKE_BROWSER: chrome
         run: node apps/world/tests/browser/asset-authority-canary-smoke.mjs
+      - name: Run one-percent production asset canary smoke
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+        run: node apps/world/tests/browser/asset-production-canary-smoke.mjs
       - name: Upload optimizer receipt and generated samples
         uses: actions/upload-artifact@v4
         with:

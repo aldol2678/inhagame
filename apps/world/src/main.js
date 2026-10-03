@@ -28,6 +28,7 @@ import { createBiryongSystem } from './biryong/biryong-system.js';
 import { BIRYONG_PLACE_ID, isNearBiryong } from './biryong/biryong-layout.js';
 import { createBackGateArrivalEvent } from './back-gate-arrival-event.js';
 import { createAssetOptimizationShadow } from './asset-optimization-shadow.js';
+import { createProductionAssetCanary } from './asset-production-canary.js';
 import { createWorldGraphicsDevice, GraphicsUnavailableError } from './webgpu-device.js';
 import { createCharacter } from "./character-model.js";
 import { createCampusProfile } from "./campus-profile.js";
@@ -215,6 +216,13 @@ if (assetOptimizationShadow.enabled) {
   });
 }
 
+const assetProductionCanary = createProductionAssetCanary({
+  app,
+  enabled: !previewHost,
+  storage: globalThis.localStorage,
+  cryptoImpl: globalThis.crypto
+});
+
 worldLoading?.setPhase("WORLD");
 
 window.addEventListener("resize", () => app.resizeCanvas());
@@ -400,7 +408,18 @@ const cameraInputSettings = bindCameraInputSettings({
   status: document.getElementById("view-settings-status")
 });
 orbit.yaw=spawn.yaw;
-const character = createCharacter(app, player, { assetShadow: assetOptimizationShadow });
+const character = createCharacter(app, player, {
+  assetShadow: assetOptimizationShadow,
+  assetCanary: assetProductionCanary.canary,
+  assetCanarySubjectKey: assetProductionCanary.subjectKey
+});
+window.__INHAGAME_ASSET_PRODUCTION_CANARY__ = Object.freeze({
+  status: () => Object.freeze({
+    ...assetProductionCanary.status(),
+    character: character.assetCanary ?? null
+  }),
+  rollback: reason => character.rollbackAssetCanary(reason || "OPERATOR_ROLLBACK")
+});
 worldLoading?.setPhase("CHARACTER");
 const lobbyWorld = createLobbyWorldMode({
   player, controller, orbit, character, root: document.body,
@@ -2683,6 +2702,10 @@ window.__INHAGAME_P0__ = {
     nickname: profile.nickname,
     mounted: controller.mounted,
     characterModel: character.modelState,
+    assetProductionCanary: {
+      ...assetProductionCanary.status(),
+      character: character.assetCanary ?? null
+    },
     landing: controller.landing,
     tourStage: tour.stage,
     npcTest: (() => { try { return npcTest?.getStatus?.() ?? null; } catch { return null; } })(),

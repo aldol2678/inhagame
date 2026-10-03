@@ -71,7 +71,7 @@ function ridingHelicopter(player) {
   return player.mountKind === CAMPUS_HELICOPTER_ID;
 }
 
-export function createCharacter(app, player, { assetShadow = null } = {}) {
+export function createCharacter(app, player, { assetShadow = null, assetCanary = null, assetCanarySubjectKey = null } = {}) {
   // Independently authored QA cuboids; no original mascot fallback recipe.
   const duck = new pc.Entity("Public_QA_Avatar");
   player.addChild(duck);
@@ -101,6 +101,8 @@ export function createCharacter(app, player, { assetShadow = null } = {}) {
   let modelState = "loading";
   let nameplateHeight = 0;
   let duckBaseEuler = [0, 0, 0];
+  let duckCanaryPrepared = null;
+  let duckCanaryReceipt = null;
   function positionDuck(mounted, bob = 0, bodyEuler = duckBaseEuler) {
     const bike = mounted && ridingBike(player);
     const helicopter = mounted && ridingHelicopter(player);
@@ -154,15 +156,33 @@ export function createCharacter(app, player, { assetShadow = null } = {}) {
     showMountVisuals();
   }
 
-  function loadModel(url) {
+  const duckPivotSet = entity => {
+    const wings = [-1, 1].map(side => entity?.findByName?.(side < 0 ? "DuckWing_L" : "DuckWing_R"));
+    const legs = [-1, 1].map(side => entity?.findByName?.(side < 0 ? "DuckLeg_L" : "DuckLeg_R"));
+    return { wings, legs, valid: [...wings, ...legs].every(Boolean) };
+  };
+
+  function loadModel(url, { productionCanary = false } = {}) {
     return new Promise((resolve, reject) => {
-      app.assets.loadFromUrl(url, "container", (error, asset) => {
+      app.assets.loadFromUrl(url, "container", async (error, asset) => {
         if (error || !asset?.resource) {
           reject(error || new Error(`No GLB resource for ${url}`));
           return;
         }
         try {
           void assetShadow?.observeResource?.(url, asset, { consumer: "character" });
+          if (productionCanary && assetCanary?.enabled && assetCanarySubjectKey) {
+            duckCanaryPrepared = await assetCanary.prepare(url, asset, {
+              subjectKey: assetCanarySubjectKey,
+              consumer: "character-production",
+              instantiateOptions: { castShadows: true, receiveShadows: true },
+              validateCanonicalEntity: entity => duckPivotSet(entity).valid,
+              validateOptimizedEntity: entity => duckPivotSet(entity).valid
+            });
+            duckCanaryReceipt = duckCanaryPrepared.receipt;
+            resolve(duckCanaryPrepared.activeEntity);
+            return;
+          }
           resolve(asset.resource.instantiateRenderEntity({ castShadows: true, receiveShadows: true }));
         } catch (cause) {
           reject(cause);
@@ -172,13 +192,14 @@ export function createCharacter(app, player, { assetShadow = null } = {}) {
   }
 
   const ready = Promise.all([
-    loadModel("/assets/induck-v3.glb"),
+    loadModel("/assets/induck-v3.glb", { productionCanary: true }),
     loadModel("/assets/annyongi-flight-v1.glb")
   ]).then(([loadedDuck, loadedDragon]) => {
-    const newDuckWings = [-1, 1].map(side => loadedDuck.findByName(side < 0 ? "DuckWing_L" : "DuckWing_R"));
+    const duckPivots = duckPivotSet(loadedDuck);
+    const newDuckWings = duckPivots.wings;
     const newDragonWings = [-1, 1].map(side => loadedDragon.findByName(side < 0 ? "DragonWing_L" : "DragonWing_R"));
-    const newDuckLegs = [-1, 1].map(side => loadedDuck.findByName(side < 0 ? "DuckLeg_L" : "DuckLeg_R"));
-    if ([...newDuckWings, ...newDragonWings, ...newDuckLegs].some(node => !node)) {
+    const newDuckLegs = duckPivots.legs;
+    if (!duckPivots.valid || newDragonWings.some(node => !node)) {
       loadedDuck.destroy();
       loadedDragon.destroy();
       throw new Error("Campus GLB wing pivots are missing");
@@ -215,6 +236,31 @@ export function createCharacter(app, player, { assetShadow = null } = {}) {
     /** Slot attachment anchor for the local equipment projection (null for non-equipment slots). */
     getEquipmentAnchor: slot => equipment.anchor(slot),
     get equipmentVisible() { return equipment.visible; },
+    get assetCanary() { return duckCanaryReceipt; },
+    rollbackAssetCanary(reason = "RUNTIME_ROLLBACK") {
+      if (!duckCanaryPrepared || duckCanaryPrepared.receipt?.authority !== "OPTIMIZED_CANARY") {
+        return duckCanaryReceipt;
+      }
+      const receipt = duckCanaryPrepared.rollback(reason);
+      duckCanaryReceipt = receipt;
+      const canonical = duckCanaryPrepared.activeEntity;
+      if (canonical && canonical !== duckVisual) {
+        canonical.name = "Induck_GLB_Visual";
+        canonical.enabled = !firstPerson && !cameraOccluded;
+        player.addChild(canonical);
+        duckVisual = canonical;
+        const pivots = duckPivotSet(canonical);
+        if (!pivots.valid) throw new Error("Campus canonical GLB pivots are missing after canary rollback");
+        activeDuckWings = pivots.wings;
+        activeDuckLegs = pivots.legs;
+        const e = canonical.getLocalEulerAngles();
+        duckBaseEuler = [e.x, e.y, e.z];
+        modelState = "glb";
+        positionDuck(mountedNow);
+        showMountVisuals();
+      }
+      return receipt;
+    },
     setFirstPerson(value) {
       firstPerson = value;
       syncCameraVisibility();
