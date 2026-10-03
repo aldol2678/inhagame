@@ -5,10 +5,11 @@ import { readFileSync } from "node:fs";
 const config = JSON.parse(readFileSync(new URL("../vercel.json", import.meta.url), "utf8"));
 const source = "https://inhagame-campus-p0-b9v6bcouy-aldol.vercel.app/assets/induck-v3.glb";
 
-test("production routes both canonical and 100% canary Induck paths to the retained private-era asset", () => {
-  assert.deepEqual(config.rewrites, [
-    { source: "/assets/induck-v3.glb", destination: source },
-    { source: "/.generated/assets-optimized/induck-v3.glb", destination: source }
+test("production routes both canonical and 100% canary Induck paths before the public fallback filesystem", () => {
+  assert.deepEqual(config.routes, [
+    { src: "/assets/induck-v3\\.glb", dest: source },
+    { src: "/\\.generated/assets-optimized/induck-v3\\.glb", dest: source },
+    { handle: "filesystem" }
   ]);
 });
 
