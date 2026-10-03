@@ -284,7 +284,8 @@ export async function executeTmlVerifiedWriteTransition({
     precondition: preVerification.status,
     provider: Object.freeze({
       ok: provider.ok,
-      error: provider.ok ? null : provider.error
+      error: provider.ok ? null : provider.error,
+      output: provider.ok ? (provider.output ?? null) : null
     }),
     postcondition: postVerification.status,
     postReadError: postRead.ok ? null : postRead.error,

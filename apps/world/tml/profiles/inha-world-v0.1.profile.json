@@ -9,7 +9,8 @@
     "building",
     "area",
     "item",
-    "vehicle"
+    "vehicle",
+    "reward"
   ],
   "predicates": [
     "quest.stage",
@@ -19,7 +20,12 @@
     "owns",
     "mounted_on",
     "npc.activity",
-    "npc.relation"
+    "npc.relation",
+    "progression.total_exp",
+    "progression.level",
+    "reward.status",
+    "reward.granted",
+    "reward.replayed"
   ],
   "events": [
     "world.quest.event",
@@ -55,6 +61,16 @@
         }
       },
       "provider_binding": "world.quest.store"
+    },
+    {
+      "id": "world.wallet.read",
+      "mutates": false,
+      "parameters": {}
+    },
+    {
+      "id": "world.progression.read",
+      "mutates": false,
+      "parameters": {}
     }
   ],
   "authority": [
@@ -86,6 +102,26 @@
     {
       "predicate": "mounted_on",
       "authority": "world.client"
+    },
+    {
+      "predicate": "progression.total_exp",
+      "authority": "server.progression"
+    },
+    {
+      "predicate": "progression.level",
+      "authority": "server.progression"
+    },
+    {
+      "predicate": "reward.status",
+      "authority": "server.reward"
+    },
+    {
+      "predicate": "reward.granted",
+      "authority": "server.reward"
+    },
+    {
+      "predicate": "reward.replayed",
+      "authority": "server.reward"
     }
   ],
   "extensions": {

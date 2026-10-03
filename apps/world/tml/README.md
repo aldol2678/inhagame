@@ -17,6 +17,8 @@ TML is used here as a semantic/state-transition layer above the existing game im
 - `runtime/quest-advance-adapter.mjs` — P5 one-attempt provider boundary for `world.quest.advance`
 - `runtime/verified-write-runtime.mjs` — P5 pre-read → one write → authoritative readback → verification loop
 - `runtime/verified-write-plan.mjs` — P6 explicit ordered plan runner that chains verified writes and stops on the first non-VERIFIED step
+- `runtime/economic-read-adapters.mjs` — P7 authoritative Wallet / Progression readback adapters
+- `runtime/reward-settlement.mjs` — P7 Reward receipt + Wallet + EXP settlement Evidence/Verification
 - `fixtures/` — executable-domain conformance fixtures tied to current INHA WORLD contracts
 
 ## Boundary
@@ -46,3 +48,25 @@ P6 validates the full `campus_navigation_intro_v1` state machine through the TML
 The test unlocks Main 2 through the existing Main 1 prerequisite, then executes the explicit nine-transition TML plan from stage 0 through stage 9. Each transition uses P5 pre-read, precondition verification, one provider mutation attempt, authoritative post-read, Evidence and Verification.
 
 P6 does not infer omitted transitions or automatically discover a next write. The caller supplies an explicit ordered transition list. The plan runner stops immediately on the first result that is not `VERIFIED`, and later mutations are not attempted.
+
+
+## P7 reward settlement evidence
+
+P7 extends the reward-bearing Main 2 final transition beyond quest-stage verification.
+
+For `stage 8 -> 9 / visit_back_gate`, a full P7 `VERIFIED` settlement requires all of the following:
+
+- the P5 quest transition is independently `VERIFIED`;
+- the server Reward receipt matches the active reward fixture;
+- `server.wallet` readback matches the receipt/spec currency grant;
+- `server.progression` readback matches the receipt/spec EXP grant.
+
+Current Main 2 reward fixture:
+
+- `reward.quest.navigation_intro`
+- +180 `currency.induck_coin`
+- +100 `exp.campus`
+
+The amounts are not recomputed by the UI. The TML fixture is tied to the existing public DB/application reward contracts and is used only to build the expected authoritative post-state.
+
+If the provider times out after the atomic server transaction, P5 may still verify stage 9 by readback. P7 remains `UNKNOWN` unless the Reward receipt itself is also available, even when Wallet and EXP moved correctly. This preserves the distinction between inferred settlement and fully evidenced settlement.
