@@ -26,8 +26,8 @@ select col_is_pk('private','world_player_life_skills',array['user_id','skill_id'
 select col_is_unique('private','world_life_skill_xp_transactions',array['idempotency_key'],
   'Life Skill XP idempotency key is globally unique');
 
-select is((select count(*) from private.world_life_skill_catalog),11::bigint,'11 long-term Life Skills are mirrored');
-select is((select count(*) from private.world_life_skill_catalog where status='COMING_SOON'),11::bigint,
+select is((select count(*) from private.world_life_skill_catalog),11::bigint,'12 long-term Life Skills are mirrored');
+select is((select count(*) from private.world_life_skill_catalog where status='COMING_SOON'),12::bigint,
   'M5 does not activate any Life Skill');
 select results_eq($$
   select skill_id,curve_id,status from private.world_life_skill_catalog order by skill_id
@@ -41,6 +41,7 @@ $$,$$values
   ('life.mining','life.common.v1','COMING_SOON'),
   ('life.photography','life.common.v1','COMING_SOON'),
   ('life.research','life.common.v1','COMING_SOON'),
+  ('life.sailing','life.common.v1','COMING_SOON'),
   ('life.woodcutting','life.common.v1','COMING_SOON'),
   ('life.woodworking','life.common.v1','COMING_SOON')
 $$,'DB skill mirror matches the code authority subset');
@@ -206,7 +207,7 @@ select is((select total_xp from private.world_player_life_skills
 select is((private.world_life_skills_list_v1('a8500000-0000-4000-8000-0000000000a8')->'skills'->0->>'skillId'),
   'life.archaeology','server list is stable-sorted by skill id');
 select is(jsonb_array_length(private.world_life_skills_list_v1(
-  'a8500000-0000-4000-8000-0000000000a8')->'skills'),11,
+  'a8500000-0000-4000-8000-0000000000a8')->'skills'),12,
   'server read returns all registry-mirrored skills');
 select is((
   select x->>'status'
