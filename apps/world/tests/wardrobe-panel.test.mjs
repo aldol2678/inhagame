@@ -276,12 +276,13 @@ test("panel code: no RPC, no storage, no avatar or Realtime change", () => {
 
 test("main.js wiring: member client, identity, open, purchase + reward refresh both, resume, modal gate", () => {
   const main = source("../src/main.js");
+  const inputRuntime = source("../src/input/world-input-runtime.js");
   assert.match(main, /createLoadoutClient\(\{ getClient: \(\) => online\?\.supabase \?\? null \}\)/);
   assert.match(main, /void loadout\.setAccount\(identity \? online\?\.userId \?\? null : null\)/);
   assert.match(main, /onPurchase: \(\) => \{\s*void inventory\.refresh\("purchase"\);\s*void loadout\.refresh\("purchase"\);\s*\}/);
   assert.match(main, /void inventory\.refresh\("reward"\);\s*void loadout\.refresh\("reward"\);/);
   assert.match(main, /addEventListener\("pageshow"[\s\S]*?void loadout\.refresh\("resume"\)/);
-  assert.match(main, /ownerId: "wardrobe".*policy: INPUT_FOCUS_POLICY\.BLOCKING_UI/s,
+  assert.match(inputRuntime, /"wardrobe", INPUT_FOCUS_POLICY\.BLOCKING_UI/,
     "an open wardrobe suspends world actions through InputFocusManager");
   assert.equal((main.match(/createWardrobePanel\(/g) ?? []).length, 1);
   assert.doesNotMatch(main, /setInterval\([^)]*loadout/);

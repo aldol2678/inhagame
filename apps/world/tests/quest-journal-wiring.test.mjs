@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
+const inputRuntime = readFileSync(new URL('../src/input/world-input-runtime.js', import.meta.url), 'utf8');
 const html = readFileSync(new URL('../campus/index.html', import.meta.url), 'utf8');
 const css = readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
 const runtime = readFileSync(new URL('../src/quest/quest-runtime.js', import.meta.url), 'utf8');
@@ -15,7 +16,7 @@ test('Quest Journal shell is reachable from the campus menu and labeled as one d
 });
 
 test('main wires one blocking Quest Journal that closes competing modal surfaces', () => {
-  assert.match(main, /ownerId: "quest-journal".*INPUT_FOCUS_POLICY\.BLOCKING_UI/s);
+  assert.match(inputRuntime, /"quest-journal", INPUT_FOCUS_POLICY\.BLOCKING_UI/);
   assert.match(main, /const questRuntime = createQuestRuntime\(\)/);
   assert.match(main, /questJournal = createQuestJournal\(\{/);
   assert.match(main, /questJournalInput\.acquire\(\)/);

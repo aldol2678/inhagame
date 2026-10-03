@@ -449,6 +449,8 @@ const lobbySpawnRegistrySource = readFileSync(new URL("./src/lobby/spawn-registr
 const lobbyLoadingSource = readFileSync(new URL("./src/lobby/lobby-loading.js", import.meta.url), "utf8");
 const characterSource = readFileSync(new URL("./src/character-model.js", import.meta.url), "utf8");
 const mainSource = readFileSync(new URL("./src/main.js", import.meta.url), "utf8");
+const startupConfigSource = readFileSync(new URL("./src/startup/startup-config.js", import.meta.url), "utf8");
+const inputRuntimeSource = readFileSync(new URL("./src/input/world-input-runtime.js", import.meta.url), "utf8");
 for (const factory of ["createMiniMapDataSource", "createMiniMapRenderer", "createMiniMapController"]) {
   assert.match(mainSource, new RegExp(`${factory}\\(`), `World wires ${factory}`);
 }
@@ -471,7 +473,7 @@ assert.match(mainSource, /rooms\.onChange\(/,
   "M2-2 switches map profiles from the Room transition authority");
 assert.match(mainSource, /createRoomMapDataSource\(status\.roomId\)/,
   "M2-2 resolves the active interior map without duplicating room coordinates");
-assert.match(mainSource, /get\('start'\) === 'club-room'/,
+assert.match(startupConfigSource, /startupParams\.get\("start"\) === "club-room"/,
   "Room-map preview can boot directly into the club room");
 assert.match(mainSource, /rooms\.enter\("ROOM_CLUBHOUSE_01"\)/,
   "Room-map preview enters the existing Room transition instead of teleporting ad hoc");
@@ -482,7 +484,7 @@ assert.match(lobbyShellSource, /get\("lobby"\) === "1"/,
   "lobby shell only activates through the explicit lobby preview query");
 assert.match(lobbyWorldSource, /onActiveChange = null[\s\S]*setInputLocked\(true\)/s,
   "P0.2 delegates lobby input locking to the shared authority when one is injected");
-assert.match(mainSource, /ownerId:\s*"lobby-world"[\s\S]*INPUT_FOCUS_POLICY\.SYSTEM_LOCK/s,
+assert.match(inputRuntimeSource, /"lobby-world", INPUT_FOCUS_POLICY\.SYSTEM_LOCK/,
   "P0-D4a binds the lobby scene to a SYSTEM_LOCK owner");
 assert.match(lobbyWorldSource, /character\.update\([\s\S]*moving:\s*false[\s\S]*grounded:\s*true/s,
   "P0.2 reuses the real character in an idle grounded preview pose");
@@ -514,7 +516,7 @@ assert.match(lobbyTransitionSource, /setInputLocked\(true\)/,
   "P0.6 acquires the shared input lock when the transition starts");
 assert.match(lobbyTransitionSource, /setInputLocked\(false\)/,
   "P0.6 releases the shared input lock only from transition completion");
-assert.match(mainSource, /ownerId:\s*"lobby-transition"[\s\S]*INPUT_FOCUS_POLICY\.SYSTEM_LOCK/s,
+assert.match(inputRuntimeSource, /"lobby-transition", INPUT_FOCUS_POLICY\.SYSTEM_LOCK/,
   "P0-D4a binds the lobby transition to a SYSTEM_LOCK owner");
 assert.match(lobbyMenuSource, /existingProfileButton\?\.click\?\.\(\)/,
   "P1.1 reuses the existing profile surface");
@@ -631,7 +633,7 @@ assert.match(campusCss, /\.shop-panel \{[^}]*z-index: 70;/s, "the shop modal sta
 assert.match(campusCss, /\.shop-offer-buy \{[^}]*min-height: 44px/s, "shop buttons keep a 44px touch target");
 assert.match(m3MainSource, /createShopClient\(\{ getClient: \(\) => online\?\.supabase \?\? null \}\)/,
   "the shop reuses the online member client");
-assert.match(m3MainSource, /ownerId:\s*"shop"[\s\S]*INPUT_FOCUS_POLICY\.BLOCKING_UI/s,
+assert.match(inputRuntimeSource, /"shop", INPUT_FOCUS_POLICY\.BLOCKING_UI/,
   "an open shop suspends world actions through InputFocusManager");
 assert.match(campusCss, /body:has\(#hud-menu:not\(\[hidden\]\)\) > \.mcm26-chip,\s*body:has\(#view-settings:not\(\[hidden\]\)\) > \.mcm26-chip \{ visibility: hidden; pointer-events: none; \}/,
   "the event chip never covers an open HUD menu or View Settings panel");
@@ -679,7 +681,7 @@ console.log("Student Center shop world entry static contracts PASS");
     "World wires the Mobility Book controller");
   assert.match(mobilityMainSource, /controller\.summonHelicopterWithPadFallback\(\)/,
     "Mobility Book helicopter action uses the PAD-aware summon authority");
-  assert.match(mobilityMainSource, /ownerId:\s*"mobility-book"[\s\S]*INPUT_FOCUS_POLICY\.BLOCKING_UI/s,
+assert.match(inputRuntimeSource, /"mobility-book", INPUT_FOCUS_POLICY\.BLOCKING_UI/,
     "Mobility Book suspends world actions through InputFocusManager");
   assert.match(mobilityRegistrySource, /availability:\s*MOBILITY_AVAILABILITY\.EXPERIMENTAL[\s\S]*access:\s*MOBILITY_ACCESS\.TEST_ONLY/s,
     "Current experimental definitions do not masquerade as public/common mounts");
@@ -725,7 +727,7 @@ console.log("Inventory P0 static contracts PASS");
   assert.doesNotMatch(loadoutClientSource, /createClient\(/, "no loadout-owned Supabase client");
   assert.match(m3MainSource, /void loadout\.refresh\("purchase"\)/, "shop purchase re-reads the loadout");
   assert.match(m3MainSource, /void loadout\.refresh\("reward"\)/, "MCM reward re-reads the loadout");
-  assert.match(m3MainSource, /ownerId:\s*"wardrobe"[\s\S]*INPUT_FOCUS_POLICY\.BLOCKING_UI/s,
+assert.match(inputRuntimeSource, /"wardrobe", INPUT_FOCUS_POLICY\.BLOCKING_UI/,
     "an open wardrobe suspends world actions through InputFocusManager");
   assert.match(campusCss, /body\[data-lobby-shell="true"\] > #wardrobe-panel,/, "the lobby shell hides the wardrobe");
 }
@@ -797,7 +799,7 @@ assert.match(chatPanelSource, /shouldIgnoreShortcut\(\)/,
 const controllerSource = readFileSync(new URL("./src/player-controller.js", import.meta.url), "utf8");
 assert.doesNotMatch(controllerSource, /profile-panel|view-settings|keyboard-shortcuts-panel/,
   "PlayerController no longer owns panel-specific movement policy");
-assert.match(mainSource, /ownerId:\s*"keyboard-help"[\s\S]*INPUT_FOCUS_POLICY\.BLOCKING_UI/s,
+assert.match(inputRuntimeSource, /"keyboard-help", INPUT_FOCUS_POLICY\.BLOCKING_UI/,
   "keyboard reference movement blocking is owned by InputFocusManager");
 const tourSource = readFileSync(new URL("./src/campus-tour.js", import.meta.url), "utf8");
 assert.doesNotMatch(tourSource, /이동해서 방문하세요/, "compact objective omits instructional filler");

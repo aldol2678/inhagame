@@ -3,13 +3,14 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 const main = readFileSync(new URL("../src/main.js", import.meta.url), "utf8");
+const inputRuntime = readFileSync(new URL("../src/input/world-input-runtime.js", import.meta.url), "utf8");
 const orbit = readFileSync(new URL("../src/orbit-camera-controller.js", import.meta.url), "utf8");
 const pointerLock = readFileSync(new URL("../src/input/pointer-lock-runtime.js", import.meta.url), "utf8");
 const pointerLockHint = readFileSync(new URL("../src/input/pointer-lock-hint.js", import.meta.url), "utf8");
 const cameraSettings = readFileSync(new URL("../src/input/camera-input-settings.js", import.meta.url), "utf8");
 
 test("main creates one input focus manager and binds movement/camera adapters", () => {
-  assert.match(main, /createInputFocusManager\(\)/);
+  assert.match(inputRuntime, /createInputFocusManager\(\)/);
   assert.match(main, /bindInputFocusRuntime\(\{\s*manager:\s*inputFocus,\s*controller,\s*orbit\s*\}\)/s);
   assert.match(main, /inputFocus:\s*\{[\s\S]*\.\.\.inputFocus\.snapshot\(\)[\s\S]*owners:/s);
 });
@@ -59,7 +60,7 @@ test("chat open state owns one CHAT claim and releases the same token", () => {
 
 test("HUD menu, keyboard help and Full Map use reusable BLOCKING_UI owners", () => {
   for (const owner of ["hud-menu", "keyboard-help", "full-map"]) {
-    assert.match(main, new RegExp(`ownerId: "${owner}".*policy: INPUT_FOCUS_POLICY\\.BLOCKING_UI`, "s"));
+    assert.match(inputRuntime, new RegExp(`"${owner}", INPUT_FOCUS_POLICY\\.BLOCKING_UI`));
   }
   assert.match(main, /onOpen:\s*\(\)\s*=>\s*\{\s*hudMenuInput\.acquire\(\)/s);
   assert.match(main, /onClose:\s*\(\)\s*=>\s*\{ hudMenuInput\.release\(\); \}/);
@@ -76,7 +77,7 @@ test("HUD menu, keyboard help and Full Map use reusable BLOCKING_UI owners", () 
 
 test("Shop, Inventory and Wardrobe use BLOCKING_UI owners before closing sibling panels", () => {
   for (const owner of ["shop", "inventory", "wardrobe"]) {
-    assert.match(main, new RegExp(`ownerId: "${owner}".*policy: INPUT_FOCUS_POLICY\\.BLOCKING_UI`, "s"));
+    assert.match(inputRuntime, new RegExp(`"${owner}", INPUT_FOCUS_POLICY\\.BLOCKING_UI`));
   }
 
   const inventory = main.match(/const inventoryPanel = createInventoryPanel\(\{[\s\S]*?inventoryButton\?\.addEventListener/)?.[0] ?? "";
@@ -99,7 +100,7 @@ test("Shop, Inventory and Wardrobe use BLOCKING_UI owners before closing sibling
 
 test("Lobby and lobby transition use SYSTEM_LOCK owners", () => {
   for (const owner of ["lobby-world", "lobby-transition"]) {
-    assert.match(main, new RegExp(`ownerId: "${owner}".*policy: INPUT_FOCUS_POLICY\\.SYSTEM_LOCK`, "s"));
+    assert.match(inputRuntime, new RegExp(`"${owner}", INPUT_FOCUS_POLICY\\.SYSTEM_LOCK`));
   }
   assert.match(main, /createLobbyWorldMode\(\{[\s\S]*onActiveChange:\s*\(active\)\s*=>\s*\{[\s\S]*lobbyWorldInput\.acquire\(\)[\s\S]*lobbyWorldInput\.release\(\)/s);
   assert.match(main, /createLobbyTransition\(\{[\s\S]*onActiveChange:\s*\(active\)\s*=>\s*\{[\s\S]*lobbyTransitionInput\.acquire\(\)[\s\S]*lobbyTransitionInput\.release\(\)/s);
@@ -109,7 +110,7 @@ test("Lobby and lobby transition use SYSTEM_LOCK owners", () => {
 
 test("Profile and View Settings use BLOCKING_UI owners", () => {
   for (const owner of ["profile", "view-settings"]) {
-    assert.match(main, new RegExp(`ownerId: "${owner}".*policy: INPUT_FOCUS_POLICY\\.BLOCKING_UI`, "s"));
+    assert.match(inputRuntime, new RegExp(`"${owner}", INPUT_FOCUS_POLICY\\.BLOCKING_UI`));
   }
   assert.match(main, /createCampusProfile\(player, camera, canvas, \{[\s\S]*onOpenChange:\s*\(open\)[\s\S]*profileInput\.acquire\(\)[\s\S]*profileInput\.release\(\)/s);
   assert.match(main, /createViewDistanceSettings\(streaming,camera,graphics,\{[\s\S]*onOpenChange:\s*\(open\)[\s\S]*viewSettingsInput\.acquire\(\)[\s\S]*viewSettingsInput\.release\(\)/s);
@@ -119,7 +120,7 @@ test("Profile and View Settings use BLOCKING_UI owners", () => {
 
 test("Social and Guestbook surfaces use BLOCKING_UI owners with safe handoffs", () => {
   for (const owner of ["friend-panel", "nearby-panel", "player-card", "guestbook"]) {
-    assert.match(main, new RegExp(`ownerId: "${owner}".*policy: INPUT_FOCUS_POLICY\\.BLOCKING_UI`, "s"));
+    assert.match(inputRuntime, new RegExp(`"${owner}", INPUT_FOCUS_POLICY\\.BLOCKING_UI`));
   }
   assert.match(main, /createPlayerCard\(\{[\s\S]*onOpenChange:\s*\(open\)[\s\S]*playerCardInput\.acquire\(\)[\s\S]*playerCardInput\.release\(\)/s);
   assert.match(main, /createNearbyPanel\(\{[\s\S]*onOpenChange:\s*\(open\)[\s\S]*nearbyPanelInput\.acquire\(\)[\s\S]*nearbyPanelInput\.release\(\)/s);
@@ -136,7 +137,7 @@ test("Social and Guestbook surfaces use BLOCKING_UI owners with safe handoffs", 
 
 test("Room transition and Back Gate arrival use SYSTEM_LOCK owners", () => {
   for (const owner of ["room-transition", "back-gate-arrival"]) {
-    assert.match(main, new RegExp(`ownerId: "${owner}".*policy: INPUT_FOCUS_POLICY\\.SYSTEM_LOCK`, "s"));
+    assert.match(inputRuntime, new RegExp(`"${owner}", INPUT_FOCUS_POLICY\\.SYSTEM_LOCK`));
   }
   assert.match(main, /createRoomTransition\(\{[\s\S]*onBusyChange:\s*\(busy\)[\s\S]*roomTransitionInput\.acquire\(\)[\s\S]*roomTransitionInput\.release\(\)/s);
   assert.match(main, /createBackGateArrivalEvent\(\{[\s\S]*onInputLockChange:\s*\(locked\)[\s\S]*backGateArrivalInput\.acquire\(\)[\s\S]*backGateArrivalInput\.release\(\)/s);
@@ -145,7 +146,7 @@ test("Room transition and Back Gate arrival use SYSTEM_LOCK owners", () => {
 });
 
 test("MCM info modal is the last BLOCKING_UI owner and legacy world-action list is gone", () => {
-  assert.match(main, /ownerId: "mcm-event-info".*policy: INPUT_FOCUS_POLICY\.BLOCKING_UI/s);
+  assert.match(inputRuntime, /"mcm-event-info", INPUT_FOCUS_POLICY\.BLOCKING_UI/);
   assert.match(main, /createMcm2026EventUi\(\{[\s\S]*onOpenChange:\s*\(open\)[\s\S]*mcmEventInfoInput\.acquire\(\)[\s\S]*mcmEventInfoInput\.release\(\)/s);
   assert.match(main, /const worldActionsSuspended = \(\) => !inputFocus\.can\("WORLD_ACTION"\);/);
   const worldGate = main.match(/const worldActionsSuspended = \(\) =>[^;]+;/)?.[0] ?? "";

@@ -186,10 +186,11 @@ test("panel: unclaimed → 오늘 출석하기 → ✅ 오늘 출석 완료 and 
 
 test("main.js wiring: ☰ 📅 출석부, own BLOCKING_UI owner, account binding, wallet-only re-read", async () => {
   const main = await readFile(new URL("../src/main.js", import.meta.url), "utf8");
+  const inputRuntime = await readFile(new URL("../src/input/world-input-runtime.js", import.meta.url), "utf8");
   const html = await readFile(new URL("../campus/index.html", import.meta.url), "utf8");
   assert.match(html, /id="hud-menu"[\s\S]*id="open-attendance"[^>]*>📅 출석부<\/button>/);
   assert.match(html, /id="attendance-panel"[^>]*role="dialog"/);
-  assert.match(main, /ownerId: "attendance".*policy: INPUT_FOCUS_POLICY\.BLOCKING_UI/s);
+  assert.match(inputRuntime, /"attendance", INPUT_FOCUS_POLICY\.BLOCKING_UI/);
   assert.match(main, /void attendance\.setAccount\(identity \? online\?\.userId \?\? null : null\)/);
   const block = main.slice(main.indexOf("const attendance = createAttendanceClient"), main.indexOf("\n});", main.indexOf("const attendance = createAttendanceClient")));
   assert.match(block, /mcmEventUi\.showReward\(/);

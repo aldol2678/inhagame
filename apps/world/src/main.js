@@ -87,7 +87,6 @@ import { createRoomHud } from "./rooms/room-hud.js";
 import { createFurnitureClient } from "./rooms/furniture-client.js";
 import { createFurnitureEditor } from "./rooms/furniture-editor.js";
 import { PERSONAL_ROOM_BASIC_SPAWN } from "./rooms/personal-room-layout.js";
-import { isLobbyShellRequested } from "./lobby/lobby-shell.js";
 import { createLobbyWorldMode } from "./lobby/lobby-world.js";
 import { bindMainGateEntry, enterMainGate } from "./lobby/lobby-main-gate.js";
 import { createWorldResumeStore } from "./lobby/world-resume.js";
@@ -115,7 +114,7 @@ import { createQuestRuntime } from "./quest/quest-runtime.js";
 import { createQuestJournal } from "./quest/quest-journal.js";
 import { createTrackedQuestHud } from "./quest/quest-hud.js";
 import { MAIN2_GUIDE_NPC } from "../npc-factory/main2-guide-contract.mjs";
-import { isMcm2026PreviewRequest, mcm2026PreviewStartMs } from "./events/zombie-university-2026/event-route.js";
+import { mcm2026PreviewStartMs } from "./events/zombie-university-2026/event-route.js";
 import { mcm2026CanEnterVenue } from "./events/zombie-university-2026/event-phase.js";
 import { createMcm2026EventClient } from "./events/zombie-university-2026/event-client.js";
 import { createMcm2026EventUi, createStatusAfterReward, rewardLine } from "./events/zombie-university-2026/event-ui.js";
@@ -144,56 +143,49 @@ import { createShopWorldLabel } from "./shop/shop-world-label.js";
 import { roadviewGroundHeight } from "./roadview-layout.js";
 import { createBackgateTransitInteraction } from "./transit/backgate-transit-interaction.js";
 import { createBackgateTransitPanel } from "./transit/backgate-transit-panel.js";
-import { INPUT_FOCUS_POLICY, createInputFocusManager } from "./input/input-focus-manager.js";
 import { bindInputFocusRuntime } from "./input/input-focus-runtime.js";
 import { bindPointerLockRuntime } from "./input/pointer-lock-runtime.js";
 import { bindPointerLockHint } from "./input/pointer-lock-hint.js";
 import { bindCameraInputSettings } from "./input/camera-input-settings.js";
-import { createInputFocusOwner } from "./input/input-focus-owner.js";
-import { createHudContext } from "./hud/hud-context.js";
-import { bindHudPresentation } from "./hud/hud-presentation.js";
 import { createHelicopterFlightHud } from "./mounts/helicopter-flight-hud.js";
 import { createMobilityBook } from "./mobility/mobility-book.js";
+import { resolveWorldStartupConfig } from "./startup/startup-config.js";
+import { createWorldInputRuntime } from "./input/world-input-runtime.js";
+import { createEditorWorldRuntime } from "./editor/editor-world-runtime.js";
+import { installWorldDebugApi } from "./debug/world-debug-api.js";
 import { FLAG_DISABLED, FLAG_ENABLED, FLAG_UNAVAILABLE, probeFeatureFlag, retryFeatureFlag } from "./npc-feature-flags.js";
 
 const canvas = document.getElementById("application");
 const worldLoading = getWorldLoading();
 worldLoading?.setPhase("BOOT");
-const startupParams = new URLSearchParams(location.search);
-const editorWorldRequested = startupParams.get('editorWorld') === '1';
-const previewHost = location.hostname.endsWith('.vercel.app') || ['localhost','127.0.0.1'].includes(location.hostname);
-const roomPreviewStart = previewHost &&
-  (startupParams.get('start') === 'club-room' || location.hash === '#club-room-preview');
-const dormLobbyPreviewStart = previewHost && startupParams.get('start') === 'dorm-lobby';
-const personalRoomPreviewStart = previewHost && startupParams.get('start') === 'personal-room';
-const mcmEventPreviewMode = isMcm2026PreviewRequest(location);
-const mcmMinigamePreviewStart = mcmEventPreviewMode &&
-  ['zombie-minigame-preview','zombie-minigame'].includes(startupParams.get('start'));
-const lobbyPreview = !roomPreviewStart && !dormLobbyPreviewStart && !personalRoomPreviewStart &&
-  !mcmMinigamePreviewStart && isLobbyShellRequested(location);
+const {
+  startupParams,
+  editorWorldRequested,
+  previewHost,
+  roomPreviewStart,
+  dormLobbyPreviewStart,
+  personalRoomPreviewStart,
+  mcmEventPreviewMode,
+  mcmMinigamePreviewStart,
+  lobbyPreview,
+  npcTestMode,
+  npcAiPilotMode,
+  npcProductionMode,
+  npcPreviewMode,
+  npcSharedScheduleMode,
+  npcRosterPreviewMode,
+  npcSocialPreviewLevel,
+  npcObservedConversationPreview,
+  npcObservedConversationMode,
+  npcSocialBehaviorPreviewMode,
+  npcSocialPreviewMode,
+  npcSocialProductionMode,
+  npcSocialMode,
+  npcEnabled,
+  campusLifePreview
+} = resolveWorldStartupConfig(location);
 const rendererEl = document.getElementById("renderer");
 const zoneEl = document.getElementById("zone");
-const npcTestMode = ['localhost', '127.0.0.1'].includes(location.hostname) &&
-  startupParams.get('npcTest') === 'a-r1';
-const npcAiPilotMode = npcTestMode && startupParams.get('npcAiPilot') === '1';
-// Normal deployments start campus NPCs without a domain allowlist. Local and Vercel
-// preview hosts retain the explicit selectors below; API flags still own AI/quest access.
-const npcProductionMode = !previewHost;
-const npcPreviewMode = location.hostname.endsWith('.vercel.app') &&
-  startupParams.get('npcTest') === 'a-r1';
-// Production shares server time and deterministic NPC routes across clients.
-const npcSharedScheduleMode = npcProductionMode || (previewHost && startupParams.get('npcSync') === 'ng2');
-const npcRosterPreviewMode = previewHost && startupParams.get('campusLife') === 'roster';
-const npcSocialPreviewLevel = previewHost ? startupParams.get('npcSocial') : null;
-const npcObservedConversationPreview = previewHost && startupParams.get('npcConversation') === 'p0';
-// Ambient observed conversations are presentation-only and safe to enable on normal deployments.
-const npcObservedConversationMode = npcProductionMode || npcObservedConversationPreview;
-const npcSocialBehaviorPreviewMode = npcSocialPreviewLevel === 'ng15';
-const npcSocialPreviewMode = npcSocialPreviewLevel === 'ng1' || npcSocialBehaviorPreviewMode;
-const npcSocialProductionMode = npcProductionMode;
-const npcSocialMode = npcSocialProductionMode || npcSocialPreviewMode || npcObservedConversationMode;
-const npcEnabled = npcSharedScheduleMode || npcTestMode || npcProductionMode || npcPreviewMode || npcRosterPreviewMode || npcSocialMode;
-const campusLifePreview = previewHost && startupParams.get('campusLife') === 'p0a';
 let lastTrackedZone = null;
 
 async function boot() {
@@ -374,90 +366,36 @@ const helicopterFlightHud = createHelicopterFlightHud({
   getPosition: () => player.getLocalPosition(),
   getGroundHeight: (x, z) => controller.groundY + roadviewGroundHeight(x, z)
 });
-const inputFocus = createInputFocusManager();
-const hudContext = createHudContext();
-bindHudPresentation({ context: hudContext, root: document.body });
-// InputFocus remains the single input authority. HUD Context observes its resolved snapshot only
-// to expose presentation state for current/future Explore, Combat, Life and Pet layouts.
-inputFocus.subscribe(snapshot => hudContext.syncInputFocus(snapshot), { emitCurrent: true });
-const hudMenuInput = createInputFocusOwner({
-  manager: inputFocus, ownerId: "hud-menu", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
-});
-const keyboardHelpInput = createInputFocusOwner({
-  manager: inputFocus, ownerId: "keyboard-help", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
-});
-const fullMapInput = createInputFocusOwner({
-  manager: inputFocus, ownerId: "full-map", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
-});
-const shopInput = createInputFocusOwner({
-  manager: inputFocus, ownerId: "shop", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
-});
-const backgateTransitInput = createInputFocusOwner({
-  manager: inputFocus, ownerId: "backgate-transit", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
-});
-const furnitureInput = createInputFocusOwner({
-  manager: inputFocus, ownerId: "room-furniture", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
-});
-const inventoryInput = createInputFocusOwner({
-  manager: inputFocus, ownerId: "inventory", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
-});
-const mobilityBookInput = createInputFocusOwner({
-  manager: inputFocus, ownerId: "mobility-book", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
-});
-const wardrobeInput = createInputFocusOwner({
-  manager: inputFocus, ownerId: "wardrobe", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
-});
-const dailyQuizInput = createInputFocusOwner({
-  manager: inputFocus, ownerId: "daily-quiz", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
-});
-const attendanceInput = createInputFocusOwner({
-  manager: inputFocus, ownerId: "attendance", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
-});
-const questJournalInput = createInputFocusOwner({
-  manager: inputFocus, ownerId: "quest-journal", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
-});
-const npcDialogueInput = createInputFocusOwner({
-  manager: inputFocus, ownerId: "npc-dialogue", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
-});
-const mcmDialogueInput = createInputFocusOwner({
-  manager: inputFocus, ownerId: "mcm-dialogue", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
-});
-const biryongScriptedInput = createInputFocusOwner({
-  manager: inputFocus, ownerId: "biryong-scripted", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
-});
-const lobbyWorldInput = createInputFocusOwner({
-  manager: inputFocus, ownerId: "lobby-world", policy: INPUT_FOCUS_POLICY.SYSTEM_LOCK
-});
-const lobbyTransitionInput = createInputFocusOwner({
-  manager: inputFocus, ownerId: "lobby-transition", policy: INPUT_FOCUS_POLICY.SYSTEM_LOCK
-});
-const profileInput = createInputFocusOwner({
-  manager: inputFocus, ownerId: "profile", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
-});
-const viewSettingsInput = createInputFocusOwner({
-  manager: inputFocus, ownerId: "view-settings", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
-});
-const friendPanelInput = createInputFocusOwner({
-  manager: inputFocus, ownerId: "friend-panel", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
-});
-const nearbyPanelInput = createInputFocusOwner({
-  manager: inputFocus, ownerId: "nearby-panel", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
-});
-const playerCardInput = createInputFocusOwner({
-  manager: inputFocus, ownerId: "player-card", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
-});
-const guestbookInput = createInputFocusOwner({
-  manager: inputFocus, ownerId: "guestbook", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
-});
-const roomTransitionInput = createInputFocusOwner({
-  manager: inputFocus, ownerId: "room-transition", policy: INPUT_FOCUS_POLICY.SYSTEM_LOCK
-});
-const backGateArrivalInput = createInputFocusOwner({
-  manager: inputFocus, ownerId: "back-gate-arrival", policy: INPUT_FOCUS_POLICY.SYSTEM_LOCK
-});
-const mcmEventInfoInput = createInputFocusOwner({
-  manager: inputFocus, ownerId: "mcm-event-info", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
-});
+const {
+  inputFocus,
+  hudContext,
+  hudMenuInput,
+  keyboardHelpInput,
+  fullMapInput,
+  shopInput,
+  backgateTransitInput,
+  furnitureInput,
+  inventoryInput,
+  mobilityBookInput,
+  wardrobeInput,
+  dailyQuizInput,
+  attendanceInput,
+  questJournalInput,
+  npcDialogueInput,
+  mcmDialogueInput,
+  biryongScriptedInput,
+  lobbyWorldInput,
+  lobbyTransitionInput,
+  profileInput,
+  viewSettingsInput,
+  friendPanelInput,
+  nearbyPanelInput,
+  playerCardInput,
+  guestbookInput,
+  roomTransitionInput,
+  backGateArrivalInput,
+  mcmEventInfoInput
+} = createWorldInputRuntime({ root: document.body });
 // Input contract: E = emotion, F = interaction, M = transport. Each key and its mobile button
 // are two entrances to one slot, so PC and mobile always run the same gameplay action.
 let inkyungLivingMoment = createInkyungLivingMoment({
@@ -2614,63 +2552,23 @@ if (campusLifePreview) {
     .catch(error => console.warn('Campus student prototype unavailable:', error));
 }
 
-let editorWorldStatus = editorWorldRequested ? { state: 'loading' } : null;
-const editorWorldLabel = editorWorldRequested ? document.createElement('output') : null;
-if (editorWorldLabel) {
-  editorWorldLabel.className = 'editor-world-runtime-status';
-  editorWorldLabel.setAttribute('role', 'status');
-  editorWorldLabel.textContent = 'Saved Editor World · loading';
-  document.body.append(editorWorldLabel);
-}
-if (editorWorldRequested) {
-  void (async () => {
-    const [
-      { EditorBrowserStore },
-      { loadWorldDocument },
-      { createPlayCanvasRuntimeContext, createSceneRegistries },
-      { createEditorAssetResolver, revokeEditorAssetUrls }
-    ] = await Promise.all([
-      import('./editor/editor-browser-store.js'),
-      import('./runtime-adapter/load-world.js'),
-      import('./runtime-adapter/playcanvas-context.js'),
-      import('./editor/editor-model-import.js')
-    ]);
-    const store = await EditorBrowserStore.open();
-    const text = await store.readLatestCanonical();
-    if (!text) throw new Error('R_EDITOR_WORLD_NOT_SAVED');
-    const parsed = JSON.parse(text);
-    const registries = createSceneRegistries();
-    const objectUrls = new Set();
-    const context = createPlayCanvasRuntimeContext({
-      app,
-      parent: campusRoot,
-      registries,
-      assetShadow: assetOptimizationShadow,
-      resolveAssetUri: createEditorAssetResolver({ store, worldId: parsed.worldId, objectUrls })
-    });
-    const runtime = await loadWorldDocument(text, context);
-    if (runtime.state === 'fatal') { context.dispose(); throw new Error(runtime.diagnostics[0]?.code || 'R_WORLD_FATAL'); }
-    editorWorldStatus = { state: runtime.state, worldId: runtime.worldId, entities: runtime.bindings.size, diagnostics: runtime.diagnostics, registries, runtime };
-    editorWorldLabel.textContent = `Saved Editor World · ${runtime.state} · ${runtime.bindings.size} entities · ${runtime.diagnostics.length} diagnostics`;
-    window.addEventListener('pagehide', () => {
-      void runtime.dispose().finally(() => {
-        context.dispose();
-        revokeEditorAssetUrls(objectUrls);
-      });
-    }, { once: true });
-  })().catch(error => {
-    editorWorldStatus = { state: 'fatal', error: String(error) };
-    editorWorldLabel.textContent = `Saved Editor World · fatal · ${error.message}`;
-    console.warn('Saved Editor World could not be loaded:', error);
-  });
-}
+const editorWorld = createEditorWorldRuntime({
+  enabled: editorWorldRequested,
+  app,
+  parent: campusRoot,
+  assetShadow: assetOptimizationShadow,
+  documentLike: document,
+  windowLike: window
+});
 
 if (!npcTestMode) {
   core15Funnel?.startSession();
   window.InhaHubTelemetry?.track("campus_boot_ready", "campus");
   window.InhaGameEntry?.landing();
 }
-window.__INHAGAME_P0__ = {
+installWorldDebugApi({
+  windowLike: window,
+  exposed: {
   app,
   player,
   equipmentProjection: Object.freeze({ status: () => equipmentProjection.status() }),
@@ -2752,17 +2650,21 @@ window.__INHAGAME_P0__ = {
   lobbyQuestHighlight,
   lobbyDailyLoop,
   lobbySpawnRegistry,
-  worldLoading,
+  worldLoading
+  },
   getStatus: () => ({
     renderer: rendererName,
     graphics: graphics.status(),
-    editorWorld: editorWorldStatus && {
-      state: editorWorldStatus.state,
-      worldId: editorWorldStatus.worldId ?? null,
-      entities: editorWorldStatus.entities ?? 0,
-      diagnostics: editorWorldStatus.diagnostics ?? [],
-      error: editorWorldStatus.error ?? null
-    },
+    editorWorld: (() => {
+      const status = editorWorld.status();
+      return status && {
+        state: status.state,
+        worldId: status.worldId ?? null,
+        entities: status.entities ?? 0,
+        diagnostics: status.diagnostics ?? [],
+        error: status.error ?? null
+      };
+    })(),
     loading: worldLoading?.status?.() ?? null,
     lobby: lobbyWorld.status(),
     resume: resumeStore.read(),
@@ -2885,7 +2787,7 @@ window.__INHAGAME_P0__ = {
     landmarks: LANDMARKS,
     camera: { yaw: orbit.yaw, pitch: orbit.pitch, distance: orbit.distance, firstPerson: orbit.firstPerson, zoomLimits: orbit.zoomLimits }
   })
-};
+});
 
 }
 

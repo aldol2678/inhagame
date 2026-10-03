@@ -8,6 +8,7 @@ import { ROOMS, ROOM_ENTRANCES } from "../src/rooms/room-registry.js";
 import { createRoomTransition } from "../src/rooms/room-transition.js";
 import { BACK_GATE_SPAWN, campusSpawn } from "../src/campus-spawn.js";
 import { isMcm2026PreviewRequest } from "../src/events/zombie-university-2026/event-route.js";
+import { resolveWorldStartupConfig } from "../src/startup/startup-config.js";
 
 
 test("production review URL enables isolated MCM preview and starts at the back gate", async () => {
@@ -17,8 +18,7 @@ test("production review URL enables isolated MCM preview and starts at the back 
   assert.equal(isMcm2026PreviewRequest({hostname:"example.com",search:locationLike.search}),false,
     "arbitrary hosts cannot opt into the QA preview");
 
-  const main=await readFile(new URL("../src/main.js",import.meta.url),"utf8");
-  assert.match(main,/const mcmEventPreviewMode = isMcm2026PreviewRequest\(location\)/);
+  assert.equal(resolveWorldStartupConfig(locationLike).mcmEventPreviewMode, true);
 });
 
 test("MCM preview walks the full content path without server authority or rewards", async () => {

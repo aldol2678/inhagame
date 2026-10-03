@@ -170,13 +170,14 @@ test("inventory code: one read RPC, no client creation, no storage, no write pat
 
 test("main.js wiring: member client, identity, open, shop purchase, MCM reward, resume; no polling", () => {
   const main = source("../src/main.js");
+  const inputRuntime = source("../src/input/world-input-runtime.js");
   assert.match(main, /createInventoryClient\(\{ getClient: \(\) => online\?\.supabase \?\? null \}\)/);
   assert.match(main, /void inventory\.setAccount\(identity \? online\?\.userId \?\? null : null\)/);
   assert.match(main, /onPurchase: \(\) => \{\s*void inventory\.refresh\("purchase"\);/, "shop purchase success re-reads the inventory");
   assert.match(main, /void progression\.refresh\("reward"\);\s*void wallet\.refresh\("reward"\);\s*void inventory\.refresh\("reward"\);/,
     "MCM reward keeps progression + wallet and adds inventory");
   assert.match(main, /addEventListener\("pageshow"[\s\S]*?void inventory\.refresh\("resume"\)/);
-  assert.match(main, /ownerId: "inventory".*policy: INPUT_FOCUS_POLICY\.BLOCKING_UI/s,
+  assert.match(inputRuntime, /"inventory", INPUT_FOCUS_POLICY\.BLOCKING_UI/,
     "an open inventory suspends world actions through InputFocusManager");
   assert.doesNotMatch(main, /setInterval\([^)]*inventory/);
   // The reward result is not read for ownership anywhere in the inventory wiring.
