@@ -17,9 +17,13 @@ assert.match(mainSource, /const npcSocialPreviewMode = npcSocialPreviewLevel ===
 assert.match(mainSource, /const npcSocialProductionMode = npcProductionMode;/,
   'NG1 is enabled on the official production host');
 assert.match(mainSource, /const npcObservedConversationPreview = previewHost && startupParams\.get\('npcConversation'\) === 'p0';/,
-  'observational conversations remain restricted to explicit Preview opt-in');
-assert.match(mainSource, /const npcSocialMode = npcSocialProductionMode \|\| npcSocialPreviewMode \|\| npcObservedConversationPreview;/,
+  'preview hosts retain an explicit observed-conversation opt-in');
+assert.match(mainSource, /const npcObservedConversationMode = npcProductionMode \|\| npcObservedConversationPreview;/,
+  'observational conversations are enabled by default on normal production deployments');
+assert.match(mainSource, /const npcSocialMode = npcSocialProductionMode \|\| npcSocialPreviewMode \|\| npcObservedConversationMode;/,
   'NG1 production and preview activation share one runtime switch');
+assert.match(mainSource, /observedConversationEnabled: npcObservedConversationMode,/,
+  'production wiring passes the resolved observed-conversation mode into the NPC runtime');
 assert.match(mainSource, /const npcSocialBehaviorPreviewMode = npcSocialPreviewLevel === 'ng15';/,
   'NG1.5 behavior is an explicit preview-only level');
 assert.doesNotMatch(mainSource, /npcSocialBehaviorProductionMode/,
@@ -28,6 +32,14 @@ assert.match(mainSource, /socialEnabled: npcSocialMode,[\s\S]*socialPreview: npc
   'runtime separates NG1 production, observer preview and NG1.5 behavior preview controls');
 assert.match(runtimeSource, /socialEnabled = false, socialPreview = false/,
   'NG1 runtime has separate production and preview flags');
+assert.match(runtimeSource, /observedConversationEnabled = false/,
+  'ambient conversation activation is independent from preview-only social controls');
+assert.doesNotMatch(runtimeSource, /sharedSchedulePreview\)[\s\S]{0,220}observedConversationEnabled = false/,
+  'shared schedules no longer disable the presentation-only observed conversation layer');
+assert.match(runtimeSource, /const observedConversation = observedConversationEnabled \? createObservedConversation\(\) : null/,
+  'runtime mounts the ambient observation engine when production enables it');
+assert.match(runtimeSource, /observedFrame = sharedMeetings[\s\S]*if \(!observedFrame && observedConversation\)/,
+  'shared deterministic meetings take priority and ambient observations fill quiet gaps');
 assert.match(runtimeSource, /if \(socialEnabled\) \{[\s\S]*createNpcSocialNg1Model/,
   'NG1 model mounts when the production runtime is enabled');
 assert.match(runtimeSource, /if \(socialPreview\) socialNg1Panel = mountNpcSocialNg1Panel/,
