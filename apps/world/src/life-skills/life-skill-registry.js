@@ -164,6 +164,14 @@ export const DEFAULT_LIFE_SKILL_DEFINITIONS = Object.freeze({
     category: 'RESEARCH',
     tags: ['life','research'],
     availabilityRef: 'availability.life.research'
+  }),
+  SAILING: common({
+    skillId: 'life.sailing',
+    displayName: '항해',
+    description: '선박 운용과 수상·원양 이동의 검증된 결과로 성장하는 탐험 숙련도.',
+    category: 'EXPLORATION',
+    tags: ['life','sailing'],
+    availabilityRef: 'availability.life.sailing'
   })
 });
 

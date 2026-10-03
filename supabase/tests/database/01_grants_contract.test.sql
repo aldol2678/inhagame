@@ -153,6 +153,12 @@ select set_eq($$select unnest(pg_temp.exec_surface('authenticated', 'anon'))$$, 
   'get_my_world_inventory_v1()',
   -- Economy P0-F0 (20260928063300): own EXP/derived Level read; caller = auth.uid().
   'get_my_world_progression_v1()',
+  -- Life progression / Skill Tree read-models: self-only server snapshots.
+  'get_my_world_life_progression_v1()',
+  'get_my_world_life_skill_tree_v1(text)',
+  -- Life progression / Skill Tree v1: self-only server-authoritative rank-up and reset.
+  'rank_up_my_world_life_skill_node_v1(text,text)',
+  'reset_my_world_life_skill_tree_v1(text,text)',
   -- Progression / Economy P1e (20260929190000): own Campus Daily Quiz; caller = auth.uid(), day = DB Asia/Seoul clock.
   'get_my_world_daily_quiz_v1()',
   'start_my_world_daily_quiz_v1()',
