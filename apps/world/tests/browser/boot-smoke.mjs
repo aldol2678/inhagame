@@ -9,7 +9,15 @@
 //   npm ci --prefix apps/world/tests/browser
 //   WORLD_SMOKE_BROWSER=msedge WORLD_SMOKE_HEADED=1 node apps/world/tests/browser/boot-smoke.mjs
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { startSmoke, TIMEOUT_MS } from "./harness.mjs";
+
+// The public repository ships the silent default Music project; the production MP3 and its Biryong
+// binding are withheld. The production Music pilot below runs only when that Cue is committed;
+// otherwise the same Biryong walk must keep Music silent (fail closed, no source, no degradation).
+const BIRYONG_CUE_ID = "cue.biryong-tower.explore";
+const musicProject = JSON.parse(await readFile(new URL("../../data/music/music.json", import.meta.url), "utf8"));
+const productionMusic = Array.isArray(musicProject.cues) && musicProject.cues.some(cue => cue?.id === BIRYONG_CUE_ID);
 
 // Validate the inline quest action at mobile/desktop widths before the full world boot.
 await import("./next-discovery-smoke.mjs");
@@ -527,24 +535,32 @@ try {
     d.app.fire("update", 0.016);
   });
   await page.locator("#application").click({ position: { x: 8, y: 8 } });
-  await Promise.race([
-    page.waitForFunction(() => {
-      const music = window.__INHAGAME_P0__?.getStatus?.().audio?.music;
-      return music?.context !== "closed" &&
-        music?.cueId === "cue.biryong-tower.explore" &&
-        music?.assetId === "music.biryong-tower-01" &&
-        music?.activeSources >= 1 &&
-        music?.degraded === false;
-    }, null, { timeout: TIMEOUT_MS, polling: 100 }),
-    fatalError
-  ]);
-  const biryongMusic = await page.evaluate(() => window.__INHAGAME_P0__.getStatus().audio.music);
-  assert.equal(biryongMusic.targetType, "place");
-  assert.equal(biryongMusic.targetId, "PLACE_BIRYONG_TOWER");
-  assert.equal(biryongMusic.bindingId, "binding.biryong-tower.explore");
-  assert.equal(biryongMusic.cueId, "cue.biryong-tower.explore");
-  assert.equal(biryongMusic.assetId, "music.biryong-tower-01");
-  assert.equal(biryongMusic.activeSources, 1, "Biryong production MP3 is decoded and playing");
+  if (productionMusic) {
+    await Promise.race([
+      page.waitForFunction(() => {
+        const music = window.__INHAGAME_P0__?.getStatus?.().audio?.music;
+        return music?.context !== "closed" &&
+          music?.cueId === "cue.biryong-tower.explore" &&
+          music?.assetId === "music.biryong-tower-01" &&
+          music?.activeSources >= 1 &&
+          music?.degraded === false;
+      }, null, { timeout: TIMEOUT_MS, polling: 100 }),
+      fatalError
+    ]);
+    const biryongMusic = await page.evaluate(() => window.__INHAGAME_P0__.getStatus().audio.music);
+    assert.equal(biryongMusic.targetType, "place");
+    assert.equal(biryongMusic.targetId, "PLACE_BIRYONG_TOWER");
+    assert.equal(biryongMusic.bindingId, "binding.biryong-tower.explore");
+    assert.equal(biryongMusic.cueId, "cue.biryong-tower.explore");
+    assert.equal(biryongMusic.assetId, "music.biryong-tower-01");
+    assert.equal(biryongMusic.activeSources, 1, "Biryong production MP3 is decoded and playing");
+  } else {
+    const silentMusic = await page.evaluate(() => window.__INHAGAME_P0__.getStatus().audio.music);
+    assert.equal(silentMusic.configState, "ready", `silent default music config failed: ${silentMusic.lastError}`);
+    assert.equal(silentMusic.cueId, null, "silent default project resolves no Biryong Cue");
+    assert.equal(silentMusic.activeSources, 0, "silent default project starts no source at Biryong");
+    assert.equal(silentMusic.degraded, false, "a missing production binding is not a degradation");
+  }
 
   await page.evaluate(() => {
     const d = window.__INHAGAME_P0__;
