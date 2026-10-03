@@ -1,5 +1,5 @@
 // Bump revision when shared schedules, anchors, speeds or route semantics change.
-export const NPC_SCHEDULE_REVISION = 'ng2-meetings-v2';
+export const NPC_SCHEDULE_REVISION = 'ng2-campus-life-v3';
 export const NPC_WORLD_EPOCH_MS = Date.UTC(2026, 0, 1);
 export const NPC_WORLD_PERIOD_MS = 900_000;
 export const NPC_WORLD_PERIODS = Object.freeze(['morning', 'class_time', 'lunch', 'evening', 'night']);
@@ -22,4 +22,3 @@ export function worldScheduleAt(serverNowMs) {
     offsetSeconds: (elapsedMs % NPC_WORLD_PERIOD_MS) / 1000,
     cycleSeconds: (elapsedMs % (NPC_WORLD_PERIOD_MS * NPC_WORLD_PERIODS.length)) / 1000 };
 }
-
