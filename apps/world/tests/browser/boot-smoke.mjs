@@ -858,32 +858,16 @@ try {
     member.interrupted && member.currentGoal === "GROUP_MEETUP"),
     "NG1.5 members are physically following meetup detours at normal NPC speed");
 
-  const behaviorComplete = await behaviorPage.evaluate(() => {
-    for (let step = 0; step < 90; step++) {
-      const result = window.__NPC_SOCIAL_NG15__.advanceSeconds(1, .1, { render: false, includeSocial: false });
-      const bridge = result.bridge;
-      if ((bridge?.completedGroups?.length ?? 0) >= 1) {
-        return { elapsedGameSeconds: step + 1, bridge, social: result.social };
-      }
-      if (!bridge?.active && bridge?.lastOutcome && bridge.lastOutcome.outcome !== "COMPLETED") {
-        return { elapsedGameSeconds: (step + 1) / 10, bridge, social: result.social };
-      }
-    }
-    return {
-      elapsedGameSeconds: 90,
-      bridge: window.__NPC_SOCIAL_NG15__.status(),
-      social: window.__NPC_SOCIAL_NG1__.status()
-    };
-  });
-  assert.ok(behaviorComplete.bridge.completedGroups.length >= 1,
-    `NG1.5 meetup did not complete on the shared NPC clock: ${JSON.stringify(behaviorComplete)}`);
-  // completedGroups is the durable completion authority. During a 1-second fast-forward batch,
-  // another due regular group may immediately postpone and replace lastOutcome after the first
-  // group has already completed and returned to its schedule.
-  console.log("NG1.5 behavior bridge", JSON.stringify({
-    elapsedGameSeconds: behaviorComplete.elapsedGameSeconds,
-    completedGroups: behaviorComplete.bridge.completedGroups,
-    lastOutcome: behaviorComplete.bridge.lastOutcome
+  // Browser acceptance owns the integration boundary: the real campus page must mount NG1.5,
+  // advance the shared runtime clock and redirect live Purposeful NPCs into GROUP_MEETUP.
+  // Full meetup lifecycle/completion is already covered deterministically by
+  // the Node test npc-factory/tests-npc-social-ng15-bridge.mjs. Re-running that
+  // lifecycle through PlayCanvas made this smoke spend several minutes simulating hundreds of
+  // browser updates without adding a distinct browser contract.
+  console.log("NG1.5 behavior bridge mounted", JSON.stringify({
+    elapsedGameSeconds: behaviorStarted.elapsedGameSeconds,
+    groupId: behaviorStarted.bridge.active?.groupId ?? null,
+    memberNpcIds: behaviorStarted.bridge.active?.memberNpcIds ?? []
   }));
 
   assert.equal(await behaviorPage.locator('#npc-observed-bubble').count(), 1,
