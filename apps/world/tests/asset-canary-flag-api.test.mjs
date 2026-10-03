@@ -40,11 +40,14 @@ test("asset canary flag: enabled row maps to 200", async () => {
   assert.ok(calls[0].init.headers.apikey);
 });
 
-test("asset canary flag: disabled row maps to 404", async () => {
+test("asset canary flag: disabled row maps to cacheable 200 false", async () => {
   globalThis.fetch = async () => new Response(JSON.stringify([{ enabled: false }]), {
     status: 200, headers: { "content-type": "application/json" }
   });
-  assert.equal((await call()).statusCode, 404);
+  const res = await call();
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(res.body, { enabled: false });
+  assert.match(res.headers["vercel-cdn-cache-control"], /s-maxage=5/);
 });
 
 test("asset canary flag: malformed/upstream failures fail closed as 503", async () => {
