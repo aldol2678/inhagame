@@ -82,7 +82,14 @@ classes without a browser. Three create/destroy cycles verify material reuse, th
 actual mesh/vertex budgets and preservation of decal bias when a material is cloned.
 This check passes locally but generates no pixels and does not establish appearance.
 
-Browser verification is still a release gate: this cloud executor's Chromium aborted
-before page startup with `socket() failed: Operation not permitted`, including the
-permitted escalation attempt. No screenshots, visual approval, depth-bias appearance
-verification or browser PASS are claimed by this candidate. No deployment is included.
+The initial local browser attempt aborted before page startup with
+`socket() failed: Operation not permitted`, including its permitted escalation.
+The dedicated `Neutral campus building browser QA` pull-request workflow therefore
+runs the graphical checks on hosted Chromium. It covers portrait (390×844), landscape
+(844×390) and desktop (1280×720); each of the 21 buildings has same-camera hidden-BASE
+and isolated-facade pixel comparisons in both coordinate modes. Stationary frames,
+oblique facades, the courtyard ground sample, actual Campus boot and the existing
+streaming renderer's NEAR/VISTA/ACTIVE/destroy lifecycle are checked too. Unchanged
+main2 contracts are included in the targeted test step. The job saves screenshots
+and its detailed pixel receipt in `neutral-campus-browser-evidence`; consult the
+latest commit's check and artifact for the result. No deployment is included.

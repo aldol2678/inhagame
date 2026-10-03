@@ -84,7 +84,8 @@
           const angle=Math.PI/4+orbit,distance=span*1.25*fit;
           placeCamera(x+Math.cos(angle)*distance,f.height+span*.6*fit,z+Math.sin(angle)*distance,x,f.height*.35,z);
         }
-        document.getElementById('heading').textContent=f.name+(courtyard?' · Open courtyard':' · Generic facade');
+        // Stable ASCII IDs keep evidence readable on minimal CI images without CJK fonts.
+        document.getElementById('heading').textContent=f.id+(courtyard?' · Open courtyard':' · Generic facade');
       }
       app.renderNextFrame=true;
     }
