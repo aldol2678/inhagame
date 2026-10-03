@@ -4282,6 +4282,10 @@ export type Database = {
         Args: { p_event: string; p_user: string }
         Returns: Json
       }
+      advance_world_first_style_quest_v1: {
+        Args: { p_event: string; p_user: string }
+        Returns: Json
+      }
       advance_world_navigation_quest_v1: {
         Args: { p_event: string; p_user: string }
         Returns: Json
