@@ -643,7 +643,8 @@ const lobbyQuestHighlight = createLobbyQuestHighlight({
   objectiveElement: document.getElementById("lobby-quest-objective"),
   progressElement: document.getElementById("lobby-quest-progress"),
   getTourStage: () => tour.stage,
-  getQuest: () => npcTest?.getStatus?.() ?? null
+  getQuest: () => npcTest?.getStatus?.() ?? null,
+  getSignedIn: () => profile.signedIn === true
 });
 let rooms = null;
 let keyboardHelp = null;
@@ -2494,6 +2495,7 @@ try {
     npcTest?.setAiSignedIn(npcAiSignedIn);
     profile.setIdentity(identity);
     lobbyPlayerSummary.render();
+    lobbyQuestHighlight.update();
     chatPanel.refreshAvailability();
     friendPanel.setAvailable(!!identity);
     nearbyPanel.render();

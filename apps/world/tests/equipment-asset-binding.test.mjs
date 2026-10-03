@@ -27,7 +27,7 @@ test("1-3. cap and backpack carry modelAssetIds and keep their catalog definitio
   const pack = getItemDefinition(PACK);
   assert.equal(cap.modelAssetId, CAP_MODEL);
   assert.equal(pack.modelAssetId, PACK_MODEL);
-  assert.deepEqual([cap.displayName, cap.category, cap.equipSlot, cap.rarity, cap.status], ["인덕 캠퍼스 캡", "WEARABLE", "HEAD", "COMMON", "COMING_SOON"]);
+  assert.deepEqual([cap.displayName, cap.category, cap.equipSlot, cap.rarity, cap.status], ["인덕 캠퍼스 캡", "WEARABLE", "HEAD", "COMMON", "ACTIVE"]);
   assert.deepEqual([pack.displayName, pack.category, pack.equipSlot, pack.rarity, pack.status], ["인덕 백팩", "WEARABLE", "BACK", "UNCOMMON", "COMING_SOON"]);
   assert.deepEqual(cap.acquisition, [{ source: "SHOP" }]);
   assert.deepEqual(pack.acquisition, [{ source: "SHOP" }]);
