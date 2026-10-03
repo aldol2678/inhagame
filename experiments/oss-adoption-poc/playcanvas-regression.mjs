@@ -48,6 +48,11 @@ async function startServer() {
   const server = http.createServer((req, res) => {
     try {
       const url = new URL(req.url, "http://127.0.0.1");
+      if (url.pathname === "/favicon.ico") {
+        res.writeHead(204, { "Cache-Control": "no-store" });
+        res.end();
+        return;
+      }
       let filePath;
       if (url.pathname === "/harness") {
         filePath = HARNESS_PATH;
