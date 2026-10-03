@@ -5172,3 +5172,136 @@ body[data-lobby-shell="true"] > #backgate-transit-panel { display: none !importa
 }
 /* LANDSCAPE-HUD:end */
 
+
+
+/* Life Progression v1 · server-authoritative Life Level / SP / Skill Tree panel. */
+.life-skill-panel {
+  width: min(720px, calc(100vw - 24px));
+}
+.life-skill-panel .profile-close { display: grid; place-items: center; min-width: 44px; min-height: 44px; }
+.life-progression-summary {
+  margin: 4px 0 0;
+  color: #ffde86;
+  font-size: 13px;
+  font-weight: 900;
+}
+.life-sp-summary {
+  margin: 3px 0 0;
+  color: #d9f7ef;
+  font-size: 12px;
+  font-weight: 800;
+}
+.life-skill-panel-body { display: grid; gap: 12px; }
+.life-tree-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 7px;
+}
+.life-tree-tab {
+  min-width: 0;
+  min-height: 44px;
+  padding: 8px 9px;
+  border: 1px solid rgba(178,220,239,.3);
+  border-radius: 12px;
+  background: rgba(255,255,255,.045);
+  color: #dceffc;
+  font-size: 12px;
+  font-weight: 850;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.life-tree-tab[aria-pressed="true"] {
+  border-color: #8fe2d3;
+  background: rgba(25,109,101,.48);
+  color: #fff;
+}
+.life-tree-tab[data-status="COMING_SOON"] { opacity: .72; }
+.life-tree-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+.life-tree-head > div { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.life-tree-head strong { font-size: 15px; }
+.life-tree-status {
+  padding: 2px 7px;
+  border: 1px solid rgba(143,226,211,.45);
+  border-radius: 999px;
+  color: #8fe2d3;
+  font-size: 10px;
+  font-weight: 900;
+}
+.life-tree-reset,
+.life-skill-rank-button {
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid #8fe2d3;
+  border-radius: 11px;
+  background: #196d65;
+  color: #fff;
+  font-weight: 850;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.life-tree-reset { flex: none; border-color: #ffd98a; background: #5a4722; }
+.life-tree-reset:disabled,
+.life-skill-rank-button:disabled { opacity: .5; cursor: not-allowed; }
+.life-tree-note {
+  margin: 0;
+  padding: 9px 10px;
+  border-radius: 11px;
+  background: rgba(255,217,138,.09);
+  color: #ffd98a;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.life-skill-nodes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.life-skill-node {
+  min-width: 0;
+  padding: 11px 12px;
+  border: 1px solid rgba(178,220,239,.24);
+  border-radius: 14px;
+  background: rgba(255,255,255,.035);
+}
+.life-skill-node-ready {
+  border-color: rgba(143,226,211,.55);
+  background: rgba(25,109,101,.15);
+}
+.life-skill-node-head,
+.life-skill-node-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.life-skill-node-name { min-width: 0; overflow-wrap: anywhere; font-size: 13px; }
+.life-skill-node-rank { flex: none; color: #ffde86; font-size: 12px; font-weight: 900; }
+.life-skill-node-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 9px;
+  margin-top: 6px;
+  color: #acc3d1;
+  font-size: 11px;
+  font-weight: 750;
+}
+.life-skill-node-prereq { flex-basis: 100%; color: #c7dce8; }
+.life-skill-node-foot { margin-top: 9px; }
+.life-skill-node-state { color: #ffd98a; font-size: 11px; font-weight: 850; }
+.life-skill-node-ready .life-skill-node-state { color: #8ef0b0; }
+
+@media (max-width: 640px) {
+  .life-tree-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .life-skill-nodes { grid-template-columns: 1fr; }
+  .life-tree-head { align-items: flex-start; flex-direction: column; }
+  .life-tree-reset { width: 100%; }
+}
