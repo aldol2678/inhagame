@@ -7,10 +7,12 @@ select is((select count(*) from private.world_life_skill_nodes),24::bigint,
   'four initial Life Skill trees define 24 nodes');
 select is((select count(*) from private.world_life_skill_node_prerequisites),25::bigint,
   'initial Life Skill trees define 25 prerequisite edges');
-select is((select count(*) from private.world_life_skill_nodes where status='COMING_SOON'),24::bigint,
-  'all initial Life Skill nodes remain pre-activation');
-select is((select count(*) from private.world_life_skill_nodes where status='ACTIVE'),0::bigint,
-  'node definition does not activate Life gameplay');
+select is((select count(*) from private.world_life_skill_nodes where status='COMING_SOON'),18::bigint,
+  'Woodcutting, Farming and Sailing nodes remain pre-activation');
+select is((select count(*) from private.world_life_skill_nodes where status='ACTIVE'),6::bigint,
+  'the six Fishing nodes are the first active specialization');
+select is((select count(*) from private.world_life_skill_nodes where tree_id='life_tree.fishing' and status='ACTIVE'),6::bigint,
+  'every Fishing v1 node is active together');
 
 select results_eq($$
   select tree_id,count(*)::bigint,sum((max_rank * point_cost)::bigint)::bigint
