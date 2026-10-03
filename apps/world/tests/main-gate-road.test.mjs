@@ -33,9 +33,10 @@ test('legacy gate sidewalk and zebra box overlays stay removed; flat tactile dre
   assert.doesNotMatch(gate,/gate_sidewalk_/);
   assert.doesNotMatch(gate,/gate_crosswalk_/);
   assert.doesNotMatch(gate,/segment\(root/);
-  assert.match(detail,/rect\(b,GATE_FRAME/);
-  assert.match(detail,/G\.PAINT,QA\.edge/);
-  assert.doesNotMatch(detail,/c2aa63|e0c982|939c96|d0b04e/);
+  assert.match(detail,/c2aa63[^\n]*G\.PAINT[^\n]*\.008/);
+  assert.match(detail,/e0c982[^\n]*G\.DETAIL[^\n]*\.004/);
+  assert.doesNotMatch(detail,/939c96[^\n]*side\*8/,'no phantom sidewalk joints across the apron');
+  assert.match(detail,/d0b04e[^\n]*G\.PAINT[^\n]*\.006/);
 });
 
 test('inner gate zebra and sidewalks stay above their visible pavement owner',()=>{
@@ -43,7 +44,7 @@ test('inner gate zebra and sidewalks stay above their visible pavement owner',()
   fillMainGateRoads({quad(color,a,b,c,d){quads.push({color,vertices:[a,b,c,d]});},box(){}});
   const zebra=quads.filter(q=>q.color==='#eee9da'&&q.vertices.every(p=>p[1]===MAIN_GATE_LEVELS.zebra));
   assert.equal(zebra.length,11,'inner gate zebra keeps eleven flat white stripes');
-  const flush=quads.filter(q=>q.color==='#b9b4a6'&&q.vertices.every(p=>p[1]===MAIN_GATE_LEVELS.sidewalk));
+  const flush=quads.filter(q=>q.color==='#b9bdbb'&&q.vertices.every(p=>p[1]===MAIN_GATE_LEVELS.sidewalk));
   assert.ok(flush.length>=3,'gate sidewalks and pedestrian exit remain flush overlays');
   assert.ok(MAIN_GATE_LEVELS.sidewalk>MAIN_GATE_LEVELS.road);
   assert.ok(MAIN_GATE_LEVELS.zebra>MAIN_GATE_LEVELS.joint);
@@ -78,3 +79,4 @@ test('road surface is finite, upward-facing and remains clear of procedural tree
   for(const c of RENDER_CHUNKS)for(const tree of c.trees)for(const road of GATE_DORM_SEGMENTS)
     assert.ok(distanceToRoad(tree,road)>road.road.width/2+1.9);
 });
+
