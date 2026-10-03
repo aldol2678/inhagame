@@ -31,12 +31,12 @@ select col_is_unique('private','world_life_skill_point_transactions',array['idem
 select col_is_pk('private','world_player_life_skill_nodes',array['user_id','node_id'],
   'one purchased rank row per account/node');
 
-select results_eq($$
-  select curve_id,level,min_total_xp,skill_points_reward
+select results_eq($
+  select level,min_total_xp,skill_points_reward
     from private.world_life_progression_thresholds
-   order by curve_id,level
-$$,$$values ('life.progression.v1'::text,1,0::bigint,0)$$,
-  'P0 freezes only Life Lv1=0 with no starting SP');
+   where curve_id='life.progression.v1' and level=1
+$,$values (1,0::bigint,0)$,
+  'Life progression foundation keeps the canonical Lv1 origin at 0 XP / 0 SP');
 
 select is((select count(*) from private.world_life_skill_catalog),12::bigint,
   'Sailing extends the long-term Life Skill catalog to 12');
@@ -100,19 +100,9 @@ select is((select count(*) from private.world_player_life_progression
   where user_id='a8600000-0000-4000-8000-0000000000a8'),0::bigint,
   'read-only snapshot creates no player projection');
 
--- ---- Life Level curve remains append-only and balance-tunable ----
-insert into private.world_life_progression_thresholds(
-  curve_id,level,min_total_xp,skill_points_reward
-) values ('life.progression.v1',2,100,1);
-insert into private.world_life_progression_thresholds(
-  curve_id,level,min_total_xp,skill_points_reward
-) values ('life.progression.v1',3,300,1);
-
-select throws_ok($$
-  insert into private.world_life_progression_thresholds(
-    curve_id,level,min_total_xp,skill_points_reward
-  ) values ('life.progression.v1',5,700,1)
-$$,'23514','LIFE_PROGRESSION_CURVE_INVALID','Life Level thresholds append sequentially');
+-- ---- Life Level curve remains immutable after the later balance migration ----
+select is(private.world_life_progression_level_for_xp_v1('life.progression.v1',150),2,
+  'foundation snapshot uses the committed Life curve without storing Level');
 select throws_ok($$
   update private.world_life_progression_thresholds
      set min_total_xp=90
@@ -133,7 +123,7 @@ $$,$$values (150::bigint,3,1,2,1::bigint)$$,
 
 select is((private.world_life_progression_snapshot_v1(
   'a8600000-0000-4000-8000-0000000000a8')->>'level')::integer,2,
-  '150 aggregate Life XP derives test-only Life Lv2');
+  '150 aggregate Life XP derives committed Life Lv2');
 select is((private.world_life_progression_snapshot_v1(
   'a8600000-0000-4000-8000-0000000000a8')->>'skillPointsBalance')::integer,2,
   'aggregate snapshot returns generated SP balance');
