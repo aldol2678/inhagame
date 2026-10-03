@@ -3,7 +3,7 @@ import * as pc from "playcanvas";
 const devices = new WeakMap();
 
 // Small procedural textures: water shading only, never displacement of the shoreline.
-export function pondWaterMaterial(device, brightness = 1) {
+export function pondWaterMaterial(device, brightness = 1, variant = 'default') {
   let resources = devices.get(device);
   if (!resources) {
     const size = 64;
@@ -39,7 +39,8 @@ export function pondWaterMaterial(device, brightness = 1) {
     resources = { normalMap, reflection, materials: new Map() };
     devices.set(device, resources);
   }
-  if (!resources.materials.has(brightness)) {
+  const materialKey = `${brightness}:${variant}`;
+  if (!resources.materials.has(materialKey)) {
     const material = new pc.StandardMaterial();
     material.name = "inkyung-water";
     material.diffuse = new pc.Color(.35 * brightness, .43 * brightness, .37 * brightness);
@@ -52,7 +53,18 @@ export function pondWaterMaterial(device, brightness = 1) {
     material.normalMapTiling.set(6, 8);
     material.bumpiness = .45;
     material.update();
-    resources.materials.set(brightness, material);
+    resources.materials.set(materialKey, material);
   }
-  return resources.materials.get(brightness);
+  return resources.materials.get(materialKey);
+}
+
+export function applyPondWeatherMaterial(material, profile) {
+  if (!material || !profile) return false;
+  material.diffuse.set(...profile.diffuse);
+  material.specular.set(...profile.specular);
+  material.gloss = profile.gloss;
+  material.reflectivity = profile.reflectivity;
+  material.bumpiness = profile.bumpiness;
+  material.update();
+  return true;
 }
