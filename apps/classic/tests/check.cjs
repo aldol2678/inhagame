@@ -36,4 +36,6 @@ assert.ok(source.includes("save_my_game_progress"),'Cloud progress RPC missing')
 assert.ok(source.includes("touch_inhagame_member_activity_v1"),'Shared member activity RPC missing');
 assert.ok(source.includes('Classic 진행도는 플레이 중 자동 저장되고, 로그인한 계정에 자동으로 동기화됩니다.'),'Automatic cloud sync copy missing');
 assert.ok(!fs.existsSync('api/ops.js'),'Private OPS server must be absent');
+assert.ok(html.includes('src="https://inhagame.app/api/brand-media?asset=annyongi.png"'),'Annyongi runtime brand media route missing');
+assert.ok(html.includes('src="https://inhagame.app/api/brand-media?asset=indeoki.png"'),'Indeoki runtime brand media route missing');
 console.log('Public Classic static checks PASS');
