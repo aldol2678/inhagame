@@ -173,7 +173,9 @@ const zoneEl = document.getElementById("zone");
 const npcTestMode = ['localhost', '127.0.0.1'].includes(location.hostname) &&
   startupParams.get('npcTest') === 'a-r1';
 const npcAiPilotMode = npcTestMode && startupParams.get('npcAiPilot') === '1';
-const npcProductionMode = ['inhagame.example', 'www.inhagame.example'].includes(location.hostname);
+// Normal deployments start campus NPCs without a domain allowlist. Local and Vercel
+// preview hosts retain the explicit selectors below; API flags still own AI/quest access.
+const npcProductionMode = !previewHost;
 const npcPreviewMode = location.hostname.endsWith('.vercel.app') &&
   startupParams.get('npcTest') === 'a-r1';
 // Production shares server time and deterministic NPC routes across clients.
