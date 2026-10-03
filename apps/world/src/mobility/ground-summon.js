@@ -35,3 +35,39 @@ export function findGroundSummonPose({ definition, origin, yawDeg = 0, spaceId,
   }
   return null;
 }
+
+
+// Vehicle-scale nearby search. The player asks for the vehicle; the game owns finding room for it.
+// 25 world units ~= 50 m at the current campus scale.
+export function findNearbyGroundSummonPose(options = {}) {
+  const { definition, origin, yawDeg = 0, spaceId, mounted = false, grounded = false,
+    allowMount = false, groundHeight, overWater, canOccupyAt, bounds, groundY = 1.15 } = options;
+  if (!definition?.summonEnabled || definition.spawnDomain !== "GROUND" ||
+      definition.summonUX !== "NEARBY" || spaceId !== "campus" || !allowMount || mounted || !grounded ||
+      !origin || ![origin.x,origin.y,origin.z,yawDeg,groundY].every(Number.isFinite) ||
+      typeof groundHeight !== "function" || typeof overWater !== "function" || typeof canOccupyAt !== "function" ||
+      !bounds || ![bounds.minX,bounds.maxX,bounds.minZ,bounds.maxZ].every(Number.isFinite)) return null;
+  const { radius, height } = definition.summonClearance ?? {};
+  if (!(radius > 0) || !(height > 0)) return null;
+  if (overWater(origin.x,origin.z) || Math.abs(origin.y-groundY-groundHeight(origin.x,origin.z)) > .2) return null;
+  const shape={radius,footOffset:groundY,headOffset:Math.max(0,height-groundY)};
+  const rings=[Math.max(radius+1.5,3.2),5,8,12.5,18,25];
+  for(const distance of rings){
+    const steps=distance<=5?12:16;
+    for(let i=0;i<steps;i++){
+      const a=(yawDeg + i*360/steps)*Math.PI/180;
+      const x=origin.x+Math.sin(a)*distance,z=origin.z+Math.cos(a)*distance;
+      if(x-radius<bounds.minX||x+radius>bounds.maxX||z-radius<bounds.minZ||z+radius>bounds.maxZ)continue;
+      const ground=groundHeight(x,z);
+      if(!Number.isFinite(ground)||overWater(x,z))continue;
+      let valid=true;
+      for(let j=0;j<16;j++){
+        const r=j*Math.PI/8,sx=x+Math.sin(r)*radius,sz=z+Math.cos(r)*radius,h=groundHeight(sx,sz);
+        if(!Number.isFinite(h)||Math.abs(h-ground)>.18||overWater(sx,sz)){valid=false;break;}
+      }
+      if(!valid||!canOccupyAt({x,y:ground+groundY,z},shape))continue;
+      return Object.freeze({x,y:ground,z,yaw:yawDeg,distance});
+    }
+  }
+  return null;
+}

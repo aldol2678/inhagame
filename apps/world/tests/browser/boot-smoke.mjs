@@ -570,7 +570,7 @@ try {
     d.controller.grounded = true; d.app.fire("update", .016);
   });
 
-  // Mobility Batch A1: real book -> summon -> mount controls -> render/network kind.
+  // Mobility Batch A1: real book -> instant summon-and-mount -> controls -> render/network kind.
   await page.evaluate(() => {
     const d=window.__INHAGAME_P0__;
     d.controller.keys.clear();
@@ -584,26 +584,20 @@ try {
   await kickCard.locator(".mobility-card-main").click();
   assert.equal(await page.locator(".mobility-detail .mobility-secondary").first().isDisabled(),true,
     "test-only kickboard cannot become an owned active mount");
+  assert.equal(await page.locator(".mobility-primary").textContent(),"바로 타기");
   await kickCard.locator(".mobility-favorite").click();
   assert.equal(await kickCard.locator(".mobility-favorite").getAttribute("aria-pressed"),"true");
   await page.locator(".mobility-primary").click();
   await page.locator("#mobility-book-panel").waitFor({state:"hidden"});
-  const kickRide=await page.evaluate(async()=>{
-    const d=window.__INHAGAME_P0__;
-    const {getCampusKickboardParkedPose}=await import("/src/mounts/campus-kickboard-world.js");
-    const a=getCampusKickboardParkedPose();
-    if(!a)return {summoned:false};
-    d.player.setLocalPosition(a.x,a.y+d.controller.groundY,a.z);
-    const before=d.controller.mounted;
-    const boarded=d.controller.transportAction();
-    d.app.fire("update",.016);
-    return {summoned:true,before,boarded,mountId:d.controller.mountId,
+  const kickRide=await page.evaluate(()=>{
+    const d=window.__INHAGAME_P0__;d.app.fire("update",.016);
+    return {mounted:d.controller.mounted,mountId:d.controller.mountId,
       jumpHidden:document.getElementById("jump").hidden,
       riderVisible:d.player.findByName("Rider_CampusKickboard")?.enabled,
       parkedHidden:!d.app.root.findByName("Parked_CampusKickboard")?.enabled};
   });
-  assert.deepEqual(kickRide,{summoned:true,before:false,boarded:true,
-    mountId:"mount.campus_kickboard.prototype",jumpHidden:true,riderVisible:true,parkedHidden:true});
+  assert.deepEqual(kickRide,{mounted:true,mountId:"mount.campus_kickboard.prototype",
+    jumpHidden:true,riderVisible:true,parkedHidden:true});
   const kickedOff=await page.evaluate(()=>{
     const d=window.__INHAGAME_P0__;
     const start=d.player.getLocalPosition().clone();
@@ -641,6 +635,7 @@ try {
   await kickCard.locator(".mobility-card-main").click();
   assert.equal(await page.locator(".mobility-detail .mobility-secondary").first().isDisabled(),true,
     "test-only kart cannot become an owned active mount");
+  assert.equal(await page.locator(".mobility-primary").textContent(),"카트 호출");
   await kickCard.locator(".mobility-favorite").click();
   assert.equal(await kickCard.locator(".mobility-favorite").getAttribute("aria-pressed"),"true");
   await page.locator(".mobility-primary").click();
@@ -684,7 +679,7 @@ try {
     d.controller.grounded = true; d.app.fire("update", .016);
   });
 
-  // A3: named dock, real Mobility Book, water runtime and safe shore exit.
+  // A3: dock guidance, pre-positioned boat, water runtime and safe shore exit.
   await page.evaluate(async()=>{
     const d=window.__INHAGAME_P0__,{INKYUNG_DOCK}=await import("/src/mounts/duck-boat-motion.js");
     d.player.setLocalPosition(INKYUNG_DOCK.shore.x,1.15,INKYUNG_DOCK.shore.z);
@@ -696,17 +691,21 @@ try {
   await page.locator(".mobility-search").fill("오리배");
   await page.locator('[data-mobility-id="vessel.inkyung_duckboat"] .mobility-card-main').click();
   assert.equal(await page.locator(".mobility-detail .mobility-secondary").first().isDisabled(),true);
+  assert.equal(await page.locator(".mobility-primary").textContent(),"선착장 위치 안내");
   await page.locator(".mobility-primary").click();
-  const boat=await page.evaluate(()=>{
-    const d=window.__INHAGAME_P0__;const boarded=d.controller.transportAction();d.app.fire("update",.016);
+  assert.equal(await page.locator("#mobility-book-panel").isVisible(),false,"dock guidance closes the Book");
+  const boat=await page.evaluate(async()=>{
+    const d=window.__INHAGAME_P0__,{getDuckBoatParkedPose}=await import("/src/mounts/duck-boat-world.js");
+    const parked=getDuckBoatParkedPose();
+    const boarded=d.controller.transportAction();d.app.fire("update",.016);
     const visual=d.player.findByName("Rider_DuckBoat")?.enabled;
     const y=d.player.getLocalPosition().y;
     const jumpHidden=document.getElementById("jump").hidden;
     const dismounted=d.controller.transportAction();
-    return {boarded,visual,y,jumpHidden,dismounted};
+    return {parked:!!parked,boarded,visual,y,jumpHidden,dismounted};
   });
   assert.ok(Math.abs(boat.y-1.175)<1e-8); delete boat.y;
-  assert.deepEqual(boat,{boarded:true,visual:true,jumpHidden:true,dismounted:true});
+  assert.deepEqual(boat,{parked:true,boarded:true,visual:true,jumpHidden:true,dismounted:true});
   }
 
   {

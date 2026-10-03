@@ -32,6 +32,7 @@ import { createCharacter } from "./character-model.js";
 import { createCampusProfile } from "./campus-profile.js";
 import { createCampusTour } from "./campus-tour.js";
 import { LANDMARKS, TOUR_STOPS } from "./campus-layout.js";
+import { worldToMeters } from "./world-scale.js";
 import { startWorldOnline, SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from "./online/world-online.js";
 import { startWorldPopulationCount, startWorldPopulationHeartbeat } from "./online/world-population-heartbeat.js";
 import { createRemoteAvatarFactory } from "./online/remote-avatar.js";
@@ -955,16 +956,30 @@ const mobilityBook = createMobilityBook({
     if (definition.primaryAction !== "SUMMON_TEST") return false;
     mobilityBook.setOpen(false); // Release the blocking UI owner before the controller checks input.
     const summonActions = {
-      [CAMPUS_KICKBOARD_ID]: () => controller.summonKickboardNearPlayer(),
-      [CAMPUS_KART_ID]: () => controller.summonKartNearPlayer(),
+      [CAMPUS_KICKBOARD_ID]: () => controller.summonKickboardInstant(),
+      [CAMPUS_KART_ID]: () => controller.summonKartNearby(),
       [DUCK_BOAT_ID]: () => controller.summonDuckBoat(),
       [CAMPUS_BALLOON_ID]: () => controller.summonBalloonNearPlayer(),
-      "mount.campus_helicopter.prototype": () => controller.summonHelicopterNearPlayer()
+      "mount.campus_helicopter.prototype": () => controller.summonHelicopterWithPadFallback()
     };
     const summoned = summonActions[definition.mountId]?.() ?? false;
-    showWorldStatus(summoned
-      ? `${definition.emoji} 주변 안전한 곳에 ${definition.displayName} 소환 완료`
-      : definition.mountId === DUCK_BOAT_ID ? "인경호 남쪽 선착장 가까이에서 이용해 주세요." : "주변에 탈것을 놓을 안전한 공간이 없어요");
+    const placement = controller.lastSummonPlacement;
+    const meters = placement?.mountId === definition.mountId && Number.isFinite(placement.distance)
+      ? Math.max(1, Math.round(worldToMeters(placement.distance))) : null;
+    let successMessage = `${definition.emoji} 주변 안전한 곳에 ${definition.displayName} 소환 완료`;
+    if (definition.mountId === CAMPUS_KICKBOARD_ID) successMessage = "🛴 전동 킥보드를 꺼내 바로 탑승했어요.";
+    else if (definition.mountId === CAMPUS_KART_ID) successMessage = meters
+      ? `🛺 캠퍼스 카트를 호출했어요. 약 ${meters}m 거리에 배치했습니다.`
+      : "🛺 캠퍼스 카트를 가까운 안전 지점에 배치했어요.";
+    else if (definition.mountId === "mount.campus_helicopter.prototype") successMessage = placement?.mode === "PAD"
+      ? `🚁 주변 착륙 공간이 부족해 ${placement.label ?? "안전 패드"}에 배치했어요${meters ? ` · 약 ${meters}m` : ""}.`
+      : `🚁 가까운 착륙 가능 지점에 헬리콥터를 배치했어요${meters ? ` · 약 ${meters}m` : ""}.`;
+    let failureMessage = "주변에 탈것을 놓을 안전한 공간이 없어요";
+    if (definition.mountId === CAMPUS_KICKBOARD_ID) failureMessage = "🛴 실외의 마른 지상에 서 있을 때 바로 탈 수 있어요.";
+    else if (definition.mountId === CAMPUS_KART_ID) failureMessage = "🛺 주변 약 50m 안에서 카트를 놓을 수 있는 평탄한 공간을 찾지 못했어요.";
+    else if (definition.mountId === "mount.campus_helicopter.prototype") failureMessage = "🚁 주변 착륙지와 대운동장 안전 패드를 모두 사용할 수 없어요.";
+    else if (definition.mountId === DUCK_BOAT_ID) failureMessage = "인경호 남쪽 선착장 가까이에서 이용해 주세요.";
+    showWorldStatus(summoned ? successMessage : failureMessage);
     return summoned;
   },
   onLocate: (definition) => {

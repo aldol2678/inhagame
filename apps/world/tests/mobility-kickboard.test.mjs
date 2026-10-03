@@ -28,6 +28,7 @@ test("kickboard registry is test-only, searchable, ground-only and never grants 
   assert.equal(definition.availability,"EXPERIMENTAL");
   assert.equal(definition.access,"TEST_ONLY"); assert.equal(definition.activeEligible,false);
   assert.equal(definition.physicsProfile,"KICKBOARD"); assert.equal(definition.inputProfile,"BIKE_LIKE");
+  assert.equal(definition.summonUX,"INSTANT"); assert.equal(definition.primaryLabel,"바로 타기");
   assert.deepEqual(definition.seats,[{id:"rider",role:"RIDER",controls:true}]);
   assert.ok(mobilityMatchesQuery(definition,"킥보드")); assert.ok(mobilityMatchesFilter(definition,"GROUND"));
   assert.equal(mobilityMatchesFilter(definition,"AIR"),false);
@@ -69,12 +70,11 @@ test("motor acceleration, speed cap, braking, turn rate and invalid delta",()=>{
   for(let i=0;i<10;i++)state=stepGroundMount(state,{},0.1,profile);
   assert.equal(state.speed,0);assert.deepEqual(stepGroundMount(state,{},NaN,profile),state);
 });
-test("summon does not mount; M boards, jump is suppressed, ground movement and dismount work",()=>{
-  const {c,p,nodes}=controllerAt();assert.ok(c.summonKickboardNearPlayer());assert.equal(c.mounted,false);
-  const a=getCampusKickboardParkedPose();Object.assign(p,{x:a.x,y:a.y+1.15,z:a.z});
-  assert.equal(c.transportAction(),true);assert.equal(c.onKickboard,true);assert.equal(c.onBike,false);
+test("instant summon mounts at the current dry ground; movement and dismount still work",()=>{
+  const {c,p,nodes}=controllerAt();assert.ok(c.summonKickboardInstant());assert.equal(c.onKickboard,true);assert.equal(c.onBike,false);
+  const a=getCampusKickboardParkedPose();assert.equal(a.x,p.x);assert.equal(a.z,p.z);
   assert.equal(nodes.get("jump").hidden,true);assert.equal(nodes.get("descend").hidden,true);
-  assert.equal(c.summonKickboardNearPlayer(),false);
+  assert.equal(c.summonKickboardInstant(),false);
   c.keys.add("KeyW");c.keys.add("Space");c.jumpQueued=true;
   const start={...p};for(let i=0;i<10;i++)c.update(.05,0);
   assert.equal(p.y,1.15);assert.ok(p.z>start.z);assert.equal(c.grounded,true);
@@ -82,10 +82,18 @@ test("summon does not mount; M boards, jump is suppressed, ground movement and d
   assert.equal(nodes.get("jump").hidden,false);
   assert.equal(getCampusKickboardParkedPose().z,p.z);
 });
+test("instant summon refuses room, water, airborne, disabled input and blocked footprint",()=>{
+  const {c,p}=controllerAt();
+  c.space.id="room";assert.equal(c.summonKickboardInstant(),false);
+  c.space.id="campus";c.grounded=false;assert.equal(c.summonKickboardInstant(),false);
+  c.grounded=true;c.setInputEnabled(false);assert.equal(c.summonKickboardInstant(),false);
+  c.setInputEnabled(true);c.space.obstacles=[{minX:p.x-.3,maxX:p.x+.3,minZ:p.z-.3,maxZ:p.z+.3,minY:0,maxY:3}];
+  assert.equal(c.summonKickboardInstant(),false);
+});
 test("seat access refuses distant/disabled/indoor riders and transport focus gate",()=>{
   const {c,p}=controllerAt();parkCampusKickboardAt({x:p.x,y:0,z:p.z,yaw:0});
   c.setTransportGate(()=>false);assert.equal(c.transportAction(),false);
-  c.setInputEnabled(false);assert.equal(c.boardKickboard(),false);assert.equal(c.summonKickboardNearPlayer(),false);
+  c.setInputEnabled(false);assert.equal(c.boardKickboard(),false);assert.equal(c.summonKickboardNearPlayer(),false);assert.equal(c.summonKickboardInstant(),false);
   c.setInputEnabled(true);c.space.id="room";assert.equal(c.boardKickboard(),false);
   c.space.id="campus";p.x+=100;assert.equal(c.boardKickboard(),false);
 });
