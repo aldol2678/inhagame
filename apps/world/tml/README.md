@@ -23,6 +23,7 @@ TML is used here as a semantic/state-transition layer above the existing game im
 - `runtime/main2-shadow-contract.mjs` — P9 browser-safe shadow contract aligned to the TML fixtures
 - `runtime/main2-shadow.mjs` — P9/P10 memory-only Main 2 observer and parity metrics; no request, write, persistence or external telemetry
 - `runtime/shadow-readiness.mjs` — P11 advisory-only readiness evaluator; never changes execution authority
+- `runtime/human-promotion-gate.mjs` — P12 immutable human-review packet builder; no approval or authority-switch action
 - `fixtures/` — executable-domain conformance fixtures tied to current INHA WORLD contracts
 
 ## Boundary
@@ -190,3 +191,42 @@ The live Main 2 path does not read the readiness result. The invariant remains:
 legacy Main 2 = authoritative execution
 TML readiness = human-review signal only
 ```
+
+
+## P12 Human Promotion Gate
+
+P12 packages the P10/P11 evidence into an immutable human-review packet. It is deliberately a review gate, not a promotion mechanism.
+
+The packet contains:
+
+- the P11 readiness snapshot;
+- transition-level parity and sample coverage;
+- Reward receipt parity;
+- Reward settlement parity and coverage;
+- mismatch reason counters;
+- bounded recent mismatch samples;
+- machine checks for readiness, pending settlement, mismatch history and settlement coverage;
+- a required human checklist whose items remain `UNCONFIRMED`.
+
+P12 returns only:
+
+- `BLOCKED`: the evidence is not clean enough to enter human review;
+- `HUMAN_REVIEW_REQUIRED`: machine gates are clean, but a person must still inspect the packet.
+
+Even `HUMAN_REVIEW_REQUIRED` carries:
+
+```text
+advisoryOnly: true
+authorityChangeAllowed: false
+current authority: legacy-main2
+```
+
+There is intentionally no `APPROVED`, `PROMOTED`, or automatic authority transition state in P12.
+
+The packet is available through the existing debug status as:
+
+```text
+npcTest.getStatus().tml_main2_promotion_review
+```
+
+The live gameplay path does not consume this value. P12 performs no network request, persistence, RPC, browser storage write, or player-facing UI action.
