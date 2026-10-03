@@ -1039,6 +1039,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
     setAiSignedIn,
     // CORE-15: the quest flag may resolve after the NPCs are up; turning it on re-reads progress.
     setQuestEnabled: enabled => Promise.all([quest.setEnabled(enabled), main2Quest.setEnabled(enabled)]),
+    refreshMain2Quest: () => main2Quest.refresh(),
     observePlace: (placeId, position) => {
       quest.observePlace(placeId, position);
       main2Quest.observePlace(placeId, position);

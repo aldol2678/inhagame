@@ -163,7 +163,7 @@ test('Main 2 status retries are bounded and account changes cancel stale retry t
   assert.equal(h.runNextTimer(), 30);
   await h.flush(); h.fail(3); await h.flush();
   assert.equal(h.timers.size, 0, 'no fourth automatic retry');
-  assert.equal(h.client.status().statusState, 'RETRY');
+  assert.equal(h.client.status().statusState, 'UNAVAILABLE');
   assert.equal(h.client.status().retryAttempt, 3);
 
   pending = h.client.setSignedIn(true);
@@ -179,6 +179,8 @@ test('runtime publishes both progress states and the action has one inline HUD l
   const runtime = readFileSync(new URL('../npc-factory/dev-runtime.mjs', import.meta.url), 'utf8');
   const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
   const html = readFileSync(new URL('../campus/index.html', import.meta.url), 'utf8');
+  assert.match(runtime, /refreshMain2Quest: \(\) => main2Quest\.refresh\(\)/);
+  assert.match(main, /onRetry: \(\) => npcTest\?\.refreshMain2Quest\?\.\(\)/);
   assert.match(runtime, /onQuestStateChange\(\{ quest: quest.status\(\), main2Quest: main2Quest.status\(\) \}\)/);
   assert.match(main, /onQuestStateChange: progress => \{[\s\S]*?nextDiscovery\?\.syncProgress\(progress\)[\s\S]*?nextGoalSeen\(\)/);
   assert.doesNotMatch(main, /offerFirstCampusReward|nextDiscovery\?\.dismiss/);

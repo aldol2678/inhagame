@@ -1,0 +1,64 @@
+name: World Main 2 recovery
+
+on:
+  pull_request:
+    paths:
+      - 'apps/world/npc-factory/main2-quest-client.mjs'
+      - 'apps/world/npc-factory/dev-runtime.mjs'
+      - 'apps/world/src/main.js'
+      - 'apps/world/src/next-discovery.js'
+      - 'apps/world/src/quest/**'
+      - 'apps/world/campus/index.html'
+      - 'apps/world/styles.css'
+      - 'apps/world/tests/main2-status-recovery.test.mjs'
+      - 'apps/world/tests/next-discovery.test.mjs'
+      - 'apps/world/tests/browser/main2-status-recovery-smoke.mjs'
+      - 'apps/world/tests/browser/next-discovery-smoke.mjs'
+      - 'apps/world/tests/browser/package*.json'
+      - '.github/workflows/world-main2-recovery.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: world-main2-recovery-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  main2-recovery-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+          cache: npm
+          cache-dependency-path: apps/world/tests/browser/package-lock.json
+      - name: Install locked browser dependencies
+        working-directory: apps/world/tests/browser
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Install Chromium headless shell
+        working-directory: apps/world/tests/browser
+        run: npx --no-install playwright install --with-deps --only-shell chromium
+      - name: Run Main 2 status regressions
+        run: node --test apps/world/tests/main2-status-recovery.test.mjs apps/world/tests/next-discovery.test.mjs apps/world/tests/quest-hud.test.mjs apps/world/tests/quest-runtime.test.mjs
+      - name: Run isolated Main 2 recovery browser smoke
+        env:
+          WORLD_SMOKE_EVIDENCE_DIR: ${{ runner.temp }}/main2-recovery-evidence
+        run: |
+          set -euo pipefail
+          mkdir -p "$WORLD_SMOKE_EVIDENCE_DIR"
+          git rev-parse HEAD > "$WORLD_SMOKE_EVIDENCE_DIR/tested-head.txt"
+          node apps/world/tests/browser/main2-status-recovery-smoke.mjs | tee "$WORLD_SMOKE_EVIDENCE_DIR/browser.log"
+          node apps/world/tests/browser/next-discovery-smoke.mjs | tee "$WORLD_SMOKE_EVIDENCE_DIR/existing-next-discovery.log"
+      - name: Upload synthetic recovery evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: main2-recovery-evidence-${{ github.event.pull_request.head.sha }}
+          path: ${{ runner.temp }}/main2-recovery-evidence/**
+          if-no-files-found: ignore
+          retention-days: 7

@@ -1793,6 +1793,7 @@ nextDiscovery = createNextDiscovery({
   root: document.getElementById("next-discovery"),
   primaryButton: document.getElementById("next-discovery-primary"),
   onProgress: progress => questRuntime.update(progress),
+  onRetry: () => npcTest?.refreshMain2Quest?.(),
   onPrimary: discovery => {
     if (discovery?.id !== "main2_back_gate_guide") return false;
     const started = setNavigationTarget(main2GuideNavigationTarget());
