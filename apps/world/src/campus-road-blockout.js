@@ -17,6 +17,7 @@ import { MARKET_SIGNS } from './back-market-layout.js';
 import { fillInteriorBase, fillInteriorNear, fillInteriorDetail } from './market-interior-geometry.js';
 import { buildStreetSigns } from './street-sign-renderer.js';
 import { fillMainGateRoads } from './main-gate-road-geometry.js';
+import { fillBackgateTransit, backgateTransitSignRecords } from './transit/backgate-transit-geometry.js';
 
 export function buildCampusRoads(root) {
   fillMainGateRoads(new FacilityMeshBatch()).finish(root,'main_gate_dorm1_roads',{castShadows:false});
@@ -37,6 +38,8 @@ export function buildCampusRoads(root) {
   fillNorthSideGate(new FacilityMeshBatch()).finish(root,'north_side_gate');
   fillBackFurnitureBase(new FacilityMeshBatch()).finish(root,'back_furniture');
   fillBackRoadside(new FacilityMeshBatch()).finish(root,'back_roadside');
+  fillBackgateTransit(new FacilityMeshBatch()).finish(root,'backgate_transit_anchor');
+  buildStreetSigns(root,backgateTransitSignRecords(),'backgate_transit_signs');
 }
 
 export function buildBackStreetDetails(root,ids=[],tier){
