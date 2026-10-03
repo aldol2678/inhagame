@@ -14,6 +14,7 @@ import { LIBRARY_ROUTE_GUARDS } from './library-route-layout.js';
 import { SIDE_GATE_COLLIDERS } from './north-side-gate-layout.js';
 import { BACK_FURNITURE_COLLIDERS, BACK_WALL_COLLIDERS } from './back-furniture-layout.js';
 import { BACK_ROADSIDE_COLLIDERS } from './back-roadside-layout.js';
+import { BACK_GATE_511_COLLIDER } from './back-transit-stop-layout.js';
 import { AIRCRAFT_COLLIDERS } from './landmark-detail-layout.js';
 import { BIRYONG_COLLIDERS } from './biryong/biryong-layout.js';
 import { MAIN_GATE_GUESTBOOK_COLLIDER } from './guestbook/guestbook-world.js';
@@ -57,6 +58,7 @@ export const OBSTACLES = Object.freeze([
   ...BACK_FURNITURE_COLLIDERS,
   ...BACK_WALL_COLLIDERS,
   ...BACK_ROADSIDE_COLLIDERS,
+  BACK_GATE_511_COLLIDER,
   ...FACILITY_COLLIDERS,
   ...BUILDINGS.map(b => ({ id:b.id, polygon:b.vertices, minY:0, maxY:b.height })),
   ...LIBRARY_ROOF_PARTS.map(b => ({ id:b.id, polygon:b.vertices, minY:b.y-b.height/2, maxY:b.y+b.height/2 })),

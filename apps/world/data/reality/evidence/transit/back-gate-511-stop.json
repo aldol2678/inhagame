@@ -1,0 +1,16 @@
+{
+  "source": "국토교통부_전국 버스정류장 위치정보",
+  "sourceUrl": "https://gsg.purpleo.kr/article/120358",
+  "corroborationUrl": "https://lifelong.inhatc.ac.kr/kr/185/subview.do",
+  "retrievedAt": "2026-10-03",
+  "note": "Public transit stop point for INHA WORLD reality alignment. Stop geometry is authoritative only for the point coordinate; pole dimensions, waiting area and F1 berth are game-side presentation/runtime estimates.",
+  "stop": {
+    "name": "인하대후문",
+    "mobileId": "37165",
+    "stationId": "ICB163000165",
+    "address": "인천광역시 미추홀구 소성로 71",
+    "lat": 37.451352,
+    "lon": 126.65572,
+    "realRoutes": ["511"]
+  }
+}

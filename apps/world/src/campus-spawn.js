@@ -10,6 +10,7 @@ import { DORM_1_EXTERIOR_SPAWN, GATE_EXTERIOR_SPAWN } from './gate-dorm-exterior
 import { GATE_DORM_ROUTE_SPAWN } from './main-gate-road-layout.js';
 import { BIRYONG_AXIS, BIRYONG_CENTER, BIRYONG_DISCOVER_RADIUS } from './biryong/biryong-layout.js';
 import { isMcm2026OutdoorPreviewRequest } from './events/zombie-university-2026/event-route.js';
+import { BACK_GATE_511_PREVIEW_SPAWN } from './back-transit-stop-layout.js';
 
 export const MAIN_GATE_SPAWN = Object.freeze({ x: 0, y: PLAYER_ORIGIN_Y, z: -98, yaw: 0 });
 export const BACK_GATE_SPAWN = Object.freeze({
@@ -28,6 +29,8 @@ export function campusSpawn({hostname='',search=''}={}){
     const d=BIRYONG_DISCOVER_RADIUS+3,{toEcho}=BIRYONG_AXIS;
     return {x:BIRYONG_CENTER.x+toEcho.x*d,y:PLAYER_ORIGIN_Y,z:BIRYONG_CENTER.z+toEcho.z*d,yaw:Math.atan2(toEcho.x,-toEcho.z)};
   }
+  if((hostname.endsWith('.vercel.app')||hostname==='localhost'||hostname==='127.0.0.1')&&requested==='back-gate-511')
+    return {...BACK_GATE_511_PREVIEW_SPAWN,y:PLAYER_ORIGIN_Y};
   if(requested==='gate-dorm-route')return {...GATE_DORM_ROUTE_SPAWN,y:PLAYER_ORIGIN_Y};
   if(requested==='dorm1-exterior')return {...DORM_1_EXTERIOR_SPAWN,y:PLAYER_ORIGIN_Y};
   if(requested==='gate-exterior')return {...GATE_EXTERIOR_SPAWN,y:PLAYER_ORIGIN_Y};

@@ -10,6 +10,7 @@ import { BUILDINGS } from './basic-campus.js';
 import { roadTreeClear, distanceToRoad } from './campus-road-layout.js';
 import { northRoadTreeClear } from './north-campus-layout.js';
 import { polygonOverlap } from './polygon-collision.js';
+import { BACK_GATE_511_STOP } from './back-transit-stop-layout.js';
 
 const roads=[...BACK_SEGMENTS,...BACK_APPROACH_SEGMENTS];
 const frontage=roads.filter(s=>s.road.osmWayId===1223158575||s.road.style==='avenue');
@@ -31,6 +32,7 @@ const signalPoles=BACK_SIGNAL_CROSSINGS.flatMap(q=>[-1,1].map(side=>({
 const assets=[];
 function add(s,u,v,kind){
   const frame=frameAt(s.frame,u,v),center=frame.at(0),tree=kind==='tree',radius=tree?.14:.07;
+  if(Math.hypot(center.x-BACK_GATE_511_STOP.x,center.z-BACK_GATE_511_STOP.z)<3.2)return;
   if(center.x-1.5<FACILITY_BOUNDS.minX||center.x+1.5>FACILITY_BOUNDS.maxX||center.z-1.5<FACILITY_BOUNDS.minZ||center.z+1.5>FACILITY_BOUNDS.maxZ)return;
   if(!roadTreeClear(center,.25)||!northRoadTreeClear(center,.25)||!sideGateTreeClear(center,.35))return;
   if(roads.some(r=>distanceToRoad(center,r)<r.road.width/2+radius+.2))return;
