@@ -35,6 +35,17 @@ function textRef(value, code, label, max = MAX_TEXT_REF_LENGTH) {
   return trimmed;
 }
 
+function freezeCopy(value) {
+  if (value == null) return value;
+  if (Array.isArray(value)) return Object.freeze(value.map(freezeCopy));
+  if (typeof value === 'object') {
+    return Object.freeze(Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [key, freezeCopy(item)])
+    ));
+  }
+  return value;
+}
+
 function canonicalize(value) {
   if (value === null) return 'null';
   if (typeof value === 'string') return JSON.stringify(value);
@@ -325,11 +336,11 @@ export async function createTmlMain2CanaryExecutionContract({
   };
 
   const contractFingerprint = await sha256Hex(canonicalize(body));
-  return Object.freeze({
+  return freezeCopy({
     ...body,
-    evidence: Object.freeze({
+    evidence: {
       contractFingerprint
-    }),
+    },
     id: `canary-contract.main2.${contractFingerprint.slice(0, 24)}`
   });
 }
