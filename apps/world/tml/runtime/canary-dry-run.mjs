@@ -66,6 +66,26 @@ function validateProposalPack(pack) {
   if (pack.canaryPlan.fullRolloutIncluded !== false) {
     fail('FULL_ROLLOUT_NOT_ALLOWED', 'P15 dry-run cannot accept a P14 pack that includes full rollout');
   }
+
+  const expectedPercents = [1, 5, 25];
+  if (pack.canaryPlan.phases.length !== expectedPercents.length ||
+      pack.canaryPlan.phases.some((phase, index) =>
+        phase?.audiencePercent !== expectedPercents[index] ||
+        phase?.entryMode !== 'HUMAN_APPROVAL_REQUIRED' ||
+        phase?.exitMode !== 'HUMAN_APPROVAL_REQUIRED')) {
+    fail('CANARY_PLAN_BOUNDARY_INVALID', 'P15 requires the human-gated 1/5/25 P14 canary plan');
+  }
+
+  if (pack.rollbackPlan?.targetAuthority !== 'legacy-main2' ||
+      pack.rollbackPlan?.automaticRollbackAllowed !== false) {
+    fail('ROLLBACK_PLAN_BOUNDARY_INVALID', 'P15 requires manual rollback proposal to legacy-main2');
+  }
+
+  if (pack.observabilityPlan?.mismatchBudget !== 0 ||
+      pack.observabilityPlan?.requiredSettlementCoverageDuringCanary !== 1) {
+    fail('OBSERVABILITY_PLAN_BOUNDARY_INVALID', 'P15 requires zero mismatch budget and 100% settlement coverage');
+  }
+
   return pack;
 }
 
