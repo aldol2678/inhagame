@@ -14,11 +14,11 @@ function selectedKey() {
     const key = `prod-subject-${index}`;
     if (assetCanarySelected(key, ASSET_PRODUCTION_CANARY_PERCENTAGE)) return key;
   }
-  throw new Error("selected 1% fixture key not found");
+  throw new Error("selected production fixture key not found");
 }
 
-test("production asset canary is pinned to one percent and one local-player asset", () => {
-  assert.equal(ASSET_PRODUCTION_CANARY_PERCENTAGE, 1);
+test("production optimized asset rollout is pinned to full cohort and one local-player asset", () => {
+  assert.equal(ASSET_PRODUCTION_CANARY_PERCENTAGE, 100);
   assert.equal(ASSET_PRODUCTION_CANARY_SOURCE, "/assets/induck-v3.glb");
 });
 
@@ -51,13 +51,13 @@ test("storage failure disables cohort identity instead of changing buckets", () 
   }), null);
 });
 
-test("selected production controller is one-percent, duck-only and marked production wired", () => {
+test("selected production controller is full-cohort, duck-only and marked production wired", () => {
   const key = selectedKey();
   const app = { assets: { loadFromUrl() {}, remove() {} } };
   const controller = createProductionAssetCanary({ app, enabled: true, subjectKeyOverride: key });
   assert.equal(controller.selected, true);
   assert.equal(controller.canary.enabled, true);
-  assert.equal(controller.canary.percentage, 1);
+  assert.equal(controller.canary.percentage, 100);
   assert.equal(controller.shadow.optimizedUrlFor("/assets/induck-v3.glb"),
     "/.generated/assets-optimized/induck-v3.glb");
   assert.equal(controller.shadow.optimizedUrlFor("/assets/induck-backpack-v1.glb"), null);
