@@ -3,10 +3,11 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 const main = readFileSync(new URL("../src/main.js", import.meta.url), "utf8");
+const inputRuntime = readFileSync(new URL("../src/input/world-input-runtime.js", import.meta.url), "utf8");
 const biryong = readFileSync(new URL("../src/biryong/biryong-system.js", import.meta.url), "utf8");
 
 test("Biryong scripted flow uses one BLOCKING_UI owner in main", () => {
-  assert.match(main, /ownerId: "biryong-scripted".*policy: INPUT_FOCUS_POLICY\.BLOCKING_UI/s);
+  assert.match(inputRuntime, /"biryong-scripted", INPUT_FOCUS_POLICY\.BLOCKING_UI/);
   assert.match(main, /onInputLockChange:\s*\(locked\)\s*=>\s*\{[\s\S]*biryongScriptedInput\.acquire\(\)[\s\S]*biryongScriptedInput\.release\(\)/s);
   const createBlock = main.match(/biryong = createBiryongSystem\(\{[\s\S]*?\n\}\);/)?.[0] ?? "";
   assert.doesNotMatch(createBlock, /\bcontroller\b/, "Biryong no longer receives direct PlayerController authority");
