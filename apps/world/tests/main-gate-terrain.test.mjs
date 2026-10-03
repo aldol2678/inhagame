@@ -9,6 +9,7 @@ import { moveAroundObstacles, resolveHeight, canOccupy } from '../src/world-coll
 import { MAIN_GATE_SPAWN } from '../src/campus-spawn.js';
 import { readFileSync } from 'node:fs';
 import { roadFrame, CAMPUS_PATH_WIDTHS } from '../src/campus-road-layout.js';
+import { gateGroundOverlaps, fillLegacyGateGround } from '../src/main-gate-surface-ownership.js';
 import { roadSurface } from '../src/campus-road-geometry.js';
 
 test('pavement layers are above lawn/asphalt and zebra is above all sidewalk details',()=>{
@@ -62,24 +63,30 @@ test('gate campus links stay flush and central pool rim corners share exactly on
   assert.ok(faces.flat().every(p=>p[1]>=0&&p[1]<=.08));
 });
 
-test('actual campus ground renderer replaces only the three gate links and one central rim',()=>{
+test('actual campus ground renderer clips every legacy gate overlap and retains other paths',()=>{
   const quads=[],segments=[];
   class Batch { quad(color,...points){quads.push({color,points});} finish(){} }
   const source=readFileSync(new URL('../src/campus-grounds.js',import.meta.url),'utf8')
     .replace(/^import .*;$/gm,'').replaceAll('export function','function');
   const render=new Function('pc','SITE_FEATURES','polygon','segment','surface','box','pondWaterMaterial',
     'CAMPUS_PATH_WIDTHS','FacilityMeshBatch','roadSurface','roadFrame','MAIN_GATE_CAMPUS_LINK_IDS','L',
-    'MAIN_GATE_CENTRAL_POOL_ID','gateCentralPoolRimFaces',source+';return buildCampusGrounds;')(
+    'MAIN_GATE_CENTRAL_POOL_ID','gateCentralPoolRimFaces','gateGroundOverlaps','fillLegacyGateGround',source+';return buildCampusGrounds;')(
       {Application:{getApplication:()=>({graphicsDevice:{}})}},SITE_FEATURES,()=>{},(_root,id)=>segments.push(id),x=>x,
       ()=>{},()=>{},CAMPUS_PATH_WIDTHS,Batch,roadSurface,roadFrame,MAIN_GATE_CAMPUS_LINK_IDS,
-      MAIN_GATE_CAMPUS_LINK_LEVELS,MAIN_GATE_CENTRAL_POOL_ID,gateCentralPoolRimFaces);
+      MAIN_GATE_CAMPUS_LINK_LEVELS,MAIN_GATE_CENTRAL_POOL_ID,gateCentralPoolRimFaces,gateGroundOverlaps,fillLegacyGateGround);
   render({});
-  assert.equal(quads.filter(q=>q.color==='#747d7b').length,3);
+  assert.ok(quads.some(q=>q.color==='#747d7b'));
+  for(const q of quads.filter(q=>['#747d7b','#b4b4a8'].includes(q.color)))
+    assert.equal(gateGroundOverlaps(q.points.map(p=>({x:p[0],z:p[2]}))),false,'legacy pavement stays outside gate apron');
   assert.ok(quads.filter(q=>q.color==='#747d7b').every(q=>q.points.every(p=>p[1]===MAIN_GATE_CAMPUS_LINK_LEVELS.road)));
   assert.ok(segments.every(id=>!MAIN_GATE_CAMPUS_LINK_IDS.some(prefix=>id===`${prefix}_1`||id===`${prefix}_sidewalk_1`)&&!id.startsWith(MAIN_GATE_CENTRAL_POOL_ID)));
   for(const feature of SITE_FEATURES.filter(f=>f.kind==='path'))
-    for(let i=1;i<feature.vertices.length;i++)if(i!==1||!MAIN_GATE_CAMPUS_LINK_IDS.includes(feature.id))
-      assert.ok(segments.includes(`${feature.id}_${i}`),'other path segment retained: '+feature.id+'_'+i);
+    for(let i=1;i<feature.vertices.length;i++){
+      const f=roadFrame(feature.vertices[i-1],feature.vertices[i]),h=((CAMPUS_PATH_WIDTHS[feature.id]||3.5)+2.1)/2;
+      const clipped=gateGroundOverlaps([f.at(0,-h),f.at(f.length,-h),f.at(f.length,h),f.at(0,h)]);
+      const flush=i===1&&MAIN_GATE_CAMPUS_LINK_IDS.includes(feature.id);
+      assert.equal(segments.includes(`${feature.id}_${i}`),!clipped&&!flush,'legacy segment '+feature.id+'_'+i);
+    }
   assert.equal(quads.filter(q=>q.color==='#c8c7b4').length,12);
 });
 
