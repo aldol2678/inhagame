@@ -29,6 +29,18 @@ values ('asset_glb_canary_v1', false)
 on conflict (flag) do nothing;
 
 alter table public.inhagame_hub_events
+  drop constraint if exists inhagame_hub_events_target_check;
+alter table public.inhagame_hub_events
+  add constraint inhagame_hub_events_target_check check (
+    target is null or target in (
+      'classic','induckup','survival','campus','induck-grow',
+      'C01_GATE','C02_MAIN_HALL','C03_CENTRAL',
+      'inkyung_living','first_campus','main2_back_gate_guide',
+      'induck_v3'
+    )
+  );
+
+alter table public.inhagame_hub_events
   drop constraint if exists inhagame_hub_events_event_type_check;
 alter table public.inhagame_hub_events
   add constraint inhagame_hub_events_event_type_check check (
