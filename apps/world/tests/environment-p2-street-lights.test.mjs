@@ -46,9 +46,15 @@ test('P2 graphics budgets keep mobile LOW emissive-only and cap real omni lights
 
 test('lamp head follows the observed roadside LED head offset and height', () => {
   const lamp = { frame: frame(10, 20, 35), side: 1, height: 4.6 };
-  assert.deepEqual(lampHeadPosition(lamp), { x: 10, y: 4.655, z: 19.07 });
+  const first = lampHeadPosition(lamp);
+  assert.equal(first.x, 10);
+  assert.ok(Math.abs(first.y - 4.655) < 1e-9);
+  assert.ok(Math.abs(first.z - 19.07) < 1e-9);
   const opposite = { frame: frame(-5, 7), side: -1, height: 4.6 };
-  assert.deepEqual(lampHeadPosition(opposite), { x: -5, y: 4.655, z: 7.93 });
+  const second = lampHeadPosition(opposite);
+  assert.equal(second.x, -5);
+  assert.ok(Math.abs(second.y - 4.655) < 1e-9);
+  assert.ok(Math.abs(second.z - 7.93) < 1e-9);
 });
 
 test('nearest real-light selection is deterministic, distance bounded, and budget bounded', () => {
