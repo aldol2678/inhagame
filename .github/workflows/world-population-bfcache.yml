@@ -1,0 +1,32 @@
+name: World population BFCache
+on:
+  pull_request:
+    paths:
+      - 'apps/world/src/online/world-population-heartbeat.js'
+      - 'apps/world/tests/world-population-heartbeat.test.mjs'
+      - 'apps/world/tests/browser/world-population-bfcache-smoke.mjs'
+      - 'apps/world/tests/browser/package*.json'
+      - '.github/workflows/world-population-bfcache.yml'
+permissions:
+  contents: read
+jobs:
+  bfcache:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - run: npm ci --prefix apps/world/tests/browser --ignore-scripts --no-audit --no-fund
+      - run: cd apps/world/tests/browser && npx --no-install playwright install --with-deps --no-shell chromium
+      - run: node apps/world/tests/browser/world-population-bfcache-smoke.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: world-population-bfcache
+          path: test-results/world-population-bfcache.json
+          if-no-files-found: warn
+          retention-days: 7
