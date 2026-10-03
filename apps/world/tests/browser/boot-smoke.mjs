@@ -446,7 +446,7 @@ try {
   assert.equal(menuToSettings.movementEnabled, false, "movement never leaks during menu → Settings");
   assert.equal(menuToSettings.pointerLock.desired, false);
 
-  await page.locator("#close-settings").click();
+  await page.evaluate(() => document.getElementById("close-settings")?.click());
   await Promise.race([
     page.waitForFunction(() => {
       const d = window.__INHAGAME_P0__;
