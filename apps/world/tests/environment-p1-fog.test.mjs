@@ -55,7 +55,7 @@ const near = (actual, expected, epsilon = 1e-9) =>
   assert.ok(Math.abs(actual - expected) <= epsilon, `${actual} != ${expected}`);
 
 test('P1 weather contract exposes CLEAR and FOG with preview-only fail-safe override', () => {
-  assert.deepEqual(Object.keys(ENVIRONMENT_WEATHER_PRESETS), ['CLEAR', 'CLOUDY', 'FOG', 'RAIN']);
+  assert.deepEqual(Object.keys(ENVIRONMENT_WEATHER_PRESETS), ['CLEAR', 'CLOUDY', 'FOG', 'RAIN', 'SNOW']);
   const clear = ENVIRONMENT_WEATHER_PRESETS.CLEAR;
   const fog = ENVIRONMENT_WEATHER_PRESETS.FOG;
   assert.equal(clear.fogType, 'none');
