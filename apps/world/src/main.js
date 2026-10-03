@@ -141,6 +141,7 @@ import { createHudContext } from "./hud/hud-context.js";
 import { bindHudPresentation } from "./hud/hud-presentation.js";
 import { createHelicopterFlightHud } from "./mounts/helicopter-flight-hud.js";
 import { createMobilityBook } from "./mobility/mobility-book.js";
+import { FLAG_ENABLED, FLAG_UNAVAILABLE, probeFeatureFlag, retryFeatureFlag } from "./npc-feature-flags.js";
 
 const canvas = document.getElementById("application");
 const worldLoading = getWorldLoading();
@@ -1953,17 +1954,17 @@ async function loadOptionalNpcRuntime() {
   if (!npcEnabled) return null;
   let npcAiEnabled = npcAiPilotMode;
   let npcQuestEnabled = npcTestMode || (npcPreviewMode && startupParams.get('backGateArrival') === 'preview');
+  // CORE-15: each flag probe is bounded, so a slow AI flag never holds the NPCs or the first quest.
+  // A transient quest-flag failure starts the NPCs with the quest off and turns it on once it resolves.
+  let questFlagPending = false;
   if (npcProductionMode) {
     const [aiResult, questResult] = await Promise.all([
-      fetch('/api/npc-ai', { cache: 'no-store' })
-        .then(async response => response.ok && (await response.json()).enabled === true)
-        .catch(() => false),
-      fetch('/api/world-quest', { cache: 'no-store' })
-        .then(async response => response.ok && (await response.json()).enabled === true)
-        .catch(() => false)
+      probeFeatureFlag('/api/npc-ai'),
+      probeFeatureFlag('/api/world-quest')
     ]);
-    npcAiEnabled = aiResult;
-    npcQuestEnabled = questResult;
+    npcAiEnabled = aiResult === FLAG_ENABLED;
+    npcQuestEnabled = questResult === FLAG_ENABLED;
+    questFlagPending = questResult === FLAG_UNAVAILABLE;
   }
   try {
     const module = await import('../npc-factory/dev-runtime.mjs');
@@ -2039,6 +2040,11 @@ async function loadOptionalNpcRuntime() {
     } : null);
     inkyungLivingMoment?.setNpcAvailable(true);
     npcTest?.setAiSignedIn?.(npcAiSignedIn);
+    if (questFlagPending) {
+      retryFeatureFlag('/api/world-quest', {
+        onResolved: enabled => { if (enabled && npcTest === runtime) void runtime.setQuestEnabled(true); }
+      });
+    }
     npcTest?.observeNavigation?.(navigation?.getSnapshot?.() ?? null);
     const autoMoveSnapshot = playerAutoMove?.snapshot?.();
     if (autoMoveSnapshot) npcTest?.observeAutoMove?.(autoMoveSnapshot, autoMoveSnapshot.active ? 'ready' : 'sync');

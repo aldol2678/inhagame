@@ -3,7 +3,7 @@ import { roadviewGroundHeight } from '../src/roadview-layout.js';
 import { findSeat, SEAT_TOP_Y } from '../src/seat-anchors.js';
 import { metersToWorld } from '../src/world-scale.js';
 import { PULSE_PERIODS, PERIOD_SECONDS, CYCLE_SECONDS, periodAt, snapshotForPeriod, validateDevCandidate, inspectionPointFor } from './dev-runtime-state.mjs';
-import { appearanceFor, validateDevRoster } from './dev-appearance.mjs';
+import { appearanceFor } from './dev-appearance.mjs';
 import { createHumanAvatar } from './dev-human-avatar.mjs';
 import { npcNameplateOffset, npcSeatAnchorHeight } from './npc-dimensions.mjs';
 import { createNpcNavigator, advanceRoute } from './dev-navigation.mjs';
@@ -20,8 +20,7 @@ import { createSharedMeetings, createSharedMeetingObserver } from './npc-shared-
 import { bindSharedSchedule } from './npc-shared-schedule.mjs';
 import { worldScheduleAt, NPC_SCHEDULE_REVISION } from './npc-world-time-contract.mjs';
 import { createPurposefulRoster } from './purposeful-roster.mjs';
-import { applyCampusLifeSchedule } from './npc-campus-life-policy.mjs';
-import { mergeCampusPopulation } from './npc-campus-expansion.mjs';
+import { loadNpcPopulation } from './npc-population-loader.mjs';
 import { createPurposefulSocialMotion } from './purposeful-social-motion.mjs';
 import { purposefulActivityPose } from './purposeful-activity-motion.mjs';
 import { createQuestClient } from './quest-client.mjs';
@@ -30,10 +29,6 @@ import { createMain2QuestClient } from './main2-quest-client.mjs';
 import { MAIN2_QUEST_ID } from './main2-quest-contract.mjs';
 import { createMain2GuideRuntime } from './main2-guide-runtime.mjs';
 
-const candidateUrl = '/npc-factory/data/repaired/INKYUNG-20-A-R1.json';
-const decisionUrl = '/npc-factory/data/fixtures/public-fixture.json';
-const rosterUrl = '/npc-factory/data/fixtures/public-roster.json';
-const expansionUrl = '/npc-factory/data/expansion/CAMPUS-28-P2A.json';
 const aiPilotIds = new Set([MAIN_NPC_ID, QUEST_NPC_ID]);
 const NPC_TALK_RADIUS = metersToWorld(3);
 const NPC_CONVERSATION_RELEASE_RADIUS = metersToWorld(5);
@@ -139,29 +134,6 @@ function addPanel(production = false, externalContextAction = false) {
   if (!production) document.getElementById('tour').hidden = true;
   return panel;
 }
-async function loadCandidate() {
-  const [candidateResponse, decisionResponse, rosterResponse, expansionResponse] = await Promise.all([
-    fetch(candidateUrl), fetch(decisionUrl), fetch(rosterUrl), fetch(expansionUrl)
-  ]);
-  if (!candidateResponse.ok || !decisionResponse.ok || !rosterResponse.ok || !expansionResponse.ok)
-    throw new Error('NPC base candidate, decision, roster or campus expansion unavailable');
-  const bytes = await candidateResponse.arrayBuffer();
-  const digest = await crypto.subtle.digest('SHA-256', bytes);
-  const actualHash = [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2, '0')).join('');
-  const decision = await decisionResponse.json();
-  if (decision.candidate_sha256 !== actualHash || decision.npc_count !== 20 ||
-      decision.kind !== 'SYNTHETIC_PUBLIC_QA' || decision.human_approval !== false) throw new Error('Public QA fixture/hash mismatch');
-  const sourceBatch = validateDevCandidate(JSON.parse(new TextDecoder().decode(bytes)));
-  const baseRoster = validateDevRoster(sourceBatch, await rosterResponse.json(), actualHash);
-  const { batch: mergedBatch, roster } = mergeCampusPopulation(
-    sourceBatch,
-    baseRoster,
-    await expansionResponse.json()
-  );
-  const batch = validateDevCandidate(mergedBatch);
-  return { batch, roster, hash: actualHash };
-}
-
 export async function createNpcDevRuntime({ app, campusRoot, player, orbit, production = false, aiPilot = false,
   sharedSchedulePreview = false,
   socialEnabled = false, socialPreview = false, socialBehaviorPreview = false,
@@ -179,7 +151,10 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
     socialEnabled = false; socialPreview = false;
     socialBehaviorPreview = false; observedConversationPreview = false;
   }
-  const { batch, roster, hash } = await loadCandidate();
+  // CORE-15: the base 20 carries both first-walk quest NPCs; the campus expansion is optional.
+  const { batch, roster, hash, expansion: populationExpansion } = await loadNpcPopulation({
+    onExpansionError: error => console.warn('Campus NPC expansion unavailable; continuing with the base roster:', error)
+  });
   const worldClock = sharedSchedulePreview ? createNpcWorldClock() : null;
   if (worldClock) {
     await worldClock.sync();
@@ -1048,6 +1023,8 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
   const api = {
     handlesTalkKey,
     setAiSignedIn,
+    // CORE-15: the quest flag may resolve after the NPCs are up; turning it on re-reads progress.
+    setQuestEnabled: enabled => Promise.all([quest.setEnabled(enabled), main2Quest.setEnabled(enabled)]),
     observePlace: (placeId, position) => {
       quest.observePlace(placeId, position);
       main2Quest.observePlace(placeId, position);
@@ -1069,6 +1046,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
       return closed;
     },
     getStatus: () => ({ status: 'READY', candidate_sha256: hash, npc_count: batch.npcs.length,
+      population: { batch_id: batch.batch_id, expansion: populationExpansion },
       period: snapshot.period, local_count: [...avatars.values()].filter(v => v.motion.position).length,
       off_zone_count: [...avatars.values()].filter(v => !v.motion.position).length,
       largest_crowd: snapshot.largestCrowd, visible_entities: [...avatars.values()].filter(v => v.avatar.enabled).length,

@@ -135,6 +135,20 @@ export function createMain2QuestClient({
     return true;
   }
 
+  function setSignedIn(value) {
+    generation += 1;
+    clearStatusRetry({ resetAttempt: true });
+    pending = null;
+    signedIn = Boolean(value);
+    stage = 0;
+    available = false;
+    statusReady = false;
+    deferredAutoMoveDestinationId = null;
+    refreshDeferred = false;
+    publish();
+    return signedIn ? send('status').catch(() => null) : Promise.resolve(null);
+  }
+
   return Object.freeze({
     get stage() { return stage; },
     status,
@@ -148,18 +162,13 @@ export function createMain2QuestClient({
       if (!enabled || !signedIn || !available || stage !== 0) return Promise.resolve(null);
       return send('start');
     },
-    setSignedIn(value) {
-      generation += 1;
-      clearStatusRetry({ resetAttempt: true });
-      pending = null;
-      signedIn = Boolean(value);
-      stage = 0;
-      available = false;
-      statusReady = false;
-      deferredAutoMoveDestinationId = null;
-      refreshDeferred = false;
-      publish();
-      return signedIn ? send('status').catch(() => null) : Promise.resolve(null);
+    setSignedIn,
+    // CORE-15: the quest flag can resolve after the runtime is built.
+    setEnabled(value) {
+      const next = Boolean(value);
+      if (next === Boolean(enabled)) return Promise.resolve(null);
+      enabled = next;
+      return setSignedIn(signedIn);
     },
     mapTarget() {
       if (!enabled || !signedIn || !available || stage >= 9) return null;
