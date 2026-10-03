@@ -7,6 +7,8 @@ import { FacilityMeshBatch } from './facility-mesh-batch.js';
 import { roadSurface } from './campus-road-geometry.js';
 import { MAIN_GATE_CAMPUS_LINK_IDS, MAIN_GATE_CAMPUS_LINK_LEVELS as L, MAIN_GATE_CENTRAL_POOL_ID, gateCentralPoolRimFaces } from './main-gate-terrain-layout.js';
 
+import { gateGroundOverlaps, fillLegacyGateGround } from './main-gate-surface-ownership.js';
+
 export function buildCampusGrounds(root) {
   const gateBatch=new FacilityMeshBatch();
   for(const feature of SITE_FEATURES) {
@@ -15,6 +17,13 @@ export function buildCampusGrounds(root) {
       for(let i=1;i<points.length;i++) {
         // Width is a presentation estimate; the source centreline is retained.
         const width=CAMPUS_PATH_WIDTHS[feature.id]||3.5;
+        const frame=roadFrame(points[i-1],points[i]);
+        const strip=w=>[frame.at(0,-w/2),frame.at(frame.length,-w/2),frame.at(frame.length,w/2),frame.at(0,w/2)];
+        if(gateGroundOverlaps(strip(width+2.1))){
+          fillLegacyGateGround(gateBatch,'#b4b4a8',strip(width+2.1),L.edge);
+          fillLegacyGateGround(gateBatch,'#747d7b',strip(width),L.road);
+          continue;
+        }
         if(i===1&&MAIN_GATE_CAMPUS_LINK_IDS.includes(feature.id)){
           const f=roadFrame(points[i-1],points[i]);
           roadSurface(gateBatch,'#b4b4a8',f,0,f.length,-(width+2.1)/2,(width+2.1)/2,L.edge);
@@ -33,7 +42,7 @@ export function buildCampusGrounds(root) {
       polygon(root,feature.id,points,surface('#729451'),{y:.018});
     }
   }
-  gateBatch.finish(root,'main_gate_campus_ground_links');
+  gateBatch.finish(root,'main_gate_campus_ground_links',{castShadows:false});
 }
 
 export function buildCampusTrees(root,trees) {
