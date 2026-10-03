@@ -5,6 +5,8 @@ import { GATE_FRAME } from './roadview-layout.js';
 import { roadFrame, distanceToRoad } from './campus-road-layout.js';
 import { mainGateProductionPath } from './editor/main-gate-production.js';
 
+import { gateForecourtTreeClear } from './main-gate-forecourt.js';
+
 const g=GATE_FRAME.at;
 const authored=id=>mainGateProductionPath(id);
 
@@ -17,7 +19,8 @@ export const GATE_DORM_PATHS=[
   authored('sosung_north_sidewalk_east'),
   authored('sosung_south_sidewalk'),
   authored('main_gate_pedestrian_exit'),
-  authored('dorm1_entry_path')
+  authored('dorm1_entry_path'),
+  authored('main_gate_red_promenade')
 ];
 export const GATE_DORM_CROSSINGS=[
   authored('sosung_crossing_west'),
@@ -38,5 +41,6 @@ export const GATE_DORM_WALK_ROUTE=[
   eastCrossing.vertices.at(-1),
   ...dormEntry.vertices
 ];
-export const gateDormRoadTreeClear=(p,radius=1.9)=>GATE_DORM_SEGMENTS.every(s=>distanceToRoad(p,s)>s.road.width/2+radius);
+export const gateDormRoadTreeClear=(p,radius=1.9)=>gateForecourtTreeClear(p,radius)&&GATE_DORM_SEGMENTS.every(s=>distanceToRoad(p,s)>s.road.width/2+radius);
 export const GATE_DORM_ROUTE_SPAWN={...g(11,-21),yaw:-Math.atan2(HALL_FRONT.inward.x,HALL_FRONT.inward.z)};
+

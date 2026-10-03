@@ -18,6 +18,8 @@ import {
   createMiniMapDataSource
 } from "../src/minimap/minimap-data.js";
 
+import { MAIN_GATE_FORECOURT_RING } from '../src/main-gate-forecourt.js';
+
 const byId = list => new Map(list.map(item => [item.id ?? item.poiId, item]));
 const centre = points => ({
   x: points.reduce((sum, p) => sum + p.x, 0) / points.length,
@@ -69,8 +71,9 @@ test("M0 geometry includes runtime-aligned roads, authored paths, green and wate
     .reduce((sum, feature) => sum + feature.vertices.length - 1, 0)
     + GARDEN_LIBRARY_ROAD_LINK.length - 1
     + (LIBRARY_ROUTE_LINES.find(line => line.id === "garden_library_north_link")?.nodes.length ?? 1) - 1;
-  assert.equal(geometry.filter(item => item.kind === MINIMAP_GEOMETRY_KIND.ROAD).length, expectedRoadSegments);
-  assert.equal(geometry.filter(item => item.kind === MINIMAP_GEOMETRY_KIND.PATH).length, expectedPathSegments);
+  assert.equal(geometry.filter(item => item.kind === MINIMAP_GEOMETRY_KIND.ROAD).length, expectedRoadSegments + 1, 'curb-derived gate forecourt is an additional road polygon');
+  assert.deepEqual(geometry.find(item => item.id === 'maproad.main_gate_forecourt').rings, [MAIN_GATE_FORECOURT_RING]);
+  assert.equal(geometry.filter(item => item.kind === MINIMAP_GEOMETRY_KIND.PATH).length, expectedPathSegments - 3, 'three fully covered legacy gate path segments are suppressed');
   assert.ok(ids.has("mappath.garden_library_road_link.0"), "J05 physical walkway is visible on the map");
   assert.ok(ids.has("mappath.garden_library_north_link.0"), "J10 physical walkway is visible on the map");
   assert.ok(ids.has("maproad.anniversary_back_gate_link.0"), "J12/J15 physical bypass is visible on the map");
@@ -88,7 +91,7 @@ test("road and path strips are centred on the same runtime centerlines used by t
   const stripCenter = centre(roadStrip.rings[0]);
   assert.ok(Math.hypot(stripCenter.x - midpoint.x, stripCenter.z - midpoint.z) < 1e-9);
 
-  const path = SITE_FEATURES.find(item => item.kind === "path" && item.vertices.length >= 2);
+  const path = SITE_FEATURES.find(item => item.id === "site_481241659");
   const pathStrip = geometry.get(`mappath.${path.id}.0`);
   assert.equal(pathStrip.kind, MINIMAP_GEOMETRY_KIND.PATH);
   assert.equal(pathStrip.source, "SITE_FEATURES_PATH");

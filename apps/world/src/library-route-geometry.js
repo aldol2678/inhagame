@@ -1,3 +1,4 @@
+import { fillLegacyGateGround } from './main-gate-surface-ownership.js';
 import { FacilityMeshBatch } from './facility-mesh-batch.js';
 import { LIBRARY_BANK_CELLS, LIBRARY_ROUTE_CELLS, LIBRARY_ROUTE_GUARDS } from './library-route-layout.js';
 
@@ -12,6 +13,11 @@ export function buildLibraryRoute(root){
     }
   }
   for(const q of LIBRARY_ROUTE_CELLS){
+    // This level approach is superseded by the editor-owned gate apron.
+    if(q.line==='main_gate_walk_link'){
+      fillLegacyGateGround(b,'#b5b2a4',q.polygon,.045);
+      continue;
+    }
     const [a,c,d,e]=q.polygon;
     // Preserve the physics diagonal even when a mitered slope is not planar.
     for(const vertices of [[a,c,d],[a,d,e]]){

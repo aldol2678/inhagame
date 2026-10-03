@@ -1,3 +1,4 @@
+import { clipLegacyGateGround } from '../main-gate-surface-ownership.js';
 // INHA WORLD Mini-map M0 runtime data adapter.
 // This is the only Mini-map module that knows current Campus data owners.
 // It derives geometry/POIs from existing world registries and never owns unlock rules.
@@ -13,6 +14,7 @@ import { CULTURE_BUILDINGS } from "../culture-street-layout.js";
 import { MARKET_MAP_BUILDINGS } from "../back-market-layout.js";
 import { INTERIOR_BUILDINGS } from "../market-interior-layout.js";
 import { INTERIOR_PATHS, INTERIOR_COURTS } from "../market-interior-plan.js";
+import { MAIN_GATE_FORECOURT_RING } from "../main-gate-forecourt.js";
 import { GATE_DORM_CORRIDORS } from "../main-gate-road-layout.js";
 import { GARDEN_LIBRARY_ROAD_LINK } from "../library-garden-layout.js";
 import { LIBRARY_ROUTE_LINES } from "../library-route-layout.js";
@@ -85,11 +87,14 @@ function segmentStrip(a, b, width, overlap = 0.14) {
 
 function addCorridorSegments(add, { id, vertices, width, kind, source, style }) {
   for (let i = 0; i < vertices.length - 1; i += 1) {
+    const strip=segmentStrip(vertices[i], vertices[i + 1], width);
+    const sourceRings=['CAMPUS_ROADS','SITE_FEATURES_PATH'].includes(source)?clipLegacyGateGround(strip):[strip];
+    if(!sourceRings.length)continue;
     add(geometryRecord(
       `${kind === MINIMAP_GEOMETRY_KIND.ROAD ? "maproad" : "mappath"}.${id}.${i}`,
       kind,
       source,
-      [segmentStrip(vertices[i], vertices[i + 1], width)],
+      sourceRings,
       style
     ));
   }
@@ -103,6 +108,8 @@ function buildGeometry() {
     ids.add(record.id);
     records.push(record);
   };
+
+  add(geometryRecord('maproad.main_gate_forecourt',MINIMAP_GEOMETRY_KIND.ROAD,'MAIN_GATE_FORECOURT',[MAIN_GATE_FORECOURT_RING],'road'));
 
   // Roads and authored walkways use the exact runtime centerlines and widths.
   for(const corridor of GATE_DORM_CORRIDORS)addCorridorSegments(add,{
@@ -469,4 +476,5 @@ export function createMiniMapDataSource({
     })
   });
 }
+
 

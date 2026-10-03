@@ -328,12 +328,27 @@
           "pathType": "walkway",
           "points": [
             [
-              13.6,
+              27.4,
               0,
-              18
+              24
             ],
             [
-              13.6,
+              27.4,
+              0,
+              22
+            ],
+            [
+              21.4,
+              0,
+              14
+            ],
+            [
+              17.4,
+              0,
+              0
+            ],
+            [
+              17.4,
               0,
               -16
             ],
@@ -343,7 +358,7 @@
               -16
             ]
           ],
-          "widthMeters": 3.2,
+          "widthMeters": 2.4,
           "closed": false
         }
       },
@@ -642,7 +657,7 @@
     },
     {
       "id": "entity.main-gate.gate-traffic-island-green",
-      "name": "정문 교통섬 · 녹지",
+      "name": "정문 교통섬 · 회색 포장",
       "kind": "structure",
       "parentId": null,
       "enabled": true,
@@ -678,7 +693,7 @@
             0.012,
             7.3
           ],
-          "color": "#739057"
+          "color": "#bcbfbc"
         }
       },
       "metadata": {
@@ -687,7 +702,8 @@
           "id": "gate_traffic_island_green",
           "kind": "STRUCTURE",
           "role": "traffic-island"
-        }
+        },
+        "referenceNote": "Gray paved island observed in supplied roadview. Legacy production ID retained for compatibility; footprint unchanged."
       }
     },
     {
@@ -698,7 +714,7 @@
       "enabled": true,
       "transform": {
         "position": [
-          24,
+          27,
           2.4,
           6.2
         ],
@@ -851,7 +867,7 @@
       "enabled": true,
       "transform": {
         "position": [
-          32,
+          33.5,
           1.5,
           0
         ],
@@ -877,7 +893,7 @@
         "world.structure": {
           "shape": "box",
           "sizeMeters": [
-            32,
+            29,
             3,
             2.4
           ],
@@ -902,7 +918,7 @@
       "enabled": true,
       "transform": {
         "position": [
-          32,
+          33.5,
           3.1,
           0
         ],
@@ -929,7 +945,7 @@
         "world.structure": {
           "shape": "box",
           "sizeMeters": [
-            32,
+            29,
             0.2,
             2.4
           ],
@@ -1089,7 +1105,7 @@
       "enabled": true,
       "transform": {
         "position": [
-          24,
+          27,
           4.9,
           6.2
         ],
@@ -1139,7 +1155,7 @@
       "enabled": true,
       "transform": {
         "position": [
-          24,
+          27,
           2.7,
           2.32
         ],
@@ -1189,7 +1205,7 @@
       "enabled": true,
       "transform": {
         "position": [
-          19.92,
+          22.92,
           1.8,
           7.8
         ],
@@ -1239,7 +1255,7 @@
       "enabled": true,
       "transform": {
         "position": [
-          24,
+          27,
           4.3,
           2.2
         ],
@@ -1289,7 +1305,7 @@
       "enabled": true,
       "transform": {
         "position": [
-          24,
+          27,
           4.96,
           6.2
         ],
@@ -1339,7 +1355,7 @@
       "enabled": true,
       "transform": {
         "position": [
-          21.1,
+          24.1,
           2.7,
           2.2
         ],
@@ -1389,7 +1405,7 @@
       "enabled": true,
       "transform": {
         "position": [
-          23,
+          26,
           2.7,
           2.2
         ],
@@ -1439,7 +1455,7 @@
       "enabled": true,
       "transform": {
         "position": [
-          25,
+          28,
           2.7,
           2.2
         ],
@@ -1489,7 +1505,7 @@
       "enabled": true,
       "transform": {
         "position": [
-          26.9,
+          29.9,
           2.7,
           2.2
         ],
@@ -1539,7 +1555,7 @@
       "enabled": true,
       "transform": {
         "position": [
-          24,
+          27,
           2.7,
           2.16
         ],
@@ -1589,7 +1605,7 @@
       "enabled": true,
       "transform": {
         "position": [
-          24,
+          27,
           0.6,
           2.37
         ],
@@ -1639,7 +1655,7 @@
       "enabled": true,
       "transform": {
         "position": [
-          24,
+          27,
           1.2,
           2.37
         ],
@@ -1689,7 +1705,7 @@
       "enabled": true,
       "transform": {
         "position": [
-          24,
+          27,
           1.8,
           2.37
         ],
@@ -1729,6 +1745,64 @@
           "kind": "STRUCTURE",
           "role": "guardhouse-detail"
         }
+      }
+    },
+    {
+      "id": "entity.main-gate.inner-red-promenade",
+      "name": "정문 안쪽 붉은 횡단 보행로",
+      "kind": "path",
+      "parentId": null,
+      "enabled": true,
+      "transform": {
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "tags": [
+        "inha-editor",
+        "main-gate",
+        "corridor"
+      ],
+      "components": {
+        "world.path": {
+          "pathType": "walkway",
+          "points": [
+            [
+              -25.8,
+              0,
+              24
+            ],
+            [
+              25.8,
+              0,
+              24
+            ]
+          ],
+          "widthMeters": 4,
+          "closed": false
+        }
+      },
+      "metadata": {
+        "production": {
+          "owner": "main-gate",
+          "id": "main_gate_red_promenade",
+          "kind": "PATH",
+          "role": "red-promenade"
+        },
+        "referenceNote": "User supplied Naver satellite and roadview screenshots, 2026-10-02. Approximate visual fit, not surveyed dimensions."
       }
     }
   ],
