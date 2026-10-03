@@ -168,6 +168,7 @@ export function createSkyVisuals({
     sunIntensity: 1.15,
     artificialLightFactor: 0,
     rainIntensity: 0,
+    snowIntensity: 0,
     cloudCover: 0.24,
     sunLightScale: 1
   };
@@ -183,6 +184,7 @@ export function createSkyVisuals({
     sunIntensity: Number.NaN,
     artificialLightFactor: Number.NaN,
     rainIntensity: Number.NaN,
+    snowIntensity: Number.NaN,
     cloudCover: Number.NaN,
     sunLightScale: Number.NaN
   };
@@ -202,6 +204,7 @@ export function createSkyVisuals({
       Math.abs(skyState.sunIntensity - lastMaterialSignal.sunIntensity) >= 0.002 ||
       Math.abs(skyState.artificialLightFactor - lastMaterialSignal.artificialLightFactor) >= 0.002 ||
       Math.abs(skyState.rainIntensity - lastMaterialSignal.rainIntensity) >= 0.002 ||
+      Math.abs(skyState.snowIntensity - lastMaterialSignal.snowIntensity) >= 0.002 ||
       Math.abs(skyState.cloudCover - lastMaterialSignal.cloudCover) >= 0.002 ||
       Math.abs(skyState.sunLightScale - lastMaterialSignal.sunLightScale) >= 0.002;
     if (!colorChanged && !scalarChanged) return;
@@ -227,6 +230,7 @@ export function createSkyVisuals({
     lastMaterialSignal.sunIntensity = skyState.sunIntensity;
     lastMaterialSignal.artificialLightFactor = skyState.artificialLightFactor;
     lastMaterialSignal.rainIntensity = skyState.rainIntensity;
+    lastMaterialSignal.snowIntensity = skyState.snowIntensity;
     lastMaterialSignal.cloudCover = skyState.cloudCover;
     lastMaterialSignal.sunLightScale = skyState.sunLightScale;
   }
@@ -260,6 +264,7 @@ export function createSkyVisuals({
       cloudDrawMeshes: 1,
       cloudOpacity: cloudProfile.opacity,
       cloudCover: skyState.cloudCover,
+      snowIntensity: skyState.snowIntensity,
       cloudColor: Object.freeze([...cloudProfile.color]),
       sunVisible: sunProfile.visible,
       sunOpacity: sunProfile.opacity,
