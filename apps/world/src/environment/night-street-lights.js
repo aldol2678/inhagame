@@ -76,7 +76,7 @@ export function createNightStreetLights({
   root,
   app,
   getPlayerPosition,
-  getEnvironment,
+  getArtificialLightFactor,
   getGraphicsTier,
   rebalanceSeconds = 0.2
 }) {
@@ -129,8 +129,7 @@ export function createNightStreetLights({
 
   function update(dt) {
     if (destroyed) return;
-    const env = getEnvironment?.();
-    applyFactor(env?.artificialLightFactor ?? 0);
+    applyFactor(getArtificialLightFactor?.() ?? 0);
     elapsed += Math.max(0, Number.isFinite(dt) ? dt : 0);
     const nextTier = getGraphicsTier?.() ?? 'medium';
     if (nextTier !== tier || elapsed >= rebalanceSeconds) {
