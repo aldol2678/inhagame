@@ -1,3 +1,5 @@
+import { NodeIO } from "@gltf-transform/core";
+import { ALL_EXTENSIONS } from "@gltf-transform/extensions";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
@@ -22,6 +24,8 @@ test("production optimizer config is a narrow three-asset allowlist", async () =
   ]);
   assert.equal(config.policy.onTransformError, "copy-source");
   assert.equal(config.policy.strictRejectsFallback, true);
+  assert.equal(config.assets.find(item => item.file === "induck-v3.glb").keepEmptyLeafNodes, true);
+  assert.equal(config.assets.find(item => item.file === "induck-backpack-v1.glb").keepEmptyLeafNodes, undefined);
 });
 
 test("strict allowlist optimization preserves sources and optimizes all validated GLBs", async () => {
@@ -52,6 +56,15 @@ test("strict allowlist optimization preserves sources and optimizes all validate
 
     const report = JSON.parse(await readFile(path.join(dir, "optimization-report.json"), "utf8"));
     assert.equal(report.summary.fallback, 0);
+
+    const io = new NodeIO().registerExtensions(ALL_EXTENSIONS);
+    const duck = await io.read(path.join(dir, "induck-v3.glb"));
+    const nodeNames = new Set(duck.getRoot().listNodes().map(node => node.getName()));
+    for (const pivot of ["DuckWing_L", "DuckWing_R", "DuckLeg_L", "DuckLeg_R"]) {
+      assert.equal(nodeNames.has(pivot), true, `${pivot} semantic pivot survives optimization`);
+    }
+    const duckReceipt = report.results.find(item => item.file === "induck-v3.glb");
+    assert.equal(duckReceipt.keepEmptyLeafNodes, true);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
