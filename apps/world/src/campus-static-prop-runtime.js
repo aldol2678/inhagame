@@ -24,7 +24,8 @@ export function createCampusStaticPropRuntime(world, context) {
     ready,
     status: () => ({
       state: disposed ? 'disposed' : runtime?.state ?? 'loading',
-      assetId: world.assets[0].id,
+      assetId: world.assets.length === 1 ? world.assets[0].id : null,
+      assetIds: world.assets.map(asset => asset.id),
       entities: runtime?.bindings.size ?? 0,
       diagnostics: runtime?.diagnostics ?? []
     }),
