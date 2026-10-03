@@ -6,7 +6,8 @@ import {
   cloudVisualProfile,
   skyCloudLayout,
   sunDirectionFromEuler,
-  sunVisualProfile
+  sunVisualProfile,
+  writeSunDirection
 } from './sky-visual-policy.js';
 
 function createCloudTexture(device) {
@@ -174,6 +175,13 @@ export function createSkyVisuals({
   let sunProfile = sunVisualProfile(skyState);
   let cloudPhase = 0;
   let destroyed = false;
+  const sunDirection = [0, 0, -1];
+  const lastMaterialSignal = {
+    sunColor: [Number.NaN, Number.NaN, Number.NaN],
+    sunIntensity: Number.NaN,
+    artificialLightFactor: Number.NaN,
+    rainIntensity: Number.NaN
+  };
 
   function applyTier(next) {
     const resolved = Object.hasOwn(SKY_CLOUD_PATCH_BUDGET, next) ? next : 'medium';
@@ -183,6 +191,15 @@ export function createSkyVisuals({
   }
 
   function applyMaterials() {
+    const colorChanged = skyState.sunColor.some((value, index) =>
+      Math.abs(value - lastMaterialSignal.sunColor[index]) >= 0.002
+    );
+    const scalarChanged =
+      Math.abs(skyState.sunIntensity - lastMaterialSignal.sunIntensity) >= 0.002 ||
+      Math.abs(skyState.artificialLightFactor - lastMaterialSignal.artificialLightFactor) >= 0.002 ||
+      Math.abs(skyState.rainIntensity - lastMaterialSignal.rainIntensity) >= 0.002;
+    if (!colorChanged && !scalarChanged) return;
+
     sunProfile = sunVisualProfile(skyState);
     sun.entity.enabled = sunProfile.visible;
     sun.material.opacity = sunProfile.opacity;
@@ -197,6 +214,13 @@ export function createSkyVisuals({
     cloudMaterial.diffuse.set(...cloudProfile.color);
     cloudMaterial.emissiveIntensity = cloudProfile.emissiveIntensity;
     cloudMaterial.update();
+
+    lastMaterialSignal.sunColor[0] = skyState.sunColor[0];
+    lastMaterialSignal.sunColor[1] = skyState.sunColor[1];
+    lastMaterialSignal.sunColor[2] = skyState.sunColor[2];
+    lastMaterialSignal.sunIntensity = skyState.sunIntensity;
+    lastMaterialSignal.artificialLightFactor = skyState.artificialLightFactor;
+    lastMaterialSignal.rainIntensity = skyState.rainIntensity;
   }
 
   function update(dt) {
@@ -206,11 +230,11 @@ export function createSkyVisuals({
     applyMaterials();
 
     const cameraPosition = camera.getPosition();
-    const direction = sunDirectionFromEuler(skyState.sunEuler);
+    writeSunDirection(sunDirection, skyState.sunEuler);
     sun.entity.setPosition(
-      cameraPosition.x + direction[0] * SKY_SUN_DISTANCE,
-      cameraPosition.y + direction[1] * SKY_SUN_DISTANCE,
-      cameraPosition.z + direction[2] * SKY_SUN_DISTANCE
+      cameraPosition.x + sunDirection[0] * SKY_SUN_DISTANCE,
+      cameraPosition.y + sunDirection[1] * SKY_SUN_DISTANCE,
+      cameraPosition.z + sunDirection[2] * SKY_SUN_DISTANCE
     );
 
     const safeDt = Math.max(0, Number.isFinite(dt) ? dt : 0);
@@ -231,7 +255,7 @@ export function createSkyVisuals({
       sunVisible: sunProfile.visible,
       sunOpacity: sunProfile.opacity,
       sunColor: Object.freeze([...sunProfile.color]),
-      sunDirection: direction,
+      sunDirection: Object.freeze([...sunDirection]),
       sunDrawMeshes: sunProfile.visible ? 1 : 0
     });
   }
