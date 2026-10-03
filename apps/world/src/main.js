@@ -23,7 +23,7 @@ import { legacyTelemetryTarget } from './legacy-zone-compat.js';
 import { createViewDistanceSettings } from './view-distance-settings.js';
 import { createGraphicsPresetController } from './graphics-presets.js';
 import { createEnvironmentDirector } from './environment/environment-director.js';
-import { resolveEnvironmentRuntimeTime } from './environment/environment-clock.js';
+import { resolveEnvironmentRuntimeTime, resolveEnvironmentRuntimeWeather } from './environment/environment-clock.js';
 import { createInkyungDuckSystem } from './ambient-ducks.js';
 import { createInkyungMechanicalDuckEvent } from './inkyung-mechanical-duck-event.js';
 import { createBiryongSystem } from './biryong/biryong-system.js';
@@ -277,12 +277,16 @@ const environment = createEnvironmentDirector({
   scene: app.scene,
   lightEntity: light,
   camera,
-  initialTime: resolveEnvironmentRuntimeTime(startupParams, { previewHost })
+  initialTime: resolveEnvironmentRuntimeTime(startupParams, { previewHost }),
+  initialWeather: resolveEnvironmentRuntimeWeather(startupParams, { previewHost })
 });
 app.on("update", dt => environment.update(dt));
 window.__INHAGAME_ENVIRONMENT__ = Object.freeze({
   status: () => environment.status(),
-  ...(previewHost ? { setTimeOfDay: (value, options) => environment.setTimeOfDay(value, options) } : {})
+  ...(previewHost ? {
+    setTimeOfDay: (value, options) => environment.setTimeOfDay(value, options),
+    setWeather: (value, options) => environment.setWeather(value, options)
+  } : {})
 });
 
 const player = new pc.Entity("Player");
