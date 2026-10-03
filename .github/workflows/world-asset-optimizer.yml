@@ -15,9 +15,13 @@ on:
       - 'apps/world/src/character-model.js'
       - 'apps/world/src/main.js'
       - 'apps/world/src/campus-bench-*.js'
+      - 'apps/world/src/campus-streetlamp-*.js'
+      - 'apps/world/src/campus-static-prop-runtime.js'
       - 'apps/world/src/campus-layout.js'
       - 'apps/world/tests/campus-bench.test.mjs'
+      - 'apps/world/tests/campus-streetlamp.test.mjs'
       - 'apps/world/tests/browser/campus-bench-smoke.mjs'
+      - 'apps/world/tests/browser/campus-streetlamp-smoke.mjs'
       - 'apps/world/tests/asset-optimization-shadow.test.mjs'
       - 'apps/world/tests/asset-authority-canary.test.mjs'
       - 'apps/world/tests/asset-production-canary.test.mjs'
@@ -95,6 +99,19 @@ jobs:
         with:
           name: campus-bench-browser-evidence
           path: test-results/campus-bench/
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Run approved campus streetlamp browser QA
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+        run: node apps/world/tests/browser/campus-streetlamp-smoke.mjs
+      - name: Upload campus streetlamp browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: campus-streetlamp-browser-evidence
+          path: test-results/campus-streetlamp/
           if-no-files-found: ignore
           retention-days: 7
       - name: Upload optimizer receipt and generated samples
