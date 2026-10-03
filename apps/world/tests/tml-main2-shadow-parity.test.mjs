@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import { MAIN2_QUEST_ID } from '../npc-factory/main2-quest-contract.mjs';
@@ -284,4 +285,39 @@ test('P10 scope reset clears pending account state but preserves aggregate parit
   assert.deepEqual(status.parity.combined, before);
   assert.equal(status.parity.scopeResets, 1);
   assert.equal(status.parity.reasons.SCOPE_RESET_SIGNED_IN_OR_SWITCHED, 1);
+});
+
+
+test('P10 missing pre-reward economic baseline resolves UNKNOWN instead of staying pending forever', () => {
+  const shadow = createTmlMain2Shadow({ enabled: true });
+
+  shadow.observeQuestResult({
+    event: 'visit_back_gate',
+    previousStage: 8,
+    previousAvailable: true,
+    result: {
+      quest_id: MAIN2_QUEST_ID,
+      stage: 9,
+      available: true,
+      reward: rewardReceipt
+    },
+    economicBefore: { walletBalance: null, totalExp: 100 }
+  });
+
+  const report = shadow.observeEconomicState({ walletBalance: 180, totalExp: 200 });
+  assert.equal(report.rewardStatus, TML_MAIN2_SHADOW_STATUS.UNKNOWN);
+  assert.equal(report.rewardReason, 'ECONOMIC_BASELINE_UNAVAILABLE');
+
+  const status = shadow.status();
+  assert.equal(status.pendingReward, false);
+  assert.equal(status.parity.rewardSettlement.unknown, 1);
+  assert.equal(status.parity.rewardSettlement.coverageRatio, 0);
+  assert.equal(status.parity.combined.unresolved, 1);
+});
+
+test('P10 runtime wiring resets only the shadow account scope and keeps parity debug exposure', () => {
+  const runtime = readFileSync(new URL('../npc-factory/dev-runtime.mjs', import.meta.url), 'utf8');
+
+  assert.match(runtime, /tmlMain2Shadow\.resetScope\(aiSignedIn \? 'SIGNED_IN_OR_SWITCHED' : 'SIGNED_OUT'\)/);
+  assert.match(runtime, /tml_main2_shadow: tmlMain2Shadow\.status\(\)/);
 });
