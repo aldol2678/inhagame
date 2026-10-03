@@ -157,11 +157,11 @@ insert into private.world_player_life_skill_nodes(
 );
 
 insert into private.world_life_skill_point_transactions(
-  user_id,delta,balance_before,balance_after,reason_type,source_id,node_id,idempotency_key
+  user_id,delta,balance_before,balance_after,reason_type,source_id,node_id,tree_id,idempotency_key
 ) values (
   'a8600000-0000-4000-8000-0000000000a8',
   -1,2,1,'NODE_RANK_UP','life_node.fishing.test_foundation_root:rank:1',
-  'life_node.fishing.test_foundation_root','life-sp:a:test-foundation:1'
+  'life_node.fishing.test_foundation_root','life_tree.fishing','life-sp:a:test-foundation:1'
 );
 
 select results_eq($$
