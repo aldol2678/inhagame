@@ -104,9 +104,15 @@ export function createEnvironmentDirector({
     if (progress >= 1) return false;
     elapsed += Math.max(0, Number.isFinite(dt) ? dt : 0);
     progress = clamp01(elapsed / transitionSeconds);
+    if (progress >= 1) {
+      // Snap the terminal frame to the canonical preset instead of leaving
+      // interpolation rounding residue in colors/exposure.
+      copyFrame(current, target);
+      applyFrame(bindings, current);
+      return true;
+    }
     mixFrame(current, from, target, progress);
     applyFrame(bindings, current);
-    if (progress >= 1) copyFrame(current, target);
     return true;
   }
 
