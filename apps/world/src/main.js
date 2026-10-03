@@ -1542,7 +1542,13 @@ const mcmMinigame = createMcm2026MinigameRuntime({
   }
 });
 const registry = new RenderChunkRegistry();
-const chunkRenderer = new CampusChunkRenderer(app,campusRoot,registry);
+const chunkRenderer = new CampusChunkRenderer(app,campusRoot,registry,{
+  getRainIntensity: () => environment.rainIntensity(),
+  getArtificialLightFactor: () => environment.artificialLightFactor()
+});
+window.__INHAGAME_POND_WEATHER__ = Object.freeze({
+  status: () => chunkRenderer.getPondWeatherStatus()
+});
 const streaming = new RenderChunkStreaming(registry,chunkRenderer,{intervalMs:250});
 const inkyungSideEvent = createInkyungMechanicalDuckEvent();
 if (previewHost && startupParams.get("inkyungDuckEvent") === "1") inkyungSideEvent.setUnlocked(true);
