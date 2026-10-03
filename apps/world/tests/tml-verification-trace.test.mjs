@@ -59,6 +59,22 @@ test('P4 authoritative atomic verification yields SATISFIED / UNSATISFIED / UNKN
   );
 });
 
+
+test('P4 keeps historical authoritative facts but evaluates the latest observation snapshot', () => {
+  const claim = {
+    op: 'eq',
+    subject: QUEST_REF,
+    predicate: 'quest.stage',
+    value: { type: 'number', value: 5 }
+  };
+  const older = { ...fact('fact.old', 4), observed_at: '2026-10-03T10:29:59+09:00' };
+  const newer = { ...fact('fact.new', 5), observed_at: NOW };
+
+  const result = evaluateTmlExpression(claim, [older, newer], profile);
+  assert.equal(result.status, TML_VERIFICATION_STATUS.SATISFIED);
+  assert.deepEqual(result.factIds, ['fact.new']);
+});
+
 test('P4 client fallback fact cannot impersonate server.quest authority', () => {
   const claim = {
     op: 'eq',
