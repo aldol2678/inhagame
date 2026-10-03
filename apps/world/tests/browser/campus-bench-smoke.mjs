@@ -111,8 +111,11 @@ for (const spec of [
         samples.push({ side, hit, edge, retreatDistance: Math.abs(d.player.getLocalPosition()[axis] - hit) });
       }
       c.keys.clear(); c.velocityY = 0;
-      d.player.setLocalPosition(x + 1.4, PLAYER_ORIGIN_Y, z - 1.2);
-      d.orbit.yaw = Math.atan2(1.4, 1.2); d.orbit.pitch = .35; d.orbit.distance = 2;
+      d.player.setLocalPosition(x + .7, PLAYER_ORIGIN_Y, z + 2);
+      // Use the existing gameplay first-person view for an unobstructed bench
+      // inspection; do not hide or replace the production avatar manually.
+      if (!d.orbit.firstPerson) d.orbit.togglePerspective();
+      d.orbit.yaw = Math.atan2(.7, -2); d.orbit.pitch = .29;
       return { samples, positionedFrame: d.app.frame };
     });
     for (const walk of result.walk.samples) {
@@ -167,14 +170,22 @@ for (const spec of [
     // registry resource while streamed near/detail roots are destroyed/rebuilt.
     result.streaming = await page.evaluate(async () => {
       const d = window.__INHAGAME_P0__, before = d.app.root.findByName('PROP_BENCH_CAMPUS_001');
-      d.streaming.update(1, { x: 10000, z: 10000 });
+      // A policy change drains at most one queued chunk per update. Finish that
+      // queue and at least one fresh evaluation at the requested position,
+      // following the existing view-distance tests rather than assuming one tick.
+      const settle = position => {
+        for (let i = 0; i < d.registry.chunks.length + 2; i++) d.streaming.update(.25, position);
+      };
+      settle({ x: 10000, z: 10000 });
       const away = d.streaming.getMetrics();
       const p = before.getPosition();
-      d.streaming.update(1, { x: p.x, z: -p.z });
-      return { sameEntity: before === d.app.root.findByName('PROP_BENCH_CAMPUS_001'), away, back: d.streaming.getMetrics() };
+      settle({ x: p.x, z: -p.z });
+      return { sameEntity: before === d.app.root.findByName('PROP_BENCH_CAMPUS_001'), chunks: d.registry.chunks.length, away, back: d.streaming.getMetrics() };
     });
     assert.equal(result.streaming.sameEntity, true);
     assert.ok(result.streaming.away.chunkDestroys > 0);
+    assert.equal(result.streaming.away.counts.UNLOADED, result.streaming.chunks, 'all dynamic chunks actually evicted');
+    assert.ok(result.streaming.back.counts.UNLOADED < result.streaming.chunks, 'dynamic chunks actually return');
     assert.equal((await readScene()).instances, 1);
     assert.equal(result.assetResponses.length, 1, 'streaming does not refetch the bench');
     await page.reload({ waitUntil: 'domcontentloaded', timeout: TIMEOUT_MS });
