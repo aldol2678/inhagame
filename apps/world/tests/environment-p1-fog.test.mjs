@@ -55,7 +55,7 @@ const near = (actual, expected, epsilon = 1e-9) =>
   assert.ok(Math.abs(actual - expected) <= epsilon, `${actual} != ${expected}`);
 
 test('P1 weather contract exposes CLEAR and FOG with preview-only fail-safe override', () => {
-  assert.deepEqual(Object.keys(ENVIRONMENT_WEATHER_PRESETS), ['CLEAR', 'FOG']);
+  assert.deepEqual(Object.keys(ENVIRONMENT_WEATHER_PRESETS), ['CLEAR', 'FOG', 'RAIN']);
   const clear = ENVIRONMENT_WEATHER_PRESETS.CLEAR;
   const fog = ENVIRONMENT_WEATHER_PRESETS.FOG;
   assert.equal(clear.fogType, 'none');
@@ -70,7 +70,7 @@ test('P1 weather contract exposes CLEAR and FOG with preview-only fail-safe over
   const params = new URLSearchParams('envWeather=fog');
   assert.equal(resolveEnvironmentRuntimeWeather(params, { previewHost: true }), ENVIRONMENT_WEATHER.FOG);
   assert.equal(resolveEnvironmentRuntimeWeather(params, { previewHost: false }), ENVIRONMENT_WEATHER.CLEAR);
-  assert.equal(resolveEnvironmentRuntimeWeather(new URLSearchParams('envWeather=rain'), { previewHost: true }), ENVIRONMENT_WEATHER.CLEAR);
+  assert.equal(resolveEnvironmentRuntimeWeather(new URLSearchParams('envWeather=storm'), { previewHost: true }), ENVIRONMENT_WEATHER.CLEAR);
 });
 
 test('initial FOG applies PlayCanvas v2 fog params and preserves graphics-quality ownership', () => {
