@@ -2,6 +2,9 @@ import * as pc from 'playcanvas';
 import { FACILITIES, towerParts } from './campus-facilities.js';
 import { polygon,surface } from './campus-render-kit.js';
 import { FacilityMeshBatch } from './facility-mesh-batch.js';
+import { fillNeutralCampusBuilding, isNeutralCampusBuilding } from './neutral-campus-buildings.js';
+import { resolveWorldForgeBuilding } from './worldforge-campus-building-import.js';
+import { neutralFacadeSurface } from './neutral-facade-materials.js';
 import { fillSports } from './sports-detail-geometry.js';
 import { SPORTS_FLOOR, LOWERED_SPORTS_IDS } from './stadium-stands-layout.js';
 import { forestRoadTrees } from './campus-road-layout.js';
@@ -113,15 +116,24 @@ export function buildCampusFacilities(root,ids,tier='BASE') {
     if(f.id==='bldg_07'&&tier==='BASE')buildStudentTerraces(group);
     if(f.id==='bldg_07'&&tier==='NEAR')buildPondFurniture(group);
     if(f.kind==='building'){
+      const neutral = isNeutralCampusBuilding(f);
       if(['bldg_05','bldg_60th'].includes(f.id)){
         if(tier==='BASE'){fillNorthEntrances(batch,f.id);if(f.id==='bldg_05')fillFiveGardenPaths(batch);}
         if(tier==='NEAR')fillNorthFurniture(batch,f.id);
       }
-      if(tier==='BASE')for(const [i,part] of f.parts.entries()){
+      if((tier==='BASE'||tier==='NEAR')&&neutral){
+        const imported=resolveWorldForgeBuilding(f);
+        const envelope=new FacilityMeshBatch();
+        fillNeutralCampusBuilding(envelope,imported,tier);
+        envelope.finish(group,f.id+(tier==='BASE'?'_neutral_envelope':'_neutral_facade'),{
+          castShadows:tier==='BASE',materialForColor:tier==='NEAR'?neutralFacadeSurface:surface
+        });
+      }
+      if(tier==='BASE'&&!neutral)for(const [i,part] of f.parts.entries()){
         polygon(group,f.id+'_body_'+i,part,surface(f.style==='dorm'?'#e7e6dd':f.style==='student'?'#cbbda1':stone),{height:f.height});
         polygon(group,f.id+'_roof_'+i,part,surface(f.id==='bldg_dorm1'?'#6f9b87':roof),{y:f.height+.02});
       }
-      for(const t of towerParts(f)){
+      for(const t of neutral?[]:towerParts(f)){
         if(tier==='BASE')polygon(group,t.id,t.vertices,surface(f.style==='anniversary'?glass:stone),{height:t.height-f.height,y:f.height});
         if(tier==='DETAIL')facade(batch,{...f,floors:12},t.vertices,t.height,f.style==='anniversary'?'anniversary':'bands');
       }
@@ -129,18 +141,18 @@ export function buildCampusFacilities(root,ids,tier='BASE') {
         buildDorm1EntranceDetail(batch,'NEAR');
         buildStreetSigns(group,[DORM_1_NAME_SIGN],'dorm1_entrance_name');
       }
-      if(tier==='DETAIL'){
-        if(f.id==='bldg_dorm1')buildDorm1EntranceDetail(batch,'DETAIL');
+      if(f.id==='bldg_dorm1'&&tier==='DETAIL')buildDorm1EntranceDetail(batch,'DETAIL');
+      if(tier==='DETAIL'&&!neutral){
         if(f.id==='bldg_05')fillFiveFacade(batch);
         else if(f.id==='bldg_60th')fillAnniversaryFacade(batch);
         else if(f.id==='bldg_dorm1')fillDorm1Facade(batch,f);
         else for(const ring of f.rings)facade(batch,f,ring,f.height,f.style);
       }
-      if(tier==='NEAR')for(const ring of f.rings)for(let i=0;i<ring.length;i++){
+      if(tier==='NEAR'&&!neutral)for(const ring of f.rings)for(let i=0;i<ring.length;i++){
         const a=ring[i],b=ring[(i+1)%ring.length],len=Math.hypot(b.x-a.x,b.z-a.z);
         batch.box(trim,[(a.x+b.x)/2,f.height-.4,(a.z+b.z)/2],[len,.2,.5],-Math.atan2(b.z-a.z,b.x-a.x)*180/Math.PI);
       }
-      if(f.style==='student'&&tier==='NEAR'){
+      if(f.style==='student'&&tier==='NEAR'&&!neutral){
         // Source outline's rounded western stair bay and photographed red stairwell.
         batch.tube('#cbbda1',[137.4,0,16.1],[137.4,13.2,16.1],1.05,12);
         batch.box('#ad7465',[137.0,5.8,12.8],[.2,9,2]);
@@ -155,4 +167,3 @@ export function buildCampusFacilities(root,ids,tier='BASE') {
 
   }
 }
-

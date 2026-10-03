@@ -37,12 +37,12 @@ export class FacilityMeshBatch {
     const ring=Array.from({length:8},(_,i)=>[p[0]+Math.cos(i*Math.PI/4)*size[0]/2,p[1],p[2]+Math.sin(i*Math.PI/4)*size[2]/2]);
     for(let i=0;i<8;i++){this.triangle(color,top,ring[(i+1)%8],ring[i]);this.triangle(color,bottom,ring[i],ring[(i+1)%8]);}
   }
-  finish(root,name,{castShadows=true}={}) {
+  finish(root,name,{castShadows=true,materialForColor=surface}={}) {
     const device=pc.Application.getApplication().graphicsDevice;
     for(const [color,g] of this.groups){
       const mesh=pc.createMesh(device,g.positions,{normals:g.normals,indices:g.indices});
       const e=new pc.Entity(`${name}_${color.slice(1)}`);
-      e.addComponent('render',{type:'asset',castShadows,meshInstances:[new pc.MeshInstance(mesh,surface(color))]});
+      e.addComponent('render',{type:'asset',castShadows,meshInstances:[new pc.MeshInstance(mesh,materialForColor(color))]});
       root.addChild(e);e.on('destroy',()=>mesh.destroy());
     }
   }
