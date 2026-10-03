@@ -16,7 +16,7 @@ export function createMain2QuestClient({
 }) {
   let signedIn = false, stage = 0, available = false, pending = null, generation = 0, retryAfter = 0;
   let deferredAutoMoveDestinationId = null, refreshDeferred = false, statusReady = false;
-  let statusRetryTimer = null, statusRetryAttempt = 0, statusRecovering = false;
+  let statusRetryTimer = null, statusRetryAttempt = 0, statusRecovering = false, statusUnavailable = false;
   const listeners = new Set();
   const objective = hud?.querySelector?.('#main2-quest-objective');
 
@@ -24,16 +24,20 @@ export function createMain2QuestClient({
     if (statusRetryTimer !== null) clearTimer(statusRetryTimer);
     statusRetryTimer = null;
     statusRecovering = false;
+    statusUnavailable = false;
     if (resetAttempt) statusRetryAttempt = 0;
   }
 
   function scheduleStatusRetry(requestGeneration) {
     if (!enabled || !signedIn || requestGeneration !== generation || statusRetryTimer !== null) return false;
     const delay = statusRetryDelays[statusRetryAttempt];
-    if (!Number.isFinite(delay) || delay < 0) return false;
+    if (!Number.isFinite(delay) || delay < 0) {
+      statusRecovering = false;
+      statusUnavailable = true;
+      return false;
+    }
     statusRetryAttempt += 1;
     statusRecovering = true;
-    publish();
     statusRetryTimer = setTimer(() => {
       statusRetryTimer = null;
       if (!signedIn || requestGeneration !== generation) return;
@@ -60,7 +64,8 @@ export function createMain2QuestClient({
       active: Boolean(enabled && signedIn && statusReady && available && stage > 0 && stage < 9),
       complete: stage === 9,
       objective: MAIN2_QUEST_OBJECTIVES[stage] ?? null,
-      statusState: !signedIn ? 'SIGNED_OUT' : statusReady ? 'READY' : statusRecovering ? 'RETRY' : 'LOADING',
+      statusState: !enabled ? 'DISABLED' : !signedIn ? 'SIGNED_OUT' : statusReady ? 'READY'
+        : statusRecovering ? 'RETRY' : statusUnavailable ? 'UNAVAILABLE' : 'LOADING',
       retryAttempt: statusRetryAttempt
     });
   }
@@ -110,6 +115,7 @@ export function createMain2QuestClient({
         statusReady = false;
         available = false;
         scheduleStatusRetry(requestGeneration);
+        publish();
       }
       throw error;
     } finally {
@@ -164,6 +170,8 @@ export function createMain2QuestClient({
     refresh() {
       if (!enabled || !signedIn) return Promise.resolve(null);
       if (pending) { refreshDeferred = true; return Promise.resolve(null); }
+      clearStatusRetry({ resetAttempt: true });
+      publish();
       return send('status');
     },
     startFromGuide() {
