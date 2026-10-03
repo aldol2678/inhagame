@@ -92,28 +92,46 @@ const comingSoon = ({
   prerequisites
 });
 
+const active = ({
+  nodeId, treeId, displayName, maxRank, pointCost, requiredLifeLevel,
+  effectKey, prerequisites = []
+}) => createLifeSkillNodeDefinition({
+  nodeId,
+  treeId,
+  displayName,
+  maxRank,
+  pointCost,
+  requiredLifeLevel,
+  requiredSkillId: null,
+  requiredSkillLevel: null,
+  effectKey,
+  status: LIFE_SKILL_NODE_STATUS.ACTIVE,
+  definitionVersion: 1,
+  prerequisites
+});
+
 export const DEFAULT_LIFE_SKILL_NODE_DEFINITIONS = Object.freeze([
   // Fishing · full investment 17 SP.
-  comingSoon({ nodeId: 'life_node.fishing.steady_hands', treeId: 'life_tree.fishing',
+  active({ nodeId: 'life_node.fishing.steady_hands', treeId: 'life_tree.fishing',
     displayName: '안정된 손놀림', maxRank: 3, pointCost: 1, requiredLifeLevel: 2,
     effectKey: 'fishing.bite_window.v1' }),
-  comingSoon({ nodeId: 'life_node.fishing.fish_sense', treeId: 'life_tree.fishing',
+  active({ nodeId: 'life_node.fishing.fish_sense', treeId: 'life_tree.fishing',
     displayName: '어군 감지', maxRank: 3, pointCost: 1, requiredLifeLevel: 3,
     effectKey: 'fishing.fish_sense.v1',
     prerequisites: [{ nodeId: 'life_node.fishing.steady_hands', requiredRank: 1 }] }),
-  comingSoon({ nodeId: 'life_node.fishing.baitcraft', treeId: 'life_tree.fishing',
+  active({ nodeId: 'life_node.fishing.baitcraft', treeId: 'life_tree.fishing',
     displayName: '미끼 제작', maxRank: 2, pointCost: 1, requiredLifeLevel: 5,
     effectKey: 'fishing.baitcraft.v1',
     prerequisites: [{ nodeId: 'life_node.fishing.steady_hands', requiredRank: 1 }] }),
-  comingSoon({ nodeId: 'life_node.fishing.rare_fish_sense', treeId: 'life_tree.fishing',
+  active({ nodeId: 'life_node.fishing.rare_fish_sense', treeId: 'life_tree.fishing',
     displayName: '희귀어 탐지', maxRank: 2, pointCost: 2, requiredLifeLevel: 8,
     effectKey: 'fishing.rare_fish_sense.v1',
     prerequisites: [{ nodeId: 'life_node.fishing.fish_sense', requiredRank: 2 }] }),
-  comingSoon({ nodeId: 'life_node.fishing.boat_fishing', treeId: 'life_tree.fishing',
+  active({ nodeId: 'life_node.fishing.boat_fishing', treeId: 'life_tree.fishing',
     displayName: '선상 낚시', maxRank: 1, pointCost: 2, requiredLifeLevel: 10,
     effectKey: 'fishing.boat_fishing.v1',
     prerequisites: [{ nodeId: 'life_node.fishing.fish_sense', requiredRank: 2 }] }),
-  comingSoon({ nodeId: 'life_node.fishing.deep_sea_fishing', treeId: 'life_tree.fishing',
+  active({ nodeId: 'life_node.fishing.deep_sea_fishing', treeId: 'life_tree.fishing',
     displayName: '심해 어업', maxRank: 1, pointCost: 3, requiredLifeLevel: 15,
     effectKey: 'fishing.deep_sea_fishing.v1',
     prerequisites: [
