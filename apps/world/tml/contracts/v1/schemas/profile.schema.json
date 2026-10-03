@@ -1,0 +1,200 @@
+{
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "tml.profile"
+    },
+    "version": {
+      "const": "1.0"
+    },
+    "id": {
+      "$ref": "urn:tml:v1:core#/$defs/Id"
+    },
+    "revision": {
+      "$ref": "urn:tml:v1:core#/$defs/Digest"
+    },
+    "definition": {
+      "type": "object",
+      "properties": {
+        "sources": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "$ref": "urn:tml:v1:core#/$defs/Id"
+              },
+              "roles": {
+                "type": "array",
+                "items": {
+                  "enum": [
+                    "SNAPSHOT_READER",
+                    "TRANSACTION_AUTHORITY",
+                    "EVALUATOR",
+                    "ARTIFACT_AUTHOR"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "id",
+              "roles"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "predicates": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "$ref": "urn:tml:v1:core#/$defs/Id"
+              },
+              "valueType": {
+                "enum": [
+                  "string",
+                  "boolean",
+                  "integer",
+                  "number",
+                  "null",
+                  "time",
+                  "ref",
+                  "list",
+                  "object"
+                ]
+              },
+              "sources": {
+                "type": "array",
+                "items": {
+                  "$ref": "urn:tml:v1:core#/$defs/Id"
+                }
+              }
+            },
+            "required": [
+              "id",
+              "valueType",
+              "sources"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "capabilities": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "$ref": "urn:tml:v1:core#/$defs/Id"
+              },
+              "source": {
+                "$ref": "urn:tml:v1:core#/$defs/Id"
+              },
+              "targetType": {
+                "$ref": "urn:tml:v1:core#/$defs/Id"
+              },
+              "rewardRequired": {
+                "type": "boolean"
+              },
+              "allowedOutcomes": {
+                "type": "array",
+                "items": {
+                  "enum": [
+                    "APPLIED",
+                    "SKIPPED"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "id",
+              "source",
+              "targetType",
+              "rewardRequired",
+              "allowedOutcomes"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "rewards": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "capability": {
+                "$ref": "urn:tml:v1:core#/$defs/Id"
+              },
+              "reward": {
+                "$ref": "urn:tml:v1:core#/$defs/Reward"
+              },
+              "effects": {
+                "type": "array",
+                "items": {
+                  "$ref": "urn:tml:v1:core#/$defs/ExpectedEffect"
+                }
+              }
+            },
+            "required": [
+              "capability",
+              "reward",
+              "effects"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "preconditions": {
+          "type": "array",
+          "items": {
+            "$ref": "urn:tml:v1:core#/$defs/Template"
+          }
+        },
+        "streams": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "source": {
+                "$ref": "urn:tml:v1:core#/$defs/Id"
+              },
+              "stream": {
+                "$ref": "urn:tml:v1:core#/$defs/Id"
+              },
+              "target": {
+                "$ref": "urn:tml:v1:core#/$defs/EntityRef"
+              },
+              "includesPriorEffects": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "source",
+              "stream",
+              "target",
+              "includesPriorEffects"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "sources",
+        "predicates",
+        "capabilities",
+        "rewards",
+        "preconditions",
+        "streams"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "schema",
+    "version",
+    "id",
+    "revision",
+    "definition"
+  ],
+  "additionalProperties": false,
+  "$id": "urn:tml:v1:profile",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

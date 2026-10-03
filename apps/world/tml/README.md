@@ -2,6 +2,11 @@
 
 This directory contains the public INHA WORLD integration surface for TML (official name: TML; English spelling: sui).
 
+The specification-only [Contract v1 baseline](contracts/README.md) preserves the
+reviewed freeze candidate and its reproducible validation tools. Its schemas and
+fixtures are separate from the v0.1 integration below; importing the specification
+does not enable v1 execution, evaluation, admission, or receipt handling.
+
 ## Scope
 
 TML is used here as a semantic/state-transition layer above the existing game implementation. It does not replace the browser runtime, rendering stack, Supabase authority, or other execution providers.

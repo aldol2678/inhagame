@@ -1,0 +1,1799 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:tml:v1:core",
+  "$defs": {
+    "Id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}(?![\\s\\S])"
+    },
+    "Digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}(?![\\s\\S])"
+    },
+    "I64": {
+      "type": "string",
+      "pattern": "^(0|-?[1-9][0-9]*)(?![\\s\\S])",
+      "maxLength": 20,
+      "description": "MUST additionally check signed 64-bit range exactly."
+    },
+    "U64": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)(?![\\s\\S])",
+      "maxLength": 20,
+      "description": "MUST additionally check unsigned 64-bit range exactly."
+    },
+    "Time": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{6}Z(?![\\s\\S])",
+      "description": "Gregorian year 0001..9999, seconds 00..59, exact microseconds; semantic calendar validation required."
+    },
+    "Principal": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "enum": [
+            "account",
+            "service"
+          ]
+        },
+        "id": {
+          "$ref": "urn:tml:v1:core#/$defs/Id"
+        }
+      },
+      "required": [
+        "kind",
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "Namespace": {
+      "type": "object",
+      "properties": {
+        "tenantId": {
+          "$ref": "urn:tml:v1:core#/$defs/Id"
+        },
+        "worldId": {
+          "$ref": "urn:tml:v1:core#/$defs/Id"
+        },
+        "principal": {
+          "$ref": "urn:tml:v1:core#/$defs/Principal"
+        }
+      },
+      "required": [
+        "tenantId",
+        "worldId",
+        "principal"
+      ],
+      "additionalProperties": false
+    },
+    "Scope": {
+      "type": "object",
+      "properties": {
+        "tenantId": {
+          "$ref": "urn:tml:v1:core#/$defs/Id"
+        },
+        "worldId": {
+          "$ref": "urn:tml:v1:core#/$defs/Id"
+        },
+        "principal": {
+          "$ref": "urn:tml:v1:core#/$defs/Principal"
+        },
+        "executionId": {
+          "$ref": "urn:tml:v1:core#/$defs/Id"
+        },
+        "sessionId": {
+          "$ref": "urn:tml:v1:core#/$defs/Id"
+        }
+      },
+      "required": [
+        "tenantId",
+        "worldId",
+        "principal",
+        "executionId"
+      ],
+      "additionalProperties": false
+    },
+    "EntityRef": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "$ref": "urn:tml:v1:core#/$defs/Id"
+        },
+        "id": {
+          "$ref": "urn:tml:v1:core#/$defs/Id"
+        }
+      },
+      "required": [
+        "type",
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "Ref": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "urn:tml:v1:core#/$defs/Id"
+        },
+        "digest": {
+          "$ref": "urn:tml:v1:core#/$defs/Digest"
+        }
+      },
+      "required": [
+        "id",
+        "digest"
+      ],
+      "additionalProperties": false
+    },
+    "ProfileRef": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "urn:tml:v1:core#/$defs/Id"
+        },
+        "revision": {
+          "$ref": "urn:tml:v1:core#/$defs/Digest"
+        }
+      },
+      "required": [
+        "id",
+        "revision"
+      ],
+      "additionalProperties": false
+    },
+    "SnapshotRef": {
+      "type": "object",
+      "properties": {
+        "source": {
+          "$ref": "urn:tml:v1:core#/$defs/Id"
+        },
+        "stream": {
+          "$ref": "urn:tml:v1:core#/$defs/Id"
+        },
+        "epoch": {
+          "$ref": "urn:tml:v1:core#/$defs/Id"
+        },
+        "revision": {
+          "$ref": "urn:tml:v1:core#/$defs/U64"
+        }
+      },
+      "required": [
+        "source",
+        "stream",
+        "epoch",
+        "revision"
+      ],
+      "additionalProperties": false
+    },
+    "Value": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "string"
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "value"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "boolean"
+            },
+            "value": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "type",
+            "value"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "integer"
+            },
+            "value": {
+              "$ref": "urn:tml:v1:core#/$defs/I64"
+            }
+          },
+          "required": [
+            "type",
+            "value"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "number"
+            },
+            "value": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "type",
+            "value"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "time"
+            },
+            "value": {
+              "$ref": "urn:tml:v1:core#/$defs/Time"
+            }
+          },
+          "required": [
+            "type",
+            "value"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "ref"
+            },
+            "value": {
+              "$ref": "urn:tml:v1:core#/$defs/Id"
+            }
+          },
+          "required": [
+            "type",
+            "value"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "list"
+            },
+            "value": {
+              "type": "array",
+              "items": {
+                "$ref": "urn:tml:v1:core#/$defs/Value"
+              }
+            }
+          },
+          "required": [
+            "type",
+            "value"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "object"
+            },
+            "value": {
+              "type": "object",
+              "additionalProperties": {
+                "$ref": "urn:tml:v1:core#/$defs/Value"
+              }
+            }
+          },
+          "required": [
+            "type",
+            "value"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "null"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "Expr": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "enum": [
+                "eq",
+                "ne",
+                "gt",
+                "gte",
+                "lt",
+                "lte"
+              ]
+            },
+            "subject": {
+              "$ref": "urn:tml:v1:core#/$defs/EntityRef"
+            },
+            "predicate": {
+              "$ref": "urn:tml:v1:core#/$defs/Id"
+            },
+            "value": {
+              "$ref": "urn:tml:v1:core#/$defs/Value"
+            }
+          },
+          "required": [
+            "op",
+            "subject",
+            "predicate",
+            "value"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "const": "exists"
+            },
+            "subject": {
+              "$ref": "urn:tml:v1:core#/$defs/EntityRef"
+            },
+            "predicate": {
+              "$ref": "urn:tml:v1:core#/$defs/Id"
+            }
+          },
+          "required": [
+            "op",
+            "subject",
+            "predicate"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "enum": [
+                "and",
+                "or"
+              ]
+            },
+            "args": {
+              "type": "array",
+              "items": {
+                "$ref": "urn:tml:v1:core#/$defs/Expr"
+              },
+              "minItems": 1
+            }
+          },
+          "required": [
+            "op",
+            "args"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "const": "not"
+            },
+            "arg": {
+              "$ref": "urn:tml:v1:core#/$defs/Expr"
+            }
+          },
+          "required": [
+            "op",
+            "arg"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "const": "true"
+            }
+          },
+          "required": [
+            "op"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "Reward": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "urn:tml:v1:core#/$defs/Id"
+        },
+        "version": {
+          "$ref": "urn:tml:v1:core#/$defs/U64"
+        }
+      },
+      "required": [
+        "id",
+        "version"
+      ],
+      "additionalProperties": false
+    },
+    "Request": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "const": "1.0"
+        },
+        "profile": {
+          "$ref": "urn:tml:v1:core#/$defs/ProfileRef"
+        },
+        "scope": {
+          "$ref": "urn:tml:v1:core#/$defs/Scope"
+        },
+        "capability": {
+          "$ref": "urn:tml:v1:core#/$defs/Id"
+        },
+        "args": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "urn:tml:v1:core#/$defs/Value"
+          }
+        },
+        "target": {
+          "$ref": "urn:tml:v1:core#/$defs/EntityRef"
+        },
+        "preconditions": {
+          "type": "array",
+          "items": {
+            "$ref": "urn:tml:v1:core#/$defs/Ref"
+          }
+        },
+        "expectedReward": {
+          "$ref": "urn:tml:v1:core#/$defs/Reward"
+        },
+        "idempotencyKey": {
+          "$ref": "urn:tml:v1:core#/$defs/Id"
+        }
+      },
+      "required": [
+        "version",
+        "profile",
+        "scope",
+        "capability",
+        "args",
+        "target",
+        "preconditions",
+        "idempotencyKey"
+      ],
+      "additionalProperties": false
+    },
+    "FingerprintPayload": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "const": "1.0"
+        },
+        "profile": {
+          "$ref": "urn:tml:v1:core#/$defs/ProfileRef"
+        },
+        "scope": {
+          "type": "object",
+          "properties": {
+            "tenantId": {
+              "$ref": "urn:tml:v1:core#/$defs/Id"
+            },
+            "worldId": {
+              "$ref": "urn:tml:v1:core#/$defs/Id"
+            },
+            "principal": {
+              "$ref": "urn:tml:v1:core#/$defs/Principal"
+            },
+            "sessionId": {
+              "$ref": "urn:tml:v1:core#/$defs/Id"
+            }
+          },
+          "required": [
+            "tenantId",
+            "worldId",
+            "principal"
+          ],
+          "additionalProperties": false
+        },
+        "capability": {
+          "$ref": "urn:tml:v1:core#/$defs/Id"
+        },
+        "args": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "urn:tml:v1:core#/$defs/Value"
+          }
+        },
+        "target": {
+          "$ref": "urn:tml:v1:core#/$defs/EntityRef"
+        },
+        "preconditions": {
+          "type": "array",
+          "items": {
+            "$ref": "urn:tml:v1:core#/$defs/Ref"
+          }
+        },
+        "expectedReward": {
+          "$ref": "urn:tml:v1:core#/$defs/Reward"
+        }
+      },
+      "required": [
+        "version",
+        "profile",
+        "scope",
+        "capability",
+        "args",
+        "target",
+        "preconditions"
+      ],
+      "additionalProperties": false
+    },
+    "Execution": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "const": "tml.execution"
+        },
+        "version": {
+          "const": "1.0"
+        },
+        "id": {
+          "$ref": "urn:tml:v1:core#/$defs/Id"
+        },
+        "profile": {
+          "$ref": "urn:tml:v1:core#/$defs/ProfileRef"
+        },
+        "request": {
+          "$ref": "urn:tml:v1:core#/$defs/Request"
+        },
+        "requestFingerprint": {
+          "$ref": "urn:tml:v1:core#/$defs/Digest"
+        },
+        "status": {
+          "enum": [
+            "ACCEPTED",
+            "EXECUTING",
+            "SUCCEEDED",
+            "FAILED"
+          ]
+        },
+        "startedAt": {
+          "$ref": "urn:tml:v1:core#/$defs/Time"
+        },
+        "completedAt": {
+          "$ref": "urn:tml:v1:core#/$defs/Time"
+        },
+        "receipts": {
+          "type": "array",
+          "items": {
+            "$ref": "urn:tml:v1:core#/$defs/Ref"
+          }
+        },
+        "failureCode": {
+          "$ref": "urn:tml:v1:core#/$defs/Id"
+        }
+      },
+      "required": [
+        "schema",
+        "version",
+        "id",
+        "profile",
+        "request",
+        "requestFingerprint",
+        "status",
+        "receipts"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "enum": [
+                  "SUCCEEDED",
+                  "FAILED"
+                ]
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "completedAt"
+            ]
+          },
+          "else": {
+            "properties": {
+              "receipts": {
+                "maxItems": 0
+              }
+            },
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "completedAt"
+                  ]
+                },
+                {
+                  "required": [
+                    "failureCode"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "EXECUTING"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "startedAt"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "SUCCEEDED"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "startedAt"
+            ],
+            "properties": {
+              "receipts": {
+                "minItems": 1,
+                "maxItems": 1
+              }
+            },
+            "not": {
+              "required": [
+                "failureCode"
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "FAILED"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "failureCode"
+            ],
+            "properties": {
+              "receipts": {
+                "maxItems": 0
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "ACCEPTED"
+              }
+            }
+          },
+          "then": {
+            "not": {
+              "required": [
+                "startedAt"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "Handle": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "urn:tml:v1:core#/$defs/Id"
+        },
+        "generation": {
+          "$ref": "urn:tml:v1:core#/$defs/U64"
+        }
+      },
+      "required": [
+        "id",
+        "generation"
+      ],
+      "additionalProperties": false
+    },
+    "Locator": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "by": {
+              "const": "EXECUTION"
+            },
+            "namespace": {
+              "$ref": "urn:tml:v1:core#/$defs/Namespace"
+            },
+            "executionId": {
+              "$ref": "urn:tml:v1:core#/$defs/Id"
+            }
+          },
+          "required": [
+            "by",
+            "namespace",
+            "executionId"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "by": {
+              "const": "IDEMPOTENCY"
+            },
+            "namespace": {
+              "$ref": "urn:tml:v1:core#/$defs/Namespace"
+            },
+            "capability": {
+              "$ref": "urn:tml:v1:core#/$defs/Id"
+            },
+            "idempotencyKey": {
+              "$ref": "urn:tml:v1:core#/$defs/Id"
+            }
+          },
+          "required": [
+            "by",
+            "namespace",
+            "capability",
+            "idempotencyKey"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "Knowledge": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "NOT_STARTED"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "KNOWN"
+            },
+            "execution": {
+              "$ref": "urn:tml:v1:core#/$defs/Execution"
+            },
+            "receiptRead": {
+              "enum": [
+                "NOT_REQUESTED",
+                "AVAILABLE",
+                "UNAVAILABLE"
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "execution",
+            "receiptRead"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "UNKNOWN"
+            },
+            "lastObserved": {
+              "$ref": "urn:tml:v1:core#/$defs/Execution"
+            },
+            "reason": {
+              "$ref": "urn:tml:v1:core#/$defs/Id"
+            }
+          },
+          "required": [
+            "kind",
+            "reason"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "RECOVERABLE"
+            },
+            "lastObserved": {
+              "$ref": "urn:tml:v1:core#/$defs/Execution"
+            },
+            "locator": {
+              "$ref": "urn:tml:v1:core#/$defs/Locator"
+            },
+            "reason": {
+              "$ref": "urn:tml:v1:core#/$defs/Id"
+            }
+          },
+          "required": [
+            "kind",
+            "locator",
+            "reason"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "LedgerEntry": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "entryId": {
+              "$ref": "urn:tml:v1:core#/$defs/Id"
+            },
+            "ledger": {
+              "enum": [
+                "wallet",
+                "exp",
+                "inventory"
+              ]
+            },
+            "target": {
+              "$ref": "urn:tml:v1:core#/$defs/EntityRef"
+            },
+            "effect": {
+              "enum": [
+                "ADD",
+                "REMOVE"
+              ]
+            },
+            "requested": {
+              "$ref": "urn:tml:v1:core#/$defs/I64"
+            },
+            "applied": {
+              "$ref": "urn:tml:v1:core#/$defs/I64"
+            },
+            "after": {
+              "$ref": "urn:tml:v1:core#/$defs/SnapshotRef"
+            },
+            "outcome": {
+              "const": "APPLIED"
+            },
+            "transactionId": {
+              "$ref": "urn:tml:v1:core#/$defs/Id"
+            }
+          },
+          "required": [
+            "entryId",
+            "ledger",
+            "target",
+            "effect",
+            "requested",
+            "applied",
+            "after",
+            "outcome",
+            "transactionId"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "entryId": {
+              "$ref": "urn:tml:v1:core#/$defs/Id"
+            },
+            "ledger": {
+              "enum": [
+                "wallet",
+                "exp",
+                "inventory"
+              ]
+            },
+            "target": {
+              "$ref": "urn:tml:v1:core#/$defs/EntityRef"
+            },
+            "effect": {
+              "enum": [
+                "ADD",
+                "REMOVE"
+              ]
+            },
+            "requested": {
+              "$ref": "urn:tml:v1:core#/$defs/I64"
+            },
+            "applied": {
+              "const": "0"
+            },
+            "after": {
+              "$ref": "urn:tml:v1:core#/$defs/SnapshotRef"
+            },
+            "outcome": {
+              "const": "SKIPPED"
+            },
+            "reason": {
+              "$ref": "urn:tml:v1:core#/$defs/Id"
+            }
+          },
+          "required": [
+            "entryId",
+            "ledger",
+            "target",
+            "effect",
+            "requested",
+            "applied",
+            "after",
+            "outcome",
+            "reason"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "ExpectedEffect": {
+      "type": "object",
+      "properties": {
+        "entryId": {
+          "$ref": "urn:tml:v1:core#/$defs/Id"
+        },
+        "ledger": {
+          "enum": [
+            "wallet",
+            "exp",
+            "inventory"
+          ]
+        },
+        "target": {
+          "$ref": "urn:tml:v1:core#/$defs/EntityRef"
+        },
+        "effect": {
+          "enum": [
+            "ADD",
+            "REMOVE"
+          ]
+        },
+        "requested": {
+          "$ref": "urn:tml:v1:core#/$defs/I64"
+        },
+        "applied": {
+          "$ref": "urn:tml:v1:core#/$defs/I64"
+        },
+        "allowedOutcome": {
+          "enum": [
+            "APPLIED",
+            "SKIPPED"
+          ]
+        }
+      },
+      "required": [
+        "entryId",
+        "ledger",
+        "target",
+        "effect",
+        "requested",
+        "applied",
+        "allowedOutcome"
+      ],
+      "additionalProperties": false
+    },
+    "Receipt": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "const": "tml.receipt"
+        },
+        "version": {
+          "const": "1.0"
+        },
+        "id": {
+          "$ref": "urn:tml:v1:core#/$defs/Id"
+        },
+        "profile": {
+          "$ref": "urn:tml:v1:core#/$defs/ProfileRef"
+        },
+        "scope": {
+          "$ref": "urn:tml:v1:core#/$defs/Scope"
+        },
+        "source": {
+          "$ref": "urn:tml:v1:core#/$defs/Id"
+        },
+        "transactionId": {
+          "$ref": "urn:tml:v1:core#/$defs/Id"
+        },
+        "requestFingerprint": {
+          "$ref": "urn:tml:v1:core#/$defs/Digest"
+        },
+        "capability": {
+          "$ref": "urn:tml:v1:core#/$defs/Id"
+        },
+        "target": {
+          "$ref": "urn:tml:v1:core#/$defs/EntityRef"
+        },
+        "reward": {
+          "$ref": "urn:tml:v1:core#/$defs/Reward"
+        },
+        "committedAt": {
+          "$ref": "urn:tml:v1:core#/$defs/Time"
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "urn:tml:v1:core#/$defs/LedgerEntry"
+          }
+        },
+        "postState": {
+          "type": "array",
+          "items": {
+            "$ref": "urn:tml:v1:core#/$defs/Ref"
+          }
+        }
+      },
+      "required": [
+        "schema",
+        "version",
+        "id",
+        "profile",
+        "scope",
+        "source",
+        "transactionId",
+        "requestFingerprint",
+        "capability",
+        "target",
+        "committedAt",
+        "entries",
+        "postState"
+      ],
+      "additionalProperties": false
+    },
+    "Fact": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "const": "tml.fact"
+        },
+        "version": {
+          "const": "1.0"
+        },
+        "id": {
+          "$ref": "urn:tml:v1:core#/$defs/Id"
+        },
+        "profile": {
+          "$ref": "urn:tml:v1:core#/$defs/ProfileRef"
+        },
+        "scope": {
+          "$ref": "urn:tml:v1:core#/$defs/Scope"
+        },
+        "subject": {
+          "$ref": "urn:tml:v1:core#/$defs/EntityRef"
+        },
+        "predicate": {
+          "$ref": "urn:tml:v1:core#/$defs/Id"
+        },
+        "value": {
+          "$ref": "urn:tml:v1:core#/$defs/Value"
+        },
+        "source": {
+          "$ref": "urn:tml:v1:core#/$defs/Id"
+        },
+        "snapshot": {
+          "$ref": "urn:tml:v1:core#/$defs/SnapshotRef"
+        },
+        "observationId": {
+          "$ref": "urn:tml:v1:core#/$defs/Id"
+        }
+      },
+      "required": [
+        "schema",
+        "version",
+        "id",
+        "profile",
+        "scope",
+        "subject",
+        "predicate",
+        "value",
+        "source",
+        "snapshot",
+        "observationId"
+      ],
+      "additionalProperties": false
+    },
+    "Query": {
+      "type": "object",
+      "properties": {
+        "subject": {
+          "$ref": "urn:tml:v1:core#/$defs/EntityRef"
+        },
+        "predicates": {
+          "type": "array",
+          "items": {
+            "$ref": "urn:tml:v1:core#/$defs/Id"
+          }
+        }
+      },
+      "required": [
+        "subject",
+        "predicates"
+      ],
+      "additionalProperties": false
+    },
+    "Observation": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "const": "tml.observation"
+        },
+        "version": {
+          "const": "1.0"
+        },
+        "id": {
+          "$ref": "urn:tml:v1:core#/$defs/Id"
+        },
+        "profile": {
+          "$ref": "urn:tml:v1:core#/$defs/ProfileRef"
+        },
+        "scope": {
+          "$ref": "urn:tml:v1:core#/$defs/Scope"
+        },
+        "source": {
+          "$ref": "urn:tml:v1:core#/$defs/Id"
+        },
+        "snapshot": {
+          "$ref": "urn:tml:v1:core#/$defs/SnapshotRef"
+        },
+        "observedAt": {
+          "$ref": "urn:tml:v1:core#/$defs/Time"
+        },
+        "query": {
+          "$ref": "urn:tml:v1:core#/$defs/Query"
+        },
+        "facts": {
+          "type": "array",
+          "items": {
+            "$ref": "urn:tml:v1:core#/$defs/Ref"
+          }
+        }
+      },
+      "required": [
+        "schema",
+        "version",
+        "id",
+        "profile",
+        "scope",
+        "source",
+        "snapshot",
+        "observedAt",
+        "query",
+        "facts"
+      ],
+      "additionalProperties": false
+    },
+    "ClaimBody": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "STATE"
+            },
+            "expr": {
+              "$ref": "urn:tml:v1:core#/$defs/Expr"
+            },
+            "snapshotRequirement": {
+              "type": "object",
+              "properties": {
+                "mode": {
+                  "enum": [
+                    "EXACT",
+                    "AT_LEAST"
+                  ]
+                },
+                "snapshot": {
+                  "$ref": "urn:tml:v1:core#/$defs/SnapshotRef"
+                }
+              },
+              "required": [
+                "mode",
+                "snapshot"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "kind",
+            "expr",
+            "snapshotRequirement"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "SETTLEMENT"
+            },
+            "expectedExecution": {
+              "type": "object",
+              "properties": {
+                "requestFingerprint": {
+                  "$ref": "urn:tml:v1:core#/$defs/Digest"
+                },
+                "capability": {
+                  "$ref": "urn:tml:v1:core#/$defs/Id"
+                },
+                "target": {
+                  "$ref": "urn:tml:v1:core#/$defs/EntityRef"
+                }
+              },
+              "required": [
+                "requestFingerprint",
+                "capability",
+                "target"
+              ],
+              "additionalProperties": false
+            },
+            "expectedReward": {
+              "$ref": "urn:tml:v1:core#/$defs/Reward"
+            },
+            "expectedEffects": {
+              "type": "array",
+              "items": {
+                "$ref": "urn:tml:v1:core#/$defs/ExpectedEffect"
+              }
+            },
+            "effectSet": {
+              "const": "EXACT"
+            }
+          },
+          "required": [
+            "kind",
+            "expectedExecution",
+            "expectedReward",
+            "expectedEffects",
+            "effectSet"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "PROJECTION_APPLIED"
+            },
+            "receipt": {
+              "$ref": "urn:tml:v1:core#/$defs/Ref"
+            },
+            "entryIds": {
+              "type": "array",
+              "items": {
+                "$ref": "urn:tml:v1:core#/$defs/Id"
+              },
+              "minItems": 1
+            }
+          },
+          "required": [
+            "kind",
+            "receipt",
+            "entryIds"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "Claim": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "const": "tml.claim"
+        },
+        "version": {
+          "const": "1.0"
+        },
+        "id": {
+          "$ref": "urn:tml:v1:core#/$defs/Id"
+        },
+        "profile": {
+          "$ref": "urn:tml:v1:core#/$defs/ProfileRef"
+        },
+        "scope": {
+          "$ref": "urn:tml:v1:core#/$defs/Scope"
+        },
+        "body": {
+          "$ref": "urn:tml:v1:core#/$defs/ClaimBody"
+        }
+      },
+      "required": [
+        "schema",
+        "version",
+        "id",
+        "profile",
+        "scope",
+        "body"
+      ],
+      "additionalProperties": false
+    },
+    "Evidence": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "const": "tml.evidence"
+        },
+        "version": {
+          "const": "1.0"
+        },
+        "id": {
+          "$ref": "urn:tml:v1:core#/$defs/Id"
+        },
+        "profile": {
+          "$ref": "urn:tml:v1:core#/$defs/ProfileRef"
+        },
+        "scope": {
+          "$ref": "urn:tml:v1:core#/$defs/Scope"
+        },
+        "claim": {
+          "$ref": "urn:tml:v1:core#/$defs/Ref"
+        },
+        "frame": {
+          "type": "object",
+          "properties": {
+            "phase": {
+              "enum": [
+                "PRE",
+                "POST",
+                "RECOVERY"
+              ]
+            },
+            "snapshots": {
+              "type": "array",
+              "items": {
+                "$ref": "urn:tml:v1:core#/$defs/SnapshotRef"
+              }
+            }
+          },
+          "required": [
+            "phase",
+            "snapshots"
+          ],
+          "additionalProperties": false
+        },
+        "observations": {
+          "type": "array",
+          "items": {
+            "$ref": "urn:tml:v1:core#/$defs/Ref"
+          }
+        },
+        "facts": {
+          "type": "array",
+          "items": {
+            "$ref": "urn:tml:v1:core#/$defs/Ref"
+          }
+        },
+        "receipts": {
+          "type": "array",
+          "items": {
+            "$ref": "urn:tml:v1:core#/$defs/Ref"
+          }
+        }
+      },
+      "required": [
+        "schema",
+        "version",
+        "id",
+        "profile",
+        "scope",
+        "claim",
+        "frame",
+        "observations",
+        "facts",
+        "receipts"
+      ],
+      "additionalProperties": false
+    },
+    "VerificationResult": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "const": "tml.verification"
+        },
+        "version": {
+          "const": "1.0"
+        },
+        "id": {
+          "$ref": "urn:tml:v1:core#/$defs/Id"
+        },
+        "profile": {
+          "$ref": "urn:tml:v1:core#/$defs/ProfileRef"
+        },
+        "scope": {
+          "$ref": "urn:tml:v1:core#/$defs/Scope"
+        },
+        "claim": {
+          "$ref": "urn:tml:v1:core#/$defs/Ref"
+        },
+        "evidence": {
+          "$ref": "urn:tml:v1:core#/$defs/Ref"
+        },
+        "status": {
+          "enum": [
+            "SATISFIED",
+            "UNSATISFIED",
+            "UNKNOWN",
+            "CONFLICT",
+            "INVALID",
+            "ERROR"
+          ]
+        },
+        "reason": {
+          "$ref": "urn:tml:v1:core#/$defs/ReasonCode"
+        },
+        "checkedAt": {
+          "$ref": "urn:tml:v1:core#/$defs/Time"
+        }
+      },
+      "required": [
+        "schema",
+        "version",
+        "id",
+        "profile",
+        "scope",
+        "claim",
+        "evidence",
+        "status",
+        "reason",
+        "checkedAt"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "SATISFIED"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "reason": {
+                "enum": [
+                  "SETTLEMENT_MATCH",
+                  "PROJECTION_APPLIED",
+                  "AUTHORITATIVE_FACT_PRESENT",
+                  "EXPLICIT_TRUE",
+                  "AUTHORITATIVE_COMPARISON",
+                  "AND_SATISFIED",
+                  "OR_SATISFIED",
+                  "NOT_SATISFIED"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "UNSATISFIED"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "reason": {
+                "enum": [
+                  "REWARD_VERSION_MISMATCH",
+                  "REWARD_ID_MISMATCH",
+                  "EFFECT_SET_MISMATCH",
+                  "EFFECT_MISMATCH",
+                  "AUTHORITATIVE_COMPARISON",
+                  "AND_UNSATISFIED",
+                  "OR_UNSATISFIED",
+                  "NOT_UNSATISFIED"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "UNKNOWN"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "reason": {
+                "enum": [
+                  "UNTRUSTED_PROVENANCE",
+                  "SNAPSHOT_INCOMPARABLE",
+                  "STALE_SNAPSHOT",
+                  "RECEIPT_MISSING",
+                  "AUTHORITATIVE_FACT_MISSING",
+                  "OBSERVATION_MISSING",
+                  "EXECUTION_BINDING_MISSING",
+                  "READ_UNAVAILABLE",
+                  "EXECUTION_UNRESOLVED",
+                  "RETENTION_EXPIRED",
+                  "AND_UNKNOWN",
+                  "OR_UNKNOWN",
+                  "CLAIM_MISSING",
+                  "EVIDENCE_MISSING"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "CONFLICT"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "reason": {
+                "enum": [
+                  "RECEIPT_CONFLICT",
+                  "AUTHORITATIVE_FACT_CONFLICT",
+                  "AND_CONFLICT",
+                  "OR_CONFLICT"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "INVALID"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "reason": {
+                "enum": [
+                  "INVALID_JSON",
+                  "INVALID_UNICODE",
+                  "DUPLICATE_KEY",
+                  "SCHEMA_VIOLATION",
+                  "INTEGER_RANGE",
+                  "INTEGER_ENCODING",
+                  "NUMBER_RANGE",
+                  "NONFINITE_NUMBER",
+                  "NUMBER_UNDERFLOW",
+                  "TIME_ENCODING",
+                  "TIME_PRECISION_UNSUPPORTED",
+                  "LIMIT_EXCEEDED",
+                  "SCOPE_MISMATCH",
+                  "HASH_MISMATCH",
+                  "PROFILE_MISMATCH",
+                  "SNAPSHOT_MISMATCH",
+                  "DUPLICATE_ENTRY",
+                  "DUPLICATE_SET_MEMBER",
+                  "DUPLICATE_RECORD",
+                  "REFERENCE_MISMATCH",
+                  "OPERAND_TYPE",
+                  "REQUEST_MISMATCH",
+                  "EXECUTION_BINDING_MISMATCH",
+                  "IDEMPOTENCY_CONFLICT",
+                  "RECEIPT_INTEGRITY",
+                  "AUTHORIZATION_DENIED",
+                  "HANDLE_EXPIRED",
+                  "HANDLE_GENERATION_MISMATCH"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "ERROR"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "reason": {
+                "enum": [
+                  "INTERNAL_ERROR",
+                  "INTEGER_OVERFLOW"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "Template": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "const": "tml.claim-template"
+        },
+        "version": {
+          "const": "1.0"
+        },
+        "id": {
+          "$ref": "urn:tml:v1:core#/$defs/Id"
+        },
+        "expr": {
+          "$ref": "urn:tml:v1:core#/$defs/Expr"
+        }
+      },
+      "required": [
+        "schema",
+        "version",
+        "id",
+        "expr"
+      ],
+      "additionalProperties": false
+    },
+    "Record": {
+      "oneOf": [
+        {
+          "$ref": "urn:tml:v1:core#/$defs/Fact"
+        },
+        {
+          "$ref": "urn:tml:v1:core#/$defs/Observation"
+        },
+        {
+          "$ref": "urn:tml:v1:core#/$defs/Claim"
+        },
+        {
+          "$ref": "urn:tml:v1:core#/$defs/Evidence"
+        },
+        {
+          "$ref": "urn:tml:v1:core#/$defs/Receipt"
+        },
+        {
+          "$ref": "urn:tml:v1:core#/$defs/VerificationResult"
+        }
+      ]
+    },
+    "ReasonCode": {
+      "enum": [
+        "AND_CONFLICT",
+        "AND_SATISFIED",
+        "AND_UNKNOWN",
+        "AND_UNSATISFIED",
+        "ARITHMETIC_OK",
+        "AUTHORITATIVE_COMPARISON",
+        "AUTHORITATIVE_FACT_CONFLICT",
+        "AUTHORITATIVE_FACT_MISSING",
+        "AUTHORITATIVE_FACT_PRESENT",
+        "AUTHORIZATION_DENIED",
+        "CLAIM_MISSING",
+        "DUPLICATE_ENTRY",
+        "DUPLICATE_KEY",
+        "DUPLICATE_RECORD",
+        "DUPLICATE_SET_MEMBER",
+        "EFFECT_MISMATCH",
+        "EFFECT_SET_MISMATCH",
+        "EVIDENCE_MISSING",
+        "EXECUTION_ACCEPTED",
+        "EXECUTION_BINDING_MISMATCH",
+        "EXECUTION_BINDING_MISSING",
+        "EXECUTION_OBSERVED",
+        "EXECUTION_UNRESOLVED",
+        "EXPLICIT_TRUE",
+        "FINGERPRINT_COMPUTED",
+        "HANDLE_EXPIRED",
+        "HANDLE_GENERATION_MISMATCH",
+        "HASH_MISMATCH",
+        "IDEMPOTENCY_CONFLICT",
+        "IDEMPOTENT_REPLAY",
+        "IDENTITY_DISTINCT",
+        "IDENTITY_EQUAL",
+        "INTEGER_ENCODING",
+        "INTEGER_OVERFLOW",
+        "INTEGER_RANGE",
+        "INTERNAL_ERROR",
+        "INVALID_JSON",
+        "INVALID_UNICODE",
+        "LIMIT_EXCEEDED",
+        "NONFINITE_NUMBER",
+        "NORMALIZED",
+        "NOT_SATISFIED",
+        "NOT_UNSATISFIED",
+        "NUMBER_RANGE",
+        "NUMBER_UNDERFLOW",
+        "OBSERVATION_MISSING",
+        "OPERAND_TYPE",
+        "OR_CONFLICT",
+        "OR_SATISFIED",
+        "OR_UNKNOWN",
+        "OR_UNSATISFIED",
+        "PROFILE_MISMATCH",
+        "PROJECTION_APPLIED",
+        "READ_UNAVAILABLE",
+        "RECEIPT_CONFLICT",
+        "RECEIPT_INTEGRITY",
+        "RECEIPT_MISSING",
+        "RECEIPT_UNAVAILABLE",
+        "RECOVERY_PRESERVED",
+        "REFERENCE_MISMATCH",
+        "REQUEST_MISMATCH",
+        "RESPONSE_LOST",
+        "RETENTION_EXPIRED",
+        "REWARD_ID_MISMATCH",
+        "REWARD_VERSION_MISMATCH",
+        "SCHEMA_VALID",
+        "SCHEMA_VIOLATION",
+        "SCOPE_MISMATCH",
+        "SETTLEMENT_MATCH",
+        "SNAPSHOT_INCOMPARABLE",
+        "SNAPSHOT_MISMATCH",
+        "STALE_SNAPSHOT",
+        "TIME_CONVERTED",
+        "TIME_ENCODING",
+        "TIME_PRECISION_UNSUPPORTED",
+        "UNTRUSTED_PROVENANCE",
+        "VALID_VALUE",
+        "VERIFICATION_ADMITTED",
+        "WORKER_CRASH"
+      ]
+    }
+  },
+  "oneOf": [
+    {
+      "$ref": "urn:tml:v1:core#/$defs/Record"
+    },
+    {
+      "$ref": "urn:tml:v1:core#/$defs/Execution"
+    },
+    {
+      "$ref": "urn:tml:v1:core#/$defs/Template"
+    }
+  ]
+}
