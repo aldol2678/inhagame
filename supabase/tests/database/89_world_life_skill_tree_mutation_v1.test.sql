@@ -77,11 +77,11 @@ select results_eq($$
 $$,$$values ('SUCCESS'::text,0,1,-1,23,22)$$,
   'first root rank spends the server-defined 1 SP');
 
-select results_eq($
+select results_eq($$
   select r->>'status',(r->>'rankAfter')::int,(r->>'balanceAfter')::int
   from (select public.rank_up_my_world_life_skill_node_v1(
     'life_node.fishing.steady_hands','life-tree:a:steady:1') r) s
-$,$values ('ALREADY_PROCESSED'::text,1,22)$,
+$$,$$values ('ALREADY_PROCESSED'::text,1,22)$$,
   'same rank-up key replays the exact committed rank and balance');
 
 select throws_ok($$
