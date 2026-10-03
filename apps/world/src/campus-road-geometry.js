@@ -1,3 +1,4 @@
+import { gateClippedRoadBatch } from './main-gate-surface-ownership.js';
 import { ROAD_SEGMENTS, ROAD_CROSSWALKS, roadSegment } from './campus-road-layout.js';
 import { FLAT_GROUND_Y as G } from './flat-ground-surface.js';
 
@@ -6,7 +7,8 @@ export function roadSurface(batch,color,frame,u0,u1,v0,v1,y) {
   const p=(u,v)=>{const q=frame.at(u,v);return[q.x,y,q.z];};
   batch.quad(color,p(u0,v0),p(u0,v1),p(u1,v1),p(u1,v0));
 }
-export function fillCampusRoadBatch(batch) {
+export function fillCampusRoadBatch(target) {
+  const batch=gateClippedRoadBatch(target);
   const white='#e6e4d3',yellow='#d8b453',asphalt='#747d7b';
   for(const s of ROAD_SEGMENTS){
     const {frame:f,road:r}=s,h=r.width/2;
@@ -57,5 +59,5 @@ export function fillCampusRoadBatch(batch) {
     roadSurface(batch,'#ac7965',s.frame,0,s.frame.length,2.1,3.5,G.SURFACE);
     for(let u=0;u<s.frame.length;u+=2)roadSurface(batch,'#c7b29a',s.frame,u,Math.min(u+.08,s.frame.length),2.1,3.5,G.EDGE);
   }
-  return batch;
+  return target;
 }
