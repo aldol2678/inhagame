@@ -6,6 +6,7 @@ import { roadTreeClear, distanceToRoad } from './campus-road-layout.js';
 import { FACILITY_COLLIDERS, FACILITY_BOUNDS } from './campus-facilities.js';
 import { BUILDINGS } from './basic-campus.js';
 import { polygonOverlap } from './polygon-collision.js';
+import { BACK_GATE_511_STOP } from './back-transit-stop-layout.js';
 
 // Campus-side planting and benches follow the previously observed April 2026
 // Inha-ro frontage. Individual positions and dimensions are presentation estimates.
@@ -27,6 +28,7 @@ function routeClear(center,radius,mainOpening=15,sideOpening=7){
 function place(s,u,kind){
   const radius=kind==='tree'?1.65:kind==='bench'?.85:.7;
   const center=s.frame.at(u,-6.5),a=s.frame.at(0),b=s.frame.at(1);
+  if(Math.hypot(center.x-BACK_GATE_511_STOP.x,center.z-BACK_GATE_511_STOP.z)<3.2)return;
   if(!routeClear(center,radius))return;
   if(BACK_TREES.some(p=>Math.hypot(p.x-center.x,p.z-center.z)<radius+1.7)||items.some(q=>Math.hypot(q.center.x-center.x,q.center.z-center.z)<q.radius+radius+.4))return;
   const frame={at:(x,v=0)=>s.frame.at(u+x,-6.5+v),yaw:-Math.atan2(b.z-a.z,b.x-a.x)*180/Math.PI};
@@ -50,6 +52,7 @@ export const BACK_FURNITURE_WALLS=roads.flatMap(s=>{
     const kind=roadPoint.x<SIDE_GATE_FRAME.at(0).x-2?'solid':roadPoint.x>209?'balustrade':'hedge';
     const v=kind==='solid'?-7.7:kind==='hedge'?-8.6:-7.5;
     const height=kind==='solid'?1.35:kind==='hedge'?.48:.9,center=s.frame.at(u,v);
+    if(Math.hypot(center.x-BACK_GATE_511_STOP.x,center.z-BACK_GATE_511_STOP.z)<3.2)continue;
     const samples=[-w/2,0,w/2].map(x=>s.frame.at(u+x,v));
     if(samples.some(p=>!routeClear(p,.3,11.5,2.5)||BACK_TREES.some(t=>Math.hypot(p.x-t.x,p.z-t.z)<.5)))continue;
     const a=s.frame.at(0),b=s.frame.at(1);

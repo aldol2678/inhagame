@@ -10,6 +10,7 @@ import { fillBackWestBase, fillBackWestNear, fillBackWestDetail } from './back-w
 import { fillNorthSideGate } from './north-side-gate-geometry.js';
 import { fillBackFurnitureBase, fillBackFurnitureDetail } from './back-furniture-geometry.js';
 import { fillBackRoadside } from './back-roadside-geometry.js';
+import { fillBackTransitStop } from './back-transit-stop-geometry.js';
 import { fillCulturePaving, fillCultureBase, fillCultureNear, fillCultureDetail } from './culture-street-geometry.js';
 import { buildCultureSigns } from './culture-street-signs.js';
 import { fillMarketBase, fillMarketNear, fillMarketDetail } from './back-market-geometry.js';
@@ -37,6 +38,7 @@ export function buildCampusRoads(root) {
   fillNorthSideGate(new FacilityMeshBatch()).finish(root,'north_side_gate');
   fillBackFurnitureBase(new FacilityMeshBatch()).finish(root,'back_furniture');
   fillBackRoadside(new FacilityMeshBatch()).finish(root,'back_roadside');
+  fillBackTransitStop(new FacilityMeshBatch()).finish(root,'back_transit_511');
 }
 
 export function buildBackStreetDetails(root,ids=[],tier){
