@@ -10,7 +10,7 @@ import { CAR_LIGHT_PROFILE, stepLightCar } from "./mounts/ground-mount-motion.js
 import { CAMPUS_KICKBOARD_ID, getCampusKickboardParkedPose, parkCampusKickboardAt, setCampusKickboardPropVisible } from "./mounts/campus-kickboard-world.js";
 import { GROUND_MOTION_PROFILES, stepGroundMount } from "./mounts/ground-mount-motion.js";
 import { getMobilityByMountId } from "./mobility/mobility-registry.js";
-import { findGroundSummonPose } from "./mobility/ground-summon.js";
+import { findGroundSummonPose, findNearbyGroundSummonPose } from "./mobility/ground-summon.js";
 import { WORLD_BOUNDS, OBSTACLES } from "./campus-layout.js";
 import { moveAroundObstacles, resolveHeight, canOccupy } from "./world-collision.js";
 import { MOUNT_SHAPE, PLAYER_ORIGIN_Y } from './player-dimensions.js';
@@ -18,7 +18,7 @@ import { roadviewGroundHeight } from './roadview-layout.js';
 import { constrainPondWalk, overPondWater } from './landmark-detail-layout.js';
 import { CAMPUS_BIKE_ID, MAIN_GATE_CAMPUS_BIKE, setCampusBikePropVisible } from './mounts/campus-bike-world.js';
 import {
-  CAMPUS_HELICOPTER_ID, CAMPUS_HELICOPTER, getCampusHelicopterParkedPose,
+  CAMPUS_HELICOPTER_ID, CAMPUS_HELICOPTER, CAMPUS_HELICOPTER_PAD, getCampusHelicopterParkedPose,
   parkCampusHelicopterAt, setCampusHelicopterPropVisible
 } from './mounts/campus-helicopter-world.js';
 import { createHelicopterFlightState, HELICOPTER_FLIGHT_LIMITS, stepHelicopterFlight } from './mounts/helicopter-flight.js';
@@ -360,6 +360,22 @@ export class PlayerController {
     return parkCampusKickboardAt(pose);
   }
 
+  summonKickboardInstant() {
+    if (!this.inputEnabled || this.mounted || !this.grounded || !this.space.allowMount || this.space.id !== "campus") return false;
+    const p = this.entity.getLocalPosition();
+    if (!p || ![p.x,p.y,p.z].every(Number.isFinite) || overPondWater(p.x,p.z)) return false;
+    const groundHeight = this.space.groundHeight?.(p.x,p.z);
+    if (!Number.isFinite(groundHeight) || Math.abs(p.y-this.groundY-groundHeight) > 0.2) return false;
+    const definition = getMobilityByMountId(CAMPUS_KICKBOARD_ID);
+    const shape = { radius:definition.summonClearance.radius, footOffset:this.groundY,
+      headOffset:definition.summonClearance.height-this.groundY };
+    if (!canOccupy(p,shape,this.space.obstacles)) return false;
+    const yaw = this.entity.getLocalEulerAngles?.().y ?? 0;
+    this.preferredMountId = CAMPUS_KICKBOARD_ID;
+    if (!parkCampusKickboardAt({x:p.x,y:groundHeight,z:p.z,yaw})) return false;
+    return this.boardKickboard();
+  }
+
   boardKickboard() {
     if (!this.inputEnabled || this.mounted || !this.grounded || !this.space.allowMount || !this.#nearParkedKickboard()) return false;
     const p = this.entity.getLocalPosition(), a = getCampusKickboardParkedPose();
@@ -399,6 +415,23 @@ export class PlayerController {
     });
     if (!pose) return false;
     this.preferredMountId = CAMPUS_KART_ID;
+    return parkCampusKartAt(pose);
+  }
+
+  summonKartNearby() {
+    if (!this.inputEnabled) return false;
+    const origin=this.entity.getLocalPosition();
+    const pose=findNearbyGroundSummonPose({
+      definition:getMobilityByMountId(CAMPUS_KART_ID),origin,
+      yawDeg:this.entity.getLocalEulerAngles?.().y??0,spaceId:this.space.id,
+      mounted:this.mounted,grounded:this.grounded,allowMount:this.space.allowMount,
+      groundHeight:this.space.groundHeight,overWater:overPondWater,
+      canOccupyAt:(p,shape)=>canOccupy(p,shape,this.space.obstacles),
+      bounds:this.bounds,groundY:this.groundY
+    });
+    if(!pose)return false;
+    this.preferredMountId=CAMPUS_KART_ID;
+    this.lastSummonPlacement={mountId:CAMPUS_KART_ID,mode:"NEARBY",distance:pose.distance??Math.hypot(pose.x-origin.x,pose.z-origin.z)};
     return parkCampusKartAt(pose);
   }
 
@@ -624,6 +657,29 @@ export class PlayerController {
     if (!pose) return false;
     parkCampusHelicopterAt(pose);
     setCampusHelicopterPropVisible(true);
+    return true;
+  }
+
+  summonHelicopterWithPadFallback() {
+    if (!this.inputEnabled || this.mounted || !this.grounded || !this.space.allowMount || this.space.id!=="campus") return false;
+    const origin=this.entity.getLocalPosition();
+    let pose=findHelicopterSummonPose({
+      origin,yawDeg:this.entity.getLocalEulerAngles?.().y??0,groundY:this.groundY,
+      groundHeight:this.space.groundHeight??roadviewGroundHeight,
+      canOccupyAt:(position,shape)=>canOccupy(position,shape,this.space.obstacles),
+      overWater:overPondWater,bounds:this.bounds
+    });
+    let mode="NEARBY";
+    if(!pose){
+      const pad=CAMPUS_HELICOPTER_PAD,{radius}=HELICOPTER_SUMMON_SHAPE;
+      const inBounds=pad.x-radius>=this.bounds.minX&&pad.x+radius<=this.bounds.maxX&&pad.z-radius>=this.bounds.minZ&&pad.z+radius<=this.bounds.maxZ;
+      const position={x:pad.x,y:pad.y+this.groundY,z:pad.z};
+      if(!inBounds||overPondWater(pad.x,pad.z)||!canOccupy(position,HELICOPTER_SUMMON_SHAPE,this.space.obstacles))return false;
+      pose={x:pad.x,y:pad.y,z:pad.z,yaw:pad.yaw}; mode="PAD";
+    }
+    parkCampusHelicopterAt(pose);setCampusHelicopterPropVisible(true);
+    this.lastSummonPlacement={mountId:CAMPUS_HELICOPTER_ID,mode,
+      distance:Math.hypot(pose.x-origin.x,pose.z-origin.z),label:mode==="PAD"?CAMPUS_HELICOPTER_PAD.label:null};
     return true;
   }
 

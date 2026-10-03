@@ -158,7 +158,7 @@ assert.equal(readHelicopterFlightHudEnabled(flightHudStorage), false, "flight HU
 writeHelicopterFlightHudEnabled(true, flightHudStorage);
 assert.equal(readHelicopterFlightHudEnabled(flightHudStorage), true, "flight HUD preference can turn back on");
 
-// Mobility Book P0.8: Registry contract, hidden-policy, preferences and clear-area spawn.
+// Mobility Book P0.8+: Registry contract, hidden-policy, preferences and PAD-aware helicopter spawn.
 {
   const visibleMobility = getPlayerVisibleMobility();
   const helicopter = getMobilityDefinition("vehicle.helicopter.campus_prototype");
@@ -168,7 +168,9 @@ assert.equal(readHelicopterFlightHudEnabled(flightHudStorage), true, "flight HUD
   assert.equal(helicopter.availability, MOBILITY_AVAILABILITY.EXPERIMENTAL);
   assert.equal(helicopter.access, MOBILITY_ACCESS.TEST_ONLY);
   assert.equal(helicopter.activeEligible, false);
-  assert.equal(helicopter.summonPolicy, SUMMON_POLICY.CLEAR_AREA);
+  assert.equal(helicopter.summonUX, "PAD");
+  assert.equal(helicopter.summonPolicy, SUMMON_POLICY.LANDING_PAD);
+  assert.equal(helicopter.spawnAnchorPolicy, "NEAR_PLAYER_SAFE_AREA_OR_STADIUM_PAD");
   assert.ok(helicopter.summonClearance.radius > 1);
   assert.equal(bike.availability, MOBILITY_AVAILABILITY.EXPERIMENTAL);
   assert.equal(bike.access, MOBILITY_ACCESS.TEST_ONLY);
@@ -675,8 +677,8 @@ console.log("Student Center shop world entry static contracts PASS");
     "Mobility Book starts as a closed modal");
   assert.match(mobilityMainSource, /createMobilityBook\(\{/,
     "World wires the Mobility Book controller");
-  assert.match(mobilityMainSource, /controller\.summonHelicopterNearPlayer\(\)/,
-    "Mobility Book helicopter action uses the safe summon authority");
+  assert.match(mobilityMainSource, /controller\.summonHelicopterWithPadFallback\(\)/,
+    "Mobility Book helicopter action uses the PAD-aware summon authority");
   assert.match(mobilityMainSource, /ownerId:\s*"mobility-book"[\s\S]*INPUT_FOCUS_POLICY\.BLOCKING_UI/s,
     "Mobility Book suspends world actions through InputFocusManager");
   assert.match(mobilityRegistrySource, /availability:\s*MOBILITY_AVAILABILITY\.EXPERIMENTAL[\s\S]*access:\s*MOBILITY_ACCESS\.TEST_ONLY/s,

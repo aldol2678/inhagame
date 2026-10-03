@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {PlayerController} from "../src/player-controller.js";
-import {DUCK_BOAT_ID} from "../src/mounts/duck-boat-world.js";
+import {DUCK_BOAT_ID,getDuckBoatParkedPose} from "../src/mounts/duck-boat-world.js";
 import {INKYUNG_DOCK,INKYUNG_WATER_Y,findDuckBoatSummonPose,fitsInkyungWater,constrainDuckBoat,stepDuckBoat} from "../src/mounts/duck-boat-motion.js";
 import {getMobilityByMountId,getPlayerVisibleMobility,mobilityMatchesFilter} from "../src/mobility/mobility-registry.js";
 import {createVehicleSeats} from "../src/mobility/vehicle-seats.js";
@@ -14,19 +14,19 @@ function setup(){
  const c=new PlayerController({getLocalPosition:()=>({...p}),setLocalPosition:(x,y,z)=>Object.assign(p,{x,y,z}),setLocalEulerAngles(){}});
  return{c,p};
 }
-test("boat replaces the placeholder with experimental WATER_SURFACE contract",()=>{
+test("boat uses DOCK UX while keeping the experimental WATER_SURFACE contract",()=>{
  assert.equal(d.physicsProfile,"BOAT");assert.equal(d.inputProfile,"BOAT");assert.equal(d.access,"TEST_ONLY");assert.equal(d.activeEligible,false);
  assert.equal(d.availability,"EXPERIMENTAL");assert.equal(d.seats.length,2);assert.equal(d.seats[1].controls,false);
+ assert.equal(d.summonUX,"DOCK");assert.equal(d.summonPolicy,"FIXED_ANCHOR");assert.equal(d.summonEnabled,false);
+ assert.equal(d.primaryAction,"LOCATE_TEST");assert.match(d.locateStatus,/남쪽.*선착장/);
  assert.ok(mobilityMatchesFilter(d,"WATER"));assert.equal(mobilityMatchesFilter(d,"GROUND"),false);
  assert.ok(getPlayerVisibleMobility().every(v=>v.availability!=="HIDDEN"));
 });
-test("fixed safe dock only; remote shore, indoors, mounted, roof, occupied spawn refuse",()=>{
+test("dock UX keeps one boat prepared at the fixed anchor and disables free summon",()=>{
+ assert.deepEqual(getDuckBoatParkedPose(),INKYUNG_DOCK.spawn);
  const b={definition:d,origin:{...INKYUNG_DOCK.shore,y:1.15},spaceId:"campus",mounted:false,grounded:true,
  canOccupyAt:()=>true,bounds:{minX:-1000,maxX:1000,minZ:-1000,maxZ:1000}};
- assert.deepEqual(findDuckBoatSummonPose(b),INKYUNG_DOCK.spawn);
- for(const change of [{origin:{x:0,y:1.15,z:0}},{spaceId:"room"},{mounted:true},{grounded:false},
- {canOccupyAt:()=>false},{origin:{...INKYUNG_DOCK.shore,y:5}},{definition:{...d,summonEnabled:false}}])
- assert.equal(findDuckBoatSummonPose({...b,...change}),null);
+ assert.equal(findDuckBoatSummonPose(b),null);
 });
 test("continuous water constraint cannot tunnel onto land or cross lake boundary",()=>{
  const a=INKYUNG_DOCK.spawn;
@@ -44,8 +44,9 @@ test("boat has low speed/turn rate and neutral braking, never helicopter attitud
  assert.equal("pitch" in s,false);assert.equal("roll" in s,false);
  for(let i=0;i<30;i++)s=stepDuckBoat(s,{},.1);assert.equal(s.speed,0);
 });
-test("summon/board/float/drive/dock dismount use real controller and land exit",()=>{
- const {c,p}=setup();assert.ok(c.summonDuckBoat());assert.equal(c.mounted,false);assert.ok(c.transportAction());
+test("prepared dock boat boards/floats/drives and dismounts to the safe shore exit",()=>{
+ const {c,p}=setup();assert.deepEqual(getDuckBoatParkedPose(),INKYUNG_DOCK.spawn);
+ assert.equal(c.summonDuckBoat(),false);assert.equal(c.mounted,false);assert.ok(c.transportAction());
  assert.equal(c.onDuckBoat,true);assert.equal(c.onBike,false);
  c.keys.add("KeyW");c.keys.add("Space");const before={...p};
  for(let i=0;i<15;i++)c.update(.016,0);

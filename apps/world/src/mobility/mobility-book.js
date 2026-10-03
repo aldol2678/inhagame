@@ -117,7 +117,12 @@ export function createMobilityBook({
     if (definition.primaryAction === "SUMMON_TEST" && definition.summonEnabled) {
       result = await onSummon(definition);
     } else if (definition.primaryAction === "LOCATE_TEST") {
-      result = await onLocate(definition);
+      if (definition.locateStatus) {
+        onStatus(definition.locateStatus);
+        result = true;
+      } else {
+        result = await onLocate(definition);
+      }
     } else {
       onStatus(definition.activeBlockedReason || "아직 이용할 수 없어요.");
     }
@@ -186,7 +191,7 @@ export function createMobilityBook({
     for (const [label, value] of [
       ["좌석", seats],
       ["이용 상태", definition.accessLabel],
-      ["소환 방식", definition.summonLabel],
+      [definition.summonUX === "DOCK" ? "이용 방식" : "소환 방식", definition.summonLabel],
       ["기본 탈것", Boolean(definition.mountId) && activeMountId === definition.mountId ? "현재 기본" : definition.activeEligible ? "설정 가능" : "설정 불가"]
     ]) {
       const item = el("div", "mobility-fact");

@@ -1,7 +1,11 @@
+import { INKYUNG_DOCK } from "./duck-boat-motion.js";
+
 export const DUCK_BOAT_ID = "mount.inkyung_duckboat.prototype";
-let parkedPose = null;
+// DOCK UX: the boat is a piece of dock infrastructure, not a free-summon vehicle.
+// Keep one ready at the authored dock anchor as soon as the world mounts its prop root.
+let parkedPose = { ...INKYUNG_DOCK.spawn };
 let propRoot = null;
-let visible = false;
+let visible = true;
 export function getDuckBoatParkedPose() { return parkedPose ? { ...parkedPose } : null; }
 function sync() {
   if (!propRoot) return;

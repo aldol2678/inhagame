@@ -4,9 +4,9 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { PlayerController, findHelicopterSummonPose } from "../src/player-controller.js";
 import { CAMPUS_KART_ID, getCampusKartParkedPose, parkCampusKartAt } from "../src/mounts/campus-kart-world.js";
-import { getCampusHelicopterParkedPose } from "../src/mounts/campus-helicopter-world.js";
+import { CAMPUS_HELICOPTER_PAD, getCampusHelicopterParkedPose } from "../src/mounts/campus-helicopter-world.js";
 import { getMobilityByMountId, getPlayerVisibleMobility, MOBILITY_REGISTRY, mobilityMatchesFilter, mobilityMatchesQuery } from "../src/mobility/mobility-registry.js";
-import { findGroundSummonPose } from "../src/mobility/ground-summon.js";
+import { findGroundSummonPose, findNearbyGroundSummonPose } from "../src/mobility/ground-summon.js";
 import { stepLightCar, CAR_LIGHT_PROFILE } from "../src/mounts/ground-mount-motion.js";
 import { wireMountFor, remoteMountState } from "../src/mounts/mount-kinds.js";
 import { Anim, Mount, encodePose, validatePose } from "../src/network/protocol.js";
@@ -29,6 +29,7 @@ test("kart registry is test-only, searchable, ground-only and never grants owner
   assert.equal(definition.availability,"EXPERIMENTAL");
   assert.equal(definition.access,"TEST_ONLY"); assert.equal(definition.activeEligible,false);
   assert.equal(definition.physicsProfile,"CAR_LIGHT"); assert.equal(definition.inputProfile,"CAR");
+  assert.equal(definition.summonUX,"NEARBY"); assert.equal(definition.primaryLabel,"카트 호출");
   assert.equal(definition.seats.length,4); assert.equal(definition.seats.filter(s=>s.controls).length,1);
   assert.ok(mobilityMatchesQuery(definition,"카트")); assert.ok(mobilityMatchesFilter(definition,"GROUND"));
   assert.equal(mobilityMatchesFilter(definition,"AIR"),false);
@@ -44,6 +45,17 @@ test("safe summon validates volume and finds an alternative clear ground candida
   const args=base(); let calls=0;
   args.canOccupyAt=(p,shape)=>{assert.equal(shape.radius,1.7);assert.equal(shape.headOffset,1.35);return ++calls>1;};
   const pose=findGroundSummonPose(args); assert.ok(pose);assert.equal(pose.y,0);assert.equal(calls,2);
+});
+test("NEARBY kart search expands beyond the old local rings and reports distance",()=>{
+  const args=base();args.bounds={minX:-100,maxX:100,minZ:-100,maxZ:100};
+  args.canOccupyAt=(p)=>Math.hypot(p.x,p.z)>=11;
+  const pose=findNearbyGroundSummonPose(args);
+  assert.ok(pose);assert.ok(pose.distance>=12.5);assert.ok(pose.distance<=25);
+});
+test("controller NEARBY call places the kart without mounting and records placement",()=>{
+  const {c}=controllerAt();assert.ok(c.summonKartNearby());assert.equal(c.mounted,false);
+  assert.equal(c.lastSummonPlacement.mountId,CAMPUS_KART_ID);
+  assert.equal(c.lastSummonPlacement.mode,"NEARBY");assert.ok(c.lastSummonPlacement.distance>0);
 });
 test("summon fails closed for room, water, ceiling/wall, bad bounds, mounted, roof and missing authority",()=>{
   for(const change of [{spaceId:"room"},{mounted:true},{grounded:false},{allowMount:false},
@@ -106,6 +118,14 @@ test("helicopter boarding, flight integration, dismount and summon refusal regre
   c.keys.add("Space");c.update(.05,0);assert.ok(Number.isFinite(p.y));c.keys.clear();
   c.grounded=true;assert.ok(c.dismountHelicopter());assert.equal(c.mountId,null);
   assert.equal(findHelicopterSummonPose({origin:{x:0,z:0},overWater:()=>true}),null);
+});
+test("helicopter PAD UX falls back to the stadium when every nearby candidate is blocked",()=>{
+  const {c,p}=controllerAt({x:-1000,y:1.15,z:-1000});
+  c.space.obstacles=[{minX:p.x-100,maxX:p.x+100,minZ:p.z-100,maxZ:p.z+100,minY:0,maxY:20}];
+  assert.ok(c.summonHelicopterWithPadFallback());
+  const a=getCampusHelicopterParkedPose();
+  assert.equal(a.x,CAMPUS_HELICOPTER_PAD.x);assert.equal(a.z,CAMPUS_HELICOPTER_PAD.z);
+  assert.equal(c.lastSummonPlacement.mode,"PAD");assert.equal(c.lastSummonPlacement.label,"대운동장");
 });
 test("mobile layout authority is unchanged and remains last",()=>{
   const css=readFileSync(new URL("../styles.css",import.meta.url),"utf8");

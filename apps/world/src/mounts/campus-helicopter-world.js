@@ -9,14 +9,16 @@ export const CAMPUS_HELICOPTER_ID = "mount.campus_helicopter.prototype";
 const stadium = FACILITIES.find((facility) => facility.id === "fac_stadium");
 if (!stadium) throw new Error("Campus helicopter requires fac_stadium");
 
-const INITIAL_POSE = Object.freeze({
+export const CAMPUS_HELICOPTER_PAD = Object.freeze({
+  id: "stadium_main_pad",
+  label: "대운동장",
   x: stadium.footprintCenter.x,
   y: SPORTS_FLOOR + 0.05,
   z: stadium.footprintCenter.z,
   yaw: 0
 });
 
-let parkedPose = { ...INITIAL_POSE };
+let parkedPose = { ...CAMPUS_HELICOPTER_PAD };
 let propRoot = null;
 
 export const CAMPUS_HELICOPTER = Object.freeze({
