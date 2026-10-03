@@ -6,101 +6,68 @@ This directory is an isolated evaluation package. It does **not** change the dep
 
 - Repository: `aldol2678/inhagame`
 - Base branch: `main`
-- Base commit: `84448a7285bfda56aa466b5bf6f1ce374a584e14`
+- Current rebased baseline: `37c13f24bb8b92543a26890e9936e280f3aa4729`
 - Node in public CI: `24.19.0`
+- Production PlayCanvas contract sampled here: `2.22.4`
 
 ## Candidate A: Zod
 
-The PoC mirrors `validateActivityStartRequest()` from:
+The PoC mirrors `validateActivityStartRequest()` from `apps/world/src/activity/activity-contract.js` and checks representative acceptance/rejection parity, canonical output parity, shallow freezing behavior and relative throughput.
 
-`apps/world/src/activity/activity-contract.js`
-
-It checks:
-
-- acceptance/rejection parity for representative valid and invalid inputs,
-- canonical output parity,
-- shallow freezing behavior,
-- relative validation throughput.
-
-This is deliberately a narrow contract. It does not claim that Zod should replace semantic checks such as world graph cycles, asset references, geometry validation, or domain-specific warnings.
-
-### Zod adoption gate
-
-Proceed to a broader WRAP trial only if:
-
-1. selected-contract parity is 100%,
-2. absolute per-parse cost is acceptable for non-hot-path boundary validation,
-3. schemas reduce duplicated hand-written structural validation,
-4. domain semantics remain explicit functions rather than being hidden in schema refinements.
+Zod remains a boundary-contract candidate only. Domain semantic checks such as graph cycles, asset references and geometry rules stay explicit.
 
 ## Candidate B: glTF Transform
 
-The PoC evaluates three existing world assets:
+Representative assets:
 
 - `induck-v3.glb`
 - `induck-backpack-v1.glb`
 - `p0-qa-building.glb`
 
-Pipeline:
+Optimization pipeline:
 
 `read -> dedup -> prune -> write -> re-read`
 
-Recorded evidence includes:
+The first gate records byte savings and structural round-trip evidence.
 
-- input/output bytes,
-- percentage size change,
-- elapsed time,
-- scene/node/mesh/primitive/material/texture/accessor counts,
-- round-trip readability,
-- SHA-256 values.
+## Renderer-neutral visual gate
 
-### Visual regression gate
+The Three.js gate renders original and optimized GLBs with a fixed 512×512 viewport, lighting and camera. It stores original/optimized screenshots plus pixel-diff and bounds evidence.
 
-The follow-up gate generates optimized GLBs without replacing the originals, then renders original and optimized versions with:
+## PlayCanvas production-engine gate
 
-- the same 512×512 viewport,
-- the same fixed light rig,
-- the original asset's camera reused for the optimized asset,
-- deterministic pixel ratio and no antialiasing.
+The PlayCanvas gate uses the same core runtime contract as INHA WORLD:
 
-It saves both screenshots and computes:
+- `playcanvas@2.22.4`
+- `AppBase`
+- WebGL2 graphics device
+- `RenderComponentSystem`, `CameraComponentSystem`, `LightComponentSystem`
+- `TextureHandler` and `ContainerHandler`
+- GLB loaded as a `container` asset and instantiated with `instantiateRenderEntity()`
 
-- significant changed-pixel percentage,
-- mean absolute RGB channel difference,
-- maximum channel difference,
-- model bounds before/after.
+For each sampled GLB it requires:
 
-Current gate thresholds:
+1. original and optimized files both load successfully,
+2. PlayCanvas reports WebGL2,
+3. render-component / mesh-instance / material counts remain equivalent,
+4. model bounds remain within `1e-6`,
+5. changed pixels remain <= 1%,
+6. mean absolute RGB channel difference remains <= 0.5/255,
+7. no page or console errors are observed.
 
-- significant channel delta: > 8/255,
-- changed pixels: <= 1.0%,
-- mean absolute channel difference: <= 0.5/255.
-
-The renderer-neutral gate uses `three@0.186.0` in headless Chrome. Passing it demonstrates visual-data equivalence for the sampled assets, not full production PlayCanvas compatibility. A production-engine loading gate remains separate.
-
-### glTF Transform adoption gate
-
-Proceed to an asset-pipeline WRAP trial only if:
-
-1. all representative assets round-trip successfully,
-2. scene count is preserved,
-3. optimized output is useful or neutral in size,
-4. deterministic visual regression passes,
-5. a later PlayCanvas-specific loading/appearance gate passes,
-6. integration remains build-time/tooling-only unless a runtime need is proven.
+This gate is still isolated from deployed INHA WORLD and never replaces production assets.
 
 ## Dependencies
 
-Pinned for reproducibility of this experiment:
+Pinned for reproducibility:
 
 - `zod@4.6.5`
 - `@gltf-transform/core@4.5.1`
 - `@gltf-transform/extensions@4.5.1`
 - `@gltf-transform/functions@4.5.1`
+- `playcanvas@2.22.4`
 - `playwright@1.63.0`
 - `three@0.186.0`
-
-All are evaluated only inside this experiment package.
 
 ## Run
 
@@ -109,9 +76,10 @@ npm install --ignore-scripts --no-audit --no-fund
 npm test
 npm run benchmark
 npm run visual
+npm run playcanvas
 ```
 
-The benchmark writes `poc-results.json`. Visual evidence is written under `.visual-output/`.
+Evidence is written to `poc-results.json` and `.visual-output/`.
 
 ## Rollback
 
