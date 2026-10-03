@@ -1,0 +1,16 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "routes": [
+    {
+      "src": "/assets/induck-v3\\.glb",
+      "dest": "/api/brand-induck"
+    },
+    {
+      "src": "/\\.generated/assets-optimized/induck-v3\\.glb",
+      "dest": "/api/brand-induck"
+    },
+    {
+      "handle": "filesystem"
+    }
+  ]
+}
