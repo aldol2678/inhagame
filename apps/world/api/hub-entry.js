@@ -1,12 +1,8 @@
 const SUPABASE_URL = process.env.SUPABASE_URL || 'http://127.0.0.1:54321';
 const KEY = process.env.SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_PUBLIC_PLACEHOLDER';
-const ORIGINS = {
-  'https://inhagame.example': 'campus',
-  'https://duck.inhagame.example': 'classic',
-  'https://induckup.inhagame.example': 'induckup',
-  'https://survival.inhagame.example': 'survival',
-  'https://grow.inhagame.example': 'induck-grow'
-};
+// Same host input as the build (INHAGAME_PUBLIC_HOST_*); fails closed when Production has none.
+const { runtimeOriginTargets } = require('../scripts/public-hosts.cjs');
+const ORIGINS = runtimeOriginTargets(process.env);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const EVENTS = new Set(['game_landing', 'game_play_start', 'game_load_error',
   'game_first_result', 'game_first_clear', 'game_retry', 'classic_ranked_start']);
