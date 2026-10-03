@@ -14,7 +14,20 @@
       "keepEmptyLeafNodes": true
     },
     {
+      "file": "annyongi-flight-v1.glb",
+      "minSavingsPercent": 1,
+      "keepEmptyLeafNodes": true
+    },
+    {
+      "file": "induck-cap-v1.glb",
+      "minSavingsPercent": 1
+    },
+    {
       "file": "induck-backpack-v1.glb",
+      "minSavingsPercent": 1
+    },
+    {
+      "file": "induck-hoodie-v1.glb",
       "minSavingsPercent": 1
     },
     {
