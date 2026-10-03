@@ -43,7 +43,9 @@
       new Response(JSON.stringify({ enabled: true }), {
         status: 200, headers: { "content-type": "application/json" }
       }),
-      new Response(null, { status: 404 })
+      new Response(JSON.stringify({ enabled: false }), {
+        status: 200, headers: { "content-type": "application/json" }
+      })
     ];
     const remote = createAssetCanaryRemoteControl({
       fetcher: async () => remoteReplies.shift(),
