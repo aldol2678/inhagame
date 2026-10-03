@@ -1,7 +1,7 @@
 import { TML_QUEST_READ_CAPABILITY } from './quest-read-adapter.mjs';
 
 function capabilityError(capability) {
-  const error = new Error(`TML capability is not bound in P3 read-only runtime: ${capability}`);
+  const error = new Error(`TML capability is not bound in this runtime: ${capability}`);
   error.name = 'TmlCapabilityBindingError';
   error.code = 'CAPABILITY_NOT_BOUND';
   error.capability = capability;
