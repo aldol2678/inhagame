@@ -1,6 +1,6 @@
-import { WebIO } from "npm:@gltf-transform/core@4.5.1";
-import { ALL_EXTENSIONS } from "npm:@gltf-transform/extensions@4.5.1";
-import { dedup, prune } from "npm:@gltf-transform/functions@4.5.1";
+import { WebIO } from "https://esm.sh/@gltf-transform/core@4.5.1?target=deno";
+import { ALL_EXTENSIONS } from "https://esm.sh/@gltf-transform/extensions@4.5.1?target=deno";
+import { dedup, prune } from "https://esm.sh/@gltf-transform/functions@4.5.1?target=deno&exports=dedup,prune";
 
 const SOURCE_FUNCTION = "inhagame-world-brand-assets-v1";
 const ALLOWED = new Set([
