@@ -16,7 +16,7 @@ export const ASSET_CANARY_OUTCOME = Object.freeze({
   ROLLED_BACK_MANUAL: "ROLLED_BACK_MANUAL"
 });
 
-const ALLOWED_PERCENTAGES = Object.freeze(new Set([0, 1, 5, 25]));
+const ALLOWED_PERCENTAGES = Object.freeze(new Set([0, 1, 5, 25, 100]));
 
 function hashBucket(subjectKey) {
   const text = String(subjectKey);

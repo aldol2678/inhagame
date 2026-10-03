@@ -46,10 +46,10 @@
     app.init(options);
     app.start();
 
-    const subjectKey = cohortKey(mode !== "control");
+    const subjectKey = cohortKey(true);
     const production = createProductionAssetCanary({
       app,
-      enabled: true,
+      enabled: mode !== "control",
       subjectKeyOverride: subjectKey
     });
 

@@ -30,9 +30,10 @@ function selectedKey(percent = 25) {
 
 const app = () => ({ assets: { loadFromUrl() {}, remove() {} } });
 
-test("canary percentages are limited to 0/1/5/25", () => {
+test("canary percentages are limited to 0/1/5/25/100", () => {
   assert.equal(assetCanarySelected("control", 0), false);
-  assert.throws(() => assetCanarySelected("x", 100), /E_ASSET_CANARY_PERCENTAGE/);
+  assert.equal(assetCanarySelected("all", 100), true);
+  assert.throws(() => assetCanarySelected("x", 50), /E_ASSET_CANARY_PERCENTAGE/);
 });
 
 test("control cohort always keeps canonical authority", async () => {
