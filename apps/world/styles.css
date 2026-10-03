@@ -4629,6 +4629,16 @@ body[data-lobby-shell="true"] > #mobility-book-panel { display: none !important;
   .mobility-tech-grid { grid-template-columns: 1fr; }
 }
 
+/* Back-gate 37165: static route information, game F1 remains unavailable. */
+.transit-panel { gap: 12px; overflow-y: auto; overscroll-behavior: contain; }
+.transit-route { border: 1px solid #496b7d; border-radius: 12px; padding: 12px; }
+.transit-route-real { border-left: 4px solid #79b788; }
+.transit-route-game { border-left: 4px solid #7ad2df; }
+.transit-route .profile-note { margin: 6px 0 0; }
+.transit-coming-soon { width: 100%; min-height: 44px; margin-top: 12px; border: 1px solid #496b7d;
+  border-radius: 9px; color: #acc3d1; background: #203b4c; opacity: 1; cursor: default; }
+body[data-lobby-shell="true"] > #backgate-transit-panel { display: none !important; }
+
 /* LANDSCAPE-HUD:start
 /* Collection furniture editor: input is owned by BLOCKING_UI while this modal is open. */
 .furniture-editor-backdrop { position:fixed; inset:0; z-index:1090; background:#10203355; }
