@@ -25,6 +25,7 @@ import { EXTERIOR_WORLD_BOUNDS } from './world-exterior-bounds.js';
 import { DORM_1_FENCES } from './gate-dorm-exterior-layout.js';
 import { CAMPUS_BENCH_COLLIDER } from './campus-bench-layout.js';
 import { CAMPUS_STREETLAMP_COLLIDERS } from './campus-streetlamp-layout.js';
+import { CAMPUS_STATIC_PROP_COLLIDERS } from './campus-static-props.js';
 
 export const LANDMARKS = Object.freeze({
   gate: Object.freeze({ ...geoToWorld(37.44770, 126.65319), lat: 37.44770, lon: 126.65319 }),
@@ -41,6 +42,7 @@ const MAIN_GATE_WALL_COLLIDERS=['gate_wall_-1','gate_wall_1'].map(id=>{
 export const OBSTACLES = Object.freeze([
   CAMPUS_BENCH_COLLIDER,
   ...CAMPUS_STREETLAMP_COLLIDERS,
+  ...CAMPUS_STATIC_PROP_COLLIDERS,
   MAIN_GATE_GUESTBOOK_COLLIDER,
   MAIN_GATE_CAMPUS_BIKE_COLLIDER,
   ...ROADVIEW_OBSTACLES,
