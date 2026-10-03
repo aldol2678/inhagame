@@ -1086,6 +1086,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
       quest_stage: quest.stage, quest: quest.status(),
       main2_quest_stage: main2Quest.stage, main2Quest: main2Quest.status(),
       tml_main2_shadow: tmlMain2Shadow.status(),
+      tml_main2_promotion_review: tmlMain2Shadow.promotionReview(),
       main2_guide: main2Guide.status(),
       side_event: sideEvent?.status?.() ?? null,
       social_graph: socialGraph.status(),
