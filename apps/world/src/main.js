@@ -141,6 +141,8 @@ import { createWardrobePanel } from "./appearance/wardrobe-panel.js";
 import { STUDENT_CENTER_SHOP_ENTRY, createShopWorldInteraction } from "./shop/shop-world-interaction.js";
 import { createShopWorldLabel } from "./shop/shop-world-label.js";
 import { roadviewGroundHeight } from "./roadview-layout.js";
+import { createBackgateTransitInteraction } from "./transit/backgate-transit-interaction.js";
+import { createBackgateTransitPanel } from "./transit/backgate-transit-panel.js";
 import { INPUT_FOCUS_POLICY, createInputFocusManager } from "./input/input-focus-manager.js";
 import { bindInputFocusRuntime } from "./input/input-focus-runtime.js";
 import { bindPointerLockRuntime } from "./input/pointer-lock-runtime.js";
@@ -374,6 +376,9 @@ const fullMapInput = createInputFocusOwner({
 });
 const shopInput = createInputFocusOwner({
   manager: inputFocus, ownerId: "shop", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
+});
+const backgateTransitInput = createInputFocusOwner({
+  manager: inputFocus, ownerId: "backgate-transit", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
 });
 const furnitureInput = createInputFocusOwner({
   manager: inputFocus, ownerId: "room-furniture", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
@@ -1234,6 +1239,39 @@ const shopWorldLabel = createShopWorldLabel({
   camera,
   canvas,
   getWorldPosition: () => shopWorldMarker.getPosition()
+});
+// Informational back-gate stop. The shared F/touch slot opens one static panel; F1 stays disabled.
+const backgateTransitPanel = createBackgateTransitPanel({
+  panel: document.getElementById("backgate-transit-panel"),
+  fallbackFocus: canvas,
+  onOpenChange: open => {
+    if (open) {
+      backgateTransitInput.acquire();
+      playerAutoMove?.pause(AUTO_MOVE_CANCEL_REASON.INTERACTION);
+      hudMenu?.setOpen(false, { focus: false });
+      emoteMenu.setOpen(false);
+      chatPanel.setOpen(false, { focus: false });
+    } else backgateTransitInput.release();
+  }
+});
+const backgateTransitState = () => ({
+  grounded: controller.grounded,
+  blocked: rooms.insideRoom || controller.mounted || seats.isSeated || backgateTransitPanel.open ||
+    lobbyWorld.active || lobbyTransition.active || !inputFocus.can("WORLD_ACTION")
+});
+const backgateTransit = createBackgateTransitInteraction({
+  getPosition: () => player.getLocalPosition(), getState: backgateTransitState,
+  getGroundHeight: roadviewGroundHeight,
+  openPanel: () => backgateTransitPanel.setOpen(true)
+});
+// Another modal or a system transition takes over; release our claim without restoring gameplay.
+const unbindBackgateTransitFocus = inputFocus.subscribe(state => {
+  if (backgateTransitPanel.open && state.topOwners.some(id => id !== "backgate-transit"))
+    backgateTransitPanel.setOpen(false, { restoreFocus: false });
+});
+window.addEventListener("pagehide", event => {
+  backgateTransitPanel.setOpen(false, { restoreFocus: false });
+  if (!event.persisted) { unbindBackgateTransitFocus(); backgateTransitPanel.destroy(); }
 });
 social.onRelationshipChange((userId, state) => lobbyPresenceSummary.applyRelationship(userId, state));
 social.onRelationshipChange(() => nearbyPanel.render());
@@ -2260,6 +2298,8 @@ app.on("update", (dt) => {
     guestbookWorldLabel.hide();
     shopWorldLabel.hide();
     contextActions.set("student-center-shop", null);
+    contextActions.set("backgate-transit", null);
+    backgateTransitPanel.setOpen(false, { restoreFocus: false });
     lobbyPresenceSummary.update();
     lobbyQuestHighlight.update();
     backGateLock.refresh();
@@ -2346,6 +2386,8 @@ app.on("update", (dt) => {
     available: shopWorldAvailable()
   });
   contextActions.set("student-center-shop", shopWorldAction);
+  if (inside || controller.mounted) backgateTransitPanel.setOpen(false, { restoreFocus: false });
+  contextActions.set("backgate-transit", backgateTransit.observe(pos, backgateTransitState()));
   contextActions.set("inkyung-duck", inside ? null : inkyungDucks.getContextAction(pos));
   contextActions.set("biryong", inside ? null : biryong?.getContextAction(pos, { blocked: controller.mounted || seats.isSeated }) ?? null);
   contextActions.set("mcm-event", inside ? null : mcmEventRuntime.contextAction());
@@ -2657,6 +2699,8 @@ window.__INHAGAME_P0__ = {
   attendancePanel,
   shopWorld,
   shopWorldLabel,
+  backgateTransit,
+  backgateTransitPanel,
   seats,
   seating,
   follow,
@@ -2767,6 +2811,7 @@ window.__INHAGAME_P0__ = {
     movementHud: controller.hudState ?? null,
     progression: progression.status(),
     shop: { ...shop.status(), ...shopPanel.status(), world: shopWorld.status() },
+    backgateTransit: { ...backgateTransit.status(), ...backgateTransitPanel.status() },
     wallet: wallet.status(),
     inventory: { ...inventory.status(), ...inventoryPanel.status() },
     dailyQuiz: { ...dailyQuiz.status(), panel: dailyQuizPanel.status() },
@@ -2786,6 +2831,7 @@ window.__INHAGAME_P0__ = {
         keyboardHelp: keyboardHelpInput.active,
         fullMap: fullMapInput.active,
         shop: shopInput.active,
+        backgateTransit: backgateTransitInput.active,
         inventory: inventoryInput.active,
         wardrobe: wardrobeInput.active,
         dailyQuiz: dailyQuizInput.active,
