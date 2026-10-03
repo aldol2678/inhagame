@@ -23,27 +23,29 @@ function observationToken(observedAt) {
   return observedAt.replace(/[^0-9A-Za-z]+/g, '-').replace(/^-|-$/g, '');
 }
 
-function fact({ questRef, predicate, value, observedAt }) {
+function fact({ questRef, predicate, value, observedAt, sequence }) {
   return Object.freeze({
     kind: 'fact',
-    id: `fact.${questRef}.${predicate}.${observationToken(observedAt)}`,
+    id: `fact.${questRef}.${predicate}.${observationToken(observedAt)}.${sequence}`,
     subject: questRef,
     predicate,
     value,
     source: TML_QUEST_SOURCE,
     observed_at: observedAt,
-    confidence: 1
+    confidence: 1,
+    extensions: Object.freeze({ observation_sequence: sequence })
   });
 }
 
-function observation({ questRef, predicate, factId, observedAt }) {
+function observation({ questRef, predicate, factId, observedAt, sequence }) {
   return Object.freeze({
     kind: 'observation',
-    id: `observation.${questRef}.${predicate}.${observationToken(observedAt)}`,
+    id: `observation.${questRef}.${predicate}.${observationToken(observedAt)}.${sequence}`,
     source: TML_QUEST_SOURCE,
     observed_at: observedAt,
     query: Object.freeze({ subject: questRef, predicate }),
-    facts: Object.freeze([factId])
+    facts: Object.freeze([factId]),
+    extensions: Object.freeze({ observation_sequence: sequence })
   });
 }
 
@@ -70,6 +72,7 @@ export function createTmlQuestReadAdapter({ questStore, now = () => new Date().t
     throw new TypeError('createTmlQuestReadAdapter requires questStore(userId, event, questId)');
   }
   if (typeof now !== 'function') throw new TypeError('now must be a function');
+  let observationSequence = 0;
 
   return Object.freeze({
     capability: TML_QUEST_READ_CAPABILITY,
@@ -83,13 +86,15 @@ export function createTmlQuestReadAdapter({ questStore, now = () => new Date().t
       const questId = questIdFromTmlRef(questRef);
       const result = normalizeQuestStatus(await questStore(userId, 'status', questId), questId);
       const observedAt = validateObservedAt(now());
+      const sequence = ++observationSequence;
 
       const facts = [
         fact({
           questRef,
           predicate: 'quest.stage',
           value: Object.freeze({ type: 'number', value: result.stage }),
-          observedAt
+          observedAt,
+          sequence
         })
       ];
 
@@ -98,7 +103,8 @@ export function createTmlQuestReadAdapter({ questStore, now = () => new Date().t
           questRef,
           predicate: 'quest.available',
           value: Object.freeze({ type: 'boolean', value: result.available }),
-          observedAt
+          observedAt,
+          sequence
         }));
       }
 
@@ -106,7 +112,8 @@ export function createTmlQuestReadAdapter({ questStore, now = () => new Date().t
         questRef,
         predicate: item.predicate,
         factId: item.id,
-        observedAt
+        observedAt,
+        sequence
       }));
 
       return Object.freeze({
@@ -114,6 +121,7 @@ export function createTmlQuestReadAdapter({ questStore, now = () => new Date().t
         source: TML_QUEST_SOURCE,
         questRef,
         observedAt,
+        sequence,
         facts: Object.freeze(facts),
         observations: Object.freeze(observations)
       });
