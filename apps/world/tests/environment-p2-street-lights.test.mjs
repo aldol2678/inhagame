@@ -7,7 +7,7 @@ import {
   lampHeadPosition,
   nearestNightLampIndices,
   nightLightBudget
-} from '../src/environment/night-street-lights.js';
+} from '../src/environment/night-street-light-policy.js';
 
 class FakeColor {
   constructor() { this.values = [0, 0, 0]; }
