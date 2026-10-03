@@ -1,0 +1,28 @@
+{
+  "schema": "tml.reward-spec",
+  "version": "0.1",
+  "id": "reward-spec.inha-world.main2-navigation.v1",
+  "reward_id": "reward.quest.navigation_intro",
+  "reward_version": 1,
+  "source_transition": "transition.inha-world.campus_navigation_intro_v1.8_to_9",
+  "grants": [
+    {
+      "grant_type": "CURRENCY",
+      "target_id": "currency.induck_coin",
+      "amount": 180
+    },
+    {
+      "grant_type": "EXP",
+      "target_id": "exp.campus",
+      "amount": 100
+    }
+  ],
+  "extensions": {
+    "source_contracts": [
+      "supabase/tests/database/79_world_quest_navigation_reward_p1d.test.sql",
+      "apps/world/tests/navigation-reward.test.mjs",
+      "supabase/tests/integration/navigation-reward.integration.test.mjs"
+    ],
+    "note": "Reward amounts are server-owned contract data; TML verifies them against receipt and authoritative readback."
+  }
+}

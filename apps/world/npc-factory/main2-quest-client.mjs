@@ -11,7 +11,7 @@ const targetId = poiId => `poi:${poiId}`;
 // onReward(reward): P1d. Called once with the server Reward result carried by the call that completed
 // Main 2, only while the same account is still signed in. The client never computes coins or EXP.
 export function createMain2QuestClient({
-  enabled, endpoint, getSession, hud, fetcher = fetch, onReward = () => {},
+  enabled, endpoint, getSession, hud, fetcher = fetch, onReward = () => {}, onServerResult = () => {},
   setTimer = setTimeout, clearTimer = clearTimeout, statusRetryDelays = [1000, 3000, 8000]
 }) {
   let signedIn = false, stage = 0, available = false, pending = null, generation = 0, retryAfter = 0;
@@ -87,12 +87,20 @@ export function createMain2QuestClient({
       if (reward !== null && !(event === 'visit_back_gate' && result.stage === 9 && isQuestRewardResult(reward)))
         throw Error('QUEST_UNAVAILABLE');
       if (requestGeneration !== generation) return null;
+      const previousStage = stage;
+      const previousAvailable = available;
       stage = result.stage;
       available = result.available;
       statusReady = true;
       retryAfter = 0;
       clearStatusRetry({ resetAttempt: true });
       publish();
+      try {
+        const observedResult = typeof structuredClone === 'function'
+          ? structuredClone(result)
+          : JSON.parse(JSON.stringify(result));
+        onServerResult(Object.freeze({ event, previousStage, previousAvailable, result: observedResult }));
+      } catch { /* shadow/diagnostic observers can never block quest progress */ }
       if (reward) {
         try { onReward(reward); } catch { /* presentation only; progress already stored */ }
       }

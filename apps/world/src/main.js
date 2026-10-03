@@ -687,10 +687,20 @@ progression.onChange((change) => {
   }
   const message = levelUpMessage(change);
   if (message) showWorldStatusAfterReward(message);
+  npcTest?.observeTmlShadowEconomicState?.({
+    walletBalance: wallet?.balance?.() ?? null,
+    totalExp: change.snapshot?.totalExp ?? progression.snapshot?.totalExp ?? null
+  });
 });
 // Read-only server wallet balance on the same member client (never a new client, never computed).
 const wallet = createWalletClient({ getClient: () => online?.supabase ?? null });
-wallet.onChange(() => lobbyPlayerSummary.setWalletBalance(wallet.balance()));
+wallet.onChange(() => {
+  lobbyPlayerSummary.setWalletBalance(wallet.balance());
+  npcTest?.observeTmlShadowEconomicState?.({
+    walletBalance: wallet.balance(),
+    totalExp: progression.snapshot?.totalExp ?? null
+  });
+});
 // Inventory P0: read-only owned items on the same member client (never a new client, never inferred).
 const inventory = createInventoryClient({ getClient: () => online?.supabase ?? null });
 // P1e: Campus Daily Quiz on the same member client. The server owns the day (Asia/Seoul), the run, the
@@ -2003,6 +2013,13 @@ async function loadOptionalNpcRuntime() {
       questEnabled: npcQuestEnabled,
       questEndpoint: npcTestMode ? '/npc-quest' : '/api/world-quest',
       sideEvent: inkyungSideEvent,
+      // P9: TML observes accepted Main 2 server results and existing Wallet/Progression readbacks only.
+      // It sends no request, owns no write and cannot block the legacy quest path.
+      tmlShadowEnabled: true,
+      getTmlShadowEconomicState: () => ({
+        walletBalance: wallet.balance(),
+        totalExp: progression.snapshot?.totalExp ?? null
+      }),
       // P1c / P1d: First Campus (badge + EXP) and Main2 (coin + EXP) completions carry the server Reward
       // result. Shown through the existing reward toast lane, then the authorities the entries touched
       // are re-read (never computed here); LEVEL UP follows the toast.
