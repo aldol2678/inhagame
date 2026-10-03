@@ -4,7 +4,7 @@ const path=require('node:path');
 const root=path.join(__dirname,'..');
 const types={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css','.json':'application/json','.png':'image/png','.svg':'image/svg+xml'};
 const THREE='https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js';
-const SUPABASE='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+const SUPABASE='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2';
 const ENTRY_SCRIPT='https://inhagame.example/game-entry.js';
 const ENTRY_API='https://inhagame.example/api/hub-entry';
 const SITES=new Set(['http://localhost:4173','https://survival.inhagame.example']);

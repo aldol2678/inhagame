@@ -1,14 +1,59 @@
 name: Public local checks
+# Branch protection requires the `verify` check on every PR, so the workflow always starts and the
+# `verify` job always reports. Docs-only changes (the paths PR #31 proposed to ignore) only run the
+# cheap `changes` job; everything else runs the lanes .github/ci/ci-lanes.mjs selects.
 on:
   pull_request:
   push:
     branches: [main]
 permissions:
   contents: read
+concurrency:
+  # One group per PR: a newer commit cancels the older run of the same PR and nothing else.
+  # Each main push has its own group, so main runs never cancel each other or a PR run.
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || format('{0}-{1}', github.ref, github.sha) }}
+  cancel-in-progress: true
 jobs:
-  verify:
+  changes:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 5
+    outputs:
+      static: ${{ steps.lanes.outputs.static }}
+      db: ${{ steps.lanes.outputs.db }}
+      npc: ${{ steps.lanes.outputs.npc }}
+      browser: ${{ steps.lanes.outputs.browser }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - id: lanes
+        env:
+          CI_EVENT: ${{ github.event_name }}
+          CI_BEFORE: ${{ github.event.before }}
+        run: node .github/ci/ci-lanes.mjs >> "$GITHUB_OUTPUT"
+
+  # General static, unit, legacy-app and build verification.
+  static:
+    needs: changes
+    if: needs.changes.outputs.static == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - run: bash scripts/public-ci.sh
+
+  # Disposable local Supabase: pgTAP, integration tests and generated types.
+  db:
+    needs: changes
+    if: needs.changes.outputs.db == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -17,5 +62,56 @@ jobs:
       - uses: supabase/setup-cli@v3
         with:
           version: 2.117.0
-      - run: bash scripts/public-ci.sh
       - run: bash scripts/public-db.sh
+
+  # World NPC / quest / TML runtime scripts (apps/world/npc-factory/tests*.mjs).
+  npc-factory:
+    needs: changes
+    if: needs.changes.outputs.npc == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - run: bash .github/ci/npc-factory-tests.sh
+
+  # Real Campus browser boot on GPU-less Chromium (WebGL2 fallback) plus the World page smokes.
+  browser-smoke:
+    needs: changes
+    if: needs.changes.outputs.browser == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - run: bash .github/ci/world-browser-smoke.sh
+
+  # The required status check. Passes only when lane selection succeeded and every selected lane
+  # passed; a lane the change does not need is skipped and counts as passing.
+  verify:
+    needs: [changes, static, db, npc-factory, browser-smoke]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - env:
+          CHANGES: ${{ needs.changes.result }}
+          STATIC: ${{ needs.changes.outputs.static }}:${{ needs.static.result }}
+          DB: ${{ needs.changes.outputs.db }}:${{ needs.db.result }}
+          NPC: ${{ needs.changes.outputs.npc }}:${{ needs.npc-factory.result }}
+          BROWSER: ${{ needs.changes.outputs.browser }}:${{ needs.browser-smoke.result }}
+        run: |
+          echo "changes=$CHANGES static=$STATIC db=$DB npc-factory=$NPC browser-smoke=$BROWSER"
+          [ "$CHANGES" = success ] || { echo "::error::lane selection did not succeed ($CHANGES)"; exit 1; }
+          status=0
+          for lane in STATIC DB NPC BROWSER; do
+            case "${!lane}" in
+              true:success|false:skipped) ;;
+              *) echo "::error::$lane lane ended as ${!lane} (selected:result)"; status=1 ;;
+            esac
+          done
+          exit $status

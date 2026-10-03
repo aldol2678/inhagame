@@ -10,3 +10,4 @@ node apps/world/qa.mjs
 node --test supabase/tests/edge/*.test.mjs
 node --test .github/ci/migration-lint.test.mjs
 node .github/ci/migration-lint.mjs
+node --test .github/ci/ci-lanes.test.mjs .github/ci/cdn-pins.test.mjs
