@@ -79,12 +79,14 @@ export function sunVisualProfile({
   sunIntensity = 1,
   artificialLightFactor = 0,
   rainIntensity = 0,
+  snowIntensity = 0,
   sunLightScale = 1
 } = {}) {
   const night = clamp01(artificialLightFactor);
   const rain = clamp01(rainIntensity);
+  const snow = clamp01(snowIntensity);
   const weatherScale = clamp01(sunLightScale);
-  const opacity = clamp01((1 - night * 1.08) * weatherScale * (1 - rain * 0.16));
+  const opacity = clamp01((1 - night * 1.08) * weatherScale * (1 - rain * 0.16) * (1 - snow * 0.10));
   const color = sunColor.slice(0, 3).map(clamp01);
   return Object.freeze({
     opacity,
@@ -98,30 +100,34 @@ export function cloudVisualProfile({
   sunColor = [1, 0.94, 0.81],
   artificialLightFactor = 0,
   rainIntensity = 0,
+  snowIntensity = 0,
   cloudCover = 0.24
 } = {}) {
   const night = clamp01(artificialLightFactor);
   const rain = clamp01(rainIntensity);
+  const snow = clamp01(snowIntensity);
   const cover = clamp01(cloudCover);
   const daylight = 1 - night;
 
   const clear = [0.93, 0.96, 1.00];
   const overcast = [0.60, 0.66, 0.73];
   const rainy = [0.36, 0.42, 0.50];
+  const snowy = [0.76, 0.80, 0.85];
   const nightCloud = [0.15, 0.19, 0.27];
 
   let color = mixTuple(clear, overcast, cover);
   color = mixTuple(color, rainy, rain);
+  color = mixTuple(color, snowy, snow);
   color = mixTuple(color, nightCloud, night);
 
-  const warmStrength = daylight * (1 - rain) * (1 - cover * 0.78) * 0.18;
+  const warmStrength = daylight * (1 - rain) * (1 - snow) * (1 - cover * 0.78) * 0.18;
   color = color.map((value, index) =>
     clamp01(mix(value, clamp01(sunColor[index] ?? 1), warmStrength))
   );
 
   return Object.freeze({
     color: Object.freeze(color),
-    opacity: clamp01(0.18 + cover * 0.48 + rain * 0.08 + night * 0.05),
+    opacity: clamp01(0.18 + cover * 0.48 + rain * 0.08 + snow * 0.05 + night * 0.05),
     emissiveIntensity: mix(0.82, 0.42, night)
   });
 }

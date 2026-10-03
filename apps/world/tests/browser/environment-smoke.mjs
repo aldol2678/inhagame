@@ -14,6 +14,7 @@ try {
       window.__INHAGAME_ENVIRONMENT__?.status?.().weatherSettled &&
       window.__INHAGAME_NIGHT_LIGHTS__?.status?.().artificialLightFactor >= 0.17 &&
       window.__INHAGAME_RAIN__?.status &&
+      window.__INHAGAME_SNOW__?.status &&
       window.__INHAGAME_POND_WEATHER__?.status?.() &&
       window.__INHAGAME_SKY__?.status?.() &&
       window.__INHAGAME_P0__?.getStatus?.().loading?.finished,
@@ -25,6 +26,7 @@ try {
     environment: window.__INHAGAME_ENVIRONMENT__.status(),
     streetLights: window.__INHAGAME_NIGHT_LIGHTS__.status(),
     rain: window.__INHAGAME_RAIN__.status(),
+    snow: window.__INHAGAME_SNOW__.status(),
     pond: window.__INHAGAME_POND_WEATHER__.status(),
     sky: window.__INHAGAME_SKY__.status(),
     graphics: window.__INHAGAME_P0__.getStatus().graphics
@@ -36,6 +38,8 @@ try {
   assert.equal(initial.environment.wetness, 0);
   assert.equal(initial.rain.rainEnabled, false);
   assert.equal(initial.rain.wetGroundEnabled, false);
+  assert.equal(initial.snow.enabled, false);
+  assert.equal(initial.snow.snowIntensity, 0);
   assert.equal(initial.pond.rainIntensity, 0);
   assert.equal(initial.pond.artificialLightFactor, 0.18);
   assert.equal(initial.pond.rippleSpeed, 0.025);
@@ -101,6 +105,37 @@ try {
   assert.ok(cloudy.sky.sunLightScale < dayClear.sky.sunLightScale);
   assert.equal(cloudy.sky.sunVisible, true);
 
+  await page.evaluate(() => window.__INHAGAME_ENVIRONMENT__.setWeather('snow'));
+  await page.waitForFunction(
+    () => window.__INHAGAME_ENVIRONMENT__.status().targetWeather === 'SNOW' &&
+      window.__INHAGAME_ENVIRONMENT__.status().weatherSettled &&
+      window.__INHAGAME_SNOW__.status().snowIntensity >= 0.999,
+    null,
+    { timeout: TIMEOUT_MS }
+  );
+  const snowDay = await page.evaluate(() => ({
+    environment: window.__INHAGAME_ENVIRONMENT__.status(),
+    rain: window.__INHAGAME_RAIN__.status(),
+    snow: window.__INHAGAME_SNOW__.status(),
+    sky: window.__INHAGAME_SKY__.status()
+  }));
+  assert.equal(snowDay.environment.targetWeather, 'SNOW');
+  assert.equal(snowDay.environment.fog.type, 'linear');
+  assert.equal(snowDay.environment.rainIntensity, 0);
+  assert.equal(snowDay.environment.snowIntensity, 1);
+  assert.equal(snowDay.environment.wetness, 0);
+  assert.equal(snowDay.rain.rainEnabled, false);
+  assert.equal(snowDay.rain.wetGroundEnabled, false);
+  assert.equal(snowDay.snow.enabled, true);
+  assert.equal(snowDay.snow.drawMeshes, 1);
+  assert.ok(snowDay.snow.flakeBudget >= 36 && snowDay.snow.flakeBudget <= 120);
+  assert.ok(snowDay.snow.opacity > 0);
+  assert.equal(snowDay.sky.snowIntensity, 1);
+  assert.ok(snowDay.sky.cloudCover > cloudy.sky.cloudCover);
+  assert.ok(snowDay.sky.cloudOpacity > cloudy.sky.cloudOpacity);
+  assert.ok(snowDay.sky.sunOpacity < cloudy.sky.sunOpacity);
+  assert.equal(snowDay.sky.sunVisible, true);
+
   await page.evaluate(() => {
     window.__INHAGAME_ENVIRONMENT__.setTimeOfDay('night');
     window.__INHAGAME_ENVIRONMENT__.setWeather('rain');
@@ -113,6 +148,7 @@ try {
       window.__INHAGAME_NIGHT_LIGHTS__.status().artificialLightFactor >= 0.999 &&
       window.__INHAGAME_RAIN__.status().rainIntensity >= 0.999 &&
       window.__INHAGAME_RAIN__.status().wetness >= 0.999 &&
+      window.__INHAGAME_SNOW__.status().snowIntensity === 0 &&
       window.__INHAGAME_POND_WEATHER__.status().rainIntensity >= 0.999 &&
       window.__INHAGAME_POND_WEATHER__.status().artificialLightFactor >= 0.999 &&
       window.__INHAGAME_SKY__.status().sunVisible === false,
@@ -123,6 +159,7 @@ try {
     environment: window.__INHAGAME_ENVIRONMENT__.status(),
     streetLights: window.__INHAGAME_NIGHT_LIGHTS__.status(),
     rain: window.__INHAGAME_RAIN__.status(),
+    snow: window.__INHAGAME_SNOW__.status(),
     pond: window.__INHAGAME_POND_WEATHER__.status(),
     sky: window.__INHAGAME_SKY__.status(),
     graphics: window.__INHAGAME_P0__.getStatus().graphics
@@ -134,6 +171,8 @@ try {
   assert.equal(nightRain.environment.wetness, 1);
   assert.equal(nightRain.rain.rainEnabled, true);
   assert.equal(nightRain.rain.wetGroundEnabled, true);
+  assert.equal(nightRain.snow.enabled, false);
+  assert.equal(nightRain.snow.snowIntensity, 0);
   assert.equal(nightRain.rain.rainDrawMeshes, 1);
   assert.equal(nightRain.rain.wetRoadDrawMeshes, 1);
   assert.ok(nightRain.rain.streakBudget >= 28 && nightRain.rain.streakBudget <= 96);
@@ -166,6 +205,7 @@ try {
       window.__INHAGAME_ENVIRONMENT__.status().targetWeather === 'CLEAR' &&
       window.__INHAGAME_RAIN__.status().rainIntensity === 0 &&
       window.__INHAGAME_RAIN__.status().wetness === 0 &&
+      window.__INHAGAME_SNOW__.status().snowIntensity === 0 &&
       window.__INHAGAME_POND_WEATHER__.status().rainIntensity === 0 &&
       window.__INHAGAME_POND_WEATHER__.status().artificialLightFactor === 0 &&
       window.__INHAGAME_SKY__.status().sunVisible === true,
@@ -175,6 +215,7 @@ try {
   const clear = await page.evaluate(() => ({
     environment: window.__INHAGAME_ENVIRONMENT__.status(),
     rain: window.__INHAGAME_RAIN__.status(),
+    snow: window.__INHAGAME_SNOW__.status(),
     streetLights: window.__INHAGAME_NIGHT_LIGHTS__.status(),
     pond: window.__INHAGAME_POND_WEATHER__.status(),
     sky: window.__INHAGAME_SKY__.status()
@@ -186,6 +227,8 @@ try {
   assert.equal(clear.rain.wetGroundEnabled, false);
   assert.equal(clear.rain.rainDrawMeshes, 0);
   assert.equal(clear.rain.wetRoadDrawMeshes, 0);
+  assert.equal(clear.snow.enabled, false);
+  assert.equal(clear.snow.drawMeshes, 0);
   assert.equal(clear.streetLights.artificialLightFactor, 0);
   assert.equal(clear.pond.rainIntensity, 0);
   assert.equal(clear.pond.artificialLightFactor, 0);
@@ -221,6 +264,7 @@ try {
     environment: window.__INHAGAME_ENVIRONMENT__.status(),
     streetLights: window.__INHAGAME_NIGHT_LIGHTS__.status(),
     rain: window.__INHAGAME_RAIN__.status(),
+    snow: window.__INHAGAME_SNOW__.status(),
     pond: window.__INHAGAME_POND_WEATHER__.status(),
     sky: window.__INHAGAME_SKY__.status(),
     graphics: window.__INHAGAME_P0__.getStatus().graphics
@@ -230,6 +274,8 @@ try {
   assert.equal(mobileStatus.environment.fog.type, 'linear');
   assert.equal(mobileStatus.rain.rainEnabled, true);
   assert.equal(mobileStatus.rain.wetGroundEnabled, true);
+  assert.equal(mobileStatus.snow.enabled, false);
+  assert.equal(mobileStatus.snow.snowIntensity, 0);
   assert.equal(mobileStatus.pond.rainIntensity, 1);
   assert.equal(mobileStatus.pond.artificialLightFactor, 1);
   assert.ok(mobileStatus.pond.bumpiness > 0.45);
@@ -246,7 +292,7 @@ try {
   assert.equal(mobileStatus.streetLights.artificialLightFactor, 1);
   assert.ok(mobileStatus.streetLights.activeDynamicLights <= mobileStatus.streetLights.dynamicBudget);
   assert.deepEqual(smoke.problems, []);
-  console.log('world environment smoke: PASS (CLEAR/CLOUDY/FOG/RAIN, day/sunset/night, clouds + sun, street lights, wet roads, Inkyung pond, 390px mobile)');
+  console.log('world environment smoke: PASS (CLEAR/CLOUDY/FOG/RAIN/SNOW, sky, rain/snow, street lights, wet roads, Inkyung pond, 390px mobile)');
 } finally {
   await smoke.close();
 }
