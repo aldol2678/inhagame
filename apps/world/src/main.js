@@ -22,6 +22,8 @@ import { CampusChunkRenderer } from './campus-chunk-renderer.js';
 import { legacyTelemetryTarget } from './legacy-zone-compat.js';
 import { createViewDistanceSettings } from './view-distance-settings.js';
 import { createGraphicsPresetController } from './graphics-presets.js';
+import { createEnvironmentDirector } from './environment/environment-director.js';
+import { resolveEnvironmentRuntimeTime } from './environment/environment-clock.js';
 import { createInkyungDuckSystem } from './ambient-ducks.js';
 import { createInkyungMechanicalDuckEvent } from './inkyung-mechanical-duck-event.js';
 import { createBiryongSystem } from './biryong/biryong-system.js';
@@ -270,6 +272,18 @@ camera.addComponent("camera", {
 });
 camera.camera.toneMapping = pc.TONEMAP_NEUTRAL;
 app.root.addChild(camera);
+
+const environment = createEnvironmentDirector({
+  scene: app.scene,
+  lightEntity: light,
+  camera,
+  initialTime: resolveEnvironmentRuntimeTime(startupParams, { previewHost })
+});
+app.on("update", dt => environment.update(dt));
+window.__INHAGAME_ENVIRONMENT__ = Object.freeze({
+  status: () => environment.status(),
+  ...(previewHost ? { setTimeOfDay: (value, options) => environment.setTimeOfDay(value, options) } : {})
+});
 
 const player = new pc.Entity("Player");
 // Keep canonical east/north coordinates for gameplay; PlayCanvas renders north as -Z.
