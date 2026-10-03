@@ -19,6 +19,7 @@ test('dialogue session follows the P1 hierarchy and rejects cross-branch jumps',
   assert.equal(session.snapshot().topic, 'music');
   assert.throws(() => session.go(NPC_DIALOGUE_STATE.MEMORY), /Invalid NPC dialogue transition/);
   session.go(NPC_DIALOGUE_STATE.TOPICS);
+  assert.equal(session.snapshot().topic, null);
   session.home();
   assert.equal(session.snapshot().state, NPC_DIALOGUE_STATE.HOME);
   assert.equal(session.snapshot().topic, null);
