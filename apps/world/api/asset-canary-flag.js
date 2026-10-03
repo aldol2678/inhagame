@@ -4,8 +4,7 @@ const FLAG = 'asset_glb_canary_v1';
 
 module.exports = async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store, max-age=0');
-  res.setHeader('CDN-Cache-Control', 'no-store');
-  res.setHeader('Vercel-CDN-Cache-Control', 'no-store');
+  res.setHeader('Vercel-CDN-Cache-Control', 'public, s-maxage=5, stale-while-revalidate=5');
   if (req.method !== 'GET') {
     res.setHeader('Allow', 'GET');
     return res.status(405).end();
@@ -23,8 +22,7 @@ module.exports = async function handler(req, res) {
     const rows = await upstream.json();
     if (!Array.isArray(rows) || rows.length !== 1 || typeof rows[0]?.enabled !== 'boolean')
       return res.status(503).end();
-    if (rows[0].enabled !== true) return res.status(404).end();
-    return res.status(200).json({ enabled: true });
+    return res.status(200).json({ enabled: rows[0].enabled === true });
   } catch {
     return res.status(503).end();
   }
