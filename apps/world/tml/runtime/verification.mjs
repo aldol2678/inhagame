@@ -45,9 +45,21 @@ function factsForClaim(facts, subject, predicate) {
 function authoritativeFacts(facts, profile, subject, predicate) {
   const rule = authorityFor(profile, predicate);
   if (!rule) return { rule: null, facts: [] };
+
+  const authoritative = factsForClaim(facts, subject, predicate)
+    .filter((fact) => fact.source === rule.authority);
+
+  if (authoritative.length === 0) return { rule, facts: [] };
+
+  const validTimes = authoritative
+    .map((fact) => Date.parse(fact.observed_at))
+    .filter(Number.isFinite);
+  if (validTimes.length === 0) return { rule, facts: authoritative };
+
+  const latest = Math.max(...validTimes);
   return {
     rule,
-    facts: factsForClaim(facts, subject, predicate).filter((fact) => fact.source === rule.authority)
+    facts: authoritative.filter((fact) => Date.parse(fact.observed_at) === latest)
   };
 }
 
