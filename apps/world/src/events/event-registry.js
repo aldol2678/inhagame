@@ -4,7 +4,8 @@
 export const EVENT_ID = Object.freeze({
   BIRYONG_BR01: 'BR01',
   BACK_GATE_BG01: 'BG01',
-  MCM_2026: 'event.mcm_2026'
+  MCM_2026: 'event.mcm_2026',
+  INKYUNG_MECHANICAL_DUCK: 'event.inkyung_mechanical_duck'
 });
 
 export const EVENT_LIFECYCLE_SOURCE = Object.freeze({
@@ -16,6 +17,7 @@ export const EVENT_LIFECYCLE_SOURCE = Object.freeze({
 export const EVENT_PERSISTENCE_MODE = Object.freeze({
   SERVER_PERSISTED: 'SERVER_PERSISTED',
   DERIVED_FROM_OWNER: 'DERIVED_FROM_OWNER',
+  CLIENT_PERSISTED: 'CLIENT_PERSISTED',
   SESSION_ONLY: 'SESSION_ONLY',
   PRESENTATION_ONLY: 'PRESENTATION_ONLY'
 });
@@ -106,6 +108,19 @@ export const DEFAULT_EVENT_DEFINITIONS = Object.freeze({
     completionRepeatPolicy: EVENT_REPEAT_POLICY.ONCE_PER_ACCOUNT,
     progressOwner: EVENT_PROGRESS_OWNER.EVENT,
     rewardMode: EVENT_REWARD_MODE.REWARD_CLAIM,
+    interactionRepeatable: true
+  }),
+  // Unlock is gated by Main 1. Progress itself is a separate client-local event,
+  // not a server row and not a quest-derived lock like BG01.
+  [EVENT_ID.INKYUNG_MECHANICAL_DUCK]: definition({
+    eventId: EVENT_ID.INKYUNG_MECHANICAL_DUCK,
+    title: '인경호의 진실',
+    lifecycleSource: EVENT_LIFECYCLE_SOURCE.OWNER_DERIVED,
+    persistenceMode: EVENT_PERSISTENCE_MODE.CLIENT_PERSISTED,
+    completionRepeatPolicy: EVENT_REPEAT_POLICY.ONCE_PER_ACCOUNT,
+    progressOwner: EVENT_PROGRESS_OWNER.EVENT,
+    ownerRef: 'campus_first_walk_v1',
+    rewardMode: EVENT_REWARD_MODE.NONE,
     interactionRepeatable: true
   })
 });
