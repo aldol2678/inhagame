@@ -122,3 +122,32 @@ TML shadow    = read-only comparison
 ```
 
 No TML shadow result changes a request, stage, reward, wallet, progression state or player-facing UI.
+
+
+## P10 Shadow parity metrics
+
+P10 keeps the P9 execution boundary unchanged and adds structured, memory-only parity aggregation.
+
+The shadow status now exposes:
+
+- transition observations / MATCH / MISMATCH counts;
+- per-transition parity ratios;
+- Reward receipt parity;
+- Reward settlement parity and coverage;
+- combined resolved parity;
+- reason counters;
+- a bounded recent-mismatch sample (20 entries, no user id or raw Reward payload);
+- account-scope reset count.
+
+Status refreshes are tracked separately and do not inflate the parity denominator.
+
+Account sign-in, sign-out, or switch clears only pending per-account settlement state. Aggregate parity counters remain available for the current runtime session.
+
+P10 deliberately does **not** define an automatic promotion threshold and does not switch execution authority. A high parity ratio is evidence for later rollout decisions, not a runtime command.
+
+The invariant remains:
+
+```text
+legacy Main 2 = authoritative execution
+TML shadow    = parity measurement only
+```
