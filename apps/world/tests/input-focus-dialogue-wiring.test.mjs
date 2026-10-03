@@ -23,7 +23,8 @@ test("NPC runtime emits one unified lifecycle across normal and Main 2 guide con
   assert.match(npcRuntime, /if \(next\) \{ stopObservedConversation\(\); onConversationOpen\(\); \}\s*else onConversationClose\(\);/s);
   assert.match(npcRuntime, /onConversationOpen: syncConversationLifecycle,\s*onConversationClose: syncConversationLifecycle/s);
   assert.match(npcRuntime, /closeConversation\(false, \{ sync: false \}\)/);
-  assert.match(npcRuntime, /activeConversation = \{ id: actor\.id \};\s*syncConversationLifecycle\(\);/s);
+  assert.match(npcRuntime, /activeConversation = \{ id: actor\.id,[^}]*memoryBefore: before,[^}]*newEncounter \};/s);
+  assert.match(npcRuntime, /dialogueSession = createNpcDialogueSession\(\{ npcId: actor\.id \}\);\s*syncConversationLifecycle\(\);/s);
 });
 
 test("Main 2 guide changes state before notifying open and close lifecycle", () => {
