@@ -228,11 +228,16 @@ begin
     return private.world_life_skill_tree_transaction_result_v1(v_existing,true);
   end if;
 
-  select n, t.status into v_node, v_tree_status
+  select * into v_node
     from private.world_life_skill_nodes n
-    join private.world_life_skill_tree_catalog t on t.tree_id=n.tree_id
    where n.node_id=p_node_id;
-  if not found or v_node.status='HIDDEN' or v_tree_status='HIDDEN' then
+  if not found or v_node.status='HIDDEN' then
+    raise exception 'LIFE_SKILL_NODE_NOT_FOUND' using errcode = 'P0002';
+  end if;
+  select t.status into strict v_tree_status
+    from private.world_life_skill_tree_catalog t
+   where t.tree_id=v_node.tree_id;
+  if v_tree_status='HIDDEN' then
     raise exception 'LIFE_SKILL_NODE_NOT_FOUND' using errcode = 'P0002';
   end if;
   if v_node.status <> 'ACTIVE' or v_tree_status <> 'ACTIVE' then
