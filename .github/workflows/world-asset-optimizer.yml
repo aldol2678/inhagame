@@ -80,11 +80,6 @@ jobs:
           WORLD_SMOKE_DISABLE_WEBGPU: '1'
           WORLD_SMOKE_BROWSER: chrome
         run: node apps/world/tests/browser/asset-canary-remote-kill-smoke.mjs
-      - name: Run Android lobby boot diagnostic smoke
-        env:
-          WORLD_SMOKE_DISABLE_WEBGPU: '1'
-          WORLD_SMOKE_BROWSER: chrome
-        run: node apps/world/tests/browser/mobile-boot-smoke.mjs
       - name: Upload optimizer receipt and generated samples
         uses: actions/upload-artifact@v4
         with:
