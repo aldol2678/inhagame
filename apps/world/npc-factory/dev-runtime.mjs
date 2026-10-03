@@ -28,6 +28,7 @@ import { QUEST_ID } from './quest-contract.mjs';
 import { createMain2QuestClient } from './main2-quest-client.mjs';
 import { MAIN2_QUEST_ID } from './main2-quest-contract.mjs';
 import { createMain2GuideRuntime } from './main2-guide-runtime.mjs';
+import { createTmlMain2Shadow } from '../tml/runtime/main2-shadow.mjs';
 
 const aiPilotIds = new Set([MAIN_NPC_ID, QUEST_NPC_ID]);
 const NPC_TALK_RADIUS = metersToWorld(3);
@@ -144,6 +145,8 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
   sideEvent = null,
   onQuestReward = () => {},
   onQuestStateChange = () => {},
+  tmlShadowEnabled = false,
+  getTmlShadowEconomicState = () => ({}),
   onConversationOpen = () => {},
   onConversationClose = () => {} }) {
   // Shared schedules own physical movement. Local-only scenes must not override it.
@@ -287,6 +290,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
       ? { ...state, phase: 'TALKING', interruptedPhase: state.phase, moving: false }
       : state;
   }
+  const tmlMain2Shadow = createTmlMain2Shadow({ enabled: tmlShadowEnabled });
   const quest = createQuestClient({ enabled: questEnabled, endpoint: questEndpoint,
     getSession: getAiSession,
     getNpcPosition: id => avatars.get(id)?.motion?.position ? { ...avatars.get(id).motion.position } : null,
@@ -296,7 +300,15 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
     enabled: questEnabled,
     endpoint: questEndpoint,
     getSession: getAiSession,
-    onReward: onQuestReward
+    onReward: onQuestReward,
+    onServerResult: observation => {
+      try {
+        tmlMain2Shadow.observeQuestResult({
+          ...observation,
+          economicBefore: getTmlShadowEconomicState?.() ?? {}
+        });
+      } catch { /* TML shadow is diagnostic-only and cannot block gameplay. */ }
+    }
   });
   main2Guide = createMain2GuideRuntime({
     root: campusRoot,
@@ -1031,6 +1043,10 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
     },
     observeNavigation: snapshot => main2Quest.observeNavigation(snapshot),
     observeAutoMove: (state, event) => main2Quest.observeAutoMove(state, event),
+    observeTmlShadowEconomicState: snapshot => {
+      try { return tmlMain2Shadow.observeEconomicState(snapshot); }
+      catch { return null; }
+    },
     getContextAction,
     getQuestMapObjective: legacyProgressId =>
       legacyProgressId === QUEST_ID ? quest.mapTarget()
@@ -1067,6 +1083,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
       ai_signed_in: aiSignedIn, ai_npc_ids: [...aiPilotIds].filter(aiEnabled),
       quest_stage: quest.stage, quest: quest.status(),
       main2_quest_stage: main2Quest.stage, main2Quest: main2Quest.status(),
+      tml_main2_shadow: tmlMain2Shadow.status(),
       main2_guide: main2Guide.status(),
       side_event: sideEvent?.status?.() ?? null,
       social_graph: socialGraph.status(),
