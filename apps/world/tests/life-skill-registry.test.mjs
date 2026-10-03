@@ -10,8 +10,8 @@ import {
   lifeSkillFreshSnapshot
 } from '../src/life-skills/life-skill-registry.js';
 
-test('Life Skill Registry contains the 11 long-term skills and keeps them pre-activation', () => {
-  assert.equal(LIFE_SKILL_REGISTRY.size, 11);
+test('Life Skill Registry contains the 12 long-term skills and keeps them pre-activation', () => {
+  assert.equal(LIFE_SKILL_REGISTRY.size, 12);
   assert.deepEqual(LIFE_SKILL_REGISTRY.list().map(skill => skill.skillId), [
     'life.fishing',
     'life.gathering',
@@ -23,7 +23,8 @@ test('Life Skill Registry contains the 11 long-term skills and keeps them pre-ac
     'life.crafting',
     'life.farming',
     'life.photography',
-    'life.research'
+    'life.research',
+    'life.sailing'
   ]);
   assert.ok(LIFE_SKILL_REGISTRY.list().every(skill => skill.curveId === 'life.common.v1'));
   assert.ok(LIFE_SKILL_REGISTRY.list().every(skill => skill.status === LIFE_SKILL_STATUS.COMING_SOON));
