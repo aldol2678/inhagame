@@ -12,6 +12,7 @@ export const ASSET_CANARY_OUTCOME = Object.freeze({
   ROLLED_BACK_LOAD_FAILURE: "ROLLED_BACK_LOAD_FAILURE",
   ROLLED_BACK_INSTANTIATION_FAILURE: "ROLLED_BACK_INSTANTIATION_FAILURE",
   ROLLED_BACK_VALIDATION_FAILURE: "ROLLED_BACK_VALIDATION_FAILURE",
+  ROLLED_BACK_ACTIVATION_GUARD: "ROLLED_BACK_ACTIVATION_GUARD",
   ROLLED_BACK_MANUAL: "ROLLED_BACK_MANUAL"
 });
 
@@ -54,7 +55,8 @@ export function createAssetAuthorityCanary({
   enabled = false,
   percentage = 0,
   optimizedLoader = null,
-  productionWired = false
+  productionWired = false,
+  activationGuard = null
 } = {}) {
   if (!app?.assets?.loadFromUrl) throw new TypeError("PlayCanvas asset registry is required");
   if (!shadow?.observeResource || !shadow?.optimizedUrlFor) throw new TypeError("Asset optimization shadow is required");
@@ -197,6 +199,33 @@ export function createAssetAuthorityCanary({
           authority: ASSET_CANARY_AUTHORITY.CANONICAL,
           outcome: ASSET_CANARY_OUTCOME.ROLLED_BACK_VALIDATION_FAILURE,
           reason: validationReason
+        });
+        return Object.freeze({
+          activeEntity: canonicalEntity,
+          canonicalEntity,
+          optimizedEntity: null,
+          receipt,
+          rollback: () => receipt
+        });
+      }
+    }
+
+    if (typeof activationGuard === "function") {
+      let allowed = false;
+      try { allowed = activationGuard() === true; } catch { allowed = false; }
+      if (!allowed) {
+        try { optimizedEntity?.destroy?.(); } catch {}
+        try { optimizedAsset?.unload?.(); } catch {}
+        try { app.assets.remove?.(optimizedAsset); } catch {}
+        const receipt = record({
+          canonicalUrl,
+          optimizedUrl,
+          subjectKey,
+          consumer,
+          selected: true,
+          authority: ASSET_CANARY_AUTHORITY.CANONICAL,
+          outcome: ASSET_CANARY_OUTCOME.ROLLED_BACK_ACTIVATION_GUARD,
+          reason: "ACTIVATION_GUARD_CLOSED"
         });
         return Object.freeze({
           activeEntity: canonicalEntity,
