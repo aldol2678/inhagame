@@ -31,11 +31,11 @@ select col_is_unique('private','world_life_skill_point_transactions',array['idem
 select col_is_pk('private','world_player_life_skill_nodes',array['user_id','node_id'],
   'one purchased rank row per account/node');
 
-select results_eq($
+select results_eq($$
   select level,min_total_xp,skill_points_reward
     from private.world_life_progression_thresholds
    where curve_id='life.progression.v1' and level=1
-$,$values (1,0::bigint,0)$,
+$$,$$values (1,0::bigint,0)$$,
   'Life progression foundation keeps the canonical Lv1 origin at 0 XP / 0 SP');
 
 select is((select count(*) from private.world_life_skill_catalog),12::bigint,
