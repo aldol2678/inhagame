@@ -316,14 +316,23 @@ export function createTmlMain2Shadow({ enabled = true } = {}) {
     if (!pendingReward) return null;
 
     const before = pendingReward.before;
-    if (before.walletBalance === null || before.totalExp === null ||
-        economic.walletBalance === null || economic.totalExp === null) {
+    if (before.walletBalance === null || before.totalExp === null) {
       latest = Object.freeze({
         ...(latest ?? {}),
         rewardStatus: TML_MAIN2_SHADOW_STATUS.UNKNOWN,
-        rewardReason: 'ECONOMIC_READBACK_UNAVAILABLE'
+        rewardReason: 'ECONOMIC_BASELINE_UNAVAILABLE'
       });
       parity.observeSettlement(latest);
+      pendingReward = null;
+      return latest;
+    }
+
+    if (economic.walletBalance === null || economic.totalExp === null) {
+      latest = Object.freeze({
+        ...(latest ?? {}),
+        rewardStatus: TML_MAIN2_SHADOW_STATUS.PENDING,
+        rewardReason: 'WAITING_ECONOMIC_READBACK'
+      });
       return latest;
     }
 
