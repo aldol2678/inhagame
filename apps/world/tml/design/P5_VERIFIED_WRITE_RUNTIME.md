@@ -1,6 +1,6 @@
 # TML P5 · Verified Write Runtime Design v0.1
 
-Status: DESIGN · NON-RUNTIME · NOT YET BOUND  
+Status: IMPLEMENTATION CANDIDATE · VERIFIED-WRITE BINDING UNDER CI  
 Target profile: `inha.world@0.1`  
 First capability: `world.quest.advance`  
 Baseline: public `aldol2678/inhagame` main after TML P4
@@ -397,3 +397,15 @@ Not part of initial P5 implementation:
 - Gyeol verdict integration.
 
 These should be added only after the single-transition verified-write loop is stable.
+
+
+## 14. Implementation candidate
+
+The first P5 implementation candidate adds:
+
+- `runtime/quest-advance-adapter.mjs`
+- `runtime/verified-write-runtime.mjs`
+- `createTmlVerifiedWriteCapabilityRegistry(...)`
+- `tests/tml-verified-write-runtime.test.mjs`
+
+The existing `createTmlReadOnlyCapabilityRegistry(...)` remains unchanged and available. The verified-write registry is not treated as adopted until this branch passes public CI and is merged.
