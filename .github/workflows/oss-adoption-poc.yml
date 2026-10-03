@@ -33,9 +33,12 @@ jobs:
       - name: Run benchmark
         working-directory: experiments/oss-adoption-poc
         run: npm run benchmark
-      - name: Run deterministic visual regression
+      - name: Run renderer-neutral visual regression
         working-directory: experiments/oss-adoption-poc
         run: npm run visual
+      - name: Run PlayCanvas compatibility gate
+        working-directory: experiments/oss-adoption-poc
+        run: npm run playcanvas
       - name: Upload PoC evidence
         if: always()
         uses: actions/upload-artifact@v4
