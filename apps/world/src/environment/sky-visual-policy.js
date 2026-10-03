@@ -56,17 +56,22 @@ export function skyCloudLayout(tier) {
   });
 }
 
-export function sunDirectionFromEuler(euler) {
+export function writeSunDirection(out, euler) {
   const pitch = (Number(euler?.[0]) || 0) * Math.PI / 180;
   const yaw = (Number(euler?.[1]) || 0) * Math.PI / 180;
   const cp = Math.cos(pitch);
-  const direction = [
-    Math.sin(yaw) * cp,
-    Math.sin(pitch),
-    -Math.cos(yaw) * cp
-  ];
-  const length = Math.hypot(...direction) || 1;
-  return Object.freeze(direction.map(value => value / length));
+  const x = Math.sin(yaw) * cp;
+  const y = Math.sin(pitch);
+  const z = -Math.cos(yaw) * cp;
+  const length = Math.hypot(x, y, z) || 1;
+  out[0] = x / length;
+  out[1] = y / length;
+  out[2] = z / length;
+  return out;
+}
+
+export function sunDirectionFromEuler(euler) {
+  return Object.freeze([...writeSunDirection([0, 0, -1], euler)]);
 }
 
 export function sunVisualProfile({
