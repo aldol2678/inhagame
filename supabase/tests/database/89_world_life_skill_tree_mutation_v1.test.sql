@@ -77,13 +77,12 @@ select results_eq($$
 $$,$$values ('SUCCESS'::text,0,1,-1,23,22)$$,
   'first root rank spends the server-defined 1 SP');
 
-select is(public.rank_up_my_world_life_skill_node_v1(
-  'life_node.fishing.steady_hands','life-tree:a:steady:1')->>'status',
-  'ALREADY_PROCESSED','same rank-up key replays exactly');
-select is((select rank from private.world_player_life_skill_nodes
-  where user_id='a8900000-0000-4000-8000-0000000000a8'
-    and node_id='life_node.fishing.steady_hands'),1,
-  'rank-up replay does not increase rank');
+select results_eq($
+  select r->>'status',(r->>'rankAfter')::int,(r->>'balanceAfter')::int
+  from (select public.rank_up_my_world_life_skill_node_v1(
+    'life_node.fishing.steady_hands','life-tree:a:steady:1') r) s
+$,$values ('ALREADY_PROCESSED'::text,1,22)$,
+  'same rank-up key replays the exact committed rank and balance');
 
 select throws_ok($$
   select public.rank_up_my_world_life_skill_node_v1(
