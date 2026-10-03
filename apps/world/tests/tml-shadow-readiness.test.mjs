@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import { TML_MAIN2_SHADOW_TRANSITIONS } from '../tml/runtime/main2-shadow-contract.mjs';
@@ -284,4 +285,17 @@ test('P11 shadow status exposes readiness but has no promotion or authority-swit
   assert.equal('promote' in shadow, false);
   assert.equal('activate' in shadow, false);
   assert.equal('setAuthority' in shadow, false);
+});
+
+
+test('P11 readiness is not consumed by the live execution path', () => {
+  const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
+  const runtime = readFileSync(new URL('../npc-factory/dev-runtime.mjs', import.meta.url), 'utf8');
+
+  for (const source of [main, runtime]) {
+    assert.doesNotMatch(source, /readiness\s*\.\s*status/);
+    assert.doesNotMatch(source, /READY_CANDIDATE/);
+    assert.doesNotMatch(source, /authorityChangeAllowed/);
+    assert.doesNotMatch(source, /promoteTml|activateTml|setTmlAuthority/i);
+  }
 });
