@@ -25,6 +25,7 @@ import { createGraphicsPresetController } from './graphics-presets.js';
 import { createEnvironmentDirector } from './environment/environment-director.js';
 import { resolveEnvironmentRuntimeTime, resolveEnvironmentRuntimeWeather } from './environment/environment-clock.js';
 import { createNightStreetLights } from './environment/night-street-lights.js';
+import { createRainWeatherEffects } from './environment/rain-weather-effects.js';
 import { createInkyungDuckSystem } from './ambient-ducks.js';
 import { createInkyungMechanicalDuckEvent } from './inkyung-mechanical-duck-event.js';
 import { createBiryongSystem } from './biryong/biryong-system.js';
@@ -319,6 +320,19 @@ const nightStreetLights = createNightStreetLights({
 app.on("update", dt => nightStreetLights.update(dt));
 window.__INHAGAME_NIGHT_LIGHTS__ = Object.freeze({
   status: () => nightStreetLights.status()
+});
+
+const rainWeatherEffects = createRainWeatherEffects({
+  root: campusRoot,
+  app,
+  getPlayerPosition: () => player.getLocalPosition(),
+  getRainIntensity: () => environment.rainIntensity(),
+  getWetnessFactor: () => environment.wetnessFactor(),
+  getGraphicsTier: () => graphics.tier
+});
+app.on("update", dt => rainWeatherEffects.update(dt));
+window.__INHAGAME_RAIN__ = Object.freeze({
+  status: () => rainWeatherEffects.status()
 });
 
 const controller = new PlayerController(player);
