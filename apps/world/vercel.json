@@ -3,11 +3,31 @@
   "routes": [
     {
       "src": "/assets/induck-v3\\.glb",
-      "dest": "/api/brand-induck"
+      "dest": "/api/brand-asset?asset=induck-v3.glb"
     },
     {
       "src": "/\\.generated/assets-optimized/induck-v3\\.glb",
-      "dest": "/api/brand-induck"
+      "dest": "/api/brand-asset?asset=induck-v3.glb"
+    },
+    {
+      "src": "/assets/annyongi-flight-v1\\.glb",
+      "dest": "/api/brand-asset?asset=annyongi-flight-v1.glb"
+    },
+    {
+      "src": "/assets/induck-cap-v1\\.glb",
+      "dest": "/api/brand-asset?asset=induck-cap-v1.glb"
+    },
+    {
+      "src": "/assets/induck-backpack-v1\\.glb",
+      "dest": "/api/brand-asset?asset=induck-backpack-v1.glb"
+    },
+    {
+      "src": "/\\.generated/assets-optimized/induck-backpack-v1\\.glb",
+      "dest": "/api/brand-asset?asset=induck-backpack-v1.glb"
+    },
+    {
+      "src": "/assets/induck-hoodie-v1\\.glb",
+      "dest": "/api/brand-asset?asset=induck-hoodie-v1.glb"
     },
     {
       "handle": "filesystem"
