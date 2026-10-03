@@ -6,7 +6,10 @@ export const ASSET_OPTIMIZATION_SHADOW_STATUS = Object.freeze({
 
 export const ASSET_OPTIMIZATION_SHADOW_MAP = Object.freeze({
   "/assets/induck-v3.glb": "/.generated/assets-optimized/induck-v3.glb",
+  "/assets/annyongi-flight-v1.glb": "/.generated/assets-optimized/annyongi-flight-v1.glb",
+  "/assets/induck-cap-v1.glb": "/.generated/assets-optimized/induck-cap-v1.glb",
   "/assets/induck-backpack-v1.glb": "/.generated/assets-optimized/induck-backpack-v1.glb",
+  "/assets/induck-hoodie-v1.glb": "/.generated/assets-optimized/induck-hoodie-v1.glb",
   "/assets/p0-qa-building.glb": "/.generated/assets-optimized/p0-qa-building.glb"
 });
 
