@@ -21,7 +21,8 @@ TML is used here as a semantic/state-transition layer above the existing game im
 - `runtime/reward-settlement.mjs` — P7 Reward receipt + Wallet + EXP settlement Evidence/Verification
 - `runtime/reward-aware-pipeline.mjs` — P8 explicit ordinary P5 plan + final P7 settlement pipeline
 - `runtime/main2-shadow-contract.mjs` — P9 browser-safe shadow contract aligned to the TML fixtures
-- `runtime/main2-shadow.mjs` — P9 memory-only Main 2 observer; no request, write, persistence or external telemetry
+- `runtime/main2-shadow.mjs` — P9/P10 memory-only Main 2 observer and parity metrics; no request, write, persistence or external telemetry
+- `runtime/shadow-readiness.mjs` — P11 advisory-only readiness evaluator; never changes execution authority
 - `fixtures/` — executable-domain conformance fixtures tied to current INHA WORLD contracts
 
 ## Boundary
@@ -150,4 +151,42 @@ The invariant remains:
 ```text
 legacy Main 2 = authoritative execution
 TML shadow    = parity measurement only
+```
+
+
+## P11 Shadow readiness
+
+P11 turns the P10 parity snapshot into an advisory rollout-readiness status. It does not promote TML and does not expose an authority-switch API.
+
+Default thresholds:
+
+- combined resolved samples: at least 100;
+- every Main 2 transition: at least 5 observations;
+- Reward receipt samples: at least 5;
+- Reward settlement samples: at least 5;
+- settlement coverage: at least 95%;
+- mismatches: 0.
+
+The evaluator returns exactly one of:
+
+- `NOT_ENOUGH_DATA`: one or more sample-count gates have not been met;
+- `REVIEW`: sample volume is sufficient but mismatch or settlement-coverage criteria need human review;
+- `READY_CANDIDATE`: the configured evidence gates are satisfied.
+
+`READY_CANDIDATE` is intentionally a candidate label, not permission to switch runtime authority.
+
+Every result carries:
+
+- `advisoryOnly: true`;
+- `authorityChangeAllowed: false`;
+- the thresholds used;
+- data-gap diagnostics;
+- review diagnostics;
+- the parity evidence that produced the result.
+
+The live Main 2 path does not read the readiness result. The invariant remains:
+
+```text
+legacy Main 2 = authoritative execution
+TML readiness = human-review signal only
 ```
