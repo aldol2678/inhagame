@@ -4,13 +4,14 @@ import { readFileSync } from "node:fs";
 
 const read = path => readFileSync(new URL(path, import.meta.url), "utf8");
 const main = read("../src/main.js");
+const inputRuntime = read("../src/input/world-input-runtime.js");
 const npcRuntime = read("../npc-factory/dev-runtime.mjs");
 const main2Guide = read("../npc-factory/main2-guide-runtime.mjs");
 const mcmRuntime = read("../src/events/zombie-university-2026/event-runtime.js");
 
 test("main owns NPC and MCM dialogue input with BLOCKING_UI claims", () => {
   for (const owner of ["npc-dialogue", "mcm-dialogue"]) {
-    assert.match(main, new RegExp(`ownerId: "${owner}".*policy: INPUT_FOCUS_POLICY\\.BLOCKING_UI`, "s"));
+    assert.match(inputRuntime, new RegExp(`"${owner}", INPUT_FOCUS_POLICY\\.BLOCKING_UI`));
   }
   assert.match(main, /onConversationOpen:\s*\(\)\s*=>\s*\{\s*npcDialogueInput\.acquire\(\)/s);
   assert.match(main, /onConversationClose:\s*\(\)\s*=>\s*\{ npcDialogueInput\.release\(\); \}/);
