@@ -96,7 +96,10 @@ export function createMain2QuestClient({
       clearStatusRetry({ resetAttempt: true });
       publish();
       try {
-        onServerResult(Object.freeze({ event, previousStage, previousAvailable, result }));
+        const observedResult = typeof structuredClone === 'function'
+          ? structuredClone(result)
+          : JSON.parse(JSON.stringify(result));
+        onServerResult(Object.freeze({ event, previousStage, previousAvailable, result: observedResult }));
       } catch { /* shadow/diagnostic observers can never block quest progress */ }
       if (reward) {
         try { onReward(reward); } catch { /* presentation only; progress already stored */ }
