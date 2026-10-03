@@ -1,0 +1,46 @@
+{
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": "1.0"
+    },
+    "scope": {
+      "$ref": "urn:tml:v1:core#/$defs/Scope"
+    },
+    "profile": {
+      "$ref": "urn:tml:v1:core#/$defs/ProfileRef"
+    },
+    "root": {
+      "type": "object",
+      "properties": {
+        "claim": {
+          "$ref": "urn:tml:v1:core#/$defs/Ref"
+        },
+        "evidence": {
+          "$ref": "urn:tml:v1:core#/$defs/Ref"
+        }
+      },
+      "required": [
+        "claim",
+        "evidence"
+      ],
+      "additionalProperties": false
+    },
+    "records": {
+      "type": "array",
+      "items": {
+        "$ref": "urn:tml:v1:core#/$defs/Record"
+      }
+    }
+  },
+  "required": [
+    "version",
+    "scope",
+    "profile",
+    "root",
+    "records"
+  ],
+  "additionalProperties": false,
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:tml:v1:bundle"
+}

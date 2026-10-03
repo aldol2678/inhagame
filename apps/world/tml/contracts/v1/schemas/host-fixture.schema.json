@@ -1,0 +1,243 @@
+{
+  "type": "object",
+  "properties": {
+    "expectedScope": {
+      "$ref": "urn:tml:v1:core#/$defs/Scope"
+    },
+    "profile": {
+      "$ref": "urn:tml:v1:profile"
+    },
+    "admissions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "record": {
+            "$ref": "urn:tml:v1:core#/$defs/Ref"
+          },
+          "scope": {
+            "$ref": "urn:tml:v1:core#/$defs/Scope"
+          },
+          "source": {
+            "$ref": "urn:tml:v1:core#/$defs/Id"
+          },
+          "role": {
+            "enum": [
+              "SNAPSHOT_READER",
+              "TRANSACTION_AUTHORITY",
+              "EVALUATOR",
+              "ARTIFACT_AUTHOR"
+            ]
+          },
+          "binding": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "const": "SNAPSHOT"
+                  },
+                  "snapshot": {
+                    "$ref": "urn:tml:v1:core#/$defs/SnapshotRef"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "snapshot"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "const": "TRANSACTION"
+                  },
+                  "executionId": {
+                    "$ref": "urn:tml:v1:core#/$defs/Id"
+                  },
+                  "requestFingerprint": {
+                    "$ref": "urn:tml:v1:core#/$defs/Digest"
+                  },
+                  "transactionId": {
+                    "$ref": "urn:tml:v1:core#/$defs/Id"
+                  },
+                  "completeEffects": {
+                    "type": "boolean"
+                  },
+                  "children": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "entryId": {
+                          "$ref": "urn:tml:v1:core#/$defs/Id"
+                        },
+                        "transactionId": {
+                          "$ref": "urn:tml:v1:core#/$defs/Id"
+                        },
+                        "after": {
+                          "$ref": "urn:tml:v1:core#/$defs/SnapshotRef"
+                        }
+                      },
+                      "required": [
+                        "entryId",
+                        "transactionId",
+                        "after"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "kind",
+                  "executionId",
+                  "requestFingerprint",
+                  "transactionId",
+                  "completeEffects",
+                  "children"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "const": "VERIFICATION"
+                  },
+                  "claim": {
+                    "$ref": "urn:tml:v1:core#/$defs/Ref"
+                  },
+                  "evidence": {
+                    "$ref": "urn:tml:v1:core#/$defs/Ref"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "claim",
+                  "evidence"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          }
+        },
+        "required": [
+          "record",
+          "scope",
+          "source",
+          "role",
+          "binding"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "executions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "request": {
+            "$ref": "urn:tml:v1:core#/$defs/Request"
+          },
+          "requestFingerprint": {
+            "$ref": "urn:tml:v1:core#/$defs/Digest"
+          },
+          "receipts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "source": {
+                  "$ref": "urn:tml:v1:core#/$defs/Id"
+                },
+                "transactionId": {
+                  "$ref": "urn:tml:v1:core#/$defs/Id"
+                },
+                "record": {
+                  "$ref": "urn:tml:v1:core#/$defs/Ref"
+                }
+              },
+              "required": [
+                "source",
+                "transactionId",
+                "record"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "request",
+          "requestFingerprint",
+          "receipts"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "readFailures": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "record": {
+            "$ref": "urn:tml:v1:core#/$defs/Ref"
+          },
+          "reason": {
+            "const": "READ_UNAVAILABLE"
+          }
+        },
+        "required": [
+          "record",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "fault": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "stage": {
+              "enum": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6
+              ]
+            },
+            "reason": {
+              "const": "INTERNAL_ERROR"
+            }
+          },
+          "required": [
+            "stage",
+            "reason"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "checkedAt": {
+      "$ref": "urn:tml:v1:core#/$defs/Time"
+    }
+  },
+  "required": [
+    "expectedScope",
+    "profile",
+    "admissions",
+    "executions",
+    "readFailures",
+    "fault",
+    "checkedAt"
+  ],
+  "additionalProperties": false,
+  "$id": "urn:tml:v1:host-fixture",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

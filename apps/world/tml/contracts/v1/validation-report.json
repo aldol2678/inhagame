@@ -1,0 +1,63 @@
+{
+  "verdict": "READY_TO_FREEZE",
+  "target": "specification artifact candidate only",
+  "baselineCommit": "68c76093236e70426a645d4aa5a18b00a4ee1deb",
+  "checkedAt": "2026-10-03T06:19:31.383064+00:00",
+  "schemas": 5,
+  "corpusCases": 244,
+  "originalIdsPreserved": 112,
+  "addedCases": 132,
+  "removedIntents": 0,
+  "allIdsUnique": true,
+  "allReasonsRegistered": true,
+  "canonicalExpectedOutputsCoveredByManifest": true,
+  "semanticReferenceHarness": {
+    "passed": 244,
+    "failed": 0
+  },
+  "canonicalVerification": {
+    "python": "rfc8785 0.1.4 + hashlib SHA256",
+    "independentNode": "ECMAScript primitive serialization + UTF16 sorting + independent set normalization + node:crypto SHA256",
+    "directInputCases": 168,
+    "manifestEntries": 252,
+    "allMatched": true,
+    "hostProfileAndRequestHashesChecked": true
+  },
+  "structuralSetPaths": 24,
+  "reasonCodes": 82,
+  "casesByLayer": {
+    "value": 36,
+    "comparison": 9,
+    "logic": 36,
+    "evaluation": 64,
+    "execution": 15,
+    "arithmetic": 3,
+    "bridge": 3,
+    "fingerprint": 11,
+    "schema": 14,
+    "time-adapter": 4,
+    "identity": 8,
+    "consumption": 3,
+    "normalization": 25,
+    "limits": 6,
+    "transition": 7
+  },
+  "tools": {
+    "python": "3.12.14",
+    "node": "v24.19.0",
+    "jsonschema": "4.26.0"
+  },
+  "limitations": [
+    "No Rust/C++/WASM implementation conformance run or claim.",
+    "Reference harness is bounded test tooling, not a production-complete evaluator.",
+    "Public P15 runtime tests were not rerun; no repository runtime code changed.",
+    "JSON Schema alone is not sufficient for semantic admission, integer ranges, raw token or provenance checks."
+  ],
+  "repositoryWorkingTreeUnchanged": true,
+  "previousArtifactsUnchanged": true,
+  "productionWrites": 0,
+  "migrationsRun": 0,
+  "deployments": 0,
+  "writerActivations": 0,
+  "pullRequestsCreated": 0
+}

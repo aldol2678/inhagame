@@ -1,0 +1,662 @@
+{
+  "version": "1.0",
+  "selection": "Lowest stage then declared substage; INVALID before UNKNOWN markers; then ASCII code and canonical record-id/JSON-Pointer. Dependent substages stop when prerequisite shape/decoding fails. Internal failure prevents a trustworthy stage result and yields ERROR. Atomic conflict and unknown are composed per expression, not global vetoes.",
+  "reasons": [
+    {
+      "code": "INVALID_JSON",
+      "layer": 1,
+      "result": "INVALID",
+      "tieRank": 38,
+      "substage": 1,
+      "description": "invalid json. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "INVALID_UNICODE",
+      "layer": 1,
+      "result": "INVALID",
+      "tieRank": 39,
+      "substage": 1,
+      "description": "invalid unicode. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "DUPLICATE_KEY",
+      "layer": 1,
+      "result": "INVALID",
+      "tieRank": 13,
+      "substage": 1,
+      "description": "duplicate key. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "SCHEMA_VIOLATION",
+      "layer": 1,
+      "result": "INVALID",
+      "tieRank": 68,
+      "substage": 2,
+      "description": "schema violation. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "INTEGER_RANGE",
+      "layer": 1,
+      "result": "INVALID",
+      "tieRank": 35,
+      "substage": 2,
+      "description": "integer range. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "INTEGER_ENCODING",
+      "layer": 1,
+      "result": "INVALID",
+      "tieRank": 33,
+      "substage": 2,
+      "description": "integer encoding. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "NUMBER_RANGE",
+      "layer": 1,
+      "result": "INVALID",
+      "tieRank": 45,
+      "substage": 2,
+      "description": "number range. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "NONFINITE_NUMBER",
+      "layer": 1,
+      "result": "INVALID",
+      "tieRank": 41,
+      "substage": 1,
+      "description": "nonfinite number. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "NUMBER_UNDERFLOW",
+      "layer": 1,
+      "result": "INVALID",
+      "tieRank": 46,
+      "substage": 1,
+      "description": "number underflow. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "TIME_ENCODING",
+      "layer": 1,
+      "result": "INVALID",
+      "tieRank": 75,
+      "substage": 2,
+      "description": "time encoding. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "TIME_PRECISION_UNSUPPORTED",
+      "layer": 1,
+      "result": "INVALID",
+      "tieRank": 76,
+      "substage": 2,
+      "description": "time precision unsupported. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "LIMIT_EXCEEDED",
+      "layer": 1,
+      "result": "INVALID",
+      "tieRank": 40,
+      "substage": 0,
+      "description": "limit exceeded. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "SCOPE_MISMATCH",
+      "layer": 1,
+      "result": "INVALID",
+      "tieRank": 69,
+      "substage": 4,
+      "description": "scope mismatch. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "HASH_MISMATCH",
+      "layer": 1,
+      "result": "INVALID",
+      "tieRank": 28,
+      "substage": 6,
+      "description": "hash mismatch. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "PROFILE_MISMATCH",
+      "layer": 1,
+      "result": "INVALID",
+      "tieRank": 53,
+      "substage": 5,
+      "description": "profile mismatch. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "SNAPSHOT_MISMATCH",
+      "layer": 1,
+      "result": "INVALID",
+      "tieRank": 72,
+      "substage": 8,
+      "description": "snapshot mismatch. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "DUPLICATE_ENTRY",
+      "layer": 1,
+      "result": "INVALID",
+      "tieRank": 12,
+      "substage": 3,
+      "description": "duplicate entry. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "DUPLICATE_SET_MEMBER",
+      "layer": 1,
+      "result": "INVALID",
+      "tieRank": 15,
+      "substage": 3,
+      "description": "duplicate set member. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "DUPLICATE_RECORD",
+      "layer": 1,
+      "result": "INVALID",
+      "tieRank": 14,
+      "substage": 3,
+      "description": "duplicate record. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "REFERENCE_MISMATCH",
+      "layer": 1,
+      "result": "INVALID",
+      "tieRank": 61,
+      "substage": 7,
+      "description": "reference mismatch. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "OPERAND_TYPE",
+      "layer": 1,
+      "result": "INVALID",
+      "tieRank": 48,
+      "substage": 9,
+      "description": "operand type. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "REQUEST_MISMATCH",
+      "layer": 2,
+      "result": "INVALID",
+      "tieRank": 62,
+      "substage": 2,
+      "description": "request mismatch. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "EXECUTION_BINDING_MISMATCH",
+      "layer": 2,
+      "result": "INVALID",
+      "tieRank": 20,
+      "substage": 3,
+      "description": "execution binding mismatch. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "IDEMPOTENCY_CONFLICT",
+      "layer": 2,
+      "result": "INVALID",
+      "tieRank": 29,
+      "substage": 3,
+      "description": "idempotency conflict. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "RECEIPT_INTEGRITY",
+      "layer": 2,
+      "result": "INVALID",
+      "tieRank": 57,
+      "substage": 1,
+      "description": "receipt integrity. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "AUTHORIZATION_DENIED",
+      "layer": 2,
+      "result": "INVALID",
+      "tieRank": 10,
+      "substage": 0,
+      "description": "authorization denied. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "UNTRUSTED_PROVENANCE",
+      "layer": 2,
+      "result": "UNKNOWN",
+      "tieRank": 78,
+      "substage": 4,
+      "description": "untrusted provenance. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "RECEIPT_CONFLICT",
+      "layer": 3,
+      "result": "CONFLICT",
+      "tieRank": 56,
+      "substage": 0,
+      "description": "receipt conflict. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "AUTHORITATIVE_FACT_CONFLICT",
+      "layer": 3,
+      "result": "CONFLICT",
+      "tieRank": 6,
+      "substage": 0,
+      "description": "authoritative fact conflict. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "SNAPSHOT_INCOMPARABLE",
+      "layer": 4,
+      "result": "UNKNOWN",
+      "tieRank": 71,
+      "substage": 2,
+      "description": "snapshot incomparable. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "STALE_SNAPSHOT",
+      "layer": 4,
+      "result": "UNKNOWN",
+      "tieRank": 73,
+      "substage": 3,
+      "description": "stale snapshot. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "RECEIPT_MISSING",
+      "layer": 4,
+      "result": "UNKNOWN",
+      "tieRank": 58,
+      "substage": 1,
+      "description": "receipt missing. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "AUTHORITATIVE_FACT_MISSING",
+      "layer": 4,
+      "result": "UNKNOWN",
+      "tieRank": 7,
+      "substage": 1,
+      "description": "authoritative fact missing. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "OBSERVATION_MISSING",
+      "layer": 4,
+      "result": "UNKNOWN",
+      "tieRank": 47,
+      "substage": 1,
+      "description": "observation missing. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "EXECUTION_BINDING_MISSING",
+      "layer": 4,
+      "result": "UNKNOWN",
+      "tieRank": 21,
+      "substage": 1,
+      "description": "execution binding missing. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "READ_UNAVAILABLE",
+      "layer": 4,
+      "result": "UNKNOWN",
+      "tieRank": 55,
+      "substage": 1,
+      "description": "read unavailable. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "REWARD_VERSION_MISMATCH",
+      "layer": 5,
+      "result": "UNSATISFIED",
+      "tieRank": 66,
+      "substage": 1,
+      "description": "reward version mismatch. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "REWARD_ID_MISMATCH",
+      "layer": 5,
+      "result": "UNSATISFIED",
+      "tieRank": 65,
+      "substage": 0,
+      "description": "reward id mismatch. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "EFFECT_SET_MISMATCH",
+      "layer": 5,
+      "result": "UNSATISFIED",
+      "tieRank": 17,
+      "substage": 2,
+      "description": "effect set mismatch. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "EFFECT_MISMATCH",
+      "layer": 5,
+      "result": "UNSATISFIED",
+      "tieRank": 16,
+      "substage": 3,
+      "description": "effect mismatch. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "SETTLEMENT_MATCH",
+      "layer": 5,
+      "result": "SATISFIED",
+      "tieRank": 70,
+      "substage": 4,
+      "description": "settlement match. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "PROJECTION_APPLIED",
+      "layer": 5,
+      "result": "SATISFIED",
+      "tieRank": 54,
+      "substage": 4,
+      "description": "projection applied. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "AUTHORITATIVE_FACT_PRESENT",
+      "layer": 5,
+      "result": "SATISFIED",
+      "tieRank": 8,
+      "substage": 4,
+      "description": "authoritative fact present. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "EXPLICIT_TRUE",
+      "layer": 5,
+      "result": "SATISFIED",
+      "tieRank": 24,
+      "substage": 4,
+      "description": "explicit true. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "AUTHORITATIVE_COMPARISON",
+      "layer": 5,
+      "result": "EITHER",
+      "tieRank": 5,
+      "substage": 4,
+      "description": "authoritative comparison. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "VALID_VALUE",
+      "layer": "primitive",
+      "result": "VALID",
+      "tieRank": 79,
+      "substage": 0,
+      "description": "valid value. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "NORMALIZED",
+      "layer": "primitive",
+      "result": "VALID",
+      "tieRank": 42,
+      "substage": 0,
+      "description": "normalized. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "FINGERPRINT_COMPUTED",
+      "layer": "primitive",
+      "result": "VALID",
+      "tieRank": 25,
+      "substage": 0,
+      "description": "fingerprint computed. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "TIME_CONVERTED",
+      "layer": "primitive",
+      "result": "VALID",
+      "tieRank": 74,
+      "substage": 0,
+      "description": "time converted. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "ARITHMETIC_OK",
+      "layer": "primitive",
+      "result": "VALID",
+      "tieRank": 4,
+      "substage": 0,
+      "description": "arithmetic ok. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "SCHEMA_VALID",
+      "layer": "primitive",
+      "result": "VALID",
+      "tieRank": 67,
+      "substage": 0,
+      "description": "schema valid. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "IDENTITY_DISTINCT",
+      "layer": "primitive",
+      "result": "VALID",
+      "tieRank": 31,
+      "substage": 0,
+      "description": "identity distinct. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "IDENTITY_EQUAL",
+      "layer": "primitive",
+      "result": "VALID",
+      "tieRank": 32,
+      "substage": 0,
+      "description": "identity equal. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "INTERNAL_ERROR",
+      "layer": "fault",
+      "result": "ERROR",
+      "tieRank": 36,
+      "substage": 0,
+      "description": "internal error. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "INTEGER_OVERFLOW",
+      "layer": "fault",
+      "result": "ERROR",
+      "tieRank": 34,
+      "substage": 0,
+      "description": "integer overflow. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "EXECUTION_OBSERVED",
+      "layer": "execution",
+      "result": "KNOWN",
+      "tieRank": 22,
+      "substage": 0,
+      "description": "execution observed. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "IDEMPOTENT_REPLAY",
+      "layer": "execution",
+      "result": "KNOWN",
+      "tieRank": 30,
+      "substage": 0,
+      "description": "idempotent replay. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "RECEIPT_UNAVAILABLE",
+      "layer": "execution",
+      "result": "KNOWN",
+      "tieRank": 59,
+      "substage": 0,
+      "description": "receipt unavailable. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "RESPONSE_LOST",
+      "layer": "execution",
+      "result": "RECOVERABLE",
+      "tieRank": 63,
+      "substage": 0,
+      "description": "response lost. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "WORKER_CRASH",
+      "layer": "execution",
+      "result": "RECOVERABLE",
+      "tieRank": 81,
+      "substage": 0,
+      "description": "worker crash. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "EXECUTION_UNRESOLVED",
+      "layer": "execution",
+      "result": "UNKNOWN",
+      "tieRank": 23,
+      "substage": 0,
+      "description": "execution unresolved. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "RETENTION_EXPIRED",
+      "layer": "execution",
+      "result": "UNKNOWN",
+      "tieRank": 64,
+      "substage": 0,
+      "description": "retention expired. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "EXECUTION_ACCEPTED",
+      "layer": "execution",
+      "result": "ACCEPTED",
+      "tieRank": 19,
+      "substage": 0,
+      "description": "execution accepted. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "RECOVERY_PRESERVED",
+      "layer": "execution",
+      "result": "VALID",
+      "tieRank": 60,
+      "substage": 0,
+      "description": "recovery preserved. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "VERIFICATION_ADMITTED",
+      "layer": "consumption",
+      "result": "VALID",
+      "tieRank": 80,
+      "substage": 0,
+      "description": "verification admitted. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "HANDLE_EXPIRED",
+      "layer": "bridge",
+      "result": "INVALID",
+      "tieRank": 26,
+      "substage": 0,
+      "description": "handle expired. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "HANDLE_GENERATION_MISMATCH",
+      "layer": "bridge",
+      "result": "INVALID",
+      "tieRank": 27,
+      "substage": 0,
+      "description": "handle generation mismatch. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "AND_SATISFIED",
+      "layer": 6,
+      "result": "SATISFIED",
+      "tieRank": 1,
+      "substage": 0,
+      "description": "and satisfied. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "AND_UNSATISFIED",
+      "layer": 6,
+      "result": "UNSATISFIED",
+      "tieRank": 3,
+      "substage": 0,
+      "description": "and unsatisfied. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "AND_UNKNOWN",
+      "layer": 6,
+      "result": "UNKNOWN",
+      "tieRank": 2,
+      "substage": 0,
+      "description": "and unknown. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "AND_CONFLICT",
+      "layer": 6,
+      "result": "CONFLICT",
+      "tieRank": 0,
+      "substage": 0,
+      "description": "and conflict. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "OR_SATISFIED",
+      "layer": 6,
+      "result": "SATISFIED",
+      "tieRank": 50,
+      "substage": 0,
+      "description": "or satisfied. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "OR_UNSATISFIED",
+      "layer": 6,
+      "result": "UNSATISFIED",
+      "tieRank": 52,
+      "substage": 0,
+      "description": "or unsatisfied. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "OR_UNKNOWN",
+      "layer": 6,
+      "result": "UNKNOWN",
+      "tieRank": 51,
+      "substage": 0,
+      "description": "or unknown. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "OR_CONFLICT",
+      "layer": 6,
+      "result": "CONFLICT",
+      "tieRank": 49,
+      "substage": 0,
+      "description": "or conflict. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "NOT_SATISFIED",
+      "layer": 6,
+      "result": "SATISFIED",
+      "tieRank": 43,
+      "substage": 0,
+      "description": "not satisfied. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "NOT_UNSATISFIED",
+      "layer": 6,
+      "result": "UNSATISFIED",
+      "tieRank": 44,
+      "substage": 0,
+      "description": "not unsatisfied. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "AUTHORITY_RULE_MISSING",
+      "layer": "legacy-p4",
+      "result": "UNKNOWN",
+      "tieRank": 9,
+      "substage": 0,
+      "description": "authority rule missing. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "INVALID_EXPRESSION",
+      "layer": "legacy-p4",
+      "result": "UNKNOWN",
+      "tieRank": 37,
+      "substage": 0,
+      "description": "invalid expression. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "UNSUPPORTED_EXPRESSION",
+      "layer": "legacy-p4",
+      "result": "UNKNOWN",
+      "tieRank": 77,
+      "substage": 0,
+      "description": "unsupported expression. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "CLAIM_MISSING",
+      "layer": 4,
+      "result": "UNKNOWN",
+      "tieRank": 11,
+      "substage": 0,
+      "description": "claim missing. See CONTRACT sections 3-11 for the normative condition."
+    },
+    {
+      "code": "EVIDENCE_MISSING",
+      "layer": 4,
+      "result": "UNKNOWN",
+      "tieRank": 18,
+      "substage": 0,
+      "description": "evidence missing. See CONTRACT sections 3-11 for the normative condition."
+    }
+  ]
+}

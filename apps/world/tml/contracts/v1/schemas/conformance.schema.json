@@ -1,0 +1,251 @@
+{
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "tml.conformance-corpus"
+    },
+    "version": {
+      "const": "1.0"
+    },
+    "baselineCommit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "cases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "layer": {
+            "enum": [
+              "arithmetic",
+              "bridge",
+              "comparison",
+              "consumption",
+              "evaluation",
+              "execution",
+              "fingerprint",
+              "identity",
+              "limits",
+              "logic",
+              "normalization",
+              "schema",
+              "time-adapter",
+              "transition",
+              "value"
+            ]
+          },
+          "input": {
+            "type": "object",
+            "properties": {
+              "wireBytesBase64": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "structuredInput": {},
+              "hostFixture": {
+                "anyOf": [
+                  {
+                    "$ref": "urn:tml:v1:host-fixture"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "wireBytesBase64",
+              "structuredInput",
+              "hostFixture"
+            ],
+            "additionalProperties": false,
+            "oneOf": [
+              {
+                "properties": {
+                  "wireBytesBase64": {
+                    "type": "string"
+                  },
+                  "structuredInput": {
+                    "type": "null"
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "wireBytesBase64": {
+                    "type": "null"
+                  },
+                  "structuredInput": {
+                    "not": {
+                      "type": "null"
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "expected": {
+            "type": "object",
+            "properties": {
+              "normalized": {},
+              "canonicalUtf8": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "digest": {
+                "anyOf": [
+                  {
+                    "$ref": "urn:tml:v1:core#/$defs/Digest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "result": {
+                "type": "string"
+              },
+              "reason": {
+                "enum": [
+                  "AND_CONFLICT",
+                  "AND_SATISFIED",
+                  "AND_UNKNOWN",
+                  "AND_UNSATISFIED",
+                  "ARITHMETIC_OK",
+                  "AUTHORITATIVE_COMPARISON",
+                  "AUTHORITATIVE_FACT_CONFLICT",
+                  "AUTHORITATIVE_FACT_MISSING",
+                  "AUTHORITATIVE_FACT_PRESENT",
+                  "AUTHORITY_RULE_MISSING",
+                  "AUTHORIZATION_DENIED",
+                  "CLAIM_MISSING",
+                  "DUPLICATE_ENTRY",
+                  "DUPLICATE_KEY",
+                  "DUPLICATE_RECORD",
+                  "DUPLICATE_SET_MEMBER",
+                  "EFFECT_MISMATCH",
+                  "EFFECT_SET_MISMATCH",
+                  "EVIDENCE_MISSING",
+                  "EXECUTION_ACCEPTED",
+                  "EXECUTION_BINDING_MISMATCH",
+                  "EXECUTION_BINDING_MISSING",
+                  "EXECUTION_OBSERVED",
+                  "EXECUTION_UNRESOLVED",
+                  "EXPLICIT_TRUE",
+                  "FINGERPRINT_COMPUTED",
+                  "HANDLE_EXPIRED",
+                  "HANDLE_GENERATION_MISMATCH",
+                  "HASH_MISMATCH",
+                  "IDEMPOTENCY_CONFLICT",
+                  "IDEMPOTENT_REPLAY",
+                  "IDENTITY_DISTINCT",
+                  "IDENTITY_EQUAL",
+                  "INTEGER_ENCODING",
+                  "INTEGER_OVERFLOW",
+                  "INTEGER_RANGE",
+                  "INTERNAL_ERROR",
+                  "INVALID_EXPRESSION",
+                  "INVALID_JSON",
+                  "INVALID_UNICODE",
+                  "LIMIT_EXCEEDED",
+                  "NONFINITE_NUMBER",
+                  "NORMALIZED",
+                  "NOT_SATISFIED",
+                  "NOT_UNSATISFIED",
+                  "NUMBER_RANGE",
+                  "NUMBER_UNDERFLOW",
+                  "OBSERVATION_MISSING",
+                  "OPERAND_TYPE",
+                  "OR_CONFLICT",
+                  "OR_SATISFIED",
+                  "OR_UNKNOWN",
+                  "OR_UNSATISFIED",
+                  "PROFILE_MISMATCH",
+                  "PROJECTION_APPLIED",
+                  "READ_UNAVAILABLE",
+                  "RECEIPT_CONFLICT",
+                  "RECEIPT_INTEGRITY",
+                  "RECEIPT_MISSING",
+                  "RECEIPT_UNAVAILABLE",
+                  "RECOVERY_PRESERVED",
+                  "REFERENCE_MISMATCH",
+                  "REQUEST_MISMATCH",
+                  "RESPONSE_LOST",
+                  "RETENTION_EXPIRED",
+                  "REWARD_ID_MISMATCH",
+                  "REWARD_VERSION_MISMATCH",
+                  "SCHEMA_VALID",
+                  "SCHEMA_VIOLATION",
+                  "SCOPE_MISMATCH",
+                  "SETTLEMENT_MATCH",
+                  "SNAPSHOT_INCOMPARABLE",
+                  "SNAPSHOT_MISMATCH",
+                  "STALE_SNAPSHOT",
+                  "TIME_CONVERTED",
+                  "TIME_ENCODING",
+                  "TIME_PRECISION_UNSUPPORTED",
+                  "UNSUPPORTED_EXPRESSION",
+                  "UNTRUSTED_PROVENANCE",
+                  "VALID_VALUE",
+                  "VERIFICATION_ADMITTED",
+                  "WORKER_CRASH"
+                ]
+              },
+              "effects": {
+                "anyOf": [
+                  {
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "normalized",
+              "canonicalUtf8",
+              "digest",
+              "result",
+              "reason",
+              "effects"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "id",
+          "layer",
+          "input",
+          "expected"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "schema",
+    "version",
+    "baselineCommit",
+    "cases"
+  ],
+  "additionalProperties": false,
+  "$id": "urn:tml:v1:corpus",
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}
