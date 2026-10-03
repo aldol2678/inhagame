@@ -5,6 +5,7 @@ import {
   isTmlMain2ShadowResult,
   tmlMain2ShadowTransition
 } from './main2-shadow-contract.mjs';
+import { evaluateTmlMain2ShadowReadiness } from './shadow-readiness.mjs';
 
 export const TML_MAIN2_SHADOW_STATUS = Object.freeze({
   MATCH: 'MATCH',
@@ -207,7 +208,7 @@ function createParityAccumulator() {
   });
 }
 
-export function createTmlMain2Shadow({ enabled = true } = {}) {
+export function createTmlMain2Shadow({ enabled = true, readinessThresholds } = {}) {
   let observations = 0;
   let matches = 0;
   let mismatches = 0;
@@ -391,6 +392,7 @@ export function createTmlMain2Shadow({ enabled = true } = {}) {
     observeEconomicState,
     resetScope,
     status() {
+      const paritySnapshot = parity.snapshot();
       return Object.freeze({
         mode: TML_MAIN2_SHADOW_MODE,
         enabled: Boolean(enabled),
@@ -400,7 +402,11 @@ export function createTmlMain2Shadow({ enabled = true } = {}) {
         pendingReward: pendingReward !== null,
         economic,
         latest,
-        parity: parity.snapshot()
+        parity: paritySnapshot,
+        readiness: evaluateTmlMain2ShadowReadiness({
+          parity: paritySnapshot,
+          thresholds: readinessThresholds
+        })
       });
     }
   });
