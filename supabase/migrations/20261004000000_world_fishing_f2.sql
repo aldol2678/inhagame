@@ -34,7 +34,7 @@ begin
   if (new.attempt_id,new.user_id,new.snapshot - array['status','terminalAction','result'])
      is distinct from
      (old.attempt_id,old.user_id,old.snapshot - array['status','terminalAction','result'])
-     or new.snapshot->>'status' not in ('SUCCEEDED','FAILED','CANCELLED','EXPIRED') then
+     or coalesce(new.snapshot->>'status','') not in ('SUCCEEDED','FAILED','CANCELLED','EXPIRED') then
     raise exception 'FISHING_SNAPSHOT_IMMUTABLE' using errcode='42501';
   end if;
   return new;
@@ -52,7 +52,7 @@ begin
   if (select auth.role()) is distinct from 'service_role' then
     raise exception 'SERVER_ONLY' using errcode='42501';
   end if;
-  if not private.world_activity_account_ok_v1(p_user) then
+  if private.world_activity_account_ok_v1(p_user) is not true then
     raise exception 'ACCOUNT_UNAVAILABLE' using errcode='22023';
   end if;
 end;
@@ -76,7 +76,7 @@ begin
     end if;
     v_value := (p_policy->>v_field)::numeric;
     if v_value <> trunc(v_value) or v_value > 9007199254740991
-       or v_value < case when v_field='lifeXp' then 0 else 1 end then
+       or v_value < (case when v_field='lifeXp' then 0 else 1 end) then
       raise exception 'FISHING_POLICY_INVALID' using errcode='22023';
     end if;
   end loop;
