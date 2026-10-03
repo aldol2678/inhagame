@@ -228,5 +228,9 @@ export function createEnvironmentDirector({
     });
   }
 
-  return Object.freeze({ setTimeOfDay, setWeather, update, status });
+  function artificialLightFactor() {
+    return current.artificialLightFactor;
+  }
+
+  return Object.freeze({ setTimeOfDay, setWeather, update, status, artificialLightFactor });
 }
