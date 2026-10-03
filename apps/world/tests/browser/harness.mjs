@@ -64,7 +64,7 @@ async function startServer() {
 // Starts the server and a headless Chromium with one offline context. `watch(page)` records page
 // errors, console errors and failed or 4xx/5xx same-origin requests into `problems`, and returns a
 // promise that rejects on the first uncaught page error or crash (race it against waits to fail fast).
-export async function startSmoke({ viewport = { width: 1280, height: 720 } } = {}) {
+export async function startSmoke({ viewport = { width: 1280, height: 720 }, contextOptions = {} } = {}) {
   const playCanvas = await pinnedPlayCanvas();
   const server = await startServer();
   // GPU-less CI checks the explicit unsupported path and the Editor's legacy WebGL2 preview.
@@ -83,7 +83,7 @@ export async function startSmoke({ viewport = { width: 1280, height: 720 } } = {
   const problems = [];
   const blocked = new Set();
   const stubbed = new Set();
-  const context = await browser.newContext({ viewport, serviceWorkers: "block" });
+  const context = await browser.newContext({ ...contextOptions, viewport, serviceWorkers: "block" });
   if (disabled) await context.addInitScript(() => Object.defineProperty(navigator, 'gpu', { value: undefined }));
   await context.route("**/*", route => {
     const url = new URL(route.request().url());

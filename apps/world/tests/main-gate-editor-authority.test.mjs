@@ -47,16 +47,16 @@ test('Dormitory 1 connector preserves the previous runtime anchors while becomin
   assert.equal(path.editorEntityId,'entity.main-gate.dorm1-entry-path');
 });
 
-test('traffic island structures are editor-authored without changing production geometry',()=>{
+test('low traffic island levels and unchanged horizontal footprint are editor-authored',()=>{
   const base=mainGateProductionStructure('gate_traffic_island_base');
   const green=mainGateProductionStructure('gate_traffic_island_green');
   const center=GATE_FRAME.at(-2,7);
-  assert.deepEqual(base.position,[center.x,.09,center.z]);
-  assert.deepEqual(base.size,[.9,.18,4]);
+  assert.deepEqual(base.position,[center.x,.0485,center.z]);
+  assert.deepEqual(base.size,[.9,.053,4]);
   assert.equal(base.color,'#cac9b8');
   assert.ok(Math.abs(base.yaw-GATE_FRAME.yaw)<1e-9);
-  assert.deepEqual(green.position,[center.x,.19,center.z]);
-  assert.deepEqual(green.size,[.65,.03,3.65]);
+  assert.deepEqual(green.position,[center.x,.078,center.z]);
+  assert.deepEqual(green.size,[.65,.006,3.65]);
   assert.equal(green.color,'#739057');
 });
 
@@ -123,6 +123,7 @@ test('curved curb return paths are editor-authored with legacy centerline parity
     assert.equal(curb.role,'curb-return');
     assert.equal(curb.side,side);
     assert.equal(curb.width,.2);
+    assert.ok(curb.vertices.every(point=>point.y===.065),'authored low curb top is transformed into runtime Y');
     assert.equal(curb.vertices.length,expected.length);
     curb.vertices.forEach((point,index)=>
       assert.ok(Math.hypot(point.x-expected[index].x,point.z-expected[index].z)<1e-9,'curb '+side+' point '+index));

@@ -25,9 +25,7 @@ function captureSurfaceYs(run) {
 
 const cases=[
   ['campus roads',fillCampusRoadBatch,FLAT_GROUND_Y.UNDERLAY],
-  // Main-gate avatar feet are exceptionally shallow, so its gate-adjacent paths use
-  // a documented extra-flush presentation range beginning at y=.006.
-  ['main gate / Sosung-ro',fillMainGateRoads,.006],
+  ['main gate / Sosung-ro',fillMainGateRoads,FLAT_GROUND_Y.UNDERLAY],
   ['back gate paving',fillBackGatePaving,FLAT_GROUND_Y.UNDERLAY],
   ['back approaches',fillBackApproaches,FLAT_GROUND_Y.UNDERLAY],
   ['culture street paving',fillCulturePaving,FLAT_GROUND_Y.UNDERLAY],

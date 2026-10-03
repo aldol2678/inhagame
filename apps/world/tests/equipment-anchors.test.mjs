@@ -122,7 +122,8 @@ test("character-model: minimal anchor contract (player-parented root, pose follo
   const character = source("../src/character-model.js");
   assert.match(character, /createEquipmentAnchors\(\{ createEntity: name => new pc\.Entity\(name\), parent: player, height: HUMAN_HEIGHT \}\)/);
   assert.match(character, /equipment\.follow\(\{\s*feetY: pose\.feetY, pivotY: pose\.y,/, "equipment rotates about the visual's pivot");
-  assert.match(character, /setFirstPerson\(value\) \{[\s\S]*?equipment\.setVisible\(!value\);/);
+  assert.match(character, /setFirstPerson\(value\) \{[\s\S]*?syncCameraVisibility\(\);/);
+  assert.match(character, /equipment\.setVisible\(!firstPerson && !cameraOccluded\);/);
   assert.match(character, /getEquipmentAnchor: slot => equipment\.anchor\(slot\)/);
   assert.doesNotMatch(character, /equipment-projection|loadout|getItemDefinition|modelAssetId/, "the character knows anchors, not items");
 });

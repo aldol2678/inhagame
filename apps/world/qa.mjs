@@ -737,7 +737,8 @@ console.log("Wardrobe UI P0 static contracts PASS");
   assert.match(m3MainSource, /createEquipmentProjection\(\{\s*loadout,\s*getAnchor: \(slot\) => character\.getEquipmentAnchor\(slot\)/,
     "the projection is driven by the loadout client and the character's anchors");
   assert.match(characterSource, /parent: player, height: HUMAN_HEIGHT/, "equipment anchors hang off the player, not the visual");
-  assert.match(characterSource, /equipment\.setVisible\(!value\)/, "first person hides equipment with the character");
+  assert.match(characterSource, /equipment\.setVisible\(!firstPerson && !cameraOccluded\)/,
+    "first person and a compressed gate camera hide equipment with the character");
   assert.match(catalogSource, /iconAssetId: null, modelAssetId,/, "catalog items take an optional modelAssetId");
   assert.equal((catalogSource.match(/modelAssetId: '[^']+'/g) ?? []).length, 4, "bound items: cap + backpack + hoodie + MCM survivor top");
   assert.match(loaderSource, /"equipment\.head\.induck_cap\.v1": "\/assets\/induck-cap-v1\.glb"/, "cap model binding");
