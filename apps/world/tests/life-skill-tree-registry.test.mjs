@@ -24,7 +24,9 @@ test('v1 tree registry contains four six-node specializations with 17 SP full-ra
     const nodes = LIFE_SKILL_TREE_REGISTRY.listTree(treeId);
     assert.equal(nodes.length, 6, treeId);
     assert.equal(lifeSkillTreeFullRankCost(treeId), 17, treeId);
-    assert.ok(nodes.every(node => node.status === LIFE_SKILL_NODE_STATUS.COMING_SOON));
+    const expectedStatus = treeId === 'life_tree.fishing'
+      ? LIFE_SKILL_NODE_STATUS.ACTIVE : LIFE_SKILL_NODE_STATUS.COMING_SOON;
+    assert.ok(nodes.every(node => node.status === expectedStatus), treeId);
   }
 });
 
