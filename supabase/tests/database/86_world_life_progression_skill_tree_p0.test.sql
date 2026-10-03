@@ -47,8 +47,7 @@ select is((select count(*) from private.world_life_skill_tree_catalog),13::bigin
   'one shared tree plus one tree for each of 12 Life Skills are mirrored');
 select is((select count(*) from private.world_life_skill_tree_catalog where status='COMING_SOON'),13::bigint,
   'no Life Skill Tree is activated by the foundation migration');
-select is((select count(*) from private.world_life_skill_nodes),0::bigint,
-  'P0 commits no balance-sensitive skill nodes');
+-- Node seed state belongs to later forward migrations; this foundation test only owns table shape.
 
 select ok((select bool_and(relrowsecurity) from pg_class where oid in (
   'private.world_life_progression_thresholds'::regclass,
@@ -141,41 +140,41 @@ insert into private.world_life_skill_nodes(
   node_id,tree_id,max_rank,point_cost,required_life_level,
   required_skill_id,required_skill_level,effect_key,status,definition_version
 ) values
- ('life_node.fishing.fish_sense','life_tree.fishing',3,1,2,
-  'life.fishing',2,'fishing.fish_sense.v1','ACTIVE',1),
- ('life_node.fishing.rare_fish_sense','life_tree.fishing',1,2,3,
-  'life.fishing',3,'fishing.rare_fish_sense.v1','ACTIVE',1);
+ ('life_node.fishing.test_foundation_root','life_tree.fishing',3,1,2,
+  'life.fishing',2,'fishing.test_foundation_root.v1','ACTIVE',1),
+ ('life_node.fishing.test_foundation_child','life_tree.fishing',1,2,3,
+  'life.fishing',3,'fishing.test_foundation_child.v1','ACTIVE',1);
 
 insert into private.world_life_skill_node_prerequisites(
   node_id,prerequisite_node_id,required_rank
-) values ('life_node.fishing.rare_fish_sense','life_node.fishing.fish_sense',2);
+) values ('life_node.fishing.test_foundation_child','life_node.fishing.test_foundation_root',2);
 
 insert into private.world_player_life_skill_nodes(
   user_id,node_id,rank,version
 ) values (
   'a8600000-0000-4000-8000-0000000000a8',
-  'life_node.fishing.fish_sense',1,1
+  'life_node.fishing.test_foundation_root',1,1
 );
 
 insert into private.world_life_skill_point_transactions(
   user_id,delta,balance_before,balance_after,reason_type,source_id,node_id,idempotency_key
 ) values (
   'a8600000-0000-4000-8000-0000000000a8',
-  -1,2,1,'NODE_RANK_UP','life_node.fishing.fish_sense:rank:1',
-  'life_node.fishing.fish_sense','life-sp:a:fish-sense:1'
+  -1,2,1,'NODE_RANK_UP','life_node.fishing.test_foundation_root:rank:1',
+  'life_node.fishing.test_foundation_root','life-sp:a:test-foundation:1'
 );
 
 select results_eq($$
   select delta,balance_before,balance_after,reason_type,node_id
     from private.world_life_skill_point_transactions
-   where idempotency_key='life-sp:a:fish-sense:1'
-$$,$$values (-1,2,1,'NODE_RANK_UP'::text,'life_node.fishing.fish_sense'::text)$$,
+   where idempotency_key='life-sp:a:test-foundation:1'
+$$,$$values (-1,2,1,'NODE_RANK_UP'::text,'life_node.fishing.test_foundation_root'::text)$$,
   'node purchase SP transaction preserves before/after audit state');
 
 select throws_ok($$
   update private.world_life_skill_point_transactions
      set balance_after=0
-   where idempotency_key='life-sp:a:fish-sense:1'
+   where idempotency_key='life-sp:a:test-foundation:1'
 $$,'42501','LIFE_PROGRESSION_LEDGER_APPEND_ONLY','SP ledger is append-only');
 select throws_ok($$
   update private.world_life_xp_transactions
