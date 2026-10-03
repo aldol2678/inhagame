@@ -34,6 +34,10 @@ for (const spec of [
     ]);
     await page.goto(`${smoke.origin}/campus/`, { waitUntil: 'domcontentloaded', timeout: TIMEOUT_MS });
     await settled();
+    result.boot = await page.evaluate(() => window.__INHAGAME_P0__.getStatus());
+    result.problems = [...smoke.problems];
+    if (result.boot.renderer === 'UNAVAILABLE') await page.screenshot({ path: resolve(output, `${spec.name}-boot-failure.png`) });
+    assert.notEqual(result.boot.renderer, 'UNAVAILABLE', `boot failed before bench QA: ${result.boot.error}`);
 
     const readScene = () => page.evaluate(async () => {
       const { CAMPUS_BENCH_WORLD: world, CAMPUS_BENCH_COLLIDER: box } = await import('/src/campus-bench-layout.js');
@@ -185,6 +189,7 @@ for (const spec of [
     result.pass = true;
     console.log(`campus bench ${spec.name}: PASS`, JSON.stringify(result));
   } catch (error) {
+    result.problems = [...smoke.problems];
     result.error = String(error?.stack ?? error);
     throw error;
   } finally {
