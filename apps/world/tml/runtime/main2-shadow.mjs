@@ -146,11 +146,31 @@ export function createTmlMain2Shadow({ enabled = true } = {}) {
       return latest;
     }
 
+    const coinGrant = TML_MAIN2_SHADOW_REWARD.grants.find((grant) => grant.grantType === 'CURRENCY');
+    const expGrant = TML_MAIN2_SHADOW_REWARD.grants.find((grant) => grant.grantType === 'EXP');
     const walletDelta = economic.walletBalance - before.walletBalance;
     const expDelta = economic.totalExp - before.totalExp;
-    const walletMatch = walletDelta === 180;
-    const expMatch = expDelta === 100;
+    const walletMatch = walletDelta === coinGrant?.amount;
+    const expMatch = expDelta === expGrant?.amount;
     const settlementMatch = walletMatch && expMatch;
+    const awaitingOtherReadback =
+      (walletDelta === 0 && expDelta >= 0 && (expDelta === 0 || expMatch)) ||
+      (expDelta === 0 && walletDelta >= 0 && (walletDelta === 0 || walletMatch));
+
+    if (!settlementMatch && awaitingOtherReadback) {
+      latest = Object.freeze({
+        ...(latest ?? {}),
+        rewardStatus: TML_MAIN2_SHADOW_STATUS.PENDING,
+        rewardReason: 'WAITING_ECONOMIC_READBACK',
+        walletBefore: before.walletBalance,
+        walletAfter: economic.walletBalance,
+        walletDelta,
+        expBefore: before.totalExp,
+        expAfter: economic.totalExp,
+        expDelta
+      });
+      return latest;
+    }
 
     latest = Object.freeze({
       ...(latest ?? {}),
