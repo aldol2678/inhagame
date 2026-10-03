@@ -1,6 +1,6 @@
 import { isQuestRewardResult } from '../../npc-factory/quest-reward-shape.mjs';
 import { createTmlEvidence, createTmlVerification, TML_VERIFICATION_STATUS } from './verification.mjs';
-import { createTmlTraceRecorder } from './trace.mjs';
+import { createTmlRecordId, createTmlTraceRecorder } from './trace.mjs';
 import { executeTmlVerifiedWriteTransition, TML_P5_DISPOSITION } from './verified-write-runtime.mjs';
 import { progressionSubject, walletSubject } from './economic-read-adapters.mjs';
 import { assertTmlReadResultStructure, isTmlDateTime } from './conformance.mjs';
@@ -19,10 +19,6 @@ function fail(code, message) {
   error.name = 'TmlRewardSettlementError';
   error.code = code;
   throw error;
-}
-
-function token(value) {
-  return String(value).replace(/[^0-9A-Za-z._-]+/g, '-').replace(/^-|-$/g, '');
 }
 
 function ensureTime(value, fallback) {
@@ -173,7 +169,7 @@ function makeRewardFact({ id, subject, predicate, value, observedAt, sequence, e
 function makeRewardObservation({ fact, observedAt, sequence }) {
   return Object.freeze({
     kind: 'observation',
-    id: `observation.${token(fact.subject)}.${fact.predicate}.${token(observedAt)}.${sequence}`,
+    id: createTmlRecordId('observation', [fact.id]),
     source: 'server.reward',
     observed_at: observedAt,
     query: Object.freeze({ subject: fact.subject, predicate: fact.predicate }),
@@ -182,7 +178,7 @@ function makeRewardObservation({ fact, observedAt, sequence }) {
   });
 }
 
-export function createTmlRewardReceiptRead({ reward, observedAt, sequence = 1 } = {}) {
+export function createTmlRewardReceiptRead({ reward, observedAt, sequence = 1, recordContext = [] } = {}) {
   let receipt;
   try {
     receipt = reward == null ? null : snapshotTmlData(reward);
@@ -204,9 +200,13 @@ export function createTmlRewardReceiptRead({ reward, observedAt, sequence = 1 } 
   }
 
   const rewardSubject = reward.rewardId;
+  // Preserve the original receipt and entry identity components in references.
+  // Logical reward subjects and receipt/effect interpretation are unchanged.
+  const identity = [recordContext, 'server.reward', rewardSubject, reward.rewardVersion,
+    reward.rewardTransactionId ?? null, observedAt, sequence];
   const facts = [
     makeRewardFact({
-      id: `fact.${token(rewardSubject)}.reward.status.${token(observedAt)}.${sequence}`,
+      id: createTmlRecordId('fact', [...identity, 'reward.status']),
       subject: rewardSubject,
       predicate: 'reward.status',
       value: { type: 'string', value: reward.status },
@@ -215,7 +215,7 @@ export function createTmlRewardReceiptRead({ reward, observedAt, sequence = 1 } 
       extensions: { reward_version: reward.rewardVersion ?? null, reward_transaction_id: reward.rewardTransactionId ?? null }
     }),
     makeRewardFact({
-      id: `fact.${token(rewardSubject)}.reward.version.${token(observedAt)}.${sequence}`,
+      id: createTmlRecordId('fact', [...identity, 'reward.version']),
       subject: rewardSubject,
       predicate: 'reward.version',
       value: { type: 'number', value: reward.rewardVersion },
@@ -223,7 +223,7 @@ export function createTmlRewardReceiptRead({ reward, observedAt, sequence = 1 } 
       sequence
     }),
     makeRewardFact({
-      id: `fact.${token(rewardSubject)}.reward.replayed.${token(observedAt)}.${sequence}`,
+      id: createTmlRecordId('fact', [...identity, 'reward.replayed']),
       subject: rewardSubject,
       predicate: 'reward.replayed',
       value: { type: 'boolean', value: reward.replayed },
@@ -235,7 +235,7 @@ export function createTmlRewardReceiptRead({ reward, observedAt, sequence = 1 } 
   for (const entry of reward.entries) {
     const subject = rewardGrantSubject(reward.rewardId, entry.grantType, entry.targetId);
     facts.push(makeRewardFact({
-      id: `fact.${token(subject)}.reward.granted.${token(observedAt)}.${sequence}`,
+      id: createTmlRecordId('fact', [...identity, 'reward.granted', entry.grantType, entry.targetId]),
       subject,
       predicate: 'reward.granted',
       value: { type: 'number', value: entry.granted },
@@ -355,11 +355,12 @@ export async function executeTmlVerifiedRewardTransition(options = {}) {
   const { write, rewardSpec, walletReadAdapter, progressionReadAdapter, now } = prepared;
   const { module, profile, context, transition: declaredTransition, action, executionKey } = write;
   const transitionId = declaredTransition.id;
+  const recordContext = Object.freeze([module.id, context.userId, executionKey]);
   let recorder;
   try {
     const startedAt = readTime(now);
     recorder = createTmlTraceRecorder({
-      id: prepared.traceId ?? `trace.reward-settlement.${token(transitionId)}.${token(startedAt)}`,
+      id: prepared.traceId ?? createTmlRecordId('trace', [recordContext, transitionId, 'reward-settlement', startedAt]),
       module: module.id,
       profile: profile.id,
       startedAt
@@ -492,13 +493,13 @@ export async function executeTmlVerifiedRewardTransition(options = {}) {
       context,
       readAdapter: write.readAdapter,
       advanceAdapter: write.advanceAdapter,
-      traceId: `${recorder.snapshot().id}.transition`,
+      traceId: createTmlRecordId('trace', [recorder.snapshot().id, 'transition']),
       now,
       createExecutionKey: () => executionKey
     });
 
     if (Array.isArray(transition.trace?.records)) {
-      for (const record of transition.trace.records) recorder.append(record);
+      recorder.appendBatch(transition.trace.records);
     } else if (transition.dispatchStatus !== 'NOT_ATTEMPTED') {
       fail('REWARD_TRANSITION_TRACE_INVALID', 'attempted reward transition did not return its trace records');
     }
@@ -520,12 +521,12 @@ export async function executeTmlVerifiedRewardTransition(options = {}) {
         transition.provider?.output?.reward?.completedAt,
         actionRecord?.completed_at ?? readTime(now)
       ),
-      sequence: 1
+      sequence: 1,
+      recordContext
     });
 
     if (receipt.ok) {
-      for (const observation of receipt.observations) recorder.append(observation);
-      for (const fact of receipt.facts) recorder.append(fact);
+      recorder.appendReadResult(receipt);
     }
 
     postWallet = await safeRead(walletReadAdapter, context.userId);
@@ -544,28 +545,29 @@ export async function executeTmlVerifiedRewardTransition(options = {}) {
       ...(postProgression.ok ? postProgression.result.observations : [])
     ];
     const built = createTmlEvidence({
-      id: `evidence.${token(transitionId)}.reward-settlement`,
+      id: createTmlRecordId('evidence', [recordContext, transitionId, 'reward-settlement']),
       claim: expected.claim,
       observations: combinedObservations,
       facts: combinedFacts,
       profile
     });
-    evidence = Object.freeze({
+    evidence = snapshotTmlData({
       ...built.evidence,
-      extensions: Object.freeze({
+      extensions: {
+        ...built.evidence.extensions,
         reward_spec_id: rewardSpec.id,
         reward_receipt_present: receipt.ok,
         pre_fact_ids: expected.preFactIds,
         expected_deltas: expected.expectedDeltas,
         post_wallet_read_ok: postWallet.ok,
         post_progression_read_ok: postProgression.ok
-      })
+      }
     });
     recorder.append(evidence);
 
     const checkedAt = readTime(now);
     settlementVerification = createTmlVerification({
-      id: `verification.${token(transitionId)}.reward-settlement.${token(checkedAt)}`,
+      id: createTmlRecordId('verification', [recordContext, transitionId, 'reward-settlement', evidence.id, checkedAt]),
       transitionId,
       evidence,
       status: built.evaluation.status,
