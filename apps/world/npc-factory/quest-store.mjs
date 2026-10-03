@@ -2,6 +2,7 @@ import { SUPABASE_URL } from '../src/online/world-online.js';
 import { isQuestRewardResult } from './quest-reward-shape.mjs';
 import { QUEST_ID, QUEST_EVENTS, nextQuestStage } from './quest-contract.mjs';
 import { MAIN2_QUEST_ID, MAIN2_QUEST_EVENTS, nextMain2QuestStage } from './main2-quest-contract.mjs';
+import { MAIN3_QUEST_ID, MAIN3_QUEST_EVENTS, nextMain3QuestStage } from './main3-quest-contract.mjs';
 import {
   MCM_2026_EVENT_ID,
   MCM_2026_EVENT_ACTIONS,
@@ -27,6 +28,13 @@ export function createLocalQuestStore() {
       if (stage) stages.set(key(userId, questId), stage);
       return { quest_id: MAIN2_QUEST_ID, stage, available };
     }
+    if (questId === MAIN3_QUEST_ID) {
+      if (!MAIN3_QUEST_EVENTS.includes(event)) throw Error('INVALID_QUEST_EVENT');
+      const available = (stages.get(key(userId, MAIN2_QUEST_ID)) ?? 0) === 9;
+      const stage = nextMain3QuestStage(stages.get(key(userId, questId)) ?? 0, event, { available });
+      if (stage) stages.set(key(userId, questId), stage);
+      return { quest_id: MAIN3_QUEST_ID, stage, available };
+    }
     if (questId === MCM_2026_EVENT_ID) {
       if (!MCM_2026_EVENT_ACTIONS.includes(event)) throw Error('INVALID_QUEST_EVENT');
       const k = key(userId, questId);
@@ -43,13 +51,16 @@ export function createSupabaseQuestStore({ serviceRoleKey, fetcher = fetch, supa
   return async (userId, event, questId = QUEST_ID) => {
     const main1 = questId === QUEST_ID;
     const main2 = questId === MAIN2_QUEST_ID;
+    const main3 = questId === MAIN3_QUEST_ID;
     const mcm = questId === MCM_2026_EVENT_ID;
     const validEvent = main1 ? QUEST_EVENTS.includes(event)
       : main2 ? MAIN2_QUEST_EVENTS.includes(event)
-        : mcm ? MCM_2026_EVENT_ACTIONS.includes(event) : false;
+        : main3 ? MAIN3_QUEST_EVENTS.includes(event)
+          : mcm ? MCM_2026_EVENT_ACTIONS.includes(event) : false;
     if (!validEvent) throw Error('INVALID_QUEST_EVENT');
     const rpc = main1 ? 'advance_world_quest_v1'
-      : main2 ? 'advance_world_navigation_quest_v1' : 'advance_mcm_2026_event_v1';
+      : main2 ? 'advance_world_navigation_quest_v1'
+        : main3 ? 'advance_world_first_style_quest_v1' : 'advance_mcm_2026_event_v1';
     const response = await fetcher(`${supabaseUrl}/rest/v1/rpc/${rpc}`, {
       method: 'POST', signal: AbortSignal.timeout(5000),
       headers: { apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}`,
@@ -64,13 +75,16 @@ export function createSupabaseQuestStore({ serviceRoleKey, fetcher = fetch, supa
         throw Error('QUEST_STORE_UNAVAILABLE');
       return result;
     }
-    const maxStage = main1 ? 5 : 9;
+    const maxStage = main1 ? 5 : main2 ? 9 : 4;
     if (result?.quest_id !== questId || !Number.isInteger(result.stage) ||
-        result.stage < 0 || result.stage > maxStage || (main2 && typeof result.available !== 'boolean'))
+        result.stage < 0 || result.stage > maxStage ||
+        ((main2 || main3) && typeof result.available !== 'boolean'))
       throw Error('QUEST_STORE_UNAVAILABLE');
-    // Only the completing call of Main 1 (stage 5) or Main 2 (stage 9) carries the server Reward result.
-    if (result.reward != null && !(result.stage === maxStage && isQuestRewardResult(result.reward)))
-      throw Error('QUEST_STORE_UNAVAILABLE');
+    // M3.1 has no Reward. Main 1 / Main 2 keep their existing completion Reward contract.
+    if (result.reward != null) {
+      const rewardAllowed = (main1 && result.stage === 5) || (main2 && result.stage === 9);
+      if (!rewardAllowed || !isQuestRewardResult(result.reward)) throw Error('QUEST_STORE_UNAVAILABLE');
+    }
     return result;
   };
 }
