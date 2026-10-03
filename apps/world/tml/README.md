@@ -16,6 +16,7 @@ TML is used here as a semantic/state-transition layer above the existing game im
 - `runtime/trace.mjs` — P4 Trace recorder for Observation / Fact / Evidence / Verification records
 - `runtime/quest-advance-adapter.mjs` — P5 one-attempt provider boundary for `world.quest.advance`
 - `runtime/verified-write-runtime.mjs` — P5 pre-read → one write → authoritative readback → verification loop
+- `runtime/verified-write-plan.mjs` — P6 explicit ordered plan runner that chains verified writes and stops on the first non-VERIFIED step
 - `fixtures/` — executable-domain conformance fixtures tied to current INHA WORLD contracts
 
 ## Boundary
@@ -36,3 +37,12 @@ TML IR v0.1 is an integration contract under active validation. The sui surface 
 The next mutating-runtime design is documented in [design/P5_VERIFIED_WRITE_RUNTIME.md](design/P5_VERIFIED_WRITE_RUNTIME.md).
 
 P5 implementation now has a candidate verified-write registry. The existing P3 read-only registry remains available in parallel. P5 requires precondition verification, exactly one mutation attempt, mandatory authoritative readback, P4 Evidence/Verification, and no automatic mutation retry after timeout or ambiguous provider failure.
+
+
+## P6 Main 2 roundtrip
+
+P6 validates the full `campus_navigation_intro_v1` state machine through the TML verified-write runtime.
+
+The test unlocks Main 2 through the existing Main 1 prerequisite, then executes the explicit nine-transition TML plan from stage 0 through stage 9. Each transition uses P5 pre-read, precondition verification, one provider mutation attempt, authoritative post-read, Evidence and Verification.
+
+P6 does not infer omitted transitions or automatically discover a next write. The caller supplies an explicit ordered transition list. The plan runner stops immediately on the first result that is not `VERIFIED`, and later mutations are not attempted.
