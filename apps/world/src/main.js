@@ -26,6 +26,7 @@ import { createEnvironmentDirector } from './environment/environment-director.js
 import { resolveEnvironmentRuntimeTime, resolveEnvironmentRuntimeWeather } from './environment/environment-clock.js';
 import { createNightStreetLights } from './environment/night-street-lights.js';
 import { createRainWeatherEffects } from './environment/rain-weather-effects.js';
+import { createSnowWeatherEffects } from './environment/snow-weather-effects.js';
 import { createSkyVisuals } from './environment/sky-visuals.js';
 import { createInkyungDuckSystem } from './ambient-ducks.js';
 import { createInkyungMechanicalDuckEvent } from './inkyung-mechanical-duck-event.js';
@@ -351,6 +352,18 @@ const rainWeatherEffects = createRainWeatherEffects({
 app.on("update", dt => rainWeatherEffects.update(dt));
 window.__INHAGAME_RAIN__ = Object.freeze({
   status: () => rainWeatherEffects.status()
+});
+
+const snowWeatherEffects = createSnowWeatherEffects({
+  root: campusRoot,
+  app,
+  getPlayerPosition: () => player.getLocalPosition(),
+  getSnowIntensity: () => environment.snowIntensity(),
+  getGraphicsTier: () => graphics.tier
+});
+app.on("update", dt => snowWeatherEffects.update(dt));
+window.__INHAGAME_SNOW__ = Object.freeze({
+  status: () => snowWeatherEffects.status()
 });
 
 const controller = new PlayerController(player);
