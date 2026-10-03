@@ -30,6 +30,10 @@
       "dest": "/api/brand-asset?asset=induck-hoodie-v1.glb"
     },
     {
+      "src": "/assets/audio/biryong-tower-01\\.mp3",
+      "dest": "/api/brand-media?asset=biryong-tower-01.mp3"
+    },
+    {
       "handle": "filesystem"
     }
   ]

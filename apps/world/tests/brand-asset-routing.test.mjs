@@ -14,6 +14,7 @@ test("production routes all restored World brand GLBs before filesystem fallback
     { src: "/assets/induck-backpack-v1\\.glb", dest: proxy("induck-backpack-v1.glb") },
     { src: "/\\.generated/assets-optimized/induck-backpack-v1\\.glb", dest: proxy("induck-backpack-v1.glb") },
     { src: "/assets/induck-hoodie-v1\\.glb", dest: proxy("induck-hoodie-v1.glb") },
+    { src: "/assets/audio/biryong-tower-01\\.mp3", dest: "/api/brand-media?asset=biryong-tower-01.mp3" },
     { handle: "filesystem" }
   ]);
 });
