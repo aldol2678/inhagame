@@ -16,7 +16,7 @@ test('main gate committed WorldDocument is valid and carries the production adap
   assert.equal(canonical.worldId,'inha-world-main-gate');
   assert.equal(canonical.metadata.productionAdapter,'main-gate-v1');
   assert.equal(canonical.metadata.coordinateFrame,'gate-local-meters');
-  assert.equal(canonical.entities.length,32);
+  assert.equal(canonical.entities.length,33);
   assert.deepEqual(MAIN_GATE_EDITOR_WORLD,canonical);
 });
 
@@ -57,18 +57,18 @@ test('low traffic island levels and unchanged horizontal footprint are editor-au
   assert.ok(Math.abs(base.yaw-GATE_FRAME.yaw)<1e-9);
   assert.deepEqual(green.position,[center.x,.078,center.z]);
   assert.deepEqual(green.size,[.65,.006,3.65]);
-  assert.equal(green.color,'#739057');
+  assert.equal(green.color,'#bcbfbc');
 });
 
-test('guardhouse body and collision footprint are editor-authored with legacy parity',()=>{
+test('relocated guardhouse body and collision footprint share editor authority',()=>{
   const booth=mainGateProductionStructure('gate_security_booth');
-  const center=GATE_FRAME.at(12,3.1);
+  const center=GATE_FRAME.at(13.5,3.1);
   assert.deepEqual(booth.position,[center.x,1.2,center.z]);
   assert.deepEqual(booth.size,[4,2.4,3.8]);
   assert.equal(booth.color,'#9c7864');
   assert.equal(booth.collisionMaxY,2.5);
   assert.ok(Math.abs(booth.yaw-GATE_FRAME.yaw)<1e-9);
-  const legacy=rectInFrame(GATE_FRAME,10,14,1.2,5);
+  const legacy=rectInFrame(GATE_FRAME,11.5,15.5,1.2,5);
   assert.equal(booth.footprint.length,legacy.length);
   booth.footprint.forEach((point,index)=>
     assert.ok(Math.hypot(point.x-legacy[index].x,point.z-legacy[index].z)<1e-9,'footprint '+index));
@@ -84,20 +84,21 @@ test('guardhouse body renderer no longer owns a duplicate polygon literal',()=>{
   assert.match(roadview,/mainGateProductionStructure\('gate_security_booth'\)/);
 });
 
-test('both gate walls, caps and colliders are editor-authored with legacy parity',()=>{
+test('gate walls, caps and colliders share the widened east pedestrian opening',()=>{
   const pointSet=points=>points.map(p=>`${p.x.toFixed(9)},${p.z.toFixed(9)}`).sort();
   for(const side of [-1,1]){
     const body=mainGateProductionStructure(`gate_wall_${side}`);
     const cap=mainGateProductionStructure(`gate_wall_${side}_cap`);
-    const center=GATE_FRAME.at(side*16,0);
+    const center=GATE_FRAME.at(side>0?16.75:-16,0),width=side>0?14.5:16;
     assert.deepEqual(body.position,[center.x,.75,center.z]);
-    assert.deepEqual(body.size,[16,1.5,1.2]);
+    assert.deepEqual(body.size,[width,1.5,1.2]);
     assert.equal(body.color,'#c9c3b5');
     assert.equal(body.collisionMaxY,1.6);
     assert.deepEqual(cap.position,[center.x,1.55,center.z]);
-    assert.deepEqual(cap.size,[16,.1,1.2]);
+    assert.deepEqual(cap.size,[width,.1,1.2]);
     assert.equal(cap.color,'#49545a');
-    const legacy=[[side*8,-.6],[side*24,-.6],[side*24,.6],[side*8,.6]].map(([u,v])=>GATE_FRAME.at(u,v));
+    const edge=side>0?9.5:-8;
+    const legacy=[[edge,-.6],[side*24,-.6],[side*24,.6],[edge,.6]].map(([u,v])=>GATE_FRAME.at(u,v));
     assert.deepEqual(pointSet(body.footprint),pointSet(legacy));
     const collider=OBSTACLES.find(item=>item.id===`gate_wall_${side}`);
     assert.ok(collider);
@@ -136,7 +137,7 @@ test('gate roadview no longer owns the curved curb control-point literal',()=>{
   assert.match(roadview,/mainGateProductionPath\(id\)/);
 });
 
-test('guardhouse fascia/window/plinth details are editor-authored with legacy parity',()=>{
+test('guardhouse details retain their relative positions after the sidewalk clearance shift',()=>{
   const expected=[
     ['gate_booth_roof_fascia',12,2.45,3.1,4.4,.24,4.2,'#eeeadd'],
     ['gate_booth_front_glass',12,1.35,1.16,2.8,.9,.08,'#345260'],
@@ -153,7 +154,7 @@ test('guardhouse fascia/window/plinth details are editor-authored with legacy pa
     ['gate_booth_plinth_2',12,.9,1.185,3.8,.025,.02,'#b69883']
   ];
   for(const [id,u,y,v,w,h,d,color] of expected){
-    const item=mainGateProductionStructure(id),center=GATE_FRAME.at(u,v);
+    const item=mainGateProductionStructure(id),center=GATE_FRAME.at(u+1.5,v);
     assert.ok(Math.hypot(item.position[0]-center.x,item.position[2]-center.z)<1e-9,id+' center');
     assert.equal(item.position[1],y,id+' y');
     assert.deepEqual(item.size,[w,h,d],id+' size');
@@ -190,3 +191,4 @@ test('editor UI exposes Main Gate canonical open and editable path geometry',()=
   assert.match(app,/setComponentField\(entity\.id,"world\.path","widthMeters"/);
   assert.match(app,/setComponentField\(entity\.id,"world\.path","points"/);
 });
+
