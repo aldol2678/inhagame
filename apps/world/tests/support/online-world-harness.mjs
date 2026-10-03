@@ -60,7 +60,7 @@ class LocalPlayer {
   }
 }
 
-export function createWorldClient(world, { label, user = { id: `user-${label.toLowerCase()}`, is_anonymous: false }, nickname = `Duck${label}`, at = SPOTS.gate, anonymousSignIns = true, allowGuests = true } = {}) {
+export function createWorldClient(world, { label, user = { id: `user-${label.toLowerCase()}`, is_anonymous: false }, nickname = `Duck${label}`, at = SPOTS.gate, anonymousSignIns = true, allowGuests = true, windowTarget = null } = {}) {
   const app = new FakeApp();
   const places = new PlaceZoneRegistry();
   const local = new LocalPlayer(at);
@@ -85,7 +85,7 @@ export function createWorldClient(world, { label, user = { id: `user-${label.toL
     },
     clock: world.scheduler,
     randomId: () => `${label.toLowerCase()}-session-${++ids}`,
-    windowTarget: null
+    windowTarget
   });
   const client = { label, app, places, local, online, avatars, hud, active: true, seat, lib };
   world.clients.push(client);
