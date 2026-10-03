@@ -167,7 +167,9 @@ export function createSkyVisuals({
     sunEuler: [55, 30, 0],
     sunIntensity: 1.15,
     artificialLightFactor: 0,
-    rainIntensity: 0
+    rainIntensity: 0,
+    cloudCover: 0.24,
+    sunLightScale: 1
   };
 
   let tier = null;
@@ -180,7 +182,9 @@ export function createSkyVisuals({
     sunColor: [Number.NaN, Number.NaN, Number.NaN],
     sunIntensity: Number.NaN,
     artificialLightFactor: Number.NaN,
-    rainIntensity: Number.NaN
+    rainIntensity: Number.NaN,
+    cloudCover: Number.NaN,
+    sunLightScale: Number.NaN
   };
 
   function applyTier(next) {
@@ -197,7 +201,9 @@ export function createSkyVisuals({
     const scalarChanged =
       Math.abs(skyState.sunIntensity - lastMaterialSignal.sunIntensity) >= 0.002 ||
       Math.abs(skyState.artificialLightFactor - lastMaterialSignal.artificialLightFactor) >= 0.002 ||
-      Math.abs(skyState.rainIntensity - lastMaterialSignal.rainIntensity) >= 0.002;
+      Math.abs(skyState.rainIntensity - lastMaterialSignal.rainIntensity) >= 0.002 ||
+      Math.abs(skyState.cloudCover - lastMaterialSignal.cloudCover) >= 0.002 ||
+      Math.abs(skyState.sunLightScale - lastMaterialSignal.sunLightScale) >= 0.002;
     if (!colorChanged && !scalarChanged) return;
 
     sunProfile = sunVisualProfile(skyState);
@@ -221,6 +227,8 @@ export function createSkyVisuals({
     lastMaterialSignal.sunIntensity = skyState.sunIntensity;
     lastMaterialSignal.artificialLightFactor = skyState.artificialLightFactor;
     lastMaterialSignal.rainIntensity = skyState.rainIntensity;
+    lastMaterialSignal.cloudCover = skyState.cloudCover;
+    lastMaterialSignal.sunLightScale = skyState.sunLightScale;
   }
 
   function update(dt) {
@@ -251,9 +259,11 @@ export function createSkyVisuals({
       cloudPatchCount: SKY_CLOUD_PATCH_BUDGET[currentTier] ?? SKY_CLOUD_PATCH_BUDGET.medium,
       cloudDrawMeshes: 1,
       cloudOpacity: cloudProfile.opacity,
+      cloudCover: skyState.cloudCover,
       cloudColor: Object.freeze([...cloudProfile.color]),
       sunVisible: sunProfile.visible,
       sunOpacity: sunProfile.opacity,
+      sunLightScale: skyState.sunLightScale,
       sunColor: Object.freeze([...sunProfile.color]),
       sunDirection: direction,
       sunDrawMeshes: sunProfile.visible ? 1 : 0

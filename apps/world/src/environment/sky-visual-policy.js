@@ -78,11 +78,13 @@ export function sunVisualProfile({
   sunColor = [1, 0.94, 0.81],
   sunIntensity = 1,
   artificialLightFactor = 0,
-  rainIntensity = 0
+  rainIntensity = 0,
+  sunLightScale = 1
 } = {}) {
   const night = clamp01(artificialLightFactor);
   const rain = clamp01(rainIntensity);
-  const opacity = clamp01((1 - night * 1.08) * (1 - rain * 0.72));
+  const weatherScale = clamp01(sunLightScale);
+  const opacity = clamp01((1 - night * 1.08) * weatherScale * (1 - rain * 0.16));
   const color = sunColor.slice(0, 3).map(clamp01);
   return Object.freeze({
     opacity,
@@ -95,27 +97,31 @@ export function sunVisualProfile({
 export function cloudVisualProfile({
   sunColor = [1, 0.94, 0.81],
   artificialLightFactor = 0,
-  rainIntensity = 0
+  rainIntensity = 0,
+  cloudCover = 0.24
 } = {}) {
   const night = clamp01(artificialLightFactor);
   const rain = clamp01(rainIntensity);
+  const cover = clamp01(cloudCover);
   const daylight = 1 - night;
 
-  const clear = [0.91, 0.94, 0.98];
-  const storm = [0.38, 0.44, 0.52];
+  const clear = [0.93, 0.96, 1.00];
+  const overcast = [0.60, 0.66, 0.73];
+  const rainy = [0.36, 0.42, 0.50];
   const nightCloud = [0.15, 0.19, 0.27];
-  let color = mixTuple(clear, storm, rain);
+
+  let color = mixTuple(clear, overcast, cover);
+  color = mixTuple(color, rainy, rain);
   color = mixTuple(color, nightCloud, night);
 
-  // Warm cloud faces slightly at sunset without creating a separate weather state.
-  const warmStrength = daylight * (1 - rain) * 0.16;
+  const warmStrength = daylight * (1 - rain) * (1 - cover * 0.78) * 0.18;
   color = color.map((value, index) =>
     clamp01(mix(value, clamp01(sunColor[index] ?? 1), warmStrength))
   );
 
   return Object.freeze({
     color: Object.freeze(color),
-    opacity: clamp01(0.34 + rain * 0.34 + night * 0.06),
+    opacity: clamp01(0.18 + cover * 0.48 + rain * 0.08 + night * 0.05),
     emissiveIntensity: mix(0.82, 0.42, night)
   });
 }
