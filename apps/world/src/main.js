@@ -313,7 +313,7 @@ const nightStreetLights = createNightStreetLights({
   root: campusRoot,
   app,
   getPlayerPosition: () => player.getLocalPosition(),
-  getEnvironment: () => environment.status(),
+  getArtificialLightFactor: () => environment.artificialLightFactor(),
   getGraphicsTier: () => graphics.tier
 });
 app.on("update", dt => nightStreetLights.update(dt));
