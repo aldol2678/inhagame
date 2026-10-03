@@ -1,0 +1,45 @@
+name: World asset optimizer
+
+on:
+  pull_request:
+    paths:
+      - 'tools/world-assets/**'
+      - 'apps/world/assets/*.glb'
+      - '.github/workflows/world-asset-optimizer.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: world-asset-optimizer-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+          cache: npm
+          cache-dependency-path: tools/world-assets/package-lock.json
+      - name: Install locked optimizer dependencies
+        working-directory: tools/world-assets
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Run optimizer contract tests
+        working-directory: tools/world-assets
+        run: npm test
+      - name: Run strict optimizer verification
+        working-directory: tools/world-assets
+        run: npm run verify -- --output-root "$RUNNER_TEMP/inhagame-world-assets"
+      - name: Upload optimizer receipt and generated samples
+        uses: actions/upload-artifact@v4
+        with:
+          name: world-asset-optimizer-evidence
+          path: |
+            ${{ runner.temp }}/inhagame-world-assets/**
+            tools/world-assets/package-lock.json
+          if-no-files-found: error
+          retention-days: 7
