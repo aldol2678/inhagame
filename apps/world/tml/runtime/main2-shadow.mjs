@@ -14,6 +14,8 @@ export const TML_MAIN2_SHADOW_STATUS = Object.freeze({
   IDLE: 'IDLE'
 });
 
+const RECENT_MISMATCH_LIMIT = 20;
+
 function clone(value) {
   return value == null ? value : structuredClone(value);
 }
@@ -44,6 +46,167 @@ function normalizeEconomicSnapshot(snapshot) {
   });
 }
 
+function ratio(matches, resolved) {
+  return resolved > 0 ? matches / resolved : null;
+}
+
+function coverage(resolved, pending, unknown) {
+  const total = resolved + pending + unknown;
+  return total > 0 ? resolved / total : null;
+}
+
+function mismatchSample(report) {
+  return Object.freeze({
+    kind: report.kind ?? null,
+    reason: report.reason ?? report.rewardReason ?? null,
+    transitionId: report.transitionId ?? null,
+    event: report.event ?? null,
+    previousStage: Number.isInteger(report.previousStage) ? report.previousStage : null,
+    expectedStage: Number.isInteger(report.expectedStage) ? report.expectedStage : null,
+    actualStage: Number.isInteger(report.actualStage) ? report.actualStage : null,
+    rewardReason: report.rewardReason ?? null,
+    walletDelta: Number.isFinite(report.walletDelta) ? report.walletDelta : null,
+    expDelta: Number.isFinite(report.expDelta) ? report.expDelta : null
+  });
+}
+
+function createParityAccumulator() {
+  const transition = {
+    observed: 0,
+    matches: 0,
+    mismatches: 0,
+    byTransition: Object.create(null)
+  };
+  const receipt = { observed: 0, matches: 0, mismatches: 0 };
+  const settlement = { observed: 0, matches: 0, mismatches: 0, pending: 0, unknown: 0 };
+  const reasons = Object.create(null);
+  const recentMismatches = [];
+  let statusObservations = 0;
+  let scopeResets = 0;
+
+  const reason = (name) => {
+    const key = typeof name === 'string' && name ? name : 'UNSPECIFIED';
+    reasons[key] = (reasons[key] ?? 0) + 1;
+  };
+
+  const rememberMismatch = (report) => {
+    recentMismatches.push(mismatchSample(report));
+    if (recentMismatches.length > RECENT_MISMATCH_LIMIT) recentMismatches.shift();
+  };
+
+  const transitionBucket = (transitionId) => {
+    const key = transitionId ?? 'UNRESOLVED';
+    if (!transition.byTransition[key]) {
+      transition.byTransition[key] = { observed: 0, matches: 0, mismatches: 0 };
+    }
+    return transition.byTransition[key];
+  };
+
+  return Object.freeze({
+    observeStatus(report) {
+      statusObservations += 1;
+      reason(report.reason);
+    },
+
+    observeTransition(report) {
+      transition.observed += 1;
+      const bucket = transitionBucket(report.transitionId);
+      bucket.observed += 1;
+      const state = report.transitionStatus ?? report.status;
+      if (state === TML_MAIN2_SHADOW_STATUS.MATCH) {
+        transition.matches += 1;
+        bucket.matches += 1;
+      } else if (state === TML_MAIN2_SHADOW_STATUS.MISMATCH) {
+        transition.mismatches += 1;
+        bucket.mismatches += 1;
+        rememberMismatch({ ...report, reason: report.transitionReason ?? report.reason });
+      }
+      reason(report.transitionReason ?? report.reason);
+
+      if (report.rewardStatus === TML_MAIN2_SHADOW_STATUS.PENDING ||
+          report.rewardStatus === TML_MAIN2_SHADOW_STATUS.MATCH) {
+        receipt.observed += 1;
+        receipt.matches += 1;
+        reason('REWARD_RECEIPT_MATCH');
+      } else if (report.rewardStatus === TML_MAIN2_SHADOW_STATUS.MISMATCH) {
+        receipt.observed += 1;
+        receipt.mismatches += 1;
+        reason(report.rewardReason ?? 'REWARD_RECEIPT_MISMATCH');
+        rememberMismatch(report);
+      }
+    },
+
+    observeSettlement(report) {
+      settlement.observed += 1;
+      if (report.rewardStatus === TML_MAIN2_SHADOW_STATUS.MATCH) {
+        settlement.matches += 1;
+      } else if (report.rewardStatus === TML_MAIN2_SHADOW_STATUS.MISMATCH) {
+        settlement.mismatches += 1;
+        rememberMismatch(report);
+      } else if (report.rewardStatus === TML_MAIN2_SHADOW_STATUS.PENDING) {
+        settlement.pending += 1;
+      } else {
+        settlement.unknown += 1;
+      }
+      reason(report.rewardReason);
+    },
+
+    scopeReset(reasonName) {
+      scopeResets += 1;
+      reason(`SCOPE_RESET_${reasonName ?? 'UNSPECIFIED'}`);
+    },
+
+    snapshot() {
+      const transitionResolved = transition.matches + transition.mismatches;
+      const receiptResolved = receipt.matches + receipt.mismatches;
+      const settlementResolved = settlement.matches + settlement.mismatches;
+      const combinedMatches = transition.matches + receipt.matches + settlement.matches;
+      const combinedMismatches = transition.mismatches + receipt.mismatches + settlement.mismatches;
+      const combinedResolved = combinedMatches + combinedMismatches;
+      const pending = settlement.pending;
+      const unknown = settlement.unknown;
+
+      return Object.freeze({
+        transition: Object.freeze({
+          observed: transition.observed,
+          matches: transition.matches,
+          mismatches: transition.mismatches,
+          parityRatio: ratio(transition.matches, transitionResolved),
+          byTransition: Object.freeze(Object.fromEntries(
+            Object.entries(transition.byTransition).map(([id, value]) => [
+              id,
+              Object.freeze({
+                ...value,
+                parityRatio: ratio(value.matches, value.matches + value.mismatches)
+              })
+            ])
+          ))
+        }),
+        rewardReceipt: Object.freeze({
+          ...receipt,
+          parityRatio: ratio(receipt.matches, receiptResolved)
+        }),
+        rewardSettlement: Object.freeze({
+          ...settlement,
+          parityRatio: ratio(settlement.matches, settlementResolved),
+          coverageRatio: coverage(settlementResolved, pending, unknown)
+        }),
+        combined: Object.freeze({
+          resolved: combinedResolved,
+          matches: combinedMatches,
+          mismatches: combinedMismatches,
+          parityRatio: ratio(combinedMatches, combinedResolved),
+          unresolved: pending + unknown
+        }),
+        statusObservations,
+        scopeResets,
+        reasons: Object.freeze({ ...reasons }),
+        recentMismatches: Object.freeze([...recentMismatches])
+      });
+    }
+  });
+}
+
 export function createTmlMain2Shadow({ enabled = true } = {}) {
   let observations = 0;
   let matches = 0;
@@ -51,6 +214,7 @@ export function createTmlMain2Shadow({ enabled = true } = {}) {
   let latest = null;
   let pendingReward = null;
   let economic = normalizeEconomicSnapshot(null);
+  const parity = createParityAccumulator();
 
   function record(report) {
     observations += 1;
@@ -60,21 +224,32 @@ export function createTmlMain2Shadow({ enabled = true } = {}) {
     return latest;
   }
 
+  function resetScope(reason = 'ACCOUNT_BOUNDARY') {
+    pendingReward = null;
+    economic = normalizeEconomicSnapshot(null);
+    latest = null;
+    parity.scopeReset(reason);
+  }
+
   function observeQuestResult({ event, previousStage, previousAvailable, result, economicBefore } = {}) {
     if (!enabled) return null;
     if (!isTmlMain2ShadowResult(result)) {
-      return record({
+      const report = {
         kind: 'quest',
         status: TML_MAIN2_SHADOW_STATUS.MISMATCH,
+        transitionStatus: TML_MAIN2_SHADOW_STATUS.MISMATCH,
+        transitionReason: 'INVALID_SERVER_RESULT',
         reason: 'INVALID_SERVER_RESULT',
         event: event ?? null,
         previousStage: Number.isInteger(previousStage) ? previousStage : null,
         actualStage: result?.stage ?? null
-      });
+      };
+      parity.observeTransition(report);
+      return record(report);
     }
 
     if (event === 'status') {
-      return record({
+      const report = {
         kind: 'status',
         status: TML_MAIN2_SHADOW_STATUS.MATCH,
         reason: 'AUTHORITATIVE_STATUS_OBSERVED',
@@ -82,7 +257,9 @@ export function createTmlMain2Shadow({ enabled = true } = {}) {
         previousAvailable: previousAvailable === true,
         actualStage: result.stage,
         actualAvailable: result.available
-      });
+      };
+      parity.observeStatus(report);
+      return record(report);
     }
 
     const expected = tmlMain2ShadowTransition(previousStage);
@@ -94,6 +271,8 @@ export function createTmlMain2Shadow({ enabled = true } = {}) {
     const report = {
       kind: 'transition',
       status: questMatch ? TML_MAIN2_SHADOW_STATUS.MATCH : TML_MAIN2_SHADOW_STATUS.MISMATCH,
+      transitionStatus: questMatch ? TML_MAIN2_SHADOW_STATUS.MATCH : TML_MAIN2_SHADOW_STATUS.MISMATCH,
+      transitionReason: questMatch ? 'TML_TRANSITION_MATCH' : 'TML_TRANSITION_MISMATCH',
       reason: questMatch ? 'TML_TRANSITION_MATCH' : 'TML_TRANSITION_MISMATCH',
       transitionId: expected?.transitionId ?? null,
       event: event ?? null,
@@ -127,6 +306,7 @@ export function createTmlMain2Shadow({ enabled = true } = {}) {
       }
     }
 
+    parity.observeTransition(report);
     return record(report);
   }
 
@@ -136,12 +316,22 @@ export function createTmlMain2Shadow({ enabled = true } = {}) {
     if (!pendingReward) return null;
 
     const before = pendingReward.before;
-    if (before.walletBalance === null || before.totalExp === null ||
-        economic.walletBalance === null || economic.totalExp === null) {
+    if (before.walletBalance === null || before.totalExp === null) {
       latest = Object.freeze({
         ...(latest ?? {}),
         rewardStatus: TML_MAIN2_SHADOW_STATUS.UNKNOWN,
-        rewardReason: 'ECONOMIC_READBACK_UNAVAILABLE'
+        rewardReason: 'ECONOMIC_BASELINE_UNAVAILABLE'
+      });
+      parity.observeSettlement(latest);
+      pendingReward = null;
+      return latest;
+    }
+
+    if (economic.walletBalance === null || economic.totalExp === null) {
+      latest = Object.freeze({
+        ...(latest ?? {}),
+        rewardStatus: TML_MAIN2_SHADOW_STATUS.PENDING,
+        rewardReason: 'WAITING_ECONOMIC_READBACK'
       });
       return latest;
     }
@@ -189,6 +379,7 @@ export function createTmlMain2Shadow({ enabled = true } = {}) {
       expDelta
     });
 
+    parity.observeSettlement(latest);
     if (!settlementMatch) mismatches += 1;
     pendingReward = null;
     return latest;
@@ -198,6 +389,7 @@ export function createTmlMain2Shadow({ enabled = true } = {}) {
     mode: TML_MAIN2_SHADOW_MODE,
     observeQuestResult,
     observeEconomicState,
+    resetScope,
     status() {
       return Object.freeze({
         mode: TML_MAIN2_SHADOW_MODE,
@@ -207,7 +399,8 @@ export function createTmlMain2Shadow({ enabled = true } = {}) {
         mismatches,
         pendingReward: pendingReward !== null,
         economic,
-        latest
+        latest,
+        parity: parity.snapshot()
       });
     }
   });

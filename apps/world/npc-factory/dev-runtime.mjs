@@ -333,6 +333,8 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
   syncSideEventUnlock();
   function setAiSignedIn(signedIn) {
     aiSignedIn = Boolean(signedIn);
+    try { tmlMain2Shadow.resetScope(aiSignedIn ? 'SIGNED_IN_OR_SWITCHED' : 'SIGNED_OUT'); }
+    catch { /* shadow scope reset is diagnostic-only */ }
     quest.setSignedIn(aiSignedIn);
     main2Quest.setSignedIn(aiSignedIn);
     for (const [id, label] of nameplates) {
