@@ -255,7 +255,7 @@ export function createSkyVisuals({
       sunVisible: sunProfile.visible,
       sunOpacity: sunProfile.opacity,
       sunColor: Object.freeze([...sunProfile.color]),
-      sunDirection: Object.freeze([...sunDirection]),
+      sunDirection: direction,
       sunDrawMeshes: sunProfile.visible ? 1 : 0
     });
   }
