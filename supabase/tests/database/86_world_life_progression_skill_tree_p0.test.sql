@@ -45,8 +45,10 @@ select is((select status from private.world_life_skill_catalog where skill_id='l
 
 select is((select count(*) from private.world_life_skill_tree_catalog),13::bigint,
   'one shared tree plus one tree for each of 12 Life Skills are mirrored');
-select is((select count(*) from private.world_life_skill_tree_catalog where status='COMING_SOON'),13::bigint,
-  'no Life Skill Tree is activated by the foundation migration');
+select is((select count(*) from private.world_life_skill_tree_catalog where status='COMING_SOON'),12::bigint,
+  'only Fishing is activated by the later read/UI migration');
+select is((select status from private.world_life_skill_tree_catalog where tree_id='life_tree.fishing'),
+  'ACTIVE','Fishing is the first active Life Skill Tree');
 -- Node seed state belongs to later forward migrations; this foundation test only owns table shape.
 
 select ok((select bool_and(relrowsecurity) from pg_class where oid in (
