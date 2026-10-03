@@ -14,6 +14,8 @@ TML is used here as a semantic/state-transition layer above the existing game im
 - `runtime/capability-registry.mjs` — P3 read-only capability registry; mutating capabilities are intentionally unbound
 - `runtime/verification.mjs` — P4 authority-aware Evidence/Verification evaluator with SATISFIED / UNSATISFIED / UNKNOWN / CONFLICT states
 - `runtime/trace.mjs` — P4 Trace recorder for Observation / Fact / Evidence / Verification records
+- `runtime/quest-advance-adapter.mjs` — P5 one-attempt provider boundary for `world.quest.advance`
+- `runtime/verified-write-runtime.mjs` — P5 pre-read → one write → authoritative readback → verification loop
 - `fixtures/` — executable-domain conformance fixtures tied to current INHA WORLD contracts
 
 ## Boundary
@@ -33,4 +35,4 @@ TML IR v0.1 is an integration contract under active validation. The sui surface 
 
 The next mutating-runtime design is documented in [design/P5_VERIFIED_WRITE_RUNTIME.md](design/P5_VERIFIED_WRITE_RUNTIME.md).
 
-P5 is intentionally not bound yet. The design requires precondition verification, exactly one mutation attempt, mandatory authoritative readback, P4 Evidence/Verification, and no automatic mutation retry after timeout or ambiguous provider failure.
+P5 implementation now has a candidate verified-write registry. The existing P3 read-only registry remains available in parallel. P5 requires precondition verification, exactly one mutation attempt, mandatory authoritative readback, P4 Evidence/Verification, and no automatic mutation retry after timeout or ambiguous provider failure.
