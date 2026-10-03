@@ -15,6 +15,7 @@ try {
       window.__INHAGAME_NIGHT_LIGHTS__?.status?.().artificialLightFactor >= 0.17 &&
       window.__INHAGAME_RAIN__?.status &&
       window.__INHAGAME_POND_WEATHER__?.status?.() &&
+      window.__INHAGAME_SKY__?.status?.() &&
       window.__INHAGAME_P0__?.getStatus?.().loading?.finished,
     null,
     { timeout: TIMEOUT_MS }
@@ -25,6 +26,7 @@ try {
     streetLights: window.__INHAGAME_NIGHT_LIGHTS__.status(),
     rain: window.__INHAGAME_RAIN__.status(),
     pond: window.__INHAGAME_POND_WEATHER__.status(),
+    sky: window.__INHAGAME_SKY__.status(),
     graphics: window.__INHAGAME_P0__.getStatus().graphics
   }));
   assert.equal(initial.environment.targetTime, 'SUNSET');
@@ -37,6 +39,11 @@ try {
   assert.equal(initial.pond.rainIntensity, 0);
   assert.equal(initial.pond.artificialLightFactor, 0.18);
   assert.equal(initial.pond.rippleSpeed, 0.025);
+  assert.equal(initial.sky.cloudDrawMeshes, 1);
+  assert.ok(initial.sky.cloudPatchCount >= 6 && initial.sky.cloudPatchCount <= 16);
+  assert.equal(initial.sky.sunVisible, true);
+  assert.ok(initial.sky.sunOpacity > 0);
+  assert.equal(initial.sky.sunDrawMeshes, 1);
   assert.ok(initial.environment.fog.start < initial.environment.fog.end);
   assert.ok(initial.environment.exposure < 1.05 && initial.environment.exposure > 0.82);
   assert.equal(initial.environment.artificialLightFactor, 0.18);
@@ -59,7 +66,8 @@ try {
       window.__INHAGAME_RAIN__.status().rainIntensity >= 0.999 &&
       window.__INHAGAME_RAIN__.status().wetness >= 0.999 &&
       window.__INHAGAME_POND_WEATHER__.status().rainIntensity >= 0.999 &&
-      window.__INHAGAME_POND_WEATHER__.status().artificialLightFactor >= 0.999,
+      window.__INHAGAME_POND_WEATHER__.status().artificialLightFactor >= 0.999 &&
+      window.__INHAGAME_SKY__.status().sunVisible === false,
     null,
     { timeout: TIMEOUT_MS }
   );
@@ -68,6 +76,7 @@ try {
     streetLights: window.__INHAGAME_NIGHT_LIGHTS__.status(),
     rain: window.__INHAGAME_RAIN__.status(),
     pond: window.__INHAGAME_POND_WEATHER__.status(),
+    sky: window.__INHAGAME_SKY__.status(),
     graphics: window.__INHAGAME_P0__.getStatus().graphics
   }));
   assert.equal(nightRain.environment.targetTime, 'NIGHT');
@@ -88,6 +97,11 @@ try {
   assert.ok(nightRain.pond.bumpiness > initial.pond.bumpiness);
   assert.ok(nightRain.pond.reflectivity > initial.pond.reflectivity);
   assert.ok(nightRain.pond.gloss > initial.pond.gloss);
+  assert.equal(nightRain.sky.sunVisible, false);
+  assert.equal(nightRain.sky.sunOpacity, 0);
+  assert.equal(nightRain.sky.sunDrawMeshes, 0);
+  assert.equal(nightRain.sky.cloudDrawMeshes, 1);
+  assert.ok(nightRain.sky.cloudOpacity > initial.sky.cloudOpacity);
   assert.equal(nightRain.environment.artificialLightFactor, 1);
   assert.equal(nightRain.streetLights.artificialLightFactor, 1);
   assert.ok(nightRain.environment.exposure < initial.environment.exposure);
@@ -105,7 +119,8 @@ try {
       window.__INHAGAME_RAIN__.status().rainIntensity === 0 &&
       window.__INHAGAME_RAIN__.status().wetness === 0 &&
       window.__INHAGAME_POND_WEATHER__.status().rainIntensity === 0 &&
-      window.__INHAGAME_POND_WEATHER__.status().artificialLightFactor === 0,
+      window.__INHAGAME_POND_WEATHER__.status().artificialLightFactor === 0 &&
+      window.__INHAGAME_SKY__.status().sunVisible === true,
     null,
     { timeout: TIMEOUT_MS }
   );
@@ -113,7 +128,8 @@ try {
     environment: window.__INHAGAME_ENVIRONMENT__.status(),
     rain: window.__INHAGAME_RAIN__.status(),
     streetLights: window.__INHAGAME_NIGHT_LIGHTS__.status(),
-    pond: window.__INHAGAME_POND_WEATHER__.status()
+    pond: window.__INHAGAME_POND_WEATHER__.status(),
+    sky: window.__INHAGAME_SKY__.status()
   }));
   assert.equal(clear.environment.fog.type, 'none');
   assert.equal(clear.environment.rainIntensity, 0);
@@ -128,6 +144,11 @@ try {
   assert.equal(clear.pond.rippleSpeed, 0.025);
   assert.equal(clear.pond.bumpiness, 0.45);
   assert.equal(clear.pond.reflectivity, 0.6);
+  assert.equal(clear.sky.sunVisible, true);
+  assert.equal(clear.sky.sunOpacity, 1);
+  assert.equal(clear.sky.sunDrawMeshes, 1);
+  assert.equal(clear.sky.cloudDrawMeshes, 1);
+  assert.ok(clear.sky.cloudOpacity < nightRain.sky.cloudOpacity);
 
   const mobile = await smoke.context.newPage();
   smoke.watch(mobile);
@@ -143,6 +164,7 @@ try {
       window.__INHAGAME_RAIN__?.status?.().rainIntensity >= 0.999 &&
       window.__INHAGAME_POND_WEATHER__?.status?.().rainIntensity >= 0.999 &&
       window.__INHAGAME_POND_WEATHER__?.status?.().artificialLightFactor >= 0.999 &&
+      window.__INHAGAME_SKY__?.status?.().sunVisible === false &&
       window.__INHAGAME_P0__?.getStatus?.().loading?.finished,
     null,
     { timeout: TIMEOUT_MS }
@@ -152,6 +174,7 @@ try {
     streetLights: window.__INHAGAME_NIGHT_LIGHTS__.status(),
     rain: window.__INHAGAME_RAIN__.status(),
     pond: window.__INHAGAME_POND_WEATHER__.status(),
+    sky: window.__INHAGAME_SKY__.status(),
     graphics: window.__INHAGAME_P0__.getStatus().graphics
   }));
   assert.equal(mobileStatus.environment.targetTime, 'NIGHT');
@@ -163,13 +186,19 @@ try {
   assert.equal(mobileStatus.pond.artificialLightFactor, 1);
   assert.ok(mobileStatus.pond.bumpiness > 0.45);
   assert.ok(mobileStatus.pond.rippleSpeed > 0.025);
+  assert.equal(mobileStatus.sky.graphicsTier, mobileStatus.graphics.tier);
+  assert.equal(mobileStatus.sky.sunVisible, false);
+  assert.equal(mobileStatus.sky.sunDrawMeshes, 0);
+  assert.equal(mobileStatus.sky.cloudDrawMeshes, 1);
+  assert.ok(mobileStatus.sky.cloudPatchCount <= 16);
+  if (mobileStatus.graphics.tier === 'low') assert.equal(mobileStatus.sky.cloudPatchCount, 6);
   assert.equal(mobileStatus.rain.graphicsTier, mobileStatus.graphics.tier);
   assert.ok(mobileStatus.rain.streakBudget <= 96);
   if (mobileStatus.graphics.tier === 'low') assert.equal(mobileStatus.rain.streakBudget, 28);
   assert.equal(mobileStatus.streetLights.artificialLightFactor, 1);
   assert.ok(mobileStatus.streetLights.activeDynamicLights <= mobileStatus.streetLights.dynamicBudget);
   assert.deepEqual(smoke.problems, []);
-  console.log('world environment smoke: PASS (day/sunset/night, fog/rain, street lights, wet roads, Inkyung pond response, 390px mobile)');
+  console.log('world environment smoke: PASS (day/sunset/night, procedural clouds + sun, fog/rain, street lights, wet roads, Inkyung pond response, 390px mobile)');
 } finally {
   await smoke.close();
 }
