@@ -14,18 +14,24 @@ import {
   readOptimizerConfig
 } from "./optimize-world-assets.mjs";
 
-test("production optimizer config is a narrow three-asset allowlist", async () => {
+test("production optimizer config covers all six World GLBs", async () => {
   const config = await readOptimizerConfig(DEFAULT_CONFIG_PATH);
   assert.equal(config.mode, "allowlist");
   assert.deepEqual(config.assets.map(item => item.file), [
     "induck-v3.glb",
+    "annyongi-flight-v1.glb",
+    "induck-cap-v1.glb",
     "induck-backpack-v1.glb",
+    "induck-hoodie-v1.glb",
     "p0-qa-building.glb"
   ]);
   assert.equal(config.policy.onTransformError, "copy-source");
   assert.equal(config.policy.strictRejectsFallback, true);
   assert.equal(config.assets.find(item => item.file === "induck-v3.glb").keepEmptyLeafNodes, true);
+  assert.equal(config.assets.find(item => item.file === "annyongi-flight-v1.glb").keepEmptyLeafNodes, true);
+  assert.equal(config.assets.find(item => item.file === "induck-cap-v1.glb").keepEmptyLeafNodes, undefined);
   assert.equal(config.assets.find(item => item.file === "induck-backpack-v1.glb").keepEmptyLeafNodes, undefined);
+  assert.equal(config.assets.find(item => item.file === "induck-hoodie-v1.glb").keepEmptyLeafNodes, undefined);
 });
 
 test("strict allowlist optimization preserves sources and optimizes all validated GLBs", async () => {
@@ -33,7 +39,10 @@ test("strict allowlist optimization preserves sources and optimizes all validate
   try {
     const tracked = [
       "induck-v3.glb",
+      "annyongi-flight-v1.glb",
+      "induck-cap-v1.glb",
       "induck-backpack-v1.glb",
+      "induck-hoodie-v1.glb",
       "p0-qa-building.glb"
     ];
     const before = new Map();
@@ -42,7 +51,7 @@ test("strict allowlist optimization preserves sources and optimizes all validate
     }
 
     const receipt = await optimizeConfiguredAssets({ outputRootOverride: dir, strict: true });
-    assert.deepEqual(receipt.summary, { total: 3, optimized: 3, passthrough: 0, fallback: 0 });
+    assert.deepEqual(receipt.summary, { total: 6, optimized: 6, passthrough: 0, fallback: 0 });
     assert.ok(receipt.results.every(item => item.status === ASSET_OPTIMIZATION_STATUS.OPTIMIZED));
     assert.ok(receipt.results.every(item => item.outputBytes < item.sourceBytes));
 
@@ -65,6 +74,14 @@ test("strict allowlist optimization preserves sources and optimizes all validate
     }
     const duckReceipt = report.results.find(item => item.file === "induck-v3.glb");
     assert.equal(duckReceipt.keepEmptyLeafNodes, true);
+
+    const dragon = await io.read(path.join(dir, "annyongi-flight-v1.glb"));
+    const dragonNodeNames = new Set(dragon.getRoot().listNodes().map(node => node.getName()));
+    for (const pivot of ["DragonWing_L", "DragonWing_R"]) {
+      assert.equal(dragonNodeNames.has(pivot), true, `${pivot} semantic pivot survives optimization`);
+    }
+    const dragonReceipt = report.results.find(item => item.file === "annyongi-flight-v1.glb");
+    assert.equal(dragonReceipt.keepEmptyLeafNodes, true);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

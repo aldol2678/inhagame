@@ -1,9 +1,72 @@
 {
-  "assets": [],
-  "bindings": [],
-  "cues": [],
-  "metadata": {},
-  "name": "Public silent default",
+  "schemaVersion": 1,
   "projectId": "inha-world-music-runtime",
-  "schemaVersion": 1
+  "name": "INHA WORLD · Production Music",
+  "assets": [
+    {
+      "id": "music.biryong-tower-01",
+      "type": "audio",
+      "uri": "/assets/audio/biryong-tower-01.mp3",
+      "title": "비룡탑 01",
+      "artist": "",
+      "fileName": "biryong-tower-01.mp3",
+      "mimeType": "audio/mpeg",
+      "byteLength": 1015071,
+      "durationSeconds": 42.292208,
+      "rights": {
+        "source": "INHA WORLD project-owned audio archive",
+        "license": "internal-pilot",
+        "approved": true
+      },
+      "editor": {
+        "loop": {
+          "enabled": false,
+          "startSeconds": 0,
+          "endSeconds": 35.78195
+        }
+      }
+    }
+  ],
+  "cues": [
+    {
+      "id": "cue.biryong-tower.explore",
+      "name": "Biryong Tower Explore",
+      "assetId": "music.biryong-tower-01",
+      "bus": "music",
+      "gain": 0.72,
+      "loop": {
+        "enabled": true,
+        "startSeconds": 2.879274,
+        "endSeconds": 35.78195
+      },
+      "transition": {
+        "fadeInSeconds": 1,
+        "fadeOutSeconds": 1.5
+      },
+      "priority": 10,
+      "tags": [
+        "biryong",
+        "tower",
+        "explore",
+        "production-pilot"
+      ],
+      "notes": "First Production Music pilot. Specific semantic Place binding avoids leaking into the wider Inkyung/Student Center PlaceZone."
+    }
+  ],
+  "bindings": [
+    {
+      "id": "binding.biryong-tower.explore",
+      "targetType": "place",
+      "targetId": "PLACE_BIRYONG_TOWER",
+      "cueId": "cue.biryong-tower.explore",
+      "enabled": true,
+      "priority": 10,
+      "fallback": "silence"
+    }
+  ],
+  "metadata": {
+    "createdBy": "music-editor-p1",
+    "state": "biryong-production-pilot",
+    "runtimeSha256": "f6ee6defc4ce3955d32fc8a3798831d7304fdd2694cbbb3c551980ff315aecc9"
+  }
 }
