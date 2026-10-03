@@ -1,19 +1,11 @@
 import { questIdFromTmlRef } from './quest-read-adapter.mjs';
+import { snapshotTmlData, summarizeTmlError } from './value-snapshot.mjs';
+import { isTmlDateTime } from './conformance.mjs';
 
 export const TML_QUEST_ADVANCE_CAPABILITY = 'world.quest.advance';
 
 function validTime(value) {
-  return typeof value === 'string' && Number.isFinite(Date.parse(value));
-}
-
-function providerError(error) {
-  const code = typeof error?.code === 'string' ? error.code
-    : typeof error?.name === 'string' ? error.name
-      : 'QUEST_WRITE_PROVIDER_ERROR';
-  return Object.freeze({
-    code,
-    message: typeof error?.message === 'string' ? error.message : undefined
-  });
+  return isTmlDateTime(value) && Number.isFinite(Date.parse(value));
 }
 
 function normalizeResult(result, questId) {
@@ -63,31 +55,45 @@ export function createTmlQuestAdvanceAdapter({ questStore, now = () => new Date(
       }
 
       const questId = questIdFromTmlRef(questRef);
-      const requestedAt = now();
-      if (!validTime(requestedAt)) throw new TypeError('now() must return an ISO-compatible timestamp');
-
+      const outcome = {
+        ok: false,
+        executionKey,
+        requestedAt: null,
+        completedAt: null,
+        dispatchStatus: 'NOT_ATTEMPTED',
+        providerReturned: false
+      };
+      let phase = 'clock';
       try {
-        const result = normalizeResult(await questStore(userId, event, questId), questId);
-        const completedAt = now();
-        if (!validTime(completedAt)) throw new TypeError('now() must return an ISO-compatible timestamp');
-        return Object.freeze({
-          ok: true,
-          executionKey,
-          requestedAt,
-          completedAt,
-          output: Object.freeze(result)
-        });
+        const requestedAt = now();
+        if (!validTime(requestedAt)) throw new TypeError('now() must return an ISO-compatible timestamp');
+        outcome.requestedAt = requestedAt;
+        phase = 'provider';
+        outcome.dispatchStatus = 'ATTEMPTED';
+        const result = await questStore(userId, event, questId);
+        outcome.providerReturned = true;
+        phase = 'normalization';
+        outcome.response = snapshotTmlData(result);
+        outcome.output = normalizeResult(outcome.response, questId);
+        outcome.ok = true;
       } catch (error) {
-        const completedAt = now();
-        if (!validTime(completedAt)) throw new TypeError('now() must return an ISO-compatible timestamp');
-        return Object.freeze({
-          ok: false,
-          executionKey,
-          requestedAt,
-          completedAt,
-          error: providerError(error)
-        });
+        outcome.error = summarizeTmlError(error);
+        if (phase !== 'provider') outcome.processingError = outcome.error;
       }
+
+      // A second clock failure must not replace the already crossed boundary
+      // with a thrown exception. Missing time stays missing; it is not invented.
+      if (outcome.dispatchStatus === 'ATTEMPTED') {
+        try {
+          const completedAt = now();
+          if (!validTime(completedAt)) throw new TypeError('now() must return an ISO-compatible timestamp');
+          outcome.completedAt = completedAt;
+        } catch (error) {
+          outcome.processingError = summarizeTmlError(error);
+          outcome.error ??= outcome.processingError;
+        }
+      }
+      return Object.freeze(outcome);
     }
   });
 }

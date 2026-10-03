@@ -11,7 +11,9 @@ import {
   createTmlWalletReadAdapter
 } from '../tml/runtime/economic-read-adapters.mjs';
 import {
+  createTmlRewardReceiptRead,
   executeTmlVerifiedRewardTransition,
+  prepareTmlRewardTransition,
   TML_P7_DISPOSITION
 } from '../tml/runtime/reward-settlement.mjs';
 import { TML_VERIFICATION_STATUS } from '../tml/runtime/verification.mjs';
@@ -333,4 +335,265 @@ test('P7 reward fixture stays aligned with the public Main 2 reward contracts', 
   assert.match(appContract, /targetId:\s*["']currency\.induck_coin["'][\s\S]*granted:\s*180/);
   assert.match(appContract, /targetId:\s*["']exp\.campus["'][\s\S]*granted:\s*100/);
   assert.match(dbContract, /reward\.quest\.navigation_intro \(\+180 .*\+100 EXP\)/);
+});
+
+test('P7 preparation is synchronous and captures reward data and the execution key without reading', () => {
+  const h = makeHarness();
+  const suppliedSpec = structuredClone(rewardSpec);
+  const suppliedContext = { userId: USER_ID, planId: 'prepared-plan', planIndex: 8 };
+  let reads = 0;
+  let keys = 0;
+  const prepared = prepareTmlRewardTransition({
+    ...executionOptions(h),
+    rewardSpec: suppliedSpec,
+    context: suppliedContext,
+    walletReadAdapter: { read() { reads += 1; } },
+    progressionReadAdapter: { read() { reads += 1; } },
+    createExecutionKey: () => { keys += 1; return 'exec.reward.prepared'; }
+  });
+
+  assert.equal(reads, 0);
+  assert.equal(h.mutationCalls, 0);
+  assert.equal(keys, 1);
+  assert.equal(prepared.write.executionKey, 'exec.reward.prepared');
+  assert.deepEqual(prepared.write.context, suppliedContext);
+  assert.notEqual(prepared.write.context, suppliedContext);
+  assert.notEqual(prepared.rewardSpec, suppliedSpec);
+  assert.equal(Object.isFrozen(prepared.rewardSpec.grants[0]), true);
+  suppliedSpec.grants[0].amount = 1;
+  suppliedContext.userId = 'changed-user';
+  assert.equal(prepared.rewardSpec.grants[0].amount, 180);
+  assert.equal(prepared.write.context.userId, USER_ID);
+});
+
+test('D08 invalid expected reward versions reject before economic reads or dispatch', async () => {
+  const missing = structuredClone(rewardSpec);
+  delete missing.reward_version;
+  const invalidSpecs = [
+    missing,
+    ...[undefined, null, 0, -1, NaN, 1.5, Number.MAX_SAFE_INTEGER + 1].map((reward_version) => ({
+      ...rewardSpec, reward_version
+    }))
+  ];
+  for (const invalidSpec of invalidSpecs) {
+    const h = makeHarness();
+    let reads = 0;
+    await assert.rejects(() => executeTmlVerifiedRewardTransition({
+      ...executionOptions(h),
+      rewardSpec: invalidSpec,
+      walletReadAdapter: { read() { reads += 1; } },
+      progressionReadAdapter: { read() { reads += 1; } }
+    }), (error) => error.code === 'INVALID_REWARD_SPEC');
+    assert.equal(reads, 0);
+    assert.equal(h.mutationCalls, 0);
+  }
+});
+
+test('P7 statically rejects reward identity, source, target, duplicate, and amount drift', async () => {
+  const variants = [
+    { ...rewardSpec, id: '' },
+    { ...rewardSpec, schema: 'other.reward' },
+    { ...rewardSpec, version: '1.0' },
+    { ...rewardSpec, reward_id: 'reward.other' },
+    { ...rewardSpec, source_transition: moduleFixture.transitions[0].id },
+    { ...rewardSpec, grants: [] },
+    { ...rewardSpec, grants: [{ grant_type: 'CURRENCY', target_id: 'currency.other', amount: 180 }] },
+    { ...rewardSpec, grants: [{ grant_type: 'EXP', target_id: 'exp.other', amount: 100 }] },
+    { ...rewardSpec, grants: [{ grant_type: 'ITEM', target_id: 'item.other', amount: 1 }] },
+    { ...rewardSpec, grants: [rewardSpec.grants[0], rewardSpec.grants[0]] },
+    ...[0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1].map((amount) => ({
+      ...rewardSpec, grants: [{ ...rewardSpec.grants[0], amount }]
+    }))
+  ];
+  for (const invalidSpec of variants) {
+    const h = makeHarness();
+    let reads = 0;
+    await assert.rejects(() => executeTmlVerifiedRewardTransition({
+      ...executionOptions(h),
+      rewardSpec: invalidSpec,
+      walletReadAdapter: { read() { reads += 1; } },
+      progressionReadAdapter: { read() { reads += 1; } }
+    }), (error) => ['INVALID_REWARD_SPEC', 'REWARD_SPEC_TRANSITION_MISMATCH'].includes(error.code));
+    assert.equal(reads, 0);
+    assert.equal(h.mutationCalls, 0);
+  }
+
+  const h = makeHarness();
+  const relabeledModule = structuredClone(moduleFixture);
+  const priorId = relabeledModule.transitions.at(-2).id;
+  relabeledModule.transitions.at(-2).id = TRANSITION_ID;
+  relabeledModule.transitions.at(-1).id = priorId;
+  assert.throws(() => prepareTmlRewardTransition({
+    ...executionOptions(h), module: relabeledModule, actionId: undefined
+  }), (error) => error.code === 'REWARD_SPEC_TRANSITION_MISMATCH');
+  assert.equal(h.mutationCalls, 0);
+});
+
+test('P7 requires callable economic reads and the declared read-only profile bindings', () => {
+  const h = makeHarness();
+  assert.throws(() => prepareTmlRewardTransition({ ...executionOptions(h), walletReadAdapter: { read: true } }));
+  assert.throws(() => prepareTmlRewardTransition({ ...executionOptions(h), progressionReadAdapter: {} }));
+  for (const capability of ['world.wallet.read', 'world.progression.read']) {
+    for (const mutate of [
+      (p) => { p.capabilities = p.capabilities.filter((item) => item.id !== capability); },
+      (p) => { p.capabilities.find((item) => item.id === capability).mutates = true; },
+      (p) => { p.capabilities.find((item) => item.id === capability).provider_binding = 'unsupported.binding'; }
+    ]) {
+      const invalidProfile = structuredClone(profile);
+      mutate(invalidProfile);
+      assert.throws(() => prepareTmlRewardTransition({ ...executionOptions(h), profile: invalidProfile }),
+        (error) => error.code === 'REWARD_READ_BINDING_INVALID');
+    }
+  }
+  const invalidAuthority = structuredClone(profile);
+  invalidAuthority.authority.find((rule) => rule.predicate === 'reward.version').authority = 'world.client';
+  assert.throws(() => prepareTmlRewardTransition({ ...executionOptions(h), profile: invalidAuthority }),
+    (error) => error.code === 'REWARD_AUTHORITY_INVALID');
+  assert.equal(h.mutationCalls, 0);
+});
+
+test('P7 successful malformed economic baselines HOLD before reward dispatch', async () => {
+  for (const key of ['walletReadAdapter', 'progressionReadAdapter']) {
+    const h = makeHarness();
+    await setupStage8(h.baseStore);
+    const result = await executeTmlVerifiedRewardTransition({
+      ...executionOptions(h),
+      [key]: { async read() { return { facts: [], observations: null }; } }
+    });
+    assert.equal(result.disposition, TML_P7_DISPOSITION.HOLD_BEFORE_EXECUTION);
+    assert.equal(result.verification, TML_VERIFICATION_STATUS.UNKNOWN);
+    assert.equal(result.transition, null);
+    assert.equal(result.dispatchStatus, 'NOT_ATTEMPTED');
+    assert.equal(result.automaticMutationRetryAllowed, false);
+    assert.equal(h.mutationCalls, 0);
+    const error = key === 'walletReadAdapter' ? result.preWalletError : result.preProgressionError;
+    assert.equal(error.code, 'INVALID_READ_RESULT');
+  }
+});
+
+test('P7 initial and child pre-dispatch clock failures preserve known non-dispatch', async () => {
+  for (const firstFailure of [1, 2]) {
+    const h = makeHarness();
+    await setupStage8(h.baseStore);
+    let clocks = 0;
+    const result = await executeTmlVerifiedRewardTransition({
+      ...executionOptions(h),
+      now: () => {
+        if (++clocks >= firstFailure) throw Object.assign(new Error('clock failed'), { code: 'CLOCK_BEFORE_REWARD' });
+        return NOW;
+      }
+    });
+    assert.equal(result.disposition, TML_P7_DISPOSITION.HOLD_BEFORE_EXECUTION);
+    assert.equal(result.dispatchStatus, 'NOT_ATTEMPTED');
+    assert.equal(result.attempt.dispatchStatus, 'NOT_ATTEMPTED');
+    assert.equal(result.verification, TML_VERIFICATION_STATUS.UNKNOWN);
+    assert.equal(result.traceComplete, false);
+    assert.equal(result.automaticMutationRetryAllowed, false);
+    assert.equal(h.mutationCalls, 0);
+  }
+});
+
+test('D08 missing observed reward version stays UNKNOWN after one dispatch without a malformed number fact', async () => {
+  const receipt = structuredClone(rewardReceipt);
+  delete receipt.rewardVersion;
+  const h = makeHarness({ receipt });
+  await setupStage8(h.baseStore);
+  const result = await executeTmlVerifiedRewardTransition(executionOptions(h));
+  assert.equal(h.mutationCalls, 1);
+  assert.equal(result.transition.disposition, 'VERIFIED');
+  assert.equal(result.disposition, TML_P7_DISPOSITION.SETTLEMENT_UNVERIFIED);
+  assert.equal(result.verification, TML_VERIFICATION_STATUS.UNKNOWN);
+  assert.equal(result.receiptPresent, false);
+  assert.equal(result.receiptError.code, 'INVALID_REWARD_VERSION');
+  assert.equal(result.automaticMutationRetryAllowed, false);
+  assert.equal(result.trace.records.some((record) => record.kind === 'fact' && record.predicate === 'reward.version'), false);
+  assert.equal(createTmlRewardReceiptRead({ reward: receipt, observedAt: NOW }).facts.length, 0);
+});
+
+test('P7 malformed post-economic data retains the completed quest attempt and admitted receipt', async () => {
+  const h = makeHarness();
+  await setupStage8(h.baseStore);
+  let walletReads = 0;
+  const result = await executeTmlVerifiedRewardTransition({
+    ...executionOptions(h),
+    walletReadAdapter: {
+      async read(request) {
+        walletReads += 1;
+        return walletReads === 1 ? h.walletReadAdapter.read(request) : { facts: [], observations: false };
+      }
+    }
+  });
+  assert.equal(h.mutationCalls, 1);
+  assert.equal(result.transition.disposition, 'VERIFIED');
+  assert.equal(result.disposition, TML_P7_DISPOSITION.SETTLEMENT_UNVERIFIED);
+  assert.equal(result.verification, TML_VERIFICATION_STATUS.UNKNOWN);
+  assert.equal(result.receiptPresent, true);
+  assert.equal(result.postWalletError.code, 'INVALID_READ_RESULT');
+  assert.equal(result.attempt, result.transition.attempt);
+  assert.equal(result.automaticMutationRetryAllowed, false);
+  assert.equal(result.trace.records.filter((record) => record.kind === 'action').length, 1);
+  assert.equal(result.trace.records.some((record) => record.kind === 'fact' && record.predicate === 'reward.version'), true);
+});
+
+test('P7 late clock failures retain the attempt, receipt, and evidence with an incomplete trace', async () => {
+  for (const failOnLateCall of [1, 2]) {
+    const h = makeHarness();
+    await setupStage8(h.baseStore);
+    let progressionReads = 0;
+    let settlementPhase = false;
+    let lateCalls = 0;
+    const result = await executeTmlVerifiedRewardTransition({
+      ...executionOptions(h),
+      now: () => {
+        if (settlementPhase && ++lateCalls >= failOnLateCall) {
+          throw Object.assign(new Error('late clock failed'), { code: 'CLOCK_AFTER_REWARD' });
+        }
+        return NOW;
+      },
+      progressionReadAdapter: {
+        async read(request) {
+          const read = await h.progressionReadAdapter.read(request);
+          if (++progressionReads === 2) settlementPhase = true;
+          return read;
+        }
+      }
+    });
+    assert.equal(h.mutationCalls, 1);
+    assert.equal(result.transition.disposition, 'VERIFIED');
+    assert.equal(result.disposition, TML_P7_DISPOSITION.SETTLEMENT_UNVERIFIED);
+    assert.equal(result.verification, TML_VERIFICATION_STATUS.UNKNOWN);
+    assert.equal(result.receiptPresent, true);
+    assert.equal(result.attempt, result.transition.attempt);
+    assert.equal(result.diagnostic.code, 'CLOCK_AFTER_REWARD');
+    assert.equal(result.traceComplete, false);
+    assert.equal(result.automaticMutationRetryAllowed, false);
+    assert.ok(result.evidence);
+    assert.equal(result.trace.records.some((record) => record.id === result.evidence.id), true);
+    assert.equal(result.trace.records.filter((record) => record.kind === 'action').length, 1);
+    assert.equal(Boolean(result.settlementVerification), failOnLateCall === 2);
+  }
+});
+
+test('P7 freezes reward expectations before awaited baseline reads and evaluates the external key factory once', async () => {
+  const h = makeHarness();
+  await setupStage8(h.baseStore);
+  const suppliedSpec = structuredClone(rewardSpec);
+  let keys = 0;
+  const result = await executeTmlVerifiedRewardTransition({
+    ...executionOptions(h),
+    rewardSpec: suppliedSpec,
+    createExecutionKey: () => { keys += 1; return 'exec.p7.frozen-input'; },
+    walletReadAdapter: {
+      async read(request) {
+        suppliedSpec.reward_version = 2;
+        suppliedSpec.grants[0].amount = 999;
+        return h.walletReadAdapter.read(request);
+      }
+    }
+  });
+  assert.equal(keys, 1);
+  assert.equal(h.mutationCalls, 1);
+  assert.equal(result.disposition, TML_P7_DISPOSITION.VERIFIED);
+  assert.equal(result.executionKey, 'exec.p7.frozen-input');
+  assert.equal(result.evidence.extensions.expected_deltas.currencies['currency.induck_coin'], 180);
 });

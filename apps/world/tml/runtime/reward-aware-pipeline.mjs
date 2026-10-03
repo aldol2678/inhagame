@@ -1,5 +1,15 @@
-import { executeTmlVerifiedWritePlan, TML_P6_PLAN_STATUS } from './verified-write-plan.mjs';
-import { executeTmlVerifiedRewardTransition, TML_P7_DISPOSITION } from './reward-settlement.mjs';
+import {
+  executeTmlVerifiedWritePlan,
+  prepareTmlVerifiedWritePlan,
+  TML_P6_PLAN_STATUS
+} from './verified-write-plan.mjs';
+import {
+  executeTmlVerifiedRewardTransition,
+  prepareTmlRewardTransition,
+  TML_P7_DISPOSITION
+} from './reward-settlement.mjs';
+import { captureTmlAdapterMethod } from './write-admission.mjs';
+import { snapshotTmlData, summarizeTmlError } from './value-snapshot.mjs';
 
 export const TML_P8_PIPELINE_STATUS = Object.freeze({
   VERIFIED: 'VERIFIED',
@@ -21,14 +31,14 @@ function transitionIndex(module, id) {
 function rewardActionFor(module, transitionId) {
   const transition = module.transitions.find((item) => item.id === transitionId);
   if (!transition) pipelineError('REWARD_TRANSITION_UNKNOWN', `unknown reward transition: ${transitionId}`);
-  const actions = transition.actions.filter((action) => action.capability === 'world.quest.advance');
-  if (actions.length !== 1) {
+  if (!Array.isArray(transition.actions) || transition.actions.length !== 1 ||
+      transition.actions[0]?.capability !== 'world.quest.advance') {
     pipelineError(
       'REWARD_TRANSITION_ACTION_INVALID',
-      `reward transition ${transitionId} must contain exactly one world.quest.advance action`
+      `reward transition ${transitionId} must contain only one world.quest.advance action`
     );
   }
-  return actions[0];
+  return transition.actions[0];
 }
 
 function validatePipeline(module, transitionIds, rewardTransitionId, rewardSpec) {
@@ -75,6 +85,22 @@ function defaultExecutionKey({ planId, index, action }) {
   return `${planId}.step-${index + 1}.${action.id}`;
 }
 
+function pipelineResult({ status, planId, ordinary, reward, stoppedTransitionId }) {
+  const dispatchStatuses = [ordinary.dispatchStatus, reward?.dispatchStatus];
+  const dispatchStatus = dispatchStatuses.includes('ATTEMPTED') ? 'ATTEMPTED'
+    : dispatchStatuses.includes('UNKNOWN') ? 'UNKNOWN' : 'NOT_ATTEMPTED';
+  return Object.freeze({
+    status,
+    planId,
+    completedSteps: ordinary.completedSteps + (reward?.disposition === TML_P7_DISPOSITION.VERIFIED ? 1 : 0),
+    ordinary,
+    reward,
+    stoppedTransitionId,
+    dispatchStatus,
+    automaticMutationRetryAllowed: false
+  });
+}
+
 export async function executeTmlRewardAwarePipeline({
   module,
   profile,
@@ -94,10 +120,10 @@ export async function executeTmlRewardAwarePipeline({
   if (!context || typeof context.userId !== 'string' || context.userId.length === 0) {
     throw new TypeError('reward-aware pipeline context requires userId');
   }
-  if (!questReadAdapter?.read || !questAdvanceAdapter?.advance) {
+  if (typeof questReadAdapter?.read !== 'function' || typeof questAdvanceAdapter?.advance !== 'function') {
     throw new TypeError('reward-aware pipeline requires quest read/write adapters');
   }
-  if (!walletReadAdapter?.read || !progressionReadAdapter?.read) {
+  if (typeof walletReadAdapter?.read !== 'function' || typeof progressionReadAdapter?.read !== 'function') {
     throw new TypeError('reward-aware pipeline requires wallet/progression read adapters');
   }
   if (typeof planId !== 'string' || planId.length === 0) {
@@ -106,7 +132,53 @@ export async function executeTmlRewardAwarePipeline({
   if (typeof now !== 'function') throw new TypeError('now must be a function');
   if (typeof createExecutionKey !== 'function') throw new TypeError('createExecutionKey must be a function');
 
-  validatePipeline(module, transitionIds, rewardTransitionId, rewardSpec);
+  const moduleSnapshot = snapshotTmlData(module);
+  const profileSnapshot = snapshotTmlData(profile);
+  const contextSnapshot = snapshotTmlData(context);
+  const selectedIds = snapshotTmlData(transitionIds);
+  const rewardSpecSnapshot = snapshotTmlData(rewardSpec);
+  validatePipeline(moduleSnapshot, selectedIds, rewardTransitionId, rewardSpecSnapshot);
+
+  // Capture every method before any caller-supplied key factory can change it.
+  const capturedQuestRead = captureTmlAdapterMethod(questReadAdapter, 'read', 'quest read adapter');
+  const capturedQuestAdvance = captureTmlAdapterMethod(questAdvanceAdapter, 'advance', 'quest advance adapter');
+  const capturedWalletRead = captureTmlAdapterMethod(walletReadAdapter, 'read', 'wallet read adapter');
+  const capturedProgressionRead = captureTmlAdapterMethod(progressionReadAdapter, 'read', 'progression read adapter');
+
+  const preparedOrdinary = selectedIds.length > 0 ? prepareTmlVerifiedWritePlan({
+    module: moduleSnapshot,
+    profile: profileSnapshot,
+    transitionIds: selectedIds,
+    context: contextSnapshot,
+    readAdapter: capturedQuestRead,
+    advanceAdapter: capturedQuestAdvance,
+    planId: `${planId}.ordinary`,
+    now,
+    createExecutionKey: ({ index, action, ...rest }) =>
+      createExecutionKey({ planId, index, action, phase: 'ordinary', ...rest })
+  }) : null;
+
+  const rewardAction = rewardActionFor(moduleSnapshot, rewardTransitionId);
+  const preparedReward = prepareTmlRewardTransition({
+    module: moduleSnapshot,
+    profile: profileSnapshot,
+    transitionId: rewardTransitionId,
+    actionId: rewardAction.id,
+    context: { ...contextSnapshot, planId, planIndex: selectedIds.length },
+    questReadAdapter: capturedQuestRead,
+    questAdvanceAdapter: capturedQuestAdvance,
+    walletReadAdapter: capturedWalletRead,
+    progressionReadAdapter: capturedProgressionRead,
+    rewardSpec: rewardSpecSnapshot,
+    now,
+    traceId: `${planId}.reward.trace`,
+    createExecutionKey: ({ action, ...rest }) =>
+      createExecutionKey({ planId, index: selectedIds.length, action, phase: 'reward', ...rest })
+  });
+
+  if (preparedOrdinary?.steps.some((step) => step.executionKey === preparedReward.write.executionKey)) {
+    pipelineError('PIPELINE_EXECUTION_KEY_DUPLICATE', 'reward and ordinary actions require distinct execution keys');
+  }
 
   let ordinary = Object.freeze({
     status: TML_P6_PLAN_STATUS.VERIFIED,
@@ -114,68 +186,80 @@ export async function executeTmlRewardAwarePipeline({
     completedSteps: 0,
     stoppedAt: null,
     stoppedTransitionId: null,
+    dispatchStatus: 'NOT_ATTEMPTED',
+    automaticMutationRetryAllowed: false,
     steps: Object.freeze([])
   });
 
-  if (transitionIds.length > 0) {
+  if (preparedOrdinary) {
     ordinary = await executeTmlVerifiedWritePlan({
-      module,
-      profile,
-      transitionIds,
-      context,
-      readAdapter: questReadAdapter,
-      advanceAdapter: questAdvanceAdapter,
-      planId: `${planId}.ordinary`,
-      now,
-      createExecutionKey: ({ index, action, ...rest }) =>
-        createExecutionKey({ planId, index, action, phase: 'ordinary', ...rest })
+      module: preparedOrdinary.module,
+      profile: preparedOrdinary.profile,
+      transitionIds: preparedOrdinary.transitionIds,
+      context: preparedOrdinary.context,
+      readAdapter: preparedOrdinary.readAdapter,
+      advanceAdapter: preparedOrdinary.advanceAdapter,
+      planId: preparedOrdinary.planId,
+      now: preparedOrdinary.now,
+      createExecutionKey: ({ index }) => preparedOrdinary.steps[index].executionKey
     });
   }
 
   if (ordinary.status !== TML_P6_PLAN_STATUS.VERIFIED) {
-    return Object.freeze({
+    return pipelineResult({
       status: TML_P8_PIPELINE_STATUS.STOPPED,
       planId,
-      completedSteps: ordinary.completedSteps,
       ordinary,
       reward: null,
       stoppedTransitionId: ordinary.stoppedTransitionId
     });
   }
 
-  const rewardAction = rewardActionFor(module, rewardTransitionId);
-  const reward = await executeTmlVerifiedRewardTransition({
-    module,
-    profile,
-    transitionId: rewardTransitionId,
-    actionId: rewardAction.id,
-    context: {
-      ...context,
-      planId,
-      planIndex: transitionIds.length
-    },
-    questReadAdapter,
-    questAdvanceAdapter,
-    walletReadAdapter,
-    progressionReadAdapter,
-    rewardSpec,
-    now,
-    traceId: `${planId}.reward.trace`,
-    createExecutionKey: ({ action, ...rest }) =>
-      createExecutionKey({
-        planId,
-        index: transitionIds.length,
-        action,
-        phase: 'reward',
-        ...rest
+  const write = preparedReward.write;
+  let reward;
+  try {
+    reward = await executeTmlVerifiedRewardTransition({
+      module: write.module,
+      profile: write.profile,
+      transitionId: write.transition.id,
+      actionId: write.action.id,
+      context: write.context,
+      questReadAdapter: write.readAdapter,
+      questAdvanceAdapter: write.advanceAdapter,
+      walletReadAdapter: preparedReward.walletReadAdapter,
+      progressionReadAdapter: preparedReward.progressionReadAdapter,
+      rewardSpec: preparedReward.rewardSpec,
+      now: preparedReward.now,
+      traceId: preparedReward.traceId,
+      createExecutionKey: () => write.executionKey
+    });
+  } catch (error) {
+    reward = Object.freeze({
+      disposition: TML_P7_DISPOSITION.SETTLEMENT_UNVERIFIED,
+      verification: 'UNKNOWN',
+      transition: null,
+      trace: null,
+      dispatchStatus: 'UNKNOWN',
+      automaticMutationRetryAllowed: false,
+      attempt: Object.freeze({
+        requestedExecutionKey: write.executionKey,
+        dispatchStatus: 'UNKNOWN',
+        error: summarizeTmlError(error)
       })
-  });
-
-  if (reward.disposition === TML_P7_DISPOSITION.HOLD_BEFORE_EXECUTION) {
-    return Object.freeze({
+    });
+    return pipelineResult({
       status: TML_P8_PIPELINE_STATUS.STOPPED,
       planId,
-      completedSteps: ordinary.completedSteps,
+      ordinary,
+      reward,
+      stoppedTransitionId: rewardTransitionId
+    });
+  }
+
+  if (reward.disposition === TML_P7_DISPOSITION.HOLD_BEFORE_EXECUTION) {
+    return pipelineResult({
+      status: TML_P8_PIPELINE_STATUS.STOPPED,
+      planId,
       ordinary,
       reward,
       stoppedTransitionId: rewardTransitionId
@@ -183,10 +267,9 @@ export async function executeTmlRewardAwarePipeline({
   }
 
   const verified = reward.disposition === TML_P7_DISPOSITION.VERIFIED;
-  return Object.freeze({
+  return pipelineResult({
     status: verified ? TML_P8_PIPELINE_STATUS.VERIFIED : TML_P8_PIPELINE_STATUS.REWARD_UNVERIFIED,
     planId,
-    completedSteps: ordinary.completedSteps + (verified ? 1 : 0),
     ordinary,
     reward,
     stoppedTransitionId: verified ? null : rewardTransitionId
