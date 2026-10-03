@@ -155,6 +155,33 @@ async function safeRead(readAdapter, { userId, questRef }) {
   }
 }
 
+async function safeAdvance(advanceAdapter, request, now) {
+  const fallbackRequestedAt = ensureTime(now(), 'provider fallback requestedAt');
+  try {
+    const result = await advanceAdapter.advance(request);
+    if (!result || typeof result.ok !== 'boolean' ||
+        typeof result.executionKey !== 'string' ||
+        typeof result.requestedAt !== 'string' ||
+        typeof result.completedAt !== 'string') {
+      const error = new Error('write adapter returned an invalid provider outcome');
+      error.name = 'TmlVerifiedWriteError';
+      error.code = 'INVALID_PROVIDER_OUTCOME';
+      throw error;
+    }
+    ensureTime(result.requestedAt, 'provider requestedAt');
+    ensureTime(result.completedAt, 'provider completedAt');
+    return result;
+  } catch (error) {
+    return Object.freeze({
+      ok: false,
+      executionKey: request.executionKey,
+      requestedAt: fallbackRequestedAt,
+      completedAt: ensureTime(now(), 'provider fallback completedAt'),
+      error: errorSummary(error) ?? { code: 'QUEST_WRITE_PROVIDER_ERROR' }
+    });
+  }
+}
+
 export async function executeTmlVerifiedWriteTransition({
   module,
   profile,
@@ -225,12 +252,12 @@ export async function executeTmlVerifiedWriteTransition({
     throw new TypeError('createExecutionKey must return a non-empty string');
   }
 
-  const provider = await advanceAdapter.advance({
+  const provider = await safeAdvance(advanceAdapter, {
     userId: context.userId,
     questRef,
     event,
     executionKey
-  });
+  }, now);
   recorder.append(actionExecutionRecord(action, provider));
 
   const postRead = await safeRead(readAdapter, { userId: context.userId, questRef });
