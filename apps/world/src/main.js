@@ -21,6 +21,8 @@ import { RenderChunkStreaming } from './render-chunk-streaming.js';
 import { CampusChunkRenderer } from './campus-chunk-renderer.js';
 import { CAMPUS_BENCH_METERS_PER_UNIT } from './campus-bench-layout.js';
 import { createCampusBenchRuntime } from './campus-bench-runtime.js';
+import { CAMPUS_STREETLAMP_METERS_PER_UNIT } from './campus-streetlamp-layout.js';
+import { createCampusStreetlampRuntime } from './campus-streetlamp-runtime.js';
 import { createPlayCanvasRuntimeContext } from './runtime-adapter/playcanvas-context.js';
 import { legacyTelemetryTarget } from './legacy-zone-compat.js';
 import { createViewDistanceSettings } from './view-distance-settings.js';
@@ -1507,7 +1509,13 @@ const campusBench = createCampusBenchRuntime(createPlayCanvasRuntimeContext({
   app, parent: chunkRenderer.base, metersPerUnit: CAMPUS_BENCH_METERS_PER_UNIT,
   assetShadow: assetOptimizationShadow
 }));
-window.addEventListener('pagehide', event => { if (!event.persisted) void campusBench.dispose(); });
+const campusStreetlamp = createCampusStreetlampRuntime(createPlayCanvasRuntimeContext({
+  app, parent: chunkRenderer.base, metersPerUnit: CAMPUS_STREETLAMP_METERS_PER_UNIT,
+  assetShadow: assetOptimizationShadow
+}));
+window.addEventListener('pagehide', event => {
+  if (!event.persisted) { void campusBench.dispose(); void campusStreetlamp.dispose(); }
+});
 const streaming = new RenderChunkStreaming(registry,chunkRenderer,{intervalMs:250});
 const inkyungSideEvent = createInkyungMechanicalDuckEvent();
 if (previewHost && startupParams.get("inkyungDuckEvent") === "1") inkyungSideEvent.setUnlocked(true);
@@ -2642,6 +2650,7 @@ window.__INHAGAME_P0__ = {
   getStatus: () => ({
     renderer: rendererName,
     campusBench: campusBench.status(),
+    campusStreetlamp: campusStreetlamp.status(),
     graphics: graphics.status(),
     editorWorld: editorWorldStatus && {
       state: editorWorldStatus.state,
