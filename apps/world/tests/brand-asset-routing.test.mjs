@@ -55,8 +55,11 @@ test("optimized edge function pins glTF Transform and preserves character pivots
     new URL("../../../supabase/functions/inhagame-world-brand-assets-optimized-v1/index.ts", import.meta.url),
     "utf8"
   );
-  assert.match(source, /@gltf-transform\/core@4\.5\.1/);
-  assert.match(source, /@gltf-transform\/functions@4\.5\.1/);
+  assert.match(source, /esm\.sh\/@gltf-transform\/core@4\.5\.1/);
+  assert.match(source, /esm\.sh\/@gltf-transform\/functions@4\.5\.1/);
+  assert.match(source, /exports=dedup,prune/);
+  assert.doesNotMatch(source, /from ["']npm:@gltf-transform\/functions/);
+  assert.doesNotMatch(source, /sharp/);
   assert.match(source, /prune\(\{ keepLeaves: true \}\)/);
   for (const pivot of ["DuckWing_L","DuckWing_R","DuckLeg_L","DuckLeg_R","DragonWing_L","DragonWing_R"]) {
     assert.match(source, new RegExp(pivot));
