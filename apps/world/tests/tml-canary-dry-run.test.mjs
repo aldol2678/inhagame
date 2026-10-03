@@ -292,6 +292,27 @@ test('P15 rejects executable/tampered P14 packs and unknown phases', () => {
         ...proposalPack().canaryPlan,
         fullRolloutIncluded: true
       }
+    }),
+    proposalPack({
+      canaryPlan: {
+        ...proposalPack().canaryPlan,
+        phases: [
+          ...proposalPack().canaryPlan.phases.slice(0, 2),
+          { ...proposalPack().canaryPlan.phases[2], audiencePercent: 100 }
+        ]
+      }
+    }),
+    proposalPack({
+      rollbackPlan: {
+        ...proposalPack().rollbackPlan,
+        automaticRollbackAllowed: true
+      }
+    }),
+    proposalPack({
+      observabilityPlan: {
+        ...proposalPack().observabilityPlan,
+        mismatchBudget: 1
+      }
     })
   ]) {
     assert.throws(
@@ -305,7 +326,10 @@ test('P15 rejects executable/tampered P14 packs and unknown phases', () => {
       (error) => [
         'PROPOSAL_EFFECT_BOUNDARY_INVALID',
         'PROPOSAL_AUTHORITY_BOUNDARY_INVALID',
-        'FULL_ROLLOUT_NOT_ALLOWED'
+        'FULL_ROLLOUT_NOT_ALLOWED',
+        'CANARY_PLAN_BOUNDARY_INVALID',
+        'ROLLBACK_PLAN_BOUNDARY_INVALID',
+        'OBSERVABILITY_PLAN_BOUNDARY_INVALID'
       ].includes(error.code)
     );
   }
