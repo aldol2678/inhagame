@@ -3,11 +3,11 @@
   "routes": [
     {
       "src": "/assets/induck-v3\\.glb",
-      "dest": "https://inhagame-campus-p0-b9v6bcouy-aldol.vercel.app/assets/induck-v3.glb"
+      "dest": "/api/brand-induck"
     },
     {
       "src": "/\\.generated/assets-optimized/induck-v3\\.glb",
-      "dest": "https://inhagame-campus-p0-b9v6bcouy-aldol.vercel.app/assets/induck-v3.glb"
+      "dest": "/api/brand-induck"
     },
     {
       "handle": "filesystem"
