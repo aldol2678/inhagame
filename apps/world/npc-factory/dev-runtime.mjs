@@ -638,9 +638,11 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
       event === 'talk_002' ? '가유담의 부탁 듣기' : '탐방 마쳤다고 알리기';
   }
 
-  function renderQuestMenu(actor) {
-    setPlayerDialogueLine(null);
-    line.textContent = '지금 이어갈 이야기를 골라 주세요.';
+  function renderQuestMenu(actor, { keepLine = false } = {}) {
+    if (!keepLine) {
+      setPlayerDialogueLine(null);
+      line.textContent = '지금 이어갈 이야기를 골라 주세요.';
+    }
     choices.replaceChildren();
     const actorId = actor.id;
     const event = quest.eventForNpc(actorId);
@@ -657,7 +659,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
           if (activeConversation?.id === actorId) line.textContent = '지금은 진행 상태를 저장하지 못했어요. 다시 시도해 주세요.';
         } finally {
           if (activeConversation?.id === actorId && dialogueSession?.snapshot().state === NPC_DIALOGUE_STATE.QUEST)
-            renderQuestMenu(actor);
+            renderQuestMenu(actor, { keepLine: true });
         }
       }, { className: 'npc-quest-choice' });
     }
@@ -668,7 +670,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
         const result = sideEvent.advanceNpc?.(actorId, sideChoice.id);
         if (activeConversation?.id === actorId) {
           line.textContent = result?.line ?? '지금은 이 이야기를 이어갈 수 없어요.';
-          if (dialogueSession?.snapshot().state === NPC_DIALOGUE_STATE.QUEST) renderQuestMenu(actor);
+          if (dialogueSession?.snapshot().state === NPC_DIALOGUE_STATE.QUEST) renderQuestMenu(actor, { keepLine: true });
         }
       }, { className: 'npc-side-event-choice' });
     }
