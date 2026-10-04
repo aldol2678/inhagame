@@ -20,7 +20,7 @@ test('D2 runtime rebuilds a sanitized dialogue context and deterministic baselin
 });
 
 test('World supplies only dialogue-safe environment facts', () => {
-  const block = main.match(/getDialogueWorldContext:\s*\(\) => \{[\s\S]*?\n\s*\},\n\s*onConversationOpen:/)?.[0];
+  const block = main.match(/getDialogueWorldContext:\s*\(\) => \{\s*const env = environment\.status\(\);\s*return \{[\s\S]*?\n\s*\};\s*\n\s*\},/)?.[0];
   assert.ok(block, 'world dialogue context callback is wired beside NPC runtime');
   assert.match(block, /weather: env\.targetWeather/);
   assert.match(block, /environmentTime: env\.targetTime/);
