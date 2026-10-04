@@ -299,14 +299,18 @@ as $$
   select jsonb_build_object(
     'schemaVersion',1,
     'elapsedMs',0,
+    'build',jsonb_build_object(
+      'jobId','blaster',
+      'activeSkills',jsonb_build_array('accelerate','slide','barrage'),
+      'ultimate','overdrive'),
     'player',jsonb_build_object(
-      'hp',1000,'maxHp',1000,'momentum',0,'ultimateGauge',0,
+      'hp',1000,'maxHp',1000,'momentum',0,'ultimateGauge',0,'rapidUntilMs',0,
       'dodgeStartMs',null,'perfectUsed',false,'defeated',false),
     'enemy',jsonb_build_object(
       'hp',4200,'maxHp',4200,'breakValue',0,'breakMax',100,
       'brokenUntilMs',0,'defeated',false),
     'cooldownUntil',jsonb_build_object(
-      'active_1',0,'active_2',0,'active_3',0,'dodge',0),
+      'basic',0,'active_1',0,'active_2',0,'active_3',0,'dodge',0),
     'enemyAttack',jsonb_build_object(
       'nextWindupMs',1200,'windupMs',680,'damage',44,'engagementRange',5,'impactRadius',1.15),
     'lastAction',null
@@ -531,6 +535,8 @@ declare
   v_ult numeric;
   v_dodge_start bigint;
   v_perfect_used boolean;
+  v_rapid_until bigint;
+  v_cdbasic bigint;
   v_cd1 bigint;
   v_cd2 bigint;
   v_cd3 bigint;
@@ -611,6 +617,8 @@ begin
   v_ult := coalesce((v_state#>>'{player,ultimateGauge}')::numeric,0);
   v_dodge_start := nullif(v_state#>>'{player,dodgeStartMs}','')::bigint;
   v_perfect_used := coalesce((v_state#>>'{player,perfectUsed}')::boolean,false);
+  v_rapid_until := coalesce((v_state#>>'{player,rapidUntilMs}')::bigint,0);
+  v_cdbasic := coalesce((v_state#>>'{cooldownUntil,basic}')::bigint,0);
   v_cd1 := coalesce((v_state#>>'{cooldownUntil,active_1}')::bigint,0);
   v_cd2 := coalesce((v_state#>>'{cooldownUntil,active_2}')::bigint,0);
   v_cd3 := coalesce((v_state#>>'{cooldownUntil,active_3}')::bigint,0);
@@ -641,14 +649,15 @@ begin
   if v_player_hp <= 0 then
     v_state := jsonb_build_object(
       'schemaVersion',1,'elapsedMs',v_elapsed,
+      'build',v_state->'build',
       'player',jsonb_build_object(
-        'hp',0,'maxHp',1000,'momentum',v_momentum,'ultimateGauge',v_ult,
+        'hp',0,'maxHp',1000,'momentum',v_momentum,'ultimateGauge',v_ult,'rapidUntilMs',v_rapid_until,
         'dodgeStartMs',v_dodge_start,'perfectUsed',v_perfect_used,'defeated',true),
       'enemy',jsonb_build_object(
         'hp',v_enemy_hp,'maxHp',4200,'breakValue',v_break,'breakMax',100,
         'brokenUntilMs',v_broken_until,'defeated',v_enemy_hp<=0),
       'cooldownUntil',jsonb_build_object(
-        'active_1',v_cd1,'active_2',v_cd2,'active_3',v_cd3,'dodge',v_cdd),
+        'basic',v_cdbasic,'active_1',v_cd1,'active_2',v_cd2,'active_3',v_cd3,'dodge',v_cdd),
       'enemyAttack',jsonb_build_object(
         'nextWindupMs',v_next_windup,'windupMs',680,'damage',44,
         'engagementRange',5,'impactRadius',1.15),
@@ -668,7 +677,10 @@ begin
 
   if p_action='ACTIVE_1' then
     if v_elapsed < v_cd1 then v_accepted:=false; v_reason:='COOLDOWN';
-    else v_cd1:=v_elapsed+6000; v_momentum_add:=15; v_ult_add:=2; v_active_skill:=true; end if;
+    else
+      v_cd1:=v_elapsed+6000; v_momentum_add:=15; v_ult_add:=2; v_active_skill:=true;
+      v_rapid_until:=greatest(v_rapid_until,v_elapsed+4200);
+    end if;
   elsif p_action='ACTIVE_2' then
     if v_elapsed < v_cd2 then v_accepted:=false; v_reason:='COOLDOWN';
     else v_cd2:=v_elapsed+5200; v_damage:=216; v_break_add:=12; v_momentum_add:=15;
@@ -683,11 +695,23 @@ begin
     else v_cdd:=v_elapsed+1200; v_dodge_start:=v_elapsed; v_perfect_used:=false; end if;
   elsif p_action='ULTIMATE' then
     if v_ult < 100 then v_accepted:=false; v_reason:='ULTIMATE_NOT_READY';
-    else v_ult:=0; v_momentum:=100; end if;
+    else
+      v_ult:=0; v_momentum:=100;
+      v_rapid_until:=greatest(v_rapid_until,v_elapsed+8000);
+    end if;
   elsif p_action='BASIC' then
-    v_damage:=case when v_momentum>=70 then 99 else 88 end;
-    v_break_add:=4; v_momentum_add:=8;
-    v_ult_add:=greatest(.12::numeric,v_damage::numeric/260);
+    if v_elapsed < v_cdbasic then
+      v_accepted:=false; v_reason:='COOLDOWN';
+    else
+      v_cdbasic:=v_elapsed + case
+        when v_elapsed < v_rapid_until then 145
+        when v_momentum >= 70 then 180
+        else 220
+      end;
+      v_damage:=case when v_momentum>=70 then 99 else 88 end;
+      v_break_add:=4; v_momentum_add:=8;
+      v_ult_add:=greatest(.12::numeric,v_damage::numeric/260);
+    end if;
   end if;
 
   if v_accepted then
@@ -710,14 +734,15 @@ begin
 
   v_state := jsonb_build_object(
     'schemaVersion',1,'elapsedMs',v_elapsed,
+    'build',v_state->'build',
     'player',jsonb_build_object(
-      'hp',v_player_hp,'maxHp',1000,'momentum',v_momentum,'ultimateGauge',round(v_ult,4),
+      'hp',v_player_hp,'maxHp',1000,'momentum',v_momentum,'ultimateGauge',round(v_ult,4),'rapidUntilMs',v_rapid_until,
       'dodgeStartMs',v_dodge_start,'perfectUsed',v_perfect_used,'defeated',false),
     'enemy',jsonb_build_object(
       'hp',v_enemy_hp,'maxHp',4200,'breakValue',v_break,'breakMax',100,
       'brokenUntilMs',v_broken_until,'defeated',v_enemy_hp<=0),
     'cooldownUntil',jsonb_build_object(
-      'active_1',v_cd1,'active_2',v_cd2,'active_3',v_cd3,'dodge',v_cdd),
+      'basic',v_cdbasic,'active_1',v_cd1,'active_2',v_cd2,'active_3',v_cd3,'dodge',v_cdd),
     'enemyAttack',jsonb_build_object(
       'nextWindupMs',v_next_windup,'windupMs',680,'damage',44,
       'engagementRange',5,'impactRadius',1.15),
