@@ -28,7 +28,9 @@ test('source stays separate from the physical pole; actual grounding and full wo
   assert.ok(Math.abs(BACKGATE_TRANSIT_SOURCE_ANCHOR.x-111.798063)<1e-5);
   assert.ok(Math.abs(BACKGATE_TRANSIT_SOURCE_ANCHOR.z-113.042070)<1e-5);
   assert.equal(A.interactionRadius,1.75);
-  assert.equal(A.gameStatus,'COMING_SOON');
+  assert.equal(A.gameStatus,'AVAILABLE');
+  assert.equal(A.destinationSpawnId,'BIRYONG_STATION');
+  assert.equal(A.destinationRegionId,'BIRYONG_REALM');
   for(const p of [A.wait,A.boarding,A.busCenter]) {
     assert.equal(roadviewGroundHeight(p.x,p.z),0);
     assert.equal(canOccupy(at(p)),true);
@@ -84,25 +86,26 @@ test('stop information accepts walking guests, excludes road/air/mount/modal sta
   }
   assert.equal(h.opens(),1);
 });
-test('PC shared trigger and touch click open the same preparation-only panel; focus and Escape/Tab work',()=>{
+test('PC shared trigger and touch click open the same Biryong boarding panel; focus and Escape/Tab work',()=>{
   const doc=createFakeDocument(),panel=doc.createElement('section'),button=doc.createElement('button');
   button.removeAttribute=k=>delete button.attributes[k];
   const manager=createInputFocusManager(),owner=createInputFocusOwner({manager,ownerId:'backgate-transit',policy:INPUT_FOCUS_POLICY.BLOCKING_UI});
-  let player=at(A.wait);
-  const ui=createBackgateTransitPanel({panel,doc,onOpenChange:open=>open?owner.acquire():owner.release()});
+  let player=at(A.wait),boards=0;
+  const ui=createBackgateTransitPanel({panel,doc,onBoard:()=>{boards++;return true;},onOpenChange:open=>open?owner.acquire():owner.release()});
   const world=createBackgateTransitInteraction({getPosition:()=>player,getState:()=>({grounded:true,blocked:!manager.can('WORLD_ACTION')}),getGroundHeight:roadviewGroundHeight,openPanel:()=>ui.setOpen(true)});
   for(const coarsePointer of [false,true]) {
     const slot=createContextActionController({button,shortcut:'F',coarsePointer});
     slot.set('backgate-transit',world.observe(player,{grounded:true,blocked:false}));slot.refresh();
     if(coarsePointer)button.click();else assert.equal(slot.trigger(),true);
     assert.equal(ui.open,true);assert.equal(manager.can('MOVE'),false);assert.equal(manager.can('WORLD_ACTION'),false);
-    const disabled=panel.children[3].children[2];assert.equal(disabled.disabled,true);assert.equal(disabled.textContent,'준비중');
-    assert.equal(ui.status().boardingEnabled,false);
+    const board=panel.children[3].children[2];assert.equal(board.disabled,false);assert.equal(board.textContent,'비룡역 가기');
+    assert.equal(ui.status().boardingEnabled,true);
     doc.dispatch('keydown',{code:'Tab'});assert.equal(doc.activeElement,panel.children[1]);
     doc.dispatch('keydown',{code:'Escape'});assert.equal(ui.open,false);assert.equal(manager.can('MOVE'),true);
     // Remove the old controller's handler before the second iteration in this lightweight fake DOM.
     button.listeners.set('click',[]);
   }
+  ui.setOpen(true);panel.children[3].children[2].click();assert.equal(boards,1);assert.equal(ui.open,false);
   ui.setOpen(true);const token=manager.claim('room-transition',INPUT_FOCUS_POLICY.SYSTEM_LOCK);
   ui.setOpen(false,{restoreFocus:false});assert.equal(manager.can('MOVE'),false,'closing the stop never releases another owner');
   manager.release(token);assert.equal(manager.can('MOVE'),true);
