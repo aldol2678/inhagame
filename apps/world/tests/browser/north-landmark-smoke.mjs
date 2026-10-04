@@ -76,10 +76,14 @@ try{
       camera.setPosition(from.x,profile.y,from.z*sign);camera.lookAt(to.x,1.2,to.z*sign);
       center.splice(0,3,to.x,1.2,to.z*sign);distance=camera.getPosition().distance({x:center[0],y:center[1],z:center[2]});
       const pc=await import('playcanvas');
+      // CameraComponent.worldToScreen returns CSS client pixels. Mobile quality
+      // renders at 80% framebuffer scale; those smaller GPU dimensions must not
+      // be used to reject an otherwise visible projected point.
+      const viewport=d.app.graphicsDevice.clientRect;
       for(const side of [AGORA.stairStart,AGORA.stairEnd])for(const out of [0,AGORA.run])for(const rail of [0,.84]){
        const p=AGORA.frame.at(side,out),y=AGORA.height*(1-out/AGORA.run)+rail;
        const screen=camera.camera.worldToScreen(new pc.Vec3(p.x,y,p.z*sign));
-       if(screen.x<0||screen.x>d.app.graphicsDevice.width||screen.y<0||screen.y>d.app.graphicsDevice.height)throw Error(`Stair or guard clipped: ${JSON.stringify({side,out,rail,screen:screen.toArray(),width:d.app.graphicsDevice.width,height:d.app.graphicsDevice.height})}`);
+       if(screen.x<0||screen.x>viewport.width||screen.y<0||screen.y>viewport.height)throw Error(`Stair or guard clipped: ${JSON.stringify({side,out,rail,screen:screen.toArray(),clientWidth:viewport.width,clientHeight:viewport.height,framebufferWidth:d.app.graphicsDevice.width,framebufferHeight:d.app.graphicsDevice.height})}`);
       }
      }
      return {clock,tower,baseOwners:target.length,nearOwners:near,reflection:sign,camera:camera.getPosition().toArray(),target:center,distance,renderComponents:all.length};

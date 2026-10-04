@@ -27,12 +27,14 @@ try{
   camera.addComponent('camera',{fov:48,nearClip:2,farClip:1400,aspectRatioMode:pc.ASPECT_MANUAL,aspectRatio:aspect});
   const u=(AGORA.stairStart+AGORA.stairEnd)/2,from=AGORA.frame.at(u,profile.out),to=AGORA.frame.at(u,0);
   camera.setPosition(from.x,profile.y,from.z*sign);camera.lookAt(to.x,1.2,to.z*sign);
+  Object.assign(app.graphicsDevice.clientRect,{width,height});
   const points=[];
   for(const side of [AGORA.stairStart,AGORA.stairEnd])for(const out of [0,AGORA.run])for(const rail of [0,.84]){
    const p=AGORA.frame.at(side,out),y=AGORA.height*(1-out/AGORA.run)+rail;
-   const s=camera.camera.camera.worldToScreen(new pc.Vec3(p.x,y,p.z*sign),width,height);
+   const s=camera.camera.worldToScreen(new pc.Vec3(p.x,y,p.z*sign));
    assert.ok(s.x>width*.08&&s.x<width*.92&&s.y>height*.08&&s.y<height*.92,'entry/stair guard retains frame margin');points.push(s.toArray());
   }
+  if(aspect<.8)assert.ok(points.some(p=>p[0]>width*.8),'valid CSS projection extends beyond the 80% mobile framebuffer width');
   report.entryFraming.push({width,height,sign,points});camera.destroy();
  }
  for(let cycle=0;cycle<3;cycle++){
