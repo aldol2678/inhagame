@@ -21,6 +21,10 @@ Source files on the #91 branch:
 
 ## 1. Progression curve v1 (Lv1–20)
 
+**Imported.** This curve is now the canonical per-skill curve `life.common.v1`
+(`20261004130000_world_life_skill_curve_v1_sp_pools`), with `cumulative_sp` per skill pool. The
+table below stays as the record of the #91 proposal.
+
 `min_total_xp(level) = 50 * level * (level - 1)`. SP award +1 per level-up and +2 at every 5th
 level, so 23 SP by Lv20. Lv20 was the highest defined level, not a cap. In #91 this curve was for an
 **aggregate** Life XP.

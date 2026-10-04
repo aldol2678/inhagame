@@ -1,6 +1,35 @@
 import assert from 'node:assert/strict';
 import { startSmoke, TIMEOUT_MS } from './harness.mjs';
 
+async function sampleRenderedSky(page) {
+  return page.evaluate(() => new Promise(resolve => {
+    requestAnimationFrame(() => {
+      const source = document.getElementById('application');
+      const probe = document.createElement('canvas');
+      probe.width = source.width;
+      probe.height = source.height;
+      const context = probe.getContext('2d', { willReadFrequently: true });
+      context.drawImage(source, 0, 0);
+      const points = [
+        [0.12, 0.08],
+        [0.31, 0.10],
+        [0.50, 0.07],
+        [0.69, 0.10],
+        [0.88, 0.08]
+      ];
+      resolve(points.map(([x, y]) => {
+        const pixel = context.getImageData(
+          Math.max(0, Math.min(probe.width - 1, Math.floor(probe.width * x))),
+          Math.max(0, Math.min(probe.height - 1, Math.floor(probe.height * y))),
+          1,
+          1
+        ).data;
+        return [pixel[0], pixel[1], pixel[2], pixel[3]];
+      }));
+    });
+  }));
+}
+
 const smoke = await startSmoke();
 try {
   const page = await smoke.context.newPage();
@@ -162,6 +191,22 @@ try {
   assert.deepEqual(
     dayClear.sky.shadowRayDirection.map((value, index) => value + dayClear.sky.sunDirection[index]),
     [0, 0, 0]
+  );
+
+  const daySkyPixels = await sampleRenderedSky(page);
+  const visibleDaySkyPixels = daySkyPixels.filter(pixel =>
+    pixel[3] > 0 && Math.max(pixel[0], pixel[1], pixel[2]) >= 48
+  );
+  const blueDaySkyPixels = daySkyPixels.filter(pixel =>
+    pixel[2] >= pixel[0] + 12 && pixel[2] >= pixel[1] + 8
+  );
+  assert.ok(
+    visibleDaySkyPixels.length >= 3,
+    `DAY sky must render visible non-black pixels, got ${JSON.stringify(daySkyPixels)}`
+  );
+  assert.ok(
+    blueDaySkyPixels.length >= 1,
+    `DAY sky must preserve a blue atmospheric signal, got ${JSON.stringify(daySkyPixels)}`
   );
 
   await page.evaluate(() => window.__INHAGAME_ENVIRONMENT__.setWeather('cloudy'));

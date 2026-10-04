@@ -188,7 +188,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
     shouldPauseForConversation: () => false, shouldHoldForJoin: () => false
   } : createPurposefulSocialMotion(batch, purposefulRoster, navigator);
   const avatars = new Map(first.actors.map(actor => {
-    const visual = createHumanAvatar(campusRoot, actor, appearanceFor(rosterById.get(actor.id)));
+    const visual = createHumanAvatar(campusRoot, actor, appearanceFor(rosterById.get(actor.id), npcById.get(actor.id)));
     visual.motion = { position: actor.position && { ...actor.position }, route: [], moving: false,
       heading: 0, wait: Number(actor.id.slice(-3)) % 4, leg: 0 };
     return [actor.id, visual];
@@ -201,7 +201,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
     label.className = 'npc-test-tag';
     label.textContent = production ? actor.name : `${actor.id.slice(-3)} · ${actor.name}`;
     label.dataset.status = '';
-    label.style.borderColor = rosterById.get(actor.id).visual.accent_color;
+    label.style.borderColor = avatars.get(actor.id).appearance.accent_color;
     labelLayer.appendChild(label);
     return [actor.id, label];
   }));
@@ -774,7 +774,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
     if (production) {
       const entry = rosterById.get(actor.id);
       portrait.textContent = actor.name.slice(0, 1);
-      portrait.style.setProperty('--npc-accent', entry.visual.accent_color);
+      portrait.style.setProperty('--npc-accent', avatars.get(actor.id)?.appearance?.accent_color ?? entry.visual.accent_color);
       playerLine.hidden = true;
       talkButton.hidden = true;
       panel.hidden = false;
