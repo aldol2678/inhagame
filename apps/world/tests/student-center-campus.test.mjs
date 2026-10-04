@@ -118,7 +118,11 @@ test('new solid envelope clears fixed campus obstacles and retains the C-buildin
   if(p.minY>=q.maxY||p.maxY<=q.minY||!q.polygon)continue;
   assert.equal(overlap(p.polygon,q.polygon),false,`${p.id} / ${q.id}`);
  }
- assert.equal(fixed.length,854,'all current non-student physical obstacles retained');
+ const restoredUpperIds=['bldg_05_clock_core','bldg_60th_tower'];
+ const restored=fixed.filter(p=>restoredUpperIds.includes(p.id));
+ assert.deepEqual(restored.map(p=>p.id).sort(),restoredUpperIds);
+ assert.ok(restored.every(p=>p.minY>=12),'restored skyline has no ground footprint delta');
+ assert.equal(fixed.length-restored.length,854,'all pre-restoration non-student physical obstacles retained');
  const c=fixed.find(p=>p.id==='bldg_c_0');assert.ok(c);
  const distance=(p,a,b)=>{const dx=b.x-a.x,dz=b.z-a.z,t=Math.max(0,Math.min(1,((p.x-a.x)*dx+(p.z-a.z)*dz)/(dx*dx+dz*dz)));return Math.hypot(p.x-a.x-t*dx,p.z-a.z-t*dz);};
  let gap=Infinity;
