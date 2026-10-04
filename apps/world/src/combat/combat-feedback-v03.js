@@ -128,6 +128,7 @@ export function createCombatFeedbackV03({
 
     if ((training.breakSerial ?? 0) > lastBreak) {
       lastBreak = training.breakSerial;
+      lastTargetHit = Math.max(lastTargetHit, training.hitSerial ?? 0);
       cue('break');
     } else if ((training.hitSerial ?? 0) > lastTargetHit) {
       lastTargetHit = training.hitSerial;
