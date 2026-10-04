@@ -274,6 +274,23 @@ export function createEnvironmentDirector({
     return fogCurrent.wetness;
   }
 
+  function copyVisualLightingState(out) {
+    if (!out) return null;
+    if (!Array.isArray(out.sunColor) || out.sunColor.length < 3) out.sunColor = [0, 0, 0];
+    if (!Array.isArray(out.sunEuler) || out.sunEuler.length < 3) out.sunEuler = [0, 0, 0];
+    if (!Array.isArray(out.ambientColor) || out.ambientColor.length < 3) out.ambientColor = [0, 0, 0];
+    copyTuple(out.sunColor, current.sunColor);
+    copyTuple(out.sunEuler, current.sunEuler);
+    copyTuple(out.ambientColor, current.ambientColor);
+    out.sunIntensity = current.sunIntensity;
+    out.shadowIntensity = current.shadowIntensity;
+    out.exposure = current.exposure;
+    out.artificialLightFactor = current.artificialLightFactor;
+    out.sunLightScale = fogCurrent.sunLightScale;
+    out.ambientLightScale = fogCurrent.ambientLightScale;
+    return out;
+  }
+
   function copySkyVisualState(out) {
     if (!out) return null;
     if (!Array.isArray(out.sunColor) || out.sunColor.length < 3) out.sunColor = [0, 0, 0];
@@ -298,6 +315,7 @@ export function createEnvironmentDirector({
     rainIntensity,
     snowIntensity,
     wetnessFactor,
+    copyVisualLightingState,
     copySkyVisualState
   });
 }
