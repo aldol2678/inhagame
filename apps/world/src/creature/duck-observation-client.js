@@ -7,10 +7,12 @@ const STOP_STATES = new Set(['BOND_ELIGIBLE', 'OWNED']);
 
 export function createDuckObservationClient({
   getClient = () => null,
-  onChange = () => {}
+  onChange = () => {},
+  claimKeyFactory = () => globalThis.crypto?.randomUUID?.() ?? null
 } = {}) {
   let snapshot = null;
   let lastError = null;
+  let bondPending = false;
   const pending = new Set();
 
   const publish = () => {
@@ -27,6 +29,10 @@ export function createDuckObservationClient({
     canObserve() {
       const client = getClient?.();
       return !!client?.functions?.invoke && !STOP_STATES.has(snapshot?.state);
+    },
+    canBond() {
+      const client = getClient?.();
+      return !!client?.rpc && snapshot?.state === 'BOND_ELIGIBLE' && !bondPending;
     },
     async refresh() {
       const client = getClient?.();
@@ -67,8 +73,36 @@ export function createDuckObservationClient({
         pending.delete(id);
       }
     },
+    async bond() {
+      const client = getClient?.();
+      if (!client?.rpc) return { status: 'UNAVAILABLE', companion: snapshot };
+      if (bondPending) return { status: 'PENDING', companion: snapshot };
+      if (snapshot?.state !== 'BOND_ELIGIBLE') return { status: 'NOT_ELIGIBLE', companion: snapshot };
+
+      const rawKey = claimKeyFactory?.();
+      const claimKey = rawKey ? `duck-bond:${String(rawKey)}` : null;
+      if (!claimKey) return { status: 'UNAVAILABLE', companion: snapshot };
+
+      bondPending = true;
+      try {
+        const { data, error } = await client.rpc('bond_my_duck_companion_v1', {
+          p_claim_key: claimKey
+        });
+        if (error) throw error;
+        const companion = data?.companion ?? null;
+        if (companion) setSnapshot(companion);
+        lastError = null;
+        return { ...(data ?? {}), companion: companion ?? snapshot };
+      } catch (error) {
+        lastError = String(error?.message ?? error);
+        return { status: 'FAILED', companion: snapshot, error: lastError };
+      } finally {
+        bondPending = false;
+      }
+    },
     reset() {
       pending.clear();
+      bondPending = false;
       lastError = null;
       setSnapshot(null);
     },
@@ -76,6 +110,7 @@ export function createDuckObservationClient({
       return Object.freeze({
         snapshot,
         pending: Object.freeze([...pending]),
+        bondPending,
         lastError
       });
     }

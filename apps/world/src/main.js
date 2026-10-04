@@ -31,6 +31,7 @@ import { createSnowWeatherEffects } from './environment/snow-weather-effects.js'
 import { createSnowObjectEffects } from './environment/snow-object-effects.js';
 import { createSnowDepthEffects } from './environment/snow-depth-effects.js';
 import { createSnowThawEffects } from './environment/snow-thaw-effects.js';
+import { createMeltwaterEffects } from './environment/meltwater-effects.js';
 import { createSkyVisuals } from './environment/sky-visuals.js';
 import { createInkyungDuckSystem } from './ambient-ducks.js';
 import { createDuckObservationClient } from './creature/duck-observation-client.js';
@@ -432,6 +433,19 @@ const snowThawEffects = createSnowThawEffects({
 app.on("update", () => snowThawEffects.update());
 window.__INHAGAME_SNOW_THAW__ = Object.freeze({
   status: () => snowThawEffects.status()
+});
+
+const meltwaterEffects = createMeltwaterEffects({
+  root: campusRoot,
+  app,
+  getSnowAccumulation: () => snowWeatherEffects.getAccumulation(),
+  getSnowIntensity: () => environment.snowIntensity(),
+  getWetnessFactor: () => environment.wetnessFactor(),
+  getGraphicsTier: () => graphics.tier
+});
+app.on("update", dt => meltwaterEffects.update(dt));
+window.__INHAGAME_MELTWATER__ = Object.freeze({
+  status: () => meltwaterEffects.status()
 });
 
 const controller = new PlayerController(player);
@@ -1854,12 +1868,27 @@ const inkyungDucks = createInkyungDuckSystem({
   player,
   forceMechanical: previewHost && startupParams.get("mechanicalDuck") === "1",
   canObserveOrdinary: () =>
-    inkyungSideEvent.canObserveOrdinaryDuck() || duckCompanion.canObserve(),
+    inkyungSideEvent.canObserveOrdinaryDuck() || duckCompanion.canObserve() || duckCompanion.canBond(),
+  getOrdinaryActionLabel: () => duckCompanion.canBond() ? "오리와 교감" : "오리 관찰",
   onOrdinaryObserved: duck => {
     const sideEventResult = inkyungSideEvent.observeOrdinaryDuck(duck.kind);
-    const companionStarted = duckCompanion.canObserve();
+    const companionBonding = duckCompanion.canBond();
+    const companionStarted = !companionBonding && duckCompanion.canObserve();
 
-    if (companionStarted) {
+    if (companionBonding) {
+      void duckCompanion.bond().then(result => {
+        if (result?.status === "FAILED") {
+          console.warn("Duck Companion bond failed:", result.error);
+          showWorldStatus("🦆 오리와 교감하지 못했어요 · 잠시 후 다시 시도해 주세요.");
+          return;
+        }
+        const companion = result?.companion;
+        if (companion?.state !== "OWNED") return;
+        showWorldStatus(result?.autoActivated
+          ? "🦆 교감 성공 · 새 동료 오리가 ACTIVE 동행으로 합류했어요!"
+          : "🦆 교감 성공 · 새 동료 오리가 합류했어요!");
+      });
+    } else if (companionStarted) {
       void duckCompanion.observe(duck.id).then(result => {
         if (result?.status === "FAILED") {
           console.warn("Duck Companion observation failed:", result.error);
@@ -1868,7 +1897,7 @@ const inkyungDucks = createInkyungDuckSystem({
         const companion = result?.companion;
         if (!companion) return;
         if (companion.state === "BOND_ELIGIBLE") {
-          showWorldStatus("🦆 오리들이 경계를 풀었다 · 이제 동료로 교감할 수 있어요.");
+          showWorldStatus("🦆 오리들이 경계를 풀었다 · F 키로 동료 교감을 시도해 보세요.");
           return;
         }
         if (companion.state === "OWNED") {
@@ -1888,7 +1917,7 @@ const inkyungDucks = createInkyungDuckSystem({
     }
     return {
       ...sideEventResult,
-      changed: sideEventResult.changed || companionStarted
+      changed: sideEventResult.changed || companionStarted || companionBonding
     };
   },
   onLoreFound: lore => {

@@ -32,6 +32,7 @@ try {
     snowObjects: window.__INHAGAME_SNOW_OBJECTS__.status(),
     snowDepth: window.__INHAGAME_SNOW_DEPTH__.status(),
     snowThaw: window.__INHAGAME_SNOW_THAW__.status(),
+    meltwater: window.__INHAGAME_MELTWATER__.status(),
     pond: window.__INHAGAME_POND_WEATHER__.status(),
     sky: window.__INHAGAME_SKY__.status(),
     graphics: window.__INHAGAME_P0__.getStatus().graphics
@@ -69,6 +70,14 @@ try {
   assert.equal(initial.snowThaw.extraRealLights, 0);
   assert.equal(initial.snowThaw.extraShadowCasters, 0);
   assert.equal(initial.snowThaw.externalTextures, 0);
+  assert.equal(initial.meltwater.enabled, false);
+  assert.equal(initial.meltwater.drawMeshes, 0);
+  assert.equal(initial.meltwater.dripDrawMeshes, 0);
+  assert.equal(initial.meltwater.runoffDrawMeshes, 0);
+  assert.equal(initial.meltwater.extraRealLights, 0);
+  assert.equal(initial.meltwater.extraShadowCasters, 0);
+  assert.equal(initial.meltwater.externalTextures, 0);
+  assert.equal(initial.meltwater.networkRequests, 0);
   assert.equal(initial.pond.rainIntensity, 0);
   assert.equal(initial.pond.artificialLightFactor, 0.18);
   assert.equal(initial.pond.rippleSpeed, 0.025);
@@ -191,6 +200,7 @@ try {
     snowObjects: window.__INHAGAME_SNOW_OBJECTS__.status(),
     snowDepth: window.__INHAGAME_SNOW_DEPTH__.status(),
     snowThaw: window.__INHAGAME_SNOW_THAW__.status(),
+    meltwater: window.__INHAGAME_MELTWATER__.status(),
     sky: window.__INHAGAME_SKY__.status()
   }));
   assert.equal(snowDay.environment.targetWeather, 'SNOW');
@@ -272,6 +282,13 @@ try {
   assert.equal(snowDay.snowThaw.extraRealLights, 0);
   assert.equal(snowDay.snowThaw.extraShadowCasters, 0);
   assert.equal(snowDay.snowThaw.externalTextures, 0);
+  assert.equal(snowDay.meltwater.enabled, false);
+  assert.equal(snowDay.meltwater.drawMeshes, 0);
+  assert.equal(snowDay.meltwater.thawGate, 0);
+  assert.equal(snowDay.meltwater.extraRealLights, 0);
+  assert.equal(snowDay.meltwater.extraShadowCasters, 0);
+  assert.equal(snowDay.meltwater.externalTextures, 0);
+  assert.equal(snowDay.meltwater.networkRequests, 0);
 
   await page.evaluate(() => {
     const p = window.__INHAGAME_P0__.player.getLocalPosition();
@@ -327,6 +344,7 @@ try {
     rain: window.__INHAGAME_RAIN__.status(),
     snow: window.__INHAGAME_SNOW__.status(),
     snowThaw: window.__INHAGAME_SNOW_THAW__.status(),
+    meltwater: window.__INHAGAME_MELTWATER__.status(),
     pond: window.__INHAGAME_POND_WEATHER__.status(),
     sky: window.__INHAGAME_SKY__.status(),
     graphics: window.__INHAGAME_P0__.getStatus().graphics
@@ -356,6 +374,28 @@ try {
   assert.equal(nightRain.snowThaw.extraRealLights, 0);
   assert.equal(nightRain.snowThaw.extraShadowCasters, 0);
   assert.equal(nightRain.snowThaw.externalTextures, 0);
+  assert.equal(nightRain.meltwater.enabled, true);
+  assert.ok(nightRain.meltwater.snowAccumulation > 0);
+  assert.equal(nightRain.meltwater.snowIntensity, 0);
+  assert.equal(nightRain.meltwater.wetness, 1);
+  assert.ok(nightRain.meltwater.dripOpacity > 0);
+  assert.ok(nightRain.meltwater.runoffOpacity > 0);
+  assert.equal(nightRain.meltwater.dripDrawMeshes, 1);
+  assert.equal(nightRain.meltwater.runoffDrawMeshes, 1);
+  assert.equal(nightRain.meltwater.drawMeshes, 2);
+  assert.ok(nightRain.meltwater.dripCount > 0);
+  assert.ok(nightRain.meltwater.dripCount <= nightRain.meltwater.dripBudget);
+  assert.ok(nightRain.meltwater.runoffCount > 0);
+  assert.ok(nightRain.meltwater.runoffCount <= nightRain.meltwater.runoffBudget);
+  assert.ok(nightRain.meltwater.drainCount <= nightRain.meltwater.drainBudget);
+  if (nightRain.meltwater.graphicsTier === 'low') {
+    assert.equal(nightRain.meltwater.drainBudget, 0);
+    assert.equal(nightRain.meltwater.drainCount, 0);
+  }
+  assert.equal(nightRain.meltwater.extraRealLights, 0);
+  assert.equal(nightRain.meltwater.extraShadowCasters, 0);
+  assert.equal(nightRain.meltwater.externalTextures, 0);
+  assert.equal(nightRain.meltwater.networkRequests, 0);
   assert.equal(nightRain.rain.rainDrawMeshes, 1);
   assert.equal(nightRain.rain.wetRoadDrawMeshes, 1);
   assert.ok(nightRain.rain.streakBudget >= 28 && nightRain.rain.streakBudget <= 96);
@@ -489,6 +529,7 @@ try {
     snowObjects: window.__INHAGAME_SNOW_OBJECTS__.status(),
     snowDepth: window.__INHAGAME_SNOW_DEPTH__.status(),
     snowThaw: window.__INHAGAME_SNOW_THAW__.status(),
+    meltwater: window.__INHAGAME_MELTWATER__.status(),
     pond: window.__INHAGAME_POND_WEATHER__.status(),
     sky: window.__INHAGAME_SKY__.status(),
     graphics: window.__INHAGAME_P0__.getStatus().graphics
@@ -520,6 +561,13 @@ try {
   assert.equal(mobileStatus.snowThaw.extraRealLights, 0);
   assert.equal(mobileStatus.snowThaw.extraShadowCasters, 0);
   assert.equal(mobileStatus.snowThaw.externalTextures, 0);
+  assert.equal(mobileStatus.meltwater.enabled, false);
+  assert.equal(mobileStatus.meltwater.drawMeshes, 0);
+  assert.equal(mobileStatus.meltwater.snowAccumulation, 0);
+  assert.equal(mobileStatus.meltwater.extraRealLights, 0);
+  assert.equal(mobileStatus.meltwater.extraShadowCasters, 0);
+  assert.equal(mobileStatus.meltwater.externalTextures, 0);
+  assert.equal(mobileStatus.meltwater.networkRequests, 0);
   assert.equal(mobileStatus.pond.rainIntensity, 1);
   assert.equal(mobileStatus.pond.artificialLightFactor, 1);
   assert.ok(mobileStatus.pond.bumpiness > 0.45);
@@ -551,7 +599,7 @@ try {
   if (mobileStatus.graphics.tier === 'low') assert.ok(mobileStatus.nightWindows.maxWindowBudget <= 160);
   assert.ok(mobileStatus.streetLights.activeDynamicLights <= mobileStatus.streetLights.dynamicBudget);
   assert.deepEqual(smoke.problems, []);
-  console.log('world environment smoke: PASS (atmospheric gradient + sun glow, layered cloud parallax, emissive night windows, rain splashes + puddles, accumulating ground snow + batched footprints + object snow caps + roof depth/drifts/plow traces + thaw slush/ice, CLEAR/CLOUDY/FOG/RAIN/SNOW, sky, rain/snow, street lights, wet roads, Inkyung pond, 390px mobile)');
+  console.log('world environment smoke: PASS (atmospheric gradient + sun glow, layered cloud parallax, emissive night windows, rain splashes + puddles, accumulating ground snow + batched footprints + object snow caps + roof depth/drifts/plow traces + thaw slush/ice + eave meltwater/drainage, CLEAR/CLOUDY/FOG/RAIN/SNOW, sky, rain/snow, street lights, wet roads, Inkyung pond, 390px mobile)');
 } finally {
   await smoke.close();
 }
