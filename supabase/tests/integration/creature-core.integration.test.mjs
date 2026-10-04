@@ -6,7 +6,6 @@ import {
   CREATURE_EVOLUTION_RULE_REGISTRY,
   CREATURE_FORM_REGISTRY,
   CREATURE_SPECIES_REGISTRY,
-  creatureBridgeAuthorityRow,
   creatureEvolutionRuleAuthorityRow,
   creatureFormAuthorityRow,
   creatureSpeciesAuthorityRow
@@ -43,18 +42,15 @@ test('Creature species DB mirror equals code Registry', () => {
   assert.deepEqual(db, code);
 });
 
-test('Creature P0 keeps form, bridge and evolution catalogs empty', () => {
+test('Creature P0 keeps forms and evolution empty while forward bridge extensions remain allowed', () => {
   const forms = JSON.parse(query(
     "select coalesce(json_agg(json_build_object('form_id',form_id,'species_id',species_id,'status',status,'definition_version',definition_version) order by form_id), '[]') from private.world_creature_form_catalog"
-  ));
-  const bridges = JSON.parse(query(
-    "select coalesce(json_agg(json_build_object('bridge_id',bridge_id,'source_domain',source_domain,'semantic_event_type',semantic_event_type,'memory_tag',memory_tag,'xp_amount',xp_amount,'cooldown_seconds',cooldown_seconds,'daily_cap',daily_cap,'status',status,'definition_version',definition_version) order by bridge_id), '[]') from private.world_creature_activity_bridge_catalog"
   ));
   const rules = JSON.parse(query(
     "select coalesce(json_agg(json_build_object('rule_id',rule_id,'species_id',species_id,'from_form_id',from_form_id,'to_form_id',to_form_id,'required_memory_tag',required_memory_tag,'required_memory_count',required_memory_count,'context_ref',context_ref,'status',status,'definition_version',definition_version) order by rule_id), '[]') from private.world_creature_evolution_rule_catalog"
   ));
   assert.deepEqual(forms, CREATURE_FORM_REGISTRY.list().map(creatureFormAuthorityRow));
-  assert.deepEqual(bridges, CREATURE_ACTIVITY_BRIDGE_REGISTRY.list().map(creatureBridgeAuthorityRow));
+  assert.equal(CREATURE_ACTIVITY_BRIDGE_REGISTRY.size, 0);
   assert.deepEqual(rules, CREATURE_EVOLUTION_RULE_REGISTRY.list().map(creatureEvolutionRuleAuthorityRow));
 });
 
