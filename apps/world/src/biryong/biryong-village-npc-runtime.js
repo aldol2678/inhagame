@@ -163,6 +163,40 @@ export function createBiryongVillageNpcRuntime({
   void clock.sync().then(() => syncPeriod());
   app.on("update", update);
 
+  const actorById = new Map(actors.map(actor => [actor.definition.id, actor]));
+
+  function actorSnapshot(npcId) {
+    const actor = actorById.get(npcId);
+    if (!actor) return null;
+    const state = actor.controller.status(false);
+    return Object.freeze({
+      id: actor.definition.id,
+      name: actor.definition.name,
+      role: actor.definition.publicRole,
+      faction: actor.definition.faction,
+      destination: state.destination,
+      phase: state.phase,
+      activity: state.activity,
+      visible: state.visible,
+      moving: state.moving,
+      position: Object.freeze({ ...state.position })
+    });
+  }
+
+  function nearestNpc(maxDistance = 2.2) {
+    if (getActive() !== true || !Number.isFinite(maxDistance) || maxDistance <= 0) return null;
+    const playerPosition = player.getLocalPosition();
+    let best = null;
+    for (const actor of actors) {
+      const state = actor.controller.status(false);
+      if (!state.visible) continue;
+      const distance = Math.hypot(playerPosition.x - state.position.x, playerPosition.z - state.position.z);
+      if (distance > maxDistance || best && distance >= best.distance) continue;
+      best = Object.freeze({ ...actorSnapshot(actor.definition.id), distance });
+    }
+    return best;
+  }
+
   const status = () => Object.freeze({
     count: actors.length,
     active: getActive() === true,
@@ -191,6 +225,20 @@ export function createBiryongVillageNpcRuntime({
   return Object.freeze({
     status,
     syncPeriod,
+    actorSnapshot,
+    nearestNpc,
+    pauseNpc(npcId) {
+      const actor = actorById.get(npcId);
+      if (!actor) return false;
+      actor.controller.pause();
+      return true;
+    },
+    resumeNpc(npcId) {
+      const actor = actorById.get(npcId);
+      if (!actor) return false;
+      actor.controller.resume();
+      return true;
+    },
     setPeriodForTest(index) {
       return applySharedPeriod(index, BIRYONG_VILLAGE_NPC_PERIODS[index]);
     },

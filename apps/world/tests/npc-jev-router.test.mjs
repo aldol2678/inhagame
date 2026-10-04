@@ -26,8 +26,11 @@ const context = Object.freeze({
   generationAllowed: true
 });
 
-test('D3 pilot is restricted to five NPCs and rejects sensitive or non-pilot context', () => {
-  assert.equal(JEV_DIALOGUE_PILOT_IDS.length, 5);
+test('D3 pilot keeps the five campus pilots, admits eight Biryong shadow pilots, and rejects sensitive/non-pilot context', () => {
+  const campusPilots = ['INKYUNG-NPC-001','INKYUNG-NPC-002','INKYUNG-NPC-021','INKYUNG-NPC-022','INKYUNG-NPC-023'];
+  const biryongPilots = Array.from({ length: 8 }, (_, index) => `BR_NPC_${String(index + 1).padStart(3, '0')}`);
+  assert.equal(JEV_DIALOGUE_PILOT_IDS.length, campusPilots.length + biryongPilots.length);
+  for (const id of [...campusPilots, ...biryongPilots]) assert.ok(JEV_DIALOGUE_PILOT_IDS.includes(id), id);
   assert.deepEqual(validateNpcJevRouterInput({ npcId: 'INKYUNG-NPC-001', context }).npcId, 'INKYUNG-NPC-001');
   assert.throws(() => validateNpcJevRouterInput({ npcId: 'INKYUNG-NPC-024',
     context: { ...context, identity: { ...context.identity, npcId: 'INKYUNG-NPC-024' } } }), /JEV_NPC_NOT_PILOT/);
