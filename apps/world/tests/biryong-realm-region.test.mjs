@@ -11,6 +11,16 @@ import {
 } from "../src/biryong/biryong-realm-layout.js";
 import { createBiryongRealmTransition, BIRYONG_REGION_TRANSITION_COOLDOWN_MS } from "../src/biryong/biryong-realm-transition.js";
 import { createBiryongStationTransitInteraction } from "../src/biryong/biryong-station-transit-interaction.js";
+import {
+  BIRYONG_REALM_P0_BOUNDS,
+  BIRYONG_REALM_P0_OBSTACLES,
+  BIRYONG_REALM_PLACE_ZONES,
+  BIRYONG_VILLAGE_ANCHORS,
+  BIRYONG_VILLAGE_BUILDINGS,
+  BIRYONG_VILLAGE_ROADS,
+  getBiryongRealmPlaceZone
+} from "../src/biryong/biryong-village-layout.js";
+import { BIRYONG_REALM_MOVEMENT_SPACE } from "../src/biryong/biryong-realm-world-adapter.js";
 import { createSpawnRegistry, SPAWN_ID, SPAWN_STATE } from "../src/lobby/spawn-registry.js";
 import { validateResumeRecord, createWorldResumeStore, WORLD_RESUME_VERSION } from "../src/lobby/world-resume.js";
 
@@ -26,6 +36,55 @@ test("Biryong Realm has an explicit region id and station-local coordinate contr
   assert.equal(BIRYONG_STATION_SPAWN.regionId, WORLD_REGION_ID.BIRYONG_REALM);
   assert.ok(BIRYONG_STATION_P0_BOUNDS.minX > BIRYONG_REALM_RESERVED_BOUNDS.minX);
   assert.ok(BIRYONG_STATION_P0_BOUNDS.maxX < BIRYONG_REALM_RESERVED_BOUNDS.maxX);
+});
+
+test("Biryong Village P0 opens a continuous station-to-village movement envelope", () => {
+  assert.ok(BIRYONG_REALM_P0_BOUNDS.minX <= BIRYONG_STATION_P0_BOUNDS.minX);
+  assert.ok(BIRYONG_REALM_P0_BOUNDS.maxX >= BIRYONG_STATION_P0_BOUNDS.maxX);
+  assert.ok(BIRYONG_REALM_P0_BOUNDS.minZ <= BIRYONG_STATION_P0_BOUNDS.minZ);
+  assert.ok(BIRYONG_REALM_P0_BOUNDS.maxZ > BIRYONG_VILLAGE_ANCHORS.northFuture.z);
+  assert.deepEqual(BIRYONG_REALM_MOVEMENT_SPACE.bounds, BIRYONG_REALM_P0_BOUNDS);
+  assert.equal(BIRYONG_REALM_MOVEMENT_SPACE.obstacles, BIRYONG_REALM_P0_OBSTACLES);
+
+  const approach = BIRYONG_VILLAGE_ROADS.find(road => road.id === "br_station_village_road");
+  assert.ok(approach);
+  assert.deepEqual(approach.points[0], BIRYONG_VILLAGE_ANCHORS.stationNorth);
+  assert.deepEqual(approach.points.at(-1), BIRYONG_VILLAGE_ANCHORS.villageCenter);
+  assert.ok(approach.width >= 5, "main approach remains comfortably walkable");
+});
+
+test("village buildings leave the main approach corridor clear and own collision", () => {
+  const approach = BIRYONG_VILLAGE_ROADS.find(road => road.id === "br_station_village_road");
+  const minZ = Math.min(...approach.points.map(point => point.z));
+  const maxZ = Math.max(...approach.points.map(point => point.z));
+  const halfRoad = approach.width / 2;
+  for (const item of BIRYONG_VILLAGE_BUILDINGS) {
+    const overlapsApproachZ = item.z + item.depth / 2 > minZ && item.z - item.depth / 2 < maxZ;
+    if (overlapsApproachZ) {
+      assert.ok(item.x + item.width / 2 < -halfRoad || item.x - item.width / 2 > halfRoad,
+        `${item.id} blocks the station-to-village road`);
+    }
+    const collider = BIRYONG_REALM_P0_OBSTACLES.find(obstacle => obstacle.id === item.id);
+    assert.ok(collider, `${item.id} has a movement collider`);
+    assert.equal(collider.maxY, item.height);
+  }
+});
+
+test("first Biryong runtime Place Zones resolve the P0 social/economic hubs without inventing outer zones", () => {
+  assert.deepEqual(BIRYONG_REALM_PLACE_ZONES.map(zone => zone.id), [
+    "BR_STATION", "BR_INN", "BR_WORKSHOP", "BR_MARKET", "BR_COUNCIL", "BR_RESIDENTIAL"
+  ]);
+  const cases = [
+    [BIRYONG_STATION_SPAWN, "BR_STATION"],
+    [BIRYONG_VILLAGE_ANCHORS.inn, "BR_INN"],
+    [BIRYONG_VILLAGE_ANCHORS.workshop, "BR_WORKSHOP"],
+    [BIRYONG_VILLAGE_ANCHORS.villageCenter, "BR_MARKET"],
+    [BIRYONG_VILLAGE_ANCHORS.council, "BR_COUNCIL"],
+    [BIRYONG_VILLAGE_ANCHORS.residential, "BR_RESIDENTIAL"]
+  ];
+  for (const [point, expected] of cases) assert.equal(getBiryongRealmPlaceZone(point)?.id, expected);
+  assert.equal(getBiryongRealmPlaceZone({ x: 0, z: 51 }), null, "approach road stays a neutral transition strip");
+  assert.equal(getBiryongRealmPlaceZone({ x: 0, z: 136 }), null, "unimplemented northern realm is not mislabeled");
 });
 
 test("Biryong Station spawn is registered but hidden from the lobby before discovery persistence exists", () => {
