@@ -1,4 +1,5 @@
 import * as pc from 'playcanvas';
+import {buildStudentCenterConnected} from './student-center-connected-renderer.js';
 import { FACILITIES, towerParts } from './campus-facilities.js';
 import { polygon,surface } from './campus-render-kit.js';
 import { FacilityMeshBatch } from './facility-mesh-batch.js';
@@ -106,6 +107,7 @@ function landmark(root,batch,f) {
 }
 export function buildCampusFacilities(root,ids,tier='BASE') {
   for(const f of FACILITIES.filter(f=>ids.includes(f.id))){
+    if(f.id==='bldg_07'){buildStudentCenterConnected(root,tier);continue;}
     const batch=new FacilityMeshBatch();
     const group=new pc.Entity(tier==='BASE'?f.id:f.id+'_'+tier);root.addChild(group);
     if(LOWERED_SPORTS_IDS.includes(f.id))group.setLocalPosition(0,SPORTS_FLOOR,0);

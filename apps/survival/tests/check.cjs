@@ -31,7 +31,7 @@ assert.deepEqual(local,['./stage-config.js','./stage-progress.js','supabase-publ
 const three=sources.find(src=>src.includes('/three@'));
 const pinned=require(path.join(root,'package.json')).devDependencies.three;
 assert.equal(three,`https://cdn.jsdelivr.net/npm/three@${pinned}/build/three.min.js`,'Three.js CDN version must match the CI copy');
-assert(sources.includes('https://inhagame.example/game-entry.js'),'Hub entry script missing');
+assert(sources.includes('https://inhagame.app/game-entry.js'),'Hub entry script missing');
 for(const id of ['loading','mainMenu','menuStartBtn','menuStageSummary','timer','stats','wrap'])
   assert(new RegExp(`id="${id}"`).test(html),`Missing #${id}`);
 for(const stage of [1,2,3,4,5,6])

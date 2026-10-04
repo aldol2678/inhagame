@@ -134,7 +134,7 @@ function addPanel(production = false, externalContextAction = false) {
   return panel;
 }
 export async function createNpcDevRuntime({ app, campusRoot, player, orbit, production = false, aiPilot = false,
-  sharedSchedulePreview = false,
+  sharedSchedulePreview = false, worldClock = null,
   socialEnabled = false, socialPreview = false, socialBehaviorPreview = false,
   observedConversationEnabled = false, isObservedConversationBlocked = () => true,
   getBusyNpcIds = () => [], onNpcTalk = () => {},
@@ -158,9 +158,9 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
   const { batch, roster, hash, expansion: populationExpansion } = await loadNpcPopulation({
     onExpansionError: error => console.warn('Campus NPC expansion unavailable; continuing with the base roster:', error)
   });
-  const worldClock = sharedSchedulePreview ? createNpcWorldClock() : null;
+  worldClock = sharedSchedulePreview ? (worldClock ?? createNpcWorldClock()) : null;
   if (worldClock) {
-    await worldClock.sync();
+    if (worldClock.status().state !== 'SYNCED') await worldClock.sync();
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') void worldClock.sync();
     });
@@ -188,7 +188,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
     shouldPauseForConversation: () => false, shouldHoldForJoin: () => false
   } : createPurposefulSocialMotion(batch, purposefulRoster, navigator);
   const avatars = new Map(first.actors.map(actor => {
-    const visual = createHumanAvatar(campusRoot, actor, appearanceFor(rosterById.get(actor.id)));
+    const visual = createHumanAvatar(campusRoot, actor, appearanceFor(rosterById.get(actor.id), npcById.get(actor.id)));
     visual.motion = { position: actor.position && { ...actor.position }, route: [], moving: false,
       heading: 0, wait: Number(actor.id.slice(-3)) % 4, leg: 0 };
     return [actor.id, visual];
@@ -201,7 +201,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
     label.className = 'npc-test-tag';
     label.textContent = production ? actor.name : `${actor.id.slice(-3)} · ${actor.name}`;
     label.dataset.status = '';
-    label.style.borderColor = rosterById.get(actor.id).visual.accent_color;
+    label.style.borderColor = avatars.get(actor.id).appearance.accent_color;
     labelLayer.appendChild(label);
     return [actor.id, label];
   }));
@@ -406,8 +406,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
 
   function nearestVisible() {
     const playerPos = player.getLocalPosition();
-    return snapshot.actors.filter(actor => avatars.get(actor.id).motion.position &&
-      (!worldClock || !purposefulRoster.get(actor.id)?.controller.status(false).moving))
+    return snapshot.actors.filter(actor => avatars.get(actor.id).motion.position)
       .map(actor => ({ actor, distance: Math.hypot(avatars.get(actor.id).motion.position.x - playerPos.x,
         avatars.get(actor.id).motion.position.z - playerPos.z) }))
       .sort((a, b) => a.distance - b.distance)[0];
@@ -774,7 +773,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
     if (production) {
       const entry = rosterById.get(actor.id);
       portrait.textContent = actor.name.slice(0, 1);
-      portrait.style.setProperty('--npc-accent', entry.visual.accent_color);
+      portrait.style.setProperty('--npc-accent', avatars.get(actor.id)?.appearance?.accent_color ?? entry.visual.accent_color);
       playerLine.hidden = true;
       talkButton.hidden = true;
       panel.hidden = false;
@@ -1119,7 +1118,9 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
         if (time.period !== snapshot.period) applySnapshot(snapshotForPeriod(batch, time.period));
       }
       const state = activeConversation && purposefulRoster.get(activeConversation.id)?.controller.status(false);
-      if (state && (!state.visible || state.moving)) closeConversation(false);
+      // Shared schedule movement stays authoritative, but walking alone must not cancel player dialogue.
+      // The normal 5 m release-radius check below closes the conversation once the NPC actually leaves.
+      if (state && !state.visible) closeConversation(false);
     } else if (running) {
       elapsed = (elapsed + dt) % CYCLE_SECONDS;
       const period = periodAt(elapsed);

@@ -1,12 +1,45 @@
 import * as pc from 'playcanvas';
 import { buildPolygonMeshGeometry, buildPolygonSurfaceGeometry } from './reality-adapter.js';
+import {
+  campusMaterialProfile,
+  inferCampusMaterialProfile,
+  normalizeMaterialHex
+} from './campus-material-profile.js';
+
 const cache=new Map();
-export function surface(hex) {
-  if(cache.has(hex))return cache.get(hex);
-  const n=parseInt(hex.slice(1),16),m=new pc.StandardMaterial();
+
+export function surface(hex, profileName = null) {
+  const color = normalizeMaterialHex(hex);
+  if (!color) throw new TypeError(`surface requires #RRGGBB, got ${hex}`);
+  const resolvedProfile = profileName ?? inferCampusMaterialProfile(color);
+  const profile = campusMaterialProfile(resolvedProfile);
+  const key = `${color}:${resolvedProfile}`;
+  if(cache.has(key))return cache.get(key);
+
+  const n=parseInt(color.slice(1),16),m=new pc.StandardMaterial();
+  m.name=`campus-material-${resolvedProfile}:${color}`;
   m.diffuse=new pc.Color((n>>16&255)/255,(n>>8&255)/255,(n&255)/255);
-  m.update();cache.set(hex,m);return m;
+  m.specular=new pc.Color(...profile.specular);
+  m.gloss=profile.gloss;
+  m.reflectivity=profile.reflectivity;
+  if(profile.reflectivity>0) m.fresnelModel=pc.FRESNEL_SCHLICK;
+  m.update();
+  cache.set(key,m);
+  return m;
 }
+
+export function campusMaterialCacheStatus() {
+  const profiles={};
+  for(const key of cache.keys()){
+    const profile=key.slice(key.indexOf(':')+1);
+    profiles[profile]=(profiles[profile]||0)+1;
+  }
+  return Object.freeze({
+    materialCount: cache.size,
+    profiles: Object.freeze({...profiles})
+  });
+}
+
 export function box(root,name,p,size,material,yaw=0,type='box') {
   const e=new pc.Entity(name);e.addComponent('render',{type});e.render.material=material;
   e.setLocalPosition(...p);e.setLocalScale(...size);e.setLocalEulerAngles(0,yaw,0);root.addChild(e);return e;

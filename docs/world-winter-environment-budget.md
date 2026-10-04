@@ -74,3 +74,29 @@ CI must fail if the environment browser smoke observes a winter state that excee
 4. fresh mobile RAIN with no snow history
 
 Any future winter visual patch that intentionally raises these ceilings must update the budget contract and this document in the same change.
+
+
+## P6L soak / churn guard
+
+P6L adds an accelerated lifecycle soak to detect allocation churn that a one-shot visual smoke cannot catch.
+
+The browser soak performs **24 weather cycles** over `SNOW → RAIN → CLEAR → CLOUDY` while the winter stack remains initialized. Before cycling, it builds accumulated snow and stamps a real player footprint so the dynamic footprint mesh is exercised.
+
+The acceptance contract is strict:
+
+- winter entity count growth: **0**
+- winter MeshInstance count growth: **0**
+- winter Entity identity changes: **0**
+- winter MeshInstance identity changes: **0**
+- winter Mesh object identity changes: **0**
+- winter Material identity changes: **0**
+- passive footprint mesh rebuilds caused only by weather cycling: **0**
+- every sample must keep `__INHAGAME_WINTER_QA__.status().withinBudget === true`
+
+This identity/count contract is the deterministic CI proxy for memory churn. Heap-size snapshots are intentionally not used as a hard gate because garbage-collection timing makes them nondeterministic across CI runners.
+
+The soak lives at:
+
+`apps/world/tests/browser/winter-soak-smoke.mjs`
+
+It is part of the shared World browser smoke script and is also executed by the World asset optimizer pull-request workflow so winter rendering regressions receive a browser-level gate before merge.

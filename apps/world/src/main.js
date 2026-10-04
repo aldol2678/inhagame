@@ -1,8 +1,6 @@
 import { busyNpcIds } from './network/npc-talk-presence.js';
 import {CAMPUS_BALLOON_ID,setCampusBalloonPropRoot} from "./mounts/campus-balloon-world.js";
 import {createCampusBalloon} from "./mounts/campus-balloon-render.js";
-import {setCampusShuttlePropRoot} from "./mounts/campus-shuttle-world.js";
-import {createCampusShuttle,createShuttleStations} from "./mounts/campus-shuttle-render.js";
 import { DUCK_BOAT_ID,setDuckBoatPropRoot } from "./mounts/duck-boat-world.js";
 import { createDuckBoat,createInkyungDockMarker } from "./mounts/duck-boat-render.js";
 import { CAMPUS_KART_ID, setCampusKartPropRoot } from "./mounts/campus-kart-world.js";
@@ -24,6 +22,8 @@ import { createViewDistanceSettings } from './view-distance-settings.js';
 import { createGraphicsPresetController } from './graphics-presets.js';
 import { createEnvironmentDirector } from './environment/environment-director.js';
 import { resolveEnvironmentRuntimeTime, resolveEnvironmentRuntimeWeather } from './environment/environment-clock.js';
+import { createEnvironmentWorldTime } from './environment/environment-world-time.js';
+import { createNpcWorldClock } from '../npc-factory/npc-world-clock.mjs';
 import { createNightStreetLights } from './environment/night-street-lights.js';
 import { createNightBuildingWindows } from './environment/night-building-windows.js';
 import { createRainWeatherEffects } from './environment/rain-weather-effects.js';
@@ -142,6 +142,8 @@ import { createDailyQuizClient } from "./daily-quiz/daily-quiz-client.js";
 import { createDailyQuizPanel } from "./daily-quiz/daily-quiz-panel.js";
 import { createAttendanceClient } from "./attendance/attendance-client.js";
 import { createAttendancePanel } from "./attendance/attendance-panel.js";
+import { LIFE_SKILL_BOOK_STATE, createLifeSkillBookClient } from "./life-skills/life-skill-book-client.js";
+import { createLifeSkillBookPanel } from "./life-skills/life-skill-book-panel.js";
 import { createLoadoutClient } from "./appearance/loadout-client.js";
 import { createEquipmentProjection } from "./appearance/equipment-projection.js";
 import { createEquipmentModelLoader } from "./appearance/equipment-asset-loader.js";
@@ -173,6 +175,10 @@ import { HUD_MODE } from "./hud/hud-context.js";
 import { bindHudPresentation } from "./hud/hud-presentation.js";
 import { createCombatRuntimeV03 } from "./combat/combat-runtime-v03.js";
 import { createBuilding5CombatInteraction } from "./combat/building5-combat-interaction.js";
+import { BUILDING5_TRAINING_TARGET, createBuilding5CombatTraining } from "./combat/building5-combat-training.js";
+import { createBuilding5CombatTargetRenderer } from "./combat/building5-combat-target-renderer.js";
+import { createCombatWorldMotionV03 } from "./combat/combat-world-motion-v03.js";
+import { createCombatFeedbackV03 } from "./combat/combat-feedback-v03.js";
 import { createCombatHudV03 } from "./combat/combat-hud-v03.js";
 import { createHelicopterFlightHud } from "./mounts/helicopter-flight-hud.js";
 import { createMobilityBook } from "./mobility/mobility-book.js";
@@ -312,7 +318,22 @@ const environment = createEnvironmentDirector({
   initialTime: resolveEnvironmentRuntimeTime(startupParams, { previewHost }),
   initialWeather: resolveEnvironmentRuntimeWeather(startupParams, { previewHost })
 });
-app.on("update", dt => environment.update(dt));
+// Production sky/light follows the shared INHA WORLD clock. Preview hosts keep
+// manual envTime controls deterministic for QA and never infer from local time.
+const worldClock = previewHost ? null : createNpcWorldClock();
+const environmentWorldTime = createEnvironmentWorldTime({
+  environment,
+  clock: worldClock,
+  enabled: worldClock !== null
+});
+if (worldClock) await environmentWorldTime.sync();
+app.on("update", dt => {
+  environmentWorldTime.update();
+  environment.update(dt);
+});
+window.__INHAGAME_WORLD_TIME__ = Object.freeze({
+  status: () => environmentWorldTime.status()
+});
 window.__INHAGAME_ENVIRONMENT__ = Object.freeze({
   status: () => environment.status(),
   ...(previewHost ? {
@@ -461,7 +482,8 @@ window.__INHAGAME_WINTER_QA__ = Object.freeze({
   })
 });
 
-const controller = new PlayerController(player);
+// The main-gate shuttle is intentionally withheld until the Songdo campus route exists.
+const controller = new PlayerController(player, { campusShuttleEnabled: false });
 const helicopterFlightHud = createHelicopterFlightHud({
   root: document.getElementById("helicopter-flight-hud"),
   toggle: document.getElementById("helicopter-flight-hud-toggle"),
@@ -472,15 +494,48 @@ const helicopterFlightHud = createHelicopterFlightHud({
 const inputFocus = createInputFocusManager();
 const hudContext = createHudContext();
 bindHudPresentation({ context: hudContext, root: document.body });
-const combatRuntime = createCombatRuntimeV03();
+const building5Training = createBuilding5CombatTraining({
+  getPlayerPosition: () => player.getLocalPosition(),
+  getDodgeDirection: () => controller.combatDodgeDirection(orbit.yaw, {
+    targetX: BUILDING5_TRAINING_TARGET.x,
+    targetZ: BUILDING5_TRAINING_TARGET.z
+  })
+});
+const combatRuntime = createCombatRuntimeV03({ localTraining: building5Training });
 const combatHud = createCombatHudV03({
   root: document.getElementById("combat-hud-v03"),
-  runtime: combatRuntime
+  runtime: combatRuntime,
+  inputFocus
+});
+const combatTargetRenderer = createBuilding5CombatTargetRenderer({
+  app,
+  parent: campusRoot,
+  training: building5Training,
+  getGroundHeight: roadviewGroundHeight
+});
+const combatWorldMotion = createCombatWorldMotionV03({
+  runtime: combatRuntime,
+  training: building5Training,
+  controller
+});
+const combatFeedback = createCombatFeedbackV03({
+  runtime: combatRuntime,
+  canvas,
+  overlay: document.getElementById("combat-impact-feedback")
 });
 combatRuntime.subscribe(state => {
   hudContext.setMode(state.active ? HUD_MODE.COMBAT : HUD_MODE.EXPLORE);
   controller.setTransportLock("combat-v03", state.active);
 }, { emitCurrent: true });
+app.on("update", dt => {
+  const held = combatFeedback.hitstopActive();
+  if (!held) {
+    combatRuntime.update();
+    combatTargetRenderer.update(dt);
+  } else {
+    combatTargetRenderer.update(0);
+  }
+});
 // InputFocus remains the single input authority. HUD Context observes its resolved snapshot only
 // to expose presentation state for current/future Explore, Combat, Life and Pet layouts.
 inputFocus.subscribe(snapshot => hudContext.syncInputFocus(snapshot), { emitCurrent: true });
@@ -520,6 +575,11 @@ const dailyQuizInput = createInputFocusOwner({
 const attendanceInput = createInputFocusOwner({
   manager: inputFocus, ownerId: "attendance", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
 });
+const lifeSkillBookInput = createInputFocusOwner({
+  manager: inputFocus, ownerId: "life-skill-book", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
+});
+// Declared early so every panel's close-others list can reference it before it is created below.
+let lifeSkillBookPanel = null;
 const questJournalInput = createInputFocusOwner({
   manager: inputFocus, ownerId: "quest-journal", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
 });
@@ -1162,7 +1222,7 @@ const inventoryPanel = createInventoryPanel({
       mobilityBook.setOpen(false);
       wardrobePanel.setOpen(false);
       dailyQuizPanel.setOpen(false);
-      attendancePanel.setOpen(false);
+      attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false);
       emoteMenu.setOpen(false);
       chatPanel.setOpen(false, { focus: false });
       playerCard.close();
@@ -1193,7 +1253,7 @@ const shopPanel = createShopPanel({
       mobilityBook.setOpen(false);
       wardrobePanel.setOpen(false);
       dailyQuizPanel.setOpen(false);
-      attendancePanel.setOpen(false);
+      attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false);
       emoteMenu.setOpen(false);
       chatPanel.setOpen(false, { focus: false });
       playerCard.close();
@@ -1224,7 +1284,7 @@ const wardrobePanel = createWardrobePanel({
       inventoryPanel.setOpen(false);
       mobilityBook.setOpen(false);
       dailyQuizPanel.setOpen(false);
-      attendancePanel.setOpen(false);
+      attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false);
       emoteMenu.setOpen(false);
       chatPanel.setOpen(false, { focus: false });
       playerCard.close();
@@ -1241,8 +1301,7 @@ setCampusKickboardPropRoot(createCampusKickboard(campusRoot));
 setCampusKartPropRoot(createCampusKart(campusRoot));
 setDuckBoatPropRoot(createDuckBoat(campusRoot));
 createInkyungDockMarker(campusRoot);
-setCampusShuttlePropRoot(createCampusShuttle(campusRoot));
-createShuttleStations(campusRoot,controller.shuttle.stations);
+// Campus shuttle presentation/stations stay absent until the Songdo campus route is implemented.
 setCampusBalloonPropRoot(createCampusBalloon(campusRoot));
 const mobilityBookButton = document.getElementById("open-mobility-book");
 const mobilityBook = createMobilityBook({
@@ -1297,7 +1356,7 @@ const mobilityBook = createMobilityBook({
       inventoryPanel.setOpen(false);
       wardrobePanel.setOpen(false);
       dailyQuizPanel.setOpen(false);
-      attendancePanel.setOpen(false);
+      attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false);
       emoteMenu.setOpen(false);
       chatPanel.setOpen(false, { focus: false });
       playerCard.close();
@@ -1319,7 +1378,7 @@ const dailyQuizPanel = createDailyQuizPanel({
     if (open) {
       dailyQuizInput.acquire();
       questJournal?.setOpen(false);
-      attendancePanel.setOpen(false);
+      attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false);
       shopPanel.setOpen(false);
       inventoryPanel.setOpen(false);
       mobilityBook.setOpen(false);
@@ -1344,6 +1403,7 @@ const attendancePanel = createAttendancePanel({
     lobbyDailyLoop.setPanelOpen("attendance", open);
     if (open) {
       attendanceInput.acquire();
+      lifeSkillBookPanel?.setOpen(false);
       questJournal?.setOpen(false);
       dailyQuizPanel.setOpen(false);
       shopPanel.setOpen(false);
@@ -1360,6 +1420,38 @@ const attendancePanel = createAttendancePanel({
   }
 });
 attendanceButton?.addEventListener("click", () => attendancePanel.setOpen(true));
+// Life Skill Book P0 (☰ → 📘 생활 스킬): server-owned self views and actions. The menu entry is shown only
+// while the server lists at least one visible (ACTIVE) skill for this account; nothing else decides it.
+const lifeSkillBook = createLifeSkillBookClient({ getClient: () => online?.supabase ?? null });
+const lifeSkillBookButton = document.getElementById("open-life-skills");
+lifeSkillBookPanel = createLifeSkillBookPanel({
+  panel: document.getElementById("life-skill-book-panel"),
+  book: lifeSkillBook,
+  onOpenChange: (open) => {
+    lifeSkillBookButton?.setAttribute("aria-expanded", String(open));
+    if (open) {
+      lifeSkillBookInput.acquire();
+      attendancePanel.setOpen(false);
+      questJournal?.setOpen(false);
+      dailyQuizPanel.setOpen(false);
+      shopPanel.setOpen(false);
+      inventoryPanel.setOpen(false);
+      mobilityBook.setOpen(false);
+      wardrobePanel.setOpen(false);
+      emoteMenu.setOpen(false);
+      chatPanel.setOpen(false, { focus: false });
+      playerCard.close();
+      void guestbookPanel.setOpen(false);
+      return;
+    }
+    lifeSkillBookInput.release();
+  }
+});
+lifeSkillBook.onChange(() => {
+  if (lifeSkillBookButton) lifeSkillBookButton.hidden = !lifeSkillBook.hasVisibleSkills;
+  if (!lifeSkillBook.hasVisibleSkills && lifeSkillBook.state !== LIFE_SKILL_BOOK_STATE.LOADING) lifeSkillBookPanel?.setOpen(false);
+});
+lifeSkillBookButton?.addEventListener("click", () => lifeSkillBookPanel?.setOpen(true));
 // Main Lobby P2 "오늘의 캠퍼스": a read-only summary of the two clients above. It re-renders on their own change
 // events (account switches included) and only opens the existing panels; the panels keep the explicit claim / start.
 const lobbyDailyLoop = createLobbyDailyLoop({
@@ -1475,15 +1567,22 @@ window.addEventListener("keydown", (event) => {
   if (event.code !== "KeyF" || event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
   if (event.target instanceof HTMLElement && event.target.closest("input, textarea, select, [contenteditable]")) return;
   if (!combatRuntime.active) return interactionAction();
+  if (!inputFocus.can("GAMEPLAY_SHORTCUT")) return;
   event.preventDefault();
   combatRuntime.dispatch("ultimate");
 });
 window.addEventListener("keydown", (event) => {
   if (!combatRuntime.active || event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
   if (event.target instanceof HTMLElement && event.target.closest("input, textarea, select, [contenteditable]")) return;
+  if (!inputFocus.can("GAMEPLAY_SHORTCUT")) return;
   if (event.code === "Escape") {
     event.preventDefault();
     combatRuntime.end("PLAYER_EXIT");
+    return;
+  }
+  if (event.code === "KeyR") {
+    event.preventDefault();
+    combatRuntime.resetTrainingTarget();
     return;
   }
   const action = event.code === "Digit1" ? "active_1"
@@ -1497,7 +1596,7 @@ window.addEventListener("keydown", (event) => {
   combatRuntime.dispatch(action);
 });
 canvas.addEventListener("pointerdown", event => {
-  if (combatRuntime.active && event.button === 0) combatRuntime.dispatch("basic");
+  if (combatRuntime.active && inputFocus.can("WORLD_ACTION") && event.button === 0) combatRuntime.dispatch("basic");
 });
 guestbookInteraction = createGuestbookInteraction({
   anchor: MAIN_GATE_GUESTBOOK,
@@ -1579,7 +1678,7 @@ rooms = createRoomTransition({
       mobilityBook.setOpen(false);
       wardrobePanel.setOpen(false);
       dailyQuizPanel.setOpen(false);
-      attendancePanel.setOpen(false);
+      attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false);
       questJournal?.setOpen(false);
     },
     setLocationLabel: (text) => { zoneEl.textContent = text; },
@@ -1618,7 +1717,7 @@ biryongRealm = createBiryongRealmTransition({
       mobilityBook.setOpen(false);
       wardrobePanel.setOpen(false);
       dailyQuizPanel.setOpen(false);
-      attendancePanel.setOpen(false);
+      attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false);
       questJournal?.setOpen(false);
     },
     setLocationLabel: text => { zoneEl.textContent = text; },
@@ -1831,7 +1930,7 @@ furnitureEditor = createFurnitureEditor({
     if (open) {
       furnitureInput.acquire();
       inventoryPanel.setOpen(false); shopPanel.setOpen(false); wardrobePanel.setOpen(false);
-      dailyQuizPanel.setOpen(false); attendancePanel.setOpen(false); questJournal?.setOpen(false);
+      dailyQuizPanel.setOpen(false); attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false); questJournal?.setOpen(false);
       emoteMenu.setOpen(false); chatPanel.setOpen(false,{ focus:false }); playerCard.close();
       void guestbookPanel.setOpen(false);
     } else {
@@ -2285,7 +2384,7 @@ try {
     getOverlayState: () => ({
       hudMenu: hudMenu.open, keyboardHelp: keyboardHelp?.open === true, friends: friendPanel.open,
       playerCard: playerCard.current != null, guestbook: guestbookPanel.open, shop: shopPanel.open, inventory: inventoryPanel.open, wardrobe: wardrobePanel.open,
-      blocking: furnitureEditor?.open === true || dailyQuizPanel.open || attendancePanel.open || questJournal?.open === true,
+      blocking: furnitureEditor?.open === true || dailyQuizPanel.open || attendancePanel.open || lifeSkillBookPanel?.open === true || questJournal?.open === true,
       npcConversation: npcTest?.isConversationOpen?.() === true,
       mcmEvent: mcmEventUi.openState || mcmEventRuntime.isDialogueOpen() === true,
       profile: document.getElementById("profile-panel")?.hidden === false,
@@ -2367,7 +2466,7 @@ try {
       inventoryPanel.setOpen(false);
       wardrobePanel.setOpen(false);
       dailyQuizPanel.setOpen(false);
-      attendancePanel.setOpen(false);
+      attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false);
       questJournal?.setOpen(false);
     },
     onClose: () => { fullMapInput.release(); },
@@ -2434,7 +2533,7 @@ questJournal = createQuestJournal({
       inventoryPanel.setOpen(false);
       wardrobePanel.setOpen(false);
       dailyQuizPanel.setOpen(false);
-      attendancePanel.setOpen(false);
+      attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false);
       emoteMenu.setOpen(false);
       chatPanel.setOpen(false, { focus: false });
       playerCard.close();
@@ -2463,6 +2562,7 @@ window.addEventListener("keydown", (event) => {
   if (event.code !== "KeyQ" || event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
   if (event.target instanceof HTMLElement && event.target.closest("input, textarea, select, [contenteditable]")) return;
   if (combatRuntime.active) {
+    if (!inputFocus.can("GAMEPLAY_SHORTCUT")) return;
     event.preventDefault();
     combatRuntime.toggleLock();
     return;
@@ -2530,6 +2630,7 @@ async function loadOptionalNpcRuntime() {
     const runtime = await module.createNpcDevRuntime({
       app, campusRoot, player, orbit,
       sharedSchedulePreview: npcSharedScheduleMode,
+      worldClock,
       onNpcTalk: (id, now) => online?.network?.setNpcTalk(id, now),
       getBusyNpcIds: now => busyNpcIds(online?.network?.remotes.inZone(online.network.placeZoneId) ?? [], now),
       production: npcSharedScheduleMode || npcProductionMode || npcPreviewMode || npcRosterPreviewMode || npcSocialPreviewMode || npcObservedConversationMode,
@@ -2701,6 +2802,7 @@ app.on("update", (dt) => {
   follow.update();
   playerAutoMove?.update(navigation?.getSnapshot() ?? null, player.getLocalPosition());
   if (!seating.beforeController()) controller.update(Math.min(dt, 0.05), orbit.yaw);
+  if (!combatFeedback.hitstopActive()) combatWorldMotion.update();
   helicopterFlightHud.update();
   orbit.setMounted(controller.mounted);
   character.setMounted(controller.mounted);
@@ -2708,7 +2810,12 @@ app.on("update", (dt) => {
   // Locomotion outranks expression: moving, mounting or an incompatible jump ends the emote.
   const emote = emotes.update(locomotion());
   emoteMenu.setAvailable(!controller.mounted && !combatRuntime.active);
-  character.update(Math.min(dt, 0.05), { ...locomotion(), emote, seated: seats.isSeated, poseOffsets: biryong?.poseOffsets() ?? null });
+  character.update(Math.min(dt, 0.05), {
+    ...locomotion(),
+    emote,
+    seated: seats.isSeated,
+    poseOffsets: combatFeedback.poseOffsets() ?? biryong?.poseOffsets() ?? null
+  });
 
   const pos = player.getLocalPosition();
   duckCompanionFollow.update(Math.min(dt, 0.05));
@@ -2799,7 +2906,9 @@ app.on("update", (dt) => {
   }
   contextActions.set("npc", inside ? null : npcTest?.getContextAction?.() ?? null);
   // Transport has its own slot: a nearby NPC and the bike are offered together (F and M).
-  transportActions.set("mount", controller.getMountContextAction());
+  const mountContextAction = controller.getMountContextAction();
+  // Recheck the live gate/locks and mount offer at activation, even for a retained button callback.
+  transportActions.set("mount", mountContextAction ? { ...mountContextAction, trigger: () => controller.transportAction() } : null);
   if (combatRuntime.active) {
     for (const key of [
       "seat", "guestbook", "student-center-shop", "backgate-transit", "biryong-station-transit",
@@ -2883,6 +2992,7 @@ try {
     void inventory.setAccount(identity ? online?.userId ?? null : null);
     void dailyQuiz.setAccount(identity ? online?.userId ?? null : null);
     void attendance.setAccount(identity ? online?.userId ?? null : null);
+    void lifeSkillBook.setAccount(identity ? online?.userId ?? null : null);
     void loadout.setAccount(identity ? online?.userId ?? null : null);
     const nextRoomUserId = online?.userId ?? null;
     inkyungSideEvent.setScope(nextRoomUserId ?? "guest");
@@ -2905,7 +3015,7 @@ try {
     chatPanel.refreshAvailability();
     friendPanel.setAvailable(!!identity);
     nearbyPanel.render();
-    guestbookPanel.setAvailable(!!identity);
+    guestbookPanel.setAvailable(!!identity, identity?.userId ?? null);
     if (identity) {
       void accompany.refresh();
       void social.mine()
@@ -3107,6 +3217,8 @@ window.__INHAGAME_P0__ = {
   dailyQuizPanel,
   attendance,
   attendancePanel,
+  lifeSkillBook,
+  lifeSkillBookPanel,
   shopWorld,
   shopWorldLabel,
   backgateTransit,
@@ -3118,6 +3230,10 @@ window.__INHAGAME_P0__ = {
   biryongRelationships,
   combatRuntime,
   combatHud,
+  building5Training,
+  combatTargetRenderer,
+  combatWorldMotion,
+  combatFeedback,
   building5Combat,
   seats,
   seating,
@@ -3238,11 +3354,14 @@ window.__INHAGAME_P0__ = {
     biryongVillageDialogue: biryongVillageDialogue?.status() ?? null,
     biryongRelationships: biryongRelationships.status(),
     combat: combatRuntime.snapshot(),
+    combatMotion: combatWorldMotion.status(),
+    combatFeedback: combatFeedback.status(),
     building5Combat: building5Combat.status(),
     wallet: wallet.status(),
     inventory: { ...inventory.status(), ...inventoryPanel.status() },
     dailyQuiz: { ...dailyQuiz.status(), panel: dailyQuizPanel.status() },
     attendance: { ...attendance.status(), panel: attendancePanel.status() },
+    lifeSkillBook: { ...lifeSkillBook.status(), panel: lifeSkillBookPanel?.status() ?? null },
     wardrobe: { ...loadout.status(), ...wardrobePanel.status() },
     equipment: equipmentProjection.status(),
     hudMenuOpen: hudMenu.open,
@@ -3264,6 +3383,7 @@ window.__INHAGAME_P0__ = {
         wardrobe: wardrobeInput.active,
         dailyQuiz: dailyQuizInput.active,
         attendance: attendanceInput.active,
+        lifeSkillBook: lifeSkillBookInput.active,
         npcDialogue: npcDialogueInput.active,
         mcmDialogue: mcmDialogueInput.active,
         biryongScripted: biryongScriptedInput.active,

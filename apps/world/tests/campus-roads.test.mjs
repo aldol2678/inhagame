@@ -34,7 +34,7 @@ test('road surfaces and markings are planar, upward-facing and clear of building
       for(const o of obstacles)assert.ok(!polygonOverlap(x,z,o.polygon),`pavement inside ${o.id} at ${x},${z}`);
     }
   }
-  assert.ok(new Set(quads.map(q=>q.color)).size<=7,'batched material budget');
+  assert.ok(new Set(quads.map(q=>q.color)).size<=9,'base road + two micro-detail materials');
 });
 test('crosswalks remain on road segments and road corridor excludes lawn tree crowns',()=>{
   for(const c of ROAD_CROSSWALKS){assert.ok(c.u-c.width/2>0&&c.u+c.width/2<c.segment.frame.length);}

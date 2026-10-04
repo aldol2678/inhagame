@@ -1,6 +1,6 @@
 import * as pc from "playcanvas";
 import { buildCampusFacilities } from "../facility-blockout.js";
-import { buildMainHallBlockout } from "../main-hall-blockout.js";
+import { buildCampusLandmarks } from "../campus-landmark-candidate-selector.js";
 import { buildCampusTrees } from "../campus-grounds.js";
 import { buildBackStreetDetails } from "../campus-road-blockout.js";
 import { RenderChunkRegistry } from "../render-chunk-registry.js";
@@ -144,7 +144,7 @@ export class PlaceScenePreview {
     for (const chunk of chunks) {
       for (const tier of ["BASE", "NEAR", "DETAIL"]) {
         buildCampusFacilities(root, chunk.facilities, tier);
-        buildMainHallBlockout(root, chunk.buildings, tier);
+        buildCampusLandmarks(root, chunk.buildings, tier);
         buildBackStreetDetails(root, chunk.streetscape, tier);
       }
       buildCampusTrees(root, chunk.trees);

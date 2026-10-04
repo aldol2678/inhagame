@@ -3,11 +3,11 @@
   const script = document.currentScript;
   const game = script?.dataset.game;
   const hosts = {
-    "duck.inhagame.example": "classic",
-    "induckup.inhagame.example": "induckup",
-    "survival.inhagame.example": "survival",
-    "grow.inhagame.example": "induck-grow",
-    "inhagame.example": "campus"
+    "duck.inhagame.app": "classic",
+    "induckup.inhagame.app": "induckup",
+    "survival.inhagame.app": "survival",
+    "grow.inhagame.app": "induck-grow",
+    "inhagame.app": "campus"
   };
   const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   const params = new URL(location.href);
@@ -52,7 +52,7 @@
     const body = JSON.stringify({ event_id: eventId, entry_id: entry, event_type: eventType, target: game });
     let attempt = 0;
     function send() {
-      fetch("https://inhagame.example/api/hub-entry", {
+      fetch("https://inhagame.app/api/hub-entry", {
         method: "POST", headers: { "Content-Type": "application/json" }, body,
         keepalive: true, mode: "cors"
       }).then(response => {

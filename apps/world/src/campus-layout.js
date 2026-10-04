@@ -1,3 +1,4 @@
+import { STUDENT_WORLD_COLLIDERS } from './student-center-connected-data.js';
 import { geoToWorld } from "./geo-coordinates.js";
 export { geoToWorld, GEO_ORIGIN } from "./geo-coordinates.js";
 import { BUILDINGS, MAIN_ENTRANCE, LIBRARY_ROOF_PARTS } from "./basic-campus.js";
@@ -59,7 +60,8 @@ export const OBSTACLES = Object.freeze([
   ...BACK_FURNITURE_COLLIDERS,
   ...BACK_WALL_COLLIDERS,
   ...BACK_ROADSIDE_COLLIDERS,
-  ...FACILITY_COLLIDERS,
+  ...FACILITY_COLLIDERS.filter(o=>o.id!=='bldg_07_0'),
+  ...STUDENT_WORLD_COLLIDERS,
   ...BUILDINGS.map(b => ({ id:b.id, polygon:b.vertices, minY:0, maxY:b.height })),
   ...LIBRARY_ROOF_PARTS.map(b => ({ id:b.id, polygon:b.vertices, minY:b.y-b.height/2, maxY:b.y+b.height/2 })),
   ...MAIN_GATE_WALL_COLLIDERS

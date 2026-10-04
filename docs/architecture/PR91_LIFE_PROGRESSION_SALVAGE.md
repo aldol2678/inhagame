@@ -21,6 +21,10 @@ Source files on the #91 branch:
 
 ## 1. Progression curve v1 (Lv1–20)
 
+**Imported.** This curve is now the canonical per-skill curve `life.common.v1`
+(`20261004130000_world_life_skill_curve_v1_sp_pools`), with `cumulative_sp` per skill pool. The
+table below stays as the record of the #91 proposal.
+
 `min_total_xp(level) = 50 * level * (level - 1)`. SP award +1 per level-up and +2 at every 5th
 level, so 23 SP by Lv20. Lv20 was the highest defined level, not a cap. In #91 this curve was for an
 **aggregate** Life XP.
@@ -63,6 +67,10 @@ level, so 23 SP by Lv20. Lv20 was the highest defined level, not a cap. In #91 t
 `woodworking`.
 
 ## 4. Nodes (24, all COMING_SOON, definition_version 1)
+
+**Imported (18 of 24)** by `20261004136000_world_life_skill_tree_nodes_v1`: Fishing, Woodcutting and
+Farming, with the IDs, ranks, costs and edges below, gates moved to the owning skill's level. Sailing's
+6 nodes are not imported until a `life.sailing` skill exists.
 
 Columns: max rank, SP cost per rank, required (aggregate) Life Level, effect key. No node had a
 skill-level gate, because `life.common.v1` defines only Lv1. Each tree costs 17 SP to max out.
@@ -133,9 +141,9 @@ between trees.
 
 1. **IDs.** `main` requires `^life\.node\.<skill>\.<node>$`. Map `life_node.fishing.steady_hands`
    to `life.node.fishing.steady_hands`.
-2. **Ranks.** #91 nodes have ranks (max 1–3, cost per rank). The #98 catalog is a one-time unlock
-   with `sp_cost`. The import must either add a rank dimension to the canonical tree tables
-   (forward migration) or flatten each rank into its own node. Decide in the Life PR.
+2. **Ranks.** #91 nodes have ranks (max 1–3, cost per rank). **Decided: rank dimension**
+   (`20261004135000_world_life_skill_tree_ranks`). Import `maxRank` → `max_rank`, `pointCost` →
+   `sp_cost` (per rank), and each prerequisite `requiredRank` → edge `required_rank`, unchanged.
 3. **Gates.** #91 gates on aggregate Life Level. Under per-skill pools the gate is the owning
    skill's level (`required_skill_level`), which needs the per-skill curve
    (`life.common.v1` Lv2+) first. The #91 curve in section 1 is the candidate for that per-skill curve.
