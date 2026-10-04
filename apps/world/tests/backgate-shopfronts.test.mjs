@@ -110,11 +110,12 @@ test('detail mullion side caps are inset from glazing side caps to avoid coplana
   }
 });
 
-test('shared back-market geometry and all street/culture collision facts remain byte-equivalent', () => {
+test('existing shop dressing and all street/culture collision facts remain byte-equivalent', () => {
   assert.equal(hash([...BACK_STREET_COLLIDERS,...CULTURE_COLLIDERS]),'c72322e73e40e06902f5cad5f6cae08f92ee9e0b350f3a987f65e3df619c2ff2');
-  const r=record(),ids=[...MARKET_BUILDINGS,...MARKET_EXISTING_SHOPS].map(q=>q.id);
-  market.fillMarketBase(r.batch);market.fillMarketNear(r.batch,ids);market.fillMarketDetail(r.batch,ids);
-  assert.equal(hash(r.operations),'b05cc33b86c6459272b2d0c324a431ecb42f672c8234cf2da78d95855b43d653');
+  // The separately restored 79 infill bodies are now covered by the infill suite.
+  const r=record(),ids=MARKET_EXISTING_SHOPS.map(q=>q.id);
+  market.fillMarketNear(r.batch,ids);market.fillMarketDetail(r.batch,ids);
+  assert.equal(hash(r.operations),'19eb0fe3084f597a5843eadff3b803e218641883b3661e3b8003d3e7c282488c');
 });
 
 test('anonymous shopfronts do not allocate QA lettering or invented business labels', () => {

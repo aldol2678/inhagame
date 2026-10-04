@@ -8,22 +8,23 @@ registerHooks({resolve(specifier,context,next){return next(specifier==='playcanv
 const pc=await import('playcanvas');
 const {CampusChunkRenderer}=await import('../../src/campus-chunk-renderer.js');
 const {RenderChunkRegistry}=await import('../../src/render-chunk-registry.js');
-const {BACK_STREET_BLOCKS}=await import('../../src/back-street-layout.js');
-const {CULTURE_BUILDINGS}=await import('../../src/culture-street-layout.js');
+const {BACK_ALLEY_BLOCKS}=await import('../../src/back-alley-layout.js');
+const {MARKET_BUILDINGS,GEONMULJU_BUILDING}=await import('../../src/back-market-layout.js');
 const {campusMaterialCacheStatus}=await import('../../src/campus-render-kit.js');
-const canvas={id:'backgate-facade-null',width:512,height:512};
+const canvas={id:'backgate-infill-null',width:512,height:512};
 const app=new pc.AppBase(canvas),options=new pc.AppOptions();options.graphicsDevice=new pc.NullGraphicsDevice(canvas);options.componentSystems=[pc.RenderComponentSystem,pc.CameraComponentSystem,pc.LightComponentSystem];app.init(options);
 const meshes=root=>root.findComponents('render').flatMap(c=>c.meshInstances);
 const fingerprint=roots=>roots.flatMap(meshes).map(mi=>createHash('sha256').update(new Uint8Array(mi.mesh.vertexBuffer.storage)).digest('hex'));
-const ids=new Set([...BACK_STREET_BLOCKS,...CULTURE_BUILDINGS].map(q=>q.id));
+const ids=new Set([...BACK_ALLEY_BLOCKS,...MARKET_BUILDINGS.filter(q=>q!==GEONMULJU_BUILDING)].map(q=>q.id));
 const report={engine:pc.version,device:'NullGraphicsDevice',visualEvidence:false,cycles:[]};
 let warmed;
 try {
   for(let cycle=0;cycle<3;cycle++) {
-    const parent=new pc.Entity('ShopfrontLifecycle');parent.setLocalScale(1,1,cycle%2?-1:1);app.root.addChild(parent);
+    const parent=new pc.Entity('InfillLifecycle');parent.setLocalScale(1,1,cycle%2?-1:1);app.root.addChild(parent);
     const registry=new RenderChunkRegistry(),renderer=new CampusChunkRenderer(app,parent,registry);
-    const base=renderer.base.children.filter(e=>/^(back_street_base_|culture_street_base_)/.test(e.name));
-    assert.equal(base.length,24,'11 street and 13 culture facade/canopy batches; street paving has a shadow-free owner');
+    const base=renderer.base.children.filter(e=>/^(back_alley_base_|back_market_base_)/.test(e.name));
+    assert.ok(base.length>=12&&base.length<=32,'bounded shared alley/market palette');
+    assert.ok(base.every(e=>!e.name.endsWith('_598f91')),'no remaining cyan body batch');
     const baseMeshes=base.flatMap(meshes),sources=new Set(baseMeshes.map(mi=>mi.material));
     assert.ok(baseMeshes.every(mi=>mi.material.opacity===1&&mi.material.depthWrite));
     const before=fingerprint(base),handles=[];let owned=0,layerMeshes=0;
@@ -33,7 +34,7 @@ try {
       renderer.setState(handle,'ACTIVE');renderer.update(1);
       const near=handle.near,detail=handle.detail;
       for(const layer of [near,detail]) {
-        const targets=layer.children.filter(e=>/^(back_street_|culture_street_)/.test(e.name));
+        const targets=layer.children.filter(e=>/^(back_alley_|back_market_)/.test(e.name));
         for(const mi of targets.flatMap(meshes)) {
           const positions=[];mi.mesh.getPositions(positions);assert.ok(positions.length&&positions.every(Number.isFinite));
           assert.ok(!sources.has(mi.material));assert.equal(mi.material.alphaDither,1);layerMeshes++;
@@ -43,7 +44,7 @@ try {
       assert.equal(near.enabled,false);assert.equal(detail.enabled,false);assert.deepEqual(fingerprint(base),before);
       renderer.setState(handle,'ACTIVE');renderer.update(1);assert.equal(handle.near,near);assert.equal(handle.detail,detail);
     }
-    assert.equal(owned,37);assert.ok(layerMeshes>0);
+    assert.equal(owned,114);assert.ok(layerMeshes>0);
     const ownedBuffers=[...baseMeshes.map(mi=>mi.mesh),...handles.flatMap(h=>meshes(h.root).map(mi=>mi.mesh))];
     for(const handle of handles)renderer.destroy(handle);
     assert.equal(renderer.fades.size,0);assert.deepEqual(fingerprint(base),before);

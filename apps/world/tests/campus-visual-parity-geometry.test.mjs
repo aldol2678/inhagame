@@ -33,7 +33,7 @@ test('all 35 existing alley collider envelopes have persistent visible opaque sh
  assert.ok(ts.length>0,'alley BASE must not remain a no-op');
  for(const c of BACK_ALLEY_COLLIDERS){assert.ok(Math.abs(topAt(ts,center(c.polygon))-c.maxY)<1e-8,`${c.id}: visible roof must match collision top`);for(const p of c.polygon)assert.ok(ts.flat().some(v=>Math.abs(v[0]-p.x)<1e-8&&Math.abs(v[2]-p.z)<1e-8&&Math.abs(v[1]-c.minY)<1e-8),`${c.id}: source collision corner missing`);}
  // LOD must not duplicate the opaque envelope or make distant obstacles invisible.
- for(const fn of [alley.fillBackAlleyNear,alley.fillBackAlleyDetail]){const detail=new FacilityMeshBatch();assert.equal(fn(detail,BACK_ALLEY_BLOCKS.map(q=>q.id)),detail);assert.equal(triangles(detail).length,0);}
+ for(const fn of [alley.fillBackAlleyNear,alley.fillBackAlleyDetail]){const detail=new FacilityMeshBatch();assert.equal(fn(detail,BACK_ALLEY_BLOCKS.map(q=>q.id)),detail);const detailTriangles=triangles(detail);for(const c of BACK_ALLEY_COLLIDERS)assert.equal(topAt(detailTriangles,center(c.polygon)),null,'streamed facade dressing must not duplicate a solid rooftop');}
 });
 
 test('stadium standing rows and narrow aisles render at the existing height function',()=>{
