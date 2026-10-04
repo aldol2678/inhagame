@@ -25,11 +25,13 @@ function part(parent,name,type,scale,pos,material) {
   e.render.material=material; parent.addChild(e); return e;
 }
 function createRoachVisual(root,index,material) {
+  // One shared-material primitive per stress entity: this experiment measures entity density,
+  // not prototype mesh complexity. Keeping one render component avoids multiplying shadow/draw passes.
   const e=new pc.Entity(`GIANT_ROACH_${index+1}`);
+  e.addComponent('render',{type:'sphere'});
+  e.setLocalScale(0.78,0.3,1.45);
+  e.render.material=material;
   root.addChild(e);
-  part(e,'body','sphere',[0.72,0.24,1.05],[0,0.33,0],material);
-  part(e,'thorax','sphere',[0.58,0.28,0.55],[0,0.36,-0.72],material);
-  part(e,'head','sphere',[0.38,0.22,0.34],[0,0.31,-1.13],material);
   return e;
 }
 function candidate(center,index,attempt) {
