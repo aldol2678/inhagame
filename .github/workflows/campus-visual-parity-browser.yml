@@ -29,12 +29,17 @@ jobs:
   chromium:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      WORLD_SURROUNDINGS_BASE: ${{ github.event.pull_request.head.ref == 'fix/campus-surroundings-parity-20261004' && '3b95e37f3dec477ebe7e06456907176bb81a63a2' || '' }}
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 2
           persist-credentials: false
+      - name: Fetch explicitly enabled immutable surroundings baseline
+        if: env.WORLD_SURROUNDINGS_BASE != ''
+        run: git fetch --no-tags --depth=1 origin "$WORLD_SURROUNDINGS_BASE"
       - uses: actions/setup-node@v4
         with:
           node-version: '24.19.0'

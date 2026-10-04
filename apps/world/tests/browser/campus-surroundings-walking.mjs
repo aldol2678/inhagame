@@ -11,7 +11,8 @@ import { canOccupy } from '../../src/world-collision.js';
 const DT=1/60,distance=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
 const finitePoint=p=>[p.x,p.y,p.z].every(Number.isFinite);
 const fields=['inputEnabled','velocityY','grounded','jumpQueued','ascendHeld','descendHeld','touchSprint','assist','moving','lastGroundMove','groundMovementLocks'];
-export function surroundingsBaselinePlan(changed){
+export function surroundingsBaselinePlan(changed,{enabled=true}={}){
+  if(!enabled)return null;
   const prefix='apps/world/src/',replace=['campus-chunk-renderer.js','campus-grounds.js','minimap/minimap-data.js','navigation/campus-navigation.js'].map(p=>prefix+p);
   const added=['main-hall-walkway-geometry.js','main-hall-walkway-layout.js','pond-surroundings-geometry.js'].map(p=>prefix+p);
   const expected=[...replace,...added].sort(),actual=[...new Set(changed)].sort();

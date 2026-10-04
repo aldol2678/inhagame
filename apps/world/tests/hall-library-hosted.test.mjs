@@ -34,6 +34,25 @@ test('current-main preservation allows only the eight approved runtime files', (
   assert.ok(!manifest.allowedRuntimeChanges.some(name=>/facility|student|environment|collision|reality/.test(name)));
 });
 
+test('current PR scope may explicitly include surroundings but never unrelated activity changes',()=>{
+  const runner=read('./browser/hall-library-hosted-smoke.mjs');
+  const helper=runner.match(/function hallIntegrationScopePaths\(manifest,extension\) \{[\s\S]*?\n\}/)?.[0];
+  assert.ok(helper,'explicit bounded scope extension helper is required');
+  const allow=runInNewContext(`(${helper})`,{}, {timeout:1000});
+  const manifest=JSON.parse(read('./fixtures/hall-library-candidate-source-manifest.json'));
+  const original=allow(manifest,''),surroundings=allow(manifest,'surroundings');
+  assert.equal(original.length,9);assert.equal(surroundings.length,15);
+  for(const path of ['apps/world/src/pond-surroundings-geometry.js','apps/world/src/main-hall-walkway-layout.js','apps/world/src/main-hall-walkway-geometry.js','apps/world/src/campus-grounds.js','apps/world/src/minimap/minimap-data.js','apps/world/src/navigation/campus-navigation.js']){
+    assert.ok(surroundings.includes(path));assert.ok(!original.includes(path));
+  }
+  for(const allowed of [original,surroundings])for(const path of ['apps/world/src/activity/activity-contract.js','apps/world/src/ambient-ducks.js','apps/world/src/campus-layout.js'])assert.ok(!allowed.includes(path),path+' remains forbidden');
+  assert.throws(()=>allow(manifest,'all-runtime'),/scope/);
+  assert.match(runner,/WORLD_HALL_LIBRARY_SCOPE_BASE/);
+  assert.match(runner,/\$\{scopeBase\}\.\.\.HEAD/,'scope uses the actual PR merge base');
+  const workflow=read('../../../.github/workflows/hall-library-candidate-browser.yml');
+  assert.match(workflow,/WORLD_HALL_LIBRARY_SCOPE_BASE: \$\{\{ github.event.pull_request.base.sha \}\}/);
+});
+
 test('workflow checks exact head, offline evidence and a bounded read-only job', () => {
   const workflow = read('../../../.github/workflows/hall-library-candidate-browser.yml');
   assert.match(workflow, /ref: \$\{\{ github.event.pull_request.head.sha \}\}/);

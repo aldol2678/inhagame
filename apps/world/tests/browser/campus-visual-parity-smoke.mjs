@@ -11,10 +11,10 @@ const output=process.env.WORLD_VISUAL_PARITY_OUTPUT||'test-results/campus-visual
 await mkdir(output,{recursive:true});
 const actualHead=execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();
 if(process.env.EXPECTED_VISUAL_PARITY_HEAD)assert.equal(actualHead,process.env.EXPECTED_VISUAL_PARITY_HEAD);
-const baseline=process.env.WORLD_SURROUNDINGS_BASE||'3b95e37f3dec477ebe7e06456907176bb81a63a2';
-assert.match(baseline,/^[a-f0-9]{40}$/);
-const baselinePlan=surroundingsBaselinePlan(execFileSync('git',['diff','--name-only',baseline,actualHead],{encoding:'utf8'}).trim().split('\n').filter(p=>p.startsWith('apps/world/src/')));
-const baselineSources=new Map(baselinePlan.replace.map(p=>['/'+p.slice('apps/world/'.length),execFileSync('git',['show',`${baseline}:${p}`])]));
+const baseline=process.env.WORLD_SURROUNDINGS_BASE||null;
+if(baseline)assert.match(baseline,/^[a-f0-9]{40}$/);
+const baselinePlan=surroundingsBaselinePlan(baseline?execFileSync('git',['diff','--name-only',baseline,actualHead],{encoding:'utf8'}).trim().split('\n').filter(p=>p.startsWith('apps/world/src/')):[],{enabled:Boolean(baseline)});
+const baselineSources=new Map((baselinePlan?.replace||[]).map(p=>['/'+p.slice('apps/world/'.length),execFileSync('git',['show',`${baseline}:${p}`])]));
 const hash=b=>createHash('sha256').update(b).digest('hex');
 const report={head:actualHead,baselineCommit:baseline,baselineRuntimeSources:[...baselineSources].map(([path,bytes])=>({path,sha256:hash(bytes)})),scope:'offline actual campus; literal baseline/candidate same-camera comparison, separate on/off diagnostics and deterministic actual-controller walking; no measured architecture, speed or physical-device claim',cases:[],comparisons:[]};
 async function capture(page,name,compare=false){
@@ -62,6 +62,10 @@ async function literalComparison(candidate,smoke,name){
      const d=window.__INHAGAME_P0__,base=d.app.root.findByName('CampusBase'),camera=d.app.root.findByName('Camera');
      base.parent.setLocalScale(1,1,-1);d.streaming.setPolicy(viewDistancePreset('MAX'));
      for(let i=0;i<d.registry.chunks.length+20;i++)d.streaming.update(.05,view.p);
+     // Static-environment comparison: independently booted ambient actors have
+     // random spawn/animation state. Hide the same explicit classes on both sides.
+     const actors=d.app.root.find(e=>e.name==='Player'||e.name?.startsWith('inkyung_duck_')||e.name?.startsWith('NPC_TEST_HUMAN_')||['Parked_CampusShuttle','Rider_CampusShuttle'].includes(e.name));
+     for(const actor of actors)actor.enabled=false;
      const water=d.app.root.findByName('lmk_inkyung_pond');for(const m of water?.render?.meshInstances||[]){m.material.normalMapOffset.set(0,0);m.material.update();}
      const aspect=d.app.graphicsDevice.width/d.app.graphicsDevice.height,vertical=camera.camera.fov*Math.PI/360,horizontal=Math.atan(Math.tan(vertical)*aspect),distance=view.radius/Math.sin(Math.min(vertical,horizontal))*1.15;
      const target=new pc.Vec3(view.p.x,view.y,-view.p.z),direction=new pc.Vec3(.7,.8,1).normalize();
@@ -69,7 +73,7 @@ async function literalComparison(candidate,smoke,name){
      else{camera.setPosition(target.clone().add(direction.mulScalar(distance)));camera.lookAt(target);}
      camera.camera.nearClip=2;camera.camera.farClip=1000;d.app.root.syncHierarchy();
      return {position:camera.getPosition().toArray(),rotation:[camera.getRotation().x,camera.getRotation().y,camera.getRotation().z,camera.getRotation().w],fov:camera.camera.fov,nearClip:2,farClip:1000,
-      pondMeshes:base.children.filter(e=>e.name.startsWith('pond_surroundings_base_')).length,walkMeshes:base.children.filter(e=>e.name.startsWith('main_hall_walkways_')).length};
+      hiddenAmbientActors:actors.map(e=>e.name).sort(),pondMeshes:base.children.filter(e=>e.name.startsWith('pond_surroundings_base_')).length,walkMeshes:base.children.filter(e=>e.name.startsWith('main_hall_walkways_')).length};
     },{view,reference});
     if(!reference)reference=setup;else{
      for(const key of ['position','rotation'])assert.ok(setup[key].every((v,i)=>Math.abs(v-reference[key][i])<1e-7),`${view.id}: ${key} differs`);
@@ -112,7 +116,7 @@ try{
      for(const e of targets)for(const mi of e.render.meshInstances){if(first){bounds.copy(mi.aabb);first=false;}else bounds.add(mi.aabb);}
      const center=bounds.center.clone(),radius=bounds.halfExtents.length(),aspect=app.graphicsDevice.width/app.graphicsDevice.height;
      const vertical=camera.camera.fov*Math.PI/180/2,horizontal=Math.atan(Math.tan(vertical)*aspect),distance=radius/Math.sin(Math.min(vertical,horizontal))*1.15;
-     const dir=new pc.Vec3(.7,.65,1).normalize();camera.setPosition(center.clone().add(dir.mulScalar(distance)));camera.lookAt(center);
+     const dir=new pc.Vec3(.7,.65,-sign).normalize();camera.setPosition(center.clone().add(dir.mulScalar(distance)));camera.lookAt(center);
      camera.camera.farClip=Math.max(1000,distance+radius*3);camera.camera.nearClip=2;
      window.__parityTargets=targets;targets.forEach(e=>{e.enabled=false;});
      return {entities:targets.length,reflection:sign,center:center.toArray(),radius,cameraDistance:distance};
@@ -162,7 +166,7 @@ try{
     }return receipts;
    });
    report.lifecycle??=[];report.lifecycle.push({name,cycles:lifecycle});
-   await literalComparison(page,smoke,name);
+   if(baseline)await literalComparison(page,smoke,name);
    assert.deepEqual(smoke.problems,[]);
   }finally{await smoke.close();}
  }

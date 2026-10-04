@@ -27,6 +27,7 @@ test('literal baseline comparison replaces every changed existing runtime and re
   assert.equal(plan.replace.length,4);assert.equal(plan.added.length,3);
   assert.throws(()=>qa.surroundingsBaselinePlan([...files,'apps/world/src/campus-layout.js']),/scope/);
   assert.throws(()=>qa.surroundingsBaselinePlan(files.slice(1)),/scope/);
+  assert.equal(qa.surroundingsBaselinePlan(['apps/world/src/library-garden-geometry.js'],{enabled:false}),null,'unrelated PRs do not inherit this historical comparison');
 });
 
 test('controller probe rejects non-finite positions instead of recording a false pass',async()=>{
