@@ -25,7 +25,10 @@ import { createGraphicsPresetController } from './graphics-presets.js';
 import { createEnvironmentDirector } from './environment/environment-director.js';
 import { resolveEnvironmentRuntimeTime, resolveEnvironmentRuntimeWeather } from './environment/environment-clock.js';
 import { createNightStreetLights } from './environment/night-street-lights.js';
+import { createNightBuildingWindows } from './environment/night-building-windows.js';
 import { createRainWeatherEffects } from './environment/rain-weather-effects.js';
+import { createSnowWeatherEffects } from './environment/snow-weather-effects.js';
+import { createSkyVisuals } from './environment/sky-visuals.js';
 import { createInkyungDuckSystem } from './ambient-ducks.js';
 import { createInkyungMechanicalDuckEvent } from './inkyung-mechanical-duck-event.js';
 import { createBiryongSystem } from './biryong/biryong-system.js';
@@ -140,6 +143,14 @@ import { createWardrobePanel } from "./appearance/wardrobe-panel.js";
 import { STUDENT_CENTER_SHOP_ENTRY, createShopWorldInteraction } from "./shop/shop-world-interaction.js";
 import { createShopWorldLabel } from "./shop/shop-world-label.js";
 import { roadviewGroundHeight } from "./roadview-layout.js";
+import { createBackgateTransitInteraction } from "./transit/backgate-transit-interaction.js";
+import { createBackgateTransitPanel } from "./transit/backgate-transit-panel.js";
+import { BACKGATE_TRANSIT } from "./transit/backgate-transit-layout.js";
+import { createBiryongRealmScene } from "./biryong/biryong-realm-renderer.js";
+import { createBiryongRealmWorldAdapter } from "./biryong/biryong-realm-world-adapter.js";
+import { createBiryongRealmTransition } from "./biryong/biryong-realm-transition.js";
+import { createBiryongStationTransitInteraction } from "./biryong/biryong-station-transit-interaction.js";
+import { WORLD_REGION_ID } from "./regions/world-region-registry.js";
 import { INPUT_FOCUS_POLICY, createInputFocusManager } from "./input/input-focus-manager.js";
 import { bindInputFocusRuntime } from "./input/input-focus-runtime.js";
 import { bindPointerLockRuntime } from "./input/pointer-lock-runtime.js";
@@ -172,7 +183,9 @@ const zoneEl = document.getElementById("zone");
 const npcTestMode = ['localhost', '127.0.0.1'].includes(location.hostname) &&
   startupParams.get('npcTest') === 'a-r1';
 const npcAiPilotMode = npcTestMode && startupParams.get('npcAiPilot') === '1';
-const npcProductionMode = ['inhagame.example', 'www.inhagame.example'].includes(location.hostname);
+// Normal deployments start campus NPCs without a domain allowlist. Local and Vercel
+// preview hosts retain the explicit selectors below; API flags still own AI/quest access.
+const npcProductionMode = !previewHost;
 const npcPreviewMode = location.hostname.endsWith('.vercel.app') &&
   startupParams.get('npcTest') === 'a-r1';
 // Production shares server time and deterministic NPC routes across clients.
@@ -180,10 +193,12 @@ const npcSharedScheduleMode = npcProductionMode || (previewHost && startupParams
 const npcRosterPreviewMode = previewHost && startupParams.get('campusLife') === 'roster';
 const npcSocialPreviewLevel = previewHost ? startupParams.get('npcSocial') : null;
 const npcObservedConversationPreview = previewHost && startupParams.get('npcConversation') === 'p0';
+// Ambient observed conversations are presentation-only and safe to enable on normal deployments.
+const npcObservedConversationMode = npcProductionMode || npcObservedConversationPreview;
 const npcSocialBehaviorPreviewMode = npcSocialPreviewLevel === 'ng15';
 const npcSocialPreviewMode = npcSocialPreviewLevel === 'ng1' || npcSocialBehaviorPreviewMode;
 const npcSocialProductionMode = npcProductionMode;
-const npcSocialMode = npcSocialProductionMode || npcSocialPreviewMode || npcObservedConversationPreview;
+const npcSocialMode = npcSocialProductionMode || npcSocialPreviewMode || npcObservedConversationMode;
 const npcEnabled = npcSharedScheduleMode || npcTestMode || npcProductionMode || npcPreviewMode || npcRosterPreviewMode || npcSocialMode;
 const campusLifePreview = previewHost && startupParams.get('campusLife') === 'p0a';
 let lastTrackedZone = null;
@@ -291,6 +306,18 @@ window.__INHAGAME_ENVIRONMENT__ = Object.freeze({
   } : {})
 });
 
+const skyVisuals = createSkyVisuals({
+  app,
+  camera,
+  lightEntity: light,
+  copyEnvironmentSkyState: out => environment.copySkyVisualState(out),
+  getGraphicsTier: () => graphics.tier
+});
+app.on("update", dt => skyVisuals.update(dt));
+window.__INHAGAME_SKY__ = Object.freeze({
+  status: () => skyVisuals.status()
+});
+
 const player = new pc.Entity("Player");
 // Keep canonical east/north coordinates for gameplay; PlayCanvas renders north as -Z.
 // Reflect the entire campus together so no landmark is shifted independently.
@@ -322,6 +349,17 @@ window.__INHAGAME_NIGHT_LIGHTS__ = Object.freeze({
   status: () => nightStreetLights.status()
 });
 
+const nightBuildingWindows = createNightBuildingWindows({
+  root: campusRoot,
+  app,
+  getArtificialLightFactor: () => environment.artificialLightFactor(),
+  getGraphicsTier: () => graphics.tier
+});
+app.on("update", () => nightBuildingWindows.update());
+window.__INHAGAME_NIGHT_WINDOWS__ = Object.freeze({
+  status: () => nightBuildingWindows.status()
+});
+
 const rainWeatherEffects = createRainWeatherEffects({
   root: campusRoot,
   app,
@@ -333,6 +371,18 @@ const rainWeatherEffects = createRainWeatherEffects({
 app.on("update", dt => rainWeatherEffects.update(dt));
 window.__INHAGAME_RAIN__ = Object.freeze({
   status: () => rainWeatherEffects.status()
+});
+
+const snowWeatherEffects = createSnowWeatherEffects({
+  root: campusRoot,
+  app,
+  getPlayerPosition: () => player.getLocalPosition(),
+  getSnowIntensity: () => environment.snowIntensity(),
+  getGraphicsTier: () => graphics.tier
+});
+app.on("update", dt => snowWeatherEffects.update(dt));
+window.__INHAGAME_SNOW__ = Object.freeze({
+  status: () => snowWeatherEffects.status()
 });
 
 const controller = new PlayerController(player);
@@ -360,6 +410,12 @@ const fullMapInput = createInputFocusOwner({
 });
 const shopInput = createInputFocusOwner({
   manager: inputFocus, ownerId: "shop", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
+});
+const backgateTransitInput = createInputFocusOwner({
+  manager: inputFocus, ownerId: "backgate-transit", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
+});
+const biryongRegionTransitionInput = createInputFocusOwner({
+  manager: inputFocus, ownerId: "biryong-region-transition", policy: INPUT_FOCUS_POLICY.SYSTEM_LOCK
 });
 const furnitureInput = createInputFocusOwner({
   manager: inputFocus, ownerId: "room-furniture", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
@@ -627,6 +683,8 @@ const lobbyQuestHighlight = createLobbyQuestHighlight({
   getQuest: () => npcTest?.getStatus?.() ?? null
 });
 let rooms = null;
+let biryongRealm = null;
+let biryongStationTransit = null;
 let keyboardHelp = null;
 // Declared before input handlers so an early F/M event during boot can safely observe null.
 let playerAutoMove = null;
@@ -1221,6 +1279,40 @@ const shopWorldLabel = createShopWorldLabel({
   canvas,
   getWorldPosition: () => shopWorldMarker.getPosition()
 });
+// Informational back-gate stop. The shared F/touch slot opens one static panel; F1 stays disabled.
+const backgateTransitPanel = createBackgateTransitPanel({
+  panel: document.getElementById("backgate-transit-panel"),
+  fallbackFocus: canvas,
+  onBoard: () => biryongRealm?.enter() === true,
+  onOpenChange: open => {
+    if (open) {
+      backgateTransitInput.acquire();
+      playerAutoMove?.pause(AUTO_MOVE_CANCEL_REASON.INTERACTION);
+      hudMenu?.setOpen(false, { focus: false });
+      emoteMenu.setOpen(false);
+      chatPanel.setOpen(false, { focus: false });
+    } else backgateTransitInput.release();
+  }
+});
+const backgateTransitState = () => ({
+  grounded: controller.grounded,
+  blocked: rooms.insideRoom || biryongRealm?.inCampus === false || controller.mounted || seats.isSeated || backgateTransitPanel.open ||
+    lobbyWorld.active || lobbyTransition.active || !inputFocus.can("WORLD_ACTION")
+});
+const backgateTransit = createBackgateTransitInteraction({
+  getPosition: () => player.getLocalPosition(), getState: backgateTransitState,
+  getGroundHeight: roadviewGroundHeight,
+  openPanel: () => backgateTransitPanel.setOpen(true)
+});
+// Another modal or a system transition takes over; release our claim without restoring gameplay.
+const unbindBackgateTransitFocus = inputFocus.subscribe(state => {
+  if (backgateTransitPanel.open && state.topOwners.some(id => id !== "backgate-transit"))
+    backgateTransitPanel.setOpen(false, { restoreFocus: false });
+});
+window.addEventListener("pagehide", event => {
+  backgateTransitPanel.setOpen(false, { restoreFocus: false });
+  if (!event.persisted) { unbindBackgateTransitFocus(); backgateTransitPanel.destroy(); }
+});
 social.onRelationshipChange((userId, state) => lobbyPresenceSummary.applyRelationship(userId, state));
 social.onRelationshipChange(() => nearbyPanel.render());
 // A block hides that user's local chat immediately (feed entries and bubbles).
@@ -1359,6 +1451,59 @@ rooms = createRoomTransition({
     markSpace: (id) => { if (id) document.body.dataset.space = id; else delete document.body.dataset.space; }
   })
 });
+const biryongRealmScene = createBiryongRealmScene(app);
+const biryongCampusReturnAnchor = Object.freeze({
+  x: BACKGATE_TRANSIT.wait.x,
+  y: controller.groundY + roadviewGroundHeight(BACKGATE_TRANSIT.wait.x, BACKGATE_TRANSIT.wait.z),
+  z: BACKGATE_TRANSIT.wait.z,
+  yaw: 0
+});
+biryongRealm = createBiryongRealmTransition({
+  fade: fadeSwitch,
+  campusReturnAnchor: biryongCampusReturnAnchor,
+  onBusyChange: busy => {
+    if (busy) biryongRegionTransitionInput.acquire();
+    else biryongRegionTransitionInput.release();
+  },
+  world: createBiryongRealmWorldAdapter({
+    player, controller, orbit, campusRoot, biryongRoot: biryongRealmScene.root,
+    follow, stopFollowReason: FollowStopReason.ROOM, seating, seats, emotes,
+    getOnline: () => online, places, getStreaming: () => streaming,
+    closePanels: () => {
+      playerAutoMove?.pause(AUTO_MOVE_CANCEL_REASON.TRANSPORT);
+      backgateTransitPanel.setOpen(false, { restoreFocus: false });
+      fullMap?.close?.();
+      furnitureEditor?.forceClose();
+      emoteMenu.setOpen(false);
+      chatPanel.setOpen(false, { focus: false });
+      playerCard.close();
+      void guestbookPanel.setOpen(false);
+      shopPanel.setOpen(false);
+      inventoryPanel.setOpen(false);
+      mobilityBook.setOpen(false);
+      wardrobePanel.setOpen(false);
+      dailyQuizPanel.setOpen(false);
+      attendancePanel.setOpen(false);
+      questJournal?.setOpen(false);
+    },
+    setLocationLabel: text => { zoneEl.textContent = text; },
+    markRegion: id => {
+      document.body.dataset.worldRegion = id;
+      const minimapRoot = document.getElementById("minimap");
+      if (minimapRoot) minimapRoot.hidden = id !== WORLD_REGION_ID.CAMPUS;
+      if (id !== WORLD_REGION_ID.CAMPUS) fullMap?.close?.();
+    }
+  })
+});
+biryongStationTransit = createBiryongStationTransitInteraction({
+  getPosition: () => player.getLocalPosition(),
+  getState: () => ({
+    grounded: controller.grounded,
+    blocked: !biryongRealm?.inBiryong || biryongRealm.busy || rooms.insideRoom ||
+      controller.mounted || seats.isSeated || !inputFocus.can("WORLD_ACTION")
+  }),
+  returnToCampus: () => biryongRealm?.returnToCampus() === true
+});
 // Soundscape P0-A consumes the existing Place Zone and room state. Audio remains optional.
 let worldAudio = null;
 try { worldAudio = createWorldAudio(); }
@@ -1376,7 +1521,8 @@ const unbindAudioVolume = bindAudioVolumeSettings(worldAudio, audioVolume);
 let lastAudioState = "";
 const syncAudio = () => {
   if (!worldAudio) return;
-  const space = lobbyWorld.active || lobbyTransition.active ? "lobby" : rooms.currentSpace;
+  const space = lobbyWorld.active || lobbyTransition.active ? "lobby"
+    : biryongRealm?.inBiryong ? "biryong-realm" : rooms.currentSpace;
   const placeZoneId = space === "campus" ? places.getCurrentPlaceZone()?.id ?? null : null;
   const placeId = space === "campus" && isNearBiryong(player.getLocalPosition()) ? BIRYONG_PLACE_ID : null;
   const key = `${space}:${placeZoneId ?? ""}:${placeId ?? ""}`;
@@ -1385,6 +1531,7 @@ const syncAudio = () => {
   worldAudio.setState({ space, placeZoneId, placeId });
 };
 rooms.onChange(syncAudio);
+biryongRealm.onChange(syncAudio);
 window.addEventListener("pagehide", event => { if (!event.persisted) { unbindAudioVolume(); worldAudio?.dispose(); } });
 syncAudio();
 const audioDebug = previewHost && startupParams.get("audioDebug") === "1"
@@ -1674,7 +1821,8 @@ let navigation = null;
 let campusNavigation = null;
 let navigationHud = null;
 const navigationSpaceId = () => lobbyWorld.active || lobbyTransition.active ? "lobby"
-  : rooms?.insideRoom ? (rooms.status().roomId ?? "room") : CAMPUS_NAV_SPACE;
+  : biryongRealm?.inBiryong ? WORLD_REGION_ID.BIRYONG_REALM
+    : rooms?.insideRoom ? (rooms.status().roomId ?? "room") : CAMPUS_NAV_SPACE;
 try {
   campusNavigation = createCampusNavigation();
   navigation = createNavigationState({ solver: campusNavigation.solver, guidanceSpaceId: CAMPUS_NAV_SPACE });
@@ -1699,7 +1847,7 @@ const autoMoveHudDetail = document.getElementById("auto-move-detail");
 const autoMoveCancel = document.getElementById("auto-move-cancel");
 const autoMoveResume = document.getElementById("auto-move-resume");
 const canUseAutoMove = () => (!controller.mounted || controller.onGroundMount) && !seats.isSeated && !rooms?.insideRoom &&
-  !follow.active && !lobbyWorld.active && !lobbyTransition.active;
+  (biryongRealm?.inCampus ?? true) && !follow.active && !lobbyWorld.active && !lobbyTransition.active;
 const renderPlayerAutoMoveHud = () => {
   if (!autoMoveHud) return false;
   const state = playerAutoMove?.snapshot?.() ?? null;
@@ -1773,7 +1921,7 @@ if (navigation) {
 const renderNavigationHud = () => {
   try {
     navigationHud?.render(navigation?.getSnapshot() ?? null, {
-      visible: !lobbyWorld.active && !lobbyTransition.active && fullMap?.openState !== true
+      visible: !lobbyWorld.active && !lobbyTransition.active && (biryongRealm?.inCampus ?? true) && fullMap?.openState !== true
     });
   } catch (error) { console.warn("Navigation HUD render failed:", error); }
 };
@@ -1865,7 +2013,7 @@ const getMapObjectiveMarker = () => {
     x: target.x, z: target.z, kind: "destination", label: target.label
   } : null;
 };
-const getMapSocialMarkers = () => rooms?.insideRoom ? [] : (online?.miniMapRemotes?.() ?? [])
+const getMapSocialMarkers = () => (rooms?.insideRoom || biryongRealm?.inBiryong) ? [] : (online?.miniMapRemotes?.() ?? [])
   .filter(remote => remote?.userId && remote?.pose && !social.isBlocked(remote.userId))
   .map(remote => ({
     markerId: `remote.${remote.sessionId}`,
@@ -1895,7 +2043,9 @@ try {
     player, orbit,
     getReady: () => minimapReady,
     getLobbyState: () => ({ active: lobbyWorld.active, transitioning: lobbyTransition.active }),
-    getRoomState: () => rooms?.status?.() ?? { insideRoom: false },
+    getRoomState: () => biryongRealm?.inBiryong
+      ? { insideRoom: true, roomId: null }
+      : rooms?.status?.() ?? { insideRoom: false },
     getOverlayState: () => ({
       hudMenu: hudMenu.open, keyboardHelp: keyboardHelp?.open === true, friends: friendPanel.open,
       playerCard: playerCard.current != null, guestbook: guestbookPanel.open, shop: shopPanel.open, inventory: inventoryPanel.open, wardrobe: wardrobePanel.open,
@@ -1995,6 +2145,20 @@ try {
       fullMap?.setDataSource(roomMap, { id: roomMap.id, label: roomMap.label });
       return;
     }
+    if (campusMapDataSource) {
+      minimap?.setDataSource(campusMapDataSource, { id: "campus", indoor: false });
+      fullMap?.setDataSource(campusMapDataSource, { id: "campus", label: "캠퍼스 전체 지도" });
+    }
+  });
+  biryongRealm.onChange((status) => {
+    if (status.inBiryong) {
+      fullMap?.close?.();
+      const minimapRoot = document.getElementById("minimap");
+      if (minimapRoot) minimapRoot.hidden = true;
+      return;
+    }
+    const minimapRoot = document.getElementById("minimap");
+    if (minimapRoot) minimapRoot.hidden = false;
     if (campusMapDataSource) {
       minimap?.setDataSource(campusMapDataSource, { id: "campus", indoor: false });
       fullMap?.setDataSource(campusMapDataSource, { id: "campus", label: "캠퍼스 전체 지도" });
@@ -2104,16 +2268,19 @@ let npcAiSignedIn = false;
 async function loadOptionalNpcRuntime() {
   if (!npcEnabled) return null;
   let npcAiEnabled = npcAiPilotMode;
+  let npcJevEnabled = false;
   let npcQuestEnabled = npcTestMode || (npcPreviewMode && startupParams.get('backGateArrival') === 'preview');
   // CORE-15: each flag probe is bounded, so a slow AI flag never holds the NPCs or the first quest.
   // A transient quest-flag failure starts the NPCs with the quest off and turns it on once it resolves.
   let questFlagPending = false;
   if (npcProductionMode) {
-    const [aiResult, questResult] = await Promise.all([
+    const [aiResult, questResult, jevResult] = await Promise.all([
       probeFeatureFlag('/api/npc-ai'),
-      probeFeatureFlag('/api/world-quest')
+      probeFeatureFlag('/api/world-quest'),
+      probeFeatureFlag('/api/npc-dialogue-route')
     ]);
     npcAiEnabled = aiResult === FLAG_ENABLED;
+    npcJevEnabled = jevResult === FLAG_ENABLED;
     npcQuestEnabled = questResult === FLAG_ENABLED;
     questFlagPending = questResult === FLAG_UNAVAILABLE;
   }
@@ -2124,11 +2291,11 @@ async function loadOptionalNpcRuntime() {
       sharedSchedulePreview: npcSharedScheduleMode,
       onNpcTalk: (id, now) => online?.network?.setNpcTalk(id, now),
       getBusyNpcIds: now => busyNpcIds(online?.network?.remotes.inZone(online.network.placeZoneId) ?? [], now),
-      production: npcSharedScheduleMode || npcProductionMode || npcPreviewMode || npcRosterPreviewMode || npcSocialPreviewMode || npcObservedConversationPreview,
+      production: npcSharedScheduleMode || npcProductionMode || npcPreviewMode || npcRosterPreviewMode || npcSocialPreviewMode || npcObservedConversationMode,
       socialEnabled: npcSocialMode,
       socialPreview: npcSocialPreviewMode,
       socialBehaviorPreview: npcSocialBehaviorPreviewMode,
-      observedConversationPreview: npcObservedConversationPreview,
+      observedConversationEnabled: npcObservedConversationMode,
       isObservedConversationBlocked: () => !inputFocus.can('WORLD_ACTION') ||
         hudContext.snapshot().mode === 'COMBAT' || lobbyWorld.active || lobbyTransition.active ||
         rooms?.insideRoom === true || mcmEventUi.openState || mcmEventRuntime.isDialogueOpen() ||
@@ -2136,6 +2303,8 @@ async function loadOptionalNpcRuntime() {
       externalContextAction: true,
       aiPilot: npcAiEnabled,
       aiEndpoint: npcAiPilotMode ? '/npc-ai/decide' : '/api/npc-ai',
+      jevEnabled: npcJevEnabled,
+      jevEndpoint: '/api/npc-dialogue-route',
       questEnabled: npcQuestEnabled,
       questEndpoint: npcTestMode ? '/npc-quest' : '/api/world-quest',
       sideEvent: inkyungSideEvent,
@@ -2146,6 +2315,14 @@ async function loadOptionalNpcRuntime() {
         walletBalance: wallet.balance(),
         totalExp: progression.snapshot?.totalExp ?? null
       }),
+      getDialogueWorldContext: () => {
+        const env = environment.status();
+        return {
+          weather: env.targetWeather,
+          environmentTime: env.targetTime,
+          placeZoneId: online?.network?.placeZoneId ?? null
+        };
+      },
       // P1c / P1d: First Campus (badge + EXP) and Main2 (coin + EXP) completions carry the server Reward
       // result. Shown through the existing reward toast lane, then the authorities the entries touched
       // are re-read (never computed here); LEVEL UP follows the toast.
@@ -2246,6 +2423,8 @@ app.on("update", (dt) => {
     guestbookWorldLabel.hide();
     shopWorldLabel.hide();
     contextActions.set("student-center-shop", null);
+    contextActions.set("backgate-transit", null);
+    backgateTransitPanel.setOpen(false, { restoreFocus: false });
     lobbyPresenceSummary.update();
     lobbyQuestHighlight.update();
     backGateLock.refresh();
@@ -2273,7 +2452,8 @@ app.on("update", (dt) => {
     return;
   }
   // Locomotion input and zone changes stand a seated player up before the controller moves.
-  const inside = rooms.insideRoom;
+  const inBiryong = biryongRealm?.inBiryong === true;
+  const inside = rooms.insideRoom || inBiryong;
   inkyungLivingMoment?.setSuppressed(inside);
   // Follow reads human input first. Auto Move then contributes the same world-space assist contract;
   // neither system writes transforms, so PlayerController keeps all collision and existing motion.
@@ -2332,6 +2512,14 @@ app.on("update", (dt) => {
     available: shopWorldAvailable()
   });
   contextActions.set("student-center-shop", shopWorldAction);
+  if (inside || controller.mounted) backgateTransitPanel.setOpen(false, { restoreFocus: false });
+  contextActions.set("backgate-transit", inBiryong ? null : backgateTransit.observe(pos, backgateTransitState()));
+  contextActions.set("biryong-station-transit", inBiryong
+    ? biryongStationTransit?.observe(pos, {
+      grounded: controller.grounded,
+      blocked: biryongRealm.busy || controller.mounted || seats.isSeated || !inputFocus.can("WORLD_ACTION")
+    }) ?? null
+    : null);
   contextActions.set("inkyung-duck", inside ? null : inkyungDucks.getContextAction(pos));
   contextActions.set("biryong", inside ? null : biryong?.getContextAction(pos, { blocked: controller.mounted || seats.isSeated }) ?? null);
   contextActions.set("mcm-event", inside ? null : mcmEventRuntime.contextAction());
@@ -2342,10 +2530,15 @@ app.on("update", (dt) => {
     trigger: () => follow.stop(FollowStopReason.EXPLICIT)
   } : null);
   // Club Room P0 door: 🚪 동아리방 들어가기 outside, 🚪 본관으로 나가기 inside.
-  contextActions.set("room-door", rooms.contextAction({ position: pos, grounded: controller.grounded, mounted: controller.mounted }));
-  contextActions.set("personal-room-door", personalRoomInteraction?.contextAction({
-    position: pos, grounded: controller.grounded, mounted: controller.mounted
-  }) ?? null);
+  if (inBiryong) {
+    contextActions.set("room-door", null);
+    contextActions.set("personal-room-door", null);
+  } else {
+    contextActions.set("room-door", rooms.contextAction({ position: pos, grounded: controller.grounded, mounted: controller.mounted }));
+    contextActions.set("personal-room-door", personalRoomInteraction?.contextAction({
+      position: pos, grounded: controller.grounded, mounted: controller.mounted
+    }) ?? null);
+  }
   contextActions.set("npc", inside ? null : npcTest?.getContextAction?.() ?? null);
   // Transport has its own slot: a nearby NPC and the bike are offered together (F and M).
   transportActions.set("mount", controller.getMountContextAction());
@@ -2367,6 +2560,7 @@ app.on("update", (dt) => {
     grounded: controller.grounded,
     mounted: controller.mounted,
     insideRoom: inside,
+    regionId: biryongRealm?.regionId ?? WORLD_REGION_ID.CAMPUS,
     enabled: firstPlayerMovement && !npcTestMode
   });
   if (!inside) streaming.update(dt, pos);
@@ -2607,8 +2801,8 @@ window.__INHAGAME_P0__ = {
   orbit,
   registry,
   places,
-  getPlaceZoneAt:position=>places.getPlaceZoneAt(position),
-  getCurrentPlaceZone:()=>places.getCurrentPlaceZone(),
+  getPlaceZoneAt:position=>(biryongRealm?.inCampus ?? true)?places.getPlaceZoneAt(position):null,
+  getCurrentPlaceZone:()=>(biryongRealm?.inCampus ?? true)?places.getCurrentPlaceZone():null,
   onPlaceZoneChanged:listener=>places.onPlaceZoneChanged(listener),
   streaming,
   viewSettings,
@@ -2643,6 +2837,10 @@ window.__INHAGAME_P0__ = {
   attendancePanel,
   shopWorld,
   shopWorldLabel,
+  backgateTransit,
+  backgateTransitPanel,
+  biryongRealm,
+  biryongStationTransit,
   seats,
   seating,
   follow,
@@ -2753,6 +2951,9 @@ window.__INHAGAME_P0__ = {
     movementHud: controller.hudState ?? null,
     progression: progression.status(),
     shop: { ...shop.status(), ...shopPanel.status(), world: shopWorld.status() },
+    backgateTransit: { ...backgateTransit.status(), ...backgateTransitPanel.status() },
+    worldRegion: biryongRealm?.status() ?? { regionId: WORLD_REGION_ID.CAMPUS },
+    biryongStationTransit: biryongStationTransit?.status() ?? null,
     wallet: wallet.status(),
     inventory: { ...inventory.status(), ...inventoryPanel.status() },
     dailyQuiz: { ...dailyQuiz.status(), panel: dailyQuizPanel.status() },
@@ -2772,6 +2973,8 @@ window.__INHAGAME_P0__ = {
         keyboardHelp: keyboardHelpInput.active,
         fullMap: fullMapInput.active,
         shop: shopInput.active,
+        backgateTransit: backgateTransitInput.active,
+        biryongRegionTransition: biryongRegionTransitionInput.active,
         inventory: inventoryInput.active,
         wardrobe: wardrobeInput.active,
         dailyQuiz: dailyQuizInput.active,

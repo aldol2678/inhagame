@@ -10,7 +10,7 @@ import { OBSERVED_POLICY } from './npc-observed-conversation.mjs';
 export const SHARED_MEETING_POLICY = Object.freeze({ dwell: 60, travel: 90, lineSeconds: 3.6,
   dialogueDelay: 15, repeatSeconds: 300, seedTicks: 120 });
 const distance = (a,b) => Math.hypot(a.x-b.x,a.z-b.z);
-const safeActivities = new Set(['RESTING','READING','COFFEE','EATING','PHOTO','PHONE','WAITING','TRANSIT','WALK_BREAK','MUSIC']);
+const safeActivities = new Set(['RESTING','READING','COFFEE','EATING','PHOTO','PHONE','WAITING','TRANSIT','WALK_BREAK','MUSIC','CLUB']);
 function compileRoute(from,to,navigator,speed) {
   if (distance(from,to)/speed > SHARED_MEETING_POLICY.travel) return null;
   const points = navigator.networkRoute?.(from,to) ?? navigator.route(from,to);
@@ -37,21 +37,22 @@ export function createSharedMeetings({batch,profiles,roster,navigator,now,positi
   const profileById=new Map(profiles.npcs.map(n=>[n.npc_id,n]));
   const npcById=new Map(batch.npcs.map(n=>[n.npc_id,n]));
   const base=new Map([...roster].map(([id,m])=>[id,m.controller]));
+  const canMeet = (id, state, index) => !roster.get(id)?.schedule[index].walkDestination &&
+    state.visible && !state.moving && !state.transfer && safeActivities.has(state.activity);
   const cache=new Map();
   function plansFor(index) {
     if(cache.has(index))return cache.get(index);
     const plans=[];cache.set(index,plans);
-    if(index===1)return plans; // scheduled classes take precedence
     const periodStart=NPC_WORLD_EPOCH_MS+index*NPC_WORLD_PERIOD_MS;
     const occupied=[...base.values()].map(c=>c.sample(periodStart+899000)).filter(s=>s.visible).map(s=>s.position);
     // The stationary quest NPC owns the photo point's first slot.
     occupied.push(positionAtFn('inkyung_photo_point',0));
     const used=new Set();
     for(const [ordinal,g] of groups.entries()) {
-      const depart=180+ordinal*120;
+      const depart=index===1 ? 420+ordinal*90 : 180+ordinal*120;
       const locations=[g.meetingPlaceRef,...new Set(g.memberNpcIds.filter(id=>base.has(id)).map(id=>{
         const s=base.get(id).sample(periodStart+depart*1000);
-        return s.visible&&!s.moving&&!s.transfer&&safeActivities.has(s.activity)
+        return canMeet(id,s,index)
           ? s.destination.replace(/^c04\./,'').replace(`.${id}`,'') : null;
       }).filter(Boolean))];
       for (const location of locations) {
@@ -66,7 +67,7 @@ export function createSharedMeetings({batch,profiles,roster,navigator,now,positi
       for(const id of [...g.memberNpcIds].sort()) {
         if(used.has(id)||!base.has(id)||members.length>=spots.length)continue;
         const s=base.get(id).sample(periodStart+depart*1000);
-        if(!s.visible||s.moving||s.transfer||!safeActivities.has(s.activity))continue;
+        if(!canMeet(id,s,index))continue;
         const target=spots[members.length],speed=roster.get(id).moveSpeed;
         const outward=compileRoute(s.position,target,navigator,speed);
         const home=compileRoute(target,s.position,navigator,speed);

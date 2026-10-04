@@ -60,6 +60,8 @@ export function createRoomWorldAdapter({
       orbit.setIndoor(indoorCamera);
       setLocationLabel(room.locationLabel ?? `🏠 ${room.label}`);
       markSpace(room.id);
+      // Optional scene visuals load after activation without blocking movement or arrival.
+      void nextRoomScene.ensureVisualAssets?.();
     },
     showCampus() {
       if (activeRoomScene?.root) activeRoomScene.root.enabled = false;
