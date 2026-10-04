@@ -5259,6 +5259,20 @@ body[data-hud-mode="COMBAT"] #jump { display:none !important; }
   body .tracked-quest-bearing { min-width: 0; padding: 3px 7px; font-size: 11px; border-radius: 8px; }
   body .tracked-quest-hud .next-discovery { padding: 0 6px 0 0; }
   body .tracked-quest-hud #next-discovery-primary { min-height: 32px; padding: 4px 8px; }
+  /* Let the objective yield width to the visible action without growing the landscape rail. */
+  body .tracked-quest-hud:has(> .next-discovery:not([hidden])) .tracked-quest-hud-open {
+    flex: 1;
+    width: auto;
+  }
+  body .tracked-quest-hud:has(> .next-discovery:not([hidden])) .next-discovery {
+    flex: none;
+    white-space: nowrap;
+  }
+  body .tracked-quest-hud:has(> .next-discovery:not([hidden])) .tracked-quest-bearing {
+    max-width: 52px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
   body .biryong-objective {
     left: max(12px, env(safe-area-inset-left));
     top: calc(var(--world-right-rail-top) + 40px);

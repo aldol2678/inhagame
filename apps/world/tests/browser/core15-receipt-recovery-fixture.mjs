@@ -75,7 +75,7 @@ export async function createReceiptFixture() {
   new Function(seams.replaceAll('export ', ''));
   const topbar = html.match(/<header class="campus-topbar"[\s\S]*?<\/header>/)?.[0];
   assert.ok(topbar);
-  const documentHtml = `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>CORE-15 synthetic component integration</title><link rel="stylesheet" href="/styles.css"></head><body data-space="campus">${topbar}${['progression-hud', 'quest-hud', 'minimap', 'nav-guidance', 'hud-menu', 'follow-status'].map(id => element(html, id)).join('\n')}<script type="module" src="/tests/browser/core15-receipt-recovery-page.mjs"></script></body></html>`;
+  const documentHtml = `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>CORE-15 synthetic component integration</title><link rel="stylesheet" href="/styles.css"></head><body data-space="campus">${topbar}${['progression-hud', 'quest-hud', 'minimap', 'nav-guidance', 'hud-menu', 'follow-status', 'context-action', 'transport-action'].map(id => element(html, id)).join('\n')}<script type="module" src="/tests/browser/core15-receipt-recovery-page.mjs"></script></body></html>`;
   const accounts = new Map(), rpcCalls = [], requests = [], telemetry = [], failures = [];
   const holds = new Map();
   function seed(account, options = {}) {

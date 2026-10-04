@@ -53,8 +53,21 @@ export function isElementVisible(element){
     if(style&&(style.display==='none'||style.visibility==='hidden'||style.visibility==='collapse'||style.opacity==='0'))return false;
   }
   const view=doc?.defaultView;
-  return Array.from(element.getClientRects?.()??[]).some(rect=>rect.width>0&&rect.height>0&&
-    (rect.right===undefined||rect.right>0)&&(rect.bottom===undefined||rect.bottom>0)&&
-    (!Number.isFinite(view?.innerWidth)||rect.left<view.innerWidth)&&
-    (!Number.isFinite(view?.innerHeight)||rect.top<view.innerHeight));
+  const clips=value=>['hidden','clip','scroll','auto'].includes(value);
+  return Array.from(element.getClientRects?.()??[]).some(rect=>{
+    if(!(rect.width>0&&rect.height>0))return false;
+    // A sliver outside the viewport/inside an overflow clip is not proof that
+    // the player could read or use the reward, growth, or next-goal surface.
+    let left=0,top=0,right=Number.isFinite(view?.innerWidth)?view.innerWidth:Infinity;
+    let bottom=Number.isFinite(view?.innerHeight)?view.innerHeight:Infinity;
+    for(let node=element.parentElement;node;node=node.parentElement){
+      const style=view?.getComputedStyle?.(node),box=node.getBoundingClientRect?.();
+      if(!box)continue;
+      const clipLeft=box.left+(node.clientLeft??0),clipTop=box.top+(node.clientTop??0);
+      if(clips(style?.overflowX??style?.overflow)){left=Math.max(left,clipLeft);right=Math.min(right,Number.isFinite(node.clientWidth)?clipLeft+node.clientWidth:box.right);}
+      if(clips(style?.overflowY??style?.overflow)){top=Math.max(top,clipTop);bottom=Math.min(bottom,Number.isFinite(node.clientHeight)?clipTop+node.clientHeight:box.bottom);}
+    }
+    return (rect.left===undefined||rect.left>=left-0.5)&&(rect.top===undefined||rect.top>=top-0.5)&&
+      (rect.right===undefined||rect.right<=right+0.5)&&(rect.bottom===undefined||rect.bottom<=bottom+0.5);
+  });
 }

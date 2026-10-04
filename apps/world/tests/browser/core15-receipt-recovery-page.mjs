@@ -75,7 +75,9 @@ const setNavigationTarget = target => {
 const navigationHud = createNavigationHud({ root: el('nav-guidance'), arrow: el('nav-guidance-arrow'), title: el('nav-guidance-title'), detail: el('nav-guidance-detail'),
   cancelButton: el('nav-guidance-cancel'), announcer: el('nav-guidance-announcer'), onCancel: () => navigation.clearDestination('cancel') });
 const runtime = createQuestRuntime();
-const questHud = createTrackedQuestHud({ root: el('quest-hud'), openButton: el('quest-hud-open'), headingElement: el('quest-hud-heading'), objectiveElement: el('quest-hud-objective'), bearingElement: el('quest-hud-bearing'), runtime });
+state.playerPosition = { ...MAIN_GATE_SPAWN };
+const questHud = createTrackedQuestHud({ root: el('quest-hud'), openButton: el('quest-hud-open'), headingElement: el('quest-hud-heading'), objectiveElement: el('quest-hud-objective'), bearingElement: el('quest-hud-bearing'), runtime,
+  getTarget: () => ({ ...MAIN2_GUIDE_NPC.position, kind: 'quest-npc' }), getPlayerPosition: () => state.playerPosition });
 const nextDiscovery = createNextDiscovery({ root: el('next-discovery'), primaryButton: el('next-discovery-primary'), onProgress: progress => runtime.update(progress),
   onPrimary: discovery => seams.primary(discovery, scope()) });
 function scope() { return { firstCampusCompletion, core15Funnel, mcmEventUi, progression, wallet, inventory, FIRST_CAMPUS_REWARD_ID, lobbyWorld, lobbyTransition,
@@ -125,6 +127,7 @@ state.complete = async () => {
   try { return await quest.advanceNpc(MAIN_NPC_ID); }
   catch (error) { state.lastCompletionError = error.message; return null; }
 };
+state.moveToGuide = () => { state.playerPosition = { ...MAIN2_GUIDE_NPC.position }; };
 state.setAccount = setAccount; state.setDialogue = setDialogue; state.visible = visible;
 state.setLobby = value => { lobbyWorld.active = value; mcmEventUi.update(0); };
 state.setTransition = value => { lobbyTransition.active = value; mcmEventUi.update(0); };

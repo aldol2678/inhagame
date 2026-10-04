@@ -68,3 +68,17 @@ test('reload joins receipt recovery after a transient initial status failure',as
  const client=createQuestClient({enabled:true,endpoint:'/quest',getSession:async()=> 'synthetic',completion:h.flow,statusRetryDelays:[1,3],setTimer:fn=>(timers.push(fn),fn),clearTimer:fn=>{const i=timers.indexOf(fn);if(i>=0)timers.splice(i,1);},onReward:r=>h.flow.accept(r),fetcher:async(_url,opts)=>{const {event}=JSON.parse(opts.body);calls.push(event);if(event==='status'&&++statusReads===1)throw Error('offline');return {ok:true,json:async()=>({quest_id:QUEST_ID,stage:5,...(event==='talk_001'?{rewardReceipt:{...reward,replayed:true}}:{})})};}});
  await client.setSignedIn(true);assert.equal(timers.length,1);timers.shift()();for(let i=0;i<20;i++)await Promise.resolve();assert.deepEqual(calls,['status','status','talk_001']);assert.deepEqual(h.events,['firstReward']);assert.equal(timers.length,0);
 });
+
+test('DOM visibility rejects clipped or offscreen CTA until its full usable surface is shown',()=>{
+ const rect=(left,top,width,height)=>({left,top,width,height,right:left+width,bottom:top+height});
+ const doc={visibilityState:'visible',defaultView:{innerWidth:844,innerHeight:390,getComputedStyle:node=>({display:'block',visibility:'visible',opacity:'1',overflowX:'visible',overflowY:'visible',...node.style})}};
+ const parent={ownerDocument:doc,parentElement:null,style:{overflowX:'hidden',overflowY:'hidden'},getBoundingClientRect:()=>rect(622,154,210,80)};
+ const el={ownerDocument:doc,isConnected:true,parentElement:parent,getClientRects:()=>[rect(831,155,29,55)]};
+ assert.equal(isElementVisible(el),false,'a clipped 1px sliver is not a usable next-goal button');
+ el.getClientRects=()=>[rect(820,155,20,32)];
+ assert.equal(isElementVisible(el),false,'ancestor clipping still matters when the button fits the viewport');
+ el.getClientRects=()=>[rect(790,195,36,32)];
+ assert.equal(isElementVisible(el),true,'fully contained button is visible');
+ parent.style={overflowX:'visible',overflowY:'visible'};el.getClientRects=()=>[rect(831,155,29,55)];
+ assert.equal(isElementVisible(el),false,'viewport clipping cannot prove display');
+});

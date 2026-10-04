@@ -88,7 +88,7 @@ try {
     const { chromium } = await import('playwright');
     browser = await chromium.launch({ headless: true, ...(process.env.WORLD_SMOKE_EXECUTABLE ? { executablePath: process.env.WORLD_SMOKE_EXECUTABLE } : {}) });
     result.browserVersion = browser.version();
-    for (const viewport of [{ width: 1280, height: 800 }, { width: 390, height: 844 }, { width: 844, height: 390 }]) {
+    for (const viewport of [{ width: 1280, height: 800 }, { width: 390, height: 844 }, { width: 844, height: 390 }, { width: 740, height: 360 }]) {
       const account = `fresh-${viewport.width}`;
       fixture.seed(account, { holdProgression: true });
       const { page, context } = await open(account, { viewport, ...(viewport.width < 960 ? { isMobile: true, hasTouch: true, deviceScaleFactor: 1 } : {}) });
@@ -104,11 +104,17 @@ try {
       await until(() => fixture.holds.has(`progression:${account}`), 'reward readback held');
       fixture.get(account).holdProgression = false; fixture.release(`progression:${account}`);
       await seen(page, 'core15_complete');
+      if (viewport.height === 360) await page.evaluate(() => {
+        for (const id of ['context-action', 'transport-action']) document.getElementById(id).hidden = false;
+        fixture.moveToGuide();
+      });
+      if (viewport.height === 360) await page.waitForFunction(() => document.getElementById('quest-hud-bearing').textContent.includes('상호작용으로 대화'));
       const layout = await page.evaluate(() => {
         const rect = selector => { const node = document.querySelector(selector), r = node.getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, height: r.height }; };
         const pill = document.getElementById('progression-hud');
         const growthSelector = getComputedStyle(pill).display === 'none' ? '#progression-badge' : '#progression-hud';
         const surfaces = { reward: rect('.mcm26-toast'), growth: rect(growthSelector), quest: rect('#quest-hud'), cta: rect('#next-discovery-primary'), minimap: rect('#minimap') };
+        if (innerHeight === 360) { surfaces.context = rect('#context-action'); surfaces.transport = rect('#transport-action'); surfaces.bearing = rect('#quest-hud-bearing'); }
         return { viewport: { width: innerWidth, height: innerHeight }, level: document.querySelector(growthSelector).textContent, surfaces };
       });
       assert.match(layout.level, /Lv\.2/);
@@ -117,6 +123,8 @@ try {
       assert.ok(cta.left >= questBox.left && cta.right <= questBox.right && cta.top >= questBox.top && cta.bottom <= questBox.bottom, 'CTA inside Quest HUD');
       const overlaps = (a, b) => a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
       assert.ok(!overlaps(questBox, minimap) && !overlaps(rewardBox, growth) && !overlaps(rewardBox, cta), 'essential UI surfaces are separately readable');
+      if (layout.surfaces.context) assert.ok(!overlaps(cta, layout.surfaces.context) && !overlaps(cta, layout.surfaces.transport), 'short-landscape CTA is not covered by active world controls');
+      if (layout.surfaces.bearing) assert.ok(!overlaps(cta, layout.surfaces.bearing), 'real nearby-NPC bearing remains separate from the CTA');
       await capture(page, `core15-reward-growth-next-${viewport.width}x${viewport.height}`);
       await page.getByRole('button', { name: '후문 안내 학생까지 길 안내', exact: true }).click();
       await seen(page, 'next_discovery_click');
@@ -225,6 +233,21 @@ try {
       await notSeen(page, 'next_goal_seen', 'core15_complete');
       await page.evaluate(() => { document.getElementById('next-discovery').style.visibility = ''; }); await seen(page, 'core15_complete');
       record('actual-css-hidden-surfaces-gate-each-milestone'); await context.close();
+    }
+    {
+      fixture.seed('clipped-cta'); const { page, context } = await open('clipped-cta');
+      await page.evaluate(() => { Object.assign(document.getElementById('next-discovery').style, { width: '1px', maxWidth: '1px', padding: '0', overflow: 'hidden' }); });
+      await complete(page); await seen(page, 'growth_seen');
+      const clipping = await page.evaluate(() => {
+        const parent = document.getElementById('next-discovery').getBoundingClientRect();
+        const button = document.getElementById('next-discovery-primary').getBoundingClientRect();
+        return { ancestorRight: parent.right, buttonRight: button.right, viewportRight: innerWidth };
+      });
+      assert.ok(clipping.buttonRight > clipping.ancestorRight && clipping.buttonRight < clipping.viewportRight, 'real overflow clips an otherwise in-viewport CTA');
+      await notSeen(page, 'next_goal_seen', 'core15_complete');
+      await page.evaluate(() => { document.getElementById('next-discovery').removeAttribute('style'); });
+      await seen(page, 'core15_complete');
+      record('ancestor-clipped-cta-never-proves-next-goal', { clipping }); await context.close();
     }
     {
       fixture.seed('lobby'); const { page, context } = await open('lobby');
