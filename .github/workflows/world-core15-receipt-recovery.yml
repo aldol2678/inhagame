@@ -1,0 +1,87 @@
+name: World CORE-15 receipt recovery
+
+on:
+  pull_request:
+    paths:
+      - 'apps/world/npc-factory/quest-client.mjs'
+      - 'apps/world/npc-factory/quest-store.mjs'
+      - 'apps/world/npc-factory/quest-cloud-handler.mjs'
+      - 'apps/world/npc-factory/quest-contract.mjs'
+      - 'apps/world/npc-factory/quest-reward-shape.mjs'
+      - 'apps/world/npc-factory/main2-quest-client.mjs'
+      - 'apps/world/npc-factory/dev-runtime.mjs'
+      - 'apps/world/src/main.js'
+      - 'apps/world/src/core15-funnel-telemetry.js'
+      - 'apps/world/src/next-discovery.js'
+      - 'apps/world/src/quest/**'
+      - 'apps/world/src/progression/**'
+      - 'apps/world/src/input/input-focus-*.js'
+      - 'apps/world/src/hud/hud-context.js'
+      - 'apps/world/src/hud/hud-presentation.js'
+      - 'apps/world/src/navigation/**'
+      - 'apps/world/src/events/zombie-university-2026/event-ui.js'
+      - 'apps/world/campus/index.html'
+      - 'apps/world/styles.css'
+      - 'apps/world/tests/first-campus-*.test.mjs'
+      - 'apps/world/tests/core15-funnel-telemetry.test.mjs'
+      - 'apps/world/tests/browser/core15-receipt-recovery-*.mjs'
+      - 'apps/world/tests/browser/package*.json'
+      - '.github/workflows/world-core15-receipt-recovery.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: world-core15-receipt-recovery-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  core15-receipt-recovery-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+          cache: npm
+          cache-dependency-path: apps/world/tests/browser/package-lock.json
+      - name: Record exact tested head
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+          WORLD_SMOKE_EVIDENCE_DIR: ${{ runner.temp }}/core15-receipt-recovery-evidence
+        run: |
+          set -euo pipefail
+          mkdir -p "$WORLD_SMOKE_EVIDENCE_DIR"
+          git rev-parse HEAD | tee "$WORLD_SMOKE_EVIDENCE_DIR/tested-head.txt"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+      - name: Install locked browser dependencies
+        working-directory: apps/world/tests/browser
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Install Chromium headless shell
+        working-directory: apps/world/tests/browser
+        run: npx --no-install playwright install --with-deps --only-shell chromium
+      - name: Verify receipt and presentation regressions
+        env:
+          WORLD_SMOKE_EVIDENCE_DIR: ${{ runner.temp }}/core15-receipt-recovery-evidence
+        run: |
+          set -euo pipefail
+          node --test apps/world/tests/first-campus-completion.test.mjs apps/world/tests/first-campus-main-presentation.test.mjs apps/world/tests/first-campus-receipt-recovery.test.mjs apps/world/tests/core15-funnel-telemetry.test.mjs | tee "$WORLD_SMOKE_EVIDENCE_DIR/focused-tests.log"
+          node apps/world/tests/browser/core15-receipt-recovery-smoke.mjs --contract | tee "$WORLD_SMOKE_EVIDENCE_DIR/fixture-contract.log"
+      - name: Run isolated Chromium receipt recovery acceptance
+        env:
+          WORLD_SMOKE_EVIDENCE_DIR: ${{ runner.temp }}/core15-receipt-recovery-evidence
+        run: |
+          set -euo pipefail
+          node apps/world/tests/browser/core15-receipt-recovery-smoke.mjs | tee "$WORLD_SMOKE_EVIDENCE_DIR/browser.log"
+      - name: Upload synthetic browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: core15-receipt-recovery-evidence-${{ github.event.pull_request.head.sha }}
+          path: ${{ runner.temp }}/core15-receipt-recovery-evidence/**
+          if-no-files-found: error
+          retention-days: 7

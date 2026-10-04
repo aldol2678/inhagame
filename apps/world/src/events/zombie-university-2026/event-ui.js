@@ -1,3 +1,4 @@
+import { isElementVisible } from "../../quest/first-campus-completion.js";
 import { MCM_2026_EVENT, MCM_2026_EVENT_STATE } from "./event-data.js";
 import { MCM_2026_PHASE, formatMcm2026Countdown, isMcm2026PlayablePhase, mcm2026MsUntilOutbreak } from "./event-phase.js";
 import { rewardExpLine } from "../../progression/reward-exp-line.js";
@@ -72,26 +73,47 @@ export function rewardToastMessage(result){
 export const TOAST_QUEUE_GAP_MS=150;
 export function createToastQueue({element,gapMs=TOAST_QUEUE_GAP_MS,setTimer=setTimeout,clearTimer=clearTimeout,now=()=>Date.now()}={}){
   const pending=[];
-  let phase="idle",timer=null,until=0,destroyed=false;
+  let phase="idle",timer=null,until=0,destroyed=false,current=null;
+  const foreground=()=>element.ownerDocument?.visibilityState!=="hidden";
+  function pauseCurrent(){
+    if(current)pending.unshift(current);
+    current=null;element.hidden=true;
+    if(timer!==null)clearTimer(timer);
+    timer=null;phase="paused";until=0;
+  }
+  function prune(){
+    if(destroyed)return;
+    if(current&&!current.isValid()){if(timer!==null)clearTimer(timer);timer=null;endCurrent();}
+    else if(current&&(!foreground()||!current.canPresent()))pauseCurrent();
+    if(phase==="paused"&&foreground())showNext();
+  }
+  element.ownerDocument?.addEventListener?.("visibilitychange",prune);
   function showNext(){
     timer=null;
-    const next=pending.shift();
+    let next=pending.shift();
+    while(next&&!next.isValid())next=pending.shift();
+    if(next&&(!foreground()||!next.canPresent())){pending.unshift(next);current=null;element.hidden=true;phase="paused";until=0;return;}
+    current=next??null;
     if(!next){phase="idle";until=0;return;}
     phase="showing";element.textContent=next.text;element.hidden=false;until=now()+next.ms;
     try { next.onShow?.(); } catch { /* Presentation observers never block the toast lane. */ }
     timer=setTimer(endCurrent,next.ms);
   }
   function endCurrent(){
-    element.hidden=true;
+    if(current&&current.isValid()&&(!foreground()||!current.canPresent())){pauseCurrent();return;}
+    element.hidden=true;current=null;
     if(!pending.length){timer=null;phase="idle";until=0;return;}
     phase="gap";until=now()+gapMs;timer=setTimer(showNext,gapMs);
   }
   return Object.freeze({
-    say(text,ms,onShow=null){
-      if(destroyed)return;
-      pending.push({text:String(text),ms,onShow:typeof onShow==="function"?onShow:null});
+    say(text,ms,onShow=null,isValid=()=>true,canPresent=()=>true){
+      if(destroyed)return null;
+      const item={text:String(text),ms,onShow:typeof onShow==="function"?onShow:null,isValid,canPresent};
+      pending.push(item);
       if(phase==="idle")showNext();
+      return Object.freeze({isVisible:()=>!destroyed&&current===item&&item.isValid()&&isElementVisible(element)});
     },
+    prune,
     /** Time until the whole lane is idle: the current toast (or gap) plus every queued toast and gap. */
     remainingMs(){
       if(phase==="idle")return 0;
@@ -100,7 +122,7 @@ export function createToastQueue({element,gapMs=TOAST_QUEUE_GAP_MS,setTimer=setT
       return Math.max(1,total);
     },
     get length(){return pending.length+(phase==="showing"?1:0);},
-    destroy(){destroyed=true;if(timer!==null)clearTimer(timer);timer=null;pending.length=0;phase="idle";until=0;element.hidden=true;}
+    destroy(){destroyed=true;element.ownerDocument?.removeEventListener?.("visibilitychange",prune);if(timer!==null)clearTimer(timer);timer=null;pending.length=0;phase="idle";until=0;current=null;element.hidden=true;}
   });
 }
 // A World status raised while the reward toast lane is busy waits until the lane is idle. It re-checks
@@ -204,6 +226,7 @@ export function createMcm2026EventUi({client,getGuidance=()=>"",onOpenChange=()=
   }
   // Phases move with time, not only with server reads: refresh the chip (and an open modal) a few times a second.
   function update(dt){
+    toastQueue.prune();
     clock+=Math.min(dt??0,.25);
     if(clock<.25)return;
     clock=0;renderChip();
@@ -217,12 +240,13 @@ export function createMcm2026EventUi({client,getGuidance=()=>"",onOpenChange=()=
     return true;
   }
   const toastQueue=createToastQueue({element:toast});
-  function say(message,ms=3200,onShow=null){toastQueue.say(message,ms,onShow);}
+  function say(message,ms=3200,onShow=null,isValid=()=>true,canPresent=()=>true){return toastQueue.say(message,ms,onShow,isValid,canPresent);}
   // Lets the World status line wait until the whole reward toast lane (current + queued) is idle (P1a/P1c0).
   function toastRemainingMs(){return toastQueue.remainingMs();}
-  function showReward(result,{onShown=null}={}){
+  function showReward(result,{onShown=null,isValid=()=>true,canPresent=()=>true}={}){
     const message=rewardToastMessage(result);
-    if(message)say(message.text,message.ms,onShown);
+    if(message)return say(message.text,message.ms,onShown,isValid,canPresent);
+    return null;
   }
   chip.addEventListener("click",openInfo);modal.querySelector(".mcm26-close").addEventListener("click",close);
   modal.addEventListener("pointerdown",event=>{if(event.target===modal)close();});
@@ -230,6 +254,7 @@ export function createMcm2026EventUi({client,getGuidance=()=>"",onOpenChange=()=
   render();
   return Object.freeze({
     openInfo,close,render,update,say,showReward,toastRemainingMs,
+    invalidateRewardPresentation:()=>toastQueue.prune(),
     get openState(){return open;},
     destroy(){close();off?.();toastQueue.destroy();chip.remove();modal.remove();toast.remove();}
   });

@@ -125,20 +125,21 @@ test("7. main.js wires onQuestReward to the existing toast lane and re-reads aut
   assert.match(runtime, /onReward: onQuestReward/);
   const block = main.slice(main.indexOf("onQuestReward:"), main.indexOf("getAiSession:", main.indexOf("onQuestReward:")));
   assert.match(block, /mcmEventUi\.showReward\(/);
-  assert.match(block, /progression\.refresh\(freshFirstCampusReward \? "core15-first-campus-reward" : "reward"\)/);
+  assert.match(block, /progression\.refresh\(receipt \? "core15-first-campus-reward" : "reward"\)/);
   // P1d: each authority is re-read only when a server entry touched it (First Campus has no CURRENCY).
   assert.match(block, /grantType === "ITEM"\)\) void inventory\.refresh\("reward"\)/);
   assert.match(block, /grantType === "CURRENCY"\)\) void wallet\.refresh\("reward"\)/);
-  assert.match(block, /firstCampusReward[\s\S]*?core15Funnel\?\.firstReward\(\)[\s\S]*?mcmEventUi\.showReward\([\s\S]*?freshFirstCampusReward[\s\S]*?core15Funnel\?\.rewardSeen\(\)/,
-    "First Campus reward receipt and visible reward are distinct funnel milestones");
+  assert.match(block, /firstCampusCompletion\.accept\(reward\)/);
+  assert.match(block, /firstCampusCompletion\.trackToast\(receipt, toast\)/,
+    "validated receipt is paired with its actual visible toast handle");
   assert.match(block, /freshFirstCampusReward[\s\S]*?core15Funnel\?\.coreLoopComplete\(\)/,
     "legacy core_loop_complete remains tied to fresh reward settlement");
   assert.doesNotMatch(block, /core15Funnel\?\.core15Complete\(/,
     "gameplay never directly asserts Product CORE-15 completion");
   assert.doesNotMatch(block, /offerFirstCampusReward/,
     "reward presentation does not own the persistent next-action HUD");
-  assert.match(main, /onQuestStateChange: progress => \{[\s\S]*?nextDiscovery\?\.syncProgress\(progress\)[\s\S]*?nextGoalSeen\(\)/,
-    "account-scoped quest status owns next-action visibility and next-goal observation");
+  assert.match(main, /firstCampusCompletion\.observe\(\{[\s\S]*?nextDiscovery\?\.status\(\)\?\.id === "main2_back_gate_guide"[\s\S]*?isElementVisible/,
+    "authoritative next activity must also be visible before it counts");
   assert.match(main, /campusNavigation\?\.poiTarget\(\{[\s\S]*?poiId: "core15\.main2-guide"[\s\S]*?x: MAIN2_GUIDE_NPC\.position\.x,[\s\S]*?z: MAIN2_GUIDE_NPC\.position\.z[\s\S]*?\}, CAMPUS_NAV_SPACE\)/,
     "next discovery derives its route from the existing Main 2 guide and Campus Navigation authorities");
   assert.doesNotMatch(block, /rpc\(|world_reward_grant|\+ *1[08]0|level|balance/i,

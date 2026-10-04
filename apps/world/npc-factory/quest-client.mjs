@@ -13,10 +13,11 @@ const pond = { x: POND_RING.reduce((sum, point) => sum + point.x, 0) / POND_RING
 // CORE-15: a failed status read is retried on statusRetryDelays (same lane as Main 2), and the
 // quest can be switched on after the runtime is built (setEnabled) when its flag resolves late.
 export function createQuestClient({ enabled, endpoint, getSession, getNpcPosition = () => null, hud, tour, fetcher = fetch,
-  onReward = () => {}, setTimer = setTimeout, clearTimer = clearTimeout, statusRetryDelays = [1000, 3000, 8000] }) {
+  onReward = () => {}, completion = null, setTimer = setTimeout, clearTimer = clearTimeout, statusRetryDelays = [1000, 3000, 8000] }) {
   let signedIn = false, stage = 0, generation = 0, pending = null, retryAfter = 0;
   let statusReady = false;
   let statusRetryTimer = null, statusRetryAttempt = 0, statusRecovering = false;
+  let completionTimer = null, completionAttempt = 0;
   const listeners = new Set();
   const objective = hud?.querySelector('#npc-quest-objective');
   function clearStatusRetry() {
@@ -34,9 +35,25 @@ export function createQuestClient({ enabled, endpoint, getSession, getNpcPositio
     statusRetryTimer = setTimer(() => {
       statusRetryTimer = null;
       if (!signedIn || requestGeneration !== generation) return;
-      void send('status').catch(() => {});
+      void readStatusAndRecover();
     }, delay);
     return true;
+  }
+  function clearCompletionRetry() {
+    if (completionTimer !== null) clearTimer(completionTimer);
+    completionTimer = null;
+    completionAttempt = 0;
+  }
+  function scheduleCompletionRetry(scope) {
+    if (!completion?.needsRecovery() || !enabled || !signedIn || scope !== generation || completionTimer !== null) return;
+    const delay = statusRetryDelays[completionAttempt];
+    if (!Number.isFinite(delay) || delay < 0) return;
+    completionAttempt++;
+    completionTimer = setTimer(async () => {
+      completionTimer = null;
+      if (scope !== generation || !completion?.needsRecovery()) return;
+      await send('talk_001').catch(() => null);
+    }, delay);
   }
   function publish() {
     const visible = enabled && signedIn && statusReady && stage >= 0 && stage < 5;
@@ -50,6 +67,7 @@ export function createQuestClient({ enabled, endpoint, getSession, getNpcPositio
     const claim = {};
     pending = claim;
     const requestGeneration = generation;
+    if (event === 'talk_001' && stage === 4) completion?.begin();
     try {
       const token = await getSession();
       if (!token || requestGeneration !== generation) return null;
@@ -75,12 +93,16 @@ export function createQuestClient({ enabled, endpoint, getSession, getNpcPositio
       retryAfter = 0;
       clearStatusRetry();
       publish();
+      if (requestGeneration !== generation) return null;
       const presentation = reward ?? receipt;
       if (presentation) {
         try { onReward(presentation); } catch { /* presentation only; progress already stored */ }
       }
+      if (presentation) clearCompletionRetry();
+      else if (event === 'talk_001') scheduleCompletionRetry(requestGeneration);
       return result;
     } catch (error) {
+      if (event === 'talk_001') scheduleCompletionRetry(requestGeneration);
       if (event === 'status' && requestGeneration === generation && signedIn && !statusReady) {
         scheduleStatusRetry(requestGeneration);
         publish();
@@ -91,13 +113,24 @@ export function createQuestClient({ enabled, endpoint, getSession, getNpcPositio
   function setSignedIn(value) {
     generation++;
     clearStatusRetry();
+    clearCompletionRetry();
     pending = null;
     signedIn = Boolean(value);
     stage = 0;
     statusReady = false;
     publish();
     if (!signedIn || !enabled) return Promise.resolve(null);
-    return send('status').catch(() => null);
+    return readStatusAndRecover();
+  }
+  function readStatusAndRecover() {
+    const scope = generation;
+    return send('status').catch(() => null).then(result => {
+      // Reload after an interrupted final talk: re-read the existing receipt, never grant locally.
+      // Ordinary completed accounts have no pending intent and make only the status read.
+      if (scope === generation && result?.stage === 5 && completion?.needsRecovery())
+        return send('talk_001').catch(() => result);
+      return result;
+    });
   }
   return {
     get stage() { return stage; },
