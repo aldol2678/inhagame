@@ -36,7 +36,7 @@ select is(
 select results_eq($$select item_id, status from private.world_item_catalog
   where item_id in ('head.inha_cap', 'head.inkyung_duck', 'top.inha_basic', 'back.freshman_bag', 'badge.main_gate', 'emote.wave_plus')
   order by item_id$$,
-  $$values ('back.freshman_bag'::text, 'ACTIVE'::text), ('badge.main_gate', 'COMING_SOON'), ('emote.wave_plus', 'COMING_SOON'),
+  $$values ('back.freshman_bag'::text, 'ACTIVE'::text), ('badge.main_gate', 'ACTIVE'), ('emote.wave_plus', 'COMING_SOON'),
            ('head.inha_cap', 'ACTIVE'), ('head.inkyung_duck', 'COMING_SOON'), ('top.inha_basic', 'ACTIVE')$$,
   'pilot fixtures are kept with their C0 statuses');
 select results_eq($$select item_id, category, ownership_policy, max_stack, status
@@ -165,7 +165,7 @@ select results_eq($$
     ('furniture.campus_map_poster', 1, 'SHOP', 'shop.campus.basic', null, 'COMING_SOON', null),
     ('furniture.induck_cushion', 1, 'SHOP', 'shop.dorm.furniture', null, 'COMING_SOON', null),
     ('furniture.mcm_2026_poster', 1, 'EVENT', 'event.mcm_2026:complete', 'event.mcm_2026', 'COMING_SOON', null),
-    ('head.induck_cap', 1, 'SHOP', 'shop.campus.basic', null, 'COMING_SOON', null),
+    ('head.induck_cap', 1, 'SHOP', 'shop.campus.basic', null, 'ACTIVE', null),
     ('top.induck_hoodie', 1, 'SHOP', 'shop.campus.basic', null, 'COMING_SOON', null),
     ('top.mcm_2026_survivor', 1, 'EVENT', 'quest.mcm_2026_core', 'event.mcm_2026', 'COMING_SOON', null)$$,
   'every owned item keeps quantity 1 and its first-acquisition provenance');

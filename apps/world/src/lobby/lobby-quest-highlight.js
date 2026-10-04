@@ -8,11 +8,11 @@ export const LOBBY_QUEST_SOURCE = Object.freeze({
   WORLD_QUEST_AVAILABLE: "WORLD_QUEST_AVAILABLE"
 });
 
-export function selectLobbyQuest({ tourStage = 0, quest = null } = {}) {
+export function selectLobbyQuest({ tourStage = 0, quest = null, accountSignedIn = false } = {}) {
   const main1 = quest?.quest ?? quest;
   const main2 = quest?.main2Quest ?? null;
   const stage = Number.isInteger(main1?.stage) ? main1.stage : 0;
-  const signedIn = main1?.signedIn === true || main2?.signedIn === true;
+  const signedIn = accountSignedIn === true || main1?.signedIn === true || main2?.signedIn === true;
   const questUsable = main1?.enabled === true && main1?.signedIn === true && main1?.ready !== false;
 
   if (questUsable && stage > 0 && stage < 5) {
@@ -77,7 +77,8 @@ export function createLobbyQuestHighlight({
   progressElement,
   ctaElement = globalThis.document?.querySelector?.("#main-gate-start .world-lobby-card-action") ?? null,
   getTourStage = () => 0,
-  getQuest = () => null
+  getQuest = () => null,
+  getSignedIn = () => false
 } = {}) {
   let current = null;
   let lastKey = null;
@@ -86,11 +87,13 @@ export function createLobbyQuestHighlight({
   const update = () => {
     let tourStage = TOUR_STOPS.length;
     let questState = null;
+    let accountSignedIn = false;
     let readDegraded = false;
     try { tourStage = getTourStage?.(); } catch { readDegraded = true; }
     try { questState = getQuest?.(); } catch { readDegraded = true; }
+    try { accountSignedIn = getSignedIn?.() === true; } catch { readDegraded = true; }
     degraded = readDegraded;
-    const next = selectLobbyQuest({ tourStage, quest: questState });
+    const next = selectLobbyQuest({ tourStage, quest: questState, accountSignedIn });
     const key = JSON.stringify(next);
     if (key === lastKey) return current;
     lastKey = key;

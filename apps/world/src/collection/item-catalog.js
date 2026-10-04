@@ -63,7 +63,7 @@ export const ITEM_CATALOG = Object.freeze([
   item('back.freshman_bag', '새내기 가방', '새 학기의 설렘을 담은 가방.',
     wear('BACK', { rarity: 'COMMON', status: 'ACTIVE', acquisition: [{ source: 'DEFAULT' }], tags: ['starter'], introducedVersion: 'c0.v1' })),
   item('badge.main_gate', '정문 첫걸음 배지', '정문에서 캠퍼스 탐방을 시작한 기록.',
-    badge({ rarity: 'UNCOMMON', acquisition: [{ source: 'QUEST', ref: 'quest.first_campus' }], introducedVersion: 'c0.v1' })),
+    badge({ rarity: 'UNCOMMON', status: 'ACTIVE', acquisition: [{ source: 'QUEST', ref: 'quest.first_campus' }], introducedVersion: 'c0.v1' })),
   item('emote.wave_plus', '씩씩한 인사', '평소보다 힘찬 인사 감정표현.',
     { category: 'EMOTE', rarity: 'UNCOMMON', acquisition: [{ source: 'QUEST' }], introducedVersion: 'c0.v1' }),
 
@@ -72,7 +72,7 @@ export const ITEM_CATALOG = Object.freeze([
     wear('TOP', { rarity: 'COMMON', acquisition: [{ source: 'SHOP' }], tags: ['campus', 'vs_economy'], introducedVersion: 'c0.v2',
       modelAssetId: 'equipment.top.induck_hoodie.v1' })),
   item('head.induck_cap', '인덕 캠퍼스 캡', '캠퍼스 산책에 어울리는 인덕이 캡.',
-    wear('HEAD', { rarity: 'COMMON', acquisition: [{ source: 'SHOP' }], tags: ['campus', 'vs_economy'], introducedVersion: 'c0.v2',
+    wear('HEAD', { rarity: 'COMMON', status: 'ACTIVE', acquisition: [{ source: 'SHOP' }], tags: ['campus', 'vs_economy'], introducedVersion: 'c0.v2',
       modelAssetId: 'equipment.head.induck_cap.v1' })),
   item('back.induck_backpack', '인덕 백팩', '수업 자료를 넉넉히 담는 인덕이 백팩.',
     wear('BACK', { rarity: 'UNCOMMON', acquisition: [{ source: 'SHOP' }], tags: ['campus'], introducedVersion: 'c0.v2',
