@@ -8,6 +8,7 @@ import { createHumanAvatar } from './dev-human-avatar.mjs';
 import { npcNameplateOffset, npcSeatAnchorHeight } from './npc-dimensions.mjs';
 import { createNpcNavigator, advanceRoute } from './dev-navigation.mjs';
 import { createNpcMemory, createEncounterTracker } from './dev-memory.mjs';
+import { NPC_DIALOGUE_ACTION, NPC_DIALOGUE_STATE, createNpcDialogueSession, hasNpcDialogueMemory, npcDialogueHomeActions, npcTopicLabel } from './npc-dialogue-session.mjs';
 import { createNpcSocialNg1Model, mountNpcSocialNg1Panel } from './npc-social-ng1.mjs';
 import { createPersistentNpcSocialGraph } from './npc-social-graph.mjs';
 import { createNpcSocialGroupFeasibility } from './npc-social-group-feasibility.mjs';
@@ -40,11 +41,6 @@ const walking = new Set(['walk', 'walk_to_class', 'walk_to_club', 'leave_zone'])
 const roaming = new Set([...walking, 'idle', 'wait']);
 const hairLabels = { long: '긴 머리', bob: '단발', ponytail: '묶은 머리', bun: '올림머리', short: '짧은 머리', sidepart: '옆가르마', curly: '곱슬머리', medium: '중간 길이 머리' };
 const accessoryLabels = { sketchbook: '스케치북', glasses: '안경', apron: '앞치마', badge: '명찰', backpack: '배낭', headphones: '헤드폰', book: '책', messenger: '크로스백', scarf: '목도리' };
-const topicLabels = { architecture: '건축', birdwatching: '새 관찰', coding: '코딩', cooking: '요리', cycling: '자전거', design: '디자인', film: '영화', music: '음악', photography: '사진', plants: '식물', reading: '독서', sketching: '스케치', walking: '산책' };
-const withAnd = name => {
-  const last = name.charCodeAt(name.length - 1);
-  return `${name}${last >= 0xac00 && last <= 0xd7a3 && (last - 0xac00) % 28 ? '과' : '와'}`;
-};
 function addPanel(production = false, externalContextAction = false) {
   const style = document.createElement('style');
   style.textContent = `
@@ -126,7 +122,7 @@ function addPanel(production = false, externalContextAction = false) {
       </div>
       <p id="npc-test-player-line" hidden></p>
       <p id="npc-test-line" aria-live="polite"></p>
-      <p id="npc-ai-login-hint" class="minor" hidden>로그인하면 나나율·가유담과 AI 대화를 할 수 있어요.</p>
+      <p id="npc-ai-login-hint" class="minor" hidden>로그인하면 더 다양한 대화를 이어갈 수 있어요.</p>
       <div id="npc-test-choices" class="row" aria-label="대답 선택"></div>
     </section>
   ` : developmentContent;
@@ -225,7 +221,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
   const aiLoginHint = panel.querySelector('#npc-ai-login-hint');
   const socialProfile = panel.querySelector('#npc-social-profile');
   let elapsed = 0, running = true, snapshot = first, selectedId = first.actors[0].id, uiClock = 0;
-  let activeConversation = null, aiSignedIn = false, conversationAiUsed = false;
+  let activeConversation = null, dialogueSession = null, aiSignedIn = false, conversationAiUsed = false;
   let socialPreviewFastForward = false;
   let socialNg1 = null, socialNg1Panel = null, socialNg15Bridge = null;
   let main2Guide = null;
@@ -340,9 +336,9 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
     for (const [id, label] of nameplates) {
       const actor = first.actors.find(item => item.id === id);
       const ai = aiEnabled(id);
-      label.textContent = `${ai ? '✦ AI · ' : ''}${production ? actor.name : `${id.slice(-3)} · ${actor.name}`}`;
+      label.textContent = production ? actor.name : `${ai ? '✦ AI · ' : ''}${id.slice(-3)} · ${actor.name}`;
       label.dataset.status = '';
-      label.classList.toggle('npc-ai-tag', ai);
+      label.classList.toggle('npc-ai-tag', !production && ai);
     }
     if (!aiSignedIn) {
       pendingPilotAction = null;
@@ -425,6 +421,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
   }
   function closeConversation(applyAction = true, { sync = true } = {}) {
     activeConversation = null;
+    dialogueSession = null;
     conversation.hidden = true;
     if (sync) syncConversationLifecycle();
     pilotConversationRequest++;
@@ -440,6 +437,259 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
       panel.hidden = externalContextAction ? true : !(interactionTarget()?.distance <= NPC_TALK_RADIUS);
     }
   }
+
+  function activeDialogueActor() {
+    return activeConversation ? snapshot.actors.find(item => item.id === activeConversation.id) ?? null : null;
+  }
+
+  function setPlayerDialogueLine(text = null) {
+    if (!production || !playerLine) return;
+    playerLine.textContent = text ?? '';
+    playerLine.hidden = !text;
+  }
+
+  function addDialogueChoice(label, onClick, { className = '' } = {}) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    if (className) button.className = className;
+    button.textContent = label;
+    button.addEventListener('click', onClick);
+    choices.appendChild(button);
+    return button;
+  }
+
+  function dialoguePriorityAvailable(actorId) {
+    return Boolean(quest.eventForNpc(actorId) || sideEvent?.npcChoice?.(actorId));
+  }
+
+  function homeGreeting(actor) {
+    const before = activeConversation?.memoryBefore ?? memory.read(actor.id);
+    const newEncounter = activeConversation?.newEncounter === true;
+    const relationshipContext = socialNg1?.relationshipLine(actor.id) ?? '';
+    const greeting = !newEncounter ? `계속 이야기해요. ${actor.dialogue[0]}` : before.encounters
+      ? `또 만났네요. ${before.topic ? `지난번 ${npcTopicLabel(before.topic)} 이야기를 기억해요. ` : ''}${actor.dialogue[0]}`
+      : `처음 뵙네요. ${actor.dialogue[0]}`;
+    return relationshipContext ? `${greeting} ${relationshipContext}` : greeting;
+  }
+
+  function showDialogueHome({ keepLine = false } = {}) {
+    const actor = activeDialogueActor();
+    if (!actor || !dialogueSession) return;
+    pilotConversationRequest++;
+    dialogueSession.home();
+    setPlayerDialogueLine(null);
+    if (!keepLine) line.textContent = homeGreeting(actor);
+    choices.replaceChildren();
+    const remembered = activeConversation?.memoryBefore ?? memory.read(actor.id);
+    const actions = npcDialogueHomeActions({
+      hasPriority: dialoguePriorityAvailable(actor.id),
+      hasMemory: hasNpcDialogueMemory(remembered)
+    });
+    for (const action of actions) {
+      if (action === NPC_DIALOGUE_ACTION.QUEST) {
+        addDialogueChoice('📌 부탁·이벤트', () => {
+          dialogueSession.go(NPC_DIALOGUE_STATE.QUEST);
+          renderDialogueState();
+        }, { className: 'npc-quest-choice' });
+      } else if (action === NPC_DIALOGUE_ACTION.STATUS) {
+        addDialogueChoice('근황 묻기', () => {
+          dialogueSession.go(NPC_DIALOGUE_STATE.STATUS);
+          renderDialogueState();
+        });
+      } else if (action === NPC_DIALOGUE_ACTION.TOPICS) {
+        addDialogueChoice('관심사 이야기', () => {
+          dialogueSession.go(NPC_DIALOGUE_STATE.TOPICS);
+          renderDialogueState();
+        });
+      } else if (action === NPC_DIALOGUE_ACTION.MEMORY) {
+        addDialogueChoice('지난번 이야기', () => {
+          dialogueSession.go(NPC_DIALOGUE_STATE.MEMORY);
+          renderDialogueState();
+        });
+      } else if (action === NPC_DIALOGUE_ACTION.CLOSE) {
+        addDialogueChoice('대화 마치기', () => closeConversation());
+      }
+    }
+  }
+
+  function renderStatusDialogue(actor) {
+    setPlayerDialogueLine('요즘 어떻게 지내요?');
+    line.textContent = actor.dialogue[1] ?? actor.dialogue[0];
+    choices.replaceChildren();
+    if (aiEnabled(actor.id)) {
+      addDialogueChoice('함께 할 거리 물어보기', () => requestSocialSuggestion(actor));
+    }
+    addDialogueChoice('처음으로', () => showDialogueHome());
+    addDialogueChoice('대화 마치기', () => closeConversation());
+  }
+
+  function requestSocialSuggestion(actor) {
+    if (pilotInFlight.has(actor.id)) return;
+    const fallback = actor.id === MAIN_NPC_ID
+      ? '친구와 인경호 동쪽 벤치에서 잠깐 쉬어 봐요.'
+      : '친구와 인경호 사진 지점에서 사진 한 장 남겨 봐요.';
+    pendingPilotAction = null;
+    const requestId = ++pilotConversationRequest;
+    setPlayerDialogueLine('친구와 함께 할 만한 일이 있을까요?');
+    choices.replaceChildren();
+    addDialogueChoice('처음으로', () => showDialogueHome());
+    addDialogueChoice('대화 마치기', () => closeConversation());
+    if (conversationAiUsed) { line.textContent = fallback; return; }
+    line.textContent = '잠시 생각 중…';
+    requestPilot(actor.id, null, 'social').then(result => {
+      if (activeConversation?.id !== actor.id || requestId !== pilotConversationRequest) return;
+      line.textContent = result?.line ?? fallback;
+      if (result && aiEnabled(actor.id)) pendingPilotAction = { id: actor.id, action: result.action };
+    }).catch(() => {
+      if (activeConversation?.id === actor.id && requestId === pilotConversationRequest) line.textContent = fallback;
+    });
+  }
+
+  function renderTopicMenu(actor) {
+    setPlayerDialogueLine(null);
+    line.textContent = '어떤 이야기를 나눌까요?';
+    choices.replaceChildren();
+    for (const topic of (npcById.get(actor.id)?.interests ?? []).slice(0, 3)) {
+      addDialogueChoice(npcTopicLabel(topic), () => beginTopicDialogue(actor, topic));
+    }
+    addDialogueChoice('← 처음으로', () => showDialogueHome());
+    addDialogueChoice('대화 마치기', () => closeConversation());
+  }
+
+  function renderTopicResponseChoices(actor, topic, { allowFollowUp = false } = {}) {
+    choices.replaceChildren();
+    if (allowFollowUp && aiEnabled(actor.id)) {
+      addDialogueChoice('조금 더 물어보기', () => requestTopicFollowUp(actor, topic), { className: 'npc-ai-follow-up' });
+    }
+    addDialogueChoice('다른 관심사', () => {
+      dialogueSession.go(NPC_DIALOGUE_STATE.TOPICS);
+      renderDialogueState();
+    });
+    addDialogueChoice('처음으로', () => showDialogueHome());
+    addDialogueChoice('대화 마치기', () => closeConversation());
+  }
+
+  function beginTopicDialogue(actor, topic) {
+    if (pilotInFlight.has(actor.id)) return;
+    dialogueSession.go(NPC_DIALOGUE_STATE.TOPIC_RESPONSE, { selectedTopic: topic });
+    pendingPilotAction = null;
+    const requestId = ++pilotConversationRequest;
+    memory.rememberTopic(actor.id, topic);
+    setPlayerDialogueLine(`${npcTopicLabel(topic)} 이야기를 해요.`);
+    choices.replaceChildren();
+    if (aiEnabled(actor.id) && !conversationAiUsed) {
+      conversationAiUsed = true;
+      line.textContent = '잠시 생각 중…';
+      requestPilot(actor.id, topic).then(result => {
+        if (activeConversation?.id !== actor.id || requestId !== pilotConversationRequest) return;
+        if (!result) line.textContent = `${npcTopicLabel(topic)} 이야기는 저도 좋아해요. ${actor.dialogue[0]}`;
+        else {
+          line.textContent = result.line;
+          pendingPilotAction = { id: actor.id, action: result.action };
+          pilotTopics.set(actor.id, topic);
+        }
+        renderTopicResponseChoices(actor, topic, { allowFollowUp: Boolean(result) });
+      }).catch(() => {
+        if (activeConversation?.id !== actor.id || requestId !== pilotConversationRequest) return;
+        line.textContent = `${npcTopicLabel(topic)} 이야기는 저도 좋아해요. ${actor.dialogue[0]}`;
+        renderTopicResponseChoices(actor, topic);
+      });
+    } else {
+      line.textContent = `${npcTopicLabel(topic)} 이야기는 저도 좋아해요. ${actor.dialogue[0]}`;
+      renderTopicResponseChoices(actor, topic);
+    }
+    if (memoryStatus) memoryStatus.textContent = memoryScopeText();
+  }
+
+  function requestTopicFollowUp(actor, topic) {
+    if (pilotInFlight.has(actor.id) || !aiEnabled(actor.id)) return;
+    const requestId = ++pilotConversationRequest;
+    setPlayerDialogueLine(`${npcTopicLabel(topic)} 이야기를 조금 더 들려주세요.`);
+    line.textContent = '잠시 생각 중…';
+    choices.replaceChildren();
+    requestPilot(actor.id, topic, 'topic', true).then(result => {
+      if (activeConversation?.id !== actor.id || requestId !== pilotConversationRequest) return;
+      line.textContent = result?.line ?? `${npcTopicLabel(topic)} 이야기는 다음에 이어가요.`;
+      if (result) pendingPilotAction = { id: actor.id, action: result.action };
+      renderTopicResponseChoices(actor, topic, { allowFollowUp: false });
+    }).catch(() => {
+      if (activeConversation?.id !== actor.id || requestId !== pilotConversationRequest) return;
+      line.textContent = `${npcTopicLabel(topic)} 이야기는 다음에 이어가요.`;
+      renderTopicResponseChoices(actor, topic, { allowFollowUp: false });
+    });
+  }
+
+  function renderMemoryDialogue(actor) {
+    const remembered = memory.read(actor.id);
+    setPlayerDialogueLine('전에 무슨 얘기 했었죠?');
+    line.textContent = remembered.topic
+      ? `지난번에는 ${npcTopicLabel(remembered.topic)} 이야기를 했었죠. ${actor.dialogue[0]}`
+      : `전에 인사한 적 있죠. ${actor.dialogue[0]}`;
+    choices.replaceChildren();
+    addDialogueChoice('처음으로', () => showDialogueHome());
+    addDialogueChoice('대화 마치기', () => closeConversation());
+  }
+
+  function questChoiceLabel(event) {
+    return event === 'start' ? '첫 탐방 시작' :
+      event === 'talk_002' ? '가유담의 부탁 듣기' : '탐방 마쳤다고 알리기';
+  }
+
+  function renderQuestMenu(actor, { keepLine = false } = {}) {
+    if (!keepLine) {
+      setPlayerDialogueLine(null);
+      line.textContent = '지금 이어갈 이야기를 골라 주세요.';
+    }
+    choices.replaceChildren();
+    const actorId = actor.id;
+    const event = quest.eventForNpc(actorId);
+    if (event) {
+      const button = addDialogueChoice(questChoiceLabel(event), async () => {
+        button.disabled = true;
+        line.textContent = '진행 상태 확인 중…';
+        setPlayerDialogueLine(button.textContent);
+        try {
+          const result = await quest.advanceNpc(actorId);
+          if (activeConversation?.id === actorId &&
+              dialogueSession?.snapshot().state === NPC_DIALOGUE_STATE.QUEST)
+            line.textContent = result?.line ?? '로그인 상태를 확인한 뒤 다시 시도해 주세요.';
+        } catch {
+          if (activeConversation?.id === actorId &&
+              dialogueSession?.snapshot().state === NPC_DIALOGUE_STATE.QUEST)
+            line.textContent = '지금은 진행 상태를 저장하지 못했어요. 다시 시도해 주세요.';
+        } finally {
+          if (activeConversation?.id === actorId && dialogueSession?.snapshot().state === NPC_DIALOGUE_STATE.QUEST)
+            renderQuestMenu(actor, { keepLine: true });
+        }
+      }, { className: 'npc-quest-choice' });
+    }
+    const sideChoice = sideEvent?.npcChoice?.(actorId);
+    if (sideChoice) {
+      addDialogueChoice(sideChoice.label, () => {
+        setPlayerDialogueLine(sideChoice.label);
+        const result = sideEvent.advanceNpc?.(actorId, sideChoice.id);
+        if (activeConversation?.id === actorId) {
+          line.textContent = result?.line ?? '지금은 이 이야기를 이어갈 수 없어요.';
+          if (dialogueSession?.snapshot().state === NPC_DIALOGUE_STATE.QUEST) renderQuestMenu(actor, { keepLine: true });
+        }
+      }, { className: 'npc-side-event-choice' });
+    }
+    if (!event && !sideChoice) line.textContent = '지금은 따로 부탁할 일은 없어요.';
+    addDialogueChoice('← 처음으로', () => showDialogueHome());
+    addDialogueChoice('대화 마치기', () => closeConversation());
+  }
+
+  function renderDialogueState() {
+    const actor = activeDialogueActor();
+    if (!actor || !dialogueSession) return;
+    const state = dialogueSession.snapshot().state;
+    if (state === NPC_DIALOGUE_STATE.HOME) showDialogueHome();
+    else if (state === NPC_DIALOGUE_STATE.STATUS) renderStatusDialogue(actor);
+    else if (state === NPC_DIALOGUE_STATE.TOPICS) renderTopicMenu(actor);
+    else if (state === NPC_DIALOGUE_STATE.MEMORY) renderMemoryDialogue(actor);
+    else if (state === NPC_DIALOGUE_STATE.QUEST) renderQuestMenu(actor);
+  }
+
   function openConversation() {
     if (activeConversation) closeConversation(false, { sync: false });
     const closest = interactionTarget();
@@ -448,14 +698,17 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
     const before = memory.read(actor.id);
     const newEncounter = encounters.begin(actor.id);
     if (newEncounter) memory.encounter(actor.id, snapshot.period === 'night' ? 'evening' : snapshot.period);
-    activeConversation = { id: actor.id };
+    activeConversation = { id: actor.id, memoryBefore: before, newEncounter };
+    dialogueSession = createNpcDialogueSession({ npcId: actor.id });
     syncConversationLifecycle();
     if (aiLoginHint) aiLoginHint.hidden = !aiPilot || aiSignedIn || !aiPilotIds.has(actor.id);
     avatars.get(actor.id).motion.moving = false;
     conversationAiUsed = false;
     selectedId = actor.id;
     if (select) select.value = actor.id;
-    speaker.textContent = `${aiEnabled(actor.id) ? '✦ AI · ' : ''}${production ? actor.name : `${actor.name} · ${periodLabels[snapshot.period]}`}`;
+    speaker.textContent = production
+      ? actor.name
+      : `${aiEnabled(actor.id) ? '✦ AI · ' : ''}${actor.name} · ${periodLabels[snapshot.period]}`;
     socialNg1?.setSelectedNpc(actor.id);
     socialNg1Panel?.render();
     if (socialProfile) socialProfile.textContent = socialNg1?.profileLine(actor.id) ?? '';
@@ -468,145 +721,16 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
       panel.hidden = false;
       panel.classList.add('npc-conversation-open');
     }
-    const relationshipContext = socialNg1?.relationshipLine(actor.id) ?? '';
-    const greeting = !newEncounter ? `계속 이야기해요. ${actor.dialogue[0]}` : before.encounters
-      ? `또 만났네요. ${before.topic ? `지난번 ${topicLabels[before.topic]} 이야기를 기억해요. ` : ''}${actor.dialogue[0]}`
-      : `처음 뵙네요. ${actor.dialogue[0]}`;
-    line.textContent = relationshipContext ? `${greeting} ${relationshipContext}` : greeting;
-    choices.replaceChildren();
-    function addAiFollowUp(topic) {
-      const followUp = document.createElement('button');
-      followUp.type = 'button';
-      followUp.className = 'npc-ai-follow-up';
-      followUp.textContent = `${topicLabels[topic]} 더 물어보기`;
-      followUp.addEventListener('click', () => {
-        if (pilotInFlight.has(actor.id) || !aiEnabled(actor.id)) return;
-        followUp.remove();
-        const requestId = ++pilotConversationRequest;
-        if (production) { playerLine.textContent = `${topicLabels[topic]} 이야기를 조금 더 들려주세요.`; playerLine.hidden = false; }
-        line.textContent = '잠시 생각 중…';
-        requestPilot(actor.id, topic, 'topic', true).then(result => {
-          if (activeConversation?.id !== actor.id || requestId !== pilotConversationRequest) return;
-          line.textContent = result?.line ?? `${topicLabels[topic]} 이야기는 다음에 이어가요.`;
-          if (result) pendingPilotAction = { id: actor.id, action: result.action };
-        }).catch(() => {
-          if (activeConversation?.id === actor.id && requestId === pilotConversationRequest)
-            line.textContent = `${topicLabels[topic]} 이야기는 다음에 이어가요.`;
-        });
-      });
-      choices.appendChild(followUp);
-    }
-    for (const topic of npcById.get(actor.id).interests) {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.textContent = `${topicLabels[topic]} 이야기`;
-      button.addEventListener('click', () => {
-        if (pilotInFlight.has(actor.id)) return;
-        choices.querySelector('.npc-ai-follow-up')?.remove();
-        pendingPilotAction = null;
-        const requestId = ++pilotConversationRequest;
-        memory.rememberTopic(actor.id, topic);
-        if (production) { playerLine.textContent = `${topicLabels[topic]} 이야기를 해요.`; playerLine.hidden = false; }
-        if (aiEnabled(actor.id) && !conversationAiUsed) {
-          conversationAiUsed = true;
-          line.textContent = '잠시 생각 중…';
-          requestPilot(actor.id, topic).then(result => {
-            if (!result && activeConversation?.id === actor.id && requestId === pilotConversationRequest) {
-              line.textContent = `${topicLabels[topic]} 이야기를 기억해 둘게요. ${actor.dialogue[0]}`;
-            } else if (result && aiEnabled(actor.id) && activeConversation?.id === actor.id && requestId === pilotConversationRequest) {
-              line.textContent = result.line;
-              pendingPilotAction = { id: actor.id, action: result.action };
-              pilotTopics.set(actor.id, topic);
-              addAiFollowUp(topic);
-            }
-          }).catch(() => {
-            if (activeConversation?.id === actor.id && requestId === pilotConversationRequest)
-              line.textContent = `${topicLabels[topic]} 이야기를 기억해 둘게요. ${actor.dialogue[0]}`;
-          });
-        } else line.textContent = `${topicLabels[topic]} 이야기를 기억해 둘게요. ${actor.dialogue[0]}`;
-        if (memoryStatus) memoryStatus.textContent = memoryScopeText();
-      });
-      choices.appendChild(button);
-    }
-    if (aiEnabled(actor.id)) {
-      const social = document.createElement('button');
-      social.type = 'button'; social.textContent = '함께 할 거리';
-      social.addEventListener('click', () => {
-        if (pilotInFlight.has(actor.id)) return;
-        choices.querySelector('.npc-ai-follow-up')?.remove();
-        const fallback = actor.id === MAIN_NPC_ID
-          ? '친구와 인경호 동쪽 벤치에서 잠깐 쉬어 봐요.'
-          : '친구와 인경호 사진 지점에서 사진 한 장 남겨 봐요.';
-        pendingPilotAction = null;
-        const requestId = ++pilotConversationRequest;
-        if (production) { playerLine.textContent = '친구와 함께 할 만한 일이 있을까요?'; playerLine.hidden = false; }
-        if (conversationAiUsed) { line.textContent = fallback; return; }
-        line.textContent = '잠시 생각 중…';
-        requestPilot(actor.id, null, 'social').then(result => {
-          if (activeConversation?.id !== actor.id || requestId !== pilotConversationRequest) return;
-          line.textContent = result?.line ?? fallback;
-          if (result && aiEnabled(actor.id)) pendingPilotAction = { id: actor.id, action: result.action };
-        }).catch(() => {
-          if (activeConversation?.id === actor.id && requestId === pilotConversationRequest) line.textContent = fallback;
-        });
-      });
-      choices.appendChild(social);
-    }
-    const recall = document.createElement('button');
-    recall.type = 'button'; recall.textContent = '기억 확인';
-    recall.addEventListener('click', () => {
-      const remembered = memory.read(actor.id);
-      if (production) { playerLine.textContent = '우리 전에 무슨 얘기를 했죠?'; playerLine.hidden = false; }
-      line.textContent = `${withAnd(actor.name)} ${remembered.encounters}번 만났어요. ${remembered.topic ? `기억하는 주제는 ${topicLabels[remembered.topic]}입니다.` : '아직 기억하는 주제는 없어요.'}`;
-    });
-    choices.appendChild(recall);
-    renderQuestChoice();
     conversation.hidden = false;
+    showDialogueHome();
     drawDetail();
   }
 
   function renderQuestChoice() {
-    choices.querySelector('.npc-quest-choice')?.remove();
-    choices.querySelector('.npc-side-event-choice')?.remove();
-    if (!activeConversation) return;
-    const actorId = activeConversation.id;
-    const event = quest.eventForNpc(actorId);
-    if (event) {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'npc-quest-choice';
-      button.textContent = event === 'start' ? '첫 탐방 시작' :
-        event === 'talk_002' ? '가유담의 부탁 듣기' : '탐방 마쳤다고 알리기';
-      button.addEventListener('click', async () => {
-        button.disabled = true;
-        line.textContent = '진행 상태 확인 중…';
-        if (production) { playerLine.textContent = button.textContent; playerLine.hidden = false; }
-        try {
-          const result = await quest.advanceNpc(actorId);
-          if (activeConversation?.id === actorId)
-            line.textContent = result?.line ?? '로그인 상태를 확인한 뒤 다시 시도해 주세요.';
-        } catch {
-          if (activeConversation?.id === actorId) line.textContent = '지금은 진행 상태를 저장하지 못했어요. 다시 시도해 주세요.';
-        } finally { if (activeConversation?.id === actorId) renderQuestChoice(); }
-      });
-      choices.prepend(button);
-    }
-
-    const sideChoice = sideEvent?.npcChoice?.(actorId);
-    if (!sideChoice) return;
-    const sideButton = document.createElement('button');
-    sideButton.type = 'button';
-    sideButton.className = 'npc-side-event-choice';
-    sideButton.textContent = sideChoice.label;
-    sideButton.addEventListener('click', () => {
-      if (production) { playerLine.textContent = sideChoice.label; playerLine.hidden = false; }
-      const result = sideEvent.advanceNpc?.(actorId, sideChoice.id);
-      if (activeConversation?.id === actorId) {
-        line.textContent = result?.line ?? '지금은 이 이야기를 이어갈 수 없어요.';
-        renderQuestChoice();
-      }
-    });
-    choices.prepend(sideButton);
+    if (!activeConversation || !dialogueSession) return;
+    const state = dialogueSession.snapshot().state;
+    if (state === NPC_DIALOGUE_STATE.QUEST) renderQuestMenu(activeDialogueActor());
+    else if (state === NPC_DIALOGUE_STATE.HOME) showDialogueHome({ keepLine: true });
   }
 
   function drawDetail() {
