@@ -9,6 +9,7 @@ import { npcNameplateOffset, npcSeatAnchorHeight } from './npc-dimensions.mjs';
 import { createNpcNavigator, advanceRoute } from './dev-navigation.mjs';
 import { createNpcMemory, createEncounterTracker } from './dev-memory.mjs';
 import { NPC_DIALOGUE_ACTION, NPC_DIALOGUE_STATE, createNpcDialogueSession, hasNpcDialogueMemory, npcDialogueHomeActions, npcTopicLabel } from './npc-dialogue-session.mjs';
+import { buildNpcDialogueCandidates, buildNpcDialogueContext, resolveNpcDialogueBaseline } from './npc-dialogue-context.mjs';
 import { createNpcSocialNg1Model, mountNpcSocialNg1Panel } from './npc-social-ng1.mjs';
 import { createPersistentNpcSocialGraph } from './npc-social-graph.mjs';
 import { createNpcSocialGroupFeasibility } from './npc-social-group-feasibility.mjs';
@@ -143,6 +144,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
   onQuestStateChange = () => {},
   tmlShadowEnabled = false,
   getTmlShadowEconomicState = () => ({}),
+  getDialogueWorldContext = () => ({}),
   onConversationOpen = () => {},
   onConversationClose = () => {} }) {
   // Shared schedules own physical movement. Local-only scenes must not override it.
@@ -442,6 +444,33 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
     return activeConversation ? snapshot.actors.find(item => item.id === activeConversation.id) ?? null : null;
   }
 
+  function captureDialogueContract(actor, { followUp = false } = {}) {
+    if (!activeConversation || !dialogueSession || !actor) return null;
+    const state = purposefulRoster.get(actor.id)?.controller.status(false);
+    const context = buildNpcDialogueContext({
+      npc: npcById.get(actor.id),
+      actor: { ...actor, period: snapshot.period, moving: state?.moving ?? avatars.get(actor.id)?.motion?.moving ?? false },
+      rosterEntry: rosterById.get(actor.id),
+      session: dialogueSession.snapshot(),
+      memoryRecord: memory.read(actor.id),
+      socialProfile: socialNg1?.profile(actor.id) ?? null,
+      questState: quest.status(),
+      priority: {
+        quest: Boolean(quest.eventForNpc(actor.id)),
+        sideEvent: Boolean(sideEvent?.npcChoice?.(actor.id))
+      },
+      world: getDialogueWorldContext?.() ?? {},
+      generationAllowed: aiEnabled(actor.id),
+      followUp
+    });
+    const candidates = buildNpcDialogueCandidates(context);
+    const baseline = resolveNpcDialogueBaseline(context);
+    activeConversation.dialogueContext = context;
+    activeConversation.dialogueCandidates = candidates;
+    activeConversation.dialogueBaseline = baseline;
+    return { context, candidates, baseline };
+  }
+
   function setPlayerDialogueLine(text = null) {
     if (!production || !playerLine) return;
     playerLine.textContent = text ?? '';
@@ -477,6 +506,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
     if (!actor || !dialogueSession) return;
     pilotConversationRequest++;
     dialogueSession.home();
+    captureDialogueContract(actor);
     setPlayerDialogueLine(null);
     if (!keepLine) line.textContent = homeGreeting(actor);
     choices.replaceChildren();
@@ -513,6 +543,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
   }
 
   function renderStatusDialogue(actor) {
+    captureDialogueContract(actor);
     setPlayerDialogueLine('요즘 어떻게 지내요?');
     line.textContent = actor.dialogue[1] ?? actor.dialogue[0];
     choices.replaceChildren();
@@ -525,6 +556,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
 
   function requestSocialSuggestion(actor) {
     if (pilotInFlight.has(actor.id)) return;
+    captureDialogueContract(actor);
     const fallback = actor.id === MAIN_NPC_ID
       ? '친구와 인경호 동쪽 벤치에서 잠깐 쉬어 봐요.'
       : '친구와 인경호 사진 지점에서 사진 한 장 남겨 봐요.';
@@ -546,6 +578,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
   }
 
   function renderTopicMenu(actor) {
+    captureDialogueContract(actor);
     setPlayerDialogueLine(null);
     line.textContent = '어떤 이야기를 나눌까요?';
     choices.replaceChildren();
@@ -572,6 +605,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
   function beginTopicDialogue(actor, topic) {
     if (pilotInFlight.has(actor.id)) return;
     dialogueSession.go(NPC_DIALOGUE_STATE.TOPIC_RESPONSE, { selectedTopic: topic });
+    captureDialogueContract(actor);
     pendingPilotAction = null;
     const requestId = ++pilotConversationRequest;
     memory.rememberTopic(actor.id, topic);
@@ -603,6 +637,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
 
   function requestTopicFollowUp(actor, topic) {
     if (pilotInFlight.has(actor.id) || !aiEnabled(actor.id)) return;
+    captureDialogueContract(actor, { followUp: true });
     const requestId = ++pilotConversationRequest;
     setPlayerDialogueLine(`${npcTopicLabel(topic)} 이야기를 조금 더 들려주세요.`);
     line.textContent = '잠시 생각 중…';
@@ -620,6 +655,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
   }
 
   function renderMemoryDialogue(actor) {
+    captureDialogueContract(actor);
     const remembered = memory.read(actor.id);
     setPlayerDialogueLine('전에 무슨 얘기 했었죠?');
     line.textContent = remembered.topic
@@ -636,6 +672,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
   }
 
   function renderQuestMenu(actor, { keepLine = false } = {}) {
+    captureDialogueContract(actor);
     if (!keepLine) {
       setPlayerDialogueLine(null);
       line.textContent = '지금 이어갈 이야기를 골라 주세요.';
@@ -1210,6 +1247,9 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
       moving_count: [...avatars.values()].filter(visual => visual.motion.moving).length,
       selected_position: avatars.get(selectedId).motion.position && { ...avatars.get(selectedId).motion.position },
       conversation_active: activeConversation?.id ?? null, selected_memory: memory.read(selectedId),
+      dialogue_context: activeConversation?.dialogueContext ?? null,
+      dialogue_candidates: activeConversation?.dialogueCandidates ?? null,
+      dialogue_baseline: activeConversation?.dialogueBaseline ?? null,
       ai_signed_in: aiSignedIn, ai_npc_ids: [...aiPilotIds].filter(aiEnabled),
       quest_stage: quest.stage, quest: quest.status(),
       main2_quest_stage: main2Quest.stage, main2Quest: main2Quest.status(),
