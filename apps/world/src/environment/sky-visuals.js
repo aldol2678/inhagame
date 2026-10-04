@@ -5,9 +5,9 @@ import {
   SKY_SUN_DISTANCE,
   cloudVisualProfile,
   skyCloudLayout,
-  sunDirectionFromEuler,
+  shadowRayDirectionFromSunSource,
   sunVisualProfile,
-  writeSunDirection
+  writeSunSourceDirection
 } from './sky-visual-policy.js';
 
 function createCloudTexture(device) {
@@ -143,6 +143,7 @@ function createSun(root) {
 export function createSkyVisuals({
   app,
   camera,
+  lightEntity,
   copyEnvironmentSkyState,
   getGraphicsTier
 }) {
@@ -242,7 +243,10 @@ export function createSkyVisuals({
     applyMaterials();
 
     const cameraPosition = camera.getPosition();
-    writeSunDirection(sunDirection, skyState.sunEuler);
+    // PlayCanvas directional lights shine along -entity.up. The visible source
+    // therefore lives in +entity.up, so reading the real light transform keeps
+    // the sun disc and cast-shadow direction locked together during transitions.
+    writeSunSourceDirection(sunDirection, lightEntity?.up);
     sun.entity.setPosition(
       cameraPosition.x + sunDirection[0] * SKY_SUN_DISTANCE,
       cameraPosition.y + sunDirection[1] * SKY_SUN_DISTANCE,
@@ -257,7 +261,8 @@ export function createSkyVisuals({
 
   function status() {
     const currentTier = tier ?? (getGraphicsTier?.() ?? 'medium');
-    const direction = sunDirectionFromEuler(skyState.sunEuler);
+    const direction = Object.freeze([...sunDirection]);
+    const shadowRayDirection = shadowRayDirectionFromSunSource(direction);
     return Object.freeze({
       graphicsTier: currentTier,
       cloudPatchCount: SKY_CLOUD_PATCH_BUDGET[currentTier] ?? SKY_CLOUD_PATCH_BUDGET.medium,
@@ -271,6 +276,11 @@ export function createSkyVisuals({
       sunLightScale: skyState.sunLightScale,
       sunColor: Object.freeze([...sunProfile.color]),
       sunDirection: direction,
+      shadowRayDirection,
+      sunShadowAlignmentDot:
+        direction[0] * shadowRayDirection[0] +
+        direction[1] * shadowRayDirection[1] +
+        direction[2] * shadowRayDirection[2],
       sunDrawMeshes: sunProfile.visible ? 1 : 0
     });
   }
