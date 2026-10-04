@@ -2213,6 +2213,14 @@ async function loadOptionalNpcRuntime() {
         walletBalance: wallet.balance(),
         totalExp: progression.snapshot?.totalExp ?? null
       }),
+      getDialogueWorldContext: () => {
+        const env = environment.status();
+        return {
+          weather: env.targetWeather,
+          environmentTime: env.targetTime,
+          placeZoneId: online?.network?.placeZoneId ?? null
+        };
+      },
       // P1c / P1d: First Campus (badge + EXP) and Main2 (coin + EXP) completions carry the server Reward
       // result. Shown through the existing reward toast lane, then the authorities the entries touched
       // are re-read (never computed here); LEVEL UP follows the toast.
