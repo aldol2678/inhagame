@@ -28,7 +28,7 @@ function query(sql) {
   }
 }
 
-test('Combat P0 DB catalog mirrors the intentionally empty code Registry', () => {
+test('Combat DB catalog mirrors the code Registry, including the active Building 5 definition', () => {
   const db = JSON.parse(query(
     "select coalesce(json_agg(json_build_object('combat_id',combat_id,'category',category,'availability',availability,'availability_ref',availability_ref,'resolver_ref',resolver_ref,'status',status,'definition_version',definition_version,'outcome_schema_version',outcome_schema_version) order by combat_id), '[]') from private.world_combat_definition_catalog"
   ));
@@ -36,13 +36,22 @@ test('Combat P0 DB catalog mirrors the intentionally empty code Registry', () =>
   assert.deepEqual(db, code);
 });
 
-test('Combat P0 server authority functions are installed', () => {
+test('Combat lifecycle and Building 5 authoritative resolver functions are installed', () => {
   const installed = query(
-    "select concat_ws(',', to_regprocedure('public.world_combat_start_v1(uuid,text,text,uuid,integer,integer,jsonb)') is not null, to_regprocedure('public.world_combat_state_write_v1(uuid,uuid,bigint,jsonb)') is not null, to_regprocedure('public.world_combat_snapshot_v1(uuid,uuid)') is not null, to_regprocedure('public.world_combat_finalize_v1(uuid,uuid,text,text)') is not null)"
+    "select concat_ws(',', " +
+      "to_regprocedure('public.world_combat_start_v1(uuid,text,text,uuid,integer,integer,jsonb)') is not null, " +
+      "to_regprocedure('public.world_combat_state_write_v1(uuid,uuid,bigint,jsonb)') is not null, " +
+      "to_regprocedure('public.world_combat_snapshot_v1(uuid,uuid)') is not null, " +
+      "to_regprocedure('public.world_combat_finalize_v1(uuid,uuid,text,text)') is not null, " +
+      "to_regprocedure('public.world_combat_building5_start_v1(uuid,uuid)') is not null, " +
+      "to_regprocedure('public.world_combat_building5_action_v1(uuid,uuid,text,uuid)') is not null, " +
+      "to_regprocedure('public.world_combat_building5_snapshot_v1(uuid,uuid)') is not null)"
   );
-  assert.equal(installed, 't,t,t,t');
+  assert.equal(installed, 't,t,t,t,t,t,t');
 });
 
-test('Combat P0 persists no player encounter rows before a definition is activated', () => {
+test('schema replay creates no player Combat attempts by itself', () => {
   assert.equal(query("select count(*) from private.world_combat_encounters"), '0');
+  assert.equal(query("select count(*) from private.world_combat_settlements"), '0');
+  assert.equal(query("select count(*) from private.world_combat_action_receipts"), '0');
 });
