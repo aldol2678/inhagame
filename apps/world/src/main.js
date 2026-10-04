@@ -1456,7 +1456,10 @@ lifeSkillBookPanel = createLifeSkillBookPanel({
 });
 lifeSkillBook.onChange(() => {
   if (lifeSkillBookButton) lifeSkillBookButton.hidden = !lifeSkillBook.hasVisibleSkills;
-  if (!lifeSkillBook.hasVisibleSkills && lifeSkillBook.state !== LIFE_SKILL_BOOK_STATE.LOADING) lifeSkillBookPanel?.setOpen(false); fishingPanel?.setOpen(false);
+  if (!lifeSkillBook.hasVisibleSkills && lifeSkillBook.state !== LIFE_SKILL_BOOK_STATE.LOADING) {
+    lifeSkillBookPanel?.setOpen(false);
+  }
+  // Refreshing skill XP after a catch must keep its fishing result visible.
 });
 lifeSkillBookButton?.addEventListener("click", () => lifeSkillBookPanel?.setOpen(true));
 // Inkyung fishing (first ACTIVE Life Skill): 🎣 at the two pond spots. The server owns availability, timing,

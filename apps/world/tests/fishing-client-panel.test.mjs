@@ -1,5 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { runInNewContext } from "node:vm";
 import {
   FISHING_API_PATH,
   FISHING_CLIENT_STATE,
@@ -167,9 +169,26 @@ test("panel follows the server bite window and only sends HOOK / CANCEL", async 
   net.reply(readView());
   await fishing.setAccount(A);
   let settled = 0;
+  // Execute the actual main.js subscription so view refreshes exercise the real modal glue.
+  const main = readFileSync(new URL("../src/main.js", import.meta.url), "utf8");
+  const bindingStart = main.indexOf("lifeSkillBook.onChange(() => {");
+  const bindingEnd = main.indexOf("lifeSkillBookButton?.addEventListener", bindingStart);
+  assert.ok(bindingStart >= 0 && bindingEnd > bindingStart, "Life Book subscription is present");
+  let bookChanged;
+  const book = { hasVisibleSkills: true, state: "READY", onChange: fn => { bookChanged = fn; } };
+  const context = {
+    lifeSkillBook: book, lifeSkillBookButton: {}, LIFE_SKILL_BOOK_STATE: { LOADING: "LOADING" },
+    lifeSkillBookPanel: { setOpen: () => assert.fail("a visible skill refresh cannot close the book") },
+    fishingPanel: null
+  };
+  runInNewContext(main.slice(bindingStart, bindingEnd), context);
+  const refreshBook = () => {
+    for (const state of ["LOADING", "READY"]) { book.state = state; bookChanged(); }
+  };
   const ticks = [];
-  const ui = createFishingPanel({ panel, fishing, doc, onSettled: () => { settled += 1; },
+  const ui = createFishingPanel({ panel, fishing, doc, onSettled: () => { settled += 1; refreshBook(); },
     setInterval: fn => { ticks.push(fn); return ticks.length; }, clearInterval: () => {} });
+  context.fishingPanel = ui;
   const all = (root, out = []) => { out.push(root); for (const c of root.children ?? []) all(c, out); return out; };
   const text = () => all(panel).map(n => n.textContent).join(" ");
   const find = cls => all(panel).find(n => (n.className ?? "").includes(cls));
@@ -199,6 +218,7 @@ test("panel follows the server bite window and only sends HOOK / CANCEL", async 
   assert.match(text(), /붕어를 낚았어요/);
   assert.match(text(), /\+20 낚시 XP · 붕어 3마리 보유/);
   assert.equal(settled, 1, "the owning views are re-read after a settled catch");
+  assert.equal(ui.open, true, "Life Book refresh keeps the fishing result open");
   assert.equal(net.calls.at(-3).body.action, "HOOK");
   ui.setOpen(false);
   assert.equal(panel.hidden, true);
