@@ -209,6 +209,43 @@ try {
     `DAY sky must preserve a blue atmospheric signal, got ${JSON.stringify(daySkyPixels)}`
   );
 
+  await page.evaluate(() => window.__INHAGAME_ENVIRONMENT__.setTimeOfDay('dawn', { immediate: true }));
+  await page.waitForFunction(
+    () => window.__INHAGAME_ENVIRONMENT__.status().targetTime === 'DAWN' &&
+      window.__INHAGAME_ENVIRONMENT__.status().settled,
+    null,
+    { timeout: TIMEOUT_MS }
+  );
+  const dawn = await page.evaluate(() => ({
+    environment: window.__INHAGAME_ENVIRONMENT__.status(),
+    sky: window.__INHAGAME_SKY__.status()
+  }));
+  assert.equal(dawn.environment.artificialLightFactor, 0.62);
+  assert.ok(dawn.sky.atmosphereZenithColor[2] > dawn.sky.atmosphereZenithColor[0]);
+
+  await page.evaluate(() => window.__INHAGAME_ENVIRONMENT__.setTimeOfDay('sunrise', { immediate: true }));
+  await page.waitForFunction(
+    () => window.__INHAGAME_ENVIRONMENT__.status().targetTime === 'SUNRISE' &&
+      window.__INHAGAME_ENVIRONMENT__.status().settled,
+    null,
+    { timeout: TIMEOUT_MS }
+  );
+  const sunrise = await page.evaluate(() => ({
+    environment: window.__INHAGAME_ENVIRONMENT__.status(),
+    sky: window.__INHAGAME_SKY__.status()
+  }));
+  assert.equal(sunrise.environment.artificialLightFactor, 0.28);
+  assert.ok(sunrise.sky.atmosphereSunsetFactor > 0.6);
+  assert.ok(sunrise.sky.atmosphereHorizonColor[0] > sunrise.sky.atmosphereHorizonColor[2]);
+
+  await page.evaluate(() => window.__INHAGAME_ENVIRONMENT__.setTimeOfDay('day', { immediate: true }));
+  await page.waitForFunction(
+    () => window.__INHAGAME_ENVIRONMENT__.status().targetTime === 'DAY' &&
+      window.__INHAGAME_ENVIRONMENT__.status().settled,
+    null,
+    { timeout: TIMEOUT_MS }
+  );
+
   await page.evaluate(() => window.__INHAGAME_ENVIRONMENT__.setWeather('cloudy'));
   await page.waitForFunction(
     () => window.__INHAGAME_ENVIRONMENT__.status().targetWeather === 'CLOUDY' &&
