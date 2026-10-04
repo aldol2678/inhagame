@@ -99,7 +99,7 @@ test('restart recovers immutable pending tuples and publication/receipt commit a
   assert.equal(retry.observedAt,item.row.observedAt); assert.deepEqual(await position(u),db);
   assert.deepEqual(await pending(u,recovered),[]);
   assert.equal((await rpc('enqueue',item.args)).status,'DELIVERED');
-  for (const [index,value] of [[4,item.args[4]+1],[10,await timestamp()],[2,randomUUID()]]) {
+  for (const [index,value] of [[4,item.args[4]+1],[item.args.length-1,await timestamp()],[2,randomUUID()]]) {
     const altered=[...item.args]; altered[index]=value;
     await assert.rejects(rpc('enqueue',altered),/OUTBOX_CONFLICT/);
   }
