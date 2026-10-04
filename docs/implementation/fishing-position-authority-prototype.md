@@ -76,11 +76,13 @@ These are readiness requirements, not changes delivered by this experiment:
    stop at the safe integer limit although DB revisions are bigint. Do not deploy this Map
    as a distributed owner. Add an explicitly reviewed service-only allocation/recovery
    contract if needed; do not grant direct access to F3 private tables.
-2. **Server session admission and residence.** Decide between a dedicated pond instance with
-   explicit server-owned admission/exit, and a wider authoritative campus server. A pond
-   instance is the smaller plausible production scope, but still needs an owner-approved
-   admission rule and client reconciliation. A browser-provided campus location cannot prove
-   arrival. Do not silently reset a live player's position to this test spawn.
+2. **Server session admission and residence.** The follow-up
+   [v1 admission/handoff design contract](fishing-admission-handoff-v1.md) selects explicit
+   transfer into one server-controlled pond zone with fixed staging/return points, and a
+   client that applies server positions without gameplay prediction. The contract/reference
+   tests are recorded; transport, durable ownership, the actual player adapter and Production
+   adoption remain unimplemented. A browser-provided campus location cannot prove arrival.
+   Do not silently reset a live player's position to this test spawn.
 3. **Transport and client handoff.** Select a stateful runtime without provisioning one in
    this work. Bound authentication renewal, account ban/revocation, socket timeout, input rate,
    sequence/queue size and resource retention. Bind input to the authenticated connection;
