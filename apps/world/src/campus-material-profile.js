@@ -19,16 +19,18 @@ const PALETTE = Object.freeze({
   asphalt: new Set(['#747d7b', '#737b79', '#92968e']),
   concrete: new Set([
     '#b4b4a8', '#c1bfb1', '#b6b2a0', '#c9c8ba', '#c8c7b4',
-    '#d5d2c6', '#d7d3c7', '#ece9df', '#eeece2', '#b5b4a5'
+    '#d5d2c6', '#d7d3c7', '#ece9df', '#eeece2', '#b5b4a5',
+    '#687472', '#b0ada2', '#a7aaa2', '#758b89'
   ]),
   brick: new Set(['#ac7965', '#ad7465', '#bc9571']),
   paint: new Set([
     '#e6e4d3', '#d8b453', '#d0b04e', '#c2aa63', '#e0c982',
-    '#528b78', '#c7b29a', '#e8e3cf', '#dedcd1'
+    '#528b78', '#c7b29a', '#e8e3cf', '#dedcd1', '#6c9290'
   ]),
   metal: new Set([
     '#e1e3df', '#e8e8df', '#858b86', '#a6aaa0', '#93998f',
-    '#90958d', '#727e7c', '#687472', '#536b7a', '#505b5b'
+    '#90958d', '#727e7c', '#536b7a', '#505b5b', '#627279',
+    '#6f7775', '#6f9b87', '#a7bbc1', '#b5c6ca'
   ]),
   glass: new Set([
     '#548d99', '#396773', '#304d65', '#486271', '#426574'
