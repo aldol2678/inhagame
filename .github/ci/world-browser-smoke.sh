@@ -10,6 +10,7 @@ export WORLD_SMOKE_DISABLE_WEBGPU=1
 node "$dir/boot-smoke.mjs"
 node "$dir/mobile-boot-smoke.mjs"
 node "$dir/environment-smoke.mjs"
+node "$dir/material-profile-smoke.mjs"
 node "$dir/winter-soak-smoke.mjs"
 node "$dir/main-gate-camera-smoke.mjs"
 node "$dir/lobby-layout-smoke.mjs"
