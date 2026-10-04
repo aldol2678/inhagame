@@ -37,6 +37,7 @@ export function createBuilding5CombatTargetRenderer({
   root.enabled = false;
   parent.addChild(root);
 
+  let generation = null;
   let hitPulse = 0;
   let impactPulse = 0;
   let impactPerfect = false;
@@ -81,6 +82,15 @@ export function createBuilding5CombatTargetRenderer({
   };
 
   const apply = state => {
+    if (state?.generation !== generation) {
+      generation = state?.generation ?? null;
+      lastHitSerial = 0;
+      lastBreakSerial = 0;
+      lastPlayerHitSerial = 0;
+      lastEnemyAttackSerial = 0;
+      hitPulse = 0;
+      impactPulse = 0;
+    }
     place(state);
     root.enabled = state?.active === true;
     body.enabled = state?.active === true && !state.defeated;
