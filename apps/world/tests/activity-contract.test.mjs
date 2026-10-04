@@ -12,7 +12,7 @@ const KEY = '11111111-1111-4111-8111-111111111111';
 const ATTEMPT = '22222222-2222-4222-8222-222222222222';
 const USER = '33333333-3333-4333-8333-333333333333';
 
-test('P0 Activity registry contains the three P1-A identities without claiming they are live', () => {
+test('P0 Activity registry contains the three P1-A identities; only Fishing is live', () => {
   assert.equal(ACTIVITY_REGISTRY.size, 3);
   assert.deepEqual(ACTIVITY_REGISTRY.list().map(x => x.activityId), [
     'activity.fishing.inkyung',
@@ -22,7 +22,8 @@ test('P0 Activity registry contains the three P1-A identities without claiming t
   for (const definition of ACTIVITY_REGISTRY.list()) {
     assert.equal(definition.authorityTier, ACTIVITY_AUTHORITY_TIER.SERVER_VALIDATED);
     assert.equal(definition.repeatPolicy, ACTIVITY_REPEAT_POLICY.REPEATABLE);
-    assert.equal(definition.status, ACTIVITY_DEFINITION_STATUS.COMING_SOON);
+    assert.equal(definition.status, definition.activityId === 'activity.fishing.inkyung'
+      ? ACTIVITY_DEFINITION_STATUS.ACTIVE : ACTIVITY_DEFINITION_STATUS.COMING_SOON);
     assert.equal(definition.definitionVersion, 1);
     assert.equal(definition.outcomeSchemaVersion, 1);
     assert.ok(Object.isFrozen(definition));

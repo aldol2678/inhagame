@@ -144,6 +144,9 @@ import { createAttendanceClient } from "./attendance/attendance-client.js";
 import { createAttendancePanel } from "./attendance/attendance-panel.js";
 import { LIFE_SKILL_BOOK_STATE, createLifeSkillBookClient } from "./life-skills/life-skill-book-client.js";
 import { createLifeSkillBookPanel } from "./life-skills/life-skill-book-panel.js";
+import { FISHING_CLIENT_STATE, createFishingClient } from "./activity/fishing-client.js";
+import { createFishingPanel } from "./activity/fishing-panel.js";
+import { fishingContextAction, findNearbyFishingSpot } from "./activity/fishing-spots.js";
 import { createLoadoutClient } from "./appearance/loadout-client.js";
 import { createEquipmentProjection } from "./appearance/equipment-projection.js";
 import { createEquipmentModelLoader } from "./appearance/equipment-asset-loader.js";
@@ -582,6 +585,10 @@ const lifeSkillBookInput = createInputFocusOwner({
 });
 // Declared early so every panel's close-others list can reference it before it is created below.
 let lifeSkillBookPanel = null;
+const fishingInput = createInputFocusOwner({
+  manager: inputFocus, ownerId: "fishing", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
+});
+let fishingPanel = null;
 const questJournalInput = createInputFocusOwner({
   manager: inputFocus, ownerId: "quest-journal", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
 });
@@ -1224,7 +1231,7 @@ const inventoryPanel = createInventoryPanel({
       mobilityBook.setOpen(false);
       wardrobePanel.setOpen(false);
       dailyQuizPanel.setOpen(false);
-      attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false);
+      attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false); fishingPanel?.setOpen(false);
       emoteMenu.setOpen(false);
       chatPanel.setOpen(false, { focus: false });
       playerCard.close();
@@ -1255,7 +1262,7 @@ const shopPanel = createShopPanel({
       mobilityBook.setOpen(false);
       wardrobePanel.setOpen(false);
       dailyQuizPanel.setOpen(false);
-      attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false);
+      attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false); fishingPanel?.setOpen(false);
       emoteMenu.setOpen(false);
       chatPanel.setOpen(false, { focus: false });
       playerCard.close();
@@ -1286,7 +1293,7 @@ const wardrobePanel = createWardrobePanel({
       inventoryPanel.setOpen(false);
       mobilityBook.setOpen(false);
       dailyQuizPanel.setOpen(false);
-      attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false);
+      attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false); fishingPanel?.setOpen(false);
       emoteMenu.setOpen(false);
       chatPanel.setOpen(false, { focus: false });
       playerCard.close();
@@ -1358,7 +1365,7 @@ const mobilityBook = createMobilityBook({
       inventoryPanel.setOpen(false);
       wardrobePanel.setOpen(false);
       dailyQuizPanel.setOpen(false);
-      attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false);
+      attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false); fishingPanel?.setOpen(false);
       emoteMenu.setOpen(false);
       chatPanel.setOpen(false, { focus: false });
       playerCard.close();
@@ -1380,7 +1387,7 @@ const dailyQuizPanel = createDailyQuizPanel({
     if (open) {
       dailyQuizInput.acquire();
       questJournal?.setOpen(false);
-      attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false);
+      attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false); fishingPanel?.setOpen(false);
       shopPanel.setOpen(false);
       inventoryPanel.setOpen(false);
       mobilityBook.setOpen(false);
@@ -1405,7 +1412,7 @@ const attendancePanel = createAttendancePanel({
     lobbyDailyLoop.setPanelOpen("attendance", open);
     if (open) {
       attendanceInput.acquire();
-      lifeSkillBookPanel?.setOpen(false);
+      lifeSkillBookPanel?.setOpen(false); fishingPanel?.setOpen(false);
       questJournal?.setOpen(false);
       dailyQuizPanel.setOpen(false);
       shopPanel.setOpen(false);
@@ -1433,6 +1440,7 @@ lifeSkillBookPanel = createLifeSkillBookPanel({
     lifeSkillBookButton?.setAttribute("aria-expanded", String(open));
     if (open) {
       lifeSkillBookInput.acquire();
+      fishingPanel?.setOpen(false);
       attendancePanel.setOpen(false);
       questJournal?.setOpen(false);
       dailyQuizPanel.setOpen(false);
@@ -1451,9 +1459,52 @@ lifeSkillBookPanel = createLifeSkillBookPanel({
 });
 lifeSkillBook.onChange(() => {
   if (lifeSkillBookButton) lifeSkillBookButton.hidden = !lifeSkillBook.hasVisibleSkills;
-  if (!lifeSkillBook.hasVisibleSkills && lifeSkillBook.state !== LIFE_SKILL_BOOK_STATE.LOADING) lifeSkillBookPanel?.setOpen(false);
+  if (!lifeSkillBook.hasVisibleSkills && lifeSkillBook.state !== LIFE_SKILL_BOOK_STATE.LOADING) {
+    lifeSkillBookPanel?.setOpen(false);
+  }
+  // Refreshing skill XP after a catch must keep its fishing result visible.
 });
 lifeSkillBookButton?.addEventListener("click", () => lifeSkillBookPanel?.setOpen(true));
+// Inkyung fishing (first ACTIVE Life Skill): 🎣 at the two pond spots. The server owns availability, timing,
+// the result and rewards; the action is offered only while the endpoint answers for this permanent account.
+const fishing = createFishingClient({
+  getToken: async () => {
+    const client = online?.supabase;
+    if (!client || !online?.userId) return null;
+    const { data, error } = await client.auth.getSession();
+    const session = data?.session;
+    return !error && session?.user?.id === online.userId && session.user.is_anonymous !== true
+      ? session.access_token : null;
+  }
+});
+fishingPanel = createFishingPanel({
+  panel: document.getElementById("fishing-panel"),
+  fishing,
+  onOpenChange: (open) => {
+    if (open) {
+      fishingInput.acquire();
+      lifeSkillBookPanel?.setOpen(false);
+      attendancePanel.setOpen(false);
+      questJournal?.setOpen(false);
+      dailyQuizPanel.setOpen(false);
+      shopPanel.setOpen(false);
+      inventoryPanel.setOpen(false);
+      mobilityBook.setOpen(false);
+      wardrobePanel.setOpen(false);
+      emoteMenu.setOpen(false);
+      chatPanel.setOpen(false, { focus: false });
+      playerCard.close();
+      void guestbookPanel.setOpen(false);
+      return;
+    }
+    fishingInput.release();
+  },
+  // A settled catch changed Fishing XP and the carp stack: re-read the owning views.
+  onSettled: () => {
+    void lifeSkillBook.refresh("fishing");
+    void inventory.refresh("fishing");
+  }
+});
 // Main Lobby P2 "오늘의 캠퍼스": a read-only summary of the two clients above. It re-renders on their own change
 // events (account switches included) and only opens the existing panels; the panels keep the explicit claim / start.
 const lobbyDailyLoop = createLobbyDailyLoop({
@@ -1680,7 +1731,7 @@ rooms = createRoomTransition({
       mobilityBook.setOpen(false);
       wardrobePanel.setOpen(false);
       dailyQuizPanel.setOpen(false);
-      attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false);
+      attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false); fishingPanel?.setOpen(false);
       questJournal?.setOpen(false);
     },
     setLocationLabel: (text) => { zoneEl.textContent = text; },
@@ -1719,7 +1770,7 @@ biryongRealm = createBiryongRealmTransition({
       mobilityBook.setOpen(false);
       wardrobePanel.setOpen(false);
       dailyQuizPanel.setOpen(false);
-      attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false);
+      attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false); fishingPanel?.setOpen(false);
       questJournal?.setOpen(false);
     },
     setLocationLabel: text => { zoneEl.textContent = text; },
@@ -1938,7 +1989,7 @@ furnitureEditor = createFurnitureEditor({
     if (open) {
       furnitureInput.acquire();
       inventoryPanel.setOpen(false); shopPanel.setOpen(false); wardrobePanel.setOpen(false);
-      dailyQuizPanel.setOpen(false); attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false); questJournal?.setOpen(false);
+      dailyQuizPanel.setOpen(false); attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false); fishingPanel?.setOpen(false); questJournal?.setOpen(false);
       emoteMenu.setOpen(false); chatPanel.setOpen(false,{ focus:false }); playerCard.close();
       void guestbookPanel.setOpen(false);
     } else {
@@ -2407,7 +2458,7 @@ try {
     getOverlayState: () => ({
       hudMenu: hudMenu.open, keyboardHelp: keyboardHelp?.open === true, friends: friendPanel.open,
       playerCard: playerCard.current != null, guestbook: guestbookPanel.open, shop: shopPanel.open, inventory: inventoryPanel.open, wardrobe: wardrobePanel.open,
-      blocking: furnitureEditor?.open === true || dailyQuizPanel.open || attendancePanel.open || lifeSkillBookPanel?.open === true || questJournal?.open === true,
+      blocking: furnitureEditor?.open === true || dailyQuizPanel.open || attendancePanel.open || lifeSkillBookPanel?.open === true || fishingPanel?.open === true || questJournal?.open === true,
       npcConversation: npcTest?.isConversationOpen?.() === true || biryongVillageDialogue?.open === true,
       mcmEvent: mcmEventUi.openState || mcmEventRuntime.isDialogueOpen() === true,
       profile: document.getElementById("profile-panel")?.hidden === false,
@@ -2490,7 +2541,7 @@ try {
       inventoryPanel.setOpen(false);
       wardrobePanel.setOpen(false);
       dailyQuizPanel.setOpen(false);
-      attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false);
+      attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false); fishingPanel?.setOpen(false);
       questJournal?.setOpen(false);
     },
     onClose: () => { fullMapInput.release(); },
@@ -2557,7 +2608,7 @@ questJournal = createQuestJournal({
       inventoryPanel.setOpen(false);
       wardrobePanel.setOpen(false);
       dailyQuizPanel.setOpen(false);
-      attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false);
+      attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false); fishingPanel?.setOpen(false);
       emoteMenu.setOpen(false);
       chatPanel.setOpen(false, { focus: false });
       playerCard.close();
@@ -2910,6 +2961,12 @@ app.on("update", (dt) => {
     }) ?? null
     : null);
   contextActions.set("inkyung-duck", inside ? null : inkyungDucks.getContextAction(pos));
+  const fishingBlocked = inside || controller.mounted || seats.isSeated || fishingPanel?.open === true;
+  if (!fishingBlocked && fishing.state === FISHING_CLIENT_STATE.UNAVAILABLE && findNearbyFishingSpot(pos)) void fishing.probe();
+  contextActions.set("inkyung-fishing", fishingContextAction(pos, {
+    available: fishing.available, blocked: fishingBlocked,
+    onOpen: (spot) => fishingPanel?.setOpen(true, spot)
+  }));
   contextActions.set("biryong", inside ? null : biryong?.getContextAction(pos, { blocked: controller.mounted || seats.isSeated }) ?? null);
   contextActions.set("mcm-event", inside ? null : mcmEventRuntime.contextAction());
   contextActions.set("mcm-minigame", rooms.currentSpace === MCM_2026_ROOM_ID ? mcmMinigame.contextAction() : null);
@@ -2936,7 +2993,7 @@ app.on("update", (dt) => {
   if (combatRuntime.active) {
     for (const key of [
       "seat", "guestbook", "student-center-shop", "backgate-transit", "biryong-station-transit",
-      "biryong-npc", "inkyung-duck", "biryong", "mcm-event", "mcm-minigame", "follow",
+      "biryong-npc", "inkyung-duck", "inkyung-fishing", "biryong", "mcm-event", "mcm-minigame", "follow",
       "room-door", "personal-room-door", "npc"
     ]) contextActions.set(key, null);
     transportActions.set("mount", null);
@@ -3017,6 +3074,7 @@ try {
     void dailyQuiz.setAccount(identity ? online?.userId ?? null : null);
     void attendance.setAccount(identity ? online?.userId ?? null : null);
     void lifeSkillBook.setAccount(identity ? online?.userId ?? null : null);
+    void fishing.setAccount(identity ? online?.userId ?? null : null);
     void loadout.setAccount(identity ? online?.userId ?? null : null);
     const nextRoomUserId = online?.userId ?? null;
     inkyungSideEvent.setScope(nextRoomUserId ?? "guest");
@@ -3255,6 +3313,8 @@ window.__INHAGAME_P0__ = {
   attendancePanel,
   lifeSkillBook,
   lifeSkillBookPanel,
+  fishing,
+  fishingPanel,
   shopWorld,
   shopWorldLabel,
   backgateTransit,
@@ -3398,6 +3458,7 @@ window.__INHAGAME_P0__ = {
     dailyQuiz: { ...dailyQuiz.status(), panel: dailyQuizPanel.status() },
     attendance: { ...attendance.status(), panel: attendancePanel.status() },
     lifeSkillBook: { ...lifeSkillBook.status(), panel: lifeSkillBookPanel?.status() ?? null },
+    fishing: { ...fishing.status(), panel: fishingPanel?.status() ?? null },
     wardrobe: { ...loadout.status(), ...wardrobePanel.status() },
     equipment: equipmentProjection.status(),
     hudMenuOpen: hudMenu.open,
@@ -3420,6 +3481,7 @@ window.__INHAGAME_P0__ = {
         dailyQuiz: dailyQuizInput.active,
         attendance: attendanceInput.active,
         lifeSkillBook: lifeSkillBookInput.active,
+        fishing: fishingInput.active,
         npcDialogue: npcDialogueInput.active,
         mcmDialogue: mcmDialogueInput.active,
         biryongScripted: biryongScriptedInput.active,

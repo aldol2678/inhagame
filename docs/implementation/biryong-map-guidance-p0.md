@@ -8,9 +8,12 @@ map controls (#169), NPC movement/dialogue (#176), and initial render gate.
 For the approved Draft/hosted-QA publication it was rebased onto public main
 `7adc0c1ec6158504aeba39c70e45a7642fc97548`, preserving #179 shopfronts, #183
 account-result/touch ownership, and #71 Main3/collection/receipt foundations.
-The only upstream overlap was main.js's signed-in lobby highlight wiring; both
-upstream changes and the bounded Biryong hooks are retained. Existing migrations
-and authority owners are unchanged.
+After Draft publication, Fishing #182 advanced main to
+`4a6bb098ae68d300bcbf9ec403b30b4ae197c863`. It is merged into this feature branch
+with both Fishing-panel and Biryong-dialogue minimap suppression retained in the
+one overlapping main.js hunk. Signed-in lobby highlight wiring, Fishing UI and
+result-retention logic, and all upstream migrations/authority owners are retained.
+This PR does not activate Fishing in an operational database.
 
 The approved outcome is a usable map and place guidance in the existing
 BIRYONG_REALM, plus links from existing public NPC dialogue. It does not create

@@ -22,3 +22,21 @@ test('approved task preserves intentional local gameplay and persistence limits'
   assert.match(spawn,/state: SPAWN_STATE.HIDDEN/);
   assert.match(main,/const canUseAutoMove[\s\S]*?biryongRealm\?\.inCampus/,'no automatic region movement activation');
 });
+
+test('merged Fishing and Biryong dialogue both suppress the minimap through existing overlay owners',()=>{
+  const start=main.indexOf('    getOverlayState: () => ({');
+  const end=main.indexOf('\n    getObjectiveMarker:',start);
+  assert.ok(start>=0&&end>start);
+  const expression=main.slice(start,end).trim().replace(/^getOverlayState: /,'').replace(/,$/,'');
+  const names=['hudMenu','keyboardHelp','friendPanel','playerCard','guestbookPanel','shopPanel','inventoryPanel','wardrobePanel',
+    'furnitureEditor','dailyQuizPanel','attendancePanel','lifeSkillBookPanel','fishingPanel','questJournal','npcTest',
+    'biryongVillageDialogue','mcmEventUi','mcmEventRuntime','fullMap','document','chatPanel'];
+  const state=Object.fromEntries(names.map(name=>[name,{open:false,openState:false,current:null}]));
+  state.npcTest.isConversationOpen=()=>false;state.mcmEventRuntime.isDialogueOpen=()=>false;
+  state.document.getElementById=()=>({hidden:true});
+  const read=new Function(...names,`return (${expression})();`);
+  const snapshot=()=>read(...names.map(name=>state[name]));
+  assert.equal(snapshot().blocking,false);assert.equal(snapshot().npcConversation,false);
+  state.fishingPanel.open=true;assert.equal(snapshot().blocking,true);state.fishingPanel.open=false;
+  state.biryongVillageDialogue.open=true;assert.equal(snapshot().npcConversation,true);
+});
