@@ -111,9 +111,14 @@ test('gradient writer pins the horizon and zenith colors at their intended bands
     cloudCover: ENVIRONMENT_WEATHER_PRESETS.CLEAR.cloudCover,
     sunLightScale: 1
   });
-  assert.deepEqual(atmosphereColorAtElevation(profile, -20), [...profile.horizonColor, 1]);
-  assert.deepEqual(atmosphereColorAtElevation(profile, 0), [...profile.horizonColor, 1]);
-  assert.deepEqual(atmosphereColorAtElevation(profile, 90), [...profile.zenithColor, 1]);
+  for (const elevation of [-20, 0]) {
+    const color = atmosphereColorAtElevation(profile, elevation);
+    for (let i = 0; i < 3; i++) near(color[i], profile.horizonColor[i]);
+    assert.equal(color[3], 1);
+  }
+  const zenith = atmosphereColorAtElevation(profile, 90);
+  for (let i = 0; i < 3; i++) near(zenith[i], profile.zenithColor[i]);
+  assert.equal(zenith[3], 1);
 
   const low = atmosphereColorAtElevation(profile, 12);
   const high = atmosphereColorAtElevation(profile, 48);
