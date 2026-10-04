@@ -1,7 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { LIFE_SKILL_REGISTRY, lifeSkillAuthorityRow } from '../../../apps/world/src/life-skills/life-skill-registry.js';
+import {
+  LIFE_SKILL_REGISTRY,
+  lifeSkillAuthorityRow,
+  lifeSkillThresholdAuthorityRows
+} from '../../../apps/world/src/life-skills/life-skill-registry.js';
 
 const DB_URL = process.env.DB_URL;
 assert.match(DB_URL ?? '', /^postgres(?:ql)?:\/\/(?:[^@/]+@)?(?:127\.0\.0\.1|localhost)(?::\d+)?\//);
@@ -32,7 +36,8 @@ test('Life Skill DB mirror equals code Registry authority rows', () => {
   assert.deepEqual(db, code);
 });
 
-test('committed common curve contains only Lv1=0 before balance activation', () => {
-  const rows = JSON.parse(query("select coalesce(json_agg(t order by t.level), '[]') from private.world_life_skill_thresholds t where t.curve_id='life.common.v1'"));
-  assert.deepEqual(rows.map(row => [row.level, Number(row.min_total_xp)]), [[1, 0]]);
+test('committed common curve equals the code curve (Lv1..20 XP and cumulative per-skill SP)', () => {
+  const rows = JSON.parse(query("select coalesce(json_agg(json_build_object('curve_id',curve_id,'level',level,'min_total_xp',min_total_xp,'cumulative_sp',cumulative_sp) order by level), '[]') from private.world_life_skill_thresholds where curve_id='life.common.v1'"));
+  assert.deepEqual(rows.map(row => ({ ...row, min_total_xp: Number(row.min_total_xp) })),
+    lifeSkillThresholdAuthorityRows());
 });
