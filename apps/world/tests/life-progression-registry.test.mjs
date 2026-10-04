@@ -1,13 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { LIFE_SKILL_STATUS } from '../src/life-skills/life-skill-registry.js';
+import { LIFE_SKILL_REGISTRY, LIFE_SKILL_STATUS } from '../src/life-skills/life-skill-registry.js';
 import {
   LIFE_PROGRESSION_CURVE_ID,
   LIFE_PROGRESSION_THRESHOLDS,
   LIFE_SKILL_TREE_REGISTRY,
   createLifeSkillTreeRegistry,
   lifeProgressionFreshSnapshot,
-  lifeProgressionThresholdAuthorityRows
+  lifeProgressionThresholdAuthorityRows,
+  lifeSkillSpFreshSnapshot
 } from '../src/life-skills/life-progression-registry.js';
 
 const node = (overrides = {}) => ({
@@ -38,14 +39,12 @@ test('Life Progression P0 seeds only Lv1 and no live tree nodes', () => {
   }]);
 });
 
-test('fresh Life Progression snapshot starts at Lv1 with zero SP', () => {
-  assert.deepEqual(lifeProgressionFreshSnapshot(), {
+test('fresh aggregate Life Progression snapshot is a display level without a shared SP pool', () => {
+  const snapshot = lifeProgressionFreshSnapshot();
+  assert.deepEqual(snapshot, {
     curveId: 'life.progression.v1',
     totalSkillXp: 0,
     level: 1,
-    earnedSp: 0,
-    spentSp: 0,
-    availableSp: 0,
     currentLevelStartXp: 0,
     nextLevelXp: null,
     progressXp: 0,
@@ -53,6 +52,22 @@ test('fresh Life Progression snapshot starts at Lv1 with zero SP', () => {
     maxDefinedLevel: 1,
     isMaxLevel: true
   });
+  assert.equal('earnedSp' in snapshot, false);
+  assert.equal('availableSp' in snapshot, false);
+});
+
+test('fresh per-skill SP pool starts at skill Lv1 with zero SP and names the next award', () => {
+  const snapshot = lifeSkillSpFreshSnapshot(LIFE_SKILL_REGISTRY.get('life.fishing'));
+  assert.deepEqual(snapshot, {
+    skillId: 'life.fishing',
+    curveId: 'life.common.v1',
+    skillLevel: 1,
+    earnedSp: 0,
+    spentSp: 0,
+    availableSp: 0,
+    nextLevelEarnedSp: 1
+  });
+  assert.ok(Object.isFrozen(snapshot));
 });
 
 test('tree registry accepts a valid same-skill dependency graph', () => {

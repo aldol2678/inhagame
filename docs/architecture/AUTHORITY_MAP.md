@@ -50,8 +50,8 @@ nothing is ACTIVE / no settlement path · **planned** = no backing schema yet ·
 | Combat progression | Combat (planned) | none. **Target**: Combat TP derived from Character Level (section 7.2) | — | — | — | — | planned |
 | Combat encounter | Combat | `private.world_combat_encounters`, `world_combat_definition_catalog` (empty) | `world_combat_snapshot_v1` (service_role) | `world_combat_start / state_write / finalize_v1`; `world_combat_*_with_creature_v1` bridges | trusted server resolver (service_role). **No resolver runtime exists yet** | no | foundation (no ACTIVE definitions) |
 | Activity attempt | Activity | `private.world_activity_attempts` | none for players yet | `world_activity_start / finalize_v1`; `world_life_activity_*_with_creature_v1` | trusted server (service_role) | no | foundation (no ACTIVE activity) |
-| Life progression | Life | per-skill XP: `private.world_player_life_skills`, `world_life_skill_xp_transactions`; skill curve `world_life_skill_thresholds` (Lv1 only); aggregate curve `world_life_progression_thresholds` (Lv1 only) | private snapshots only (`world_life_skill_snapshot_v1`, `world_life_progression_snapshot_v1`); **no public read RPC** | `private.world_life_skill_xp_apply_v1` | **none yet** (no settlement path) | no | foundation (all 11 skills COMING_SOON) |
-| Life Skill Point | Life | `private.world_life_sp_transactions` (spend ledger), `world_player_life_nodes`, `world_life_skill_tree_catalog` / `_edges` (0 nodes). Earned SP = `cumulative_sp` of the **aggregate** Life Level today | private snapshot only | `private.world_life_node_unlock_v1` | **none yet** | no | foundation. **Target contract is per-skill pools** (section 7.1) |
+| Life progression | Life | per-skill XP: `private.world_player_life_skills`, `world_life_skill_xp_transactions`; skill curve `world_life_skill_thresholds` (`life.common.v1` Lv1–20, with cumulative per-skill SP); aggregate display curve `world_life_progression_thresholds` (Lv1 only, never an SP source) | private snapshots only (`world_life_skill_snapshot_v1`, `world_life_progression_snapshot_v1`); **no public read RPC** | `private.world_life_skill_xp_apply_v1` | **none yet** (no settlement path) | no | foundation (all 11 skills COMING_SOON) |
+| Life Skill Point | Life | **Per-skill pools**: `private.world_life_sp_transactions` (spend ledger keyed by `skill_id` = pool; composite FK to the node's own skill), `world_player_life_nodes`, `world_life_skill_tree_catalog` / `_edges` (0 nodes). Earned SP = `cumulative_sp` of the skill's own curve at its derived Skill Level | private snapshots only (`world_life_skill_sp_snapshot_v1`, `world_life_skill_tree_snapshot_v1`) | `private.world_life_node_unlock_v1` (spends only the node's skill pool, gates on that skill's level) | **none yet** | no | foundation (section 7.1 implemented) |
 | Creature ownership / growth | Creature Core | `private.world_player_creatures`, party state / history, observation events, activity events, XP transactions, memory tags, evolution candidates / events; catalogs | `world_creature_core_snapshot_v1` (service_role); `get_my_duck_companion_v1()` (self) | `world_creature_grant / observe / party_set / activity_accept / evolution_*_v1` | service_role wrappers; Life → Creature and Combat → Creature bridges (same transaction as the source finalize); Duck Companion P1 (`world_inkyung_duck_observe_v1` via service_role / edge function `world-duck-observe`, `bond_my_duck_companion_v1` self-only) | via self-only `bond_my_duck_companion_v1` (server re-counts observations) | Duck Companion P1 live in schema (duck species + `duck.base` ACTIVE); other species, bridges (XP 0) and evolution foundation |
 | Quest progression | Quest | `private.world_quest_progress_v1` (CHECK: 2 quest ids), `private.world_event_progress` (MCM 2026 only) | Cloud Run quest handler → `advance_*` with event `status`; `get_my_mcm_2026_event_v1()` | `advance_world_quest_v1`, `advance_world_navigation_quest_v1`, `advance_mcm_2026_event_v1` (service_role; one RPC per quest) | Cloud Run quest service (`npc-factory/quest-store.mjs`) | **indirect**: the browser asserts `visit_*` / `talk_*` events; the server enforces only the order | production (Main 1, Main 2, MCM 2026) |
 | Reward | Reward | `private.world_reward_definitions` / `_grants` (catalog), `world_reward_transactions` / `_entries` | `world_reward_get_result_v1` (service_role); results embedded in quest / claim responses | `private.world_reward_grant_v1` (CURRENCY, ITEM, EXP only) | Main 1 / Main 2 completion, Daily Quiz pass, Attendance claim, MCM claims, service_role wrapper | no | production |
@@ -175,21 +175,22 @@ Fixtures: `.github/ci/fixtures/migration-contract/pr91-collision` must fail;
 
 These rules bind the next PRs. This PR does not change schema or gameplay for them.
 
-### 7.1 Life Skill Point: per-skill pools
-- Target: each Life Skill has its own SP pool, for example Fishing SP, Gathering SP, Woodcutting
+### 7.1 Life Skill Point: per-skill pools (implemented)
+- Implemented by `20261004130000_world_life_skill_curve_v1_sp_pools`: `life.common.v1` Lv2–20 with
+  cumulative SP, `skill_id` pool column on the SP ledger, `world_life_skill_sp_snapshot_v1`, and a
+  pool-scoped `world_life_node_unlock_v1`. The aggregate Life Level curve rejects any row with
+  `cumulative_sp <> 0`. Guard test: `98_world_life_skill_sp_pools`.
+- Each Life Skill has its own SP pool, for example Fishing SP, Gathering SP, Woodcutting
   (Logging) SP, Farming SP, Crafting SP and Sailing SP.
 - SP is earned from that skill's own Life Skill Level and spent only in that skill's tree.
 - SP earned in one skill **cannot** unlock nodes in another skill's tree.
 - A separate shared / mastery progression may be added later. It must be its own pool and ledger,
   never mixed into the per-skill Life SP.
-- Today (`33dc483`) there is a single aggregate pool: `cumulative_sp` from the aggregate Life Level
-  curve, spent by `world_life_node_unlock_v1`.
-- The migration toward per-skill pools happens in a follow-up Life PR, while the SP ledger and tree
-  catalog are still empty:
-  - add a pool dimension to the SP ledger and the tree catalog;
-  - derive earned SP from the per-skill curve;
-  - gate nodes on the owning skill's level.
-- #91 content that can be imported then is listed in `PR91_LIFE_PROGRESSION_SALVAGE.md`.
+- Earned SP is derived (never stored) from the owning skill's curve: `cumulative_sp` at its Skill Level.
+- Node gates use the owning skill's level (`required_skill_level`). `required_life_level` stays as an
+  optional aggregate gate; it is 1 until the aggregate display curve gets more levels.
+- Still open: the tree node catalog itself (0 nodes). #91 node content and its conversion notes are
+  in `PR91_LIFE_PROGRESSION_SALVAGE.md`.
 
 ### 7.2 Combat TP: derived from Character Level
 - Combat Tree Points are earned from Character Level (`world_player_progression` + `world_level_thresholds`).
