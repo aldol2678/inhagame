@@ -35,3 +35,13 @@ test('current 48 NPC topics fit the bounded topic screen and all have labels', (
     }
   }
 });
+
+
+test('shared schedule movement does not disable or instantly close nearby NPC dialogue', () => {
+  const nearest = runtime.match(/function nearestVisible\(\) \{[\s\S]*?\n  \}/)?.[0] ?? '';
+  assert.ok(nearest, 'nearestVisible exists');
+  assert.doesNotMatch(nearest, /\.moving/, 'moving NPCs remain valid proximity targets');
+  assert.match(runtime, /if \(state && !state\.visible\) closeConversation\(false\);/);
+  assert.doesNotMatch(runtime, /if \(state && \(!state\.visible \|\| state\.moving\)\) closeConversation\(false\);/);
+  assert.match(runtime, /NPC_CONVERSATION_RELEASE_RADIUS/, 'distance still owns automatic conversation release');
+});
