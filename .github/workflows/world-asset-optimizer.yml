@@ -22,6 +22,9 @@ on:
       - 'apps/world/src/campus-material-profile.js'
       - 'apps/world/tests/campus-material-profile.test.mjs'
       - 'apps/world/tests/browser/material-profile-smoke.mjs'
+      - 'apps/world/src/lobby/lobby-loading.js'
+      - 'apps/world/tests/browser/loading-render-smoke.mjs'
+      - 'apps/world/tests/browser/harness.mjs'
       - 'apps/world/src/campus-road-geometry.js'
       - 'apps/world/src/campus-road-micro-details.js'
       - 'apps/world/tests/campus-road-micro-details.test.mjs'
@@ -84,6 +87,11 @@ jobs:
           WORLD_SMOKE_DISABLE_WEBGPU: '1'
           WORLD_SMOKE_BROWSER: chrome
         run: node apps/world/tests/browser/material-profile-smoke.mjs
+      - name: Run delayed-character loading render smoke
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+        run: node apps/world/tests/browser/loading-render-smoke.mjs
       - name: Run winter environment soak smoke
         env:
           WORLD_SMOKE_DISABLE_WEBGPU: '1'
