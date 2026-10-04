@@ -47,7 +47,7 @@ try{
     for(const line of MAIN_HALL_WALKWAYS){const [a,b]=line.points;
       for(const t of [.02,.5,.98]){
         const p={x:a.x+(b.x-a.x)*t,z:a.z+(b.z-a.z)*t};
-        assert.ok(walks.some(e=>flatTops(e,p,parent).some(y=>y>=.020&&y<=.030)),'approach paving missing');
+        assert.ok(flatTops(renderer.base,p,parent).some(y=>y>=.020&&y<=.030),'approach plus receiving surface coverage missing');
       }
       const incoming=SITE_FEATURES.find(f=>f.id===line.sourceId).vertices.at(-2),length=Math.hypot(a.x-incoming.x,a.z-incoming.z);
       for(const p of [{x:a.x+(incoming.x-a.x)*.5/length,z:a.z+(incoming.z-a.z)*.5/length},b]){

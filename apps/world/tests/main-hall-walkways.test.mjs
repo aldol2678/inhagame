@@ -67,3 +67,19 @@ test('visible approach surfaces cover both route midpoints and stay clear of law
     assert.ok(triangles.some(v=>polygonOverlap(p.x,p.z,v.map(t=>({x:t[0],z:t[2]})))),'navigation midpoint receives visible paving');
   }
 });
+
+test('approach paving has no positive-area overlap with the existing receiving lane or avenue',()=>{
+  const batch=new FacilityMeshBatch();geometry.fillMainHallWalkways(batch);
+  const triangles=[...batch.groups.values()].flatMap(g=>Array.from({length:g.indices.length/3},(_,i)=>g.indices.slice(i*3,i*3+3).map(n=>({x:g.positions[n*3],z:g.positions[n*3+2]}))));
+  const across=SITE_FEATURES.find(f=>f.id==='site_481241692').vertices;
+  const dx=across[1].x-across[0].x,dz=across[1].z-across[0].z,length=Math.hypot(dx,dz);
+  for(const triangle of triangles){
+    // The lane's original 3.1 WU surface plus 2.1 WU shoulder owns this area.
+    for(const p of triangle)assert.ok(Math.abs(dx*(p.z-across[0].z)-dz*(p.x-across[0].x))/length>=2.6-1e-8,'new paving overlaps receiving-lane shoulder/asphalt');
+    const center=triangle.reduce((a,p)=>({x:a.x+p.x/3,z:a.z+p.z/3}),{x:0,z:0});
+    const line=layout.MAIN_HALL_WALKWAYS.reduce((a,b)=>Math.hypot(center.x-a.points[0].x,center.z-a.points[0].z)<Math.hypot(center.x-b.points[0].x,center.z-b.points[0].z)?a:b);
+    const vertices=SITE_FEATURES.find(f=>f.id===line.sourceId).vertices,[a,b]=vertices.slice(-2),tx=b.x-a.x,tz=b.z-a.z;
+    for(const p of triangle)assert.ok((p.x-b.x)*tx+(p.z-b.z)*tz>=-1e-8,'new paving overlaps incoming avenue');
+    assert.ok(triangle.some(p=>Math.abs((p.x-b.x)*tx+(p.z-b.z)*tz)<1e-8),'donor seam reaches its exact terminal plane');
+  }
+});

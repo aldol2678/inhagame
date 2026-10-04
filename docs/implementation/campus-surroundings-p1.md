@@ -7,7 +7,8 @@ Initial base: public main `9fa74a0b69c85e3a4ba57ceba38fb0d28019706b`
 `3b95e37f3dec477ebe7e06456907176bb81a63a2` (including #195) before final verification.
 The user approved local repair of the pond render/seat mismatch and the two
 Main Hall approach gaps. Heidegger Forest and the central lawn remain proposals.
-Publication, a PR, merge and Production deployment are separate approvals.
+Draft publication and hosted validation were subsequently approved.
+Merge and Production deployment remain separate approvals.
 
 ## Photo evidence and limitations
 
@@ -69,6 +70,12 @@ recent inspected ground-level pond/lawn evidence.
 - Vetoing both links was rejected: it would force the Main Hall route west around
   the library and fail the promenade acceptance. Broad forecourt paving was also
   rejected because evidence supports two narrow approaches.
+- Hosted review found a view-dependent overlap at the receiving lane: the new
+  approach reached its centerline and relied on a .001 WU depth separation.
+  Rendering now ends at the existing lane's outer shoulder edge, and both donor
+  corners meet the incoming avenue's exact terminal plane. No positive-area
+  overlap, arbitrary overlap pad, or skew-end gap remains in the geometric
+  contract. Navigation and map endpoints still continue to the lane center.
 - Real-world stair count and grade remain unimplemented. No new step, ramp,
   collider or grounding function is inferred from an aerial photograph.
 
@@ -126,9 +133,15 @@ No forest or central-lawn runtime geometry is changed in this candidate.
   It records source hashes, verified camera transforms and stable baseline/candidate
   images of the pond, seating, willow and both Hall approaches. On/off diagnostics
   are labeled separately and are not presented as the prior main runtime.
-- Local browser execution is restricted, so final appearance, shadows, clipping
-  and camera readability require the authorized hosted browser run after separate
-  publication approval. No local browser workaround is attempted.
+- Local browser execution is restricted. Authorized hosted run `37227310028`
+  at `d816f73` produced 30 literal-baseline comparison PNGs. Independent visual
+  review accepted pond presentation but identified the approach overlap above.
+  The seam repair requires a fresh exact-head hosted visual review; stationary
+  pixel equality alone is not evidence that depth overlaps are absent.
+- At `d816f73`, all seven hosted workflows passed, including World 2,683 tests
+  and isolated database 67 files / 3,430 tests. These counts apply to that head,
+  not automatically to the subsequent seam repair. No local browser workaround
+  is attempted.
 
 Protected authorities: the canonical pond/water polygon, terrain/grounding,
 student model #173, Fishing #182/#189 sources and server geometry, seat IDs and
