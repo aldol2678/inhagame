@@ -44,7 +44,7 @@ async function enqueue(u,o,options = {}) {
 }
 before(async () => {
   assert.equal(await query("select to_regnamespace('fishing_authority_prototype') is null"),'t','never replace a preexisting fixture schema');
-  await query(readFileSync(new URL('../fixtures/fishing-authority-prototype.sql',import.meta.url),'utf8')); installed = true;
+  await query(readFileSync(new URL('../../prototypes/fishing-authority-prototype.sql',import.meta.url),'utf8')); installed = true;
   previous = await json('select to_jsonb(r) from private.world_fishing_runtime r');
   await query(`update private.world_fishing_runtime set enabled=true,presence_required=true,
     policy='{"policyVersion":"fishing.fixture.durable","minWaitMs":1,"maxWaitMs":1,"responseWindowMs":10000,"attemptTtlMs":20000,"lifeXp":2}',minimum_start_interval_ms=1`);

@@ -6,13 +6,15 @@ The normal migration sequence, F3 issuer and server/browser entry points are unc
 
 ## Installation boundary
 
-`supabase/tests/fixtures/fishing-authority-prototype.sql` creates the isolated
+`supabase/prototypes/fishing-authority-prototype.sql` creates the isolated
 `fishing_authority_prototype` schema. Only its integration test installs it, after rejecting
 non-loopback DB_URL and checking the schema does not already exist. No installer replaces
 existing state. Creation is transactional; successful installation is tracked before cleanup.
 The test restores runtime policy, deletes fixture users and drops/rechecks the schema.
 Normal pgTAP and type generation run without this schema. It is not a PostgREST-exposed schema
 and has no HTTP route. Run through `bash scripts/public-db.sh` on the disposable local stack.
+The installer lives outside `supabase/tests`: the Supabase CLI recursively treats SQL under
+that directory as pgTAP tests, so placing installation SQL there would run it prematurely.
 
 The SQL fixture could technically be executed by a privileged operator elsewhere; the
 loopback enforcement belongs to its test installer, not a SQL hostname heuristic. Do not
