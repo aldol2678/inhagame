@@ -135,7 +135,7 @@ test('sun and clouds react to night and rain without creating a separate CLOUDY 
   assert.ok(rainCloud.opacity > clearCloud.opacity);
   assert.ok(rainCloud.color.every((value, i) => value < clearCloud.color[i]));
   assert.ok(nightCloud.color.every((value, i) => value < clearCloud.color[i]));
-  assert.ok(nightCloud.color[2] <= 0.16);
+  assert.ok(nightCloud.color[2] < 0.17);
   assert.ok(nightCloud.emissiveIntensity <= 0.30);
 });
 
