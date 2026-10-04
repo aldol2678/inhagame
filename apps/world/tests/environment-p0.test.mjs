@@ -36,8 +36,8 @@ function fixture(initialTime = ENVIRONMENT_TIME.DAY, transitionSeconds = 4) {
 
 const near = (actual, expected, epsilon = 1e-9) => assert.ok(Math.abs(actual - expected) <= epsilon, `${actual} != ${expected}`);
 
-test('environment presets expose bounded DAY, SUNSET and NIGHT values with DAY fail-safe', () => {
-  assert.deepEqual(Object.keys(ENVIRONMENT_PRESETS), ['DAY', 'SUNSET', 'NIGHT']);
+test('environment presets expose bounded dawn-to-night values with DAY fail-safe', () => {
+  assert.deepEqual(Object.keys(ENVIRONMENT_PRESETS), ['DAWN', 'SUNRISE', 'DAY', 'SUNSET', 'NIGHT']);
   for (const preset of Object.values(ENVIRONMENT_PRESETS)) {
     for (const tuple of [preset.sunColor, preset.ambientColor, preset.clearColor])
       for (const value of tuple) assert.ok(value >= 0 && value <= 1);
@@ -45,6 +45,8 @@ test('environment presets expose bounded DAY, SUNSET and NIGHT values with DAY f
     assert.ok(preset.sunIntensity >= 0);
     assert.ok(preset.shadowIntensity >= 0 && preset.shadowIntensity <= 1);
   }
+  assert.equal(resolveEnvironmentTime('dawn'), ENVIRONMENT_TIME.DAWN);
+  assert.equal(resolveEnvironmentTime('sunrise'), ENVIRONMENT_TIME.SUNRISE);
   assert.equal(resolveEnvironmentTime('sunset'), ENVIRONMENT_TIME.SUNSET);
   assert.equal(resolveEnvironmentTime(' NIGHT '), ENVIRONMENT_TIME.NIGHT);
   assert.equal(resolveEnvironmentTime('__invalid__'), DEFAULT_ENVIRONMENT_TIME);
@@ -54,6 +56,8 @@ test('environment presets expose bounded DAY, SUNSET and NIGHT values with DAY f
 test('runtime query override is preview-only and invalid preview values fail safe to DAY', () => {
   const params = new URLSearchParams('envTime=night');
   assert.equal(resolveEnvironmentRuntimeTime(params, { previewHost: true }), ENVIRONMENT_TIME.NIGHT);
+  assert.equal(resolveEnvironmentRuntimeTime(new URLSearchParams('envTime=dawn'), { previewHost: true }), ENVIRONMENT_TIME.DAWN);
+  assert.equal(resolveEnvironmentRuntimeTime(new URLSearchParams('envTime=sunrise'), { previewHost: true }), ENVIRONMENT_TIME.SUNRISE);
   assert.equal(resolveEnvironmentRuntimeTime(params, { previewHost: false }), ENVIRONMENT_TIME.DAY);
   assert.equal(resolveEnvironmentRuntimeTime(new URLSearchParams('envTime=wat'), { previewHost: true }), ENVIRONMENT_TIME.DAY);
   assert.equal(resolveEnvironmentRuntimeTime(new URLSearchParams(''), { previewHost: true }), ENVIRONMENT_TIME.DAY);
