@@ -460,3 +460,63 @@ button:disabled { cursor: default; opacity: .42; }
   color: #718590;
   overflow-wrap: anywhere;
 }
+
+
+.studio-asset-registry {
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #283944;
+}
+
+.studio-asset-registry-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 92px;
+  gap: 6px;
+  margin-top: 7px;
+}
+
+.studio-asset-registry-controls input,
+.studio-asset-registry-controls select {
+  width: 100%;
+  min-width: 0;
+  min-height: 29px;
+  padding: 5px 7px;
+  border: 1px solid #30424e;
+  border-radius: 6px;
+  background: #101a21;
+  color: #c7d7e0;
+  font-size: 9px;
+}
+
+.studio-asset-registry-indexed {
+  margin: 6px 1px;
+  color: #5f7380;
+  font-size: 8px;
+}
+
+.studio-registry-row-top {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+}
+
+.studio-registry-row-top b {
+  padding: 2px 4px;
+  border: 1px solid #355062;
+  border-radius: 4px;
+  color: #7fa6b9;
+  font-size: 7px;
+  letter-spacing: .05em;
+}
+
+.studio-registry-row[data-registry-type="audio"] .studio-registry-row-top b {
+  border-color: #4b4660;
+  color: #a9a0cf;
+}
+
+@media (max-width: 699px) {
+  .studio-asset-registry-controls {
+    grid-template-columns: minmax(0, 1fr) 86px;
+  }
+}

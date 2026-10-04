@@ -57,7 +57,7 @@ function createUser() {
   users.push(id);
   return id;
 }
-// Committed state: life.fishing ACTIVE, its tree COMING_SOON (20261004139000). Restore it after fixtures.
+// Committed state: life.fishing ACTIVE, its tree COMING_SOON (20261004161000). Restore it after fixtures.
 const committed = JSON.parse(sql(`select jsonb_build_object('skill',
   (select status from private.world_life_skill_catalog where skill_id='life.fishing'),
   'tree',(select jsonb_object_agg(node_id,status) from private.world_life_skill_tree_catalog where skill_id='life.fishing'))`));

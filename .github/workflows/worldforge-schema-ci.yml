@@ -1,0 +1,39 @@
+name: WorldForge Schema
+
+on:
+  pull_request:
+    paths:
+      - 'packages/worldforge-schema/**'
+      - '.github/workflows/worldforge-schema-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'packages/worldforge-schema/**'
+      - '.github/workflows/worldforge-schema-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  schema:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: packages/worldforge-schema
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - run: npm ci --no-audit --no-fund
+      - run: npm test
+      - run: npm run schema
+      - name: Upload generated schemas
+        uses: actions/upload-artifact@v4
+        with:
+          name: worldforge-generated-schema
+          path: packages/worldforge-schema/schema
+          if-no-files-found: error
+      - name: Verify generated schemas are committed
+        run: git diff --exit-code -- schema

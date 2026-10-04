@@ -65,7 +65,7 @@ fail closed. The endpoint accepts only JSON POST, caps bodies at 8 KiB, checks
 browser Origin, sets no-store and returns sanitized errors. An ambiguous network
 failure has no automatic mutation retry: read/replay with the same identity.
 
-## Repository activation candidate (20261004139000)
+## Repository activation candidate (20261004161000)
 
 On a database where this migration has been applied, Fishing is the first ACTIVE Life Skill.
 The migration activates `life.fishing`,

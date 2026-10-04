@@ -28,7 +28,7 @@ select col_is_unique('private','world_life_skill_xp_transactions',array['idempot
 
 select is((select count(*) from private.world_life_skill_catalog),11::bigint,'11 long-term Life Skills are mirrored');
 select is((select count(*) from private.world_life_skill_catalog where status='COMING_SOON'),10::bigint,
-  'only Fishing is activated (20261004139000)');
+  'only Fishing is activated (20261004161000)');
 select results_eq($$
   select skill_id,curve_id,status from private.world_life_skill_catalog order by skill_id
 $$,$$values

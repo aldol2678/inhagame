@@ -8,8 +8,8 @@ const hall = TOUR_STOPS.find(stop => stop.id === 'main');
 const pond = { x: POND_RING.reduce((sum, point) => sum + point.x, 0) / POND_RING.length,
   z: POND_RING.reduce((sum, point) => sum + point.z, 0) / POND_RING.length };
 
-// onReward(reward): P1c. Called once with the server Reward result carried by the call that completed
-// the walk, only while the same account is still signed in. The client never computes EXP or items.
+// onReward(reward): fresh completion or an existing, replayed receipt recovered after response loss.
+// Only the same account generation receives it; the client never computes EXP or items.
 // CORE-15: a failed status read is retried on statusRetryDelays (same lane as Main 2), and the
 // quest can be switched on after the runtime is built (setEnabled) when its flag resolves late.
 export function createQuestClient({ enabled, endpoint, getSession, getNpcPosition = () => null, hud, tour, fetcher = fetch,
@@ -63,14 +63,21 @@ export function createQuestClient({ enabled, endpoint, getSession, getNpcPositio
       const reward = result.reward ?? null;
       if (reward !== null && !(event === 'talk_001' && result.stage === 5 && isQuestRewardResult(reward)))
         throw Error('QUEST_UNAVAILABLE');
+      const receipt = result.rewardReceipt ?? null;
+      if (receipt !== null && !(reward === null && event === 'talk_001' &&
+          result.stage === 5 && isQuestRewardResult(receipt) && receipt.replayed === true &&
+          receipt.rewardId === 'reward.quest.first_campus' &&
+          typeof receipt.rewardTransactionId === 'string' && receipt.rewardTransactionId.length > 0))
+        throw Error('QUEST_UNAVAILABLE');
       if (requestGeneration !== generation) return null;
       stage = result.stage;
       statusReady = true;
       retryAfter = 0;
       clearStatusRetry();
       publish();
-      if (reward) {
-        try { onReward(reward); } catch { /* presentation only; progress already stored */ }
+      const presentation = reward ?? receipt;
+      if (presentation) {
+        try { onReward(presentation); } catch { /* presentation only; progress already stored */ }
       }
       return result;
     } catch (error) {

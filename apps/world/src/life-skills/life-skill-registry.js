@@ -85,7 +85,7 @@ export const DEFAULT_LIFE_SKILL_DEFINITIONS = Object.freeze({
     category: 'HARVEST',
     tags: ['life','fishing','p1a'],
     availabilityRef: 'availability.life.fishing',
-    // First ACTIVE Life Skill (20261004139000_world_fishing_first_life_skill).
+    // First ACTIVE Life Skill (20261004161000_world_fishing_first_life_skill).
     status: LIFE_SKILL_STATUS.ACTIVE
   }),
   GATHERING: common({

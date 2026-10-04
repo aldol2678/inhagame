@@ -47,7 +47,7 @@ test('two allowlisted sources use the existing one-carp identities, now ACTIVE',
     assert.equal(done.result.catch.skillId, 'life.fishing');
     assert.equal(getItemDefinition(done.result.catch.itemId).tradePolicy, 'ACCOUNT_BOUND');
   }
-  // Mirrors 20261004139000_world_fishing_first_life_skill.
+  // Mirrors 20261004161000_world_fishing_first_life_skill.
   assert.equal(ACTIVITY_REGISTRY.get(FISHING_ACTIVITY_ID).status, 'ACTIVE');
   assert.equal(COLLECTION_ENTRY_REGISTRY.get('collection.fish.carp').status, 'ACTIVE');
   assert.equal(LIFE_SKILL_REGISTRY.get('life.fishing').status, 'ACTIVE');

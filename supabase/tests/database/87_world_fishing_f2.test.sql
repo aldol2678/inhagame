@@ -8,7 +8,7 @@ select has_table('private','world_activity_settlements','fishing settles through
 select is((select bridge.activity_id from private.world_life_creature_bridge_catalog bridge
   where bridge.life_skill_id='life.fishing'),'activity.fishing.inkyung',
   'fishing activity is the mapped Life -> Creature bridge activity');
--- 20261004139000_world_fishing_first_life_skill activates Fishing with a CANDIDATE policy.
+-- 20261004161000_world_fishing_first_life_skill activates Fishing with a CANDIDATE policy.
 select is((select enabled from private.world_fishing_runtime),true,'runtime is enabled');
 select is((select policy from private.world_fishing_runtime),
   '{"policyVersion":"fishing.candidate.v1","minWaitMs":3000,"maxWaitMs":9000,"responseWindowMs":1500,"attemptTtlMs":30000,"lifeXp":20}'::jsonb,

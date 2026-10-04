@@ -73,7 +73,7 @@ select ok(has_function_privilege('service_role',
   'service_role can read collection projection');
 
 -- ---- write gates: not-live + owner-derived ----
--- Carp is ACTIVE since 20261004139000; the fixture puts it back to COMING_SOON (rolled back).
+-- Carp is ACTIVE since 20261004161000; the fixture puts it back to COMING_SOON (rolled back).
 update private.world_collection_entry_catalog set status='COMING_SOON' where entry_id='collection.fish.carp';
 set local role service_role;
 set local request.jwt.claims = '{"role":"service_role"}';
