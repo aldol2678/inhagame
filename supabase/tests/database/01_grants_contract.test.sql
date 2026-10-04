@@ -121,9 +121,11 @@ select set_eq($$select unnest(pg_temp.exec_surface('authenticated', 'anon'))$$, 
   'update_world_guestbook_entry_v2(uuid,text)',
   'delete_world_guestbook_entry_v2(uuid)',
   'get_or_create_my_personal_room_v1()',
-  -- Creature P1: own Duck Companion read/bond; observation minting remains service-role only.
+  -- Creature P1: own Duck Companion read/bond + own Creature Core read/revisioned party management.
   'get_my_duck_companion_v1()',
   'bond_my_duck_companion_v1(text)',
+  'get_my_creature_core_v1()',
+  'set_my_creature_party_v1(uuid,uuid,uuid,bigint,text)',
   -- Biryong NPC relationship P0: own server-authoritative Stage/fact projection, read only.
   'get_my_biryong_npc_relationship_v1(text)',
   'get_my_biryong_npc_relationships_v1()',

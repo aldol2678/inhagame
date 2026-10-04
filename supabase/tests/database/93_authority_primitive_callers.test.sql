@@ -107,6 +107,8 @@ insert into authority_allowed_call values
   ('public.world_creature_grant_v1',           'private.world_creature_grant_v1', 'service_role server API wrapper'),
   ('public.world_creature_observe_v1',         'private.world_creature_observe_v1', 'service_role server API wrapper'),
   ('public.world_creature_party_set_v1',       'private.world_creature_party_set_v1', 'service_role server API wrapper'),
+  ('public.set_my_creature_party_v1',          'private.world_creature_party_set_v1',
+     'Creature Manager P1: caller = auth.uid(); private primitive re-validates ownership, shape and revision'),
   ('public.world_creature_activity_accept_v1', 'private.world_creature_activity_accept_v1', 'service_role server API wrapper'),
   ('private.world_life_activity_finalize_with_creature_v1', 'private.world_creature_activity_accept_v1',
      'Life -> Creature bridge P1: same transaction as the Activity finalize that produced result_ref'),
@@ -182,7 +184,8 @@ select set_eq(
     'public.claim_my_world_attendance_v1',                -- day from the DB clock, one claim per day
     'public.claim_my_mcm_2026_main_reward_v1',            -- requires server-recorded event completion
     'public.claim_my_mcm_landlord_first_clear_reward_v1', -- requires a server-judged landlord clear
-    'public.bond_my_duck_companion_v1'                    -- caller = auth.uid(); bond re-counts the server observation ledger
+    'public.bond_my_duck_companion_v1',                   -- caller = auth.uid(); bond re-counts the server observation ledger
+    'public.set_my_creature_party_v1'                     -- caller = auth.uid(); owned Creature ids + expected revision validated server-side
   ],
   'client-executable functions that reach a primitive (transitively) are exactly the reviewed self-only RPCs');
 

@@ -52,7 +52,7 @@ nothing is ACTIVE / no settlement path · **planned** = no backing schema yet ·
 | Activity attempt | Activity | `private.world_activity_attempts` | none for players yet | `world_activity_start / finalize_v1`; `world_life_activity_*_with_creature_v1` | trusted server (service_role) | no | foundation (no ACTIVE activity) |
 | Life progression | Life | per-skill XP: `private.world_player_life_skills`, `world_life_skill_xp_transactions`; skill curve `world_life_skill_thresholds` (Lv1 only); aggregate curve `world_life_progression_thresholds` (Lv1 only) | private snapshots only (`world_life_skill_snapshot_v1`, `world_life_progression_snapshot_v1`); **no public read RPC** | `private.world_life_skill_xp_apply_v1` | **none yet** (no settlement path) | no | foundation (all 11 skills COMING_SOON) |
 | Life Skill Point | Life | `private.world_life_sp_transactions` (spend ledger), `world_player_life_nodes`, `world_life_skill_tree_catalog` / `_edges` (0 nodes). Earned SP = `cumulative_sp` of the **aggregate** Life Level today | private snapshot only | `private.world_life_node_unlock_v1` | **none yet** | no | foundation. **Target contract is per-skill pools** (section 7.1) |
-| Creature ownership / growth | Creature Core | `private.world_player_creatures`, party state / history, observation events, activity events, XP transactions, memory tags, evolution candidates / events; catalogs | `world_creature_core_snapshot_v1` (service_role); `get_my_duck_companion_v1()` (self) | `world_creature_grant / observe / party_set / activity_accept / evolution_*_v1` | service_role wrappers; Life → Creature and Combat → Creature bridges (same transaction as the source finalize); Duck Companion P1 (`world_inkyung_duck_observe_v1` via service_role / edge function `world-duck-observe`, `bond_my_duck_companion_v1` self-only) | via self-only `bond_my_duck_companion_v1` (server re-counts observations) | Duck Companion P1 live in schema (duck species + `duck.base` ACTIVE); other species, bridges (XP 0) and evolution foundation |
+| Creature ownership / growth | Creature Core | `private.world_player_creatures`, party state / history, observation events, activity events, XP transactions, memory tags, evolution candidates / events; catalogs | `world_creature_core_snapshot_v1` (service_role); `get_my_creature_core_v1()` / `get_my_duck_companion_v1()` (self) | `world_creature_grant / observe / party_set / activity_accept / evolution_*_v1` | service_role wrappers; Life → Creature and Combat → Creature bridges (same transaction as the source finalize); Duck Companion P1 (`world_inkyung_duck_observe_v1` via service_role / edge function `world-duck-observe`, `bond_my_duck_companion_v1` self-only); Creature Manager P1 `set_my_creature_party_v1` self-only | via self-only bond and revisioned party RPCs; server validates owned Creature ids | Duck Companion P1 + Creature Manager P1 live; other species, bridges (XP 0) and evolution foundation |
 | Quest progression | Quest | `private.world_quest_progress_v1` (CHECK: 2 quest ids), `private.world_event_progress` (MCM 2026 only) | Cloud Run quest handler → `advance_*` with event `status`; `get_my_mcm_2026_event_v1()` | `advance_world_quest_v1`, `advance_world_navigation_quest_v1`, `advance_mcm_2026_event_v1` (service_role; one RPC per quest) | Cloud Run quest service (`npc-factory/quest-store.mjs`) | **indirect**: the browser asserts `visit_*` / `talk_*` events; the server enforces only the order | production (Main 1, Main 2, MCM 2026) |
 | Reward | Reward | `private.world_reward_definitions` / `_grants` (catalog), `world_reward_transactions` / `_entries` | `world_reward_get_result_v1` (service_role); results embedded in quest / claim responses | `private.world_reward_grant_v1` (CURRENCY, ITEM, EXP only) | Main 1 / Main 2 completion, Daily Quiz pass, Attendance claim, MCM claims, service_role wrapper | no | production |
 | Collection | Collection | `private.world_player_collection_discoveries`, `world_collection_discovery_events`, `world_collection_entry_catalog` | `world_collection_list_v1` (service_role) | `private.world_collection_discover_v1` | service_role wrapper | no | foundation (only `collection.place.biryong_tower`, derived from its owner) |
@@ -87,9 +87,9 @@ Allowed callers on `8b7bf39`. The exact list with a reason per row is in test 93
 - **EXP**: Reward orchestrator; service_role `world_exp_grant_v1`.
 - **Inventory grant**: Reward; Inventory mutate; Shop purchase; service_role `world_inventory_grant_item_v1` and `world_inventory_ensure_default_items_v1`. **Consume**: Inventory mutate only.
 - **Reward**: `advance_world_quest_v1`, `advance_world_navigation_quest_v1`, `answer_my_world_daily_quiz_v1`, `world_attendance_claim_v1`, `world_mcm_claim_reward_v1`, service_role wrapper.
-- **Creature observe / grant / party set**: service_role wrappers, plus Duck Companion P1:
+- **Creature observe / grant / party set**: service_role wrappers, plus Duck Companion P1 and Creature Manager P1:
   `world_inkyung_duck_observe_v1` → observe; `world_duck_companion_bond_v1` → grant and, only
-  when the party is empty, party set.
+  when the party is empty, party set; `set_my_creature_party_v1` → party set with `auth.uid()`, owned ids and expected revision re-validated by the primitive.
 - **Creature activity accept**: service_role wrapper, plus the Life → Creature and Combat → Creature
   P1 bridges. Each bridge accepts only the `result_ref` its own finalize just produced, in the same
   transaction.
@@ -101,8 +101,8 @@ Allowed callers on `8b7bf39`. The exact list with a reason per row is in test 93
 Client reachability: the only functions `anon` / `authenticated` can execute that reach any
 primitive, at any depth, are `purchase_world_shop_listing_v1`, `answer_my_world_daily_quiz_v1`,
 `claim_my_world_attendance_v1`, `claim_my_mcm_2026_main_reward_v1`,
-`claim_my_mcm_landlord_first_clear_reward_v1` and `bond_my_duck_companion_v1`. Each decides its
-outcome on the server.
+`claim_my_mcm_landlord_first_clear_reward_v1`, `bond_my_duck_companion_v1` and
+`set_my_creature_party_v1`. Each decides or validates its outcome on the server.
 
 How the test reads the call graph:
 - Only the final catalog after replaying every migration is inspected. A superseded version of a
@@ -168,7 +168,7 @@ Fixtures: `.github/ci/fixtures/migration-contract/pr91-collision` must fail;
 | Role | Intended authority | Enforced by |
 |---|---|---|
 | `anon` | Public read aggregates, guest telemetry, presence touch. No World progression or state mutation. | `01_grants_contract` exact anon EXECUTE surface; no `private` usage; no `private` function |
-| `authenticated` | Self-only RPCs where the caller is `auth.uid()` and the server decides the outcome (purchase, quiz, attendance, MCM claims, equip, social, housing). Never passes another user id. Never reaches a primitive except through the six RPCs in section 3. | exact authenticated EXECUTE surface; no `private` usage; no `private` function; transitive reach check in test 93 |
+| `authenticated` | Self-only RPCs where the caller is `auth.uid()` and the server decides the outcome (purchase, quiz, attendance, MCM claims, equip, social, housing). Never passes another user id. Never reaches a primitive except through the reviewed self-only RPCs in section 3. | exact authenticated EXECUTE surface; no `private` usage; no `private` function; transitive reach check in test 93 |
 | `service_role` | Trusted server code (Cloud Run quest / NPC services, future resolvers) calling `public.*_v1(p_user, …)` wrappers. Most wrappers also re-check `auth.role() = 'service_role'` in the body; four rely on the GRANT alone (section 8). Cannot execute private primitives directly. | service-role-only lists in `01_grants_contract` (economy, quest, activity, collection, combat, creature, Biryong relationship, bridges, NPC ticks); private EXECUTE surface = the two staff helpers; private table DML surface recorded exactly |
 
 ## 7. Target contracts (decided, not yet implemented)
