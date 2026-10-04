@@ -972,12 +972,13 @@ test("P1.7 loading phases are monotonic and finish at READY", () => {
   const bar = { style: {}, attrs: new Map(), setAttribute(k, v) { this.attrs.set(k, v); } };
   const percent = { textContent: "" };
   const button = { hidden: true, addEventListener(_type, cb) { this.click = cb; } };
+  const lobby = { inert: false };
   const callbacks = [];
   const timers = { setTimeout(cb) { callbacks.push(cb); return callbacks.length; }, clearTimeout() {} };
   let now = 0;
   const loading = createWorldLoading({
     root, messageElement: message, detailElement: detail, barElement: bar,
-    percentElement: percent, continueButton: button,
+    percentElement: percent, continueButton: button, interactionRoot: lobby,
     clock: { now: () => now }, timers, slowAfterMs: 6500, fadeMs: 0
   });
 
@@ -988,8 +989,14 @@ test("P1.7 loading phases are monotonic and finish at READY", () => {
   loading.setPhase("STREAMING");
   loading.setEssentialReady(true);
   callbacks[0]();
-  assert.equal(button.hidden, false, "slow essential-ready load exposes early entry");
-  button.click();
+  assert.equal(button.hidden, true, "slow load never exposes an early-entry bypass");
+  assert.equal(lobby.inert, true, "keyboard and touch cannot enter the unfinished scene");
+  assert.equal(loading.finish({ early: true }), false, "essential readiness cannot bypass rendering");
+  assert.equal(root.hidden, false);
+  loading.setPhase("RENDERING");
+  loading.setRenderReady(true);
+  loading.finish();
+  assert.equal(lobby.inert, false);
   assert.equal(loading.status().finished, true);
   assert.equal(loading.status().phase, "READY");
 });
