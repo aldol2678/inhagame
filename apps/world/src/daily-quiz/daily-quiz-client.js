@@ -115,6 +115,7 @@ export function createDailyQuizClient({ getClient, onReward = () => {} } = {}) {
   let snapshot = null;
   let pending = null;
   let reading = null;
+  let readVersion = 0;
   const listeners = new Set();
 
   function set(nextState, nextSnapshot, reason) {
@@ -138,12 +139,20 @@ export function createDailyQuizClient({ getClient, onReward = () => {} } = {}) {
 
   function refresh(reason = "refresh") {
     if (!accountId) return Promise.resolve(false);
+    // A read sent during a write can still observe its old server snapshot. Defer and
+    // coalesce these refresh requests until the write settles, without retrying it.
+    if (pending) {
+      const gen = generation;
+      pending.refresh ??= pending.done.then(() => gen === generation ? refresh(reason) : false);
+      return pending.refresh;
+    }
     if (reading) return reading;
     const gen = generation;
+    const version = readVersion;
     const run = (async () => {
       try {
         const { data, error } = await call(DAILY_QUIZ_RPC.READ);
-        if (gen !== generation) return false;
+        if (gen !== generation || version !== readVersion) return false;
         const next = error ? null : parseDailyQuiz(data);
         if (error) console.warn("World daily quiz unavailable:", error?.message ?? error);
         if (next) set(DAILY_QUIZ_STATE.READY, next, reason);
@@ -163,7 +172,12 @@ export function createDailyQuizClient({ getClient, onReward = () => {} } = {}) {
     if (pending) return { outcome: "BUSY" };
     const gen = generation;
     const claim = {};
+    claim.done = new Promise(resolve => { claim.finish = resolve; });
     pending = claim;
+    // Invalidate reads already in flight so neither success nor failure recovery
+    // can be overwritten (or coalesced) with a pre-mutation status response.
+    readVersion += 1;
+    reading = null;
     set(state, snapshot, kind);
     try {
       const { data, error } = await call(rpc, args);
@@ -192,6 +206,7 @@ export function createDailyQuizClient({ getClient, onReward = () => {} } = {}) {
         pending = null;
         if (gen === generation) set(state, snapshot, kind);
       }
+      claim.finish();
     }
   }
 

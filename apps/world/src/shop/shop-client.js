@@ -178,11 +178,8 @@ export function createShopClient({ getClient, shopId = SHOP_STUDENT_CENTER, crea
       const { data, error } = await client.rpc(SHOP_PURCHASE_RPC, { p_listing_id: listingId, p_idempotency_key: key });
       if (error) {
         const code = shopErrorCode(error);
-        // A refusal is final for this key; an unknown failure keeps the key for a safe retry.
-        if (code !== "FAILED") unresolvedKeys.delete(listingId);
         response = { outcome: code === "FAILED" ? "FAILED" : "REFUSED", code, offer };
       } else if (data?.status === "SUCCESS") {
-        unresolvedKeys.delete(listingId);
         response = { outcome: "SUCCESS", code: null, result: data, offer };
       } else {
         response = { outcome: "FAILED", code: "FAILED", offer };
@@ -191,9 +188,13 @@ export function createShopClient({ getClient, shopId = SHOP_STUDENT_CENTER, crea
       response = { outcome: "FAILED", code: shopErrorCode(error), offer };
     }
     if (gen !== generation || account !== accountId) return { outcome: "STALE", code: null, offer };
+    // Only the owning generation may retire its key; unknown outcomes keep it for a safe retry.
+    if (response.outcome === "SUCCESS" || response.outcome === "REFUSED") unresolvedKeys.delete(listingId);
     pending.delete(listingId);
     publish("purchase");
     if (response.outcome === "SUCCESS" || STALE_SNAPSHOT_ERRORS.has(response.code)) await refresh("purchase");
+    // Readback can outlive its account; do not release an old result to UI callbacks.
+    if (gen !== generation || account !== accountId) return { outcome: "STALE", code: null, offer };
     return response;
   }
 

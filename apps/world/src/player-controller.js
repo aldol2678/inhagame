@@ -90,6 +90,8 @@ export function findHelicopterSummonPose({
 }
 
 export class PlayerController {
+  #resetTouchPad = null;
+
   constructor(entity, {
     walkSpeed = 7,
     sprintSpeed = 12,
@@ -229,24 +231,40 @@ export class PlayerController {
       this.touchVector.y = dy / radius;
     };
 
-    const resetPad = () => {
+    const resetPad = (event) => {
+      if (event && (pointerId === null || event.pointerId !== pointerId)) return;
+      const capturedPointerId = pointerId;
+      // Invalidate ownership before release, which may dispatch capture loss.
       pointerId = null;
       this.touchVector.x = 0;
       this.touchVector.y = 0;
       knob.style.transform = "translate(0,0)";
+      if (capturedPointerId === null) return;
+      try {
+        if (pad.hasPointerCapture?.(capturedPointerId)) pad.releasePointerCapture(capturedPointerId);
+      } catch {
+        // The browser may have already ended the pointer during cancellation.
+      }
     };
+    this.#resetTouchPad = resetPad;
 
     pad.addEventListener("pointerdown", (event) => {
-      if (!this.inputEnabled) return;
+      if (!this.inputEnabled || pointerId !== null) return;
       pointerId = event.pointerId;
-      pad.setPointerCapture(pointerId);
-      updatePad(event.clientX, event.clientY);
+      try {
+        pad.setPointerCapture(pointerId);
+      } catch {
+        resetPad();
+        return;
+      }
+      if (event.pointerId === pointerId) updatePad(event.clientX, event.clientY);
     });
     pad.addEventListener("pointermove", (event) => {
-      if (event.pointerId === pointerId) updatePad(event.clientX, event.clientY);
+      if (this.inputEnabled && pointerId !== null && event.pointerId === pointerId) updatePad(event.clientX, event.clientY);
     });
     pad.addEventListener("pointerup", resetPad);
     pad.addEventListener("pointercancel", resetPad);
+    pad.addEventListener("lostpointercapture", resetPad);
     jump.addEventListener("pointerdown", (event) => {
       if (!this.inputEnabled || this.onSurfaceMount) return;
       this.jumpQueued = true;
@@ -278,14 +296,18 @@ export class PlayerController {
     run.addEventListener("click", (event) => {
       if (event.detail === 0 && !event.pointerType) setRun(!this.touchSprint);
     });
-    window.addEventListener("blur", () => {
+    const releaseHeldInput = () => {
+      resetPad();
       setRun(false);
+      this.jumpQueued = false;
       this.ascendHeld = false;
       this.descendHeld = false;
-      this.touchVector.x = 0;
-      this.touchVector.y = 0;
-      knob.style.transform = "translate(0,0)";
       this.keys.clear();
+    };
+    window.addEventListener("blur", releaseHeldInput);
+    window.addEventListener("pagehide", releaseHeldInput);
+    document.addEventListener?.("visibilitychange", () => {
+      if (document.hidden) releaseHeldInput();
     });
   }
 
@@ -332,6 +354,7 @@ export class PlayerController {
   setInputEnabled(enabled = true) {
     this.inputEnabled = enabled === true;
     if (this.inputEnabled) return;
+    this.#resetTouchPad?.();
     this.keys.clear();
     this.touchVector.x = 0;
     this.touchVector.y = 0;
