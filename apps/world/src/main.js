@@ -142,6 +142,8 @@ import { createDailyQuizClient } from "./daily-quiz/daily-quiz-client.js";
 import { createDailyQuizPanel } from "./daily-quiz/daily-quiz-panel.js";
 import { createAttendanceClient } from "./attendance/attendance-client.js";
 import { createAttendancePanel } from "./attendance/attendance-panel.js";
+import { LIFE_SKILL_BOOK_STATE, createLifeSkillBookClient } from "./life-skills/life-skill-book-client.js";
+import { createLifeSkillBookPanel } from "./life-skills/life-skill-book-panel.js";
 import { createLoadoutClient } from "./appearance/loadout-client.js";
 import { createEquipmentProjection } from "./appearance/equipment-projection.js";
 import { createEquipmentModelLoader } from "./appearance/equipment-asset-loader.js";
@@ -573,6 +575,11 @@ const dailyQuizInput = createInputFocusOwner({
 const attendanceInput = createInputFocusOwner({
   manager: inputFocus, ownerId: "attendance", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
 });
+const lifeSkillBookInput = createInputFocusOwner({
+  manager: inputFocus, ownerId: "life-skill-book", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
+});
+// Declared early so every panel's close-others list can reference it before it is created below.
+let lifeSkillBookPanel = null;
 const questJournalInput = createInputFocusOwner({
   manager: inputFocus, ownerId: "quest-journal", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
 });
@@ -1214,7 +1221,7 @@ const inventoryPanel = createInventoryPanel({
       mobilityBook.setOpen(false);
       wardrobePanel.setOpen(false);
       dailyQuizPanel.setOpen(false);
-      attendancePanel.setOpen(false);
+      attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false);
       emoteMenu.setOpen(false);
       chatPanel.setOpen(false, { focus: false });
       playerCard.close();
@@ -1245,7 +1252,7 @@ const shopPanel = createShopPanel({
       mobilityBook.setOpen(false);
       wardrobePanel.setOpen(false);
       dailyQuizPanel.setOpen(false);
-      attendancePanel.setOpen(false);
+      attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false);
       emoteMenu.setOpen(false);
       chatPanel.setOpen(false, { focus: false });
       playerCard.close();
@@ -1276,7 +1283,7 @@ const wardrobePanel = createWardrobePanel({
       inventoryPanel.setOpen(false);
       mobilityBook.setOpen(false);
       dailyQuizPanel.setOpen(false);
-      attendancePanel.setOpen(false);
+      attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false);
       emoteMenu.setOpen(false);
       chatPanel.setOpen(false, { focus: false });
       playerCard.close();
@@ -1348,7 +1355,7 @@ const mobilityBook = createMobilityBook({
       inventoryPanel.setOpen(false);
       wardrobePanel.setOpen(false);
       dailyQuizPanel.setOpen(false);
-      attendancePanel.setOpen(false);
+      attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false);
       emoteMenu.setOpen(false);
       chatPanel.setOpen(false, { focus: false });
       playerCard.close();
@@ -1370,7 +1377,7 @@ const dailyQuizPanel = createDailyQuizPanel({
     if (open) {
       dailyQuizInput.acquire();
       questJournal?.setOpen(false);
-      attendancePanel.setOpen(false);
+      attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false);
       shopPanel.setOpen(false);
       inventoryPanel.setOpen(false);
       mobilityBook.setOpen(false);
@@ -1395,6 +1402,7 @@ const attendancePanel = createAttendancePanel({
     lobbyDailyLoop.setPanelOpen("attendance", open);
     if (open) {
       attendanceInput.acquire();
+      lifeSkillBookPanel?.setOpen(false);
       questJournal?.setOpen(false);
       dailyQuizPanel.setOpen(false);
       shopPanel.setOpen(false);
@@ -1411,6 +1419,38 @@ const attendancePanel = createAttendancePanel({
   }
 });
 attendanceButton?.addEventListener("click", () => attendancePanel.setOpen(true));
+// Life Skill Book P0 (☰ → 📘 생활 스킬): server-owned self views and actions. The menu entry is shown only
+// while the server lists at least one visible (ACTIVE) skill for this account; nothing else decides it.
+const lifeSkillBook = createLifeSkillBookClient({ getClient: () => online?.supabase ?? null });
+const lifeSkillBookButton = document.getElementById("open-life-skills");
+lifeSkillBookPanel = createLifeSkillBookPanel({
+  panel: document.getElementById("life-skill-book-panel"),
+  book: lifeSkillBook,
+  onOpenChange: (open) => {
+    lifeSkillBookButton?.setAttribute("aria-expanded", String(open));
+    if (open) {
+      lifeSkillBookInput.acquire();
+      attendancePanel.setOpen(false);
+      questJournal?.setOpen(false);
+      dailyQuizPanel.setOpen(false);
+      shopPanel.setOpen(false);
+      inventoryPanel.setOpen(false);
+      mobilityBook.setOpen(false);
+      wardrobePanel.setOpen(false);
+      emoteMenu.setOpen(false);
+      chatPanel.setOpen(false, { focus: false });
+      playerCard.close();
+      void guestbookPanel.setOpen(false);
+      return;
+    }
+    lifeSkillBookInput.release();
+  }
+});
+lifeSkillBook.onChange(() => {
+  if (lifeSkillBookButton) lifeSkillBookButton.hidden = !lifeSkillBook.hasVisibleSkills;
+  if (!lifeSkillBook.hasVisibleSkills && lifeSkillBook.state !== LIFE_SKILL_BOOK_STATE.LOADING) lifeSkillBookPanel?.setOpen(false);
+});
+lifeSkillBookButton?.addEventListener("click", () => lifeSkillBookPanel?.setOpen(true));
 // Main Lobby P2 "오늘의 캠퍼스": a read-only summary of the two clients above. It re-renders on their own change
 // events (account switches included) and only opens the existing panels; the panels keep the explicit claim / start.
 const lobbyDailyLoop = createLobbyDailyLoop({
@@ -1637,7 +1677,7 @@ rooms = createRoomTransition({
       mobilityBook.setOpen(false);
       wardrobePanel.setOpen(false);
       dailyQuizPanel.setOpen(false);
-      attendancePanel.setOpen(false);
+      attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false);
       questJournal?.setOpen(false);
     },
     setLocationLabel: (text) => { zoneEl.textContent = text; },
@@ -1676,7 +1716,7 @@ biryongRealm = createBiryongRealmTransition({
       mobilityBook.setOpen(false);
       wardrobePanel.setOpen(false);
       dailyQuizPanel.setOpen(false);
-      attendancePanel.setOpen(false);
+      attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false);
       questJournal?.setOpen(false);
     },
     setLocationLabel: text => { zoneEl.textContent = text; },
@@ -1889,7 +1929,7 @@ furnitureEditor = createFurnitureEditor({
     if (open) {
       furnitureInput.acquire();
       inventoryPanel.setOpen(false); shopPanel.setOpen(false); wardrobePanel.setOpen(false);
-      dailyQuizPanel.setOpen(false); attendancePanel.setOpen(false); questJournal?.setOpen(false);
+      dailyQuizPanel.setOpen(false); attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false); questJournal?.setOpen(false);
       emoteMenu.setOpen(false); chatPanel.setOpen(false,{ focus:false }); playerCard.close();
       void guestbookPanel.setOpen(false);
     } else {
@@ -2343,7 +2383,7 @@ try {
     getOverlayState: () => ({
       hudMenu: hudMenu.open, keyboardHelp: keyboardHelp?.open === true, friends: friendPanel.open,
       playerCard: playerCard.current != null, guestbook: guestbookPanel.open, shop: shopPanel.open, inventory: inventoryPanel.open, wardrobe: wardrobePanel.open,
-      blocking: furnitureEditor?.open === true || dailyQuizPanel.open || attendancePanel.open || questJournal?.open === true,
+      blocking: furnitureEditor?.open === true || dailyQuizPanel.open || attendancePanel.open || lifeSkillBookPanel?.open === true || questJournal?.open === true,
       npcConversation: npcTest?.isConversationOpen?.() === true,
       mcmEvent: mcmEventUi.openState || mcmEventRuntime.isDialogueOpen() === true,
       profile: document.getElementById("profile-panel")?.hidden === false,
@@ -2425,7 +2465,7 @@ try {
       inventoryPanel.setOpen(false);
       wardrobePanel.setOpen(false);
       dailyQuizPanel.setOpen(false);
-      attendancePanel.setOpen(false);
+      attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false);
       questJournal?.setOpen(false);
     },
     onClose: () => { fullMapInput.release(); },
@@ -2492,7 +2532,7 @@ questJournal = createQuestJournal({
       inventoryPanel.setOpen(false);
       wardrobePanel.setOpen(false);
       dailyQuizPanel.setOpen(false);
-      attendancePanel.setOpen(false);
+      attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false);
       emoteMenu.setOpen(false);
       chatPanel.setOpen(false, { focus: false });
       playerCard.close();
@@ -2951,6 +2991,7 @@ try {
     void inventory.setAccount(identity ? online?.userId ?? null : null);
     void dailyQuiz.setAccount(identity ? online?.userId ?? null : null);
     void attendance.setAccount(identity ? online?.userId ?? null : null);
+    void lifeSkillBook.setAccount(identity ? online?.userId ?? null : null);
     void loadout.setAccount(identity ? online?.userId ?? null : null);
     const nextRoomUserId = online?.userId ?? null;
     inkyungSideEvent.setScope(nextRoomUserId ?? "guest");
@@ -3174,6 +3215,8 @@ window.__INHAGAME_P0__ = {
   dailyQuizPanel,
   attendance,
   attendancePanel,
+  lifeSkillBook,
+  lifeSkillBookPanel,
   shopWorld,
   shopWorldLabel,
   backgateTransit,
@@ -3316,6 +3359,7 @@ window.__INHAGAME_P0__ = {
     inventory: { ...inventory.status(), ...inventoryPanel.status() },
     dailyQuiz: { ...dailyQuiz.status(), panel: dailyQuizPanel.status() },
     attendance: { ...attendance.status(), panel: attendancePanel.status() },
+    lifeSkillBook: { ...lifeSkillBook.status(), panel: lifeSkillBookPanel?.status() ?? null },
     wardrobe: { ...loadout.status(), ...wardrobePanel.status() },
     equipment: equipmentProjection.status(),
     hudMenuOpen: hudMenu.open,
@@ -3337,6 +3381,7 @@ window.__INHAGAME_P0__ = {
         wardrobe: wardrobeInput.active,
         dailyQuiz: dailyQuizInput.active,
         attendance: attendanceInput.active,
+        lifeSkillBook: lifeSkillBookInput.active,
         npcDialogue: npcDialogueInput.active,
         mcmDialogue: mcmDialogueInput.active,
         biryongScripted: biryongScriptedInput.active,

@@ -3806,6 +3806,26 @@ body[data-space]:not([data-space="campus"]) > .progression-hud { display: none !
 .attendance-stamped { background: #1a4d3acc; font-size: 16px; }
 .attendance-today { outline: 2px solid #ffde86; outline-offset: -2px; }
 .attendance-future { opacity: .45; }
+
+/* Life Skill Book P0: skill rows, tree node cards and the free reset in the shop / inventory panel. */
+.life-skill-list, .life-node-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.life-skill-row { display: grid; gap: 4px; }
+.life-skill-open { justify-self: start; padding: 0; border: 0; background: none; color: #fff3c4; font: inherit;
+  font-size: 15px; font-weight: 900; text-align: left; cursor: pointer; touch-action: manipulation; }
+.life-skill-sp { color: #b8f5d4; font-weight: 850; }
+.life-skill-back { margin-bottom: 8px; }
+.life-tree-summary { display: grid; gap: 4px; margin-bottom: 8px; }
+.life-node { display: grid; gap: 4px; }
+.life-node-ready { border-color: #8fe2d3; }
+.life-node-facts { color: #9fc4d6; font-size: 12px; }
+.life-node-prerequisites { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; font-size: 12px; font-weight: 800; }
+.life-prerequisite-met { color: #b8f5d4; }
+.life-prerequisite-missing { color: #ffc9c0; }
+.life-node-lock { margin: 0; }
+.life-node-unlock { width: 100%; min-height: 44px; }
+.life-tree-reset { display: grid; gap: 6px; margin-top: 10px; }
+.life-tree-reset-button { width: 100%; min-height: 44px; }
+.life-tree-reset-button:disabled { opacity: .5; cursor: not-allowed; }
 .wardrobe-action {
   flex: none; min-width: 72px; min-height: 44px; padding: 0 14px; border: 1px solid #8fe2d3; border-radius: 12px;
   background: #196d65; color: #fff; font-weight: 850; cursor: pointer; touch-action: manipulation;

@@ -110,6 +110,10 @@ insert into authority_allowed_call values
   ('private.world_activity_settle_v1',         'private.world_collection_discover_v1',
      'Activity settlement path (7.4): discovery output of a verified SUCCEEDED result, atomic with its receipt'),
   -- Life
+  ('public.unlock_my_world_life_node_v1',      'private.world_life_node_unlock_v1',
+     'Life Skill Book: caller = auth.uid(); node id + request id only; SP, rank and gates decided by the primitive'),
+  ('public.reset_my_world_life_tree_v1',       'private.world_life_tree_reset_v1',
+     'Life Skill Book: caller = auth.uid(); skill id + request id only; free, refund and cooldown decided by the primitive'),
   ('private.world_activity_settle_v1',         'private.world_life_skill_xp_apply_v1',
      'Activity settlement path (7.4): Life Skill XP output of a verified SUCCEEDED result, atomic with its receipt'),
   -- Creature: external domains reach Creature only through the bridge functions, never the tables.
@@ -146,8 +150,7 @@ insert into authority_allowed_call values
   -- Biryong NPC relationship: only the trusted service-role wrapper may advance persistent stage.
   ('public.world_biryong_npc_relationship_advance_v1', 'private.world_biryong_relationship_advance_v1',
      'Biryong NPC relationship P0: service_role wrapper advances exactly one verified stage');
--- Intentionally NO callers yet: world_inventory_mutate_v1, world_life_node_unlock_v1,
--- world_life_tree_reset_v1 (see the Authority Map).
+-- Intentionally NO callers yet: world_inventory_mutate_v1 (see the Authority Map).
 
 select set_eq(
   'select caller || '' -> '' || primitive from authority_edge',
@@ -194,7 +197,9 @@ select set_eq(
     'public.claim_my_world_attendance_v1',                -- day from the DB clock, one claim per day
     'public.claim_my_mcm_2026_main_reward_v1',            -- requires server-recorded event completion
     'public.claim_my_mcm_landlord_first_clear_reward_v1', -- requires a server-judged landlord clear
-    'public.bond_my_duck_companion_v1'                    -- caller = auth.uid(); bond re-counts the server observation ledger
+    'public.bond_my_duck_companion_v1',                   -- caller = auth.uid(); bond re-counts the server observation ledger
+    'public.unlock_my_world_life_node_v1',                -- caller = auth.uid(); SP, rank, gates and visibility decided on the server
+    'public.reset_my_world_life_tree_v1'                  -- caller = auth.uid(); free reset, refund and cooldown decided on the server
   ],
   'client-executable functions that reach a primitive (transitively) are exactly the reviewed self-only RPCs');
 

@@ -127,6 +127,11 @@ select set_eq($$select unnest(pg_temp.exec_surface('authenticated', 'anon'))$$, 
   -- Biryong NPC relationship P0: own server-authoritative Stage/fact projection, read only.
   'get_my_biryong_npc_relationship_v1(text)',
   'get_my_biryong_npc_relationships_v1()',
+  -- Life Skill Book P0: own ACTIVE skills / tree reads; unlock and free reset decided by the server.
+  'get_my_world_life_skills_v1()',
+  'get_my_world_life_skill_tree_v1(text)',
+  'unlock_my_world_life_node_v1(text,uuid)',
+  'reset_my_world_life_tree_v1(text,uuid)',
   -- Housing S1-D2 (20261002130000): friend visit, access check, owner privacy, Realtime predicate.
   'resolve_friend_personal_room_v1(uuid)',
   'check_world_room_access_v1(uuid)',

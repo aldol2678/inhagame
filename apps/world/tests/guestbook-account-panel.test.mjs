@@ -125,7 +125,7 @@ test("production identity callback passes explicit identity even when online.use
   assert.ok(body);
   const context = createContext({ online, guestbookPanel, syncBiryongAccount: noop, progression: client,
     biryongRelationships: client, shop: client, wallet: client, inventory: client, dailyQuiz: client,
-    attendance: client, loadout: client, inkyungSideEvent: { setScope: noop }, duckCompanion: { refresh: noop, reset: noop },
+    attendance: client, lifeSkillBook: client, loadout: client, inkyungSideEvent: { setScope: noop }, duckCompanion: { refresh: noop, reset: noop },
     lastPersonalRoomUserId: null, roomSession: { stop: noop }, roomFurniture: { reset: noop },
     rooms: { currentSpace: "CAMPUS" }, personalRoom: { reset: noop }, npcAiSignedIn: false,
     mcmEvent: { setSignedIn: noop }, mcmEventPreviewMode: false, npcTest: { setAiSignedIn: noop },
