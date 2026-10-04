@@ -12,9 +12,16 @@ function clampCount(value) {
 function nowMs() { return performance.now(); }
 function distance2d(a,b) { return Math.hypot(a.x-b.x,a.z-b.z); }
 
+function pursuitSlot(index, playerPos) {
+  const angle=(index*2.399963229728653)%(Math.PI*2);
+  const radius=3.5+(index%10)*0.48;
+  return {x:playerPos.x+Math.cos(angle)*radius,z:playerPos.z+Math.sin(angle)*radius};
+}
+
 function sharedMaterial() {
   const m = new pc.StandardMaterial();
-  m.diffuse = new pc.Color(0.19, 0.105, 0.055);
+  m.diffuse = new pc.Color(0.34, 0.14, 0.045);
+  m.emissive = new pc.Color(0.055, 0.018, 0.004);
   m.gloss = 18;
   m.metalness = 0.05;
   m.update();
@@ -83,7 +90,9 @@ export function createGiantRoachExperiment({app,campusRoot,player,count=10}) {
       if(now<r.nextUpdateAt) continue;
       r.nextUpdateAt=now+interval;
       if(now>=r.nextNavAt){
-        routeToward(r,{x:playerPos.x,z:playerPos.z});
+        const goal=pursuitSlot(r.index,playerPos);
+        if(distance2d(r.position,goal)>.55) routeToward(r,goal);
+        else r.waypoints=[];
         r.nextNavAt=now+(d>45?2.4:d>25?1.4:.8)+(r.index%7)*.035;
       }
       if(r.waypoints.length){
