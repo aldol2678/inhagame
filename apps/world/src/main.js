@@ -23,6 +23,7 @@ import { createGraphicsPresetController } from './graphics-presets.js';
 import { createEnvironmentDirector } from './environment/environment-director.js';
 import { resolveEnvironmentRuntimeTime, resolveEnvironmentRuntimeWeather } from './environment/environment-clock.js';
 import { createEnvironmentWorldTime } from './environment/environment-world-time.js';
+import { createWorldTimeHud } from './hud/world-time-hud.js';
 import { createNpcWorldClock } from '../npc-factory/npc-world-clock.mjs';
 import { createNightStreetLights } from './environment/night-street-lights.js';
 import { createNightBuildingWindows } from './environment/night-building-windows.js';
@@ -210,6 +211,7 @@ const lobbyPreview = !roomPreviewStart && !dormLobbyPreviewStart && !personalRoo
   !mcmMinigamePreviewStart && isLobbyShellRequested(location);
 const rendererEl = document.getElementById("renderer");
 const zoneEl = document.getElementById("zone");
+const worldTimeEl = document.getElementById("world-time-chip");
 const npcTestMode = ['localhost', '127.0.0.1'].includes(location.hostname) &&
   startupParams.get('npcTest') === 'a-r1';
 const npcAiPilotMode = npcTestMode && startupParams.get('npcAiPilot') === '1';
@@ -336,12 +338,20 @@ const environmentWorldTime = createEnvironmentWorldTime({
   enabled: worldClock !== null
 });
 if (worldClock) await environmentWorldTime.sync();
+const worldTimeHud = createWorldTimeHud({
+  element: worldTimeEl,
+  getStatus: () => environmentWorldTime.status()
+});
 app.on("update", dt => {
   environmentWorldTime.update();
   environment.update(dt);
+  worldTimeHud.update(dt);
 });
 window.__INHAGAME_WORLD_TIME__ = Object.freeze({
   status: () => environmentWorldTime.status()
+});
+window.__INHAGAME_WORLD_TIME_HUD__ = Object.freeze({
+  status: () => worldTimeHud.status()
 });
 window.__INHAGAME_ENVIRONMENT__ = Object.freeze({
   status: () => environment.status(),
