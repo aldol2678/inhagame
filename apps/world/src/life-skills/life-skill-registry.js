@@ -63,7 +63,8 @@ export function createLifeSkillDefinition(raw) {
   });
 }
 
-const common = ({ skillId, displayName, description, category, tags, availabilityRef }) =>
+const common = ({ skillId, displayName, description, category, tags, availabilityRef,
+  status = LIFE_SKILL_STATUS.COMING_SOON }) =>
   createLifeSkillDefinition({
     skillId,
     displayName,
@@ -71,7 +72,7 @@ const common = ({ skillId, displayName, description, category, tags, availabilit
     category,
     curveId: 'life.common.v1',
     availabilityRef,
-    status: LIFE_SKILL_STATUS.COMING_SOON,
+    status,
     tags,
     introducedVersion: 'life.m5'
   });
@@ -83,7 +84,9 @@ export const DEFAULT_LIFE_SKILL_DEFINITIONS = Object.freeze({
     description: '낚시 활동의 검증된 결과로 성장하는 생활 숙련도.',
     category: 'HARVEST',
     tags: ['life','fishing','p1a'],
-    availabilityRef: 'availability.life.fishing'
+    availabilityRef: 'availability.life.fishing',
+    // First ACTIVE Life Skill (20261004139000_world_fishing_first_life_skill).
+    status: LIFE_SKILL_STATUS.ACTIVE
   }),
   GATHERING: common({
     skillId: 'life.gathering',

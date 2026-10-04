@@ -27,8 +27,8 @@ select col_is_unique('private','world_life_skill_xp_transactions',array['idempot
   'Life Skill XP idempotency key is globally unique');
 
 select is((select count(*) from private.world_life_skill_catalog),11::bigint,'11 long-term Life Skills are mirrored');
-select is((select count(*) from private.world_life_skill_catalog where status='COMING_SOON'),11::bigint,
-  'M5 does not activate any Life Skill');
+select is((select count(*) from private.world_life_skill_catalog where status='COMING_SOON'),10::bigint,
+  'only Fishing is activated (20261004139000)');
 select results_eq($$
   select skill_id,curve_id,status from private.world_life_skill_catalog order by skill_id
 $$,$$values
@@ -36,7 +36,7 @@ $$,$$values
   ('life.cooking','life.common.v1','COMING_SOON'),
   ('life.crafting','life.common.v1','COMING_SOON'),
   ('life.farming','life.common.v1','COMING_SOON'),
-  ('life.fishing','life.common.v1','COMING_SOON'),
+  ('life.fishing','life.common.v1','ACTIVE'),
   ('life.gathering','life.common.v1','COMING_SOON'),
   ('life.mining','life.common.v1','COMING_SOON'),
   ('life.photography','life.common.v1','COMING_SOON'),
@@ -90,7 +90,8 @@ select is((select count(*) from private.world_player_life_skills
   where user_id='a8500000-0000-4000-8000-0000000000a8'),0::bigint,
   'read-only fresh snapshot provisions no player row');
 
--- ---- COMING_SOON write gate ----
+-- ---- COMING_SOON write gate (fixture: Fishing back to COMING_SOON, rolled back) ----
+update private.world_life_skill_catalog set status='COMING_SOON' where skill_id='life.fishing';
 select throws_ok($$
   select private.world_life_skill_xp_apply_v1(
     'a8500000-0000-4000-8000-0000000000a8','life.fishing',10,
@@ -120,7 +121,7 @@ select throws_ok($$
   values ('life.test.v2',2,50)
 $$,'23514','LIFE_SKILL_CURVE_INVALID','a new curve must start at Lv1=0');
 
--- Test activation only. Rollback keeps every committed skill COMING_SOON.
+-- Test activation only. Rollback restores the committed statuses.
 update private.world_life_skill_catalog
    set status='ACTIVE'
  where skill_id in ('life.fishing','life.gathering','life.archaeology');

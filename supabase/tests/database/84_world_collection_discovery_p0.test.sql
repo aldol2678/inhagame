@@ -30,7 +30,7 @@ select results_eq($$
    order by entry_id
 $$,$$values
   ('collection.artifact.campus_fragment_01'::text,'ARTIFACT'::text,'SERVER_PERSISTED'::text,null::text,null::text,'COMING_SOON'::text,1),
-  ('collection.fish.carp','FISH','SERVER_PERSISTED',null,null,'COMING_SOON',1),
+  ('collection.fish.carp','FISH','SERVER_PERSISTED',null,null,'ACTIVE',1),
   ('collection.place.biryong_tower','PLACE','DERIVED_FROM_OWNER','BIRYONG','BR01','ACTIVE',1),
   ('collection.plant.campus_leaf','PLANT','SERVER_PERSISTED',null,null,'COMING_SOON',1)
 $$,'DB mirror matches the four P0 code-registry authority rows');
@@ -73,6 +73,8 @@ select ok(has_function_privilege('service_role',
   'service_role can read collection projection');
 
 -- ---- write gates: not-live + owner-derived ----
+-- Carp is ACTIVE since 20261004139000; the fixture puts it back to COMING_SOON (rolled back).
+update private.world_collection_entry_catalog set status='COMING_SOON' where entry_id='collection.fish.carp';
 set local role service_role;
 set local request.jwt.claims = '{"role":"service_role"}';
 select throws_ok($$
@@ -95,7 +97,7 @@ select is((select count(*) from private.world_collection_discovery_events),0::bi
 select is((select count(*) from private.world_player_collection_discoveries),0::bigint,
   'refused writes create no projections');
 
--- Test activation only; transaction rollback preserves committed COMING_SOON state.
+-- Re-activate the fixture entry for the write path.
 update private.world_collection_entry_catalog
    set status='ACTIVE'
  where entry_id='collection.fish.carp';

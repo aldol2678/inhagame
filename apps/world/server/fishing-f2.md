@@ -65,7 +65,19 @@ fail closed. The endpoint accepts only JSON POST, caps bodies at 8 KiB, checks
 browser Origin, sets no-store and returns sanitized errors. An ambiguous network
 failure has no automatic mutation retry: read/replay with the same identity.
 
-## Disabled defaults and validation
+## Activation (20261004139000)
+
+Fishing is now the first ACTIVE Life Skill. The migration activates `life.fishing`,
+`collection.fish.carp` and this runtime with the candidate policy `fishing.candidate.v1`
+(3–9 s wait, 1.5 s response window, 30 s TTL, 20 Life XP, 2 s between starts). These are
+candidate values, not tuned balance; they live in the one runtime row. The tree nodes and the
+Creature bridge stay COMING_SOON. The browser path is `src/activity/fishing-client.js` /
+`fishing-panel.js` / `fishing-spots.js`. Production play still needs
+`WORLD_FISHING_API_ENABLED=1`; until then the endpoint answers 404 and no 🎣 action is shown.
+World distance/occupancy checks (F3) are still not implemented: the spots only decide where
+the action is offered.
+
+## F2 defaults and validation (historical)
 
 Both switches are deliberately off: HTTP requires `WORLD_FISHING_API_ENABLED=1`
 and the private runtime row defaults `enabled=false`, `policy=null`, cooldown=null.

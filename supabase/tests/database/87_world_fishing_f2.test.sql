@@ -8,13 +8,25 @@ select has_table('private','world_activity_settlements','fishing settles through
 select is((select bridge.activity_id from private.world_life_creature_bridge_catalog bridge
   where bridge.life_skill_id='life.fishing'),'activity.fishing.inkyung',
   'fishing activity is the mapped Life -> Creature bridge activity');
-select is((select enabled from private.world_fishing_runtime),false,'runtime defaults disabled');
-select ok((select policy is null and minimum_start_interval_ms is null from private.world_fishing_runtime),
-  'no balance or cooldown default is silently activated');
-select is((select status from private.world_life_skill_catalog where skill_id='life.fishing'),'COMING_SOON',
-  'fishing skill remains coming soon');
-select is((select status from private.world_collection_entry_catalog where entry_id='collection.fish.carp'),'COMING_SOON',
-  'carp discovery remains coming soon');
+-- 20261004139000_world_fishing_first_life_skill activates Fishing with a CANDIDATE policy.
+select is((select enabled from private.world_fishing_runtime),true,'runtime is enabled');
+select is((select policy from private.world_fishing_runtime),
+  '{"policyVersion":"fishing.candidate.v1","minWaitMs":3000,"maxWaitMs":9000,"responseWindowMs":1500,"attemptTtlMs":30000,"lifeXp":20}'::jsonb,
+  'the candidate policy is explicit');
+select is((select minimum_start_interval_ms from private.world_fishing_runtime),2000::bigint,
+  'the candidate start interval is explicit');
+select lives_ok($$select private.world_fishing_policy_validate_v1((select policy from private.world_fishing_runtime))$$,
+  'the candidate policy passes the validator');
+select is((select status from private.world_life_skill_catalog where skill_id='life.fishing'),'ACTIVE',
+  'fishing skill is active');
+select is((select status from private.world_collection_entry_catalog where entry_id='collection.fish.carp'),'ACTIVE',
+  'carp discovery is active');
+select is((select count(*) from private.world_life_skill_tree_catalog where status <> 'COMING_SOON'),0::bigint,
+  'no tree node is active (nodes have no effects yet)');
+select is((select status from private.world_creature_activity_bridge_catalog where bridge_id='creature.bridge.activity.fishing'),'COMING_SOON',
+  'the fishing Creature bridge stays inactive');
+select is((select count(*) from private.world_life_skill_catalog where status <> 'COMING_SOON'),1::bigint,
+  'Fishing is the only active Life Skill');
 select ok((select bool_and(relrowsecurity) from pg_class where oid in (
   'private.world_fishing_runtime'::regclass,'private.world_fishing_attempt_snapshots'::regclass)),
   'all fishing tables have RLS');

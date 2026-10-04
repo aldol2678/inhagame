@@ -33,7 +33,8 @@ select is((select count(*) from pg_proc p join pg_namespace n on n.oid=p.proname
     'unlock_my_world_life_node_v1','reset_my_world_life_tree_v1')
     and pg_get_function_identity_arguments(p.oid) ~ '(^|, )p_user '),0::bigint,'no Life Book RPC takes a user id');
 
--- ---- nothing is visible while every skill is COMING_SOON ----
+-- ---- nothing is visible while every skill is COMING_SOON (fixture: Fishing back to COMING_SOON) ----
+update private.world_life_skill_catalog set status='COMING_SOON' where skill_id='life.fishing';
 select pg_temp.as_user('a9840000-0000-4000-8000-0000000000a9');
 select is(public.get_my_world_life_skills_v1()->'skills','[]'::jsonb,'the book is empty before any activation');
 select throws_ok($$select public.get_my_world_life_skill_tree_v1('life.fishing')$$,

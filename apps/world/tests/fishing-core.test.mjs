@@ -36,7 +36,7 @@ const resolve = (attempt, nowMs, overrides = {}) => resolveFishingAttempt({
 });
 const roundtrip = value => JSON.parse(JSON.stringify(value));
 
-test('two allowlisted sources use the existing one-carp identities without activation', () => {
+test('two allowlisted sources use the existing one-carp identities, now ACTIVE', () => {
   assert.deepEqual(FISHING_SOURCES, ['fishing.inkyung.north_01', 'fishing.inkyung.south_01']);
   for (const sourceRef of FISHING_SOURCES) {
     const attempt = make({ request: startRequest(sourceRef) });
@@ -47,9 +47,10 @@ test('two allowlisted sources use the existing one-carp identities without activ
     assert.equal(done.result.catch.skillId, 'life.fishing');
     assert.equal(getItemDefinition(done.result.catch.itemId).tradePolicy, 'ACCOUNT_BOUND');
   }
-  assert.equal(ACTIVITY_REGISTRY.get(FISHING_ACTIVITY_ID).status, 'COMING_SOON');
-  assert.equal(COLLECTION_ENTRY_REGISTRY.get('collection.fish.carp').status, 'COMING_SOON');
-  assert.equal(LIFE_SKILL_REGISTRY.get('life.fishing').status, 'COMING_SOON');
+  // Mirrors 20261004139000_world_fishing_first_life_skill.
+  assert.equal(ACTIVITY_REGISTRY.get(FISHING_ACTIVITY_ID).status, 'ACTIVE');
+  assert.equal(COLLECTION_ENTRY_REGISTRY.get('collection.fish.carp').status, 'ACTIVE');
+  assert.equal(LIFE_SKILL_REGISTRY.get('life.fishing').status, 'ACTIVE');
 });
 
 test('server timing is sampled once at start and the policy snapshot is detached', () => {

@@ -3848,6 +3848,17 @@ body[data-space]:not([data-space="campus"]) > .progression-hud { display: none !
 .life-tree-reset { display: grid; gap: 6px; margin-top: 10px; }
 .life-tree-reset-button { width: 100%; min-height: 44px; }
 .life-tree-reset-button:disabled { opacity: .5; cursor: not-allowed; }
+.fishing-panel { width: min(360px, calc(100vw - 24px)); }
+.fishing-body { display: flex; flex-direction: column; align-items: stretch; gap: 10px; text-align: center; }
+.fishing-skill { margin: 0; }
+.fishing-bobber { font-size: 44px; line-height: 1; transition: transform .12s ease-out; }
+.fishing-bobber[data-phase="BITE"] { transform: translateY(6px) scale(1.15); animation: fishing-bite .25s ease-in-out infinite alternate; }
+@keyframes fishing-bite { from { transform: translateY(2px) scale(1.1); } to { transform: translateY(8px) scale(1.2); } }
+@media (prefers-reduced-motion: reduce) { .fishing-bobber[data-phase="BITE"] { animation: none; } }
+.fishing-status, .fishing-result { margin: 0; font-size: 15px; font-weight: 850; }
+.fishing-panel[data-phase="BITE"] .fishing-status { color: #ffde86; }
+.fishing-reward { margin: 0; color: #9ff0d6; font-weight: 800; font-variant-numeric: tabular-nums; }
+.fishing-panel .shop-offer-buy, .fishing-panel .shop-retry { width: 100%; }
 .wardrobe-action {
   flex: none; min-width: 72px; min-height: 44px; padding: 0 14px; border: 1px solid #8fe2d3; border-radius: 12px;
   background: #196d65; color: #fff; font-weight: 850; cursor: pointer; touch-action: manipulation;
