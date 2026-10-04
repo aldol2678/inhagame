@@ -1,12 +1,12 @@
 // Production-only analytics stays separate from gameplay/ranking rules.
-if (typeof window !== 'undefined' && location.hostname === 'grow.inhagame.example') {
+if (typeof window !== 'undefined' && location.hostname === 'grow.inhagame.app') {
   const analyticsScript = document.createElement('script');
   analyticsScript.src = './analytics.js';
   document.head.append(analyticsScript);
 
   // Attribute Grow visits that originated from an explicit INHAGAME hub click.
   const entryScript = document.createElement('script');
-  entryScript.src = 'https://inhagame.example/game-entry.js';
+  entryScript.src = 'https://inhagame.app/game-entry.js';
   entryScript.dataset.game = 'induck-grow';
   document.head.append(entryScript);
 }

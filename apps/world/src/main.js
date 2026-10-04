@@ -28,8 +28,15 @@ import { createNightStreetLights } from './environment/night-street-lights.js';
 import { createNightBuildingWindows } from './environment/night-building-windows.js';
 import { createRainWeatherEffects } from './environment/rain-weather-effects.js';
 import { createSnowWeatherEffects } from './environment/snow-weather-effects.js';
+import { createSnowObjectEffects } from './environment/snow-object-effects.js';
+import { createSnowDepthEffects } from './environment/snow-depth-effects.js';
+import { createSnowThawEffects } from './environment/snow-thaw-effects.js';
+import { createMeltwaterEffects } from './environment/meltwater-effects.js';
+import { winterPerformanceSnapshot } from './environment/winter-performance-budget.js';
 import { createSkyVisuals } from './environment/sky-visuals.js';
 import { createInkyungDuckSystem } from './ambient-ducks.js';
+import { createDuckObservationClient } from './creature/duck-observation-client.js';
+import { createDuckCompanionFollow } from './creature/duck-companion-follow.js';
 import { createInkyungMechanicalDuckEvent } from './inkyung-mechanical-duck-event.js';
 import { createBiryongSystem } from './biryong/biryong-system.js';
 import { BIRYONG_PLACE_ID, isNearBiryong } from './biryong/biryong-layout.js';
@@ -151,6 +158,9 @@ import { createBiryongRealmWorldAdapter } from "./biryong/biryong-realm-world-ad
 import { createBiryongRealmTransition } from "./biryong/biryong-realm-transition.js";
 import { createBiryongStationTransitInteraction } from "./biryong/biryong-station-transit-interaction.js";
 import { getBiryongRealmPlaceZone } from "./biryong/biryong-village-layout.js";
+import { createBiryongVillageNpcRuntime } from "./biryong/biryong-village-npc-runtime.js";
+import { createBiryongVillageDialogueRuntime } from "./biryong/biryong-village-dialogue-runtime.js";
+import { createBiryongRelationshipClient } from "./biryong/biryong-village-relationship-client.js";
 import { WORLD_REGION_ID } from "./regions/world-region-registry.js";
 import { INPUT_FOCUS_POLICY, createInputFocusManager } from "./input/input-focus-manager.js";
 import { bindInputFocusRuntime } from "./input/input-focus-runtime.js";
@@ -163,6 +173,8 @@ import { HUD_MODE } from "./hud/hud-context.js";
 import { bindHudPresentation } from "./hud/hud-presentation.js";
 import { createCombatRuntimeV03 } from "./combat/combat-runtime-v03.js";
 import { createBuilding5CombatInteraction } from "./combat/building5-combat-interaction.js";
+import { createBuilding5CombatTraining } from "./combat/building5-combat-training.js";
+import { createBuilding5CombatTargetRenderer } from "./combat/building5-combat-target-renderer.js";
 import { createCombatHudV03 } from "./combat/combat-hud-v03.js";
 import { createHelicopterFlightHud } from "./mounts/helicopter-flight-hud.js";
 import { createMobilityBook } from "./mobility/mobility-book.js";
@@ -383,11 +395,72 @@ const snowWeatherEffects = createSnowWeatherEffects({
   app,
   getPlayerPosition: () => player.getLocalPosition(),
   getSnowIntensity: () => environment.snowIntensity(),
-  getGraphicsTier: () => graphics.tier
+  getGraphicsTier: () => graphics.tier,
+  getFootprintsEnabled: () =>
+    !controller.mounted && !rooms?.insideRoom && !biryongRealm?.inBiryong
 });
 app.on("update", dt => snowWeatherEffects.update(dt));
 window.__INHAGAME_SNOW__ = Object.freeze({
   status: () => snowWeatherEffects.status()
+});
+
+const snowObjectEffects = createSnowObjectEffects({
+  root: campusRoot,
+  app,
+  getSnowAccumulation: () => snowWeatherEffects.getAccumulation(),
+  getGraphicsTier: () => graphics.tier
+});
+app.on("update", () => snowObjectEffects.update());
+window.__INHAGAME_SNOW_OBJECTS__ = Object.freeze({
+  status: () => snowObjectEffects.status()
+});
+
+const snowDepthEffects = createSnowDepthEffects({
+  root: campusRoot,
+  app,
+  getSnowAccumulation: () => snowWeatherEffects.getAccumulation(),
+  getGraphicsTier: () => graphics.tier
+});
+app.on("update", () => snowDepthEffects.update());
+window.__INHAGAME_SNOW_DEPTH__ = Object.freeze({
+  status: () => snowDepthEffects.status()
+});
+
+const snowThawEffects = createSnowThawEffects({
+  root: campusRoot,
+  app,
+  getSnowAccumulation: () => snowWeatherEffects.getAccumulation(),
+  getSnowIntensity: () => environment.snowIntensity(),
+  getWetnessFactor: () => environment.wetnessFactor(),
+  getGraphicsTier: () => graphics.tier
+});
+app.on("update", () => snowThawEffects.update());
+window.__INHAGAME_SNOW_THAW__ = Object.freeze({
+  status: () => snowThawEffects.status()
+});
+
+const meltwaterEffects = createMeltwaterEffects({
+  root: campusRoot,
+  app,
+  getSnowAccumulation: () => snowWeatherEffects.getAccumulation(),
+  getSnowIntensity: () => environment.snowIntensity(),
+  getWetnessFactor: () => environment.wetnessFactor(),
+  getGraphicsTier: () => graphics.tier
+});
+app.on("update", dt => meltwaterEffects.update(dt));
+window.__INHAGAME_MELTWATER__ = Object.freeze({
+  status: () => meltwaterEffects.status()
+});
+
+window.__INHAGAME_WINTER_QA__ = Object.freeze({
+  status: () => winterPerformanceSnapshot({
+    tier: graphics.tier,
+    snow: snowWeatherEffects.status(),
+    objects: snowObjectEffects.status(),
+    depth: snowDepthEffects.status(),
+    thaw: snowThawEffects.status(),
+    meltwater: meltwaterEffects.status()
+  })
 });
 
 const controller = new PlayerController(player);
@@ -401,15 +474,28 @@ const helicopterFlightHud = createHelicopterFlightHud({
 const inputFocus = createInputFocusManager();
 const hudContext = createHudContext();
 bindHudPresentation({ context: hudContext, root: document.body });
-const combatRuntime = createCombatRuntimeV03();
+const building5Training = createBuilding5CombatTraining({
+  getPlayerPosition: () => player.getLocalPosition()
+});
+const combatRuntime = createCombatRuntimeV03({ localTraining: building5Training });
 const combatHud = createCombatHudV03({
   root: document.getElementById("combat-hud-v03"),
   runtime: combatRuntime
+});
+const combatTargetRenderer = createBuilding5CombatTargetRenderer({
+  app,
+  parent: campusRoot,
+  training: building5Training,
+  getGroundHeight: roadviewGroundHeight
 });
 combatRuntime.subscribe(state => {
   hudContext.setMode(state.active ? HUD_MODE.COMBAT : HUD_MODE.EXPLORE);
   controller.setTransportLock("combat-v03", state.active);
 }, { emitCurrent: true });
+app.on("update", dt => {
+  combatRuntime.update();
+  combatTargetRenderer.update(dt);
+});
 // InputFocus remains the single input authority. HUD Context observes its resolved snapshot only
 // to expose presentation state for current/future Explore, Combat, Life and Pet layouts.
 inputFocus.subscribe(snapshot => hudContext.syncInputFocus(snapshot), { emitCurrent: true });
@@ -508,7 +594,8 @@ const contextActions = createContextActionController({
   onTriggered: action => {
     const actionId = action?.id ?? null;
     const livingComplete = inkyungLivingMoment?.recordAction(actionId) === true;
-    if (actionId === "npc-talk" || actionId === "main2-guide-talk") core15Funnel?.firstNpcInteraction();
+    if (actionId === "npc-talk" || actionId === "main2-guide-talk" || actionId === "biryong-npc-talk")
+      core15Funnel?.firstNpcInteraction();
     if (livingComplete) core15Funnel?.firstActivityComplete();
   }
 });
@@ -674,6 +761,28 @@ const lobbyPlayerSummary = createLobbyPlayerSummary({
 const tour = createCampusTour();
 // Social S1-B1: local expression plays at once; members also broadcast it (guests stay local).
 let online = null;
+const biryongRelationships = createBiryongRelationshipClient({
+  getClient: () => online?.supabase ?? null,
+  getUserId: () => online?.userId ?? null
+});
+const duckCompanion = createDuckObservationClient({
+  getClient: () => online?.supabase ?? null
+});
+const duckCompanionFollow = createDuckCompanionFollow({
+  root: campusRoot,
+  player,
+  getSnapshot: () => duckCompanion.status().snapshot,
+  getGroundHeight: (x, z) => controller.groundY + roadviewGroundHeight(x, z),
+  getVisible: () =>
+    !rooms?.insideRoom &&
+    !biryongRealm?.inBiryong &&
+    !lobbyWorld.active &&
+    !lobbyTransition.active &&
+    !controller.mounted
+});
+window.addEventListener("pagehide", event => {
+  if (!event.persisted) duckCompanionFollow.destroy();
+});
 let accompany = null;
 let populationHeartbeat = null;
 let populationCount = null;
@@ -700,6 +809,8 @@ const lobbyQuestHighlight = createLobbyQuestHighlight({
 let rooms = null;
 let biryongRealm = null;
 let biryongStationTransit = null;
+let biryongVillageNpcs = null;
+let biryongVillageDialogue = null;
 let keyboardHelp = null;
 // Declared before input handlers so an early F/M event during boot can safely observe null.
 let playerAutoMove = null;
@@ -1389,6 +1500,11 @@ window.addEventListener("keydown", (event) => {
     combatRuntime.end("PLAYER_EXIT");
     return;
   }
+  if (event.code === "KeyR") {
+    event.preventDefault();
+    combatRuntime.resetTrainingTarget();
+    return;
+  }
   const action = event.code === "Digit1" ? "active_1"
     : event.code === "Digit2" ? "active_2"
     : event.code === "Digit3" ? "active_3"
@@ -1533,6 +1649,59 @@ biryongRealm = createBiryongRealmTransition({
     }
   })
 });
+biryongVillageNpcs = createBiryongVillageNpcRuntime({
+  app,
+  root: biryongRealmScene.root,
+  player,
+  camera,
+  getActive: () => biryongRealm?.inBiryong === true
+});
+biryongVillageDialogue = createBiryongVillageDialogueRuntime({
+  npcRuntime: biryongVillageNpcs,
+  getWorldContext: () => {
+    const env = environment.status();
+    return {
+      weather: env.targetWeather,
+      environmentTime: env.targetTime,
+      placeZoneId: getBiryongRealmPlaceZone(player.getLocalPosition())?.id ?? null
+    };
+  },
+  getSession: async () => {
+    const client = online?.supabase;
+    if (!client || !online?.userId) return null;
+    const { data, error } = await client.auth.getSession();
+    const session = data?.session;
+    return !error && session?.user?.id === online.userId && session.user.is_anonymous !== true
+      ? session.access_token : null;
+  },
+  getRelationshipStage: npcId => biryongRelationships.stage(npcId),
+  getUnlockedFacts: npcId => biryongRelationships.facts(npcId),
+  onOpenChange: open => {
+    if (open) {
+      npcDialogueInput.acquire();
+      emoteMenu.setOpen(false);
+      chatPanel.setOpen(false, { focus: false });
+    } else npcDialogueInput.release();
+  },
+  jevEnabled: false,
+  jevEndpoint: "/api/npc-dialogue-route"
+});
+if (npcProductionMode) {
+  void probeFeatureFlag("/api/npc-dialogue-route")
+    .then(result => biryongVillageDialogue?.setJevEnabled(result === FLAG_ENABLED))
+    .catch(() => biryongVillageDialogue?.setJevEnabled(false));
+}
+biryongRealm.onChange(status => {
+  if (status.inBiryong) void biryongRelationships.refresh("region-enter");
+  else biryongVillageDialogue?.close();
+});
+window.addEventListener("pagehide", event => {
+  if (!event.persisted) {
+    biryongVillageDialogue?.destroy();
+    biryongVillageNpcs?.destroy();
+  }
+});
+
 biryongStationTransit = createBiryongStationTransitInteraction({
   getPosition: () => player.getLocalPosition(),
   getState: () => ({
@@ -1743,11 +1912,58 @@ const inkyungDucks = createInkyungDuckSystem({
   root: campusRoot,
   player,
   forceMechanical: previewHost && startupParams.get("mechanicalDuck") === "1",
-  canObserveOrdinary: () => inkyungSideEvent.canObserveOrdinaryDuck(),
+  canObserveOrdinary: () =>
+    inkyungSideEvent.canObserveOrdinaryDuck() || duckCompanion.canObserve() || duckCompanion.canBond(),
+  getOrdinaryActionLabel: () => duckCompanion.canBond() ? "오리와 교감" : "오리 관찰",
   onOrdinaryObserved: duck => {
-    const result = inkyungSideEvent.observeOrdinaryDuck(duck.kind);
-    if (result.changed) showWorldStatus(`🦆 ${result.line} · 이제 수상한 오리를 찾아보자.`);
-    return result;
+    const sideEventResult = inkyungSideEvent.observeOrdinaryDuck(duck.kind);
+    const companionBonding = duckCompanion.canBond();
+    const companionStarted = !companionBonding && duckCompanion.canObserve();
+
+    if (companionBonding) {
+      void duckCompanion.bond().then(result => {
+        if (result?.status === "FAILED") {
+          console.warn("Duck Companion bond failed:", result.error);
+          showWorldStatus("🦆 오리와 교감하지 못했어요 · 잠시 후 다시 시도해 주세요.");
+          return;
+        }
+        const companion = result?.companion;
+        if (companion?.state !== "OWNED") return;
+        showWorldStatus(result?.autoActivated
+          ? "🦆 교감 성공 · 새 동료 오리가 ACTIVE 동행으로 합류했어요!"
+          : "🦆 교감 성공 · 새 동료 오리가 합류했어요!");
+      });
+    } else if (companionStarted) {
+      void duckCompanion.observe(duck.id).then(result => {
+        if (result?.status === "FAILED") {
+          console.warn("Duck Companion observation failed:", result.error);
+          return;
+        }
+        const companion = result?.companion;
+        if (!companion) return;
+        if (companion.state === "BOND_ELIGIBLE") {
+          showWorldStatus("🦆 오리들이 경계를 풀었다 · F 키로 동료 교감을 시도해 보세요.");
+          return;
+        }
+        if (companion.state === "OWNED") {
+          showWorldStatus("🦆 동행 중인 오리를 다시 만났어요.");
+          return;
+        }
+        const count = Number(companion.observationCount ?? 0);
+        const required = Number(companion.requiredObservationCount ?? 3);
+        if (Number.isFinite(count) && Number.isFinite(required)) {
+          showWorldStatus(`🦆 오리 관찰 기록 ${count}/${required}`);
+        }
+      });
+    }
+
+    if (sideEventResult.changed) {
+      showWorldStatus(`🦆 ${sideEventResult.line} · 이제 수상한 오리를 찾아보자.`);
+    }
+    return {
+      ...sideEventResult,
+      changed: sideEventResult.changed || companionStarted || companionBonding
+    };
   },
   onLoreFound: lore => {
     const eventResult = inkyungSideEvent.observeMechanicalDuck();
@@ -2514,6 +2730,7 @@ app.on("update", (dt) => {
   character.update(Math.min(dt, 0.05), { ...locomotion(), emote, seated: seats.isSeated, poseOffsets: biryong?.poseOffsets() ?? null });
 
   const pos = player.getLocalPosition();
+  duckCompanionFollow.update(Math.min(dt, 0.05));
   if (!inside) {
     if (inkyungSideEvent.requiresMechanicalDuck()) inkyungDucks.ensureMechanicalDuck();
     inkyungDucks.update(Math.min(dt, 0.05), pos);
@@ -2574,6 +2791,12 @@ app.on("update", (dt) => {
       blocked: biryongRealm.busy || controller.mounted || seats.isSeated || !inputFocus.can("WORLD_ACTION")
     }) ?? null
     : null);
+  contextActions.set("biryong-npc", inBiryong
+    ? biryongVillageDialogue?.getContextAction({
+      blocked: biryongRealm.busy || controller.mounted || seats.isSeated ||
+        combatRuntime.active || !inputFocus.can("WORLD_ACTION")
+    }) ?? null
+    : null);
   contextActions.set("inkyung-duck", inside ? null : inkyungDucks.getContextAction(pos));
   contextActions.set("biryong", inside ? null : biryong?.getContextAction(pos, { blocked: controller.mounted || seats.isSeated }) ?? null);
   contextActions.set("mcm-event", inside ? null : mcmEventRuntime.contextAction());
@@ -2599,7 +2822,7 @@ app.on("update", (dt) => {
   if (combatRuntime.active) {
     for (const key of [
       "seat", "guestbook", "student-center-shop", "backgate-transit", "biryong-station-transit",
-      "inkyung-duck", "biryong", "mcm-event", "mcm-minigame", "follow",
+      "biryong-npc", "inkyung-duck", "biryong", "mcm-event", "mcm-minigame", "follow",
       "room-door", "personal-room-door", "npc"
     ]) contextActions.set(key, null);
     transportActions.set("mount", null);
@@ -2673,6 +2896,7 @@ try {
   online.onIdentity((identity) => {
     void syncBiryongAccount(identity);
     void progression.setAccount(identity ? online?.userId ?? null : null);
+    void biryongRelationships.setAccount(identity ? online?.userId ?? null : null);
     shop.setAccount(identity ? online?.userId ?? null : null);
     void wallet.setAccount(identity ? online?.userId ?? null : null);
     void inventory.setAccount(identity ? online?.userId ?? null : null);
@@ -2681,6 +2905,8 @@ try {
     void loadout.setAccount(identity ? online?.userId ?? null : null);
     const nextRoomUserId = online?.userId ?? null;
     inkyungSideEvent.setScope(nextRoomUserId ?? "guest");
+    if (identity) void duckCompanion.refresh();
+    else duckCompanion.reset();
     const roomIdentityChanged = lastPersonalRoomUserId !== null && nextRoomUserId !== lastPersonalRoomUserId;
     if (!identity || roomIdentityChanged) roomSession?.stop();
     if (!identity || roomIdentityChanged) roomFurniture?.reset();
@@ -2905,8 +3131,13 @@ window.__INHAGAME_P0__ = {
   backgateTransitPanel,
   biryongRealm,
   biryongStationTransit,
+  biryongVillageNpcs,
+  biryongVillageDialogue,
+  biryongRelationships,
   combatRuntime,
   combatHud,
+  building5Training,
+  combatTargetRenderer,
   building5Combat,
   seats,
   seating,
@@ -3023,6 +3254,9 @@ window.__INHAGAME_P0__ = {
     backgateTransit: { ...backgateTransit.status(), ...backgateTransitPanel.status() },
     worldRegion: biryongRealm?.status() ?? { regionId: WORLD_REGION_ID.CAMPUS },
     biryongStationTransit: biryongStationTransit?.status() ?? null,
+    biryongVillageNpcs: biryongVillageNpcs?.status() ?? null,
+    biryongVillageDialogue: biryongVillageDialogue?.status() ?? null,
+    biryongRelationships: biryongRelationships.status(),
     combat: combatRuntime.snapshot(),
     building5Combat: building5Combat.status(),
     wallet: wallet.status(),

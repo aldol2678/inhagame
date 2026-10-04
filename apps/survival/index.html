@@ -291,7 +291,7 @@
         <button class="menuLink" id="menuInfoBtn" type="button">ℹ️ 게임 정보</button>
         <button class="menuLink" id="menuSettingsBtn" type="button">⚙️ 설정</button>
         <button class="menuLink" id="accountButton" type="button">👤 계정 · 게스트</button>
-        <a class="menuLink" href="https://inhagame.example/" aria-label="INHAGAME 게임 허브로 이동">🏠 게임 허브</a>
+        <a class="menuLink" href="https://inhagame.app/" aria-label="INHAGAME 게임 허브로 이동">🏠 게임 허브</a>
       </div>
       <div id="menuVersion">STAGE 6 후문 · Final Preview</div>
     </section>
@@ -399,7 +399,7 @@
         <button id="accountSignOut" type="button">로그아웃</button>
       </div>
       <p><small>로그인하지 않아도 플레이할 수 있습니다. 기기 기록은 계정 로그인 후 직접 가져올 수 있으며, 클리어 기록은 INHAGAME 계정에 저장됩니다. 랭킹 기록에는 적용되지 않습니다.</small></p>
-      <p><a href="https://duck.inhagame.example/" target="_blank" rel="noopener">계정 만들기 · 인하오리 Classic</a> · <a href="https://duck.inhagame.example/privacy.html" target="_blank" rel="noopener">개인정보 처리방침</a></p>
+      <p><a href="https://duck.inhagame.app/" target="_blank" rel="noopener">계정 만들기 · 인하오리 Classic</a> · <a href="https://duck.inhagame.app/privacy.html" target="_blank" rel="noopener">개인정보 처리방침</a></p>
     </section>
   </div>
 </div>
@@ -410,7 +410,7 @@
 <script src="supabase-public-config.js"></script>
 <script src="./account.js"></script>
 <script src="./audio-manager.js"></script>
- <script src="https://inhagame.example/game-entry.js" data-game="survival"></script>
+ <script src="https://inhagame.app/game-entry.js" data-game="survival"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
 <script>
 (async() => {
@@ -2979,7 +2979,7 @@
   };
   shareResultBtn.addEventListener('click',async()=>{
     const clear=resultGradeEl.textContent==='STAGE CLEAR';
-    const text=`인덕 서바이벌 · ${stage.name} ${clear?'클리어':'도전'}!\n${resultMetaEl.textContent} · ${resultLevelEl.textContent} · 처치 ${kills}\n${stage.id===2?'조교':'대학원생'}: ${resultMidEl.textContent}\nhttps://survival.inhagame.example/`;
+    const text=`인덕 서바이벌 · ${stage.name} ${clear?'클리어':'도전'}!\n${resultMetaEl.textContent} · ${resultLevelEl.textContent} · 처치 ${kills}\n${stage.id===2?'조교':'대학원생'}: ${resultMidEl.textContent}\nhttps://survival.inhagame.app/`;
     shareText.hidden=true;
     shareStatus.textContent='';
     if(navigator.share){

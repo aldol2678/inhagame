@@ -11,7 +11,7 @@ import { isMcm2026PreviewRequest } from "../src/events/zombie-university-2026/ev
 
 
 test("production review URL enables isolated MCM preview and starts at the back gate", async () => {
-  const locationLike={hostname:"inhagame.example",search:"?event=zombie-university-2026"};
+  const locationLike={hostname:"inhagame.app",search:"?event=zombie-university-2026"};
   assert.equal(isMcm2026PreviewRequest(locationLike),true);
   assert.deepEqual(campusSpawn(locationLike),BACK_GATE_SPAWN);
   assert.equal(isMcm2026PreviewRequest({hostname:"example.com",search:locationLike.search}),false,

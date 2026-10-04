@@ -40,6 +40,12 @@ assert.match(runtimeSource, /const observedConversation = observedConversationEn
   'runtime mounts the ambient observation engine when production enables it');
 assert.match(runtimeSource, /observedFrame = sharedMeetings[\s\S]*if \(!observedFrame && observedConversation\)/,
   'shared deterministic meetings take priority and ambient observations fill quiet gaps');
+assert.match(runtimeSource, /const OBSERVED_RUNTIME_SCAN_SECONDS = \.25;[\s\S]*if \(now >= observedNextScan\)/,
+  'production observation scans are capped at 4 Hz instead of running every render frame');
+assert.match(runtimeSource, /const OBSERVED_OBSTACLE_CACHE_SECONDS = \.25;[\s\S]*now-observedObstacleAt >= OBSERVED_OBSTACLE_CACHE_SECONDS/,
+  'observed bubble obstacle layout reads are cached between scan windows');
+assert.match(runtimeSource, /observedCanvasRect = app\.graphicsDevice\.canvas\.getBoundingClientRect\(\);[\s\S]*const canvasRect = observedCanvasRect;/,
+  'observed bubble projection reuses the cached canvas rectangle between scan windows');
 assert.match(runtimeSource, /if \(socialEnabled\) \{[\s\S]*createNpcSocialNg1Model/,
   'NG1 model mounts when the production runtime is enabled');
 assert.match(runtimeSource, /if \(socialPreview\) socialNg1Panel = mountNpcSocialNg1Panel/,

@@ -35,9 +35,9 @@
 });
 
 // Attribute only visits that carry a fresh hub click ID.
-if (typeof window !== 'undefined' && location.hostname === 'duck.inhagame.example') {
+if (typeof window !== 'undefined' && location.hostname === 'duck.inhagame.app') {
   const entryScript = document.createElement('script');
-  entryScript.src = 'https://inhagame.example/game-entry.js';
+  entryScript.src = 'https://inhagame.app/game-entry.js';
   entryScript.dataset.game = 'classic';
   document.head.append(entryScript);
 }
