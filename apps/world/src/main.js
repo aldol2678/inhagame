@@ -158,8 +158,11 @@ import { bindPointerLockRuntime } from "./input/pointer-lock-runtime.js";
 import { bindPointerLockHint } from "./input/pointer-lock-hint.js";
 import { bindCameraInputSettings } from "./input/camera-input-settings.js";
 import { createInputFocusOwner } from "./input/input-focus-owner.js";
-import { createHudContext } from "./hud/hud-context.js";
+import { HUD_MODE, createHudContext } from "./hud/hud-context.js";
 import { bindHudPresentation } from "./hud/hud-presentation.js";
+import { createCombatRuntimeV03 } from "./combat/combat-runtime-v03.js";
+import { createBuilding5CombatInteraction } from "./combat/building5-combat-interaction.js";
+import { createCombatHudV03 } from "./combat/combat-hud-v03.js";
 import { createHelicopterFlightHud } from "./mounts/helicopter-flight-hud.js";
 import { createMobilityBook } from "./mobility/mobility-book.js";
 import { FLAG_DISABLED, FLAG_ENABLED, FLAG_UNAVAILABLE, probeFeatureFlag, retryFeatureFlag } from "./npc-feature-flags.js";
@@ -397,6 +400,14 @@ const helicopterFlightHud = createHelicopterFlightHud({
 const inputFocus = createInputFocusManager();
 const hudContext = createHudContext();
 bindHudPresentation({ context: hudContext, root: document.body });
+const combatRuntime = createCombatRuntimeV03();
+const combatHud = createCombatHudV03({
+  root: document.getElementById("combat-hud-v03"),
+  runtime: combatRuntime
+});
+combatRuntime.subscribe(state => {
+  hudContext.setMode(state.active ? HUD_MODE.COMBAT : HUD_MODE.EXPLORE);
+}, { emitCurrent: true });
 // InputFocus remains the single input authority. HUD Context observes its resolved snapshot only
 // to expose presentation state for current/future Explore, Combat, Life and Pet layouts.
 inputFocus.subscribe(snapshot => hudContext.syncInputFocus(snapshot), { emitCurrent: true });
@@ -499,6 +510,7 @@ const contextActions = createContextActionController({
     if (livingComplete) core15Funnel?.firstActivityComplete();
   }
 });
+const building5Combat = createBuilding5CombatInteraction({ runtime: combatRuntime });
 const transportActions = createContextActionController({ button: document.getElementById("transport-action"), shortcut: "M" });
 const orbit = new OrbitCameraController(camera, canvas, {
   canUseGameplayShortcut: () => inputFocus.can("GAMEPLAY_SHORTCUT")
@@ -1355,7 +1367,7 @@ const interactionAction = () => {
   return contextActions.trigger();
 };
 // M: PlayerController owns the key and the mount state; the World only adds the panel block.
-controller.setTransportGate(() => !worldActionsSuspended());
+controller.setTransportGate(() => !worldActionsSuspended() && !combatRuntime.active);
 const transportAction = () => {
   if (playerAutoMove?.active) playerAutoMove.pause(AUTO_MOVE_CANCEL_REASON.TRANSPORT);
   return controller.transportAction();
@@ -1363,7 +1375,33 @@ const transportAction = () => {
 window.addEventListener("keydown", (event) => {
   if (event.code !== "KeyF" || event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
   if (event.target instanceof HTMLElement && event.target.closest("input, textarea, select, [contenteditable]")) return;
+  if (combatRuntime.active) {
+    event.preventDefault();
+    combatRuntime.dispatch("ultimate");
+    return;
+  }
   interactionAction();
+});
+window.addEventListener("keydown", (event) => {
+  if (!combatRuntime.active || event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
+  if (event.target instanceof HTMLElement && event.target.closest("input, textarea, select, [contenteditable]")) return;
+  if (event.code === "Escape") {
+    event.preventDefault();
+    combatRuntime.end("PLAYER_EXIT");
+    return;
+  }
+  const action = event.code === "Digit1" ? "active_1"
+    : event.code === "Digit2" ? "active_2"
+    : event.code === "Digit3" ? "active_3"
+    : event.code === "ShiftLeft" || event.code === "ShiftRight" ? "dodge"
+    : null;
+  if (!action) return;
+  event.preventDefault();
+  if (action === "dodge") controller.keys.delete(event.code);
+  combatRuntime.dispatch(action);
+});
+canvas.addEventListener("pointerdown", event => {
+  if (combatRuntime.active && event.button === 0) combatRuntime.dispatch("basic");
 });
 guestbookInteraction = createGuestbookInteraction({
   anchor: MAIN_GATE_GUESTBOOK,
@@ -2228,6 +2266,11 @@ questHud = createTrackedQuestHud({
 window.addEventListener("keydown", (event) => {
   if (event.code !== "KeyQ" || event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
   if (event.target instanceof HTMLElement && event.target.closest("input, textarea, select, [contenteditable]")) return;
+  if (combatRuntime.active) {
+    event.preventDefault();
+    combatRuntime.toggleLock();
+    return;
+  }
   if (lobbyWorld.active || lobbyTransition.active) return;
   event.preventDefault();
   questJournal.setOpen(!questJournal.open);
@@ -2468,7 +2511,7 @@ app.on("update", (dt) => {
   character.setFirstPerson(orbit.firstPerson);
   // Locomotion outranks expression: moving, mounting or an incompatible jump ends the emote.
   const emote = emotes.update(locomotion());
-  emoteMenu.setAvailable(!controller.mounted);
+  emoteMenu.setAvailable(!controller.mounted && !combatRuntime.active);
   character.update(Math.min(dt, 0.05), { ...locomotion(), emote, seated: seats.isSeated, poseOffsets: biryong?.poseOffsets() ?? null });
 
   const pos = player.getLocalPosition();
@@ -2486,6 +2529,13 @@ app.on("update", (dt) => {
   const biryongPlace = inBiryong ? getBiryongRealmPlaceZone(pos) : null;
   if (inBiryong) zoneEl.textContent = biryongPlace?.displayName ?? "비룡권 외곽길";
   const place = inBiryong ? biryongPlace : rooms.insideRoom ? null : places.update(pos);
+  const building5CombatAction = building5Combat.observe(pos, {
+    placeZoneId: place?.id ?? combatRuntime.snapshot().placeZoneId,
+    grounded: controller.grounded,
+    blocked: inside || controller.mounted || seats.isSeated || lobbyWorld.active || lobbyTransition.active ||
+      !inputFocus.can("WORLD_ACTION")
+  });
+  contextActions.set("building5-combat", building5CombatAction);
   accompany?.update();
   if (!inside) npcTest?.observePlace?.(place?.id, pos);
   if (!inside) core15Funnel?.observePlayerEncounter(getMapSocialMarkers(), pos);
@@ -2547,6 +2597,14 @@ app.on("update", (dt) => {
   contextActions.set("npc", inside ? null : npcTest?.getContextAction?.() ?? null);
   // Transport has its own slot: a nearby NPC and the bike are offered together (F and M).
   transportActions.set("mount", controller.getMountContextAction());
+  if (combatRuntime.active) {
+    for (const key of [
+      "seat", "guestbook", "student-center-shop", "backgate-transit", "biryong-station-transit",
+      "inkyung-duck", "biryong", "mcm-event", "mcm-minigame", "follow",
+      "room-door", "personal-room-door", "npc"
+    ]) contextActions.set(key, null);
+    transportActions.set("mount", null);
+  }
   const suspended = worldActionsSuspended();
   contextActions.setSuspended(suspended);
   transportActions.setSuspended(suspended);
@@ -2566,7 +2624,7 @@ app.on("update", (dt) => {
     mounted: controller.mounted,
     insideRoom: inside,
     regionId: biryongRealm?.regionId ?? WORLD_REGION_ID.CAMPUS,
-    enabled: firstPlayerMovement && !npcTestMode
+    enabled: firstPlayerMovement && !npcTestMode && !combatRuntime.active
   });
   if (!inside) streaming.update(dt, pos);
   if (!inside && !npcTestMode) tour.update(pos, place?.id, orbit.yaw);
@@ -2848,6 +2906,9 @@ window.__INHAGAME_P0__ = {
   backgateTransitPanel,
   biryongRealm,
   biryongStationTransit,
+  combatRuntime,
+  combatHud,
+  building5Combat,
   seats,
   seating,
   follow,
@@ -2963,6 +3024,8 @@ window.__INHAGAME_P0__ = {
     backgateTransit: { ...backgateTransit.status(), ...backgateTransitPanel.status() },
     worldRegion: biryongRealm?.status() ?? { regionId: WORLD_REGION_ID.CAMPUS },
     biryongStationTransit: biryongStationTransit?.status() ?? null,
+    combat: combatRuntime.snapshot(),
+    building5Combat: building5Combat.status(),
     wallet: wallet.status(),
     inventory: { ...inventory.status(), ...inventoryPanel.status() },
     dailyQuiz: { ...dailyQuiz.status(), panel: dailyQuizPanel.status() },
