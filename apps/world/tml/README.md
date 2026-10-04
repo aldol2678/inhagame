@@ -30,6 +30,7 @@ TML is used here as a semantic/state-transition layer above the existing game im
 - `runtime/canary-execution-contract.mjs` — P16 short-lived immutable execution-input contract; still no router or activation logic
 - `runtime/canary-adapter-interfaces.mjs` — P17 reference-only external adapter interface pack; no adapter invocation
 - `runtime/canary-adapter-conformance.mjs` — P18 MOCK_ONLY conformance harness for P17 interfaces; never accepts live adapters
+- `runtime/gyeol-verdict-contract.mjs` — P19 shadow-only TML → Gyeol verdict request/response contract; no live Gyeol invocation or authority effect
 - `fixtures/` — executable-domain conformance fixtures tied to current INHA WORLD contracts
 
 ## Boundary
@@ -501,3 +502,35 @@ current authority: legacy-main2
 ```
 
 P18 is not wired into `main.js`, NPC runtime, routing, deployment or production traffic. It is a conformance test harness for future adapter implementations.
+
+
+## P19 Gyeol Verdict Bridge
+
+P19 defines the first code-level boundary from TML evidence/verification into the future 결 엔진 (Gyeol/MTE) reference implementation.
+
+P19 is contract-only. It does not call a live Gyeol engine and does not map TML Verification statuses into Gyeol verdicts. The distinction is explicit:
+
+```text
+TML Verification ≠ Gyeol Verdict
+```
+
+The bridge request carries the TML Verification plus the Evidence records it references. A conforming Gyeol response may return exactly one advisory verdict:
+
+- `VERIFIED`
+- `HOLD`
+- `REJECTED`
+- `UNKNOWN`
+
+Every response must remain effect-free:
+
+```text
+advisory_only = true
+runtime_effect = NONE
+persistence_effect = NONE
+authority_change_allowed = false
+mutation_requests = []
+```
+
+A verdict may cite only Evidence IDs present in the request. P19 is not wired into `src/main.js`, the NPC dev runtime, quest mutation, reward settlement, routing, deployment, or persistence. Existing domain/server authorities remain unchanged.
+
+The design and completion gate are documented in [design/P19_GYEOL_VERDICT_BRIDGE.md](design/P19_GYEOL_VERDICT_BRIDGE.md).
