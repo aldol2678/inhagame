@@ -49,8 +49,11 @@ the current main glass/brick/concrete/paint/wood/metal optical profiles.
 - Student camera prisms use the already-tested finite polygon-boundary sweep.
   This avoids false hits caused by expanding thin triangulation tips. When a
   real student wall compresses the camera into the local body, the existing
-  avatar-visibility guard also applies in this bounded area, without changing
-  perspective, zoom, collision or other actors
+  avatar-visibility guard also applies in this bounded area. For a real
+  collision-compressed portrait camera it uses the current lens/aspect and
+  actor radius to keep the local body from filling half the viewport width.
+  Intentional uncompressed close zoom remains visible. Perspective, zoom,
+  collision and other actors are unchanged
 - Night panes derive from actual v09 stepped glass bands, with the existing
   deterministic night-light tier budgets. Old-footprint floating panes are gone
 - Current mesh batching/material profiles/fades remain authoritative. Scoped

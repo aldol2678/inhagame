@@ -173,3 +173,19 @@ test('compressed student stair orbit hides only the local avatar without changin
  const clear=frame.toWorld([0,0,29]);orbit.yaw=Math.PI/2;orbit.pitch=.32;orbit.distance=6;
  orbit.apply({x:clear[0],y:1.15,z:clear[2]},-.35);assert.equal(orbit.localVisualOccluded,false,'open outdoor orbit restores avatar');
 });
+
+test('real compressed portrait landing keeps the route visible without changing wide or uncompressed views',async()=>{
+ const {OrbitCameraController}=await import('../src/orbit-camera-controller.js');
+ controllerAt([-24,4.03,-17]);
+ const camera={camera:{nearClip:.3,fov:62,aspectRatio:390/844,horizontalFov:false},setPosition(...p){this.position=p;},lookAt(){}};
+ const orbit=new OrbitCameraController(camera,{addEventListener(){}}),q=frame.toWorld([-24,4.03,-17]),p={x:q[0],y:q[1]+1.15,z:q[2]};
+ orbit.yaw=1.061443830884926;orbit.pitch=.18;orbit.distance=2.2;
+ orbit.apply(p,-.35);
+ assert.equal(orbit.localVisualOccluded,true,'a real wall compresses the portrait avatar across the descending stair view');
+ const position=[...camera.position];camera.camera.aspectRatio=1280/720;orbit.apply(p,-.35);
+ assert.equal(orbit.localVisualOccluded,false,'wide landing view keeps its existing visible avatar');
+ assert.deepEqual(camera.position,position,'visibility policy does not alter the physical camera');
+ assert.equal(camera.camera.fov,62);assert.equal(camera.camera.nearClip,.3);assert.equal(orbit.distance,2.2);assert.equal(orbit.firstPerson,false);
+ camera.camera.aspectRatio=390/844;const clear=frame.toWorld([0,0,29]);orbit.yaw=Math.PI/2;orbit.pitch=.32;orbit.distance=1.5;
+ orbit.apply({x:clear[0],y:1.15,z:clear[2]},-.35);assert.equal(orbit.localVisualOccluded,false,'uncompressed intentional close zoom stays visible');
+});
