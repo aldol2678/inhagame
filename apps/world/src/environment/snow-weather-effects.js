@@ -472,11 +472,18 @@ export function createSnowWeatherEffects({
   function status() {
     const currentTier = tier ?? (getGraphicsTier?.() ?? 'medium');
     const visibility = snowGroundVisibility(accumulation, currentTier);
+    const lawnGroundVertexCount = SITE_FEATURES
+      .filter(feature => feature.kind === 'lawn')
+      .reduce((sum, feature) => sum + feature.vertices.length, 0);
+    const roadGroundVertexCount =
+      (ROAD_SEGMENTS.length + GATE_DORM_SEGMENTS.length + MAIN_GATE_FORECOURT_QUADS.length) * 4;
+    const flakeBudget = SNOW_FLAKE_BUDGET[currentTier] ?? SNOW_FLAKE_BUDGET.medium;
     return Object.freeze({
       graphicsTier: currentTier,
       snowIntensity: Math.max(0, intensity),
       enabled: intensity > 0.01,
-      flakeBudget: SNOW_FLAKE_BUDGET[currentTier] ?? SNOW_FLAKE_BUDGET.medium,
+      flakeBudget,
+      flakeVertexCount: intensity > 0.01 ? flakeBudget * 8 : 0,
       opacity: Math.max(0, intensity) * snowOpacity(currentTier),
       drawMeshes: intensity > 0.01 ? 1 : 0,
       groundAccumulation: visibility.accumulation,
@@ -487,10 +494,16 @@ export function createSnowWeatherEffects({
       groundDrawMeshes: visibility.accumulation > 0.01
         ? (SNOW_GROUND_DRAW_BUDGET[currentTier] ?? SNOW_GROUND_DRAW_BUDGET.medium)
         : 0,
+      groundLawnVertexCount: visibility.accumulation > 0.01 ? lawnGroundVertexCount : 0,
+      groundRoadVertexCount: visibility.accumulation > 0.01 && visibility.roadEnabled
+        ? roadGroundVertexCount
+        : 0,
       footprintEnabled: visibility.accumulation > SNOW_FOOTPRINT_MIN_ACCUMULATION &&
         getFootprintsEnabled?.() !== false,
       footprintCount: footprints.length,
       footprintBudget: snowFootprintBudget(currentTier),
+      footprintVertexCount: footprints.length * 9,
+      footprintVertexBudget: snowFootprintBudget(currentTier) * 9,
       footprintOpacity: snowFootprintOpacity(currentTier, visibility.accumulation),
       footprintSpacing: SNOW_FOOTPRINT_SPACING,
       footprintDrawMeshes: footprints.length > 0 && footprintMaterial.opacity > 0 ? 1 : 0,
