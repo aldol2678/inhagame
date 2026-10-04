@@ -1,0 +1,135 @@
+// Browser-side scenario shared by automated Chromium and the isolated cloud-browser fallback.
+export async function runSocialAccountSmoke() {
+  const { SocialClient } = await import("/src/social/social-client.js");
+  const { createSocialAccountSession } = await import("/src/social/social-account-session.js");
+  const { createFriendPanel } = await import("/src/social/friend-panel.js");
+  const { createPlayerCard } = await import("/src/social/player-card.js");
+  const { createChatPanel } = await import("/src/online/chat-panel.js");
+  const { createLobbyPresenceSummary } = await import("/src/lobby/lobby-presence-summary.js");
+  const A = "a0000000-0000-4000-8000-000000000001", B = "b0000000-0000-4000-8000-000000000002";
+  const X = "c0000000-0000-4000-8000-000000000003", Y = "d0000000-0000-4000-8000-000000000004";
+  const list = (friends = [], blocked = []) => ({ friends: friends.map(userId => ({ userId, nickname: "fixture" })), blocked: blocked.map(userId => ({ userId })), incoming: [], outgoing: [] });
+  let account = A, assertions = 0;
+  const check = (value, label) => { assertions++; if (!value) throw new Error(label); };
+  const calls = [];
+  const client = { rpc(name) { return new Promise((resolve, reject) => calls.push({ name, resolve: data => resolve({ data }), reject })); } };
+  const social = new SocialClient({ getClient: () => client, getSelfUserId: () => account });
+  const friendPanel = createFriendPanel({ toggle: document.querySelector("#toggle"), panel: document.querySelector("#friends"), social, timers: {} });
+  const playerCard = createPlayerCard({ panel: document.querySelector("#card"), social, getSelfUserId: () => account, getRemote: () => null });
+  const summary = document.querySelector("#summary");
+  const session = createSocialAccountSession({ social, onFriends: friends => { summary.textContent = friends === null ? "unknown" : String(friends.length); }, onAccountChange: () => { playerCard.close(); if (friendPanel.open) void friendPanel.setOpen(false); } });
+  const old = session.setAccount(A);
+  const panelOld = friendPanel.setOpen(true);
+  const cardOld = playerCard.openUser(X);
+  account = B;
+  const current = session.setAccount(B);
+  calls[3].resolve(list([Y], [X]));
+  check(await current, "new account loads");
+  calls[0].resolve(list([X], [Y]));
+  calls[1].resolve(list([X]));
+  calls[2].resolve({ userId: X, relationship: "friends", available: true });
+  await Promise.all([old, panelOld, cardOld]);
+  check(summary.textContent === "1", "old success cannot clear current summary");
+  check(social.isBlocked(X) && !social.isBlocked(Y), "old list cannot replace blocks");
+  check(social.relationshipOf(Y) === "friends", "old list cannot replace relationships");
+  check(!friendPanel.open && document.querySelector("#friends").children.length === 0, "old friend panel remains closed");
+  check(document.querySelector("#card").hidden, "old card remains closed");
+  const failureOld = session.setAccount(B);
+  account = A;
+  const next = session.setAccount(A);
+  calls[5].resolve(list([X])); await next;
+  calls[4].reject(new Error("synthetic offline")); await failureOld;
+  check(summary.textContent === "1", "old failure cannot clear current summary");
+  const oldWrite = social.block(Y).catch(error => error.code);
+  account = B;
+  const newRead = session.setAccount(B);
+  const newWrite = social.block(Y);
+  const duplicate = social.block(Y);
+  check(calls.length === 9, "new account write is independent and duplicate shares it");
+  calls[6].resolve({ relationship: "blocked_by_me" });
+  check(await oldWrite === "STALE", "old write is discarded");
+  const afterOldCleanup = social.block(Y);
+  check(calls.length === 9, "old cleanup keeps new duplicate guard");
+  calls[7].resolve(list()); await newRead;
+  calls[8].resolve({ relationship: "blocked_by_me" });
+  check((await Promise.all([newWrite, duplicate, afterOldCleanup])).every(value => value === "blocked_by_me"), "current write completes normally");
+  const beforeLogout = calls.length;
+  await session.setAccount(null); // getter deliberately still B
+  check(!social.available && !social.isBlocked(Y), "explicit logout wins over old getter");
+  check(await social.request(X).catch(error => error.code) === "SIGNED_OUT", "no writes during logout");
+  check(calls.length === beforeLogout, "logout sends no RPC");
+  account = A; const firstA = session.setAccount(A);
+  account = B; const middleB = session.setAccount(B);
+  account = A; const lastA = session.setAccount(A);
+  calls[beforeLogout + 2].resolve(list([Y])); await lastA;
+  calls[beforeLogout].resolve(list()); calls[beforeLogout + 1].resolve(list());
+  await Promise.all([firstA, middleB]);
+  check(summary.textContent === "1", "A-to-B-to-A generation owns the final summary");
+  // Real DOM button completion after B reopens must not cause a B refresh or old hint.
+  for (const fail of [false, true]) {
+    const start = calls.length;
+    const firstPanel = friendPanel.setOpen(true);
+    calls[start].resolve(list([Y])); await firstPanel;
+    [...document.querySelectorAll("#friends button")].find(button => button.textContent === "친구 삭제").click();
+    account = account === A ? B : A;
+    const switched = session.setAccount(account);
+    calls[start + 2].resolve(list([X])); await switched;
+    const reopened = friendPanel.setOpen(true);
+    calls[start + 3].resolve(list([X])); await reopened;
+    if (fail) calls[start + 1].reject(new Error("synthetic offline"));
+    else calls[start + 1].resolve({ relationship: "none" });
+    await new Promise(resolve => setTimeout(resolve, 0));
+    check(calls.length === start + 4, "obsolete panel action never refreshes the new account");
+    check(!document.querySelector("#friends .friend-hint"), "obsolete panel action never shows an error");
+  }
+  const socialAssertions = assertions;
+
+  const input = document.querySelector("#chat-input"), hint = document.querySelector("#chat-hint");
+  let submissions = 0;
+  const chat = createChatPanel({ toggle: document.querySelector("#chat-toggle"), form: document.querySelector("#chat-form"), input, hint,
+    feedList: document.querySelector("#chat-feed"), getChat: () => ({ signedIn: true, submit: () => { submissions++; return { result: "sent" }; } }) });
+  chat.refreshAvailability(A); chat.setOpen(true); input.value = "synthetic A draft";
+  chat.refreshAvailability(A);
+  check(input.value === "synthetic A draft", "same-account refresh retains draft");
+  chat.setOpen(false); chat.setOpen(true);
+  check(input.value === "synthetic A draft", "same-account close and reopen retain draft");
+  chat.refreshAvailability(null);
+  check(input.value === "" && hint.textContent === "" && !chat.open, "logout clears real DOM draft and feedback");
+  check(chat.setOpen(true) === false, "old signedIn getter cannot reopen logged-out chat");
+  check(chat.send() === "signed_out", "logged-out chat refuses stale submission");
+  chat.refreshAvailability(B); chat.setOpen(true); input.value = "synthetic B draft";
+  chat.refreshAvailability(B);
+  check(input.value === "synthetic B draft", "same-account availability change retains current draft");
+  chat.refreshAvailability(A);
+  check(input.value === "" && !chat.open, "direct account switch clears the draft");
+  check(submissions === 0, "account transitions never auto-send chat");
+  const chatAssertions = assertions - socialAssertions;
+
+  let state = "CONNECTING", remote = { presence: "present" };
+  const friendsButton = document.querySelector("#presence-friends");
+  const presence = createLobbyPresenceSummary({ friendsButton, zoneElement: document.querySelector("#population"), social,
+    getOnline: () => ({ status: () => ({ signedIn: true, state, count: 0 }), remoteByUser: () => remote }),
+    getPopulation: () => ({ state: "READY", snapshot: { online: 0 } }) });
+  presence.setFriends([{ userId: X }]);
+  check(presence.status().sameZoneFriends === null && friendsButton.textContent.includes("연결 중"), "connecting is unknown, not zero");
+  state = "ONLINE"; presence.update();
+  check(presence.status().sameZoneFriends === 1, "synced online friend is known");
+  state = "RECONNECTING"; presence.update();
+  check(presence.status().sameZoneFriends === null && friendsButton.textContent.includes("재연결"), "reconnecting hides stale count");
+  state = "ONLINE"; remote = { presence: "suspect" }; presence.update();
+  check(presence.status().sameZoneFriends === null, "suspect remote is not a confirmed count");
+  remote = null; presence.update();
+  check(presence.status().sameZoneFriends === 0, "synced absence is a confirmed zero");
+  presence.setFriends(null); presence.applyRelationship(X, null);
+  check(presence.status().totalFriends === null, "logout notification cannot invent a known list");
+  state = "OFFLINE"; presence.update();
+  check(presence.status().sameZoneFriends === null && friendsButton.textContent.includes("오프라인"), "offline state stays unknown");
+  check(presence.status().worldCount === 0, "independent READY population keeps a confirmed zero");
+  const presenceAssertions = assertions - socialAssertions - chatAssertions;
+  const disposing = session.setAccount(A);
+  const text = summary.textContent;
+  session.dispose();
+  calls.at(-1).resolve(list()); await disposing;
+  check(summary.textContent === text && !social.available, "dispose silences late completion");
+  return { assertions, socialAssertions: socialAssertions + 1, chatAssertions, presenceAssertions, syntheticRpcCalls: calls.length, syntheticChatSubmissions: submissions };
+}

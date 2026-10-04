@@ -70,6 +70,10 @@ export class SocialClient {
   constructor({ getClient, getSelfUserId }) {
     this.getClient = getClient;
     this.getSelfUserId = getSelfUserId;
+    this.accountId = isUserId(getSelfUserId()) ? getSelfUserId() : null;
+    this.generation = 0;
+    this.explicitAccount = false;
+    this.disposed = false;
     this.inFlight = new Map();
     this.blocked = new Set(); // users *I* blocked (never who blocked me)
     this.listeners = new Set();
@@ -79,47 +83,107 @@ export class SocialClient {
   }
 
   onRelationshipChange(handler) {
-    this.relationshipListeners.add(handler);
+    if (!this.disposed) this.relationshipListeners.add(handler);
     return () => this.relationshipListeners.delete(handler);
   }
 
-  #setRelationship(userId, state) {
+  #setRelationship(userId, state, generation) {
+    this.#assertCurrent(generation);
     const previous = this.relationships.get(userId) ?? null;
     if (state === null) this.relationships.delete(userId); else this.relationships.set(userId, state);
-    if (previous !== state) for (const listener of this.relationshipListeners) {
-      try { listener(userId, state); } catch { /* a broken listener never breaks the client */ }
+    if (previous !== state) this.#notify(this.relationshipListeners, [userId, state], generation);
+  }
+
+  relationshipOf(userId) { this.#syncAccount(); return this.relationships.get(userId) ?? null; }
+
+  #syncAccount() {
+    if (this.disposed || this.explicitAccount) return;
+    const userId = this.getSelfUserId();
+    const next = isUserId(userId) ? userId : null;
+    if (next !== this.accountId) this.reset();
+  }
+
+  #assertCurrent(generation) {
+    this.#syncAccount();
+    if (this.disposed || generation !== this.generation) throw new SocialError("STALE");
+  }
+
+  #capture() {
+    this.#syncAccount();
+    if (this.disposed || !this.accountId) throw new SocialError("SIGNED_OUT");
+    return this.generation;
+  }
+
+  #notify(listeners, args, generation) {
+    for (const listener of listeners) {
+      this.#syncAccount();
+      if (this.disposed || generation !== this.generation) break;
+      try { listener(...args); } catch { /* a broken listener never breaks the client */ }
     }
   }
 
-  relationshipOf(userId) { return this.relationships.get(userId) ?? null; }
+  // Once wired to onIdentity, its explicit null is authoritative: during logout the
+  // online getter can still report the session that is currently being torn down.
+  setAccount(userId) {
+    if (this.disposed) return false;
+    this.explicitAccount = true;
+    const next = isUserId(userId) ? userId : null;
+    if (next === this.accountId) return false;
+    this.accountId = next;
+    this.reset();
+    return true;
+  }
 
-  // Signed out: forget every cached relationship (listeners see them go).
+  dispose() {
+    if (this.disposed) return;
+    this.disposed = true;
+    this.listeners.clear();
+    this.relationshipListeners.clear();
+    this.reset();
+  }
+
+  // Invalidate pending work as well as caches, even if the account id is unchanged.
+  // Clear both caches before notifying: listeners may synchronously reenter or change accounts.
   reset() {
-    for (const id of [...this.blocked]) this.#setBlocked(id, false);
-    for (const id of [...this.relationships.keys()]) this.#setRelationship(id, null);
+    if (!this.explicitAccount) {
+      const userId = this.getSelfUserId();
+      this.accountId = isUserId(userId) ? userId : null;
+    }
+    const generation = ++this.generation;
+    const blocked = [...this.blocked];
+    const relationships = [...this.relationships.keys()];
+    this.blocked.clear();
+    this.relationships.clear();
+    this.inFlight.clear();
+    for (const id of blocked) this.#notify(this.listeners, [id, false], generation);
+    for (const id of relationships) this.#notify(this.relationshipListeners, [id, null], generation);
   }
 
   onBlockedChange(handler) {
-    this.listeners.add(handler);
+    if (!this.disposed) this.listeners.add(handler);
     return () => this.listeners.delete(handler);
   }
 
-  #setBlocked(userId, blocked) {
+  #setBlocked(userId, blocked, generation) {
+    this.#assertCurrent(generation);
     const had = this.blocked.has(userId);
     if (blocked) this.blocked.add(userId); else this.blocked.delete(userId);
-    if (had !== blocked) for (const listener of this.listeners) {
-      try { listener(userId, blocked); } catch { /* UI never breaks social state */ }
-    }
+    if (had !== blocked) this.#notify(this.listeners, [userId, blocked], generation);
   }
 
-  isBlocked(userId) { return this.blocked.has(userId); }
+  isBlocked(userId) { this.#syncAccount(); return this.blocked.has(userId); }
 
-  get available() { return !!this.getClient() && isUserId(this.getSelfUserId()); }
+  get available() { this.#syncAccount(); return !this.disposed && !!this.getClient() && this.accountId !== null; }
 
-  async #rpc(name, args) {
+  async #rpc(name, args, generation) {
+    this.#assertCurrent(generation);
     const client = this.getClient();
-    if (!client || !isUserId(this.getSelfUserId())) throw new SocialError("SIGNED_OUT");
-    const { data, error } = await client.rpc(name, args);
+    if (!client || !this.accountId || this.getSelfUserId() !== this.accountId) throw new SocialError("SIGNED_OUT");
+    let result;
+    try { result = await client.rpc(name, args); }
+    catch (error) { this.#assertCurrent(generation); throw error; }
+    this.#assertCurrent(generation);
+    const { data, error } = result;
     if (error) {
       const code = String(error.message ?? "").trim();
       throw new SocialError(KNOWN_ERRORS.has(code) ? code : "FAILED");
@@ -130,42 +194,54 @@ export class SocialClient {
   // Double clicks and retries of the same operation share one request.
   #once(key, run) {
     if (this.inFlight.has(key)) return this.inFlight.get(key);
-    const promise = run().finally(() => this.inFlight.delete(key));
+    const promise = run().finally(() => {
+      // An old account's completion cannot clear the replacement account's duplicate guard.
+      if (this.inFlight.get(key) === promise) this.inFlight.delete(key);
+    });
     this.inFlight.set(key, promise);
     return promise;
   }
 
   #target(userId) {
     if (!isUserId(userId)) throw new SocialError("TARGET_UNAVAILABLE");
-    if (userId === this.getSelfUserId()) throw new SocialError("TARGET_UNAVAILABLE");
+    if (userId === this.accountId) throw new SocialError("TARGET_UNAVAILABLE");
     return userId;
   }
 
   async profile(userId) {
+    const generation = this.#capture();
     const target = this.#target(userId);
-    const card = parseCard(await this.#rpc("get_world_public_profile", { p_target: target }));
+    const card = parseCard(await this.#rpc("get_world_public_profile", { p_target: target }, generation));
+    this.#assertCurrent(generation);
     if (!card || card.userId !== target) throw new SocialError("FAILED");
-    if (card.relationship === Relationship.BLOCKED_BY_ME) this.#setBlocked(target, true);
-    this.#setRelationship(target, card.relationship);
+    if (card.relationship === Relationship.BLOCKED_BY_ME) this.#setBlocked(target, true, generation);
+    this.#setRelationship(target, card.relationship, generation);
+    this.#assertCurrent(generation);
     return card;
   }
 
   // Current relationship straight from the database (Follow's periodic re-check).
   async relationship(userId) {
+    const generation = this.#capture();
     const target = this.#target(userId);
-    const state = parseState(await this.#rpc("get_world_relationship", { p_target: target }));
+    const state = parseState(await this.#rpc("get_world_relationship", { p_target: target }, generation));
+    this.#assertCurrent(generation);
     if (!state) throw new SocialError("FAILED");
-    this.#setRelationship(target, state);
+    this.#setRelationship(target, state, generation);
+    this.#assertCurrent(generation);
     return state;
   }
 
   async #mutation(op, rpc, userId, extra = {}) {
+    const generation = this.#capture();
     const target = this.#target(userId);
     return this.#once(`${op}:${target}`, async () => {
-      const state = parseState(await this.#rpc(rpc, { p_target: target, ...extra }));
+      const state = parseState(await this.#rpc(rpc, { p_target: target, ...extra }, generation));
+      this.#assertCurrent(generation);
       if (!state) throw new SocialError("FAILED");
-      this.#setBlocked(target, state === Relationship.BLOCKED_BY_ME);
-      this.#setRelationship(target, state);
+      this.#setBlocked(target, state === Relationship.BLOCKED_BY_ME, generation);
+      this.#setRelationship(target, state, generation);
+      this.#assertCurrent(generation);
       return state;
     });
   }
@@ -179,10 +255,12 @@ export class SocialClient {
   unblock(userId) { return this.#mutation("unblock", "unblock_world_user", userId); }
 
   async mine() {
-    const social = parseSocial(await this.#rpc("get_my_world_social", {}));
+    const generation = this.#capture();
+    const social = parseSocial(await this.#rpc("get_my_world_social", {}, generation));
+    this.#assertCurrent(generation);
     const blocked = new Set(social.blocked.map((b) => b.userId));
-    for (const id of [...this.blocked]) if (!blocked.has(id)) this.#setBlocked(id, false);
-    for (const id of blocked) this.#setBlocked(id, true);
+    for (const id of [...this.blocked]) if (!blocked.has(id)) this.#setBlocked(id, false, generation);
+    for (const id of blocked) this.#setBlocked(id, true, generation);
     // My lists are authoritative for friends and requests: anything no longer listed is NONE.
     const listed = new Map();
     for (const person of social.friends) listed.set(person.userId, Relationship.FRIENDS);
@@ -190,19 +268,22 @@ export class SocialClient {
     for (const person of social.outgoing) listed.set(person.userId, Relationship.OUTGOING);
     for (const person of social.blocked) listed.set(person.userId, Relationship.BLOCKED_BY_ME);
     for (const [id, state] of [...this.relationships]) {
-      if (!listed.has(id) && state !== Relationship.UNAVAILABLE) this.#setRelationship(id, Relationship.NONE);
+      if (!listed.has(id) && state !== Relationship.UNAVAILABLE) this.#setRelationship(id, Relationship.NONE, generation);
     }
-    for (const [id, state] of listed) this.#setRelationship(id, state);
+    for (const [id, state] of listed) this.#setRelationship(id, state, generation);
+    this.#assertCurrent(generation);
     return social;
   }
 
   // Structured only: target id, category from the allowlist, semantic zone. Never chat text.
   async report(userId, category, placeZoneId = null) {
+    const generation = this.#capture();
     const target = this.#target(userId);
     if (!REPORT_CATEGORIES.includes(category)) throw new SocialError("INVALID_CATEGORY");
     const zone = PLACE_ZONE.test(placeZoneId ?? "") ? placeZoneId : null;
     return this.#once(`report:${target}:${category}`, async () => {
-      const data = await this.#rpc("report_world_user", { p_target: target, p_category: category, p_place_zone_id: zone });
+      const data = await this.#rpc("report_world_user", { p_target: target, p_category: category, p_place_zone_id: zone }, generation);
+      this.#assertCurrent(generation);
       return data?.status === "duplicate" ? "duplicate" : "received";
     });
   }

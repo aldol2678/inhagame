@@ -1,0 +1,47 @@
+name: Social account browser QA
+on:
+  pull_request:
+    paths:
+      - 'apps/world/src/main.js'
+      - 'apps/world/src/social/**'
+      - 'apps/world/src/online/chat-panel.js'
+      - 'apps/world/src/online/local-chat.js'
+      - 'apps/world/src/lobby/lobby-presence-summary.js'
+      - 'apps/world/src/network/**'
+      - 'apps/world/tests/social-account*.test.mjs'
+      - 'apps/world/tests/social-chat-presence-integration.test.mjs'
+      - 'apps/world/tests/chat-account-draft.test.mjs'
+      - 'apps/world/tests/lobby-presence-unknown.test.mjs'
+      - 'apps/world/tests/browser/social-account*'
+      - 'apps/world/tests/browser/package*.json'
+      - '.github/workflows/social-account-browser.yml'
+permissions:
+  contents: read
+concurrency:
+  group: social-account-browser-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  chromium:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - name: Install pinned browser QA dependencies
+        working-directory: apps/world/tests/browser
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Verify synthetic account isolation in Chromium
+        env:
+          WORLD_SMOKE_BROWSER: chrome
+          WORLD_SOCIAL_QA_OUTPUT: test-results/social-account
+        run: node apps/world/tests/browser/social-account-smoke.mjs
+      - name: Save Chromium frames and count-only receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: social-account-browser-evidence
+          path: test-results/social-account/
+          if-no-files-found: error
+          retention-days: 7
