@@ -151,6 +151,7 @@ import { createBiryongRealmWorldAdapter } from "./biryong/biryong-realm-world-ad
 import { createBiryongRealmTransition } from "./biryong/biryong-realm-transition.js";
 import { createBiryongStationTransitInteraction } from "./biryong/biryong-station-transit-interaction.js";
 import { getBiryongRealmPlaceZone } from "./biryong/biryong-village-layout.js";
+import { createBiryongVillageNpcRuntime } from "./biryong/biryong-village-npc-runtime.js";
 import { WORLD_REGION_ID } from "./regions/world-region-registry.js";
 import { INPUT_FOCUS_POLICY, createInputFocusManager } from "./input/input-focus-manager.js";
 import { bindInputFocusRuntime } from "./input/input-focus-runtime.js";
@@ -700,6 +701,7 @@ const lobbyQuestHighlight = createLobbyQuestHighlight({
 let rooms = null;
 let biryongRealm = null;
 let biryongStationTransit = null;
+let biryongVillageNpcs = null;
 let keyboardHelp = null;
 // Declared before input handlers so an early F/M event during boot can safely observe null.
 let playerAutoMove = null;
@@ -1533,6 +1535,15 @@ biryongRealm = createBiryongRealmTransition({
     }
   })
 });
+biryongVillageNpcs = createBiryongVillageNpcRuntime({
+  app,
+  root: biryongRealmScene.root,
+  player,
+  camera,
+  getActive: () => biryongRealm?.inBiryong === true
+});
+window.addEventListener("pagehide", event => { if (!event.persisted) biryongVillageNpcs?.destroy(); });
+
 biryongStationTransit = createBiryongStationTransitInteraction({
   getPosition: () => player.getLocalPosition(),
   getState: () => ({
@@ -2905,6 +2916,7 @@ window.__INHAGAME_P0__ = {
   backgateTransitPanel,
   biryongRealm,
   biryongStationTransit,
+  biryongVillageNpcs,
   combatRuntime,
   combatHud,
   building5Combat,
@@ -3023,6 +3035,7 @@ window.__INHAGAME_P0__ = {
     backgateTransit: { ...backgateTransit.status(), ...backgateTransitPanel.status() },
     worldRegion: biryongRealm?.status() ?? { regionId: WORLD_REGION_ID.CAMPUS },
     biryongStationTransit: biryongStationTransit?.status() ?? null,
+    biryongVillageNpcs: biryongVillageNpcs?.status() ?? null,
     combat: combatRuntime.snapshot(),
     building5Combat: building5Combat.status(),
     wallet: wallet.status(),
