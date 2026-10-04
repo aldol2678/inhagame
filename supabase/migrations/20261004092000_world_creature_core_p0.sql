@@ -93,20 +93,7 @@ create table if not exists private.world_creature_party_history (
   reserve1_creature_id uuid references private.world_player_creatures(creature_id),
   reserve2_creature_id uuid references private.world_player_creatures(creature_id),
   mutation_key text not null unique
-    check (mutation_key ~ '^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}
-  primary key (user_id,revision),
-  constraint world_creature_party_history_shape check (
-    (active_creature_id is not null)
-    or (reserve1_creature_id is null and reserve2_creature_id is null)
-  ),
-  constraint world_creature_party_history_unique_slots check (
-    (active_creature_id is null or reserve1_creature_id is null or active_creature_id <> reserve1_creature_id)
-    and (active_creature_id is null or reserve2_creature_id is null or active_creature_id <> reserve2_creature_id)
-    and (reserve1_creature_id is null or reserve2_creature_id is null or reserve1_creature_id <> reserve2_creature_id)
-  )
-);
-comment on table private.world_creature_party_history is
-  'Append-only party revision history used to bind later verified Activity results to the ACTIVE Creature at occurrence time.';),
+    check (mutation_key ~ '^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$'),
   committed_at timestamptz not null default now(),
   primary key (user_id,revision),
   constraint world_creature_party_history_shape check (
@@ -703,7 +690,9 @@ begin
     raise exception 'INVALID_PARTY_REVISION' using errcode = '22023';
   end if;
   if p_mutation_key is null
-     or p_mutation_key !~ '^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}
+     or p_mutation_key !~ '^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$' then
+    raise exception 'INVALID_PARTY_MUTATION_KEY' using errcode = '22023';
+  end if;
   if p_active_creature_id is null
      and (p_reserve1_creature_id is not null or p_reserve2_creature_id is not null) then
     raise exception 'CREATURE_PARTY_ACTIVE_REQUIRED' using errcode = '22023';
@@ -782,70 +771,6 @@ begin
 end;
 $$;
 revoke all on function private.world_creature_party_set_v1(uuid,uuid,uuid,uuid,bigint,text)
-  from public, anon, authenticated, service_role; then
-    raise exception 'INVALID_PARTY_MUTATION_KEY' using errcode = '22023';
-  end if;
-  if p_active_creature_id is null
-     and (p_reserve1_creature_id is not null or p_reserve2_creature_id is not null) then
-    raise exception 'CREATURE_PARTY_ACTIVE_REQUIRED' using errcode = '22023';
-  end if;
-  if (p_active_creature_id is not null and p_active_creature_id = p_reserve1_creature_id)
-     or (p_active_creature_id is not null and p_active_creature_id = p_reserve2_creature_id)
-     or (p_reserve1_creature_id is not null and p_reserve1_creature_id = p_reserve2_creature_id) then
-    raise exception 'CREATURE_PARTY_DUPLICATE' using errcode = '22023';
-  end if;
-  if not private.world_creature_account_ok_v1(p_user) then
-    raise exception 'ACCOUNT_UNAVAILABLE' using errcode = '22023';
-  end if;
-
-  perform pg_advisory_xact_lock(hashtextextended('world_creature_party:' || p_user::text,0));
-
-  select * into v_party
-    from private.world_creature_party_state p
-   where p.user_id = p_user
-   for update;
-  if found then
-    v_current_revision := v_party.revision;
-  end if;
-
-  if v_current_revision <> p_expected_revision then
-    raise exception 'CREATURE_PARTY_REVISION_CONFLICT' using errcode = '40001';
-  end if;
-
-  if (p_active_creature_id is not null
-      and not private.world_creature_owned_by_v1(p_user,p_active_creature_id))
-     or (p_reserve1_creature_id is not null
-      and not private.world_creature_owned_by_v1(p_user,p_reserve1_creature_id))
-     or (p_reserve2_creature_id is not null
-      and not private.world_creature_owned_by_v1(p_user,p_reserve2_creature_id)) then
-    raise exception 'CREATURE_NOT_OWNED' using errcode = '42501';
-  end if;
-
-  v_next_revision := v_current_revision + 1;
-
-  insert into private.world_creature_party_state(
-    user_id,revision,active_creature_id,reserve1_creature_id,reserve2_creature_id,updated_at)
-  values (
-    p_user,v_next_revision,p_active_creature_id,p_reserve1_creature_id,p_reserve2_creature_id,now())
-  on conflict (user_id) do update
-    set revision = excluded.revision,
-        active_creature_id = excluded.active_creature_id,
-        reserve1_creature_id = excluded.reserve1_creature_id,
-        reserve2_creature_id = excluded.reserve2_creature_id,
-        updated_at = excluded.updated_at;
-
-  insert into private.world_creature_party_history(
-    user_id,revision,active_creature_id,reserve1_creature_id,reserve2_creature_id)
-  values (
-    p_user,v_next_revision,p_active_creature_id,p_reserve1_creature_id,p_reserve2_creature_id);
-
-  return jsonb_build_object(
-    'status','SUCCESS',
-    'party',private.world_creature_party_snapshot_v1(p_user)
-  );
-end;
-$$;
-revoke all on function private.world_creature_party_set_v1(uuid,uuid,uuid,uuid,bigint)
   from public, anon, authenticated, service_role;
 
 create or replace function private.world_creature_activity_event_json_v1(
