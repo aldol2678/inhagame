@@ -124,6 +124,9 @@ select set_eq($$select unnest(pg_temp.exec_surface('authenticated', 'anon'))$$, 
   -- Creature P1: own Duck Companion read/bond; observation minting remains service-role only.
   'get_my_duck_companion_v1()',
   'bond_my_duck_companion_v1(text)',
+  -- Biryong NPC relationship P0: own server-authoritative Stage/fact projection, read only.
+  'get_my_biryong_npc_relationship_v1(text)',
+  'get_my_biryong_npc_relationships_v1()',
   -- Housing S1-D2 (20261002130000): friend visit, access check, owner privacy, Realtime predicate.
   'resolve_friend_personal_room_v1(uuid)',
   'check_world_room_access_v1(uuid)',
@@ -223,6 +226,7 @@ from unnest(array['anon', 'authenticated']) r, unnest(array[
   'public.world_reward_get_result_v1(text)',
   'public.world_exp_grant_v1(uuid,bigint,text,text,text)',
   'public.world_progression_get_v1(uuid)',
+  'public.world_biryong_npc_relationship_advance_v1(uuid,text,smallint,text,text,text,text)',
   'public.advance_mcm_2026_event_v1(uuid,text)'
 ]) f;
 select ok(has_function_privilege('service_role', f, 'execute'), format('service_role can execute %s', f))
@@ -247,6 +251,7 @@ from unnest(array[
   'public.world_reward_get_result_v1(text)',
   'public.world_exp_grant_v1(uuid,bigint,text,text,text)',
   'public.world_progression_get_v1(uuid)',
+  'public.world_biryong_npc_relationship_advance_v1(uuid,text,smallint,text,text,text,text)',
   'public.advance_mcm_2026_event_v1(uuid,text)'
 ]) f;
 
