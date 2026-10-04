@@ -184,7 +184,13 @@ export function createCombatRuntimeV03({
   // it does not decide hits, damage, BREAK, dodge timing or kills.
   function recordResolvedCombat(facts = {}) {
     if (phase === COMBAT_V03_RUNTIME_PHASE.IDLE) return snapshot();
-    applyUltimateGain(ultimateGainForFacts(facts));
+    const resolvedDamage = Number(facts?.damage ?? 0);
+    if (!Number.isFinite(resolvedDamage) || resolvedDamage < 0) throw new TypeError('Invalid resolved damage');
+    if (facts?.damagePackets != null && (
+      !Array.isArray(facts.damagePackets) ||
+      facts.damagePackets.some(value => !Number.isFinite(Number(value)) || Number(value) < 0)
+    )) throw new TypeError('Invalid resolved damage packets');
+    applyUltimateGain(ultimateGainForFacts({ ...facts, damage: resolvedDamage }));
     return publish('resolved-combat');
   }
 
