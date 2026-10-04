@@ -19,13 +19,51 @@ import {
   writeAtmosphereColor
 } from './atmospheric-sky-policy.js';
 
-function createAtmosphereMaterial() {
+const ATMOSPHERE_GRADIENT_TEXTURE_HEIGHT = 64;
+
+function writeAtmosphereGradientTexture(texture, profile) {
+  const pixels = texture.lock();
+  const color = [0, 0, 0, 1];
+  const minElevation = ATMOSPHERE_ELEVATIONS[0];
+  const maxElevation = 90;
+
+  for (let y = 0; y < ATMOSPHERE_GRADIENT_TEXTURE_HEIGHT; y++) {
+    const t = y / (ATMOSPHERE_GRADIENT_TEXTURE_HEIGHT - 1);
+    const elevation = minElevation + (maxElevation - minElevation) * t;
+    writeAtmosphereColor(color, 0, profile, elevation);
+    const offset = y * 4;
+    pixels[offset] = Math.round(color[0] * 255);
+    pixels[offset + 1] = Math.round(color[1] * 255);
+    pixels[offset + 2] = Math.round(color[2] * 255);
+    pixels[offset + 3] = 255;
+  }
+
+  texture.unlock();
+}
+
+function createAtmosphereGradientTexture(device, profile) {
+  const texture = new pc.Texture(device, {
+    name: 'environment-atmosphere-gradient',
+    width: 1,
+    height: ATMOSPHERE_GRADIENT_TEXTURE_HEIGHT,
+    format: pc.PIXELFORMAT_RGBA8,
+    mipmaps: false,
+    minFilter: pc.FILTER_LINEAR,
+    magFilter: pc.FILTER_LINEAR
+  });
+  texture.addressU = pc.ADDRESS_CLAMP_TO_EDGE;
+  texture.addressV = pc.ADDRESS_CLAMP_TO_EDGE;
+  writeAtmosphereGradientTexture(texture, profile);
+  return texture;
+}
+
+function createAtmosphereMaterial(texture) {
   const material = new pc.StandardMaterial();
   material.name = 'environment-atmosphere-dome';
   material.diffuse = new pc.Color(0, 0, 0);
   material.emissive = new pc.Color(1, 1, 1);
-  material.emissiveVertexColor = true;
-  material.emissiveVertexColorChannel = 'rgb';
+  material.emissiveMap = texture;
+  material.emissiveMapChannel = 'rgb';
   material.useLighting = false;
   material.useFog = false;
   material.useTonemap = false;
@@ -35,16 +73,14 @@ function createAtmosphereMaterial() {
   return material;
 }
 
-function writeAtmosphereMeshColors(atmosphere, profile) {
-  for (let i = 0; i < atmosphere.elevations.length; i++)
-    writeAtmosphereColor(atmosphere.colors, i * 4, profile, atmosphere.elevations[i]);
-  atmosphere.mesh.setColors(atmosphere.colors);
-  atmosphere.mesh.update();
+function updateAtmosphereGradient(atmosphere, profile) {
+  writeAtmosphereGradientTexture(atmosphere.texture, profile);
   atmosphere.profile = profile;
 }
 
 function createAtmosphereDome(root, device, profile) {
   const positions = [];
+  const uvs = [];
   const indices = [];
   const elevations = [];
 
@@ -59,6 +95,7 @@ function createAtmosphereDome(root, device, profile) {
         y,
         Math.cos(angle) * radius
       );
+      uvs.push(0.5, (elevation - ATMOSPHERE_ELEVATIONS[0]) / (90 - ATMOSPHERE_ELEVATIONS[0]));
       elevations.push(elevation);
     }
   }
@@ -77,6 +114,7 @@ function createAtmosphereDome(root, device, profile) {
 
   const top = positions.length / 3;
   positions.push(0, ATMOSPHERE_DOME_RADIUS, 0);
+  uvs.push(0.5, 1);
   elevations.push(90);
   const finalRing = (ATMOSPHERE_ELEVATIONS.length - 1) * ATMOSPHERE_SEGMENTS;
   for (let segment = 0; segment < ATMOSPHERE_SEGMENTS; segment++) {
@@ -85,12 +123,9 @@ function createAtmosphereDome(root, device, profile) {
     indices.push(a, top, b);
   }
 
-  const colors = new Float32Array(elevations.length * 4);
-  for (let i = 0; i < elevations.length; i++)
-    writeAtmosphereColor(colors, i * 4, profile, elevations[i]);
-
-  const mesh = pc.createMesh(device, positions, { colors, indices });
-  const material = createAtmosphereMaterial();
+  const texture = createAtmosphereGradientTexture(device, profile);
+  const mesh = pc.createMesh(device, positions, { uvs, indices });
+  const material = createAtmosphereMaterial(texture);
   const entity = new pc.Entity('EnvironmentAtmosphereDome');
   entity.addComponent('render', {
     type: 'asset',
@@ -105,8 +140,8 @@ function createAtmosphereDome(root, device, profile) {
     entity,
     mesh,
     material,
+    texture,
     elevations,
-    colors,
     profile
   };
 }
@@ -418,7 +453,7 @@ export function createSkyVisuals({
     }
 
     atmosphereProfile = atmosphereSkyProfile(skyState);
-    writeAtmosphereMeshColors(atmosphere, atmosphereProfile);
+    updateAtmosphereGradient(atmosphere, atmosphereProfile);
 
     sunGlow.entity.enabled = sunProfile.visible && atmosphereProfile.sunGlowOpacity > 0.01;
     sunGlow.material.opacity = atmosphereProfile.sunGlowOpacity;
@@ -543,6 +578,7 @@ export function createSkyVisuals({
     destroyed = true;
     root.destroy();
     atmosphere.material.destroy();
+    atmosphere.texture.destroy();
     for (const cloudTier of Object.values(cloudTiers))
       for (const layer of cloudTier.layers) layer.material.destroy();
     cloudTexture.destroy();
