@@ -136,7 +136,7 @@ export function createBuilding5CombatTraining({
   let enemyWindup = null;
   let lastEnemyAttack = null;
 
-  const cooldownUntil = { active_1: 0, active_2: 0, active_3: 0, dodge: 0 };
+  const cooldownUntil = { basic: 0, active_1: 0, active_2: 0, active_3: 0, dodge: 0 };
 
   const now = () => Number(clock.now());
   const cooldowns = at => frozen(Object.fromEntries(Object.entries(cooldownUntil).map(([key, until]) => [
@@ -408,7 +408,7 @@ export function createBuilding5CombatTraining({
     const definition = BUILDING5_BLASTER_RAPID_ACTIONS[identity] ?? BUILDING5_BLASTER_RAPID_ACTIONS[action];
     if (!definition) return frozen({ accepted: false, reason: 'UNIMPLEMENTED_TRAINING_ACTION', identity });
 
-    const key = cooldownKey(identity);
+    const key = action === 'basic' ? 'basic' : cooldownKey(identity);
     if (key && cooldownUntil[key] > at) {
       return frozen({ accepted: false, reason: 'COOLDOWN', cooldownRemainingMs: cooldownUntil[key] - at });
     }
@@ -423,7 +423,12 @@ export function createBuilding5CombatTraining({
       });
     }
 
-    if (key && definition.cooldownMs) cooldownUntil[key] = at + definition.cooldownMs;
+    if (action === 'basic') {
+      const basicIntervalMs = rapidBuffUntil > at ? 145 : momentum >= 70 ? 180 : 220;
+      cooldownUntil.basic = at + basicIntervalMs;
+    } else if (key && definition.cooldownMs) {
+      cooldownUntil[key] = at + definition.cooldownMs;
+    }
     if (action === 'dodge') {
       startDodge(at);
       emit('dodge');
