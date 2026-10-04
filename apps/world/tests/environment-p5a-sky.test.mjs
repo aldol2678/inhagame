@@ -56,7 +56,7 @@ const near = (actual, expected, epsilon = 1e-9) =>
 
 test('P5a sky budgets are tiny, tier-bounded, and keep sun inside far clip', () => {
   assert.deepEqual(SKY_CLOUD_PATCH_BUDGET, { low: 6, medium: 10, high: 16 });
-  assert.deepEqual(SKY_CLOUD_FIELD_RADIUS, { low: 120, medium: 150, high: 180 });
+  assert.deepEqual(SKY_CLOUD_FIELD_RADIUS, { low: 128, medium: 172, high: 205 });
   assert.equal(skyCloudPatchBudget('low'), 6);
   assert.equal(skyCloudPatchBudget('high'), 16);
   assert.equal(skyCloudPatchBudget('unknown'), 10);
