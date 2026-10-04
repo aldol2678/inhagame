@@ -1,0 +1,36 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>본관 · 정석 통합 후보</title>
+<script type="importmap">{"imports":{"playcanvas":"https://cdn.jsdelivr.net/npm/playcanvas@2.22.4/build/playcanvas.mjs"}}</script>
+<style>body{margin:0;background:#c9d4df;color:#233038;font:14px system-ui;display:grid;grid-template-rows:auto minmax(0,1fr);height:100vh;overflow:hidden}canvas{display:block;width:100%;height:100%;min-height:0;grid-row:2}aside{grid-row:1;background:#fffffff0;padding:8px 16px}h1{font-size:16px;margin:0 0 4px}p{margin:3px 0;font-size:11px}button,select{margin:4px 5px 0 0;padding:4px 8px}</style></head><body><canvas id="stage"></canvas><aside><h1>본관 · 정석 통합 후보</h1><p>실제 캠퍼스 좌표 유지 · 원래 높이·충돌·LOD 재사용 · 내부 평면 미추정</p><p id="state"></p><button data-view="both">함께</button><button data-view="bldg_01">본관</button><button data-view="bldg_jungseok">정석</button><label>외관 <select id="mode"><option value="candidate">후보</option><option value="existing">기존 #108</option></select></label><label>상세 <select id="detail"><option value="all">전체</option><option value="base">외피만</option></select></label></aside>
+<script type="module">
+import * as pc from 'playcanvas';
+import {selectCampusLandmark} from '/src/campus-landmark-candidate-selector.js';
+import {photoLandmarkView} from './photo-landmarks-views.js';
+import {surface} from '/src/campus-render-kit.js';
+try{
+ const canvas=document.getElementById('stage');canvas.width=canvas.clientWidth;canvas.height=canvas.clientHeight;
+ const device=await pc.createGraphicsDevice(canvas,{deviceTypes:[pc.DEVICETYPE_WEBGL2],antialias:true});
+ const app=new pc.Application(canvas,{graphicsDevice:device});app.scene.ambientLight=new pc.Color(.62,.62,.62);
+ const world=new pc.Entity('CanonicalLandmarkCandidates');app.root.addChild(world);
+ const ids=['bldg_01','bldg_jungseok'],tiers=['BASE','NEAR','DETAIL'],groups={};
+ for(const id of ids){groups[id]=new pc.Entity(id+'_selection');world.addChild(groups[id]);}
+ const light=new pc.Entity('Sun');light.addComponent('light',{type:'directional',intensity:1.1,castShadows:false});light.setLocalEulerAngles(40,35,0);app.root.addChild(light);
+ const floor=new pc.Entity('LocalPreviewGround');floor.addComponent('render',{type:'plane'});floor.render.material=surface('#819574');floor.setLocalScale(600,1,600);floor.setPosition(60,-.04,0);app.root.addChild(floor);
+ const camera=new pc.Entity('Camera');camera.addComponent('camera',{farClip:1500,fov:48,clearColor:new pc.Color(.79,.84,.89)});app.root.addChild(camera);
+ let mode='candidate',target='both',reflection=-1,detail='all';
+ const bounds=group=>group.findComponents('render').flatMap(r=>r.meshInstances).flatMap(mesh=>{const b=mesh.aabb,min=b.getMin(),max=b.getMax();return[min.x,max.x].flatMap(x=>[min.y,max.y].flatMap(y=>[min.z,max.z].map(z=>[x,y,z])));});
+ function view({building=target,presentation=mode,reflected=reflection===-1,details=detail}={}){
+  target=building;mode=presentation;reflection=reflected?-1:1;detail=details;
+  // Reuse the selector for every tier; the old renderer is never called alongside it.
+  for(const id of ids)for(const tier of tiers)selectCampusLandmark(groups[id],id,tier,{mode});
+  world.setLocalScale(1,1,1);const points=target==='both'?ids.flatMap(id=>bounds(groups[id])):bounds(groups[target]);
+  const fit=photoLandmarkView(target==='both'?'bldg_01':target,canvas.width/canvas.height,{points});
+  world.setLocalScale(1,1,reflection);for(const id of ids){groups[id].enabled=target==='both'||id===target;for(const tier of tiers)selectCampusLandmark(groups[id],id,tier,{mode}).enabled=detail==='all'||tier==='BASE';}
+  camera.setPosition(fit.position[0],fit.position[1],fit.position[2]*reflection);camera.lookAt(fit.target[0],fit.target[1],fit.target[2]*reflection);
+  document.getElementById('state').textContent=`${mode==='candidate'?'후보 선택':'기존 외관 선택'} · 건물별 tier당 한 모델만 활성 · 본관 창 4단은 기존 추정값 · 정석은 기존 상세 모델 재사용`;
+  document.getElementById('mode').value=mode;document.getElementById('detail').value=detail;app.renderNextFrame=true;
+ }
+ function stats(){return {presentation:mode,target,scaleSign:world.worldScaleSign,buildings:ids.map(id=>({id,owners:groups[id].children.length,tiers:tiers.map(tier=>{const group=selectCampusLandmark(groups[id],id,tier,{mode}),meshes=group.findComponents('render').flatMap(r=>r.meshInstances);return{tier,enabled:group.enabled,meshes:meshes.length,vertices:meshes.reduce((s,m)=>s+m.mesh.vertexBuffer.numVertices,0)};})}))};}
+ for(const button of document.querySelectorAll('[data-view]'))button.onclick=()=>view({building:button.dataset.view});document.getElementById('mode').onchange=e=>view({presentation:e.target.value});document.getElementById('detail').onchange=e=>view({details:e.target.value});
+ window.__CAMPUS_LANDMARK_CANDIDATE_QA__={app,view,stats,ready:true};app.start();view();
+}catch(error){window.__CAMPUS_LANDMARK_CANDIDATE_QA__={error:error.stack||String(error)};throw error;}
+</script></body></html>

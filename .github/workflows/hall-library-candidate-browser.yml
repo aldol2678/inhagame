@@ -1,0 +1,56 @@
+name: Hall and library candidate browser QA
+on:
+  pull_request:
+    paths:
+      - 'apps/world/src/main-hall-*.js'
+      - 'apps/world/src/jeongseok-candidate-renderer.js'
+      - 'apps/world/src/campus-landmark-candidate-selector.js'
+      - 'apps/world/tests/main-hall-candidate.test.mjs'
+      - 'apps/world/tests/hall-library-hosted.test.mjs'
+      - 'apps/world/tests/fixtures/hall-library-candidate-source-manifest.json'
+      - 'apps/world/tests/browser/hall-library-hosted-*'
+      - 'apps/world/tests/browser/*candidate*'
+      - 'apps/world/tests/browser/campus-landmark-selection-null-smoke.mjs'
+      - '.github/workflows/hall-library-candidate-browser.yml'
+permissions:
+  contents: read
+concurrency:
+  group: hall-library-candidate-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  chromium:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - name: Install pinned browser QA dependencies
+        working-directory: apps/world/tests/browser
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Verify frozen source and bounded hosted contracts
+        run: node --test apps/world/tests/main-hall-candidate.test.mjs apps/world/tests/photo-hall-library.test.mjs apps/world/tests/hall-library-hosted.test.mjs
+      - name: Verify real-engine ownership and lifecycle
+        run: |
+          node apps/world/tests/browser/main-hall-candidate-null-smoke.mjs
+          node --test apps/world/tests/browser/jeongseok-candidate-null-smoke.mjs
+          node apps/world/tests/browser/campus-landmark-selection-null-smoke.mjs
+      - name: Render exact baseline and selected candidate offline
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+          WORLD_HALL_LIBRARY_QA_OUTPUT: test-results/hall-library-candidate
+        run: node apps/world/tests/browser/hall-library-hosted-smoke.mjs
+      - name: Save exact-commit browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hall-library-candidate-browser-evidence
+          path: test-results/hall-library-candidate/
+          if-no-files-found: error
+          retention-days: 7

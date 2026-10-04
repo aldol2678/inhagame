@@ -1,0 +1,91 @@
+{
+  "baseline": "316c8ff95f7a12618ec8db61342d153f3cbb29ea",
+  "purpose": "Freeze the 17 reviewed local candidate files; only added QA files are outside this snapshot.",
+  "files": [
+    {
+      "path": "apps/world/src/campus-landmark-candidate-selector.js",
+      "sha256": "bb24ab62f78d294177bb07ada8c7beb85cf69e76b74522b39ddece7faece5e19",
+      "bytes": 2036
+    },
+    {
+      "path": "apps/world/src/jeongseok-candidate-renderer.js",
+      "sha256": "d153b5d433211fb8765ab94512ec20f42a58c61e205ab533f77ea1738dddcd56",
+      "bytes": 1476
+    },
+    {
+      "path": "apps/world/src/main-hall-blockout.js",
+      "sha256": "80d97a1691d62cc8ac001b25a3c09660f71098341ff686c41a4ed18c00266aea",
+      "bytes": 5169
+    },
+    {
+      "path": "apps/world/src/main-hall-candidate-geometry.js",
+      "sha256": "70e5db179909ca84f8ea9943d34b7bb200f278eebd774346d4ac34909a7bb375",
+      "bytes": 4232
+    },
+    {
+      "path": "apps/world/src/main-hall-candidate-renderer.js",
+      "sha256": "c0ad0859da359e00bf931cd585cae66c9c749e77312a0ef0484de0599d1f400b",
+      "bytes": 1235
+    },
+    {
+      "path": "apps/world/tests/browser/campus-landmark-candidate-harness.html",
+      "sha256": "0aedc5a515ce9a34ba4595f873b31aecbccf6e5a605a9cdc860ebc46d62f6eef",
+      "bytes": 5222
+    },
+    {
+      "path": "apps/world/tests/browser/campus-landmark-selection-null-smoke.mjs",
+      "sha256": "e31f00e342a32438ddc5aacdea20ae119c19df5b70a0173b5734007aa49704c1",
+      "bytes": 4058
+    },
+    {
+      "path": "apps/world/tests/browser/jeongseok-candidate-harness.html",
+      "sha256": "d207a8f9745f277cbc8580a9bb82861d21c0e7dc728e7e33da6eff0d1e99ae43",
+      "bytes": 5523
+    },
+    {
+      "path": "apps/world/tests/browser/jeongseok-candidate-null-smoke.mjs",
+      "sha256": "86b4af5b3f233b6169c2f8930af3def3185438e8e4600864ad69cb39c1e0abae",
+      "bytes": 6710
+    },
+    {
+      "path": "apps/world/tests/browser/jeongseok-candidate-smoke.mjs",
+      "sha256": "8fb8cb9e9f36eae88a8cc102904fe6825ec9e7324aea0709652d47480e4892e7",
+      "bytes": 4079
+    },
+    {
+      "path": "apps/world/tests/browser/main-hall-candidate-harness.html",
+      "sha256": "c189e22e522f6910c87e7731d6f214e4706dd59528a53f62a8b81858a18fe730",
+      "bytes": 5486
+    },
+    {
+      "path": "apps/world/tests/browser/main-hall-candidate-null-smoke.mjs",
+      "sha256": "3ee0970235618a8e9536eb2f60eaa3cf682c71a5ce0df22b36acbed412609a6d",
+      "bytes": 4609
+    },
+    {
+      "path": "apps/world/tests/browser/main-hall-candidate-smoke.mjs",
+      "sha256": "2b809efdb050c5f07117f2c0750a204eed012b066d19c3e3e8c5292b2394887b",
+      "bytes": 2278
+    },
+    {
+      "path": "apps/world/tests/main-hall-candidate.test.mjs",
+      "sha256": "d98ad2fab6b2c0e29c08b9ce45cc46f9ef6cb8f84c6e59ebc06ca9510b527f60",
+      "bytes": 5146
+    },
+    {
+      "path": "docs/implementation/campus-landmark-candidate-selection.md",
+      "sha256": "650330a067fe8b774f9aac017aa0a59a11f7860d2f8961cd90fe68e9236386b6",
+      "bytes": 3565
+    },
+    {
+      "path": "docs/implementation/jeongseok-candidate.md",
+      "sha256": "0dacdda5e4f9778d56b15579e40128814129060cee8755b8b02fcb1f48d61c25",
+      "bytes": 4719
+    },
+    {
+      "path": "docs/implementation/main-hall-exterior-candidate.md",
+      "sha256": "99621032c60048ba3617e6402194df76d4a4d0c951abcafa873c96f0489a1c95",
+      "bytes": 3973
+    }
+  ]
+}

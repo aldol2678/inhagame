@@ -1,0 +1,36 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Main Hall exterior candidate</title>
+<script type="importmap">{"imports":{"playcanvas":"https://cdn.jsdelivr.net/npm/playcanvas@2.22.4/build/playcanvas.mjs"}}</script>
+<style>body{margin:0;background:#c9d4df;color:#233038;font:14px system-ui;display:grid;grid-template-rows:auto minmax(0,1fr);height:100vh;overflow:hidden}canvas{display:block;width:100%;height:100%;min-height:0;grid-row:2}aside{grid-row:1;background:#fffffff0;padding:8px 16px}h1{font-size:15px;margin:0 0 4px}p{margin:2px 0;font-size:11px}button{margin:4px 4px 0 0}</style></head><body><canvas id="stage"></canvas><aside><h1 id="label">본관 외관 후보</h1><p>같은 bldg_01 · 원래 윤곽·높이·충돌 유지 · 실측 층 평면도 아님</p><p>코어·창·입구 깊이는 사진 인상 기반 추정 · 기존 4단 창 리듬 유지</p><button id="existing">기존</button><button id="candidate">후보</button><button id="entry">입구 가까이</button><button id="full">전체</button></aside>
+<script type="module">
+import * as pc from 'playcanvas';
+import {buildMainHallBlockout} from '/src/main-hall-blockout.js';
+import {buildMainHallCandidate} from '/src/main-hall-candidate-renderer.js';
+import {HALL_FRONT} from '/src/basic-campus.js';
+import {photoLandmarkView} from './photo-landmarks-views.js';
+import {surface} from '/src/campus-render-kit.js';
+try{
+ const canvas=document.getElementById('stage');canvas.width=canvas.clientWidth;canvas.height=canvas.clientHeight;
+ const device=await pc.createGraphicsDevice(canvas,{deviceTypes:[pc.DEVICETYPE_WEBGL2],antialias:true});
+ const app=new pc.Application(canvas,{graphicsDevice:device});app.scene.ambientLight=new pc.Color(.62,.62,.62);
+ const world=new pc.Entity('MainHallComparison');app.root.addChild(world);const groups={};
+ for(const variant of ['existing','candidate']){const group=new pc.Entity(variant);world.addChild(group);groups[variant]=group;
+  for(const tier of ['BASE','NEAR','DETAIL']){if(variant==='candidate')buildMainHallCandidate(group,tier);else{const node=new pc.Entity(tier);group.addChild(node);buildMainHallBlockout(node,['bldg_01'],tier);}}}
+ const light=new pc.Entity('Sun');light.addComponent('light',{type:'directional',intensity:1.1,castShadows:false});light.setLocalEulerAngles(40,35,0);app.root.addChild(light);
+ const floor=new pc.Entity('LocalPreviewGround');floor.addComponent('render',{type:'plane'});floor.render.material=surface('#819574');floor.setLocalScale(600,1,600);floor.setPosition(60,-.04,0);app.root.addChild(floor);
+ const camera=new pc.Entity('Camera');camera.addComponent('camera',{farClip:1000,fov:48,clearColor:new pc.Color(.79,.84,.89)});app.root.addChild(camera);
+ const points=Object.values(groups).flatMap(group=>group.findComponents('render').flatMap(r=>r.meshInstances).flatMap(mesh=>{const b=mesh.aabb,min=b.getMin(),max=b.getMax();return[min.x,max.x].flatMap(x=>[min.y,max.y].flatMap(y=>[min.z,max.z].map(z=>[x,y,z])));}));
+ let variant='candidate',reflection=-1,mode='full',previous=null;
+ const {a,b,along,inward}=HALL_FRONT,point=(u,y,v)=>[(a.x+b.x)/2+along.x*u+inward.x*v,y,(a.z+b.z)/2+along.z*u+inward.z*v];
+ function view(next=variant,reflected=reflection===-1,{detailMode=mode,details=true}={}){
+  variant=next;reflection=reflected?-1:1;mode=detailMode;world.setLocalScale(1,1,reflection);
+  for(const[key,group]of Object.entries(groups)){group.enabled=key===variant;for(const child of group.children)child.enabled=details||child.name==='BASE'||child.name.endsWith('_BASE');}
+  let {position:p,target:t}=photoLandmarkView('bldg_01',canvas.width/canvas.height,{points});
+  if(mode==='entry'){p=point(5,3.3,-9);t=point(0,1.6,0);}
+  camera.setPosition(p[0],p[1],p[2]*reflection);camera.lookAt(t[0],t[1],t[2]*reflection);
+  document.getElementById('label').textContent=`본관 · ${variant==='candidate'?'상세 후보':'#108 기존'} · ${mode==='entry'?'입구 가까이':'전체 외피'}`;app.renderNextFrame=true;
+ }
+ function pixels(){return new Promise(resolve=>{app.autoRender=false;app.once('postrender',()=>{const gl=device.gl,width=gl.drawingBufferWidth,height=gl.drawingBufferHeight,data=new Uint8Array(width*height*4),old=gl.getParameter(gl.READ_FRAMEBUFFER_BINDING);gl.finish();try{gl.bindFramebuffer(gl.READ_FRAMEBUFFER,null);gl.readPixels(0,0,width,height,gl.RGBA,gl.UNSIGNED_BYTE,data);}finally{gl.bindFramebuffer(gl.READ_FRAMEBUFFER,old);}let changed=0,hash=2166136261;for(let i=0;i<data.length;i+=4){if(previous&&Math.abs(data[i]-previous[i])+Math.abs(data[i+1]-previous[i+1])+Math.abs(data[i+2]-previous[i+2])>15)changed++;for(let k=0;k<3;k++)hash=Math.imul((hash^data[i+k])>>>0,16777619);}previous=data;resolve({width,height,changed,hash:hash>>>0,glError:gl.getError(),scaleSign:world.worldScaleSign,activeVariants:Object.values(groups).filter(g=>g.enabled).length});});app.renderNextFrame=true;});}
+ document.getElementById('existing').onclick=()=>view('existing');document.getElementById('candidate').onclick=()=>view('candidate');document.getElementById('entry').onclick=()=>view(variant,reflection===-1,{detailMode:'entry'});document.getElementById('full').onclick=()=>view(variant,reflection===-1,{detailMode:'full'});
+ window.__MAIN_HALL_CANDIDATE_QA__={app,view,pixels,ready:true};app.start();view();
+}catch(error){window.__MAIN_HALL_CANDIDATE_QA__={error:error.stack||String(error)};throw error;}
+</script></body></html>
