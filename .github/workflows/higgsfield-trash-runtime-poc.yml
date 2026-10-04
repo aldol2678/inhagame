@@ -34,6 +34,7 @@ jobs:
       - name: Run strict WebGPU side-by-side smoke
         env:
           WORLD_SMOKE_BROWSER: chrome
+          WORLD_SMOKE_WEBGPU_SWIFTSHADER: '1'
           HIGGS_TRASH_POC_OUTPUT: higgsfield-trash-runtime-poc
         run: node apps/world/tests/browser/higgsfield-trash-runtime-poc-smoke.mjs
       - name: Upload runtime comparison evidence
