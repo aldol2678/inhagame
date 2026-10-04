@@ -51,8 +51,8 @@ nothing is ACTIVE / no settlement path · **planned** = no backing schema yet ·
 | Combat encounter | Combat | `private.world_combat_encounters`, `world_combat_definition_catalog` (empty) | `world_combat_snapshot_v1` (service_role) | `world_combat_start / state_write / finalize_v1`; `world_combat_*_with_creature_v1` bridges | trusted server resolver (service_role). **No resolver runtime exists yet** | no | foundation (no ACTIVE definitions) |
 | Activity attempt | Activity | `private.world_activity_attempts` | none for players yet | `world_activity_start / finalize_v1`; `world_life_activity_*_with_creature_v1` | trusted server (service_role); Fishing F2 through the Life -> Creature bridge | no | foundation (no ACTIVE activity; Fishing F2 runtime disabled) |
 | Activity settlement | Activity | `private.world_activity_settlements` (append-only receipt per attempt / `result_ref`) | embedded in the domain read (`world_fishing_read_v1`) | `private.world_activity_settle_v1` (plan → Inventory grant, Collection discover, Life Skill XP, receipt; one transaction) | server-only domain adapters that derive the plan from a frozen server outcome: `world_fishing_settle_v1` | no | foundation (section 7.4) |
-| Life progression | Life | per-skill XP: `private.world_player_life_skills`, `world_life_skill_xp_transactions`; skill curve `world_life_skill_thresholds` (`life.common.v1` Lv1–20, with cumulative per-skill SP); aggregate display curve `world_life_progression_thresholds` (Lv1 only, never an SP source) | private snapshots only (`world_life_skill_snapshot_v1`, `world_life_progression_snapshot_v1`); **no public read RPC** | `private.world_life_skill_xp_apply_v1` | Activity settlement path only | no | foundation (all 11 skills COMING_SOON) |
-| Life Skill Point | Life | **Per-skill pools**: `private.world_life_sp_transactions` (spend ledger keyed by `skill_id` = pool; composite FK to the node's own skill), `world_player_life_nodes`, `world_life_skill_tree_catalog` / `_edges` (tree v1: 18 multi-rank nodes for Fishing / Woodcutting / Farming, all COMING_SOON). Earned SP = `cumulative_sp` of the skill's own curve at its derived Skill Level | private snapshots only (`world_life_skill_sp_snapshot_v1`, `world_life_skill_tree_snapshot_v1`) | `private.world_life_node_unlock_v1` (spends only the node's skill pool, gates on that skill's level) | **none yet** | no | foundation (section 7.1 implemented) |
+| Life progression | Life | per-skill XP: `private.world_player_life_skills`, `world_life_skill_xp_transactions`; skill curve `world_life_skill_thresholds` (`life.common.v1` Lv1–20, with cumulative per-skill SP); aggregate display curve `world_life_progression_thresholds` (Lv1 only, never an SP source) | private snapshots; players read their ACTIVE skills through the self-only `get_my_world_life_skills_v1()` (Life Skill Book) | `private.world_life_skill_xp_apply_v1` | Activity settlement path only | no | foundation (all 11 skills COMING_SOON) |
+| Life Skill Point | Life | **Per-skill pools**: `private.world_life_sp_transactions` (spend ledger keyed by `skill_id` = pool; composite FK to the node's own skill), `world_player_life_nodes`, `world_life_skill_tree_catalog` / `_edges` (tree v1: 18 multi-rank nodes for Fishing / Woodcutting / Farming, all COMING_SOON). Earned SP = `cumulative_sp` of the skill's own curve at its derived Skill Level | private snapshots; players read their ACTIVE trees through the self-only `get_my_world_life_skill_tree_v1(skill)` | `private.world_life_node_unlock_v1` (spends only the node's skill pool, gates on that skill's level); `private.world_life_tree_reset_v1` (free reset) | self-only `unlock_my_world_life_node_v1`, `reset_my_world_life_tree_v1` | via self-only RPCs (server decides) | foundation (section 7.1 implemented) |
 | Creature ownership / growth | Creature Core | `private.world_player_creatures`, party state / history, observation events, activity events, XP transactions, memory tags, evolution candidates / events; catalogs | `world_creature_core_snapshot_v1` (service_role); `get_my_duck_companion_v1()` (self) | `world_creature_grant / observe / party_set / activity_accept / evolution_*_v1` | service_role wrappers; Life → Creature and Combat → Creature bridges (same transaction as the source finalize); Duck Companion P1 (`world_inkyung_duck_observe_v1` via service_role / edge function `world-duck-observe`, `bond_my_duck_companion_v1` self-only) | via self-only `bond_my_duck_companion_v1` (server re-counts observations) | Duck Companion P1 live in schema (duck species + `duck.base` ACTIVE); other species, bridges (XP 0) and evolution foundation |
 | Quest progression | Quest | `private.world_quest_progress_v1` (CHECK: 2 quest ids), `private.world_event_progress` (MCM 2026 only) | Cloud Run quest handler → `advance_*` with event `status`; `get_my_mcm_2026_event_v1()` | `advance_world_quest_v1`, `advance_world_navigation_quest_v1`, `advance_mcm_2026_event_v1` (service_role; one RPC per quest) | Cloud Run quest service (`npc-factory/quest-store.mjs`) | **indirect**: the browser asserts `visit_*` / `talk_*` events; the server enforces only the order | production (Main 1, Main 2, MCM 2026) |
 | Reward | Reward | `private.world_reward_definitions` / `_grants` (catalog), `world_reward_transactions` / `_entries` | `world_reward_get_result_v1` (service_role); results embedded in quest / claim responses | `private.world_reward_grant_v1` (CURRENCY, ITEM, EXP only) | Main 1 / Main 2 completion, Daily Quiz pass, Attendance claim, MCM claims, service_role wrapper | no | production |
@@ -99,14 +99,16 @@ Allowed callers on `8b7bf39`. The exact list with a reason per row is in test 93
   transaction.
 - **Activity / Combat lifecycle**: service_role wrappers and the two Creature bridges.
 - **Biryong Relationship**: only `public.world_biryong_npc_relationship_advance_v1` (service_role) may call the relationship advance primitive; browser RPCs are read-only.
-- **No callers yet** (deliberately): `world_inventory_mutate_v1`, `world_life_node_unlock_v1`,
-  `world_life_tree_reset_v1` (the player path comes with the Life Skill Book).
+- **Life Skill Tree**: `world_life_node_unlock_v1` ← `public.unlock_my_world_life_node_v1`;
+  `world_life_tree_reset_v1` ← `public.reset_my_world_life_tree_v1` (Life Skill Book, self-only, caller =
+  `auth.uid()`, only a node / skill id and a request id; ACTIVE skills / nodes only).
+- **No callers yet** (deliberately): `world_inventory_mutate_v1`.
 
 Client reachability: the only functions `anon` / `authenticated` can execute that reach any
 primitive, at any depth, are `purchase_world_shop_listing_v1`, `answer_my_world_daily_quiz_v1`,
 `claim_my_world_attendance_v1`, `claim_my_mcm_2026_main_reward_v1`,
-`claim_my_mcm_landlord_first_clear_reward_v1` and `bond_my_duck_companion_v1`. Each decides its
-outcome on the server.
+`claim_my_mcm_landlord_first_clear_reward_v1`, `bond_my_duck_companion_v1`,
+`unlock_my_world_life_node_v1` and `reset_my_world_life_tree_v1`. Each decides its outcome on the server.
 
 How the test reads the call graph:
 - Only the final catalog after replaying every migration is inspected. A superseded version of a
@@ -174,7 +176,7 @@ Fixtures: `.github/ci/fixtures/migration-contract/pr91-collision` must fail;
 | Role | Intended authority | Enforced by |
 |---|---|---|
 | `anon` | Public read aggregates, guest telemetry, presence touch. No World progression or state mutation. | `01_grants_contract` exact anon EXECUTE surface; no `private` usage; no `private` function |
-| `authenticated` | Self-only RPCs where the caller is `auth.uid()` and the server decides the outcome (purchase, quiz, attendance, MCM claims, equip, social, housing). Never passes another user id. Never reaches a primitive except through the six RPCs in section 3. | exact authenticated EXECUTE surface; no `private` usage; no `private` function; transitive reach check in test 93 |
+| `authenticated` | Self-only RPCs where the caller is `auth.uid()` and the server decides the outcome (purchase, quiz, attendance, MCM claims, equip, social, housing, Life Skill Book). Never passes another user id. Never reaches a primitive except through the eight RPCs in section 3. | exact authenticated EXECUTE surface; no `private` usage; no `private` function; transitive reach check in test 93 |
 | `service_role` | Trusted server code (Cloud Run quest / NPC services, future resolvers) calling `public.*_v1(p_user, …)` wrappers. Most wrappers also re-check `auth.role() = 'service_role'` in the body; four rely on the GRANT alone (section 8). Cannot execute private primitives directly. | service-role-only lists in `01_grants_contract` (economy, quest, activity, collection, combat, creature, Biryong relationship, bridges, NPC ticks); private EXECUTE surface = the two staff helpers; private table DML surface recorded exactly |
 
 ## 7. Target contracts (decided, not yet implemented)
@@ -224,7 +226,19 @@ These rules bind the next PRs. This PR does not change schema or gameplay for th
     86400 (24 h). Change it with a forward migration or ops DML; no function writes it. Each reset row
     records the cooldown it was granted under. The tree snapshot reports `reset.nextResetAt`.
   - Guard test: `98_world_life_skill_tree_reset`.
-- Still open: node effect consumers, and a player-facing read / unlock / reset path.
+- **Life Skill Book P0** (`20261004138000_world_life_skill_book_p0`, `src/life-skills/life-skill-book-*.js`):
+  - Self-only reads `get_my_world_life_skills_v1()` and `get_my_world_life_skill_tree_v1(skill)`, and
+    actions `unlock_my_world_life_node_v1(node, request_id)` / `reset_my_world_life_tree_v1(skill, request_id)`.
+    Caller = `auth.uid()` of a permanent, non-banned account; the idempotency key is derived on the
+    server from the request id, so a lost response replays.
+  - Only ACTIVE skills and nodes are visible; unknown and hidden ids look the same
+    (`LIFE_SKILL_NOT_FOUND` / `LIFE_NODE_NOT_FOUND`). The menu entry stays hidden until the server lists
+    a skill.
+  - The tree view carries the server's `canUnlock` / `lockReason` / `nextRankCost` per node and
+    `canReset` / `resetBlockedBy` / `nextResetAt` per tree, computed in the same order as the primitives.
+    The client never decides a cost or an unlock; the actions re-check everything.
+  - Guard tests: `98_world_life_skill_book_p0`, `life-skill-book.integration` (Data API + client parsers).
+- Still open: node effect consumers.
 
 ### 7.2 Combat TP: derived from Character Level
 - Combat Tree Points are earned from Character Level (`world_player_progression` + `world_level_thresholds`).

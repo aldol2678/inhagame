@@ -288,6 +288,7 @@
     <button id="open-wardrobe" type="button" aria-controls="wardrobe-panel" aria-expanded="false">👕 옷장</button>
     <button id="open-daily-quiz" type="button" aria-controls="daily-quiz-panel" aria-expanded="false">📚 오늘의 퀴즈</button>
     <button id="open-attendance" type="button" aria-controls="attendance-panel" aria-expanded="false">📅 출석부</button>
+    <button id="open-life-skills" type="button" aria-controls="life-skill-book-panel" aria-expanded="false" hidden>📘 생활 스킬</button>
     <button id="open-friends" type="button" aria-controls="friend-panel" aria-expanded="false" hidden>👥 친구</button>
     <button id="toggle-first-person" type="button" aria-pressed="false" aria-label="1인칭 시점" aria-keyshortcuts="V">👁 1인칭으로</button>
     <button id="open-keyboard-help" class="desktop-only" type="button" aria-controls="keyboard-shortcuts-panel" aria-expanded="false">⌨ 키보드 조작</button>
@@ -396,6 +397,8 @@
   <section id="daily-quiz-panel" class="profile-panel shop-panel inventory-panel daily-quiz-panel" role="dialog" aria-modal="true" aria-labelledby="daily-quiz-panel-title" hidden></section>
   <!-- Progression P1f: 캠퍼스 출석부, rendered by src/attendance/attendance-panel.js from the server-owned attendance RPCs. -->
   <section id="attendance-panel" class="profile-panel shop-panel inventory-panel attendance-panel" role="dialog" aria-modal="true" aria-labelledby="attendance-panel-title" hidden></section>
+  <!-- Life Skill Book P0: own ACTIVE Life Skills, tree ranks and free reset, rendered by src/life-skills/life-skill-book-panel.js from the server-owned get/unlock/reset_my_world_life_* RPCs. The menu entry stays hidden until the server lists a visible skill. -->
+  <section id="life-skill-book-panel" class="profile-panel shop-panel inventory-panel life-skill-book-panel" role="dialog" aria-modal="true" aria-labelledby="life-skill-book-title" hidden></section>
   <div id="guestbook-world-label" class="guestbook-world-label" aria-hidden="true" hidden>
     <span class="guestbook-world-marker-icon" data-guestbook-marker-icon>📖</span>
     <span class="guestbook-world-marker-copy">
