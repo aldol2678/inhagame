@@ -1,8 +1,6 @@
 import { busyNpcIds } from './network/npc-talk-presence.js';
 import {CAMPUS_BALLOON_ID,setCampusBalloonPropRoot} from "./mounts/campus-balloon-world.js";
 import {createCampusBalloon} from "./mounts/campus-balloon-render.js";
-import {setCampusShuttlePropRoot} from "./mounts/campus-shuttle-world.js";
-import {createCampusShuttle,createShuttleStations} from "./mounts/campus-shuttle-render.js";
 import { DUCK_BOAT_ID,setDuckBoatPropRoot } from "./mounts/duck-boat-world.js";
 import { createDuckBoat,createInkyungDockMarker } from "./mounts/duck-boat-render.js";
 import { CAMPUS_KART_ID, setCampusKartPropRoot } from "./mounts/campus-kart-world.js";
@@ -465,7 +463,8 @@ window.__INHAGAME_WINTER_QA__ = Object.freeze({
   })
 });
 
-const controller = new PlayerController(player);
+// The main-gate shuttle is intentionally withheld until the Songdo campus route exists.
+const controller = new PlayerController(player, { campusShuttleEnabled: false });
 const helicopterFlightHud = createHelicopterFlightHud({
   root: document.getElementById("helicopter-flight-hud"),
   toggle: document.getElementById("helicopter-flight-hud-toggle"),
@@ -1277,8 +1276,7 @@ setCampusKickboardPropRoot(createCampusKickboard(campusRoot));
 setCampusKartPropRoot(createCampusKart(campusRoot));
 setDuckBoatPropRoot(createDuckBoat(campusRoot));
 createInkyungDockMarker(campusRoot);
-setCampusShuttlePropRoot(createCampusShuttle(campusRoot));
-createShuttleStations(campusRoot,controller.shuttle.stations);
+// Campus shuttle presentation/stations stay absent until the Songdo campus route is implemented.
 setCampusBalloonPropRoot(createCampusBalloon(campusRoot));
 const mobilityBookButton = document.getElementById("open-mobility-book");
 const mobilityBook = createMobilityBook({
