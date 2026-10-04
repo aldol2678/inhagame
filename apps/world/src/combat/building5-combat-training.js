@@ -575,7 +575,7 @@ export function createBuilding5CombatTraining({
     playerDefeatedAt = player.defeated === true || playerHp <= 0 ? (playerDefeatedAt ?? at) : null;
     momentum = clamp(Number(player.momentum ?? momentum), 0, 100);
     rapidBuffUntil = at + remaining(player.rapidUntilMs);
-    overdriveUntil = Math.max(overdriveUntil, rapidBuffUntil);
+    overdriveUntil = at + remaining(player.overdriveUntilMs);
 
     for (const key of Object.keys(cooldownUntil)) {
       cooldownUntil[key] = at + remaining(serverCooldowns[key]);
