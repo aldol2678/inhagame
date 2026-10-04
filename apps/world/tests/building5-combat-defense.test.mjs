@@ -145,6 +145,7 @@ test('BREAK cancels an armed telegraph and delays the next attack', () => {
 
   for (let i = 0; i < 25; i += 1) {
     r.training.resolveAction({ action: 'basic', identity: 'basic' });
+    r.advance(220);
   }
 
   const state = r.training.snapshot();
