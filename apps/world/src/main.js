@@ -791,6 +791,9 @@ const combatAuthorityLabelEl = document.querySelector("[data-combat-authority]")
 let combatAuthorityRewardRefreshKey = null;
 combatAuthority.subscribe((state) => {
   if (combatAuthorityLabelEl) combatAuthorityLabelEl.textContent = combatAuthorityLabel(state);
+  if (state.encounter && combatRuntime.active) {
+    combatRuntime.reconcileAuthorityEncounter(state.encounter);
+  }
   const rewardStatus = state.settlement?.rewardStatus ?? null;
   if (state.resultRef && ['SUCCESS','PARTIAL_SUCCESS'].includes(rewardStatus) &&
       combatAuthorityRewardRefreshKey !== state.resultRef) {
