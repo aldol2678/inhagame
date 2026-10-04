@@ -6,21 +6,22 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { assertHosted, BASELINE, CURRENT_MAIN, BASELINE_PATHS, VIEWPORTS, VIEWS, expectedRaster, assertRuntimeChanges, comparisonSources } from './backgate-shopfront-qa-plan.mjs';
+import { assertHosted, BASELINE, CURRENT_MAIN, BASELINE_PATHS, VIEWPORTS, VIEWS, expectedRaster, tiersFor, EXPECTED_SCREENSHOTS, EXPECTED_PAIRS, expectedContribution } from './backgate-restoration-qa-plan.mjs';
 
 assertHosted(process.env); // Before importing the browser harness or starting any server.
 const { startSmoke } = await import('./harness.mjs');
 const repo = fileURLToPath(new URL('../../../../', import.meta.url));
-const output = path.resolve(process.env.WORLD_SHOPFRONT_QA_OUTPUT || 'test-results/backgate-shopfronts');
+const output = path.resolve(process.env.WORLD_BACKGATE_QA_OUTPUT || 'test-results/backgate-restoration');
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const git = args => execFileSync('git', args, { cwd: repo, timeout: 10000, maxBuffer: 16 * 1024 * 1024 });
 const began = Date.now();
+const expectedScreenshots=EXPECTED_SCREENSHOTS,expectedPairs=EXPECTED_PAIRS;
 const report = { status: 'RUNNING', startedAt: new Date().toISOString(), baselineCommit: BASELINE, currentMainCommit: CURRENT_MAIN,
-  scope: 'Actual offline current campus; historical facade functions/signs only. Current paving, signals and other geometry are identical shared controls; the pinned old back-street corridor statement is removed exactly once. Neutral illustrative facades, no image/reference fidelity or surveyed-business claim.',
+  scope: 'Actual offline campus with exact public baseline geometry substitutions only. Restores 114 infill facades and existing road/signal/gate forms within current gameplay anchors; not a surveyed or photographic reconstruction.',
   limits: { overallMs: 660000, bootMs: 60000, operationMs: 15000, frameMs: 6000, cleanupMs: 10000 },
   camera: 'Same orthographic facade-inspection cameras in both variants; not chase-camera or physical-device evidence',
-  excluded: ['Production sky', 'performance/FPS', 'WebGPU', 'real touch/keyboard input', 'all 37 individual facade screenshots', 'exhaustive navigation'],
-  baselineFiles: [], comparisonModules: [], currentSharedFiles: [], cases: [], walking: [], comparisons: [], screenshots: [] };
+  excluded: ['Production sky', 'performance/FPS', 'WebGPU', 'real touch/keyboard input', 'all 114 individual facade screenshots', 'exhaustive navigation'],
+  baselineFiles: [], currentSharedFiles: [], cases: [], walking: [], roadWalking: [], comparisons: [], screenshots: [] };
 await mkdir(output, { recursive: true });
 const reportPath = path.join(output, 'report.json');
 const flush = () => writeFile(reportPath, JSON.stringify({ ...report, elapsedMs: Date.now() - began }, null, 2) + '\n');
@@ -40,7 +41,7 @@ const samplesByCase = new Map();
 let activeCase;
 try {
   report.head = git(['rev-parse', 'HEAD']).toString().trim();
-  assert.equal(report.head, process.env.EXPECTED_SHOPFRONT_HEAD, 'exact pull request head');
+  assert.equal(report.head, process.env.EXPECTED_BACKGATE_HEAD, 'exact pull request head');
   assert.equal(git(['status', '--porcelain', '--untracked-files=normal']).toString().trim(), '', 'exact-head checkout must be clean');
   assert.equal(git(['rev-parse', `${BASELINE}^{commit}`]).toString().trim(), BASELINE);
   assert.equal(git(['rev-parse', `${CURRENT_MAIN}^{commit}`]).toString().trim(), CURRENT_MAIN);
@@ -50,19 +51,15 @@ try {
     report.baselineFiles.push({ path: sourcePath, commit: BASELINE, sha256: hash(bytes) });
     return [urlPath, bytes];
   }));
-  const routedSources = comparisonSources(oldSources);
-  report.comparisonModules = [...routedSources].map(([url, source]) => ({ url, sha256: hash(source),
-    role: url.endsWith('?shopfront-baseline') ? 'historical facade source' :
-      url === '/src/culture-street-signs.js' ? 'historical signs' : 'facade-only export adapter' }));
   for (const name of ['campus-chunk-renderer.js', 'campus-render-kit.js', 'campus-material-profile.js',
-    'back-street-layout.js', 'culture-street-layout.js', 'world-collision.js', 'roadview-layout.js',
-    'back-street-geometry.js', 'culture-street-geometry.js']) {
+    'back-alley-layout.js', 'back-market-layout.js', 'back-street-layout.js', 'culture-street-layout.js', 'north-side-gate-layout.js', 'world-collision.js', 'roadview-layout.js']) {
     const sourcePath = `apps/world/src/${name}`;
     report.currentSharedFiles.push({ path: sourcePath, sha256: hash(await readFile(path.join(repo, sourcePath))) });
   }
   report.runtimeChangedPaths = git(['diff', '--name-only', CURRENT_MAIN, 'HEAD', '--', 'apps/world/src', 'apps/world/data'])
     .toString().trim().split('\n').filter(Boolean);
-  assertRuntimeChanges(report.runtimeChangedPaths);
+  const allowed = [...BASELINE_PATHS.map(p => `apps/world${p}`), 'apps/world/src/backgate-infill-geometry.js'];
+  for (const changed of report.runtimeChangedPaths) assert.ok(allowed.includes(changed), `unrelated runtime change: ${changed}`);
   await flush();
 
   for (const viewport of VIEWPORTS) {
@@ -73,13 +70,13 @@ try {
         const page = await smoke.context.newPage(), fatal = smoke.watch(page), baselineHits = [];
         const evaluate = (label, fn, args) => bounded(label, () => Promise.race([page.evaluate(fn, args), fatal]));
         const invoke = (method, value) => evaluate(method, async ({ method, value }) => {
-          const fixture = await import('/tests/browser/backgate-shopfront-fixture.mjs');
+          const fixture = await import('/tests/browser/backgate-restoration-fixture.mjs');
           return fixture[method](value);
         }, { method, value });
-        if (variant === 'old') await page.route(url => url.origin === smoke.origin && routedSources.has(url.pathname + url.search), async route => {
-          const url = new URL(route.request().url()), key = url.pathname + url.search, source = routedSources.get(key);
-          baselineHits.push({ path: key, sha256: hash(source) });
-          await route.fulfill({ status: 200, contentType: 'text/javascript; charset=utf-8', body: source });
+        if (variant === 'old') await page.route(url => url.origin === smoke.origin && BASELINE_PATHS.includes(url.pathname), async route => {
+          const url = new URL(route.request().url());
+          baselineHits.push({ path: url.pathname, sha256: hash(oldSources.get(url.pathname)) });
+          await route.fulfill({ status: 200, contentType: 'text/javascript; charset=utf-8', body: oldSources.get(url.pathname) });
         });
         activeCase = { viewport, variant, status: 'RUNNING', baselineHits, views: [] }; report.cases.push(activeCase); await flush();
         try {
@@ -94,23 +91,30 @@ try {
           assert.equal(activeCase.renderer, 'WebGL2');
           await page.addStyleTag({ content: 'body > :not(#application):not(script):not(style){visibility:hidden!important}' });
           activeCase.fixture = await evaluate('freeze actual campus', async () => {
-            const { prepareCampus } = await import('/tests/browser/backgate-shopfront-fixture.mjs');
+            const { prepareCampus } = await import('/tests/browser/backgate-restoration-fixture.mjs');
             return prepareCampus(window.__INHAGAME_P0__);
           });
           activeCase.raster = expectedRaster(viewport, activeCase.fixture.graphics, activeCase.fixture.devicePixelRatio);
-          if (variant === 'old') assert.deepEqual([...new Set(baselineHits.map(hit => hit.path))].sort(), [...routedSources.keys()].sort());
+          if (variant === 'old') assert.deepEqual([...new Set(baselineHits.map(hit => hit.path))].sort(), [...BASELINE_PATHS].sort());
           else assert.deepEqual(baselineHits, []);
-          const walking = await evaluate('actual controller routes', async () => {
+          // These eight legacy routes are preservation evidence, not coverage of all 114 plots.
+          const walking = await evaluate('legacy shopfront controller regression routes', async () => {
             const { runShopfrontWalking } = await import('/tests/browser/backgate-shopfront-walking.mjs');
             return runShopfrontWalking(window.__INHAGAME_P0__);
           });
           assert.equal(walking.passed, true); assert.equal(walking.cases.length, 8);
           report.walking.push({ viewport: viewport.name, variant, ...walking });
+          const roadWalking=await evaluate('actual crossing controller routes',async()=>{
+            const {runBackgateRoadWalking}=await import('/tests/browser/backgate-road-walking.mjs');
+            return runBackgateRoadWalking(window.__INHAGAME_P0__);
+          });
+          assert.equal(roadWalking.passed,true);assert.equal(roadWalking.cases.length,8);
+          report.roadWalking.push({viewport:viewport.name,variant,...roadWalking});
 
           for (const view of VIEWS) {
             const setup = await invoke('selectView', view.name), receipt = { ...setup, tiers: [] }; activeCase.views.push(receipt);
             let allHash;
-            for (const tier of ['ALL', 'BASE']) {
+            for (const tier of tiersFor(view, viewport)) {
               const ownership = await invoke('setTier', tier);
               await invoke('pixels'); await invoke('pixels'); // Warm camera, shader and shadow state before evidence.
               const visible = await invoke('pixels'), stable = await invoke('pixels');
@@ -131,12 +135,14 @@ try {
               await invoke('showShopfronts', false);
               const hidden = await invoke('pixels');
               assert.equal(hidden.glError, 0); assert.equal(hidden.contextLost, false);
-              assert.ok(hidden.changedFacade > Math.max(30, visible.facadePixels * .002), `${key}: target has no visible facade contribution`);
+              const mustContribute=expectedContribution(view,variant),minimumPixels=Math.max(30,visible.facadePixels*.002);
+              if(mustContribute)assert.ok(hidden.changedFacade>minimumPixels,`${key}: target has no visible facade contribution`);
+              else assert.ok(hidden.changedFacade<=minimumPixels,`${key}: supposedly absent baseline crossing unexpectedly contributes pixels`);
               await invoke('showShopfronts', true);
               await invoke('pixels'); const restored = await invoke('pixels');
               assert.equal(restored.glError, 0); assert.equal(restored.sha256, visible.sha256, `${key}: exact target restoration`);
               const summary = ({ samples, ...rest }) => rest;
-              receipt.tiers.push({ tier, ownership, visible: summary(visible), stable: summary(stable), hidden: summary(hidden), restored: summary(restored), screenshot: filename });
+              receipt.tiers.push({ tier, ownership, contributionExpected:mustContribute, visible: summary(visible), stable: summary(stable), hidden: summary(hidden), restored: summary(restored), screenshot: filename });
               if (tier === 'ALL') allHash = visible.sha256;
               await flush();
             }
@@ -157,7 +163,9 @@ try {
     const oldWalk = report.walking.find(r => r.viewport === viewport.name && r.variant === 'old');
     const newWalk = report.walking.find(r => r.viewport === viewport.name && r.variant === 'new');
     assert.deepEqual(newWalk.cases, oldWalk.cases, 'same actual-controller paths and heights in both geometry variants');
-    for (const view of VIEWS) for (const tier of ['ALL', 'BASE']) {
+    const oldRoad=report.roadWalking.find(r=>r.viewport===viewport.name&&r.variant==='old'),newRoad=report.roadWalking.find(r=>r.viewport===viewport.name&&r.variant==='new');
+    assert.deepEqual(newRoad.cases,oldRoad.cases,'same crossing, gate and canopy paths');
+    for (const view of VIEWS) for (const tier of tiersFor(view, viewport)) {
       const key = `${viewport.name}-${view.name}-${tier.toLowerCase()}`, old = samplesByCase.get(`${key}-old`), current = samplesByCase.get(`${key}-new`);
       assert.deepEqual(current.camera, old.camera, `${key}: same camera`); assert.notEqual(current.hash, old.hash, `${key}: old/new frames differ`);
       let changedSamples = 0;
@@ -166,7 +174,7 @@ try {
       report.comparisons.push({ key, cameraIdentical: true, oldSha256: old.hash, newSha256: current.hash, changedFacadeSamples: changedSamples, totalFacadeSamples: 1024 });
     }
   }
-  assert.equal(report.screenshots.length, 48); assert.equal(report.comparisons.length, 24);
+  assert.equal(report.screenshots.length, expectedScreenshots); assert.equal(report.comparisons.length, expectedPairs);
   assert.equal(git(['rev-parse', 'HEAD']).toString().trim(), report.head);
   assert.equal(git(['status', '--porcelain', '--untracked-files=normal']).toString().trim(), '', 'QA must not change tracked checkout state');
   report.status = 'PASS';
@@ -178,5 +186,5 @@ try {
   clearTimeout(watchdog); await flush();
   const manifest = [...report.screenshots.map(s => `${s.sha256}  ${s.file}`), `${hash(await readFile(reportPath))}  report.json`];
   await writeFile(path.join(output, 'SHA256SUMS'), manifest.join('\n') + '\n');
-  console.log(`Shopfront hosted QA: ${report.status}; ${report.screenshots.length}/48 screenshots; ${report.comparisons.length}/24 old/new pairs`);
+  console.log(`Backgate restoration hosted QA: ${report.status}; ${report.screenshots.length}/${expectedScreenshots} screenshots; ${report.comparisons.length}/${expectedPairs} old/new pairs`);
 }
