@@ -1,6 +1,7 @@
-// INHA WORLD Combat Authority P0 pure contract.
-// Product semantics + deterministic low-level resolution only.
-// No live encounters, rewards, Player EXP, Life XP, Creature XP, loot settlement or runtime AI.
+// INHA WORLD Combat Authority P0 server contract.
+// Encounter authority + deterministic low-level resolution only.
+// Product/build identity for Combat v0.3 lives in combat-v03-catalog.js.
+// No live encounters, rewards, Player EXP, Life XP, Creature XP, loot settlement or runtime AI are activated here.
 
 export const COMBAT_DEFINITION_STATUS = Object.freeze({
   ACTIVE: 'ACTIVE',
@@ -115,7 +116,8 @@ export function createCombatDefinition(raw) {
 }
 
 // P0 deliberately commits no live encounter identity.
-// BREAKER v0 and Biryong encounters remain design candidates until a vertical slice is approved.
+// Combat v0.3 job/skill/ultimate/trait/equipment identities are current design,
+// but live Campus/Biryong encounter activation remains gated behind the World vertical slice.
 export const DEFAULT_COMBAT_DEFINITIONS = Object.freeze([]);
 
 export function createCombatRegistry({ definitions = DEFAULT_COMBAT_DEFINITIONS } = {}) {

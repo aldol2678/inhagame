@@ -25,6 +25,7 @@ import { createGraphicsPresetController } from './graphics-presets.js';
 import { createEnvironmentDirector } from './environment/environment-director.js';
 import { resolveEnvironmentRuntimeTime, resolveEnvironmentRuntimeWeather } from './environment/environment-clock.js';
 import { createNightStreetLights } from './environment/night-street-lights.js';
+import { createNightBuildingWindows } from './environment/night-building-windows.js';
 import { createRainWeatherEffects } from './environment/rain-weather-effects.js';
 import { createSnowWeatherEffects } from './environment/snow-weather-effects.js';
 import { createSkyVisuals } from './environment/sky-visuals.js';
@@ -346,6 +347,17 @@ const nightStreetLights = createNightStreetLights({
 app.on("update", dt => nightStreetLights.update(dt));
 window.__INHAGAME_NIGHT_LIGHTS__ = Object.freeze({
   status: () => nightStreetLights.status()
+});
+
+const nightBuildingWindows = createNightBuildingWindows({
+  root: campusRoot,
+  app,
+  getArtificialLightFactor: () => environment.artificialLightFactor(),
+  getGraphicsTier: () => graphics.tier
+});
+app.on("update", () => nightBuildingWindows.update());
+window.__INHAGAME_NIGHT_WINDOWS__ = Object.freeze({
+  status: () => nightBuildingWindows.status()
 });
 
 const rainWeatherEffects = createRainWeatherEffects({
