@@ -174,7 +174,7 @@ export function cloudVisualProfile({
   const overcast = [0.60, 0.66, 0.73];
   const rainy = [0.36, 0.42, 0.50];
   const snowy = [0.76, 0.80, 0.85];
-  const nightCloud = [0.15, 0.19, 0.27];
+  const nightCloud = [0.08, 0.10, 0.16];
 
   let color = mixTuple(clear, overcast, cover);
   color = mixTuple(color, rainy, rain);
@@ -189,6 +189,6 @@ export function cloudVisualProfile({
   return Object.freeze({
     color: Object.freeze(color),
     opacity: clamp01(0.18 + cover * 0.48 + rain * 0.08 + snow * 0.05 + night * 0.05),
-    emissiveIntensity: mix(0.82, 0.42, night)
+    emissiveIntensity: mix(0.82, 0.26, night)
   });
 }
