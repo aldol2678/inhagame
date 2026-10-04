@@ -278,6 +278,7 @@ insert into authority_allowed_write values
   ('world_player_biryong_npc_relationships', 'private.world_biryong_relationship_advance_v1'),
   ('world_quest_progress_v1', 'public.advance_world_quest_v1'),
   ('world_quest_progress_v1', 'public.advance_world_navigation_quest_v1'),
+  ('world_quest_progress_v1', 'public.advance_world_first_style_quest_v1'),
   ('world_event_progress', 'public.advance_mcm_2026_event_v1'),
   ('world_event_progress', 'private.world_mcm_try_complete_v1'),
   ('world_player_appearance_loadout', 'public.equip_my_world_item_v1'),
