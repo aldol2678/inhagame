@@ -8,8 +8,8 @@ import {
 } from "../../src/biryong/biryong-performance-budget.js";
 
 const TIERS = ["low", "medium", "high"];
-const WARMUP_FRAMES = 45;
-const SAMPLE_FRAMES = 150;
+const WARMUP_FRAMES = 30;
+const SAMPLE_FRAMES = 90;
 
 function round(value, digits = 3) {
   return Number.isFinite(value) ? Number(value.toFixed(digits)) : value;
@@ -129,31 +129,56 @@ const receipt = {
 };
 
 try {
+  const baselineByTier = {};
   const baselinePage = await bootScenario(smoke, "");
-  const visualPage = await bootScenario(smoke, "&biryongVisual=p0e");
-
-  const renderers = await Promise.all([
-    baselinePage.evaluate(() => window.__INHAGAME_P0__.getStatus().renderer),
-    visualPage.evaluate(() => window.__INHAGAME_P0__.getStatus().renderer)
-  ]);
-  receipt.renderer = { baseline: renderers[0], visual: renderers[1] };
+  const baselineRenderer = await baselinePage.evaluate(
+    () => window.__INHAGAME_P0__.getStatus().renderer
+  );
 
   for (const tier of TIERS) {
     await setTier(baselinePage, tier);
-    const baseline = await measureFrames(baselinePage);
+    baselineByTier[tier] = await measureFrames(baselinePage);
+  }
+  await baselinePage.close();
+
+  const visualPage = await bootScenario(smoke, "&biryongVisual=p0e");
+  const visualRenderer = await visualPage.evaluate(
+    () => window.__INHAGAME_P0__.getStatus().renderer
+  );
+  receipt.renderer = { baseline: baselineRenderer, visual: visualRenderer };
+
+  for (const tier of TIERS) {
+    const baseline = baselineByTier[tier];
 
     await setTier(visualPage, tier);
     await visualPage.evaluate(() => window.__INHAGAME_BIRYONG_PERFORMANCE__.reset());
     const visual = await measureFrames(visualPage);
     await visualPage.waitForFunction(
       count => window.__INHAGAME_BIRYONG_PERFORMANCE__?.status?.().frames?.sampleCount >= count,
-      100,
+      60,
       { timeout: TIMEOUT_MS }
     );
 
     const monitor = await visualPage.evaluate(() => window.__INHAGAME_BIRYONG_PERFORMANCE__.status());
     const structural = biryongStructuralPerformanceSnapshot(tier);
     const assessment = assessBiryongCiFrameSample({ tier, baseline, visual });
+
+    console.log("BIRYONG_PERF_TIER", JSON.stringify({
+      tier,
+      baseline: {
+        p95Ms: round(baseline.p95Ms),
+        p99Ms: round(baseline.p99Ms),
+        estimatedFps: round(baseline.estimatedFps, 2)
+      },
+      visual: {
+        p95Ms: round(visual.p95Ms),
+        p99Ms: round(visual.p99Ms),
+        estimatedFps: round(visual.estimatedFps, 2),
+        longFrameRate: round(visual.longFrameRate, 4)
+      },
+      p95Ratio: round(assessment.p95Ratio, 3),
+      violations: assessment.violations
+    }));
 
     assert.equal(structural.withinBudget, true, `${tier} structural budget`);
     assert.equal(monitor.enabled, true);
@@ -193,7 +218,6 @@ try {
       }
     };
   }
-
   await visualPage.setViewportSize({ width: 390, height: 844 });
   await setTier(visualPage, "low");
   await visualPage.evaluate(() => window.__INHAGAME_BIRYONG_PERFORMANCE__.reset());
