@@ -128,8 +128,9 @@ No forest or central-lawn runtime geometry is changed in this candidate.
 - Existing read-only campus visual-parity browser QA is extended with the new
   checks, on/off/stable full-area views and seat/willow/approach closeups at three
   viewports. No new workflow job, credentials or external state writes are added.
-- A separate literal-baseline pass replaces all four changed pre-existing runtime
-  files with exact `3b95e37` bytes, with a strict seven-file runtime scope guard.
+- The initial historical literal-baseline pass replaced all four changed
+  pre-existing runtime files with exact `3b95e37` bytes and a strict seven-file
+  runtime scope guard. The final integration baseline is recorded below.
   It records source hashes, verified camera transforms and stable baseline/candidate
   images of the pond, seating, willow and both Hall approaches. On/off diagnostics
   are labeled separately and are not presented as the prior main runtime.
@@ -150,3 +151,16 @@ heights, existing collision and controller code all remain unchanged.
 Rollback: remove the two BASE builder calls and their shared approach consumers
 from navigation/maps, then restore the three paths' prior display-height branch.
 No persistent player state or database changes exist.
+
+## Approved final integration with the restored landmarks
+
+The final integration starts from main `0f875b88cc39a7432253e4cd52b2b489d37a3df2`
+(#196 plus the night-sky and preview-policy changes). Candidate runtime geometry
+is unchanged from `2f01efe`. The literal surroundings browser baseline is now
+that newer main, so restored buildings are identical on both sides.
+
+The earlier landmark test's full navigation hash intentionally changes because
+two existing CONNECTOR records are promoted to PATH metadata. A separate pinned
+regression proves the 185-node / 209-edge geometric set, original road/path
+vertices and widths, and all 864 ground obstacles match that exact main. Existing
+facility, collider, upper-tower, stair and approach tests remain enforced.
