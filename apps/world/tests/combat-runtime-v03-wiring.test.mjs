@@ -22,6 +22,7 @@ test('Combat v0.3 PC input preserves v9.22 action grammar without replacing Worl
   assert.match(main, /"ShiftLeft" \|\| event\.code === "ShiftRight" \? "dodge"/);
   assert.match(main, /event\.button === 0\) combatRuntime\.dispatch\("basic"\)/);
   assert.match(main, /combatRuntime\.toggleLock\(\)/);
+  assert.match(main, /event\.code === "Escape"[\s\S]*combatRuntime\.end\("PLAYER_EXIT"\)/);
   assert.doesNotMatch(main, /world_combat_start_v1/);
 });
 
@@ -31,7 +32,7 @@ test('Combat v0.3 mobile HUD exposes all six action surfaces and hides incompati
   }
   assert.match(css, /COMBAT-V03-RUNTIME-P0:start/);
   assert.match(css, /body\[data-hud-mode="COMBAT"\] #transport-action/);
-  assert.match(css, /grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
+  assert.match(css, /grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/);
 });
 
 test('Combat v0.3 local training disables resume and transport while active', () => {
