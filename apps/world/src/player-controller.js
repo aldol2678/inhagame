@@ -95,7 +95,8 @@ export class PlayerController {
     jumpVelocity = 7,
     gravity = -20,
     groundY = PLAYER_ORIGIN_Y,
-    bounds = WORLD_BOUNDS
+    bounds = WORLD_BOUNDS,
+    campusShuttleEnabled = true
   } = {}) {
     this.entity = entity;
     this.walkSpeed = walkSpeed;
@@ -104,6 +105,7 @@ export class PlayerController {
     this.gravity = gravity;
     this.groundY = groundY;
     this.bounds = bounds;
+    this.campusShuttleEnabled = campusShuttleEnabled === true;
     this.keys = new Set();
     this.velocityY = 0;
     this.grounded = true;
@@ -499,7 +501,7 @@ export class PlayerController {
   }
 
   boardShuttle() {
-    if(!this.inputEnabled||this.mounted||!this.grounded||this.space.id!=="campus"||!this.space.allowMount||!this.shuttle.boardingAllowed)return false;
+    if(!this.campusShuttleEnabled||!this.inputEnabled||this.mounted||!this.grounded||this.space.id!=="campus"||!this.space.allowMount||!this.shuttle.boardingAllowed)return false;
     const p=this.entity.getLocalPosition(),a=this.shuttle.currentStation.platform;
     if(Math.hypot(p.x-a.x,p.z-a.z)>1.5)return false;
     this.mounted=true;this.mountId=CAMPUS_SHUTTLE_ID;this.velocityY=0;this.jumpQueued=false;this.landing=false;
@@ -550,7 +552,7 @@ export class PlayerController {
     }
 
     const platform=this.shuttle.currentStation.platform,p0=this.entity.getLocalPosition();
-    if(this.onShuttle || (!this.mounted&&this.grounded&&this.space.id==="campus"&&this.space.allowMount&&this.shuttle.boardingAllowed&&Math.hypot(p0.x-platform.x,p0.z-platform.z)<=1.5)){
+    if(this.campusShuttleEnabled && (this.onShuttle || (!this.mounted&&this.grounded&&this.space.id==="campus"&&this.space.allowMount&&this.shuttle.boardingAllowed&&Math.hypot(p0.x-platform.x,p0.z-platform.z)<=1.5))){
       actions.push({ mobilityId: CAMPUS_SHUTTLE_ID, id:"mount",icon:"🚌",label:this.onShuttle?(this.shuttle.boardingAllowed?"셔틀에서 내리기":"다음 정류장 · "+this.shuttle.nextStation.name):"캠퍼스 셔틀 타기",
         compactLabel:this.onShuttle?"하차":"탑승",shortcut:"M",priority:340,pressed:this.onShuttle,
         disabled:this.onShuttle&&!this.shuttle.boardingAllowed,trigger:()=>this.onShuttle?this.dismountShuttle():this.boardShuttle() });
