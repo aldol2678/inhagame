@@ -1,0 +1,13 @@
+{
+  "name": "inha-world-recast-shadow-integration",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test integration.test.mjs",
+    "evaluate": "node evaluate.mjs",
+    "build:artifact": "node build-artifact.mjs"
+  },
+  "devDependencies": {
+    "recast-navigation": "0.43.1"
+  }
+}

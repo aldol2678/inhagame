@@ -196,5 +196,9 @@ export function createNpcNavigator(batch, { additionalAnchors = [] } = {}) {
     }
     return route(from, anchor);
   }
-  return { walkable, segmentSafe, route, networkRoute, wanderRoute, bounds };
+  // Snapshot the effective inputs used by these closures. Downstream source data changes
+  // are captured here after projection/filtering; logic sources are hashed separately.
+  const navigationGeometry = () => structuredClone({ bounds, obstacles, pond, clearance, cellSize,
+    segmentStep: .45, graphOverrideMaxDistance: .4, graphAccessMaxDistance: 3 });
+  return { walkable, segmentSafe, route, networkRoute, wanderRoute, bounds, navigationGeometry };
 }
