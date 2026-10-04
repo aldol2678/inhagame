@@ -29,6 +29,7 @@ try {
     nightWindows: window.__INHAGAME_NIGHT_WINDOWS__.status(),
     rain: window.__INHAGAME_RAIN__.status(),
     snow: window.__INHAGAME_SNOW__.status(),
+    snowObjects: window.__INHAGAME_SNOW_OBJECTS__.status(),
     pond: window.__INHAGAME_POND_WEATHER__.status(),
     sky: window.__INHAGAME_SKY__.status(),
     graphics: window.__INHAGAME_P0__.getStatus().graphics
@@ -48,6 +49,11 @@ try {
   assert.equal(initial.snow.footprintCount, 0);
   assert.equal(initial.snow.footprintDrawMeshes, 0);
   assert.equal(initial.snow.extraRealLights, 0);
+  assert.equal(initial.snowObjects.enabled, false);
+  assert.equal(initial.snowObjects.drawMeshes, 0);
+  assert.equal(initial.snowObjects.snowAccumulation, 0);
+  assert.equal(initial.snowObjects.extraRealLights, 0);
+  assert.equal(initial.snowObjects.extraShadowCasters, 0);
   assert.equal(initial.pond.rainIntensity, 0);
   assert.equal(initial.pond.artificialLightFactor, 0.18);
   assert.equal(initial.pond.rippleSpeed, 0.025);
@@ -167,6 +173,7 @@ try {
     environment: window.__INHAGAME_ENVIRONMENT__.status(),
     rain: window.__INHAGAME_RAIN__.status(),
     snow: window.__INHAGAME_SNOW__.status(),
+    snowObjects: window.__INHAGAME_SNOW_OBJECTS__.status(),
     sky: window.__INHAGAME_SKY__.status()
   }));
   assert.equal(snowDay.environment.targetWeather, 'SNOW');
@@ -199,6 +206,28 @@ try {
   assert.ok(snowDay.snow.footprintBudget >= 12 && snowDay.snow.footprintBudget <= 28);
   assert.ok(snowDay.snow.footprintOpacity > 0);
   assert.equal(snowDay.snow.extraRealLights, 0);
+  assert.equal(snowDay.snowObjects.enabled, true);
+  assert.equal(snowDay.snowObjects.drawMeshes, 1);
+  assert.ok(snowDay.snowObjects.opacity > 0);
+  assert.ok(snowDay.snowObjects.roofSurfaceCount > 0);
+  assert.equal(
+    snowDay.snowObjects.benchSurfaceCount,
+    Math.min(snowDay.snowObjects.availableBenchCount, snowDay.snowObjects.benchBudget)
+  );
+  assert.equal(
+    snowDay.snowObjects.lampSurfaceCount,
+    Math.min(snowDay.snowObjects.availableLampCount, snowDay.snowObjects.lampBudget)
+  );
+  assert.equal(
+    snowDay.snowObjects.totalSurfaceCount,
+    snowDay.snowObjects.roofSurfaceCount +
+      snowDay.snowObjects.benchSurfaceCount +
+      snowDay.snowObjects.lampSurfaceCount
+  );
+  assert.ok(snowDay.snowObjects.vertexCount > 0);
+  assert.ok(snowDay.snowObjects.indexCount > 0);
+  assert.equal(snowDay.snowObjects.extraRealLights, 0);
+  assert.equal(snowDay.snowObjects.extraShadowCasters, 0);
 
   await page.evaluate(() => {
     const p = window.__INHAGAME_P0__.player.getLocalPosition();
@@ -396,6 +425,7 @@ try {
     nightWindows: window.__INHAGAME_NIGHT_WINDOWS__.status(),
     rain: window.__INHAGAME_RAIN__.status(),
     snow: window.__INHAGAME_SNOW__.status(),
+    snowObjects: window.__INHAGAME_SNOW_OBJECTS__.status(),
     pond: window.__INHAGAME_POND_WEATHER__.status(),
     sky: window.__INHAGAME_SKY__.status(),
     graphics: window.__INHAGAME_P0__.getStatus().graphics
@@ -413,6 +443,10 @@ try {
   assert.equal(mobileStatus.rain.extraRealLights, 0);
   assert.equal(mobileStatus.snow.enabled, false);
   assert.equal(mobileStatus.snow.snowIntensity, 0);
+  assert.equal(mobileStatus.snowObjects.enabled, false);
+  assert.equal(mobileStatus.snowObjects.drawMeshes, 0);
+  assert.equal(mobileStatus.snowObjects.extraRealLights, 0);
+  assert.equal(mobileStatus.snowObjects.extraShadowCasters, 0);
   assert.equal(mobileStatus.pond.rainIntensity, 1);
   assert.equal(mobileStatus.pond.artificialLightFactor, 1);
   assert.ok(mobileStatus.pond.bumpiness > 0.45);
@@ -444,7 +478,7 @@ try {
   if (mobileStatus.graphics.tier === 'low') assert.ok(mobileStatus.nightWindows.maxWindowBudget <= 160);
   assert.ok(mobileStatus.streetLights.activeDynamicLights <= mobileStatus.streetLights.dynamicBudget);
   assert.deepEqual(smoke.problems, []);
-  console.log('world environment smoke: PASS (atmospheric gradient + sun glow, layered cloud parallax, emissive night windows, rain splashes + puddles, accumulating ground snow + batched footprints, CLEAR/CLOUDY/FOG/RAIN/SNOW, sky, rain/snow, street lights, wet roads, Inkyung pond, 390px mobile)');
+  console.log('world environment smoke: PASS (atmospheric gradient + sun glow, layered cloud parallax, emissive night windows, rain splashes + puddles, accumulating ground snow + batched footprints + object snow caps, CLEAR/CLOUDY/FOG/RAIN/SNOW, sky, rain/snow, street lights, wet roads, Inkyung pond, 390px mobile)');
 } finally {
   await smoke.close();
 }
