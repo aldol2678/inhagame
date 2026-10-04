@@ -110,6 +110,14 @@ select is(
     where encounter_id=(select encounter_id from p4_ids where name='first')),
   4112,'same action key cannot deal damage twice');
 select is(
+  public.world_combat_building5_action_v1(
+    'a9800000-0000-4000-8000-0000000000a9',
+    (select encounter_id from p4_ids where name='first'),
+    'BASIC','a9800000-0000-4000-8000-000000000103')
+    ->>'reason',
+  'COOLDOWN','server rejects Basic faster than v9.22 cadence');
+
+select is(
   (select count(*)::integer from private.world_combat_action_receipts
     where encounter_id=(select encounter_id from p4_ids where name='first')
       and action_key='a9800000-0000-4000-8000-000000000101'),
@@ -122,6 +130,10 @@ declare
   i integer;
 begin
   for i in 1..80 loop
+    -- Advance the authoritative DB clock without sleeping so BASIC cadence and enemy timers are exercised.
+    update private.world_combat_encounters
+       set started_at = started_at - interval '250 milliseconds'
+     where encounter_id = p_encounter;
     v := public.world_combat_building5_action_v1(
       p_user,p_encounter,'BASIC',gen_random_uuid());
     exit when v->'encounter'->>'status' <> 'ACTIVE';
