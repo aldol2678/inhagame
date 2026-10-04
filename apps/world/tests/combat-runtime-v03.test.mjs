@@ -88,7 +88,10 @@ test('Combat v0.3 Runtime resolves Blaster actions into the injected local Build
   assert.equal(blocked.accepted, false);
   assert.equal(blocked.reason, 'RESOURCE_REQUIRED');
 
-  for (let i = 0; i < 4; i += 1) runtime.dispatch('basic');
+  for (let i = 0; i < 4; i += 1) {
+    now += 220;
+    runtime.dispatch('basic');
+  }
   assert.ok(runtime.snapshot().training.momentum >= 50);
   const barrage = runtime.dispatch('active_3');
   assert.equal(barrage.outcome.damagePackets.length, 7);
