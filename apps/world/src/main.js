@@ -277,11 +277,6 @@ if (assetProductionCanary.selected) assetCanaryTelemetry.selected();
 
 worldLoading?.setPhase("WORLD");
 
-if (giantRoachTestMode) {
-  const { createGiantRoachExperiment } = await import('./giant-roach-experiment.js');
-  giantRoachExperiment = createGiantRoachExperiment({ app, campusRoot: app.root, player, count: giantRoachTestCount });
-}
-
 window.addEventListener("resize", () => app.resizeCanvas());
 rendererEl.textContent = rendererName;
 
@@ -493,6 +488,11 @@ window.__INHAGAME_WINTER_QA__ = Object.freeze({
 
 // The main-gate shuttle is intentionally withheld until the Songdo campus route exists.
 const controller = new PlayerController(player, { campusShuttleEnabled: false });
+
+if (giantRoachTestMode) {
+  const { createGiantRoachExperiment } = await import('./giant-roach-experiment.js');
+  giantRoachExperiment = createGiantRoachExperiment({ app, campusRoot: app.root, player, count: giantRoachTestCount });
+}
 const helicopterFlightHud = createHelicopterFlightHud({
   root: document.getElementById("helicopter-flight-hud"),
   toggle: document.getElementById("helicopter-flight-hud-toggle"),
