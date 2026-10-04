@@ -114,3 +114,78 @@ test('Combat local target resets inside the same training session without granti
   assert.equal('rewardId' in runtime.snapshot(), false);
   assert.equal('resultRef' in runtime.snapshot(), false);
 });
+
+
+test('server authority snapshot reconciles predicted HP, BREAK, resources and cooldowns', () => {
+  let now = 5000;
+  const clock = { now: () => now };
+  const training = createBuilding5CombatTraining({
+    clock,
+    getPlayerPosition: () => ({ x: BUILDING5_TRAINING_TARGET.x, z: BUILDING5_TRAINING_TARGET.z + 4 })
+  });
+  const runtime = createCombatRuntimeV03({ clock, localTraining: training });
+  runtime.startTraining({ sourceRef: 'combat.building5.training_gate', placeZoneId: 'AREA_BUILDING_5_WEST' });
+
+  assert.equal(runtime.reconcileAuthorityEncounter({
+    status: 'ACTIVE',
+    resultRef: null,
+    state: {
+      elapsedMs: 1000,
+      player: {
+        hp: 956, maxHp: 1000, momentum: 35, ultimateGauge: 42,
+        rapidUntilMs: 3000, dodgeStartMs: null, perfectUsed: false, defeated: false
+      },
+      enemy: {
+        hp: 3000, maxHp: 4200, breakValue: 20, breakMax: 100,
+        brokenUntilMs: 1500, defeated: false
+      },
+      cooldownUntil: { basic: 1100, active_1: 2500, active_2: 0, active_3: 0, dodge: 0 },
+      enemyAttack: { nextWindupMs: 2200, windupMs: 680, damage: 44, engagementRange: 5, impactRadius: 1.15 }
+    }
+  }), true);
+
+  const state = runtime.snapshot();
+  assert.equal(state.ultimateGauge, 42);
+  assert.equal(state.training.player.hp, 956);
+  assert.equal(state.training.hp, 3000);
+  assert.equal(state.training.breakValue, 20);
+  assert.equal(state.training.brokenRemainingMs, 500);
+  assert.equal(state.training.rapidBuffRemainingMs, 2000);
+  assert.equal(state.training.cooldowns.basic, 100);
+  assert.equal(state.training.cooldowns.active_1, 1500);
+  assert.equal(state.training.enemyAttack.nextInMs, 1200);
+  assert.equal(state.lastAction.kind, 'authority-sync');
+});
+
+test('server terminal victory reconciles the local target to defeated without client-authored result fields', () => {
+  let now = 8000;
+  const clock = { now: () => now };
+  const training = createBuilding5CombatTraining({
+    clock,
+    getPlayerPosition: () => ({ x: BUILDING5_TRAINING_TARGET.x, z: BUILDING5_TRAINING_TARGET.z + 4 })
+  });
+  const runtime = createCombatRuntimeV03({ clock, localTraining: training });
+  runtime.startTraining({ sourceRef: 'combat.building5.training_gate', placeZoneId: 'AREA_BUILDING_5_WEST' });
+
+  runtime.reconcileAuthorityEncounter({
+    status: 'SUCCEEDED',
+    resultRef: 'combat-result:11111111-1111-4111-8111-111111111111',
+    state: {
+      elapsedMs: 4000,
+      player: {
+        hp: 912, maxHp: 1000, momentum: 70, ultimateGauge: 83,
+        rapidUntilMs: 0, dodgeStartMs: null, perfectUsed: false, defeated: false
+      },
+      enemy: {
+        hp: 0, maxHp: 4200, breakValue: 0, breakMax: 100,
+        brokenUntilMs: 0, defeated: true
+      },
+      cooldownUntil: { basic: 0, active_1: 0, active_2: 0, active_3: 0, dodge: 0 },
+      enemyAttack: { nextWindupMs: 6000, windupMs: 680, damage: 44, engagementRange: 5, impactRadius: 1.15 }
+    }
+  });
+
+  assert.equal(runtime.snapshot().training.defeated, true);
+  assert.equal(runtime.dispatch('basic').reason, 'TARGET_DEFEATED');
+  assert.equal(runtime.snapshot().lastAction.resultRef, 'combat-result:11111111-1111-4111-8111-111111111111');
+});
