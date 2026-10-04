@@ -1,14 +1,26 @@
 import { AUDIO_TRANSITION, resolveAudioZone } from "./audio-zones.js";
 import { makeAmbienceBuffer } from "./synth-ambience.js";
 import { createRuntimeMusicLayer } from "./music-runtime.js";
+import { resolveAssetFactoryPreviewAmbience } from "./asset-factory-preview.js";
 
 const clamp = value => Math.max(0, Math.min(1, Number(value) || 0));
+
+async function defaultAmbienceAssetLoader(context, url, fetchFn) {
+  if (typeof fetchFn !== "function") throw new Error("E_AMBIENCE_ASSET_FETCH_UNAVAILABLE");
+  if (typeof context?.decodeAudioData !== "function") throw new Error("E_AMBIENCE_ASSET_DECODE_UNAVAILABLE");
+  const response = await fetchFn(url, { mode: "cors", cache: "force-cache" });
+  if (!response?.ok) throw new Error(`E_AMBIENCE_ASSET_HTTP_${response?.status ?? "UNKNOWN"}`);
+  return context.decodeAudioData(await response.arrayBuffer());
+}
 
 export function createWorldAudio({
   documentLike = globalThis.document,
   AudioContextClass = globalThis.AudioContext ?? globalThis.webkitAudioContext,
   fadeSeconds = AUDIO_TRANSITION.fadeSeconds,
   musicAssetLoader = undefined,
+  ambienceAssetLoader = undefined,
+  assetFactoryPreviewId = null,
+  fetchFn = globalThis.fetch,
   setTimeoutFn = globalThis.setTimeout,
   clearTimeoutFn = globalThis.clearTimeout
 } = {}) {
@@ -16,13 +28,19 @@ export function createWorldAudio({
   let master = null;
   let ambienceBus = null;
   let musicBus = null;
-  let desired = { space: "campus", placeZoneId: null, placeId: null };
+  let desired = { space: "campus", placeZoneId: null, placeId: null, weather: null };
   let volume = 1;
   let musicVolume = 1;
   let degraded = false;
   let disposed = false;
   const handles = new Map();
   const buffers = new Map();
+  const sampledBuffers = new Map();
+  let sampled = null;
+  let sampledRequest = 0;
+  let sampledError = null;
+  const loadAmbienceAsset = ambienceAssetLoader ??
+    ((audioContext, url) => defaultAmbienceAssetLoader(audioContext, url, fetchFn));
   const music = createRuntimeMusicLayer({
     getContext: () => context,
     getOutput: () => musicBus,
@@ -38,6 +56,14 @@ export function createWorldAudio({
     for (const source of handle.sources) { try { source.stop(); } catch { /* Already stopped. */ } source.disconnect(); }
     for (const node of handle.nodes) node.disconnect();
     handles.delete(id);
+  }
+
+  function stopSampled() {
+    if (!sampled) return;
+    try { sampled.source.stop(); } catch { /* Already stopped. */ }
+    sampled.source.disconnect();
+    sampled.gain.disconnect();
+    sampled = null;
   }
 
   function fade(handle, target) {
@@ -82,6 +108,53 @@ export function createWorldAudio({
     }
   }
 
+  async function refreshSampled(profile) {
+    const asset = resolveAssetFactoryPreviewAmbience({
+      assetId: assetFactoryPreviewId,
+      zone: profile?.id ?? null,
+      weather: desired.weather
+    });
+    if (!asset) {
+      sampledRequest += 1;
+      stopSampled();
+      sampledError = null;
+      return;
+    }
+    if (sampled?.assetId === asset.id) return;
+
+    const request = ++sampledRequest;
+    try {
+      let buffer = sampledBuffers.get(asset.id);
+      if (!buffer) {
+        buffer = await loadAmbienceAsset(context, asset.uri);
+        if (request !== sampledRequest || disposed) return;
+        sampledBuffers.set(asset.id, buffer);
+      }
+      if (request !== sampledRequest || disposed || context?.state !== "running") return;
+      const current = resolveAssetFactoryPreviewAmbience({
+        assetId: assetFactoryPreviewId,
+        zone: resolveAudioZone(desired)?.id ?? null,
+        weather: desired.weather
+      });
+      if (current?.id !== asset.id) return;
+
+      stopSampled();
+      const source = context.createBufferSource();
+      const gain = context.createGain();
+      source.buffer = buffer;
+      source.loop = true;
+      gain.gain.value = clamp(asset.runtime.gain);
+      source.connect(gain).connect(ambienceBus);
+      source.start();
+      sampled = { assetId: asset.id, source, gain };
+      sampledError = null;
+    } catch (error) {
+      if (request !== sampledRequest || disposed) return;
+      stopSampled();
+      sampledError = String(error?.message ?? error);
+    }
+  }
+
   function apply() {
     if (!context || context.state !== "running" || disposed) return;
     const profile = resolveAudioZone(desired);
@@ -92,6 +165,7 @@ export function createWorldAudio({
       const handle = handles.get(profile.id) ?? startProfile(profile);
       if (handle.timer || handle.gain.gain.value < 1) fade(handle, 1);
     }
+    void refreshSampled(profile);
   }
 
   async function unlock() {
@@ -122,7 +196,12 @@ export function createWorldAudio({
   }
 
   function setState(state) {
-    desired = { space: state?.space ?? "campus", placeZoneId: state?.placeZoneId ?? null, placeId: state?.placeId ?? null };
+    desired = {
+      space: state?.space ?? "campus",
+      placeZoneId: state?.placeZoneId ?? null,
+      placeId: state?.placeId ?? null,
+      weather: typeof state?.weather === "string" ? state.weather.toUpperCase() : null
+    };
     try { apply(); } catch { degraded = true; }
     return music.setState(desired);
   }
@@ -169,7 +248,13 @@ export function createWorldAudio({
     unlock, setState, setVolume, setMusicProject, setMusicConfigError, setMusicVolume, playCue,
     status() {
       const profile = resolveAudioZone(desired);
-      const ambienceSources = [...handles.values()].reduce((count, handle) => count + handle.sources.length, 0);
+      const syntheticSources = [...handles.values()].reduce((count, handle) => count + handle.sources.length, 0);
+      const ambienceSources = syntheticSources + (sampled ? 1 : 0);
+      const requestedSampled = resolveAssetFactoryPreviewAmbience({
+        assetId: assetFactoryPreviewId,
+        zone: profile?.id ?? null,
+        weather: desired.weather
+      });
       const musicStatus = music.status();
       return {
         zone: profile?.id ?? null, ambience: profile?.ambience ?? null,
@@ -178,6 +263,13 @@ export function createWorldAudio({
         ambienceSources,
         activeSources: ambienceSources + musicStatus.activeSources,
         context: context?.state ?? "locked", degraded, volume,
+        sampledAmbience: {
+          previewOnly: Boolean(assetFactoryPreviewId),
+          requestedAssetId: requestedSampled?.id ?? null,
+          activeAssetId: sampled?.assetId ?? null,
+          status: sampled ? "active" : sampledError ? "degraded" : requestedSampled ? "loading" : "inactive",
+          error: sampledError
+        },
         music: { ...musicStatus, volume: musicVolume }
       };
     },
@@ -187,12 +279,15 @@ export function createWorldAudio({
       for (const type of ["pointerdown", "keydown", "touchend"]) documentLike?.removeEventListener?.(type, onGesture);
       documentLike?.removeEventListener?.("visibilitychange", onVisibility);
       for (const id of [...handles.keys()]) stopHandle(id);
+      sampledRequest += 1;
+      stopSampled();
       music.dispose();
       ambienceBus?.disconnect();
       musicBus?.disconnect();
       master?.disconnect();
       void context?.close?.().catch(() => {});
       buffers.clear();
+      sampledBuffers.clear();
     }
   };
 }

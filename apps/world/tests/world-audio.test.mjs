@@ -2,8 +2,17 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { AUDIO_PROFILES, resolveAudioZone } from "../src/audio/audio-zones.js";
 import { createWorldAudio } from "../src/audio/world-audio.js";
+import {
+  AF07_INKYUNG_RAIN_ASSET_ID,
+  resolveAssetFactoryPreviewAmbience
+} from "../src/audio/asset-factory-preview.js";
 
-function rig({ locked = false, unavailable = false } = {}) {
+function rig({
+  locked = false,
+  unavailable = false,
+  assetFactoryPreviewId = null,
+  ambienceAssetLoader = undefined
+} = {}) {
   const listeners = new Map();
   const timers = new Map();
   const sources = [];
@@ -37,9 +46,14 @@ function rig({ locked = false, unavailable = false } = {}) {
     emit(type) { for (const handler of listeners.get(type) ?? []) handler(); },
     count() { return [...listeners.values()].reduce((n, group) => n + group.size, 0); }
   };
-  const audio = createWorldAudio({ documentLike, AudioContextClass: unavailable ? null : Context,
+  const audio = createWorldAudio({
+    documentLike,
+    AudioContextClass: unavailable ? null : Context,
+    assetFactoryPreviewId,
+    ...(ambienceAssetLoader ? { ambienceAssetLoader } : {}),
     setTimeoutFn: handler => { const id = ++timerId; timers.set(id, handler); return id; },
-    clearTimeoutFn: id => timers.delete(id) });
+    clearTimeoutFn: id => timers.delete(id)
+  });
   const flush = () => { for (const [id, handler] of [...timers]) { timers.delete(id); handler(); } };
   return { audio, documentLike, flush, sources, contexts, timers };
 }
@@ -108,4 +122,63 @@ test("unavailable and suspended audio never block zone state", async () => {
   assert.equal(await blocked.audio.unlock(), false);
   assert.equal(blocked.audio.status().zone, "PERSONAL_ROOM");
   blocked.audio.dispose();
+});
+
+
+test("AF-07 preview registry is fail-closed outside Inkyung rain", () => {
+  assert.equal(resolveAssetFactoryPreviewAmbience({
+    assetId: AF07_INKYUNG_RAIN_ASSET_ID, zone: "INKYUNG", weather: "CLEAR"
+  }), null);
+  assert.equal(resolveAssetFactoryPreviewAmbience({
+    assetId: "asset.unknown", zone: "INKYUNG", weather: "RAIN"
+  }), null);
+  const asset = resolveAssetFactoryPreviewAmbience({
+    assetId: AF07_INKYUNG_RAIN_ASSET_ID, zone: "INKYUNG", weather: "RAIN"
+  });
+  assert.equal(asset?.rights?.status, "unverified");
+  assert.equal(asset?.runtime?.previewOnly, true);
+});
+
+test("AF-07 sampled ambience overlays rain in preview and falls back to synthetic ambience", async () => {
+  let loads = 0;
+  const r = rig({
+    assetFactoryPreviewId: AF07_INKYUNG_RAIN_ASSET_ID,
+    ambienceAssetLoader: async () => {
+      loads += 1;
+      return { id: "af07-buffer" };
+    }
+  });
+  r.audio.setState({ placeZoneId: "AREA_INKYUNG_STUDENT_CENTER", weather: "RAIN" });
+  await r.audio.unlock();
+  await Promise.resolve();
+  await Promise.resolve();
+  let status = r.audio.status();
+  assert.equal(loads, 1);
+  assert.equal(status.zone, "INKYUNG");
+  assert.equal(status.sampledAmbience.status, "active");
+  assert.equal(status.sampledAmbience.activeAssetId, AF07_INKYUNG_RAIN_ASSET_ID);
+  assert.equal(status.ambienceSources, 3, "two synthetic layers plus one preview sampled layer");
+
+  r.audio.setState({ placeZoneId: "AREA_INKYUNG_STUDENT_CENTER", weather: "CLEAR" });
+  await Promise.resolve();
+  status = r.audio.status();
+  assert.equal(status.sampledAmbience.status, "inactive");
+  assert.equal(status.ambienceSources, 2, "existing synthetic fallback remains active");
+  r.audio.dispose();
+});
+
+test("AF-07 sampled ambience load failure never removes the existing Inkyung ambience", async () => {
+  const r = rig({
+    assetFactoryPreviewId: AF07_INKYUNG_RAIN_ASSET_ID,
+    ambienceAssetLoader: async () => { throw new Error("cors blocked"); }
+  });
+  r.audio.setState({ placeZoneId: "AREA_INKYUNG_STUDENT_CENTER", weather: "RAIN" });
+  await r.audio.unlock();
+  await Promise.resolve();
+  await Promise.resolve();
+  const status = r.audio.status();
+  assert.equal(status.sampledAmbience.status, "degraded");
+  assert.equal(status.ambienceSources, 2);
+  assert.equal(status.zone, "INKYUNG");
+  r.audio.dispose();
 });
