@@ -513,7 +513,6 @@ app.on("update", dt => {
   const held = combatFeedback.hitstopActive();
   if (!held) {
     combatRuntime.update();
-    combatWorldMotion.update();
     combatTargetRenderer.update(dt);
   } else {
     combatTargetRenderer.update(0);
@@ -2746,6 +2745,7 @@ app.on("update", (dt) => {
   follow.update();
   playerAutoMove?.update(navigation?.getSnapshot() ?? null, player.getLocalPosition());
   if (!seating.beforeController()) controller.update(Math.min(dt, 0.05), orbit.yaw);
+  if (!combatFeedback.hitstopActive()) combatWorldMotion.update();
   helicopterFlightHud.update();
   orbit.setMounted(controller.mounted);
   character.setMounted(controller.mounted);
