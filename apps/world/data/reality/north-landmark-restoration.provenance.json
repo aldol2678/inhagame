@@ -1,0 +1,28 @@
+{
+  "schema": "inha.photo-landmark-restoration/1",
+  "baselineCommit": "5b262960c1b5f9a365528952ab351e477a289948",
+  "implementationBaseCommit": "3b95e37f3dec477ebe7e06456907176bb81a63a2",
+  "referenceReviewDate": "2026-10-04",
+  "implementation": "New procedural geometry; no photographic assets or private source records included",
+  "sources": [
+    {"id":"five-2025-spring","url":"https://www.welfarehello.com/community/hometownNews/792fbbc7-1ff5-48e5-b0e9-a13555d7b1f4","imageUrl":"https://cdn.welfarehello.com/naver-blog/production/tong_namgu/2025-04/223838593624/tong_namgu_223838593624_1.jpg","sourceType":"municipal spring campus article mirrored by WelfareHello","publicationContext":"2025 spring; image path 2025-04","captureDate":"unverified","pixelsInspected":true},
+    {"id":"five-inhanuri","url":"https://inhanuri.tistory.com/1240","sourceType":"university student-media onsite report","published":"2015-07-08","captureDate":"unverified","pixelsInspected":true},
+    {"id":"five-sixty-lane","url":"https://jinkuk.tistory.com/entry/전통과-미래가-흐르는-길","sourceType":"public onsite photo essay","publicationContext":"2016","captureDate":"unverified","pixelsInspected":true},
+    {"id":"sixty-unn","url":"https://news.unn.net/news/articleView.html?idxno=523193","imageUrl":"https://cdn.news.unn.net/news/photo/202201/523193_326401_184.jpg","sourceType":"university-news exterior photograph","publicationContext":"2022-01 image path","captureDate":"unverified","pixelsInspected":true},
+    {"id":"five-sixty-oblique","url":"https://jp.square-edu.net/65/?bmode=view&idx=9091259","imageUrl":"https://cdn.imweb.me/upload/S201906178853c3e170808/625ac54cb0d27.jpg","sourceType":"public university-information exterior photograph","captureDate":"unverified","pixelsInspected":true},
+    {"id":"agora-onsite","url":"https://shareit.kr/venue/3199","sourceType":"venue listing with multiple onsite photographs","assetPathDate":"2021-06-03","captureDate":"unverified","pixelsInspected":true},
+    {"id":"official-campus-illustration","url":"https://n-ext.inha.ac.kr/event/717/images/145-campusmap_front.jpg","sourceType":"university-domain schematic campus guide","publicationContext":"2023 event site","pixelsInspected":true,"use":"identity, side and long-axis orientation only; not dimensions"},
+    {"id":"campus-aerial-2026-publication","url":"https://www.fnnews.com/news/202602230937515499","imageUrl":"https://image.fnnews.com/resource/media/image/2026/02/23/202602230942533090_e.jpg","sourceType":"university-supplied stock aerial","published":"2026-02-23","captureDate":"unverified","pixelsInspected":true,"use":"cross-check landmark silhouettes; not proof of 2026 ground conditions"}
+  ],
+  "targets": [
+    {"id":"bldg_05","observed":"Pale long south frontage, multi-storey arched bays, attached pale clock core with dark vertical glazing; rectangular horizontal bands on the lane-side elevation","implemented":"South facade edges 2/6/7; east long edges 13/14; fitted attached clock core above the existing roof","inferred":"Mapping photographed bands to east edges, exact clock-core placement/height and bay spacing","notEstablished":"Courtyard, north and west facade details; measured facade proportions","groundEnvelopeChanged":false},
+    {"id":"bldg_60th","observed":"Tall narrow teal-glass slab with gray vertical shoulders and top frame; low glazed podium with a flowing thick facade ribbon","implemented":"One source-edge-aligned elevated slab; glass/metal palette and grid; bounded podium ribbon","inferred":"Tower span 18–72% of source long edge, inset 3.6–9.2 game units, top 30; these are a reversible fitted interpretation","notEstablished":"Surveyed tower footprint/height, complex low-wing roof section, unseen service elevations","groundEnvelopeChanged":false},
+    {"id":"fac_agora_courtyard","observed":"Rectangular green hard-surfaced open terrace, pale cross-path, drainage at the open edge, full-height arched glazing on the three enclosing elevations","implemented":"Solid support and stairs matching existing ground-height authority, cross-path, visible existing guards, only courtyard-facing 6/9 elevations","inferred":"Game-scale paving proportions and facade bay spacing","notEstablished":"Post-2021 ground-level furniture/paving condition or exact measured step dimensions","groundEnvelopeChanged":false}
+  ],
+  "elevatedColliderDelta": [
+    {"id":"bldg_05_clock_core","minY":12,"maxY":23.5,"authority":"north-landmark-massing.js"},
+    {"id":"bldg_60th_tower","minY":13,"maxY":30,"authority":"north-landmark-massing.js"}
+  ],
+  "excludedEvidence": "A builder-project page linked an Inha University Hospital photograph; it was excluded after visual identity verification.",
+  "limits": "No recent capture-dated 2024–2026 ground-level Agora photo was established in the bounded search. Publication date is not capture date. No blanket third-party copyright or trademark permission is asserted."
+}
