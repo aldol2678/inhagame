@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import {
   SKY_CLOUD_ALTITUDE,
   SKY_CLOUD_FIELD_RADIUS,
@@ -10,7 +11,8 @@ import {
   skyCloudFieldRadius,
   skyCloudLayout,
   skyCloudPatchBudget,
-  sunDirectionFromEuler,
+  shadowRayDirectionFromSunSource,
+  sunSourceDirectionFromLightUp,
   sunVisualProfile
 } from '../src/environment/sky-visual-policy.js';
 import { createEnvironmentDirector } from '../src/environment/environment-director.js';
@@ -79,14 +81,15 @@ test('cloud patch layout is deterministic and remains inside the bounded sky fie
   }
 });
 
-test('sun direction is normalized and sunset lowers the visible sun toward the horizon', () => {
-  const day = sunDirectionFromEuler([55, 30, 0]);
-  const sunset = sunDirectionFromEuler([18, 35, 0]);
-  near(Math.hypot(...day), 1);
-  near(Math.hypot(...sunset), 1);
-  assert.ok(day[1] > sunset[1]);
-  assert.ok(day[1] > 0);
-  assert.ok(sunset[1] > 0);
+test('visible sun source is normalized from light.up and shadow rays point exactly opposite', () => {
+  const source = sunSourceDirectionFromLightUp({ x: 0.41, y: 0.57, z: 0.71 });
+  const rays = shadowRayDirectionFromSunSource(source);
+  near(Math.hypot(...source), 1);
+  near(Math.hypot(...rays), 1);
+  near(source[0] * rays[0] + source[1] * rays[1] + source[2] * rays[2], -1);
+  near(rays[0], -source[0]);
+  near(rays[1], -source[1]);
+  near(rays[2], -source[2]);
 });
 
 test('sun and clouds react to night and rain without creating a separate CLOUDY weather state', () => {
@@ -163,4 +166,14 @@ test('Environment exposes allocation-free interpolated sky state for the rendere
   assert.deepEqual(out.sunEuler, [18, 35, 0]);
   assert.equal(out.artificialLightFactor, 0.18);
   assert.equal(out.rainIntensity, 1);
+});
+
+
+test('sky runtime binds the visible sun to the live directional-light axis, not an independent Euler formula', async () => {
+  const skyVisuals = await readFile(new URL('../src/environment/sky-visuals.js', import.meta.url), 'utf8');
+  const main = await readFile(new URL('../src/main.js', import.meta.url), 'utf8');
+
+  assert.match(skyVisuals, /writeSunSourceDirection\(sunDirection, lightEntity\?\.up\)/);
+  assert.doesNotMatch(skyVisuals, /writeSunDirection\(sunDirection, skyState\.sunEuler\)/);
+  assert.match(main, /createSkyVisuals\(\{[\s\S]*?lightEntity: light,/);
 });
