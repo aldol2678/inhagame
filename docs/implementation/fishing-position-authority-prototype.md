@@ -74,7 +74,11 @@ These are readiness requirements, not changes delivered by this experiment:
    memory Map survives reconnect only within one process. Restart or multiple Vercel workers
    cannot safely initialize it at revision 1 against existing evidence. JavaScript revisions
    stop at the safe integer limit although DB revisions are bigint. Do not deploy this Map
-   as a distributed owner. Add an explicitly reviewed service-only allocation/recovery
+   as a distributed owner. The follow-up
+   [durable DB fixture](fishing-durable-authority-prototype.md) now validates persisted claims,
+   owner leases, account-wide bigint revision allocation and transactional outbox/F3 receipts
+   on a disposable loopback DB. It is not a migration or a connected production owner.
+   Add an explicitly reviewed service-only allocation/recovery
    contract if needed; do not grant direct access to F3 private tables.
 2. **Server session admission and residence.** The follow-up
    [v1 admission/handoff design contract](fishing-admission-handoff-v1.md) selects explicit
