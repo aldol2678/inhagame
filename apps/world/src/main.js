@@ -83,6 +83,7 @@ import { FollowController, FollowStopReason, FOLLOW_CONTEXT_PRIORITY, FOLLOW_STO
 import { locomotionIntent } from "./seat-anchors.js";
 import { createClubRoomScene } from "./rooms/club-room-renderer.js";
 import { createRoomTransition, ROOM_TRANSITION_COOLDOWN_MS } from "./rooms/room-transition.js";
+import { createSpaceFade } from "./rooms/space-fade.js";
 import { DORM_1_LOBBY_MY_ROOM_RETURN } from "./rooms/dorm1-lobby-layout.js";
 import { createRoomWorldAdapter } from "./rooms/room-world-adapter.js";
 import { createDorm1LobbyScene } from "./rooms/dorm1-lobby-renderer.js";
@@ -1640,18 +1641,12 @@ const roomScenes = new Map([
 const spaceFade = document.getElementById("space-fade");
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 // 150 ms to black, switch, then fade back in; instant with reduced motion.
-const fadeSwitch = (run) => {
-  if (!spaceFade || reducedMotion.matches) { run(); return; }
-  spaceFade.hidden = false;
-  requestAnimationFrame(() => spaceFade.classList.add("on"));
-  setTimeout(() => {
-    run();
-    spaceFade.classList.remove("on");
-    setTimeout(() => { if (!spaceFade.classList.contains("on")) spaceFade.hidden = true; }, 180);
-  }, 160);
-};
+const fadeSwitch = createSpaceFade({ overlay: spaceFade, reducedMotion });
 rooms = createRoomTransition({
   fade: fadeSwitch,
+  onError: ({ recovered }) => showWorldStatus(recovered
+    ? "방을 전환하지 못했어요. 이전 위치에서 다시 시도해 주세요."
+    : "방 전환을 복구하지 못했어요. 새로고침해 주세요."),
   onBusyChange: (busy) => {
     if (busy) roomTransitionInput.acquire();
     else roomTransitionInput.release();
@@ -1680,6 +1675,7 @@ rooms = createRoomTransition({
       attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false);
       questJournal?.setOpen(false);
     },
+    getLocationLabel: () => zoneEl.textContent,
     setLocationLabel: (text) => { zoneEl.textContent = text; },
     markSpace: (id) => { if (id) document.body.dataset.space = id; else delete document.body.dataset.space; }
   })
@@ -1894,7 +1890,7 @@ friendRoomVisit = createFriendRoomVisitController({
 });
 // Housing D3: drafts stay account/room-scoped; visitors only receive server-authorized saved layouts.
 const moveOutOfFurniture = () => {
-  if (rooms.currentSpace !== "ROOM_PERSONAL_BASIC") return;
+  if (rooms.status().busy || rooms.currentSpace !== "ROOM_PERSONAL_BASIC") return;
   const pos = player.getLocalPosition();
   const blocked = personalRoomScene.ownedFurniture.obstacles.some(box => box.id && !box.id.startsWith("personal_") &&
     pos.x > box.minX - .24 && pos.x < box.maxX + .24 && pos.z > box.minZ - .24 && pos.z < box.maxZ + .24);
@@ -1913,7 +1909,7 @@ roomFurniture = createFurnitureClient({
       furnitureSceneSignature = signature;
       personalRoomScene.ownedFurniture.setObjects(state.objects);
       setPersonalRoomMapFurniture(state.objects);
-      if (rooms.currentSpace === "ROOM_PERSONAL_BASIC") {
+      if (!rooms.status().busy && rooms.currentSpace === "ROOM_PERSONAL_BASIC") {
         const map = createRoomMapDataSource("ROOM_PERSONAL_BASIC");
         minimap?.setDataSource(map,{ id:map.id,indoor:true,radiusWorld:map.radiusWorld });
         fullMap?.setDataSource(map,{ id:map.id,label:map.label });
@@ -2750,6 +2746,12 @@ places.onPlaceZoneChanged((previous,next)=>{
 
 app.on("update", (dt) => {
   syncAudio();
+  // Only render the camera while a room transaction owns the player's coordinate frame. Room
+  // pose publishing, campus observers and local motion must not consume an intermediate pose.
+  if (rooms.status().busy) {
+    orbit.apply(player.getLocalPosition(), character.eyeHeight);
+    return;
+  }
   roomSession?.update(dt);
   if (rooms.currentSpace === "ROOM_PERSONAL_BASIC") {
     furnitureRefreshSeconds += dt;
