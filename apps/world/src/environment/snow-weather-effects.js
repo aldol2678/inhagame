@@ -510,5 +510,5 @@ export function createSnowWeatherEffects({
     footprintMaterial.destroy();
   }
 
-  return Object.freeze({ update, status, destroy });
+  return Object.freeze({ update, status, getAccumulation: () => Math.max(0, accumulation), destroy });
 }
