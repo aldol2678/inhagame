@@ -133,7 +133,8 @@ test("production identity callback passes explicit identity even when online.use
     friendPanel: { setAvailable: noop }, nearbyPanel: { render: noop, setOpen: noop },
     accompany: { refresh: noop, reset: noop }, social: { mine: async () => ({ friends: [] }), reset: noop },
     socialAccountSession: { setAccount: noop }, lobbyPresenceSummary: { setFriends: noop, update: noop },
-    follow: { stop: noop }, FollowStopReason: { OFFLINE: "OFFLINE" }, playerCard: { close: noop }
+    follow: { stop: noop }, FollowStopReason: { OFFLINE: "OFFLINE" }, playerCard: { close: noop },
+    lobbyQuestHighlight: { update: noop }
   });
   runInContext(`function identityHandler(identity) {${body}\n}`, context);
   context.identityHandler({ userId: A }); await guestbookPanel.setOpen(true);

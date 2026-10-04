@@ -34,7 +34,7 @@ test('pilot fixtures keep their C0 §1.6 contract', () => {
     'head.inkyung_duck': ['WEARABLE', 'HEAD', 'UNCOMMON', 'COMING_SOON', 'EXPLORATION'],
     'top.inha_basic': ['WEARABLE', 'TOP', 'COMMON', 'ACTIVE', 'DEFAULT'],
     'back.freshman_bag': ['WEARABLE', 'BACK', 'COMMON', 'ACTIVE', 'DEFAULT'],
-    'badge.main_gate': ['BADGE', 'BADGE', 'UNCOMMON', 'COMING_SOON', 'QUEST'],
+    'badge.main_gate': ['BADGE', 'BADGE', 'UNCOMMON', 'ACTIVE', 'QUEST'],
     'emote.wave_plus': ['EMOTE', null, 'UNCOMMON', 'COMING_SOON', 'QUEST']
   };
   for (const [id, [category, slot, rarity, status, source]] of Object.entries(expected)) {
@@ -44,6 +44,11 @@ test('pilot fixtures keep their C0 §1.6 contract', () => {
   }
   assert.equal(getItemDefinition('badge.main_gate').acquisition[0].ref, 'quest.first_campus');
   assert.deepEqual(DEFAULT_ITEM_IDS, ['head.inha_cap', 'top.inha_basic', 'back.freshman_bag']);
+});
+
+test('earned starter rewards exposed in inventory/wardrobe are ACTIVE', () => {
+  assert.equal(getItemDefinition('badge.main_gate').status, 'ACTIVE');
+  assert.equal(getItemDefinition('head.induck_cap').status, 'ACTIVE');
 });
 
 test('legacy items stay cosmetic UNIQUE while Life M1 materials are gameplay STACKABLE', () => {

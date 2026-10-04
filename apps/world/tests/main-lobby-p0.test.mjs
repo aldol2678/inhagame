@@ -704,6 +704,15 @@ test("C15.2 signed-in degraded quest status never falls back to the guest guided
   assert.equal(selected, null);
 });
 
+
+test("P1.4 signed-in account never sees browser-local tour when quest runtime is absent", () => {
+  assert.equal(selectLobbyQuest({
+    tourStage: 0,
+    quest: null,
+    accountSignedIn: true
+  }), null);
+});
+
 test("P1.4 incomplete first tour is the guest-safe fallback", () => {
   const selected = selectLobbyQuest({
     tourStage: 1,

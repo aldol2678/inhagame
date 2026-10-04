@@ -243,6 +243,19 @@ body.joystick-right #emote-toggle, body.joystick-right .emote-menu, body.joystic
   padding: 6px 10px; border-radius: 12px; background: #ffffffee; color: #172430; font-size: 13px; font-weight: 700;
   line-height: 1.35; overflow-wrap: anywhere; box-shadow: 0 2px 8px #0005; pointer-events: none;
 }
+@media (pointer: coarse) {
+  /* P4 mobile Chat: keep the expanded composer above the 48px Social Cluster.
+     Preview stays at its existing height; only the open-chat layer moves upward. */
+  .chat-form {
+    bottom: calc(max(218px, env(safe-area-inset-bottom) + 176px) + var(--keyboard-inset, 0px));
+  }
+  .chat-feed[data-mode="EXPANDED"] {
+    bottom: calc(max(290px, env(safe-area-inset-bottom) + 248px) + var(--keyboard-inset, 0px));
+  }
+  .chat-hint {
+    bottom: calc(max(268px, env(safe-area-inset-bottom) + 226px) + var(--keyboard-inset, 0px));
+  }
+}
 @media (pointer: fine) and (min-width: 700px) {
   .chat-feed, .chat-form, .chat-hint {
     left: max(20px, env(safe-area-inset-left)); right: auto; transform: none;
@@ -4913,7 +4926,6 @@ body[data-hud-mode="COMBAT"] #jump { display:none !important; }
 }
 /* FULL-MAP-LANDSCAPE:end */
 
-/* LANDSCAPE-HUD:start
 /* Collection furniture editor: input is owned by BLOCKING_UI while this modal is open. */
 .furniture-editor-backdrop { position:fixed; inset:0; z-index:1090; background:#10203355; }
 .furniture-editor { position:fixed; z-index:1100; right:14px; top:14px; bottom:14px; width:min(430px,calc(100vw - 28px)); overflow:auto; overscroll-behavior:contain; padding:18px; box-sizing:border-box; border:1px solid #b8c9d8; border-radius:18px; background:#f8fbff; color:#24394d; box-shadow:0 12px 50px #091b3c66; font:14px/1.5 sans-serif; }
@@ -4936,6 +4948,7 @@ body[data-hud-mode="COMBAT"] #jump { display:none !important; }
 @media(max-width:600px) { .furniture-editor { inset:8px; width:auto; padding:12px; border-radius:14px; } }
 @media(max-height:500px) and (min-width:601px) { .furniture-editor { width:390px; top:6px; bottom:6px; padding:12px; } .furniture-plan { max-height:200px; } }
 
+/* LANDSCAPE-HUD:start
    Mobile landscape HUD · phones held sideways (touch + landscape + short viewport).
    The portrait phone HUD keys off max-width, so a rotated phone (740–932px wide) used to fall through to the
    desktop-sized layout while joystick / jump / run were already active: the right rail and the action stack
@@ -5121,7 +5134,9 @@ body[data-hud-mode="COMBAT"] #jump { display:none !important; }
     width: min(340px, calc(100vw - var(--ls-lane-left) - var(--ls-lane-end)));
   }
   body .chat-form { bottom: calc(var(--ls-lane-bottom) + var(--keyboard-inset, 0px)); }
-  body .chat-feed {
+  /* Expanded chat must override the coarse-pointer portrait offset too. */
+  body .chat-feed,
+  body .chat-feed[data-mode="EXPANDED"] {
     bottom: calc(var(--ls-lane-bottom) + 50px + var(--keyboard-inset, 0px));
     max-height: 76px;
     font-size: 12px;

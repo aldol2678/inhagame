@@ -184,10 +184,8 @@ export function createLoadoutClient({ getClient, createKey = defaultKey } = {}) 
         : await client.rpc(LOADOUT_UNEQUIP_RPC, { p_slot: slot, p_idempotency_key: key });
       if (error) {
         const code = loadoutErrorCode(error);
-        if (code !== "FAILED") unresolvedKeys.delete(intent);
         response = { outcome: code === "FAILED" ? "FAILED" : "REFUSED", code, ...base };
       } else if (data?.status === "SUCCESS") {
-        unresolvedKeys.delete(intent);
         response = { outcome: "SUCCESS", code: null, result: data, ...base };
       } else {
         response = { outcome: "FAILED", code: "FAILED", ...base };
@@ -196,9 +194,13 @@ export function createLoadoutClient({ getClient, createKey = defaultKey } = {}) 
       response = { outcome: "FAILED", code: loadoutErrorCode(error), ...base };
     }
     if (gen !== generation || account !== accountId) return { outcome: "STALE", code: null, ...base };
+    // Only the owning generation may retire its key; unknown outcomes keep it for a safe retry.
+    if (response.outcome === "SUCCESS" || response.outcome === "REFUSED") unresolvedKeys.delete(intent);
     pending.delete(slot);
     publish(action === "EQUIP" ? "equip" : "unequip");
     if (response.outcome !== "FAILED") await refresh(action === "EQUIP" ? "equip" : "unequip");
+    // Readback can outlive its account; do not release an old result to UI callbacks.
+    if (gen !== generation || account !== accountId) return { outcome: "STALE", code: null, ...base };
     return response;
   }
 

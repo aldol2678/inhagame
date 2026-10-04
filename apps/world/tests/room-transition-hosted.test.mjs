@@ -7,6 +7,7 @@ test('hosted room QA uses exact PR head, bounded read-only jobs and uploads evid
   assert.match(workflow, /ref: \$\{\{ github.event.pull_request.head.sha \}\}/);
   assert.match(workflow, /contents: read/);
   assert.match(workflow, /persist-credentials: false/);
+  assert.match(workflow, /fonts-noto-cjk/, 'Korean failure feedback must be visually readable on the hosted runner');
   assert.match(workflow, /timeout-minutes: 12/);
   assert.match(workflow, /if: always\(\)/);
   assert.match(workflow, /EXPECTED_ROOM_HEAD: \$\{\{ github.event.pull_request.head.sha \}\}/);
