@@ -14,7 +14,7 @@ export function createBackgateTransitPanel({
     closeButton=el('button','profile-close','×');closeButton.type='button';closeButton.setAttribute('aria-label','정류장 닫기');closeButton.addEventListener('click',()=>setOpen(false));
     const real=el('div','transit-route transit-route-real');real.append(el('strong','','511 · 주안역 방면'),el('p','profile-note','현실 노선 정보 · 실시간 운행 안내는 제공하지 않아요.'));
     const game=el('div','transit-route transit-route-game');game.append(el('strong','','F1 · 비룡역'),el('p','profile-note','INHA WORLD 전용 · 비룡권 경계 노선'));
-    boardButton=el('button','transit-board','비룡역 가기');boardButton.type='button';
+    boardButton=el('button','transit-board','비룡역 가기');boardButton.type='button';boardButton.disabled=false;
     boardButton.addEventListener('click',()=>{
       if(destroyed||!open)return;
       const started=onBoard()===true;
