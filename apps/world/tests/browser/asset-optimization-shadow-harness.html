@@ -27,6 +27,13 @@
     });
   }
 
+  function attach(asset, name, root) {
+    const entity = asset.resource.instantiateRenderEntity({ castShadows: false, receiveShadows: false });
+    entity.name = name;
+    root.addChild(entity);
+    return entity;
+  }
+
   function renderShape(entity) {
     const renders = entity?.findComponents?.("render") ?? [];
     const meshInstances = renders.flatMap(render => render?.meshInstances ?? []);
@@ -43,7 +50,6 @@
       powerPreference: "high-performance",
       antialias: false
     });
-
     const options = new pc.AppOptions();
     options.graphicsDevice = device;
     options.componentSystems = [pc.RenderComponentSystem, pc.CameraComponentSystem, pc.LightComponentSystem];
@@ -56,59 +62,53 @@
     const enabled = new URLSearchParams(location.search).get("shadow") === "1";
     const shadow = createAssetOptimizationShadow({ app, enabled });
 
-    // 1) Character path: canonical GLB is the real scene consumer.
-    const characterAsset = await loadContainer(app, "/assets/induck-v3.glb");
-    const characterEntity = characterAsset.resource.instantiateRenderEntity({
-      castShadows: false,
-      receiveShadows: false
-    });
-    characterEntity.name = "CanonicalCharacter";
-    app.root.addChild(characterEntity);
-    await shadow.observeResource("/assets/induck-v3.glb", characterAsset, { consumer: "character-harness" });
+    const duckAsset = await loadContainer(app, "/assets/induck-v3.glb");
+    const duck = attach(duckAsset, "CanonicalDuck", app.root);
+    await shadow.observeResource("/assets/induck-v3.glb", duckAsset, { consumer: "character-duck-harness" });
 
-    // 2) Equipment path: exercise the real createEquipmentModelLoader().
+    const dragonAsset = await loadContainer(app, "/assets/annyongi-flight-v1.glb");
+    const dragon = attach(dragonAsset, "CanonicalDragon", app.root);
+    await shadow.observeResource("/assets/annyongi-flight-v1.glb", dragonAsset, { consumer: "character-flight-harness" });
+
     const equipmentLoader = createEquipmentModelLoader({ app, assetShadow: shadow });
-    const backpackEntity = await equipmentLoader("equipment.back.induck_backpack.v1");
-    backpackEntity.name = "CanonicalBackpack";
-    app.root.addChild(backpackEntity);
+    const cap = await equipmentLoader("equipment.head.induck_cap.v1");
+    cap.name = "CanonicalCap";
+    app.root.addChild(cap);
+    const backpack = await equipmentLoader("equipment.back.induck_backpack.v1");
+    backpack.name = "CanonicalBackpack";
+    app.root.addChild(backpack);
+    const hoodie = await equipmentLoader("equipment.top.induck_hoodie.v1");
+    hoodie.name = "CanonicalHoodie";
+    app.root.addChild(hoodie);
 
-    // 3) Runtime-adapter path: exercise the real PlayCanvas runtime context loader.
-    const runtimeContext = createPlayCanvasRuntimeContext({
-      app,
-      parent: app.root,
-      assetShadow: shadow
-    });
+    const runtimeContext = createPlayCanvasRuntimeContext({ app, parent: app.root, assetShadow: shadow });
     const buildingAsset = await runtimeContext.loadAsset("/assets/p0-qa-building.glb");
-    const buildingEntity = runtimeContext.createRenderable(buildingAsset, {
-      visible: true,
-      castShadow: false,
-      receiveShadow: false
+    const building = runtimeContext.createRenderable(buildingAsset, {
+      visible: true, castShadow: false, receiveShadow: false
     });
-    buildingEntity.name = "CanonicalBuilding";
-    app.root.addChild(buildingEntity);
+    building.name = "CanonicalBuilding";
+    app.root.addChild(building);
 
     const status = await shadow.whenIdle();
+    const entities = { duck, dragon, cap, backpack, hoodie, building };
 
     window.__ASSET_SHADOW_HARNESS__ = {
       ready: true,
       renderer: device.isWebGL2 ? "WebGL2" : device.isWebGPU ? "WebGPU" : "UNKNOWN",
-      canonicalAttached: {
-        character: app.root.findByName("CanonicalCharacter") === characterEntity,
-        backpack: app.root.findByName("CanonicalBackpack") === backpackEntity,
-        building: app.root.findByName("CanonicalBuilding") === buildingEntity
-      },
-      canonicalShape: {
-        character: renderShape(characterEntity),
-        backpack: renderShape(backpackEntity),
-        building: renderShape(buildingEntity)
+      canonicalAttached: Object.fromEntries(
+        Object.entries(entities).map(([key, entity]) => [key, entity.parent === app.root])
+      ),
+      canonicalShape: Object.fromEntries(
+        Object.entries(entities).map(([key, entity]) => [key, renderShape(entity)])
+      ),
+      semanticPivots: {
+        duck: ["DuckWing_L", "DuckWing_R", "DuckLeg_L", "DuckLeg_R"].every(name => Boolean(duck.findByName(name))),
+        dragon: ["DragonWing_L", "DragonWing_R"].every(name => Boolean(dragon.findByName(name)))
       },
       status
     };
   } catch (error) {
-    window.__ASSET_SHADOW_HARNESS__ = {
-      ready: false,
-      error: String(error?.stack || error)
-    };
+    window.__ASSET_SHADOW_HARNESS__ = { ready: false, error: String(error?.stack || error) };
   }
 </script>
 </body>

@@ -85,6 +85,8 @@ select set_eq($$select unnest(pg_temp.exec_surface('authenticated', 'anon'))$$, 
   'get_my_world_social()',
   -- World Admin RBAC P0: self access snapshot + permission-gated moderation RPCs.
   'get_my_world_admin_access_v1()',
+  -- Display-only staff markers for supplied World player IDs; no permission data.
+  'get_world_staff_badges_v1(uuid[])',
   'get_my_world_moderation_admin_v1()',
   'admin_review_world_user_report_v1(bigint,text)',
   -- OPS reads (P1-S0): signed-in callers only; bodies require an active staff role with ops.read.
@@ -126,7 +128,7 @@ select set_eq($$select unnest(pg_temp.exec_surface('authenticated', 'anon'))$$, 
   'can_access_world_room_realtime_v1(text)',
   'get_world_room_furniture_v1(uuid)',
   'save_my_room_furniture_v1(uuid,integer,jsonb)',
-  -- Housing H3 (20261003160000): knock before a friend visit; caller = auth.uid().
+  -- Housing H3 (20261004110000): knock before a friend visit; caller = auth.uid().
   'knock_friend_personal_room_v1(uuid)',
   'get_my_room_knock_v1(uuid)',
   'list_my_room_knocks_v1()',
@@ -278,4 +280,3 @@ select ok(to_regprocedure('public.get_inha_duck_observer_runtime_v1(integer)') i
 
 select * from finish();
 rollback;
-

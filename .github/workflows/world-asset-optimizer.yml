@@ -12,6 +12,10 @@ on:
       - 'apps/world/src/asset-canary-telemetry.js'
       - 'apps/world/api/asset-canary-flag.js'
       - 'apps/world/api/hub-event.js'
+      - 'apps/world/api/brand-asset.js'
+      - 'apps/world/vercel.json'
+      - 'apps/world/tests/brand-asset-routing.test.mjs'
+      - 'supabase/functions/inhagame-world-brand-assets-optimized-v1/**'
       - 'apps/world/src/character-model.js'
       - 'apps/world/src/main.js'
       - 'apps/world/tests/asset-optimization-shadow.test.mjs'
@@ -80,6 +84,8 @@ jobs:
           WORLD_SMOKE_DISABLE_WEBGPU: '1'
           WORLD_SMOKE_BROWSER: chrome
         run: node apps/world/tests/browser/asset-canary-remote-kill-smoke.mjs
+      - name: Verify production optimized brand route contracts
+        run: node --test apps/world/tests/brand-asset-routing.test.mjs
       - name: Upload optimizer receipt and generated samples
         uses: actions/upload-artifact@v4
         with:

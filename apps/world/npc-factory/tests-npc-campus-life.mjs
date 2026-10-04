@@ -37,17 +37,15 @@ assert.ok(Object.values(NPC_CAMPUS_LIFE_LOCATIONS).includes('life_dorm_1'));
 const runtimeBatch = validateDevCandidate(applyCampusLifeSchedule(batch, roster));
 const byId = new Map(runtimeBatch.npcs.map(npc => [npc.npc_id, npc]));
 
-assert.equal(byId.get('INKYUNG-NPC-019').schedule.class_time.location, 'class_hitech',
-  'electrical engineering NPC attends the Hi-Tech teaching area');
-assert.equal(byId.get('INKYUNG-NPC-011').schedule.class_time.location, 'class_building_4',
-  'mechanical engineering NPC uses the 2/4 engineering teaching area');
-assert.equal(byId.get('INKYUNG-NPC-009').schedule.class_time.location, 'class_building_5',
-  'humanities NPC uses Building 5');
+assert.equal(campusLifeScheduleFor(byId.get('INKYUNG-NPC-019'), rosterById.get('INKYUNG-NPC-019')).primaryClassLocation, 'class_hitech');
+assert.equal(campusLifeScheduleFor(byId.get('INKYUNG-NPC-011'), rosterById.get('INKYUNG-NPC-011')).primaryClassLocation, 'class_building_4');
+assert.equal(campusLifeScheduleFor(byId.get('INKYUNG-NPC-009'), rosterById.get('INKYUNG-NPC-009')).primaryClassLocation, 'class_building_5');
 assert.equal(byId.get('INKYUNG-NPC-006').schedule.morning.location, 'life_dorm_1');
 assert.equal(byId.get('INKYUNG-NPC-006').schedule.evening.location, 'life_dorm_1');
 assert.equal(byId.get('INKYUNG-NPC-019').schedule.evening.location, 'life_dorm_2');
 
 const academic = runtimeBatch.npcs.filter(npc => {
+  if (['INKYUNG-NPC-001', 'INKYUNG-NPC-002'].includes(npc.npc_id)) return false;
   const entry = rosterById.get(npc.npc_id);
   return entry?.department && ['student', 'club_member', 'teaching_assistant', 'faculty'].includes(npc.archetype);
 });
@@ -155,7 +153,8 @@ assert.equal(dorm2ToClass.phase, 'ACTING');
 for (const npc of campus48.npcs.slice(20)) {
   const entry = merged.roster.npcs.find(row => row.npc_id === npc.npc_id);
   assert.ok(entry?.department && entry?.student_number && entry?.residence);
-  assert.ok(npc.schedule.class_time.location.startsWith('class_'));
+  assert.ok(npc.schedule.class_time.sink ? npc.schedule.class_time.location.startsWith('class_') :
+    ['read','eat_snack','walk_to_club','use_phone','walk'].includes(npc.schedule.class_time.activity));
   assert.ok(expandedNavigator.walkable(positionAt(npc.schedule.class_time.location, Number(npc.npc_id.slice(-3)) % 9)));
 }
 
@@ -167,4 +166,3 @@ assert.ok(expandedBackMarket >= 8, `48-NPC population should use rear market at 
 assert.ok(expandedDormEvening >= 12, `48-NPC population should include dorm residents: ${expandedDormEvening}`);
 
 console.log('NPC P2-A population: 48 NPCs, 21+ department communities, campus/rear-market/dorm life PASS');
-

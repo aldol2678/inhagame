@@ -2,37 +2,48 @@ import assert from "node:assert/strict";
 import { startSmoke, TIMEOUT_MS } from "./harness.mjs";
 
 const smoke = await startSmoke({ viewport: { width: 512, height: 512 } });
+const urls = [
+  "/assets/induck-v3.glb",
+  "/assets/annyongi-flight-v1.glb",
+  "/assets/induck-cap-v1.glb",
+  "/assets/induck-backpack-v1.glb",
+  "/assets/induck-hoodie-v1.glb",
+  "/assets/p0-qa-building.glb"
+];
 
-function byUrl(status, url) {
-  return status.entries.find(entry => entry.canonicalUrl === url);
-}
+const attached = {
+  duck: true,
+  dragon: true,
+  cap: true,
+  backpack: true,
+  hoodie: true,
+  building: true
+};
+
+const byUrl = (status, url) => status.entries.find(entry => entry.canonicalUrl === url);
 
 try {
   const normal = await smoke.context.newPage();
   const normalFatal = smoke.watch(normal);
-  await normal.goto(`${smoke.origin}/tests/browser/asset-optimization-shadow-harness.html`,
+  await normal.goto(smoke.origin + "/tests/browser/asset-optimization-shadow-harness.html",
     { waitUntil: "domcontentloaded", timeout: TIMEOUT_MS });
   await Promise.race([
     normal.waitForFunction(() => window.__ASSET_SHADOW_HARNESS__?.ready !== undefined,
       null, { timeout: TIMEOUT_MS }),
     normalFatal
   ]);
-
   const normalState = await normal.evaluate(() => window.__ASSET_SHADOW_HARNESS__);
   assert.equal(normalState.ready, true, normalState.error);
   assert.equal(normalState.renderer, "WebGL2");
-  assert.deepEqual(normalState.canonicalAttached, {
-    character: true,
-    backpack: true,
-    building: true
-  });
+  assert.deepEqual(normalState.canonicalAttached, attached);
+  assert.deepEqual(normalState.semanticPivots, { duck: true, dragon: true });
   assert.equal(normalState.status.enabled, false);
   assert.deepEqual(normalState.status.counts, { match: 0, mismatch: 0, unavailable: 0 });
   await normal.close();
 
   const page = await smoke.context.newPage();
   const fatal = smoke.watch(page);
-  await page.goto(`${smoke.origin}/tests/browser/asset-optimization-shadow-harness.html?shadow=1`,
+  await page.goto(smoke.origin + "/tests/browser/asset-optimization-shadow-harness.html?shadow=1",
     { waitUntil: "domcontentloaded", timeout: TIMEOUT_MS });
   await Promise.race([
     page.waitForFunction(() => {
@@ -45,26 +56,16 @@ try {
   const state = await page.evaluate(() => window.__ASSET_SHADOW_HARNESS__);
   assert.equal(state.ready, true, state.error);
   assert.equal(state.renderer, "WebGL2");
-  assert.deepEqual(state.canonicalAttached, {
-    character: true,
-    backpack: true,
-    building: true
-  }, "all canonical assets remain the actual scene consumers");
-
+  assert.deepEqual(state.canonicalAttached, attached);
+  assert.deepEqual(state.semanticPivots, { duck: true, dragon: true });
   assert.equal(state.status.enabled, true);
   assert.equal(state.status.advisoryOnly, true);
   assert.equal(state.status.authority, "CANONICAL_SOURCE_ONLY");
-  assert.deepEqual(state.status.counts, { match: 3, mismatch: 0, unavailable: 0 });
+  assert.deepEqual(state.status.counts, { match: 6, mismatch: 0, unavailable: 0 });
 
-  const duck = byUrl(state.status, "/assets/induck-v3.glb");
-  const backpack = byUrl(state.status, "/assets/induck-backpack-v1.glb");
-  const building = byUrl(state.status, "/assets/p0-qa-building.glb");
-
-  assert.ok(duck, "character shadow record exists");
-  assert.ok(backpack, "equipment shadow record exists");
-  assert.ok(building, "runtime-adapter shadow record exists");
-
-  for (const entry of [duck, backpack, building]) {
+  const entries = urls.map(url => byUrl(state.status, url));
+  assert.ok(entries.every(Boolean), "all six shadow records exist");
+  for (const entry of entries) {
     assert.equal(entry.status, "MATCH");
     assert.equal(entry.reason, null);
     assert.equal(entry.canonical.renderComponents, entry.optimized.renderComponents);
@@ -72,16 +73,22 @@ try {
     assert.equal(entry.canonical.materials, entry.optimized.materials);
   }
 
-  assert.deepEqual(duck.consumers, ["character-harness"]);
-  assert.deepEqual(backpack.consumers, ["equipment"]);
-  assert.deepEqual(building.consumers, ["runtime-adapter"]);
+  assert.equal(byUrl(state.status, urls[0]).canonical.entities,
+    byUrl(state.status, urls[0]).optimized.entities, "duck semantic nodes survive");
+  assert.equal(byUrl(state.status, urls[1]).canonical.entities,
+    byUrl(state.status, urls[1]).optimized.entities, "dragon semantic nodes survive");
+  assert.deepEqual(byUrl(state.status, urls[0]).consumers, ["character-duck-harness"]);
+  assert.deepEqual(byUrl(state.status, urls[1]).consumers, ["character-flight-harness"]);
+  for (const url of urls.slice(2, 5)) assert.deepEqual(byUrl(state.status, url).consumers, ["equipment"]);
+  assert.deepEqual(byUrl(state.status, urls[5]).consumers, ["runtime-adapter"]);
 
-  assert.equal(duck.optimizedUrl, "/.generated/assets-optimized/induck-v3.glb");
-  assert.equal(backpack.optimizedUrl, "/.generated/assets-optimized/induck-backpack-v1.glb");
-  assert.equal(building.optimizedUrl, "/.generated/assets-optimized/p0-qa-building.glb");
+  for (const url of urls) {
+    const name = url.split("/").at(-1);
+    assert.equal(byUrl(state.status, url).optimizedUrl, "/.generated/assets-optimized/" + name);
+  }
 
   assert.deepEqual(smoke.problems, []);
-  console.log("asset optimization shadow consumers 3/3: PASS", JSON.stringify(state.status));
+  console.log("asset optimization shadow consumers 6/6: PASS", JSON.stringify(state.status));
 } finally {
   await smoke.close();
 }
