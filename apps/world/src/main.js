@@ -155,6 +155,7 @@ import { createBiryongStationTransitInteraction } from "./biryong/biryong-statio
 import { getBiryongRealmPlaceZone } from "./biryong/biryong-village-layout.js";
 import { createBiryongVillageNpcRuntime } from "./biryong/biryong-village-npc-runtime.js";
 import { createBiryongVillageDialogueRuntime } from "./biryong/biryong-village-dialogue-runtime.js";
+import { createBiryongRelationshipClient } from "./biryong/biryong-village-relationship-client.js";
 import { WORLD_REGION_ID } from "./regions/world-region-registry.js";
 import { INPUT_FOCUS_POLICY, createInputFocusManager } from "./input/input-focus-manager.js";
 import { bindInputFocusRuntime } from "./input/input-focus-runtime.js";
@@ -692,6 +693,10 @@ const lobbyPlayerSummary = createLobbyPlayerSummary({
 const tour = createCampusTour();
 // Social S1-B1: local expression plays at once; members also broadcast it (guests stay local).
 let online = null;
+const biryongRelationships = createBiryongRelationshipClient({
+  getClient: () => online?.supabase ?? null,
+  getUserId: () => online?.userId ?? null
+});
 const duckCompanion = createDuckObservationClient({
   getClient: () => online?.supabase ?? null
 });
@@ -1581,7 +1586,8 @@ biryongVillageDialogue = createBiryongVillageDialogueRuntime({
     return !error && session?.user?.id === online.userId && session.user.is_anonymous !== true
       ? session.access_token : null;
   },
-  getRelationshipStage: () => 1,
+  getRelationshipStage: npcId => biryongRelationships.stage(npcId),
+  getUnlockedFacts: npcId => biryongRelationships.facts(npcId),
   onOpenChange: open => {
     if (open) {
       npcDialogueInput.acquire();
@@ -1598,7 +1604,8 @@ if (npcProductionMode) {
     .catch(() => biryongVillageDialogue?.setJevEnabled(false));
 }
 biryongRealm.onChange(status => {
-  if (!status.inBiryong) biryongVillageDialogue?.close();
+  if (status.inBiryong) void biryongRelationships.refresh("region-enter");
+  else biryongVillageDialogue?.close();
 });
 window.addEventListener("pagehide", event => {
   if (!event.persisted) {
@@ -2785,6 +2792,7 @@ try {
   online.onIdentity((identity) => {
     void syncBiryongAccount(identity);
     void progression.setAccount(identity ? online?.userId ?? null : null);
+    void biryongRelationships.setAccount(identity ? online?.userId ?? null : null);
     shop.setAccount(identity ? online?.userId ?? null : null);
     void wallet.setAccount(identity ? online?.userId ?? null : null);
     void inventory.setAccount(identity ? online?.userId ?? null : null);
@@ -3021,6 +3029,7 @@ window.__INHAGAME_P0__ = {
   biryongStationTransit,
   biryongVillageNpcs,
   biryongVillageDialogue,
+  biryongRelationships,
   combatRuntime,
   combatHud,
   building5Combat,
@@ -3141,6 +3150,7 @@ window.__INHAGAME_P0__ = {
     biryongStationTransit: biryongStationTransit?.status() ?? null,
     biryongVillageNpcs: biryongVillageNpcs?.status() ?? null,
     biryongVillageDialogue: biryongVillageDialogue?.status() ?? null,
+    biryongRelationships: biryongRelationships.status(),
     combat: combatRuntime.snapshot(),
     building5Combat: building5Combat.status(),
     wallet: wallet.status(),
