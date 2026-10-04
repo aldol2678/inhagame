@@ -32,9 +32,11 @@ import { createSnowObjectEffects } from './environment/snow-object-effects.js';
 import { createSnowDepthEffects } from './environment/snow-depth-effects.js';
 import { createSnowThawEffects } from './environment/snow-thaw-effects.js';
 import { createMeltwaterEffects } from './environment/meltwater-effects.js';
+import { winterPerformanceSnapshot } from './environment/winter-performance-budget.js';
 import { createSkyVisuals } from './environment/sky-visuals.js';
 import { createInkyungDuckSystem } from './ambient-ducks.js';
 import { createDuckObservationClient } from './creature/duck-observation-client.js';
+import { createDuckCompanionFollow } from './creature/duck-companion-follow.js';
 import { createInkyungMechanicalDuckEvent } from './inkyung-mechanical-duck-event.js';
 import { createBiryongSystem } from './biryong/biryong-system.js';
 import { BIRYONG_PLACE_ID, isNearBiryong } from './biryong/biryong-layout.js';
@@ -448,6 +450,17 @@ window.__INHAGAME_MELTWATER__ = Object.freeze({
   status: () => meltwaterEffects.status()
 });
 
+window.__INHAGAME_WINTER_QA__ = Object.freeze({
+  status: () => winterPerformanceSnapshot({
+    tier: graphics.tier,
+    snow: snowWeatherEffects.status(),
+    objects: snowObjectEffects.status(),
+    depth: snowDepthEffects.status(),
+    thaw: snowThawEffects.status(),
+    meltwater: meltwaterEffects.status()
+  })
+});
+
 const controller = new PlayerController(player);
 const helicopterFlightHud = createHelicopterFlightHud({
   root: document.getElementById("helicopter-flight-hud"),
@@ -740,6 +753,21 @@ const biryongRelationships = createBiryongRelationshipClient({
 });
 const duckCompanion = createDuckObservationClient({
   getClient: () => online?.supabase ?? null
+});
+const duckCompanionFollow = createDuckCompanionFollow({
+  root: campusRoot,
+  player,
+  getSnapshot: () => duckCompanion.status().snapshot,
+  getGroundHeight: (x, z) => controller.groundY + roadviewGroundHeight(x, z),
+  getVisible: () =>
+    !rooms?.insideRoom &&
+    !biryongRealm?.inBiryong &&
+    !lobbyWorld.active &&
+    !lobbyTransition.active &&
+    !controller.mounted
+});
+window.addEventListener("pagehide", event => {
+  if (!event.persisted) duckCompanionFollow.destroy();
 });
 let accompany = null;
 let populationHeartbeat = null;
@@ -2686,6 +2714,7 @@ app.on("update", (dt) => {
   character.update(Math.min(dt, 0.05), { ...locomotion(), emote, seated: seats.isSeated, poseOffsets: biryong?.poseOffsets() ?? null });
 
   const pos = player.getLocalPosition();
+  duckCompanionFollow.update(Math.min(dt, 0.05));
   if (!inside) {
     if (inkyungSideEvent.requiresMechanicalDuck()) inkyungDucks.ensureMechanicalDuck();
     inkyungDucks.update(Math.min(dt, 0.05), pos);
