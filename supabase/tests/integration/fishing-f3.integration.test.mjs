@@ -133,9 +133,11 @@ test('cast replay survives evidence loss; HOOK rechecks location and releases th
   const settled = await Promise.all([rpc('settle',[u.id,a.attemptId]),rpc('settle',[u.id,a.attemptId])]);
   assert.equal(settled.filter(s => s.status === 'SETTLED').length, 1);
   const read = await rpc('read',[u.id,a.attemptId]);
-  assert.equal(read.carpQuantity, 1); assert.equal(read.discovered, true); assert.equal(read.lifeSkill.totalXp, 2);
+  assert.equal(read.inventory.quantity, 1); assert.equal(read.discovery.discoveryCount, 1); assert.equal(read.lifeSkill.totalXp, 2);
   assert.equal(await query(`select count(*) from private.world_activity_settlements where user_id=${lit(u.id)}`), '1');
   assert.equal(await query(`select count(*) from private.world_life_skill_xp_transactions where user_id=${lit(u.id)}`), '1');
+  assert.equal(await query(`select count(*) from private.world_item_grants where user_id=${lit(u.id)}`), '1');
+  assert.equal(await query(`select count(*) from private.world_collection_discovery_events where user_id=${lit(u.id)}`), '1');
 });
 
 test('a different trusted session or lost lease cannot hook; cancellation recovers', async () => {
