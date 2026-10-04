@@ -1,3 +1,5 @@
+import { RECAST_PACKAGE_VERSION, validateRecastArtifact } from './recast-navmesh-artifact.mjs';
+
 const DEFAULT_RECAST_URL = 'https://esm.sh/recast-navigation@0.43.1';
 const DEFAULT_GENERATORS_URL = 'https://esm.sh/recast-navigation@0.43.1/generators';
 
@@ -113,30 +115,12 @@ export async function loadPinnedRecast({
     import(recastUrl),
     import(generatorsUrl)
   ]);
-  return { core, generators };
+  return { core, generators, packageVersion: recastUrl === DEFAULT_RECAST_URL &&
+    generatorsUrl === DEFAULT_GENERATORS_URL ? RECAST_PACKAGE_VERSION : null };
 }
 
-export async function createRecastNpcNavigator(baseNavigator, {
-  loader = loadPinnedRecast,
-  tileSize = 1.5,
-  corridorGraph = null,
-  navMeshConfig = {},
-  maxEndpointSnapDistance = 1.5,
-  maxPathPolys = 2048
-} = {}) {
-  if (typeof baseNavigator?.segmentSafe !== 'function') throw new Error('Recast NPC PoC requires segmentSafe');
-  if (!Number.isFinite(maxEndpointSnapDistance) || maxEndpointSnapDistance <= 0 ||
-      !Number.isInteger(maxPathPolys) || maxPathPolys < 1) throw new Error('Invalid Recast query limits');
-  const { core, generators } = await loader();
-  if (typeof core?.init !== 'function' || typeof core?.NavMeshQuery !== 'function' ||
-      typeof generators?.generateSoloNavMesh !== 'function') {
-    throw new Error('Recast NPC PoC loader returned an incompatible API');
-  }
-
-  await core.init();
-
-  const surface = buildFlatNavigationSurface(baseNavigator, { tileSize, corridorGraph });
-  const config = {
+export function recastNavMeshConfig(corridorGraph = null, navMeshConfig = {}) {
+  return {
     cs: corridorGraph ? 0.1 : 0.5,
     ch: 0.2,
     walkableSlopeAngle: 45,
@@ -154,14 +138,56 @@ export async function createRecastNpcNavigator(baseNavigator, {
     detailSampleMaxError: 1,
     ...navMeshConfig
   };
+}
 
-  const generated = generators.generateSoloNavMesh(surface.positions, surface.indices, config);
-  if (!generated?.success || !generated.navMesh) {
-    const detail = generated?.error ? `: ${generated.error}` : '';
-    throw new Error(`Recast NPC PoC navmesh generation failed${detail}`);
+export function recastArtifactContract({ corridorGraph = null, navMeshConfig = {}, tileSize = 1.5,
+  maxEndpointSnapDistance = 1.5, maxPathPolys = 2048 } = {}) {
+  return { adapterVersion: RECAST_NPC_POC_VERSION, packageVersion: RECAST_PACKAGE_VERSION,
+    surface: { tileSize, corridorHalfWidth: 0.25, corridorStep: 0.75, y: 0 },
+    config: recastNavMeshConfig(corridorGraph, navMeshConfig),
+    query: { maxEndpointSnapDistance, maxPathPolys, maxNodes: 8192 } };
+}
+
+export async function createRecastNpcNavigator(baseNavigator, {
+  loader = loadPinnedRecast,
+  tileSize = 1.5,
+  corridorGraph = null,
+  navMeshConfig = {},
+  maxEndpointSnapDistance = 1.5,
+  maxPathPolys = 2048,
+  prebuilt = null
+} = {}) {
+  if (typeof baseNavigator?.segmentSafe !== 'function') throw new Error('Recast NPC PoC requires segmentSafe');
+  if (!Number.isFinite(maxEndpointSnapDistance) || maxEndpointSnapDistance <= 0 ||
+      !Number.isInteger(maxPathPolys) || maxPathPolys < 1) throw new Error('Invalid Recast query limits');
+  const contract = recastArtifactContract({ corridorGraph, navMeshConfig, tileSize,
+    maxEndpointSnapDistance, maxPathPolys });
+  const config = contract.config;
+  // Validate all fingerprints before import (and before loading/initializing WASM).
+  let surface = prebuilt === null ? null : await validateRecastArtifact({ ...prebuilt, contract });
+  const { core, generators, packageVersion } = await loader();
+  if (typeof core?.init !== 'function' || typeof core?.NavMeshQuery !== 'function' ||
+      (prebuilt === null ? typeof generators?.generateSoloNavMesh !== 'function' : typeof core.importNavMesh !== 'function')) {
+    throw new Error('Recast NPC PoC loader returned an incompatible API');
   }
-
-  const navMesh = generated.navMesh;
+  if (prebuilt !== null && packageVersion !== RECAST_PACKAGE_VERSION)
+    throw new Error('RECAST_ARTIFACT_RUNTIME_VERSION');
+  await core.init();
+  let navMesh;
+  if (prebuilt === null) {
+    const generatedSurface = buildFlatNavigationSurface(baseNavigator, { tileSize, corridorGraph });
+    const generated = generators.generateSoloNavMesh(generatedSurface.positions, generatedSurface.indices, config);
+    if (!generated?.success || !generated.navMesh) {
+      const detail = generated?.error ? `: ${generated.error}` : '';
+      throw new Error(`Recast NPC PoC navmesh generation failed${detail}`);
+    }
+    navMesh = generated.navMesh;
+    surface = { surfaceTiles: generatedSurface.tiles, corridorQuads: generatedSurface.corridorQuads,
+      triangleCount: generatedSurface.indices.length / 3 };
+  } else {
+    navMesh = core.importNavMesh(prebuilt.bytes)?.navMesh;
+    if (!navMesh) throw new Error('RECAST_ARTIFACT_IMPORT_FAILED');
+  }
   let query;
   try { query = new core.NavMeshQuery(navMesh, { maxNodes: 8192 }); }
   catch (error) { navMesh.destroy?.(); throw error; }
@@ -235,12 +261,18 @@ export async function createRecastNpcNavigator(baseNavigator, {
     evaluateRoute,
     recast: Object.freeze({
       version: RECAST_NPC_POC_VERSION,
-      packageVersion: '0.43.1',
-      surfaceTiles: surface.tiles,
+      packageVersion: RECAST_PACKAGE_VERSION,
+      initialization: prebuilt === null ? 'GENERATED' : 'IMPORTED',
+      surfaceTiles: surface.surfaceTiles,
       corridorQuads: surface.corridorQuads,
-      triangleCount: surface.indices.length / 3,
+      triangleCount: surface.triangleCount,
       config: Object.freeze({ ...config })
     }),
+    exportNavMesh() {
+      if (destroyed) throw new Error('Recast NPC PoC navigator destroyed');
+      if (typeof core.exportNavMesh !== 'function') throw new Error('Recast NPC PoC export unavailable');
+      return core.exportNavMesh(navMesh);
+    },
     destroy
   };
 }

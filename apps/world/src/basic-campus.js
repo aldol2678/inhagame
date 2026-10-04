@@ -4,7 +4,7 @@ import { projectPolygon } from './reality-adapter.js';
 
 async function read(name) {
   const url = new URL(`../data/reality/${name}.json`, import.meta.url);
-  if (typeof window !== 'undefined') {
+  if (url.protocol !== 'file:') {
     const response = await fetch(url);
     if (!response.ok) throw Error(`Campus geometry load failed: ${name} ${response.status}`);
     return response.json();

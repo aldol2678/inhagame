@@ -6,7 +6,7 @@ import { geoToWorld } from "./geo-coordinates.js";
 
 // Load canonical landmarks data isomorphically across Browser and Node.js.
 let canonicalData = null;
-if (typeof window !== "undefined" && typeof window.fetch === "function") {
+if (new URL(import.meta.url).protocol !== "file:") {
   const url = new URL("../data/reality/campus-landmarks.json", import.meta.url).href;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Canonical landmarks load failed: ${res.status}`);

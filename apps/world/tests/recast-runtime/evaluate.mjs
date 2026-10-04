@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import * as core from 'recast-navigation';
@@ -10,7 +11,12 @@ import { campusNavGraphData } from '../../src/navigation/campus-navigation.js';
 import { createRecastNpcNavigator } from '../../npc-factory/recast-navigator-poc.mjs';
 import { evaluateRecastSchedule } from '../../npc-factory/recast-schedule-evaluation.mjs';
 
-export const actualRecastLoader = async () => ({ core, generators });
+const versions = ['recast-navigation', '@recast-navigation/core', '@recast-navigation/generators', '@recast-navigation/wasm']
+  .map(name => JSON.parse(readFileSync(new URL(name === 'recast-navigation' ? './package.json' : '../package.json', import.meta.resolve(name)), 'utf8')).version);
+export const actualRecastLoader = async () => {
+  if (versions.some(version => version !== '0.43.1')) throw new Error('RECAST_ARTIFACT_RUNTIME_VERSION');
+  return { core, generators, packageVersion: versions[0] };
+};
 
 export async function evaluateCampus() {
   const fetcher = async url => new Response(await readFile(new URL(`../..${url}`, import.meta.url)));

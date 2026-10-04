@@ -95,7 +95,8 @@ export class PlayerController {
     jumpVelocity = 7,
     gravity = -20,
     groundY = PLAYER_ORIGIN_Y,
-    bounds = WORLD_BOUNDS
+    bounds = WORLD_BOUNDS,
+    campusShuttleEnabled = true
   } = {}) {
     this.entity = entity;
     this.walkSpeed = walkSpeed;
@@ -104,6 +105,7 @@ export class PlayerController {
     this.gravity = gravity;
     this.groundY = groundY;
     this.bounds = bounds;
+    this.campusShuttleEnabled = campusShuttleEnabled === true;
     this.keys = new Set();
     this.velocityY = 0;
     this.grounded = true;
@@ -133,12 +135,14 @@ export class PlayerController {
     this.moving = false;
     this.touchSprint = false;
     this.assist = null;
+    this.lastGroundMove = { x: 0, z: -1 };
     this.space = CAMPUS_MOVEMENT_SPACE;
     this.inputEnabled = true;
     // Extra world-level block for the M key (open panels, dialogue); set by the World.
     this.transportGate = null;
     // Independent feature locks layer on top of the World transport gate without replacing its authority.
     this.transportLocks = new Set();
+    this.groundMovementLocks = new Set();
     this.#syncMountKind();
     this.#bindKeyboard();
     this.#bindTouch();
@@ -497,7 +501,7 @@ export class PlayerController {
   }
 
   boardShuttle() {
-    if(!this.inputEnabled||this.mounted||!this.grounded||this.space.id!=="campus"||!this.space.allowMount||!this.shuttle.boardingAllowed)return false;
+    if(!this.campusShuttleEnabled||!this.inputEnabled||this.mounted||!this.grounded||this.space.id!=="campus"||!this.space.allowMount||!this.shuttle.boardingAllowed)return false;
     const p=this.entity.getLocalPosition(),a=this.shuttle.currentStation.platform;
     if(Math.hypot(p.x-a.x,p.z-a.z)>1.5)return false;
     this.mounted=true;this.mountId=CAMPUS_SHUTTLE_ID;this.velocityY=0;this.jumpQueued=false;this.landing=false;
@@ -548,7 +552,7 @@ export class PlayerController {
     }
 
     const platform=this.shuttle.currentStation.platform,p0=this.entity.getLocalPosition();
-    if(this.onShuttle || (!this.mounted&&this.grounded&&this.space.id==="campus"&&this.space.allowMount&&this.shuttle.boardingAllowed&&Math.hypot(p0.x-platform.x,p0.z-platform.z)<=1.5)){
+    if(this.campusShuttleEnabled && (this.onShuttle || (!this.mounted&&this.grounded&&this.space.id==="campus"&&this.space.allowMount&&this.shuttle.boardingAllowed&&Math.hypot(p0.x-platform.x,p0.z-platform.z)<=1.5))){
       actions.push({ mobilityId: CAMPUS_SHUTTLE_ID, id:"mount",icon:"🚌",label:this.onShuttle?(this.shuttle.boardingAllowed?"셔틀에서 내리기":"다음 정류장 · "+this.shuttle.nextStation.name):"캠퍼스 셔틀 타기",
         compactLabel:this.onShuttle?"하차":"탑승",shortcut:"M",priority:340,pressed:this.onShuttle,
         disabled:this.onShuttle&&!this.shuttle.boardingAllowed,trigger:()=>this.onShuttle?this.dismountShuttle():this.boardShuttle() });
@@ -637,6 +641,13 @@ export class PlayerController {
     if (locked) this.transportLocks.add(lockId);
     else this.transportLocks.delete(lockId);
     return this.transportLocks.size > 0;
+  }
+
+  setGroundMovementLock(lockId, locked = true) {
+    if (typeof lockId !== "string" || !lockId) throw new TypeError("Ground movement lock id required");
+    if (locked) this.groundMovementLocks.add(lockId);
+    else this.groundMovementLocks.delete(lockId);
+    return this.groundMovementLocks.size > 0;
   }
 
   transportAction() {
@@ -819,6 +830,60 @@ export class PlayerController {
     this.#updateMovementHud();
   }
 
+  combatDodgeDirection(cameraYaw = 0, { targetX = null, targetZ = null } = {}) {
+    if (!this.inputEnabled || this.mounted || !this.grounded) return { x: 0, z: 0 };
+    let x = 0, z = 0;
+    if (this.keys.has("KeyA") || this.keys.has("ArrowLeft")) x -= 1;
+    if (this.keys.has("KeyD") || this.keys.has("ArrowRight")) x += 1;
+    if (this.keys.has("KeyW") || this.keys.has("ArrowUp")) z += 1;
+    if (this.keys.has("KeyS") || this.keys.has("ArrowDown")) z -= 1;
+    x += this.touchVector.x;
+    z += -this.touchVector.y;
+    const mag = Math.hypot(x, z);
+    if (mag > 0.04) {
+      x /= Math.max(1, mag); z /= Math.max(1, mag);
+      const sin = Math.sin(cameraYaw), cos = Math.cos(cameraYaw);
+      const worldX = x * cos - z * sin;
+      const worldZ = x * sin + z * cos;
+      const length = Math.hypot(worldX, worldZ) || 1;
+      return { x: worldX / length, z: worldZ / length };
+    }
+    const lastLength = Math.hypot(this.lastGroundMove.x, this.lastGroundMove.z);
+    if (lastLength > 0.05) {
+      return { x: this.lastGroundMove.x / lastLength, z: this.lastGroundMove.z / lastLength };
+    }
+    const p = this.entity.getLocalPosition();
+    if ([targetX, targetZ].every(Number.isFinite)) {
+      const awayX = p.x - targetX, awayZ = p.z - targetZ, awayLength = Math.hypot(awayX, awayZ) || 1;
+      return { x: awayX / awayLength, z: awayZ / awayLength };
+    }
+    return { x: -Math.sin(cameraYaw), z: -Math.cos(cameraYaw) };
+  }
+
+  applyCombatGroundDisplacement({ x = 0, z = 0 } = {}) {
+    if (!this.inputEnabled || this.mounted || !this.grounded || ![x, z].every(Number.isFinite)) {
+      return { x: 0, z: 0, moved: false };
+    }
+    const distance = Math.hypot(x, z);
+    if (distance <= 1e-8) return { x: 0, z: 0, moved: false };
+    const pos = this.entity.getLocalPosition();
+    const space = this.space;
+    const obstacles = space.obstacles;
+    const swept = space.constrain(pos, moveAroundObstacles(pos, x, z, obstacles));
+    const nextX = Math.max(this.bounds.minX, Math.min(this.bounds.maxX, swept.x));
+    const nextZ = Math.max(this.bounds.minZ, Math.min(this.bounds.maxZ, swept.z));
+    const ground = this.groundY + space.groundHeight(nextX, nextZ);
+    const movedX = nextX - pos.x, movedZ = nextZ - pos.z;
+    this.entity.setLocalPosition(nextX, ground, nextZ);
+    const moved = Math.hypot(movedX, movedZ) > 1e-8;
+    if (moved) {
+      const length = Math.hypot(movedX, movedZ);
+      this.lastGroundMove = { x: movedX / length, z: movedZ / length };
+      this.moving = true;
+    }
+    return { x: movedX, z: movedZ, moved };
+  }
+
   setAssistedMovement({ x = 0, z = 0, sprint = false } = {}) {
     if (!this.inputEnabled) return;
     const length = Math.hypot(x, z);
@@ -869,6 +934,9 @@ export class PlayerController {
 
     x += this.touchVector.x;
     z += -this.touchVector.y;
+
+    const groundMovementLocked = !this.mounted && this.groundMovementLocks.size > 0;
+    if (groundMovementLocked) { x = 0; z = 0; }
 
     const mag = Math.hypot(x, z);
     if (mag > 1) {
@@ -966,7 +1034,7 @@ export class PlayerController {
     const manual = Math.hypot(x, z) > 0.04;
     // Assisted movement may drive walking and the campus bike. Flight mounts stay manual-only
     // until a dedicated 3D navigation policy exists.
-    const assisted = !manual && (!this.mounted || this.onGroundMount) && this.assist !== null;
+    const assisted = !groundMovementLocked && !manual && (!this.mounted || this.onGroundMount) && this.assist !== null;
     const sprint = assisted ? this.assist.sprint
       : this.touchSprint || this.keys.has("ShiftLeft") || this.keys.has("ShiftRight");
     const walkSpeed = sprint ? this.sprintSpeed : this.walkSpeed;
@@ -980,6 +1048,10 @@ export class PlayerController {
     const cos = Math.cos(cameraYaw);
     let velocityX = assisted ? this.assist.x * speed : (x * cos - z * sin) * speed;
     let velocityZ = assisted ? this.assist.z * speed : (x * sin + z * cos) * speed;
+    if (this.moving && !this.mounted) {
+      const moveLength = Math.hypot(velocityX, velocityZ);
+      if (moveLength > 0.05) this.lastGroundMove = { x: velocityX / moveLength, z: velocityZ / moveLength };
+    }
     if (this.onKickboard) {
       const profile = GROUND_MOTION_PROFILES[getMobilityByMountId(this.mountId).physicsProfile];
       this.groundMotion = stepGroundMount(this.groundMotion, {

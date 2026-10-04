@@ -1,6 +1,10 @@
 // INHA WORLD Life Progression P0 Registry.
 // Keeps aggregate Life Level / SP / Skill Tree semantics in code while player state stays server-authoritative.
-import { LIFE_SKILL_REGISTRY, LIFE_SKILL_STATUS } from './life-skill-registry.js';
+import {
+  LIFE_SKILL_REGISTRY,
+  LIFE_SKILL_STATUS,
+  lifeSkillCurvePosition
+} from './life-skill-registry.js';
 
 export const LIFE_PROGRESSION_CURVE_ID = 'life.progression.v1';
 
@@ -131,19 +135,32 @@ export function lifeTreeAuthorityRow(node) {
   });
 }
 
+// Aggregate Life Level is a display level only. SP lives in per-skill pools (Authority Map 7.1).
 export function lifeProgressionFreshSnapshot() {
   return Object.freeze({
     curveId: LIFE_PROGRESSION_CURVE_ID,
     totalSkillXp: 0,
     level: 1,
-    earnedSp: 0,
-    spentSp: 0,
-    availableSp: 0,
     currentLevelStartXp: 0,
     nextLevelXp: null,
     progressXp: 0,
     progressRequired: null,
     maxDefinedLevel: 1,
     isMaxLevel: true
+  });
+}
+
+// Fresh per-skill SP pool: earned from the owning skill's level, spent only in that skill's tree.
+export function lifeSkillSpFreshSnapshot(definition) {
+  if (!definition) throw new TypeError('Life Skill definition is required');
+  const position = lifeSkillCurvePosition(definition.curveId, 0);
+  return Object.freeze({
+    skillId: definition.skillId,
+    curveId: definition.curveId,
+    skillLevel: position.level,
+    earnedSp: position.earnedSp,
+    spentSp: 0,
+    availableSp: position.earnedSp,
+    nextLevelEarnedSp: position.nextLevelEarnedSp
   });
 }
