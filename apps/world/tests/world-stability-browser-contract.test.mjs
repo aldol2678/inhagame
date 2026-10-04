@@ -8,7 +8,7 @@ test('hosted stability QA pins exact head and uses bounded read-only offline Chr
  const flow=read('../../../.github/workflows/world-stability-browser.yml');
  assert.match(flow,/contents: read/);assert.match(flow,/timeout-minutes: 15/);assert.match(flow,/ref: \$\{\{ github.event.pull_request.head.sha \}\}/);
  assert.match(flow,/EXPECTED_STABILITY_HEAD:/);assert.doesNotMatch(flow,/pull_request_target|secrets\.|contents: write|supabase db/);
- const smoke=read('./browser/world-stability-smoke.mjs');assert.match(smoke,/legacy-explicit-ended-point/);assert.match(smoke,/foreign native pointerup required/);assert.match(smoke,/releaseCapture\(id\),owner.id/);assert.match(smoke,/Input.dispatchTouchEvent/);assert.match(smoke,/gotpointercapture/);assert.match(smoke,/lostpointercapture/);assert.match(smoke,/sha256/);assert.match(smoke,/assert.deepEqual\(smoke.problems,\[\]\)/);
+ const smoke=read('./browser/world-stability-smoke.mjs');assert.match(smoke,/legacy-explicit-ended-point/);assert.match(smoke,/foreign native pointerup required/);assert.match(smoke,/releaseCapture\(id\),owner.id/);assert.match(smoke,/Input.dispatchTouchEvent/);assert.match(smoke,/gotpointercapture/);assert.match(smoke,/lostpointercapture/);assert.match(smoke,/sha256/);assert.equal((smoke.match(/touch\('touchStart',\[first\]\);await active\(\)/g)??[]).length,4,'every fresh native gesture proves movement before reset');assert.match(smoke,/native-fresh-gesture-recovery/);assert.match(smoke,/assert.deepEqual\(smoke.problems,\[\]\)/);
  const fixture=read('./browser/world-stability-fixture.mjs');assert.doesNotMatch(fixture,/fetch\(|createClient\(|signIn|localStorage|sessionStorage/);
 });
 

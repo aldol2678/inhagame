@@ -29,8 +29,9 @@ try{
    const first={id:11,x:Math.round(box.x+box.width*.82),y:Math.round(box.y+box.height*.5)},second={id:22,x:Math.round(box.x+box.width*.18),y:first.y};
    const touch=(type,touchPoints)=>cdp.send('Input.dispatchTouchEvent',{type,touchPoints});
    const state=()=>page.evaluate(()=>window.__WORLD_STABILITY__.touchState());
+   const active=async()=>{await page.waitForFunction(()=>window.__WORLD_STABILITY__.touchState().vector.x>.8,null,{timeout:5000});};
    const stopped=async()=>{await page.waitForFunction(()=>{const v=window.__WORLD_STABILITY__.touchState().vector;return v.x===0&&v.y===0;},null,{timeout:5000});};
-   await touch('touchStart',[first]);await page.waitForFunction(()=>window.__WORLD_STABILITY__.touchState().vector.x>.8);
+   await touch('touchStart',[first]);await active();
    const before=await state();const owner=before.events.findLast(e=>e.type==='pointerdown');assert.ok(owner?.trusted&&owner.pointerType==='touch','native trusted touch required');
    await touch('touchMove',[first,second]);const both=await state(),foreign=both.events.findLast(e=>e.type==='pointerdown');assert.notEqual(foreign.id,owner.id,'a real second pointer is required');assert.ok(both.vector.x>.8,'second native finger cannot take ownership');
    // Current synthetic-pointer CDP contracts shrink the active list. Legacy Chromium
@@ -46,8 +47,10 @@ try{
    await page.evaluate(id=>window.__WORLD_STABILITY__.releaseCapture(id),owner.id);await touch('touchMove',[{...first,x:first.x-3}]);await stopped();
    assert.ok((await state()).events.some(e=>e.type==='lostpointercapture'&&e.id===owner.id&&e.trusted),'native owner capture loss required');await touch('touchEnd',[]);
    report.cases.push({viewport:name,type:'native-release-protocol',releaseProtocol,ownerId:owner.id,foreignId:foreign.id});
-   await touch('touchStart',[first]);await page.evaluate(()=>window.__WORLD_STABILITY__.block(false));await stopped();await page.evaluate(()=>window.__WORLD_STABILITY__.block(true));await touch('touchMove',[{...first,x:first.x-4}]);await stopped();await touch('touchEnd',[]);
-   for(const type of ['blur','pagehide']){await touch('touchStart',[first]);await page.evaluate(t=>window.__WORLD_STABILITY__.lifecycle(t),type);await stopped();await touch('touchMove',[{...first,x:first.x-4}]);await stopped();await touch('touchEnd',[]);}
+   await touch('touchStart',[first]);await active();await page.evaluate(()=>window.__WORLD_STABILITY__.block(false));await stopped();await page.evaluate(()=>window.__WORLD_STABILITY__.block(true));await touch('touchMove',[{...first,x:first.x-4}]);await stopped();await touch('touchEnd',[]);
+   for(const type of ['blur','pagehide']){await touch('touchStart',[first]);await active();await page.evaluate(t=>window.__WORLD_STABILITY__.lifecycle(t),type);await stopped();await touch('touchMove',[{...first,x:first.x-4}]);await stopped();await touch('touchEnd',[]);}
+   await touch('touchStart',[first]);await active();await touch('touchEnd',[]);await stopped();
+   report.cases.push({viewport:name,type:'native-fresh-gesture-recovery',movementRestored:true,endedAtZero:true});
    await page.evaluate(()=>window.__WORLD_STABILITY__.receipt('PASS · 실제 touch 포인터 소유권 / capture·lostcapture\n입력 차단·합성 blur/pagehide 이후 이동 0\n합성 계정 구매·일일 상태 회귀 통과'));
    const final=await state();report.cases.push({viewport:name,type:'native-touch',events:final.events,lifecycleCoverage:'blur/pagehide deliberately dispatched DOM events; no claim of OS-level focus/BFCache coverage',vector:final.vector});await shot(page,`${name}-stability-passed`);
    assert.deepEqual(smoke.problems,[]);await cdp.detach();
