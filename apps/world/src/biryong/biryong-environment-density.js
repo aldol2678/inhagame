@@ -8,17 +8,22 @@ import {
   biryongEnvironmentDensityPolicy
 } from "./biryong-environment-density-policy.js";
 
-const MATERIALS = Object.freeze({
-  trunk: surface("#6f5339", "wood"),
-  foliageDark: surface("#426846", "foliage"),
-  foliageLight: surface("#5d814d", "foliage"),
-  shrub: surface("#52764a", "foliage"),
-  rock: surface("#78817b", "concrete"),
-  metal: surface("#5e6968", "metal"),
-  lantern: surface("#d0ad55", "paint"),
-  markerStone: surface("#687572", "concrete"),
-  markerAccent: surface("#b99345", "metal")
-});
+let materialCache = null;
+function materials() {
+  if (materialCache) return materialCache;
+  materialCache = Object.freeze({
+    trunk: surface("#6f5339", "wood"),
+    foliageDark: surface("#426846", "foliage"),
+    foliageLight: surface("#5d814d", "foliage"),
+    shrub: surface("#52764a", "foliage"),
+    rock: surface("#78817b", "concrete"),
+    metal: surface("#5e6968", "metal"),
+    lantern: surface("#d0ad55", "paint"),
+    markerStone: surface("#687572", "concrete"),
+    markerAccent: surface("#b99345", "metal")
+  });
+  return materialCache;
+}
 
 function setShadow(entity, value) {
   if (entity?.render) entity.render.castShadows = value === true;
@@ -30,47 +35,47 @@ function createTree(root, item, index) {
   setShadow(box(root, `br_density_tree_${index}_trunk`,
     [item.x, trunkHeight / 2, item.z],
     [0.52 * item.scale, trunkHeight, 0.52 * item.scale],
-    MATERIALS.trunk, item.yaw, "cylinder"), true);
+    materials().trunk, item.yaw, "cylinder"), true);
   setShadow(box(root, `br_density_tree_${index}_crown`,
     [item.x, trunkHeight + 1.15 * item.scale, item.z],
     [2.7 * item.scale, 2.35 * item.scale, 2.7 * item.scale],
-    index % 2 ? MATERIALS.foliageDark : MATERIALS.foliageLight, item.yaw, "sphere"), true);
+    index % 2 ? materials().foliageDark : materials().foliageLight, item.yaw, "sphere"), true);
 }
 
 function createShrub(root, item, index) {
   setShadow(box(root, `br_density_shrub_${index}`,
     [item.x, 0.48 * item.scale, item.z],
     [1.55 * item.scale, 0.95 * item.scale, 1.3 * item.scale],
-    MATERIALS.shrub, item.yaw, "sphere"), false);
+    materials().shrub, item.yaw, "sphere"), false);
 }
 
 function createRock(root, item, index) {
   setShadow(box(root, `br_density_rock_${index}`,
     [item.x, 0.42 * item.scale, item.z],
     [1.35 * item.scale, 0.82 * item.scale, 1.05 * item.scale],
-    MATERIALS.rock, item.yaw, "sphere"), false);
+    materials().rock, item.yaw, "sphere"), false);
 }
 
 function createLantern(root, item, index) {
   setShadow(box(root, `br_density_lantern_${index}_post`,
     [item.x, 1.35 * item.scale, item.z],
     [0.16 * item.scale, 2.7 * item.scale, 0.16 * item.scale],
-    MATERIALS.metal, item.yaw), true);
+    materials().metal, item.yaw), true);
   setShadow(box(root, `br_density_lantern_${index}_head`,
     [item.x, 2.78 * item.scale, item.z],
     [0.58 * item.scale, 0.42 * item.scale, 0.58 * item.scale],
-    MATERIALS.lantern, item.yaw), false);
+    materials().lantern, item.yaw), false);
 }
 
 function createMarker(root, item, index) {
   setShadow(box(root, `br_density_marker_${index}_stone`,
     [item.x, 0.8 * item.scale, item.z],
     [0.7 * item.scale, 1.6 * item.scale, 0.55 * item.scale],
-    MATERIALS.markerStone, item.yaw), true);
+    materials().markerStone, item.yaw), true);
   setShadow(box(root, `br_density_marker_${index}_crest`,
     [item.x, 1.7 * item.scale, item.z],
     [0.38 * item.scale, 0.38 * item.scale, 0.18 * item.scale],
-    MATERIALS.markerAccent, item.yaw, "sphere"), false);
+    materials().markerAccent, item.yaw, "sphere"), false);
 }
 
 function renderPlacements(root, placements, prefixOffset = 0) {
@@ -91,6 +96,20 @@ export function createBiryongEnvironmentDensity({
 } = {}) {
   if (!root) throw new TypeError("Biryong environment density root required");
 
+  if (enabled !== true) {
+    return Object.freeze({
+      root: null,
+      update: () => false,
+      status: () => Object.freeze({
+        version: BIRYONG_ENVIRONMENT_DENSITY_VERSION,
+        enabled: false,
+        tier: Object.hasOwn({ low: true, medium: true, high: true }, getGraphicsTier())
+          ? getGraphicsTier() : "medium",
+        counts: Object.freeze({ base: 0, medium: 0, high: 0, total: 0 })
+      })
+    });
+  }
+
   const densityRoot = new pc.Entity("BiryongEnvironmentDensityP0C");
   const baseRoot = new pc.Entity("BiryongDensityBase");
   const mediumRoot = new pc.Entity("BiryongDensityMedium");
@@ -106,7 +125,7 @@ export function createBiryongEnvironmentDensity({
   renderPlacements(highRoot, BIRYONG_ENVIRONMENT_HIGH,
     BIRYONG_ENVIRONMENT_BASE.length + BIRYONG_ENVIRONMENT_MEDIUM.length);
 
-  densityRoot.enabled = enabled === true;
+  densityRoot.enabled = true;
   let activeTier = null;
 
   function applyTier() {
@@ -120,7 +139,6 @@ export function createBiryongEnvironmentDensity({
   }
 
   function update() {
-    if (!densityRoot.enabled) return false;
     return applyTier();
   }
 
