@@ -7,8 +7,8 @@ const ACTION_LABELS = Object.freeze({
   ultimate: 'ULT'
 });
 
-export function createCombatHudV03({ root, runtime } = {}) {
-  if (!root || !runtime?.subscribe || !runtime?.dispatch) {
+export function createCombatHudV03({ root, runtime, inputFocus } = {}) {
+  if (!root || !runtime?.subscribe || !runtime?.dispatch || !inputFocus?.can || !inputFocus?.subscribe) {
     throw new TypeError('Combat HUD v0.3 dependencies required');
   }
   const job = root.querySelector('[data-combat-job]');
@@ -20,6 +20,7 @@ export function createCombatHudV03({ root, runtime } = {}) {
   for (const button of buttons) {
     const action = button.dataset.combatAction;
     const fire = event => {
+      if (!inputFocus.can('WORLD_ACTION')) return;
       event?.preventDefault?.();
       runtime.dispatch(action);
     };
@@ -39,16 +40,18 @@ export function createCombatHudV03({ root, runtime } = {}) {
       const identity = action.startsWith('active_') ? state.build.activeSkills[index]
         : action === 'ultimate' ? state.build.ultimate : action;
       button.textContent = `${ACTION_LABELS[action] ?? action} · ${identity}`;
-      button.disabled = !state.active || (action === 'ultimate' && !state.ultimateReady);
+      button.disabled = !state.active || !inputFocus.can('WORLD_ACTION') || (action === 'ultimate' && !state.ultimateReady);
       button.setAttribute('aria-pressed', action === 'ultimate' && state.ultimateReady ? 'true' : 'false');
     }
   };
   const unsubscribe = runtime.subscribe(render, { emitCurrent: true });
+  const unsubscribeFocus = inputFocus.subscribe(() => render(runtime.snapshot()));
 
   return Object.freeze({
     render: () => render(runtime.snapshot()),
     destroy: () => {
       unsubscribe();
+      unsubscribeFocus();
       for (const cleanup of cleanups) cleanup();
     }
   });

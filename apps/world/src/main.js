@@ -448,7 +448,8 @@ bindHudPresentation({ context: hudContext, root: document.body });
 const combatRuntime = createCombatRuntimeV03();
 const combatHud = createCombatHudV03({
   root: document.getElementById("combat-hud-v03"),
-  runtime: combatRuntime
+  runtime: combatRuntime,
+  inputFocus
 });
 combatRuntime.subscribe(state => {
   hudContext.setMode(state.active ? HUD_MODE.COMBAT : HUD_MODE.EXPLORE);
@@ -1432,12 +1433,14 @@ window.addEventListener("keydown", (event) => {
   if (event.code !== "KeyF" || event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
   if (event.target instanceof HTMLElement && event.target.closest("input, textarea, select, [contenteditable]")) return;
   if (!combatRuntime.active) return interactionAction();
+  if (!inputFocus.can("GAMEPLAY_SHORTCUT")) return;
   event.preventDefault();
   combatRuntime.dispatch("ultimate");
 });
 window.addEventListener("keydown", (event) => {
   if (!combatRuntime.active || event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
   if (event.target instanceof HTMLElement && event.target.closest("input, textarea, select, [contenteditable]")) return;
+  if (!inputFocus.can("GAMEPLAY_SHORTCUT")) return;
   if (event.code === "Escape") {
     event.preventDefault();
     combatRuntime.end("PLAYER_EXIT");
@@ -1454,7 +1457,7 @@ window.addEventListener("keydown", (event) => {
   combatRuntime.dispatch(action);
 });
 canvas.addEventListener("pointerdown", event => {
-  if (combatRuntime.active && event.button === 0) combatRuntime.dispatch("basic");
+  if (combatRuntime.active && inputFocus.can("WORLD_ACTION") && event.button === 0) combatRuntime.dispatch("basic");
 });
 guestbookInteraction = createGuestbookInteraction({
   anchor: MAIN_GATE_GUESTBOOK,
@@ -2405,6 +2408,7 @@ window.addEventListener("keydown", (event) => {
   if (event.code !== "KeyQ" || event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
   if (event.target instanceof HTMLElement && event.target.closest("input, textarea, select, [contenteditable]")) return;
   if (combatRuntime.active) {
+    if (!inputFocus.can("GAMEPLAY_SHORTCUT")) return;
     event.preventDefault();
     combatRuntime.toggleLock();
     return;
@@ -2740,7 +2744,9 @@ app.on("update", (dt) => {
   }
   contextActions.set("npc", inside ? null : npcTest?.getContextAction?.() ?? null);
   // Transport has its own slot: a nearby NPC and the bike are offered together (F and M).
-  transportActions.set("mount", controller.getMountContextAction());
+  const mountContextAction = controller.getMountContextAction();
+  // Recheck the live gate/locks and mount offer at activation, even for a retained button callback.
+  transportActions.set("mount", mountContextAction ? { ...mountContextAction, trigger: () => controller.transportAction() } : null);
   if (combatRuntime.active) {
     for (const key of [
       "seat", "guestbook", "student-center-shop", "backgate-transit", "biryong-station-transit",
