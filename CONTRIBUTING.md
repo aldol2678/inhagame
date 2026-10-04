@@ -17,6 +17,8 @@ Contributions are welcome; merge authority rests with the maintainer.
 - 새 마이그레이션의 버전은 기존 최신 버전보다 커야 하고, 첫 파일은 `20261001213132_public_baseline.sql`입니다.
 - Production 전용 객체(Mixpanel/observer 연동 등)는 이 저장소에 두지 않습니다.
 - 위 규칙은 CI의 migration lint(`.github/ci/migration-lint.mjs`)가 검사합니다. 이 저장소의 마이그레이션은 로컬 일회용 개발 DB용이며 Production에는 적용되지 않습니다.
+- 이미 있는 테이블은 `create table if not exists`로 다시 선언하지 말고 `alter table`로 바꿉니다. 다른 계약으로 다시 선언하면 replay 때 조용히 건너뛰어지므로 `.github/ci/migration-contract-lint.mjs`가 실패시킵니다.
+- Wallet / EXP / Inventory / Reward / Life / Collection / Creature / Activity / Combat 상태의 소유자와 허용 호출자는 [Authority Map](docs/architecture/AUTHORITY_MAP.md)에 정의되어 있습니다. primitive 호출이나 보호 테이블 쓰기를 새로 추가하면 `supabase/tests/database/93_authority_primitive_callers.test.sql`에 이유와 함께 등록해야 CI가 통과합니다.
 
 ## Do not submit
 
