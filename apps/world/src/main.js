@@ -153,6 +153,7 @@ import { createBiryongRealmTransition } from "./biryong/biryong-realm-transition
 import { createBiryongStationTransitInteraction } from "./biryong/biryong-station-transit-interaction.js";
 import { getBiryongRealmPlaceZone } from "./biryong/biryong-village-layout.js";
 import { createBiryongVillageNpcRuntime } from "./biryong/biryong-village-npc-runtime.js";
+import { createBiryongVillageDialogueRuntime } from "./biryong/biryong-village-dialogue-runtime.js";
 import { WORLD_REGION_ID } from "./regions/world-region-registry.js";
 import { INPUT_FOCUS_POLICY, createInputFocusManager } from "./input/input-focus-manager.js";
 import { bindInputFocusRuntime } from "./input/input-focus-runtime.js";
@@ -512,7 +513,8 @@ const contextActions = createContextActionController({
   onTriggered: action => {
     const actionId = action?.id ?? null;
     const livingComplete = inkyungLivingMoment?.recordAction(actionId) === true;
-    if (actionId === "npc-talk" || actionId === "main2-guide-talk") core15Funnel?.firstNpcInteraction();
+    if (actionId === "npc-talk" || actionId === "main2-guide-talk" || actionId === "biryong-npc-talk")
+      core15Funnel?.firstNpcInteraction();
     if (livingComplete) core15Funnel?.firstActivityComplete();
   }
 });
@@ -708,6 +710,7 @@ let rooms = null;
 let biryongRealm = null;
 let biryongStationTransit = null;
 let biryongVillageNpcs = null;
+let biryongVillageDialogue = null;
 let keyboardHelp = null;
 // Declared before input handlers so an early F/M event during boot can safely observe null.
 let playerAutoMove = null;
@@ -1548,7 +1551,49 @@ biryongVillageNpcs = createBiryongVillageNpcRuntime({
   camera,
   getActive: () => biryongRealm?.inBiryong === true
 });
-window.addEventListener("pagehide", event => { if (!event.persisted) biryongVillageNpcs?.destroy(); });
+biryongVillageDialogue = createBiryongVillageDialogueRuntime({
+  npcRuntime: biryongVillageNpcs,
+  getWorldContext: () => {
+    const env = environment.status();
+    return {
+      weather: env.targetWeather,
+      environmentTime: env.targetTime,
+      placeZoneId: getBiryongRealmPlaceZone(player.getLocalPosition())?.id ?? null
+    };
+  },
+  getSession: async () => {
+    const client = online?.supabase;
+    if (!client || !online?.userId) return null;
+    const { data, error } = await client.auth.getSession();
+    const session = data?.session;
+    return !error && session?.user?.id === online.userId && session.user.is_anonymous !== true
+      ? session.access_token : null;
+  },
+  getRelationshipStage: () => 1,
+  onOpenChange: open => {
+    if (open) {
+      npcDialogueInput.acquire();
+      emoteMenu.setOpen(false);
+      chatPanel.setOpen(false, { focus: false });
+    } else npcDialogueInput.release();
+  },
+  jevEnabled: false,
+  jevEndpoint: "/api/npc-dialogue-route"
+});
+if (npcProductionMode) {
+  void probeFeatureFlag("/api/npc-dialogue-route")
+    .then(result => biryongVillageDialogue?.setJevEnabled(result === FLAG_ENABLED))
+    .catch(() => biryongVillageDialogue?.setJevEnabled(false));
+}
+biryongRealm.onChange(status => {
+  if (!status.inBiryong) biryongVillageDialogue?.close();
+});
+window.addEventListener("pagehide", event => {
+  if (!event.persisted) {
+    biryongVillageDialogue?.destroy();
+    biryongVillageNpcs?.destroy();
+  }
+});
 
 biryongStationTransit = createBiryongStationTransitInteraction({
   getPosition: () => player.getLocalPosition(),
@@ -2623,6 +2668,12 @@ app.on("update", (dt) => {
       blocked: biryongRealm.busy || controller.mounted || seats.isSeated || !inputFocus.can("WORLD_ACTION")
     }) ?? null
     : null);
+  contextActions.set("biryong-npc", inBiryong
+    ? biryongVillageDialogue?.getContextAction({
+      blocked: biryongRealm.busy || controller.mounted || seats.isSeated ||
+        combatRuntime.active || !inputFocus.can("WORLD_ACTION")
+    }) ?? null
+    : null);
   contextActions.set("inkyung-duck", inside ? null : inkyungDucks.getContextAction(pos));
   contextActions.set("biryong", inside ? null : biryong?.getContextAction(pos, { blocked: controller.mounted || seats.isSeated }) ?? null);
   contextActions.set("mcm-event", inside ? null : mcmEventRuntime.contextAction());
@@ -2648,7 +2699,7 @@ app.on("update", (dt) => {
   if (combatRuntime.active) {
     for (const key of [
       "seat", "guestbook", "student-center-shop", "backgate-transit", "biryong-station-transit",
-      "inkyung-duck", "biryong", "mcm-event", "mcm-minigame", "follow",
+      "biryong-npc", "inkyung-duck", "biryong", "mcm-event", "mcm-minigame", "follow",
       "room-door", "personal-room-door", "npc"
     ]) contextActions.set(key, null);
     transportActions.set("mount", null);
@@ -2957,6 +3008,7 @@ window.__INHAGAME_P0__ = {
   biryongRealm,
   biryongStationTransit,
   biryongVillageNpcs,
+  biryongVillageDialogue,
   combatRuntime,
   combatHud,
   building5Combat,
@@ -3076,6 +3128,7 @@ window.__INHAGAME_P0__ = {
     worldRegion: biryongRealm?.status() ?? { regionId: WORLD_REGION_ID.CAMPUS },
     biryongStationTransit: biryongStationTransit?.status() ?? null,
     biryongVillageNpcs: biryongVillageNpcs?.status() ?? null,
+    biryongVillageDialogue: biryongVillageDialogue?.status() ?? null,
     combat: combatRuntime.snapshot(),
     building5Combat: building5Combat.status(),
     wallet: wallet.status(),
