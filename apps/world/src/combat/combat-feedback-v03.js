@@ -62,7 +62,9 @@ export function createCombatFeedbackV03({
         master.gain.value = .38;
         master.connect(audio.destination);
       }
-      if (audio.state === 'suspended') audio.resume?.();
+      if (audio.state === 'suspended') {
+        try { audio.resume?.()?.catch?.(() => {}); } catch { /* autoplay policy */ }
+      }
       return audio;
     } catch {
       return null;
