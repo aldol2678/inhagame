@@ -27,18 +27,64 @@ function sharedMaterial() {
   m.update();
   return m;
 }
-function part(parent,name,type,scale,pos,material) {
-  const e=new pc.Entity(name); e.addComponent('render',{type}); e.setLocalScale(...scale); e.setLocalPosition(...pos);
-  e.render.material=material; parent.addChild(e); return e;
+
+function pushQuad(positions,normals,indices,a,b,c,d,n) {
+  const o=positions.length/3;
+  for(const p of [a,b,c,d]) positions.push(...p);
+  for(let i=0;i<4;i++) normals.push(...n);
+  indices.push(o,o+1,o+2,o,o+2,o+3);
 }
-function createRoachVisual(root,index,material) {
-  // One shared-material primitive per stress entity: this experiment measures entity density,
-  // not prototype mesh complexity. Keeping one render component avoids multiplying shadow/draw passes.
+function addBar(g,from,to,width=.08,height=.08) {
+  const dx=to[0]-from[0], dz=to[2]-from[2], len=Math.hypot(dx,dz)||1;
+  const px=-dz/len*width/2, pz=dx/len*width/2, y0=from[1]-height/2, y1=from[1]+height/2;
+  const a=[from[0]+px,y0,from[2]+pz], b=[from[0]-px,y0,from[2]-pz];
+  const c=[to[0]-px,y0,to[2]-pz], d=[to[0]+px,y0,to[2]+pz];
+  const A=[a[0],y1,a[2]], B=[b[0],y1,b[2]], C=[c[0],y1,c[2]], D=[d[0],y1,d[2]];
+  pushQuad(g.positions,g.normals,g.indices,A,D,C,B,[0,1,0]);
+  pushQuad(g.positions,g.normals,g.indices,a,b,c,d,[0,-1,0]);
+  const nx=dz/len,nz=-dx/len;
+  pushQuad(g.positions,g.normals,g.indices,a,d,D,A,[nx,0,nz]);
+  pushQuad(g.positions,g.normals,g.indices,b,B,C,c,[-nx,0,-nz]);
+  pushQuad(g.positions,g.normals,g.indices,a,A,B,b,[-dx/len,0,-dz/len]);
+  pushQuad(g.positions,g.normals,g.indices,d,c,C,D,[dx/len,0,dz/len]);
+}
+function addEllipsoid(g,c,r,segments=10) {
+  const top=g.positions.length/3;
+  g.positions.push(c[0],c[1]+r[1],c[2]); g.normals.push(0,1,0);
+  const ring=[];
+  for(let i=0;i<segments;i++) {
+    const a=i/segments*Math.PI*2, x=Math.cos(a), z=Math.sin(a);
+    ring.push(g.positions.length/3);
+    g.positions.push(c[0]+x*r[0],c[1],c[2]+z*r[2]);
+    const nx=x/r[0],nz=z/r[2],nl=Math.hypot(nx,nz)||1;
+    g.normals.push(nx/nl,0,nz/nl);
+  }
+  const bottom=g.positions.length/3;
+  g.positions.push(c[0],c[1]-r[1],c[2]); g.normals.push(0,-1,0);
+  for(let i=0;i<segments;i++) {
+    const n=(i+1)%segments;
+    g.indices.push(top,ring[n],ring[i], bottom,ring[i],ring[n]);
+  }
+}
+function createRoachMesh(device) {
+  const g={positions:[],normals:[],indices:[]};
+  addEllipsoid(g,[0,0.02,0.28],[0.48,0.27,0.76],12);
+  addEllipsoid(g,[0,0.03,-0.52],[0.39,0.25,0.46],10);
+  addEllipsoid(g,[0,0.00,-0.96],[0.27,0.20,0.27],8);
+  for(const side of [-1,1]) {
+    addBar(g,[side*.28,-.16,-.55],[side*.92,-.22,-.86],.09,.07);
+    addBar(g,[side*.34,-.17,-.10],[side*1.02,-.23,-.12],.09,.07);
+    addBar(g,[side*.33,-.16,.38],[side*.92,-.22,.72],.09,.07);
+    addBar(g,[side*.14,.02,-1.12],[side*.62,.04,-1.72],.055,.045);
+  }
+  return pc.createMesh(device,g.positions,{normals:g.normals,indices:g.indices});
+}
+function createRoachVisual(root,index,material,mesh) {
   const e=new pc.Entity(`GIANT_ROACH_${index+1}`);
-  e.addComponent('render',{type:'sphere'});
-  // Human-sized crawler silhouette: ~1.7 m long and ~0.6 m tall, still one render primitive.
-  e.setLocalScale(0.9,0.6,1.7);
-  e.render.material=material;
+  e.addComponent('render',{
+    type:'asset',castShadows:false,receiveShadows:true,
+    meshInstances:[new pc.MeshInstance(mesh,material)]
+  });
   root.addChild(e);
   return e;
 }
@@ -59,12 +105,13 @@ export function createGiantRoachExperiment({app,campusRoot,player,count=10}) {
   const center=player.getLocalPosition();
   const navigator=createNpcNavigator(null,{additionalAnchors:[{x:center.x,z:center.z}]});
   const material=sharedMaterial();
+  const mesh=createRoachMesh(app.graphicsDevice);
   const roaches=[];
   let lastFrame=nowMs(), errors=0;
 
   function addOne(index){
     const position=spawnPoint(navigator,center,index);
-    const entity=createRoachVisual(campusRoot,index,material);
+    const entity=createRoachVisual(campusRoot,index,material,mesh);
     entity.setLocalPosition(position.x,roadviewGroundHeight(position.x,position.z)+0.32,position.z);
     roaches.push({entity,position,waypoints:[],heading:0,nextNavAt:index*.017,nextUpdateAt:0,index});
   }
@@ -122,7 +169,7 @@ export function createGiantRoachExperiment({app,campusRoot,player,count=10}) {
   function destroy(){
     if(destroyed)return; destroyed=true; app.off('update',update);
     while(roaches.length) roaches.pop().entity.destroy();
-    material.destroy?.(); delete window.__GIANT_ROACH_TEST__;
+    mesh.destroy?.(); material.destroy?.(); delete window.__GIANT_ROACH_TEST__;
   }
   setCount(targetCount); app.on('update',update);
   const api=Object.freeze({status,setCount,destroy,counts:GIANT_ROACH_COUNTS});
