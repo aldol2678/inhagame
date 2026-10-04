@@ -38,13 +38,16 @@ test('valid Jev result is accepted while invalid or failed result falls back', a
     fetcher: async () => ({ ok: true, json: async () => ({
       role: 'EXPERIMENT_ONLY', authorityEffect: 'NONE', model: 'jev-latest',
       decision: { responseSource: 'GENERATIVE', intent: 'SOCIAL', contextPriority: 'WEATHER' },
-      confidence: { responseSource: .7 }
+      confidence: { responseSource: .7 },
+      shadow: { latencyMs: 123 }
     }) })
   });
   const result = await router.route({ context, candidates, baseline });
   assert.equal(result.provider, 'JEV');
   assert.equal(result.responseSource, 'GENERATIVE');
   assert.equal(result.authorityEffect, 'NONE');
+  assert.equal(result.serverLatencyMs, 123);
+  assert.deepEqual(result.disagreement, { responseSource: true, intent: true, contextPriority: true });
   assert.equal(router.status().accepted, 1);
 
   const invalid = createNpcJevDialogueRouter({
