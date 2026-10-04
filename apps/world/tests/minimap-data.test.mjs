@@ -19,6 +19,7 @@ import {
 } from "../src/minimap/minimap-data.js";
 
 import { MAIN_GATE_FORECOURT_RING } from '../src/main-gate-forecourt.js';
+import { MAIN_HALL_WALKWAYS } from '../src/main-hall-walkway-layout.js';
 
 const byId = list => new Map(list.map(item => [item.id ?? item.poiId, item]));
 const centre = points => ({
@@ -69,7 +70,7 @@ test("M0 geometry includes runtime-aligned roads, authored paths, green and wate
     + ANNIVERSARY_BACK_GATE_LINKS.length;
   const expectedPathSegments = [...SITE_FEATURES.filter(feature => feature.kind === "path"),...GATE_DORM_PATHS,...GATE_DORM_CROSSINGS]
     .reduce((sum, feature) => sum + feature.vertices.length - 1, 0)
-    + GARDEN_LIBRARY_ROAD_LINK.length - 1
+    + GARDEN_LIBRARY_ROAD_LINK.length - 1 + MAIN_HALL_WALKWAYS.length
     + (LIBRARY_ROUTE_LINES.find(line => line.id === "garden_library_north_link")?.nodes.length ?? 1) - 1;
   assert.equal(geometry.filter(item => item.kind === MINIMAP_GEOMETRY_KIND.ROAD).length, expectedRoadSegments + 1, 'curb-derived gate forecourt is an additional road polygon');
   assert.deepEqual(geometry.find(item => item.id === 'maproad.main_gate_forecourt').rings, [MAIN_GATE_FORECOURT_RING]);
@@ -195,4 +196,3 @@ test("data source status remains read-only and contains no network persistence c
   assert.equal(status.poiCount, 9);
   assert.deepEqual(status.errors, []);
 });
-
