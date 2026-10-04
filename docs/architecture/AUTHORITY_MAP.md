@@ -197,8 +197,17 @@ These rules bind the next PRs. This PR does not change schema or gameplay for th
   `cumulative_sp` at its Skill Level. Spent SP is the sum of that skill's rows in the SP ledger.
 - **Tree gates use the owning skill's level** (`required_skill_level`). `required_life_level` stays
   as an optional aggregate gate; nodes use 1 until the aggregate display curve gets more levels.
-- Still open: the tree node catalog itself (0 nodes). #91 node content and its conversion notes are
-  in `PR91_LIFE_PROGRESSION_SALVAGE.md`.
+- **Nodes are multi-rank** (`20261004135000_world_life_skill_tree_ranks`):
+  - A node has `max_rank`; `sp_cost` is per rank; `required_skill_level` gates every rank.
+  - An edge requires a minimum prerequisite rank (`required_rank`) and must stay inside one skill.
+  - Each acquired rank is one append-only row in `world_player_life_nodes` and one SP spend row.
+    The current rank is the highest acquired rank. `world_life_node_unlock_v1` acquires exactly the
+    next rank; no caller names a rank.
+  - Published nodes and edges are immutable (only a node's `status` may change), enforced by
+    triggers. Guard test: `98_world_life_skill_tree_ranks`.
+- Still open: the tree node catalog itself (0 nodes), respec / reset (planned as a reset epoch, so
+  no ledger row is ever deleted), and a player-facing unlock path. #91 node content and its
+  conversion notes are in `PR91_LIFE_PROGRESSION_SALVAGE.md`.
 
 ### 7.2 Combat TP: derived from Character Level
 - Combat Tree Points are earned from Character Level (`world_player_progression` + `world_level_thresholds`).
@@ -254,8 +263,8 @@ These rules bind the next PRs. This PR does not change schema or gameplay for th
   sets `bond_entitled` on the creature it just granted, in the same transaction. It is the owning
   domain and the write is allowlisted with that reason. When more acquisition rules arrive, moving
   `bond_entitled` into `world_creature_grant_v1` (or a Creature acquisition primitive) keeps one writer.
-- **`world_life_node_unlock_v1` takes an un-namespaced advisory lock** (`hashtextextended(p_user::text, 0)`).
-  Every other domain uses `'world_<domain>:' || user`.
+- **`world_life_node_unlock_v1` took an un-namespaced advisory lock (resolved).** Since
+  `20261004135000` it uses `'world_life:' || user`, like every other domain.
 - **Four service-role wrappers rely on the GRANT alone, with no `auth.role()` check in the body**: `world_exp_grant_v1`, `world_progression_get_v1`, `claim_world_npc_shared_tick_v1`, `commit_world_npc_shared_tick_v1`. The GRANT is correct today and is asserted in `01_grants_contract`; the in-body check is the missing second layer.
 - **Append-only triggers that also block DELETE broke account deletion (resolved).** The
   `auth.users` FK cascade failed if any such row existed; economy ledgers block UPDATE only. Every
@@ -266,9 +275,9 @@ These rules bind the next PRs. This PR does not change schema or gameplay for th
   is still refused. Guard test: `79_account_delete_ledger_cascade` (through
   `delete_my_inhagame_account_v1`). A new append-only table that guards DELETE must use the same
   rule.
-- **The Life Skill tree catalog and edges have no immutability trigger.** Only test 93 keeps
-  functions from writing them; a later migration could still change a published node's cost or
-  prerequisites. Add the guard together with the first node import.
+- **The Life Skill tree catalog and edges had no immutability trigger (resolved).** Since
+  `20261004135000`, published node costs, gates, skill and max rank and every edge are frozen; edges
+  are same-skill only and cannot require more than the prerequisite's max rank.
 - **Reward source types** do not include `ACTIVITY` or `COMBAT`, and item grant sources do not
   include `COMBAT`. Source vocabularies differ across ledgers.
 

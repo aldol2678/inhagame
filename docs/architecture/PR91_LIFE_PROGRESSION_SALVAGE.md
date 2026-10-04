@@ -137,9 +137,9 @@ between trees.
 
 1. **IDs.** `main` requires `^life\.node\.<skill>\.<node>$`. Map `life_node.fishing.steady_hands`
    to `life.node.fishing.steady_hands`.
-2. **Ranks.** #91 nodes have ranks (max 1–3, cost per rank). The #98 catalog is a one-time unlock
-   with `sp_cost`. The import must either add a rank dimension to the canonical tree tables
-   (forward migration) or flatten each rank into its own node. Decide in the Life PR.
+2. **Ranks.** #91 nodes have ranks (max 1–3, cost per rank). **Decided: rank dimension**
+   (`20261004135000_world_life_skill_tree_ranks`). Import `maxRank` → `max_rank`, `pointCost` →
+   `sp_cost` (per rank), and each prerequisite `requiredRank` → edge `required_rank`, unchanged.
 3. **Gates.** #91 gates on aggregate Life Level. Under per-skill pools the gate is the owning
    skill's level (`required_skill_level`), which needs the per-skill curve
    (`life.common.v1` Lv2+) first. The #91 curve in section 1 is the candidate for that per-skill curve.

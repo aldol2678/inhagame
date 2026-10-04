@@ -99,7 +99,7 @@ select is(private.world_life_node_unlock_v1('a9800000-0000-4000-8000-0000000000a
 select throws_ok($$
   select private.world_life_node_unlock_v1('a9800000-0000-4000-8000-0000000000a9',
     'life.node.fishing.steady_hands','sp:a:unlock:steady:again')
-$$,'23505','LIFE_NODE_ALREADY_UNLOCKED','a node unlocks once');
+$$,'23505','LIFE_NODE_MAX_RANK','a max-rank-1 node unlocks once');
 
 -- mining earns its own SP; fishing stays at its own balance.
 select is(private.world_life_skill_xp_apply_v1('a9800000-0000-4000-8000-0000000000a9','life.mining',100,
@@ -134,8 +134,8 @@ select is((private.world_life_skill_sp_snapshot_v1('b9800000-0000-4000-8000-0000
   0,'another account has its own pool');
 select throws_ok($$
   insert into private.world_life_sp_transactions(
-    user_id,skill_id,node_id,sp_cost,sp_before,sp_after,idempotency_key)
-  values ('b9800000-0000-4000-8000-0000000000b9','life.mining','life.node.fishing.deep_sea',1,1,0,'sp:b:forged')
+    user_id,skill_id,node_id,rank,sp_cost,sp_before,sp_after,idempotency_key)
+  values ('b9800000-0000-4000-8000-0000000000b9','life.mining','life.node.fishing.deep_sea',1,1,1,0,'sp:b:forged')
 $$,'23503',null,'a spend cannot be booked against another skill''s pool');
 select throws_ok($$
   update private.world_life_sp_transactions set sp_cost=0 where idempotency_key='sp:a:unlock:steady'
