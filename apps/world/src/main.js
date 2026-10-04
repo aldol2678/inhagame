@@ -1819,7 +1819,7 @@ const biryongAtmosphere = createBiryongAtmosphere({
   getGraphicsTier: () => graphics.tier,
   enabled: biryongVisualLabP0D,
   toneMappingNeutral: pc.TONEMAP_NEUTRAL,
-  toneMappingCinematic: pc.TONEMAP_ACES
+  toneMappingCinematic: pc.TONEMAP_ACES2 ?? pc.TONEMAP_ACES ?? pc.TONEMAP_NEUTRAL
 });
 if (biryongVisualLabP0D) app.on("update", () => biryongAtmosphere.update());
 window.__INHAGAME_BIRYONG_ATMOSPHERE__ = Object.freeze({
