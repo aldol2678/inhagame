@@ -20,6 +20,28 @@ export const BUILDING5_TRAINING_TARGET = frozen({
   breakStunMs: 1550
 });
 
+export const BUILDING5_TRAINING_PLAYER = frozen({
+  maxHp: 1000,
+  dodgeDurationMs: 280,
+  dodgeDistance: 2.2,
+  iframeStartMs: 70,
+  iframeEndMs: 230,
+  perfectStartMs: 70,
+  perfectEndMs: 180
+});
+
+// v9.22 support-drone facts with a learnable telegraph added for the campus training slice.
+// Damage/range/cadence are inherited from the prototype; windup is the training presentation contract.
+export const BUILDING5_TRAINING_ATTACK = frozen({
+  id: 'training_pulse',
+  title: '공명 펄스',
+  damage: 44,
+  range: 5,
+  cooldownMs: 2000,
+  firstDelayMs: 1200,
+  windupMs: 680
+});
+
 // v9.22 Blaster / Rapid first-slice values.
 // This is a local no-reward training resolver only. It does not create authoritative Combat results.
 export const BUILDING5_BLASTER_RAPID_ACTIONS = frozen({
@@ -70,7 +92,9 @@ const cooldownKey = identity => identity === 'accelerate' ? 'active_1'
 export function createBuilding5CombatTraining({
   clock = { now: () => Date.now() },
   getPlayerPosition = () => null,
-  target = BUILDING5_TRAINING_TARGET
+  target = BUILDING5_TRAINING_TARGET,
+  playerDefinition = BUILDING5_TRAINING_PLAYER,
+  enemyAttack = BUILDING5_TRAINING_ATTACK
 } = {}) {
   const listeners = new Set();
   let active = false;
@@ -85,12 +109,73 @@ export function createBuilding5CombatTraining({
   let hitSerial = 0;
   let breakSerial = 0;
   let lastHit = null;
+
+  let playerHp = playerDefinition.maxHp;
+  let playerDefeatedAt = null;
+  let playerHitSerial = 0;
+  let perfectDodgeSerial = 0;
+  let lastPlayerHit = null;
+  let dodge = frozen({
+    active: false,
+    startedAt: 0,
+    endsAt: 0,
+    iframeStartAt: 0,
+    iframeEndAt: 0,
+    perfectStartAt: 0,
+    perfectEndAt: 0,
+    perfectUsed: false
+  });
+
+  let enemyAttackSerial = 0;
+  let nextEnemyAttackAt = 0;
+  let enemyWindup = null;
+  let lastEnemyAttack = null;
+
   const cooldownUntil = { active_1: 0, active_2: 0, active_3: 0, dodge: 0 };
 
   const now = () => Number(clock.now());
   const cooldowns = at => frozen(Object.fromEntries(Object.entries(cooldownUntil).map(([key, until]) => [
     key, Math.max(0, until - at)
   ])));
+
+  const dodgeSnapshot = at => frozen({
+    ...dodge,
+    active: dodge.active && at < dodge.endsAt,
+    elapsedMs: dodge.active ? clamp(at - dodge.startedAt, 0, playerDefinition.dodgeDurationMs) : 0,
+    remainingMs: dodge.active ? Math.max(0, dodge.endsAt - at) : 0,
+    iframe: dodge.active && at >= dodge.iframeStartAt && at <= dodge.iframeEndAt,
+    perfectWindow: dodge.active && !dodge.perfectUsed && at >= dodge.perfectStartAt && at <= dodge.perfectEndAt
+  });
+
+  const enemyAttackSnapshot = at => {
+    if (!enemyWindup) return frozen({
+      phase: 'IDLE',
+      id: enemyAttack.id,
+      title: enemyAttack.title,
+      damage: enemyAttack.damage,
+      range: enemyAttack.range,
+      nextInMs: Math.max(0, nextEnemyAttackAt - at),
+      remainingMs: 0,
+      progress: 0,
+      aimX: null,
+      aimZ: null,
+      serial: enemyAttackSerial
+    });
+    const remaining = Math.max(0, enemyWindup.impactAt - at);
+    return frozen({
+      phase: 'WINDUP',
+      id: enemyAttack.id,
+      title: enemyAttack.title,
+      damage: enemyAttack.damage,
+      range: enemyAttack.range,
+      nextInMs: 0,
+      remainingMs: remaining,
+      progress: clamp(1 - remaining / Math.max(1, enemyAttack.windupMs), 0, 1),
+      aimX: enemyWindup.aimX,
+      aimZ: enemyWindup.aimZ,
+      serial: enemyWindup.serial
+    });
+  };
 
   const snapshot = () => {
     const at = now();
@@ -116,7 +201,20 @@ export function createBuilding5CombatTraining({
       cooldowns: cooldowns(at),
       hitSerial,
       breakSerial,
-      lastHit
+      lastHit,
+      player: frozen({
+        hp: playerHp,
+        maxHp: playerDefinition.maxHp,
+        hpRatio: playerDefinition.maxHp > 0 ? playerHp / playerDefinition.maxHp : 0,
+        defeated: playerHp <= 0,
+        defeatedAt: playerDefeatedAt,
+        hitSerial: playerHitSerial,
+        perfectDodgeSerial,
+        lastHit: lastPlayerHit,
+        dodge: dodgeSnapshot(at)
+      }),
+      enemyAttack: enemyAttackSnapshot(at),
+      lastEnemyAttack
     });
   };
 
@@ -126,7 +224,37 @@ export function createBuilding5CombatTraining({
     return state;
   };
 
+  const playerPosition = () => {
+    const player = getPlayerPosition?.();
+    return player && Number.isFinite(player.x) && Number.isFinite(player.z) ? player : null;
+  };
+
+  const distanceToTarget = () => {
+    const player = playerPosition();
+    if (!player) return Infinity;
+    return Math.hypot(player.x - target.x, player.z - target.z);
+  };
+
+  function clearDodge() {
+    dodge = frozen({
+      active: false,
+      startedAt: 0,
+      endsAt: 0,
+      iframeStartAt: 0,
+      iframeEndAt: 0,
+      perfectStartAt: 0,
+      perfectEndAt: 0,
+      perfectUsed: false
+    });
+  }
+
+  function clearEnemyAttack(at, delayMs = enemyAttack.cooldownMs) {
+    enemyWindup = null;
+    nextEnemyAttackAt = at + delayMs;
+  }
+
   function resetTarget({ preserveMomentum = true } = {}) {
+    const at = now();
     generation += 1;
     hp = target.maxHp;
     breakValue = 0;
@@ -135,9 +263,18 @@ export function createBuilding5CombatTraining({
     hitSerial = 0;
     breakSerial = 0;
     lastHit = null;
+    playerHp = playerDefinition.maxHp;
+    playerDefeatedAt = null;
+    playerHitSerial = 0;
+    perfectDodgeSerial = 0;
+    lastPlayerHit = null;
     for (const key of Object.keys(cooldownUntil)) cooldownUntil[key] = 0;
     rapidBuffUntil = 0;
     overdriveUntil = 0;
+    clearDodge();
+    enemyAttackSerial = 0;
+    lastEnemyAttack = null;
+    clearEnemyAttack(at, enemyAttack.firstDelayMs);
     if (!preserveMomentum) momentum = 0;
     return emit('reset');
   }
@@ -156,15 +293,11 @@ export function createBuilding5CombatTraining({
     for (const key of Object.keys(cooldownUntil)) cooldownUntil[key] = 0;
     rapidBuffUntil = 0;
     overdriveUntil = 0;
+    clearDodge();
+    enemyWindup = null;
     emit('end');
     return true;
   }
-
-  const distanceToTarget = () => {
-    const player = getPlayerPosition?.();
-    if (!player || !Number.isFinite(player.x) || !Number.isFinite(player.z)) return Infinity;
-    return Math.hypot(player.x - target.x, player.z - target.z);
-  };
 
   function resolvePackets(definition, at) {
     const distance = distanceToTarget();
@@ -198,12 +331,16 @@ export function createBuilding5CombatTraining({
           brokenUntil = at + target.breakStunMs;
           breakSerial += 1;
           triggered += 1;
+          clearEnemyAttack(at, target.breakStunMs + 450);
         }
       }
     }
 
     if (damagePackets.length > 0) hitSerial += 1;
-    if (hp <= 0 && defeatedAt == null) defeatedAt = at;
+    if (hp <= 0 && defeatedAt == null) {
+      defeatedAt = at;
+      enemyWindup = null;
+    }
     lastHit = frozen({
       hit: damagePackets.length > 0,
       damage: totalDamage,
@@ -216,8 +353,22 @@ export function createBuilding5CombatTraining({
     return frozen({ ...lastHit, damagePackets: frozen(damagePackets) });
   }
 
+  function startDodge(at) {
+    dodge = frozen({
+      active: true,
+      startedAt: at,
+      endsAt: at + playerDefinition.dodgeDurationMs,
+      iframeStartAt: at + playerDefinition.iframeStartMs,
+      iframeEndAt: at + playerDefinition.iframeEndMs,
+      perfectStartAt: at + playerDefinition.perfectStartMs,
+      perfectEndAt: at + playerDefinition.perfectEndMs,
+      perfectUsed: false
+    });
+  }
+
   function resolveAction({ action, identity } = {}) {
     if (!active) return frozen({ accepted: false, reason: 'TRAINING_NOT_ACTIVE' });
+    if (playerHp <= 0) return frozen({ accepted: false, reason: 'PLAYER_DEFEATED' });
     if (hp <= 0 && action !== 'dodge') return frozen({ accepted: false, reason: 'TARGET_DEFEATED' });
 
     const at = now();
@@ -230,10 +381,22 @@ export function createBuilding5CombatTraining({
     }
 
     if (definition.momentumCost && momentum < definition.momentumCost) {
-      return frozen({ accepted: false, reason: 'RESOURCE_REQUIRED', resource: 'overcharge', required: definition.momentumCost, current: momentum });
+      return frozen({
+        accepted: false,
+        reason: 'RESOURCE_REQUIRED',
+        resource: 'overcharge',
+        required: definition.momentumCost,
+        current: momentum
+      });
     }
 
     if (key && definition.cooldownMs) cooldownUntil[key] = at + definition.cooldownMs;
+    if (action === 'dodge') {
+      startDodge(at);
+      emit('dodge');
+      return frozen({ accepted: true, action, identity, dodge: dodgeSnapshot(at), training: snapshot() });
+    }
+
     if (definition.momentumCost) momentum = Math.max(0, momentum - definition.momentumCost);
     if (definition.momentumGain) momentum = clamp(momentum + definition.momentumGain, 0, 100);
     if (definition.momentumSet != null) momentum = clamp(definition.momentumSet, 0, 100);
@@ -256,6 +419,104 @@ export function createBuilding5CombatTraining({
     return result;
   }
 
+  function beginEnemyWindup(at) {
+    const player = playerPosition();
+    if (!player || distanceToTarget() > enemyAttack.range) return null;
+    enemyAttackSerial += 1;
+    enemyWindup = frozen({
+      serial: enemyAttackSerial,
+      startedAt: at,
+      impactAt: at + enemyAttack.windupMs,
+      aimX: player.x,
+      aimZ: player.z
+    });
+    emit('enemy-windup');
+    return enemyWindup;
+  }
+
+  function resolveEnemyImpact(at) {
+    if (!enemyWindup) return null;
+    const attack = enemyWindup;
+    enemyWindup = null;
+
+    const dodgeState = dodgeSnapshot(at);
+    const inRange = distanceToTarget() <= enemyAttack.range;
+    let outcome = 'MISS';
+    let damage = 0;
+    let perfectDodge = false;
+
+    if (inRange) {
+      if (dodgeState.iframe) {
+        outcome = dodgeState.perfectWindow ? 'PERFECT_DODGE' : 'DODGE';
+        if (dodgeState.perfectWindow) {
+          perfectDodge = true;
+          perfectDodgeSerial += 1;
+          momentum = clamp(momentum + 20, 0, 100);
+          cooldownUntil.active_1 = Math.max(at, cooldownUntil.active_1 - 1000);
+          dodge = frozen({ ...dodge, perfectUsed: true });
+        }
+      } else {
+        outcome = 'HIT';
+        damage = enemyAttack.damage;
+        playerHp = Math.max(0, playerHp - damage);
+        playerHitSerial += 1;
+        if (playerHp <= 0 && playerDefeatedAt == null) playerDefeatedAt = at;
+      }
+    }
+
+    lastPlayerHit = frozen({
+      serial: enemyAttackSerial,
+      attackId: enemyAttack.id,
+      outcome,
+      damage,
+      perfectDodge,
+      at
+    });
+    lastEnemyAttack = frozen({
+      ...lastPlayerHit,
+      aimX: attack.aimX,
+      aimZ: attack.aimZ
+    });
+    clearEnemyAttack(at);
+    emit(perfectDodge ? 'perfect-dodge' : outcome === 'HIT' ? 'player-hit' : 'enemy-impact');
+    return frozen({
+      type: 'enemy-impact',
+      outcome,
+      damage,
+      perfectDodge,
+      playerDefeated: playerHp <= 0,
+      attack: lastEnemyAttack
+    });
+  }
+
+  function update() {
+    if (!active) return null;
+    const at = now();
+
+    if (dodge.active && at >= dodge.endsAt) clearDodge();
+
+    if (hp <= 0 || playerHp <= 0) {
+      enemyWindup = null;
+      return null;
+    }
+
+    if (brokenUntil > at) {
+      if (enemyWindup) clearEnemyAttack(at, target.breakStunMs + 450);
+      return null;
+    }
+
+    if (enemyWindup && at >= enemyWindup.impactAt) return resolveEnemyImpact(at);
+    if (!enemyWindup && at >= nextEnemyAttackAt) {
+      const started = beginEnemyWindup(at);
+      if (!started) {
+        nextEnemyAttackAt = at + 250;
+        return null;
+      }
+      return frozen({ type: 'enemy-windup', attack: enemyAttackSnapshot(at) });
+    }
+    return null;
+  }
+
   function subscribe(listener, { emitCurrent = false } = {}) {
     if (typeof listener !== 'function') throw new TypeError('Training listener must be a function');
     listeners.add(listener);
@@ -269,6 +530,7 @@ export function createBuilding5CombatTraining({
     end,
     resetTarget,
     resolveAction,
+    update,
     subscribe
   });
 }
