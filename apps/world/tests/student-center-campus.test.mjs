@@ -160,3 +160,16 @@ test('walk inspection reports support and head heights in its requested coordina
  const world=createStudentConnectedWalk({space:'world'}).inspect(q[0],q[2],q[1]);
  assert.equal(world.supportHeight,local.supportHeight/2);assert.equal(world.headHeight,local.headHeight/2);
 });
+
+test('compressed student stair orbit hides only the local avatar without changing perspective or zoom',async()=>{
+ const {OrbitCameraController}=await import('../src/orbit-camera-controller.js');
+ controllerAt([-24,2.5,-7.940397350991514]);
+ const camera={camera:{nearClip:.3},setPosition(...p){this.position=p;},lookAt(){}};
+ const orbit=new OrbitCameraController(camera,{addEventListener(){}}),q=frame.toWorld([-24,2.5,-7.940397350991514]);
+ orbit.yaw=-2.080148822704922;orbit.pitch=.18;orbit.distance=2.2;
+ orbit.apply({x:q[0],y:q[1]+1.15,z:q[2]},-.35);
+ assert.equal(orbit.localVisualOccluded,true,'actual close Core A wall must not leave the camera inside the local body');
+ assert.equal(orbit.firstPerson,false);assert.equal(orbit.distance,2.2);assert.equal(camera.camera.nearClip,.3);
+ const clear=frame.toWorld([0,0,29]);orbit.yaw=Math.PI/2;orbit.pitch=.32;orbit.distance=6;
+ orbit.apply({x:clear[0],y:1.15,z:clear[2]},-.35);assert.equal(orbit.localVisualOccluded,false,'open outdoor orbit restores avatar');
+});

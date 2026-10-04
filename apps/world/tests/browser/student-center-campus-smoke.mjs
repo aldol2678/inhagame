@@ -126,18 +126,19 @@ export function tickStudentSegment(until) {
     grounded:c.grounded,supported:true,bodyClear:true,dt:s.dt,yaw:s.yaw,totalTicks:q.ticks};
 }
 
-export function setStudentWalkthroughCamera() {
+export function setStudentWalkthroughCamera({cameraYaw=null,intendedNextTarget=null}={}) {
   const q=window.__studentCampusQA,{d,camera}=q,c=d.controller;
   Object.assign(camera.camera,q.projection);
-  d.orbit.firstPerson=false;d.orbit.distance=2.2;d.orbit.pitch=.18;d.orbit.yaw=q.segment.yaw;
-  d.character.setFirstPerson(false);
+  d.orbit.firstPerson=false;d.orbit.distance=2.2;d.orbit.pitch=.18;d.orbit.yaw=Number.isFinite(cameraYaw)?cameraYaw:q.segment.yaw;
+  d.character.setFirstPerson(d.orbit.firstPerson);
   d.orbit.apply(d.player.getLocalPosition(),d.character.eyeHeight);
+  d.character.setCameraOccluded(d.orbit.localVisualOccluded);
   const p=camera.getPosition();
   if(![p.x,p.y,p.z].every(Number.isFinite))throw Error('Nonfinite production orbit camera');
   return {mode:'production third-person OrbitCameraController.apply',position:[p.x,p.y,p.z],
-    yaw:d.orbit.yaw,pitch:d.orbit.pitch,distance:d.orbit.distance,eyeHeight:d.character.eyeHeight,
+    yaw:d.orbit.yaw,intendedNextTarget,pitch:d.orbit.pitch,distance:d.orbit.distance,eyeHeight:d.character.eyeHeight,
     playerPosition:d.player.getLocalPosition().toArray(),movementSpace:c.space.id,
-    firstPerson:d.orbit.firstPerson,indoorOverride:d.orbit.indoor!==null};
+    firstPerson:d.orbit.firstPerson,localVisualOccluded:d.orbit.localVisualOccluded,indoorOverride:d.orbit.indoor!==null};
 }
 
 // Fit the complete actual mesh bounds, including all exterior source details.
@@ -297,6 +298,30 @@ async function main() {
                 if(checkpoint){
                   const camera=await evaluate(setStudentWalkthroughCamera);
                   const image=await capture(`${direction}-${checkpoint}`);image.camera=camera;image.walkedPose=segment.result.local;
+                  if(checkpoint==='first-floor-entry'){
+                    // Repeat the same stationary scene/camera, without another controller tick.
+                    // This checks only stable-frame pixels; it is not moving z-fighting proof.
+                    const repeated=await capture(`${direction}-${checkpoint}-repeat-stable-frame`,{compare:true});
+                    repeated.camera=camera;repeated.walkedPose=segment.result.local;
+                    const stationary=await evaluate(()=>{const q=window.__studentCampusQA;return {position:q.d.player.getLocalPosition().toArray(),ticks:q.ticks};});
+                    repeated.stability={claim:'stable-frame only; not moving z-fighting proof',reference:image.file,
+                      referenceHash:image.pixels.hash,repeatedHash:repeated.pixels.hash,controllerTicks:stationary.ticks};
+                    assert.deepEqual(stationary.position,camera.playerPosition,'stationary entry repeat must not move the actor');
+                    assert.equal(stationary.ticks,segment.result.totalTicks,'stationary entry repeat must not tick movement');
+                    assert.equal(repeated.pixels.hash,image.pixels.hash,'same stationary entry scene must render the same pixel hash');
+                    assert.equal(repeated.pixels.changed,0,'same stationary entry scene must not change visible pixels');
+                  }
+                  if(checkpoint==='upper-core-landing'&&route[i+1]){
+                    const turn=await evaluate(next=>{
+                      const q=window.__studentCampusQA,p=q.d.player.getLocalPosition(),target=q.frame.toWorld([next[0],0,next[1]]);
+                      return {cameraYaw:Math.atan2(-(target[0]-p.x),target[2]-p.z),
+                        intendedNextTarget:{local:next,worldXZ:[target[0],target[2]],orientationOnly:true}};
+                    },route[i+1]);
+                    const turnedCamera=await evaluate(setStudentWalkthroughCamera,turn);
+                    assert.deepEqual(turnedCamera.playerPosition,camera.playerPosition,'landing turn changes only camera yaw');
+                    const turned=await capture(`${direction}-upper-core-landing-turn`);
+                    turned.camera=turnedCamera;turned.walkedPose=segment.result.local;
+                  }
                 }
               }
             }finally{await page.keyboard.up('w');}

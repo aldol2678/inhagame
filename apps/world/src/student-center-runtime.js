@@ -1,16 +1,13 @@
 // Real-campus adapter for the reviewed v09 building. Stateless: actor altitude is
 // only a ceiling for querying real surfaces; it can never become a cached floor.
-import {studentConnectedFrame} from './student-center-frame.js';
+import {studentConnectedFrame,inStudentCampusRegion} from './student-center-frame.js';
+export {inStudentCampusRegion} from './student-center-frame.js';
 import {supports,support,footprint} from './student-center-connected-data.js';
 import {createStudentConnectedWalk} from './student-center-connected.js';
 import {WALK_SHAPE} from './player-dimensions.js';
 
 const frame=studentConnectedFrame(),walk=createStudentConnectedWalk({space:'world'});
 const EPS=1e-6;
-export function inStudentCampusRegion(x,z){
- const q=frame.toLocal([x,0,z]);
- return q[0]>=-36&&q[0]<=31&&q[2]>=-28&&q[2]<=29;
-}
 // Returns null outside the bounded building area. Under an upper floor the ground
 // remains the lower floor/terrain; a high camera or jumping actor cannot lift it.
 export function studentCampusGroundHeight(x,z,maxHeight=0){

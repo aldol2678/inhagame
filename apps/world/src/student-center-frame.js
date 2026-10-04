@@ -10,3 +10,9 @@ export function studentCandidateFrame(f=FACILITIES.find(f=>f.id==='bldg_07')){
  return {toWorld,toLocal,determinant:ux*nz-uz*nx,yaw:Math.atan2(nx,nz)*180/Math.PI};
 }
 export function studentConnectedFrame(){const f=studentCandidateFrame();return {...f,toWorld:p=>{const q=f.toWorld(p);return[q[0]+2.2,q[1],q[2]-7.15]},toLocal:p=>f.toLocal([p[0]-2.2,p[1],p[2]+7.15])};}
+
+const campusFrame=studentConnectedFrame();
+export function inStudentCampusRegion(x,z){
+ const q=campusFrame.toLocal([x,0,z]);
+ return q[0]>=-36&&q[0]<=31&&q[2]>=-28&&q[2]<=29;
+}
