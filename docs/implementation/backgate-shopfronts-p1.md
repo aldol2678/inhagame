@@ -9,8 +9,8 @@ These dimensions are not a survey of individual real buildings. All layout,
 collision, navigation and source-data files remain unchanged.
 
 The isolated working base was subsequently fast-forwarded to
-`cd40b910ed0bf03e48b6da37fcee38b519db1bbc`, preserving the student-center,
-Life Skill Book, NPC dialogue and TML integrations. The facade-only comparison still uses
+`413d984fcb59216e7f07bafed1fffc618351a109`, preserving the student-center,
+Life Skill Book, NPC dialogue, loading-render gate and TML integrations. The facade-only comparison still uses
 the pinned `d9cbd39` modules; the 37 target layouts are identical at both bases.
 
 The 34 existing west-side OSM buildings and the restored 35 alley envelopes,

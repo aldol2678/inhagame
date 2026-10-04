@@ -7,7 +7,7 @@ or pull request is a separate publication action and needs the owner's approval.
 ## Comparison contract
 
 - Candidate: the exact pull-request head, checked out with no persisted credentials
-- Current app preservation baseline: `cd40b910ed0bf03e48b6da37fcee38b519db1bbc`
+- Current app preservation baseline: `413d984fcb59216e7f07bafed1fffc618351a109`
 - Old facade sources: pinned commit `d9cbd3948e4e5acf359313824387dc8695c3e672`
 - Only `/src/back-street-geometry.js`, `/src/culture-street-geometry.js`, and
   `/src/culture-street-signs.js` are served from `git show` on the old page

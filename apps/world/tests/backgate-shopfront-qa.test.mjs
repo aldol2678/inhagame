@@ -15,7 +15,7 @@ test('hosted-only guard rejects local or unspecified-head execution', () => {
 
 test('comparison changes only the pinned old geometry/sign files and includes all aspect ratios', () => {
   assert.equal(BASELINE, 'd9cbd3948e4e5acf359313824387dc8695c3e672');
-  assert.equal(CURRENT_MAIN, 'cd40b910ed0bf03e48b6da37fcee38b519db1bbc');
+  assert.equal(CURRENT_MAIN, '413d984fcb59216e7f07bafed1fffc618351a109');
   assert.deepEqual(BASELINE_PATHS, ['/src/back-street-geometry.js', '/src/culture-street-geometry.js', '/src/culture-street-signs.js']);
   assert.deepEqual(VIEWPORTS.map(({ width, height }) => [width, height]), [[1280, 720], [390, 844], [844, 390]]);
   assert.equal(TARGETS.length, 37); assert.equal(new Set(TARGETS.map(q => q.id)).size, 37);

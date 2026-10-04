@@ -3,7 +3,8 @@
 // apps/world is served by the committed dev-server.mjs on 127.0.0.1. Each page's PlayCanvas
 // import-map URL is answered from the pinned npm copy in this folder; supabase-js is replaced by an
 // empty script, so the online layer and the population heartbeat stay off; /api/* (hub telemetry,
-// NPC/quest flags) answers 204; every other off-origin request is aborted. Nothing reaches
+// NPC/quest flags) answers 204, except the local server's valid /api/world-time JSON; every
+// other off-origin request is aborted. Nothing reaches
 // production, and no login or secret is used.
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
@@ -88,7 +89,9 @@ export async function startSmoke({ viewport = { width: 1280, height: 720 }, cont
   await context.route("**/*", route => {
     const url = new URL(route.request().url());
     if (url.origin === server.origin) {
-      if (!url.pathname.startsWith("/api/")) return route.continue();
+      // The shared clock consumes JSON. A mocked 204 here produces an artificial aborted
+      // request in Chromium; use the existing offline dev-server time endpoint instead.
+      if (!url.pathname.startsWith("/api/") || url.pathname === "/api/world-time") return route.continue();
       stubbed.add(url.pathname);
       return route.fulfill({ status: 204 });
     }

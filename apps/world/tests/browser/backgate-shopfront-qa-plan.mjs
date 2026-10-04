@@ -4,7 +4,7 @@ import { BACK_STREET_BLOCKS } from '../../src/back-street-layout.js';
 import { CULTURE_BUILDINGS, CULTURE_TERMINAL } from '../../src/culture-street-layout.js';
 
 export const BASELINE = 'd9cbd3948e4e5acf359313824387dc8695c3e672';
-export const CURRENT_MAIN = 'cd40b910ed0bf03e48b6da37fcee38b519db1bbc';
+export const CURRENT_MAIN = '413d984fcb59216e7f07bafed1fffc618351a109';
 export const BASELINE_PATHS = Object.freeze([
   '/src/back-street-geometry.js', '/src/culture-street-geometry.js', '/src/culture-street-signs.js'
 ]);
