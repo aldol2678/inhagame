@@ -30,6 +30,7 @@ import { createRainWeatherEffects } from './environment/rain-weather-effects.js'
 import { createSnowWeatherEffects } from './environment/snow-weather-effects.js';
 import { createSkyVisuals } from './environment/sky-visuals.js';
 import { createInkyungDuckSystem } from './ambient-ducks.js';
+import { createDuckObservationClient } from './creature/duck-observation-client.js';
 import { createInkyungMechanicalDuckEvent } from './inkyung-mechanical-duck-event.js';
 import { createBiryongSystem } from './biryong/biryong-system.js';
 import { BIRYONG_PLACE_ID, isNearBiryong } from './biryong/biryong-layout.js';
@@ -674,6 +675,9 @@ const lobbyPlayerSummary = createLobbyPlayerSummary({
 const tour = createCampusTour();
 // Social S1-B1: local expression plays at once; members also broadcast it (guests stay local).
 let online = null;
+const duckCompanion = createDuckObservationClient({
+  getClient: () => online?.supabase ?? null
+});
 let accompany = null;
 let populationHeartbeat = null;
 let populationCount = null;
@@ -1743,11 +1747,43 @@ const inkyungDucks = createInkyungDuckSystem({
   root: campusRoot,
   player,
   forceMechanical: previewHost && startupParams.get("mechanicalDuck") === "1",
-  canObserveOrdinary: () => inkyungSideEvent.canObserveOrdinaryDuck(),
+  canObserveOrdinary: () =>
+    inkyungSideEvent.canObserveOrdinaryDuck() || duckCompanion.canObserve(),
   onOrdinaryObserved: duck => {
-    const result = inkyungSideEvent.observeOrdinaryDuck(duck.kind);
-    if (result.changed) showWorldStatus(`🦆 ${result.line} · 이제 수상한 오리를 찾아보자.`);
-    return result;
+    const sideEventResult = inkyungSideEvent.observeOrdinaryDuck(duck.kind);
+    const companionStarted = duckCompanion.canObserve();
+
+    if (companionStarted) {
+      void duckCompanion.observe(duck.id).then(result => {
+        if (result?.status === "FAILED") {
+          console.warn("Duck Companion observation failed:", result.error);
+          return;
+        }
+        const companion = result?.companion;
+        if (!companion) return;
+        if (companion.state === "BOND_ELIGIBLE") {
+          showWorldStatus("🦆 오리들이 경계를 풀었다 · 이제 동료로 교감할 수 있어요.");
+          return;
+        }
+        if (companion.state === "OWNED") {
+          showWorldStatus("🦆 동행 중인 오리를 다시 만났어요.");
+          return;
+        }
+        const count = Number(companion.observationCount ?? 0);
+        const required = Number(companion.requiredObservationCount ?? 3);
+        if (Number.isFinite(count) && Number.isFinite(required)) {
+          showWorldStatus(`🦆 오리 관찰 기록 ${count}/${required}`);
+        }
+      });
+    }
+
+    if (sideEventResult.changed) {
+      showWorldStatus(`🦆 ${sideEventResult.line} · 이제 수상한 오리를 찾아보자.`);
+    }
+    return {
+      ...sideEventResult,
+      changed: sideEventResult.changed || companionStarted
+    };
   },
   onLoreFound: lore => {
     const eventResult = inkyungSideEvent.observeMechanicalDuck();
@@ -2681,6 +2717,8 @@ try {
     void loadout.setAccount(identity ? online?.userId ?? null : null);
     const nextRoomUserId = online?.userId ?? null;
     inkyungSideEvent.setScope(nextRoomUserId ?? "guest");
+    if (identity) void duckCompanion.refresh();
+    else duckCompanion.reset();
     const roomIdentityChanged = lastPersonalRoomUserId !== null && nextRoomUserId !== lastPersonalRoomUserId;
     if (!identity || roomIdentityChanged) roomSession?.stop();
     if (!identity || roomIdentityChanged) roomFurniture?.reset();
