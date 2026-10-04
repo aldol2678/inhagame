@@ -93,6 +93,9 @@ import { createPersonalRoomInteraction } from "./rooms/personal-room-interaction
 import { FriendRoomVisitClient, FRIEND_ROOM_VISIT_TEXT, createFriendRoomVisitController } from "./rooms/friend-room-visit.js";
 import { createPersonalRoomSession } from "./rooms/room-session.js";
 import { createRoomHud } from "./rooms/room-hud.js";
+import { DORM_1_CAMPUS_RETURN } from "./dorm1-layout.js";
+import { RoomKnockClient, createOwnerKnockWatcher, diffRoomVisitors } from "./rooms/room-knock.js";
+import { createKnockPrompt } from "./rooms/knock-prompt.js";
 import { createFurnitureClient } from "./rooms/furniture-client.js";
 import { createFurnitureEditor } from "./rooms/furniture-editor.js";
 import { PERSONAL_ROOM_BASIC_SPAWN } from "./rooms/personal-room-layout.js";
@@ -947,10 +950,16 @@ const friendRoomVisitClient = new FriendRoomVisitClient({
   getClient: () => online?.supabase ?? null,
   getSelfUserId: () => online?.userId ?? null
 });
+// Housing H3: visitors knock at the Dorm Lobby corridor door; owners answer from inside their room.
+const roomKnockClient = new RoomKnockClient({
+  getClient: () => online?.supabase ?? null,
+  getSelfUserId: () => online?.userId ?? null
+});
 // Player Card and Friends panel share one visit entry; the controller exists once rooms do.
 const roomVisitEntry = Object.freeze({
   canVisit: () => friendRoomVisit?.canVisit() ?? { ok: false, reason: "busy" },
-  onVisit: (userId) => friendRoomVisit?.visit(userId) ?? Promise.resolve({ ok: false, reason: "busy" }),
+  onVisit: (userId, displayName = null) =>
+    friendRoomVisit?.visit(userId, { displayName }) ?? Promise.resolve({ ok: false, reason: "busy" }),
   reasonText: (reason) => FRIEND_ROOM_VISIT_TEXT[reason] ?? ""
 });
 const playerCard = createPlayerCard({
@@ -1897,8 +1906,13 @@ personalRoomInteraction = createPersonalRoomInteraction({
 });
 // Social S1-D2 · Room Session. Remote room avatars live under the shared personal room scene;
 // tapping one opens the same Player Card (friends, block, report) as on the campus.
+// Housing H3: the owner's knock prompt lives inside the owner Room HUD (same slot, same layout).
+const knockPromptRoot = document.createElement("div");
+knockPromptRoot.className = "room-knock-prompt";
+knockPromptRoot.hidden = true;
 const roomHud = createRoomHud({
   root: document.getElementById("room-hud"),
+  footer: knockPromptRoot,
   onLeave: () => furnitureEditor?.open ? furnitureEditor.requestClose(() => rooms.exit()) : rooms.exit(),
   onEdit: () => {
     if (!furnitureEditor?.openEditor()) {
@@ -1912,6 +1926,36 @@ const roomHud = createRoomHud({
     return room;
   }
 });
+// Housing H3 · owner side: the knock prompt, the knock/presence poll while home, and visitor notices.
+const knockPrompt = createKnockPrompt({
+  root: knockPromptRoot,
+  respond: (knock, accept) => roomKnockClient.respond(knock.knockId, accept)
+});
+const ownerKnocks = createOwnerKnockWatcher({
+  client: roomKnockClient,
+  isOwnerInRoom: () => rooms?.currentSpace === "ROOM_PERSONAL_BASIC" && roomSession?.status?.().role === "owner",
+  onKnock: (knock) => knockPrompt.push(knock),
+  onPolled: (knocks) => knockPrompt.retain(knocks.map(knock => knock.knockId))
+});
+const syncOwnerKnocks = (state) => {
+  const home = state.active && state.role === "owner";
+  if (home && !ownerKnocks.running) ownerKnocks.start();
+  else if (!home && ownerKnocks.running) { ownerKnocks.stop(); knockPrompt.clear(); }
+  if (home) knockPrompt.prune();
+};
+let lastRoomVisitors = null;
+const announceRoomVisitors = (state) => {
+  const ready = state.active && state.phase === "READY";
+  // The first READY snapshot of a stay is the baseline: only later arrivals and departures are news.
+  if (!ready || lastRoomVisitors?.roomId !== state.roomId) {
+    lastRoomVisitors = ready ? state : (state.active ? lastRoomVisitors : null);
+    return;
+  }
+  const { joined, left } = diffRoomVisitors(lastRoomVisitors, state);
+  lastRoomVisitors = state;
+  if (joined.length) showWorldStatus(`${joined.join(", ")}님이 놀러 왔어요 👋`);
+  else if (left.length) showWorldStatus(`${left.join(", ")}님이 돌아갔어요`);
+};
 const roomLocationLabel = (state) => state.role === "owner"
   ? `🏠 제1생활관 · 내 방 · ${state.count}명`
   : `🏠 제1생활관 · ${state.ownerDisplayName ?? "친구"}의 방 · ${state.count}명`;
@@ -1935,12 +1979,17 @@ roomSession = createPersonalRoomSession({
   },
   onChange: (state) => {
     roomHud.update(state);
+    announceRoomVisitors(state);
+    syncOwnerKnocks(state);
     if (state.active && rooms.currentSpace === "ROOM_PERSONAL_BASIC") zoneEl.textContent = roomLocationLabel(state);
   }
 });
 friendRoomVisit = createFriendRoomVisitController({
   client: friendRoomVisitClient,
+  knockClient: roomKnockClient,
   rooms,
+  // From the campus a visit walks to 제1생활관 (route + auto-move); nothing teleports into the room.
+  guideToDorm: () => guideToDorm1(),
   isMounted: () => controller.mounted,
   isSeated: () => seats.isSeated,
   standUp: () => seating.standUp("room-visit"),
@@ -2331,6 +2380,16 @@ const setNavigationTarget = target => {
   if (!navigation || !target) return false;
   const snapshot = navigation.setDestination(target, { position: player.getLocalPosition(), spaceId: navigationSpaceId() });
   return target.mapSourceId !== WORLD_REGION_ID.BIRYONG_REALM || snapshot.status === "GUIDING";
+};
+// Housing H3: a friend visit from the campus routes to 제1생활관 and starts auto-move when allowed.
+const guideToDorm1 = () => {
+  const target = campusNavigation?.poiTarget({
+    poiId: "poi.dorm-1", title: "제1생활관",
+    x: DORM_1_CAMPUS_RETURN.position.x, z: DORM_1_CAMPUS_RETURN.position.z
+  }, CAMPUS_NAV_SPACE) ?? null;
+  if (!setNavigationTarget(target)) return false;
+  if (playerAutoMove && canUseAutoMove()) playerAutoMove.start(navigation.getSnapshot());
+  return true;
 };
 
 const main2GuideNavigationTarget = () => campusNavigation?.poiTarget({
@@ -2981,9 +3040,13 @@ app.on("update", (dt) => {
   if (inBiryong) {
     contextActions.set("room-door", null);
     contextActions.set("personal-room-door", null);
+    contextActions.set("friend-room-knock", null);
   } else {
     contextActions.set("room-door", rooms.contextAction({ position: pos, grounded: controller.grounded, mounted: controller.mounted }));
     contextActions.set("personal-room-door", personalRoomInteraction?.contextAction({
+      position: pos, grounded: controller.grounded, mounted: controller.mounted
+    }) ?? null);
+    contextActions.set("friend-room-knock", friendRoomVisit?.contextAction({
       position: pos, grounded: controller.grounded, mounted: controller.mounted
     }) ?? null);
   }
@@ -3341,6 +3404,7 @@ window.__INHAGAME_P0__ = {
   personalRoomInteraction,
   roomSession,
   friendRoomVisit,
+  knockPrompt,
   friendRoomVisitClient,
   roomHud,
   roomFurniture,
