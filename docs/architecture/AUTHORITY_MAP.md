@@ -250,6 +250,10 @@ These rules bind the next PRs. This PR does not change schema or gameplay for th
     7.4. The client sends only ids and shows the server's bite window. Position is not verified (T1).
   - The HTTP endpoint stays off until `WORLD_FISHING_API_ENABLED=1` is set in the server environment;
     while it answers 404 no 🎣 action is offered.
+  - Deployment boundary: public `main` and Vercel deployment do not apply Production SQL.
+    Activation above describes a database after its forward migration; Production schema,
+    catalog/runtime and RPC grants must be read back independently before enabling HTTP.
+    F3 is the default exposure prerequisite; a T1 prototype exception requires owner approval.
   - Guard tests: `87_world_fishing_f2`, `fishing.integration`, `fishing-client.integration`
     (browser client → production handler → local Data API), `fishing-client-panel`.
 - Still open: node effect consumers; position / occupancy checks for fishing (F3); balance tuning.

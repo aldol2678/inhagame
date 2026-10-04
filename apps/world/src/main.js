@@ -108,7 +108,7 @@ import { createLobbyPresenceSummary } from "./lobby/lobby-presence-summary.js";
 import { createLobbyQuestHighlight } from "./lobby/lobby-quest-highlight.js";
 import { createLobbyDailyLoop } from "./lobby/lobby-daily-loop.js";
 import { createSpawnRegistry, markSpawnElement, SPAWN_ID } from "./lobby/spawn-registry.js";
-import { getWorldLoading } from "./lobby/lobby-loading.js";
+import { getWorldLoading, waitForWorldRender } from "./lobby/lobby-loading.js";
 import { createMiniMapDataSource } from "./minimap/minimap-data.js";
 import { createMiniMapRenderer } from "./minimap/minimap-renderer.js";
 import { createMiniMapController } from "./minimap/minimap-controller.js";
@@ -3160,6 +3160,18 @@ if (lobbyWorld.active) {
 }
 
 const bootDegraded = !online;
+worldLoading?.setPhase("ASSETS");
+await waitForWorldRender({
+  app,
+  ready: character.ready.then(() => {
+    worldLoading?.setPhase("RENDERING");
+    // The model swap changes eye height; apply the camera before counting rendered frames.
+    if (lobbyWorld.active) lobbyWorld.update(0);
+    else orbit.apply(player.getLocalPosition(), character.eyeHeight);
+  }),
+  isSceneReady: () => streaming.pending.length === 0
+});
+worldLoading?.setRenderReady(true);
 worldLoading?.finish({ degraded: bootDegraded });
 void loadOptionalNpcRuntime();
 if (campusLifePreview) {
