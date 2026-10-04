@@ -79,3 +79,18 @@ test('current-material historical controls replace only the two shared material 
   assert.match(runner,/pixels\.exactChanged,0/,'exact previous-candidate equality stays strict');
   assert.match(runner,/pixels\.maskChanged,0/,'Main Hall silhouette equality stays strict');
 });
+
+test('comparison captions settle to two lines before the framebuffer is resized', () => {
+  const harness=read('./browser/hall-library-hosted-harness.html');
+  const view=harness.slice(harness.indexOf('  function view('),harness.indexOf('  function stats('));
+  assert.ok(view.indexOf("document.getElementById('label').textContent")<view.indexOf('device.resizeCanvas'),'caption layout must precede canvas measurement');
+  const views=read('./browser/hall-library-hosted-views.js');
+  const helper=views.match(/function landmarkDiagnosticCaption\(state\) \{[\s\S]*?\n\}/)?.[0];
+  assert.ok(helper);
+  const caption=runInNewContext(`(${helper})`,{}, {timeout:1000});
+  for(const id of ['bldg_01','bldg_jungseok'])for(const presentation of ['currentmain','baseline108','previous144','baseline108materials','previous144materials','candidate']){
+    const lines=caption({id,presentation,reflected:true,mode:'full'}).split('\n');
+    assert.equal(lines.length,2);assert.ok(lines.every(line=>line.length<=40));
+  }
+  assert.match(harness,/white-space:pre/,'explicit caption lines cannot change framebuffer height between materials');
+});

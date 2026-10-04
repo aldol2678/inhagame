@@ -2,13 +2,13 @@
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Main Hall and Jeongseok hosted exterior QA</title>
 <script type="importmap">{"imports":{"playcanvas":"https://cdn.jsdelivr.net/npm/playcanvas@2.22.4/build/playcanvas.mjs"}}</script>
-<style>html,body{margin:0;height:100%;overflow:hidden;background:#c9d6e3;font:12px system-ui;color:#233038}body{display:grid;grid-template-rows:auto minmax(0,1fr)}aside{padding:8px 12px;background:#fffffff2}h1{font-size:14px;margin:0 0 3px}p{margin:2px 0}canvas{display:block;width:100%;height:100%;min-height:0}</style></head>
+<style>html,body{margin:0;height:100%;overflow:hidden;background:#c9d6e3;font:12px system-ui;color:#233038}body{display:grid;grid-template-rows:auto minmax(0,1fr)}aside{padding:8px 12px;background:#fffffff2}h1{font-size:14px;line-height:1.2;white-space:pre;margin:0 0 3px}p{margin:2px 0}canvas{display:block;width:100%;height:100%;min-height:0}</style></head>
 <body><aside><h1 id="label">Hosted exterior comparison</h1><p>Illustrative exterior only. No interior inferred. Four window rows are NOT a measured floor count.</p><p>Canonical footprint, height and collision authority retained. Jeongseok reuses the recovered #108 model.</p></aside><canvas id="stage"></canvas>
 <script type="module">
 import * as pc from 'playcanvas';
 import {selectCampusLandmark} from '/src/campus-landmark-candidate-selector.js';
 import {buildMainHallBlockout as buildBaseline} from '/__hall_library_baseline__/src/main-hall-blockout.js';
-import {photoLandmarkView,waitForDiagnosticFrame} from './hall-library-hosted-views.js';
+import {photoLandmarkView,waitForDiagnosticFrame,landmarkDiagnosticCaption} from './hall-library-hosted-views.js';
 import {buildMainHallBlockout as buildCurrentMain} from '/__hall_library_current_main__/src/main-hall-blockout.js';
 import {selectCampusLandmark as selectPrevious} from '/__hall_library_previous__/src/campus-landmark-candidate-selector.js';
 import {buildMainHallBlockout as buildBaselineMaterials} from '/__hall_library_baseline_current_materials__/src/main-hall-blockout.js';
@@ -61,6 +61,7 @@ try {
   function view(options = {}) {
     state = {...state, ...options};
     if (!ids.includes(state.id) || !Object.hasOwn(presentations,state.presentation)) fail('Unsupported view');
+    document.getElementById('label').textContent = landmarkDiagnosticCaption(state);
     // Resize the drawing buffer, leaving the CSS grid authoritative. The app
     // default KEEP_ASPECT/FIXED mode would otherwise retain desktop dimensions.
     device.resizeCanvas(canvas.clientWidth, canvas.clientHeight);
@@ -83,7 +84,6 @@ try {
     }
     const [p,t] = [fit.position, fit.target];
     camera.setPosition(p[0],p[1],p[2]*reflection); camera.lookAt(t[0],t[1],t[2]*reflection);
-    document.getElementById('label').textContent = `${state.id === 'bldg_01' ? 'Main Hall' : 'Jeongseok'} · ${state.presentation} · ${state.reflected ? 'reflected Z' : 'control Z'} · ${state.mode}`;
     return stats();
   }
   function stats() {
@@ -100,6 +100,7 @@ try {
       return {tier, owners:children.length, meshes:list.length, vertices:list.reduce((n,m) => n+m.mesh.vertexBuffer.numVertices,0), finite};
     });
     return {engine:pc.version, device:device.deviceType, ...state, scaleSign:world.worldScaleSign,
+      captionOverflows:document.getElementById('label').scrollWidth>document.getElementById('label').clientWidth,
       canvas:{width:canvas.width,height:canvas.height,cssWidth:canvas.clientWidth,cssHeight:canvas.clientHeight},
       activePresentations:Object.values(presentations).flatMap(Object.values).filter(root => root.enabled).length, owners};
   }
@@ -193,6 +194,7 @@ try {
   }
   function campusVisibility(id,visible) { for(const owner of campusOwners(id))owner.enabled=visible; }
   async function campusView(id='bldg_01') {
+    document.getElementById('label').textContent=`Actual campus · ${id==='bldg_01'?'Main Hall':'Jeongseok'}\nBounds-fitted diagnostic camera`;
     device.resizeCanvas(canvas.clientWidth,canvas.clientHeight);device.updateClientRect();previous=null;
     const points=campusOwners(id).flatMap(corners).map(([x,y,z])=>[x,y,-z]);
     const fit=photoLandmarkView(id,canvas.width/canvas.height,{points});
@@ -200,7 +202,6 @@ try {
     await waitForDiagnosticFrame(app);
     const projected=points.map(([x,y,z])=>camera.camera.worldToScreen(new pc.Vec3(x,y,-z)));
     const a=document.querySelector('aside').getBoundingClientRect(),c=canvas.getBoundingClientRect();
-    document.getElementById('label').textContent=`Actual CampusChunkRenderer · ${id} · bounds-fitted QA camera`;
     return {width:canvas.width,height:canvas.height,reflection:campus.root.worldScaleSign,points:points.length,minDepth:Math.min(...projected.map(p=>p.z)),
       minX:Math.min(...projected.map(p=>p.x/canvas.width)),maxX:Math.max(...projected.map(p=>p.x/canvas.width)),
       minY:Math.min(...projected.map(p=>p.y/canvas.height)),maxY:Math.max(...projected.map(p=>p.y/canvas.height)),captionOverlapsCanvas:a.bottom>c.top+.5};

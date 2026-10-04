@@ -1,6 +1,11 @@
 import {BUILDINGS,HALL_FRONT,LIBRARY_FRONT,LIBRARY_ROOF_PARTS} from '../../src/basic-campus.js';
 
 const dot=(a,b)=>a.reduce((sum,x,i)=>sum+x*b[i],0);
+export function landmarkDiagnosticCaption(state) {
+ const building=state.id==='bldg_01'?'Main Hall':'Jeongseok';
+ const label={currentmain:'current main',baseline108:'literal #108',previous144:'literal #144',baseline108materials:'#108 · current materials',previous144materials:'#144 · current materials',candidate:'candidate'}[state.presentation];
+ return `${building} · ${label}\n${state.reflected?'reflected Z':'control Z'} · ${state.mode}`;
+}
 // PlayCanvas refreshes cached camera matrices during prerender. Diagnostic
 // bounds must be projected only after a real frame has consumed camera changes.
 export function waitForDiagnosticFrame(app,timeoutMs=6000){

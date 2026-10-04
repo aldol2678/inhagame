@@ -80,6 +80,7 @@ const checkStats = stats => {
   assert.equal(stats.device,'webgl2'); assert.equal(stats.activePresentations,1,'only one visible presentation');
   assert.equal(stats.scaleSign,stats.reflected?-1:1);
   assert.equal(stats.canvas.width,stats.canvas.cssWidth); assert.equal(stats.canvas.height,stats.canvas.cssHeight);
+  assert.equal(stats.captionOverflows,false,'the complete two-line caption fits the viewport');
   assert.equal(stats.owners.length,3);
   for (const owner of stats.owners) {
     assert.equal(owner.owners,1,`${owner.tier}: exactly one owner`);
