@@ -42,6 +42,9 @@ try {
   assert.equal(initial.rain.wetGroundEnabled, false);
   assert.equal(initial.snow.enabled, false);
   assert.equal(initial.snow.snowIntensity, 0);
+  assert.equal(initial.snow.groundEnabled, false);
+  assert.equal(initial.snow.groundDrawMeshes, 0);
+  assert.equal(initial.snow.extraRealLights, 0);
   assert.equal(initial.pond.rainIntensity, 0);
   assert.equal(initial.pond.artificialLightFactor, 0.18);
   assert.equal(initial.pond.rippleSpeed, 0.025);
@@ -174,6 +177,20 @@ try {
   assert.equal(snowDay.snow.drawMeshes, 1);
   assert.ok(snowDay.snow.flakeBudget >= 36 && snowDay.snow.flakeBudget <= 120);
   assert.ok(snowDay.snow.opacity > 0);
+  assert.equal(snowDay.snow.groundEnabled, true);
+  assert.ok(snowDay.snow.groundAccumulation > 0);
+  assert.ok(snowDay.snow.groundLawnOpacity > 0);
+  assert.ok(snowDay.snow.groundDrawMeshes >= 1 && snowDay.snow.groundDrawMeshes <= 2);
+  if (snowDay.snow.graphicsTier === 'low') {
+    assert.equal(snowDay.snow.groundRoadEnabled, false);
+    assert.equal(snowDay.snow.groundRoadOpacity, 0);
+    assert.equal(snowDay.snow.groundDrawMeshes, 1);
+  } else {
+    assert.equal(snowDay.snow.groundRoadEnabled, true);
+    assert.ok(snowDay.snow.groundRoadOpacity > 0);
+    assert.equal(snowDay.snow.groundDrawMeshes, 2);
+  }
+  assert.equal(snowDay.snow.extraRealLights, 0);
   assert.equal(snowDay.sky.snowIntensity, 1);
   assert.ok(snowDay.sky.cloudCover > cloudy.sky.cloudCover);
   assert.ok(snowDay.sky.cloudOpacity > cloudy.sky.cloudOpacity);
@@ -396,7 +413,7 @@ try {
   if (mobileStatus.graphics.tier === 'low') assert.ok(mobileStatus.nightWindows.maxWindowBudget <= 160);
   assert.ok(mobileStatus.streetLights.activeDynamicLights <= mobileStatus.streetLights.dynamicBudget);
   assert.deepEqual(smoke.problems, []);
-  console.log('world environment smoke: PASS (atmospheric gradient + sun glow, layered cloud parallax, emissive night windows, rain splashes + puddles, CLEAR/CLOUDY/FOG/RAIN/SNOW, sky, rain/snow, street lights, wet roads, Inkyung pond, 390px mobile)');
+  console.log('world environment smoke: PASS (atmospheric gradient + sun glow, layered cloud parallax, emissive night windows, rain splashes + puddles, accumulating ground snow, CLEAR/CLOUDY/FOG/RAIN/SNOW, sky, rain/snow, street lights, wet roads, Inkyung pond, 390px mobile)');
 } finally {
   await smoke.close();
 }
