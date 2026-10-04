@@ -121,6 +121,9 @@ select set_eq($$select unnest(pg_temp.exec_surface('authenticated', 'anon'))$$, 
   'update_world_guestbook_entry_v2(uuid,text)',
   'delete_world_guestbook_entry_v2(uuid)',
   'get_or_create_my_personal_room_v1()',
+  -- Creature P1: own Duck Companion read/bond; observation minting remains service-role only.
+  'get_my_duck_companion_v1()',
+  'bond_my_duck_companion_v1(text)',
   -- Housing S1-D2 (20261002130000): friend visit, access check, owner privacy, Realtime predicate.
   'resolve_friend_personal_room_v1(uuid)',
   'check_world_room_access_v1(uuid)',
