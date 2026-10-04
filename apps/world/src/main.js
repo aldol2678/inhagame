@@ -302,6 +302,7 @@ window.__INHAGAME_ENVIRONMENT__ = Object.freeze({
 const skyVisuals = createSkyVisuals({
   app,
   camera,
+  lightEntity: light,
   copyEnvironmentSkyState: out => environment.copySkyVisualState(out),
   getGraphicsTier: () => graphics.tier
 });
