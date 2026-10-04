@@ -471,6 +471,15 @@
       <span data-combat-lock>FREE AIM</span>
       <span data-combat-ult-gauge>ULT 0%</span>
     </div>
+    <div class="combat-hud-v03-player" aria-live="polite">
+      <div class="combat-hud-v03-target-head">
+        <strong>PLAYER</strong>
+        <span data-combat-dodge-state data-state="READY">READY</span>
+      </div>
+      <div class="combat-hud-v03-meter-row combat-hud-v03-player-hp">
+        <span>HP</span><i><b data-combat-player-hp-fill></b></i><em data-combat-player-hp>-</em>
+      </div>
+    </div>
     <div class="combat-hud-v03-target" aria-live="polite">
       <div class="combat-hud-v03-target-head">
         <strong data-combat-target-name>5호관 공명 훈련 드론</strong>
@@ -484,8 +493,9 @@
       </div>
       <div class="combat-hud-v03-resource-row">
         <span data-combat-resource>과충전 0 / 100</span>
-        <button type="button" data-combat-reset hidden>훈련 드론 재소환 · R</button>
+        <button type="button" data-combat-reset hidden>훈련 재시작 · R</button>
       </div>
+      <div class="combat-hud-v03-telegraph" data-combat-telegraph hidden></div>
     </div>
     <div class="combat-hud-v03-actions">
       <button type="button" data-combat-action="basic">기본</button>
