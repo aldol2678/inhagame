@@ -16,12 +16,12 @@
   ],
   "targets": [
     {"id":"bldg_05","observed":"Pale long south frontage, multi-storey arched bays, attached pale clock core with dark vertical glazing; rectangular horizontal bands on the lane-side elevation","implemented":"South facade edges 2/6/7; east long edges 13/14; fitted attached clock core above the existing roof","inferred":"Mapping photographed bands to east edges, exact clock-core placement/height and bay spacing","notEstablished":"Courtyard, north and west facade details; measured facade proportions","groundEnvelopeChanged":false},
-    {"id":"bldg_60th","observed":"Tall narrow teal-glass slab with gray vertical shoulders and top frame; low glazed podium with a flowing thick facade ribbon","implemented":"One source-edge-aligned elevated slab; glass/metal palette and grid; bounded podium ribbon","inferred":"Tower span 18–72% of source long edge, inset 3.6–9.2 game units, top 30; these are a reversible fitted interpretation","notEstablished":"Surveyed tower footprint/height, complex low-wing roof section, unseen service elevations","groundEnvelopeChanged":false},
+    {"id":"bldg_60th","observed":"Tall narrow teal-glass slab with gray vertical shoulders and top frame; low glazed podium with a flowing thick facade ribbon","implemented":"One source-edge-aligned elevated slab; glass/metal palette and grid; bounded podium ribbon","inferred":"Tower span 18–58% of source long edge, inset 3.6–9.2 game units, top 36; these are a reversible fitted interpretation","notEstablished":"Surveyed tower footprint/height, complex low-wing roof section, unseen service elevations","groundEnvelopeChanged":false},
     {"id":"fac_agora_courtyard","observed":"Rectangular green hard-surfaced open terrace, pale cross-path, drainage at the open edge, full-height arched glazing on the three enclosing elevations","implemented":"Solid support and stairs matching existing ground-height authority, cross-path, visible existing guards, only courtyard-facing 6/9 elevations","inferred":"Game-scale paving proportions and facade bay spacing","notEstablished":"Post-2021 ground-level furniture/paving condition or exact measured step dimensions","groundEnvelopeChanged":false}
   ],
   "elevatedColliderDelta": [
     {"id":"bldg_05_clock_core","minY":12,"maxY":23.5,"authority":"north-landmark-massing.js"},
-    {"id":"bldg_60th_tower","minY":13,"maxY":30,"authority":"north-landmark-massing.js"}
+    {"id":"bldg_60th_tower","minY":13,"maxY":36,"authority":"north-landmark-massing.js"}
   ],
   "excludedEvidence": "A builder-project page linked an Inha University Hospital photograph; it was excluded after visual identity verification.",
   "limits": "No recent capture-dated 2024–2026 ground-level Agora photo was established in the bounded search. Publication date is not capture date. No blanket third-party copyright or trademark permission is asserted."

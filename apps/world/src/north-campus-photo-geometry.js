@@ -80,7 +80,10 @@ export function fillAnniversaryPhotoFacade(b,tier='NEAR'){
       [.575,8.0],[.60,5.05],[.625,4.40],[.65,4.20],[.98,4.20]];
     for(let j=1;j<profile.length;j++){
      const a=profile[j-1],p=profile[j],u=q=>(reverse?1-q:q)*len;
-     b.tube(c.ribbon,point(f,u(a[0]),a[1],.26),point(f,u(p[0]),p[1],.26),.20,6);
+     const x0=u(a[0]),x1=u(p[0]),dx=x1-x0,dy=p[1]-a[1],length=Math.hypot(dx,dy),nx=-dy/length*.40,ny=dx/length*.40;
+     const face=[point(f,x0+nx,a[1]+ny,.29),point(f,x1+nx,p[1]+ny,.29),point(f,x1-nx,p[1]-ny,.29),point(f,x0-nx,a[1]-ny,.29)];
+     b.quad(c.ribbon,...face);b.quad(c.ribbon,...[...face].reverse());
+     b.tube(c.joint,point(f,x0+nx,a[1]+ny,.31),point(f,x1+nx,p[1]+ny,.31),.045,4);
     }
    }
   }else if(tier==='DETAIL'){
@@ -92,12 +95,12 @@ export function fillAnniversaryPhotoFacade(b,tier='NEAR'){
 export function fillNorthPhotoTower(b,f,tier='NEAR'){
  const c=NORTH_PHOTO_COLORS;
  if(f.id==='bldg_05'&&tier==='NEAR'){
-  const front=exteriorFrame(f.rings[0],7);
+  const front=exteriorFrame(f.rings[0],4),u=front.length/2;
   // Continue the attached dark stair glazing down the existing south wall.
   // This is a thin face on the already-solid building, not a second ground body.
-  box(b,front,c.stone,2.6,f.height/2,4.02,f.height,.225,.10);
-  box(b,front,c.darkGlass,2.6,(f.height+.45)/2,2.16,f.height-.45,.29,.04);
-  for(let y=1;y<f.height;y+=1.0)box(b,front,c.joint,2.6,y,2.16,.035,.325,.025);
+  box(b,front,c.stone,u,f.height/2,4.02,f.height,.225,.10);
+  box(b,front,c.darkGlass,u,(f.height+.45)/2,2.16,f.height-.45,.29,.04);
+  for(let y=1;y<f.height;y+=1.0)box(b,front,c.joint,u,y,2.16,.035,.325,.025);
  }
  for(const tower of towerParts(f)){
   const ring=tower.vertices;
@@ -108,9 +111,10 @@ export function fillNorthPhotoTower(b,f,tier='NEAR'){
      if(len<8){
       for(const side of [-1,1])box(b,edge,c.ribbon,len*(.5+side*.34),(tower.height+f.height)/2,len*.30,tower.height-f.height,.10,.10);
      }else{
-      for(const u of [.27,len-.27])box(b,edge,c.ribbon,u,(tower.height+f.height)/2,.55,tower.height-f.height,.11,.12);
+      const width=Math.min(1.35,len*.055);
+      for(const u of [width/2,len-width/2])box(b,edge,c.ribbon,u,(tower.height+f.height)/2,width,tower.height-f.height,.21,.12);
      }
-     box(b,edge,c.ribbon,len/2,tower.height-.22,len,.44,.11,.12);
+     box(b,edge,c.ribbon,len/2,tower.height-.45,len,.90,.21,.12);
      for(let u=.75;u<len-.4;u+=.8)box(b,edge,c.metal,u,(tower.height+f.height)/2,.035,tower.height-f.height-.6,.18,.04);
      for(let y=f.height+.6;y<tower.height-.5;y+=.85)box(b,edge,c.metal,len/2,y,len-.4,.035,.18,.04);
     }

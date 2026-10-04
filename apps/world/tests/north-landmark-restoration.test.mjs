@@ -41,6 +41,15 @@ test('60th Anniversary regains a tall slab inside the original footprint, shared
  }
 });
 
+test('photo-review fit anchors the clock at the existing south notch and keeps the high slab slender',()=>{
+ const clock=towerParts(FIVE)[0],notch=exteriorFrame(FIVE.rings[0],4),anchor=notch.at(notch.length/2,-2.19);
+ const center=clock.vertices.reduce((p,q)=>({x:p.x+q.x/4,z:p.z+q.z/4}),{x:0,z:0});
+ assert.ok(Math.hypot(center.x-anchor.x,center.z-anchor.z)<.01,'clock rises from central facade break, not the eastern window wing');
+ const slab=towerParts(ANNIVERSARY)[0],length=Math.hypot(slab.vertices[1].x-slab.vertices[0].x,slab.vertices[1].z-slab.vertices[0].z);
+ assert.ok(length>=24&&length<=27,'bounded slimmer photographic fit; not a surveyed dimension');
+ assert.ok(length/(slab.height-ANNIVERSARY.height)<1.15,'exposed slab reads near-square/tall instead of a 2:1 panel');
+});
+
 test('restored upper masses stop flight/camera and support landing without changing ground bodies',()=>{
  const targets=[FIVE,ANNIVERSARY];
  for(const f of targets){
@@ -73,6 +82,7 @@ test('60th podium has a continuous glass grid and bounded curved facade-ribbon s
  const calls=capture(fillAnniversaryFacade);
  assert.ok(calls.filter(c=>c.kind==='box').length>100,'continuous podium glazing grid');
  assert.ok(calls.filter(c=>c.kind==='tube').length>12,'photographed flowing facade frame');
+ assert.ok(calls.filter(c=>c.kind==='quad').length>=18,'broad facade ribbon has planar width, not only a wire outline');
 });
 
 test('Agora has a solid base, supported stairs, visible guards and an open cross-path',()=>{

@@ -38,6 +38,13 @@ models. The original north-shifted miniature tower was not copied as authoritati
 The tower now follows the mapped long axis with a reversible south setback/span.
 The 60th podium's complex roof section remains the existing coarse envelope;
 the S-curve is explicitly a facade ribbon, not a measured roof reconstruction.
+First hosted pixel review moved the clock onto the existing central south-notch
+mass, narrowed the high slab to about 25 game units and raised its top to 36.
+These changes correct the conspicuously off-center clock and wide/low silhouette;
+they remain reversible visual fits. The diagnostic near plane was increased and
+the Agora entry camera moved clear of the trees, without editing those trees.
+The portrait entry view is raised to keep the entire stair and its side guards
+within frame; runtime camera projection verifies those corners.
 The clock face is a decorative fixed representation, not a working time display.
 
 5호관 inner/north/west elevations were not verified and do not receive invented

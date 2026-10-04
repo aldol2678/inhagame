@@ -12,11 +12,12 @@ if(process.env.EXPECTED_NORTH_HEAD)assert.equal(head,process.env.EXPECTED_NORTH_
 const report={head,mode,scope:'Actual offline campus; fixed diagnostic cameras, no measured architectural or physical-device claim',views:[]};
 const views=[
  {id:'five-south',owner:'bldg_05',center:[-5,12,108],half:[54,13,49],back:[-.47,.50,-.88]},
- {id:'sixty-east',owner:'bldg_60th',center:[51,15,87],half:[25,16,33],back:[.88,.36,-.48]},
+ {id:'sixty-east',owner:'bldg_60th',center:[51,18,87],half:[25,19,33],back:[.88,.36,-.48]},
  {id:'agora-open',owner:'fac_agora_courtyard',center:[106,6,-80],half:[28,7,33],back:[-.88,.50,.47]},
- {id:'five-clock-close',owner:'bldg_05',center:[-5,17,72],half:[7,8,5],back:[-.47,.16,-.88],close:true},
+ {id:'five-clock-close',owner:'bldg_05',center:[-28,17,89],half:[7,8,5],back:[-.47,.16,-.88],close:true},
  {id:'sixty-ribbon-close',owner:'bldg_60th',center:[56,8,81],half:[19,8,17],back:[.88,.24,-.48],close:true},
- {id:'agora-entry-close',owner:'fac_agora_courtyard',center:[96.8,1.2,-73.8],half:[8,3,7],back:[-.88,.25,.47],close:true}
+ {id:'sixty-end-close',owner:'bldg_60th',center:[42.3,24,69.5],half:[5,13,5],back:[-.496,.15,-.868],close:true},
+ {id:'agora-entry-close',owner:'fac_agora_courtyard',center:[96.8,1.2,-73.8],half:[8,3,7],back:[-.88,.25,.47],close:true,entry:true}
 ];
 async function frame(page,compare=false){return page.evaluate(({compare,timeout})=>new Promise((resolve,reject)=>{
  const app=window.__INHAGAME_P0__.app,t=setTimeout(()=>reject(Error('render timeout')),timeout);
@@ -57,9 +58,27 @@ try{
      const center=[view.center[0],view.center[1],view.center[2]*sign],back=normalize([view.back[0],view.back[1],view.back[2]*sign]);
      const right=normalize([back[2],0,-back[0]]),up=[back[1]*right[2],back[2]*right[0]-back[0]*right[2],-back[1]*right[0]];
      const aspect=d.app.graphicsDevice.width/d.app.graphicsDevice.height,tan=Math.tan(48*Math.PI/360);let distance=1;
-     for(const x of [-1,1])for(const y of [-1,1])for(const z of [-1,1]){const p=[view.half[0]*x,view.half[1]*y,view.half[2]*z];distance=Math.max(distance,dot(p,back)+Math.abs(dot(p,right))/(tan*aspect*.83),dot(p,back)+Math.abs(dot(p,up))/(tan*.83));}
-     camera.camera.fov=48;camera.camera.nearClip=.1;camera.camera.farClip=1400;
+     const half=aspect<.8&&view.id==='sixty-ribbon-close'?[6,7,6]:view.half;
+     if(aspect<.8&&view.id==='sixty-ribbon-close')center.splice(0,3,55.7,8.8,79.4*sign);
+     for(const x of [-1,1])for(const y of [-1,1])for(const z of [-1,1]){const p=[half[0]*x,half[1]*y,half[2]*z];distance=Math.max(distance,dot(p,back)+Math.abs(dot(p,right))/(tan*aspect*.83),dot(p,back)+Math.abs(dot(p,up))/(tan*.83));}
+     // These diagnostic views can be hundreds of units away. A 0.1 near plane
+     // loses depth precision between the thin paving/facade layers in portrait.
+     camera.camera.fov=48;camera.camera.nearClip=2;camera.camera.farClip=1400;
      camera.setPosition(...center.map((v,i)=>v+back[i]*distance));camera.lookAt(...center);
+     if(view.entry){
+      const {AGORA}=await import('/src/roadview-layout.js'),u=(AGORA.stairStart+AGORA.stairEnd)/2;
+      // A narrow portrait frustum needs a wider, raised stair view. Keep it
+      // above the foreground crowns instead of cropping away the side guards.
+      const from=AGORA.frame.at(u,aspect<.8?26:10),to=AGORA.frame.at(u,0);
+      camera.setPosition(from.x,aspect<.8?18:3.4,from.z*sign);camera.lookAt(to.x,1.2,to.z*sign);
+      center.splice(0,3,to.x,1.2,to.z*sign);distance=camera.getPosition().distance({x:center[0],y:center[1],z:center[2]});
+      const pc=await import('playcanvas');
+      for(const side of [AGORA.stairStart,AGORA.stairEnd])for(const out of [0,AGORA.run])for(const rail of [0,.84]){
+       const p=AGORA.frame.at(side,out),y=AGORA.height*(1-out/AGORA.run)+rail;
+       const screen=camera.camera.worldToScreen(new pc.Vec3(p.x,y,p.z*sign));
+       if(screen.x<0||screen.x>d.app.graphicsDevice.width||screen.y<0||screen.y>d.app.graphicsDevice.height)throw Error('Stair or guard clipped from diagnostic entry view');
+      }
+     }
      return {clock,tower,baseOwners:target.length,nearOwners:near,reflection:sign,camera:camera.getPosition().toArray(),target:center,distance,renderComponents:all.length};
     },{view,sign,mode});
     const a=await frame(page),stable=await frame(page,true);assert.equal(a.glError,0);assert.equal(stable.glError,0);assert.equal(stable.changed,0,'stationary frame instability');
