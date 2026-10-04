@@ -426,7 +426,7 @@ begin
 
   v_key := case
     when v_catalog.reward_policy='FIRST_CLEAR'
-      then 'combat:first-clear:'||p_user::text||':building5_training'
+      then 'combat:first-clear:'||p_user::text||':'||v_encounter.combat_id
     else 'combat:'||p_result_ref
   end;
 
