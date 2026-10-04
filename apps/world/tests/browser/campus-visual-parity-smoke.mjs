@@ -156,7 +156,17 @@ try{
     for(let cycle=0;cycle<3;cycle++){
      const parent=new pc.Entity('VisualParityLifecycle');parent.setLocalScale(1,1,cycle%2?-1:1);app.root.addChild(parent);
      const registry=new RenderChunkRegistry(),renderer=new CampusChunkRenderer(app,parent,registry),targets=renderer.base.children.filter(e=>/^(back_alley_base_|library_garden_base_|stadium_stands_)/.test(e.name));
-     if(targets.length!==10)throw Error('Missing persistent parity meshes');
+     // Validate each owner independently: alley restoration now has ten
+     // material batches; unchanged garden/stadium owners keep five and three.
+     const expectedOwnerMeshes={'back_alley_base_':10,'library_garden_base_':5,'stadium_stands_':3};
+     for(const [prefix,expected]of Object.entries(expectedOwnerMeshes)){
+      const owned=targets.filter(e=>e.name.startsWith(prefix));
+      if(owned.length!==expected)throw Error(`${prefix}: expected ${expected} persistent meshes, got ${owned.length}`);
+      for(const e of owned)for(const mi of e.render.meshInstances){
+       const positions=[];mi.mesh.getPositions(positions);
+       if(!positions.length||!positions.every(Number.isFinite)||mi.material.opacity!==1||!mi.material.depthWrite)throw Error(`${prefix}: invalid opaque persistent geometry`);
+      }
+     }
      const chunk=registry.chunks.find(c=>c.streetscape.includes(LIBRARY_GREENS[0].id)),handle=renderer.create(chunk);
      renderer.setState(handle,'ACTIVE');renderer.update(1);const detail=handle.detail;
      renderer.setState(handle,'FAR');renderer.update(1);if(detail.enabled||targets.some(e=>!e.enabled))throw Error('LOD made solid geometry invisible');

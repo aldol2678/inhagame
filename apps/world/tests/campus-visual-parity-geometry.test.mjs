@@ -54,3 +54,10 @@ test('restored stadium meshes follow BASE lifetime and keep shared surface mater
  roots[0].destroy();assert.ok(meshes.every(m=>m.destroyed));assert.ok(roots[1].children.every(e=>!e.render.meshInstances[0].mesh.destroyed));roots[1].destroy();
  const source=readFileSync(new URL('../src/campus-chunk-renderer.js',import.meta.url),'utf8');assert.match(source,/buildStadiumStands\(base\)/);
 });
+
+test('legacy browser lifecycle validates each current owner instead of the obsolete ten-mesh total',()=>{
+ const source=readFileSync(new URL('./browser/campus-visual-parity-smoke.mjs',import.meta.url),'utf8');
+ assert.ok(!source.includes('targets.length!==10'));
+ assert.ok(source.includes('expectedOwnerMeshes'));
+ assert.ok(source.includes('back_alley_base_'));
+});

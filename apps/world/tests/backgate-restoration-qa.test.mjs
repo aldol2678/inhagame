@@ -19,3 +19,11 @@ test('combined browser fixture retains exact-head, same-camera, stationary and c
   const source=await readFile(new URL('./browser/backgate-restoration-smoke.mjs',import.meta.url),'utf8');
   for(const expected of ['expectedScreenshots=EXPECTED_SCREENSHOTS','assert.equal(stable.changed, 0)','assert.equal(stable.changedFacade, 0)','assert.deepEqual(newRoad.cases,oldRoad.cases','assert.deepEqual(current.camera, old.camera','EXPECTED_BACKGATE_HEAD'])assert.ok(source.includes(expected),expected);
 });
+
+test('only the historically absent side-crossing accepts zero baseline contribution; every new target must render',async()=>{
+  const plan=await import('./browser/backgate-restoration-qa-plan.mjs');
+  assert.equal(typeof plan.expectedContribution,'function');
+  assert.deepEqual(VIEWS.filter(v=>!plan.expectedContribution(v,'old')).map(v=>v.name),['side-crossing']);
+  assert.ok(VIEWS.every(v=>plan.expectedContribution(v,'new')));
+  assert.throws(()=>plan.expectedContribution(VIEWS[0],'unknown'),/variant/);
+});

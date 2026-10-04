@@ -28,3 +28,10 @@ export function assertHosted(env){
 export const tiersFor=(view,viewport)=>view.plot&&viewport.name==='desktop'?['ALL','BASE']:['ALL'];
 export const EXPECTED_PAIRS=VIEWPORTS.reduce((sum,viewport)=>sum+VIEWS.reduce((n,view)=>n+tiersFor(view,viewport).length,0),0);
 export const EXPECTED_SCREENSHOTS=EXPECTED_PAIRS*2;
+
+// The pinned baseline has no rendered side-crossing signals or zebra, although
+// its collision poles exist. New geometry must always contribute visible pixels.
+export function expectedContribution(view,variant){
+  if(!['old','new'].includes(variant))throw Error('Unknown comparison variant');
+  return variant!=='old'||view.name!=='side-crossing';
+}

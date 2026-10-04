@@ -6,7 +6,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { assertHosted, BASELINE, CURRENT_MAIN, BASELINE_PATHS, VIEWPORTS, VIEWS, expectedRaster, tiersFor, EXPECTED_SCREENSHOTS, EXPECTED_PAIRS } from './backgate-restoration-qa-plan.mjs';
+import { assertHosted, BASELINE, CURRENT_MAIN, BASELINE_PATHS, VIEWPORTS, VIEWS, expectedRaster, tiersFor, EXPECTED_SCREENSHOTS, EXPECTED_PAIRS, expectedContribution } from './backgate-restoration-qa-plan.mjs';
 
 assertHosted(process.env); // Before importing the browser harness or starting any server.
 const { startSmoke } = await import('./harness.mjs');
@@ -135,12 +135,14 @@ try {
               await invoke('showShopfronts', false);
               const hidden = await invoke('pixels');
               assert.equal(hidden.glError, 0); assert.equal(hidden.contextLost, false);
-              assert.ok(hidden.changedFacade > Math.max(30, visible.facadePixels * .002), `${key}: target has no visible facade contribution`);
+              const mustContribute=expectedContribution(view,variant),minimumPixels=Math.max(30,visible.facadePixels*.002);
+              if(mustContribute)assert.ok(hidden.changedFacade>minimumPixels,`${key}: target has no visible facade contribution`);
+              else assert.ok(hidden.changedFacade<=minimumPixels,`${key}: supposedly absent baseline crossing unexpectedly contributes pixels`);
               await invoke('showShopfronts', true);
               await invoke('pixels'); const restored = await invoke('pixels');
               assert.equal(restored.glError, 0); assert.equal(restored.sha256, visible.sha256, `${key}: exact target restoration`);
               const summary = ({ samples, ...rest }) => rest;
-              receipt.tiers.push({ tier, ownership, visible: summary(visible), stable: summary(stable), hidden: summary(hidden), restored: summary(restored), screenshot: filename });
+              receipt.tiers.push({ tier, ownership, contributionExpected:mustContribute, visible: summary(visible), stable: summary(stable), hidden: summary(hidden), restored: summary(restored), screenshot: filename });
               if (tier === 'ALL') allHash = visible.sha256;
               await flush();
             }
