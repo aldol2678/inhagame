@@ -43,3 +43,14 @@ export const BIRYONG_REALM_P0_ANCHORS = Object.freeze({
   themeParkCenter: Object.freeze({ x: 180, z: -80 }),
   harborCenter: Object.freeze({ x: 180, z: -230 })
 });
+
+// Existing station meshes, shared read-only with the map. These are presentation
+// footprints, not new movement colliders or new gameplay/spawn authority.
+export const BIRYONG_STATION_BUILDING = Object.freeze({
+  id: "biryong_station_building", x: 0, y: 2.2, z: 25, width: 20, height: 4.4, depth: 8
+});
+export const BIRYONG_STATION_SURFACES = Object.freeze([
+  Object.freeze({ id: "biryong_station_road", x: 0, y: -0.015, z: -12, width: 8, height: 0.03, depth: 40, kind: "ROAD", material: "road" }),
+  Object.freeze({ id: "biryong_station_platform", x: 8, y: 0.04, z: -5, width: 12, height: 0.08, depth: 24, kind: "GROUND", material: "platform" }),
+  Object.freeze({ id: "biryong_station_square", x: 0, y: 0.02, z: 11, width: 28, height: 0.04, depth: 22, kind: "GROUND", material: "platform" })
+]);
