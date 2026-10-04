@@ -27,6 +27,11 @@ on:
       - 'apps/world/tests/browser/harness.mjs'
       - 'apps/world/src/campus-road-geometry.js'
       - 'apps/world/src/campus-road-micro-details.js'
+      - 'apps/world/src/campus-contact-shading*.js'
+      - 'apps/world/src/campus-chunk-renderer.js'
+      - 'apps/world/tests/campus-contact-shading.test.mjs'
+      - 'apps/world/tests/browser/contact-shading-smoke.mjs'
+      - 'apps/world/tests/browser/harness.mjs'
       - 'apps/world/tests/campus-road-micro-details.test.mjs'
       - 'apps/world/src/environment/winter-soak-policy.js'
       - 'apps/world/tests/environment-p6l-winter-soak.test.mjs'
@@ -97,6 +102,11 @@ jobs:
           WORLD_SMOKE_DISABLE_WEBGPU: '1'
           WORLD_SMOKE_BROWSER: chrome
         run: node apps/world/tests/browser/winter-soak-smoke.mjs
+      - name: Run campus contact shading smoke
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+        run: node apps/world/tests/browser/contact-shading-smoke.mjs
       - name: Run asset authority canary smoke
         env:
           WORLD_SMOKE_DISABLE_WEBGPU: '1'

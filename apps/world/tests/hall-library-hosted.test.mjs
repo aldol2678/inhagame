@@ -22,7 +22,7 @@ test('historical source routes reject arbitrary files and traversal', () => {
   for (const name of ['data/private.json','src/../private.js','src/./main.js','../src/main.js','/src/main.js','data/editor/other.world.json','.git/config','src/secret.txt','https://example.com/src/main.js']) assert.equal(allowed(name),false,name);
 });
 
-test('current-main preservation allows only the eight approved runtime files', () => {
+test('historical adoption manifest stays scoped while live QA uses the PR merge base', () => {
   const manifest = JSON.parse(read('./fixtures/hall-library-candidate-source-manifest.json'));
   assert.equal(manifest.currentMain, '1c6f43b36962f65f75cddd55b8661bb3aa4a268d');
   assert.equal(manifest.allowedRuntimeChanges.length,8);
@@ -31,6 +31,8 @@ test('current-main preservation allows only the eight approved runtime files', (
   const runner=read('./browser/hall-library-hosted-smoke.mjs');
   assert.match(runner,/changedPaths/);
   assert.match(runner,/outside approved integration scope/);
+  assert.match(runner,/WORLD_HALL_LIBRARY_SCOPE_BASE/);
+  assert.match(runner,/\$\{scopeBase\}\.\.\.HEAD/,'exclude unrelated main commits from this PR change boundary');
   assert.ok(!manifest.allowedRuntimeChanges.some(name=>/facility|student|environment|collision|reality/.test(name)));
 });
 
@@ -41,6 +43,7 @@ test('workflow checks exact head, offline evidence and a bounded read-only job',
   assert.match(workflow, /timeout-minutes: 15/);
   assert.match(workflow, /persist-credentials: false/);
   assert.match(workflow, /hall-library-integration-null-smoke.mjs/);
+  assert.match(workflow,/WORLD_HALL_LIBRARY_SCOPE_BASE: \$\{\{ github.event.pull_request.base.sha \}\}/);
   assert.doesNotMatch(workflow, /pull_request_target|secrets\.|deploy|--force|contents: write/);
 });
 

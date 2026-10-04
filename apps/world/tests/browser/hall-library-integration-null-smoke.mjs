@@ -80,11 +80,27 @@ try {
     }
     const near=handle.near,detail=handle.detail,clones=new Set([...meshes(near),...meshes(detail)].map(m=>m.material));
     let verifiedOpticalClones=0;
-    for(const material of clones){assert.ok(!persistentMaterials.has(material),'tier fade never mutates BASE source material');assert.ok(!windowMaterials.has(material),'tier fade never owns night window material');assert.equal(material.opacityDither,pc.DITHER_BAYER8);assert.equal(material.alphaDither,1);if(sourceOpticsByName.has(material.name)){assert.deepEqual(optics(material),sourceOpticsByName.get(material.name),'fade clones retain current-main optical profiles');verifiedOpticalClones++;}}
+    const contacts=[...clones].filter(material=>material.name.startsWith('campus_contact_'));
+    assert.equal(contacts.length,1,'selected chunk owns one transparent contact batch');
+    for(const material of clones){
+      assert.ok(!persistentMaterials.has(material),'tier fade never mutates BASE source material');
+      assert.ok(!windowMaterials.has(material),'tier fade never owns night window material');
+      if(contacts.includes(material)){
+        assert.equal(material.blendType,pc.BLEND_NORMAL);
+        assert.equal(material.depthWrite,false);
+        assert.equal(material.opacityDither,pc.DITHER_NONE);
+        assert.equal(material.opacity,1,'transparent contact reached the same full layer fade');
+        assert.ok(!renderer.fades.get(near).materials.includes(material),'contact stays outside opaque clone/dither ownership');
+      }else{
+        assert.equal(material.opacityDither,pc.DITHER_BAYER8);assert.equal(material.alphaDither,1);
+      }
+      if(sourceOpticsByName.has(material.name)){assert.deepEqual(optics(material),sourceOpticsByName.get(material.name),'fade clones retain current-main optical profiles');verifiedOpticalClones++;}
+    }
     assert.ok(verifiedOpticalClones>0,'actual streamed landmark materials retain their source optics');
     const geometry=fingerprint(handle.root),metrics=renderer.getMetrics();
     renderer.setState(handle,'FAR');renderer.update(.1);
     assert.ok(renderer.fades.get(near).value>0&&renderer.fades.get(near).value<1,'partial fade');
+    for(const material of contacts)assert.equal(material.opacity,renderer.fades.get(near).value,'transparent contact follows partial layer fade');
     renderer.update(1);assert.equal(near.enabled,false);assert.equal(detail.enabled,false);
     renderer.setState(handle,'ACTIVE');renderer.update(1);
     assert.equal(handle.near,near);assert.equal(handle.detail,detail);assert.deepEqual(fingerprint(handle.root),geometry);
