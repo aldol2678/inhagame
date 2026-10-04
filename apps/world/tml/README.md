@@ -33,6 +33,7 @@ TML is used here as a semantic/state-transition layer above the existing game im
 - `runtime/gyeol-verdict-contract.mjs` — P19 strict shadow-only TML → Gyeol verdict request/response contract; no live Gyeol invocation or authority effect
 - `runtime/gyeol-mock-adapter.mjs` — P20 TEST_MOCK-only Gyeol adapter with caller-supplied decision policy; no default TML→Gyeol mapping
 - `runtime/gyeol-replay-conformance.mjs` — P20 repeated-request semantic replay harness; no live adapter invocation
+- `runtime/first-campus-gyeol-shadow.mjs` — P21 live First Campus completion shadow: accepted legacy server result → TML completion Evidence/Verification → P20 TEST_MOCK verdict parity
 - `fixtures/` — executable-domain conformance fixtures tied to current INHA WORLD contracts
 
 ## Boundary
@@ -565,3 +566,33 @@ Every generated response still passes through the strict P19 validator, so reque
 P20 accepts only adapters created by its mock factory, validates strict P19 requests before caller-supplied decision code runs, and remains disconnected from live gameplay, persistence, routing and authority changes.
 
 The full contract is documented in [design/P20_GYEOL_MOCK_REPLAY.md](design/P20_GYEOL_MOCK_REPLAY.md).
+
+
+## P21 First Campus Gyeol Shadow Pilot
+
+P21 is the first live quest differential pilot built on P19/P20.
+
+It observes only accepted `campus_first_walk_v1` server results already consumed by the authoritative quest client. It derives one narrow completion claim:
+
+```text
+quest.campus_first_walk_v1
+quest.stage == 5
+```
+
+That server observation becomes a TML Fact / Observation / Evidence / Verification set. P21 then sends the Verification through the strict P19 request contract and the P20 TEST_MOCK adapter using the explicitly scoped policy:
+
+`gyeol.inha-world.quest-first-campus-shadow@p21`
+
+The pilot policy is local to P21:
+
+- TML `SATISFIED` → Gyeol `VERIFIED`
+- TML `UNSATISFIED` → Gyeol `HOLD`
+- unresolved → Gyeol `UNKNOWN`
+
+This is not a global TML→Gyeol mapping and is not a production Gyeol implementation.
+
+The shadow compares the advisory verdict with the existing legacy completion meaning and records only `MATCH`, `MISMATCH`, or `UNKNOWN`. It cannot advance a quest, grant rewards, persist state, route the player, or change authority.
+
+Live status is exposed only through the existing NPC diagnostic snapshot as `tml_first_campus_gyeol_shadow`.
+
+See [design/P21_FIRST_CAMPUS_GYEOL_SHADOW.md](design/P21_FIRST_CAMPUS_GYEOL_SHADOW.md).

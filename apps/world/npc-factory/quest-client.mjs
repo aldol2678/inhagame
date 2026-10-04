@@ -13,7 +13,8 @@ const pond = { x: POND_RING.reduce((sum, point) => sum + point.x, 0) / POND_RING
 // CORE-15: a failed status read is retried on statusRetryDelays (same lane as Main 2), and the
 // quest can be switched on after the runtime is built (setEnabled) when its flag resolves late.
 export function createQuestClient({ enabled, endpoint, getSession, getNpcPosition = () => null, hud, tour, fetcher = fetch,
-  onReward = () => {}, setTimer = setTimeout, clearTimer = clearTimeout, statusRetryDelays = [1000, 3000, 8000] }) {
+  onReward = () => {}, onServerResult = () => {}, setTimer = setTimeout, clearTimer = clearTimeout,
+  statusRetryDelays = [1000, 3000, 8000] }) {
   let signedIn = false, stage = 0, generation = 0, pending = null, retryAfter = 0;
   let statusReady = false;
   let statusRetryTimer = null, statusRetryAttempt = 0, statusRecovering = false;
@@ -64,11 +65,19 @@ export function createQuestClient({ enabled, endpoint, getSession, getNpcPositio
       if (reward !== null && !(event === 'talk_001' && result.stage === 5 && isQuestRewardResult(reward)))
         throw Error('QUEST_UNAVAILABLE');
       if (requestGeneration !== generation) return null;
+      const previousStage = stage;
       stage = result.stage;
       statusReady = true;
       retryAfter = 0;
       clearStatusRetry();
       publish();
+      try {
+        const observedResult = typeof structuredClone === 'function'
+          ? structuredClone(result)
+          : JSON.parse(JSON.stringify(result));
+        const observed = onServerResult(Object.freeze({ event, previousStage, result: observedResult }));
+        if (observed && typeof observed.catch === 'function') void observed.catch(() => {});
+      } catch { /* shadow/diagnostic observers can never block quest progress */ }
       if (reward) {
         try { onReward(reward); } catch { /* presentation only; progress already stored */ }
       }
