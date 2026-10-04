@@ -34,7 +34,8 @@ NPC public fixture: fictional batch IDs, SIM-prefixed student numbers and genera
 profiles only. The fixture manifest explicitly disclaims human review/approval. No private
 roster, review worksheet or private decision record is redistributed.
 
-KayKit Furniture Bits 1.0: chair_A geometry and furniturebits_texture.png by Kay Lousberg,
+KayKit Furniture Bits 1.0: chair_A, table_medium, lamp_standing, shelf_B_large_decorated
+geometry and furniturebits_texture.png by Kay Lousberg,
 redistributed unmodified under Creative Commons Zero (CC0). This third-party asset retains
 its own license rather than the project's All Rights Reserved terms.
 Source: https://kaylousberg.itch.io/furniture-bits
