@@ -10,6 +10,8 @@ const { PlayerController, CAMPUS_MOVEMENT_SPACE } = await import("../src/player-
 const { MAIN_GATE_CAMPUS_BIKE, CAMPUS_BIKE_ID } = await import("../src/mounts/campus-bike-world.js");
 const { DRAGON_MOUNT_ID, wireMountFor, mountIdForWire, remoteMountState } = await import("../src/mounts/mount-kinds.js");
 const { createContextActionController } = await import("../src/context-action.js");
+const { createCombatRuntimeV03 } = await import("../src/combat/combat-runtime-v03.js");
+const { createInputFocusManager, INPUT_FOCUS_POLICY } = await import("../src/input/input-focus-manager.js");
 const { createEmoteMenu } = await import("../src/online/emote-menu.js");
 const { createPoseSource } = await import("../src/online/pose-source.js");
 const { PosePublisher } = await import("../src/network/pose-publisher.js");
@@ -183,6 +185,48 @@ test("B. M and the transport button run the same decision (getMountContextAction
     s.transportButton.tap();
     assert.equal(byButton.controller.mountId, byKey.controller.mountId, `same result at ${at === BIKE ? "bike" : "open field"}`);
   }
+});
+
+test("B. retained transport button and M obey Combat locks and the live Explore authority", () => {
+  const r = rig(OPEN_FIELD);
+  const s = slots();
+  const runtime = createCombatRuntimeV03();
+  const inputFocus = createInputFocusManager();
+  const main = code("../src/main.js");
+  r.controller.setTransportGate(() => inputFocus.can("WORLD_ACTION"));
+  const subscriptionStart = main.indexOf("combatRuntime.subscribe(state =>");
+  const subscriptionEnd = main.indexOf("}, { emitCurrent: true });", subscriptionStart) + "}, { emitCurrent: true });".length;
+  new Function("combatRuntime", "hudContext", "HUD_MODE", "controller", main.slice(subscriptionStart, subscriptionEnd))(
+    runtime, { setMode() {} }, { COMBAT: "COMBAT", EXPLORE: "EXPLORE" }, r.controller);
+  const slotStart = main.indexOf("// Transport has its own slot:");
+  const slotEnd = main.indexOf("if (combatRuntime.active)", slotStart);
+  const publish = new Function("controller", "transportActions", main.slice(slotStart, slotEnd));
+  const refresh = () => { publish(r.controller, s.transport); s.transport.refresh(); };
+  refresh();
+  runtime.startTraining({ sourceRef: "combat.building5.training_gate", placeZoneId: "AREA_BUILDING_5_WEST" });
+  r.key("KeyM");
+  assert.equal(r.controller.mounted, false);
+  assert.equal(s.transportButton.tap(), false, "pre-Combat callback must recheck the live lock before the next frame");
+  assert.equal(r.controller.mounted, false);
+  r.controller.setTransportLock("other-feature", true);
+  runtime.end();
+  assert.equal(r.controller.transportLocks.has("combat-v03"), false);
+  assert.equal(s.transportButton.tap(), false, "ending Combat must preserve another feature's lock");
+  r.controller.setTransportLock("other-feature", false);
+  const claim = inputFocus.claim("panel", INPUT_FOCUS_POLICY.BLOCKING_UI);
+  assert.equal(s.transportButton.tap(), false, "button rechecks legacy gate even before its slot is refreshed");
+  r.key("KeyM");
+  assert.equal(r.controller.mounted, false);
+  inputFocus.release(claim);
+  // Position changed after rendering: activation must use the current mount offer, not the old dragon callback.
+  r.move(BIKE);
+  assert.equal(s.transportButton.tap(), true);
+  assert.equal(r.controller.mountId, CAMPUS_BIKE_ID);
+  refresh();
+  assert.equal(s.transportButton.tap(), true);
+  assert.equal(r.controller.mounted, false);
+  r.key("KeyM");
+  assert.equal(r.controller.mountId, CAMPUS_BIKE_ID, "Explore M and button still choose the same live vehicle");
 });
 
 // ---- C. Network ----

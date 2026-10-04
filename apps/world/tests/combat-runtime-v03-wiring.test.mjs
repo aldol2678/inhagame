@@ -29,13 +29,18 @@ test('Combat v0.3 PC input preserves v9.22 action grammar without replacing Worl
   assert.doesNotMatch(main, /world_combat_start_v1/);
   assert.match(main, /combatRuntime\.update\(\)/);
   assert.match(main, /combatTargetRenderer\.update\(dt\)/);
+  assert.doesNotMatch(main, /world_combat_start_v1/);
 });
 
 test('Combat v0.3 mobile HUD exposes all six action surfaces and hides incompatible Explore controls', () => {
   for (const action of ['basic','active_1','active_2','active_3','dodge','ultimate']) {
     assert.match(html, new RegExp(`data-combat-action="${action}"`));
   }
-  for (const targetHook of ['target-name','target-hp','target-hp-fill','target-break','target-break-fill','resource','status','reset']) {
+  for (const targetHook of [
+    'player-hp','player-hp-fill','dodge-state',
+    'target-name','target-hp','target-hp-fill','target-break','target-break-fill',
+    'telegraph','resource','status','reset'
+  ]) {
     assert.match(html, new RegExp(`data-combat-${targetHook}`));
   }
   assert.match(css, /COMBAT-V03-RUNTIME-P0:start/);
