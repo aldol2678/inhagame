@@ -1,6 +1,15 @@
 import {BUILDINGS,HALL_FRONT,LIBRARY_FRONT,LIBRARY_ROOF_PARTS} from '../../src/basic-campus.js';
 
 const dot=(a,b)=>a.reduce((sum,x,i)=>sum+x*b[i],0);
+// PlayCanvas refreshes cached camera matrices during prerender. Diagnostic
+// bounds must be projected only after a real frame has consumed camera changes.
+export function waitForDiagnosticFrame(app,timeoutMs=6000){
+ return new Promise((resolve,reject)=>{
+  const finish=()=>{clearTimeout(timer);resolve();};
+  const timer=setTimeout(()=>{app.off('postrender',finish);reject(new Error('Diagnostic camera frame deadline exceeded'));},timeoutMs);
+  app.once('postrender',finish);app.renderNextFrame=true;
+ });
+}
 const roofPoints=part=>part.vertices.flatMap(p=>[part.y-part.height/2,part.y+part.height/2].map(y=>[p.x,y,p.z]));
 function sourcePoints(id){
  const b=BUILDINGS.find(b=>b.id===id);

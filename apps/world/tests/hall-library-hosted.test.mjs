@@ -8,7 +8,7 @@ test('hosted integration evidence covers real consumers and entrance pixel repai
   const harness = read('./browser/hall-library-hosted-harness.html');
   for (const text of ['CampusChunkRenderer', 'RenderChunkRegistry', 'gl.readPixels', 'entryChanged', 'maskChanged', 'webglcontextlost']) assert.ok(harness.includes(text), text);
   const runner = read('./browser/hall-library-hosted-smoke.mjs');
-  for (const text of ['ad89daf0a190ea6b8664da0459822d1084aef247', '316c8ff95f7a12618ec8db61342d153f3cbb29ea', '68d64e7466a2971256485b74e76c89a31e91547a', '/editor/music/', 'PlaceScenePreview', 'withDeadline', '1280', '720', '390', '844', 'unexpectedRequests', 'entryChanged', 'report.json']) assert.ok(runner.includes(text), text);
+  for (const text of ['c64d309eb3c8f9632feaf996ae65d45455353fda', '316c8ff95f7a12618ec8db61342d153f3cbb29ea', '68d64e7466a2971256485b74e76c89a31e91547a', '/editor/music/', 'PlaceScenePreview', 'withDeadline', '1280', '720', '390', '844', 'unexpectedRequests', 'entryChanged', 'report.json']) assert.ok(runner.includes(text), text);
   assert.doesNotMatch(harness, /NullGraphicsDevice|data:image/);
   assert.ok(existsSync(new URL('./browser/hall-library-integration-null-smoke.mjs', import.meta.url)));
 });
@@ -24,7 +24,7 @@ test('historical source routes reject arbitrary files and traversal', () => {
 
 test('current-main preservation allows only the eight approved runtime files', () => {
   const manifest = JSON.parse(read('./fixtures/hall-library-candidate-source-manifest.json'));
-  assert.equal(manifest.currentMain, 'ad89daf0a190ea6b8664da0459822d1084aef247');
+  assert.equal(manifest.currentMain, 'c64d309eb3c8f9632feaf996ae65d45455353fda');
   assert.equal(manifest.allowedRuntimeChanges.length,8);
   assert.equal(new Set(manifest.allowedRuntimeChanges).size,8);
   assert.deepEqual(manifest.allowedMetadataChanges,['apps/world/data/reality/hall-library-integration.provenance.json']);
@@ -58,4 +58,24 @@ test('entry crop validates doorway pixels without treating apron color as a full
   assert.throws(()=>validate({...valid,entryBounds:{...valid.entryBounds,maxY:Infinity}}),/ROI/);
   assert.match(runner,/assert\.equal\(pixels\.maskChanged,0,'entry repair preserves the pre-fix Main Hall silhouette'\)/,'full-view silhouette gate stays exact');
   assert.match(crop,/assert\.equal\(stable\.exactChanged,0\)/,'cropped stationary frames remain exact');
+});
+
+test('current-material historical controls replace only the two shared material producer files', () => {
+  const runner=read('./browser/hall-library-hosted-smoke.mjs');
+  const helper=runner.match(/function comparisonSource\(relative,source\) \{[\s\S]*?\n\}/)?.[0];
+  assert.ok(helper,'an explicit scoped source resolver is required');
+  const resolve=runInNewContext(`(${helper})`,{}, {timeout:1000});
+  for(const commit of ['literal108','literal144']){
+    const literal={commit},controlled={commit,materialCommit:'currentMain'};
+    for(const path of ['src/campus-render-kit.js','src/campus-material-profile.js']){
+      assert.equal(resolve(path,literal),commit);
+      assert.equal(resolve(path,controlled),'currentMain');
+    }
+    for(const path of ['src/main-hall-blockout.js','src/photo-hall-library-geometry.js','src/facility-mesh-batch.js','src/campus-material-profile-copy.js','data/reality/campus-buildings.json']){
+      assert.equal(resolve(path,controlled),commit,path);
+    }
+  }
+  assert.match(runner,/cell\.baseline108materials\.pixels\.hash/,'Jeongseok equality must use the controlled #108 material producer');
+  assert.match(runner,/pixels\.exactChanged,0/,'exact previous-candidate equality stays strict');
+  assert.match(runner,/pixels\.maskChanged,0/,'Main Hall silhouette equality stays strict');
 });

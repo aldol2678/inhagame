@@ -8,9 +8,11 @@
 import * as pc from 'playcanvas';
 import {selectCampusLandmark} from '/src/campus-landmark-candidate-selector.js';
 import {buildMainHallBlockout as buildBaseline} from '/__hall_library_baseline__/src/main-hall-blockout.js';
-import {photoLandmarkView} from './hall-library-hosted-views.js';
+import {photoLandmarkView,waitForDiagnosticFrame} from './hall-library-hosted-views.js';
 import {buildMainHallBlockout as buildCurrentMain} from '/__hall_library_current_main__/src/main-hall-blockout.js';
 import {selectCampusLandmark as selectPrevious} from '/__hall_library_previous__/src/campus-landmark-candidate-selector.js';
+import {buildMainHallBlockout as buildBaselineMaterials} from '/__hall_library_baseline_current_materials__/src/main-hall-blockout.js';
+import {selectCampusLandmark as selectPreviousMaterials} from '/__hall_library_previous_current_materials__/src/campus-landmark-candidate-selector.js';
 import {CampusChunkRenderer} from '/src/campus-chunk-renderer.js';
 import {RenderChunkRegistry} from '/src/render-chunk-registry.js';
 import {HALL_FRONT} from '/src/basic-campus.js';
@@ -24,7 +26,8 @@ try {
   app.scene.ambientLight = new pc.Color(.62, .62, .62);
   const world = new pc.Entity('HostedLandmarkQA'); app.root.addChild(world);
   const ids = ['bldg_01', 'bldg_jungseok'], tiers = ['BASE', 'NEAR', 'DETAIL'];
-  const originals = {}, previousCandidate = {}, currentMain = {}, selected = {}, fitPoints = {};
+  const originals = {}, previousCandidate = {}, currentMain = {}, baselineMaterials = {}, previousMaterials = {}, selected = {}, fitPoints = {};
+  const presentations={baseline108:originals,previous144:previousCandidate,currentmain:currentMain,baseline108materials:baselineMaterials,previous144materials:previousMaterials,candidate:selected};
   const meshes = root => root.findComponents('render').flatMap(r => r.meshInstances);
   const corners = root => meshes(root).flatMap(m => {
     const min = m.aabb.getMin(), max = m.aabb.getMax();
@@ -35,14 +38,18 @@ try {
     selected[id] = new pc.Entity(id+'_selected'); world.addChild(selected[id]);
     previousCandidate[id] = new pc.Entity(id+'_previous144'); world.addChild(previousCandidate[id]);
     currentMain[id] = new pc.Entity(id+'_currentmain'); world.addChild(currentMain[id]);
+    baselineMaterials[id] = new pc.Entity(id+'_baseline108_current_materials'); world.addChild(baselineMaterials[id]);
+    previousMaterials[id] = new pc.Entity(id+'_previous144_current_materials'); world.addChild(previousMaterials[id]);
     for (const tier of tiers) {
       const root = new pc.Entity(id+'_baseline_'+tier); originals[id].addChild(root);
       buildBaseline(root, [id], tier);
       const mainRoot = new pc.Entity(id+'_main_'+tier); currentMain[id].addChild(mainRoot); buildCurrentMain(mainRoot,[id],tier);
       selectPrevious(previousCandidate[id],id,tier,{mode:'candidate'});
       selectCampusLandmark(selected[id], id, tier, {mode:'candidate'});
+      const materialRoot=new pc.Entity(id+'_baseline_materials_'+tier);baselineMaterials[id].addChild(materialRoot);buildBaselineMaterials(materialRoot,[id],tier);
+      selectPreviousMaterials(previousMaterials[id],id,tier,{mode:'candidate'});
     }
-    fitPoints[id] = [...corners(originals[id]), ...corners(currentMain[id]), ...corners(previousCandidate[id]), ...corners(selected[id])];
+    fitPoints[id] = Object.values(presentations).flatMap(collection=>corners(collection[id]));
   }
   const sun = new pc.Entity('Sun'); sun.addComponent('light', {type:'directional', intensity:1.1, castShadows:false});
   sun.setLocalEulerAngles(40,35,0); app.root.addChild(sun);
@@ -53,21 +60,18 @@ try {
   const fail = message => { throw new Error(message); };
   function view(options = {}) {
     state = {...state, ...options};
-    if (!ids.includes(state.id) || !['currentmain','baseline108','previous144','candidate'].includes(state.presentation)) fail('Unsupported view');
+    if (!ids.includes(state.id) || !Object.hasOwn(presentations,state.presentation)) fail('Unsupported view');
     // Resize the drawing buffer, leaving the CSS grid authoritative. The app
     // default KEEP_ASPECT/FIXED mode would otherwise retain desktop dimensions.
     device.resizeCanvas(canvas.clientWidth, canvas.clientHeight);
     device.updateClientRect();
     if (previous?.length !== canvas.width*canvas.height*4) previous = null;
     for (const id of ids) {
-      originals[id].enabled = id === state.id && state.presentation === 'baseline108';
-      selected[id].enabled = id === state.id && state.presentation === 'candidate';
-      currentMain[id].enabled = id === state.id && state.presentation === 'currentmain';
-      previousCandidate[id].enabled = id === state.id && state.presentation === 'previous144';
+      for(const [name,collection]of Object.entries(presentations))collection[id].enabled=id===state.id&&state.presentation===name;
       if (id === state.id && state.presentation === 'candidate') {
         for (const tier of tiers) selectCampusLandmark(selected[id], id, tier, {mode:state.presentation});
       }
-      for (const root of [originals[id], currentMain[id], previousCandidate[id], selected[id]]) for (const child of root.children) child.enabled = state.detail === 'all' || child.name.endsWith('_BASE');
+      for (const collection of Object.values(presentations)) for (const child of collection[id].children) child.enabled = state.detail === 'all' || child.name.endsWith('_BASE');
     }
     const reflection = state.reflected ? -1 : 1;
     world.setLocalScale(1,1,reflection);
@@ -83,7 +87,7 @@ try {
     return stats();
   }
   function stats() {
-    const active = ({baseline108:originals,currentmain:currentMain,previous144:previousCandidate,candidate:selected})[state.presentation][state.id];
+    const active = presentations[state.presentation][state.id];
     const owners = tiers.map(tier => {
       const children = active.children.filter(c => c.name.endsWith('_'+tier));
       const list = children.flatMap(meshes);
@@ -97,7 +101,7 @@ try {
     });
     return {engine:pc.version, device:device.deviceType, ...state, scaleSign:world.worldScaleSign,
       canvas:{width:canvas.width,height:canvas.height,cssWidth:canvas.clientWidth,cssHeight:canvas.clientHeight},
-      activePresentations:[...Object.values(originals), ...Object.values(currentMain), ...Object.values(previousCandidate), ...Object.values(selected)].filter(root => root.enabled).length, owners};
+      activePresentations:Object.values(presentations).flatMap(Object.values).filter(root => root.enabled).length, owners};
   }
   function framing() {
     const points = fitPoints[state.id].map(([x,y,z]) => camera.camera.worldToScreen(new pc.Vec3(x,y,z*(state.reflected?-1:1))));
@@ -181,7 +185,6 @@ try {
       receipt.push({id,owners:owners.map(owner=>owner.name),hidden,reused:handle.near===near&&handle.detail===detail,restored:near.enabled&&detail.enabled,reflection:owners.every(owner=>owner.worldScaleSign===-1)});
     }
     campus={root,renderer,handles};
-    campusView();
     return {receipt,metrics:renderer.getMetrics(),pondWeather:renderer.getPondWeatherStatus()};
   }
   function campusOwners(id) {
@@ -189,11 +192,12 @@ try {
     return [campus.renderer.base,handle.near,handle.detail].map((root,i)=>root.findByName(`${id}_presentation_${tiers[i]}`));
   }
   function campusVisibility(id,visible) { for(const owner of campusOwners(id))owner.enabled=visible; }
-  function campusView(id='bldg_01') {
+  async function campusView(id='bldg_01') {
     device.resizeCanvas(canvas.clientWidth,canvas.clientHeight);device.updateClientRect();previous=null;
     const points=campusOwners(id).flatMap(corners).map(([x,y,z])=>[x,y,-z]);
     const fit=photoLandmarkView(id,canvas.width/canvas.height,{points});
     camera.setPosition(fit.position[0],fit.position[1],-fit.position[2]);camera.lookAt(fit.target[0],fit.target[1],-fit.target[2]);
+    await waitForDiagnosticFrame(app);
     const projected=points.map(([x,y,z])=>camera.camera.worldToScreen(new pc.Vec3(x,y,-z)));
     const a=document.querySelector('aside').getBoundingClientRect(),c=canvas.getBoundingClientRect();
     document.getElementById('label').textContent=`Actual CampusChunkRenderer · ${id} · bounds-fitted QA camera`;

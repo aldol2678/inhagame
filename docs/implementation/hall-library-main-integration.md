@@ -2,7 +2,8 @@
 
 ## Scope and source
 
-Base: `ad89daf0a190ea6b8664da0459822d1084aef247` (current main at preparation).
+Base: `c64d309eb3c8f9632feaf996ae65d45455353fda` (reconciled current main).
+Initial preparation used `ad89daf0a190ea6b8664da0459822d1084aef247`.
 This is a narrow forward-port, not a merge of the full PR97 → PR108 → PR144 stack.
 It supersedes only the Hall/library portion of PR144; those PRs remain open.
 
@@ -36,7 +37,8 @@ default `existing` mode. Here, `existing` is the PR108 Hall/library presentation
 not the pre-integration main presentation. The normal-campus router explicitly
 selects the approved candidate. Do not also call the legacy builder for these IDs.
 
-Jeongseok is deliberately identical to the recovered PR108 rendering. Its western
+Jeongseok geometry is deliberately identical to the recovered PR108 geometry.
+Both landmarks use the current-main semantic material producer unchanged. Its western
 details and approaches are not recovered from withheld third-party imagery.
 
 ## Entrance correction and geometry limits
@@ -78,6 +80,23 @@ preview renderers, not a full gameplay walkthrough or default preview framing.
 The close entrance crop validates its doorway region and stationary pixels; its
 bottom-left sample can be apron rather than sky, so it is not a silhouette mask.
 Strict silhouette comparison remains in the fitted full-building views.
+
+Current-main reconciliation preserves all upstream material-profile, sky, combat
+and NPC files byte-for-byte. Literal #108/#144 comparison namespaces remain
+unchanged. Separate, explicitly labeled current-material controls use historical
+geometry/data and replace only `src/campus-render-kit.js` and
+`src/campus-material-profile.js` with pinned current-main bytes. Resolved commits
+and hashes are recorded per namespace. Exact library pixel equality and Hall
+silhouette equality use those same-material controls; literal historical renders
+remain evidence of the earlier appearance, including both old entrance crops.
+The complete matrix has 12 cells and 20 screenshots.
+
+Diagnostic bounds are projected after a bounded real postrender frame, because
+PlayCanvas refreshes cached camera matrices during prerender. A real-engine null
+regression reproduces the stale-camera failure and covers landmark changes and
+portrait fitting. It proves matrix/lifecycle behavior, not browser resizing or
+pixels; hosted WebGL remains authoritative for those. Shared material optics and
+their fade clones are checked across residency/destruction cycles.
 
 ## Release boundary
 

@@ -2,6 +2,8 @@
 import {registerHooks} from 'node:module';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
+import {readFileSync} from 'node:fs';
+import {runInNewContext} from 'node:vm';
 // Only the unrelated street-label canvas API is shimmed; no rendering or landmark API is mocked.
 globalThis.document={addEventListener(){},removeEventListener(){},createElement(tag){assert.equal(tag,'canvas');return {width:0,height:0,getContext(type){assert.equal(type,'2d');return {measureText:text=>({width:text.length*45}),fillText(){}};}};}};
 const engineUrl=new URL('./node_modules/playcanvas/build/playcanvas.mjs',import.meta.url).href;
@@ -12,13 +14,15 @@ const {CampusChunkRenderer}=await import('../../src/campus-chunk-renderer.js');
 const {RenderChunkRegistry}=await import('../../src/render-chunk-registry.js');
 const {PlaceScenePreview}=await import('../../src/preview/place-scene-preview.js');
 const {createNightBuildingWindows}=await import('../../src/environment/night-building-windows.js');
-const {BUILDINGS}=await import('../../src/basic-campus.js');
+const {BUILDINGS,HALL_FRONT}=await import('../../src/basic-campus.js');
+const diagnosticViews=await import('./hall-library-hosted-views.js');
 const canvas={id:'hall-library-current-main-null',width:512,height:512};
 const app=new pc.AppBase(canvas), options=new pc.AppOptions();
 options.graphicsDevice=new pc.NullGraphicsDevice(canvas);
 options.componentSystems=[pc.RenderComponentSystem,pc.CameraComponentSystem,pc.LightComponentSystem];app.init(options);
 const ids=['bldg_01','bldg_jungseok'], tiers=['BASE','NEAR','DETAIL'];
 const meshes=root=>root.findComponents('render').flatMap(c=>c.meshInstances);
+const optics=m=>({name:m.name,diffuse:m.diffuse.toArray(),specular:m.specular.toArray(),gloss:m.gloss,reflectivity:m.reflectivity,fresnelModel:m.fresnelModel});
 const fingerprint=root=>meshes(root).map(m=>createHash('sha256').update(new Uint8Array(m.mesh.vertexBuffer.storage)).digest('hex'));
 const descendants=root=>[root,...root.children.flatMap(descendants)];
 const owner=(root,id,tier)=>descendants(root).filter(e=>e.name===`${id}_presentation_${tier}`);
@@ -37,7 +41,10 @@ try {
   assert.throws(()=>buildCampusLandmarks(mixed,null),/array/);
   assert.deepEqual(mixed.children,originalChildren,'invalid and empty routes preserve tree');
   const sourceMaterials=new Set(meshes(mixed).map(m=>m.material));
-  const sourceMaterialState=new Map([...sourceMaterials].map(m=>[m,{opacityDither:m.opacityDither,alphaDither:m.alphaDither,opacity:m.opacity}]));
+  const sourceMaterialState=new Map([...sourceMaterials].map(m=>[m,{opacityDither:m.opacityDither,alphaDither:m.alphaDither,opacity:m.opacity,optics:optics(m)}]));
+  const sourceOpticsByName=new Map([...sourceMaterials].map(m=>[m.name,optics(m)]));
+  assert.ok([...sourceOpticsByName.keys()].some(name=>name.startsWith('campus-material-glass:')),'current-main semantic glass material is in use');
+  assert.ok([...sourceOpticsByName.keys()].some(name=>name.startsWith('campus-material-concrete:')),'current-main semantic concrete material is in use');
   for(const id of ids)for(const tier of tiers){
     const first=selectCampusLandmark(mixed,id,tier,{mode:'candidate'}),geometry=fingerprint(first);
     mixed.removeChild(first);assert.equal(selectCampusLandmark(mixed,id,tier,{mode:'candidate'}),first,'detached owner remounts');
@@ -72,7 +79,9 @@ try {
       assert.deepEqual(selected[0].getLocalScale().toArray(),[1,1,1]);
     }
     const near=handle.near,detail=handle.detail,clones=new Set([...meshes(near),...meshes(detail)].map(m=>m.material));
-    for(const material of clones){assert.ok(!persistentMaterials.has(material),'tier fade never mutates BASE source material');assert.ok(!windowMaterials.has(material),'tier fade never owns night window material');assert.equal(material.opacityDither,pc.DITHER_BAYER8);assert.equal(material.alphaDither,1);}
+    let verifiedOpticalClones=0;
+    for(const material of clones){assert.ok(!persistentMaterials.has(material),'tier fade never mutates BASE source material');assert.ok(!windowMaterials.has(material),'tier fade never owns night window material');assert.equal(material.opacityDither,pc.DITHER_BAYER8);assert.equal(material.alphaDither,1);if(sourceOpticsByName.has(material.name)){assert.deepEqual(optics(material),sourceOpticsByName.get(material.name),'fade clones retain current-main optical profiles');verifiedOpticalClones++;}}
+    assert.ok(verifiedOpticalClones>0,'actual streamed landmark materials retain their source optics');
     const geometry=fingerprint(handle.root),metrics=renderer.getMetrics();
     renderer.setState(handle,'FAR');renderer.update(.1);
     assert.ok(renderer.fades.get(near).value>0&&renderer.fades.get(near).value<1,'partial fade');
@@ -90,9 +99,9 @@ try {
     assert.equal(renderer.fades.has(near),false);assert.equal(renderer.fades.has(detail),false);
     assert.equal(destroyedMaterials,clones.size,'every fade clone disposed once');assert.ok(destroyedMeshes>=ownedMeshes.size,'custom mesh cleanup runs');for(const mesh of ownedMeshes)assert.equal(mesh.vertexBuffer,null,'custom vertex buffer is released');
     assert.equal(windows.status().enabled,true,'landmark destruction preserves independent environment');
-    report.chunkCycles.push({cycle,id,sourceMaterials:persistentMaterials.size,disposedFadeMaterials:destroyedMaterials,disposedCustomMeshes:ownedMeshes.size,meshDestroyCalls:destroyedMeshes});
+    report.chunkCycles.push({cycle,id,sourceMaterials:persistentMaterials.size,verifiedOpticalClones,disposedFadeMaterials:destroyedMaterials,disposedCustomMeshes:ownedMeshes.size,meshDestroyCalls:destroyedMeshes});
   }
-  for(const [material,expected]of sourceMaterialState)assert.deepEqual({opacityDither:material.opacityDither,alphaDither:material.alphaDither,opacity:material.opacity},expected,'source material is unchanged after fade/destruction');
+  for(const [material,expected]of sourceMaterialState)assert.deepEqual({opacityDither:material.opacityDither,alphaDither:material.alphaDither,opacity:material.opacity,optics:optics(material)},expected,'source material including current-main optics is unchanged after fade/destruction');
   report.environment={nightWindows:windows.status(),pondWeather:renderer.getPondWeatherStatus(),independentOwnership:true};
   const preview=new PlaceScenePreview(canvas);preview.app=app;preview.registry=registry;preview.campusRoot=campus;
   preview.camera=new pc.Entity('PreviewTestCamera');preview.camera.addComponent('camera');app.root.addChild(preview.camera);
@@ -104,6 +113,43 @@ try {
     assert.equal(status.placeId,id);assert.ok(status.entitiesCreated>1);report.preview.push({id,residentChunks:status.residentChunks,entitiesCreated:status.entitiesCreated});
   }
   preview.clearPlace();assert.equal(preview.placeRoot,null);assert.equal(preview.status().placeId,null);
+  // Exercise the browser fixture's real camera math with PlayCanvas. The null
+  // device supplies no pixels: render lifecycle events only invalidate matrices.
+  const fixtureCanvas={width:1280,height:653,clientWidth:1280,clientHeight:653,getBoundingClientRect:()=>({top:67})};
+  app.graphicsDevice.clientRect={width:1280,height:653};
+  const camera=preview.camera;
+  camera.camera.fov=48;camera.camera.aspectRatioMode=pc.ASPECT_MANUAL;camera.camera.aspectRatio=1280/653;
+  const {a,b,along,inward}=HALL_FRONT;
+  const entryPoint=(u,y,v)=>[(a.x+b.x)/2+along.x*u+inward.x*v,y,(a.z+b.z)/2+along.z*u+inward.z*v];
+  camera.setPosition(...entryPoint(5,3.3,-9));camera.lookAt(...entryPoint(0,1.6,0));
+  app.fire('prerender');camera.camera.worldToScreen(new pc.Vec3(...entryPoint(0,1.6,0)));
+  const handles=ids.map(id=>{const handle=renderer.create(registry.chunks.find(c=>c.buildings.includes(id)));renderer.setState(handle,'ACTIVE');renderer.update(1);return handle;});
+  const corners=root=>meshes(root).flatMap(m=>{const min=m.aabb.getMin(),max=m.aabb.getMax();return [min.x,max.x].flatMap(x=>[min.y,max.y].flatMap(y=>[min.z,max.z].map(z=>[x,y,z])));});
+  const harness=readFileSync(new URL('./hall-library-hosted-harness.html',import.meta.url),'utf8');
+  const fixtureFunctions=harness.slice(harness.indexOf('  function campusOwners('),harness.indexOf('  function disposeCampus('));
+  const fixtureView=runInNewContext(fixtureFunctions+';campusView',{
+    pc,app,campus:{root:campus,renderer,handles},tiers,corners,...diagnosticViews,camera,canvas:fixtureCanvas,previous:null,
+    document:{querySelector:()=>({getBoundingClientRect:()=>({bottom:67})}),getElementById:()=>({})},
+    device:{resizeCanvas(){},updateClientRect(){}}
+  });
+  report.diagnosticCamera=[];
+  for(const [width,height]of [[1280,653],[390,760]])for(const id of ids){
+    Object.assign(fixtureCanvas,{width,height,clientWidth:width,clientHeight:height});
+    app.graphicsDevice.clientRect={width,height};camera.camera.aspectRatio=width/height;
+    const pending=Promise.resolve(fixtureView(id));
+    app.fire('prerender');app.fire('postrender');
+    const frame=await pending;
+    assert.ok(frame.points>0&&frame.minDepth>0,`${id} camera must project after the render lifecycle refreshes its cached view matrix: ${JSON.stringify(frame)}`);
+    assert.ok(frame.minX>=.06&&frame.maxX<=.94&&frame.minY>=.06&&frame.maxY<=.94,JSON.stringify(frame));
+    report.diagnosticCamera.push({id,width,height,points:frame.points,minDepth:frame.minDepth});
+  }
+  for(const handle of handles)renderer.destroy(handle);
+  const frameEvents=new pc.EventHandler();
+  const rendered=diagnosticViews.waitForDiagnosticFrame(frameEvents);
+  assert.equal(frameEvents.renderNextFrame,true);assert.equal(frameEvents.hasEvent('postrender'),true);
+  frameEvents.fire('postrender');await rendered;assert.equal(frameEvents.hasEvent('postrender'),false);
+  await assert.rejects(diagnosticViews.waitForDiagnosticFrame(frameEvents,5),/Diagnostic camera frame deadline/);
+  assert.equal(frameEvents.hasEvent('postrender'),false,'timeout removes its pending frame listener');
   preview.groundMaterial.destroy();preview.camera.destroy();
   windows.destroy();windows.destroy();assert.equal(windowRoot.children.length,0);
   campus.destroy();assert.equal(renderer.fades.size,0);

@@ -10,9 +10,18 @@ import path from 'node:path';
 import {startSmoke} from './harness.mjs';
 
 const BASELINE = '316c8ff95f7a12618ec8db61342d153f3cbb29ea';
-const CURRENT_MAIN = 'ad89daf0a190ea6b8664da0459822d1084aef247';
+const CURRENT_MAIN = 'c64d309eb3c8f9632feaf996ae65d45455353fda';
 const PREVIOUS = '68d64e7466a2971256485b74e76c89a31e91547a';
-const SOURCES = {'/__hall_library_baseline__/':BASELINE,'/__hall_library_current_main__/':CURRENT_MAIN,'/__hall_library_previous__/':PREVIOUS};
+const SOURCES = {
+  '/__hall_library_baseline__/':{commit:BASELINE},
+  '/__hall_library_current_main__/':{commit:CURRENT_MAIN},
+  '/__hall_library_previous__/':{commit:PREVIOUS},
+  '/__hall_library_baseline_current_materials__/':{commit:BASELINE,materialCommit:CURRENT_MAIN},
+  '/__hall_library_previous_current_materials__/':{commit:PREVIOUS,materialCommit:CURRENT_MAIN}
+};
+function comparisonSource(relative,source) {
+  return source.materialCommit&&['src/campus-render-kit.js','src/campus-material-profile.js'].includes(relative)?source.materialCommit:source.commit;
+}
 const output = process.env.WORLD_HALL_LIBRARY_QA_OUTPUT || 'test-results/hall-library-candidate';
 const repo = fileURLToPath(new URL('../../../../', import.meta.url));
 const run = promisify(execFile);
@@ -21,11 +30,11 @@ await mkdir(output, {recursive:true});
 const reportPath = path.join(output,'report.json');
 const report = {
   status:'RUNNING', startedAt:new Date().toISOString(), baselineCommit:BASELINE,currentMainCommit:CURRENT_MAIN,previousCandidateCommit:PREVIOUS,
-  scope:'Current-main integration, literal #108 and pre-fix #144 comparisons, actual chunk lifecycle and actual music editor PlaceScenePreview route. No interior or measured floor-count claim.',
+  scope:'Current-main integration, literal #108/#144 history plus separately labeled current-material geometry controls, actual chunk lifecycle and actual music editor PlaceScenePreview route. No interior or measured floor-count claim.',
   approximation:'Main Hall retains illustrative four-row/nine-pier estimates; Jeongseok reuses the #108 exterior.',
   entranceRepair:{previousCoplanarCrossings:4,currentCrossings:0,clipU:[-1.75,1.75],belowY:2.85},
   limits:{operationMs:12000,pixelFrameMs:6000,overallMs:420000,cleanupMs:8000},
-  baselineFiles:[], requests:{unexpectedRequests:[],api:[],offOrigin:[]}, cases:[], closeups:[], screenshots:[], progress:[]
+  comparisonSources:SOURCES,resolvedSources:[],baselineFiles:[], requests:{unexpectedRequests:[],api:[],offOrigin:[]}, cases:[], closeups:[], screenshots:[], progress:[]
 };
 const flush = () => writeFile(reportPath,JSON.stringify(report,null,2)+'\n');
 const progress = async label => {
@@ -105,7 +114,7 @@ try {
   for(const changed of changedPaths)assert.ok([...manifest.allowedRuntimeChanges,...manifest.allowedMetadataChanges].includes(changed),changed+' outside approved integration scope');
   report.preservation={baseline:CURRENT_MAIN,changedPaths,status:'PASS'};
   await progress('Validate pinned baseline and start offline real-engine browser');
-  for(const commit of Object.values(SOURCES)) await sourceAtBaseline('src/main-hall-blockout.js',commit);
+  for(const commit of new Set(Object.values(SOURCES).map(source=>source.commit))) await sourceAtBaseline('src/main-hall-blockout.js',commit);
   smoke=await withDeadline('browser startup',()=>startSmoke({viewport:{width:1280,height:720},contextOptions:{deviceScaleFactor:1}}),30000);
   const html=await readFile(new URL('./hall-library-hosted-harness.html',import.meta.url),'utf8');
   const engineUrl=html.match(/"playcanvas":"([^"]+)"/)[1];
@@ -115,12 +124,13 @@ try {
     if (url.origin!==smoke.origin && url.href!==engineUrl) report.requests.offOrigin.push(url.origin+url.pathname);
     if ((url.origin===smoke.origin && url.pathname.startsWith('/api/')) || (url.origin!==smoke.origin && url.href!==engineUrl)) report.requests.unexpectedRequests.push(url.origin+url.pathname);
   });
-  for(const [PREFIX,commit] of Object.entries(SOURCES)) await smoke.context.route(`**${PREFIX}**`,async route=>{
+  for(const [PREFIX,source] of Object.entries(SOURCES)) await smoke.context.route(`**${PREFIX}**`,async route=>{
     try {
       const url=new URL(route.request().url());
       assert.equal(url.origin,smoke.origin);
       const relative=url.pathname.slice(PREFIX.length);
-      const body=await sourceAtBaseline(relative,commit);
+      const commit=comparisonSource(relative,source),body=await sourceAtBaseline(relative,commit);
+      report.resolvedSources.push({namespace:PREFIX,path:relative,historicalCommit:source.commit,resolvedCommit:commit,sha256:createHash('sha256').update(body).digest('hex')});
       await route.fulfill({status:200,contentType:relative.endsWith('.json')?'application/json':'text/javascript; charset=utf-8',body});
     } catch(error) {
       const pathname=new URL(route.request().url()).pathname;
@@ -178,7 +188,7 @@ try {
         const selected=['BASE','NEAR','DETAIL'].map(tier=>all(preview.placeRoot).filter(e=>e.name===`${id}_presentation_${tier}`));
         const owners=selected.map(list=>list.map(e=>({name:e.name,reflection:e.worldScaleSign})));
         window.__QA_PREVIEW_OWNERS__=selected.flat();window.__QA_PREVIEW_PIXELS__=null;
-        const {photoLandmarkView}=await import('/tests/browser/hall-library-hosted-views.js'),pc=await import('playcanvas');
+        const {photoLandmarkView,waitForDiagnosticFrame}=await import('/tests/browser/hall-library-hosted-views.js'),pc=await import('playcanvas');
         const points=selected.flat().flatMap(root=>root.findComponents('render').flatMap(c=>c.meshInstances)).flatMap(m=>{
           const min=m.aabb.getMin(),max=m.aabb.getMax();
           return [min.x,max.x].flatMap(x=>[min.y,max.y].flatMap(y=>[min.z,max.z].map(z=>[x,y,-z])));
@@ -187,6 +197,7 @@ try {
         preview.camera.camera.fov=48;
         const fit=photoLandmarkView(id,preview.canvas.width/preview.canvas.height,{points});
         preview.camera.setPosition(fit.position[0],fit.position[1],-fit.position[2]);preview.camera.lookAt(fit.target[0],fit.target[1],-fit.target[2]);
+        await waitForDiagnosticFrame(preview.app);
         const projected=points.map(([x,y,z])=>preview.camera.camera.worldToScreen(new pc.Vec3(x,y,-z))),width=preview.canvas.width,height=preview.canvas.height;
         const framing={points:points.length,minDepth:Math.min(...projected.map(p=>p.z)),minX:Math.min(...projected.map(p=>p.x/width)),maxX:Math.max(...projected.map(p=>p.x/width)),minY:Math.min(...projected.map(p=>p.y/height)),maxY:Math.max(...projected.map(p=>p.y/height))};
         return {status,owners,oldDetached:old.parent===null,device:preview.app.graphicsDevice.deviceType,framing,defaultCamera,cameraScope:'Public openPlace target; diagnostic camera fitted to actual target mesh bounds'};
@@ -231,18 +242,19 @@ try {
     await withDeadline('viewport resize',()=>page.setViewportSize(viewport));
     for (const id of ['bldg_01','bldg_jungseok']) for (const reflected of [true,false]) {
       const cell={name,viewport,id,reflected,status:'RUNNING'}; report.cases.push(cell);
-      await progress(`${name} ${id} ${reflected?'reflected':'control'}: current main / #108 / previous #144 / integrated candidate`);
-      for (const presentation of ['currentmain','baseline108','previous144','candidate']) {
+      await progress(`${name} ${id} ${reflected?'reflected':'control'}: current main / literal #108 / literal #144 / current-material #108 / current-material #144 / candidate`);
+      for (const presentation of ['currentmain','baseline108','previous144','baseline108materials','previous144materials','candidate']) {
         const stats=await view({id,presentation,reflected,detail:'all',mode:'full'}); checkStats(stats);
         const pixels=await capture(); checkPixels(pixels); cell[presentation]={stats,pixels};
         assert.equal(pixels.width,viewport.width,'drawing buffer follows each viewport');
         assert.equal(pixels.width,stats.canvas.cssWidth); assert.equal(pixels.height,stats.canvas.cssHeight);
         assert.equal(pixels.width<pixels.height,name==='portrait','actual framebuffer orientation');
         assert.ok(pixels.height>viewport.height*.65 && pixels.height<viewport.height,'caption remains outside canvas');
+        if(presentation==='previous144'&&id==='bldg_jungseok')assert.equal(pixels.hash,cell.baseline108.pixels.hash,'literal historical Jeongseok parity remains exact');
         if (presentation==='candidate') {
           if (id==='bldg_jungseok') {
-            assert.equal(pixels.exactChanged,0,'Jeongseok previous candidate parity');
-            assert.equal(pixels.hash,cell.baseline108.pixels.hash,'Jeongseok exact historical #108 pixels');
+            assert.equal(pixels.exactChanged,0,'Jeongseok previous candidate parity under current-main materials');
+            assert.equal(pixels.hash,cell.baseline108materials.pixels.hash,'Jeongseok exact #108 geometry pixels under current-main materials');
           } else {
             assert.equal(pixels.maskChanged,0,'entry repair preserves the pre-fix Main Hall silhouette');
             assert.notEqual(pixels.hash,cell.currentmain.pixels.hash,'activated Main Hall changes current-main pixels');
@@ -267,7 +279,7 @@ try {
   }
   // Adjacent pre-fix/fixed captures prove actual changed entrance pixels and stable frames.
   await withDeadline('closeup viewport',()=>page.setViewportSize({width:1280,height:720}));
-  for (const reflected of [true,false]) for (const presentation of ['previous144','candidate']) {
+  for (const reflected of [true,false]) for (const presentation of ['previous144','previous144materials','candidate']) {
     await progress(`Main Hall entrance oblique closeup: ${presentation} ${reflected?'reflected':'control'}`);
     checkStats(await view({id:'bldg_01',presentation,reflected,detail:'all',mode:'entry'}));
     const pixels=await capture(), stable=await capture(); checkPixels(pixels); checkPixels(stable);
@@ -275,7 +287,7 @@ try {
     if(presentation==='candidate') {
       checkEntranceCrop(pixels);
     }
-    report.closeups.push({id:'bldg_01',presentation,reflected,mode:'entry',scope:'Entrance crop, not full-building framing',maskInterpretation:'Corner-color diagnostic only; full-building silhouette is checked in fitted views',pixels,stable});
+    report.closeups.push({id:'bldg_01',presentation,reflected,mode:'entry',scope:presentation==='previous144'?'Literal historical #144 entrance crop':'Entrance crop under the current-main material producer, not full-building framing',maskInterpretation:'Corner-color diagnostic only; full-building silhouette is checked in fitted views',pixels,stable});
     await shot(`desktop-bldg_01-${presentation}-entrance-${reflected?'reflected':'control'}`); await flush();
   }
   await progress('Actual CampusChunkRenderer: ACTIVE / FAR / ACTIVE ownership and pixels');
@@ -305,8 +317,8 @@ try {
   await progress('Actual /editor/music/ route: open, landmark public targets, close and reopen');
   await verifyPreviewRoute();
   assert.deepEqual(smoke.problems,[]); assert.deepEqual(report.requests.unexpectedRequests,[]);
-  assert.equal(report.cases.length,12); assert.equal(report.screenshots.length,18);
-  report.status='PASS'; await progress('12 comparison cells, real campus lifecycle, real preview route, and 18 screenshots complete');
+  assert.equal(report.cases.length,12); assert.equal(report.screenshots.length,20);
+  report.status='PASS'; await progress('12 comparison cells, real campus lifecycle, real preview route, and 20 screenshots complete');
 } catch(error) {
   report.status='FAIL'; report.error=String(error.stack||error); process.exitCode=1;
   console.error(report.error);

@@ -4652,6 +4652,35 @@ body[data-lobby-shell="true"] > #backgate-transit-panel { display: none !importa
   color: #eefaff; pointer-events: auto;
 }
 .combat-hud-v03[hidden] { display: none !important; }
+.combat-impact-feedback {
+  position:fixed; inset:0; z-index:14; pointer-events:none; opacity:0;
+  background:radial-gradient(circle at 50% 54%,rgba(255,255,255,.18),transparent 44%);
+}
+.combat-impact-feedback.show { animation:combat-impact-flash 95ms ease-out both; }
+.combat-impact-feedback[data-kind="playerHit"],
+.combat-impact-feedback[data-kind="defeat"] {
+  background:radial-gradient(circle at 50% 54%,rgba(255,92,92,.18),transparent 46%),
+    linear-gradient(180deg,rgba(255,68,68,.10),rgba(255,68,68,0));
+}
+.combat-impact-feedback[data-kind="perfect"] {
+  background:radial-gradient(circle at 50% 54%,rgba(124,244,255,.24),transparent 44%);
+}
+.combat-impact-feedback[data-kind="break"] {
+  background:radial-gradient(circle at 50% 54%,rgba(255,213,106,.25),transparent 46%);
+}
+@keyframes combat-impact-flash { 0%{opacity:0} 18%{opacity:1} 100%{opacity:0} }
+#application.combat-camera-kick[data-combat-kick="basic"] { animation:combat-kick-basic 70ms ease-out; }
+#application.combat-camera-kick[data-combat-kick="skill"] { animation:combat-kick-skill 90ms ease-out; }
+#application.combat-camera-kick[data-combat-kick="heavy"],
+#application.combat-camera-kick[data-combat-kick="break"] { animation:combat-kick-heavy 120ms ease-out; }
+#application.combat-camera-kick[data-combat-kick="player-hit"],
+#application.combat-camera-kick[data-combat-kick="defeat"] { animation:combat-kick-player 110ms ease-out; }
+#application.combat-camera-kick[data-combat-kick="perfect"] { animation:combat-kick-perfect 130ms ease-out; }
+@keyframes combat-kick-basic { 0%{transform:translate(0,0)} 40%{transform:translate(-1px,1px)} 100%{transform:translate(0,0)} }
+@keyframes combat-kick-skill { 0%{transform:translate(0,0)} 35%{transform:translate(-2px,1px)} 70%{transform:translate(1px,-1px)} 100%{transform:translate(0,0)} }
+@keyframes combat-kick-heavy { 0%{transform:translate(0,0)} 30%{transform:translate(-3px,2px) rotate(-.08deg)} 65%{transform:translate(2px,-2px) rotate(.06deg)} 100%{transform:translate(0,0)} }
+@keyframes combat-kick-player { 0%{transform:translate(0,0)} 30%{transform:translate(4px,-2px) rotate(.10deg)} 65%{transform:translate(-3px,1px) rotate(-.08deg)} 100%{transform:translate(0,0)} }
+@keyframes combat-kick-perfect { 0%{transform:translate(0,0) scale(1)} 38%{transform:translate(-1px,0) scale(1.004)} 100%{transform:translate(0,0) scale(1)} }
 .combat-hud-v03-head { display:flex; align-items:center; gap:8px; margin-bottom:8px; font-size:11px; }
 .combat-hud-v03-head strong { font-size:13px; letter-spacing:.06em; }
 .combat-hud-v03-head span { padding:3px 7px; border:1px solid rgba(148,210,239,.28); border-radius:999px; color:#bcd7e8; }

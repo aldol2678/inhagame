@@ -60,6 +60,27 @@ test('training drone telegraphs before applying the v9.22 44 damage pulse', () =
   assert.equal(r.training.snapshot().player.hitSerial, 1);
 });
 
+
+test('telegraph locks its aim point so spatial dodge movement can leave the impact radius', () => {
+  const r = rig();
+  const impactAt = primePulse(r);
+  const attack = r.training.snapshot().enemyAttack;
+  assert.equal(attack.impactRadius, 1.15);
+  const lockedAim = { x: attack.aimX, z: attack.aimZ };
+
+  r.player.z += 2.2;
+  r.setNow(impactAt);
+  const impact = r.training.update();
+
+  assert.equal(impact.outcome, 'MISS');
+  assert.equal(impact.damage, 0);
+  assert.equal(r.training.snapshot().player.hp, 1000);
+  assert.deepEqual(
+    { x: r.training.snapshot().lastEnemyAttack.aimX, z: r.training.snapshot().lastEnemyAttack.aimZ },
+    lockedAim
+  );
+});
+
 for (const [elapsed, expected] of [
   [69, 'HIT'],
   [70, 'PERFECT_DODGE'],

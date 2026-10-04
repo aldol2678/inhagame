@@ -173,8 +173,10 @@ import { HUD_MODE } from "./hud/hud-context.js";
 import { bindHudPresentation } from "./hud/hud-presentation.js";
 import { createCombatRuntimeV03 } from "./combat/combat-runtime-v03.js";
 import { createBuilding5CombatInteraction } from "./combat/building5-combat-interaction.js";
-import { createBuilding5CombatTraining } from "./combat/building5-combat-training.js";
+import { BUILDING5_TRAINING_TARGET, createBuilding5CombatTraining } from "./combat/building5-combat-training.js";
 import { createBuilding5CombatTargetRenderer } from "./combat/building5-combat-target-renderer.js";
+import { createCombatWorldMotionV03 } from "./combat/combat-world-motion-v03.js";
+import { createCombatFeedbackV03 } from "./combat/combat-feedback-v03.js";
 import { createCombatHudV03 } from "./combat/combat-hud-v03.js";
 import { createHelicopterFlightHud } from "./mounts/helicopter-flight-hud.js";
 import { createMobilityBook } from "./mobility/mobility-book.js";
@@ -475,7 +477,11 @@ const inputFocus = createInputFocusManager();
 const hudContext = createHudContext();
 bindHudPresentation({ context: hudContext, root: document.body });
 const building5Training = createBuilding5CombatTraining({
-  getPlayerPosition: () => player.getLocalPosition()
+  getPlayerPosition: () => player.getLocalPosition(),
+  getDodgeDirection: () => controller.combatDodgeDirection(orbit.yaw, {
+    targetX: BUILDING5_TRAINING_TARGET.x,
+    targetZ: BUILDING5_TRAINING_TARGET.z
+  })
 });
 const combatRuntime = createCombatRuntimeV03({ localTraining: building5Training });
 const combatHud = createCombatHudV03({
@@ -489,13 +495,28 @@ const combatTargetRenderer = createBuilding5CombatTargetRenderer({
   training: building5Training,
   getGroundHeight: roadviewGroundHeight
 });
+const combatWorldMotion = createCombatWorldMotionV03({
+  runtime: combatRuntime,
+  training: building5Training,
+  controller
+});
+const combatFeedback = createCombatFeedbackV03({
+  runtime: combatRuntime,
+  canvas,
+  overlay: document.getElementById("combat-impact-feedback")
+});
 combatRuntime.subscribe(state => {
   hudContext.setMode(state.active ? HUD_MODE.COMBAT : HUD_MODE.EXPLORE);
   controller.setTransportLock("combat-v03", state.active);
 }, { emitCurrent: true });
 app.on("update", dt => {
-  combatRuntime.update();
-  combatTargetRenderer.update(dt);
+  const held = combatFeedback.hitstopActive();
+  if (!held) {
+    combatRuntime.update();
+    combatTargetRenderer.update(dt);
+  } else {
+    combatTargetRenderer.update(0);
+  }
 });
 // InputFocus remains the single input authority. HUD Context observes its resolved snapshot only
 // to expose presentation state for current/future Explore, Combat, Life and Pet layouts.
@@ -2724,6 +2745,7 @@ app.on("update", (dt) => {
   follow.update();
   playerAutoMove?.update(navigation?.getSnapshot() ?? null, player.getLocalPosition());
   if (!seating.beforeController()) controller.update(Math.min(dt, 0.05), orbit.yaw);
+  if (!combatFeedback.hitstopActive()) combatWorldMotion.update();
   helicopterFlightHud.update();
   orbit.setMounted(controller.mounted);
   character.setMounted(controller.mounted);
@@ -2731,7 +2753,12 @@ app.on("update", (dt) => {
   // Locomotion outranks expression: moving, mounting or an incompatible jump ends the emote.
   const emote = emotes.update(locomotion());
   emoteMenu.setAvailable(!controller.mounted && !combatRuntime.active);
-  character.update(Math.min(dt, 0.05), { ...locomotion(), emote, seated: seats.isSeated, poseOffsets: biryong?.poseOffsets() ?? null });
+  character.update(Math.min(dt, 0.05), {
+    ...locomotion(),
+    emote,
+    seated: seats.isSeated,
+    poseOffsets: combatFeedback.poseOffsets() ?? biryong?.poseOffsets() ?? null
+  });
 
   const pos = player.getLocalPosition();
   duckCompanionFollow.update(Math.min(dt, 0.05));
@@ -3144,6 +3171,8 @@ window.__INHAGAME_P0__ = {
   combatHud,
   building5Training,
   combatTargetRenderer,
+  combatWorldMotion,
+  combatFeedback,
   building5Combat,
   seats,
   seating,
@@ -3264,6 +3293,8 @@ window.__INHAGAME_P0__ = {
     biryongVillageDialogue: biryongVillageDialogue?.status() ?? null,
     biryongRelationships: biryongRelationships.status(),
     combat: combatRuntime.snapshot(),
+    combatMotion: combatWorldMotion.status(),
+    combatFeedback: combatFeedback.status(),
     building5Combat: building5Combat.status(),
     wallet: wallet.status(),
     inventory: { ...inventory.status(), ...inventoryPanel.status() },
