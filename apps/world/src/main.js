@@ -1978,7 +1978,14 @@ const mcmMinigame = createMcm2026MinigameRuntime({
 const registry = new RenderChunkRegistry();
 const chunkRenderer = new CampusChunkRenderer(app,campusRoot,registry,{
   getRainIntensity: () => environment.rainIntensity(),
-  getArtificialLightFactor: () => environment.artificialLightFactor()
+  getArtificialLightFactor: () => environment.artificialLightFactor(),
+  getGraphicsTier: () => graphics.tier,
+  getSnowAccumulation: () => snowWeatherEffects.getAccumulation(),
+  enabled: !(previewHost && startupParams.get('contactShading') === '0')
+});
+window.__INHAGAME_CONTACT_SHADING__ = Object.freeze({
+  status: () => chunkRenderer.contactShading.status(),
+  ...(previewHost ? { setEnabled: value => chunkRenderer.contactShading.setEnabled(value) } : {})
 });
 window.__INHAGAME_POND_WEATHER__ = Object.freeze({
   status: () => chunkRenderer.getPondWeatherStatus()
@@ -3451,6 +3458,5 @@ boot().catch((error) => {
   if (unsupported) console.warn("INHAGAME Campus WebGPU unavailable:", error);
   else console.error("INHAGAME Campus initialization failed:", error);
 });
-
 
 

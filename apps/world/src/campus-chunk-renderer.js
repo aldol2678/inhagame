@@ -12,6 +12,7 @@ import { buildCampusTerrain } from './campus-terrain.js';
 import { buildStadiumStands } from './stadium-stands-geometry.js';
 import { buildLibraryRoute } from './library-route-geometry.js';
 import { buildCampusHelicopter } from './mounts/campus-helicopter-render.js';
+import { createCampusContactShading } from './campus-contact-shading.js';
 
 const count=root=>1+root.children.reduce((sum,c)=>sum+count(c),0);
 export class CampusChunkRenderer {
@@ -27,6 +28,7 @@ export class CampusChunkRenderer {
     buildCampusHelicopter(base);
     buildLibraryRoute(base);
     for(const chunk of registry.chunks){buildCampusFacilities(base,chunk.facilities,'BASE');buildCampusLandmarks(base,chunk.buildings,'BASE');}
+    this.contactShading=createCampusContactShading({app,base,...environmentSignals});
     this.metrics.entitiesCreated+=count(base);
   }
   create(chunk) {
@@ -52,7 +54,10 @@ export class CampusChunkRenderer {
       }
       mi.material=copies.get(mi.material);
     }
-    this.fades.set(root,{value:0,target:0,materials:[...copies.values()]});
+    // Transparent contact batches are added after opaque fade-material cloning.
+    // They share the layer's fade value, not its depth-writing dither shader.
+    const contactFade=tier==='NEAR'?this.contactShading.addTrees(root,handle.chunk):null;
+    this.fades.set(root,{value:0,target:0,materials:[...copies.values()],contactFade});
     root.enabled=false;
     root.on('destroy',()=>{this.fades.delete(root);for(const material of copies.values())material.destroy();});
     this.metrics.entitiesCreated+=count(root);this.metrics[tier==='NEAR'?'nearBuilds':'detailBuilds']++;
@@ -69,11 +74,13 @@ export class CampusChunkRenderer {
     }
   }
   update(dt) {
+    this.contactShading.update();
     for(const [root,fade] of this.fades){
       if(fade.value===fade.target)continue;
       const delta=Math.max(0,dt)/.25;
       fade.value=fade.target>fade.value?Math.min(fade.target,fade.value+delta):Math.max(fade.target,fade.value-delta);
       for(const material of fade.materials){material.alphaDither=fade.value;material.update();}
+      fade.contactFade?.(fade.value);
       root.enabled=fade.value>0;
     }
   }
