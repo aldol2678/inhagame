@@ -408,6 +408,7 @@ const combatHud = createCombatHudV03({
 });
 combatRuntime.subscribe(state => {
   hudContext.setMode(state.active ? HUD_MODE.COMBAT : HUD_MODE.EXPLORE);
+  controller.setTransportLock("combat-v03", state.active);
 }, { emitCurrent: true });
 // InputFocus remains the single input authority. HUD Context observes its resolved snapshot only
 // to expose presentation state for current/future Explore, Combat, Life and Pet layouts.
@@ -1368,7 +1369,7 @@ const interactionAction = () => {
   return contextActions.trigger();
 };
 // M: PlayerController owns the key and the mount state; the World only adds the panel block.
-controller.setTransportGate(() => !worldActionsSuspended() && !combatRuntime.active);
+controller.setTransportGate(() => !worldActionsSuspended());
 const transportAction = () => {
   if (playerAutoMove?.active) playerAutoMove.pause(AUTO_MOVE_CANCEL_REASON.TRANSPORT);
   return controller.transportAction();
