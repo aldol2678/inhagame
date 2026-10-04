@@ -2518,11 +2518,15 @@ app.on("update", (dt) => {
     trigger: () => follow.stop(FollowStopReason.EXPLICIT)
   } : null);
   // Club Room P0 door: 🚪 동아리방 들어가기 outside, 🚪 본관으로 나가기 inside.
-  contextActions.set("room-door", inBiryong ? null
-    : rooms.contextAction({ position: pos, grounded: controller.grounded, mounted: controller.mounted }));
-  contextActions.set("personal-room-door", inBiryong ? null : personalRoomInteraction?.contextAction({
-    position: pos, grounded: controller.grounded, mounted: controller.mounted
-  }) ?? null);
+  if (inBiryong) {
+    contextActions.set("room-door", null);
+    contextActions.set("personal-room-door", null);
+  } else {
+    contextActions.set("room-door", rooms.contextAction({ position: pos, grounded: controller.grounded, mounted: controller.mounted }));
+    contextActions.set("personal-room-door", personalRoomInteraction?.contextAction({
+      position: pos, grounded: controller.grounded, mounted: controller.mounted
+    }) ?? null);
+  }
   contextActions.set("npc", inside ? null : npcTest?.getContextAction?.() ?? null);
   // Transport has its own slot: a nearby NPC and the bike are offered together (F and M).
   transportActions.set("mount", controller.getMountContextAction());
