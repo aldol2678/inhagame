@@ -76,18 +76,27 @@ export function createPurposefulRoster(batch, navigator, { duration = 12, speed 
     const destinations = {};
     const schedule = entries.map(slot => {
       const destination = `c04.${slot.location}.${id}`;
-      const sink = slot.location === 'off_zone';
+      const offZone = slot.location === 'off_zone';
+      const sink = offZone || slot.sink === true;
       const remote = slot.location === 'life_dorm_2';
       destinations[destination] ??= {
         type: remote ? 'REMOTE' : sink ? 'SINK' : slot.location.includes('bench') ? 'REST' : 'CAMPUS',
-        label: sink ? '구역 경계' : locationLabels[slot.location] ?? slot.location,
-        position: positionAt(sink ? 'transit_to_building' : slot.location, slotFor(slot.location, id))
+        label: offZone ? '구역 경계' : locationLabels[slot.location] ?? slot.location,
+        position: positionAt(offZone ? 'transit_to_building' : slot.location, slotFor(slot.location, id))
       };
       const [need, goal, activity] = activityMeaning[slot.activity] ?? activityMeaning.idle;
+      let walkDestination;
+      if (slot.walkLocation) {
+        walkDestination = `c04.${slot.walkLocation}.${id}`;
+        destinations[walkDestination] ??= { type: 'CAMPUS', label: locationLabels[slot.walkLocation],
+          position: positionAt(slot.walkLocation, slotFor(slot.walkLocation, id)) };
+      }
       if (remote) return { need, goal, destination, activity, duration, remote: true };
-      return sink
+      return offZone
         ? { need: 'TRANSIT', goal: 'LEAVE_ZONE', destination, activity: 'OFF_ZONE', duration: duration * 2, sink: true }
-        : { need, goal, destination, activity, duration };
+        : { need, goal, destination, activity, duration, ...(sink ? { sink: true } : {}),
+          ...(slot.departureSeconds !== undefined ? { departureSeconds: slot.departureSeconds } : {}),
+          ...(walkDestination ? { walkDestination } : {}) };
     });
     const spawn = destinations[schedule[0].destination].position;
     const moveSpeed = speed * behavior.speedMultiplier;
@@ -102,4 +111,3 @@ export function createPurposefulRoster(batch, navigator, { duration = 12, speed 
   if (result.size !== expected) throw new Error(`Expected ${expected} purposeful NPCs; got ${result.size}`);
   return result;
 }
-

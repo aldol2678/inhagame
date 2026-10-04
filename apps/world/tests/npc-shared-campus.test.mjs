@@ -22,8 +22,8 @@ test('46 existing campus NPCs share all five safe schedule legs, including night
   assert.equal(a.has('INKYUNG-NPC-001'),false);
   assert.equal(a.has('INKYUNG-NPC-002'),false);
   let movingSamples=0, remoteSamples=0;
-  for(let index=0;index<5;index++) for(const seconds of [0,.1,1,10,30,120,600,899.999]){
-    now=E+index*P+seconds*1000;
+  for(let cycle=0;cycle<2;cycle++) for(let index=0;index<5;index++) for(const seconds of [0,.1,1,10,30,120,600,899.999]){
+    now=E+(cycle*5+index)*P+seconds*1000;
     for(const [id,member] of a){
       const first=member.controller.status(),late=b.get(id).controller.status();
       assert.deepEqual(first,late,id);
@@ -74,9 +74,11 @@ test('46 existing campus NPCs share all five safe schedule legs, including night
     }
   }
   assert.ok(sceneCount>=6,'real roster produces shared scenes');
-  assert.equal(firstMeetings.plans(1).length,0,'class schedule wins');
+  for (const plan of firstMeetings.plans(1)) for (const member of plan.members) {
+    assert.equal(a.get(member.id).schedule[1].sink, undefined, 'class attendees cannot join a free-period meetup');
+    assert.equal(a.get(member.id).schedule[1].walkDestination, undefined, 'walk breaks retain their continuous route');
+  }
   console.log(JSON.stringify({sharedScenes:sceneCount}));
   assert.ok(movingSamples>0);assert.ok(remoteSamples>0);
   console.log(JSON.stringify({npcCount:a.size,legs:a.size*5,movingSamples,remoteSamples}));
 });
-

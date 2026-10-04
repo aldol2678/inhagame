@@ -7,8 +7,8 @@ import { buildCentralBlockout } from './central-blockout.js';
 import { WORLD_BOUNDS } from './campus-layout.js';
 import { buildPondShore } from './roadview-details.js';
 import { buildCampusRoads, buildBackStreetDetails } from './campus-road-blockout.js';
-import { buildGardenCampusTerrain, buildLibraryGardenBase, buildLibraryGardenDetail } from './library-garden-geometry.js';
-import { SPORTS_CUT_RING, SPORTS_FLOOR } from './stadium-stands-layout.js';
+import { buildLibraryGardenBase, buildLibraryGardenDetail } from './library-garden-geometry.js';
+import { buildCampusTerrain } from './campus-terrain.js';
 import { buildStadiumStands } from './stadium-stands-geometry.js';
 import { buildLibraryRoute } from './library-route-geometry.js';
 import { buildCampusHelicopter } from './mounts/campus-helicopter-render.js';
@@ -20,7 +20,7 @@ export class CampusChunkRenderer {
     this.fades=new Map();
     // Small campus P0: persistent terrain/roads/silhouettes avoid holes and invisible walls.
     const base=new pc.Entity('CampusBase');parent.addChild(base);this.base=base;
-    buildGardenCampusTerrain(base,WORLD_BOUNDS,[{polygon:SPORTS_CUT_RING,floor:SPORTS_FLOOR}]);
+    buildCampusTerrain(base,WORLD_BOUNDS);
     buildCampusGrounds(base);buildCampusRoads(base);buildGateBlockout(base);this.pondWeather=buildCentralBlockout(base,app,environmentSignals);buildPondShore(base);
     buildLibraryGardenBase(base);
     buildStadiumStands(base);

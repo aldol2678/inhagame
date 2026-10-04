@@ -60,7 +60,7 @@ document.querySelectorAll('.ranking-mode-tab').forEach(b=>b.onclick=async()=>{
 });
 document.querySelectorAll('.rank-tab').forEach(b=>b.onclick=async()=>{rankingTab=b.dataset.rankTab;await renderLeaderboard();});
 document.getElementById('shareBtn').onclick=async()=>{
-  const site='https://duck.inhagame.example/';
+  const site='https://duck.inhagame.app/';
   const text=isSecretStage()?`인하 오리 잡기 · 비룡의 밤 ${score}점 · 최고 콤보 ${maxCombo} 🐲\n${site}`:`인하 오리 잡기 · ${score}점 · ${rankFor(score)} · 최고 콤보 ${maxCombo}\n${site}`;
   try{
     if(navigator.share) await navigator.share({title:'인하 오리 잡기',text});

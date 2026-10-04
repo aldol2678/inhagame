@@ -25,7 +25,7 @@ for(const img of html.matchAll(/<img[^>]*\bsrc="([^"]+)"/g))
   assert.ok(/^(https?:|data:)/.test(img[1])||fs.existsSync(img[1]),'Missing image '+img[1]);
 assert.ok(!/data:image\//.test(html),'Sprites belong in assets/, not inline in index.html');
 for(const name of ['secret-run.js','secret-session.css'])assert.ok(html.includes(name));
-assert.ok(source.includes("const CLASSIC_PRODUCTION_HOSTS=new Set(['inha-duck.example','duck.inhagame.example']);"),'Production host allowlist missing');
+assert.ok(source.includes("const CLASSIC_PRODUCTION_HOSTS=new Set(['inha-duck.example','duck.inhagame.app']);"),'Production host allowlist missing');
 assert.ok(source.includes("const TELEMETRY_RUN_TYPE=CLASSIC_PRODUCTION_HOSTS.has(location.hostname)?'production':'qa';"),'Telemetry must recognize custom production domain');
 assert.ok(source.includes("const runType=CLASSIC_PRODUCTION_HOSTS.has(location.hostname)?'ranked':'qa';"),'Ranked sessions must recognize custom production domain');
 assert.ok(source.includes("const PREVIEW_RANKED_UNLOCK=!CLASSIC_PRODUCTION_HOSTS.has(location.hostname);"),'Ranked preview gate must exclude production hosts');

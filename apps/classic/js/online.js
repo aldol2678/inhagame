@@ -7,7 +7,7 @@ const SUPABASE_PUBLISHABLE_KEY=((globalThis.__INHAGAME_PUBLIC_SUPABASE__||{}).pu
 const ONLINE_BUILD='v1.0.4-recovery1';
 const ONLINE_RULESET='secret-2.2-r1';
 const BALANCE_VERSION='classic-balance-1.0.2';
-const CLASSIC_PRODUCTION_HOSTS=new Set(['inha-duck.example','duck.inhagame.example']);
+const CLASSIC_PRODUCTION_HOSTS=new Set(['inha-duck.example','duck.inhagame.app']);
 const sb=window.supabase?.createClient
   ? window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{auth:{persistSession:true,autoRefreshToken:true}})
   : null;

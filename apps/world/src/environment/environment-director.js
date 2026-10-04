@@ -31,6 +31,7 @@ function mutableFogFrame(source) {
     fogColorMix: source.fogColorMix,
     fogTint: [...source.fogTint],
     rainIntensity: source.rainIntensity,
+    snowIntensity: source.snowIntensity,
     wetness: source.wetness,
     cloudCover: source.cloudCover,
     sunLightScale: source.sunLightScale,
@@ -59,6 +60,7 @@ function copyFogFrame(out, source) {
   out.fogColorMix = source.fogColorMix;
   copyTuple(out.fogTint, source.fogTint);
   out.rainIntensity = source.rainIntensity;
+  out.snowIntensity = source.snowIntensity;
   out.wetness = source.wetness;
   out.cloudCover = source.cloudCover;
   out.sunLightScale = source.sunLightScale;
@@ -86,6 +88,7 @@ function mixFogFrame(out, from, to, t) {
   out.fogColorMix = from.fogColorMix + (to.fogColorMix - from.fogColorMix) * t;
   mixTuple(out.fogTint, from.fogTint, to.fogTint, t);
   out.rainIntensity = from.rainIntensity + (to.rainIntensity - from.rainIntensity) * t;
+  out.snowIntensity = from.snowIntensity + (to.snowIntensity - from.snowIntensity) * t;
   out.wetness = from.wetness + (to.wetness - from.wetness) * t;
   out.cloudCover = from.cloudCover + (to.cloudCover - from.cloudCover) * t;
   out.sunLightScale = from.sunLightScale + (to.sunLightScale - from.sunLightScale) * t;
@@ -247,6 +250,7 @@ export function createEnvironmentDirector({
         color: Object.freeze([...fogColor])
       }),
       rainIntensity: fogCurrent.rainIntensity,
+      snowIntensity: fogCurrent.snowIntensity,
       wetness: fogCurrent.wetness,
       cloudCover: fogCurrent.cloudCover,
       sunLightScale: fogCurrent.sunLightScale,
@@ -262,6 +266,10 @@ export function createEnvironmentDirector({
     return fogCurrent.rainIntensity;
   }
 
+  function snowIntensity() {
+    return fogCurrent.snowIntensity;
+  }
+
   function wetnessFactor() {
     return fogCurrent.wetness;
   }
@@ -275,6 +283,7 @@ export function createEnvironmentDirector({
     out.sunIntensity = current.sunIntensity;
     out.artificialLightFactor = current.artificialLightFactor;
     out.rainIntensity = fogCurrent.rainIntensity;
+    out.snowIntensity = fogCurrent.snowIntensity;
     out.cloudCover = fogCurrent.cloudCover;
     out.sunLightScale = fogCurrent.sunLightScale;
     return out;
@@ -287,6 +296,7 @@ export function createEnvironmentDirector({
     status,
     artificialLightFactor,
     rainIntensity,
+    snowIntensity,
     wetnessFactor,
     copySkyVisualState
   });

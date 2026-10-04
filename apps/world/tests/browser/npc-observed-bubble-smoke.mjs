@@ -29,18 +29,29 @@ export async function checkObservedBubble(smoke) {
       }
       const root = document.getElementById('npc-observed-bubble');
       const rect = root.getBoundingClientRect();
+      const originalRect = root.getBoundingClientRect.bind(root);
+      let layoutReads = 0;
+      root.getBoundingClientRect = () => { layoutReads++; return originalRect(); };
       const fixture = {conversation_id:'collision',index:0,line:{npcId:'a',text:'오늘 과제 어디서 할 거야?'}};
       const blocked = !bubble.render(fixture,{point,name:'학생',obstacles:[{
         left:point.x-120,right:point.x+120,top:point.y-140,bottom:point.y
       }]});
+      for (let i=0;i<20;i++) bubble.render(fixture,{point:{...point,x:point.x+i*.25},name:'학생'});
+      const repeatedLayoutReads = layoutReads;
+      window.dispatchEvent(new Event('resize'));
+      bubble.render(fixture,{point,name:'학생'});
+      const resizedLayoutReads = layoutReads;
       const behind = !bubble.render(fixture,{point:{...point,visible:false},name:'학생'});
       const noInput = getComputedStyle(root).pointerEvents==='none';
       bubble.destroy();
-      return {visible,overflow,blocked,behind,noInput,rect:{left:rect.left,top:rect.top,right:rect.right,bottom:rect.bottom}};
+      return {visible,overflow,blocked,behind,noInput,repeatedLayoutReads,resizedLayoutReads,
+        rect:{left:rect.left,top:rect.top,right:rect.right,bottom:rect.bottom}};
     },viewport);
     assert.equal(result.visible,360,'all 40 sets x 3 tones x 3 lines fit');
     assert.equal(result.overflow,false,'Korean text does not overflow the bubble');
     assert.ok(result.blocked && result.behind && result.noInput,'HUD obstruction/behind-camera/input policy');
+    assert.equal(result.repeatedLayoutReads,1,'same observed line reuses one measured bubble size across render frames');
+    assert.equal(result.resizedLayoutReads,2,'viewport resize invalidates the cached bubble measurement once');
     assert.ok(result.rect.left>=12 && result.rect.top>=12 && result.rect.right<=viewport.width-12 && result.rect.bottom<=viewport.height-12);
     console.log('observed bubble DOM',JSON.stringify({viewport,...result}));
   }
