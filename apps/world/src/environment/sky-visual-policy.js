@@ -8,15 +8,52 @@ export const SKY_CLOUD_PATCH_BUDGET = Object.freeze({
   high: 16
 });
 
+const cloudLayer = (
+  id,
+  patchCount,
+  altitudeMin,
+  altitudeMax,
+  radius,
+  driftDegPerSec,
+  opacityScale,
+  followRate,
+  sizeScale
+) => Object.freeze({
+  id,
+  patchCount,
+  altitudeMin,
+  altitudeMax,
+  radius,
+  driftDegPerSec,
+  opacityScale,
+  followRate,
+  sizeScale
+});
+
+export const SKY_CLOUD_LAYER_POLICY = Object.freeze({
+  low: Object.freeze([
+    cloudLayer('mid', 6, 104, 132, 128, 0.22, 1.00, 1.55, 1.00)
+  ]),
+  medium: Object.freeze([
+    cloudLayer('low', 6, 88, 112, 132, 0.50, 1.00, 1.05, 1.10),
+    cloudLayer('high', 4, 134, 162, 172, 0.18, 0.72, 2.60, 0.86)
+  ]),
+  high: Object.freeze([
+    cloudLayer('low', 7, 84, 108, 138, 0.62, 1.00, 0.90, 1.16),
+    cloudLayer('mid', 5, 116, 142, 170, 0.34, 0.82, 1.65, 0.98),
+    cloudLayer('high', 4, 150, 178, 205, 0.14, 0.60, 3.00, 0.82)
+  ])
+});
+
 export const SKY_CLOUD_FIELD_RADIUS = Object.freeze({
-  low: 120,
-  medium: 150,
-  high: 180
+  low: 128,
+  medium: 172,
+  high: 205
 });
 
 export const SKY_CLOUD_ALTITUDE = Object.freeze({
-  min: 92,
-  max: 148
+  min: 84,
+  max: 178
 });
 
 export const SKY_SUN_DISTANCE = 480;
@@ -34,26 +71,42 @@ export function skyCloudFieldRadius(tier) {
     : SKY_CLOUD_FIELD_RADIUS.medium;
 }
 
+export function skyCloudLayerPolicy(tier) {
+  return Object.hasOwn(SKY_CLOUD_LAYER_POLICY, tier)
+    ? SKY_CLOUD_LAYER_POLICY[tier]
+    : SKY_CLOUD_LAYER_POLICY.medium;
+}
+
+export function skyCloudLayerCount(tier) {
+  return skyCloudLayerPolicy(tier).length;
+}
+
 function unit(seed) {
   const x = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
   return x - Math.floor(x);
 }
 
-export function skyCloudLayout(tier) {
-  const count = skyCloudPatchBudget(tier);
-  const radius = skyCloudFieldRadius(tier);
-  return Array.from({ length: count }, (_, i) => {
-    const angle = unit(i + 11) * Math.PI * 2;
-    const r = (0.34 + 0.66 * Math.sqrt(unit(i + 101))) * radius;
+export function skyCloudLayerLayout(tier, layerIndex) {
+  const policy = skyCloudLayerPolicy(tier);
+  const layer = policy[Math.max(0, Math.min(policy.length - 1, Math.floor(layerIndex) || 0))];
+  const seedOffset = (Math.max(0, Math.floor(layerIndex) || 0) + 1) * 1009;
+
+  return Array.from({ length: layer.patchCount }, (_, i) => {
+    const angle = unit(seedOffset + i + 11) * Math.PI * 2;
+    const r = (0.30 + 0.70 * Math.sqrt(unit(seedOffset + i + 101))) * layer.radius;
     return Object.freeze({
       x: Math.cos(angle) * r,
       z: Math.sin(angle) * r,
-      y: mix(SKY_CLOUD_ALTITUDE.min, SKY_CLOUD_ALTITUDE.max, unit(i + 211)),
-      width: 28 + unit(i + 307) * 36,
-      depth: 16 + unit(i + 401) * 26,
-      yaw: unit(i + 503) * 180
+      y: mix(layer.altitudeMin, layer.altitudeMax, unit(seedOffset + i + 211)),
+      width: (28 + unit(seedOffset + i + 307) * 36) * layer.sizeScale,
+      depth: (16 + unit(seedOffset + i + 401) * 26) * layer.sizeScale,
+      yaw: unit(seedOffset + i + 503) * 180
     });
   });
+}
+
+export function skyCloudLayout(tier) {
+  return skyCloudLayerPolicy(tier).flatMap((_, index) => skyCloudLayerLayout(tier, index));
 }
 
 export function writeSunSourceDirection(out, lightUp) {
