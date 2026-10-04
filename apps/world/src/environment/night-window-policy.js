@@ -34,6 +34,8 @@ export function nightWindowTierPolicy(tier) {
 
 export function nightWindowGlowFactor(artificialLightFactor) {
   const input = clamp01(artificialLightFactor);
+  if (input <= 0.07) return 0;
+  if (input >= 1) return 1;
   return Math.pow(clamp01((input - 0.07) / 0.93), 0.92);
 }
 
