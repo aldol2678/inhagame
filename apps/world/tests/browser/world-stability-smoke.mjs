@@ -33,7 +33,8 @@ try{
    await touch('touchStart',[first]);await page.waitForFunction(()=>window.__WORLD_STABILITY__.touchState().vector.x>.8);
    const before=await state();assert.ok(before.events.some(e=>e.type==='pointerdown'&&e.trusted&&e.pointerType==='touch'),'native trusted touch required');
    await touch('touchStart',[first,second]);assert.ok((await state()).vector.x>.8,'second native finger cannot take ownership');
-   await touch('touchEnd',[first]);assert.ok((await state()).vector.x>.8,'foreign native release cannot stop owner');
+   // CDP touchEnd ends the gesture; shrinking active points via touchMove releases only the foreign finger.
+   await touch('touchMove',[first]);assert.ok((await state()).vector.x>.8,'foreign native release cannot stop owner');
    await touch('touchMove',[{...first,x:first.x-2}]);assert.ok((await state()).events.some(e=>e.type==='gotpointercapture'&&e.trusted),'actual browser capture required');
    await shot(page,`${name}-native-pointer-owner`);
    await page.evaluate(()=>window.__WORLD_STABILITY__.releaseCapture());await touch('touchMove',[{...first,x:first.x-3}]);await stopped();
@@ -43,7 +44,7 @@ try{
    await page.evaluate(()=>window.__WORLD_STABILITY__.receipt('PASS · 실제 touch 포인터 소유권 / capture·lostcapture\n입력 차단·합성 blur/pagehide 이후 이동 0\n합성 계정 구매·일일 상태 회귀 통과'));
    const final=await state();report.cases.push({viewport:name,type:'native-touch',events:final.events,lifecycleCoverage:'blur/pagehide deliberately dispatched DOM events; no claim of OS-level focus/BFCache coverage',vector:final.vector});await shot(page,`${name}-stability-passed`);
    assert.deepEqual(smoke.problems,[]);await cdp.detach();
-  }catch(error){if(page)await shot(page,`${name}-failure`).catch(()=>{});throw error;}finally{await smoke.close();}
+  }catch(error){if(page){report.failureTouch=await page.evaluate(()=>window.__WORLD_STABILITY__?.touchState()).catch(()=>null);await shot(page,`${name}-failure`).catch(()=>{});}throw error;}finally{await smoke.close();}
  }
  report.status='PASS';console.log(JSON.stringify(report,null,2));
 }catch(error){report.status='FAIL';report.error=error.stack||String(error);throw error;}finally{await writeFile(`${output}/report.json`,JSON.stringify(report,null,2)+'\n');}

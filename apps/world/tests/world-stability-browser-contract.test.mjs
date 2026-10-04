@@ -8,7 +8,7 @@ test('hosted stability QA pins exact head and uses bounded read-only offline Chr
  const flow=read('../../../.github/workflows/world-stability-browser.yml');
  assert.match(flow,/contents: read/);assert.match(flow,/timeout-minutes: 15/);assert.match(flow,/ref: \$\{\{ github.event.pull_request.head.sha \}\}/);
  assert.match(flow,/EXPECTED_STABILITY_HEAD:/);assert.doesNotMatch(flow,/pull_request_target|secrets\.|contents: write|supabase db/);
- const smoke=read('./browser/world-stability-smoke.mjs');assert.match(smoke,/Input.dispatchTouchEvent/);assert.match(smoke,/gotpointercapture/);assert.match(smoke,/lostpointercapture/);assert.match(smoke,/sha256/);assert.match(smoke,/assert.deepEqual\(smoke.problems,\[\]\)/);
+ const smoke=read('./browser/world-stability-smoke.mjs');assert.doesNotMatch(smoke,/touch\('touch(?:End|Cancel)',\[(?!\])/,'CDP end/cancel cannot contain active touch points');assert.match(smoke,/Input.dispatchTouchEvent/);assert.match(smoke,/gotpointercapture/);assert.match(smoke,/lostpointercapture/);assert.match(smoke,/sha256/);assert.match(smoke,/assert.deepEqual\(smoke.problems,\[\]\)/);
  const fixture=read('./browser/world-stability-fixture.mjs');assert.doesNotMatch(fixture,/fetch\(|createClient\(|signIn|localStorage|sessionStorage/);
 });
 
