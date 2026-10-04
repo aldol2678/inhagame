@@ -8,7 +8,9 @@
 //   resumeCampus()               rejoin campus online for the Place Zone we are now standing in
 //   placePlayer(position, yaw)   put the player at an anchor with a clean movement state
 //   getPlaceZoneId()             current campus Place Zone (for the return context)
-// `fade(run)` wraps the switch in a short visual transition; the default switches at once.
+//   createCheckpoint()           return a rollback closure for scene/player/presence state
+// `fade(run)` may return a Promise and must await run() before completing its cleanup.
+// Public actions still return a boolean acceptance result; only onChange signals success.
 
 import { CAMPUS_SPACE, RETURN_ANCHORS, ROOMS, ROOM_ENTRANCES, isRoomId } from "./room-registry.js";
 
@@ -23,13 +25,14 @@ export function createRoomTransition({
   world, clock = { now: () => Date.now() }, fade = (run) => run(),
   rooms = ROOMS, entrances = ROOM_ENTRANCES, anchors = RETURN_ANCHORS,
   canEnter = () => true,
-  onBusyChange = () => {}
+  onBusyChange = () => {}, onError = () => {}
 }) {
   let space = CAMPUS_SPACE;
   let busy = false;
   let cooldownUntil = 0;
   let returnContext = null;
   let nestedReturn = null;
+  let forcedExitFrom = null;
   const listeners = new Set();
   const stats = { enters: 0, exits: 0, nestedEnters: 0, nestedExits: 0, directNestedEnters: 0 };
 
@@ -64,27 +67,160 @@ export function createRoomTransition({
     return best;
   }
 
+  // Keep synchronous adapters synchronous, but never advance past an unfinished async step.
+  const sequence = (steps, index = 0) => {
+    for (let i = index; i < steps.length; i += 1) {
+      const result = steps[i]();
+      if (result?.then) return Promise.resolve(result).then(() => sequence(steps, i + 1));
+    }
+  };
+  const cancelled = Symbol("room transition cancelled");
+
+  const drainForcedExit = () => {
+    const source = forcedExitFrom;
+    forcedExitFrom = null;
+    if (source === space && !busy) exit({ force: true });
+  };
+
+  function transition({ roomId, steps, commit, event, counter, isValid = () => true, prepare = () => {}, requireDeparture = false }) {
+    const fromSpace = space;
+    let restore = null;
+    let touchedWorld = false;
+    let started = false;
+    let pending = false;
+    let switchDone = false;
+    let fadeDone = false;
+    let failure = null;
+    let recovering = false;
+    let recoveryDone = false;
+    let recoveryError = null;
+    let settled = false;
+
+    const report = info => {
+      try { onError({ fromSpace, roomId, ...info }); }
+      catch { /* feedback failure cannot strand a recovered player */ }
+    };
+    const release = () => {
+      try { setBusy(false); return null; }
+      catch (error) {
+        // A focus subscriber may throw after releasing its claim. Reassert SYSTEM_LOCK without
+        // rolling a committed scene back, then require a reload because input state is uncertain.
+        busy = true;
+        try { onBusyChange(true); } catch { /* remain fail-closed */ }
+        return error;
+      }
+    };
+    const finish = () => {
+      if (settled || !fadeDone || (failure ? !recoveryDone : !switchDone)) return;
+      if (!failure) {
+        try { if (!isValid()) { fail(cancelled); return; } }
+        catch (error) { fail(error); return; }
+      }
+      settled = true;
+      if (failure) {
+        // Forced exits follow lost access/identity. A restored private source is no longer an
+        // authorized playable fallback, so keep it locked instead of reopening that room.
+        if (requireDeparture) recoveryError ??= new Error("Required room departure failed");
+        if (!recoveryError) recoveryError = release();
+        // A failed rollback must remain locked: never enable movement in a half-switched scene.
+        if (failure !== cancelled || recoveryError) {
+          report({ error: failure, recoveryError, recovered: !recoveryError });
+        }
+        if (!recoveryError) drainForcedExit();
+        return;
+      }
+      commit();
+      cooldownUntil = clock.now() + ROOM_TRANSITION_COOLDOWN_MS;
+      stats[counter] += 1;
+      const inputError = release();
+      emit(event);
+      if (inputError) report({ error: inputError, recoveryError: inputError, recovered: false, phase: "input" });
+      else drainForcedExit();
+    };
+    const recover = () => {
+      if (recovering) return;
+      recovering = true;
+      const done = error => { recoveryError = error ?? null; recoveryDone = true; finish(); };
+      try {
+        if (touchedWorld && !restore) throw new Error("Room transition rollback unavailable");
+        const result = touchedWorld ? restore() : undefined;
+        if (result?.then) return Promise.resolve(result).then(() => done(), error => done(error || new Error("Room restoration rejected")));
+        done();
+      } catch (error) { done(error || new Error("Room restoration failed")); }
+    };
+    const fail = error => {
+      failure ??= error || new Error("Room transition failed");
+      // A fade can reject while a world step is in flight. Wait for it to settle before restoring;
+      // each subsequent step sees failure and cannot write over the restored scene later.
+      if (!pending) return recover();
+    };
+    const run = () => {
+      if (started || failure || settled) return;
+      started = true;
+      try {
+        const result = sequence(steps.map(step => () => {
+          if (failure) throw failure;
+          if (!isValid()) throw cancelled;
+          touchedWorld = true;
+          return step();
+        }));
+        const complete = () => {
+          pending = false;
+          if (failure) return recover();
+          if (!isValid()) return fail(cancelled);
+          switchDone = true;
+          finish();
+        };
+        if (result?.then) {
+          pending = true;
+          return Promise.resolve(result).then(complete, error => { pending = false; return fail(error); });
+        }
+        return complete();
+      } catch (error) { return fail(error); }
+    };
+    try { setBusy(true); }
+    catch (error) {
+      // claim() may have inserted a lock before a subscriber threw, without returning its token.
+      // Its ownership is unknown: do not start world work or claim that an unlock succeeded.
+      settled = true;
+      report({ error, recoveryError: error, recovered: false, phase: "input" });
+      return true;
+    }
+    try {
+      restore = world.createCheckpoint?.() ?? null;
+      prepare();
+      const result = fade(run);
+      if (result?.then) {
+        void Promise.resolve(result).then(
+          () => { fadeDone = true; finish(); },
+          error => { fadeDone = true; return fail(error); }
+        );
+      } else { fadeDone = true; finish(); }
+    } catch (error) { fadeDone = true; fail(error); }
+    return true;
+  }
+
+  const campusContext = entrance => ({
+    sourceSpace: CAMPUS_SPACE, placeZoneId: world.getPlaceZoneId?.() ?? null,
+    entranceId: entrance.id, returnAnchor: entrance.returnAnchor
+  });
+  const nestedContext = (roomId, position, yaw, metadata) => ({
+    roomId, position: { ...position }, yaw: Number(yaw) || 0,
+    metadata: metadata && typeof metadata === "object" ? { ...metadata } : null
+  });
+
   function enter(roomId, { entranceId = null } = {}) {
     if (space !== CAMPUS_SPACE || !isRoomId(roomId) || !ready()) return false;
     const room = rooms[roomId];
     const entrance = entrances.find((e) => e.id === (entranceId ?? room.entranceId)) ?? null;
     if (!entrance || !canEnter(entrance, room)) return false;
-    setBusy(true);
-    returnContext = {
-      sourceSpace: CAMPUS_SPACE, placeZoneId: world.getPlaceZoneId?.() ?? null,
-      entranceId: entrance.id, returnAnchor: entrance.returnAnchor
-    };
-    fade(() => {
-      world.leaveCampus(room);
-      world.showRoom(room);
-      world.placePlayer(room.spawn.position, room.spawn.yaw);
-      space = roomId;
-      setBusy(false);
-      cooldownUntil = clock.now() + ROOM_TRANSITION_COOLDOWN_MS;
-      stats.enters += 1;
-      emit("enter");
+    let context;
+    return transition({ roomId, event: "enter", counter: "enters",
+      prepare: () => { context = campusContext(entrance); },
+      steps: [() => world.leaveCampus(room), () => world.showRoom(room),
+        () => world.placePlayer(room.spawn.position, room.spawn.yaw)],
+      commit: () => { returnContext = context; space = roomId; }
     });
-    return true;
   }
 
   function enterNested(roomId, {
@@ -94,29 +230,14 @@ export function createRoomTransition({
     if (fromRoomId && fromRoomId !== space) return false;
     if (!returnPosition || !Number.isFinite(returnPosition.x) || !Number.isFinite(returnPosition.z)) return false;
     const room = rooms[roomId];
-    setBusy(true);
-    nestedReturn = {
-      roomId: space,
-      position: { ...returnPosition },
-      yaw: Number(returnYaw) || 0,
-      metadata: metadata && typeof metadata === "object" ? { ...metadata } : null
-    };
-    fade(() => {
-      if (!isValid()) { nestedReturn = null; setBusy(false); return; }
-      world.showRoom(room);
-      world.placePlayer(room.spawn.position, room.spawn.yaw);
-      space = roomId;
-      setBusy(false);
-      cooldownUntil = clock.now() + ROOM_TRANSITION_COOLDOWN_MS;
-      stats.nestedEnters += 1;
-      emit("enter-nested");
+    const target = nestedContext(space, returnPosition, returnYaw, metadata);
+    return transition({ roomId, event: "enter-nested", counter: "nestedEnters", isValid,
+      steps: [() => world.showRoom(room), () => world.placePlayer(room.spawn.position, room.spawn.yaw)],
+      commit: () => { nestedReturn = target; space = roomId; }
     });
-    return true;
   }
 
-  // Social S1-D2 friend visit from the campus: straight into a nested room whose parent (the Dorm
-  // Lobby) is where leaving lands, exactly as if the player had walked in through the lobby. The
-  // parent's own entrance supplies the campus return anchor for the lobby's exit afterwards.
+  // A direct friend visit still returns through the Dorm Lobby, then its campus entrance.
   function enterNestedFromCampus(roomId, {
     parentRoomId = null, returnPosition = null, returnYaw = 0, metadata = null, isValid = () => true
   } = {}) {
@@ -125,67 +246,40 @@ export function createRoomTransition({
     const room = rooms[roomId];
     const entrance = entrances.find((e) => e.id === rooms[parentRoomId].entranceId) ?? null;
     if (!entrance || !anchors[entrance.returnAnchor]) return false;
-    setBusy(true);
-    returnContext = {
-      sourceSpace: CAMPUS_SPACE, placeZoneId: world.getPlaceZoneId?.() ?? null,
-      entranceId: entrance.id, returnAnchor: entrance.returnAnchor
-    };
-    nestedReturn = {
-      roomId: parentRoomId,
-      position: { ...returnPosition },
-      yaw: Number(returnYaw) || 0,
-      metadata: metadata && typeof metadata === "object" ? { ...metadata } : null
-    };
-    fade(() => {
-      if (!isValid()) { returnContext = null; nestedReturn = null; setBusy(false); return; }
-      world.leaveCampus(room);
-      world.showRoom(room);
-      world.placePlayer(room.spawn.position, room.spawn.yaw);
-      space = roomId;
-      setBusy(false);
-      cooldownUntil = clock.now() + ROOM_TRANSITION_COOLDOWN_MS;
-      stats.directNestedEnters += 1;
-      emit("enter-nested");
+    let context;
+    const target = nestedContext(parentRoomId, returnPosition, returnYaw, metadata);
+    return transition({ roomId, event: "enter-nested", counter: "directNestedEnters", isValid,
+      prepare: () => { context = campusContext(entrance); },
+      steps: [() => world.leaveCampus(room), () => world.showRoom(room),
+        () => world.placePlayer(room.spawn.position, room.spawn.yaw)],
+      commit: () => { returnContext = context; nestedReturn = target; space = roomId; }
     });
-    return true;
   }
 
   function exit({ force = false } = {}) {
-    if (space === CAMPUS_SPACE || (!force && !ready())) return false;
+    // Forced access-loss exits bypass only cooldown, never an in-flight switch or recovery.
+    if (space === CAMPUS_SPACE) return false;
+    if (busy) {
+      if (force) forcedExitFrom = space;
+      return false;
+    }
+    if (!force && !ready()) return false;
     const room = rooms[space];
-
     if (nestedReturn) {
       const parent = rooms[nestedReturn.roomId];
       if (!parent) return false;
       const target = nestedReturn;
-      setBusy(true);
-      fade(() => {
-        world.showRoom(parent);
-        world.placePlayer(target.position, target.yaw);
-        space = parent.id;
-        nestedReturn = null;
-        setBusy(false);
-        cooldownUntil = clock.now() + ROOM_TRANSITION_COOLDOWN_MS;
-        stats.nestedExits += 1;
-        emit("exit-nested");
+      return transition({ roomId: parent.id, event: "exit-nested", counter: "nestedExits", requireDeparture: force,
+        steps: [() => world.showRoom(parent), () => world.placePlayer(target.position, target.yaw)],
+        commit: () => { space = parent.id; nestedReturn = null; }
       });
-      return true;
     }
-
     const anchor = anchors[returnContext?.returnAnchor] ?? anchors[entrances.find((e) => e.id === room.entranceId)?.returnAnchor];
     if (!anchor) return false;
-    setBusy(true);
-    fade(() => {
-      world.showCampus(room);
-      world.placePlayer(anchor.position, anchor.yaw);
-      space = CAMPUS_SPACE;
-      world.resumeCampus();
-      setBusy(false);
-      cooldownUntil = clock.now() + ROOM_TRANSITION_COOLDOWN_MS;
-      stats.exits += 1;
-      emit("exit");
+    return transition({ roomId: CAMPUS_SPACE, event: "exit", counter: "exits", requireDeparture: force,
+      steps: [() => world.showCampus(room), () => world.placePlayer(anchor.position, anchor.yaw), () => world.resumeCampus()],
+      commit: () => { space = CAMPUS_SPACE; }
     });
-    return true;
   }
 
   // The door action for the shared Context Action slot, or null.
