@@ -8,6 +8,7 @@ const page=await smoke.context.newPage();
 const fatal=smoke.watch(page);
 const results=[];
 try{
+  await mkdir(output,{recursive:true});
   await page.goto(`${smoke.origin}/campus/?giantRoachTest=1&roachCount=10&envTime=day&envWeather=clear`,{waitUntil:'domcontentloaded',timeout:TIMEOUT_MS});
   await Promise.race([page.waitForFunction(()=>window.__GIANT_ROACH_TEST__?.status?.().activeEntityCount===10,null,{timeout:TIMEOUT_MS}),fatal]);
   for(const count of [10,30,50,100]){
@@ -20,11 +21,12 @@ try{
       navigationMs:avg('navigationMs'),memoryUsedMB:avg('memoryUsedMB'),drawCalls:avg('drawCalls'),
       triangles:avg('triangles'),errors:Math.max(...samples.map(s=>s.errors??0)),activeEntityCount:samples.at(-1).activeEntityCount});
   }
+  await page.screenshot({path:`${output}/giant-roach-100.png`});
   const cleanup=await page.evaluate(()=>{window.__GIANT_ROACH_TEST__.destroy();return {api:'__GIANT_ROACH_TEST__' in window,nodes:[...document.querySelectorAll('*')].filter(e=>e.name?.startsWith?.('GIANT_ROACH_')).length};});
   assert.equal(cleanup.api,false);
   assert.equal(smoke.problems.length,0,smoke.problems.join('\n'));
   assert.deepEqual(results.map(r=>r.activeEntityCount),[10,30,50,100]);
   assert.equal(results.some(r=>r.errors>0),false);
-  await mkdir(output,{recursive:true}); await writeFile(`${output}/metrics.json`,JSON.stringify({environment:'GitHub Actions headless Chromium / SwiftShader WebGL2',results,cleanup},null,2));
+  await writeFile(`${output}/metrics.json`,JSON.stringify({environment:'GitHub Actions headless Chromium / SwiftShader WebGL2',results,cleanup},null,2));
   console.log(JSON.stringify(results,null,2));
 } finally { await page.close(); await smoke.close(); }
