@@ -137,7 +137,7 @@ try {
             for (let k=0;k<3;k++) hash = Math.imul((hash^data[i+k])>>>0,16777619);
           }
           previous = data;
-          resolve({width,height,hash:hash>>>0,changed,exactChanged,foreground,maskChanged,entryChanged,entryBounds,glError:gl.getError(),contextLost:false});
+          resolve({width,height,hash:hash>>>0,changed,exactChanged,foreground,maskChanged,maskReferenceRgb:Array.from(data.subarray(0,3)),entryChanged,entryBounds,glError:gl.getError(),contextLost:false});
         } catch (error) { reject(error); }
       };
       const timer = setTimeout(() => { app.off('postrender',finish); pending=false; reject(new Error('Pixel frame deadline exceeded (6000ms)')); },6000);

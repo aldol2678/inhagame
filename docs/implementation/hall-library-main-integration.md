@@ -72,6 +72,13 @@ navigation authority are retained.
 Do not equate the earlier PR144 fixture pass with activation verification.
 Attach exact-commit results in the integration PR after its workflows complete.
 
+Actual-consumer frames use bounds-fitted diagnostic cameras and target-visible /
+hidden / restored pixel checks. They verify the real chunk and route-created
+preview renderers, not a full gameplay walkthrough or default preview framing.
+The close entrance crop validates its doorway region and stationary pixels; its
+bottom-left sample can be apron rather than sky, so it is not a silhouette mask.
+Strict silhouette comparison remains in the fitted full-building views.
+
 ## Release boundary
 
 This PR is prepared as a Draft. Merging main can automatically publish to

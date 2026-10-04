@@ -43,3 +43,19 @@ test('workflow checks exact head, offline evidence and a bounded read-only job',
   assert.match(workflow, /hall-library-integration-null-smoke.mjs/);
   assert.doesNotMatch(workflow, /pull_request_target|secrets\.|deploy|--force|contents: write/);
 });
+
+test('entry crop validates doorway pixels without treating apron color as a full silhouette', () => {
+  const runner=read('./browser/hall-library-hosted-smoke.mjs');
+  const crop=runner.slice(runner.indexOf('// Adjacent pre-fix/fixed captures'));
+  const body=crop.match(/if\(presentation==='candidate'\) \{([\s\S]*?)\n    \}/)?.[1];
+  assert.ok(body,'the real candidate-entry assertion block is exercised');
+  const helper=runner.match(/function checkEntranceCrop\(pixels\) \{[\s\S]*?\n\}/)?.[0]??'';
+  const validate=runInNewContext(`${helper}\n(pixels)=>{${body}}`,{assert},{timeout:1000});
+  const valid={width:1280,height:653,entryChanged:1031,maskChanged:2,maskReferenceRgb:[196,195,179],entryBounds:{minX:530.4,maxX:747.8,minY:357.1,maxY:400.4}};
+  assert.doesNotThrow(()=>validate(valid),'a control crop corner is apron, so color-mask differences are not silhouette evidence');
+  assert.throws(()=>validate({...valid,entryChanged:0}),/doorway/);
+  assert.throws(()=>validate({...valid,entryBounds:{...valid.entryBounds,minX:-1}}),/ROI/);
+  assert.throws(()=>validate({...valid,entryBounds:{...valid.entryBounds,maxY:Infinity}}),/ROI/);
+  assert.match(runner,/assert\.equal\(pixels\.maskChanged,0,'entry repair preserves the pre-fix Main Hall silhouette'\)/,'full-view silhouette gate stays exact');
+  assert.match(crop,/assert\.equal\(stable\.exactChanged,0\)/,'cropped stationary frames remain exact');
+});
