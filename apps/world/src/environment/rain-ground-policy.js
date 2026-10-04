@@ -128,6 +128,8 @@ export function rainPuddleLayout(segments, tier = 'medium') {
     const dx = b.x - a.x, dz = b.z - a.z;
     const tangentLength = Math.hypot(dx, dz) || 1;
 
+    const radiusLong = 0.42 + unit(`${key}:long`) * 0.58;
+    const radiusShort = radiusLong * (0.42 + unit(`${key}:short`) * 0.28);
     puddles.push(Object.freeze({
       id: segment.id,
       x: center.x,
@@ -135,8 +137,8 @@ export function rainPuddleLayout(segments, tier = 'medium') {
       z: center.z,
       tx: dx / tangentLength,
       tz: dz / tangentLength,
-      radiusLong: 0.42 + unit(`${key}:long`) * 0.58,
-      radiusShort: 0.20 + unit(`${key}:short`) * 0.28,
+      radiusLong,
+      radiusShort,
       rotationJitter: (unit(`${key}:rot`) - 0.5) * 0.55
     }));
   }
