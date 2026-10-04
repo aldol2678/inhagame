@@ -8,7 +8,7 @@ import { fillBackApproaches } from '../src/back-approach-geometry.js';
 import { fillCulturePaving } from '../src/culture-street-geometry.js';
 import { fillNorthSideGate } from '../src/north-side-gate-geometry.js';
 import { fillInteriorBase } from '../src/market-interior-geometry.js';
-import { fillBackStreetBase, fillBackStreetSignals } from '../src/back-street-geometry.js';
+import { fillBackStreetPaving, fillBackStreetSignals } from '../src/back-street-geometry.js';
 import { fillNorthRoads, fillFiveGardenPaths } from '../src/north-campus-geometry.js';
 
 function captureSurfaceYs(run) {
@@ -31,7 +31,7 @@ const cases=[
   ['culture street paving',fillCulturePaving,FLAT_GROUND_Y.UNDERLAY],
   ['north side gate paving',fillNorthSideGate,FLAT_GROUND_Y.UNDERLAY],
   ['market interior paving',fillInteriorBase,FLAT_GROUND_Y.UNDERLAY],
-  ['back street paving',fillBackStreetBase,FLAT_GROUND_Y.UNDERLAY],
+  ['back street paving',fillBackStreetPaving,FLAT_GROUND_Y.UNDERLAY],
   ['back street signals',fillBackStreetSignals,FLAT_GROUND_Y.UNDERLAY],
   ['north campus roads',fillNorthRoads,FLAT_GROUND_Y.UNDERLAY],
   ['Building 5 garden paths',fillFiveGardenPaths,FLAT_GROUND_Y.UNDERLAY]
