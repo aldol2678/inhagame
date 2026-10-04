@@ -20,3 +20,12 @@ test('experiment reuses canonical NPC navigation and throttles distant work',()=
   assert.match(exp,/d>55\?\.35:d>30\?\.16:\.05/);
   assert.match(exp,/d>45\?2\.4:d>25\?1\.4:\.8/);
 });
+
+test('roach visuals use one shared low-poly mesh and one render component per entity',()=>{
+  assert.match(exp,/function createRoachMesh\(device\)/);
+  assert.match(exp,/pc\.createMesh\(device,g\.positions/);
+  assert.match(exp,/meshInstances:\[new pc\.MeshInstance\(mesh,material\)\]/);
+  assert.match(exp,/const mesh=createRoachMesh\(app\.graphicsDevice\)/);
+  assert.match(exp,/mesh\.destroy\?\.\(\)/);
+  assert.doesNotMatch(exp,/addComponent\('render',\{type:'sphere'\}\)/);
+});
