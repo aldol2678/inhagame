@@ -8,7 +8,7 @@ test('hosted integration evidence covers real consumers and entrance pixel repai
   const harness = read('./browser/hall-library-hosted-harness.html');
   for (const text of ['CampusChunkRenderer', 'RenderChunkRegistry', 'gl.readPixels', 'entryChanged', 'maskChanged', 'webglcontextlost']) assert.ok(harness.includes(text), text);
   const runner = read('./browser/hall-library-hosted-smoke.mjs');
-  for (const text of ['e31c3147b1b48fe1d5a5b071f994beedc280c139', '316c8ff95f7a12618ec8db61342d153f3cbb29ea', '68d64e7466a2971256485b74e76c89a31e91547a', '/editor/music/', 'PlaceScenePreview', 'withDeadline', '1280', '720', '390', '844', 'unexpectedRequests', 'entryChanged', 'report.json']) assert.ok(runner.includes(text), text);
+  for (const text of ['ee4e7bf3aefa9e342a10b523921013f98f63af65', '316c8ff95f7a12618ec8db61342d153f3cbb29ea', '68d64e7466a2971256485b74e76c89a31e91547a', '/editor/music/', 'PlaceScenePreview', 'withDeadline', '1280', '720', '390', '844', 'unexpectedRequests', 'entryChanged', 'report.json']) assert.ok(runner.includes(text), text);
   assert.doesNotMatch(harness, /NullGraphicsDevice|data:image/);
   assert.ok(existsSync(new URL('./browser/hall-library-integration-null-smoke.mjs', import.meta.url)));
 });
@@ -24,7 +24,7 @@ test('historical source routes reject arbitrary files and traversal', () => {
 
 test('current-main preservation allows only the eight approved runtime files', () => {
   const manifest = JSON.parse(read('./fixtures/hall-library-candidate-source-manifest.json'));
-  assert.equal(manifest.currentMain, 'e31c3147b1b48fe1d5a5b071f994beedc280c139');
+  assert.equal(manifest.currentMain, 'ee4e7bf3aefa9e342a10b523921013f98f63af65');
   assert.equal(manifest.allowedRuntimeChanges.length,8);
   assert.equal(new Set(manifest.allowedRuntimeChanges).size,8);
   assert.deepEqual(manifest.allowedMetadataChanges,['apps/world/data/reality/hall-library-integration.provenance.json']);
