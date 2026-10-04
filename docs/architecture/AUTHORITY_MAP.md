@@ -51,6 +51,8 @@ nothing is ACTIVE / no settlement path · **planned** = no backing schema yet ·
 | Combat encounter | Combat | `private.world_combat_encounters`, `world_combat_definition_catalog` (empty) | `world_combat_snapshot_v1` (service_role) | `world_combat_start / state_write / finalize_v1`; `world_combat_*_with_creature_v1` bridges | trusted server resolver (service_role). **No resolver runtime exists yet** | no | foundation (no ACTIVE definitions) |
 | Activity attempt | Activity | `private.world_activity_attempts` | none for players yet | `world_activity_start / finalize_v1`; `world_life_activity_*_with_creature_v1` | trusted server (service_role); Fishing F2 through the Life -> Creature bridge | no (the browser calls `/api/world-fishing`; the server supplies the actor) | Fishing ACTIVE (`20261004161000`, candidate policy; HTTP behind `WORLD_FISHING_API_ENABLED`) |
 | Activity settlement | Activity | `private.world_activity_settlements` (append-only receipt per attempt / `result_ref`) | embedded in the domain read (`world_fishing_read_v1`) | `private.world_activity_settle_v1` (plan → Inventory grant, Collection discover, Life Skill XP, receipt; one transaction) | server-only domain adapters that derive the plan from a frozen server outcome: `world_fishing_settle_v1` | no | foundation (section 7.4) |
+| Fishing position evidence | trusted world server → Fishing | `private.world_fishing_positions`; canonical geometry `world_fishing_spots` | internal gate only | `world_fishing_observe_position_v1` | trusted authoritative server only (service_role + service claim + account guard); no player HTTP operation | no; browser pose/Realtime/heartbeat is not evidence | F3 consumer implemented; authoritative producer unconnected, exposure HOLD |
+| Fishing occupancy | Fishing / Activity | `private.world_fishing_spot_leases` (one account per semantic bank, attempt TTL + trusted session) | internal start/HOOK gate | `world_fishing_start_v1` acquires/reclaims; `private.world_fishing_commit_v1` releases its own lease | existing server Fishing lifecycle only, under account and spot locks | no | F3 consumer implemented; Production SQL not applied by deploy |
 | Life progression | Life | per-skill XP: `private.world_player_life_skills`, `world_life_skill_xp_transactions`; skill curve `world_life_skill_thresholds` (`life.common.v1` Lv1–20, with cumulative per-skill SP); aggregate display curve `world_life_progression_thresholds` (Lv1 only, never an SP source) | private snapshots; players read their ACTIVE skills through the self-only `get_my_world_life_skills_v1()` (Life Skill Book) | `private.world_life_skill_xp_apply_v1` | Activity settlement path only | no | Fishing ACTIVE; the other 10 skills COMING_SOON |
 | Life Skill Point | Life | **Per-skill pools**: `private.world_life_sp_transactions` (spend ledger keyed by `skill_id` = pool; composite FK to the node's own skill), `world_player_life_nodes`, `world_life_skill_tree_catalog` / `_edges` (tree v1: 18 multi-rank nodes for Fishing / Woodcutting / Farming, all COMING_SOON until node effects exist). Earned SP = `cumulative_sp` of the skill's own curve at its derived Skill Level | private snapshots; players read their ACTIVE trees through the self-only `get_my_world_life_skill_tree_v1(skill)` | `private.world_life_node_unlock_v1` (spends only the node's skill pool, gates on that skill's level); `private.world_life_tree_reset_v1` (free reset) | self-only `unlock_my_world_life_node_v1`, `reset_my_world_life_tree_v1` | via self-only RPCs (server decides) | foundation (section 7.1 implemented) |
 | Creature ownership / growth | Creature Core | `private.world_player_creatures`, party state / history, observation events, activity events, XP transactions, memory tags, evolution candidates / events; catalogs | `world_creature_core_snapshot_v1` (service_role); `get_my_duck_companion_v1()` (self) | `world_creature_grant / observe / party_set / activity_accept / evolution_*_v1` | service_role wrappers; Life → Creature and Combat → Creature bridges (same transaction as the source finalize); Duck Companion P1 (`world_inkyung_duck_observe_v1` via service_role / edge function `world-duck-observe`, `bond_my_duck_companion_v1` self-only) | via self-only `bond_my_duck_companion_v1` (server re-counts observations) | Duck Companion P1 live in schema (duck species + `duck.base` ACTIVE); other species, bridges (XP 0) and evolution foundation |
@@ -137,6 +139,9 @@ if it never calls the primitive.
   `world_player_creatures.bond_entitled` and `world_creature_acquisition_claims` ← `world_duck_companion_bond_v1`
 - Activity / Combat: `world_activity_attempts`, `world_combat_encounters` ← their lifecycle primitives;
   `world_activity_settlements` ← `world_activity_settle_v1`
+- Fishing F3: `world_fishing_positions` ← trusted server `world_fishing_observe_position_v1` only;
+  `world_fishing_spot_leases` ← `world_fishing_start_v1` acquires/reclaims and
+  `world_fishing_commit_v1` releases; `world_fishing_spots` is a migration-only geometry catalog.
 - Biryong Relationship: `world_biryong_npc_relationship_events`, `world_player_biryong_npc_relationships` ← `world_biryong_relationship_advance_v1`; NPC/fact catalogs are migration-only
 - Quest: `world_quest_progress_v1` ← the three `advance_world_*_quest_v1` (Main 1, Main 2, Main 3 M3.1 first style; M3.1 grants no reward);
   `world_event_progress` ← `advance_mcm_2026_event_v1`, `world_mcm_try_complete_v1`
@@ -247,16 +252,23 @@ These rules bind the next PRs. This PR does not change schema or gameplay for th
   - Player path: 🎣 at the two Inkyung pond spots (`src/activity/fishing-spots.js`) opens the fishing
     panel; `fishing-client.js` calls `/api/world-fishing` (start / HOOK / CANCEL / settle / read). The
     server verifies the account, samples the timing, decides the result at receipt and settles through
-    7.4. The client sends only ids and shows the server's bite window. Position is not verified (T1).
+    7.4. The client sends only ids and shows the server's bite window. F3 start/active HOOK require
+    fresh trusted position evidence and an atomic bank lease; browser pose is never that evidence.
+    The authoritative producer is not connected, so the default gate blocks play until integration.
   - The HTTP endpoint stays off until `WORLD_FISHING_API_ENABLED=1` is set in the server environment;
     while it answers 404 no 🎣 action is offered.
   - Deployment boundary: public `main` and Vercel deployment do not apply Production SQL.
     Activation above describes a database after its forward migration; Production schema,
     catalog/runtime and RPC grants must be read back independently before enabling HTTP.
     F3 is the default exposure prerequisite; a T1 prototype exception requires owner approval.
-  - Guard tests: `87_world_fishing_f2`, `fishing.integration`, `fishing-client.integration`
-    (browser client → production handler → local Data API), `fishing-client-panel`.
-- Still open: node effect consumers; position / occupancy checks for fishing (F3); balance tuning.
+  - F3 contract and rollout plan: `apps/world/server/fishing-f3.md` and
+    `docs/implementation/fishing-production-migration-plan.md`; Production foundation, activation
+    and player exposure are separate steps. Presence enforcement defaults true, never a browser option.
+  - Guard tests: `87_world_fishing_f2`, `99_world_fishing_f3`, `fishing.integration`,
+    `fishing-f3.integration`, `fishing-client.integration` (browser client → production handler →
+    local Data API), `fishing-client-panel`, `fishing-f3` geometry/API boundary.
+- Still open: node effect consumers; trusted authoritative position producer integration for F3;
+  Production forward-migration rehearsal/application and activation; balance tuning.
 
 ### 7.2 Combat TP: derived from Character Level
 - Combat Tree Points are earned from Character Level (`world_player_progression` + `world_level_thresholds`).

@@ -48,6 +48,7 @@ before(async () => {
   assert.equal(previous.runtime.enabled, true);
   assert.equal(previous.runtime.policy.policyVersion, 'fishing.candidate.v1');
   assert.equal(previous.discovery, 'ACTIVE'); assert.equal(previous.skill, 'ACTIVE');
+  await query("update private.world_fishing_runtime set presence_required=false;");
   await configure();
   await query(`update private.world_collection_entry_catalog set status='ACTIVE' where entry_id='collection.fish.carp';
     update private.world_life_skill_catalog set status='ACTIVE' where skill_id='life.fishing';`);
@@ -55,7 +56,8 @@ before(async () => {
 after(async () => {
   if (previous) await query(`update private.world_fishing_runtime set enabled=${previous.runtime.enabled},
     policy=${previous.runtime.policy === null ? 'null' : lit(JSON.stringify(previous.runtime.policy)) + '::jsonb'},
-    minimum_start_interval_ms=${previous.runtime.minimum_start_interval_ms ?? 'null'};
+    minimum_start_interval_ms=${previous.runtime.minimum_start_interval_ms ?? 'null'},
+    presence_required=${previous.runtime.presence_required};
     update private.world_collection_entry_catalog set status=${lit(previous.discovery)} where entry_id='collection.fish.carp';
     update private.world_life_skill_catalog set status=${lit(previous.skill)} where skill_id='life.fishing';`);
   if (users.length) await query(`delete from auth.users where id in (${users.map(lit).join(',')});`);
