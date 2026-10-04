@@ -9,7 +9,7 @@ import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { assertHostedBrowserExecution, BIRYONG_QA_VIEWPORTS, BIRYONG_QA_NPCS, assertMapLayout } from './biryong-map-guidance-qa.mjs';
+import { assertHostedBrowserExecution, BIRYONG_QA_VIEWPORTS, BIRYONG_QA_NPCS, assertMapLayout, assertMapPointProjection } from './biryong-map-guidance-qa.mjs';
 
 // This must execute BEFORE importing Playwright indirectly through harness.mjs.
 assertHostedBrowserExecution(process.env);
@@ -49,8 +49,19 @@ const watchdog = setTimeout(() => {
   writeFileSync(reportPath, JSON.stringify(report, null, 2)); process.exit(1);
 }, 720000);
 
+function readTransitionVisualState(requireClear = false) {
+  const overlays = ['space-fade', 'lobby-transition-fade'].map(id => {
+    const element = document.getElementById(id);
+    if (!element) return { id, present: false };
+    const style = getComputedStyle(element);
+    return { id, present: true, hidden: element.hidden, classes: element.className,
+      opacity: style.opacity, display: style.display, visibility: style.visibility };
+  });
+  return requireClear ? overlays.every(item => !item.present || (item.hidden && item.display === 'none')) : overlays;
+}
+
 async function state(page) {
-  return page.evaluate(() => {
+  const snapshot = await page.evaluate(() => {
     const d = window.__INHAGAME_P0__, s = d.getStatus(), p = d.player.getLocalPosition();
     return { renderer: s.renderer, loading: s.loading, region: d.biryongRealm.status(),
       player: { x: p.x, y: p.y, z: p.z }, parent: d.player.parent.name, movementSpace: d.controller.space.id,
@@ -60,6 +71,7 @@ async function state(page) {
       assist: d.controller.assist, mounted: d.controller.mounted, autoMove: s.playerAutoMove ?? s.autoMove ?? null,
       bodyRegion: document.body.dataset.worldRegion };
   });
+  return { ...snapshot, transitionVisuals: await page.evaluate(readTransitionVisualState) };
 }
 
 async function readMap(page) {
@@ -78,7 +90,8 @@ async function readMap(page) {
           hitId: document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)?.closest('.full-map-poi')?.dataset.poiId ?? null };
       }),
       pois: [...root.querySelectorAll('.full-map-poi')].map(el => ({ id: el.dataset.poiId, state: el.dataset.presentation,
-        left: parseFloat(el.style.left), top: parseFloat(el.style.top), icon: el.querySelector('.full-map-poi-icon path')?.getAttribute('d'), ...box(el) })),
+        mapPositionPercent: { left: parseFloat(el.style.left), top: parseFloat(el.style.top) },
+        icon: el.querySelector('.full-map-poi-icon path')?.getAttribute('d'), ...box(el) })),
       controlButtons: [...root.querySelectorAll('.full-map-controls button')].map(el => {
         const range = document.createRange(); range.selectNodeContents(el);
         return { text: el.textContent, lines: new Set([...range.getClientRects()].map(r => Math.round(r.top))).size, ...box(el) };
@@ -147,6 +160,19 @@ async function renderedPixels(page) {
   }));
 }
 
+function waitForRenderedFrames() {
+  return new Promise((resolve, reject) => {
+    const app = window.__INHAGAME_P0__.app;
+    let frames = 0;
+    const timer = setTimeout(() => { app.off('postrender', onFrame); reject(Error('Post-transition rendered frame deadline')); }, 12000);
+    function onFrame() {
+      if (++frames < 2) { app.renderNextFrame = true; return; }
+      clearTimeout(timer); app.off('postrender', onFrame); resolve({ frames });
+    }
+    app.on('postrender', onFrame); app.renderNextFrame = true;
+  });
+}
+
 async function verifyManualInput(page, context, mobile) {
   const before = await state(page);
   assert.equal(before.enabled, true, 'ordinary player input restored');
@@ -189,9 +215,22 @@ try {
       requests: { api: [], offOrigin: [], unexpectedExternalResponses: [] } };
     report.cases.push(entry); await flush();
     let smoke, page;
-    const capture = async label => {
+    const capture = async (label, { settled = true } = {}) => {
+      // Region cooldown completion does not prove its independently scheduled
+      // DOM fade completed. Never hide/bypass the overlay to manufacture a frame.
+      if (settled) {
+        try {
+          await page.waitForFunction(readTransitionVisualState, true, { timeout: 15000 });
+          await page.evaluate(waitForRenderedFrames);
+        } catch (error) {
+          entry.captureBlocker = { label, transitionVisuals: await page.evaluate(readTransitionVisualState).catch(() => null), error: String(error) };
+          throw error;
+        }
+      }
+      const transitionVisuals = await page.evaluate(readTransitionVisualState);
       const file = `${name}-${label}.png`, bytes = await page.screenshot({ path: path.join(output, file), animations: 'disabled', fullPage: false, timeout: 20000 });
-      entry.screenshots.push({ file, sha256: sha(bytes), bytes: bytes.length, viewport, visualReview: 'PENDING_INDEPENDENT_PIXEL_REVIEW' });
+      entry.screenshots.push({ file, sha256: sha(bytes), bytes: bytes.length, viewport, transitionVisuals, settled,
+        visualReview: 'PENDING_INDEPENDENT_PIXEL_REVIEW' });
       await flush();
     };
     try {
@@ -272,8 +311,7 @@ try {
       assert.deepEqual([...new Set(BIRYONG_MAP_DESTINATIONS.map(p => p.placeZoneId))].sort(), BIRYONG_REALM_PLACE_ZONES.map(z => z.id).sort());
       for (const poi of BIRYONG_MAP_DESTINATIONS) {
         const node = entry.overview.pois.find(p => p.id === poi.poiId), b = source.bounds;
-        assert.ok(Math.abs(node.left - (3.6 + (poi.position.x - b.minX) / (b.maxX - b.minX) * 92.8)) < 1e-6, `${poi.poiId}: local X source`);
-        assert.ok(Math.abs(node.top - (3.6 + (1 - (poi.position.z - b.minZ) / (b.maxZ - b.minZ)) * 92.8)) < 1e-6, `${poi.poiId}: local Z source`);
+        assertMapPointProjection(node, poi.position, b);
       }
       await capture('realm-map-overview');
       // Pointer/touch activation on a visible Korean label is independent of the
@@ -418,7 +456,7 @@ try {
       entry.result = 'AUTOMATED_PASS_VISUAL_REVIEW_PENDING';
     } catch (error) {
       entry.result = 'FAIL'; entry.error = String(error.stack || error); entry.problems = smoke?.problems ?? [];
-      if (page) { entry.failureState = await state(page).catch(() => null); await capture('failure').catch(() => {}); }
+      if (page) { entry.failureState = await state(page).catch(() => null); await capture('failure', { settled: false }).catch(() => {}); }
     } finally {
       if (smoke) await smoke.close().catch(error => { entry.result = 'FAIL'; entry.cleanupError = String(error); });
       entry.requests.api = [...new Set(entry.requests.api)].sort(); entry.requests.offOrigin = [...new Set(entry.requests.offOrigin)].sort();

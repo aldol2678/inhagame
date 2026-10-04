@@ -23,6 +23,17 @@ export const BIRYONG_QA_NPCS = Object.freeze([
 ].map(Object.freeze));
 
 const overlaps = (a, b) => a.x < b.right - 1 && a.right > b.x + 1 && a.y < b.bottom - 1 && a.bottom > b.y + 1;
+export function assertMapPointProjection(node, position, bounds) {
+  // CSSOM serializes percentage styles to about six significant digits. A
+  // 0.0001 percentage-point tolerance is at most 0.001 CSS px on a 1000px map.
+  // Exact canonical world coordinates are checked separately in route receipts.
+  const tolerance = 1e-4;
+  const left = 3.6 + (position.x - bounds.minX) / (bounds.maxX - bounds.minX) * 92.8;
+  const top = 3.6 + (1 - (position.z - bounds.minZ) / (bounds.maxZ - bounds.minZ)) * 92.8;
+  assert.ok(Math.abs(node.mapPositionPercent.left - left) < tolerance, `${node.id}: local X source`);
+  assert.ok(Math.abs(node.mapPositionPercent.top - top) < tolerance, `${node.id}: local Z source`);
+}
+
 export function assertMapLayout(layout, name) {
   assert.ok(layout.labels.length >= 2, `${name}: useful Korean labels must be visible`);
   for (const [part, rect] of [['surface', layout.surface], ['controls', layout.controls]]) {

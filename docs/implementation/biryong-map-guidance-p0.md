@@ -89,7 +89,16 @@ Map UI tests use the real controllers with a lightweight DOM fixture at desktop,
 portrait and landscape dimensions. They test logic and lifecycle, not browser
 pixels, touch hardware, WebGL/WebGPU or physical-device performance. No local
 browser attempt is made because that route is already known to be blocked.
-Hosted rendered acceptance requires a separately authorized publication/QA step.
+The separately approved Draft publication adds a read-only-token GitHub-hosted
+browser workflow pinned to the PR head. It exercises the actual offline Campus
+and Biryong modules at 1280x720, 390x844 and 844x390, with captured screenshots,
+source hashes and route/input receipts. Region entry and nearby-player placement
+are explicit disposable fixtures; the existing return interaction and public NPC
+dialogue controls are exercised normally. Mobile is Chromium touch emulation,
+not physical-device testing. Automated receipts require an independent pixel
+review before they can establish rendered acceptance. The first hosted run
+identified a test serializer mixing map percentages with screen pixels; its
+failure is retained rather than counted as a product acceptance pass.
 No database schema or authority changes are included; operational DB activation
 and authenticated runtime are not established by these tests.
 
