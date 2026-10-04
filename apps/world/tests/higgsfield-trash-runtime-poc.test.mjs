@@ -24,7 +24,7 @@ test("Higgsfield trash POC is local/preview opt-in and preserves production by d
   assert.match(moduleSource, /revision: 2/);
   assert.match(moduleSource, /sourceTriangles: 720/);
   assert.match(moduleSource, /1 \/ METERS_PER_WORLD_UNIT/);
-  assert.match(moduleSource, /hostname\.endsWith\("\\.vercel\\.app"\)/);
+  assert.ok(moduleSource.includes('hostname.endsWith(".vercel.app")'));
   assert.match(moduleSource, /get\("assetPoc"\) === "higgsfield-trash"/);
   assert.match(mainSource, /previewHost && startupParams\.get\("assetPoc"\) === "higgsfield-trash"/);
   assert.match(mainSource, /import\("\.\/higgsfield-trash-runtime-poc\.js"\)/);
