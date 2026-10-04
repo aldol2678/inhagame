@@ -10,7 +10,7 @@ import {
 test("Biryong P0-B material profile covers every current realm surface token", () => {
   assert.equal(BIRYONG_VISUAL_MATERIAL_PROFILE_VERSION, "biryong.visual.material.p0b.v1");
   assert.deepEqual(
-    biryongVisualMaterialIds().sort(),
+    [...biryongVisualMaterialIds()].sort(),
     [
       "accent", "darkStone", "field", "grass", "path", "platform", "plaster",
       "road", "roof", "roofWarm", "stone", "water", "wood", "workshop"
