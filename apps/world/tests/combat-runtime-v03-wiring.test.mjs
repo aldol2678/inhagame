@@ -36,7 +36,8 @@ test('Combat v0.3 mobile HUD exposes all six action surfaces and hides incompati
 });
 
 test('Combat v0.3 local training disables resume and transport while active', () => {
-  assert.match(main, /controller\.setTransportGate\(\(\) => !worldActionsSuspended\(\) && !combatRuntime\.active\)/);
+  assert.match(main, /controller\.setTransportGate\(\(\) => !worldActionsSuspended\(\)\);/);
+  assert.match(main, /controller\.setTransportLock\("combat-v03", state\.active\)/);
   assert.match(main, /enabled: firstPlayerMovement && !npcTestMode && !combatRuntime\.active/);
   assert.match(main, /transportActions\.set\("mount", null\)/);
 });
