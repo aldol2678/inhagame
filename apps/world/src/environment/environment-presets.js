@@ -1,4 +1,6 @@
 export const ENVIRONMENT_TIME = Object.freeze({
+  DAWN: 'DAWN',
+  SUNRISE: 'SUNRISE',
   DAY: 'DAY',
   SUNSET: 'SUNSET',
   NIGHT: 'NIGHT'
@@ -19,6 +21,26 @@ const preset = ({ sunColor, sunIntensity, sunEuler, ambientColor, exposure, clea
 });
 
 export const ENVIRONMENT_PRESETS = Object.freeze({
+  [ENVIRONMENT_TIME.DAWN]: preset({
+    sunColor: [0.66, 0.72, 0.92],
+    sunIntensity: 0.42,
+    sunEuler: [6, -35, 0],
+    ambientColor: [0.18, 0.22, 0.34],
+    exposure: 0.87,
+    clearColor: [0.16, 0.22, 0.38],
+    shadowIntensity: 0.34,
+    artificialLightFactor: 0.62
+  }),
+  [ENVIRONMENT_TIME.SUNRISE]: preset({
+    sunColor: [1, 0.68, 0.43],
+    sunIntensity: 0.76,
+    sunEuler: [20, -5, 0],
+    ambientColor: [0.34, 0.35, 0.43],
+    exposure: 0.97,
+    clearColor: [0.68, 0.46, 0.38],
+    shadowIntensity: 0.44,
+    artificialLightFactor: 0.28
+  }),
   [ENVIRONMENT_TIME.DAY]: preset({
     sunColor: [1, 0.94, 0.81],
     sunIntensity: 1.15,
