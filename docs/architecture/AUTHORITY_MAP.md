@@ -3,7 +3,7 @@
 Canonical owner, read path and mutation path for every piece of persistent player / world state,
 plus the CI guards that keep them from drifting.
 
-- Basis: public `main` at `8b7bf39` (2026-10-04), read from the migrations and code, not from
+- Basis: public `main` at `7db5363` (2026-10-04; Life sections re-checked after #157 / #85), read from the migrations and code, not from
   older design documents. Where this document and the code disagree, the code and the guard tests
   win; fix the document in the same PR.
 - Enforced by:
@@ -190,9 +190,13 @@ These rules bind the next PRs. This PR does not change schema or gameplay for th
 - SP earned in one skill **cannot** unlock nodes in another skill's tree.
 - A separate shared / mastery progression may be added later. It must be its own pool and ledger,
   never mixed into the per-skill Life SP.
-- Earned SP is derived (never stored) from the owning skill's curve: `cumulative_sp` at its Skill Level.
-- Node gates use the owning skill's level (`required_skill_level`). `required_life_level` stays as an
-  optional aggregate gate; it is 1 until the aggregate display curve gets more levels.
+- **Life Level is display / aggregate only.** It is derived from summed per-skill XP on
+  `life.progression.v1` (Lv1 only today). It is never an SP source (its `cumulative_sp` must stay 0)
+  and never a second copy of any skill's level.
+- **SP is a per-skill pool.** Earned SP is derived (never stored) from the owning skill's curve:
+  `cumulative_sp` at its Skill Level. Spent SP is the sum of that skill's rows in the SP ledger.
+- **Tree gates use the owning skill's level** (`required_skill_level`). `required_life_level` stays
+  as an optional aggregate gate; nodes use 1 until the aggregate display curve gets more levels.
 - Still open: the tree node catalog itself (0 nodes). #91 node content and its conversion notes are
   in `PR91_LIFE_PROGRESSION_SALVAGE.md`.
 
@@ -225,7 +229,12 @@ These rules bind the next PRs. This PR does not change schema or gameplay for th
   snapshotted catch). The path never takes a plan from a client role; its callers are reviewed in
   test 93.
 - Creature growth stays on the Life / Combat -> Creature bridges, decided in the same transaction as
-  the source finalize. Combat outputs (drops, gear) will use this path once the Combat resolver
+  the source finalize. Fishing F2 starts through `world_life_activity_start_with_creature_v1`
+  (requires `life.fishing` ACTIVE, binds the Creature party revision) and finalizes through
+  `world_life_activity_finalize_with_creature_v1`. While `creature.bridge.activity.fishing` is
+  COMING_SOON (XP 0), each finalize records a NOOP decision, so activating the bridge later never
+  grants growth retroactively. Settlement (items / discovery / Life XP) is a separate, later
+  transaction and does not touch Creature state. Combat outputs (drops, gear) will use this path once the Combat resolver
   exists; adding an output kind extends the plan schema.
 
 ## 8. Recorded findings (not changed in this PR)
@@ -250,10 +259,16 @@ These rules bind the next PRs. This PR does not change schema or gameplay for th
 - **Four service-role wrappers rely on the GRANT alone, with no `auth.role()` check in the body**: `world_exp_grant_v1`, `world_progression_get_v1`, `claim_world_npc_shared_tick_v1`, `commit_world_npc_shared_tick_v1`. The GRANT is correct today and is asserted in `01_grants_contract`; the in-body check is the missing second layer.
 - **Append-only triggers that also block DELETE break account deletion.** The `auth.users` FK cascade
   fails if any such row exists. Economy ledgers block UPDATE only. Creature ledgers (incl. Duck
-  Companion observations / claims and the bridge contexts) and Activity settlement receipts now allow
-  a DELETE only once the owning account is gone (`20261004133000`). Still blocking:
-  `world_biryong_npc_relationship_events`, and `world_life_sp_transactions` / `world_player_life_nodes`
-  (empty until a tree node is ACTIVE).
+  Companion observations / claims and the bridge contexts) and Activity settlement receipts allow a
+  DELETE only once the owning account is gone (`20261004133000`; checked through
+  `delete_my_inhagame_account_v1`). **OPEN:**
+  - `world_biryong_npc_relationship_events`: reproduced on `7db5363`. An account that advanced any
+    Biryong NPC relationship stage cannot be deleted (`BIRYONG_RELATIONSHIP_EVENT_APPEND_ONLY`).
+  - `world_life_sp_transactions` / `world_player_life_nodes`: same pattern; not reachable until a
+    tree node is ACTIVE.
+- **The Life Skill tree catalog and edges have no immutability trigger.** Only test 93 keeps
+  functions from writing them; a later migration could still change a published node's cost or
+  prerequisites. Add the guard together with the first node import.
 - **Reward source types** do not include `ACTIVITY` or `COMBAT`, and item grant sources do not
   include `COMBAT`. Source vocabularies differ across ledgers.
 
