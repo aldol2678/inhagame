@@ -3,15 +3,15 @@ import assert from "node:assert/strict";
 import { AUDIO_PROFILES, resolveAudioZone } from "../src/audio/audio-zones.js";
 import { createWorldAudio } from "../src/audio/world-audio.js";
 import {
-  AF07_R2_ASSET_IDS,
-  AF07_R2_PROFILE_ID,
-  resolveAssetFactoryPreviewAmbience
-} from "../src/audio/asset-factory-preview.js";
+  SOUNDSCAPE_PROFILE_IDS,
+  resolveSoundscapeAssetBinding
+} from "../src/audio/soundscape-asset-bindings.js";
+import { WORLD_ASSET_IDS } from "../src/assets/world-asset-registry.js";
 
 function rig({
   locked = false,
   unavailable = false,
-  assetFactoryPreviewId = null,
+  soundscapeProfileId = null,
   ambienceAssetLoader = undefined
 } = {}) {
   const listeners = new Map();
@@ -50,7 +50,7 @@ function rig({
   const audio = createWorldAudio({
     documentLike,
     AudioContextClass: unavailable ? null : Context,
-    assetFactoryPreviewId,
+    soundscapeProfileId,
     ...(ambienceAssetLoader ? { ambienceAssetLoader } : {}),
     setTimeoutFn: handler => { const id = ++timerId; timers.set(id, handler); return id; },
     clearTimeoutFn: id => timers.delete(id)
@@ -126,30 +126,30 @@ test("unavailable and suspended audio never block zone state", async () => {
 });
 
 
-test("AF-07 R2 resolves central-registry base layers and rain variant", () => {
-  assert.equal(resolveAssetFactoryPreviewAmbience({
+test("AF-10 resolves central-registry base layers and rain variant", () => {
+  assert.equal(resolveSoundscapeAssetBinding({
     profileId: "unknown", zone: "INKYUNG", weather: "RAIN"
   }), null);
-  const clear = resolveAssetFactoryPreviewAmbience({
-    profileId: AF07_R2_PROFILE_ID, zone: "INKYUNG", weather: "CLEAR"
+  const clear = resolveSoundscapeAssetBinding({
+    profileId: SOUNDSCAPE_PROFILE_IDS.INKYUNG_R2, zone: "INKYUNG", weather: "CLEAR"
   });
   assert.deepEqual(clear?.layers.map(layer => layer.asset.id), [
-    AF07_R2_ASSET_IDS.INKYUNG_WATER_SHORE,
-    AF07_R2_ASSET_IDS.INKYUNG_AIR_LIFE
+    WORLD_ASSET_IDS.INKYUNG_WATER_SHORE,
+    WORLD_ASSET_IDS.INKYUNG_AIR_LIFE
   ]);
-  const rain = resolveAssetFactoryPreviewAmbience({
-    profileId: AF07_R2_PROFILE_ID, zone: "INKYUNG", weather: "RAIN"
+  const rain = resolveSoundscapeAssetBinding({
+    profileId: SOUNDSCAPE_PROFILE_IDS.INKYUNG_R2, zone: "INKYUNG", weather: "RAIN"
   });
   assert.equal(rain?.layers.length, 3);
-  assert.equal(rain?.layers[2].asset.id, AF07_R2_ASSET_IDS.INKYUNG_RAIN);
+  assert.equal(rain?.layers[2].asset.id, WORLD_ASSET_IDS.INKYUNG_RAIN);
   assert.ok(rain?.layers.every(layer => layer.asset.metadata.rights.status === "verified"));
   assert.ok(rain?.layers.every(layer => layer.asset.metadata.qa.status === "owner-accepted"));
 });
 
-test("AF-07 R2 replaces the temporary Inkyung synth after central-registry layers load", async () => {
+test("AF-10 replaces the temporary Inkyung synth after binding layers load", async () => {
   let loads = 0;
   const r = rig({
-    assetFactoryPreviewId: AF07_R2_PROFILE_ID,
+    soundscapeProfileId: SOUNDSCAPE_PROFILE_IDS.INKYUNG_R2,
     ambienceAssetLoader: async () => {
       loads += 1;
       return { id: `af09-buffer-${loads}`, duration: 30 };
@@ -161,9 +161,9 @@ test("AF-07 R2 replaces the temporary Inkyung synth after central-registry layer
   r.flush();
   let status = r.audio.status();
   assert.equal(loads, 3);
-  assert.equal(status.sampledAmbience.status, "active");
-  assert.equal(status.sampledAmbience.activeAssetIds.length, 3);
-  assert.equal(status.sampledAmbience.replacingSynthetic, true);
+  assert.equal(status.soundscape.status, "active");
+  assert.equal(status.soundscape.activeAssetIds.length, 3);
+  assert.equal(status.soundscape.replacingSynthetic, true);
   assert.equal(status.ambienceSources, 3);
 
   r.audio.setState({ placeZoneId: "AREA_INKYUNG_STUDENT_CENTER", weather: "CLEAR" });
@@ -171,24 +171,24 @@ test("AF-07 R2 replaces the temporary Inkyung synth after central-registry layer
   r.flush();
   status = r.audio.status();
   assert.equal(loads, 3);
-  assert.deepEqual(status.sampledAmbience.activeAssetIds, [
-    AF07_R2_ASSET_IDS.INKYUNG_WATER_SHORE,
-    AF07_R2_ASSET_IDS.INKYUNG_AIR_LIFE
+  assert.deepEqual(status.soundscape.activeAssetIds, [
+    WORLD_ASSET_IDS.INKYUNG_WATER_SHORE,
+    WORLD_ASSET_IDS.INKYUNG_AIR_LIFE
   ]);
   assert.equal(status.ambienceSources, 2);
   r.audio.dispose();
 });
 
-test("AF-07 R2 central-registry asset load failure preserves the procedural fallback", async () => {
+test("AF-10 asset load failure preserves the procedural fallback", async () => {
   const r = rig({
-    assetFactoryPreviewId: AF07_R2_PROFILE_ID,
+    soundscapeProfileId: SOUNDSCAPE_PROFILE_IDS.INKYUNG_R2,
     ambienceAssetLoader: async () => { throw new Error("asset unavailable"); }
   });
   r.audio.setState({ placeZoneId: "AREA_INKYUNG_STUDENT_CENTER", weather: "RAIN" });
   await r.audio.unlock();
   for (let i = 0; i < 6; i++) await Promise.resolve();
   const status = r.audio.status();
-  assert.equal(status.sampledAmbience.status, "degraded");
+  assert.equal(status.soundscape.status, "degraded");
   assert.equal(status.ambienceSources, 2);
   assert.equal(status.zone, "INKYUNG");
   r.audio.dispose();
