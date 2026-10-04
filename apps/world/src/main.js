@@ -785,7 +785,8 @@ const tour = createCampusTour();
 // Social S1-B1: local expression plays at once; members also broadcast it (guests stay local).
 let online = null;
 const combatAuthority = createBuilding5CombatAuthorityClient({
-  getClient: () => online?.supabase ?? null
+  // Guest/anonymous World sessions keep local training only; permanent identity unlocks server authority.
+  getClient: () => online?.userId ? online.supabase : null
 });
 const combatAuthorityLabelEl = document.querySelector("[data-combat-authority]");
 let combatAuthorityRewardRefreshKey = null;
