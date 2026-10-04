@@ -304,7 +304,8 @@ as $$
       'activeSkills',jsonb_build_array('accelerate','slide','barrage'),
       'ultimate','overdrive'),
     'player',jsonb_build_object(
-      'hp',1000,'maxHp',1000,'momentum',0,'ultimateGauge',0,'rapidUntilMs',0,
+      'hp',1000,'maxHp',1000,'momentum',0,'ultimateGauge',0,
+      'rapidUntilMs',0,'overdriveUntilMs',0,
       'dodgeStartMs',null,'perfectUsed',false,'defeated',false),
     'enemy',jsonb_build_object(
       'hp',4200,'maxHp',4200,'breakValue',0,'breakMax',100,
@@ -536,6 +537,7 @@ declare
   v_dodge_start bigint;
   v_perfect_used boolean;
   v_rapid_until bigint;
+  v_overdrive_until bigint;
   v_cdbasic bigint;
   v_cd1 bigint;
   v_cd2 bigint;
@@ -618,6 +620,7 @@ begin
   v_dodge_start := nullif(v_state#>>'{player,dodgeStartMs}','')::bigint;
   v_perfect_used := coalesce((v_state#>>'{player,perfectUsed}')::boolean,false);
   v_rapid_until := coalesce((v_state#>>'{player,rapidUntilMs}')::bigint,0);
+  v_overdrive_until := coalesce((v_state#>>'{player,overdriveUntilMs}')::bigint,0);
   v_cdbasic := coalesce((v_state#>>'{cooldownUntil,basic}')::bigint,0);
   v_cd1 := coalesce((v_state#>>'{cooldownUntil,active_1}')::bigint,0);
   v_cd2 := coalesce((v_state#>>'{cooldownUntil,active_2}')::bigint,0);
@@ -651,7 +654,8 @@ begin
       'schemaVersion',1,'elapsedMs',v_elapsed,
       'build',v_state->'build',
       'player',jsonb_build_object(
-        'hp',0,'maxHp',1000,'momentum',v_momentum,'ultimateGauge',v_ult,'rapidUntilMs',v_rapid_until,
+        'hp',0,'maxHp',1000,'momentum',v_momentum,'ultimateGauge',v_ult,
+        'rapidUntilMs',v_rapid_until,'overdriveUntilMs',v_overdrive_until,
         'dodgeStartMs',v_dodge_start,'perfectUsed',v_perfect_used,'defeated',true),
       'enemy',jsonb_build_object(
         'hp',v_enemy_hp,'maxHp',4200,'breakValue',v_break,'breakMax',100,
@@ -698,6 +702,7 @@ begin
     else
       v_ult:=0; v_momentum:=100;
       v_rapid_until:=greatest(v_rapid_until,v_elapsed+8000);
+      v_overdrive_until:=greatest(v_overdrive_until,v_elapsed+8000);
     end if;
   elsif p_action='BASIC' then
     if v_elapsed < v_cdbasic then
@@ -736,7 +741,8 @@ begin
     'schemaVersion',1,'elapsedMs',v_elapsed,
     'build',v_state->'build',
     'player',jsonb_build_object(
-      'hp',v_player_hp,'maxHp',1000,'momentum',v_momentum,'ultimateGauge',round(v_ult,4),'rapidUntilMs',v_rapid_until,
+      'hp',v_player_hp,'maxHp',1000,'momentum',v_momentum,'ultimateGauge',round(v_ult,4),
+      'rapidUntilMs',v_rapid_until,'overdriveUntilMs',v_overdrive_until,
       'dodgeStartMs',v_dodge_start,'perfectUsed',v_perfect_used,'defeated',false),
     'enemy',jsonb_build_object(
       'hp',v_enemy_hp,'maxHp',4200,'breakValue',v_break,'breakMax',100,
