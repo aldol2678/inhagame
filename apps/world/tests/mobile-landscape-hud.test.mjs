@@ -16,6 +16,11 @@ const QUERY = '@media (pointer: coarse) and (orientation: landscape) and (max-he
 const startIndex = css.indexOf(START);
 const endIndex = css.indexOf(END);
 const before = css.slice(0, startIndex);
+const MAP_START = '/* Full Map short-landscape: independent of the legacy HUD block. */';
+const MAP_END = '/* FULL-MAP-LANDSCAPE:end */';
+const mapSection = css.slice(css.indexOf(MAP_START), css.indexOf(MAP_END) + MAP_END.length);
+const beforeWithoutMap = before.replace(mapSection, '');
+const mapBlock = mapSection.slice(mapSection.indexOf(QUERY) + QUERY.length, mapSection.lastIndexOf('}'));
 const section = css.slice(startIndex, endIndex + END.length);
 // The override lives in exactly one media block; `body` is the inside of that block.
 const blockOpen = section.indexOf(QUERY);
@@ -31,9 +36,14 @@ function sourceFiles(dir, out = []) {
   return out;
 }
 
-test('landscape HUD override is one coarse + landscape + short-viewport media block at the end of the stylesheet', () => {
+test('landscape HUD remains last while Full Map owns an isolated earlier media block', () => {
   assert.ok(startIndex > 0 && endIndex > startIndex, 'LANDSCAPE-HUD markers exist');
-  assert.equal(css.split(QUERY).length - 1, 1, 'the exact landscape query appears once');
+  assert.equal(css.split(QUERY).length - 1, 2, 'one HUD block and one isolated Full Map block');
+  assert.ok(css.indexOf(MAP_START) >= 0 && css.indexOf(MAP_END) < startIndex);
+  const mapSelectors = [...mapBlock.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/(?:^|})\s*([^{}]+)\{/g)]
+    .flatMap(match => match[1].split(','));
+  assert.ok(mapSelectors.length > 10 && mapSelectors.every(selector => selector.trim().startsWith('body .full-map')),
+    'the earlier landscape exception can style Full Map only');
   assert.match(QUERY, /pointer: coarse/);
   assert.match(QUERY, /orientation: landscape/);
   assert.match(QUERY, /max-height: 500px/);
@@ -48,7 +58,7 @@ test('landscape HUD override is one coarse + landscape + short-viewport media bl
 test('the override is not a max-width rule and never touches portrait or desktop media', () => {
   assert.doesNotMatch(QUERY, /max-width/);
   // Every pre-existing orientation-free rule is still above the markers, unchanged in place.
-  assert.doesNotMatch(before, /orientation:\s*landscape/, 'no existing rule was converted to a landscape rule');
+  assert.doesNotMatch(beforeWithoutMap, /orientation:\s*landscape/, 'no other existing rule was converted to a landscape rule');
   assert.match(before, /@media \(pointer: coarse\) and \(max-width: 420px\) \{[\s\S]*?#run,\s*#jump,\s*#descend \{[\s\S]*?width: 68px;\s*height: 68px;/,
     'portrait small-phone action buttons are unchanged');
   assert.match(before, /@media \(pointer: coarse\) and \(max-width: 420px\) \{[\s\S]*?\.social-cluster #chat-toggle \{[\s\S]*?width: 44px;/,
@@ -171,16 +181,16 @@ test('menu and settings drawers fit a short screen (3-column menu, scrollable se
 });
 
 test('Full Map fits short landscape viewports without reserving an empty desktop detail column', () => {
-  assert.match(block, /body \.full-map-card \{/);
-  assert.match(block, /--ls-full-map-size: clamp\(250px, calc\(100dvh - 70px\), 430px\);/);
-  assert.match(block, /body \.full-map-card:has\(\.full-map-info\[hidden\]\) \{[^}]*width: fit-content;/s,
+  assert.match(mapBlock, /body \.full-map-card \{/);
+  assert.match(mapBlock, /--ls-full-map-size: min\(430px, calc\(var\(--ls-full-map-available-height\) - 60px\)\);/);
+  assert.match(mapBlock, /body \.full-map-card:has\(\.full-map-info\[hidden\]\) \{[^}]*width: fit-content;/s,
     'closed info panel does not reserve the desktop detail column');
-  assert.match(block, /body \.full-map-body \{[^}]*width: fit-content;[^}]*margin-inline: auto;[^}]*grid-template-columns: var\(--ls-full-map-size\) minmax\(170px, 210px\);/s);
-  assert.match(block, /body \.full-map-body:has\(> \.full-map-info\[hidden\]\) \{\s*grid-template-columns: var\(--ls-full-map-size\);/);
-  assert.match(block, /body \.full-map-surface \{[^}]*width: var\(--ls-full-map-size\);[^}]*height: var\(--ls-full-map-size\);[^}]*aspect-ratio: 1;/s,
+  assert.match(mapBlock, /body \.full-map-body \{[^}]*width: fit-content;[^}]*margin-inline: auto;[^}]*grid-template-columns: calc\(var\(--ls-full-map-size\) \+ 76px\) minmax\(170px, 210px\);/s);
+  assert.match(mapBlock, /body \.full-map-body:has\(> \.full-map-info\[hidden\]\) \{\s*grid-template-columns: calc\(var\(--ls-full-map-size\) \+ 76px\);/);
+  assert.match(mapBlock, /body \.full-map-surface \{[^}]*width: var\(--ls-full-map-size\);[^}]*height: var\(--ls-full-map-size\);[^}]*aspect-ratio: 1;/s,
     'map remains square so SVG geometry and percentage marker layers stay aligned');
-  assert.match(block, /body \.full-map-info \{[^}]*max-height: var\(--ls-full-map-size\);[^}]*overflow-y: auto;/s);
-  assert.match(block, /body \.full-map-controls \{[^}]*left: 50%;[^}]*right: auto;[^}]*bottom: 6px;[^}]*transform: translateX\(-50%\);/s);
+  assert.match(mapBlock, /body \.full-map-info \{[^}]*max-height: var\(--ls-full-map-size\);[^}]*overflow-y: auto;/s);
+  assert.match(mapBlock, /body \.full-map-controls \{[^}]*position: static;[^}]*width: 68px;[^}]*flex-direction: column;[^}]*transform: none;/s);
   assert.match(before, /\.full-map-surface \{[^}]*aspect-ratio: 1;/s,
     'portrait and desktop Full Map base contract remains unchanged');
 });

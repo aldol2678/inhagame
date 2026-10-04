@@ -348,3 +348,18 @@ test("M3B guidance chip shows name, direction and distance; cancel clears it", (
   assert.equal(els.root.hidden, true);
   assert.equal(clock.t, 0);
 });
+
+test("Full Map relayouts a zoomed surface after external guidance changes its landscape size", () => {
+  const r = fullMapRig();
+  r.elements.surface.getBoundingClientRect = () => ({ left: 0, top: 0,
+    width: r.elements.navBar.hidden ? 500 : 200, height: r.elements.navBar.hidden ? 500 : 200 });
+  r.controller.open();
+  r.controller.zoomAt(4);
+  r.controller.panBy(-9999, -9999);
+  assert.equal(r.controller.viewport.panX, -1500);
+  r.state.setDestination({ id: "external", poiId: "poi.gate", title: "문", x: 50, z: 5, mapSourceId: "campus" },
+    { position: r.world.position, spaceId: "campus" });
+  assert.equal(r.elements.navBar.hidden, false);
+  assert.equal(r.controller.viewport.panX, -600, "navigation bar resize must clamp using the new surface size");
+  assert.equal(r.controller.viewport.panY, -600);
+});
