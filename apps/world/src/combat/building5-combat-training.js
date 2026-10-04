@@ -554,6 +554,63 @@ export function createBuilding5CombatTraining({
     return null;
   }
 
+  function reconcileAuthorityState(serverState) {
+    if (!active || !serverState || typeof serverState !== 'object') return false;
+    const elapsed = Number(serverState.elapsedMs);
+    const player = serverState.player;
+    const enemy = serverState.enemy;
+    const serverCooldowns = serverState.cooldownUntil;
+    const attack = serverState.enemyAttack;
+    if (!Number.isFinite(elapsed) || !player || !enemy || !serverCooldowns || !attack) return false;
+
+    const at = now();
+    const remaining = value => Math.max(0, Number(value ?? 0) - elapsed);
+
+    hp = clamp(Number(enemy.hp ?? hp), 0, target.maxHp);
+    breakValue = clamp(Number(enemy.breakValue ?? breakValue), 0, target.breakMax);
+    brokenUntil = at + remaining(enemy.brokenUntilMs);
+    defeatedAt = enemy.defeated === true || hp <= 0 ? (defeatedAt ?? at) : null;
+
+    playerHp = clamp(Number(player.hp ?? playerHp), 0, playerDefinition.maxHp);
+    playerDefeatedAt = player.defeated === true || playerHp <= 0 ? (playerDefeatedAt ?? at) : null;
+    momentum = clamp(Number(player.momentum ?? momentum), 0, 100);
+    rapidBuffUntil = at + remaining(player.rapidUntilMs);
+    overdriveUntil = Math.max(overdriveUntil, rapidBuffUntil);
+
+    for (const key of Object.keys(cooldownUntil)) {
+      cooldownUntil[key] = at + remaining(serverCooldowns[key]);
+    }
+
+    nextEnemyAttackAt = at + remaining(attack.nextWindupMs);
+    const windupElapsed = elapsed - Number(attack.nextWindupMs ?? 0);
+    if (windupElapsed >= 0 && windupElapsed < Number(attack.windupMs ?? enemyAttack.windupMs) && hp > 0 && playerHp > 0) {
+      const p = playerPosition();
+      if (p) {
+        enemyWindup = frozen({
+          serial: enemyAttackSerial + 1,
+          startedAt: at - windupElapsed,
+          impactAt: at + Math.max(0, Number(attack.windupMs ?? enemyAttack.windupMs) - windupElapsed),
+          aimX: p.x,
+          aimZ: p.z
+        });
+      }
+    } else if (elapsed >= Number(attack.nextWindupMs ?? 0) + Number(attack.windupMs ?? enemyAttack.windupMs)) {
+      enemyWindup = null;
+    }
+
+    lastHit = frozen({
+      hit: false,
+      damage: 0,
+      breakApplied: 0,
+      breakTriggered: 0,
+      killed: hp <= 0,
+      distance: distanceToTarget(),
+      reason: 'AUTHORITY_RECONCILE'
+    });
+    emit('authority-sync');
+    return true;
+  }
+
   function subscribe(listener, { emitCurrent = false } = {}) {
     if (typeof listener !== 'function') throw new TypeError('Training listener must be a function');
     listeners.add(listener);
@@ -568,6 +625,7 @@ export function createBuilding5CombatTraining({
     resetTarget,
     resolveAction,
     consumeDodgeTravel,
+    reconcileAuthorityState,
     update,
     subscribe
   });
