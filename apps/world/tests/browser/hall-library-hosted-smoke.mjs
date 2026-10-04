@@ -104,16 +104,29 @@ function checkEntranceCrop(pixels) {
   // A cropped control view starts on the apron, not clear sky. Its corner-color
   // mask is a material diagnostic; only the fitted full-view gate proves silhouette.
 }
+function hallIntegrationScopePaths(manifest,extension) {
+  if(extension && extension!=='surroundings')throw Error('Unsupported hall integration scope extension');
+  const surroundings=['campus-grounds.js','main-hall-walkway-layout.js','main-hall-walkway-geometry.js',
+    'pond-surroundings-geometry.js','minimap/minimap-data.js','navigation/campus-navigation.js'];
+  return [...manifest.allowedRuntimeChanges,...manifest.allowedMetadataChanges,
+    ...(extension==='surroundings'?surroundings.map(p=>'apps/world/src/'+p):[])];
+}
 try {
   const {stdout:head}=await run('git',['rev-parse','HEAD'],{cwd:repo,timeout:5000,encoding:'utf8'});
   report.candidateCommit=head.trim(); assert.match(report.candidateCommit,/^[0-9a-f]{40}$/);
   if (process.env.EXPECTED_HALL_HEAD) assert.equal(report.candidateCommit,process.env.EXPECTED_HALL_HEAD,'exact pull request head');
   if (process.env.GITHUB_RUN_ID) report.githubRunId=process.env.GITHUB_RUN_ID;
   const manifest=JSON.parse(await readFile(new URL('../fixtures/hall-library-candidate-source-manifest.json',import.meta.url),'utf8'));
-  const {stdout:diff}=await run('git',['diff','--name-only',CURRENT_MAIN,'HEAD','--','apps/world/src','apps/world/data'],{cwd:repo,timeout:5000,encoding:'utf8'});
+  // Historical SHA controls remain immutable. Change scope belongs to this PR,
+  // not all unrelated additions to main since the original landmark adoption.
+  const scopeBase=process.env.WORLD_HALL_LIBRARY_SCOPE_BASE||CURRENT_MAIN;
+  assert.match(scopeBase,/^[0-9a-f]{40}$/,'scope base is an immutable commit');
+  const {stdout:mergeBase}=await run('git',['merge-base',scopeBase,'HEAD'],{cwd:repo,timeout:5000,encoding:'utf8'});
+  const {stdout:diff}=await run('git',['diff','--name-only',`${scopeBase}...HEAD`,'--','apps/world/src','apps/world/data'],{cwd:repo,timeout:5000,encoding:'utf8'});
   const changedPaths=diff.trim().split('\n').filter(Boolean);
-  for(const changed of changedPaths)assert.ok([...manifest.allowedRuntimeChanges,...manifest.allowedMetadataChanges].includes(changed),changed+' outside approved integration scope');
-  report.preservation={baseline:CURRENT_MAIN,changedPaths,status:'PASS'};
+  const allowed=hallIntegrationScopePaths(manifest,process.env.WORLD_HALL_LIBRARY_SCOPE_EXTENSION||'');
+  for(const changed of changedPaths)assert.ok(allowed.includes(changed),changed+' outside approved integration scope');
+  report.preservation={baseline:mergeBase.trim(),requestedBase:scopeBase,historicalComparison:CURRENT_MAIN,changedPaths,status:'PASS'};
   await progress('Validate pinned baseline and start offline real-engine browser');
   for(const commit of new Set(Object.values(SOURCES).map(source=>source.commit))) await sourceAtBaseline('src/main-hall-blockout.js',commit);
   smoke=await withDeadline('browser startup',()=>startSmoke({viewport:{width:1280,height:720},contextOptions:{deviceScaleFactor:1}}),30000);

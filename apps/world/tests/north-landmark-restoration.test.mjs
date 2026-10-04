@@ -9,6 +9,9 @@ import {polygonOverlap} from '../src/polygon-collision.js';
 import {canOccupy,resolveHeight,cameraSafeFraction} from '../src/world-collision.js';
 import {AGORA,ROADVIEW_OBSTACLES,roadviewGroundHeight} from '../src/roadview-layout.js';
 import {campusNavGraphData} from '../src/navigation/campus-navigation.js';
+import {SITE_FEATURES} from '../src/basic-campus.js';
+import {CAMPUS_ROADS,CAMPUS_PATH_WIDTHS} from '../src/campus-road-layout.js';
+import {OBSTACLES} from '../src/campus-layout.js';
 import {inferCampusMaterialProfile} from '../src/campus-material-profile.js';
 import {NORTH_PHOTO_COLORS,fillNorthPhotoTower} from '../src/north-campus-photo-geometry.js';
 const url=new URL('../src/agora-photo-geometry.js',import.meta.url);
@@ -23,12 +26,32 @@ test('restored glass, stone and frame palettes retain the current semantic optic
  assert.equal(inferCampusMaterialProfile('#408f88'),'paint');
 });
 
-test('pinned main ground facilities, all previous colliders and static navigation remain identical',()=>{
+test('pinned ground facilities, previous colliders and approved navigation metadata remain identical',()=>{
  // Recorded from public main5b262960, independently identical to PR186's tree.
  assert.equal(digest(FACILITIES.map(({presentationAccuracy,...f})=>f)),'d13b6d4ce976693026cd069f626efdf10514ca4ed11b42f08bb832cd17829854');
  assert.equal(digest(FACILITY_COLLIDERS.filter(c=>!['bldg_05_clock_core','bldg_60th_tower'].includes(c.id))),
   '7de36ac06fe915500ba8bf761ce6a0b5bef4793a125bb8ced291c8861fb4b0b7');
- assert.equal(digest(campusNavGraphData()),'1ac730af2cc57f62fcef822a716e2451f566505f25fc428f2014a8ac64abed1f');
+ // #201 explicitly promotes two existing geometric connectors to authored PATHs.
+ // Geometry/collision stay pinned independently below; this hash includes metadata.
+ assert.equal(digest(campusNavGraphData()),'0b2f5287961a6c2f185cd2b4f22f667fbb3a2e38b32f259cba9e4f76f2d878f3');
+});
+
+test('surroundings integration preserves exact-main path shape and all ground collision',()=>{
+ // Independently derived from main 0f875b88 after #196, before #201 integration.
+ // Ignore incidental graph IDs but retain each undirected geometric edge to 1e-8 WU.
+ const graph=campusNavGraphData(),points=new Map(graph.nodes.map(n=>[n.id,[n.x,n.z].map(x=>x.toFixed(8)).join(',')]));
+ const edges=graph.edges.map(e=>[points.get(e.a),points.get(e.b)].sort().join('|')).sort();
+ assert.equal(graph.nodes.length,185);assert.equal(graph.edges.length,209);
+ assert.equal(digest(edges),'deeeeea88403d69b7439eea03805b77c5f49e9a5886a308dbd66455d9024c101');
+ const paths=SITE_FEATURES.filter(f=>f.kind==='path').map(f=>({id:f.id,vertices:f.vertices,width:CAMPUS_PATH_WIDTHS[f.id]||3.5}));
+ const roads=CAMPUS_ROADS.map(({id,vertices,width,shoulder})=>({id,vertices,width,shoulder}));
+ assert.equal(digest({paths,roads}),'06f855990a267aa784aade514cffd85b90d81ed8e9e275c6e6e5d331105082b1');
+ const ground=OBSTACLES.filter(c=>(c.minY??0)<=.5);
+ assert.equal(ground.length,864);
+ assert.equal(digest(ground),'86e9348b1156f4eacd7d86d9b5ef5703b24b81895e04527075e8b2dbd3d21987');
+ const promoted=graph.edges.filter(e=>e.source==='MAIN_HALL_WALKWAYS');
+ assert.deepEqual(promoted.map(e=>e.lineId).sort(),['main_hall_walkway_east','main_hall_walkway_west']);
+ assert.ok(promoted.every(e=>e.kind==='PATH'));
 });
 
 test('60th Anniversary regains a tall slab inside the original footprint, shared by rendering and collision',()=>{

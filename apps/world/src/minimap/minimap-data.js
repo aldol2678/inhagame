@@ -18,6 +18,7 @@ import { MAIN_GATE_FORECOURT_RING } from "../main-gate-forecourt.js";
 import { GATE_DORM_CORRIDORS } from "../main-gate-road-layout.js";
 import { GARDEN_LIBRARY_ROAD_LINK } from "../library-garden-layout.js";
 import { LIBRARY_ROUTE_LINES } from "../library-route-layout.js";
+import { MAIN_HALL_WALKWAYS } from "../main-hall-walkway-layout.js";
 import { ANNIVERSARY_BACK_GATE_LINKS } from "../north-campus-layout.js";
 import { SPAWN_ID, SPAWN_STATE, createSpawnRegistry } from "../lobby/spawn-registry.js";
 import { BIRYONG_PLACE_ID, BIRYONG_PLACE_ZONE_ID, ECHO_CENTER } from "../biryong/biryong-layout.js";
@@ -138,6 +139,10 @@ function buildGeometry() {
       style: "path"
     });
   }
+  for(const path of MAIN_HALL_WALKWAYS)addCorridorSegments(add,{
+    id:path.id,vertices:path.points,width:path.width,
+    kind:MINIMAP_GEOMETRY_KIND.PATH,source:'MAIN_HALL_WALKWAYS',style:'path'
+  });
   addCorridorSegments(add, {
     id: "garden_library_road_link",
     vertices: GARDEN_LIBRARY_ROAD_LINK,
@@ -476,5 +481,4 @@ export function createMiniMapDataSource({
     })
   });
 }
-
 

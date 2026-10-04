@@ -12,6 +12,8 @@ import { buildCampusTerrain } from './campus-terrain.js';
 import { buildStadiumStands } from './stadium-stands-geometry.js';
 import { buildLibraryRoute } from './library-route-geometry.js';
 import { buildCampusHelicopter } from './mounts/campus-helicopter-render.js';
+import { buildPondSurroundingsBase } from './pond-surroundings-geometry.js';
+import { buildMainHallWalkways } from './main-hall-walkway-geometry.js';
 
 const count=root=>1+root.children.reduce((sum,c)=>sum+count(c),0);
 export class CampusChunkRenderer {
@@ -22,6 +24,7 @@ export class CampusChunkRenderer {
     const base=new pc.Entity('CampusBase');parent.addChild(base);this.base=base;
     buildCampusTerrain(base,WORLD_BOUNDS);
     buildCampusGrounds(base);buildCampusRoads(base);buildGateBlockout(base);this.pondWeather=buildCentralBlockout(base,app,environmentSignals);buildPondShore(base);
+    buildPondSurroundingsBase(base);buildMainHallWalkways(base);
     buildLibraryGardenBase(base);
     buildStadiumStands(base);
     buildCampusHelicopter(base);
