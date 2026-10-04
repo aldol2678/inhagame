@@ -1,0 +1,55 @@
+name: Room transition recovery browser QA
+on:
+  pull_request:
+    paths:
+      - 'apps/world/src/rooms/room-transition.js'
+      - 'apps/world/src/rooms/room-world-adapter.js'
+      - 'apps/world/src/rooms/space-fade.js'
+      - 'apps/world/src/main.js'
+      - 'apps/world/tests/room-transition-*.test.mjs'
+      - 'apps/world/tests/space-fade.test.mjs'
+      - 'apps/world/tests/browser/room-transition-recovery-*'
+      - '.github/workflows/room-transition-recovery-browser.yml'
+permissions:
+  contents: read
+concurrency:
+  group: room-transition-recovery-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  chromium:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - name: Install Korean glyph coverage for readable error screenshots
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+          fc-match 'Noto Sans CJK KR'
+          dpkg-query -W fonts-noto-cjk
+      - name: Install existing pinned browser dependencies
+        working-directory: apps/world/tests/browser
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Verify recovery, ownership and latest loading contracts
+        run: node --test apps/world/tests/room-transition-*.test.mjs apps/world/tests/space-fade.test.mjs apps/world/tests/club-room.test.mjs apps/world/tests/personal-room.test.mjs apps/world/tests/room-session.test.mjs apps/world/tests/world-loading-render.test.mjs
+      - name: Render real-module offline failure and retry flows
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+          ROOM_RECOVERY_QA_OUTPUT: test-results/room-transition-recovery
+          EXPECTED_ROOM_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: timeout --signal=TERM --kill-after=10s 540s node apps/world/tests/browser/room-transition-recovery-smoke.mjs
+      - name: Save exact-head browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: room-transition-recovery-browser-evidence
+          path: test-results/room-transition-recovery/
+          if-no-files-found: error
+          retention-days: 7

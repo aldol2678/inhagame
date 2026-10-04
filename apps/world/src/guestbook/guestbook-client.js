@@ -61,37 +61,97 @@ export class GuestbookClient {
     this.getClient = getClient;
     this.getSelfUserId = getSelfUserId;
     this.inFlight = new Map();
+    this.accountId = isUuid(getSelfUserId?.()) ? getSelfUserId() : null;
+    this.accountExplicit = false;
+    this.generation = 0;
+  }
+
+  #replaceAccount(next) {
+    if (next === this.accountId) return false;
+    this.accountId = next;
+    this.generation += 1;
+    this.inFlight.clear();
+    return true;
+  }
+
+  // Auth callbacks are authoritative, especially while the transport getter still
+  // exposes the old session during logout. Same-account reconnect is a no-op.
+  setAccount(userId) {
+    this.accountExplicit = true;
+    return this.#replaceAccount(isUuid(userId) ? userId : null);
+  }
+
+  #syncAccount() {
+    if (!this.accountExplicit) {
+      const userId = this.getSelfUserId?.();
+      this.#replaceAccount(isUuid(userId) ? userId : null);
+    }
+    return this.accountId;
   }
 
   get available() {
-    return !!this.getClient?.() && isUuid(this.getSelfUserId?.());
+    const accountId = this.#syncAccount();
+    return !!accountId && !!this.getClient?.() && this.getSelfUserId?.() === accountId;
   }
 
-  async #rpc(name, args) {
+  #owner() {
+    const accountId = this.#syncAccount();
+    if (!accountId) throw new GuestbookError("SIGNED_OUT");
+    return { accountId, generation: this.generation };
+  }
+
+  #assertCurrent(owner) {
+    if (this.#syncAccount() !== owner.accountId || this.generation !== owner.generation ||
+        this.getSelfUserId?.() !== owner.accountId) throw new GuestbookError("STALE");
+  }
+
+  async #rpc(name, args, owner) {
     const client = this.getClient?.();
-    if (!client || !isUuid(this.getSelfUserId?.())) throw new GuestbookError("SIGNED_OUT");
-    const { data, error } = await client.rpc(name, args);
-    if (error) {
-      const code = String(error.message ?? "").trim();
-      throw new GuestbookError(KNOWN_ERRORS.has(code) ? code : "FAILED");
+    this.#assertCurrent(owner);
+    if (!client) throw new GuestbookError("SIGNED_OUT");
+    try {
+      const { data, error } = await client.rpc(name, args);
+      this.#assertCurrent(owner);
+      if (error) {
+        const code = String(error.message ?? "").trim();
+        throw new GuestbookError(KNOWN_ERRORS.has(code) ? code : "FAILED");
+      }
+      return data;
+    } catch (error) {
+      this.#assertCurrent(owner); // stale failures are not errors for the new account
+      throw error instanceof GuestbookError ? error : new GuestbookError("FAILED");
     }
-    return data;
   }
 
   #once(key, run) {
+    let owner;
+    try { owner = this.#owner(); }
+    catch (error) { return Promise.reject(error); }
     if (this.inFlight.has(key)) return this.inFlight.get(key);
-    const promise = run().finally(() => this.inFlight.delete(key));
+    // Reserve the slot before invoking RPC code, which may reenter an auth reset.
+    // Never replay a write after an account change or a transport failure.
+    const promise = Promise.resolve().then(() => {
+      this.#assertCurrent(owner);
+      return run(owner);
+    }).finally(() => {
+      if (this.inFlight.get(key) === promise) this.inFlight.delete(key);
+    });
     this.inFlight.set(key, promise);
     return promise;
   }
 
   async load({ before = null, limit = 20 } = {}) {
     const safeLimit = Math.max(1, Math.min(Number(limit) || 20, 50));
-    return parseGuestbookBoard(await this.#rpc("get_world_guestbook_v2", {
+    const owner = this.#owner();
+    const data = await this.#rpc("get_world_guestbook_v2", {
       p_location_key: GUESTBOOK_LOCATION,
       p_limit: safeLimit,
       p_before: typeof before === "string" ? before : null
-    }));
+    }, owner);
+    this.#assertCurrent(owner);
+    const board = parseGuestbookBoard(data);
+    if (board.entries.some(entry => entry.mine && entry.userId !== owner.accountId)) throw new GuestbookError("FAILED");
+    return board;
   }
 
   create(content) {
@@ -99,13 +159,14 @@ export class GuestbookClient {
     if (trimmed.length < 1 || trimmed.length > 150) {
       return Promise.reject(new GuestbookError("INVALID_CONTENT"));
     }
-    return this.#once("create", async () => {
+    return this.#once("create", async (owner) => {
       const data = await this.#rpc("create_world_guestbook_entry_v2", {
         p_content: trimmed,
         p_location_key: GUESTBOOK_LOCATION
-      });
+      }, owner);
+      this.#assertCurrent(owner);
       const entry = parseGuestbookEntry(data);
-      if (!entry || !entry.mine) throw new GuestbookError("FAILED");
+      if (!entry || !entry.mine || entry.userId !== owner.accountId) throw new GuestbookError("FAILED");
       return entry;
     });
   }
@@ -116,21 +177,23 @@ export class GuestbookClient {
     if (trimmed.length < 1 || trimmed.length > 150) {
       return Promise.reject(new GuestbookError("INVALID_CONTENT"));
     }
-    return this.#once(`update:${entryId}`, async () => {
+    return this.#once(`update:${entryId}`, async (owner) => {
       const data = await this.#rpc("update_world_guestbook_entry_v2", {
         p_entry_id: entryId,
         p_content: trimmed
-      });
+      }, owner);
+      this.#assertCurrent(owner);
       const entry = parseGuestbookEntry(data);
-      if (!entry || !entry.mine || entry.id !== entryId) throw new GuestbookError("FAILED");
+      if (!entry || !entry.mine || entry.userId !== owner.accountId || entry.id !== entryId) throw new GuestbookError("FAILED");
       return entry;
     });
   }
 
   remove(entryId) {
     if (!isUuid(entryId)) return Promise.reject(new GuestbookError("ENTRY_UNAVAILABLE"));
-    return this.#once(`delete:${entryId}`, async () => {
-      const data = await this.#rpc("delete_world_guestbook_entry_v2", { p_entry_id: entryId });
+    return this.#once(`delete:${entryId}`, async (owner) => {
+      const data = await this.#rpc("delete_world_guestbook_entry_v2", { p_entry_id: entryId }, owner);
+      this.#assertCurrent(owner);
       return data === true;
     });
   }

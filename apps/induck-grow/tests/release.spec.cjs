@@ -51,7 +51,7 @@ for (const width of [360, 390, 430, 1280]) {
     await page.goto('/');
     await expect(page).toHaveTitle('인덕이 키우기 · v1.0');
     await expect(page.getByText('v1.0 · 공식 출시')).toBeVisible();
-    await expect(page.getByText('← 허브로 돌아가기')).toHaveAttribute('href','https://inhagame.example/');
+    await expect(page.getByText('← 허브로 돌아가기')).toHaveAttribute('href','https://inhagame.app/');
     await page.getByRole('button', {name:'새 게임'}).click();
     await page.evaluate(() => { selectDept('culture');chooseOT('academic');finishOT();choosePriority(0);openConfirm();startSemester();openPlanner(); });
     const title=page.locator('#screen-plan h2').first();

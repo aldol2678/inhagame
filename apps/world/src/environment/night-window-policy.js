@@ -83,6 +83,15 @@ export function nightWindowLayout(buildings, tier = 'medium') {
 
   for (const source of buildings ?? []) {
     if (result.length >= policy.maxWindows) break;
+    // A replacement landmark can supply panes from its actual render source.
+    // Preserve the existing tier budget/determinism without projecting its old footprint.
+    if(Array.isArray(source.windows)){
+      for(const [index,pane] of source.windows.entries()){
+        if(result.length>=policy.maxWindows)break;
+        if(hashUnit(`${source.id}:source:${index}`)<=policy.litRatio)result.push(pane);
+      }
+      continue;
+    }
     const building = normalizeBuilding(source);
     const inferredFloors = Math.max(1, Math.floor((building.height - 1.2) / 2.35));
     const floors = Math.min(policy.maxFloors, building.floors || inferredFloors);

@@ -1,6 +1,7 @@
 import { gateClippedRoadBatch } from './main-gate-surface-ownership.js';
 import { ROAD_SEGMENTS, ROAD_CROSSWALKS, roadSegment } from './campus-road-layout.js';
 import { FLAT_GROUND_Y as G } from './flat-ground-surface.js';
+import { fillCampusRoadMicroDetails } from './campus-road-micro-details.js';
 
 // All pavement/paint is horizontal: no tilted boxes or raised track geometry.
 export function roadSurface(batch,color,frame,u0,u1,v0,v1,y) {
@@ -59,5 +60,6 @@ export function fillCampusRoadBatch(target) {
     roadSurface(batch,'#ac7965',s.frame,0,s.frame.length,2.1,3.5,G.SURFACE);
     for(let u=0;u<s.frame.length;u+=2)roadSurface(batch,'#c7b29a',s.frame,u,Math.min(u+.08,s.frame.length),2.1,3.5,G.EDGE);
   }
+  fillCampusRoadMicroDetails(batch);
   return target;
 }

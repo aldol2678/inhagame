@@ -1,8 +1,6 @@
 import { busyNpcIds } from './network/npc-talk-presence.js';
 import {CAMPUS_BALLOON_ID,setCampusBalloonPropRoot} from "./mounts/campus-balloon-world.js";
 import {createCampusBalloon} from "./mounts/campus-balloon-render.js";
-import {setCampusShuttlePropRoot} from "./mounts/campus-shuttle-world.js";
-import {createCampusShuttle,createShuttleStations} from "./mounts/campus-shuttle-render.js";
 import { DUCK_BOAT_ID,setDuckBoatPropRoot } from "./mounts/duck-boat-world.js";
 import { createDuckBoat,createInkyungDockMarker } from "./mounts/duck-boat-render.js";
 import { CAMPUS_KART_ID, setCampusKartPropRoot } from "./mounts/campus-kart-world.js";
@@ -24,6 +22,8 @@ import { createViewDistanceSettings } from './view-distance-settings.js';
 import { createGraphicsPresetController } from './graphics-presets.js';
 import { createEnvironmentDirector } from './environment/environment-director.js';
 import { resolveEnvironmentRuntimeTime, resolveEnvironmentRuntimeWeather } from './environment/environment-clock.js';
+import { createEnvironmentWorldTime } from './environment/environment-world-time.js';
+import { createNpcWorldClock } from '../npc-factory/npc-world-clock.mjs';
 import { createNightStreetLights } from './environment/night-street-lights.js';
 import { createNightBuildingWindows } from './environment/night-building-windows.js';
 import { createRainWeatherEffects } from './environment/rain-weather-effects.js';
@@ -83,6 +83,7 @@ import { FollowController, FollowStopReason, FOLLOW_CONTEXT_PRIORITY, FOLLOW_STO
 import { locomotionIntent } from "./seat-anchors.js";
 import { createClubRoomScene } from "./rooms/club-room-renderer.js";
 import { createRoomTransition, ROOM_TRANSITION_COOLDOWN_MS } from "./rooms/room-transition.js";
+import { createSpaceFade } from "./rooms/space-fade.js";
 import { DORM_1_LOBBY_MY_ROOM_RETURN } from "./rooms/dorm1-lobby-layout.js";
 import { createRoomWorldAdapter } from "./rooms/room-world-adapter.js";
 import { createDorm1LobbyScene } from "./rooms/dorm1-lobby-renderer.js";
@@ -111,7 +112,7 @@ import { createLobbyPresenceSummary } from "./lobby/lobby-presence-summary.js";
 import { createLobbyQuestHighlight } from "./lobby/lobby-quest-highlight.js";
 import { createLobbyDailyLoop } from "./lobby/lobby-daily-loop.js";
 import { createSpawnRegistry, markSpawnElement, SPAWN_ID } from "./lobby/spawn-registry.js";
-import { getWorldLoading } from "./lobby/lobby-loading.js";
+import { getWorldLoading, waitForWorldRender } from "./lobby/lobby-loading.js";
 import { createMiniMapDataSource } from "./minimap/minimap-data.js";
 import { createMiniMapRenderer } from "./minimap/minimap-renderer.js";
 import { createMiniMapController } from "./minimap/minimap-controller.js";
@@ -145,6 +146,11 @@ import { createDailyQuizClient } from "./daily-quiz/daily-quiz-client.js";
 import { createDailyQuizPanel } from "./daily-quiz/daily-quiz-panel.js";
 import { createAttendanceClient } from "./attendance/attendance-client.js";
 import { createAttendancePanel } from "./attendance/attendance-panel.js";
+import { LIFE_SKILL_BOOK_STATE, createLifeSkillBookClient } from "./life-skills/life-skill-book-client.js";
+import { createLifeSkillBookPanel } from "./life-skills/life-skill-book-panel.js";
+import { FISHING_CLIENT_STATE, createFishingClient } from "./activity/fishing-client.js";
+import { createFishingPanel } from "./activity/fishing-panel.js";
+import { fishingContextAction, findNearbyFishingSpot } from "./activity/fishing-spots.js";
 import { createLoadoutClient } from "./appearance/loadout-client.js";
 import { createEquipmentProjection } from "./appearance/equipment-projection.js";
 import { createEquipmentModelLoader } from "./appearance/equipment-asset-loader.js";
@@ -160,6 +166,8 @@ import { createBiryongRealmScene } from "./biryong/biryong-realm-renderer.js";
 import { createBiryongRealmWorldAdapter } from "./biryong/biryong-realm-world-adapter.js";
 import { createBiryongRealmTransition } from "./biryong/biryong-realm-transition.js";
 import { createBiryongStationTransitInteraction } from "./biryong/biryong-station-transit-interaction.js";
+import { createBiryongMapDataSource } from "./biryong/biryong-map-data.js";
+import { createBiryongNavigation } from "./biryong/biryong-navigation.js";
 import { getBiryongRealmPlaceZone } from "./biryong/biryong-village-layout.js";
 import { createBiryongVillageNpcRuntime } from "./biryong/biryong-village-npc-runtime.js";
 import { createBiryongVillageDialogueRuntime } from "./biryong/biryong-village-dialogue-runtime.js";
@@ -176,6 +184,10 @@ import { HUD_MODE } from "./hud/hud-context.js";
 import { bindHudPresentation } from "./hud/hud-presentation.js";
 import { createCombatRuntimeV03 } from "./combat/combat-runtime-v03.js";
 import { createBuilding5CombatInteraction } from "./combat/building5-combat-interaction.js";
+import { BUILDING5_TRAINING_TARGET, createBuilding5CombatTraining } from "./combat/building5-combat-training.js";
+import { createBuilding5CombatTargetRenderer } from "./combat/building5-combat-target-renderer.js";
+import { createCombatWorldMotionV03 } from "./combat/combat-world-motion-v03.js";
+import { createCombatFeedbackV03 } from "./combat/combat-feedback-v03.js";
 import { createCombatHudV03 } from "./combat/combat-hud-v03.js";
 import { createHelicopterFlightHud } from "./mounts/helicopter-flight-hud.js";
 import { createMobilityBook } from "./mobility/mobility-book.js";
@@ -315,7 +327,22 @@ const environment = createEnvironmentDirector({
   initialTime: resolveEnvironmentRuntimeTime(startupParams, { previewHost }),
   initialWeather: resolveEnvironmentRuntimeWeather(startupParams, { previewHost })
 });
-app.on("update", dt => environment.update(dt));
+// Production sky/light follows the shared INHA WORLD clock. Preview hosts keep
+// manual envTime controls deterministic for QA and never infer from local time.
+const worldClock = previewHost ? null : createNpcWorldClock();
+const environmentWorldTime = createEnvironmentWorldTime({
+  environment,
+  clock: worldClock,
+  enabled: worldClock !== null
+});
+if (worldClock) await environmentWorldTime.sync();
+app.on("update", dt => {
+  environmentWorldTime.update();
+  environment.update(dt);
+});
+window.__INHAGAME_WORLD_TIME__ = Object.freeze({
+  status: () => environmentWorldTime.status()
+});
 window.__INHAGAME_ENVIRONMENT__ = Object.freeze({
   status: () => environment.status(),
   ...(previewHost ? {
@@ -464,7 +491,8 @@ window.__INHAGAME_WINTER_QA__ = Object.freeze({
   })
 });
 
-const controller = new PlayerController(player);
+// The main-gate shuttle is intentionally withheld until the Songdo campus route exists.
+const controller = new PlayerController(player, { campusShuttleEnabled: false });
 const helicopterFlightHud = createHelicopterFlightHud({
   root: document.getElementById("helicopter-flight-hud"),
   toggle: document.getElementById("helicopter-flight-hud-toggle"),
@@ -475,15 +503,48 @@ const helicopterFlightHud = createHelicopterFlightHud({
 const inputFocus = createInputFocusManager();
 const hudContext = createHudContext();
 bindHudPresentation({ context: hudContext, root: document.body });
-const combatRuntime = createCombatRuntimeV03();
+const building5Training = createBuilding5CombatTraining({
+  getPlayerPosition: () => player.getLocalPosition(),
+  getDodgeDirection: () => controller.combatDodgeDirection(orbit.yaw, {
+    targetX: BUILDING5_TRAINING_TARGET.x,
+    targetZ: BUILDING5_TRAINING_TARGET.z
+  })
+});
+const combatRuntime = createCombatRuntimeV03({ localTraining: building5Training });
 const combatHud = createCombatHudV03({
   root: document.getElementById("combat-hud-v03"),
-  runtime: combatRuntime
+  runtime: combatRuntime,
+  inputFocus
+});
+const combatTargetRenderer = createBuilding5CombatTargetRenderer({
+  app,
+  parent: campusRoot,
+  training: building5Training,
+  getGroundHeight: roadviewGroundHeight
+});
+const combatWorldMotion = createCombatWorldMotionV03({
+  runtime: combatRuntime,
+  training: building5Training,
+  controller
+});
+const combatFeedback = createCombatFeedbackV03({
+  runtime: combatRuntime,
+  canvas,
+  overlay: document.getElementById("combat-impact-feedback")
 });
 combatRuntime.subscribe(state => {
   hudContext.setMode(state.active ? HUD_MODE.COMBAT : HUD_MODE.EXPLORE);
   controller.setTransportLock("combat-v03", state.active);
 }, { emitCurrent: true });
+app.on("update", dt => {
+  const held = combatFeedback.hitstopActive();
+  if (!held) {
+    combatRuntime.update();
+    combatTargetRenderer.update(dt);
+  } else {
+    combatTargetRenderer.update(0);
+  }
+});
 // InputFocus remains the single input authority. HUD Context observes its resolved snapshot only
 // to expose presentation state for current/future Explore, Combat, Life and Pet layouts.
 inputFocus.subscribe(snapshot => hudContext.syncInputFocus(snapshot), { emitCurrent: true });
@@ -523,6 +584,15 @@ const dailyQuizInput = createInputFocusOwner({
 const attendanceInput = createInputFocusOwner({
   manager: inputFocus, ownerId: "attendance", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
 });
+const lifeSkillBookInput = createInputFocusOwner({
+  manager: inputFocus, ownerId: "life-skill-book", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
+});
+// Declared early so every panel's close-others list can reference it before it is created below.
+let lifeSkillBookPanel = null;
+const fishingInput = createInputFocusOwner({
+  manager: inputFocus, ownerId: "fishing", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
+});
+let fishingPanel = null;
 const questJournalInput = createInputFocusOwner({
   manager: inputFocus, ownerId: "quest-journal", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
 });
@@ -792,7 +862,8 @@ const lobbyQuestHighlight = createLobbyQuestHighlight({
   objectiveElement: document.getElementById("lobby-quest-objective"),
   progressElement: document.getElementById("lobby-quest-progress"),
   getTourStage: () => tour.stage,
-  getQuest: () => npcTest?.getStatus?.() ?? null
+  getQuest: () => npcTest?.getStatus?.() ?? null,
+  getSignedIn: () => profile.signedIn === true
 });
 let rooms = null;
 let biryongRealm = null;
@@ -1170,7 +1241,7 @@ const inventoryPanel = createInventoryPanel({
       mobilityBook.setOpen(false);
       wardrobePanel.setOpen(false);
       dailyQuizPanel.setOpen(false);
-      attendancePanel.setOpen(false);
+      attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false); fishingPanel?.setOpen(false);
       emoteMenu.setOpen(false);
       chatPanel.setOpen(false, { focus: false });
       playerCard.close();
@@ -1201,7 +1272,7 @@ const shopPanel = createShopPanel({
       mobilityBook.setOpen(false);
       wardrobePanel.setOpen(false);
       dailyQuizPanel.setOpen(false);
-      attendancePanel.setOpen(false);
+      attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false); fishingPanel?.setOpen(false);
       emoteMenu.setOpen(false);
       chatPanel.setOpen(false, { focus: false });
       playerCard.close();
@@ -1232,7 +1303,7 @@ const wardrobePanel = createWardrobePanel({
       inventoryPanel.setOpen(false);
       mobilityBook.setOpen(false);
       dailyQuizPanel.setOpen(false);
-      attendancePanel.setOpen(false);
+      attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false); fishingPanel?.setOpen(false);
       emoteMenu.setOpen(false);
       chatPanel.setOpen(false, { focus: false });
       playerCard.close();
@@ -1249,8 +1320,7 @@ setCampusKickboardPropRoot(createCampusKickboard(campusRoot));
 setCampusKartPropRoot(createCampusKart(campusRoot));
 setDuckBoatPropRoot(createDuckBoat(campusRoot));
 createInkyungDockMarker(campusRoot);
-setCampusShuttlePropRoot(createCampusShuttle(campusRoot));
-createShuttleStations(campusRoot,controller.shuttle.stations);
+// Campus shuttle presentation/stations stay absent until the Songdo campus route is implemented.
 setCampusBalloonPropRoot(createCampusBalloon(campusRoot));
 const mobilityBookButton = document.getElementById("open-mobility-book");
 const mobilityBook = createMobilityBook({
@@ -1305,7 +1375,7 @@ const mobilityBook = createMobilityBook({
       inventoryPanel.setOpen(false);
       wardrobePanel.setOpen(false);
       dailyQuizPanel.setOpen(false);
-      attendancePanel.setOpen(false);
+      attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false); fishingPanel?.setOpen(false);
       emoteMenu.setOpen(false);
       chatPanel.setOpen(false, { focus: false });
       playerCard.close();
@@ -1327,7 +1397,7 @@ const dailyQuizPanel = createDailyQuizPanel({
     if (open) {
       dailyQuizInput.acquire();
       questJournal?.setOpen(false);
-      attendancePanel.setOpen(false);
+      attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false); fishingPanel?.setOpen(false);
       shopPanel.setOpen(false);
       inventoryPanel.setOpen(false);
       mobilityBook.setOpen(false);
@@ -1352,6 +1422,7 @@ const attendancePanel = createAttendancePanel({
     lobbyDailyLoop.setPanelOpen("attendance", open);
     if (open) {
       attendanceInput.acquire();
+      lifeSkillBookPanel?.setOpen(false); fishingPanel?.setOpen(false);
       questJournal?.setOpen(false);
       dailyQuizPanel.setOpen(false);
       shopPanel.setOpen(false);
@@ -1368,6 +1439,82 @@ const attendancePanel = createAttendancePanel({
   }
 });
 attendanceButton?.addEventListener("click", () => attendancePanel.setOpen(true));
+// Life Skill Book P0 (☰ → 📘 생활 스킬): server-owned self views and actions. The menu entry is shown only
+// while the server lists at least one visible (ACTIVE) skill for this account; nothing else decides it.
+const lifeSkillBook = createLifeSkillBookClient({ getClient: () => online?.supabase ?? null });
+const lifeSkillBookButton = document.getElementById("open-life-skills");
+lifeSkillBookPanel = createLifeSkillBookPanel({
+  panel: document.getElementById("life-skill-book-panel"),
+  book: lifeSkillBook,
+  onOpenChange: (open) => {
+    lifeSkillBookButton?.setAttribute("aria-expanded", String(open));
+    if (open) {
+      lifeSkillBookInput.acquire();
+      fishingPanel?.setOpen(false);
+      attendancePanel.setOpen(false);
+      questJournal?.setOpen(false);
+      dailyQuizPanel.setOpen(false);
+      shopPanel.setOpen(false);
+      inventoryPanel.setOpen(false);
+      mobilityBook.setOpen(false);
+      wardrobePanel.setOpen(false);
+      emoteMenu.setOpen(false);
+      chatPanel.setOpen(false, { focus: false });
+      playerCard.close();
+      void guestbookPanel.setOpen(false);
+      return;
+    }
+    lifeSkillBookInput.release();
+  }
+});
+lifeSkillBook.onChange(() => {
+  if (lifeSkillBookButton) lifeSkillBookButton.hidden = !lifeSkillBook.hasVisibleSkills;
+  if (!lifeSkillBook.hasVisibleSkills && lifeSkillBook.state !== LIFE_SKILL_BOOK_STATE.LOADING) {
+    lifeSkillBookPanel?.setOpen(false);
+  }
+  // Refreshing skill XP after a catch must keep its fishing result visible.
+});
+lifeSkillBookButton?.addEventListener("click", () => lifeSkillBookPanel?.setOpen(true));
+// Inkyung fishing (first ACTIVE Life Skill): 🎣 at the two pond spots. The server owns availability, timing,
+// the result and rewards; the action is offered only while the endpoint answers for this permanent account.
+const fishing = createFishingClient({
+  getToken: async () => {
+    const client = online?.supabase;
+    if (!client || !online?.userId) return null;
+    const { data, error } = await client.auth.getSession();
+    const session = data?.session;
+    return !error && session?.user?.id === online.userId && session.user.is_anonymous !== true
+      ? session.access_token : null;
+  }
+});
+fishingPanel = createFishingPanel({
+  panel: document.getElementById("fishing-panel"),
+  fishing,
+  onOpenChange: (open) => {
+    if (open) {
+      fishingInput.acquire();
+      lifeSkillBookPanel?.setOpen(false);
+      attendancePanel.setOpen(false);
+      questJournal?.setOpen(false);
+      dailyQuizPanel.setOpen(false);
+      shopPanel.setOpen(false);
+      inventoryPanel.setOpen(false);
+      mobilityBook.setOpen(false);
+      wardrobePanel.setOpen(false);
+      emoteMenu.setOpen(false);
+      chatPanel.setOpen(false, { focus: false });
+      playerCard.close();
+      void guestbookPanel.setOpen(false);
+      return;
+    }
+    fishingInput.release();
+  },
+  // A settled catch changed Fishing XP and the carp stack: re-read the owning views.
+  onSettled: () => {
+    void lifeSkillBook.refresh("fishing");
+    void inventory.refresh("fishing");
+  }
+});
 // Main Lobby P2 "오늘의 캠퍼스": a read-only summary of the two clients above. It re-renders on their own change
 // events (account switches included) and only opens the existing panels; the panels keep the explicit claim / start.
 const lobbyDailyLoop = createLobbyDailyLoop({
@@ -1483,15 +1630,22 @@ window.addEventListener("keydown", (event) => {
   if (event.code !== "KeyF" || event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
   if (event.target instanceof HTMLElement && event.target.closest("input, textarea, select, [contenteditable]")) return;
   if (!combatRuntime.active) return interactionAction();
+  if (!inputFocus.can("GAMEPLAY_SHORTCUT")) return;
   event.preventDefault();
   combatRuntime.dispatch("ultimate");
 });
 window.addEventListener("keydown", (event) => {
   if (!combatRuntime.active || event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
   if (event.target instanceof HTMLElement && event.target.closest("input, textarea, select, [contenteditable]")) return;
+  if (!inputFocus.can("GAMEPLAY_SHORTCUT")) return;
   if (event.code === "Escape") {
     event.preventDefault();
     combatRuntime.end("PLAYER_EXIT");
+    return;
+  }
+  if (event.code === "KeyR") {
+    event.preventDefault();
+    combatRuntime.resetTrainingTarget();
     return;
   }
   const action = event.code === "Digit1" ? "active_1"
@@ -1505,7 +1659,7 @@ window.addEventListener("keydown", (event) => {
   combatRuntime.dispatch(action);
 });
 canvas.addEventListener("pointerdown", event => {
-  if (combatRuntime.active && event.button === 0) combatRuntime.dispatch("basic");
+  if (combatRuntime.active && inputFocus.can("WORLD_ACTION") && event.button === 0) combatRuntime.dispatch("basic");
 });
 guestbookInteraction = createGuestbookInteraction({
   anchor: MAIN_GATE_GUESTBOOK,
@@ -1550,18 +1704,12 @@ const roomScenes = new Map([
 const spaceFade = document.getElementById("space-fade");
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 // 150 ms to black, switch, then fade back in; instant with reduced motion.
-const fadeSwitch = (run) => {
-  if (!spaceFade || reducedMotion.matches) { run(); return; }
-  spaceFade.hidden = false;
-  requestAnimationFrame(() => spaceFade.classList.add("on"));
-  setTimeout(() => {
-    run();
-    spaceFade.classList.remove("on");
-    setTimeout(() => { if (!spaceFade.classList.contains("on")) spaceFade.hidden = true; }, 180);
-  }, 160);
-};
+const fadeSwitch = createSpaceFade({ overlay: spaceFade, reducedMotion });
 rooms = createRoomTransition({
   fade: fadeSwitch,
+  onError: ({ recovered }) => showWorldStatus(recovered
+    ? "방을 전환하지 못했어요. 이전 위치에서 다시 시도해 주세요."
+    : "방 전환을 복구하지 못했어요. 새로고침해 주세요."),
   onBusyChange: (busy) => {
     if (busy) roomTransitionInput.acquire();
     else roomTransitionInput.release();
@@ -1587,9 +1735,10 @@ rooms = createRoomTransition({
       mobilityBook.setOpen(false);
       wardrobePanel.setOpen(false);
       dailyQuizPanel.setOpen(false);
-      attendancePanel.setOpen(false);
+      attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false); fishingPanel?.setOpen(false);
       questJournal?.setOpen(false);
     },
+    getLocationLabel: () => zoneEl.textContent,
     setLocationLabel: (text) => { zoneEl.textContent = text; },
     markSpace: (id) => { if (id) document.body.dataset.space = id; else delete document.body.dataset.space; }
   })
@@ -1626,15 +1775,13 @@ biryongRealm = createBiryongRealmTransition({
       mobilityBook.setOpen(false);
       wardrobePanel.setOpen(false);
       dailyQuizPanel.setOpen(false);
-      attendancePanel.setOpen(false);
+      attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false); fishingPanel?.setOpen(false);
       questJournal?.setOpen(false);
     },
     setLocationLabel: text => { zoneEl.textContent = text; },
     markRegion: id => {
       document.body.dataset.worldRegion = id;
-      const minimapRoot = document.getElementById("minimap");
-      if (minimapRoot) minimapRoot.hidden = id !== WORLD_REGION_ID.CAMPUS;
-      if (id !== WORLD_REGION_ID.CAMPUS) fullMap?.close?.();
+      fullMap?.close?.();
     }
   })
 });
@@ -1665,6 +1812,14 @@ biryongVillageDialogue = createBiryongVillageDialogueRuntime({
   },
   getRelationshipStage: npcId => biryongRelationships.stage(npcId),
   getUnlockedFacts: npcId => biryongRelationships.facts(npcId),
+  onNavigate: poiId => {
+    if (!biryongRealm?.inBiryong || biryongRealm.busy) return false;
+    const poi = biryongMapDataSource?.poiRegistry().get(poiId);
+    const target = poi?.validPosition ? biryongNavigation?.poiTarget(poi) : null;
+    if (!target || !setNavigationTarget(target)) return false;
+    showWorldStatus(`${poi.title}까지 길을 표시했어요.`);
+    return true;
+  },
   onOpenChange: open => {
     if (open) {
       npcDialogueInput.acquire();
@@ -1844,7 +1999,7 @@ friendRoomVisit = createFriendRoomVisitController({
 });
 // Housing D3: drafts stay account/room-scoped; visitors only receive server-authorized saved layouts.
 const moveOutOfFurniture = () => {
-  if (rooms.currentSpace !== "ROOM_PERSONAL_BASIC") return;
+  if (rooms.status().busy || rooms.currentSpace !== "ROOM_PERSONAL_BASIC") return;
   const pos = player.getLocalPosition();
   const blocked = personalRoomScene.ownedFurniture.obstacles.some(box => box.id && !box.id.startsWith("personal_") &&
     pos.x > box.minX - .24 && pos.x < box.maxX + .24 && pos.z > box.minZ - .24 && pos.z < box.maxZ + .24);
@@ -1863,7 +2018,7 @@ roomFurniture = createFurnitureClient({
       furnitureSceneSignature = signature;
       personalRoomScene.ownedFurniture.setObjects(state.objects);
       setPersonalRoomMapFurniture(state.objects);
-      if (rooms.currentSpace === "ROOM_PERSONAL_BASIC") {
+      if (!rooms.status().busy && rooms.currentSpace === "ROOM_PERSONAL_BASIC") {
         const map = createRoomMapDataSource("ROOM_PERSONAL_BASIC");
         minimap?.setDataSource(map,{ id:map.id,indoor:true,radiusWorld:map.radiusWorld });
         fullMap?.setDataSource(map,{ id:map.id,label:map.label });
@@ -1879,7 +2034,7 @@ furnitureEditor = createFurnitureEditor({
     if (open) {
       furnitureInput.acquire();
       inventoryPanel.setOpen(false); shopPanel.setOpen(false); wardrobePanel.setOpen(false);
-      dailyQuizPanel.setOpen(false); attendancePanel.setOpen(false); questJournal?.setOpen(false);
+      dailyQuizPanel.setOpen(false); attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false); fishingPanel?.setOpen(false); questJournal?.setOpen(false);
       emoteMenu.setOpen(false); chatPanel.setOpen(false,{ focus:false }); playerCard.close();
       void guestbookPanel.setOpen(false);
     } else {
@@ -2103,13 +2258,25 @@ const viewSettings = createViewDistanceSettings(streaming,camera,graphics,{
 // quest/tour objective. Indoors it pauses; the campus destination survives room switches.
 let navigation = null;
 let campusNavigation = null;
+let biryongNavigation = null;
 let navigationHud = null;
 const navigationSpaceId = () => lobbyWorld.active || lobbyTransition.active ? "lobby"
   : biryongRealm?.inBiryong ? WORLD_REGION_ID.BIRYONG_REALM
     : rooms?.insideRoom ? (rooms.status().roomId ?? "room") : CAMPUS_NAV_SPACE;
+const navigationProviderFor = spaceId => spaceId === CAMPUS_NAV_SPACE ? campusNavigation
+  : spaceId === WORLD_REGION_ID.BIRYONG_REALM ? biryongNavigation : null;
 try {
   campusNavigation = createCampusNavigation();
-  navigation = createNavigationState({ solver: campusNavigation.solver, guidanceSpaceId: CAMPUS_NAV_SPACE });
+  try { biryongNavigation = createBiryongNavigation(); }
+  catch (error) { console.warn("Biryong guidance unavailable; Campus navigation retained:", error); }
+  navigation = createNavigationState({
+    solver: {
+      solve: (from, to) => navigationProviderFor(navigationSpaceId())?.solver.solve(from, to)
+        ?? { ok: false, reason: "SPACE_UNAVAILABLE", points: [] },
+      segmentSafe: (from, to) => navigationProviderFor(navigationSpaceId())?.segmentSafe?.(from, to) ?? true
+    },
+    guidanceSpaceId: CAMPUS_NAV_SPACE
+  });
   navigationHud = createNavigationHud({
     root: document.getElementById("nav-guidance"),
     arrow: document.getElementById("nav-guidance-arrow"),
@@ -2187,7 +2354,7 @@ if (navigation) {
   });
   navigation.onChange(snapshot => {
     playerAutoMove?.syncNavigation(snapshot);
-    npcTest?.observeNavigation?.(snapshot);
+    if (snapshot.destination?.mapSourceId === CAMPUS_NAV_SPACE) npcTest?.observeNavigation?.(snapshot);
     renderPlayerAutoMoveHud();
   });
   unbindAutoMoveManual = bindAutoMoveManualCancellation({
@@ -2205,14 +2372,14 @@ if (navigation) {
 const renderNavigationHud = () => {
   try {
     navigationHud?.render(navigation?.getSnapshot() ?? null, {
-      visible: !lobbyWorld.active && !lobbyTransition.active && (biryongRealm?.inCampus ?? true) && fullMap?.openState !== true
+      visible: !lobbyWorld.active && !lobbyTransition.active && fullMap?.openState !== true
     });
   } catch (error) { console.warn("Navigation HUD render failed:", error); }
 };
 const setNavigationTarget = target => {
   if (!navigation || !target) return false;
-  navigation.setDestination(target, { position: player.getLocalPosition(), spaceId: navigationSpaceId() });
-  return true;
+  const snapshot = navigation.setDestination(target, { position: player.getLocalPosition(), spaceId: navigationSpaceId() });
+  return target.mapSourceId !== WORLD_REGION_ID.BIRYONG_REALM || snapshot.status === "GUIDING";
 };
 // Housing H3: a friend visit from the campus routes to 제1생활관 and starts auto-move when allowed.
 const guideToDorm1 = () => {
@@ -2272,10 +2439,13 @@ window.addEventListener("pagehide", event => { if (!event.persisted) backGateArr
 
 const fullMapNavigation = navigation && campusNavigation ? {
   snapshot: () => navigation.getSnapshot(),
-  canNavigate: mapSourceId => mapSourceId === CAMPUS_NAV_SPACE,
-  setPoi: (poi, mapSourceId) => setNavigationTarget(campusNavigation.poiTarget(poi, mapSourceId)),
-  setTarget: target => setNavigationTarget(target),
-  resolveMapPoint: (point, mapSourceId) => campusNavigation.mapPointTarget(point, mapSourceId),
+  canNavigate: mapSourceId => mapSourceId === navigationSpaceId() && Boolean(navigationProviderFor(mapSourceId)),
+  setPoi: (poi, mapSourceId) => mapSourceId === navigationSpaceId() &&
+    setNavigationTarget(navigationProviderFor(mapSourceId)?.poiTarget(poi, mapSourceId)),
+  setTarget: target => target?.mapSourceId === navigationSpaceId() && setNavigationTarget(target),
+  resolveMapPoint: (point, mapSourceId) => mapSourceId === navigationSpaceId()
+    ? navigationProviderFor(mapSourceId)?.mapPointTarget(point, mapSourceId) ?? { supported: false, reason: "INDOOR" }
+    : { supported: false, reason: "INVALID" },
   clear: () => navigation.clearDestination("cancel"),
   onChange: listener => navigation.onChange(listener)
 } : null;
@@ -2284,8 +2454,9 @@ const fullMapNavigation = navigation && campusNavigation ? {
 let minimap = null;
 let minimapReady = false;
 let campusMapDataSource = null;
+let biryongMapDataSource = null;
 const getMapObjectiveMarker = () => {
-  if (rooms?.insideRoom) return null;
+  if (rooms?.insideRoom || biryongRealm?.inBiryong) return null;
   const eventTarget = mcmEventRuntime.mapTarget();
   const eventMarker = eventTarget ? {
     objectiveId: `event.${eventTarget.stage}`,
@@ -2320,6 +2491,7 @@ try {
     getContext: spawnProgressContext,
     isPlaceDiscovered: id => biryong?.isPlaceDiscovered(id) === true
   });
+  biryongMapDataSource = createBiryongMapDataSource();
   const minimapDataSource = campusMapDataSource;
   const minimapRenderer = createMiniMapRenderer({
     root: document.getElementById("minimap"),
@@ -2337,14 +2509,12 @@ try {
     player, orbit,
     getReady: () => minimapReady,
     getLobbyState: () => ({ active: lobbyWorld.active, transitioning: lobbyTransition.active }),
-    getRoomState: () => biryongRealm?.inBiryong
-      ? { insideRoom: true, roomId: null }
-      : rooms?.status?.() ?? { insideRoom: false },
+    getRoomState: () => rooms?.status?.() ?? { insideRoom: false },
     getOverlayState: () => ({
       hudMenu: hudMenu.open, keyboardHelp: keyboardHelp?.open === true, friends: friendPanel.open,
       playerCard: playerCard.current != null, guestbook: guestbookPanel.open, shop: shopPanel.open, inventory: inventoryPanel.open, wardrobe: wardrobePanel.open,
-      blocking: furnitureEditor?.open === true || dailyQuizPanel.open || attendancePanel.open || questJournal?.open === true,
-      npcConversation: npcTest?.isConversationOpen?.() === true,
+      blocking: furnitureEditor?.open === true || dailyQuizPanel.open || attendancePanel.open || lifeSkillBookPanel?.open === true || fishingPanel?.open === true || questJournal?.open === true,
+      npcConversation: npcTest?.isConversationOpen?.() === true || biryongVillageDialogue?.open === true,
       mcmEvent: mcmEventUi.openState || mcmEventRuntime.isDialogueOpen() === true,
       profile: document.getElementById("profile-panel")?.hidden === false,
       settings: document.getElementById("view-settings")?.hidden === false,
@@ -2354,7 +2524,7 @@ try {
     getSocialMarkers: getMapSocialMarkers,
     getNavigation: () => {
       const snapshot = navigation?.getSnapshot();
-      return snapshot?.active && snapshot.destination?.mapSourceId === CAMPUS_NAV_SPACE ? snapshot : null;
+      return snapshot?.active && snapshot.destination?.mapSourceId === navigationSpaceId() ? snapshot : null;
     },
     dataSource: minimapDataSource, renderer: minimapRenderer,
     documentLike: document, windowTarget: window
@@ -2418,6 +2588,7 @@ try {
     getSocialMarkers: getMapSocialMarkers,
     onOpen: () => {
       fullMapInput.acquire();
+      biryongVillageDialogue?.close();
       hudMenu.setOpen(false, { focus: false }); emoteMenu.setOpen(false);
       chatPanel.setOpen(false, { focus: false }); playerCard.close();
       void guestbookPanel.setOpen(false);
@@ -2425,7 +2596,7 @@ try {
       inventoryPanel.setOpen(false);
       wardrobePanel.setOpen(false);
       dailyQuizPanel.setOpen(false);
-      attendancePanel.setOpen(false);
+      attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false); fishingPanel?.setOpen(false);
       questJournal?.setOpen(false);
     },
     onClose: () => { fullMapInput.release(); },
@@ -2439,20 +2610,20 @@ try {
       fullMap?.setDataSource(roomMap, { id: roomMap.id, label: roomMap.label });
       return;
     }
-    if (campusMapDataSource) {
+    if (campusMapDataSource && !biryongRealm?.inBiryong) {
       minimap?.setDataSource(campusMapDataSource, { id: "campus", indoor: false });
       fullMap?.setDataSource(campusMapDataSource, { id: "campus", label: "캠퍼스 전체 지도" });
     }
   });
   biryongRealm.onChange((status) => {
+    // Re-evaluate before rendering so identical local coordinates never reuse the old route.
+    navigation?.update({ position: player.getLocalPosition(), yaw: orbit.yaw, spaceId: navigationSpaceId() });
     if (status.inBiryong) {
       fullMap?.close?.();
-      const minimapRoot = document.getElementById("minimap");
-      if (minimapRoot) minimapRoot.hidden = true;
+      minimap?.setDataSource(biryongMapDataSource, { id: WORLD_REGION_ID.BIRYONG_REALM, indoor: false });
+      fullMap?.setDataSource(biryongMapDataSource, { id: WORLD_REGION_ID.BIRYONG_REALM, label: biryongMapDataSource.label });
       return;
     }
-    const minimapRoot = document.getElementById("minimap");
-    if (minimapRoot) minimapRoot.hidden = false;
     if (campusMapDataSource) {
       minimap?.setDataSource(campusMapDataSource, { id: "campus", indoor: false });
       fullMap?.setDataSource(campusMapDataSource, { id: "campus", label: "캠퍼스 전체 지도" });
@@ -2492,7 +2663,7 @@ questJournal = createQuestJournal({
       inventoryPanel.setOpen(false);
       wardrobePanel.setOpen(false);
       dailyQuizPanel.setOpen(false);
-      attendancePanel.setOpen(false);
+      attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false); fishingPanel?.setOpen(false);
       emoteMenu.setOpen(false);
       chatPanel.setOpen(false, { focus: false });
       playerCard.close();
@@ -2521,6 +2692,7 @@ window.addEventListener("keydown", (event) => {
   if (event.code !== "KeyQ" || event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
   if (event.target instanceof HTMLElement && event.target.closest("input, textarea, select, [contenteditable]")) return;
   if (combatRuntime.active) {
+    if (!inputFocus.can("GAMEPLAY_SHORTCUT")) return;
     event.preventDefault();
     combatRuntime.toggleLock();
     return;
@@ -2588,6 +2760,7 @@ async function loadOptionalNpcRuntime() {
     const runtime = await module.createNpcDevRuntime({
       app, campusRoot, player, orbit,
       sharedSchedulePreview: npcSharedScheduleMode,
+      worldClock,
       onNpcTalk: (id, now) => online?.network?.setNpcTalk(id, now),
       getBusyNpcIds: now => busyNpcIds(online?.network?.remotes.inZone(online.network.placeZoneId) ?? [], now),
       production: npcSharedScheduleMode || npcProductionMode || npcPreviewMode || npcRosterPreviewMode || npcSocialPreviewMode || npcObservedConversationMode,
@@ -2708,6 +2881,12 @@ places.onPlaceZoneChanged((previous,next)=>{
 
 app.on("update", (dt) => {
   syncAudio();
+  // Only render the camera while a room transaction owns the player's coordinate frame. Room
+  // pose publishing, campus observers and local motion must not consume an intermediate pose.
+  if (rooms.status().busy) {
+    orbit.apply(player.getLocalPosition(), character.eyeHeight);
+    return;
+  }
   roomSession?.update(dt);
   if (rooms.currentSpace === "ROOM_PERSONAL_BASIC") {
     furnitureRefreshSeconds += dt;
@@ -2759,6 +2938,7 @@ app.on("update", (dt) => {
   follow.update();
   playerAutoMove?.update(navigation?.getSnapshot() ?? null, player.getLocalPosition());
   if (!seating.beforeController()) controller.update(Math.min(dt, 0.05), orbit.yaw);
+  if (!combatFeedback.hitstopActive()) combatWorldMotion.update();
   helicopterFlightHud.update();
   orbit.setMounted(controller.mounted);
   character.setMounted(controller.mounted);
@@ -2766,7 +2946,12 @@ app.on("update", (dt) => {
   // Locomotion outranks expression: moving, mounting or an incompatible jump ends the emote.
   const emote = emotes.update(locomotion());
   emoteMenu.setAvailable(!controller.mounted && !combatRuntime.active);
-  character.update(Math.min(dt, 0.05), { ...locomotion(), emote, seated: seats.isSeated, poseOffsets: biryong?.poseOffsets() ?? null });
+  character.update(Math.min(dt, 0.05), {
+    ...locomotion(),
+    emote,
+    seated: seats.isSeated,
+    poseOffsets: combatFeedback.poseOffsets() ?? biryong?.poseOffsets() ?? null
+  });
 
   const pos = player.getLocalPosition();
   duckCompanionFollow.update(Math.min(dt, 0.05));
@@ -2837,6 +3022,12 @@ app.on("update", (dt) => {
     }) ?? null
     : null);
   contextActions.set("inkyung-duck", inside ? null : inkyungDucks.getContextAction(pos));
+  const fishingBlocked = inside || controller.mounted || seats.isSeated || fishingPanel?.open === true;
+  if (!fishingBlocked && fishing.state === FISHING_CLIENT_STATE.UNAVAILABLE && findNearbyFishingSpot(pos)) void fishing.probe();
+  contextActions.set("inkyung-fishing", fishingContextAction(pos, {
+    available: fishing.available, blocked: fishingBlocked,
+    onOpen: (spot) => fishingPanel?.setOpen(true, spot)
+  }));
   contextActions.set("biryong", inside ? null : biryong?.getContextAction(pos, { blocked: controller.mounted || seats.isSeated }) ?? null);
   contextActions.set("mcm-event", inside ? null : mcmEventRuntime.contextAction());
   contextActions.set("mcm-minigame", rooms.currentSpace === MCM_2026_ROOM_ID ? mcmMinigame.contextAction() : null);
@@ -2861,11 +3052,13 @@ app.on("update", (dt) => {
   }
   contextActions.set("npc", inside ? null : npcTest?.getContextAction?.() ?? null);
   // Transport has its own slot: a nearby NPC and the bike are offered together (F and M).
-  transportActions.set("mount", controller.getMountContextAction());
+  const mountContextAction = controller.getMountContextAction();
+  // Recheck the live gate/locks and mount offer at activation, even for a retained button callback.
+  transportActions.set("mount", mountContextAction ? { ...mountContextAction, trigger: () => controller.transportAction() } : null);
   if (combatRuntime.active) {
     for (const key of [
       "seat", "guestbook", "student-center-shop", "backgate-transit", "biryong-station-transit",
-      "biryong-npc", "inkyung-duck", "biryong", "mcm-event", "mcm-minigame", "follow",
+      "biryong-npc", "inkyung-duck", "inkyung-fishing", "biryong", "mcm-event", "mcm-minigame", "follow",
       "room-door", "personal-room-door", "npc"
     ]) contextActions.set(key, null);
     transportActions.set("mount", null);
@@ -2945,6 +3138,8 @@ try {
     void inventory.setAccount(identity ? online?.userId ?? null : null);
     void dailyQuiz.setAccount(identity ? online?.userId ?? null : null);
     void attendance.setAccount(identity ? online?.userId ?? null : null);
+    void lifeSkillBook.setAccount(identity ? online?.userId ?? null : null);
+    void fishing.setAccount(identity ? online?.userId ?? null : null);
     void loadout.setAccount(identity ? online?.userId ?? null : null);
     const nextRoomUserId = online?.userId ?? null;
     inkyungSideEvent.setScope(nextRoomUserId ?? "guest");
@@ -2963,10 +3158,11 @@ try {
     npcTest?.setAiSignedIn(npcAiSignedIn);
     profile.setIdentity(identity);
     lobbyPlayerSummary.render();
+    lobbyQuestHighlight.update();
     chatPanel.refreshAvailability();
     friendPanel.setAvailable(!!identity);
     nearbyPanel.render();
-    guestbookPanel.setAvailable(!!identity);
+    guestbookPanel.setAvailable(!!identity, identity?.userId ?? null);
     if (identity) {
       void accompany.refresh();
       void social.mine()
@@ -3058,6 +3254,18 @@ if (lobbyWorld.active) {
 }
 
 const bootDegraded = !online;
+worldLoading?.setPhase("ASSETS");
+await waitForWorldRender({
+  app,
+  ready: character.ready.then(() => {
+    worldLoading?.setPhase("RENDERING");
+    // The model swap changes eye height; apply the camera before counting rendered frames.
+    if (lobbyWorld.active) lobbyWorld.update(0);
+    else orbit.apply(player.getLocalPosition(), character.eyeHeight);
+  }),
+  isSceneReady: () => streaming.pending.length === 0
+});
+worldLoading?.setRenderReady(true);
 worldLoading?.finish({ degraded: bootDegraded });
 void loadOptionalNpcRuntime();
 if (campusLifePreview) {
@@ -3168,6 +3376,10 @@ window.__INHAGAME_P0__ = {
   dailyQuizPanel,
   attendance,
   attendancePanel,
+  lifeSkillBook,
+  lifeSkillBookPanel,
+  fishing,
+  fishingPanel,
   shopWorld,
   shopWorldLabel,
   backgateTransit,
@@ -3179,6 +3391,10 @@ window.__INHAGAME_P0__ = {
   biryongRelationships,
   combatRuntime,
   combatHud,
+  building5Training,
+  combatTargetRenderer,
+  combatWorldMotion,
+  combatFeedback,
   building5Combat,
   seats,
   seating,
@@ -3300,11 +3516,15 @@ window.__INHAGAME_P0__ = {
     biryongVillageDialogue: biryongVillageDialogue?.status() ?? null,
     biryongRelationships: biryongRelationships.status(),
     combat: combatRuntime.snapshot(),
+    combatMotion: combatWorldMotion.status(),
+    combatFeedback: combatFeedback.status(),
     building5Combat: building5Combat.status(),
     wallet: wallet.status(),
     inventory: { ...inventory.status(), ...inventoryPanel.status() },
     dailyQuiz: { ...dailyQuiz.status(), panel: dailyQuizPanel.status() },
     attendance: { ...attendance.status(), panel: attendancePanel.status() },
+    lifeSkillBook: { ...lifeSkillBook.status(), panel: lifeSkillBookPanel?.status() ?? null },
+    fishing: { ...fishing.status(), panel: fishingPanel?.status() ?? null },
     wardrobe: { ...loadout.status(), ...wardrobePanel.status() },
     equipment: equipmentProjection.status(),
     hudMenuOpen: hudMenu.open,
@@ -3326,6 +3546,8 @@ window.__INHAGAME_P0__ = {
         wardrobe: wardrobeInput.active,
         dailyQuiz: dailyQuizInput.active,
         attendance: attendanceInput.active,
+        lifeSkillBook: lifeSkillBookInput.active,
+        fishing: fishingInput.active,
         npcDialogue: npcDialogueInput.active,
         mcmDialogue: mcmDialogueInput.active,
         biryongScripted: biryongScriptedInput.active,

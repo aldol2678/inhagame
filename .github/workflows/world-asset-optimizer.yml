@@ -18,6 +18,19 @@ on:
       - 'supabase/functions/inhagame-world-brand-assets-optimized-v1/**'
       - 'apps/world/src/character-model.js'
       - 'apps/world/src/main.js'
+      - 'apps/world/src/campus-render-kit.js'
+      - 'apps/world/src/campus-material-profile.js'
+      - 'apps/world/tests/campus-material-profile.test.mjs'
+      - 'apps/world/tests/browser/material-profile-smoke.mjs'
+      - 'apps/world/src/lobby/lobby-loading.js'
+      - 'apps/world/tests/browser/loading-render-smoke.mjs'
+      - 'apps/world/tests/browser/harness.mjs'
+      - 'apps/world/src/campus-road-geometry.js'
+      - 'apps/world/src/campus-road-micro-details.js'
+      - 'apps/world/tests/campus-road-micro-details.test.mjs'
+      - 'apps/world/src/environment/winter-soak-policy.js'
+      - 'apps/world/tests/environment-p6l-winter-soak.test.mjs'
+      - 'apps/world/tests/browser/winter-soak-smoke.mjs'
       - 'apps/world/tests/asset-optimization-shadow.test.mjs'
       - 'apps/world/tests/asset-authority-canary.test.mjs'
       - 'apps/world/tests/asset-production-canary.test.mjs'
@@ -69,6 +82,21 @@ jobs:
           WORLD_SMOKE_DISABLE_WEBGPU: '1'
           WORLD_SMOKE_BROWSER: chrome
         run: node apps/world/tests/browser/asset-optimization-shadow-smoke.mjs
+      - name: Run campus material profile smoke
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+        run: node apps/world/tests/browser/material-profile-smoke.mjs
+      - name: Run delayed-character loading render smoke
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+        run: node apps/world/tests/browser/loading-render-smoke.mjs
+      - name: Run winter environment soak smoke
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+        run: node apps/world/tests/browser/winter-soak-smoke.mjs
       - name: Run asset authority canary smoke
         env:
           WORLD_SMOKE_DISABLE_WEBGPU: '1'

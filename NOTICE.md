@@ -40,3 +40,15 @@ redistributed unmodified under Creative Commons Zero (CC0). This third-party ass
 its own license rather than the project's All Rights Reserved terms.
 Source: https://kaylousberg.itch.io/furniture-bits
 License and file provenance: apps/world/assets/kaykit/furniture-bits/License.txt and README.md.
+
+## Main Hall and Jeongseok field-reference observations
+
+The Main Hall and Jeongseok library exterior refinements use architectural
+observations from owner-supplied, 2026-10-01-labeled field references. Only newly
+authored procedural geometry is included. Raw photos, PDFs, image textures,
+identifiable people or plates, and institutional or contractor artwork are not
+distributed. This is an illustrative exterior, not a survey, measured floor plan,
+all-photo rights clearance, or trademark permission. The existing campus geometry
+and collision authority remain unchanged. See
+`docs/implementation/hall-library-main-integration.md` and
+`apps/world/data/reality/hall-library-integration.provenance.json`.

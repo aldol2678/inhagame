@@ -48,5 +48,7 @@
     {
       "handle": "filesystem"
     }
-  ]
+  ],
+  "buildCommand": "sh ./build-recast-shadow.sh",
+  "outputDirectory": "."
 }

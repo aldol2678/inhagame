@@ -1,6 +1,7 @@
 import { verifyNpcAiUser } from './npc-ai-auth.mjs';
 import { QUEST_ID, QUEST_EVENTS } from './quest-contract.mjs';
 import { MAIN2_QUEST_ID, MAIN2_QUEST_EVENTS } from './main2-quest-contract.mjs';
+import { MAIN3_QUEST_ID, MAIN3_QUEST_EVENTS } from './main3-quest-contract.mjs';
 import { MCM_2026_EVENT_ID, MCM_2026_EVENT_ACTIONS } from './mcm-2026-event-contract.mjs';
 
 export function createQuestCloudHandler({ store, verifyUser = verifyNpcAiUser }) {
@@ -24,8 +25,10 @@ export function createQuestCloudHandler({ store, verifyUser = verifyNpcAiUser })
       const keys = Object.keys(input);
       if ((questId === QUEST_ID && (keys.length !== 1 || !QUEST_EVENTS.includes(input.event))) ||
           (questId === MAIN2_QUEST_ID && (keys.length !== 2 || !MAIN2_QUEST_EVENTS.includes(input.event))) ||
+          (questId === MAIN3_QUEST_ID && (keys.length !== 2 || !MAIN3_QUEST_EVENTS.includes(input.event))) ||
           (questId === MCM_2026_EVENT_ID && (keys.length !== 2 || !MCM_2026_EVENT_ACTIONS.includes(input.event))) ||
-          (questId !== QUEST_ID && questId !== MAIN2_QUEST_ID && questId !== MCM_2026_EVENT_ID))
+          (questId !== QUEST_ID && questId !== MAIN2_QUEST_ID &&
+            questId !== MAIN3_QUEST_ID && questId !== MCM_2026_EVENT_ID))
         throw Error('INVALID_QUEST_EVENT');
       const result = await store(userId, input.event, questId);
       res.writeHead(200); res.end(JSON.stringify(result));

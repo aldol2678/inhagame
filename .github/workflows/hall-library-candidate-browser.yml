@@ -1,0 +1,65 @@
+name: Hall and library integrated browser QA
+on:
+  pull_request:
+    paths:
+      - 'apps/world/src/main-hall-*.js'
+      - 'apps/world/src/photo-hall-library-geometry.js'
+      - 'apps/world/src/jeongseok-candidate-renderer.js'
+      - 'apps/world/src/campus-landmark-candidate-selector.js'
+      - 'apps/world/src/campus-chunk-renderer.js'
+      - 'apps/world/src/preview/place-scene-preview.js'
+      - 'apps/world/tests/*hall*.test.mjs'
+      - 'apps/world/tests/fixtures/hall-library-candidate-source-manifest.json'
+      - 'apps/world/tests/browser/hall-library-*'
+      - 'apps/world/data/reality/hall-library-integration.provenance.json'
+      - '.github/workflows/hall-library-candidate-browser.yml'
+permissions:
+  contents: read
+concurrency:
+  group: hall-library-candidate-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  chromium:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - name: Fetch immutable read-only comparison sources
+        run: |
+          git fetch --no-tags origin 1c6f43b36962f65f75cddd55b8661bb3aa4a268d
+          git fetch --no-tags origin 316c8ff95f7a12618ec8db61342d153f3cbb29ea
+          git fetch --no-tags origin 68d64e7466a2971256485b74e76c89a31e91547a
+      - name: Install pinned browser QA dependencies
+        working-directory: apps/world/tests/browser
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Verify geometry and narrow current-main preservation
+        run: node --test apps/world/tests/main-hall-candidate.test.mjs apps/world/tests/photo-hall-library.test.mjs apps/world/tests/hall-library-integration.test.mjs apps/world/tests/hall-library-hosted.test.mjs
+      - name: Verify real-engine chunk, preview and environment ownership
+        run: node apps/world/tests/browser/hall-library-integration-null-smoke.mjs
+      - name: Verify unchanged current-main material producer in actual campus
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+        run: node apps/world/tests/browser/material-profile-smoke.mjs
+      - name: Render exact-head integrated and historical models offline
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+          WORLD_HALL_LIBRARY_QA_OUTPUT: test-results/hall-library-candidate
+          EXPECTED_HALL_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: node apps/world/tests/browser/hall-library-hosted-smoke.mjs
+      - name: Save exact-commit browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hall-library-candidate-browser-evidence
+          path: test-results/hall-library-candidate/
+          if-no-files-found: error
+          retention-days: 7

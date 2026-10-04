@@ -1,0 +1,69 @@
+name: Biryong map and NPC guidance browser QA
+on:
+  pull_request:
+    paths:
+      - 'apps/world/src/biryong/**'
+      - 'apps/world/src/minimap/**'
+      - 'apps/world/src/navigation/**'
+      - 'apps/world/src/main.js'
+      - 'apps/world/src/player-controller.js'
+      - 'apps/world/src/input-focus*'
+      - 'apps/world/src/world-loading*'
+      - 'apps/world/npc-factory/**'
+      - 'apps/world/campus/index.html'
+      - 'apps/world/styles.css'
+      - 'apps/world/dev-server.mjs'
+      - 'apps/world/tests/biryong-*.test.mjs'
+      - 'apps/world/tests/browser/biryong-map-guidance-*'
+      - 'apps/world/tests/browser/harness.mjs'
+      - 'apps/world/tests/browser/package*.json'
+      - '.github/workflows/biryong-map-guidance-browser.yml'
+permissions:
+  contents: read
+concurrency:
+  group: biryong-map-guidance-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  chromium:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - name: Install existing pinned offline browser dependencies
+        working-directory: apps/world/tests/browser
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Ensure readable Korean screenshot glyphs
+        run: |
+          mkdir -p test-results/biryong-map-guidance
+          sudo apt-get update -qq
+          sudo apt-get install -y fonts-noto-cjk
+          fc-match 'sans-serif:lang=ko' > test-results/biryong-map-guidance/korean-font.txt
+      - name: Verify Biryong and preserved Campus contracts
+        run: >-
+          node --test apps/world/tests/biryong-*.test.mjs
+          apps/world/tests/full-map*.test.mjs apps/world/tests/mobile-full-map-portrait.test.mjs
+          apps/world/tests/navigation-map-ui.test.mjs apps/world/tests/room-map-data.test.mjs
+          apps/world/tests/world-loading-render.test.mjs apps/world/tests/npc-campus-life-diversity.test.mjs
+          apps/world/tests/player-touch-ownership.test.mjs apps/world/tests/input-focus-biryong-wiring.test.mjs
+      - name: Render exact-head offline Campus and Biryong at three sizes
+        timeout-minutes: 13
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+          WORLD_BIRYONG_QA_OUTPUT: test-results/biryong-map-guidance
+          EXPECTED_BIRYONG_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: timeout --signal=TERM --kill-after=10s 740s node apps/world/tests/browser/biryong-map-guidance-smoke.mjs
+      - name: Preserve exact-head screenshots and receipts for independent pixel review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: biryong-map-guidance-browser-evidence
+          path: test-results/biryong-map-guidance/
+          if-no-files-found: error
+          retention-days: 14
