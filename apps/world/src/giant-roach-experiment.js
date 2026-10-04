@@ -29,14 +29,16 @@ function createRoachVisual(root,index,material) {
   // not prototype mesh complexity. Keeping one render component avoids multiplying shadow/draw passes.
   const e=new pc.Entity(`GIANT_ROACH_${index+1}`);
   e.addComponent('render',{type:'sphere'});
-  e.setLocalScale(0.78,0.3,1.45);
+  // Human-sized crawler silhouette: ~1.7 m long and ~0.6 m tall, still one render primitive.
+  e.setLocalScale(0.9,0.6,1.7);
   e.render.material=material;
   root.addChild(e);
   return e;
 }
 function candidate(center,index,attempt) {
   const angle=(index*2.399963229728653 + attempt*0.71)%(Math.PI*2);
-  const radius=7+(index%10)*1.9+attempt*1.2;
+  // Stay inside createNpcNavigator's local ±15 m bounds so fallback-to-player overlap is rare.
+  const radius=4+(index%12)*0.62+attempt*0.12;
   return {x:center.x+Math.cos(angle)*radius,z:center.z+Math.sin(angle)*radius};
 }
 function spawnPoint(navigator,center,index) {
@@ -56,7 +58,7 @@ export function createGiantRoachExperiment({app,campusRoot,player,count=10}) {
   function addOne(index){
     const position=spawnPoint(navigator,center,index);
     const entity=createRoachVisual(campusRoot,index,material);
-    entity.setLocalPosition(position.x,roadviewGroundHeight(position.x,position.z),position.z);
+    entity.setLocalPosition(position.x,roadviewGroundHeight(position.x,position.z)+0.32,position.z);
     roaches.push({entity,position,waypoints:[],heading:0,nextNavAt:index*.017,nextUpdateAt:0,index});
   }
   function setCount(next){
@@ -87,7 +89,7 @@ export function createGiantRoachExperiment({app,campusRoot,player,count=10}) {
       if(r.waypoints.length){
         const moved=advanceRoute(r.position,r.waypoints,(d>45?1.15:2.15)*interval);
         r.position=moved.position; r.heading=moved.heading;
-        r.entity.setLocalPosition(r.position.x,roadviewGroundHeight(r.position.x,r.position.z),r.position.z);
+        r.entity.setLocalPosition(r.position.x,roadviewGroundHeight(r.position.x,r.position.z)+0.32,r.position.z);
         r.entity.setLocalEulerAngles(0,r.heading,0);
       }
       r.entity.enabled=d<85;
