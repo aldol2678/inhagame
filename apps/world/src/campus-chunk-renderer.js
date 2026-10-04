@@ -1,6 +1,6 @@
 import * as pc from 'playcanvas';
 import { buildCampusFacilities } from './facility-blockout.js';
-import { buildMainHallBlockout } from './main-hall-blockout.js';
+import { buildCampusLandmarks } from './campus-landmark-candidate-selector.js';
 import { buildCampusGrounds, buildCampusTrees } from './campus-grounds.js';
 import { buildGateBlockout } from './gate-blockout.js';
 import { buildCentralBlockout } from './central-blockout.js';
@@ -26,7 +26,7 @@ export class CampusChunkRenderer {
     buildStadiumStands(base);
     buildCampusHelicopter(base);
     buildLibraryRoute(base);
-    for(const chunk of registry.chunks){buildCampusFacilities(base,chunk.facilities,'BASE');buildMainHallBlockout(base,chunk.buildings,'BASE');}
+    for(const chunk of registry.chunks){buildCampusFacilities(base,chunk.facilities,'BASE');buildCampusLandmarks(base,chunk.buildings,'BASE');}
     this.metrics.entitiesCreated+=count(base);
   }
   create(chunk) {
@@ -37,7 +37,7 @@ export class CampusChunkRenderer {
   #layer(handle,tier) {
     const root=new pc.Entity(`${handle.chunk.id}_${tier}`);handle.root.addChild(root);
     buildCampusFacilities(root,handle.chunk.facilities,tier);
-    buildMainHallBlockout(root,handle.chunk.buildings,tier);
+    buildCampusLandmarks(root,handle.chunk.buildings,tier);
     buildBackStreetDetails(root,handle.chunk.streetscape,tier);
     if(tier==='DETAIL')buildLibraryGardenDetail(root,handle.chunk.streetscape);
     if(tier==='NEAR')buildCampusTrees(root,handle.chunk.trees);

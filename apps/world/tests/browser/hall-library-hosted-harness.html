@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Main Hall and Jeongseok hosted exterior QA</title>
+<script type="importmap">{"imports":{"playcanvas":"https://cdn.jsdelivr.net/npm/playcanvas@2.22.4/build/playcanvas.mjs"}}</script>
+<style>html,body{margin:0;height:100%;overflow:hidden;background:#c9d6e3;font:12px system-ui;color:#233038}body{display:grid;grid-template-rows:auto minmax(0,1fr)}aside{padding:8px 12px;background:#fffffff2}h1{font-size:14px;margin:0 0 3px}p{margin:2px 0}canvas{display:block;width:100%;height:100%;min-height:0}</style></head>
+<body><aside><h1 id="label">Hosted exterior comparison</h1><p>Illustrative exterior only. No interior inferred. Four window rows are NOT a measured floor count.</p><p>Canonical footprint, height and collision authority retained. Jeongseok reuses the recovered #108 model.</p></aside><canvas id="stage"></canvas>
+<script type="module">
+import * as pc from 'playcanvas';
+import {selectCampusLandmark} from '/src/campus-landmark-candidate-selector.js';
+import {buildMainHallBlockout as buildBaseline} from '/__hall_library_baseline__/src/main-hall-blockout.js';
+import {photoLandmarkView} from './hall-library-hosted-views.js';
+import {buildMainHallBlockout as buildCurrentMain} from '/__hall_library_current_main__/src/main-hall-blockout.js';
+import {selectCampusLandmark as selectPrevious} from '/__hall_library_previous__/src/campus-landmark-candidate-selector.js';
+import {CampusChunkRenderer} from '/src/campus-chunk-renderer.js';
+import {RenderChunkRegistry} from '/src/render-chunk-registry.js';
+import {HALL_FRONT} from '/src/basic-campus.js';
+const qa = window.__HALL_LIBRARY_HOSTED_QA__ = {ready:false};
+try {
+  const canvas = document.getElementById('stage');
+  canvas.width = canvas.clientWidth; canvas.height = canvas.clientHeight;
+  const device = await pc.createGraphicsDevice(canvas, {deviceTypes:[pc.DEVICETYPE_WEBGL2], antialias:true});
+  const app = new pc.Application(canvas, {graphicsDevice:device});
+  app.autoRender = false;
+  app.scene.ambientLight = new pc.Color(.62, .62, .62);
+  const world = new pc.Entity('HostedLandmarkQA'); app.root.addChild(world);
+  const ids = ['bldg_01', 'bldg_jungseok'], tiers = ['BASE', 'NEAR', 'DETAIL'];
+  const originals = {}, previousCandidate = {}, currentMain = {}, selected = {}, fitPoints = {};
+  const meshes = root => root.findComponents('render').flatMap(r => r.meshInstances);
+  const corners = root => meshes(root).flatMap(m => {
+    const min = m.aabb.getMin(), max = m.aabb.getMax();
+    return [min.x,max.x].flatMap(x => [min.y,max.y].flatMap(y => [min.z,max.z].map(z => [x,y,z])));
+  });
+  for (const id of ids) {
+    originals[id] = new pc.Entity(id+'_baseline_108'); world.addChild(originals[id]);
+    selected[id] = new pc.Entity(id+'_selected'); world.addChild(selected[id]);
+    previousCandidate[id] = new pc.Entity(id+'_previous144'); world.addChild(previousCandidate[id]);
+    currentMain[id] = new pc.Entity(id+'_currentmain'); world.addChild(currentMain[id]);
+    for (const tier of tiers) {
+      const root = new pc.Entity(id+'_baseline_'+tier); originals[id].addChild(root);
+      buildBaseline(root, [id], tier);
+      const mainRoot = new pc.Entity(id+'_main_'+tier); currentMain[id].addChild(mainRoot); buildCurrentMain(mainRoot,[id],tier);
+      selectPrevious(previousCandidate[id],id,tier,{mode:'candidate'});
+      selectCampusLandmark(selected[id], id, tier, {mode:'candidate'});
+    }
+    fitPoints[id] = [...corners(originals[id]), ...corners(currentMain[id]), ...corners(previousCandidate[id]), ...corners(selected[id])];
+  }
+  const sun = new pc.Entity('Sun'); sun.addComponent('light', {type:'directional', intensity:1.1, castShadows:false});
+  sun.setLocalEulerAngles(40,35,0); app.root.addChild(sun);
+  const camera = new pc.Entity('Camera'); camera.addComponent('camera', {fov:48, farClip:1500, clearColor:new pc.Color(.79,.84,.89)}); app.root.addChild(camera);
+  let state = {id:'bldg_01', presentation:'candidate', reflected:true, detail:'all', mode:'full'};
+  let previous = null, pending = false, contextLost = false;
+  canvas.addEventListener('webglcontextlost', () => { contextLost = true; qa.error = 'WebGL context lost'; });
+  const fail = message => { throw new Error(message); };
+  function view(options = {}) {
+    state = {...state, ...options};
+    if (!ids.includes(state.id) || !['currentmain','baseline108','previous144','candidate'].includes(state.presentation)) fail('Unsupported view');
+    // Resize the drawing buffer, leaving the CSS grid authoritative. The app
+    // default KEEP_ASPECT/FIXED mode would otherwise retain desktop dimensions.
+    device.resizeCanvas(canvas.clientWidth, canvas.clientHeight);
+    device.updateClientRect();
+    if (previous?.length !== canvas.width*canvas.height*4) previous = null;
+    for (const id of ids) {
+      originals[id].enabled = id === state.id && state.presentation === 'baseline108';
+      selected[id].enabled = id === state.id && state.presentation === 'candidate';
+      currentMain[id].enabled = id === state.id && state.presentation === 'currentmain';
+      previousCandidate[id].enabled = id === state.id && state.presentation === 'previous144';
+      if (id === state.id && state.presentation === 'candidate') {
+        for (const tier of tiers) selectCampusLandmark(selected[id], id, tier, {mode:state.presentation});
+      }
+      for (const root of [originals[id], currentMain[id], previousCandidate[id], selected[id]]) for (const child of root.children) child.enabled = state.detail === 'all' || child.name.endsWith('_BASE');
+    }
+    const reflection = state.reflected ? -1 : 1;
+    world.setLocalScale(1,1,reflection);
+    let fit = photoLandmarkView(state.id, canvas.width/canvas.height, {points:fitPoints[state.id], mode:state.mode});
+    if (state.mode === 'entry' && state.id === 'bldg_01') {
+      const {a,b,along,inward} = HALL_FRONT;
+      const point = (u,y,v) => [(a.x+b.x)/2+along.x*u+inward.x*v,y,(a.z+b.z)/2+along.z*u+inward.z*v];
+      fit = {position:point(5,3.3,-9), target:point(0,1.6,0)};
+    }
+    const [p,t] = [fit.position, fit.target];
+    camera.setPosition(p[0],p[1],p[2]*reflection); camera.lookAt(t[0],t[1],t[2]*reflection);
+    document.getElementById('label').textContent = `${state.id === 'bldg_01' ? 'Main Hall' : 'Jeongseok'} · ${state.presentation} · ${state.reflected ? 'reflected Z' : 'control Z'} · ${state.mode}`;
+    return stats();
+  }
+  function stats() {
+    const active = ({baseline108:originals,currentmain:currentMain,previous144:previousCandidate,candidate:selected})[state.presentation][state.id];
+    const owners = tiers.map(tier => {
+      const children = active.children.filter(c => c.name.endsWith('_'+tier));
+      const list = children.flatMap(meshes);
+      let finite = true;
+      for (const m of list) {
+        const positions = [], normals = []; m.mesh.getPositions(positions); m.mesh.getNormals(normals);
+        finite &&= positions.length > 0 && positions.every(Number.isFinite) && normals.every(Number.isFinite);
+        finite &&= [...m.aabb.center.toArray(), ...m.aabb.halfExtents.toArray()].every(Number.isFinite);
+      }
+      return {tier, owners:children.length, meshes:list.length, vertices:list.reduce((n,m) => n+m.mesh.vertexBuffer.numVertices,0), finite};
+    });
+    return {engine:pc.version, device:device.deviceType, ...state, scaleSign:world.worldScaleSign,
+      canvas:{width:canvas.width,height:canvas.height,cssWidth:canvas.clientWidth,cssHeight:canvas.clientHeight},
+      activePresentations:[...Object.values(originals), ...Object.values(currentMain), ...Object.values(previousCandidate), ...Object.values(selected)].filter(root => root.enabled).length, owners};
+  }
+  function framing() {
+    const points = fitPoints[state.id].map(([x,y,z]) => camera.camera.worldToScreen(new pc.Vec3(x,y,z*(state.reflected?-1:1))));
+    const a = document.querySelector('aside').getBoundingClientRect(), c = canvas.getBoundingClientRect();
+    return {points:points.length, minX:Math.min(...points.map(p=>p.x/canvas.width)), maxX:Math.max(...points.map(p=>p.x/canvas.width)),
+      minY:Math.min(...points.map(p=>p.y/canvas.height)), maxY:Math.max(...points.map(p=>p.y/canvas.height)),
+      minDepth:Math.min(...points.map(p=>p.z)), captionOverlapsCanvas:a.bottom>c.top+.5};
+  }
+  function pixels() {
+    if (pending) return Promise.reject(new Error('Concurrent pixel capture'));
+    if (contextLost || device.gl.isContextLost()) return Promise.reject(new Error('WebGL context lost'));
+    pending = true;
+    return new Promise((resolve,reject) => {
+      const finish = () => {
+        clearTimeout(timer); pending = false;
+        try {
+          const gl = device.gl, width = gl.drawingBufferWidth, height = gl.drawingBufferHeight;
+          if (contextLost || gl.isContextLost()) fail('WebGL context lost');
+          const data = new Uint8Array(width*height*4), old = gl.getParameter(gl.READ_FRAMEBUFFER_BINDING);
+          try { gl.bindFramebuffer(gl.READ_FRAMEBUFFER,null); gl.readPixels(0,0,width,height,gl.RGBA,gl.UNSIGNED_BYTE,data); }
+          finally { gl.bindFramebuffer(gl.READ_FRAMEBUFFER,old); }
+          let changed = 0, exactChanged = 0, foreground = 0, maskChanged = 0, entryChanged = 0, hash = 2166136261;
+          const {a,b,along,inward} = HALL_FRONT;
+          const entryPoints = [-1.75,1.75].flatMap(u=>[.80,1.02].map(y=>camera.camera.worldToScreen(new pc.Vec3((a.x+b.x)/2+along.x*u-inward.x*.23,y,((a.z+b.z)/2+along.z*u-inward.z*.23)*(state.reflected?-1:1)))));
+          const entryBounds = {minX:Math.min(...entryPoints.map(p=>p.x)),maxX:Math.max(...entryPoints.map(p=>p.x)),minY:Math.min(...entryPoints.map(p=>p.y)),maxY:Math.max(...entryPoints.map(p=>p.y))};
+          for (let i=0; i<data.length; i+=4) {
+            if (previous && (data[i]!==previous[i] || data[i+1]!==previous[i+1] || data[i+2]!==previous[i+2])) exactChanged++;
+            if (previous && Math.abs(data[i]-previous[i])+Math.abs(data[i+1]-previous[i+1])+Math.abs(data[i+2]-previous[i+2])>15) changed++;
+            const fg = Math.abs(data[i]-data[0])+Math.abs(data[i+1]-data[1])+Math.abs(data[i+2]-data[2])>15;
+            if (fg) foreground++;
+            if (previous) {
+              const oldFg = Math.abs(previous[i]-previous[0])+Math.abs(previous[i+1]-previous[1])+Math.abs(previous[i+2]-previous[2])>15;
+              if (fg !== oldFg) maskChanged++;
+              const x=(i/4)%width, y=height-1-Math.floor(i/4/width);
+              if(x>=entryBounds.minX&&x<=entryBounds.maxX&&y>=entryBounds.minY&&y<=entryBounds.maxY&&Math.abs(data[i]-previous[i])+Math.abs(data[i+1]-previous[i+1])+Math.abs(data[i+2]-previous[i+2])>15) entryChanged++;
+            }
+            for (let k=0;k<3;k++) hash = Math.imul((hash^data[i+k])>>>0,16777619);
+          }
+          previous = data;
+          resolve({width,height,hash:hash>>>0,changed,exactChanged,foreground,maskChanged,entryChanged,entryBounds,glError:gl.getError(),contextLost:false});
+        } catch (error) { reject(error); }
+      };
+      const timer = setTimeout(() => { app.off('postrender',finish); pending=false; reject(new Error('Pixel frame deadline exceeded (6000ms)')); },6000);
+      app.once('postrender',finish); app.renderNextFrame = true;
+    });
+  }
+  function lifecycle() {
+    if (state.presentation !== 'candidate') fail('Lifecycle requires candidate mode');
+    const root = selected[state.id], receipt = [];
+    for (const tier of tiers) {
+      const first = selectCampusLandmark(root,state.id,tier,{mode:'candidate'});
+      const count = meshes(first).length;
+      const repeated = selectCampusLandmark(root,state.id,tier,{mode:'candidate'}) === first;
+      root.removeChild(first);
+      const detached = first.parent === null;
+      const remounted = selectCampusLandmark(root,state.id,tier,{mode:'candidate'}) === first && first.parent === root;
+      first.destroy();
+      const rebuilt = selectCampusLandmark(root,state.id,tier,{mode:'candidate'});
+      receipt.push({tier,repeated,detached,remounted,rebuilt:rebuilt!==first,meshesBefore:count,meshesAfter:meshes(rebuilt).length});
+    }
+    return {receipt, stats:stats()};
+  }
+  let campus = null;
+  function campusLifecycle() {
+    world.enabled = false;
+    const root = new pc.Entity('ActualCampusChunkRendererQA'); root.setLocalScale(1,1,-1); app.root.addChild(root);
+    const registry = new RenderChunkRegistry();
+    const renderer = new CampusChunkRenderer(app,root,registry);
+    const handles = [], receipt = [];
+    for (const id of ids) {
+      const chunk = registry.chunks.find(chunk=>chunk.buildings.includes(id));
+      const handle = renderer.create(chunk); handles.push(handle);
+      renderer.setState(handle,'ACTIVE'); renderer.update(1);
+      const roots = [renderer.base,handle.near,handle.detail];
+      const owners = tiers.map((tier,i)=>roots[i].findByName(`${id}_presentation_${tier}`));
+      if(owners.some(owner=>!owner)) fail('Actual CampusChunkRenderer omitted '+id);
+      const near=handle.near, detail=handle.detail;
+      renderer.setState(handle,'FAR'); renderer.update(1);
+      const hidden=!near.enabled&&!detail.enabled;
+      renderer.setState(handle,'ACTIVE'); renderer.update(1);
+      receipt.push({id,owners:owners.map(owner=>owner.name),hidden,reused:handle.near===near&&handle.detail===detail,restored:near.enabled&&detail.enabled,reflection:owners.every(owner=>owner.worldScaleSign===-1)});
+    }
+    campus={root,renderer,handles};
+    campusView();
+    return {receipt,metrics:renderer.getMetrics(),pondWeather:renderer.getPondWeatherStatus()};
+  }
+  function campusOwners(id) {
+    const handle=campus.handles.find(handle=>handle.chunk.buildings.includes(id));
+    return [campus.renderer.base,handle.near,handle.detail].map((root,i)=>root.findByName(`${id}_presentation_${tiers[i]}`));
+  }
+  function campusVisibility(id,visible) { for(const owner of campusOwners(id))owner.enabled=visible; }
+  function campusView(id='bldg_01') {
+    device.resizeCanvas(canvas.clientWidth,canvas.clientHeight);device.updateClientRect();previous=null;
+    const points=campusOwners(id).flatMap(corners).map(([x,y,z])=>[x,y,-z]);
+    const fit=photoLandmarkView(id,canvas.width/canvas.height,{points});
+    camera.setPosition(fit.position[0],fit.position[1],-fit.position[2]);camera.lookAt(fit.target[0],fit.target[1],-fit.target[2]);
+    const projected=points.map(([x,y,z])=>camera.camera.worldToScreen(new pc.Vec3(x,y,-z)));
+    const a=document.querySelector('aside').getBoundingClientRect(),c=canvas.getBoundingClientRect();
+    document.getElementById('label').textContent=`Actual CampusChunkRenderer · ${id} · bounds-fitted QA camera`;
+    return {width:canvas.width,height:canvas.height,reflection:campus.root.worldScaleSign,points:points.length,minDepth:Math.min(...projected.map(p=>p.z)),
+      minX:Math.min(...projected.map(p=>p.x/canvas.width)),maxX:Math.max(...projected.map(p=>p.x/canvas.width)),
+      minY:Math.min(...projected.map(p=>p.y/canvas.height)),maxY:Math.max(...projected.map(p=>p.y/canvas.height)),captionOverlapsCanvas:a.bottom>c.top+.5};
+  }
+  function disposeCampus() {
+    for(const handle of campus.handles) campus.renderer.destroy(handle);
+    const fadesAfterDestroy=campus.renderer.fades.size;
+    campus.root.destroy();campus=null;world.enabled=true;
+    return {fadesAfterDestroy};
+  }
+  Object.assign(qa,{view,stats,framing,pixels,lifecycle,campusLifecycle,campusView,campusVisibility,disposeCampus});
+  app.start(); view(); qa.ready = true;
+} catch (error) { qa.error = error.stack || String(error); throw error; }
+</script></body></html>
