@@ -64,16 +64,16 @@ try{
    }
    // Close diagnostic views make individual stair treads and ramp surfaces
    // inspectable; the full-area captures above prove scene placement/coverage.
-   for(const detail of ['garden-stairs','garden-ramp','stadium-aisle','stadium-side-entry','alley-shell']){
+   for(const detail of ['garden-stairs','garden-stairs-lower','garden-ramp','stadium-aisle','stadium-aisle-lower','stadium-side-entry','alley-shell']){
     const setup=await page.evaluate(async detail=>{
      const pc=await import('playcanvas'),{GARDEN_ENTRANCES,gardenEntryHeight}=await import('/src/library-garden-layout.js'),{STANDS,SPORTS_SIDE_ENTRIES,stadiumGroundHeight}=await import('/src/stadium-stands-layout.js'),{BACK_ALLEY_BLOCKS}=await import('/src/back-alley-layout.js');
      const app=window.__INHAGAME_P0__.app,base=app.root.findByName('CampusBase'),camera=app.root.findByName('Camera');base.parent.setLocalScale(1,1,-1);
      let frame,u,v,y,radius,prefix,from;
-     if(detail.startsWith('garden')){const q=GARDEN_ENTRANCES.find(q=>detail==='garden-ramp'?q.steps===0:q.steps>0);frame=q.frame;u=q.u;v=q.run/2;y=gardenEntryHeight(q,v);radius=q.steps?2.8:4.3;prefix='library_garden_base_';from=frame.at(u+4,-6);}
-     else if(detail==='stadium-aisle'){frame=STANDS.frame;u=STANDS.aisles[1];v=STANDS.run/2;const p=frame.at(u,v);y=stadiumGroundHeight(p.x,p.z);radius=3.5;prefix='stadium_stands_';from=frame.at(u+5,STANDS.run+7);}
+     if(detail.startsWith('garden')){const q=GARDEN_ENTRANCES.find(q=>detail==='garden-ramp'?q.steps===0:q.steps>0);frame=q.frame;u=q.u;v=q.run/2;y=gardenEntryHeight(q,v);radius=q.steps?2.8:4.3;prefix='library_garden_base_';from=frame.at(u+4,detail.endsWith('-lower')?q.run+6:-6);}
+     else if(detail.startsWith('stadium-aisle')){frame=STANDS.frame;u=STANDS.aisles[1];v=STANDS.run/2;const p=frame.at(u,v);y=stadiumGroundHeight(p.x,p.z);radius=3.5;prefix='stadium_stands_';from=frame.at(u+5,detail.endsWith('-lower')?-7:STANDS.run+7);}
      else if(detail==='stadium-side-entry'){const q=SPORTS_SIDE_ENTRIES[0];frame=q.frame;u=q.u;v=-q.run/2;const p=frame.at(u,v);y=stadiumGroundHeight(p.x,p.z);radius=2.5;prefix='stadium_stands_';from=frame.at(u+4,6);}
      else{const q=BACK_ALLEY_BLOCKS[0];frame=q.frame;u=0;v=q.d/2;y=q.h/2;radius=5;prefix='back_alley_base_';from=frame.at(-3,-8);}
-     const p=frame.at(u,v),center=new pc.Vec3(p.x,y,-p.z),direction=new pc.Vec3(from.x-p.x,5, -(from.z-p.z)).normalize(),aspect=app.graphicsDevice.width/app.graphicsDevice.height;
+     const p=frame.at(u,v),center=new pc.Vec3(p.x,y,-p.z),direction=new pc.Vec3(from.x-p.x,detail.endsWith('-lower')?2:5, -(from.z-p.z)).normalize(),aspect=app.graphicsDevice.width/app.graphicsDevice.height;
      const vertical=camera.camera.fov*Math.PI/360,horizontal=Math.atan(Math.tan(vertical)*aspect),distance=radius/Math.sin(Math.min(vertical,horizontal))*1.1;
      camera.setPosition(center.clone().add(direction.mulScalar(distance)));camera.lookAt(center);
      const targets=base.children.filter(e=>e.name.startsWith(prefix));if(!targets.length)throw Error(`${detail}: missing target`);
