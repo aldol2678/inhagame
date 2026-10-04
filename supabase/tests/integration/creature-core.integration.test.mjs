@@ -42,7 +42,7 @@ test('Creature species DB mirror equals code Registry', () => {
   assert.deepEqual(db, code);
 });
 
-test('Creature P0 keeps forms and evolution empty while forward bridge extensions remain allowed', () => {
+test('Creature Core mirrors committed forms while evolution stays empty and forward bridges remain allowed', () => {
   const forms = JSON.parse(query(
     "select coalesce(json_agg(json_build_object('form_id',form_id,'species_id',species_id,'status',status,'definition_version',definition_version) order by form_id), '[]') from private.world_creature_form_catalog"
   ));

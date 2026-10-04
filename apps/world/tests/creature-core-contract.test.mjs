@@ -14,22 +14,29 @@ import {
   validateCreaturePartyShape
 } from '../src/creature/creature-core-contract.js';
 
-test('Creature Core P0 preserves four species identities without activating forms or gameplay', () => {
+test('Creature Core keeps four species identities with duck.base as the first active form', () => {
   assert.deepEqual(CREATURE_SPECIES_REGISTRY.list().map(item => item.speciesId), [
     'creature.species.duck',
     'creature.species.pageling',
     'creature.species.volti',
     'creature.species.porong'
   ]);
-  assert.ok(CREATURE_SPECIES_REGISTRY.list().every(
-    item => item.status === CREATURE_DEFINITION_STATUS.COMING_SOON
+  assert.equal(CREATURE_SPECIES_REGISTRY.get('creature.species.duck').status, CREATURE_DEFINITION_STATUS.ACTIVE);
+  assert.ok(['creature.species.pageling','creature.species.volti','creature.species.porong'].every(
+    id => CREATURE_SPECIES_REGISTRY.get(id).status === CREATURE_DEFINITION_STATUS.COMING_SOON
   ));
-  assert.equal(CREATURE_FORM_REGISTRY.size, 0);
+  assert.equal(CREATURE_FORM_REGISTRY.size, 1);
+  assert.deepEqual(CREATURE_FORM_REGISTRY.get('creature.form.duck.base'), {
+    formId: 'creature.form.duck.base',
+    speciesId: 'creature.species.duck',
+    status: 'ACTIVE',
+    definitionVersion: 1
+  });
   assert.equal(CREATURE_ACTIVITY_BRIDGE_REGISTRY.size, 0);
   assert.equal(CREATURE_EVOLUTION_RULE_REGISTRY.size, 0);
   assert.deepEqual(creatureSpeciesAuthorityRow(CREATURE_SPECIES_REGISTRY.get('creature.species.duck')), {
     species_id: 'creature.species.duck',
-    status: 'COMING_SOON',
+    status: 'ACTIVE',
     definition_version: 1
   });
 });

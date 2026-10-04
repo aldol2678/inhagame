@@ -150,6 +150,7 @@ import { createBiryongRealmScene } from "./biryong/biryong-realm-renderer.js";
 import { createBiryongRealmWorldAdapter } from "./biryong/biryong-realm-world-adapter.js";
 import { createBiryongRealmTransition } from "./biryong/biryong-realm-transition.js";
 import { createBiryongStationTransitInteraction } from "./biryong/biryong-station-transit-interaction.js";
+import { getBiryongRealmPlaceZone } from "./biryong/biryong-village-layout.js";
 import { WORLD_REGION_ID } from "./regions/world-region-registry.js";
 import { INPUT_FOCUS_POLICY, createInputFocusManager } from "./input/input-focus-manager.js";
 import { bindInputFocusRuntime } from "./input/input-focus-runtime.js";
@@ -1524,7 +1525,8 @@ const syncAudio = () => {
   if (!worldAudio) return;
   const space = lobbyWorld.active || lobbyTransition.active ? "lobby"
     : biryongRealm?.inBiryong ? "biryong-realm" : rooms.currentSpace;
-  const placeZoneId = space === "campus" ? places.getCurrentPlaceZone()?.id ?? null : null;
+  const placeZoneId = space === "campus" ? places.getCurrentPlaceZone()?.id ?? null
+    : space === "biryong-realm" ? getBiryongRealmPlaceZone(player.getLocalPosition())?.id ?? null : null;
   const placeId = space === "campus" && isNearBiryong(player.getLocalPosition()) ? BIRYONG_PLACE_ID : null;
   const key = `${space}:${placeZoneId ?? ""}:${placeId ?? ""}`;
   if (key === lastAudioState) return;
@@ -2480,8 +2482,11 @@ app.on("update", (dt) => {
   mcmEventRuntime.update(dt);
   mcmEventUi.update(dt);
   mcmMinigame.update(dt);
-  // Inside a room the campus Place Zone, streaming and tour stay where the player left them.
-  const place=inside?null:places.update(pos);
+  // Campus and Biryong Realm own separate local Place Zone coordinates.
+  // Rooms preserve the outdoor zone where the player left it.
+  const biryongPlace = inBiryong ? getBiryongRealmPlaceZone(pos) : null;
+  if (inBiryong) zoneEl.textContent = biryongPlace?.displayName ?? "비룡권 외곽길";
+  const place = inBiryong ? biryongPlace : rooms.insideRoom ? null : places.update(pos);
   accompany?.update();
   if (!inside) npcTest?.observePlace?.(place?.id, pos);
   if (!inside) core15Funnel?.observePlayerEncounter(getMapSocialMarkers(), pos);
@@ -2803,8 +2808,10 @@ window.__INHAGAME_P0__ = {
   orbit,
   registry,
   places,
-  getPlaceZoneAt:position=>(biryongRealm?.inCampus ?? true)?places.getPlaceZoneAt(position):null,
-  getCurrentPlaceZone:()=>(biryongRealm?.inCampus ?? true)?places.getCurrentPlaceZone():null,
+  getPlaceZoneAt:position=>biryongRealm?.inBiryong
+    ? getBiryongRealmPlaceZone(position) : places.getPlaceZoneAt(position),
+  getCurrentPlaceZone:()=>biryongRealm?.inBiryong
+    ? getBiryongRealmPlaceZone(player.getLocalPosition()) : places.getCurrentPlaceZone(),
   onPlaceZoneChanged:listener=>places.onPlaceZoneChanged(listener),
   streaming,
   viewSettings,
@@ -2907,8 +2914,10 @@ window.__INHAGAME_P0__ = {
       questDegraded: lobbyQuestHighlight.health().degraded
     },
     lobbySpawns: lobbySpawnRegistry.status(spawnProgressContext()),
-    activeZone: places.getCurrentPlaceZone()?.id ?? null, // Transitional debug alias only.
-    placeZone: places.getCurrentPlaceZone()?.id ?? null,
+    activeZone: (biryongRealm?.inBiryong
+      ? getBiryongRealmPlaceZone(player.getLocalPosition()) : places.getCurrentPlaceZone())?.id ?? null,
+    placeZone: (biryongRealm?.inBiryong
+      ? getBiryongRealmPlaceZone(player.getLocalPosition()) : places.getCurrentPlaceZone())?.id ?? null,
     audio: worldAudio?.status() ?? { context: "unavailable", degraded: true },
     renderChunks: streaming.snapshot(),
     streamingMetrics: streaming.getMetrics(),

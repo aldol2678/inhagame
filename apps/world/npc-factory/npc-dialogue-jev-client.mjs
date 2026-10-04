@@ -102,6 +102,12 @@ export function createNpcJevDialogueRouter({
           model: payload.model ?? null,
           confidence: payload.confidence ?? null,
           probabilities: payload.probabilities ?? null,
+          serverLatencyMs: Number.isFinite(payload.shadow?.latencyMs) ? payload.shadow.latencyMs : null,
+          disagreement: {
+            responseSource: payload.decision.responseSource !== baseline.responseSource,
+            intent: payload.decision.intent !== baseline.intent,
+            contextPriority: payload.decision.contextPriority !== (baseline.contextPriorities?.[0] ?? null)
+          },
           latencyMs,
           fallbackReason: null
         });
