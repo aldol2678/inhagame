@@ -13,6 +13,7 @@ try {
     () => window.__INHAGAME_ENVIRONMENT__?.status?.().settled &&
       window.__INHAGAME_ENVIRONMENT__?.status?.().weatherSettled &&
       window.__INHAGAME_NIGHT_LIGHTS__?.status?.().artificialLightFactor >= 0.17 &&
+      window.__INHAGAME_NIGHT_WINDOWS__?.status?.().glowFactor > 0 &&
       window.__INHAGAME_RAIN__?.status &&
       window.__INHAGAME_SNOW__?.status &&
       window.__INHAGAME_POND_WEATHER__?.status?.() &&
@@ -25,6 +26,7 @@ try {
   const initial = await page.evaluate(() => ({
     environment: window.__INHAGAME_ENVIRONMENT__.status(),
     streetLights: window.__INHAGAME_NIGHT_LIGHTS__.status(),
+    nightWindows: window.__INHAGAME_NIGHT_WINDOWS__.status(),
     rain: window.__INHAGAME_RAIN__.status(),
     snow: window.__INHAGAME_SNOW__.status(),
     pond: window.__INHAGAME_POND_WEATHER__.status(),
@@ -71,6 +73,11 @@ try {
   assert.equal(initial.streetLights.bulbCount, initial.streetLights.lampCount);
   assert.ok(initial.streetLights.dynamicBudget >= 0 && initial.streetLights.dynamicBudget <= 4);
   assert.ok(initial.streetLights.activeDynamicLights <= initial.streetLights.dynamicBudget);
+  assert.equal(initial.nightWindows.realLights, 0);
+  assert.equal(initial.nightWindows.drawMeshes, 1);
+  assert.ok(initial.nightWindows.glowFactor > 0 && initial.nightWindows.glowFactor < 0.25);
+  assert.ok(initial.nightWindows.litWindowCount > 0);
+  assert.ok(initial.nightWindows.litWindowCount <= initial.nightWindows.maxWindowBudget);
 
   await page.evaluate(() => {
     window.__INHAGAME_ENVIRONMENT__.setTimeOfDay('day', { immediate: true });
@@ -79,13 +86,15 @@ try {
   await page.waitForFunction(
     () => window.__INHAGAME_ENVIRONMENT__.status().targetWeather === 'CLEAR' &&
       window.__INHAGAME_ENVIRONMENT__.status().weatherSettled &&
-      window.__INHAGAME_SKY__.status().sunVisible === true,
+      window.__INHAGAME_SKY__.status().sunVisible === true &&
+      window.__INHAGAME_NIGHT_WINDOWS__.status().glowFactor === 0,
     null,
     { timeout: TIMEOUT_MS }
   );
   const dayClear = await page.evaluate(() => ({
     environment: window.__INHAGAME_ENVIRONMENT__.status(),
     rain: window.__INHAGAME_RAIN__.status(),
+    nightWindows: window.__INHAGAME_NIGHT_WINDOWS__.status(),
     sky: window.__INHAGAME_SKY__.status()
   }));
   assert.equal(dayClear.environment.targetWeather, 'CLEAR');
@@ -94,6 +103,9 @@ try {
   assert.equal(dayClear.environment.wetness, 0);
   assert.equal(dayClear.rain.rainEnabled, false);
   assert.equal(dayClear.rain.wetGroundEnabled, false);
+  assert.equal(dayClear.nightWindows.enabled, false);
+  assert.equal(dayClear.nightWindows.drawMeshes, 0);
+  assert.equal(dayClear.nightWindows.glowFactor, 0);
   assert.equal(dayClear.sky.atmosphereDrawMeshes, 1);
   assert.equal(dayClear.sky.atmosphereSunsetFactor, 0);
   assert.ok(dayClear.sky.atmosphereHazeStrength > 0);
@@ -178,6 +190,7 @@ try {
       window.__INHAGAME_ENVIRONMENT__.status().targetTime === 'NIGHT' &&
       window.__INHAGAME_ENVIRONMENT__.status().targetWeather === 'RAIN' &&
       window.__INHAGAME_NIGHT_LIGHTS__.status().artificialLightFactor >= 0.999 &&
+      window.__INHAGAME_NIGHT_WINDOWS__.status().glowFactor >= 0.999 &&
       window.__INHAGAME_RAIN__.status().rainIntensity >= 0.999 &&
       window.__INHAGAME_RAIN__.status().wetness >= 0.999 &&
       window.__INHAGAME_SNOW__.status().snowIntensity === 0 &&
@@ -190,6 +203,7 @@ try {
   const nightRain = await page.evaluate(() => ({
     environment: window.__INHAGAME_ENVIRONMENT__.status(),
     streetLights: window.__INHAGAME_NIGHT_LIGHTS__.status(),
+    nightWindows: window.__INHAGAME_NIGHT_WINDOWS__.status(),
     rain: window.__INHAGAME_RAIN__.status(),
     snow: window.__INHAGAME_SNOW__.status(),
     pond: window.__INHAGAME_POND_WEATHER__.status(),
@@ -230,6 +244,11 @@ try {
   assert.ok(nightRain.sky.cloudOpacity > initial.sky.cloudOpacity);
   assert.equal(nightRain.environment.artificialLightFactor, 1);
   assert.equal(nightRain.streetLights.artificialLightFactor, 1);
+  assert.equal(nightRain.nightWindows.enabled, true);
+  assert.equal(nightRain.nightWindows.drawMeshes, 1);
+  assert.equal(nightRain.nightWindows.glowFactor, 1);
+  assert.equal(nightRain.nightWindows.realLights, 0);
+  assert.ok(nightRain.nightWindows.litWindowCount > 0);
   assert.ok(nightRain.environment.exposure < initial.environment.exposure);
   assert.ok(nightRain.streetLights.activeDynamicLights <= nightRain.streetLights.dynamicBudget);
   for (const field of ['tier', 'castShadows', 'shadowResolution', 'shadowDistance'])
@@ -247,6 +266,7 @@ try {
       window.__INHAGAME_SNOW__.status().snowIntensity === 0 &&
       window.__INHAGAME_POND_WEATHER__.status().rainIntensity === 0 &&
       window.__INHAGAME_POND_WEATHER__.status().artificialLightFactor === 0 &&
+      window.__INHAGAME_NIGHT_WINDOWS__.status().glowFactor === 0 &&
       window.__INHAGAME_SKY__.status().sunVisible === true,
     null,
     { timeout: TIMEOUT_MS }
@@ -256,6 +276,7 @@ try {
     rain: window.__INHAGAME_RAIN__.status(),
     snow: window.__INHAGAME_SNOW__.status(),
     streetLights: window.__INHAGAME_NIGHT_LIGHTS__.status(),
+    nightWindows: window.__INHAGAME_NIGHT_WINDOWS__.status(),
     pond: window.__INHAGAME_POND_WEATHER__.status(),
     sky: window.__INHAGAME_SKY__.status()
   }));
@@ -269,6 +290,9 @@ try {
   assert.equal(clear.snow.enabled, false);
   assert.equal(clear.snow.drawMeshes, 0);
   assert.equal(clear.streetLights.artificialLightFactor, 0);
+  assert.equal(clear.nightWindows.enabled, false);
+  assert.equal(clear.nightWindows.drawMeshes, 0);
+  assert.equal(clear.nightWindows.glowFactor, 0);
   assert.equal(clear.pond.rainIntensity, 0);
   assert.equal(clear.pond.artificialLightFactor, 0);
   assert.equal(clear.pond.rippleSpeed, 0.025);
@@ -292,6 +316,7 @@ try {
     () => window.__INHAGAME_ENVIRONMENT__?.status?.().settled &&
       window.__INHAGAME_ENVIRONMENT__?.status?.().weatherSettled &&
       window.__INHAGAME_NIGHT_LIGHTS__?.status?.().artificialLightFactor >= 0.999 &&
+      window.__INHAGAME_NIGHT_WINDOWS__?.status?.().glowFactor >= 0.999 &&
       window.__INHAGAME_RAIN__?.status?.().rainIntensity >= 0.999 &&
       window.__INHAGAME_POND_WEATHER__?.status?.().rainIntensity >= 0.999 &&
       window.__INHAGAME_POND_WEATHER__?.status?.().artificialLightFactor >= 0.999 &&
@@ -303,6 +328,7 @@ try {
   const mobileStatus = await mobile.evaluate(() => ({
     environment: window.__INHAGAME_ENVIRONMENT__.status(),
     streetLights: window.__INHAGAME_NIGHT_LIGHTS__.status(),
+    nightWindows: window.__INHAGAME_NIGHT_WINDOWS__.status(),
     rain: window.__INHAGAME_RAIN__.status(),
     snow: window.__INHAGAME_SNOW__.status(),
     pond: window.__INHAGAME_POND_WEATHER__.status(),
@@ -334,9 +360,15 @@ try {
   assert.ok(mobileStatus.rain.streakBudget <= 96);
   if (mobileStatus.graphics.tier === 'low') assert.equal(mobileStatus.rain.streakBudget, 28);
   assert.equal(mobileStatus.streetLights.artificialLightFactor, 1);
+  assert.equal(mobileStatus.nightWindows.graphicsTier, mobileStatus.graphics.tier);
+  assert.equal(mobileStatus.nightWindows.enabled, true);
+  assert.equal(mobileStatus.nightWindows.drawMeshes, 1);
+  assert.equal(mobileStatus.nightWindows.realLights, 0);
+  assert.ok(mobileStatus.nightWindows.litWindowCount <= mobileStatus.nightWindows.maxWindowBudget);
+  if (mobileStatus.graphics.tier === 'low') assert.ok(mobileStatus.nightWindows.maxWindowBudget <= 160);
   assert.ok(mobileStatus.streetLights.activeDynamicLights <= mobileStatus.streetLights.dynamicBudget);
   assert.deepEqual(smoke.problems, []);
-  console.log('world environment smoke: PASS (atmospheric gradient + sun glow, layered cloud parallax, CLEAR/CLOUDY/FOG/RAIN/SNOW, sky, rain/snow, street lights, wet roads, Inkyung pond, 390px mobile)');
+  console.log('world environment smoke: PASS (atmospheric gradient + sun glow, layered cloud parallax, emissive night windows, CLEAR/CLOUDY/FOG/RAIN/SNOW, sky, rain/snow, street lights, wet roads, Inkyung pond, 390px mobile)');
 } finally {
   await smoke.close();
 }
