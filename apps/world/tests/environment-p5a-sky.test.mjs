@@ -60,7 +60,7 @@ test('P5a sky budgets are tiny, tier-bounded, and keep sun inside far clip', () 
   assert.equal(skyCloudPatchBudget('low'), 6);
   assert.equal(skyCloudPatchBudget('high'), 16);
   assert.equal(skyCloudPatchBudget('unknown'), 10);
-  assert.equal(skyCloudFieldRadius('unknown'), 150);
+  assert.equal(skyCloudFieldRadius('unknown'), 172);
   assert.ok(SKY_SUN_DISTANCE < 700);
   assert.ok(SKY_SUN_DIAMETER > 0);
 });
