@@ -2,12 +2,13 @@
 // and the server (privacy RPC). It sits in the Tour slot (top-left), which rooms hide, so it never
 // overlaps the Mini-map rail on the right or the mobile action buttons at the bottom.
 //
-// Owner:   🏠 내 방 · N명 · [🔒 비공개 | 👥 친구 공개] (tap to switch) · [나가기]
+// Owner:   🏠 내 방 · N명 · [🔒 비공개 | 👥 친구 공개] (tap to switch) · [나가기] · (H3 knock prompt footer)
 // Visitor: 🏠 <owner>의 방 · 방문 중 · 편집 불가 · (주인 부재) · [나가기]
 
 export const ROOM_VISIBILITY_TEXT = Object.freeze({ friends: "👥 친구 공개", private: "🔒 비공개" });
 
-export function createRoomHud({ root, onLeave = () => false, onEdit = null, onSetVisibility = async () => null, doc = document }) {
+// `footer` (Housing H3): a node the HUD keeps as its last child across re-renders (the owner knock prompt).
+export function createRoomHud({ root, onLeave = () => false, onEdit = null, onSetVisibility = async () => null, footer = null, doc = document }) {
   const el = (tag, className, text) => {
     const node = doc.createElement(tag);
     if (className) node.className = className;
@@ -57,6 +58,7 @@ export function createRoomHud({ root, onLeave = () => false, onEdit = null, onSe
     actions.append(leave);
     root.append(actions);
     if (note) root.append(el("small", "room-hud-note", note));
+    if (footer && owner) root.append(footer);
   }
 
   async function toggleVisibility(next) {
