@@ -52,7 +52,7 @@ async function campusRuntime(smoke,name){
       const camera=d.app.root.findByName('Camera');camera.setPosition(260,260,300);camera.lookAt(40,0,-30);
       return {renderer:'WebGL2',scaleSign:base.worldScaleSign,baseMeshes:envelopes().length,logicalBuildings:FACILITIES.filter(f=>f.kind==='building').length,retained,cycles,terrainMeshes:base.children.filter(e=>e.name.startsWith('campus_terrain')).length};
     });
-    assert.equal(lifecycle.scaleSign,-1);assert.equal(lifecycle.baseMeshes,42);assert.equal(lifecycle.logicalBuildings,21);
+    assert.equal(lifecycle.scaleSign,-1);assert.equal(lifecycle.baseMeshes,40);assert.equal(lifecycle.logicalBuildings,21);
     assert.ok(lifecycle.retained.every(b=>b.present));assert.equal(lifecycle.terrainMeshes,5);assert.equal(lifecycle.cycles.length,3);
     await page.addStyleTag({content:'body > :not(#application):not(script):not(style){visibility:hidden!important}'});
     await page.evaluate(()=>new Promise(resolve=>{const app=window.__INHAGAME_P0__.app;app.autoRender=false;app.once('postrender',()=>{app.graphicsDevice.gl.finish();resolve();});app.renderNextFrame=true;}));
@@ -71,8 +71,8 @@ try{
       await Promise.race([page.waitForFunction(()=>window.__NEUTRAL_BUILDING_QA__?.ready||window.__NEUTRAL_BUILDING_QA__?.error,null,{timeout:TIMEOUT_MS}),fatal]);
       assert.equal(await page.evaluate(()=>window.__NEUTRAL_BUILDING_QA__.error),undefined);
       entry.stats=await page.evaluate(()=>window.__NEUTRAL_BUILDING_QA__.stats());
-      assert.equal(entry.stats.buildings,21);assert.equal(entry.stats.meshes,42);assert.equal(entry.stats.materials,2);
-      assert.equal(entry.stats.detailMeshes,42);assert.equal(entry.stats.detailMaterials,2);assert.equal(entry.stats.detailBias,true);
+      assert.equal(entry.stats.buildings,20);assert.equal(entry.stats.meshes,40);assert.equal(entry.stats.materials,2);
+      assert.equal(entry.stats.detailMeshes,40);assert.equal(entry.stats.detailMaterials,2);assert.equal(entry.stats.detailBias,true);
       assert.equal(entry.stats.castShadows,true);assert.ok(entry.stats.groups.every(g=>g.meshes===2));
       entry.rebuild=await page.evaluate(()=>window.__NEUTRAL_BUILDING_QA__.rebuildCheck());
       assert.deepEqual(entry.rebuild,{cycles:3,materialReuse:true,streamedFacadeDuplicates:0});

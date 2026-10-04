@@ -147,7 +147,7 @@ test('the renderer consumes the WorldForge bridge and streams facade decals only
   assert.match(source,/if\(tier==='BASE'&&!neutral\)for/);
   assert.match(source,/if\(tier==='DETAIL'&&!neutral\)/);
   assert.match(source,/if\(tier==='NEAR'&&!neutral\)for/);
-  assert.match(source,/materialForColor:tier==='NEAR'\?neutralFacadeSurface:surface/);
+  assert.match(source,/materialForColor:tier==='NEAR'\?\(photoStudent\?photoLandmarkSurface:neutralFacadeSurface\):surface/);
 });
 
 test('streamed neutral facade has bounded exact-boundary decals and no roof or wall replacement', { skip:!ready }, () => {

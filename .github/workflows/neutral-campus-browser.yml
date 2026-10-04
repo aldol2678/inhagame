@@ -3,11 +3,16 @@ on:
   pull_request:
     paths:
       - 'apps/world/src/neutral-campus-buildings.js'
+      - 'apps/world/src/photo-*.js'
+      - 'apps/world/src/main-hall-blockout.js'
+      - 'apps/world/tests/photo-*.test.mjs'
+      - 'apps/world/tests/browser/photo-landmarks-*'
       - 'apps/world/src/neutral-facade-materials.js'
       - 'apps/world/src/worldforge-campus-building-import.js'
       - 'apps/world/src/facility-blockout.js'
       - 'apps/world/src/facility-mesh-batch.js'
       - 'apps/world/data/reality/worldforge-campus-buildings.*.json'
+      - 'apps/world/data/reality/photo-landmarks.provenance.json'
       - 'apps/world/tests/neutral-campus-buildings.test.mjs'
       - 'apps/world/tests/browser/neutral-campus-buildings-*'
       - '.github/workflows/neutral-campus-browser.yml'
@@ -29,10 +34,18 @@ jobs:
         working-directory: apps/world/tests/browser
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Verify geometry, colliders and existing main2 contracts
-        run: node --test apps/world/tests/neutral-campus-buildings.test.mjs apps/world/tests/campus-facilities.test.mjs apps/world/tests/tml-main2-*.test.mjs
+        run: node --test apps/world/tests/neutral-campus-buildings.test.mjs apps/world/tests/photo-*.test.mjs apps/world/tests/campus-facilities.test.mjs apps/world/tests/tml-main2-*.test.mjs
       - name: Verify real PlayCanvas mesh/material lifecycle without pixels
         run: node apps/world/tests/browser/neutral-campus-buildings-null-smoke.mjs
-      - name: Render all buildings and actual campus at three viewports
+      - name: Verify actual photo landmark engine lifecycle
+        run: node apps/world/tests/browser/photo-landmarks-null-smoke.mjs
+      - name: Render photo landmarks in both coordinate modes
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+          WORLD_PHOTO_QA_OUTPUT: test-results/neutral-campus/photo-landmarks
+        run: node apps/world/tests/browser/photo-landmarks-smoke.mjs
+      - name: Render remaining generic buildings and actual campus at three viewports
         env:
           WORLD_SMOKE_DISABLE_WEBGPU: '1'
           WORLD_SMOKE_BROWSER: chrome

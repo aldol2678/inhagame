@@ -1,0 +1,42 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Photo-informed landmark candidate</title>
+<script type="importmap">{"imports":{"playcanvas":"https://cdn.jsdelivr.net/npm/playcanvas@2.22.4/build/playcanvas.mjs"}}</script>
+<style>body{margin:0;background:#c9d4df;color:#233038;font:14px system-ui;display:grid;grid-template-rows:auto minmax(0,1fr);height:100vh;overflow:hidden}canvas{display:block;width:100%;height:100%;min-height:0;grid-row:2}aside{grid-row:1;background:#fffffff0;padding:8px 16px}h1{font-size:15px;margin:0 0 4px}p{margin:2px 0;font-size:11px}</style></head><body><canvas id="stage"></canvas><aside><h1 id="label">Photo-informed landmarks</h1><p>Observed facades · Existing geometry bounds</p><p>Draft QA · Estimated detail · No source photos</p></aside>
+<script type="module">
+import * as pc from 'playcanvas';
+import {buildCampusFacilities} from '/src/facility-blockout.js';
+import {buildMainHallBlockout} from '/src/main-hall-blockout.js';
+import {photoLandmarkView} from './photo-landmarks-views.js';
+import {surface} from '/src/campus-render-kit.js';
+try{
+ const canvas=document.getElementById('stage');canvas.width=canvas.clientWidth;canvas.height=canvas.clientHeight;
+ const device=await pc.createGraphicsDevice(canvas,{deviceTypes:[pc.DEVICETYPE_WEBGL2],antialias:true});
+ const app=new pc.Application(canvas,{graphicsDevice:device});app.scene.ambientLight=new pc.Color(.62,.62,.62);
+ const world=new pc.Entity('PhotoWorld');app.root.addChild(world);
+ const ids=['bldg_07','bldg_01','bldg_jungseok'],groups=new Map();
+ for(const id of ids){const group=new pc.Entity(id+'_qa');world.addChild(group);groups.set(id,group);
+  for(const tier of ['BASE','NEAR','DETAIL']){const node=new pc.Entity(tier);group.addChild(node);if(id==='bldg_07')buildCampusFacilities(node,[id],tier);else buildMainHallBlockout(node,[id],tier);}}
+ const light=new pc.Entity('Sun');light.addComponent('light',{type:'directional',intensity:1.1,castShadows:false});light.setLocalEulerAngles(40,35,0);app.root.addChild(light);
+ const floor=new pc.Entity('LocalPreviewGround');floor.addComponent('render',{type:'plane'});floor.render.material=surface('#819574');floor.setLocalScale(600,1,600);floor.setPosition(60,-.04,0);app.root.addChild(floor);
+ const camera=new pc.Entity('Camera');camera.addComponent('camera',{farClip:1000,fov:48,clearColor:new pc.Color(.79,.84,.89)});app.root.addChild(camera);
+ const bounds=new Map([...groups].map(([id,group])=>[id,group.findComponents('render').flatMap(r=>r.meshInstances).flatMap(mesh=>{
+  const box=mesh.aabb,min=box.getMin(),max=box.getMax();return [min.x,max.x].flatMap(x=>[min.y,max.y].flatMap(y=>[min.z,max.z].map(z=>[x,y,z])));
+ })]));
+ let reflection=-1,activePoints=[];
+ function view(id,reflected=true,{details=true,hidden=false,mode='full'}={}){
+  reflection=reflected?-1:1;world.setLocalScale(1,1,reflection);world.enabled=!hidden;
+  for(const [key,group] of groups){group.enabled=key===id;group.findByName('NEAR').enabled=details;group.findByName('DETAIL').enabled=details;}
+  const {position:p,target:t,points}=photoLandmarkView(id,canvas.width/canvas.height,{points:bounds.get(id),mode});activePoints=points;
+  camera.setPosition(p[0],p[1],p[2]*reflection);camera.lookAt(t[0],t[1],t[2]*reflection);
+  document.getElementById('label').textContent=id+' · '+(mode==='canopy'?'canopy underside':details?'full silhouette':'BASE envelope');app.renderNextFrame=true;
+ }
+ function framing(){
+  const projected=activePoints.map(([x,y,z])=>camera.camera.worldToScreen(new pc.Vec3(x,y,z*reflection)));
+  const a=document.querySelector('aside').getBoundingClientRect(),c=canvas.getBoundingClientRect();
+  return {minX:Math.min(...projected.map(p=>p.x/canvas.width)),maxX:Math.max(...projected.map(p=>p.x/canvas.width)),minY:Math.min(...projected.map(p=>p.y/canvas.height)),maxY:Math.max(...projected.map(p=>p.y/canvas.height)),points:activePoints.length,captionOverlapsCanvas:a.bottom>c.top+.5};
+ }
+ function stats(){const groupsList=[];for(const [id,group] of groups){const tiers={};for(const tier of ['BASE','NEAR','DETAIL']){const meshes=group.findByName(tier).findComponents('render').flatMap(r=>r.meshInstances);tiers[tier]={meshes:meshes.length,vertices:meshes.reduce((n,m)=>n+m.mesh.vertexBuffer.numVertices,0)};}groupsList.push({id,tiers});}return {scaleSign:world.worldScaleSign,groups:groupsList};}
+ let previous=null;
+ function pixels({compare=false}={}){return new Promise(resolve=>{app.autoRender=false;app.once('postrender',()=>{const gl=device.gl,width=gl.drawingBufferWidth,height=gl.drawingBufferHeight,data=new Uint8Array(width*height*4),old=gl.getParameter(gl.READ_FRAMEBUFFER_BINDING);gl.finish();try{gl.bindFramebuffer(gl.READ_FRAMEBUFFER,null);gl.readPixels(0,0,width,height,gl.RGBA,gl.UNSIGNED_BYTE,data);}finally{gl.bindFramebuffer(gl.READ_FRAMEBUFFER,old);}let changed=0,hash=2166136261;for(let i=0;i<data.length;i+=4){if(compare&&previous&&Math.abs(data[i]-previous[i])+Math.abs(data[i+1]-previous[i+1])+Math.abs(data[i+2]-previous[i+2])>15)changed++;for(let k=0;k<3;k++)hash=Math.imul((hash^data[i+k])>>>0,16777619);}previous=data;resolve({width,height,changed,hash:hash>>>0,glError:gl.getError(),scaleSign:world.worldScaleSign});});app.renderNextFrame=true;});}
+ window.__PHOTO_LANDMARK_QA__={app,ids,view,pixels,stats,framing};app.start();view('bldg_07');window.__PHOTO_LANDMARK_QA__.ready=true;
+}catch(error){window.__PHOTO_LANDMARK_QA__={error:error.stack||String(error)};throw error;}
+</script></body></html>

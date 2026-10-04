@@ -7,7 +7,10 @@
     "changesetId": "chg_eaa29a3ddf25f7d38bd8d683479ed947",
     "version": 1,
     "lifecycleStatus": "DRAFT",
-    "structuralValidation": { "valid": true, "issues": [] },
+    "structuralValidation": {
+      "valid": true,
+      "issues": []
+    },
     "candidateDigest": "sha256:9c44665aa56ecef0956f48da8d843c185eb1f699602aa2436d73b2032f3b5047",
     "readbackSha256": "2aee45b8a94d0d34b69d15835f64ff6ad3c681e9a9e88115a8d63a5a8205b997",
     "importedLogicalBuildings": 21,
@@ -20,10 +23,16 @@
     "promotedOrAppliedToProduction": false
   },
   "appearance": {
-    "source": "New deterministic neutral procedural geometry; no private facade recipes, images, textures or model assets",
-    "inputs": ["public OSM rings and courtyard parts", "existing gameplay height estimates", "public floor counts", "stable public building IDs"],
-    "accuracy": "Generic illustrative facades, not surveyed or exact real-building likeness",
+    "source": "New deterministic neutral procedural geometry; student-center appearance has a separately documented owner-provided qualitative photo-reference refinement, without raw images or textures",
+    "inputs": [
+      "public OSM rings and courtyard parts",
+      "existing gameplay height estimates",
+      "public floor counts",
+      "stable public building IDs",
+      "bldg_07 only: qualitative architectural observations, documented in photo-landmarks.provenance.json"
+    ],
+    "accuracy": "20 generic illustrative facades; bldg_07 photo-informed approximate facade. No surveyed dimensions or exact likeness asserted",
     "runtimeUnits": "Render rings/parts come from this validated local manifest, converted exactly once by x=xWF/2, z=-zWF/2-90, y=yWF/2; runtime parity checks reject divergence from unchanged canonical gameplay geometry",
-    "residency": "Two coarse BASE batches per building; two shared depth-biased window/trim batches streamed at NEAR; no additional DETAIL geometry"
+    "residency": "20 generic buildings: 40 BASE and 40 shared-material NEAR batches. Student center: 2 BASE batches and 5 shared-material NEAR batches. No additional student/neutral DETAIL geometry"
   }
 }

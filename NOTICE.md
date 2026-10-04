@@ -30,15 +30,25 @@ replaced with uniform cuboids, neutral surfaces or regular procedural cells. The
 objects do not claim to reproduce actual buildings or businesses. User-authored field-visit
 contracts that were separately reviewed remain distinct from withheld third-party imagery.
 
-Neutral campus building facades: the 21 campus facilities now support fresh deterministic
-window rhythms, using only public OSM outlines, existing gameplay height estimates and
-public floor counts. These generic procedural facades are not image-derived and do not
-claim to reproduce the real buildings. The public WorldForge interchange manifest supplies
+Neutral campus building generator: the 21 campus facilities support fresh deterministic
+window rhythms using public OSM outlines, existing gameplay height estimates and public
+floor counts. That generic fallback is not image-derived. In the current local candidate,
+20 retain it and the student center uses the photo-informed override documented below. The public WorldForge interchange manifest supplies
 render geometry after parity checks against unchanged gameplay/collision geometry; its
 structural validation remains a Draft and is not World promotion or Production deployment.
-See apps/world/data/reality/worldforge-campus-buildings.provenance.json. Main hall, library,
-surrounding shop blocks, source assets and their existing notices are unchanged.
+See apps/world/data/reality/worldforge-campus-buildings.provenance.json. Main hall and
+library use the bounded photo-informed refinements below; surrounding shop blocks,
+source assets and their existing notices are unchanged.
 
 NPC public fixture: fictional batch IDs, SIM-prefixed student numbers and generated visual
 profiles only. The fixture manifest explicitly disclaims human review/approval. No private
 roster, review worksheet or private decision record is redistributed.
+
+## Owner-supplied field-reference observations
+
+A local landmark refinement uses architectural observations from the owner's
+2026-10-01-labeled field-reference PDF for the student center, main hall and
+Jeongseok library. Only newly authored procedural geometry is included; raw photos,
+PDFs, textures, identifiable people/plates and institutional or contractor artwork
+are not distributed. This is not a survey, a claim of all-photo rights clearance,
+or trademark permission. See `docs/implementation/photo-landmark-refinement.md`.

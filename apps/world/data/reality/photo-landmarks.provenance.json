@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "status": "LOCAL_PHOTO_INFORMED_PRESENTATION_CANDIDATE",
+  "dependencyCommit": "d2b201d8baa8294069498a793102c92fde411e48",
+  "source": {
+    "kind": "owner-provided private field-reference PDF compilation",
+    "documentDateLabel": "2026-10-01",
+    "pdfPages": 11,
+    "embeddedPhotoCount": 16,
+    "imagePixelsInspected": true,
+    "captureTimestampIndependentlyVerified": false,
+    "dimensionsDerivedFromPixels": false,
+    "rawReferenceDistributed": false,
+    "rightsStatus": "Owner requested reference use for local refinement; incidental third-party rights and broader publication rights are not adjudicated"
+  },
+  "scope": [
+    {"id":"bldg_07","photos":[11,12],"pdfPages":[8],"observations":["tan segmented front","red stair end with pale zigzag bands","two upper window ribbons","dark terrace recesses","opposite rounded bay vertical glazing"]},
+    {"id":"bldg_01","photos":[3,7],"pdfPages":[4,6],"observations":["pale cladding grid","repeated piers","twin teal vertical glass frames"]},
+    {"id":"bldg_jungseok","photos":[14,5,6],"pdfPages":[10,5],"observations":["central teal curtain wall","upturned pale roof cap","warm gridded canopy underside"]}
+  ],
+  "geometryAuthority": "Unchanged public canonical footprints, gameplay heights, existing facade frames and existing library roof-part envelopes; WorldForge import preserved for bldg_07",
+  "appearanceAccuracy": "Qualitative photo-informed, approximate fitted presentation only; dimensions, band spacing, edge attachment and color calibration are not surveyed",
+  "nonGoals": ["unseen elevations","tower or dormitory identification","new gate geometry","new walkable terraces or stairs","new colliders","raw photo or PDF distribution","institutional CI or incidental identity reproduction"],
+  "worldforgeChanged": false,
+  "productionChanged": false
+}
