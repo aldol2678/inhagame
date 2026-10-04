@@ -134,7 +134,7 @@ function addPanel(production = false, externalContextAction = false) {
   return panel;
 }
 export async function createNpcDevRuntime({ app, campusRoot, player, orbit, production = false, aiPilot = false,
-  sharedSchedulePreview = false,
+  sharedSchedulePreview = false, worldClock = null,
   socialEnabled = false, socialPreview = false, socialBehaviorPreview = false,
   observedConversationEnabled = false, isObservedConversationBlocked = () => true,
   getBusyNpcIds = () => [], onNpcTalk = () => {},
@@ -158,9 +158,9 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
   const { batch, roster, hash, expansion: populationExpansion } = await loadNpcPopulation({
     onExpansionError: error => console.warn('Campus NPC expansion unavailable; continuing with the base roster:', error)
   });
-  const worldClock = sharedSchedulePreview ? createNpcWorldClock() : null;
+  worldClock = sharedSchedulePreview ? (worldClock ?? createNpcWorldClock()) : null;
   if (worldClock) {
-    await worldClock.sync();
+    if (worldClock.status().state !== 'SYNCED') await worldClock.sync();
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') void worldClock.sync();
     });
