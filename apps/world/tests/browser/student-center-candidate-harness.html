@@ -1,0 +1,28 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Student center integrated candidate</title>
+<script type="importmap">{"imports":{"playcanvas":"./node_modules/playcanvas/build/playcanvas.mjs"}}</script>
+<style>body{margin:0;background:#d7e0e4;color:#24333e;font:14px system-ui;display:grid;grid-template-rows:auto minmax(0,1fr);height:100vh}aside{padding:12px 18px;background:#fbfbf5}h1{font-size:18px;margin:0 0 7px}p{margin:5px 0;font-size:12px}button{padding:8px 12px;margin:2px;border:1px solid #9badaf;border-radius:6px;background:#fff;color:#23343f}canvas{width:100%;height:100%;min-height:0;display:block}#status{font-variant-numeric:tabular-nums}</style></head><body><aside><h1>Student center · v09 + photo integration</h1><p>Isolated PlayCanvas candidate · Historical/gameplay interior · Production placement pending</p><button data-view="exterior">Exterior</button><button data-view="interior1">1F historic interior</button><button data-view="interior2">2F historic interior</button><button id="reflection">Production reflection</button><button id="detail">Toggle near detail</button><button id="walk">Test stair walk</button><p id="status">Loading</p></aside><canvas id="stage"></canvas>
+<script type="module">
+import * as pc from 'playcanvas';
+import {buildStudentCenterCandidate} from '../../src/student-center-candidate-renderer.js';
+import {studentCandidateFrame,stepStudentCandidateWalk} from '../../src/student-center-candidate.js';
+import {surface} from '../../src/campus-render-kit.js';
+try{
+const canvas=document.querySelector('canvas'),status=document.querySelector('#status');canvas.width=canvas.clientWidth;canvas.height=canvas.clientHeight;
+const device=await pc.createGraphicsDevice(canvas,{deviceTypes:[pc.DEVICETYPE_WEBGL2],antialias:true});const app=new pc.Application(canvas,{graphicsDevice:device});app.scene.ambientLight=new pc.Color(.65,.65,.65);
+const root=new pc.Entity('CandidateWorld');app.root.addChild(root);let sign=-1,active='exterior',near=true;root.setLocalScale(1,1,sign);
+const groups=new Map();for(const name of ['exterior','interior1','interior2']){const g=new pc.Entity(name);root.addChild(g);groups.set(name,g);for(const tier of ['BASE','NEAR','DETAIL'])buildStudentCenterCandidate(g,tier,{view:name==='exterior'?'exterior':'interior',floor:name==='interior2'?4:0});}
+const sun=new pc.Entity('Sun');sun.addComponent('light',{type:'directional',intensity:1.1,castShadows:false});sun.setLocalEulerAngles(45,30,0);app.root.addChild(sun);
+const ground=new pc.Entity('PreviewGround');ground.addComponent('render',{type:'plane'});ground.render.material=surface('#819575');ground.setLocalScale(180,1,180);ground.setLocalPosition(147,-.10,-17);app.root.addChild(ground);
+const camera=new pc.Entity('Camera');camera.addComponent('camera',{farClip:500,fov:48,clearColor:new pc.Color(.79,.85,.89)});app.root.addChild(camera);const frame=studentCandidateFrame();
+const worldPoint=p=>{const q=frame.toWorld(p);return [q[0],q[1],q[2]*sign];};
+function view(name=active){active=name;for(const [key,g] of groups){g.enabled=key===name;g.findByName('bldg_07_candidate_NEAR').enabled=near;}
+root.setLocalScale(1,1,sign);const aspect=canvas.width/canvas.height,fit=Math.max(1,1.6/aspect);
+const p=name==='exterior'?[55*fit,43*fit,90*fit]:name==='interior1'?[0,55*fit,44*fit]:[0,60*fit,40*fit];const t=name==='exterior'?[0,10,-3]:[0,name==='interior1'?0:4,-7];camera.setPosition(...worldPoint(p));camera.lookAt(...worldPoint(t));status.textContent=name+' · '+(sign===-1?'production −Z':'unreflected control')+' · '+(near?'BASE + NEAR':'BASE only')+' · '+(name==='exterior'?'6-floor stepbacks / 16 exterior steps':'historical conceptual inspection');app.renderNextFrame=true;
+}
+function stats(){return [...groups].map(([view,g])=>({view,meshes:g.findComponents('render').flatMap(r=>r.meshInstances).length,vertices:g.findComponents('render').flatMap(r=>r.meshInstances).reduce((n,m)=>n+m.mesh.vertexBuffer.numVertices,0)}));}
+function walk(){let s={level:0,elevation:0},samples=0;for(let z=30;z>=3;z-=.1){s=stepStudentCandidateWalk(s,0,z);if(s.blocked)throw Error('Exterior walk blocked');samples++;}for(let z=3;z<=30;z+=.1){s=stepStudentCandidateWalk(s,0,z);if(s.blocked)throw Error('Exterior return blocked');samples++;}status.textContent=`Stair walk: ${samples} sampled points, returned to ${s.elevation}m. Historical candidate only`;return {samples,...s};}
+let previous;async function pixels(){return new Promise(resolve=>{app.autoRender=false;app.once('postrender',()=>{const gl=device.gl,w=gl.drawingBufferWidth,h=gl.drawingBufferHeight,data=new Uint8Array(w*h*4);gl.finish();gl.readPixels(0,0,w,h,gl.RGBA,gl.UNSIGNED_BYTE,data);let hash=2166136261,changed=0;for(let i=0;i<data.length;i+=4){if(previous&&Math.abs(data[i]-previous[i])+Math.abs(data[i+1]-previous[i+1])+Math.abs(data[i+2]-previous[i+2])>15)changed++;for(let k=0;k<3;k++)hash=Math.imul(hash^data[i+k],16777619);}previous=data;resolve({hash:hash>>>0,changed,glError:gl.getError(),width:w,height:h});});app.renderNextFrame=true;});}
+for(const b of document.querySelectorAll('[data-view]'))b.onclick=()=>view(b.dataset.view);document.querySelector('#reflection').onclick=()=>{sign*=-1;view();};document.querySelector('#detail').onclick=()=>{near=!near;view();};document.querySelector('#walk').onclick=walk;
+window.__STUDENT_CANDIDATE_QA__={view,stats,walk,pixels,ready:true};app.start();view();
+}catch(e){document.querySelector('#status').textContent='ERROR: '+e.message;window.__STUDENT_CANDIDATE_QA__={error:String(e.stack||e)};throw e;}
+</script></body></html>

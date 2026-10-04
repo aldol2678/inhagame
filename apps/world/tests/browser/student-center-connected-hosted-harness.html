@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Student center connected candidate · isolated hosted QA</title>
+<script type="importmap">{"imports":{"playcanvas":"https://cdn.jsdelivr.net/npm/playcanvas@2.22.4/build/playcanvas.mjs"}}</script>
+<style>
+*{box-sizing:border-box}body{margin:0;height:100vh;overflow:hidden;display:grid;grid-template-rows:auto minmax(0,1fr);font:12px system-ui;color:#233038;background:#c9d4df}
+aside{padding:7px 12px;background:#fffdf5}h1{font-size:15px;margin:0 0 3px}p{margin:2px 0;font-size:11px}canvas{display:block;width:100%;height:100%;min-height:0;outline:none}select,button{font:inherit;padding:3px;margin:3px 3px 0 0}#status{font-variant-numeric:tabular-nums}
+</style>
+<script id="qa-plan" type="application/json">
+{
+  "actor":{"radiusMeters":0.48,"diameterMeters":0.96,"heightMeters":1.75},
+  "tickMeters":0.1,
+  "ticksPerFrame":4,
+  "route":[
+    {"at":[-14,14],"label":"start","view":"exterior"},
+    {"at":[-14,10],"label":"entry crossed","view":"entry"},
+    {"at":[-14,1],"label":"first-floor corridor"},
+    {"at":[-24,1],"label":"Core A base"},
+    {"at":[-24,-7],"label":"Core A middle","view":"core-stair"},
+    {"at":[-24,-17],"label":"Core A upper landing"},
+    {"at":[-19.5,-17],"label":"rear cafe doorway","view":"rear-door"},
+    {"at":[-17.3,-17],"label":"rear cafe inside"},
+    {"at":[-17.3,-3],"label":"food hall aisle"},
+    {"at":[0,-3],"label":"food hall front","view":"foodhall"},
+    {"at":[0,0.8],"label":"upper glass door and seam"},
+    {"at":[0,9],"label":"terrace","view":"terrace"},
+    {"at":[0,20],"label":"exterior stair middle","view":"exterior-stair"},
+    {"at":[0,29],"label":"exterior stair foot"},
+    {"at":[-14,29],"label":"ground return"},
+    {"at":[-14,14],"label":"returned to start"}
+  ],
+  "views":{
+    "exterior":{"position":[58,46,80],"target":[0,7,-2],"full":true},
+    "entry":{"position":[-14,1.7,14.2],"target":[-14,1.05,9]},
+    "core-stair":{"position":[-24,3.25,-3.3],"target":[-24,2.8,-9]},
+    "rear-door":{"position":[-24,5.6,-17],"target":[-19.5,4.95,-17]},
+    "foodhall":{"position":[0,6.1,-1.2],"target":[0,4.9,-10]},
+    "terrace":{"position":[0,6.3,12],"target":[0,4.9,4]},
+    "exterior-stair":{"position":[4,5.7,26],"target":[0,2.8,20]}
+  }
+}
+</script>
+</head><body>
+<aside><h1 id="heading">Student center · connected candidate</h1>
+<p>Historical / conceptual gameplay interior; inferred doors, not a surveyed current floor plan</p>
+<p>Original direction · approved offset [+2.2, −7.15] WU · 1 WU = 2 m · radius 0.48 m / height 1.75 m</p>
+<p>Reference only: orange = canonical footprint, blue = frozen pond rim, cyan = fixed shop anchor</p>
+<select id="space" aria-label="Coordinate mode"><option value="world">World coordinates</option><option value="local">Local coordinates</option></select>
+<select id="view" aria-label="Inspection view"></select><button id="reset">Reset at entry</button>
+<p id="status">Preparing renderer</p><p>Hosted-input QA: budgeted arrow keys use local plan directions, 0.1 m ticks, up to 4 per rendered frame</p>
+</aside><canvas id="stage" tabindex="0" aria-label="Connected candidate rendered scene"></canvas>
+<script type="module">
+import * as pc from 'playcanvas';
+import {buildStudentCenterConnected} from '/src/student-center-connected-renderer.js';
+import {createStudentConnectedWalk,studentConnectedFrame,STUDENT_CONNECTED} from '/src/student-center-connected.js';
+import {studentCandidateFrame} from '/src/student-center-candidate.js';
+import {FACILITIES} from '/src/campus-facilities.js';
+import {POND_RING} from '/src/roadview-layout.js';
+import {studentCenterFrontPoint} from '/src/student-center-front.js';
+import {surface} from '/src/campus-render-kit.js';
+
+try {
+  const plan=JSON.parse(document.getElementById('qa-plan').textContent);
+  const canvas=document.getElementById('stage'),status=document.getElementById('status');
+  canvas.width=canvas.clientWidth;canvas.height=canvas.clientHeight;
+  const device=await pc.createGraphicsDevice(canvas,{deviceTypes:[pc.DEVICETYPE_WEBGL2],antialias:true});
+  const app=new pc.Application(canvas,{graphicsDevice:device});
+  app.scene.ambientLight=new pc.Color(.72,.72,.72);
+  const frame=studentConnectedFrame(),baseFrame=studentCandidateFrame();
+  const reflectedParent=new pc.Entity('NegativeZParentOnly');app.root.addChild(reflectedParent);
+  reflectedParent.setLocalScale(1, 1, -1);
+  let reflection=-1,space='world',candidate=null,state=null,walker=null,activeView='exterior',disposed=false;
+  let remaining=0,inputTicks=0,blockedTicks=0,trustedDowns=0,trustedUps=0,maxElevation=0;
+  const keys=new Set(),trace=[],lifecycle=[];
+  const direction={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]};
+  const localState=()=>space==='local'?[state.x,state.elevation,state.z]:frame.toLocal([state.x,state.elevation,state.z]);
+  const meshes=node=>node.findComponents('render').flatMap(r=>r.meshInstances);
+
+  function destroyCandidate() {
+    if(!candidate)return null;
+    const old=candidate,captured=meshes(old).map(mi=>{
+      const mesh=mi.mesh,buffer=mesh.vertexBuffer,original=buffer.destroy.bind(buffer);let calls=0;
+      buffer.destroy=()=>{calls++;original();};return {mesh,count:()=>calls};
+    });
+    old.destroy();candidate=null;
+    const receipt={meshes:captured.length,destroyCalls:captured.map(v=>v.count()),buffersReleased:captured.every(v=>v.mesh.vertexBuffer===null),rootDetached:old.parent===null};
+    lifecycle.push(receipt);return receipt;
+  }
+  function buildCandidate() {
+    candidate=new pc.Entity('ReviewedConnectedCandidate');reflectedParent.addChild(candidate);
+    if(space==='local'){
+      candidate.setLocalPosition(...frame.toWorld([0,0,0]));candidate.setLocalEulerAngles(0,frame.yaw,0);candidate.setLocalScale(.5,.5,.5);
+    }
+    for(const tier of ['BASE','NEAR','DETAIL'])buildStudentCenterConnected(candidate,tier,{view:'connected',space});
+  }
+  function box(name,position,size,color,parent=reflectedParent) {
+    const e=new pc.Entity(name);e.addComponent('render',{type:'box'});e.render.material=surface(color);
+    e.setLocalPosition(...position);e.setLocalScale(...size);parent.addChild(e);return e;
+  }
+  function line(name,a,b,color,width=.11) {
+    const center=[(a[0]+b[0])/2,(a[1]+b[1])/2,(a[2]+b[2])/2];
+    const e=box(name,center,[width,width,Math.hypot(b[0]-a[0],b[2]-a[2])],color);
+    e.setLocalEulerAngles(0,Math.atan2(b[0]-a[0],b[2]-a[2])*180/Math.PI,0);return e;
+  }
+  function ring(name,points,color){points.forEach((a,i)=>{const b=points[(i+1)%points.length];line(name,[a.x,.018,a.z],[b.x,.018,b.z],color);});}
+  const canonical=FACILITIES.find(f=>f.id==='bldg_07');
+  ring('Canonical footprint reference only',canonical.rings[0],'#e89a36');
+  ring('Frozen pond rim reference only',POND_RING,'#388ab2');
+  const shop=studentCenterFrontPoint();box('Fixed shop anchor reference only',[shop.x,.07,shop.z],[.7,.14,.7],'#39c6bd');
+  const floor=new pc.Entity('Reference flat campus ground');floor.addComponent('render',{type:'plane'});floor.render.material=surface('#87977b');
+  floor.setLocalPosition(...frame.toWorld([0,-.05,0]));floor.setLocalScale(140,1,140);reflectedParent.addChild(floor);
+  const actor=new pc.Entity('Actor: diameter 0.96 m; height 1.75 m');actor.addComponent('render',{type:'cylinder'});
+  actor.render.material=surface('#f4cf39');actor.setLocalScale(plan.actor.diameterMeters/2,plan.actor.heightMeters/2,plan.actor.diameterMeters/2);
+  reflectedParent.addChild(actor);
+  const sun=new pc.Entity('Sun');sun.addComponent('light',{type:'directional',intensity:1,castShadows:false});sun.setLocalEulerAngles(40,30,0);app.root.addChild(sun);
+  const camera=new pc.Entity('InspectionCamera');camera.addComponent('camera',{nearClip:.02,farClip:1000,fov:60,clearColor:new pc.Color(.79,.84,.89)});app.root.addChild(camera);
+  const reflectedPoint=p=>{const q=frame.toWorld(p);return [q[0],q[1],q[2]*reflection];};
+  // Camera probes can run between renders; refresh its projection cache first.
+  const project=p=>{camera.camera.onAppPrerender();const q=camera.camera.worldToScreen(new pc.Vec3(...p));return {x:q.x/canvas.width,y:q.y/canvas.height,z:q.z};};
+  function corners(){return meshes(candidate).flatMap(mi=>{const a=mi.aabb.getMin(),b=mi.aabb.getMax();return [a.x,b.x].flatMap(x=>[a.y,b.y].flatMap(y=>[a.z,b.z].map(z=>[x,y,z])));});}
+  function framing() {
+    const points=corners().map(project),header=document.querySelector('aside').getBoundingClientRect(),rect=canvas.getBoundingClientRect();
+    return {scope:plan.views[activeView].full?'entire silhouette':'intentional close-up crop',points:points.length,
+      minX:Math.min(...points.map(p=>p.x)),maxX:Math.max(...points.map(p=>p.x)),minY:Math.min(...points.map(p=>p.y)),maxY:Math.max(...points.map(p=>p.y)),
+      captionOverlapsCanvas:header.bottom>rect.top+.5,canvas:{width:canvas.width,height:canvas.height}};
+  }
+  function view(id=activeView) {
+    if(!plan.views[id])throw Error('Unknown inspection view');activeView=id;
+    const v=plan.views[id],aspect=canvas.width/canvas.height;
+    camera.camera.aspectRatioMode=pc.ASPECT_MANUAL;camera.camera.aspectRatio=aspect;
+    camera.camera.fov=v.full?48:aspect<.7?90:70;
+    const place=factor=>{camera.setPosition(...reflectedPoint(v.target.map((n,i)=>n+(v.position[i]-n)*factor)));camera.lookAt(...reflectedPoint(v.target));};
+    place(1);
+    if(v.full){
+      let fit=.5;
+      for(let n=0;n<140;n++){place(fit);const b=framing();if(b.minX>=.075&&b.maxX<=.925&&b.minY>=.075&&b.maxY<=.925)break;fit*=1.04;}
+    }
+    document.getElementById('view').value=id;
+    document.getElementById('heading').textContent=`Student center · ${id} · ${v.full?'entire silhouette':'intentional close-up crop'}`;
+    app.renderNextFrame=true;
+  }
+  function drawActor() {
+    const [x,h,z]=localState();actor.setLocalPosition(...frame.toWorld([x,h+plan.actor.heightMeters/2,z]));
+    status.textContent=`${space} · ${reflection<0?'production −Z parent':'positive-Z render control'} · (${x.toFixed(2)}, ${z.toFixed(2)}) m · foot ${h.toFixed(3)} m · ticks ${inputTicks}${state.blocked?' · BLOCKED: '+state.reason:''}`;
+    app.renderNextFrame=true;
+  }
+  function reset() {
+    if(keys.size)throw Error('Release keys before reset');
+    const [x,z]=plan.route[0].at,q=frame.toWorld([x,0,z]);
+    state=space==='local'?{x,z,elevation:0}:{x:q[0],z:q[2],elevation:0};
+    remaining=0;inputTicks=0;blockedTicks=0;maxElevation=0;trustedDowns=0;trustedUps=0;trace.length=0;drawActor();
+  }
+  function configure({coordinateSpace='world',reflected=true}={}) {
+    if(!['local','world'].includes(coordinateSpace))throw Error('Unknown coordinate space');
+    if(keys.size)throw Error('Release keys before reconfiguration');
+    destroyCandidate();space=coordinateSpace;reflection=reflected?-1:1;
+    reflectedParent.setLocalScale(1,1,reflection);buildCandidate();walker=createStudentConnectedWalk({space});
+    document.getElementById('space').value=space;reset();view('exterior');return stats();
+  }
+  function getState() {
+    const [x,elevation,z]=localState();return {space,reflection,local:{x,z,elevation},raw:{...state},remaining,inputTicks,blockedTicks,trustedDowns,trustedUps,maxElevation,keys:[...keys],disposed};
+  }
+  function stats(){return {engine:pc.version,space,reflection,parentScaleSign:reflectedParent.worldScaleSign,meshes:meshes(candidate).length,vertices:meshes(candidate).reduce((n,mi)=>n+mi.mesh.vertexBuffer.numVertices,0),actorMeters:plan.actor,offsetWorld:STUDENT_CONNECTED.offsetWorld,rotationDelta:STUDENT_CONNECTED.rotationDelta,reference:{canonicalFootprint:canonical.id,pondVertices:POND_RING.length,shop}};}
+  function keydown(event) {
+    if(!direction[event.key]||disposed)return;event.preventDefault();
+    if(!event.isTrusted)return;
+    if(!keys.has(event.key))trustedDowns++;keys.add(event.key);
+  }
+  function keyup(event) {
+    if(!direction[event.key]||disposed)return;event.preventDefault();
+    if(!event.isTrusted)return;
+    if(keys.delete(event.key))trustedUps++;
+  }
+  window.addEventListener('keydown',keydown);window.addEventListener('keyup',keyup);
+  const blur=()=>keys.clear();window.addEventListener('blur',blur);
+  function update() {
+    if(disposed||!remaining||keys.size!==1)return;
+    const [dx,dz]=direction[[...keys][0]];
+    for(let n=0;n<plan.ticksPerFrame&&remaining>0;n++){
+      const [x,h,z]=localState(),next=[x+dx*plan.tickMeters,h,z+dz*plan.tickMeters];
+      const target=space==='local'?next:frame.toWorld(next);
+      state=walker.step(state,target[0],target[2]);inputTicks++;remaining--;
+      const local=localState();maxElevation=Math.max(maxElevation,local[1]);
+      const check=walker.inspect(state.x,state.z,state.elevation);
+      if(inputTicks%5===0||state.blocked)trace.push({tick:inputTicks,key:[...keys][0],local,supported:check.supported,clear:check.clear,blocked:state.blocked,reason:state.reason});
+      if(state.blocked||!check.supported||!check.clear){blockedTicks++;remaining=0;break;}
+    }
+    drawActor();
+  }
+  app.on('update',update);
+  // No target-position or advance API: the budget only caps trusted, held-key ticks.
+  function armInput(ticks) {
+    if(!Number.isInteger(ticks)||ticks<=0||ticks>1000||remaining||keys.size)throw Error('Invalid input budget');
+    remaining=ticks;return getState();
+  }
+  let previousPixels=null;
+  function pixels() {
+    return new Promise(resolve=>{
+      app.autoRender=false;
+      app.once('postrender',()=>{
+        const gl=device.gl,width=gl.drawingBufferWidth,height=gl.drawingBufferHeight,data=new Uint8Array(width*height*4),old=gl.getParameter(gl.READ_FRAMEBUFFER_BINDING);
+        gl.finish();try{gl.bindFramebuffer(gl.READ_FRAMEBUFFER,null);gl.readPixels(0,0,width,height,gl.RGBA,gl.UNSIGNED_BYTE,data);}finally{gl.bindFramebuffer(gl.READ_FRAMEBUFFER,old);}
+        let changed=0,hash=2166136261;const colors=new Set();const comparable=previousPixels?.length===data.length;
+        for(let i=0;i<data.length;i+=4){
+          if(comparable&&Math.abs(data[i]-previousPixels[i])+Math.abs(data[i+1]-previousPixels[i+1])+Math.abs(data[i+2]-previousPixels[i+2])>15)changed++;
+          for(let k=0;k<3;k++)hash=Math.imul((hash^data[i+k])>>>0,16777619);
+          if(i%64===0)colors.add((data[i]>>4)*256+(data[i+1]>>4)*16+(data[i+2]>>4));
+        }
+        previousPixels=data;resolve({width,height,changed,hash:hash>>>0,quantizedColors:colors.size,glError:gl.getError(),visibleCandidateMeshes:candidate.enabled?meshes(candidate).filter(mi=>mi.visibleThisFrame).length:0,reflection});
+      });app.renderNextFrame=true;
+    });
+  }
+  function visibility({building=true,person=true}={}){candidate.enabled=building;actor.enabled=person;app.renderNextFrame=true;}
+  function programmaticContracts() {
+    const base=baseFrame.toWorld([0,0,0]),connected=frame.toWorld([0,0,0]);
+    const probe=createStudentConnectedWalk();
+    return {scope:'Programmatic contracts, not keyboard or pixel evidence',offset:[connected[0]-base[0],connected[2]-base[2]],yaw:frame.yaw,baseYaw:baseFrame.yaw,
+      phantomFloor:probe.inspect(-30,-27,4.03),wallTunnel:probe.step({x:-14,z:14,elevation:0},-3.2,-4),
+      glassPane:probe.inspect(-16,11.25,.08),openDoor:probe.inspect(-14,11.25,.08),
+      redCore:project(reflectedPoint([27.8,9,-5.8])),roundedGlass:project(reflectedPoint([-30,8,-10])),
+      actorWorldSize:actor.getLocalScale().toArray(),lifecycle:[...lifecycle]};
+  }
+  function rebuild() {const before=stats();const disposal=destroyCandidate();buildCandidate();view();return {before,after:stats(),disposal};}
+  function resize() {if(disposed)return;const width=canvas.clientWidth,height=canvas.clientHeight;if(width&&height){app.setCanvasResolution(pc.RESOLUTION_AUTO,width,height);device.updateClientRect();view();}}
+  const observer=new ResizeObserver(resize);observer.observe(canvas);
+  const select=document.getElementById('view');for(const id of Object.keys(plan.views)){const option=document.createElement('option');option.value=id;option.textContent=id;select.append(option);}
+  select.onchange=()=>view(select.value);
+  document.getElementById('space').onchange=()=>configure({coordinateSpace:document.getElementById('space').value,reflected:reflection<0});
+  document.getElementById('reset').onclick=reset;
+  function dispose() {
+    keys.clear();remaining=0;const receipt=destroyCandidate();observer.disconnect();
+    window.removeEventListener('keydown',keydown);window.removeEventListener('keyup',keyup);window.removeEventListener('blur',blur);app.off('update',update);
+    disposed=true;app.destroy();return {disposed,receipt,inputTicks,traceSamples:trace.length};
+  }
+  window.__STUDENT_HOSTED_QA__={plan,configure,view,stats,getState,armInput,pixels,visibility,framing,programmaticContracts,rebuild,dispose,trace:()=>[...trace]};
+  app.start();configure();window.__STUDENT_HOSTED_QA__.ready=true;
+} catch(error) {window.__STUDENT_HOSTED_QA__={error:error.stack||String(error)};throw error;}
+</script></body></html>

@@ -1,0 +1,48 @@
+name: Student center connected browser QA
+on:
+  pull_request:
+    paths:
+      - 'apps/world/src/student-center-*.js'
+      - 'apps/world/src/facility-mesh-batch.js'
+      - 'apps/world/src/player-dimensions.js'
+      - 'apps/world/src/world-collision.js'
+      - 'apps/world/tests/student-center-*.test.mjs'
+      - 'apps/world/tests/browser/student-center-*'
+      - 'apps/world/tests/browser/harness.mjs'
+      - 'apps/world/tests/browser/package*.json'
+      - '.github/workflows/student-center-connected-browser.yml'
+permissions:
+  contents: read
+concurrency:
+  group: student-center-connected-browser-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  chromium:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - name: Install pinned Playwright 1.63.0 and PlayCanvas 2.22.4
+        working-directory: apps/world/tests/browser
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Check immutable geometry and hosted fixture contracts
+        run: node --test apps/world/tests/student-center-*.test.mjs
+      - name: Check actual engine lifecycle separately from pixels
+        run: node apps/world/tests/browser/student-center-connected-null-smoke.mjs
+      - name: Verify rendered frames and trusted keyboard traversal
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+          WORLD_STUDENT_QA_OUTPUT: test-results/student-center-connected
+        run: node apps/world/tests/browser/student-center-connected-hosted-smoke.mjs
+      - name: Save Chromium frames, input trace and pixel receipts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: student-center-connected-browser-evidence
+          path: test-results/student-center-connected/
+          if-no-files-found: error
+          retention-days: 7

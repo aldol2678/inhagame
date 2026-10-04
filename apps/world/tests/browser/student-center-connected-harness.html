@@ -1,0 +1,29 @@
+<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>학생회관 연결 후보 · 격리 검증</title>
+<script type="importmap">{"imports":{"playcanvas":"./node_modules/playcanvas/build/playcanvas.mjs"}}</script>
+<style>body{margin:0;font:14px system-ui;background:#d8e0e2;height:100vh;display:grid;grid-template-rows:auto 1fr}aside{background:#fffdf7;padding:12px 18px}h1{font-size:18px;margin:0 0 6px}p{margin:6px 0}button{padding:8px;margin-right:6px}canvas{min-height:0;width:100%;height:100%}</style>
+<aside><h1>학생회관 연결 후보</h1><p>원래 방향 · 14.96m 이동 · 역사적·게임용 개념 실내 · 캠퍼스 미적용</p><button id="cut">상부 생략 보기</button><button id="reflection">−Z 반사 전환</button><button id="walk">출입·계단 왕복 검사</button><button id="reset">처음으로</button><p id="status">엔진 준비 중</p><p>화살표: 로컬 평면 보행 · 문/후면 연결은 추정 설계 · 실제 화면 검증 여부는 별도 보고서 참조</p></aside><canvas></canvas>
+<script type="module">
+import * as pc from 'playcanvas';
+import {buildStudentCenterConnected} from '../../src/student-center-connected-renderer.js';
+import {createStudentConnectedWalk,studentConnectedFrame} from '../../src/student-center-connected.js';
+import {surface} from '../../src/campus-render-kit.js';
+const status=document.querySelector('#status'),canvas=document.querySelector('canvas');
+try{
+canvas.width=canvas.clientWidth;canvas.height=canvas.clientHeight;
+const device=await pc.createGraphicsDevice(canvas,{deviceTypes:[pc.DEVICETYPE_WEBGL2],antialias:true}),app=new pc.Application(canvas,{graphicsDevice:device});app.scene.ambientLight=new pc.Color(.7,.7,.7);
+const root=new pc.Entity('ConnectedPreview');app.root.addChild(root);let sign=-1,cut=false;root.setLocalScale(1,1,sign);
+const groups=['connected','cutaway'].map(view=>{const g=new pc.Entity(view);root.addChild(g);for(const tier of ['BASE','NEAR','DETAIL'])buildStudentCenterConnected(g,tier,{view});return g;});groups[1].enabled=false;
+const f=studentConnectedFrame(),walker=createStudentConnectedWalk();let state={x:-14,z:14,elevation:0};
+const actor=new pc.Entity('Actor: diameter .96 m, height 1.75 m');actor.addComponent('render',{type:'cylinder'});actor.render.material=surface('#edc445');actor.setLocalScale(.48,.875,.48);root.addChild(actor);
+const ground=new pc.Entity('Existing flat campus ground reference');ground.addComponent('render',{type:'plane'});ground.render.material=surface('#85947e');ground.setLocalScale(65,1,65);const center=f.toWorld([0,-.04,0]);ground.setLocalPosition(...center);root.addChild(ground);
+const light=new pc.Entity('Sun');light.addComponent('light',{type:'directional',intensity:1});light.setLocalEulerAngles(40,30,0);app.root.addChild(light);
+const camera=new pc.Entity('Camera');camera.addComponent('camera',{farClip:500,fov:48,clearColor:new pc.Color(.8,.85,.89)});app.root.addChild(camera);
+const wp=p=>{const q=f.toWorld(p);return[q[0],q[1],q[2]*sign]};
+function show(){root.setLocalScale(1,1,sign);groups[0].enabled=!cut;groups[1].enabled=cut;const aspect=canvas.width/canvas.height,fit=Math.max(1,1.6/aspect);camera.setPosition(...wp([52*fit,50*fit,78*fit]));camera.lookAt(...wp([0,4,-2]));actor.setLocalPosition(...f.toWorld([state.x,state.elevation+.875,state.z]));status.textContent=`지지면 ${state.elevation.toFixed(3)} m · 반지름 .48 m / 키 1.75 m · ${state.blocked?'이동 차단: '+state.reason:'보행 후보'} · ${sign<0?'−Z 반사':'원좌표'}`;app.renderNextFrame=true;}
+const route=[[-14,14],[-14,1],[-24,1],[-24,-17],[-17.3,-17],[-17.3,-3],[0,-3],[0,29],[-14,29],[-14,14]];
+function verify(){let count=0;for(const waypoints of [route,[...route].reverse()]){state={x:waypoints[0][0],z:waypoints[0][1],elevation:0};for(let i=1;i<waypoints.length;i++){const[a,b]=[waypoints[i-1],waypoints[i]],n=Math.ceil(Math.hypot(b[0]-a[0],b[1]-a[1])/.05);for(let j=1;j<=n;j++){state=walker.step(state,a[0]+(b[0]-a[0])*j/n,a[1]+(b[1]-a[1])*j/n);if(state.blocked)throw Error('Blocked: '+JSON.stringify(state));count++;}}}show();status.textContent+=` · 왕복 ${count} 이동 검사`;return{count,state};}
+document.querySelector('#cut').onclick=()=>{cut=!cut;show()};document.querySelector('#reflection').onclick=()=>{sign*=-1;show()};document.querySelector('#walk').onclick=verify;document.querySelector('#reset').onclick=()=>{state={x:-14,z:14,elevation:0};show()};
+const keys=new Set();window.addEventListener('keydown',e=>{if(e.key.startsWith('Arrow')){e.preventDefault();keys.add(e.key)}});window.addEventListener('keyup',e=>keys.delete(e.key));app.on('update',dt=>{const dx=(keys.has('ArrowRight')-keys.has('ArrowLeft'))*Math.min(dt,.05)*3,dz=(keys.has('ArrowDown')-keys.has('ArrowUp'))*Math.min(dt,.05)*3;if(dx||dz){state=walker.step(state,state.x+dx,state.z+dz);show();}});
+window.__STUDENT_CONNECTED_QA__={verify,frame:f,getState:()=>state,ready:true};app.start();show();
+}catch(e){status.textContent='ERROR: '+e.message;window.__STUDENT_CONNECTED_QA__={error:String(e)};throw e;}
+</script></html>
