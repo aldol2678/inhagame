@@ -2172,16 +2172,19 @@ let npcAiSignedIn = false;
 async function loadOptionalNpcRuntime() {
   if (!npcEnabled) return null;
   let npcAiEnabled = npcAiPilotMode;
+  let npcJevEnabled = false;
   let npcQuestEnabled = npcTestMode || (npcPreviewMode && startupParams.get('backGateArrival') === 'preview');
   // CORE-15: each flag probe is bounded, so a slow AI flag never holds the NPCs or the first quest.
   // A transient quest-flag failure starts the NPCs with the quest off and turns it on once it resolves.
   let questFlagPending = false;
   if (npcProductionMode) {
-    const [aiResult, questResult] = await Promise.all([
+    const [aiResult, questResult, jevResult] = await Promise.all([
       probeFeatureFlag('/api/npc-ai'),
-      probeFeatureFlag('/api/world-quest')
+      probeFeatureFlag('/api/world-quest'),
+      probeFeatureFlag('/api/npc-dialogue-route')
     ]);
     npcAiEnabled = aiResult === FLAG_ENABLED;
+    npcJevEnabled = jevResult === FLAG_ENABLED;
     npcQuestEnabled = questResult === FLAG_ENABLED;
     questFlagPending = questResult === FLAG_UNAVAILABLE;
   }
@@ -2204,6 +2207,8 @@ async function loadOptionalNpcRuntime() {
       externalContextAction: true,
       aiPilot: npcAiEnabled,
       aiEndpoint: npcAiPilotMode ? '/npc-ai/decide' : '/api/npc-ai',
+      jevEnabled: npcJevEnabled,
+      jevEndpoint: '/api/npc-dialogue-route',
       questEnabled: npcQuestEnabled,
       questEndpoint: npcTestMode ? '/npc-quest' : '/api/world-quest',
       sideEvent: inkyungSideEvent,
