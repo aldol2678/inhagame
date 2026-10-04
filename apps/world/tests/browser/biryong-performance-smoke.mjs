@@ -39,6 +39,7 @@ async function enterBiryong(page) {
 }
 
 async function setTier(page, tier) {
+  await page.bringToFront();
   await page.evaluate(value => window.__INHAGAME_P0__.graphics.setPreference(value), tier);
   await page.waitForFunction(
     value => window.__INHAGAME_P0__?.getStatus?.().graphics?.tier === value,
@@ -57,6 +58,7 @@ async function setTier(page, tier) {
 }
 
 async function measureFrames(page) {
+  await page.bringToFront();
   return page.evaluate(({ warmupFrames, sampleFrames }) => new Promise(resolve => {
     let previous = null;
     let warmup = 0;
