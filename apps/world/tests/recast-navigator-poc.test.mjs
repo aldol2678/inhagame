@@ -9,12 +9,20 @@ import {
 test('Recast NPC PoC builds a conservative flat surface from the existing navigator contract', () => {
   const navigator = {
     bounds: { minX: 0, maxX: 3, minZ: 0, maxZ: 3 },
-    walkable: ({ x, z }) => !(x > 1.4 && x < 1.6 && z > 1.4 && z < 1.6)
+    walkable: () => true
   };
   const surface = buildFlatNavigationSurface(navigator, { tileSize: 1.5 });
-  assert.ok(surface.tiles > 0);
+  assert.equal(surface.tiles, 4);
   assert.equal(surface.indices.length, surface.tiles * 6);
   assert.equal(surface.positions.length, surface.tiles * 12);
+});
+
+test('Recast NPC PoC rejects a surface with no fully walkable tiles', () => {
+  const navigator = {
+    bounds: { minX: 0, maxX: 1.5, minZ: 0, maxZ: 1.5 },
+    walkable: ({ x, z }) => !(x === 0 && z === 0)
+  };
+  assert.throws(() => buildFlatNavigationSurface(navigator, { tileSize: 1.5 }), /no walkable triangles/);
 });
 
 test('Recast NPC PoC preserves the navigator interface and can be dependency-injected in CI', async () => {
