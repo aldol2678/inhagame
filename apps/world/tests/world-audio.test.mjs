@@ -126,7 +126,7 @@ test("unavailable and suspended audio never block zone state", async () => {
 });
 
 
-test("AF-07 R2 resolves central-registry base layers and rain variant", () => {
+test("AF-10 resolves central-registry base layers and rain variant", () => {
   assert.equal(resolveSoundscapeAssetBinding({
     profileId: "unknown", zone: "INKYUNG", weather: "RAIN"
   }), null);
@@ -146,7 +146,7 @@ test("AF-07 R2 resolves central-registry base layers and rain variant", () => {
   assert.ok(rain?.layers.every(layer => layer.asset.metadata.qa.status === "owner-accepted"));
 });
 
-test("AF-07 R2 replaces the temporary Inkyung synth after central-registry layers load", async () => {
+test("AF-10 replaces the temporary Inkyung synth after binding layers load", async () => {
   let loads = 0;
   const r = rig({
     soundscapeProfileId: SOUNDSCAPE_PROFILE_IDS.INKYUNG_R2,
@@ -179,7 +179,7 @@ test("AF-07 R2 replaces the temporary Inkyung synth after central-registry layer
   r.audio.dispose();
 });
 
-test("AF-07 R2 central-registry asset load failure preserves the procedural fallback", async () => {
+test("AF-10 asset load failure preserves the procedural fallback", async () => {
   const r = rig({
     soundscapeProfileId: SOUNDSCAPE_PROFILE_IDS.INKYUNG_R2,
     ambienceAssetLoader: async () => { throw new Error("asset unavailable"); }
