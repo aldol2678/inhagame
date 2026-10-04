@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import vm from 'node:vm';
 const read = path => readFileSync(new URL(path, import.meta.url), 'utf8');
 test('hosted room QA uses exact PR head, bounded read-only jobs and uploads evidence even on failure', () => {
   const workflow = read('../../../.github/workflows/room-transition-recovery-browser.yml');
@@ -35,4 +36,19 @@ test('latest main loading render and offline shared-clock contracts remain intac
   assert.match(main,/isSceneReady: \(\) => streaming.pending.length === 0/);
   assert.match(main,/worldLoading\?\.setRenderReady\(true\)/);
   assert.match(harness,/url.pathname === "\/api\/world-time"/);
+});
+
+ test('native movement probe requires engine ticks and the original displacement threshold', () => {
+  const smoke=read('./browser/room-transition-recovery-smoke.mjs');
+  const match=smoke.match(/function movementProbeReady\([\s\S]*?\n\}/);
+  assert.ok(match,'condition-based engine progress predicate');
+  let state={ticks:12,position:[.1,1.15,0],inputEnabled:true};
+  const probe=vm.runInNewContext(`(${match[0]})`,{window:{__ROOM_RECOVERY_QA__:{snapshot:()=>state}}});
+  const before={ticks:10,position:[0,1.15,0],locked:false};
+  assert.equal(probe(before),false,'position alone without engine progress is insufficient');
+  state.ticks=13;state.position[0]=.029;assert.equal(probe(before),false,'threshold stays greater than 3 cm');
+  state.position[0]=.031;assert.equal(probe(before),true);
+  state.inputEnabled=false;assert.equal(probe(before),false);
+  state.position[0]=0;assert.equal(probe({...before,locked:true}),true);
+  state.position[0]=.001;assert.equal(probe({...before,locked:true}),false,'locked flow cannot move');
 });

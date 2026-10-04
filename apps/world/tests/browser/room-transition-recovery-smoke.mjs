@@ -11,7 +11,7 @@ const head=execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();
 const expectedHead=process.env.EXPECTED_ROOM_HEAD;
 assert.match(expectedHead??'',/^[a-f0-9]{40}$/,'EXPECTED_ROOM_HEAD must identify the immutable candidate');
 assert.equal(head,expectedHead,'browser must test the exact candidate head');
-const report={head,expectedHead,scope:'Offline WebGL2 real-room modules with synthetic campus/avatar and presence counters; no live accounts or optional visual assets',screenshots:[],viewports:[],sourceHashes:{},status:'RUNNING'};
+const report={head,expectedHead,scope:'Offline WebGL2 real-room modules with synthetic campus/avatar and presence counters; no live accounts or optional visual assets',screenshots:[],viewports:[],nativeGestures:[],sourceHashes:{},status:'RUNNING'};
 for(const file of ['src/main.js','src/rooms/room-transition.js','src/rooms/room-world-adapter.js','src/rooms/space-fade.js','src/player-controller.js','src/orbit-camera-controller.js','src/lobby/lobby-loading.js']){
   report.sourceHashes[file]=createHash('sha256').update(await readFile(new URL(`../../${file}`,import.meta.url))).digest('hex');
 }
@@ -23,6 +23,14 @@ const cases=[
   ...['showCampus','placePlayer','resumeCampus'].map(step=>({source:'ROOM_DORM1_LOBBY',action:'exit',step,async:true}))
 ];
 const viewports=[{label:'desktop',width:1280,height:720,mobile:false},{label:'portrait360',width:360,height:800,mobile:true},{label:'portrait390',width:390,height:844,mobile:true},{label:'landscape',width:844,height:390,mobile:true}];
+// GPU-less runners may render no game tick in a short wall-clock window. Keep the movement
+// threshold strict and wait for actual engine progress while the native gesture is still held.
+function movementProbeReady({ ticks, position, locked }) {
+  const state=window.__ROOM_RECOVERY_QA__.snapshot();
+  if(state.ticks<ticks+3)return false;
+  const moved=Math.hypot(state.position[0]-position[0],state.position[2]-position[2]);
+  return locked ? !state.inputEnabled&&moved===0 : state.inputEnabled&&moved>.03;
+}
 const snapshot=page=>page.evaluate(()=>window.__ROOM_RECOVERY_QA__.snapshot());
 const settled=async(page,before)=>{
   await page.waitForFunction(count=>window.__ROOM_RECOVERY_QA__.snapshot().errors.length>count,before.errors.length,{timeout:10_000});
@@ -62,14 +70,23 @@ try{
    const click=async action=>{const button=page.locator(`#qa-${action}`);viewport.mobile?await button.tap():await button.click();};
    const cdp=viewport.mobile?await smoke.context.newCDPSession(page):null;
    const moveGesture=async({locked=false}={})=>{
-     if(!viewport.mobile){await page.keyboard.down('KeyD');await page.waitForTimeout(250);await page.keyboard.up('KeyD');return;}
-     const priorTouches=(await snapshot(page)).trustedTouches.length;
+     const before=await snapshot(page),receipt={viewport:viewport.label,locked,before};
+     report.nativeGestures.push(receipt);
+     const waitProcessed=()=>page.waitForFunction(movementProbeReady,{ticks:before.ticks,position:before.position,locked},{timeout:10_000});
+     if(!viewport.mobile){
+       await page.keyboard.down('KeyD');
+       try{await waitProcessed();}
+       finally{receipt.held=await snapshot(page);await page.keyboard.up('KeyD');receipt.after=await snapshot(page);}
+       return;
+     }
+     const priorTouches=before.trustedTouches.length;
      const rect=await page.locator('#joystick').boundingBox();assert.ok(rect);
      await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:rect.x+rect.width/2+25,y:rect.y+rect.height/2,id:51,radiusX:1,radiusY:1,force:1}]});
-     if(!locked)await page.waitForFunction(()=>Math.hypot(...Object.values(window.__ROOM_RECOVERY_QA__.controller.touchVector))>.2);
-     await page.waitForTimeout(250);
-     await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
-     const state=await snapshot(page);assert.deepEqual(state.touchVector,{x:0,y:0});
+     try{
+       if(!locked)await page.waitForFunction(()=>Math.hypot(...Object.values(window.__ROOM_RECOVERY_QA__.controller.touchVector))>.2);
+       await waitProcessed();
+     }finally{receipt.held=await snapshot(page);await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});receipt.after=await snapshot(page);}
+     const state=receipt.after;assert.deepEqual(state.touchVector,{x:0,y:0});
      assert.equal(state.trustedTouches.length,priorTouches+1,'this gesture delivered a new joystick pointerdown');
      assert.deepEqual(state.trustedTouches.at(-1),{trusted:true,type:'touch'},'latest joystick gesture is native and trusted');
    };

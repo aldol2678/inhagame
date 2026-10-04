@@ -116,7 +116,7 @@ try {
       campus:campusRoot.enabled,visibleRooms:[...scenes].filter(([,s])=>s.root.enabled).map(([id])=>id),
       movement:controller.space.id,inputEnabled:controller.inputEnabled,cameraEnabled:orbit.inputEnabled,
       camera:{yaw:orbit.yaw,pitch:orbit.pitch,distance:orbit.distance,indoor:Boolean(orbit.indoor),limits:orbit.indoor?.limits??null},
-      touchVector:{...controller.touchVector},trustedTouches:[...trustedTouches],
+      touchVector:{...controller.touchVector},keys:[...controller.keys],trustedTouches:[...trustedTouches],
       focus:focus.snapshot(),fadeHidden:overlay.hidden,fadeOn:overlay.classList.contains('on'),
       label:location,marker,campusPaused:presence.campusPaused,events:[...events],errors:[...errors],ticks,
       size:[canvas.width,canvas.height],message:document.getElementById('qa-message').textContent,
