@@ -28,8 +28,9 @@ export const BACKGATE_TRANSIT = Object.freeze({
   wait: point(segment.frame.at(U-1.3, -4.25)),
   boarding: point(segment.frame.at(U-1.3, -3.85)),
   busCenter: point(segment.frame.at(U, -2.4)),
-  // Reserved only. P0 has no bus entity, transit clock, destination or boarding action.
-  gameMobilityId: 'transit.frontier_bus.f1', gameStatus: 'COMING_SOON',
+  // F1 is a game-world region handoff. No live timetable or physical bus simulation is implied.
+  gameMobilityId: 'transit.biryong_bus.f1', gameStatus: 'AVAILABLE',
+  destinationSpawnId: 'BIRYONG_STATION', destinationRegionId: 'BIRYONG_REALM',
   interactionRadius: metersToWorld(3.5), u: U,
   sidewalk: Object.freeze({ minU: U-3, maxU: U+1.5, minV: -4.9, maxV: -3.6 })
 });
