@@ -1,4 +1,4 @@
--- INHA WORLD Housing H3 (Public 20261004162000): knock before a friend visit.
+-- INHA WORLD Housing H3 (Public 20261005022000): knock before a friend visit.
 -- Owner absent → OPEN at once by visibility; owner present → PENDING until the owner answers;
 -- DECLINED holds for 10 minutes; the room access decision enforces both for every surface.
 begin;

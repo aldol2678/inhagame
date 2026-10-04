@@ -1,7 +1,7 @@
 // Inkyung pond fishing spots: the world placement of the two F1/F2 source refs.
 // Presentation only. Being near a spot decides whether the 🎣 action is offered; the server
-// decides everything else (availability, timing, result, rewards). The server does not
-// verify position (T1, see activity/fishing-core.md).
+// decides availability, timing, result and rewards. F3 separately requires trusted server
+// position evidence and a DB spot lease; browser proximity is never that evidence.
 import { getCanonicalLandmark, projectPolygon } from "../reality-adapter.js";
 import { FISHING_SOURCES } from "./fishing-core.js";
 
