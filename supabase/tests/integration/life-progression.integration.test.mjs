@@ -4,7 +4,8 @@ import { execFileSync } from 'node:child_process';
 import {
   LIFE_SKILL_TREE_REGISTRY,
   lifeProgressionThresholdAuthorityRows,
-  lifeTreeAuthorityRow
+  lifeTreeAuthorityRow,
+  lifeTreeEdgeAuthorityRows
 } from '../../../apps/world/src/life-skills/life-progression-registry.js';
 
 const DB_URL = process.env.DB_URL;
@@ -42,9 +43,18 @@ test('Life Progression DB threshold mirror equals code authority rows', () => {
 
 test('Life Skill Tree P0 catalog is intentionally empty before node-effect approval', () => {
   const db = JSON.parse(query(
-    "select coalesce(json_agg(json_build_object('node_id',node_id,'skill_id',skill_id,'status',status,'sp_cost',sp_cost,'required_life_level',required_life_level,'required_skill_level',required_skill_level) order by node_id), '[]') from private.world_life_skill_tree_catalog"
+    "select coalesce(json_agg(json_build_object('node_id',node_id,'skill_id',skill_id,'status',status,'sp_cost',sp_cost,'max_rank',max_rank,'required_life_level',required_life_level,'required_skill_level',required_skill_level) order by node_id), '[]') from private.world_life_skill_tree_catalog"
   ));
   const code = LIFE_SKILL_TREE_REGISTRY.list().map(lifeTreeAuthorityRow);
+  assert.deepEqual(db, code);
+});
+
+test('Life Skill Tree DB edges equal code prerequisites (with required rank)', () => {
+  const db = JSON.parse(query(
+    "select coalesce(json_agg(json_build_object('node_id',node_id,'prerequisite_node_id',prerequisite_node_id,'required_rank',required_rank) order by node_id,prerequisite_node_id), '[]') from private.world_life_skill_tree_edges"
+  ));
+  const code = LIFE_SKILL_TREE_REGISTRY.list().flatMap(lifeTreeEdgeAuthorityRows)
+    .sort((a, b) => `${a.node_id} ${a.prerequisite_node_id}`.localeCompare(`${b.node_id} ${b.prerequisite_node_id}`));
   assert.deepEqual(db, code);
 });
 

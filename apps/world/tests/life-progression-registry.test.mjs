@@ -8,7 +8,9 @@ import {
   createLifeSkillTreeRegistry,
   lifeProgressionFreshSnapshot,
   lifeProgressionThresholdAuthorityRows,
-  lifeSkillSpFreshSnapshot
+  lifeSkillSpFreshSnapshot,
+  lifeTreeAuthorityRow,
+  lifeTreeEdgeAuthorityRows
 } from '../src/life-skills/life-progression-registry.js';
 
 const node = (overrides = {}) => ({
@@ -109,4 +111,46 @@ test('tree registry rejects missing prerequisites, cross-skill edges and cycles'
       prerequisites: ['life.node.mining.root']
     })
   ] }), /Cycle detected/);
+});
+
+test('multi-rank nodes: maxRank defaults to 1 and prerequisites carry a required rank', () => {
+  const registry = createLifeSkillTreeRegistry({ definitions: [
+    node({ maxRank: 3 }),
+    node({
+      nodeId: 'life.node.mining.ore_sense',
+      displayName: '광맥 감지',
+      prerequisites: [{ nodeId: 'life.node.mining.root', requiredRank: 2 }]
+    }),
+    node({
+      nodeId: 'life.node.mining.vein',
+      displayName: '광맥 추적',
+      prerequisites: ['life.node.mining.ore_sense']
+    })
+  ] });
+  assert.equal(registry.get('life.node.mining.root').maxRank, 3);
+  assert.equal(registry.get('life.node.mining.ore_sense').maxRank, 1);
+  assert.deepEqual(registry.get('life.node.mining.vein').prerequisites,
+    [{ nodeId: 'life.node.mining.ore_sense', requiredRank: 1 }]);
+  assert.equal(lifeTreeAuthorityRow(registry.get('life.node.mining.root')).max_rank, 3);
+  assert.deepEqual(lifeTreeEdgeAuthorityRows(registry.get('life.node.mining.ore_sense')), [{
+    node_id: 'life.node.mining.ore_sense',
+    prerequisite_node_id: 'life.node.mining.root',
+    required_rank: 2
+  }]);
+});
+
+test('tree registry rejects invalid ranks and prerequisite ranks above the prerequisite max rank', () => {
+  assert.throws(() => createLifeSkillTreeRegistry({ definitions: [node({ maxRank: 0 })] }), /Invalid maxRank/);
+  assert.throws(() => createLifeSkillTreeRegistry({ definitions: [node({ maxRank: 11 })] }), /Invalid maxRank/);
+  assert.throws(() => createLifeSkillTreeRegistry({ definitions: [
+    node({ prerequisites: [{ nodeId: 'life.node.mining.other', requiredRank: 0 }] })
+  ] }), /Invalid prerequisites/);
+  assert.throws(() => createLifeSkillTreeRegistry({ definitions: [
+    node({ maxRank: 2 }),
+    node({
+      nodeId: 'life.node.mining.ore_sense',
+      displayName: '광맥 감지',
+      prerequisites: [{ nodeId: 'life.node.mining.root', requiredRank: 3 }]
+    })
+  ] }), /exceeds/);
 });

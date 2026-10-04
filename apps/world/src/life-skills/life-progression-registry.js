@@ -35,17 +35,29 @@ export function createLifeSkillTreeNodeDefinition(raw, { skillRegistry = LIFE_SK
   if (!Number.isInteger(raw.spCost) || raw.spCost < 1 || raw.spCost > 99) {
     throw new TypeError(`Invalid spCost for ${raw.nodeId}`);
   }
+  const maxRank = raw.maxRank ?? 1;
+  if (!Number.isInteger(maxRank) || maxRank < 1 || maxRank > 10) {
+    throw new TypeError(`Invalid maxRank for ${raw.nodeId}`);
+  }
   if (!Number.isInteger(raw.requiredLifeLevel) || raw.requiredLifeLevel < 1 || raw.requiredLifeLevel > 999) {
     throw new TypeError(`Invalid requiredLifeLevel for ${raw.nodeId}`);
   }
   if (!Number.isInteger(raw.requiredSkillLevel) || raw.requiredSkillLevel < 1 || raw.requiredSkillLevel > 999) {
     throw new TypeError(`Invalid requiredSkillLevel for ${raw.nodeId}`);
   }
-  if (!Array.isArray(raw.prerequisites) || raw.prerequisites.some(id =>
-    typeof id !== 'string' || !LIFE_TREE_NODE_ID_PATTERN.test(id))) {
-    throw new TypeError(`Invalid prerequisites for ${raw.nodeId}`);
-  }
-  if (new Set(raw.prerequisites).size !== raw.prerequisites.length || raw.prerequisites.includes(raw.nodeId)) {
+  // A prerequisite is a node id (rank 1) or { nodeId, requiredRank }.
+  if (!Array.isArray(raw.prerequisites)) throw new TypeError(`Invalid prerequisites for ${raw.nodeId}`);
+  const prerequisites = raw.prerequisites.map(entry => {
+    const prerequisite = typeof entry === 'string' ? { nodeId: entry, requiredRank: 1 } : entry;
+    if (!prerequisite || typeof prerequisite !== 'object' ||
+        typeof prerequisite.nodeId !== 'string' || !LIFE_TREE_NODE_ID_PATTERN.test(prerequisite.nodeId) ||
+        !Number.isInteger(prerequisite.requiredRank) || prerequisite.requiredRank < 1) {
+      throw new TypeError(`Invalid prerequisites for ${raw.nodeId}`);
+    }
+    return Object.freeze({ nodeId: prerequisite.nodeId, requiredRank: prerequisite.requiredRank });
+  });
+  const prerequisiteIds = prerequisites.map(prerequisite => prerequisite.nodeId);
+  if (new Set(prerequisiteIds).size !== prerequisiteIds.length || prerequisiteIds.includes(raw.nodeId)) {
     throw new TypeError(`Invalid prerequisite set for ${raw.nodeId}`);
   }
   if (!Array.isArray(raw.effectRefs) || raw.effectRefs.some(ref =>
@@ -60,9 +72,10 @@ export function createLifeSkillTreeNodeDefinition(raw, { skillRegistry = LIFE_SK
     description: raw.description.trim(),
     status: raw.status,
     spCost: raw.spCost,
+    maxRank,
     requiredLifeLevel: raw.requiredLifeLevel,
     requiredSkillLevel: raw.requiredSkillLevel,
-    prerequisites: Object.freeze([...raw.prerequisites]),
+    prerequisites: Object.freeze(prerequisites),
     effectRefs: Object.freeze([...raw.effectRefs]),
     introducedVersion: raw.introducedVersion ?? 'life.progression.p0'
   });
@@ -82,11 +95,14 @@ export function createLifeSkillTreeRegistry({
   }
 
   for (const node of byId.values()) {
-    for (const prerequisiteId of node.prerequisites) {
+    for (const { nodeId: prerequisiteId, requiredRank } of node.prerequisites) {
       const prerequisite = byId.get(prerequisiteId);
       if (!prerequisite) throw new Error(`Unknown prerequisite ${prerequisiteId} for ${node.nodeId}`);
       if (prerequisite.skillId !== node.skillId) {
         throw new Error(`Cross-skill prerequisite ${prerequisiteId} for ${node.nodeId}`);
+      }
+      if (requiredRank > prerequisite.maxRank) {
+        throw new Error(`Prerequisite rank ${requiredRank} exceeds ${prerequisiteId} max rank`);
       }
     }
   }
@@ -97,7 +113,7 @@ export function createLifeSkillTreeRegistry({
     if (visited.has(nodeId)) return;
     if (visiting.has(nodeId)) throw new Error(`Cycle detected at ${nodeId}`);
     visiting.add(nodeId);
-    for (const prerequisiteId of byId.get(nodeId).prerequisites) visit(prerequisiteId);
+    for (const prerequisite of byId.get(nodeId).prerequisites) visit(prerequisite.nodeId);
     visiting.delete(nodeId);
     visited.add(nodeId);
   }
@@ -130,9 +146,19 @@ export function lifeTreeAuthorityRow(node) {
     skill_id: node.skillId,
     status: node.status,
     sp_cost: node.spCost,
+    max_rank: node.maxRank,
     required_life_level: node.requiredLifeLevel,
     required_skill_level: node.requiredSkillLevel
   });
+}
+
+export function lifeTreeEdgeAuthorityRows(node) {
+  if (!node) throw new TypeError('Life Skill Tree node is required');
+  return Object.freeze(node.prerequisites.map(prerequisite => Object.freeze({
+    node_id: node.nodeId,
+    prerequisite_node_id: prerequisite.nodeId,
+    required_rank: prerequisite.requiredRank
+  })));
 }
 
 // Aggregate Life Level is a display level only. SP lives in per-skill pools (Authority Map 7.1).
