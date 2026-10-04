@@ -1,3 +1,4 @@
+import {studentCampusStep,studentCampusGroundHeight} from './student-center-runtime.js';
 import {CAMPUS_BALLOON_ID,getCampusBalloonParkedPose,parkCampusBalloonAt,setCampusBalloonPropVisible} from "./mounts/campus-balloon-world.js";
 import {createBalloonState,stepBalloon,BALLOON_LIMITS} from "./mounts/balloon-flight.js";
 import {CAMPUS_SHUTTLE_ID,syncCampusShuttleProp} from "./mounts/campus-shuttle-world.js";
@@ -147,6 +148,15 @@ export class PlayerController {
     this.#bindKeyboard();
     this.#bindTouch();
     this.#bindMount();
+  }
+
+  // The connected building's floors/stairs remain walking-only. In particular,
+  // boarding on its terrace must not enter terrain-only flight auto-landing.
+  get allowMountHere() {
+    if(!this.space.allowMount)return false;
+    if(this.space.id!=='campus'||this.mounted)return true;
+    const p=this.entity.getLocalPosition();
+    return !(studentCampusGroundHeight(p.x,p.z,p.y-this.groundY)>0);
   }
 
   get onBike() {
@@ -356,7 +366,7 @@ export class PlayerController {
     const pose = findGroundSummonPose({
       definition: getMobilityByMountId(CAMPUS_KICKBOARD_ID), origin: this.entity.getLocalPosition(),
       yawDeg: this.entity.getLocalEulerAngles?.().y ?? 0, spaceId: this.space.id,
-      mounted: this.mounted, grounded: this.grounded, allowMount: this.space.allowMount,
+      mounted: this.mounted, grounded: this.grounded, allowMount: this.allowMountHere,
       groundHeight: this.space.groundHeight, overWater: overPondWater,
       canOccupyAt: (p, shape) => canOccupy(p, shape, this.space.obstacles),
       bounds: this.bounds, groundY: this.groundY
@@ -367,7 +377,7 @@ export class PlayerController {
   }
 
   summonKickboardInstant() {
-    if (!this.inputEnabled || this.mounted || !this.grounded || !this.space.allowMount || this.space.id !== "campus") return false;
+    if (!this.inputEnabled || this.mounted || !this.grounded || !this.allowMountHere || this.space.id !== "campus") return false;
     const p = this.entity.getLocalPosition();
     if (!p || ![p.x,p.y,p.z].every(Number.isFinite) || overPondWater(p.x,p.z)) return false;
     const groundHeight = this.space.groundHeight?.(p.x,p.z);
@@ -383,7 +393,7 @@ export class PlayerController {
   }
 
   boardKickboard() {
-    if (!this.inputEnabled || this.mounted || !this.grounded || !this.space.allowMount || !this.#nearParkedKickboard()) return false;
+    if (!this.inputEnabled || this.mounted || !this.grounded || !this.allowMountHere || !this.#nearParkedKickboard()) return false;
     const p = this.entity.getLocalPosition(), a = getCampusKickboardParkedPose();
     // Boarding uses the same clearance as summoning and may never teleport through a wall.
     const d = getMobilityByMountId(CAMPUS_KICKBOARD_ID);
@@ -414,7 +424,7 @@ export class PlayerController {
     const pose = findGroundSummonPose({
       definition: getMobilityByMountId(CAMPUS_KART_ID), origin: this.entity.getLocalPosition(),
       yawDeg: this.entity.getLocalEulerAngles?.().y ?? 0, spaceId: this.space.id,
-      mounted: this.mounted, grounded: this.grounded, allowMount: this.space.allowMount,
+      mounted: this.mounted, grounded: this.grounded, allowMount: this.allowMountHere,
       groundHeight: this.space.groundHeight, overWater: overPondWater,
       canOccupyAt: (p, shape) => canOccupy(p, shape, this.space.obstacles),
       bounds: this.bounds, groundY: this.groundY
@@ -430,7 +440,7 @@ export class PlayerController {
     const pose=findNearbyGroundSummonPose({
       definition:getMobilityByMountId(CAMPUS_KART_ID),origin,
       yawDeg:this.entity.getLocalEulerAngles?.().y??0,spaceId:this.space.id,
-      mounted:this.mounted,grounded:this.grounded,allowMount:this.space.allowMount,
+      mounted:this.mounted,grounded:this.grounded,allowMount:this.allowMountHere,
       groundHeight:this.space.groundHeight,overWater:overPondWater,
       canOccupyAt:(p,shape)=>canOccupy(p,shape,this.space.obstacles),
       bounds:this.bounds,groundY:this.groundY
@@ -442,7 +452,7 @@ export class PlayerController {
   }
 
   boardKart() {
-    if (!this.inputEnabled || this.mounted || !this.grounded || !this.space.allowMount || !this.#nearParkedKart()) return false;
+    if (!this.inputEnabled || this.mounted || !this.grounded || !this.allowMountHere || !this.#nearParkedKart()) return false;
     const p = this.entity.getLocalPosition(), a = getCampusKartParkedPose();
     // Boarding uses the same clearance as summoning and may never teleport through a wall.
     const d = getMobilityByMountId(CAMPUS_KART_ID);
@@ -470,7 +480,7 @@ export class PlayerController {
     return this.space.id==="campus" && Math.hypot(p.x-INKYUNG_DOCK.shore.x,p.z-INKYUNG_DOCK.shore.z)<=4;
   }
   summonDuckBoat() {
-    if(!this.inputEnabled || !this.space.allowMount)return false;
+    if(!this.inputEnabled || !this.allowMountHere)return false;
     const pose=findDuckBoatSummonPose({definition:getMobilityByMountId(DUCK_BOAT_ID),
       origin:this.entity.getLocalPosition(),spaceId:this.space.id,mounted:this.mounted,grounded:this.grounded,
       bounds:this.bounds,canOccupyAt:(p,shape)=>canOccupy(p,shape,this.space.obstacles)});
@@ -479,7 +489,7 @@ export class PlayerController {
     return parkDuckBoatAt(pose);
   }
   boardDuckBoat() {
-    if(!this.inputEnabled || this.mounted || !this.grounded || !this.space.allowMount || !this.#nearDuckDock())return false;
+    if(!this.inputEnabled || this.mounted || !this.grounded || !this.allowMountHere || !this.#nearDuckDock())return false;
     const a=getDuckBoatParkedPose();
     if(!a || Math.hypot(a.x-INKYUNG_DOCK.spawn.x,a.z-INKYUNG_DOCK.spawn.z)>3 ||
       !this.boatSeats.claim("driver","local-player"))return false;
@@ -501,7 +511,7 @@ export class PlayerController {
   }
 
   boardShuttle() {
-    if(!this.campusShuttleEnabled||!this.inputEnabled||this.mounted||!this.grounded||this.space.id!=="campus"||!this.space.allowMount||!this.shuttle.boardingAllowed)return false;
+    if(!this.campusShuttleEnabled||!this.inputEnabled||this.mounted||!this.grounded||this.space.id!=="campus"||!this.allowMountHere||!this.shuttle.boardingAllowed)return false;
     const p=this.entity.getLocalPosition(),a=this.shuttle.currentStation.platform;
     if(Math.hypot(p.x-a.x,p.z-a.z)>1.5)return false;
     this.mounted=true;this.mountId=CAMPUS_SHUTTLE_ID;this.velocityY=0;this.jumpQueued=false;this.landing=false;
@@ -522,14 +532,14 @@ export class PlayerController {
   summonBalloonNearPlayer(){
     if(!this.inputEnabled)return false;
     const pose=findGroundSummonPose({definition:getMobilityByMountId(CAMPUS_BALLOON_ID),origin:this.entity.getLocalPosition(),
-      yawDeg:this.entity.getLocalEulerAngles?.().y??0,spaceId:this.space.id,mounted:this.mounted,grounded:this.grounded,allowMount:this.space.allowMount,
+      yawDeg:this.entity.getLocalEulerAngles?.().y??0,spaceId:this.space.id,mounted:this.mounted,grounded:this.grounded,allowMount:this.allowMountHere,
       groundHeight:this.space.groundHeight,overWater:overPondWater,canOccupyAt:(p,shape)=>canOccupy(p,shape,this.space.obstacles),bounds:this.bounds,groundY:this.groundY});
     if (!pose) return false;
     this.preferredMountId = CAMPUS_BALLOON_ID;
     return parkCampusBalloonAt(pose);
   }
   boardBalloon(){
-    if(!this.inputEnabled||this.mounted||!this.grounded||!this.space.allowMount||!this.#nearBalloon())return false;
+    if(!this.inputEnabled||this.mounted||!this.grounded||!this.allowMountHere||!this.#nearBalloon())return false;
     const a=getCampusBalloonParkedPose(),d=getMobilityByMountId(CAMPUS_BALLOON_ID),p=this.entity.getLocalPosition();
     if(overPondWater(p.x,p.z)||!canOccupy(p,{radius:d.summonClearance.radius,footOffset:this.groundY,headOffset:d.summonClearance.height-this.groundY}))return false;
     this.mounted=true;this.mountId=CAMPUS_BALLOON_ID;this.velocityY=0;this.jumpQueued=false;this.landing=false;
@@ -545,20 +555,20 @@ export class PlayerController {
   getMountContextAction() {
     if (!this.inputEnabled) return null;
     const actions = [];
-    if(this.onBalloon||(!this.mounted&&this.grounded&&this.space.allowMount&&this.#nearBalloon())){
+    if(this.onBalloon||(!this.mounted&&this.grounded&&this.allowMountHere&&this.#nearBalloon())){
       actions.push({ mobilityId: CAMPUS_BALLOON_ID, id:"mount",icon:"🎈",label:this.onBalloon?(this.grounded?"열기구에서 내리기":"육지에 내려온 뒤 하차해 주세요"):"열기구 타기",
         compactLabel:this.onBalloon?"하차":"탑승",shortcut:"M",priority:340,pressed:this.onBalloon,
         disabled:this.onBalloon&&!this.grounded,trigger:()=>this.onBalloon?this.dismountBalloon():this.boardBalloon() });
     }
 
     const platform=this.shuttle.currentStation.platform,p0=this.entity.getLocalPosition();
-    if(this.campusShuttleEnabled && (this.onShuttle || (!this.mounted&&this.grounded&&this.space.id==="campus"&&this.space.allowMount&&this.shuttle.boardingAllowed&&Math.hypot(p0.x-platform.x,p0.z-platform.z)<=1.5))){
+    if(this.campusShuttleEnabled && (this.onShuttle || (!this.mounted&&this.grounded&&this.space.id==="campus"&&this.allowMountHere&&this.shuttle.boardingAllowed&&Math.hypot(p0.x-platform.x,p0.z-platform.z)<=1.5))){
       actions.push({ mobilityId: CAMPUS_SHUTTLE_ID, id:"mount",icon:"🚌",label:this.onShuttle?(this.shuttle.boardingAllowed?"셔틀에서 내리기":"다음 정류장 · "+this.shuttle.nextStation.name):"캠퍼스 셔틀 타기",
         compactLabel:this.onShuttle?"하차":"탑승",shortcut:"M",priority:340,pressed:this.onShuttle,
         disabled:this.onShuttle&&!this.shuttle.boardingAllowed,trigger:()=>this.onShuttle?this.dismountShuttle():this.boardShuttle() });
     }
 
-    if(this.onDuckBoat || (!this.mounted && this.grounded && this.space.allowMount && this.#nearDuckDock() && getDuckBoatParkedPose())) {
+    if(this.onDuckBoat || (!this.mounted && this.grounded && this.allowMountHere && this.#nearDuckDock() && getDuckBoatParkedPose())) {
       const p=this.entity.getLocalPosition();
       const canExit=!this.onDuckBoat || Math.hypot(p.x-INKYUNG_DOCK.spawn.x,p.z-INKYUNG_DOCK.spawn.z)<=3;
       actions.push({ mobilityId: DUCK_BOAT_ID, id:"mount",icon:"🦆",label:this.onDuckBoat ? (canExit?"선착장에 내리기":"선착장으로 돌아와 주세요"):"오리배 타기",
@@ -566,13 +576,13 @@ export class PlayerController {
         trigger:()=>this.onDuckBoat?this.dismountDuckBoat():this.boardDuckBoat() });
     }
 
-    if (this.onKart || (!this.mounted && this.grounded && this.space.allowMount && this.#nearParkedKart())) {
+    if (this.onKart || (!this.mounted && this.grounded && this.allowMountHere && this.#nearParkedKart())) {
       actions.push({ mobilityId: CAMPUS_KART_ID,  id:"mount", icon:"🛺", label:this.onKart ? "카트에서 내리기" : "카트 타기",
         compactLabel:this.onKart ? "내리기" : "탑승", shortcut:"M", priority:340,
         pressed:this.onKart, trigger:()=>this.onKart ? this.dismountKart() : this.boardKart()  });
     }
 
-    if (this.onKickboard || (!this.mounted && this.grounded && this.space.allowMount && this.#nearParkedKickboard())) {
+    if (this.onKickboard || (!this.mounted && this.grounded && this.allowMountHere && this.#nearParkedKickboard())) {
       actions.push({ mobilityId: CAMPUS_KICKBOARD_ID,  id:"mount", icon:"🛴", label:this.onKickboard ? "킥보드에서 내리기" : "킥보드 타기",
         compactLabel:this.onKickboard ? "내리기" : "탑승", shortcut:"M", priority:340,
         pressed:this.onKickboard, trigger:()=>this.onKickboard ? this.dismountKickboard() : this.boardKickboard()  });
@@ -593,7 +603,7 @@ export class PlayerController {
         trigger: () => this.grounded ? this.dismountHelicopter() : this.startHelicopterLanding()
       };
     }
-    if (!this.mounted && this.grounded && this.space.allowMount && this.#nearParkedHelicopter()) {
+    if (!this.mounted && this.grounded && this.allowMountHere && this.#nearParkedHelicopter()) {
       return {
         id: "mount", icon: "🚁", label: "헬리콥터 타기", compactLabel: "탑승", shortcut: "M",
         priority: HELICOPTER_CONTEXT_PRIORITY, pressed: false, trigger: () => this.boardHelicopter()
@@ -605,13 +615,13 @@ export class PlayerController {
         priority: BIKE_CONTEXT_PRIORITY, pressed: true, trigger: () => this.dismountBike()
       };
     }
-    if (!this.mounted && this.grounded && this.space.allowMount && this.#nearParkedBike()) {
+    if (!this.mounted && this.grounded && this.allowMountHere && this.#nearParkedBike()) {
       return {
         id: "mount", icon: "🚲", label: "자전거 타기", compactLabel: "타기", shortcut: "M",
         priority: BIKE_CONTEXT_PRIORITY, pressed: false, trigger: () => this.boardBike()
       };
     }
-    if (!this.space.allowMount && !this.mounted) return null;
+    if (!this.allowMountHere && !this.mounted) return null;
     const p = this.entity.getLocalPosition();
     if (this.mounted) {
       const airborne = overPondWater(p.x, p.z) ||
@@ -663,7 +673,7 @@ export class PlayerController {
   }
 
   summonHelicopterNearPlayer() {
-    if (!this.inputEnabled || this.mounted || !this.grounded || !this.space.allowMount) return false;
+    if (!this.inputEnabled || this.mounted || !this.grounded || !this.allowMountHere) return false;
     const origin = this.entity.getLocalPosition();
     const pose = findHelicopterSummonPose({
       origin,
@@ -681,7 +691,7 @@ export class PlayerController {
   }
 
   summonHelicopterWithPadFallback() {
-    if (!this.inputEnabled || this.mounted || !this.grounded || !this.space.allowMount || this.space.id!=="campus") return false;
+    if (!this.inputEnabled || this.mounted || !this.grounded || !this.allowMountHere || this.space.id!=="campus") return false;
     const origin=this.entity.getLocalPosition();
     let pose=findHelicopterSummonPose({
       origin,yawDeg:this.entity.getLocalEulerAngles?.().y??0,groundY:this.groundY,
@@ -704,7 +714,7 @@ export class PlayerController {
   }
 
   boardHelicopter() {
-    if (!this.inputEnabled || this.mounted || !this.grounded || !this.space.allowMount) return false;
+    if (!this.inputEnabled || this.mounted || !this.grounded || !this.allowMountHere) return false;
     if (!this.#nearParkedHelicopter()) return false;
     const parked = getCampusHelicopterParkedPose();
     this.mounted = true;
@@ -760,7 +770,7 @@ export class PlayerController {
   }
 
   boardBike() {
-    if (!this.inputEnabled || this.mounted || !this.grounded || !this.space.allowMount) return false;
+    if (!this.inputEnabled || this.mounted || !this.grounded || !this.allowMountHere) return false;
     if (!this.#nearParkedBike()) return false;
     this.mounted = true;
     this.mountId = CAMPUS_BIKE_ID;
@@ -804,7 +814,7 @@ export class PlayerController {
       this.dismountBike();
       return;
     }
-    if (!this.space.allowMount && !this.mounted) return;
+    if (!this.allowMountHere && !this.mounted) return;
     this.mountBlocked = false;
     if (this.mounted) {
       const p=this.entity.getLocalPosition();
@@ -869,10 +879,11 @@ export class PlayerController {
     const pos = this.entity.getLocalPosition();
     const space = this.space;
     const obstacles = space.obstacles;
-    const swept = space.constrain(pos, moveAroundObstacles(pos, x, z, obstacles));
+    const student = space.id==='campus' ? studentCampusStep(pos,x,z) : null;
+    const swept = space.constrain(pos, student ?? moveAroundObstacles(pos, x, z, obstacles));
     const nextX = Math.max(this.bounds.minX, Math.min(this.bounds.maxX, swept.x));
     const nextZ = Math.max(this.bounds.minZ, Math.min(this.bounds.maxZ, swept.z));
-    const ground = this.groundY + space.groundHeight(nextX, nextZ);
+    const ground = this.groundY + (student?.elevation ?? (space.id==='campus' ? studentCampusGroundHeight(nextX,nextZ,pos.y-this.groundY) : null) ?? space.groundHeight(nextX, nextZ));
     const movedX = nextX - pos.x, movedZ = nextZ - pos.z;
     this.entity.setLocalPosition(nextX, ground, nextZ);
     const moved = Math.hypot(movedX, movedZ) > 1e-8;
@@ -1116,11 +1127,15 @@ export class PlayerController {
       radius: getMobilityByMountId(this.mountId).summonClearance.radius,
       footOffset: this.groundY, headOffset: getMobilityByMountId(this.mountId).summonClearance.height-this.groundY
     } : undefined;
-    const nextXZ = space.constrain(pos,moveAroundObstacles(pos, velocityX * dt, velocityZ * dt, obstacles, groundVehicleShape));
+    const student = space.id==='campus'&&!this.mounted
+      ? studentCampusStep(pos,velocityX*dt,velocityZ*dt,{grounded:this.grounded}) : null;
+    const nextXZ = space.constrain(pos,student ?? moveAroundObstacles(pos, velocityX * dt, velocityZ * dt, obstacles, groundVehicleShape));
     let nextX = nextXZ.x;
     let nextZ = nextXZ.z;
-    const ground=this.groundY+space.groundHeight(nextX,nextZ);
-    const followsGround=this.grounded&&Math.abs(pos.y-this.groundY-space.groundHeight(pos.x,pos.z))<.08;
+    const campusWalk=space.id==='campus'&&!this.mounted;
+    const supportAt=(x,z)=> (campusWalk ? studentCampusGroundHeight(x,z,pos.y-this.groundY) : null) ?? space.groundHeight(x,z);
+    const ground=this.groundY+(student?.elevation ?? supportAt(nextX,nextZ));
+    const followsGround=this.grounded&&Math.abs(pos.y-this.groundY-(student?.previousElevation ?? supportAt(pos.x,pos.z)))<.08;
     const requestedY=(followsGround?ground:pos.y)+this.velocityY*dt;
     let nextY = resolveHeight({ x: nextX, y: pos.y, z: nextZ }, requestedY, ground, obstacles, groundVehicleShape);
 

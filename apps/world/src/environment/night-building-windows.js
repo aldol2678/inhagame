@@ -1,3 +1,4 @@
+import {studentNightWindows} from '../student-center-night-windows.js';
 import * as pc from 'playcanvas';
 import { FACILITIES } from '../campus-facilities.js';
 import { BUILDINGS } from '../basic-campus.js';
@@ -13,6 +14,7 @@ function windowSources() {
   for (const facility of FACILITIES) {
     if (facility.kind !== 'building') continue;
     map.set(facility.id, {
+      ...(facility.id==='bldg_07'?{windows:studentNightWindows()}:{}),
       id: facility.id,
       rings: facility.rings,
       height: facility.height,
