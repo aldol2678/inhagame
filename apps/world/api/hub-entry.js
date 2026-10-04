@@ -1,11 +1,11 @@
 const SUPABASE_URL = process.env.SUPABASE_URL || 'http://127.0.0.1:54321';
 const KEY = process.env.SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_PUBLIC_PLACEHOLDER';
 const ORIGINS = {
-  'https://inhagame.example': 'campus',
-  'https://duck.inhagame.example': 'classic',
-  'https://induckup.inhagame.example': 'induckup',
-  'https://survival.inhagame.example': 'survival',
-  'https://grow.inhagame.example': 'induck-grow'
+  'https://inhagame.app': 'campus',
+  'https://duck.inhagame.app': 'classic',
+  'https://induckup.inhagame.app': 'induckup',
+  'https://survival.inhagame.app': 'survival',
+  'https://grow.inhagame.app': 'induck-grow'
 };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const EVENTS = new Set(['game_landing', 'game_play_start', 'game_load_error',

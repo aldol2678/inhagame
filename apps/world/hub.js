@@ -69,10 +69,10 @@
     if (!link) return;
     const destination = new URL(link.href, location.href);
     const target = {
-      "duck.inhagame.example": "classic",
-      "induckup.inhagame.example": "induckup",
-      "survival.inhagame.example": "survival",
-      "grow.inhagame.example": "induck-grow"
+      "duck.inhagame.app": "classic",
+      "induckup.inhagame.app": "induckup",
+      "survival.inhagame.app": "survival",
+      "grow.inhagame.app": "induck-grow"
     }[destination.hostname];
     const campus = destination.origin === location.origin && destination.pathname === "/campus/";
     if (!target && !campus) return;
@@ -116,10 +116,10 @@
   telemetry?.track("hub_panel_view", pages.has(location.hash.slice(1)) ? location.hash.slice(1) : "home");
   // A checked-in manifest is the source of truth; the HTML cards remain usable if loading fails.
   const gameOrigins = new Set([
-    "https://duck.inhagame.example",
-    "https://induckup.inhagame.example",
-    "https://survival.inhagame.example",
-    "https://grow.inhagame.example"
+    "https://duck.inhagame.app",
+    "https://induckup.inhagame.app",
+    "https://survival.inhagame.app",
+    "https://grow.inhagame.app"
   ]);
 
   function checkedPlayUrl(value) {
