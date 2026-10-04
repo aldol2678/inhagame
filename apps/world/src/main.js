@@ -37,6 +37,8 @@ import { createSkyVisuals } from './environment/sky-visuals.js';
 import { createInkyungDuckSystem } from './ambient-ducks.js';
 import { createDuckObservationClient } from './creature/duck-observation-client.js';
 import { createDuckCompanionFollow } from './creature/duck-companion-follow.js';
+import { createCreatureManagerClient } from './creature/creature-manager-client.js';
+import { createCreaturePanel } from './creature/creature-panel.js';
 import { createInkyungMechanicalDuckEvent } from './inkyung-mechanical-duck-event.js';
 import { createBiryongSystem } from './biryong/biryong-system.js';
 import { BIRYONG_PLACE_ID, isNearBiryong } from './biryong/biryong-layout.js';
@@ -545,6 +547,9 @@ const furnitureInput = createInputFocusOwner({
 const inventoryInput = createInputFocusOwner({
   manager: inputFocus, ownerId: "inventory", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
 });
+const creatureInput = createInputFocusOwner({
+  manager: inputFocus, ownerId: "creature-manager", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
+});
 const mobilityBookInput = createInputFocusOwner({
   manager: inputFocus, ownerId: "mobility-book", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
 });
@@ -818,6 +823,7 @@ let roomFurniture = null;
 let furnitureEditor = null;
 let furnitureRefreshSeconds = 0;
 let friendRoomVisit = null;
+let creaturePanel = null;
 const lobbyQuestHighlight = createLobbyQuestHighlight({
   root: document.getElementById("lobby-quest-highlight"),
   kickerElement: document.getElementById("lobby-quest-kicker"),
@@ -1029,6 +1035,8 @@ wallet.onChange(() => {
 });
 // Inventory P0: read-only owned items on the same member client (never a new client, never inferred).
 const inventory = createInventoryClient({ getClient: () => online?.supabase ?? null });
+// Creature Manager P1: self-only Creature Core snapshot + revisioned party mutations.
+const creatureManager = createCreatureManagerClient({ getClient: () => online?.supabase ?? null });
 // P1e: Campus Daily Quiz on the same member client. The server owns the day (Asia/Seoul), the run, the
 // answers and the reward; a PASSED answer's reward is shown through the existing reward toast lane and
 // the authorities it touched are re-read (never computed here). LEVEL UP follows the toast.
@@ -1081,6 +1089,7 @@ window.addEventListener("pageshow", (event) => {
   void progression.refresh("resume");
   void wallet.refresh("resume");
   void inventory.refresh("resume");
+  void creatureManager.refresh("resume");
   void loadout.refresh("resume");
 });
 const mcmPreviewStartMs = mcm2026PreviewStartMs(location);
@@ -1209,6 +1218,40 @@ const inventoryPanel = createInventoryPanel({
   }
 });
 inventoryButton?.addEventListener("click", () => inventoryPanel.setOpen(true));
+
+// Creature Manager P1 (☰ → 🐾 동료): server snapshot + self-only revisioned party management.
+const creatureButton = document.getElementById("open-creatures");
+creaturePanel = createCreaturePanel({
+  panel: document.getElementById("creature-panel"),
+  manager: creatureManager,
+  onStatus: showWorldStatus,
+  onPartyChanged: () => {
+    // Duck Companion Follow still reads the Duck self projection; re-read it after a party change.
+    void duckCompanion.refresh();
+  },
+  onOpenChange: (open) => {
+    creatureButton?.setAttribute("aria-expanded", String(open));
+    if (open) {
+      creatureInput.acquire();
+      hudMenu?.setOpen(false, { focus: false });
+      questJournal?.setOpen(false);
+      shopPanel.setOpen(false);
+      inventoryPanel.setOpen(false);
+      mobilityBook.setOpen(false);
+      wardrobePanel.setOpen(false);
+      dailyQuizPanel.setOpen(false);
+      attendancePanel.setOpen(false);
+      emoteMenu.setOpen(false);
+      chatPanel.setOpen(false, { focus: false });
+      playerCard.close();
+      void guestbookPanel.setOpen(false);
+      return;
+    }
+    creatureInput.release();
+  }
+});
+creatureButton?.addEventListener("click", () => creaturePanel.setOpen(true));
+
 const shopButton = document.getElementById("open-shop");
 const shopPanel = createShopPanel({
   panel: document.getElementById("shop-panel"),
@@ -1473,6 +1516,7 @@ const hudMenu = createCampusHudMenu({
   panel: document.getElementById("hud-menu"),
   onOpen: () => {
     hudMenuInput.acquire();
+    creaturePanel?.setOpen(false);
     emoteMenu.setOpen(false);
     chatPanel.setOpen(false, { focus: false });
   },
@@ -1956,6 +2000,7 @@ const inkyungDucks = createInkyungDuckSystem({
         showWorldStatus(result?.autoActivated
           ? "🦆 교감 성공 · 새 동료 오리가 ACTIVE 동행으로 합류했어요!"
           : "🦆 교감 성공 · 새 동료 오리가 합류했어요!");
+        void creatureManager.refresh("bond");
       });
     } else if (companionStarted) {
       void duckCompanion.observe(duck.id).then(result => {
@@ -2933,6 +2978,7 @@ try {
     shop.setAccount(identity ? online?.userId ?? null : null);
     void wallet.setAccount(identity ? online?.userId ?? null : null);
     void inventory.setAccount(identity ? online?.userId ?? null : null);
+    void creatureManager.setAccount(identity ? online?.userId ?? null : null);
     void dailyQuiz.setAccount(identity ? online?.userId ?? null : null);
     void attendance.setAccount(identity ? online?.userId ?? null : null);
     void loadout.setAccount(identity ? online?.userId ?? null : null);

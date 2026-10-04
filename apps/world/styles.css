@@ -3680,6 +3680,51 @@ body[data-space]:not([data-space="campus"]) > .progression-hud { display: none !
   color: #ffd98a;
 }
 
+/* Creature Manager P1 · server-authoritative ownership and party projection. */
+.creature-panel { width: min(700px, calc(100vw - 32px)); max-height: min(720px, calc(100dvh - 40px)); }
+.creature-summary { margin: 4px 0 0; color: #ffde86; font-size: 12px; font-weight: 800; }
+.creature-party-section, .creature-owned-section { min-width: 0; }
+.creature-owned-section { margin-top: 16px; }
+.creature-section-title { margin: 0 0 8px; color: #d6ebf9; font-size: 13px; font-weight: 900; }
+.creature-party-slots, .creature-cards { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.creature-party-slots { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.creature-party-slot {
+  display: grid; align-content: center; gap: 4px; min-width: 0; min-height: 76px; padding: 10px;
+  border: 1px solid rgba(143,226,211,.34); border-radius: 13px; background: rgba(25,109,101,.12);
+}
+.creature-party-slot-empty { border-style: dashed; border-color: rgba(178,220,239,.22); background: rgba(255,255,255,.025); }
+.creature-slot-label { color: #8fe2d3; font-size: 10px; font-weight: 950; letter-spacing: .08em; }
+.creature-slot-creature { display: grid; gap: 2px; min-width: 0; }
+.creature-slot-creature strong { overflow-wrap: anywhere; font-size: 14px; }
+.creature-slot-creature small, .creature-slot-empty-text { color: #9fc4d6; font-size: 11px; }
+.creature-card {
+  min-width: 0; padding: 12px; border: 1px solid rgba(178,220,239,.28);
+  border-radius: 14px; background: rgba(255,255,255,.04);
+}
+.creature-card-active { border-color: rgba(142,240,176,.65); background: rgba(26,77,58,.20); }
+.creature-card-head { display: flex; align-items: start; justify-content: space-between; gap: 10px; }
+.creature-card-title { display: grid; gap: 2px; min-width: 0; }
+.creature-card-title strong { overflow-wrap: anywhere; font-size: 15px; }
+.creature-card-title span { color: #acc3d1; font-size: 11px; }
+.creature-card-xp { flex: none; color: #ffde86; font-size: 12px; font-weight: 900; white-space: nowrap; }
+.creature-card-meta { display: flex; flex-wrap: wrap; gap: 5px 10px; margin-top: 8px; color: #9fc4d6; font-size: 11px; font-weight: 800; }
+.creature-memory-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.creature-memory-chip {
+  padding: 3px 7px; border: 1px solid rgba(143,226,211,.30); border-radius: 999px;
+  background: rgba(143,226,211,.08); color: #bdeee5; font-size: 11px; font-weight: 800;
+}
+.creature-memory-empty { color: #7f99a9; font-size: 11px; }
+.creature-card-actions { display: flex; justify-content: flex-end; margin-top: 10px; }
+.creature-activate { min-height: 44px; min-width: 118px; }
+.creature-activate:disabled { opacity: .62; cursor: default; }
+@media (max-width: 640px) {
+  .creature-panel { width: calc(100vw - 20px); max-height: calc(100dvh - 20px); padding: 16px 12px 12px; }
+  .creature-party-slots { grid-template-columns: 1fr; }
+  .creature-party-slot { min-height: 58px; }
+  .creature-card-head { align-items: baseline; }
+  .creature-card-actions .creature-activate { width: 100%; }
+}
+
 /* Quest Journal P1 · one MAIN/SIDE journal over the existing quest authorities. */
 .quest-journal-panel {
   width: min(760px, calc(100vw - 32px));
