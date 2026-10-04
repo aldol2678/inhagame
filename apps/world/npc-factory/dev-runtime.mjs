@@ -233,6 +233,9 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
   const observedConversation = observedConversationEnabled ? createObservedConversation() : null;
   const observedBubble = (observedConversationEnabled || sharedMeetings) ? createObservedBubble() : null;
   let observedFrame = null;
+  const OBSERVED_RUNTIME_SCAN_SECONDS = .25;
+  const OBSERVED_OBSTACLE_CACHE_SECONDS = .25;
+  let observedNextScan = -Infinity, observedObstacleAt = -Infinity, observedObstacles = [], observedCanvasRect = null;
   let observedSocial = { groups: [], relations: {} }, observedSocialAt = -Infinity;
   function stopObservedConversation() {
     observedConversation?.stop();
@@ -1036,37 +1039,41 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
     if (blocked) {
       observedConversation?.update({ now, blocked: true });
       sharedObserver?.update({ now: sharedFrameNow === null ? null : sharedFrameNow/1000, player: playerPos, blocked: true });
+      observedNextScan = now + OBSERVED_RUNTIME_SCAN_SECONDS;
       observedBubble.hide(); observedFrame = null; return;
     }
     const forward = orbit.camera.forward;
-    observedFrame = sharedMeetings
-      ? sharedObserver.update({ now: sharedFrameNow === null ? null : sharedFrameNow/1000,
-          events: sharedMeetings.events(), player: playerPos, forward, busyIds: getBusyNpcIds(sharedFrameNow) })
-      : null;
-    // Shared deterministic meeting scenes win. When none is nearby, the local
-    // observation layer may surface a non-authoritative ambient conversation.
-    if (!observedFrame && observedConversation) {
-    if (now-observedSocialAt >= .5) {
-      observedSocial = socialNg1?.snapshot() ?? { groups: [], relations: {} };
-      observedSocialAt = now;
-    }
-    const bridge = socialNg15Bridge?.status();
-    const meeting = bridge?.phase === 'MEETING' ? bridge.active : null;
-    const npcs = [...purposefulRoster].map(([id, purpose]) => {
-      const state = purpose.controller.status(false), visual = avatars.get(id);
-      const meetingId = meeting?.memberNpcIds.includes(id) ? meeting.groupId : null;
-      const destination = state.destination ?? '';
-      const location = meetingId ? meeting.meetingLocation : destination.replace(/^c04\./,'').replace(`.${id}`,'');
-      return { ...state, id, name: visual.actor.name, location, meetingId,
-        position: visual.motion.position, visible: visual.avatar.enabled && state.visible,
-        busy: activeConversation?.id === id || visual.pilotFacingUntil > performance.now(),
-        department: rosterById.get(id)?.department, residence: rosterById.get(id)?.residence,
-        interests: npcById.get(id)?.interests ?? [] };
-    });
-    observedFrame = observedConversation.update({ now, npcs, player: playerPos, forward,
-      period: snapshot.period, groups: observedSocial.groups,
-      pairInfo: (a,b) => ({ ...socialGraph.describePair(a,b),
-        affinity: observedSocial.relations[[a,b].sort().join('|')]?.affinity ?? 0 }) });
+    if (now >= observedNextScan) {
+      observedNextScan = now + OBSERVED_RUNTIME_SCAN_SECONDS;
+      observedFrame = sharedMeetings
+        ? sharedObserver.update({ now: sharedFrameNow === null ? null : sharedFrameNow/1000,
+            events: sharedMeetings.events(), player: playerPos, forward, busyIds: getBusyNpcIds(sharedFrameNow) })
+        : null;
+      // Shared deterministic meeting scenes win. When none is nearby, the local
+      // observation layer may surface a non-authoritative ambient conversation.
+      if (!observedFrame && observedConversation) {
+        if (now-observedSocialAt >= .5) {
+          observedSocial = socialNg1?.snapshot() ?? { groups: [], relations: {} };
+          observedSocialAt = now;
+        }
+        const bridge = socialNg15Bridge?.status();
+        const meeting = bridge?.phase === 'MEETING' ? bridge.active : null;
+        const npcs = [...purposefulRoster].map(([id, purpose]) => {
+          const state = purpose.controller.status(false), visual = avatars.get(id);
+          const meetingId = meeting?.memberNpcIds.includes(id) ? meeting.groupId : null;
+          const destination = state.destination ?? '';
+          const location = meetingId ? meeting.meetingLocation : destination.replace(/^c04\./,'').replace(`.${id}`,'');
+          return { ...state, id, name: visual.actor.name, location, meetingId,
+            position: visual.motion.position, visible: visual.avatar.enabled && state.visible,
+            busy: activeConversation?.id === id || visual.pilotFacingUntil > performance.now(),
+            department: rosterById.get(id)?.department, residence: rosterById.get(id)?.residence,
+            interests: npcById.get(id)?.interests ?? [] };
+        });
+        observedFrame = observedConversation.update({ now, npcs, player: playerPos, forward,
+          period: snapshot.period, groups: observedSocial.groups,
+          pairInfo: (a,b) => ({ ...socialGraph.describePair(a,b),
+            affinity: observedSocial.relations[[a,b].sort().join('|')]?.affinity ?? 0 }) });
+      }
     }
     if (!observedFrame) { observedBubble.hide(); return; }
     // Renderer-only yaw. Never pause a controller, change a route or write a social fact.
@@ -1085,16 +1092,20 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
     const inFront = (projectedPoint.x-cameraPosition.x)*forward.x +
       (projectedPoint.y-cameraPosition.y)*forward.y + (projectedPoint.z-cameraPosition.z)*forward.z > 0;
     const point = orbit.camera.camera.worldToScreen(projectedPoint);
-    const canvasRect = app.graphicsDevice.canvas.getBoundingClientRect();
     // Group nameplates must yield before measuring bubble obstacles, otherwise a
     // neighboring participant can hide the bubble indefinitely.
     for (const id of observedFrame.members) nameplates.get(id).hidden = true;
-    const obstacles = [...document.querySelectorAll('#minimap, #quest-hud, #tour, #context-action, #world-topbar, .npc-test-tag')]
-      .filter(node=>!node.hidden && node.getClientRects().length)
-      .map(node=>node.getBoundingClientRect());
+    if (!observedCanvasRect || now-observedObstacleAt >= OBSERVED_OBSTACLE_CACHE_SECONDS) {
+      observedObstacleAt = now;
+      observedCanvasRect = app.graphicsDevice.canvas.getBoundingClientRect();
+      observedObstacles = [...document.querySelectorAll('#minimap, #quest-hud, #tour, #context-action, #world-topbar, .npc-test-tag')]
+        .filter(node=>!node.hidden && node.getClientRects().length)
+        .map(node=>node.getBoundingClientRect());
+    }
+    const canvasRect = observedCanvasRect;
     observedBubble.render(observedFrame,{ name:visual.actor.name,
       point:{x:point.x+canvasRect.left,y:point.y+canvasRect.top,visible:inFront &&
-        point.x>=0 && point.y>=0 && point.x<=canvasRect.width && point.y<=canvasRect.height},obstacles });
+        point.x>=0 && point.y>=0 && point.x<=canvasRect.width && point.y<=canvasRect.height},obstacles:observedObstacles });
   }
   function update(dt) {
     if (!socialPreviewFastForward) main2Guide.update(dt);
