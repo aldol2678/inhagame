@@ -4652,6 +4652,44 @@ body[data-lobby-shell="true"] > #mobility-book-panel { display: none !important;
   border-radius: 9px; color: #acc3d1; background: #203b4c; opacity: 1; cursor: default; }
 body[data-lobby-shell="true"] > #backgate-transit-panel { display: none !important; }
 
+/* COMBAT-V03-RUNTIME-P0:start
+   Building 5 local Combat slice. Presentation only: Combat Runtime owns action state;
+   Encounter/Reward/Equipment authorities remain separate. */
+.combat-hud-v03 {
+  position: fixed; z-index: 15;
+  right: max(18px, env(safe-area-inset-right));
+  bottom: max(22px, calc(env(safe-area-inset-bottom) + 14px));
+  width: min(430px, calc(100vw - 36px)); padding: 10px;
+  border: 1px solid rgba(120, 220, 255, .58); border-radius: 16px;
+  background: rgba(7, 24, 39, .90); box-shadow: 0 10px 30px rgba(0,0,0,.34);
+  color: #eefaff; pointer-events: auto;
+}
+.combat-hud-v03[hidden] { display: none !important; }
+.combat-hud-v03-head { display:flex; align-items:center; gap:8px; margin-bottom:8px; font-size:11px; }
+.combat-hud-v03-head strong { font-size:13px; letter-spacing:.06em; }
+.combat-hud-v03-head span { padding:3px 7px; border:1px solid rgba(148,210,239,.28); border-radius:999px; color:#bcd7e8; }
+.combat-hud-v03-actions { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:6px; }
+.combat-hud-v03-actions button {
+  min-height:44px; border:1px solid rgba(121,204,238,.5); border-radius:11px;
+  background:rgba(17,70,98,.94); color:white; font:800 10px/1.15 system-ui,sans-serif;
+  overflow:hidden; text-overflow:ellipsis; touch-action:manipulation;
+}
+.combat-hud-v03-actions button:disabled { opacity:.46; }
+.combat-hud-v03-actions button[aria-pressed="true"] { border-color:#ffe08a; background:rgba(128,84,24,.95); }
+.combat-hud-v03 small { display:block; margin-top:7px; color:#8db0c5; font-size:9px; line-height:1.35; }
+body[data-hud-mode="COMBAT"] #transport-action,
+body[data-hud-mode="COMBAT"] .social-cluster,
+body[data-hud-mode="COMBAT"] #run,
+body[data-hud-mode="COMBAT"] #jump { display:none !important; }
+@media (pointer: coarse) {
+  .combat-hud-v03 {
+    left:max(10px,env(safe-area-inset-left)); right:max(10px,env(safe-area-inset-right));
+    bottom:max(10px,calc(env(safe-area-inset-bottom) + 8px)); width:auto;
+  }
+  .combat-hud-v03-actions { grid-template-columns:repeat(3,minmax(0,1fr)); }
+  .combat-hud-v03 small { display:none; }
+}
+/* COMBAT-V03-RUNTIME-P0:end */
 /* Collection furniture editor: input is owned by BLOCKING_UI while this modal is open. */
 .furniture-editor-backdrop { position:fixed; inset:0; z-index:1090; background:#10203355; }
 .furniture-editor { position:fixed; z-index:1100; right:14px; top:14px; bottom:14px; width:min(430px,calc(100vw - 28px)); overflow:auto; overscroll-behavior:contain; padding:18px; box-sizing:border-box; border:1px solid #b8c9d8; border-radius:18px; background:#f8fbff; color:#24394d; box-shadow:0 12px 50px #091b3c66; font:14px/1.5 sans-serif; }
@@ -5186,4 +5224,6 @@ body[data-lobby-shell="true"] > #backgate-transit-panel { display: none !importa
 
 }
 /* LANDSCAPE-HUD:end */
+
+
 
