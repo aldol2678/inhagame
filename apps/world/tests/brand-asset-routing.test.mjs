@@ -45,8 +45,8 @@ test("WorldForge editor route precedes the filesystem fallback", () => {
   assert.ok(worldforgeIndex >= 0 && filesystemIndex > worldforgeIndex);
 
   const serverSource = readFileSync(new URL("../dev-server.mjs", import.meta.url), "utf8");
-  assert.match(serverSource, /reqPath === "\\/worldforge"/);
-  assert.match(serverSource, /reqPath = "\\/studio\\/index\\.html"/);
+  assert.ok(serverSource.includes('reqPath === "/worldforge"'));
+  assert.ok(serverSource.includes('reqPath = "/studio/index.html"'));
 });
 
 test("public repository retains QA provenance for restored runtime brand paths", () => {
