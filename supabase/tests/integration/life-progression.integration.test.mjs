@@ -4,6 +4,8 @@ import { execFileSync } from 'node:child_process';
 import {
   LIFE_SKILL_TREE_REGISTRY,
   lifeProgressionThresholdAuthorityRows,
+  LIFE_TREE_RESET_DEFAULT_COOLDOWN_SECONDS,
+  LIFE_TREE_RESET_POLICY_ID,
   lifeTreeAuthorityRow,
   lifeTreeEdgeAuthorityRows
 } from '../../../apps/world/src/life-skills/life-progression-registry.js';
@@ -71,4 +73,12 @@ test('SP ledger is keyed by the owning skill pool', () => {
     "select string_agg(column_name, ',' order by column_name) from information_schema.columns where table_schema='private' and table_name='world_life_sp_transactions' and column_name in ('skill_id','node_id')"
   );
   assert.equal(columns, 'node_id,skill_id');
+});
+
+test('committed tree reset policy seed equals the code default (free, 24 h cooldown)', () => {
+  const row = JSON.parse(query(
+    "select json_build_object('policy_id',policy_id,'cooldown_seconds',cooldown_seconds) from private.world_life_tree_reset_policy"
+  ));
+  assert.deepEqual(row, { policy_id: LIFE_TREE_RESET_POLICY_ID, cooldown_seconds: LIFE_TREE_RESET_DEFAULT_COOLDOWN_SECONDS });
+  assert.equal(query("select to_regprocedure('private.world_life_tree_reset_v1(uuid,text,text)') is not null"), 't');
 });

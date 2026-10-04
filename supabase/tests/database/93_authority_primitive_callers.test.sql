@@ -27,6 +27,7 @@ insert into authority_primitive(name, owner) values
   ('world_reward_grant_v1',                  'Reward'),
   ('world_life_skill_xp_apply_v1',           'Life / Skill XP'),
   ('world_life_node_unlock_v1',              'Life / Skill Point + Tree'),
+  ('world_life_tree_reset_v1',               'Life / Skill Tree reset'),
   ('world_collection_discover_v1',           'Collection'),
   ('world_creature_grant_v1',                'Creature / Ownership'),
   ('world_creature_observe_v1',              'Creature / Observation'),
@@ -145,8 +146,8 @@ insert into authority_allowed_call values
   -- Biryong NPC relationship: only the trusted service-role wrapper may advance persistent stage.
   ('public.world_biryong_npc_relationship_advance_v1', 'private.world_biryong_relationship_advance_v1',
      'Biryong NPC relationship P0: service_role wrapper advances exactly one verified stage');
--- Intentionally NO callers yet: world_inventory_mutate_v1, world_life_node_unlock_v1
--- (see the Authority Map).
+-- Intentionally NO callers yet: world_inventory_mutate_v1, world_life_node_unlock_v1,
+-- world_life_tree_reset_v1 (see the Authority Map).
 
 select set_eq(
   'select caller || '' -> '' || primitive from authority_edge',
@@ -207,6 +208,7 @@ insert into authority_table values
   ('world_reward_transactions','STATE'), ('world_reward_transaction_entries','STATE'),
   ('world_player_life_skills','STATE'), ('world_life_skill_xp_transactions','STATE'),
   ('world_life_sp_transactions','STATE'), ('world_player_life_nodes','STATE'),
+  ('world_life_tree_resets','STATE'),
   ('world_player_collection_discoveries','STATE'), ('world_collection_discovery_events','STATE'),
   ('world_player_creatures','STATE'), ('world_creature_xp_transactions','STATE'),
   ('world_creature_memory_tags','STATE'), ('world_creature_activity_events','STATE'),
@@ -226,7 +228,7 @@ insert into authority_table values
   ('world_shops','CATALOG'), ('world_shop_listings','CATALOG'),
   ('world_life_skill_catalog','CATALOG'), ('world_life_skill_thresholds','CATALOG'),
   ('world_life_progression_thresholds','CATALOG'), ('world_life_skill_tree_catalog','CATALOG'),
-  ('world_life_skill_tree_edges','CATALOG'), ('world_collection_entry_catalog','CATALOG'),
+  ('world_life_skill_tree_edges','CATALOG'), ('world_life_tree_reset_policy','CATALOG'), ('world_collection_entry_catalog','CATALOG'),
   ('world_combat_definition_catalog','CATALOG'), ('world_creature_species_catalog','CATALOG'),
   ('world_creature_form_catalog','CATALOG'), ('world_creature_activity_bridge_catalog','CATALOG'),
   ('world_creature_evolution_rule_catalog','CATALOG'), ('world_life_creature_bridge_catalog','CATALOG'),
@@ -263,6 +265,7 @@ insert into authority_allowed_write values
   ('world_life_skill_xp_transactions', 'private.world_life_skill_xp_apply_v1'),
   ('world_life_sp_transactions', 'private.world_life_node_unlock_v1'),
   ('world_player_life_nodes', 'private.world_life_node_unlock_v1'),
+  ('world_life_tree_resets', 'private.world_life_tree_reset_v1'),
   ('world_player_collection_discoveries', 'private.world_collection_discover_v1'),
   ('world_collection_discovery_events', 'private.world_collection_discover_v1'),
   ('world_player_creatures', 'private.world_creature_grant_v1'),

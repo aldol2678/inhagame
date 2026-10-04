@@ -14,7 +14,9 @@ import {
   lifeProgressionThresholdAuthorityRows,
   lifeSkillSpFreshSnapshot,
   lifeTreeAuthorityRow,
-  lifeTreeEdgeAuthorityRows
+  lifeTreeEdgeAuthorityRows,
+  lifeTreeResetFreshState,
+  LIFE_TREE_RESET_DEFAULT_COOLDOWN_SECONDS
 } from '../src/life-skills/life-progression-registry.js';
 
 const node = (overrides = {}) => ({
@@ -181,4 +183,11 @@ test('tree v1: a full tree is affordable exactly when its last gate opens (skill
   const lv14 = LIFE_SKILL_CURVE_THRESHOLDS.find(row => row.level === 14).cumulativeSp;
   assert.equal(lv15, 17);
   assert.ok(lv14 < 17);
+});
+
+test('tree reset is free with a 24 h default cooldown and starts at epoch 0', () => {
+  assert.equal(LIFE_TREE_RESET_DEFAULT_COOLDOWN_SECONDS, 24 * 60 * 60);
+  const state = lifeTreeResetFreshState();
+  assert.deepEqual(state, { epoch: 0, cooldownSeconds: 86400, lastResetAt: null, nextResetAt: null, cost: 0 });
+  assert.ok(Object.isFrozen(state));
 });

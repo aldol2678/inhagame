@@ -191,3 +191,19 @@ export function lifeSkillSpFreshSnapshot(definition) {
     nextLevelEarnedSp: position.nextLevelEarnedSp
   });
 }
+
+// Life Skill Tree reset (respec): free, per skill, one reset per cooldown window.
+// The server policy row is authoritative and adjustable by ops; this default only mirrors the
+// committed seed for fresh / offline display.
+export const LIFE_TREE_RESET_POLICY_ID = 'life.tree_reset.v1';
+export const LIFE_TREE_RESET_DEFAULT_COOLDOWN_SECONDS = 86400;
+
+export function lifeTreeResetFreshState() {
+  return Object.freeze({
+    epoch: 0,
+    cooldownSeconds: LIFE_TREE_RESET_DEFAULT_COOLDOWN_SECONDS,
+    lastResetAt: null,
+    nextResetAt: null,
+    cost: 0
+  });
+}
