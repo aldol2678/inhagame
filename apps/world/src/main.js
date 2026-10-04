@@ -22,6 +22,7 @@ import { createViewDistanceSettings } from './view-distance-settings.js';
 import { createGraphicsPresetController } from './graphics-presets.js';
 import { createEnvironmentDirector } from './environment/environment-director.js';
 import { createBiryongVisualLighting } from './biryong/biryong-visual-lighting.js';
+import { createBiryongAtmosphere } from './biryong/biryong-atmosphere.js';
 import { resolveEnvironmentRuntimeTime, resolveEnvironmentRuntimeWeather } from './environment/environment-clock.js';
 import { createEnvironmentWorldTime } from './environment/environment-world-time.js';
 import { createNpcWorldClock } from '../npc-factory/npc-world-clock.mjs';
@@ -228,9 +229,10 @@ const npcSocialMode = npcSocialProductionMode || npcSocialPreviewMode || npcObse
 const npcEnabled = npcSharedScheduleMode || npcTestMode || npcProductionMode || npcPreviewMode || npcRosterPreviewMode || npcSocialMode;
 const campusLifePreview = previewHost && startupParams.get('campusLife') === 'p0a';
 const biryongVisualStage = previewHost ? startupParams.get('biryongVisual') : null;
-const biryongVisualLabP0A = ['p0a', 'p0b', 'p0c'].includes(biryongVisualStage);
-const biryongVisualLabP0B = ['p0b', 'p0c'].includes(biryongVisualStage);
-const biryongVisualLabP0C = biryongVisualStage === 'p0c';
+const biryongVisualLabP0A = ['p0a', 'p0b', 'p0c', 'p0d'].includes(biryongVisualStage);
+const biryongVisualLabP0B = ['p0b', 'p0c', 'p0d'].includes(biryongVisualStage);
+const biryongVisualLabP0C = ['p0c', 'p0d'].includes(biryongVisualStage);
+const biryongVisualLabP0D = biryongVisualStage === 'p0d';
 let lastTrackedZone = null;
 
 async function boot() {
@@ -1807,6 +1809,21 @@ app.on("update", () => biryongVisualLighting.update());
 window.__INHAGAME_BIRYONG_VISUAL_LAB__ = Object.freeze({
   status: () => biryongVisualLighting.status(),
   ...(previewHost ? { setEnabled: value => biryongVisualLighting.setEnabled(value === true) } : {})
+});
+const biryongAtmosphere = createBiryongAtmosphere({
+  scene: app.scene,
+  camera,
+  canvas,
+  environment,
+  getActive: () => biryongRealm?.inBiryong === true,
+  getGraphicsTier: () => graphics.tier,
+  enabled: biryongVisualLabP0D,
+  toneMappingNeutral: pc.TONEMAP_NEUTRAL,
+  toneMappingCinematic: pc.TONEMAP_ACES
+});
+if (biryongVisualLabP0D) app.on("update", () => biryongAtmosphere.update());
+window.__INHAGAME_BIRYONG_ATMOSPHERE__ = Object.freeze({
+  status: () => biryongAtmosphere.status()
 });
 biryongVillageNpcs = createBiryongVillageNpcRuntime({
   app,
