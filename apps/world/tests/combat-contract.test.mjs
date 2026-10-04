@@ -34,9 +34,16 @@ const candidate = (overrides = {}) => ({
   ...overrides
 });
 
-test('Combat P0 registry contains no live or candidate encounter identities', () => {
-  assert.equal(COMBAT_REGISTRY.size, 0);
-  assert.deepEqual(COMBAT_REGISTRY.list(), []);
+test('Combat registry activates exactly the reviewed Building 5 training encounter', () => {
+  assert.equal(COMBAT_REGISTRY.size, 1);
+  const [definition] = COMBAT_REGISTRY.list();
+  assert.equal(definition.combatId, 'combat.building5.training_drone');
+  assert.equal(definition.category, 'TRAINING');
+  assert.equal(definition.availability, COMBAT_AVAILABILITY.ACTIVE);
+  assert.equal(definition.status, COMBAT_DEFINITION_STATUS.ACTIVE);
+  assert.equal(definition.resolverRef, 'resolver.building5.training_drone');
+  assert.equal(definition.definitionVersion, 1);
+  assert.equal(definition.outcomeSchemaVersion, 1);
 });
 
 test('Combat definition contract validates a server-owned encounter identity without activating it', () => {
