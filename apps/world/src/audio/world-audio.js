@@ -1,7 +1,7 @@
 import { AUDIO_TRANSITION, resolveAudioZone } from "./audio-zones.js";
 import { makeAmbienceBuffer } from "./synth-ambience.js";
 import { createRuntimeMusicLayer } from "./music-runtime.js";
-import { resolveAssetFactoryPreviewAmbience } from "./asset-factory-preview.js";
+import { resolveSoundscapeAssetBinding } from "./soundscape-asset-bindings.js";
 
 const clamp = value => Math.max(0, Math.min(1, Number(value) || 0));
 
@@ -19,7 +19,7 @@ export function createWorldAudio({
   fadeSeconds = AUDIO_TRANSITION.fadeSeconds,
   musicAssetLoader = undefined,
   ambienceAssetLoader = undefined,
-  assetFactoryPreviewId = null,
+  soundscapeProfileId = null,
   fetchFn = globalThis.fetch,
   setTimeoutFn = globalThis.setTimeout,
   clearTimeoutFn = globalThis.clearTimeout
@@ -118,8 +118,8 @@ export function createWorldAudio({
   }
 
   async function refreshSampled(profile) {
-    const plan = resolveAssetFactoryPreviewAmbience({
-      profileId: assetFactoryPreviewId,
+    const plan = resolveSoundscapeAssetBinding({
+      profileId: soundscapeProfileId,
       zone: profile?.id ?? null,
       weather: desired.weather
     });
@@ -144,8 +144,8 @@ export function createWorldAudio({
       }));
       if (request !== sampledRequest || disposed || context?.state !== "running" || loaded.some(item => !item)) return;
 
-      const current = resolveAssetFactoryPreviewAmbience({
-        profileId: assetFactoryPreviewId,
+      const current = resolveSoundscapeAssetBinding({
+        profileId: soundscapeProfileId,
         zone: resolveAudioZone(desired)?.id ?? null,
         weather: desired.weather
       });
@@ -202,8 +202,8 @@ export function createWorldAudio({
   function apply() {
     if (!context || context.state !== "running" || disposed) return;
     const profile = resolveAudioZone(desired);
-    const plan = resolveAssetFactoryPreviewAmbience({
-      profileId: assetFactoryPreviewId,
+    const plan = resolveSoundscapeAssetBinding({
+      profileId: soundscapeProfileId,
       zone: profile?.id ?? null,
       weather: desired.weather
     });
@@ -301,8 +301,8 @@ export function createWorldAudio({
       const syntheticSources = [...handles.values()].reduce((count, handle) => count + handle.sources.length, 0);
       const sampledSources = sampled?.sources.length ?? 0;
       const ambienceSources = syntheticSources + sampledSources;
-      const requestedSampled = resolveAssetFactoryPreviewAmbience({
-        profileId: assetFactoryPreviewId,
+      const requestedSampled = resolveSoundscapeAssetBinding({
+        profileId: soundscapeProfileId,
         zone: profile?.id ?? null,
         weather: desired.weather
       });
@@ -314,14 +314,15 @@ export function createWorldAudio({
         ambienceSources,
         activeSources: ambienceSources + musicStatus.activeSources,
         context: context?.state ?? "locked", degraded, volume,
-        sampledAmbience: {
-          previewOnly: Boolean(assetFactoryPreviewId),
-          requestedProfileId: requestedSampled?.id ?? null,
+        soundscape: {
+          profileId: soundscapeProfileId,
+          requestedBindingId: requestedSampled?.id ?? null,
           requestedAssetIds: requestedSampled?.layers.map(layer => layer.asset.id) ?? [],
-          activeProfileId: sampled?.planId ?? null,
+          activeBindingId: sampled?.planId ?? null,
           activeAssetIds: sampled?.assetIds ?? [],
           status: sampled ? "active" : sampledError ? "degraded" : requestedSampled ? "loading" : "inactive",
           replacingSynthetic: Boolean(sampled && requestedSampled?.replaceSynthetic),
+          fallback: requestedSampled?.fallback ?? null,
           error: sampledError
         },
         music: { ...musicStatus, volume: musicVolume }
