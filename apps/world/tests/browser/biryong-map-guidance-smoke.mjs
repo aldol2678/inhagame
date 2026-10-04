@@ -10,7 +10,7 @@ import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { assertHostedBrowserExecution, BIRYONG_QA_VIEWPORTS, BIRYONG_QA_NPCS, assertMapLayout, assertMapPointProjection,
-  readNpcConversationReadiness } from './biryong-map-guidance-qa.mjs';
+  readNpcConversationReadiness, assertInteractionHintLayout, assertInteractionHintCoverage } from './biryong-map-guidance-qa.mjs';
 
 // This must execute BEFORE importing Playwright indirectly through harness.mjs.
 assertHostedBrowserExecution(process.env);
@@ -414,9 +414,44 @@ try {
         let open = await state(page);
         assert.equal(open.dialogue.npcId, npc.id); assert.equal(open.dialogue.relationshipStage, 1);
         assert.equal(open.dialogue.unlockedFactCount, 0); assert.equal(open.enabled, false); assert.equal(open.focus.owners.npcDialogue, true);
+        const actorAtInitialOpen = open.npcs.npcs.find(actor => actor.id === npc.id);
+        npcReceipt.actorAtInitialOpen = actorAtInitialOpen;
+        assert.equal(actorAtInitialOpen.moving, false, 'normal conversation pauses the real moving actor');
+
+        // Verify dismissal immediately, before final guidance resumes its actual
+        // schedule. A later screenshot must not impose a second walking journey.
+        await page.keyboard.press('Escape'); await panel.waitFor({ state: 'hidden' });
+        const escapeState = await state(page);
+        assert.equal(escapeState.enabled, true); assert.equal(escapeState.focus.owners.npcDialogue, false);
+        assert.equal(escapeState.dialogue.open, false);
+        const reopenContext = await evaluate(async id => {
+          const { createBiryongNavigation } = await import('/src/biryong/biryong-navigation.js');
+          const d = window.__INHAGAME_P0__, provider = createBiryongNavigation();
+          const p = d.player.getLocalPosition(), actor = d.biryongVillageNpcs.actorSnapshot(id), status = d.biryongVillageNpcs.status();
+          return { player: { x: p.x, z: p.z }, actor, nearest: d.biryongVillageNpcs.nearestNpc(2.2),
+            context: d.getStatus().contextAction, contextLabel: document.getElementById('context-action').getAttribute('aria-label'),
+            playerWalkable: provider.walkable(p), actorWalkable: provider.walkable(actor.position),
+            segmentSafe: provider.segmentSafe(p, actor.position), clock: status.clock, period: status.period };
+        }, npc.id);
+        assert.deepEqual(reopenContext.player, proof.player, 'Escape alone cannot reposition the player');
+        // Existing public dialogue has a live proximity contract. Reuse the
+        // unchanged legal player location when that exact NPC is still offered;
+        // geometry observations remain in the receipt, including station crossing.
+        const reuseProximity = reopenContext.playerWalkable && reopenContext.nearest?.id === npc.id &&
+          reopenContext.context === 'biryong-npc-talk' && reopenContext.contextLabel?.includes(npc.name);
+        const finalApproachProof = reuseProximity ? reopenContext : await approachNpc();
+        assert.equal(finalApproachProof.nearest.id, npc.id);
+        assert.equal(finalApproachProof.context, 'biryong-npc-talk'); assert.ok(finalApproachProof.contextLabel.includes(npc.name));
+        npcReceipt.escapeState = escapeState; npcReceipt.reopenContext = reopenContext;
+        npcReceipt.reusedProximity = reuseProximity; npcReceipt.finalApproachProof = finalApproachProof;
+        if (mobile) await action(contextButton);
+        else { await page.locator('#application').focus(); await page.keyboard.press('f'); }
+        await panel.waitFor({ state: 'visible' }); open = await state(page);
+        assert.equal(open.dialogue.npcId, npc.id); assert.equal(open.dialogue.relationshipStage, 1);
+        assert.equal(open.dialogue.unlockedFactCount, 0); assert.equal(open.enabled, false); assert.equal(open.focus.owners.npcDialogue, true);
         const actorAtOpen = open.npcs.npcs.find(actor => actor.id === npc.id);
         npcReceipt.actorAtOpen = actorAtOpen;
-        assert.equal(actorAtOpen.moving, false, 'normal conversation pauses the real moving actor');
+        assert.equal(actorAtOpen.moving, false, 'reopened normal dialogue pauses the same actual actor');
         await action(panel.getByRole('button', { name: proof.topic.label, exact: true }));
         const poi = BIRYONG_MAP_DESTINATIONS.find(p => p.poiId === npc.target);
         const placeButton = panel.getByRole('button', { name: `📍 ${poi.title} 길안내`, exact: true });
@@ -430,21 +465,26 @@ try {
         assert.deepEqual(actorWhileOpen.position, actorAtOpen.position, 'the actual actor remains paused while its public topic is open');
         await action(placeButton); await panel.waitFor({ state: 'hidden' });
         const route = await inspectRoute(page); checkRoute(route, poi, `${name} ${npc.name}`);
-        assert.deepEqual(route.player, proof.player, 'NPC place guidance never teleports the player');
+        assert.deepEqual(route.player, finalApproachProof.player, 'NPC place guidance never teleports the player');
         const closed = await state(page);
         assert.equal(closed.enabled, true); assert.equal(closed.focus.owners.npcDialogue, false); assert.equal(closed.dialogue.open, false);
         await page.locator('#nav-guidance').waitFor({ state: 'visible' });
+        await page.evaluate(waitForRenderedFrames);
+        const interactionLayout = await evaluate(() => {
+          const visibleBox = id => {
+            const el = document.getElementById(id), style = getComputedStyle(el), rect = el.getBoundingClientRect();
+            return el.hidden || style.display === 'none' || style.visibility === 'hidden' || rect.width === 0 || rect.height === 0
+              ? null : rect.toJSON();
+          };
+          return { context: visibleBox('context-action'), hint: visibleBox('pointer-lock-hint') };
+        });
+        assertInteractionHintLayout(interactionLayout, `${name} ${npc.name}`);
+        npcReceipt.interactionLayout = interactionLayout;
         await capture(`npc-${npc.id}-guidance`);
         await action(page.locator('#nav-guidance-cancel')); assert.equal((await state(page)).navigation.status, 'IDLE');
-        // A repeated conversation dismissed with Escape must release the same owner.
-        const repeatedProof = await approachNpc(15000);
-        assert.equal(repeatedProof.nearest.id, npc.id); assert.ok(repeatedProof.contextLabel.includes(npc.name));
-        await action(contextButton); await panel.waitFor({ state: 'visible' });
-        assert.equal((await state(page)).dialogue.npcId, npc.id);
-        await page.keyboard.press('Escape'); await panel.waitFor({ state: 'hidden' });
         assert.equal((await state(page)).enabled, true);
         Object.assign(npcReceipt, { actorAfterClose: closed.npcs.npcs.find(actor => actor.id === npc.id),
-          clockAfterClose: closed.npcs.clock, repeatedProof, dialogBounds, buttonBounds, route, inputRestored: true, escapeClose: true, result: 'PASS' });
+          clockAfterClose: closed.npcs.clock, dialogBounds, buttonBounds, route, inputRestored: true, escapeClose: true, result: 'PASS' });
       }
 
       // Retain a realm route across the existing F1 return to detect stale local
@@ -482,6 +522,7 @@ try {
       assert.deepEqual(entry.requests.unexpectedExternalResponses, []);
       assert.deepEqual(smoke.problems, [], `${name}: no page, console, renderer or request failures`);
       entry.final = await state(page); assert.deepEqual(entry.final.navigationErrors, []); assert.deepEqual(entry.final.minimap.errors, []);
+      assertInteractionHintCoverage(entry.npcs.map(npc => npc.interactionLayout), mobile);
       entry.result = 'AUTOMATED_PASS_VISUAL_REVIEW_PENDING';
     } catch (error) {
       entry.result = 'FAIL'; entry.error = String(error.stack || error); entry.problems = smoke?.problems ?? [];

@@ -15,6 +15,13 @@ html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background:
 .pointer-lock-hint[hidden] { display: none !important; }
 .pointer-lock-hint[data-state="FALLBACK"] { color: #ffdf90; border-color: rgba(255,223,144,.45); }
 @media (pointer: coarse) { .pointer-lock-hint { display: none !important; } }
+/* Biryong place guidance can return directly to the desktop NPC interaction.
+   Keep both instructions readable without moving Campus or touch controls. */
+@media (pointer: fine) and (min-width: 700px) {
+  body[data-world-region="BIRYONG_REALM"]:has(> #context-action:not([hidden])) > .pointer-lock-hint {
+    bottom: max(72px, calc(env(safe-area-inset-bottom) + 64px));
+  }
+}
 .campus-location-stack {
   position: fixed;
   top: max(16px, env(safe-area-inset-top));

@@ -30,6 +30,13 @@ export function readNpcConversationReadiness(npcId) {
 }
 
 const overlaps = (a, b) => a.x < b.right - 1 && a.right > b.x + 1 && a.y < b.bottom - 1 && a.bottom > b.y + 1;
+export function assertInteractionHintLayout({ context, hint }, name) {
+  if (context && hint) assert.ok(!overlaps(context, hint), `${name}: interaction and pointer hint must not overlap`);
+}
+export function assertInteractionHintCoverage(layouts, mobile) {
+  if (!mobile) assert.ok(layouts.some(layout => layout?.context && layout?.hint), 'visible desktop interaction and pointer hint coverage required');
+}
+
 export function assertMapPointProjection(node, position, bounds) {
   // CSSOM serializes percentage styles to about six significant digits. A
   // 0.0001 percentage-point tolerance is at most 0.001 CSS px on a 1000px map.

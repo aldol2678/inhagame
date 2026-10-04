@@ -8,6 +8,28 @@ const helperUrl = new URL('./browser/biryong-map-guidance-qa.mjs', import.meta.u
 const smokeUrl = new URL('./browser/biryong-map-guidance-smoke.mjs', import.meta.url);
 const workflowUrl = new URL('../../../.github/workflows/biryong-map-guidance-browser.yml', import.meta.url);
 
+test('Biryong desktop interaction and pointer help have separate visible rows', async () => {
+  const { assertInteractionHintLayout, assertInteractionHintCoverage } = await import(helperUrl);
+  assert.equal(typeof assertInteractionHintLayout, 'function');
+  const context = { x: 575, y: 662, right: 706, bottom: 702, width: 131, height: 40 };
+  const overlappingHint = { x: 519, y: 670, right: 761, bottom: 703, width: 242, height: 33 };
+  assert.throws(() => assertInteractionHintLayout({ context, hint: overlappingHint }, 'desktop'), /overlap/);
+  assert.doesNotThrow(() => assertInteractionHintLayout({ context,
+    hint: { ...overlappingHint, y: 615, bottom: 648 } }, 'desktop'));
+  assert.doesNotThrow(() => assertInteractionHintLayout({ context, hint: null }, 'touch'));
+  assert.equal(typeof assertInteractionHintCoverage, 'function');
+  assert.throws(() => assertInteractionHintCoverage([{ context, hint: null }], false), /visible desktop/);
+  assert.doesNotThrow(() => assertInteractionHintCoverage([{ context, hint: overlappingHint }], false));
+  assert.doesNotThrow(() => assertInteractionHintCoverage([{ context, hint: null }], true));
+  const css = await readFile(new URL('../styles.css', import.meta.url), 'utf8');
+  assert.match(css, /@media \(pointer: fine\) and \(min-width: 700px\) \{\s*body\[data-world-region="BIRYONG_REALM"\]:has\(> #context-action:not\(\[hidden\]\)\) > \.pointer-lock-hint \{\s*bottom: max\(72px, calc\(env\(safe-area-inset-bottom\) \+ 64px\)\);/);
+  const source = await readFile(smokeUrl, 'utf8');
+  assert.match(source, /assertInteractionHintLayout\(interactionLayout/);
+  assert.match(source, /npcReceipt\.interactionLayout = interactionLayout/);
+  assert.match(source, /await page\.evaluate\(waitForRenderedFrames\);\s*const interactionLayout/);
+  assert.match(source, /assertInteractionHintCoverage\(entry\.npcs\.map\(npc => npc\.interactionLayout\), mobile\)/);
+});
+
 test('hosted acceptance guard rejects local and self-hosted environments without browser imports', async () => {
   const { assertHostedBrowserExecution } = await import(helperUrl);
   assert.throws(() => assertHostedBrowserExecution({}), /GitHub-hosted/);
@@ -98,6 +120,35 @@ test('moving visibility cannot bypass a currently unsafe live NPC approach', asy
   assert.match(source, /findBiryongNpcApproach/);
   assert.match(source, /performance\.now\(\) - started < timeoutMs/);
   assert.match(source, /NPC_APPROACH_UNAVAILABLE/);
+});
+
+test('Escape repeat is verified before guidance lets a real moving actor depart', async () => {
+  const { findBiryongNpcApproach } = await import('./browser/biryong-map-guidance-proximity.mjs');
+  const { createBiryongNavigation } = await import('../src/biryong/biryong-navigation.js');
+  const { BIRYONG_MAP_DESTINATIONS } = await import('../src/biryong/biryong-map-data.js');
+  // Exact desktop actor positions from hosted-2290df0/report.json: initial normal
+  // dialogue succeeded; only the late repeat setup failed after guidance capture.
+  const receipt = { id: 'BR_NPC_003', initial: { x: -1.9748979334806642, z: 29.581581716188005 },
+    lateRepeat: { x: -2.870414634573923, z: 26.671152437634905 } };
+  const provider = createBiryongNavigation();
+  const input = { npcId: receipt.id, target: BIRYONG_MAP_DESTINATIONS.find(poi => poi.poiId === 'poi.biryong-realm.council').position,
+    walkable: provider.walkable, segmentSafe: provider.segmentSafe };
+  const actor = position => ({ id: receipt.id, visible: true, phase: 'MOVING', position });
+  assert.ok(findBiryongNpcApproach({ ...input, actors: [actor(receipt.initial)] }));
+  assert.equal(findBiryongNpcApproach({ ...input, actors: [actor(receipt.lateRepeat)] }), null,
+    'the existing station exclusion remains strict; sequencing must not loosen it');
+  const source = await readFile(smokeUrl, 'utf8');
+  const start = source.indexOf('for (const npc of BIRYONG_QA_NPCS) {');
+  const escape = source.indexOf("await page.keyboard.press('Escape')", start);
+  const topic = source.indexOf('await action(panel.getByRole', start);
+  const guidance = source.indexOf('await capture(`npc-${npc.id}-guidance`)', start);
+  assert.ok(start >= 0 && escape > start && escape < topic && topic < guidance,
+    'close/reopen must be tested before the final public-topic guidance resumes NPC walking');
+  const end = source.indexOf('// Retain a realm route', guidance);
+  assert.doesNotMatch(source.slice(guidance, end), /approachNpc\(/, 'no unrelated late NPC journey after successful guidance');
+  assert.match(source, /route\.player, finalApproachProof\.player/, 'a genuine reacquisition owns the final no-teleport comparison');
+  assert.match(source, /actorWalkable: provider\.walkable\(actor\.position\)/, 'live actor geometry remains visible in the receipt');
+  assert.match(source, /reuseProximity \? reopenContext : await approachNpc\(\)/, 'lost proximity is reacquired through the unchanged safe selector');
 });
 
 test('actual map receipt keeps CSS percentages separate from DOMRect viewport pixels', async () => {
