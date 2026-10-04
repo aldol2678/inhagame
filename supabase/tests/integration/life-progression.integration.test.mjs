@@ -48,9 +48,16 @@ test('Life Skill Tree P0 catalog is intentionally empty before node-effect appro
   assert.deepEqual(db, code);
 });
 
-test('Life Progression P0 server authority functions are installed', () => {
+test('Life Progression server authority functions are installed', () => {
   const rows = query(
-    "select concat_ws(',', to_regprocedure('private.world_life_progression_snapshot_v1(uuid)') is not null, to_regprocedure('private.world_life_skill_tree_snapshot_v1(uuid,text)') is not null, to_regprocedure('private.world_life_node_unlock_v1(uuid,text,text)') is not null)"
+    "select concat_ws(',', to_regprocedure('private.world_life_progression_snapshot_v1(uuid)') is not null, to_regprocedure('private.world_life_skill_tree_snapshot_v1(uuid,text)') is not null, to_regprocedure('private.world_life_node_unlock_v1(uuid,text,text)') is not null, to_regprocedure('private.world_life_skill_sp_snapshot_v1(uuid,text)') is not null)"
   );
-  assert.equal(rows, 't,t,t');
+  assert.equal(rows, 't,t,t,t');
+});
+
+test('SP ledger is keyed by the owning skill pool', () => {
+  const columns = query(
+    "select string_agg(column_name, ',' order by column_name) from information_schema.columns where table_schema='private' and table_name='world_life_sp_transactions' and column_name in ('skill_id','node_id')"
+  );
+  assert.equal(columns, 'node_id,skill_id');
 });
