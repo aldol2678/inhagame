@@ -39,3 +39,24 @@ test('First Dormitory remains a Full Map POI while portrait controls move below 
     /poiId:\s*"poi\.dorm-1"[\s\S]*?title:\s*"제1생활관"[\s\S]*?surfaces:\s*Object\.freeze\(\[MAP_SURFACE\.MINIMAP, MAP_SURFACE\.FULL_MAP\]\)/,
     'First Dormitory is still available on the full campus map');
 });
+
+test('Full Map reclaims the unselected detail column on desktop as well as mobile', () => {
+  const beforeMobile = css.slice(0, css.indexOf('@media (max-width: 720px)', css.indexOf('.full-map-panel {')));
+  assert.match(beforeMobile, /\.full-map-body:has\(> \.full-map-info\[hidden\]\)\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/s);
+  assert.match(beforeMobile, /\.full-map-stage\s*\{[^}]*max-width:\s*min\(100%, calc\(100dvh - 160px\)\)/s,
+    'expanded map remains height bounded rather than becoming a tall scrolling square');
+});
+
+test('Full Map labels are readable DOM text and POIs retain touch-sized targets', () => {
+  assert.match(css, /\.full-map-poi\s*\{[^}]*width:\s*44px;[^}]*height:\s*44px;/s);
+  assert.match(css, /\.full-map-poi-label\s*\{[^}]*font:\s*800 12px\/16px/s);
+  assert.match(css, /\.full-map-poi\[data-label-visible="true"\] \.full-map-poi-label\s*\{[^}]*visibility:\s*visible/s);
+  assert.match(css, /\.full-map-poi-state\[hidden\]\s*\{[^}]*display:\s*none/s);
+  assert.doesNotMatch(css, /\.full-map-poi::after\s*\{/,
+    'labels no longer depend on CSS-generated aria-label text');
+});
+
+
+test('only visible collision-resolved labels extend their POI click target', () => {
+  assert.match(css, /\.full-map-poi\[data-label-visible="true"\] \.full-map-poi-label\s*\{[^}]*pointer-events:\s*auto/s);
+});
