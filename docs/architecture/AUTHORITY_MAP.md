@@ -75,7 +75,7 @@ Protected primitives, all in schema `private`:
 | Character EXP | `world_exp_apply_v1` |
 | Inventory | `world_inventory_grant_v1`, `world_inventory_consume_v1`, `world_inventory_mutate_v1` |
 | Reward | `world_reward_grant_v1` |
-| Life | `world_life_skill_xp_apply_v1`, `world_life_node_unlock_v1` |
+| Life | `world_life_skill_xp_apply_v1`, `world_life_node_unlock_v1`, `world_life_tree_reset_v1` |
 | Collection | `world_collection_discover_v1` |
 | Creature | `world_creature_grant_v1`, `_observe_v1`, `_party_set_v1`, `_activity_accept_v1`, `_evolution_candidate_v1`, `_evolution_context_gate_v1`, `_evolution_commit_v1` |
 | Activity | `world_activity_start_v1`, `world_activity_finalize_v1`, `world_activity_settle_v1` |
@@ -99,7 +99,8 @@ Allowed callers on `8b7bf39`. The exact list with a reason per row is in test 93
   transaction.
 - **Activity / Combat lifecycle**: service_role wrappers and the two Creature bridges.
 - **Biryong Relationship**: only `public.world_biryong_npc_relationship_advance_v1` (service_role) may call the relationship advance primitive; browser RPCs are read-only.
-- **No callers yet** (deliberately): `world_inventory_mutate_v1`, `world_life_node_unlock_v1`.
+- **No callers yet** (deliberately): `world_inventory_mutate_v1`, `world_life_node_unlock_v1`,
+  `world_life_tree_reset_v1` (the player path comes with the Life Skill Book).
 
 Client reachability: the only functions `anon` / `authenticated` can execute that reach any
 primitive, at any depth, are `purchase_world_shop_listing_v1`, `answer_my_world_daily_quiz_v1`,
@@ -127,7 +128,8 @@ if it never calls the primitive.
   `world_inventory_mutations(_entries)` ← the three Inventory primitives
 - Reward: `world_reward_transactions(_entries)` ← `world_reward_grant_v1`
 - Life: `world_player_life_skills`, `world_life_skill_xp_transactions` ← `world_life_skill_xp_apply_v1`;
-  `world_life_sp_transactions`, `world_player_life_nodes` ← `world_life_node_unlock_v1`
+  `world_life_sp_transactions`, `world_player_life_nodes` ← `world_life_node_unlock_v1`;
+  `world_life_tree_resets` ← `world_life_tree_reset_v1` (`world_life_tree_reset_policy` is a catalog)
 - Collection: `world_player_collection_discoveries`, `world_collection_discovery_events` ← `world_collection_discover_v1`
 - Creature: creature, party, observation, activity event, XP, memory and evolution tables ← their Creature primitive;
   `world_player_creatures.bond_entitled` and `world_creature_acquisition_claims` ← `world_duck_companion_bond_v1`
@@ -210,8 +212,19 @@ These rules bind the next PRs. This PR does not change schema or gameplay for th
   COMING_SOON. Each tree costs 17 SP to max, which its skill has earned exactly at skill Lv15 (the
   last gate). Node effects are not implemented; `effectRefs` only name them. Sailing's 6 nodes wait
   for a `life.sailing` skill. Guard test: `98_world_life_skill_tree_nodes_v1`.
-- Still open: respec / reset (planned as a reset epoch, so no ledger row is ever deleted), node
-  effect consumers, and a player-facing unlock path.
+- **Reset (respec)** (`20261004137000_world_life_skill_tree_reset`, `world_life_tree_reset_v1`):
+  - Free and per skill. One reset per (account, skill) per cooldown window; resetting Fishing never
+    blocks resetting Mining.
+  - Reset epochs: SP spends and acquired ranks carry the epoch they were made in, and only the
+    current epoch counts. A reset appends one `world_life_tree_resets` row (epoch + 1, refunded SP,
+    cleared ranks), so the refund is exact and no row is ever updated or deleted. It still refunds
+    after the skill or its nodes are disabled.
+  - A reset with nothing to refund is refused (`LIFE_TREE_RESET_EMPTY`) and starts no cooldown.
+  - **The cooldown is data, not code**: `world_life_tree_reset_policy.cooldown_seconds`, seeded at
+    86400 (24 h). Change it with a forward migration or ops DML; no function writes it. Each reset row
+    records the cooldown it was granted under. The tree snapshot reports `reset.nextResetAt`.
+  - Guard test: `98_world_life_skill_tree_reset`.
+- Still open: node effect consumers, and a player-facing read / unlock / reset path.
 
 ### 7.2 Combat TP: derived from Character Level
 - Combat Tree Points are earned from Character Level (`world_player_progression` + `world_level_thresholds`).
@@ -275,7 +288,7 @@ These rules bind the next PRs. This PR does not change schema or gameplay for th
   DELETE-guarding append-only trigger now allows a DELETE only once the owning account row is gone:
   Creature ledgers (incl. Duck Companion observations / claims and the bridge contexts / decisions)
   and Activity settlement receipts (`20261004133000`); Biryong relationship events, the Life SP
-  ledger and unlocked Life nodes (`20261004134000`). Direct UPDATE / DELETE of a live account's rows
+  ledger and unlocked Life nodes (`20261004134000`); Life tree resets (`20261004137000`). Direct UPDATE / DELETE of a live account's rows
   is still refused. Guard test: `79_account_delete_ledger_cascade` (through
   `delete_my_inhagame_account_v1`). A new append-only table that guards DELETE must use the same
   rule.
