@@ -36,20 +36,23 @@ export const ASSET_FACTORY_PREVIEW_ASSETS = Object.freeze({
       redistributionAllowed: null,
       evidenceRef: RIGHTS_EVIDENCE
     }),
-    qa: Object.freeze({ status: "candidate-r2" }),
+    qa: Object.freeze({
+      status: "candidate-r2",
+      evidenceRef: "https://docs.google.com/document/d/1XrsU1doujQqZrxraHWk0f8-xQcstgicOGE0PgqlXUoI/edit"
+    }),
     runtime: Object.freeze({ previewOnly: true, gain: 0.18, offsetSeconds: 0 })
   }),
   [AF07_R2_ASSET_IDS.AIR_LIFE]: Object.freeze({
     id: AF07_R2_ASSET_IDS.AIR_LIFE,
     type: "audio",
     subtype: "ambience",
-    revision: "r002",
-    uri: "https://cdn.creativeclaw.co/u/c3f5adde/audio/5d85dd56-1ece-49d3-81c6-b9556059acd7.mp3",
+    revision: "r003",
+    uri: "https://cdn.creativeclaw.co/u/c3f5adde/audio/79e8ca6e-efe8-4ac7-bd4f-fa2c12971d8b.mp3",
     provenance: Object.freeze({
       originType: "ai-generated",
       provider: "Runway",
-      sourceRef: "runway:9f65cfbe-a08d-4ec2-a0ec-055e80a45958",
-      storageRef: "creative-claw:15cdc025-cd09-4e5c-9528-641f5936bbec",
+      sourceRef: "runway:d3410db1-7269-4c23-b5e5-f0e873927b52",
+      storageRef: "creative-claw:3f70e4e9-e6a8-40b7-8c4a-2d8f65773345",
       createdAt: "2026-10-04"
     }),
     rights: Object.freeze({
@@ -61,7 +64,10 @@ export const ASSET_FACTORY_PREVIEW_ASSETS = Object.freeze({
       redistributionAllowed: null,
       evidenceRef: RIGHTS_EVIDENCE
     }),
-    qa: Object.freeze({ status: "candidate-r2" }),
+    qa: Object.freeze({
+      status: "candidate-r2",
+      evidenceRef: "https://docs.google.com/document/d/1XrsU1doujQqZrxraHWk0f8-xQcstgicOGE0PgqlXUoI/edit"
+    }),
     runtime: Object.freeze({ previewOnly: true, gain: 0.10, offsetSeconds: 7.5 })
   }),
   [AF07_R2_ASSET_IDS.RAIN]: Object.freeze({
@@ -86,7 +92,10 @@ export const ASSET_FACTORY_PREVIEW_ASSETS = Object.freeze({
       redistributionAllowed: null,
       evidenceRef: RIGHTS_EVIDENCE
     }),
-    qa: Object.freeze({ status: "candidate-r2" }),
+    qa: Object.freeze({
+      status: "candidate-r2",
+      evidenceRef: "https://docs.google.com/document/d/1XrsU1doujQqZrxraHWk0f8-xQcstgicOGE0PgqlXUoI/edit"
+    }),
     runtime: Object.freeze({ previewOnly: true, gain: 0.14, offsetSeconds: 13 })
   })
 });
