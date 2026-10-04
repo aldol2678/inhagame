@@ -22,6 +22,8 @@ import { createViewDistanceSettings } from './view-distance-settings.js';
 import { createGraphicsPresetController } from './graphics-presets.js';
 import { createEnvironmentDirector } from './environment/environment-director.js';
 import { resolveEnvironmentRuntimeTime, resolveEnvironmentRuntimeWeather } from './environment/environment-clock.js';
+import { createEnvironmentWorldTime } from './environment/environment-world-time.js';
+import { createNpcWorldClock } from '../npc-factory/npc-world-clock.mjs';
 import { createNightStreetLights } from './environment/night-street-lights.js';
 import { createNightBuildingWindows } from './environment/night-building-windows.js';
 import { createRainWeatherEffects } from './environment/rain-weather-effects.js';
@@ -314,7 +316,22 @@ const environment = createEnvironmentDirector({
   initialTime: resolveEnvironmentRuntimeTime(startupParams, { previewHost }),
   initialWeather: resolveEnvironmentRuntimeWeather(startupParams, { previewHost })
 });
-app.on("update", dt => environment.update(dt));
+// Production sky/light follows the shared INHA WORLD clock. Preview hosts keep
+// manual envTime controls deterministic for QA and never infer from local time.
+const worldClock = previewHost ? null : createNpcWorldClock();
+const environmentWorldTime = createEnvironmentWorldTime({
+  environment,
+  clock: worldClock,
+  enabled: worldClock !== null
+});
+if (worldClock) await environmentWorldTime.sync();
+app.on("update", dt => {
+  environmentWorldTime.update();
+  environment.update(dt);
+});
+window.__INHAGAME_WORLD_TIME__ = Object.freeze({
+  status: () => environmentWorldTime.status()
+});
 window.__INHAGAME_ENVIRONMENT__ = Object.freeze({
   status: () => environment.status(),
   ...(previewHost ? {
@@ -2572,6 +2589,7 @@ async function loadOptionalNpcRuntime() {
     const runtime = await module.createNpcDevRuntime({
       app, campusRoot, player, orbit,
       sharedSchedulePreview: npcSharedScheduleMode,
+      worldClock,
       onNpcTalk: (id, now) => online?.network?.setNpcTalk(id, now),
       getBusyNpcIds: now => busyNpcIds(online?.network?.remotes.inZone(online.network.placeZoneId) ?? [], now),
       production: npcSharedScheduleMode || npcProductionMode || npcPreviewMode || npcRosterPreviewMode || npcSocialPreviewMode || npcObservedConversationMode,
