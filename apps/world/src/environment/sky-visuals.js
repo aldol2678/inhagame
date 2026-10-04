@@ -51,6 +51,8 @@ function createAtmosphereGradientTexture(device, profile) {
     minFilter: pc.FILTER_LINEAR,
     magFilter: pc.FILTER_LINEAR
   });
+  texture.addressU = pc.ADDRESS_CLAMP_TO_EDGE;
+  texture.addressV = pc.ADDRESS_CLAMP_TO_EDGE;
   writeAtmosphereGradientTexture(texture, profile);
   return texture;
 }
