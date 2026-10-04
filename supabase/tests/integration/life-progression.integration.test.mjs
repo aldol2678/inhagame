@@ -41,11 +41,12 @@ test('Life Progression DB threshold mirror equals code authority rows', () => {
   })), code);
 });
 
-test('Life Skill Tree P0 catalog is intentionally empty before node-effect approval', () => {
+test('Life Skill Tree DB catalog equals the code tree v1 nodes (all COMING_SOON)', () => {
   const db = JSON.parse(query(
     "select coalesce(json_agg(json_build_object('node_id',node_id,'skill_id',skill_id,'status',status,'sp_cost',sp_cost,'max_rank',max_rank,'required_life_level',required_life_level,'required_skill_level',required_skill_level) order by node_id), '[]') from private.world_life_skill_tree_catalog"
   ));
-  const code = LIFE_SKILL_TREE_REGISTRY.list().map(lifeTreeAuthorityRow);
+  const code = LIFE_SKILL_TREE_REGISTRY.list().map(lifeTreeAuthorityRow)
+    .sort((a, b) => a.node_id.localeCompare(b.node_id));
   assert.deepEqual(db, code);
 });
 

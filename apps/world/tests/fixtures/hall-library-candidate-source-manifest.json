@@ -1,5 +1,5 @@
 {
-  "currentMain": "b367ada1086d43706925846d644fe1619eb4fcbb",
+  "currentMain": "1c6f43b36962f65f75cddd55b8661bb3aa4a268d",
   "historical108": "316c8ff95f7a12618ec8db61342d153f3cbb29ea",
   "previous144": "68d64e7466a2971256485b74e76c89a31e91547a",
   "purpose": "Narrow current-main integration boundary, not an obsolete 17-file freeze. Historical SHAs supply read-only graphical comparisons.",

@@ -2,7 +2,7 @@
 
 ## Scope and source
 
-Base: `b367ada1086d43706925846d644fe1619eb4fcbb` (reconciled current main).
+Base: `1c6f43b36962f65f75cddd55b8661bb3aa4a268d` (reconciled current main).
 Initial preparation used `ad89daf0a190ea6b8664da0459822d1084aef247`.
 This is a narrow forward-port, not a merge of the full PR97 → PR108 → PR144 stack.
 It supersedes only the Hall/library portion of PR144; those PRs remain open.

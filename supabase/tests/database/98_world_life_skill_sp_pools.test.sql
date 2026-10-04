@@ -61,12 +61,12 @@ select ok(not (private.world_life_progression_snapshot_v1('a9800000-0000-4000-80
 update private.world_life_skill_catalog set status='ACTIVE' where skill_id in ('life.fishing','life.mining');
 insert into private.world_life_skill_tree_catalog(
   node_id,skill_id,status,sp_cost,required_life_level,required_skill_level) values
-  ('life.node.fishing.steady_hands','life.fishing','ACTIVE',1,1,2),
-  ('life.node.fishing.fish_sense','life.fishing','ACTIVE',2,1,3),
-  ('life.node.fishing.deep_sea','life.fishing','ACTIVE',1,1,10),
-  ('life.node.mining.root','life.mining','ACTIVE',1,1,1);
+  ('life.node.fishing.sp_fixture_root','life.fishing','ACTIVE',1,1,2),
+  ('life.node.fishing.sp_fixture_child','life.fishing','ACTIVE',2,1,3),
+  ('life.node.fishing.sp_fixture_gate','life.fishing','ACTIVE',1,1,10),
+  ('life.node.mining.sp_fixture_root','life.mining','ACTIVE',1,1,1);
 insert into private.world_life_skill_tree_edges(node_id,prerequisite_node_id) values
-  ('life.node.fishing.fish_sense','life.node.fishing.steady_hands');
+  ('life.node.fishing.sp_fixture_child','life.node.fishing.sp_fixture_root');
 
 select is(private.world_life_skill_tree_snapshot_v1(
   'a9800000-0000-4000-8000-0000000000a9','life.fishing')->'sp'->>'availableSp','0',
@@ -82,30 +82,30 @@ select is((private.world_life_skill_sp_snapshot_v1('a9800000-0000-4000-8000-0000
 
 select throws_ok($$
   select private.world_life_node_unlock_v1('a9800000-0000-4000-8000-0000000000a9',
-    'life.node.mining.root','sp:a:unlock:mining:early')
+    'life.node.mining.sp_fixture_root','sp:a:unlock:mining:early')
 $$,'P0001','LIFE_SP_INSUFFICIENT','fishing SP cannot unlock a mining node');
 
 select is(private.world_life_node_unlock_v1('a9800000-0000-4000-8000-0000000000a9',
-  'life.node.fishing.steady_hands','sp:a:unlock:steady')->>'status','SUCCESS',
+  'life.node.fishing.sp_fixture_root','sp:a:unlock:steady')->>'status','SUCCESS',
   'fishing SP unlocks a fishing node');
 select results_eq($$
   select skill_id,node_id,sp_cost,sp_before,sp_after from private.world_life_sp_transactions
    where idempotency_key='sp:a:unlock:steady'
-$$,$$values ('life.fishing'::text,'life.node.fishing.steady_hands'::text,1,1,0)$$,
+$$,$$values ('life.fishing'::text,'life.node.fishing.sp_fixture_root'::text,1,1,0)$$,
   'ledger records the pool and per-pool balances');
 select is(private.world_life_node_unlock_v1('a9800000-0000-4000-8000-0000000000a9',
-  'life.node.fishing.steady_hands','sp:a:unlock:steady')->>'status','ALREADY_PROCESSED',
+  'life.node.fishing.sp_fixture_root','sp:a:unlock:steady')->>'status','ALREADY_PROCESSED',
   'same unlock key replays');
 select throws_ok($$
   select private.world_life_node_unlock_v1('a9800000-0000-4000-8000-0000000000a9',
-    'life.node.fishing.steady_hands','sp:a:unlock:steady:again')
+    'life.node.fishing.sp_fixture_root','sp:a:unlock:steady:again')
 $$,'23505','LIFE_NODE_MAX_RANK','a max-rank-1 node unlocks once');
 
 -- mining earns its own SP; fishing stays at its own balance.
 select is(private.world_life_skill_xp_apply_v1('a9800000-0000-4000-8000-0000000000a9','life.mining',100,
   'activity','activity.mining.campus:sp_001','sp:a:mining:001')->>'status','SUCCESS','mining reaches Lv2');
 select is(private.world_life_node_unlock_v1('a9800000-0000-4000-8000-0000000000a9',
-  'life.node.mining.root','sp:a:unlock:mining')->>'status','SUCCESS','mining SP unlocks the mining node');
+  'life.node.mining.sp_fixture_root','sp:a:unlock:mining')->>'status','SUCCESS','mining SP unlocks the mining node');
 select is(private.world_life_skill_sp_snapshot_v1('a9800000-0000-4000-8000-0000000000a9','life.fishing')
   - array['skillId','curveId','nextLevelEarnedSp'],
   jsonb_build_object('skillLevel',2,'earnedSp',1,'spentSp',1,'availableSp',0),
@@ -116,17 +116,17 @@ select is(private.world_life_skill_xp_apply_v1('a9800000-0000-4000-8000-00000000
   'activity','activity.fishing.inkyung:sp_002','sp:a:fishing:002')->>'status','SUCCESS','fishing reaches Lv3');
 select throws_ok($$
   select private.world_life_node_unlock_v1('a9800000-0000-4000-8000-0000000000a9',
-    'life.node.fishing.fish_sense','sp:a:unlock:sense:short')
+    'life.node.fishing.sp_fixture_child','sp:a:unlock:sense:short')
 $$,'P0001','LIFE_SP_INSUFFICIENT','Lv3 fishing has 1 available SP, the node costs 2');
 select is(private.world_life_skill_xp_apply_v1('a9800000-0000-4000-8000-0000000000a9','life.fishing',700,
   'activity','activity.fishing.inkyung:sp_003','sp:a:fishing:003')->>'status','SUCCESS','fishing reaches Lv5');
 select is((private.world_life_skill_sp_snapshot_v1('a9800000-0000-4000-8000-0000000000a9','life.fishing')->>'availableSp')::int,
   4,'Lv5 earns 5 cumulative fishing SP, 1 already spent');
 select is(private.world_life_node_unlock_v1('a9800000-0000-4000-8000-0000000000a9',
-  'life.node.fishing.fish_sense','sp:a:unlock:sense')->>'spAfter','2','prerequisite + SP met: node unlocks');
+  'life.node.fishing.sp_fixture_child','sp:a:unlock:sense')->>'spAfter','2','prerequisite + SP met: node unlocks');
 select throws_ok($$
   select private.world_life_node_unlock_v1('a9800000-0000-4000-8000-0000000000a9',
-    'life.node.fishing.deep_sea','sp:a:unlock:deep')
+    'life.node.fishing.sp_fixture_gate','sp:a:unlock:deep')
 $$,'P0001','LIFE_SKILL_LEVEL_REQUIRED','the gate is the owning skill''s level');
 
 -- ---- account isolation and ledger integrity ----
@@ -135,7 +135,7 @@ select is((private.world_life_skill_sp_snapshot_v1('b9800000-0000-4000-8000-0000
 select throws_ok($$
   insert into private.world_life_sp_transactions(
     user_id,skill_id,node_id,rank,sp_cost,sp_before,sp_after,idempotency_key)
-  values ('b9800000-0000-4000-8000-0000000000b9','life.mining','life.node.fishing.deep_sea',1,1,1,0,'sp:b:forged')
+  values ('b9800000-0000-4000-8000-0000000000b9','life.mining','life.node.fishing.sp_fixture_gate',1,1,1,0,'sp:b:forged')
 $$,'23503',null,'a spend cannot be booked against another skill''s pool');
 select throws_ok($$
   update private.world_life_sp_transactions set sp_cost=0 where idempotency_key='sp:a:unlock:steady'
