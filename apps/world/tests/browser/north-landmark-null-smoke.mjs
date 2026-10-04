@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import {registerHooks} from 'node:module';
 import {createHash} from 'node:crypto';
+import {readFileSync} from 'node:fs';
 globalThis.document={addEventListener(){},removeEventListener(){},createElement(tag){assert.equal(tag,'canvas');return {width:0,height:0,getContext(){return {measureText:text=>({width:text.length*45}),fillText(){}};}};}};
 const engine=new URL('./node_modules/playcanvas/build/playcanvas.mjs',import.meta.url).href;
 registerHooks({resolve(s,c,next){return next(s==='playcanvas'?engine:s,c);}});
@@ -9,6 +10,7 @@ const pc=await import('playcanvas');
 const {CampusChunkRenderer}=await import('../../src/campus-chunk-renderer.js');
 const {RenderChunkRegistry}=await import('../../src/render-chunk-registry.js');
 const {FACILITY_COLLIDERS}=await import('../../src/campus-facilities.js');
+const {AGORA}=await import('../../src/roadview-layout.js');
 const canvas={id:'north-landmarks-null',width:512,height:512},app=new pc.AppBase(canvas),options=new pc.AppOptions();
 options.graphicsDevice=new pc.NullGraphicsDevice(canvas);options.componentSystems=[pc.RenderComponentSystem,pc.CameraComponentSystem,pc.LightComponentSystem];app.init(options);
 const meshes=e=>e.findComponents('render').flatMap(c=>c.meshInstances);
@@ -17,6 +19,22 @@ const ids=['bldg_05','bldg_60th','fac_agora_courtyard','bldg_06','bldg_09'];
 const report={device:'NullGraphicsDevice: no pixels',engine:pc.version,cycles:[]};
 const stage=(label)=>console.error(JSON.stringify({stage:label,rssMiB:Math.round(process.memoryUsage().rss/1048576)}));
 try{
+ const source=readFileSync(new URL('./north-landmark-smoke.mjs',import.meta.url),'utf8');
+ const entryCameras=JSON.parse(source.match(/export const NORTH_ENTRY_CAMERA = (\{[^\n]+\});/)[1]);
+ report.entryFraming=[];
+ for(const [width,height]of [[1280,720],[390,844],[844,390]])for(const sign of [-1,1]){
+  const aspect=width/height,profile=entryCameras[aspect<.8?'portrait':'wide'],camera=new pc.Entity('EntryFrameCheck');app.root.addChild(camera);
+  camera.addComponent('camera',{fov:48,nearClip:2,farClip:1400,aspectRatioMode:pc.ASPECT_MANUAL,aspectRatio:aspect});
+  const u=(AGORA.stairStart+AGORA.stairEnd)/2,from=AGORA.frame.at(u,profile.out),to=AGORA.frame.at(u,0);
+  camera.setPosition(from.x,profile.y,from.z*sign);camera.lookAt(to.x,1.2,to.z*sign);
+  const points=[];
+  for(const side of [AGORA.stairStart,AGORA.stairEnd])for(const out of [0,AGORA.run])for(const rail of [0,.84]){
+   const p=AGORA.frame.at(side,out),y=AGORA.height*(1-out/AGORA.run)+rail;
+   const s=camera.camera.camera.worldToScreen(new pc.Vec3(p.x,y,p.z*sign),width,height);
+   assert.ok(s.x>width*.08&&s.x<width*.92&&s.y>height*.08&&s.y<height*.92,'entry/stair guard retains frame margin');points.push(s.toArray());
+  }
+  report.entryFraming.push({width,height,sign,points});camera.destroy();
+ }
  for(let cycle=0;cycle<3;cycle++){
   stage(`cycle ${cycle} start`);
   const root=new pc.Entity('NorthRestorationCampus'),sign=cycle%2?1:-1;root.setLocalScale(1,1,sign);app.root.addChild(root);

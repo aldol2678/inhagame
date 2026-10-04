@@ -4,6 +4,8 @@ import assert from 'node:assert/strict';
 import {mkdir,writeFile} from 'node:fs/promises';
 import {execFileSync} from 'node:child_process';
 import {startSmoke,TIMEOUT_MS} from './harness.mjs';
+// Parsed by the actual-engine null fixture to project every stair/rail corner.
+export const NORTH_ENTRY_CAMERA = {"wide":{"out":16,"y":12},"portrait":{"out":30,"y":20}};
 const out=process.env.NORTH_LANDMARK_OUTPUT||'test-results/north-landmarks/candidate';
 const mode=process.env.NORTH_LANDMARK_MODE||'candidate';
 await mkdir(out,{recursive:true});
@@ -40,7 +42,7 @@ try{
    await page.addStyleTag({content:'body > :not(#application):not(script):not(style){visibility:hidden!important}'});
    await page.evaluate(()=>{const d=window.__INHAGAME_P0__;d.app.off('update');d.app.autoRender=false;});
    for(const view of views.filter(v=>!v.close||name!=='landscape'))for(const sign of name==='desktop'&&!view.close?[-1,1]:[-1]){
-    const receipt=await page.evaluate(async({view,sign,mode})=>{
+    const receipt=await page.evaluate(async({view,sign,mode,entryCameras})=>{
      const d=window.__INHAGAME_P0__,{viewDistancePreset}=await import('/src/view-distance.js');
      const base=d.app.root.findByName('CampusBase'),camera=d.app.root.findByName('Camera');
      d.streaming.setPolicy(viewDistancePreset('MAX'));
@@ -69,18 +71,19 @@ try{
       const {AGORA}=await import('/src/roadview-layout.js'),u=(AGORA.stairStart+AGORA.stairEnd)/2;
       // A narrow portrait frustum needs a wider, raised stair view. Keep it
       // above the foreground crowns instead of cropping away the side guards.
-      const from=AGORA.frame.at(u,aspect<.8?26:10),to=AGORA.frame.at(u,0);
-      camera.setPosition(from.x,aspect<.8?18:3.4,from.z*sign);camera.lookAt(to.x,1.2,to.z*sign);
+      const profile=entryCameras[aspect<.8?'portrait':'wide'];
+      const from=AGORA.frame.at(u,profile.out),to=AGORA.frame.at(u,0);
+      camera.setPosition(from.x,profile.y,from.z*sign);camera.lookAt(to.x,1.2,to.z*sign);
       center.splice(0,3,to.x,1.2,to.z*sign);distance=camera.getPosition().distance({x:center[0],y:center[1],z:center[2]});
       const pc=await import('playcanvas');
       for(const side of [AGORA.stairStart,AGORA.stairEnd])for(const out of [0,AGORA.run])for(const rail of [0,.84]){
        const p=AGORA.frame.at(side,out),y=AGORA.height*(1-out/AGORA.run)+rail;
        const screen=camera.camera.worldToScreen(new pc.Vec3(p.x,y,p.z*sign));
-       if(screen.x<0||screen.x>d.app.graphicsDevice.width||screen.y<0||screen.y>d.app.graphicsDevice.height)throw Error('Stair or guard clipped from diagnostic entry view');
+       if(screen.x<0||screen.x>d.app.graphicsDevice.width||screen.y<0||screen.y>d.app.graphicsDevice.height)throw Error(`Stair or guard clipped: ${JSON.stringify({side,out,rail,screen:screen.toArray(),width:d.app.graphicsDevice.width,height:d.app.graphicsDevice.height})}`);
       }
      }
      return {clock,tower,baseOwners:target.length,nearOwners:near,reflection:sign,camera:camera.getPosition().toArray(),target:center,distance,renderComponents:all.length};
-    },{view,sign,mode});
+    },{view,sign,mode,entryCameras:NORTH_ENTRY_CAMERA});
     const a=await frame(page),stable=await frame(page,true);assert.equal(a.glError,0);assert.equal(stable.glError,0);assert.equal(stable.changed,0,'stationary frame instability');
     await page.evaluate(()=>window.__northTargetGroups.forEach(({e})=>{e.enabled=false;}));
     const hidden=await frame(page,true);assert.equal(hidden.glError,0);assert.ok(hidden.changed>30,`${view.id}: target is blank or fully occluded`);
