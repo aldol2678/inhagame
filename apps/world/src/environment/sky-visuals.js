@@ -9,6 +9,172 @@ import {
   sunVisualProfile,
   writeSunSourceDirection
 } from './sky-visual-policy.js';
+import {
+  ATMOSPHERE_DOME_RADIUS,
+  ATMOSPHERE_ELEVATIONS,
+  ATMOSPHERE_SEGMENTS,
+  ATMOSPHERE_SUN_GLOW_SIZE,
+  atmosphereSkyProfile,
+  writeAtmosphereColor
+} from './atmospheric-sky-policy.js';
+
+function createAtmosphereMaterial() {
+  const material = new pc.StandardMaterial();
+  material.name = 'environment-atmosphere-dome';
+  material.diffuse = new pc.Color(0, 0, 0);
+  material.emissive = new pc.Color(1, 1, 1);
+  material.emissiveVertexColor = true;
+  material.emissiveVertexColorChannel = 'rgb';
+  material.useLighting = false;
+  material.useFog = false;
+  material.useTonemap = false;
+  material.depthWrite = false;
+  material.cull = pc.CULLFACE_NONE;
+  material.update();
+  return material;
+}
+
+function writeAtmosphereMeshColors(atmosphere, profile) {
+  for (let i = 0; i < atmosphere.elevations.length; i++)
+    writeAtmosphereColor(atmosphere.colors, i * 4, profile, atmosphere.elevations[i]);
+  atmosphere.mesh.setColors(atmosphere.colors);
+  atmosphere.mesh.update();
+  atmosphere.profile = profile;
+}
+
+function createAtmosphereDome(root, device, profile) {
+  const positions = [];
+  const indices = [];
+  const elevations = [];
+
+  for (const elevation of ATMOSPHERE_ELEVATIONS) {
+    const radians = elevation * Math.PI / 180;
+    const y = Math.sin(radians) * ATMOSPHERE_DOME_RADIUS;
+    const radius = Math.cos(radians) * ATMOSPHERE_DOME_RADIUS;
+    for (let segment = 0; segment < ATMOSPHERE_SEGMENTS; segment++) {
+      const angle = segment / ATMOSPHERE_SEGMENTS * Math.PI * 2;
+      positions.push(
+        Math.sin(angle) * radius,
+        y,
+        Math.cos(angle) * radius
+      );
+      elevations.push(elevation);
+    }
+  }
+
+  for (let ring = 0; ring < ATMOSPHERE_ELEVATIONS.length - 1; ring++) {
+    const row = ring * ATMOSPHERE_SEGMENTS;
+    const next = (ring + 1) * ATMOSPHERE_SEGMENTS;
+    for (let segment = 0; segment < ATMOSPHERE_SEGMENTS; segment++) {
+      const a = row + segment;
+      const b = row + (segment + 1) % ATMOSPHERE_SEGMENTS;
+      const c = next + segment;
+      const d = next + (segment + 1) % ATMOSPHERE_SEGMENTS;
+      indices.push(a, c, b, b, c, d);
+    }
+  }
+
+  const top = positions.length / 3;
+  positions.push(0, ATMOSPHERE_DOME_RADIUS, 0);
+  elevations.push(90);
+  const finalRing = (ATMOSPHERE_ELEVATIONS.length - 1) * ATMOSPHERE_SEGMENTS;
+  for (let segment = 0; segment < ATMOSPHERE_SEGMENTS; segment++) {
+    const a = finalRing + segment;
+    const b = finalRing + (segment + 1) % ATMOSPHERE_SEGMENTS;
+    indices.push(a, top, b);
+  }
+
+  const colors = new Float32Array(elevations.length * 4);
+  for (let i = 0; i < elevations.length; i++)
+    writeAtmosphereColor(colors, i * 4, profile, elevations[i]);
+
+  const mesh = pc.createMesh(device, positions, { colors, indices });
+  const material = createAtmosphereMaterial();
+  const entity = new pc.Entity('EnvironmentAtmosphereDome');
+  entity.addComponent('render', {
+    type: 'asset',
+    castShadows: false,
+    receiveShadows: false,
+    meshInstances: [new pc.MeshInstance(mesh, material)]
+  });
+  root.addChild(entity);
+  entity.on('destroy', () => mesh.destroy());
+
+  return {
+    entity,
+    mesh,
+    material,
+    elevations,
+    colors,
+    profile
+  };
+}
+
+function createSunGlowTexture(device) {
+  const size = 32;
+  const pixels = new Uint8Array(size * size * 4);
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+    const u = ((x + 0.5) / size) * 2 - 1;
+    const v = ((y + 0.5) / size) * 2 - 1;
+    const radius = Math.hypot(u, v);
+    const alpha = Math.pow(Math.max(0, 1 - radius), 2.2);
+    const i = (y * size + x) * 4;
+    pixels[i] = 255;
+    pixels[i + 1] = 255;
+    pixels[i + 2] = 255;
+    pixels[i + 3] = Math.round(alpha * 255);
+  }
+
+  return new pc.Texture(device, {
+    name: 'environment-sun-glow-mask',
+    width: size,
+    height: size,
+    format: pc.PIXELFORMAT_RGBA8,
+    levels: [pixels],
+    mipmaps: false,
+    minFilter: pc.FILTER_LINEAR,
+    magFilter: pc.FILTER_LINEAR
+  });
+}
+
+function createSunGlow(root, device) {
+  const texture = createSunGlowTexture(device);
+  const material = new pc.StandardMaterial();
+  material.name = 'environment-sun-glow';
+  material.diffuse = new pc.Color(0, 0, 0);
+  material.emissive = new pc.Color(1, 0.90, 0.70);
+  material.emissiveMap = texture;
+  material.opacityMap = texture;
+  material.opacityMapChannel = 'a';
+  material.opacity = 0;
+  material.emissiveIntensity = 1.35;
+  material.useLighting = false;
+  material.useFog = false;
+  material.useTonemap = false;
+  material.blendType = pc.BLEND_NORMAL;
+  material.depthWrite = false;
+  material.cull = pc.CULLFACE_NONE;
+  material.update();
+
+  const positions = [-0.5,-0.5,0, 0.5,-0.5,0, 0.5,0.5,0, -0.5,0.5,0];
+  const uvs = [0,0, 1,0, 1,1, 0,1];
+  const indices = [0,1,2, 0,2,3];
+  const mesh = pc.createMesh(device, positions, { uvs, indices });
+
+  const entity = new pc.Entity('EnvironmentSunGlow');
+  entity.addComponent('render', {
+    type: 'asset',
+    castShadows: false,
+    receiveShadows: false,
+    meshInstances: [new pc.MeshInstance(mesh, material)]
+  });
+  entity.setLocalScale(ATMOSPHERE_SUN_GLOW_SIZE, ATMOSPHERE_SUN_GLOW_SIZE, 1);
+  entity.enabled = false;
+  root.addChild(entity);
+  entity.on('destroy', () => mesh.destroy());
+
+  return { entity, material, texture };
+}
 
 function createCloudTexture(device) {
   const size = 64;
@@ -151,6 +317,20 @@ export function createSkyVisuals({
   const root = new pc.Entity('EnvironmentSkyVisuals');
   app.root.addChild(root);
 
+  const skyState = {
+    sunColor: [1, 0.94, 0.81],
+    sunEuler: [55, 30, 0],
+    sunIntensity: 1.15,
+    artificialLightFactor: 0,
+    rainIntensity: 0,
+    snowIntensity: 0,
+    cloudCover: 0.24,
+    sunLightScale: 1
+  };
+
+  let atmosphereProfile = atmosphereSkyProfile(skyState);
+  const atmosphere = createAtmosphereDome(root, device, atmosphereProfile);
+
   const cloudRoot = new pc.Entity('EnvironmentCloudField');
   root.addChild(cloudRoot);
   const cloudTexture = createCloudTexture(device);
@@ -162,17 +342,9 @@ export function createSkyVisuals({
     ])
   );
 
+  // Add the soft halo before the solid sun disc so the core stays crisp.
+  const sunGlow = createSunGlow(root, device);
   const sun = createSun(root);
-  const skyState = {
-    sunColor: [1, 0.94, 0.81],
-    sunEuler: [55, 30, 0],
-    sunIntensity: 1.15,
-    artificialLightFactor: 0,
-    rainIntensity: 0,
-    snowIntensity: 0,
-    cloudCover: 0.24,
-    sunLightScale: 1
-  };
 
   let tier = null;
   let cloudProfile = cloudVisualProfile(skyState);
@@ -225,6 +397,15 @@ export function createSkyVisuals({
     cloudMaterial.emissiveIntensity = cloudProfile.emissiveIntensity;
     cloudMaterial.update();
 
+    atmosphereProfile = atmosphereSkyProfile(skyState);
+    writeAtmosphereMeshColors(atmosphere, atmosphereProfile);
+
+    sunGlow.entity.enabled = sunProfile.visible && atmosphereProfile.sunGlowOpacity > 0.01;
+    sunGlow.material.opacity = atmosphereProfile.sunGlowOpacity;
+    sunGlow.material.emissive.set(...sunProfile.color);
+    sunGlow.material.emissiveIntensity = 1.25 + atmosphereProfile.sunsetFactor * 0.55;
+    sunGlow.material.update();
+
     lastMaterialSignal.sunColor[0] = skyState.sunColor[0];
     lastMaterialSignal.sunColor[1] = skyState.sunColor[1];
     lastMaterialSignal.sunColor[2] = skyState.sunColor[2];
@@ -243,15 +424,18 @@ export function createSkyVisuals({
     applyMaterials();
 
     const cameraPosition = camera.getPosition();
+    atmosphere.entity.setPosition(cameraPosition.x, cameraPosition.y, cameraPosition.z);
+
     // PlayCanvas directional lights shine along -entity.up. The visible source
     // therefore lives in +entity.up, so reading the real light transform keeps
-    // the sun disc and cast-shadow direction locked together during transitions.
+    // the sun disc, glow and cast-shadow direction locked together.
     writeSunSourceDirection(sunDirection, lightEntity?.up);
-    sun.entity.setPosition(
-      cameraPosition.x + sunDirection[0] * SKY_SUN_DISTANCE,
-      cameraPosition.y + sunDirection[1] * SKY_SUN_DISTANCE,
-      cameraPosition.z + sunDirection[2] * SKY_SUN_DISTANCE
-    );
+    const sunX = cameraPosition.x + sunDirection[0] * SKY_SUN_DISTANCE;
+    const sunY = cameraPosition.y + sunDirection[1] * SKY_SUN_DISTANCE;
+    const sunZ = cameraPosition.z + sunDirection[2] * SKY_SUN_DISTANCE;
+    sun.entity.setPosition(sunX, sunY, sunZ);
+    sunGlow.entity.setPosition(sunX, sunY, sunZ);
+    sunGlow.entity.setRotation(camera.getRotation());
 
     const safeDt = Math.max(0, Number.isFinite(dt) ? dt : 0);
     cloudPhase = (cloudPhase + safeDt * 0.55) % 360;
@@ -265,6 +449,12 @@ export function createSkyVisuals({
     const shadowRayDirection = shadowRayDirectionFromSunSource(direction);
     return Object.freeze({
       graphicsTier: currentTier,
+      atmosphereDrawMeshes: 1,
+      atmosphereVertexCount: atmosphere.elevations.length,
+      atmosphereHorizonColor: Object.freeze([...atmosphereProfile.horizonColor]),
+      atmosphereZenithColor: Object.freeze([...atmosphereProfile.zenithColor]),
+      atmosphereHazeStrength: atmosphereProfile.hazeStrength,
+      atmosphereSunsetFactor: atmosphereProfile.sunsetFactor,
       cloudPatchCount: SKY_CLOUD_PATCH_BUDGET[currentTier] ?? SKY_CLOUD_PATCH_BUDGET.medium,
       cloudDrawMeshes: 1,
       cloudOpacity: cloudProfile.opacity,
@@ -281,7 +471,9 @@ export function createSkyVisuals({
         direction[0] * shadowRayDirection[0] +
         direction[1] * shadowRayDirection[1] +
         direction[2] * shadowRayDirection[2],
-      sunDrawMeshes: sunProfile.visible ? 1 : 0
+      sunDrawMeshes: sunProfile.visible ? 1 : 0,
+      sunGlowOpacity: atmosphereProfile.sunGlowOpacity,
+      sunGlowDrawMeshes: sunGlow.entity.enabled ? 1 : 0
     });
   }
 
@@ -289,8 +481,11 @@ export function createSkyVisuals({
     if (destroyed) return;
     destroyed = true;
     root.destroy();
+    atmosphere.material.destroy();
     cloudTexture.destroy();
     cloudMaterial.destroy();
+    sunGlow.texture.destroy();
+    sunGlow.material.destroy();
     sun.material.destroy();
   }
 

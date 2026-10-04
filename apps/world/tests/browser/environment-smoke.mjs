@@ -48,6 +48,11 @@ try {
   assert.equal(initial.sky.sunVisible, true);
   assert.ok(initial.sky.sunOpacity > 0);
   assert.equal(initial.sky.sunDrawMeshes, 1);
+  assert.equal(initial.sky.atmosphereDrawMeshes, 1);
+  assert.ok(initial.sky.atmosphereVertexCount < 200);
+  assert.ok(initial.sky.atmosphereSunsetFactor > 0.5);
+  assert.ok(initial.sky.sunGlowOpacity > 0);
+  assert.equal(initial.sky.sunGlowDrawMeshes, 1);
   assert.ok(Math.abs(initial.sky.sunShadowAlignmentDot + 1) < 1e-6);
   assert.ok(initial.environment.fog.start < initial.environment.fog.end);
   assert.ok(initial.environment.exposure < 1.05 && initial.environment.exposure > 0.82);
@@ -80,6 +85,13 @@ try {
   assert.equal(dayClear.environment.wetness, 0);
   assert.equal(dayClear.rain.rainEnabled, false);
   assert.equal(dayClear.rain.wetGroundEnabled, false);
+  assert.equal(dayClear.sky.atmosphereDrawMeshes, 1);
+  assert.equal(dayClear.sky.atmosphereSunsetFactor, 0);
+  assert.ok(dayClear.sky.atmosphereHazeStrength > 0);
+  assert.ok(dayClear.sky.atmosphereHorizonColor[2] > dayClear.sky.atmosphereHorizonColor[0]);
+  assert.ok(dayClear.sky.atmosphereZenithColor[2] > dayClear.sky.atmosphereZenithColor[0]);
+  assert.ok(dayClear.sky.sunGlowOpacity > 0.2);
+  assert.equal(dayClear.sky.sunGlowDrawMeshes, 1);
   assert.ok(Math.abs(dayClear.sky.sunShadowAlignmentDot + 1) < 1e-6);
   assert.deepEqual(
     dayClear.sky.shadowRayDirection.map((value, index) => value + dayClear.sky.sunDirection[index]),
@@ -110,6 +122,11 @@ try {
   assert.ok(cloudy.sky.sunOpacity < dayClear.sky.sunOpacity);
   assert.ok(cloudy.sky.sunLightScale < dayClear.sky.sunLightScale);
   assert.equal(cloudy.sky.sunVisible, true);
+  assert.ok(cloudy.sky.sunGlowOpacity < dayClear.sky.sunGlowOpacity);
+  assert.ok(
+    cloudy.sky.atmosphereZenithColor.reduce((sum, value) => sum + value, 0) <
+    dayClear.sky.atmosphereZenithColor.reduce((sum, value) => sum + value, 0)
+  );
 
   await page.evaluate(() => window.__INHAGAME_ENVIRONMENT__.setWeather('snow'));
   await page.waitForFunction(
@@ -193,6 +210,12 @@ try {
   assert.equal(nightRain.sky.sunVisible, false);
   assert.equal(nightRain.sky.sunOpacity, 0);
   assert.equal(nightRain.sky.sunDrawMeshes, 0);
+  assert.equal(nightRain.sky.sunGlowDrawMeshes, 0);
+  assert.equal(nightRain.sky.sunGlowOpacity, 0);
+  assert.equal(nightRain.sky.atmosphereDrawMeshes, 1);
+  assert.ok(
+    nightRain.sky.atmosphereZenithColor.reduce((sum, value) => sum + value, 0) < 0.8
+  );
   assert.equal(nightRain.sky.cloudDrawMeshes, 1);
   assert.ok(nightRain.sky.cloudOpacity > initial.sky.cloudOpacity);
   assert.equal(nightRain.environment.artificialLightFactor, 1);
@@ -298,7 +321,7 @@ try {
   assert.equal(mobileStatus.streetLights.artificialLightFactor, 1);
   assert.ok(mobileStatus.streetLights.activeDynamicLights <= mobileStatus.streetLights.dynamicBudget);
   assert.deepEqual(smoke.problems, []);
-  console.log('world environment smoke: PASS (CLEAR/CLOUDY/FOG/RAIN/SNOW, sky, rain/snow, street lights, wet roads, Inkyung pond, 390px mobile)');
+  console.log('world environment smoke: PASS (atmospheric gradient + sun glow, CLEAR/CLOUDY/FOG/RAIN/SNOW, sky, rain/snow, street lights, wet roads, Inkyung pond, 390px mobile)');
 } finally {
   await smoke.close();
 }
