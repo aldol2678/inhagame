@@ -406,8 +406,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
 
   function nearestVisible() {
     const playerPos = player.getLocalPosition();
-    return snapshot.actors.filter(actor => avatars.get(actor.id).motion.position &&
-      (!worldClock || !purposefulRoster.get(actor.id)?.controller.status(false).moving))
+    return snapshot.actors.filter(actor => avatars.get(actor.id).motion.position)
       .map(actor => ({ actor, distance: Math.hypot(avatars.get(actor.id).motion.position.x - playerPos.x,
         avatars.get(actor.id).motion.position.z - playerPos.z) }))
       .sort((a, b) => a.distance - b.distance)[0];
@@ -1119,7 +1118,9 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
         if (time.period !== snapshot.period) applySnapshot(snapshotForPeriod(batch, time.period));
       }
       const state = activeConversation && purposefulRoster.get(activeConversation.id)?.controller.status(false);
-      if (state && (!state.visible || state.moving)) closeConversation(false);
+      // Shared schedule movement stays authoritative, but walking alone must not cancel player dialogue.
+      // The normal 5 m release-radius check below closes the conversation once the NPC actually leaves.
+      if (state && !state.visible) closeConversation(false);
     } else if (running) {
       elapsed = (elapsed + dt) % CYCLE_SECONDS;
       const period = periodAt(elapsed);
