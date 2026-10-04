@@ -271,6 +271,9 @@ from unnest(array['anon', 'authenticated']) r, unnest(array[
   'public.world_combat_finalize_v1(uuid,uuid,text,text)',
   'public.world_combat_start_with_creature_v1(uuid,text,text,uuid,integer,integer,jsonb)',
   'public.world_combat_finalize_with_creature_v1(uuid,uuid,text,text)',
+  'public.world_combat_building5_start_v1(uuid,uuid)',
+  'public.world_combat_building5_action_v1(uuid,uuid,text,uuid)',
+  'public.world_combat_building5_snapshot_v1(uuid,uuid)',
   'public.world_life_activity_start_with_creature_v1(uuid,text,text,uuid,integer,integer,timestamp with time zone)',
   'public.world_life_activity_finalize_with_creature_v1(uuid,uuid,text,text,text)',
   'public.world_creature_observe_v1(uuid,text,text,text,text,text)',
@@ -300,6 +303,9 @@ from unnest(array[
   'public.world_combat_finalize_v1(uuid,uuid,text,text)',
   'public.world_combat_start_with_creature_v1(uuid,text,text,uuid,integer,integer,jsonb)',
   'public.world_combat_finalize_with_creature_v1(uuid,uuid,text,text)',
+  'public.world_combat_building5_start_v1(uuid,uuid)',
+  'public.world_combat_building5_action_v1(uuid,uuid,text,uuid)',
+  'public.world_combat_building5_snapshot_v1(uuid,uuid)',
   'public.world_life_activity_start_with_creature_v1(uuid,text,text,uuid,integer,integer,timestamp with time zone)',
   'public.world_life_activity_finalize_with_creature_v1(uuid,uuid,text,text,text)',
   'public.world_creature_observe_v1(uuid,text,text,text,text,text)',
@@ -338,7 +344,8 @@ where p.pronamespace = 'private'::regnamespace and p.proname in (
   'world_wallet_apply_v1', 'world_exp_apply_v1', 'world_inventory_grant_v1', 'world_inventory_consume_v1',
   'world_inventory_mutate_v1', 'world_reward_grant_v1', 'world_life_skill_xp_apply_v1', 'world_life_node_unlock_v1',
   'world_collection_discover_v1', 'world_creature_grant_v1', 'world_creature_activity_accept_v1',
-  'world_creature_evolution_commit_v1', 'world_combat_finalize_v1', 'world_activity_finalize_v1');
+  'world_creature_evolution_commit_v1', 'world_combat_finalize_v1', 'world_combat_settle_v1',
+  'world_activity_finalize_v1');
 
 -- Direct table DML in private by an API role bypasses every primitive. Exact surface, recorded as
 -- found (not new policy): service_role keeps the ops/legacy write paths listed here.
