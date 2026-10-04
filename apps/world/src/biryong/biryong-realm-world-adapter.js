@@ -4,12 +4,13 @@
 import { CAMPUS_MOVEMENT_SPACE } from "../player-controller.js";
 import { cameraYawBehind } from "../rooms/room-world-adapter.js";
 import { WORLD_REGION_ID } from "../regions/world-region-registry.js";
-import { BIRYONG_REALM_REGION_ID, BIRYONG_STATION_P0_BOUNDS } from "./biryong-realm-layout.js";
+import { BIRYONG_REALM_REGION_ID } from "./biryong-realm-layout.js";
+import { BIRYONG_REALM_P0_BOUNDS, BIRYONG_REALM_P0_OBSTACLES } from "./biryong-village-layout.js";
 
 export const BIRYONG_REALM_MOVEMENT_SPACE = Object.freeze({
   id: BIRYONG_REALM_REGION_ID,
-  obstacles: Object.freeze([]),
-  bounds: BIRYONG_STATION_P0_BOUNDS,
+  obstacles: BIRYONG_REALM_P0_OBSTACLES,
+  bounds: BIRYONG_REALM_P0_BOUNDS,
   allowMount: false,
   groundHeight: () => 0,
   constrain: (_position, next) => next
