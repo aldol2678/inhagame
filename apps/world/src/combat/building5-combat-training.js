@@ -92,6 +92,7 @@ const cooldownKey = identity => identity === 'accelerate' ? 'active_1'
 export function createBuilding5CombatTraining({
   clock = { now: () => Date.now() },
   getPlayerPosition = () => null,
+  getDodgeDirection = () => ({ x: 0, z: 1 }),
   target = BUILDING5_TRAINING_TARGET,
   playerDefinition = BUILDING5_TRAINING_PLAYER,
   enemyAttack = BUILDING5_TRAINING_ATTACK
@@ -123,7 +124,10 @@ export function createBuilding5CombatTraining({
     iframeEndAt: 0,
     perfectStartAt: 0,
     perfectEndAt: 0,
-    perfectUsed: false
+    perfectUsed: false,
+    dirX: 0,
+    dirZ: 1,
+    travelled: 0
   });
 
   let enemyAttackSerial = 0;
@@ -244,7 +248,10 @@ export function createBuilding5CombatTraining({
       iframeEndAt: 0,
       perfectStartAt: 0,
       perfectEndAt: 0,
-      perfectUsed: false
+      perfectUsed: false,
+      dirX: 0,
+      dirZ: 1,
+      travelled: 0
     });
   }
 
@@ -354,6 +361,8 @@ export function createBuilding5CombatTraining({
   }
 
   function startDodge(at) {
+    const raw = getDodgeDirection?.() ?? { x: 0, z: 1 };
+    const length = Math.hypot(Number(raw.x) || 0, Number(raw.z) || 0) || 1;
     dodge = frozen({
       active: true,
       startedAt: at,
@@ -362,8 +371,29 @@ export function createBuilding5CombatTraining({
       iframeEndAt: at + playerDefinition.iframeEndMs,
       perfectStartAt: at + playerDefinition.perfectStartMs,
       perfectEndAt: at + playerDefinition.perfectEndMs,
-      perfectUsed: false
+      perfectUsed: false,
+      dirX: (Number(raw.x) || 0) / length,
+      dirZ: (Number(raw.z) || 0) / length,
+      travelled: 0
     });
+  }
+
+  function consumeDodgeTravel() {
+    if (!dodge.active) return frozen({ x: 0, z: 0, distance: 0, done: true });
+    const at = now();
+    const q = clamp((at - dodge.startedAt) / Math.max(1, playerDefinition.dodgeDurationMs), 0, 1);
+    const targetTravel = playerDefinition.dodgeDistance * .5 * (1 - Math.cos(Math.PI * q));
+    const delta = Math.max(0, targetTravel - dodge.travelled);
+    const done = q >= 1;
+    const result = frozen({
+      x: dodge.dirX * delta,
+      z: dodge.dirZ * delta,
+      distance: delta,
+      totalDistance: targetTravel,
+      done
+    });
+    dodge = frozen({ ...dodge, travelled: targetTravel, active: !done });
+    return result;
   }
 
   function resolveAction({ action, identity } = {}) {
@@ -493,8 +523,6 @@ export function createBuilding5CombatTraining({
     if (!active) return null;
     const at = now();
 
-    if (dodge.active && at >= dodge.endsAt) clearDodge();
-
     if (hp <= 0 || playerHp <= 0) {
       enemyWindup = null;
       return null;
@@ -530,6 +558,7 @@ export function createBuilding5CombatTraining({
     end,
     resetTarget,
     resolveAction,
+    consumeDodgeTravel,
     update,
     subscribe
   });
