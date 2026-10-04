@@ -238,6 +238,21 @@ export function createCombatRuntimeV03({
     return frozen({ accepted: true, ...lastAction, ultimateGauge, outcome: resolution });
   }
 
+  function reconcileAuthorityEncounter(encounter) {
+    if (phase !== COMBAT_V03_RUNTIME_PHASE.TRAINING || !encounter?.state) return false;
+    const serverUltimate = Number(encounter.state?.player?.ultimateGauge);
+    if (Number.isFinite(serverUltimate)) ultimateGauge = clamp(serverUltimate, 0, 100);
+    localTraining?.reconcileAuthorityState?.(encounter.state);
+    lastAction = frozen({
+      kind: 'authority-sync',
+      status: String(encounter.status ?? ''),
+      resultRef: encounter.resultRef ? String(encounter.resultRef) : null,
+      at: Number(clock.now())
+    });
+    publish('authority-sync');
+    return true;
+  }
+
   function resetTrainingTarget() {
     if (phase !== COMBAT_V03_RUNTIME_PHASE.TRAINING || !localTraining?.resetTarget) return false;
     localTraining.resetTarget({ preserveMomentum: true });
@@ -288,6 +303,7 @@ export function createCombatRuntimeV03({
     gainUltimate,
     recordResolvedCombat,
     dispatch,
+    reconcileAuthorityEncounter,
     resetTrainingTarget,
     update,
     toggleLock,
