@@ -31,14 +31,21 @@ try{
    const state=()=>page.evaluate(()=>window.__WORLD_STABILITY__.touchState());
    const stopped=async()=>{await page.waitForFunction(()=>{const v=window.__WORLD_STABILITY__.touchState().vector;return v.x===0&&v.y===0;},null,{timeout:5000});};
    await touch('touchStart',[first]);await page.waitForFunction(()=>window.__WORLD_STABILITY__.touchState().vector.x>.8);
-   const before=await state();assert.ok(before.events.some(e=>e.type==='pointerdown'&&e.trusted&&e.pointerType==='touch'),'native trusted touch required');
-   await touch('touchStart',[first,second]);assert.ok((await state()).vector.x>.8,'second native finger cannot take ownership');
-   // CDP touchEnd ends the gesture; shrinking active points via touchMove releases only the foreign finger.
-   await touch('touchMove',[first]);assert.ok((await state()).vector.x>.8,'foreign native release cannot stop owner');
-   await touch('touchMove',[{...first,x:first.x-2}]);assert.ok((await state()).events.some(e=>e.type==='gotpointercapture'&&e.trusted),'actual browser capture required');
+   const before=await state();const owner=before.events.findLast(e=>e.type==='pointerdown');assert.ok(owner?.trusted&&owner.pointerType==='touch','native trusted touch required');
+   await touch('touchMove',[first,second]);const both=await state(),foreign=both.events.findLast(e=>e.type==='pointerdown');assert.notEqual(foreign.id,owner.id,'a real second pointer is required');assert.ok(both.vector.x>.8,'second native finger cannot take ownership');
+   // Current synthetic-pointer CDP contracts shrink the active list. Legacy Chromium
+   // CreateWebTouchEvents instead releases the points explicitly named in touchEnd.
+   // Detect the native event, never treat an unchanged vector as proof of release.
+   await touch('touchMove',[first]);let releaseProtocol='active-point-list';
+   if(!(await state()).events.some(e=>e.type==='pointerup'&&e.id===foreign.id)){
+    await touch('touchEnd',[second]);releaseProtocol='legacy-explicit-ended-point';
+   }
+   const released=await state();assert.ok(released.events.some(e=>e.type==='pointerup'&&e.id===foreign.id&&e.trusted),'foreign native pointerup required');assert.ok(released.vector.x>.8,'foreign native release cannot stop owner');
+   await touch('touchMove',[{...first,x:first.x-2}]);assert.ok((await state()).events.some(e=>e.type==='gotpointercapture'&&e.id===owner.id&&e.trusted),'actual owner capture required');
    await shot(page,`${name}-native-pointer-owner`);
-   await page.evaluate(()=>window.__WORLD_STABILITY__.releaseCapture());await touch('touchMove',[{...first,x:first.x-3}]);await stopped();
-   assert.ok((await state()).events.some(e=>e.type==='lostpointercapture'&&e.trusted),'native capture loss required');await touch('touchEnd',[]);
+   await page.evaluate(id=>window.__WORLD_STABILITY__.releaseCapture(id),owner.id);await touch('touchMove',[{...first,x:first.x-3}]);await stopped();
+   assert.ok((await state()).events.some(e=>e.type==='lostpointercapture'&&e.id===owner.id&&e.trusted),'native owner capture loss required');await touch('touchEnd',[]);
+   report.cases.push({viewport:name,type:'native-release-protocol',releaseProtocol,ownerId:owner.id,foreignId:foreign.id});
    await touch('touchStart',[first]);await page.evaluate(()=>window.__WORLD_STABILITY__.block(false));await stopped();await page.evaluate(()=>window.__WORLD_STABILITY__.block(true));await touch('touchMove',[{...first,x:first.x-4}]);await stopped();await touch('touchEnd',[]);
    for(const type of ['blur','pagehide']){await touch('touchStart',[first]);await page.evaluate(t=>window.__WORLD_STABILITY__.lifecycle(t),type);await stopped();await touch('touchMove',[{...first,x:first.x-4}]);await stopped();await touch('touchEnd',[]);}
    await page.evaluate(()=>window.__WORLD_STABILITY__.receipt('PASS · 실제 touch 포인터 소유권 / capture·lostcapture\n입력 차단·합성 blur/pagehide 이후 이동 0\n합성 계정 구매·일일 상태 회귀 통과'));

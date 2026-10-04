@@ -36,3 +36,9 @@ The artifact `world-stability-browser-evidence` contains `report.json` with exac
 ## Limitations and authorization boundary
 
 Native capture evidence does not establish physical-device touch behavior. Synthetic blur/pagehide is not OS focus-loss or BFCache navigation evidence. The fixture is not a production login or financial transaction smoke test. Database changes, merge and production deployment are outside this change. Hosted public CI may separately replay the repository's disposable local development database as its normal PR gate.
+
+## Chromium touch adapter compatibility
+
+The runner verifies trusted `pointerup` for the actual foreign pointer before claiming a partial release. It first tries the current active-point-list protocol, then uses the older `CreateWebTouchEvents` explicit-ended-point form only when no native release occurred. The report records the selected form. Capture loss always targets the original owning pointer ID; another finger can have implicit browser capture even when the controller correctly ignores it.
+
+References: [CDP Input schema](https://raw.githubusercontent.com/ChromeDevTools/devtools-protocol/master/pdl/domains/Input.pdl), [Chromium InputHandler implementations](https://raw.githubusercontent.com/chromium/chromium/main/content/browser/devtools/protocol/input_handler.cc).

@@ -59,6 +59,6 @@ async function dailyOrdering(){
 }
 window.__WORLD_STABILITY__={ready:true,prepareShop,beginReadback,switchShop,finishReadback,loadoutBoundaries,staleKey,dailyOrdering,
   touchState:()=>({vector:{...controller.touchVector},knob:document.getElementById('joystick-knob').style.transform,events:events.slice(),position:{...position}}),
-  block:enabled=>controller.setInputEnabled(enabled),releaseCapture:()=>{const owner=events.findLast(e=>e.type==='pointerdown'&&pad.hasPointerCapture(e.id));check(owner,'capture owner missing');pad.releasePointerCapture(owner.id);},
+  block:enabled=>controller.setInputEnabled(enabled),releaseCapture:ownerId=>{check(pad.hasPointerCapture(ownerId),'specified capture owner missing');pad.releasePointerCapture(ownerId);},
   lifecycle:type=>window.dispatchEvent(new Event(type)),step:()=>controller.update(1/60),receipt};
 receipt('브라우저 준비 완료 · 합성 계정 / 운영 연결 없음');

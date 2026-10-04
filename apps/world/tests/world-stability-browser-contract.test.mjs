@@ -8,7 +8,7 @@ test('hosted stability QA pins exact head and uses bounded read-only offline Chr
  const flow=read('../../../.github/workflows/world-stability-browser.yml');
  assert.match(flow,/contents: read/);assert.match(flow,/timeout-minutes: 15/);assert.match(flow,/ref: \$\{\{ github.event.pull_request.head.sha \}\}/);
  assert.match(flow,/EXPECTED_STABILITY_HEAD:/);assert.doesNotMatch(flow,/pull_request_target|secrets\.|contents: write|supabase db/);
- const smoke=read('./browser/world-stability-smoke.mjs');assert.doesNotMatch(smoke,/touch\('touch(?:End|Cancel)',\[(?!\])/,'CDP end/cancel cannot contain active touch points');assert.match(smoke,/Input.dispatchTouchEvent/);assert.match(smoke,/gotpointercapture/);assert.match(smoke,/lostpointercapture/);assert.match(smoke,/sha256/);assert.match(smoke,/assert.deepEqual\(smoke.problems,\[\]\)/);
+ const smoke=read('./browser/world-stability-smoke.mjs');assert.match(smoke,/legacy-explicit-ended-point/);assert.match(smoke,/foreign native pointerup required/);assert.match(smoke,/releaseCapture\(id\),owner.id/);assert.match(smoke,/Input.dispatchTouchEvent/);assert.match(smoke,/gotpointercapture/);assert.match(smoke,/lostpointercapture/);assert.match(smoke,/sha256/);assert.match(smoke,/assert.deepEqual\(smoke.problems,\[\]\)/);
  const fixture=read('./browser/world-stability-fixture.mjs');assert.doesNotMatch(fixture,/fetch\(|createClient\(|signIn|localStorage|sessionStorage/);
 });
 
@@ -25,4 +25,6 @@ test('browser auth fixture executes actual clients/panel and valid daily contrac
   await f.prepareShop();walk(elements['shop-panel']).find(n=>n.className==='shop-offer-buy').click();await f.beginReadback();await f.switchShop(accounts);const r=await f.finishReadback(failure);assert.equal(r.outcome,'STALE');assert.equal(r.writes,1);
  }
  assert.equal((await f.loadoutBoundaries()).length,12);assert.equal((await f.staleKey()).sameRetryKey,true);assert.equal((await f.dailyOrdering()).length,2);
+ const pad=elements.joystick,released=[];pad.setPointerCapture=()=>{};pad.hasPointerCapture=id=>id===2||id===3;pad.releasePointerCapture=id=>released.push(id);
+ pad.dispatch('pointerdown',{pointerId:2,clientX:100,clientY:60});pad.dispatch('pointerdown',{pointerId:3,clientX:20,clientY:60});f.releaseCapture(2);assert.deepEqual(released,[2],'explicit owner survives another pointer implicit capture');
 });
