@@ -2903,7 +2903,7 @@ try {
     chatPanel.refreshAvailability();
     friendPanel.setAvailable(!!identity);
     nearbyPanel.render();
-    guestbookPanel.setAvailable(!!identity);
+    guestbookPanel.setAvailable(!!identity, identity?.userId ?? null);
     if (identity) {
       void accompany.refresh();
       void social.mine()

@@ -68,6 +68,9 @@ export function createInventoryPanel({
 
   let open = false;
   let closeButton = null;
+  let bodyElement = null;
+  let opener = null;
+  let renderedAccount = inventory.accountId;
 
   function renderItem(item) {
     const view = itemView(item, { describe });
@@ -88,6 +91,13 @@ export function createInventoryPanel({
 
   function render() {
     if (!open) return;
+    const hadFocus = panel.contains(doc.activeElement);
+    const accountChanged = renderedAccount !== inventory.accountId;
+    const focusKey = !accountChanged && hadFocus ? doc.activeElement?.dataset?.focusKey : null;
+    const scrollTop = accountChanged ? 0 : bodyElement?.scrollTop ?? 0;
+    const scrollLeft = accountChanged ? 0 : bodyElement?.scrollLeft ?? 0;
+    renderedAccount = inventory.accountId;
+    let retryButton = null;
     const snapshot = inventory.state === INVENTORY_STATE.READY ? inventory.snapshot : null;
     const head = el("div", "shop-panel-head");
     const titles = el("div", "shop-panel-titles");
@@ -97,6 +107,7 @@ export function createInventoryPanel({
     if (snapshot) titles.append(el("p", "inventory-summary", summaryText(snapshot)));
     closeButton = el("button", "profile-close", "×");
     closeButton.type = "button";
+    closeButton.dataset.focusKey = "close";
     closeButton.setAttribute("aria-label", "인벤토리 닫기");
     closeButton.addEventListener("click", () => setOpen(false));
     head.append(titles, closeButton);
@@ -110,6 +121,8 @@ export function createInventoryPanel({
       body.append(el("p", "shop-empty", "인벤토리를 불러오지 못했어요."));
       const retry = el("button", "shop-retry", "다시 시도");
       retry.type = "button";
+      retry.dataset.focusKey = "retry";
+      retryButton = retry;
       retry.addEventListener("click", () => void inventory.refresh("retry"));
       body.append(retry);
     } else if (!snapshot.items.length) {
@@ -121,16 +134,30 @@ export function createInventoryPanel({
     }
     panel.dataset.state = inventory.state;
     panel.replaceChildren(head, body);
+    bodyElement = body;
+    if (hadFocus) (focusKey === "retry" ? retryButton ?? closeButton : closeButton).focus?.({ preventScroll: true });
+    body.scrollTop = scrollTop;
+    body.scrollLeft = scrollLeft;
   }
 
   function setOpen(next) {
     const value = Boolean(next);
     if (value === open) return open;
+    const focused = doc.activeElement;
+    const restoreOpener = !value && panel.contains(focused);
+    if (value) opener = focused;
     open = value;
     panel.hidden = !open;
     if (!open) {
       panel.replaceChildren();
+      bodyElement = null;
       onOpenChange(false);
+      // A close callback may already have focused a different panel. Never override that handoff.
+      if (restoreOpener && (!doc.activeElement || doc.activeElement === doc.body || doc.activeElement === focused)
+        && opener?.isConnected !== false && !opener?.disabled && !opener?.closest?.("[hidden], [inert]")) {
+        opener?.focus?.({ preventScroll: true });
+      }
+      opener = null;
       return false;
     }
     render();
