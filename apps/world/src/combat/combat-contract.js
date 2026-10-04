@@ -115,10 +115,23 @@ export function createCombatDefinition(raw) {
   });
 }
 
-// P0 deliberately commits no live encounter identity.
-// Combat v0.3 job/skill/ultimate/trait/equipment identities are current design,
-// but live Campus/Biryong encounter activation remains gated behind the World vertical slice.
-export const DEFAULT_COMBAT_DEFINITIONS = Object.freeze([]);
+// Building 5 is the first live server-authoritative Combat identity.
+// Other Campus/Biryong encounters remain gated behind their own vertical slices.
+export const DEFAULT_COMBAT_DEFINITIONS = Object.freeze([
+  createCombatDefinition({
+    combatId: 'combat.building5.training_drone',
+    category: 'TRAINING',
+    title: '5호관 공명 훈련 드론',
+    availability: COMBAT_AVAILABILITY.ACTIVE,
+    availabilityRef: 'availability.building5.training',
+    resolverRef: 'resolver.building5.training_drone',
+    outcomeSchemaVersion: 1,
+    semanticEventTypes: ['combat.started', 'combat.succeeded', 'combat.failed'],
+    status: COMBAT_DEFINITION_STATUS.ACTIVE,
+    tags: ['campus', 'building5', 'training'],
+    definitionVersion: 1
+  })
+]);
 
 export function createCombatRegistry({ definitions = DEFAULT_COMBAT_DEFINITIONS } = {}) {
   const byId = new Map();
