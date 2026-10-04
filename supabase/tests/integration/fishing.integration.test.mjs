@@ -43,9 +43,11 @@ before(async () => {
   previous = await json(`select jsonb_build_object('runtime',to_jsonb(r),'discovery',c.status,'skill',s.status)
     from private.world_fishing_runtime r,private.world_collection_entry_catalog c,private.world_life_skill_catalog s
     where c.entry_id='collection.fish.carp' and s.skill_id='life.fishing';`);
-  assert.equal(previous.runtime.enabled, false);
-  assert.equal(previous.runtime.policy, null);
-  assert.equal(previous.discovery, 'COMING_SOON'); assert.equal(previous.skill, 'COMING_SOON');
+  // Committed state since 20261004161000: Fishing ACTIVE with the candidate policy. The fixture
+  // policy below is restored to it in after().
+  assert.equal(previous.runtime.enabled, true);
+  assert.equal(previous.runtime.policy.policyVersion, 'fishing.candidate.v1');
+  assert.equal(previous.discovery, 'ACTIVE'); assert.equal(previous.skill, 'ACTIVE');
   await configure();
   await query(`update private.world_collection_entry_catalog set status='ACTIVE' where entry_id='collection.fish.carp';
     update private.world_life_skill_catalog set status='ACTIVE' where skill_id='life.fishing';`);
