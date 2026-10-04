@@ -40,6 +40,7 @@ insert into authority_primitive(name, owner) values
   ('world_combat_start_v1',                  'Combat / Encounter'),
   ('world_combat_state_write_v1',            'Combat / Encounter'),
   ('world_combat_finalize_v1',               'Combat / Encounter'),
+  ('world_combat_settle_v1',                 'Combat / Settlement'),
   ('world_biryong_relationship_advance_v1',  'Biryong / NPC Relationship');
 
 select ok(to_regproc('private.' || name) is not null, format('protected primitive private.%s exists', name))
@@ -100,6 +101,7 @@ insert into authority_allowed_call values
   ('public.answer_my_world_daily_quiz_v1',     'private.world_reward_grant_v1', 'Daily quiz PASS reward, judged by the server'),
   ('private.world_attendance_claim_v1',        'private.world_reward_grant_v1', 'Attendance claim, day from the DB clock'),
   ('private.world_mcm_claim_reward_v1',        'private.world_reward_grant_v1', 'MCM 2026 verified completion claims'),
+  ('private.world_combat_settle_v1',           'private.world_reward_grant_v1', 'Combat verified result settlement through fixed RewardDefinition'),
   ('public.world_reward_grant_v1',             'private.world_reward_grant_v1', 'service_role server API wrapper'),
   -- Collection
   ('public.world_collection_discover_v1',      'private.world_collection_discover_v1', 'service_role server API wrapper'),
@@ -131,6 +133,8 @@ insert into authority_allowed_call values
   ('public.world_combat_finalize_v1',          'private.world_combat_finalize_v1', 'service_role server API wrapper'),
   ('private.world_combat_start_with_creature_v1', 'private.world_combat_start_v1', 'Combat -> Creature bridge P1 start (binds party revision)'),
   ('private.world_combat_finalize_with_creature_v1', 'private.world_combat_finalize_v1', 'Combat -> Creature bridge P1 finalize'),
+  ('private.world_combat_building5_action_v1', 'private.world_combat_state_write_v1', 'Building 5 deterministic resolver commits server-owned state'),
+  ('private.world_combat_building5_action_v1', 'private.world_combat_settle_v1', 'Building 5 verified success settles exactly once'),
   -- Biryong NPC relationship: only the trusted service-role wrapper may advance persistent stage.
   ('public.world_biryong_npc_relationship_advance_v1', 'private.world_biryong_relationship_advance_v1',
      'Biryong NPC relationship P0: service_role wrapper advances exactly one verified stage');
@@ -204,6 +208,7 @@ insert into authority_table values
   ('world_creature_evolution_candidates','STATE'), ('world_creature_evolution_events','STATE'),
   ('world_creature_acquisition_claims','STATE'),
   ('world_activity_attempts','STATE'), ('world_combat_encounters','STATE'),
+  ('world_combat_action_receipts','STATE'), ('world_combat_settlements','STATE'),
   ('world_biryong_npc_relationship_events','STATE'), ('world_player_biryong_npc_relationships','STATE'),
   ('world_quest_progress_v1','STATE'), ('world_event_progress','STATE'),
   ('world_player_appearance_loadout','STATE'), ('world_purchase_transactions','STATE'),
@@ -215,7 +220,8 @@ insert into authority_table values
   ('world_life_skill_catalog','CATALOG'), ('world_life_skill_thresholds','CATALOG'),
   ('world_life_progression_thresholds','CATALOG'), ('world_life_skill_tree_catalog','CATALOG'),
   ('world_life_skill_tree_edges','CATALOG'), ('world_collection_entry_catalog','CATALOG'),
-  ('world_combat_definition_catalog','CATALOG'), ('world_creature_species_catalog','CATALOG'),
+  ('world_combat_definition_catalog','CATALOG'), ('world_combat_settlement_catalog','CATALOG'),
+  ('world_creature_species_catalog','CATALOG'),
   ('world_creature_form_catalog','CATALOG'), ('world_creature_activity_bridge_catalog','CATALOG'),
   ('world_creature_evolution_rule_catalog','CATALOG'), ('world_life_creature_bridge_catalog','CATALOG'),
   ('world_combat_creature_bridge_catalog','CATALOG'),
@@ -274,6 +280,8 @@ insert into authority_allowed_write values
   ('world_combat_encounters', 'private.world_combat_start_v1'),
   ('world_combat_encounters', 'private.world_combat_state_write_v1'),
   ('world_combat_encounters', 'private.world_combat_finalize_v1'),
+  ('world_combat_action_receipts', 'private.world_combat_building5_action_v1'),
+  ('world_combat_settlements', 'private.world_combat_settle_v1'),
   ('world_biryong_npc_relationship_events', 'private.world_biryong_relationship_advance_v1'),
   ('world_player_biryong_npc_relationships', 'private.world_biryong_relationship_advance_v1'),
   ('world_quest_progress_v1', 'public.advance_world_quest_v1'),
