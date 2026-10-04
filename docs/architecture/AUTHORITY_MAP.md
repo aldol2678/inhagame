@@ -3,9 +3,9 @@
 Canonical owner, read path and mutation path for every piece of persistent player / world state,
 plus the CI guards that keep them from drifting.
 
-- Basis: public `main` at `8b7bf39` (2026-10-04), read from the migrations and code, not from
-  older design documents. Where this document and the code disagree, the code and the guard tests
-  win; fix the document in the same PR.
+- Basis: public `main` lineage plus the reviewed Building 5 Combat P4 authority slice (2026-10-04),
+  read from migrations and code, not from older design documents. Where this document and the code
+  disagree, the code and guard tests win; fix the document in the same PR.
 - Enforced by:
   - `supabase/tests/database/93_authority_primitive_callers.test.sql`: primitive call graph,
     protected table writers, client reachability (sections 3 and 4).
@@ -25,9 +25,10 @@ nothing is ACTIVE / no settlement path · **planned** = no backing schema yet ·
 2. **Derived values are not stored.** Character Level, Life Skill Level, Life Level, earned SP and
    (target) Combat TP are derived from ledgers and immutable curves. No second copy exists to drift.
 3. **Content domains do not move progression directly.** Quest, Combat, Activity, Creature and NPC
-   do not call the Wallet, EXP or Inventory primitives. Fixed rewards go through the Reward
-   orchestrator. Outcome-dependent outputs will go through a settlement path that does not exist
-   yet (section 7.4). Existing exceptions are listed explicitly in section 3 with a reason.
+   do not call Wallet, EXP or Inventory primitives directly. Rewards go through the Reward
+   orchestrator. Building 5 Combat is the first outcome-dependent path: a server-verified
+   `result_ref` enters `world_combat_settle_v1`, which may call the fixed RewardDefinition
+   orchestrator. Other domains and Combat gear drops remain gated (section 7.4).
 4. **Clients present; servers decide.** The browser may predict, animate and display. Grants,
    unlocks, completions and combat results are decided by server code (SECURITY DEFINER SQL or
    trusted server APIs using `service_role`).
@@ -48,13 +49,13 @@ nothing is ACTIVE / no settlement path · **planned** = no backing schema yet ·
 | Cosmetic equipment | Appearance | `private.world_player_appearance_loadout` (9 slots), `world_appearance_transactions` | `get_my_world_appearance_loadout_v1()` | `equip_my_world_item_v1`, `unequip_my_world_item_v1` (ownership checked) | the owner (authenticated, self-only) | via self-only RPC | production |
 | Combat equipment | Equipment (planned) | none. Combat v0.3 needs gear instances (8 slots, +20 enhancement, sets); `world_player_items` cannot hold instances | — | — | — | — | planned (static build catalog `src/combat/combat-v03-catalog.js`, #112; no schema) |
 | Combat progression | Combat (planned) | none. **Target**: Combat TP derived from Character Level (section 7.2) | — | — | — | — | planned |
-| Combat encounter | Combat | `private.world_combat_encounters`, `world_combat_definition_catalog` (empty) | `world_combat_snapshot_v1` (service_role) | `world_combat_start / state_write / finalize_v1`; `world_combat_*_with_creature_v1` bridges | trusted server resolver (service_role). **No resolver runtime exists yet** | no | foundation (no ACTIVE definitions) |
+| Combat encounter | Combat | `private.world_combat_encounters`, `world_combat_action_receipts`, `world_combat_settlements`, definition / settlement catalogs | Building 5 Edge gateway → service_role snapshot; generic `world_combat_snapshot_v1` | Building 5 deterministic resolver → state write → finalize → settlement; generic lifecycle + Creature bridge remain reusable | trusted server resolver via `world-combat-building5` Edge gateway / service_role wrappers | browser sends action identity + UUID only; no outcome fields | **Building 5 P4 active**; other encounters foundation |
 | Activity attempt | Activity | `private.world_activity_attempts` | none for players yet | `world_activity_start / finalize_v1`; `world_life_activity_*_with_creature_v1` | trusted server (service_role) | no | foundation (no ACTIVE activity) |
 | Life progression | Life | per-skill XP: `private.world_player_life_skills`, `world_life_skill_xp_transactions`; skill curve `world_life_skill_thresholds` (Lv1 only); aggregate curve `world_life_progression_thresholds` (Lv1 only) | private snapshots only (`world_life_skill_snapshot_v1`, `world_life_progression_snapshot_v1`); **no public read RPC** | `private.world_life_skill_xp_apply_v1` | **none yet** (no settlement path) | no | foundation (all 11 skills COMING_SOON) |
 | Life Skill Point | Life | `private.world_life_sp_transactions` (spend ledger), `world_player_life_nodes`, `world_life_skill_tree_catalog` / `_edges` (0 nodes). Earned SP = `cumulative_sp` of the **aggregate** Life Level today | private snapshot only | `private.world_life_node_unlock_v1` | **none yet** | no | foundation. **Target contract is per-skill pools** (section 7.1) |
 | Creature ownership / growth | Creature Core | `private.world_player_creatures`, party state / history, observation events, activity events, XP transactions, memory tags, evolution candidates / events; catalogs | `world_creature_core_snapshot_v1` (service_role); `get_my_duck_companion_v1()` (self) | `world_creature_grant / observe / party_set / activity_accept / evolution_*_v1` | service_role wrappers; Life → Creature and Combat → Creature bridges (same transaction as the source finalize); Duck Companion P1 (`world_inkyung_duck_observe_v1` via service_role / edge function `world-duck-observe`, `bond_my_duck_companion_v1` self-only) | via self-only `bond_my_duck_companion_v1` (server re-counts observations) | Duck Companion P1 live in schema (duck species + `duck.base` ACTIVE); other species, bridges (XP 0) and evolution foundation |
 | Quest progression | Quest | `private.world_quest_progress_v1` (CHECK: 2 quest ids), `private.world_event_progress` (MCM 2026 only) | Cloud Run quest handler → `advance_*` with event `status`; `get_my_mcm_2026_event_v1()` | `advance_world_quest_v1`, `advance_world_navigation_quest_v1`, `advance_mcm_2026_event_v1` (service_role; one RPC per quest) | Cloud Run quest service (`npc-factory/quest-store.mjs`) | **indirect**: the browser asserts `visit_*` / `talk_*` events; the server enforces only the order | production (Main 1, Main 2, MCM 2026) |
-| Reward | Reward | `private.world_reward_definitions` / `_grants` (catalog), `world_reward_transactions` / `_entries` | `world_reward_get_result_v1` (service_role); results embedded in quest / claim responses | `private.world_reward_grant_v1` (CURRENCY, ITEM, EXP only) | Main 1 / Main 2 completion, Daily Quiz pass, Attendance claim, MCM claims, service_role wrapper | no | production |
+| Reward | Reward | `private.world_reward_definitions` / `_grants` (catalog), `world_reward_transactions` / `_entries` | `world_reward_get_result_v1` (service_role); results embedded in quest / claim / Combat settlement responses | `private.world_reward_grant_v1` (CURRENCY, ITEM, EXP only) | Main 1 / Main 2, Daily Quiz, Attendance, MCM claims, **verified Combat settlement**, service_role wrapper | no | production |
 | Collection | Collection | `private.world_player_collection_discoveries`, `world_collection_discovery_events`, `world_collection_entry_catalog` | `world_collection_list_v1` (service_role) | `private.world_collection_discover_v1` | service_role wrapper | no | foundation (only `collection.place.biryong_tower`, derived from its owner) |
 | Achievement | Achievement (Classic / Hub) | `public.user_achievements` (key CHECK list) | `get_my_achievements()` | SQL functions / triggers on verified Classic records and Inha mail verification | database-internal | no | production for Classic / verification; World achievements planned |
 | GM / permission | Ops | `private.world_staff_assignments` (world_admin, sound_gm), `world_staff_role_permissions` | `get_my_world_admin_access_v1()`; display-only `get_world_staff_badges_v1(uuid[])` | ops via `service_role` table DML only (no RPC) | operators | no | production |
@@ -78,7 +79,7 @@ Protected primitives, all in schema `private`:
 | Collection | `world_collection_discover_v1` |
 | Creature | `world_creature_grant_v1`, `_observe_v1`, `_party_set_v1`, `_activity_accept_v1`, `_evolution_candidate_v1`, `_evolution_context_gate_v1`, `_evolution_commit_v1` |
 | Activity | `world_activity_start_v1`, `world_activity_finalize_v1` |
-| Combat | `world_combat_start_v1`, `world_combat_state_write_v1`, `world_combat_finalize_v1` |
+| Combat | `world_combat_start_v1`, `world_combat_state_write_v1`, `world_combat_finalize_v1`, `world_combat_settle_v1` |
 | Biryong Relationship | `world_biryong_relationship_advance_v1` |
 
 Allowed callers on `8b7bf39`. The exact list with a reason per row is in test 93.
@@ -86,14 +87,16 @@ Allowed callers on `8b7bf39`. The exact list with a reason per row is in test 93
 - **Wallet**: Reward orchestrator; `purchase_world_shop_listing_v1`; service_role `world_wallet_credit/debit_v1`.
 - **EXP**: Reward orchestrator; service_role `world_exp_grant_v1`.
 - **Inventory grant**: Reward; Inventory mutate; Shop purchase; service_role `world_inventory_grant_item_v1` and `world_inventory_ensure_default_items_v1`. **Consume**: Inventory mutate only.
-- **Reward**: `advance_world_quest_v1`, `advance_world_navigation_quest_v1`, `answer_my_world_daily_quiz_v1`, `world_attendance_claim_v1`, `world_mcm_claim_reward_v1`, service_role wrapper.
+- **Reward**: `advance_world_quest_v1`, `advance_world_navigation_quest_v1`, `answer_my_world_daily_quiz_v1`, `world_attendance_claim_v1`, `world_mcm_claim_reward_v1`, **`world_combat_settle_v1` after verified success**, service_role wrapper.
 - **Creature observe / grant / party set**: service_role wrappers, plus Duck Companion P1:
   `world_inkyung_duck_observe_v1` → observe; `world_duck_companion_bond_v1` → grant and, only
   when the party is empty, party set.
 - **Creature activity accept**: service_role wrapper, plus the Life → Creature and Combat → Creature
   P1 bridges. Each bridge accepts only the `result_ref` its own finalize just produced, in the same
   transaction.
-- **Activity / Combat lifecycle**: service_role wrappers and the two Creature bridges.
+- **Activity / Combat lifecycle**: service_role wrappers and the two Creature bridges. Building 5
+  additionally uses server-only `world_combat_building5_start/action/snapshot_v1`; the action
+  resolver may write only its idempotency receipts, canonical encounter state and verified settlement.
 - **Biryong Relationship**: only `public.world_biryong_npc_relationship_advance_v1` (service_role) may call the relationship advance primitive; browser RPCs are read-only.
 - **No callers yet** (deliberately): `world_inventory_mutate_v1`, `world_life_skill_xp_apply_v1`,
   `world_life_node_unlock_v1`. They get callers only through the settlement path in section 7.4.
@@ -128,7 +131,8 @@ if it never calls the primitive.
 - Collection: `world_player_collection_discoveries`, `world_collection_discovery_events` ← `world_collection_discover_v1`
 - Creature: creature, party, observation, activity event, XP, memory and evolution tables ← their Creature primitive;
   `world_player_creatures.bond_entitled` and `world_creature_acquisition_claims` ← `world_duck_companion_bond_v1`
-- Activity / Combat: `world_activity_attempts`, `world_combat_encounters` ← their lifecycle primitives
+- Activity / Combat: `world_activity_attempts` ← Activity lifecycle; `world_combat_encounters` ← Combat lifecycle;
+  `world_combat_action_receipts` ← Building 5 action resolver; `world_combat_settlements` ← Combat settlement primitive
 - Biryong Relationship: `world_biryong_npc_relationship_events`, `world_player_biryong_npc_relationships` ← `world_biryong_relationship_advance_v1`; NPC/fact catalogs are migration-only
 - Quest: `world_quest_progress_v1` ← the two `advance_world_*_quest_v1`;
   `world_event_progress` ← `advance_mcm_2026_event_v1`, `world_mcm_try_complete_v1`
@@ -136,7 +140,7 @@ if it never calls the primitive.
 - Staff: `world_staff_assignments`, `world_staff_role_permissions` ← no function (ops DML only)
 
 Definition catalogs (currencies, items, level / life curves, reward definitions and grants, shops,
-life / combat / creature / collection / Biryong relationship catalogs, bridge catalogs) are written only by migrations.
+life / combat / **combat settlement** / creature / collection / Biryong relationship catalogs, bridge catalogs) are written only by migrations.
 **No function may write them.**
 
 ## 5. Migration collision guard
@@ -169,11 +173,11 @@ Fixtures: `.github/ci/fixtures/migration-contract/pr91-collision` must fail;
 |---|---|---|
 | `anon` | Public read aggregates, guest telemetry, presence touch. No World progression or state mutation. | `01_grants_contract` exact anon EXECUTE surface; no `private` usage; no `private` function |
 | `authenticated` | Self-only RPCs where the caller is `auth.uid()` and the server decides the outcome (purchase, quiz, attendance, MCM claims, equip, social, housing). Never passes another user id. Never reaches a primitive except through the six RPCs in section 3. | exact authenticated EXECUTE surface; no `private` usage; no `private` function; transitive reach check in test 93 |
-| `service_role` | Trusted server code (Cloud Run quest / NPC services, future resolvers) calling `public.*_v1(p_user, …)` wrappers. Most wrappers also re-check `auth.role() = 'service_role'` in the body; four rely on the GRANT alone (section 8). Cannot execute private primitives directly. | service-role-only lists in `01_grants_contract` (economy, quest, activity, collection, combat, creature, Biryong relationship, bridges, NPC ticks); private EXECUTE surface = the two staff helpers; private table DML surface recorded exactly |
+| `service_role` | Trusted server code (Cloud Run / Edge resolvers) calling `public.*_v1(p_user, …)` wrappers. Building 5 Combat Edge authenticates the user first, then invokes only the three Building 5 service-role wrappers. Most wrappers also re-check the JWT service role in the body; four legacy wrappers rely on the GRANT alone (section 8). Cannot execute private primitives directly. | service-role-only lists in `01_grants_contract` (economy, quest, activity, collection, combat, creature, Biryong relationship, bridges, NPC ticks); private EXECUTE surface = reviewed staff helpers; private table DML surface recorded exactly |
 
-## 7. Target contracts (decided, not yet implemented)
+## 7. Target contracts and implemented first slices
 
-These rules bind the next PRs. This PR does not change schema or gameplay for them.
+These rules bind follow-up PRs. Where a first slice is implemented below, its exact scope is stated explicitly.
 
 ### 7.1 Life Skill Point: per-skill pools
 - Target: each Life Skill has its own SP pool, for example Fishing SP, Gathering SP, Woodcutting
@@ -200,22 +204,27 @@ These rules bind the next PRs. This PR does not change schema or gameplay for th
 
 ### 7.3 Combat authority: server-side deterministic resolver
 - The client may render, animate and predict combat.
-- The canonical authority for damage, victory / defeat, reward eligibility, drops, EXP and quest
-  combat completion is a server-side deterministic combat resolver. It drives
-  `world_combat_start / state_write / finalize_v1`.
-- "The client computes the whole fight and the server only validates the result afterwards" is
-  **not** the target architecture.
-- `combat-contract.js` already lists the fields a client may never assert (`damage`, `hp`,
-  `resultRef`, `loot`, `playerExp`, …).
+- **Building 5 P4 implements the first resolver.** The browser sends only action identity and UUID
+  idempotency keys through `world-combat-building5`; server time owns cooldowns, enemy attacks,
+  HP, BREAK, Perfect Dodge timing, victory / defeat and `result_ref`.
+- The browser rejects/never submits `damage`, `hp`, `breakValue`, `resultRef`, `rewardId`,
+  loot or EXP. Server responses reconcile the local predicted HUD/runtime.
+- Generic lifecycle remains `world_combat_start / state_write / finalize_v1`; Building 5 composes
+  those primitives rather than replacing them.
+- "The client computes the whole fight and the server only validates the result afterwards" remains
+  forbidden.
 
-### 7.4 Settlement (direction only)
-- Outcome-dependent outputs (Life XP, materials, drops, Creature growth, Combat gear) will be
-  applied by one server-side settlement path. It will be atomic, keyed by the verified source
-  `result_ref`, and its output plan will be computed by the server resolver.
-- It will not be ad-hoc per activity.
-- Until it exists, the "no callers yet" primitives in section 3 stay without callers. A PR that
-  adds one must update test 93 with a reason, and reviewers should expect it to be the settlement
-  path.
+### 7.4 Settlement
+- **Implemented first slice:** `world_combat_settle_v1` accepts only a server-finalized
+  `SUCCEEDED` encounter + matching `result_ref`, then routes a fixed RewardDefinition through
+  `world_reward_grant_v1` in the same transaction.
+- Building 5 policy is `FIRST_CLEAR`: first verified clear grants **50 Campus EXP**, repeats are
+  recorded as `INELIGIBLE_REPEAT`. It grants no currency or item.
+- Settlement is idempotent by `result_ref` and takes a per-user/per-combat advisory lock before
+  first-clear eligibility is decided.
+- **Still target:** generalized output planning for Life XP, materials, drops, Creature growth and
+  Combat gear. These must extend the same verified-result settlement pattern rather than add
+  client-authored or ad-hoc grants.
 
 ## 8. Recorded findings (not changed in this PR)
 
@@ -237,8 +246,9 @@ These rules bind the next PRs. This PR does not change schema or gameplay for th
 - **`world_life_node_unlock_v1` takes an un-namespaced advisory lock** (`hashtextextended(p_user::text, 0)`).
   Every other domain uses `'world_<domain>:' || user`.
 - **Four service-role wrappers rely on the GRANT alone, with no `auth.role()` check in the body**: `world_exp_grant_v1`, `world_progression_get_v1`, `claim_world_npc_shared_tick_v1`, `commit_world_npc_shared_tick_v1`. The GRANT is correct today and is asserted in `01_grants_contract`; the in-body check is the missing second layer.
-- **Reward source types** do not include `ACTIVITY` or `COMBAT`, and item grant sources do not
-  include `COMBAT`. Source vocabularies differ across ledgers.
+- **Reward source vocabulary:** P4 adds `COMBAT` to Reward transactions because verified Building
+  5 settlement now uses it. `ACTIVITY` is still absent there, and item grant source vocabulary
+  still does not include `COMBAT`; this is intentional while Combat item/gear settlement remains closed.
 
 ## 9. Changing this contract
 
