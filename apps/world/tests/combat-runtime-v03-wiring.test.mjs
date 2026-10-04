@@ -13,6 +13,7 @@ test('Building 5 Combat v0.3 runtime is wired into the shared World interaction 
   assert.match(main, /createBuilding5CombatTargetRenderer\(\{/);
   assert.match(main, /createCombatWorldMotionV03\(\{/);
   assert.match(main, /createCombatFeedbackV03\(\{/);
+  assert.match(main, /createBuilding5CombatAuthorityClient\(\{/);
   assert.match(main, /createBuilding5CombatInteraction\(\{ runtime: combatRuntime \}\)/);
   assert.match(main, /contextActions\.set\("building5-combat", building5CombatAction\)/);
   assert.match(main, /hudContext\.setMode\(state\.active \? HUD_MODE\.COMBAT : HUD_MODE\.EXPLORE\)/);
@@ -29,6 +30,8 @@ test('Combat v0.3 PC input preserves v9.22 action grammar without replacing Worl
   assert.match(main, /event\.code === "Escape"[\s\S]*combatRuntime\.end\("PLAYER_EXIT"\)/);
   assert.match(main, /event\.code === "KeyR"[\s\S]*combatRuntime\.resetTrainingTarget\(\)/);
   assert.doesNotMatch(main, /world_combat_start_v1/);
+  assert.match(main, /combatAuthority\.action\(state\.lastAction\.action\)/);
+  assert.match(main, /combatRuntime\.reconcileAuthorityEncounter\(state\.encounter\)/);
   assert.match(main, /combatRuntime\.update\(\)/);
   assert.match(main, /combatTargetRenderer\.update\(dt\)/);
   assert.match(main, /combatWorldMotion\.update\(\)/);
@@ -48,6 +51,7 @@ test('Combat v0.3 mobile HUD exposes all six action surfaces and hides incompati
     assert.match(html, new RegExp(`data-combat-${targetHook}`));
   }
   assert.match(html, /id="combat-impact-feedback"/);
+  assert.match(html, /data-combat-authority>LOCAL<\/span>/);
   assert.match(css, /COMBAT-V03-RUNTIME-P0:start/);
   assert.match(css, /combat-camera-kick/);
   assert.match(css, /combat-impact-flash/);
