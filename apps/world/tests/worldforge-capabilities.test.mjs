@@ -9,16 +9,23 @@ const api = await import("../src/runtime-adapter/worldforge-capabilities.mjs").c
 const validate = api.validateInhagameWorldForgeCandidate;
 const EXTENSIONS = [
   "inhagame.audio",
+  "inhagame.attribution",
   "inhagame.authority",
+  "inhagame.building-mass",
   "inhagame.campus-object",
   "inhagame.claim-source",
+  "inhagame.coordinates",
   "inhagame.db",
   "inhagame.delivery",
   "inhagame.event-registry",
   "inhagame.geometry",
+  "inhagame.nav-edge",
+  "inhagame.nav-node",
   "inhagame.navigation",
   "inhagame.navigation-junction",
+  "inhagame.navigation-source",
   "inhagame.navigation-sync",
+  "inhagame.objective",
   "inhagame.optimization",
   "inhagame.population",
   "inhagame.position",
@@ -28,6 +35,7 @@ const EXTENSIONS = [
   "inhagame.references",
   "inhagame.runtime",
   "inhagame.source",
+  "inhagame.unlocated-places",
   "inhagame.worldforge"
 ].sort();
 
@@ -55,8 +63,15 @@ const geometry = () => ({
     rings: [[point(0, 0), point(4, 0), point(4, 6), point(0, 6), point(0, 0)]]
   }]
 });
+const legacyMass = () => ({
+  adapterRequired: true,
+  geometrySpace: "world-local-meter",
+  heightMeters: 21,
+  sourceBuildingId: "bldg_01",
+  footprint: [point(0, 0), point(4, 0), point(4, 6), point(0, 6)]
+});
 
-test("WorldForge INHAGAME capability validator exports the recovered capability surface", () => {
+test("WorldForge INHAGAME capability validator exports the complete current capability surface", () => {
   assert.equal(typeof validate, "function", "capability validator implementation must exist");
   assert.deepEqual(Object.keys(api.INHAGAME_WORLDFORGE_EXTENSION_CAPABILITIES ?? {}).sort(), EXTENSIONS);
   assert.deepEqual(Object.keys(api.INHAGAME_WORLDFORGE_RULE_CAPABILITIES ?? {}).sort(), RULE_TYPES);
@@ -104,6 +119,42 @@ test("known geometry is preview-safe while gameplay and activity rules remain ex
   );
 });
 
+test("current base-world extensions and nested objective capabilities are covered", { skip: typeof validate !== "function" }, () => {
+  const result = validate({
+    world: {
+      extensions: {
+        "inhagame.attribution": { license: "ODbL-1.0" },
+        "inhagame.coordinates": { metersPerWorldUnit: 2 },
+        "inhagame.navigation-source": { productionGraphParity: false },
+        "inhagame.unlocated-places": { spatiallyIncluded: false }
+      }
+    },
+    operations: [
+      {
+        op: "update", collection: "entities", target: "entity-bldg_01",
+        changes: { extensions: { "inhagame.building-mass": legacyMass() } }
+      },
+      {
+        op: "create", collection: "quests",
+        object: {
+          id: "quest.preview", type: "core.quest",
+          nodes: [{
+            id: "start", type: "action.interact",
+            extensions: { "inhagame.objective": { id: "start", type: "INTERACT", text: "Preview only" } }
+          }],
+          edges: []
+        }
+      }
+    ]
+  });
+  assert.equal(result.valid, true, JSON.stringify(result.issues));
+  const byName = new Map(result.capabilities.map(item => [item.name, item.mode]));
+  assert.equal(byName.get("inhagame.attribution"), "metadata-only");
+  assert.equal(byName.get("inhagame.coordinates"), "metadata-only");
+  assert.equal(byName.get("inhagame.building-mass"), "preview-safe");
+  assert.equal(byName.get("inhagame.objective"), "external-authority");
+});
+
 test("unknown INHAGAME capability fails closed before preview", { skip: typeof validate !== "function" }, () => {
   const result = validate({
     operations: [{
@@ -133,6 +184,17 @@ test("malformed building geometry is rejected instead of reaching Runtime Previe
   });
   assert.equal(result.valid, false);
   assert.ok(result.issues.some(issue => issue.code === "WF_GEOMETRY_INVALID"));
+
+  const brokenLegacy = legacyMass();
+  brokenLegacy.footprint = [point(0, 0), point(1, 0)];
+  const legacy = validate({
+    operations: [{
+      op: "update", collection: "entities", target: "entity-bldg_01",
+      changes: { extensions: { "inhagame.building-mass": brokenLegacy } }
+    }]
+  });
+  assert.equal(legacy.valid, false);
+  assert.ok(legacy.issues.some(issue => issue.code === "WF_GEOMETRY_INVALID"));
 });
 
 test("non-INHAGAME extension stays preserved but outside this validator's authority", { skip: typeof validate !== "function" }, () => {
