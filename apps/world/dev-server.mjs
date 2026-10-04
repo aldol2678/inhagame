@@ -137,6 +137,8 @@ const server = http.createServer((req, res) => {
     reqPath = "/editor/index.html";
   } else if (reqPath === "/editor/music" || reqPath === "/editor/music/") {
     reqPath = "/editor/music/index.html";
+  } else if (reqPath === "/worldforge" || reqPath === "/worldforge/") {
+    reqPath = "/studio/index.html";
   } else if (reqPath === "/studio" || reqPath === "/studio/") {
     reqPath = "/studio/index.html";
   } else if (reqPath === "/") {
