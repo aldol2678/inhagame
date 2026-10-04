@@ -227,7 +227,9 @@ const npcSocialProductionMode = npcProductionMode;
 const npcSocialMode = npcSocialProductionMode || npcSocialPreviewMode || npcObservedConversationMode;
 const npcEnabled = npcSharedScheduleMode || npcTestMode || npcProductionMode || npcPreviewMode || npcRosterPreviewMode || npcSocialMode;
 const campusLifePreview = previewHost && startupParams.get('campusLife') === 'p0a';
-const biryongVisualLabP0A = previewHost && startupParams.get('biryongVisual') === 'p0a';
+const biryongVisualStage = previewHost ? startupParams.get('biryongVisual') : null;
+const biryongVisualLabP0A = biryongVisualStage === 'p0a' || biryongVisualStage === 'p0b';
+const biryongVisualLabP0B = biryongVisualStage === 'p0b';
 let lastTrackedZone = null;
 
 async function boot() {
@@ -1734,7 +1736,15 @@ rooms = createRoomTransition({
     markSpace: (id) => { if (id) document.body.dataset.space = id; else delete document.body.dataset.space; }
   })
 });
-const biryongRealmScene = createBiryongRealmScene(app);
+const biryongRealmScene = createBiryongRealmScene(app, {
+  visualMaterials: biryongVisualLabP0B
+});
+window.__INHAGAME_BIRYONG_MATERIALS__ = Object.freeze({
+  status: () => Object.freeze({
+    enabled: biryongVisualLabP0B,
+    mode: biryongRealmScene.materialMode
+  })
+});
 const biryongCampusReturnAnchor = Object.freeze({
   x: BACKGATE_TRANSIT.wait.x,
   y: controller.groundY + roadviewGroundHeight(BACKGATE_TRANSIT.wait.x, BACKGATE_TRANSIT.wait.z),

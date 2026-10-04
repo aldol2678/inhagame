@@ -2,6 +2,7 @@
 // The geometry is deliberately primitive and replaceable; layout anchors/zones are the durable contract.
 import * as pc from "playcanvas";
 import { box, surface } from "../campus-render-kit.js";
+import { createBiryongVisualMaterialSet } from "./biryong-visual-materials.js";
 import {
   BIRYONG_VILLAGE_ANCHORS,
   BIRYONG_VILLAGE_BUILDINGS,
@@ -16,25 +17,32 @@ function segmentBox(root, name, a, b, width, y, height, material) {
   box(root, name, [(a.x + b.x) / 2, y, (a.z + b.z) / 2], [length, height, width], material, yaw);
 }
 
-export function createBiryongRealmScene(app) {
+export function createBiryongRealmScene(app, { visualMaterials = false } = {}) {
   const root = new pc.Entity("BiryongRealmCoordinateFrame");
   // Keep canonical +Z north while PlayCanvas renders north as -Z, matching Campus.
   root.setLocalScale(1, 1, -1);
 
-  const stone = surface("#9aa09b");
-  const darkStone = surface("#616b66");
-  const road = surface("#4c5457");
-  const path = surface("#a69a7e");
-  const platform = surface("#c8c2ad");
-  const grass = surface("#66865a");
-  const field = surface("#7f9259");
-  const roof = surface("#385f5a");
-  const roofWarm = surface("#704a32");
-  const wood = surface("#7a5c3c");
-  const plaster = surface("#d8cfb8");
-  const workshop = surface("#746e63");
-  const accent = surface("#c6a456");
-  const water = surface("#5b91a8");
+  const legacyMaterials = () => Object.freeze({
+    stone: surface("#9aa09b"),
+    darkStone: surface("#616b66"),
+    road: surface("#4c5457"),
+    path: surface("#a69a7e"),
+    platform: surface("#c8c2ad"),
+    grass: surface("#66865a"),
+    field: surface("#7f9259"),
+    roof: surface("#385f5a"),
+    roofWarm: surface("#704a32"),
+    wood: surface("#7a5c3c"),
+    plaster: surface("#d8cfb8"),
+    workshop: surface("#746e63"),
+    accent: surface("#c6a456"),
+    water: surface("#5b91a8")
+  });
+  const materials = visualMaterials ? createBiryongVisualMaterialSet() : legacyMaterials();
+  const {
+    stone, darkStone, road, path, platform, grass, field,
+    roof, roofWarm, wood, plaster, workshop, accent, water
+  } = materials;
 
   // One continuous walkable visual floor from the station to the first village slice.
   box(root, "biryong_realm_p0_ground", [0, -0.07, 53], [140, 0.14, 170], grass);
@@ -112,5 +120,8 @@ export function createBiryongRealmScene(app) {
 
   root.enabled = false;
   app.root.addChild(root);
-  return Object.freeze({ root });
+  return Object.freeze({
+    root,
+    materialMode: visualMaterials ? "biryong.visual.material.p0b.v1" : "legacy"
+  });
 }
