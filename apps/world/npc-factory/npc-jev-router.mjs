@@ -111,12 +111,13 @@ export function buildNpcJevQuestions(candidates) {
   return questions;
 }
 
-function answerChoice(answers, name, allowed, fallback) {
+function answerChoice(answers, name, allowed) {
   if (allowed.length === 0) return null;
   if (allowed.length === 1) return allowed[0];
   const raw = answers?.[name];
   const choice = raw && typeof raw === 'object' && typeof raw.choice === 'string' ? raw.choice : null;
-  return allowed.includes(choice) ? choice : fallback;
+  if (!allowed.includes(choice)) throw Error('JEV_DECISION_OUTSIDE_CANDIDATES');
+  return choice;
 }
 
 function answerMeta(answers, name) {
@@ -134,10 +135,9 @@ function answerMeta(answers, name) {
 export function parseNpcJevResponse(body, candidates) {
   const answers = body?.answers;
   const decision = {
-    responseSource: answerChoice(answers, 'response_source', candidates.responseSources, candidates.responseSources[0]),
-    intent: answerChoice(answers, 'intent', candidates.intents, candidates.intents[0]),
-    contextPriority: answerChoice(answers, 'context_priority', candidates.contextPriorities,
-      candidates.contextPriorities[0] ?? null)
+    responseSource: answerChoice(answers, 'response_source', candidates.responseSources),
+    intent: answerChoice(answers, 'intent', candidates.intents),
+    contextPriority: answerChoice(answers, 'context_priority', candidates.contextPriorities)
   };
   if (!validateNpcDialogueDecision(decision, candidates)) throw Error('JEV_DECISION_OUTSIDE_CANDIDATES');
   return {
