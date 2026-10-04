@@ -1,5 +1,7 @@
 -- F2 development candidate: disabled by default, no catalog activation or balance defaults.
 -- DB adaptation of the F1 timing contract; conformance is checked against fishing-core.js.
+-- Start/finalize go through the Life -> Creature bridge (activity.fishing.inkyung is mapped there),
+-- and outputs go through the shared Activity settlement path (Authority Map 7.4).
 create table private.world_fishing_runtime (
   singleton boolean primary key default true check (singleton),
   enabled boolean not null default false,
@@ -14,16 +16,10 @@ create table private.world_fishing_attempt_snapshots (
   snapshot jsonb not null check (jsonb_typeof(snapshot) = 'object')
 );
 create index world_fishing_user_idx on private.world_fishing_attempt_snapshots(user_id);
-create table private.world_fishing_settlements (
-  attempt_id uuid primary key references private.world_fishing_attempt_snapshots(attempt_id) on delete cascade,
-  result_ref text not null unique,
-  receipt jsonb not null check (jsonb_typeof(receipt) = 'object')
-);
 alter table private.world_fishing_runtime enable row level security;
 alter table private.world_fishing_attempt_snapshots enable row level security;
-alter table private.world_fishing_settlements enable row level security;
-revoke all on table private.world_fishing_runtime, private.world_fishing_attempt_snapshots,
-  private.world_fishing_settlements from public, anon, authenticated, service_role;
+revoke all on table private.world_fishing_runtime, private.world_fishing_attempt_snapshots
+  from public, anon, authenticated, service_role;
 
 create function private.world_fishing_snapshot_guard_v1()
 returns trigger language plpgsql set search_path = '' as $$
@@ -42,8 +38,6 @@ end;
 $$;
 create trigger world_fishing_snapshot_guard before update on private.world_fishing_attempt_snapshots
   for each row execute function private.world_fishing_snapshot_guard_v1();
-create trigger world_fishing_receipt_guard before update on private.world_fishing_settlements
-  for each row execute function private.world_inventory_mutation_append_only_v1();
 revoke all on function private.world_fishing_snapshot_guard_v1() from public,anon,authenticated,service_role;
 
 create function private.world_fishing_require_server_v1(p_user uuid)
@@ -80,7 +74,9 @@ begin
       raise exception 'FISHING_POLICY_INVALID' using errcode='22023';
     end if;
   end loop;
+  -- Settlement plans cap Life XP per output; a larger policy would strand successful catches.
   if (p_policy->>'maxWaitMs')::bigint < (p_policy->>'minWaitMs')::bigint
+     or (p_policy->>'lifeXp')::bigint > 1000000
      or (p_policy->>'attemptTtlMs')::bigint <=
         (p_policy->>'maxWaitMs')::bigint + (p_policy->>'responseWindowMs')::bigint then
     raise exception 'FISHING_POLICY_INVALID' using errcode='22023';
@@ -143,9 +139,10 @@ begin
   elsif v_owner.status <> 'ACTIVE' then
     raise exception 'ACTIVITY_OUTCOME_CONFLICT' using errcode='23505';
   else
-    v_reply := private.world_activity_finalize_v1(p_user,p_attempt_id,p_next->>'status',
+    -- Same transaction as the bridge decision: Creature growth only ever follows this outcome.
+    v_reply := private.world_life_activity_finalize_with_creature_v1(p_user,p_attempt_id,p_next->>'status',
       p_next->'result'->>'reason',case when p_next->>'status'='SUCCEEDED' then p_next->'result'->>'resultRef' else null end);
-    if v_reply->'attempt'->>'status'='EXPIRED' then
+    if v_reply->'activity'->'attempt'->>'status'='EXPIRED' then
       p_next := private.world_fishing_finish_v1(p_next,'EXPIRED','ATTEMPT_EXPIRED',
         p_next->>'terminalAction',floor(extract(epoch from clock_timestamp())*1000)::bigint);
     end if;
@@ -220,10 +217,14 @@ begin
   end if;
   v_wait := (v_config.policy->>'minWaitMs')::bigint + floor(random() *
     ((v_config.policy->>'maxWaitMs')::bigint-(v_config.policy->>'minWaitMs')::bigint+1))::bigint;
-  v_start := private.world_activity_start_v1(p_user,'activity.fishing.inkyung',p_source_ref,p_client_attempt_key,1,1,
+  -- The bridge requires life.fishing ACTIVE and binds the Creature party revision at start.
+  v_start := private.world_life_activity_start_with_creature_v1(p_user,'activity.fishing.inkyung',p_source_ref,
+    p_client_attempt_key,1,1,
     to_timestamp((v_now+(v_config.policy->>'attemptTtlMs')::bigint)::double precision/1000));
-  if v_start->>'status' <> 'STARTED' then raise exception 'ACTIVITY_OUTCOME_CONFLICT' using errcode='23505'; end if;
-  v_id := (v_start->'attempt'->>'attemptId')::uuid;
+  if v_start->'activity'->>'status' is distinct from 'STARTED' then
+    raise exception 'ACTIVITY_OUTCOME_CONFLICT' using errcode='23505';
+  end if;
+  v_id := (v_start->'activity'->'attempt'->>'attemptId')::uuid;
   v_snapshot := jsonb_build_object(
     'activityId','activity.fishing.inkyung','sourceRef',p_source_ref,'clientAttemptKey',p_client_attempt_key,
     'attemptId',v_id,'actorUserId',p_user,'nonce',gen_random_uuid(),
@@ -269,34 +270,25 @@ $$;
 
 create function public.world_fishing_settle_v1(p_user uuid,p_attempt_id uuid)
 returns jsonb language plpgsql security definer set search_path = '' as $$
-declare v_snapshot jsonb; v_receipt jsonb; v_ref text; v_item jsonb; v_discovery jsonb; v_xp jsonb;
+declare v_snapshot jsonb; v_catch jsonb; v_plan jsonb;
 begin
   perform private.world_fishing_require_server_v1(p_user);
   perform pg_advisory_xact_lock(hashtextextended('world_activity:' || p_user::text,0));
   select snapshot into v_snapshot from private.world_fishing_attempt_snapshots
     where attempt_id=p_attempt_id and user_id=p_user for update;
   if not found then raise exception 'ATTEMPT_NOT_FOUND' using errcode='P0002'; end if;
-  select receipt into v_receipt from private.world_fishing_settlements where attempt_id=p_attempt_id;
-  if found then return jsonb_build_object('status','ALREADY_PROCESSED','receipt',v_receipt); end if;
   if v_snapshot->>'status' <> 'SUCCEEDED' then
     raise exception 'FISHING_NOT_SUCCEEDED' using errcode='P0001';
   end if;
-  v_ref := v_snapshot->'result'->>'resultRef';
-  v_item := private.world_inventory_grant_v1(p_user,'material.fish_carp',1,'ACTIVITY',v_ref,
-    v_ref || '/item',null,jsonb_build_object('activityAttemptId',p_attempt_id));
-  if v_item->>'originalStatus' is distinct from 'GRANTED' then
-    raise exception 'OUTPUT_UNAVAILABLE' using errcode='P0001';
-  end if;
-  v_discovery := private.world_collection_discover_v1(p_user,'collection.fish.carp','ACTIVITY',
-    'activity.fishing.inkyung',v_ref,v_ref || '/discovery',null);
-  if (v_snapshot->'policy'->>'lifeXp')::bigint > 0 then
-    v_xp := private.world_life_skill_xp_apply_v1(p_user,'life.fishing',
-      (v_snapshot->'policy'->>'lifeXp')::bigint,'activity',v_ref,v_ref || '/xp');
-  end if;
-  v_receipt := jsonb_build_object('resultRef',v_ref,'attemptId',p_attempt_id,
-    'item',v_item,'discovery',v_discovery,'lifeXp',v_xp);
-  insert into private.world_fishing_settlements values (p_attempt_id,v_ref,v_receipt);
-  return jsonb_build_object('status','SETTLED','receipt',v_receipt);
+  -- The plan is derived only from the frozen server outcome, never from the request.
+  v_catch := v_snapshot->'result'->'catch';
+  v_plan := jsonb_build_object(
+    'items',jsonb_build_array(jsonb_build_object('itemId',v_catch->'itemId','quantity',v_catch->'quantity')),
+    'discoveries',jsonb_build_array(jsonb_build_object('entryId',v_catch->'collectionEntryId')),
+    'lifeXp',case when (v_catch->>'lifeXp')::bigint > 0
+      then jsonb_build_array(jsonb_build_object('skillId',v_catch->'skillId','amount',v_catch->'lifeXp'))
+      else '[]'::jsonb end);
+  return private.world_activity_settle_v1(p_user,p_attempt_id,v_plan);
 end;
 $$;
 
@@ -317,7 +309,7 @@ begin
   end if;
   if v_snapshot is not null then
     v_snapshot := private.world_fishing_expire_v1(p_user,v_snapshot);
-    select receipt into v_receipt from private.world_fishing_settlements where attempt_id=v_id;
+    select receipt into v_receipt from private.world_activity_settlements where attempt_id=v_id;
   end if;
   select quantity into v_quantity from private.world_player_items where user_id=p_user and item_id='material.fish_carp';
   select * into strict v_entry from private.world_collection_entry_catalog where entry_id='collection.fish.carp';

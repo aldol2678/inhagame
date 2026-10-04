@@ -92,10 +92,13 @@ test('concurrent start/input/settle persist one result, one carp, one discovery 
     (select count(*) from private.world_item_grants where user_id=${lit(actor)}),
     (select count(*) from private.world_collection_discovery_events where user_id=${lit(actor)}),
     (select count(*) from private.world_life_skill_xp_transactions where user_id=${lit(actor)}),
-    (select count(*) from private.world_fishing_settlements where attempt_id=${lit(attempt.attemptId)}));`);
+    (select count(*) from private.world_activity_settlements where attempt_id=${lit(attempt.attemptId)}));`);
   assert.deepEqual(counts, [1, 1, 1, 1]);
+  // Finalize went through the Life -> Creature bridge in the same transaction (bridge row is COMING_SOON).
+  assert.equal(await query(`select decision from private.world_life_creature_bridge_decisions where attempt_id=${lit(attempt.attemptId)};`), 'NOOP_INACTIVE');
+  assert.equal(await query(`select count(*) from private.world_life_creature_activity_contexts where attempt_id=${lit(attempt.attemptId)};`), '1');
   await assert.rejects(query(`update private.world_fishing_attempt_snapshots set snapshot=snapshot where attempt_id=${lit(attempt.attemptId)};`), /FISHING_TERMINAL_IMMUTABLE/);
-  await assert.rejects(query(`update private.world_fishing_settlements set receipt=receipt where attempt_id=${lit(attempt.attemptId)};`), /INVENTORY_MUTATION_APPEND_ONLY/);
+  await assert.rejects(query(`update private.world_activity_settlements set receipt=receipt where attempt_id=${lit(attempt.attemptId)};`), /ACTIVITY_SETTLEMENT_APPEND_ONLY/);
   // Ownership can become zero while discovery remains durable.
   await query(`select private.world_inventory_consume_v1(${lit(actor)},'material.fish_carp',1,'SYSTEM','f2.test',${lit(`fishing_consume:${attempt.attemptId}`)},null,null);`);
   const consumed = await read(actor);
@@ -119,7 +122,7 @@ test('failed settlement rolls all domains back; retry uses unchanged result and 
     assert.deepEqual(await json(`select jsonb_build_array(
       (select count(*) from private.world_item_grants where user_id=${lit(actor)}),
       (select count(*) from private.world_collection_discovery_events where user_id=${lit(actor)}),
-      (select count(*) from private.world_fishing_settlements where attempt_id=${lit(attempt.attemptId)}));`), [0, 0, 0]);
+      (select count(*) from private.world_activity_settlements where attempt_id=${lit(attempt.attemptId)}));`), [0, 0, 0]);
   } finally {
     await query("update private.world_life_skill_catalog set status='ACTIVE' where skill_id='life.fishing';");
     await configure();

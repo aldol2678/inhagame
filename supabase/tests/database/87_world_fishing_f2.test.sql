@@ -3,9 +3,11 @@ create extension if not exists pgtap with schema extensions;
 select * from no_plan();
 select has_table('private','world_fishing_runtime','server-only runtime exists');
 select has_table('private','world_fishing_attempt_snapshots','immutable fishing snapshots exist');
-select has_table('private','world_fishing_settlements','one receipt per attempt exists');
-select col_is_pk('private','world_fishing_settlements',array['attempt_id'],'attempt settlement primary key');
-select col_is_unique('private','world_fishing_settlements',array['result_ref'],'result cannot settle twice');
+select hasnt_table('private','world_fishing_settlements','fishing has no per-activity settlement table');
+select has_table('private','world_activity_settlements','fishing settles through the shared Activity path');
+select is((select bridge.activity_id from private.world_life_creature_bridge_catalog bridge
+  where bridge.life_skill_id='life.fishing'),'activity.fishing.inkyung',
+  'fishing activity is the mapped Life -> Creature bridge activity');
 select is((select enabled from private.world_fishing_runtime),false,'runtime defaults disabled');
 select ok((select policy is null and minimum_start_interval_ms is null from private.world_fishing_runtime),
   'no balance or cooldown default is silently activated');
@@ -14,11 +16,11 @@ select is((select status from private.world_life_skill_catalog where skill_id='l
 select is((select status from private.world_collection_entry_catalog where entry_id='collection.fish.carp'),'COMING_SOON',
   'carp discovery remains coming soon');
 select ok((select bool_and(relrowsecurity) from pg_class where oid in (
-  'private.world_fishing_runtime'::regclass,'private.world_fishing_attempt_snapshots'::regclass,
-  'private.world_fishing_settlements'::regclass)), 'all fishing tables have RLS');
+  'private.world_fishing_runtime'::regclass,'private.world_fishing_attempt_snapshots'::regclass)),
+  'all fishing tables have RLS');
 select ok(not has_table_privilege(r,t,p),format('%s cannot %s %s',r,p,t))
 from unnest(array['anon','authenticated','service_role']) r,
-  unnest(array['private.world_fishing_runtime','private.world_fishing_attempt_snapshots','private.world_fishing_settlements']) t,
+  unnest(array['private.world_fishing_runtime','private.world_fishing_attempt_snapshots']) t,
   unnest(array['SELECT','INSERT','UPDATE','DELETE']) p;
 select ok(not has_function_privilege(r,f,'execute'),format('%s cannot call %s',r,f))
 from unnest(array['anon','authenticated']) r,
@@ -43,6 +45,9 @@ select throws_ok($$select private.world_fishing_policy_validate_v1(
 select throws_ok($$select private.world_fishing_policy_validate_v1(
   '{"policyVersion":"test.f2","minWaitMs":1,"maxWaitMs":1,"responseWindowMs":10,"attemptTtlMs":12,"lifeXp":-1}')$$,
   '22023','FISHING_POLICY_INVALID','negative XP refused');
+select throws_ok($$select private.world_fishing_policy_validate_v1(
+  '{"policyVersion":"test.f2","minWaitMs":1,"maxWaitMs":1,"responseWindowMs":10,"attemptTtlMs":12,"lifeXp":1000001}')$$,
+  '22023','FISHING_POLICY_INVALID','XP above the settlement plan cap refused');
 select throws_ok($$select public.world_fishing_read_v1(gen_random_uuid(),null)$$,
   '42501','SERVER_ONLY','execute alone cannot bypass service claim guard');
 select * from finish();

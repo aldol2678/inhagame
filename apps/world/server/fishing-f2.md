@@ -13,7 +13,11 @@ Campus World EXP or Quest write in this slice.
   Anonymous/banned accounts are also refused by the DB account guard.
   The shared verifier imports public config directly, avoiding browser/world module
   dependencies in the server entry point without changing its verification rule.
-- A server-only RPC starts the attempt under the existing Activity account lock.
+- A server-only RPC starts the attempt under the existing Activity account lock, through the
+  Life -> Creature bridge (`world_life_activity_start_with_creature_v1`), which requires
+  `life.fishing` ACTIVE and binds the Creature party revision. Finalize likewise goes through
+  `world_life_activity_finalize_with_creature_v1`, so any Creature growth is decided in the same
+  transaction as the outcome (the fishing bridge row is still COMING_SOON, so it records NOOP).
   It samples DB time, random bite delay and a configured policy once, then stores
   the full snapshot alongside the Activity owner row. One account may have one
   ACTIVE fishing attempt across both spots. A configured cooldown applies to new
@@ -23,13 +27,15 @@ Campus World EXP or Quest write in this slice.
   together with the Activity outcome; repeated matching input returns that result.
   Conflicting actions fail. TTL takes priority over cancellation and hook timing.
   Bite is inclusive; hook deadline and TTL are exclusive.
-- A separate settlement transaction uses the existing Inventory, Discovery and
-  Life Skill cores. A success grants exactly one `material.fish_carp`, records
-  `collection.fish.carp`, and applies the start snapshot's Life XP to `life.fishing`.
-  All three writes and one immutable receipt commit together. Overflow or a
-  disabled downstream catalog rolls the entire settlement back, leaving the
-  already committed outcome available for an explicit retry. Zero XP skips its
-  ledger. Result-derived idempotency keys and the receipt PK prevent duplicates.
+- A separate settlement transaction uses the shared Activity settlement path
+  (`private.world_activity_settle_v1`, Authority Map 7.4). Fishing only derives the output plan
+  from the frozen server catch: exactly one `material.fish_carp`, `collection.fish.carp`, and the
+  start snapshot's Life XP for `life.fishing`. The settlement path applies the Inventory,
+  Discovery and Life Skill primitives and one immutable receipt in
+  `private.world_activity_settlements` together. Overflow or a disabled downstream catalog rolls
+  the entire settlement back, leaving the already committed outcome available for an explicit
+  retry. Zero XP omits the XP output. Attempt-derived idempotency keys and the receipt PK prevent
+  duplicates; a different plan for a settled attempt is refused.
 - Reads return only the verified account's requested/latest attempt and current
   carp quantity, discovery and skill projections. They may reconcile a stale ACTIVE
   attempt to EXPIRED. `settlement` is `PENDING` for an unsettled success, `SETTLED`
@@ -40,7 +46,7 @@ Campus World EXP or Quest write in this slice.
 The generic service-only Activity API must not be used as a second resolver for
 fishing. A conflicting terminal Activity outcome is refused. Its generic expiry
 can be reconciled into a fishing expiry; it cannot create a fishing success.
-All fishing tables have RLS and no direct grants for anon/authenticated/service
+Fishing tables and settlement receipts have RLS and no direct grants for anon/authenticated/service
 roles. Only the four public RPCs grant service-role EXECUTE, with a service claim
 guard; internal helpers are revoked. Browser roles cannot promote themselves by
 submitting a forged claim. The service credential belongs only in server env.

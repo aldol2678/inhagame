@@ -26,8 +26,8 @@ nothing is ACTIVE / no settlement path · **planned** = no backing schema yet ·
    (target) Combat TP are derived from ledgers and immutable curves. No second copy exists to drift.
 3. **Content domains do not move progression directly.** Quest, Combat, Activity, Creature and NPC
    do not call the Wallet, EXP or Inventory primitives. Fixed rewards go through the Reward
-   orchestrator. Outcome-dependent outputs will go through a settlement path that does not exist
-   yet (section 7.4). Existing exceptions are listed explicitly in section 3 with a reason.
+   orchestrator. Outcome-dependent outputs go through the Activity settlement path
+   (`world_activity_settle_v1`, section 7.4). Existing exceptions are listed explicitly in section 3 with a reason.
 4. **Clients present; servers decide.** The browser may predict, animate and display. Grants,
    unlocks, completions and combat results are decided by server code (SECURITY DEFINER SQL or
    trusted server APIs using `service_role`).
@@ -49,8 +49,9 @@ nothing is ACTIVE / no settlement path · **planned** = no backing schema yet ·
 | Combat equipment | Equipment (planned) | none. Combat v0.3 needs gear instances (8 slots, +20 enhancement, sets); `world_player_items` cannot hold instances | — | — | — | — | planned (static build catalog `src/combat/combat-v03-catalog.js`, #112; no schema) |
 | Combat progression | Combat (planned) | none. **Target**: Combat TP derived from Character Level (section 7.2) | — | — | — | — | planned |
 | Combat encounter | Combat | `private.world_combat_encounters`, `world_combat_definition_catalog` (empty) | `world_combat_snapshot_v1` (service_role) | `world_combat_start / state_write / finalize_v1`; `world_combat_*_with_creature_v1` bridges | trusted server resolver (service_role). **No resolver runtime exists yet** | no | foundation (no ACTIVE definitions) |
-| Activity attempt | Activity | `private.world_activity_attempts` | none for players yet | `world_activity_start / finalize_v1`; `world_life_activity_*_with_creature_v1` | trusted server (service_role) | no | foundation (no ACTIVE activity) |
-| Life progression | Life | per-skill XP: `private.world_player_life_skills`, `world_life_skill_xp_transactions`; skill curve `world_life_skill_thresholds` (Lv1 only); aggregate curve `world_life_progression_thresholds` (Lv1 only) | private snapshots only (`world_life_skill_snapshot_v1`, `world_life_progression_snapshot_v1`); **no public read RPC** | `private.world_life_skill_xp_apply_v1` | **none yet** (no settlement path) | no | foundation (all 11 skills COMING_SOON) |
+| Activity attempt | Activity | `private.world_activity_attempts` | none for players yet | `world_activity_start / finalize_v1`; `world_life_activity_*_with_creature_v1` | trusted server (service_role); Fishing F2 through the Life -> Creature bridge | no | foundation (no ACTIVE activity; Fishing F2 runtime disabled) |
+| Activity settlement | Activity | `private.world_activity_settlements` (append-only receipt per attempt / `result_ref`) | embedded in the domain read (`world_fishing_read_v1`) | `private.world_activity_settle_v1` (plan → Inventory grant, Collection discover, Life Skill XP, receipt; one transaction) | server-only domain adapters that derive the plan from a frozen server outcome: `world_fishing_settle_v1` | no | foundation (section 7.4) |
+| Life progression | Life | per-skill XP: `private.world_player_life_skills`, `world_life_skill_xp_transactions`; skill curve `world_life_skill_thresholds` (Lv1 only); aggregate curve `world_life_progression_thresholds` (Lv1 only) | private snapshots only (`world_life_skill_snapshot_v1`, `world_life_progression_snapshot_v1`); **no public read RPC** | `private.world_life_skill_xp_apply_v1` | Activity settlement path only | no | foundation (all 11 skills COMING_SOON) |
 | Life Skill Point | Life | `private.world_life_sp_transactions` (spend ledger), `world_player_life_nodes`, `world_life_skill_tree_catalog` / `_edges` (0 nodes). Earned SP = `cumulative_sp` of the **aggregate** Life Level today | private snapshot only | `private.world_life_node_unlock_v1` | **none yet** | no | foundation. **Target contract is per-skill pools** (section 7.1) |
 | Creature ownership / growth | Creature Core | `private.world_player_creatures`, party state / history, observation events, activity events, XP transactions, memory tags, evolution candidates / events; catalogs | `world_creature_core_snapshot_v1` (service_role); `get_my_duck_companion_v1()` (self) | `world_creature_grant / observe / party_set / activity_accept / evolution_*_v1` | service_role wrappers; Life → Creature and Combat → Creature bridges (same transaction as the source finalize); Duck Companion P1 (`world_inkyung_duck_observe_v1` via service_role / edge function `world-duck-observe`, `bond_my_duck_companion_v1` self-only) | via self-only `bond_my_duck_companion_v1` (server re-counts observations) | Duck Companion P1 live in schema (duck species + `duck.base` ACTIVE); other species, bridges (XP 0) and evolution foundation |
 | Quest progression | Quest | `private.world_quest_progress_v1` (CHECK: 2 quest ids), `private.world_event_progress` (MCM 2026 only) | Cloud Run quest handler → `advance_*` with event `status`; `get_my_mcm_2026_event_v1()` | `advance_world_quest_v1`, `advance_world_navigation_quest_v1`, `advance_mcm_2026_event_v1` (service_role; one RPC per quest) | Cloud Run quest service (`npc-factory/quest-store.mjs`) | **indirect**: the browser asserts `visit_*` / `talk_*` events; the server enforces only the order | production (Main 1, Main 2, MCM 2026) |
@@ -77,7 +78,7 @@ Protected primitives, all in schema `private`:
 | Life | `world_life_skill_xp_apply_v1`, `world_life_node_unlock_v1` |
 | Collection | `world_collection_discover_v1` |
 | Creature | `world_creature_grant_v1`, `_observe_v1`, `_party_set_v1`, `_activity_accept_v1`, `_evolution_candidate_v1`, `_evolution_context_gate_v1`, `_evolution_commit_v1` |
-| Activity | `world_activity_start_v1`, `world_activity_finalize_v1` |
+| Activity | `world_activity_start_v1`, `world_activity_finalize_v1`, `world_activity_settle_v1` |
 | Combat | `world_combat_start_v1`, `world_combat_state_write_v1`, `world_combat_finalize_v1` |
 | Biryong Relationship | `world_biryong_relationship_advance_v1` |
 
@@ -85,7 +86,10 @@ Allowed callers on `8b7bf39`. The exact list with a reason per row is in test 93
 
 - **Wallet**: Reward orchestrator; `purchase_world_shop_listing_v1`; service_role `world_wallet_credit/debit_v1`.
 - **EXP**: Reward orchestrator; service_role `world_exp_grant_v1`.
-- **Inventory grant**: Reward; Inventory mutate; Shop purchase; service_role `world_inventory_grant_item_v1` and `world_inventory_ensure_default_items_v1`. **Consume**: Inventory mutate only.
+- **Inventory grant**: Reward; Inventory mutate; Shop purchase; Activity settlement; service_role `world_inventory_grant_item_v1` and `world_inventory_ensure_default_items_v1`. **Consume**: Inventory mutate only.
+- **Collection discover**: service_role wrapper; Activity settlement.
+- **Life Skill XP**: Activity settlement only.
+- **Activity settlement**: `public.world_fishing_settle_v1` (service_role + service claim; plan derived from the frozen server catch).
 - **Reward**: `advance_world_quest_v1`, `advance_world_navigation_quest_v1`, `answer_my_world_daily_quiz_v1`, `world_attendance_claim_v1`, `world_mcm_claim_reward_v1`, service_role wrapper.
 - **Creature observe / grant / party set**: service_role wrappers, plus Duck Companion P1:
   `world_inkyung_duck_observe_v1` → observe; `world_duck_companion_bond_v1` → grant and, only
@@ -95,8 +99,7 @@ Allowed callers on `8b7bf39`. The exact list with a reason per row is in test 93
   transaction.
 - **Activity / Combat lifecycle**: service_role wrappers and the two Creature bridges.
 - **Biryong Relationship**: only `public.world_biryong_npc_relationship_advance_v1` (service_role) may call the relationship advance primitive; browser RPCs are read-only.
-- **No callers yet** (deliberately): `world_inventory_mutate_v1`, `world_life_skill_xp_apply_v1`,
-  `world_life_node_unlock_v1`. They get callers only through the settlement path in section 7.4.
+- **No callers yet** (deliberately): `world_inventory_mutate_v1`, `world_life_node_unlock_v1`.
 
 Client reachability: the only functions `anon` / `authenticated` can execute that reach any
 primitive, at any depth, are `purchase_world_shop_listing_v1`, `answer_my_world_daily_quiz_v1`,
@@ -128,7 +131,8 @@ if it never calls the primitive.
 - Collection: `world_player_collection_discoveries`, `world_collection_discovery_events` ← `world_collection_discover_v1`
 - Creature: creature, party, observation, activity event, XP, memory and evolution tables ← their Creature primitive;
   `world_player_creatures.bond_entitled` and `world_creature_acquisition_claims` ← `world_duck_companion_bond_v1`
-- Activity / Combat: `world_activity_attempts`, `world_combat_encounters` ← their lifecycle primitives
+- Activity / Combat: `world_activity_attempts`, `world_combat_encounters` ← their lifecycle primitives;
+  `world_activity_settlements` ← `world_activity_settle_v1`
 - Biryong Relationship: `world_biryong_npc_relationship_events`, `world_player_biryong_npc_relationships` ← `world_biryong_relationship_advance_v1`; NPC/fact catalogs are migration-only
 - Quest: `world_quest_progress_v1` ← the two `advance_world_*_quest_v1`;
   `world_event_progress` ← `advance_mcm_2026_event_v1`, `world_mcm_try_complete_v1`
@@ -208,14 +212,20 @@ These rules bind the next PRs. This PR does not change schema or gameplay for th
 - `combat-contract.js` already lists the fields a client may never assert (`damage`, `hp`,
   `resultRef`, `loot`, `playerExp`, …).
 
-### 7.4 Settlement (direction only)
-- Outcome-dependent outputs (Life XP, materials, drops, Creature growth, Combat gear) will be
-  applied by one server-side settlement path. It will be atomic, keyed by the verified source
-  `result_ref`, and its output plan will be computed by the server resolver.
-- It will not be ad-hoc per activity.
-- Until it exists, the "no callers yet" primitives in section 3 stay without callers. A PR that
-  adds one must update test 93 with a reason, and reviewers should expect it to be the settlement
-  path.
+### 7.4 Settlement (Activity P0 implemented)
+- Outcome-dependent outputs of a verified Activity result go through one server-side path:
+  `private.world_activity_settle_v1(user, attempt, plan)`
+  (`20261004131000_world_activity_settlement_p0`).
+  - It requires the attempt to be SUCCEEDED with a `result_ref`.
+  - It applies Inventory grant, Collection discovery and Life Skill XP, and writes one append-only
+    receipt in `world_activity_settlements`, all in one transaction.
+  - It replays the receipt for the same plan and refuses a different plan.
+- The plan is computed by the domain resolver from its frozen server outcome (Fishing F2: the
+  snapshotted catch). The path never takes a plan from a client role; its callers are reviewed in
+  test 93.
+- Creature growth stays on the Life / Combat -> Creature bridges, decided in the same transaction as
+  the source finalize. Combat outputs (drops, gear) will use this path once the Combat resolver
+  exists; adding an output kind extends the plan schema.
 
 ## 8. Recorded findings (not changed in this PR)
 
@@ -237,6 +247,12 @@ These rules bind the next PRs. This PR does not change schema or gameplay for th
 - **`world_life_node_unlock_v1` takes an un-namespaced advisory lock** (`hashtextextended(p_user::text, 0)`).
   Every other domain uses `'world_<domain>:' || user`.
 - **Four service-role wrappers rely on the GRANT alone, with no `auth.role()` check in the body**: `world_exp_grant_v1`, `world_progression_get_v1`, `claim_world_npc_shared_tick_v1`, `commit_world_npc_shared_tick_v1`. The GRANT is correct today and is asserted in `01_grants_contract`; the in-body check is the missing second layer.
+- **Append-only triggers that also block DELETE break account deletion.** The `auth.users` FK cascade
+  fails if any such row exists. Economy ledgers block UPDATE only. Creature ledgers (incl. Duck
+  Companion observations / claims and the bridge contexts) and Activity settlement receipts now allow
+  a DELETE only once the owning account is gone (`20261004133000`). Still blocking:
+  `world_biryong_npc_relationship_events`, and `world_life_sp_transactions` / `world_player_life_nodes`
+  (empty until a tree node is ACTIVE).
 - **Reward source types** do not include `ACTIVITY` or `COMBAT`, and item grant sources do not
   include `COMBAT`. Source vocabularies differ across ledgers.
 
