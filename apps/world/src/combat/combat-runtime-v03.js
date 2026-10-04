@@ -247,6 +247,16 @@ export function createCombatRuntimeV03({
 
   function update() {
     if (phase === COMBAT_V03_RUNTIME_PHASE.IDLE) return false;
+    const trainingEvent = localTraining?.update?.() ?? null;
+    if (trainingEvent?.perfectDodge === true) {
+      applyUltimateGain(6);
+      publish('perfect-dodge');
+      return true;
+    }
+    if (trainingEvent?.type === 'enemy-impact') {
+      publish(trainingEvent.playerDefeated ? 'player-defeated' : 'enemy-impact');
+      return true;
+    }
     const at = Number(clock.now());
     const bucket = Math.floor(at / 100);
     if (bucket === lastTickBucket) return false;
