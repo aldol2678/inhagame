@@ -76,7 +76,7 @@ test.after(() => {
   const r = JSON.parse(committed);
   sql(`update private.world_fishing_runtime set enabled=${r.enabled},
     policy=${r.policy === null ? 'null' : `${lit(JSON.stringify(r.policy))}::jsonb`},
-    minimum_start_interval_ms=${r.minimum_start_interval_ms ?? 'null'}`);
+    minimum_start_interval_ms=${r.minimum_start_interval_ms ?? 'null'},presence_required=${r.presence_required}`);
   if (users.length) sql(`delete from auth.users where id in (${users.map(lit).join(', ')})`);
 });
 
@@ -90,7 +90,7 @@ test('cast, bite, hook: the server result settles one carp, one discovery and Fi
   // Committed activation is the candidate policy; a short fixture wait keeps the test fast.
   assert.equal(JSON.parse(committed).policy.policyVersion, 'fishing.candidate.v1');
   sql(`update private.world_fishing_runtime set policy='{"policyVersion":"fishing.fixture.client","minWaitMs":300,
-    "maxWaitMs":300,"responseWindowMs":8000,"attemptTtlMs":20000,"lifeXp":20}'::jsonb, minimum_start_interval_ms=1`);
+    "maxWaitMs":300,"responseWindowMs":8000,"attemptTtlMs":20000,"lifeXp":20}'::jsonb, minimum_start_interval_ms=1,presence_required=false`);
   const user = createUser();
   const fishing = createFishingClient({ getToken: async () => user, fetcher: endpoint() });
   assert.equal(await fishing.setAccount(user), true);
@@ -121,4 +121,27 @@ test('cast, bite, hook: the server result settles one carp, one discovery and Fi
   assert.equal(early.outcome, 'DONE');
   assert.equal(fishing.attempt.result.reason, 'PREMATURE_HOOK');
   assert.equal(fishing.read?.carpQuantity, 1);
+});
+
+test('F3 client -> handler -> DB refuses a cast until trusted server evidence arrives', async () => {
+  sql(`update private.world_fishing_runtime set presence_required=true,policy='{"policyVersion":"fishing.fixture.client.f3",
+    "minWaitMs":300,"maxWaitMs":300,"responseWindowMs":8000,"attemptTtlMs":20000,"lifeXp":20}'::jsonb,minimum_start_interval_ms=1`);
+  const user=createUser(), session=randomUUID(), spot=FISHING_SPOTS[0];
+  const fishing=createFishingClient({ getToken: async () => user, fetcher: endpoint() });
+  assert.equal(await fishing.setAccount(user),true);
+  await fishing.start(spot.sourceRef);
+  assert.equal(fishing.lastError,'FISHING_POSITION_UNAVAILABLE');
+  assert.equal(sql(`select count(*) from private.world_activity_attempts where user_id=${lit(user)}`),'0');
+  // Only this server fixture can issue evidence. The browser sends the existing ID-only start.
+  sql(`set role service_role; set request.jwt.claims='{"role":"service_role"}';
+    select public.world_fishing_observe_position_v1(${lit(user)},${lit(session)},1,
+      ${spot.position.x},0,${spot.position.z},'CAMPUS','ON_FOOT',clock_timestamp())`);
+  assert.equal((await fishing.start(spot.sourceRef)).outcome,'STARTED');
+  while (fishing.serverNow()<fishing.attempt.biteAtMs+100) await delay(50);
+  assert.equal((await fishing.hook()).outcome,'SETTLED');
+  assert.equal(fishing.read.carpQuantity,1); assert.equal(fishing.read.skill.totalXp,20);
+  assert.equal(sql(`select count(*) from private.world_fishing_spot_leases where user_id=${lit(user)}`),'0');
+  sql(`delete from private.world_fishing_positions where user_id=${lit(user)}`);
+  await fishing.refresh();
+  assert.equal(sql(`select count(*) from private.world_activity_settlements where user_id=${lit(user)}`),'1');
 });
