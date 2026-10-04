@@ -13,3 +13,5 @@ verify_jwt = true
 verify_jwt = true
 [functions.verify-inha-mail]
 verify_jwt = false
+[functions.world-duck-observe]
+verify_jwt = true
