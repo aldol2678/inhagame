@@ -36,7 +36,7 @@ const freeze = value => Object.freeze(value);
 
 function uniqueStrings(values, max = 8) {
   const out = [];
-  for (const value of values ?? []) {
+  for (const value of Array.isArray(values) ? values : []) {
     const normalized = stringOrNull(value);
     if (!normalized || out.includes(normalized)) continue;
     out.push(normalized);
@@ -124,7 +124,9 @@ export function buildNpcDialogueContext({
     name: stringOrNull(npc.identity?.name ?? rosterEntry?.name ?? actor.name) ?? npc.npc_id,
     archetype: stringOrNull(npc.archetype),
     department: stringOrNull(rosterEntry?.department ?? npc.identity?.department),
-    yearLevel: stringOrNull(npc.identity?.year_level ?? rosterEntry?.year_level),
+    yearLevel: Number.isInteger(npc.identity?.year_level ?? rosterEntry?.year_level)
+      ? (npc.identity?.year_level ?? rosterEntry?.year_level)
+      : null,
     residence: stringOrNull(rosterEntry?.residence),
     interests: uniqueStrings(npc.interests, 4),
     traits: uniqueStrings(npc.personality?.traits, 6)
