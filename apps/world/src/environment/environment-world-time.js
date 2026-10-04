@@ -15,11 +15,13 @@ export function environmentTimeForWorldPeriod(period) {
 
 export function createEnvironmentWorldTime({
   environment,
-  clock = createNpcWorldClock(),
+  clock = null,
   enabled = true
 } = {}) {
   if (!environment?.setTimeOfDay) throw new TypeError('environment.setTimeOfDay is required');
 
+  const ownsClock = enabled && !clock;
+  const runtimeClock = clock ?? (enabled ? createNpcWorldClock() : null);
   let initialized = false;
   let schedule = null;
   let environmentTime = null;
@@ -27,7 +29,7 @@ export function createEnvironmentWorldTime({
 
   function apply({ immediate = false } = {}) {
     if (!enabled || disposed) return false;
-    const serverNowMs = clock.now();
+    const serverNowMs = runtimeClock.now();
     if (!Number.isFinite(serverNowMs)) return false;
 
     const nextSchedule = worldScheduleAt(serverNowMs);
@@ -48,19 +50,19 @@ export function createEnvironmentWorldTime({
   async function sync() {
     if (!enabled || disposed) return status();
     const firstSync = !initialized;
-    await clock.sync();
+    await runtimeClock.sync();
     apply({ immediate: firstSync });
     return status();
   }
 
   function update() {
     if (!enabled || disposed) return false;
-    clock.refreshIfDue();
+    runtimeClock.refreshIfDue();
     return apply();
   }
 
   function status() {
-    const clockStatus = clock.status();
+    const clockStatus = runtimeClock?.status?.() ?? { state: 'DISABLED', serverNowMs: null, ageMs: null, rttMs: null, lastError: null };
     return Object.freeze({
       enabled,
       state: !enabled ? 'DISABLED' : disposed ? 'DISPOSED' : clockStatus.state,
@@ -77,7 +79,7 @@ export function createEnvironmentWorldTime({
   function destroy() {
     if (disposed) return;
     disposed = true;
-    clock.dispose?.();
+    if (ownsClock) runtimeClock?.dispose?.();
   }
 
   return Object.freeze({
