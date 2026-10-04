@@ -222,7 +222,11 @@ const npcSocialProductionMode = npcProductionMode;
 const npcSocialMode = npcSocialProductionMode || npcSocialPreviewMode || npcObservedConversationMode;
 const npcEnabled = npcSharedScheduleMode || npcTestMode || npcProductionMode || npcPreviewMode || npcRosterPreviewMode || npcSocialMode;
 const campusLifePreview = previewHost && startupParams.get('campusLife') === 'p0a';
+const giantRoachTestMode = previewHost && startupParams.get('giantRoachTest') === '1';
+const giantRoachTestCount = Number(startupParams.get('roachCount') ?? 10);
 let lastTrackedZone = null;
+
+let giantRoachExperiment = null;
 
 async function boot() {
 worldLoading?.setPhase("RENDERER");
@@ -272,6 +276,11 @@ const assetCanaryTelemetry = createAssetCanaryTelemetry();
 if (assetProductionCanary.selected) assetCanaryTelemetry.selected();
 
 worldLoading?.setPhase("WORLD");
+
+if (giantRoachTestMode) {
+  const { createGiantRoachExperiment } = await import('./giant-roach-experiment.js');
+  giantRoachExperiment = createGiantRoachExperiment({ app, campusRoot: app.root, player, count: giantRoachTestCount });
+}
 
 window.addEventListener("resize", () => app.resizeCanvas());
 rendererEl.textContent = rendererName;
