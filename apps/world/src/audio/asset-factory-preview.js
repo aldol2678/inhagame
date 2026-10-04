@@ -1,9 +1,9 @@
 // Asset Factory P0 AF-07 preview adapter.
 //
 // This is not the canonical World Asset Registry. It is a bounded handoff shim for one
-// unverified generated audio candidate. The entry is intentionally preview-only until
-// rights verification, human listening QA, canonical Asset Registry support, and Runtime
-// acceptance are complete.
+// generated audio candidate. Project/game usage rights have been verified against current
+// CreativeClaw terms, but the entry remains preview-only until human listening QA,
+// canonical Asset Registry support, and Runtime acceptance are complete.
 export const AF07_INKYUNG_RAIN_ASSET_ID = "asset.campus.inkyung-rain-ambience";
 
 export const ASSET_FACTORY_PREVIEW_ASSETS = Object.freeze({
@@ -20,7 +20,12 @@ export const ASSET_FACTORY_PREVIEW_ASSETS = Object.freeze({
       createdAt: "2026-10-04"
     }),
     rights: Object.freeze({
-      status: "unverified",
+      status: "verified",
+      scope: "project-game-commercial-use",
+      commercialUse: true,
+      attributionRequired: false,
+      derivativesAllowed: null,
+      redistributionAllowed: null,
       evidenceRef: "https://docs.google.com/document/d/1-nfS8M9daNjVB9uBvO9uUaEK9xOH_qNlZjzAF1Vp5cs/edit"
     }),
     qa: Object.freeze({
