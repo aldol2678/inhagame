@@ -9,7 +9,8 @@ import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { assertHostedBrowserExecution, BIRYONG_QA_VIEWPORTS, BIRYONG_QA_NPCS, assertMapLayout, assertMapPointProjection } from './biryong-map-guidance-qa.mjs';
+import { assertHostedBrowserExecution, BIRYONG_QA_VIEWPORTS, BIRYONG_QA_NPCS, assertMapLayout, assertMapPointProjection,
+  readNpcConversationReadiness } from './biryong-map-guidance-qa.mjs';
 
 // This must execute BEFORE importing Playwright indirectly through harness.mjs.
 assertHostedBrowserExecution(process.env);
@@ -26,7 +27,8 @@ const head = git(['rev-parse', 'HEAD']);
 const sourcePaths = ['apps/world/src', 'apps/world/npc-factory', 'apps/world/campus', 'apps/world/styles.css',
   'apps/world/dev-server.mjs', 'apps/world/tests/browser/harness.mjs', 'apps/world/tests/browser/package.json',
   'apps/world/tests/browser/package-lock.json', 'apps/world/tests/browser/biryong-map-guidance-smoke.mjs',
-  'apps/world/tests/browser/biryong-map-guidance-qa.mjs', 'apps/world/tests/biryong-browser-acceptance.test.mjs',
+  'apps/world/tests/browser/biryong-map-guidance-qa.mjs', 'apps/world/tests/browser/biryong-map-guidance-proximity.mjs',
+  'apps/world/tests/biryong-browser-acceptance.test.mjs',
   '.github/workflows/biryong-map-guidance-browser.yml'];
 const report = {
   result: 'RUNNING', startedAt: new Date().toISOString(), head, expectedHead: process.env.EXPECTED_BIRYONG_HEAD,
@@ -67,7 +69,7 @@ async function state(page) {
       player: { x: p.x, y: p.y, z: p.z }, parent: d.player.parent.name, movementSpace: d.controller.space.id,
       enabled: d.controller.inputEnabled, focus: s.inputFocus, minimap: d.minimap.status(),
       fullMap: d.fullMap.status(), navigation: d.navigation.getSnapshot(), navigationErrors: d.navigation.errors(),
-      dialogue: d.biryongVillageDialogue.status(), touch: { ...d.controller.touchVector },
+      dialogue: d.biryongVillageDialogue.status(), npcs: d.biryongVillageNpcs.status(), touch: { ...d.controller.touchVector },
       assist: d.controller.assist, mounted: d.controller.mounted, autoMove: s.playerAutoMove ?? s.autoMove ?? null,
       bodyRegion: document.body.dataset.worldRegion };
   });
@@ -361,39 +363,60 @@ try {
       await action(page.locator('#minimap-open-map')); await action(page.locator('#full-map-close'));
       assert.equal((await state(page)).enabled, true, 'repeat open/close restores input');
 
-      // Wait for the actual scheduled actors to finish walking. Do not fake NPC
-      // positions, proximity candidates, dialogue contents or navigation owners.
-      await wait(ids => ids.every(id => { const npc = window.__INHAGAME_P0__.biryongVillageNpcs.actorSnapshot(id); return npc?.visible && npc.phase === 'ACTING'; }), BIRYONG_QA_NPCS.map(n => n.id), 90000);
+      // Public dialogue supports moving actors and pauses them through its normal
+      // open action. Wall time is not simulation time on slow software rendering;
+      // never wait for an unrelated schedule journey or advance its clock here.
       for (const npc of BIRYONG_QA_NPCS) {
-        const proof = await evaluate(async npc => {
-          const d = window.__INHAGAME_P0__, actor = d.biryongVillageNpcs.actorSnapshot(npc.id);
-          const [{ createBiryongNavigation }, { PLAYER_ORIGIN_Y }, { biryongDialogueTopics }] = await Promise.all([
-            import('/src/biryong/biryong-navigation.js'), import('/src/player-dimensions.js'), import('/src/biryong/biryong-village-dialogue-contract.js')]);
-          const provider = createBiryongNavigation(); let placed = null;
-          for (const [dx, dz] of [[0,-1.9],[1.9,0],[-1.9,0],[0,1.9]]) {
-            const p = { x: actor.position.x + dx, z: actor.position.z + dz };
-            if (!provider.walkable(p) || !provider.segmentSafe(p, actor.position)) continue;
-            d.player.setLocalPosition(p.x, PLAYER_ORIGIN_Y, p.z); d.controller.grounded = true; d.controller.velocityY = 0;
+        const approachNpc = async (timeoutMs = 90000) => {
+          const deadline = Date.now() + timeoutMs;
+          await wait(readNpcConversationReadiness, npc.id, timeoutMs);
+          return evaluate(async ({ npc, timeoutMs }) => {
+          const d = window.__INHAGAME_P0__;
+          const [{ createBiryongNavigation }, { PLAYER_ORIGIN_Y }, { biryongDialogueTopics }, { BIRYONG_MAP_DESTINATIONS },
+            { findBiryongNpcApproach }] = await Promise.all([
+            import('/src/biryong/biryong-navigation.js'), import('/src/player-dimensions.js'), import('/src/biryong/biryong-village-dialogue-contract.js'),
+            import('/src/biryong/biryong-map-data.js'), import('/tests/browser/biryong-map-guidance-proximity.mjs')]);
+          const target = BIRYONG_MAP_DESTINATIONS.find(poi => poi.poiId === npc.target).position;
+          const provider = createBiryongNavigation(), started = performance.now();
+          let attempts = 0, lastStatus = null;
+          // A visible actor may temporarily walk through a station footprint
+          // excluded by player guidance. Observe until a real legal approach is
+          // available; do not move anything for an unsuccessful candidate.
+          while (performance.now() - started < timeoutMs) {
+            attempts++; lastStatus = d.biryongVillageNpcs.status();
+            const placed = findBiryongNpcApproach({ npcId: npc.id, actors: lastStatus.npcs, target,
+              walkable: provider.walkable, segmentSafe: provider.segmentSafe });
+            if (!placed) { await new Promise(resolve => setTimeout(resolve, 100)); continue; }
+            d.player.setLocalPosition(placed.player.x, PLAYER_ORIGIN_Y, placed.player.z);
+            d.controller.grounded = true; d.controller.velocityY = 0;
             const nearest = d.biryongVillageNpcs.nearestNpc(2.2);
-            if (nearest?.id === npc.id) { placed = { player: p, actor, nearest }; break; }
+            if (nearest?.id !== npc.id) throw Error(`Live nearest NPC did not match the pure legal candidate: ${npc.id}`);
+            d.app.fire('update', 0);
+            return { ...placed, nearest, attempts, waitMs: performance.now() - started,
+              context: d.getStatus().contextAction, contextLabel: document.getElementById('context-action').getAttribute('aria-label'),
+              clock: lastStatus.clock, period: lastStatus.period,
+              topic: biryongDialogueTopics(npc.id, 1).find(topic => topic.id === npc.topicId) };
           }
-          if (!placed) throw Error(`No safe real proximity placement for ${npc.id}`);
-          d.app.fire('update', 0);
-          return { ...placed, context: d.getStatus().contextAction,
-            topic: biryongDialogueTopics(npc.id, 1).find(topic => topic.id === npc.topicId) };
-        }, npc);
+          throw Error(JSON.stringify({ reason: 'NPC_APPROACH_UNAVAILABLE', npcId: npc.id, attempts,
+            waitedMs: performance.now() - started, lastStatus }));
+          }, { npc, timeoutMs: Math.max(1, deadline - Date.now()) });
+        };
+        const proof = await approachNpc();
+        const npcReceipt = { ...npc, proof, result: 'RUNNING' };
+        entry.npcs.push(npcReceipt); await flush();
         assert.equal(proof.actor.name, npc.name); assert.equal(proof.nearest.id, npc.id);
         assert.ok(proof.nearest.distance <= 2.2); assert.equal(proof.context, 'biryong-npc-talk'); assert.ok(proof.topic);
-        await wait(() => window.__INHAGAME_P0__.getStatus().contextAction === 'biryong-npc-talk');
-        const contextLabel = await page.locator('#context-action').getAttribute('aria-label');
-        const visibleContext = await page.locator('#context-action').innerText();
-        assert.ok(`${contextLabel} ${visibleContext}`.includes(npc.name), 'normal context action identifies the intended live NPC');
-        if (mobile) await action(page.locator('#context-action'));
+        assert.ok(proof.contextLabel.includes(npc.name), 'normal context action identifies the intended live NPC');
+        const contextButton = page.locator('#context-action').and(page.getByRole('button', { name: new RegExp(npc.name) }));
+        if (mobile) await action(contextButton);
         else { await page.locator('#application').focus(); await page.keyboard.press('f'); }
         const panel = page.locator('#biryong-village-dialogue'); await panel.waitFor({ state: 'visible' });
         let open = await state(page);
         assert.equal(open.dialogue.npcId, npc.id); assert.equal(open.dialogue.relationshipStage, 1);
         assert.equal(open.dialogue.unlockedFactCount, 0); assert.equal(open.enabled, false); assert.equal(open.focus.owners.npcDialogue, true);
+        const actorAtOpen = open.npcs.npcs.find(actor => actor.id === npc.id);
+        npcReceipt.actorAtOpen = actorAtOpen;
+        assert.equal(actorAtOpen.moving, false, 'normal conversation pauses the real moving actor');
         await action(panel.getByRole('button', { name: proof.topic.label, exact: true }));
         const poi = BIRYONG_MAP_DESTINATIONS.find(p => p.poiId === npc.target);
         const placeButton = panel.getByRole('button', { name: `📍 ${poi.title} 길안내`, exact: true });
@@ -402,6 +425,9 @@ try {
         assert.ok(dialogBounds.x >= 0 && dialogBounds.x + dialogBounds.width <= viewport.width + 1 && dialogBounds.y >= 0 && dialogBounds.y + dialogBounds.height <= viewport.height + 1, 'NPC panel fits viewport');
         assert.ok(buttonBounds.y >= dialogBounds.y && buttonBounds.y + buttonBounds.height <= dialogBounds.y + dialogBounds.height + 1, 'actual destination button is visible after scrolling');
         await capture(`npc-${npc.id}-place-button`);
+        const actorWhileOpen = await evaluate(id => window.__INHAGAME_P0__.biryongVillageNpcs.actorSnapshot(id), npc.id);
+        npcReceipt.actorWhileOpen = actorWhileOpen;
+        assert.deepEqual(actorWhileOpen.position, actorAtOpen.position, 'the actual actor remains paused while its public topic is open');
         await action(placeButton); await panel.waitFor({ state: 'hidden' });
         const route = await inspectRoute(page); checkRoute(route, poi, `${name} ${npc.name}`);
         assert.deepEqual(route.player, proof.player, 'NPC place guidance never teleports the player');
@@ -411,11 +437,14 @@ try {
         await capture(`npc-${npc.id}-guidance`);
         await action(page.locator('#nav-guidance-cancel')); assert.equal((await state(page)).navigation.status, 'IDLE');
         // A repeated conversation dismissed with Escape must release the same owner.
-        await wait(() => window.__INHAGAME_P0__.getStatus().contextAction === 'biryong-npc-talk');
-        await action(page.locator('#context-action')); await panel.waitFor({ state: 'visible' });
+        const repeatedProof = await approachNpc(15000);
+        assert.equal(repeatedProof.nearest.id, npc.id); assert.ok(repeatedProof.contextLabel.includes(npc.name));
+        await action(contextButton); await panel.waitFor({ state: 'visible' });
+        assert.equal((await state(page)).dialogue.npcId, npc.id);
         await page.keyboard.press('Escape'); await panel.waitFor({ state: 'hidden' });
         assert.equal((await state(page)).enabled, true);
-        entry.npcs.push({ ...npc, proof, dialogBounds, buttonBounds, route, inputRestored: true, escapeClose: true });
+        Object.assign(npcReceipt, { actorAfterClose: closed.npcs.npcs.find(actor => actor.id === npc.id),
+          clockAfterClose: closed.npcs.clock, repeatedProof, dialogBounds, buttonBounds, route, inputRestored: true, escapeClose: true, result: 'PASS' });
       }
 
       // Retain a realm route across the existing F1 return to detect stale local

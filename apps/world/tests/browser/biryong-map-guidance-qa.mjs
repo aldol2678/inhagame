@@ -22,6 +22,13 @@ export const BIRYONG_QA_NPCS = Object.freeze([
   { id: 'BR_NPC_006', name: '한세온', topicId: 'craft', target: 'poi.biryong-realm.workshop' }
 ].map(Object.freeze));
 
+// Serialized directly by Playwright; inspect the existing public actor without
+// changing its schedule, position, pause state, clock or animation frame rate.
+export function readNpcConversationReadiness(npcId) {
+  const npc = window.__INHAGAME_P0__.biryongVillageNpcs.actorSnapshot(npcId);
+  return npc?.visible === true && ['MOVING', 'ACTING'].includes(npc.phase);
+}
+
 const overlaps = (a, b) => a.x < b.right - 1 && a.right > b.x + 1 && a.y < b.bottom - 1 && a.bottom > b.y + 1;
 export function assertMapPointProjection(node, position, bounds) {
   // CSSOM serializes percentage styles to about six significant digits. A

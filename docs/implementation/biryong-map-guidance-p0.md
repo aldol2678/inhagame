@@ -14,6 +14,12 @@ with both Fishing-panel and Biryong-dialogue minimap suppression retained in the
 one overlapping main.js hunk. Signed-in lobby highlight wiring, Fishing UI and
 result-retention logic, and all upstream migrations/authority owners are retained.
 This PR does not activate Fishing in an operational database.
+After the hosted landscape run reproduced the existing shared fade race, main
+`0fe95f09fe3e5f1a0f02851a95338e095483bf4f` (#184) was merged normally into this
+branch. Its shared `createSpaceFade` and room-recovery changes are preserved;
+this PR does not duplicate that implementation. The NPC browser fixture observes
+moving actors through the existing conversation contract, waiting for genuinely
+safe player proximity without changing actor schedules, speed or clock.
 
 The approved outcome is a usable map and place guidance in the existing
 BIRYONG_REALM, plus links from existing public NPC dialogue. It does not create

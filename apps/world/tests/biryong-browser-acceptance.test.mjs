@@ -29,6 +29,77 @@ test('required viewport and public NPC cases are explicit and complete', async (
   for (const npc of BIRYONG_QA_NPCS) assert.ok(biryongDialogueDestinations(npc.id, npc.topicId).includes(npc.target));
 });
 
+test('hosted NPC readiness accepts real moving scheduled actors without waiting for arrival', async () => {
+  const { readNpcConversationReadiness, BIRYONG_QA_NPCS } = await import(helperUrl);
+  assert.equal(typeof readNpcConversationReadiness, 'function');
+  const { createPurposefulStudent } = await import('../npc-factory/purposeful-student-state.mjs');
+  const { createBiryongVillageNpcNavigator } = await import('../src/biryong/biryong-village-npc-navigation.js');
+  const { BIRYONG_VILLAGE_NPC_ROSTER, BIRYONG_VILLAGE_NPC_DESTINATIONS: destinations } = await import('../src/biryong/biryong-village-npc-contract.js');
+  for (const spec of BIRYONG_QA_NPCS) {
+    const index = BIRYONG_VILLAGE_NPC_ROSTER.findIndex(npc => npc.id === spec.id), npc = BIRYONG_VILLAGE_NPC_ROSTER[index];
+    const controller = createPurposefulStudent({ id: npc.id, spawn: destinations[npc.schedule[0].destination].position,
+      destinations, schedule: npc.schedule, navigator: createBiryongVillageNpcNavigator(),
+      speed: 1.05 + index % 3 * .08, holdAtActivity: true, startHidden: npc.schedule[0].sink === true });
+    controller.setScheduleIndex(1);
+    // 90 slow real frames advance only 4.5 simulation seconds, not 90 seconds.
+    // This replay is Node-only evidence; the hosted test never time-warps actors.
+    for (let frame = 0; frame < 90; frame++) controller.tick(.05);
+    const moving = controller.status(false);
+    assert.equal(moving.phase, 'MOVING', npc.id); assert.equal(moving.visible, true); assert.equal(moving.failures, 0);
+    let snapshot = moving;
+    const readiness = vm.runInNewContext(`(${readNpcConversationReadiness.toString()})`, {
+      window: { __INHAGAME_P0__: { biryongVillageNpcs: { actorSnapshot: id => id === npc.id ? snapshot : null } } }
+    });
+    assert.equal(readiness(npc.id), true, `${npc.name} is already publicly interactable while walking`);
+    snapshot = { ...moving, visible: false }; assert.equal(readiness(npc.id), false);
+    snapshot = { ...moving, phase: 'FAILED' }; assert.equal(readiness(npc.id), false);
+    snapshot = { ...moving, phase: 'ACTING' }; assert.equal(readiness(npc.id), true);
+  }
+  const source = await readFile(smokeUrl, 'utf8');
+  assert.match(source, /await wait\(readNpcConversationReadiness, npc\.id/);
+  assert.doesNotMatch(source, /\.pauseNpc\s*\(|setPeriodForTest|\.app\.fire\('update',\s*(?!0\b)[\d.]+/);
+  assert.match(source, /npcs: d\.biryongVillageNpcs\.status\(\)/);
+  assert.match(source, /actorWhileOpen/);
+});
+
+test('moving visibility cannot bypass a currently unsafe live NPC approach', async () => {
+  const { findBiryongNpcApproach } = await import('./browser/biryong-map-guidance-proximity.mjs');
+  const { createPurposefulStudent } = await import('../npc-factory/purposeful-student-state.mjs');
+  const { createBiryongVillageNpcNavigator } = await import('../src/biryong/biryong-village-npc-navigation.js');
+  const { createBiryongNavigation } = await import('../src/biryong/biryong-navigation.js');
+  const { BIRYONG_VILLAGE_NPC_ROSTER: roster, BIRYONG_VILLAGE_NPC_DESTINATIONS: destinations } = await import('../src/biryong/biryong-village-npc-contract.js');
+  const { BIRYONG_MAP_DESTINATIONS } = await import('../src/biryong/biryong-map-data.js');
+  const { BIRYONG_QA_NPCS } = await import(helperUrl);
+  for (const [npcId, ticks] of [['BR_NPC_003', 121], ['BR_NPC_001', 211]]) {
+    const controllers = roster.map((npc, index) => {
+      const controller = createPurposefulStudent({ id: npc.id, spawn: destinations[npc.schedule[0].destination].position,
+        destinations, schedule: npc.schedule, navigator: createBiryongVillageNpcNavigator(),
+        speed: 1.05 + index % 3 * .08, holdAtActivity: true, startHidden: npc.schedule[0].sink === true });
+      controller.setScheduleIndex(1); return controller;
+    });
+    for (let frame = 0; frame < ticks; frame++) for (const controller of controllers) controller.tick(.05);
+    const actors = controllers.map(controller => controller.status(false));
+    const actor = actors.find(actor => actor.id === npcId), serialized = JSON.stringify(actors);
+    assert.equal(actor.phase, 'MOVING'); assert.equal(actor.visible, true);
+    const spec = BIRYONG_QA_NPCS.find(npc => npc.id === npcId), provider = createBiryongNavigation();
+    const input = { npcId, actors, target: BIRYONG_MAP_DESTINATIONS.find(poi => poi.poiId === spec.target).position,
+      walkable: provider.walkable, segmentSafe: provider.segmentSafe };
+    assert.equal(findBiryongNpcApproach(input), null, `${npcId}: visible actor crossing the station cannot be approached safely yet`);
+    assert.equal(JSON.stringify(actors), serialized, 'candidate inspection never moves, pauses or modifies an actor');
+    // Let the unchanged state machines complete their real routes in this Node
+    // replay only; browser QA must await live progress without advancing time.
+    for (let frame = ticks; frame < 1200; frame++) for (const controller of controllers) controller.tick(.05);
+    const settled = controllers.map(controller => controller.status(false));
+    const candidate = findBiryongNpcApproach({ ...input, actors: settled });
+    assert.equal(candidate?.nearest.id, npcId);
+    assert.ok(provider.walkable(candidate.player)); assert.ok(provider.segmentSafe(candidate.player, candidate.actor.position));
+  }
+  const source = await readFile(smokeUrl, 'utf8');
+  assert.match(source, /findBiryongNpcApproach/);
+  assert.match(source, /performance\.now\(\) - started < timeoutMs/);
+  assert.match(source, /NPC_APPROACH_UNAVAILABLE/);
+});
+
 test('actual map receipt keeps CSS percentages separate from DOMRect viewport pixels', async () => {
   const source = await readFile(smokeUrl, 'utf8');
   // Execute only the pure DOM serializer in a tiny Node fixture. Never import the
