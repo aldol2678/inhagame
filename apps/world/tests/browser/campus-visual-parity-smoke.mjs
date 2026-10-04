@@ -62,6 +62,26 @@ try{
     assert.ok(after.changed>after.width*after.height*.0001,`${label}: restored target has no visible pixels`);assert.equal(stable.changed,0,`${label}: stationary target is unstable`);
     report.cases.push({name,area,...setup,before,after,stable});
    }
+   // Close diagnostic views make individual stair treads and ramp surfaces
+   // inspectable; the full-area captures above prove scene placement/coverage.
+   for(const detail of ['garden-stairs','garden-ramp','stadium-aisle','stadium-side-entry','alley-shell']){
+    const setup=await page.evaluate(async detail=>{
+     const pc=await import('playcanvas'),{GARDEN_ENTRANCES,gardenEntryHeight}=await import('/src/library-garden-layout.js'),{STANDS,SPORTS_SIDE_ENTRIES,stadiumGroundHeight}=await import('/src/stadium-stands-layout.js'),{BACK_ALLEY_BLOCKS}=await import('/src/back-alley-layout.js');
+     const app=window.__INHAGAME_P0__.app,base=app.root.findByName('CampusBase'),camera=app.root.findByName('Camera');base.parent.setLocalScale(1,1,-1);
+     let frame,u,v,y,radius,prefix,from;
+     if(detail.startsWith('garden')){const q=GARDEN_ENTRANCES.find(q=>detail==='garden-ramp'?q.steps===0:q.steps>0);frame=q.frame;u=q.u;v=q.run/2;y=gardenEntryHeight(q,v);radius=q.steps?2.8:4.3;prefix='library_garden_base_';from=frame.at(u+4,-6);}
+     else if(detail==='stadium-aisle'){frame=STANDS.frame;u=STANDS.aisles[1];v=STANDS.run/2;const p=frame.at(u,v);y=stadiumGroundHeight(p.x,p.z);radius=3.5;prefix='stadium_stands_';from=frame.at(u+5,STANDS.run+7);}
+     else if(detail==='stadium-side-entry'){const q=SPORTS_SIDE_ENTRIES[0];frame=q.frame;u=q.u;v=-q.run/2;const p=frame.at(u,v);y=stadiumGroundHeight(p.x,p.z);radius=2.5;prefix='stadium_stands_';from=frame.at(u+4,6);}
+     else{const q=BACK_ALLEY_BLOCKS[0];frame=q.frame;u=0;v=q.d/2;y=q.h/2;radius=5;prefix='back_alley_base_';from=frame.at(-3,-8);}
+     const p=frame.at(u,v),center=new pc.Vec3(p.x,y,-p.z),direction=new pc.Vec3(from.x-p.x,5, -(from.z-p.z)).normalize(),aspect=app.graphicsDevice.width/app.graphicsDevice.height;
+     const vertical=camera.camera.fov*Math.PI/360,horizontal=Math.atan(Math.tan(vertical)*aspect),distance=radius/Math.sin(Math.min(vertical,horizontal))*1.1;
+     camera.setPosition(center.clone().add(direction.mulScalar(distance)));camera.lookAt(center);
+     const targets=base.children.filter(e=>e.name.startsWith(prefix));if(!targets.length)throw Error(`${detail}: missing target`);
+     window.__parityTargets=targets;targets.forEach(e=>{e.enabled=false;});return {detail,prefix,center:center.toArray(),distance,radius};
+    },detail);
+    const label=`${name}-${detail}-close`,before=await capture(page,`${label}-before`);await page.evaluate(()=>window.__parityTargets.forEach(e=>{e.enabled=true;}));const after=await capture(page,`${label}-after`,true);
+    assert.ok(after.changed>30,`${label}: restored close-up has no visible contribution`);report.details??=[];report.details.push({name,...setup,before,after});
+   }
    const lifecycle=await page.evaluate(async()=>{
     const pc=await import('playcanvas'),{CampusChunkRenderer}=await import('/src/campus-chunk-renderer.js'),{RenderChunkRegistry}=await import('/src/render-chunk-registry.js'),{LIBRARY_GREENS}=await import('/src/library-garden-layout.js');
     const app=window.__INHAGAME_P0__.app,receipts=[];
