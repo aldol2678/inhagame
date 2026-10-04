@@ -24,6 +24,7 @@ try {
   const result = await page.evaluate(async () => {
     const kit = await import('/src/campus-render-kit.js');
     const profile = await import('/src/campus-material-profile.js');
+    const roadDetails = await import('/src/campus-road-micro-details.js');
     const sampleColors = {
       ground: '#8b9274',
       asphalt: '#747d7b',
@@ -56,12 +57,23 @@ try {
     const glassNeutral = kit.surface('#548d99', 'neutral');
 
     const terrain = window.__INHAGAME_P0__.app.root.findByName('campus_terrain');
+    const detailBatches = Object.entries(roadDetails.ROAD_DETAIL_COLORS).map(([name, color]) => {
+      const entity = window.__INHAGAME_P0__.app.root.findByName(`campus_roads_${color.slice(1)}`);
+      const mi = entity?.render?.meshInstances?.[0];
+      const positions = [];
+      mi?.mesh?.getPositions(positions);
+      return { name, material: mi?.material?.name, castShadows: entity?.render?.castShadows,
+        hasCollision: Boolean(entity?.collision), vertices: positions.length / 3,
+        finite: positions.every(Number.isFinite) };
+    });
     const crowns = window.__INHAGAME_P0__.app.root.find(entity =>
       entity.name?.endsWith('_crown') && entity.render?.meshInstances?.length
     );
 
     return {
       materials,
+      detailBatches,
+      roadDetailKinds: [...new Set(roadDetails.campusRoadDetailPlan().map(d => d.kind))],
       sameGlassInstance: glassA === glassB,
       overrideUsesSeparateInstance: glassA !== glassNeutral,
       cache: kit.campusMaterialCacheStatus(),
@@ -98,8 +110,16 @@ try {
   ]) assert.ok(result.cache.profiles[name] >= 1, `cache exposes ${name} material profile`);
 
   assert.deepEqual(smoke.problems, []);
+  assert.equal(result.detailBatches.length, 2);
+  for (const batch of result.detailBatches) {
+    assert.match(batch.material, new RegExp(`^campus-material-${batch.name}:`));
+    assert.ok(batch.vertices > 0 && batch.finite);
+    assert.equal(batch.castShadows, false);
+    assert.equal(batch.hasCollision, false);
+  }
+  assert.deepEqual(new Set(result.roadDetailKinds), new Set(['patch', 'crack', 'wear', 'manhole', 'drain']));
   console.log(
-    `campus material P7A: PASS (${result.cache.materialCount} cached materials, semantic optical profiles, zero geometry additions)`
+    `campus material P7A + road detail P7B: PASS (${result.cache.materialCount} cached materials, two static detail batches, five detail kinds)`
   );
 } finally {
   await smoke.close();
