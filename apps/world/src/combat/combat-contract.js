@@ -1,7 +1,7 @@
-// INHA WORLD Combat Authority P0 server contract.
-// Encounter authority + deterministic low-level resolution only.
+// INHA WORLD Combat Authority contract.
 // Product/build identity for Combat v0.3 lives in combat-v03-catalog.js.
-// No live encounters, rewards, Player EXP, Life XP, Creature XP, loot settlement or runtime AI are activated here.
+// Building 5 is the first live deterministic server-resolved encounter.
+// Other encounters, Combat gear drops and broader settlement remain gated behind their own slices.
 
 export const COMBAT_DEFINITION_STATUS = Object.freeze({
   ACTIVE: 'ACTIVE',
