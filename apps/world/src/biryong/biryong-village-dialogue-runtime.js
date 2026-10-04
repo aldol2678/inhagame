@@ -60,6 +60,7 @@ export function createBiryongVillageDialogueRuntime({
   getWorldContext = () => ({}),
   getSession = async () => null,
   getRelationshipStage = () => 1,
+  getUnlockedFacts = () => [],
   onOpenChange = () => {},
   jevEnabled = false,
   jevEndpoint = "/api/npc-dialogue-route"
@@ -209,6 +210,10 @@ export function createBiryongVillageDialogueRuntime({
     for (const topic of biryongDialogueTopics(npc.id, stage)) {
       actionsEl.append(button(topic.label, () => showTopic(topic.id)));
     }
+    for (const fact of getUnlockedFacts(npc.id) ?? []) {
+      if (!fact?.factId || !fact?.topicLabel || !fact?.dialogueLine) continue;
+      actionsEl.append(button(`🔓 ${fact.topicLabel}`, () => showUnlockedFact(fact.factId)));
+    }
     actionsEl.append(button("대화 마치기", () => close()));
     void shadowDecision(npc, { mode: "GREETING", generationAllowed: false });
     return true;
@@ -225,6 +230,28 @@ export function createBiryongVillageDialogueRuntime({
       button("대화 마치기", () => close())
     );
     void shadowDecision(npc, { mode: "STATUS", generationAllowed: false });
+    return true;
+  }
+
+  function showUnlockedFact(factId) {
+    const npc = currentNpc();
+    if (!npc) return false;
+    const fact = (getUnlockedFacts(npc.id) ?? []).find(item => item?.factId === factId);
+    if (!fact) return false;
+    turnCounter += 1;
+    lastTopic = fact.topicId ?? fact.factId;
+    lastGeminiPacket = null;
+    lineEl.textContent = fact.dialogueLine;
+    actionsEl.replaceChildren(
+      button("다른 이야기", () => showHome()),
+      button("대화 마치기", () => close())
+    );
+    // Secret payload itself never enters the Jev context. Jev may observe only the opaque topic id.
+    void shadowDecision(npc, {
+      mode: "TOPIC",
+      topicId: fact.topicId ?? fact.factId,
+      generationAllowed: false
+    });
     return true;
   }
 
@@ -327,6 +354,7 @@ export function createBiryongVillageDialogueRuntime({
         npcId: openNpcId,
         npcName: npc?.name ?? null,
         relationshipStage: openNpcId ? relationshipStage(openNpcId) : null,
+        unlockedFactCount: openNpcId ? (getUnlockedFacts(openNpcId) ?? []).length : 0,
         lastTopic,
         jev: Object.freeze({
           enabled: routerEnabled,
