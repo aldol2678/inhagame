@@ -3,6 +3,7 @@
 import * as pc from "playcanvas";
 import { box, surface } from "../campus-render-kit.js";
 import { createBiryongVisualMaterialSet } from "./biryong-visual-materials.js";
+import { createBiryongEnvironmentDensity } from "./biryong-environment-density.js";
 import {
   BIRYONG_VILLAGE_ANCHORS,
   BIRYONG_VILLAGE_BUILDINGS,
@@ -17,7 +18,11 @@ function segmentBox(root, name, a, b, width, y, height, material) {
   box(root, name, [(a.x + b.x) / 2, y, (a.z + b.z) / 2], [length, height, width], material, yaw);
 }
 
-export function createBiryongRealmScene(app, { visualMaterials = false } = {}) {
+export function createBiryongRealmScene(app, {
+  visualMaterials = false,
+  visualDensity = false,
+  getGraphicsTier = () => "medium"
+} = {}) {
   const root = new pc.Entity("BiryongRealmCoordinateFrame");
   // Keep canonical +Z north while PlayCanvas renders north as -Z, matching Campus.
   root.setLocalScale(1, 1, -1);
@@ -118,10 +123,17 @@ export function createBiryongRealmScene(app, { visualMaterials = false } = {}) {
   box(root, "biryong_future_marker_right", [4.5, 1.3, future.z], [0.45, 2.6, 0.45], darkStone);
   box(root, "biryong_future_marker_beam", [0, 2.55, future.z], [9.5, 0.35, 0.45], accent);
 
+  const environmentDensity = createBiryongEnvironmentDensity({
+    root,
+    enabled: visualDensity,
+    getGraphicsTier
+  });
+
   root.enabled = false;
   app.root.addChild(root);
   return Object.freeze({
     root,
-    materialMode: visualMaterials ? "biryong.visual.material.p0b.v1" : "legacy"
+    materialMode: visualMaterials ? "biryong.visual.material.p0b.v1" : "legacy",
+    environmentDensity
   });
 }
