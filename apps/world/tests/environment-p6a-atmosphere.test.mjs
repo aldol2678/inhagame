@@ -13,6 +13,8 @@ import { ENVIRONMENT_PRESETS } from '../src/environment/environment-presets.js';
 import { SKY_SUN_DISTANCE } from '../src/environment/sky-visual-policy.js';
 
 const luminance = color => color[0] * 0.2126 + color[1] * 0.7152 + color[2] * 0.0722;
+const near = (actual, expected, epsilon = 1e-9) =>
+  assert.ok(Math.abs(actual - expected) <= epsilon, `${actual} != ${expected}`);
 
 test('P6A dome stays behind sun/clouds and inside the camera far clip with a tiny mesh budget', () => {
   assert.ok(ATMOSPHERE_DOME_RADIUS > SKY_SUN_DISTANCE);
