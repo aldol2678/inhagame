@@ -135,7 +135,7 @@ test("AF-07 preview registry is fail-closed outside Inkyung rain", () => {
   const asset = resolveAssetFactoryPreviewAmbience({
     assetId: AF07_INKYUNG_RAIN_ASSET_ID, zone: "INKYUNG", weather: "RAIN"
   });
-  assert.equal(asset?.rights?.status, "unverified");
+  assert.equal(asset?.rights?.status, "verified");
   assert.equal(asset?.runtime?.previewOnly, true);
 });
 
