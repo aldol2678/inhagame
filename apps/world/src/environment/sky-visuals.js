@@ -317,6 +317,20 @@ export function createSkyVisuals({
   const root = new pc.Entity('EnvironmentSkyVisuals');
   app.root.addChild(root);
 
+  const skyState = {
+    sunColor: [1, 0.94, 0.81],
+    sunEuler: [55, 30, 0],
+    sunIntensity: 1.15,
+    artificialLightFactor: 0,
+    rainIntensity: 0,
+    snowIntensity: 0,
+    cloudCover: 0.24,
+    sunLightScale: 1
+  };
+
+  let atmosphereProfile = atmosphereSkyProfile(skyState);
+  const atmosphere = createAtmosphereDome(root, device, atmosphereProfile);
+
   const cloudRoot = new pc.Entity('EnvironmentCloudField');
   root.addChild(cloudRoot);
   const cloudTexture = createCloudTexture(device);
@@ -328,17 +342,9 @@ export function createSkyVisuals({
     ])
   );
 
+  // Add the soft halo before the solid sun disc so the core stays crisp.
+  const sunGlow = createSunGlow(root, device);
   const sun = createSun(root);
-  const skyState = {
-    sunColor: [1, 0.94, 0.81],
-    sunEuler: [55, 30, 0],
-    sunIntensity: 1.15,
-    artificialLightFactor: 0,
-    rainIntensity: 0,
-    snowIntensity: 0,
-    cloudCover: 0.24,
-    sunLightScale: 1
-  };
 
   let tier = null;
   let cloudProfile = cloudVisualProfile(skyState);
@@ -391,6 +397,15 @@ export function createSkyVisuals({
     cloudMaterial.emissiveIntensity = cloudProfile.emissiveIntensity;
     cloudMaterial.update();
 
+    atmosphereProfile = atmosphereSkyProfile(skyState);
+    writeAtmosphereMeshColors(atmosphere, atmosphereProfile);
+
+    sunGlow.entity.enabled = sunProfile.visible && atmosphereProfile.sunGlowOpacity > 0.01;
+    sunGlow.material.opacity = atmosphereProfile.sunGlowOpacity;
+    sunGlow.material.emissive.set(...sunProfile.color);
+    sunGlow.material.emissiveIntensity = 1.25 + atmosphereProfile.sunsetFactor * 0.55;
+    sunGlow.material.update();
+
     lastMaterialSignal.sunColor[0] = skyState.sunColor[0];
     lastMaterialSignal.sunColor[1] = skyState.sunColor[1];
     lastMaterialSignal.sunColor[2] = skyState.sunColor[2];
@@ -409,15 +424,18 @@ export function createSkyVisuals({
     applyMaterials();
 
     const cameraPosition = camera.getPosition();
+    atmosphere.entity.setPosition(cameraPosition.x, cameraPosition.y, cameraPosition.z);
+
     // PlayCanvas directional lights shine along -entity.up. The visible source
     // therefore lives in +entity.up, so reading the real light transform keeps
-    // the sun disc and cast-shadow direction locked together during transitions.
+    // the sun disc, glow and cast-shadow direction locked together.
     writeSunSourceDirection(sunDirection, lightEntity?.up);
-    sun.entity.setPosition(
-      cameraPosition.x + sunDirection[0] * SKY_SUN_DISTANCE,
-      cameraPosition.y + sunDirection[1] * SKY_SUN_DISTANCE,
-      cameraPosition.z + sunDirection[2] * SKY_SUN_DISTANCE
-    );
+    const sunX = cameraPosition.x + sunDirection[0] * SKY_SUN_DISTANCE;
+    const sunY = cameraPosition.y + sunDirection[1] * SKY_SUN_DISTANCE;
+    const sunZ = cameraPosition.z + sunDirection[2] * SKY_SUN_DISTANCE;
+    sun.entity.setPosition(sunX, sunY, sunZ);
+    sunGlow.entity.setPosition(sunX, sunY, sunZ);
+    sunGlow.entity.setRotation(camera.getRotation());
 
     const safeDt = Math.max(0, Number.isFinite(dt) ? dt : 0);
     cloudPhase = (cloudPhase + safeDt * 0.55) % 360;
@@ -431,6 +449,12 @@ export function createSkyVisuals({
     const shadowRayDirection = shadowRayDirectionFromSunSource(direction);
     return Object.freeze({
       graphicsTier: currentTier,
+      atmosphereDrawMeshes: 1,
+      atmosphereVertexCount: atmosphere.elevations.length,
+      atmosphereHorizonColor: Object.freeze([...atmosphereProfile.horizonColor]),
+      atmosphereZenithColor: Object.freeze([...atmosphereProfile.zenithColor]),
+      atmosphereHazeStrength: atmosphereProfile.hazeStrength,
+      atmosphereSunsetFactor: atmosphereProfile.sunsetFactor,
       cloudPatchCount: SKY_CLOUD_PATCH_BUDGET[currentTier] ?? SKY_CLOUD_PATCH_BUDGET.medium,
       cloudDrawMeshes: 1,
       cloudOpacity: cloudProfile.opacity,
@@ -447,7 +471,9 @@ export function createSkyVisuals({
         direction[0] * shadowRayDirection[0] +
         direction[1] * shadowRayDirection[1] +
         direction[2] * shadowRayDirection[2],
-      sunDrawMeshes: sunProfile.visible ? 1 : 0
+      sunDrawMeshes: sunProfile.visible ? 1 : 0,
+      sunGlowOpacity: atmosphereProfile.sunGlowOpacity,
+      sunGlowDrawMeshes: sunGlow.entity.enabled ? 1 : 0
     });
   }
 
@@ -455,8 +481,11 @@ export function createSkyVisuals({
     if (destroyed) return;
     destroyed = true;
     root.destroy();
+    atmosphere.material.destroy();
     cloudTexture.destroy();
     cloudMaterial.destroy();
+    sunGlow.texture.destroy();
+    sunGlow.material.destroy();
     sun.material.destroy();
   }
 
