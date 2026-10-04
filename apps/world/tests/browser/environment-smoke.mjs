@@ -43,8 +43,17 @@ try {
   assert.equal(initial.pond.rainIntensity, 0);
   assert.equal(initial.pond.artificialLightFactor, 0.18);
   assert.equal(initial.pond.rippleSpeed, 0.025);
-  assert.equal(initial.sky.cloudDrawMeshes, 1);
+  assert.equal(initial.sky.cloudDrawMeshes, initial.sky.cloudLayerCount);
+  assert.ok(initial.sky.cloudLayerCount >= 1 && initial.sky.cloudLayerCount <= 3);
   assert.ok(initial.sky.cloudPatchCount >= 6 && initial.sky.cloudPatchCount <= 16);
+  assert.equal(
+    initial.sky.cloudLayers.reduce((sum, layer) => sum + layer.patchCount, 0),
+    initial.sky.cloudPatchCount
+  );
+  for (let i = 1; i < initial.sky.cloudLayers.length; i++) {
+    assert.ok(initial.sky.cloudLayers[i].altitudeMin > initial.sky.cloudLayers[i - 1].altitudeMin);
+    assert.ok(initial.sky.cloudLayers[i].driftDegPerSec < initial.sky.cloudLayers[i - 1].driftDegPerSec);
+  }
   assert.equal(initial.sky.sunVisible, true);
   assert.ok(initial.sky.sunOpacity > 0);
   assert.equal(initial.sky.sunDrawMeshes, 1);
@@ -216,7 +225,8 @@ try {
   assert.ok(
     nightRain.sky.atmosphereZenithColor.reduce((sum, value) => sum + value, 0) < 0.8
   );
-  assert.equal(nightRain.sky.cloudDrawMeshes, 1);
+  assert.equal(nightRain.sky.cloudDrawMeshes, nightRain.sky.cloudLayerCount);
+  assert.ok(nightRain.sky.cloudLayerCount >= 1 && nightRain.sky.cloudLayerCount <= 3);
   assert.ok(nightRain.sky.cloudOpacity > initial.sky.cloudOpacity);
   assert.equal(nightRain.environment.artificialLightFactor, 1);
   assert.equal(nightRain.streetLights.artificialLightFactor, 1);
@@ -267,7 +277,8 @@ try {
   assert.equal(clear.sky.sunVisible, true);
   assert.equal(clear.sky.sunOpacity, 1);
   assert.equal(clear.sky.sunDrawMeshes, 1);
-  assert.equal(clear.sky.cloudDrawMeshes, 1);
+  assert.equal(clear.sky.cloudDrawMeshes, clear.sky.cloudLayerCount);
+  assert.ok(clear.sky.cloudLayerCount >= 1 && clear.sky.cloudLayerCount <= 3);
   assert.ok(clear.sky.cloudOpacity < nightRain.sky.cloudOpacity);
 
   const mobile = await smoke.context.newPage();
@@ -312,16 +323,20 @@ try {
   assert.equal(mobileStatus.sky.graphicsTier, mobileStatus.graphics.tier);
   assert.equal(mobileStatus.sky.sunVisible, false);
   assert.equal(mobileStatus.sky.sunDrawMeshes, 0);
-  assert.equal(mobileStatus.sky.cloudDrawMeshes, 1);
+  assert.equal(mobileStatus.sky.cloudDrawMeshes, mobileStatus.sky.cloudLayerCount);
+  assert.ok(mobileStatus.sky.cloudLayerCount >= 1 && mobileStatus.sky.cloudLayerCount <= 3);
   assert.ok(mobileStatus.sky.cloudPatchCount <= 16);
   if (mobileStatus.graphics.tier === 'low') assert.equal(mobileStatus.sky.cloudPatchCount, 6);
+  if (mobileStatus.graphics.tier === 'low') assert.equal(mobileStatus.sky.cloudLayerCount, 1);
+  if (mobileStatus.graphics.tier === 'medium') assert.equal(mobileStatus.sky.cloudLayerCount, 2);
+  if (mobileStatus.graphics.tier === 'high') assert.equal(mobileStatus.sky.cloudLayerCount, 3);
   assert.equal(mobileStatus.rain.graphicsTier, mobileStatus.graphics.tier);
   assert.ok(mobileStatus.rain.streakBudget <= 96);
   if (mobileStatus.graphics.tier === 'low') assert.equal(mobileStatus.rain.streakBudget, 28);
   assert.equal(mobileStatus.streetLights.artificialLightFactor, 1);
   assert.ok(mobileStatus.streetLights.activeDynamicLights <= mobileStatus.streetLights.dynamicBudget);
   assert.deepEqual(smoke.problems, []);
-  console.log('world environment smoke: PASS (atmospheric gradient + sun glow, CLEAR/CLOUDY/FOG/RAIN/SNOW, sky, rain/snow, street lights, wet roads, Inkyung pond, 390px mobile)');
+  console.log('world environment smoke: PASS (atmospheric gradient + sun glow, layered cloud parallax, CLEAR/CLOUDY/FOG/RAIN/SNOW, sky, rain/snow, street lights, wet roads, Inkyung pond, 390px mobile)');
 } finally {
   await smoke.close();
 }
