@@ -37,6 +37,7 @@ export const BUILDING5_TRAINING_ATTACK = frozen({
   title: '공명 펄스',
   damage: 44,
   range: 5,
+  impactRadius: 1.15,
   cooldownMs: 2000,
   firstDelayMs: 1200,
   windupMs: 680
@@ -158,6 +159,7 @@ export function createBuilding5CombatTraining({
       title: enemyAttack.title,
       damage: enemyAttack.damage,
       range: enemyAttack.range,
+      impactRadius: enemyAttack.impactRadius,
       nextInMs: Math.max(0, nextEnemyAttackAt - at),
       remainingMs: 0,
       progress: 0,
@@ -172,6 +174,7 @@ export function createBuilding5CombatTraining({
       title: enemyAttack.title,
       damage: enemyAttack.damage,
       range: enemyAttack.range,
+      impactRadius: enemyAttack.impactRadius,
       nextInMs: 0,
       remainingMs: remaining,
       progress: clamp(1 - remaining / Math.max(1, enemyAttack.windupMs), 0, 1),
@@ -470,7 +473,8 @@ export function createBuilding5CombatTraining({
     enemyWindup = null;
 
     const dodgeState = dodgeSnapshot(at);
-    const inRange = distanceToTarget() <= enemyAttack.range;
+    const player = playerPosition();
+    const inRange = !!player && Math.hypot(player.x - attack.aimX, player.z - attack.aimZ) <= enemyAttack.impactRadius;
     let outcome = 'MISS';
     let damage = 0;
     let perfectDodge = false;
