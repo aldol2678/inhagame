@@ -4767,6 +4767,120 @@ body[data-hud-mode="COMBAT"] #jump { display:none !important; }
   .combat-hud-v03 small { display:none; }
 }
 /* COMBAT-V03-RUNTIME-P0:end */
+/* Full Map short-landscape: independent of the legacy HUD block. */
+@media (pointer: coarse) and (orientation: landscape) and (max-height: 500px) {
+  /* Full Map: short landscape phones keep the square map height-bound instead of inheriting the desktop 2-column width. */
+  body .full-map-panel {
+    place-items: center;
+    overflow: hidden;
+    padding:
+      max(6px, env(safe-area-inset-top))
+      max(8px, env(safe-area-inset-right))
+      max(6px, env(safe-area-inset-bottom))
+      max(8px, env(safe-area-inset-left));
+  }
+  body .full-map-card {
+    --ls-full-map-size: clamp(250px, calc(100dvh - 70px), 430px);
+    width: min(700px, calc(100vw - max(16px, env(safe-area-inset-left)) - max(16px, env(safe-area-inset-right))));
+    max-height: calc(100dvh - max(12px, env(safe-area-inset-top)) - max(12px, env(safe-area-inset-bottom)));
+    overflow: hidden;
+    border-radius: 16px;
+  }
+  body .full-map-card:has(> .full-map-nav:not([hidden])) {
+    --ls-full-map-size: clamp(220px, calc(100dvh - 108px), 390px);
+  }
+  /* With no selected POI the desktop detail column must not reserve empty width. */
+  body .full-map-card:has(.full-map-info[hidden]) {
+    width: fit-content;
+    max-width: calc(100vw - max(16px, env(safe-area-inset-left)) - max(16px, env(safe-area-inset-right)));
+  }
+  body .full-map-header {
+    gap: 10px;
+    padding: 7px 10px 5px;
+  }
+  body .full-map-kicker { font-size: 8.5px; }
+  body .full-map-header h2 { font-size: 16px; }
+  body .full-map-close {
+    width: 36px;
+    height: 36px;
+    border-radius: 11px;
+    font-size: 21px;
+  }
+  body .full-map-nav {
+    margin: 0 10px 6px;
+    padding: 4px 5px 4px 8px;
+    font-size: 11px;
+  }
+  body .full-map-nav-clear {
+    min-height: 30px;
+    padding-inline: 8px;
+    font-size: 11px;
+  }
+  body .full-map-body {
+    width: fit-content;
+    max-width: 100%;
+    margin-inline: auto;
+    grid-template-columns: var(--ls-full-map-size) minmax(170px, 210px);
+    align-items: start;
+    gap: 8px;
+    min-height: 0;
+    padding: 0 10px 10px;
+  }
+  body .full-map-body:has(> .full-map-info[hidden]) {
+    grid-template-columns: var(--ls-full-map-size);
+  }
+  /* Keep the surface square so SVG geometry and percentage-positioned marker layers remain aligned. */
+  body .full-map-stage { width: auto; max-width: none; }
+  body .full-map-surface {
+    width: var(--ls-full-map-size);
+    max-width: 100%;
+    height: var(--ls-full-map-size);
+    aspect-ratio: 1;
+    justify-self: center;
+    border-radius: 14px;
+  }
+  body .full-map-info {
+    max-height: var(--ls-full-map-size);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    gap: 6px;
+    padding: 10px;
+    border-radius: 12px;
+  }
+  body .full-map-info strong { font-size: 15px; }
+  body .full-map-info-actions { gap: 5px; margin-top: 4px; }
+  body .full-map-info-actions button { min-height: 36px; font-size: 12px; }
+  body .full-map-controls {
+    position: absolute;
+    width: max-content;
+    max-width: calc(100% - 8px);
+    left: 50%;
+    right: auto;
+    bottom: 6px;
+    transform: translateX(-50%);
+    gap: 3px;
+    padding: 4px;
+    border-radius: 11px;
+  }
+  body .full-map-controls button {
+    flex-shrink: 0;
+    white-space: nowrap;
+    min-width: 30px;
+    height: 30px;
+    padding: 0 6px;
+    font-size: 10.5px;
+  }
+  body .full-map-controls button#full-map-zoom-in,
+  body .full-map-controls button#full-map-zoom-out {
+    width: 30px;
+    padding: 0;
+    font-size: 18px;
+  }
+  body .full-map-zoom-label { min-width: 36px; font-size: 10px; }
+
+}
+/* FULL-MAP-LANDSCAPE:end */
+
 /* LANDSCAPE-HUD:start
 /* Collection furniture editor: input is owned by BLOCKING_UI while this modal is open. */
 .furniture-editor-backdrop { position:fixed; inset:0; z-index:1090; background:#10203355; }
@@ -5139,111 +5253,6 @@ body[data-hud-mode="COMBAT"] #jump { display:none !important; }
   body .quest-journal-body { min-height: 0; flex: 1 1 auto; grid-template-rows: minmax(0, 1fr); margin-top: 8px; }
   body .quest-journal-tabs { margin-top: 8px; }
 
-  /* Full Map: short landscape phones keep the square map height-bound instead of inheriting the desktop 2-column width. */
-  body .full-map-panel {
-    place-items: center;
-    overflow: hidden;
-    padding:
-      max(6px, env(safe-area-inset-top))
-      max(8px, env(safe-area-inset-right))
-      max(6px, env(safe-area-inset-bottom))
-      max(8px, env(safe-area-inset-left));
-  }
-  body .full-map-card {
-    --ls-full-map-size: clamp(250px, calc(100dvh - 70px), 430px);
-    width: min(700px, calc(100vw - max(16px, env(safe-area-inset-left)) - max(16px, env(safe-area-inset-right))));
-    max-height: calc(100dvh - max(12px, env(safe-area-inset-top)) - max(12px, env(safe-area-inset-bottom)));
-    overflow: hidden;
-    border-radius: 16px;
-  }
-  body .full-map-card:has(> .full-map-nav:not([hidden])) {
-    --ls-full-map-size: clamp(220px, calc(100dvh - 108px), 390px);
-  }
-  /* With no selected POI the desktop detail column must not reserve empty width. */
-  body .full-map-card:has(.full-map-info[hidden]) {
-    width: fit-content;
-    max-width: calc(100vw - max(16px, env(safe-area-inset-left)) - max(16px, env(safe-area-inset-right)));
-  }
-  body .full-map-header {
-    gap: 10px;
-    padding: 7px 10px 5px;
-  }
-  body .full-map-kicker { font-size: 8.5px; }
-  body .full-map-header h2 { font-size: 16px; }
-  body .full-map-close {
-    width: 36px;
-    height: 36px;
-    border-radius: 11px;
-    font-size: 21px;
-  }
-  body .full-map-nav {
-    margin: 0 10px 6px;
-    padding: 4px 5px 4px 8px;
-    font-size: 11px;
-  }
-  body .full-map-nav-clear {
-    min-height: 30px;
-    padding-inline: 8px;
-    font-size: 11px;
-  }
-  body .full-map-body {
-    width: fit-content;
-    max-width: 100%;
-    margin-inline: auto;
-    grid-template-columns: var(--ls-full-map-size) minmax(170px, 210px);
-    align-items: start;
-    gap: 8px;
-    min-height: 0;
-    padding: 0 10px 10px;
-  }
-  body .full-map-body:has(> .full-map-info[hidden]) {
-    grid-template-columns: var(--ls-full-map-size);
-  }
-  /* Keep the surface square so SVG geometry and percentage-positioned marker layers remain aligned. */
-  body .full-map-stage { width: auto; max-width: none; }
-  body .full-map-surface {
-    width: var(--ls-full-map-size);
-    max-width: 100%;
-    height: var(--ls-full-map-size);
-    aspect-ratio: 1;
-    justify-self: center;
-    border-radius: 14px;
-  }
-  body .full-map-info {
-    max-height: var(--ls-full-map-size);
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    gap: 6px;
-    padding: 10px;
-    border-radius: 12px;
-  }
-  body .full-map-info strong { font-size: 15px; }
-  body .full-map-info-actions { gap: 5px; margin-top: 4px; }
-  body .full-map-info-actions button { min-height: 36px; font-size: 12px; }
-  body .full-map-controls {
-    position: absolute;
-    left: 50%;
-    right: auto;
-    bottom: 6px;
-    transform: translateX(-50%);
-    gap: 3px;
-    padding: 4px;
-    border-radius: 11px;
-  }
-  body .full-map-controls button {
-    min-width: 30px;
-    height: 30px;
-    padding: 0 6px;
-    font-size: 10.5px;
-  }
-  body .full-map-controls button#full-map-zoom-in,
-  body .full-map-controls button#full-map-zoom-out {
-    width: 30px;
-    padding: 0;
-    font-size: 18px;
-  }
-  body .full-map-zoom-label { min-width: 36px; font-size: 10px; }
-
   /* Helicopter P0.6: compact instruments share the existing short-landscape HUD authority. */
   body .helicopter-flight-hud {
     top: var(--world-right-rail-top);
@@ -5300,6 +5309,3 @@ body[data-hud-mode="COMBAT"] #jump { display:none !important; }
 
 }
 /* LANDSCAPE-HUD:end */
-
-
-

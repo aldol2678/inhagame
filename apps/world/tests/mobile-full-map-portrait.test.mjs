@@ -60,3 +60,18 @@ test('Full Map labels are readable DOM text and POIs retain touch-sized targets'
 test('only visible collision-resolved labels extend their POI click target', () => {
   assert.match(css, /\.full-map-poi\[data-label-visible="true"\] \.full-map-poi-label\s*\{[^}]*pointer-events:\s*auto/s);
 });
+
+test('Full Map short-landscape rules have their own parseable media block', () => {
+  const dedicated = css.slice(css.indexOf('/* Full Map short-landscape: independent of the legacy HUD block. */'));
+  assert.ok(css.includes('/* Full Map short-landscape: independent of the legacy HUD block. */'));
+  assert.match(dedicated, /^\/\* Full Map short-landscape:[^]*?\*\/\s*@media \(pointer: coarse\) and \(orientation: landscape\) and \(max-height: 500px\) \{/);
+  assert.match(dedicated, /body \.full-map-stage\s*\{[^}]*max-width:\s*none/);
+  assert.match(dedicated, /--ls-full-map-size:\s*clamp\(250px, calc\(100dvh - 70px\), 430px\)/);
+});
+
+
+test('short-landscape toolbar keeps intrinsic width and single-line action labels', () => {
+  const dedicated = css.slice(css.indexOf('/* Full Map short-landscape: independent of the legacy HUD block. */'));
+  assert.match(dedicated, /body \.full-map-controls\s*\{[^}]*width:\s*max-content/s);
+  assert.match(dedicated, /body \.full-map-controls button\s*\{[^}]*white-space:\s*nowrap/s);
+});

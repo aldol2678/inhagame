@@ -26,7 +26,12 @@ async function readLayout(page) {
     return { surface: box(surface), controls: box(root.querySelector('.full-map-controls')),
       card: box(root.querySelector('.full-map-card')), infoHidden: document.getElementById('full-map-info').hidden,
       columns: getComputedStyle(root.querySelector('.full-map-body')).gridTemplateColumns,
-      viewport: { width: innerWidth, height: innerHeight }, labels,
+      controlButtons: [...root.querySelectorAll('.full-map-controls button')].map(button => {
+        const range = document.createRange(); range.selectNodeContents(button);
+        return { text: button.textContent, lines: new Set([...range.getClientRects()].map(r => Math.round(r.top))).size, ...box(button) };
+      }),
+      viewport: { width: innerWidth, height: innerHeight },
+      media: { coarse: matchMedia('(pointer: coarse)').matches, landscape: matchMedia('(orientation: landscape)').matches }, labels,
       pois: [...root.querySelectorAll('.full-map-poi')].map(button => ({ id: button.dataset.poiId,
         name: button.getAttribute('aria-label'), state: button.dataset.presentation,
         icon: button.querySelector('.full-map-poi-icon path')?.getAttribute('d'),
@@ -49,6 +54,11 @@ function checkLayout(layout, name, { portrait = false, initial = false } = {}) {
     assert.ok(!overlaps(layout.labels[i], layout.labels[j]), `${name}: labels overlap: ${layout.labels[i].id}/${layout.labels[j].id}`);
   }
   assert.ok(layout.pois.every(p => p.icon && p.width >= 43.9 && p.height >= 43.9), `${name}: SVG icons and stable touch targets`);
+  for (const button of layout.controlButtons) {
+    assert.equal(button.lines, 1, `${name}: ${button.text} must stay on one line`);
+    assert.ok(button.x >= layout.controls.x - 1 && button.right <= layout.controls.right + 1,
+      `${name}: ${button.text} cannot overflow the toolbar`);
+  }
   if (portrait) assert.ok(layout.controls.y >= layout.surface.bottom - 1, `${name}: portrait toolbar stays outside the map`);
   if (initial) {
     assert.equal(layout.infoHidden, true);
@@ -87,6 +97,10 @@ try {
       entry.initial = await readLayout(page);
       await screenshot(page, `${name}-overview`); entry.screenshots.push(`${name}-overview.png`);
       checkLayout(entry.initial, name, { portrait: name === 'portrait', initial: true });
+      if (name === 'landscape') {
+        assert.equal(entry.initial.media.coarse, true, 'mobile touch media query is active');
+        assert.ok(entry.initial.surface.width >= 300, 'short-landscape map uses its independent height-bound layout');
+      }
       assert.equal(entry.initial.pois.length, 10, `${name}: canonical POIs retained`);
       assert.notEqual(entry.initial.pois.find(p => p.id === 'poi.building-5').icon,
         entry.initial.pois.find(p => p.id === 'poi.dorm-1').icon, 'building and housing have distinct symbols');
@@ -158,8 +172,8 @@ try {
       }));
       assert.ok(keyboardFocus.poiId, 'keyboard reaches a map POI');
       assert.equal(keyboardFocus.visible, true);
-      assert.equal(keyboardFocus.labelVisible, 'true');
       entry.keyboardFocus = keyboardFocus;
+      assert.equal(keyboardFocus.labelVisible, 'true');
       await screenshot(page, `${name}-keyboard-focus`); entry.screenshots.push(`${name}-keyboard-focus.png`);
       await page.keyboard.press('Escape');
       assert.equal(await page.locator('#full-map-panel').isVisible(), false);
