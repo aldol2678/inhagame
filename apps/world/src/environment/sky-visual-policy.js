@@ -60,7 +60,13 @@ export function writeSunSourceDirection(out, lightUp) {
   const x = Number(lightUp?.x ?? lightUp?.[0]) || 0;
   const y = Number(lightUp?.y ?? lightUp?.[1]) || 0;
   const z = Number(lightUp?.z ?? lightUp?.[2]) || 0;
-  const length = Math.hypot(x, y, z) || 1;
+  const length = Math.hypot(x, y, z);
+  if (length < 1e-9) {
+    out[0] = 0;
+    out[1] = 1;
+    out[2] = 0;
+    return out;
+  }
   out[0] = x / length;
   out[1] = y / length;
   out[2] = z / length;
