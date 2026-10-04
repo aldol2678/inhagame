@@ -14,7 +14,10 @@ layers without replacing the restored shop facades or the existing road network.
   anchors, with static opaque vehicle lenses and pedestrian icons.
 - Replace 42 opaque divider cuboids with open posts and horizontal rails. Their
   presentation stays within the existing 1.6 × .14 × .65 collision envelopes.
-- Restore flat sidewalk/curb/tactile paint and the side crossing zebra. The main
+- Restore flat sidewalk/curb/tactile paint and the side crossing zebra.
+  After visual review, the side zebra uses ten horizontal bars running along the
+  road, repeated across the unchanged sidewalk-to-sidewalk crossing span. The
+  crossing endpoints, signals and camera stay fixed; the main-gate pattern is unchanged. The main
   zebra remains exclusively owned by the existing back-gate paving.
 - Restore culture-road curves, accents and the plaza ring over the existing tiled
   approach. Existing road-junction clipping remains in use. Curves yield to
@@ -44,14 +47,14 @@ Runtime geometry from PlayCanvas 2.22.4 `NullGraphicsDevice`:
 
 | Persistent owner | Meshes | Triangles |
 | --- | ---: | ---: |
-| back_street_paving | 3 | 1,080 |
+| back_street_paving | 3 | 1,088 |
 | back_street_signals | 5 | 7,088 |
 | culture_street_paving | 3 | 1,147 |
 | north_side_gate | 6 | 896 |
-| Total | 17 | 10,211 |
+| Total | 17 | 10,219 |
 
 The corresponding previous layers contained five material batches and 1,620
-triangles; net change is 12 static batches and 8,591 triangles. All batches use
+triangles; net change is 12 static batches and 8,599 triangles. All batches use
 existing material profiles, use no update callbacks, remain persistent while
 near/detail chunks change state, and destroy their owned mesh buffers with their
 parent. Three actual-renderer create/LOD/destroy cycles keep the material cache

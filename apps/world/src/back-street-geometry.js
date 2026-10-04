@@ -30,7 +30,12 @@ export function fillBackStreetPaving(b){
     const f=crossing.frame;
     // The main zebra remains exclusively in fillBackGatePaving. Reconstruct
     // only the missing side zebra instead of overlaying another main crossing.
-    if(crossing.id==='side')for(let i=0;i<6;i++)roadSurface(b,white,f,-2.1+i*.7,-1.7+i*.7,-3.5,3.5,G.DETAIL);
+    if(crossing.id==='side')for(let i=0;i<10;i++){
+      // Horizontal stripe long axis follows the road (u); only the pattern
+      // rotates, while the crossing still spans the same sidewalks at v=±3.5.
+      const v=-3.5+i*(6.6/9);
+      roadSurface(b,white,f,-2.1,2.1,v,v+.4,G.DETAIL);
+    }
     for(const side of [-1,1]){
       // Tactile pads own a layer above the neighboring drain/tile paint.
       roadSurface(b,yellow,f,-2.1,2.1,side>0?3.8:-4.25,side>0?4.25:-3.8,(G.PAINT+G.DETAIL)/2);

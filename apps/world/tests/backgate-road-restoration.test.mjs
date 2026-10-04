@@ -68,7 +68,13 @@ test('street and culture paints are flat upward details rather than a second cop
   }
   const side=BACK_SIGNAL_CROSSINGS.find(q=>q.id==='side');
   const stripes=record(fillBackStreetPaving).filter(q=>q.kind==='quad'&&q.args[0]==='#e6e4d3'&&q.args.slice(1).every(p=>Math.abs(local(side.frame,p)[0])<2.2&&Math.abs(local(side.frame,p)[1])<=3.51));
-  assert.equal(stripes.length,6,'side crossing returns without duplicating the gate-owned main zebra');
+  assert.equal(stripes.length,10,'horizontal bars repeat across the existing side crossing');
+  const bounds=stripes.map(q=>{const ps=q.args.slice(1).map(p=>local(side.frame,p));return {u0:Math.min(...ps.map(p=>p[0])),u1:Math.max(...ps.map(p=>p[0])),v0:Math.min(...ps.map(p=>p[1])),v1:Math.max(...ps.map(p=>p[1]))};});
+  for(const stripe of bounds){
+    assert.ok(close(stripe.u0,-2.1)&&close(stripe.u1,2.1),'each stripe must be horizontal along the road');
+    assert.ok(close(stripe.v1-stripe.v0,.4),'stripe depth stays narrow across the walking direction');
+  }
+  assert.ok(close(Math.min(...bounds.map(q=>q.v0)),-3.5)&&close(Math.max(...bounds.map(q=>q.v1)),3.5),'crossing must still span the same two sidewalk approaches');
 });
 
 test('side gate restores open rail bars and noticeboard while solid bodies retain collider envelopes',()=>{
