@@ -178,6 +178,7 @@ import { createBuilding5CombatTargetRenderer } from "./combat/building5-combat-t
 import { createCombatWorldMotionV03 } from "./combat/combat-world-motion-v03.js";
 import { createCombatFeedbackV03 } from "./combat/combat-feedback-v03.js";
 import { createCombatHudV03 } from "./combat/combat-hud-v03.js";
+import { combatAuthorityLabel, createBuilding5CombatAuthorityClient } from "./combat/combat-authority-client.js";
 import { createHelicopterFlightHud } from "./mounts/helicopter-flight-hud.js";
 import { createMobilityBook } from "./mobility/mobility-book.js";
 import { FLAG_DISABLED, FLAG_ENABLED, FLAG_UNAVAILABLE, probeFeatureFlag, retryFeatureFlag } from "./npc-feature-flags.js";
@@ -783,6 +784,35 @@ const lobbyPlayerSummary = createLobbyPlayerSummary({
 const tour = createCampusTour();
 // Social S1-B1: local expression plays at once; members also broadcast it (guests stay local).
 let online = null;
+const combatAuthority = createBuilding5CombatAuthorityClient({
+  getClient: () => online?.supabase ?? null
+});
+const combatAuthorityLabelEl = document.querySelector("[data-combat-authority]");
+let combatAuthorityRewardRefreshKey = null;
+combatAuthority.subscribe((state) => {
+  if (combatAuthorityLabelEl) combatAuthorityLabelEl.textContent = combatAuthorityLabel(state);
+  const rewardStatus = state.settlement?.rewardStatus ?? null;
+  if (state.resultRef && ['SUCCESS','PARTIAL_SUCCESS'].includes(rewardStatus) &&
+      combatAuthorityRewardRefreshKey !== state.resultRef) {
+    combatAuthorityRewardRefreshKey = state.resultRef;
+    void progression.refresh("combat-reward");
+  }
+}, { emitCurrent: true });
+combatRuntime.subscribe((state, event) => {
+  if (event === "start") {
+    combatAuthority.reset();
+    void combatAuthority.start();
+  } else if (event === "action" && state.lastAction?.action) {
+    void combatAuthority.action(state.lastAction.action);
+  } else if (event === "training-reset") {
+    void combatAuthority.cancel().finally(() => {
+      combatAuthority.reset();
+      if (combatRuntime.active) void combatAuthority.start();
+    });
+  } else if (event === "end") {
+    void combatAuthority.cancel().finally(() => combatAuthority.reset());
+  }
+});
 const biryongRelationships = createBiryongRelationshipClient({
   getClient: () => online?.supabase ?? null,
   getUserId: () => online?.userId ?? null
@@ -2929,6 +2959,9 @@ try {
   online.onIdentity((identity) => {
     void syncBiryongAccount(identity);
     void progression.setAccount(identity ? online?.userId ?? null : null);
+    if (identity && combatRuntime.active && combatAuthority.snapshot().phase === "LOCAL_ONLY") {
+      void combatAuthority.start();
+    }
     void biryongRelationships.setAccount(identity ? online?.userId ?? null : null);
     shop.setAccount(identity ? online?.userId ?? null : null);
     void wallet.setAccount(identity ? online?.userId ?? null : null);
@@ -3169,6 +3202,7 @@ window.__INHAGAME_P0__ = {
   biryongRelationships,
   combatRuntime,
   combatHud,
+  combatAuthority,
   building5Training,
   combatTargetRenderer,
   combatWorldMotion,
@@ -3293,6 +3327,7 @@ window.__INHAGAME_P0__ = {
     biryongVillageDialogue: biryongVillageDialogue?.status() ?? null,
     biryongRelationships: biryongRelationships.status(),
     combat: combatRuntime.snapshot(),
+    combatAuthority: combatAuthority.snapshot(),
     combatMotion: combatWorldMotion.status(),
     combatFeedback: combatFeedback.status(),
     building5Combat: building5Combat.status(),
