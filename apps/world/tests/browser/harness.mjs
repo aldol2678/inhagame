@@ -70,22 +70,11 @@ export async function startSmoke({ viewport = { width: 1280, height: 720 }, cont
   const server = await startServer();
   // GPU-less CI checks the explicit unsupported path and the Editor's legacy WebGL2 preview.
   const disabled = process.env.WORLD_SMOKE_DISABLE_WEBGPU === '1';
-  const softwareWebGpu = process.env.WORLD_SMOKE_WEBGPU_SWIFTSHADER === '1';
   const gpuArgs = disabled
     ? ['--use-angle=swiftshader', '--enable-unsafe-swiftshader']
-    : softwareWebGpu
-      ? [
-          '--enable-unsafe-webgpu',
-          '--use-webgpu-adapter=swiftshader',
-          '--enable-dawn-features=allow_unsafe_apis',
-          '--disable-dawn-features=use_dxc',
-          '--enable-webgpu-developer-features',
-          '--use-gpu-in-tests',
-          '--enable-accelerated-2d-canvas'
-        ]
-      : process.platform === 'linux'
-        ? ['--use-angle=vulkan', '--enable-features=Vulkan', '--disable-vulkan-surface', '--enable-unsafe-webgpu']
-        : ['--enable-unsafe-webgpu'];
+    : process.platform === 'linux'
+      ? ['--use-angle=vulkan', '--enable-features=Vulkan', '--disable-vulkan-surface', '--enable-unsafe-webgpu']
+      : ['--enable-unsafe-webgpu'];
   const browser = await chromium.launch({
     headless: process.env.WORLD_SMOKE_HEADED !== '1',
     ...(process.env.WORLD_SMOKE_BROWSER || (process.platform === 'linux' && !disabled)
