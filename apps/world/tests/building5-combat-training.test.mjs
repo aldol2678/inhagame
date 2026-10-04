@@ -49,6 +49,28 @@ test('v9.22 Blaster Rapid basic applies 88 damage, Break 4 and Overcharge +8', (
   assert.equal(training.snapshot().momentum, 8);
 });
 
+
+test('Rapid basic cadence is 220ms baseline, 180ms at Overcharge 70+, and 145ms while accelerated', () => {
+  const { training, advance } = rig();
+  assert.equal(training.resolveAction({ action: 'basic', identity: 'basic' }).accepted, true);
+  assert.equal(training.snapshot().cooldowns.basic, 220);
+  assert.equal(training.resolveAction({ action: 'basic', identity: 'basic' }).reason, 'COOLDOWN');
+  advance(220);
+
+  for (let i = 0; i < 8; i += 1) {
+    training.resolveAction({ action: 'basic', identity: 'basic' });
+    advance(220);
+  }
+  assert.ok(training.snapshot().momentum >= 70);
+  training.resolveAction({ action: 'basic', identity: 'basic' });
+  assert.equal(training.snapshot().cooldowns.basic, 180);
+  advance(220);
+
+  training.resolveAction({ action: 'active_1', identity: 'accelerate' });
+  training.resolveAction({ action: 'basic', identity: 'basic' });
+  assert.equal(training.snapshot().cooldowns.basic, 145);
+});
+
 test('Accelerate is a 6s utility skill: +15 Overcharge and 4.2s rapid buff without fake damage', () => {
   const { training, advance } = rig();
   const result = training.resolveAction({ action: 'active_1', identity: 'accelerate' });
@@ -73,7 +95,10 @@ test('Slide Shot resolves 3 x 72 damage packets and 3 x Break 4 / Overcharge 5',
 test('Barrage requires 50 Overcharge then resolves 7 x 78 and can trigger Break mid-volley', () => {
   const { training, advance } = rig();
   assert.equal(training.resolveAction({ action: 'active_3', identity: 'barrage' }).reason, 'RESOURCE_REQUIRED');
-  for (let i = 0; i < 5; i += 1) training.resolveAction({ action: 'basic', identity: 'basic' });
+  for (let i = 0; i < 5; i += 1) {
+    training.resolveAction({ action: 'basic', identity: 'basic' });
+    advance(220);
+  }
   training.resolveAction({ action: 'active_1', identity: 'accelerate' });
   assert.equal(training.snapshot().momentum, 55);
   const result = training.resolveAction({ action: 'active_3', identity: 'barrage' });
@@ -85,8 +110,11 @@ test('Barrage requires 50 Overcharge then resolves 7 x 78 and can trigger Break 
 });
 
 test('Break resets to zero at threshold and exposes the v9.22 1.55s stun window', () => {
-  const { training } = rig();
-  for (let i = 0; i < 22; i += 1) training.resolveAction({ action: 'basic', identity: 'basic' });
+  const { training, advance } = rig();
+  for (let i = 0; i < 22; i += 1) {
+    training.resolveAction({ action: 'basic', identity: 'basic' });
+    advance(220);
+  }
   assert.equal(training.snapshot().breakValue, 88);
   training.resolveAction({ action: 'active_2', identity: 'slide' });
   assert.equal(training.snapshot().breakSerial, 1);
