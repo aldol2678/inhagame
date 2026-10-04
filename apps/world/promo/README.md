@@ -6,6 +6,8 @@ Promo Capture turns the existing offline Chromium QA harness into a deterministi
 
 The human/agent input is `capture-manifest.v1.json`. Keep it semantic: request `main-hall`, `jeongseok-library`, `student-center`, or a Full Map POI rather than copying current world coordinates into a prompt. The runner resolves those names from current game modules at capture time.
 
+The manifest `output.timelineFps` is the intended downstream edit/composition timeline, not a claim about the native Playwright source recording frame rate. The pinned Playwright 1.63 `recordVideo` API controls video size but does not expose a capture FPS option.
+
 Each shot produces:
 
 - `<shot-id>.webm` — Playwright browser recording. It includes boot/setup pre-roll so evidence is preserved.

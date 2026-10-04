@@ -21,7 +21,7 @@ function validate() {
   assert.equal(manifest.schema, 'inha-world.promo-capture.v1');
   assert.ok(Number.isInteger(manifest.output?.width) && manifest.output.width >= 640 && manifest.output.width <= 3840);
   assert.ok(Number.isInteger(manifest.output?.height) && manifest.output.height >= 360 && manifest.output.height <= 2160);
-  assert.ok(Number.isInteger(manifest.output?.fps) && manifest.output.fps >= 24 && manifest.output.fps <= 60);
+  assert.ok(Number.isInteger(manifest.output?.timelineFps) && manifest.output.timelineFps >= 24 && manifest.output.timelineFps <= 60);
   assert.equal(manifest.output?.container, 'webm');
   assert.ok(Array.isArray(manifest.shots) && manifest.shots.length > 0 && manifest.shots.length <= 12);
   const ids = new Set();

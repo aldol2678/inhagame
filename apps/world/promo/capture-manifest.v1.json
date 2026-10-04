@@ -5,7 +5,7 @@
   "output": {
     "width": 1280,
     "height": 720,
-    "fps": 30,
+    "timelineFps": 30,
     "container": "webm"
   },
   "environment": {

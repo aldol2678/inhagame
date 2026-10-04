@@ -12,7 +12,7 @@ const ids = manifest.shots.map(shot => shot.id);
 test('Promo Capture v1 manifest is bounded, semantic and deterministic', () => {
   assert.equal(manifest.schema, 'inha-world.promo-capture.v1');
   assert.deepEqual(manifest.environment, {time: 'day', weather: 'clear'});
-  assert.deepEqual(manifest.output, {width: 1280, height: 720, fps: 30, container: 'webm'});
+  assert.deepEqual(manifest.output, {width: 1280, height: 720, timelineFps: 30, container: 'webm'});
   assert.ok(manifest.shots.length >= 3 && manifest.shots.length <= 12);
   assert.equal(new Set(ids).size, ids.length);
   for (const shot of manifest.shots) {
