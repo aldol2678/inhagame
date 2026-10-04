@@ -4,7 +4,8 @@ import {
   SKY_SUN_DIAMETER,
   SKY_SUN_DISTANCE,
   cloudVisualProfile,
-  skyCloudLayout,
+  skyCloudLayerLayout,
+  skyCloudLayerPolicy,
   shadowRayDirectionFromSunSource,
   sunVisualProfile,
   writeSunSourceDirection
@@ -217,15 +218,15 @@ function createCloudTexture(device) {
   });
 }
 
-function createCloudMaterial(texture) {
+function createCloudMaterial(texture, tier, layerPolicy) {
   const material = new pc.StandardMaterial();
-  material.name = 'environment-clouds';
+  material.name = `environment-clouds-${tier}-${layerPolicy.id}`;
   material.diffuse = new pc.Color(1, 1, 1);
   material.emissive = new pc.Color(1, 1, 1);
   material.emissiveMap = texture;
   material.opacityMap = texture;
   material.opacityMapChannel = 'a';
-  material.opacity = 0.34;
+  material.opacity = 0.34 * layerPolicy.opacityScale;
   material.emissiveIntensity = 0.82;
   material.useLighting = false;
   material.blendType = pc.BLEND_NORMAL;
@@ -235,13 +236,13 @@ function createCloudMaterial(texture) {
   return material;
 }
 
-function createCloudMesh(device, tier) {
+function createCloudMesh(device, tier, layerIndex) {
   const positions = [];
   const normals = [];
   const uvs = [];
   const indices = [];
 
-  for (const patch of skyCloudLayout(tier)) {
+  for (const patch of skyCloudLayerLayout(tier, layerIndex)) {
     const yaw = patch.yaw * Math.PI / 180;
     const c = Math.cos(yaw), s = Math.sin(yaw);
     const hx = patch.width / 2, hz = patch.depth / 2;
@@ -267,19 +268,37 @@ function createCloudMesh(device, tier) {
   return pc.createMesh(device, positions, { normals, uvs, indices });
 }
 
-function createCloudTier(root, device, tier, material) {
-  const mesh = createCloudMesh(device, tier);
-  const entity = new pc.Entity(`environment_clouds_${tier}`);
+function createCloudLayer(parent, device, texture, tier, layerIndex, layerPolicy) {
+  const material = createCloudMaterial(texture, tier, layerPolicy);
+  const mesh = createCloudMesh(device, tier, layerIndex);
+  const entity = new pc.Entity(`environment_clouds_${tier}_${layerPolicy.id}`);
   entity.addComponent('render', {
     type: 'asset',
     castShadows: false,
     receiveShadows: false,
     meshInstances: [new pc.MeshInstance(mesh, material)]
   });
+  parent.addChild(entity);
+  entity.on('destroy', () => mesh.destroy());
+  return {
+    entity,
+    material,
+    policy: layerPolicy,
+    anchorX: 0,
+    anchorZ: 0,
+    phase: layerIndex * 37,
+    initialized: false
+  };
+}
+
+function createCloudTier(root, device, texture, tier) {
+  const entity = new pc.Entity(`environment_cloud_tier_${tier}`);
   entity.enabled = false;
   root.addChild(entity);
-  entity.on('destroy', () => mesh.destroy());
-  return entity;
+  const layers = skyCloudLayerPolicy(tier).map((policy, index) =>
+    createCloudLayer(entity, device, texture, tier, index, policy)
+  );
+  return { entity, layers };
 }
 
 function createSun(root) {
@@ -331,14 +350,11 @@ export function createSkyVisuals({
   let atmosphereProfile = atmosphereSkyProfile(skyState);
   const atmosphere = createAtmosphereDome(root, device, atmosphereProfile);
 
-  const cloudRoot = new pc.Entity('EnvironmentCloudField');
-  root.addChild(cloudRoot);
   const cloudTexture = createCloudTexture(device);
-  const cloudMaterial = createCloudMaterial(cloudTexture);
   const cloudTiers = Object.fromEntries(
     Object.keys(SKY_CLOUD_PATCH_BUDGET).map(tier => [
       tier,
-      createCloudTier(cloudRoot, device, tier, cloudMaterial)
+      createCloudTier(root, device, cloudTexture, tier)
     ])
   );
 
@@ -349,7 +365,6 @@ export function createSkyVisuals({
   let tier = null;
   let cloudProfile = cloudVisualProfile(skyState);
   let sunProfile = sunVisualProfile(skyState);
-  let cloudPhase = 0;
   let destroyed = false;
   const sunDirection = [0, 0, -1];
   const lastMaterialSignal = {
@@ -366,7 +381,8 @@ export function createSkyVisuals({
     const resolved = Object.hasOwn(SKY_CLOUD_PATCH_BUDGET, next) ? next : 'medium';
     if (tier === resolved) return;
     tier = resolved;
-    for (const [name, entity] of Object.entries(cloudTiers)) entity.enabled = name === tier;
+    for (const [name, cloudTier] of Object.entries(cloudTiers))
+      cloudTier.entity.enabled = name === tier;
   }
 
   function applyMaterials() {
@@ -391,11 +407,15 @@ export function createSkyVisuals({
     sun.material.update();
 
     cloudProfile = cloudVisualProfile(skyState);
-    cloudMaterial.opacity = cloudProfile.opacity;
-    cloudMaterial.emissive.set(...cloudProfile.color);
-    cloudMaterial.diffuse.set(...cloudProfile.color);
-    cloudMaterial.emissiveIntensity = cloudProfile.emissiveIntensity;
-    cloudMaterial.update();
+    for (const cloudTier of Object.values(cloudTiers)) {
+      for (const layer of cloudTier.layers) {
+        layer.material.opacity = cloudProfile.opacity * layer.policy.opacityScale;
+        layer.material.emissive.set(...cloudProfile.color);
+        layer.material.diffuse.set(...cloudProfile.color);
+        layer.material.emissiveIntensity = cloudProfile.emissiveIntensity;
+        layer.material.update();
+      }
+    }
 
     atmosphereProfile = atmosphereSkyProfile(skyState);
     writeAtmosphereMeshColors(atmosphere, atmosphereProfile);
@@ -438,9 +458,34 @@ export function createSkyVisuals({
     sunGlow.entity.setRotation(camera.getRotation());
 
     const safeDt = Math.max(0, Number.isFinite(dt) ? dt : 0);
-    cloudPhase = (cloudPhase + safeDt * 0.55) % 360;
-    cloudRoot.setPosition(cameraPosition.x, 0, cameraPosition.z);
-    cloudRoot.setLocalEulerAngles(0, cloudPhase, 0);
+    const activeTier = cloudTiers[tier ?? 'medium'];
+    for (const layer of activeTier.layers) {
+      if (!layer.initialized) {
+        layer.anchorX = cameraPosition.x;
+        layer.anchorZ = cameraPosition.z;
+        layer.initialized = true;
+      }
+
+      const follow = 1 - Math.exp(-safeDt * layer.policy.followRate);
+      layer.anchorX += (cameraPosition.x - layer.anchorX) * follow;
+      layer.anchorZ += (cameraPosition.z - layer.anchorZ) * follow;
+
+      // Keep the batched field surrounding the player during sustained travel
+      // while preserving enough horizontal lag to create real motion parallax.
+      const lagX = cameraPosition.x - layer.anchorX;
+      const lagZ = cameraPosition.z - layer.anchorZ;
+      const lag = Math.hypot(lagX, lagZ);
+      const maxLag = layer.policy.radius * 0.42;
+      if (lag > maxLag) {
+        const scale = maxLag / lag;
+        layer.anchorX = cameraPosition.x - lagX * scale;
+        layer.anchorZ = cameraPosition.z - lagZ * scale;
+      }
+
+      layer.phase = (layer.phase + safeDt * layer.policy.driftDegPerSec) % 360;
+      layer.entity.setPosition(layer.anchorX, 0, layer.anchorZ);
+      layer.entity.setLocalEulerAngles(0, layer.phase, 0);
+    }
   }
 
   function status() {
@@ -456,7 +501,23 @@ export function createSkyVisuals({
       atmosphereHazeStrength: atmosphereProfile.hazeStrength,
       atmosphereSunsetFactor: atmosphereProfile.sunsetFactor,
       cloudPatchCount: SKY_CLOUD_PATCH_BUDGET[currentTier] ?? SKY_CLOUD_PATCH_BUDGET.medium,
-      cloudDrawMeshes: 1,
+      cloudLayerCount: cloudTiers[currentTier].layers.length,
+      cloudDrawMeshes: cloudTiers[currentTier].layers.length,
+      cloudLayers: Object.freeze(cloudTiers[currentTier].layers.map(layer => {
+        const cameraPosition = camera.getPosition();
+        return Object.freeze({
+          id: layer.policy.id,
+          patchCount: layer.policy.patchCount,
+          altitudeMin: layer.policy.altitudeMin,
+          altitudeMax: layer.policy.altitudeMax,
+          driftDegPerSec: layer.policy.driftDegPerSec,
+          opacityScale: layer.policy.opacityScale,
+          parallaxLag: Math.hypot(
+            cameraPosition.x - layer.anchorX,
+            cameraPosition.z - layer.anchorZ
+          )
+        });
+      })),
       cloudOpacity: cloudProfile.opacity,
       cloudCover: skyState.cloudCover,
       snowIntensity: skyState.snowIntensity,
@@ -482,8 +543,9 @@ export function createSkyVisuals({
     destroyed = true;
     root.destroy();
     atmosphere.material.destroy();
+    for (const cloudTier of Object.values(cloudTiers))
+      for (const layer of cloudTier.layers) layer.material.destroy();
     cloudTexture.destroy();
-    cloudMaterial.destroy();
     sunGlow.texture.destroy();
     sunGlow.material.destroy();
     sun.material.destroy();
