@@ -182,15 +182,15 @@ test('menu and settings drawers fit a short screen (3-column menu, scrollable se
 
 test('Full Map fits short landscape viewports without reserving an empty desktop detail column', () => {
   assert.match(mapBlock, /body \.full-map-card \{/);
-  assert.match(mapBlock, /--ls-full-map-size: clamp\(250px, calc\(100dvh - 70px\), 430px\);/);
+  assert.match(mapBlock, /--ls-full-map-size: min\(430px, calc\(var\(--ls-full-map-available-height\) - 60px\)\);/);
   assert.match(mapBlock, /body \.full-map-card:has\(\.full-map-info\[hidden\]\) \{[^}]*width: fit-content;/s,
     'closed info panel does not reserve the desktop detail column');
-  assert.match(mapBlock, /body \.full-map-body \{[^}]*width: fit-content;[^}]*margin-inline: auto;[^}]*grid-template-columns: var\(--ls-full-map-size\) minmax\(170px, 210px\);/s);
-  assert.match(mapBlock, /body \.full-map-body:has\(> \.full-map-info\[hidden\]\) \{\s*grid-template-columns: var\(--ls-full-map-size\);/);
+  assert.match(mapBlock, /body \.full-map-body \{[^}]*width: fit-content;[^}]*margin-inline: auto;[^}]*grid-template-columns: calc\(var\(--ls-full-map-size\) \+ 76px\) minmax\(170px, 210px\);/s);
+  assert.match(mapBlock, /body \.full-map-body:has\(> \.full-map-info\[hidden\]\) \{\s*grid-template-columns: calc\(var\(--ls-full-map-size\) \+ 76px\);/);
   assert.match(mapBlock, /body \.full-map-surface \{[^}]*width: var\(--ls-full-map-size\);[^}]*height: var\(--ls-full-map-size\);[^}]*aspect-ratio: 1;/s,
     'map remains square so SVG geometry and percentage marker layers stay aligned');
   assert.match(mapBlock, /body \.full-map-info \{[^}]*max-height: var\(--ls-full-map-size\);[^}]*overflow-y: auto;/s);
-  assert.match(mapBlock, /body \.full-map-controls \{[^}]*left: 50%;[^}]*right: auto;[^}]*bottom: 6px;[^}]*transform: translateX\(-50%\);/s);
+  assert.match(mapBlock, /body \.full-map-controls \{[^}]*position: static;[^}]*width: 68px;[^}]*flex-direction: column;[^}]*transform: none;/s);
   assert.match(before, /\.full-map-surface \{[^}]*aspect-ratio: 1;/s,
     'portrait and desktop Full Map base contract remains unchanged');
 });

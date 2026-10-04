@@ -4780,14 +4780,17 @@ body[data-hud-mode="COMBAT"] #jump { display:none !important; }
       max(8px, env(safe-area-inset-left));
   }
   body .full-map-card {
-    --ls-full-map-size: clamp(250px, calc(100dvh - 70px), 430px);
+    --ls-full-map-available-height: calc(100dvh - max(12px, env(safe-area-inset-top)) - max(12px, env(safe-area-inset-bottom)));
+    /* 48px header + 10px body bottom padding + 2px card border. */
+    --ls-full-map-size: min(430px, calc(var(--ls-full-map-available-height) - 60px));
     width: min(700px, calc(100vw - max(16px, env(safe-area-inset-left)) - max(16px, env(safe-area-inset-right))));
     max-height: calc(100dvh - max(12px, env(safe-area-inset-top)) - max(12px, env(safe-area-inset-bottom)));
     overflow: hidden;
     border-radius: 16px;
   }
   body .full-map-card:has(> .full-map-nav:not([hidden])) {
-    --ls-full-map-size: clamp(220px, calc(100dvh - 108px), 390px);
+    /* Guidance adds a 40px bar and its 6px bottom gap. */
+    --ls-full-map-size: min(390px, calc(var(--ls-full-map-available-height) - 106px));
   }
   /* With no selected POI the desktop detail column must not reserve empty width. */
   body .full-map-card:has(.full-map-info[hidden]) {
@@ -4820,17 +4823,24 @@ body[data-hud-mode="COMBAT"] #jump { display:none !important; }
     width: fit-content;
     max-width: 100%;
     margin-inline: auto;
-    grid-template-columns: var(--ls-full-map-size) minmax(170px, 210px);
+    grid-template-columns: calc(var(--ls-full-map-size) + 76px) minmax(170px, 210px);
     align-items: start;
     gap: 8px;
     min-height: 0;
     padding: 0 10px 10px;
   }
   body .full-map-body:has(> .full-map-info[hidden]) {
-    grid-template-columns: var(--ls-full-map-size);
+    grid-template-columns: calc(var(--ls-full-map-size) + 76px);
   }
   /* Keep the surface square so SVG geometry and percentage-positioned marker layers remain aligned. */
-  body .full-map-stage { width: auto; max-width: none; }
+  body .full-map-stage {
+    display: grid;
+    grid-template-columns: var(--ls-full-map-size) 68px;
+    gap: 8px;
+    align-items: center;
+    width: auto;
+    max-width: none;
+  }
   body .full-map-surface {
     width: var(--ls-full-map-size);
     max-width: 100%;
@@ -4851,13 +4861,15 @@ body[data-hud-mode="COMBAT"] #jump { display:none !important; }
   body .full-map-info-actions { gap: 5px; margin-top: 4px; }
   body .full-map-info-actions button { min-height: 36px; font-size: 12px; }
   body .full-map-controls {
-    position: absolute;
-    width: max-content;
-    max-width: calc(100% - 8px);
-    left: 50%;
+    position: static;
+    width: 68px;
+    max-width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+    left: auto;
     right: auto;
-    bottom: 6px;
-    transform: translateX(-50%);
+    bottom: auto;
+    transform: none;
     gap: 3px;
     padding: 4px;
     border-radius: 11px;
@@ -4872,7 +4884,7 @@ body[data-hud-mode="COMBAT"] #jump { display:none !important; }
   }
   body .full-map-controls button#full-map-zoom-in,
   body .full-map-controls button#full-map-zoom-out {
-    width: 30px;
+    width: 100%;
     padding: 0;
     font-size: 18px;
   }

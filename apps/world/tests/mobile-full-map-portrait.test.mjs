@@ -27,11 +27,11 @@ test('portrait Full Map keeps controls outside the drawable map surface', () => 
   assert.match(portrait, /\.full-map-controls\s*\{[^}]*position:\s*static;[^}]*width:\s*100%;[^}]*transform:\s*none;/s);
 });
 
-test('desktop and landscape keep the existing overlay control presentation', () => {
+test('desktop keeps overlay controls and short landscape uses a separate rail', () => {
   assert.match(css, /\.full-map-stage\s*\{[^}]*position:\s*relative;[^}]*min-width:\s*0;/s);
   assert.match(css, /\.full-map-controls\s*\{[^}]*position:\s*absolute;[^}]*bottom:\s*12px;/s);
-  assert.match(css, /body \.full-map-controls\s*\{[^}]*position:\s*absolute;[^}]*left:\s*50%;[^}]*bottom:\s*6px;/s,
-    'short landscape phones explicitly restore the overlay controls');
+  assert.match(css, /body \.full-map-controls\s*\{[^}]*position:\s*static;[^}]*width:\s*68px;[^}]*flex-direction:\s*column;/s,
+    'short landscape controls do not consume drawable map area');
 });
 
 test('First Dormitory remains a Full Map POI while portrait controls move below the map', () => {
@@ -66,12 +66,19 @@ test('Full Map short-landscape rules have their own parseable media block', () =
   assert.ok(css.includes('/* Full Map short-landscape: independent of the legacy HUD block. */'));
   assert.match(dedicated, /^\/\* Full Map short-landscape:[^]*?\*\/\s*@media \(pointer: coarse\) and \(orientation: landscape\) and \(max-height: 500px\) \{/);
   assert.match(dedicated, /body \.full-map-stage\s*\{[^}]*max-width:\s*none/);
-  assert.match(dedicated, /--ls-full-map-size:\s*clamp\(250px, calc\(100dvh - 70px\), 430px\)/);
+  assert.match(dedicated, /--ls-full-map-size:\s*min\(430px, calc\(var\(--ls-full-map-available-height\) - 60px\)\)/);
 });
 
 
-test('short-landscape toolbar keeps intrinsic width and single-line action labels', () => {
+test('short-landscape toolbar has a fixed compact rail and single-line action labels', () => {
   const dedicated = css.slice(css.indexOf('/* Full Map short-landscape: independent of the legacy HUD block. */'));
-  assert.match(dedicated, /body \.full-map-controls\s*\{[^}]*width:\s*max-content/s);
+  assert.match(dedicated, /body \.full-map-controls\s*\{[^}]*width:\s*68px/s);
   assert.match(dedicated, /body \.full-map-controls button\s*\{[^}]*white-space:\s*nowrap/s);
+});
+
+test('short-landscape map size subtracts card chrome and guidance height', () => {
+  const dedicated = css.slice(css.indexOf('/* Full Map short-landscape: independent of the legacy HUD block. */'), css.indexOf('/* FULL-MAP-LANDSCAPE:end */'));
+  assert.match(dedicated, /--ls-full-map-available-height:\s*calc\(100dvh - max\(12px, env\(safe-area-inset-top\)\) - max\(12px, env\(safe-area-inset-bottom\)\)\)/);
+  assert.match(dedicated, /--ls-full-map-size:\s*min\(430px, calc\(var\(--ls-full-map-available-height\) - 60px\)\)/);
+  assert.match(dedicated, /--ls-full-map-size:\s*min\(390px, calc\(var\(--ls-full-map-available-height\) - 106px\)\)/);
 });

@@ -42,6 +42,14 @@ async function readLayout(page) {
 
 function checkLayout(layout, name, { portrait = false, initial = false } = {}) {
   assert.ok(layout.labels.length >= 2, `${name}: useful Korean place labels must be visible`);
+  assert.ok(layout.surface.bottom <= layout.card.bottom - 1 && layout.surface.y >= layout.card.y,
+    `${name}: map must fit inside its card without clipping`);
+  assert.ok(layout.controls.bottom <= Math.min(layout.card.bottom - 1, layout.viewport.height) && layout.controls.y >= layout.card.y,
+    `${name}: every map control must fit inside the visible card`);
+  for (const [part, rect] of [['map', layout.surface], ['controls', layout.controls]]) {
+    assert.ok(rect.x >= Math.max(layout.card.x, 0) && rect.right <= Math.min(layout.card.right, layout.viewport.width),
+      `${name}: ${part} must fit horizontally inside the card and viewport`);
+  }
   for (const label of layout.labels) {
     assert.ok(parseFloat(label.font) >= 11, `${name}: readable label size`);
     assert.ok(label.x >= layout.surface.x - 1 && label.y >= layout.surface.y - 1 &&
@@ -70,9 +78,12 @@ try {
   for (const [name, viewport, mobile] of [
     ['desktop', { width: 1440, height: 900 }, false],
     ['portrait', { width: 390, height: 844 }, true],
-    ['landscape', { width: 844, height: 390 }, true]
+    ['landscape', { width: 844, height: 390 }, true],
+    ['landscape-compact', { width: 568, height: 320 }, true]
   ]) {
-    const smoke = await startSmoke({ viewport, contextOptions: { isMobile: mobile, hasTouch: mobile, deviceScaleFactor: 1 } });
+    // Compact QA resizes an existing campus session; lobby layout is a separate test.
+    const bootViewport = name === 'landscape-compact' ? { width: 844, height: 390 } : viewport;
+    const smoke = await startSmoke({ viewport: bootViewport, contextOptions: { isMobile: mobile, hasTouch: mobile, deviceScaleFactor: 1 } });
     const entry = { name, viewport, deviceScaleFactor: 1, mobile, screenshots: [] };
     report.cases.push(entry);
     let page;
@@ -91,15 +102,17 @@ try {
       await page.locator('#main-gate-start').click({ timeout: TIMEOUT_MS });
       await page.waitForFunction(() => !window.__INHAGAME_P0__.getStatus().lobby.active &&
         !window.__INHAGAME_P0__.getStatus().lobbyTransition.active, null, { timeout: TIMEOUT_MS });
+      if (name === 'landscape-compact') await page.setViewportSize(viewport);
       await page.locator('#minimap-open-map').click({ timeout: TIMEOUT_MS });
       await page.locator('#full-map-panel').waitFor({ state: 'visible' });
       await page.evaluate(() => document.fonts.ready);
       entry.initial = await readLayout(page);
       await screenshot(page, `${name}-overview`); entry.screenshots.push(`${name}-overview.png`);
       checkLayout(entry.initial, name, { portrait: name === 'portrait', initial: true });
-      if (name === 'landscape') {
+      if (name.startsWith('landscape')) {
         assert.equal(entry.initial.media.coarse, true, 'mobile touch media query is active');
-        assert.ok(entry.initial.surface.width >= 300, 'short-landscape map uses its independent height-bound layout');
+        assert.ok(entry.initial.surface.width >= (name === 'landscape' ? 300 : 220), 'short-landscape map uses its independent height-bound layout');
+        assert.ok(entry.initial.controls.x >= entry.initial.surface.right, 'landscape controls live beside the map');
       }
       assert.equal(entry.initial.pois.length, 10, `${name}: canonical POIs retained`);
       assert.notEqual(entry.initial.pois.find(p => p.id === 'poi.building-5').icon,
@@ -138,7 +151,8 @@ try {
       assert.deepEqual(entry.navigation.player, position, 'map guidance cannot move the player');
       assert.equal(await page.locator('#full-map-nav').isVisible(), true);
       assert.equal(entry.navigation.map.routeVisible, true, 'real campus route is visible');
-      checkLayout(await readLayout(page), `${name} guidance`, { portrait: name === 'portrait' });
+      entry.guidanceLayout = await readLayout(page);
+      checkLayout(entry.guidanceLayout, `${name} guidance`, { portrait: name === 'portrait' });
       await screenshot(page, `${name}-navigation`); entry.screenshots.push(`${name}-navigation.png`);
       await page.locator('#full-map-nav-clear').click();
       assert.equal(await page.evaluate(() => window.__INHAGAME_P0__.fullMap.destination), null);
