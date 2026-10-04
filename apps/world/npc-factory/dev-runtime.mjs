@@ -10,6 +10,7 @@ import { createNpcNavigator, advanceRoute } from './dev-navigation.mjs';
 import { createNpcMemory, createEncounterTracker } from './dev-memory.mjs';
 import { NPC_DIALOGUE_ACTION, NPC_DIALOGUE_STATE, createNpcDialogueSession, hasNpcDialogueMemory, npcDialogueHomeActions, npcTopicLabel } from './npc-dialogue-session.mjs';
 import { buildNpcDialogueCandidates, buildNpcDialogueContext, resolveNpcDialogueBaseline } from './npc-dialogue-context.mjs';
+import { createNpcJevDialogueRouter } from './npc-dialogue-jev-client.mjs';
 import { createNpcSocialNg1Model, mountNpcSocialNg1Panel } from './npc-social-ng1.mjs';
 import { createPersistentNpcSocialGraph } from './npc-social-graph.mjs';
 import { createNpcSocialGroupFeasibility } from './npc-social-group-feasibility.mjs';
@@ -145,6 +146,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
   tmlShadowEnabled = false,
   getTmlShadowEconomicState = () => ({}),
   getDialogueWorldContext = () => ({}),
+  jevEnabled = false, jevEndpoint = '/api/npc-dialogue-route',
   onConversationOpen = () => {},
   onConversationClose = () => {} }) {
   // Shared schedules own physical movement. Local-only scenes must not override it.
@@ -279,8 +281,9 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
     }
     if (socialPreview) socialNg1Panel = mountNpcSocialNg1Panel({ model: socialNg1, batch });
   }
-  let pendingPilotAction = null, pilotAvailable = aiPilot, pilotConversationRequest = 0;
+  let pendingPilotAction = null, pilotAvailable = aiPilot, pilotConversationRequest = 0, dialogueRouteRequest = 0;
   const pilotTopics = new Map(), pilotInFlight = new Set();
+  const dialogueRouter = createNpcJevDialogueRouter({ enabled: jevEnabled, endpoint: jevEndpoint, getSession: getAiSession });
   const aiEnabled = id => aiPilot && aiSignedIn && pilotAvailable && aiPilotIds.has(id);
   function purposefulStatus(id) {
     const state = purposefulRoster.get(id).controller.status(false);
@@ -468,6 +471,22 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
     activeConversation.dialogueContext = context;
     activeConversation.dialogueCandidates = candidates;
     activeConversation.dialogueBaseline = baseline;
+    activeConversation.dialogueDecision = {
+      responseSource: baseline.responseSource,
+      intent: baseline.intent,
+      contextPriority: baseline.contextPriorities?.[0] ?? null,
+      provider: 'DETERMINISTIC_BASELINE',
+      role: 'EXPERIMENT_ONLY',
+      authorityEffect: 'NONE',
+      fallbackReason: jevEnabled ? 'PENDING' : 'DISABLED'
+    };
+    const routeId = ++dialogueRouteRequest;
+    const sessionRevision = dialogueSession.snapshot().revision;
+    void dialogueRouter.route({ context, candidates, baseline }).then(decision => {
+      if (activeConversation?.id !== actor.id || routeId !== dialogueRouteRequest ||
+          dialogueSession?.snapshot().revision !== sessionRevision) return;
+      activeConversation.dialogueDecision = decision;
+    });
     return { context, candidates, baseline };
   }
 
@@ -1250,6 +1269,8 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
       dialogue_context: activeConversation?.dialogueContext ?? null,
       dialogue_candidates: activeConversation?.dialogueCandidates ?? null,
       dialogue_baseline: activeConversation?.dialogueBaseline ?? null,
+      dialogue_decision: activeConversation?.dialogueDecision ?? null,
+      dialogue_jev: dialogueRouter.status(),
       ai_signed_in: aiSignedIn, ai_npc_ids: [...aiPilotIds].filter(aiEnabled),
       quest_stage: quest.stage, quest: quest.status(),
       main2_quest_stage: main2Quest.stage, main2Quest: main2Quest.status(),
