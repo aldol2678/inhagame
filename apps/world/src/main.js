@@ -1,8 +1,6 @@
 import { busyNpcIds } from './network/npc-talk-presence.js';
 import {CAMPUS_BALLOON_ID,setCampusBalloonPropRoot} from "./mounts/campus-balloon-world.js";
 import {createCampusBalloon} from "./mounts/campus-balloon-render.js";
-import {setCampusShuttlePropRoot} from "./mounts/campus-shuttle-world.js";
-import {createCampusShuttle,createShuttleStations} from "./mounts/campus-shuttle-render.js";
 import { DUCK_BOAT_ID,setDuckBoatPropRoot } from "./mounts/duck-boat-world.js";
 import { createDuckBoat,createInkyungDockMarker } from "./mounts/duck-boat-render.js";
 import { CAMPUS_KART_ID, setCampusKartPropRoot } from "./mounts/campus-kart-world.js";
@@ -24,6 +22,8 @@ import { createViewDistanceSettings } from './view-distance-settings.js';
 import { createGraphicsPresetController } from './graphics-presets.js';
 import { createEnvironmentDirector } from './environment/environment-director.js';
 import { resolveEnvironmentRuntimeTime, resolveEnvironmentRuntimeWeather } from './environment/environment-clock.js';
+import { createEnvironmentWorldTime } from './environment/environment-world-time.js';
+import { createNpcWorldClock } from '../npc-factory/npc-world-clock.mjs';
 import { createNightStreetLights } from './environment/night-street-lights.js';
 import { createNightBuildingWindows } from './environment/night-building-windows.js';
 import { createRainWeatherEffects } from './environment/rain-weather-effects.js';
@@ -316,7 +316,22 @@ const environment = createEnvironmentDirector({
   initialTime: resolveEnvironmentRuntimeTime(startupParams, { previewHost }),
   initialWeather: resolveEnvironmentRuntimeWeather(startupParams, { previewHost })
 });
-app.on("update", dt => environment.update(dt));
+// Production sky/light follows the shared INHA WORLD clock. Preview hosts keep
+// manual envTime controls deterministic for QA and never infer from local time.
+const worldClock = previewHost ? null : createNpcWorldClock();
+const environmentWorldTime = createEnvironmentWorldTime({
+  environment,
+  clock: worldClock,
+  enabled: worldClock !== null
+});
+if (worldClock) await environmentWorldTime.sync();
+app.on("update", dt => {
+  environmentWorldTime.update();
+  environment.update(dt);
+});
+window.__INHAGAME_WORLD_TIME__ = Object.freeze({
+  status: () => environmentWorldTime.status()
+});
 window.__INHAGAME_ENVIRONMENT__ = Object.freeze({
   status: () => environment.status(),
   ...(previewHost ? {
@@ -465,7 +480,8 @@ window.__INHAGAME_WINTER_QA__ = Object.freeze({
   })
 });
 
-const controller = new PlayerController(player);
+// The main-gate shuttle is intentionally withheld until the Songdo campus route exists.
+const controller = new PlayerController(player, { campusShuttleEnabled: false });
 const helicopterFlightHud = createHelicopterFlightHud({
   root: document.getElementById("helicopter-flight-hud"),
   toggle: document.getElementById("helicopter-flight-hud-toggle"),
@@ -1277,8 +1293,7 @@ setCampusKickboardPropRoot(createCampusKickboard(campusRoot));
 setCampusKartPropRoot(createCampusKart(campusRoot));
 setDuckBoatPropRoot(createDuckBoat(campusRoot));
 createInkyungDockMarker(campusRoot);
-setCampusShuttlePropRoot(createCampusShuttle(campusRoot));
-createShuttleStations(campusRoot,controller.shuttle.stations);
+// Campus shuttle presentation/stations stay absent until the Songdo campus route is implemented.
 setCampusBalloonPropRoot(createCampusBalloon(campusRoot));
 const mobilityBookButton = document.getElementById("open-mobility-book");
 const mobilityBook = createMobilityBook({
@@ -2574,6 +2589,7 @@ async function loadOptionalNpcRuntime() {
     const runtime = await module.createNpcDevRuntime({
       app, campusRoot, player, orbit,
       sharedSchedulePreview: npcSharedScheduleMode,
+      worldClock,
       onNpcTalk: (id, now) => online?.network?.setNpcTalk(id, now),
       getBusyNpcIds: now => busyNpcIds(online?.network?.remotes.inZone(online.network.placeZoneId) ?? [], now),
       production: npcSharedScheduleMode || npcProductionMode || npcPreviewMode || npcRosterPreviewMode || npcSocialPreviewMode || npcObservedConversationMode,
@@ -2956,7 +2972,7 @@ try {
     chatPanel.refreshAvailability();
     friendPanel.setAvailable(!!identity);
     nearbyPanel.render();
-    guestbookPanel.setAvailable(!!identity);
+    guestbookPanel.setAvailable(!!identity, identity?.userId ?? null);
     if (identity) {
       void accompany.refresh();
       void social.mine()

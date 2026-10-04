@@ -193,6 +193,51 @@ export function lifeSkillAuthorityRow(definition) {
   });
 }
 
+// life.common.v1: min_total_xp(L) = 50 * L * (L - 1); +1 SP per level, +2 at every 5th level.
+// Immutable once published. Lv20 is the highest defined level, not a cap.
+export const LIFE_SKILL_COMMON_CURVE_ID = 'life.common.v1';
+const commonCurveSpAward = level => (level === 1 ? 0 : level % 5 === 0 ? 2 : 1);
+
+export const LIFE_SKILL_CURVE_THRESHOLDS = Object.freeze(Array.from({ length: 20 }, (_, index) => index + 1)
+  .reduce((rows, level) => {
+    const cumulativeSp = (rows.at(-1)?.cumulativeSp ?? 0) + commonCurveSpAward(level);
+    rows.push(Object.freeze({
+      curveId: LIFE_SKILL_COMMON_CURVE_ID,
+      level,
+      minTotalXp: 50 * level * (level - 1),
+      cumulativeSp
+    }));
+    return rows;
+  }, []));
+
+export function lifeSkillThresholdAuthorityRows() {
+  return Object.freeze(LIFE_SKILL_CURVE_THRESHOLDS.map(row => Object.freeze({
+    curve_id: row.curveId,
+    level: row.level,
+    min_total_xp: row.minTotalXp,
+    cumulative_sp: row.cumulativeSp
+  })));
+}
+
+// Display-side derivation only. The server derives the authoritative Level and SP.
+export function lifeSkillCurvePosition(curveId, totalXp) {
+  if (!Number.isSafeInteger(totalXp) || totalXp < 0) throw new TypeError('Invalid totalXp');
+  const curve = LIFE_SKILL_CURVE_THRESHOLDS.filter(row => row.curveId === curveId);
+  if (!curve.length) throw new TypeError(`Unknown curveId ${curveId}`);
+  const current = curve.filter(row => row.minTotalXp <= totalXp).at(-1);
+  const next = curve.find(row => row.level === current.level + 1) ?? null;
+  return Object.freeze({
+    curveId,
+    level: current.level,
+    earnedSp: current.cumulativeSp,
+    currentLevelStartXp: current.minTotalXp,
+    nextLevelXp: next?.minTotalXp ?? null,
+    nextLevelEarnedSp: next?.cumulativeSp ?? null,
+    maxDefinedLevel: curve.at(-1).level,
+    isMaxLevel: next === null
+  });
+}
+
 export function lifeSkillFreshSnapshot(definition) {
   if (!definition) throw new TypeError('Life Skill definition is required');
   return Object.freeze({

@@ -37,6 +37,7 @@ insert into authority_primitive(name, owner) values
   ('world_creature_evolution_commit_v1',     'Creature / Evolution'),
   ('world_activity_start_v1',                'Activity / Attempt'),
   ('world_activity_finalize_v1',             'Activity / Attempt'),
+  ('world_activity_settle_v1',               'Activity / Settlement'),
   ('world_combat_start_v1',                  'Combat / Encounter'),
   ('world_combat_state_write_v1',            'Combat / Encounter'),
   ('world_combat_finalize_v1',               'Combat / Encounter'),
@@ -93,6 +94,8 @@ insert into authority_allowed_call values
   ('public.purchase_world_shop_listing_v1',    'private.world_inventory_grant_v1', 'Shop purchase delivery (same transaction as the debit)'),
   ('public.world_inventory_ensure_default_items_v1', 'private.world_inventory_grant_v1', 'service_role default-item bootstrap'),
   ('public.world_inventory_grant_item_v1',     'private.world_inventory_grant_v1', 'service_role server API wrapper'),
+  ('private.world_activity_settle_v1',         'private.world_inventory_grant_v1',
+     'Activity settlement path (7.4): item output of a verified SUCCEEDED result, atomic with its receipt'),
   ('private.world_inventory_mutate_v1',        'private.world_inventory_consume_v1', 'Inventory-internal atomic N-consume/M-grant'),
   -- Reward: fixed RewardDefinitions are executed only for these verified sources.
   ('public.advance_world_quest_v1',            'private.world_reward_grant_v1', 'Main 1 completion reward (same transaction as stage 4 -> 5)'),
@@ -103,6 +106,11 @@ insert into authority_allowed_call values
   ('public.world_reward_grant_v1',             'private.world_reward_grant_v1', 'service_role server API wrapper'),
   -- Collection
   ('public.world_collection_discover_v1',      'private.world_collection_discover_v1', 'service_role server API wrapper'),
+  ('private.world_activity_settle_v1',         'private.world_collection_discover_v1',
+     'Activity settlement path (7.4): discovery output of a verified SUCCEEDED result, atomic with its receipt'),
+  -- Life
+  ('private.world_activity_settle_v1',         'private.world_life_skill_xp_apply_v1',
+     'Activity settlement path (7.4): Life Skill XP output of a verified SUCCEEDED result, atomic with its receipt'),
   -- Creature: external domains reach Creature only through the bridge functions, never the tables.
   ('public.world_creature_grant_v1',           'private.world_creature_grant_v1', 'service_role server API wrapper'),
   ('public.world_creature_observe_v1',         'private.world_creature_observe_v1', 'service_role server API wrapper'),
@@ -131,11 +139,14 @@ insert into authority_allowed_call values
   ('public.world_combat_finalize_v1',          'private.world_combat_finalize_v1', 'service_role server API wrapper'),
   ('private.world_combat_start_with_creature_v1', 'private.world_combat_start_v1', 'Combat -> Creature bridge P1 start (binds party revision)'),
   ('private.world_combat_finalize_with_creature_v1', 'private.world_combat_finalize_v1', 'Combat -> Creature bridge P1 finalize'),
+  -- Activity settlement: only reviewed server-only domain adapters that derive the plan from a frozen outcome.
+  ('public.world_fishing_settle_v1',           'private.world_activity_settle_v1',
+     'Fishing F2: plan derived from the frozen server catch; service_role + service claim only'),
   -- Biryong NPC relationship: only the trusted service-role wrapper may advance persistent stage.
   ('public.world_biryong_npc_relationship_advance_v1', 'private.world_biryong_relationship_advance_v1',
      'Biryong NPC relationship P0: service_role wrapper advances exactly one verified stage');
--- Intentionally NO callers yet: world_inventory_mutate_v1, world_life_skill_xp_apply_v1,
--- world_life_node_unlock_v1 (foundations without a settlement path; see the Authority Map).
+-- Intentionally NO callers yet: world_inventory_mutate_v1, world_life_node_unlock_v1
+-- (see the Authority Map).
 
 select set_eq(
   'select caller || '' -> '' || primitive from authority_edge',
@@ -203,7 +214,8 @@ insert into authority_table values
   ('world_creature_party_state','STATE'), ('world_creature_party_history','STATE'),
   ('world_creature_evolution_candidates','STATE'), ('world_creature_evolution_events','STATE'),
   ('world_creature_acquisition_claims','STATE'),
-  ('world_activity_attempts','STATE'), ('world_combat_encounters','STATE'),
+  ('world_activity_attempts','STATE'), ('world_activity_settlements','STATE'),
+  ('world_combat_encounters','STATE'),
   ('world_biryong_npc_relationship_events','STATE'), ('world_player_biryong_npc_relationships','STATE'),
   ('world_quest_progress_v1','STATE'), ('world_event_progress','STATE'),
   ('world_player_appearance_loadout','STATE'), ('world_purchase_transactions','STATE'),
@@ -271,6 +283,7 @@ insert into authority_allowed_write values
   ('world_creature_evolution_events', 'private.world_creature_evolution_commit_v1'),
   ('world_activity_attempts', 'private.world_activity_start_v1'),
   ('world_activity_attempts', 'private.world_activity_finalize_v1'),
+  ('world_activity_settlements', 'private.world_activity_settle_v1'),
   ('world_combat_encounters', 'private.world_combat_start_v1'),
   ('world_combat_encounters', 'private.world_combat_state_write_v1'),
   ('world_combat_encounters', 'private.world_combat_finalize_v1'),

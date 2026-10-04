@@ -1,7 +1,7 @@
 import { GATE_FRAME } from '../main-gate-frame.js';
 
 const url=new URL('../../data/editor/main-gate.world.json',import.meta.url);
-export const MAIN_GATE_EDITOR_WORLD=typeof window==='undefined'
+export const MAIN_GATE_EDITOR_WORLD=url.protocol==='file:'
   ? JSON.parse((await import('node:fs')).readFileSync(url,'utf8'))
   : await (async()=>{const r=await fetch(url);if(!r.ok)throw Error(`Main gate editor world load failed: ${r.status}`);return r.json();})();
 

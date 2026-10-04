@@ -12,10 +12,16 @@ import {readFileSync} from "node:fs";
 test("transit registry exposes autopilot, passive seat, fixed route and test-only status",()=>{
  const d=getMobilityByMountId(CAMPUS_SHUTTLE_ID);
  assert.equal(d.category,"TRANSIT");assert.equal(d.physicsProfile,"PATH_CONSTRAINED");assert.equal(d.inputProfile,"AUTOPILOT");
- assert.equal(d.activeEligible,false);assert.equal(d.access,"TEST_ONLY");assert.equal(d.summonEnabled,false);
+ assert.equal(d.availability,"HIDDEN");assert.equal(d.activeEligible,false);assert.equal(d.access,"TEST_ONLY");assert.equal(d.summonEnabled,false);
  assert.ok(d.seats.every(s=>!s.controls));assert.ok(mobilityMatchesFilter(d,"TRANSIT"));
  assert.ok(getPlayerVisibleMobility().every(d=>d.availability!=="HIDDEN"));
 });
+test("production campus keeps shuttle absent until Songdo campus exists",()=>{
+ const main=readFileSync(new URL("../src/main.js",import.meta.url),"utf8");
+ assert.match(main,/campusShuttleEnabled:\s*false/);
+ assert.doesNotMatch(main,/createCampusShuttle|createShuttleStations|setCampusShuttlePropRoot/);
+});
+
 test("route cycles all six states, stations and fixed path without timetable",()=>{
  const t=createTransitRuntime({canTravel:()=>true}),seen=new Set([t.transitState]),stations=new Set();
  for(let i=0;i<500;i++){t.update(.1);seen.add(t.transitState);stations.add(t.currentStation.id);assert.equal(t.pose.x,0);assert.ok(t.pose.z>=-92&&t.pose.z<=-70);}

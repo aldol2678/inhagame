@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "scope": ["bldg_01", "bldg_jungseok"],
-  "integrationBase": "c64d309eb3c8f9632feaf996ae65d45455353fda",
+  "integrationBase": "e31c3147b1b48fe1d5a5b071f994beedc280c139",
   "photoGeometrySource": "316c8ff95f7a12618ec8db61342d153f3cbb29ea",
   "reviewedCandidateSource": "68d64e7466a2971256485b74e76c89a31e91547a",
   "referenceKind": "Owner-supplied 2026-10-01-labeled exterior field observations",

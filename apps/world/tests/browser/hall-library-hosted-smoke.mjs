@@ -10,7 +10,7 @@ import path from 'node:path';
 import {startSmoke} from './harness.mjs';
 
 const BASELINE = '316c8ff95f7a12618ec8db61342d153f3cbb29ea';
-const CURRENT_MAIN = 'c64d309eb3c8f9632feaf996ae65d45455353fda';
+const CURRENT_MAIN = 'e31c3147b1b48fe1d5a5b071f994beedc280c139';
 const PREVIOUS = '68d64e7466a2971256485b74e76c89a31e91547a';
 const SOURCES = {
   '/__hall_library_baseline__/':{commit:BASELINE},

@@ -2,7 +2,7 @@ import { geoToWorld } from './geo-coordinates.js';
 import { projectPolygon } from './reality-adapter.js';
 
 const url = new URL('../data/reality/campus-facilities.json', import.meta.url);
-const data = typeof window === 'undefined'
+const data = url.protocol === 'file:'
   ? JSON.parse((await import('node:fs')).readFileSync(url, 'utf8'))
   : await (async () => { const r = await fetch(url); if (!r.ok) throw Error(`Facilities load failed: ${r.status}`); return r.json(); })();
 

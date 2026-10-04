@@ -7,7 +7,7 @@ import { FIVE_FRONT_TREES, exteriorFrame } from './north-campus-layout.js';
 import { polygonOverlap } from './polygon-collision.js';
 
 const url=new URL('../data/reality/evidence/roads/library-garden.json',import.meta.url);
-const data=typeof window==='undefined'
+const data=url.protocol==='file:'
   ? JSON.parse((await import('node:fs')).readFileSync(url,'utf8'))
   : await (async()=>{const r=await fetch(url);if(!r.ok)throw Error(`Library garden load failed: ${r.status}`);return r.json();})();
 export const LIBRARY_GREENS=data.features.map(q=>({...q,polygon:projectPolygon(q.ring)}));
