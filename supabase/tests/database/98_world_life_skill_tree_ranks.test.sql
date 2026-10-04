@@ -14,7 +14,7 @@ select has_column('private','world_life_skill_tree_catalog','max_rank','nodes ca
 select has_column('private','world_life_skill_tree_edges','required_rank','edges carry a required prerequisite rank');
 select has_column('private','world_player_life_nodes','rank','acquired ranks are rows');
 select has_column('private','world_life_sp_transactions','rank','each spend records the rank it bought');
-select col_is_pk('private','world_player_life_nodes',array['user_id','node_id','rank'],'one row per acquired rank');
+select col_is_pk('private','world_player_life_nodes',array['user_id','node_id','epoch','rank'],'one row per acquired rank (per reset epoch)');
 select ok(not has_function_privilege(r,'private.world_life_node_rank_v1(uuid,text)','execute'),
   format('%s cannot call the private rank read',r))
 from unnest(array['anon','authenticated','service_role']) r;
