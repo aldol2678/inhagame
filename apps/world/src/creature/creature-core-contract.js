@@ -85,8 +85,8 @@ export function createCreatureSpeciesDefinition(raw) {
 export const DEFAULT_CREATURE_SPECIES_DEFINITIONS = Object.freeze({
   DUCK: createCreatureSpeciesDefinition({
     speciesId: 'creature.species.duck',
-    status: CREATURE_DEFINITION_STATUS.COMING_SOON,
-    tags: ['candidate', 'campus'],
+    status: CREATURE_DEFINITION_STATUS.ACTIVE,
+    tags: ['campus', 'inkyung'],
     definitionVersion: 1
   }),
   PAGELING: createCreatureSpeciesDefinition({
@@ -151,7 +151,14 @@ export function createCreatureFormDefinition(raw, { speciesRegistry = CREATURE_S
   });
 }
 
-export const DEFAULT_CREATURE_FORM_DEFINITIONS = Object.freeze([]);
+export const DEFAULT_CREATURE_FORM_DEFINITIONS = Object.freeze([
+  Object.freeze({
+    formId: 'creature.form.duck.base',
+    speciesId: 'creature.species.duck',
+    status: CREATURE_DEFINITION_STATUS.ACTIVE,
+    definitionVersion: 1
+  })
+]);
 
 export function createCreatureFormRegistry({
   definitions = DEFAULT_CREATURE_FORM_DEFINITIONS,

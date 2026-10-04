@@ -33,10 +33,21 @@ module.exports = async function handler(req, res) {
     if (!userId) return res.status(401).end();
     const provider = createNpcJevDecisionProvider({
       apiKey: process.env.TYPESAFE_API_KEY,
-      model: process.env.TYPESAFE_MODEL || 'jev-latest'
+      model: process.env.TYPESAFE_MODEL || 'jev-latest',
+      endpoint: process.env.TYPESAFE_SYSTEMONE_URL || undefined
     });
+    const started = Date.now();
     const result = await provider.decide(body);
-    return res.status(200).json(result);
+    const latencyMs = Date.now() - started;
+    console.info('NPC_JEV_SHADOW', JSON.stringify({
+      npcId: body.npcId,
+      latencyMs,
+      responseSource: result.decision.responseSource,
+      intent: result.decision.intent,
+      contextPriority: result.decision.contextPriority,
+      confidence: result.confidence
+    }));
+    return res.status(200).json({ ...result, shadow: { latencyMs } });
   } catch (error) {
     const code = String(error?.message ?? '');
     if (/^JEV_(INVALID|NPC_NOT_PILOT|FORBIDDEN|CONTEXT_TOO_LARGE|EMPTY)/u.test(code))
