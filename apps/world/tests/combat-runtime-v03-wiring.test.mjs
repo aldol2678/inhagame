@@ -11,6 +11,8 @@ test('Building 5 Combat v0.3 runtime is wired into the shared World interaction 
   assert.match(main, /createBuilding5CombatTraining\(\{/);
   assert.match(main, /createCombatRuntimeV03\(\{ localTraining: building5Training \}\)/);
   assert.match(main, /createBuilding5CombatTargetRenderer\(\{/);
+  assert.match(main, /createCombatWorldMotionV03\(\{/);
+  assert.match(main, /createCombatFeedbackV03\(\{/);
   assert.match(main, /createBuilding5CombatInteraction\(\{ runtime: combatRuntime \}\)/);
   assert.match(main, /contextActions\.set\("building5-combat", building5CombatAction\)/);
   assert.match(main, /hudContext\.setMode\(state\.active \? HUD_MODE\.COMBAT : HUD_MODE\.EXPLORE\)/);
@@ -29,7 +31,9 @@ test('Combat v0.3 PC input preserves v9.22 action grammar without replacing Worl
   assert.doesNotMatch(main, /world_combat_start_v1/);
   assert.match(main, /combatRuntime\.update\(\)/);
   assert.match(main, /combatTargetRenderer\.update\(dt\)/);
-  assert.doesNotMatch(main, /world_combat_start_v1/);
+  assert.match(main, /combatWorldMotion\.update\(\)/);
+  assert.match(main, /combatFeedback\.hitstopActive\(\)/);
+  assert.match(main, /poseOffsets: combatFeedback\.poseOffsets\(\) \?\? biryong\?\.poseOffsets\(\) \?\? null/);
 });
 
 test('Combat v0.3 mobile HUD exposes all six action surfaces and hides incompatible Explore controls', () => {
@@ -43,7 +47,10 @@ test('Combat v0.3 mobile HUD exposes all six action surfaces and hides incompati
   ]) {
     assert.match(html, new RegExp(`data-combat-${targetHook}`));
   }
+  assert.match(html, /id="combat-impact-feedback"/);
   assert.match(css, /COMBAT-V03-RUNTIME-P0:start/);
+  assert.match(css, /combat-camera-kick/);
+  assert.match(css, /combat-impact-flash/);
   assert.match(css, /body\[data-hud-mode="COMBAT"\] #transport-action/);
   assert.match(css, /grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/);
 });
@@ -51,6 +58,7 @@ test('Combat v0.3 mobile HUD exposes all six action surfaces and hides incompati
 test('Combat v0.3 local training disables resume and transport while active', () => {
   assert.match(main, /controller\.setTransportGate\(\(\) => !worldActionsSuspended\(\)\);/);
   assert.match(main, /controller\.setTransportLock\("combat-v03", state\.active\)/);
+  assert.match(main, /controller\.combatDodgeDirection\(orbit\.yaw/);
   assert.match(main, /enabled: firstPlayerMovement && !npcTestMode && !combatRuntime\.active/);
   assert.match(main, /transportActions\.set\("mount", null\)/);
 });
