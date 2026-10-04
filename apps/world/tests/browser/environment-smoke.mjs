@@ -48,6 +48,7 @@ try {
   assert.equal(initial.sky.sunVisible, true);
   assert.ok(initial.sky.sunOpacity > 0);
   assert.equal(initial.sky.sunDrawMeshes, 1);
+  assert.ok(Math.abs(initial.sky.sunShadowAlignmentDot + 1) < 1e-6);
   assert.ok(initial.environment.fog.start < initial.environment.fog.end);
   assert.ok(initial.environment.exposure < 1.05 && initial.environment.exposure > 0.82);
   assert.equal(initial.environment.artificialLightFactor, 0.18);
@@ -79,6 +80,11 @@ try {
   assert.equal(dayClear.environment.wetness, 0);
   assert.equal(dayClear.rain.rainEnabled, false);
   assert.equal(dayClear.rain.wetGroundEnabled, false);
+  assert.ok(Math.abs(dayClear.sky.sunShadowAlignmentDot + 1) < 1e-6);
+  assert.deepEqual(
+    dayClear.sky.shadowRayDirection.map((value, index) => value + dayClear.sky.sunDirection[index]),
+    [0, 0, 0]
+  );
 
   await page.evaluate(() => window.__INHAGAME_ENVIRONMENT__.setWeather('cloudy'));
   await page.waitForFunction(
