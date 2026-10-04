@@ -19,8 +19,8 @@ select results_eq($$
 $$,$$values ('life.farming'::text,6::bigint,17,15,1,1),('life.fishing',6,17,15,1,1),('life.woodcutting',6,17,15,1,1)$$,
   'three trees of 6 nodes, 17 SP each, gated on skill level up to Lv15');
 select is((select count(*) from private.world_life_skill_tree_edges),18::bigint,'18 prerequisite edges');
-select is((select count(*) from private.world_life_skill_catalog where status <> 'COMING_SOON'),0::bigint,
-  'no Life Skill is activated');
+select is((select array_agg(skill_id) from private.world_life_skill_catalog where status <> 'COMING_SOON'),
+  array['life.fishing'],'only Fishing is activated (its tree stays COMING_SOON)');
 
 -- ---- a full fishing tree is reachable at skill Lv15 with exactly its 17 SP (test activation) ----
 update private.world_life_skill_catalog set status='ACTIVE' where skill_id='life.fishing';

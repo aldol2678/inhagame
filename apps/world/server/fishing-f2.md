@@ -65,7 +65,34 @@ fail closed. The endpoint accepts only JSON POST, caps bodies at 8 KiB, checks
 browser Origin, sets no-store and returns sanitized errors. An ambiguous network
 failure has no automatic mutation retry: read/replay with the same identity.
 
-## Disabled defaults and validation
+## Repository activation candidate (20261004161000)
+
+On a database where this migration has been applied, Fishing is the first ACTIVE Life Skill.
+The migration activates `life.fishing`,
+`collection.fish.carp` and this runtime with the candidate policy `fishing.candidate.v1`
+(3–9 s wait, 1.5 s response window, 30 s TTL, 20 Life XP, 2 s between starts). These are
+candidate values, not tuned balance; they live in the one runtime row. The tree nodes and the
+Creature bridge stay COMING_SOON. The browser path is `src/activity/fishing-client.js` /
+`fishing-panel.js` / `fishing-spots.js`. Production play still needs
+`WORLD_FISHING_API_ENABLED=1`; until then the endpoint answers 404 and no 🎣 action is shown.
+World distance/occupancy checks (F3) are still not implemented: the spots only decide where
+the action is offered.
+
+### Production deployment prerequisites
+
+Merging this repository does **not** apply SQL to Production. `public-db.sh` validates a
+disposable local database only; the Vercel Git deployment publishes the client and handler.
+Before exposing fishing, reconcile the Production schema with the required Life curve/SP,
+Activity settlement, Fishing F2, tree/reset and Life Skill Book migrations, apply approved
+forward migrations in dependency order, then read back the catalog, runtime policy and RPC
+grants. Do not replay the public baseline onto an existing Production database.
+
+Keep `WORLD_FISHING_API_ENABLED` unset until those database postconditions and the exposure
+review are satisfied. F3 remains the default prerequisite for player exposure; using the
+T1 prototype without authoritative position/occupancy requires an explicit owner exception.
+The candidate timing/XP values also require owner acceptance before exposure.
+
+## F2 defaults and validation (historical)
 
 Both switches are deliberately off: HTTP requires `WORLD_FISHING_API_ENABLED=1`
 and the private runtime row defaults `enabled=false`, `policy=null`, cooldown=null.

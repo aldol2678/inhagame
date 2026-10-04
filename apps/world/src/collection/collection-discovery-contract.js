@@ -125,7 +125,7 @@ export const DEFAULT_COLLECTION_ENTRY_DEFINITIONS = Object.freeze({
     visibilityPolicy: 'SILHOUETTE',
     discoveryRuleRef: 'discovery.fishing.carp_v1',
     presentationRef: 'presentation.collection.fish_carp',
-    status: 'COMING_SOON',
+    status: 'ACTIVE',
     tags: ['life', 'fishing', 'p1a'],
     definitionVersion: 1
   }),
