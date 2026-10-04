@@ -124,6 +124,9 @@ select set_eq($$select unnest(pg_temp.exec_surface('authenticated', 'anon'))$$, 
   -- Creature P1: own Duck Companion read/bond; observation minting remains service-role only.
   'get_my_duck_companion_v1()',
   'bond_my_duck_companion_v1(text)',
+  -- Biryong NPC relationship P0: own server-authoritative Stage/fact projection, read only.
+  'get_my_biryong_npc_relationship_v1(text)',
+  'get_my_biryong_npc_relationships_v1()',
   -- Housing S1-D2 (20261002130000): friend visit, access check, owner privacy, Realtime predicate.
   'resolve_friend_personal_room_v1(uuid)',
   'check_world_room_access_v1(uuid)',
@@ -228,6 +231,7 @@ from unnest(array['anon', 'authenticated']) r, unnest(array[
   'public.world_reward_get_result_v1(text)',
   'public.world_exp_grant_v1(uuid,bigint,text,text,text)',
   'public.world_progression_get_v1(uuid)',
+  'public.world_biryong_npc_relationship_advance_v1(uuid,text,smallint,text,text,text,text)',
   'public.advance_mcm_2026_event_v1(uuid,text)'
 ]) f;
 select ok(has_function_privilege('service_role', f, 'execute'), format('service_role can execute %s', f))
@@ -252,8 +256,117 @@ from unnest(array[
   'public.world_reward_get_result_v1(text)',
   'public.world_exp_grant_v1(uuid,bigint,text,text,text)',
   'public.world_progression_get_v1(uuid)',
+  'public.world_biryong_npc_relationship_advance_v1(uuid,text,smallint,text,text,text,text)',
   'public.advance_mcm_2026_event_v1(uuid,text)'
 ]) f;
+
+-- ---- authority domains: server APIs are service-role only ----
+-- Contract: docs/architecture/AUTHORITY_MAP.md section 6. Activity, Collection, Combat, Creature,
+-- the Life/Combat -> Creature bridges, onboarding Quest advance and NPC shared ticks are driven by
+-- trusted server code (Cloud Run / server API) that passes p_user; no client role may call them.
+select ok(not has_function_privilege(r, f, 'execute'), format('%s cannot execute %s', r, f))
+from unnest(array['anon', 'authenticated']) r, unnest(array[
+  'public.world_activity_start_v1(uuid,text,text,uuid,integer,integer,timestamp with time zone)',
+  'public.world_activity_finalize_v1(uuid,uuid,text,text,text)',
+  'public.world_collection_discover_v1(uuid,text,text,text,text,text,jsonb)',
+  'public.world_collection_list_v1(uuid)',
+  'public.world_combat_start_v1(uuid,text,text,uuid,integer,integer,jsonb)',
+  'public.world_combat_state_write_v1(uuid,uuid,bigint,jsonb)',
+  'public.world_combat_snapshot_v1(uuid,uuid)',
+  'public.world_combat_finalize_v1(uuid,uuid,text,text)',
+  'public.world_combat_start_with_creature_v1(uuid,text,text,uuid,integer,integer,jsonb)',
+  'public.world_combat_finalize_with_creature_v1(uuid,uuid,text,text)',
+  'public.world_life_activity_start_with_creature_v1(uuid,text,text,uuid,integer,integer,timestamp with time zone)',
+  'public.world_life_activity_finalize_with_creature_v1(uuid,uuid,text,text,text)',
+  'public.world_creature_observe_v1(uuid,text,text,text,text,text)',
+  'public.world_creature_grant_v1(uuid,text,text,text,text)',
+  'public.world_creature_party_set_v1(uuid,uuid,uuid,uuid,bigint,text)',
+  'public.world_creature_core_snapshot_v1(uuid)',
+  'public.world_creature_activity_accept_v1(uuid,text,text,text,text,bigint,timestamp with time zone)',
+  'public.world_creature_evolution_candidate_v1(uuid,uuid,text,text)',
+  'public.world_creature_evolution_context_gate_v1(uuid,uuid,text,text)',
+  'public.world_creature_evolution_commit_v1(uuid,uuid,text)',
+  'public.advance_world_quest_v1(uuid,text)',
+  'public.advance_world_navigation_quest_v1(uuid,text)',
+  'public.claim_world_npc_shared_tick_v1(text,bigint)',
+  'public.commit_world_npc_shared_tick_v1(text,bigint,bigint,jsonb)',
+  'public.get_world_npc_shared_state_v1()',
+  'public.world_biryong_npc_relationship_advance_v1(uuid,text,smallint,text,text,text,text)'
+]) f;
+select ok(has_function_privilege('service_role', f, 'execute'), format('service_role can execute %s', f))
+from unnest(array[
+  'public.world_activity_start_v1(uuid,text,text,uuid,integer,integer,timestamp with time zone)',
+  'public.world_activity_finalize_v1(uuid,uuid,text,text,text)',
+  'public.world_collection_discover_v1(uuid,text,text,text,text,text,jsonb)',
+  'public.world_collection_list_v1(uuid)',
+  'public.world_combat_start_v1(uuid,text,text,uuid,integer,integer,jsonb)',
+  'public.world_combat_state_write_v1(uuid,uuid,bigint,jsonb)',
+  'public.world_combat_snapshot_v1(uuid,uuid)',
+  'public.world_combat_finalize_v1(uuid,uuid,text,text)',
+  'public.world_combat_start_with_creature_v1(uuid,text,text,uuid,integer,integer,jsonb)',
+  'public.world_combat_finalize_with_creature_v1(uuid,uuid,text,text)',
+  'public.world_life_activity_start_with_creature_v1(uuid,text,text,uuid,integer,integer,timestamp with time zone)',
+  'public.world_life_activity_finalize_with_creature_v1(uuid,uuid,text,text,text)',
+  'public.world_creature_observe_v1(uuid,text,text,text,text,text)',
+  'public.world_creature_grant_v1(uuid,text,text,text,text)',
+  'public.world_creature_party_set_v1(uuid,uuid,uuid,uuid,bigint,text)',
+  'public.world_creature_core_snapshot_v1(uuid)',
+  'public.world_creature_activity_accept_v1(uuid,text,text,text,text,bigint,timestamp with time zone)',
+  'public.world_creature_evolution_candidate_v1(uuid,uuid,text,text)',
+  'public.world_creature_evolution_context_gate_v1(uuid,uuid,text,text)',
+  'public.world_creature_evolution_commit_v1(uuid,uuid,text)',
+  'public.advance_world_quest_v1(uuid,text)',
+  'public.advance_world_navigation_quest_v1(uuid,text)',
+  'public.claim_world_npc_shared_tick_v1(text,bigint)',
+  'public.commit_world_npc_shared_tick_v1(text,bigint,bigint,jsonb)',
+  'public.get_world_npc_shared_state_v1()',
+  'public.world_biryong_npc_relationship_advance_v1(uuid,text,smallint,text,text,text,text)'
+]) f;
+
+-- ---- private schema: primitives are reachable only through reviewed public functions ----
+-- No API role (not even service_role) executes a private function directly, except the two
+-- staff-permission helpers below. Mutation primitives live in private, so this is the backstop
+-- behind the call-graph allowlist in 93_authority_primitive_callers.
+select is_empty(
+  format($$select p.oid::regprocedure::text from pg_proc p
+           where p.pronamespace = 'private'::regnamespace and has_function_privilege(%L, p.oid, 'execute')$$, r),
+  format('%s cannot execute any private function', r))
+from unnest(array['anon', 'authenticated']) r;
+select set_eq(
+  $$select p.oid::regprocedure::text from pg_proc p
+    where p.pronamespace = 'private'::regnamespace and has_function_privilege('service_role', p.oid, 'execute')$$,
+  array['private.world_admin_caller_v1(text)', 'private.world_ops_read_allowed_v1(text)'],
+  'service_role executes only the staff-permission helpers in private');
+select ok(not has_function_privilege(r, p.oid, 'execute'), format('%s cannot execute primitive %s', r, p.oid::regprocedure))
+from pg_proc p, unnest(array['anon', 'authenticated', 'service_role']) r
+where p.pronamespace = 'private'::regnamespace and p.proname in (
+  'world_wallet_apply_v1', 'world_exp_apply_v1', 'world_inventory_grant_v1', 'world_inventory_consume_v1',
+  'world_inventory_mutate_v1', 'world_reward_grant_v1', 'world_life_skill_xp_apply_v1', 'world_life_node_unlock_v1',
+  'world_collection_discover_v1', 'world_creature_grant_v1', 'world_creature_activity_accept_v1',
+  'world_creature_evolution_commit_v1', 'world_combat_finalize_v1', 'world_activity_finalize_v1');
+
+-- Direct table DML in private by an API role bypasses every primitive. Exact surface, recorded as
+-- found (not new policy): service_role keeps the ops/legacy write paths listed here.
+select set_eq(
+  $$select r || ':' || c.relname || ':' || concat_ws(',',
+      case when has_table_privilege(r, c.oid, 'insert') then 'I' end,
+      case when has_table_privilege(r, c.oid, 'update') then 'U' end,
+      case when has_table_privilege(r, c.oid, 'delete') then 'D' end,
+      case when has_table_privilege(r, c.oid, 'truncate') then 'T' end)
+    from pg_class c, unnest(array['anon', 'authenticated', 'service_role']) r
+    where c.relnamespace = 'private'::regnamespace and c.relkind in ('r', 'p', 'v', 'm')
+      and has_table_privilege(r, c.oid, 'insert,update,delete,truncate')$$,
+  array[
+    'service_role:world_biryong_progress_v1:I,U',
+    'service_role:world_npc_shared_ticks_v1:I,U,D',
+    -- Finding (AUTHORITY_MAP section 8): lets server code set a stage without advance_world_*_quest_v1.
+    'service_role:world_quest_progress_v1:I,U',
+    'service_role:world_room_layouts:I,U,D',
+    'service_role:world_staff_assignments:I,U,D,T',
+    'service_role:world_staff_role_permissions:I,U,D,T',
+    'service_role:world_user_moderation_actions:I,U,D,T'
+  ],
+  'API-role DML on private tables is exactly the recorded surface (no role writes Wallet/EXP/Inventory/Life/Creature state directly)');
 
 -- ---- column-level: players never write moderation or ownership-sensitive columns ----
 select ok(not has_column_privilege('authenticated', 'public.profiles', c, p), format('authenticated cannot %s profiles.%s', p, c))

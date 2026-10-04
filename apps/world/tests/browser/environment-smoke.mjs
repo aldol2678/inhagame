@@ -29,6 +29,11 @@ try {
     nightWindows: window.__INHAGAME_NIGHT_WINDOWS__.status(),
     rain: window.__INHAGAME_RAIN__.status(),
     snow: window.__INHAGAME_SNOW__.status(),
+    snowObjects: window.__INHAGAME_SNOW_OBJECTS__.status(),
+    snowDepth: window.__INHAGAME_SNOW_DEPTH__.status(),
+    snowThaw: window.__INHAGAME_SNOW_THAW__.status(),
+    meltwater: window.__INHAGAME_MELTWATER__.status(),
+    winterQa: window.__INHAGAME_WINTER_QA__.status(),
     pond: window.__INHAGAME_POND_WEATHER__.status(),
     sky: window.__INHAGAME_SKY__.status(),
     graphics: window.__INHAGAME_P0__.getStatus().graphics
@@ -42,6 +47,46 @@ try {
   assert.equal(initial.rain.wetGroundEnabled, false);
   assert.equal(initial.snow.enabled, false);
   assert.equal(initial.snow.snowIntensity, 0);
+  assert.equal(initial.snow.groundEnabled, false);
+  assert.equal(initial.snow.groundDrawMeshes, 0);
+  assert.equal(initial.snow.footprintEnabled, false);
+  assert.equal(initial.snow.footprintCount, 0);
+  assert.equal(initial.snow.footprintDrawMeshes, 0);
+  assert.equal(initial.snow.extraRealLights, 0);
+  assert.equal(initial.snowObjects.enabled, false);
+  assert.equal(initial.snowObjects.drawMeshes, 0);
+  assert.equal(initial.snowObjects.snowAccumulation, 0);
+  assert.equal(initial.snowObjects.extraRealLights, 0);
+  assert.equal(initial.snowObjects.extraShadowCasters, 0);
+  assert.equal(initial.snowDepth.enabled, false);
+  assert.equal(initial.snowDepth.drawMeshes, 0);
+  assert.equal(initial.snowDepth.snowDrawMeshes, 0);
+  assert.equal(initial.snowDepth.plowDrawMeshes, 0);
+  assert.equal(initial.snowDepth.extraRealLights, 0);
+  assert.equal(initial.snowDepth.extraShadowCasters, 0);
+  assert.equal(initial.snowThaw.enabled, false);
+  assert.equal(initial.snowThaw.drawMeshes, 0);
+  assert.equal(initial.snowThaw.slushDrawMeshes, 0);
+  assert.equal(initial.snowThaw.iceDrawMeshes, 0);
+  assert.equal(initial.snowThaw.extraRealLights, 0);
+  assert.equal(initial.snowThaw.extraShadowCasters, 0);
+  assert.equal(initial.snowThaw.externalTextures, 0);
+  assert.equal(initial.meltwater.enabled, false);
+  assert.equal(initial.meltwater.drawMeshes, 0);
+  assert.equal(initial.meltwater.dripDrawMeshes, 0);
+  assert.equal(initial.meltwater.runoffDrawMeshes, 0);
+  assert.equal(initial.meltwater.extraRealLights, 0);
+  assert.equal(initial.meltwater.extraShadowCasters, 0);
+  assert.equal(initial.meltwater.externalTextures, 0);
+  assert.equal(initial.meltwater.networkRequests, 0);
+  assert.equal(initial.winterQa.withinBudget, true);
+  assert.deepEqual(initial.winterQa.violations, []);
+  assert.equal(initial.winterQa.drawMeshes, 0);
+  assert.equal(initial.winterQa.trackedVertices, 0);
+  assert.equal(initial.winterQa.resources.realLights, 0);
+  assert.equal(initial.winterQa.resources.shadowCasters, 0);
+  assert.equal(initial.winterQa.resources.externalTextures, 0);
+  assert.equal(initial.winterQa.resources.networkRequests, 0);
   assert.equal(initial.pond.rainIntensity, 0);
   assert.equal(initial.pond.artificialLightFactor, 0.18);
   assert.equal(initial.pond.rippleSpeed, 0.025);
@@ -161,6 +206,11 @@ try {
     environment: window.__INHAGAME_ENVIRONMENT__.status(),
     rain: window.__INHAGAME_RAIN__.status(),
     snow: window.__INHAGAME_SNOW__.status(),
+    snowObjects: window.__INHAGAME_SNOW_OBJECTS__.status(),
+    snowDepth: window.__INHAGAME_SNOW_DEPTH__.status(),
+    snowThaw: window.__INHAGAME_SNOW_THAW__.status(),
+    meltwater: window.__INHAGAME_MELTWATER__.status(),
+    winterQa: window.__INHAGAME_WINTER_QA__.status(),
     sky: window.__INHAGAME_SKY__.status()
   }));
   assert.equal(snowDay.environment.targetWeather, 'SNOW');
@@ -174,6 +224,122 @@ try {
   assert.equal(snowDay.snow.drawMeshes, 1);
   assert.ok(snowDay.snow.flakeBudget >= 36 && snowDay.snow.flakeBudget <= 120);
   assert.ok(snowDay.snow.opacity > 0);
+  assert.equal(snowDay.snow.groundEnabled, true);
+  assert.ok(snowDay.snow.groundAccumulation > 0);
+  assert.ok(snowDay.snow.groundLawnOpacity > 0);
+  assert.ok(snowDay.snow.groundDrawMeshes >= 1 && snowDay.snow.groundDrawMeshes <= 2);
+  if (snowDay.snow.graphicsTier === 'low') {
+    assert.equal(snowDay.snow.groundRoadEnabled, false);
+    assert.equal(snowDay.snow.groundRoadOpacity, 0);
+    assert.equal(snowDay.snow.groundDrawMeshes, 1);
+  } else {
+    assert.equal(snowDay.snow.groundRoadEnabled, true);
+    assert.ok(snowDay.snow.groundRoadOpacity > 0);
+    assert.equal(snowDay.snow.groundDrawMeshes, 2);
+  }
+  assert.equal(snowDay.snow.footprintEnabled, true);
+  assert.equal(snowDay.snow.footprintCount, 0);
+  assert.equal(snowDay.snow.footprintDrawMeshes, 0);
+  assert.ok(snowDay.snow.footprintBudget >= 12 && snowDay.snow.footprintBudget <= 28);
+  assert.ok(snowDay.snow.footprintOpacity > 0);
+  assert.equal(snowDay.snow.extraRealLights, 0);
+  assert.equal(snowDay.snowObjects.enabled, true);
+  assert.equal(snowDay.snowObjects.drawMeshes, 1);
+  assert.ok(snowDay.snowObjects.opacity > 0);
+  assert.ok(snowDay.snowObjects.roofSurfaceCount > 0);
+  assert.equal(
+    snowDay.snowObjects.benchSurfaceCount,
+    Math.min(snowDay.snowObjects.availableBenchCount, snowDay.snowObjects.benchBudget)
+  );
+  assert.equal(
+    snowDay.snowObjects.lampSurfaceCount,
+    Math.min(snowDay.snowObjects.availableLampCount, snowDay.snowObjects.lampBudget)
+  );
+  assert.equal(
+    snowDay.snowObjects.totalSurfaceCount,
+    snowDay.snowObjects.roofSurfaceCount +
+      snowDay.snowObjects.benchSurfaceCount +
+      snowDay.snowObjects.lampSurfaceCount
+  );
+  assert.ok(snowDay.snowObjects.vertexCount > 0);
+  assert.ok(snowDay.snowObjects.indexCount > 0);
+  assert.equal(snowDay.snowObjects.extraRealLights, 0);
+  assert.equal(snowDay.snowObjects.extraShadowCasters, 0);
+  assert.equal(snowDay.snowDepth.enabled, true);
+  assert.equal(snowDay.snowDepth.snowDrawMeshes, 1);
+  assert.ok(snowDay.snowDepth.edgeLipCount > 0);
+  assert.ok(snowDay.snowDepth.edgeLipCount <= snowDay.snowDepth.edgeLipBudget);
+  assert.ok(snowDay.snowDepth.driftCount > 0);
+  assert.ok(snowDay.snowDepth.driftCount <= snowDay.snowDepth.driftBudget);
+  assert.ok(snowDay.snowDepth.snowVertexCount > 0);
+  if (snowDay.snowDepth.graphicsTier === 'low') {
+    assert.equal(snowDay.snowDepth.plowTraceBudget, 0);
+    assert.equal(snowDay.snowDepth.plowTraceCount, 0);
+    assert.equal(snowDay.snowDepth.plowDrawMeshes, 0);
+    assert.equal(snowDay.snowDepth.drawMeshes, 1);
+  } else {
+    assert.ok(snowDay.snowDepth.plowTraceCount > 0);
+    assert.ok(snowDay.snowDepth.plowTraceCount <= snowDay.snowDepth.plowTraceBudget);
+    assert.equal(snowDay.snowDepth.plowDrawMeshes, 1);
+    assert.equal(snowDay.snowDepth.drawMeshes, 2);
+    assert.ok(snowDay.snowDepth.plowOpacity > 0);
+  }
+  assert.equal(snowDay.snowDepth.extraRealLights, 0);
+  assert.equal(snowDay.snowDepth.extraShadowCasters, 0);
+  assert.equal(snowDay.snowThaw.enabled, false);
+  assert.equal(snowDay.snowThaw.drawMeshes, 0);
+  assert.equal(snowDay.snowThaw.thawGate, 0);
+  assert.equal(snowDay.snowThaw.extraRealLights, 0);
+  assert.equal(snowDay.snowThaw.extraShadowCasters, 0);
+  assert.equal(snowDay.snowThaw.externalTextures, 0);
+  assert.equal(snowDay.meltwater.enabled, false);
+  assert.equal(snowDay.meltwater.drawMeshes, 0);
+  assert.equal(snowDay.meltwater.thawGate, 0);
+  assert.equal(snowDay.meltwater.extraRealLights, 0);
+  assert.equal(snowDay.meltwater.extraShadowCasters, 0);
+  assert.equal(snowDay.meltwater.externalTextures, 0);
+  assert.equal(snowDay.meltwater.networkRequests, 0);
+  assert.equal(snowDay.winterQa.withinBudget, true);
+  assert.deepEqual(snowDay.winterQa.violations, []);
+  assert.ok(snowDay.winterQa.drawMeshes <= snowDay.winterQa.budget.drawMeshes);
+  assert.ok(snowDay.winterQa.trackedVertices <= snowDay.winterQa.budget.trackedVertices);
+  assert.ok(
+    snowDay.winterQa.dynamicFootprintVertices <=
+      snowDay.winterQa.budget.dynamicFootprintVertices
+  );
+  assert.deepEqual(snowDay.winterQa.resources, {
+    realLights: 0,
+    shadowCasters: 0,
+    externalTextures: 0,
+    networkRequests: 0
+  });
+
+  await page.evaluate(() => {
+    const p = window.__INHAGAME_P0__.player.getLocalPosition();
+    window.__P6F_SNOW_ORIGIN__ = { x: p.x, y: p.y, z: p.z };
+    window.__INHAGAME_P0__.player.setLocalPosition(p.x + 0.65, p.y, p.z);
+  });
+  await page.waitForFunction(
+    () => window.__INHAGAME_SNOW__.status().footprintCount > 0,
+    null,
+    { timeout: TIMEOUT_MS }
+  );
+  const snowFootprints = await page.evaluate(() => window.__INHAGAME_SNOW__.status());
+  const winterFootprintQa = await page.evaluate(() => window.__INHAGAME_WINTER_QA__.status());
+  assert.ok(snowFootprints.footprintCount > 0);
+  assert.ok(snowFootprints.footprintCount <= snowFootprints.footprintBudget);
+  assert.equal(snowFootprints.footprintDrawMeshes, 1);
+  assert.ok(snowFootprints.footprintMeshUpdates >= 1);
+  assert.equal(winterFootprintQa.withinBudget, true);
+  assert.ok(winterFootprintQa.drawMeshes <= winterFootprintQa.budget.drawMeshes);
+  assert.ok(winterFootprintQa.trackedVertices <= winterFootprintQa.budget.trackedVertices);
+  assert.deepEqual(winterFootprintQa.violations, []);
+  await page.evaluate(() => {
+    const p = window.__P6F_SNOW_ORIGIN__;
+    window.__INHAGAME_P0__.player.setLocalPosition(p.x, p.y, p.z);
+    delete window.__P6F_SNOW_ORIGIN__;
+  });
+
   assert.equal(snowDay.sky.snowIntensity, 1);
   assert.ok(snowDay.sky.cloudCover > cloudy.sky.cloudCover);
   assert.ok(snowDay.sky.cloudOpacity > cloudy.sky.cloudOpacity);
@@ -206,6 +372,9 @@ try {
     nightWindows: window.__INHAGAME_NIGHT_WINDOWS__.status(),
     rain: window.__INHAGAME_RAIN__.status(),
     snow: window.__INHAGAME_SNOW__.status(),
+    snowThaw: window.__INHAGAME_SNOW_THAW__.status(),
+    meltwater: window.__INHAGAME_MELTWATER__.status(),
+    winterQa: window.__INHAGAME_WINTER_QA__.status(),
     pond: window.__INHAGAME_POND_WEATHER__.status(),
     sky: window.__INHAGAME_SKY__.status(),
     graphics: window.__INHAGAME_P0__.getStatus().graphics
@@ -219,11 +388,71 @@ try {
   assert.equal(nightRain.rain.wetGroundEnabled, true);
   assert.equal(nightRain.snow.enabled, false);
   assert.equal(nightRain.snow.snowIntensity, 0);
+  assert.equal(nightRain.snowThaw.enabled, true);
+  assert.ok(nightRain.snowThaw.snowAccumulation > 0);
+  assert.equal(nightRain.snowThaw.snowIntensity, 0);
+  assert.equal(nightRain.snowThaw.wetness, 1);
+  assert.ok(nightRain.snowThaw.slushOpacity > 0);
+  assert.equal(nightRain.snowThaw.slushDrawMeshes, 1);
+  assert.ok(nightRain.snowThaw.slushCount > 0);
+  assert.ok(nightRain.snowThaw.slushCount <= nightRain.snowThaw.slushBudget);
+  assert.ok(nightRain.snowThaw.drawMeshes >= 1 && nightRain.snowThaw.drawMeshes <= 2);
+  if (nightRain.snowThaw.graphicsTier === 'low') {
+    assert.equal(nightRain.snowThaw.iceBudget, 0);
+    assert.equal(nightRain.snowThaw.iceDrawMeshes, 0);
+  }
+  assert.equal(nightRain.snowThaw.extraRealLights, 0);
+  assert.equal(nightRain.snowThaw.extraShadowCasters, 0);
+  assert.equal(nightRain.snowThaw.externalTextures, 0);
+  assert.equal(nightRain.meltwater.enabled, true);
+  assert.ok(nightRain.meltwater.snowAccumulation > 0);
+  assert.equal(nightRain.meltwater.snowIntensity, 0);
+  assert.equal(nightRain.meltwater.wetness, 1);
+  assert.ok(nightRain.meltwater.dripOpacity > 0);
+  assert.ok(nightRain.meltwater.runoffOpacity > 0);
+  assert.equal(nightRain.meltwater.dripDrawMeshes, 1);
+  assert.equal(nightRain.meltwater.runoffDrawMeshes, 1);
+  assert.equal(nightRain.meltwater.drawMeshes, 2);
+  assert.ok(nightRain.meltwater.dripCount > 0);
+  assert.ok(nightRain.meltwater.dripCount <= nightRain.meltwater.dripBudget);
+  assert.ok(nightRain.meltwater.runoffCount > 0);
+  assert.ok(nightRain.meltwater.runoffCount <= nightRain.meltwater.runoffBudget);
+  assert.ok(nightRain.meltwater.drainCount <= nightRain.meltwater.drainBudget);
+  if (nightRain.meltwater.graphicsTier === 'low') {
+    assert.equal(nightRain.meltwater.drainBudget, 0);
+    assert.equal(nightRain.meltwater.drainCount, 0);
+  }
+  assert.equal(nightRain.meltwater.extraRealLights, 0);
+  assert.equal(nightRain.meltwater.extraShadowCasters, 0);
+  assert.equal(nightRain.meltwater.externalTextures, 0);
+  assert.equal(nightRain.meltwater.networkRequests, 0);
+  assert.equal(nightRain.winterQa.withinBudget, true);
+  assert.deepEqual(nightRain.winterQa.violations, []);
+  assert.ok(nightRain.winterQa.drawMeshes <= nightRain.winterQa.budget.drawMeshes);
+  assert.ok(nightRain.winterQa.trackedVertices <= nightRain.winterQa.budget.trackedVertices);
+  assert.deepEqual(nightRain.winterQa.resources, {
+    realLights: 0,
+    shadowCasters: 0,
+    externalTextures: 0,
+    networkRequests: 0
+  });
   assert.equal(nightRain.rain.rainDrawMeshes, 1);
   assert.equal(nightRain.rain.wetRoadDrawMeshes, 1);
   assert.ok(nightRain.rain.streakBudget >= 28 && nightRain.rain.streakBudget <= 96);
   assert.ok(nightRain.rain.rainOpacity > 0);
   assert.ok(nightRain.rain.wetRoadOpacity > 0);
+  assert.equal(nightRain.rain.splashEnabled, true);
+  assert.ok(nightRain.rain.splashGroups >= 1 && nightRain.rain.splashGroups <= 3);
+  assert.equal(nightRain.rain.splashDrawMeshes, nightRain.rain.splashGroups);
+  assert.ok(nightRain.rain.splashMarksPerGroup >= 5 && nightRain.rain.splashMarksPerGroup <= 11);
+  assert.ok(nightRain.rain.splashOpacity > 0);
+  assert.equal(nightRain.rain.puddleEnabled, true);
+  assert.equal(nightRain.rain.puddleDrawMeshes, 1);
+  assert.ok(nightRain.rain.puddleCount > 0);
+  assert.ok(nightRain.rain.puddleCount <= nightRain.rain.puddleBudget);
+  assert.ok(nightRain.rain.puddleOpacity > 0);
+  assert.equal(nightRain.rain.puddleReflectivity, 0.78);
+  assert.equal(nightRain.rain.extraRealLights, 0);
   assert.equal(nightRain.pond.rainIntensity, 1);
   assert.equal(nightRain.pond.artificialLightFactor, 1);
   assert.ok(nightRain.pond.rippleSpeed > initial.pond.rippleSpeed);
@@ -287,8 +516,14 @@ try {
   assert.equal(clear.rain.wetGroundEnabled, false);
   assert.equal(clear.rain.rainDrawMeshes, 0);
   assert.equal(clear.rain.wetRoadDrawMeshes, 0);
+  assert.equal(clear.rain.splashEnabled, false);
+  assert.equal(clear.rain.splashDrawMeshes, 0);
+  assert.equal(clear.rain.puddleEnabled, false);
+  assert.equal(clear.rain.puddleDrawMeshes, 0);
+  assert.equal(clear.rain.extraRealLights, 0);
   assert.equal(clear.snow.enabled, false);
   assert.equal(clear.snow.drawMeshes, 0);
+  assert.equal(clear.snow.footprintEnabled, false);
   assert.equal(clear.streetLights.artificialLightFactor, 0);
   assert.equal(clear.nightWindows.enabled, false);
   assert.equal(clear.nightWindows.drawMeshes, 0);
@@ -331,6 +566,11 @@ try {
     nightWindows: window.__INHAGAME_NIGHT_WINDOWS__.status(),
     rain: window.__INHAGAME_RAIN__.status(),
     snow: window.__INHAGAME_SNOW__.status(),
+    snowObjects: window.__INHAGAME_SNOW_OBJECTS__.status(),
+    snowDepth: window.__INHAGAME_SNOW_DEPTH__.status(),
+    snowThaw: window.__INHAGAME_SNOW_THAW__.status(),
+    meltwater: window.__INHAGAME_MELTWATER__.status(),
+    winterQa: window.__INHAGAME_WINTER_QA__.status(),
     pond: window.__INHAGAME_POND_WEATHER__.status(),
     sky: window.__INHAGAME_SKY__.status(),
     graphics: window.__INHAGAME_P0__.getStatus().graphics
@@ -340,8 +580,45 @@ try {
   assert.equal(mobileStatus.environment.fog.type, 'linear');
   assert.equal(mobileStatus.rain.rainEnabled, true);
   assert.equal(mobileStatus.rain.wetGroundEnabled, true);
+  assert.equal(mobileStatus.rain.splashEnabled, true);
+  assert.equal(mobileStatus.rain.splashDrawMeshes, mobileStatus.rain.splashGroups);
+  assert.equal(mobileStatus.rain.puddleEnabled, true);
+  assert.equal(mobileStatus.rain.puddleDrawMeshes, 1);
+  assert.ok(mobileStatus.rain.puddleCount <= mobileStatus.rain.puddleBudget);
+  assert.equal(mobileStatus.rain.extraRealLights, 0);
   assert.equal(mobileStatus.snow.enabled, false);
   assert.equal(mobileStatus.snow.snowIntensity, 0);
+  assert.equal(mobileStatus.snowObjects.enabled, false);
+  assert.equal(mobileStatus.snowObjects.drawMeshes, 0);
+  assert.equal(mobileStatus.snowObjects.extraRealLights, 0);
+  assert.equal(mobileStatus.snowObjects.extraShadowCasters, 0);
+  assert.equal(mobileStatus.snowDepth.enabled, false);
+  assert.equal(mobileStatus.snowDepth.drawMeshes, 0);
+  assert.equal(mobileStatus.snowDepth.extraRealLights, 0);
+  assert.equal(mobileStatus.snowDepth.extraShadowCasters, 0);
+  assert.equal(mobileStatus.snowThaw.enabled, false);
+  assert.equal(mobileStatus.snowThaw.drawMeshes, 0);
+  assert.equal(mobileStatus.snowThaw.snowAccumulation, 0);
+  assert.equal(mobileStatus.snowThaw.extraRealLights, 0);
+  assert.equal(mobileStatus.snowThaw.extraShadowCasters, 0);
+  assert.equal(mobileStatus.snowThaw.externalTextures, 0);
+  assert.equal(mobileStatus.meltwater.enabled, false);
+  assert.equal(mobileStatus.meltwater.drawMeshes, 0);
+  assert.equal(mobileStatus.meltwater.snowAccumulation, 0);
+  assert.equal(mobileStatus.meltwater.extraRealLights, 0);
+  assert.equal(mobileStatus.meltwater.extraShadowCasters, 0);
+  assert.equal(mobileStatus.meltwater.externalTextures, 0);
+  assert.equal(mobileStatus.meltwater.networkRequests, 0);
+  assert.equal(mobileStatus.winterQa.withinBudget, true);
+  assert.deepEqual(mobileStatus.winterQa.violations, []);
+  assert.equal(mobileStatus.winterQa.drawMeshes, 0);
+  assert.equal(mobileStatus.winterQa.trackedVertices, 0);
+  assert.deepEqual(mobileStatus.winterQa.resources, {
+    realLights: 0,
+    shadowCasters: 0,
+    externalTextures: 0,
+    networkRequests: 0
+  });
   assert.equal(mobileStatus.pond.rainIntensity, 1);
   assert.equal(mobileStatus.pond.artificialLightFactor, 1);
   assert.ok(mobileStatus.pond.bumpiness > 0.45);
@@ -359,6 +636,11 @@ try {
   assert.equal(mobileStatus.rain.graphicsTier, mobileStatus.graphics.tier);
   assert.ok(mobileStatus.rain.streakBudget <= 96);
   if (mobileStatus.graphics.tier === 'low') assert.equal(mobileStatus.rain.streakBudget, 28);
+  if (mobileStatus.graphics.tier === 'low') {
+    assert.equal(mobileStatus.rain.splashGroups, 1);
+    assert.equal(mobileStatus.rain.splashMarksPerGroup, 5);
+    assert.equal(mobileStatus.rain.puddleBudget, 5);
+  }
   assert.equal(mobileStatus.streetLights.artificialLightFactor, 1);
   assert.equal(mobileStatus.nightWindows.graphicsTier, mobileStatus.graphics.tier);
   assert.equal(mobileStatus.nightWindows.enabled, true);
@@ -368,7 +650,7 @@ try {
   if (mobileStatus.graphics.tier === 'low') assert.ok(mobileStatus.nightWindows.maxWindowBudget <= 160);
   assert.ok(mobileStatus.streetLights.activeDynamicLights <= mobileStatus.streetLights.dynamicBudget);
   assert.deepEqual(smoke.problems, []);
-  console.log('world environment smoke: PASS (atmospheric gradient + sun glow, layered cloud parallax, emissive night windows, CLEAR/CLOUDY/FOG/RAIN/SNOW, sky, rain/snow, street lights, wet roads, Inkyung pond, 390px mobile)');
+  console.log('world environment smoke: PASS (atmospheric gradient + sun glow, layered cloud parallax, emissive night windows, rain splashes + puddles, accumulating ground snow + batched footprints + object snow caps + roof depth/drifts/plow traces + thaw slush/ice + eave meltwater/drainage + integrated winter budget QA, CLEAR/CLOUDY/FOG/RAIN/SNOW, sky, rain/snow, street lights, wet roads, Inkyung pond, 390px mobile)');
 } finally {
   await smoke.close();
 }

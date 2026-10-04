@@ -11,7 +11,16 @@ export const JEV_DIALOGUE_PILOT_IDS = Object.freeze([
   'INKYUNG-NPC-002',
   'INKYUNG-NPC-021',
   'INKYUNG-NPC-022',
-  'INKYUNG-NPC-023'
+  'INKYUNG-NPC-023',
+  // Biryong Village P0: Jev remains shadow-only and receives no secret fact text.
+  'BR_NPC_001',
+  'BR_NPC_002',
+  'BR_NPC_003',
+  'BR_NPC_004',
+  'BR_NPC_005',
+  'BR_NPC_006',
+  'BR_NPC_007',
+  'BR_NPC_008'
 ]);
 
 const PILOT_IDS = new Set(JEV_DIALOGUE_PILOT_IDS);
