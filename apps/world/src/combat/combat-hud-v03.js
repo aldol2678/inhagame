@@ -9,8 +9,8 @@ const ACTION_LABELS = Object.freeze({
 
 const seconds = ms => Math.max(0, Number(ms) || 0) / 1000;
 
-export function createCombatHudV03({ root, runtime } = {}) {
-  if (!root || !runtime?.subscribe || !runtime?.dispatch) {
+export function createCombatHudV03({ root, runtime, inputFocus } = {}) {
+  if (!root || !runtime?.subscribe || !runtime?.dispatch || !inputFocus?.can || !inputFocus?.subscribe) {
     throw new TypeError('Combat HUD v0.3 dependencies required');
   }
   const job = root.querySelector('[data-combat-job]');
@@ -30,6 +30,7 @@ export function createCombatHudV03({ root, runtime } = {}) {
   for (const button of buttons) {
     const action = button.dataset.combatAction;
     const fire = event => {
+      if (!inputFocus.can('WORLD_ACTION')) return;
       event?.preventDefault?.();
       runtime.dispatch(action);
     };
@@ -39,6 +40,7 @@ export function createCombatHudV03({ root, runtime } = {}) {
 
   if (reset) {
     const resetTarget = event => {
+      if (!inputFocus.can('WORLD_ACTION')) return;
       event?.preventDefault?.();
       runtime.resetTrainingTarget?.();
     };
@@ -74,7 +76,10 @@ export function createCombatHudV03({ root, runtime } = {}) {
       else if (training?.rapidBuff) parts.push(`ACCEL ${seconds(training.rapidBuffRemainingMs).toFixed(1)}s`);
       status.textContent = parts.join(' · ') || 'TRAINING';
     }
-    if (reset) reset.hidden = !state.active || training?.defeated !== true;
+    if (reset) {
+      reset.hidden = !state.active || training?.defeated !== true;
+      reset.disabled = !state.active || !inputFocus.can('WORLD_ACTION');
+    }
 
     for (const button of buttons) {
       const action = button.dataset.combatAction;
@@ -87,16 +92,18 @@ export function createCombatHudV03({ root, runtime } = {}) {
       const targetBlocked = training?.defeated === true && action !== 'dodge';
       const suffix = cooldown > 0 ? ` ${seconds(cooldown).toFixed(1)}s` : '';
       button.textContent = `${ACTION_LABELS[action] ?? action} · ${identity}${suffix}`;
-      button.disabled = !state.active || cooldown > 0 || resourceBlocked || ultimateBlocked || targetBlocked;
+      button.disabled = !state.active || !inputFocus.can('WORLD_ACTION') || cooldown > 0 || resourceBlocked || ultimateBlocked || targetBlocked;
       button.setAttribute('aria-pressed', action === 'ultimate' && state.ultimateReady ? 'true' : 'false');
     }
   };
   const unsubscribe = runtime.subscribe(render, { emitCurrent: true });
+  const unsubscribeFocus = inputFocus.subscribe(() => render(runtime.snapshot()));
 
   return Object.freeze({
     render: () => render(runtime.snapshot()),
     destroy: () => {
       unsubscribe();
+      unsubscribeFocus();
       for (const cleanup of cleanups) cleanup();
     }
   });
