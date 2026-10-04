@@ -14,7 +14,7 @@ import { PlayerController } from "./player-controller.js";
 import { OrbitCameraController } from "./orbit-camera-controller.js";
 import { PlaceZoneRegistry } from './place-zone-registry.js';
 import { createWorldAudio } from './audio/world-audio.js';
-import { AF07_INKYUNG_RAIN_ASSET_ID } from './audio/asset-factory-preview.js';
+import { AF07_R2_PROFILE_ID } from './audio/asset-factory-preview.js';
 import { bindAudioVolumeSettings } from './audio/audio-volume-settings.js';
 import { loadRuntimeMusicProject } from './audio/music-runtime-config.js';
 import { RenderChunkRegistry } from './render-chunk-registry.js';
@@ -1737,10 +1737,11 @@ biryongStationTransit = createBiryongStationTransitInteraction({
   returnToCampus: () => biryongRealm?.returnToCampus() === true
 });
 // Soundscape P0-A consumes the existing Place Zone and room state. Audio remains optional.
-// AF-07 is fail-closed: the unverified generated asset can only be requested on preview hosts
-// with an explicit query flag. Production keeps the existing synthetic ambience path.
-const assetFactoryAudioPreviewId = previewHost && startupParams.get("assetFactoryAudio") === "af07"
-  ? AF07_INKYUNG_RAIN_ASSET_ID : null;
+// AF-07 R2 is fail-closed: generated ambience can only replace the temporary Inkyung
+// synth on preview hosts with an explicit query flag. Production keeps the synth fallback.
+const assetFactoryAudioFlag = startupParams.get("assetFactoryAudio");
+const assetFactoryAudioPreviewId = previewHost && (assetFactoryAudioFlag === "af07" || assetFactoryAudioFlag === "af07-r2")
+  ? AF07_R2_PROFILE_ID : null;
 let worldAudio = null;
 try { worldAudio = createWorldAudio({ assetFactoryPreviewId: assetFactoryAudioPreviewId }); }
 catch (error) { console.warn("World audio unavailable; continuing without sound:", error); }

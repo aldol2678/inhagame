@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import { AUDIO_PROFILES, resolveAudioZone } from "../src/audio/audio-zones.js";
 import { createWorldAudio } from "../src/audio/world-audio.js";
 import {
-  AF07_INKYUNG_RAIN_ASSET_ID,
+  AF07_R2_ASSET_IDS,
+  AF07_R2_PROFILE_ID,
   resolveAssetFactoryPreviewAmbience
 } from "../src/audio/asset-factory-preview.js";
 
@@ -125,57 +126,76 @@ test("unavailable and suspended audio never block zone state", async () => {
 });
 
 
-test("AF-07 preview registry is fail-closed outside Inkyung rain", () => {
+
+test("AF-07 R2 preview profile replaces Inkyung synth with base layers and adds rain only in rain", () => {
   assert.equal(resolveAssetFactoryPreviewAmbience({
-    assetId: AF07_INKYUNG_RAIN_ASSET_ID, zone: "INKYUNG", weather: "CLEAR"
+    profileId: "unknown", zone: "INKYUNG", weather: "RAIN"
   }), null);
   assert.equal(resolveAssetFactoryPreviewAmbience({
-    assetId: "asset.unknown", zone: "INKYUNG", weather: "RAIN"
+    profileId: AF07_R2_PROFILE_ID, zone: "MAIN_GATE", weather: "RAIN"
   }), null);
-  const asset = resolveAssetFactoryPreviewAmbience({
-    assetId: AF07_INKYUNG_RAIN_ASSET_ID, zone: "INKYUNG", weather: "RAIN"
+
+  const clear = resolveAssetFactoryPreviewAmbience({
+    profileId: AF07_R2_PROFILE_ID, zone: "INKYUNG", weather: "CLEAR"
   });
-  assert.equal(asset?.rights?.status, "verified");
-  assert.equal(asset?.runtime?.previewOnly, true);
+  assert.equal(clear?.assets.length, 2);
+  assert.equal(clear?.replaceSynthetic, true);
+  assert.deepEqual(clear?.assets.map(asset => asset.id), [
+    AF07_R2_ASSET_IDS.WATER_SHORE,
+    AF07_R2_ASSET_IDS.AIR_LIFE
+  ]);
+
+  const rain = resolveAssetFactoryPreviewAmbience({
+    profileId: AF07_R2_PROFILE_ID, zone: "INKYUNG", weather: "RAIN"
+  });
+  assert.equal(rain?.assets.length, 3);
+  assert.equal(rain?.assets[2].id, AF07_R2_ASSET_IDS.RAIN);
+  assert.ok(rain?.assets.every(asset => asset.rights.status === "verified"));
+  assert.ok(rain?.assets.every(asset => asset.runtime.previewOnly === true));
 });
 
-test("AF-07 sampled ambience overlays rain in preview and falls back to synthetic ambience", async () => {
+test("AF-07 R2 loads three rain layers, retires synth in preview, and reuses base buffers for clear", async () => {
   let loads = 0;
   const r = rig({
-    assetFactoryPreviewId: AF07_INKYUNG_RAIN_ASSET_ID,
+    assetFactoryPreviewId: AF07_R2_PROFILE_ID,
     ambienceAssetLoader: async () => {
       loads += 1;
-      return { id: "af07-buffer" };
+      return { id: `af07-buffer-${loads}`, duration: 30 };
     }
   });
   r.audio.setState({ placeZoneId: "AREA_INKYUNG_STUDENT_CENTER", weather: "RAIN" });
   await r.audio.unlock();
-  await Promise.resolve();
-  await Promise.resolve();
+  for (let i = 0; i < 6; i++) await Promise.resolve();
+  r.flush();
   let status = r.audio.status();
-  assert.equal(loads, 1);
+  assert.equal(loads, 3);
   assert.equal(status.zone, "INKYUNG");
   assert.equal(status.sampledAmbience.status, "active");
-  assert.equal(status.sampledAmbience.activeAssetId, AF07_INKYUNG_RAIN_ASSET_ID);
-  assert.equal(status.ambienceSources, 3, "two synthetic layers plus one preview sampled layer");
+  assert.equal(status.sampledAmbience.activeAssetIds.length, 3);
+  assert.equal(status.sampledAmbience.replacingSynthetic, true);
+  assert.equal(status.ambienceSources, 3, "R2 rain uses water + air/life + rain after synth fallback retires");
 
   r.audio.setState({ placeZoneId: "AREA_INKYUNG_STUDENT_CENTER", weather: "CLEAR" });
-  await Promise.resolve();
+  for (let i = 0; i < 6; i++) await Promise.resolve();
+  r.flush();
   status = r.audio.status();
-  assert.equal(status.sampledAmbience.status, "inactive");
-  assert.equal(status.ambienceSources, 2, "existing synthetic fallback remains active");
+  assert.equal(loads, 3, "clear reuses the cached water and air/life buffers");
+  assert.deepEqual(status.sampledAmbience.activeAssetIds, [
+    AF07_R2_ASSET_IDS.WATER_SHORE,
+    AF07_R2_ASSET_IDS.AIR_LIFE
+  ]);
+  assert.equal(status.ambienceSources, 2);
   r.audio.dispose();
 });
 
-test("AF-07 sampled ambience load failure never removes the existing Inkyung ambience", async () => {
+test("AF-07 R2 asset load failure keeps the temporary synthetic Inkyung fallback", async () => {
   const r = rig({
-    assetFactoryPreviewId: AF07_INKYUNG_RAIN_ASSET_ID,
+    assetFactoryPreviewId: AF07_R2_PROFILE_ID,
     ambienceAssetLoader: async () => { throw new Error("cors blocked"); }
   });
   r.audio.setState({ placeZoneId: "AREA_INKYUNG_STUDENT_CENTER", weather: "RAIN" });
   await r.audio.unlock();
-  await Promise.resolve();
-  await Promise.resolve();
+  for (let i = 0; i < 6; i++) await Promise.resolve();
   const status = r.audio.status();
   assert.equal(status.sampledAmbience.status, "degraded");
   assert.equal(status.ambienceSources, 2);

@@ -1,22 +1,30 @@
-// Asset Factory P0 AF-07 preview adapter.
+// Asset Factory P0 AF-07 R2 preview adapter.
 //
-// This is not the canonical World Asset Registry. It is a bounded handoff shim for one
-// generated audio candidate. Project/game usage rights have been verified against current
-// CreativeClaw terms, but the entry remains preview-only until human listening QA,
-// canonical Asset Registry support, and Runtime acceptance are complete.
-export const AF07_INKYUNG_RAIN_ASSET_ID = "asset.campus.inkyung-rain-ambience";
+// This is not the canonical World Asset Registry. R2 replaces the temporary synthesized
+// Inkyung identity only on explicitly enabled preview hosts. The generated layers remain
+// candidates until human listening/device QA and canonical Asset Registry handoff complete.
+export const AF07_R2_PROFILE_ID = "af07-r2";
+
+export const AF07_R2_ASSET_IDS = Object.freeze({
+  WATER_SHORE: "asset.audio.inkyung.water-shore",
+  AIR_LIFE: "asset.audio.inkyung.air-life",
+  RAIN: "asset.audio.inkyung.rain"
+});
+
+const RIGHTS_EVIDENCE = "https://help.runwayml.com/hc/en-us/articles/18927776141715-Usage-rights";
 
 export const ASSET_FACTORY_PREVIEW_ASSETS = Object.freeze({
-  [AF07_INKYUNG_RAIN_ASSET_ID]: Object.freeze({
-    id: AF07_INKYUNG_RAIN_ASSET_ID,
+  [AF07_R2_ASSET_IDS.WATER_SHORE]: Object.freeze({
+    id: AF07_R2_ASSET_IDS.WATER_SHORE,
     type: "audio",
     subtype: "ambience",
-    revision: "r001",
-    uri: "https://cdn.creativeclaw.co/u/c3f5adde/audio/70039735-c45a-4cef-a3b7-c992849959b2.wav",
+    revision: "r002",
+    uri: "https://cdn.creativeclaw.co/u/c3f5adde/audio/2a32a575-d700-4d82-9157-fc439f122062.mp3",
     provenance: Object.freeze({
       originType: "ai-generated",
-      provider: "Creative Claw / ElevenLabs",
-      sourceRef: "creative-claw:3294b58e-a857-4d68-921e-709be71b4feb",
+      provider: "Runway",
+      sourceRef: "runway:dd1b2051-1cd7-4daf-b61d-86ce673c87a1",
+      storageRef: "creative-claw:d535e011-38ae-43ba-b8c0-8a762f08b9d1",
       createdAt: "2026-10-04"
     }),
     rights: Object.freeze({
@@ -26,26 +34,76 @@ export const ASSET_FACTORY_PREVIEW_ASSETS = Object.freeze({
       attributionRequired: false,
       derivativesAllowed: null,
       redistributionAllowed: null,
-      evidenceRef: "https://docs.google.com/document/d/1-nfS8M9daNjVB9uBvO9uUaEK9xOH_qNlZjzAF1Vp5cs/edit"
+      evidenceRef: RIGHTS_EVIDENCE
     }),
-    qa: Object.freeze({
-      status: "partial-pass",
-      evidenceRef: "https://docs.google.com/document/d/1-nfS8M9daNjVB9uBvO9uUaEK9xOH_qNlZjzAF1Vp5cs/edit"
+    qa: Object.freeze({ status: "candidate-r2" }),
+    runtime: Object.freeze({ previewOnly: true, gain: 0.18, offsetSeconds: 0 })
+  }),
+  [AF07_R2_ASSET_IDS.AIR_LIFE]: Object.freeze({
+    id: AF07_R2_ASSET_IDS.AIR_LIFE,
+    type: "audio",
+    subtype: "ambience",
+    revision: "r002",
+    uri: "https://cdn.creativeclaw.co/u/c3f5adde/audio/5d85dd56-1ece-49d3-81c6-b9556059acd7.mp3",
+    provenance: Object.freeze({
+      originType: "ai-generated",
+      provider: "Runway",
+      sourceRef: "runway:9f65cfbe-a08d-4ec2-a0ec-055e80a45958",
+      storageRef: "creative-claw:15cdc025-cd09-4e5c-9528-641f5936bbec",
+      createdAt: "2026-10-04"
     }),
-    runtime: Object.freeze({
-      previewOnly: true,
-      zone: "INKYUNG",
-      weather: "RAIN",
-      gain: 0.22
-    })
+    rights: Object.freeze({
+      status: "verified",
+      scope: "project-game-commercial-use",
+      commercialUse: true,
+      attributionRequired: false,
+      derivativesAllowed: null,
+      redistributionAllowed: null,
+      evidenceRef: RIGHTS_EVIDENCE
+    }),
+    qa: Object.freeze({ status: "candidate-r2" }),
+    runtime: Object.freeze({ previewOnly: true, gain: 0.10, offsetSeconds: 7.5 })
+  }),
+  [AF07_R2_ASSET_IDS.RAIN]: Object.freeze({
+    id: AF07_R2_ASSET_IDS.RAIN,
+    type: "audio",
+    subtype: "ambience",
+    revision: "r002",
+    uri: "https://cdn.creativeclaw.co/u/c3f5adde/audio/70e7d50a-50f3-441d-ab43-5662c1c4ca4a.mp3",
+    provenance: Object.freeze({
+      originType: "ai-generated",
+      provider: "Runway",
+      sourceRef: "runway:7d844431-daf2-42a3-accd-db61cd10d729",
+      storageRef: "creative-claw:86b382c7-89d0-4bc1-a4c3-c174fb8a9fe0",
+      createdAt: "2026-10-04"
+    }),
+    rights: Object.freeze({
+      status: "verified",
+      scope: "project-game-commercial-use",
+      commercialUse: true,
+      attributionRequired: false,
+      derivativesAllowed: null,
+      redistributionAllowed: null,
+      evidenceRef: RIGHTS_EVIDENCE
+    }),
+    qa: Object.freeze({ status: "candidate-r2" }),
+    runtime: Object.freeze({ previewOnly: true, gain: 0.14, offsetSeconds: 13 })
   })
 });
 
-export function resolveAssetFactoryPreviewAmbience({ assetId = null, zone = null, weather = null } = {}) {
-  if (!assetId) return null;
-  const asset = ASSET_FACTORY_PREVIEW_ASSETS[assetId] ?? null;
-  if (!asset?.runtime?.previewOnly) return null;
-  if (asset.runtime.zone !== zone) return null;
-  if (asset.runtime.weather !== String(weather ?? "").toUpperCase()) return null;
-  return asset;
+export function resolveAssetFactoryPreviewAmbience({ profileId = null, zone = null, weather = null } = {}) {
+  if (profileId !== AF07_R2_PROFILE_ID || zone !== "INKYUNG") return null;
+  const rain = String(weather ?? "").toUpperCase() === "RAIN";
+  const ids = [
+    AF07_R2_ASSET_IDS.WATER_SHORE,
+    AF07_R2_ASSET_IDS.AIR_LIFE,
+    ...(rain ? [AF07_R2_ASSET_IDS.RAIN] : [])
+  ];
+  const assets = ids.map(id => ASSET_FACTORY_PREVIEW_ASSETS[id]).filter(Boolean);
+  if (assets.length !== ids.length || assets.some(asset => !asset.runtime.previewOnly)) return null;
+  return Object.freeze({
+    id: `${AF07_R2_PROFILE_ID}:INKYUNG:${rain ? "RAIN" : "BASE"}`,
+    replaceSynthetic: true,
+    assets: Object.freeze(assets)
+  });
 }
