@@ -39,7 +39,7 @@ root.innerHTML = `
     <footer class="pilot-footer">
       <span>드래그 · A/D · ←/→ · P/ㅔ 일시정지 · R/ㄱ 다시하기</span>
       <span data-foot-mode></span>
-      <a href="https://duck.inhagame.example/privacy.html" target="_blank" rel="noopener noreferrer">개인정보 처리방침</a>
+      <a href="https://duck.inhagame.app/privacy.html" target="_blank" rel="noopener noreferrer">개인정보 처리방침</a>
     </footer>
     <nav class="flock-choices" aria-label="오리 배치 비교">
       <a href="?flock=A" data-layout="A">A · 양끝 특수</a>
@@ -80,7 +80,7 @@ root.innerHTML = `
                 <summary>게임 기록 등 처리 항목과 목적 보기</summary>
                 <p>게스트 이용 시에도 계정 ID가 생성될 수 있습니다. 게임 진행도·플레이 기록은 계정과 연결되어 저장될 수 있으며 로그인과 클라우드 동기화에 이용됩니다. 인하오리 Classic의 랭킹 참여 시에는 닉네임·학과·점수·플레이 기록 및 방문/세션 식별자·이용 및 오류 이벤트가 운영과 장애 분석에 쓰입니다.</p>
               </details>
-              <p><a href="https://duck.inhagame.example/privacy.html" target="_blank" rel="noopener noreferrer">개인정보 처리방침 전체 보기</a> · 문의 <a href="mailto:aldol@inha.edu">aldol@inha.edu</a></p>
+              <p><a href="https://duck.inhagame.app/privacy.html" target="_blank" rel="noopener noreferrer">개인정보 처리방침 전체 보기</a> · 문의 <a href="mailto:aldol@inha.edu">aldol@inha.edu</a></p>
             </div>
           </div>
           <div class="account-auth-panel" data-account-login-panel hidden>

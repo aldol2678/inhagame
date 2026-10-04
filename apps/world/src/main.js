@@ -173,6 +173,8 @@ import { HUD_MODE } from "./hud/hud-context.js";
 import { bindHudPresentation } from "./hud/hud-presentation.js";
 import { createCombatRuntimeV03 } from "./combat/combat-runtime-v03.js";
 import { createBuilding5CombatInteraction } from "./combat/building5-combat-interaction.js";
+import { createBuilding5CombatTraining } from "./combat/building5-combat-training.js";
+import { createBuilding5CombatTargetRenderer } from "./combat/building5-combat-target-renderer.js";
 import { createCombatHudV03 } from "./combat/combat-hud-v03.js";
 import { createHelicopterFlightHud } from "./mounts/helicopter-flight-hud.js";
 import { createMobilityBook } from "./mobility/mobility-book.js";
@@ -472,16 +474,29 @@ const helicopterFlightHud = createHelicopterFlightHud({
 const inputFocus = createInputFocusManager();
 const hudContext = createHudContext();
 bindHudPresentation({ context: hudContext, root: document.body });
-const combatRuntime = createCombatRuntimeV03();
+const building5Training = createBuilding5CombatTraining({
+  getPlayerPosition: () => player.getLocalPosition()
+});
+const combatRuntime = createCombatRuntimeV03({ localTraining: building5Training });
 const combatHud = createCombatHudV03({
   root: document.getElementById("combat-hud-v03"),
   runtime: combatRuntime,
   inputFocus
 });
+const combatTargetRenderer = createBuilding5CombatTargetRenderer({
+  app,
+  parent: campusRoot,
+  training: building5Training,
+  getGroundHeight: roadviewGroundHeight
+});
 combatRuntime.subscribe(state => {
   hudContext.setMode(state.active ? HUD_MODE.COMBAT : HUD_MODE.EXPLORE);
   controller.setTransportLock("combat-v03", state.active);
 }, { emitCurrent: true });
+app.on("update", dt => {
+  combatRuntime.update();
+  combatTargetRenderer.update(dt);
+});
 // InputFocus remains the single input authority. HUD Context observes its resolved snapshot only
 // to expose presentation state for current/future Explore, Combat, Life and Pet layouts.
 inputFocus.subscribe(snapshot => hudContext.syncInputFocus(snapshot), { emitCurrent: true });
@@ -1486,6 +1501,11 @@ window.addEventListener("keydown", (event) => {
   if (event.code === "Escape") {
     event.preventDefault();
     combatRuntime.end("PLAYER_EXIT");
+    return;
+  }
+  if (event.code === "KeyR") {
+    event.preventDefault();
+    combatRuntime.resetTrainingTarget();
     return;
   }
   const action = event.code === "Digit1" ? "active_1"
@@ -3122,6 +3142,8 @@ window.__INHAGAME_P0__ = {
   biryongRelationships,
   combatRuntime,
   combatHud,
+  building5Training,
+  combatTargetRenderer,
   building5Combat,
   seats,
   seating,

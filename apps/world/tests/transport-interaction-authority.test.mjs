@@ -195,7 +195,7 @@ test("B. retained transport button and M obey Combat locks and the live Explore 
   const main = code("../src/main.js");
   r.controller.setTransportGate(() => inputFocus.can("WORLD_ACTION"));
   const subscriptionStart = main.indexOf("combatRuntime.subscribe(state =>");
-  const subscriptionEnd = main.indexOf("// InputFocus remains", subscriptionStart);
+  const subscriptionEnd = main.indexOf("}, { emitCurrent: true });", subscriptionStart) + "}, { emitCurrent: true });".length;
   new Function("combatRuntime", "hudContext", "HUD_MODE", "controller", main.slice(subscriptionStart, subscriptionEnd))(
     runtime, { setMode() {} }, { COMBAT: "COMBAT", EXPLORE: "EXPLORE" }, r.controller);
   const slotStart = main.indexOf("// Transport has its own slot:");

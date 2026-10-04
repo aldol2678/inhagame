@@ -43,9 +43,44 @@ function actionIdentity(build, action) {
   return build.activeSkills[index] ?? null;
 }
 
+function ultimateGainFromDamage(damage, weak = false) {
+  const resolved = Number(damage);
+  if (!Number.isFinite(resolved) || resolved <= 0) return 0;
+  return Math.min(1.8, Math.max(.12, resolved / 260)) + (weak ? 1.2 : 0);
+}
+
+function ultimateGainForFacts({
+  damage = 0,
+  damagePackets = null,
+  weak = false,
+  breakTriggered = false,
+  breakTriggeredCount = 0,
+  perfectDodge = false,
+  perfectGuard = false,
+  kill = false,
+  activeSkillSucceeded = false
+} = {}) {
+  let gain = 0;
+  if (activeSkillSucceeded) gain += 2;
+  if (Array.isArray(damagePackets) && damagePackets.length > 0) {
+    for (const packet of damagePackets) gain += ultimateGainFromDamage(packet, weak);
+  } else {
+    gain += ultimateGainFromDamage(damage, weak);
+  }
+  const breakCount = Number.isInteger(breakTriggeredCount) && breakTriggeredCount > 0
+    ? breakTriggeredCount
+    : breakTriggered ? 1 : 0;
+  gain += breakCount * 12;
+  if (perfectDodge) gain += 6;
+  if (perfectGuard) gain += 8;
+  if (kill) gain += 3;
+  return gain;
+}
+
 export function createCombatRuntimeV03({
   clock = { now: () => Date.now() },
-  initialJobId = 'blaster'
+  initialJobId = 'blaster',
+  localTraining = null
 } = {}) {
   const listeners = new Set();
   let build = defaultBuild(initialJobId);
@@ -58,6 +93,7 @@ export function createCombatRuntimeV03({
   let ultimateGauge = 0;
   let lockOn = false;
   let lastAction = null;
+  let lastTickBucket = -1;
 
   const snapshot = () => frozen({
     version,
@@ -71,7 +107,8 @@ export function createCombatRuntimeV03({
     ultimateGauge,
     ultimateReady: ultimateGauge >= 100,
     lockOn,
-    lastAction
+    lastAction,
+    training: localTraining?.snapshot?.() ?? null
   });
 
   const publish = event => {
@@ -109,54 +146,52 @@ export function createCombatRuntimeV03({
     ultimateGauge = 0;
     lockOn = false;
     lastAction = null;
+    lastTickBucket = -1;
+    localTraining?.start?.();
     publish('start');
     return true;
   }
 
   function end(reason = 'EXIT') {
     if (phase === COMBAT_V03_RUNTIME_PHASE.IDLE) return false;
+    localTraining?.end?.();
     phase = COMBAT_V03_RUNTIME_PHASE.IDLE;
     sourceRef = null;
     placeZoneId = null;
     startedAt = null;
     ultimateGauge = 0;
     lockOn = false;
+    lastTickBucket = -1;
     lastAction = frozen({ kind: 'end', reason: String(reason) });
     publish('end');
     return true;
   }
 
-  function gainUltimate(rawAmount) {
-    if (phase === COMBAT_V03_RUNTIME_PHASE.IDLE) return snapshot();
+  function applyUltimateGain(rawAmount) {
     const amount = Number(rawAmount);
     if (!Number.isFinite(amount) || amount < 0) throw new TypeError('Invalid ultimate gain');
     ultimateGauge = clamp(ultimateGauge + amount, 0, 100);
+    return ultimateGauge;
+  }
+
+  function gainUltimate(rawAmount) {
+    if (phase === COMBAT_V03_RUNTIME_PHASE.IDLE) return snapshot();
+    applyUltimateGain(rawAmount);
     return publish('ultimate-gain');
   }
 
   // v9.22 telemetry-derived Ultimate gain semantics. This accepts already-resolved Combat facts only;
   // it does not decide hits, damage, BREAK, dodge timing or kills.
-  function recordResolvedCombat({
-    damage = 0,
-    weak = false,
-    breakTriggered = false,
-    perfectDodge = false,
-    perfectGuard = false,
-    kill = false,
-    activeSkillSucceeded = false
-  } = {}) {
+  function recordResolvedCombat(facts = {}) {
     if (phase === COMBAT_V03_RUNTIME_PHASE.IDLE) return snapshot();
-    const resolvedDamage = Number(damage);
+    const resolvedDamage = Number(facts?.damage ?? 0);
     if (!Number.isFinite(resolvedDamage) || resolvedDamage < 0) throw new TypeError('Invalid resolved damage');
-    let gain = 0;
-    if (activeSkillSucceeded) gain += 2;
-    if (resolvedDamage > 0) gain += Math.min(1.8, Math.max(.12, resolvedDamage / 260)) + (weak ? 1.2 : 0);
-    if (breakTriggered) gain += 12;
-    if (perfectDodge) gain += 6;
-    if (perfectGuard) gain += 8;
-    if (kill) gain += 3;
-    if (gain > 0) return gainUltimate(gain);
-    return snapshot();
+    if (facts?.damagePackets != null && (
+      !Array.isArray(facts.damagePackets) ||
+      facts.damagePackets.some(value => !Number.isFinite(Number(value)) || Number(value) < 0)
+    )) throw new TypeError('Invalid resolved damage packets');
+    applyUltimateGain(ultimateGainForFacts({ ...facts, damage: resolvedDamage }));
+    return publish('resolved-combat');
   }
 
   function dispatch(action) {
@@ -165,16 +200,59 @@ export function createCombatRuntimeV03({
     if (action === 'ultimate' && ultimateGauge < 100) {
       return frozen({ accepted: false, reason: 'ULTIMATE_NOT_READY', gauge: ultimateGauge });
     }
+
+    const identity = actionIdentity(build, action);
+    const resolution = localTraining?.resolveAction?.({
+      action,
+      identity,
+      build,
+      at: Number(clock.now())
+    }) ?? frozen({ accepted: true });
+
+    if (resolution.accepted === false) {
+      return frozen({ ...resolution, action, identity, ultimateGauge });
+    }
+
     if (action === 'ultimate') ultimateGauge = 0;
+
+    const gain = ultimateGainForFacts({
+      damage: resolution.damage ?? 0,
+      damagePackets: resolution.damagePackets ?? null,
+      weak: resolution.weak === true,
+      breakTriggered: (resolution.breakTriggered ?? 0) > 0,
+      breakTriggeredCount: resolution.breakTriggered ?? 0,
+      kill: resolution.killed === true,
+      activeSkillSucceeded: resolution.activeSkillSucceeded === true
+    });
+    if (gain > 0) applyUltimateGain(gain);
+
     actionSerial += 1;
     lastAction = frozen({
       serial: actionSerial,
       action,
-      identity: actionIdentity(build, action),
-      at: Number(clock.now())
+      identity,
+      at: Number(clock.now()),
+      outcome: resolution
     });
     publish('action');
-    return frozen({ accepted: true, ...lastAction, ultimateGauge });
+    return frozen({ accepted: true, ...lastAction, ultimateGauge, outcome: resolution });
+  }
+
+  function resetTrainingTarget() {
+    if (phase !== COMBAT_V03_RUNTIME_PHASE.TRAINING || !localTraining?.resetTarget) return false;
+    localTraining.resetTarget({ preserveMomentum: true });
+    publish('training-reset');
+    return true;
+  }
+
+  function update() {
+    if (phase === COMBAT_V03_RUNTIME_PHASE.IDLE) return false;
+    const at = Number(clock.now());
+    const bucket = Math.floor(at / 100);
+    if (bucket === lastTickBucket) return false;
+    lastTickBucket = bucket;
+    publish('tick');
+    return true;
   }
 
   function toggleLock() {
@@ -200,6 +278,8 @@ export function createCombatRuntimeV03({
     gainUltimate,
     recordResolvedCombat,
     dispatch,
+    resetTrainingTarget,
+    update,
     toggleLock,
     subscribe,
     get active() { return phase !== COMBAT_V03_RUNTIME_PHASE.IDLE; }
