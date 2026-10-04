@@ -6,6 +6,7 @@ import { box, surface } from "../campus-render-kit.js";
 import { PERSONAL_ROOM_BASIC, PERSONAL_ROOM_BASIC_FURNITURE } from "./personal-room-layout.js";
 import { createFurnitureLayer } from "./furniture-renderer.js";
 import { createPersonalRoomChairModel } from "./personal-room-chair-model.js";
+import { createPersonalRoomDecor } from "./personal-room-decor-renderer.js";
 
 const {halfWidth:W,halfDepth:D,ceiling:H,wall:T,door}=PERSONAL_ROOM_BASIC;
 function glow(hex,intensity=1){
@@ -51,10 +52,10 @@ export function createPersonalRoomScene(app){
   box(root,"door_frame",[door.x,door.height/2+0.03,-D+0.02],[door.width+0.16,door.height+0.08,0.05],trim);
   box(root,"door",[door.x,door.height/2,-D+0.05],[door.width,door.height,0.04],surface("#7d5c3e"));
   box(root,"window",[0.5,1.18,D-0.025],[2.6,0.75,0.03],glow("#cfe9ff",0.45));
-  let ensureVisualAssets;
+  const fixtureLoaders=[];
   for(const item of PERSONAL_ROOM_BASIC_FURNITURE){
     const ensureModel=furniture(root,item,app);
-    if(ensureModel)ensureVisualAssets=ensureModel;
+    if(ensureModel)fixtureLoaders.push(ensureModel);
   }
   for(const x of [-2.2,2.2])box(root,"light_panel",[x,H-0.015,0],[1.1,0.03,0.5],glow("#fff4dc",0.55));
   const lights=[];
@@ -63,5 +64,13 @@ export function createPersonalRoomScene(app){
   }
   root.enabled=false;app.root.addChild(root);
   const ownedFurniture = createFurnitureLayer(app,root);
+  const decor = createPersonalRoomDecor(app,root,ownedFurniture.obstacles);
+  const setOwnedObjects = ownedFurniture.setObjects;
+  ownedFurniture.setObjects = objects => {
+    setOwnedObjects(objects);
+    decor.update(objects);
+  };
+  decor.update([]);
+  const ensureVisualAssets = () => Promise.all([...fixtureLoaders.map(ensure => ensure()),decor.ensureVisualAssets()]);
   return {root,lights,ownedFurniture,ensureVisualAssets,obstacles:ownedFurniture.obstacles,ambient:new pc.Color(0.43,0.41,0.39),clearColor:new pc.Color(0.17,0.16,0.15)};
 }
