@@ -24,7 +24,8 @@ is not authoritative, that proximity is not a server admission condition. This d
 explicit transfer without proof of campus arrival; production adoption of that gameplay rule
 is a separate exposure decision. Do not label it server-verified travel to the pond.
 
-The request contains only `protocol`, `requestId`, an allowlisted `sourceRef` and `mapVersion`.
+The request contains only `protocol`, `requestId`, an allowlisted `sourceRef`, `mapVersion`
+and a positive safe-integer client `generation` used only to correlate replies.
 The selected source is a destination choice, not position evidence. The authenticated transport
 derives actor; server ownership supplies admission/session identity, revision and clocks. The
 server chooses the actual spawn from the allowlist: six local units outward from the bank,
@@ -32,6 +33,12 @@ outside the three-unit fishing radius. Browser spawn/return XYZ, speed, state an
 are refused. Same account/request replays the same admission or its terminal tombstone;
 conflicting destination/map reuse fails. Rate/capacity limits bound new admissions. No new fee,
 travel XP, admission reward or item consumption is introduced by this contract.
+
+The client generation is not an ownership epoch or DB revision. The authenticated server
+echoes it in the response envelope. Admission idempotency fingerprints protocol/destination/map,
+not delivery generation: a freshly authenticated status/recovery query may bind the same
+durable admission to a new client generation without allocating a new session or resetting
+its revision. Retired-channel responses retain their old envelope and cannot cross this bind.
 
 The prototype factory currently chooses a bank through server configuration. Its fixed points
 are reused by the executable handoff reference; player destination dispatch, durable admissions
@@ -60,6 +67,12 @@ grant. ACTIVE is emitted by the server only after required server/DB postconditi
 boolean such as `proofAck=true`, `ownerFenced=true` or `exited=true` never satisfies those
 conditions. The reference reducer assumes an authenticated server channel; it implements
 message binding/ordering and cannot authenticate a JSON object on its own.
+
+READY/exit/status carry protocol, the current delivery generation, requestId and the server
+admission/session IDs when known; READY also acknowledges mapVersion and exit carries its
+stable exitRequestId. Status before the offer is known uses requestId instead. IDs are lookup
+and correlation fields only. The server independently verifies account ownership on its bound
+authenticated channel; there is no client actor, position, clock, proof or completion flag.
 
 ## Exit postconditions and recovery
 
