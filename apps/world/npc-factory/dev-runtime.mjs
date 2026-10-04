@@ -32,6 +32,7 @@ import { createMain2QuestClient } from './main2-quest-client.mjs';
 import { MAIN2_QUEST_ID } from './main2-quest-contract.mjs';
 import { createMain2GuideRuntime } from './main2-guide-runtime.mjs';
 import { createTmlMain2Shadow } from '../tml/runtime/main2-shadow.mjs';
+import { createTmlFirstCampusGyeolShadow } from '../tml/runtime/first-campus-gyeol-shadow.mjs';
 
 const aiPilotIds = new Set([MAIN_NPC_ID, QUEST_NPC_ID]);
 const NPC_TALK_RADIUS = metersToWorld(3);
@@ -295,11 +296,16 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
       : state;
   }
   const tmlMain2Shadow = createTmlMain2Shadow({ enabled: tmlShadowEnabled });
+  const tmlFirstCampusGyeolShadow = createTmlFirstCampusGyeolShadow({ enabled: tmlShadowEnabled });
   const quest = createQuestClient({ enabled: questEnabled, endpoint: questEndpoint,
     getSession: getAiSession,
     getNpcPosition: id => avatars.get(id)?.motion?.position ? { ...avatars.get(id).motion.position } : null,
     tour: document.getElementById('tour'),
-    onReward: onQuestReward });
+    onReward: onQuestReward,
+    onServerResult: observation => {
+      void tmlFirstCampusGyeolShadow.observeQuestResult(observation)
+        .catch(() => {});
+    } });
   const main2Quest = createMain2QuestClient({
     enabled: questEnabled,
     endpoint: questEndpoint,
@@ -337,8 +343,10 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
   syncSideEventUnlock();
   function setAiSignedIn(signedIn) {
     aiSignedIn = Boolean(signedIn);
-    try { tmlMain2Shadow.resetScope(aiSignedIn ? 'SIGNED_IN_OR_SWITCHED' : 'SIGNED_OUT'); }
-    catch { /* shadow scope reset is diagnostic-only */ }
+    try {
+      tmlMain2Shadow.resetScope(aiSignedIn ? 'SIGNED_IN_OR_SWITCHED' : 'SIGNED_OUT');
+      tmlFirstCampusGyeolShadow.resetScope();
+    } catch { /* shadow scope reset is diagnostic-only */ }
     quest.setSignedIn(aiSignedIn);
     main2Quest.setSignedIn(aiSignedIn);
     for (const [id, label] of nameplates) {
@@ -1286,6 +1294,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
       ai_signed_in: aiSignedIn, ai_npc_ids: [...aiPilotIds].filter(aiEnabled),
       quest_stage: quest.stage, quest: quest.status(),
       main2_quest_stage: main2Quest.stage, main2Quest: main2Quest.status(),
+      tml_first_campus_gyeol_shadow: tmlFirstCampusGyeolShadow.status(),
       tml_main2_shadow: tmlMain2Shadow.status(),
       tml_main2_promotion_review: tmlMain2Shadow.promotionReview(),
       main2_guide: main2Guide.status(),
