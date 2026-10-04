@@ -158,7 +158,8 @@ import { bindPointerLockRuntime } from "./input/pointer-lock-runtime.js";
 import { bindPointerLockHint } from "./input/pointer-lock-hint.js";
 import { bindCameraInputSettings } from "./input/camera-input-settings.js";
 import { createInputFocusOwner } from "./input/input-focus-owner.js";
-import { HUD_MODE, createHudContext } from "./hud/hud-context.js";
+import { createHudContext } from "./hud/hud-context.js";
+import { HUD_MODE } from "./hud/hud-context.js";
 import { bindHudPresentation } from "./hud/hud-presentation.js";
 import { createCombatRuntimeV03 } from "./combat/combat-runtime-v03.js";
 import { createBuilding5CombatInteraction } from "./combat/building5-combat-interaction.js";
@@ -1375,12 +1376,9 @@ const transportAction = () => {
 window.addEventListener("keydown", (event) => {
   if (event.code !== "KeyF" || event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
   if (event.target instanceof HTMLElement && event.target.closest("input, textarea, select, [contenteditable]")) return;
-  if (combatRuntime.active) {
-    event.preventDefault();
-    combatRuntime.dispatch("ultimate");
-    return;
-  }
-  interactionAction();
+  if (!combatRuntime.active) return interactionAction();
+  event.preventDefault();
+  combatRuntime.dispatch("ultimate");
 });
 window.addEventListener("keydown", (event) => {
   if (!combatRuntime.active || event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
