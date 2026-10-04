@@ -28,6 +28,7 @@ import { createNightStreetLights } from './environment/night-street-lights.js';
 import { createNightBuildingWindows } from './environment/night-building-windows.js';
 import { createRainWeatherEffects } from './environment/rain-weather-effects.js';
 import { createSnowWeatherEffects } from './environment/snow-weather-effects.js';
+import { createSnowObjectEffects } from './environment/snow-object-effects.js';
 import { createSkyVisuals } from './environment/sky-visuals.js';
 import { createInkyungDuckSystem } from './ambient-ducks.js';
 import { createDuckObservationClient } from './creature/duck-observation-client.js';
@@ -392,6 +393,17 @@ const snowWeatherEffects = createSnowWeatherEffects({
 app.on("update", dt => snowWeatherEffects.update(dt));
 window.__INHAGAME_SNOW__ = Object.freeze({
   status: () => snowWeatherEffects.status()
+});
+
+const snowObjectEffects = createSnowObjectEffects({
+  root: campusRoot,
+  app,
+  getSnowAccumulation: () => snowWeatherEffects.getAccumulation(),
+  getGraphicsTier: () => graphics.tier
+});
+app.on("update", () => snowObjectEffects.update());
+window.__INHAGAME_SNOW_OBJECTS__ = Object.freeze({
+  status: () => snowObjectEffects.status()
 });
 
 const controller = new PlayerController(player);
