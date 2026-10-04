@@ -493,12 +493,28 @@ body[data-space] #tour { display: none; }
   backdrop-filter: blur(8px);
 }
 .location-chip strong {
+  flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 13px;
 }
+.world-time-chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  padding-left: 7px;
+  border-left: 1px solid rgba(178,220,239,.28);
+  color: #dcecf5;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: -.01em;
+  line-height: 1;
+  white-space: nowrap;
+}
+.world-time-chip[hidden] { display: none !important; }
 .hud-menu-toggle {
   width: 44px;
   height: 44px;
@@ -765,6 +781,7 @@ body.joystick-right .emote-status {
   .campus-topbar { left: max(10px, env(safe-area-inset-left)); right: max(10px, env(safe-area-inset-right)); }
   .location-chip { max-width: 210px; height: 40px; padding-inline: 10px; }
   .location-chip strong { font-size: 12px; }
+  .world-time-chip { padding-left: 5px; font-size: 10.5px; }
   .tour { max-width: calc(100vw - 20px); }
   .tour-heading, .tour-objective, .tour-bearing { font-size: 10.5px; }
   .tour-objective { max-width: 118px; }
