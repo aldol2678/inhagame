@@ -30,6 +30,15 @@ replaced with uniform cuboids, neutral surfaces or regular procedural cells. The
 objects do not claim to reproduce actual buildings or businesses. User-authored field-visit
 contracts that were separately reviewed remain distinct from withheld third-party imagery.
 
+Neutral campus building facades: the 21 campus facilities now support fresh deterministic
+window rhythms, using only public OSM outlines, existing gameplay height estimates and
+public floor counts. These generic procedural facades are not image-derived and do not
+claim to reproduce the real buildings. The public WorldForge interchange manifest supplies
+render geometry after parity checks against unchanged gameplay/collision geometry; its
+structural validation remains a Draft and is not World promotion or Production deployment.
+See apps/world/data/reality/worldforge-campus-buildings.provenance.json. Main hall, library,
+surrounding shop blocks, source assets and their existing notices are unchanged.
+
 NPC public fixture: fictional batch IDs, SIM-prefixed student numbers and generated visual
 profiles only. The fixture manifest explicitly disclaims human review/approval. No private
 roster, review worksheet or private decision record is redistributed.
