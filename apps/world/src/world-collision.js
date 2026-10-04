@@ -72,7 +72,10 @@ export function cameraSafeFraction(from, to, obstacles) {
   const cameraObstacles = obstacles === undefined ? OBSTACLES : obstacles;
   for (const box of cameraObstacles) {
     if (box.polygon) {
-      fraction = Math.min(fraction, mainGate
+      // Thin student prisms use the finite boundary sweep already proven at
+      // the gate; expanded triangulation tips otherwise create phantom hits.
+      const finiteBoundary = mainGate || box.id?.startsWith('student:');
+      fraction = Math.min(fraction, finiteBoundary
         ? mainGatePolygonCameraFraction(from, to, box)
         : polygonCameraFraction(from, to, box));
       continue;
