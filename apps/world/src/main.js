@@ -382,6 +382,13 @@ const spawn=campusSpawn(location);
 player.setLocalPosition(spawn.x,spawn.y,spawn.z);
 campusRoot.addChild(player);
 
+let higgsfieldTrashRuntimePoc = null;
+if (previewHost && startupParams.get("assetPoc") === "higgsfield-trash") {
+  const { createHiggsfieldTrashRuntimePoc } = await import("./higgsfield-trash-runtime-poc.js");
+  higgsfieldTrashRuntimePoc = await createHiggsfieldTrashRuntimePoc({ app, campusRoot, player });
+  window.__INHAGAME_HIGGSFIELD_TRASH_POC__ = higgsfieldTrashRuntimePoc;
+}
+
 const nightStreetLights = createNightStreetLights({
   root: campusRoot,
   app,
@@ -3335,6 +3342,7 @@ if (!npcTestMode) {
 window.__INHAGAME_P0__ = {
   app,
   player,
+  higgsfieldTrashRuntimePoc,
   equipmentProjection: Object.freeze({ status: () => equipmentProjection.status() }),
   controller,
   orbit,

@@ -1,0 +1,46 @@
+name: Higgsfield trash runtime POC
+
+on:
+  pull_request:
+    paths:
+      - 'apps/world/assets/higgsfield-trash-bin-poc.glb'
+      - 'apps/world/src/higgsfield-trash-runtime-poc.js'
+      - 'apps/world/src/main.js'
+      - 'apps/world/tests/higgsfield-trash-runtime-poc.test.mjs'
+      - 'apps/world/tests/browser/higgsfield-trash-runtime-poc-smoke.mjs'
+      - '.github/workflows/higgsfield-trash-runtime-poc.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: higgsfield-trash-runtime-poc-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  webgpu-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - name: Verify GLB provenance and opt-in gate
+        run: node --test apps/world/tests/higgsfield-trash-runtime-poc.test.mjs
+      - name: Install locked browser dependencies
+        working-directory: apps/world/tests/browser
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Run strict WebGPU side-by-side smoke
+        env:
+          WORLD_SMOKE_BROWSER: chrome
+          HIGGS_TRASH_POC_OUTPUT: higgsfield-trash-runtime-poc
+        run: node apps/world/tests/browser/higgsfield-trash-runtime-poc-smoke.mjs
+      - name: Upload runtime comparison evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: higgsfield-trash-runtime-poc
+          path: higgsfield-trash-runtime-poc/**
+          if-no-files-found: warn
+          retention-days: 7
