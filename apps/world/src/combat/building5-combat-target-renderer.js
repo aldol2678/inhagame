@@ -18,6 +18,8 @@ export function createBuilding5CombatTargetRenderer({
   const breakMat = surface('#ffd56a');
   const warnMat = surface('#ff9d55');
   const urgentMat = surface('#ff5d62');
+  const impactMat = surface('#ff6f6f');
+  const perfectMat = surface('#7cf4ff');
 
   const body = box(root, 'building5_training_drone_body', [0, 1.05, 0], [1.25, 1.8, 1.25], metal, 0, 'cylinder');
   const head = box(root, 'building5_training_drone_head', [0, 2.05, 0], [1.0, .55, 1.0], dark, 0, 'cylinder');
@@ -25,16 +27,24 @@ export function createBuilding5CombatTargetRenderer({
   const ring = box(root, 'building5_training_drone_break_ring', [0, .24, 0], [1.5, .04, 1.5], breakMat, 0, 'cylinder');
   const telegraphBeam = box(root, 'building5_training_drone_telegraph_beam', [0, .08, 0], [.12, .025, 1], warnMat);
   const telegraphMarker = box(root, 'building5_training_drone_telegraph_marker', [0, .05, 0], [1.15, .025, 1.15], warnMat, 0, 'cylinder');
+  const impactMarker = box(root, 'building5_training_drone_impact_marker', [0, .07, 0], [.9, .03, .9], impactMat, 0, 'cylinder');
+  const muzzleFlash = box(root, 'building5_training_drone_muzzle_flash', [0, 1.35, -.82], [.18, .18, .18], impactMat, 0, 'sphere');
   ring.enabled = false;
   telegraphBeam.enabled = false;
   telegraphMarker.enabled = false;
+  impactMarker.enabled = false;
+  muzzleFlash.enabled = false;
   root.enabled = false;
   parent.addChild(root);
 
   let hitPulse = 0;
+  let impactPulse = 0;
+  let impactPerfect = false;
+  let impactX = 0, impactZ = 0;
   let lastHitSerial = 0;
   let lastBreakSerial = 0;
   let lastPlayerHitSerial = 0;
+  let lastEnemyAttackSerial = 0;
 
   const place = state => {
     const target = state?.target;
@@ -91,6 +101,14 @@ export function createBuilding5CombatTargetRenderer({
       lastPlayerHitSerial = state.player.hitSerial;
       hitPulse = Math.max(hitPulse, .12);
     }
+    const attack = state?.lastEnemyAttack;
+    if ((attack?.serial ?? 0) !== lastEnemyAttackSerial) {
+      lastEnemyAttackSerial = attack?.serial ?? lastEnemyAttackSerial;
+      impactPulse = .16;
+      impactPerfect = attack?.outcome === 'PERFECT_DODGE';
+      impactX = Number(attack?.aimX) || 0;
+      impactZ = Number(attack?.aimZ) || 0;
+    }
   };
 
   const unsubscribe = training.subscribe(apply, { emitCurrent: true });
@@ -109,8 +127,23 @@ export function createBuilding5CombatTargetRenderer({
     ring.rotateLocal(0, seconds * 150, 0);
     telegraphMarker.rotateLocal(0, seconds * 90, 0);
     hitPulse = Math.max(0, hitPulse - seconds);
+    impactPulse = Math.max(0, impactPulse - seconds);
     const scale = state.broken ? 1.28 : hitPulse > 0 ? 1.12 : 1;
     core.setLocalScale(.34 * scale, .34 * scale, .18 * scale);
+    impactMarker.enabled = impactPulse > 0;
+    muzzleFlash.enabled = impactPulse > 0;
+    if (impactPulse > 0) {
+      const target = state.target;
+      const dx = impactX - target.x, dz = impactZ - target.z;
+      const p = impactPulse / .16;
+      const impactScale = .65 + (1 - p) * .95;
+      const material = impactPerfect ? perfectMat : impactMat;
+      impactMarker.render.material = material;
+      muzzleFlash.render.material = material;
+      impactMarker.setLocalPosition(dx, .07, dz);
+      impactMarker.setLocalScale(impactScale, .03, impactScale);
+      muzzleFlash.setLocalScale(.18 + p * .24, .18 + p * .24, .18 + p * .24);
+    }
   }
 
   return Object.freeze({
