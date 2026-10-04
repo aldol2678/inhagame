@@ -15,3 +15,5 @@ verify_jwt = true
 verify_jwt = false
 [functions.world-duck-observe]
 verify_jwt = true
+[functions.world-combat-building5]
+verify_jwt = true
