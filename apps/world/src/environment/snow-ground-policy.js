@@ -62,3 +62,49 @@ export function snowGroundVisibility(accumulation, tier = 'medium') {
     roadEnabled: snowGroundRoadOpacity(tier) > 0
   });
 }
+
+
+export const SNOW_FOOTPRINT_MIN_ACCUMULATION = 0.14;
+export const SNOW_FOOTPRINT_SPACING = 0.46;
+export const SNOW_FOOTPRINT_TELEPORT_RESET_DISTANCE = 2.4;
+
+export const SNOW_FOOTPRINT_BUDGET = Object.freeze({
+  low: 12,
+  medium: 20,
+  high: 28
+});
+
+export const SNOW_FOOTPRINT_OPACITY = Object.freeze({
+  low: 0.22,
+  medium: 0.28,
+  high: 0.34
+});
+
+export function snowFootprintBudget(tier) {
+  return Object.hasOwn(SNOW_FOOTPRINT_BUDGET, tier)
+    ? SNOW_FOOTPRINT_BUDGET[tier]
+    : SNOW_FOOTPRINT_BUDGET.medium;
+}
+
+export function snowFootprintOpacity(tier, accumulation) {
+  const amount = clamp01(accumulation);
+  const base = Object.hasOwn(SNOW_FOOTPRINT_OPACITY, tier)
+    ? SNOW_FOOTPRINT_OPACITY[tier]
+    : SNOW_FOOTPRINT_OPACITY.medium;
+  if (amount <= SNOW_FOOTPRINT_MIN_ACCUMULATION) return 0;
+  const normalized = (amount - SNOW_FOOTPRINT_MIN_ACCUMULATION) /
+    (1 - SNOW_FOOTPRINT_MIN_ACCUMULATION);
+  return base * Math.pow(clamp01(normalized), 0.72);
+}
+
+export function shouldPlaceSnowFootprint({
+  accumulation,
+  distance,
+  enabled = true
+} = {}) {
+  if (!enabled) return false;
+  if (clamp01(accumulation) <= SNOW_FOOTPRINT_MIN_ACCUMULATION) return false;
+  const moved = Math.max(0, Number.isFinite(distance) ? distance : 0);
+  return moved >= SNOW_FOOTPRINT_SPACING &&
+    moved <= SNOW_FOOTPRINT_TELEPORT_RESET_DISTANCE;
+}

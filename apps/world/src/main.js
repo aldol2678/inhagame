@@ -385,7 +385,9 @@ const snowWeatherEffects = createSnowWeatherEffects({
   app,
   getPlayerPosition: () => player.getLocalPosition(),
   getSnowIntensity: () => environment.snowIntensity(),
-  getGraphicsTier: () => graphics.tier
+  getGraphicsTier: () => graphics.tier,
+  getFootprintsEnabled: () =>
+    !controller.mounted && !rooms?.insideRoom && !biryongRealm?.inBiryong
 });
 app.on("update", dt => snowWeatherEffects.update(dt));
 window.__INHAGAME_SNOW__ = Object.freeze({
