@@ -9,8 +9,22 @@ export const ENVIRONMENT_TIME_BY_WORLD_PERIOD = Object.freeze({
   night: 'NIGHT'
 });
 
+export const MORNING_ENVIRONMENT_STAGES = Object.freeze([
+  Object.freeze({ untilSeconds: 300, time: 'DAWN' }),
+  Object.freeze({ untilSeconds: 600, time: 'SUNRISE' }),
+  Object.freeze({ untilSeconds: 900, time: 'DAY' })
+]);
+
 export function environmentTimeForWorldPeriod(period) {
   return ENVIRONMENT_TIME_BY_WORLD_PERIOD[String(period ?? '')] ?? null;
+}
+
+export function environmentTimeForWorldSchedule(schedule) {
+  if (!schedule || typeof schedule !== 'object') return null;
+  if (schedule.period !== 'morning') return environmentTimeForWorldPeriod(schedule.period);
+  const offsetSeconds = Number(schedule.offsetSeconds);
+  if (!Number.isFinite(offsetSeconds) || offsetSeconds < 0) return null;
+  return MORNING_ENVIRONMENT_STAGES.find(stage => offsetSeconds < stage.untilSeconds)?.time ?? 'DAY';
 }
 
 export function createEnvironmentWorldTime({
@@ -33,7 +47,7 @@ export function createEnvironmentWorldTime({
     if (!Number.isFinite(serverNowMs)) return false;
 
     const nextSchedule = worldScheduleAt(serverNowMs);
-    const nextEnvironmentTime = environmentTimeForWorldPeriod(nextSchedule.period);
+    const nextEnvironmentTime = environmentTimeForWorldSchedule(nextSchedule);
     schedule = nextSchedule;
     if (!nextEnvironmentTime) return false;
 
