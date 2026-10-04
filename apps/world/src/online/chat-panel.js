@@ -41,6 +41,11 @@ export function createChatPanel({
   let feedEntries = [];
   let fadeTimer = null;
   let previewFaded = false;
+  // Explicit auth owner, independent of the transport's signedIn getter during teardown.
+  // Undefined preserves availability-only callers until an identity is supplied.
+  let accountId;
+  let accountEpoch = 0;
+  const isSignedIn = (chat) => !!chat?.signedIn && accountId !== null;
 
   const setTimer = typeof win?.setTimeout === "function" ? win.setTimeout.bind(win) : null;
   const clearTimer = typeof win?.clearTimeout === "function" ? win.clearTimeout.bind(win) : null;
@@ -92,7 +97,7 @@ export function createChatPanel({
 
   function setOpen(next, { focus = true } = {}) {
     const chat = getChat();
-    if (next && !chat?.signedIn) { hint.textContent = FEEDBACK.signed_out; return false; }
+    if (next && !isSignedIn(chat)) { hint.textContent = FEEDBACK.signed_out; return false; }
     const changed = open !== next;
     open = next;
     form.hidden = !open;
@@ -117,13 +122,15 @@ export function createChatPanel({
 
   function send() {
     const chat = getChat();
-    if (!chat) return "signed_out";
+    if (!isSignedIn(chat)) return "signed_out";
     if (!input.value.trim()) {
       input.value = "";
       setOpen(false);
       return "empty";
     }
+    const epoch = accountEpoch;
     const { result } = chat.submit(input.value);
+    if (epoch !== accountEpoch) return result;
     hint.textContent = FEEDBACK[result] ?? "";
     if (result === "sent") {
       input.value = "";
@@ -132,9 +139,18 @@ export function createChatPanel({
     return result;
   }
 
-  function refreshAvailability() {
+  // Pass the emitted identity's userId (or null), not a session getter that may still
+  // expose the previous account. Ordinary reconnect/availability refreshes omit it.
+  function refreshAvailability(nextAccountId = accountId) {
+    if (nextAccountId !== accountId) {
+      accountId = nextAccountId;
+      accountEpoch += 1;
+      input.value = "";
+      hint.textContent = "";
+      setOpen(false);
+    }
     const chat = getChat();
-    const signedIn = !!chat?.signedIn;
+    const signedIn = isSignedIn(chat);
     toggle.setAttribute("aria-disabled", String(!signedIn));
     toggle.title = signedIn ? "채팅 (Enter)" : FEEDBACK.signed_out;
     toggle.classList?.[signedIn ? "remove" : "add"]("chat-disabled");
@@ -142,7 +158,7 @@ export function createChatPanel({
   }
 
   toggle.addEventListener("click", () => {
-    if (!getChat()?.signedIn) { hint.textContent = FEEDBACK.signed_out; return; }
+    if (!isSignedIn(getChat())) { hint.textContent = FEEDBACK.signed_out; return; }
     setOpen(!open);
   });
   for (const element of [toggle, form]) element.addEventListener("pointerdown", (event) => event.stopPropagation());
@@ -155,7 +171,7 @@ export function createChatPanel({
   doc.addEventListener("keydown", (event) => {
     if (open || shouldIgnoreShortcut() || event.repeat || isTyping(event.target) || event.ctrlKey || event.metaKey || event.altKey) return;
     if (event.code !== "Enter" && event.code !== "NumpadEnter") return;
-    if (!getChat()?.signedIn) return;
+    if (!isSignedIn(getChat())) return;
     event.preventDefault?.();
     setOpen(true);
   });

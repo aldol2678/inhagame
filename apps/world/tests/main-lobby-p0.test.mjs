@@ -606,7 +606,7 @@ test("P1.3 lobby presence shows world-wide population while friend context stays
   const remotes = new Set(["friend-a"]);
   const online = {
     status: () => ({ signedIn: true, state: "ONLINE", count: 4 }),
-    remoteByUser: userId => remotes.has(userId) ? { userId } : null
+    remoteByUser: userId => remotes.has(userId) ? { userId, presence: "present" } : null
   };
   const population = {
     status: () => ({ state: "READY", snapshot: { online: 12 } })
@@ -650,7 +650,7 @@ test("P1.3 world population remains visible to signed-out guests", () => {
   const status = summary.status();
   assert.equal(status.worldCount, 7);
   assert.equal(status.zoneCount, null);
-  assert.equal(status.sameZoneFriends, 0);
+  assert.equal(status.sameZoneFriends, null);
   assert.equal(zoneElement.textContent, "전체 접속 7명");
   assert.equal(friendsButton.textContent, "로그인하면 친구 상태 확인");
   assert.equal(friendsButton.disabled, true);
