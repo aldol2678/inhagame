@@ -1,3 +1,4 @@
+import {studentCampusGroundHeight} from '../student-center-runtime.js';
 import { WORLD_BOUNDS } from "../campus-layout.js";
 import { roadviewGroundHeight } from "../roadview-layout.js";
 import { PLAYER_ORIGIN_Y, WALK_SHAPE } from "../player-dimensions.js";
@@ -41,7 +42,10 @@ export function validateResumeRecord(raw, {
   if ([x, z, storedY, savedAt].some(value => value === null) || savedAt <= 0) return { state: "INVALID", record: null };
   if (!inBounds({ x, z }, bounds)) return { state: "INVALID", record: null };
 
-  const y = PLAYER_ORIGIN_Y + groundHeight(x, z);
+  const studentGround = groundHeight===roadviewGroundHeight ? studentCampusGroundHeight(x,z,storedY-PLAYER_ORIGIN_Y) : null;
+  // Restore only real source slabs/treads, never an arbitrary saved airborne altitude.
+  if(studentGround>0&&Math.abs(storedY-PLAYER_ORIGIN_Y-studentGround)>1e-6)return {state:'INVALID',record:null};
+  const y = PLAYER_ORIGIN_Y + (studentGround ?? groundHeight(x, z));
   if (Math.abs(storedY - y) > 0.35) return { state: "INVALID", record: null };
   const position = { x, y, z };
   if (!canOccupyPosition(position)) return { state: "INVALID", record: null };
