@@ -63,13 +63,15 @@ try{
    const cdp=viewport.mobile?await smoke.context.newCDPSession(page):null;
    const moveGesture=async({locked=false}={})=>{
      if(!viewport.mobile){await page.keyboard.down('KeyD');await page.waitForTimeout(250);await page.keyboard.up('KeyD');return;}
+     const priorTouches=(await snapshot(page)).trustedTouches.length;
      const rect=await page.locator('#joystick').boundingBox();assert.ok(rect);
      await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:rect.x+rect.width/2+25,y:rect.y+rect.height/2,id:51,radiusX:1,radiusY:1,force:1}]});
      if(!locked)await page.waitForFunction(()=>Math.hypot(...Object.values(window.__ROOM_RECOVERY_QA__.controller.touchVector))>.2);
      await page.waitForTimeout(250);
      await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
      const state=await snapshot(page);assert.deepEqual(state.touchVector,{x:0,y:0});
-     assert.ok(state.trustedTouches.some(event=>event.trusted&&event.type==='touch'),'native trusted joystick event reached the real controller');
+     assert.equal(state.trustedTouches.length,priorTouches+1,'this gesture delivered a new joystick pointerdown');
+     assert.deepEqual(state.trustedTouches.at(-1),{trusted:true,type:'touch'},'latest joystick gesture is native and trusted');
    };
    const results=[];
    for(const [index,scenario] of cases.entries()){
@@ -97,6 +99,7 @@ try{
     const expectedRoom=scenario.action==='enter'?'ROOM_CLUBHOUSE_01':scenario.action==='personal'?'ROOM_PERSONAL_BASIC':scenario.source==='ROOM_PERSONAL_BASIC'?'ROOM_DORM1_LOBBY':'campus';
     assert.equal(retried.space,expectedRoom,'retry reaches the intended destination');
     assert.equal(retried.movement,expectedRoom);assert.equal(retried.campus,expectedRoom==='campus');
+    assert.equal(retried.parent,expectedRoom==='campus'?'QA_Campus':`Room_${expectedRoom}`);
     assert.deepEqual(retried.visibleRooms,expectedRoom==='campus'?[]:[expectedRoom]);
     assert.equal(retried.campusPaused,expectedRoom!=='campus');
     assert.equal(retried.fadeHidden,true);assert.equal(retried.inputEnabled,true);assert.equal(retried.cameraEnabled,true);
