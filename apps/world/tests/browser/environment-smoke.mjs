@@ -31,6 +31,7 @@ try {
     snow: window.__INHAGAME_SNOW__.status(),
     snowObjects: window.__INHAGAME_SNOW_OBJECTS__.status(),
     snowDepth: window.__INHAGAME_SNOW_DEPTH__.status(),
+    snowThaw: window.__INHAGAME_SNOW_THAW__.status(),
     pond: window.__INHAGAME_POND_WEATHER__.status(),
     sky: window.__INHAGAME_SKY__.status(),
     graphics: window.__INHAGAME_P0__.getStatus().graphics
@@ -61,6 +62,13 @@ try {
   assert.equal(initial.snowDepth.plowDrawMeshes, 0);
   assert.equal(initial.snowDepth.extraRealLights, 0);
   assert.equal(initial.snowDepth.extraShadowCasters, 0);
+  assert.equal(initial.snowThaw.enabled, false);
+  assert.equal(initial.snowThaw.drawMeshes, 0);
+  assert.equal(initial.snowThaw.slushDrawMeshes, 0);
+  assert.equal(initial.snowThaw.iceDrawMeshes, 0);
+  assert.equal(initial.snowThaw.extraRealLights, 0);
+  assert.equal(initial.snowThaw.extraShadowCasters, 0);
+  assert.equal(initial.snowThaw.externalTextures, 0);
   assert.equal(initial.pond.rainIntensity, 0);
   assert.equal(initial.pond.artificialLightFactor, 0.18);
   assert.equal(initial.pond.rippleSpeed, 0.025);
@@ -182,6 +190,7 @@ try {
     snow: window.__INHAGAME_SNOW__.status(),
     snowObjects: window.__INHAGAME_SNOW_OBJECTS__.status(),
     snowDepth: window.__INHAGAME_SNOW_DEPTH__.status(),
+    snowThaw: window.__INHAGAME_SNOW_THAW__.status(),
     sky: window.__INHAGAME_SKY__.status()
   }));
   assert.equal(snowDay.environment.targetWeather, 'SNOW');
@@ -257,6 +266,12 @@ try {
   }
   assert.equal(snowDay.snowDepth.extraRealLights, 0);
   assert.equal(snowDay.snowDepth.extraShadowCasters, 0);
+  assert.equal(snowDay.snowThaw.enabled, false);
+  assert.equal(snowDay.snowThaw.drawMeshes, 0);
+  assert.equal(snowDay.snowThaw.thawGate, 0);
+  assert.equal(snowDay.snowThaw.extraRealLights, 0);
+  assert.equal(snowDay.snowThaw.extraShadowCasters, 0);
+  assert.equal(snowDay.snowThaw.externalTextures, 0);
 
   await page.evaluate(() => {
     const p = window.__INHAGAME_P0__.player.getLocalPosition();
@@ -311,6 +326,7 @@ try {
     nightWindows: window.__INHAGAME_NIGHT_WINDOWS__.status(),
     rain: window.__INHAGAME_RAIN__.status(),
     snow: window.__INHAGAME_SNOW__.status(),
+    snowThaw: window.__INHAGAME_SNOW_THAW__.status(),
     pond: window.__INHAGAME_POND_WEATHER__.status(),
     sky: window.__INHAGAME_SKY__.status(),
     graphics: window.__INHAGAME_P0__.getStatus().graphics
@@ -324,6 +340,22 @@ try {
   assert.equal(nightRain.rain.wetGroundEnabled, true);
   assert.equal(nightRain.snow.enabled, false);
   assert.equal(nightRain.snow.snowIntensity, 0);
+  assert.equal(nightRain.snowThaw.enabled, true);
+  assert.ok(nightRain.snowThaw.snowAccumulation > 0);
+  assert.equal(nightRain.snowThaw.snowIntensity, 0);
+  assert.equal(nightRain.snowThaw.wetness, 1);
+  assert.ok(nightRain.snowThaw.slushOpacity > 0);
+  assert.equal(nightRain.snowThaw.slushDrawMeshes, 1);
+  assert.ok(nightRain.snowThaw.slushCount > 0);
+  assert.ok(nightRain.snowThaw.slushCount <= nightRain.snowThaw.slushBudget);
+  assert.ok(nightRain.snowThaw.drawMeshes >= 1 && nightRain.snowThaw.drawMeshes <= 2);
+  if (nightRain.snowThaw.graphicsTier === 'low') {
+    assert.equal(nightRain.snowThaw.iceBudget, 0);
+    assert.equal(nightRain.snowThaw.iceDrawMeshes, 0);
+  }
+  assert.equal(nightRain.snowThaw.extraRealLights, 0);
+  assert.equal(nightRain.snowThaw.extraShadowCasters, 0);
+  assert.equal(nightRain.snowThaw.externalTextures, 0);
   assert.equal(nightRain.rain.rainDrawMeshes, 1);
   assert.equal(nightRain.rain.wetRoadDrawMeshes, 1);
   assert.ok(nightRain.rain.streakBudget >= 28 && nightRain.rain.streakBudget <= 96);
@@ -456,6 +488,7 @@ try {
     snow: window.__INHAGAME_SNOW__.status(),
     snowObjects: window.__INHAGAME_SNOW_OBJECTS__.status(),
     snowDepth: window.__INHAGAME_SNOW_DEPTH__.status(),
+    snowThaw: window.__INHAGAME_SNOW_THAW__.status(),
     pond: window.__INHAGAME_POND_WEATHER__.status(),
     sky: window.__INHAGAME_SKY__.status(),
     graphics: window.__INHAGAME_P0__.getStatus().graphics
@@ -481,6 +514,12 @@ try {
   assert.equal(mobileStatus.snowDepth.drawMeshes, 0);
   assert.equal(mobileStatus.snowDepth.extraRealLights, 0);
   assert.equal(mobileStatus.snowDepth.extraShadowCasters, 0);
+  assert.equal(mobileStatus.snowThaw.enabled, false);
+  assert.equal(mobileStatus.snowThaw.drawMeshes, 0);
+  assert.equal(mobileStatus.snowThaw.snowAccumulation, 0);
+  assert.equal(mobileStatus.snowThaw.extraRealLights, 0);
+  assert.equal(mobileStatus.snowThaw.extraShadowCasters, 0);
+  assert.equal(mobileStatus.snowThaw.externalTextures, 0);
   assert.equal(mobileStatus.pond.rainIntensity, 1);
   assert.equal(mobileStatus.pond.artificialLightFactor, 1);
   assert.ok(mobileStatus.pond.bumpiness > 0.45);
@@ -512,7 +551,7 @@ try {
   if (mobileStatus.graphics.tier === 'low') assert.ok(mobileStatus.nightWindows.maxWindowBudget <= 160);
   assert.ok(mobileStatus.streetLights.activeDynamicLights <= mobileStatus.streetLights.dynamicBudget);
   assert.deepEqual(smoke.problems, []);
-  console.log('world environment smoke: PASS (atmospheric gradient + sun glow, layered cloud parallax, emissive night windows, rain splashes + puddles, accumulating ground snow + batched footprints + object snow caps + roof depth/drifts/plow traces, CLEAR/CLOUDY/FOG/RAIN/SNOW, sky, rain/snow, street lights, wet roads, Inkyung pond, 390px mobile)');
+  console.log('world environment smoke: PASS (atmospheric gradient + sun glow, layered cloud parallax, emissive night windows, rain splashes + puddles, accumulating ground snow + batched footprints + object snow caps + roof depth/drifts/plow traces + thaw slush/ice, CLEAR/CLOUDY/FOG/RAIN/SNOW, sky, rain/snow, street lights, wet roads, Inkyung pond, 390px mobile)');
 } finally {
   await smoke.close();
 }

@@ -30,6 +30,7 @@ import { createRainWeatherEffects } from './environment/rain-weather-effects.js'
 import { createSnowWeatherEffects } from './environment/snow-weather-effects.js';
 import { createSnowObjectEffects } from './environment/snow-object-effects.js';
 import { createSnowDepthEffects } from './environment/snow-depth-effects.js';
+import { createSnowThawEffects } from './environment/snow-thaw-effects.js';
 import { createSkyVisuals } from './environment/sky-visuals.js';
 import { createInkyungDuckSystem } from './ambient-ducks.js';
 import { createDuckObservationClient } from './creature/duck-observation-client.js';
@@ -417,6 +418,19 @@ const snowDepthEffects = createSnowDepthEffects({
 app.on("update", () => snowDepthEffects.update());
 window.__INHAGAME_SNOW_DEPTH__ = Object.freeze({
   status: () => snowDepthEffects.status()
+});
+
+const snowThawEffects = createSnowThawEffects({
+  root: campusRoot,
+  app,
+  getSnowAccumulation: () => snowWeatherEffects.getAccumulation(),
+  getSnowIntensity: () => environment.snowIntensity(),
+  getWetnessFactor: () => environment.wetnessFactor(),
+  getGraphicsTier: () => graphics.tier
+});
+app.on("update", () => snowThawEffects.update());
+window.__INHAGAME_SNOW_THAW__ = Object.freeze({
+  status: () => snowThawEffects.status()
 });
 
 const controller = new PlayerController(player);
