@@ -126,3 +126,41 @@ test('Combat feedback defeat uses the v9.22 defeat haptic and local reaction onl
   assert.equal(feedback.status().reaction, 'defeat');
   feedback.destroy();
 });
+
+
+test('Combat feedback accepts hit serials again after training generation reset', () => {
+  let now = 0;
+  const clock = { now: () => now };
+  const r = runtimeRig(clock), patterns = [];
+  const feedback = createCombatFeedbackV03({
+    runtime: r.runtime,
+    canvas: visual(),
+    overlay: visual(),
+    navigatorLike: { vibrate: pattern => patterns.push([...pattern]) },
+    AudioContextCtor: null,
+    documentLike: null,
+    clock
+  });
+
+  r.emit({
+    ...r.state(),
+    lastAction: { action: 'basic' },
+    training: { ...r.state().training, generation: 1, hitSerial: 1 }
+  }, 'action');
+  const first = patterns.length;
+  r.emit({
+    ...r.state(),
+    lastAction: null,
+    training: { ...r.state().training, generation: 2, hitSerial: 0, breakSerial: 0,
+      player: { ...r.state().training.player, hitSerial: 0, perfectDodgeSerial: 0 } }
+  }, 'training-reset');
+  r.emit({
+    ...r.state(),
+    lastAction: { action: 'basic' },
+    training: { ...r.state().training, generation: 2, hitSerial: 1 }
+  }, 'action');
+
+  assert.equal(patterns.length, first + 1);
+  assert.deepEqual(patterns.at(-1), [8]);
+  feedback.destroy();
+});
