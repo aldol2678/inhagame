@@ -56,13 +56,10 @@ export function skyCloudLayout(tier) {
   });
 }
 
-export function writeSunDirection(out, euler) {
-  const pitch = (Number(euler?.[0]) || 0) * Math.PI / 180;
-  const yaw = (Number(euler?.[1]) || 0) * Math.PI / 180;
-  const cp = Math.cos(pitch);
-  const x = Math.sin(yaw) * cp;
-  const y = Math.sin(pitch);
-  const z = -Math.cos(yaw) * cp;
+export function writeSunSourceDirection(out, lightUp) {
+  const x = Number(lightUp?.x ?? lightUp?.[0]) || 0;
+  const y = Number(lightUp?.y ?? lightUp?.[1]) || 0;
+  const z = Number(lightUp?.z ?? lightUp?.[2]) || 0;
   const length = Math.hypot(x, y, z) || 1;
   out[0] = x / length;
   out[1] = y / length;
@@ -70,8 +67,13 @@ export function writeSunDirection(out, euler) {
   return out;
 }
 
-export function sunDirectionFromEuler(euler) {
-  return Object.freeze([...writeSunDirection([0, 0, -1], euler)]);
+export function sunSourceDirectionFromLightUp(lightUp) {
+  return Object.freeze([...writeSunSourceDirection([0, 1, 0], lightUp)]);
+}
+
+export function shadowRayDirectionFromSunSource(sourceDirection) {
+  const source = sunSourceDirectionFromLightUp(sourceDirection);
+  return Object.freeze([-source[0], -source[1], -source[2]]);
 }
 
 export function sunVisualProfile({
