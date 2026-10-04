@@ -5,6 +5,7 @@ import {
   LIFE_SKILL_STATUS,
   lifeSkillCurvePosition
 } from './life-skill-registry.js';
+import { LIFE_SKILL_TREE_V1_NODE_DEFINITIONS } from './life-skill-tree-nodes-v1.js';
 
 export const LIFE_PROGRESSION_CURVE_ID = 'life.progression.v1';
 
@@ -81,7 +82,7 @@ export function createLifeSkillTreeNodeDefinition(raw, { skillRegistry = LIFE_SK
   });
 }
 
-export const DEFAULT_LIFE_SKILL_TREE_NODES = Object.freeze([]);
+export const DEFAULT_LIFE_SKILL_TREE_NODES = LIFE_SKILL_TREE_V1_NODE_DEFINITIONS;
 
 export function createLifeSkillTreeRegistry({
   definitions = DEFAULT_LIFE_SKILL_TREE_NODES,

@@ -1,6 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { LIFE_SKILL_REGISTRY, LIFE_SKILL_STATUS } from '../src/life-skills/life-skill-registry.js';
+import {
+  LIFE_SKILL_CURVE_THRESHOLDS,
+  LIFE_SKILL_REGISTRY,
+  LIFE_SKILL_STATUS
+} from '../src/life-skills/life-skill-registry.js';
 import {
   LIFE_PROGRESSION_CURVE_ID,
   LIFE_PROGRESSION_THRESHOLDS,
@@ -27,12 +31,11 @@ const node = (overrides = {}) => ({
   ...overrides
 });
 
-test('Life Progression P0 seeds only Lv1 and no live tree nodes', () => {
+test('aggregate Life Progression curve seeds only Lv1', () => {
   assert.equal(LIFE_PROGRESSION_CURVE_ID, 'life.progression.v1');
   assert.deepEqual(LIFE_PROGRESSION_THRESHOLDS, [
     { curveId: 'life.progression.v1', level: 1, minTotalSkillXp: 0, cumulativeSp: 0 }
   ]);
-  assert.equal(LIFE_SKILL_TREE_REGISTRY.size, 0);
   assert.deepEqual(lifeProgressionThresholdAuthorityRows(), [{
     curve_id: 'life.progression.v1',
     level: 1,
@@ -153,4 +156,29 @@ test('tree registry rejects invalid ranks and prerequisite ranks above the prere
       prerequisites: [{ nodeId: 'life.node.mining.root', requiredRank: 3 }]
     })
   ] }), /exceeds/);
+});
+
+test('tree v1: 18 COMING_SOON nodes for fishing / woodcutting / farming, 17 SP per tree', () => {
+  const nodes = LIFE_SKILL_TREE_REGISTRY.list();
+  assert.equal(nodes.length, 18);
+  assert.ok(nodes.every(entry => entry.status === LIFE_SKILL_STATUS.COMING_SOON));
+  assert.ok(nodes.every(entry => entry.requiredLifeLevel === 1));
+  for (const skillId of ['life.fishing', 'life.woodcutting', 'life.farming']) {
+    const tree = LIFE_SKILL_TREE_REGISTRY.forSkill(skillId);
+    assert.equal(tree.length, 6, skillId);
+    assert.equal(tree.reduce((sum, entry) => sum + entry.maxRank * entry.spCost, 0), 17, skillId);
+    assert.deepEqual(tree.map(entry => entry.requiredSkillLevel).sort((a, b) => a - b).at(-1), 15, skillId);
+  }
+  assert.equal(LIFE_SKILL_TREE_REGISTRY.forSkill('life.sailing').length, 0);
+  assert.deepEqual(LIFE_SKILL_TREE_REGISTRY.get('life.node.fishing.deep_sea_fishing').prerequisites, [
+    { nodeId: 'life.node.fishing.rare_fish_sense', requiredRank: 1 },
+    { nodeId: 'life.node.fishing.boat_fishing', requiredRank: 1 }
+  ]);
+});
+
+test('tree v1: a full tree is affordable exactly when its last gate opens (skill Lv15)', () => {
+  const lv15 = LIFE_SKILL_CURVE_THRESHOLDS.find(row => row.level === 15).cumulativeSp;
+  const lv14 = LIFE_SKILL_CURVE_THRESHOLDS.find(row => row.level === 14).cumulativeSp;
+  assert.equal(lv15, 17);
+  assert.ok(lv14 < 17);
 });

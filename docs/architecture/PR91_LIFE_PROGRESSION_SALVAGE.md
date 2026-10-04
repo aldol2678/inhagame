@@ -68,6 +68,10 @@ level, so 23 SP by Lv20. Lv20 was the highest defined level, not a cap. In #91 t
 
 ## 4. Nodes (24, all COMING_SOON, definition_version 1)
 
+**Imported (18 of 24)** by `20261004136000_world_life_skill_tree_nodes_v1`: Fishing, Woodcutting and
+Farming, with the IDs, ranks, costs and edges below, gates moved to the owning skill's level. Sailing's
+6 nodes are not imported until a `life.sailing` skill exists.
+
 Columns: max rank, SP cost per rank, required (aggregate) Life Level, effect key. No node had a
 skill-level gate, because `life.common.v1` defines only Lv1. Each tree costs 17 SP to max out.
 
