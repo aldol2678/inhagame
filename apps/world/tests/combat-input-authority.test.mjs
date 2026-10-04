@@ -157,7 +157,11 @@ test('Target training HUD preserves cooldown/resource locks and blocks reset und
   now += 6000;
   runtime.update();
   assert.equal(buttons[1].disabled, false, 'cooldown expires through runtime update');
-  for (let i = 0; i < 60 && !training.snapshot().defeated; i += 1) runtime.dispatch('basic');
+  for (let i = 0; i < 60 && !training.snapshot().defeated; i += 1) {
+    runtime.dispatch('basic');
+    now += 150;
+    runtime.update();
+  }
   assert.equal(training.snapshot().defeated, true);
   assert.equal(reset.hidden, false);
   assert.equal(buttons.filter(button => button.dataset.combatAction !== 'dodge').every(button => button.disabled), true);
