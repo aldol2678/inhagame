@@ -33,13 +33,19 @@ try {
   const page = await smoke.context.newPage();
   const fatal = smoke.watch(page);
 
-  await page.goto(`${smoke.origin}/studio/`, { waitUntil: "domcontentloaded", timeout: TIMEOUT_MS });
+  await page.goto(`${smoke.origin}/worldforge/`, { waitUntil: "domcontentloaded", timeout: TIMEOUT_MS });
   await race(fatal, page.waitForFunction(() =>
-    window.__INHA_STUDIO_S3__?.getStatus?.().ready === true &&
-    window.__INHA_STUDIO_S3__.getStatus().worldAdapter?.ready === true,
+    window.__WORLDFORGE__?.getStatus?.().ready === true &&
+    window.__WORLDFORGE__.getStatus().worldAdapter?.ready === true,
   null, { timeout: TIMEOUT_MS }));
 
-  let status = await page.evaluate(() => window.__INHA_STUDIO_S3__.getStatus());
+  assert.equal(await page.title(), "WorldForge · INHA WORLD · S3.4");
+  assert.equal(await page.locator(".studio-brand strong").textContent(), "WORLDFORGE");
+  assert.equal(await page.evaluate(() => window.__WORLDFORGE__ === window.__INHA_STUDIO_S3__), true);
+
+  let status = await page.evaluate(() => window.__WORLDFORGE__.getStatus());
+  assert.equal(status.product, "WorldForge");
+  assert.equal(status.legacyShell, "studio");
   assert.equal(status.stage, "S3.4");
   assert.equal(status.activeModuleId, "world");
   assert.deepEqual(status.modules.map(module => module.id), ["world", "audio", "npc", "event", "gameplay"]);
