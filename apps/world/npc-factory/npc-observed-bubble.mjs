@@ -28,7 +28,9 @@ export function createObservedBubble({ documentLike = document, windowLike = win
   `;
   documentLike.head.appendChild(style);
   documentLike.body.appendChild(root);
-  let lastKey = null;
+  let lastKey = null, cachedSize = null;
+  const invalidateSize = () => { cachedSize = null; };
+  windowLike.addEventListener?.('resize', invalidateSize);
   function hide() { root.hidden = true; }
   function render(frame, { point, name: speakerName, obstacles = [] } = {}) {
     if (!frame?.line || !point?.visible) { hide(); return false; }
@@ -37,15 +39,22 @@ export function createObservedBubble({ documentLike = document, windowLike = win
       name.textContent = speakerName;
       text.textContent = frame.line.text;
       lastKey = key;
+      cachedSize = null;
     }
     root.hidden = false;
-    const size = root.getBoundingClientRect();
-    const rect = observedBubbleRect({ x:point.x,y:point.y,width:size.width,height:size.height,
+    if (!cachedSize) {
+      const size = root.getBoundingClientRect();
+      cachedSize = { width: size.width, height: size.height };
+    }
+    const rect = observedBubbleRect({ x:point.x,y:point.y,width:cachedSize.width,height:cachedSize.height,
       viewport:{width:windowLike.innerWidth,height:windowLike.innerHeight},obstacles });
     if (!rect) { hide(); return false; }
     root.style.left = `${rect.left}px`;
     root.style.top = `${rect.top}px`;
     return true;
   }
-  return { render, hide, destroy() { root.remove(); style.remove(); } };
+  return { render, hide, destroy() {
+    windowLike.removeEventListener?.('resize', invalidateSize);
+    root.remove(); style.remove();
+  } };
 }

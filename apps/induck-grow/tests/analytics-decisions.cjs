@@ -18,7 +18,7 @@ const screens={'screen-brief':new ElementMock('screen-brief'),'screen-recap':new
 const client={async rpc(name,args){calls.push({name,args});return {data:true,error:null}}};
 const windowMock={supabase:{createClient:()=>client},addEventListener:(t,f)=>{windowHandlers[t]=f}};
 const documentMock={
-  referrer:'https://inhagame.example/',hidden:false,
+  referrer:'https://inhagame.app/',hidden:false,
   getElementById:id=>screens[id]||null,
   querySelector:selector=>selector==='.screen.active'?Object.values(screens).find(x=>x.active)||null:null,
   addEventListener:(t,f)=>{documentHandlers[t]=f}
@@ -28,7 +28,7 @@ const context={
   crypto:{randomUUID},Element:ElementMock,MutationObserver:MutationObserverMock,
   sessionStorage:{getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,String(v))},
   history:{replaceState(){}},
-  location:{hostname:'grow.inhagame.example',origin:'https://grow.inhagame.example',href:'https://grow.inhagame.example/?src=everytime'},
+  location:{hostname:'grow.inhagame.app',origin:'https://grow.inhagame.app',href:'https://grow.inhagame.app/?src=everytime'},
   document:documentMock,
   fetch:async(url,init)=>{fetchCalls.push({url,init});return {ok:true}},
   state:{

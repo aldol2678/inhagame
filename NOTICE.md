@@ -33,3 +33,22 @@ contracts that were separately reviewed remain distinct from withheld third-part
 NPC public fixture: fictional batch IDs, SIM-prefixed student numbers and generated visual
 profiles only. The fixture manifest explicitly disclaims human review/approval. No private
 roster, review worksheet or private decision record is redistributed.
+
+KayKit Furniture Bits 1.0: chair_A, table_medium, lamp_standing, shelf_B_large_decorated
+geometry and furniturebits_texture.png by Kay Lousberg,
+redistributed unmodified under Creative Commons Zero (CC0). This third-party asset retains
+its own license rather than the project's All Rights Reserved terms.
+Source: https://kaylousberg.itch.io/furniture-bits
+License and file provenance: apps/world/assets/kaykit/furniture-bits/License.txt and README.md.
+
+## Main Hall and Jeongseok field-reference observations
+
+The Main Hall and Jeongseok library exterior refinements use architectural
+observations from owner-supplied, 2026-10-01-labeled field references. Only newly
+authored procedural geometry is included. Raw photos, PDFs, image textures,
+identifiable people or plates, and institutional or contractor artwork are not
+distributed. This is an illustrative exterior, not a survey, measured floor plan,
+all-photo rights clearance, or trademark permission. The existing campus geometry
+and collision authority remain unchanged. See
+`docs/implementation/hall-library-main-integration.md` and
+`apps/world/data/reality/hall-library-integration.provenance.json`.

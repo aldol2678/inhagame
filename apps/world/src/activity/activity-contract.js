@@ -146,7 +146,7 @@ export const DEFAULT_ACTIVITY_DEFINITIONS = Object.freeze({
     resolverRef: 'resolver.fishing.inkyung_v1',
     outcomeSchemaVersion: 1,
     semanticEventTypes: ['activity.succeeded', 'activity.failed', 'activity.fishing.catch'],
-    status: ACTIVITY_DEFINITION_STATUS.COMING_SOON,
+    status: ACTIVITY_DEFINITION_STATUS.ACTIVE,
     tags: ['life', 'fishing', 'p1a'],
     definitionVersion: 1
   }),

@@ -59,9 +59,9 @@ export const MOBILITY_REGISTRY = Object.freeze([
  }),
   freezeDefinition({
     mobilityId:"transit.campus_shuttle",mountId:CAMPUS_SHUTTLE_ID,displayName:"캠퍼스 셔틀",emoji:"🚌",
-    category:"TRANSIT",domains:["GROUND"],availability:MOBILITY_AVAILABILITY.EXPERIMENTAL,access:MOBILITY_ACCESS.TEST_ONLY,
-    statusLabel:"실험중",accessLabel:"테스트 전용",
-    description:"정문과 정문 북측을 자동 왕복하는 실험용 셔틀입니다. 현재 각 화면에서 독립 운행하며 다른 플레이어와 같은 차에 동승하지 않아요.",
+    category:"TRANSIT",domains:["GROUND"],availability:MOBILITY_AVAILABILITY.HIDDEN,access:MOBILITY_ACCESS.TEST_ONLY,
+    statusLabel:"송도캠퍼스 구현 후",accessLabel:"테스트 전용",
+    description:"송도캠퍼스 노선 구현 전까지 월드와 이동수단 도감에서 숨기는 셔틀 프로토타입입니다.",
     activeEligible:false,activeBlockedReason:"노선 운행형 교통수단은 기본 탈것으로 설정하지 않아요.",
     physicsProfile:"PATH_CONSTRAINED",inputProfile:"AUTOPILOT",propulsion:"WHEEL_MOTOR",cameraProfile:"TRANSIT_CHASE",hudProfile:"TRANSIT_LIGHT",networkProfile:"TRANSIT_LOCAL_P0",
     summonPolicy:SUMMON_POLICY.FIXED_ANCHOR,summonClearance:{radius:1.6,height:2.8},spawnDomain:"GROUND",

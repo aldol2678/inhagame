@@ -5,20 +5,13 @@
 // without one the M2 local-only destination contract is unchanged. No persistence or network.
 
 import { worldToMapUv } from "./minimap-model.js";
-import { formatGuidanceDistance } from "../navigation/navigation-state.js";
+import { formatGuidanceDistance, navigationPauseLabel } from "../navigation/navigation-state.js";
+import { MAP_POI_ICON_PATHS, MAP_POI_STATES, MAP_POI_KIND_LABELS, layoutFullMapLabels } from "./full-map-presentation.js";
+export { layoutFullMapLabels } from "./full-map-presentation.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 export const FULL_MAP_VIEW = Object.freeze({ size: 1000, padding: 36 });
 export const FULL_MAP_ZOOM = Object.freeze({ min: 1, max: 4, step: 1.35, locateMin: 2 });
-
-const stateText = Object.freeze({
-  NORMAL: "이동 가능",
-  LOCKED: "잠김",
-  COMING_SOON: "준비 중",
-  DISABLED: "이용 불가",
-  UNKNOWN: "상태 확인 중",
-  UNDISCOVERED: "미발견"
-});
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
@@ -197,6 +190,9 @@ export function createFullMapController({
   let pinch = null;
   let tap = null;
   let routeKey = null;
+  let focusedPoiId = null;
+  let hoveredPoiId = null;
+  let labelDestinationId = null;
   const TAP_SLOP_PX = 6;
   if (navigation && (!navigation.snapshot || !navigation.setPoi || !navigation.clear)) {
     throw new TypeError("Full Map navigation adapter requires snapshot, setPoi and clear");
@@ -224,6 +220,7 @@ export function createFullMapController({
     zoomLabel.textContent = `${Math.round(viewport.zoom * 100)}%`;
     zoomOutButton.disabled = viewport.zoom <= FULL_MAP_ZOOM.min + 1e-9;
     zoomInButton.disabled = viewport.zoom >= FULL_MAP_ZOOM.max - 1e-9;
+    layoutLabels();
     return viewport;
   }
 
@@ -283,7 +280,7 @@ export function createFullMapController({
   }
 
   function poiStateLabel(poi) {
-    return stateText[poi.presentation] ?? poi.kind ?? "장소";
+    return (MAP_POI_STATES[poi.presentation] ?? MAP_POI_STATES.UNKNOWN).label;
   }
 
   const navSnapshot = () => {
@@ -309,6 +306,7 @@ export function createFullMapController({
     if (!selectedPoi) {
       infoPanel.hidden = true;
       if (pickMarker) pickMarker.hidden = true;
+      if (opened) applyViewport();
       return;
     }
     const active = currentDestination();
@@ -318,7 +316,7 @@ export function createFullMapController({
       ? selectedPoi.supported
         ? `지도 위치 · 길에서 ${formatGuidanceDistance(selectedPoi.walkwayDistance ?? 0)}`
         : MAP_POINT_REASON_TEXT[selectedPoi.reason] ?? MAP_POINT_REASON_TEXT.INVALID
-      : `${selectedPoi.kind} · ${poiStateLabel(selectedPoi)}`;
+      : `${MAP_POI_KIND_LABELS[selectedPoi.kind] ?? "장소"} · ${poiStateLabel(selectedPoi)}`;
     destinationButton.disabled = !destinationAllowed(selectedPoi);
     const isCurrent = selectedPoi.mapPoint
       ? active?.id === selectedPoi.target?.id
@@ -340,6 +338,7 @@ export function createFullMapController({
       else pickMarker.hidden = true;
       if (!pickMarker.hidden) pickMarker.dataset.supported = selectedPoi.supported ? "true" : "false";
     }
+    if (opened) applyViewport();
   }
 
   function selectPoi(poi) {
@@ -403,8 +402,10 @@ export function createFullMapController({
   function renderNavBar(snapshot) {
     if (!navBar || !navBarText) return;
     const target = snapshot?.destination;
+    const wasHidden = navBar.hidden;
     if (!target) {
       navBar.hidden = true;
+      if (!wasHidden && opened) applyViewport();
       return;
     }
     navBar.hidden = false;
@@ -412,8 +413,28 @@ export function createFullMapController({
     navBarText.textContent = snapshot.status === "ARRIVED"
       ? `${target.title} 도착`
       : snapshot.status === "PAUSED"
-        ? `${target.title} · 실외로 나가면 안내 재개`
+        ? `${target.title} · ${navigationPauseLabel(snapshot)}`
         : `${target.title} · ${formatGuidanceDistance(snapshot.remainingDistance)}`;
+    // The short-landscape CSS changes map size when this bar appears/disappears.
+    if (wasHidden && opened) applyViewport();
+  }
+
+  function makeSymbol(className) {
+    const icon = svgElement("svg");
+    setAttr(icon, "class", className);
+    setAttr(icon, "viewBox", "0 0 24 24");
+    setAttr(icon, "aria-hidden", "true");
+    setAttr(icon, "focusable", "false");
+    const path = svgElement("path");
+    icon.appendChild(path);
+    return { icon, path };
+  }
+
+  function updatePoiEmphasis(button, activeId = currentDestination()?.poiId) {
+    const id = button.dataset.poiId;
+    const emphasized = id === selectedPoi?.poiId || id === activeId || id === focusedPoiId || id === hoveredPoiId;
+    button.dataset.emphasized = emphasized ? "true" : "false";
+    return emphasized;
   }
 
   function ensurePoiNode(poi) {
@@ -423,11 +444,71 @@ export function createFullMapController({
     button.type = "button";
     button.className = "full-map-poi";
     button.dataset.poiId = poi.poiId;
-    button.setAttribute("aria-label", poi.title);
+    const symbol = makeSymbol("full-map-poi-icon");
+    const badge = documentLike.createElement("span");
+    badge.className = "full-map-poi-state";
+    badge.setAttribute("aria-hidden", "true");
+    const stateSymbol = makeSymbol("full-map-poi-state-icon");
+    badge.appendChild(stateSymbol.icon);
+    const label = documentLike.createElement("span");
+    label.className = "full-map-poi-label";
+    label.setAttribute("aria-hidden", "true");
+    button.appendChild(symbol.icon);
+    button.appendChild(badge);
+    button.appendChild(label);
+    button.__mapParts = { symbol, badge, stateSymbol, label };
     button.addEventListener("click", () => { if (button.__mapPoi) selectPoi(button.__mapPoi); });
+    // Visible labels are part of this button's hit target. Do not move them between
+    // pointer entry, focus and click. Keyboard focus can still reveal hidden labels.
+    button.addEventListener("focus", () => {
+      focusedPoiId = poi.poiId;
+      updatePoiEmphasis(button);
+      if (button.dataset.labelVisible !== "true" || button.matches?.(":focus-visible") === true) layoutLabels();
+    });
+    button.addEventListener("blur", () => { focusedPoiId = null; updatePoiEmphasis(button); });
+    button.addEventListener("pointerenter", () => {
+      hoveredPoiId = poi.poiId;
+      updatePoiEmphasis(button);
+      if (button.dataset.labelVisible !== "true") layoutLabels();
+    });
+    button.addEventListener("pointerleave", () => { hoveredPoiId = null; updatePoiEmphasis(button); });
     poiLayer.appendChild(button);
     poiNodes.set(poi.poiId, button);
     return button;
+  }
+
+  function layoutLabels() {
+    if (!opened) return;
+    const rect = surfaceRect();
+    const activeId = currentDestination()?.poiId ?? null;
+    const candidates = [];
+    for (const [id, node] of poiNodes) {
+      const poi = node.__mapPoi;
+      const label = node.__mapParts.label;
+      const p = projectFullMapPoint(poi, bounds);
+      const emphasized = updatePoiEmphasis(node, activeId);
+      candidates.push({
+        id,
+        x: p.x / FULL_MAP_VIEW.size * rect.width * viewport.zoom + viewport.panX,
+        y: p.y / FULL_MAP_VIEW.size * rect.height * viewport.zoom + viewport.panY,
+        width: label.offsetWidth || Math.max(24, poi.title.length * 11 + 4),
+        height: label.offsetHeight || 16,
+        priority: (id === selectedPoi?.poiId ? 1000 : id === activeId ? 900 : id === focusedPoiId ? 800 : id === hoveredPoiId ? 700 : 0) + (poi.priority ?? 80),
+        eligible: emphasized || viewport.zoom >= 1.55 || (poi.priority ?? 80) >= 80
+      });
+      node.dataset.labelVisible = "false";
+    }
+    const controlRect = zoomInButton.parentNode?.getBoundingClientRect?.();
+    const obstacles = controlRect ? [{ left: controlRect.left - rect.left, top: controlRect.top - rect.top,
+      width: controlRect.width, height: controlRect.height }] : [];
+    const positions = layoutFullMapLabels(candidates, { width: rect.width, height: rect.height, obstacles });
+    const byId = new Map(candidates.map(item => [item.id, item]));
+    for (const position of positions) {
+      const node = poiNodes.get(position.id), point = byId.get(position.id);
+      node.dataset.labelVisible = "true";
+      node.__mapParts.label.style.left = `${22 + position.left - point.x}px`;
+      node.__mapParts.label.style.top = `${22 + position.top - point.y}px`;
+    }
   }
 
   function refreshPois() {
@@ -438,20 +519,20 @@ export function createFullMapController({
       keep.add(poi.poiId);
       const button = ensurePoiNode(poi);
       button.__mapPoi = poi;
-      button.setAttribute("aria-label", poi.title);
+      button.setAttribute("aria-label", `${poi.title} · ${poiStateLabel(poi)}`);
+      button.setAttribute("title", `${poi.title} · ${poiStateLabel(poi)}`);
       const p = projectFullMapPoint(poi, bounds);
       button.style.left = `${p.x / FULL_MAP_VIEW.size * 100}%`;
       button.style.top = `${p.y / FULL_MAP_VIEW.size * 100}%`;
       button.dataset.presentation = poi.presentation;
       button.dataset.kind = poi.kind;
-      button.textContent = poi.iconKey === "water" ? "≈" :
-        poi.iconKey === "gate" ? "◇" :
-        poi.iconKey === "library" ? "L" :
-        poi.iconKey === "student-center" ? "S" :
-        poi.iconKey === "main-hall" ? "H" :
-        poi.iconKey === "exit" ? "↩" :
-        poi.iconKey === "dragon" ? "🐉" :
-        poi.iconKey === "echo" ? "◎" : "•";
+      const parts = button.__mapParts;
+      setAttr(parts.symbol.path, "d", MAP_POI_ICON_PATHS[poi.iconKey] ?? MAP_POI_ICON_PATHS.landmark);
+      const state = MAP_POI_STATES[poi.presentation] ?? MAP_POI_STATES.UNKNOWN;
+      parts.badge.hidden = !state.path;
+      setAttr(parts.stateSymbol.path, "d", state.path ?? "");
+      parts.label.textContent = poi.title;
+      if (selectedPoi?.poiId === poi.poiId && !selectedPoi.mapPoint) selectedPoi = poi;
     }
     for (const [poiId, node] of poiNodes) {
       if (keep.has(poiId)) continue;
@@ -462,6 +543,8 @@ export function createFullMapController({
       selectedPoi = null;
       infoPanel.hidden = true;
     }
+    renderInfo();
+    layoutLabels();
     return poiNodes.size;
   }
 
@@ -495,6 +578,10 @@ export function createFullMapController({
     placeOverlay(objectiveMarker, objective, bounds);
     if (!objectiveMarker.hidden) objectiveMarker.dataset.objectiveKind = objective?.kind ?? "destination";
     const active = currentDestination();
+    if (labelDestinationId !== (active?.poiId ?? null)) {
+      labelDestinationId = active?.poiId ?? null;
+      layoutLabels();
+    }
     // A campus destination is never drawn in room-local coordinates (and vice versa).
     placeOverlay(destinationMarker, active && (active.mapSourceId ?? mapSourceId) === mapSourceId ? active : null, bounds);
     if (navigation) {
@@ -713,6 +800,8 @@ export function createFullMapController({
     mapLabel = label;
     titleElement.textContent = mapLabel;
     selectedPoi = null;
+    focusedPoiId = null;
+    hoveredPoiId = null;
     destination = null;
     infoPanel.hidden = true;
     if (pickMarker) pickMarker.hidden = true;

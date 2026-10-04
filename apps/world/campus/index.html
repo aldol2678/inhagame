@@ -6,6 +6,8 @@
   <meta name="theme-color" content="#101722" />
   <title>INHAGAME Campus · 인덕이와 안뇽이</title>
   <link rel="stylesheet" href="/styles.css" />
+  <!-- Auth config must execute before module imports snapshot the shared account config. -->
+  <script src="/api/public-supabase-config"></script>
   <script type="importmap">
     {
       "imports": {
@@ -25,7 +27,7 @@
         <span id="world-loading-bar" style="width:6%"></span>
       </div>
       <div class="world-loading-progress-meta">
-        <span id="world-loading-detail">필수 월드부터 준비하고, 소셜·NPC 기능은 뒤에서 이어서 연결합니다.</span>
+        <span id="world-loading-detail">캐릭터와 첫 화면 렌더링이 끝나면 접속 화면이 열립니다.</span>
         <strong id="world-loading-percent">6%</strong>
       </div>
       <button id="world-loading-continue" type="button" hidden>기본 월드 먼저 보기</button>
@@ -286,6 +288,7 @@
     <button id="open-wardrobe" type="button" aria-controls="wardrobe-panel" aria-expanded="false">👕 옷장</button>
     <button id="open-daily-quiz" type="button" aria-controls="daily-quiz-panel" aria-expanded="false">📚 오늘의 퀴즈</button>
     <button id="open-attendance" type="button" aria-controls="attendance-panel" aria-expanded="false">📅 출석부</button>
+    <button id="open-life-skills" type="button" aria-controls="life-skill-book-panel" aria-expanded="false" hidden>📘 생활 스킬</button>
     <button id="open-friends" type="button" aria-controls="friend-panel" aria-expanded="false" hidden>👥 친구</button>
     <button id="toggle-first-person" type="button" aria-pressed="false" aria-label="1인칭 시점" aria-keyshortcuts="V">👁 1인칭으로</button>
     <button id="open-keyboard-help" class="desktop-only" type="button" aria-controls="keyboard-shortcuts-panel" aria-expanded="false">⌨ 키보드 조작</button>
@@ -383,6 +386,7 @@
   <section id="quest-journal-panel" class="profile-panel shop-panel inventory-panel quest-journal-panel" role="dialog" aria-modal="true" aria-labelledby="quest-journal-title" hidden></section>
   <!-- P0-F3b: Student Center shop. Content is rendered by src/shop/shop-panel.js from get_world_shop_v1. -->
   <section id="shop-panel" class="profile-panel shop-panel" role="dialog" aria-modal="true" aria-labelledby="shop-panel-title" hidden></section>
+  <section id="backgate-transit-panel" class="profile-panel shop-panel transit-panel" role="dialog" aria-modal="true" aria-labelledby="backgate-transit-title" hidden></section>
   <!-- Inventory P0: read-only owned items, rendered by src/inventory/inventory-panel.js from get_my_world_inventory_v1. -->
   <section id="inventory-panel" class="profile-panel shop-panel inventory-panel" role="dialog" aria-modal="true" aria-labelledby="inventory-panel-title" hidden></section>
   <!-- Mobility Book P0.8: player-facing registry browser; no ownership authority. -->
@@ -393,6 +397,10 @@
   <section id="daily-quiz-panel" class="profile-panel shop-panel inventory-panel daily-quiz-panel" role="dialog" aria-modal="true" aria-labelledby="daily-quiz-panel-title" hidden></section>
   <!-- Progression P1f: 캠퍼스 출석부, rendered by src/attendance/attendance-panel.js from the server-owned attendance RPCs. -->
   <section id="attendance-panel" class="profile-panel shop-panel inventory-panel attendance-panel" role="dialog" aria-modal="true" aria-labelledby="attendance-panel-title" hidden></section>
+  <!-- Life Skill Book P0: own ACTIVE Life Skills, tree ranks and free reset, rendered by src/life-skills/life-skill-book-panel.js from the server-owned get/unlock/reset_my_world_life_* RPCs. The menu entry stays hidden until the server lists a visible skill. -->
+  <section id="life-skill-book-panel" class="profile-panel shop-panel inventory-panel life-skill-book-panel" role="dialog" aria-modal="true" aria-labelledby="life-skill-book-title" hidden></section>
+  <!-- Inkyung fishing: rendered by src/activity/fishing-panel.js from the server-owned /api/world-fishing replies (start / HOOK / CANCEL / settle). Opened from the 🎣 action at the two pond spots. -->
+  <section id="fishing-panel" class="profile-panel shop-panel fishing-panel" role="dialog" aria-modal="true" aria-labelledby="fishing-title" hidden></section>
   <div id="guestbook-world-label" class="guestbook-world-label" aria-hidden="true" hidden>
     <span class="guestbook-world-marker-icon" data-guestbook-marker-icon>📖</span>
     <span class="guestbook-world-marker-copy">
@@ -462,6 +470,49 @@
   <div id="emote-menu" class="emote-menu" role="menu" aria-label="감정표현" hidden></div>
   <p id="emote-status" class="emote-status" role="status" aria-live="polite"></p>
   <div id="local-chat-bubble" class="chat-bubble" aria-hidden="true" hidden></div>
+  <div id="combat-impact-feedback" class="combat-impact-feedback" aria-hidden="true"></div>
+  <section id="combat-hud-v03" class="combat-hud-v03" aria-label="전투 조작" aria-hidden="true" hidden>
+    <div class="combat-hud-v03-head">
+      <strong data-combat-job>BLASTER</strong>
+      <span data-combat-lock>FREE AIM</span>
+      <span data-combat-ult-gauge>ULT 0%</span>
+    </div>
+    <div class="combat-hud-v03-player" aria-live="polite">
+      <div class="combat-hud-v03-target-head">
+        <strong>PLAYER</strong>
+        <span data-combat-dodge-state data-state="READY">READY</span>
+      </div>
+      <div class="combat-hud-v03-meter-row combat-hud-v03-player-hp">
+        <span>HP</span><i><b data-combat-player-hp-fill></b></i><em data-combat-player-hp>-</em>
+      </div>
+    </div>
+    <div class="combat-hud-v03-target" aria-live="polite">
+      <div class="combat-hud-v03-target-head">
+        <strong data-combat-target-name>5호관 공명 훈련 드론</strong>
+        <span data-combat-status>TRAINING</span>
+      </div>
+      <div class="combat-hud-v03-meter-row">
+        <span>HP</span><i><b data-combat-target-hp-fill></b></i><em data-combat-target-hp>-</em>
+      </div>
+      <div class="combat-hud-v03-meter-row combat-hud-v03-break">
+        <span>BREAK</span><i><b data-combat-target-break-fill></b></i><em data-combat-target-break>-</em>
+      </div>
+      <div class="combat-hud-v03-resource-row">
+        <span data-combat-resource>과충전 0 / 100</span>
+        <button type="button" data-combat-reset hidden>훈련 재시작 · R</button>
+      </div>
+      <div class="combat-hud-v03-telegraph" data-combat-telegraph hidden></div>
+    </div>
+    <div class="combat-hud-v03-actions">
+      <button type="button" data-combat-action="basic">기본</button>
+      <button type="button" data-combat-action="active_1">S1</button>
+      <button type="button" data-combat-action="active_2">S2</button>
+      <button type="button" data-combat-action="active_3">S3</button>
+      <button type="button" data-combat-action="dodge">회피</button>
+      <button type="button" data-combat-action="ultimate" disabled>ULT</button>
+    </div>
+    <small>PC: 좌클릭 기본공격 · 1/2/3 스킬 · Shift 회피 · F 궁극기 · Q 타깃 · Esc 종료</small>
+  </section>
   <button id="context-action" type="button" class="context-action" aria-label="상호작용" hidden></button>
   <button id="transport-action" type="button" class="context-action transport-action" aria-label="탈것" hidden></button>
   <p id="follow-status" class="follow-status" role="status" aria-live="polite" hidden></p>

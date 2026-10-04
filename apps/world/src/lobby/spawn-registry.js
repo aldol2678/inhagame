@@ -1,5 +1,7 @@
 import { BACK_GATE_SPAWN, MAIN_GATE_SPAWN } from "../campus-spawn.js";
 import { QUEST_ID } from "../../npc-factory/quest-contract.mjs";
+import { BIRYONG_STATION_SPAWN } from "../biryong/biryong-realm-layout.js";
+import { WORLD_REGION_ID, isWorldRegionId } from "../regions/world-region-registry.js";
 
 export const SPAWN_STATE = Object.freeze({
   AVAILABLE: "AVAILABLE",
@@ -21,7 +23,8 @@ export const SPAWN_ID = Object.freeze({
   CLUB_ROOM: "CLUB_ROOM",
   HOME: "HOME",
   FAVORITE: "FAVORITE",
-  EVENT: "EVENT"
+  EVENT: "EVENT",
+  BIRYONG_STATION: "BIRYONG_STATION"
 });
 
 export const SPAWN_UNLOCK_TYPE = Object.freeze({
@@ -47,6 +50,7 @@ export const DEFAULT_SPAWN_DEFINITIONS = Object.freeze({
     name: "정문",
     description: "인하월드의 시작점",
     worldZone: "AREA_MAIN_GATE",
+    regionId: WORLD_REGION_ID.CAMPUS,
     spawnAnchor: MAIN_GATE_SPAWN,
     state: SPAWN_STATE.AVAILABLE,
     unlockType: SPAWN_UNLOCK_TYPE.NONE,
@@ -62,6 +66,7 @@ export const DEFAULT_SPAWN_DEFINITIONS = Object.freeze({
     name: "후문",
     description: "퀘스트 완료 후 시작 지점으로 등록",
     worldZone: "AREA_BACK_GATE",
+    regionId: WORLD_REGION_ID.CAMPUS,
     spawnAnchor: BACK_GATE_SPAWN,
     state: SPAWN_STATE.LOCKED_PROGRESS,
     unlockType: SPAWN_UNLOCK_TYPE.QUEST,
@@ -71,6 +76,23 @@ export const DEFAULT_SPAWN_DEFINITIONS = Object.freeze({
     allowResume: true,
     allowFavorite: false,
     sortPriority: 20
+  }),
+  [SPAWN_ID.BIRYONG_STATION]: Object.freeze({
+    spawnId: SPAWN_ID.BIRYONG_STATION,
+    name: "비룡역",
+    description: "후문 F1을 통해 도착하는 비룡권 경계역",
+    worldZone: "BR_STATION",
+    regionId: WORLD_REGION_ID.BIRYONG_REALM,
+    spawnAnchor: BIRYONG_STATION_SPAWN,
+    // Transit arrival owns first access. Do not expose a lobby shortcut before discovery persistence exists.
+    state: SPAWN_STATE.HIDDEN,
+    unlockType: SPAWN_UNLOCK_TYPE.NONE,
+    unlockCondition: null,
+    previewScene: "BIRYONG_STATION",
+    onlineCountScope: "REGION",
+    allowResume: false,
+    allowFavorite: false,
+    sortPriority: 25
   })
 });
 
@@ -80,6 +102,7 @@ function validateDefinition(definition) {
     throw new Error("Invalid spawnId");
   if (typeof definition.name !== "string" || !definition.name.trim()) throw new Error("Invalid spawn name");
   if (!states.has(definition.state)) throw new Error("Invalid spawn state");
+  if (definition.regionId != null && !isWorldRegionId(definition.regionId)) throw new Error("Invalid spawn region");
   const anchor = definition.spawnAnchor;
   if (anchor && ![anchor.x, anchor.y, anchor.z, anchor.yaw ?? 0].every(Number.isFinite))
     throw new Error("Invalid spawn anchor");
@@ -145,6 +168,7 @@ export function createSpawnRegistry({
     }
     const result = {
       ...definition,
+      regionId: definition.regionId ?? WORLD_REGION_ID.CAMPUS,
       state,
       spawnAnchor: anchorCopy(definition.spawnAnchor),
       unlockCondition: conditionCopy(definition.unlockCondition)

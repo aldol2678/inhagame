@@ -77,6 +77,8 @@ export function createNavigationState({
   let lastRouteAt = -Infinity;
   let offRouteSince = null;
   let arrivedAt = null;
+  let pauseReason = null;
+  let currentSpaceId = guidanceSpaceId;
   let lastPosition = null;
   let lastYaw = 0;
   let snapshot = null;
@@ -104,6 +106,14 @@ export function createNavigationState({
         points: Object.freeze([{ x: position.x, z: position.z }, { ...destination.approach }]),
         distance: flat(position, destination.approach) });
     }
+    if (route?.ok === false) {
+      route = null;
+      status = NAV_STATUS.PAUSED;
+      pauseReason = "ROUTE_UNAVAILABLE";
+      lastRouteAt = clock.now();
+      return false;
+    }
+    pauseReason = null;
     segmentIndex = 0;
     routeVersion += 1;
     lastRouteAt = clock.now();
@@ -130,14 +140,17 @@ export function createNavigationState({
   }
 
   function setDestination(target, { position = lastPosition, spaceId = guidanceSpaceId } = {}) {
+    currentSpaceId = spaceId;
     const next = normalizeDestination(target);
     const changed = destination?.id !== next.id;
     destination = next;
+    pauseReason = null;
     arrivedAt = null;
     rerouteCount = 0;
     route = null;
     if (spaceId !== destination.mapSourceId || !finitePoint(position)) {
       status = NAV_STATUS.PAUSED;
+      pauseReason = "SPACE_MISMATCH";
     } else {
       status = NAV_STATUS.GUIDING;
       lastPosition = { x: position.x, z: position.z };
@@ -152,6 +165,7 @@ export function createNavigationState({
     destination = null;
     route = null;
     status = NAV_STATUS.IDLE;
+    pauseReason = null;
     arrivedAt = null;
     offRouteSince = null;
     segmentIndex = 0;
@@ -182,6 +196,8 @@ export function createNavigationState({
   }
 
   function update({ position, yaw = lastYaw, spaceId = guidanceSpaceId } = {}) {
+    if (currentSpaceId !== spaceId) snapshot = null;
+    currentSpaceId = spaceId;
     if (Number.isFinite(yaw)) lastYaw = yaw;
     const inGuidanceSpace = spaceId === (destination?.mapSourceId ?? guidanceSpaceId);
     if (inGuidanceSpace && finitePoint(position)) lastPosition = { x: position.x, z: position.z };
@@ -194,9 +210,10 @@ export function createNavigationState({
     if (!destination) return getSnapshot();
 
     if (!inGuidanceSpace || !finitePoint(position)) {
-      if (status !== NAV_STATUS.PAUSED) {
+      if (status !== NAV_STATUS.PAUSED || pauseReason !== "SPACE_MISMATCH") {
         // Keep the destination; drop the stale route so it is rebuilt from the return point.
         status = NAV_STATUS.PAUSED;
+        pauseReason = "SPACE_MISMATCH";
         route = null;
         offRouteSince = null;
         emit("pause");
@@ -205,8 +222,9 @@ export function createNavigationState({
     }
 
     if (status === NAV_STATUS.PAUSED) {
+      if (pauseReason === "ROUTE_UNAVAILABLE" && clock.now() - lastRouteAt < config.rerouteCooldownMs) return getSnapshot();
       status = NAV_STATUS.GUIDING;
-      computeRoute(position, "resume");
+      if (!computeRoute(position, "resume")) { snapshot = null; return getSnapshot(); }
       emit("resume");
     }
 
@@ -218,8 +236,16 @@ export function createNavigationState({
       return getSnapshot();
     }
 
-    if (!route) computeRoute(position, "set");
+    if (!route && !computeRoute(position, "set")) { snapshot = null; return getSnapshot(); }
     const hit = progress(position);
+    // A region may require safe rejoining even within the generic off-route
+    // tolerance. Never expose a straight current-position -> retained-waypoint
+    // segment through a building while waiting for the distance/grace threshold.
+    if (solver.segmentSafe && !solver.segmentSafe(position, route.points[segmentIndex + 1])) {
+      computeRoute(position, "reroute");
+      emit("reroute");
+      return getSnapshot();
+    }
     if (hit.distance > config.offRouteDistance) {
       offRouteSince ??= clock.now();
       const now = clock.now();
@@ -246,10 +272,13 @@ export function createNavigationState({
   function getSnapshot() {
     if (snapshot) return snapshot;
     const remaining = status === NAV_STATUS.GUIDING ? remainingPoints() : [];
-    const next = remaining.find((p, i) => i > 0 && (!lastPosition || flat(p, lastPosition) > 1.2)) ?? remaining[1] ?? null;
+    const next = remaining.find((p, i) => i > 0 && (!lastPosition || flat(p, lastPosition) > 1.2) &&
+      (!solver.segmentSafe || solver.segmentSafe(lastPosition, p))) ?? remaining[1] ?? null;
     const directDistance = destination && lastPosition ? flat(lastPosition, destination.approach) : null;
     snapshot = Object.freeze({
       status,
+      pauseReason,
+      currentSpaceId,
       active: status !== NAV_STATUS.IDLE,
       destination,
       routeVersion,
@@ -283,4 +312,12 @@ export function createNavigationState({
     config,
     errors: () => errors.slice()
   });
+}
+
+// Shared wording for the HUD and full map: a failed route is not an indoor pause.
+export function navigationPauseLabel(snapshot) {
+  if (snapshot?.pauseReason === "ROUTE_UNAVAILABLE") return "안전한 경로를 찾지 못했어요";
+  if (snapshot?.destination?.mapSourceId === "BIRYONG_REALM") return "비룡권으로 돌아가면 안내 재개";
+  if (snapshot?.currentSpaceId === "BIRYONG_REALM") return "캠퍼스로 돌아가면 안내 재개";
+  return "실외로 나가면 안내 재개";
 }
