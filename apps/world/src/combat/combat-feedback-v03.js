@@ -49,7 +49,8 @@ export function createCombatFeedbackV03({
     throw new TypeError('Combat feedback v0.3 dependencies required');
   }
 
-  let audio = null, master = null, lastTargetHit = 0, lastBreak = 0, lastPlayerHit = 0, lastPerfect = 0;
+  let audio = null, master = null, lastGeneration = null;
+  let lastTargetHit = 0, lastBreak = 0, lastPlayerHit = 0, lastPerfect = 0;
   let reaction = null, holdUntil = 0, flashTimer = null;
   const cleanups = [];
 
@@ -125,6 +126,15 @@ export function createCombatFeedbackV03({
     if (!state.active) return;
     const training = state.training;
     if (!training) return;
+    if (training.generation !== lastGeneration) {
+      lastGeneration = training.generation;
+      lastTargetHit = 0;
+      lastBreak = 0;
+      lastPlayerHit = 0;
+      lastPerfect = 0;
+      reaction = null;
+      holdUntil = 0;
+    }
 
     if ((training.breakSerial ?? 0) > lastBreak) {
       lastBreak = training.breakSerial;
