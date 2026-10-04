@@ -31,6 +31,8 @@ TML is used here as a semantic/state-transition layer above the existing game im
 - `runtime/canary-adapter-interfaces.mjs` — P17 reference-only external adapter interface pack; no adapter invocation
 - `runtime/canary-adapter-conformance.mjs` — P18 MOCK_ONLY conformance harness for P17 interfaces; never accepts live adapters
 - `runtime/gyeol-verdict-contract.mjs` — P19 strict shadow-only TML → Gyeol verdict request/response contract; no live Gyeol invocation or authority effect
+- `runtime/gyeol-mock-adapter.mjs` — P20 TEST_MOCK-only Gyeol adapter with caller-supplied decision policy; no default TML→Gyeol mapping
+- `runtime/gyeol-replay-conformance.mjs` — P20 repeated-request semantic replay harness; no live adapter invocation
 - `fixtures/` — executable-domain conformance fixtures tied to current INHA WORLD contracts
 
 ## Boundary
@@ -538,3 +540,28 @@ mutation_requests = []
 A verdict may cite only Evidence IDs present in the request. P19 is not wired into `src/main.js`, the NPC dev runtime, quest mutation, reward settlement, routing, deployment, or persistence.
 
 The design and completion gate are documented in [design/P19_GYEOL_VERDICT_BRIDGE.md](design/P19_GYEOL_VERDICT_BRIDGE.md).
+
+
+## P20 Gyeol Mock Adapter + Replay Conformance
+
+P20 exercises the strict P19 contract without implementing a production Gyeol engine.
+
+The mock adapter requires an explicit caller-supplied `decide(request)`; there is intentionally no built-in mapping from TML Verification states to Gyeol Verdict states.
+
+The replay harness runs the exact same immutable P19 request through a TEST_MOCK adapter multiple times and compares the semantic projection:
+
+```text
+status
+reasons
+evidence_used
+effect boundary
+mutation_requests
+```
+
+`evaluated_at` is metadata and may differ between runs. A PASS therefore means deterministic semantic replay, not byte-identical timestamps.
+
+Every generated response still passes through the strict P19 validator, so request drift, unsupported fields, Evidence scope violations, and any mutation/runtime/persistence/authority effect remain invalid.
+
+P20 refuses non-mock/unbranded adapters before invocation and remains disconnected from live gameplay, persistence, routing and authority changes.
+
+The full contract is documented in [design/P20_GYEOL_MOCK_REPLAY.md](design/P20_GYEOL_MOCK_REPLAY.md).
