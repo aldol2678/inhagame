@@ -137,6 +137,8 @@ export class PlayerController {
     this.inputEnabled = true;
     // Extra world-level block for the M key (open panels, dialogue); set by the World.
     this.transportGate = null;
+    // Independent feature locks layer on top of the World transport gate without replacing its authority.
+    this.transportLocks = new Set();
     this.#syncMountKind();
     this.#bindKeyboard();
     this.#bindTouch();
@@ -630,8 +632,15 @@ export class PlayerController {
     this.transportGate = typeof gate === "function" ? gate : null;
   }
 
+  setTransportLock(lockId, locked = true) {
+    if (typeof lockId !== "string" || !lockId) throw new TypeError("Transport lock id required");
+    if (locked) this.transportLocks.add(lockId);
+    else this.transportLocks.delete(lockId);
+    return this.transportLocks.size > 0;
+  }
+
   transportAction() {
-    if (!this.inputEnabled || this.transportGate?.() === false) return false;
+    if (!this.inputEnabled || this.transportGate?.() === false || this.transportLocks.size > 0) return false;
     const action = this.getMountContextAction();
     if (!action || action.disabled === true) return false;
     return action.trigger() !== false;
