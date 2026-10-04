@@ -3116,6 +3116,11 @@ if (lobbyWorld.active) {
 const bootDegraded = !online;
 worldLoading?.finish({ degraded: bootDegraded });
 void loadOptionalNpcRuntime();
+if (giantRoachTestMode) {
+  void import('./giant-roach-experiment.js').then(({ createGiantRoachExperiment }) => {
+    giantRoachExperiment = createGiantRoachExperiment({ app, campusRoot: app.root, player, count: giantRoachTestCount });
+  }).catch(error => console.error('[GIANT_ROACH_TEST] boot failed', error));
+}
 if (campusLifePreview) {
   import('../npc-factory/purposeful-student-runtime.mjs')
     .then(module => module.createPurposefulStudentRuntime({
