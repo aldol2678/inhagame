@@ -35,6 +35,7 @@ import { createMeltwaterEffects } from './environment/meltwater-effects.js';
 import { createSkyVisuals } from './environment/sky-visuals.js';
 import { createInkyungDuckSystem } from './ambient-ducks.js';
 import { createDuckObservationClient } from './creature/duck-observation-client.js';
+import { createDuckCompanionFollow } from './creature/duck-companion-follow.js';
 import { createInkyungMechanicalDuckEvent } from './inkyung-mechanical-duck-event.js';
 import { createBiryongSystem } from './biryong/biryong-system.js';
 import { BIRYONG_PLACE_ID, isNearBiryong } from './biryong/biryong-layout.js';
@@ -739,6 +740,21 @@ const biryongRelationships = createBiryongRelationshipClient({
 });
 const duckCompanion = createDuckObservationClient({
   getClient: () => online?.supabase ?? null
+});
+const duckCompanionFollow = createDuckCompanionFollow({
+  root: campusRoot,
+  player,
+  getSnapshot: () => duckCompanion.status().snapshot,
+  getGroundHeight: (x, z) => controller.groundY + roadviewGroundHeight(x, z),
+  getVisible: () =>
+    !rooms?.insideRoom &&
+    !biryongRealm?.inBiryong &&
+    !lobbyWorld.active &&
+    !lobbyTransition.active &&
+    !controller.mounted
+});
+window.addEventListener("pagehide", event => {
+  if (!event.persisted) duckCompanionFollow.destroy();
 });
 let accompany = null;
 let populationHeartbeat = null;
@@ -2682,6 +2698,7 @@ app.on("update", (dt) => {
   character.update(Math.min(dt, 0.05), { ...locomotion(), emote, seated: seats.isSeated, poseOffsets: biryong?.poseOffsets() ?? null });
 
   const pos = player.getLocalPosition();
+  duckCompanionFollow.update(Math.min(dt, 0.05));
   if (!inside) {
     if (inkyungSideEvent.requiresMechanicalDuck()) inkyungDucks.ensureMechanicalDuck();
     inkyungDucks.update(Math.min(dt, 0.05), pos);
