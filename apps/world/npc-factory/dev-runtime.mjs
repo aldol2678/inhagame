@@ -32,6 +32,7 @@ import { createMain2QuestClient } from './main2-quest-client.mjs';
 import { MAIN2_QUEST_ID } from './main2-quest-contract.mjs';
 import { createMain2GuideRuntime } from './main2-guide-runtime.mjs';
 import { createTmlMain2Shadow } from '../tml/runtime/main2-shadow.mjs';
+import { withAnd } from './npc-korean-label.mjs';
 
 const aiPilotIds = new Set([MAIN_NPC_ID, QUEST_NPC_ID]);
 const NPC_TALK_RADIUS = metersToWorld(3);
