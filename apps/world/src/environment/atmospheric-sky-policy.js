@@ -10,14 +10,21 @@ export const ATMOSPHERE_SUN_GLOW_SIZE = 82;
 
 const DAY_HORIZON = Object.freeze([0.66, 0.82, 0.94]);
 const DAY_ZENITH = Object.freeze([0.12, 0.38, 0.74]);
-const NIGHT_HORIZON = Object.freeze([0.055, 0.07, 0.13]);
-const NIGHT_ZENITH = Object.freeze([0.01, 0.02, 0.055]);
+const NIGHT_HORIZON = Object.freeze([0.035, 0.05, 0.085]);
+const NIGHT_ZENITH = Object.freeze([0.008, 0.016, 0.04]);
 const OVERCAST_HORIZON = Object.freeze([0.52, 0.57, 0.63]);
 const OVERCAST_ZENITH = Object.freeze([0.28, 0.34, 0.43]);
 const RAIN_HORIZON = Object.freeze([0.40, 0.45, 0.51]);
 const RAIN_ZENITH = Object.freeze([0.22, 0.29, 0.38]);
 const SNOW_HORIZON = Object.freeze([0.78, 0.82, 0.87]);
 const SNOW_ZENITH = Object.freeze([0.55, 0.63, 0.72]);
+
+const NIGHT_OVERCAST_HORIZON = Object.freeze([0.055, 0.07, 0.12]);
+const NIGHT_OVERCAST_ZENITH = Object.freeze([0.012, 0.022, 0.055]);
+const NIGHT_RAIN_HORIZON = Object.freeze([0.04, 0.052, 0.082]);
+const NIGHT_RAIN_ZENITH = Object.freeze([0.008, 0.014, 0.034]);
+const NIGHT_SNOW_HORIZON = Object.freeze([0.10, 0.12, 0.17]);
+const NIGHT_SNOW_ZENITH = Object.freeze([0.025, 0.038, 0.075]);
 
 export function atmosphereSkyProfile({
   sunColor = [1, 0.94, 0.81],
@@ -37,14 +44,24 @@ export function atmosphereSkyProfile({
   let horizon = mixTuple(DAY_HORIZON, NIGHT_HORIZON, nightBlend);
   let zenith = mixTuple(DAY_ZENITH, NIGHT_ZENITH, nightBlend);
 
-  const overcastMix = cover * 0.55;
-  horizon = mixTuple(horizon, OVERCAST_HORIZON, overcastMix);
-  zenith = mixTuple(zenith, OVERCAST_ZENITH, overcastMix);
+  // Weather tints are daytime-bright by design. Blend their targets toward
+  // dedicated night values before applying them so baseline cloud cover, rain,
+  // or snow cannot lift NIGHT back toward a daytime-blue atmosphere.
+  const overcastHorizon = mixTuple(OVERCAST_HORIZON, NIGHT_OVERCAST_HORIZON, nightBlend);
+  const overcastZenith = mixTuple(OVERCAST_ZENITH, NIGHT_OVERCAST_ZENITH, nightBlend);
+  const rainHorizon = mixTuple(RAIN_HORIZON, NIGHT_RAIN_HORIZON, nightBlend);
+  const rainZenith = mixTuple(RAIN_ZENITH, NIGHT_RAIN_ZENITH, nightBlend);
+  const snowHorizon = mixTuple(SNOW_HORIZON, NIGHT_SNOW_HORIZON, nightBlend);
+  const snowZenith = mixTuple(SNOW_ZENITH, NIGHT_SNOW_ZENITH, nightBlend);
 
-  horizon = mixTuple(horizon, RAIN_HORIZON, rain * 0.75);
-  zenith = mixTuple(zenith, RAIN_ZENITH, rain * 0.75);
-  horizon = mixTuple(horizon, SNOW_HORIZON, snow * 0.65);
-  zenith = mixTuple(zenith, SNOW_ZENITH, snow * 0.65);
+  const overcastMix = cover * 0.55;
+  horizon = mixTuple(horizon, overcastHorizon, overcastMix);
+  zenith = mixTuple(zenith, overcastZenith, overcastMix);
+
+  horizon = mixTuple(horizon, rainHorizon, rain * 0.75);
+  zenith = mixTuple(zenith, rainZenith, rain * 0.75);
+  horizon = mixTuple(horizon, snowHorizon, snow * 0.65);
+  zenith = mixTuple(zenith, snowZenith, snow * 0.65);
 
   // SUNSET sits around artificialLightFactor=0.18. Keep the warmth concentrated
   // near the horizon and suppress it under heavy weather.
