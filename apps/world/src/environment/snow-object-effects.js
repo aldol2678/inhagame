@@ -54,7 +54,7 @@ function stableOrder(items) {
   return [...items].sort((a, b) => hash(a.id) - hash(b.id) || a.id.localeCompare(b.id));
 }
 
-function roofSources() {
+export function snowObjectRoofSources() {
   const result = [];
   const facilityIds = new Set();
 
@@ -175,7 +175,7 @@ export function createSnowObjectEffects({
   getSnowAccumulation,
   getGraphicsTier
 }) {
-  const roofs = roofSources();
+  const roofs = snowObjectRoofSources();
   const benches = benchSources();
   const lamps = lampSources();
   const material = createMaterial();
