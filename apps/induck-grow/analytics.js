@@ -1,6 +1,6 @@
 (() => {
   'use strict';
-  if (typeof window === 'undefined' || location.hostname !== 'grow.inhagame.example') return;
+  if (typeof window === 'undefined' || location.hostname !== 'grow.inhagame.app') return;
 
   const SUPABASE_URL = ((globalThis.__INHAGAME_PUBLIC_SUPABASE__||{}).url);
   const SUPABASE_KEY = ((globalThis.__INHAGAME_PUBLIC_SUPABASE__||{}).publishableKey);
@@ -57,7 +57,7 @@
       const host = url.hostname.toLowerCase();
       if (host === 'everytime.kr' || host.endsWith('.everytime.kr')) return 'everytime';
       if (url.origin === location.origin) return 'internal';
-      if (host === 'inhagame.example' || host.endsWith('.inhagame.example')) return 'internal';
+      if (host === 'inhagame.app' || host.endsWith('.inhagame.example')) return 'internal';
       return 'external';
     } catch {
       return 'unknown';

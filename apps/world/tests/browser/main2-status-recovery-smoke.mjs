@@ -142,6 +142,8 @@ if (process.env.WORLD_SMOKE_SERVE_ONLY === '1') {
       available: fixture.status().available, timers: fixture.timerCount() })),
       { state: 'READY', available: false, timers: 0 });
     assert.equal(await page.locator('#next-discovery-primary').isVisible(), false);
+    assert.equal(await page.locator('#quest-hud').isVisible(), false);
+    assert.equal(await page.locator('#quest-hud-open').isDisabled(), true);
     assert.equal(await page.evaluate(() => fixture.requests.length), oldRequest + 2);
     console.log('Main2 account-switch stale ' + (lateSuccess ? 'success' : 'failure') + ' PASS');
   }

@@ -18,6 +18,7 @@ import { createOnlineHud } from "./online-hud.js";
 import { ChatComposer, ChatFeed, passThroughModeration } from "./local-chat.js";
 import { ActionType, equipmentKey } from "../network/protocol.js";
 import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from "../config/supabase-public-config.js";
+import { setStaffBadgeClient } from "../staff-badges.js";
 export { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from "../config/supabase-public-config.js";
 
 // The guest session lives under its own storage key so it never replaces or signs out the
@@ -125,6 +126,7 @@ export function startWorldOnline({
   }
 
   function stopSession() {
+    setStaffBadgeClient(null);
     if (identity) setIdentity(null);
     chatFeed.setPlaceZone(null);
     if (!session) return;
@@ -205,6 +207,7 @@ export function startWorldOnline({
   }
 
   function openSession({ userId, displayName, guest, transportClient }) {
+    setStaffBadgeClient(transportClient);
     const transport = createTransport(transportClient, { allowGuest: guest });
     const sessionId = randomId();
     const net = new NetworkManager({

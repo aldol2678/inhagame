@@ -31,7 +31,11 @@ function mutableFogFrame(source) {
     fogColorMix: source.fogColorMix,
     fogTint: [...source.fogTint],
     rainIntensity: source.rainIntensity,
-    wetness: source.wetness
+    snowIntensity: source.snowIntensity,
+    wetness: source.wetness,
+    cloudCover: source.cloudCover,
+    sunLightScale: source.sunLightScale,
+    ambientLightScale: source.ambientLightScale
   };
 }
 
@@ -56,7 +60,11 @@ function copyFogFrame(out, source) {
   out.fogColorMix = source.fogColorMix;
   copyTuple(out.fogTint, source.fogTint);
   out.rainIntensity = source.rainIntensity;
+  out.snowIntensity = source.snowIntensity;
   out.wetness = source.wetness;
+  out.cloudCover = source.cloudCover;
+  out.sunLightScale = source.sunLightScale;
+  out.ambientLightScale = source.ambientLightScale;
 }
 
 function mixTuple(out, from, to, t) {
@@ -80,7 +88,11 @@ function mixFogFrame(out, from, to, t) {
   out.fogColorMix = from.fogColorMix + (to.fogColorMix - from.fogColorMix) * t;
   mixTuple(out.fogTint, from.fogTint, to.fogTint, t);
   out.rainIntensity = from.rainIntensity + (to.rainIntensity - from.rainIntensity) * t;
+  out.snowIntensity = from.snowIntensity + (to.snowIntensity - from.snowIntensity) * t;
   out.wetness = from.wetness + (to.wetness - from.wetness) * t;
+  out.cloudCover = from.cloudCover + (to.cloudCover - from.cloudCover) * t;
+  out.sunLightScale = from.sunLightScale + (to.sunLightScale - from.sunLightScale) * t;
+  out.ambientLightScale = from.ambientLightScale + (to.ambientLightScale - from.ambientLightScale) * t;
 }
 
 function setColor(target, tuple) {
@@ -93,13 +105,19 @@ function mixFogColor(out, clearColor, fogTint, mix) {
 }
 
 function applyFrame({ scene, lightEntity, camera }, frame, fogFrame, fogType, fogColor) {
-  setColor(scene?.ambientLight, frame.ambientColor);
+  if (scene?.ambientLight?.set) {
+    scene.ambientLight.set(
+      frame.ambientColor[0] * fogFrame.ambientLightScale,
+      frame.ambientColor[1] * fogFrame.ambientLightScale,
+      frame.ambientColor[2] * fogFrame.ambientLightScale
+    );
+  }
   if (scene) scene.exposure = frame.exposure;
 
   const light = lightEntity?.light;
   setColor(light?.color, frame.sunColor);
   if (light) {
-    light.intensity = frame.sunIntensity;
+    light.intensity = frame.sunIntensity * fogFrame.sunLightScale;
     light.shadowIntensity = frame.shadowIntensity;
   }
   lightEntity?.setEulerAngles?.(...frame.sunEuler);
@@ -232,7 +250,11 @@ export function createEnvironmentDirector({
         color: Object.freeze([...fogColor])
       }),
       rainIntensity: fogCurrent.rainIntensity,
-      wetness: fogCurrent.wetness
+      snowIntensity: fogCurrent.snowIntensity,
+      wetness: fogCurrent.wetness,
+      cloudCover: fogCurrent.cloudCover,
+      sunLightScale: fogCurrent.sunLightScale,
+      ambientLightScale: fogCurrent.ambientLightScale
     });
   }
 
@@ -244,8 +266,27 @@ export function createEnvironmentDirector({
     return fogCurrent.rainIntensity;
   }
 
+  function snowIntensity() {
+    return fogCurrent.snowIntensity;
+  }
+
   function wetnessFactor() {
     return fogCurrent.wetness;
+  }
+
+  function copySkyVisualState(out) {
+    if (!out) return null;
+    if (!Array.isArray(out.sunColor) || out.sunColor.length < 3) out.sunColor = [0, 0, 0];
+    if (!Array.isArray(out.sunEuler) || out.sunEuler.length < 3) out.sunEuler = [0, 0, 0];
+    copyTuple(out.sunColor, current.sunColor);
+    copyTuple(out.sunEuler, current.sunEuler);
+    out.sunIntensity = current.sunIntensity;
+    out.artificialLightFactor = current.artificialLightFactor;
+    out.rainIntensity = fogCurrent.rainIntensity;
+    out.snowIntensity = fogCurrent.snowIntensity;
+    out.cloudCover = fogCurrent.cloudCover;
+    out.sunLightScale = fogCurrent.sunLightScale;
+    return out;
   }
 
   return Object.freeze({
@@ -255,6 +296,8 @@ export function createEnvironmentDirector({
     status,
     artificialLightFactor,
     rainIntensity,
-    wetnessFactor
+    snowIntensity,
+    wetnessFactor,
+    copySkyVisualState
   });
 }

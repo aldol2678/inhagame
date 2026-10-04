@@ -1,6 +1,7 @@
 import { normalizeMusicState, resolveMusicBinding } from "./music-binding-resolver.js";
 
 const clamp01 = value => Math.max(0, Math.min(1, Number(value) || 0));
+const assetKey = asset => JSON.stringify([asset.id, asset.uri || ""]);
 
 export function createRuntimeMusicLayer({
   getContext,
@@ -19,6 +20,7 @@ export function createRuntimeMusicLayer({
   let desired = normalizeMusicState();
   let generation = 0;
   let volume = 1;
+  let volumeGain = null;
   let degraded = false;
   let lastError = null;
   let configState = "unloaded";
@@ -31,20 +33,22 @@ export function createRuntimeMusicLayer({
   function context() { return getContext?.() ?? null; }
   function output() { return getOutput?.() ?? null; }
 
-  function stopHandle(id) {
+  function stopHandle(id, stopSource = true) {
     const handle = handles.get(id);
     if (!handle) return false;
+    handles.delete(id);
     if (handle.timer !== null) clearTimeoutFn(handle.timer);
     handle.timer = null;
     handle.source.onended = null;
-    try { handle.source.stop(); } catch {}
+    if (stopSource) { try { handle.source.stop(); } catch {} }
     handle.source.disconnect();
     handle.gain.disconnect();
-    handles.delete(id);
     return true;
   }
 
-  function fadeHandle(handle, target, seconds) {
+  function fadeHandle(handle, target, seconds, retire = false) {
+    // Repeated state refreshes must not postpone an already scheduled stop.
+    if (retire && handle.timer !== null) return;
     const ctx = context();
     if (!ctx) return;
     if (handle.timer !== null) {
@@ -58,13 +62,17 @@ export function createRuntimeMusicLayer({
     if (duration === 0) {
       handle.gain.gain.setValueAtTime?.(target, now);
       handle.gain.gain.value = target;
-      if (target === 0) stopHandle(handle.cueId);
+      if (retire) stopHandle(handle.cueId);
       return;
     }
     handle.gain.gain.linearRampToValueAtTime?.(target, now + duration);
     if (!handle.gain.gain.linearRampToValueAtTime) handle.gain.gain.value = target;
-    if (target === 0) {
-      handle.timer = setTimeoutFn(() => stopHandle(handle.cueId), Math.ceil(duration * 1000) + 50);
+    if (retire) {
+      const timer = setTimeoutFn(() => {
+        if (handles.get(handle.cueId) !== handle || handle.timer !== timer) return;
+        stopHandle(handle.cueId);
+      }, Math.ceil(duration * 1000) + 50);
+      handle.timer = timer;
     }
   }
 
@@ -79,36 +87,47 @@ export function createRuntimeMusicLayer({
 
   async function bufferFor(asset) {
     const ctx = context();
-    const key = `${asset.id}::${asset.uri || ""}`;
+    const key = assetKey(asset);
     if (buffers.has(key)) return buffers.get(key);
-    const bytes = await loadAssetArrayBuffer(asset);
-    const arrayBuffer = bytes instanceof ArrayBuffer ? bytes : await bytes?.arrayBuffer?.();
-    if (!(arrayBuffer instanceof ArrayBuffer)) throw new Error(`E_MUSIC_RUNTIME_ASSET_BYTES:${asset.id}`);
-    const buffer = await ctx.decodeAudioData(arrayBuffer.slice(0));
-    buffers.set(key, buffer);
-    return buffer;
+    // Cache the in-flight decode too. Clearing the cache cannot be undone by
+    // an older load completing after a project change or disposal.
+    const pending = (async () => {
+      const bytes = await loadAssetArrayBuffer(asset);
+      const arrayBuffer = bytes instanceof ArrayBuffer ? bytes : await bytes?.arrayBuffer?.();
+      if (!(arrayBuffer instanceof ArrayBuffer)) throw new Error(`E_MUSIC_RUNTIME_ASSET_BYTES:${asset.id}`);
+      const buffer = await ctx.decodeAudioData(arrayBuffer.slice(0));
+      return buffer;
+    })();
+    buffers.set(key, pending);
+    try { return await pending; }
+    catch (error) {
+      if (buffers.get(key) === pending) buffers.delete(key);
+      throw error;
+    }
   }
 
   function startCue(resolved, buffer) {
     const ctx = context();
-    const bus = output();
+    if (!volumeGain) {
+      volumeGain = ctx.createGain();
+      volumeGain.gain.value = volume;
+      volumeGain.connect(output());
+    }
+    const bus = volumeGain;
     const { cue, asset } = resolved;
     const source = ctx.createBufferSource();
     const gain = ctx.createGain();
     source.buffer = buffer;
     source.connect(gain).connect(bus);
-    const handle = { cueId: cue.id, assetId: asset.id, source, gain, cue, timer: null };
+    const handle = { cueId: cue.id, assetKey: assetKey(asset), source, gain, cue, timer: null };
     configureSource(handle, cue);
     const fadeIn = Math.max(0, Number(cue.transition?.fadeInSeconds) || 0);
-    const target = clamp01(volume) * Number(cue.gain ?? 1);
+    const target = Number(cue.gain ?? 1);
     gain.gain.value = fadeIn > 0 ? 0 : target;
     handles.set(cue.id, handle);
     source.onended = () => {
       if (handles.get(cue.id) !== handle) return;
-      source.onended = null;
-      source.disconnect();
-      gain.disconnect();
-      handles.delete(cue.id);
+      stopHandle(cue.id, false);
     };
     source.start();
     if (fadeIn > 0) fadeHandle(handle, target, fadeIn);
@@ -126,7 +145,7 @@ export function createRuntimeMusicLayer({
     currentResolved = resolved;
     if (!project || !resolved.binding || !resolved.cue || !resolved.asset) {
       for (const handle of [...handles.values()]) {
-        fadeHandle(handle, 0, handle.cue.transition?.fadeOutSeconds ?? 0);
+        fadeHandle(handle, 0, handle.cue.transition?.fadeOutSeconds ?? 0, true);
       }
       if (configState !== "degraded") {
         degraded = false;
@@ -142,7 +161,7 @@ export function createRuntimeMusicLayer({
       degraded = true;
       lastError = error?.message || "E_MUSIC_RUNTIME_ASSET_LOAD";
       for (const handle of [...handles.values()]) {
-        fadeHandle(handle, 0, handle.cue.transition?.fadeOutSeconds ?? 0);
+        fadeHandle(handle, 0, handle.cue.transition?.fadeOutSeconds ?? 0, true);
       }
       return false;
     }
@@ -152,16 +171,16 @@ export function createRuntimeMusicLayer({
     lastError = null;
     for (const handle of [...handles.values()]) {
       if (handle.cueId !== resolved.cue.id) {
-        fadeHandle(handle, 0, handle.cue.transition?.fadeOutSeconds ?? 0);
+        fadeHandle(handle, 0, handle.cue.transition?.fadeOutSeconds ?? 0, true);
       }
     }
 
     let handle = handles.get(resolved.cue.id);
-    if (handle && handle.assetId !== resolved.asset.id) {
+    if (handle && handle.assetKey !== assetKey(resolved.asset)) {
       stopHandle(handle.cueId);
       handle = null;
     }
-    const target = clamp01(volume) * Number(resolved.cue.gain ?? 1);
+    const target = Number(resolved.cue.gain ?? 1);
     if (!handle) handle = startCue(resolved, buffer);
     else {
       configureSource(handle, resolved.cue);
@@ -199,11 +218,11 @@ export function createRuntimeMusicLayer({
   function setVolume(value) {
     volume = clamp01(value);
     const ctx = context();
-    if (!ctx) return;
-    for (const handle of handles.values()) {
-      const target = volume * Number(handle.cue?.gain ?? 1);
-      fadeHandle(handle, target, 0.05);
-    }
+    if (!ctx || !volumeGain || disposed) return;
+    // Volume is independent of source envelopes and their retirement timers.
+    volumeGain.gain.cancelScheduledValues?.(ctx.currentTime);
+    volumeGain.gain.setTargetAtTime?.(volume, ctx.currentTime, 0.03);
+    if (!volumeGain.gain.setTargetAtTime) volumeGain.gain.value = volume;
   }
 
   function status() {
@@ -237,6 +256,8 @@ export function createRuntimeMusicLayer({
       generation += 1;
       for (const id of [...handles.keys()]) stopHandle(id);
       buffers.clear();
+      volumeGain?.disconnect();
+      volumeGain = null;
     }
   };
 }

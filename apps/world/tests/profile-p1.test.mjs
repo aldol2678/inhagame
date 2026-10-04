@@ -18,7 +18,7 @@ test('profile events use the existing hub RPC and keep attribution IDs', async (
   try {
     for (const [event_type,target] of [['profile_view',null],['profile_game_click','classic']]) {
       const event_id=randomUUID(),res=response();
-      await handler({method:'POST',headers:{origin:'https://inhagame.example',host:'inhagame.example'},
+      await handler({method:'POST',headers:{origin:'https://inhagame.app',host:'inhagame.app'},
         body:{event_id,session_id:randomUUID(),visitor_id:randomUUID(),event_type,surface:'profile',target}},res);
       assert.equal(res.code,204);
       assert.equal(requests.at(-1).p_event_id,event_id);
@@ -28,11 +28,11 @@ test('profile events use the existing hub RPC and keep attribution IDs', async (
 });
 test('cross-origin and arbitrary profile event names are rejected', async () => {
   const foreign=response();
-  await handler({method:'POST',headers:{origin:'https://other.example',host:'inhagame.example'},
+  await handler({method:'POST',headers:{origin:'https://other.example',host:'inhagame.app'},
     body:{}},foreign);
   assert.equal(foreign.code,403);
   const invalid=response();
-  await handler({method:'POST',headers:{host:'inhagame.example'},body:{
+  await handler({method:'POST',headers:{host:'inhagame.app'},body:{
     event_id:randomUUID(),session_id:randomUUID(),visitor_id:randomUUID(),
     event_type:'profile_steal',surface:'profile',target:null
   }},invalid);

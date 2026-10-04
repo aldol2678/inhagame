@@ -11,10 +11,11 @@ const clearance = .6;
 const cellSize = 1.5;
 const pointDistance = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 const campusGraph = campusNavGraph();
-const campusRouteSolver = createRouteSolver(campusGraph, { directDistance: 0, snapMaxDistance: 2 });
+const campusRouteSolver = createRouteSolver(campusGraph, { directDistance: 0, snapMaxDistance: 3 });
 const campusSnap = point => campusGraph.nearestEdgePoint(point, { maxDistance: .4 });
+const campusAccessSnap = point => campusGraph.nearestEdgePoint(point, { maxDistance: 3 });
 const campusNetworkRoute = (from, to) => {
-  if (!campusSnap(from) || !campusSnap(to)) return null;
+  if (!campusAccessSnap(from) || !campusAccessSnap(to)) return null;
   const solved = campusRouteSolver.solve(from, to);
   if (!solved?.ok || solved.mode !== 'NETWORK') return null;
   return solved.points.slice(1).map(({ x, z }) => ({ x, z }));
@@ -86,6 +87,13 @@ export function createNpcNavigator(batch, { additionalAnchors = [] } = {}) {
     }
     return true;
   }
+  function networkRoute(from, to) {
+    const access = campusAccessSnap(from), egress = campusAccessSnap(to);
+    // Only the existing narrow on-network exception can bypass legacy clearance.
+    // Dwell spots beside the path must have genuinely safe access/egress segments.
+    if (!access || !egress || !segmentSafe(from, access) || !segmentSafe(egress, to)) return null;
+    return campusNetworkRoute(from, to);
+  }
   const cellPoint = index => ({ x: bounds.minX + (index % width) * cellSize,
     z: bounds.minZ + Math.floor(index / width) * cellSize });
   const openCells = Uint8Array.from({ length: width * height }, (_, index) => Number(walkable(cellPoint(index))));
@@ -110,7 +118,7 @@ export function createNpcNavigator(batch, { additionalAnchors = [] } = {}) {
     if (!walkable(from) || !walkable(to)) return null;
     if (segmentSafe(from, to)) return [{ ...to }];
     const start = nearestCell(from), goal = nearestCell(to);
-    if (start < 0 || goal < 0) return campusNetworkRoute(from, to);
+    if (start < 0 || goal < 0) return networkRoute(from, to);
     const score = new Float64Array(openCells.length).fill(Infinity);
     const previous = new Int32Array(openCells.length).fill(-1);
     const closed = new Uint8Array(openCells.length);
@@ -161,7 +169,7 @@ export function createNpcNavigator(batch, { additionalAnchors = [] } = {}) {
         push(next, candidate + pointDistance(cellPoint(next), cellPoint(goal)));
       }
     }
-    if (start !== goal && previous[goal] < 0) return campusNetworkRoute(from, to);
+    if (start !== goal && previous[goal] < 0) return networkRoute(from, to);
     const cells = [];
     for (let at = goal; at >= 0; at = previous[at]) {
       cells.push(cellPoint(at));
@@ -188,5 +196,9 @@ export function createNpcNavigator(batch, { additionalAnchors = [] } = {}) {
     }
     return route(from, anchor);
   }
-  return { walkable, segmentSafe, route, networkRoute: campusNetworkRoute, wanderRoute, bounds };
+  // Snapshot the effective inputs used by these closures. Downstream source data changes
+  // are captured here after projection/filtering; logic sources are hashed separately.
+  const navigationGeometry = () => structuredClone({ bounds, obstacles, pond, clearance, cellSize,
+    segmentStep: .45, graphOverrideMaxDistance: .4, graphAccessMaxDistance: 3 });
+  return { walkable, segmentSafe, route, networkRoute, wanderRoute, bounds, navigationGeometry };
 }

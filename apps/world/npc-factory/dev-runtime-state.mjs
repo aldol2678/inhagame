@@ -4,7 +4,7 @@ import { getCanonicalLandmark, projectPolygon } from '../src/reality-adapter.js'
 import { edgeFrame } from '../src/roadview-layout.js';
 import { polygonOverlap } from '../src/polygon-collision.js';
 import { FACILITIES, FACILITY_COLLIDERS } from '../src/campus-facilities.js';
-import { LANDMARKS } from '../src/campus-layout.js';
+import { LANDMARKS, OBSTACLES } from '../src/campus-layout.js';
 import { LIBRARY_FRONT } from '../src/basic-campus.js';
 import { MARKET_PREVIEWS } from '../src/back-market-layout.js';
 import { BACK_GATE } from '../src/back-gate-layout.js';
@@ -134,6 +134,14 @@ export function validateDevCandidate(batch) {
 }
 
 const campusSlots = new Map();
+const dwellObstacles = OBSTACLES.filter(box => box.minY < 2.5 && box.maxY > 0);
+function safeDwell(point) {
+  if (polygonOverlap(point.x, point.z, pondRing, .65)) return false;
+  return !dwellObstacles.some(box => box.polygon
+    ? polygonOverlap(point.x, point.z, box.polygon, .65)
+    : point.x >= box.minX - .65 && point.x <= box.maxX + .65 &&
+      point.z >= box.minZ - .65 && point.z <= box.maxZ + .65);
+}
 export function positionAt(location, slotIndex) {
   if (location === 'off_zone') return null;
   if (location === 'main_gate') return { x: LANDMARKS.gate.x + 3, z: LANDMARKS.gate.z };
@@ -143,16 +151,21 @@ export function positionAt(location, slotIndex) {
   if (localExteriorFrame) return localExteriorFrame.at(slotIndex);
   const campusAnchor = campusAnchorPoints[location];
   if (campusAnchor) {
-    // Check separation AFTER road projection: perpendicular offsets may collapse onto
-    // the same edge point. Cache an expanding deterministic search, never wrap slots.
+    // Reserve deterministic, separated dwell spots beside the path. Snapping every
+    // occupant onto a road centerline produced parade-like rows at teaching buildings.
     if (!Number.isInteger(slotIndex) || slotIndex < 0) throw new Error('Invalid NPC slot');
     const slots = campusSlots.get(location) ?? [];
     campusSlots.set(location, slots);
     for (let radius = 0; slots.length <= slotIndex && radius <= 100; radius += 1.8) {
       for (let angle = 0; angle < 32 && slots.length <= slotIndex; angle++) {
-        const point = snapCampus({ x: campusAnchor.x + Math.cos(angle * Math.PI / 16) * radius,
-          z: campusAnchor.z + Math.sin(angle * Math.PI / 16) * radius });
-        if (slots.every(other => Math.hypot(other.x-point.x,other.z-point.z) >= 1.6)) slots.push(point);
+        const theta = angle * Math.PI * (3 - Math.sqrt(5));
+        const point = { x: campusAnchor.x + Math.cos(theta) * radius,
+          z: campusAnchor.z + Math.sin(theta) * radius };
+        const nearPath = campusGraph.nearestEdgePoint(point, { maxDistance: 1 });
+        // Do not place people beyond the rendered end cap of a walkway.
+        const pastEnd = nearPath && (nearPath.t <= .001 || nearPath.t >= .999) && nearPath.distance > .05;
+        if (nearPath && !pastEnd && safeDwell(point) &&
+            slots.every(other => Math.hypot(other.x-point.x,other.z-point.z) >= 1.6)) slots.push(point);
       }
     }
     if (!slots[slotIndex]) throw new Error(`No separated NPC slot: ${location}/${slotIndex}`);
@@ -199,4 +212,3 @@ export function snapshotForPeriod(batch, period) {
   if (largestCrowd > crowdLimit) throw new Error('Crowd exceeds NPC runtime contract');
   return { period, actors, localCount: local.length, offZoneCount: actors.length - local.length, largestCrowd };
 }
-

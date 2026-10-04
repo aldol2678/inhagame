@@ -1,3 +1,4 @@
+import { STUDENT_WORLD_COLLIDERS } from './student-center-connected-data.js';
 import { geoToWorld } from "./geo-coordinates.js";
 export { geoToWorld, GEO_ORIGIN } from "./geo-coordinates.js";
 import { BUILDINGS, MAIN_ENTRANCE, LIBRARY_ROOF_PARTS } from "./basic-campus.js";
@@ -23,6 +24,7 @@ import { MARKET_COLLIDERS } from './back-market-layout.js';
 import { INTERIOR_COLLIDERS } from './market-interior-layout.js';
 import { EXTERIOR_WORLD_BOUNDS } from './world-exterior-bounds.js';
 import { DORM_1_FENCES } from './gate-dorm-exterior-layout.js';
+import { BACKGATE_TRANSIT_COLLIDERS } from './transit/backgate-transit-layout.js';
 
 export const LANDMARKS = Object.freeze({
   gate: Object.freeze({ ...geoToWorld(37.44770, 126.65319), lat: 37.44770, lon: 126.65319 }),
@@ -44,6 +46,7 @@ export const OBSTACLES = Object.freeze([
   ...AIRCRAFT_COLLIDERS,
   ...BIRYONG_COLLIDERS,
   ...BACK_GATE_COLLIDERS,
+  ...BACKGATE_TRANSIT_COLLIDERS,
   ...BACK_STREET_COLLIDERS,
   ...BACK_ALLEY_COLLIDERS,
   ...CULTURE_COLLIDERS,
@@ -57,7 +60,8 @@ export const OBSTACLES = Object.freeze([
   ...BACK_FURNITURE_COLLIDERS,
   ...BACK_WALL_COLLIDERS,
   ...BACK_ROADSIDE_COLLIDERS,
-  ...FACILITY_COLLIDERS,
+  ...FACILITY_COLLIDERS.filter(o=>o.id!=='bldg_07_0'),
+  ...STUDENT_WORLD_COLLIDERS,
   ...BUILDINGS.map(b => ({ id:b.id, polygon:b.vertices, minY:0, maxY:b.height })),
   ...LIBRARY_ROOF_PARTS.map(b => ({ id:b.id, polygon:b.vertices, minY:b.y-b.height/2, maxY:b.y+b.height/2 })),
   ...MAIN_GATE_WALL_COLLIDERS

@@ -110,11 +110,7 @@ export function roadviewGroundHeight(x,z) {
   const a=AGORA.frame.local(p);
   if(a.u>=AGORA.stairStart&&a.u<=AGORA.stairEnd&&a.out>=0&&a.out<=AGORA.run)
     height=Math.max(height,AGORA.height*(1-a.out/AGORA.run));
-  for(const t of STUDENT_TERRACES){
-    const q=t.frame.local(p);
-    if(q.u>=0&&q.u<=t.frame.length&&q.out>=0&&q.out<=t.landing+t.run)
-      height=Math.max(height,t.height*Math.min(1,(t.landing+t.run-q.out)/t.run));
-  }
+  // Legacy terrace frames remain anchor metadata; the connected model owns student support.
   const t=MAIN_HALL_APPROACH,q=t.frame.local(p);
   if(q.u>=0&&q.u<=t.frame.length&&q.out>=0&&q.out<=t.landing+t.run)
     height=Math.max(height,t.height*Math.min(1,(t.landing+t.run-q.out)/t.run));

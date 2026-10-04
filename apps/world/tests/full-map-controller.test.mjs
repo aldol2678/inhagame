@@ -51,7 +51,7 @@ class FakeElement {
     for(const fn of this.listeners.get(type) ?? []) fn(payload);
   }
   focus() { this.focused = true; }
-  closest(selector) { return selector === "button" && this.tagName === "button" ? this : null; }
+  closest(selector) { return selector === "button" && this.tagName === "button" ? this : this.parentNode?.closest(selector) ?? null; }
   getBoundingClientRect() { return { ...this.rect }; }
   setPointerCapture() {}
 }
@@ -111,7 +111,7 @@ function rig() {
     windowTarget
   });
   controller.onDestinationChange(value=>calls.destination.push(value));
-  return {d,windowTarget,elements,state,calls,controller,geometry};
+  return {d,windowTarget,elements,state,calls,controller,geometry,definitions};
 }
 
 test("Full Map projection is north-up across world bounds",()=>{
@@ -308,4 +308,121 @@ test("dynamic marker updates reuse static geometry and preserve inverse marker s
   r.controller.update();
   assert.equal(r.elements.socialLayer.children.length,1);
   assert.equal(r.controller.status().geometryNodeCount,1);
+});
+
+
+test("POI icons are semantic SVGs, with visible distinct status badges and accessible state", () => {
+  const r = rig();
+  for (const [index, presentation] of ["COMING_SOON", "DISABLED", "UNKNOWN", "UNDISCOVERED"].entries()) {
+    r.definitions.push({ ...r.definitions[0], poiId: `poi.state-${index}`, presentation, x: 10 + index * 20, z: 45 });
+  }
+  r.controller.open();
+  const nodes = r.elements.poiLayer.children;
+  const main = nodes[0];
+  assert.equal(main.children.find(node => node.getAttribute("class") === "full-map-poi-icon")?.tagName, "svg");
+  assert.equal(main.children.find(node => node.className === "full-map-poi-label")?.textContent, "본관");
+  assert.equal(main.children.find(node => node.className === "full-map-poi-state")?.hidden, true);
+  const badges = nodes.slice(1).map(node => node.children.find(child => child.className === "full-map-poi-state"));
+  assert.ok(badges.every(badge => badge && !badge.hidden), "non-normal states have visible non-color badges");
+  assert.equal(new Set(badges.map(badge => badge.children[0]?.children[0]?.getAttribute("d"))).size, 5, "each state uses a different symbol");
+  assert.equal(nodes[1].getAttribute("aria-label"), "후문 · 잠김");
+  nodes[1].dispatch("click");
+  assert.equal(r.elements.infoMeta.textContent, "출입구 · 잠김");
+  assert.equal(r.elements.destinationButton.disabled, true, "presentation does not change access authority");
+});
+
+test("POI state changes refresh a selected card without leaving a stale available destination", () => {
+  const r = rig(); r.controller.open();
+  const main = r.elements.poiLayer.children[0]; main.dispatch("click");
+  r.definitions[0].presentation = "UNDISCOVERED";
+  r.controller.refreshPois();
+  assert.equal(main.getAttribute("aria-label"), "본관 · 미발견");
+  assert.equal(r.elements.infoMeta.textContent, "건물 · 미발견");
+  assert.equal(r.elements.destinationButton.disabled, true);
+  r.definitions[0].presentation = "NORMAL";
+  r.controller.refreshPois();
+  assert.equal(r.elements.destinationButton.disabled, false);
+  assert.equal(main.children.find(node => node.className === "full-map-poi-state").hidden, true);
+});
+
+test("labels prioritize the selected destination, avoid overlaps and stay inside the viewport", async () => {
+  const { layoutFullMapLabels } = await import("../src/minimap/full-map-controller.js");
+  assert.equal(typeof layoutFullMapLabels, "function", "Full Map needs an explicit collision-aware label layout");
+  const candidates = [
+    { id: "minor", x: 100, y: 100, width: 100, height: 16, priority: 10 },
+    { id: "selected", x: 102, y: 100, width: 100, height: 16, priority: 1000 },
+    { id: "edge", x: 5, y: 5, width: 90, height: 16, priority: 80 },
+    { id: "offscreen", x: -40, y: 100, width: 90, height: 16, priority: 800 }
+  ];
+  const result = layoutFullMapLabels(candidates, { width: 220, height: 160 });
+  assert.ok(result.some(label => label.id === "selected"));
+  assert.ok(!result.some(label => label.id === "offscreen"));
+  for (const label of result) {
+    assert.ok(label.left >= 4 && label.top >= 4 && label.left + label.width <= 216 && label.top + label.height <= 156);
+  }
+  for (let i = 0; i < result.length; i++) for (let j = i + 1; j < result.length; j++) {
+    const a = result[i], b = result[j];
+    assert.ok(a.left + a.width <= b.left || b.left + b.width <= a.left || a.top + a.height <= b.top || b.top + b.height <= a.top,
+      "accepted labels must not overlap");
+  }
+  assert.deepEqual(layoutFullMapLabels(candidates.slice().reverse(), { width: 220, height: 160 }), result,
+    "priority ordering is deterministic, independent of registry iteration");
+});
+
+test("label layout respects fixed map controls and suppresses labels only, never map POIs", async () => {
+  const { layoutFullMapLabels } = await import("../src/minimap/full-map-controller.js");
+  assert.equal(typeof layoutFullMapLabels, "function");
+  const candidates = [{ id: "gate", x: 90, y: 90, width: 80, height: 16, priority: 100 }];
+  const obstacle = { left: 0, top: 0, width: 180, height: 180 };
+  assert.deepEqual(layoutFullMapLabels(candidates, { width: 180, height: 180, obstacles: [obstacle] }), []);
+  assert.equal(candidates.length, 1, "layout does not remove or mutate authoritative POIs");
+});
+
+
+test("a visible POI label stays put through pointer entry, focus and selection", () => {
+  const r = rig(); r.controller.open();
+  r.controller.zoomAt(2); r.controller.panBy(0, -250);
+  const beforeView = { ...r.controller.viewport };
+  const main = r.elements.poiLayer.children[0];
+  const label = main.children.find(node => node.className === "full-map-poi-label");
+  assert.equal(main.dataset.labelVisible, "true");
+  const before = { left: label.style.left, top: label.style.top };
+  let geometryReads = 0;
+  const measure = r.elements.surface.getBoundingClientRect.bind(r.elements.surface);
+  r.elements.surface.getBoundingClientRect = () => { geometryReads++; return measure(); };
+  main.matches = selector => selector === ":focus-visible" ? false : false;
+  main.dispatch("pointerenter");
+  main.dispatch("focus");
+  assert.equal(geometryReads, 0, "pointer interaction with an already-visible label cannot trigger moving layout");
+  assert.deepEqual({ left: label.style.left, top: label.style.top }, before);
+  r.elements.surface.dispatch("pointerdown", { target: label, pointerId: 8, clientX: 200, clientY: 200 });
+  r.elements.surface.dispatch("pointermove", { target: label, pointerId: 8, clientX: 250, clientY: 240 });
+  assert.deepEqual(r.controller.viewport, beforeView, "label press is a POI press, never a map drag even when panning is possible");
+  main.dispatch("click", { target: label });
+  assert.equal(r.controller.selectedPoi.poiId, "poi.main");
+});
+
+test("keyboard focus still prioritizes a hidden POI label", () => {
+  const r = rig(); r.controller.open();
+  const main = r.elements.poiLayer.children[0];
+  main.dataset.labelVisible = "false";
+  main.matches = selector => selector === ":focus-visible";
+  main.dispatch("focus");
+  assert.equal(main.dataset.labelVisible, "true");
+});
+
+
+test("pointer emphasis clears without moving labels and preserves a selected POI", () => {
+  const r = rig(); r.controller.open();
+  const main = r.elements.poiLayer.children[0];
+  const label = main.children.find(node => node.className === "full-map-poi-label");
+  const before = { left: label.style.left, top: label.style.top };
+  main.dispatch("pointerenter");
+  assert.equal(main.dataset.emphasized, "true");
+  main.dispatch("pointerleave");
+  assert.equal(main.dataset.emphasized, "false");
+  assert.deepEqual({ left: label.style.left, top: label.style.top }, before);
+  main.dispatch("click");
+  main.dispatch("pointerenter"); main.dispatch("pointerleave"); main.dispatch("blur");
+  assert.equal(main.dataset.emphasized, "true", "selection keeps its stacking priority");
 });

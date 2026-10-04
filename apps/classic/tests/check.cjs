@@ -25,7 +25,7 @@ for(const img of html.matchAll(/<img[^>]*\bsrc="([^"]+)"/g))
   assert.ok(/^(https?:|data:)/.test(img[1])||fs.existsSync(img[1]),'Missing image '+img[1]);
 assert.ok(!/data:image\//.test(html),'Sprites belong in assets/, not inline in index.html');
 for(const name of ['secret-run.js','secret-session.css'])assert.ok(html.includes(name));
-assert.ok(source.includes("const CLASSIC_PRODUCTION_HOSTS=new Set(['inha-duck.example','duck.inhagame.example']);"),'Production host allowlist missing');
+assert.ok(source.includes("const CLASSIC_PRODUCTION_HOSTS=new Set(['inha-duck.example','duck.inhagame.app']);"),'Production host allowlist missing');
 assert.ok(source.includes("const TELEMETRY_RUN_TYPE=CLASSIC_PRODUCTION_HOSTS.has(location.hostname)?'production':'qa';"),'Telemetry must recognize custom production domain');
 assert.ok(source.includes("const runType=CLASSIC_PRODUCTION_HOSTS.has(location.hostname)?'ranked':'qa';"),'Ranked sessions must recognize custom production domain');
 assert.ok(source.includes("const PREVIEW_RANKED_UNLOCK=!CLASSIC_PRODUCTION_HOSTS.has(location.hostname);"),'Ranked preview gate must exclude production hosts');
@@ -36,4 +36,6 @@ assert.ok(source.includes("save_my_game_progress"),'Cloud progress RPC missing')
 assert.ok(source.includes("touch_inhagame_member_activity_v1"),'Shared member activity RPC missing');
 assert.ok(source.includes('Classic 진행도는 플레이 중 자동 저장되고, 로그인한 계정에 자동으로 동기화됩니다.'),'Automatic cloud sync copy missing');
 assert.ok(!fs.existsSync('api/ops.js'),'Private OPS server must be absent');
+assert.ok(html.includes('src="https://inhagame.app/api/brand-media?asset=annyongi.png"'),'Annyongi runtime brand media route missing');
+assert.ok(html.includes('src="https://inhagame.app/api/brand-media?asset=indeoki.png"'),'Indeoki runtime brand media route missing');
 console.log('Public Classic static checks PASS');

@@ -94,6 +94,19 @@ test('explicit retry resets the budget, prevents duplicate clicks and restores t
   h.primaryButton.click(); assert.deepEqual(h.navigated, ['main2_back_gate_guide']);
 });
 
+test('manual retry respects an authoritative unavailable quest after Main 1 completion', async () => {
+  const h = harness({ delays: [] }); await h.exhaust();
+  h.primaryButton.click(); await h.flush(); h.reply(1, false); await h.flush();
+  assert.equal(h.client.status().statusState, 'READY');
+  assert.equal(h.client.status().available, false);
+  assert.equal(h.client.mapTarget(), null);
+  assert.equal(h.runtime.tracked(), null, 'Main 1 completion cannot override Main 2 availability');
+  assert.equal(h.runtime.snapshot.quests.find(quest => quest.sequence === 2).state, 'LOCKED');
+  assert.equal(h.hudRoot.hidden, true);
+  assert.equal(h.actionRoot.hidden, true);
+  assert.equal(h.openButton.disabled, true);
+});
+
 for (const lateResult of ['success', 'failure']) {
   test(`account switch ignores ${lateResult} from a manual retry and keeps the new account authoritative`, async () => {
     const h = harness({ delays: [] }); await h.exhaust();
@@ -105,6 +118,8 @@ for (const lateResult of ['success', 'failure']) {
     await h.flush();
     assert.equal(h.client.status().statusState, 'READY');
     assert.equal(h.client.status().available, false);
+    assert.equal(h.runtime.tracked(), null);
+    assert.equal(h.hudRoot.hidden, true);
     assert.equal(h.discovery.status(), null);
     assert.equal(h.actionRoot.hidden, true);
     assert.equal(h.timers.size, 0);

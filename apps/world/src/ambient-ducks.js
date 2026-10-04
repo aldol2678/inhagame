@@ -112,6 +112,7 @@ export function createInkyungDuckSystem({
   forceMechanical = false,
   mechanicalRandom = Math.random,
   canObserveOrdinary = () => false,
+  getOrdinaryActionLabel = () => "오리 관찰",
   onOrdinaryObserved = () => {},
   onLoreFound = () => {}
 } = {}) {
@@ -197,7 +198,7 @@ export function createInkyungDuckSystem({
       return {
         id: "inkyung-ordinary-duck",
         icon: "🦆",
-        label: "오리 관찰",
+        label: getOrdinaryActionLabel?.() || "오리 관찰",
         shortcut: "F",
         priority: MECHANICAL_DUCK_CONTEXT_PRIORITY - 40,
         distance: shoreDistance,

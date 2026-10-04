@@ -56,7 +56,8 @@ export function createQuestRuntime() {
         stage: main2.stage,
         available: main2.available === true
       }, {
-        main1Complete: main1?.complete === true,
+        // This is an authoritative Main 2 read. Main 1 completion must not
+        // turn an explicit available:false result into a guide objective.
         trackedQuestId
       }));
     }
