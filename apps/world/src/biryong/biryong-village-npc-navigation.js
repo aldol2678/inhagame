@@ -7,15 +7,22 @@ const CELL = 1.5;
 const CLEARANCE = 0.55;
 const distance = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 
-const obstacleBounds = BIRYONG_REALM_P0_OBSTACLES.map(obstacle => ({
-  obstacle,
-  minX: Math.min(...obstacle.polygon.map(p => p.x)),
-  maxX: Math.max(...obstacle.polygon.map(p => p.x)),
-  minZ: Math.min(...obstacle.polygon.map(p => p.z)),
-  maxZ: Math.max(...obstacle.polygon.map(p => p.z))
-}));
+export function createBiryongVillageNpcNavigator({
+  bounds = BIRYONG_REALM_P0_BOUNDS,
+  obstacles = BIRYONG_REALM_P0_OBSTACLES,
+  clearance = CLEARANCE,
+  segmentValidator = null
+} = {}) {
+  if (!Number.isFinite(clearance) || clearance < 0) throw new TypeError("Invalid navigation clearance");
+  if (segmentValidator !== null && typeof segmentValidator !== "function") throw new TypeError("Invalid segment validator");
+  const obstacleBounds = obstacles.map(obstacle => ({
+    obstacle,
+    minX: Math.min(...obstacle.polygon.map(p => p.x)),
+    maxX: Math.max(...obstacle.polygon.map(p => p.x)),
+    minZ: Math.min(...obstacle.polygon.map(p => p.z)),
+    maxZ: Math.max(...obstacle.polygon.map(p => p.z))
+  }));
 
-export function createBiryongVillageNpcNavigator({ bounds = BIRYONG_REALM_P0_BOUNDS } = {}) {
   const grid = Object.freeze({
     minX: Math.floor(bounds.minX / CELL) * CELL,
     maxX: Math.ceil(bounds.maxX / CELL) * CELL,
@@ -33,13 +40,15 @@ export function createBiryongVillageNpcNavigator({ bounds = BIRYONG_REALM_P0_BOU
     if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.z)) return false;
     if (point.x < bounds.minX || point.x > bounds.maxX || point.z < bounds.minZ || point.z > bounds.maxZ) return false;
     return !obstacleBounds.some(({ obstacle, minX, maxX, minZ, maxZ }) =>
-      point.x >= minX - CLEARANCE && point.x <= maxX + CLEARANCE &&
-      point.z >= minZ - CLEARANCE && point.z <= maxZ + CLEARANCE &&
-      polygonOverlap(point.x, point.z, obstacle.polygon, CLEARANCE)
+      point.x >= minX - clearance && point.x <= maxX + clearance &&
+      point.z >= minZ - clearance && point.z <= maxZ + clearance &&
+      polygonOverlap(point.x, point.z, obstacle.polygon, clearance)
     );
   }
 
   function segmentSafe(from, to) {
+    if (!walkable(from) || !walkable(to)) return false;
+    if (segmentValidator && !segmentValidator(from, to)) return false;
     const steps = Math.max(1, Math.ceil(distance(from, to) / 0.4));
     for (let i = 0; i <= steps; i += 1) {
       const t = i / steps;

@@ -5,7 +5,7 @@
 // without one the M2 local-only destination contract is unchanged. No persistence or network.
 
 import { worldToMapUv } from "./minimap-model.js";
-import { formatGuidanceDistance } from "../navigation/navigation-state.js";
+import { formatGuidanceDistance, navigationPauseLabel } from "../navigation/navigation-state.js";
 import { MAP_POI_ICON_PATHS, MAP_POI_STATES, MAP_POI_KIND_LABELS, layoutFullMapLabels } from "./full-map-presentation.js";
 export { layoutFullMapLabels } from "./full-map-presentation.js";
 
@@ -413,7 +413,7 @@ export function createFullMapController({
     navBarText.textContent = snapshot.status === "ARRIVED"
       ? `${target.title} 도착`
       : snapshot.status === "PAUSED"
-        ? `${target.title} · 실외로 나가면 안내 재개`
+        ? `${target.title} · ${navigationPauseLabel(snapshot)}`
         : `${target.title} · ${formatGuidanceDistance(snapshot.remainingDistance)}`;
     // The short-landscape CSS changes map size when this bar appears/disappears.
     if (wasHidden && opened) applyViewport();

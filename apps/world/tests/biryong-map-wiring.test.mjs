@@ -1,0 +1,24 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+const main=readFileSync(new URL('../src/main.js',import.meta.url),'utf8');
+test('main mounts region-specific maps instead of hiding Biryong behind the indoor guard',()=>{
+  assert.match(main,/createBiryongMapDataSource\(\)/);
+  assert.match(main,/setDataSource\(biryongMapDataSource, \{ id: WORLD_REGION_ID.BIRYONG_REALM, indoor: false/);
+  assert.doesNotMatch(main,/getRoomState: \(\) => biryongRealm\?\.inBiryong/);
+  assert.match(main,/if \(rooms\?\.insideRoom \|\| biryongRealm\?\.inBiryong\) return null/,'Campus objective never appears in Biryong local x/z');
+});
+test('main routes Biryong through its provider and scopes old Campus quest observers',()=>{
+  assert.match(main,/createBiryongNavigation\(\)/);
+  assert.match(main,/navigationProviderFor\(navigationSpaceId\(\)\)/);
+  assert.match(main,/snapshot\.destination\?\.mapSourceId === CAMPUS_NAV_SPACE/);
+  assert.match(main,/onNavigate: poiId =>/);
+  assert.match(main,/biryongMapDataSource\?\.poiRegistry\(\)\.get\(poiId\)/);
+});
+test('approved task preserves intentional local gameplay and persistence limits',()=>{
+  const resume=readFileSync(new URL('../src/lobby/world-resume.js',import.meta.url),'utf8');
+  const spawn=readFileSync(new URL('../src/lobby/spawn-registry.js',import.meta.url),'utf8');
+  assert.match(resume,/if \(regionId !== WORLD_REGION_ID.CAMPUS\) return false/);
+  assert.match(spawn,/state: SPAWN_STATE.HIDDEN/);
+  assert.match(main,/const canUseAutoMove[\s\S]*?biryongRealm\?\.inCampus/,'no automatic region movement activation');
+});
