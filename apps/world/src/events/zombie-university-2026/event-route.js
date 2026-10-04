@@ -10,7 +10,7 @@ const MCM_2026_MINIGAME_PREVIEW_ALIASES = Object.freeze(["zombie-minigame-previe
 export function isMcm2026PreviewRequest({ hostname = "", search = "" } = {}) {
   const host = String(hostname).toLowerCase();
   const allowedHost = host.endsWith(".vercel.app")
-    || ["localhost", "127.0.0.1", "inhagame.example", "www.inhagame.example"].includes(host);
+    || ["localhost", "127.0.0.1", "inhagame.app", "www.inhagame.example"].includes(host);
   if (!allowedHost) return false;
   const params = new URLSearchParams(search);
   return MCM_2026_EVENT_PREVIEW_ALIASES.includes(params.get("event"))

@@ -173,6 +173,10 @@ import { HUD_MODE } from "./hud/hud-context.js";
 import { bindHudPresentation } from "./hud/hud-presentation.js";
 import { createCombatRuntimeV03 } from "./combat/combat-runtime-v03.js";
 import { createBuilding5CombatInteraction } from "./combat/building5-combat-interaction.js";
+import { BUILDING5_TRAINING_TARGET, createBuilding5CombatTraining } from "./combat/building5-combat-training.js";
+import { createBuilding5CombatTargetRenderer } from "./combat/building5-combat-target-renderer.js";
+import { createCombatWorldMotionV03 } from "./combat/combat-world-motion-v03.js";
+import { createCombatFeedbackV03 } from "./combat/combat-feedback-v03.js";
 import { createCombatHudV03 } from "./combat/combat-hud-v03.js";
 import { createHelicopterFlightHud } from "./mounts/helicopter-flight-hud.js";
 import { createMobilityBook } from "./mobility/mobility-book.js";
@@ -472,15 +476,48 @@ const helicopterFlightHud = createHelicopterFlightHud({
 const inputFocus = createInputFocusManager();
 const hudContext = createHudContext();
 bindHudPresentation({ context: hudContext, root: document.body });
-const combatRuntime = createCombatRuntimeV03();
+const building5Training = createBuilding5CombatTraining({
+  getPlayerPosition: () => player.getLocalPosition(),
+  getDodgeDirection: () => controller.combatDodgeDirection(orbit.yaw, {
+    targetX: BUILDING5_TRAINING_TARGET.x,
+    targetZ: BUILDING5_TRAINING_TARGET.z
+  })
+});
+const combatRuntime = createCombatRuntimeV03({ localTraining: building5Training });
 const combatHud = createCombatHudV03({
   root: document.getElementById("combat-hud-v03"),
-  runtime: combatRuntime
+  runtime: combatRuntime,
+  inputFocus
+});
+const combatTargetRenderer = createBuilding5CombatTargetRenderer({
+  app,
+  parent: campusRoot,
+  training: building5Training,
+  getGroundHeight: roadviewGroundHeight
+});
+const combatWorldMotion = createCombatWorldMotionV03({
+  runtime: combatRuntime,
+  training: building5Training,
+  controller
+});
+const combatFeedback = createCombatFeedbackV03({
+  runtime: combatRuntime,
+  canvas,
+  overlay: document.getElementById("combat-impact-feedback")
 });
 combatRuntime.subscribe(state => {
   hudContext.setMode(state.active ? HUD_MODE.COMBAT : HUD_MODE.EXPLORE);
   controller.setTransportLock("combat-v03", state.active);
 }, { emitCurrent: true });
+app.on("update", dt => {
+  const held = combatFeedback.hitstopActive();
+  if (!held) {
+    combatRuntime.update();
+    combatTargetRenderer.update(dt);
+  } else {
+    combatTargetRenderer.update(0);
+  }
+});
 // InputFocus remains the single input authority. HUD Context observes its resolved snapshot only
 // to expose presentation state for current/future Explore, Combat, Life and Pet layouts.
 inputFocus.subscribe(snapshot => hudContext.syncInputFocus(snapshot), { emitCurrent: true });
@@ -1474,15 +1511,22 @@ window.addEventListener("keydown", (event) => {
   if (event.code !== "KeyF" || event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
   if (event.target instanceof HTMLElement && event.target.closest("input, textarea, select, [contenteditable]")) return;
   if (!combatRuntime.active) return interactionAction();
+  if (!inputFocus.can("GAMEPLAY_SHORTCUT")) return;
   event.preventDefault();
   combatRuntime.dispatch("ultimate");
 });
 window.addEventListener("keydown", (event) => {
   if (!combatRuntime.active || event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
   if (event.target instanceof HTMLElement && event.target.closest("input, textarea, select, [contenteditable]")) return;
+  if (!inputFocus.can("GAMEPLAY_SHORTCUT")) return;
   if (event.code === "Escape") {
     event.preventDefault();
     combatRuntime.end("PLAYER_EXIT");
+    return;
+  }
+  if (event.code === "KeyR") {
+    event.preventDefault();
+    combatRuntime.resetTrainingTarget();
     return;
   }
   const action = event.code === "Digit1" ? "active_1"
@@ -1496,7 +1540,7 @@ window.addEventListener("keydown", (event) => {
   combatRuntime.dispatch(action);
 });
 canvas.addEventListener("pointerdown", event => {
-  if (combatRuntime.active && event.button === 0) combatRuntime.dispatch("basic");
+  if (combatRuntime.active && inputFocus.can("WORLD_ACTION") && event.button === 0) combatRuntime.dispatch("basic");
 });
 guestbookInteraction = createGuestbookInteraction({
   anchor: MAIN_GATE_GUESTBOOK,
@@ -2462,6 +2506,7 @@ window.addEventListener("keydown", (event) => {
   if (event.code !== "KeyQ" || event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
   if (event.target instanceof HTMLElement && event.target.closest("input, textarea, select, [contenteditable]")) return;
   if (combatRuntime.active) {
+    if (!inputFocus.can("GAMEPLAY_SHORTCUT")) return;
     event.preventDefault();
     combatRuntime.toggleLock();
     return;
@@ -2700,6 +2745,7 @@ app.on("update", (dt) => {
   follow.update();
   playerAutoMove?.update(navigation?.getSnapshot() ?? null, player.getLocalPosition());
   if (!seating.beforeController()) controller.update(Math.min(dt, 0.05), orbit.yaw);
+  if (!combatFeedback.hitstopActive()) combatWorldMotion.update();
   helicopterFlightHud.update();
   orbit.setMounted(controller.mounted);
   character.setMounted(controller.mounted);
@@ -2707,7 +2753,12 @@ app.on("update", (dt) => {
   // Locomotion outranks expression: moving, mounting or an incompatible jump ends the emote.
   const emote = emotes.update(locomotion());
   emoteMenu.setAvailable(!controller.mounted && !combatRuntime.active);
-  character.update(Math.min(dt, 0.05), { ...locomotion(), emote, seated: seats.isSeated, poseOffsets: biryong?.poseOffsets() ?? null });
+  character.update(Math.min(dt, 0.05), {
+    ...locomotion(),
+    emote,
+    seated: seats.isSeated,
+    poseOffsets: combatFeedback.poseOffsets() ?? biryong?.poseOffsets() ?? null
+  });
 
   const pos = player.getLocalPosition();
   duckCompanionFollow.update(Math.min(dt, 0.05));
@@ -2798,7 +2849,9 @@ app.on("update", (dt) => {
   }
   contextActions.set("npc", inside ? null : npcTest?.getContextAction?.() ?? null);
   // Transport has its own slot: a nearby NPC and the bike are offered together (F and M).
-  transportActions.set("mount", controller.getMountContextAction());
+  const mountContextAction = controller.getMountContextAction();
+  // Recheck the live gate/locks and mount offer at activation, even for a retained button callback.
+  transportActions.set("mount", mountContextAction ? { ...mountContextAction, trigger: () => controller.transportAction() } : null);
   if (combatRuntime.active) {
     for (const key of [
       "seat", "guestbook", "student-center-shop", "backgate-transit", "biryong-station-transit",
@@ -3116,6 +3169,10 @@ window.__INHAGAME_P0__ = {
   biryongRelationships,
   combatRuntime,
   combatHud,
+  building5Training,
+  combatTargetRenderer,
+  combatWorldMotion,
+  combatFeedback,
   building5Combat,
   seats,
   seating,
@@ -3236,6 +3293,8 @@ window.__INHAGAME_P0__ = {
     biryongVillageDialogue: biryongVillageDialogue?.status() ?? null,
     biryongRelationships: biryongRelationships.status(),
     combat: combatRuntime.snapshot(),
+    combatMotion: combatWorldMotion.status(),
+    combatFeedback: combatFeedback.status(),
     building5Combat: building5Combat.status(),
     wallet: wallet.status(),
     inventory: { ...inventory.status(), ...inventoryPanel.status() },
