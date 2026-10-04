@@ -39,6 +39,27 @@ test('clear daytime sky has a bright hazy horizon and deeper blue zenith', () =>
   assert.equal(profile.sunsetFactor, 0);
 });
 
+test('dawn stays cool while sunrise introduces a warm horizon before full day', () => {
+  const clear = ENVIRONMENT_WEATHER_PRESETS.CLEAR;
+  const dawn = atmosphereSkyProfile({
+    sunColor: ENVIRONMENT_PRESETS.DAWN.sunColor,
+    artificialLightFactor: ENVIRONMENT_PRESETS.DAWN.artificialLightFactor,
+    cloudCover: clear.cloudCover,
+    sunLightScale: clear.sunLightScale
+  });
+  const sunrise = atmosphereSkyProfile({
+    sunColor: ENVIRONMENT_PRESETS.SUNRISE.sunColor,
+    artificialLightFactor: ENVIRONMENT_PRESETS.SUNRISE.artificialLightFactor,
+    cloudCover: clear.cloudCover,
+    sunLightScale: clear.sunLightScale
+  });
+  assert.ok(dawn.zenithColor[2] > dawn.zenithColor[0]);
+  assert.ok(dawn.sunGlowOpacity < sunrise.sunGlowOpacity);
+  assert.ok(sunrise.sunsetFactor > 0.6);
+  assert.ok(sunrise.horizonColor[0] > sunrise.horizonColor[2]);
+  assert.ok(luminance(sunrise.zenithColor) > luminance(dawn.zenithColor));
+});
+
 test('sunset warms the horizon far more than the zenith and strengthens the glow', () => {
   const clear = ENVIRONMENT_WEATHER_PRESETS.CLEAR;
   const day = atmosphereSkyProfile({
