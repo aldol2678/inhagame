@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync, existsSync} from 'node:fs';
 import {createHash} from 'node:crypto';
+import {runInNewContext} from 'node:vm';
 import {HALL_FRONT} from '../src/basic-campus.js';
 import {fillMainHallCandidate} from '../src/main-hall-candidate-geometry.js';
 import {fillPhotoMainHallFacade} from '../src/photo-hall-library-geometry.js';
@@ -91,4 +92,29 @@ test('reviewed candidate snapshot is exact, including all 17 delivered files', (
     const bytes = readFileSync(new URL(`../../../${entry.path}`, import.meta.url));
     assert.equal(createHash('sha256').update(bytes).digest('hex'), entry.sha256, entry.path);
   }
+});
+
+
+test('baseline route allows its ten pinned JSON dependencies and rejects scope expansion', () => {
+  const runner = readFileSync(new URL('./browser/hall-library-hosted-smoke.mjs', import.meta.url), 'utf8');
+  const source = runner.match(/function isBaselinePath\(relative\) \{[\s\S]*?\n\}/)?.[0];
+  assert.ok(source, 'route scope must be a directly testable pure predicate');
+  const allowed = runInNewContext(`(${source})`, {}, {timeout:1000});
+  // Full transitive JSON closure of the pinned #108 main-hall-blockout renderer.
+  const dependencies = [
+    'data/reality/campus-buildings.json', 'data/reality/campus-site.json',
+    'data/reality/campus-landmarks.json', 'data/reality/campus-facilities.json',
+    'data/reality/evidence/roads/source.json', 'data/reality/evidence/roads/back-gate.json',
+    'data/reality/evidence/roads/library-garden.json', 'data/reality/evidence/roads/back-approaches.json',
+    'data/reality/evidence/roads/back-west-buildings.json', 'data/editor/main-gate.world.json'
+  ];
+  for (const dependency of dependencies) assert.equal(allowed(dependency), true, dependency);
+  for (const module of ['src/main-hall-blockout.js', 'src/editor/main-gate-production.js']) assert.equal(allowed(module), true);
+  for (const rejected of [
+    'data/editor/other.world.json', 'data/editor/main-gate.world.json.bak', 'data/editor/main-gate.world.js',
+    'data/reality/../editor/main-gate.world.json', 'src/../private.js', 'src/./main-hall-blockout.js',
+    '../src/main-hall-blockout.js', '/src/main-hall-blockout.js', 'data/private.json',
+    '.git/config', 'src/secrets.txt', 'https://example.com/src/main-hall-blockout.js'
+  ]) assert.equal(allowed(rejected), false, rejected);
+  assert.match(runner, /baseline route \$\{pathname\}/, 'a failed baseline route identifies its exact pathname');
 });

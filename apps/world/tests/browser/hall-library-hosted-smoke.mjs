@@ -46,9 +46,15 @@ const watchdog=setTimeout(()=>{
 },280000);
 let smoke, page, fatal;
 const baselineCache=new Map();
+function isBaselinePath(relative) {
+  // The pinned renderer's transitive main-gate-production dependency reads this
+  // one public editor document. Do not permit arbitrary editor or repository data.
+  const scoped = /^(src\/[A-Za-z0-9_./-]+\.js|data\/reality\/[A-Za-z0-9_./-]+\.json)$/.test(relative)
+    || relative === 'data/editor/main-gate.world.json';
+  return scoped && !relative.split('/').some(part=>part==='.'||part==='..');
+}
 async function sourceAtBaseline(relative) {
-  if (!/^(src\/[A-Za-z0-9_./-]+\.js|data\/reality\/[A-Za-z0-9_./-]+\.json)$/.test(relative)
-    || relative.split('/').some(part=>part==='.'||part==='..')) throw new Error('Unscoped baseline path');
+  if (!isBaselinePath(relative)) throw new Error('Unscoped baseline path: '+relative);
   if (!baselineCache.has(relative)) {
     const {stdout}=await run('git',['show',`${BASELINE}:apps/world/${relative}`],{cwd:repo,timeout:5000,maxBuffer:10*1024*1024,encoding:'buffer'});
     baselineCache.set(relative,stdout);
@@ -100,7 +106,8 @@ try {
       const body=await sourceAtBaseline(relative);
       await route.fulfill({status:200,contentType:relative.endsWith('.json')?'application/json':'text/javascript; charset=utf-8',body});
     } catch(error) {
-      report.requests.unexpectedRequests.push(`baseline route: ${String(error.message)}`);
+      const pathname=new URL(route.request().url()).pathname;
+      report.requests.unexpectedRequests.push(`baseline route ${pathname}: ${String(error.message)}`);
       await route.abort('failed');
     }
   });
