@@ -92,7 +92,7 @@ export const DEFAULT_SPAWN_DEFINITIONS = Object.freeze({
     onlineCountScope: "REGION",
     allowResume: false,
     allowFavorite: false,
-    sortPriority: 90
+    sortPriority: 25
   })
 });
 
