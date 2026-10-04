@@ -367,6 +367,20 @@ export function createRainWeatherEffects({
       entry.entity.enabled = rain > 0.02 && name === tier;
     for (const [name, entry] of Object.entries(puddleTiers))
       entry.entity.enabled = wetness > 0.02 && name === tier;
+
+    // A graphics-tier change must immediately adopt the tier's opacity policy
+    // even when the weather scalar itself did not change this frame.
+    if (rain >= 0) {
+      rainMaterial.opacity = rain * rainOpacity(tier);
+      rainMaterial.update();
+    }
+    if (wetness >= 0) {
+      wetMaterial.opacity = wetness * wetRoadOpacity(tier);
+      const visibility = rainGroundVisibility(rain, wetness);
+      puddleMaterial.opacity = visibility.puddle * rainPuddleOpacity(tier);
+      wetMaterial.update();
+      puddleMaterial.update();
+    }
   }
 
   function applyRain(next) {
