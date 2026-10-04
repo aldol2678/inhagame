@@ -228,8 +228,9 @@ const npcSocialMode = npcSocialProductionMode || npcSocialPreviewMode || npcObse
 const npcEnabled = npcSharedScheduleMode || npcTestMode || npcProductionMode || npcPreviewMode || npcRosterPreviewMode || npcSocialMode;
 const campusLifePreview = previewHost && startupParams.get('campusLife') === 'p0a';
 const biryongVisualStage = previewHost ? startupParams.get('biryongVisual') : null;
-const biryongVisualLabP0A = biryongVisualStage === 'p0a' || biryongVisualStage === 'p0b';
-const biryongVisualLabP0B = biryongVisualStage === 'p0b';
+const biryongVisualLabP0A = ['p0a', 'p0b', 'p0c'].includes(biryongVisualStage);
+const biryongVisualLabP0B = ['p0b', 'p0c'].includes(biryongVisualStage);
+const biryongVisualLabP0C = biryongVisualStage === 'p0c';
 let lastTrackedZone = null;
 
 async function boot() {
@@ -1737,13 +1738,19 @@ rooms = createRoomTransition({
   })
 });
 const biryongRealmScene = createBiryongRealmScene(app, {
-  visualMaterials: biryongVisualLabP0B
+  visualMaterials: biryongVisualLabP0B,
+  visualDensity: biryongVisualLabP0C,
+  getGraphicsTier: () => graphics.tier
 });
 window.__INHAGAME_BIRYONG_MATERIALS__ = Object.freeze({
   status: () => Object.freeze({
     enabled: biryongVisualLabP0B,
     mode: biryongRealmScene.materialMode
   })
+});
+app.on("update", () => biryongRealmScene.environmentDensity.update());
+window.__INHAGAME_BIRYONG_DENSITY__ = Object.freeze({
+  status: () => biryongRealmScene.environmentDensity.status()
 });
 const biryongCampusReturnAnchor = Object.freeze({
   x: BACKGATE_TRANSIT.wait.x,
