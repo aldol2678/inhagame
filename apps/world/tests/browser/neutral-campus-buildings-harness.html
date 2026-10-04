@@ -14,7 +14,7 @@
 </head>
 <body>
 <canvas id="stage"></canvas>
-<aside><h1 id="heading">Neutral campus buildings</h1><p>Public OSM outlines · Existing gameplay heights · New generic facades</p><p>Illustrative reconstruction, not an exact real-building replica<br>WorldForge-validated Draft geometry · Local preview only</p></aside>
+<aside><h1 id="heading">20 generic campus buildings</h1><p>Public OSM outlines · Existing gameplay heights · New generic facades</p><p>Illustrative reconstruction, not an exact real-building replica<br>WorldForge-validated Draft geometry · Local preview only</p></aside>
 <script type="module">
   import * as pc from 'playcanvas';
   import { buildCampusFacilities } from '/src/facility-blockout.js';
@@ -30,7 +30,7 @@
     const world = new pc.Entity('RuntimeWorld'); app.root.addChild(world);
     const root = new pc.Entity('NeutralCampus'); world.addChild(root);
     const near = new pc.Entity('NeutralNear'); world.addChild(near);
-    const facilities = FACILITIES.filter(f => f.kind === 'building');
+    const facilities = FACILITIES.filter(f => f.kind === 'building' && f.id !== 'bldg_07');
     const ids = facilities.map(f => f.id);
     buildCampusFacilities(root,ids,'BASE');
     buildCampusFacilities(near,ids,'NEAR');
@@ -70,7 +70,7 @@
       const fit=Math.max(1,canvas.height/canvas.width);
       if(id==='overview') {
         placeCamera(45+275*fit,310*fit,25+355*fit,45,0,25);
-        document.getElementById('heading').textContent='21 campus buildings · Public reconstruction';
+        document.getElementById('heading').textContent='20 generic campus buildings · Public reconstruction';
       } else {
         const f=facilities.find(f=>f.id===(courtyard?'bldg_05':id));
         const xs=f.rings[0].map(p=>p.x),zs=f.rings[0].map(p=>p.z);
@@ -127,12 +127,12 @@
       for(let cycle=0;cycle<3;cycle++){
         const repeat=new pc.Entity('RepeatedBase');app.root.addChild(repeat);buildCampusFacilities(repeat,ids,'BASE');
         const result=stats(repeat);
-        if(result.meshes!==42||result.materials!==2)throw Error('rebuild envelope budget changed');
+        if(result.meshes!==40||result.materials!==2)throw Error('rebuild envelope budget changed');
         if(!envelopes(repeat).every(r=>r.meshInstances.every(m=>canonical.has(m.material))))throw Error('material reuse failed');
         const detail=new pc.Entity('StreamedDetails');app.root.addChild(detail);
         buildCampusFacilities(detail,ids,'NEAR');buildCampusFacilities(detail,ids,'DETAIL');
         if(envelopes(detail).length)throw Error('streaming duplicated base facades');
-        if(facades(detail).length!==42)throw Error('streaming duplicated near facades');
+        if(facades(detail).length!==40)throw Error('streaming duplicated near facades');
         for(const r of facades(detail))for(const m of r.meshInstances){
           const cloned=m.material.clone();
           if(cloned.depthBias!==-1||cloned.slopeDepthBias!==-1)throw Error('chunk fade clone lost decal bias');

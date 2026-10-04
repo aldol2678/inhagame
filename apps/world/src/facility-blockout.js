@@ -5,6 +5,8 @@ import { FacilityMeshBatch } from './facility-mesh-batch.js';
 import { fillNeutralCampusBuilding, isNeutralCampusBuilding } from './neutral-campus-buildings.js';
 import { resolveWorldForgeBuilding } from './worldforge-campus-building-import.js';
 import { neutralFacadeSurface } from './neutral-facade-materials.js';
+import { fillPhotoStudentCenter } from './photo-student-center.js';
+import { photoLandmarkSurface } from './photo-landmark-materials.js';
 import { fillSports } from './sports-detail-geometry.js';
 import { SPORTS_FLOOR, LOWERED_SPORTS_IDS } from './stadium-stands-layout.js';
 import { forestRoadTrees } from './campus-road-layout.js';
@@ -124,9 +126,11 @@ export function buildCampusFacilities(root,ids,tier='BASE') {
       if((tier==='BASE'||tier==='NEAR')&&neutral){
         const imported=resolveWorldForgeBuilding(f);
         const envelope=new FacilityMeshBatch();
-        fillNeutralCampusBuilding(envelope,imported,tier);
-        envelope.finish(group,f.id+(tier==='BASE'?'_neutral_envelope':'_neutral_facade'),{
-          castShadows:tier==='BASE',materialForColor:tier==='NEAR'?neutralFacadeSurface:surface
+        const photoStudent=f.id==='bldg_07';
+        if(photoStudent)fillPhotoStudentCenter(envelope,imported,tier);
+        else fillNeutralCampusBuilding(envelope,imported,tier);
+        envelope.finish(group,f.id+(photoStudent?'_photo':'_neutral')+(tier==='BASE'?'_envelope':'_facade'),{
+          castShadows:tier==='BASE',materialForColor:tier==='NEAR'?(photoStudent?photoLandmarkSurface:neutralFacadeSurface):surface
         });
       }
       if(tier==='BASE'&&!neutral)for(const [i,part] of f.parts.entries()){

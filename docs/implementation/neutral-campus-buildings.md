@@ -1,6 +1,16 @@
 # Neutral campus building reconstruction
 
-## Scope and source
+## Current local refinement
+
+The photo-informed candidate retains the full 21-building WorldForge geometry
+contract but routes `bldg_07` through its separately documented photo renderer.
+The remaining 20 generic buildings use 40 BASE batches (2,214 vertices) and
+40 NEAR batches (27,354 vertices). The student adds 2 BASE batches (255 vertices)
+and 5 NEAR batches (2,436 vertices). The original 21-building generic generator
+remains available and its regression tests/null fixture retain the baseline counts
+below. See `photo-landmark-refinement.md` for the three photo-informed landmarks.
+
+## Scope and source (original neutral baseline)
 
 The 21 public campus facilities render a new generic facade over their existing
 footprints and gameplay height estimates. The main hall and library retain their
@@ -86,7 +96,7 @@ The initial local browser attempt aborted before page startup with
 `socket() failed: Operation not permitted`, including its permitted escalation.
 The dedicated `Neutral campus building browser QA` pull-request workflow therefore
 runs the graphical checks on hosted Chromium. It covers portrait (390×844), landscape
-(844×390) and desktop (1280×720); each of the 21 buildings has same-camera hidden-BASE
+(844×390) and desktop (1280×720); each of the remaining 20 generic buildings has same-camera hidden-BASE
 and isolated-facade pixel comparisons in both coordinate modes. Stationary frames,
 oblique facades, the courtyard ground sample, actual Campus boot and the existing
 streaming renderer's NEAR/VISTA/ACTIVE/destroy lifecycle are checked too. Unchanged
