@@ -2,10 +2,28 @@
 // pinned PlayCanvas, disables Supabase, stubs /api/* and blocks every off-origin request.
 import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
+import { writeFileSync } from 'node:fs';
 import { startSmoke, TIMEOUT_MS } from './harness.mjs';
 const output=process.env.WORLD_TERRAIN_QA_OUTPUT||'test-results/campus-terrain';
 await mkdir(output,{recursive:true});
-const report={cases:[],scope:'offline local app; no Production/backend access'};
+const report={result:'RUNNING',cases:[],scope:'offline local app; diagnostic blue background for terrain coverage only; production sky is not validated; no Production/backend access'};
+const watchdog=setTimeout(()=>{
+  report.result='FAIL';report.error='Terrain diagnostic exceeded the 240000ms overall deadline';
+  writeFileSync(`${output}/report.json`,JSON.stringify(report,null,2));process.exit(1);
+},240000);
+
+// QA-only background contract: this fixture moves the camera after freezing app
+// updates and cannot assume the production sky color. The terrain mask requires
+// blue pixels; isolate a controlled background instead of weakening that mask.
+function configureTerrainDiagnosticBackground(){
+  const app=window.__INHAGAME_P0__.app;
+  const skyVisuals=app.root.findByName('EnvironmentSkyVisuals'),camera=app.root.findByName('Camera');
+  if(!skyVisuals||!camera?.camera)throw Error('Terrain diagnostic background fixture missing sky or camera');
+  const skyVisualsWasEnabled=skyVisuals.enabled;
+  skyVisuals.enabled=false;
+  camera.camera.clearColor.set(.52,.71,.84,1);
+  return {mode:'isolated-blue-background',productionSkyValidated:false,skyVisualsWasEnabled,skyVisualsEnabled:skyVisuals.enabled,clearColor:[.52,.71,.84,1]};
+}
 
 async function frame(page,label,{compare=false,sample=null}={}){
   const pixels=await page.evaluate(({compare,sample})=>new Promise(resolve=>{
@@ -65,8 +83,8 @@ try{
       const status=await page.evaluate(()=>window.__INHAGAME_P0__.getStatus());
       assert.equal(status.renderer,'WebGL2');assert.equal(status.loading.phase,'READY');entry.renderer=status.renderer;
       await page.waitForFunction(()=>window.__INHAGAME_ENVIRONMENT__?.status?.().settled&&window.__INHAGAME_ENVIRONMENT__?.status?.().weatherSettled,null,{timeout:TIMEOUT_MS});
-      // Camera-only evidence fixture. UI is hidden in these canvas images so the
-      // original ground gaps remain visible at all three aspect ratios.
+      // Isolated-background evidence fixture. UI is hidden in these canvas images
+      // so the original ground gaps remain visible at all three aspect ratios.
       await page.addStyleTag({content:'body > :not(#application):not(script):not(style){visibility:hidden!important}'});
       entry.terrain=await page.evaluate(async()=>{
         const d=window.__INHAGAME_P0__,{viewDistancePreset}=await import('/src/view-distance.js');
@@ -80,6 +98,7 @@ try{
         for(const e of terrain)e.enabled=false;
         return terrain.map(e=>({name:e.name,castShadows:e.render.castShadows,scaleSign:e.worldScaleSign,materials:e.render.meshInstances.map(mi=>({opacity:mi.material.opacity,depthWrite:mi.material.depthWrite,cull:mi.material.cull}))}));
       });
+      entry.diagnosticBackground=await page.evaluate(configureTerrainDiagnosticBackground);
       assert.equal(entry.terrain.length,5);assert.ok(entry.terrain.every(e=>e.scaleSign===-1&&e.materials.every(m=>m.opacity===1&&m.depthWrite)));
       entry.before=await frame(page,`${name}-south-flight-before`);
       await page.evaluate(()=>window.__terrainQA.terrain.forEach(e=>{e.enabled=true;}));
@@ -104,7 +123,7 @@ try{
         await page.evaluate(()=>window.__terrainQA.terrain.forEach(e=>{e.enabled=true;}));
         const after=await frame(page,`${name}-${id}-after`,{sample:water.point,compare:true});
         assert.equal(after.sampled.length,27);assert.deepEqual(after.sampled,before.sampled,`${name} ${id}: water pixels changed`);
-        entry.water.push({...water,before,after});
+        entry.water.push({id,...water,before,after});
       }
       if(name==='desktop'){
         entry.oblique=[];
@@ -131,5 +150,7 @@ try{
     }catch(error){entry.result='FAIL';entry.error=String(error.stack||error);entry.problems=smoke.problems;throw error;}
     finally{await smoke.close();await writeFile(`${output}/report.json`,JSON.stringify(report,null,2));}
   }
+  report.result='PASS';
   console.log('campus terrain actual Chromium renders: PASS');
-}finally{await writeFile(`${output}/report.json`,JSON.stringify(report,null,2));}
+}catch(error){report.result='FAIL';report.error=String(error.stack||error);throw error;}
+finally{clearTimeout(watchdog);await writeFile(`${output}/report.json`,JSON.stringify(report,null,2));}
