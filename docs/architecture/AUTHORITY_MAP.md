@@ -266,15 +266,15 @@ These rules bind the next PRs. This PR does not change schema or gameplay for th
 - **`world_life_node_unlock_v1` took an un-namespaced advisory lock (resolved).** Since
   `20261004135000` it uses `'world_life:' || user`, like every other domain.
 - **Four service-role wrappers rely on the GRANT alone, with no `auth.role()` check in the body**: `world_exp_grant_v1`, `world_progression_get_v1`, `claim_world_npc_shared_tick_v1`, `commit_world_npc_shared_tick_v1`. The GRANT is correct today and is asserted in `01_grants_contract`; the in-body check is the missing second layer.
-- **Append-only triggers that also block DELETE break account deletion.** The `auth.users` FK cascade
-  fails if any such row exists. Economy ledgers block UPDATE only. Creature ledgers (incl. Duck
-  Companion observations / claims and the bridge contexts) and Activity settlement receipts allow a
-  DELETE only once the owning account is gone (`20261004133000`; checked through
-  `delete_my_inhagame_account_v1`). **OPEN:**
-  - `world_biryong_npc_relationship_events`: reproduced on `7db5363`. An account that advanced any
-    Biryong NPC relationship stage cannot be deleted (`BIRYONG_RELATIONSHIP_EVENT_APPEND_ONLY`).
-  - `world_life_sp_transactions` / `world_player_life_nodes`: same pattern; not reachable until a
-    tree node is ACTIVE.
+- **Append-only triggers that also block DELETE broke account deletion (resolved).** The
+  `auth.users` FK cascade failed if any such row existed; economy ledgers block UPDATE only. Every
+  DELETE-guarding append-only trigger now allows a DELETE only once the owning account row is gone:
+  Creature ledgers (incl. Duck Companion observations / claims and the bridge contexts / decisions)
+  and Activity settlement receipts (`20261004133000`); Biryong relationship events, the Life SP
+  ledger and unlocked Life nodes (`20261004134000`). Direct UPDATE / DELETE of a live account's rows
+  is still refused. Guard test: `79_account_delete_ledger_cascade` (through
+  `delete_my_inhagame_account_v1`). A new append-only table that guards DELETE must use the same
+  rule.
 - **The Life Skill tree catalog and edges had no immutability trigger (resolved).** Since
   `20261004135000`, published node costs, gates, skill and max rank and every edge are frozen; edges
   are same-skill only and cannot require more than the prerequisite's max rank.
