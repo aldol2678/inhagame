@@ -140,6 +140,7 @@ export class PlayerController {
     this.transportGate = null;
     // Independent feature locks layer on top of the World transport gate without replacing its authority.
     this.transportLocks = new Set();
+    this.groundMovementLocks = new Set();
     this.#syncMountKind();
     this.#bindKeyboard();
     this.#bindTouch();
@@ -640,6 +641,13 @@ export class PlayerController {
     return this.transportLocks.size > 0;
   }
 
+  setGroundMovementLock(lockId, locked = true) {
+    if (typeof lockId !== "string" || !lockId) throw new TypeError("Ground movement lock id required");
+    if (locked) this.groundMovementLocks.add(lockId);
+    else this.groundMovementLocks.delete(lockId);
+    return this.groundMovementLocks.size > 0;
+  }
+
   transportAction() {
     if (!this.inputEnabled || this.transportGate?.() === false || this.transportLocks.size > 0) return false;
     const action = this.getMountContextAction();
@@ -925,6 +933,9 @@ export class PlayerController {
     x += this.touchVector.x;
     z += -this.touchVector.y;
 
+    const groundMovementLocked = !this.mounted && this.groundMovementLocks.size > 0;
+    if (groundMovementLocked) { x = 0; z = 0; }
+
     const mag = Math.hypot(x, z);
     if (mag > 1) {
       x /= mag;
@@ -1021,7 +1032,7 @@ export class PlayerController {
     const manual = Math.hypot(x, z) > 0.04;
     // Assisted movement may drive walking and the campus bike. Flight mounts stay manual-only
     // until a dedicated 3D navigation policy exists.
-    const assisted = !manual && (!this.mounted || this.onGroundMount) && this.assist !== null;
+    const assisted = !groundMovementLocked && !manual && (!this.mounted || this.onGroundMount) && this.assist !== null;
     const sprint = assisted ? this.assist.sprint
       : this.touchSprint || this.keys.has("ShiftLeft") || this.keys.has("ShiftRight");
     const walkSpeed = sprint ? this.sprintSpeed : this.walkSpeed;
