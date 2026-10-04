@@ -224,6 +224,18 @@ try {
   assert.ok(nightRain.rain.streakBudget >= 28 && nightRain.rain.streakBudget <= 96);
   assert.ok(nightRain.rain.rainOpacity > 0);
   assert.ok(nightRain.rain.wetRoadOpacity > 0);
+  assert.equal(nightRain.rain.splashEnabled, true);
+  assert.ok(nightRain.rain.splashGroups >= 1 && nightRain.rain.splashGroups <= 3);
+  assert.equal(nightRain.rain.splashDrawMeshes, nightRain.rain.splashGroups);
+  assert.ok(nightRain.rain.splashMarksPerGroup >= 5 && nightRain.rain.splashMarksPerGroup <= 11);
+  assert.ok(nightRain.rain.splashOpacity > 0);
+  assert.equal(nightRain.rain.puddleEnabled, true);
+  assert.equal(nightRain.rain.puddleDrawMeshes, 1);
+  assert.ok(nightRain.rain.puddleCount > 0);
+  assert.ok(nightRain.rain.puddleCount <= nightRain.rain.puddleBudget);
+  assert.ok(nightRain.rain.puddleOpacity > 0);
+  assert.equal(nightRain.rain.puddleReflectivity, 0.78);
+  assert.equal(nightRain.rain.extraRealLights, 0);
   assert.equal(nightRain.pond.rainIntensity, 1);
   assert.equal(nightRain.pond.artificialLightFactor, 1);
   assert.ok(nightRain.pond.rippleSpeed > initial.pond.rippleSpeed);
@@ -287,6 +299,11 @@ try {
   assert.equal(clear.rain.wetGroundEnabled, false);
   assert.equal(clear.rain.rainDrawMeshes, 0);
   assert.equal(clear.rain.wetRoadDrawMeshes, 0);
+  assert.equal(clear.rain.splashEnabled, false);
+  assert.equal(clear.rain.splashDrawMeshes, 0);
+  assert.equal(clear.rain.puddleEnabled, false);
+  assert.equal(clear.rain.puddleDrawMeshes, 0);
+  assert.equal(clear.rain.extraRealLights, 0);
   assert.equal(clear.snow.enabled, false);
   assert.equal(clear.snow.drawMeshes, 0);
   assert.equal(clear.streetLights.artificialLightFactor, 0);
@@ -340,6 +357,12 @@ try {
   assert.equal(mobileStatus.environment.fog.type, 'linear');
   assert.equal(mobileStatus.rain.rainEnabled, true);
   assert.equal(mobileStatus.rain.wetGroundEnabled, true);
+  assert.equal(mobileStatus.rain.splashEnabled, true);
+  assert.equal(mobileStatus.rain.splashDrawMeshes, mobileStatus.rain.splashGroups);
+  assert.equal(mobileStatus.rain.puddleEnabled, true);
+  assert.equal(mobileStatus.rain.puddleDrawMeshes, 1);
+  assert.ok(mobileStatus.rain.puddleCount <= mobileStatus.rain.puddleBudget);
+  assert.equal(mobileStatus.rain.extraRealLights, 0);
   assert.equal(mobileStatus.snow.enabled, false);
   assert.equal(mobileStatus.snow.snowIntensity, 0);
   assert.equal(mobileStatus.pond.rainIntensity, 1);
@@ -359,6 +382,11 @@ try {
   assert.equal(mobileStatus.rain.graphicsTier, mobileStatus.graphics.tier);
   assert.ok(mobileStatus.rain.streakBudget <= 96);
   if (mobileStatus.graphics.tier === 'low') assert.equal(mobileStatus.rain.streakBudget, 28);
+  if (mobileStatus.graphics.tier === 'low') {
+    assert.equal(mobileStatus.rain.splashGroups, 1);
+    assert.equal(mobileStatus.rain.splashMarksPerGroup, 5);
+    assert.equal(mobileStatus.rain.puddleBudget, 5);
+  }
   assert.equal(mobileStatus.streetLights.artificialLightFactor, 1);
   assert.equal(mobileStatus.nightWindows.graphicsTier, mobileStatus.graphics.tier);
   assert.equal(mobileStatus.nightWindows.enabled, true);
@@ -368,7 +396,7 @@ try {
   if (mobileStatus.graphics.tier === 'low') assert.ok(mobileStatus.nightWindows.maxWindowBudget <= 160);
   assert.ok(mobileStatus.streetLights.activeDynamicLights <= mobileStatus.streetLights.dynamicBudget);
   assert.deepEqual(smoke.problems, []);
-  console.log('world environment smoke: PASS (atmospheric gradient + sun glow, layered cloud parallax, emissive night windows, CLEAR/CLOUDY/FOG/RAIN/SNOW, sky, rain/snow, street lights, wet roads, Inkyung pond, 390px mobile)');
+  console.log('world environment smoke: PASS (atmospheric gradient + sun glow, layered cloud parallax, emissive night windows, rain splashes + puddles, CLEAR/CLOUDY/FOG/RAIN/SNOW, sky, rain/snow, street lights, wet roads, Inkyung pond, 390px mobile)');
 } finally {
   await smoke.close();
 }
