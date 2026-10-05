@@ -3,6 +3,7 @@
 // It stores only an ephemeral session UUID, optional auth uid, coarse space/zone, and timestamps.
 
 export const WORLD_HEARTBEAT_MS = 20_000;
+export const WORLD_HEARTBEAT_TIMEOUT_MS = 10_000;
 export const WORLD_VISITOR_STORAGE_KEY = "inhagame-hub-visitor-v1";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -42,44 +43,123 @@ export function startWorldPopulationHeartbeat({
   const visitorId = persistentVisitorId(visitorStorage, randomId);
 
   let stopped = false;
+  let paused = false;
   let timer = null;
   let lastSentAt = null;
   let lastError = null;
+  let generation = 0;
+  let inFlight = null;
+  let resumePending = false;
+  let cancelPending = null;
+  const deadlineScheduler = scheduler?.setTimeout && scheduler?.clearTimeout ? scheduler : globalThis;
 
-  async function pulse() {
-    if (stopped) return false;
-    const snapshot = getSnapshot?.() ?? {};
-    const { error } = await client.rpc("touch_world_online_session_v2", {
-      p_session_id: sessionId,
-      p_visitor_id: visitorId,
-      p_place_zone_id: validZone(snapshot.placeZoneId),
-      p_space: validSpace(snapshot.space)
+  function pulse() {
+    if (stopped || paused) return Promise.resolve(false);
+    // Keep client writes sequential across restore, including changes to auth-derived identity.
+    if (inFlight) return inFlight;
+    const startedGeneration = generation;
+    const isCurrent = () => !stopped && !paused && startedGeneration === generation;
+    const controller = typeof AbortController === "function" ? new AbortController() : null;
+    let deadline = null;
+    let finished = false;
+    const clearDeadline = () => {
+      finished = true;
+      if (deadline !== null) deadlineScheduler.clearTimeout(deadline);
+      deadline = null;
+    };
+    let cancel;
+    const cancelled = new Promise(resolve => {
+      cancel = () => { clearDeadline(); controller?.abort(); resolve(null); };
     });
-    if (stopped) return false;
-    if (error) {
-      lastError = String(error.message || error);
-      return false;
-    }
-    lastError = null;
-    lastSentAt = Date.now();
-    return true;
+    cancelPending = cancel;
+    const run = (async () => {
+      try {
+        const snapshot = getSnapshot?.() ?? {};
+        let request = client.rpc("touch_world_online_session_v2", {
+          p_session_id: sessionId,
+          p_visitor_id: visitorId,
+          p_place_zone_id: validZone(snapshot.placeZoneId),
+          p_space: validSpace(snapshot.space)
+        });
+        if (controller && request?.abortSignal) request = request.abortSignal(controller.signal);
+        deadline = deadlineScheduler.setTimeout(() => {
+          if (finished || stopped) return;
+          // Aborting fetch cannot prove the server cancelled its write. Stop until reload
+          // rather than race a replacement write using potentially different auth state.
+          lastError = "WORLD_HEARTBEAT_TIMEOUT";
+          stopLocal();
+        }, WORLD_HEARTBEAT_TIMEOUT_MS);
+        const result = await Promise.race([request, cancelled]);
+        if (!isCurrent()) return false;
+        if (result.error) throw result.error;
+        lastError = null;
+        lastSentAt = Date.now();
+        return true;
+      } catch (error) {
+        if (!isCurrent()) return false;
+        lastError = String(error?.message ?? error);
+        return false;
+      } finally {
+        clearDeadline();
+        if (cancelPending === cancel) cancelPending = null;
+      }
+    })();
+    inFlight = run;
+    void run.then(() => {
+      if (inFlight === run) inFlight = null;
+      if (resumePending && !stopped && !paused) {
+        resumePending = false;
+        void pulse();
+      }
+    });
+    return run;
   }
 
   function schedule() {
-    if (stopped || !scheduler?.setInterval) return;
-    timer = scheduler.setInterval(() => { void pulse(); }, intervalMs);
+    if (stopped || paused || timer !== null || !scheduler?.setInterval) return;
+    const scheduledGeneration = generation;
+    timer = scheduler.setInterval(() => {
+      if (scheduledGeneration === generation) void pulse();
+    }, intervalMs);
+  }
+
+  function clearTimer() {
+    if (timer !== null) scheduler?.clearInterval?.(timer);
+    timer = null;
   }
 
   function stopLocal() {
     if (stopped) return;
     stopped = true;
-    if (timer !== null) scheduler?.clearInterval?.(timer);
-    timer = null;
+    paused = false;
+    resumePending = false;
+    generation++;
+    clearTimer();
+    cancelPending?.();
+    cancelPending = null;
+    windowTarget?.removeEventListener?.("pagehide", onPageHide);
+    windowTarget?.removeEventListener?.("pageshow", onPageShow);
   }
 
   // Closed tabs simply age out server-side. This avoids exposing a destructive public RPC.
-  const onPageHide = () => stopLocal();
+  // BFCache retains this instance, so preserve its IDs and resume only its own suspension.
+  const onPageHide = event => {
+    if (!event?.persisted) { stopLocal(); return; }
+    if (stopped || paused) return;
+    paused = true;
+    resumePending = false;
+    generation++;
+    clearTimer();
+  };
+  const onPageShow = event => {
+    if (!event?.persisted || stopped || !paused) return;
+    paused = false;
+    if (inFlight) resumePending = true;
+    else void pulse();
+    schedule();
+  };
   windowTarget?.addEventListener?.("pagehide", onPageHide);
+  windowTarget?.addEventListener?.("pageshow", onPageShow);
 
   const initialPulse = pulse();
   schedule();
@@ -89,11 +169,8 @@ export function startWorldPopulationHeartbeat({
     visitorId,
     initialPulse,
     pulse,
-    status: () => ({ sessionId, visitorId, lastSentAt, lastError, stopped }),
-    stop() {
-      windowTarget?.removeEventListener?.("pagehide", onPageHide);
-      stopLocal();
-    }
+    status: () => ({ sessionId, visitorId, lastSentAt, lastError, stopped, paused }),
+    stop: stopLocal
   };
 }
 
