@@ -80,8 +80,15 @@ $f$;
 -- Onboarding fixture: 200 EXP (First Campus + Main2), Lv.2.
 do $$ begin perform private.world_exp_apply_v1('e1000000-0000-4000-8000-0000000000a1', 200, 'qa', 'p1e.fixture', 'p1e:fixture:a1'); end $$;
 
--- ---- 1-4. question bank ----
-select ok((select count(*) from private.world_daily_quiz_questions where status = 'ACTIVE') >= 12, '12+ ACTIVE questions');
+-- ---- question bank ----
+select is((select count(*) from private.world_daily_quiz_questions), 50::bigint, '50 questions in the bank');
+select is((select count(*) from private.world_daily_quiz_questions where status = 'ACTIVE'), 50::bigint, 'all 50 questions are ACTIVE');
+select results_eq($select category, count(*) from private.world_daily_quiz_questions
+    where category in ('major', 'general', 'inha') group by category order by category$,
+  $values ('general'::text, 8::bigint), ('inha', 2), ('major', 24)$,
+  'knowledge expansion: 24 major + 8 general + 2 INHA questions');
+select results_eq($select min(position), max(position), count(distinct position) from private.world_daily_quiz_questions$,
+  $values (1::int, 50::int, 50::bigint)$, 'question positions are contiguous 1..50');
 select is((select count(*) from private.world_daily_quiz_questions where jsonb_array_length(options) <> 4), 0::bigint, 'every question has exactly 4 options');
 select is((select count(*) from private.world_daily_quiz_questions where correct_index not between 0 and 3), 0::bigint, 'correct_index is 0..3');
 select is((select count(distinct correct_index) from private.world_daily_quiz_questions), 4::bigint, 'correct answers are spread over all four positions');
