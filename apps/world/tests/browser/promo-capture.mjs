@@ -152,6 +152,7 @@ const index = {
   shots: []
 };
 
+try {
 for (const shot of manifest.shots) {
   const smoke = await startSmoke({
     viewport: {width: manifest.output.width, height: manifest.output.height},
@@ -199,5 +200,7 @@ for (const shot of manifest.shots) {
     await writeFile(path.join(outputDir, 'capture-index.json'), JSON.stringify(index, null, 2));
   }
 }
-await rm(rawVideoDir, {recursive: true, force: true});
+} finally {
+  await rm(rawVideoDir, {recursive: true, force: true});
+}
 console.log(`Promo Capture P0: ${index.shots.length} shots PASS -> ${outputDir}`);
