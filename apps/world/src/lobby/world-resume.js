@@ -6,7 +6,11 @@ import { canOccupy } from "../world-collision.js";
 import { getPlaceZoneAt } from "../place-zone-registry.js";
 import { WORLD_REGION_ID, isWorldRegionId } from "../regions/world-region-registry.js";
 
-export const WORLD_RESUME_STORAGE_KEY = "inhagame-world-resume-v1";
+export const WORLD_RESUME_STORAGE_PREFIX = "inhagame-world-resume-v1";
+export const WORLD_RESUME_SCOPE_GUEST = "guest";
+// Historical export name now points at the default guest key so existing P0.4
+// assertions keep checking the live write target. The unscoped prefix is never a live key.
+export const WORLD_RESUME_STORAGE_KEY = `${WORLD_RESUME_STORAGE_PREFIX}:${WORLD_RESUME_SCOPE_GUEST}`;
 export const WORLD_RESUME_VERSION = 2;
 export const WORLD_RESUME_LEGACY_VERSION = 1;
 export const WORLD_RESUME_SAVE_INTERVAL_MS = 2000;
@@ -18,6 +22,20 @@ const inBounds = ({ x, z }, bounds = WORLD_BOUNDS) =>
 function recordRegion(raw) {
   if (raw?.version === WORLD_RESUME_LEGACY_VERSION) return WORLD_REGION_ID.CAMPUS;
   return isWorldRegionId(raw?.regionId) ? raw.regionId : null;
+}
+
+export function normalizeResumeScope(scope) {
+  const cleaned = String(scope ?? "").replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 96);
+  return cleaned || WORLD_RESUME_SCOPE_GUEST;
+}
+
+export function worldResumeStorageKey(scope = WORLD_RESUME_SCOPE_GUEST) {
+  return `${WORLD_RESUME_STORAGE_PREFIX}:${normalizeResumeScope(scope)}`;
+}
+
+function discardLegacyUnscoped(storage) {
+  // Unscoped v1 keys have no owner. Never adopt them into guest or an account.
+  try { storage?.removeItem?.(WORLD_RESUME_STORAGE_PREFIX); } catch { /* ignore quota / private mode */ }
 }
 
 export function validateResumeRecord(raw, {
@@ -70,10 +88,12 @@ function browserStorage() {
 
 export function readWorldResume(storage = null, options = {}) {
   storage ??= browserStorage();
+  const scope = normalizeResumeScope(options.scope ?? WORLD_RESUME_SCOPE_GUEST);
+  discardLegacyUnscoped(storage);
   if (!storage?.getItem) return { state: "MISSING", record: null };
   let raw;
   try {
-    const value = storage.getItem(WORLD_RESUME_STORAGE_KEY);
+    const value = storage.getItem(worldResumeStorageKey(scope));
     if (!value) return { state: "MISSING", record: null };
     raw = JSON.parse(value);
   } catch {
@@ -85,10 +105,15 @@ export function readWorldResume(storage = null, options = {}) {
 export function createWorldResumeStore({
   storage = null,
   clock = { now: () => Date.now() },
-  saveIntervalMs = WORLD_RESUME_SAVE_INTERVAL_MS
+  saveIntervalMs = WORLD_RESUME_SAVE_INTERVAL_MS,
+  scope = WORLD_RESUME_SCOPE_GUEST
 } = {}) {
   storage ??= browserStorage();
+  let currentScope = normalizeResumeScope(scope);
   let lastWriteAt = 0;
+  discardLegacyUnscoped(storage);
+
+  const key = () => worldResumeStorageKey(currentScope);
 
   const maybeSave = ({
     position,
@@ -118,7 +143,8 @@ export function createWorldResumeStore({
     const checked = validateResumeRecord(candidate, { expectedRegionId: WORLD_REGION_ID.CAMPUS });
     if (checked.state !== "VALID") return false;
     try {
-      storage?.setItem?.(WORLD_RESUME_STORAGE_KEY, JSON.stringify(checked.record));
+      storage?.setItem?.(key(), JSON.stringify(checked.record));
+      discardLegacyUnscoped(storage);
       lastWriteAt = now;
       return true;
     } catch {
@@ -127,9 +153,18 @@ export function createWorldResumeStore({
   };
 
   return {
-    read: () => readWorldResume(storage),
+    get scope() { return currentScope; },
+    setScope(nextScope) {
+      const next = normalizeResumeScope(nextScope);
+      if (next === currentScope) return { changed: false, scope: currentScope };
+      currentScope = next;
+      lastWriteAt = 0;
+      discardLegacyUnscoped(storage);
+      return { changed: true, scope: currentScope };
+    },
+    read: () => readWorldResume(storage, { scope: currentScope }),
     maybeSave,
-    clear() { try { storage?.removeItem?.(WORLD_RESUME_STORAGE_KEY); } catch {} },
+    clear() { try { storage?.removeItem?.(key()); } catch {} },
     get lastWriteAt() { return lastWriteAt; }
   };
 }
