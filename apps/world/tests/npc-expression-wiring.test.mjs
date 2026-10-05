@@ -12,13 +12,15 @@ test('procedural avatar exposes stable face-part handles for expression animatio
   assert.match(source, /face: Object\.freeze\(\{ head, eyes: Object\.freeze\(eyes\), brows: Object\.freeze\(brows\), mouth: mouthNode \}\)/);
 });
 
-test('expression POC is isolated to the main NPC and stays locally deterministic', async () => {
+test('expression POC stays isolated to the main NPC and accepts only validated Jev presentation results', async () => {
   const source = await readFile(runtimeUrl, 'utf8');
   assert.match(source, /const expressionPilotId = MAIN_NPC_ID/);
   assert.match(source, /createNpcExpressionController\(expressionPilotFace\)/);
-  assert.match(source, /NPC_EXPRESSION_NAMES/);
-  assert.match(source, /expressionPilot\?\.update\(dt\)/);
+  assert.match(source, /function applyJevExpression\(actorId, decision\)/);
+  assert.match(source, /decision\?\.provider !== 'JEV'/);
+  assert.match(source, /setExpressionPoc\(expression\.emotion, expression\.intensity, \{ source: 'JEV' \}\)/);
+  assert.match(source, /expression_poc: expressionPilot \? \{ npc_id: expressionPilotId, source: expressionSource/);
   assert.match(source, /setExpression: \(emotion, intensity = 1, options = \{\}\) => setExpressionPoc/);
   assert.doesNotMatch(source, /TYPESAFE.*expression|expression.*TYPESAFE/i,
-    'POC must not require an AI provider before the face animation is proven');
+    'runtime consumes the validated router result and must not call TypeSafe directly');
 });
