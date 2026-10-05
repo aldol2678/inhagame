@@ -4,6 +4,7 @@ import { roadviewGroundHeight } from './roadview-layout.js';
 
 export const GIANT_ROACH_COUNTS = Object.freeze([10, 30, 50, 100]);
 export const GIANT_ROACH_MAX = 100;
+export const GIANT_ROACH_TRIANGLES = 264;
 
 function clampCount(value) {
   const n = Number(value);
@@ -20,64 +21,88 @@ function pursuitSlot(index, playerPos) {
 
 function sharedMaterial() {
   const m = new pc.StandardMaterial();
-  m.diffuse = new pc.Color(0.34, 0.14, 0.045);
-  m.emissive = new pc.Color(0.055, 0.018, 0.004);
-  m.gloss = 18;
-  m.metalness = 0.05;
+  m.diffuse = new pc.Color(1, 1, 1);
+  m.diffuseVertexColor = true;
+  m.diffuseVertexColorChannel = 'rgb';
+  m.emissive = new pc.Color(0.012, 0.004, 0.002);
+  m.gloss = 30;
+  m.metalness = 0;
   m.update();
   return m;
 }
 
-function pushQuad(positions,normals,indices,a,b,c,d,n) {
+const ROACH_COLOR = Object.freeze({
+  abdomen: [0.42,0.15,0.045,1],
+  thorax: [0.29,0.085,0.024,1],
+  head: [0.105,0.035,0.014,1],
+  limb: [0.075,0.022,0.010,1],
+  seam: [0.12,0.038,0.014,1]
+});
+function pushColor(colors,color,count=1){ for(let i=0;i<count;i++) colors.push(...color); }
+function pushQuad(positions,normals,colors,indices,a,b,c,d,n,color) {
   const o=positions.length/3;
   for(const p of [a,b,c,d]) positions.push(...p);
   for(let i=0;i<4;i++) normals.push(...n);
+  pushColor(colors,color,4);
   indices.push(o,o+1,o+2,o,o+2,o+3);
 }
-function addBar(g,from,to,width=.08,height=.08) {
+function addBar(g,from,to,width=.08,height=.08,color=ROACH_COLOR.limb) {
   const dx=to[0]-from[0], dz=to[2]-from[2], len=Math.hypot(dx,dz)||1;
   const px=-dz/len*width/2, pz=dx/len*width/2, y0=from[1]-height/2, y1=from[1]+height/2;
   const a=[from[0]+px,y0,from[2]+pz], b=[from[0]-px,y0,from[2]-pz];
   const c=[to[0]-px,y0,to[2]-pz], d=[to[0]+px,y0,to[2]+pz];
   const A=[a[0],y1,a[2]], B=[b[0],y1,b[2]], C=[c[0],y1,c[2]], D=[d[0],y1,d[2]];
-  pushQuad(g.positions,g.normals,g.indices,A,D,C,B,[0,1,0]);
-  pushQuad(g.positions,g.normals,g.indices,a,b,c,d,[0,-1,0]);
+  pushQuad(g.positions,g.normals,g.colors,g.indices,A,D,C,B,[0,1,0],color);
+  pushQuad(g.positions,g.normals,g.colors,g.indices,a,b,c,d,[0,-1,0],color);
   const nx=dz/len,nz=-dx/len;
-  pushQuad(g.positions,g.normals,g.indices,a,d,D,A,[nx,0,nz]);
-  pushQuad(g.positions,g.normals,g.indices,b,B,C,c,[-nx,0,-nz]);
-  pushQuad(g.positions,g.normals,g.indices,a,A,B,b,[-dx/len,0,-dz/len]);
-  pushQuad(g.positions,g.normals,g.indices,d,c,C,D,[dx/len,0,dz/len]);
+  pushQuad(g.positions,g.normals,g.colors,g.indices,a,d,D,A,[nx,0,nz],color);
+  pushQuad(g.positions,g.normals,g.colors,g.indices,b,B,C,c,[-nx,0,-nz],color);
+  pushQuad(g.positions,g.normals,g.colors,g.indices,a,A,B,b,[-dx/len,0,-dz/len],color);
+  pushQuad(g.positions,g.normals,g.colors,g.indices,d,c,C,D,[dx/len,0,dz/len],color);
 }
-function addEllipsoid(g,c,r,segments=10) {
+function addEllipsoid(g,c,r,segments,color) {
   const top=g.positions.length/3;
-  g.positions.push(c[0],c[1]+r[1],c[2]); g.normals.push(0,1,0);
+  g.positions.push(c[0],c[1]+r[1],c[2]); g.normals.push(0,1,0); pushColor(g.colors,color);
   const ring=[];
   for(let i=0;i<segments;i++) {
     const a=i/segments*Math.PI*2, x=Math.cos(a), z=Math.sin(a);
     ring.push(g.positions.length/3);
     g.positions.push(c[0]+x*r[0],c[1],c[2]+z*r[2]);
     const nx=x/r[0],nz=z/r[2],nl=Math.hypot(nx,nz)||1;
-    g.normals.push(nx/nl,0,nz/nl);
+    g.normals.push(nx/nl,0,nz/nl); pushColor(g.colors,color);
   }
   const bottom=g.positions.length/3;
-  g.positions.push(c[0],c[1]-r[1],c[2]); g.normals.push(0,-1,0);
+  g.positions.push(c[0],c[1]-r[1],c[2]); g.normals.push(0,-1,0); pushColor(g.colors,color);
   for(let i=0;i<segments;i++) {
     const n=(i+1)%segments;
     g.indices.push(top,ring[n],ring[i], bottom,ring[i],ring[n]);
   }
 }
 function createRoachMesh(device) {
-  const g={positions:[],normals:[],indices:[]};
-  addEllipsoid(g,[0,0.02,0.28],[0.48,0.27,0.76],12);
-  addEllipsoid(g,[0,0.03,-0.52],[0.39,0.25,0.46],10);
-  addEllipsoid(g,[0,0.00,-0.96],[0.27,0.20,0.27],8);
+  const g={positions:[],normals:[],colors:[],indices:[]};
+  addEllipsoid(g,[0,0.02,0.30],[0.47,0.25,0.76],12,ROACH_COLOR.abdomen);
+  addEllipsoid(g,[0,0.04,-0.50],[0.39,0.24,0.45],10,ROACH_COLOR.thorax);
+  addEllipsoid(g,[0,0.00,-0.94],[0.26,0.18,0.26],8,ROACH_COLOR.head);
+
+  const legs=[
+    {z:-.55,knee:[.66,-.18,-.78],tip:[1.03,-.23,-1.00]},
+    {z:-.08,knee:[.76,-.19,-.10],tip:[1.12,-.23,-.04]},
+    {z:.40,knee:[.70,-.18,.62],tip:[1.04,-.23,.91]}
+  ];
   for(const side of [-1,1]) {
-    addBar(g,[side*.28,-.16,-.55],[side*.92,-.22,-.86],.09,.07);
-    addBar(g,[side*.34,-.17,-.10],[side*1.02,-.23,-.12],.09,.07);
-    addBar(g,[side*.33,-.16,.38],[side*.92,-.22,.72],.09,.07);
-    addBar(g,[side*.14,.02,-1.12],[side*.62,.04,-1.72],.055,.045);
+    for(const leg of legs) {
+      const knee=[side*leg.knee[0],leg.knee[1],leg.knee[2]];
+      const tip=[side*leg.tip[0],leg.tip[1],leg.tip[2]];
+      addBar(g,[side*.30,-.12,leg.z],knee,.085,.065,ROACH_COLOR.limb);
+      addBar(g,knee,tip,.065,.055,ROACH_COLOR.limb);
+    }
+    const antennaKnee=[side*.34,.025,-1.36], antennaTip=[side*.68,.035,-1.78];
+    addBar(g,[side*.12,.015,-1.12],antennaKnee,.045,.038,ROACH_COLOR.limb);
+    addBar(g,antennaKnee,antennaTip,.032,.03,ROACH_COLOR.limb);
   }
-  return pc.createMesh(device,g.positions,{normals:g.normals,indices:g.indices});
+  addBar(g,[0,.275,-.12],[0,.285,.94],.036,.018,ROACH_COLOR.seam);
+
+  return pc.createMesh(device,g.positions,{normals:g.normals,colors:g.colors,indices:g.indices});
 }
 function createRoachVisual(root,index,material,mesh) {
   const e=new pc.Entity(`GIANT_ROACH_${index+1}`);
@@ -113,7 +138,7 @@ export function createGiantRoachExperiment({app,campusRoot,player,count=10}) {
     const position=spawnPoint(navigator,center,index);
     const entity=createRoachVisual(campusRoot,index,material,mesh);
     entity.setLocalPosition(position.x,roadviewGroundHeight(position.x,position.z)+0.32,position.z);
-    roaches.push({entity,position,waypoints:[],heading:0,nextNavAt:index*.017,nextUpdateAt:0,index});
+    roaches.push({entity,position,waypoints:[],heading:0,renderHeading:0,nextNavAt:index*.017,nextUpdateAt:0,index});
   }
   function setCount(next){
     targetCount=clampCount(next);
@@ -145,8 +170,13 @@ export function createGiantRoachExperiment({app,campusRoot,player,count=10}) {
       if(r.waypoints.length){
         const moved=advanceRoute(r.position,r.waypoints,(d>45?1.15:2.15)*interval);
         r.position=moved.position; r.heading=moved.heading;
-        r.entity.setLocalPosition(r.position.x,roadviewGroundHeight(r.position.x,r.position.z)+0.32,r.position.z);
-        r.entity.setLocalEulerAngles(0,r.heading,0);
+        const turn=((r.heading-r.renderHeading+540)%360)-180;
+        r.renderHeading+=turn*Math.min(1,interval*7.5);
+        const phase=now*8.5+r.index*.73;
+        const bob=Math.abs(Math.sin(phase))*.035;
+        const sway=Math.sin(phase*.72)*2.2;
+        r.entity.setLocalPosition(r.position.x,roadviewGroundHeight(r.position.x,r.position.z)+0.31+bob,r.position.z);
+        r.entity.setLocalEulerAngles(0,r.renderHeading,sway);
       }
       r.entity.enabled=d<85;
     }
@@ -163,7 +193,8 @@ export function createGiantRoachExperiment({app,campusRoot,player,count=10}) {
       runtimeUpdateMs:metricNumber(avg(updateCostSamples)),navigationMs:metricNumber(avg(navCostSamples)),
       memoryUsedMB:mem?metricNumber(mem.usedJSHeapSize/1048576):null,
       drawCalls:stats.drawCalls?.total??stats.frame?.drawCalls??null,
-      triangles:stats.frame?.triangles??null,errors
+      triangles:stats.frame?.triangles??null,
+      prototypeTriangles:GIANT_ROACH_TRIANGLES,estimatedRoachTriangles:roaches.length*GIANT_ROACH_TRIANGLES,errors
     });
   }
   function destroy(){
