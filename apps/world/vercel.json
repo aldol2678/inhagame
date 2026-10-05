@@ -54,12 +54,5 @@
     }
   ],
   "buildCommand": "sh ./build-recast-shadow.sh",
-  "outputDirectory": ".",
-  "git": {
-    "deploymentEnabled": {
-      "**": false,
-      "main": true,
-      "exp/giant-roach-p2-current": true
-    }
-  }
+  "outputDirectory": "."
 }
