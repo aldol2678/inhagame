@@ -233,7 +233,10 @@ const npcSocialProductionMode = npcProductionMode;
 const npcSocialMode = npcSocialProductionMode || npcSocialPreviewMode || npcObservedConversationMode;
 const npcEnabled = npcSharedScheduleMode || npcTestMode || npcProductionMode || npcPreviewMode || npcRosterPreviewMode || npcSocialMode;
 const campusLifePreview = previewHost && startupParams.get('campusLife') === 'p0a';
+const giantRoachTestMode = previewHost && startupParams.get('giantRoachTest') === '1';
+const giantRoachTestCount = Number(startupParams.get('roachCount') ?? 10);
 let lastTrackedZone = null;
+let giantRoachExperiment = null;
 
 async function boot() {
 worldLoading?.setPhase("RENDERER");
@@ -3278,6 +3281,11 @@ await waitForWorldRender({
 worldLoading?.setRenderReady(true);
 worldLoading?.finish({ degraded: bootDegraded });
 void loadOptionalNpcRuntime();
+if (giantRoachTestMode) {
+  void import('./giant-roach-experiment.js').then(({ createGiantRoachExperiment }) => {
+    giantRoachExperiment = createGiantRoachExperiment({ app, campusRoot, player, count: giantRoachTestCount });
+  }).catch(error => console.error('[GIANT_ROACH_TEST] boot failed', error));
+}
 if (campusLifePreview) {
   import('../npc-factory/purposeful-student-runtime.mjs')
     .then(module => module.createPurposefulStudentRuntime({
