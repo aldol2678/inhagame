@@ -4,7 +4,7 @@ import { roadviewGroundHeight } from './roadview-layout.js';
 
 export const GIANT_ROACH_COUNTS = Object.freeze([10, 30, 50, 100]);
 export const GIANT_ROACH_MAX = 100;
-export const GIANT_ROACH_TRIANGLES = 384;
+export const GIANT_ROACH_TRIANGLES = 768;
 
 function clampCount(value) {
   const n = Number(value);
@@ -34,11 +34,14 @@ function sharedMaterial() {
 
 // pc.createMesh Geometry colors are uploaded through Mesh.setColors32, so use 8-bit RGBA.
 const ROACH_COLOR = Object.freeze({
-  abdomen: [180,72,26,255],
-  thorax: [128,45,15,255],
-  head: [78,22,8,255],
-  limb: [48,14,5,255],
-  seam: [96,28,8,255]
+  abdomen: [184,76,28,255],
+  abdomenBand: [148,52,18,255],
+  thorax: [132,46,16,255],
+  elytra: [164,60,20,255],
+  head: [76,21,8,255],
+  limb: [45,13,5,255],
+  seam: [220,126,52,255],
+  cerci: [62,18,7,255]
 });
 function pushColor(colors,color,count=1){ for(let i=0;i<count;i++) colors.push(...color); }
 function pushQuad(positions,normals,colors,indices,a,b,c,d,n,color) {
@@ -48,12 +51,15 @@ function pushQuad(positions,normals,colors,indices,a,b,c,d,n,color) {
   pushColor(colors,color,4);
   indices.push(o,o+1,o+2,o,o+2,o+3);
 }
-function addBar(g,from,to,width=.08,height=.08,color=ROACH_COLOR.limb) {
+function addTaperedBar(g,from,to,width0=.08,width1=.05,height=.07,color=ROACH_COLOR.limb) {
   const dx=to[0]-from[0], dz=to[2]-from[2], len=Math.hypot(dx,dz)||1;
-  const px=-dz/len*width/2, pz=dx/len*width/2, y0=from[1]-height/2, y1=from[1]+height/2;
-  const a=[from[0]+px,y0,from[2]+pz], b=[from[0]-px,y0,from[2]-pz];
-  const c=[to[0]-px,y0,to[2]-pz], d=[to[0]+px,y0,to[2]+pz];
-  const A=[a[0],y1,a[2]], B=[b[0],y1,b[2]], C=[c[0],y1,c[2]], D=[d[0],y1,d[2]];
+  const ux=-dz/len, uz=dx/len;
+  const p0x=ux*width0/2, p0z=uz*width0/2, p1x=ux*width1/2, p1z=uz*width1/2;
+  const y0=from[1]-height/2, y1=from[1]+height/2;
+  const z0=to[1]-height/2, z1=to[1]+height/2;
+  const a=[from[0]+p0x,y0,from[2]+p0z], b=[from[0]-p0x,y0,from[2]-p0z];
+  const c=[to[0]-p1x,z0,to[2]-p1z], d=[to[0]+p1x,z0,to[2]+p1z];
+  const A=[a[0],y1,a[2]], B=[b[0],y1,b[2]], C=[c[0],z1,c[2]], D=[d[0],z1,d[2]];
   pushQuad(g.positions,g.normals,g.colors,g.indices,A,D,C,B,[0,1,0],color);
   pushQuad(g.positions,g.normals,g.colors,g.indices,a,b,c,d,[0,-1,0],color);
   const nx=dz/len,nz=-dx/len;
@@ -62,20 +68,21 @@ function addBar(g,from,to,width=.08,height=.08,color=ROACH_COLOR.limb) {
   pushQuad(g.positions,g.normals,g.colors,g.indices,a,A,B,b,[-dx/len,0,-dz/len],color);
   pushQuad(g.positions,g.normals,g.colors,g.indices,d,c,C,D,[dx/len,0,dz/len],color);
 }
-function addEllipsoid(g,c,r,segments,color) {
+function addEllipsoid(g,c,r,segments,color,ringColors=null) {
   const top=g.positions.length/3;
   g.positions.push(c[0],c[1]+r[1],c[2]); g.normals.push(0,1,0); pushColor(g.colors,color);
   const rings=[];
-  for(const theta of [Math.PI*.25,Math.PI*.5,Math.PI*.75]) {
-    const ring=[];
-    const sy=Math.cos(theta), radial=Math.sin(theta);
+  const thetas=[Math.PI/6,Math.PI/3,Math.PI/2,Math.PI*2/3,Math.PI*5/6];
+  for(let ringIndex=0;ringIndex<thetas.length;ringIndex++) {
+    const theta=thetas[ringIndex], sy=Math.cos(theta), radial=Math.sin(theta), ring=[];
+    const ringColor=ringColors?.[ringIndex]??color;
     for(let i=0;i<segments;i++) {
       const a=i/segments*Math.PI*2, ca=Math.cos(a), sa=Math.sin(a);
       const x=ca*radial, z=sa*radial;
       ring.push(g.positions.length/3);
       g.positions.push(c[0]+x*r[0],c[1]+sy*r[1],c[2]+z*r[2]);
       const nx=x/r[0],ny=sy/r[1],nz=z/r[2],nl=Math.hypot(nx,ny,nz)||1;
-      g.normals.push(nx/nl,ny/nl,nz/nl); pushColor(g.colors,color);
+      g.normals.push(nx/nl,ny/nl,nz/nl); pushColor(g.colors,ringColor);
     }
     rings.push(ring);
   }
@@ -93,27 +100,42 @@ function addEllipsoid(g,c,r,segments,color) {
 }
 function createRoachMesh(device) {
   const g={positions:[],normals:[],colors:[],indices:[]};
-  addEllipsoid(g,[0,0.02,0.30],[0.47,0.25,0.76],12,ROACH_COLOR.abdomen);
-  addEllipsoid(g,[0,0.04,-0.50],[0.39,0.24,0.45],10,ROACH_COLOR.thorax);
-  addEllipsoid(g,[0,0.00,-0.94],[0.26,0.18,0.26],8,ROACH_COLOR.head);
+  // 420 body triangles: five rounded rings per section, with abdomen banding.
+  addEllipsoid(g,[0,0.03,0.33],[0.49,0.27,0.80],16,ROACH_COLOR.elytra,
+    [ROACH_COLOR.elytra,ROACH_COLOR.abdomen,ROACH_COLOR.abdomenBand,ROACH_COLOR.abdomen,ROACH_COLOR.elytra]);
+  addEllipsoid(g,[0,0.055,-0.49],[0.405,0.255,0.47],14,ROACH_COLOR.thorax);
+  addEllipsoid(g,[0,0.00,-0.96],[0.27,0.19,0.28],12,ROACH_COLOR.head);
 
+  // 216 leg triangles: six tapered, three-segment legs.
   const legs=[
-    {z:-.55,knee:[.66,-.18,-.78],tip:[1.03,-.23,-1.00]},
-    {z:-.08,knee:[.76,-.19,-.10],tip:[1.12,-.23,-.04]},
-    {z:.40,knee:[.70,-.18,.62],tip:[1.04,-.23,.91]}
+    {z:-.57,j1:[.53,-.15,-.70],j2:[.82,-.20,-.90],tip:[1.08,-.235,-1.08]},
+    {z:-.08,j1:[.60,-.16,-.08],j2:[.90,-.205,-.05],tip:[1.16,-.235,.02]},
+    {z:.42,j1:[.56,-.15,.55],j2:[.84,-.20,.77],tip:[1.08,-.235,1.00]}
   ];
   for(const side of [-1,1]) {
     for(const leg of legs) {
-      const knee=[side*leg.knee[0],leg.knee[1],leg.knee[2]];
+      const j1=[side*leg.j1[0],leg.j1[1],leg.j1[2]];
+      const j2=[side*leg.j2[0],leg.j2[1],leg.j2[2]];
       const tip=[side*leg.tip[0],leg.tip[1],leg.tip[2]];
-      addBar(g,[side*.30,-.12,leg.z],knee,.085,.065,ROACH_COLOR.limb);
-      addBar(g,knee,tip,.065,.055,ROACH_COLOR.limb);
+      addTaperedBar(g,[side*.30,-.11,leg.z],j1,.105,.082,.075,ROACH_COLOR.limb);
+      addTaperedBar(g,j1,j2,.082,.055,.062,ROACH_COLOR.limb);
+      addTaperedBar(g,j2,tip,.055,.026,.046,ROACH_COLOR.limb);
     }
-    const antennaKnee=[side*.34,.025,-1.36], antennaTip=[side*.68,.035,-1.78];
-    addBar(g,[side*.12,.015,-1.12],antennaKnee,.045,.038,ROACH_COLOR.limb);
-    addBar(g,antennaKnee,antennaTip,.032,.03,ROACH_COLOR.limb);
+
+    // 72 antenna triangles: three tapered segments per side.
+    const a1=[side*.28,.028,-1.31], a2=[side*.48,.036,-1.56], a3=[side*.73,.042,-1.88];
+    addTaperedBar(g,[side*.10,.018,-1.14],a1,.046,.036,.038,ROACH_COLOR.limb);
+    addTaperedBar(g,a1,a2,.036,.025,.032,ROACH_COLOR.limb);
+    addTaperedBar(g,a2,a3,.025,.012,.024,ROACH_COLOR.limb);
+
+    // 48 cerci triangles: two short tapered tail segments per side.
+    const c1=[side*.18,-.005,1.15], c2=[side*.30,-.015,1.34];
+    addTaperedBar(g,[side*.10,-.005,1.04],c1,.045,.032,.036,ROACH_COLOR.cerci);
+    addTaperedBar(g,c1,c2,.032,.014,.028,ROACH_COLOR.cerci);
   }
-  addBar(g,[0,.275,-.12],[0,.285,.94],.036,.018,ROACH_COLOR.seam);
+
+  // 12-triangle raised elytra seam. Total prototype budget = 768 triangles.
+  addTaperedBar(g,[0,.295,-.16],[0,.305,1.02],.038,.025,.018,ROACH_COLOR.seam);
 
   return pc.createMesh(device,g.positions,{normals:g.normals,colors:g.colors,indices:g.indices});
 }
@@ -185,11 +207,13 @@ export function createGiantRoachExperiment({app,campusRoot,player,count=10}) {
         r.position=moved.position; r.heading=moved.heading;
         const turn=((r.heading-r.renderHeading+540)%360)-180;
         r.renderHeading+=turn*Math.min(1,interval*7.5);
-        const phase=now*8.5+r.index*.73;
-        const bob=Math.abs(Math.sin(phase))*.035;
-        const sway=Math.sin(phase*.72)*2.2;
+        const phase=now*9.1+r.index*.73;
+        const moving=moved.moved>.0001;
+        const bob=moving?Math.abs(Math.sin(phase))*.040:Math.sin(phase*.18)*.006;
+        const sway=moving?Math.sin(phase*.68)*2.6:Math.sin(phase*.16)*.45;
+        const pitch=moving?Math.cos(phase*.52)*.85:Math.sin(phase*.12)*.22;
         r.entity.setLocalPosition(r.position.x,roadviewGroundHeight(r.position.x,r.position.z)+0.31+bob,r.position.z);
-        r.entity.setLocalEulerAngles(0,r.renderHeading,sway);
+        r.entity.setLocalEulerAngles(pitch,r.renderHeading,sway);
       }
       r.entity.enabled=d<85;
     }
