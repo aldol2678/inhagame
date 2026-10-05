@@ -48,6 +48,12 @@ export function createCombatHudV03({ root, runtime, inputFocus } = {}) {
       fire(event);
     };
     const onKeyDown = event => {
+      if (event.key === 'Shift' || event.code === 'ShiftLeft' || event.code === 'ShiftRight') {
+        // Here Shift is a native focus-navigation modifier. The gameplay
+        // shortcut keeps ownership when focus is outside these buttons.
+        event.stopPropagation();
+        return;
+      }
       if (!['Enter', 'NumpadEnter', 'Space'].includes(event.code) && event.key !== 'Enter' && event.key !== ' ') return;
       // Keep the native button default action, but don't open chat or jump.
       event.stopPropagation();

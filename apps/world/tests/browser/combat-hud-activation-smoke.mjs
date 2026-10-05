@@ -170,8 +170,29 @@ try {
       await campusBasic.focus();
       await page.keyboard.press('Tab');
       assert.equal(await page.evaluate(() => document.activeElement?.dataset.combatAction), 'active_1', 'Actual HUD is tabbable');
-      await page.keyboard.press('Shift+Tab');
-      assert.equal(await page.evaluate(() => document.activeElement?.dataset.combatAction), 'basic');
+      const motion = () => page.evaluate(() => {
+        const d = window.__INHAGAME_P0__, state = d.combatRuntime.snapshot(), p = d.player.getLocalPosition();
+        return { serial: state.actionSerial, position: { x: p.x, y: p.y, z: p.z },
+          cooldown: state.training.cooldowns.dodge, dodge: state.training.player.dodge };
+      });
+      for (const code of ['ShiftLeft', 'ShiftRight']) {
+        await page.locator('[data-combat-action="active_1"]').focus();
+        const beforeShiftTab = await motion();
+        assert.equal(beforeShiftTab.serial, 0, 'No combat actions precede navigation acceptance');
+        await page.keyboard.down(code);
+        assert.deepEqual(await motion(), beforeShiftTab, `${code} alone on a HUD button cannot dodge`);
+        await page.keyboard.press('Tab');
+        await page.keyboard.up(code);
+        assert.equal(await page.evaluate(() => document.activeElement?.dataset.combatAction), 'basic', 'Native backward Tab remains intact');
+        await page.evaluate(() => new Promise(resolve => {
+          const app = window.__INHAGAME_P0__.app;
+          app.once('postrender', () => app.once('postrender', resolve));
+        }));
+        const afterShiftTab = await motion();
+        assert.deepEqual(afterShiftTab, beforeShiftTab, 'Shift+Tab cannot change actions, position, dodge or cooldown');
+        report.cases.push({ viewport: spec.name, action: 'native-Shift-Tab-zero-dodge', code,
+          before: beforeShiftTab, after: afterShiftTab, focusedAction: 'basic' });
+      }
       const before = await page.evaluate(() => ({ serial: window.__INHAGAME_P0__.combatRuntime.snapshot().actionSerial,
         y: window.__INHAGAME_P0__.player.getLocalPosition().y }));
       for (const key of ['Enter', 'Space']) await page.keyboard.press(key);
@@ -190,6 +211,28 @@ try {
       await campusBasic.focus();
       await shot(page, `${spec.name}-campus-combat-focused`);
       report.cases.push({ viewport: spec.name, action: 'actual-campus-HUD', before, after });
+      await page.evaluate(() => document.activeElement?.blur());
+      assert.equal(await page.evaluate(() => Boolean(document.activeElement?.closest('[data-combat-action], [data-combat-reset]'))), false);
+      const beforeGameplayShift = await motion();
+      await page.keyboard.down('Shift');
+      const firstGameplayShift = await motion();
+      assert.equal(firstGameplayShift.serial, beforeGameplayShift.serial + 1);
+      assert.ok(firstGameplayShift.cooldown > 0, 'Normal gameplay dodge still consumes its cooldown');
+      // Hold past cooldown so rejection cannot conceal a leaked repeat dispatch.
+      await wait(() => window.__INHAGAME_P0__.combatRuntime.snapshot().training.cooldowns.dodge === 0);
+      await page.keyboard.down('Shift');
+      await page.keyboard.up('Shift');
+      const afterGameplayShift = await motion();
+      assert.equal(afterGameplayShift.serial, beforeGameplayShift.serial + 1, 'Outside the HUD, held Shift stays single-shot even after cooldown');
+      assert.equal(afterGameplayShift.cooldown, 0);
+      assert.equal(await page.evaluate(() => window.__INHAGAME_P0__.combatRuntime.snapshot().lastAction.action), 'dodge');
+      await wait(() => window.__INHAGAME_P0__.combatRuntime.snapshot().training.player.dodge.travelled > 0);
+      const moved = await motion();
+      assert.ok(Math.hypot(moved.position.x - beforeGameplayShift.position.x, moved.position.z - beforeGameplayShift.position.z) > 0,
+        'Normal outside-HUD Shift still moves the player');
+      report.cases.push({ viewport: spec.name, action: 'native-gameplay-Shift-one-dodge',
+        before: beforeGameplayShift, first: firstGameplayShift, after: afterGameplayShift, moved });
+
       assert.deepEqual(smoke.problems, []);
     } catch (error) {
       if (page) await shot(page, `${spec.name}-failure`).catch(() => {});

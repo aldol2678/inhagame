@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { createCombatHudV03 } from '../src/combat/combat-hud-v03.js';
 import { createCombatRuntimeV03 } from '../src/combat/combat-runtime-v03.js';
 import { createBuilding5CombatTraining, BUILDING5_TRAINING_TARGET } from '../src/combat/building5-combat-training.js';
@@ -185,3 +186,58 @@ test('destroy removes every new input listener and inactive/hidden reset cannot 
   assert.deepEqual(r.calls, []);
   assert.equal(r.resets(), 0);
 });
+
+// Execute the existing World registration to catch leakage into the real Shift
+// dodge hotkey rather than substituting a test-only shortcut implementation.
+function bindPhysicalCombat(r) {
+  const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
+  const start = main.indexOf('window.addEventListener("keydown", (event) => {\n  if (!combatRuntime.active || event.repeat');
+  const end = main.indexOf('canvas.addEventListener("pointerdown"', start);
+  assert.ok(start >= 0 && end > start);
+  r.physicalCalls = [];
+  const observedRuntime = { ...r.runtime, dispatch(action) {
+    r.physicalCalls.push(action);
+    return r.runtime.dispatch(action);
+  } };
+  new Function('window', 'combatRuntime', 'controller', 'inputFocus', 'HTMLElement', main.slice(start, end))(
+    r.doc, observedRuntime, r.controller, r.inputFocus, FakeElement);
+}
+
+for (const code of ['ShiftLeft', 'ShiftRight']) {
+  for (const action of [...actions, 'reset']) {
+    test(`${action}: focused ${code} preserves backward Tab without dispatching physical dodge`, t => {
+      const r = rig(t);
+      bindPhysicalCombat(r);
+      if (action === 'reset') {
+        for (let i = 0; i < 100 && !r.training.snapshot().defeated; i += 1) r.runtime.dispatch('basic');
+      }
+      const button = action === 'reset' ? r.reset : r.buttons[action];
+      assert.equal(button.hidden, false);
+      assert.equal(button.disabled, false);
+      button.focus();
+      const before = r.runtime.snapshot();
+      const shift = event(button, 'keydown', { code, key: 'Shift', shiftKey: true });
+      const tab = event(button, 'keydown', { code: 'Tab', key: 'Tab', shiftKey: true });
+      assert.equal(shift.defaultPrevented, false, 'modifier default remains intact');
+      assert.equal(tab.defaultPrevented, false, 'native backward Tab is not prevented');
+      assert.deepEqual(r.runtime.snapshot(), before, 'no action, dodge state or cooldown mutation');
+      assert.deepEqual(r.physicalCalls, [], 'no dispatch attempt hidden by cooldown rejection');
+      assert.equal(r.controller.keys.has(code), false, 'Shift is owned by the focused control');
+      event(button, 'keyup', { code: 'Tab', key: 'Tab', shiftKey: true });
+      event(button, 'keyup', { code, key: 'Shift' });
+    });
+  }
+  test(`${code} outside combat buttons still dispatches one normal gameplay dodge`, t => {
+    const r = rig(t);
+    bindPhysicalCombat(r);
+    const before = r.runtime.snapshot().actionSerial;
+    r.doc.dispatch('keydown', { code, key: 'Shift', shiftKey: true, target: r.doc.body });
+    assert.equal(r.runtime.snapshot().actionSerial, before + 1);
+    assert.equal(r.runtime.snapshot().lastAction.action, 'dodge');
+    assert.ok(r.runtime.snapshot().training.cooldowns.dodge > 0);
+    r.doc.dispatch('keydown', { code, key: 'Shift', shiftKey: true, repeat: true, target: r.doc.body });
+    assert.equal(r.runtime.snapshot().actionSerial, before + 1, 'held physical hotkey stays single-shot');
+    assert.deepEqual(r.physicalCalls, ['dodge'], 'held Shift makes only one dispatch attempt');
+    r.doc.dispatch('keyup', { code, key: 'Shift', target: r.doc.body });
+  });
+}
