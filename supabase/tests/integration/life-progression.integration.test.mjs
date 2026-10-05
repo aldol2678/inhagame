@@ -43,7 +43,7 @@ test('Life Progression DB threshold mirror equals code authority rows', () => {
   })), code);
 });
 
-test('Life Skill Tree DB catalog equals the code tree v1 nodes (all COMING_SOON)', () => {
+test('Life Skill Tree DB catalog equals the code tree v1 nodes including activation status', () => {
   const db = JSON.parse(query(
     "select coalesce(json_agg(json_build_object('node_id',node_id,'skill_id',skill_id,'status',status,'sp_cost',sp_cost,'max_rank',max_rank,'required_life_level',required_life_level,'required_skill_level',required_skill_level) order by node_id), '[]') from private.world_life_skill_tree_catalog"
   ));

@@ -54,7 +54,7 @@ nothing is ACTIVE / no settlement path · **planned** = no backing schema yet ·
 | Fishing position evidence | trusted world server → Fishing | `private.world_fishing_positions`; canonical geometry `world_fishing_spots` | internal gate only | `world_fishing_observe_position_v1` | trusted authoritative server only (service_role + service claim + account guard); no player HTTP operation | no; browser pose/Realtime/heartbeat is not evidence | F3 consumer implemented; authoritative producer unconnected, exposure HOLD |
 | Fishing occupancy | Fishing / Activity | `private.world_fishing_spot_leases` (one account per semantic bank, attempt TTL + trusted session) | internal start/HOOK gate | `world_fishing_start_v1` acquires/reclaims; `private.world_fishing_commit_v1` releases its own lease | existing server Fishing lifecycle only, under account and spot locks | no | F3 consumer implemented; Production SQL not applied by deploy |
 | Life progression | Life | per-skill XP: `private.world_player_life_skills`, `world_life_skill_xp_transactions`; skill curve `world_life_skill_thresholds` (`life.common.v1` Lv1–20, with cumulative per-skill SP); aggregate display curve `world_life_progression_thresholds` (Lv1 only, never an SP source) | private snapshots; players read their ACTIVE skills through the self-only `get_my_world_life_skills_v1()` (Life Skill Book) | `private.world_life_skill_xp_apply_v1` | Activity settlement path only | no | Fishing ACTIVE; the other 10 skills COMING_SOON |
-| Life Skill Point | Life | **Per-skill pools**: `private.world_life_sp_transactions` (spend ledger keyed by `skill_id` = pool; composite FK to the node's own skill), `world_player_life_nodes`, `world_life_skill_tree_catalog` / `_edges` (tree v1: 18 multi-rank nodes for Fishing / Woodcutting / Farming, all COMING_SOON until node effects exist). Earned SP = `cumulative_sp` of the skill's own curve at its derived Skill Level | private snapshots; players read their ACTIVE trees through the self-only `get_my_world_life_skill_tree_v1(skill)` | `private.world_life_node_unlock_v1` (spends only the node's skill pool, gates on that skill's level); `private.world_life_tree_reset_v1` (free reset) | self-only `unlock_my_world_life_node_v1`, `reset_my_world_life_tree_v1` | via self-only RPCs (server decides) | foundation (section 7.1 implemented) |
+| Life Skill Point | Life | **Per-skill pools**: `private.world_life_sp_transactions` (spend ledger keyed by `skill_id` = pool; composite FK to the node's own skill), `world_player_life_nodes`, `world_life_skill_tree_catalog` / `_edges` (tree v1: 18 multi-rank nodes for Fishing / Woodcutting / Farming; Fishing `steady_hands` + `fish_sense` ACTIVE, remaining 16 COMING_SOON). Earned SP = `cumulative_sp` of the skill's own curve at its derived Skill Level | private snapshots; players read their ACTIVE trees through the self-only `get_my_world_life_skill_tree_v1(skill)` | `private.world_life_node_unlock_v1` (spends only the node's skill pool, gates on that skill's level); `private.world_life_tree_reset_v1` (free reset) | self-only `unlock_my_world_life_node_v1`, `reset_my_world_life_tree_v1`; Fishing start consumes current ranks server-side | via self-only RPCs (server decides); effect values never come from browser | P1: first two Fishing timing effects implemented (section 7.1) |
 | Creature ownership / growth | Creature Core | `private.world_player_creatures`, party state / history, observation events, activity events, XP transactions, memory tags, evolution candidates / events; catalogs | `world_creature_core_snapshot_v1` (service_role); `get_my_duck_companion_v1()` (self) | `world_creature_grant / observe / party_set / activity_accept / evolution_*_v1` | service_role wrappers; Life → Creature and Combat → Creature bridges (same transaction as the source finalize); Duck Companion P1 (`world_inkyung_duck_observe_v1` via service_role / edge function `world-duck-observe`, `bond_my_duck_companion_v1` self-only) | via self-only `bond_my_duck_companion_v1` (server re-counts observations) | Duck Companion P1 live in schema (duck species + `duck.base` ACTIVE); other species, bridges (XP 0) and evolution foundation |
 | Quest progression | Quest | `private.world_quest_progress_v1` (CHECK: 3 quest ids), `private.world_event_progress` (MCM 2026 only) | Cloud Run quest handler → `advance_*` with event `status`; `get_my_mcm_2026_event_v1()` | `advance_world_quest_v1`, `advance_world_navigation_quest_v1`, `advance_world_first_style_quest_v1`, `advance_mcm_2026_event_v1` (service_role; one RPC per quest) | Cloud Run quest service (`npc-factory/quest-store.mjs`) | **indirect**: the browser asserts `visit_*` / `talk_*` events; the server enforces only the order | production (Main 1, Main 2, MCM 2026) |
 | Reward | Reward | `private.world_reward_definitions` / `_grants` (catalog), `world_reward_transactions` / `_entries` | `world_reward_get_result_v1` (service_role); results embedded in quest / claim responses | `private.world_reward_grant_v1` (CURRENCY, ITEM, EXP only) | Main 1 / Main 2 completion, Daily Quiz pass, Attendance claim, MCM claims, service_role wrapper | no | production |
@@ -184,9 +184,9 @@ Fixtures: `.github/ci/fixtures/migration-contract/pr91-collision` must fail;
 | `authenticated` | Self-only RPCs where the caller is `auth.uid()` and the server decides the outcome (purchase, quiz, attendance, MCM claims, equip, social, housing, Life Skill Book). Never passes another user id. Never reaches a primitive except through the eight RPCs in section 3. | exact authenticated EXECUTE surface; no `private` usage; no `private` function; transitive reach check in test 93 |
 | `service_role` | Trusted server code (Cloud Run quest / NPC services, future resolvers) calling `public.*_v1(p_user, …)` wrappers. Most wrappers also re-check `auth.role() = 'service_role'` in the body; four rely on the GRANT alone (section 8). Cannot execute private primitives directly. | service-role-only lists in `01_grants_contract` (economy, quest, activity, collection, combat, creature, Biryong relationship, bridges, NPC ticks); private EXECUTE surface = the two staff helpers; private table DML surface recorded exactly |
 
-## 7. Target contracts (decided, not yet implemented)
+## 7. Target contracts and implemented boundaries
 
-These rules bind the next PRs. This PR does not change schema or gameplay for them.
+These rules are the current architectural contract. Each subsection states what is implemented and what remains deferred.
 
 ### 7.1 Life Skill Point: per-skill pools (implemented)
 - Implemented by `20261004130000_world_life_skill_curve_v1_sp_pools`: `life.common.v1` Lv2–20 with
@@ -215,10 +215,14 @@ These rules bind the next PRs. This PR does not change schema or gameplay for th
   - Published nodes and edges are immutable (only a node's `status` may change), enforced by
     triggers. Guard test: `98_world_life_skill_tree_ranks`.
 - **Tree v1 nodes** (`20261004136000_world_life_skill_tree_nodes_v1`, code mirror
-  `life-skill-tree-nodes-v1.js`): 18 nodes from #91 for Fishing, Woodcutting and Farming, all
-  COMING_SOON. Each tree costs 17 SP to max, which its skill has earned exactly at skill Lv15 (the
-  last gate). Node effects are not implemented; `effectRefs` only name them. Sailing's 6 nodes wait
-  for a `life.sailing` skill. Guard test: `98_world_life_skill_tree_nodes_v1`.
+  `life-skill-tree-nodes-v1.js`): 18 nodes from #91 for Fishing, Woodcutting and Farming. Fishing
+  `steady_hands` and `fish_sense` are ACTIVE through
+  `20261005185000_world_fishing_skill_effects_p1`; the remaining 16 nodes stay `COMING_SOON`.
+  Each tree costs 17 SP to max, which its skill has earned exactly at skill Lv15 (the last gate).
+  Active Fishing timing effects are consumed only by the authoritative Fishing start resolver;
+  deferred `effectRefs` are names, not implemented effects. Sailing's 6 nodes wait for a
+  `life.sailing` skill. Guard tests: `98_world_life_skill_tree_nodes_v1`,
+  `99_world_fishing_skill_effects_p1`.
 - **Reset (respec)** (`20261004137000_world_life_skill_tree_reset`, `world_life_tree_reset_v1`):
   - Free and per skill. One reset per (account, skill) per cooldown window; resetting Fishing never
     blocks resetting Mining.
@@ -247,8 +251,14 @@ These rules bind the next PRs. This PR does not change schema or gameplay for th
   - ACTIVE: `life.fishing`, `collection.fish.carp`, and the Fishing F2 runtime with a **candidate**
     policy (`fishing.candidate.v1`: bite after 3–9 s, 1.5 s window, 30 s TTL, 20 XP per carp,
     2 s between casts). The policy is one data row; a change applies to new attempts only.
-  - Still COMING_SOON: the Fishing tree nodes (no effects yet, so SP would buy nothing; the pool keeps
-    accumulating), `creature.bridge.activity.fishing` (NOOP decisions) and every other skill.
+  - Fishing tree P1 (`20261005185000_world_fishing_skill_effects_p1`): `steady_hands` and
+    `fish_sense` are ACTIVE. At cast start the DB reads the current reset epoch and freezes a private
+    effect snapshot into that attempt. Candidate tuning is +250 ms HOOK response window per
+    `steady_hands` rank and -250 ms minimum/maximum bite wait per `fish_sense` rank, both up to
+    rank 3. The browser never supplies ranks or modifiers. A later reset affects the next cast only.
+  - Still COMING_SOON: `baitcraft`, `rare_fish_sense`, `boat_fishing`,
+    `deep_sea_fishing`, `creature.bridge.activity.fishing` (NOOP decisions), and every other
+    Life Skill.
   - Player path: 🎣 at the two Inkyung pond spots (`src/activity/fishing-spots.js`) opens the fishing
     panel; `fishing-client.js` calls `/api/world-fishing` (start / HOOK / CANCEL / settle / read). The
     server verifies the account, samples the timing, decides the result at receipt and settles through
@@ -264,11 +274,13 @@ These rules bind the next PRs. This PR does not change schema or gameplay for th
   - F3 contract and rollout plan: `apps/world/server/fishing-f3.md` and
     `docs/implementation/fishing-production-migration-plan.md`; Production foundation, activation
     and player exposure are separate steps. Presence enforcement defaults true, never a browser option.
-  - Guard tests: `87_world_fishing_f2`, `99_world_fishing_f3`, `fishing.integration`,
-    `fishing-f3.integration`, `fishing-client.integration` (browser client → production handler →
-    local Data API), `fishing-client-panel`, `fishing-f3` geometry/API boundary.
-- Still open: node effect consumers; trusted authoritative position producer integration for F3;
-  Production forward-migration rehearsal/application and activation; balance tuning.
+  - Guard tests: `87_world_fishing_f2`, `99_world_fishing_f3`,
+    `99_world_fishing_skill_effects_p1`, `fishing.integration`, `fishing-f3.integration`,
+    `fishing-client.integration` (browser client → production handler → local Data API),
+    `fishing-client-panel`, `fishing-f3` geometry/API boundary.
+- Still open: authoritative consumers for the four deferred Fishing nodes; trusted authoritative
+  position producer integration for F3; Production forward-migration rehearsal/application and
+  activation; candidate timing/effect balance tuning.
 
 ### 7.2 Combat TP: derived from Character Level
 - Combat Tree Points are earned from Character Level (`world_player_progression` + `world_level_thresholds`).

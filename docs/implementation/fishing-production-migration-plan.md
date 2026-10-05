@@ -71,11 +71,20 @@ nor a partially replaced resolver. These payloads contain no concurrent index op
 
 ### B. Activation and exposure, separately held
 
-`20261004161000_world_fishing_first_life_skill.sql` is the separate activation payload. It changes
-the catalogs to ACTIVE and installs candidate timing (3–9 s, 1.5 s response, 30 s TTL, 20 XP,
-2 s between casts). Owner acceptance of this policy and activation is still required. Activate
-only after the foundation postconditions and trusted producer readiness are verified; keep the
-HTTP flag OFF until the full player path passes its production-readiness review.
+Activation is split into two reviewed forward payloads:
+
+1. `20261004161000_world_fishing_first_life_skill.sql` activates `life.fishing` and carp
+   discovery and installs candidate base timing (3–9 s, 1.5 s response, 30 s TTL, 20 XP,
+   2 s between casts).
+2. `20261005185000_world_fishing_skill_effects_p1.sql` activates only
+   `steady_hands` and `fish_sense`, derives their ranks server-side at cast start, and freezes
+   their effective timing into the attempt. The other four Fishing nodes remain `COMING_SOON`.
+
+The second payload depends on the F3 resolver already being installed, so Production order is
+foundation A → first Fishing activation → Fishing skill-effects P1. Owner acceptance of both the
+base policy and the candidate effect tuning (+250 ms HOOK window/rank, -250 ms bite wait/rank) is
+still required. Keep the HTTP flag OFF until the full player path passes its production-readiness
+review.
 
 The runtime must retain `presence_required=true`. Do not turn it off to work around an absent
 producer. A trusted credential proxy for browser-provided poses would not meet F3.
@@ -95,9 +104,10 @@ Read back the actual DB, not only the migration-history row:
 - Fishing lifecycle and observer EXECUTE belong only to service_role, with server-claim/account
   guards. Book actions belong to the existing self-only permanent account contract. Internal
   helpers are not executable by player/service roles.
-- After the separately approved activation, re-read ACTIVE catalogs, runtime candidate policy
-  and cooldown; hidden nodes/bridge remain unchanged. A new cast with no trusted observation
-  must fail without attempt/reward creation.
+- After the separately approved first activation, re-read ACTIVE Fishing/carp catalogs and runtime
+  candidate policy. After the separately approved P1 effects payload, exactly `steady_hands` and
+  `fish_sense` are ACTIVE while bait/rare-fish/boat/deep-sea nodes and the Creature bridge remain
+  unchanged. A new cast with no trusted observation must fail without attempt/reward creation.
 - A trusted producer must pass issuance, freshness, finite coordinate, monotonic revision,
   session ownership and ineligible-state tests. Then exercise both banks, simultaneous users,
   cancellation/recovery and exactly-one carp/Discovery/XP/receipt on a controlled test account.
