@@ -43,7 +43,7 @@ test('First Dormitory remains a Full Map POI while portrait controls move below 
 test('Full Map reclaims the unselected detail column on desktop as well as mobile', () => {
   const beforeMobile = css.slice(0, css.indexOf('@media (max-width: 720px)', css.indexOf('.full-map-panel {')));
   assert.match(beforeMobile, /\.full-map-body:has\(> \.full-map-info\[hidden\]\)\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/s);
-  assert.match(beforeMobile, /\.full-map-stage\s*\{[^}]*max-width:\s*min\(100%, calc\(100dvh - 214px\)\)/s,
+  assert.match(beforeMobile, /\.full-map-stage\s*\{[^}]*max-width:\s*min\(100%, calc\(100dvh - 160px - var\(--full-map-search-height\)\)\)/s,
     'expanded map remains height bounded rather than becoming a tall scrolling square');
 });
 
@@ -66,7 +66,7 @@ test('Full Map short-landscape rules have their own parseable media block', () =
   assert.ok(css.includes('/* Full Map short-landscape: independent of the legacy HUD block. */'));
   assert.match(dedicated, /^\/\* Full Map short-landscape:[^]*?\*\/\s*@media \(pointer: coarse\) and \(orientation: landscape\) and \(max-height: 500px\) \{/);
   assert.match(dedicated, /body \.full-map-stage\s*\{[^}]*max-width:\s*none/);
-  assert.match(dedicated, /--ls-full-map-size:\s*min\(430px, calc\(var\(--ls-full-map-available-height\) - 114px\)\)/);
+  assert.match(dedicated, /--ls-full-map-size:\s*min\(430px, calc\(var\(--ls-full-map-available-height\) - 60px - var\(--full-map-search-height\)\)\)/);
 });
 
 
@@ -79,8 +79,8 @@ test('short-landscape toolbar has a fixed compact rail and single-line action la
 test('short-landscape map size subtracts card chrome and guidance height', () => {
   const dedicated = css.slice(css.indexOf('/* Full Map short-landscape: independent of the legacy HUD block. */'), css.indexOf('/* FULL-MAP-LANDSCAPE:end */'));
   assert.match(dedicated, /--ls-full-map-available-height:\s*calc\(100dvh - max\(12px, env\(safe-area-inset-top\)\) - max\(12px, env\(safe-area-inset-bottom\)\)\)/);
-  assert.match(dedicated, /--ls-full-map-size:\s*min\(430px, calc\(var\(--ls-full-map-available-height\) - 114px\)\)/);
-  assert.match(dedicated, /--ls-full-map-size:\s*min\(390px, calc\(var\(--ls-full-map-available-height\) - 160px\)\)/);
+  assert.match(dedicated, /--ls-full-map-size:\s*min\(430px, calc\(var\(--ls-full-map-available-height\) - 60px - var\(--full-map-search-height\)\)\)/);
+  assert.match(dedicated, /--ls-full-map-size:\s*min\(390px, calc\(var\(--ls-full-map-available-height\) - 106px - var\(--full-map-search-height\)\)\)/);
 });
 
 
@@ -93,4 +93,11 @@ test('Full Map search is independently labelled and cannot widen a 360px viewpor
   assert.match(css, /\.full-map-search-input\s*\{[^}]*min-width:\s*0/s);
   assert.match(css, /\.full-map-search-panel\s*\{[^}]*max-height:\s*min\(220px, 35dvh\)[^}]*overflow-y:\s*auto/s);
   assert.match(css, /\.full-map-search-result\s*\{[^}]*overflow-wrap:\s*anywhere/s);
+});
+
+
+test('only the visible Campus search row reserves map height', () => {
+  assert.match(css, /\.full-map-card\s*\{[^}]*--full-map-search-height:\s*0px/s);
+  assert.match(css, /\.full-map-card:has\(> \.full-map-search:not\(\[hidden\]\)\)\s*\{[^}]*--full-map-search-height:\s*54px/s);
+  assert.match(css, /\.full-map-search\[hidden\]\s*\{[^}]*display:\s*none/s);
 });

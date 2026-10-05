@@ -12,7 +12,7 @@ EXPECTED_MAP_HEAD="$(git rev-parse HEAD)" WORLD_SMOKE_DISABLE_WEBGPU=1 node apps
 
 This uses the committed offline browser harness. It checks real map modules, existing campus POIs, production HTML/CSS, desktop/360px/short-landscape layouts, native Tab/Shift+Tab loops, result activation, locked/undiscovered destination guards, clearing/no-results, and reopening/restoring focus to the minimap opener. It does not load the game engine or call account/production services. Reports and screenshots go to `test-results/full-map-navigation/`.
 
-Also run `full-map-readability-smoke.mjs` for the existing full-campus renderer, map gesture and navigation regressions. The new search row consumes 54px of vertical space; the landscape map size calculation accounts for it.
+Also run `full-map-readability-smoke.mjs` for the existing full-campus renderer, map gesture and navigation regressions. The Campus-only search row consumes 54px of vertical space; other map sources retain their previous sizing. Region changes hide/restore search and clear its query.
 
 ## Manual checks not established by Node mocks or Chromium CDP composition events
 

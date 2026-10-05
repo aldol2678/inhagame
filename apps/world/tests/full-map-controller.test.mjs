@@ -642,3 +642,36 @@ test("Tab from the selected card's programmatic title continues to its live acti
   r.elements.infoTitle.focus(); key(r, "Tab", r.elements.infoTitle, { shiftKey: true });
   assert.equal(r.d.activeElement === r.elements.resetViewButton, true);
 });
+
+test("composing Escape prevents the native search-field clear without closing the map", () => {
+  const r = rig(); r.controller.open(); const input = searchInput(r); input.focus();
+  input.dispatch("compositionstart"); input.value = "본";
+  let enterPrevented = false;
+  input.dispatch("keydown", { key: "Enter", code: "Enter", isComposing: true, preventDefault() { enterPrevented = true; } });
+  assert.equal(enterPrevented, false, "IME Enter remains native");
+  let prevented = false;
+  input.dispatch("keydown", { key: "Escape", code: "Escape", isComposing: true, preventDefault() { prevented = true; } });
+  assert.equal(prevented, true, "type=search Escape default must not silently cancel an active composition");
+  assert.equal(r.controller.openState, true);
+  input.value = "본관"; input.dispatch("compositionend");
+  input.dispatch("keydown", { key: "Enter", preventDefault() {} });
+  assert.equal(r.controller.selectedPoi.poiId, "poi.main");
+  key(r, "Escape"); assert.equal(r.controller.openState, false, "ordinary Escape still closes after composition");
+});
+
+test("campus-only search clears and hides across region switches, then restores cleanly", () => {
+  const r = rig(); r.controller.open(); search(r, "본관"); searchInput(r).focus();
+  const campus = { bounds: { minX: 0, maxX: 100, minZ: 0, maxZ: 100 }, geometry: () => r.geometry,
+    poiRegistry: () => ({ list: () => r.definitions }) };
+  r.controller.setDataSource(campus, { id: "BIRYONG_REALM", label: "비룡마을 지도" });
+  assert.equal(r.elements.searchRoot.hidden, true);
+  assert.equal(searchInput(r).value, ""); assert.equal(results(r).length, 0);
+  assert.equal(r.controller.selectedPoi, null);
+  assert.equal(r.d.activeElement === r.elements.closeButton, true);
+  r.controller.close(); r.controller.open(); assert.equal(r.elements.searchRoot.hidden, true);
+  r.controller.setDataSource(campus, { id: "campus" });
+  assert.equal(r.elements.searchRoot.hidden, false);
+  assert.equal(searchInput(r).value, ""); assert.equal(results(r).length, 0);
+  search(r, "후문"); results(r)[0].dispatch("click");
+  assert.equal(r.elements.destinationButton.disabled, true, "source switch never changes existing state authority");
+});

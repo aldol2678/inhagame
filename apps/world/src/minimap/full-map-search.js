@@ -119,8 +119,14 @@ export function createFullMapSearch({ root, documentLike, getPois, onSelect }) {
   });
   input.addEventListener("focus", () => { expanded = true; refresh(); });
   input.addEventListener("keydown", event => {
-    if (composing || isMapCompositionEvent(event)) return;
     const key = event.key || event.code;
+    if (composing || isMapCompositionEvent(event)) {
+      // Chromium's type=search Escape default clears the field even during IME,
+      // cancelling its composition without a compositionend event. Keep the IME
+      // lifecycle intact; the next ordinary Escape can still close the map.
+      if (key === "Escape") event.preventDefault?.();
+      return;
+    }
     if (key !== "ArrowDown" && key !== "Enter" && key !== "NumpadEnter") return;
     expanded = true;
     refresh();

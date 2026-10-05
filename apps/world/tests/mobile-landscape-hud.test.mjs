@@ -182,7 +182,7 @@ test('menu and settings drawers fit a short screen (3-column menu, scrollable se
 
 test('Full Map fits short landscape viewports without reserving an empty desktop detail column', () => {
   assert.match(mapBlock, /body \.full-map-card \{/);
-  assert.match(mapBlock, /--ls-full-map-size: min\(430px, calc\(var\(--ls-full-map-available-height\) - 114px\)\);/);
+  assert.match(mapBlock, /--ls-full-map-size: min\(430px, calc\(var\(--ls-full-map-available-height\) - 60px - var\(--full-map-search-height\)\)\);/);
   assert.match(mapBlock, /body \.full-map-card:has\(\.full-map-info\[hidden\]\) \{[^}]*width: fit-content;/s,
     'closed info panel does not reserve the desktop detail column');
   assert.match(mapBlock, /body \.full-map-body \{[^}]*width: fit-content;[^}]*margin-inline: auto;[^}]*grid-template-columns: calc\(var\(--ls-full-map-size\) \+ 76px\) minmax\(170px, 210px\);/s);

@@ -874,6 +874,7 @@ export function createFullMapController({
     titleElement.textContent = mapLabel;
     const heldFocus = root.contains?.(documentLike.activeElement);
     search?.reset();
+    if (searchRoot) searchRoot.hidden = id !== "campus";
     selectedPoi = null;
     focusedPoiId = null;
     hoveredPoiId = null;
