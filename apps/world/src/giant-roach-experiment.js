@@ -4,7 +4,7 @@ import { roadviewGroundHeight } from './roadview-layout.js';
 
 export const GIANT_ROACH_COUNTS = Object.freeze([10, 30, 50, 100]);
 export const GIANT_ROACH_MAX = 100;
-export const GIANT_ROACH_TRIANGLES = 264;
+export const GIANT_ROACH_TRIANGLES = 384;
 
 function clampCount(value) {
   const n = Number(value);
@@ -24,19 +24,22 @@ function sharedMaterial() {
   m.diffuse = new pc.Color(1, 1, 1);
   m.diffuseVertexColor = true;
   m.diffuseVertexColorChannel = 'rgb';
-  m.emissive = new pc.Color(0.012, 0.004, 0.002);
-  m.gloss = 30;
+  m.emissive = new pc.Color(1, 1, 1);
+  m.emissiveVertexColor = true;
+  m.emissiveVertexColorChannel = 'rgb';
+  m.emissiveIntensity = 0.22;
+  m.gloss = 36;
   m.metalness = 0;
   m.update();
   return m;
 }
 
 const ROACH_COLOR = Object.freeze({
-  abdomen: [0.42,0.15,0.045,1],
-  thorax: [0.29,0.085,0.024,1],
-  head: [0.105,0.035,0.014,1],
-  limb: [0.075,0.022,0.010,1],
-  seam: [0.12,0.038,0.014,1]
+  abdomen: [0.54,0.20,0.060,1],
+  thorax: [0.39,0.12,0.032,1],
+  head: [0.20,0.060,0.020,1],
+  limb: [0.12,0.036,0.014,1],
+  seam: [0.24,0.070,0.020,1]
 });
 function pushColor(colors,color,count=1){ for(let i=0;i<count;i++) colors.push(...color); }
 function pushQuad(positions,normals,colors,indices,a,b,c,d,n,color) {
@@ -63,19 +66,30 @@ function addBar(g,from,to,width=.08,height=.08,color=ROACH_COLOR.limb) {
 function addEllipsoid(g,c,r,segments,color) {
   const top=g.positions.length/3;
   g.positions.push(c[0],c[1]+r[1],c[2]); g.normals.push(0,1,0); pushColor(g.colors,color);
-  const ring=[];
-  for(let i=0;i<segments;i++) {
-    const a=i/segments*Math.PI*2, x=Math.cos(a), z=Math.sin(a);
-    ring.push(g.positions.length/3);
-    g.positions.push(c[0]+x*r[0],c[1],c[2]+z*r[2]);
-    const nx=x/r[0],nz=z/r[2],nl=Math.hypot(nx,nz)||1;
-    g.normals.push(nx/nl,0,nz/nl); pushColor(g.colors,color);
+  const rings=[];
+  for(const theta of [Math.PI*.25,Math.PI*.5,Math.PI*.75]) {
+    const ring=[];
+    const sy=Math.cos(theta), radial=Math.sin(theta);
+    for(let i=0;i<segments;i++) {
+      const a=i/segments*Math.PI*2, ca=Math.cos(a), sa=Math.sin(a);
+      const x=ca*radial, z=sa*radial;
+      ring.push(g.positions.length/3);
+      g.positions.push(c[0]+x*r[0],c[1]+sy*r[1],c[2]+z*r[2]);
+      const nx=x/r[0],ny=sy/r[1],nz=z/r[2],nl=Math.hypot(nx,ny,nz)||1;
+      g.normals.push(nx/nl,ny/nl,nz/nl); pushColor(g.colors,color);
+    }
+    rings.push(ring);
   }
   const bottom=g.positions.length/3;
   g.positions.push(c[0],c[1]-r[1],c[2]); g.normals.push(0,-1,0); pushColor(g.colors,color);
   for(let i=0;i<segments;i++) {
     const n=(i+1)%segments;
-    g.indices.push(top,ring[n],ring[i], bottom,ring[i],ring[n]);
+    g.indices.push(top,rings[0][n],rings[0][i]);
+    for(let rIndex=0;rIndex<rings.length-1;rIndex++) {
+      const a=rings[rIndex][i], b=rings[rIndex][n], c0=rings[rIndex+1][i], d=rings[rIndex+1][n];
+      g.indices.push(a,b,d,a,d,c0);
+    }
+    g.indices.push(bottom,rings.at(-1)[i],rings.at(-1)[n]);
   }
 }
 function createRoachMesh(device) {
