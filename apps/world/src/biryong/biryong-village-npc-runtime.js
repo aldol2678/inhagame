@@ -14,6 +14,7 @@ import {
 import { createBiryongVillageNpcNavigator } from "./biryong-village-npc-navigation.js";
 import {
   BIRYONG_NPC_NAMEPLATE_INSET,
+  BIRYONG_NPC_NAMEPLATE_HUD_SELECTOR,
   BIRYONG_NPC_NAMEPLATE_MAX_DISTANCE,
   layoutBiryongNpcNameplates
 } from "./biryong-npc-nameplate-layout.js";
@@ -115,7 +116,7 @@ export function createBiryongVillageNpcRuntime({
     return true;
   }
 
-  function renderActor(actor, playerPos, rect) {
+  function renderActor(actor) {
     const state = actor.controller.status(false);
     const active = getActive() === true;
     const visible = active && state.visible;
@@ -129,8 +130,12 @@ export function createBiryongVillageNpcRuntime({
     actor.visual.legs.forEach((leg, index) => leg.setLocalEulerAngles(
       state.moving ? Math.sin(t) * (index ? 26 : -26) : 0, 0, 0));
     actor.visual.avatar.enabled = visible;
+    if (!visible) actor.label.hidden = true;
+  }
 
-    if (!visible) {
+  function projectNameplate(actor, playerPos, rect) {
+    const state = actor.controller.status(false);
+    if (!actor.visual.avatar.enabled || !state.visible) {
       actor.label.hidden = true;
       return;
     }
@@ -155,13 +160,20 @@ export function createBiryongVillageNpcRuntime({
   }
 
   function renderNameplates(candidates, rect) {
+    if (!candidates.length) return;
     // Measure after all label copy/width writes, then resolve the whole frame
     // nearest-first. Hidden labels do not change the actors or dialogue targets.
     const measured = candidates.map(candidate => {
       const { width, height } = candidate.label.getBoundingClientRect();
       return { ...candidate, width, height };
     });
-    const placed = new Map(layoutBiryongNpcNameplates(measured, rect).map(item => [item.id, item]));
+    const exclusions = [...document.querySelectorAll(BIRYONG_NPC_NAMEPLATE_HUD_SELECTOR)]
+      .filter(element => {
+        if (element.hidden || !element.getClientRects().length) return false;
+        const style = getComputedStyle(element);
+        return style.display !== "none" && style.visibility !== "hidden" && style.opacity !== "0";
+      }).map(element => element.getBoundingClientRect());
+    const placed = new Map(layoutBiryongNpcNameplates(measured, rect, exclusions).map(item => [item.id, item]));
     for (const candidate of candidates) {
       const placement = placed.get(candidate.id);
       candidate.label.hidden = !placement;
@@ -171,25 +183,39 @@ export function createBiryongVillageNpcRuntime({
     }
   }
 
+  function drawNameplates() {
+    if (disposed) return;
+    if (getActive() !== true) {
+      for (const actor of actors) actor.label.hidden = true;
+      return;
+    }
+    // PlayCanvas postrender follows every update listener, hierarchy sync and
+    // camera rendering. Main's current-frame HUD/player name is settled here.
+    const rect = app.graphicsDevice.canvas.getBoundingClientRect();
+    const playerPos = player.getLocalPosition();
+    const candidates = [];
+    for (const actor of actors) {
+      const candidate = projectNameplate(actor, playerPos, rect);
+      if (candidate) candidates.push(candidate);
+    }
+    renderNameplates(candidates, rect);
+  }
+
   function update(dt) {
     if (disposed) return;
     const step = Math.min(Math.max(Number(dt) || 0, 0), 0.05);
     elapsed += step;
     clock.refreshIfDue();
     syncPeriod();
-    const rect = app.graphicsDevice.canvas.getBoundingClientRect();
-    const playerPos = player.getLocalPosition();
-    const candidates = [];
     for (const actor of actors) {
       actor.controller.tick(step);
-      const candidate = renderActor(actor, playerPos, rect);
-      if (candidate) candidates.push(candidate);
+      renderActor(actor);
     }
-    renderNameplates(candidates, rect);
   }
 
   void clock.sync().then(() => syncPeriod());
   app.on("update", update);
+  app.on("postrender", drawNameplates);
 
   const actorById = new Map(actors.map(actor => [actor.definition.id, actor]));
 
@@ -274,6 +300,7 @@ export function createBiryongVillageNpcRuntime({
       if (disposed) return;
       disposed = true;
       app.off("update", update);
+      app.off("postrender", drawNameplates);
       clock.dispose();
       for (const actor of actors) {
         actor.visual.avatar.destroy();

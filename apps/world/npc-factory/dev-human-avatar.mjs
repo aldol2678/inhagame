@@ -68,14 +68,15 @@ export function createHumanAvatar(root, actor, appearance) {
     part(avatar, 'ShirtCollar', 'box', [0, 1.58, .18], [.33, .09, .07], accent);
   }
   part(avatar, 'Neck', 'cylinder', [0, 1.69, 0], [.15, .15, .15], skin);
-  part(avatar, 'Head', 'sphere', [0, 1.91, 0], [.34, .43, .32], skin);
+  const head = part(avatar, 'Head', 'sphere', [0, 1.91, 0], [.34, .43, .32], skin);
+  const eyes = [], brows = [];
   for (const side of [-1, 1]) {
     part(avatar, `Ear_${side}`, 'sphere', [side * .18, 1.91, 0], [.075, .12, .075], skin);
-    part(avatar, `Eye_${side}`, 'sphere', [side * .09, 1.94, .287], [.037, .046, .024], eye);
-    part(avatar, `Brow_${side}`, 'box', [side * .09, 2.025, .288], [.10, .018, .025], hair);
+    eyes.push(part(avatar, `Eye_${side}`, 'sphere', [side * .09, 1.94, .287], [.037, .046, .024], eye));
+    brows.push(part(avatar, `Brow_${side}`, 'box', [side * .09, 2.025, .288], [.10, .018, .025], hair));
   }
   part(avatar, 'Nose', 'sphere', [0, 1.84, .308], [.048, .071, .07], skin);
-  part(avatar, 'Mouth', 'sphere', [0, 1.72, .292], [.09, .021, .022], mouth);
+  const mouthNode = part(avatar, 'Mouth', 'sphere', [0, 1.72, .292], [.09, .021, .022], mouth);
   if (appearance.face_mark_color) {
     part(avatar, 'FaceMark', 'sphere', [.16, 1.84, .302], [.08, .055, .018], appearance.face_mark_color, [0, 0, -18]);
   }
@@ -142,5 +143,6 @@ export function createHumanAvatar(root, actor, appearance) {
   const marker = part(avatar, 'SelectedMarker', 'cylinder', [0, .035, 0], [1.0, .025, 1.0], '#ffe66a');
   const worldScale = npcWorldScale(appearance.height);
   avatar.setLocalScale(worldScale, worldScale, worldScale);
-  return { avatar, marker, identityMarker, actor, appearance, arms, legs, worldScale };
+  return { avatar, marker, identityMarker, actor, appearance, arms, legs, worldScale,
+    face: Object.freeze({ head, eyes: Object.freeze(eyes), brows: Object.freeze(brows), mouth: mouthNode }) };
 }

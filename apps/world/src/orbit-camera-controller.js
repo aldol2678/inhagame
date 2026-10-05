@@ -251,7 +251,10 @@ export class OrbitCameraController {
         bodyClearance=Math.max(bodyClearance,WALK_SHAPE.radius/(horizontalTan*.5));
       }
     }
-    this.localVisualOccluded = !this.indoor && !this.mounted && ((campusOutdoor && inMainGateCameraArea(eye))||studentArea) &&
+    // Regional walls can legitimately compress the camera into the local body
+    // too. Reuse the existing local-only mask; never remove the real collider.
+    const regionalCompression = !campusOutdoor && fraction < 1;
+    this.localVisualOccluded = !this.indoor && !this.mounted && (regionalCompression || (campusOutdoor && inMainGateCameraArea(eye)) || studentArea) &&
       Math.hypot(cameraX - eye[0], cameraY - eye[1], -cameraZ - eye[2]) < bodyClearance;
     this.camera.setPosition(cameraX, cameraY, cameraZ);
     if (viewPitch < THIRD_PERSON_PITCH.orbitMin) {

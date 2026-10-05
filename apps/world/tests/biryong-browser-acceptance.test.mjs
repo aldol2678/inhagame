@@ -30,6 +30,48 @@ test('hosted nameplate assertions reject real rectangle clipping, overlaps, and 
   assert.doesNotThrow(() => assertNpcNameplateLayout({ ...receipt, labels: [] }, 'offscreen target'));
 });
 
+test('hosted nameplate acceptance rejects label intersections with visible HUD surfaces', async () => {
+  const { assertNpcNameplateLayout } = await import(helperUrl);
+  const receipt = nameplateReceipt();
+  assert.throws(() => assertNpcNameplateLayout({ ...receipt,
+    exclusions: [{ id: 'nav-guidance', x: 120, y: 180, right: 280, bottom: 230, width: 160, height: 50 }] }, 'portrait'), /HUD/);
+});
+
+test('collision-compressed outdoor third-person camera hides local equipment without changing perspective', async () => {
+  const { assertBiryongCameraReadability, assertNpcNameplateLayout } = await import(helperUrl);
+  assert.equal(typeof assertBiryongCameraReadability, 'function');
+  const camera = { regionId: 'BIRYONG_REALM', indoor: false, mounted: false, firstPerson: false,
+    eyeDistance: .1906, chosenZoom: 3.5, localVisualOccluded: false, equipmentVisible: true };
+  assert.throws(() => assertBiryongCameraReadability(camera, 'desktop station north wall'), /occlusion/);
+  assert.throws(() => assertNpcNameplateLayout({ ...nameplateReceipt(), camera }, 'camera receipt'), /occlusion/);
+  assert.throws(() => assertBiryongCameraReadability({ ...camera, localVisualOccluded: true }, 'desktop'), /equipment/);
+  assert.doesNotThrow(() => assertBiryongCameraReadability({ ...camera, localVisualOccluded: true, equipmentVisible: false }, 'desktop'));
+  for (const exempt of [{ eyeDistance: 3.18 }, { indoor: true }, { mounted: true }, { firstPerson: true }]) {
+    assert.doesNotThrow(() => assertBiryongCameraReadability({ ...camera, ...exempt }, 'unchanged camera mode'));
+  }
+});
+
+test('hosted acceptance captures the exact station-wall camera regression and restores the prior pose', async () => {
+  const source = await readFile(smokeUrl, 'utf8');
+  const start = source.indexOf('// Deterministic station-close-wall camera regression');
+  const end = source.indexOf('// Retain a realm route', start);
+  assert.ok(start > source.indexOf('for (const npc of BIRYONG_QA_NPCS) {') && end > start);
+  const probe = source.slice(start, end);
+  assert.match(probe, /setLocalPosition\(-1\.2164960827128801, d\.controller\.groundY, 29\.446387731183304\)/);
+  assert.match(probe, /d\.orbit\.yaw = 0/);
+  assert.match(probe, /Math\.atan2\(7\.3, 18\.5\)/);
+  assert.match(probe, /d\.orbit\.distance = 3\.5/);
+  assert.match(probe, /await page\.evaluate\(waitForRenderedFrames\)/);
+  assert.match(probe, /entry\.stationCloseWall = await readNpcNameplates\(page\)/);
+  assert.match(probe, /eyeDistance < \.6/);
+  assert.match(probe, /equipmentVisible, false/);
+  assert.match(probe, /await capture\('station-close-wall'\)/);
+  assert.match(probe, /finally \{/);
+  assert.match(probe, /setLocalPosition\(saved\.player\.x, saved\.player\.y, saved\.player\.z\)/);
+  assert.doesNotMatch(probe, /pauseNpc|setPeriodForTest|\.app\.fire\(/);
+  assert.match(source, /camera-regression placement, not a walked journey/);
+});
+
 test('hosted nameplate coverage requires labels only when nearby heads are clearly on-screen', async () => {
   const { assertNpcNameplateCoverage } = await import(helperUrl);
   assert.equal(typeof assertNpcNameplateCoverage, 'function');
@@ -46,6 +88,9 @@ test('hosted nameplate coverage requires labels only when nearby heads are clear
   const targetOutside = { ...visible, nearest: { id: 'BR_NPC_008' } };
   assert.doesNotThrow(() => assertNpcNameplateCoverage([targetOutside], 'offscreen nearest'),
     'a particular nearest dialogue target need not have an on-screen nameplate');
+  const hudBlocked = { ...empty, exclusions: [{ id: 'minimap', x: 120, y: 170, right: 270, bottom: 250 }] };
+  assert.doesNotThrow(() => assertNpcNameplateCoverage([hudBlocked], 'HUD-occupied head'),
+    'a suppressed label is legitimate when its available head space is covered by HUD');
 });
 
 test('Biryong overview must expose the complete return label without text overflow', async () => {
@@ -70,6 +115,8 @@ test('hosted captures record nameplate DOM geometry and public head projections 
   assert.match(source, /npcReceipt\.nameplatesAfterGuidance = await readNpcNameplates\(page\)/);
   assert.match(source, /assertNpcNameplateCoverage\(/);
   assert.match(source, /assertBiryongReturnLabelVisible\(entry\.overview/);
+  assert.match(source, /entry\.arrivalNameplates = await readNpcNameplates\(page\)/);
+  assert.match(source, /eye\.y \+= d\.character\.eyeHeight/);
   const start = source.indexOf('async function readNpcNameplates(page)');
   const end = source.indexOf('\nasync function inspectRoute(page)', start);
   assert.doesNotMatch(source.slice(start, end), /setLocalPosition|\.pauseNpc\(|setPeriodForTest|\.app\.fire\(/);

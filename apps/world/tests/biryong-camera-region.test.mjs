@@ -223,3 +223,22 @@ test('hosted Biryong QA executes the pinned camera engine readback before pixel 
   assert.ok(workflow.includes('run: node apps/world/tests/browser/biryong-camera-null-smoke.mjs'));
   assert.ok(workflow.includes("- 'apps/world/src/orbit-camera-controller.js'"));
 });
+
+test('real station wall at the hosted desktop NPC approach hides only the collision-compressed local body', () => {
+  const f = fixture(); f.world.showBiryong();
+  // Exact player position in the 56cb099 hosted desktop NPC003 receipt. The
+  // north station wall is real; keep its collision instead of restoring a view through it.
+  const p = { x: -1.2164960827128801, y: 1.15, z: 29.446387731183304 };
+  f.orbit.apply(p);
+  const distance = Math.hypot(f.camera.position[0] - p.x, f.camera.position[1] - .8, -f.camera.position[2] - p.z);
+  assert.ok(distance < .6);
+  close(f.camera.position, expectedPosition(f.orbit, p, regionObstacles));
+  assert.equal(f.orbit.localVisualOccluded, true, 'camera inside local body must reuse the visibility guard');
+  assert.equal(f.orbit.firstPerson, false); assert.equal(f.orbit.distance, 3.5);
+  f.orbit.apply(npcApproach);
+  assert.equal(f.orbit.localVisualOccluded, false, 'clear regional view restores the local body');
+  f.orbit.zoom(.01); f.orbit.apply(npcApproach);
+  assert.equal(f.orbit.distance, 1.5); assert.equal(f.orbit.localVisualOccluded, false, 'intentional close zoom is preserved');
+  f.orbit.togglePerspective(); f.orbit.apply(p);
+  assert.equal(f.orbit.localVisualOccluded, false, 'first-person retains its own visibility policy');
+});

@@ -18,11 +18,15 @@ registerHooks({ resolve(specifier, context, next) {
 const { createBiryongVillageNpcRuntime } = await import("../src/biryong/biryong-village-npc-runtime.js");
 
 function fixture(t) {
-  const labels = [];
+  const labels = [], hud = [];
+  const reads = { hud: 0, projection: 0 }, listeners = new Map();
   const oldDocument = globalThis.document, oldWindow = globalThis.window;
+  const oldComputedStyle = globalThis.getComputedStyle;
+  globalThis.getComputedStyle = element => ({ display: 'block', visibility: 'visible', opacity: '1', ...element.computed });
   globalThis.window = { innerWidth: 390, innerHeight: 844 };
   globalThis.document = {
     body: { appendChild(element) { labels.push(element); } },
+    querySelectorAll: () => { reads.hud++; return hud; },
     createElement() {
       const nodes = { strong: { textContent: "" }, small: { textContent: "" } };
       return { hidden: true, style: {}, nodes,
@@ -37,21 +41,84 @@ function fixture(t) {
       };
     }
   };
-  let update;
   const context = { active: true, projection: () => ({ x: 195, y: 200, z: 1 }),
     rect: { left: 0, top: 0, width: 390, height: 844 }, playerPosition: { x: 8, z: 10 } };
   const app = { graphicsDevice: { canvas: { getBoundingClientRect: () => context.rect } },
-    on(event, callback) { update = callback; }, off() { update = null; } };
+    on(event, callback) { if (!listeners.has(event)) listeners.set(event, new Set()); listeners.get(event).add(callback); },
+    off(event, callback) { listeners.get(event)?.delete(callback); } };
+  const tick = (dt = 0) => { for (const callback of listeners.get('update') ?? []) callback(dt); };
+  const draw = () => { for (const callback of listeners.get('postrender') ?? []) callback(); };
   const root = { avatars: new Map() };
   const runtime = createBiryongVillageNpcRuntime({ app, root,
     player: { getLocalPosition: () => context.playerPosition },
-    camera: { camera: { worldToScreen: point => context.projection(point) } },
+    camera: { camera: { worldToScreen: point => { reads.projection++; return context.projection(point); } } },
     getActive: () => context.active,
     clock: { now: () => NaN, sync: async () => false, refreshIfDue() {}, status: () => ({}), dispose() {} }
   });
-  t.after(() => { runtime.destroy(); globalThis.document = oldDocument; globalThis.window = oldWindow; });
-  return { labels, context, runtime, root, update: () => update(0) };
+  t.after(() => { runtime.destroy(); globalThis.document = oldDocument; globalThis.window = oldWindow;
+    globalThis.getComputedStyle = oldComputedStyle; });
+  return { labels, context, runtime, root, hud, reads, listeners, tick, draw, update: () => { tick(); draw(); } };
 }
+
+test("inactive, out-of-range, and behind-camera NPC frames never query the HUD", t => {
+  const f = fixture(t);
+  f.context.active = false; f.update();
+  assert.equal(f.reads.hud, 0);
+  f.context.active = true; f.context.playerPosition = { x: 1000, z: 1000 }; f.update();
+  assert.equal(f.reads.hud, 0);
+  f.context.playerPosition = { x: 8, z: 10 }; f.context.projection = () => ({ x: 195, y: 200, z: -1 }); f.update();
+  assert.equal(f.reads.hud, 0);
+  assert.ok(f.labels.every(label => label.hidden));
+});
+
+test("postrender uses the current camera and HUD instead of the earlier update frame", t => {
+  const f = fixture(t);
+  f.tick();
+  assert.equal(f.reads.projection, 0, "NPC update does not project stale camera matrices");
+  assert.ok(f.labels.every(label => label.hidden));
+  const surface = { hidden: false, computed: {}, getClientRects: () => [1],
+    getBoundingClientRect: () => ({ left: 110, top: 150, right: 280, bottom: 220 }) };
+  f.hud.push(surface); f.draw();
+  assert.ok(f.labels.every(label => label.hidden), "HUD that appeared after NPC update already owns this rendered frame");
+  f.tick(); f.context.projection = () => ({ x: 300, y: 350, z: 1 }); f.draw();
+  assert.equal(f.labels[1].hidden, false);
+  assert.equal(f.labels[1].style.left, '300px');
+  assert.equal(f.labels[1].style.top, '350px');
+  f.context.active = false; f.tick();
+  assert.ok(f.labels.every(label => label.hidden), "leaving Biryong hides labels immediately without needing a render");
+});
+
+test("postrender never ticks or reanimates NPCs and destroy removes both event listeners", t => {
+  const f = fixture(t);
+  f.runtime.setPeriodForTest(1); f.tick(.05);
+  const snapshot = f.runtime.status().npcs, positions = [...f.root.avatars.values()].map(avatar => ({ ...avatar.position }));
+  assert.equal(f.listeners.get('postrender')?.size, 1);
+  f.draw(); f.draw(); f.draw();
+  assert.deepEqual(f.runtime.status().npcs, snapshot);
+  assert.deepEqual([...f.root.avatars.values()].map(avatar => avatar.position), positions);
+  f.runtime.destroy();
+  assert.equal(f.listeners.get('update').size, 0);
+  assert.equal(f.listeners.get('postrender').size, 0);
+  const reads = { ...f.reads }; f.tick(.05); f.draw();
+  assert.deepEqual(f.reads, reads);
+});
+
+test("runtime excludes visible HUD bounds and restores labels when those surfaces disappear", t => {
+  const f = fixture(t);
+  const surface = { hidden: false, computed: {}, getClientRects: () => [1],
+    getBoundingClientRect: () => ({ left: 110, top: 150, right: 280, bottom: 220 }) };
+  f.hud.push(surface);
+  f.update();
+  assert.ok(f.labels.every(label => label.hidden));
+  assert.equal(f.runtime.nearestNpc().id, "BR_NPC_002");
+  for (const invisible of [{ hidden: true }, { hidden: false, computed: { display: 'none' } },
+    { hidden: false, computed: { visibility: 'hidden' } }, { hidden: false, computed: { opacity: '0' } }]) {
+    Object.assign(surface, invisible); f.update();
+    assert.equal(f.labels[1].hidden, false);
+  }
+  surface.computed = {}; surface.getClientRects = () => []; f.update();
+  assert.equal(f.labels[1].hidden, false, "a hidden parent leaves no occupied HUD rectangle");
+});
 
 test("actual runtime gives a crowded nameplate to the nearest NPC and preserves detail", t => {
   const f = fixture(t);

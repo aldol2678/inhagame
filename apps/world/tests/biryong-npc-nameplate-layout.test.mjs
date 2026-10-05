@@ -7,6 +7,28 @@ const plate = (id, overrides = {}) => Object.freeze({
   id, x: 195, y: 200, depth: 1, distance: 6, width: 130, height: 36, ...overrides
 });
 
+test("hosted landscape label rectangles yield to navigation and minimap HUD surfaces", () => {
+  // Exact label DOM rectangles from PR210 head 56cb099, landscape NPC003 after
+  // guidance receipt. HUD bounds were observed in its 844x390 screenshot; that
+  // older receipt did not record them. The next hosted gate records exact HUD DOM.
+  const nearest = plate("BR_NPC_003", { x: 410.46875, y: 186.015625, width: 121.3125, height: 34.734375, distance: .4144 });
+  const blocked = plate("BR_NPC_002", { x: 710.671875, y: 111.859375, width: 106.484375, height: 34.734375, distance: 10.0915 });
+  const exclusions = [{ left: 561, top: 52, right: 728, bottom: 94 }, { left: 736, top: 52, right: 832, bottom: 148 }];
+  const placed = layoutBiryongNpcNameplates([blocked, nearest], { width: 844, height: 390 }, exclusions);
+  assert.deepEqual(placed.map(item => item.id), [nearest.id]);
+  assert.equal(placed[0].x, nearest.x);
+  assert.equal(placed[0].y, nearest.y, "an unobstructed label stays attached to its head");
+});
+
+test("HUD-blocked nearby labels are suppressed without relocating them away from actors", () => {
+  const hud = { left: 120, top: 145, right: 275, bottom: 210 };
+  assert.deepEqual(layoutBiryongNpcNameplates([plate("near", { distance: 1 })], viewport, [hud]), []);
+  assert.deepEqual(layoutBiryongNpcNameplates([plate("near", { distance: 1 }), plate("far", { y: 350, distance: 15 })], viewport, [hud])
+    .map(item => item.id), ["far"], "only labels in available space compete by distance");
+  assert.equal(layoutBiryongNpcNameplates([plate("clear")], viewport,
+    [{ left: NaN, top: 0, right: 390, bottom: 844 }, { left: 0, top: 0, right: 0, bottom: 0 }]).length, 1);
+});
+
 test("overlapping Biryong nameplates keep the closest NPC regardless of roster order", () => {
   const far = plate("BR_NPC_001", { distance: 18 });
   const near = plate("BR_NPC_008", { distance: 1.5 });

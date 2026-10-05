@@ -20,7 +20,7 @@ const app = new pc.AppBase(canvas), options = new pc.AppOptions();
 options.graphicsDevice = new pc.NullGraphicsDevice(canvas);
 options.componentSystems = [pc.RenderComponentSystem, pc.CameraComponentSystem, pc.LightComponentSystem];
 app.init(options);
-const report = { engine: pc.version, device: 'NullGraphicsDevice: no pixels', cameraSamples: 0, viewports: [], cycles: 0 };
+const report = { engine: pc.version, device: 'NullGraphicsDevice: no pixels', cameraSamples: 0, localBodyOcclusionSamples: 0, viewports: [], cycles: 0 };
 try {
   const campusRoot = new pc.Entity('Campus'); campusRoot.setLocalScale(1, 1, -1); app.root.addChild(campusRoot);
   const { root: biryongRoot } = createBiryongRealmScene(app);
@@ -32,7 +32,7 @@ try {
   const world = createBiryongRealmWorldAdapter({ player, controller, orbit, campusRoot, biryongRoot });
   let now = 0;
   const transition = createBiryongRealmTransition({ world, clock: { now: () => now }, campusReturnAnchor: { x: .5, y: 1.15, z: -92.6 } });
-  const points = [{ x: -4.7, z: 19.93 }, ...BIRYONG_MAP_DESTINATIONS.map(p => p.position),
+  const points = [{ x: -4.7, z: 19.93 }, { x: -1.2164960827128801, z: 29.446387731183304 }, ...BIRYONG_MAP_DESTINATIONS.map(p => p.position),
     ...BIRYONG_VILLAGE_BUILDINGS.map(b => ({ x: b.x, z: b.z - b.depth / 2 - .6 }))];
   const stationMesh = biryongRoot.findByName('biryong_station_building').render.meshInstances[0];
   const stationBox = BIRYONG_REALM_CAMERA_OBSTACLES.find(b => b.id === 'biryong_station_building');
@@ -64,6 +64,11 @@ try {
         const screen = camera.camera.worldToScreen(new pc.Vec3(p.x, .8, -p.z));
         assert.ok(screen.toArray().every(Number.isFinite));
         report.cameraSamples += 1;
+        const eyeDistance = position.distance(new pc.Vec3(p.x, .8, -p.z));
+        if (fraction < 1 && eyeDistance < .6) {
+          assert.equal(orbit.localVisualOccluded, true, 'real regional wall cannot expose local avatar interior');
+          report.localBodyOcclusionSamples += 1;
+        } else if (fraction === 1) assert.equal(orbit.localVisualOccluded, false, 'clear view keeps local avatar visible');
         if (q === points[0] && yaw === 0 && distance === 3.5 && pitch > 0 && pitch < .5) {
           const baselineFraction = cameraSafeFraction(from, to);
           const chosenOrbitLength = Math.hypot(...to.map((v, i) => v - from[i]));
