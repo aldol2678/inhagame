@@ -318,7 +318,7 @@ try {
       assert.equal(entry.campusBefore.minimap.mapSourceId, 'campus');
       await action(page.locator('#minimap-open-map')); await page.locator('#full-map-panel').waitFor({ state: 'visible' });
       entry.campusMap = await readMap(page); assertMapLayout(entry.campusMap, `${name} Campus`);
-      assert.equal(entry.campusMap.pois.length, 10, 'Campus #169 POIs retained');
+      assert.equal(entry.campusMap.pois.length, 12, 'Campus POIs include existing Woonam and gazebo landmarks');
       await page.locator('.full-map-poi[data-poi-id="poi.main-hall"]').press('Enter');
       await action(page.locator('#full-map-set-destination'));
       assert.equal((await state(page)).navigation.destination.mapSourceId, 'campus');

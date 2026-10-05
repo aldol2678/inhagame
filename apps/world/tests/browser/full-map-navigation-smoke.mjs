@@ -71,14 +71,20 @@ try {
       assert.equal(await page.evaluate(() => window.__FULL_MAP_NAVIGATION_QA__.fullMap.selectedPoi.poiId), beforeIme);
       await page.keyboard.press("Escape");
       assert.equal(await page.locator("#full-map-panel").isVisible(), true);
-      await ime.send("Input.imeSetComposition", { text: "", selectionStart: 0, selectionEnd: 0 });
+      await ime.send("Input.insertText", { text: "본" });
       await ime.detach();
       const imeEvents = await page.evaluate(() => window.__MAP_IME_EVENTS__);
+      report.imeReceipts ??= [];
+      report.imeReceipts.push({ viewport, events: imeEvents });
       assert.ok(imeEvents.some(event => event.type === "compositionstart" && event.trusted));
+      assert.ok(imeEvents.some(event => event.type === "compositionend" && event.trusted), "CDP composition must finish before unrelated input tests");
       await input.fill("본관");
+      await input.press("Enter");
+      assert.equal(await page.evaluate(() => window.__FULL_MAP_NAVIGATION_QA__.fullMap.selectedPoi.poiId), "poi.main-hall", "search resumes after completed composition");
       for (const presentation of ["LOCKED", "UNDISCOVERED", "UNKNOWN", "DISABLED", "COMING_SOON"]) {
         await page.evaluate(state => window.__FULL_MAP_NAVIGATION_QA__.setStateFixture("poi.main-hall", { presentation: state }), presentation);
         await input.press("Enter");
+        assert.equal(await page.evaluate(() => window.__FULL_MAP_NAVIGATION_QA__.fullMap.selectedPoi.poiId), "poi.main-hall");
         assert.equal(await page.locator("#full-map-set-destination").isDisabled(), true);
         assert.equal(await page.evaluate(() => window.__FULL_MAP_NAVIGATION_QA__.fullMap.destination), null);
       }
