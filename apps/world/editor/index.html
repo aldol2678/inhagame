@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#111820">
+  <title>INHA WORLD · World Editor</title>
+  <link rel="stylesheet" href="/editor/editor.css">
+  <script type="importmap">
+    { "imports": { "playcanvas": "https://cdn.jsdelivr.net/npm/playcanvas@2.22.4/build/playcanvas.mjs" } }
+  </script>
+</head>
+<body>
+  <main class="editor-app" aria-label="INHA WORLD World Editor">
+    <header class="editor-topbar">
+      <div class="editor-brand">
+        <span class="editor-brand-mark">IW</span>
+        <div>
+          <strong>INHA WORLD EDITOR</strong>
+          <span id="editor-world-name">World Editor</span>
+        </div>
+      </div>
+
+      <nav class="editor-tools" aria-label="편집 도구">
+        <button type="button" data-editor-tool="select" aria-pressed="true" title="선택">↖ <span>Select</span></button>
+        <button type="button" data-editor-tool="move" aria-pressed="false" title="이동">✥ <span>Move</span></button>
+        <button type="button" data-editor-tool="rotate" aria-pressed="false" title="회전">↻ <span>Rotate</span></button>
+        <button type="button" data-editor-tool="scale" aria-pressed="false" title="크기">⤢ <span>Scale</span></button>
+        <span class="editor-tool-divider" aria-hidden="true"></span>
+        <button id="editor-space" type="button" title="월드/로컬 축 전환">World</button>
+        <label class="editor-snap-control">Move snap
+          <select id="editor-move-snap" aria-label="이동 스냅">
+            <option value="0">Off</option><option value="0.1">0.1 m</option><option value="0.5">0.5 m</option><option value="1">1 m</option>
+          </select>
+        </label>
+        <label class="editor-snap-control">Rotate snap
+          <select id="editor-rotate-snap" aria-label="회전 스냅">
+            <option value="0">Off</option><option value="5">5°</option><option value="15">15°</option><option value="45">45°</option>
+          </select>
+        </label>
+      </nav>
+
+      <div class="editor-document-actions">
+        <button id="editor-undo" type="button" class="editor-quiet-button" title="Undo · Ctrl/Cmd+Z" disabled>↶ Undo</button>
+        <button id="editor-redo" type="button" class="editor-quiet-button" title="Redo · Ctrl/Cmd+Shift+Z" disabled>↷ Redo</button>
+        <span id="editor-dirty" class="editor-dirty" data-dirty="false">정본</span>
+      </div>
+    </header>
+
+    <div class="editor-filebar" aria-label="월드 문서">
+      <button id="editor-new" type="button">New World</button>
+      <button id="editor-open-project" type="button">Open Project</button>
+      <button id="editor-open-main-gate" type="button" title="프로덕션 정문 WorldDocument를 불러옵니다">Open Main Gate</button>
+      <button id="editor-open-file" type="button">Import world.json</button>
+      <input id="editor-file-input" class="visually-hidden" type="file" accept=".json,application/json">
+      <span class="editor-filebar-divider" aria-hidden="true"></span>
+      <button id="editor-save" type="button" class="editor-save-button">Save Project</button>
+      <button id="editor-export" type="button">Export world.json</button>
+      <button id="editor-validate" type="button">Validate</button>
+      <button id="editor-preview-toggle" type="button" aria-pressed="false">Runtime Preview</button>
+      <a id="editor-play-runtime" href="/campus/?editorWorld=1" target="_blank" rel="noopener" title="이 브라우저에 마지막으로 저장한 프로젝트를 실제 캠퍼스 런타임에서 엽니다">Play saved World ↗</a>
+      <span id="editor-file-status" role="status" aria-live="polite">프로젝트 저장소 연결 중…</span>
+    </div>
+
+    <div class="editor-workspace">
+      <aside class="editor-left-panel">
+        <section class="editor-panel editor-assets" aria-labelledby="editor-assets-title">
+          <div class="editor-panel-heading">
+            <div>
+              <span class="editor-eyebrow">ASSETS</span>
+              <h2 id="editor-assets-title">Asset Browser</h2>
+            </div>
+            <span class="editor-stage">P0 · INHA</span>
+          </div>
+          <label class="editor-search">
+            <span class="visually-hidden">Asset 검색</span>
+            <input type="search" placeholder="Search assets" disabled>
+          </label>
+          <div class="editor-asset-section">
+            <span class="editor-section-label">BOOTSTRAP</span>
+            <button type="button" class="editor-asset-card" data-editor-asset="asset.test-cube">
+              <span class="editor-asset-thumb">◇</span>
+              <span><strong>Test Prop</strong><small>Data-only bootstrap entity</small></span>
+            </button>
+          </div>
+          <div class="editor-asset-section">
+            <span class="editor-section-label">MODEL ASSETS</span>
+            <div id="editor-model-assets" class="editor-model-assets"></div>
+            <form id="editor-add-model" class="editor-model-form">
+              <input id="editor-model-uri" type="text" aria-label="모델 GLB 경로" placeholder="/assets/building.glb" required>
+              <button type="submit">Add GLB URL</button>
+            </form>
+            <div class="editor-model-import">
+              <input id="editor-model-file" class="visually-hidden" type="file" accept=".glb,.fbx,model/gltf-binary,application/octet-stream">
+              <button id="editor-import-model" type="button">Import GLB / FBX</button>
+              <small id="editor-model-import-status">GLB는 바로 저장 · FBX는 서버에서 GLB로 변환</small>
+            </div>
+          </div>
+        </section>
+
+        <section class="editor-panel editor-inha-tools" aria-label="INHA 배치 도구">
+          <div class="editor-asset-section">
+            <span class="editor-section-label">INHA TOOLS</span>
+            <div class="editor-placement-palette" role="group" aria-label="배치 도구">
+              <button type="button" data-placement-tool="select" aria-pressed="true">Select</button>
+              <button type="button" data-placement-tool="building" aria-pressed="false">Building</button>
+              <button type="button" data-placement-tool="structure" aria-pressed="false">Structure</button>
+              <button type="button" data-placement-tool="path" aria-pressed="false">Road / Walkway</button>
+              <button type="button" data-placement-tool="spawn" aria-pressed="false">Spawn</button>
+              <button type="button" data-placement-tool="trigger" aria-pressed="false">Trigger</button>
+            </div>
+            <div id="editor-tool-options" class="editor-tool-options"></div>
+            <p id="editor-tool-hint" class="editor-panel-note" role="status">도구를 선택하고 작업면을 클릭하세요.</p>
+          </div>
+        </section>
+
+        <section class="editor-panel editor-map-reference" aria-labelledby="editor-map-reference-title">
+          <div class="editor-panel-heading compact">
+            <div><span class="editor-eyebrow">P1 · REFERENCE</span><h2 id="editor-map-reference-title">Map Reference</h2></div>
+          </div>
+          <p class="editor-panel-note">이미지는 이 브라우저의 프로젝트에만 저장되며 world.json과 Runtime에는 포함되지 않습니다.</p>
+          <label class="editor-reference-field">PNG / JPEG / WebP 이미지
+            <input id="editor-reference-file" type="file" accept="image/png,image/jpeg,image/webp">
+          </label>
+          <label class="editor-reference-field">출처·사용 권한 근거
+            <input id="editor-reference-rights" type="text" placeholder="예: 직접 제작한 도면">
+          </label>
+          <button id="editor-reference-load" type="button">Reference 불러오기</button>
+          <div id="editor-reference-controls" hidden>
+            <p id="editor-reference-meta" class="editor-panel-note"></p>
+            <label class="editor-reference-field">투명도 <output id="editor-reference-opacity-value">50%</output>
+              <input id="editor-reference-opacity" type="range" min="0" max="100" value="50">
+            </label>
+            <label class="editor-reference-field">미터 / 이미지 픽셀
+              <input id="editor-reference-scale" type="number" min="0.000001" step="any">
+            </label>
+            <div class="editor-reference-coordinates">
+              <label class="editor-reference-field">기준점 X (m)<input id="editor-reference-anchor-x" type="number" step="any"></label>
+              <label class="editor-reference-field">기준점 Z (m)<input id="editor-reference-anchor-z" type="number" step="any"></label>
+            </div>
+            <label class="editor-reference-field">두 지점의 실제 거리 (m)
+              <input id="editor-reference-distance" type="number" min="0.01" step="any" value="10">
+            </label>
+            <button id="editor-reference-calibrate" type="button" aria-pressed="false">두 지점 클릭해 거리 보정</button>
+            <button id="editor-reference-trace" type="button" aria-pressed="false">건물 외곽선 그리기</button>
+            <div class="editor-reference-actions">
+              <button id="editor-reference-finish" type="button" disabled>외곽선 완료</button>
+              <button id="editor-reference-cancel" type="button" disabled>취소</button>
+              <button id="editor-reference-clear" type="button">Reference 제거</button>
+            </div>
+            <p class="editor-panel-note">P2 · 외곽선에서 기본 건물을 생성하면 높이와 형태가 world.json에 저장됩니다.</p>
+            <label class="editor-reference-field">생성할 건물 높이 (m)
+              <input id="editor-reference-building-height" type="number" min="0.1" step="0.1" value="12">
+            </label>
+            <div id="editor-reference-footprints" class="editor-reference-footprints"></div>
+          </div>
+          <p id="editor-reference-status" class="editor-panel-note" role="status" aria-live="polite">이미지를 선택하고 출처·사용 권한 근거를 적으세요.</p>
+        </section>
+
+        <section class="editor-panel editor-hierarchy-panel" aria-labelledby="editor-hierarchy-title">
+          <div class="editor-panel-heading compact">
+            <div>
+              <span class="editor-eyebrow">WORLD</span>
+              <h2 id="editor-hierarchy-title">Hierarchy</h2>
+            </div>
+          </div>
+          <div id="editor-hierarchy" class="editor-hierarchy"></div>
+          <button id="editor-duplicate" type="button" class="editor-quiet-button" disabled>Duplicate selected</button>
+        </section>
+      </aside>
+
+      <section class="editor-viewport-panel" aria-label="World Viewport">
+        <div class="editor-viewport-header">
+          <span>Perspective</span>
+          <span>World · Y-up</span>
+        </div>
+        <div id="editor-viewport" class="editor-viewport" tabindex="0">
+          <canvas id="editor-reference-canvas" class="editor-reference-canvas" aria-hidden="true"></canvas>
+          <div class="editor-grid" aria-hidden="true"></div>
+          <div class="editor-origin" aria-hidden="true">
+            <span class="axis-x">X</span>
+            <span class="axis-z">Z</span>
+          </div>
+          <div class="editor-viewport-message">
+            <span class="editor-viewport-icon">▦</span>
+            <strong>Viewport bootstrap</strong>
+            <span>WorldDocument 좌표를 2D 작업면에 투영 중</span>
+            <small>Runtime Preview 버튼으로 같은 Scene Data의 3D 결과를 확인할 수 있습니다.</small>
+          </div>
+          <div id="editor-feedback" class="editor-feedback" role="status" aria-live="polite"></div>
+          <div id="editor-runtime-preview" class="editor-runtime-preview" hidden>
+            <canvas id="editor-preview-canvas" aria-label="동일 Runtime Adapter의 3D 프리뷰"></canvas>
+            <div id="editor-preview-status" role="status" aria-live="polite">프리뷰 준비 중…</div>
+          </div>
+        </div>
+      </section>
+
+      <aside class="editor-right-panel">
+        <section class="editor-panel editor-inspector-panel" aria-labelledby="editor-inspector-title">
+          <div class="editor-panel-heading">
+            <div>
+              <span class="editor-eyebrow">SELECTION</span>
+              <h2 id="editor-inspector-title">Inspector</h2>
+            </div>
+            <button id="editor-delete" type="button" class="editor-danger-button" disabled>Delete</button>
+          </div>
+          <div id="editor-inspector" class="editor-inspector"></div>
+        </section>
+      </aside>
+    </div>
+
+    <footer class="editor-statusbar">
+      <div>
+        <span class="editor-status-dot"></span>
+        <strong>WorldDocument</strong>
+        <span id="editor-entity-count">0 entities</span>
+        <span id="editor-revision">rev 0</span>
+      </div>
+      <div>
+        <span id="editor-persistence">Persistence: 연결 중</span>
+        <span id="editor-renderer-status">Renderer: 2D edit</span>
+      </div>
+    </footer>
+  </main>
+
+  <dialog id="editor-document-dialog" aria-labelledby="editor-dialog-title">
+    <h2 id="editor-dialog-title">미저장 변경 사항</h2>
+    <p id="editor-dialog-message"></p>
+    <div class="editor-dialog-actions">
+      <button type="button" data-dialog-choice="cancel">Cancel</button>
+      <button type="button" data-dialog-choice="discard">Discard</button>
+      <button type="button" data-dialog-choice="save" class="editor-save-button">Save</button>
+    </div>
+  </dialog>
+  <dialog id="editor-project-dialog" aria-labelledby="editor-project-title">
+    <h2 id="editor-project-title">저장된 프로젝트</h2>
+    <div id="editor-project-list"></div>
+    <div class="editor-dialog-actions"><button id="editor-project-cancel" type="button">Cancel</button></div>
+  </dialog>
+
+  <script type="module" src="/src/editor/editor-app.js"></script>
+</body>
+</html>

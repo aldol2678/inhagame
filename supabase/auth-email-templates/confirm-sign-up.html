@@ -1,0 +1,9 @@
+{{ if or (eq .RedirectTo "https://duck.inhagame.app/verify-inha.html") (eq .RedirectTo "https://induckup.inhagame.app/verify-inha.html") }}
+<h2>인하 메일 인증 코드</h2>
+<p>INHAGAME 계정 화면에 아래 6자리 코드를 입력해 주세요. 이 메일의 링크를 열 필요는 없습니다.</p>
+<p><strong>{{ .Token }}</strong></p>
+{{ else }}
+<h2>Confirm your email address</h2>
+<p>Follow the link below to confirm this email address and finish signing up.</p>
+<p><a href="{{ .ConfirmationURL }}">Confirm email address</a></p>
+{{ end }}

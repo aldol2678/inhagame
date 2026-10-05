@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0d2739">
+  <title>INHAGAME · 인하오리 게임 허브</title>
+  <link rel="stylesheet" href="/hub.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script defer src="/hub-telemetry.js"></script>
+  <script defer src="/hub.js"></script>
+  <script defer src="/api/public-supabase-config"></script>
+  <script defer src="/hub-account.js"></script>
+  <script defer src="/hub-friends-client.js"></script>
+  <script defer src="/hub-friends.js"></script>
+  <script defer src="/hub-messages-client.js"></script>
+  <script defer src="/hub-messages.js"></script>
+</head>
+<body>
+  <header class="header">
+    <div class="header-inner">
+      <a class="brand" href="/" aria-label="INHAGAME 홈">INHA<span>GAME</span> 🦆</a>
+      <nav class="top-nav" aria-label="주 메뉴">
+        <button type="button" data-panel="home" aria-current="page">홈</button>
+        <button type="button" data-panel="ranking">랭킹</button>
+        <button type="button" data-panel="friends">친구 <span class="nav-unread friend-request-badge" data-friend-request-count hidden>0</span></button>
+        <button type="button" data-panel="messages">쪽지 <span class="nav-unread" data-message-unread hidden>0</span></button>
+        <button type="button" data-panel="account">계정</button>
+      </nav>
+      <div class="header-actions">
+        <button class="header-settings" type="button" data-panel="settings" aria-label="설정">⚙ <span>설정</span></button>
+      </div>
+    </div>
+  </header>
+
+  <main class="main" id="content">
+    <section class="view" data-view="home">
+      <div class="hero">
+        <div>
+          <div class="eyebrow">INHAGAME CAMPUS</div>
+          <h1>인하대를 걷고,<br>만나고, 플레이하세요</h1>
+          <p>캠퍼스를 돌아다니며 NPC와 대화하고 퀘스트를 진행해 보세요. 로그인하면 다른 플레이어와 만나 친구를 맺고 채팅하며 함께 캠퍼스를 즐길 수 있어요.</p>
+          <div class="feature-tags" aria-label="캠퍼스 주요 기능">
+            <span>💬 NPC 대화</span>
+            <span>🚩 퀘스트</span>
+            <span>👥 친구·채팅</span>
+            <span>🐉 탈것</span>
+          </div>
+          <a class="primary" href="/campus/?lobby=1">캠퍼스 입장 →</a>
+        </div>
+        <div class="hero-art" aria-hidden="true">🦆🏫</div>
+      </div>
+
+      <section class="account-promo" id="hub-home-account-cta" hidden>
+        <div>
+          <span class="tag">INHAGAME 계정</span>
+          <h2>게임 기록을 한 계정에 연결하세요</h2>
+          <p>회원가입하면 프로필과 계정 연동을 지원하는 게임의 기록을 이어서 사용할 수 있습니다.</p>
+        </div>
+        <button class="primary" type="button" data-panel="account">계정 만들기 / 로그인 →</button>
+      </section>
+
+      <div class="section-heading">
+        <span class="tag">게임</span>
+        <h2>게임 둘러보기</h2>
+      </div>
+      <div class="cards" id="game-cards">
+        <section class="card game-card" data-game-id="classic">
+          <div class="card-heading"><h2>인하오리 Classic</h2><span class="badge">플레이 가능</span></div>
+          <p>인하오리 원작 게임을 즐겨 보세요.</p>
+          <div class="classic-action-row">
+            <a class="secondary" href="https://duck.inhagame.app/" rel="noopener">Classic 플레이 ↗</a>
+            <span id="classicEventBadge" class="classic-event-badge" data-card-extra title="랭킹전 이벤트 · 9월 27일 23:59까지" hidden>🎁 기프티콘 이벤트 진행 중 <small>9/27(일) 23:59까지</small></span>
+          </div>
+        </section>
+        <section class="card game-card" data-game-id="induckup">
+          <div class="card-heading"><h2>인덕업</h2><span class="badge">플레이 가능</span></div>
+          <p>오리 패들로 벽돌을 깨고 성장시키는 게임입니다.</p>
+          <a class="secondary" href="https://induckup.inhagame.app/" rel="noopener">인덕업 플레이 ↗</a>
+        </section>
+        <section class="card game-card" data-game-id="survival">
+          <div class="card-heading"><h2>인덕 서바이벌</h2><span class="badge">플레이 가능</span></div>
+          <p>인경호에서 적을 상대하며 살아남는 게임입니다.</p>
+          <a class="secondary" href="https://survival.inhagame.app/" rel="noopener">인덕 서바이벌 플레이 ↗</a>
+        </section>
+        <section class="card game-card" data-game-id="induck-grow">
+          <div class="card-heading"><h2>인덕이 키우기</h2><span class="badge">플레이 가능</span></div>
+          <p>학과를 고르고 수업·관계·활동·알바를 관리하며 나만의 인덕이를 키워 보세요.</p>
+          <a class="secondary" href="https://grow.inhagame.app/" rel="noopener">인덕이 키우기 플레이 ↗</a>
+        </section>
+      </div>
+    </section>
+
+    <section class="view" data-view="ranking" hidden>
+      <span class="tag">게임별 랭킹</span>
+      <h1>랭킹</h1>
+      <p class="lead">게임마다 기록 기준이 다르므로 각 게임에서 순위를 확인합니다.</p>
+      <div class="card">
+        <div class="card-heading"><h2>Classic</h2><span class="badge">일반전 · 랭킹전</span></div>
+        <p>Classic으로 이동해 일반전 또는 랭킹전 순위를 확인하세요. 허브 안의 순위 조회는 준비 중입니다.</p>
+        <a class="secondary" href="https://duck.inhagame.app/" rel="noopener">Classic에서 랭킹 보기 ↗</a>
+      </div>
+      <p class="quiet">다른 게임의 순위는 검증된 기록이 준비되면 추가합니다.</p>
+    </section>
+
+    <section class="view" data-view="account" hidden>
+      <span class="tag">계정</span>
+      <h1>내 계정</h1>
+      <p class="lead">캠퍼스는 로그인 없이 둘러볼 수 있습니다.</p>
+      <div class="card">
+        <h2>INHAGAME 계정</h2>
+        <p>허브에서 바로 가입하거나 기존 INHAGAME 계정으로 로그인할 수 있습니다.</p>
+        <p id="hub-account-status" role="status">계정 상태를 확인하는 중…</p>
+        <div id="hub-social-auth" class="social-auth" hidden>
+          <button id="hub-google-auth" class="google-auth-button" type="button">
+            <span>Google로 로그인</span>
+          </button>
+          <p class="quiet social-auth-disclosure">Google 로그인 시 계정 생성·연결을 위해 Google 계정 식별자, 이메일, 이메일 확인 여부와 Google이 인증 과정에서 제공하는 이름·프로필 이미지 등의 기본 프로필 정보가 처리될 수 있습니다. 이름과 프로필 이미지는 INHAGAME 공개 프로필에 자동 표시하지 않습니다. <a href="https://duck.inhagame.app/privacy.html#google-login">개인정보 처리방침</a></p>
+          <div class="auth-divider" aria-hidden="true"><span>또는</span></div>
+        </div>
+        <div id="hub-auth-tabs" class="auth-tabs" hidden>
+          <button class="secondary" type="button" data-auth-mode="signup" aria-pressed="true">회원가입</button>
+          <button class="secondary" type="button" data-auth-mode="login" aria-pressed="false">로그인</button>
+        </div>
+        <form id="hub-signup-form" hidden>
+          <label class="profile-field">닉네임<input type="text" name="nickname" autocomplete="nickname" minlength="2" maxlength="12" pattern="[0-9A-Za-z가-힣_ ]{2,12}" required></label>
+          <label class="profile-field">이메일<input type="email" name="email" autocomplete="email" required></label>
+          <label class="profile-field">비밀번호<input type="password" name="password" autocomplete="new-password" minlength="8" required></label>
+          <label class="profile-field">비밀번호 확인<input type="password" name="passwordConfirm" autocomplete="new-password" minlength="8" required></label>
+          <button class="primary" type="submit">회원가입</button>
+          <p class="quiet">가입 후 이메일 인증을 완료하면 INHAGAME 계정을 사용할 수 있습니다.</p>
+        </form>
+        <form id="hub-login-form" hidden>
+          <label class="profile-field">이메일<input type="email" name="email" autocomplete="username" required></label>
+          <label class="profile-field">비밀번호<input type="password" name="password" autocomplete="current-password" required></label>
+          <button class="primary" type="submit">로그인</button>
+        </form>
+        <form id="hub-profile-setup" class="profile-setup" hidden>
+          <h3>닉네임 설정</h3>
+          <p>Google 로그인은 완료됐습니다. INHAGAME에서 사용할 닉네임을 정해 주세요.</p>
+          <label class="profile-field">닉네임<input type="text" name="nickname" autocomplete="nickname" minlength="2" maxlength="12" pattern="[0-9A-Za-z가-힣_ ]{2,12}" required></label>
+          <button class="primary" type="submit">시작하기</button>
+          <p class="quiet">Google 계정의 이름과 프로필 사진은 INHAGAME 공개 프로필에 자동으로 복사하지 않습니다.</p>
+        </form>
+        <div id="hub-account-actions" hidden>
+          <a class="primary" href="/profile">내 프로필 →</a>
+          <button class="secondary" type="button" id="hub-sign-out">로그아웃</button>
+          <button class="secondary account-delete-open" type="button" id="hub-delete-account-open">계정 탈퇴</button>
+        </div>
+        <section id="hub-linked-identities" class="linked-identities" aria-labelledby="hub-linked-identities-title" hidden>
+          <div class="linked-identities-head">
+            <div>
+              <h3 id="hub-linked-identities-title">로그인 연결</h3>
+              <p>기존 INHAGAME 계정에 Google 로그인을 추가로 연결할 수 있습니다.</p>
+            </div>
+            <span id="hub-google-link-badge" class="identity-badge">확인 중</span>
+          </div>
+          <button id="hub-link-google" class="secondary google-link-button" type="button">Google 계정 연동</button>
+          <p id="hub-google-link-status" class="quiet" role="status"></p>
+          <p class="quiet">연동 후에는 기존 이메일 로그인과 Google 로그인 모두 같은 INHAGAME 계정으로 들어옵니다. Google 이름·프로필 사진은 공개 프로필에 자동 반영하지 않습니다.</p>
+        </section>
+        <section id="hub-delete-account-panel" class="account-danger-zone" aria-labelledby="hub-delete-account-title" hidden>
+          <h3 id="hub-delete-account-title">계정 탈퇴</h3>
+          <p>탈퇴하면 로그인 계정, 프로필, 클라우드 진행도와 계정에 연결된 소셜·랭킹 정보가 삭제되거나 식별할 수 없게 처리됩니다. 일부 익명 통계와 법령상 보존이 필요한 정보는 남을 수 있습니다.</p>
+          <p class="quiet">보안을 위해 최근 15분 안에 다시 로그인한 계정만 탈퇴할 수 있습니다. 운영자·GM 계정은 권한 이전 후 탈퇴할 수 있습니다.</p>
+          <label class="profile-field">확인을 위해 <strong>탈퇴</strong> 입력
+            <input id="hub-delete-account-confirmation" type="text" autocomplete="off" placeholder="탈퇴">
+          </label>
+          <div class="account-delete-actions">
+            <button class="secondary" type="button" id="hub-delete-account-cancel">취소</button>
+            <button class="account-delete-danger" type="button" id="hub-delete-account-confirm" disabled>계정 영구 삭제</button>
+          </div>
+          <p id="hub-delete-account-status" class="quiet" role="status"></p>
+        </section>
+        <p class="quiet">같은 INHAGAME 계정으로 계정 연동을 지원하는 게임의 기록을 이어서 사용할 수 있습니다.</p>
+      </div>
+
+      <div class="card" id="hub-inha-verification-card" hidden>
+        <div class="card-heading">
+          <h2>인하대 인증</h2>
+          <span class="badge" id="hub-inha-verification-badge">미인증</span>
+        </div>
+        <p>인하대 이메일(<strong>@inha.edu</strong> 또는 <strong>@inha.ac.kr</strong>) 소유를 확인하면 프로필에 인하대 인증 상태가 표시됩니다.</p>
+        <p id="hub-inha-verification-status" role="status">인증 상태를 확인하는 중…</p>
+        <div id="hub-inha-verification-controls">
+          <label class="profile-field">인하대 이메일
+            <input id="hub-inha-email" type="email" autocomplete="email" placeholder="student@inha.edu">
+          </label>
+          <label class="profile-field">6자리 인증 코드
+            <input id="hub-inha-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" placeholder="000000">
+          </label>
+          <div class="auth-tabs">
+            <button class="secondary" type="button" id="hub-inha-request">인증 메일 받기</button>
+            <button class="primary" type="button" id="hub-inha-confirm">인증 완료</button>
+          </div>
+        </div>
+        <p class="quiet">인증 완료 시 계정 업적 <strong>「인하대 인증」</strong>을 획득합니다.</p>
+      </div>
+    </section>
+
+
+
+    <section class="view" data-view="friends" hidden>
+      <span class="tag">소셜</span>
+      <h1>친구</h1>
+      <p class="lead">INHAGAME 친구와 요청, 차단 목록을 한곳에서 관리합니다.</p>
+      <p id="hub-friends-status" class="quiet" role="status">계정 상태를 확인하는 중…</p>
+
+      <div id="hub-friends-signed-out" class="card" hidden>
+        <h2>로그인이 필요합니다</h2>
+        <p>친구 기능은 정식 INHAGAME 계정에서 사용할 수 있습니다.</p>
+        <button class="primary" type="button" data-panel="account">로그인 / 회원가입 →</button>
+      </div>
+
+      <div id="hub-friends-shell" class="hub-friends-shell" hidden>
+        <div class="hub-friends-toolbar">
+          <p>새 친구 요청은 INHA WORLD에서 플레이어 카드를 열어 보낼 수 있습니다.</p>
+          <button id="hub-friends-refresh" class="message-mini-button" type="button">새로고침</button>
+        </div>
+
+        <section class="card hub-friend-section" aria-labelledby="hub-friends-incoming-title">
+          <div class="hub-friend-section-head">
+            <h2 id="hub-friends-incoming-title">받은 요청</h2>
+            <span id="hub-friends-incoming-count" class="hub-friend-count">0</span>
+          </div>
+          <div id="hub-friends-incoming" class="hub-friend-list"></div>
+        </section>
+
+        <section class="card hub-friend-section" aria-labelledby="hub-friends-list-title">
+          <div class="hub-friend-section-head">
+            <h2 id="hub-friends-list-title">친구</h2>
+            <span id="hub-friends-count" class="hub-friend-count">0</span>
+          </div>
+          <div id="hub-friends-list" class="hub-friend-list"></div>
+        </section>
+
+        <section class="card hub-friend-section" aria-labelledby="hub-friends-outgoing-title">
+          <div class="hub-friend-section-head">
+            <h2 id="hub-friends-outgoing-title">보낸 요청</h2>
+            <span id="hub-friends-outgoing-count" class="hub-friend-count">0</span>
+          </div>
+          <div id="hub-friends-outgoing" class="hub-friend-list"></div>
+        </section>
+
+        <section class="card hub-friend-section" aria-labelledby="hub-friends-blocked-title">
+          <div class="hub-friend-section-head">
+            <h2 id="hub-friends-blocked-title">차단한 사용자</h2>
+            <span id="hub-friends-blocked-count" class="hub-friend-count">0</span>
+          </div>
+          <div id="hub-friends-blocked" class="hub-friend-list"></div>
+        </section>
+      </div>
+    </section>
+
+    <div id="hub-friend-profile-modal" class="friend-profile-modal" role="dialog" aria-modal="true"
+      aria-labelledby="hub-friend-profile-name" hidden>
+      <div class="friend-profile-card">
+        <button id="hub-friend-profile-close" class="friend-profile-close" type="button" aria-label="친구 프로필 닫기">×</button>
+        <header class="friend-profile-identity">
+          <div id="hub-friend-profile-avatar" class="friend-profile-avatar" aria-hidden="true">🦆</div>
+          <div class="friend-profile-heading">
+            <div class="friend-profile-name-row">
+              <h2 id="hub-friend-profile-name">사용자</h2>
+              <span id="hub-friend-profile-badge" class="badge" hidden>🎓 인하대 인증</span>
+            </div>
+            <p id="hub-friend-profile-title" class="friend-profile-title">칭호 미설정</p>
+          </div>
+        </header>
+
+        <section class="friend-profile-public" aria-label="공개 프로필 정보">
+          <div><span>관계</span><strong id="hub-friend-profile-relationship">확인 중</strong></div>
+          <div><span>인하대 인증</span><strong id="hub-friend-profile-verified">확인 중</strong></div>
+        </section>
+
+        <p class="friend-profile-note">공개 프로필에는 닉네임·아바타·칭호·인하대 인증·관계 상태만 표시합니다.</p>
+        <div id="hub-friend-profile-actions" class="friend-profile-actions"></div>
+        <p id="hub-friend-profile-status" class="quiet" role="status"></p>
+      </div>
+    </div>
+
+    <section class="view" data-view="messages" hidden>
+      <span class="tag">쪽지</span>
+      <h1>받은 쪽지함</h1>
+      <p class="lead">INHAGAME 계정으로 주고받은 1:1 쪽지를 확인하고 답장합니다.</p>
+      <p id="hub-messages-status" class="quiet" role="status">계정 상태를 확인하는 중…</p>
+
+      <div id="hub-messages-signed-out" class="card" hidden>
+        <h2>로그인이 필요합니다</h2>
+        <p>쪽지는 정식 INHAGAME 계정에서 사용할 수 있습니다.</p>
+        <button class="primary" type="button" data-panel="account">로그인 / 회원가입 →</button>
+      </div>
+
+      <div id="hub-messages-shell" class="message-layout" hidden>
+        <aside class="card message-inbox" aria-label="받은 쪽지 목록">
+          <div class="message-panel-heading">
+            <div>
+              <h2>대화</h2>
+              <p>최근 대화부터 표시합니다.</p>
+            </div>
+            <button id="hub-message-refresh" class="message-mini-button" type="button">새로고침</button>
+          </div>
+          <div id="hub-message-inbox-list" class="message-inbox-list"></div>
+          <p id="hub-message-inbox-empty" class="message-empty">아직 받은 쪽지가 없습니다.</p>
+          <p class="quiet">새 대화는 INHA WORLD의 플레이어 카드 또는 친구 목록의 쪽지 버튼에서 시작할 수 있습니다.</p>
+        </aside>
+
+        <section class="card message-thread-card" aria-label="쪽지 대화">
+          <div id="hub-message-thread-empty" class="message-thread-empty">
+            <strong>대화를 선택하세요</strong>
+            <p>왼쪽 목록에서 대화를 열면 쪽지 내용을 볼 수 있습니다.</p>
+          </div>
+          <div id="hub-message-thread" hidden>
+            <header class="message-thread-header">
+              <div>
+                <h2 id="hub-message-thread-title">사용자</h2>
+                <p id="hub-message-thread-meta"></p>
+              </div>
+              <div class="message-thread-actions">
+                <button id="hub-message-archive" class="message-mini-button" type="button">보관</button>
+                <button id="hub-message-block" class="message-mini-button danger" type="button">차단</button>
+              </div>
+            </header>
+            <div id="hub-message-thread-list" class="message-thread-list" aria-live="polite"></div>
+            <form id="hub-message-composer" class="message-composer">
+              <label class="visually-hidden" for="hub-message-input">쪽지 내용</label>
+              <textarea id="hub-message-input" maxlength="1000" rows="3" placeholder="쪽지를 입력하세요" required></textarea>
+              <div class="message-composer-footer">
+                <small>최대 1000자</small>
+                <button id="hub-message-send" class="primary" type="submit">보내기</button>
+              </div>
+            </form>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <section class="view" data-view="settings" hidden>
+      <span class="tag">캠퍼스 설정</span>
+      <h1>설정</h1>
+      <p class="lead">이 기기의 캠퍼스 조이스틱 위치 설정입니다. 변경하면 캠퍼스에 들어갈 때 적용됩니다.</p>
+      <div class="card settings-card">
+        <label class="setting"><span><strong>조이스틱 위치</strong><small>모바일 이동 조작</small></span><select id="joystick-side"><option value="left">왼쪽</option><option value="right">오른쪽</option></select></label>
+      </div>
+      <p id="settings-status" class="quiet" role="status">설정은 이 브라우저에 저장됩니다.</p>
+      <p class="quiet">화면 품질·FPS·소리 옵션은 실제 조정 기능이 준비되면 제공합니다.</p>
+    </section>
+  </main>
+
+  <footer class="footer">INHAGAME · 캠퍼스 3D 기능은 입장 시 시작됩니다. · <a href="https://duck.inhagame.app/privacy.html">개인정보 처리방침</a></footer>
+  <nav class="bottom-nav" aria-label="모바일 메뉴">
+    <button type="button" data-panel="home" aria-current="page">⌂ 홈</button>
+    <button type="button" data-panel="ranking">🏆 랭킹</button>
+    <button type="button" data-panel="friends">👥 친구 <span class="nav-unread friend-request-badge" data-friend-request-count hidden>0</span></button>
+    <button type="button" data-panel="messages">✉ 쪽지 <span class="nav-unread" data-message-unread hidden>0</span></button>
+    <button type="button" data-panel="account">☺ 계정</button>
+  </nav>
+</body>
+</html>

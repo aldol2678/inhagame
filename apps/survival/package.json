@@ -1,0 +1,14 @@
+{
+  "name": "inha-duck-survival",
+  "private": true,
+  "description": "인덕 서바이벌 정적 사이트 검증 도구. 배포 산출물에는 포함되지 않는다.",
+  "scripts": {
+    "check": "node tests/check.cjs",
+    "test": "node --test tests/unit.test.cjs tests/game-entry.test.cjs tests/audio-manager.test.cjs && node verify-stage4.cjs && node verify-p21.cjs && node verify-stage5.cjs && node verify-p22.cjs && node verify-stage6.cjs",
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.1",
+    "three": "0.160.0"
+  }
+}

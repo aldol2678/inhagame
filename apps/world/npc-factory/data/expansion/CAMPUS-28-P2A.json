@@ -1,0 +1,541 @@
+{
+  "expansion_id": "CAMPUS-28-P2A",
+  "schema_version": "0.1",
+  "status": "FICTIONAL_POPULATION",
+  "note": "Fictional NPC expansion. Names, student numbers, residence assignments and personal traits do not represent real students.",
+  "npc_count": 28,
+  "npcs": [
+    {
+      "npc_id": "INKYUNG-NPC-021",
+      "name": "도하준",
+      "department": "국어국문학과",
+      "department_type": "humanities",
+      "year_level": 2,
+      "gender": "male",
+      "residence": "commuter",
+      "interests": [
+        "reading",
+        "sketching",
+        "music"
+      ],
+      "traits": [
+        "thoughtful",
+        "curious"
+      ],
+      "archetype": "student"
+    },
+    {
+      "npc_id": "INKYUNG-NPC-022",
+      "name": "라서윤",
+      "department": "컴퓨터공학과",
+      "department_type": "engineering",
+      "year_level": 1,
+      "gender": "female",
+      "residence": "dorm_1",
+      "interests": [
+        "coding",
+        "design",
+        "music"
+      ],
+      "traits": [
+        "focused",
+        "curious"
+      ],
+      "archetype": "student"
+    },
+    {
+      "npc_id": "INKYUNG-NPC-023",
+      "name": "마도현",
+      "department": "사학과",
+      "department_type": "humanities",
+      "year_level": 3,
+      "gender": "male",
+      "residence": "commuter",
+      "interests": [
+        "reading",
+        "walking",
+        "photography"
+      ],
+      "traits": [
+        "patient",
+        "thoughtful"
+      ],
+      "archetype": "student"
+    },
+    {
+      "npc_id": "INKYUNG-NPC-024",
+      "name": "바지우",
+      "department": "물리학과",
+      "department_type": "natural_sciences",
+      "year_level": 1,
+      "gender": "female",
+      "residence": "dorm_2",
+      "interests": [
+        "reading",
+        "coding",
+        "birdwatching"
+      ],
+      "traits": [
+        "focused",
+        "calm"
+      ],
+      "archetype": "student"
+    },
+    {
+      "npc_id": "INKYUNG-NPC-025",
+      "name": "서예린",
+      "department": "시각디자인학과",
+      "department_type": "arts",
+      "year_level": 2,
+      "gender": "female",
+      "residence": "commuter",
+      "interests": [
+        "design",
+        "photography",
+        "sketching"
+      ],
+      "traits": [
+        "playful",
+        "curious"
+      ],
+      "archetype": "club_member"
+    },
+    {
+      "npc_id": "INKYUNG-NPC-026",
+      "name": "우태오",
+      "department": "영어영문학과",
+      "department_type": "humanities",
+      "year_level": 3,
+      "gender": "male",
+      "residence": "dorm_1",
+      "interests": [
+        "languages",
+        "film",
+        "reading"
+      ],
+      "traits": [
+        "wry",
+        "patient"
+      ],
+      "archetype": "student"
+    },
+    {
+      "npc_id": "INKYUNG-NPC-027",
+      "name": "이하은",
+      "department": "화학과",
+      "department_type": "natural_sciences",
+      "year_level": 2,
+      "gender": "female",
+      "residence": "commuter",
+      "interests": [
+        "reading",
+        "plants",
+        "cooking"
+      ],
+      "traits": [
+        "practical",
+        "focused"
+      ],
+      "archetype": "club_member"
+    },
+    {
+      "npc_id": "INKYUNG-NPC-028",
+      "name": "주민재",
+      "department": "기계공학과",
+      "department_type": "engineering",
+      "year_level": 4,
+      "gender": "male",
+      "residence": "commuter",
+      "interests": [
+        "cycling",
+        "coding",
+        "architecture"
+      ],
+      "traits": [
+        "practical",
+        "playful"
+      ],
+      "archetype": "student"
+    },
+    {
+      "npc_id": "INKYUNG-NPC-029",
+      "name": "차서현",
+      "department": "생명과학과",
+      "department_type": "natural_sciences",
+      "year_level": 1,
+      "gender": "female",
+      "residence": "dorm_2",
+      "interests": [
+        "plants",
+        "birdwatching",
+        "walking"
+      ],
+      "traits": [
+        "gentle",
+        "curious"
+      ],
+      "archetype": "student"
+    },
+    {
+      "npc_id": "INKYUNG-NPC-030",
+      "name": "하도겸",
+      "department": "산업디자인학과",
+      "department_type": "arts",
+      "year_level": 3,
+      "gender": "male",
+      "residence": "commuter",
+      "interests": [
+        "design",
+        "architecture",
+        "sketching"
+      ],
+      "traits": [
+        "curious",
+        "practical"
+      ],
+      "archetype": "student"
+    },
+    {
+      "npc_id": "INKYUNG-NPC-031",
+      "name": "도유나",
+      "department": "수학과",
+      "department_type": "natural_sciences",
+      "year_level": 2,
+      "gender": "female",
+      "residence": "dorm_1",
+      "interests": [
+        "reading",
+        "coding",
+        "music"
+      ],
+      "traits": [
+        "calm",
+        "focused"
+      ],
+      "archetype": "student"
+    },
+    {
+      "npc_id": "INKYUNG-NPC-032",
+      "name": "라준서",
+      "department": "행정학과",
+      "department_type": "social_sciences",
+      "year_level": 4,
+      "gender": "male",
+      "residence": "commuter",
+      "interests": [
+        "reading",
+        "coffee",
+        "walking"
+      ],
+      "traits": [
+        "thoughtful",
+        "wry"
+      ],
+      "archetype": "club_member"
+    },
+    {
+      "npc_id": "INKYUNG-NPC-033",
+      "name": "마채원",
+      "department": "전기공학과",
+      "department_type": "engineering",
+      "year_level": 3,
+      "gender": "female",
+      "residence": "dorm_2",
+      "interests": [
+        "coding",
+        "music",
+        "cycling"
+      ],
+      "traits": [
+        "focused",
+        "patient"
+      ],
+      "archetype": "student"
+    },
+    {
+      "npc_id": "INKYUNG-NPC-034",
+      "name": "바시온",
+      "department": "문화콘텐츠문화경영학과",
+      "department_type": "humanities",
+      "year_level": 2,
+      "gender": "male",
+      "residence": "commuter",
+      "interests": [
+        "film",
+        "music",
+        "design"
+      ],
+      "traits": [
+        "playful",
+        "curious"
+      ],
+      "archetype": "student"
+    },
+    {
+      "npc_id": "INKYUNG-NPC-035",
+      "name": "서다은",
+      "department": "문화콘텐츠문화경영학과",
+      "department_type": "humanities",
+      "year_level": 1,
+      "gender": "female",
+      "residence": "dorm_1",
+      "interests": [
+        "film",
+        "photography",
+        "reading"
+      ],
+      "traits": [
+        "cheerful",
+        "thoughtful"
+      ],
+      "archetype": "student"
+    },
+    {
+      "npc_id": "INKYUNG-NPC-036",
+      "name": "우현우",
+      "department": "경영학과",
+      "department_type": "social_sciences",
+      "year_level": 3,
+      "gender": "male",
+      "residence": "commuter",
+      "interests": [
+        "coffee",
+        "reading",
+        "cycling"
+      ],
+      "traits": [
+        "practical",
+        "wry"
+      ],
+      "archetype": "student"
+    },
+    {
+      "npc_id": "INKYUNG-NPC-037",
+      "name": "이지민",
+      "department": "경영학과",
+      "department_type": "social_sciences",
+      "year_level": 2,
+      "gender": "female",
+      "residence": "dorm_2",
+      "interests": [
+        "coffee",
+        "music",
+        "walking"
+      ],
+      "traits": [
+        "cheerful",
+        "practical"
+      ],
+      "archetype": "student"
+    },
+    {
+      "npc_id": "INKYUNG-NPC-038",
+      "name": "주서진",
+      "department": "경제학과",
+      "department_type": "social_sciences",
+      "year_level": 4,
+      "gender": "female",
+      "residence": "commuter",
+      "interests": [
+        "reading",
+        "coding",
+        "coffee"
+      ],
+      "traits": [
+        "focused",
+        "wry"
+      ],
+      "archetype": "club_member"
+    },
+    {
+      "npc_id": "INKYUNG-NPC-039",
+      "name": "차민준",
+      "department": "경제학과",
+      "department_type": "social_sciences",
+      "year_level": 1,
+      "gender": "male",
+      "residence": "dorm_1",
+      "interests": [
+        "reading",
+        "cycling",
+        "music"
+      ],
+      "traits": [
+        "patient",
+        "curious"
+      ],
+      "archetype": "club_member"
+    },
+    {
+      "npc_id": "INKYUNG-NPC-040",
+      "name": "하윤서",
+      "department": "정치외교학과",
+      "department_type": "social_sciences",
+      "year_level": 2,
+      "gender": "female",
+      "residence": "commuter",
+      "interests": [
+        "reading",
+        "languages",
+        "film"
+      ],
+      "traits": [
+        "thoughtful",
+        "curious"
+      ],
+      "archetype": "student"
+    },
+    {
+      "npc_id": "INKYUNG-NPC-041",
+      "name": "도건우",
+      "department": "정치외교학과",
+      "department_type": "social_sciences",
+      "year_level": 3,
+      "gender": "male",
+      "residence": "dorm_2",
+      "interests": [
+        "reading",
+        "coffee",
+        "walking"
+      ],
+      "traits": [
+        "wry",
+        "calm"
+      ],
+      "archetype": "student"
+    },
+    {
+      "npc_id": "INKYUNG-NPC-042",
+      "name": "라소민",
+      "department": "미디어커뮤니케이션학과",
+      "department_type": "social_sciences",
+      "year_level": 1,
+      "gender": "female",
+      "residence": "commuter",
+      "interests": [
+        "photography",
+        "film",
+        "music"
+      ],
+      "traits": [
+        "playful",
+        "cheerful"
+      ],
+      "archetype": "student"
+    },
+    {
+      "npc_id": "INKYUNG-NPC-043",
+      "name": "마지훈",
+      "department": "미디어커뮤니케이션학과",
+      "department_type": "social_sciences",
+      "year_level": 4,
+      "gender": "male",
+      "residence": "dorm_1",
+      "interests": [
+        "film",
+        "design",
+        "photography"
+      ],
+      "traits": [
+        "curious",
+        "practical"
+      ],
+      "archetype": "student"
+    },
+    {
+      "npc_id": "INKYUNG-NPC-044",
+      "name": "바연우",
+      "department": "신소재공학과",
+      "department_type": "engineering",
+      "year_level": 2,
+      "gender": "female",
+      "residence": "commuter",
+      "interests": [
+        "coding",
+        "design",
+        "plants"
+      ],
+      "traits": [
+        "focused",
+        "practical"
+      ],
+      "archetype": "student"
+    },
+    {
+      "npc_id": "INKYUNG-NPC-045",
+      "name": "서준혁",
+      "department": "신소재공학과",
+      "department_type": "engineering",
+      "year_level": 3,
+      "gender": "male",
+      "residence": "dorm_2",
+      "interests": [
+        "coding",
+        "cycling",
+        "architecture"
+      ],
+      "traits": [
+        "patient",
+        "practical"
+      ],
+      "archetype": "student"
+    },
+    {
+      "npc_id": "INKYUNG-NPC-046",
+      "name": "우나경",
+      "department": "스마트모빌리티공학과",
+      "department_type": "engineering",
+      "year_level": 1,
+      "gender": "female",
+      "residence": "commuter",
+      "interests": [
+        "coding",
+        "cycling",
+        "design"
+      ],
+      "traits": [
+        "curious",
+        "focused"
+      ],
+      "archetype": "club_member"
+    },
+    {
+      "npc_id": "INKYUNG-NPC-047",
+      "name": "이재윤",
+      "department": "스마트모빌리티공학과",
+      "department_type": "engineering",
+      "year_level": 4,
+      "gender": "male",
+      "residence": "dorm_1",
+      "interests": [
+        "coding",
+        "cycling",
+        "music"
+      ],
+      "traits": [
+        "practical",
+        "playful"
+      ],
+      "archetype": "student"
+    },
+    {
+      "npc_id": "INKYUNG-NPC-048",
+      "name": "주하린",
+      "department": "사회학과",
+      "department_type": "social_sciences",
+      "year_level": 2,
+      "gender": "female",
+      "residence": "commuter",
+      "interests": [
+        "reading",
+        "film",
+        "coffee"
+      ],
+      "traits": [
+        "thoughtful",
+        "cheerful"
+      ],
+      "archetype": "student"
+    }
+  ]
+}

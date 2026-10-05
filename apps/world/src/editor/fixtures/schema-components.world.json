@@ -1,0 +1,39 @@
+{
+  "schemaVersion": "0.1.0",
+  "worldId": "world.fixture.schema-components",
+  "name": "Schema Components Sample",
+  "coordinateSystem": { "handedness": "right", "upAxis": "Y", "unit": "meter" },
+  "assets": [
+    { "id": "asset.fixture.building", "type": "model", "uri": "./assets/building.glb", "metadata": { "label": "Fixture building" } }
+  ],
+  "entities": [
+    {
+      "id": "entity.fixture.building", "name": "Building A", "kind": "building", "parentId": null, "enabled": true,
+      "transform": { "position": [0, 0, 0], "rotation": [0, 0, 0, 1], "scale": [1, 1, 1] },
+      "tags": ["building"],
+      "components": {
+        "core.renderable": { "assetId": "asset.fixture.building", "visible": true },
+        "world.building": { "floors": 2, "heightMeters": 7 }
+      }
+    },
+    {
+      "id": "entity.fixture.path", "name": "Walkway", "kind": "path", "parentId": null, "enabled": true,
+      "transform": { "position": [0, 0, 0], "rotation": [0, 0, 0, 1], "scale": [1, 1, 1] },
+      "tags": ["walkway"],
+      "components": { "world.path": { "pathType": "walkway", "points": [[0, 0, 0], [5, 0, 0], [10, 0, 3]], "widthMeters": 2, "closed": false } }
+    },
+    {
+      "id": "entity.fixture.spawn", "name": "NPC Spawn", "kind": "spawn", "parentId": null, "enabled": true,
+      "transform": { "position": [2, 0, 2], "rotation": [0, 0, 0, 1], "scale": [1, 1, 1] },
+      "tags": ["npc"],
+      "components": { "game.spawn": { "spawnType": "npc", "refId": "npc.fixture", "radiusMeters": 0.5 } }
+    },
+    {
+      "id": "entity.fixture.trigger", "name": "Quest Trigger", "kind": "trigger", "parentId": null, "enabled": true,
+      "transform": { "position": [4, 0, 2], "rotation": [0, 0, 0, 1], "scale": [1, 1, 1] },
+      "tags": ["quest"],
+      "components": { "game.trigger": { "triggerType": "quest", "refId": "quest.fixture", "shape": { "type": "box", "size": [3, 2, 3] } } }
+    }
+  ],
+  "metadata": { "fixture": "Schema validation only; not the Editor P0 acceptance fixture" }
+}

@@ -1,0 +1,12 @@
+{
+  "name": "induck-grow",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "test": "node tests/release.cjs && node tests/account.cjs && node tests/analytics.cjs && node tests/analytics-decisions.cjs",
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0"
+  }
+}

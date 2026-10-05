@@ -1,0 +1,9 @@
+{
+  "schemaVersion": "0.1.0",
+  "worldId": "world.fixture.minimal",
+  "name": "Minimal World",
+  "coordinateSystem": { "handedness": "right", "upAxis": "Y", "unit": "meter" },
+  "assets": [],
+  "entities": [],
+  "metadata": {}
+}

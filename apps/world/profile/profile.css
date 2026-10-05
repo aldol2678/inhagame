@@ -1,0 +1,25 @@
+.profile-main{max-width:1060px;min-height:75vh}
+.profile-main>h1{font-size:clamp(28px,4vw,38px);margin:12px 0}
+.profile-main h2{font-size:20px}
+.profile-back{border:1px solid #64809a;border-radius:9px;padding:9px 13px;white-space:nowrap}
+.profile-header{display:grid;grid-template-columns:96px minmax(0,1fr);gap:24px;align-items:center}
+.profile-avatar{width:96px;height:96px;display:grid;place-items:center;background:#e9f5ec;border:2px solid #b4d7c2;border-radius:24px;font-size:48px}
+.profile-heading{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+.profile-heading h2{margin:0}.profile-header p{margin:7px 0}.profile-header .quiet{margin:7px 0}
+.profile-achievement{margin:18px 0;min-width:0}
+.profile-achievement h2{margin-top:0}.profile-achievement h3{font-size:18px;margin:12px 0 6px}
+.profile-achievement p{margin:8px 0;color:#51697b;overflow-wrap:anywhere}
+.profile-achievement .secondary{display:inline-block;margin-top:12px}
+.profile-edit{margin-top:18px}.profile-edit form{max-width:520px}
+.profile-field{display:flex;flex-direction:column;gap:6px;margin:12px 0;font-weight:700}
+.profile-field input,.profile-field select{width:100%;padding:11px;border:1px solid #adbeca;border-radius:9px;background:#fff;font:inherit}
+.avatar-options{border:1px solid #c9d7df;border-radius:12px;margin:15px 0;padding:12px}
+.avatar-options label{display:inline-flex;align-items:center;gap:5px;padding:8px;white-space:nowrap}
+.profile-games{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin:16px 0 24px}
+.profile-games .card{display:flex;flex-direction:column;gap:9px}
+.profile-games .card h3{font-size:18px;margin:0}.profile-games .card p{margin:0;color:#51697b}
+.profile-games .card a{align-self:flex-start;margin-top:auto}.profile-games .badge{align-self:flex-start}
+.profile-meta p{display:flex;gap:14px;justify-content:space-between;flex-wrap:wrap}
+[hidden]{display:none!important}
+@media(max-width:840px){.profile-games{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:650px){.profile-main{padding-bottom:max(40px,env(safe-area-inset-bottom))}.profile-games{grid-template-columns:1fr}.profile-header{grid-template-columns:68px minmax(0,1fr);gap:13px}.profile-avatar{width:68px;height:68px;font-size:35px}.profile-back{font-size:13px}.avatar-options label{display:flex}}

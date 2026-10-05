@@ -1,0 +1,7 @@
+{
+  "kind": "SYNTHETIC_PUBLIC_QA",
+  "candidate_sha256": "a1d8879ee3da3f9630d61ac501c16f7b5f3ff05d82db73ef7112f97203af7bf8",
+  "npc_count": 20,
+  "human_approval": false,
+  "scope": "Fictional public QA fixture only"
+}

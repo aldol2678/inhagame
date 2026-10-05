@@ -1,0 +1,517 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sui-tml.dev/schema/tml-ir-v0.1.schema.json",
+  "title": "TML IR v0.1",
+  "description": "Stable intermediate representation for TML modules, profiles and runtime traces.",
+  "oneOf": [
+    { "$ref": "#/$defs/module" },
+    { "$ref": "#/$defs/profile" },
+    { "$ref": "#/$defs/trace" }
+  ],
+  "$defs": {
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "extensions": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "value": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "value"],
+          "properties": {
+            "type": { "const": "string" },
+            "value": { "type": "string" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "value"],
+          "properties": {
+            "type": { "const": "number" },
+            "value": { "type": "number" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "value"],
+          "properties": {
+            "type": { "const": "boolean" },
+            "value": { "type": "boolean" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type"],
+          "properties": {
+            "type": { "const": "null" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "value"],
+          "properties": {
+            "type": { "const": "time" },
+            "value": { "type": "string", "format": "date-time" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "value"],
+          "properties": {
+            "type": { "const": "ref" },
+            "value": { "$ref": "#/$defs/id" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "value"],
+          "properties": {
+            "type": { "const": "list" },
+            "value": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/value" }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "value"],
+          "properties": {
+            "type": { "const": "object" },
+            "value": {
+              "type": "object",
+              "additionalProperties": { "$ref": "#/$defs/value" }
+            }
+          }
+        }
+      ]
+    },
+    "expr": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["op", "subject", "predicate", "value"],
+          "properties": {
+            "op": { "enum": ["eq", "ne", "gt", "gte", "lt", "lte"] },
+            "subject": { "$ref": "#/$defs/id" },
+            "predicate": { "type": "string", "minLength": 1 },
+            "value": { "$ref": "#/$defs/value" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["op", "subject", "predicate"],
+          "properties": {
+            "op": { "const": "exists" },
+            "subject": { "$ref": "#/$defs/id" },
+            "predicate": { "type": "string", "minLength": 1 }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["op", "args"],
+          "properties": {
+            "op": { "enum": ["and", "or"] },
+            "args": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "$ref": "#/$defs/expr" }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["op", "arg"],
+          "properties": {
+            "op": { "const": "not" },
+            "arg": { "$ref": "#/$defs/expr" }
+          }
+        }
+      ]
+    },
+    "eventPattern": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["event"],
+      "properties": {
+        "event": { "type": "string", "minLength": 1 },
+        "where": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/value" }
+        }
+      }
+    },
+    "actionCall": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "capability", "args"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "capability": { "type": "string", "minLength": 1 },
+        "args": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/value" }
+        }
+      }
+    },
+    "transition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "actions", "postcondition"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "subject": { "$ref": "#/$defs/id" },
+        "precondition": { "$ref": "#/$defs/expr" },
+        "trigger": { "$ref": "#/$defs/eventPattern" },
+        "actions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/actionCall" }
+        },
+        "postcondition": { "$ref": "#/$defs/expr" },
+        "extensions": { "$ref": "#/$defs/extensions" }
+      }
+    },
+    "module": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "version", "id", "profile", "transitions"],
+      "properties": {
+        "schema": { "const": "tml.module" },
+        "version": { "const": "0.1" },
+        "id": { "$ref": "#/$defs/id" },
+        "profile": { "type": "string", "minLength": 1 },
+        "transitions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/transition" }
+        },
+        "extensions": { "$ref": "#/$defs/extensions" }
+      }
+    },
+    "event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "id", "event", "occurred_at", "source"],
+      "properties": {
+        "kind": { "const": "event" },
+        "id": { "$ref": "#/$defs/id" },
+        "event": { "type": "string", "minLength": 1 },
+        "occurred_at": { "type": "string", "format": "date-time" },
+        "actor": { "$ref": "#/$defs/id" },
+        "target": { "$ref": "#/$defs/id" },
+        "data": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/value" }
+        },
+        "source": { "$ref": "#/$defs/id" },
+        "extensions": { "$ref": "#/$defs/extensions" }
+      }
+    },
+    "actionExecution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id",
+        "call",
+        "capability",
+        "execution_key",
+        "requested_at",
+        "status"
+      ],
+      "properties": {
+        "kind": { "const": "action" },
+        "id": { "$ref": "#/$defs/id" },
+        "call": { "$ref": "#/$defs/id" },
+        "capability": { "type": "string", "minLength": 1 },
+        "execution_key": { "type": "string", "minLength": 1 },
+        "requested_at": { "type": "string", "format": "date-time" },
+        "completed_at": { "type": "string", "format": "date-time" },
+        "status": {
+          "enum": ["REQUESTED", "RUNNING", "SUCCEEDED", "FAILED"]
+        },
+        "output": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/value" }
+        },
+        "error": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["code"],
+          "properties": {
+            "code": { "type": "string", "minLength": 1 },
+            "message": { "type": "string" }
+          }
+        },
+        "extensions": { "$ref": "#/$defs/extensions" }
+      }
+    },
+    "fact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id",
+        "subject",
+        "predicate",
+        "value",
+        "source",
+        "observed_at"
+      ],
+      "properties": {
+        "kind": { "const": "fact" },
+        "id": { "$ref": "#/$defs/id" },
+        "subject": { "$ref": "#/$defs/id" },
+        "predicate": { "type": "string", "minLength": 1 },
+        "value": { "$ref": "#/$defs/value" },
+        "source": { "$ref": "#/$defs/id" },
+        "observed_at": { "type": "string", "format": "date-time" },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "extensions": { "$ref": "#/$defs/extensions" }
+      }
+    },
+    "observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "id", "source", "observed_at", "query", "facts"],
+      "properties": {
+        "kind": { "const": "observation" },
+        "id": { "$ref": "#/$defs/id" },
+        "source": { "$ref": "#/$defs/id" },
+        "observed_at": { "type": "string", "format": "date-time" },
+        "query": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["subject", "predicate"],
+          "properties": {
+            "subject": { "$ref": "#/$defs/id" },
+            "predicate": { "type": "string", "minLength": 1 }
+          }
+        },
+        "facts": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/id" }
+        },
+        "extensions": { "$ref": "#/$defs/extensions" }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "id", "claim", "observations", "facts"],
+      "properties": {
+        "kind": { "const": "evidence" },
+        "id": { "$ref": "#/$defs/id" },
+        "claim": { "$ref": "#/$defs/expr" },
+        "observations": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/id" }
+        },
+        "facts": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/id" }
+        },
+        "extensions": { "$ref": "#/$defs/extensions" }
+      }
+    },
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "id", "transition", "evidence", "status", "checked_at"],
+      "properties": {
+        "kind": { "const": "verification" },
+        "id": { "$ref": "#/$defs/id" },
+        "transition": { "$ref": "#/$defs/id" },
+        "evidence": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/id" }
+        },
+        "status": {
+          "enum": ["SATISFIED", "UNSATISFIED", "UNKNOWN", "CONFLICT"]
+        },
+        "checked_at": { "type": "string", "format": "date-time" },
+        "extensions": { "$ref": "#/$defs/extensions" }
+      }
+    },
+    "parameter": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type"],
+          "properties": {
+            "type": {
+              "enum": ["string", "number", "boolean", "time", "null"]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type"],
+          "properties": {
+            "type": { "const": "ref" },
+            "entity": { "type": "string", "minLength": 1 }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "items"],
+          "properties": {
+            "type": { "const": "list" },
+            "items": { "$ref": "#/$defs/parameter" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type"],
+          "properties": {
+            "type": { "const": "object" },
+            "properties": {
+              "type": "object",
+              "additionalProperties": { "$ref": "#/$defs/parameter" }
+            }
+          }
+        }
+      ]
+    },
+    "capability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "mutates", "parameters"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "mutates": { "type": "boolean" },
+        "parameters": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/parameter" }
+        },
+        "provider_binding": { "type": "string", "minLength": 1 },
+        "verification": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["predicate", "authority"],
+          "properties": {
+            "predicate": { "type": "string", "minLength": 1 },
+            "authority": { "$ref": "#/$defs/id" }
+          }
+        },
+        "extensions": { "$ref": "#/$defs/extensions" }
+      }
+    },
+    "authorityRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["predicate", "authority"],
+      "properties": {
+        "predicate": { "type": "string", "minLength": 1 },
+        "authority": { "$ref": "#/$defs/id" },
+        "fallback": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/id" }
+        }
+      }
+    },
+    "profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "version",
+        "id",
+        "entity_types",
+        "predicates",
+        "events",
+        "capabilities",
+        "authority"
+      ],
+      "properties": {
+        "schema": { "const": "tml.profile" },
+        "version": { "const": "0.1" },
+        "id": { "type": "string", "minLength": 1 },
+        "entity_types": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "predicates": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "events": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "capabilities": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/capability" }
+        },
+        "authority": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/authorityRule" }
+        },
+        "extensions": { "$ref": "#/$defs/extensions" }
+      }
+    },
+    "traceRecord": {
+      "oneOf": [
+        { "$ref": "#/$defs/event" },
+        { "$ref": "#/$defs/actionExecution" },
+        { "$ref": "#/$defs/observation" },
+        { "$ref": "#/$defs/fact" },
+        { "$ref": "#/$defs/evidence" },
+        { "$ref": "#/$defs/verification" }
+      ]
+    },
+    "trace": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "version",
+        "id",
+        "module",
+        "profile",
+        "started_at",
+        "records"
+      ],
+      "properties": {
+        "schema": { "const": "tml.trace" },
+        "version": { "const": "0.1" },
+        "id": { "$ref": "#/$defs/id" },
+        "module": { "$ref": "#/$defs/id" },
+        "profile": { "type": "string", "minLength": 1 },
+        "started_at": { "type": "string", "format": "date-time" },
+        "ended_at": { "type": "string", "format": "date-time" },
+        "records": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/traceRecord" }
+        },
+        "extensions": { "$ref": "#/$defs/extensions" }
+      }
+    }
+  }
+}

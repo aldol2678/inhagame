@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "games": [
+    {
+      "id": "campus",
+      "title": "인하게임 캠퍼스",
+      "description": "인덕이와 함께 정문에서 아고라까지 걸어 보세요.",
+      "playUrl": "/campus/?lobby=1",
+      "status": "playable",
+      "sortOrder": 10
+    },
+    {
+      "id": "classic",
+      "title": "인하오리 Classic",
+      "description": "인하오리 원작 게임을 즐겨 보세요.",
+      "playUrl": "https://duck.inhagame.app/",
+      "status": "playable",
+      "sortOrder": 20
+    },
+    {
+      "id": "induckup",
+      "title": "인덕업",
+      "description": "오리 패들로 벽돌을 깨고 성장시키는 게임입니다.",
+      "playUrl": "https://induckup.inhagame.app/",
+      "status": "playable",
+      "sortOrder": 30
+    },
+    {
+      "id": "survival",
+      "title": "인덕 서바이벌",
+      "description": "인경호에서 적을 상대하며 살아남는 게임입니다.",
+      "playUrl": "https://survival.inhagame.app/",
+      "status": "playable",
+      "sortOrder": 40
+    },
+    {
+      "id": "induck-grow",
+      "title": "인덕이 키우기",
+      "description": "학과를 고르고 수업·관계·활동·알바를 관리하며 나만의 인덕이를 키워 보세요.",
+      "playUrl": "https://grow.inhagame.app/",
+      "status": "playable",
+      "sortOrder": 50
+    }
+  ]
+}

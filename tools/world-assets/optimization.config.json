@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "mode": "allowlist",
+  "sourceRoot": "apps/world/assets",
+  "outputRoot": "apps/world/.generated/assets-optimized",
+  "policy": {
+    "onTransformError": "copy-source",
+    "strictRejectsFallback": true
+  },
+  "assets": [
+    {
+      "file": "induck-v3.glb",
+      "minSavingsPercent": 1,
+      "keepEmptyLeafNodes": true
+    },
+    {
+      "file": "annyongi-flight-v1.glb",
+      "minSavingsPercent": 1,
+      "keepEmptyLeafNodes": true
+    },
+    {
+      "file": "induck-cap-v1.glb",
+      "minSavingsPercent": 1
+    },
+    {
+      "file": "induck-backpack-v1.glb",
+      "minSavingsPercent": 1
+    },
+    {
+      "file": "induck-hoodie-v1.glb",
+      "minSavingsPercent": 1
+    },
+    {
+      "file": "p0-qa-building.glb",
+      "minSavingsPercent": 1
+    }
+  ]
+}

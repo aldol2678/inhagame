@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <script type="importmap">
+    { "imports": { "playcanvas": "https://cdn.jsdelivr.net/npm/playcanvas@2.22.4/build/playcanvas.mjs" } }
+  </script>
+</head>
+<body>
+<canvas id="stage" width="512" height="512"></canvas>
+<script type="module">
+  import * as pc from "playcanvas";
+  import { createCharacter } from "/src/character-model.js";
+  import { assetCanarySelected } from "/src/asset-authority-canary.js";
+  import { ASSET_PRODUCTION_CANARY_PERCENTAGE, createProductionAssetCanary } from "/src/asset-production-canary.js";
+  import { createAssetCanaryRemoteControl } from "/src/asset-canary-remote-control.js";
+  import { createAssetCanaryTelemetry } from "/src/asset-canary-telemetry.js";
+  import { FLAG_ENABLED } from "/src/npc-feature-flags.js";
+
+  const canvas = document.getElementById("stage");
+
+  function selectedKey() {
+    for (let index = 0; index < 1000000; index += 1) {
+      const key = "remote-kill-browser-" + index;
+      if (assetCanarySelected(key, ASSET_PRODUCTION_CANARY_PERCENTAGE)) return key;
+    }
+    throw new Error("selected cohort fixture not found");
+  }
+
+  try {
+    const device = await pc.createGraphicsDevice(canvas, {
+      deviceTypes: [pc.DEVICETYPE_WEBGL2], antialias: false
+    });
+    const options = new pc.AppOptions();
+    options.graphicsDevice = device;
+    options.componentSystems = [pc.RenderComponentSystem, pc.CameraComponentSystem, pc.LightComponentSystem];
+    options.resourceHandlers = [pc.TextureHandler, pc.ContainerHandler];
+    const app = new pc.AppBase(canvas);
+    app.init(options);
+    app.start();
+
+    const remoteReplies = [
+      new Response(JSON.stringify({ enabled: true }), {
+        status: 200, headers: { "content-type": "application/json" }
+      }),
+      new Response(JSON.stringify({ enabled: false }), {
+        status: 200, headers: { "content-type": "application/json" }
+      })
+    ];
+    const remote = createAssetCanaryRemoteControl({
+      fetcher: async () => remoteReplies.shift(),
+      pollMs: 0
+    });
+    const initial = await remote.start();
+    if (initial !== FLAG_ENABLED) throw new Error("initial remote gate not enabled");
+
+    const production = createProductionAssetCanary({
+      app, enabled: remote.enabled, subjectKeyOverride: selectedKey()
+    });
+    const telemetryEvents = [];
+    const telemetry = createAssetCanaryTelemetry({
+      track: (eventType, surface, target) => telemetryEvents.push({ eventType, surface, target })
+    });
+    if (production.selected) telemetry.selected();
+
+    const player = new pc.Entity("RemoteKillPlayer");
+    app.root.addChild(player);
+    const character = createCharacter(app, player, {
+      assetCanary: production.canary,
+      assetCanarySubjectKey: production.subjectKey
+    });
+
+    const unbind = remote.subscribe(state => {
+      if (state === FLAG_ENABLED || character.assetCanary?.authority !== "OPTIMIZED_CANARY") return;
+      const receipt = character.rollbackAssetCanary("REMOTE_KILL_" + state);
+      if (receipt?.authority === "CANONICAL") telemetry.rollback();
+    });
+
+    await character.ready;
+    if (character.assetCanary?.authority === "OPTIMIZED_CANARY") telemetry.active();
+    else telemetry.failure();
+
+    const before = {
+      remote: remote.status(),
+      character: character.assetCanary,
+      telemetry: telemetry.status(),
+      visualAttached: Boolean(player.findByName("Induck_GLB_Visual"))
+    };
+
+    await remote.check();
+
+    const after = {
+      remote: remote.status(),
+      character: character.assetCanary,
+      telemetry: telemetry.status(),
+      visualAttached: Boolean(player.findByName("Induck_GLB_Visual"))
+    };
+
+    unbind();
+    remote.stop();
+
+    window.__ASSET_REMOTE_KILL_HARNESS__ = { ready: true, before, after, telemetryEvents };
+  } catch (error) {
+    window.__ASSET_REMOTE_KILL_HARNESS__ = {
+      ready: false, error: String(error?.stack || error)
+    };
+  }
+</script>
+</body>
+</html>

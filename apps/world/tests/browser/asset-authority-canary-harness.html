@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=512,height=512,initial-scale=1">
+  <title>INHAGAME asset authority canary harness</title>
+  <script type="importmap">
+    { "imports": { "playcanvas": "https://cdn.jsdelivr.net/npm/playcanvas@2.22.4/build/playcanvas.mjs" } }
+  </script>
+</head>
+<body>
+<canvas id="stage" width="512" height="512"></canvas>
+<script type="module">
+  import * as pc from "playcanvas";
+  import { createAssetOptimizationShadow } from "/src/asset-optimization-shadow.js";
+  import {
+    ASSET_CANARY_AUTHORITY,
+    assetCanarySelected,
+    createAssetAuthorityCanary
+  } from "/src/asset-authority-canary.js";
+
+  const params = new URLSearchParams(location.search);
+  const mode = params.get("mode") || "control";
+  const canvas = document.getElementById("stage");
+
+  function loadContainer(app, url) {
+    return new Promise((resolve, reject) => {
+      app.assets.loadFromUrl(url, "container", (error, asset) => {
+        if (error || !asset?.resource) reject(error || new Error("asset unavailable: " + url));
+        else resolve(asset);
+      });
+    });
+  }
+
+  function selectedKey() {
+    for (let index = 0; index < 100000; index += 1) {
+      const key = "browser-canary-" + index;
+      if (assetCanarySelected(key, 25)) return key;
+    }
+    throw new Error("no selected fixture key");
+  }
+
+  try {
+    const device = await pc.createGraphicsDevice(canvas, {
+      deviceTypes: [pc.DEVICETYPE_WEBGL2],
+      powerPreference: "high-performance",
+      antialias: false
+    });
+
+    const options = new pc.AppOptions();
+    options.graphicsDevice = device;
+    options.componentSystems = [pc.RenderComponentSystem, pc.CameraComponentSystem, pc.LightComponentSystem];
+    options.resourceHandlers = [pc.TextureHandler, pc.ContainerHandler];
+
+    const app = new pc.AppBase(canvas);
+    app.init(options);
+    app.start();
+
+    const shadow = createAssetOptimizationShadow({ app, enabled: true });
+    const canonicalAsset = await loadContainer(app, "/assets/induck-v3.glb");
+    const subjectKey = selectedKey();
+    const percentage = mode === "control" ? 0 : 25;
+
+    const canary = createAssetAuthorityCanary({
+      app,
+      shadow,
+      enabled: true,
+      percentage,
+      ...(mode === "load-failure" ? {
+        optimizedLoader: async () => { throw new Error("HARNESS_OPTIMIZED_LOAD_FAILURE"); }
+      } : {})
+    });
+
+    const prepared = await canary.prepare("/assets/induck-v3.glb", canonicalAsset, {
+      subjectKey,
+      consumer: "browser-canary",
+      instantiateOptions: { castShadows: false, receiveShadows: false }
+    });
+
+    prepared.activeEntity.name = prepared.receipt.authority === ASSET_CANARY_AUTHORITY.OPTIMIZED_CANARY
+      ? "ActiveOptimizedCanary"
+      : "ActiveCanonical";
+    app.root.addChild(prepared.activeEntity);
+
+    let beforeRollback = {
+      authority: prepared.receipt.authority,
+      outcome: prepared.receipt.outcome,
+      canonicalAttached: prepared.canonicalEntity.parent === app.root,
+      optimizedAttached: prepared.optimizedEntity?.parent === app.root || false
+    };
+
+    let rollbackReceipt = null;
+    if (mode === "rollback" && prepared.receipt.authority === ASSET_CANARY_AUTHORITY.OPTIMIZED_CANARY) {
+      rollbackReceipt = prepared.rollback("HARNESS_MANUAL_ROLLBACK");
+      prepared.activeEntity.name = "ActiveCanonicalAfterRollback";
+      app.root.addChild(prepared.activeEntity);
+    }
+
+    window.__ASSET_CANARY_HARNESS__ = {
+      ready: true,
+      mode,
+      renderer: device.isWebGL2 ? "WebGL2" : device.isWebGPU ? "WebGPU" : "UNKNOWN",
+      subjectKey,
+      beforeRollback,
+      after: {
+        authority: prepared.receipt.authority,
+        outcome: prepared.receipt.outcome,
+        canonicalAttached: prepared.canonicalEntity.parent === app.root,
+        optimizedAttached: prepared.optimizedEntity?.parent === app.root || false
+      },
+      rollbackReceipt,
+      canaryStatus: canary.status(),
+      shadowStatus: await shadow.whenIdle()
+    };
+  } catch (error) {
+    window.__ASSET_CANARY_HARNESS__ = {
+      ready: false,
+      mode,
+      error: String(error?.stack || error)
+    };
+  }
+</script>
+</body>
+</html>

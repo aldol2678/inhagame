@@ -1,0 +1,56 @@
+name: World stability browser QA
+on:
+  pull_request:
+    paths:
+      - 'apps/world/src/shop/**'
+      - 'apps/world/src/appearance/**'
+      - 'apps/world/src/attendance/**'
+      - 'apps/world/src/daily-quiz/**'
+      - 'apps/world/src/player-controller.js'
+      - 'apps/world/tests/*stability*.test.mjs'
+      - 'apps/world/tests/*readback*.test.mjs'
+      - 'apps/world/tests/*ordering*.test.mjs'
+      - 'apps/world/tests/*ownership*.test.mjs'
+      - 'apps/world/tests/*isolation*.test.mjs'
+      - 'apps/world/tests/browser/world-stability-*'
+      - '.github/workflows/world-stability-browser.yml'
+permissions:
+  contents: read
+concurrency:
+  group: world-stability-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  chromium:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - name: Install pinned browser dependencies
+        working-directory: apps/world/tests/browser
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Ensure Korean glyphs
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y fonts-noto-cjk
+      - name: Verify synthetic account and harness contracts
+        run: node --test apps/world/tests/shop-loadout-readback-account.test.mjs apps/world/tests/shop-loadout-retry-isolation.test.mjs apps/world/tests/daily-result-ordering.test.mjs apps/world/tests/player-touch-ownership.test.mjs apps/world/tests/world-stability-browser-contract.test.mjs
+      - name: Run native Chromium pointer and synthetic-account QA
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+          WORLD_STABILITY_OUTPUT: test-results/world-stability
+          EXPECTED_STABILITY_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: node apps/world/tests/browser/world-stability-smoke.mjs
+      - name: Preserve screenshots and assertions
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: world-stability-browser-evidence
+          path: test-results/world-stability/
+          if-no-files-found: error
+          retention-days: 14

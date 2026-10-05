@@ -1,0 +1,1816 @@
+{
+  "schemaVersion": "0.1.0",
+  "worldId": "inha-world-main-gate",
+  "name": "INHA WORLD · Main Gate",
+  "coordinateSystem": {
+    "handedness": "right",
+    "upAxis": "Y",
+    "unit": "meter"
+  },
+  "assets": [],
+  "entities": [
+    {
+      "id": "entity.main-gate.sosung-ro-frontage",
+      "name": "소성로",
+      "kind": "path",
+      "parentId": null,
+      "enabled": true,
+      "transform": {
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "tags": [
+        "inha-editor",
+        "main-gate",
+        "corridor"
+      ],
+      "components": {
+        "world.path": {
+          "pathType": "road",
+          "points": [
+            [
+              -70,
+              0,
+              -28
+            ],
+            [
+              172,
+              0,
+              -28
+            ]
+          ],
+          "widthMeters": 20,
+          "closed": false
+        }
+      },
+      "metadata": {
+        "production": {
+          "owner": "main-gate",
+          "id": "sosung_ro_frontage",
+          "kind": "ROAD",
+          "role": "corridor"
+        }
+      }
+    },
+    {
+      "id": "entity.main-gate.main-gate-approach",
+      "name": "정문 진입도로",
+      "kind": "path",
+      "parentId": null,
+      "enabled": true,
+      "transform": {
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "tags": [
+        "inha-editor",
+        "main-gate",
+        "corridor"
+      ],
+      "components": {
+        "world.path": {
+          "pathType": "road",
+          "points": [
+            [
+              0,
+              0,
+              -38
+            ],
+            [
+              0,
+              0,
+              28
+            ]
+          ],
+          "widthMeters": 28,
+          "closed": false
+        }
+      },
+      "metadata": {
+        "production": {
+          "owner": "main-gate",
+          "id": "main_gate_approach",
+          "kind": "ROAD",
+          "role": "corridor"
+        }
+      }
+    },
+    {
+      "id": "entity.main-gate.sosung-north-sidewalk-west",
+      "name": "소성로 북측 보도 · 서",
+      "kind": "path",
+      "parentId": null,
+      "enabled": true,
+      "transform": {
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "tags": [
+        "inha-editor",
+        "main-gate",
+        "corridor"
+      ],
+      "components": {
+        "world.path": {
+          "pathType": "walkway",
+          "points": [
+            [
+              -70,
+              0,
+              -16
+            ],
+            [
+              -16,
+              0,
+              -16
+            ]
+          ],
+          "widthMeters": 4,
+          "closed": false
+        }
+      },
+      "metadata": {
+        "production": {
+          "owner": "main-gate",
+          "id": "sosung_north_sidewalk_west",
+          "kind": "PATH",
+          "role": "corridor"
+        }
+      }
+    },
+    {
+      "id": "entity.main-gate.sosung-north-sidewalk-east",
+      "name": "소성로 북측 보도 · 동",
+      "kind": "path",
+      "parentId": null,
+      "enabled": true,
+      "transform": {
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "tags": [
+        "inha-editor",
+        "main-gate",
+        "corridor"
+      ],
+      "components": {
+        "world.path": {
+          "pathType": "walkway",
+          "points": [
+            [
+              16,
+              0,
+              -16
+            ],
+            [
+              172,
+              0,
+              -16
+            ]
+          ],
+          "widthMeters": 4,
+          "closed": false
+        }
+      },
+      "metadata": {
+        "production": {
+          "owner": "main-gate",
+          "id": "sosung_north_sidewalk_east",
+          "kind": "PATH",
+          "role": "corridor"
+        }
+      }
+    },
+    {
+      "id": "entity.main-gate.sosung-south-sidewalk",
+      "name": "소성로 남측 보도",
+      "kind": "path",
+      "parentId": null,
+      "enabled": true,
+      "transform": {
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "tags": [
+        "inha-editor",
+        "main-gate",
+        "corridor"
+      ],
+      "components": {
+        "world.path": {
+          "pathType": "walkway",
+          "points": [
+            [
+              -70,
+              0,
+              -40
+            ],
+            [
+              172,
+              0,
+              -40
+            ]
+          ],
+          "widthMeters": 4,
+          "closed": false
+        }
+      },
+      "metadata": {
+        "production": {
+          "owner": "main-gate",
+          "id": "sosung_south_sidewalk",
+          "kind": "PATH",
+          "role": "corridor"
+        }
+      }
+    },
+    {
+      "id": "entity.main-gate.main-gate-pedestrian-exit",
+      "name": "정문 보행 출구",
+      "kind": "path",
+      "parentId": null,
+      "enabled": true,
+      "transform": {
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "tags": [
+        "inha-editor",
+        "main-gate",
+        "corridor"
+      ],
+      "components": {
+        "world.path": {
+          "pathType": "walkway",
+          "points": [
+            [
+              27.4,
+              0,
+              24
+            ],
+            [
+              27.4,
+              0,
+              22
+            ],
+            [
+              21.4,
+              0,
+              14
+            ],
+            [
+              17.4,
+              0,
+              0
+            ],
+            [
+              17.4,
+              0,
+              -16
+            ],
+            [
+              22,
+              0,
+              -16
+            ]
+          ],
+          "widthMeters": 2.4,
+          "closed": false
+        }
+      },
+      "metadata": {
+        "production": {
+          "owner": "main-gate",
+          "id": "main_gate_pedestrian_exit",
+          "kind": "PATH",
+          "role": "corridor"
+        }
+      }
+    },
+    {
+      "id": "entity.main-gate.sosung-crossing-west",
+      "name": "소성로 횡단보도 · 서",
+      "kind": "path",
+      "parentId": null,
+      "enabled": true,
+      "transform": {
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "tags": [
+        "inha-editor",
+        "main-gate",
+        "crossing"
+      ],
+      "components": {
+        "world.path": {
+          "pathType": "walkway",
+          "points": [
+            [
+              -22,
+              0,
+              -16
+            ],
+            [
+              -22,
+              0,
+              -40
+            ]
+          ],
+          "widthMeters": 5.6,
+          "closed": false
+        }
+      },
+      "metadata": {
+        "production": {
+          "owner": "main-gate",
+          "id": "sosung_crossing_west",
+          "kind": "PATH",
+          "role": "crossing"
+        }
+      }
+    },
+    {
+      "id": "entity.main-gate.sosung-crossing-east",
+      "name": "소성로 횡단보도 · 동",
+      "kind": "path",
+      "parentId": null,
+      "enabled": true,
+      "transform": {
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "tags": [
+        "inha-editor",
+        "main-gate",
+        "crossing"
+      ],
+      "components": {
+        "world.path": {
+          "pathType": "walkway",
+          "points": [
+            [
+              22,
+              0,
+              -16
+            ],
+            [
+              22,
+              0,
+              -40
+            ]
+          ],
+          "widthMeters": 5.6,
+          "closed": false
+        }
+      },
+      "metadata": {
+        "production": {
+          "owner": "main-gate",
+          "id": "sosung_crossing_east",
+          "kind": "PATH",
+          "role": "crossing"
+        }
+      }
+    },
+    {
+      "id": "entity.main-gate.main-gate-inner-zebra",
+      "name": "정문 내부 횡단보도",
+      "kind": "path",
+      "parentId": null,
+      "enabled": true,
+      "transform": {
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "tags": [
+        "inha-editor",
+        "main-gate",
+        "inner-zebra"
+      ],
+      "components": {
+        "world.path": {
+          "pathType": "custom",
+          "points": [
+            [
+              0,
+              0,
+              -12.5
+            ],
+            [
+              0,
+              0,
+              -7.5
+            ]
+          ],
+          "widthMeters": 23.3,
+          "closed": false
+        }
+      },
+      "metadata": {
+        "production": {
+          "owner": "main-gate",
+          "id": "main_gate_inner_zebra",
+          "kind": "DECAL",
+          "role": "inner-zebra"
+        }
+      }
+    },
+    {
+      "id": "entity.main-gate.dorm1-entry-path",
+      "name": "제1생활관 진입 보행로",
+      "kind": "path",
+      "parentId": null,
+      "enabled": true,
+      "transform": {
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "tags": [
+        "inha-editor",
+        "main-gate",
+        "dorm1",
+        "corridor"
+      ],
+      "components": {
+        "world.path": {
+          "pathType": "walkway",
+          "points": [
+            [
+              78,
+              0,
+              -40
+            ],
+            [
+              77.865897,
+              0,
+              -40.116588
+            ],
+            [
+              78.3039,
+              0,
+              -52.809033
+            ]
+          ],
+          "widthMeters": 5.6,
+          "closed": false
+        }
+      },
+      "metadata": {
+        "production": {
+          "owner": "main-gate",
+          "id": "dorm1_entry_path",
+          "kind": "PATH",
+          "role": "corridor"
+        }
+      }
+    },
+    {
+      "id": "entity.main-gate.gate-traffic-island-base",
+      "name": "정문 교통섬 · 기단",
+      "kind": "structure",
+      "parentId": null,
+      "enabled": true,
+      "transform": {
+        "position": [
+          -4,
+          0.097,
+          14
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "tags": [
+        "inha-editor",
+        "main-gate",
+        "structure",
+        "traffic-island"
+      ],
+      "components": {
+        "world.structure": {
+          "shape": "box",
+          "sizeMeters": [
+            1.8,
+            0.106,
+            8
+          ],
+          "color": "#cac9b8"
+        }
+      },
+      "metadata": {
+        "production": {
+          "owner": "main-gate",
+          "id": "gate_traffic_island_base",
+          "kind": "STRUCTURE",
+          "role": "traffic-island"
+        }
+      }
+    },
+    {
+      "id": "entity.main-gate.gate-traffic-island-green",
+      "name": "정문 교통섬 · 회색 포장",
+      "kind": "structure",
+      "parentId": null,
+      "enabled": true,
+      "transform": {
+        "position": [
+          -4,
+          0.156,
+          14
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "tags": [
+        "inha-editor",
+        "main-gate",
+        "structure",
+        "traffic-island"
+      ],
+      "components": {
+        "world.structure": {
+          "shape": "box",
+          "sizeMeters": [
+            1.3,
+            0.012,
+            7.3
+          ],
+          "color": "#bcbfbc"
+        }
+      },
+      "metadata": {
+        "production": {
+          "owner": "main-gate",
+          "id": "gate_traffic_island_green",
+          "kind": "STRUCTURE",
+          "role": "traffic-island"
+        },
+        "referenceNote": "Gray paved island observed in supplied roadview. Legacy production ID retained for compatibility; footprint unchanged."
+      }
+    },
+    {
+      "id": "entity.main-gate.gate-security-booth",
+      "name": "정문 경비실 · 본체",
+      "kind": "structure",
+      "parentId": null,
+      "enabled": true,
+      "transform": {
+        "position": [
+          27,
+          2.4,
+          6.2
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "tags": [
+        "inha-editor",
+        "main-gate",
+        "structure",
+        "guardhouse"
+      ],
+      "components": {
+        "world.structure": {
+          "shape": "box",
+          "sizeMeters": [
+            8,
+            4.8,
+            7.6
+          ],
+          "color": "#9c7864"
+        }
+      },
+      "metadata": {
+        "production": {
+          "owner": "main-gate",
+          "id": "gate_security_booth",
+          "kind": "STRUCTURE",
+          "role": "guardhouse",
+          "collisionHeightMeters": 5
+        }
+      }
+    },
+    {
+      "id": "entity.main-gate.gate-wall-west",
+      "name": "정문 서측 벽 · 본체",
+      "kind": "structure",
+      "parentId": null,
+      "enabled": true,
+      "transform": {
+        "position": [
+          -32,
+          1.5,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "tags": [
+        "inha-editor",
+        "main-gate",
+        "structure",
+        "gate-wall"
+      ],
+      "components": {
+        "world.structure": {
+          "shape": "box",
+          "sizeMeters": [
+            32,
+            3,
+            2.4
+          ],
+          "color": "#c9c3b5"
+        }
+      },
+      "metadata": {
+        "production": {
+          "owner": "main-gate",
+          "id": "gate_wall_-1",
+          "kind": "STRUCTURE",
+          "role": "gate-wall",
+          "collisionHeightMeters": 3.2
+        }
+      }
+    },
+    {
+      "id": "entity.main-gate.gate-wall-west-cap",
+      "name": "정문 서측 벽 · 상단",
+      "kind": "structure",
+      "parentId": null,
+      "enabled": true,
+      "transform": {
+        "position": [
+          -32,
+          3.1,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "tags": [
+        "inha-editor",
+        "main-gate",
+        "structure",
+        "gate-wall",
+        "cap"
+      ],
+      "components": {
+        "world.structure": {
+          "shape": "box",
+          "sizeMeters": [
+            32,
+            0.2,
+            2.4
+          ],
+          "color": "#49545a"
+        }
+      },
+      "metadata": {
+        "production": {
+          "owner": "main-gate",
+          "id": "gate_wall_-1_cap",
+          "kind": "STRUCTURE",
+          "role": "gate-wall-cap"
+        }
+      }
+    },
+    {
+      "id": "entity.main-gate.gate-wall-east",
+      "name": "정문 동측 벽 · 본체",
+      "kind": "structure",
+      "parentId": null,
+      "enabled": true,
+      "transform": {
+        "position": [
+          33.5,
+          1.5,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "tags": [
+        "inha-editor",
+        "main-gate",
+        "structure",
+        "gate-wall"
+      ],
+      "components": {
+        "world.structure": {
+          "shape": "box",
+          "sizeMeters": [
+            29,
+            3,
+            2.4
+          ],
+          "color": "#c9c3b5"
+        }
+      },
+      "metadata": {
+        "production": {
+          "owner": "main-gate",
+          "id": "gate_wall_1",
+          "kind": "STRUCTURE",
+          "role": "gate-wall",
+          "collisionHeightMeters": 3.2
+        }
+      }
+    },
+    {
+      "id": "entity.main-gate.gate-wall-east-cap",
+      "name": "정문 동측 벽 · 상단",
+      "kind": "structure",
+      "parentId": null,
+      "enabled": true,
+      "transform": {
+        "position": [
+          33.5,
+          3.1,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "tags": [
+        "inha-editor",
+        "main-gate",
+        "structure",
+        "gate-wall",
+        "cap"
+      ],
+      "components": {
+        "world.structure": {
+          "shape": "box",
+          "sizeMeters": [
+            29,
+            0.2,
+            2.4
+          ],
+          "color": "#49545a"
+        }
+      },
+      "metadata": {
+        "production": {
+          "owner": "main-gate",
+          "id": "gate_wall_1_cap",
+          "kind": "STRUCTURE",
+          "role": "gate-wall-cap"
+        }
+      }
+    },
+    {
+      "id": "entity.main-gate.gate-curb-west",
+      "name": "정문 서측 곡선 연석",
+      "kind": "path",
+      "parentId": null,
+      "enabled": true,
+      "transform": {
+        "position": [
+          0,
+          0.13,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "tags": [
+        "inha-editor",
+        "main-gate",
+        "curb-return"
+      ],
+      "components": {
+        "world.path": {
+          "pathType": "custom",
+          "points": [
+            [
+              -16,
+              0,
+              -14
+            ],
+            [
+              -16,
+              0,
+              0
+            ],
+            [
+              -20,
+              0,
+              14
+            ],
+            [
+              -26,
+              0,
+              22
+            ]
+          ],
+          "widthMeters": 0.4,
+          "closed": false
+        }
+      },
+      "metadata": {
+        "production": {
+          "owner": "main-gate",
+          "id": "gate_curb_west",
+          "kind": "PATH",
+          "role": "curb-return",
+          "side": -1
+        }
+      }
+    },
+    {
+      "id": "entity.main-gate.gate-curb-east",
+      "name": "정문 동측 곡선 연석",
+      "kind": "path",
+      "parentId": null,
+      "enabled": true,
+      "transform": {
+        "position": [
+          0,
+          0.13,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "tags": [
+        "inha-editor",
+        "main-gate",
+        "curb-return"
+      ],
+      "components": {
+        "world.path": {
+          "pathType": "custom",
+          "points": [
+            [
+              16,
+              0,
+              -14
+            ],
+            [
+              16,
+              0,
+              0
+            ],
+            [
+              20,
+              0,
+              14
+            ],
+            [
+              26,
+              0,
+              22
+            ]
+          ],
+          "widthMeters": 0.4,
+          "closed": false
+        }
+      },
+      "metadata": {
+        "production": {
+          "owner": "main-gate",
+          "id": "gate_curb_east",
+          "kind": "PATH",
+          "role": "curb-return",
+          "side": 1
+        }
+      }
+    },
+    {
+      "id": "entity.main-gate.gate-booth-roof-fascia",
+      "name": "경비실 · 지붕 파시아",
+      "kind": "structure",
+      "parentId": null,
+      "enabled": true,
+      "transform": {
+        "position": [
+          27,
+          4.9,
+          6.2
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "tags": [
+        "inha-editor",
+        "main-gate",
+        "structure",
+        "guardhouse-detail"
+      ],
+      "components": {
+        "world.structure": {
+          "shape": "box",
+          "sizeMeters": [
+            8.8,
+            0.48,
+            8.4
+          ],
+          "color": "#eeeadd"
+        }
+      },
+      "metadata": {
+        "production": {
+          "owner": "main-gate",
+          "id": "gate_booth_roof_fascia",
+          "kind": "STRUCTURE",
+          "role": "guardhouse-detail"
+        }
+      }
+    },
+    {
+      "id": "entity.main-gate.gate-booth-front-glass",
+      "name": "경비실 · 전면 유리",
+      "kind": "structure",
+      "parentId": null,
+      "enabled": true,
+      "transform": {
+        "position": [
+          27,
+          2.7,
+          2.32
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "tags": [
+        "inha-editor",
+        "main-gate",
+        "structure",
+        "guardhouse-detail"
+      ],
+      "components": {
+        "world.structure": {
+          "shape": "box",
+          "sizeMeters": [
+            5.6,
+            1.8,
+            0.16
+          ],
+          "color": "#345260"
+        }
+      },
+      "metadata": {
+        "production": {
+          "owner": "main-gate",
+          "id": "gate_booth_front_glass",
+          "kind": "STRUCTURE",
+          "role": "guardhouse-detail"
+        }
+      }
+    },
+    {
+      "id": "entity.main-gate.gate-booth-side-panel",
+      "name": "경비실 · 측면 패널",
+      "kind": "structure",
+      "parentId": null,
+      "enabled": true,
+      "transform": {
+        "position": [
+          22.92,
+          1.8,
+          7.8
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "tags": [
+        "inha-editor",
+        "main-gate",
+        "structure",
+        "guardhouse-detail"
+      ],
+      "components": {
+        "world.structure": {
+          "shape": "box",
+          "sizeMeters": [
+            0.16,
+            3.6,
+            1.7
+          ],
+          "color": "#34494b"
+        }
+      },
+      "metadata": {
+        "production": {
+          "owner": "main-gate",
+          "id": "gate_booth_side_panel",
+          "kind": "STRUCTURE",
+          "role": "guardhouse-detail"
+        }
+      }
+    },
+    {
+      "id": "entity.main-gate.gate-booth-detail-fascia",
+      "name": "경비실 · 전면 파시아",
+      "kind": "structure",
+      "parentId": null,
+      "enabled": true,
+      "transform": {
+        "position": [
+          27,
+          4.3,
+          2.2
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "tags": [
+        "inha-editor",
+        "main-gate",
+        "structure",
+        "guardhouse-detail"
+      ],
+      "components": {
+        "world.structure": {
+          "shape": "box",
+          "sizeMeters": [
+            7.8,
+            0.54,
+            0.24
+          ],
+          "color": "#dadbd1"
+        }
+      },
+      "metadata": {
+        "production": {
+          "owner": "main-gate",
+          "id": "gate_booth_detail_fascia",
+          "kind": "STRUCTURE",
+          "role": "guardhouse-detail"
+        }
+      }
+    },
+    {
+      "id": "entity.main-gate.gate-booth-roof-trim",
+      "name": "경비실 · 지붕 트림",
+      "kind": "structure",
+      "parentId": null,
+      "enabled": true,
+      "transform": {
+        "position": [
+          27,
+          4.96,
+          6.2
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "tags": [
+        "inha-editor",
+        "main-gate",
+        "structure",
+        "guardhouse-detail"
+      ],
+      "components": {
+        "world.structure": {
+          "shape": "box",
+          "sizeMeters": [
+            9,
+            0.18,
+            8.6
+          ],
+          "color": "#536462"
+        }
+      },
+      "metadata": {
+        "production": {
+          "owner": "main-gate",
+          "id": "gate_booth_roof_trim",
+          "kind": "STRUCTURE",
+          "role": "guardhouse-detail"
+        }
+      }
+    },
+    {
+      "id": "entity.main-gate.gate-booth-window-bar-0",
+      "name": "경비실 · 창 프레임 1",
+      "kind": "structure",
+      "parentId": null,
+      "enabled": true,
+      "transform": {
+        "position": [
+          24.1,
+          2.7,
+          2.2
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "tags": [
+        "inha-editor",
+        "main-gate",
+        "structure",
+        "guardhouse-detail"
+      ],
+      "components": {
+        "world.structure": {
+          "shape": "box",
+          "sizeMeters": [
+            0.11,
+            1.84,
+            0.14
+          ],
+          "color": "#c9cfc7"
+        }
+      },
+      "metadata": {
+        "production": {
+          "owner": "main-gate",
+          "id": "gate_booth_window_bar_0",
+          "kind": "STRUCTURE",
+          "role": "guardhouse-detail"
+        }
+      }
+    },
+    {
+      "id": "entity.main-gate.gate-booth-window-bar-1",
+      "name": "경비실 · 창 프레임 2",
+      "kind": "structure",
+      "parentId": null,
+      "enabled": true,
+      "transform": {
+        "position": [
+          26,
+          2.7,
+          2.2
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "tags": [
+        "inha-editor",
+        "main-gate",
+        "structure",
+        "guardhouse-detail"
+      ],
+      "components": {
+        "world.structure": {
+          "shape": "box",
+          "sizeMeters": [
+            0.11,
+            1.84,
+            0.14
+          ],
+          "color": "#c9cfc7"
+        }
+      },
+      "metadata": {
+        "production": {
+          "owner": "main-gate",
+          "id": "gate_booth_window_bar_1",
+          "kind": "STRUCTURE",
+          "role": "guardhouse-detail"
+        }
+      }
+    },
+    {
+      "id": "entity.main-gate.gate-booth-window-bar-2",
+      "name": "경비실 · 창 프레임 3",
+      "kind": "structure",
+      "parentId": null,
+      "enabled": true,
+      "transform": {
+        "position": [
+          28,
+          2.7,
+          2.2
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "tags": [
+        "inha-editor",
+        "main-gate",
+        "structure",
+        "guardhouse-detail"
+      ],
+      "components": {
+        "world.structure": {
+          "shape": "box",
+          "sizeMeters": [
+            0.11,
+            1.84,
+            0.14
+          ],
+          "color": "#c9cfc7"
+        }
+      },
+      "metadata": {
+        "production": {
+          "owner": "main-gate",
+          "id": "gate_booth_window_bar_2",
+          "kind": "STRUCTURE",
+          "role": "guardhouse-detail"
+        }
+      }
+    },
+    {
+      "id": "entity.main-gate.gate-booth-window-bar-3",
+      "name": "경비실 · 창 프레임 4",
+      "kind": "structure",
+      "parentId": null,
+      "enabled": true,
+      "transform": {
+        "position": [
+          29.9,
+          2.7,
+          2.2
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "tags": [
+        "inha-editor",
+        "main-gate",
+        "structure",
+        "guardhouse-detail"
+      ],
+      "components": {
+        "world.structure": {
+          "shape": "box",
+          "sizeMeters": [
+            0.11,
+            1.84,
+            0.14
+          ],
+          "color": "#c9cfc7"
+        }
+      },
+      "metadata": {
+        "production": {
+          "owner": "main-gate",
+          "id": "gate_booth_window_bar_3",
+          "kind": "STRUCTURE",
+          "role": "guardhouse-detail"
+        }
+      }
+    },
+    {
+      "id": "entity.main-gate.gate-booth-window-horizontal",
+      "name": "경비실 · 창 가로 프레임",
+      "kind": "structure",
+      "parentId": null,
+      "enabled": true,
+      "transform": {
+        "position": [
+          27,
+          2.7,
+          2.16
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "tags": [
+        "inha-editor",
+        "main-gate",
+        "structure",
+        "guardhouse-detail"
+      ],
+      "components": {
+        "world.structure": {
+          "shape": "box",
+          "sizeMeters": [
+            5.8,
+            0.09,
+            0.14
+          ],
+          "color": "#c9cfc7"
+        }
+      },
+      "metadata": {
+        "production": {
+          "owner": "main-gate",
+          "id": "gate_booth_window_horizontal",
+          "kind": "STRUCTURE",
+          "role": "guardhouse-detail"
+        }
+      }
+    },
+    {
+      "id": "entity.main-gate.gate-booth-plinth-0",
+      "name": "경비실 · 기단 줄 1",
+      "kind": "structure",
+      "parentId": null,
+      "enabled": true,
+      "transform": {
+        "position": [
+          27,
+          0.6,
+          2.37
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "tags": [
+        "inha-editor",
+        "main-gate",
+        "structure",
+        "guardhouse-detail"
+      ],
+      "components": {
+        "world.structure": {
+          "shape": "box",
+          "sizeMeters": [
+            7.6,
+            0.05,
+            0.04
+          ],
+          "color": "#b69883"
+        }
+      },
+      "metadata": {
+        "production": {
+          "owner": "main-gate",
+          "id": "gate_booth_plinth_0",
+          "kind": "STRUCTURE",
+          "role": "guardhouse-detail"
+        }
+      }
+    },
+    {
+      "id": "entity.main-gate.gate-booth-plinth-1",
+      "name": "경비실 · 기단 줄 2",
+      "kind": "structure",
+      "parentId": null,
+      "enabled": true,
+      "transform": {
+        "position": [
+          27,
+          1.2,
+          2.37
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "tags": [
+        "inha-editor",
+        "main-gate",
+        "structure",
+        "guardhouse-detail"
+      ],
+      "components": {
+        "world.structure": {
+          "shape": "box",
+          "sizeMeters": [
+            7.6,
+            0.05,
+            0.04
+          ],
+          "color": "#b69883"
+        }
+      },
+      "metadata": {
+        "production": {
+          "owner": "main-gate",
+          "id": "gate_booth_plinth_1",
+          "kind": "STRUCTURE",
+          "role": "guardhouse-detail"
+        }
+      }
+    },
+    {
+      "id": "entity.main-gate.gate-booth-plinth-2",
+      "name": "경비실 · 기단 줄 3",
+      "kind": "structure",
+      "parentId": null,
+      "enabled": true,
+      "transform": {
+        "position": [
+          27,
+          1.8,
+          2.37
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "tags": [
+        "inha-editor",
+        "main-gate",
+        "structure",
+        "guardhouse-detail"
+      ],
+      "components": {
+        "world.structure": {
+          "shape": "box",
+          "sizeMeters": [
+            7.6,
+            0.05,
+            0.04
+          ],
+          "color": "#b69883"
+        }
+      },
+      "metadata": {
+        "production": {
+          "owner": "main-gate",
+          "id": "gate_booth_plinth_2",
+          "kind": "STRUCTURE",
+          "role": "guardhouse-detail"
+        }
+      }
+    },
+    {
+      "id": "entity.main-gate.inner-red-promenade",
+      "name": "정문 안쪽 붉은 횡단 보행로",
+      "kind": "path",
+      "parentId": null,
+      "enabled": true,
+      "transform": {
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "tags": [
+        "inha-editor",
+        "main-gate",
+        "corridor"
+      ],
+      "components": {
+        "world.path": {
+          "pathType": "walkway",
+          "points": [
+            [
+              -25.8,
+              0,
+              24
+            ],
+            [
+              25.8,
+              0,
+              24
+            ]
+          ],
+          "widthMeters": 4,
+          "closed": false
+        }
+      },
+      "metadata": {
+        "production": {
+          "owner": "main-gate",
+          "id": "main_gate_red_promenade",
+          "kind": "PATH",
+          "role": "red-promenade"
+        },
+        "referenceNote": "User supplied Naver satellite and roadview screenshots, 2026-10-02. Approximate visual fit, not surveyed dimensions."
+      }
+    }
+  ],
+  "metadata": {
+    "canonicalRole": "production-main-gate-authoring",
+    "productionAdapter": "main-gate-v1",
+    "coordinateFrame": "gate-local-meters",
+    "metersPerWorldUnit": 2,
+    "note": "Open from /editor/ with Open Main Gate. Exported world.json is the production authoring source."
+  }
+}

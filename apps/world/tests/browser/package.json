@@ -1,0 +1,13 @@
+{
+  "name": "inha-world-browser-smoke",
+  "private": true,
+  "type": "module",
+  "description": "World browser boot smoke gate (CI only; not part of the deployed app).",
+  "scripts": {
+    "smoke": "node boot-smoke.mjs"
+  },
+  "devDependencies": {
+    "playcanvas": "2.22.4",
+    "playwright": "1.63.0"
+  }
+}

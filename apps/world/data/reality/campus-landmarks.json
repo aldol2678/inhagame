@@ -1,0 +1,251 @@
+{
+  "schemaVersion": 1,
+  "coordinateSystem": {
+    "datum": "WGS84",
+    "positionUnit": "degrees (lat/lon)",
+    "dimensionUnit": "metres",
+    "note": "All coordinates and physical dimensions are in real-world units. Game engine world coordinates must be derived at runtime via a coordinate adapter."
+  },
+  "landmarks": [
+    {
+      "id": "lmk_main_gate",
+      "officialName": "정문",
+      "officialNameEn": null,
+      "type": "gate",
+      "lat": 37.44770,
+      "lon": 126.65319,
+      "notes": "Main campus entrance on the eastern boundary along 인하로 (Inha-ro).",
+      "provenance": {
+        "officialName": { "accuracy": "verified", "sourceId": "inha_official_campus_map" },
+        "position": { "accuracy": "verified", "sourceId": "osm_node_4741793208" }
+      }
+    },
+    {
+      "id": "lmk_agora_plaza",
+      "officialName": "아고라 광장",
+      "officialNameEn": null,
+      "type": "plaza",
+      "lat": 37.449281,
+      "lon": 126.656140,
+      "polygon": [
+        [37.4494092, 126.6560677],
+        [37.4493610, 126.6561964],
+        [37.4493190, 126.6562367],
+        [37.4492707, 126.6562418],
+        [37.4492161, 126.6562290],
+        [37.4490902, 126.6561542],
+        [37.4491747, 126.6559284],
+        [37.4494092, 126.6560677]
+      ],
+      "notes": "Open plaza enclosed by the ㄷ-shaped formation of 6호관 (north/east) and 9호관 (south). Used for campus cultural events including the annual World Food Festival.",
+      "evidence": [
+        {
+          "claim": "Agora Plaza is an officially named campus location",
+          "sourceId": "inha_wifi_coverage",
+          "quote": "잔디밭, 후문 벤치, 학생회관 광장, 아고라 광장 등과 대형강의실에 무선 네트워크 서비스를 시작하였습니다",
+          "url": "https://internet.inha.ac.kr/internet/11475/subview.do"
+        },
+        {
+          "claim": "Agora Plaza is the space formed by the ㄷ-shape of 6호관 and 9호관",
+          "sourceId": "namu_wiki_campus",
+          "quote": "6, 9호관이 형성하는 ㄷ자 모양의 가운데가 아고라 광장이다",
+          "url": "https://namu.wiki/w/%EC%9D%B8%ED%95%98%EB%8C%80%ED%95%99%EA%B5%90/%EC%BA%A0%ED%8D%BC%EC%8A%A4%20%EB%B0%8F%20%EC%8B%9C%EC%84%A4"
+        },
+        {
+          "claim": "Agora Plaza exists as a named geographic feature in Yonghyeon-dong",
+          "sourceId": "cartogiraffe_agora",
+          "url": "https://www.cartogiraffe.com/%EB%8C%80%ED%95%9C%EB%AF%BC%EA%B5%AD/%EC%9D%B8%EC%B2%9C%EA%B4%91%EC%97%AD%EC%8B%9C/%EB%AF%B8%EC%B6%94%ED%99%80%EA%B5%AC/%EC%9A%A9%ED%98%841%C2%B74%EB%8F%99/%EC%95%84%EA%B3%A0%EB%9D%BC+%EA%B4%91%EC%9E%A5/"
+        },
+        {
+          "claim": "Agora Plaza is mapped with a geographic polygon",
+          "sourceId": "osm_way_1099894035",
+          "url": "https://www.openstreetmap.org/way/1099894035"
+        }
+      ],
+      "provenance": {
+        "officialName": { "accuracy": "verified", "sourceId": "inha_wifi_coverage" },
+        "position": { "accuracy": "derived", "sourceId": "osm_way_1099894035", "method": "polygon-centroid" },
+        "polygon": { "accuracy": "verified", "sourceId": "osm_way_1099894035" }
+      }
+    },
+    {
+      "id": "lmk_inkyung_pond",
+      "officialName": "인경호",
+      "officialNameEn": "In-Kung Pond",
+      "type": "water",
+      "lat": 37.449664980476,
+      "lon": 126.65596360247206,
+      "notes": "Prominent pond located centrally on campus, featuring a small island and gazebo.",
+      "provenance": {
+        "officialName": {
+          "accuracy": "verified",
+          "sourceId": "inha_oldenburg_campus_map"
+        },
+        "officialNameEn": {
+          "accuracy": "verified",
+          "sourceId": "inha_oldenburg_campus_map"
+        },
+        "polygon": {
+          "accuracy": "verified",
+          "sourceId": "osm_way_218264623",
+          "sourceVersion": 7,
+          "sourceTimestamp": "2017-03-18T17:04:18Z",
+          "promotionRule": "RULE_B",
+          "corroboratingSourceIds": [
+            "inha_official_campus_map",
+            "inha_oldenburg_campus_map"
+          ],
+          "evidencePath": "evidence/p2-02b/pond-source.json"
+        },
+        "position": {
+          "accuracy": "derived",
+          "sourceId": "osm_way_218264623",
+          "method": "area-weighted-shoelace-centroid-in-campus-equirectangular-projection"
+        },
+        "polygonArea": {
+          "accuracy": "derived",
+          "sourceId": "osm_way_218264623",
+          "method": "shoelace-area-in-campus-equirectangular-metres"
+        },
+        "polygonBounds": {
+          "accuracy": "derived",
+          "sourceId": "osm_way_218264623",
+          "method": "min-max-of-source-WGS84-vertices"
+        }
+      },
+      "polygon": [
+        [
+          37.4501596,
+          126.6561144
+        ],
+        [
+          37.4500732,
+          126.6563875
+        ],
+        [
+          37.4492675,
+          126.6559039
+        ],
+        [
+          37.449236,
+          126.6558375
+        ],
+        [
+          37.4493481,
+          126.6555556
+        ],
+        [
+          37.449444,
+          126.6555303
+        ],
+        [
+          37.4495302,
+          126.6556041
+        ],
+        [
+          37.4495863,
+          126.6556973
+        ],
+        [
+          37.4496535,
+          126.6558446
+        ],
+        [
+          37.4497712,
+          126.6559424
+        ],
+        [
+          37.4498418,
+          126.6559751
+        ],
+        [
+          37.4499454,
+          126.6560225
+        ],
+        [
+          37.4500913,
+          126.656067
+        ],
+        [
+          37.4501596,
+          126.6561144
+        ]
+      ],
+      "polygonArea_sqm": 2830.1351002840374,
+      "polygonBounds": {
+        "minLat": 37.449236,
+        "maxLat": 37.4501596,
+        "minLon": 126.6555303,
+        "maxLon": 126.6563875
+      }
+    },
+    {
+      "id": "lmk_biryong_tower",
+      "officialName": "비룡탑",
+      "officialNameEn": "Flying Dragon Tower",
+      "type": "monument",
+      "lat": null,
+      "lon": null,
+      "notes": "Statue/tower of a flying dragon, the symbol of Inha University.",
+      "provenance": {
+        "officialName": { "accuracy": "estimated", "sourceId": "namu_wiki_campus", "note": "Widely known campus symbol (Flying Dragon Tower); Korean name from community documentation" },
+        "officialNameEn": { "accuracy": "verified", "sourceId": "inha_oldenburg_campus_map" }
+      }
+    },
+    {
+      "id": "lmk_matching_tree",
+      "officialName": "궁합나무",
+      "officialNameEn": "Matching Tree",
+      "type": "natural",
+      "lat": null,
+      "lon": null,
+      "notes": "Named tree on campus lawn, popular landmark.",
+      "provenance": {
+        "officialName": { "accuracy": "estimated", "sourceId": "namu_wiki_campus", "note": "Campus tree landmark (Matching Tree); Korean name from community documentation" },
+        "officialNameEn": { "accuracy": "verified", "sourceId": "inha_oldenburg_campus_map" }
+      }
+    },
+    {
+      "id": "lmk_echo_stone",
+      "officialName": "울림돌",
+      "officialNameEn": "Echo Stone",
+      "type": "monument",
+      "lat": null,
+      "lon": null,
+      "notes": null,
+      "provenance": {
+        "officialName": { "accuracy": "estimated", "sourceId": "namu_wiki_campus", "note": "Campus landmark (Echo Stone); Korean name from community documentation" },
+        "officialNameEn": { "accuracy": "verified", "sourceId": "inha_oldenburg_campus_map" }
+      }
+    },
+    {
+      "id": "lmk_jungseok_fiveway",
+      "officialName": "정석오거리",
+      "officialNameEn": "Jungseok Five-Way",
+      "type": "intersection",
+      "lat": null,
+      "lon": null,
+      "notes": "Named five-way intersection on campus, located near the Jungseok Memorial Library.",
+      "provenance": {
+        "officialName": { "accuracy": "estimated", "sourceId": "inha_oldenburg_campus_map", "note": "Korean name inferred from English label on Oldenburg map" },
+        "officialNameEn": { "accuracy": "verified", "sourceId": "inha_oldenburg_campus_map" }
+      }
+    },
+    {
+      "id": "lmk_woonam_road",
+      "officialName": "우남로",
+      "officialNameEn": null,
+      "type": "road",
+      "lat": null,
+      "lon": null,
+      "width_m": 6,
+      "length_m": 260,
+      "notes": "Traditional tree-lined pedestrian avenue connecting the historic western entrance toward the central campus and Agora Plaza.",
+      "provenance": {
+        "officialName": { "accuracy": "estimated", "sourceId": "namu_wiki_campus", "note": "Traditional campus road name connecting old gate to agora plaza; from community documentation" },
+        "width": { "accuracy": "estimated", "sourceId": "namu_wiki_campus", "note": "Namu Wiki states '폭 6m'" },
+        "length": { "accuracy": "estimated", "sourceId": "namu_wiki_campus", "note": "Namu Wiki states '길이 260m'" }
+      }
+    }
+  ]
+}
