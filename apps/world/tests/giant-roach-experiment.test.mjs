@@ -30,7 +30,7 @@ test('roach visuals use one shared low-poly mesh and one render component per en
   assert.doesNotMatch(exp,/addComponent\('render',\{type:'sphere'\}\)/);
 });
 
-test('P1 roach quality keeps one shared mesh while adding silhouette, tones and crawl motion',()=>{
+test('P2 preserves shared mesh rendering while increasing silhouette and crawl detail',()=>{
   assert.match(exp,/GIANT_ROACH_TRIANGLES = 768/);
   assert.match(exp,/diffuseVertexColor = true/);
   assert.match(exp,/ROACH_COLOR/);
@@ -38,20 +38,23 @@ test('P1 roach quality keeps one shared mesh while adding silhouette, tones and 
   assert.match(exp,/const legs=\[/);
   assert.match(exp,/ROACH_COLOR\.seam/);
   assert.match(exp,/renderHeading/);
-  assert.match(exp,/const bob=Math\.abs\(Math\.sin\(phase\)\)\*\.035/);
+  assert.match(exp,/const bob=moving\?Math\.abs\(Math\.sin\(phase\)\)\*\.040/);
   assert.match(exp,/estimatedRoachTriangles:roaches\.length\*GIANT_ROACH_TRIANGLES/);
 });
 
-test('P1 surface quality uses rounded body rings and readable vertex color',()=>{
-  assert.match(exp,/Math\.PI\*\.25,Math\.PI\*\.5,Math\.PI\*\.75/);
+test('P2 surface quality uses five rounded body rings and readable vertex color',()=>{
+  assert.match(exp,/Math\.PI\/6,Math\.PI\/3,Math\.PI\/2,Math\.PI\*2\/3,Math\.PI\*5\/6/);
   assert.match(exp,/m\.useLighting = false/);
   assert.match(exp,/diffuseVertexColor = true/);
 });
 
-test('P1 vertex colors use RGBA8 for pc.createMesh Geometry',()=>{
-  assert.match(exp,/abdomen: \[180,72,26,255\]/);
-  assert.match(exp,/thorax: \[128,45,15,255\]/);
-  assert.match(exp,/limb: \[48,14,5,255\]/);
+test('P2 vertex colors use RGBA8 for pc.createMesh Geometry',()=>{
+  assert.match(exp,/abdomen: \[184,76,28,255\]/);
+  assert.match(exp,/abdomenBand: \[148,52,18,255\]/);
+  assert.match(exp,/thorax: \[132,46,16,255\]/);
+  assert.match(exp,/elytra: \[164,60,20,255\]/);
+  assert.match(exp,/limb: \[45,13,5,255\]/);
+  assert.match(exp,/cerci: \[62,18,7,255\]/);
 });
 
 test('P2 roach mesh raises detail while preserving shared-render budget',()=>{
