@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { npcTopicLabel } from '../npc-factory/npc-dialogue-session.mjs';
+import { withAnd } from '../npc-factory/npc-korean-label.mjs';
 
 const runtime = readFileSync(new URL('../npc-factory/dev-runtime.mjs', import.meta.url), 'utf8');
 const base = JSON.parse(readFileSync(new URL('../npc-factory/data/repaired/INKYUNG-20-A-R1.json', import.meta.url), 'utf8'));
@@ -44,4 +45,14 @@ test('shared schedule movement does not disable or instantly close nearby NPC di
   assert.match(runtime, /if \(state && !state\.visible\) closeConversation\(false\);/);
   assert.doesNotMatch(runtime, /if \(state && \(!state\.visible \|\| state\.moving\)\) closeConversation\(false\);/);
   assert.match(runtime, /NPC_CONVERSATION_RELEASE_RADIUS/, 'distance still owns automatic conversation release');
+});
+
+
+test('NPC context label keeps its Korean particle helper wired at runtime', () => {
+  assert.equal(withAnd('김민석'), '김민석과');
+  assert.equal(withAnd('가람'), '가람과');
+  assert.equal(withAnd('하나'), '하나와');
+  assert.equal(withAnd('NPC'), 'NPC와');
+  assert.match(runtime, /import \{ withAnd \} from '\.\/npc-korean-label\.mjs';/);
+  assert.match(runtime, /label: \`\$\{withAnd\(target\.actor\.name\)\} 대화\`/);
 });

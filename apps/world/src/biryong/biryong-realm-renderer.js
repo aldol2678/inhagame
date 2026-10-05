@@ -1,6 +1,7 @@
 // Outdoor P0 blockout for Biryong Station -> Biryong Village.
 // The geometry is deliberately primitive and replaceable; layout anchors/zones are the durable contract.
 import * as pc from "playcanvas";
+import { BIRYONG_STATION_BUILDING, BIRYONG_STATION_SURFACES } from "./biryong-realm-layout.js";
 import { box, surface } from "../campus-render-kit.js";
 import {
   BIRYONG_VILLAGE_ANCHORS,
@@ -42,10 +43,12 @@ export function createBiryongRealmScene(app) {
   box(root, "biryong_fields_preview_east", [56, -0.045, 104], [26, 0.05, 54], field);
 
   // Station slice retained from the region foundation.
-  box(root, "biryong_station_road", [0, -0.015, -12], [8, 0.03, 40], road);
-  box(root, "biryong_station_platform", [8, 0.04, -5], [12, 0.08, 24], platform);
-  box(root, "biryong_station_square", [0, 0.02, 11], [28, 0.04, 22], platform);
-  box(root, "biryong_station_building", [0, 2.2, 25], [20, 4.4, 8], stone);
+  for (const shape of BIRYONG_STATION_SURFACES) {
+    box(root, shape.id, [shape.x, shape.y, shape.z], [shape.width, shape.height, shape.depth],
+      shape.material === "road" ? road : platform);
+  }
+  const station = BIRYONG_STATION_BUILDING;
+  box(root, station.id, [station.x, station.y, station.z], [station.width, station.height, station.depth], stone);
   box(root, "biryong_station_roof", [0, 4.65, 25], [22, 0.5, 10], roof);
   box(root, "biryong_station_door", [0, 1.3, 20.94], [3.0, 2.6, 0.12], darkStone);
   box(root, "biryong_station_sign", [0, 3.2, 20.84], [7.5, 0.7, 0.1], accent);

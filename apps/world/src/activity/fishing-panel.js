@@ -38,7 +38,14 @@ const ERROR_TEXT = Object.freeze({
   ATTEMPT_ALREADY_ACTIVE: "진행 중인 낚시가 있어요.",
   FISHING_UNAVAILABLE: "지금은 낚시를 할 수 없어요.",
   FISHING_DISABLED: "지금은 낚시를 할 수 없어요.",
-  NETWORK: "연결이 불안정해요. 다시 시도해 주세요."
+  NETWORK: "연결이 불안정해요. 다시 시도해 주세요.",
+  FISHING_POSITION_UNAVAILABLE: "서버에서 낚시 위치를 확인할 수 없어요.",
+  FISHING_POSITION_STALE: "위치 확인이 지연됐어요. 잠시 후 다시 시도해 주세요.",
+  FISHING_POSITION_INELIGIBLE: "캠퍼스 기슭에 내려서 낚시해 주세요.",
+  FISHING_OUT_OF_RANGE: "낚시터 기슭으로 돌아와 주세요.",
+  FISHING_SPOT_OCCUPIED: "이 낚시터는 사용 중이에요. 다른 기슭을 이용해 주세요.",
+  FISHING_LEASE_LOST: "낚시터 이용 시간이 끝났어요. 낚싯대를 다시 던져 주세요.",
+  FISHING_SESSION_CHANGED: "접속 세션이 바뀌었어요. 낚시를 그만두고 다시 시작해 주세요."
 });
 
 export const FISHING_PHASE = Object.freeze({

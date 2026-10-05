@@ -605,7 +605,11 @@ assert.match(campusHtml, /class="social-cluster"[\s\S]*id="emote-toggle"[\s\S]*i
   "chat and emote share one social cluster");
 assert.equal((campusHtml.match(/id="chat-toggle"/g) ?? []).length, 1, "chat toggle remains unique");
 assert.equal((campusHtml.match(/id="zone"/g) ?? []).length, 1, "location authority remains a single DOM target");
+assert.equal((campusHtml.match(/id="world-time-chip"/g) ?? []).length, 1, "world time HUD remains a single DOM target");
+assert.match(campusHtml, /id="zone"[\s\S]*id="world-time-chip"[\s\S]*id="progression-badge"/,
+  "world time sits beside the current location before the narrow progression badge");
 assert.match(campusCss, /\.campus-topbar\s*\{/);
+assert.match(campusCss, /\.world-time-chip\s*\{/);
 // P0-F3a: read-only progression HUD. Wide pill + narrow in-chip badge + menu line; no authority.
 for (const id of ["progression-hud", "progression-level", "progression-exp", "progression-fill",
   "progression-badge", "progression-badge-level", "progression-badge-fill", "progression-menu-line"]) {

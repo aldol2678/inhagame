@@ -75,8 +75,10 @@ candidate values, not tuned balance; they live in the one runtime row. The tree 
 Creature bridge stay COMING_SOON. The browser path is `src/activity/fishing-client.js` /
 `fishing-panel.js` / `fishing-spots.js`. Production play still needs
 `WORLD_FISHING_API_ENABLED=1`; until then the endpoint answers 404 and no 🎣 action is shown.
-World distance/occupancy checks (F3) are still not implemented: the spots only decide where
-the action is offered.
+The F3 DB gate and atomic spot occupancy are implemented in [fishing-f3.md](fishing-f3.md).
+An authoritative position producer is not connected: current browser Realtime poses are not
+trusted evidence. The required-by-default gate therefore blocks new casts/active HOOK until
+a trusted producer is integrated. Browser proximity only decides where the action is offered.
 
 ### Production deployment prerequisites
 
@@ -88,7 +90,8 @@ forward migrations in dependency order, then read back the catalog, runtime poli
 grants. Do not replay the public baseline onto an existing Production database.
 
 Keep `WORLD_FISHING_API_ENABLED` unset until those database postconditions and the exposure
-review are satisfied. F3 remains the default prerequisite for player exposure; using the
+review are satisfied. The reconciled [Production forward plan](../../../docs/implementation/fishing-production-migration-plan.md)
+separates foundation, activation and exposure. F3 remains the default prerequisite for player exposure; using the
 T1 prototype without authoritative position/occupancy requires an explicit owner exception.
 The candidate timing/XP values also require owner acceptance before exposure.
 
@@ -116,6 +119,6 @@ starts local Supabase, runs all PgTAP/integration tests and checks generated typ
 coverage; its local runner rejects remote DB/API URLs and removes remote secrets.
 The existing full public CI discovers these new tests automatically.
 
-F3 must establish authoritative world distance/occupancy checks and review exposure
-before any player activation. F4 species/growth/device work and production
+F3's trusted producer must be connected and verified before player exposure. Its DB consumer
+alone does not establish movement authority. F4 species/growth/device work and production
 migration/deployment remain separate steps.

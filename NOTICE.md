@@ -23,12 +23,26 @@ https://www.data.go.kr/data/15123970/openapi.do
 Naver imagery, screenshots, observation notes and uncleared image-derived visual representations
 are not licensed by this notice and must not be included in a release. Asset gate verifies replacements.
 
-Public QA layout treatment: OSM outlines, public factual location labels and the existing
-game navigation/collision anchors are retained for compatibility. Image-specific facade
+Original public QA layout treatment: OSM outlines, public factual location labels and the existing
+game navigation/collision anchors were retained for compatibility. Image-specific facade
 styles, shop dimensions/colors, courtyard cross-paving, garden beds and logo artwork are
 replaced with uniform cuboids, neutral surfaces or regular procedural cells. These QA
 objects do not claim to reproduce actual buildings or businesses. User-authored field-visit
 contracts that were separately reviewed remain distinct from withheld third-party imagery.
+
+## North landmarks and Agora photo-reference restoration
+
+The bounded restoration of Building 5, the 60th Anniversary Hall and Agora Plaza
+supersedes the original neutral presentation only where declared in
+`apps/world/data/reality/north-landmark-restoration.provenance.json`.
+New procedural geometry uses qualitative observations from public field photographs
+and an official campus illustration. Source photographs, logos, watermarks, people,
+photographic textures and the private field-reference PDF are not redistributed.
+Web publication dates do not establish camera capture dates. Exact dimensions,
+unseen elevations and the high-rise footprint fit remain unverified; these models
+are approximate game representations, not surveyed architectural reproductions.
+Existing ground footprints/approaches are retained. Two bounded elevated volumes
+have matching rendering and collision, without changing ground navigation.
 
 NPC public fixture: fictional batch IDs, SIM-prefixed student numbers and generated visual
 profiles only. The fixture manifest explicitly disclaims human review/approval. No private

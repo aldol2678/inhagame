@@ -23,6 +23,7 @@ import { createGraphicsPresetController } from './graphics-presets.js';
 import { createEnvironmentDirector } from './environment/environment-director.js';
 import { resolveEnvironmentRuntimeTime, resolveEnvironmentRuntimeWeather } from './environment/environment-clock.js';
 import { createEnvironmentWorldTime } from './environment/environment-world-time.js';
+import { createWorldTimeHud } from './hud/world-time-hud.js';
 import { createNpcWorldClock } from '../npc-factory/npc-world-clock.mjs';
 import { createNightStreetLights } from './environment/night-street-lights.js';
 import { createNightBuildingWindows } from './environment/night-building-windows.js';
@@ -93,6 +94,9 @@ import { createPersonalRoomInteraction } from "./rooms/personal-room-interaction
 import { FriendRoomVisitClient, FRIEND_ROOM_VISIT_TEXT, createFriendRoomVisitController } from "./rooms/friend-room-visit.js";
 import { createPersonalRoomSession } from "./rooms/room-session.js";
 import { createRoomHud } from "./rooms/room-hud.js";
+import { DORM_1_CAMPUS_RETURN } from "./dorm1-layout.js";
+import { RoomKnockClient, createOwnerKnockWatcher, diffRoomVisitors } from "./rooms/room-knock.js";
+import { createKnockPrompt } from "./rooms/knock-prompt.js";
 import { createFurnitureClient } from "./rooms/furniture-client.js";
 import { createFurnitureEditor } from "./rooms/furniture-editor.js";
 import { PERSONAL_ROOM_BASIC_SPAWN } from "./rooms/personal-room-layout.js";
@@ -163,6 +167,8 @@ import { createBiryongRealmScene } from "./biryong/biryong-realm-renderer.js";
 import { createBiryongRealmWorldAdapter } from "./biryong/biryong-realm-world-adapter.js";
 import { createBiryongRealmTransition } from "./biryong/biryong-realm-transition.js";
 import { createBiryongStationTransitInteraction } from "./biryong/biryong-station-transit-interaction.js";
+import { createBiryongMapDataSource } from "./biryong/biryong-map-data.js";
+import { createBiryongNavigation } from "./biryong/biryong-navigation.js";
 import { getBiryongRealmPlaceZone } from "./biryong/biryong-village-layout.js";
 import { createBiryongVillageNpcRuntime } from "./biryong/biryong-village-npc-runtime.js";
 import { createBiryongVillageDialogueRuntime } from "./biryong/biryong-village-dialogue-runtime.js";
@@ -205,6 +211,7 @@ const lobbyPreview = !roomPreviewStart && !dormLobbyPreviewStart && !personalRoo
   !mcmMinigamePreviewStart && isLobbyShellRequested(location);
 const rendererEl = document.getElementById("renderer");
 const zoneEl = document.getElementById("zone");
+const worldTimeEl = document.getElementById("world-time-chip");
 const npcTestMode = ['localhost', '127.0.0.1'].includes(location.hostname) &&
   startupParams.get('npcTest') === 'a-r1';
 const npcAiPilotMode = npcTestMode && startupParams.get('npcAiPilot') === '1';
@@ -331,12 +338,20 @@ const environmentWorldTime = createEnvironmentWorldTime({
   enabled: worldClock !== null
 });
 if (worldClock) await environmentWorldTime.sync();
+const worldTimeHud = createWorldTimeHud({
+  element: worldTimeEl,
+  getStatus: () => environmentWorldTime.status()
+});
 app.on("update", dt => {
   environmentWorldTime.update();
   environment.update(dt);
+  worldTimeHud.update(dt);
 });
 window.__INHAGAME_WORLD_TIME__ = Object.freeze({
   status: () => environmentWorldTime.status()
+});
+window.__INHAGAME_WORLD_TIME_HUD__ = Object.freeze({
+  status: () => worldTimeHud.status()
 });
 window.__INHAGAME_ENVIRONMENT__ = Object.freeze({
   status: () => environment.status(),
@@ -945,10 +960,16 @@ const friendRoomVisitClient = new FriendRoomVisitClient({
   getClient: () => online?.supabase ?? null,
   getSelfUserId: () => online?.userId ?? null
 });
+// Housing H3: visitors knock at the Dorm Lobby corridor door; owners answer from inside their room.
+const roomKnockClient = new RoomKnockClient({
+  getClient: () => online?.supabase ?? null,
+  getSelfUserId: () => online?.userId ?? null
+});
 // Player Card and Friends panel share one visit entry; the controller exists once rooms do.
 const roomVisitEntry = Object.freeze({
   canVisit: () => friendRoomVisit?.canVisit() ?? { ok: false, reason: "busy" },
-  onVisit: (userId) => friendRoomVisit?.visit(userId) ?? Promise.resolve({ ok: false, reason: "busy" }),
+  onVisit: (userId, displayName = null) =>
+    friendRoomVisit?.visit(userId, { displayName }) ?? Promise.resolve({ ok: false, reason: "busy" }),
   reasonText: (reason) => FRIEND_ROOM_VISIT_TEXT[reason] ?? ""
 });
 const playerCard = createPlayerCard({
@@ -1770,9 +1791,7 @@ biryongRealm = createBiryongRealmTransition({
     setLocationLabel: text => { zoneEl.textContent = text; },
     markRegion: id => {
       document.body.dataset.worldRegion = id;
-      const minimapRoot = document.getElementById("minimap");
-      if (minimapRoot) minimapRoot.hidden = id !== WORLD_REGION_ID.CAMPUS;
-      if (id !== WORLD_REGION_ID.CAMPUS) fullMap?.close?.();
+      fullMap?.close?.();
     }
   })
 });
@@ -1803,6 +1822,14 @@ biryongVillageDialogue = createBiryongVillageDialogueRuntime({
   },
   getRelationshipStage: npcId => biryongRelationships.stage(npcId),
   getUnlockedFacts: npcId => biryongRelationships.facts(npcId),
+  onNavigate: poiId => {
+    if (!biryongRealm?.inBiryong || biryongRealm.busy) return false;
+    const poi = biryongMapDataSource?.poiRegistry().get(poiId);
+    const target = poi?.validPosition ? biryongNavigation?.poiTarget(poi) : null;
+    if (!target || !setNavigationTarget(target)) return false;
+    showWorldStatus(`${poi.title}까지 길을 표시했어요.`);
+    return true;
+  },
   onOpenChange: open => {
     if (open) {
       npcDialogueInput.acquire();
@@ -1889,8 +1916,13 @@ personalRoomInteraction = createPersonalRoomInteraction({
 });
 // Social S1-D2 · Room Session. Remote room avatars live under the shared personal room scene;
 // tapping one opens the same Player Card (friends, block, report) as on the campus.
+// Housing H3: the owner's knock prompt lives inside the owner Room HUD (same slot, same layout).
+const knockPromptRoot = document.createElement("div");
+knockPromptRoot.className = "room-knock-prompt";
+knockPromptRoot.hidden = true;
 const roomHud = createRoomHud({
   root: document.getElementById("room-hud"),
+  footer: knockPromptRoot,
   onLeave: () => furnitureEditor?.open ? furnitureEditor.requestClose(() => rooms.exit()) : rooms.exit(),
   onEdit: () => {
     if (!furnitureEditor?.openEditor()) {
@@ -1904,6 +1936,36 @@ const roomHud = createRoomHud({
     return room;
   }
 });
+// Housing H3 · owner side: the knock prompt, the knock/presence poll while home, and visitor notices.
+const knockPrompt = createKnockPrompt({
+  root: knockPromptRoot,
+  respond: (knock, accept) => roomKnockClient.respond(knock.knockId, accept)
+});
+const ownerKnocks = createOwnerKnockWatcher({
+  client: roomKnockClient,
+  isOwnerInRoom: () => rooms?.currentSpace === "ROOM_PERSONAL_BASIC" && roomSession?.status?.().role === "owner",
+  onKnock: (knock) => knockPrompt.push(knock),
+  onPolled: (knocks) => knockPrompt.retain(knocks.map(knock => knock.knockId))
+});
+const syncOwnerKnocks = (state) => {
+  const home = state.active && state.role === "owner";
+  if (home && !ownerKnocks.running) ownerKnocks.start();
+  else if (!home && ownerKnocks.running) { ownerKnocks.stop(); knockPrompt.clear(); }
+  if (home) knockPrompt.prune();
+};
+let lastRoomVisitors = null;
+const announceRoomVisitors = (state) => {
+  const ready = state.active && state.phase === "READY";
+  // The first READY snapshot of a stay is the baseline: only later arrivals and departures are news.
+  if (!ready || lastRoomVisitors?.roomId !== state.roomId) {
+    lastRoomVisitors = ready ? state : (state.active ? lastRoomVisitors : null);
+    return;
+  }
+  const { joined, left } = diffRoomVisitors(lastRoomVisitors, state);
+  lastRoomVisitors = state;
+  if (joined.length) showWorldStatus(`${joined.join(", ")}님이 놀러 왔어요 👋`);
+  else if (left.length) showWorldStatus(`${left.join(", ")}님이 돌아갔어요`);
+};
 const roomLocationLabel = (state) => state.role === "owner"
   ? `🏠 제1생활관 · 내 방 · ${state.count}명`
   : `🏠 제1생활관 · ${state.ownerDisplayName ?? "친구"}의 방 · ${state.count}명`;
@@ -1927,12 +1989,17 @@ roomSession = createPersonalRoomSession({
   },
   onChange: (state) => {
     roomHud.update(state);
+    announceRoomVisitors(state);
+    syncOwnerKnocks(state);
     if (state.active && rooms.currentSpace === "ROOM_PERSONAL_BASIC") zoneEl.textContent = roomLocationLabel(state);
   }
 });
 friendRoomVisit = createFriendRoomVisitController({
   client: friendRoomVisitClient,
+  knockClient: roomKnockClient,
   rooms,
+  // From the campus a visit walks to 제1생활관 (route + auto-move); nothing teleports into the room.
+  guideToDorm: () => guideToDorm1(),
   isMounted: () => controller.mounted,
   isSeated: () => seats.isSeated,
   standUp: () => seating.standUp("room-visit"),
@@ -2201,13 +2268,25 @@ const viewSettings = createViewDistanceSettings(streaming,camera,graphics,{
 // quest/tour objective. Indoors it pauses; the campus destination survives room switches.
 let navigation = null;
 let campusNavigation = null;
+let biryongNavigation = null;
 let navigationHud = null;
 const navigationSpaceId = () => lobbyWorld.active || lobbyTransition.active ? "lobby"
   : biryongRealm?.inBiryong ? WORLD_REGION_ID.BIRYONG_REALM
     : rooms?.insideRoom ? (rooms.status().roomId ?? "room") : CAMPUS_NAV_SPACE;
+const navigationProviderFor = spaceId => spaceId === CAMPUS_NAV_SPACE ? campusNavigation
+  : spaceId === WORLD_REGION_ID.BIRYONG_REALM ? biryongNavigation : null;
 try {
   campusNavigation = createCampusNavigation();
-  navigation = createNavigationState({ solver: campusNavigation.solver, guidanceSpaceId: CAMPUS_NAV_SPACE });
+  try { biryongNavigation = createBiryongNavigation(); }
+  catch (error) { console.warn("Biryong guidance unavailable; Campus navigation retained:", error); }
+  navigation = createNavigationState({
+    solver: {
+      solve: (from, to) => navigationProviderFor(navigationSpaceId())?.solver.solve(from, to)
+        ?? { ok: false, reason: "SPACE_UNAVAILABLE", points: [] },
+      segmentSafe: (from, to) => navigationProviderFor(navigationSpaceId())?.segmentSafe?.(from, to) ?? true
+    },
+    guidanceSpaceId: CAMPUS_NAV_SPACE
+  });
   navigationHud = createNavigationHud({
     root: document.getElementById("nav-guidance"),
     arrow: document.getElementById("nav-guidance-arrow"),
@@ -2285,7 +2364,7 @@ if (navigation) {
   });
   navigation.onChange(snapshot => {
     playerAutoMove?.syncNavigation(snapshot);
-    npcTest?.observeNavigation?.(snapshot);
+    if (snapshot.destination?.mapSourceId === CAMPUS_NAV_SPACE) npcTest?.observeNavigation?.(snapshot);
     renderPlayerAutoMoveHud();
   });
   unbindAutoMoveManual = bindAutoMoveManualCancellation({
@@ -2303,13 +2382,23 @@ if (navigation) {
 const renderNavigationHud = () => {
   try {
     navigationHud?.render(navigation?.getSnapshot() ?? null, {
-      visible: !lobbyWorld.active && !lobbyTransition.active && (biryongRealm?.inCampus ?? true) && fullMap?.openState !== true
+      visible: !lobbyWorld.active && !lobbyTransition.active && fullMap?.openState !== true
     });
   } catch (error) { console.warn("Navigation HUD render failed:", error); }
 };
 const setNavigationTarget = target => {
   if (!navigation || !target) return false;
-  navigation.setDestination(target, { position: player.getLocalPosition(), spaceId: navigationSpaceId() });
+  const snapshot = navigation.setDestination(target, { position: player.getLocalPosition(), spaceId: navigationSpaceId() });
+  return target.mapSourceId !== WORLD_REGION_ID.BIRYONG_REALM || snapshot.status === "GUIDING";
+};
+// Housing H3: a friend visit from the campus routes to 제1생활관 and starts auto-move when allowed.
+const guideToDorm1 = () => {
+  const target = campusNavigation?.poiTarget({
+    poiId: "poi.dorm-1", title: "제1생활관",
+    x: DORM_1_CAMPUS_RETURN.position.x, z: DORM_1_CAMPUS_RETURN.position.z
+  }, CAMPUS_NAV_SPACE) ?? null;
+  if (!setNavigationTarget(target)) return false;
+  if (playerAutoMove && canUseAutoMove()) playerAutoMove.start(navigation.getSnapshot());
   return true;
 };
 
@@ -2360,10 +2449,13 @@ window.addEventListener("pagehide", event => { if (!event.persisted) backGateArr
 
 const fullMapNavigation = navigation && campusNavigation ? {
   snapshot: () => navigation.getSnapshot(),
-  canNavigate: mapSourceId => mapSourceId === CAMPUS_NAV_SPACE,
-  setPoi: (poi, mapSourceId) => setNavigationTarget(campusNavigation.poiTarget(poi, mapSourceId)),
-  setTarget: target => setNavigationTarget(target),
-  resolveMapPoint: (point, mapSourceId) => campusNavigation.mapPointTarget(point, mapSourceId),
+  canNavigate: mapSourceId => mapSourceId === navigationSpaceId() && Boolean(navigationProviderFor(mapSourceId)),
+  setPoi: (poi, mapSourceId) => mapSourceId === navigationSpaceId() &&
+    setNavigationTarget(navigationProviderFor(mapSourceId)?.poiTarget(poi, mapSourceId)),
+  setTarget: target => target?.mapSourceId === navigationSpaceId() && setNavigationTarget(target),
+  resolveMapPoint: (point, mapSourceId) => mapSourceId === navigationSpaceId()
+    ? navigationProviderFor(mapSourceId)?.mapPointTarget(point, mapSourceId) ?? { supported: false, reason: "INDOOR" }
+    : { supported: false, reason: "INVALID" },
   clear: () => navigation.clearDestination("cancel"),
   onChange: listener => navigation.onChange(listener)
 } : null;
@@ -2372,8 +2464,9 @@ const fullMapNavigation = navigation && campusNavigation ? {
 let minimap = null;
 let minimapReady = false;
 let campusMapDataSource = null;
+let biryongMapDataSource = null;
 const getMapObjectiveMarker = () => {
-  if (rooms?.insideRoom) return null;
+  if (rooms?.insideRoom || biryongRealm?.inBiryong) return null;
   const eventTarget = mcmEventRuntime.mapTarget();
   const eventMarker = eventTarget ? {
     objectiveId: `event.${eventTarget.stage}`,
@@ -2408,6 +2501,7 @@ try {
     getContext: spawnProgressContext,
     isPlaceDiscovered: id => biryong?.isPlaceDiscovered(id) === true
   });
+  biryongMapDataSource = createBiryongMapDataSource();
   const minimapDataSource = campusMapDataSource;
   const minimapRenderer = createMiniMapRenderer({
     root: document.getElementById("minimap"),
@@ -2425,14 +2519,12 @@ try {
     player, orbit,
     getReady: () => minimapReady,
     getLobbyState: () => ({ active: lobbyWorld.active, transitioning: lobbyTransition.active }),
-    getRoomState: () => biryongRealm?.inBiryong
-      ? { insideRoom: true, roomId: null }
-      : rooms?.status?.() ?? { insideRoom: false },
+    getRoomState: () => rooms?.status?.() ?? { insideRoom: false },
     getOverlayState: () => ({
       hudMenu: hudMenu.open, keyboardHelp: keyboardHelp?.open === true, friends: friendPanel.open,
       playerCard: playerCard.current != null, guestbook: guestbookPanel.open, shop: shopPanel.open, inventory: inventoryPanel.open, wardrobe: wardrobePanel.open,
       blocking: furnitureEditor?.open === true || dailyQuizPanel.open || attendancePanel.open || lifeSkillBookPanel?.open === true || fishingPanel?.open === true || questJournal?.open === true,
-      npcConversation: npcTest?.isConversationOpen?.() === true,
+      npcConversation: npcTest?.isConversationOpen?.() === true || biryongVillageDialogue?.open === true,
       mcmEvent: mcmEventUi.openState || mcmEventRuntime.isDialogueOpen() === true,
       profile: document.getElementById("profile-panel")?.hidden === false,
       settings: document.getElementById("view-settings")?.hidden === false,
@@ -2442,7 +2534,7 @@ try {
     getSocialMarkers: getMapSocialMarkers,
     getNavigation: () => {
       const snapshot = navigation?.getSnapshot();
-      return snapshot?.active && snapshot.destination?.mapSourceId === CAMPUS_NAV_SPACE ? snapshot : null;
+      return snapshot?.active && snapshot.destination?.mapSourceId === navigationSpaceId() ? snapshot : null;
     },
     dataSource: minimapDataSource, renderer: minimapRenderer,
     documentLike: document, windowTarget: window
@@ -2506,6 +2598,7 @@ try {
     getSocialMarkers: getMapSocialMarkers,
     onOpen: () => {
       fullMapInput.acquire();
+      biryongVillageDialogue?.close();
       hudMenu.setOpen(false, { focus: false }); emoteMenu.setOpen(false);
       chatPanel.setOpen(false, { focus: false }); playerCard.close();
       void guestbookPanel.setOpen(false);
@@ -2527,20 +2620,20 @@ try {
       fullMap?.setDataSource(roomMap, { id: roomMap.id, label: roomMap.label });
       return;
     }
-    if (campusMapDataSource) {
+    if (campusMapDataSource && !biryongRealm?.inBiryong) {
       minimap?.setDataSource(campusMapDataSource, { id: "campus", indoor: false });
       fullMap?.setDataSource(campusMapDataSource, { id: "campus", label: "캠퍼스 전체 지도" });
     }
   });
   biryongRealm.onChange((status) => {
+    // Re-evaluate before rendering so identical local coordinates never reuse the old route.
+    navigation?.update({ position: player.getLocalPosition(), yaw: orbit.yaw, spaceId: navigationSpaceId() });
     if (status.inBiryong) {
       fullMap?.close?.();
-      const minimapRoot = document.getElementById("minimap");
-      if (minimapRoot) minimapRoot.hidden = true;
+      minimap?.setDataSource(biryongMapDataSource, { id: WORLD_REGION_ID.BIRYONG_REALM, indoor: false });
+      fullMap?.setDataSource(biryongMapDataSource, { id: WORLD_REGION_ID.BIRYONG_REALM, label: biryongMapDataSource.label });
       return;
     }
-    const minimapRoot = document.getElementById("minimap");
-    if (minimapRoot) minimapRoot.hidden = false;
     if (campusMapDataSource) {
       minimap?.setDataSource(campusMapDataSource, { id: "campus", indoor: false });
       fullMap?.setDataSource(campusMapDataSource, { id: "campus", label: "캠퍼스 전체 지도" });
@@ -2957,9 +3050,13 @@ app.on("update", (dt) => {
   if (inBiryong) {
     contextActions.set("room-door", null);
     contextActions.set("personal-room-door", null);
+    contextActions.set("friend-room-knock", null);
   } else {
     contextActions.set("room-door", rooms.contextAction({ position: pos, grounded: controller.grounded, mounted: controller.mounted }));
     contextActions.set("personal-room-door", personalRoomInteraction?.contextAction({
+      position: pos, grounded: controller.grounded, mounted: controller.mounted
+    }) ?? null);
+    contextActions.set("friend-room-knock", friendRoomVisit?.contextAction({
       position: pos, grounded: controller.grounded, mounted: controller.mounted
     }) ?? null);
   }
@@ -3317,6 +3414,7 @@ window.__INHAGAME_P0__ = {
   personalRoomInteraction,
   roomSession,
   friendRoomVisit,
+  knockPrompt,
   friendRoomVisitClient,
   roomHud,
   roomFurniture,
