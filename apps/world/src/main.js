@@ -152,6 +152,9 @@ import { createLifeSkillBookPanel } from "./life-skills/life-skill-book-panel.js
 import { FISHING_CLIENT_STATE, createFishingClient } from "./activity/fishing-client.js";
 import { createFishingPanel } from "./activity/fishing-panel.js";
 import { fishingContextAction, findNearbyFishingSpot } from "./activity/fishing-spots.js";
+import { GATHERING_CLIENT_STATE, createGatheringClient } from "./activity/gathering-client.js";
+import { gatheringContextAction, findNearbyGatheringSpot } from "./activity/gathering-spots.js";
+import { createGatheringWorld } from "./activity/gathering-world.js";
 import { createLoadoutClient } from "./appearance/loadout-client.js";
 import { createEquipmentProjection } from "./appearance/equipment-projection.js";
 import { createEquipmentModelLoader } from "./appearance/equipment-asset-loader.js";
@@ -1526,6 +1529,39 @@ fishingPanel = createFishingPanel({
     void inventory.refresh("fishing");
   }
 });
+const gathering = createGatheringClient({
+  getToken: async () => {
+    const client = online?.supabase;
+    if (!client || !online?.userId) return null;
+    const { data, error } = await client.auth.getSession();
+    const session = data?.session;
+    return !error && session?.user?.id === online.userId && session.user.is_anonymous !== true
+      ? session.access_token : null;
+  }
+});
+createGatheringWorld(campusRoot);
+const GATHERING_NOTICE = Object.freeze({
+  GATHERING_POSITION_UNAVAILABLE: "채집 위치 확인을 기다리고 있어요.",
+  GATHERING_POSITION_STALE: "위치 확인이 오래됐어요. 잠시 움직인 뒤 다시 시도해 주세요.",
+  GATHERING_POSITION_INELIGIBLE: "걸어서 하이데거 숲 낙엽 더미 가까이에서 채집해 주세요.",
+  GATHERING_OUT_OF_RANGE: "낙엽 더미에 조금 더 가까이 가 주세요.",
+  GATHERING_RATE_LIMITED: "조금 뒤 다시 낙엽을 주울 수 있어요.",
+  NETWORK: "네트워크 연결을 확인한 뒤 다시 시도해 주세요."
+});
+async function harvestGatheringSpot(spot) {
+  const result = await gathering.harvest(spot?.sourceRef);
+  if (result.outcome === "HARVESTED" || result.outcome === "ALREADY_PROCESSED") {
+    const xp = result.data?.output?.lifeXp ?? 0;
+    showWorldStatus(`🍂 캠퍼스 낙엽 1개 채집 · 채집 XP +${xp}`);
+    void inventory.refresh("gathering");
+    void lifeSkillBook.refresh("gathering");
+    return true;
+  }
+  if (result.outcome !== "BUSY" && result.outcome !== "STALE") {
+    showWorldStatus(GATHERING_NOTICE[result.error] ?? "지금은 채집할 수 없어요.");
+  }
+  return false;
+}
 // Main Lobby P2 "오늘의 캠퍼스": a read-only summary of the two clients above. It re-renders on their own change
 // events (account switches included) and only opens the existing panels; the panels keep the explicit claim / start.
 const lobbyDailyLoop = createLobbyDailyLoop({
@@ -3052,6 +3088,16 @@ app.on("update", (dt) => {
     available: fishing.available, blocked: fishingBlocked,
     onOpen: (spot) => fishingPanel?.setOpen(true, spot)
   }));
+  const gatheringBlocked = inside || controller.mounted || seats.isSeated || combatRuntime.active ||
+    lobbyWorld.active || lobbyTransition.active || !inputFocus.can("WORLD_ACTION");
+  if (!gatheringBlocked && gathering.state === GATHERING_CLIENT_STATE.UNAVAILABLE &&
+      findNearbyGatheringSpot(pos)) void gathering.probe();
+  contextActions.set("campus-gathering", gatheringContextAction(pos, {
+    available: gathering.available,
+    blocked: gatheringBlocked,
+    busy: gathering.busy,
+    onHarvest: (spot) => void harvestGatheringSpot(spot)
+  }));
   contextActions.set("biryong", inside ? null : biryong?.getContextAction(pos, { blocked: controller.mounted || seats.isSeated }) ?? null);
   contextActions.set("mcm-event", inside ? null : mcmEventRuntime.contextAction());
   contextActions.set("mcm-minigame", rooms.currentSpace === MCM_2026_ROOM_ID ? mcmMinigame.contextAction() : null);
@@ -3082,7 +3128,7 @@ app.on("update", (dt) => {
   if (combatRuntime.active) {
     for (const key of [
       "seat", "guestbook", "student-center-shop", "backgate-transit", "biryong-station-transit",
-      "biryong-npc", "inkyung-duck", "inkyung-fishing", "biryong", "mcm-event", "mcm-minigame", "follow",
+      "biryong-npc", "inkyung-duck", "inkyung-fishing", "campus-gathering", "biryong", "mcm-event", "mcm-minigame", "follow",
       "room-door", "personal-room-door", "npc"
     ]) contextActions.set(key, null);
     transportActions.set("mount", null);
@@ -3166,6 +3212,7 @@ try {
     void attendance.setAccount(identity ? online?.userId ?? null : null);
     void lifeSkillBook.setAccount(identity ? online?.userId ?? null : null);
     void fishing.setAccount(identity ? online?.userId ?? null : null);
+    void gathering.setAccount(identity ? online?.userId ?? null : null);
     void loadout.setAccount(identity ? online?.userId ?? null : null);
     const nextRoomUserId = online?.userId ?? null;
     inkyungSideEvent.setScope(nextRoomUserId ?? "guest");
@@ -3551,6 +3598,7 @@ window.__INHAGAME_P0__ = {
     attendance: { ...attendance.status(), panel: attendancePanel.status() },
     lifeSkillBook: { ...lifeSkillBook.status(), panel: lifeSkillBookPanel?.status() ?? null },
     fishing: { ...fishing.status(), panel: fishingPanel?.status() ?? null },
+    gathering: gathering.status(),
     wardrobe: { ...loadout.status(), ...wardrobePanel.status() },
     equipment: equipmentProjection.status(),
     hudMenuOpen: hudMenu.open,
