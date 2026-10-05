@@ -10,7 +10,7 @@ The manifest `output.timelineFps` is the intended downstream edit/composition ti
 
 Each shot produces:
 
-- `<shot-id>.webm` — Playwright browser recording. It includes boot/setup pre-roll so evidence is preserved.
+- `<shot-id>.webm` — Playwright browser recording. It includes boot/setup pre-roll so evidence is preserved. The native temporary recording lives outside the artifact directory and is deleted after the named copy is saved, so the artifact does not retain a duplicate raw video.
 - `thumbs/<shot-id>.png` — final-frame visual receipt.
 - `capture-index.json` — canonical machine-readable handoff containing source head, manifest hash, renderer, file hash and the usable edit window as `edit.inMs`, `edit.outMs`, and `edit.durationMs`.
 

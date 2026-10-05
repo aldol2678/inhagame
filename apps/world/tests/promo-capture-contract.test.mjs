@@ -29,6 +29,10 @@ test('Promo Capture v1 manifest is bounded, semantic and deterministic', () => {
 test('runner uses the existing offline real-render harness and emits edit metadata', () => {
   assert.match(runner, /startSmoke/);
   assert.match(runner, /recordVideo/);
+  assert.match(runner, /mkdtemp/);
+  assert.match(runner, /tmpdir/);
+  assert.match(runner, /video\.delete\(\)/);
+  assert.doesNotMatch(runner, /path\.join\(outputDir, 'raw'\)/);
   assert.match(runner, /offline-real-render/);
   assert.match(runner, /productionClaim:\s*false/);
   assert.match(runner, /capture-index\.json/);

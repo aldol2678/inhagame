@@ -1,8 +1,0 @@
-node_modules
-tests
-test-results
-playwright-report
-docs
-package.json
-package-lock.json
-playwright.config.cjs

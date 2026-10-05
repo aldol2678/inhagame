@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
-import {mkdir, readFile, stat, writeFile} from 'node:fs/promises';
+import {mkdir, mkdtemp, readFile, rm, stat, writeFile} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {performance} from 'node:perf_hooks';
 import {fileURLToPath} from 'node:url';
@@ -40,8 +41,8 @@ function validate() {
   }
 }
 validate();
-await mkdir(path.join(outputDir, 'raw'), {recursive: true});
 await mkdir(path.join(outputDir, 'thumbs'), {recursive: true});
+const rawVideoDir = await mkdtemp(path.join(tmpdir(), 'inha-world-promo-video-'));
 
 const waitFrames = (page, count = 4) => page.evaluate(n => new Promise(resolve => {
   let left = n;
@@ -154,7 +155,7 @@ const index = {
 for (const shot of manifest.shots) {
   const smoke = await startSmoke({
     viewport: {width: manifest.output.width, height: manifest.output.height},
-    contextOptions: {recordVideo: {dir: path.join(outputDir, 'raw'), size: {width: manifest.output.width, height: manifest.output.height}}}
+    contextOptions: {recordVideo: {dir: rawVideoDir, size: {width: manifest.output.width, height: manifest.output.height}}}
   });
   let page;
   const entry = {id: shot.id, label: shot.label, kind: shot.kind, target: shot.target, result: 'FAIL'};
@@ -180,6 +181,7 @@ for (const shot of manifest.shots) {
     entry.edit = {inMs, outMs, durationMs: outMs - inMs};
     entry.bytes = info.size;
     entry.sha256 = hash(await readFile(target));
+    await video.delete();
     entry.renderer = 'WebGL2';
     entry.capture = shot.kind === 'walk' ? 'real PlayerController via trusted Playwright keyboard input'
       : shot.kind === 'ui' ? 'real Full Map UI and navigation owner'
@@ -197,4 +199,5 @@ for (const shot of manifest.shots) {
     await writeFile(path.join(outputDir, 'capture-index.json'), JSON.stringify(index, null, 2));
   }
 }
+await rm(rawVideoDir, {recursive: true, force: true});
 console.log(`Promo Capture P0: ${index.shots.length} shots PASS -> ${outputDir}`);
