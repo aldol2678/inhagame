@@ -31,7 +31,7 @@ test('roach visuals use one shared low-poly mesh and one render component per en
 });
 
 test('P1 roach quality keeps one shared mesh while adding silhouette, tones and crawl motion',()=>{
-  assert.match(exp,/GIANT_ROACH_TRIANGLES = 384/);
+  assert.match(exp,/GIANT_ROACH_TRIANGLES = 768/);
   assert.match(exp,/diffuseVertexColor = true/);
   assert.match(exp,/ROACH_COLOR/);
   assert.match(exp,/colors:g\.colors/);
@@ -52,4 +52,22 @@ test('P1 vertex colors use RGBA8 for pc.createMesh Geometry',()=>{
   assert.match(exp,/abdomen: \[180,72,26,255\]/);
   assert.match(exp,/thorax: \[128,45,15,255\]/);
   assert.match(exp,/limb: \[48,14,5,255\]/);
+});
+
+test('P2 roach mesh raises detail while preserving shared-render budget',()=>{
+  assert.match(exp,/GIANT_ROACH_TRIANGLES = 768/);
+  assert.match(exp,/function addTaperedBar/);
+  assert.match(exp,/Math\.PI\/6,Math\.PI\/3,Math\.PI\/2,Math\.PI\*2\/3,Math\.PI\*5\/6/);
+  assert.match(exp,/abdomenBand/);
+  assert.match(exp,/ROACH_COLOR\.cerci/);
+  assert.match(exp,/three-segment legs/);
+  assert.match(exp,/three tapered segments per side/);
+  assert.match(exp,/Total prototype budget = 768 triangles/);
+  assert.match(exp,/estimatedRoachTriangles:roaches\.length\*GIANT_ROACH_TRIANGLES/);
+  assert.doesNotMatch(exp,/addComponent\('render',\{type:'sphere'\}\)/);
+});
+test('P2 motion adds moving and idle posture without per-limb runtime entities',()=>{
+  assert.match(exp,/const moving=moved\.moved>\.0001/);
+  assert.match(exp,/const pitch=moving\?/);
+  assert.match(exp,/setLocalEulerAngles\(pitch,r\.renderHeading,sway\)/);
 });
