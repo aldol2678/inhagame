@@ -12,11 +12,14 @@ const { SEAT_ANCHORS } = await import('../../src/seat-anchors.js');
 const anchors = SEAT_ANCHORS.filter(a => a.interactableId === 'lmk_matching_tree');
 assert.equal(anchors.length, 2);
 const git = args => execFileSync('git', args, { encoding: 'utf8' }).trim();
+const koreanFontFamily = execFileSync('fc-match', ['--format=%{family}', ':lang=ko'], { encoding: 'utf8' }).trim();
+assert.match(koreanFontFamily, /Noto Sans CJK/, 'Hosted screenshots require installed Korean glyphs');
 const head = git(['rev-parse', 'HEAD']), output = process.env.WORLD_MATCHING_TREE_OUTPUT || 'test-results/campus-visual-parity/matching-tree';
 assert.equal(head, process.env.EXPECTED_MATCHING_TREE_HEAD, 'exact PR head');
 assert.equal(git(['status', '--porcelain', '--untracked-files=no']), '', 'tracked runtime must match the recorded HEAD');
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 const report = { head, tree: git(['rev-parse', 'HEAD^{tree}']), result: 'RUNNING',
+  fontEnvironment: { koreanFontFamily },
   scope: 'Actual offline campus, existing production seat/context/keyboard/touch/controller/camera/map owners',
   fixtures: ['Initial actor placement at each real anchor stand point; subsequent sit, stand, walk and jump use real input',
     'The second seated avatar is a local clone of the real posed actor, not a second network client',

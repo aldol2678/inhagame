@@ -59,6 +59,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24.19.0'
+      - name: Install Korean fonts for readable offline HUD evidence
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+          fc-match 'Noto Sans CJK KR'
+          dpkg-query -W fonts-noto-cjk
       - name: Install pinned offline browser dependencies
         working-directory: apps/world/tests/browser
         run: npm ci --ignore-scripts --no-audit --no-fund

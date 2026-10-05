@@ -71,6 +71,16 @@ test('hosted matching-tree QA uses actual campus input and cannot publish', () =
   assert.doesNotMatch(workflow, /pull_request_target|contents: write|secrets\.|deploy|--force/);
 });
 
+test('hosted screenshots require installed Korean glyphs and record the runner font', () => {
+  const workflow = readFileSync(new URL('../../../.github/workflows/campus-visual-parity-browser.yml', import.meta.url), 'utf8');
+  assert.match(workflow, /apt-get install[^\n]+fonts-noto-cjk/);
+  assert.ok(workflow.indexOf('fonts-noto-cjk') < workflow.indexOf('node apps/world/tests/browser/matching-tree-smoke.mjs'));
+  const smoke = readFileSync(new URL('./browser/matching-tree-smoke.mjs', import.meta.url), 'utf8');
+  assert.match(smoke, /execFileSync\('fc-match'/);
+  assert.match(smoke, /koreanFontFamily/);
+  assert.match(smoke, /Noto Sans CJK/);
+});
+
 test('live camera samples cover the fork and avatars without demanding a whole canopy at the production 7-WU cap', () => {
   assert.equal(typeof qa.matchingTreeTargetSamples, 'function');
   const live = qa.matchingTreeTargetSamples(false), whole = qa.matchingTreeTargetSamples(true);
