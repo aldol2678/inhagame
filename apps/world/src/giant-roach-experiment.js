@@ -32,12 +32,13 @@ function sharedMaterial() {
   return m;
 }
 
+// pc.createMesh Geometry colors are uploaded through Mesh.setColors32, so use 8-bit RGBA.
 const ROACH_COLOR = Object.freeze({
-  abdomen: [0.68,0.24,0.070,1],
-  thorax: [0.48,0.14,0.038,1],
-  head: [0.27,0.070,0.022,1],
-  limb: [0.16,0.043,0.014,1],
-  seam: [0.32,0.080,0.022,1]
+  abdomen: [180,72,26,255],
+  thorax: [128,45,15,255],
+  head: [78,22,8,255],
+  limb: [48,14,5,255],
+  seam: [96,28,8,255]
 });
 function pushColor(colors,color,count=1){ for(let i=0;i<count;i++) colors.push(...color); }
 function pushQuad(positions,normals,colors,indices,a,b,c,d,n,color) {
