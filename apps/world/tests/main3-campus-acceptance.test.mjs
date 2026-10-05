@@ -87,3 +87,20 @@ test('browser acceptance uses real campus, UI input, offline routes and fail-clo
   assert.doesNotMatch(source, /\.setAiSignedIn\(|\.visitStudentCenter\(|\.startFromGuide\(/,
     'acceptance must use actual auth and UI owners, never call quest action methods');
 });
+
+test('visible Main3 objective rejects overlapping world labels, secondary cards and ellipsis', async () => {
+  const { assertMain3HudReadable } = await import('./browser/main3-campus-fixture.mjs');
+  assert.equal(typeof assertMain3HudReadable, 'function', 'pixel-derived containment guard exists');
+  const layout = { bounds: { x: 174, y: 186, right: 378, bottom: 250, width: 204, height: 64 },
+    objectiveBounds: { x: 198, y: 194, right: 308, bottom: 242, width: 110, height: 48 },
+    objectiveClient: { width: 110, height: 48, scrollWidth: 110, scrollHeight: 48 },
+    viewport: { width: 390, height: 844 }, blockers: [] };
+  assert.doesNotThrow(() => assertMain3HudReadable(layout));
+  assert.throws(() => assertMain3HudReadable({ ...layout, objectiveBounds: { ...layout.objectiveBounds, y: 240, bottom: 288 } }), /within.*HUD/);
+  assert.throws(() => assertMain3HudReadable({ ...layout, objectiveBounds: { ...layout.objectiveBounds, x: 170, right: 280 } }), /within.*HUD/);
+  for (const id of ['shop-world-label', 'inkyung-living-moment']) {
+    assert.throws(() => assertMain3HudReadable({ ...layout, blockers: [{ id, x: 114, y: 200, right: 276, bottom: 254 }] }), /overlap/);
+  }
+  assert.throws(() => assertMain3HudReadable({ ...layout,
+    objectiveClient: { width: 110, height: 48, scrollWidth: 280, scrollHeight: 48 } }), /clipped/);
+});

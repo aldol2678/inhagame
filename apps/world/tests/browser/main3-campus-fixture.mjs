@@ -29,6 +29,28 @@ export function assertMain3ServedSource(pathname, bytes, sources) {
   return { path: sourcePath, sha256: hash };
 }
 
+export function assertMain3HudReadable(layout) {
+  const { bounds, objectiveBounds, objectiveClient, viewport, blockers = [] } = layout;
+  for (const box of [bounds, objectiveBounds]) {
+    assert.ok(box && ['x','y','right','bottom','width','height'].every(key => Number.isFinite(box[key])) &&
+      box.width > 0 && box.height > 0, 'Main3 objective has measurable bounds');
+    assert.ok(box.x >= -1 && box.y >= -1 && box.right <= viewport.width + 1 && box.bottom <= viewport.height + 1,
+      'Main3 objective fits viewport');
+  }
+  assert.ok(objectiveBounds.x >= bounds.x - 1 && objectiveBounds.y >= bounds.y - 1 &&
+    objectiveBounds.right <= bounds.right + 1 && objectiveBounds.bottom <= bounds.bottom + 1,
+    'Main3 objective must remain within its HUD clipping boundary');
+  assert.ok(objectiveClient.width > 0 && objectiveClient.height > 0 &&
+    objectiveClient.scrollWidth <= objectiveClient.width + 1 && objectiveClient.scrollHeight <= objectiveClient.height + 1,
+    'Main3 objective text must not be clipped or ellipsized');
+  for (const other of blockers) {
+    const overlap = bounds.x < other.right - 1 && bounds.right > other.x + 1 &&
+      bounds.y < other.bottom - 1 && bounds.bottom > other.y + 1;
+    assert.ok(!overlap, `Main3 HUD overlap: ${other.id}`);
+  }
+  return true;
+}
+
 export const MAIN3_CAMPUS_ACCOUNTS = Object.freeze(Object.fromEntries(['desktop', 'mobile'].map((mode, index) =>
   [mode, Object.freeze([0, 1].map(n => Object.freeze({
     id: `00000000-0000-4000-8000-000000000${index + 1}0${n + 1}`,

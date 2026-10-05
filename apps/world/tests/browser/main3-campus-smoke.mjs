@@ -8,7 +8,7 @@ import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { assertMain3HostedExecution, createMain3CampusAuthority, installMain3CampusIdentity,
-  MAIN3_CAMPUS_ACCOUNTS, MAIN3_CAMPUS_SHOP, MAIN3_CAMPUS_WALLET, assertMain3ServedSource } from './main3-campus-fixture.mjs';
+  MAIN3_CAMPUS_ACCOUNTS, MAIN3_CAMPUS_SHOP, MAIN3_CAMPUS_WALLET, assertMain3ServedSource, assertMain3HudReadable } from './main3-campus-fixture.mjs';
 
 // Fail before importing browser tooling, allocating a server, or writing evidence.
 assertMain3HostedExecution(process.env);
@@ -83,7 +83,11 @@ function readHud() {
     legacyTourVisible: visible(document.getElementById('tour')),
     visibleLegacyQuestHuds: ['npc-quest-hud', 'main2-quest-hud'].filter(id => visible(document.getElementById(id))),
     bounds: root.getBoundingClientRect().toJSON(),
-    objectiveBounds: objective.getBoundingClientRect().toJSON(), viewport: { width: innerWidth, height: innerHeight } };
+    objectiveBounds: objective.getBoundingClientRect().toJSON(),
+    objectiveClient: { width: objective.clientWidth, height: objective.clientHeight, scrollWidth: objective.scrollWidth, scrollHeight: objective.scrollHeight },
+    blockers: [...document.querySelectorAll('#shop-world-label, #inkyung-living-moment, #minimap')].filter(visible)
+      .map(element => ({ id: element.id, ...element.getBoundingClientRect().toJSON() })),
+    viewport: { width: innerWidth, height: innerHeight } };
 }
 
 async function checkHud(page, stage) {
@@ -92,6 +96,7 @@ async function checkHud(page, stage) {
   assert.equal(hud.questId, 'quest.main.first_style'); assert.match(hud.heading, /^MAIN 03 · 내 첫 캠퍼스룩$/);
   assert.equal(hud.objective, MAIN3_QUEST_OBJECTIVES[stage]);
   assert.equal(hud.legacyTourVisible, false, 'completed Main1 must not leave a duplicate tour HUD');
+  assertMain3HudReadable(hud);
   assert.deepEqual(hud.visibleLegacyQuestHuds, [], 'legacy quest HUDs must not duplicate the tracked HUD');
   assert.ok(hud.bounds.width > 0 && hud.bounds.x >= -1 && hud.bounds.right <= hud.viewport.width + 1 &&
     hud.bounds.y >= -1 && hud.bounds.bottom <= hud.viewport.height + 1, 'tracked Korean HUD fits viewport');
@@ -230,6 +235,11 @@ try {
       });
       const capture = async label => {
         await page.evaluate(() => document.fonts.ready);
+        const priorFrame = await page.evaluate(() => window.__INHAGAME_P0__.app.frame);
+        await wait(frame => window.__INHAGAME_P0__.app.frame >= frame + 3, priorFrame);
+        const currentStage = (await page.evaluate(readState)).main3.stage;
+        const hud = await checkHud(page, currentStage);
+        entry.captureLayouts ??= []; entry.captureLayouts.push({ label, hud });
         const pixels = await renderedPixels(page);
         assert.ok(!pixels.contextLost && pixels.glError === 0 && pixels.colors > 15 && pixels.luminanceStddev > 4,
           `${label}: real campus framebuffer is nonblank`);
@@ -298,6 +308,7 @@ try {
       entry.placements.push(await placePlayer(page, STUDENT_CENTER_SHOP_ENTRY, 'shop'));
       await wait(() => window.__INHAGAME_P0__.contextActions.active?.id === 'student-center-shop');
       entry.states.proximity = await page.evaluate(readState);
+      entry.states.arrivalHud1 = await checkHud(page, 1);
       assert.equal(entry.states.proximity.main3.stage, 1, 'proximity alone cannot progress');
       await capture('world-entry-stage1');
       await pressContext('student-center-shop');
