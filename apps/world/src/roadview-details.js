@@ -1,9 +1,11 @@
 import { FacilityMeshBatch } from './facility-mesh-batch.js';
+import { fillAgoraPhotoStructure,fillAgoraPhotoNear } from './agora-photo-geometry.js';
 import { mainGateProductionPath, mainGateProductionStructure } from './editor/main-gate-production.js';
 import { gateCurbFaces, gateRibbon, gateRibbonTop, gateArrowTriangles, MAIN_GATE_LEVELS } from './main-gate-terrain-layout.js';
-// Public QA: image-observation-specific visual dressing is withheld.
-export function buildAgoraStructure(..._args) { return undefined; }
-export function buildAgoraNear(..._args) { return undefined; }
+// Agora uses a bounded photo-informed presentation. Unrelated retired builders
+// remain untouched; student center is owned by its connected renderer.
+export function buildAgoraStructure(_root,batch) { fillAgoraPhotoStructure(batch); }
+export function buildAgoraNear(root) { const batch=new FacilityMeshBatch();fillAgoraPhotoNear(batch);batch.finish(root,'agora_photo_rails'); }
 export function buildStudentTerraces(..._args) { return undefined; }
 export function fillStudentFront(..._args) { return undefined; }
 export function buildGateRoadview(root){

@@ -6,10 +6,13 @@ Build-time wrapper around glTF Transform for validated INHA WORLD GLB assets.
 
 The optimizer never mutates files under `apps/world/assets`.
 
-Current adoption is allowlist-only. Only the three assets that passed both renderer-neutral and PlayCanvas 2.22.4 PoC gates are eligible:
+Current adoption covers all six World GLBs. Character semantic pivots are preserved explicitly for the duck and flight-dragon assets:
 
-- `induck-v3.glb`
+- `induck-v3.glb` (preserve empty semantic leaf pivots)
+- `annyongi-flight-v1.glb` (preserve empty semantic leaf pivots)
+- `induck-cap-v1.glb`
 - `induck-backpack-v1.glb`
+- `induck-hoodie-v1.glb`
 - `p0-qa-building.glb`
 
 Each asset produces one explicit status:

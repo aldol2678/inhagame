@@ -130,7 +130,11 @@ test('a fresh account completes the walk over /quest and receives badge + 100 EX
 
   for (const event of ['talk_001', 'status', 'talk_001']) {
     const again = await quest(token, { event });
-    assert.deepEqual(again.body, { quest_id: 'campus_first_walk_v1', stage: 5 }, `${event} replays without a reward`);
+    assert.equal(again.status, 200);
+    assert.deepEqual(again.body, {
+      quest_id: 'campus_first_walk_v1', stage: 5,
+      ...(event === 'talk_001' ? { rewardReceipt: { ...reward, replayed: true } } : {})
+    }, `${event} never grants again; only a final-talk retry carries the existing receipt`);
   }
   assert.equal(progress(user), '100/Lv.2');
   assert.equal(rewardTx(user), 1);

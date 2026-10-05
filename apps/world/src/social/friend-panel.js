@@ -13,7 +13,7 @@ const SECTIONS = Object.freeze([
 
 export function createFriendPanel({ toggle, panel, social, onRelationshipChange = () => {}, onOpenChange = () => {}, doc = document,
   fallbackFocus = () => toggle,
-  // S1-D2: { canVisit(userId), onVisit(userId) → Promise<{ ok, reason }>, reasonText(reason) } or null.
+  // S1-D2: { canVisit(userId), onVisit(userId, displayName) → Promise<{ ok, reason }>, reasonText(reason) } or null.
   roomVisit = null,
   timers = { setInterval: globalThis.setInterval?.bind(globalThis), clearInterval: globalThis.clearInterval?.bind(globalThis) } }) {
   const el = (tag, className, text) => {
@@ -77,7 +77,7 @@ export function createFriendPanel({ toggle, panel, social, onRelationshipChange 
           if (!verdict.ok) { visit.disabled = true; visit.title = roomVisit.reasonText?.(verdict.reason) ?? ""; }
           visit.addEventListener("click", async () => {
             visit.disabled = true;
-            const result = await roomVisit.onVisit(person.userId);
+            const result = await roomVisit.onVisit(person.userId, person.nickname ?? null);
             if (result?.ok) { setOpen(false); return; }
             hint = roomVisit.reasonText?.(result?.reason) ?? "";
             if (open) render();

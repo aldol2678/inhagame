@@ -42,7 +42,7 @@ const FOLLOW_BLOCKED_TEXT = Object.freeze({
 export function createPlayerCard({ panel, social, getRemote, getSelfUserId, getPlaceZoneId = () => null,
   onRelationshipChange = () => {}, onOpenChange = () => {}, onMessage = null, doc = document,
   accompany = null,
-  // { canVisit(userId) → { ok, reason }, onVisit(userId) → Promise<{ ok, reason }>, reasonText(reason) }
+  // { canVisit(userId) → { ok, reason }, onVisit(userId, displayName) → Promise<{ ok, reason }>, reasonText(reason) }
   roomVisit = null,
   follow = { canFollow: () => ({ ok: false, reason: "unsupported" }), isFollowing: () => false, isFollowingAnyone: () => false,
     onFollow: () => false, onStopFollow: () => false } }) {
@@ -127,7 +127,7 @@ export function createPlayerCard({ panel, social, getRemote, getSelfUserId, getP
         const visit = button(ROOM_VISIT_LABEL, async () => {
           const opened = current;
           visit.disabled = true;
-          const result = await roomVisit.onVisit(target);
+          const result = await roomVisit.onVisit(target, opened?.displayName ?? null);
           if (current !== opened) return;
           if (result?.ok) close(); else render(roomVisit.reasonText?.(result?.reason) ?? "");
         }, "player-card-room-visit");

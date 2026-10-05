@@ -21,7 +21,7 @@ test('P0 registry contains 3 server-persisted pilots + 1 owner-derived Biryong e
 
   const persisted = COLLECTION_ENTRY_REGISTRY.list()
     .filter(entry => entry.persistenceMode === COLLECTION_PERSISTENCE_MODE.SERVER_PERSISTED);
-  assert.deepEqual(persisted.map(entry => entry.status), ['COMING_SOON', 'COMING_SOON', 'COMING_SOON']);
+  assert.deepEqual(persisted.map(entry => entry.status), ['ACTIVE', 'COMING_SOON', 'COMING_SOON']);
   assert.deepEqual(persisted.map(entry => entry.category), ['FISH', 'PLANT', 'ARTIFACT']);
 
   const biryong = COLLECTION_ENTRY_REGISTRY.get('collection.place.biryong_tower');
@@ -64,7 +64,7 @@ test('DB authority mirror exposes only write-validation fields', () => {
     persistence_mode: 'SERVER_PERSISTED',
     owner_domain: null,
     owner_ref: null,
-    status: 'COMING_SOON',
+    status: 'ACTIVE',
     definition_version: 1
   });
   assert.equal('title' in row, false);

@@ -28,7 +28,7 @@ const windowMock={
   addEventListener:(type,fn)=>{windowHandlers[type]=fn}
 };
 const documentMock={
-  referrer:'https://inhagame.example/',
+  referrer:'https://inhagame.app/',
   hidden:false,
   getElementById:id=>screens[id]||null,
   querySelector:selector=>selector==='.screen.active'?Object.values(screens).find(x=>x.active)||null:null,
@@ -44,7 +44,7 @@ const context={
     setItem:(k,v)=>storage.set(k,String(v))
   },
   history:{replaceState(){}},
-  location:{hostname:'grow.inhagame.example',origin:'https://grow.inhagame.example',href:'https://grow.inhagame.example/?src=everytime'},
+  location:{hostname:'grow.inhagame.app',origin:'https://grow.inhagame.app',href:'https://grow.inhagame.app/?src=everytime'},
   document:documentMock,
   fetch:async(url,init)=>{fetchCalls.push({url,init,body:JSON.parse(init.body)});return {ok:true}},
   state:{week:1,department:'culture',gpa:0,stamina:75,stress:20,money:70000,baseFree:6,skippedSlots:[]},

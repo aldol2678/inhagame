@@ -1,8 +1,9 @@
 import { geoToWorld } from './geo-coordinates.js';
 import { projectPolygon } from './reality-adapter.js';
+import { photoNorthTowerParts } from './north-landmark-massing.js';
 
 const url = new URL('../data/reality/campus-facilities.json', import.meta.url);
-const data = typeof window === 'undefined'
+const data = url.protocol === 'file:'
   ? JSON.parse((await import('node:fs')).readFileSync(url, 'utf8'))
   : await (async () => { const r = await fetch(url); if (!r.ok) throw Error(`Facilities load failed: ${r.status}`); return r.json(); })();
 
@@ -83,6 +84,7 @@ export const FACILITIES = data.features.map(f => {
 
 // Raised tower volumes are inset inside the source outline; dimensions are visual estimates.
 export function towerParts(f) {
+  if(['bldg_05','bldg_60th'].includes(f.id))return photoNorthTowerParts(f);
   if (!['anniversary','hitech'].includes(f.style)) return [];
   const v=f.rings[0], north=[...v].sort((a,b)=>b.z-a.z)[0];
   const center={x:f.center.x*.45+north.x*.55,z:f.center.z*.45+north.z*.55};

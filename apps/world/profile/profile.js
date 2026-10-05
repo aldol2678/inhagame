@@ -11,8 +11,8 @@
     'inha-duck':'classic', induckup:'induckup', 'inha-duck-survival':'survival'
   });
   const allowedOrigins = new Set([
-    'https://duck.inhagame.example','https://induckup.inhagame.example',
-    'https://survival.inhagame.example','https://grow.inhagame.example'
+    'https://duck.inhagame.app','https://induckup.inhagame.app',
+    'https://survival.inhagame.app','https://grow.inhagame.app'
   ]);
   let version = 0, userId = null, current = null, departments = [], catalog = [];
   function status(message) { $('profile-status').textContent = message; }

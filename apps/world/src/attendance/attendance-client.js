@@ -84,6 +84,7 @@ export function createAttendanceClient({ getClient, onRewards = () => {} } = {})
   let snapshot = null;
   let pending = null;
   let reading = null;
+  let readVersion = 0;
   const listeners = new Set();
 
   function set(nextState, nextSnapshot, reason) {
@@ -107,12 +108,20 @@ export function createAttendanceClient({ getClient, onRewards = () => {} } = {})
 
   function refresh(reason = "refresh") {
     if (!accountId) return Promise.resolve(false);
+    // A read sent during a claim can still observe its old server snapshot. Defer
+    // and coalesce these refresh requests until the claim settles; never retry it.
+    if (pending) {
+      const gen = generation;
+      pending.refresh ??= pending.done.then(() => gen === generation ? refresh(reason) : false);
+      return pending.refresh;
+    }
     if (reading) return reading;
     const gen = generation;
+    const version = readVersion;
     const run = (async () => {
       try {
         const { data, error } = await call(ATTENDANCE_RPC.READ);
-        if (gen !== generation) return false;
+        if (gen !== generation || version !== readVersion) return false;
         const next = error ? null : parseAttendance(data);
         if (error) console.warn("World attendance unavailable:", error?.message ?? error);
         if (next) set(ATTENDANCE_STATE.READY, next, reason);
@@ -132,7 +141,11 @@ export function createAttendanceClient({ getClient, onRewards = () => {} } = {})
     if (pending) return { outcome: "BUSY" };
     const gen = generation;
     const token = {};
+    token.done = new Promise(resolve => { token.finish = resolve; });
     pending = token;
+    // Failure recovery and later refreshes must not reuse a pre-claim status read.
+    readVersion += 1;
+    reading = null;
     set(state, snapshot, "claim");
     try {
       const { data, error } = await call(ATTENDANCE_RPC.CLAIM);
@@ -166,6 +179,7 @@ export function createAttendanceClient({ getClient, onRewards = () => {} } = {})
         pending = null;
         if (gen === generation) set(state, snapshot, "claim");
       }
+      token.finish();
     }
   }
 

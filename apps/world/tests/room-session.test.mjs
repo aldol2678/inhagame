@@ -8,11 +8,13 @@ import {
   createPersonalRoomSession, parseRoomAccess, personalRoomTopic, personalRoomZoneId, ROOM_ACCESS_CHECK_MS
 } from "../src/rooms/room-session.js";
 import {
-  FriendRoomVisitClient, FriendRoomVisitError, FRIEND_ROOM_VISIT_TEXT, createFriendRoomVisitController, parseFriendRoom
+  FriendRoomVisitClient, FriendRoomVisitError, FRIEND_ROOM_VISIT_TEXT, createFriendRoomVisitController, friendVisitText,
+  parseFriendRoom
 } from "../src/rooms/friend-room-visit.js";
 import { PersonalRoomClient, PersonalRoomError } from "../src/rooms/personal-room-client.js";
 import { createRoomTransition, ROOM_TRANSITION_COOLDOWN_MS } from "../src/rooms/room-transition.js";
-import { DORM_1_LOBBY_MY_ROOM_RETURN } from "../src/rooms/dorm1-lobby-layout.js";
+import { DORM_1_LOBBY_FRIEND_ROOM, DORM_1_LOBBY_MY_ROOM_RETURN } from "../src/rooms/dorm1-lobby-layout.js";
+import { RoomKnockClient, waitForKnockAnswer } from "../src/rooms/room-knock.js";
 import { DORM_1_CAMPUS_RETURN } from "../src/dorm1-layout.js";
 import { PERSONAL_ROOM_BASIC_EXIT } from "../src/rooms/personal-room-layout.js";
 import { createRoomHud } from "../src/rooms/room-hud.js";
@@ -42,7 +44,14 @@ function fakeRoomServer() {
   const rooms = new Map([[ROOM, { ownerUserId: OWNER, visibility: "friends" }]]);
   const friends = new Set([FRIEND]);
   const blocked = new Set();
-  const state = { failing: false, calls: 0 };
+  const state = { failing: false, calls: 0, ownerHome: false };
+  // Housing H3 knocks: id → { visitor, status }. Admission = ACCEPTED / OPEN; DECLINED blocks.
+  const knocks = new Map();
+  let knockSeq = 0;
+  const admitted = (viewer) => [...knocks.values()].some(k => k.visitor === viewer && ["ACCEPTED", "OPEN"].includes(k.status));
+  const declined = (viewer) => [...knocks.values()].some(k => k.visitor === viewer && k.status === "DECLINED");
+  const knockJson = (id) => ({ knockId: id, roomId: ROOM, visitorUserId: knocks.get(id).visitor, status: knocks.get(id).status,
+    expiresAt: "2099-01-01T00:00:00Z", ownerPresent: state.ownerHome });
   const decide = (viewer, roomId) => {
     const room = rooms.get(roomId);
     if (!room) return { roomId, allowed: false, role: null, reason: "DENIED" };
@@ -61,12 +70,30 @@ function fakeRoomServer() {
         if (!friends.has(viewer) || blocked.has(viewer)) return { data: null, error: { message: "NOT_FRIENDS" } };
         if (!room) return { data: null, error: { message: "ROOM_NOT_FOUND" } };
         if (room.visibility !== "friends") return { data: null, error: { message: "ROOM_PRIVATE" } };
+        if (declined(viewer)) return { data: null, error: { message: "VISIT_DECLINED" } };
+        if (state.ownerHome && !admitted(viewer)) return { data: null, error: { message: "KNOCK_REQUIRED" } };
         return { data: { roomId, ownerUserId: room.ownerUserId, ownerDisplayName: "방주인", roomType: "DORM_1_BASIC", visibility: "friends", role: "visitor" }, error: null };
+      }
+      if (name === "knock_friend_personal_room_v1") {
+        if (!friends.has(viewer)) return { data: null, error: { message: "NOT_FRIENDS" } };
+        if (declined(viewer)) return { data: null, error: { message: "VISIT_DECLINED" } };
+        const existing = [...knocks].find(([, k]) => k.visitor === viewer && ["PENDING", "ACCEPTED", "OPEN"].includes(k.status));
+        if (existing) return { data: knockJson(existing[0]), error: null };
+        const id = `00000000-0000-4000-8000-${String(++knockSeq).padStart(12, "0")}`;
+        knocks.set(id, { visitor: viewer, status: state.ownerHome ? "PENDING" : "OPEN" });
+        return { data: knockJson(id), error: null };
+      }
+      if (name === "get_my_room_knock_v1") {
+        if (knocks.get(args.p_knock)?.visitor !== viewer) return { data: null, error: { message: "KNOCK_NOT_FOUND" } };
+        return { data: knockJson(args.p_knock), error: null };
       }
       return { data: null, error: { message: "UNKNOWN_RPC" } };
     }
   });
-  return { rooms, friends, blocked, state, clientFor };
+  const answer = (accept) => {
+    for (const k of knocks.values()) if (k.status === "PENDING") k.status = accept === "expire" ? "EXPIRED" : accept ? "ACCEPTED" : "DECLINED";
+  };
+  return { rooms, friends, blocked, state, knocks, answer, clientFor };
 }
 
 function sessionFixture({ server, viewer, scheduler, hub, label = viewer, displayName = "플레이어" }) {
@@ -356,60 +383,137 @@ function transitionFixture() {
   return { clock, calls, rooms, wait: () => { clock.t += ROOM_TRANSITION_COOLDOWN_MS + 1; } };
 }
 
-test("visit from campus → friend room → Dorm Lobby anchor → campus dorm anchor (never an arbitrary point)", async () => {
-  const server = fakeRoomServer();
-  const { calls, rooms, wait } = transitionFixture();
+function visitFixture({ server, rooms, mounted = () => false, answerWith = null } = {}) {
   const statuses = [];
+  const guides = [];
+  const clock = { t: 0 };
   const visit = createFriendRoomVisitController({
     client: new FriendRoomVisitClient({ getClient: () => server.clientFor(FRIEND), getSelfUserId: () => FRIEND }),
-    rooms, onStatus: (text) => statuses.push(text)
+    knockClient: new RoomKnockClient({ getClient: () => server.clientFor(FRIEND), getSelfUserId: () => FRIEND }),
+    rooms, isMounted: mounted, onStatus: (text) => statuses.push(text),
+    guideToDorm: () => { guides.push("dorm"); return true; },
+    now: () => clock.t,
+    // The owner answers (or not) while the visitor waits; time only moves through the fake clock.
+    waitForAnswer: (options) => waitForKnockAnswer({
+      ...options, now: () => clock.t,
+      sleep: async (ms) => { clock.t += ms; if (answerWith !== null) server.answer(answerWith); }
+    })
   });
+  return { visit, statuses, guides, clock };
+}
+const knockAt = (visit, position = DORM_1_LOBBY_FRIEND_ROOM.position) => visit.contextAction({ position, grounded: true, mounted: false });
+
+test("H3: a campus visit guides to 제1생활관 instead of teleporting; the corridor knock enters through the lobby", async () => {
+  const server = fakeRoomServer();
+  const { calls, rooms, wait } = transitionFixture();
+  const { visit, statuses, guides } = visitFixture({ server, rooms });
   const result = await visit.visit(OWNER);
-  assert.equal(result.ok, true);
+  assert.deepEqual(result, { ok: true, mode: "guiding" });
+  assert.equal(rooms.currentSpace, "campus", "nothing moves the player into the room");
+  assert.deepEqual(guides, ["dorm"]);
+  assert.equal(statuses.at(-1), friendVisitText.guiding("방주인"));
+  assert.equal(visit.intent.ownerDisplayName, "방주인");
+  assert.equal(knockAt(visit), null, "no knock action outside the Dorm Lobby");
+
+  assert.ok(rooms.enter("ROOM_DORM1_LOBBY"));
+  wait();
+  assert.equal(knockAt(visit, { x: 0, z: 0 }), null, "knock only at the corridor door");
+  const action = knockAt(visit);
+  assert.equal(action.label, "방주인님 방 노크");
+  assert.equal(action.trigger(), true);
+  await flush(8);
   assert.equal(rooms.currentSpace, "ROOM_PERSONAL_BASIC");
   assert.equal(rooms.status().parentRoomId, "ROOM_DORM1_LOBBY");
   assert.deepEqual(rooms.status().metadata, { personalRoomId: ROOM, ownerUserId: OWNER, ownerDisplayName: "방주인", visitRole: "visitor" });
-  assert.deepEqual(calls.slice(0, 2), [["leaveCampus", "ROOM_PERSONAL_BASIC"], ["showRoom", "ROOM_PERSONAL_BASIC"]]);
+  assert.equal(statuses.at(-1), friendVisitText.ownerAway("방주인"), "owner away: admitted by visibility");
+  assert.equal(visit.intent, null, "entering consumes the visit");
+  assert.equal(rooms.stats.directNestedEnters, 0, "the campus → room jump is gone");
+
   wait();
   assert.equal(rooms.contextAction({ position: PERSONAL_ROOM_BASIC_EXIT.position }).trigger(), true);
   assert.equal(rooms.currentSpace, "ROOM_DORM1_LOBBY");
   assert.deepEqual(calls.at(-1), ["placePlayer", { ...DORM_1_LOBBY_MY_ROOM_RETURN.position }, DORM_1_LOBBY_MY_ROOM_RETURN.yaw]);
-  assert.equal(calls.filter(([c]) => c === "resumeCampus").length, 0, "campus presence stays paused in the lobby");
   wait();
   assert.equal(rooms.exit(), true);
-  assert.equal(rooms.currentSpace, "campus");
-  assert.deepEqual(calls.at(-3), ["showCampus", "ROOM_DORM1_LOBBY"]);
   assert.deepEqual(calls.at(-2), ["placePlayer", { ...DORM_1_CAMPUS_RETURN.position }, DORM_1_CAMPUS_RETURN.yaw]);
-  assert.deepEqual(calls.at(-1), ["resumeCampus"]);
-  assert.equal(rooms.stats.directNestedEnters, 1);
-  assert.deepEqual(statuses, []);
 });
 
-test("visit from the Dorm Lobby nests under the lobby; other interiors, mounts and busy states refuse", async () => {
+test("H3: owner home → the knock waits; accepted enters, declined ends the visit, silence keeps the door", async () => {
+  // Accepted.
+  {
+    const server = fakeRoomServer();
+    server.state.ownerHome = true;
+    const { rooms, wait } = transitionFixture();
+    assert.ok(rooms.enter("ROOM_DORM1_LOBBY")); wait();
+    const { visit, statuses } = visitFixture({ server, rooms, answerWith: true });
+    assert.deepEqual(await visit.visit(OWNER), { ok: true, mode: "lobby" }, "KNOCK_REQUIRED still allows walking to the door");
+    assert.equal(statuses.at(-1), friendVisitText.lobby("친구"), "name falls back when the resolver withholds it");
+    const entered = await visit.knock();
+    assert.equal(entered.ok, true);
+    assert.ok(statuses.includes(friendVisitText.waiting("친구")));
+    assert.equal(rooms.currentSpace, "ROOM_PERSONAL_BASIC");
+  }
+  // Declined.
+  {
+    const server = fakeRoomServer();
+    server.state.ownerHome = true;
+    const { rooms, wait } = transitionFixture();
+    assert.ok(rooms.enter("ROOM_DORM1_LOBBY")); wait();
+    const { visit, statuses } = visitFixture({ server, rooms, answerWith: false });
+    await visit.visit(OWNER, { displayName: "방주인" });
+    assert.deepEqual(await visit.knock(), { ok: false, reason: "VISIT_DECLINED" });
+    assert.equal(statuses.at(-1), FRIEND_ROOM_VISIT_TEXT.VISIT_DECLINED);
+    assert.equal(rooms.currentSpace, "ROOM_DORM1_LOBBY");
+    assert.equal(visit.intent, null);
+    assert.equal(knockAt(visit), null, "a declined visit leaves no knock action");
+    assert.deepEqual(await visit.visit(OWNER), { ok: false, reason: "VISIT_DECLINED" }, "the cooldown is the server's");
+  }
+  // No answer.
+  {
+    const server = fakeRoomServer();
+    server.state.ownerHome = true;
+    const { rooms, wait } = transitionFixture();
+    assert.ok(rooms.enter("ROOM_DORM1_LOBBY")); wait();
+    const { visit, statuses } = visitFixture({ server, rooms });
+    await visit.visit(OWNER, { displayName: "방주인" });
+    assert.deepEqual(await visit.knock(), { ok: false, reason: "KNOCK_EXPIRED" });
+    assert.equal(statuses.at(-1), FRIEND_ROOM_VISIT_TEXT.KNOCK_EXPIRED);
+    assert.ok(knockAt(visit), "the visitor can knock again");
+  }
+});
+
+test("H3: leaving the lobby while waiting cancels quietly; intents lapse and refuse other interiors, mounts and hopping", async () => {
   const server = fakeRoomServer();
+  server.state.ownerHome = true;
   const { rooms, wait } = transitionFixture();
-  let mounted = false;
+  assert.ok(rooms.enter("ROOM_DORM1_LOBBY")); wait();
+  let leaveWhileWaiting = true;
   const statuses = [];
   const visit = createFriendRoomVisitController({
     client: new FriendRoomVisitClient({ getClient: () => server.clientFor(FRIEND), getSelfUserId: () => FRIEND }),
-    rooms, isMounted: () => mounted, onStatus: (text) => statuses.push(text)
+    knockClient: new RoomKnockClient({ getClient: () => server.clientFor(FRIEND), getSelfUserId: () => FRIEND }),
+    rooms, onStatus: (t) => statuses.push(t),
+    waitForAnswer: (options) => waitForKnockAnswer({ ...options, sleep: async () => {
+      if (leaveWhileWaiting) { leaveWhileWaiting = false; wait(); rooms.exit(); }
+    } })
   });
-  mounted = true;
-  assert.deepEqual(await visit.visit(OWNER), { ok: false, reason: "mounted" });
+  await visit.visit(OWNER, { displayName: "방주인" });
+  assert.deepEqual(await visit.knock(), { ok: false, reason: "cancelled" });
+  assert.equal(rooms.currentSpace, "campus");
+
+  let mounted = true;
+  const { visit: v2 } = visitFixture({ server, rooms, mounted: () => mounted });
+  assert.deepEqual(await v2.visit(OWNER), { ok: false, reason: "mounted" });
   mounted = false;
-  assert.ok(rooms.enter("ROOM_CLUBHOUSE_01"));
   wait();
-  assert.deepEqual(await visit.visit(OWNER), { ok: false, reason: "inside_room" });
-  assert.ok(rooms.exit());
-  wait();
-  assert.ok(rooms.enter("ROOM_DORM1_LOBBY"));
-  wait();
-  assert.equal((await visit.visit(OWNER)).ok, true);
-  assert.equal(rooms.status().parentRoomId, "ROOM_DORM1_LOBBY");
-  assert.equal(rooms.stats.nestedEnters, 1);
-  wait();
-  assert.deepEqual(await visit.visit(OWNER), { ok: false, reason: "inside_room" }, "no hopping between rooms");
-  assert.equal(statuses.at(-1), FRIEND_ROOM_VISIT_TEXT.inside_room);
+  assert.ok(rooms.enter("ROOM_CLUBHOUSE_01")); wait();
+  assert.deepEqual(await v2.visit(OWNER), { ok: false, reason: "inside_room" });
+
+  const clockFixture = visitFixture({ server: fakeRoomServer(), rooms: transitionFixture().rooms });
+  await clockFixture.visit.visit(OWNER);
+  assert.ok(clockFixture.visit.intent);
+  clockFixture.clock.t += 10 * 60_000 + 1;
+  assert.equal(clockFixture.visit.intent, null, "a visit intent lapses after 10 minutes");
 });
 
 test("account switch during the resolver never enters the old account's visit", async () => {

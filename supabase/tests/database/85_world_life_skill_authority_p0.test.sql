@@ -27,8 +27,8 @@ select col_is_unique('private','world_life_skill_xp_transactions',array['idempot
   'Life Skill XP idempotency key is globally unique');
 
 select is((select count(*) from private.world_life_skill_catalog),11::bigint,'11 long-term Life Skills are mirrored');
-select is((select count(*) from private.world_life_skill_catalog where status='COMING_SOON'),11::bigint,
-  'M5 does not activate any Life Skill');
+select is((select count(*) from private.world_life_skill_catalog where status='COMING_SOON'),10::bigint,
+  'only Fishing is activated (20261004161000)');
 select results_eq($$
   select skill_id,curve_id,status from private.world_life_skill_catalog order by skill_id
 $$,$$values
@@ -36,7 +36,7 @@ $$,$$values
   ('life.cooking','life.common.v1','COMING_SOON'),
   ('life.crafting','life.common.v1','COMING_SOON'),
   ('life.farming','life.common.v1','COMING_SOON'),
-  ('life.fishing','life.common.v1','COMING_SOON'),
+  ('life.fishing','life.common.v1','ACTIVE'),
   ('life.gathering','life.common.v1','COMING_SOON'),
   ('life.mining','life.common.v1','COMING_SOON'),
   ('life.photography','life.common.v1','COMING_SOON'),
@@ -44,10 +44,14 @@ $$,$$values
   ('life.woodcutting','life.common.v1','COMING_SOON'),
   ('life.woodworking','life.common.v1','COMING_SOON')
 $$,'DB skill mirror matches the code authority subset');
+select is((select count(*) from private.world_life_skill_thresholds where curve_id='life.common.v1'),20::bigint,
+  'committed common curve publishes Lv1..20');
 select results_eq($$
-  select curve_id,level,min_total_xp from private.world_life_skill_thresholds order by curve_id,level
-$$,$$values ('life.common.v1'::text,1,0::bigint)$$,
-  'committed common curve freezes only Lv1=0 before P1-A balance tuning');
+  select curve_id,level,min_total_xp,cumulative_sp from private.world_life_skill_thresholds
+   where level in (1,2,4,5,20) order by curve_id,level
+$$,$$values ('life.common.v1'::text,1,0::bigint,0),('life.common.v1',2,100,1),
+  ('life.common.v1',4,600,3),('life.common.v1',5,1000,5),('life.common.v1',20,19000,23)$$,
+  'committed common curve is 50*L*(L-1) with cumulative per-skill SP');
 
 select ok((select bool_and(relrowsecurity) from pg_class where oid in (
   'private.world_life_skill_catalog'::regclass,
@@ -86,7 +90,8 @@ select is((select count(*) from private.world_player_life_skills
   where user_id='a8500000-0000-4000-8000-0000000000a8'),0::bigint,
   'read-only fresh snapshot provisions no player row');
 
--- ---- COMING_SOON write gate ----
+-- ---- COMING_SOON write gate (fixture: Fishing back to COMING_SOON, rolled back) ----
+update private.world_life_skill_catalog set status='COMING_SOON' where skill_id='life.fishing';
 select throws_ok($$
   select private.world_life_skill_xp_apply_v1(
     'a8500000-0000-4000-8000-0000000000a8','life.fishing',10,
@@ -96,12 +101,9 @@ select is((select count(*) from private.world_player_life_skills),0::bigint,
   'refused pre-live XP creates no projection');
 
 -- ---- curve contract: all extra thresholds below are test-only and rollback ----
-insert into private.world_life_skill_thresholds(curve_id,level,min_total_xp) values ('life.common.v1',2,100);
-insert into private.world_life_skill_thresholds(curve_id,level,min_total_xp) values ('life.common.v1',3,300);
-insert into private.world_life_skill_thresholds(curve_id,level,min_total_xp) values ('life.common.v1',4,600);
 select throws_ok($$
   insert into private.world_life_skill_thresholds(curve_id,level,min_total_xp)
-  values ('life.common.v1',6,1000)
+  values ('life.common.v1',22,30000)
 $$,'23514','LIFE_SKILL_CURVE_INVALID','curve append must be sequential');
 select throws_ok($$
   update private.world_life_skill_thresholds set min_total_xp=90
@@ -119,7 +121,7 @@ select throws_ok($$
   values ('life.test.v2',2,50)
 $$,'23514','LIFE_SKILL_CURVE_INVALID','a new curve must start at Lv1=0');
 
--- Test activation only. Rollback keeps every committed skill COMING_SOON.
+-- Test activation only. Rollback restores the committed statuses.
 update private.world_life_skill_catalog
    set status='ACTIVE'
  where skill_id in ('life.fishing','life.gathering','life.archaeology');
@@ -175,7 +177,14 @@ select results_eq($$
          (private.world_life_skill_snapshot_v1(user_id,skill_id)->>'level')::int
     from private.world_player_life_skills
    where user_id='a8500000-0000-4000-8000-0000000000a8' and skill_id='life.fishing'
-$$,$$values (620::bigint,2::bigint,4)$$,'620 XP derives Lv4 from the temporary test curve');
+$$,$$values (620::bigint,2::bigint,4)$$,'620 XP derives Lv4 from the published curve');
+select is(private.world_life_skill_xp_apply_v1(
+  'a8500000-0000-4000-8000-0000000000a8','life.fishing',19000,
+  'activity','activity.fishing.inkyung:attempt_003','life-xp:a:fishing:003')->>'status',
+  'SUCCESS','a large verified grant crosses the highest defined threshold');
+select is((private.world_life_skill_snapshot_v1(
+  'a8500000-0000-4000-8000-0000000000a8','life.fishing')->>'level')::int,20,
+  '19620 XP derives the highest defined Lv20');
 select is(private.world_life_skill_snapshot_v1(
   'a8500000-0000-4000-8000-0000000000a8','life.fishing')->>'isMaxLevel',
   'true','XP beyond the highest defined threshold is retained at the current max-defined level');
@@ -193,7 +202,7 @@ select is((select total_xp from private.world_player_life_skills
   50::bigint,'Gathering XP is independent');
 select is((select total_xp from private.world_player_life_skills
   where user_id='a8500000-0000-4000-8000-0000000000a8' and skill_id='life.fishing'),
-  620::bigint,'Gathering does not change Fishing XP');
+  19620::bigint,'Gathering does not change Fishing XP');
 
 select is(private.world_life_skill_xp_apply_v1(
   'b8500000-0000-4000-8000-0000000000b8','life.fishing',25,

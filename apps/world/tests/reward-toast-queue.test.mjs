@@ -263,6 +263,18 @@ test("mobile CSS: status and reward toast sit above the social cluster / transpo
 });
 
 
+test("modal open: the toast docks at the bottom edge for every shop-shell panel, gameplay lane untouched", () => {
+  const ui = readFileSync(new URL("../src/events/zombie-university-2026/event-ui.js", import.meta.url), "utf8");
+  // Only the modal state moves the toast; it must beat the id-specific transport rules, hence !important.
+  assert.match(ui, /body:has\(\.shop-panel:not\(\[hidden\]\)\) \.mcm26-toast\{bottom:max\(12px,calc\(env\(safe-area-inset-bottom\) \+ 8px\)\)!important\}/);
+  // The selector covers exactly the panels that share the shop shell.
+  const html = readFileSync(new URL("../campus/index.html", import.meta.url), "utf8");
+  for (const id of ["shop-panel", "inventory-panel", "wardrobe-panel", "daily-quiz-panel", "attendance-panel"]) {
+    assert.match(html, new RegExp(`<section id="${id}" class="[^"]*\\bshop-panel\\b[^"]*"`), `${id} carries the shop-panel shell class`);
+  }
+});
+
+
 test("mobile event chip keeps phase/status legible in a compact rail badge", () => {
   const P = MCM_2026_PHASE;
   assert.equal(shortMcm2026ChipLabel(P.PRELUDE, null, "1"), "🧟 D-1");

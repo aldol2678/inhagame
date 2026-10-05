@@ -11,6 +11,7 @@ import { readFileSync } from 'node:fs';
 import { roadFrame, CAMPUS_PATH_WIDTHS } from '../src/campus-road-layout.js';
 import { gateGroundOverlaps, fillLegacyGateGround } from '../src/main-gate-surface-ownership.js';
 import { roadSurface } from '../src/campus-road-geometry.js';
+import { MAIN_HALL_WALKWAY_SOURCE_IDS } from '../src/main-hall-walkway-layout.js';
 
 test('pavement layers are above lawn/asphalt and zebra is above all sidewalk details',()=>{
   assert.ok(.018<L.road&&L.road<L.sidewalk&&L.sidewalk<L.paint&&L.paint<L.joint&&L.joint<L.zebra);
@@ -70,10 +71,10 @@ test('actual campus ground renderer clips every legacy gate overlap and retains 
     .replace(/^import .*;$/gm,'').replaceAll('export function','function');
   const render=new Function('pc','SITE_FEATURES','polygon','segment','surface','box','pondWaterMaterial',
     'CAMPUS_PATH_WIDTHS','FacilityMeshBatch','roadSurface','roadFrame','MAIN_GATE_CAMPUS_LINK_IDS','L',
-    'MAIN_GATE_CENTRAL_POOL_ID','gateCentralPoolRimFaces','gateGroundOverlaps','fillLegacyGateGround',source+';return buildCampusGrounds;')(
+    'MAIN_GATE_CENTRAL_POOL_ID','gateCentralPoolRimFaces','gateGroundOverlaps','fillLegacyGateGround','MAIN_HALL_WALKWAY_SOURCE_IDS',source+';return buildCampusGrounds;')(
       {Application:{getApplication:()=>({graphicsDevice:{}})}},SITE_FEATURES,()=>{},(_root,id)=>segments.push(id),x=>x,
       ()=>{},()=>{},CAMPUS_PATH_WIDTHS,Batch,roadSurface,roadFrame,MAIN_GATE_CAMPUS_LINK_IDS,
-      MAIN_GATE_CAMPUS_LINK_LEVELS,MAIN_GATE_CENTRAL_POOL_ID,gateCentralPoolRimFaces,gateGroundOverlaps,fillLegacyGateGround);
+      MAIN_GATE_CAMPUS_LINK_LEVELS,MAIN_GATE_CENTRAL_POOL_ID,gateCentralPoolRimFaces,gateGroundOverlaps,fillLegacyGateGround,MAIN_HALL_WALKWAY_SOURCE_IDS);
   render({});
   assert.ok(quads.some(q=>q.color==='#747d7b'));
   for(const q of quads.filter(q=>['#747d7b','#b4b4a8'].includes(q.color)))
@@ -84,7 +85,7 @@ test('actual campus ground renderer clips every legacy gate overlap and retains 
     for(let i=1;i<feature.vertices.length;i++){
       const f=roadFrame(feature.vertices[i-1],feature.vertices[i]),h=((CAMPUS_PATH_WIDTHS[feature.id]||3.5)+2.1)/2;
       const clipped=gateGroundOverlaps([f.at(0,-h),f.at(f.length,-h),f.at(f.length,h),f.at(0,h)]);
-      const flush=i===1&&MAIN_GATE_CAMPUS_LINK_IDS.includes(feature.id);
+      const flush=(i===1&&MAIN_GATE_CAMPUS_LINK_IDS.includes(feature.id))||MAIN_HALL_WALKWAY_SOURCE_IDS.includes(feature.id);
       assert.equal(segments.includes(`${feature.id}_${i}`),!clipped&&!flush,'legacy segment '+feature.id+'_'+i);
     }
   assert.equal(quads.filter(q=>q.color==='#c8c7b4').length,12);

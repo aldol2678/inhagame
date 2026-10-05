@@ -1,3 +1,5 @@
+import {inStudentCampusRegion} from './student-center-frame.js';
+import {WALK_SHAPE} from './player-dimensions.js';
 import { cameraSafeFraction } from "./world-collision.js";
 import { CAMPUS_BIKE_ID } from "./mounts/campus-bike-world.js";
 import { inMainGateCameraArea } from './main-gate-camera-collision.js';
@@ -229,8 +231,20 @@ export class OrbitCameraController {
     // A real wall/prop can legitimately compress the chase orbit. Hide only the
     // local body/equipment when that camera enters their envelope; keep third
     // person input, chosen zoom, the obstacle and all other actors unchanged.
-    this.localVisualOccluded = !this.indoor && !this.mounted && inMainGateCameraArea(eye) &&
-      Math.hypot(cameraX - eye[0], cameraY - eye[1], -cameraZ - eye[2]) < .6;
+    const studentArea=inStudentCampusRegion(eye[0],eye[2]);
+    let bodyClearance=.6;
+    if(studentArea&&fraction<1){
+      // A collision-compressed portrait orbit can let the local body fill the
+      // route before the eye enters it. Bound the projected collision diameter
+      // to half the viewport width; retain intentional uncompressed close zoom.
+      const lens=this.camera.camera,fov=Number(lens.fov),aspect=Number(lens.aspectRatio);
+      if(fov>0&&fov<180&&aspect>0){
+        const horizontalTan=Math.tan(fov*Math.PI/360)*(lens.horizontalFov?1:aspect);
+        bodyClearance=Math.max(bodyClearance,WALK_SHAPE.radius/(horizontalTan*.5));
+      }
+    }
+    this.localVisualOccluded = !this.indoor && !this.mounted && (inMainGateCameraArea(eye)||studentArea) &&
+      Math.hypot(cameraX - eye[0], cameraY - eye[1], -cameraZ - eye[2]) < bodyClearance;
     this.camera.setPosition(cameraX, cameraY, cameraZ);
     if (viewPitch < THIRD_PERSON_PITCH.orbitMin) {
       const viewHorizontal = Math.cos(viewPitch);

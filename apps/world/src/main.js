@@ -1,8 +1,6 @@
 import { busyNpcIds } from './network/npc-talk-presence.js';
 import {CAMPUS_BALLOON_ID,setCampusBalloonPropRoot} from "./mounts/campus-balloon-world.js";
 import {createCampusBalloon} from "./mounts/campus-balloon-render.js";
-import {setCampusShuttlePropRoot} from "./mounts/campus-shuttle-world.js";
-import {createCampusShuttle,createShuttleStations} from "./mounts/campus-shuttle-render.js";
 import { DUCK_BOAT_ID,setDuckBoatPropRoot } from "./mounts/duck-boat-world.js";
 import { createDuckBoat,createInkyungDockMarker } from "./mounts/duck-boat-render.js";
 import { CAMPUS_KART_ID, setCampusKartPropRoot } from "./mounts/campus-kart-world.js";
@@ -24,9 +22,22 @@ import { createViewDistanceSettings } from './view-distance-settings.js';
 import { createGraphicsPresetController } from './graphics-presets.js';
 import { createEnvironmentDirector } from './environment/environment-director.js';
 import { resolveEnvironmentRuntimeTime, resolveEnvironmentRuntimeWeather } from './environment/environment-clock.js';
+import { createEnvironmentWorldTime } from './environment/environment-world-time.js';
+import { createWorldTimeHud } from './hud/world-time-hud.js';
+import { createNpcWorldClock } from '../npc-factory/npc-world-clock.mjs';
 import { createNightStreetLights } from './environment/night-street-lights.js';
+import { createNightBuildingWindows } from './environment/night-building-windows.js';
 import { createRainWeatherEffects } from './environment/rain-weather-effects.js';
+import { createSnowWeatherEffects } from './environment/snow-weather-effects.js';
+import { createSnowObjectEffects } from './environment/snow-object-effects.js';
+import { createSnowDepthEffects } from './environment/snow-depth-effects.js';
+import { createSnowThawEffects } from './environment/snow-thaw-effects.js';
+import { createMeltwaterEffects } from './environment/meltwater-effects.js';
+import { winterPerformanceSnapshot } from './environment/winter-performance-budget.js';
+import { createSkyVisuals } from './environment/sky-visuals.js';
 import { createInkyungDuckSystem } from './ambient-ducks.js';
+import { createDuckObservationClient } from './creature/duck-observation-client.js';
+import { createDuckCompanionFollow } from './creature/duck-companion-follow.js';
 import { createInkyungMechanicalDuckEvent } from './inkyung-mechanical-duck-event.js';
 import { createBiryongSystem } from './biryong/biryong-system.js';
 import { BIRYONG_PLACE_ID, isNearBiryong } from './biryong/biryong-layout.js';
@@ -73,6 +84,7 @@ import { FollowController, FollowStopReason, FOLLOW_CONTEXT_PRIORITY, FOLLOW_STO
 import { locomotionIntent } from "./seat-anchors.js";
 import { createClubRoomScene } from "./rooms/club-room-renderer.js";
 import { createRoomTransition, ROOM_TRANSITION_COOLDOWN_MS } from "./rooms/room-transition.js";
+import { createSpaceFade } from "./rooms/space-fade.js";
 import { DORM_1_LOBBY_MY_ROOM_RETURN } from "./rooms/dorm1-lobby-layout.js";
 import { createRoomWorldAdapter } from "./rooms/room-world-adapter.js";
 import { createDorm1LobbyScene } from "./rooms/dorm1-lobby-renderer.js";
@@ -82,6 +94,9 @@ import { createPersonalRoomInteraction } from "./rooms/personal-room-interaction
 import { FriendRoomVisitClient, FRIEND_ROOM_VISIT_TEXT, createFriendRoomVisitController } from "./rooms/friend-room-visit.js";
 import { createPersonalRoomSession } from "./rooms/room-session.js";
 import { createRoomHud } from "./rooms/room-hud.js";
+import { DORM_1_CAMPUS_RETURN } from "./dorm1-layout.js";
+import { RoomKnockClient, createOwnerKnockWatcher, diffRoomVisitors } from "./rooms/room-knock.js";
+import { createKnockPrompt } from "./rooms/knock-prompt.js";
 import { createFurnitureClient } from "./rooms/furniture-client.js";
 import { createFurnitureEditor } from "./rooms/furniture-editor.js";
 import { PERSONAL_ROOM_BASIC_SPAWN } from "./rooms/personal-room-layout.js";
@@ -98,7 +113,7 @@ import { createLobbyPresenceSummary } from "./lobby/lobby-presence-summary.js";
 import { createLobbyQuestHighlight } from "./lobby/lobby-quest-highlight.js";
 import { createLobbyDailyLoop } from "./lobby/lobby-daily-loop.js";
 import { createSpawnRegistry, markSpawnElement, SPAWN_ID } from "./lobby/spawn-registry.js";
-import { getWorldLoading } from "./lobby/lobby-loading.js";
+import { getWorldLoading, waitForWorldRender } from "./lobby/lobby-loading.js";
 import { createMiniMapDataSource } from "./minimap/minimap-data.js";
 import { createMiniMapRenderer } from "./minimap/minimap-renderer.js";
 import { createMiniMapController } from "./minimap/minimap-controller.js";
@@ -132,6 +147,11 @@ import { createDailyQuizClient } from "./daily-quiz/daily-quiz-client.js";
 import { createDailyQuizPanel } from "./daily-quiz/daily-quiz-panel.js";
 import { createAttendanceClient } from "./attendance/attendance-client.js";
 import { createAttendancePanel } from "./attendance/attendance-panel.js";
+import { LIFE_SKILL_BOOK_STATE, createLifeSkillBookClient } from "./life-skills/life-skill-book-client.js";
+import { createLifeSkillBookPanel } from "./life-skills/life-skill-book-panel.js";
+import { FISHING_CLIENT_STATE, createFishingClient } from "./activity/fishing-client.js";
+import { createFishingPanel } from "./activity/fishing-panel.js";
+import { fishingContextAction, findNearbyFishingSpot } from "./activity/fishing-spots.js";
 import { createLoadoutClient } from "./appearance/loadout-client.js";
 import { createEquipmentProjection } from "./appearance/equipment-projection.js";
 import { createEquipmentModelLoader } from "./appearance/equipment-asset-loader.js";
@@ -140,6 +160,20 @@ import { createWardrobePanel } from "./appearance/wardrobe-panel.js";
 import { STUDENT_CENTER_SHOP_ENTRY, createShopWorldInteraction } from "./shop/shop-world-interaction.js";
 import { createShopWorldLabel } from "./shop/shop-world-label.js";
 import { roadviewGroundHeight } from "./roadview-layout.js";
+import { createBackgateTransitInteraction } from "./transit/backgate-transit-interaction.js";
+import { createBackgateTransitPanel } from "./transit/backgate-transit-panel.js";
+import { BACKGATE_TRANSIT } from "./transit/backgate-transit-layout.js";
+import { createBiryongRealmScene } from "./biryong/biryong-realm-renderer.js";
+import { createBiryongRealmWorldAdapter } from "./biryong/biryong-realm-world-adapter.js";
+import { createBiryongRealmTransition } from "./biryong/biryong-realm-transition.js";
+import { createBiryongStationTransitInteraction } from "./biryong/biryong-station-transit-interaction.js";
+import { createBiryongMapDataSource } from "./biryong/biryong-map-data.js";
+import { createBiryongNavigation } from "./biryong/biryong-navigation.js";
+import { getBiryongRealmPlaceZone } from "./biryong/biryong-village-layout.js";
+import { createBiryongVillageNpcRuntime } from "./biryong/biryong-village-npc-runtime.js";
+import { createBiryongVillageDialogueRuntime } from "./biryong/biryong-village-dialogue-runtime.js";
+import { createBiryongRelationshipClient } from "./biryong/biryong-village-relationship-client.js";
+import { WORLD_REGION_ID } from "./regions/world-region-registry.js";
 import { INPUT_FOCUS_POLICY, createInputFocusManager } from "./input/input-focus-manager.js";
 import { bindInputFocusRuntime } from "./input/input-focus-runtime.js";
 import { bindPointerLockRuntime } from "./input/pointer-lock-runtime.js";
@@ -147,7 +181,15 @@ import { bindPointerLockHint } from "./input/pointer-lock-hint.js";
 import { bindCameraInputSettings } from "./input/camera-input-settings.js";
 import { createInputFocusOwner } from "./input/input-focus-owner.js";
 import { createHudContext } from "./hud/hud-context.js";
+import { HUD_MODE } from "./hud/hud-context.js";
 import { bindHudPresentation } from "./hud/hud-presentation.js";
+import { createCombatRuntimeV03 } from "./combat/combat-runtime-v03.js";
+import { createBuilding5CombatInteraction } from "./combat/building5-combat-interaction.js";
+import { BUILDING5_TRAINING_TARGET, createBuilding5CombatTraining } from "./combat/building5-combat-training.js";
+import { createBuilding5CombatTargetRenderer } from "./combat/building5-combat-target-renderer.js";
+import { createCombatWorldMotionV03 } from "./combat/combat-world-motion-v03.js";
+import { createCombatFeedbackV03 } from "./combat/combat-feedback-v03.js";
+import { createCombatHudV03 } from "./combat/combat-hud-v03.js";
 import { createHelicopterFlightHud } from "./mounts/helicopter-flight-hud.js";
 import { createMobilityBook } from "./mobility/mobility-book.js";
 import { FLAG_DISABLED, FLAG_ENABLED, FLAG_UNAVAILABLE, probeFeatureFlag, retryFeatureFlag } from "./npc-feature-flags.js";
@@ -169,10 +211,13 @@ const lobbyPreview = !roomPreviewStart && !dormLobbyPreviewStart && !personalRoo
   !mcmMinigamePreviewStart && isLobbyShellRequested(location);
 const rendererEl = document.getElementById("renderer");
 const zoneEl = document.getElementById("zone");
+const worldTimeEl = document.getElementById("world-time-chip");
 const npcTestMode = ['localhost', '127.0.0.1'].includes(location.hostname) &&
   startupParams.get('npcTest') === 'a-r1';
 const npcAiPilotMode = npcTestMode && startupParams.get('npcAiPilot') === '1';
-const npcProductionMode = ['inhagame.example', 'www.inhagame.example'].includes(location.hostname);
+// Normal deployments start campus NPCs without a domain allowlist. Local and Vercel
+// preview hosts retain the explicit selectors below; API flags still own AI/quest access.
+const npcProductionMode = !previewHost;
 const npcPreviewMode = location.hostname.endsWith('.vercel.app') &&
   startupParams.get('npcTest') === 'a-r1';
 // Production shares server time and deterministic NPC routes across clients.
@@ -180,10 +225,12 @@ const npcSharedScheduleMode = npcProductionMode || (previewHost && startupParams
 const npcRosterPreviewMode = previewHost && startupParams.get('campusLife') === 'roster';
 const npcSocialPreviewLevel = previewHost ? startupParams.get('npcSocial') : null;
 const npcObservedConversationPreview = previewHost && startupParams.get('npcConversation') === 'p0';
+// Ambient observed conversations are presentation-only and safe to enable on normal deployments.
+const npcObservedConversationMode = npcProductionMode || npcObservedConversationPreview;
 const npcSocialBehaviorPreviewMode = npcSocialPreviewLevel === 'ng15';
 const npcSocialPreviewMode = npcSocialPreviewLevel === 'ng1' || npcSocialBehaviorPreviewMode;
 const npcSocialProductionMode = npcProductionMode;
-const npcSocialMode = npcSocialProductionMode || npcSocialPreviewMode || npcObservedConversationPreview;
+const npcSocialMode = npcSocialProductionMode || npcSocialPreviewMode || npcObservedConversationMode;
 const npcEnabled = npcSharedScheduleMode || npcTestMode || npcProductionMode || npcPreviewMode || npcRosterPreviewMode || npcSocialMode;
 const campusLifePreview = previewHost && startupParams.get('campusLife') === 'p0a';
 let lastTrackedZone = null;
@@ -282,13 +329,48 @@ const environment = createEnvironmentDirector({
   initialTime: resolveEnvironmentRuntimeTime(startupParams, { previewHost }),
   initialWeather: resolveEnvironmentRuntimeWeather(startupParams, { previewHost })
 });
-app.on("update", dt => environment.update(dt));
+// Production sky/light follows the shared INHA WORLD clock. Preview hosts keep
+// manual envTime controls deterministic for QA and never infer from local time.
+const worldClock = previewHost ? null : createNpcWorldClock();
+const environmentWorldTime = createEnvironmentWorldTime({
+  environment,
+  clock: worldClock,
+  enabled: worldClock !== null
+});
+if (worldClock) await environmentWorldTime.sync();
+const worldTimeHud = createWorldTimeHud({
+  element: worldTimeEl,
+  getStatus: () => environmentWorldTime.status()
+});
+app.on("update", dt => {
+  environmentWorldTime.update();
+  environment.update(dt);
+  worldTimeHud.update(dt);
+});
+window.__INHAGAME_WORLD_TIME__ = Object.freeze({
+  status: () => environmentWorldTime.status()
+});
+window.__INHAGAME_WORLD_TIME_HUD__ = Object.freeze({
+  status: () => worldTimeHud.status()
+});
 window.__INHAGAME_ENVIRONMENT__ = Object.freeze({
   status: () => environment.status(),
   ...(previewHost ? {
     setTimeOfDay: (value, options) => environment.setTimeOfDay(value, options),
     setWeather: (value, options) => environment.setWeather(value, options)
   } : {})
+});
+
+const skyVisuals = createSkyVisuals({
+  app,
+  camera,
+  lightEntity: light,
+  copyEnvironmentSkyState: out => environment.copySkyVisualState(out),
+  getGraphicsTier: () => graphics.tier
+});
+app.on("update", dt => skyVisuals.update(dt));
+window.__INHAGAME_SKY__ = Object.freeze({
+  status: () => skyVisuals.status()
 });
 
 const player = new pc.Entity("Player");
@@ -322,6 +404,17 @@ window.__INHAGAME_NIGHT_LIGHTS__ = Object.freeze({
   status: () => nightStreetLights.status()
 });
 
+const nightBuildingWindows = createNightBuildingWindows({
+  root: campusRoot,
+  app,
+  getArtificialLightFactor: () => environment.artificialLightFactor(),
+  getGraphicsTier: () => graphics.tier
+});
+app.on("update", () => nightBuildingWindows.update());
+window.__INHAGAME_NIGHT_WINDOWS__ = Object.freeze({
+  status: () => nightBuildingWindows.status()
+});
+
 const rainWeatherEffects = createRainWeatherEffects({
   root: campusRoot,
   app,
@@ -335,7 +428,81 @@ window.__INHAGAME_RAIN__ = Object.freeze({
   status: () => rainWeatherEffects.status()
 });
 
-const controller = new PlayerController(player);
+const snowWeatherEffects = createSnowWeatherEffects({
+  root: campusRoot,
+  app,
+  getPlayerPosition: () => player.getLocalPosition(),
+  getSnowIntensity: () => environment.snowIntensity(),
+  getGraphicsTier: () => graphics.tier,
+  getFootprintsEnabled: () =>
+    !controller.mounted && !rooms?.insideRoom && !biryongRealm?.inBiryong
+});
+app.on("update", dt => snowWeatherEffects.update(dt));
+window.__INHAGAME_SNOW__ = Object.freeze({
+  status: () => snowWeatherEffects.status()
+});
+
+const snowObjectEffects = createSnowObjectEffects({
+  root: campusRoot,
+  app,
+  getSnowAccumulation: () => snowWeatherEffects.getAccumulation(),
+  getGraphicsTier: () => graphics.tier
+});
+app.on("update", () => snowObjectEffects.update());
+window.__INHAGAME_SNOW_OBJECTS__ = Object.freeze({
+  status: () => snowObjectEffects.status()
+});
+
+const snowDepthEffects = createSnowDepthEffects({
+  root: campusRoot,
+  app,
+  getSnowAccumulation: () => snowWeatherEffects.getAccumulation(),
+  getGraphicsTier: () => graphics.tier
+});
+app.on("update", () => snowDepthEffects.update());
+window.__INHAGAME_SNOW_DEPTH__ = Object.freeze({
+  status: () => snowDepthEffects.status()
+});
+
+const snowThawEffects = createSnowThawEffects({
+  root: campusRoot,
+  app,
+  getSnowAccumulation: () => snowWeatherEffects.getAccumulation(),
+  getSnowIntensity: () => environment.snowIntensity(),
+  getWetnessFactor: () => environment.wetnessFactor(),
+  getGraphicsTier: () => graphics.tier
+});
+app.on("update", () => snowThawEffects.update());
+window.__INHAGAME_SNOW_THAW__ = Object.freeze({
+  status: () => snowThawEffects.status()
+});
+
+const meltwaterEffects = createMeltwaterEffects({
+  root: campusRoot,
+  app,
+  getSnowAccumulation: () => snowWeatherEffects.getAccumulation(),
+  getSnowIntensity: () => environment.snowIntensity(),
+  getWetnessFactor: () => environment.wetnessFactor(),
+  getGraphicsTier: () => graphics.tier
+});
+app.on("update", dt => meltwaterEffects.update(dt));
+window.__INHAGAME_MELTWATER__ = Object.freeze({
+  status: () => meltwaterEffects.status()
+});
+
+window.__INHAGAME_WINTER_QA__ = Object.freeze({
+  status: () => winterPerformanceSnapshot({
+    tier: graphics.tier,
+    snow: snowWeatherEffects.status(),
+    objects: snowObjectEffects.status(),
+    depth: snowDepthEffects.status(),
+    thaw: snowThawEffects.status(),
+    meltwater: meltwaterEffects.status()
+  })
+});
+
+// The main-gate shuttle is intentionally withheld until the Songdo campus route exists.
+const controller = new PlayerController(player, { campusShuttleEnabled: false });
 const helicopterFlightHud = createHelicopterFlightHud({
   root: document.getElementById("helicopter-flight-hud"),
   toggle: document.getElementById("helicopter-flight-hud-toggle"),
@@ -346,6 +513,48 @@ const helicopterFlightHud = createHelicopterFlightHud({
 const inputFocus = createInputFocusManager();
 const hudContext = createHudContext();
 bindHudPresentation({ context: hudContext, root: document.body });
+const building5Training = createBuilding5CombatTraining({
+  getPlayerPosition: () => player.getLocalPosition(),
+  getDodgeDirection: () => controller.combatDodgeDirection(orbit.yaw, {
+    targetX: BUILDING5_TRAINING_TARGET.x,
+    targetZ: BUILDING5_TRAINING_TARGET.z
+  })
+});
+const combatRuntime = createCombatRuntimeV03({ localTraining: building5Training });
+const combatHud = createCombatHudV03({
+  root: document.getElementById("combat-hud-v03"),
+  runtime: combatRuntime,
+  inputFocus
+});
+const combatTargetRenderer = createBuilding5CombatTargetRenderer({
+  app,
+  parent: campusRoot,
+  training: building5Training,
+  getGroundHeight: roadviewGroundHeight
+});
+const combatWorldMotion = createCombatWorldMotionV03({
+  runtime: combatRuntime,
+  training: building5Training,
+  controller
+});
+const combatFeedback = createCombatFeedbackV03({
+  runtime: combatRuntime,
+  canvas,
+  overlay: document.getElementById("combat-impact-feedback")
+});
+combatRuntime.subscribe(state => {
+  hudContext.setMode(state.active ? HUD_MODE.COMBAT : HUD_MODE.EXPLORE);
+  controller.setTransportLock("combat-v03", state.active);
+}, { emitCurrent: true });
+app.on("update", dt => {
+  const held = combatFeedback.hitstopActive();
+  if (!held) {
+    combatRuntime.update();
+    combatTargetRenderer.update(dt);
+  } else {
+    combatTargetRenderer.update(0);
+  }
+});
 // InputFocus remains the single input authority. HUD Context observes its resolved snapshot only
 // to expose presentation state for current/future Explore, Combat, Life and Pet layouts.
 inputFocus.subscribe(snapshot => hudContext.syncInputFocus(snapshot), { emitCurrent: true });
@@ -360,6 +569,12 @@ const fullMapInput = createInputFocusOwner({
 });
 const shopInput = createInputFocusOwner({
   manager: inputFocus, ownerId: "shop", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
+});
+const backgateTransitInput = createInputFocusOwner({
+  manager: inputFocus, ownerId: "backgate-transit", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
+});
+const biryongRegionTransitionInput = createInputFocusOwner({
+  manager: inputFocus, ownerId: "biryong-region-transition", policy: INPUT_FOCUS_POLICY.SYSTEM_LOCK
 });
 const furnitureInput = createInputFocusOwner({
   manager: inputFocus, ownerId: "room-furniture", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
@@ -379,6 +594,15 @@ const dailyQuizInput = createInputFocusOwner({
 const attendanceInput = createInputFocusOwner({
   manager: inputFocus, ownerId: "attendance", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
 });
+const lifeSkillBookInput = createInputFocusOwner({
+  manager: inputFocus, ownerId: "life-skill-book", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
+});
+// Declared early so every panel's close-others list can reference it before it is created below.
+let lifeSkillBookPanel = null;
+const fishingInput = createInputFocusOwner({
+  manager: inputFocus, ownerId: "fishing", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
+});
+let fishingPanel = null;
 const questJournalInput = createInputFocusOwner({
   manager: inputFocus, ownerId: "quest-journal", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
 });
@@ -438,10 +662,12 @@ const contextActions = createContextActionController({
   onTriggered: action => {
     const actionId = action?.id ?? null;
     const livingComplete = inkyungLivingMoment?.recordAction(actionId) === true;
-    if (actionId === "npc-talk" || actionId === "main2-guide-talk") core15Funnel?.firstNpcInteraction();
+    if (actionId === "npc-talk" || actionId === "main2-guide-talk" || actionId === "biryong-npc-talk")
+      core15Funnel?.firstNpcInteraction();
     if (livingComplete) core15Funnel?.firstActivityComplete();
   }
 });
+const building5Combat = createBuilding5CombatInteraction({ runtime: combatRuntime });
 const transportActions = createContextActionController({ button: document.getElementById("transport-action"), shortcut: "M" });
 const orbit = new OrbitCameraController(camera, canvas, {
   canUseGameplayShortcut: () => inputFocus.can("GAMEPLAY_SHORTCUT")
@@ -603,6 +829,28 @@ const lobbyPlayerSummary = createLobbyPlayerSummary({
 const tour = createCampusTour();
 // Social S1-B1: local expression plays at once; members also broadcast it (guests stay local).
 let online = null;
+const biryongRelationships = createBiryongRelationshipClient({
+  getClient: () => online?.supabase ?? null,
+  getUserId: () => online?.userId ?? null
+});
+const duckCompanion = createDuckObservationClient({
+  getClient: () => online?.supabase ?? null
+});
+const duckCompanionFollow = createDuckCompanionFollow({
+  root: campusRoot,
+  player,
+  getSnapshot: () => duckCompanion.status().snapshot,
+  getGroundHeight: (x, z) => controller.groundY + roadviewGroundHeight(x, z),
+  getVisible: () =>
+    !rooms?.insideRoom &&
+    !biryongRealm?.inBiryong &&
+    !lobbyWorld.active &&
+    !lobbyTransition.active &&
+    !controller.mounted
+});
+window.addEventListener("pagehide", event => {
+  if (!event.persisted) duckCompanionFollow.destroy();
+});
 let accompany = null;
 let populationHeartbeat = null;
 let populationCount = null;
@@ -624,9 +872,14 @@ const lobbyQuestHighlight = createLobbyQuestHighlight({
   objectiveElement: document.getElementById("lobby-quest-objective"),
   progressElement: document.getElementById("lobby-quest-progress"),
   getTourStage: () => tour.stage,
-  getQuest: () => npcTest?.getStatus?.() ?? null
+  getQuest: () => npcTest?.getStatus?.() ?? null,
+  getSignedIn: () => profile.signedIn === true
 });
 let rooms = null;
+let biryongRealm = null;
+let biryongStationTransit = null;
+let biryongVillageNpcs = null;
+let biryongVillageDialogue = null;
 let keyboardHelp = null;
 // Declared before input handlers so an early F/M event during boot can safely observe null.
 let playerAutoMove = null;
@@ -707,10 +960,16 @@ const friendRoomVisitClient = new FriendRoomVisitClient({
   getClient: () => online?.supabase ?? null,
   getSelfUserId: () => online?.userId ?? null
 });
+// Housing H3: visitors knock at the Dorm Lobby corridor door; owners answer from inside their room.
+const roomKnockClient = new RoomKnockClient({
+  getClient: () => online?.supabase ?? null,
+  getSelfUserId: () => online?.userId ?? null
+});
 // Player Card and Friends panel share one visit entry; the controller exists once rooms do.
 const roomVisitEntry = Object.freeze({
   canVisit: () => friendRoomVisit?.canVisit() ?? { ok: false, reason: "busy" },
-  onVisit: (userId) => friendRoomVisit?.visit(userId) ?? Promise.resolve({ ok: false, reason: "busy" }),
+  onVisit: (userId, displayName = null) =>
+    friendRoomVisit?.visit(userId, { displayName }) ?? Promise.resolve({ ok: false, reason: "busy" }),
   reasonText: (reason) => FRIEND_ROOM_VISIT_TEXT[reason] ?? ""
 });
 const playerCard = createPlayerCard({
@@ -992,7 +1251,7 @@ const inventoryPanel = createInventoryPanel({
       mobilityBook.setOpen(false);
       wardrobePanel.setOpen(false);
       dailyQuizPanel.setOpen(false);
-      attendancePanel.setOpen(false);
+      attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false); fishingPanel?.setOpen(false);
       emoteMenu.setOpen(false);
       chatPanel.setOpen(false, { focus: false });
       playerCard.close();
@@ -1023,7 +1282,7 @@ const shopPanel = createShopPanel({
       mobilityBook.setOpen(false);
       wardrobePanel.setOpen(false);
       dailyQuizPanel.setOpen(false);
-      attendancePanel.setOpen(false);
+      attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false); fishingPanel?.setOpen(false);
       emoteMenu.setOpen(false);
       chatPanel.setOpen(false, { focus: false });
       playerCard.close();
@@ -1054,7 +1313,7 @@ const wardrobePanel = createWardrobePanel({
       inventoryPanel.setOpen(false);
       mobilityBook.setOpen(false);
       dailyQuizPanel.setOpen(false);
-      attendancePanel.setOpen(false);
+      attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false); fishingPanel?.setOpen(false);
       emoteMenu.setOpen(false);
       chatPanel.setOpen(false, { focus: false });
       playerCard.close();
@@ -1071,8 +1330,7 @@ setCampusKickboardPropRoot(createCampusKickboard(campusRoot));
 setCampusKartPropRoot(createCampusKart(campusRoot));
 setDuckBoatPropRoot(createDuckBoat(campusRoot));
 createInkyungDockMarker(campusRoot);
-setCampusShuttlePropRoot(createCampusShuttle(campusRoot));
-createShuttleStations(campusRoot,controller.shuttle.stations);
+// Campus shuttle presentation/stations stay absent until the Songdo campus route is implemented.
 setCampusBalloonPropRoot(createCampusBalloon(campusRoot));
 const mobilityBookButton = document.getElementById("open-mobility-book");
 const mobilityBook = createMobilityBook({
@@ -1127,7 +1385,7 @@ const mobilityBook = createMobilityBook({
       inventoryPanel.setOpen(false);
       wardrobePanel.setOpen(false);
       dailyQuizPanel.setOpen(false);
-      attendancePanel.setOpen(false);
+      attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false); fishingPanel?.setOpen(false);
       emoteMenu.setOpen(false);
       chatPanel.setOpen(false, { focus: false });
       playerCard.close();
@@ -1149,7 +1407,7 @@ const dailyQuizPanel = createDailyQuizPanel({
     if (open) {
       dailyQuizInput.acquire();
       questJournal?.setOpen(false);
-      attendancePanel.setOpen(false);
+      attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false); fishingPanel?.setOpen(false);
       shopPanel.setOpen(false);
       inventoryPanel.setOpen(false);
       mobilityBook.setOpen(false);
@@ -1174,6 +1432,7 @@ const attendancePanel = createAttendancePanel({
     lobbyDailyLoop.setPanelOpen("attendance", open);
     if (open) {
       attendanceInput.acquire();
+      lifeSkillBookPanel?.setOpen(false); fishingPanel?.setOpen(false);
       questJournal?.setOpen(false);
       dailyQuizPanel.setOpen(false);
       shopPanel.setOpen(false);
@@ -1190,6 +1449,82 @@ const attendancePanel = createAttendancePanel({
   }
 });
 attendanceButton?.addEventListener("click", () => attendancePanel.setOpen(true));
+// Life Skill Book P0 (☰ → 📘 생활 스킬): server-owned self views and actions. The menu entry is shown only
+// while the server lists at least one visible (ACTIVE) skill for this account; nothing else decides it.
+const lifeSkillBook = createLifeSkillBookClient({ getClient: () => online?.supabase ?? null });
+const lifeSkillBookButton = document.getElementById("open-life-skills");
+lifeSkillBookPanel = createLifeSkillBookPanel({
+  panel: document.getElementById("life-skill-book-panel"),
+  book: lifeSkillBook,
+  onOpenChange: (open) => {
+    lifeSkillBookButton?.setAttribute("aria-expanded", String(open));
+    if (open) {
+      lifeSkillBookInput.acquire();
+      fishingPanel?.setOpen(false);
+      attendancePanel.setOpen(false);
+      questJournal?.setOpen(false);
+      dailyQuizPanel.setOpen(false);
+      shopPanel.setOpen(false);
+      inventoryPanel.setOpen(false);
+      mobilityBook.setOpen(false);
+      wardrobePanel.setOpen(false);
+      emoteMenu.setOpen(false);
+      chatPanel.setOpen(false, { focus: false });
+      playerCard.close();
+      void guestbookPanel.setOpen(false);
+      return;
+    }
+    lifeSkillBookInput.release();
+  }
+});
+lifeSkillBook.onChange(() => {
+  if (lifeSkillBookButton) lifeSkillBookButton.hidden = !lifeSkillBook.hasVisibleSkills;
+  if (!lifeSkillBook.hasVisibleSkills && lifeSkillBook.state !== LIFE_SKILL_BOOK_STATE.LOADING) {
+    lifeSkillBookPanel?.setOpen(false);
+  }
+  // Refreshing skill XP after a catch must keep its fishing result visible.
+});
+lifeSkillBookButton?.addEventListener("click", () => lifeSkillBookPanel?.setOpen(true));
+// Inkyung fishing (first ACTIVE Life Skill): 🎣 at the two pond spots. The server owns availability, timing,
+// the result and rewards; the action is offered only while the endpoint answers for this permanent account.
+const fishing = createFishingClient({
+  getToken: async () => {
+    const client = online?.supabase;
+    if (!client || !online?.userId) return null;
+    const { data, error } = await client.auth.getSession();
+    const session = data?.session;
+    return !error && session?.user?.id === online.userId && session.user.is_anonymous !== true
+      ? session.access_token : null;
+  }
+});
+fishingPanel = createFishingPanel({
+  panel: document.getElementById("fishing-panel"),
+  fishing,
+  onOpenChange: (open) => {
+    if (open) {
+      fishingInput.acquire();
+      lifeSkillBookPanel?.setOpen(false);
+      attendancePanel.setOpen(false);
+      questJournal?.setOpen(false);
+      dailyQuizPanel.setOpen(false);
+      shopPanel.setOpen(false);
+      inventoryPanel.setOpen(false);
+      mobilityBook.setOpen(false);
+      wardrobePanel.setOpen(false);
+      emoteMenu.setOpen(false);
+      chatPanel.setOpen(false, { focus: false });
+      playerCard.close();
+      void guestbookPanel.setOpen(false);
+      return;
+    }
+    fishingInput.release();
+  },
+  // A settled catch changed Fishing XP and the carp stack: re-read the owning views.
+  onSettled: () => {
+    void lifeSkillBook.refresh("fishing");
+    void inventory.refresh("fishing");
+  }
+});
 // Main Lobby P2 "오늘의 캠퍼스": a read-only summary of the two clients above. It re-renders on their own change
 // events (account switches included) and only opens the existing panels; the panels keep the explicit claim / start.
 const lobbyDailyLoop = createLobbyDailyLoop({
@@ -1220,6 +1555,40 @@ const shopWorldLabel = createShopWorldLabel({
   camera,
   canvas,
   getWorldPosition: () => shopWorldMarker.getPosition()
+});
+// Informational back-gate stop. The shared F/touch slot opens one static panel; F1 stays disabled.
+const backgateTransitPanel = createBackgateTransitPanel({
+  panel: document.getElementById("backgate-transit-panel"),
+  fallbackFocus: canvas,
+  onBoard: () => biryongRealm?.enter() === true,
+  onOpenChange: open => {
+    if (open) {
+      backgateTransitInput.acquire();
+      playerAutoMove?.pause(AUTO_MOVE_CANCEL_REASON.INTERACTION);
+      hudMenu?.setOpen(false, { focus: false });
+      emoteMenu.setOpen(false);
+      chatPanel.setOpen(false, { focus: false });
+    } else backgateTransitInput.release();
+  }
+});
+const backgateTransitState = () => ({
+  grounded: controller.grounded,
+  blocked: rooms.insideRoom || biryongRealm?.inCampus === false || controller.mounted || seats.isSeated || backgateTransitPanel.open ||
+    lobbyWorld.active || lobbyTransition.active || !inputFocus.can("WORLD_ACTION")
+});
+const backgateTransit = createBackgateTransitInteraction({
+  getPosition: () => player.getLocalPosition(), getState: backgateTransitState,
+  getGroundHeight: roadviewGroundHeight,
+  openPanel: () => backgateTransitPanel.setOpen(true)
+});
+// Another modal or a system transition takes over; release our claim without restoring gameplay.
+const unbindBackgateTransitFocus = inputFocus.subscribe(state => {
+  if (backgateTransitPanel.open && state.topOwners.some(id => id !== "backgate-transit"))
+    backgateTransitPanel.setOpen(false, { restoreFocus: false });
+});
+window.addEventListener("pagehide", event => {
+  backgateTransitPanel.setOpen(false, { restoreFocus: false });
+  if (!event.persisted) { unbindBackgateTransitFocus(); backgateTransitPanel.destroy(); }
 });
 social.onRelationshipChange((userId, state) => lobbyPresenceSummary.applyRelationship(userId, state));
 social.onRelationshipChange(() => nearbyPanel.render());
@@ -1270,7 +1639,37 @@ const transportAction = () => {
 window.addEventListener("keydown", (event) => {
   if (event.code !== "KeyF" || event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
   if (event.target instanceof HTMLElement && event.target.closest("input, textarea, select, [contenteditable]")) return;
-  interactionAction();
+  if (!combatRuntime.active) return interactionAction();
+  if (!inputFocus.can("GAMEPLAY_SHORTCUT")) return;
+  event.preventDefault();
+  combatRuntime.dispatch("ultimate");
+});
+window.addEventListener("keydown", (event) => {
+  if (!combatRuntime.active || event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
+  if (event.target instanceof HTMLElement && event.target.closest("input, textarea, select, [contenteditable]")) return;
+  if (!inputFocus.can("GAMEPLAY_SHORTCUT")) return;
+  if (event.code === "Escape") {
+    event.preventDefault();
+    combatRuntime.end("PLAYER_EXIT");
+    return;
+  }
+  if (event.code === "KeyR") {
+    event.preventDefault();
+    combatRuntime.resetTrainingTarget();
+    return;
+  }
+  const action = event.code === "Digit1" ? "active_1"
+    : event.code === "Digit2" ? "active_2"
+    : event.code === "Digit3" ? "active_3"
+    : event.code === "ShiftLeft" || event.code === "ShiftRight" ? "dodge"
+    : null;
+  if (!action) return;
+  event.preventDefault();
+  if (action === "dodge") controller.keys.delete(event.code);
+  combatRuntime.dispatch(action);
+});
+canvas.addEventListener("pointerdown", event => {
+  if (combatRuntime.active && inputFocus.can("WORLD_ACTION") && event.button === 0) combatRuntime.dispatch("basic");
 });
 guestbookInteraction = createGuestbookInteraction({
   anchor: MAIN_GATE_GUESTBOOK,
@@ -1315,18 +1714,12 @@ const roomScenes = new Map([
 const spaceFade = document.getElementById("space-fade");
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 // 150 ms to black, switch, then fade back in; instant with reduced motion.
-const fadeSwitch = (run) => {
-  if (!spaceFade || reducedMotion.matches) { run(); return; }
-  spaceFade.hidden = false;
-  requestAnimationFrame(() => spaceFade.classList.add("on"));
-  setTimeout(() => {
-    run();
-    spaceFade.classList.remove("on");
-    setTimeout(() => { if (!spaceFade.classList.contains("on")) spaceFade.hidden = true; }, 180);
-  }, 160);
-};
+const fadeSwitch = createSpaceFade({ overlay: spaceFade, reducedMotion });
 rooms = createRoomTransition({
   fade: fadeSwitch,
+  onError: ({ recovered }) => showWorldStatus(recovered
+    ? "방을 전환하지 못했어요. 이전 위치에서 다시 시도해 주세요."
+    : "방 전환을 복구하지 못했어요. 새로고침해 주세요."),
   onBusyChange: (busy) => {
     if (busy) roomTransitionInput.acquire();
     else roomTransitionInput.release();
@@ -1352,12 +1745,125 @@ rooms = createRoomTransition({
       mobilityBook.setOpen(false);
       wardrobePanel.setOpen(false);
       dailyQuizPanel.setOpen(false);
-      attendancePanel.setOpen(false);
+      attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false); fishingPanel?.setOpen(false);
       questJournal?.setOpen(false);
     },
+    getLocationLabel: () => zoneEl.textContent,
     setLocationLabel: (text) => { zoneEl.textContent = text; },
     markSpace: (id) => { if (id) document.body.dataset.space = id; else delete document.body.dataset.space; }
   })
+});
+const biryongRealmScene = createBiryongRealmScene(app);
+const biryongCampusReturnAnchor = Object.freeze({
+  x: BACKGATE_TRANSIT.wait.x,
+  y: controller.groundY + roadviewGroundHeight(BACKGATE_TRANSIT.wait.x, BACKGATE_TRANSIT.wait.z),
+  z: BACKGATE_TRANSIT.wait.z,
+  yaw: 0
+});
+biryongRealm = createBiryongRealmTransition({
+  fade: fadeSwitch,
+  campusReturnAnchor: biryongCampusReturnAnchor,
+  onBusyChange: busy => {
+    if (busy) biryongRegionTransitionInput.acquire();
+    else biryongRegionTransitionInput.release();
+  },
+  world: createBiryongRealmWorldAdapter({
+    player, controller, orbit, campusRoot, biryongRoot: biryongRealmScene.root,
+    follow, stopFollowReason: FollowStopReason.ROOM, seating, seats, emotes,
+    getOnline: () => online, places, getStreaming: () => streaming,
+    closePanels: () => {
+      playerAutoMove?.pause(AUTO_MOVE_CANCEL_REASON.TRANSPORT);
+      backgateTransitPanel.setOpen(false, { restoreFocus: false });
+      fullMap?.close?.();
+      furnitureEditor?.forceClose();
+      emoteMenu.setOpen(false);
+      chatPanel.setOpen(false, { focus: false });
+      playerCard.close();
+      void guestbookPanel.setOpen(false);
+      shopPanel.setOpen(false);
+      inventoryPanel.setOpen(false);
+      mobilityBook.setOpen(false);
+      wardrobePanel.setOpen(false);
+      dailyQuizPanel.setOpen(false);
+      attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false); fishingPanel?.setOpen(false);
+      questJournal?.setOpen(false);
+    },
+    setLocationLabel: text => { zoneEl.textContent = text; },
+    markRegion: id => {
+      document.body.dataset.worldRegion = id;
+      fullMap?.close?.();
+    }
+  })
+});
+biryongVillageNpcs = createBiryongVillageNpcRuntime({
+  app,
+  root: biryongRealmScene.root,
+  player,
+  camera,
+  getActive: () => biryongRealm?.inBiryong === true
+});
+biryongVillageDialogue = createBiryongVillageDialogueRuntime({
+  npcRuntime: biryongVillageNpcs,
+  getWorldContext: () => {
+    const env = environment.status();
+    return {
+      weather: env.targetWeather,
+      environmentTime: env.targetTime,
+      placeZoneId: getBiryongRealmPlaceZone(player.getLocalPosition())?.id ?? null
+    };
+  },
+  getSession: async () => {
+    const client = online?.supabase;
+    if (!client || !online?.userId) return null;
+    const { data, error } = await client.auth.getSession();
+    const session = data?.session;
+    return !error && session?.user?.id === online.userId && session.user.is_anonymous !== true
+      ? session.access_token : null;
+  },
+  getRelationshipStage: npcId => biryongRelationships.stage(npcId),
+  getUnlockedFacts: npcId => biryongRelationships.facts(npcId),
+  onNavigate: poiId => {
+    if (!biryongRealm?.inBiryong || biryongRealm.busy) return false;
+    const poi = biryongMapDataSource?.poiRegistry().get(poiId);
+    const target = poi?.validPosition ? biryongNavigation?.poiTarget(poi) : null;
+    if (!target || !setNavigationTarget(target)) return false;
+    showWorldStatus(`${poi.title}까지 길을 표시했어요.`);
+    return true;
+  },
+  onOpenChange: open => {
+    if (open) {
+      npcDialogueInput.acquire();
+      emoteMenu.setOpen(false);
+      chatPanel.setOpen(false, { focus: false });
+    } else npcDialogueInput.release();
+  },
+  jevEnabled: false,
+  jevEndpoint: "/api/npc-dialogue-route"
+});
+if (npcProductionMode) {
+  void probeFeatureFlag("/api/npc-dialogue-route")
+    .then(result => biryongVillageDialogue?.setJevEnabled(result === FLAG_ENABLED))
+    .catch(() => biryongVillageDialogue?.setJevEnabled(false));
+}
+biryongRealm.onChange(status => {
+  if (status.inBiryong) void biryongRelationships.refresh("region-enter");
+  else biryongVillageDialogue?.close();
+});
+window.addEventListener("pagehide", event => {
+  if (!event.persisted) {
+    biryongVillageDialogue?.destroy();
+    biryongVillageNpcs?.destroy();
+  }
+});
+
+biryongStationTransit = createBiryongStationTransitInteraction({
+  getPosition: () => player.getLocalPosition(),
+  getState: () => ({
+    grounded: controller.grounded,
+    blocked: !biryongRealm?.inBiryong || biryongRealm.busy || rooms.insideRoom ||
+      controller.mounted || seats.isSeated || !inputFocus.can("WORLD_ACTION")
+  }),
+  returnToCampus: () => biryongRealm?.returnToCampus() === true
 });
 // Soundscape P0-A consumes the existing Place Zone and room state. Audio remains optional.
 let worldAudio = null;
@@ -1376,8 +1882,10 @@ const unbindAudioVolume = bindAudioVolumeSettings(worldAudio, audioVolume);
 let lastAudioState = "";
 const syncAudio = () => {
   if (!worldAudio) return;
-  const space = lobbyWorld.active || lobbyTransition.active ? "lobby" : rooms.currentSpace;
-  const placeZoneId = space === "campus" ? places.getCurrentPlaceZone()?.id ?? null : null;
+  const space = lobbyWorld.active || lobbyTransition.active ? "lobby"
+    : biryongRealm?.inBiryong ? "biryong-realm" : rooms.currentSpace;
+  const placeZoneId = space === "campus" ? places.getCurrentPlaceZone()?.id ?? null
+    : space === "biryong-realm" ? getBiryongRealmPlaceZone(player.getLocalPosition())?.id ?? null : null;
   const placeId = space === "campus" && isNearBiryong(player.getLocalPosition()) ? BIRYONG_PLACE_ID : null;
   const key = `${space}:${placeZoneId ?? ""}:${placeId ?? ""}`;
   if (key === lastAudioState) return;
@@ -1385,6 +1893,7 @@ const syncAudio = () => {
   worldAudio.setState({ space, placeZoneId, placeId });
 };
 rooms.onChange(syncAudio);
+biryongRealm.onChange(syncAudio);
 window.addEventListener("pagehide", event => { if (!event.persisted) { unbindAudioVolume(); worldAudio?.dispose(); } });
 syncAudio();
 const audioDebug = previewHost && startupParams.get("audioDebug") === "1"
@@ -1407,8 +1916,13 @@ personalRoomInteraction = createPersonalRoomInteraction({
 });
 // Social S1-D2 · Room Session. Remote room avatars live under the shared personal room scene;
 // tapping one opens the same Player Card (friends, block, report) as on the campus.
+// Housing H3: the owner's knock prompt lives inside the owner Room HUD (same slot, same layout).
+const knockPromptRoot = document.createElement("div");
+knockPromptRoot.className = "room-knock-prompt";
+knockPromptRoot.hidden = true;
 const roomHud = createRoomHud({
   root: document.getElementById("room-hud"),
+  footer: knockPromptRoot,
   onLeave: () => furnitureEditor?.open ? furnitureEditor.requestClose(() => rooms.exit()) : rooms.exit(),
   onEdit: () => {
     if (!furnitureEditor?.openEditor()) {
@@ -1422,6 +1936,36 @@ const roomHud = createRoomHud({
     return room;
   }
 });
+// Housing H3 · owner side: the knock prompt, the knock/presence poll while home, and visitor notices.
+const knockPrompt = createKnockPrompt({
+  root: knockPromptRoot,
+  respond: (knock, accept) => roomKnockClient.respond(knock.knockId, accept)
+});
+const ownerKnocks = createOwnerKnockWatcher({
+  client: roomKnockClient,
+  isOwnerInRoom: () => rooms?.currentSpace === "ROOM_PERSONAL_BASIC" && roomSession?.status?.().role === "owner",
+  onKnock: (knock) => knockPrompt.push(knock),
+  onPolled: (knocks) => knockPrompt.retain(knocks.map(knock => knock.knockId))
+});
+const syncOwnerKnocks = (state) => {
+  const home = state.active && state.role === "owner";
+  if (home && !ownerKnocks.running) ownerKnocks.start();
+  else if (!home && ownerKnocks.running) { ownerKnocks.stop(); knockPrompt.clear(); }
+  if (home) knockPrompt.prune();
+};
+let lastRoomVisitors = null;
+const announceRoomVisitors = (state) => {
+  const ready = state.active && state.phase === "READY";
+  // The first READY snapshot of a stay is the baseline: only later arrivals and departures are news.
+  if (!ready || lastRoomVisitors?.roomId !== state.roomId) {
+    lastRoomVisitors = ready ? state : (state.active ? lastRoomVisitors : null);
+    return;
+  }
+  const { joined, left } = diffRoomVisitors(lastRoomVisitors, state);
+  lastRoomVisitors = state;
+  if (joined.length) showWorldStatus(`${joined.join(", ")}님이 놀러 왔어요 👋`);
+  else if (left.length) showWorldStatus(`${left.join(", ")}님이 돌아갔어요`);
+};
 const roomLocationLabel = (state) => state.role === "owner"
   ? `🏠 제1생활관 · 내 방 · ${state.count}명`
   : `🏠 제1생활관 · ${state.ownerDisplayName ?? "친구"}의 방 · ${state.count}명`;
@@ -1445,12 +1989,17 @@ roomSession = createPersonalRoomSession({
   },
   onChange: (state) => {
     roomHud.update(state);
+    announceRoomVisitors(state);
+    syncOwnerKnocks(state);
     if (state.active && rooms.currentSpace === "ROOM_PERSONAL_BASIC") zoneEl.textContent = roomLocationLabel(state);
   }
 });
 friendRoomVisit = createFriendRoomVisitController({
   client: friendRoomVisitClient,
+  knockClient: roomKnockClient,
   rooms,
+  // From the campus a visit walks to 제1생활관 (route + auto-move); nothing teleports into the room.
+  guideToDorm: () => guideToDorm1(),
   isMounted: () => controller.mounted,
   isSeated: () => seats.isSeated,
   standUp: () => seating.standUp("room-visit"),
@@ -1460,7 +2009,7 @@ friendRoomVisit = createFriendRoomVisitController({
 });
 // Housing D3: drafts stay account/room-scoped; visitors only receive server-authorized saved layouts.
 const moveOutOfFurniture = () => {
-  if (rooms.currentSpace !== "ROOM_PERSONAL_BASIC") return;
+  if (rooms.status().busy || rooms.currentSpace !== "ROOM_PERSONAL_BASIC") return;
   const pos = player.getLocalPosition();
   const blocked = personalRoomScene.ownedFurniture.obstacles.some(box => box.id && !box.id.startsWith("personal_") &&
     pos.x > box.minX - .24 && pos.x < box.maxX + .24 && pos.z > box.minZ - .24 && pos.z < box.maxZ + .24);
@@ -1479,7 +2028,7 @@ roomFurniture = createFurnitureClient({
       furnitureSceneSignature = signature;
       personalRoomScene.ownedFurniture.setObjects(state.objects);
       setPersonalRoomMapFurniture(state.objects);
-      if (rooms.currentSpace === "ROOM_PERSONAL_BASIC") {
+      if (!rooms.status().busy && rooms.currentSpace === "ROOM_PERSONAL_BASIC") {
         const map = createRoomMapDataSource("ROOM_PERSONAL_BASIC");
         minimap?.setDataSource(map,{ id:map.id,indoor:true,radiusWorld:map.radiusWorld });
         fullMap?.setDataSource(map,{ id:map.id,label:map.label });
@@ -1495,7 +2044,7 @@ furnitureEditor = createFurnitureEditor({
     if (open) {
       furnitureInput.acquire();
       inventoryPanel.setOpen(false); shopPanel.setOpen(false); wardrobePanel.setOpen(false);
-      dailyQuizPanel.setOpen(false); attendancePanel.setOpen(false); questJournal?.setOpen(false);
+      dailyQuizPanel.setOpen(false); attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false); fishingPanel?.setOpen(false); questJournal?.setOpen(false);
       emoteMenu.setOpen(false); chatPanel.setOpen(false,{ focus:false }); playerCard.close();
       void guestbookPanel.setOpen(false);
     } else {
@@ -1557,11 +2106,58 @@ const inkyungDucks = createInkyungDuckSystem({
   root: campusRoot,
   player,
   forceMechanical: previewHost && startupParams.get("mechanicalDuck") === "1",
-  canObserveOrdinary: () => inkyungSideEvent.canObserveOrdinaryDuck(),
+  canObserveOrdinary: () =>
+    inkyungSideEvent.canObserveOrdinaryDuck() || duckCompanion.canObserve() || duckCompanion.canBond(),
+  getOrdinaryActionLabel: () => duckCompanion.canBond() ? "오리와 교감" : "오리 관찰",
   onOrdinaryObserved: duck => {
-    const result = inkyungSideEvent.observeOrdinaryDuck(duck.kind);
-    if (result.changed) showWorldStatus(`🦆 ${result.line} · 이제 수상한 오리를 찾아보자.`);
-    return result;
+    const sideEventResult = inkyungSideEvent.observeOrdinaryDuck(duck.kind);
+    const companionBonding = duckCompanion.canBond();
+    const companionStarted = !companionBonding && duckCompanion.canObserve();
+
+    if (companionBonding) {
+      void duckCompanion.bond().then(result => {
+        if (result?.status === "FAILED") {
+          console.warn("Duck Companion bond failed:", result.error);
+          showWorldStatus("🦆 오리와 교감하지 못했어요 · 잠시 후 다시 시도해 주세요.");
+          return;
+        }
+        const companion = result?.companion;
+        if (companion?.state !== "OWNED") return;
+        showWorldStatus(result?.autoActivated
+          ? "🦆 교감 성공 · 새 동료 오리가 ACTIVE 동행으로 합류했어요!"
+          : "🦆 교감 성공 · 새 동료 오리가 합류했어요!");
+      });
+    } else if (companionStarted) {
+      void duckCompanion.observe(duck.id).then(result => {
+        if (result?.status === "FAILED") {
+          console.warn("Duck Companion observation failed:", result.error);
+          return;
+        }
+        const companion = result?.companion;
+        if (!companion) return;
+        if (companion.state === "BOND_ELIGIBLE") {
+          showWorldStatus("🦆 오리들이 경계를 풀었다 · F 키로 동료 교감을 시도해 보세요.");
+          return;
+        }
+        if (companion.state === "OWNED") {
+          showWorldStatus("🦆 동행 중인 오리를 다시 만났어요.");
+          return;
+        }
+        const count = Number(companion.observationCount ?? 0);
+        const required = Number(companion.requiredObservationCount ?? 3);
+        if (Number.isFinite(count) && Number.isFinite(required)) {
+          showWorldStatus(`🦆 오리 관찰 기록 ${count}/${required}`);
+        }
+      });
+    }
+
+    if (sideEventResult.changed) {
+      showWorldStatus(`🦆 ${sideEventResult.line} · 이제 수상한 오리를 찾아보자.`);
+    }
+    return {
+      ...sideEventResult,
+      changed: sideEventResult.changed || companionStarted || companionBonding
+    };
   },
   onLoreFound: lore => {
     const eventResult = inkyungSideEvent.observeMechanicalDuck();
@@ -1672,12 +2268,25 @@ const viewSettings = createViewDistanceSettings(streaming,camera,graphics,{
 // quest/tour objective. Indoors it pauses; the campus destination survives room switches.
 let navigation = null;
 let campusNavigation = null;
+let biryongNavigation = null;
 let navigationHud = null;
 const navigationSpaceId = () => lobbyWorld.active || lobbyTransition.active ? "lobby"
-  : rooms?.insideRoom ? (rooms.status().roomId ?? "room") : CAMPUS_NAV_SPACE;
+  : biryongRealm?.inBiryong ? WORLD_REGION_ID.BIRYONG_REALM
+    : rooms?.insideRoom ? (rooms.status().roomId ?? "room") : CAMPUS_NAV_SPACE;
+const navigationProviderFor = spaceId => spaceId === CAMPUS_NAV_SPACE ? campusNavigation
+  : spaceId === WORLD_REGION_ID.BIRYONG_REALM ? biryongNavigation : null;
 try {
   campusNavigation = createCampusNavigation();
-  navigation = createNavigationState({ solver: campusNavigation.solver, guidanceSpaceId: CAMPUS_NAV_SPACE });
+  try { biryongNavigation = createBiryongNavigation(); }
+  catch (error) { console.warn("Biryong guidance unavailable; Campus navigation retained:", error); }
+  navigation = createNavigationState({
+    solver: {
+      solve: (from, to) => navigationProviderFor(navigationSpaceId())?.solver.solve(from, to)
+        ?? { ok: false, reason: "SPACE_UNAVAILABLE", points: [] },
+      segmentSafe: (from, to) => navigationProviderFor(navigationSpaceId())?.segmentSafe?.(from, to) ?? true
+    },
+    guidanceSpaceId: CAMPUS_NAV_SPACE
+  });
   navigationHud = createNavigationHud({
     root: document.getElementById("nav-guidance"),
     arrow: document.getElementById("nav-guidance-arrow"),
@@ -1699,7 +2308,7 @@ const autoMoveHudDetail = document.getElementById("auto-move-detail");
 const autoMoveCancel = document.getElementById("auto-move-cancel");
 const autoMoveResume = document.getElementById("auto-move-resume");
 const canUseAutoMove = () => (!controller.mounted || controller.onGroundMount) && !seats.isSeated && !rooms?.insideRoom &&
-  !follow.active && !lobbyWorld.active && !lobbyTransition.active;
+  (biryongRealm?.inCampus ?? true) && !follow.active && !lobbyWorld.active && !lobbyTransition.active;
 const renderPlayerAutoMoveHud = () => {
   if (!autoMoveHud) return false;
   const state = playerAutoMove?.snapshot?.() ?? null;
@@ -1755,7 +2364,7 @@ if (navigation) {
   });
   navigation.onChange(snapshot => {
     playerAutoMove?.syncNavigation(snapshot);
-    npcTest?.observeNavigation?.(snapshot);
+    if (snapshot.destination?.mapSourceId === CAMPUS_NAV_SPACE) npcTest?.observeNavigation?.(snapshot);
     renderPlayerAutoMoveHud();
   });
   unbindAutoMoveManual = bindAutoMoveManualCancellation({
@@ -1779,7 +2388,17 @@ const renderNavigationHud = () => {
 };
 const setNavigationTarget = target => {
   if (!navigation || !target) return false;
-  navigation.setDestination(target, { position: player.getLocalPosition(), spaceId: navigationSpaceId() });
+  const snapshot = navigation.setDestination(target, { position: player.getLocalPosition(), spaceId: navigationSpaceId() });
+  return target.mapSourceId !== WORLD_REGION_ID.BIRYONG_REALM || snapshot.status === "GUIDING";
+};
+// Housing H3: a friend visit from the campus routes to 제1생활관 and starts auto-move when allowed.
+const guideToDorm1 = () => {
+  const target = campusNavigation?.poiTarget({
+    poiId: "poi.dorm-1", title: "제1생활관",
+    x: DORM_1_CAMPUS_RETURN.position.x, z: DORM_1_CAMPUS_RETURN.position.z
+  }, CAMPUS_NAV_SPACE) ?? null;
+  if (!setNavigationTarget(target)) return false;
+  if (playerAutoMove && canUseAutoMove()) playerAutoMove.start(navigation.getSnapshot());
   return true;
 };
 
@@ -1830,10 +2449,13 @@ window.addEventListener("pagehide", event => { if (!event.persisted) backGateArr
 
 const fullMapNavigation = navigation && campusNavigation ? {
   snapshot: () => navigation.getSnapshot(),
-  canNavigate: mapSourceId => mapSourceId === CAMPUS_NAV_SPACE,
-  setPoi: (poi, mapSourceId) => setNavigationTarget(campusNavigation.poiTarget(poi, mapSourceId)),
-  setTarget: target => setNavigationTarget(target),
-  resolveMapPoint: (point, mapSourceId) => campusNavigation.mapPointTarget(point, mapSourceId),
+  canNavigate: mapSourceId => mapSourceId === navigationSpaceId() && Boolean(navigationProviderFor(mapSourceId)),
+  setPoi: (poi, mapSourceId) => mapSourceId === navigationSpaceId() &&
+    setNavigationTarget(navigationProviderFor(mapSourceId)?.poiTarget(poi, mapSourceId)),
+  setTarget: target => target?.mapSourceId === navigationSpaceId() && setNavigationTarget(target),
+  resolveMapPoint: (point, mapSourceId) => mapSourceId === navigationSpaceId()
+    ? navigationProviderFor(mapSourceId)?.mapPointTarget(point, mapSourceId) ?? { supported: false, reason: "INDOOR" }
+    : { supported: false, reason: "INVALID" },
   clear: () => navigation.clearDestination("cancel"),
   onChange: listener => navigation.onChange(listener)
 } : null;
@@ -1842,8 +2464,9 @@ const fullMapNavigation = navigation && campusNavigation ? {
 let minimap = null;
 let minimapReady = false;
 let campusMapDataSource = null;
+let biryongMapDataSource = null;
 const getMapObjectiveMarker = () => {
-  if (rooms?.insideRoom) return null;
+  if (rooms?.insideRoom || biryongRealm?.inBiryong) return null;
   const eventTarget = mcmEventRuntime.mapTarget();
   const eventMarker = eventTarget ? {
     objectiveId: `event.${eventTarget.stage}`,
@@ -1865,7 +2488,7 @@ const getMapObjectiveMarker = () => {
     x: target.x, z: target.z, kind: "destination", label: target.label
   } : null;
 };
-const getMapSocialMarkers = () => rooms?.insideRoom ? [] : (online?.miniMapRemotes?.() ?? [])
+const getMapSocialMarkers = () => (rooms?.insideRoom || biryongRealm?.inBiryong) ? [] : (online?.miniMapRemotes?.() ?? [])
   .filter(remote => remote?.userId && remote?.pose && !social.isBlocked(remote.userId))
   .map(remote => ({
     markerId: `remote.${remote.sessionId}`,
@@ -1878,6 +2501,7 @@ try {
     getContext: spawnProgressContext,
     isPlaceDiscovered: id => biryong?.isPlaceDiscovered(id) === true
   });
+  biryongMapDataSource = createBiryongMapDataSource();
   const minimapDataSource = campusMapDataSource;
   const minimapRenderer = createMiniMapRenderer({
     root: document.getElementById("minimap"),
@@ -1899,8 +2523,8 @@ try {
     getOverlayState: () => ({
       hudMenu: hudMenu.open, keyboardHelp: keyboardHelp?.open === true, friends: friendPanel.open,
       playerCard: playerCard.current != null, guestbook: guestbookPanel.open, shop: shopPanel.open, inventory: inventoryPanel.open, wardrobe: wardrobePanel.open,
-      blocking: furnitureEditor?.open === true || dailyQuizPanel.open || attendancePanel.open || questJournal?.open === true,
-      npcConversation: npcTest?.isConversationOpen?.() === true,
+      blocking: furnitureEditor?.open === true || dailyQuizPanel.open || attendancePanel.open || lifeSkillBookPanel?.open === true || fishingPanel?.open === true || questJournal?.open === true,
+      npcConversation: npcTest?.isConversationOpen?.() === true || biryongVillageDialogue?.open === true,
       mcmEvent: mcmEventUi.openState || mcmEventRuntime.isDialogueOpen() === true,
       profile: document.getElementById("profile-panel")?.hidden === false,
       settings: document.getElementById("view-settings")?.hidden === false,
@@ -1910,7 +2534,7 @@ try {
     getSocialMarkers: getMapSocialMarkers,
     getNavigation: () => {
       const snapshot = navigation?.getSnapshot();
-      return snapshot?.active && snapshot.destination?.mapSourceId === CAMPUS_NAV_SPACE ? snapshot : null;
+      return snapshot?.active && snapshot.destination?.mapSourceId === navigationSpaceId() ? snapshot : null;
     },
     dataSource: minimapDataSource, renderer: minimapRenderer,
     documentLike: document, windowTarget: window
@@ -1974,6 +2598,7 @@ try {
     getSocialMarkers: getMapSocialMarkers,
     onOpen: () => {
       fullMapInput.acquire();
+      biryongVillageDialogue?.close();
       hudMenu.setOpen(false, { focus: false }); emoteMenu.setOpen(false);
       chatPanel.setOpen(false, { focus: false }); playerCard.close();
       void guestbookPanel.setOpen(false);
@@ -1981,7 +2606,7 @@ try {
       inventoryPanel.setOpen(false);
       wardrobePanel.setOpen(false);
       dailyQuizPanel.setOpen(false);
-      attendancePanel.setOpen(false);
+      attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false); fishingPanel?.setOpen(false);
       questJournal?.setOpen(false);
     },
     onClose: () => { fullMapInput.release(); },
@@ -1993,6 +2618,20 @@ try {
       if (!roomMap) return;
       minimap?.setDataSource(roomMap, { id: roomMap.id, indoor: true, radiusWorld: roomMap.radiusWorld });
       fullMap?.setDataSource(roomMap, { id: roomMap.id, label: roomMap.label });
+      return;
+    }
+    if (campusMapDataSource && !biryongRealm?.inBiryong) {
+      minimap?.setDataSource(campusMapDataSource, { id: "campus", indoor: false });
+      fullMap?.setDataSource(campusMapDataSource, { id: "campus", label: "캠퍼스 전체 지도" });
+    }
+  });
+  biryongRealm.onChange((status) => {
+    // Re-evaluate before rendering so identical local coordinates never reuse the old route.
+    navigation?.update({ position: player.getLocalPosition(), yaw: orbit.yaw, spaceId: navigationSpaceId() });
+    if (status.inBiryong) {
+      fullMap?.close?.();
+      minimap?.setDataSource(biryongMapDataSource, { id: WORLD_REGION_ID.BIRYONG_REALM, indoor: false });
+      fullMap?.setDataSource(biryongMapDataSource, { id: WORLD_REGION_ID.BIRYONG_REALM, label: biryongMapDataSource.label });
       return;
     }
     if (campusMapDataSource) {
@@ -2034,7 +2673,7 @@ questJournal = createQuestJournal({
       inventoryPanel.setOpen(false);
       wardrobePanel.setOpen(false);
       dailyQuizPanel.setOpen(false);
-      attendancePanel.setOpen(false);
+      attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false); fishingPanel?.setOpen(false);
       emoteMenu.setOpen(false);
       chatPanel.setOpen(false, { focus: false });
       playerCard.close();
@@ -2062,6 +2701,12 @@ questHud = createTrackedQuestHud({
 window.addEventListener("keydown", (event) => {
   if (event.code !== "KeyQ" || event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
   if (event.target instanceof HTMLElement && event.target.closest("input, textarea, select, [contenteditable]")) return;
+  if (combatRuntime.active) {
+    if (!inputFocus.can("GAMEPLAY_SHORTCUT")) return;
+    event.preventDefault();
+    combatRuntime.toggleLock();
+    return;
+  }
   if (lobbyWorld.active || lobbyTransition.active) return;
   event.preventDefault();
   questJournal.setOpen(!questJournal.open);
@@ -2104,16 +2749,19 @@ let npcAiSignedIn = false;
 async function loadOptionalNpcRuntime() {
   if (!npcEnabled) return null;
   let npcAiEnabled = npcAiPilotMode;
+  let npcJevEnabled = false;
   let npcQuestEnabled = npcTestMode || (npcPreviewMode && startupParams.get('backGateArrival') === 'preview');
   // CORE-15: each flag probe is bounded, so a slow AI flag never holds the NPCs or the first quest.
   // A transient quest-flag failure starts the NPCs with the quest off and turns it on once it resolves.
   let questFlagPending = false;
   if (npcProductionMode) {
-    const [aiResult, questResult] = await Promise.all([
+    const [aiResult, questResult, jevResult] = await Promise.all([
       probeFeatureFlag('/api/npc-ai'),
-      probeFeatureFlag('/api/world-quest')
+      probeFeatureFlag('/api/world-quest'),
+      probeFeatureFlag('/api/npc-dialogue-route')
     ]);
     npcAiEnabled = aiResult === FLAG_ENABLED;
+    npcJevEnabled = jevResult === FLAG_ENABLED;
     npcQuestEnabled = questResult === FLAG_ENABLED;
     questFlagPending = questResult === FLAG_UNAVAILABLE;
   }
@@ -2122,13 +2770,14 @@ async function loadOptionalNpcRuntime() {
     const runtime = await module.createNpcDevRuntime({
       app, campusRoot, player, orbit,
       sharedSchedulePreview: npcSharedScheduleMode,
+      worldClock,
       onNpcTalk: (id, now) => online?.network?.setNpcTalk(id, now),
       getBusyNpcIds: now => busyNpcIds(online?.network?.remotes.inZone(online.network.placeZoneId) ?? [], now),
-      production: npcSharedScheduleMode || npcProductionMode || npcPreviewMode || npcRosterPreviewMode || npcSocialPreviewMode || npcObservedConversationPreview,
+      production: npcSharedScheduleMode || npcProductionMode || npcPreviewMode || npcRosterPreviewMode || npcSocialPreviewMode || npcObservedConversationMode,
       socialEnabled: npcSocialMode,
       socialPreview: npcSocialPreviewMode,
       socialBehaviorPreview: npcSocialBehaviorPreviewMode,
-      observedConversationPreview: npcObservedConversationPreview,
+      observedConversationEnabled: npcObservedConversationMode,
       isObservedConversationBlocked: () => !inputFocus.can('WORLD_ACTION') ||
         hudContext.snapshot().mode === 'COMBAT' || lobbyWorld.active || lobbyTransition.active ||
         rooms?.insideRoom === true || mcmEventUi.openState || mcmEventRuntime.isDialogueOpen() ||
@@ -2136,6 +2785,8 @@ async function loadOptionalNpcRuntime() {
       externalContextAction: true,
       aiPilot: npcAiEnabled,
       aiEndpoint: npcAiPilotMode ? '/npc-ai/decide' : '/api/npc-ai',
+      jevEnabled: npcJevEnabled,
+      jevEndpoint: '/api/npc-dialogue-route',
       questEnabled: npcQuestEnabled,
       questEndpoint: npcTestMode ? '/npc-quest' : '/api/world-quest',
       sideEvent: inkyungSideEvent,
@@ -2146,6 +2797,14 @@ async function loadOptionalNpcRuntime() {
         walletBalance: wallet.balance(),
         totalExp: progression.snapshot?.totalExp ?? null
       }),
+      getDialogueWorldContext: () => {
+        const env = environment.status();
+        return {
+          weather: env.targetWeather,
+          environmentTime: env.targetTime,
+          placeZoneId: online?.network?.placeZoneId ?? null
+        };
+      },
       // P1c / P1d: First Campus (badge + EXP) and Main2 (coin + EXP) completions carry the server Reward
       // result. Shown through the existing reward toast lane, then the authorities the entries touched
       // are re-read (never computed here); LEVEL UP follows the toast.
@@ -2232,6 +2891,12 @@ places.onPlaceZoneChanged((previous,next)=>{
 
 app.on("update", (dt) => {
   syncAudio();
+  // Only render the camera while a room transaction owns the player's coordinate frame. Room
+  // pose publishing, campus observers and local motion must not consume an intermediate pose.
+  if (rooms.status().busy) {
+    orbit.apply(player.getLocalPosition(), character.eyeHeight);
+    return;
+  }
   roomSession?.update(dt);
   if (rooms.currentSpace === "ROOM_PERSONAL_BASIC") {
     furnitureRefreshSeconds += dt;
@@ -2246,6 +2911,8 @@ app.on("update", (dt) => {
     guestbookWorldLabel.hide();
     shopWorldLabel.hide();
     contextActions.set("student-center-shop", null);
+    contextActions.set("backgate-transit", null);
+    backgateTransitPanel.setOpen(false, { restoreFocus: false });
     lobbyPresenceSummary.update();
     lobbyQuestHighlight.update();
     backGateLock.refresh();
@@ -2273,23 +2940,31 @@ app.on("update", (dt) => {
     return;
   }
   // Locomotion input and zone changes stand a seated player up before the controller moves.
-  const inside = rooms.insideRoom;
+  const inBiryong = biryongRealm?.inBiryong === true;
+  const inside = rooms.insideRoom || inBiryong;
   inkyungLivingMoment?.setSuppressed(inside);
   // Follow reads human input first. Auto Move then contributes the same world-space assist contract;
   // neither system writes transforms, so PlayerController keeps all collision and existing motion.
   follow.update();
   playerAutoMove?.update(navigation?.getSnapshot() ?? null, player.getLocalPosition());
   if (!seating.beforeController()) controller.update(Math.min(dt, 0.05), orbit.yaw);
+  if (!combatFeedback.hitstopActive()) combatWorldMotion.update();
   helicopterFlightHud.update();
   orbit.setMounted(controller.mounted);
   character.setMounted(controller.mounted);
   character.setFirstPerson(orbit.firstPerson);
   // Locomotion outranks expression: moving, mounting or an incompatible jump ends the emote.
   const emote = emotes.update(locomotion());
-  emoteMenu.setAvailable(!controller.mounted);
-  character.update(Math.min(dt, 0.05), { ...locomotion(), emote, seated: seats.isSeated, poseOffsets: biryong?.poseOffsets() ?? null });
+  emoteMenu.setAvailable(!controller.mounted && !combatRuntime.active);
+  character.update(Math.min(dt, 0.05), {
+    ...locomotion(),
+    emote,
+    seated: seats.isSeated,
+    poseOffsets: combatFeedback.poseOffsets() ?? biryong?.poseOffsets() ?? null
+  });
 
   const pos = player.getLocalPosition();
+  duckCompanionFollow.update(Math.min(dt, 0.05));
   if (!inside) {
     if (inkyungSideEvent.requiresMechanicalDuck()) inkyungDucks.ensureMechanicalDuck();
     inkyungDucks.update(Math.min(dt, 0.05), pos);
@@ -2299,8 +2974,18 @@ app.on("update", (dt) => {
   mcmEventRuntime.update(dt);
   mcmEventUi.update(dt);
   mcmMinigame.update(dt);
-  // Inside a room the campus Place Zone, streaming and tour stay where the player left them.
-  const place=inside?null:places.update(pos);
+  // Campus and Biryong Realm own separate local Place Zone coordinates.
+  // Rooms preserve the outdoor zone where the player left it.
+  const biryongPlace = inBiryong ? getBiryongRealmPlaceZone(pos) : null;
+  if (inBiryong) zoneEl.textContent = biryongPlace?.displayName ?? "비룡권 외곽길";
+  const place = inBiryong ? biryongPlace : rooms.insideRoom ? null : places.update(pos);
+  const building5CombatAction = building5Combat.observe(pos, {
+    placeZoneId: place?.id ?? combatRuntime.snapshot().placeZoneId,
+    grounded: controller.grounded,
+    blocked: inside || controller.mounted || seats.isSeated || lobbyWorld.active || lobbyTransition.active ||
+      !inputFocus.can("WORLD_ACTION")
+  });
+  contextActions.set("building5-combat", building5CombatAction);
   accompany?.update();
   if (!inside) npcTest?.observePlace?.(place?.id, pos);
   if (!inside) core15Funnel?.observePlayerEncounter(getMapSocialMarkers(), pos);
@@ -2332,7 +3017,27 @@ app.on("update", (dt) => {
     available: shopWorldAvailable()
   });
   contextActions.set("student-center-shop", shopWorldAction);
+  if (inside || controller.mounted) backgateTransitPanel.setOpen(false, { restoreFocus: false });
+  contextActions.set("backgate-transit", inBiryong ? null : backgateTransit.observe(pos, backgateTransitState()));
+  contextActions.set("biryong-station-transit", inBiryong
+    ? biryongStationTransit?.observe(pos, {
+      grounded: controller.grounded,
+      blocked: biryongRealm.busy || controller.mounted || seats.isSeated || !inputFocus.can("WORLD_ACTION")
+    }) ?? null
+    : null);
+  contextActions.set("biryong-npc", inBiryong
+    ? biryongVillageDialogue?.getContextAction({
+      blocked: biryongRealm.busy || controller.mounted || seats.isSeated ||
+        combatRuntime.active || !inputFocus.can("WORLD_ACTION")
+    }) ?? null
+    : null);
   contextActions.set("inkyung-duck", inside ? null : inkyungDucks.getContextAction(pos));
+  const fishingBlocked = inside || controller.mounted || seats.isSeated || fishingPanel?.open === true;
+  if (!fishingBlocked && fishing.state === FISHING_CLIENT_STATE.UNAVAILABLE && findNearbyFishingSpot(pos)) void fishing.probe();
+  contextActions.set("inkyung-fishing", fishingContextAction(pos, {
+    available: fishing.available, blocked: fishingBlocked,
+    onOpen: (spot) => fishingPanel?.setOpen(true, spot)
+  }));
   contextActions.set("biryong", inside ? null : biryong?.getContextAction(pos, { blocked: controller.mounted || seats.isSeated }) ?? null);
   contextActions.set("mcm-event", inside ? null : mcmEventRuntime.contextAction());
   contextActions.set("mcm-minigame", rooms.currentSpace === MCM_2026_ROOM_ID ? mcmMinigame.contextAction() : null);
@@ -2342,13 +3047,32 @@ app.on("update", (dt) => {
     trigger: () => follow.stop(FollowStopReason.EXPLICIT)
   } : null);
   // Club Room P0 door: 🚪 동아리방 들어가기 outside, 🚪 본관으로 나가기 inside.
-  contextActions.set("room-door", rooms.contextAction({ position: pos, grounded: controller.grounded, mounted: controller.mounted }));
-  contextActions.set("personal-room-door", personalRoomInteraction?.contextAction({
-    position: pos, grounded: controller.grounded, mounted: controller.mounted
-  }) ?? null);
+  if (inBiryong) {
+    contextActions.set("room-door", null);
+    contextActions.set("personal-room-door", null);
+    contextActions.set("friend-room-knock", null);
+  } else {
+    contextActions.set("room-door", rooms.contextAction({ position: pos, grounded: controller.grounded, mounted: controller.mounted }));
+    contextActions.set("personal-room-door", personalRoomInteraction?.contextAction({
+      position: pos, grounded: controller.grounded, mounted: controller.mounted
+    }) ?? null);
+    contextActions.set("friend-room-knock", friendRoomVisit?.contextAction({
+      position: pos, grounded: controller.grounded, mounted: controller.mounted
+    }) ?? null);
+  }
   contextActions.set("npc", inside ? null : npcTest?.getContextAction?.() ?? null);
   // Transport has its own slot: a nearby NPC and the bike are offered together (F and M).
-  transportActions.set("mount", controller.getMountContextAction());
+  const mountContextAction = controller.getMountContextAction();
+  // Recheck the live gate/locks and mount offer at activation, even for a retained button callback.
+  transportActions.set("mount", mountContextAction ? { ...mountContextAction, trigger: () => controller.transportAction() } : null);
+  if (combatRuntime.active) {
+    for (const key of [
+      "seat", "guestbook", "student-center-shop", "backgate-transit", "biryong-station-transit",
+      "biryong-npc", "inkyung-duck", "inkyung-fishing", "biryong", "mcm-event", "mcm-minigame", "follow",
+      "room-door", "personal-room-door", "npc"
+    ]) contextActions.set(key, null);
+    transportActions.set("mount", null);
+  }
   const suspended = worldActionsSuspended();
   contextActions.setSuspended(suspended);
   transportActions.setSuspended(suspended);
@@ -2367,7 +3091,8 @@ app.on("update", (dt) => {
     grounded: controller.grounded,
     mounted: controller.mounted,
     insideRoom: inside,
-    enabled: firstPlayerMovement && !npcTestMode
+    regionId: biryongRealm?.regionId ?? WORLD_REGION_ID.CAMPUS,
+    enabled: firstPlayerMovement && !npcTestMode && !combatRuntime.active
   });
   if (!inside) streaming.update(dt, pos);
   if (!inside && !npcTestMode) tour.update(pos, place?.id, orbit.yaw);
@@ -2417,14 +3142,19 @@ try {
   online.onIdentity((identity) => {
     void syncBiryongAccount(identity);
     void progression.setAccount(identity ? online?.userId ?? null : null);
+    void biryongRelationships.setAccount(identity ? online?.userId ?? null : null);
     shop.setAccount(identity ? online?.userId ?? null : null);
     void wallet.setAccount(identity ? online?.userId ?? null : null);
     void inventory.setAccount(identity ? online?.userId ?? null : null);
     void dailyQuiz.setAccount(identity ? online?.userId ?? null : null);
     void attendance.setAccount(identity ? online?.userId ?? null : null);
+    void lifeSkillBook.setAccount(identity ? online?.userId ?? null : null);
+    void fishing.setAccount(identity ? online?.userId ?? null : null);
     void loadout.setAccount(identity ? online?.userId ?? null : null);
     const nextRoomUserId = online?.userId ?? null;
     inkyungSideEvent.setScope(nextRoomUserId ?? "guest");
+    if (identity) void duckCompanion.refresh();
+    else duckCompanion.reset();
     const roomIdentityChanged = lastPersonalRoomUserId !== null && nextRoomUserId !== lastPersonalRoomUserId;
     if (!identity || roomIdentityChanged) roomSession?.stop();
     if (!identity || roomIdentityChanged) roomFurniture?.reset();
@@ -2438,10 +3168,11 @@ try {
     npcTest?.setAiSignedIn(npcAiSignedIn);
     profile.setIdentity(identity);
     lobbyPlayerSummary.render();
+    lobbyQuestHighlight.update();
     chatPanel.refreshAvailability();
     friendPanel.setAvailable(!!identity);
     nearbyPanel.render();
-    guestbookPanel.setAvailable(!!identity);
+    guestbookPanel.setAvailable(!!identity, identity?.userId ?? null);
     if (identity) {
       void accompany.refresh();
       void social.mine()
@@ -2533,6 +3264,18 @@ if (lobbyWorld.active) {
 }
 
 const bootDegraded = !online;
+worldLoading?.setPhase("ASSETS");
+await waitForWorldRender({
+  app,
+  ready: character.ready.then(() => {
+    worldLoading?.setPhase("RENDERING");
+    // The model swap changes eye height; apply the camera before counting rendered frames.
+    if (lobbyWorld.active) lobbyWorld.update(0);
+    else orbit.apply(player.getLocalPosition(), character.eyeHeight);
+  }),
+  isSceneReady: () => streaming.pending.length === 0
+});
+worldLoading?.setRenderReady(true);
 worldLoading?.finish({ degraded: bootDegraded });
 void loadOptionalNpcRuntime();
 if (campusLifePreview) {
@@ -2607,8 +3350,10 @@ window.__INHAGAME_P0__ = {
   orbit,
   registry,
   places,
-  getPlaceZoneAt:position=>places.getPlaceZoneAt(position),
-  getCurrentPlaceZone:()=>places.getCurrentPlaceZone(),
+  getPlaceZoneAt:position=>biryongRealm?.inBiryong
+    ? getBiryongRealmPlaceZone(position) : places.getPlaceZoneAt(position),
+  getCurrentPlaceZone:()=>biryongRealm?.inBiryong
+    ? getBiryongRealmPlaceZone(player.getLocalPosition()) : places.getCurrentPlaceZone(),
   onPlaceZoneChanged:listener=>places.onPlaceZoneChanged(listener),
   streaming,
   viewSettings,
@@ -2641,8 +3386,26 @@ window.__INHAGAME_P0__ = {
   dailyQuizPanel,
   attendance,
   attendancePanel,
+  lifeSkillBook,
+  lifeSkillBookPanel,
+  fishing,
+  fishingPanel,
   shopWorld,
   shopWorldLabel,
+  backgateTransit,
+  backgateTransitPanel,
+  biryongRealm,
+  biryongStationTransit,
+  biryongVillageNpcs,
+  biryongVillageDialogue,
+  biryongRelationships,
+  combatRuntime,
+  combatHud,
+  building5Training,
+  combatTargetRenderer,
+  combatWorldMotion,
+  combatFeedback,
+  building5Combat,
   seats,
   seating,
   follow,
@@ -2651,6 +3414,7 @@ window.__INHAGAME_P0__ = {
   personalRoomInteraction,
   roomSession,
   friendRoomVisit,
+  knockPrompt,
   friendRoomVisitClient,
   roomHud,
   roomFurniture,
@@ -2707,8 +3471,10 @@ window.__INHAGAME_P0__ = {
       questDegraded: lobbyQuestHighlight.health().degraded
     },
     lobbySpawns: lobbySpawnRegistry.status(spawnProgressContext()),
-    activeZone: places.getCurrentPlaceZone()?.id ?? null, // Transitional debug alias only.
-    placeZone: places.getCurrentPlaceZone()?.id ?? null,
+    activeZone: (biryongRealm?.inBiryong
+      ? getBiryongRealmPlaceZone(player.getLocalPosition()) : places.getCurrentPlaceZone())?.id ?? null,
+    placeZone: (biryongRealm?.inBiryong
+      ? getBiryongRealmPlaceZone(player.getLocalPosition()) : places.getCurrentPlaceZone())?.id ?? null,
     audio: worldAudio?.status() ?? { context: "unavailable", degraded: true },
     renderChunks: streaming.snapshot(),
     streamingMetrics: streaming.getMetrics(),
@@ -2753,10 +3519,22 @@ window.__INHAGAME_P0__ = {
     movementHud: controller.hudState ?? null,
     progression: progression.status(),
     shop: { ...shop.status(), ...shopPanel.status(), world: shopWorld.status() },
+    backgateTransit: { ...backgateTransit.status(), ...backgateTransitPanel.status() },
+    worldRegion: biryongRealm?.status() ?? { regionId: WORLD_REGION_ID.CAMPUS },
+    biryongStationTransit: biryongStationTransit?.status() ?? null,
+    biryongVillageNpcs: biryongVillageNpcs?.status() ?? null,
+    biryongVillageDialogue: biryongVillageDialogue?.status() ?? null,
+    biryongRelationships: biryongRelationships.status(),
+    combat: combatRuntime.snapshot(),
+    combatMotion: combatWorldMotion.status(),
+    combatFeedback: combatFeedback.status(),
+    building5Combat: building5Combat.status(),
     wallet: wallet.status(),
     inventory: { ...inventory.status(), ...inventoryPanel.status() },
     dailyQuiz: { ...dailyQuiz.status(), panel: dailyQuizPanel.status() },
     attendance: { ...attendance.status(), panel: attendancePanel.status() },
+    lifeSkillBook: { ...lifeSkillBook.status(), panel: lifeSkillBookPanel?.status() ?? null },
+    fishing: { ...fishing.status(), panel: fishingPanel?.status() ?? null },
     wardrobe: { ...loadout.status(), ...wardrobePanel.status() },
     equipment: equipmentProjection.status(),
     hudMenuOpen: hudMenu.open,
@@ -2772,10 +3550,14 @@ window.__INHAGAME_P0__ = {
         keyboardHelp: keyboardHelpInput.active,
         fullMap: fullMapInput.active,
         shop: shopInput.active,
+        backgateTransit: backgateTransitInput.active,
+        biryongRegionTransition: biryongRegionTransitionInput.active,
         inventory: inventoryInput.active,
         wardrobe: wardrobeInput.active,
         dailyQuiz: dailyQuizInput.active,
         attendance: attendanceInput.active,
+        lifeSkillBook: lifeSkillBookInput.active,
+        fishing: fishingInput.active,
         npcDialogue: npcDialogueInput.active,
         mcmDialogue: mcmDialogueInput.active,
         biryongScripted: biryongScriptedInput.active,

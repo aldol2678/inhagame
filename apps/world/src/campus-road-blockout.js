@@ -3,7 +3,7 @@ import { fillCampusRoadBatch } from './campus-road-geometry.js';
 
 import { fillNorthRoads } from './north-campus-geometry.js';
 import { fillBackGatePaving, fillBackGateStructure } from './back-gate-geometry.js';
-import { fillBackStreetBase, fillBackStreetSignals, fillBackStreetNear, fillBackStreetDetail } from './back-street-geometry.js';
+import { fillBackStreetBase, fillBackStreetPaving, fillBackStreetSignals, fillBackStreetNear, fillBackStreetDetail } from './back-street-geometry.js';
 import { fillBackApproaches } from './back-approach-geometry.js';
 import { fillBackAlleyBase, fillBackAlleyNear, fillBackAlleyDetail } from './back-alley-geometry.js';
 import { fillBackWestBase, fillBackWestNear, fillBackWestDetail } from './back-west-geometry.js';
@@ -17,6 +17,7 @@ import { MARKET_SIGNS } from './back-market-layout.js';
 import { fillInteriorBase, fillInteriorNear, fillInteriorDetail } from './market-interior-geometry.js';
 import { buildStreetSigns } from './street-sign-renderer.js';
 import { fillMainGateRoads } from './main-gate-road-geometry.js';
+import { fillBackgateTransit, backgateTransitSignRecords } from './transit/backgate-transit-geometry.js';
 
 export function buildCampusRoads(root) {
   fillMainGateRoads(new FacilityMeshBatch()).finish(root,'main_gate_dorm1_roads',{castShadows:false});
@@ -24,6 +25,7 @@ export function buildCampusRoads(root) {
   fillNorthRoads(new FacilityMeshBatch()).finish(root,'north_campus_roads',{castShadows:false});
   fillBackGatePaving(new FacilityMeshBatch()).finish(root,'back_gate_roads',{castShadows:false});
   fillBackGateStructure(new FacilityMeshBatch()).finish(root,'back_gate_structure');
+  fillBackStreetPaving(new FacilityMeshBatch()).finish(root,'back_street_paving',{castShadows:false});
   fillBackStreetBase(new FacilityMeshBatch()).finish(root,'back_street_base');
   fillBackStreetSignals(new FacilityMeshBatch()).finish(root,'back_street_signals');
   fillBackApproaches(new FacilityMeshBatch()).finish(root,'back_street_approaches',{castShadows:false});
@@ -37,6 +39,8 @@ export function buildCampusRoads(root) {
   fillNorthSideGate(new FacilityMeshBatch()).finish(root,'north_side_gate');
   fillBackFurnitureBase(new FacilityMeshBatch()).finish(root,'back_furniture');
   fillBackRoadside(new FacilityMeshBatch()).finish(root,'back_roadside');
+  fillBackgateTransit(new FacilityMeshBatch()).finish(root,'backgate_transit_anchor');
+  buildStreetSigns(root,backgateTransitSignRecords(),'backgate_transit_signs');
 }
 
 export function buildBackStreetDetails(root,ids=[],tier){
