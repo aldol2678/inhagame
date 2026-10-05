@@ -147,6 +147,8 @@ export function createInventoryPanel({
     head.append(titles, closeButton);
 
     const body = el("div", "shop-panel-body");
+    // Drop references to tab buttons from the previous DOM before rebuilding state-specific content.
+    tabButtons = new Map();
     if (inventory.state === INVENTORY_STATE.SIGNED_OUT) {
       body.append(el("p", "shop-empty", "로그인한 INHAGAME 계정만 인벤토리를 볼 수 있어요."));
     } else if (inventory.state === INVENTORY_STATE.LOADING) {
