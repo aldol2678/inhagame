@@ -21,7 +21,7 @@ const output = path.resolve(process.env.FULL_MAP_NAVIGATION_OUTPUT || "test-resu
 await mkdir(output, { recursive: true });
 const report = { head, tree, expectedHead, sourceHashes, screenshots: [], limits: ["IME uses Chromium CDP, not an OS Korean candidate window; Input.insertText compositionend may have isTrusted=false", "Mobile uses Chromium touch emulation, not a physical handset"], scope: "Real map controllers/CSS/campus POIs; fixed player, no game engine or account", status: "RUNNING", cases: [] };
 try {
-  for (const viewport of [{ width: 1280, height: 800 }, { width: 360, height: 800 }, { width: 844, height: 390 }]) {
+  for (const viewport of [{ width: 1280, height: 800 }, { width: 360, height: 800 }, { width: 844, height: 390 }, { width: 568, height: 320 }]) {
     const smoke = await startSmoke({ viewport, contextOptions: { isMobile: viewport.width <= 844, hasTouch: viewport.width <= 844 } });
     let page;
     try {
@@ -109,8 +109,17 @@ try {
       const layout = await page.evaluate(() => {
         const root = document.getElementById("full-map-panel");
         const parts = [...root.querySelectorAll(".full-map-search, .full-map-search-input, .full-map-search-panel, .full-map-search-result")];
-        return { width: innerWidth, parts: parts.map(node => ({ name: node.className, ...node.getBoundingClientRect().toJSON() })) };
+        const header = root.querySelector(".full-map-header").getBoundingClientRect();
+        const search = root.querySelector(".full-map-search").getBoundingClientRect();
+        const close = root.querySelector(".full-map-close").getBoundingClientRect();
+        const title = root.querySelector("h2").getBoundingClientRect();
+        return { compactHeader: innerHeight <= 340 ? { search: search.toJSON(), close: close.toJSON(), title: title.toJSON(), header: header.toJSON() } : null, width: innerWidth, parts: parts.map(node => ({ name: node.className, ...node.getBoundingClientRect().toJSON() })) };
       });
+      if (layout.compactHeader) {
+        const { search, close, title, header } = layout.compactHeader;
+        assert.ok(search.x >= title.right && search.right < close.x, "compact search stays between title and close");
+        assert.ok(search.y >= header.y && search.bottom <= header.bottom, "compact search stays inside header");
+      }
       for (const part of layout.parts) assert.ok(part.x >= 0 && part.right <= layout.width, `${part.name} stays inside ${viewport.width}px`);
       const file = `search-${viewport.width}.png`;
       const bytes = await page.screenshot({ path: path.join(output, file) });

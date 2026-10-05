@@ -19,7 +19,9 @@ const before = css.slice(0, startIndex);
 const MAP_START = '/* Full Map short-landscape: independent of the legacy HUD block. */';
 const MAP_END = '/* FULL-MAP-LANDSCAPE:end */';
 const mapSection = css.slice(css.indexOf(MAP_START), css.indexOf(MAP_END) + MAP_END.length);
-const beforeWithoutMap = before.replace(mapSection, '');
+const COMPACT_START = '/* FULL-MAP-COMPACT-SEARCH:start */', COMPACT_END = '/* FULL-MAP-COMPACT-SEARCH:end */';
+const compactSection = css.slice(css.indexOf(COMPACT_START), css.indexOf(COMPACT_END) + COMPACT_END.length);
+const beforeWithoutMap = before.replace(mapSection, '').replace(compactSection, '');
 const mapBlock = mapSection.slice(mapSection.indexOf(QUERY) + QUERY.length, mapSection.lastIndexOf('}'));
 const section = css.slice(startIndex, endIndex + END.length);
 // The override lives in exactly one media block; `body` is the inside of that block.
@@ -200,4 +202,13 @@ test('the override changes presentation only: no JS, DOM or authority edits are 
   // Touch controls are still the existing nodes, in the existing document order.
   assert.match(html, /<div id="joystick"[^>]*><div id="joystick-knob"><\/div><\/div>\s*<button id="run"[^>]*>RUN<\/button>\s*<button id="jump"[^>]*>JUMP<\/button>\s*<button id="descend"[^>]*hidden>/);
   assert.match(html, /<button id="context-action"[^>]*hidden><\/button>\s*<button id="transport-action"[^>]*hidden><\/button>/);
+});
+
+
+test('compact search exception is limited to Full Map selectors and its verified width', () => {
+  assert.match(compactSection, /min-width: 568px/);
+  const body = compactSection.slice(compactSection.indexOf('{') + 1, compactSection.lastIndexOf('}'));
+  const selectors = [...body.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/(?:^|})\s*([^{}]+)\{/g)].flatMap(match => match[1].split(','));
+  assert.ok(selectors.length >= 4 && selectors.every(selector => selector.trim().startsWith('body .full-map')));
+  assert.equal((body.match(/\{/g) ?? []).length, (body.match(/\}/g) ?? []).length);
 });

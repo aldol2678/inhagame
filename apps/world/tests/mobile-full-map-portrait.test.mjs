@@ -101,3 +101,11 @@ test('only the visible Campus search row reserves map height', () => {
   assert.match(css, /\.full-map-card:has\(> \.full-map-search:not\(\[hidden\]\)\)\s*\{[^}]*--full-map-search-height:\s*54px/s);
   assert.match(css, /\.full-map-search\[hidden\]\s*\{[^}]*display:\s*none/s);
 });
+
+test('very short landscape places Campus search in the header without shrinking the map rail', () => {
+  const compact = css.slice(css.indexOf('/* FULL-MAP-COMPACT-SEARCH:start */'), css.indexOf('/* FULL-MAP-COMPACT-SEARCH:end */'));
+  assert.match(compact, /@media \(pointer: coarse\) and \(orientation: landscape\) and \(min-width: 568px\) and \(max-height: 340px\)/);
+  assert.match(compact, /--full-map-search-height:\s*0px/);
+  assert.match(compact, /body \.full-map-search\s*\{[^}]*position:\s*absolute[^}]*top:\s*7px[^}]*left:\s*185px[^}]*right:\s*58px/s);
+  assert.match(compact, /body \.full-map-search-input, body \.full-map-search-clear\s*\{[^}]*min-height:\s*36px/s);
+});

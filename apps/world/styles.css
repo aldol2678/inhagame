@@ -5110,6 +5110,31 @@ body[data-hud-mode="COMBAT"] #jump { display:none !important; }
 }
 /* FULL-MAP-LANDSCAPE:end */
 
+/* FULL-MAP-COMPACT-SEARCH:start */
+/* At 568x320, a separate search row would shrink guidance below the existing
+   153px control rail. Reuse the header's spare width on this compact surface. */
+@media (pointer: coarse) and (orientation: landscape) and (min-width: 568px) and (max-height: 340px) {
+  body .full-map-card:has(> .full-map-search:not([hidden])) {
+    position: relative;
+    --full-map-search-height: 0px;
+    width: min(700px, calc(100vw - max(16px, env(safe-area-inset-left)) - max(16px, env(safe-area-inset-right))));
+  }
+  body .full-map-search {
+    position: absolute;
+    top: 7px;
+    left: 185px;
+    right: 58px;
+    margin: 0;
+    gap: 6px;
+  }
+  body .full-map-search-input, body .full-map-search-clear {
+    min-height: 36px;
+    height: 36px;
+    padding: 4px 8px;
+  }
+}
+/* FULL-MAP-COMPACT-SEARCH:end */
+
 /* Collection furniture editor: input is owned by BLOCKING_UI while this modal is open. */
 .furniture-editor-backdrop { position:fixed; inset:0; z-index:1090; background:#10203355; }
 .furniture-editor { position:fixed; z-index:1100; right:14px; top:14px; bottom:14px; width:min(430px,calc(100vw - 28px)); overflow:auto; overscroll-behavior:contain; padding:18px; box-sizing:border-box; border:1px solid #b8c9d8; border-radius:18px; background:#f8fbff; color:#24394d; box-shadow:0 12px 50px #091b3c66; font:14px/1.5 sans-serif; }
