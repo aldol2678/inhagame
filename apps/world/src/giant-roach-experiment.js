@@ -24,22 +24,20 @@ function sharedMaterial() {
   m.diffuse = new pc.Color(1, 1, 1);
   m.diffuseVertexColor = true;
   m.diffuseVertexColorChannel = 'rgb';
-  m.emissive = new pc.Color(1, 1, 1);
-  m.emissiveVertexColor = true;
-  m.emissiveVertexColorChannel = 'rgb';
-  m.emissiveIntensity = 0.22;
-  m.gloss = 36;
+  m.useLighting = false;
+  m.emissive = new pc.Color(0, 0, 0);
+  m.gloss = 0;
   m.metalness = 0;
   m.update();
   return m;
 }
 
 const ROACH_COLOR = Object.freeze({
-  abdomen: [0.54,0.20,0.060,1],
-  thorax: [0.39,0.12,0.032,1],
-  head: [0.20,0.060,0.020,1],
-  limb: [0.12,0.036,0.014,1],
-  seam: [0.24,0.070,0.020,1]
+  abdomen: [0.68,0.24,0.070,1],
+  thorax: [0.48,0.14,0.038,1],
+  head: [0.27,0.070,0.022,1],
+  limb: [0.16,0.043,0.014,1],
+  seam: [0.32,0.080,0.022,1]
 });
 function pushColor(colors,color,count=1){ for(let i=0;i<count;i++) colors.push(...color); }
 function pushQuad(positions,normals,colors,indices,a,b,c,d,n,color) {
