@@ -3,8 +3,7 @@
   "git": {
     "deploymentEnabled": {
       "**": false,
-      "main": true,
-      "exp/giant-roach-p2-current": true
+      "main": true
     }
   }
 }
