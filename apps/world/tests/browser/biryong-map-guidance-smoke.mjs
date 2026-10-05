@@ -9,8 +9,9 @@ import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { assertHostedBrowserExecution, BIRYONG_QA_VIEWPORTS, BIRYONG_QA_NPCS, assertMapLayout, assertMapPointProjection,
-  readNpcConversationReadiness, assertInteractionHintLayout, assertInteractionHintCoverage } from './biryong-map-guidance-qa.mjs';
+import { assertHostedBrowserExecution, BIRYONG_QA_VIEWPORTS, BIRYONG_QA_NPCS, BIRYONG_QA_HUD_SELECTORS, assertMapLayout, assertMapPointProjection,
+  readNpcConversationReadiness, assertInteractionHintLayout, assertInteractionHintCoverage,
+  assertNpcNameplateLayout, assertNpcNameplateCoverage, assertBiryongReturnLabelVisible } from './biryong-map-guidance-qa.mjs';
 
 // This must execute BEFORE importing Playwright indirectly through harness.mjs.
 assertHostedBrowserExecution(process.env);
@@ -37,9 +38,11 @@ const report = {
   scope: 'Actual offline Campus -> BIRYONG_REALM -> Campus, real map/navigation/NPC/dialogue/input owners; no account or Production endpoints',
   fixtures: ['The existing biryongRealm.enter debug entry starts the disposable region visit',
     'Only /api/world-time is overridden with the real contract at class_time, exposing all three public NPCs',
+    'The station north-wall camera-regression placement, not a walked journey, changes/restores only the local player and camera; NPCs continue normally',
     'Player placement near live actorSnapshot positions and at the authored F1 stop; this does not claim a walked journey'],
   limits: ['Mobile is Chromium touch emulation at deviceScaleFactor 1, not physical-device QA',
     'All seven map POIs are keyboard-selected; a visible Korean label, toolbar and NPC buttons also receive real pointer/touch input',
+    'Nameplate coverage is conditional on real nearby head projections and HUD-free space; NO_CLEAR_ONSCREEN_HEADS records an uncovered viewport, not visual approval',
     'Screenshot presence and framebuffer checks are not independent visual approval'],
   visualReview: 'PENDING_INDEPENDENT_PIXEL_REVIEW', sources: [], cases: []
 };
@@ -89,6 +92,7 @@ async function readMap(page) {
       labels: [...root.querySelectorAll('.full-map-poi[data-label-visible="true"] .full-map-poi-label')].map(el => {
         const r = box(el), id = el.closest('button').dataset.poiId;
         return { id, text: el.textContent, font: getComputedStyle(el).fontSize, ...r,
+          clientWidth: el.clientWidth, clientHeight: el.clientHeight, scrollWidth: el.scrollWidth, scrollHeight: el.scrollHeight,
           hitId: document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)?.closest('.full-map-poi')?.dataset.poiId ?? null };
       }),
       pois: [...root.querySelectorAll('.full-map-poi')].map(el => ({ id: el.dataset.poiId, state: el.dataset.presentation,
@@ -99,6 +103,52 @@ async function readMap(page) {
         return { text: el.textContent, lines: new Set([...range.getClientRects()].map(r => Math.round(r.top))).size, ...box(el) };
       }) };
   });
+}
+
+async function readNpcNameplates(page) {
+  const receipt = await page.evaluate(async hudSelectors => {
+    const [{ npcNameplateOffset }, { BIRYONG_VILLAGE_NPC_ROSTER }] = await Promise.all([
+      import('/npc-factory/npc-dimensions.mjs'), import('/src/biryong/biryong-village-npc-contract.js')
+    ]);
+    const d = window.__INHAGAME_P0__, canvas = d.app.graphicsDevice.canvas.getBoundingClientRect();
+    const player = d.player.getLocalPosition();
+    const candidates = BIRYONG_VILLAGE_NPC_ROSTER.map(definition => {
+      const actor = d.biryongVillageNpcs.actorSnapshot(definition.id);
+      const avatar = d.app.root.findByName(`NPC_TEST_HUMAN_${definition.id}`);
+      const point = avatar.getPosition().clone(); point.y += npcNameplateOffset(definition.appearance.height);
+      const screen = d.orbit.camera.camera.worldToScreen(point);
+      return { id: definition.id, visible: actor.visible && avatar.enabled,
+        distance: Math.hypot(player.x - actor.position.x, player.z - actor.position.z),
+        x: screen.x + canvas.left, y: screen.y + canvas.top, depth: screen.z };
+    });
+    const labels = [...document.querySelectorAll('.biryong-npc-nameplate')].filter(element => {
+      const style = getComputedStyle(element);
+      return !element.hidden && style.display !== 'none' && style.visibility !== 'hidden';
+    }).map(element => ({ ...element.getBoundingClientRect().toJSON(),
+      name: element.querySelector('strong').textContent, detail: element.querySelector('small').textContent,
+      font: getComputedStyle(element.querySelector('strong')).fontSize }));
+    const visibleHud = element => {
+      if (element.hidden || !element.getClientRects().length) return false;
+      const style = getComputedStyle(element);
+      return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
+    };
+    const exclusions = [...document.querySelectorAll(hudSelectors.join(','))].filter(visibleHud)
+      .map(element => ({ id: element.id || element.className, ...element.getBoundingClientRect().toJSON() }));
+    const tourElement = document.getElementById('tour');
+    const tourHud = { present: Boolean(tourElement), visible: Boolean(tourElement && visibleHud(tourElement)) };
+    const cameraPosition = d.orbit.camera.getPosition(), eye = d.player.getPosition().clone();
+    eye.y += d.character.eyeHeight; // Same animated eye offset as main.js, in reflected world coordinates.
+    const camera = { regionId: d.biryongRealm.status().regionId, indoor: Boolean(d.orbit.indoor),
+      mounted: d.controller.mounted, firstPerson: d.orbit.firstPerson, chosenZoom: d.orbit.distance, eyeHeight: d.character.eyeHeight,
+      localVisualOccluded: d.orbit.localVisualOccluded, equipmentVisible: d.character.equipmentVisible,
+      playerLocal: { x: player.x, y: player.y, z: player.z },
+      position: { x: cameraPosition.x, y: cameraPosition.y, z: cameraPosition.z },
+      eye: { x: eye.x, y: eye.y, z: eye.z },
+      eyeDistance: Math.hypot(cameraPosition.x - eye.x, cameraPosition.y - eye.y, cameraPosition.z - eye.z) };
+    return { canvas: canvas.toJSON(), viewport: { width: innerWidth, height: innerHeight },
+      nearest: d.biryongVillageNpcs.nearestNpc(22), candidates, labels, exclusions, tourHud, camera };
+  }, BIRYONG_QA_HUD_SELECTORS);
+  return receipt;
 }
 
 async function inspectRoute(page) {
@@ -300,10 +350,15 @@ try {
       entry.pixels = await renderedPixels(page);
       assert.equal(entry.pixels.glError, 0); assert.equal(entry.pixels.contextLost, false);
       assert.ok(entry.pixels.colors > 12 && entry.pixels.luminanceStddev > 1, 'nonblank actual rendered realm pixels');
+      await page.evaluate(waitForRenderedFrames);
+      entry.arrivalNameplates = await readNpcNameplates(page);
+      assert.equal(entry.arrivalNameplates.tourHud.visible, true, `${name}: real first-tour HUD coverage required`);
+      assertNpcNameplateLayout(entry.arrivalNameplates, `${name} realm arrival`);
       await capture('realm-arrival');
       entry.manualInput = await verifyManualInput(page, smoke.context, mobile);
       await action(page.locator('#minimap-open-map')); await page.locator('#full-map-panel').waitFor({ state: 'visible' });
       entry.overview = await readMap(page); assertMapLayout(entry.overview, `${name} Biryong overview`);
+      assertBiryongReturnLabelVisible(entry.overview, `${name} Biryong overview`);
       assert.equal(entry.overview.infoHidden, true); assert.equal(entry.overview.objectiveHidden, true);
       assert.equal(entry.overview.destinationHidden, true); assert.equal(entry.overview.socialCount, 0);
       const source = createBiryongMapDataSource();
@@ -407,6 +462,9 @@ try {
         assert.equal(proof.actor.name, npc.name); assert.equal(proof.nearest.id, npc.id);
         assert.ok(proof.nearest.distance <= 2.2); assert.equal(proof.context, 'biryong-npc-talk'); assert.ok(proof.topic);
         assert.ok(proof.contextLabel.includes(npc.name), 'normal context action identifies the intended live NPC');
+        await page.evaluate(waitForRenderedFrames);
+        npcReceipt.nameplatesBeforeDialogue = await readNpcNameplates(page);
+        assertNpcNameplateLayout(npcReceipt.nameplatesBeforeDialogue, `${name} ${npc.name} before dialogue`);
         const contextButton = page.locator('#context-action').and(page.getByRole('button', { name: new RegExp(npc.name) }));
         if (mobile) await action(contextButton);
         else { await page.locator('#application').focus(); await page.keyboard.press('f'); }
@@ -480,11 +538,47 @@ try {
         });
         assertInteractionHintLayout(interactionLayout, `${name} ${npc.name}`);
         npcReceipt.interactionLayout = interactionLayout;
+        npcReceipt.nameplatesAfterGuidance = await readNpcNameplates(page);
+        assertNpcNameplateLayout(npcReceipt.nameplatesAfterGuidance, `${name} ${npc.name} after guidance`);
         await capture(`npc-${npc.id}-guidance`);
         await action(page.locator('#nav-guidance-cancel')); assert.equal((await state(page)).navigation.status, 'IDLE');
         assert.equal((await state(page)).enabled, true);
         Object.assign(npcReceipt, { actorAfterClose: closed.npcs.npcs.find(actor => actor.id === npc.id),
           clockAfterClose: closed.npcs.clock, dialogBounds, buttonBounds, route, inputRestored: true, escapeClose: true, result: 'PASS' });
+      }
+
+      // Deterministic station-close-wall camera regression, independent of NPC timing.
+      const priorStationProbePose = await evaluate(() => {
+        const d = window.__INHAGAME_P0__, p = d.player.getLocalPosition();
+        if (d.controller.mounted || d.orbit.firstPerson || d.orbit.indoor) throw Error('Station camera probe requires outdoor walking third person');
+        const saved = { player: { x: p.x, y: p.y, z: p.z }, yaw: d.orbit.yaw, pitch: d.orbit.pitch,
+          distance: d.orbit.distance, thirdPersonPitch: d.orbit.thirdPersonPitch, walkDistance: d.orbit.distances.walk,
+          grounded: d.controller.grounded, velocityY: d.controller.velocityY };
+        d.player.setLocalPosition(-1.2164960827128801, d.controller.groundY, 29.446387731183304);
+        d.controller.grounded = true; d.controller.velocityY = 0;
+        d.orbit.yaw = 0; d.orbit.pitch = Math.atan2(7.3, 18.5); d.orbit.thirdPersonPitch = d.orbit.pitch;
+        d.orbit.distance = 3.5; d.orbit.distances.walk = 3.5;
+        return saved;
+      });
+      try {
+        await page.evaluate(waitForRenderedFrames);
+        entry.stationCloseWall = await readNpcNameplates(page);
+        assertNpcNameplateLayout(entry.stationCloseWall, `${name} station close wall`);
+        assert.ok(entry.stationCloseWall.camera.eyeDistance < .6, 'exact station wall case must reproduce real camera compression');
+        assert.equal(entry.stationCloseWall.camera.firstPerson, false);
+        assert.equal(entry.stationCloseWall.camera.chosenZoom, 3.5);
+        assert.equal(entry.stationCloseWall.camera.localVisualOccluded, true);
+        assert.equal(entry.stationCloseWall.camera.equipmentVisible, false);
+        await capture('station-close-wall');
+      } finally {
+        await evaluate(saved => {
+          const d = window.__INHAGAME_P0__;
+          d.player.setLocalPosition(saved.player.x, saved.player.y, saved.player.z);
+          d.controller.grounded = saved.grounded; d.controller.velocityY = saved.velocityY;
+          d.orbit.yaw = saved.yaw; d.orbit.pitch = saved.pitch; d.orbit.distance = saved.distance;
+          d.orbit.thirdPersonPitch = saved.thirdPersonPitch; d.orbit.distances.walk = saved.walkDistance;
+        }, priorStationProbePose);
+        await page.evaluate(waitForRenderedFrames);
       }
 
       // Retain a realm route across the existing F1 return to detect stale local
@@ -523,6 +617,8 @@ try {
       assert.deepEqual(smoke.problems, [], `${name}: no page, console, renderer or request failures`);
       entry.final = await state(page); assert.deepEqual(entry.final.navigationErrors, []); assert.deepEqual(entry.final.minimap.errors, []);
       assertInteractionHintCoverage(entry.npcs.map(npc => npc.interactionLayout), mobile);
+      entry.nameplateCoverage = assertNpcNameplateCoverage(entry.npcs.flatMap(npc =>
+        [npc.nameplatesBeforeDialogue, npc.nameplatesAfterGuidance]), name);
       entry.result = 'AUTOMATED_PASS_VISUAL_REVIEW_PENDING';
     } catch (error) {
       entry.result = 'FAIL'; entry.error = String(error.stack || error); entry.problems = smoke?.problems ?? [];

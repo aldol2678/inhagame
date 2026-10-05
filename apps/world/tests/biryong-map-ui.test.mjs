@@ -1,11 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { createFullMapController } from '../src/minimap/full-map-controller.js';
 import { createMiniMapController } from '../src/minimap/minimap-controller.js';
+import { createMiniMapRenderer } from '../src/minimap/minimap-renderer.js';
 import { createNavigationState } from '../src/navigation/navigation-state.js';
 import { createNavigationHud } from '../src/navigation/navigation-hud.js';
 import { createBiryongMapDataSource } from '../src/biryong/biryong-map-data.js';
 import { createBiryongNavigation } from '../src/biryong/biryong-navigation.js';
+const css=readFileSync(new URL('../styles.css',import.meta.url),'utf8');
+const returnLabelCss=css.match(/\.full-map-poi\[data-poi-id="poi\.biryong-realm\.return"\] \.full-map-poi-label\s*\{([^}]+)\}/)?.[1]??'';
+// Explicit layout fixtures, not browser font measurements: 130px is the
+// regression's unwrapped title; the scoped cap creates two 16px lines + padding.
+const returnLabelWidth=Math.min(130,parseFloat(returnLabelCss.match(/max-width:\s*([\d.]+)px/)?.[1])||Infinity);
+const returnLabelHeight=returnLabelWidth<130&&/white-space:\s*normal/.test(returnLabelCss)?36:20;
 class FakeStyle {
   constructor() { this.values = new Map(); }
   setProperty(name, value) { this.values.set(name, String(value)); }
@@ -35,6 +43,8 @@ class FakeElement {
   }
   appendChild(child) { child.parentNode = this; this.children.push(child); return child; }
   get firstChild() { return this.children[0] ?? null; }
+  get offsetWidth() { return this.className==='full-map-poi-label'&&this.parentNode?.dataset.poiId==='poi.biryong-realm.return'?returnLabelWidth:0; }
+  get offsetHeight() { return this.className==='full-map-poi-label'&&this.parentNode?.dataset.poiId==='poi.biryong-realm.return'?returnLabelHeight:0; }
   removeChild(child) { this.children.splice(this.children.indexOf(child), 1); child.parentNode = null; return child; }
   setAttribute(name, value) { this.attributes.set(name, String(value)); }
   getAttribute(name) { return this.attributes.get(name) ?? null; }
@@ -69,7 +79,14 @@ function rig(width=390,height=844){
   const documentLike=new FakeDocument(),windowTarget=new FakeElement('window');
   Object.assign(windowTarget,{innerWidth:width,innerHeight:height});
   const els=Object.fromEntries(keys.map(key=>[key,new FakeElement()]));
-  els.surface.rect={left:0,top:0,width:Math.min(width,500),height:Math.min(height,500)};
+  els.navBar.hidden=true;
+  // Match the production square surface, including short-landscape chrome and
+  // the guidance bar's extra height (306px overview / 260px guiding at 844×390).
+  els.surface.getBoundingClientRect=()=>{
+    const size=width>height&&height<=500?Math.min(els.navBar.hidden?430:390,height-24-(els.navBar.hidden?60:106)):
+      width<=720?width-54:Math.min(width-64,height-160);
+    return {left:0,top:0,width:size,height:size};
+  };
   const map=createBiryongMapDataSource(),provider=createBiryongNavigation();
   const current={spaceId:region,position:{x:0,z:0}};
   const nav=createNavigationState({solver:provider.solver,guidanceSpaceId:region});
@@ -96,6 +113,50 @@ for(const [width,height] of [[1280,720],[390,844],[844,390]])test(`Biryong map $
   r.els.resetViewButton.dispatch('click');assert.equal(r.controller.viewport.zoom,1);
   r.els.navBarClear.dispatch('click');assert.equal(r.nav.getSnapshot().status,'IDLE');
   assert.equal(r.els.routePath.getAttribute('visibility'),'hidden');
+});
+
+test('both map renderers mount the Biryong palette on the existing authoritative geometry',()=>{
+  const r=rig();r.controller.open();
+  assert.ok(r.els.geometryLayer.children.every(path=>path.getAttribute('data-map-style')==='biryong'));
+  const names=['root','geometryLayer','poiLayer','objectiveLayer','socialLayer','playerLayer','compassLayer'];
+  const layers=Object.fromEntries(names.map(name=>[name,new FakeElement()]));
+  const renderer=createMiniMapRenderer({...layers,documentLike:r.documentLike});
+  renderer.mountGeometry(r.map.geometry());
+  assert.equal(layers.geometryLayer.children.length,r.map.geometry().length);
+  assert.ok(layers.geometryLayer.children.every(path=>path.getAttribute('data-map-style')==='biryong'));
+  renderer.mountGeometry([{id:'campus.test',kind:'ROAD',rings:[[{x:0,z:0},{x:1,z:0},{x:0,z:1}]]}]);
+  assert.equal(layers.geometryLayer.children[0].getAttribute('data-map-style'),null,'campus does not retain regional paint');
+});
+
+for(const [width,height] of [[1280,720],[390,844],[844,390]])test(`Biryong return label is visible on overview at ${width}x${height}`,()=>{
+  const r=rig(width,height);r.controller.open();
+  const button=r.els.poiLayer.children.find(el=>el.dataset.poiId==='poi.biryong-realm.return');
+  assert.equal(button.dataset.labelVisible,'true');
+  assert.match(button.getAttribute('aria-label'),/귀환.*F1.*인하대후문/);
+  const before={left:button.style.left,top:button.style.top};
+  r.els.zoomInButton.dispatch('click');r.els.resetViewButton.dispatch('click');
+  assert.deepEqual({left:button.style.left,top:button.style.top},before,'priority never moves the stop');
+  assert.equal(button.dataset.labelVisible,'true');
+});
+
+test('Biryong return stays readable on real short-landscape overview and guidance surfaces',()=>{
+  const r=rig(844,390);r.controller.open();
+  const button=r.els.poiLayer.children.find(el=>el.dataset.poiId==='poi.biryong-realm.return');
+  const label=button.__mapParts.label;
+  const assertFits=size=>{
+    const rect=r.els.surface.getBoundingClientRect();
+    assert.deepEqual([rect.width,rect.height],[size,size]);
+    assert.equal(button.dataset.labelVisible,'true',`${size}px map keeps the return label`);
+    const left=parseFloat(button.style.left)/100*size+parseFloat(label.style.left)-22;
+    const top=parseFloat(button.style.top)/100*size+parseFloat(label.style.top)-22;
+    assert.ok(left>=4&&left+label.offsetWidth<=size-4,'complete padded label fits horizontally');
+    assert.ok(top>=4&&top+label.offsetHeight<=size-4,'complete padded label fits vertically');
+  };
+  assertFits(306);
+  button.dispatch('click');r.els.destinationButton.dispatch('click');
+  assertFits(260);
+  assert.match(r.els.infoTitle.textContent,/귀환.*F1.*인하대후문/,'selection keeps the complete destination name');
+  r.els.navBarClear.dispatch('click');assertFits(306);
 });
 
 test('Biryong map roundtrip never renders regional coordinates on Campus and drops stale selections',()=>{

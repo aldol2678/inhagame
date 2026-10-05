@@ -7,6 +7,7 @@ on:
       - 'apps/world/src/navigation/**'
       - 'apps/world/src/main.js'
       - 'apps/world/src/player-controller.js'
+      - 'apps/world/src/orbit-camera-controller.js'
       - 'apps/world/src/input-focus*'
       - 'apps/world/src/world-loading*'
       - 'apps/world/npc-factory/**'
@@ -15,6 +16,7 @@ on:
       - 'apps/world/dev-server.mjs'
       - 'apps/world/tests/biryong-*.test.mjs'
       - 'apps/world/tests/browser/biryong-map-guidance-*'
+      - 'apps/world/tests/browser/biryong-camera-null-smoke.mjs'
       - 'apps/world/tests/browser/harness.mjs'
       - 'apps/world/tests/browser/package*.json'
       - '.github/workflows/biryong-map-guidance-browser.yml'
@@ -51,6 +53,8 @@ jobs:
           apps/world/tests/navigation-map-ui.test.mjs apps/world/tests/room-map-data.test.mjs
           apps/world/tests/world-loading-render.test.mjs apps/world/tests/npc-campus-life-diversity.test.mjs
           apps/world/tests/player-touch-ownership.test.mjs apps/world/tests/input-focus-biryong-wiring.test.mjs
+      - name: Verify regional camera with the pinned engine (no pixels)
+        run: node apps/world/tests/browser/biryong-camera-null-smoke.mjs
       - name: Render exact-head offline Campus and Biryong at three sizes
         timeout-minutes: 13
         env:

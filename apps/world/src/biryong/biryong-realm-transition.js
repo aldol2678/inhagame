@@ -10,17 +10,21 @@ export function createBiryongRealmTransition({
   campusReturnAnchor,
   clock = { now: () => Date.now() },
   fade = run => run(),
-  onBusyChange = () => {}
+  onBusyChange = () => {},
+  onError = () => {}
 } = {}) {
   if (!world || !campusReturnAnchor) throw new TypeError("Biryong realm transition dependencies required");
 
   let regionId = WORLD_REGION_ID.CAMPUS;
   let busy = false;
+  let disposed = false;
+  let generation = 0;
+  let cancelPending = null;
   let cooldownUntil = 0;
   const listeners = new Set();
   const stats = { enters: 0, exits: 0 };
 
-  const ready = () => !busy && clock.now() >= cooldownUntil;
+  const ready = () => !disposed && !busy && clock.now() >= cooldownUntil;
   const setBusy = next => {
     const value = Boolean(next);
     if (value === busy) return false;
@@ -43,41 +47,123 @@ export function createBiryongRealmTransition({
     }
   };
 
+  // World adapter operations are synchronous. The shared fade can defer the
+  // switch and settle asynchronously. Region identity follows the switched frame;
+  // success events, counters and input release wait until fade cleanup completes.
+  function travel({ target, event, counter, run }) {
+    const current = ++generation;
+    const sourceRegion = regionId;
+    let restore = null;
+    let touched = false;
+    let switched = false;
+    let fadeDone = false;
+    let started = false;
+    let settled = false;
+    let failure = null;
+    let recoveryError = null;
+    const active = () => !disposed && current === generation;
+    const report = (info = {}) => {
+      try { onError({ error: failure, recoveryError, recovered: !recoveryError, ...info }); }
+      catch { /* feedback cannot strand a recovered player */ }
+    };
+    const release = () => {
+      try { setBusy(false); return null; }
+      catch (error) {
+        // A focus subscriber can throw after releasing its token. Keep scene
+        // ownership committed and reassert SYSTEM_LOCK instead of rolling back.
+        busy = true;
+        try { onBusyChange(true); } catch { /* remain fail-closed */ }
+        return error || new Error("Biryong input release failed");
+      }
+    };
+    const settle = () => {
+      if (!active() || settled || !fadeDone || (!switched && !failure)) return;
+      settled = true;
+      cancelPending = null;
+      if (failure) {
+        if (!recoveryError) recoveryError = release();
+        report();
+        return;
+      }
+      regionId = target;
+      stats[counter] += 1;
+      cooldownUntil = clock.now() + BIRYONG_REGION_TRANSITION_COOLDOWN_MS;
+      const inputError = release();
+      emit(event);
+      if (inputError) report({ error: inputError, recoveryError: inputError, recovered: false, phase: "input" });
+    };
+    const fail = error => {
+      if (!active() || failure) return;
+      failure = error || new Error("Biryong region transition failed");
+      regionId = sourceRegion;
+      if (touched) {
+        try {
+          if (!restore) throw new Error("Biryong region rollback unavailable");
+          restore();
+        } catch (error) { recoveryError = error || new Error("Biryong region restoration failed"); }
+      }
+      settle();
+    };
+    try { setBusy(true); }
+    catch (error) {
+      // claim() may have inserted a lock without returning its token. Do not
+      // mutate the world or pretend that an unknown input claim was released.
+      settled = true;
+      report({ error, recoveryError: error || new Error("Biryong input acquisition failed"), recovered: false, phase: "input" });
+      return true;
+    }
+    try {
+      restore = world.createCheckpoint?.() ?? null;
+      cancelPending = () => { if (touched && !failure) { restore?.(); regionId = sourceRegion; } };
+      const result = fade(() => {
+        if (!active() || started || failure) return;
+        started = true;
+        try { touched = true; run(); regionId = target; switched = true; }
+        catch (error) { fail(error); }
+        settle();
+      });
+      if (result?.then) {
+        Promise.resolve(result).then(() => { fadeDone = true; settle(); }, error => {
+          fadeDone = true; fail(error); settle();
+        });
+      } else { fadeDone = true; settle(); }
+    } catch (error) { fadeDone = true; fail(error); settle(); }
+    return true;
+  }
+
   function enter() {
     if (regionId !== WORLD_REGION_ID.CAMPUS || !ready()) return false;
-    setBusy(true);
-    fade(() => {
+    return travel({ target: WORLD_REGION_ID.BIRYONG_REALM, event: "enter", counter: "enters", run: () => {
       world.leaveCampus();
       world.showBiryong();
       world.placePlayer(BIRYONG_STATION_SPAWN, BIRYONG_STATION_SPAWN.yaw);
-      regionId = WORLD_REGION_ID.BIRYONG_REALM;
-      stats.enters += 1;
-      cooldownUntil = clock.now() + BIRYONG_REGION_TRANSITION_COOLDOWN_MS;
-      setBusy(false);
-      emit("enter");
-    });
-    return true;
+    } });
   }
 
   function returnToCampus() {
     if (regionId !== WORLD_REGION_ID.BIRYONG_REALM || !ready()) return false;
-    setBusy(true);
-    fade(() => {
+    return travel({ target: WORLD_REGION_ID.CAMPUS, event: "exit", counter: "exits", run: () => {
       world.showCampus();
       world.placePlayer(campusReturnAnchor, campusReturnAnchor.yaw ?? 0);
-      regionId = WORLD_REGION_ID.CAMPUS;
       world.resumeCampus();
-      stats.exits += 1;
-      cooldownUntil = clock.now() + BIRYONG_REGION_TRANSITION_COOLDOWN_MS;
-      setBusy(false);
-      emit("exit");
-    });
-    return true;
+    } });
   }
 
   return {
     enter,
     returnToCampus,
+    dispose() {
+      if (disposed) return;
+      disposed = true;
+      generation += 1;
+      try { cancelPending?.(); }
+      finally {
+        cancelPending = null;
+        world.dispose?.();
+        listeners.clear();
+        setBusy(false);
+      }
+    },
     status,
     get regionId() { return regionId; },
     get inCampus() { return regionId === WORLD_REGION_ID.CAMPUS; },

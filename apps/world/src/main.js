@@ -1762,6 +1762,9 @@ const biryongCampusReturnAnchor = Object.freeze({
 });
 biryongRealm = createBiryongRealmTransition({
   fade: fadeSwitch,
+  onError: ({ recovered }) => showWorldStatus(recovered
+    ? "지역 이동을 완료하지 못해 원래 위치로 돌아왔어요. 다시 시도해 주세요."
+    : "지역 이동을 복구하지 못했어요. 새로고침해 주세요."),
   campusReturnAnchor: biryongCampusReturnAnchor,
   onBusyChange: busy => {
     if (busy) biryongRegionTransitionInput.acquire();
@@ -1851,6 +1854,7 @@ biryongRealm.onChange(status => {
 });
 window.addEventListener("pagehide", event => {
   if (!event.persisted) {
+    biryongRealm?.dispose();
     biryongVillageDialogue?.destroy();
     biryongVillageNpcs?.destroy();
   }

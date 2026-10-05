@@ -2659,6 +2659,36 @@ body {
   stroke: rgba(248,252,253,.36);
   stroke-width: .8;
 }
+/* Regional paint travels with Biryong geometry, so campus/room maps keep their
+   own palette after a source switch. Opaque fills separate roads from solids. */
+.minimap-geometry [data-map-style="biryong"][data-map-kind="GROUND"],
+.full-map-geometry [data-map-style="biryong"][data-map-kind="GROUND"] {
+  fill: #263d40;
+  stroke: #526669;
+  stroke-width: .6;
+  vector-effect: non-scaling-stroke;
+}
+.minimap-geometry [data-map-style="biryong"][data-map-kind="ROAD"],
+.full-map-geometry [data-map-style="biryong"][data-map-kind="ROAD"] {
+  fill: #eedfb9;
+  stroke: #fff5db;
+  stroke-width: .65;
+  vector-effect: non-scaling-stroke;
+}
+.minimap-geometry [data-map-style="biryong"][data-map-kind="BUILDING"],
+.full-map-geometry [data-map-style="biryong"][data-map-kind="BUILDING"] {
+  fill: #846951;
+  stroke: #e8cda5;
+  stroke-width: 1.2;
+  vector-effect: non-scaling-stroke;
+}
+.minimap-geometry [data-map-style="biryong"][data-map-kind="WATER"],
+.full-map-geometry [data-map-style="biryong"][data-map-kind="WATER"] {
+  fill: #237f9e;
+  stroke: #9de7f6;
+  stroke-width: 1.1;
+  vector-effect: non-scaling-stroke;
+}
 .full-map-marker-layer {
   pointer-events: none;
 }
@@ -2723,6 +2753,37 @@ body {
 .full-map-poi[data-label-visible="true"] .full-map-poi-label {
   visibility: visible;
   pointer-events: auto;
+}
+/* Keep the existing F1 stop recognizable by its return glyph, shape and label,
+   without moving its marker or changing any other region's exit treatment. */
+.minimap-poi[data-poi-id="poi.biryong-realm.return"] .minimap-poi-dot {
+  fill: #ffe29a;
+  stroke: #553b11;
+  stroke-width: 2;
+}
+.minimap-poi[data-poi-id="poi.biryong-realm.return"] .minimap-poi-glyph {
+  fill: #36270d;
+  font-weight: 950;
+}
+.full-map-poi[data-poi-id="poi.biryong-realm.return"] .full-map-poi-icon {
+  color: #ffe29a;
+  background: #553b11;
+  border: 2px solid #ffe29a;
+  border-radius: 9px;
+}
+.full-map-poi[data-poi-id="poi.biryong-realm.return"][data-emphasized="false"] {
+  z-index: 1;
+}
+.full-map-poi[data-poi-id="poi.biryong-realm.return"] .full-map-poi-label {
+  color: #ffe29a;
+  background: #203137;
+  padding: 2px 4px;
+  border-radius: 4px;
+  /* The full name must fit beside the stop even on the 260px landscape map. */
+  max-width: 96px;
+  white-space: normal;
+  word-break: keep-all;
+  text-align: center;
 }
 .full-map-poi-state {
   position: absolute;

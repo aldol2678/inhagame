@@ -22,6 +22,14 @@ export const BIRYONG_QA_NPCS = Object.freeze([
   { id: 'BR_NPC_006', name: '한세온', topicId: 'craft', target: 'poi.biryong-realm.workshop' }
 ].map(Object.freeze));
 
+// Acceptance owns this inventory independently of the runtime. Sharing its
+// selector previously let both implementation and oracle miss the first tour.
+export const BIRYONG_QA_HUD_SELECTORS = Object.freeze([
+  '#tour', '#quest-hud', '#nav-guidance', '#auto-move-hud', '#minimap', '.campus-topbar > *',
+  '#context-action', '#transport-action', '#pointer-lock-hint', '#nameplate',
+  '#joystick', '#run', '#jump', '.social-cluster'
+]);
+
 // Serialized directly by Playwright; inspect the existing public actor without
 // changing its schedule, position, pause state, clock or animation frame rate.
 export function readNpcConversationReadiness(npcId) {
@@ -30,6 +38,68 @@ export function readNpcConversationReadiness(npcId) {
 }
 
 const overlaps = (a, b) => a.x < b.right - 1 && a.right > b.x + 1 && a.y < b.bottom - 1 && a.bottom > b.y + 1;
+export function assertNpcNameplateLayout(layout, name) {
+  const { canvas, viewport, labels } = layout;
+  if (layout.tourHud?.visible) {
+    assert.ok(layout.exclusions?.some(surface => surface.id === 'tour'),
+      `${name}: visible first-tour HUD bounds must be captured independently`);
+  }
+  if (layout.camera) assertBiryongCameraReadability(layout.camera, name);
+  const finiteRect = rect => ['x', 'y', 'right', 'bottom', 'width', 'height'].every(key => Number.isFinite(rect[key])) &&
+    rect.width > 0 && rect.height > 0;
+  assert.ok(finiteRect(canvas) && Number.isFinite(viewport.width) && Number.isFinite(viewport.height) &&
+    viewport.width > 0 && viewport.height > 0, `${name}: valid canvas/viewport nameplate bounds`);
+  for (const label of labels) {
+    assert.ok(finiteRect(label), `${name}: finite visible nameplate rectangle`);
+    assert.ok(label.name?.trim() && label.detail?.trim() && parseFloat(label.font) >= 12,
+      `${name}: readable nameplate name and public role/activity`);
+    assert.ok(label.x >= Math.max(0, canvas.x) - 1 && label.right <= Math.min(viewport.width, canvas.right) + 1 &&
+      label.y >= Math.max(0, canvas.y) - 1 && label.bottom <= Math.min(viewport.height, canvas.bottom) + 1,
+      `${name}: ${label.name} whole nameplate fits canvas and viewport`);
+    for (const surface of layout.exclusions ?? []) {
+      assert.ok(!overlaps(label, surface), `${name}: ${label.name} does not overlap HUD ${surface.id}`);
+    }
+  }
+  for (let i = 0; i < labels.length; i++) for (let j = i + 1; j < labels.length; j++) {
+    assert.ok(!overlaps(labels[i], labels[j]), `${name}: nameplates ${labels[i].name}/${labels[j].name} do not overlap`);
+  }
+}
+
+export function assertNpcNameplateCoverage(layouts, name) {
+  layouts.forEach(layout => assertNpcNameplateLayout(layout, name));
+  // Head projection can differ slightly from the preceding label update while
+  // actors/camera move. Require aggregate coverage only for clearly interior
+  // heads, never a specific target that may currently be outside the camera.
+  const eligibleProbeCount = layouts.filter(({ candidates, canvas, viewport, exclusions = [] }) => candidates.some(candidate =>
+    candidate.visible && Number.isFinite(candidate.distance) && candidate.distance >= 0 && candidate.distance <= 22 &&
+    Number.isFinite(candidate.depth) && candidate.depth > 0 &&
+    candidate.x >= Math.max(0, canvas.x) + 32 && candidate.x <= Math.min(viewport.width, canvas.right) - 32 &&
+    candidate.y >= Math.max(0, canvas.y) + 32 && candidate.y <= Math.min(viewport.height, canvas.bottom) - 32 &&
+    // A hidden/cull-suppressed DOM label has no measurable box. Use generous
+    // clear space around its head to avoid requiring a HUD-blocked label.
+    !exclusions.some(surface => overlaps({ x: candidate.x - 96, right: candidate.x + 96,
+      y: candidate.y - 48, bottom: candidate.y + 8 }, surface)))).length;
+  const readableLabelCount = layouts.reduce((sum, layout) => sum + layout.labels.length, 0);
+  if (eligibleProbeCount) assert.ok(readableLabelCount > 0, `${name}: readable nameplate coverage required for on-screen nearby heads`);
+  return { result: readableLabelCount ? 'COVERED' : 'NO_CLEAR_ONSCREEN_HEADS', eligibleProbeCount, readableLabelCount };
+}
+
+export function assertBiryongCameraReadability(camera, name) {
+  assert.ok(Number.isFinite(camera.eyeDistance) && camera.eyeDistance >= 0, `${name}: finite camera-eye distance`);
+  if (camera.regionId === 'BIRYONG_REALM' && !camera.indoor && !camera.mounted && !camera.firstPerson && camera.eyeDistance < .6) {
+    assert.equal(camera.localVisualOccluded, true, `${name}: compressed outdoor camera activates local visual occlusion`);
+    assert.equal(camera.equipmentVisible, false, `${name}: compressed outdoor camera hides local equipment`);
+  }
+}
+
+export function assertBiryongReturnLabelVisible(layout, name) {
+  const label = layout.labels.find(item => item.id === 'poi.biryong-realm.return');
+  assert.ok(label, `${name}: overview return label must be visible`);
+  assert.match(label.text, /귀환.*F1.*인하대후문행/, `${name}: complete return destination copy`);
+  assert.ok(label.clientWidth > 0 && label.clientHeight > 0 && label.scrollWidth <= label.clientWidth + 1 &&
+    label.scrollHeight <= label.clientHeight + 1, `${name}: complete return label has no text overflow`);
+}
+
 export function assertInteractionHintLayout({ context, hint }, name) {
   if (context && hint) assert.ok(!overlaps(context, hint), `${name}: interaction and pointer hint must not overlap`);
 }
