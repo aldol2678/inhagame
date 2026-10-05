@@ -29,3 +29,15 @@ test('roach visuals use one shared low-poly mesh and one render component per en
   assert.match(exp,/mesh\.destroy\?\.\(\)/);
   assert.doesNotMatch(exp,/addComponent\('render',\{type:'sphere'\}\)/);
 });
+
+test('P1 roach quality keeps one shared mesh while adding silhouette, tones and crawl motion',()=>{
+  assert.match(exp,/GIANT_ROACH_TRIANGLES = 264/);
+  assert.match(exp,/diffuseVertexColor = true/);
+  assert.match(exp,/ROACH_COLOR/);
+  assert.match(exp,/colors:g\.colors/);
+  assert.match(exp,/const legs=\[/);
+  assert.match(exp,/ROACH_COLOR\.seam/);
+  assert.match(exp,/renderHeading/);
+  assert.match(exp,/const bob=Math\.abs\(Math\.sin\(phase\)\)\*\.035/);
+  assert.match(exp,/estimatedRoachTriangles:roaches\.length\*GIANT_ROACH_TRIANGLES/);
+});
