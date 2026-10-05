@@ -13,9 +13,9 @@ select is((select count(*) from private.world_life_skill_tree_catalog where node
   '18 tree v1 nodes are published');
 select is((select count(*) from private.world_life_skill_tree_catalog where status = 'ACTIVE'),2::bigint,
   'only two implemented Fishing timing nodes are active');
-select results_eq($
+select results_eq($$
   select node_id from private.world_life_skill_tree_catalog where status='ACTIVE' order by node_id
-$,$values ('life.node.fishing.fish_sense'::text),('life.node.fishing.steady_hands'::text)$,
+$$,$$values ('life.node.fishing.fish_sense'::text),('life.node.fishing.steady_hands'::text)$$,
   'active tree nodes are exactly fish_sense and steady_hands');
 select results_eq($$
   select skill_id,count(*),sum(max_rank*sp_cost)::int,max(required_skill_level),min(required_life_level),max(required_life_level)
