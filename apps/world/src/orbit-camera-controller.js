@@ -42,6 +42,7 @@ export class OrbitCameraController {
     this.mouseSensitivity = 1;
     this.invertMouseY = false;
     this.indoor = null;
+    this.outdoorObstacles = undefined;
     this.perspectiveButton = document.getElementById("toggle-first-person");
     this.perspectiveButton?.addEventListener("click", () => {
       if (this.canUseGameplayShortcut()) this.togglePerspective();
@@ -59,6 +60,12 @@ export class OrbitCameraController {
   }
 
   get zoomLimits() { return this.indoor ? this.indoor.limits : this.mounted ? FLIGHT : WALK; }
+
+  // Undefined preserves Campus's default collision policy; an explicit set belongs
+  // to a different outdoor coordinate frame. Indoor rooms override it temporarily.
+  setOutdoorObstacles(obstacles = undefined) {
+    this.outdoorObstacles = obstacles;
+  }
 
   setIndoor(indoor = null) {
     if (indoor && !this.indoor) {
@@ -224,14 +231,15 @@ export class OrbitCameraController {
       this.target.y + Math.sin(orbitPitch) * this.distance,
       this.target.z - cos * horizontal
     ];
-    const fraction = cameraSafeFraction(eye, candidate, this.indoor?.obstacles);
+    const fraction = cameraSafeFraction(eye, candidate, this.indoor ? this.indoor.obstacles : this.outdoorObstacles);
     const cameraX = eye[0] + (candidate[0] - eye[0]) * fraction;
     const cameraY = eye[1] + (candidate[1] - eye[1]) * fraction;
     const cameraZ = -(eye[2] + (candidate[2] - eye[2]) * fraction);
     // A real wall/prop can legitimately compress the chase orbit. Hide only the
     // local body/equipment when that camera enters their envelope; keep third
     // person input, chosen zoom, the obstacle and all other actors unchanged.
-    const studentArea=inStudentCampusRegion(eye[0],eye[2]);
+    const campusOutdoor = this.outdoorObstacles === undefined;
+    const studentArea=campusOutdoor && inStudentCampusRegion(eye[0],eye[2]);
     let bodyClearance=.6;
     if(studentArea&&fraction<1){
       // A collision-compressed portrait orbit can let the local body fill the
@@ -243,7 +251,7 @@ export class OrbitCameraController {
         bodyClearance=Math.max(bodyClearance,WALK_SHAPE.radius/(horizontalTan*.5));
       }
     }
-    this.localVisualOccluded = !this.indoor && !this.mounted && (inMainGateCameraArea(eye)||studentArea) &&
+    this.localVisualOccluded = !this.indoor && !this.mounted && ((campusOutdoor && inMainGateCameraArea(eye))||studentArea) &&
       Math.hypot(cameraX - eye[0], cameraY - eye[1], -cameraZ - eye[2]) < bodyClearance;
     this.camera.setPosition(cameraX, cameraY, cameraZ);
     if (viewPitch < THIRD_PERSON_PITCH.orbitMin) {

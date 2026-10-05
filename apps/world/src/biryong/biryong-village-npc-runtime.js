@@ -12,6 +12,11 @@ import {
   BIRYONG_VILLAGE_NPC_ROSTER
 } from "./biryong-village-npc-contract.js";
 import { createBiryongVillageNpcNavigator } from "./biryong-village-npc-navigation.js";
+import {
+  BIRYONG_NPC_NAMEPLATE_INSET,
+  BIRYONG_NPC_NAMEPLATE_MAX_DISTANCE,
+  layoutBiryongNpcNameplates
+} from "./biryong-npc-nameplate-layout.js";
 
 const activityLabels = Object.freeze({
   CARGO_CHECK: "화물 확인",
@@ -48,9 +53,9 @@ function makeLabel(name, role) {
     "position:fixed","z-index:62","transform:translate(-50%,-100%)",
     "padding:4px 7px","border-radius:7px","border:1px solid #d9bd72",
     "background:#162923e8","color:#fff","font:700 12px/1.2 system-ui,sans-serif",
-    "white-space:nowrap","pointer-events:none","text-align:center"
+    "white-space:nowrap","pointer-events:none","text-align:center","box-sizing:border-box"
   ].join(";");
-  label.innerHTML = `<strong></strong><small style="display:block;color:#cfd9cc;font:600 9px/1.15 system-ui,sans-serif"></small>`;
+  label.innerHTML = `<strong style="display:block;overflow:hidden;text-overflow:ellipsis"></strong><small style="display:block;overflow:hidden;text-overflow:ellipsis;color:#cfd9cc;font:600 9px/1.15 system-ui,sans-serif"></small>`;
   label.querySelector("strong").textContent = name;
   label.querySelector("small").textContent = role;
   label.hidden = true;
@@ -110,7 +115,7 @@ export function createBiryongVillageNpcRuntime({
     return true;
   }
 
-  function renderActor(actor, dt) {
+  function renderActor(actor, playerPos, rect) {
     const state = actor.controller.status(false);
     const active = getActive() === true;
     const visible = active && state.visible;
@@ -129,23 +134,41 @@ export function createBiryongVillageNpcRuntime({
       actor.label.hidden = true;
       return;
     }
-    const playerPos = player.getLocalPosition();
-    if (Math.hypot(playerPos.x - state.position.x, playerPos.z - state.position.z) > 22) {
+    const distance = Math.hypot(playerPos.x - state.position.x, playerPos.z - state.position.z);
+    if (distance > BIRYONG_NPC_NAMEPLATE_MAX_DISTANCE) {
       actor.label.hidden = true;
       return;
     }
     const world = actor.visual.avatar.getPosition();
     projected.set(world.x, world.y + npcNameplateOffset(actor.definition.appearance.height), world.z);
     const screen = camera.camera.worldToScreen(projected);
-    const rect = app.graphicsDevice.canvas.getBoundingClientRect();
     const onscreen = screen.z > 0 && screen.x >= 0 && screen.y >= 0 && screen.x <= rect.width && screen.y <= rect.height;
     actor.label.hidden = !onscreen;
     if (!onscreen) return;
-    actor.label.style.left = `${screen.x + rect.left}px`;
-    actor.label.style.top = `${screen.y + rect.top}px`;
+    actor.label.style.maxWidth = `${Math.max(0, rect.width - BIRYONG_NPC_NAMEPLATE_INSET * 2)}px`;
     const detail = actor.label.querySelector("small");
     const action = state.phase === "MOVING" ? "이동 중" : activityLabels[state.activity] ?? actor.definition.publicRole;
-    detail.textContent = `${actor.definition.publicRole} · ${action}`;
+    const copy = `${actor.definition.publicRole} · ${action}`;
+    if (detail.textContent !== copy) detail.textContent = copy;
+    return { id: actor.definition.id, label: actor.label, distance,
+      x: screen.x + rect.left, y: screen.y + rect.top, depth: screen.z };
+  }
+
+  function renderNameplates(candidates, rect) {
+    // Measure after all label copy/width writes, then resolve the whole frame
+    // nearest-first. Hidden labels do not change the actors or dialogue targets.
+    const measured = candidates.map(candidate => {
+      const { width, height } = candidate.label.getBoundingClientRect();
+      return { ...candidate, width, height };
+    });
+    const placed = new Map(layoutBiryongNpcNameplates(measured, rect).map(item => [item.id, item]));
+    for (const candidate of candidates) {
+      const placement = placed.get(candidate.id);
+      candidate.label.hidden = !placement;
+      if (!placement) continue;
+      candidate.label.style.left = `${placement.x}px`;
+      candidate.label.style.top = `${placement.y}px`;
+    }
   }
 
   function update(dt) {
@@ -154,10 +177,15 @@ export function createBiryongVillageNpcRuntime({
     elapsed += step;
     clock.refreshIfDue();
     syncPeriod();
+    const rect = app.graphicsDevice.canvas.getBoundingClientRect();
+    const playerPos = player.getLocalPosition();
+    const candidates = [];
     for (const actor of actors) {
       actor.controller.tick(step);
-      renderActor(actor, step);
+      const candidate = renderActor(actor, playerPos, rect);
+      if (candidate) candidates.push(candidate);
     }
+    renderNameplates(candidates, rect);
   }
 
   void clock.sync().then(() => syncPeriod());

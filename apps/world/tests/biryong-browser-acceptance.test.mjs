@@ -8,6 +8,73 @@ const helperUrl = new URL('./browser/biryong-map-guidance-qa.mjs', import.meta.u
 const smokeUrl = new URL('./browser/biryong-map-guidance-smoke.mjs', import.meta.url);
 const workflowUrl = new URL('../../../.github/workflows/biryong-map-guidance-browser.yml', import.meta.url);
 
+const nameplateReceipt = () => ({
+  canvas: { x: 20, y: 30, right: 370, bottom: 810, width: 350, height: 780 },
+  viewport: { width: 390, height: 844 }, nearest: { id: 'BR_NPC_001' },
+  candidates: [{ id: 'BR_NPC_001', x: 195, y: 240, depth: 4, distance: 1.2, visible: true }],
+  labels: [{ name: '강소라', detail: '운송·화물 담당 · 이동 중', font: '12px',
+    x: 130, y: 204, right: 260, bottom: 240, width: 130, height: 36 }]
+});
+
+test('hosted nameplate assertions reject real rectangle clipping, overlaps, and unreadable labels', async () => {
+  const { assertNpcNameplateLayout } = await import(helperUrl);
+  assert.equal(typeof assertNpcNameplateLayout, 'function');
+  const receipt = nameplateReceipt();
+  assert.doesNotThrow(() => assertNpcNameplateLayout(receipt, 'portrait'));
+  for (const changes of [{ x: 10 }, { y: 20 }, { right: 391 }, { bottom: 845 },
+    { x: NaN }, { width: 0 }, { name: '' }, { font: '8px' }]) {
+    assert.throws(() => assertNpcNameplateLayout({ ...receipt, labels: [{ ...receipt.labels[0], ...changes }] }, 'portrait'));
+  }
+  assert.throws(() => assertNpcNameplateLayout({ ...receipt, labels: [...receipt.labels,
+    { ...receipt.labels[0], name: '한여울', x: 145, right: 275 }] }, 'portrait'), /overlap/);
+  assert.doesNotThrow(() => assertNpcNameplateLayout({ ...receipt, labels: [] }, 'offscreen target'));
+});
+
+test('hosted nameplate coverage requires labels only when nearby heads are clearly on-screen', async () => {
+  const { assertNpcNameplateCoverage } = await import(helperUrl);
+  assert.equal(typeof assertNpcNameplateCoverage, 'function');
+  const visible = nameplateReceipt(), empty = { ...visible, labels: [] };
+  assert.throws(() => assertNpcNameplateCoverage([empty, empty, empty], 'portrait'), /readable nameplate coverage/);
+  const covered = assertNpcNameplateCoverage([empty, visible, empty], 'portrait');
+  assert.equal(covered.result, 'COVERED');
+  assert.equal(covered.readableLabelCount, 1);
+  for (const changes of [{ x: -100 }, { y: 900 }, { depth: -1 }, { distance: 23 }, { visible: false }, { x: 20 }]) {
+    const outside = { ...empty, candidates: [{ ...empty.candidates[0], ...changes }] };
+    const result = assertNpcNameplateCoverage([outside, outside, outside], 'portrait');
+    assert.equal(result.result, 'NO_CLEAR_ONSCREEN_HEADS', 'offscreen/edge targets are documented, never forced visible');
+  }
+  const targetOutside = { ...visible, nearest: { id: 'BR_NPC_008' } };
+  assert.doesNotThrow(() => assertNpcNameplateCoverage([targetOutside], 'offscreen nearest'),
+    'a particular nearest dialogue target need not have an on-screen nameplate');
+});
+
+test('Biryong overview must expose the complete return label without text overflow', async () => {
+  const { assertBiryongReturnLabelVisible } = await import(helperUrl);
+  assert.equal(typeof assertBiryongReturnLabelVisible, 'function');
+  const label = { id: 'poi.biryong-realm.return', text: '귀환 · F1 인하대후문행',
+    clientWidth: 96, scrollWidth: 96, clientHeight: 36, scrollHeight: 36 };
+  assert.doesNotThrow(() => assertBiryongReturnLabelVisible({ labels: [label] }, 'portrait'));
+  assert.throws(() => assertBiryongReturnLabelVisible({ labels: [] }, 'portrait'), /return label/);
+  assert.throws(() => assertBiryongReturnLabelVisible({ labels: [{ ...label, text: '귀환' }] }, 'portrait'), /complete return/);
+  assert.throws(() => assertBiryongReturnLabelVisible({ labels: [{ ...label, scrollWidth: 180 }] }, 'portrait'), /overflow/);
+  assert.throws(() => assertBiryongReturnLabelVisible({ labels: [{ ...label, scrollHeight: 72 }] }, 'portrait'), /overflow/);
+});
+
+test('hosted captures record nameplate DOM geometry and public head projections without changing the scene', async () => {
+  const source = await readFile(smokeUrl, 'utf8');
+  assert.match(source, /async function readNpcNameplates\(page\)/);
+  assert.match(source, /querySelectorAll\('\.biryong-npc-nameplate'\)/);
+  assert.match(source, /npcNameplateOffset\(definition\.appearance\.height\)/);
+  assert.match(source, /worldToScreen\(point\)/);
+  assert.match(source, /npcReceipt\.nameplatesBeforeDialogue = await readNpcNameplates\(page\)/);
+  assert.match(source, /npcReceipt\.nameplatesAfterGuidance = await readNpcNameplates\(page\)/);
+  assert.match(source, /assertNpcNameplateCoverage\(/);
+  assert.match(source, /assertBiryongReturnLabelVisible\(entry\.overview/);
+  const start = source.indexOf('async function readNpcNameplates(page)');
+  const end = source.indexOf('\nasync function inspectRoute(page)', start);
+  assert.doesNotMatch(source.slice(start, end), /setLocalPosition|\.pauseNpc\(|setPeriodForTest|\.app\.fire\(/);
+});
+
 test('Biryong desktop interaction and pointer help have separate visible rows', async () => {
   const { assertInteractionHintLayout, assertInteractionHintCoverage } = await import(helperUrl);
   assert.equal(typeof assertInteractionHintLayout, 'function');
@@ -156,7 +223,7 @@ test('actual map receipt keeps CSS percentages separate from DOMRect viewport pi
   // Execute only the pure DOM serializer in a tiny Node fixture. Never import the
   // guarded browser entrypoint or fabricate a hosted environment.
   const start = source.indexOf('async function readMap(page) {');
-  const end = source.indexOf('\nasync function inspectRoute(page) {', start);
+  const end = source.indexOf('\nasync function readNpcNameplates(page) {', start);
   assert.ok(start >= 0 && end > start);
   const rect = { x: 618, y: 558.4375, left: 618, top: 558.4375, right: 662, bottom: 602.4375, width: 44, height: 44 };
   const element = { hidden: true, children: [], getBoundingClientRect: () => ({ toJSON: () => ({ ...rect }) }) };

@@ -10,7 +10,8 @@ import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { assertHostedBrowserExecution, BIRYONG_QA_VIEWPORTS, BIRYONG_QA_NPCS, assertMapLayout, assertMapPointProjection,
-  readNpcConversationReadiness, assertInteractionHintLayout, assertInteractionHintCoverage } from './biryong-map-guidance-qa.mjs';
+  readNpcConversationReadiness, assertInteractionHintLayout, assertInteractionHintCoverage,
+  assertNpcNameplateLayout, assertNpcNameplateCoverage, assertBiryongReturnLabelVisible } from './biryong-map-guidance-qa.mjs';
 
 // This must execute BEFORE importing Playwright indirectly through harness.mjs.
 assertHostedBrowserExecution(process.env);
@@ -40,6 +41,7 @@ const report = {
     'Player placement near live actorSnapshot positions and at the authored F1 stop; this does not claim a walked journey'],
   limits: ['Mobile is Chromium touch emulation at deviceScaleFactor 1, not physical-device QA',
     'All seven map POIs are keyboard-selected; a visible Korean label, toolbar and NPC buttons also receive real pointer/touch input',
+    'Nameplate coverage is conditional on real nearby head projections; NO_CLEAR_ONSCREEN_HEADS records an uncovered viewport, not visual approval',
     'Screenshot presence and framebuffer checks are not independent visual approval'],
   visualReview: 'PENDING_INDEPENDENT_PIXEL_REVIEW', sources: [], cases: []
 };
@@ -89,6 +91,7 @@ async function readMap(page) {
       labels: [...root.querySelectorAll('.full-map-poi[data-label-visible="true"] .full-map-poi-label')].map(el => {
         const r = box(el), id = el.closest('button').dataset.poiId;
         return { id, text: el.textContent, font: getComputedStyle(el).fontSize, ...r,
+          clientWidth: el.clientWidth, clientHeight: el.clientHeight, scrollWidth: el.scrollWidth, scrollHeight: el.scrollHeight,
           hitId: document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)?.closest('.full-map-poi')?.dataset.poiId ?? null };
       }),
       pois: [...root.querySelectorAll('.full-map-poi')].map(el => ({ id: el.dataset.poiId, state: el.dataset.presentation,
@@ -98,6 +101,33 @@ async function readMap(page) {
         const range = document.createRange(); range.selectNodeContents(el);
         return { text: el.textContent, lines: new Set([...range.getClientRects()].map(r => Math.round(r.top))).size, ...box(el) };
       }) };
+  });
+}
+
+async function readNpcNameplates(page) {
+  return page.evaluate(async () => {
+    const [{ npcNameplateOffset }, { BIRYONG_VILLAGE_NPC_ROSTER }] = await Promise.all([
+      import('/npc-factory/npc-dimensions.mjs'), import('/src/biryong/biryong-village-npc-contract.js')
+    ]);
+    const d = window.__INHAGAME_P0__, canvas = d.app.graphicsDevice.canvas.getBoundingClientRect();
+    const player = d.player.getLocalPosition();
+    const candidates = BIRYONG_VILLAGE_NPC_ROSTER.map(definition => {
+      const actor = d.biryongVillageNpcs.actorSnapshot(definition.id);
+      const avatar = d.app.root.findByName(`NPC_TEST_HUMAN_${definition.id}`);
+      const point = avatar.getPosition().clone(); point.y += npcNameplateOffset(definition.appearance.height);
+      const screen = d.orbit.camera.camera.worldToScreen(point);
+      return { id: definition.id, visible: actor.visible && avatar.enabled,
+        distance: Math.hypot(player.x - actor.position.x, player.z - actor.position.z),
+        x: screen.x + canvas.left, y: screen.y + canvas.top, depth: screen.z };
+    });
+    const labels = [...document.querySelectorAll('.biryong-npc-nameplate')].filter(element => {
+      const style = getComputedStyle(element);
+      return !element.hidden && style.display !== 'none' && style.visibility !== 'hidden';
+    }).map(element => ({ ...element.getBoundingClientRect().toJSON(),
+      name: element.querySelector('strong').textContent, detail: element.querySelector('small').textContent,
+      font: getComputedStyle(element.querySelector('strong')).fontSize }));
+    return { canvas: canvas.toJSON(), viewport: { width: innerWidth, height: innerHeight },
+      nearest: d.biryongVillageNpcs.nearestNpc(22), candidates, labels };
   });
 }
 
@@ -304,6 +334,7 @@ try {
       entry.manualInput = await verifyManualInput(page, smoke.context, mobile);
       await action(page.locator('#minimap-open-map')); await page.locator('#full-map-panel').waitFor({ state: 'visible' });
       entry.overview = await readMap(page); assertMapLayout(entry.overview, `${name} Biryong overview`);
+      assertBiryongReturnLabelVisible(entry.overview, `${name} Biryong overview`);
       assert.equal(entry.overview.infoHidden, true); assert.equal(entry.overview.objectiveHidden, true);
       assert.equal(entry.overview.destinationHidden, true); assert.equal(entry.overview.socialCount, 0);
       const source = createBiryongMapDataSource();
@@ -407,6 +438,9 @@ try {
         assert.equal(proof.actor.name, npc.name); assert.equal(proof.nearest.id, npc.id);
         assert.ok(proof.nearest.distance <= 2.2); assert.equal(proof.context, 'biryong-npc-talk'); assert.ok(proof.topic);
         assert.ok(proof.contextLabel.includes(npc.name), 'normal context action identifies the intended live NPC');
+        await page.evaluate(waitForRenderedFrames);
+        npcReceipt.nameplatesBeforeDialogue = await readNpcNameplates(page);
+        assertNpcNameplateLayout(npcReceipt.nameplatesBeforeDialogue, `${name} ${npc.name} before dialogue`);
         const contextButton = page.locator('#context-action').and(page.getByRole('button', { name: new RegExp(npc.name) }));
         if (mobile) await action(contextButton);
         else { await page.locator('#application').focus(); await page.keyboard.press('f'); }
@@ -480,6 +514,8 @@ try {
         });
         assertInteractionHintLayout(interactionLayout, `${name} ${npc.name}`);
         npcReceipt.interactionLayout = interactionLayout;
+        npcReceipt.nameplatesAfterGuidance = await readNpcNameplates(page);
+        assertNpcNameplateLayout(npcReceipt.nameplatesAfterGuidance, `${name} ${npc.name} after guidance`);
         await capture(`npc-${npc.id}-guidance`);
         await action(page.locator('#nav-guidance-cancel')); assert.equal((await state(page)).navigation.status, 'IDLE');
         assert.equal((await state(page)).enabled, true);
@@ -523,6 +559,8 @@ try {
       assert.deepEqual(smoke.problems, [], `${name}: no page, console, renderer or request failures`);
       entry.final = await state(page); assert.deepEqual(entry.final.navigationErrors, []); assert.deepEqual(entry.final.minimap.errors, []);
       assertInteractionHintCoverage(entry.npcs.map(npc => npc.interactionLayout), mobile);
+      entry.nameplateCoverage = assertNpcNameplateCoverage(entry.npcs.flatMap(npc =>
+        [npc.nameplatesBeforeDialogue, npc.nameplatesAfterGuidance]), name);
       entry.result = 'AUTOMATED_PASS_VISUAL_REVIEW_PENDING';
     } catch (error) {
       entry.result = 'FAIL'; entry.error = String(error.stack || error); entry.problems = smoke?.problems ?? [];
