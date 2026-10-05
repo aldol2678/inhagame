@@ -160,10 +160,15 @@ test('tree registry rejects invalid ranks and prerequisite ranks above the prere
   ] }), /exceeds/);
 });
 
-test('tree v1: 18 COMING_SOON nodes for fishing / woodcutting / farming, 17 SP per tree', () => {
+test('tree v1: 18 nodes, only implemented Fishing timing effects ACTIVE, 17 SP per tree', () => {
   const nodes = LIFE_SKILL_TREE_REGISTRY.list();
   assert.equal(nodes.length, 18);
-  assert.ok(nodes.every(entry => entry.status === LIFE_SKILL_STATUS.COMING_SOON));
+  assert.deepEqual(nodes.filter(entry => entry.status === LIFE_SKILL_STATUS.ACTIVE).map(entry => entry.nodeId).sort(), [
+    'life.node.fishing.fish_sense',
+    'life.node.fishing.steady_hands'
+  ]);
+  assert.ok(nodes.filter(entry => entry.status !== LIFE_SKILL_STATUS.ACTIVE)
+    .every(entry => entry.status === LIFE_SKILL_STATUS.COMING_SOON));
   assert.ok(nodes.every(entry => entry.requiredLifeLevel === 1));
   for (const skillId of ['life.fishing', 'life.woodcutting', 'life.farming']) {
     const tree = LIFE_SKILL_TREE_REGISTRY.forSkill(skillId);
