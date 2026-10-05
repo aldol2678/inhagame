@@ -3846,6 +3846,18 @@ body[data-space]:not([data-space="campus"]) > .progression-hud { display: none !
 .inventory-panel .profile-close { display: grid; place-items: center; min-width: 44px; min-height: 44px; top: 6px; right: 8px; padding: 0; }
 .inventory-panel .shop-panel-titles { padding-right: 40px; }
 .inventory-summary { margin: 4px 0 0; color: #ffde86; font-size: 12px; font-weight: 800; }
+.inventory-tabs {
+  display: flex; gap: 6px; margin: 0 0 10px; padding: 0 0 2px;
+  overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin;
+}
+.inventory-tab {
+  flex: 0 0 auto; min-width: 58px; min-height: 44px; padding: 0 12px;
+  border: 1px solid rgba(178,220,239,.34); border-radius: 12px;
+  background: rgba(255,255,255,.045); color: #cfe5f3; font-size: 12px; font-weight: 850; cursor: pointer;
+}
+.inventory-tab:hover { background: rgba(255,255,255,.08); }
+.inventory-tab[aria-selected="true"] { border-color: #8fe2d3; background: #196d65; color: #fff; }
+.inventory-tab:focus-visible { outline: 2px solid #ffde86; outline-offset: 2px; }
 .inventory-items { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
 .inventory-item {
   min-width: 0;
