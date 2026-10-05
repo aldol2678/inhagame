@@ -59,6 +59,6 @@ test('Combat v0.3 local training disables resume and transport while active', ()
   assert.match(main, /controller\.setTransportGate\(\(\) => !worldActionsSuspended\(\)\);/);
   assert.match(main, /controller\.setTransportLock\("combat-v03", state\.active\)/);
   assert.match(main, /controller\.combatDodgeDirection\(orbit\.yaw/);
-  assert.match(main, /enabled: firstPlayerMovement && !npcTestMode && !combatRuntime\.active/);
+  assert.match(main, /enabled: \(firstPlayerMovement \|\| inBiryong\) && !npcTestMode && !combatRuntime\.active/);
   assert.match(main, /transportActions\.set\("mount", null\)/);
 });

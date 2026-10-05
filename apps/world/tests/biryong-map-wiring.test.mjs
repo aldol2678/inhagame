@@ -15,10 +15,11 @@ test('main routes Biryong through its provider and scopes old Campus quest obser
   assert.match(main,/onNavigate: poiId =>/);
   assert.match(main,/biryongMapDataSource\?\.poiRegistry\(\)\.get\(poiId\)/);
 });
-test('approved task preserves intentional local gameplay and persistence limits',()=>{
+test('regional resume preserves permanent-spawn and automatic-movement limits',()=>{
   const resume=readFileSync(new URL('../src/lobby/world-resume.js',import.meta.url),'utf8');
   const spawn=readFileSync(new URL('../src/lobby/spawn-registry.js',import.meta.url),'utf8');
-  assert.match(resume,/if \(regionId !== WORLD_REGION_ID.CAMPUS\) return false/);
+  assert.match(resume,/getBiryongRealmPlaceZone/);
+  assert.match(resume,/BIRYONG_REALM_MOVEMENT_SPACE\.obstacles/);
   assert.match(spawn,/state: SPAWN_STATE.HIDDEN/);
   assert.match(main,/const canUseAutoMove[\s\S]*?biryongRealm\?\.inCampus/,'no automatic region movement activation');
 });

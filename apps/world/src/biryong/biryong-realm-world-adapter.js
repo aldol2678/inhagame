@@ -110,11 +110,11 @@ export function createBiryongRealmWorldAdapter({
       orbit.setOutdoorObstacles?.();
       markRegion(WORLD_REGION_ID.CAMPUS);
     },
-    placePlayer(position, yaw = 0) {
+    placePlayer(position, yaw = 0, cameraYaw = null) {
       clearMotion();
       player.setLocalPosition(position.x, position.y ?? controller.groundY, position.z);
       player.setLocalEulerAngles(0, yaw, 0);
-      orbit.yaw = cameraYawBehind(yaw);
+      orbit.yaw = Number.isFinite(cameraYaw) ? cameraYaw : cameraYawBehind(yaw);
     },
     dispose() {
       orbit.setOutdoorObstacles?.();

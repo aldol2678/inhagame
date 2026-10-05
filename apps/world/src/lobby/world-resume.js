@@ -4,6 +4,8 @@ import { roadviewGroundHeight } from "../roadview-layout.js";
 import { PLAYER_ORIGIN_Y, WALK_SHAPE } from "../player-dimensions.js";
 import { canOccupy } from "../world-collision.js";
 import { getPlaceZoneAt } from "../place-zone-registry.js";
+import { BIRYONG_REALM_MOVEMENT_SPACE } from "../biryong/biryong-realm-world-adapter.js";
+import { getBiryongRealmPlaceZone } from "../biryong/biryong-village-layout.js";
 import { WORLD_REGION_ID, isWorldRegionId } from "../regions/world-region-registry.js";
 
 export const WORLD_RESUME_STORAGE_PREFIX = "inhagame-world-resume-v1";
@@ -15,7 +17,7 @@ export const WORLD_RESUME_VERSION = 2;
 export const WORLD_RESUME_LEGACY_VERSION = 1;
 export const WORLD_RESUME_SAVE_INTERVAL_MS = 2000;
 
-const finite = (value) => Number.isFinite(Number(value)) ? Number(value) : null;
+const finite = (value) => Number.isFinite(value) ? value : null;
 const inBounds = ({ x, z }, bounds = WORLD_BOUNDS) =>
   x >= bounds.minX && x <= bounds.maxX && z >= bounds.minZ && z <= bounds.maxZ;
 
@@ -38,20 +40,23 @@ function discardLegacyUnscoped(storage) {
   try { storage?.removeItem?.(WORLD_RESUME_STORAGE_PREFIX); } catch { /* ignore quota / private mode */ }
 }
 
-export function validateResumeRecord(raw, {
-  getZone = getPlaceZoneAt,
-  canOccupyPosition = (position) => canOccupy(position, WALK_SHAPE),
-  groundHeight = roadviewGroundHeight,
-  bounds = WORLD_BOUNDS,
-  expectedRegionId = WORLD_REGION_ID.CAMPUS
-} = {}) {
+export function validateResumeRecord(raw, options = {}) {
   if (!raw || ![WORLD_RESUME_LEGACY_VERSION, WORLD_RESUME_VERSION].includes(raw.version)) {
     return { state: "INVALID", record: null };
   }
   const regionId = recordRegion(raw);
-  // P0 resume validators below are Campus authorities. Other regions must opt into their own
-  // bounds/ground/place contract before their coordinates can ever be restored as Campus.
-  if (!regionId || regionId !== expectedRegionId) return { state: "INVALID", record: null };
+  if (!regionId || (options.expectedRegionId != null && regionId !== options.expectedRegionId)) {
+    return { state: "INVALID", record: null };
+  }
+  const regional = regionId === WORLD_REGION_ID.BIRYONG_REALM;
+  const {
+    getZone = regional ? getBiryongRealmPlaceZone : getPlaceZoneAt,
+    canOccupyPosition = regional
+      ? position => canOccupy(position, WALK_SHAPE, BIRYONG_REALM_MOVEMENT_SPACE.obstacles)
+      : position => canOccupy(position, WALK_SHAPE),
+    groundHeight = regional ? BIRYONG_REALM_MOVEMENT_SPACE.groundHeight : roadviewGroundHeight,
+    bounds = regional ? BIRYONG_REALM_MOVEMENT_SPACE.bounds : WORLD_BOUNDS
+  } = options;
 
   const x = finite(raw.x), z = finite(raw.z), storedY = finite(raw.y);
   const yawDeg = finite(raw.yawDeg) ?? 0;
@@ -64,7 +69,7 @@ export function validateResumeRecord(raw, {
   // Restore only real source slabs/treads, never an arbitrary saved airborne altitude.
   if(studentGround>0&&Math.abs(storedY-PLAYER_ORIGIN_Y-studentGround)>1e-6)return {state:'INVALID',record:null};
   const y = PLAYER_ORIGIN_Y + (studentGround ?? groundHeight(x, z));
-  if (Math.abs(storedY - y) > 0.35) return { state: "INVALID", record: null };
+  if (!Number.isFinite(y) || Math.abs(storedY - y) > 0.35) return { state: "INVALID", record: null };
   const position = { x, y, z };
   if (!canOccupyPosition(position)) return { state: "INVALID", record: null };
   const zone = getZone(position);
@@ -124,12 +129,12 @@ export function createWorldResumeStore({
     mounted = false,
     insideRoom = false,
     enabled = true,
+    transitioning = false,
+    inCombat = false,
     regionId = WORLD_REGION_ID.CAMPUS
   } = {}) => {
-    if (!enabled || !grounded || mounted || insideRoom || !position || !place?.id) return false;
-    // Biryong Realm resume intentionally waits for a region-specific Place Zone/ground contract.
-    // Refusing the write is safer than restoring identical local x/z inside Campus.
-    if (regionId !== WORLD_REGION_ID.CAMPUS) return false;
+    if (!enabled || !grounded || mounted || insideRoom || transitioning || inCombat || !position || !place?.id) return false;
+    if (!isWorldRegionId(regionId)) return false;
     const now = Number(clock.now());
     if (!Number.isFinite(now) || now <= 0 || now - lastWriteAt < saveIntervalMs) return false;
 
@@ -140,7 +145,7 @@ export function createWorldResumeStore({
       yawDeg, cameraYaw, savedAt: now,
       zoneId: place.id, displayName: place.displayName
     };
-    const checked = validateResumeRecord(candidate, { expectedRegionId: WORLD_REGION_ID.CAMPUS });
+    const checked = validateResumeRecord(candidate);
     if (checked.state !== "VALID") return false;
     try {
       storage?.setItem?.(key(), JSON.stringify(checked.record));
