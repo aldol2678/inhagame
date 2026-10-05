@@ -93,11 +93,11 @@ select throws_ok($$
 $$,'22023','FISHING_SKILL_EFFECT_INVALID','forged effect numbers are refused');
 
 select ok(
-  not private.world_fishing_project_v1(jsonb_build_object(
+  not (private.world_fishing_project_v1(jsonb_build_object(
     'attemptId',gen_random_uuid(),
     'policy',jsonb_build_object('policyVersion','fixture'),
     'skillEffects',private.world_fishing_skill_effects_v1('a9950000-0000-4000-8000-0000000000a9')
-  )) ? 'skillEffects',
+  )) ? 'skillEffects'),
   'server-private effect snapshot is not projected to the browser'
 );
 
