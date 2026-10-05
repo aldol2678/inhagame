@@ -57,7 +57,7 @@ function createUser() {
   users.push(id);
   return id;
 }
-// Committed state: life.fishing ACTIVE, its tree COMING_SOON (20261004161000). Restore it after fixtures.
+// Committed state: life.fishing ACTIVE; P1 exposes only steady_hands + fish_sense. Restore it after fixtures.
 const committed = JSON.parse(sql(`select jsonb_build_object('skill',
   (select status from private.world_life_skill_catalog where skill_id='life.fishing'),
   'tree',(select jsonb_object_agg(node_id,status) from private.world_life_skill_tree_catalog where skill_id='life.fishing'))`));
@@ -71,13 +71,19 @@ test.after(() => {
   if (users.length) sql(`delete from auth.users where id in (${users.map(lit).join(', ')})`);
 });
 
-test('the committed book lists Fishing without a tree; hidden skills stay hidden', async () => {
+test('the committed book lists Fishing with only implemented timing nodes; hidden skills stay hidden', async () => {
   assert.equal(committed.skill, 'ACTIVE');
-  assert.ok(Object.values(committed.tree).every(status => status === 'COMING_SOON'));
+  assert.deepEqual(Object.entries(committed.tree).filter(([, status]) => status === 'ACTIVE').map(([node]) => node).sort(), [
+    'life.node.fishing.fish_sense',
+    'life.node.fishing.steady_hands'
+  ]);
   const live = await rpc(jwt(createUser()), LIFE_SKILL_BOOK_RPC.LIST);
   assert.deepEqual(parseLifeSkillList(live.body)?.skills.map(s => [s.skillId, s.level]), [['life.fishing', 1]]);
   const liveTree = parseLifeSkillTree((await rpc(jwt(createUser()), LIFE_SKILL_BOOK_RPC.TREE, { p_skill_id: 'life.fishing' })).body);
-  assert.deepEqual(liveTree.nodes, [], 'no tree node is visible until nodes are activated');
+  assert.deepEqual(liveTree.nodes.map(node => node.nodeId).sort(), [
+    'life.node.fishing.fish_sense',
+    'life.node.fishing.steady_hands'
+  ], 'only implemented Fishing timing nodes are visible');
   const hidden = await rpc(jwt(createUser()), LIFE_SKILL_BOOK_RPC.TREE, { p_skill_id: 'life.mining' });
   assert.equal(hidden.body?.message, 'LIFE_SKILL_NOT_FOUND', hidden.text);
 
