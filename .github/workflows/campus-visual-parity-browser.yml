@@ -6,6 +6,11 @@ on:
       - 'apps/world/src/library-garden-geometry.js'
       - 'apps/world/src/stadium-stands-geometry.js'
       - 'apps/world/src/pond-surroundings-geometry.js'
+      - 'apps/world/src/heidegger-forest-geometry.js'
+      - 'apps/world/src/facility-blockout.js'
+      - 'apps/world/src/campus-material-profile.js'
+      - 'apps/world/tests/heidegger-forest*.test.mjs'
+      - 'apps/world/tests/browser/heidegger-forest-*.mjs'
       - 'apps/world/src/main-hall-walkway-*.js'
       - 'apps/world/src/campus-chunk-renderer.js'
       - 'apps/world/src/campus-grounds.js'
@@ -31,6 +36,7 @@ jobs:
     timeout-minutes: 20
     env:
       WORLD_SURROUNDINGS_BASE: ${{ github.event.pull_request.head.ref == 'fix/campus-surroundings-parity-20261004' && '0f875b88cc39a7432253e4cd52b2b489d37a3df2' || '' }}
+      WORLD_FOREST_BASE: ${{ startsWith(github.event.pull_request.head.ref, 'codex/heidegger-greenery-slice-') && github.event.pull_request.base.sha || '' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -40,6 +46,9 @@ jobs:
       - name: Fetch explicitly enabled immutable surroundings baseline
         if: env.WORLD_SURROUNDINGS_BASE != ''
         run: git fetch --no-tags --depth=1 origin "$WORLD_SURROUNDINGS_BASE"
+      - name: Fetch explicitly enabled immutable forest baseline
+        if: env.WORLD_FOREST_BASE != ''
+        run: git fetch --no-tags --depth=1 origin "$WORLD_FOREST_BASE"
       - uses: actions/setup-node@v4
         with:
           node-version: '24.19.0'
@@ -47,11 +56,12 @@ jobs:
         working-directory: apps/world/tests/browser
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Verify geometry and controller contracts
-        run: node --test apps/world/tests/campus-visual-parity-*.test.mjs apps/world/tests/library-garden-geometry.test.mjs apps/world/tests/back-alley-geometry-contract.test.mjs apps/world/tests/pond-surroundings.test.mjs apps/world/tests/main-hall-walkways.test.mjs apps/world/tests/campus-surroundings-walking.test.mjs
+        run: node --test apps/world/tests/campus-visual-parity-*.test.mjs apps/world/tests/library-garden-geometry.test.mjs apps/world/tests/back-alley-geometry-contract.test.mjs apps/world/tests/pond-surroundings.test.mjs apps/world/tests/main-hall-walkways.test.mjs apps/world/tests/campus-surroundings-walking.test.mjs apps/world/tests/heidegger-forest*.test.mjs
       - name: Verify real-engine lifecycle and unchanged Hall/library integration
         run: |
           node apps/world/tests/browser/campus-visual-parity-null-smoke.mjs
           node apps/world/tests/browser/campus-surroundings-null-smoke.mjs
+          node apps/world/tests/browser/heidegger-forest-null-smoke.mjs
           node apps/world/tests/browser/hall-library-integration-null-smoke.mjs
       - name: Verify actual offline campus frames, controller walking and lifecycle
         env:
@@ -60,6 +70,14 @@ jobs:
           WORLD_VISUAL_PARITY_OUTPUT: test-results/campus-visual-parity
           EXPECTED_VISUAL_PARITY_HEAD: ${{ github.event.pull_request.head.sha }}
         run: node apps/world/tests/browser/campus-visual-parity-smoke.mjs
+      - name: Compare photo-grounded forest to exact previous-main runtime
+        if: env.WORLD_FOREST_BASE != ''
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+          WORLD_FOREST_OUTPUT: test-results/campus-visual-parity/forest
+          EXPECTED_FOREST_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: node apps/world/tests/browser/heidegger-forest-smoke.mjs
       - name: Save exact-head Chromium evidence
         if: always()
         uses: actions/upload-artifact@v4

@@ -5,7 +5,7 @@ import { polygon,surface } from './campus-render-kit.js';
 import { FacilityMeshBatch } from './facility-mesh-batch.js';
 import { fillSports } from './sports-detail-geometry.js';
 import { SPORTS_FLOOR, LOWERED_SPORTS_IDS } from './stadium-stands-layout.js';
-import { forestRoadTrees } from './campus-road-layout.js';
+import { fillHeideggerForest } from './heidegger-forest-geometry.js';
 import { AGORA } from './roadview-layout.js';
 import { GAZEBO } from './landmark-detail-layout.js';
 import { fillAircraft, fillGazebo } from './landmark-detail-geometry.js';
@@ -61,10 +61,6 @@ function facade(batch,f,ring,h,style,skipEdges=[]) {
     batch.box(trim,at(.5,h-.12,.06),[len,.24,.35],yaw);
   }
 }
-function tree(batch,x,z,scale=1,color='#527447') {
-  batch.tube('#6c5942',[x,0,z],[x,3.2*scale,z],.24*scale);
-  batch.crown(color,[x,4.1*scale,z],[4*scale,3.4*scale,4*scale]);
-}
 function court(root,batch,f) {
   const grass=f.style==='park'||f.style==='stadium',color=grass?'#607c48':f.style==='agora'?'#408f88':f.style==='parking'?'#737b79':f.style==='tennis'?'#bc9571':'#6c9290';
   polygon(root,f.id+'_surface',f.rings[0],surface(color),{y:f.style==='agora'?AGORA.height+.02:.035});
@@ -92,7 +88,7 @@ function court(root,batch,f) {
 function landmark(root,batch,f) {
   const {x,z}=f.center;const p=(u,y,v)=>[x+u,y,z+v];
   if(f.style==='forest'){
-    forestRoadTrees(f.center).forEach((p,i)=>tree(batch,p.x,p.z,1.25,i%2?'#567f48':'#41694b'));
+    fillHeideggerForest(batch,f.center);
     return;
   }
   if(f.style==='tree'){
