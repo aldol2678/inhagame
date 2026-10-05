@@ -5,6 +5,7 @@ import { metersToWorld } from '../src/world-scale.js';
 import { PULSE_PERIODS, PERIOD_SECONDS, CYCLE_SECONDS, periodAt, snapshotForPeriod, validateDevCandidate, inspectionPointFor } from './dev-runtime-state.mjs';
 import { appearanceFor } from './dev-appearance.mjs';
 import { createHumanAvatar } from './dev-human-avatar.mjs';
+import { createNpcExpressionController, NPC_EXPRESSION_NAMES } from './npc-expression-controller.mjs';
 import { npcNameplateOffset, npcSeatAnchorHeight } from './npc-dimensions.mjs';
 import { createNpcNavigator, advanceRoute } from './dev-navigation.mjs';
 import { createNpcMemory, createEncounterTracker } from './dev-memory.mjs';
@@ -44,6 +45,7 @@ const walking = new Set(['walk', 'walk_to_class', 'walk_to_club', 'leave_zone'])
 const roaming = new Set([...walking, 'idle', 'wait']);
 const hairLabels = { long: '긴 머리', bob: '단발', ponytail: '묶은 머리', bun: '올림머리', short: '짧은 머리', sidepart: '옆가르마', curly: '곱슬머리', medium: '중간 길이 머리' };
 const accessoryLabels = { sketchbook: '스케치북', glasses: '안경', apron: '앞치마', badge: '명찰', backpack: '배낭', headphones: '헤드폰', book: '책', messenger: '크로스백', scarf: '목도리' };
+const expressionLabels = { neutral: '중립', happy: '기쁨', sad: '슬픔', angry: '화남', surprised: '놀람' };
 function addPanel(production = false, externalContextAction = false) {
   const style = document.createElement('style');
   style.textContent = `
@@ -57,6 +59,8 @@ function addPanel(production = false, externalContextAction = false) {
     #npc-test-conversation[hidden]{display:none}#npc-test-conversation .row{margin:5px 0}
     #npc-test-panel select{width:100%;margin:3px 0 7px}#npc-test-panel .dialogue{padding:7px;background:#1d343b;border-radius:6px}
     #npc-test-panel .dialogue p{margin:3px 0}#npc-test-panel .near{color:#f9d98a}
+    #npc-expression-poc{margin:10px 0;padding:8px;border:1px solid #4b7379;border-radius:8px}
+    #npc-expression-poc legend{padding:0 4px;font-weight:800}#npc-expression-poc input[type=range]{width:100%}
     #npc-test-panel [hidden]{display:none}
     #npc-test-panel[hidden]{display:none}
     #npc-test-panel summary{cursor:pointer;margin:7px 0;font-weight:700}
@@ -110,6 +114,13 @@ function addPanel(production = false, externalContextAction = false) {
     <label for="npc-test-select">NPC 선택</label>
     <select id="npc-test-select"></select>
     <button type="button" id="npc-test-focus">선택 NPC 가까이 보기</button>
+    <fieldset id="npc-expression-poc">
+      <legend>표정 POC · 001</legend>
+      <div id="npc-expression-buttons" class="row" aria-label="NPC 표정 선택"></div>
+      <label for="npc-expression-intensity">강도 <output id="npc-expression-intensity-output">100%</output></label>
+      <input id="npc-expression-intensity" type="range" min="0" max="100" step="5" value="100">
+      <p id="npc-expression-status" class="minor"></p>
+    </fieldset>
     <div id="npc-test-detail" class="dialogue"></div>
     <button type="button" id="npc-test-memory-clear">로컬 대화 기억 지우기</button>
     <p class="minor">${production ? '기억은 이 브라우저에만 저장됩니다.' : 'WASD로 접근 · 목록에서 모든 NPC 확인 · 선택 NPC는 노란 원으로 표시'}</p>
@@ -194,6 +205,9 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
       heading: 0, wait: Number(actor.id.slice(-3)) % 4, leg: 0 };
     return [actor.id, visual];
   }));
+  const expressionPilotId = MAIN_NPC_ID;
+  const expressionPilotFace = avatars.get(expressionPilotId)?.face ?? null;
+  const expressionPilot = expressionPilotFace ? createNpcExpressionController(expressionPilotFace) : null;
   const labelLayer = document.createElement('div');
   labelLayer.id = 'npc-test-labels';
   document.body.appendChild(labelLayer);
@@ -225,6 +239,11 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
   const pilotStatus = panel.querySelector('#npc-ai-pilot-status');
   const aiLoginHint = panel.querySelector('#npc-ai-login-hint');
   const socialProfile = panel.querySelector('#npc-social-profile');
+  const expressionButtons = panel.querySelector('#npc-expression-buttons');
+  const expressionIntensityInput = panel.querySelector('#npc-expression-intensity');
+  const expressionIntensityOutput = panel.querySelector('#npc-expression-intensity-output');
+  const expressionStatus = panel.querySelector('#npc-expression-status');
+  let expressionName = 'neutral', expressionIntensity = 1;
   let elapsed = 0, running = true, snapshot = first, selectedId = first.actors[0].id, uiClock = 0;
   let activeConversation = null, dialogueSession = null, aiSignedIn = false, conversationAiUsed = false;
   let socialPreviewFastForward = false;
@@ -379,6 +398,21 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
     button.addEventListener('click', () => setPeriod(period));
     periodRow.appendChild(button);
   }
+  if (expressionButtons && expressionPilot) {
+    for (const emotion of NPC_EXPRESSION_NAMES) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = expressionLabels[emotion];
+      button.dataset.expression = emotion;
+      button.addEventListener('click', () => setExpressionPoc(emotion, expressionIntensity));
+      expressionButtons.appendChild(button);
+    }
+    expressionIntensityInput?.addEventListener('input', () => {
+      expressionIntensity = Number(expressionIntensityInput.value) / 100;
+      setExpressionPoc(expressionName, expressionIntensity);
+    });
+    setExpressionPoc('neutral', 1, { immediate: true });
+  } else if (expressionStatus) expressionStatus.textContent = '표정 POC를 초기화하지 못했습니다.';
   playButton?.addEventListener('click', () => {
     running = !running;
     playButton.textContent = running ? '일시정지' : '재생';
@@ -398,6 +432,20 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
       memoryStatus.textContent = `로컬 기억과 NPC 관계망을 지웠습니다. ${memoryScopeText()}`;
     } else memoryStatus.textContent = `브라우저 저장소의 일부 기억을 지우지 못했습니다. ${memoryScopeText()}`;
   });
+  function setExpressionPoc(emotion, intensity = 1, { immediate = false } = {}) {
+    if (!expressionPilot) return null;
+    expressionName = emotion;
+    expressionIntensity = Math.max(0, Math.min(1, Number.isFinite(intensity) ? intensity : 0));
+    const next = expressionPilot.setEmotion(emotion, expressionIntensity, { immediate });
+    if (expressionIntensityInput) expressionIntensityInput.value = String(Math.round(expressionIntensity * 100));
+    if (expressionIntensityOutput) expressionIntensityOutput.value = `${Math.round(expressionIntensity * 100)}%`;
+    if (expressionStatus) expressionStatus.textContent =
+      `${expressionPilotId.slice(-3)} · ${expressionLabels[emotion]} · ${Math.round(expressionIntensity * 100)}%`;
+    for (const button of expressionButtons?.children ?? [])
+      button.setAttribute('aria-pressed', String(button.dataset.expression === emotion));
+    return next;
+  }
+
   // Talking is the World's interaction key (F) through getContextAction(); E stays emotion-only.
   // Only Escape is handled here, to close an open dialogue.
   window.addEventListener('keydown', event => {
@@ -1108,7 +1156,10 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
         point.x>=0 && point.y>=0 && point.x<=canvasRect.width && point.y<=canvasRect.height},obstacles:observedObstacles });
   }
   function update(dt) {
-    if (!socialPreviewFastForward) main2Guide.update(dt);
+    if (!socialPreviewFastForward) {
+      main2Guide.update(dt);
+      expressionPilot?.update(dt);
+    }
     if (worldClock) {
       worldClock.refreshIfDue();
       sharedFrameNow = worldClock.now();
@@ -1284,6 +1335,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
       dialogue_baseline: activeConversation?.dialogueBaseline ?? null,
       dialogue_decision: activeConversation?.dialogueDecision ?? null,
       dialogue_jev: dialogueRouter.status(),
+      expression_poc: expressionPilot ? { npc_id: expressionPilotId, ...expressionPilot.status() } : null,
       ai_signed_in: aiSignedIn, ai_npc_ids: [...aiPilotIds].filter(aiEnabled),
       quest_stage: quest.stage, quest: quest.status(),
       main2_quest_stage: main2Quest.stage, main2Quest: main2Quest.status(),
@@ -1296,7 +1348,9 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
       social_ng15: socialNg15Bridge?.status() ?? null,
       observed_conversation: observedConversation?.status() ?? null,
       selected_dialogue: snapshot.actors.find(a => a.id === selectedId).dialogue }),
-    setPeriod, selectNpc: id => { if (!avatars.has(id)) throw new Error('Unknown NPC'); closeConversation(false); selectedId = id; socialNg1?.setSelectedNpc(id); if (select) select.value = id; drawDetail(); },
+    setPeriod,
+    setExpression: (emotion, intensity = 1, options = {}) => setExpressionPoc(emotion, intensity, options),
+    selectNpc: id => { if (!avatars.has(id)) throw new Error('Unknown NPC'); closeConversation(false); selectedId = id; socialNg1?.setSelectedNpc(id); if (select) select.value = id; drawDetail(); },
     pause: () => { if (worldClock) return false; running = false; if (playButton) { playButton.textContent = '재생'; playButton.setAttribute('aria-pressed', 'false'); } },
     play: () => { running = true; if (playButton) { playButton.textContent = '일시정지'; playButton.setAttribute('aria-pressed', 'true'); } }
   };
