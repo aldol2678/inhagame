@@ -85,7 +85,7 @@ test('hosted daily readback is wired into the pinned existing stability browser 
   assert.match(smoke, /runDailyRewardAcceptance/);
   assert.match(smoke, /sourceHashes/);
   assert.match(smoke, /networkIsolation/);
-  assert.match(smoke, /assert.equal\(blockedProbes\[0\].error,'net::ERR_BLOCKED_BY_CLIENT'\)/);
+  assert.match(smoke, /assert.equal\(isClientBlockedError\(blockedProbes\[0\].error\),true/);
   assert.match(read('./browser/harness.mjs'), /route.abort\("blockedbyclient"\)/);
   const fixture = read('./browser/world-stability-fixture.mjs');
   assert.match(fixture, /createDailyRewardFixture/);
@@ -110,4 +110,22 @@ test('existing browser fixture mounts and disposes the daily surface through its
   walk(elements['daily-reward-surface']).find(node => node.tagName === 'BUTTON' && node.textContent === '정답 선택').click();
   await flush(); assert.equal(f.dailyReward.snapshot().wallet, 110); assert.equal(f.dailyReward.snapshot().exp, 120);
   await f.prepareShop(); assert.equal(f.dailyReward, null); assert.equal(elements['daily-reward-surface'].hidden, true);
+});
+
+// Both spellings were observed from Chromium's explicit route.abort("blockedbyclient").
+// A rejected fetch alone is insufficient: DNS and unrelated request failures must fail QA.
+test('blocked-request proof accepts only exact Chromium client-block errors', async () => {
+  const { isClientBlockedError } = await import(helperUrl);
+  assert.equal(typeof isClientBlockedError, 'function', 'browser evidence needs a strict client-block classifier');
+  for (const error of ['net::ERR_BLOCKED_BY_CLIENT', 'net::ERR_BLOCKED_BY_CLIENT.Inspector']) {
+    assert.equal(isClientBlockedError(error), true, error);
+  }
+  for (const error of [
+    undefined, null, '', 0, false, {}, new String('net::ERR_BLOCKED_BY_CLIENT'),
+    'net::ERR_NAME_NOT_RESOLVED', 'net::ERR_CONNECTION_REFUSED', 'net::ERR_FAILED', 'net::ERR_ABORTED',
+    'ERR_BLOCKED_BY_CLIENT', 'net::ERR_BLOCKED_BY_CLIENT.', 'net::ERR_BLOCKED_BY_CLIENT.InspectorExtra',
+    'net::ERR_BLOCKED_BY_CLIENT.inspector', 'net::ERR_BLOCKED_BY_CLIENT.Other',
+    'prefix-net::ERR_BLOCKED_BY_CLIENT', 'net::ERR_BLOCKED_BY_CLIENT trailing',
+    ' net::ERR_BLOCKED_BY_CLIENT', 'net::ERR_BLOCKED_BY_CLIENT\n', 'net::ERR_BLOCKED_BY_CLIENT.Inspector\n'
+  ]) assert.equal(isClientBlockedError(error), false, `must reject ${String(error)}`);
 });

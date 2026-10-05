@@ -3,7 +3,7 @@ import { mkdir, writeFile, readFile } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { startSmoke, TIMEOUT_MS } from './harness.mjs';
-import { extractDailyComposition } from './world-stability-daily-reward-fixture.mjs';
+import { extractDailyComposition, isClientBlockedError } from './world-stability-daily-reward-fixture.mjs';
 const output=process.env.WORLD_STABILITY_OUTPUT||'test-results/world-stability';
 const head=execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();
 assert.equal(head,process.env.EXPECTED_STABILITY_HEAD,'browser evidence must match the requested PR head');
@@ -74,7 +74,7 @@ try{
    report.cases.push({viewport:name,type:'daily-ordering',result:await page.evaluate(()=>window.__WORLD_STABILITY__.dailyOrdering())});
    await runDailyRewardAcceptance(page,name,fatal);
    const rejected=await page.evaluate(()=>fetch('https://daily-reward-offline.invalid/blocked-probe').then(()=>false,()=>true));
-   assert.equal(rejected,true,'off-origin safety probe must be blocked');assert.equal(blockedProbes.length,1);assert.equal(blockedProbes[0].error,'net::ERR_BLOCKED_BY_CLIENT');assert.deepEqual(offOriginResponses,[]);
+   assert.equal(rejected,true,'off-origin safety probe must be blocked');assert.equal(blockedProbes.length,1);assert.equal(isClientBlockedError(blockedProbes[0].error),true,`expected explicit Chromium client block, got ${blockedProbes[0].error}`);assert.deepEqual(offOriginResponses,[]);
    report.networkIsolation.push({viewport:name,serviceWorkers:'blocked',offOriginResponses,blockedProbes,operationalRpc:'none; synthetic in-memory transport only'});
    await page.evaluate(()=>window.__WORLD_STABILITY__.prepareShop());
    const cdp=await smoke.context.newCDPSession(page),box=await page.locator('#joystick').boundingBox();assert.ok(box);

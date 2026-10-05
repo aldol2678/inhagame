@@ -7,6 +7,12 @@ import { createWalletClient, WALLET_RPC, INDUCK_COIN } from '../../src/wallet/wa
 import { createProgressionClient, PROGRESSION_RPC } from '../../src/progression/progression-client.js';
 import { createProgressionHud, levelUpMessage } from '../../src/progression/progression-hud.js';
 
+// Chromium may append .Inspector to an explicit Playwright client-block abort.
+// Exact equality intentionally excludes DNS failures, other suffixes and whitespace.
+export function isClientBlockedError(error) {
+  return error === 'net::ERR_BLOCKED_BY_CLIENT' || error === 'net::ERR_BLOCKED_BY_CLIENT.Inspector';
+}
+
 export function extractDailyComposition(source) {
   const startMarker = 'const dailyQuiz = createDailyQuizClient({', endMarker = '// Wardrobe P0:';
   const start = source.indexOf(startMarker), end = source.indexOf(endMarker, start);
