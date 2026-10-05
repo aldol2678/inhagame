@@ -2714,6 +2714,8 @@ window.addEventListener("keydown", (event) => {
     return;
   }
   if (lobbyWorld.active || lobbyTransition.active) return;
+  // Opening obeys the common input policy; Q can still dismiss the journal's own blocking claim.
+  if (!questJournal.open && !inputFocus.can("GAMEPLAY_SHORTCUT")) return;
   event.preventDefault();
   questJournal.setOpen(!questJournal.open);
 });
