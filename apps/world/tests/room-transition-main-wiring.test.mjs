@@ -10,9 +10,11 @@ test("main update holds all local gameplay consumers while only rendering the tr
   const end = main.indexOf('  if (rooms.currentSpace === "ROOM_PERSONAL_BASIC")', start);
   const prefix = main.slice(start + 'app.on("update", (dt) => {'.length, end);
   let busy = true;
+  let regionBusy = false;
   const calls = [];
   const frame = vm.runInNewContext(`dt => { ${prefix} calls.push("remaining-gameplay"); }`, {
     syncAudio: () => calls.push("audio"), rooms: { status: () => ({ busy }) },
+    biryongRealm: { get busy() { return regionBusy; } },
     roomSession: { update: () => calls.push("room-pose") },
     orbit: { apply: () => calls.push("camera") },
     player: { getLocalPosition: () => ({ x: 0, y: 1.15, z: 0 }) },
@@ -22,6 +24,8 @@ test("main update holds all local gameplay consumers while only rendering the tr
   assert.deepEqual(calls, ["audio", "camera"], "no source-room pose, campus place update, auto movement or furniture refresh");
   busy = false; calls.length = 0; frame(.016);
   assert.deepEqual(calls, ["audio", "room-pose", "remaining-gameplay"]);
+  regionBusy = true; calls.length = 0; frame(.016);
+  assert.deepEqual(calls, ["audio", "camera"], "regional handoff has the same frame isolation");
 });
 
 test("late furniture readback cannot teleport an intermediate lobby pose using personal-room colliders", () => {

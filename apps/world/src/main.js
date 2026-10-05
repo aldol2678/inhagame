@@ -798,7 +798,8 @@ const resumeEntry = bindResumeEntry({
   player,
   orbit,
   lobbyWorld,
-  transition: lobbyTransition
+  transition: lobbyTransition,
+  getRegionTransition: () => biryongRealm
 });
 const backGateLock = bindLockedBackGate({
   button: document.getElementById("back-gate-locked"),
@@ -1853,6 +1854,7 @@ biryongRealm.onChange(status => {
   else biryongVillageDialogue?.close();
 });
 window.addEventListener("pagehide", event => {
+  biryongRealm?.cancelResume();
   if (!event.persisted) {
     biryongRealm?.dispose();
     biryongVillageDialogue?.destroy();
@@ -2895,9 +2897,9 @@ places.onPlaceZoneChanged((previous,next)=>{
 
 app.on("update", (dt) => {
   syncAudio();
-  // Only render the camera while a room transaction owns the player's coordinate frame. Room
-  // pose publishing, campus observers and local motion must not consume an intermediate pose.
-  if (rooms.status().busy) {
+  // Only render the camera while a room/region transaction owns the coordinate frame.
+  // Campus observers, resume writes and local motion must not consume an intermediate pose.
+  if (rooms.status().busy || biryongRealm?.busy) {
     orbit.apply(player.getLocalPosition(), character.eyeHeight);
     return;
   }
@@ -3094,9 +3096,11 @@ app.on("update", (dt) => {
     place,
     grounded: controller.grounded,
     mounted: controller.mounted,
-    insideRoom: inside,
+    insideRoom: rooms.insideRoom,
+    transitioning: rooms.status().busy || biryongRealm?.busy || lobbyTransition.active,
+    inCombat: combatRuntime.active,
     regionId: biryongRealm?.regionId ?? WORLD_REGION_ID.CAMPUS,
-    enabled: firstPlayerMovement && !npcTestMode && !combatRuntime.active
+    enabled: (firstPlayerMovement || inBiryong) && !npcTestMode && !combatRuntime.active
   });
   if (!inside) streaming.update(dt, pos);
   if (!inside && !npcTestMode) tour.update(pos, place?.id, orbit.yaw);
