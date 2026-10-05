@@ -243,7 +243,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
   const expressionIntensityInput = panel.querySelector('#npc-expression-intensity');
   const expressionIntensityOutput = panel.querySelector('#npc-expression-intensity-output');
   const expressionStatus = panel.querySelector('#npc-expression-status');
-  let expressionName = 'neutral', expressionIntensity = 1;
+  let expressionName = 'neutral', expressionIntensity = 1, expressionSource = 'BASELINE';
   let elapsed = 0, running = true, snapshot = first, selectedId = first.actors[0].id, uiClock = 0;
   let activeConversation = null, dialogueSession = null, aiSignedIn = false, conversationAiUsed = false;
   let socialPreviewFastForward = false;
@@ -411,7 +411,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
       expressionIntensity = Number(expressionIntensityInput.value) / 100;
       setExpressionPoc(expressionName, expressionIntensity);
     });
-    setExpressionPoc('neutral', 1, { immediate: true });
+    setExpressionPoc('neutral', 0, { immediate: true, source: 'BASELINE' });
   } else if (expressionStatus) expressionStatus.textContent = '표정 POC를 초기화하지 못했습니다.';
   playButton?.addEventListener('click', () => {
     running = !running;
@@ -432,10 +432,11 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
       memoryStatus.textContent = `로컬 기억과 NPC 관계망을 지웠습니다. ${memoryScopeText()}`;
     } else memoryStatus.textContent = `브라우저 저장소의 일부 기억을 지우지 못했습니다. ${memoryScopeText()}`;
   });
-  function setExpressionPoc(emotion, intensity = 1, { immediate = false } = {}) {
+  function setExpressionPoc(emotion, intensity = 1, { immediate = false, source = 'MANUAL' } = {}) {
     if (!expressionPilot) return null;
     expressionName = emotion;
     expressionIntensity = Math.max(0, Math.min(1, Number.isFinite(intensity) ? intensity : 0));
+    expressionSource = source;
     const next = expressionPilot.setEmotion(emotion, expressionIntensity, { immediate });
     if (expressionIntensityInput) expressionIntensityInput.value = String(Math.round(expressionIntensity * 100));
     if (expressionIntensityOutput) expressionIntensityOutput.value = `${Math.round(expressionIntensity * 100)}%`;
@@ -444,6 +445,15 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
     for (const button of expressionButtons?.children ?? [])
       button.setAttribute('aria-pressed', String(button.dataset.expression === emotion));
     return next;
+  }
+
+  function applyJevExpression(actorId, decision) {
+    const expression = decision?.expression;
+    if (actorId !== expressionPilotId || decision?.provider !== 'JEV' || !expressionPilot ||
+        !expression || !NPC_EXPRESSION_NAMES.includes(expression.emotion) ||
+        !Number.isFinite(expression.intensity)) return false;
+    setExpressionPoc(expression.emotion, expression.intensity, { source: 'JEV' });
+    return true;
   }
 
   // Talking is the World's interaction key (F) through getContextAction(); E stays emotion-only.
@@ -479,6 +489,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
     activeConversation = null;
     dialogueSession = null;
     conversation.hidden = true;
+    setExpressionPoc('neutral', 0, { source: 'BASELINE' });
     if (sync) syncConversationLifecycle();
     pilotConversationRequest++;
     if (applyAction && pendingPilotAction) {
@@ -529,14 +540,17 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
       provider: 'DETERMINISTIC_BASELINE',
       role: 'EXPERIMENT_ONLY',
       authorityEffect: 'NONE',
+      expression: null,
       fallbackReason: jevEnabled ? 'PENDING' : 'DISABLED'
     };
+    if (actor.id === expressionPilotId) setExpressionPoc('neutral', 0, { source: jevEnabled ? 'JEV_PENDING' : 'BASELINE' });
     const routeId = ++dialogueRouteRequest;
     const sessionRevision = dialogueSession.snapshot().revision;
     void dialogueRouter.route({ context, candidates, baseline }).then(decision => {
       if (activeConversation?.id !== actor.id || routeId !== dialogueRouteRequest ||
           dialogueSession?.snapshot().revision !== sessionRevision) return;
       activeConversation.dialogueDecision = decision;
+      applyJevExpression(actor.id, decision);
     });
     return { context, candidates, baseline };
   }
@@ -1335,7 +1349,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
       dialogue_baseline: activeConversation?.dialogueBaseline ?? null,
       dialogue_decision: activeConversation?.dialogueDecision ?? null,
       dialogue_jev: dialogueRouter.status(),
-      expression_poc: expressionPilot ? { npc_id: expressionPilotId, ...expressionPilot.status() } : null,
+      expression_poc: expressionPilot ? { npc_id: expressionPilotId, source: expressionSource, ...expressionPilot.status() } : null,
       ai_signed_in: aiSignedIn, ai_npc_ids: [...aiPilotIds].filter(aiEnabled),
       quest_stage: quest.stage, quest: quest.status(),
       main2_quest_stage: main2Quest.stage, main2Quest: main2Quest.status(),
