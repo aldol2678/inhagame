@@ -120,3 +120,8 @@ The same runtime slice is integrated on public main
 runtime changes remain identical. Draft publication and hosted verification are
 approved. Rendered visual acceptance remains pending the exact-head hosted run;
 merge and Production deployment are not included.
+
+During publication, #92 advanced main to
+`a305ed8e61585ea8459a5c0d888eee695cdbf7dd`. Its developer documentation,
+container entrypoints and tests are retained. The exact hosted baseline is
+refreshed to that main; the forest runtime bytes remain unchanged.
