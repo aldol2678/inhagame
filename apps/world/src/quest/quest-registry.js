@@ -1,6 +1,8 @@
 import { QUEST_ID, QUEST_OBJECTIVES } from '../../npc-factory/quest-contract.mjs';
 import { MAIN2_QUEST_ID, MAIN2_QUEST_OBJECTIVES } from '../../npc-factory/main2-quest-contract.mjs';
 
+import { MAIN3_QUEST_ID, MAIN3_QUEST_OBJECTIVES } from '../../npc-factory/main3-quest-contract.mjs';
+
 export const QUEST_TYPE = Object.freeze({
   MAIN: 'MAIN',
   SIDE: 'SIDE'
@@ -18,6 +20,7 @@ export const QUEST_STATE = Object.freeze({
 
 export const QUEST_ID_MAIN_FIRST_CAMPUS = 'quest.main.first_campus';
 export const QUEST_ID_MAIN_NAVIGATION_INTRO = 'quest.main.navigation_intro';
+export const QUEST_ID_MAIN_FIRST_STYLE = 'quest.main.first_style';
 export const QUEST_CAMPAIGN_ONBOARDING = 'campaign.onboarding';
 
 function freezeDefinition(definition) {
@@ -76,6 +79,23 @@ const DEFINITIONS = Object.freeze([
     ],
     rewardRefs: ['reward.quest.navigation_intro'],
     repeatPolicy: 'ONCE'
+  }),
+  freezeDefinition({
+    questId: QUEST_ID_MAIN_FIRST_STYLE,
+    legacyProgressId: MAIN3_QUEST_ID,
+    type: QUEST_TYPE.MAIN, campaignId: QUEST_CAMPAIGN_ONBOARDING, sequence: 3,
+    title: '내 첫 캠퍼스룩',
+    description: '학생회관 굿즈샵을 방문하고 나만의 캠퍼스룩을 준비합니다.',
+    tags: ['TUTORIAL', 'DAILY_LIFE'],
+    requirements: [{ type: 'QUEST_COMPLETED', questId: QUEST_ID_MAIN_NAVIGATION_INTRO }],
+    objectives: [
+      { id: 'talk_back_gate_guide', type: 'TALK', text: MAIN3_QUEST_OBJECTIVES[0], navigationTarget: 'poi.back-gate' },
+      { id: 'visit_student_center', type: 'VISIT', text: MAIN3_QUEST_OBJECTIVES[1], navigationTarget: 'poi.student-center' },
+      { id: 'student_center_purchase', type: 'INTERACT', text: MAIN3_QUEST_OBJECTIVES[2], navigationTarget: 'poi.student-center' },
+      { id: 'appearance_loadout', type: 'INTERACT', text: MAIN3_QUEST_OBJECTIVES[3], navigationTarget: null }
+    ],
+    // Reward remains a design candidate. No reward catalog or grant is introduced in this slice.
+    rewardRefs: [], repeatPolicy: 'ONCE'
   })
 ]);
 

@@ -31,6 +31,8 @@ import { createQuestClient } from './quest-client.mjs';
 import { QUEST_ID } from './quest-contract.mjs';
 import { createMain2QuestClient } from './main2-quest-client.mjs';
 import { MAIN2_QUEST_ID } from './main2-quest-contract.mjs';
+import { createMain3QuestClient } from './main3-quest-client.mjs';
+import { MAIN3_QUEST_ID } from './main3-quest-contract.mjs';
 import { createMain2GuideRuntime } from './main2-guide-runtime.mjs';
 import { createTmlMain2Shadow } from '../tml/runtime/main2-shadow.mjs';
 import { withAnd } from './npc-korean-label.mjs';
@@ -334,15 +336,19 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
       } catch { /* TML shadow is diagnostic-only and cannot block gameplay. */ }
     }
   });
+  const main3Quest = createMain3QuestClient({ enabled: questEnabled, endpoint: questEndpoint, getSession: getAiSession });
   main2Guide = createMain2GuideRuntime({
     root: campusRoot,
     player,
     quest: main2Quest,
+    firstStyleQuest: main3Quest,
     onConversationOpen: syncConversationLifecycle,
     onConversationClose: syncConversationLifecycle
   });
+  let resettingQuestScope = false;
   const publishQuestState = () => {
-    try { onQuestStateChange({ quest: quest.status(), main2Quest: main2Quest.status() }); }
+    if (resettingQuestScope) return;
+    try { onQuestStateChange({ quest: quest.status(), main2Quest: main2Quest.status(), main3Quest: main3Quest.status() }); }
     catch { /* HUD consumers cannot block quest progress. */ }
   };
   const syncSideEventUnlock = () => sideEvent?.setUnlocked?.(quest.status().complete === true);
@@ -352,15 +358,24 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
     publishQuestState();
     renderQuestChoice();
   });
-  main2Quest.onChange(() => { publishQuestState(); renderQuestChoice(); });
+  main2Quest.onChange(() => {
+    if (main2Quest.status().complete && !resettingQuestScope) void main3Quest.refresh().catch(() => {});
+    publishQuestState(); renderQuestChoice();
+  });
+  main3Quest.onChange(publishQuestState);
   sideEvent?.onChange?.(() => renderQuestChoice());
   syncSideEventUnlock();
   function setAiSignedIn(signedIn) {
     aiSignedIn = Boolean(signedIn);
     try { tmlMain2Shadow.resetScope(aiSignedIn ? 'SIGNED_IN_OR_SWITCHED' : 'SIGNED_OUT'); }
     catch { /* shadow scope reset is diagnostic-only */ }
+    resettingQuestScope = true;
+    main2Guide.closeDialogue();
     quest.setSignedIn(aiSignedIn);
     main2Quest.setSignedIn(aiSignedIn);
+    main3Quest.setSignedIn(aiSignedIn);
+    resettingQuestScope = false;
+    publishQuestState();
     for (const [id, label] of nameplates) {
       const actor = first.actors.find(item => item.id === id);
       const ai = aiEnabled(id);
@@ -1286,11 +1301,12 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
     handlesTalkKey,
     setAiSignedIn,
     // CORE-15: the quest flag may resolve after the NPCs are up; turning it on re-reads progress.
-    setQuestEnabled: enabled => Promise.all([quest.setEnabled(enabled), main2Quest.setEnabled(enabled)]),
+    setQuestEnabled: enabled => Promise.all([quest.setEnabled(enabled), main2Quest.setEnabled(enabled), main3Quest.setEnabled(enabled)]),
     observePlace: (placeId, position) => {
       quest.observePlace(placeId, position);
       main2Quest.observePlace(placeId, position);
     },
+    visitStudentCenterShop: () => main3Quest.visitStudentCenter(),
     observeNavigation: snapshot => main2Quest.observeNavigation(snapshot),
     observeAutoMove: (state, event) => main2Quest.observeAutoMove(state, event),
     observeTmlShadowEconomicState: snapshot => {
@@ -1301,8 +1317,8 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
     getQuestMapObjective: legacyProgressId =>
       legacyProgressId === QUEST_ID ? quest.mapTarget()
         : legacyProgressId === MAIN2_QUEST_ID ? main2Quest.mapTarget()
-          : null,
-    getMapObjective: () => main2Quest.mapTarget() ?? quest.mapTarget() ??
+          : legacyProgressId === MAIN3_QUEST_ID ? main3Quest.mapTarget() : null,
+    getMapObjective: () => main2Quest.mapTarget() ?? quest.mapTarget() ?? main3Quest.mapTarget() ??
       sideEvent?.mapTarget?.(id => avatars.get(id)?.motion?.position ? { ...avatars.get(id).motion.position } : null) ?? null,
     isConversationOpen: () => Boolean(activeConversation) || main2Guide.isDialogueOpen(),
     closeConversation: () => {
@@ -1339,6 +1355,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
       ai_signed_in: aiSignedIn, ai_npc_ids: [...aiPilotIds].filter(aiEnabled),
       quest_stage: quest.stage, quest: quest.status(),
       main2_quest_stage: main2Quest.stage, main2Quest: main2Quest.status(),
+      main3_quest_stage: main3Quest.stage, main3Quest: main3Quest.status(),
       tml_main2_shadow: tmlMain2Shadow.status(),
       tml_main2_promotion_review: tmlMain2Shadow.promotionReview(),
       main2_guide: main2Guide.status(),

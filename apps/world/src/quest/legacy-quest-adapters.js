@@ -1,6 +1,7 @@
 import {
   QUEST_ID_MAIN_FIRST_CAMPUS,
   QUEST_ID_MAIN_NAVIGATION_INTRO,
+  QUEST_ID_MAIN_FIRST_STYLE,
   QUEST_STATE,
   getQuestDefinitionByLegacyId
 } from './quest-registry.js';
@@ -73,6 +74,15 @@ export function adaptMain2QuestStatus(raw = {}, {
   return runtimeShape(definition, { state, stage, trackedQuestId });
 }
 
+export function adaptMain3QuestStatus(raw = {}, { trackedQuestId = null } = {}) {
+  const definition = getQuestDefinitionByLegacyId('campus_first_style_v1');
+  const stage = integerStage(raw.stage);
+  const state = stage >= definition.objectives.length ? QUEST_STATE.COMPLETED
+    : raw.available !== true ? QUEST_STATE.LOCKED
+      : stage > 0 ? QUEST_STATE.ACTIVE : QUEST_STATE.AVAILABLE;
+  return runtimeShape(definition, { state, stage, trackedQuestId });
+}
+
 export function adaptLegacyQuestStatus(raw = {}, context = {}) {
   const definition = getQuestDefinitionByLegacyId(raw.quest_id);
   if (!definition) return null;
@@ -82,6 +92,9 @@ export function adaptLegacyQuestStatus(raw = {}, context = {}) {
 
   if (definition.questId === QUEST_ID_MAIN_NAVIGATION_INTRO)
     return adaptMain2QuestStatus(raw, context);
+
+  if (definition.questId === QUEST_ID_MAIN_FIRST_STYLE)
+    return adaptMain3QuestStatus(raw, context);
 
   return null;
 }
