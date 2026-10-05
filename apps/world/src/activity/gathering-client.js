@@ -11,6 +11,7 @@ export function createGatheringClient({
   getToken,
   fetcher = (...args) => globalThis.fetch(...args),
   uuid = () => globalThis.crypto.randomUUID(),
+  now = () => Date.now(),
   endpoint = GATHERING_API_PATH
 } = {}) {
   let accountId = null;
@@ -20,6 +21,7 @@ export function createGatheringClient({
   let lastError = null;
   let lastRead = null;
   let unsettled = null;
+  let lastProbeAt = -Infinity;
   const listeners = new Set();
 
   function emit(reason) {
@@ -85,6 +87,7 @@ export function createGatheringClient({
     lastError = null;
     lastRead = null;
     unsettled = null;
+    lastProbeAt = now();
     state = next ? GATHERING_CLIENT_STATE.CHECKING : GATHERING_CLIENT_STATE.SIGNED_OUT;
     emit("account");
     if (!next) return false;
@@ -94,8 +97,9 @@ export function createGatheringClient({
     return ok;
   }
 
-  async function probe() {
-    if (!accountId || busy) return false;
+  async function probe({ minIntervalMs = 30000 } = {}) {
+    if (!accountId || busy || now() - lastProbeAt < minIntervalMs) return false;
+    lastProbeAt = now();
     const gen = generation;
     const ok = await read(gen);
     if (gen === generation) emit("probe");
