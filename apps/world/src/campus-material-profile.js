@@ -15,7 +15,7 @@ const PROFILE = Object.freeze({
 export const CAMPUS_MATERIAL_PROFILES = PROFILE;
 
 const PALETTE = Object.freeze({
-  ground: new Set(['#8b9274', '#729451', '#607c48']),
+  ground: new Set(['#8b9274', '#729451', '#607c48', '#b5a187']),
   asphalt: new Set(['#747d7b', '#737b79', '#92968e', '#555f5d']),
   concrete: new Set([
     '#b4b4a8', '#c1bfb1', '#b6b2a0', '#c9c8ba', '#c8c7b4',
