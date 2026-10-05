@@ -9,7 +9,7 @@ on:
       - 'apps/world/tests/full-map*.test.mjs'
       - 'apps/world/tests/mobile-full-map-portrait.test.mjs'
       - 'apps/world/tests/navigation-map-ui.test.mjs'
-      - 'apps/world/tests/browser/full-map-readability-smoke.mjs'
+      - 'apps/world/tests/browser/full-map-*'
       - 'apps/world/tests/browser/harness.mjs'
       - 'apps/world/tests/browser/package*.json'
       - '.github/workflows/full-map-readability-browser.yml'
@@ -24,6 +24,9 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: '24.19.0'
@@ -38,17 +41,28 @@ jobs:
           fc-match 'sans-serif:lang=ko' > test-results/full-map-readability/korean-font.txt
       - name: Verify map contracts
         run: node --test apps/world/tests/full-map*.test.mjs apps/world/tests/mobile-full-map-portrait.test.mjs apps/world/tests/navigation-map-ui.test.mjs apps/world/tests/room-map-data.test.mjs
+      - name: Verify native search and modal input in desktop and mobile Chromium
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+          FULL_MAP_NAVIGATION_OUTPUT: test-results/full-map-navigation
+          EXPECTED_MAP_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: node apps/world/tests/browser/full-map-navigation-smoke.mjs
       - name: Render real campus map in desktop and mobile Chromium
+        if: ${{ success() || failure() }}
         env:
           WORLD_SMOKE_DISABLE_WEBGPU: '1'
           WORLD_SMOKE_BROWSER: chrome
           WORLD_FULL_MAP_QA_OUTPUT: test-results/full-map-readability
+          EXPECTED_MAP_HEAD: ${{ github.event.pull_request.head.sha }}
         run: node apps/world/tests/browser/full-map-readability-smoke.mjs
       - name: Preserve screenshots and assertion receipt
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: full-map-readability-browser-evidence
-          path: test-results/full-map-readability/
+          name: full-map-browser-${{ github.event.pull_request.head.sha }}
+          path: |
+            test-results/full-map-readability/
+            test-results/full-map-navigation/
           if-no-files-found: error
           retention-days: 14
