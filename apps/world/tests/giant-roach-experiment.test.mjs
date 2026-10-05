@@ -47,3 +47,9 @@ test('P1 surface quality uses rounded body rings and readable vertex color',()=>
   assert.match(exp,/m\.useLighting = false/);
   assert.match(exp,/diffuseVertexColor = true/);
 });
+
+test('P1 vertex colors use RGBA8 for pc.createMesh Geometry',()=>{
+  assert.match(exp,/abdomen: \[180,72,26,255\]/);
+  assert.match(exp,/thorax: \[128,45,15,255\]/);
+  assert.match(exp,/limb: \[48,14,5,255\]/);
+});
