@@ -67,7 +67,6 @@ before(async () => {
   assert.equal(previous.source, 'COMING_SOON');
   assert.equal(previous.skill, 'COMING_SOON');
   assert.equal(previous.collection, 'COMING_SOON');
-  await configure();
 });
 
 after(async () => {
@@ -96,6 +95,7 @@ test('Gathering source DB mirror equals the code Registry authority subset', asy
 });
 
 test('concurrent exact retries settle one leaf, one discovery and one Gathering XP entry', async () => {
+  await configure();
   const actor = await user(), key = randomUUID();
   const results = await Promise.all(Array.from({ length: 8 }, () => harvest(actor, undefined, key)));
   assert.equal(results.filter(result => result.status === 'HARVESTED').length, 1);
@@ -175,6 +175,7 @@ test('identity, account and server-side cooldown gates are enforced before value
 });
 
 test('account deletion cascades Gathering snapshots with the owned outcome state', async () => {
+  await configure();
   const actor = await user();
   await harvest(actor);
   await query(`delete from auth.users where id=${lit(actor)}`);
