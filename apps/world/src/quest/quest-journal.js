@@ -37,6 +37,15 @@ export function createQuestJournal({
   let selectedQuestId = null;
   let lastTrackedQuestId = null;
   let closeButton = null;
+  let opener = null;
+  const focusTargets = new Map();
+  const scrollTargets = new Map();
+
+  const focusTarget = (node, key) => {
+    node.dataset.focusKey = key;
+    if (!node.disabled) focusTargets.set(key, node);
+    return node;
+  };
 
   const chooseSelection = (quests) => {
     const trackedQuestId = quests.find(quest => quest.tracked)?.questId ?? null;
@@ -116,12 +125,14 @@ export function createQuestJournal({
       if (quest.currentObjective?.navigationTarget) {
         const navigate = el('button', 'quest-journal-primary', '길 안내 시작');
         navigate.type = 'button';
+        focusTarget(navigate, `navigate:${quest.questId}`);
         navigate.addEventListener('click', () => onNavigate(quest.currentObjective.navigationTarget, quest));
         actions.append(navigate);
       }
       const track = el('button', 'quest-journal-secondary', quest.tracked ? 'HUD 추적 중' : 'HUD에서 추적');
       track.type = 'button';
       track.disabled = quest.tracked;
+      focusTarget(track, `track:${quest.questId}`);
       track.addEventListener('click', () => {
         runtime.setTrackedQuestId(quest.questId);
         render();
@@ -135,6 +146,13 @@ export function createQuestJournal({
 
   function render() {
     if (!open) return;
+    const hadFocus = panel.contains(doc.activeElement);
+    const focusKey = hadFocus ? doc.activeElement?.dataset?.focusKey : null;
+    const scrollPositions = new Map([...scrollTargets].map(([key, node]) =>
+      [key, { top: node.scrollTop ?? 0, left: node.scrollLeft ?? 0 }]));
+    const panelScroll = { top: panel.scrollTop ?? 0, left: panel.scrollLeft ?? 0 };
+    focusTargets.clear();
+    scrollTargets.clear();
     const snapshot = runtime.snapshot;
 
     const head = el('div', 'shop-panel-head');
@@ -144,6 +162,7 @@ export function createQuestJournal({
     titles.append(title, el('p', 'quest-journal-summary', '진행 중인 목표와 완료 기록을 한곳에서 확인합니다.'));
     closeButton = el('button', 'profile-close', '×');
     closeButton.type = 'button';
+    focusTarget(closeButton, 'close');
     closeButton.setAttribute('aria-label', '퀘스트 닫기');
     closeButton.addEventListener('click', () => setOpen(false));
     head.append(titles, closeButton);
@@ -153,6 +172,7 @@ export function createQuestJournal({
       const button = el('button', 'quest-journal-tab', label);
       button.type = 'button';
       button.dataset.type = type;
+      focusTarget(button, `tab:${type}`);
       button.setAttribute('aria-pressed', String(tab === type));
       button.addEventListener('click', () => {
         tab = type;
@@ -163,16 +183,19 @@ export function createQuestJournal({
     }
 
     const body = el('div', 'quest-journal-body');
+    scrollTargets.set(`body:${tab}`, body);
     const quests = snapshot.quests.filter(quest => quest.type === tab);
     if (!quests.length) {
       renderEmpty(body, snapshot);
     } else {
       chooseSelection(quests);
       const list = el('div', 'quest-journal-list');
+      scrollTargets.set(`list:${tab}`, list);
       for (const quest of quests) {
         const button = el('button', 'quest-journal-item');
         button.type = 'button';
         button.dataset.questId = quest.questId;
+        focusTarget(button, `quest:${quest.questId}`);
         button.dataset.state = quest.state;
         button.setAttribute('aria-pressed', String(quest.questId === selectedQuestId));
         const name = el('strong', '', displayTitle(quest));
@@ -186,15 +209,30 @@ export function createQuestJournal({
         list.append(button);
       }
       const selected = quests.find(quest => quest.questId === selectedQuestId) ?? null;
-      body.append(list, renderDetail(selected));
+      const detail = renderDetail(selected);
+      scrollTargets.set(`detail:${selectedQuestId}`, detail);
+      body.append(list, detail);
     }
 
     panel.replaceChildren(head, tabs, body);
+    // Runtime notifications rebuild the DOM. Keep the same semantic control focused, or a safe
+    // close action when the old control disappeared or became disabled. Outside focus stays put.
+    if (hadFocus) (focusTargets.get(focusKey) ?? closeButton).focus?.({ preventScroll: true });
+    for (const [key, node] of scrollTargets) {
+      const position = scrollPositions.get(key);
+      node.scrollTop = position?.top ?? 0;
+      node.scrollLeft = position?.left ?? 0;
+    }
+    panel.scrollTop = panelScroll.top;
+    panel.scrollLeft = panelScroll.left;
   }
 
   function setOpen(next) {
     const value = Boolean(next);
     if (value === open) return open;
+    const focused = doc.activeElement;
+    const restoreOpener = !value && panel.contains(focused);
+    if (value) opener = focused;
     open = value;
     panel.hidden = !open;
     if (open) {
@@ -203,7 +241,15 @@ export function createQuestJournal({
       closeButton?.focus?.();
     } else {
       panel.replaceChildren();
+      focusTargets.clear();
+      scrollTargets.clear();
       onOpenChange(false);
+      // A sibling panel may already own focus, including through the close callback.
+      if (restoreOpener && (!doc.activeElement || doc.activeElement === doc.body || doc.activeElement === focused)
+        && opener?.isConnected !== false && !opener?.disabled && !opener?.closest?.('[hidden], [inert]')) {
+        opener?.focus?.({ preventScroll: true });
+      }
+      opener = null;
     }
     return open;
   }
