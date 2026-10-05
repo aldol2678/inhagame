@@ -6,6 +6,7 @@ import {
   compactNpcDialogueJevState,
   createNpcJevDecisionProvider,
   parseNpcJevResponse,
+  validateNpcJevExpression,
   validateNpcJevRouterInput
 } from '../npc-factory/npc-jev-router.mjs';
 import { buildNpcDialogueCandidates } from '../npc-factory/npc-dialogue-context.mjs';
@@ -44,7 +45,11 @@ test('Jev questions ask only ambiguous closed choices', () => {
   assert.ok(questions.response_source);
   assert.ok(questions.intent);
   assert.ok(questions.context_priority);
+  assert.ok(questions.expression_emotion);
+  assert.ok(questions.expression_intensity);
   assert.deepEqual(Object.keys(questions.response_source.criteria).sort(), [...candidates.responseSources].sort());
+  assert.deepEqual(Object.keys(questions.expression_emotion.criteria).sort(), ['angry','happy','neutral','sad','surprised']);
+  assert.deepEqual(Object.keys(questions.expression_intensity.criteria).sort(), ['0','1','2','3','4']);
   const state = compactNpcDialogueJevState(context);
   assert.equal(state.npc.id, 'INKYUNG-NPC-001');
   assert.doesNotMatch(JSON.stringify(state), /name|email|studentNumber|wallet|inventory|reward/i);
@@ -61,7 +66,9 @@ test('provider parses typed Jev choices and preserves non-authoritative role', a
         answers: {
           response_source: { choice: 'CONTEXTUAL', confidence: .82, probabilities: { CONTEXTUAL: .82, GENERATIVE: .18 } },
           intent: { choice: 'STATUS', confidence: .91, probabilities: { STATUS: .91, SOCIAL: .09 } },
-          context_priority: { choice: 'WEATHER', confidence: .64, probabilities: { WEATHER: .64, CURRENT_ACTIVITY: .36 } }
+          context_priority: { choice: 'WEATHER', confidence: .64, probabilities: { WEATHER: .64, CURRENT_ACTIVITY: .36 } },
+          expression_emotion: { choice: 'happy', confidence: .88, probabilities: { happy: .88, neutral: .12 } },
+          expression_intensity: { choice: '3', confidence: .76, probabilities: { '3': .76, '2': .24 } }
         },
         usage: { input_tokens: 42 }
       }) };
@@ -74,7 +81,11 @@ test('provider parses typed Jev choices and preserves non-authoritative role', a
   assert.equal(result.decision.responseSource, 'CONTEXTUAL');
   assert.equal(result.decision.intent, 'STATUS');
   assert.equal(result.decision.contextPriority, 'WEATHER');
+  assert.deepEqual(result.expression, { emotion: 'happy', level: 3, intensity: .75 });
+  assert.equal(validateNpcJevExpression(result.expression), true);
   assert.equal(result.confidence.responseSource, .82);
+  assert.equal(result.confidence.expressionEmotion, .88);
+  assert.equal(result.confidence.expressionIntensity, .76);
 });
 
 test('parser rejects choices outside D2 candidates', () => {
@@ -83,7 +94,19 @@ test('parser rejects choices outside D2 candidates', () => {
     answers: {
       response_source: { choice: 'MAGIC' },
       intent: { choice: 'STATUS' },
-      context_priority: { choice: 'WEATHER' }
+      context_priority: { choice: 'WEATHER' },
+      expression_emotion: { choice: 'happy' },
+      expression_intensity: { choice: '3' }
+    }
+  }, candidates), /JEV_DECISION_OUTSIDE_CANDIDATES/);
+
+  assert.throws(() => parseNpcJevResponse({
+    answers: {
+      response_source: { choice: 'CONTEXTUAL' },
+      intent: { choice: 'STATUS' },
+      context_priority: { choice: 'WEATHER' },
+      expression_emotion: { choice: 'confused' },
+      expression_intensity: { choice: '3' }
     }
   }, candidates), /JEV_DECISION_OUTSIDE_CANDIDATES/);
 });
