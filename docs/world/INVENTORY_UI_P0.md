@@ -12,6 +12,7 @@
 | Shop Wallet balance read | **IMPLEMENTED** (`docs/world/SHOP_WALLET_BALANCE_UI.md`) |
 | Student Center World Entry | **IMPLEMENTED** (`docs/world/SHOP_WORLD_ENTRY_P0.md`) |
 | Inventory read-only UI P0 | **IMPLEMENTED** (this document) |
+| Inventory category tabs V1 | **IMPLEMENTED** (전체 / 장비 / 소비 / 재료 / 생활 / 기타) |
 | Inventory ownership authority | unchanged, P0-B (`docs/world/ECONOMY_P0B_INVENTORY_CATALOG.md`) |
 | Appearance / Loadout Authority P0 (server) | **IMPLEMENTED** (`docs/world/APPEARANCE_LOADOUT_AUTHORITY_P0.md`) |
 | Wardrobe UI P0 (equip / unequip) | **IMPLEMENTED** (`docs/world/WARDROBE_UI_P0.md`) |
@@ -52,6 +53,23 @@ client, no catalog change, and no write path of any kind (no equip, use, discard
 Card: name · `보유 N` · description · `착용 아이템 · 일반` · `획득 · 상점` (+ status chip). `sourceType`
 labels: 상점, 이벤트, 퀘스트, 탐험, 업적, 미니게임, 기본 지급, INHAGAME 보상, 지급; anything else `기타`.
 
+## Category tabs V1
+
+The read-only panel now adds a local presentation registry above the existing Collection catalog. It does
+**not** change ownership, the server read model, DB catalog mirror, grant rules, prices or item semantic
+categories. The compact visible tabs are `전체 / 장비 / 소비 / 재료 / 생활 / 기타`.
+
+- Existing semantic catalog categories are mapped by item purpose: `WEARABLE → 장비`, `MATERIAL → 재료`,
+  `FURNITURE → 기타(HOUSING)`, `MOUNT / MOUNT_COSMETIC → 기타(PET_MOUNT)`; badges, emotes and
+  memorabilia currently fall back to `기타(MISC)`.
+- Acquisition source is deliberately not a category signal. A fish obtained through a life activity remains
+  `MATERIAL`; event furniture remains `HOUSING`.
+- Unknown owned items are never hidden. A catalog miss maps to `MISC → 기타` and keeps the existing
+  `UNKNOWN_ITEM` presentation.
+- Filtering is local-only and preserves the server order inside every tab. No RPC is added when a tab changes.
+- The registry already reserves `CONSUMABLE / LIFE / QUEST / EVENT` purpose categories for future item types,
+  while `HOUSING / PET_MOUNT / QUEST / EVENT / MISC` are grouped into the compact `기타` tab for V1.
+
 ## Refresh (no polling)
 
 | Trigger | Wiring |
@@ -87,6 +105,9 @@ entries keep a 44 px height on touch devices (they were 42 px before). Hidden in
   statuses kept, signed-out and guest (0 RPCs), account switch, stale responses, malformed and duplicate
   rows, purchase → one re-read and no optimistic item, refused purchase → no re-read, inventory failure
   does not block shop / wallet, `main.js` reward / resume / identity wiring.
+- `apps/world/tests/inventory-category-tabs.test.mjs`: purpose mapping, fish/material precedence over life
+  acquisition tags, compact six-tab contract, local filtering, server-order preservation, empty-category state,
+  and unknown-owned-item retention under `기타`.
 - `apps/world/qa.mjs`: menu entry, single panel, member client, single read RPC, purchase / reward wiring.
 - Browser QA (local, real `/campus/` boot on WebGPU with a fake member session) at 1280×720 and 360×740:
   ☰ → 🎒 인벤토리, empty state, 8 items (unknown and non-ACTIVE included), scroll, no horizontal
@@ -100,4 +121,4 @@ entries keep a 44 px height on touch devices (they were 42 px before). Hidden in
 ## Not in scope
 
 Equip, wardrobe, loadout, furniture placement, use, discard, trade, gift, sell, crafting, sort / search /
-filter / category tabs, Collection Book, inventory DB changes, starter item policy.
+rarity filters, Collection Book, inventory DB changes, starter item policy.
