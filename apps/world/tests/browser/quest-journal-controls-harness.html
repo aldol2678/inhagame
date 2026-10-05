@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Quest journal controls · offline fixture</title>
+  <link rel="stylesheet" href="../../styles.css">
+  <style>
+    body { margin: 0; padding: 24px; background: #102334; color: #eef8ff; font: 16px sans-serif; }
+    .fixture-controls { display: flex; flex-wrap: wrap; gap: 12px; }
+    /* Force scroll ranges without changing the production component's markup. */
+    .quest-journal-list { max-height: 100px; }
+    .quest-journal-detail { max-height: 180px; }
+  </style>
+</head>
+<body>
+  <p>Offline quest controls fixture. Real journal/runtime/input policy; no account, backend, rewards or world renderer</p>
+  <div class="fixture-controls">
+    <button id="opener" type="button">퀘스트 열기</button>
+    <button id="outside" type="button">다른 화면</button>
+    <input id="editable" aria-label="입력 보호 확인">
+  </div>
+  <section id="journal" class="profile-panel shop-panel inventory-panel quest-journal-panel" role="dialog" aria-modal="true" aria-labelledby="quest-journal-title" hidden></section>
+  <script type="module">
+    import { createQuestJournal } from '../../src/quest/quest-journal.js';
+    import { createQuestRuntime } from '../../src/quest/quest-runtime.js';
+    import { createInputFocusManager, INPUT_FOCUS_POLICY } from '../../src/input/input-focus-manager.js';
+    const inputFocus = createInputFocusManager();
+    const runtime = createQuestRuntime();
+    const state = (stage = 2, complete = false, available = false) => ({
+      quest: { signedIn: true, ready: true, stage, complete },
+      main2Quest: { signedIn: true, ready: true, stage: 0, available, complete: false }
+    });
+    runtime.update(state());
+    const panel = document.getElementById('journal');
+    const opener = document.getElementById('opener');
+    let journalClaim, blocker;
+    const events = [];
+    for (const type of ['keydown', 'click', 'pointerdown']) document.addEventListener(type, event => {
+      events.push({ type, code: event.code, pointerType: event.pointerType, trusted: event.isTrusted, target: event.target?.dataset?.focusKey ?? event.target?.id });
+    }, true);
+    const journal = createQuestJournal({ panel, runtime, onOpenChange(open) {
+      if (open) journalClaim = inputFocus.claim('quest-journal', INPUT_FOCUS_POLICY.BLOCKING_UI);
+      else inputFocus.release(journalClaim);
+    } });
+    const combatRuntime = { active: false, toggles: 0, toggleLock() { this.toggles += 1; } };
+    const lobbyWorld = { active: false }, lobbyTransition = { active: false };
+    // Run the exact production listener, not a copied Q policy. The fixture never executes main.js.
+    const source = await (await fetch('../../src/main.js')).text();
+    const listener = source.match(/window\.addEventListener\("keydown", \(event\) => \{\n  if \(event\.code !== "KeyQ"[\s\S]*?\n\}\);/)?.[0];
+    if (!listener) throw new Error('Production Q listener not found');
+    new Function('window', 'HTMLElement', 'inputFocus', 'questJournal', 'combatRuntime', 'lobbyWorld', 'lobbyTransition', listener)(
+      window, HTMLElement, inputFocus, journal, combatRuntime, lobbyWorld, lobbyTransition
+    );
+    opener.addEventListener('click', () => journal.setOpen(true));
+    window.__QUEST_CONTROLS__ = {
+      journal, runtime, combatRuntime, events,
+      update: (stage, complete, available) => runtime.update(state(stage, complete, available)),
+      block(owner, kind = 'BLOCKING_UI') {
+        if (blocker) inputFocus.release(blocker);
+        blocker = owner ? inputFocus.claim(owner, INPUT_FOCUS_POLICY[kind]) : null;
+      },
+      snapshot: () => ({ open: journal.open, selected: journal.selectedQuestId,
+        focused: document.activeElement?.dataset.focusKey ?? document.activeElement?.id,
+        toggles: combatRuntime.toggles, owners: inputFocus.snapshot().topOwners })
+    };
+    opener.focus();
+  </script>
+</body>
+</html>
