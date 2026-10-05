@@ -24,7 +24,7 @@ const row = (itemId, extra = {}) => ({
   acquiredAt: "2026-10-05T00:00:00+00:00",
   updatedAt: "2026-10-05T00:00:00+00:00",
   sourceType: "SYSTEM",
-  sourceRef: null,
+  sourceRef: "system:inventory-tabs-test",
   eventId: null,
   catalogStatus: "ACTIVE",
   ...extra
