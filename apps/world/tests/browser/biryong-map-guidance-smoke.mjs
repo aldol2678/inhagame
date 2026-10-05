@@ -9,7 +9,7 @@ import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { assertHostedBrowserExecution, BIRYONG_QA_VIEWPORTS, BIRYONG_QA_NPCS, assertMapLayout, assertMapPointProjection,
+import { assertHostedBrowserExecution, BIRYONG_QA_VIEWPORTS, BIRYONG_QA_NPCS, BIRYONG_QA_HUD_SELECTORS, assertMapLayout, assertMapPointProjection,
   readNpcConversationReadiness, assertInteractionHintLayout, assertInteractionHintCoverage,
   assertNpcNameplateLayout, assertNpcNameplateCoverage, assertBiryongReturnLabelVisible } from './biryong-map-guidance-qa.mjs';
 
@@ -106,10 +106,9 @@ async function readMap(page) {
 }
 
 async function readNpcNameplates(page) {
-  const receipt = await page.evaluate(async () => {
-    const [{ npcNameplateOffset }, { BIRYONG_VILLAGE_NPC_ROSTER }, { BIRYONG_NPC_NAMEPLATE_HUD_SELECTOR }] = await Promise.all([
-      import('/npc-factory/npc-dimensions.mjs'), import('/src/biryong/biryong-village-npc-contract.js'),
-      import('/src/biryong/biryong-npc-nameplate-layout.js')
+  const receipt = await page.evaluate(async hudSelectors => {
+    const [{ npcNameplateOffset }, { BIRYONG_VILLAGE_NPC_ROSTER }] = await Promise.all([
+      import('/npc-factory/npc-dimensions.mjs'), import('/src/biryong/biryong-village-npc-contract.js')
     ]);
     const d = window.__INHAGAME_P0__, canvas = d.app.graphicsDevice.canvas.getBoundingClientRect();
     const player = d.player.getLocalPosition();
@@ -128,11 +127,15 @@ async function readNpcNameplates(page) {
     }).map(element => ({ ...element.getBoundingClientRect().toJSON(),
       name: element.querySelector('strong').textContent, detail: element.querySelector('small').textContent,
       font: getComputedStyle(element.querySelector('strong')).fontSize }));
-    const exclusions = [...document.querySelectorAll(BIRYONG_NPC_NAMEPLATE_HUD_SELECTOR)].filter(element => {
+    const visibleHud = element => {
       if (element.hidden || !element.getClientRects().length) return false;
       const style = getComputedStyle(element);
       return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
-    }).map(element => ({ id: element.id || element.className, ...element.getBoundingClientRect().toJSON() }));
+    };
+    const exclusions = [...document.querySelectorAll(hudSelectors.join(','))].filter(visibleHud)
+      .map(element => ({ id: element.id || element.className, ...element.getBoundingClientRect().toJSON() }));
+    const tourElement = document.getElementById('tour');
+    const tourHud = { present: Boolean(tourElement), visible: Boolean(tourElement && visibleHud(tourElement)) };
     const cameraPosition = d.orbit.camera.getPosition(), eye = d.player.getPosition().clone();
     eye.y += d.character.eyeHeight; // Same animated eye offset as main.js, in reflected world coordinates.
     const camera = { regionId: d.biryongRealm.status().regionId, indoor: Boolean(d.orbit.indoor),
@@ -143,8 +146,8 @@ async function readNpcNameplates(page) {
       eye: { x: eye.x, y: eye.y, z: eye.z },
       eyeDistance: Math.hypot(cameraPosition.x - eye.x, cameraPosition.y - eye.y, cameraPosition.z - eye.z) };
     return { canvas: canvas.toJSON(), viewport: { width: innerWidth, height: innerHeight },
-      nearest: d.biryongVillageNpcs.nearestNpc(22), candidates, labels, exclusions, camera };
-  });
+      nearest: d.biryongVillageNpcs.nearestNpc(22), candidates, labels, exclusions, tourHud, camera };
+  }, BIRYONG_QA_HUD_SELECTORS);
   return receipt;
 }
 
@@ -349,6 +352,7 @@ try {
       assert.ok(entry.pixels.colors > 12 && entry.pixels.luminanceStddev > 1, 'nonblank actual rendered realm pixels');
       await page.evaluate(waitForRenderedFrames);
       entry.arrivalNameplates = await readNpcNameplates(page);
+      assert.equal(entry.arrivalNameplates.tourHud.visible, true, `${name}: real first-tour HUD coverage required`);
       assertNpcNameplateLayout(entry.arrivalNameplates, `${name} realm arrival`);
       await capture('realm-arrival');
       entry.manualInput = await verifyManualInput(page, smoke.context, mobile);

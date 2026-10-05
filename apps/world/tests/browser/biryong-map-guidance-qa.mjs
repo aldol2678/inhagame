@@ -22,6 +22,14 @@ export const BIRYONG_QA_NPCS = Object.freeze([
   { id: 'BR_NPC_006', name: '한세온', topicId: 'craft', target: 'poi.biryong-realm.workshop' }
 ].map(Object.freeze));
 
+// Acceptance owns this inventory independently of the runtime. Sharing its
+// selector previously let both implementation and oracle miss the first tour.
+export const BIRYONG_QA_HUD_SELECTORS = Object.freeze([
+  '#tour', '#quest-hud', '#nav-guidance', '#auto-move-hud', '#minimap', '.campus-topbar > *',
+  '#context-action', '#transport-action', '#pointer-lock-hint', '#nameplate',
+  '#joystick', '#run', '#jump', '.social-cluster'
+]);
+
 // Serialized directly by Playwright; inspect the existing public actor without
 // changing its schedule, position, pause state, clock or animation frame rate.
 export function readNpcConversationReadiness(npcId) {
@@ -32,6 +40,10 @@ export function readNpcConversationReadiness(npcId) {
 const overlaps = (a, b) => a.x < b.right - 1 && a.right > b.x + 1 && a.y < b.bottom - 1 && a.bottom > b.y + 1;
 export function assertNpcNameplateLayout(layout, name) {
   const { canvas, viewport, labels } = layout;
+  if (layout.tourHud?.visible) {
+    assert.ok(layout.exclusions?.some(surface => surface.id === 'tour'),
+      `${name}: visible first-tour HUD bounds must be captured independently`);
+  }
   if (layout.camera) assertBiryongCameraReadability(layout.camera, name);
   const finiteRect = rect => ['x', 'y', 'right', 'bottom', 'width', 'height'].every(key => Number.isFinite(rect[key])) &&
     rect.width > 0 && rect.height > 0;

@@ -26,14 +26,17 @@ function fixture(t) {
   globalThis.window = { innerWidth: 390, innerHeight: 844 };
   globalThis.document = {
     body: { appendChild(element) { labels.push(element); } },
-    querySelectorAll: () => { reads.hud++; return hud; },
+    querySelectorAll: selector => {
+      reads.hud++;
+      return hud.filter(element => selector.split(',').some(part => part.trim() === `#${element.id}`));
+    },
     createElement() {
       const nodes = { strong: { textContent: "" }, small: { textContent: "" } };
       return { hidden: true, style: {}, nodes,
         querySelector(name) { return nodes[name]; },
         getBoundingClientRect() {
-          const width = this.hidden ? 0 : Math.min(150, parseFloat(this.style.maxWidth) || Infinity);
-          const height = this.hidden ? 0 : 36;
+          const width = this.hidden ? 0 : Math.min(context.labelWidth ?? 150, parseFloat(this.style.maxWidth) || Infinity);
+          const height = this.hidden ? 0 : context.labelHeight ?? 36;
           const x = parseFloat(this.style.left) - width / 2, y = parseFloat(this.style.top) - height;
           return { x, y, left: x, top: y, width, height, right: x + width, bottom: y + height };
         },
@@ -76,7 +79,7 @@ test("postrender uses the current camera and HUD instead of the earlier update f
   f.tick();
   assert.equal(f.reads.projection, 0, "NPC update does not project stale camera matrices");
   assert.ok(f.labels.every(label => label.hidden));
-  const surface = { hidden: false, computed: {}, getClientRects: () => [1],
+  const surface = { id: 'quest-hud', hidden: false, computed: {}, getClientRects: () => [1],
     getBoundingClientRect: () => ({ left: 110, top: 150, right: 280, bottom: 220 }) };
   f.hud.push(surface); f.draw();
   assert.ok(f.labels.every(label => label.hidden), "HUD that appeared after NPC update already owns this rendered frame");
@@ -105,7 +108,7 @@ test("postrender never ticks or reanimates NPCs and destroy removes both event l
 
 test("runtime excludes visible HUD bounds and restores labels when those surfaces disappear", t => {
   const f = fixture(t);
-  const surface = { hidden: false, computed: {}, getClientRects: () => [1],
+  const surface = { id: 'quest-hud', hidden: false, computed: {}, getClientRects: () => [1],
     getBoundingClientRect: () => ({ left: 110, top: 150, right: 280, bottom: 220 }) };
   f.hud.push(surface);
   f.update();
@@ -118,6 +121,25 @@ test("runtime excludes visible HUD bounds and restores labels when those surface
   }
   surface.computed = {}; surface.getClientRects = () => []; f.update();
   assert.equal(f.labels[1].hidden, false, "a hidden parent leaves no occupied HUD rectangle");
+});
+
+test("landscape first-tour HUD suppresses the intersecting nameplate and restores it when hidden", t => {
+  const f = fixture(t);
+  f.context.rect = { left: 0, top: 0, width: 844, height: 390 };
+  f.context.playerPosition = { x: -8, z: 10 };
+  // Actual label projection and dimensions from the 11e79dc hosted regression.
+  f.context.projection = () => ({ x: 238.328125, y: 95, z: 13.67633798517799 });
+  f.context.labelWidth = 109.90625; f.context.labelHeight = 34.734375;
+  const tour = { id: 'tour', hidden: true, computed: {}, getClientRects: () => [1],
+    getBoundingClientRect: () => ({ left: 12, top: 52, right: 212, bottom: 94 }) };
+  f.hud.push(tour); f.update();
+  assert.equal(f.labels[0].hidden, false, 'the nearby NPC has a readable nameplate without the tour card');
+  const before = f.runtime.status().npcs;
+  tour.hidden = false; f.draw();
+  assert.ok(f.labels.every(label => label.hidden), 'the visible first-tour card owns its occupied screen space');
+  assert.deepEqual(f.runtime.status().npcs, before, 'only nameplate visibility changes');
+  tour.hidden = true; f.draw();
+  assert.equal(f.labels[0].hidden, false, 'hiding the tour card restores the label without another NPC update');
 });
 
 test("actual runtime gives a crowded nameplate to the nearest NPC and preserves detail", t => {

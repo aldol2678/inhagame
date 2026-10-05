@@ -2,7 +2,7 @@ export const BIRYONG_NPC_NAMEPLATE_MAX_DISTANCE = 22;
 export const BIRYONG_NPC_NAMEPLATE_INSET = 8;
 // Actual visible HUD surfaces, not their full-width transparent containers.
 export const BIRYONG_NPC_NAMEPLATE_HUD_SELECTOR = [
-  "#quest-hud", "#nav-guidance", "#auto-move-hud", "#minimap", ".campus-topbar > *",
+  "#tour", "#quest-hud", "#nav-guidance", "#auto-move-hud", "#minimap", ".campus-topbar > *",
   "#context-action", "#transport-action", "#pointer-lock-hint", "#nameplate",
   "#joystick", "#run", "#jump", ".social-cluster"
 ].join(",");

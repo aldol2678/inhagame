@@ -37,6 +37,31 @@ test('hosted nameplate acceptance rejects label intersections with visible HUD s
     exclusions: [{ id: 'nav-guidance', x: 120, y: 180, right: 280, bottom: 230, width: 160, height: 50 }] }, 'portrait'), /HUD/);
 });
 
+test('hosted HUD oracle includes the first-tour card independently of the runtime selector', async () => {
+  const { BIRYONG_QA_HUD_SELECTORS } = await import(helperUrl);
+  assert.ok(Array.isArray(BIRYONG_QA_HUD_SELECTORS), 'the hosted oracle owns an independent HUD inventory');
+  assert.ok(BIRYONG_QA_HUD_SELECTORS.includes('#tour'));
+  assert.ok(BIRYONG_QA_HUD_SELECTORS.includes('#quest-hud'), 'first tour and tracked quest are separate surfaces');
+  const source = await readFile(smokeUrl, 'utf8');
+  assert.doesNotMatch(source, /BIRYONG_NPC_NAMEPLATE_HUD_SELECTOR/);
+  assert.match(source, /hudSelectors\.join\(','\)/);
+  assert.match(source, /tourHud/);
+  assert.match(source, /entry\.arrivalNameplates\.tourHud\.visible, true/);
+});
+
+test('hosted acceptance rejects omitted tour bounds and the actual landscape label intersection', async () => {
+  const { assertNpcNameplateLayout } = await import(helperUrl);
+  const tour = { id: 'tour', x: 12, y: 52, right: 212, bottom: 94, width: 200, height: 42 };
+  const receipt = { canvas: { x: 0, y: 0, right: 844, bottom: 390, width: 844, height: 390 },
+    viewport: { width: 844, height: 390 }, tourHud: { visible: true }, exclusions: [], labels: [] };
+  assert.throws(() => assertNpcNameplateLayout(receipt, 'landscape'), /visible first-tour/);
+  const label = { name: '강소라', detail: '운송·화물 담당 · 이동 중', font: '12px',
+    x: 183.375, y: 60.265625, right: 293.28125, bottom: 95, width: 109.90625, height: 34.734375 };
+  assert.throws(() => assertNpcNameplateLayout({ ...receipt, exclusions: [tour], labels: [label] }, 'landscape'), /HUD tour/);
+  assert.doesNotThrow(() => assertNpcNameplateLayout({ ...receipt, exclusions: [tour] }, 'culled label'));
+  assert.doesNotThrow(() => assertNpcNameplateLayout({ ...receipt, tourHud: { visible: false }, labels: [label] }, 'hidden tour'));
+});
+
 test('collision-compressed outdoor third-person camera hides local equipment without changing perspective', async () => {
   const { assertBiryongCameraReadability, assertNpcNameplateLayout } = await import(helperUrl);
   assert.equal(typeof assertBiryongCameraReadability, 'function');
