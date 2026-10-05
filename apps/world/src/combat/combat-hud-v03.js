@@ -31,26 +31,38 @@ export function createCombatHudV03({ root, runtime, inputFocus } = {}) {
   const buttons = [...root.querySelectorAll('[data-combat-action]')];
   const cleanups = [];
 
-  for (const button of buttons) {
-    const action = button.dataset.combatAction;
+  const bindActivation = (button, activate) => {
     const fire = event => {
-      if (!inputFocus.can('WORLD_ACTION')) return;
-      event?.preventDefault?.();
-      runtime.dispatch(action);
+      if (root.hidden || button.hidden || button.disabled || !inputFocus.can('WORLD_ACTION')) return;
+      event.preventDefault?.();
+      activate();
     };
-    button.addEventListener('pointerdown', fire);
-    cleanups.push(() => button.removeEventListener('pointerdown', fire));
-  }
+    const onPointerDown = event => {
+      if (event.button !== undefined && event.button !== 0) return;
+      fire(event);
+    };
+    const onClick = event => {
+      // Pointer input already fires on press. Native keyboard and assistive
+      // activations produce a zero-detail click without a pointer type.
+      if (event.detail > 0 || event.pointerType) return;
+      fire(event);
+    };
+    const onKeyDown = event => {
+      if (!['Enter', 'NumpadEnter', 'Space'].includes(event.code) && event.key !== 'Enter' && event.key !== ' ') return;
+      // Keep the native button default action, but don't open chat or jump.
+      event.stopPropagation();
+      if (event.repeat) event.preventDefault();
+    };
+    for (const [type, listener] of [['pointerdown', onPointerDown], ['click', onClick], ['keydown', onKeyDown]]) {
+      button.addEventListener(type, listener);
+      cleanups.push(() => button.removeEventListener(type, listener));
+    }
+  };
 
-  if (reset) {
-    const resetTarget = event => {
-      if (!inputFocus.can('WORLD_ACTION')) return;
-      event?.preventDefault?.();
-      runtime.resetTrainingTarget?.();
-    };
-    reset.addEventListener('pointerdown', resetTarget);
-    cleanups.push(() => reset.removeEventListener('pointerdown', resetTarget));
+  for (const button of buttons) {
+    bindActivation(button, () => runtime.dispatch(button.dataset.combatAction));
   }
+  if (reset) bindActivation(reset, () => runtime.resetTrainingTarget?.());
 
   const render = state => {
     const training = state.training;

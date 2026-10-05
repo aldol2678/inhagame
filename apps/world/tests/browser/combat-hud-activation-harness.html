@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Combat HUD native activation acceptance</title>
+<section id="combat-hud" aria-label="Combat actions">
+  <button type="button" data-combat-action="basic">Basic</button>
+  <button type="button" data-combat-action="active_1">S1</button>
+  <button type="button" data-combat-action="active_2">S2</button>
+  <button type="button" data-combat-action="active_3">S3</button>
+  <button type="button" data-combat-action="dodge">Dodge</button>
+  <button type="button" data-combat-action="ultimate">Ultimate</button>
+  <button type="button" data-combat-reset hidden>Reset</button>
+</section>
+<button type="button" id="chat-toggle">Chat</button>
+<form id="chat-form" hidden><input id="chat-input"></form>
+<ol id="chat-feed"></ol><p id="chat-hint"></p>
+<script type="module">
+import { createCombatHudV03 } from '../../src/combat/combat-hud-v03.js';
+import { createCombatRuntimeV03 } from '../../src/combat/combat-runtime-v03.js';
+import { createBuilding5CombatTraining, BUILDING5_TRAINING_TARGET } from '../../src/combat/building5-combat-training.js';
+import { createInputFocusManager, INPUT_FOCUS_POLICY } from '../../src/input/input-focus-manager.js';
+import { createChatPanel } from '../../src/online/chat-panel.js';
+import { PlayerController } from '../../src/player-controller.js';
+
+const controller = new PlayerController({});
+const clock = { now: () => 1000 };
+const training = createBuilding5CombatTraining({ clock, getPlayerPosition: () => ({
+  x: BUILDING5_TRAINING_TARGET.x, z: BUILDING5_TRAINING_TARGET.z + 6
+}) });
+const runtime = createCombatRuntimeV03({ clock, localTraining: training });
+const inputFocus = createInputFocusManager();
+const calls = [];
+let resets = 0;
+let claim = null;
+const events = [];
+const hud = createCombatHudV03({ root: document.querySelector('#combat-hud'), inputFocus, runtime: {
+  ...runtime,
+  dispatch(action) { calls.push(action); return runtime.dispatch(action); },
+  resetTrainingTarget() { resets += 1; return runtime.resetTrainingTarget(); }
+} });
+const chat = createChatPanel({
+  toggle: document.querySelector('#chat-toggle'), form: document.querySelector('#chat-form'),
+  input: document.querySelector('#chat-input'), feedList: document.querySelector('#chat-feed'), hint: document.querySelector('#chat-hint'),
+  getChat: () => ({ signedIn: true, submit: () => ({ result: 'sent' }) })
+});
+runtime.startTraining({ sourceRef: 'combat.building5.training_gate', placeZoneId: 'AREA_BUILDING_5_WEST' });
+runtime.gainUltimate(100);
+runtime.dispatch('ultimate');
+runtime.gainUltimate(100);
+for (const button of document.querySelectorAll('[data-combat-action], [data-combat-reset]')) {
+  for (const type of ['pointerdown', 'pointerup', 'pointercancel', 'click', 'keydown', 'keyup']) {
+    button.addEventListener(type, event => events.push({ type, action: button.dataset.combatAction || 'reset',
+      code: event.code, key: event.key, detail: event.detail, pointerType: event.pointerType,
+      trusted: event.isTrusted, repeat: event.repeat, defaultPrevented: event.defaultPrevented }));
+  }
+}
+window.combatInputAcceptance = {
+  snapshot: () => ({ calls: [...calls], events: [...events], resets, chatOpen: chat.open, jumpQueued: controller.jumpQueued,
+    ascendHeld: controller.ascendHeld, keys: [...controller.keys], state: runtime.snapshot() }),
+  block: (focusClass = 'BLOCKING_UI') => { claim = inputFocus.claim('acceptance', INPUT_FOCUS_POLICY[focusClass]); },
+  release: () => { const released = inputFocus.release(claim); claim = null; return released; },
+  defeat: () => { for (let i = 0; i < 100 && !training.snapshot().defeated; i += 1) runtime.dispatch('basic'); },
+  destroy: () => hud.destroy()
+};
+</script>
+</html>
