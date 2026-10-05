@@ -19,14 +19,10 @@ export function questIdFromTmlRef(questRef) {
   return questId;
 }
 
-function observationToken(observedAt) {
-  return observedAt.replace(/[^0-9A-Za-z]+/g, '-').replace(/^-|-$/g, '');
-}
-
-function fact({ questRef, predicate, value, observedAt, sequence }) {
+function fact({ userId, questRef, predicate, value, observedAt, sequence }) {
   return Object.freeze({
     kind: 'fact',
-    id: `fact.${questRef}.${predicate}.${observationToken(observedAt)}.${sequence}`,
+    id: createTmlRecordId('fact', [TML_QUEST_SOURCE, userId, questRef, predicate, observedAt, sequence]),
     subject: questRef,
     predicate,
     value,
@@ -37,10 +33,10 @@ function fact({ questRef, predicate, value, observedAt, sequence }) {
   });
 }
 
-function observation({ questRef, predicate, factId, observedAt, sequence }) {
+function observation({ userId, questRef, predicate, factId, observedAt, sequence }) {
   return Object.freeze({
     kind: 'observation',
-    id: `observation.${questRef}.${predicate}.${observationToken(observedAt)}.${sequence}`,
+    id: createTmlRecordId('observation', [TML_QUEST_SOURCE, userId, questRef, predicate, observedAt, sequence]),
     source: TML_QUEST_SOURCE,
     observed_at: observedAt,
     query: Object.freeze({ subject: questRef, predicate }),
@@ -90,6 +86,7 @@ export function createTmlQuestReadAdapter({ questStore, now = () => new Date().t
 
       const facts = [
         fact({
+          userId,
           questRef,
           predicate: 'quest.stage',
           value: Object.freeze({ type: 'number', value: result.stage }),
@@ -100,6 +97,7 @@ export function createTmlQuestReadAdapter({ questStore, now = () => new Date().t
 
       if (typeof result.available === 'boolean') {
         facts.push(fact({
+          userId,
           questRef,
           predicate: 'quest.available',
           value: Object.freeze({ type: 'boolean', value: result.available }),
@@ -109,6 +107,7 @@ export function createTmlQuestReadAdapter({ questStore, now = () => new Date().t
       }
 
       const observations = facts.map((item) => observation({
+        userId,
         questRef,
         predicate: item.predicate,
         factId: item.id,
@@ -128,3 +127,4 @@ export function createTmlQuestReadAdapter({ questStore, now = () => new Date().t
     }
   });
 }
+import { createTmlRecordId } from './trace.mjs';

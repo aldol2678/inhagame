@@ -16,7 +16,7 @@ import {
   prepareTmlRewardTransition,
   TML_P7_DISPOSITION
 } from '../tml/runtime/reward-settlement.mjs';
-import { TML_VERIFICATION_STATUS } from '../tml/runtime/verification.mjs';
+import { evaluateTmlExpression, TML_VERIFICATION_STATUS } from '../tml/runtime/verification.mjs';
 
 const profile = JSON.parse(
   readFileSync(new URL('../tml/profiles/inha-world-v0.1.profile.json', import.meta.url), 'utf8')
@@ -596,4 +596,117 @@ test('P7 freezes reward expectations before awaited baseline reads and evaluates
   assert.equal(result.disposition, TML_P7_DISPOSITION.VERIFIED);
   assert.equal(result.executionKey, 'exec.p7.frozen-input');
   assert.equal(result.evidence.extensions.expected_deltas.currencies['currency.induck_coin'], 180);
+});
+
+test('PR2 settlement metadata preserves frozen evaluation inputs that reproduce its verdict', async () => {
+  const h = makeHarness();
+  await setupStage8(h.baseStore);
+  const suppliedProfile = structuredClone(profile);
+  const result = await executeTmlVerifiedRewardTransition({ ...executionOptions(h), profile: suppliedProfile });
+  const captured = result.evidence.extensions.evaluation;
+
+  assert.equal(result.disposition, TML_P7_DISPOSITION.VERIFIED);
+  assert.equal(result.evidence.extensions.reward_spec_id, rewardSpec.id);
+  assert.equal(result.evidence.extensions.reward_receipt_present, true);
+  assert.ok(captured);
+  assert.equal(captured.basis, 'CLAIM');
+  assert.equal(captured.evaluator, 'tml.expression.v0.1');
+  assert.deepEqual(captured.inputs.claim, result.evidence.claim);
+  assert.equal(captured.result.status, TML_VERIFICATION_STATUS.SATISFIED);
+  assert.deepEqual(
+    evaluateTmlExpression(captured.inputs.claim, captured.inputs.facts, captured.inputs.profile),
+    captured.result
+  );
+  assert.ok(Object.isFrozen(captured.inputs.claim.args[0].value));
+  assert.ok(Object.isFrozen(captured.inputs.profile.authority[0]));
+  assert.ok(Object.isFrozen(captured.inputs.facts[0].value));
+  assert.ok(Object.isFrozen(captured.inputs.observations[0].facts));
+  assert.equal(Object.isFrozen(suppliedProfile.authority[0]), false);
+  suppliedProfile.authority[0].authority = 'client.changed';
+  suppliedProfile.authority.length = 0;
+  assert.deepEqual(
+    evaluateTmlExpression(captured.inputs.claim, captured.inputs.facts, captured.inputs.profile),
+    captured.result
+  );
+  assert.equal(h.mutationCalls, 1);
+  assert.equal(result.automaticMutationRetryAllowed, false);
+});
+
+test('PR2 retained reward receipts, provider outputs, and trace facts own caller entries', async () => {
+  const callerReceipt = structuredClone(rewardReceipt);
+  const h = makeHarness({ receipt: callerReceipt });
+  await setupStage8(h.baseStore);
+  const result = await executeTmlVerifiedRewardTransition(executionOptions(h));
+  const recordedProvider = structuredClone(result.transition.provider);
+  const recordedReceipt = structuredClone(result.receipt);
+  const recordedEvidence = structuredClone(result.evidence);
+  const recordedTrace = structuredClone(result.trace);
+
+  assert.equal(result.disposition, TML_P7_DISPOSITION.VERIFIED);
+  assert.equal(Object.isFrozen(callerReceipt.entries[0]), false);
+  callerReceipt.entries[0].granted = 999;
+  callerReceipt.entries[1].targetId = 'exp.changed';
+  callerReceipt.entries.push({ grantType: 'EXP', targetId: 'exp.later', granted: 1, status: 'GRANTED' });
+  callerReceipt.rewardTransactionId = 'tx.changed';
+
+  assert.deepEqual(result.transition.provider, recordedProvider);
+  assert.deepEqual(result.receipt, recordedReceipt);
+  assert.deepEqual(result.evidence, recordedEvidence);
+  assert.deepEqual(result.trace, recordedTrace);
+  assert.ok(Object.isFrozen(result.transition.provider.output.reward.entries[0]));
+  assert.ok(Object.isFrozen(result.receipt.facts[0].extensions));
+  assert.equal(h.mutationCalls, 1);
+  assert.equal(result.dispatchStatus, 'ATTEMPTED');
+  assert.equal(result.automaticMutationRetryAllowed, false);
+});
+
+test('PR2 reward trace admission failures retain the completed attempt and admitted receipt', async (t) => {
+  for (const defect of ['conflicting fact ID', 'dangling observation reference']) await t.test(defect, async () => {
+    const h = makeHarness();
+    await setupStage8(h.baseStore);
+    let walletReads = 0;
+    let dispatches = 0;
+    let preWallet;
+    const result = await executeTmlVerifiedRewardTransition({
+      ...executionOptions(h),
+      questAdvanceAdapter: {
+        async advance(request) {
+          dispatches += 1;
+          return h.questAdvanceAdapter.advance(request);
+        }
+      },
+      walletReadAdapter: {
+        async read(request) {
+          const read = structuredClone(await h.walletReadAdapter.read(request));
+          if (++walletReads === 1) {
+            preWallet = read;
+          } else if (defect === 'conflicting fact ID') {
+            read.facts[0].id = preWallet.facts[0].id;
+            read.observations[0].facts = [read.facts[0].id];
+          } else {
+            read.observations[0].facts.push('fact.pr2.reward.missing');
+          }
+          return read;
+        }
+      }
+    });
+
+    assert.equal(dispatches, 1);
+    assert.equal(h.mutationCalls, 1);
+    assert.equal(result.dispatchStatus, 'ATTEMPTED');
+    assert.equal(result.attempt.dispatchStatus, 'ATTEMPTED');
+    assert.equal(result.attempt.requestedExecutionKey, result.executionKey);
+    assert.equal(result.transition.disposition, 'VERIFIED');
+    assert.equal(result.transition.provider.output.reward.rewardVersion, 1);
+    assert.equal(result.disposition, TML_P7_DISPOSITION.SETTLEMENT_UNVERIFIED);
+    assert.equal(result.verification, TML_VERIFICATION_STATUS.UNKNOWN);
+    assert.equal(result.receiptPresent, true);
+    assert.equal(result.traceComplete, false);
+    assert.ok(result.diagnostic.code);
+    assert.equal(result.reads.preWallet.facts[0].value.value, 0);
+    assert.equal(result.reads.postWallet.facts[0].value.value, 180);
+    assert.equal(result.trace.records.filter((record) => record.kind === 'action').length, 1);
+    assert.equal(result.trace.records.some((record) => record.kind === 'fact' && record.predicate === 'reward.version'), true);
+    assert.equal(result.automaticMutationRetryAllowed, false);
+  });
 });
