@@ -273,6 +273,7 @@ select ok(not has_function_privilege(r, f, 'execute'), format('%s cannot execute
 from unnest(array['anon', 'authenticated']) r, unnest(array[
   'public.world_activity_start_v1(uuid,text,text,uuid,integer,integer,timestamp with time zone)',
   'public.world_activity_finalize_v1(uuid,uuid,text,text,text)',
+  'public.world_gathering_harvest_v1(uuid,text,uuid)',
   'public.world_collection_discover_v1(uuid,text,text,text,text,text,jsonb)',
   'public.world_collection_list_v1(uuid)',
   'public.world_combat_start_v1(uuid,text,text,uuid,integer,integer,jsonb)',
@@ -302,6 +303,7 @@ select ok(has_function_privilege('service_role', f, 'execute'), format('service_
 from unnest(array[
   'public.world_activity_start_v1(uuid,text,text,uuid,integer,integer,timestamp with time zone)',
   'public.world_activity_finalize_v1(uuid,uuid,text,text,text)',
+  'public.world_gathering_harvest_v1(uuid,text,uuid)',
   'public.world_collection_discover_v1(uuid,text,text,text,text,text,jsonb)',
   'public.world_collection_list_v1(uuid)',
   'public.world_combat_start_v1(uuid,text,text,uuid,integer,integer,jsonb)',
