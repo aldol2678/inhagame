@@ -1,4 +1,5 @@
 // Browser-only test surface. Production modules; explicit synthetic accounts/RPC.
+import { createDailyRewardFixture } from './world-stability-daily-reward-fixture.mjs';
 import { PlayerController } from '../../src/player-controller.js';
 import { createShopClient, SHOP_READ_RPC, SHOP_PURCHASE_RPC, SHOP_STUDENT_CENTER } from '../../src/shop/shop-client.js';
 import { createLoadoutClient, APPEARANCE_SLOTS, LOADOUT_READ_RPC } from '../../src/appearance/loadout-client.js';
@@ -17,9 +18,10 @@ const position={x:0,y:1.15,z:-98};
 const controller=new PlayerController({getLocalPosition:()=>({...position}),setLocalPosition:(x,y,z)=>Object.assign(position,{x,y,z}),setLocalEulerAngles(){}});
 const pad=document.getElementById('joystick'),events=[];
 for(const type of ['pointerdown','pointermove','pointerup','pointercancel','gotpointercapture','lostpointercapture'])pad.addEventListener(type,e=>events.push({type,id:e.pointerId,trusted:e.isTrusted,pointerType:e.pointerType}));
-let current;
+let current, dailyReward;
 const receipt=message=>{document.getElementById('receipt').textContent=message;};
 async function prepareShop(){
+  dailyReward?.dispose();dailyReward=null;const surface=document.getElementById('daily-reward-surface');if(surface)surface.hidden=true;
   panel.replaceChildren();const tx=transport(),toasts=[],callbacks=[],walletReads=[];let sequence=0;
   const client=createShopClient({getClient:()=>tx,createKey:()=>`fixture:key-${++sequence}`});
   const ui=createShopPanel({panel,shop:client,doc:document,onStatus:s=>toasts.push(s),onPurchase:r=>callbacks.push(r),wallet:{accountId:null,onChange(){},refresh:r=>walletReads.push(r)}});
@@ -57,7 +59,13 @@ async function dailyOrdering(){
     const accepted=c.snapshot;oldCall.resolve(ok(initial));check(await old===false,'stale read applied');check(c.snapshot===accepted,'stale read replaced latest snapshot');check(tx.calls.filter(x=>x.fn===(quiz?DAILY_QUIZ_RPC.START:ATTENDANCE_RPC.CLAIM)).length===1,'automatic daily mutation');results.push({type,staleReadApplied:false,mutationCount:1});
   }return results;
 }
-window.__WORLD_STABILITY__={ready:true,prepareShop,beginReadback,switchShop,finishReadback,loadoutBoundaries,staleKey,dailyOrdering,
+async function prepareDailyReward(options){
+  dailyReward?.dispose();current?.ui.setOpen(false);
+  dailyReward=createDailyRewardFixture({root:document.getElementById('daily-reward-surface'),...options});
+  await dailyReward.bind('fixture-A');dailyReward.open();await flush();
+  receipt(`일일 보상 · ${options.kind} / ${options.scenario}\n합성 서버 / 실제 패널·지갑·진행도 HUD`);return dailyReward.snapshot();
+}
+window.__WORLD_STABILITY__={ready:true,prepareDailyReward,get dailyReward(){return dailyReward;},prepareShop,beginReadback,switchShop,finishReadback,loadoutBoundaries,staleKey,dailyOrdering,
   touchState:()=>({vector:{...controller.touchVector},knob:document.getElementById('joystick-knob').style.transform,events:events.slice(),position:{...position}}),
   block:enabled=>controller.setInputEnabled(enabled),releaseCapture:ownerId=>{check(pad.hasPointerCapture(ownerId),'specified capture owner missing');pad.releasePointerCapture(ownerId);},
   lifecycle:type=>window.dispatchEvent(new Event(type)),step:()=>controller.update(1/60),receipt};
