@@ -12,6 +12,21 @@ if (process.env.NPC_AI_ENABLED !== '1' || !/^[a-z][a-z0-9-]{4,61}[a-z0-9]$/.test
     || !process.env.SUPABASE_SERVICE_ROLE_KEY)
   throw Error('NPC_AI_PRODUCTION_CONFIG_REQUIRED');
 
+// The shared public config silently falls back to a localhost placeholder when env is absent.
+// A server must never start against that, so require real values here.
+const PLACEHOLDER = /placeholder|example|changeme|your[-_]|<|>/i;
+const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '0.0.0.0', '[::1]', '::1']);
+function supabasePublicEnvOk(url, key) {
+  if (!url || !key || PLACEHOLDER.test(url) || PLACEHOLDER.test(key) || /\s/u.test(url + key)) return false;
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'https:' && !LOCAL_HOSTS.has(parsed.hostname)
+      && !parsed.hostname.endsWith('.local');
+  } catch { return false; }
+}
+if (!supabasePublicEnvOk(process.env.SUPABASE_URL, process.env.SUPABASE_PUBLISHABLE_KEY))
+  throw Error('NPC_AI_SUPABASE_CONFIG_REQUIRED');
+
 async function cloudRunAccessToken() {
   const response = await fetch('http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token', {
     headers: { 'Metadata-Flavor': 'Google' }, signal: AbortSignal.timeout(3000)

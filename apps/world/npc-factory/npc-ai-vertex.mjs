@@ -1,14 +1,17 @@
-// Public QA adapter. Only an explicitly injected mock transport is accepted.
+// Production Vertex AI adapter. The caller supplies the project and a token provider
+// (Cloud Run uses the metadata server identity); tests inject `fetcher`.
 
-export function createVertexNpcGenerator({ project, model = 'gemini-2.5-flash', fetcher,
+const VERTEX_ENDPOINT = 'https://aiplatform.googleapis.com';
+
+export function createVertexNpcGenerator({ project, model = 'gemini-2.5-flash', fetcher = globalThis.fetch,
   tokenProvider, choiceMode = false } = {}) {
   if (!/^[a-z][a-z0-9-]{4,61}[a-z0-9]$/.test(project ?? '')) throw Error('EXPLICIT_GCP_PROJECT_REQUIRED');
-  if (typeof fetcher !== 'function' || typeof tokenProvider !== 'function') throw Error('EXPLICIT_LOCAL_MOCK_REQUIRED');
-  const getToken = tokenProvider;
+  if (typeof tokenProvider !== 'function') throw Error('VERTEX_TOKEN_PROVIDER_REQUIRED');
+  if (typeof fetcher !== 'function') throw Error('VERTEX_FETCHER_REQUIRED');
   return async (prompt, allowed) => {
-    const token = await getToken();
+    const token = await tokenProvider();
     if (!token || /\s/u.test(token)) throw Error('GCLOUD_TOKEN_UNAVAILABLE');
-    const response = await fetcher(`http://127.0.0.1:54399/v1/projects/${project}/locations/global/publishers/google/models/${model}:generateContent`, {
+    const response = await fetcher(`${VERTEX_ENDPOINT}/v1/projects/${project}/locations/global/publishers/google/models/${model}:generateContent`, {
       method: 'POST', signal: AbortSignal.timeout(15000),
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
