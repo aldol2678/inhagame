@@ -147,6 +147,8 @@ insert into authority_allowed_call values
   -- Activity settlement: only reviewed server-only domain adapters that derive the plan from a frozen outcome.
   ('public.world_fishing_settle_v1',           'private.world_activity_settle_v1',
      'Fishing F2: plan derived from the frozen server catch; service_role + service claim only'),
+  ('public.world_gathering_harvest_v1',        'private.world_activity_settle_v1',
+     'Gathering P0: fixed plan derived from the frozen server source/output snapshot; service_role only'),
   -- Biryong NPC relationship: only the trusted service-role wrapper may advance persistent stage.
   ('public.world_biryong_npc_relationship_advance_v1', 'private.world_biryong_relationship_advance_v1',
      'Biryong NPC relationship P0: service_role wrapper advances exactly one verified stage');
