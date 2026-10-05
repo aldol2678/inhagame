@@ -10,7 +10,7 @@ import { INVENTORY_STATE } from "./inventory-client.js";
 
 const CATEGORY_TEXT = Object.freeze({
   WEARABLE: "착용 아이템", BADGE: "배지", EMOTE: "이모트", FURNITURE: "가구", MOUNT: "탈것",
-  MOUNT_COSMETIC: "탈것 꾸미기", MEMORABILIA: "기념품"
+  MOUNT_COSMETIC: "탈것 꾸미기", MEMORABILIA: "기념품", MATERIAL: "재료"
 });
 const RARITY_TEXT = Object.freeze({ COMMON: "일반", UNCOMMON: "고급", RARE: "희귀", SPECIAL: "특별" });
 const SOURCE_TEXT = Object.freeze({
