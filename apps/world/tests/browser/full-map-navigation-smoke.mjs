@@ -19,7 +19,7 @@ for (const file of ["src/minimap/full-map-controller.js", "src/minimap/full-map-
 
 const output = path.resolve(process.env.FULL_MAP_NAVIGATION_OUTPUT || "test-results/full-map-navigation");
 await mkdir(output, { recursive: true });
-const report = { head, tree, expectedHead, sourceHashes, screenshots: [], scope: "Real map controllers/CSS/campus POIs; fixed player, no game engine or account", status: "RUNNING", cases: [] };
+const report = { head, tree, expectedHead, sourceHashes, screenshots: [], limits: ["IME uses Chromium CDP, not an OS Korean candidate window; Input.insertText compositionend may have isTrusted=false", "Mobile uses Chromium touch emulation, not a physical handset"], scope: "Real map controllers/CSS/campus POIs; fixed player, no game engine or account", status: "RUNNING", cases: [] };
 try {
   for (const viewport of [{ width: 1280, height: 800 }, { width: 360, height: 800 }, { width: 844, height: 390 }]) {
     const smoke = await startSmoke({ viewport, contextOptions: { isMobile: viewport.width <= 844, hasTouch: viewport.width <= 844 } });
@@ -56,7 +56,7 @@ try {
       await activate(page.locator(".full-map-search-clear"));
       assert.equal(await input.inputValue(), "");
       assert.equal(await input.evaluate(node => node === document.activeElement), true);
-      // Browser-generated trusted composition via CDP. This tests Chromium's actual
+      // Browser/CDP composition. This tests Chromium's actual
       // composition lifecycle, not the operating system's Korean candidate window.
       await input.focus();
       await input.evaluate(node => {
@@ -77,7 +77,10 @@ try {
       report.imeReceipts ??= [];
       report.imeReceipts.push({ viewport, events: imeEvents });
       assert.ok(imeEvents.some(event => event.type === "compositionstart" && event.trusted));
-      assert.ok(imeEvents.some(event => event.type === "compositionend" && event.trusted), "CDP composition must finish before unrelated input tests");
+      // Chromium emits an untrusted compositionend for CDP Input.insertText;
+      // preserve that flag in the receipt rather than claiming native OS IME.
+      assert.ok(imeEvents.findIndex(event => event.type === "compositionend") > imeEvents.findIndex(event => event.type === "compositionstart"), "browser composition must finish after it starts");
+      for (const key of ["Enter", "Escape"]) assert.ok(imeEvents.some(event => event.key === key && event.isComposing && event.trusted), `${key} reaches the browser during composition`);
       await input.fill("본관");
       await input.press("Enter");
       assert.equal(await page.evaluate(() => window.__FULL_MAP_NAVIGATION_QA__.fullMap.selectedPoi.poiId), "poi.main-hall", "search resumes after completed composition");
