@@ -2543,6 +2543,7 @@ body {
 }
 .full-map-panel[hidden] { display: none !important; }
 .full-map-card {
+  --full-map-search-height: 0px;
   width: min(1040px, 100%);
   max-height: 100%;
   overflow: auto;
@@ -2581,6 +2582,73 @@ body {
   font-size: 24px;
   cursor: pointer;
 }
+.full-map-card:has(> .full-map-search:not([hidden])) { --full-map-search-height: 54px; }
+.full-map-search[hidden] { display: none !important; }
+.full-map-search {
+  position: relative;
+  z-index: 20;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  min-width: 0;
+  margin: 0 18px 10px;
+}
+.full-map-search-input {
+  min-width: 0;
+  width: 100%;
+  min-height: 44px;
+  padding: 9px 12px;
+  border: 1px solid #83adbe;
+  border-radius: 11px;
+  background: #102638;
+  color: #eef8fb;
+  font: 16px/1.4 system-ui, sans-serif;
+}
+.full-map-search-input::placeholder { color: #b6cbd6; }
+.full-map-search-clear {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid #83adbe;
+  border-radius: 11px;
+  background: #24516a;
+  color: #f5fbfd;
+  cursor: pointer;
+}
+.full-map-search-panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: min(220px, 35dvh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid #83adbe;
+  border-radius: 11px;
+  background: #102638;
+  box-shadow: 0 10px 22px rgba(0,0,0,.4);
+}
+.full-map-search-panel[hidden], .full-map-search-clear[hidden] { display: none !important; }
+.full-map-search-status { margin: 0; padding: 9px 12px; color: #b6cbd6; font-size: 12px; }
+.full-map-search-results { list-style: none; padding: 0; margin: 0; }
+.full-map-search-result {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 0;
+  border-top: 1px solid rgba(178,220,239,.2);
+  background: transparent;
+  color: #eef8fb;
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+  font: 14px/1.5 system-ui, sans-serif;
+}
+.full-map-search-result:hover { background: #24516a; }
+.full-map-search-input:focus-visible, .full-map-search-clear:focus-visible,
+.full-map-search-result:focus-visible, #full-map-info-title:focus-visible {
+  outline: 2px solid #fff0a8;
+  outline-offset: -3px;
+}
 .full-map-body {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(220px, 270px);
@@ -2594,7 +2662,7 @@ body {
   position: relative;
   min-width: 0;
   width: 100%;
-  max-width: min(100%, calc(100dvh - 160px));
+  max-width: min(100%, calc(100dvh - 160px - var(--full-map-search-height)));
   justify-self: center;
 }
 .full-map-surface {
@@ -2984,6 +3052,7 @@ body {
     grid-template-columns: 1fr;
     padding: 0 12px 14px;
   }
+  .full-map-search { margin-inline: 12px; }
   .full-map-header {
     padding: 14px 12px 9px;
   }
@@ -4929,8 +4998,8 @@ body[data-hud-mode="COMBAT"] #jump { display:none !important; }
   }
   body .full-map-card {
     --ls-full-map-available-height: calc(100dvh - max(12px, env(safe-area-inset-top)) - max(12px, env(safe-area-inset-bottom)));
-    /* 48px header + 10px body bottom padding + 2px card border. */
-    --ls-full-map-size: min(430px, calc(var(--ls-full-map-available-height) - 60px));
+    /* Existing 60px chrome; only Campus reserves the additional 54px search row. */
+    --ls-full-map-size: min(430px, calc(var(--ls-full-map-available-height) - 60px - var(--full-map-search-height)));
     width: min(700px, calc(100vw - max(16px, env(safe-area-inset-left)) - max(16px, env(safe-area-inset-right))));
     max-height: calc(100dvh - max(12px, env(safe-area-inset-top)) - max(12px, env(safe-area-inset-bottom)));
     overflow: hidden;
@@ -4938,7 +5007,7 @@ body[data-hud-mode="COMBAT"] #jump { display:none !important; }
   }
   body .full-map-card:has(> .full-map-nav:not([hidden])) {
     /* Guidance adds a 40px bar and its 6px bottom gap. */
-    --ls-full-map-size: min(390px, calc(var(--ls-full-map-available-height) - 106px));
+    --ls-full-map-size: min(390px, calc(var(--ls-full-map-available-height) - 106px - var(--full-map-search-height)));
   }
   /* With no selected POI the desktop detail column must not reserve empty width. */
   body .full-map-card:has(.full-map-info[hidden]) {
@@ -5040,6 +5109,31 @@ body[data-hud-mode="COMBAT"] #jump { display:none !important; }
 
 }
 /* FULL-MAP-LANDSCAPE:end */
+
+/* FULL-MAP-COMPACT-SEARCH:start */
+/* At 568x320, a separate search row would shrink guidance below the existing
+   153px control rail. Reuse the header's spare width on this compact surface. */
+@media (pointer: coarse) and (orientation: landscape) and (min-width: 568px) and (max-height: 340px) {
+  body .full-map-card:has(> .full-map-search:not([hidden])) {
+    position: relative;
+    --full-map-search-height: 0px;
+    width: min(700px, calc(100vw - max(16px, env(safe-area-inset-left)) - max(16px, env(safe-area-inset-right))));
+  }
+  body .full-map-search {
+    position: absolute;
+    top: 7px;
+    left: 185px;
+    right: 58px;
+    margin: 0;
+    gap: 6px;
+  }
+  body .full-map-search-input, body .full-map-search-clear {
+    min-height: 36px;
+    height: 36px;
+    padding: 4px 8px;
+  }
+}
+/* FULL-MAP-COMPACT-SEARCH:end */
 
 /* Collection furniture editor: input is owned by BLOCKING_UI while this modal is open. */
 .furniture-editor-backdrop { position:fixed; inset:0; z-index:1090; background:#10203355; }

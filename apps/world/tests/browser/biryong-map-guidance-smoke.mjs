@@ -318,8 +318,10 @@ try {
       assert.equal(entry.campusBefore.minimap.mapSourceId, 'campus');
       await action(page.locator('#minimap-open-map')); await page.locator('#full-map-panel').waitFor({ state: 'visible' });
       entry.campusMap = await readMap(page); assertMapLayout(entry.campusMap, `${name} Campus`);
-      assert.equal(entry.campusMap.pois.length, 10, 'Campus #169 POIs retained');
-      await page.locator('.full-map-poi[data-poi-id="poi.main-hall"]').press('Enter');
+      assert.equal(entry.campusMap.pois.length, 12, 'Campus POIs include existing Woonam and gazebo landmarks');
+      assert.equal(await page.locator('#full-map-search').isVisible(), true, 'Campus search is available');
+      await page.locator('.full-map-search-input').fill('본관');
+      await page.locator('.full-map-search-input').press('Enter');
       await action(page.locator('#full-map-set-destination'));
       assert.equal((await state(page)).navigation.destination.mapSourceId, 'campus');
       await capture('campus-before');
@@ -357,6 +359,8 @@ try {
       await capture('realm-arrival');
       entry.manualInput = await verifyManualInput(page, smoke.context, mobile);
       await action(page.locator('#minimap-open-map')); await page.locator('#full-map-panel').waitFor({ state: 'visible' });
+      assert.equal(await page.locator('#full-map-search').isHidden(), true, 'Biryong preserves its existing map layout');
+      assert.equal(await page.locator('.full-map-search-input').inputValue(), '', 'region switch clears Campus search');
       entry.overview = await readMap(page); assertMapLayout(entry.overview, `${name} Biryong overview`);
       assertBiryongReturnLabelVisible(entry.overview, `${name} Biryong overview`);
       assert.equal(entry.overview.infoHidden, true); assert.equal(entry.overview.objectiveHidden, true);
@@ -605,6 +609,8 @@ try {
       assert.equal(entry.campusReturn.navigation.status, 'PAUSED'); assert.equal(entry.campusReturn.navigation.pauseReason, 'SPACE_MISMATCH');
       assert.equal(entry.campusReturn.minimap.navigationActive, false); assert.equal(entry.campusReturn.enabled, true);
       await action(page.locator('#minimap-open-map'));
+      assert.equal(await page.locator('#full-map-search').isVisible(), true, 'Campus search returns with the Campus source');
+      assert.equal(await page.locator('.full-map-search-input').inputValue(), '', 'return does not revive a stale query');
       entry.returnMap = await readMap(page); assertMapLayout(entry.returnMap, `${name} Campus return`);
       assert.deepEqual(entry.returnMap.pois.map(p => p.id).sort(), entry.campusMap.pois.map(p => p.id).sort());
       assert.deepEqual(entry.returnMap.geometry.map(g => g.id).sort(), entry.campusMap.geometry.map(g => g.id).sort());

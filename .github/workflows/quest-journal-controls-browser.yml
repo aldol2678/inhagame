@@ -1,0 +1,41 @@
+name: Quest journal controls browser checks
+on:
+  pull_request:
+    paths:
+      - 'apps/world/src/main.js'
+      - 'apps/world/src/quest/**'
+      - 'apps/world/src/input/input-focus-manager.js'
+      - 'apps/world/styles.css'
+      - 'apps/world/tests/quest-journal*.test.mjs'
+      - 'apps/world/tests/browser/quest-journal-controls-*'
+      - '.github/workflows/quest-journal-controls-browser.yml'
+permissions:
+  contents: read
+jobs:
+  quest-journal-controls-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - run: npm ci --prefix apps/world/tests/browser --ignore-scripts
+      - name: Install Chromium
+        working-directory: apps/world/tests/browser
+        run: npx playwright install --with-deps chromium
+      - name: Actual keyboard and mobile touch journal controls
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          QUEST_CONTROLS_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node apps/world/tests/browser/quest-journal-controls-smoke.mjs
+      - name: Upload exact-head browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: quest-journal-controls-${{ github.event.pull_request.head.sha }}
+          path: test-results/quest-journal-controls
+          if-no-files-found: error
+          retention-days: 14

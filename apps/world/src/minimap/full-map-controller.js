@@ -4,6 +4,7 @@
 // destination lives in the shared Guidance State (route, map-point picks, indoor pause);
 // without one the M2 local-only destination contract is unchanged. No persistence or network.
 
+import { createFullMapSearch, isMapCompositionEvent } from "./full-map-search.js";
 import { worldToMapUv } from "./minimap-model.js";
 import { formatGuidanceDistance, navigationPauseLabel } from "../navigation/navigation-state.js";
 import { MAP_POI_ICON_PATHS, MAP_POI_STATES, MAP_POI_KIND_LABELS, layoutFullMapLabels } from "./full-map-presentation.js";
@@ -117,6 +118,7 @@ export function createFullMapController({
   root,
   openButton,
   closeButton,
+  searchRoot = null,
   surface,
   svg,
   markerLayer,
@@ -181,6 +183,7 @@ export function createFullMapController({
   const socialNodes = new Map();
   const destinationListeners = new Set();
   const pointers = new Map();
+  let returnFocus = null;
   let opened = false;
   let mounted = false;
   let selectedPoi = null;
@@ -197,6 +200,38 @@ export function createFullMapController({
   if (navigation && (!navigation.snapshot || !navigation.setPoi || !navigation.clear)) {
     throw new TypeError("Full Map navigation adapter requires snapshot, setPoi and clear");
   }
+
+  root.setAttribute("tabindex", "-1");
+  infoTitle.setAttribute("tabindex", "-1");
+  const availableFocus = element => {
+    if (!element || element.isConnected === false || element.disabled || typeof element.focus !== "function") return false;
+    for (let node = element; node && node !== documentLike; node = node.parentNode) {
+      if (node.hidden || node.inert || node.getAttribute?.("aria-hidden") === "true") return false;
+      const style = windowTarget?.getComputedStyle?.(node);
+      if (style?.display === "none" || style?.visibility === "hidden") return false;
+    }
+    return true;
+  };
+  const focusCandidates = () => [...(root.querySelectorAll?.("button, input, select, textarea, a[href], [tabindex]") ?? [])];
+  const focusables = () => focusCandidates()
+    .filter(node => availableFocus(node) && (node.getAttribute?.("tabindex") === null || Number(node.getAttribute("tabindex")) >= 0) && node.tabIndex !== -1);
+  const focusInside = () => (availableFocus(closeButton) ? closeButton : root).focus?.();
+  const repairFocus = previous => {
+    if (opened && root.contains?.(previous) && !availableFocus(previous)) {
+      (availableFocus(infoTitle) ? infoTitle : closeButton).focus?.();
+    }
+  };
+  const resolvedPois = () => currentDataSource.poiRegistry().list({ surface: "FULL_MAP" });
+  const search = createFullMapSearch({ root: searchRoot, documentLike, getPois: resolvedPois,
+    onSelect(poi) {
+      refreshPois();
+      const current = poiNodes.get(poi?.poiId)?.__mapPoi;
+      if (!current) return;
+      selectPoi(current);
+      centerOn(current, { minimumZoom: FULL_MAP_ZOOM.locateMin });
+      infoTitle.focus?.();
+    }
+  });
 
   const svgElement = tag => documentLike.createElementNS(SVG_NS, tag);
   const surfaceRect = () => {
@@ -303,10 +338,12 @@ export function createFullMapController({
   }
 
   function renderInfo() {
+    const previouslyFocused = documentLike.activeElement;
     if (!selectedPoi) {
       infoPanel.hidden = true;
       if (pickMarker) pickMarker.hidden = true;
       if (opened) applyViewport();
+      repairFocus(previouslyFocused);
       return;
     }
     const active = currentDestination();
@@ -339,6 +376,7 @@ export function createFullMapController({
       if (!pickMarker.hidden) pickMarker.dataset.supported = selectedPoi.supported ? "true" : "false";
     }
     if (opened) applyViewport();
+    repairFocus(previouslyFocused);
   }
 
   function selectPoi(poi) {
@@ -402,9 +440,11 @@ export function createFullMapController({
   function renderNavBar(snapshot) {
     if (!navBar || !navBarText) return;
     const target = snapshot?.destination;
+    const previouslyFocused = documentLike.activeElement;
     const wasHidden = navBar.hidden;
     if (!target) {
       navBar.hidden = true;
+      repairFocus(previouslyFocused);
       if (!wasHidden && opened) applyViewport();
       return;
     }
@@ -512,7 +552,7 @@ export function createFullMapController({
   }
 
   function refreshPois() {
-    const list = currentDataSource.poiRegistry().list({ surface: "FULL_MAP" });
+    const list = resolvedPois();
     const keep = new Set();
     for (const poi of list) {
       if (!finitePoint(poi) || poi.visible === false) continue;
@@ -536,7 +576,9 @@ export function createFullMapController({
     }
     for (const [poiId, node] of poiNodes) {
       if (keep.has(poiId)) continue;
+      const heldFocus = node === documentLike.activeElement || node.contains?.(documentLike.activeElement);
       poiLayer.removeChild(node);
+      if (heldFocus && opened) focusInside();
       poiNodes.delete(poiId);
     }
     if (selectedPoi && !selectedPoi.mapPoint && !keep.has(selectedPoi.poiId)) {
@@ -544,6 +586,7 @@ export function createFullMapController({
       infoPanel.hidden = true;
     }
     renderInfo();
+    search?.refresh();
     layoutLabels();
     return poiNodes.size;
   }
@@ -653,6 +696,7 @@ export function createFullMapController({
 
   function open() {
     if (opened) return false;
+    returnFocus = documentLike.activeElement;
     mountGeometry();
     refreshPois();
     opened = true;
@@ -667,6 +711,8 @@ export function createFullMapController({
 
   function close() {
     if (!opened) return false;
+    const focused = documentLike.activeElement;
+    const ownedFocus = root.contains?.(focused) === true;
     opened = false;
     pointers.clear();
     pinch = null;
@@ -677,8 +723,15 @@ export function createFullMapController({
     }
     root.hidden = true;
     openButton.setAttribute("aria-expanded", "false");
+    search?.reset();
     onClose();
-    openButton.focus?.();
+    const next = documentLike.activeElement;
+    if (ownedFocus && (next === focused || root.contains?.(next) || next === documentLike.body)) {
+      const target = returnFocus !== documentLike.body && returnFocus !== documentLike &&
+        !root.contains?.(returnFocus) && availableFocus(returnFocus) ? returnFocus : openButton;
+      if (availableFocus(target)) target.focus();
+    }
+    returnFocus = null;
     return true;
   }
 
@@ -757,9 +810,29 @@ export function createFullMapController({
   };
 
   const onKeyDown = event => {
-    if (!opened || event.code !== "Escape") return;
-    event.preventDefault?.();
-    close();
+    if (!opened || event.defaultPrevented || search?.composing || isMapCompositionEvent(event)) return;
+    const key = event.key || event.code;
+    if (key === "Escape") {
+      event.preventDefault?.();
+      close();
+    } else if (key === "Tab") {
+      const targets = focusables();
+      const active = documentLike.activeElement;
+      const index = targets.indexOf(active);
+      if (!targets.length || index < 0 || (event.shiftKey ? index === 0 : index === targets.length - 1)) {
+        event.preventDefault?.();
+        // Programmatic anchors (the selected card title) are not Tab stops, but
+        // Tab should still continue to the adjacent live action in DOM order.
+        const candidates = focusCandidates();
+        const anchorIndex = availableFocus(active) ? candidates.indexOf(active) : -1;
+        const adjacent = index < 0 && anchorIndex >= 0
+          ? (event.shiftKey ? candidates.slice(0, anchorIndex).reverse() : candidates.slice(anchorIndex + 1))
+            .find(node => targets.includes(node))
+          : null;
+        (adjacent ?? (event.shiftKey ? targets.at(-1) : targets[0]))?.focus?.();
+        if (!targets.length) root.focus?.();
+      }
+    }
   };
 
   const onResize = () => {
@@ -799,6 +872,9 @@ export function createFullMapController({
     mapSourceId = id;
     mapLabel = label;
     titleElement.textContent = mapLabel;
+    const heldFocus = root.contains?.(documentLike.activeElement);
+    search?.reset();
+    if (searchRoot) searchRoot.hidden = id !== "campus";
     selectedPoi = null;
     focusedPoiId = null;
     hoveredPoiId = null;
@@ -819,6 +895,7 @@ export function createFullMapController({
       refreshPois();
       resetView();
       update();
+      if (heldFocus) focusInside();
     }
     return true;
   }
