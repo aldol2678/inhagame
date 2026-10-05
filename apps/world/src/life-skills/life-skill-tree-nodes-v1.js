@@ -1,14 +1,15 @@
 // INHA WORLD Life Skill Tree v1 node definitions (imported from #91, see
-// docs/architecture/PR91_LIFE_PROGRESSION_SALVAGE.md). Data only; every node is COMING_SOON.
-// Gates use the owning skill's level (#91 gated on aggregate Life Level). Node effects are not
-// implemented yet; effectRefs name the effect a later consumer will read.
+// docs/architecture/PR91_LIFE_PROGRESSION_SALVAGE.md). P1 activates only Fishing steady_hands and
+// fish_sense because those two effects are consumed by the authoritative Fishing resolver.
+// Gates use the owning skill's level (#91 gated on aggregate Life Level). Remaining effectRefs name
+// deferred consumers and stay COMING_SOON until those gameplay surfaces exist.
 
-const node = (skill, key, displayName, maxRank, spCost, requiredSkillLevel, effectRef, prerequisites = []) => ({
+const node = (skill, key, displayName, maxRank, spCost, requiredSkillLevel, effectRef, prerequisites = [], status = 'COMING_SOON') => ({
   nodeId: `life.node.${skill}.${key}`,
   skillId: `life.${skill}`,
   displayName,
   description: `${displayName}: ${effectRef} 효과 노드 (효과 수치 미정).`,
-  status: 'COMING_SOON',
+  status,
   spCost,
   maxRank,
   requiredLifeLevel: 1,
@@ -21,8 +22,8 @@ const node = (skill, key, displayName, maxRank, spCost, requiredSkillLevel, effe
 
 export const LIFE_SKILL_TREE_V1_NODE_DEFINITIONS = Object.freeze([
   // 낚시 · full tree 17 SP (reached exactly at skill Lv15).
-  node('fishing', 'steady_hands', '안정된 손놀림', 3, 1, 2, 'fishing.bite_window.v1'),
-  node('fishing', 'fish_sense', '어군 감지', 3, 1, 3, 'fishing.fish_sense.v1', [['steady_hands', 1]]),
+  node('fishing', 'steady_hands', '안정된 손놀림', 3, 1, 2, 'fishing.bite_window.v1', [], 'ACTIVE'),
+  node('fishing', 'fish_sense', '어군 감지', 3, 1, 3, 'fishing.fish_sense.v1', [['steady_hands', 1]], 'ACTIVE'),
   node('fishing', 'baitcraft', '미끼 제작', 2, 1, 5, 'fishing.baitcraft.v1', [['steady_hands', 1]]),
   node('fishing', 'rare_fish_sense', '희귀어 탐지', 2, 2, 8, 'fishing.rare_fish_sense.v1', [['fish_sense', 2]]),
   node('fishing', 'boat_fishing', '선상 낚시', 1, 2, 10, 'fishing.boat_fishing.v1', [['fish_sense', 2]]),
