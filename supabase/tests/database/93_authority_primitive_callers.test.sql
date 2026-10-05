@@ -236,7 +236,7 @@ insert into authority_table values
   ('world_shops','CATALOG'), ('world_shop_listings','CATALOG'),
   ('world_life_skill_catalog','CATALOG'), ('world_life_skill_thresholds','CATALOG'),
   ('world_life_progression_thresholds','CATALOG'), ('world_life_skill_tree_catalog','CATALOG'),
-  ('world_fishing_spots','CATALOG'),
+  ('world_fishing_spots','CATALOG'), ('world_gathering_source_catalog','CATALOG'),
   ('world_life_skill_tree_edges','CATALOG'), ('world_life_tree_reset_policy','CATALOG'), ('world_collection_entry_catalog','CATALOG'),
   ('world_combat_definition_catalog','CATALOG'), ('world_creature_species_catalog','CATALOG'),
   ('world_creature_form_catalog','CATALOG'), ('world_creature_activity_bridge_catalog','CATALOG'),
