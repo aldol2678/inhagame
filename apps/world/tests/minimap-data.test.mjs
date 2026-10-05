@@ -110,6 +110,8 @@ test("M0 POI set includes the first dormitory housing entrance", () => {
     "poi.inkyung-pond",
     "poi.student-center",
     "poi.jungseok",
+    "poi.woonam-aircraft",
+    "poi.pond-gazebo",
     "poi.dorm-1",
     "poi.building-5",
     "poi.back-gate",
@@ -178,7 +180,7 @@ test("Back Gate becomes normal when its owner resolves AVAILABLE without changin
   const back = data.poiRegistry().get("poi.back-gate");
   assert.equal(back.gateState, MAP_GATE_STATE.AVAILABLE);
   assert.equal(back.presentation, MAP_POI_PRESENTATION.NORMAL);
-  assert.equal(data.poiRegistry().size, 10);
+  assert.equal(data.poiRegistry().size, 12);
 });
 
 test("future reserved Spawn IDs are not guessed into the M0 map", () => {
@@ -193,6 +195,19 @@ test("data source status remains read-only and contains no network persistence c
   const status = data.status();
   assert.equal(status.geometryCount, data.geometry().length);
   // 울림돌 is Full Map only; 비룡탑 joins the Mini-map set.
-  assert.equal(status.poiCount, 9);
+  assert.equal(status.poiCount, 11);
   assert.deepEqual(status.errors, []);
+});
+
+
+test("existing Woonam and Inkyung gazebo landmarks share the FACILITIES position authority", () => {
+  const data = createMiniMapDataSource();
+  for (const [id, sourceId, title] of [["poi.woonam-aircraft", "lmk_woonam_aircraft", "우남호"], ["poi.pond-gazebo", "lmk_pond_gazebo", "인경호 정자"]]) {
+    const poi = data.poiRegistry().get(id), facility = FACILITIES.find(f => f.id === sourceId);
+    assert.ok(poi, id);
+    assert.equal(poi.title, title);
+    assert.equal(poi.sourceRef.id, facility.id);
+    assert.deepEqual({ x: poi.x, z: poi.z }, facility.footprintCenter);
+    assert.equal(poi.presentation, MAP_POI_PRESENTATION.NORMAL);
+  }
 });

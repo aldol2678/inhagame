@@ -2549,6 +2549,7 @@ try {
     root: document.getElementById("full-map-panel"),
     openButton: document.getElementById("minimap-open-map"),
     closeButton: document.getElementById("full-map-close"),
+    searchRoot: document.getElementById("full-map-search"),
     surface: document.getElementById("full-map-surface"),
     svg: document.getElementById("full-map-svg"),
     markerLayer: document.getElementById("full-map-marker-layer"),
@@ -2615,7 +2616,12 @@ try {
       attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false); fishingPanel?.setOpen(false);
       questJournal?.setOpen(false);
     },
-    onClose: () => { fullMapInput.release(); },
+    onClose: () => {
+      fullMapInput.release();
+      // The map opener lives inside the suspended Mini-map. Restore visibility
+      // before Full Map validates its return-focus target, not on the next frame.
+      minimap?.update({ force: true });
+    },
     documentLike: document, windowTarget: window
   });
   rooms.onChange((status) => {

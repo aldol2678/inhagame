@@ -17,6 +17,7 @@ import { MAIN_ENTRANCE } from "../src/basic-campus.js";
 import { FIVE, FIVE_SOUTH_ENTRY_APPROACH } from "../src/north-campus-layout.js";
 import { DORM_1_CAMPUS_RETURN } from "../src/dorm1-layout.js";
 import { LIBRARY_ROUTE_LINES } from "../src/library-route-layout.js";
+import { overPondWater } from "../src/landmark-detail-layout.js";
 import { studentCenterFrontPoint } from "../src/student-center-front.js";
 
 const nav = createCampusNavigation();
@@ -178,4 +179,26 @@ test("M3 navigation modules stay transport-free and separated from quest objecti
   assert.doesNotMatch(sources.join("\n"), /supabase|realtime|heartbeat|\bfetch\s*\(|\.rpc\s*\(|localStorage/i);
   for (const pure of sources.slice(0, 3)) assert.doesNotMatch(pure, /document\.|playcanvas|from "\.\.\/(campus|basic|back|library|north|market)/);
   assert.doesNotMatch(sources.join("\n"), /npcTest|getMapObjective|tour\./, "navigation never reads quest/tour objectives");
+});
+
+
+test("landmark POIs use existing walkway approaches without adding a pond-crossing segment", () => {
+  for (const id of ["poi.woonam-aircraft", "poi.pond-gazebo"]) {
+    const poi = pois.find(value => value.poiId === id);
+    assert.ok(poi, id);
+    const target = nav.poiTarget(poi);
+    const snap = nav.graph.nearestEdgePoint(poi, { maxDistance: 60 });
+    assert.deepEqual(target.approach, { x: snap.x, z: snap.z }, "existing approach contract is reused");
+    assert.equal(overPondWater(target.approach.x, target.approach.z), false);
+    for (const start of [MAIN_GATE_SPAWN, BACK_GATE_SPAWN]) {
+      const route = nav.solver.solve(start, target.approach);
+      assert.equal(route.mode, ROUTE_MODE.NETWORK);
+      assert.deepEqual(route.points.at(-1), target.approach, "guidance ends at the walkway, not a direct landmark jump");
+      for (let i = 1; i < route.points.length; i++) {
+        const a = route.points[i - 1], b = route.points[i];
+        const count = Math.max(1, Math.ceil(Math.hypot(b.x-a.x, b.z-a.z) / .2));
+        for (let j = 0; j <= count; j++) assert.equal(overPondWater(a.x+(b.x-a.x)*j/count, a.z+(b.z-a.z)*j/count), false, id);
+      }
+    }
+  }
 });

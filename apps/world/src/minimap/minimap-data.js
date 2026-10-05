@@ -341,6 +341,28 @@ export const M0_MINIMAP_POI_DEFINITIONS = Object.freeze([
     surfaces: Object.freeze([MAP_SURFACE.MINIMAP, MAP_SURFACE.FULL_MAP])
   }),
   Object.freeze({
+    poiId: "poi.woonam-aircraft",
+    title: "우남호",
+    kind: "LANDMARK",
+    sourceRef: Object.freeze({ type: MINIMAP_SOURCE_TYPE.WORLD_FEATURE, id: "lmk_woonam_aircraft" }),
+    placeZoneId: "AREA_JUNGSEOK_WOONAM",
+    iconKey: "landmark",
+    priority: 70,
+    labelMode: "NONE",
+    surfaces: Object.freeze([MAP_SURFACE.MINIMAP, MAP_SURFACE.FULL_MAP])
+  }),
+  Object.freeze({
+    poiId: "poi.pond-gazebo",
+    title: "인경호 정자",
+    kind: "LANDMARK",
+    sourceRef: Object.freeze({ type: MINIMAP_SOURCE_TYPE.WORLD_FEATURE, id: "lmk_pond_gazebo" }),
+    placeZoneId: "AREA_INKYUNG_STUDENT_CENTER",
+    iconKey: "landmark",
+    priority: 70,
+    labelMode: "NONE",
+    surfaces: Object.freeze([MAP_SURFACE.MINIMAP, MAP_SURFACE.FULL_MAP])
+  }),
+  Object.freeze({
     poiId: "poi.dorm-1",
     title: "제1생활관",
     kind: "HOUSING",

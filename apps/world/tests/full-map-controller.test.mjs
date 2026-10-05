@@ -1,4 +1,5 @@
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 import {
   FULL_MAP_ZOOM,
@@ -19,7 +20,10 @@ class FakeStyle {
   getPropertyValue(name) { return this.values.get(name) ?? ""; }
 }
 class FakeElement {
-  constructor(tag = "div") {
+  constructor(tag = "div", ownerDocument = null) {
+    this.ownerDocument = ownerDocument;
+    this.value = "";
+    this.tabIndex = tag === "button" || tag === "input" ? 0 : -1;
     this.tagName = tag;
     this.children = [];
     this.parentNode = null;
@@ -37,6 +41,12 @@ class FakeElement {
     this.rect = { left: 0, top: 0, width: 500, height: 500 };
   }
   appendChild(child) { child.parentNode = this; this.children.push(child); return child; }
+  insertBefore(child, reference) {
+    if (child.parentNode) child.parentNode.removeChild(child);
+    child.parentNode = this;
+    this.children.splice(reference ? this.children.indexOf(reference) : this.children.length, 0, child);
+    return child;
+  }
   get firstChild() { return this.children[0] ?? null; }
   removeChild(child) { this.children.splice(this.children.indexOf(child),1); child.parentNode=null; return child; }
   setAttribute(name,value) { this.attributes.set(name,String(value)); }
@@ -50,19 +60,29 @@ class FakeElement {
     const payload={ type, target:event.target ?? this, ...event };
     for(const fn of this.listeners.get(type) ?? []) fn(payload);
   }
-  focus() { this.focused = true; }
+  get isConnected() { return this.ownerDocument?.contains(this) ?? false; }
+  contains(node) { return node === this || this.children.some(child => child.contains(node)); }
+  querySelectorAll() {
+    return this.children.flatMap(child => [child, ...child.querySelectorAll()]).filter(child =>
+      child.tagName === "button" || child.tagName === "input" || child.getAttribute("tabindex") !== null);
+  }
+  focus() {
+    if (this.disabled || !this.isConnected) return;
+    this.focused = true;
+    this.ownerDocument.activeElement = this;
+  }
   closest(selector) { return selector === "button" && this.tagName === "button" ? this : this.parentNode?.closest(selector) ?? null; }
   getBoundingClientRect() { return { ...this.rect }; }
   setPointerCapture() {}
 }
 class FakeDocument extends FakeElement {
-  constructor() { super("document"); }
-  createElement(tag) { return new FakeElement(tag); }
-  createElementNS(_ns,tag) { return new FakeElement(tag); }
+  constructor() { super("document"); this.activeElement = this; }
+  createElement(tag) { return new FakeElement(tag, this); }
+  createElementNS(_ns,tag) { return new FakeElement(tag, this); }
 }
 const doc = () => new FakeDocument();
 
-function rig() {
+function rig(options = {}) {
   const d = doc();
   const windowTarget = new FakeElement("window");
   const elements = {};
@@ -70,15 +90,25 @@ function rig() {
     "root","openButton","closeButton","surface","svg","markerLayer","geometryLayer","poiLayer","playerMarker",
     "objectiveMarker","destinationMarker","socialLayer","titleElement","infoPanel","infoTitle","infoMeta",
     "destinationButton","clearDestinationButton","zoomInButton","zoomOutButton","locateButton",
-    "resetViewButton","zoomLabel"
-  ]) elements[id]=new FakeElement(id.endsWith("Button") ? "button" : "div");
+    "resetViewButton","zoomLabel","searchRoot","navBar","navBarText","navBarClear","autoMoveButton"
+  ]) elements[id]=new FakeElement(id.endsWith("Button") ? "button" : "div", d);
   elements.root.hidden = true;
   elements.infoPanel.hidden = true;
   elements.objectiveMarker.hidden = true;
   elements.destinationMarker.hidden = true;
   elements.clearDestinationButton.hidden = true;
+  elements.navBar.hidden = true;
   elements.surface.rect = { left: 10, top: 20, width: 500, height: 500 };
 
+  d.appendChild(elements.openButton);
+  d.appendChild(elements.root);
+  for (const id of ["closeButton", "searchRoot", "navBar", "surface", "infoPanel"]) elements.root.appendChild(elements[id]);
+  elements.navBarClear.tagName = "button"; elements.navBarClear.tabIndex = 0;
+  elements.navBar.appendChild(elements.navBarClear);
+  elements.surface.appendChild(elements.poiLayer);
+  const controls = d.createElement("div"); controls.rect = { left: -100, top: -100, width: 0, height: 0 }; elements.surface.appendChild(controls);
+  for (const id of ["zoomInButton", "zoomOutButton", "locateButton", "resetViewButton"]) controls.appendChild(elements[id]);
+  for (const id of ["infoTitle", "destinationButton", "autoMoveButton", "clearDestinationButton"]) elements.infoPanel.appendChild(elements[id]);
   const definitions = [
     { poiId:"poi.main", title:"본관", kind:"BUILDING", iconKey:"main-hall", presentation:"NORMAL",
       visible:true, validPosition:true, x:50,z:0 },
@@ -108,7 +138,8 @@ function rig() {
     onOpen:()=>calls.open++,
     onClose:()=>calls.close++,
     documentLike:d,
-    windowTarget
+    windowTarget,
+    ...options
   });
   controller.onDestinationChange(value=>calls.destination.push(value));
   return {d,windowTarget,elements,state,calls,controller,geometry,definitions};
@@ -425,4 +456,222 @@ test("pointer emphasis clears without moving labels and preserves a selected POI
   main.dispatch("click");
   main.dispatch("pointerenter"); main.dispatch("pointerleave"); main.dispatch("blur");
   assert.equal(main.dataset.emphasized, "true", "selection keeps its stacking priority");
+});
+
+const descendants = node => [node, ...node.children.flatMap(descendants)];
+const searchControl = (r, name) => descendants(r.elements.searchRoot).find(node => node.className === name);
+const searchInput = r => searchControl(r, "full-map-search-input");
+const results = r => descendants(r.elements.searchRoot).filter(node => node.className === "full-map-search-result");
+function search(r, value) {
+  const input = searchInput(r);
+  assert.ok(input, "search field exists");
+  input.value = value; input.dispatch("input");
+}
+const key = (r, name, target = r.d.activeElement, extra = {}) => {
+  const event = { code: name, key: name, target, prevented: false, preventDefault() { this.prevented = true; }, ...extra };
+  r.d.dispatch("keydown", event);
+  return event;
+};
+
+test("search uses current map names, supports whitespace/Unicode and does not select until requested", () => {
+  const r = rig(); r.controller.open();
+  search(r, "  본  관  ");
+  assert.deepEqual(results(r).map(node => node.textContent), ["본관 · 이동 가능"]);
+  assert.equal(r.controller.selectedPoi, null);
+  assert.equal(r.controller.destination, null);
+  results(r)[0].dispatch("click");
+  assert.equal(r.controller.selectedPoi.poiId, "poi.main");
+  assert.equal(r.elements.infoTitle.textContent, "본관");
+  assert.ok(r.controller.viewport.zoom >= 2, "result selection uses existing map centering");
+  assert.equal(r.controller.destination, null, "search never starts guidance or auto-move");
+});
+
+test("empty, no-match and clear search keep selection and destination separate", () => {
+  const r = rig(); r.controller.open();
+  search(r, "없는장소");
+  assert.equal(results(r).length, 0);
+  assert.equal(searchControl(r, "full-map-search-status").textContent, "검색 결과가 없어요");
+  search(r, "본관"); results(r)[0].dispatch("click");
+  const clear = searchControl(r, "full-map-search-clear"); clear.focus(); clear.dispatch("click");
+  assert.equal(searchInput(r).value, "");
+  assert.equal(results(r).length, 0);
+  assert.equal(r.d.activeElement === searchInput(r), true);
+  assert.equal(r.controller.selectedPoi.poiId, "poi.main");
+});
+
+test("search keeps hidden POIs out and preserves locked/undiscovered/unknown/disabled gates", () => {
+  const r = rig();
+  for (const state of ["UNDISCOVERED", "UNKNOWN", "DISABLED", "COMING_SOON"]) {
+    r.definitions.push({ ...r.definitions[0], poiId: `poi.${state.toLowerCase()}`, title: state, presentation: state });
+  }
+  r.definitions.push({ ...r.definitions[0], poiId: "poi.hidden", title: "숨김", visible: false });
+  r.controller.open(); search(r, "숨김"); assert.equal(results(r).length, 0);
+  for (const title of ["후문", "UNDISCOVERED", "UNKNOWN", "DISABLED", "COMING_SOON"]) {
+    search(r, title); assert.equal(results(r).length, 1); results(r)[0].dispatch("click");
+    assert.equal(r.elements.destinationButton.disabled, true);
+    r.elements.destinationButton.dispatch("click"); assert.equal(r.controller.destination, null);
+  }
+});
+
+test("search result activation re-resolves live state instead of unlocking stale available POIs", () => {
+  const r = rig(); r.controller.open(); search(r, "본관");
+  r.definitions[0].presentation = "LOCKED";
+  results(r)[0].dispatch("click");
+  assert.equal(r.controller.selectedPoi.presentation, "LOCKED");
+  assert.equal(r.elements.destinationButton.disabled, true);
+  r.definitions[0].visible = false;
+  results(r)[0].dispatch("click");
+  assert.equal(r.controller.selectedPoi, null);
+  assert.equal(results(r).length, 0);
+});
+
+test("Korean IME guards Enter and Escape, keyboard selection works after composition", () => {
+  const r = rig(); r.controller.open();
+  const input = searchInput(r); assert.ok(input); input.focus();
+  input.dispatch("compositionstart"); input.value = "본관"; input.dispatch("input", { isComposing: true });
+  input.dispatch("keydown", { key: "Enter", code: "Enter", isComposing: true });
+  key(r, "Escape", input, { isComposing: true });
+  key(r, "Escape", input, { keyCode: 229 });
+  assert.equal(r.controller.openState, true); assert.equal(r.controller.selectedPoi, null);
+  input.dispatch("compositionend");
+  input.dispatch("keydown", { key: "ArrowDown", code: "ArrowDown", preventDefault() {} });
+  assert.equal(r.d.activeElement === results(r)[0], true);
+  results(r)[0].dispatch("keydown", { key: "ArrowUp", code: "ArrowUp", preventDefault() {} });
+  assert.equal(r.d.activeElement === input, true);
+  input.dispatch("keydown", { key: "Enter", code: "Enter", preventDefault() {} });
+  assert.equal(r.controller.selectedPoi.poiId, "poi.main");
+});
+
+test("Full Map traps forward/reverse Tab around live visible enabled controls", () => {
+  const r = rig(); r.elements.openButton.focus(); r.controller.open();
+  r.elements.closeButton.focus(); key(r, "Tab", r.elements.closeButton, { shiftKey: true });
+  assert.equal(r.d.activeElement === r.elements.resetViewButton, true, "hidden info and disabled zoom-out are excluded");
+  key(r, "Tab"); assert.equal(r.d.activeElement === r.elements.closeButton, true);
+  r.elements.poiLayer.children[0].dispatch("click"); r.elements.destinationButton.focus();
+  key(r, "Tab"); assert.equal(r.d.activeElement === r.elements.closeButton, true, "new POI action participates");
+  r.elements.openButton.focus(); key(r, "Tab");
+  assert.equal(r.d.activeElement === r.elements.closeButton, true, "outside focus is contained on next Tab");
+});
+
+test("removed POIs and disabled/hidden actions keep focus inside the open map", () => {
+  const r = rig(); r.controller.open();
+  r.elements.poiLayer.children[0].dispatch("click"); r.elements.destinationButton.focus();
+  r.definitions[0].presentation = "LOCKED"; r.controller.refreshPois();
+  assert.equal(r.d.activeElement === r.elements.infoTitle, true);
+  r.elements.poiLayer.children[0].focus(); r.definitions[0].visible = false; r.controller.refreshPois();
+  assert.equal(r.d.activeElement === r.elements.closeButton, true);
+  search(r, "후문"); results(r)[0].focus(); r.definitions[1].visible = false; r.controller.refreshPois();
+  assert.equal(r.d.activeElement === searchInput(r), true);
+});
+
+test("Escape/reopen restore the live opener and respect detached, hidden or callback focus targets", () => {
+  const r = rig(), alternate = r.d.createElement("button"); r.d.appendChild(alternate);
+  alternate.focus(); r.controller.open(); key(r, "Escape"); assert.equal(r.d.activeElement === alternate, true);
+  alternate.focus(); r.controller.open(); alternate.hidden = true; key(r, "Escape");
+  assert.equal(r.d.activeElement === r.elements.openButton, true);
+  alternate.hidden = false; alternate.focus(); r.controller.open(); r.d.removeChild(alternate); key(r, "Escape");
+  assert.equal(r.d.activeElement === r.elements.openButton, true);
+  r.controller.open(); r.elements.openButton.focus(); r.controller.close();
+  assert.equal(r.d.activeElement === r.elements.openButton, true, "close does not steal external focus");
+});
+
+
+test("guidance ending while its clear button is focused returns to a live map control", () => {
+  let callback;
+  const snapshot = { destination: { poiId: "poi.main", title: "본관", x: 50, z: 0 }, status: "GUIDING" };
+  const r = rig({ navigation: { snapshot: () => snapshot, setPoi: () => true, clear() { snapshot.destination = null; callback(); }, onChange(fn) { callback = fn; } } });
+  r.controller.open(); r.elements.navBarClear.focus();
+  assert.equal(r.d.activeElement === r.elements.navBarClear, true);
+  snapshot.destination = null; callback();
+  assert.equal(r.elements.navBar.hidden, true);
+  assert.equal(r.d.activeElement === r.elements.closeButton, true);
+});
+
+test("closing respects a callback's newly focused panel and source switch clears old search", () => {
+  let outside;
+  const r = rig({ onClose() { outside.focus(); } }); outside = r.d.createElement("button"); r.d.appendChild(outside);
+  r.controller.open(); search(r, "본관"); results(r)[0].focus();
+  r.controller.setDataSource({ bounds: { minX: 0, maxX: 1, minZ: 0, maxZ: 1 }, geometry: () => [], poiRegistry: () => ({ list: () => [] }) }, { id: "room" });
+  assert.equal(searchInput(r).value, ""); assert.equal(results(r).length, 0);
+  assert.equal(r.d.activeElement === r.elements.closeButton, true);
+  r.controller.close(); assert.equal(r.d.activeElement === outside, true);
+});
+
+test("Tab containment skips inert and CSS-hidden controls and has an empty-dialog fallback", () => {
+  const r = rig(); r.windowTarget.getComputedStyle = node => ({ display: node.style.display, visibility: node.style.visibility });
+  r.controller.open();
+  r.elements.infoPanel.hidden = false; r.elements.infoPanel.inert = true;
+  r.elements.resetViewButton.style.display = "none";
+  r.elements.closeButton.focus(); key(r, "Tab", r.elements.closeButton, { shiftKey: true });
+  assert.equal(r.d.activeElement === r.elements.locateButton, true);
+  for (const node of r.elements.root.querySelectorAll()) node.disabled = true;
+  key(r, "Tab"); assert.equal(r.d.activeElement === r.elements.root, true);
+});
+
+
+test("broadening a query keeps visible result order aligned with Enter and arrow selection", () => {
+  const r = rig(); r.definitions.push({ ...r.definitions[0], poiId: "poi.library", title: "정석학술정보관" });
+  r.controller.open(); search(r, "정석"); search(r, "관");
+  assert.deepEqual(results(r).map(node => node.dataset.poiId), ["poi.main", "poi.library"]);
+  searchInput(r).dispatch("keydown", { key: "ArrowDown", preventDefault() {} });
+  assert.equal(r.d.activeElement === results(r)[0], true);
+  searchInput(r).dispatch("keydown", { key: "Enter", preventDefault() {} });
+  assert.equal(r.controller.selectedPoi.poiId, results(r)[0].dataset.poiId);
+});
+
+
+test("production close callback restores the suspended minimap opener before focus validation", () => {
+  const source = readFileSync(new URL("../src/main.js", import.meta.url), "utf8");
+  const mapSetup = source.slice(source.indexOf("fullMap = createFullMapController"));
+  const closeBody = mapSetup.match(/onClose:\s*\(\)\s*=>\s*\{([\s\S]*?)\},\s*documentLike:/)?.[1];
+  assert.ok(closeBody);
+  let parent, released = false;
+  const callback = new Function("fullMapInput", "minimap", closeBody);
+  const r = rig({ onClose() { callback({ release() { released = true; } }, { update({ force }) { assert.equal(released, true); assert.equal(force, true); parent.hidden = false; } }); } });
+  parent = r.d.createElement("div"); r.d.removeChild(r.elements.openButton); parent.appendChild(r.elements.openButton); r.d.appendChild(parent);
+  r.elements.openButton.focus(); r.controller.open(); parent.hidden = true;
+  r.controller.close();
+  assert.equal(parent.hidden, false);
+  assert.equal(r.d.activeElement === r.elements.openButton, true);
+});
+
+test("Tab from the selected card's programmatic title continues to its live actions", () => {
+  const r = rig(); r.controller.open(); search(r, "본관"); results(r)[0].dispatch("click");
+  assert.equal(r.d.activeElement === r.elements.infoTitle, true);
+  key(r, "Tab"); assert.equal(r.d.activeElement === r.elements.destinationButton, true);
+  r.elements.infoTitle.focus(); key(r, "Tab", r.elements.infoTitle, { shiftKey: true });
+  assert.equal(r.d.activeElement === r.elements.resetViewButton, true);
+});
+
+test("composing Escape prevents the native search-field clear without closing the map", () => {
+  const r = rig(); r.controller.open(); const input = searchInput(r); input.focus();
+  input.dispatch("compositionstart"); input.value = "본";
+  let enterPrevented = false;
+  input.dispatch("keydown", { key: "Enter", code: "Enter", isComposing: true, preventDefault() { enterPrevented = true; } });
+  assert.equal(enterPrevented, false, "IME Enter remains native");
+  let prevented = false;
+  input.dispatch("keydown", { key: "Escape", code: "Escape", isComposing: true, preventDefault() { prevented = true; } });
+  assert.equal(prevented, true, "type=search Escape default must not silently cancel an active composition");
+  assert.equal(r.controller.openState, true);
+  input.value = "본관"; input.dispatch("compositionend");
+  input.dispatch("keydown", { key: "Enter", preventDefault() {} });
+  assert.equal(r.controller.selectedPoi.poiId, "poi.main");
+  key(r, "Escape"); assert.equal(r.controller.openState, false, "ordinary Escape still closes after composition");
+});
+
+test("campus-only search clears and hides across region switches, then restores cleanly", () => {
+  const r = rig(); r.controller.open(); search(r, "본관"); searchInput(r).focus();
+  const campus = { bounds: { minX: 0, maxX: 100, minZ: 0, maxZ: 100 }, geometry: () => r.geometry,
+    poiRegistry: () => ({ list: () => r.definitions }) };
+  r.controller.setDataSource(campus, { id: "BIRYONG_REALM", label: "비룡마을 지도" });
+  assert.equal(r.elements.searchRoot.hidden, true);
+  assert.equal(searchInput(r).value, ""); assert.equal(results(r).length, 0);
+  assert.equal(r.controller.selectedPoi, null);
+  assert.equal(r.d.activeElement === r.elements.closeButton, true);
+  r.controller.close(); r.controller.open(); assert.equal(r.elements.searchRoot.hidden, true);
+  r.controller.setDataSource(campus, { id: "campus" });
+  assert.equal(r.elements.searchRoot.hidden, false);
+  assert.equal(searchInput(r).value, ""); assert.equal(results(r).length, 0);
+  search(r, "후문"); results(r)[0].dispatch("click");
+  assert.equal(r.elements.destinationButton.disabled, true, "source switch never changes existing state authority");
 });
