@@ -6,6 +6,7 @@ import { FacilityMeshBatch } from './facility-mesh-batch.js';
 import { fillSports } from './sports-detail-geometry.js';
 import { SPORTS_FLOOR, LOWERED_SPORTS_IDS } from './stadium-stands-layout.js';
 import { fillHeideggerForest } from './heidegger-forest-geometry.js';
+import { fillMatchingTree } from './matching-tree-geometry.js';
 import { AGORA } from './roadview-layout.js';
 import { GAZEBO } from './landmark-detail-layout.js';
 import { fillAircraft, fillGazebo } from './landmark-detail-geometry.js';
@@ -86,15 +87,11 @@ function court(root,batch,f) {
   fillSports(batch,f);
 }
 function landmark(root,batch,f) {
-  const {x,z}=f.center;const p=(u,y,v)=>[x+u,y,z+v];
   if(f.style==='forest'){
     fillHeideggerForest(batch,f.center);
     return;
   }
-  if(f.style==='tree'){
-    batch.tube('#685443',p(-2,0,0),p(-1,1.2,0),.4);batch.tube('#685443',p(-1,1.2,0),p(1.5,1.2,0),.4);batch.tube('#685443',p(1.5,1.2,0),p(2.2,4,0),.35);
-    batch.tube('#685443',p(-1,1.2,0),p(-2.8,4.2,0),.3);batch.crown('#65894b',p(-2,5,0),[5,3,5]);batch.crown('#5c8144',p(2,5,0),[5,3,5]);return;
-  }
+  if(f.id==='lmk_matching_tree'){fillMatchingTree(batch);return;}
   if(f.style==='aircraft'){
     fillAircraft(batch,f.center);return;
   }

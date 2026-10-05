@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {existsSync,readFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 import {FACILITIES,FACILITY_COLLIDERS,towerParts} from '../src/campus-facilities.js';
+import {geoToWorld} from '../src/geo-coordinates.js';
 import {FIVE,ANNIVERSARY,NORTH_APPROACHES,exteriorFrame} from '../src/north-campus-layout.js';
 import {fillFiveFacade,fillAnniversaryFacade} from '../src/north-campus-geometry.js';
 import {polygonOverlap} from '../src/polygon-collision.js';
@@ -28,7 +29,16 @@ test('restored glass, stone and frame palettes retain the current semantic optic
 
 test('pinned ground facilities, previous colliders and approved navigation metadata remain identical',()=>{
  // Recorded from public main5b262960, independently identical to PR186's tree.
- assert.equal(digest(FACILITIES.map(({presentationAccuracy,...f})=>f)),'d13b6d4ce976693026cd069f626efdf10514ca4ed11b42f08bb832cd17829854');
+ // The requested Matching Tree relocation is independently asserted by
+ // matching-tree.test.mjs. Normalize only its approved location/provenance delta
+ // back to the old point, retaining this original hash for everything else.
+ const pinned=FACILITIES.map(({presentationAccuracy,...f})=>{
+  if(f.id!=='lmk_matching_tree')return f;
+  const {positionEvidencePath,...legacy}=f,center=geoToWorld(37.44828,126.65451);
+  return {...legacy,lat:37.44828,lon:126.65451,
+   geometryAccuracy:'Game navigation anchor; not a surveyed real-world location',center,footprintCenter:{...center}};
+ });
+ assert.equal(digest(pinned),'d13b6d4ce976693026cd069f626efdf10514ca4ed11b42f08bb832cd17829854');
  assert.equal(digest(FACILITY_COLLIDERS.filter(c=>!['bldg_05_clock_core','bldg_60th_tower'].includes(c.id))),
   '7de36ac06fe915500ba8bf761ce6a0b5bef4793a125bb8ced291c8861fb4b0b7');
  // #201 explicitly promotes two existing geometric connectors to authored PATHs.

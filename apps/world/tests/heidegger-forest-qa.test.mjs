@@ -3,12 +3,47 @@ import assert from 'node:assert/strict';
 import {readFileSync,existsSync} from 'node:fs';
 const source=new URL('./browser/heidegger-forest-qa.mjs',import.meta.url);
 const qa=existsSync(source)?await import(source):{};
-test('forest literal baseline guard replaces both modified sources and rejects a widened runtime scope',()=>{
+test('forest-isolated baseline accepts only the complete approved extension',()=>{
  assert.equal(typeof qa.forestBaselinePlan,'function');
- const files=['facility-blockout.js','campus-material-profile.js','heidegger-forest-geometry.js'].map(p=>'apps/world/src/'+p);
- const plan=qa.forestBaselinePlan(files);assert.equal(plan.replace.length,2);assert.equal(plan.added.length,1);
- assert.throws(()=>qa.forestBaselinePlan(files.slice(1)),/scope/);
- assert.throws(()=>qa.forestBaselinePlan([...files,'apps/world/src/campus-layout.js']),/scope/);
+ const forest=['facility-blockout.js','campus-material-profile.js','heidegger-forest-geometry.js'].map(p=>'apps/world/src/'+p);
+ const extra=['seat-anchors.js','matching-tree-layout.js','matching-tree-geometry.js'].map(p=>'apps/world/src/'+p);
+ extra.push('apps/world/data/reality/campus-facilities.json');
+ const plan=qa.forestBaselinePlan([...forest,...extra]);
+ assert.deepEqual(plan.replace,['apps/world/src/campus-material-profile.js']);
+ assert.ok(plan.shared.includes('apps/world/src/facility-blockout.js'));
+ assert.ok(plan.shared.includes('apps/world/src/matching-tree-geometry.js'));
+ assert.throws(()=>qa.forestBaselinePlan([...forest,...extra.slice(1)]),/scope/);
+ assert.throws(()=>qa.forestBaselinePlan([...forest,...extra,'apps/world/src/campus-layout.js']),/scope/);
+ assert.throws(()=>qa.forestBaselinePlan([...forest,...extra,'apps/world/data/reality/campus-landmarks.json']),/scope/);
+ assert.throws(()=>qa.forestBaselinePlan([...forest,...extra,extra[0]]),/scope/);
+});
+test('isolated forest adapter extracts only the exact previous-main grove branch and rejects changed shapes',async()=>{
+ assert.equal(typeof qa.forestBaselineAdapter,'function');
+ const source = `import { forestRoadTrees } from './campus-road-layout.js';
+function tree(batch,x,z,scale=1,color='#527447') {
+  batch.tube('#6c5942',[x,0,z],[x,3.2*scale,z],.24*scale);
+  batch.crown(color,[x,4.1*scale,z],[4*scale,3.4*scale,4*scale]);
+}
+function landmark(root,batch,f) {
+  if(f.style==='forest'){
+    forestRoadTrees(f.center).forEach((p,i)=>tree(batch,p.x,p.z,1.25,i%2?'#567f48':'#41694b'));
+    return;
+  }
+  if(f.style==='tree'){ throw Error('unrelated matching tree must not be copied'); }
+}`;
+ const adapter=qa.forestBaselineAdapter(source);
+ assert.match(adapter,/export function fillHeideggerForest/);
+ assert.doesNotMatch(adapter,/fillMatchingTree|lmk_matching_tree|function landmark/);
+ for(const changed of [source.replace('3.2*scale','3.3*scale'),source.replace("i%2?'#567f48'", "i%2?'#000000'"),source.replace("if(f.style==='forest'){", "if(f.style==='forest' || f.style==='park'){")])
+  assert.throws(()=>qa.forestBaselineAdapter(changed),/previous-main forest/);
+ const {forestRoadTrees}=await import('../src/campus-road-layout.js');
+ const fill=new Function('forestRoadTrees',adapter.replace(/^import[^\n]+\n/,'').replace('export function','function')+'; return fillHeideggerForest;')(forestRoadTrees);
+ const calls=[],batch={tube(...args){calls.push(['tube',...args]);},crown(...args){calls.push(['crown',...args]);}};
+ const center={x:10,z:20}; fill(batch,center);
+ const expected=forestRoadTrees(center).flatMap((p,i)=>[
+  ['tube','#6c5942',[p.x,0,p.z],[p.x,4,p.z],.3],
+  ['crown',i%2?'#567f48':'#41694b',[p.x,5.125,p.z],[5,4.25,5]]]);
+ assert.deepEqual(calls,expected);
 });
 test('forest QA views cover the brick-walk viewpoint, clearing closeup and far silhouette',()=>{
  assert.equal(typeof qa.forestViews,'function');const views=qa.forestViews();

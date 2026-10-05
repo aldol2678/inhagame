@@ -1,0 +1,24 @@
+{
+  "schema": "inha.map-aligned-landmark/1",
+  "featureId": "lmk_matching_tree",
+  "reviewDate": "2026-10-05",
+  "baselineCommit": "a305ed8e61585ea8459a5c0d888eee695cdbf7dd",
+  "selectedCoordinate": {"lat": 37.44792, "lon": 126.65378},
+  "previousCoordinate": {"lat": 37.44828, "lon": 126.65451},
+  "surveyed": false,
+  "horizontalUncertaintyMetres": null,
+  "lawnSourceId": "site_258995412",
+  "method": "Align the explicitly labelled Matching Tree marker in the illustrated campus guide with the existing lawn compartments: east of the central reflecting pool, in the southern compartment nearer the main gate. Select an interior point in the corresponding existing OSM-derived lawn polygon. The illustration establishes the compartment, not a measured point.",
+  "sources": [
+    {"id": "official-campus-map", "url": "https://www.inha.ac.kr/sites/kr/files/campusmap_front.jpg", "type": "University schematic campus guide", "use": "Landmark identity and gate-side lawn compartment; not metric coordinates", "pixelsInspected": true},
+    {"id": "campus-brochure-2026", "url": "https://fliphtml5.com/xrdwz/vepf/21/", "type": "Public copy of the 2026 English campus brochure, page 19 printed / page 21 viewer", "use": "Matching Tree marker 3 corroborates the same lawn compartment", "pixelsInspected": true},
+    {"id": "district-2024-tree", "url": "https://blog.naver.com/tong_namgu/223433854717", "imageUrl": "https://cdn.welfarehello.com/naver-blog/production/tong_namgu/2024-05/223433854717/tong_namgu_223433854717_4.jpg", "type": "Michuhol-gu campus article with a ground-level tree photograph, public Wello image mirror", "publicationContext": "May 2024; capture date not established", "use": "Gray-brown low U-shaped fork, exposed upright branches and uneven foliage", "pixelsInspected": true},
+    {"id": "district-2024-sign", "url": "https://blog.naver.com/tong_namgu/223433854717", "imageUrl": "https://cdn.welfarehello.com/naver-blog/production/tong_namgu/2024-05/223433854717/tong_namgu_223433854717_3.jpg", "type": "Same district article, labelled Matching Tree photograph", "publicationContext": "May 2024; capture date not established", "use": "Visible 궁합나무 sign corroborates tree identity", "pixelsInspected": true},
+    {"id": "port-campus-walk", "url": "https://incheonport.tistory.com/4030", "type": "Incheon Port Authority campus walk article", "use": "Campus landmark context; its viewpoint-dependent right-side phrase is not an independent compass bearing"},
+    {"id": "alumni-2022", "url": "https://www.inhain.com/news/data/nm_board_monthly/1653306452-50.pdf", "type": "Alumni publication", "use": "Corroborates Main Hall garden location, not GPS coordinates"}
+  ],
+  "presentation": "Procedural gray-brown low U-shaped fork and irregular broadleaf-like crowns. Two game-scale seat anchors use the same central branch surface. Species is not asserted.",
+  "orientation": "Existing campus axis with the open side toward the reflecting pool; chosen for a clear game approach, not a photo-surveyed bearing.",
+  "photosShipped": false,
+  "limitations": "Exact horizontal error, tree dimensions, compass bearing, and current ground conditions are not established. The illustrative map is not georectified. No user location snapshot is used as an anchor. Source photographs are reference-only and are not included as runtime assets."
+}

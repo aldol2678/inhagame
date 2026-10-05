@@ -1,10 +1,23 @@
 import { FACILITIES } from '../../src/campus-facilities.js';
 import { forestRoadTrees, roadSegment } from '../../src/campus-road-layout.js';
+// The candidate runtime is shared. Only the grove recipe and its soil material
+// differ, so adding the relocated matching tree cannot contaminate this A/B.
 export function forestBaselinePlan(changed){
- const replace=['apps/world/src/facility-blockout.js','apps/world/src/campus-material-profile.js'];
- const added=['apps/world/src/heidegger-forest-geometry.js'];
- if(JSON.stringify([...changed].sort())!==JSON.stringify([...replace,...added].sort()))throw Error('Forest comparison runtime scope differs from the approved three-file slice');
- return {replace,added};
+ const forest=['facility-blockout.js','campus-material-profile.js','heidegger-forest-geometry.js'].map(p=>'apps/world/src/'+p);
+ const matching=['seat-anchors.js','matching-tree-layout.js','matching-tree-geometry.js'].map(p=>'apps/world/src/'+p);
+ matching.push('apps/world/data/reality/campus-facilities.json');
+ const equals=expected=>JSON.stringify([...changed].sort())===JSON.stringify([...expected].sort());
+ if(!equals(forest)&&!equals([...forest,...matching]))throw Error('Forest comparison runtime scope differs from the approved forest and matching-tree slices');
+ return {replace:['apps/world/src/campus-material-profile.js'],adapter:'apps/world/src/heidegger-forest-geometry.js',
+  shared:['apps/world/src/facility-blockout.js',...(equals(forest)?[]:matching)]};
+}
+export function forestBaselineAdapter(source){
+ const helper="function tree(batch,x,z,scale=1,color='#527447') {\n  batch.tube('#6c5942',[x,0,z],[x,3.2*scale,z],.24*scale);\n  batch.crown(color,[x,4.1*scale,z],[4*scale,3.4*scale,4*scale]);\n}";
+ const body="    forestRoadTrees(f.center).forEach((p,i)=>tree(batch,p.x,p.z,1.25,i%2?'#567f48':'#41694b'));";
+ const branch="  if(f.style==='forest'){\n"+body+"\n    return;\n  }";
+ const unique=text=>source.split(text).length===2;
+ if(!unique(helper)||!unique(branch)||!unique("import { forestRoadTrees } from './campus-road-layout.js';"))throw Error('Unexpected previous-main forest source shape');
+ return "import { forestRoadTrees } from './campus-road-layout.js';\n"+helper+"\nexport function fillHeideggerForest(batch,center){\n const f={center};\n"+body+"\n}\n";
 }
 export function forestViews(){
  const frame=roadSegment(481241661,2).frame,trees=forestRoadTrees(FACILITIES.find(f=>f.id==='lmk_heidegger_forest').center);
