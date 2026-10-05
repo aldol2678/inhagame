@@ -109,6 +109,9 @@ select ok(not has_table_privilege('authenticated', 'private.world_daily_quiz_run
   and not has_table_privilege('authenticated', 'private.world_daily_quiz_runs', 'insert'), 'players cannot read or write runs / answers');
 select ok(not has_function_privilege('anon', 'public.start_my_world_daily_quiz_v1()', 'execute')
   and not has_function_privilege('anon', 'public.answer_my_world_daily_quiz_v1(uuid,text,smallint)', 'execute'), 'guests cannot call the quiz RPCs');
+select ok(not has_function_privilege('authenticated', 'private.world_daily_quiz_major_count_v1(uuid,date)', 'execute')
+  and not has_function_privilege('anon', 'private.world_daily_quiz_major_count_v1(uuid,date)', 'execute'),
+  'players cannot call the private major-mix helper');
 select is((select count(*) from pg_proc p where p.pronamespace = 'public'::regnamespace and p.proname like '%daily_quiz%'
     and exists (select 1 from unnest(coalesce(p.proargnames, '{}')) a where a ~ '(date|day|now|time|user)')), 0::bigint,
   'no public quiz RPC takes a date, time or user argument');
@@ -129,10 +132,18 @@ select results_eq($$select g.position, g.grant_entry_id, g.grant_type, g.target_
   'grants: +50 인덕코인, +25 EXP, no item');
 
 -- ---- KST day boundary (DB clock only) ----
-select results_eq($$select private.world_daily_quiz_today_v1('2026-09-29 14:59:59+00'), private.world_daily_quiz_today_v1('2026-09-29 15:00:00+00'),
-    private.world_daily_quiz_today_v1('2026-09-29 23:59:59+09'), private.world_daily_quiz_today_v1('2026-09-30 00:00:00+09')$$,
-  $$values ('2026-09-29'::date, '2026-09-30'::date, '2026-09-29'::date, '2026-09-30'::date)$$,
+select results_eq($select private.world_daily_quiz_today_v1('2026-09-29 14:59:59+00'), private.world_daily_quiz_today_v1('2026-09-29 15:00:00+00'),
+    private.world_daily_quiz_today_v1('2026-09-29 23:59:59+09'), private.world_daily_quiz_today_v1('2026-09-30 00:00:00+09')$,
+  $values ('2026-09-29'::date, '2026-09-30'::date, '2026-09-29'::date, '2026-09-30'::date)$,
   'the day turns at 00:00 Asia/Seoul (15:00 UTC)');
+select is((
+    select sum(private.world_daily_quiz_major_count_v1(
+      'e1000000-0000-4000-8000-0000000000a1',
+      d::date
+    ))::bigint
+    from generate_series(date '2026-10-01', date '2026-10-05', interval '1 day') d
+  ), 9::bigint,
+  'major mix is exactly 9/15 = 60% across every five consecutive quiz days');
 
 -- ---- 9-11. accounts ----
 select throws_ok($$select pg_temp.as_player('e1000000-0000-4000-8000-0000000000e5', 'select public.start_my_world_daily_quiz_v1()', true)$$,
@@ -156,6 +167,19 @@ select results_eq($$select s ->> 'status', s ->> 'rewardDate', (s -> 'progress')
 select is((select cardinality(question_ids) = 3 and (select count(distinct x) from unnest(question_ids) x) = 3
     and question_ids <@ (select array_agg(question_id) from private.world_daily_quiz_questions where status = 'ACTIVE')
     from private.world_daily_quiz_runs where user_id = 'e1000000-0000-4000-8000-0000000000a1'), true, '3 distinct ACTIVE questions');
+select is((
+    select count(*)::int
+    from private.world_daily_quiz_runs r
+    cross join unnest(r.question_ids) qid
+    join private.world_daily_quiz_questions q on q.question_id = qid
+    where r.user_id = 'e1000000-0000-4000-8000-0000000000a1'
+      and r.reward_date = private.world_daily_quiz_today_v1()
+      and q.category = 'major'
+  ), private.world_daily_quiz_major_count_v1(
+       'e1000000-0000-4000-8000-0000000000a1',
+       private.world_daily_quiz_today_v1()
+     )::int,
+  'the started run uses the server-owned daily major quota');
 select is(pg_temp.start('e1000000-0000-4000-8000-0000000000a1') ->> 'runId', current_setting('test.a_start')::jsonb ->> 'runId',
   'a second start the same day returns the same run');
 select is(pg_temp.n('private.world_daily_quiz_runs', 'e1000000-0000-4000-8000-0000000000a1'), 1::bigint, 'one run per day');
