@@ -766,7 +766,8 @@ const lobbyTransition = createLobbyTransition({
 const cinematic = createCinematicDirector({
   camera,
   inputFocus,
-  root: document.body
+  root: document.body,
+  skipButton: document.getElementById("cinematic-skip")
 });
 window.addEventListener("pagehide", event => {
   if (!event.persisted) cinematic.destroy();
