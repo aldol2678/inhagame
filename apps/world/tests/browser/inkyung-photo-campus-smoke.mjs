@@ -17,12 +17,17 @@ const git = (...args) => execFileSync('git', args, { cwd: repo });
 const sources = ['campus/index.html', 'src/main.js', 'styles.css',
   'src/photo/photo-mode.js', 'src/photo/photo-mode-panel.js', 'src/photo/inkyung-photo-point.js',
   'src/orbit-camera-controller.js', 'src/context-action.js', 'src/player-controller.js',
-  'npc-factory/dev-runtime.mjs', 'src/world-scale.js', 'tests/browser/inkyung-photo-campus-smoke.mjs'];
+  'npc-factory/dev-runtime.mjs', 'src/world-scale.js', 'src/character-model.js',
+  'assets/induck-v3.glb', 'tests/browser/inkyung-photo-campus-smoke.mjs'];
 const report = {
   status: 'RUNNING', expectedHead: process.env.PHOTO_MODE_HEAD_SHA ?? null,
   scope: 'Actual production campus, lake, avatar, UI and WebGL2. Offline APIs; no account/backend/live social acceptance.',
-  poseFixture: 'Collision-checked player placement near the exported lake anchor; production arrival yaw is preserved. Native movement and F/touch then use the unmodified runtime.',
+  poseFixture: 'Collision-checked player placement near the exported lake anchor preserves gameplay arrival yaw. Native F/touch opens the production lake-facing preset; exit must restore that arrival yaw exactly.',
   visualReview: 'Required: projected lake samples are composition diagnostics, not an occlusion or aesthetic oracle. Inspect the unchanged default screenshots.',
+  regressionBaseline: { head: '77d5813956edc4a860356e7328837370d8b4b365', run: '37428945564', status: 'FAIL',
+    findings: ['Desktop stopped on DOM/runtime Pointer Lock acknowledgment race.',
+      'Portrait controls passed but unchanged arrival-yaw default did not show the lake; visual acceptance failed.'],
+    note: 'Historical evidence only. This report must establish its own exact-head result.' },
   sourceHashes: {}, cases: [], checks: [], screenshots: [], warnings: [],
   limits: ['Mobile viewport/touch emulation is not physical-device acceptance.',
     'Room takeover uses the real local Club Room transition API as a lifecycle fixture, not a lake doorway.',
@@ -53,6 +58,17 @@ const snapshot = page => page.evaluate(() => {
     emote: s.emote?.id ?? null, space: s.space, action: s.contextAction,
     frame: d.app.frame, grounded: d.controller.grounded, mounted: d.controller.mounted };
 });
+const characterStatus = page => page.evaluate(() => {
+  const d = window.__INHAGAME_P0__;
+  return { modelState: d.character.modelState, carrierModelState: d.character.dragonModelState,
+    loading: d.getStatus().loading, equipmentVisible: d.character.equipmentVisible,
+    eyeHeight: d.character.eyeHeight, assetCanary: d.character.assetCanary,
+    visuals: d.player.children.filter(e => ['Public_QA_Avatar', 'Induck_GLB_Visual', 'Public_QA_Carrier', 'Annyongi_GLB_Visual'].includes(e.name))
+      .map(e => ({ name: e.name, enabled: e.enabled, meshNodeNames: e.find(n => !!n.render).map(n => n.name) })),
+    assets: d.app.assets.list().filter(a => ['/assets/induck-v3.glb', '/assets/annyongi-flight-v1.glb'].includes(a.file?.url))
+      .map(a => ({ url: a.file.url, loaded: a.loaded, loading: a.loading, resourcePresent: !!a.resource })),
+    interpretation: 'modelState=glb only means the committed GLB loaded. Inspect report.characterAssetIdentity: a public QA cuboid asset is not full mascot visual approval.' };
+});
 async function frames(page, count = 3) {
   const at = await page.evaluate(() => window.__INHAGAME_P0__.app.frame);
   await page.waitForFunction(({ at, count }) => window.__INHAGAME_P0__.app.frame >= at + count,
@@ -61,6 +77,9 @@ async function frames(page, count = 3) {
 async function waitPhoto(page, active) {
   await page.waitForFunction(active => window.__INHAGAME_P0__.photoMode.active === active,
     active, { timeout: 10_000 });
+  if (active) await page.waitForFunction(() => document.pointerLockElement === null &&
+    window.__INHAGAME_P0__.getStatus().pointerLock.locked === false,
+  null, { timeout: 10_000, polling: 50 });
   await frames(page, 2);
 }
 function restored(actual, before, label) {
@@ -116,7 +135,8 @@ async function placeApproach(page) {
     d.controller.keys.clear(); d.controller.clearAssistedMovement(); d.controller.velocityY = 0;
     d.controller.jumpQueued = false; d.controller.grounded = true;
     d.player.setLocalPosition(chosen.x, chosen.y, chosen.z);
-    // Do not point the orbit at the lake or alter scene/streaming/rendering: this is the normal yaw.
+    // Do not point the gameplay orbit at the lake or alter scene/streaming/rendering.
+    // Only the production photo mode may apply its lake-facing entry preset.
     d.app.fire('update', .016);
     return { anchor, initial: chosen, arrivalYaw: yaw, talkRadius,
       guidePosition: { x: guidePosition.x, y: guidePosition.y, z: guidePosition.z },
@@ -214,6 +234,11 @@ async function runCase(startSmoke, TIMEOUT_MS, name, viewport, mobile) {
     const boot = await page.evaluate(() => window.__INHAGAME_P0__.getStatus());
     assert.equal(boot.renderer, 'WebGL2', boot.error ?? 'Expected the actual WebGL2 renderer');
     assert.equal(boot.loading.phase, 'READY');
+    await page.waitForFunction(() => {
+      const c = window.__INHAGAME_P0__.character;
+      return ['glb', 'fallback'].includes(c.modelState) && ['glb', 'fallback'].includes(c.dragonModelState);
+    }, null, { timeout: TIMEOUT_MS });
+    entry.characterAtBoot = await characterStatus(page);
     await Promise.race([page.waitForFunction(() => window.__INHAGAME_P0__.getStatus().npcTest?.status === 'READY', null, { timeout: TIMEOUT_MS }), fatal]);
     await page.waitForFunction(() => {
       const e = window.__INHAGAME_ENVIRONMENT__?.status?.(); return e?.settled && e?.weatherSettled;
@@ -246,7 +271,11 @@ async function runCase(startSmoke, TIMEOUT_MS, name, viewport, mobile) {
 
     if (!mobile) {
       await canvas.click({ position: { x: viewport.width / 2, y: viewport.height / 2 } });
-      await page.waitForFunction(() => document.pointerLockElement === document.getElementById('application'));
+      // The browser changes pointerLockElement before dispatching pointerlockchange.
+      // Wait for both the browser lock AND the real runtime's acknowledgment; neither suffices alone.
+      await page.waitForFunction(() => document.pointerLockElement === document.getElementById('application') &&
+        window.__INHAGAME_P0__.getStatus().pointerLock.locked === true,
+      null, { timeout: 10_000, polling: 50 });
       assert.equal((await snapshot(page)).pointerLock.locked, true);
     }
     const before = await snapshot(page); entry.before = before;
@@ -257,18 +286,32 @@ async function runCase(startSmoke, TIMEOUT_MS, name, viewport, mobile) {
     assert.equal(opened.hudVisibility, 'hidden'); assert.equal(opened.pointerLock.locked, false);
     assert.equal(opened.focus.focusClass, 'BLOCKING_UI');
     assert.deepEqual(opened.focus.topOwners, ['inkyung-photo-mode']);
-    assert.equal(opened.camera.yaw, before.camera.yaw, 'Default photo preserves actual approach yaw');
+    entry.expectedPhotoPreset = await page.evaluate(async () => {
+      const { INKYUNG_PHOTO_POINT, inkyungPhotoYaw } = await import('/src/photo/inkyung-photo-point.js');
+      const p = window.__INHAGAME_P0__.player.getLocalPosition();
+      return { yaw: inkyungPhotoYaw(p), lookAt: INKYUNG_PHOTO_POINT.lookAt };
+    });
+    entry.expectedPhotoPreset.arrivalYaw = before.camera.yaw;
+    assert.ok(Number.isFinite(entry.expectedPhotoPreset.yaw), 'Production lake preset must be finite');
+    assert.ok(Math.abs(opened.camera.yaw - entry.expectedPhotoPreset.yaw) < 1e-8, 'Default photo uses the production lake-facing helper');
     assert.equal(opened.camera.pitch, .25); assert.equal(opened.camera.distance, 4);
     assert.equal(await page.locator('[data-photo-control="close"]').evaluate(el => el === document.activeElement), true);
     entry.defaultComposition = await composition(page);
+    entry.characterAtDefault = await characterStatus(page);
     entry.frame = await realFrame(page);
     assert.equal(entry.frame.glError, 0); assert.ok(entry.frame.colorBins > 12, 'Actual rendered campus must not be a blank frame');
     entry.screenshots.push(await screenshot(page, `${name}-default-${viewport.width}x${viewport.height}`, 'untouched default production photo composition'));
-    if (!entry.defaultComposition.lakePresent || !entry.defaultComposition.lakeEnabled ||
-      entry.defaultComposition.unobscuredByDockSamples === 0) {
-      const warning = `${name}: default arrival-yaw composition has no projected lake samples above the controls, or the actual lake is disabled; inspect screenshot before visual approval`;
-      report.warnings.push(warning); entry.compositionFlag = warning;
-    }
+    const compositionMinimum = { projected: Math.max(20, Math.ceil(entry.defaultComposition.sampleCount * .1)),
+      aboveDock: Math.max(12, Math.ceil(entry.defaultComposition.sampleCount * .05)) };
+    entry.compositionMinimum = compositionMinimum;
+    assert.equal(entry.defaultComposition.lakePresent, true, 'Default preset renders the actual lake entity');
+    assert.equal(entry.defaultComposition.lakeEnabled, true, 'Actual lake remains enabled');
+    assert.ok(entry.defaultComposition.projectedWaterSamples >= compositionMinimum.projected,
+      'Default preset must frame a meaningful set of actual lake samples');
+    assert.ok(entry.defaultComposition.unobscuredByDockSamples >= compositionMinimum.aboveDock,
+      'Default preset must leave meaningful lake samples above the controls');
+    assert.equal(entry.defaultComposition.playerProjection.inFrame, true, 'Local avatar remains inside the default composition');
+    if (entry.characterAtDefault.modelState !== 'glb') report.warnings.push(`${name}: avatar modelState=${entry.characterAtDefault.modelState}; inspect fallback rendering separately`);
     entry.checks.push(`${mobile ? 'Native touch' : 'Native F with real Pointer Lock'} entry, HUD hidden, photo owns focus`);
     for (const selector of ['.photo-mode-dock', '[data-photo-control="close"]', '[data-photo-control="yaw"]', '[data-photo-control="pitch"]', '[data-photo-control="distance"]']) {
       const box = await page.locator(selector).boundingBox();
@@ -288,7 +331,7 @@ async function runCase(startSmoke, TIMEOUT_MS, name, viewport, mobile) {
       const value = Number(await slider.inputValue());
       assert.notEqual(value, previous, `${control}: native control changes its value`);
       const camera = (await snapshot(page)).camera;
-      assert.ok(Math.abs(camera[control] - (control === 'yaw' ? before.camera.yaw + value : value)) < 1e-8, `${control}: UI changes production orbit`);
+      assert.ok(Math.abs(camera[control] - (control === 'yaw' ? entry.expectedPhotoPreset.yaw + value : value)) < 1e-8, `${control}: UI changes production orbit`);
     }
     const stationary = await snapshot(page);
     await page.keyboard.down('KeyW'); await frames(page, 5); await page.keyboard.up('KeyW');
@@ -312,8 +355,8 @@ async function runCase(startSmoke, TIMEOUT_MS, name, viewport, mobile) {
     }
     entry.checks.push('Five real entry/Escape cycles plus repeated close without leaked focus owners');
 
-    // Keep the potentially wrong default composition above. A separately labelled, ordinary
-    // gameplay look toward the lake provides useful actual-water evidence without hiding it.
+    // Keep the untouched production preset above. The separate native gameplay look proves
+    // entry and restoration also work from another arrival yaw; it cannot replace default evidence.
     entry.lakeFacingLook = await nativeLakeLook(page, viewport);
     const lakeBefore = await snapshot(page);
     if (mobile) await page.locator('#context-action').tap(); else { await canvas.focus(); await page.keyboard.press('KeyF'); }
@@ -400,6 +443,8 @@ async function runCase(startSmoke, TIMEOUT_MS, name, viewport, mobile) {
     entry.status = 'FAIL'; entry.error = String(error.stack ?? error);
     entry.problems = smoke?.problems ?? [];
     if (page && !page.isClosed()) {
+      try { entry.characterAtFailure = await characterStatus(page); }
+      catch (statusError) { entry.characterStatusError = String(statusError); }
       try { entry.screenshots.push(await screenshot(page, `${name}-failure-${viewport.width}x${viewport.height}`, 'failure evidence; production page unchanged')); }
       catch (captureError) { entry.captureError = String(captureError); }
     }
@@ -421,6 +466,14 @@ try {
     const committed = git('show', `${report.head}:apps/world/${path}`);
     assert.equal(sha256(local), sha256(committed), `Uncommitted source differs from required head: ${path}`);
     report.sourceHashes[path] = sha256(local);
+    if (path === 'assets/induck-v3.glb') {
+      assert.equal(local.toString('ascii', 0, 4), 'glTF', 'Character source must be a GLB');
+      const json = JSON.parse(local.subarray(20, 20 + local.readUInt32LE(12)).toString('utf8'));
+      report.characterAssetIdentity = { path, sha256: sha256(local), generator: json.asset?.generator ?? null,
+        rootNodeNames: json.scenes?.flatMap(scene => scene.nodes ?? []).map(i => json.nodes?.[i]?.name) ?? [],
+        materialColors: json.materials?.map(m => m.pbrMetallicRoughness?.baseColorFactor ?? null) ?? [] };
+      if (/QA cuboids/i.test(json.asset?.generator ?? '')) report.warnings.push('Committed avatar GLB is an independent public QA cuboid asset; successful loading does not approve final mascot appearance');
+    }
   }
   report.checks.push('Required full head equals git HEAD and attested sources equal committed bytes');
   const { startSmoke, TIMEOUT_MS } = await import('./harness.mjs');
@@ -430,7 +483,7 @@ try {
     ['landscape', { width: 844, height: 390 }, true]
   ]) await runCase(startSmoke, TIMEOUT_MS, name, viewport, mobile);
   report.status = report.cases.every(entry => entry.status === 'PASS') ? 'PASS' : 'FAIL';
-  report.visualApproval = report.warnings.length ? 'FLAGGED: review default compositions' : 'PENDING: inspect default screenshots';
+  report.visualApproval = report.warnings.length ? 'FLAGGED: inspect default compositions and avatar-asset limitations' : 'PENDING: inspect default screenshots';
   if (report.status === 'FAIL') process.exitCode = 1;
 } catch (error) {
   report.status = 'FAIL'; report.error = String(error.stack ?? error); process.exitCode = 1;

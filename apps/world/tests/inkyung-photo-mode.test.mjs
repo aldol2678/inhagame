@@ -126,3 +126,16 @@ test('the real stationary NPC keeps dialogue nearby while photo mode has a usabl
     assert.equal(selectContextAction([h.mode.contextAction()]).id, 'inkyung-photo-mode');
   }
 });
+
+test('photo opens toward the existing lake from any arrival yaw, then restores that arrival view', async () => {
+  const { computePolygonCentroid, getCanonicalLandmark, projectPolygon } = await import('../src/reality-adapter.js');
+  const lake = computePolygonCentroid(projectPolygon(getCanonicalLandmark('lmk_inkyung_pond').polygon));
+  for (const yaw of [0, 1.7, Math.PI, -2.4]) {
+    const h = harness(); h.orbit.yaw = yaw; const original = view(h);
+    assert.equal(h.mode.open(), true);
+    const dx = lake.x - h.position.x, dz = lake.z - h.position.z, length = Math.hypot(dx, dz);
+    const forwardDot = (-Math.sin(h.orbit.yaw) * dx + Math.cos(h.orbit.yaw) * dz) / length;
+    assert.ok(forwardDot > .999, `photo looks toward the actual lake, arrival yaw ${yaw}`);
+    h.mode.close(); assert.deepEqual(view(h), original);
+  }
+});

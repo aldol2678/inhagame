@@ -1,6 +1,6 @@
 import { INPUT_FOCUS_POLICY } from '../input/input-focus-manager.js';
 import { createInputFocusOwner } from '../input/input-focus-owner.js';
-import { INKYUNG_PHOTO_POINT } from './inkyung-photo-point.js';
+import { INKYUNG_PHOTO_POINT, inkyungPhotoYaw } from './inkyung-photo-point.js';
 
 export const PHOTO_FRAME_LIMITS = Object.freeze({
   yaw: .65,
@@ -51,8 +51,8 @@ export function createPhotoMode({
     if (!canOpen()) return false;
     const p = getPosition();
     session = { saved: view(), position: { x: p.x, y: p.y, z: p.z }, accountId: getState().accountId,
-      baseYaw: orbit.yaw, posed: false };
-    applyView({ ...session.saved, firstPerson: false, nearClip: .3,
+      baseYaw: inkyungPhotoYaw(p), posed: false };
+    applyView({ ...session.saved, yaw: session.baseYaw, firstPerson: false, nearClip: .3,
       pitch: .25, distance: 4 });
     owner.acquire();
     publish('open');
