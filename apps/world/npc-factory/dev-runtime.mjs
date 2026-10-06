@@ -2,7 +2,7 @@ import * as pc from 'playcanvas';
 import { roadviewGroundHeight } from '../src/roadview-layout.js';
 import { findSeat, SEAT_TOP_Y } from '../src/seat-anchors.js';
 import { metersToWorld } from '../src/world-scale.js';
-import { PULSE_PERIODS, PERIOD_SECONDS, CYCLE_SECONDS, periodAt, snapshotForPeriod, validateDevCandidate, inspectionPointFor } from './dev-runtime-state.mjs';
+import { PERIODS, PULSE_PERIODS, PERIOD_SECONDS, CYCLE_SECONDS, periodAt, snapshotForPeriod, validateDevCandidate, inspectionPointFor } from './dev-runtime-state.mjs';
 import { appearanceFor } from './dev-appearance.mjs';
 import { createHumanAvatar } from './dev-human-avatar.mjs';
 import { createNpcExpressionController, NPC_EXPRESSION_NAMES } from './npc-expression-controller.mjs';
@@ -22,7 +22,7 @@ import { createObservedConversation } from './npc-observed-conversation.mjs';
 import { createObservedBubble } from './npc-observed-bubble.mjs';
 import { MAIN_NPC_ID, QUEST_NPC_ID, runtimePresence } from './npc-presence.mjs';
 import { createNpcWorldClock } from './npc-world-clock.mjs';
-import { createSharedMeetings, createSharedMeetingObserver } from './npc-shared-meetings.mjs';
+import { createSharedMeetings, createSharedMeetingObserver, seedSharedMeetingGroups } from './npc-shared-meetings.mjs';
 import { bindSharedSchedule } from './npc-shared-schedule.mjs';
 import { createSharedNpcAuthorityConsumerP0 } from './npc-shared-authority-consumer-p0.mjs';
 import { worldScheduleAt, NPC_SCHEDULE_REVISION } from './npc-world-time-contract.mjs';
@@ -156,6 +156,10 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
   socialEnabled = false, socialPreview = false, socialBehaviorPreview = false,
   observedConversationEnabled = false, isObservedConversationBlocked = () => true,
   getBusyNpcIds = () => [], onNpcTalk = () => {},
+  // The lobby only needs quest/status readbacks. While this returns true the NPC simulation (shared
+  // schedule sampling, route compilation, social/observed updates) does not run, and the roster is
+  // placed in short frame-budgeted slices once it turns false so the start tap is never blocked.
+  isSimulationHeld = () => false,
   externalContextAction = false, aiEndpoint = '/npc-ai/decide', getAiSession = async () => null,
   questEnabled = false, questEndpoint = '/npc-quest',
   sideEvent = null,
@@ -194,6 +198,10 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
   const npcById = new Map(batch.npcs.map(npc => [npc.npc_id, npc]));
   const rosterById = new Map(roster.npcs.map(entry => [entry.npc_id, entry]));
   const socialGraph = createPersistentNpcSocialGraph(batch, roster, hash, browserStorage);
+  // Behind the lobby, build the one-time NPC anchor tables period by period so no single task
+  // holds the main thread long enough to delay the START tap.
+  const yieldWhileHeld = () => isSimulationHeld() ? new Promise(resolve => setTimeout(resolve, 0)) : null;
+  if (isSimulationHeld()) for (const period of PERIODS) { snapshotForPeriod(batch, period); await yieldWhileHeld(); }
   const first = snapshotForPeriod(batch, sharedFrameNow === null ? PULSE_PERIODS[0] : worldScheduleAt(sharedFrameNow).period);
   const canonicalNavigator = createNpcNavigator(batch);
   const navigator = createRecastRuntimeShadowNavigator(canonicalNavigator, { enabled: recastRuntimeShadowEnabled });
@@ -203,10 +211,21 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
       if (!event.persisted) navigator.recastRuntimeShadow.destroy();
     });
   }
+  await yieldWhileHeld();
   const purposefulRoster = createPurposefulRoster(batch, navigator);
+  await yieldWhileHeld();
   if (worldClock) bindSharedSchedule(purposefulRoster, navigator, () => sharedFrameNow);
+  let meetingGroups = null;
+  if (worldClock) {
+    // The NG1 seed replay is the heaviest part of createSharedMeetings; slice it behind the lobby.
+    const seed = seedSharedMeetingGroups({ batch, profiles: roster });
+    for (let step = seed.next(); ; step = seed.next()) {
+      if (step.done) { meetingGroups = step.value; break; }
+      await yieldWhileHeld();
+    }
+  }
   const sharedMeetings = worldClock ? createSharedMeetings({ batch, profiles: roster,
-    roster: purposefulRoster, navigator, now: () => sharedFrameNow }) : null;
+    roster: purposefulRoster, navigator, now: () => sharedFrameNow, groups: meetingGroups }) : null;
   const sharedObserver = worldClock ? createSharedMeetingObserver() : null;
   const sharedAuthority = createSharedNpcAuthorityConsumerP0({
     enabled: sharedAuthorityEnabled,
@@ -332,7 +351,16 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
     getSession: getAiSession
   });
   const aiEnabled = id => aiPilot && aiSignedIn && pilotAvailable && aiPilotIds.has(id);
+  // Roster NPCs whose first shared-schedule sample (route compile) is still deferred. Reported with the
+  // existing SYNCING contract so getStatus() readers never trigger navigation work.
+  const startupDeferred = new Set();
+  let startupFramesLeft = 2;
+  const STARTUP_SLICE_MS = 4;
+  const syncingState = id => ({ id, phase: 'SYNCING', position: { x: 0, z: 0 }, heading: 0, visible: false,
+    moving: false, activity: null, currentGoal: null, currentNeed: null, destination: null,
+    scheduleIndex: null, paused: false, interrupted: false, failures: 0 });
   function purposefulStatus(id) {
+    if (startupDeferred.has(id)) return syncingState(id);
     const state = purposefulRoster.get(id).controller.status(false);
     return !worldClock && activeConversation?.id === id
       ? { ...state, phase: 'TALKING', interruptedPhase: state.phase, moving: false }
@@ -913,39 +941,67 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
       for (const { controller } of purposefulRoster.values()) controller.setScheduleIndex(index);
     }
     snapshot = next;
-    for (const actor of next.actors) {
-      const visual = avatars.get(actor.id);
-      visual.actor = actor;
-      const purpose = purposefulRoster.get(actor.id);
-      if (purpose) {
-        const state = purpose.controller.status(false);
-        actor.position = state.visible ? { ...state.position } : null;
-        actor.location = state.destination;
-        actor.activity = state.activity ?? state.currentGoal;
-        visual.seat = null;
-        visual.avatar.enabled = state.visible;
-        visual.motion.position = state.visible ? { ...state.position } : null;
-        visual.motion.route = [];
-        visual.motion.moving = state.moving;
-        continue;
-      }
-      visual.seat = actor.activity === 'sit' && actor.position ? findSeat(actor.position, { range: 1 }) : null;
-      visual.avatar.enabled = Boolean(actor.position);
-      const motion = visual.motion;
-      motion.moving = false;
-      if (!actor.position) {
-        motion.position = null; motion.route = [];
-      } else if (!motion.position || instant) {
-        motion.position = { ...actor.position }; motion.route = [];
-        motion.wait = Number(actor.id.slice(-3)) % 4;
-      } else {
-        motion.route = navigator.route(motion.position, actor.position);
-        if (!motion.route) throw new Error(`No safe NPC route for ${actor.id}/${next.period}`);
-        motion.wait = 0;
-      }
-    }
+    for (const actor of next.actors) applyActor(next, actor, instant);
     for (const button of periodRow?.children ?? []) button.setAttribute('aria-pressed', String(button.dataset.period === next.period));
     drawDetail();
+  }
+  function applyActor(next, actor, instant) {
+    const visual = avatars.get(actor.id);
+    visual.actor = actor;
+    const purpose = purposefulRoster.get(actor.id);
+    if (purpose && startupDeferred.has(actor.id)) {
+      visual.seat = null;
+      visual.avatar.enabled = false;
+      visual.motion.position = null; visual.motion.route = []; visual.motion.moving = false;
+      return;
+    }
+    if (purpose) {
+      const state = purpose.controller.status(false);
+      actor.position = state.visible ? { ...state.position } : null;
+      actor.location = state.destination;
+      actor.activity = state.activity ?? state.currentGoal;
+      visual.seat = null;
+      visual.avatar.enabled = state.visible;
+      visual.motion.position = state.visible ? { ...state.position } : null;
+      visual.motion.route = [];
+      visual.motion.moving = state.moving;
+      return;
+    }
+    visual.seat = actor.activity === 'sit' && actor.position ? findSeat(actor.position, { range: 1 }) : null;
+    visual.avatar.enabled = Boolean(actor.position);
+    const motion = visual.motion;
+    motion.moving = false;
+    if (!actor.position) {
+      motion.position = null; motion.route = [];
+    } else if (!motion.position || instant) {
+      motion.position = { ...actor.position }; motion.route = [];
+      motion.wait = Number(actor.id.slice(-3)) % 4;
+    } else {
+      motion.route = navigator.route(motion.position, actor.position);
+      if (!motion.route) throw new Error(`No safe NPC route for ${actor.id}/${next.period}`);
+      motion.wait = 0;
+    }
+  }
+  // Places the deferred roster a few NPCs per frame. Returns true once everything is live.
+  function stepStartup() {
+    if (!startupDeferred.size) return true;
+    if (startupFramesLeft > 0) { startupFramesLeft--; return false; }
+    const deadline = performance.now() + STARTUP_SLICE_MS;
+    // Everything the first roster sample needs is built in budgeted slices first: the A* grid, then the
+    // shared meeting plans (which also compile every NPC's route legs for the current period).
+    if (!canonicalNavigator.warmGrid(STARTUP_SLICE_MS)) return false;
+    const frameNow = worldClock?.now() ?? null;
+    if (sharedMeetings && frameNow !== null &&
+        !sharedMeetings.warm(worldScheduleAt(frameNow).index, Math.max(0, deadline - performance.now()))) return false;
+    for (const id of [...startupDeferred]) {
+      startupDeferred.delete(id);
+      const actor = snapshot.actors.find(item => item.id === id);
+      if (actor) applyActor(snapshot, actor, true);
+      if (performance.now() >= deadline) break;
+    }
+    if (startupDeferred.size) return false;
+    drawDetail();
+    return true;
   }
   function setPeriod(period) {
     if (worldClock) return false;
@@ -1199,6 +1255,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
         point.x>=0 && point.y>=0 && point.x<=canvasRect.width && point.y<=canvasRect.height},obstacles:observedObstacles });
   }
   function update(dt) {
+    if (isSimulationHeld() || !stepStartup()) return;
     sharedAuthority.update();
     if (!socialPreviewFastForward) {
       main2Guide.update(dt);
@@ -1301,6 +1358,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
       : '근처에 NPC가 없습니다.';
   }
 
+  if (isSimulationHeld()) for (const id of purposefulRoster.keys()) startupDeferred.add(id);
   applySnapshot(first, true);
   if (!production) focusSelected();
   drawStatus();
@@ -1344,6 +1402,8 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
       catch { return null; }
     },
     getContextAction,
+    // Cheap readback for the lobby; getStatus() below walks every NPC.
+    getQuestStatus: () => ({ quest: quest.status(), main2Quest: main2Quest.status() }),
     getQuestMapObjective: legacyProgressId =>
       legacyProgressId === QUEST_ID ? quest.mapTarget()
         : legacyProgressId === MAIN2_QUEST_ID ? main2Quest.mapTarget()
@@ -1365,7 +1425,8 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
       purposeful_count: purposefulRoster.size,
       recast_runtime_shadow: navigator.recastRuntimeShadow.status(),
       purposeful_behavior: Object.fromEntries([...purposefulRoster].map(([id, { behavior }]) => [id, behavior.id])),
-      shared_meetings: sharedMeetings?.status() ?? null,
+      // Meeting plans compile shared-schedule routes; not while the roster is still deferred.
+      shared_meetings: startupDeferred.size ? null : sharedMeetings?.status() ?? null,
       shared_schedule: worldClock ? { ...worldClock.status(), revision: NPC_SCHEDULE_REVISION,
         frameServerNowMs: sharedFrameNow } : null,
       shared_authority: sharedAuthority.status(),

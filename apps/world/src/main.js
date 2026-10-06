@@ -781,6 +781,8 @@ window.addEventListener("pagehide", event => {
   if (!event.persisted) cinematic.destroy();
 });
 let npcTest = null;
+// Lobby readers only need the quest slice; the full getStatus() snapshot walks every NPC.
+const npcQuestStatus = () => npcTest?.getQuestStatus?.() ?? npcTest?.getStatus?.() ?? null;
 const questRuntime = createQuestRuntime();
 let questJournal = null;
 let questHud = null;
@@ -793,7 +795,7 @@ let biryongCloudSaveTimer = null;
 let biryongResolvedAccountId = null;
 const lobbySpawnRegistry = createSpawnRegistry();
 const spawnProgressContext = () => ({
-  completedQuestIds: npcTest?.getStatus?.().quest?.complete === true ? [QUEST_ID] : []
+  completedQuestIds: npcQuestStatus()?.quest?.complete === true ? [QUEST_ID] : []
 });
 const mainGateSpawn = lobbySpawnRegistry.get(SPAWN_ID.MAIN_GATE, spawnProgressContext());
 const backGateSpawn = lobbySpawnRegistry.get(SPAWN_ID.BACK_GATE, spawnProgressContext());
@@ -874,7 +876,7 @@ const lobbyQuestHighlight = createLobbyQuestHighlight({
   objectiveElement: document.getElementById("lobby-quest-objective"),
   progressElement: document.getElementById("lobby-quest-progress"),
   getTourStage: () => tour.stage,
-  getQuest: () => npcTest?.getStatus?.() ?? null,
+  getQuest: npcQuestStatus,
   getSignedIn: () => profile.signedIn === true
 });
 let rooms = null;
@@ -1941,8 +1943,13 @@ const syncAudio = () => {
   const placeId = space === "campus" && isNearBiryong(player.getLocalPosition()) ? BIRYONG_PLACE_ID : null;
   const key = `${space}:${placeZoneId ?? ""}:${placeId ?? ""}`;
   if (key === lastAudioState) return;
+  const leavingLobby = lastAudioState.startsWith("lobby:") && space !== "lobby";
   lastAudioState = key;
-  worldAudio.setState({ space, placeZoneId, placeId });
+  const state = { space, placeZoneId, placeId };
+  if (!leavingLobby) { worldAudio.setState(state); return; }
+  // Starting the campus ambience synthesizes its buffers; keep that out of the START frame.
+  const defer = globalThis.requestIdleCallback ?? (fn => setTimeout(fn, 0));
+  defer(() => { if (lastAudioState === key) worldAudio.setState(state); }, { timeout: 300 });
 };
 rooms.onChange(syncAudio);
 biryongRealm.onChange(syncAudio);
@@ -2805,6 +2812,8 @@ async function loadOptionalNpcRuntime() {
       sharedAuthorityEndpoint: '/api/npc-shared-state',
       getSharedAuthorityPlaceZoneId: () => places.getCurrentPlaceZone()?.id ?? null,
       recastRuntimeShadowEnabled: npcRecastRuntimeShadowMode,
+      // The lobby keeps quest/status readbacks only; NPC simulation and route compilation wait for START.
+      isSimulationHeld: () => lobbyWorld.active,
       onNpcTalk: (id, now) => online?.network?.setNpcTalk(id, now),
       getBusyNpcIds: now => busyNpcIds(online?.network?.remotes.inZone(online.network.placeZoneId) ?? [], now),
       production: npcSharedScheduleMode || npcProductionMode || npcPreviewMode || npcRosterPreviewMode || npcSocialPreviewMode || npcObservedConversationMode,
@@ -2886,7 +2895,7 @@ async function loadOptionalNpcRuntime() {
       onConversationClose: () => { npcDialogueInput.release(); }
     });
     npcTest = runtime;
-    const initialQuestStatus = runtime.getStatus?.() ?? null;
+    const initialQuestStatus = runtime.getQuestStatus?.() ?? runtime.getStatus?.() ?? null;
     questRuntime.update(initialQuestStatus ? {
       quest: initialQuestStatus.quest,
       main2Quest: initialQuestStatus.main2Quest
@@ -2930,6 +2939,11 @@ places.onPlaceZoneChanged((previous,next)=>{
   }
 });
 
+const LOBBY_SUMMARY_INTERVAL_S = 0.25;
+let lobbySummaryElapsed = LOBBY_SUMMARY_INTERVAL_S;
+// The lobby camera and player are static, so the map/zone/HUD readbacks only need to settle once
+// per lobby position instead of every frame. Reset outside the lobby so re-entry settles again.
+let lobbyHudSettledKey = null;
 app.on("update", (dt) => {
   syncAudio();
   photoMode.update();
@@ -2956,9 +2970,14 @@ app.on("update", (dt) => {
     contextActions.set("student-center-shop", null);
     contextActions.set("backgate-transit", null);
     backgateTransitPanel.setOpen(false, { restoreFocus: false });
-    lobbyPresenceSummary.update();
-    lobbyQuestHighlight.update();
-    backGateLock.refresh();
+    // The summaries are DOM readbacks of slow-moving state; they do not need to run every frame.
+    lobbySummaryElapsed += dt;
+    if (lobbySummaryElapsed >= LOBBY_SUMMARY_INTERVAL_S) {
+      lobbySummaryElapsed = 0;
+      lobbyPresenceSummary.update();
+      lobbyQuestHighlight.update();
+      backGateLock.refresh();
+    }
   }
   if (lobbyTransition.active) {
     helicopterFlightHud.update({ suppressed: true });
@@ -2976,12 +2995,18 @@ app.on("update", (dt) => {
     const pos = player.getLocalPosition();
     lobbyWorld.update(Math.min(dt, 0.05));
     streaming.update(dt, pos);
-    places.update(pos);
-    minimap?.update();
-    fullMap?.update();
-    renderNavigationHud();
+    const lobbyHudKey = `${pos.x}|${pos.z}`;
+    if (lobbyHudKey !== lobbyHudSettledKey) {
+      places.update(pos);
+      minimap?.update();
+      fullMap?.update();
+      renderNavigationHud();
+      // Keep refreshing until the minimap exists so it still gets its hidden state and geometry mount.
+      lobbyHudSettledKey = minimap ? lobbyHudKey : null;
+    }
     return;
   }
+  lobbyHudSettledKey = null;
   if (cinematic.active) {
     const step = Math.min(dt, 0.05);
     const pos = player.getLocalPosition();
