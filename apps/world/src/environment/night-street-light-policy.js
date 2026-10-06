@@ -11,9 +11,28 @@ export function nightLightBudget(tier) {
   return Object.hasOwn(NIGHT_LIGHT_BUDGET, tier) ? NIGHT_LIGHT_BUDGET[tier] : NIGHT_LIGHT_BUDGET.medium;
 }
 
+export function lampPolePosition(lamp) {
+  const p = lamp?.center ?? lamp?.frame?.at?.(0);
+  if (!p) return Object.freeze({ x: 0, z: 0 });
+  return Object.freeze({ x: p.x, z: p.z });
+}
+
 export function lampHeadPosition(lamp) {
   const p = lamp.frame.at(0, -lamp.side * 0.93);
   return Object.freeze({ x: p.x, y: lamp.height + 0.055, z: p.z });
+}
+
+export function lampArmLayout(lamp) {
+  const pole = lampPolePosition(lamp);
+  const head = lamp.head ?? lampHeadPosition(lamp);
+  const dx = head.x - pole.x, dz = head.z - pole.z;
+  const length = Math.hypot(dx, dz);
+  return Object.freeze({
+    x: (pole.x + head.x) / 2,
+    z: (pole.z + head.z) / 2,
+    length,
+    yaw: length > 1e-9 ? -Math.atan2(dz, dx) * 180 / Math.PI : 0
+  });
 }
 
 export function nearestNightLampIndices(lamps, position, limit, maxDistance = NIGHT_LIGHT_MAX_DISTANCE) {
