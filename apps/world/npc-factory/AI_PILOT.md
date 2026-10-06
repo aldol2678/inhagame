@@ -49,6 +49,14 @@ The server validates NPC ID, time period, topic, off-zone status, and the action
 - Exercise both NPCs and all periods. Check that each accepted action stays at a safe local anchor, sitting uses an actual seat, and leaving the area/period cancels stale outcomes.
 - Before a wider release, inspect at least 20 varied outputs for naturalness, repetition, unsupported campus facts, and harmful content.
 
-## Next architecture decision
+## Shared multiplayer architecture decision
 
-Each browser runs its own NPC simulation. For a shared multiplayer NPC, Social S3 must first specify which AI actions are permitted and Online Architecture must specify one authoritative NPC state owner, event ordering, period transitions, and broadcast/reconnect behavior. Do not turn the local endpoint into a public API or expose AI actions simply by setting a client flag.
+The architecture decision is now locked in the current Online Architecture and Social S3 design sources and mirrored in `SHARED-NPC-AUTHORITY.md`.
+
+- Shared multiplayer NPCs use one authoritative shared state, not one canonical simulation per browser.
+- Server simulation cost may step through `ACTIVE`, `COARSE`, and `SLEEP` without forking the shared state.
+- Place Zone / later AOI interest management limits what each client receives.
+- Dialogue, player-to-NPC memory and personal quest narrative may remain player-specific.
+- AI output remains non-authoritative until admitted by the shared action validator/executor.
+
+This pilot is still browser-local and therefore must not be represented as the authoritative shared implementation. Do not turn the local endpoint into a public shared-NPC API or expose AI actions simply by setting a client flag.
