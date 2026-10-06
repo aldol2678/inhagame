@@ -32,7 +32,7 @@ test('two evidenced approaches derive from existing avenue ends and the hall tra
 test('navigation consumes the same approaches instead of recreating virtual shortcuts',()=>{
   const lines=campusNavPolylines();for(const id of ids)assert.ok(lines.some(l=>l.id===id),'missing authored navigation approach '+id);
   const audit=buildRoadNetworkAudit();assert.equal(audit.nav.virtualJunctionCount,9);assert.equal(audit.nav.droppedLineIds.length,0);
-  assert.equal(audit.nav.nodeCount,186);assert.equal(audit.nav.edgeCount,211);
+  assert.equal(audit.nav.nodeCount,187);assert.equal(audit.nav.edgeCount,212);
   assert.ok(!audit.nav.virtualJunctions.some(j=>['junction.site_481241657','junction.site_258995842'].includes(j.lineId)));
   assert.ok(campusNavGraphData().edges.some(e=>e.lineId===ids[0]));
 });
