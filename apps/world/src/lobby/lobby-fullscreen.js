@@ -1,3 +1,6 @@
+// Fullscreen is deliberately orientation-neutral: portrait and landscape are both valid
+// play modes. We never call ScreenOrientation.lock(); rotating the device while fullscreen
+// should simply trigger the normal responsive layout.
 const SHORT_LANDSCAPE_MAX_HEIGHT = 720;
 
 export function lobbyFullscreenEligible({
