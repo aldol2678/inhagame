@@ -28,18 +28,20 @@ test('P0 authority quantizes canonical time and two replicas converge on the sam
   const authority = createCampusSharedNpcAuthorityP0();
   assert.deepEqual(authority.ids, SHARED_NPC_P0_IDS);
 
-  let observed = null;
+  let observed = null, observedAt = null;
   for (let seconds = 0; seconds < 5 * P / 1000 && !observed; seconds += 30) {
-    const inspection = authority.evaluate({ serverNowMs: E + seconds * 1000 });
+    const at = E + seconds * 1000;
+    const inspection = authority.evaluate({ serverNowMs: at });
     observed = inspection.records.find(record => record.placeZoneId && record.state.visible);
+    if (observed) observedAt = at;
   }
-  assert.ok(observed, 'pilot NPC must be visible in at least one canonical period');
+  assert.ok(observed && observedAt !== null, 'pilot NPC must be visible in at least one canonical period');
 
-  const raw = E + 123_500;
-  const a = authority.snapshot({ placeZoneId: observed.placeZoneId, serverNowMs: raw + 1 });
-  const b = authority.snapshot({ placeZoneId: observed.placeZoneId, serverNowMs: raw + 249 });
+  const a = authority.snapshot({ placeZoneId: observed.placeZoneId, serverNowMs: observedAt + 1 });
+  const b = authority.snapshot({ placeZoneId: observed.placeZoneId, serverNowMs: observedAt + 249 });
   assert.deepEqual(a, b, '250ms authority tick removes request-time browser drift');
   assert.equal(a.authorityRevision, SHARED_NPC_AUTHORITY_REVISION);
+  assert.ok(a.npcs.some(npc => npc.id === observed.id), 'same-NPC convergence must not pass on an empty snapshot');
 
   const first = createSharedNpcReplicaP0();
   const second = createSharedNpcReplicaP0();
