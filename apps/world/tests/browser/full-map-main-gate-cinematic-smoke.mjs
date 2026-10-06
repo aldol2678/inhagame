@@ -53,6 +53,21 @@ const readFrame = page => page.evaluate(() => {
       return { x: q.x, y: q.y, z: q.z };
     })(),
     bodyCinematic: document.body.dataset.cinematic ?? null,
+    skipVisible: (() => {
+      const el = document.getElementById("cinematic-skip");
+      const style = el ? getComputedStyle(el) : null;
+      return Boolean(el && !el.hidden && style?.display !== "none" && style?.visibility !== "hidden");
+    })(),
+    visibleHud: [
+      ".campus-topbar", "#minimap", "#tour", "#quest-hud", "#joystick", "#run", "#jump", ".social-cluster"
+    ].filter(selector => {
+      const el = document.querySelector(selector);
+      if (!el || el.hidden) return false;
+      const style = getComputedStyle(el);
+      const rect = el.getBoundingClientRect();
+      return style.display !== "none" && style.visibility !== "hidden" &&
+        Number(style.opacity || 1) > .05 && rect.width > 0 && rect.height > 0;
+    }),
     renderer: s.renderer
   };
 });
@@ -102,6 +117,8 @@ try {
         assert.equal(frame.inputEnabled, false);
         assert.equal(frame.orbitInputEnabled, false);
         assert.equal(frame.bodyCinematic, "MAIN_GATE_REVEAL_V01");
+        assert.equal(frame.skipVisible, true);
+        assert.deepEqual(frame.visibleHud, [], "ordinary gameplay HUD stays clear during the reveal");
         assert.ok(frame.fov >= 50 && frame.fov <= 75);
         entry.frames.push({ shot: shot.id, ...frame });
         await capture(page, `${spec.name}-${shot.id}`);
@@ -113,6 +130,7 @@ try {
       }, null, 30_000);
       entry.completed = await readFrame(page);
       assert.equal(entry.completed.bodyCinematic, null);
+      assert.equal(entry.completed.skipVisible, false);
       assert.equal(entry.completed.inputEnabled, true);
       assert.equal(entry.completed.orbitInputEnabled, true);
       assert.ok(Math.abs(entry.completed.fov - 62) < 1e-6, "gameplay FOV is restored");
