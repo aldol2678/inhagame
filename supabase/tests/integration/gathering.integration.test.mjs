@@ -43,10 +43,11 @@ async function user({ anonymous = false, banned = false } = {}) {
   return id;
 }
 async function configure({ enabled = true, source = 'ACTIVE', skill = 'ACTIVE', collection = 'ACTIVE',
-  interval = 1, policyValue = policy } = {}) {
+  interval = 1, policyValue = policy, presenceRequired = false } = {}) {
   await query(`update private.world_gathering_runtime
       set enabled=${enabled},policy=${policyValue === null ? 'null' : lit(JSON.stringify(policyValue)) + '::jsonb'},
-          minimum_harvest_interval_ms=${interval ?? 'null'};
+          minimum_harvest_interval_ms=${interval ?? 'null'},
+          presence_required=${presenceRequired};
     update private.world_gathering_source_catalog set status=${lit(source)}
       where source_ref='gathering.campus.leaf_pile_01';
     update private.world_life_skill_catalog set status=${lit(skill)} where skill_id='life.gathering';
@@ -74,7 +75,8 @@ after(async () => {
     await query(`update private.world_gathering_runtime set
       enabled=${previous.runtime.enabled},
       policy=${previous.runtime.policy === null ? 'null' : lit(JSON.stringify(previous.runtime.policy)) + '::jsonb'},
-      minimum_harvest_interval_ms=${previous.runtime.minimum_harvest_interval_ms ?? 'null'};
+      minimum_harvest_interval_ms=${previous.runtime.minimum_harvest_interval_ms ?? 'null'},
+      presence_required=${previous.runtime.presence_required ?? true};
       update private.world_gathering_source_catalog set status=${lit(previous.source)}
         where source_ref='gathering.campus.leaf_pile_01';
       update private.world_life_skill_catalog set status=${lit(previous.skill)} where skill_id='life.gathering';
