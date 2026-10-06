@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { lobbyFullscreenEligible, requestLobbyFullscreen } from "../src/lobby/lobby-fullscreen.js";
+import { bindMainGateEntry } from "../src/lobby/lobby-main-gate.js";
 
 const mobileWindow = {
   innerWidth: 844,
@@ -80,4 +81,27 @@ test("fullscreen flow remains orientation-neutral and never requires an orientat
   };
   assert.equal(requestLobbyFullscreen({ documentLike, windowLike: portraitMobileWindow }), true);
   assert.equal(requested, 1);
+});
+
+test("main gate click requests fullscreen before entry and preserves the cinematic callback", () => {
+  const calls = [];
+  const button = { addEventListener(_type, handler) { this.click = handler; }, removeEventListener() {} };
+  const target = { x: 10, y: 1.15, z: 20, yaw: 0 };
+  const documentLike = { body: { dataset: {} }, getElementById() { return null; } };
+  let completion;
+  const entry = bindMainGateEntry({
+    button,
+    player: { getLocalPosition() { return { x: 0, z: 0 }; } },
+    lobbyWorld: { active: true },
+    spawn: target,
+    documentLike,
+    requestFullscreen() { calls.push("fullscreen"); return false; },
+    transition: { start({ onComplete }) { calls.push("transition"); completion = onComplete; return true; } },
+    onEntered({ target: entered }) { calls.push("cinematic"); assert.deepEqual(entered, target); }
+  });
+  assert.equal(button.click(), true);
+  assert.deepEqual(calls, ["fullscreen", "transition"]);
+  completion();
+  assert.deepEqual(calls, ["fullscreen", "transition", "cinematic"]);
+  entry.destroy();
 });

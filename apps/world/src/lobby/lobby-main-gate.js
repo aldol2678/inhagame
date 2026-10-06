@@ -20,12 +20,20 @@ export function enterMainGate({
   spawn = MAIN_GATE_SPAWN,
   spawnDefinition = null,
   documentLike = globalThis.document,
-  transition = null
+  transition = null,
+  onEntered = null
 } = {}) {
   if (!player || !lobbyWorld?.active) return false;
   if (spawnDefinition && !canStartSpawn(spawnDefinition)) return false;
   const target = spawnDefinition?.spawnAnchor ?? spawn;
   if (!target) return false;
+  const notifyEntered = () => {
+    try {
+      onEntered?.({ target: { ...target } });
+    } catch (error) {
+      console.warn("Main Gate entry presentation callback failed:", error);
+    }
+  };
 
   // The production lobby already renders the player at MAIN_GATE_SPAWN. Running the
   // staged fade + camera blend in that case adds ~0.48 s of locked input and looks
@@ -36,6 +44,7 @@ export function enterMainGate({
       position: target,
       yawDeg: target.yaw * 180 / Math.PI,
       cameraYaw: target.yaw,
+      onComplete: notifyEntered
     });
     return started === true;
   }
@@ -44,6 +53,7 @@ export function enterMainGate({
   player.setLocalPosition(target.x, target.y, target.z);
   player.setLocalEulerAngles(0, target.yaw * 180 / Math.PI, 0);
   setLobbyShellVisible(false, { documentLike });
+  notifyEntered();
   return true;
 }
 
@@ -55,12 +65,13 @@ export function bindMainGateEntry({
   spawnDefinition = null,
   documentLike = globalThis.document,
   transition = null,
+  onEntered = null,
   requestFullscreen = requestLobbyFullscreen
 } = {}) {
   if (!button) return { start: () => false, destroy() {} };
   const start = () => {
     requestFullscreen?.({ documentLike });
-    return enterMainGate({ player, lobbyWorld, spawn, spawnDefinition, documentLike, transition });
+    return enterMainGate({ player, lobbyWorld, spawn, spawnDefinition, documentLike, transition, onEntered });
   };
   button.addEventListener("click", start);
   return {

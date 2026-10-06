@@ -48,6 +48,14 @@ jobs:
           FULL_MAP_NAVIGATION_OUTPUT: test-results/full-map-navigation
           EXPECTED_MAP_HEAD: ${{ github.event.pull_request.head.sha }}
         run: node apps/world/tests/browser/full-map-navigation-smoke.mjs
+      - name: Render Main Gate cinematic in desktop and mobile Chromium
+        if: ${{ success() || failure() }}
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+          WORLD_CINEMATIC_QA_OUTPUT: test-results/main-gate-cinematic
+          EXPECTED_MAP_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: node apps/world/tests/browser/full-map-main-gate-cinematic-smoke.mjs
       - name: Render real campus map in desktop and mobile Chromium
         if: ${{ success() || failure() }}
         env:
@@ -64,5 +72,6 @@ jobs:
           path: |
             test-results/full-map-readability/
             test-results/full-map-navigation/
+            test-results/main-gate-cinematic/
           if-no-files-found: error
           retention-days: 14
