@@ -36,12 +36,12 @@ const frame = (x, z, yaw = 0) => ({
   at(u, v = 0) { return { x: x + u, z: z + v }; }
 });
 
-test('P2 graphics budgets keep mobile LOW emissive-only and cap real omni lights', () => {
-  assert.deepEqual(NIGHT_LIGHT_BUDGET, { low: 0, medium: 2, high: 4 });
-  assert.equal(nightLightBudget('low'), 0);
-  assert.equal(nightLightBudget('medium'), 2);
-  assert.equal(nightLightBudget('high'), 4);
-  assert.equal(nightLightBudget('unknown'), 2);
+test('night graphics budgets keep real omni lights bounded while giving every tier local illumination', () => {
+  assert.deepEqual(NIGHT_LIGHT_BUDGET, { low: 1, medium: 4, high: 8 });
+  assert.equal(nightLightBudget('low'), 1);
+  assert.equal(nightLightBudget('medium'), 4);
+  assert.equal(nightLightBudget('high'), 8);
+  assert.equal(nightLightBudget('unknown'), 4);
 });
 
 test('lamp head follows the observed roadside LED head offset and height', () => {
