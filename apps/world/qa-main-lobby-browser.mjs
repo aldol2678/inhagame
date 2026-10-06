@@ -53,7 +53,7 @@ async function openLobby(context, init = null, initArg = undefined) {
 try {
   for (const spec of [
     { name: "desktop", viewport: { width: 1440, height: 900 }, mobile: false },
-    { name: "mobile-390", viewport: { width: 390, height: 844 }, mobile: true },
+    { name: "mobile-390", viewport: { width: 390, height: 844 }, mobile: true, portrait: true },
     { name: "mobile-360", viewport: { width: 360, height: 800 }, mobile: true },
     { name: "mobile-short-360", viewport: { width: 360, height: 640 }, mobile: true },
     { name: "mobile-narrow-320", viewport: { width: 320, height: 800 }, mobile: true },
@@ -93,6 +93,10 @@ try {
     if (spec.mobile) {
       assert.equal(await page.locator("#lobby-player-look").isVisible(), false,
         "mobile hides the low-value default appearance line");
+    }
+    if (spec.portrait) {
+      assert.ok(mainBox && mainBox.y + mainBox.height <= spec.viewport.height,
+        "portrait mobile keeps the primary entry CTA visible before fullscreen handoff");
     }
     if (spec.landscape) {
       assert.ok(playerBox.height <= 56 && presenceBox.height <= 56,
