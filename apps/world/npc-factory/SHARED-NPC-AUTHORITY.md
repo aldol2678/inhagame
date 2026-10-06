@@ -25,7 +25,9 @@
 - Local canary mode requires `npcTest=a-r1&npcAuthority=p0&npcSync=ng2`, preventing mixed local/server time axes.
 - PR #232 verification: Public local checks PASS, World stability PASS, Quest journal PASS, World asset optimizer PASS, Student center integrated Campus PASS, Room transition recovery PASS, Biryong map/NPC guidance PASS.
 
-Live two-device authority consumption and Production activation remain follow-up work.
+Consumer-level two-browser authority consumption and reload/late-join convergence are PASS on the 2026-10-06 canary.
+Full Campus renderer-level two-browser observation remains BLOCKED in the isolated sandbox because full World boot stayed at ~98%; Production activation remains follow-up work.
+Canary receipt: `docs/qa/SHARED_NPC_TWO_CLIENT_CANARY_2026-10-06.md`.
 
 ## Legacy v1 reconciliation
 
