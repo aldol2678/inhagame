@@ -59,3 +59,15 @@ native browser or live-account observation. Hosted QA uses synthetic reads only;
 
 Canonical context: Collection Framework CURRENT DESIGN, `COLLECTION_DISCOVERY_P0.md`, and
 `docs/architecture/AUTHORITY_MAP.md` (Collection/Inventory authority boundaries).
+
+## Explicit server module format
+
+The CJS deployment entrypoint imports only explicit `.mjs` server dependencies. Public Supabase
+configuration and the Collection discovery registry are canonical `.mjs` modules; their existing
+`.js` paths are compatibility re-exports for browser consumers. There is no duplicate configuration
+or registry, and no global package-type change.
+
+`collection-book-server-runtime.test.mjs` runs the actual API entrypoint with Node's automatic
+`.js` ESM detection disabled. It covers unauthenticated 401 and a synthetic authenticated read,
+with all HTTP calls stubbed. This matches the production loader failure that ordinary Node tests
+did not expose; it does not prove live account history.
