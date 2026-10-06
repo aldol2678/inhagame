@@ -1,7 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createEnvironmentDirector } from '../src/environment/environment-director.js';
-import { CAMPUS_NIGHT_LAMPS } from '../src/environment/night-campus-lamp-layout.js';
+import {
+  CAMPUS_NIGHT_LAMP_POLE_CLEARANCE,
+  CAMPUS_NIGHT_LAMPS
+} from '../src/environment/night-campus-lamp-layout.js';
+import { ROAD_SEGMENTS, distanceToRoad } from '../src/campus-road-layout.js';
+import { GATE_DORM_SEGMENTS } from '../src/main-gate-road-layout.js';
+import { gateForecourtTreeClear } from '../src/main-gate-forecourt.js';
 import {
   NIGHT_LIGHT_BUDGET,
   NIGHT_LIGHT_MAX_DISTANCE,
@@ -40,6 +46,8 @@ const frame = (x, z, yaw = 0) => ({
   at(u, v = 0) { return { x: x + u, z: z + v }; }
 });
 
+const segmentWidth = segment => Number(segment.road?.width ?? segment.width ?? 3.5);
+
 test('night graphics budgets keep real omni lights bounded while giving every tier local illumination', () => {
   assert.deepEqual(NIGHT_LIGHT_BUDGET, { low: 3, medium: 6, high: 10 });
   assert.equal(nightLightBudget('low'), 3);
@@ -64,6 +72,20 @@ test('generated campus lamp poles stay outside road/path surfaces while heads ov
     const arm = lampArmLayout(lamp);
     assert.ok(Math.abs(arm.length - 0.88) < 1e-8, `${lamp.id} arm spans pole to head`);
     assert.ok(Number.isFinite(arm.yaw));
+  }
+});
+
+test('generated campus lamp poles avoid intersecting campus roads and authored main-gate corridors', () => {
+  const clearance = CAMPUS_NIGHT_LAMP_POLE_CLEARANCE - 1e-8;
+  const corridors = [...ROAD_SEGMENTS, ...GATE_DORM_SEGMENTS];
+  for (const lamp of CAMPUS_NIGHT_LAMPS) {
+    assert.ok(gateForecourtTreeClear(lamp.center, clearance), `${lamp.id} must stay outside the main-gate forecourt`);
+    for (const segment of corridors) {
+      assert.ok(
+        distanceToRoad(lamp.center, segment) > segmentWidth(segment) / 2 + clearance,
+        `${lamp.id} must stay clear of ${segment.id}`
+      );
+    }
   }
 });
 
