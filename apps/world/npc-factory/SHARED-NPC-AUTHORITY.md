@@ -1,12 +1,12 @@
 # Shared NPC Authority · implementation contract mirror
 
-> Status: DESIGN LOCKED · P0 AUTHORITY SLICE MERGED · PRODUCTION ACTIVATION OFF
+> Status: DESIGN LOCKED · P0 AUTHORITY + CLIENT CONSUMER MERGED · PRODUCTION ACTIVATION OFF
 >
 > This file mirrors the current design decision. Product/design authority remains outside the repository:
 > - Notion `INHA WORLD · Online Architecture v0.1 [CURRENT DESIGN]` owns Network / Presence / Zone / Tick / AOI / reconnect HOW.
 > - Notion `INHA WORLD · Social S3 NPC Autonomous Intelligence v0.1 [CURRENT DESIGN]` owns NPC autonomous behavior / AI WHAT.
 >
-> The repository `main` remains implementation authority. Shared NPC Authority P0 is merged, but full renderer wiring and Production activation are not claimed.
+> The repository `main` remains implementation authority. Shared NPC Authority P0 and pilot renderer consumer wiring are merged. Production activation and live two-device authority validation are not claimed.
 
 ## P0 implementation status
 
@@ -19,8 +19,13 @@
 - Player-specific dialogue, memory, reward and quest state are excluded from the shared snapshot.
 - Verification: `public-ci.sh` PASS, `public-db.sh` PASS, and Biryong/Campus Chromium QA PASS on PR #229.
 - No Production environment flag was changed, so this merge does not activate the endpoint in Production.
+- Public PR `#232` merged as `bf964ff07fa1ee6d929d9a4b7cdd1b6c1e55437e`.
+- The Campus client probes the authority endpoint independently, consumes only the current Place Zone snapshot, and gives pilot NPCs 003/012 server snapshot state final renderer ownership.
+- While authority is enabled but a current-zone snapshot has not arrived, pilot NPCs fail closed instead of advancing local canonical state. A 404 disables the consumer and restores the existing local deterministic path.
+- Local canary mode requires `npcTest=a-r1&npcAuthority=p0&npcSync=ng2`, preventing mixed local/server time axes.
+- PR #232 verification: Public local checks PASS, World stability PASS, Quest journal PASS, World asset optimizer PASS, Student center integrated Campus PASS, Room transition recovery PASS, Biryong map/NPC guidance PASS.
 
-Full shared-NPC renderer wiring, live two-device authority consumption, and Production activation remain follow-up work.
+Live two-device authority consumption and Production activation remain follow-up work.
 
 ## Locked model
 
