@@ -56,3 +56,23 @@ test('intersection probe detects skinny crossing strips whose centroids miss eac
   const vertical=[{x:1,z:-2},{x:1.1,z:-2},{x:1.1,z:3},{x:1,z:3}];
   assert.ok(Math.abs(Math.abs(area(intersect(horizontal,vertical)))-.004)<1e-10);
 });
+
+test('rear gate tiles are cut out of the internal asphalt, including near-height seams',()=>{
+  const faces=capture();
+  const tiles=faces.filter(q=>q.owner==='backGate'&&['#aaa99e','#bcbbae'].includes(q.color));
+  const roads=faces.filter(q=>q.owner==='backGate'&&q.color==='#747d7b');
+  assert.ok(tiles.length&&roads.length);
+  for(const tile of tiles)for(const road of roads)
+    assert.ok(Math.abs(area(intersect(tile.ring,road.ring)))<1e-7,'tile/asphalt XY overlap regardless of render height');
+});
+
+test('rear zebra retains all seven full bars with no lane paint underneath',()=>{
+  const faces=capture();
+  const stripes=faces.filter(q=>q.owner==='backGate'&&q.color==='#dedcd1');
+  const lines=faces.filter(q=>q.owner==='backGate'&&q.color==='#d8b453');
+  assert.equal(stripes.length,7);
+  for(const stripe of stripes){
+    assert.ok(Math.abs(Math.abs(area(stripe.ring))-2.8)<1e-7,'original .4 by 7 bar stays intact');
+    for(const line of lines)assert.ok(Math.abs(area(intersect(stripe.ring,line.ring)))<1e-7,'no near-coplanar lane paint below zebra');
+  }
+});

@@ -189,7 +189,6 @@ import { BUILDING5_TRAINING_TARGET, createBuilding5CombatTraining } from "./comb
 import { createBuilding5CombatTargetRenderer } from "./combat/building5-combat-target-renderer.js";
 import { createCombatWorldMotionV03 } from "./combat/combat-world-motion-v03.js";
 import { createCombatFeedbackV03 } from "./combat/combat-feedback-v03.js";
-import { createCombatHudV03 } from "./combat/combat-hud-v03.js";
 import { createHelicopterFlightHud } from "./mounts/helicopter-flight-hud.js";
 import { createMobilityBook } from "./mobility/mobility-book.js";
 import { FLAG_DISABLED, FLAG_ENABLED, FLAG_UNAVAILABLE, probeFeatureFlag, retryFeatureFlag } from "./npc-feature-flags.js";
@@ -521,11 +520,6 @@ const building5Training = createBuilding5CombatTraining({
   })
 });
 const combatRuntime = createCombatRuntimeV03({ localTraining: building5Training });
-const combatHud = createCombatHudV03({
-  root: document.getElementById("combat-hud-v03"),
-  runtime: combatRuntime,
-  inputFocus
-});
 const combatTargetRenderer = createBuilding5CombatTargetRenderer({
   app,
   parent: campusRoot,
@@ -3421,7 +3415,6 @@ window.__INHAGAME_P0__ = {
   biryongVillageDialogue,
   biryongRelationships,
   combatRuntime,
-  combatHud,
   building5Training,
   combatTargetRenderer,
   combatWorldMotion,
