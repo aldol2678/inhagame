@@ -27,6 +27,28 @@
 
 Live two-device authority consumption and Production activation remain follow-up work.
 
+## Legacy v1 reconciliation
+
+The September 26 database prototype `world_npc_shared_state_v1` is **HISTORICAL DORMANT /
+SUPERSEDED FOR RUNTIME AUTHORITY**.
+
+- Production still contains `private.world_npc_shared_ticks_v1` and the service-role-only
+  `get/claim/commit_world_npc_shared_*_v1` RPCs.
+- Production readback on 2026-10-06 found 0 rows in the shared tick table.
+- The old contract uses a 60-second tick and legacy ambient actions
+  (`stay / walk_nearby / look_around / return_anchor`) for NPC 003–020.
+- The current P0 uses the 250 ms revisioned snapshot, Place Zone interest management,
+  ACTIVE/COARSE/SLEEP, and renderer ownership described above.
+- Runtime code must not call the legacy RPCs. CI guard:
+  `npc-shared-authority-legacy-boundary.test.mjs`.
+- Do not drop or revoke the Production DB objects in ordinary feature work. Schema retirement is a
+  separate explicitly approved Production cleanup.
+- If shared AI actions return later, use Action Registry → Validator → Executor → Shared NPC
+  Authority. Do not revive the v1 decision vocabulary as canonical state.
+
+Full evidence and retirement criteria:
+`docs/architecture/SHARED_NPC_AUTHORITY_RECONCILIATION_2026-10-06.md`.
+
 ## Locked model
 
 INHA WORLD shared online NPCs use:
