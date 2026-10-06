@@ -51,7 +51,12 @@ const server = http.createServer((req, res) => {
       return;
     }
     const placeZoneId = new URL(req.url, `http://127.0.0.1:${PORT}`).searchParams.get('placeZoneId');
-    if (!/^AREA_[A-Z0-9_]{1,60}$/u.test(placeZoneId ?? '')) {
+    if (!placeZoneId) {
+      res.writeHead(200, headers);
+      res.end(JSON.stringify({ enabled: true }));
+      return;
+    }
+    if (!/^AREA_[A-Z0-9_]{1,60}$/u.test(placeZoneId)) {
       res.writeHead(400, headers);
       res.end(JSON.stringify({ error: 'INVALID_SHARED_NPC_PLACE_ZONE' }));
       return;
