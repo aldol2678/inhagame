@@ -5169,6 +5169,15 @@ body[data-hud-mode="COMBAT"] #jump { display:none !important; }
 @media(max-width:600px) { .furniture-editor { inset:8px; width:auto; padding:12px; border-radius:14px; } }
 @media(max-height:500px) and (min-width:601px) { .furniture-editor { width:390px; top:6px; bottom:6px; padding:12px; } .furniture-plan { max-height:200px; } }
 
+/* Collection Book is a read-only view inside the existing inventory modal. */
+.collection-book { display: grid; gap: 12px; }
+.collection-book-heading { margin: 8px 0 0; font-size: 16px; }
+.collection-book-note { margin: 0; font-size: 12px; line-height: 1.65; color: #8fa6c9; }
+.collection-book-summary { margin: 0; font-size: 13px; color: #9ddfc8; }
+.collection-book-navigation { margin-bottom: 16px; }
+.collection-book-navigation .inventory-tab[aria-pressed="true"] { border-color: #75ccb8; color: #c4fff0; }
+.collection-book-entry[data-state="UNKNOWN"] { border-style: dashed; }
+
 /* LANDSCAPE-HUD:start
    Mobile landscape HUD · phones held sideways (touch + landscape + short viewport).
    The portrait phone HUD keys off max-width, so a rotated phone (740–932px wide) used to fall through to the
