@@ -119,12 +119,13 @@ test("production identity callback passes explicit identity even when online.use
   const guestbook = new GuestbookClient({ getSelfUserId: () => getter,
     getClient: () => ({ rpc: async () => { calls.push(true); return { data: board(getter), error: null }; } }) });
   const guestbookPanel = createGuestbookPanel({ panel, guestbook, doc });
+  const collectionAccounts = [];
   const noop = () => {}, client = { setAccount: noop }, online = { get userId() { return getter; } };
   const source = readFileSync(new URL("../src/main.js", import.meta.url), "utf8");
   const body = source.match(/online\.onIdentity\(\(identity\) => \{([\s\S]*?)\n  \}\);\n  online\.chat\.feed/)?.[1];
   assert.ok(body);
   const context = createContext({ online, photoMode: { close: noop }, guestbookPanel, syncBiryongAccount: noop, progression: client,
-    biryongRelationships: client, shop: client, wallet: client, inventory: client, dailyQuiz: client,
+    biryongRelationships: client, shop: client, wallet: client, inventory: client, collectionBook: { setAccount: id => collectionAccounts.push(id) }, dailyQuiz: client,
     attendance: client, lifeSkillBook: client, fishing: client, loadout: client, inkyungSideEvent: { setScope: noop }, duckCompanion: { refresh: noop, reset: noop },
     lastPersonalRoomUserId: null, roomSession: { stop: noop }, roomFurniture: { reset: noop },
     rooms: { currentSpace: "CAMPUS" }, personalRoom: { reset: noop }, npcAiSignedIn: false,
@@ -142,6 +143,7 @@ test("production identity callback passes explicit identity even when online.use
   assert.equal(guestbook.available, false);
   assert.equal(await guestbookPanel.setOpen(true), false);
   context.identityHandler({ userId: B }); getter = B;
+  assert.deepEqual(collectionAccounts, [A, null, B], "Collection uses the identity event, not the stale online getter");
   await guestbookPanel.setOpen(true);
   assert.equal(guestbookPanel.data.entries[0].userId, B);
   assert.equal(calls.length, 2);

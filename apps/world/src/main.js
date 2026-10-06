@@ -145,6 +145,7 @@ import { createShopClient } from "./shop/shop-client.js";
 import { createShopPanel } from "./shop/shop-panel.js";
 import { createWalletClient } from "./wallet/wallet-client.js";
 import { createInventoryClient } from "./inventory/inventory-client.js";
+import { createCollectionBookClient } from "./collection/collection-book-client.js";
 import { createInventoryPanel } from "./inventory/inventory-panel.js";
 import { createDailyQuizClient } from "./daily-quiz/daily-quiz-client.js";
 import { createDailyQuizPanel } from "./daily-quiz/daily-quiz-panel.js";
@@ -1244,9 +1245,20 @@ const lobbyPresenceSummary = createLobbyPresenceSummary({
 const shop = createShopClient({ getClient: () => online?.supabase ?? null });
 // Inventory panel (☰ → 🎒 인벤토리). One modal at a time with the shop; same input gate as the shop.
 const inventoryButton = document.getElementById("open-inventory");
+const collectionBook = createCollectionBookClient({
+  getToken: async (accountId) => {
+    const client = online?.supabase;
+    if (!client || online?.userId !== accountId) return null;
+    const { data, error } = await client.auth.getSession();
+    const session = data?.session;
+    return !error && online?.userId === accountId && session?.user?.id === accountId && session.user.is_anonymous === false
+      ? session.access_token : null;
+  }
+});
 const inventoryPanel = createInventoryPanel({
   panel: document.getElementById("inventory-panel"),
   inventory,
+  collectionBook,
   onOpenChange: (open) => {
     inventoryButton?.setAttribute("aria-expanded", String(open));
     if (open) {
@@ -3219,6 +3231,7 @@ try {
     void biryongRelationships.setAccount(identity ? online?.userId ?? null : null);
     shop.setAccount(identity ? online?.userId ?? null : null);
     void wallet.setAccount(identity ? online?.userId ?? null : null);
+    collectionBook.setAccount(identity?.userId ?? null);
     void inventory.setAccount(identity ? online?.userId ?? null : null);
     void dailyQuiz.setAccount(identity ? online?.userId ?? null : null);
     void attendance.setAccount(identity ? online?.userId ?? null : null);

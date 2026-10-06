@@ -44,6 +44,8 @@ try {
   await page.keyboard.press('Enter'); assert.equal((await snapshot(page)).pose, 'photo_pose');
   await page.keyboard.press('Tab'); assert.equal(await close.evaluate(el => el === document.activeElement), true);
   await page.keyboard.press('Tab');
+  assert.equal(await page.locator('[data-photo-control="controls"]').evaluate(el => el === document.activeElement), true);
+  await page.keyboard.press('Tab');
   const yawBefore = (await snapshot(page)).camera.yaw;
   await page.keyboard.press('ArrowRight'); assert.ok((await snapshot(page)).camera.yaw > yawBefore);
   const still = await snapshot(page); await page.keyboard.down('KeyW');
@@ -60,6 +62,15 @@ try {
     assert.ok((await snapshot(page)).camera.distance >= 2.5 && (await snapshot(page)).camera.distance <= 6);
     const image = `photo-${viewport.width}x${viewport.height}.png`; await page.screenshot({ path: `${output}/${image}` }); report.screenshots.push(image);
   }
+  const framingBeforeHide = (await snapshot(page)).camera;
+  const controls = page.locator('[data-photo-control="controls"]');
+  await controls.tap(); assert.equal(await page.locator('.photo-mode-dock').isVisible(), false);
+  assert.equal((await snapshot(page)).active, true); assert.equal(await close.isVisible(), true);
+  await page.keyboard.press('Tab'); assert.equal(await close.evaluate(el => el === document.activeElement), true);
+  await page.keyboard.press('Shift+Tab'); assert.equal(await controls.evaluate(el => el === document.activeElement), true);
+  assert.deepEqual((await snapshot(page)).camera, framingBeforeHide);
+  await controls.tap(); assert.equal(await page.locator('.photo-mode-dock').isVisible(), true);
+  report.checks.push('native controls hide/show clears the frame and keeps exit/focus/camera intact');
   await close.tap(); assert.equal((await snapshot(page)).active, false); assert.deepEqual((await snapshot(page)).camera, before.camera);
   assert.equal((await snapshot(page)).hud, null);
   assert.equal(await page.locator('#application').evaluate(el => el === document.activeElement), true, 'hidden opener falls back to focusable game canvas');

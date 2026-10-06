@@ -9,8 +9,13 @@ export function createPhotoModePanel({ mode, doc = globalThis.document, win = gl
   const title = el('strong', 'photo-mode-title', '📸 인경호 사진 모드');
   const close = el('button', 'photo-mode-close', '사진 모드 나가기'); close.type = 'button'; close.dataset.photoControl = 'close';
   close.setAttribute('aria-keyshortcuts', 'Escape');
-  header.append(title, close);
-  const dock = el('div', 'photo-mode-dock'), ranges = [];
+  const controlsToggle = el('button', 'photo-mode-controls-toggle', '조작 숨기기');
+  controlsToggle.type = 'button'; controlsToggle.dataset.photoControl = 'controls';
+  controlsToggle.setAttribute('aria-controls', 'photo-mode-controls');
+  controlsToggle.setAttribute('aria-expanded', 'true');
+  const actions = el('div', 'photo-mode-actions'); actions.append(close, controlsToggle);
+  header.append(title, actions);
+  const dock = el('div', 'photo-mode-dock'), ranges = []; dock.id = 'photo-mode-controls';
   for (const [name, label, min, max, step, initial] of [
     ['yaw', '좌우 구도', -PHOTO_FRAME_LIMITS.yaw, PHOTO_FRAME_LIMITS.yaw, .01, 0],
     ['pitch', '카메라 높이', PHOTO_FRAME_LIMITS.pitch.min, PHOTO_FRAME_LIMITS.pitch.max, .01, .25],
@@ -29,11 +34,19 @@ export function createPhotoModePanel({ mode, doc = globalThis.document, win = gl
   const note = el('p', 'photo-mode-note', '사진은 자동으로 저장되거나 업로드되지 않아요');
   dock.append(pose, status, note); root.append(header, dock); doc.body.append(root);
   let savedHud, savedFocus = null, destroyed = false;
-  const controls = [close, ...ranges.map(r => r.input), pose];
+  const controls = () => dock.hidden ? [close, controlsToggle] : [close, controlsToggle, ...ranges.map(r => r.input), pose];
+  function showControls(visible) {
+    const ownedFocus = dock.contains(doc.activeElement);
+    dock.hidden = !visible;
+    controlsToggle.textContent = visible ? '조작 숨기기' : '조작 보이기';
+    controlsToggle.setAttribute('aria-expanded', String(visible));
+    if (!visible && ownedFocus) controlsToggle.focus?.({ preventScroll: true });
+  }
+  controlsToggle.addEventListener('click', () => showControls(dock.hidden));
   const unsubscribe = mode.subscribe(({ active, reason }) => {
     if (active) {
       savedHud = doc.body.dataset.photoMode; savedFocus = doc.activeElement;
-      doc.body.dataset.photoMode = 'active'; root.hidden = false;
+      doc.body.dataset.photoMode = 'active'; root.hidden = false; showControls(true);
       for (const { input, initial } of ranges) input.value = String(initial);
       status.textContent = '기기의 화면 캡처로 남겨 보세요 · Esc로 나가기';
       close.focus?.({ preventScroll: true });
@@ -61,9 +74,9 @@ export function createPhotoModePanel({ mode, doc = globalThis.document, win = gl
       event.preventDefault(); event.stopImmediatePropagation?.(); event.stopPropagation?.(); mode.close('escape'); return;
     }
     if (event.code === 'Tab') {
-      const at = controls.indexOf(doc.activeElement);
-      if (at < 0 || (!event.shiftKey && at === controls.length - 1) || (event.shiftKey && at === 0)) {
-        event.preventDefault(); controls[event.shiftKey ? controls.length - 1 : 0].focus?.();
+      const available = controls(), at = available.indexOf(doc.activeElement);
+      if (at < 0 || (!event.shiftKey && at === available.length - 1) || (event.shiftKey && at === 0)) {
+        event.preventDefault(); available[event.shiftKey ? available.length - 1 : 0].focus?.();
       }
     }
     // Let native sliders/Tab operate, but never forward a framing key to gameplay shortcuts.

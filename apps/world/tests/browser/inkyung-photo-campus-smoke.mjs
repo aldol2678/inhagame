@@ -240,20 +240,37 @@ async function composition(page) {
     };
     const xs = ring.map(p => p.x), zs = ring.map(p => p.z);
     let sampleCount = 0, projectedWaterSamples = 0, unobscuredByDockSamples = 0;
-    const dock = document.querySelector('.photo-mode-dock').getBoundingClientRect();
+    const dockElement = document.querySelector('.photo-mode-dock'), dock = dockElement.getBoundingClientRect();
+    const dockVisible = !dockElement.hidden && getComputedStyle(dockElement).display !== 'none' && dock.height > 0;
     for (let x = Math.min(...xs); x <= Math.max(...xs); x += .6)
       for (let z = Math.min(...zs); z <= Math.max(...zs); z += .6) {
         if (!polygonOverlap(x, z, ring, 0)) continue;
         sampleCount++; const p = projection({ x, z });
-        if (p.inFrame) { projectedWaterSamples++; if (p.y < dock.top) unobscuredByDockSamples++; }
+        if (p.inFrame) { projectedWaterSamples++; if (!dockVisible || p.y < dock.top) unobscuredByDockSamples++; }
       }
+    const visual = d.player.children.find(e => e.name === 'Induck_GLB_Visual' && e.enabled) ??
+      d.player.children.find(e => e.name === 'Public_QA_Avatar' && e.enabled);
+    const avatarPoints = [];
+    const avatarMeshes = visual?.find(e => !!e.render).flatMap(e => e.render.meshInstances) ?? [];
+    for (const mesh of avatarMeshes) {
+      const { center, halfExtents } = mesh.aabb;
+      for (const x of [-1, 1]) for (const y of [-1, 1]) for (const z of [-1, 1]) {
+        const corner = new pc.Vec3(center.x + x * halfExtents.x, center.y + y * halfExtents.y, center.z + z * halfExtents.z);
+        if (camera.forward.dot(corner.clone().sub(camera.getPosition())) > 0) avatarPoints.push(camera.camera.worldToScreen(corner));
+      }
+    }
+    const avatarBounds = avatarPoints.length ? {
+      left: Math.min(...avatarPoints.map(p => p.x)), right: Math.max(...avatarPoints.map(p => p.x)),
+      top: Math.min(...avatarPoints.map(p => p.y)), bottom: Math.max(...avatarPoints.map(p => p.y))
+    } : null;
     const c = camera.getPosition(), p = d.player.getLocalPosition();
     return { renderer: d.getStatus().renderer, camera: { yaw: d.orbit.yaw, pitch: d.orbit.pitch,
       distance: d.orbit.distance, worldPosition: [c.x, c.y, c.z] },
       playerProjection: projection({ x: p.x, y: p.y + d.character.eyeHeight, z: p.z }),
       lakePresent: !!lake?.render, lakeEnabled: lake?.enabled ?? false,
       materials: lake?.render?.meshInstances.map(m => m.material.name) ?? [],
-      sampleCount, projectedWaterSamples, unobscuredByDockSamples,
+      sampleCount, projectedWaterSamples, unobscuredByDockSamples, dockVisible,
+      avatarVisual: visual?.name ?? null, avatarMeshCount: avatarMeshes.length, avatarBounds,
       note: 'Projection is not an occlusion test; buildings/trees may obscure these points. No scene objects or camera angle were changed for this diagnostic.' };
   });
 }
@@ -413,7 +430,7 @@ async function runCase(startSmoke, TIMEOUT_MS, name, viewport, mobile) {
     assert.equal(entry.defaultComposition.playerProjection.inFrame, true, 'Local avatar remains inside the default composition');
     if (entry.characterAtDefault.modelState !== 'glb') report.warnings.push(`${name}: avatar modelState=${entry.characterAtDefault.modelState}; inspect fallback rendering separately`);
     entry.checks.push(`${mobile ? 'Native touch' : 'Native F with real Pointer Lock'} entry, HUD hidden, photo owns focus`);
-    for (const selector of ['.photo-mode-dock', '[data-photo-control="close"]', '[data-photo-control="yaw"]', '[data-photo-control="pitch"]', '[data-photo-control="distance"]']) {
+    for (const selector of ['.photo-mode-dock', '[data-photo-control="close"]', '[data-photo-control="controls"]', '[data-photo-control="yaw"]', '[data-photo-control="pitch"]', '[data-photo-control="distance"]']) {
       const box = await page.locator(selector).boundingBox();
       assert.ok(box && box.x >= -1 && box.y >= -1 && box.x + box.width <= viewport.width + 1 && box.y + box.height <= viewport.height + 1, `${selector} is on-screen at ${name}`);
     }
@@ -438,6 +455,52 @@ async function runCase(startSmoke, TIMEOUT_MS, name, viewport, mobile) {
     assert.deepEqual((await snapshot(page)).position, stationary.position, 'Movement blocked during framing');
     entry.screenshots.push(await screenshot(page, `${name}-framed-${viewport.width}x${viewport.height}`, 'native controls adjusted; not the default composition'));
     const close = page.locator('[data-photo-control="close"]');
+    const controlsToggle = page.locator('[data-photo-control="controls"]'), dock = page.locator('.photo-mode-dock');
+    const beforeHidingControls = await snapshot(page);
+    if (mobile) await controlsToggle.tap(); else await controlsToggle.click();
+    await dock.waitFor({ state: 'hidden' }); await frames(page, 2);
+    const clearFrameState = await snapshot(page);
+    assert.equal(clearFrameState.active, true, 'Hiding framing controls keeps photo mode active');
+    assert.equal(clearFrameState.input, false); assert.equal(clearFrameState.orbitInput, false);
+    assert.equal(clearFrameState.hudVisibility, 'hidden'); assert.equal(clearFrameState.pointerLock.locked, false);
+    assert.deepEqual(clearFrameState.camera, beforeHidingControls.camera, 'Hiding controls never changes composition');
+    assert.equal(clearFrameState.focus.activeClaimCount, beforeHidingControls.focus.activeClaimCount, 'Same blocking focus owner is retained');
+    for (const control of [close, controlsToggle]) {
+      assert.equal(await control.isVisible(), true, 'Exit and restore-controls affordances remain visible');
+      const box = await control.boundingBox();
+      assert.ok(box && box.x >= -1 && box.y >= -1 && box.x + box.width <= viewport.width + 1 && box.y + box.height <= viewport.height + 1,
+        'Clear-frame exit/toggle stays within the viewport');
+    }
+    assert.equal(await controlsToggle.evaluate(el => el === document.activeElement), true);
+    for (const [key, target] of [['Tab', close], ['Tab', controlsToggle], ['Shift+Tab', close], ['Shift+Tab', controlsToggle]]) {
+      await page.keyboard.press(key);
+      assert.equal(await target.evaluate(el => el === document.activeElement), true, `${key}: hidden dock controls are excluded from the two-button focus loop`);
+    }
+    const clearFrameStill = await snapshot(page);
+    await page.keyboard.down('KeyW'); await frames(page, 3); await page.keyboard.up('KeyW');
+    assert.deepEqual((await snapshot(page)).position, clearFrameStill.position, 'Movement remains blocked with the dock hidden');
+    entry.clearFrameComposition = await composition(page);
+    entry.characterAtClearFrame = await characterStatus(page);
+    entry.screenshots.push(await screenshot(page, `${name}-clear-frame-${viewport.width}x${viewport.height}`,
+      'same actual lake/avatar camera composition with framing dock hidden by native toggle; visible exit and restore-controls buttons'));
+    assert.equal(entry.clearFrameComposition.dockVisible, false);
+    assert.ok(entry.clearFrameComposition.projectedWaterSamples > 0, 'Actual lake remains in the clear frame');
+    assert.equal(entry.clearFrameComposition.unobscuredByDockSamples, entry.clearFrameComposition.projectedWaterSamples);
+    const avatar = entry.clearFrameComposition.avatarBounds;
+    assert.ok(avatar && entry.clearFrameComposition.avatarMeshCount > 0, 'Actual active local-avatar meshes are inspectable');
+    assert.ok(avatar.left >= -1 && avatar.top >= -1 && avatar.right <= viewport.width + 1 && avatar.bottom <= viewport.height + 1,
+      'The whole projected local avatar fits in the clear-frame screenshot');
+    for (const control of [close, controlsToggle]) {
+      const box = await control.boundingBox();
+      assert.equal(box.x < avatar.right && box.x + box.width > avatar.left && box.y < avatar.bottom && box.y + box.height > avatar.top,
+        false, 'Persistent clear-frame controls do not cover the projected avatar');
+    }
+    if (mobile) await controlsToggle.tap(); else await controlsToggle.click();
+    await dock.waitFor({ state: 'visible' });
+    const controlsRestored = await snapshot(page);
+    assert.equal(controlsRestored.active, true); assert.equal(controlsRestored.input, false);
+    assert.deepEqual(controlsRestored.camera, beforeHidingControls.camera, 'Restoring the dock never changes the camera');
+    entry.checks.push('Native hide/show controls preserves framing and input lock; two-button focus loop and hashed unobscured avatar/lake clear frame');
     if (mobile) await close.tap(); else await close.click();
     await waitPhoto(page, false); restored(await snapshot(page), before, 'Close');
     assert.equal(await canvas.evaluate(el => el === document.activeElement), true, 'Focus returns to the canvas');

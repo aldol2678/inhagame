@@ -73,3 +73,30 @@ test('hidden context opener returns focus to a genuinely focusable canvas', () =
   h.mode.open(); h.opener.hidden = true; h.mode.close();
   assert.equal(h.doc.activeElement, h.canvas);
 });
+
+test('hide/show framing controls clears the view while exit, photo state and focus remain usable', () => {
+  const h = fixture(); h.mode.open();
+  const toggle = h.control('controls'); assert.ok(toggle, 'temporary framing controls toggle exists');
+  const before = { ...h.orbit, camera: h.orbit.camera };
+  h.control('yaw').focus(); toggle.click();
+  assert.equal(h.control('yaw').parent.parent.hidden, true);
+  assert.equal(toggle.getAttribute('aria-expanded'), 'false');
+  assert.equal(h.doc.activeElement, toggle); assert.equal(h.mode.active, true);
+  assert.equal(h.control('close').hidden, false); assert.equal(h.doc.body.dataset.photoMode, 'active');
+  assert.deepEqual(h.orbit, before);
+  h.doc.dispatch('keydown', { code: 'Tab' }); assert.equal(h.doc.activeElement, h.control('close'));
+  h.doc.dispatch('keydown', { code: 'Tab', shiftKey: true }); assert.equal(h.doc.activeElement, toggle);
+  toggle.click(); assert.equal(h.control('yaw').parent.parent.hidden, false);
+  assert.equal(toggle.getAttribute('aria-expanded'), 'true');
+  assert.equal(h.doc.activeElement, toggle); assert.deepEqual(h.orbit, before);
+  h.control('close').click(); assert.equal(h.mode.active, false);
+});
+
+test('a new photo session resets the temporary controls to visible', () => {
+  const h = fixture(); h.mode.open();
+  const toggle = h.control('controls'); assert.ok(toggle);
+  toggle.click(); h.mode.close(); h.mode.open();
+  assert.equal(toggle.getAttribute('aria-expanded'), 'true');
+  assert.equal(h.control('yaw').parent.parent.hidden, false);
+  assert.equal(h.doc.activeElement, h.control('close'));
+});

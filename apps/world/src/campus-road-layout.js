@@ -10,8 +10,8 @@ const data=url.protocol==='file:'
 // OSM way 1098491074 is a narrow service link between the tennis/sports road and Soseong-ro.
 // Keep its source centerline, but use a bounded one-lane presentation width so the pavement
 // stays outside the canonical Law School footprint. Widths are game-scale estimates, not survey data.
-const roadWidths={481241664:2.9,481241665:3.1,1098491074:1.3,1098491075:2.7,1098491076:2.7,1098539002:2.8,481241676:3.0};
-const roadShoulders={1098491074:.05};
+const roadWidths={481241664:2.9,481241665:3.1,1098489687:2.2,1098491074:1.3,1098491075:2.7,1098491076:2.7,1098539002:2.8,481241676:3.0};
+const roadShoulders={1098489687:.25,1098491074:.05};
 export const CAMPUS_ROADS=data.roads.map(r=>({...r,
   vertices:(r.osmWayId===216916384?r.line.slice(0,4):r.line).map(ll=>geoToWorld(...ll)),
   width:roadWidths[r.osmWayId]||3.5,shoulder:roadShoulders[r.osmWayId]??.35
