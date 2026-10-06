@@ -84,3 +84,16 @@ test("reduced-motion users complete the optional reveal without camera travel or
   assert.equal(inputFocus.snapshot().movement, true);
   assert.equal(completion.reason, "reduced-motion");
 });
+
+
+test("cinematic timing catches up under low FPS instead of stretching with the gameplay step cap", () => {
+  const director = createCinematicDirector({
+    camera: cameraFixture().camera,
+    inputFocus: createInputFocusManager(),
+    reducedMotion: { matches: false }
+  });
+  director.start(sequence);
+  for (let i = 0; i < 8; i++) director.update(1);
+  assert.equal(director.active, false);
+  assert.equal(director.status().reason, "complete");
+});
