@@ -63,17 +63,23 @@ export function createNpcPlayerRelationshipClient({
   }
 
   async function recordConversationOpen(npcId) {
-    if (sentOpen.has(npcId)) return null;
+    if (!enabled || !signedIn || !NPC_RELATIONSHIP_REGISTRY.has(npcId) || sentOpen.has(npcId)) return null;
     sentOpen.add(npcId);
-    try { return await send(npcId, NPC_RELATIONSHIP_DIALOGUE_EVENT.OPEN); }
-    catch (error) { sentOpen.delete(npcId); throw error; }
+    try {
+      const result = await send(npcId, NPC_RELATIONSHIP_DIALOGUE_EVENT.OPEN);
+      if (result === null) sentOpen.delete(npcId);
+      return result;
+    } catch (error) { sentOpen.delete(npcId); throw error; }
   }
 
   async function recordMeaningfulDialogue(npcId) {
-    if (sentTopic.has(npcId)) return null;
+    if (!enabled || !signedIn || !NPC_RELATIONSHIP_REGISTRY.has(npcId) || sentTopic.has(npcId)) return null;
     sentTopic.add(npcId);
-    try { return await send(npcId, NPC_RELATIONSHIP_DIALOGUE_EVENT.TOPIC); }
-    catch (error) { sentTopic.delete(npcId); throw error; }
+    try {
+      const result = await send(npcId, NPC_RELATIONSHIP_DIALOGUE_EVENT.TOPIC);
+      if (result === null) sentTopic.delete(npcId);
+      return result;
+    } catch (error) { sentTopic.delete(npcId); throw error; }
   }
 
   return Object.freeze({
