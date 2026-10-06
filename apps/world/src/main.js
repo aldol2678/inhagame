@@ -12,6 +12,7 @@ import { PlayerController } from "./player-controller.js";
 import { OrbitCameraController } from "./orbit-camera-controller.js";
 import { PlaceZoneRegistry } from './place-zone-registry.js';
 import { createWorldAudio } from './audio/world-audio.js';
+import { createPlayerActivityAudio } from './audio/player-activity-audio.js';
 import { bindAudioVolumeSettings } from './audio/audio-volume-settings.js';
 import { loadRuntimeMusicProject } from './audio/music-runtime-config.js';
 import { RenderChunkRegistry } from './render-chunk-registry.js';
@@ -1884,6 +1885,9 @@ if (worldAudio) {
       void worldAudio?.setMusicConfigError(error);
     });
 }
+// P0-B shares the unlocked audio runtime; cues never own movement or room state.
+const playerActivityAudio = createPlayerActivityAudio({ audio: worldAudio, initialSpace: rooms.currentSpace });
+const unbindActivityRoom = rooms.onChange(playerActivityAudio.onRoomChange);
 const audioVolume = document.getElementById("audio-volume");
 const unbindAudioVolume = bindAudioVolumeSettings(worldAudio, audioVolume);
 let lastAudioState = "";
@@ -1901,7 +1905,12 @@ const syncAudio = () => {
 };
 rooms.onChange(syncAudio);
 biryongRealm.onChange(syncAudio);
-window.addEventListener("pagehide", event => { if (!event.persisted) { unbindAudioVolume(); worldAudio?.dispose(); } });
+window.addEventListener("pagehide", event => {
+  if (!event.persisted) {
+    unbindActivityRoom(); playerActivityAudio.dispose();
+    unbindAudioVolume(); worldAudio?.dispose();
+  }
+});
 syncAudio();
 const audioDebug = previewHost && startupParams.get("audioDebug") === "1"
   ? document.createElement("pre") : null;
@@ -2913,6 +2922,7 @@ places.onPlaceZoneChanged((previous,next)=>{
 
 app.on("update", (dt) => {
   syncAudio();
+  if (rooms.status().busy || biryongRealm?.busy || lobbyWorld.active || lobbyTransition.active) playerActivityAudio.reset();
   // Only render the camera while a room/region transaction owns the coordinate frame.
   // Campus observers, resume writes and local motion must not consume an intermediate pose.
   if (rooms.status().busy || biryongRealm?.busy) {
@@ -2926,7 +2936,7 @@ app.on("update", (dt) => {
   } else furnitureRefreshSeconds = 0;
   if (audioDebug && performance.now() - lastAudioDebugAt > 250) {
     lastAudioDebugAt = performance.now();
-    audioDebug.textContent = JSON.stringify(worldAudio?.status() ?? { degraded: true }, null, 2);
+    audioDebug.textContent = JSON.stringify({ ...(worldAudio?.status() ?? { degraded: true }), activity: playerActivityAudio.status() }, null, 2);
   }
   if (lobbyWorld.active || lobbyTransition.active) {
     inkyungLivingMoment?.setSuppressed(true);
@@ -2969,7 +2979,16 @@ app.on("update", (dt) => {
   // neither system writes transforms, so PlayerController keeps all collision and existing motion.
   follow.update();
   playerAutoMove?.update(navigation?.getSnapshot() ?? null, player.getLocalPosition());
+  const footstepFrom = player.getLocalPosition().clone();
+  const footstepGroundedBefore = controller.grounded;
   if (!seating.beforeController()) controller.update(Math.min(dt, 0.05), orbit.yaw);
+  playerActivityAudio.observeMove({
+    from: footstepFrom, to: player.getLocalPosition(), dt, space: controller.space.id,
+    groundedBefore: footstepGroundedBefore, grounded: controller.grounded, moving: controller.moving,
+    inputEnabled: controller.inputEnabled, mounted: controller.mounted, swimming: controller.swimming === true,
+    seated: seats.isSeated, blocked: controller.groundMovementLocks.size > 0,
+    walkSpeed: controller.walkSpeed, maxSpeed: controller.sprintSpeed
+  });
   if (!combatFeedback.hitstopActive()) combatWorldMotion.update();
   helicopterFlightHud.update();
   orbit.setMounted(controller.mounted);
