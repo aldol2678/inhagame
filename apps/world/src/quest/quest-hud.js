@@ -33,9 +33,25 @@ export function createTrackedQuestHud({
       item.questId === snapshot.trackedQuestId && ACTIONABLE.has(item.state)
     ) ?? null;
     trackedQuest = quest;
+    // Keep the existing action slot visible while Main 2 status is unavailable, without
+    // turning a failed read into an authoritative quest objective or map target.
+    const recovering = !quest && snapshot.quests.some(item => item.sequence === 1 && item.state === QUEST_STATE.COMPLETED) &&
+      ['LOADING', 'RETRY', 'UNAVAILABLE'].includes(snapshot.main2StatusState);
 
-    const visible = Boolean(quest?.currentObjective);
+    const visible = Boolean(quest?.currentObjective) || recovering;
     root.hidden = !visible;
+    openButton.disabled = !quest;
+    if (recovering) {
+      delete root.dataset.questId;
+      root.dataset.state = snapshot.main2StatusState;
+      headingElement.textContent = 'MAIN 02 · 퀘스트 확인';
+      objectiveElement.textContent = snapshot.main2StatusState === 'UNAVAILABLE'
+        ? '퀘스트를 불러오지 못했어요' : '퀘스트 확인 중…';
+      bearingElement.textContent = '';
+      bearingElement.hidden = true;
+      openButton.setAttribute('aria-label', 'Main 2 상태 확인');
+      return null;
+    }
     if (!visible) {
       delete root.dataset.questId;
       delete root.dataset.state;
