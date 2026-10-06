@@ -8,6 +8,8 @@ import { fillBackApproaches } from '../src/back-approach-geometry.js';
 import { fillNorthRoads } from '../src/north-campus-geometry.js';
 import { fillCampusRoadBatch } from '../src/campus-road-geometry.js';
 import { FLAT_GROUND_MAX_Y } from '../src/flat-ground-surface.js';
+import { BACK_GATE_FRAME as gate } from '../src/back-gate-layout.js';
+import { FLAT_GROUND_Y as G } from '../src/flat-ground-surface.js';
 
 const sources=[['street',fillBackStreetPaving,true],['culture',fillCulturePaving,true],['sideGate',fillNorthSideGate,true],['backGate',fillBackGatePaving,false],['approaches',fillBackApproaches,false],['north',fillNorthRoads,false],['campus',fillCampusRoadBatch,false]];
 const area=ring=>ring.reduce((sum,p,i)=>{const q=ring[(i+1)%ring.length];return sum+p.x*q.z-q.x*p.z},0)/2;
@@ -57,22 +59,51 @@ test('intersection probe detects skinny crossing strips whose centroids miss eac
   assert.ok(Math.abs(Math.abs(area(intersect(horizontal,vertical)))-.004)<1e-10);
 });
 
-test('rear gate tiles are cut out of the internal asphalt, including near-height seams',()=>{
-  const faces=capture();
-  const tiles=faces.filter(q=>q.owner==='backGate'&&['#aaa99e','#bcbbae'].includes(q.color));
-  const roads=faces.filter(q=>q.owner==='backGate'&&q.color==='#747d7b');
-  assert.ok(tiles.length&&roads.length);
-  for(const tile of tiles)for(const road of roads)
-    assert.ok(Math.abs(area(intersect(tile.ring,road.ring)))<1e-7,'tile/asphalt XY overlap regardless of render height');
+function gateBounds(face){
+  const o=gate.at(0),u=gate.at(1),v=gate.at(0,1);
+  const points=face.ring.map(p=>({u:(p.x-o.x)*(u.x-o.x)+(p.z-o.z)*(u.z-o.z),v:(p.x-o.x)*(v.x-o.x)+(p.z-o.z)*(v.z-o.z)}));
+  return [Math.min(...points.map(p=>p.u)),Math.max(...points.map(p=>p.u)),Math.min(...points.map(p=>p.v)),Math.max(...points.map(p=>p.v))].map(n=>Number(n.toFixed(7)));
+}
+
+test('rear gate tile apron remains one complete continuous original rectangle',()=>{
+  const tiles=capture().filter(q=>q.owner==='backGate'&&q.color==='#aaa99e');
+  assert.equal(tiles.length,1,'no apron clipping or split faces');
+  assert.equal(tiles[0].ring.length,4);
+  assert.deepEqual(gateBounds(tiles[0]),[-11,5.5,-4,2.3]);
+  assert.ok(Math.abs(Math.abs(area(tiles[0].ring))-16.5*6.3)<1e-7);
+  assert.equal(tiles[0].y,G.SURFACE,'original pavement height');
 });
 
-test('rear zebra retains all seven full bars with no lane paint underneath',()=>{
+test('rear gate retains every full original tile seam without clipped gaps',()=>{
+  const seams=capture().filter(q=>q.owner==='backGate'&&q.color==='#bcbbae');
+  const expected=[];
+  for(let u=-10.5;u<5.5;u+=1)expected.push([u,u+.035,-4,2.3]);
+  for(let v=-4;v<2.3;v+=1)expected.push([-11,5.5,v,v+.035]);
+  assert.equal(seams.length,23);
+  seams.forEach((seam,i)=>gateBounds(seam).forEach((bound,j)=>
+    assert.ok(Math.abs(bound-expected[i][j])<1e-7,'full original seam extent')));
+  assert.ok(seams.every(q=>q.ring.length===4&&q.y===G.PAINT));
+});
+
+test('rear zebra long axes follow the road and retain the same crossing footprint',()=>{
+  const stripes=capture().filter(q=>q.owner==='backGate'&&q.color==='#dedcd1');
+  assert.equal(stripes.length,10);
+  const bounds=stripes.map(gateBounds);
+  for(let i=0;i<bounds.length;i++){
+    const [u0,u1,v0,v1]=bounds[i];
+    assert.equal(u0,-11.5);assert.equal(u1,-6.9);
+    assert.ok(Math.abs(v1-v0-.4)<1e-7,'narrow v depth with a long horizontal u axis');
+    if(i)assert.ok(v0>bounds[i-1][3],'separate bars repeat along v');
+    assert.equal(stripes[i].y,G.DETAIL,'original paint height');
+  }
+  assert.equal(bounds[0][2],3.1);assert.equal(bounds.at(-1)[3],10.1);
+});
+
+test('rear zebra crossing has no yellow lane paint underneath',()=>{
   const faces=capture();
   const stripes=faces.filter(q=>q.owner==='backGate'&&q.color==='#dedcd1');
   const lines=faces.filter(q=>q.owner==='backGate'&&q.color==='#d8b453');
-  assert.equal(stripes.length,7);
-  for(const stripe of stripes){
-    assert.ok(Math.abs(Math.abs(area(stripe.ring))-2.8)<1e-7,'original .4 by 7 bar stays intact');
-    for(const line of lines)assert.ok(Math.abs(area(intersect(stripe.ring,line.ring)))<1e-7,'no near-coplanar lane paint below zebra');
-  }
+  assert.ok(stripes.length&&lines.length);
+  for(const stripe of stripes)for(const line of lines)
+    assert.ok(Math.abs(area(intersect(stripe.ring,line.ring)))<1e-7,'no near-coplanar lane paint below horizontal zebra');
 });

@@ -31,14 +31,15 @@ export function fillBackGatePaving(b){
     }
   }
   // Broad, level entrance pavement; the main opening stays free of planting.
-  // The internal approach already owns its asphalt. Cut the apron and its
-  // tile seams at that footprint instead of stacking two near-ground meshes.
-  const apronMasks=BACK_SEGMENTS.filter(s=>s.road.osmWayId!==1223158575);
-  clippedSurface(b,'#aaa99e',gate,-11,5.5,-4,2.3,G.SURFACE,apronMasks);
-  for(let u=-10.5;u<5.5;u+=1)clippedSurface(b,'#bcbbae',gate,u,u+.035,-4,2.3,G.PAINT,apronMasks);
-  for(let v=-4;v<2.3;v+=1)clippedSurface(b,'#bcbbae',gate,-11,5.5,v,v+.035,G.PAINT,apronMasks);
-  // Crosswalk immediately west of the gate, spanning Inha-ro. Paint is flat.
-  for(let u=-11.5;u<-7;u+=.7)roadSurface(b,trim,gate,u,u+.40,3.1,10.1,G.DETAIL);
+  roadSurface(b,'#aaa99e',gate,-11,5.5,-4,2.3,G.SURFACE);
+  for(let u=-10.5;u<5.5;u+=1)roadSurface(b,'#bcbbae',gate,u,u+.035,-4,2.3,G.PAINT);
+  for(let v=-4;v<2.3;v+=1)roadSurface(b,'#bcbbae',gate,-11,5.5,v,v+.035,G.PAINT);
+  // Keep the existing crossing footprint. Long bars follow the road (u),
+  // repeating across it (v), with the first and last edges at the sidewalks.
+  for(let i=0;i<10;i++){
+    const v=3.1+i*(7-.4)/9;
+    roadSurface(b,trim,gate,-11.5,-6.9,v,v+.4,G.DETAIL);
+  }
   return b;
 }
 export function fillBackGateStructure(b){
