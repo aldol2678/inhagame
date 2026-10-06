@@ -62,6 +62,12 @@ test('sunset warms the horizon far more than the zenith and strengthens the glow
   assert.ok(sunset.sunGlowOpacity > day.sunGlowOpacity);
 });
 
+test('canonical NIGHT is moonless and carries no hidden directional light', () => {
+  assert.equal(ENVIRONMENT_PRESETS.NIGHT.sunIntensity, 0);
+  assert.equal(ENVIRONMENT_PRESETS.NIGHT.shadowIntensity, 0);
+  assert.ok(ENVIRONMENT_PRESETS.NIGHT.exposure < ENVIRONMENT_PRESETS.DAY.exposure);
+});
+
 test('night becomes a dark navy gradient and disables atmospheric sun glow', () => {
   const profile = atmosphereSkyProfile({
     sunColor: ENVIRONMENT_PRESETS.NIGHT.sunColor,
