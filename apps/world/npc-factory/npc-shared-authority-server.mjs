@@ -4,13 +4,8 @@ import { createPurposefulRoster } from './purposeful-roster.mjs';
 import { mergeCampusPopulation } from './npc-campus-expansion.mjs';
 import { bindSharedSchedule } from './npc-shared-schedule.mjs';
 import { createSharedMeetings } from './npc-shared-meetings.mjs';
-import { createSharedNpcAuthorityP0 } from './npc-shared-authority-p0.mjs';
+import { createSharedNpcAuthorityP0, SHARED_NPC_P0_IDS } from './npc-shared-authority-p0.mjs';
 import { getPlaceZoneAt } from '../src/place-zone-registry.js';
-
-export const SHARED_NPC_P0_IDS = Object.freeze([
-  'INKYUNG-NPC-003',
-  'INKYUNG-NPC-012'
-]);
 
 let singleton = null;
 
