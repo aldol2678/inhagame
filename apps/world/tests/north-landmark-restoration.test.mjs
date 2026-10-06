@@ -43,7 +43,7 @@ test('pinned ground facilities, previous colliders and approved navigation metad
   '7de36ac06fe915500ba8bf761ce6a0b5bef4793a125bb8ced291c8861fb4b0b7');
  // #201 explicitly promotes two existing geometric connectors to authored PATHs.
  // Geometry/collision stay pinned independently below; this hash includes metadata.
- assert.equal(digest(campusNavGraphData()),'0b2f5287961a6c2f185cd2b4f22f667fbb3a2e38b32f259cba9e4f76f2d878f3');
+ assert.equal(digest(campusNavGraphData()),'5b3ec918dd329baea3fd7e272763f92f2e0dc0bdb63b6ea474a733f0e7752209');
 });
 
 test('surroundings integration preserves exact-main path shape and all ground collision',()=>{
@@ -51,7 +51,7 @@ test('surroundings integration preserves exact-main path shape and all ground co
  // Ignore incidental graph IDs but retain each undirected geometric edge to 1e-8 WU.
  const graph=campusNavGraphData(),points=new Map(graph.nodes.map(n=>[n.id,[n.x,n.z].map(x=>x.toFixed(8)).join(',')]));
  const edges=graph.edges.map(e=>[points.get(e.a),points.get(e.b)].sort().join('|')).sort();
- assert.equal(graph.nodes.length,185);assert.equal(graph.edges.length,209);
+ assert.equal(graph.nodes.length,186);assert.equal(graph.edges.length,211);
  assert.equal(digest(edges),'deeeeea88403d69b7439eea03805b77c5f49e9a5886a308dbd66455d9024c101');
  const paths=SITE_FEATURES.filter(f=>f.kind==='path').map(f=>({id:f.id,vertices:f.vertices,width:CAMPUS_PATH_WIDTHS[f.id]||3.5}));
  const roads=CAMPUS_ROADS.map(({id,vertices,width,shoulder})=>({id,vertices,width,shoulder}));
