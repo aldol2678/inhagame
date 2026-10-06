@@ -6,8 +6,12 @@ import {
   environmentTimeForWorldPeriod
 } from '../src/environment/environment-world-time.js';
 import {
+  NPC_WORLD_CYCLE_MINUTES,
+  NPC_WORLD_CYCLE_MS,
   NPC_WORLD_EPOCH_MS as E,
-  NPC_WORLD_PERIOD_MS as P
+  NPC_WORLD_PERIOD_MINUTES,
+  NPC_WORLD_PERIOD_MS as P,
+  NPC_WORLD_PERIODS
 } from '../npc-factory/npc-world-time-contract.mjs';
 
 function fakeClock(initialNow = null) {
@@ -44,6 +48,14 @@ function fakeEnvironment() {
     calls
   };
 }
+
+test('canonical world day is five 15-minute periods, totaling 75 real minutes', () => {
+  assert.equal(NPC_WORLD_PERIOD_MINUTES, 15);
+  assert.equal(P, 15 * 60_000);
+  assert.deepEqual(NPC_WORLD_PERIODS, ['morning', 'class_time', 'lunch', 'evening', 'night']);
+  assert.equal(NPC_WORLD_CYCLE_MINUTES, 75);
+  assert.equal(NPC_WORLD_CYCLE_MS, 75 * 60_000);
+});
 
 test('world schedule periods map onto the existing three environment states', () => {
   assert.deepEqual(ENVIRONMENT_TIME_BY_WORLD_PERIOD, {
