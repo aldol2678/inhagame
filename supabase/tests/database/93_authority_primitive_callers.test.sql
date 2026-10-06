@@ -42,7 +42,8 @@ insert into authority_primitive(name, owner) values
   ('world_combat_start_v1',                  'Combat / Encounter'),
   ('world_combat_state_write_v1',            'Combat / Encounter'),
   ('world_combat_finalize_v1',               'Combat / Encounter'),
-  ('world_biryong_relationship_advance_v1',  'Biryong / NPC Relationship');
+  ('world_biryong_relationship_advance_v1',  'Biryong / NPC Relationship'),
+  ('world_campus_npc_relationship_apply_v1', 'Campus / NPC Relationship');
 
 select ok(to_regproc('private.' || name) is not null, format('protected primitive private.%s exists', name))
 from authority_primitive;
@@ -151,7 +152,9 @@ insert into authority_allowed_call values
      'Gathering P0: fixed plan derived from the frozen server source/output snapshot; service_role only'),
   -- Biryong NPC relationship: only the trusted service-role wrapper may advance persistent stage.
   ('public.world_biryong_npc_relationship_advance_v1', 'private.world_biryong_relationship_advance_v1',
-     'Biryong NPC relationship P0: service_role wrapper advances exactly one verified stage');
+     'Biryong NPC relationship P0: service_role wrapper advances exactly one verified stage'),
+  ('public.world_campus_npc_relationship_apply_v1', 'private.world_campus_npc_relationship_apply_v1',
+     'Campus NPC relationship P0: service_role wrapper applies one verified semantic affinity event');
 -- Intentionally NO callers yet: world_inventory_mutate_v1 (see the Authority Map).
 
 select set_eq(
@@ -227,6 +230,7 @@ insert into authority_table values
   ('world_fishing_positions','STATE'), ('world_fishing_spot_leases','STATE'),
   ('world_combat_encounters','STATE'),
   ('world_biryong_npc_relationship_events','STATE'), ('world_player_biryong_npc_relationships','STATE'),
+  ('world_campus_npc_relationship_events','STATE'), ('world_player_campus_npc_relationships','STATE'),
   ('world_quest_progress_v1','STATE'), ('world_event_progress','STATE'),
   ('world_player_appearance_loadout','STATE'), ('world_purchase_transactions','STATE'),
   ('world_staff_assignments','STATE'), ('world_staff_role_permissions','STATE'),
@@ -304,6 +308,8 @@ insert into authority_allowed_write values
   ('world_combat_encounters', 'private.world_combat_finalize_v1'),
   ('world_biryong_npc_relationship_events', 'private.world_biryong_relationship_advance_v1'),
   ('world_player_biryong_npc_relationships', 'private.world_biryong_relationship_advance_v1'),
+  ('world_campus_npc_relationship_events', 'private.world_campus_npc_relationship_apply_v1'),
+  ('world_player_campus_npc_relationships', 'private.world_campus_npc_relationship_apply_v1'),
   ('world_quest_progress_v1', 'public.advance_world_quest_v1'),
   ('world_quest_progress_v1', 'public.advance_world_navigation_quest_v1'),
   ('world_quest_progress_v1', 'public.advance_world_first_style_quest_v1'),
