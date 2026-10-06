@@ -247,7 +247,8 @@ insert into authority_table values
   ('world_creature_evolution_rule_catalog','CATALOG'), ('world_life_creature_bridge_catalog','CATALOG'),
   ('world_combat_creature_bridge_catalog','CATALOG'),
   ('world_creature_acquisition_rule_catalog','CATALOG'), ('world_inkyung_duck_observation_subjects','CATALOG'),
-  ('world_biryong_npc_relationship_npc_catalog','CATALOG'), ('world_biryong_npc_relationship_fact_catalog','CATALOG');
+  ('world_biryong_npc_relationship_npc_catalog','CATALOG'), ('world_biryong_npc_relationship_fact_catalog','CATALOG'),
+  ('world_campus_npc_relationship_npc_catalog','CATALOG');
 
 select ok(to_regclass('private.' || tbl) is not null, format('protected table private.%s exists', tbl))
 from authority_table;
