@@ -119,9 +119,19 @@ try {
 
     await page.screenshot({ path: resolve(output, spec.name + "-lobby.png") });
     await main.click();
-    await page.waitForFunction(() => window.__INHAGAME_P0__.getStatus().lobbyTransition?.active === false);
+    await page.waitForFunction(() => {
+      const s = window.__INHAGAME_P0__.getStatus();
+      return s.lobbyTransition?.active === false && s.cinematic?.sequenceId === "MAIN_GATE_REVEAL_V01";
+    });
+    const reveal = await page.evaluate(() => window.__INHAGAME_P0__.getStatus().cinematic);
+    assert.ok(reveal.active || reveal.reason === "complete", "Main Gate reveal starts after lobby handoff");
+    await page.waitForFunction(() => {
+      const d = window.__INHAGAME_P0__, s = d.getStatus();
+      return s.cinematic?.active === false && d.controller.inputEnabled;
+    }, null, { timeout: 15000 });
     assert.equal(await page.locator("#world-lobby").isVisible(), false);
     assert.equal(await page.evaluate(() => window.__INHAGAME_P0__.controller.inputEnabled), true);
+    result.cinematic = await page.evaluate(() => window.__INHAGAME_P0__.getStatus().cinematic);
     result.pass = true;
     await context.close();
   }
