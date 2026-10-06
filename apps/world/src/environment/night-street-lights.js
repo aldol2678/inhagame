@@ -5,7 +5,9 @@ import {
   NIGHT_LIGHT_BUDGET,
   NIGHT_LIGHT_MAX_DISTANCE,
   NIGHT_LIGHT_OMNI_RANGE,
+  lampArmLayout,
   lampHeadPosition,
+  lampPolePosition,
   nearestNightLampIndices,
   nightLightBudget
 } from './night-street-light-policy.js';
@@ -67,13 +69,23 @@ function createBulb(root, lamp, material) {
 
 function createCampusLampProp(root, lamp, material) {
   const group = new pc.Entity(`night_${lamp.id}_prop`);
+  const pole = lampPolePosition(lamp);
+  const armLayout = lampArmLayout(lamp);
 
   const shaft = new pc.Entity(`night_${lamp.id}_shaft`);
   shaft.addComponent('render', { type: 'box', castShadows: true, receiveShadows: true });
   shaft.render.material = material;
-  shaft.setLocalPosition(lamp.head.x, lamp.height / 2, lamp.head.z);
+  shaft.setLocalPosition(pole.x, lamp.height / 2, pole.z);
   shaft.setLocalScale(0.10, lamp.height, 0.10);
   group.addChild(shaft);
+
+  const arm = new pc.Entity(`night_${lamp.id}_arm`);
+  arm.addComponent('render', { type: 'box', castShadows: true, receiveShadows: true });
+  arm.render.material = material;
+  arm.setLocalPosition(armLayout.x, lamp.height + 0.01, armLayout.z);
+  arm.setLocalScale(armLayout.length, 0.07, 0.07);
+  arm.setLocalEulerAngles(0, armLayout.yaw, 0);
+  group.addChild(arm);
 
   const hood = new pc.Entity(`night_${lamp.id}_hood`);
   hood.addComponent('render', { type: 'box', castShadows: true, receiveShadows: true });
