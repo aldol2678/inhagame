@@ -13,6 +13,7 @@ import { createNpcMemory, createEncounterTracker } from './dev-memory.mjs';
 import { NPC_DIALOGUE_ACTION, NPC_DIALOGUE_STATE, createNpcDialogueSession, hasNpcDialogueMemory, npcDialogueHomeActions, npcTopicLabel } from './npc-dialogue-session.mjs';
 import { buildNpcDialogueCandidates, buildNpcDialogueContext, resolveNpcDialogueBaseline } from './npc-dialogue-context.mjs';
 import { createNpcJevDialogueRouter } from './npc-dialogue-jev-client.mjs';
+import { createNpcPlayerRelationshipClient } from './npc-player-relationship-client.mjs';
 import { createNpcSocialNg1Model, mountNpcSocialNg1Panel } from './npc-social-ng1.mjs';
 import { createPersistentNpcSocialGraph } from './npc-social-graph.mjs';
 import { createNpcSocialGroupFeasibility } from './npc-social-group-feasibility.mjs';
@@ -164,6 +165,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
   getTmlShadowEconomicState = () => ({}),
   getDialogueWorldContext = () => ({}),
   jevEnabled = false, jevEndpoint = '/api/npc-dialogue-route',
+  relationshipEnabled = false, relationshipEndpoint = '/api/npc-relationship',
   onConversationOpen = () => {},
   onConversationClose = () => {} }) {
   // Shared schedules own physical movement. Local-only scenes must not override it.
@@ -324,6 +326,11 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
   let pendingPilotAction = null, pilotAvailable = aiPilot, pilotConversationRequest = 0, dialogueRouteRequest = 0;
   const pilotTopics = new Map(), pilotInFlight = new Set();
   const dialogueRouter = createNpcJevDialogueRouter({ enabled: jevEnabled, endpoint: jevEndpoint, getSession: getAiSession });
+  const playerRelationship = createNpcPlayerRelationshipClient({
+    enabled: relationshipEnabled,
+    endpoint: relationshipEndpoint,
+    getSession: getAiSession
+  });
   const aiEnabled = id => aiPilot && aiSignedIn && pilotAvailable && aiPilotIds.has(id);
   function purposefulStatus(id) {
     const state = purposefulRoster.get(id).controller.status(false);
@@ -378,6 +385,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
     catch { /* shadow scope reset is diagnostic-only */ }
     quest.setSignedIn(aiSignedIn);
     main2Quest.setSignedIn(aiSignedIn);
+    playerRelationship.setSignedIn(aiSignedIn);
     for (const [id, label] of nameplates) {
       const actor = first.actors.find(item => item.id === id);
       const ai = aiEnabled(id);
@@ -693,6 +701,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
     if (pilotInFlight.has(actor.id)) return;
     dialogueSession.go(NPC_DIALOGUE_STATE.TOPIC_RESPONSE, { selectedTopic: topic });
     captureDialogueContract(actor);
+    void playerRelationship.recordMeaningfulDialogue(actor.id).catch(() => {});
     pendingPilotAction = null;
     const requestId = ++pilotConversationRequest;
     memory.rememberTopic(actor.id, topic);
@@ -824,6 +833,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
     if (newEncounter) memory.encounter(actor.id, snapshot.period === 'night' ? 'evening' : snapshot.period);
     activeConversation = { id: actor.id, memoryBefore: before, newEncounter };
     dialogueSession = createNpcDialogueSession({ npcId: actor.id });
+    void playerRelationship.recordConversationOpen(actor.id).catch(() => {});
     syncConversationLifecycle();
     if (aiLoginHint) aiLoginHint.hidden = !aiPilot || aiSignedIn || !aiPilotIds.has(actor.id);
     avatars.get(actor.id).motion.moving = false;
@@ -1319,8 +1329,10 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
   const api = {
     handlesTalkKey,
     setAiSignedIn,
+    setRelationshipEnabled: enabled => playerRelationship.setEnabled(enabled),
     // CORE-15: the quest flag may resolve after the NPCs are up; turning it on re-reads progress.
     setQuestEnabled: enabled => Promise.all([quest.setEnabled(enabled), main2Quest.setEnabled(enabled)]),
+    refreshMain2Quest: () => main2Quest.refresh(),
     observePlace: (placeId, position) => {
       quest.observePlace(placeId, position);
       main2Quest.observePlace(placeId, position);
@@ -1371,6 +1383,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
       dialogue_baseline: activeConversation?.dialogueBaseline ?? null,
       dialogue_decision: activeConversation?.dialogueDecision ?? null,
       dialogue_jev: dialogueRouter.status(),
+      player_relationship: playerRelationship.status(),
       expression_poc: expressionPilot ? { npc_id: expressionPilotId, ...expressionPilot.status() } : null,
       ai_signed_in: aiSignedIn, ai_npc_ids: [...aiPilotIds].filter(aiEnabled),
       quest_stage: quest.stage, quest: quest.status(),

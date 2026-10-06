@@ -3,8 +3,11 @@ import { FACILITY_COLLIDERS } from '../campus-facilities.js';
 import {
   CAMPUS_PATH_WIDTHS,
   ROAD_SEGMENTS,
+  distanceToRoad,
   roadFrame
 } from '../campus-road-layout.js';
+import { GATE_DORM_SEGMENTS } from '../main-gate-road-layout.js';
+import { gateForecourtTreeClear } from '../main-gate-forecourt.js';
 import { polygonOverlap } from '../polygon-collision.js';
 import { POND_RING, edgeFrame } from '../roadview-layout.js';
 
@@ -23,6 +26,8 @@ export const CAMPUS_NIGHT_LAMP_POLICY = Object.freeze({
   inkyungRoadsideOffset: 0.72,
   maxInkyungLamps: 4
 });
+
+export const CAMPUS_NIGHT_LAMP_POLE_CLEARANCE = 0.18;
 
 const obstacles = [
   ...FACILITY_COLLIDERS,
@@ -51,6 +56,25 @@ function pathSegments() {
     })));
 }
 
+const CAMPUS_PATH_SEGMENTS = pathSegments();
+const LAMP_POLE_CLEARANCE_SEGMENTS = Object.freeze([
+  ...ROAD_SEGMENTS,
+  ...CAMPUS_PATH_SEGMENTS,
+  ...GATE_DORM_SEGMENTS
+]);
+
+function segmentWidth(segment) {
+  return Number(segment.road?.width ?? segment.width ?? 3.5);
+}
+
+function outsideRenderedCorridors(point) {
+  if (!gateForecourtTreeClear(point, CAMPUS_NIGHT_LAMP_POLE_CLEARANCE)) return false;
+  return LAMP_POLE_CLEARANCE_SEGMENTS.every(segment =>
+    distanceToRoad(point, segment) >
+      segmentWidth(segment) / 2 + CAMPUS_NIGHT_LAMP_POLE_CLEARANCE
+  );
+}
+
 function candidateUs(length, spacing) {
   if (!(length > 4)) return [];
   if (length < 14) return [length / 2];
@@ -61,7 +85,8 @@ function candidateUs(length, spacing) {
 }
 
 function isClear(point) {
-  return obstacles.every(obstacle => !polygonOverlap(point.x, point.z, obstacle.polygon, 0.28));
+  return outsideRenderedCorridors(point) &&
+    obstacles.every(obstacle => !polygonOverlap(point.x, point.z, obstacle.polygon, 0.28));
 }
 
 function farEnough(point, lamps) {
@@ -78,7 +103,7 @@ function sampleSegments(segments, {
   let accepted = 0;
   for (let segmentIndex = 0; segmentIndex < segments.length && accepted < max; segmentIndex++) {
     const segment = segments[segmentIndex];
-    const width = Number(segment.road?.width ?? segment.width ?? 3.5);
+    const width = segmentWidth(segment);
     const sideOffset = width / 2 + offset;
     const samples = candidateUs(segment.frame.length, spacing);
     for (let sampleIndex = 0; sampleIndex < samples.length && accepted < max; sampleIndex++) {
@@ -157,7 +182,7 @@ export function buildCampusNightLampLayout() {
     max: CAMPUS_NIGHT_LAMP_POLICY.maxRoadLamps,
     sourceKind: 'road'
   }, lamps);
-  sampleSegments(pathSegments(), {
+  sampleSegments(CAMPUS_PATH_SEGMENTS, {
     spacing: CAMPUS_NIGHT_LAMP_POLICY.pathSpacing,
     offset: CAMPUS_NIGHT_LAMP_POLICY.pathOffset,
     max: CAMPUS_NIGHT_LAMP_POLICY.maxPathLamps,
