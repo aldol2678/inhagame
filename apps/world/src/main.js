@@ -27,6 +27,7 @@ import { createEnvironmentWorldTime } from './environment/environment-world-time
 import { createWorldTimeHud } from './hud/world-time-hud.js';
 import { createNpcWorldClock } from '../npc-factory/npc-world-clock.mjs';
 import { createNightStreetLights } from './environment/night-street-lights.js';
+import { createTrafficSignals } from './traffic-signal-renderer.js';
 import { createNightBuildingWindows } from './environment/night-building-windows.js';
 import { createRainWeatherEffects } from './environment/rain-weather-effects.js';
 import { createSnowWeatherEffects } from './environment/snow-weather-effects.js';
@@ -407,6 +408,13 @@ const nightStreetLights = createNightStreetLights({
 app.on("update", dt => nightStreetLights.update(dt));
 window.__INHAGAME_NIGHT_LIGHTS__ = Object.freeze({
   status: () => nightStreetLights.status()
+});
+
+// Main Gate / Dormitory 1 junction: one shared deterministic controller drives every signal head.
+const trafficSignals = createTrafficSignals({ root: campusRoot });
+app.on("update", dt => trafficSignals.update(dt));
+window.__INHAGAME_TRAFFIC_SIGNALS__ = Object.freeze({
+  status: () => trafficSignals.status()
 });
 
 const nightBuildingWindows = createNightBuildingWindows({
@@ -2764,23 +2772,28 @@ async function loadOptionalNpcRuntime() {
   if (!npcEnabled) return null;
   let npcAiEnabled = npcAiPilotMode;
   let npcJevEnabled = false;
+  let npcRelationshipEnabled = false;
   let npcSharedAuthorityEnabled = npcSharedAuthorityPreviewMode;
   let npcQuestEnabled = npcTestMode || (npcPreviewMode && startupParams.get('backGateArrival') === 'preview');
   // CORE-15: each flag probe is bounded, so a slow AI flag never holds the NPCs or the first quest.
   // A transient quest-flag failure starts the NPCs with the quest off and turns it on once it resolves.
   let questFlagPending = false;
+  let relationshipFlagPending = false;
   if (npcProductionMode) {
-    const [aiResult, questResult, jevResult, sharedAuthorityResult] = await Promise.all([
+    const [aiResult, questResult, jevResult, sharedAuthorityResult, relationshipResult] = await Promise.all([
       probeFeatureFlag('/api/npc-ai'),
       probeFeatureFlag('/api/world-quest'),
       probeFeatureFlag('/api/npc-dialogue-route'),
-      probeFeatureFlag('/api/npc-shared-state')
+      probeFeatureFlag('/api/npc-shared-state'),
+      probeFeatureFlag('/api/npc-relationship')
     ]);
     npcAiEnabled = aiResult === FLAG_ENABLED;
     npcJevEnabled = jevResult === FLAG_ENABLED;
+    npcRelationshipEnabled = relationshipResult === FLAG_ENABLED;
     npcSharedAuthorityEnabled = sharedAuthorityResult === FLAG_ENABLED;
     npcQuestEnabled = questResult === FLAG_ENABLED;
     questFlagPending = questResult === FLAG_UNAVAILABLE;
+    relationshipFlagPending = relationshipResult === FLAG_UNAVAILABLE;
   }
   try {
     const module = await import('../npc-factory/dev-runtime.mjs');
@@ -2808,6 +2821,8 @@ async function loadOptionalNpcRuntime() {
       aiEndpoint: npcAiPilotMode ? '/npc-ai/decide' : '/api/npc-ai',
       jevEnabled: npcJevEnabled,
       jevEndpoint: '/api/npc-dialogue-route',
+      relationshipEnabled: npcRelationshipEnabled,
+      relationshipEndpoint: '/api/npc-relationship',
       questEnabled: npcQuestEnabled,
       questEndpoint: npcTestMode ? '/npc-quest' : '/api/world-quest',
       sideEvent: inkyungSideEvent,
@@ -2881,6 +2896,11 @@ async function loadOptionalNpcRuntime() {
     if (questFlagPending) {
       retryFeatureFlag('/api/world-quest', {
         onResolved: enabled => { if (enabled && npcTest === runtime) void runtime.setQuestEnabled(true); }
+      });
+    }
+    if (relationshipFlagPending) {
+      retryFeatureFlag('/api/npc-relationship', {
+        onResolved: enabled => { if (enabled && npcTest === runtime) runtime.setRelationshipEnabled(true); }
       });
     }
     npcTest?.observeNavigation?.(navigation?.getSnapshot?.() ?? null);
