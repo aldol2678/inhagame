@@ -2969,7 +2969,7 @@ app.on("update", (dt) => {
     guestbookWorldLabel.hide();
     shopWorldLabel.hide();
     helicopterFlightHud.update({ suppressed: true });
-    cinematic.update(step);
+    cinematic.update(dt);
     character.setMounted(false);
     character.setFirstPerson(false);
     character.update(step, {
