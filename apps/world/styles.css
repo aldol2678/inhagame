@@ -5177,6 +5177,39 @@ body[data-hud-mode="COMBAT"] #jump { display:none !important; }
 @media(max-width:600px) { .furniture-editor { inset:8px; width:auto; padding:12px; border-radius:14px; } }
 @media(max-height:500px) and (min-width:601px) { .furniture-editor { width:390px; top:6px; bottom:6px; padding:12px; } .furniture-plan { max-height:200px; } }
 
+/* Player photo mode is presentation-only: underlying HUD hidden/open state stays untouched. */
+body[data-photo-mode="active"] > :not(#application):not(.photo-mode):not(script):not(style):not(#world-loading):not(#space-fade):not(#lobby-transition-fade) {
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+.photo-mode[hidden] { display: none; }
+.photo-mode {
+  position: fixed; inset: 0; z-index: 180; pointer-events: none; color: #f6fbff;
+  padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+  display: flex; flex-direction: column; justify-content: space-between; gap: 12px;
+}
+.photo-mode-header { display: flex; align-items: start; justify-content: space-between; gap: 12px; }
+.photo-mode-title, .photo-mode-close, .photo-mode-controls-toggle, .photo-mode-dock {
+  background: rgba(13, 28, 40, .9); border: 1px solid rgba(187, 221, 237, .45); border-radius: 16px;
+}
+.photo-mode-title { padding: 12px; font-size: 15px; }
+.photo-mode button { pointer-events: auto; min-height: 44px; padding: 10px 14px; color: #f6fbff; font: inherit; cursor: pointer; }
+.photo-mode-close, .photo-mode-controls-toggle { font-size: 14px; }
+.photo-mode-actions { display: flex; flex-direction: column; gap: 8px; }
+.photo-mode-dock[hidden] { display: none; }
+.photo-mode-dock { pointer-events: auto; align-self: center; width: min(560px, 100%); box-sizing: border-box; padding: 14px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.photo-mode-range { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.photo-mode-range input { width: 100%; min-width: 0; min-height: 44px; accent-color: #90d4ef; }
+.photo-mode-pose { grid-column: 1 / -1; background: #205671; border: 1px solid #90d4ef; border-radius: 12px; }
+.photo-mode-status, .photo-mode-note { grid-column: 1 / -1; margin: 0; text-align: center; font-size: 12px; line-height: 1.5; }
+.photo-mode-note { color: #b3c6d1; }
+.photo-mode :focus-visible { outline: 3px solid #9ee7ff; outline-offset: 3px; }
+@media (max-height: 430px) {
+  .photo-mode { padding-top: max(8px, env(safe-area-inset-top)); padding-bottom: max(8px, env(safe-area-inset-bottom)); }
+  .photo-mode-dock { padding: 8px 12px; gap: 3px 10px; }
+  .photo-mode-note { display: none; }
+}
+
 /* Collection Book is a read-only view inside the existing inventory modal. */
 .collection-book { display: grid; gap: 12px; }
 .collection-book-heading { margin: 8px 0 0; font-size: 16px; }

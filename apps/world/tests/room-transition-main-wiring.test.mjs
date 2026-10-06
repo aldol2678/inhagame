@@ -13,7 +13,7 @@ test("main update holds all local gameplay consumers while only rendering the tr
   let regionBusy = false;
   const calls = [];
   const frame = vm.runInNewContext(`dt => { ${prefix} calls.push("remaining-gameplay"); }`, {
-    syncAudio: () => calls.push("audio"), rooms: { status: () => ({ busy }) },
+    photoMode: { update() {} }, syncAudio: () => calls.push("audio"), rooms: { status: () => ({ busy }) },
     biryongRealm: { get busy() { return regionBusy; } },
     playerActivityAudio: { reset: () => calls.push("audio-reset") },
     lobbyWorld: { active: false }, lobbyTransition: { active: false },

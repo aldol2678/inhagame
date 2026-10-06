@@ -11,7 +11,7 @@ function savedOptions(extra = {}) {
     place: { id: 'BR_MARKET' }, controller: { grounded: true, mounted: false }, inside: true,
     rooms: { insideRoom: false, status: () => ({ busy: false }) },
     biryongRealm: { regionId: 'BIRYONG_REALM', busy: false }, WORLD_REGION_ID: { CAMPUS: 'CAMPUS' },
-    inBiryong: true, firstPlayerMovement: true, npcTestMode: false, combatRuntime: { active: false },
+    inBiryong: true, firstPlayerMovement: true, npcTestMode: false, combatRuntime: { active: false }, photoMode: { active: false },
     lobbyWorld: { active: false }, lobbyTransition: { active: false }, ...extra });
   return result;
 }
@@ -49,4 +49,8 @@ test('a fresh Biryong resume keeps saving without first moving through Campus', 
 
 test('pagehide cancels pending regional resume including BFCache suspension', () => {
   assert.match(source, /window\.addEventListener\("pagehide", event => \{\s*biryongRealm\?\.cancelResume\(\);\s*if \(!event\.persisted\)/);
+});
+
+test("photo framing is never persisted in the resume record", () => {
+  assert.equal(savedOptions({ photoMode: { active: true } }).enabled, false);
 });
