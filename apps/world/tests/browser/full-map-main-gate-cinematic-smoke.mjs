@@ -141,6 +141,14 @@ try {
       await smoke.close();
     }
   }
+  const desktop = report.cases.find(entry => entry.name === "desktop");
+  const mobile = report.cases.find(entry => entry.name === "mobile");
+  assert.ok(desktop && mobile, "desktop and mobile cinematic receipts are required");
+  for (let i = 0; i < desktop.frames.length; i++) {
+    assert.equal(mobile.frames[i].shot, desktop.frames[i].shot);
+    assert.ok(mobile.frames[i].fov < desktop.frames[i].fov,
+      `${mobile.frames[i].shot}: portrait framing should tighten vertical FOV`);
+  }
   report.status = "PASS";
 } catch (error) {
   report.status = "FAIL";
