@@ -25,6 +25,27 @@ const mixPoint = (a, b, t) => ({
   z: lerp(a.z, b.z, t)
 });
 
+const PORTRAIT_ASPECT_MAX = 0.78;
+const PORTRAIT_ASPECT_FULL = 0.48;
+const portraitFactor = aspect => {
+  if (!Number.isFinite(aspect) || aspect >= PORTRAIT_ASPECT_MAX) return 0;
+  return clamp01((PORTRAIT_ASPECT_MAX - aspect) / (PORTRAIT_ASPECT_MAX - PORTRAIT_ASPECT_FULL));
+};
+const portraitFrame = (pose, time, aspect) => {
+  const portrait = portraitFactor(aspect);
+  if (portrait <= 0) return pose;
+  const progress = clamp01(time / 6.4);
+  // Portrait screens expose much more vertical FOV. Tilt down progressively so the campus
+  // occupies the upper half instead of leaving a large sky slab, while keeping x/z path parity.
+  const lookDown = lerp(1.7, 3.0, progress) * portrait;
+  const fovTighten = lerp(1.2, 2.4, progress) * portrait;
+  return {
+    pos: { ...pose.pos },
+    look: { ...pose.look, y: pose.look.y - lookDown },
+    fov: pose.fov - fovTighten
+  };
+};
+
 const SHOT_A = Object.freeze({
   from: Object.freeze({ pos: point(-9, -8, 3.6), look: point(19, 0, 3.2), fov: 57 }),
   to: Object.freeze({ pos: point(8, 13, 8.8), look: point(38, 0, 5.2), fov: 60 })
@@ -44,21 +65,24 @@ export const MAIN_GATE_REVEAL_V01 = Object.freeze({
   blendSeconds: 0.48,
   streamingLeadSeconds: 1.35,
   skippable: true,
-  poseAt(time = 0) {
+  poseAt(time = 0, { aspect = null } = {}) {
     const t = Math.max(0, Math.min(6.4, Number(time) || 0));
+    let pose;
     if (t <= 2.35) {
       const q = smooth(t / 2.35);
-      return {
+      pose = {
         pos: mixPoint(SHOT_A.from.pos, SHOT_A.to.pos, q),
         look: mixPoint(SHOT_A.from.look, SHOT_A.to.look, q),
         fov: lerp(SHOT_A.from.fov, SHOT_A.to.fov, q)
       };
+    } else {
+      const q = smooth((t - 2.35) / (6.4 - 2.35));
+      pose = {
+        pos: mixPoint(SHOT_B.from.pos, SHOT_B.to.pos, q),
+        look: mixPoint(SHOT_B.from.look, SHOT_B.to.look, q),
+        fov: lerp(SHOT_B.from.fov, SHOT_B.to.fov, q)
+      };
     }
-    const q = smooth((t - 2.35) / (6.4 - 2.35));
-    return {
-      pos: mixPoint(SHOT_B.from.pos, SHOT_B.to.pos, q),
-      look: mixPoint(SHOT_B.from.look, SHOT_B.to.look, q),
-      fov: lerp(SHOT_B.from.fov, SHOT_B.to.fov, q)
-    };
+    return portraitFrame(pose, t, aspect);
   }
 });
