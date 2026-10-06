@@ -5,7 +5,7 @@ module.exports = async function handler(req, res) {
   try {
     handlerPromise ??= Promise.all([
       import('../server/collection-book-service.mjs'), import('../npc-factory/npc-ai-auth.mjs'),
-      import('../src/config/supabase-public-config.js')
+      import('../src/config/supabase-public-config.mjs')
     ]).then(([server, auth, config]) => server.createCollectionBookApiHandler({
       service: server.createCollectionBookService({ verifyUser: auth.verifyNpcAiUser,
         rpc: server.createCollectionBookRpc({ url: config.SUPABASE_URL, serviceKey: process.env.SUPABASE_SERVICE_ROLE_KEY }) })

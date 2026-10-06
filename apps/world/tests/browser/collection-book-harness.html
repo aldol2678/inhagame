@@ -11,6 +11,14 @@
   <button id="opener" type="button">인벤토리 열기</button>
   <section id="inventory" class="profile-panel shop-panel inventory-panel" role="dialog" aria-modal="true" aria-labelledby="inventory-panel-title" hidden></section>
   <script type="module">
+    import * as configJs from '../../src/config/supabase-public-config.js';
+    import * as configMjs from '../../src/config/supabase-public-config.mjs';
+    import * as registryJs from '../../src/collection/collection-discovery-contract.js';
+    import * as registryMjs from '../../src/collection/collection-discovery-contract.mjs';
+    if (configJs.getPublicSupabaseConfig !== configMjs.getPublicSupabaseConfig ||
+        registryJs.COLLECTION_ENTRY_REGISTRY !== registryMjs.COLLECTION_ENTRY_REGISTRY) {
+      throw Error('Browser compatibility entrypoints must preserve canonical module identity');
+    }
     import { createInventoryClient } from '../../src/inventory/inventory-client.js';
     import { createInventoryPanel } from '../../src/inventory/inventory-panel.js';
     import { createCollectionBookClient } from '../../src/collection/collection-book-client.js';
