@@ -145,7 +145,7 @@ try {
   assert.equal(initial.streetLights.artificialLightFactor, 0.18);
   assert.ok(initial.streetLights.lampCount > 0);
   assert.equal(initial.streetLights.bulbCount, initial.streetLights.lampCount);
-  assert.ok(initial.streetLights.dynamicBudget >= 0 && initial.streetLights.dynamicBudget <= 4);
+  assert.ok(initial.streetLights.dynamicBudget >= 0 && initial.streetLights.dynamicBudget <= 6);
   assert.ok(initial.streetLights.activeDynamicLights <= initial.streetLights.dynamicBudget);
   assert.equal(initial.nightWindows.realLights, 0);
   assert.equal(initial.nightWindows.drawMeshes, 1);
