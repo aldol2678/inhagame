@@ -37,8 +37,6 @@ import { createMeltwaterEffects } from './environment/meltwater-effects.js';
 import { winterPerformanceSnapshot } from './environment/winter-performance-budget.js';
 import { createSkyVisuals } from './environment/sky-visuals.js';
 import { createInkyungDuckSystem } from './ambient-ducks.js';
-import { createDuckObservationClient } from './creature/duck-observation-client.js';
-import { createDuckCompanionFollow } from './creature/duck-companion-follow.js';
 import { createInkyungMechanicalDuckEvent } from './inkyung-mechanical-duck-event.js';
 import { createBiryongSystem } from './biryong/biryong-system.js';
 import { BIRYONG_PLACE_ID, isNearBiryong } from './biryong/biryong-layout.js';
@@ -834,24 +832,7 @@ const biryongRelationships = createBiryongRelationshipClient({
   getClient: () => online?.supabase ?? null,
   getUserId: () => online?.userId ?? null
 });
-const duckCompanion = createDuckObservationClient({
-  getClient: () => online?.supabase ?? null
-});
-const duckCompanionFollow = createDuckCompanionFollow({
-  root: campusRoot,
-  player,
-  getSnapshot: () => duckCompanion.status().snapshot,
-  getGroundHeight: (x, z) => controller.groundY + roadviewGroundHeight(x, z),
-  getVisible: () =>
-    !rooms?.insideRoom &&
-    !biryongRealm?.inBiryong &&
-    !lobbyWorld.active &&
-    !lobbyTransition.active &&
-    !controller.mounted
-});
-window.addEventListener("pagehide", event => {
-  if (!event.persisted) duckCompanionFollow.destroy();
-});
+// Pet companion runtime is intentionally deferred until the world is stable enough to reintroduce it.
 let accompany = null;
 let populationHeartbeat = null;
 let populationCount = null;
@@ -2162,58 +2143,14 @@ const inkyungDucks = createInkyungDuckSystem({
   root: campusRoot,
   player,
   forceMechanical: previewHost && startupParams.get("mechanicalDuck") === "1",
-  canObserveOrdinary: () =>
-    inkyungSideEvent.canObserveOrdinaryDuck() || duckCompanion.canObserve() || duckCompanion.canBond(),
-  getOrdinaryActionLabel: () => duckCompanion.canBond() ? "오리와 교감" : "오리 관찰",
+  canObserveOrdinary: () => inkyungSideEvent.canObserveOrdinaryDuck(),
+  getOrdinaryActionLabel: () => "오리 관찰",
   onOrdinaryObserved: duck => {
     const sideEventResult = inkyungSideEvent.observeOrdinaryDuck(duck.kind);
-    const companionBonding = duckCompanion.canBond();
-    const companionStarted = !companionBonding && duckCompanion.canObserve();
-
-    if (companionBonding) {
-      void duckCompanion.bond().then(result => {
-        if (result?.status === "FAILED") {
-          console.warn("Duck Companion bond failed:", result.error);
-          showWorldStatus("🦆 오리와 교감하지 못했어요 · 잠시 후 다시 시도해 주세요.");
-          return;
-        }
-        const companion = result?.companion;
-        if (companion?.state !== "OWNED") return;
-        showWorldStatus(result?.autoActivated
-          ? "🦆 교감 성공 · 새 동료 오리가 ACTIVE 동행으로 합류했어요!"
-          : "🦆 교감 성공 · 새 동료 오리가 합류했어요!");
-      });
-    } else if (companionStarted) {
-      void duckCompanion.observe(duck.id).then(result => {
-        if (result?.status === "FAILED") {
-          console.warn("Duck Companion observation failed:", result.error);
-          return;
-        }
-        const companion = result?.companion;
-        if (!companion) return;
-        if (companion.state === "BOND_ELIGIBLE") {
-          showWorldStatus("🦆 오리들이 경계를 풀었다 · F 키로 동료 교감을 시도해 보세요.");
-          return;
-        }
-        if (companion.state === "OWNED") {
-          showWorldStatus("🦆 동행 중인 오리를 다시 만났어요.");
-          return;
-        }
-        const count = Number(companion.observationCount ?? 0);
-        const required = Number(companion.requiredObservationCount ?? 3);
-        if (Number.isFinite(count) && Number.isFinite(required)) {
-          showWorldStatus(`🦆 오리 관찰 기록 ${count}/${required}`);
-        }
-      });
-    }
-
     if (sideEventResult.changed) {
       showWorldStatus(`🦆 ${sideEventResult.line} · 이제 수상한 오리를 찾아보자.`);
     }
-    return {
-      ...sideEventResult,
-      changed: sideEventResult.changed || companionStarted || companionBonding
-    };
+    return sideEventResult;
   },
   onLoreFound: lore => {
     const eventResult = inkyungSideEvent.observeMechanicalDuck();
@@ -3046,7 +2983,6 @@ app.on("update", (dt) => {
   });
 
   const pos = player.getLocalPosition();
-  duckCompanionFollow.update(Math.min(dt, 0.05));
   if (!inside) {
     if (inkyungSideEvent.requiresMechanicalDuck()) inkyungDucks.ensureMechanicalDuck();
     inkyungDucks.update(Math.min(dt, 0.05), pos);
@@ -3240,8 +3176,6 @@ try {
     void loadout.setAccount(identity ? online?.userId ?? null : null);
     const nextRoomUserId = online?.userId ?? null;
     inkyungSideEvent.setScope(nextRoomUserId ?? "guest");
-    if (identity) void duckCompanion.refresh();
-    else duckCompanion.reset();
     const roomIdentityChanged = lastPersonalRoomUserId !== null && nextRoomUserId !== lastPersonalRoomUserId;
     if (!identity || roomIdentityChanged) roomSession?.stop();
     if (!identity || roomIdentityChanged) roomFurniture?.reset();
