@@ -1,5 +1,6 @@
 import { WORLD_REGION_ID } from "../regions/world-region-registry.js";
 import { setLobbyShellVisible } from "./lobby-shell.js";
+import { requestLobbyFullscreen } from "./lobby-fullscreen.js";
 
 export function formatResumeAge(savedAt, now = Date.now()) {
   const delta = Math.max(0, Number(now) - Number(savedAt));
@@ -70,7 +71,8 @@ export function bindResumeEntry({
   now = () => Date.now(),
   documentLike = globalThis.document,
   transition = null,
-  getRegionTransition = () => null
+  getRegionTransition = () => null,
+  requestFullscreen = requestLobbyFullscreen
 } = {}) {
   let destroyed = false;
   let pendingRegion = null;
@@ -85,6 +87,7 @@ export function bindResumeEntry({
   if (ageElement) ageElement.textContent = formatResumeAge(record.savedAt, now());
   const start = () => {
     if (destroyed) return false;
+    requestFullscreen?.({ documentLike });
     const regionTransition = getRegionTransition();
     if (record.regionId === WORLD_REGION_ID.BIRYONG_REALM) pendingRegion = regionTransition;
     return enterResume({ player, orbit, lobbyWorld, record, documentLike, transition, regionTransition,

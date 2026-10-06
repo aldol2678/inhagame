@@ -13,6 +13,7 @@ import {
   segmentWidth
 } from '../road-pole-clearance.js';
 import { polygonOverlap } from '../polygon-collision.js';
+import { POND_RING, edgeFrame } from '../roadview-layout.js';
 
 export const CAMPUS_NIGHT_LAMP_POLICY = Object.freeze({
   roadSpacing: 22,
@@ -23,6 +24,11 @@ export const CAMPUS_NIGHT_LAMP_POLICY = Object.freeze({
   height: 4.45,
   maxRoadLamps: 42,
   maxPathLamps: 22,
+  inkyungSpacing: 14,
+  inkyungPathWidth: 3,
+  inkyungCenterOffset: 5.9,
+  inkyungRoadsideOffset: 0.72,
+  maxInkyungLamps: 4,
   // Authored Main Gate / Sosung-ro corridors are lit as major roads: ~22 m (11 WU) along each
   // side's staggered rhythm, with their own budget so the generic road cap cannot starve them.
   majorRoadSpacing: 11,
@@ -46,7 +52,7 @@ const obstacles = [
 ];
 
 function frameAt(frame, u, v = 0) {
-  const a = frame.at(0), b = frame.at(Math.min(1, frame.length));
+  const a = frame.at(0, 0), b = frame.at(Math.min(1, frame.length), 0);
   const yaw = -Math.atan2(b.z - a.z, b.x - a.x) * 180 / Math.PI;
   return Object.freeze({
     yaw,
@@ -205,6 +211,39 @@ function sampleSegments(segments, {
   }
 }
 
+function sampleInkyungPromenade(lamps, stats) {
+  const frame = edgeFrame(POND_RING, 1);
+  const policy = CAMPUS_NIGHT_LAMP_POLICY;
+  const width = policy.inkyungPathWidth;
+  const sideOffset = width / 2 + policy.inkyungRoadsideOffset;
+  const samples = candidateUs(frame.length, policy.inkyungSpacing)
+    .slice(0, policy.maxInkyungLamps);
+
+  for (let sampleIndex = 0; sampleIndex < samples.length; sampleIndex++) {
+    const localFrame = frameAt(frame, samples[sampleIndex], policy.inkyungCenterOffset + sideOffset);
+    const center = localFrame.at(0);
+    stats.candidates++;
+    if (!isCampusLampPoleClear(center)) {
+      stats.rejected++;
+      continue;
+    }
+    if (!farEnough(center, lamps)) {
+      stats.covered++;
+      continue;
+    }
+    stats.direct++;
+    lamps.push(createLamp({
+      id: `campus_night_inkyung_promenade_${sampleIndex}`,
+      sourceKind: 'inkyung-promenade',
+      localFrame,
+      side: 1,
+      corridorHalfWidth: width / 2,
+      poleLateralOffset: sideOffset,
+      placement: 'direct'
+    }));
+  }
+}
+
 // Corner fallback: a junction / entrance with no lamp inside its radius gets one on the nearest
 // valid pole position around it (curb corners), head overhanging toward the anchor.
 function ensureJunctionCoverage(lamps, stats) {
@@ -289,6 +328,8 @@ export function analyzeCampusNightLampLayout() {
     sourceKind: 'path'
   }, lamps, stats);
   ensureJunctionCoverage(lamps, stats);
+  // Preserve restored road, path and junction lamps before adding pond-only fixtures.
+  sampleInkyungPromenade(lamps, stats);
   return Object.freeze({ lamps: Object.freeze(lamps), stats: Object.freeze(stats) });
 }
 

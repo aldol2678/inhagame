@@ -1,6 +1,7 @@
 import { MAIN_GATE_SPAWN } from "../campus-spawn.js";
 import { setLobbyShellVisible } from "./lobby-shell.js";
 import { canStartSpawn } from "./spawn-registry.js";
+import { requestLobbyFullscreen } from "./lobby-fullscreen.js";
 
 const SEAMLESS_MAIN_GATE_RADIUS = 0.75;
 
@@ -64,10 +65,14 @@ export function bindMainGateEntry({
   spawnDefinition = null,
   documentLike = globalThis.document,
   transition = null,
-  onEntered = null
+  onEntered = null,
+  requestFullscreen = requestLobbyFullscreen
 } = {}) {
   if (!button) return { start: () => false, destroy() {} };
-  const start = () => enterMainGate({ player, lobbyWorld, spawn, spawnDefinition, documentLike, transition, onEntered });
+  const start = () => {
+    requestFullscreen?.({ documentLike });
+    return enterMainGate({ player, lobbyWorld, spawn, spawnDefinition, documentLike, transition, onEntered });
+  };
   button.addEventListener("click", start);
   return {
     start,

@@ -1,6 +1,7 @@
 import * as pc from 'playcanvas';
 import { BACK_ROADSIDE_ASSETS } from '../back-roadside-layout.js';
 import { CAMPUS_NIGHT_LAMPS } from './night-campus-lamp-layout.js';
+import { GAZEBO } from '../landmark-detail-layout.js';
 import {
   NIGHT_LIGHT_BUDGET,
   NIGHT_LIGHT_MAX_DISTANCE,
@@ -17,6 +18,17 @@ function createGlowMaterial() {
   material.name = 'street-lamp-night-glow';
   material.diffuse = new pc.Color(0.78, 0.75, 0.64);
   material.emissive = new pc.Color(1, 0.82, 0.52);
+  material.emissiveIntensity = 0;
+  material.useLighting = true;
+  material.update();
+  return material;
+}
+
+function createGazeboGlowMaterial() {
+  const material = new pc.StandardMaterial();
+  material.name = 'inkyung-gazebo-night-glow';
+  material.diffuse = new pc.Color(0.86, 0.58, 0.28);
+  material.emissive = new pc.Color(1, 0.54, 0.16);
   material.emissiveIntensity = 0;
   material.useLighting = true;
   material.update();
@@ -53,6 +65,40 @@ function dedupeLamps(lamps, minDistance = 3.2) {
     accepted.push(lamp);
   }
   return accepted;
+}
+
+function createGazeboLightAnchor() {
+  const { center } = GAZEBO;
+  return Object.freeze({
+    id: 'inkyung_gazebo_warm',
+    kind: 'lamp',
+    source: 'inkyung-gazebo',
+    sourceKind: 'gazebo',
+    frame: Object.freeze({
+      yaw: 0,
+      at(u = 0, v = 0) { return { x: center.x + u, z: center.z + v }; }
+    }),
+    center: Object.freeze({ x: center.x, z: center.z }),
+    head: Object.freeze({ x: center.x, y: 2.55, z: center.z }),
+    height: 2.55
+  });
+}
+
+function createGazeboGlowFixtures(root, material) {
+  const fixtures = [];
+  for (let i = 0; i < GAZEBO.ring.length; i++) {
+    const post = GAZEBO.ring[i];
+    const x = GAZEBO.center.x + (post.x - GAZEBO.center.x) * 0.66;
+    const z = GAZEBO.center.z + (post.z - GAZEBO.center.z) * 0.66;
+    const entity = new pc.Entity(`inkyung_gazebo_fixture_${i}`);
+    entity.addComponent('render', { type: 'box', castShadows: false, receiveShadows: false });
+    entity.render.material = material;
+    entity.setLocalPosition(x, 3.04, z);
+    entity.setLocalScale(0.12, 0.05, 0.12);
+    root.addChild(entity);
+    fixtures.push(entity);
+  }
+  return fixtures;
 }
 
 function createBulb(root, lamp, material) {
@@ -125,14 +171,19 @@ export function createNightStreetLights({
     .filter(item => item.kind === 'lamp')
     .map(item => normalizeLamp(item, 'back-roadside'));
   const campusLamps = CAMPUS_NIGHT_LAMPS.map(item => normalizeLamp(item, 'campus'));
-  const lamps = dedupeLamps([...backLamps, ...campusLamps]);
+  const gazeboLamp = normalizeLamp(createGazeboLightAnchor(), 'inkyung-gazebo');
+  const lamps = dedupeLamps([gazeboLamp, ...backLamps, ...campusLamps]);
 
   const glowMaterial = createGlowMaterial();
+  const gazeboGlowMaterial = createGazeboGlowMaterial();
   const poleMaterial = createPoleMaterial();
   const campusProps = lamps
     .filter(lamp => lamp.source === 'campus')
     .map(lamp => createCampusLampProp(root, lamp, poleMaterial));
-  const bulbs = lamps.map(lamp => createBulb(root, lamp, glowMaterial));
+  const bulbs = lamps
+    .filter(lamp => lamp.source !== 'inkyung-gazebo')
+    .map(lamp => createBulb(root, lamp, glowMaterial));
+  const gazeboFixtures = createGazeboGlowFixtures(root, gazeboGlowMaterial);
   const pool = Array.from({ length: NIGHT_LIGHT_BUDGET.high }, (_, i) => createOmni(root, i));
 
   let elapsed = rebalanceSeconds;
@@ -147,6 +198,8 @@ export function createNightStreetLights({
     factor = safe;
     glowMaterial.emissiveIntensity = safe * 4.6;
     glowMaterial.update();
+    gazeboGlowMaterial.emissiveIntensity = safe * 5.8;
+    gazeboGlowMaterial.update();
     for (const light of pool) light.light.intensity = safe * 1.05;
     if (safe <= 0.002) {
       activeIndices = [];
@@ -188,9 +241,12 @@ export function createNightStreetLights({
   function status() {
     const currentTier = tier ?? (getGraphicsTier?.() ?? 'medium');
     return Object.freeze({
-      lampCount: lamps.length,
+      lampCount: bulbs.length,
+      logicalLightAnchorCount: lamps.length,
       backRoadsideLampCount: lamps.filter(lamp => lamp.source === 'back-roadside').length,
       campusLampCount: lamps.filter(lamp => lamp.source === 'campus').length,
+      gazeboLightAnchorCount: lamps.filter(lamp => lamp.source === 'inkyung-gazebo').length,
+      gazeboFixtureCount: gazeboFixtures.length,
       bulbCount: bulbs.length,
       campusPropCount: campusProps.length,
       graphicsTier: currentTier,
@@ -208,8 +264,10 @@ export function createNightStreetLights({
     destroyed = true;
     for (const prop of campusProps) prop.destroy();
     for (const bulb of bulbs) bulb.destroy();
+    for (const fixture of gazeboFixtures) fixture.destroy();
     for (const light of pool) light.destroy();
     glowMaterial.destroy();
+    gazeboGlowMaterial.destroy();
     poleMaterial.destroy();
   }
 

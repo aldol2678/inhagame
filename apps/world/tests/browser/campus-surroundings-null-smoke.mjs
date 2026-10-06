@@ -39,7 +39,9 @@ try{
     const registry=new RenderChunkRegistry(),renderer=new CampusChunkRenderer(app,parent,registry);
     const pond=renderer.base.children.filter(e=>e.name.startsWith('pond_surroundings_base_'));
     const walks=renderer.base.children.filter(e=>e.name.startsWith('main_hall_walkways_'));
-    assert.equal(pond.length,5,'persistent pond base must be mounted independently of the student renderer');
+    assert.equal(pond.length,6,'six persistent pond material batches, including the promenade, mount independently of the student renderer');
+    assert.equal(new Set(pond.map(e=>e.name)).size,6,'each pond material has exactly one persistent owner');
+    assert.equal(pond.filter(e=>e.name==='pond_surroundings_base_74766f').length,1,'the promenade material is mounted exactly once');
     assert.equal(walks.length,1,'both shared approaches must be mounted exactly once');
     const targets=[...pond,...walks],geometry=targets.flatMap(fingerprint);
     for(const seat of SEAT_ANCHORS.filter(s=>s.id.startsWith('SEAT_INKYUNG_TREE_')))

@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { POND_RING, edgeFrame } from '../src/roadview-layout.js';
 import {
   CAMPUS_NIGHT_LAMPS,
   CAMPUS_NIGHT_LAMP_POLICY,
@@ -19,9 +20,10 @@ test('campus night lamp registry covers roads and paths within the hard budget',
   }));
   assert.deepEqual(snapshot(layout), snapshot(CAMPUS_NIGHT_LAMPS));
   assert.ok(layout.length > 0);
-  const { maxRoadLamps, maxPathLamps, maxMajorRoadLamps, maxMajorPathLamps, maxJunctionLamps } = CAMPUS_NIGHT_LAMP_POLICY;
-  assert.ok(layout.length <= maxRoadLamps + maxPathLamps + maxMajorRoadLamps + maxMajorPathLamps + maxJunctionLamps);
+  const { maxRoadLamps, maxPathLamps, maxMajorRoadLamps, maxMajorPathLamps, maxJunctionLamps, maxInkyungLamps } = CAMPUS_NIGHT_LAMP_POLICY;
+  assert.ok(layout.length <= maxRoadLamps + maxPathLamps + maxMajorRoadLamps + maxMajorPathLamps + maxJunctionLamps + maxInkyungLamps);
   assert.ok(layout.some(lamp => lamp.sourceKind === 'road'));
+  assert.ok(layout.some(lamp => lamp.sourceKind === 'inkyung-promenade'));
 });
 
 test('campus night lamp registry is deterministic, finite, and spatially de-duplicated', () => {
@@ -35,6 +37,10 @@ test('campus night lamp registry is deterministic, finite, and spatially de-dupl
     assert.ok(Number.isFinite(lamp.head.x) && Number.isFinite(lamp.head.y) && Number.isFinite(lamp.head.z));
     assert.equal(lamp.height, CAMPUS_NIGHT_LAMP_POLICY.height);
     assert.ok(Number.isFinite(lamp.frame.yaw));
+    if (lamp.sourceKind === 'inkyung-promenade') {
+      assert.ok(Math.abs(lamp.frame.yaw - edgeFrame(POND_RING, 1).yaw) < 1e-9,
+        `${lamp.id} follows the canonical pond edge rather than a zero-yaw fallback`);
+    }
   }
   for (let i = 0; i < CAMPUS_NIGHT_LAMPS.length; i++) {
     for (let j = i + 1; j < CAMPUS_NIGHT_LAMPS.length; j++) {
