@@ -63,6 +63,7 @@ nothing is ACTIVE / no settlement path · **planned** = no backing schema yet ·
 | Achievement | Achievement (Classic / Hub) | `public.user_achievements` (key CHECK list) | `get_my_achievements()` | SQL functions / triggers on verified Classic records and Inha mail verification | database-internal | no | production for Classic / verification; World achievements planned |
 | GM / permission | Ops | `private.world_staff_assignments` (world_admin, sound_gm), `world_staff_role_permissions` | `get_my_world_admin_access_v1()`; display-only `get_world_staff_badges_v1(uuid[])` | ops via `service_role` table DML only (no RPC) | operators | no | production |
 | Biryong NPC relationship | Biryong Relationship | `private.world_player_biryong_npc_relationships`, `world_biryong_npc_relationship_events`; NPC/fact catalogs | `get_my_biryong_npc_relationship_v1(text)`, `get_my_biryong_npc_relationships_v1()` (self-only read) | `private.world_biryong_relationship_advance_v1` via `public.world_biryong_npc_relationship_advance_v1` | trusted server (`service_role`), one verified stage at a time | no mutation from browser | P0 live in schema/runtime |
+| Campus player↔NPC relationship | Campus NPC Relationship | `private.world_player_campus_npc_relationships`, `private.world_campus_npc_relationship_events`, HERO NPC catalog | `get_my_world_campus_npc_relationship_v1(text)`, `get_my_world_campus_npc_relationships_v1()` (self-only read) | `private.world_campus_npc_relationship_apply_v1` via `public.world_campus_npc_relationship_apply_v1` | trusted server (`service_role`) supplies a verified semantic event and rule definition version; no gameplay caller yet | no mutation from browser | P0 foundation: HERO 10 persistence + ledger; source integrations deferred |
 | NPC shared runtime state | Shared NPC Authority | `npc-shared-authority-p0.mjs`, `npc-shared-authority-server.mjs`, `/api/npc-shared-state`, client consumer | current Place Zone snapshot over read-only HTTP; no DB persistence in P0 | server deterministic schedule / meeting projection; client consumes revisioned snapshot | `NPC_SHARED_AUTHORITY_P0` gate | pilot 003/012 renderer authority | P0 merged; Production activation OFF |
 | NPC dialogue state | Personal Narrative / Client | `npc-dialogue-session.mjs` (state machine), `npc-dialogue-context.mjs` (context + candidates); AI: `/api/npc-dialogue-route` (Jev, `EXPERIMENT_ONLY`, `authorityEffect: NONE`), `/api/npc-ai` (pilot) | player-local/browser session | none persistent | — | browser-only state | authored / observed dialogue production; Jev experiment |
 | Legacy NPC shared tick v1 | Historical dormant | `private.world_npc_shared_ticks_v1`, `get/claim/commit_world_npc_shared_*_v1` from public baseline | latest committed decision JSON | service_role-only claim/commit | no current World runtime caller | none | **SUPERSEDED FOR RUNTIME AUTHORITY**; retained pending explicit Production cleanup |
@@ -86,6 +87,7 @@ Protected primitives, all in schema `private`:
 | Activity | `world_activity_start_v1`, `world_activity_finalize_v1`, `world_activity_settle_v1` |
 | Combat | `world_combat_start_v1`, `world_combat_state_write_v1`, `world_combat_finalize_v1` |
 | Biryong Relationship | `world_biryong_relationship_advance_v1` |
+| Campus NPC Relationship | `world_campus_npc_relationship_apply_v1` |
 
 Allowed callers on `8b7bf39`. The exact list with a reason per row is in test 93.
 
@@ -104,6 +106,7 @@ Allowed callers on `8b7bf39`. The exact list with a reason per row is in test 93
   transaction.
 - **Activity / Combat lifecycle**: service_role wrappers and the two Creature bridges.
 - **Biryong Relationship**: only `public.world_biryong_npc_relationship_advance_v1` (service_role) may call the relationship advance primitive; browser RPCs are read-only.
+- **Campus NPC Relationship**: only `public.world_campus_npc_relationship_apply_v1` (service_role) may call the affinity primitive. The browser only reads its own projection; gameplay-source callers are intentionally absent in P0.
 - **Life Skill Tree**: `world_life_node_unlock_v1` ← `public.unlock_my_world_life_node_v1`;
   `world_life_tree_reset_v1` ← `public.reset_my_world_life_tree_v1` (Life Skill Book, self-only, caller =
   `auth.uid()`, only a node / skill id and a request id; ACTIVE skills / nodes only).
@@ -146,6 +149,7 @@ if it never calls the primitive.
   `world_fishing_spot_leases` ← `world_fishing_start_v1` acquires/reclaims and
   `world_fishing_commit_v1` releases; `world_fishing_spots` is a migration-only geometry catalog.
 - Biryong Relationship: `world_biryong_npc_relationship_events`, `world_player_biryong_npc_relationships` ← `world_biryong_relationship_advance_v1`; NPC/fact catalogs are migration-only
+- Campus NPC Relationship: `world_campus_npc_relationship_events`, `world_player_campus_npc_relationships` ← `world_campus_npc_relationship_apply_v1`; HERO catalog is migration-only; tier is derived, never stored
 - Quest: `world_quest_progress_v1` ← the three `advance_world_*_quest_v1` (Main 1, Main 2, Main 3 M3.1 first style; M3.1 grants no reward);
   `world_event_progress` ← `advance_mcm_2026_event_v1`, `world_mcm_try_complete_v1`
 - Appearance: `world_player_appearance_loadout` ← equip / unequip. Shop ledger: `world_purchase_transactions` ← purchase
