@@ -32,8 +32,12 @@ function cameraBasis(camera) {
   };
 }
 
-function sequencePose(sequence, time) {
-  const pose = sequence?.poseAt?.(Math.max(0, Math.min(sequence.duration, time)));
+function sequencePose(sequence, time, camera = null) {
+  const aspect = Number.isFinite(camera?.camera?.aspectRatio) ? camera.camera.aspectRatio : null;
+  const pose = sequence?.poseAt?.(
+    Math.max(0, Math.min(sequence.duration, time)),
+    { aspect }
+  );
   if (!finitePoint(pose?.pos) || !finitePoint(pose?.look)) return null;
   return pose;
 }
@@ -137,7 +141,7 @@ export function createCinematicDirector({
   function applyCamera() {
     if (!session) return false;
     const base = cameraBasis(camera);
-    const pose = sequencePose(session.sequence, session.elapsed);
+    const pose = sequencePose(session.sequence, session.elapsed, camera);
     if (!base || !pose) return false;
 
     const weight = blendWeight();
@@ -163,8 +167,8 @@ export function createCinematicDirector({
   function streamingInterestPoints() {
     if (!session) return [];
     const lead = Math.max(0, Number(session.sequence.streamingLeadSeconds) || 0);
-    const now = sequencePose(session.sequence, session.elapsed);
-    const ahead = lead > 0 ? sequencePose(session.sequence, session.elapsed + lead) : null;
+    const now = sequencePose(session.sequence, session.elapsed, camera);
+    const ahead = lead > 0 ? sequencePose(session.sequence, session.elapsed + lead, camera) : null;
     const points = [];
     for (const pose of [now, ahead]) {
       if (!pose) continue;
