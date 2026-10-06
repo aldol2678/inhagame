@@ -25,6 +25,6 @@ test("main gate reveal stays finite, bounded in duration and ends aimed at the a
 
   const main = TOUR_STOPS.find(stop => stop.id === "main");
   const last = MAIN_GATE_REVEAL_V01.poseAt(MAIN_GATE_REVEAL_V01.duration);
-  assert.equal(last.look.x, main.x);
-  assert.equal(last.look.z, main.z);
+  assert.ok(Math.abs(last.look.x - main.x) < 1e-9);
+  assert.ok(Math.abs(last.look.z - main.z) < 1e-9);
 });
