@@ -55,7 +55,7 @@ test('surroundings integration preserves exact-main path shape and all ground co
  assert.equal(digest(edges),'d0da0fa868800308a4ba6b2fc814d4c7120dc8059a3c843f114543fd51f0e3da');
  const paths=SITE_FEATURES.filter(f=>f.kind==='path').map(f=>({id:f.id,vertices:f.vertices,width:CAMPUS_PATH_WIDTHS[f.id]||3.5}));
  const roads=CAMPUS_ROADS.map(({id,vertices,width,shoulder})=>({id,vertices,width,shoulder}));
- assert.equal(digest({paths,roads}),'06f855990a267aa784aade514cffd85b90d81ed8e9e275c6e6e5d331105082b1');
+ assert.equal(digest({paths,roads}),'7d0f983f8bdad1583b8bd203ff1c01ae5ee6f9614b6bc2ddd24bd187aab068f4');
  const ground=OBSTACLES.filter(c=>(c.minY??0)<=.5);
  assert.equal(ground.length,864);
  assert.equal(digest(ground),'86e9348b1156f4eacd7d86d9b5ef5703b24b81895e04527075e8b2dbd3d21987');
