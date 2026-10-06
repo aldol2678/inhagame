@@ -1,10 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createEnvironmentDirector } from '../src/environment/environment-director.js';
+import { CAMPUS_NIGHT_LAMPS } from '../src/environment/night-campus-lamp-layout.js';
 import {
   NIGHT_LIGHT_BUDGET,
   NIGHT_LIGHT_MAX_DISTANCE,
+  NIGHT_LIGHT_OMNI_RANGE,
+  lampArmLayout,
   lampHeadPosition,
+  lampPolePosition,
   nearestNightLampIndices,
   nightLightBudget
 } from '../src/environment/night-street-light-policy.js';
@@ -36,12 +40,31 @@ const frame = (x, z, yaw = 0) => ({
   at(u, v = 0) { return { x: x + u, z: z + v }; }
 });
 
-test('P2 graphics budgets keep mobile LOW emissive-only and cap real omni lights', () => {
-  assert.deepEqual(NIGHT_LIGHT_BUDGET, { low: 0, medium: 2, high: 4 });
-  assert.equal(nightLightBudget('low'), 0);
-  assert.equal(nightLightBudget('medium'), 2);
-  assert.equal(nightLightBudget('high'), 4);
-  assert.equal(nightLightBudget('unknown'), 2);
+test('night graphics budgets keep real omni lights bounded while giving every tier local illumination', () => {
+  assert.deepEqual(NIGHT_LIGHT_BUDGET, { low: 3, medium: 6, high: 10 });
+  assert.equal(nightLightBudget('low'), 3);
+  assert.equal(nightLightBudget('medium'), 6);
+  assert.equal(nightLightBudget('high'), 10);
+  assert.equal(nightLightBudget('unknown'), 6);
+});
+
+test('night light coverage reaches adjacent lamp spacing without unbounded mobile light counts', () => {
+  assert.equal(NIGHT_LIGHT_MAX_DISTANCE, 68);
+  assert.equal(NIGHT_LIGHT_OMNI_RANGE, 16.5);
+  assert.ok(NIGHT_LIGHT_OMNI_RANGE * 2 > 22, 'road-lamp pools overlap the 22 WU nominal road spacing');
+  assert.ok(NIGHT_LIGHT_BUDGET.low <= 3 && NIGHT_LIGHT_BUDGET.high <= 10, 'real omni pool remains tightly bounded');
+});
+
+test('generated campus lamp poles stay outside road/path surfaces while heads overhang inward', () => {
+  assert.ok(CAMPUS_NIGHT_LAMPS.length > 0);
+  for (const lamp of CAMPUS_NIGHT_LAMPS) {
+    assert.deepEqual(lampPolePosition(lamp), lamp.center, lamp.id);
+    assert.ok(lamp.poleLateralOffset > lamp.corridorHalfWidth, `${lamp.id} pole must sit beyond corridor edge`);
+    assert.ok(lamp.headLateralOffset < lamp.corridorHalfWidth, `${lamp.id} lamp head should overhang the corridor`);
+    const arm = lampArmLayout(lamp);
+    assert.ok(Math.abs(arm.length - 0.88) < 1e-8, `${lamp.id} arm spans pole to head`);
+    assert.ok(Number.isFinite(arm.yaw));
+  }
 });
 
 test('lamp head follows the observed roadside LED head offset and height', () => {

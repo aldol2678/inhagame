@@ -46,7 +46,12 @@ export function walletBalance(snapshot, currencyId = INDUCK_COIN) {
  * @param {{ getClient: () => ({ rpc: Function } | null) }} options
  *   getClient returns the signed-in permanent-account Supabase client (online.supabase), or null.
  */
-export function createWalletClient({ getClient } = {}) {
+export function createWalletClient({
+  getClient,
+  setTimer = setTimeout,
+  clearTimer = clearTimeout,
+  rewardRetryDelays = [1000, 3000, 8000]
+} = {}) {
   if (typeof getClient !== "function") throw new Error("Wallet client requires getClient");
 
   let accountId = null;
@@ -55,7 +60,31 @@ export function createWalletClient({ getClient } = {}) {
   let snapshot = null;
   let inFlight = null;
   let rerun = false;
+  let rerunReason = null;
+  let rewardRetryTimer = null;
+  let rewardRetryAttempt = 0;
   const listeners = new Set();
+
+  const isRecovery = reason => reason === "daily-reward-recovery";
+  const strongerReason = (a, b) => isRecovery(a) ? a : b ?? a;
+
+  function clearRewardRetry({ resetAttempt = false } = {}) {
+    if (rewardRetryTimer !== null) clearTimer(rewardRetryTimer);
+    rewardRetryTimer = null;
+    if (resetAttempt) rewardRetryAttempt = 0;
+  }
+
+  // Match Progression's bounded readback retries; never retry the reward mutation.
+  function scheduleRewardRetry(reason, gen) {
+    if (!isRecovery(reason) || !accountId || gen !== generation || rewardRetryTimer !== null) return;
+    const delay = rewardRetryDelays[rewardRetryAttempt];
+    if (!Number.isFinite(delay) || delay < 0) return;
+    rewardRetryAttempt += 1;
+    rewardRetryTimer = setTimer(() => {
+      rewardRetryTimer = null;
+      if (gen === generation && accountId) void refresh(reason);
+    }, delay);
+  }
 
   function set(nextState, nextSnapshot, reason) {
     state = nextState;
@@ -85,24 +114,35 @@ export function createWalletClient({ getClient } = {}) {
     }
     // A newer account change (sign-out, switch) happened while this request was in flight.
     if (gen !== generation || account !== accountId) return;
-    if (next) set(WALLET_STATE.READY, next, reason);
+    if (next) {
+      clearRewardRetry({ resetAttempt: true });
+      set(WALLET_STATE.READY, next, reason);
+    }
     else set(WALLET_STATE.UNAVAILABLE, null, reason);
   }
 
   function refresh(reason = "refresh") {
     if (!accountId) return Promise.resolve(false);
     // Coalesce: while a request runs, remember one more and run it after, never in parallel.
-    if (inFlight) { rerun = true; return inFlight; }
+    if (inFlight) {
+      rerun = true;
+      rerunReason = strongerReason(rerunReason, reason);
+      return inFlight;
+    }
     const gen = generation;
     const run = (async () => {
+      let currentReason = reason;
       try {
         do {
           rerun = false;
-          await fetchOnce(reason);
+          rerunReason = null;
+          await fetchOnce(currentReason);
+          if (rerun && gen === generation) currentReason = strongerReason(currentReason, rerunReason);
         } while (rerun && gen === generation);
       } finally {
         if (inFlight === run) inFlight = null;
       }
+      if (gen === generation && state !== WALLET_STATE.READY) scheduleRewardRetry(currentReason, gen);
       return gen === generation && state === WALLET_STATE.READY;
     })();
     inFlight = run;
@@ -114,8 +154,10 @@ export function createWalletClient({ getClient } = {}) {
     const next = typeof nextAccountId === "string" && nextAccountId ? nextAccountId : null;
     if (next === accountId) return Promise.resolve(state === WALLET_STATE.READY);
     generation += 1;
+    clearRewardRetry({ resetAttempt: true });
     accountId = next;
     rerun = false;
+    rerunReason = null;
     inFlight = null;
     if (!next) {
       set(WALLET_STATE.SIGNED_OUT, null, "account");

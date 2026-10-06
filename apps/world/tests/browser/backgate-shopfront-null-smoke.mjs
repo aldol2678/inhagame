@@ -23,7 +23,7 @@ try {
     const parent=new pc.Entity('ShopfrontLifecycle');parent.setLocalScale(1,1,cycle%2?-1:1);app.root.addChild(parent);
     const registry=new RenderChunkRegistry(),renderer=new CampusChunkRenderer(app,parent,registry);
     const base=renderer.base.children.filter(e=>/^(back_street_base_|culture_street_base_)/.test(e.name));
-    assert.equal(base.length,25,'12 street and 13 culture material batches, including unchanged paving/canopy');
+    assert.equal(base.length,24,'11 street and 13 culture facade/canopy batches; street paving has a shadow-free owner');
     const baseMeshes=base.flatMap(meshes),sources=new Set(baseMeshes.map(mi=>mi.material));
     assert.ok(baseMeshes.every(mi=>mi.material.opacity===1&&mi.material.depthWrite));
     const before=fingerprint(base),handles=[];let owned=0,layerMeshes=0;

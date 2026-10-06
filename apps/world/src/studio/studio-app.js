@@ -667,7 +667,7 @@ function renderBottom(module) {
   const tab = state.activeBottomTab;
   if (tab === "console") {
     const lines = [
-      '<div class="studio-log-line"><strong>Studio</strong> S3.4 Asset Registry</div>',
+      '<div class="studio-log-line"><strong>WorldForge</strong> Editor · S3.4 Asset Registry</div>',
       `<div class="studio-log-line"><strong>Registry</strong> ${registry.listModules().length} modules</div>`,
       `<div class="studio-log-line"><strong>Active</strong> ${escapeText(module.id)} · ${escapeText(module.status)}</div>`
     ];
@@ -696,7 +696,7 @@ function renderBottom(module) {
           <button type="button" data-studio-core-action="validate">Run Validation</button>
           ${result}
         </div>
-        <div class="studio-core-note">Studio Shared Core가 활성 문서의 Validation 계약을 호출합니다.</div>
+        <div class="studio-core-note">WorldForge Shared Core가 활성 문서의 Validation 계약을 호출합니다.</div>
       `;
     }
   } else {
@@ -715,7 +715,7 @@ function renderBottom(module) {
             redo ${Number(history.redoCount || 0)}${history.nextRedo ? ` · ${escapeText(history.nextRedo)}` : ""}
           </span>
         </div>
-        <div class="studio-core-note">History 실행은 Studio가 담당하고, 실제 command stack은 각 Document가 소유합니다.</div>
+        <div class="studio-core-note">History 실행은 WorldForge가 담당하고, 실제 command stack은 각 Document가 소유합니다.</div>
       `;
     }
   }
@@ -840,6 +840,8 @@ render();
 const studioApi = Object.freeze({
   getStatus: () => Object.freeze({
     ready: true,
+    product: "WorldForge",
+    legacyShell: "studio",
     stage: "S3.4",
     ...state.snapshot(),
     modules: registry.listModules().map(module => ({ id: module.id, status: module.status })),
@@ -853,6 +855,7 @@ const studioApi = Object.freeze({
   redoActive: () => documentHost.redo(currentModule()?.id)
 });
 
+globalThis.__WORLDFORGE__ = studioApi;
 globalThis.__INHA_STUDIO_S3__ = studioApi;
 globalThis.__INHA_STUDIO_S2__ = studioApi;
 globalThis.__INHA_STUDIO_S1__ = studioApi;

@@ -313,3 +313,57 @@ test("wardrobe: switching away and back while closed invalidates an earlier item
   assert.equal(byClass(h.panel, "shop-hint")[0].textContent, "");
   same(h.doc.activeElement, close(h));
 });
+
+test("wardrobe: owned retry keeps live focus through disabled, failed and recovered states", async () => {
+  const h = harness("wardrobe"); await h.open(undefined, { HEAD: worn(CAP) });
+  h.respond(INVENTORY_RPC, failed); await h.inventory.refresh();
+  const pending = deferred();
+  h.respond(INVENTORY_RPC, pending.promise);
+  retry(h).focus(); body(h).scrollTop = 240;
+  retry(h).click();
+  const section = byClass(h.panel, "wardrobe-owned")[0];
+  same(h.doc.activeElement, section);
+  assert.equal(section.isConnected, true);
+  assert.equal(section.tabIndex, -1);
+  assert.equal(section.getAttribute("aria-busy"), "true");
+  assert.equal(retry(h).disabled, true);
+  assert.equal(body(h).scrollTop, 240);
+  pending.resolve(failed); await flush();
+  same(h.doc.activeElement, retry(h));
+  assert.equal(retry(h).isConnected, true);
+  assert.equal(retry(h).disabled, false);
+  assert.equal(byClass(h.panel, "wardrobe-owned")[0].getAttribute("aria-busy"), "false");
+  h.respond(INVENTORY_RPC, ok({ items: [own(CAP)] }));
+  retry(h).click(); await flush();
+  same(h.doc.activeElement, close(h));
+  assert.equal(body(h).scrollTop, 240);
+});
+
+test("wardrobe: finishing owned retry cannot steal a newer outside focus", async () => {
+  const h = harness("wardrobe"); await h.open();
+  h.respond(INVENTORY_RPC, failed); await h.inventory.refresh();
+  const pending = deferred(); h.respond(INVENTORY_RPC, pending.promise);
+  retry(h).focus(); retry(h).click();
+  h.outside.focus();
+  pending.resolve(ok({ items: [] })); await flush();
+  same(h.doc.activeElement, h.outside);
+});
+
+test("wardrobe: reopening during owned retry retains its disabled state until joined reads settle", async () => {
+  const h = harness("wardrobe"); await h.open();
+  h.respond(INVENTORY_RPC, failed); await h.inventory.refresh();
+  const first = deferred(), second = deferred();
+  h.respond(INVENTORY_RPC, first.promise);
+  retry(h).focus(); retry(h).click(); h.ui.setOpen(false);
+  same(h.doc.activeElement, h.opener);
+  h.respond(INVENTORY_RPC, second.promise);
+  h.respond(LOADOUT_READ_RPC, ok(slots()));
+  h.ui.setOpen(true); await flush();
+  assert.equal(retry(h).disabled, true);
+  same(h.doc.activeElement, close(h));
+  first.resolve(failed); await flush();
+  assert.equal(retry(h).disabled, true);
+  second.resolve(ok({ items: [own(CAP)] })); await flush();
+  assert.ok(card(h, CAP));
+  same(h.doc.activeElement, close(h));
+});

@@ -43,9 +43,12 @@ before(async () => {
   previous = await json(`select jsonb_build_object('runtime',to_jsonb(r),'discovery',c.status,'skill',s.status)
     from private.world_fishing_runtime r,private.world_collection_entry_catalog c,private.world_life_skill_catalog s
     where c.entry_id='collection.fish.carp' and s.skill_id='life.fishing';`);
-  assert.equal(previous.runtime.enabled, false);
-  assert.equal(previous.runtime.policy, null);
-  assert.equal(previous.discovery, 'COMING_SOON'); assert.equal(previous.skill, 'COMING_SOON');
+  // Committed state since 20261004161000: Fishing ACTIVE with the candidate policy. The fixture
+  // policy below is restored to it in after().
+  assert.equal(previous.runtime.enabled, true);
+  assert.equal(previous.runtime.policy.policyVersion, 'fishing.candidate.v1');
+  assert.equal(previous.discovery, 'ACTIVE'); assert.equal(previous.skill, 'ACTIVE');
+  await query("update private.world_fishing_runtime set presence_required=false;");
   await configure();
   await query(`update private.world_collection_entry_catalog set status='ACTIVE' where entry_id='collection.fish.carp';
     update private.world_life_skill_catalog set status='ACTIVE' where skill_id='life.fishing';`);
@@ -53,7 +56,8 @@ before(async () => {
 after(async () => {
   if (previous) await query(`update private.world_fishing_runtime set enabled=${previous.runtime.enabled},
     policy=${previous.runtime.policy === null ? 'null' : lit(JSON.stringify(previous.runtime.policy)) + '::jsonb'},
-    minimum_start_interval_ms=${previous.runtime.minimum_start_interval_ms ?? 'null'};
+    minimum_start_interval_ms=${previous.runtime.minimum_start_interval_ms ?? 'null'},
+    presence_required=${previous.runtime.presence_required};
     update private.world_collection_entry_catalog set status=${lit(previous.discovery)} where entry_id='collection.fish.carp';
     update private.world_life_skill_catalog set status=${lit(previous.skill)} where skill_id='life.fishing';`);
   if (users.length) await query(`delete from auth.users where id in (${users.map(lit).join(',')});`);
@@ -70,7 +74,13 @@ test('concurrent start/input/settle persist one result, one carp, one discovery 
   const full = await json(`select snapshot from private.world_fishing_attempt_snapshots where attempt_id=${lit(attempt.attemptId)};`);
   const core = createFishingAttempt({ request: { activityId: full.activityId, sourceRef: full.sourceRef, clientAttemptKey: key },
     actorUserId: actor, attemptId: full.attemptId, nonce: full.nonce, startedAtMs: full.startedAtMs, policy, biteRoll: 0.5 });
-  assert.deepEqual(full, core);
+  assert.deepEqual(full, { ...core, skillEffects: {
+    version: 'fishing.skill_effects.v1',
+    fishSenseRank: 0,
+    steadyHandsRank: 0,
+    waitReductionMs: 0,
+    responseWindowBonusMs: 0
+  } });
   const inputs = await Promise.all(Array.from({ length: 8 }, () => input(actor, attempt)));
   assert.equal(inputs.filter(r => r.status === 'RESOLVED').length, 1);
   for (const r of inputs) assert.deepEqual(r.attempt, inputs[0].attempt);

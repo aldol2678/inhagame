@@ -8,15 +8,19 @@ import { BR01_EVENT } from '../src/biryong/biryong-state.js';
 import { BACK_GATE_ARRIVAL_EVENT_ID } from '../src/back-gate-arrival-event.js';
 import { MCM_2026_EVENT_ID as CLIENT_MCM_ID } from '../src/events/zombie-university-2026/event-data.js';
 import { MCM_2026_EVENT_ID as SERVER_MCM_ID } from '../npc-factory/mcm-2026-event-contract.mjs';
+import { INKYUNG_MECHANICAL_DUCK_EVENT_ID } from '../src/inkyung-mechanical-duck-event.js';
+import { QUEST_ID } from '../npc-factory/quest-contract.mjs';
 
-test('EventRegistry P0 contains the three canonical pilot identities', () => {
-  assert.equal(EVENT_REGISTRY.size, 3);
+test('EventRegistry P0 contains the canonical identities exactly once', () => {
+  assert.equal(EVENT_REGISTRY.size, 4);
   assert.deepEqual(new Set(EVENT_REGISTRY.list().map(event => event.eventId)),
-    new Set([EVENT_ID.BIRYONG_BR01, EVENT_ID.BACK_GATE_BG01, EVENT_ID.MCM_2026]));
+    new Set([EVENT_ID.BIRYONG_BR01, EVENT_ID.BACK_GATE_BG01, EVENT_ID.MCM_2026, EVENT_ID.INKYUNG_MECHANICAL_DUCK]));
+  assert.equal(EVENT_REGISTRY.list().filter(event => event.eventId === EVENT_ID.INKYUNG_MECHANICAL_DUCK).length, 1);
   assert.equal(BR01_EVENT.id, EVENT_ID.BIRYONG_BR01);
   assert.equal(BACK_GATE_ARRIVAL_EVENT_ID, EVENT_ID.BACK_GATE_BG01);
   assert.equal(CLIENT_MCM_ID, EVENT_ID.MCM_2026);
   assert.equal(SERVER_MCM_ID, EVENT_ID.MCM_2026);
+  assert.equal(INKYUNG_MECHANICAL_DUCK_EVENT_ID, EVENT_ID.INKYUNG_MECHANICAL_DUCK);
 });
 
 test('pilot classifications preserve their existing semantic owners', () => {
@@ -41,6 +45,19 @@ test('pilot classifications preserve their existing semantic owners', () => {
   assert.equal(mcm.rewardMode, EVENT_REWARD_MODE.REWARD_CLAIM);
   assert.equal('startsAt' in mcm, false, 'DB clock remains the MCM window authority');
   assert.equal('endsAt' in mcm, false, 'client registry does not duplicate server window dates');
+});
+
+test('Inkyung side event is registered without claiming server persistence', () => {
+  const inkyung = EVENT_REGISTRY.get(EVENT_ID.INKYUNG_MECHANICAL_DUCK);
+  assert.equal(inkyung.title, '인경호의 진실');
+  assert.equal(inkyung.lifecycleSource, EVENT_LIFECYCLE_SOURCE.OWNER_DERIVED);
+  assert.equal(inkyung.ownerRef, QUEST_ID);
+  assert.equal(inkyung.persistenceMode, EVENT_PERSISTENCE_MODE.CLIENT_PERSISTED);
+  assert.equal(inkyung.completionRepeatPolicy, EVENT_REPEAT_POLICY.ONCE_PER_ACCOUNT);
+  assert.equal(inkyung.progressOwner, EVENT_PROGRESS_OWNER.EVENT);
+  assert.equal(inkyung.rewardMode, EVENT_REWARD_MODE.NONE);
+  assert.equal(inkyung.interactionRepeatable, true);
+  assert.notEqual(inkyung.persistenceMode, EVENT_PERSISTENCE_MODE.SERVER_PERSISTED);
 });
 
 test('EventRegistry rejects duplicate or semantically invalid definitions', () => {

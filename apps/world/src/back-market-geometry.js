@@ -1,5 +1,5 @@
 import { MARKET_BUILDINGS, MARKET_EXISTING_SHOPS, GEONMULJU_BUILDING } from './back-market-layout.js';
-import { fillStreetBuildingBase, fillCultureNear, fillCultureDetail } from './culture-street-geometry.js';
+import { fillInfillBase, fillInfillNear, fillInfillDetail } from './backgate-infill-geometry.js';
 
 const light='#d6d1bf',dark='#555c5d',metal='#aeb5b1';
 const point=(f,u,v,y)=>{const p=f.at(u,v);return [p.x,y,p.z];};
@@ -31,12 +31,12 @@ function fillGeonmuljuDetail(b,q) {
   return b;
 }
 export function fillMarketBase(b) {
-  fillStreetBuildingBase(b,MARKET_BUILDINGS.filter(q=>q.id!==GEONMULJU_BUILDING.id));
+  for(const q of MARKET_BUILDINGS.filter(q=>q.id!==GEONMULJU_BUILDING.id))fillInfillBase(b,q,'market');
   fillGeonmuljuBase(b,GEONMULJU_BUILDING);
   return b;
 }
 export function fillMarketNear(b,ids) {
-  fillCultureNear(b,ids.filter(id=>id!==GEONMULJU_BUILDING.id),MARKET_BUILDINGS);
+  for(const q of MARKET_BUILDINGS.filter(q=>q.id!==GEONMULJU_BUILDING.id&&ids.includes(q.id)))fillInfillNear(b,q,'market');
   if(ids.includes(GEONMULJU_BUILDING.id))fillGeonmuljuNear(b,GEONMULJU_BUILDING);
   for(const q of MARKET_EXISTING_SHOPS.filter(q=>ids.includes(q.id))) {
     const w=Math.min(q.w-.55,6),front=q.signZ+.03;
@@ -64,7 +64,7 @@ export function fillMarketNear(b,ids) {
   return b;
 }
 export function fillMarketDetail(b,ids) {
-  fillCultureDetail(b,ids.filter(id=>id!==GEONMULJU_BUILDING.id),MARKET_BUILDINGS);
+  for(const q of MARKET_BUILDINGS.filter(q=>q.id!==GEONMULJU_BUILDING.id&&ids.includes(q.id)))fillInfillDetail(b,q,'market');
   if(ids.includes(GEONMULJU_BUILDING.id))fillGeonmuljuDetail(b,GEONMULJU_BUILDING);
   for(const q of MARKET_EXISTING_SHOPS.filter(q=>ids.includes(q.id))) {
     const w=Math.min(q.w-.55,6);

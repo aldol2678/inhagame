@@ -275,6 +275,20 @@ try {
       assert.equal(await page.locator('.mcm26-toast').isVisible(), true);
       record('background-return-preserves-presentation', { visibilityMode: mode, blockedMs: 4700, events: await page.evaluate(() => fixture.visibilityEvents) }); await context.close();
     }
+    {
+      fixture.seed('photo-pause'); const { page, context } = await open('photo-pause');
+      await page.evaluate(() => fixture.setPhotoMode(true)); await complete(page);
+      await notSeen(page, 'reward_seen', 'growth_seen', 'next_goal_seen', 'core15_complete');
+      await page.waitForTimeout(4700);
+      assert.equal(await page.locator('.mcm26-toast').isVisible(), false);
+      assert.equal(count('photo-pause', 'reward_seen'), 0);
+      await page.evaluate(() => fixture.setPhotoMode(false));
+      await seen(page, 'core15_complete');
+      assert.equal(await page.locator('.mcm26-toast').isVisible(), true);
+      assert.equal(fixture.get('photo-pause').grants, 1);
+      record('photo-mode-return-preserves-unseen-receipt', { blockedMs: 4700, grants: 1 });
+      await capture(page, 'core15-photo-mode-return'); await context.close();
+    }
     // Every received completion was produced by the real telemetry reducer after its required acks.
     for (const account of new Set(fixture.telemetry.map(row => row.account))) {
       const rows = fixture.telemetry.filter(row => row.account === account);
@@ -283,7 +297,7 @@ try {
       for (const type of ['first_reward', 'reward_seen', 'growth_seen', 'next_goal_seen']) assert.ok(rows.findIndex(row => row.event === type) >= 0 && rows.findIndex(row => row.event === type) < completed, `${account}: ${type} before completion`);
       assert.equal(count(account, 'core15_complete'), 1);
       for (const row of rows.filter(row => ['reward_seen', 'growth_seen', 'next_goal_seen'].includes(row.event))) {
-        assert.equal(row.visible.visibilityState, 'visible'); assert.equal(row.visible.lobby, false);
+        assert.equal(row.visible.visibilityState, 'visible'); assert.equal(row.visible.lobby, false); assert.equal(row.visible.photo, false);
         assert.equal(row.visible[row.event === 'reward_seen' ? 'reward' : row.event === 'growth_seen' ? 'growth' : 'nextGoal'], true);
         if (row.event !== 'reward_seen') assert.equal(row.visible.worldActionAllowed, true);
         if (row.event === 'growth_seen') assert.equal(row.visible.progression.snapshot.level, 2);

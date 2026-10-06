@@ -26,7 +26,7 @@ const el = id => document.getElementById(id);
 const params = new URL(location.href).searchParams;
 const state = window.fixture = { ready: false, account: null, requests: [], rewards: [], events: [], progressionReads: [], inventoryReads: 0,
   dropCompletionResponseOnce: false, lastCompletionError: null, generation: 0, frameCount: 0, visibilityEvents: [] };
-const lobbyWorld = { active: false }, lobbyTransition = { active: false };
+const lobbyWorld = { active: false }, lobbyTransition = { active: false }, photoMode = { active: false };
 const inputFocus = createInputFocusManager();
 const hudContext = createHudContext();
 bindHudPresentation({ context: hudContext, root: document.body });
@@ -80,7 +80,7 @@ const questHud = createTrackedQuestHud({ root: el('quest-hud'), openButton: el('
   getTarget: () => ({ ...MAIN2_GUIDE_NPC.position, kind: 'quest-npc' }), getPlayerPosition: () => state.playerPosition });
 const nextDiscovery = createNextDiscovery({ root: el('next-discovery'), primaryButton: el('next-discovery-primary'), onProgress: progress => runtime.update(progress),
   onPrimary: discovery => seams.primary(discovery, scope()) });
-function scope() { return { firstCampusCompletion, core15Funnel, mcmEventUi, progression, wallet, inventory, FIRST_CAMPUS_REWARD_ID, lobbyWorld, lobbyTransition,
+function scope() { return { firstCampusCompletion, core15Funnel, mcmEventUi, progression, wallet, inventory, FIRST_CAMPUS_REWARD_ID, lobbyWorld, lobbyTransition, photoMode,
   inputFocus, isElementVisible, document, navigation, main2GuideNavigationTarget, nextDiscovery, setNavigationTarget, showWorldStatus }; }
 const fetchQuest = async (url, options) => {
   const body = JSON.parse(options.body), account = state.account;
@@ -106,7 +106,7 @@ function visible() { return {
   reward: isElementVisible(document.querySelector('.mcm26-toast')),
   growth: isElementVisible(el('progression-hud')) || isElementVisible(el('progression-badge')),
   nextGoal: isElementVisible(el('next-discovery-primary')),
-  worldActionAllowed: inputFocus.can('WORLD_ACTION'), lobby: lobbyWorld.active || lobbyTransition.active,
+  worldActionAllowed: inputFocus.can('WORLD_ACTION'), lobby: lobbyWorld.active || lobbyTransition.active, photo: photoMode.active,
   progression: progression.status(), toastText: document.querySelector('.mcm26-toast').textContent
 }; }
 async function setAccount(account) {
@@ -131,6 +131,12 @@ state.moveToGuide = () => { state.playerPosition = { ...MAIN2_GUIDE_NPC.position
 state.setAccount = setAccount; state.setDialogue = setDialogue; state.visible = visible;
 state.setLobby = value => { lobbyWorld.active = value; mcmEventUi.update(0); };
 state.setTransition = value => { lobbyTransition.active = value; mcmEventUi.update(0); };
+// The real current-main CSS controls visibility; camera/capture runtime is outside this fixture.
+state.setPhotoMode = value => {
+  photoMode.active = value;
+  if (value) document.body.dataset.photoMode = 'active'; else delete document.body.dataset.photoMode;
+  mcmEventUi.update(0);
+};
 state.queueExistingToast = (ms = 1200) => mcmEventUi.say('기존 안내 메시지', ms);
 state.status = () => ({ quest: quest.status(), progression: progression.status(), recovery: firstCampusCompletion.needsRecovery(),
   telemetry: core15Funnel.status(), navigation: navigation.getSnapshot(), visible: visible(), main2: main2.status(), dialogue: npcDialogueInput.active });

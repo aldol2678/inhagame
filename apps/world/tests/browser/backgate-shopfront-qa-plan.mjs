@@ -4,10 +4,37 @@ import { BACK_STREET_BLOCKS } from '../../src/back-street-layout.js';
 import { CULTURE_BUILDINGS, CULTURE_TERMINAL } from '../../src/culture-street-layout.js';
 
 export const BASELINE = 'd9cbd3948e4e5acf359313824387dc8695c3e672';
-export const CURRENT_MAIN = '413d984fcb59216e7f07bafed1fffc618351a109';
+// PR204 integration base; independent of the historical visual baseline above.
+export const CURRENT_MAIN = '995364fa5a403fcd290d1bf7357b78f85692c447';
 export const BASELINE_PATHS = Object.freeze([
   '/src/back-street-geometry.js', '/src/culture-street-geometry.js', '/src/culture-street-signs.js'
 ]);
+// Original facade paths plus the exact seven runtime paths in this restoration.
+// Layout, collision, renderer, material and data changes remain forbidden.
+export const ALLOWED_RUNTIME_PATHS = Object.freeze([...BASELINE_PATHS.map(p => `apps/world${p}`),
+  ...['backgate-shopfront-geometry.js', 'back-alley-geometry.js', 'back-market-geometry.js',
+    'backgate-infill-geometry.js', 'campus-road-blockout.js', 'north-side-gate-geometry.js']
+    .map(name => `apps/world/src/${name}`)]);
+export function assertRuntimeChanges(paths) {
+  for (const path of paths) if (!ALLOWED_RUNTIME_PATHS.includes(path)) throw Error(`unrelated runtime change: ${path}`);
+}
+
+// Current road/signal owners are shared controls. Only facade functions and signs
+// come from the pinned old modules. Query aliases preserve relative imports.
+export function comparisonSources(originals) {
+  if ([...originals.keys()].sort().join() !== [...BASELINE_PATHS].sort().join()) throw Error('Expected exact baseline paths');
+  const sources = new Map([...originals].map(([path, source]) => [path, source.toString()]));
+  const paving = 'for(const s of BACK_STREET_SEGMENTS)corridor(b,s.frame,s.road.width);';
+  const street = sources.get(BASELINE_PATHS[0]);
+  if (street.split(paving).length !== 2) throw Error('Expected exactly one pinned historical paving statement');
+  sources.set(BASELINE_PATHS[0], street.replace(paving, ''));
+  for (const [path, names] of [[BASELINE_PATHS[0], ['fillBackStreetBase', 'fillBackStreetNear', 'fillBackStreetDetail']],
+    [BASELINE_PATHS[1], ['fillCultureBase', 'fillCultureNear', 'fillCultureDetail']]]) {
+    sources.set(`${path}?shopfront-baseline`, sources.get(path));
+    sources.set(path, `export * from '${path}?shopfront-current';\nexport { ${names.join(', ')} } from '${path}?shopfront-baseline';\n`);
+  }
+  return sources;
+}
 export const VIEWPORTS = Object.freeze([
   { name: 'desktop', width: 1280, height: 720 },
   { name: 'portrait', width: 390, height: 844 },

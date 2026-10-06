@@ -38,6 +38,25 @@ path. Each successful load recomputes the entire shared schedule evaluation, inc
 comparison and failure diagnostics. All endpoint, partial-path and segment-safety checks apply
 to generated and imported navigators. Query/filter/mesh ownership is released on teardown.
 
+## Live runtime shadow P0
+
+Production runtime can opt into a non-authoritative live comparison with `?recastShadow=1`.
+The canonical JavaScript navigator still executes first and its route is returned unchanged. A dedicated
+module Worker initializes the validated prebuilt Recast WASM artifact independently, then compares the
+same route endpoints asynchronously. Worker startup, artifact validation, WASM failures, route
+mismatches and latency are diagnostic only and cannot block, replace or retry canonical NPC movement.
+
+The wrapper observes ordinary `route()`, canonical-network `networkRoute()`, and successful
+`wanderRoute()` calls. Wander comparison uses the destination already chosen by the canonical
+navigator, so the shadow never chooses gameplay state. Bounded status keeps MATCH/MISMATCH/ERROR
+counts, latency and route-length deltas without player identity or dialogue content. When enabled,
+`window.__RECAST_RUNTIME_SHADOW__.status()` exposes read-only diagnostics. The contract reports
+`authorityEffect: NONE` and `canonicalAuthority: JS_NAVIGATOR`; it has no promotion or cutover API.
+
+This P0 is opt-in specifically to measure representative Production schedule/social/wander/recovery
+traffic before paying the WASM cost for every player. Recast runtime cutover remains HOLD until those
+observations are reviewed and a separate explicit canary/promotion change is approved.
+
 ## Verification
 
 ```sh

@@ -179,6 +179,8 @@ const vertex = createVertexNpcGenerator({ project: 'public-qa-example', tokenPro
   } });
 assert.deepEqual(await vertex('test prompt', ['stay']), { line: '인경호를 천천히 걸어볼까요?', action: 'stay' });
 assert.match(sent.url, /projects\/public-qa-example\/locations\/global/);
+assert.ok(sent.url.startsWith('https://aiplatform.googleapis.com/v1/projects/public-qa-example/'), sent.url);
+assert.throws(() => createVertexNpcGenerator({ project: 'public-qa-example' }), /VERTEX_TOKEN_PROVIDER_REQUIRED/);
 assert.deepEqual(JSON.parse(sent.options.body).generationConfig.responseSchema.properties.action.enum, ['stay']);
 assert.equal(sent.options.headers.Authorization, 'Bearer test-token');
 const choiceVertex = createVertexNpcGenerator({ project: 'public-qa-example', choiceMode: true,

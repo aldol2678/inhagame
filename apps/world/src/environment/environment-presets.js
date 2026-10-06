@@ -40,13 +40,15 @@ export const ENVIRONMENT_PRESETS = Object.freeze({
     artificialLightFactor: 0.18
   }),
   [ENVIRONMENT_TIME.NIGHT]: preset({
-    sunColor: [0.38, 0.46, 0.68],
-    sunIntensity: 0.35,
+    // Moonless night: visibility comes from ambient sky, windows and local lamps,
+    // never from a hidden directional "moon" light.
+    sunColor: [0.24, 0.31, 0.52],
+    sunIntensity: 0,
     sunEuler: [125, -25, 0],
-    ambientColor: [0.10, 0.14, 0.24],
-    exposure: 0.82,
-    clearColor: [0.04, 0.07, 0.14],
-    shadowIntensity: 0.32,
+    ambientColor: [0.075, 0.095, 0.16],
+    exposure: 0.78,
+    clearColor: [0.015, 0.025, 0.06],
+    shadowIntensity: 0,
     artificialLightFactor: 1
   })
 });

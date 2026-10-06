@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import * as plan from './browser/backgate-shopfront-qa-plan.mjs';
 import { PlayerController } from '../src/player-controller.js';
 import { BASELINE, CURRENT_MAIN, BASELINE_PATHS, VIEWPORTS, TARGETS, VIEWS, frontOf, cameraFor, expectedRaster, assertHosted } from './browser/backgate-shopfront-qa-plan.mjs';
 import { representativeRoutes, runShopfrontWalking } from './browser/backgate-shopfront-walking.mjs';
@@ -15,7 +16,7 @@ test('hosted-only guard rejects local or unspecified-head execution', () => {
 
 test('comparison changes only the pinned old geometry/sign files and includes all aspect ratios', () => {
   assert.equal(BASELINE, 'd9cbd3948e4e5acf359313824387dc8695c3e672');
-  assert.equal(CURRENT_MAIN, '413d984fcb59216e7f07bafed1fffc618351a109');
+  assert.equal(CURRENT_MAIN, '995364fa5a403fcd290d1bf7357b78f85692c447');
   assert.deepEqual(BASELINE_PATHS, ['/src/back-street-geometry.js', '/src/culture-street-geometry.js', '/src/culture-street-signs.js']);
   assert.deepEqual(VIEWPORTS.map(({ width, height }) => [width, height]), [[1280, 720], [390, 844], [844, 390]]);
   assert.equal(TARGETS.length, 37); assert.equal(new Set(TARGETS.map(q => q.id)).size, 37);
@@ -23,6 +24,62 @@ test('comparison changes only the pinned old geometry/sign files and includes al
   const source = readFileSync(new URL('./browser/backgate-shopfront-smoke.mjs', import.meta.url), 'utf8');
   assert.match(source, /git\(\['diff', '--name-only', CURRENT_MAIN, 'HEAD'/);
   assert.doesNotMatch(source, /git\(\['diff', '--name-only', BASELINE, 'HEAD'/);
+});
+
+
+// These are the pinned legacy module shapes used by the adapter. The hosted run
+// separately reads and hashes the complete bytes from BASELINE via git show.
+const legacyStreet = "export function fillBackStreetBase(b){for(const s of BACK_STREET_SEGMENTS)corridor(b,s.frame,s.road.width);for(const q of BACK_STREET_BLOCKS)building(b,q,q.front);return b;}";
+const legacySources = () => new Map([
+  [BASELINE_PATHS[0], legacyStreet],
+  [BASELINE_PATHS[1], 'export function fillCultureBase(b){return b;}'],
+  [BASELINE_PATHS[2], 'export function buildCultureSigns(){}']
+]);
+
+test('current integration permits only the exact facade and restoration runtime files', () => {
+  assert.equal(typeof plan.assertRuntimeChanges, 'function');
+  const allowed = ['back-street-geometry.js', 'culture-street-geometry.js', 'culture-street-signs.js',
+    'backgate-shopfront-geometry.js', 'back-alley-geometry.js', 'back-market-geometry.js',
+    'backgate-infill-geometry.js', 'campus-road-blockout.js', 'north-side-gate-geometry.js']
+    .map(name => `apps/world/src/${name}`);
+  assert.deepEqual([...plan.ALLOWED_RUNTIME_PATHS].sort(), allowed.sort());
+  assert.doesNotThrow(() => plan.assertRuntimeChanges(allowed));
+  for (const forbidden of ['apps/world/data/reality/campus-facilities.json',
+    'apps/world/src/back-street-layout.js', 'apps/world/src/culture-street-layout.js',
+    'apps/world/src/campus-chunk-renderer.js', 'apps/world/src/campus-material-profile.js',
+    'apps/world/src/world-collision.js', 'apps/world/src/player-controller.js',
+    'apps/world/src/main.js', 'apps/world/src/not-allowlisted-geometry.js']) {
+    assert.throws(() => plan.assertRuntimeChanges([...allowed, forbidden]), /unrelated runtime change/);
+  }
+});
+
+test('legacy facade adapter preserves current paving and signals without duplicate historical paving', () => {
+  assert.equal(typeof plan.comparisonSources, 'function');
+  const originals = legacySources(), adapted = plan.comparisonSources(originals);
+  assert.deepEqual([...adapted.keys()].sort(), [...BASELINE_PATHS,
+    `${BASELINE_PATHS[0]}?shopfront-baseline`, `${BASELINE_PATHS[1]}?shopfront-baseline`].sort());
+  for (const [path, names] of [[BASELINE_PATHS[0], ['fillBackStreetBase', 'fillBackStreetNear', 'fillBackStreetDetail']],
+    [BASELINE_PATHS[1], ['fillCultureBase', 'fillCultureNear', 'fillCultureDetail']]]) {
+    assert.equal(adapted.get(path), `export * from '${path}?shopfront-current';\nexport { ${names.join(', ')} } from '${path}?shopfront-baseline';\n`);
+    assert.equal(adapted.has(`${path}?shopfront-current`), false, 'current sources must not be intercepted');
+  }
+  assert.equal(adapted.get(`${BASELINE_PATHS[0]}?shopfront-baseline`),
+    'export function fillBackStreetBase(b){for(const q of BACK_STREET_BLOCKS)building(b,q,q.front);return b;}');
+  assert.equal(adapted.get(`${BASELINE_PATHS[1]}?shopfront-baseline`), originals.get(BASELINE_PATHS[1]));
+  assert.equal(adapted.get(BASELINE_PATHS[2]), originals.get(BASELINE_PATHS[2]));
+  assert.equal(originals.get(BASELINE_PATHS[0]), legacyStreet, 'source provenance remains untouched');
+});
+
+test('legacy adapter fails closed if the exact pinned paving statement changes or repeats', () => {
+  assert.equal(typeof plan.comparisonSources, 'function');
+  for (const street of [legacyStreet.replace('s.road.width', 's.road.width + 1'), legacyStreet + legacyStreet]) {
+    const sources = legacySources(); sources.set(BASELINE_PATHS[0], street);
+    assert.throws(() => plan.comparisonSources(sources), /exactly one pinned historical paving statement/);
+  }
+  const missing = legacySources(); missing.delete(BASELINE_PATHS[1]);
+  assert.throws(() => plan.comparisonSources(missing), /exact baseline paths/);
+  const extra = legacySources(); extra.set('/src/main.js', '');
+  assert.throws(() => plan.comparisonSources(extra), /exact baseline paths/);
 });
 
 test('diagnostic cameras face both culture sides and the terminal actual local v=1 facade', () => {

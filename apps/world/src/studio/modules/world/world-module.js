@@ -4,7 +4,7 @@ export const worldModule = Object.freeze({
   icon: "🌎",
   order: 10,
   status: "available",
-  description: "Scene, object, map-reference and runtime-preview authoring. S1 hosts the existing World Editor inside Studio through a same-origin adapter bridge.",
+  description: "Scene, object, map-reference and runtime-preview authoring. WorldForge hosts the existing World Editor through a same-origin compatibility adapter.",
   legacyHref: "/editor/",
   legacyLabel: "Open standalone World Editor",
   capabilities: ["scene", "assets", "preview", "hosted-editor"],

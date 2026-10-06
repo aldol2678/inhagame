@@ -65,7 +65,7 @@ export async function createReceiptFixture() {
   const primary = between(discoveryBlock, '  onPrimary: ', '\n});');
   const navigationTarget = between(main, 'const main2GuideNavigationTarget = ', '\nnextDiscovery =');
   const panel = 'function addPanel(' + between(npc, 'function addPanel(', '\nexport async function createNpcDevRuntime');
-  const scope = 'firstCampusCompletion, core15Funnel, mcmEventUi, progression, wallet, inventory, FIRST_CAMPUS_REWARD_ID, lobbyWorld, lobbyTransition, inputFocus, isElementVisible, document, navigation, main2GuideNavigationTarget, nextDiscovery, setNavigationTarget, showWorldStatus';
+  const scope = 'firstCampusCompletion, core15Funnel, mcmEventUi, progression, wallet, inventory, FIRST_CAMPUS_REWARD_ID, lobbyWorld, lobbyTransition, photoMode, inputFocus, isElementVisible, document, navigation, main2GuideNavigationTarget, nextDiscovery, setNavigationTarget, showWorldStatus';
   const seams = `export function reward(reward, scope) { const {${scope}} = scope; return (${reward})(reward); }\n` +
     `export function observe(scope) { const {${scope}} = scope; ${observe} }\n` +
     `export function primary(discovery, scope) { const {${scope}} = scope; return (${primary})(discovery); }\n` +

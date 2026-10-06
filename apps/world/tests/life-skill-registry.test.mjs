@@ -13,7 +13,7 @@ import {
   lifeSkillThresholdAuthorityRows
 } from '../src/life-skills/life-skill-registry.js';
 
-test('Life Skill Registry contains the 11 long-term skills and keeps them pre-activation', () => {
+test('Life Skill Registry contains the 11 long-term skills; only Fishing is ACTIVE', () => {
   assert.equal(LIFE_SKILL_REGISTRY.size, 11);
   assert.deepEqual(LIFE_SKILL_REGISTRY.list().map(skill => skill.skillId), [
     'life.fishing',
@@ -29,7 +29,8 @@ test('Life Skill Registry contains the 11 long-term skills and keeps them pre-ac
     'life.research'
   ]);
   assert.ok(LIFE_SKILL_REGISTRY.list().every(skill => skill.curveId === 'life.common.v1'));
-  assert.ok(LIFE_SKILL_REGISTRY.list().every(skill => skill.status === LIFE_SKILL_STATUS.COMING_SOON));
+  assert.deepEqual(LIFE_SKILL_REGISTRY.list().filter(skill => skill.status !== LIFE_SKILL_STATUS.COMING_SOON)
+    .map(skill => [skill.skillId, skill.status]), [['life.fishing', LIFE_SKILL_STATUS.ACTIVE]]);
   assert.deepEqual(LIFE_SKILL_REGISTRY.list().slice(0, 3).map(skill => skill.tags.includes('p1a')),
     [true, true, true]);
   assert.deepEqual(LIFE_SKILL_REGISTRY.list().slice(3, 5).map(skill => skill.tags.includes('p1b')),
@@ -59,7 +60,7 @@ test('DB authority mirror is deliberately minimal', () => {
   assert.deepEqual(row, {
     skill_id: 'life.fishing',
     curve_id: 'life.common.v1',
-    status: 'COMING_SOON'
+    status: 'ACTIVE'
   });
   assert.equal('display_name' in row, false);
   assert.equal('description' in row, false);

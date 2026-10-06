@@ -133,6 +133,35 @@ async function checkRoomHud(page, label) {
     for (const b of boxes.buttons) assert.ok(b.height >= 36, `${label} ${role}: ${b.text} tap target ${b.height}px`);
     assert.deepEqual(boxes.buttons.map((b) => b.text), role === "owner" ? ["👥 친구 공개", "꾸미기", "나가기"] : ["나가기"]);
     out[role] = { hud: boxes.hud, buttons: boxes.buttons.length };
+    if (role === "owner") {
+      // Housing H3: the owner's knock prompt is the owner Room HUD footer; the HUD stays clear of the rails.
+      const prompt = await page.evaluate((ownerState) => {
+        const d = window.__INHAGAME_P0__;
+        d.knockPrompt.push({ knockId: "22222222-2222-4222-8222-222222222222", roomId: "11111111-1111-4111-8111-111111111111",
+          visitorUserId: "b2000000-0000-4000-8000-0000000000b2", status: "PENDING",
+          expiresAt: new Date(Date.now() + 30_000).toISOString(), visitorDisplayName: "아주긴닉네임의친구계정" });
+        d.roomHud.update({ ...ownerState, count: 2 });
+        const r = (el) => { const b = el?.getBoundingClientRect(); return b && b.width ? b.toJSON() : null; };
+        const box = r(document.getElementById("room-hud"));
+        const knock = r(document.querySelector("#room-hud .room-knock-prompt"));
+        const buttons = [...document.querySelectorAll("#room-hud .room-knock-prompt button")].map((b) => ({ text: b.textContent, ...b.getBoundingClientRect().toJSON() }));
+        return { box, knock, buttons };
+      }, state);
+      if (process.env.HOUSING_SMOKE_SHOTS) await page.screenshot({ path: `${process.env.HOUSING_SMOKE_SHOTS}/room-knock-${label}.png` });
+      prompt.hiddenAfter = await page.evaluate(() => {
+        window.__INHAGAME_P0__.knockPrompt.clear();
+        return document.querySelector("#room-hud .room-knock-prompt").hidden;
+      });
+      assert.ok(prompt.knock, `${label}: knock prompt visible in the Room HUD`);
+      assert.ok(prompt.box.x >= 0 && prompt.box.right <= boxes.viewport.width && prompt.box.bottom <= boxes.viewport.height,
+        `${label}: Room HUD with a knock stays inside the viewport`);
+      for (const other of ["topbar", "menu", "minimap", "context"])
+        assert.ok(!overlap(prompt.box, boxes[other]), `${label}: Room HUD with a knock overlaps ${other} ${JSON.stringify({ prompt, boxes })}`);
+      assert.deepEqual(prompt.buttons.map((b) => b.text), ["들어오게 하기", "나중에"]);
+      for (const b of prompt.buttons) assert.ok(b.height >= 40, `${label}: knock ${b.text} tap target ${b.height}px`);
+      assert.equal(prompt.hiddenAfter, true, `${label}: knock prompt clears`);
+      out.knockPrompt = prompt.box;
+    }
     // Optional evidence: HOUSING_SMOKE_SHOTS=<dir> saves one screenshot per viewport and role.
     if (process.env.HOUSING_SMOKE_SHOTS) {
       out[role].overlay = await page.evaluate(() => ({

@@ -159,6 +159,16 @@ function structureErrors(value, definition) {
   }
 }
 
+export function assertTmlValueStructure(value) {
+  const errors = structureErrors(value, 'value');
+  if (errors.length === 0) return value;
+  const error = new Error(errors.map((item) => `${item.code} at ${item.path}: ${item.message}`).join('\n'));
+  error.name = 'TmlConformanceError';
+  error.code = 'INVALID_TML_VALUE';
+  error.diagnostics = errors;
+  throw error;
+}
+
 export function assertTmlReadResultStructure(readResult) {
   let errors;
   try {

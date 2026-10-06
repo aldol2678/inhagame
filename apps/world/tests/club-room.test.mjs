@@ -394,7 +394,7 @@ test("33–34, 45. mobile: the shared context slot only; no room button, a short
   assert.match(css, /\.space-fade \{[^}]*transition: opacity \.15s/);
   assert.match(css, /body\[data-space\] #tour \{ display: none; \}/, "outdoor tour compass steps aside indoors");
   const main = code("../src/main.js");
-  assert.match(main, /reducedMotion\.matches\) \{ run\(\); return; \}/, "reduced motion switches instantly");
+  assert.match(main, /createSpaceFade\(\{ overlay: spaceFade, reducedMotion \}\)/, "shared fade honors reduced motion (behavior covered by space-fade tests)");
   assert.doesNotMatch(main, /createElement\("button"\)/);
   assert.match(code("../src/rooms/room-world-adapter.js"), /setLocationLabel\(room\.locationLabel \?\? `🏠 \$\{room\.label\}`\)/);
 });

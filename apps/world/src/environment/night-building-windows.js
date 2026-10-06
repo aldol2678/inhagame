@@ -38,7 +38,7 @@ function createWindowMaterial() {
   material.emissive = new pc.Color(1, 1, 1);
   material.emissiveVertexColor = true;
   material.emissiveVertexColorChannel = 'rgb';
-  material.emissiveIntensity = 1.7;
+  material.emissiveIntensity = 2.0;
   material.opacity = 0;
   material.useLighting = false;
   material.useFog = true;
@@ -122,8 +122,8 @@ export function createNightBuildingWindows({
     const next = nightWindowGlowFactor(nextFactor);
     if (Math.abs(next - glow) < 0.004) return;
     glow = next;
-    material.opacity = next * 0.94;
-    material.emissiveIntensity = 1.4 + next * 1.9;
+    material.opacity = Math.min(1, next * 0.98);
+    material.emissiveIntensity = 1.8 + next * 2.6;
     material.update();
     for (const [name, entry] of Object.entries(tiers))
       entry.entity.enabled = next > 0.01 && name === (tier ?? 'medium');

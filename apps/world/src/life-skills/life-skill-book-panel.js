@@ -1,7 +1,7 @@
 // INHA WORLD · Life Skill Book panel (P0). Presentation only: every number, rank, cost, lock reason,
 // reset availability and cooldown comes from the server views in life-skill-book-client.js. Names come
 // from the code Registries; an id the Registry does not know is shown as-is, never hidden or guessed.
-// Node effects are not implemented yet, so their placeholder descriptions are not shown to players.
+// Node descriptions are still placeholder Registry copy, so effect text is not shown to players; active effects are server-authoritative.
 // Buttons are enabled only when the server said canUnlock / canReset; the server re-checks on click.
 
 import { LIFE_SKILL_REGISTRY } from "./life-skill-registry.js";
@@ -17,6 +17,7 @@ export const LIFE_SKILL_BOOK_TEXT = Object.freeze({
   empty: "아직 열린 생활 스킬이 없어요.",
   back: "← 목록",
   treeLoading: "스킬트리를 불러오는 중…",
+  treeUnavailable: "스킬트리를 불러오지 못했어요.",
   treeEmpty: "아직 공개된 스킬트리 노드가 없어요.",
   unlock: "익히기",
   rankUp: "랭크 업",
@@ -211,11 +212,19 @@ export function createLifeSkillBookPanel({ panel, book, onOpenChange = () => {},
         confirmReset = false;
         book.clearSelection();
       }));
-      if (book.tree?.skill.skillId === book.selectedSkillId) renderTree(body, book.tree);
+      if (book.treeState === LIFE_SKILL_BOOK_STATE.UNAVAILABLE) {
+        body.append(el("p", "shop-empty", LIFE_SKILL_BOOK_TEXT.treeUnavailable),
+          button("shop-retry life-tree-retry", LIFE_SKILL_BOOK_TEXT.retry, () => {
+            notice = null;
+            confirmReset = false;
+            void book.selectSkill(book.selectedSkillId);
+          }));
+      } else if (book.tree?.skill.skillId === book.selectedSkillId) renderTree(body, book.tree);
       else body.append(el("p", "shop-empty", LIFE_SKILL_BOOK_TEXT.treeLoading));
     } else renderSkillList(body, snapshot);
     if (notice) body.append(el("p", "shop-hint life-skill-notice", notice));
     panel.dataset.state = book.state;
+    panel.dataset.treeState = book.treeState ?? "";
     panel.dataset.skill = book.selectedSkillId ?? "";
     panel.replaceChildren(head, body);
   }
@@ -228,6 +237,7 @@ export function createLifeSkillBookPanel({ panel, book, onOpenChange = () => {},
     if (!open) {
       notice = null;
       confirmReset = false;
+      book.clearSelection();
       panel.replaceChildren();
       onOpenChange(false);
       return false;

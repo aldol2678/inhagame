@@ -57,14 +57,38 @@ function createUser() {
   users.push(id);
   return id;
 }
+// Committed state: life.fishing ACTIVE; P1 exposes only steady_hands + fish_sense. Restore it after fixtures.
+const committed = JSON.parse(sql(`select jsonb_build_object('skill',
+  (select status from private.world_life_skill_catalog where skill_id='life.fishing'),
+  'tree',(select jsonb_object_agg(node_id,status) from private.world_life_skill_tree_catalog where skill_id='life.fishing'))`));
+function restoreFishing() {
+  sql(`update private.world_life_skill_catalog set status=${lit(committed.skill)} where skill_id='life.fishing';
+    ${Object.entries(committed.tree).map(([node, status]) =>
+      `update private.world_life_skill_tree_catalog set status=${lit(status)} where node_id=${lit(node)};`).join('\n')}`);
+}
 test.after(() => {
-  sql(`update private.world_life_skill_tree_catalog set status='COMING_SOON' where skill_id='life.fishing';
-    update private.world_life_skill_catalog set status='COMING_SOON' where skill_id='life.fishing';`);
+  restoreFishing();
   if (users.length) sql(`delete from auth.users where id in (${users.map(lit).join(', ')})`);
 });
 
-test('the book is empty and hidden skills stay hidden while nothing is activated', async () => {
-  assert.equal(sql("select count(*) from private.world_life_skill_catalog where status <> 'COMING_SOON'"), '0');
+test('the committed book lists Fishing with only implemented timing nodes; hidden skills stay hidden', async () => {
+  assert.equal(committed.skill, 'ACTIVE');
+  assert.deepEqual(Object.entries(committed.tree).filter(([, status]) => status === 'ACTIVE').map(([node]) => node).sort(), [
+    'life.node.fishing.fish_sense',
+    'life.node.fishing.steady_hands'
+  ]);
+  const live = await rpc(jwt(createUser()), LIFE_SKILL_BOOK_RPC.LIST);
+  assert.deepEqual(parseLifeSkillList(live.body)?.skills.map(s => [s.skillId, s.level]), [['life.fishing', 1]]);
+  const liveTree = parseLifeSkillTree((await rpc(jwt(createUser()), LIFE_SKILL_BOOK_RPC.TREE, { p_skill_id: 'life.fishing' })).body);
+  assert.deepEqual(liveTree.nodes.map(node => node.nodeId).sort(), [
+    'life.node.fishing.fish_sense',
+    'life.node.fishing.steady_hands'
+  ], 'only implemented Fishing timing nodes are visible');
+  const hidden = await rpc(jwt(createUser()), LIFE_SKILL_BOOK_RPC.TREE, { p_skill_id: 'life.mining' });
+  assert.equal(hidden.body?.message, 'LIFE_SKILL_NOT_FOUND', hidden.text);
+
+  // Fixture: back to the pre-activation state.
+  sql("update private.world_life_skill_catalog set status='COMING_SOON' where skill_id='life.fishing'");
   const token = jwt(createUser());
   const list = await rpc(token, LIFE_SKILL_BOOK_RPC.LIST);
   assert.equal(list.status, 200);
@@ -76,6 +100,7 @@ test('the book is empty and hidden skills stay hidden while nothing is activated
   assert.notEqual(anon.status, 200, 'anon cannot read a Life Skill Book');
   const guest = await rpc(jwt(randomUUID(), { anonymous: true }), LIFE_SKILL_BOOK_RPC.LIST);
   assert.match(guest.text, /PERMANENT_ACCOUNT_REQUIRED/);
+  restoreFishing();
 });
 
 test('signed-in player: list, tree, rank-up, replay and free reset through the Data API', async () => {

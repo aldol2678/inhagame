@@ -52,9 +52,9 @@ for (const replayed of [false, true]) test(`actual main callback completes ${rep
   const progression = createProgressionClient({ getClient: () => ({ rpc: async () => new Promise(resolve => { releaseRead = resolve; }) }), rewardRetryDelays: [] });
   progression.onChange(change => { hud.render(change.state, change.snapshot); flow.growthReadback(change); });
   const accountRead = progression.setAccount('A'); await flush(); releaseRead({ data: snapshot, error: null }); await accountRead;
-  const invoke = new Function('firstCampusCompletion', 'core15Funnel', 'mcmEventUi', 'progression', 'wallet', 'inventory', 'FIRST_CAMPUS_REWARD_ID', 'lobbyWorld', 'lobbyTransition', `return (${rewardCallback});`)(
+  const invoke = new Function('firstCampusCompletion', 'core15Funnel', 'mcmEventUi', 'progression', 'wallet', 'inventory', 'FIRST_CAMPUS_REWARD_ID', 'lobbyWorld', 'lobbyTransition', 'photoMode', `return (${rewardCallback});`)(
     flow, funnel, { showReward(result, { isValid = () => true, canPresent = () => true } = {}) { const message = rewardToastMessage(result); return queue.say(message.text, message.ms, null, isValid, canPresent); } },
-    progression, { refresh() { assert.fail('First Campus has no currency'); } }, { refresh() {} }, reward.rewardId, { active: false }, { active: false }
+    progression, { refresh() { assert.fail('First Campus has no currency'); } }, { refresh() {} }, reward.rewardId, { active: false }, { active: false }, { active: false }
   );
   invoke({ ...reward, replayed }); await flush();
   flow.observe({ growthVisible: true, nextGoalVisible: true }); await flush();
@@ -83,4 +83,44 @@ test('actual update gate observes final-talk toast while NPC dialogue blocks wor
  const run=()=>frame(flow,{can:()=>inputAllowed},{active:false},{active:false},()=>true,{getElementById:()=>({})},{},()=>({}),{status:()=>({id:'main2_back_gate_guide'})});
  run();assert.deepEqual(events,['firstReward','rewardSeen'],'visible reward counts while final dialogue is still open');
  toastVisible=false;inputAllowed=true;run();assert.deepEqual(events,['firstReward','rewardSeen','growthSeen','nextGoalSeen'],'closing dialogue resumes the remaining visible steps even after toast expires');
+});
+
+test('actual main callback preserves an unseen receipt through a long photo session', () => {
+  const delivered = [];
+  const flow = createFirstCampusCompletion({ storage: null,
+    getFunnel: () => Object.fromEntries(['firstReward', 'rewardSeen', 'growthSeen', 'nextGoalSeen']
+      .map(name => [name, () => delivered.push(name)])) });
+  flow.setAccount('A'); flow.begin();
+  const photoMode = { active: true };
+  const toastElement = element();
+  toastElement.ownerDocument.defaultView.getComputedStyle = () => ({
+    display: photoMode.active ? 'none' : 'block', visibility: 'visible', opacity: '1'
+  });
+  let now = 0;
+  const timers = [];
+  const queue = createToastQueue({ element: toastElement, now: () => now,
+    setTimer: (fn, delay) => { const timer = { fn, at: now + delay }; timers.push(timer); return timer; },
+    clearTimer: timer => { const at = timers.indexOf(timer); if (at >= 0) timers.splice(at, 1); } });
+  const progression = { refresh(reason) {
+    flow.growthReadback({ accountId: 'A', reason, state: 'READY', snapshot });
+  } };
+  const invoke = new Function('firstCampusCompletion', 'core15Funnel', 'mcmEventUi', 'progression',
+    'wallet', 'inventory', 'FIRST_CAMPUS_REWARD_ID', 'lobbyWorld', 'lobbyTransition', 'photoMode', `return (${rewardCallback});`)(
+    flow, null, { showReward(result, { isValid, canPresent } = {}) {
+      const message = rewardToastMessage(result);
+      return queue.say(message.text, message.ms, null, isValid, canPresent);
+    } }, progression, { refresh() {} }, { refresh() {} }, reward.rewardId,
+    { active: false }, { active: false }, photoMode);
+  invoke({ ...reward, replayed: true });
+  now = 10_000;
+  while (timers.some(timer => timer.at <= now)) {
+    const at = timers.findIndex(timer => timer.at <= now);
+    timers.splice(at, 1)[0].fn();
+  }
+  queue.prune(); flow.observe({ growthVisible: false, nextGoalVisible: false });
+  assert.deepEqual(delivered, ['firstReward']);
+  assert.equal(queue.length, 1, 'the hidden receipt is still available after its normal toast duration');
+  photoMode.active = false; queue.prune();
+  flow.observe({ growthVisible: true, nextGoalVisible: true });
+  assert.deepEqual(delivered, ['firstReward', 'rewardSeen', 'growthSeen', 'nextGoalSeen']);
 });

@@ -1,3 +1,5 @@
+import "./world-resume-account-scope.js";
+
 // Main Lobby P0 shell bootstrap.
 // The production campus stays unchanged unless the explicit preview query is present.
 export function isLobbyShellRequested(locationLike = globalThis.location) {

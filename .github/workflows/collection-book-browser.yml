@@ -1,0 +1,56 @@
+name: Collection Book browser QA
+on:
+  pull_request:
+    paths:
+      - 'apps/world/api/world-collection-book.js'
+      - 'apps/world/server/collection-book-service.mjs'
+      - 'apps/world/src/collection/collection-book-*.js'
+      - 'apps/world/src/collection/collection-discovery-contract.*'
+      - 'apps/world/src/config/supabase-public-config.*'
+      - 'apps/world/npc-factory/npc-ai-auth.mjs'
+      - 'apps/world/src/inventory/inventory-panel.js'
+      - 'apps/world/styles.css'
+      - 'apps/world/tests/collection-book*.test.mjs'
+      - 'apps/world/tests/browser/collection-book-*'
+      - 'apps/world/tests/browser/package*.json'
+      - '.github/workflows/collection-book-browser.yml'
+permissions:
+  contents: read
+concurrency:
+  group: collection-book-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  chromium:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - name: Install pinned browser dependencies
+        working-directory: apps/world/tests/browser
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Install Chromium and Korean glyphs
+        run: |
+          cd apps/world/tests/browser
+          npx --no-install playwright install --with-deps chromium
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+      - name: Verify self-only projection and account guards
+        run: node --test apps/world/tests/collection-book*.test.mjs apps/world/tests/inventory*.test.mjs apps/world/tests/guestbook-account-panel.test.mjs
+      - name: Exercise offline keyboard, touch and stale-response recovery
+        env:
+          EXPECTED_COLLECTION_BOOK_HEAD: ${{ github.event.pull_request.head.sha }}
+          COLLECTION_BOOK_OUTPUT: test-results/collection-book
+        run: node apps/world/tests/browser/collection-book-smoke.mjs
+      - name: Preserve immutable browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: collection-book-${{ github.event.pull_request.head.sha }}
+          path: test-results/collection-book/
+          if-no-files-found: error
+          retention-days: 14

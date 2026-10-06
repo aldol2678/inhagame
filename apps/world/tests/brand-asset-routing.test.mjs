@@ -28,7 +28,25 @@ test("production routes canonical and optimized variants for every runtime brand
     dest: "/api/brand-media?asset=biryong-tower-01.mp3"
   });
   expected.push({ handle: "filesystem" });
-  assert.deepEqual(config.routes, expected);
+  const brandRoutes = config.routes.filter(route =>
+    route.handle === "filesystem" ||
+    String(route.dest || "").startsWith("/api/brand-asset") ||
+    String(route.dest || "").startsWith("/api/brand-media")
+  );
+  assert.deepEqual(brandRoutes, expected);
+});
+
+test("WorldForge editor route precedes the filesystem fallback", () => {
+  const worldforge = config.routes.find(route => route.src === "/worldforge/?");
+  assert.deepEqual(worldforge, { src: "/worldforge/?", dest: "/studio/index.html" });
+
+  const worldforgeIndex = config.routes.indexOf(worldforge);
+  const filesystemIndex = config.routes.findIndex(route => route.handle === "filesystem");
+  assert.ok(worldforgeIndex >= 0 && filesystemIndex > worldforgeIndex);
+
+  const serverSource = readFileSync(new URL("../dev-server.mjs", import.meta.url), "utf8");
+  assert.ok(serverSource.includes('reqPath === "/worldforge"'));
+  assert.ok(serverSource.includes('reqPath = "/studio/index.html"'));
 });
 
 test("public repository retains QA provenance for restored runtime brand paths", () => {

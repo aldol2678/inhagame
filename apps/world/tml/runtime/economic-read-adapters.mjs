@@ -1,5 +1,6 @@
 import { parseProgressionSnapshot } from '../../src/progression/progression-client.js';
 import { parseWalletSnapshot } from '../../src/wallet/wallet-client.js';
+import { createTmlRecordId } from './trace.mjs';
 
 function fail(name, code, message) {
   const error = new Error(message);
@@ -13,10 +14,6 @@ function ensureTime(value) {
     fail('TmlEconomicReadError', 'INVALID_OBSERVED_AT', 'now() must return an ISO-compatible timestamp');
   }
   return value;
-}
-
-function token(value) {
-  return String(value).replace(/[^0-9A-Za-z._-]+/g, '-').replace(/^-|-$/g, '');
 }
 
 function makeFact({ id, subject, predicate, value, source, observedAt, sequence }) {
@@ -81,7 +78,8 @@ export function createTmlWalletReadAdapter({ readWallet, now = () => new Date().
 
       for (const [currencyId, balance] of Object.entries(parsed.balances)) {
         const subject = walletSubject(currencyId);
-        const factId = `fact.${token(subject)}.wallet.balance.${token(observedAt)}.${currentSequence}`;
+        const identity = ['server.wallet', userId, subject, 'wallet.balance', observedAt, currentSequence];
+        const factId = createTmlRecordId('fact', identity);
         facts.push(makeFact({
           id: factId,
           subject,
@@ -92,7 +90,7 @@ export function createTmlWalletReadAdapter({ readWallet, now = () => new Date().
           sequence: currentSequence
         }));
         observations.push(makeObservation({
-          id: `observation.${token(subject)}.wallet.balance.${token(observedAt)}.${currentSequence}`,
+          id: createTmlRecordId('observation', identity),
           subject,
           predicate: 'wallet.balance',
           factId,
@@ -141,7 +139,7 @@ export function createTmlProgressionReadAdapter({ readProgression, now = () => n
       const subject = progressionSubject();
       const facts = [
         makeFact({
-          id: `fact.${subject}.progression.total_exp.${token(observedAt)}.${currentSequence}`,
+          id: createTmlRecordId('fact', ['server.progression', userId, subject, 'progression.total_exp', observedAt, currentSequence]),
           subject,
           predicate: 'progression.total_exp',
           value: { type: 'number', value: parsed.totalExp },
@@ -150,7 +148,7 @@ export function createTmlProgressionReadAdapter({ readProgression, now = () => n
           sequence: currentSequence
         }),
         makeFact({
-          id: `fact.${subject}.progression.level.${token(observedAt)}.${currentSequence}`,
+          id: createTmlRecordId('fact', ['server.progression', userId, subject, 'progression.level', observedAt, currentSequence]),
           subject,
           predicate: 'progression.level',
           value: { type: 'number', value: parsed.level },
@@ -161,7 +159,7 @@ export function createTmlProgressionReadAdapter({ readProgression, now = () => n
       ];
 
       const observations = facts.map((fact) => makeObservation({
-        id: `observation.${token(fact.subject)}.${fact.predicate}.${token(observedAt)}.${currentSequence}`,
+        id: createTmlRecordId('observation', ['server.progression', userId, fact.subject, fact.predicate, observedAt, currentSequence]),
         subject: fact.subject,
         predicate: fact.predicate,
         factId: fact.id,

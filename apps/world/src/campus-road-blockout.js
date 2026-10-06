@@ -3,7 +3,7 @@ import { fillCampusRoadBatch } from './campus-road-geometry.js';
 
 import { fillNorthRoads } from './north-campus-geometry.js';
 import { fillBackGatePaving, fillBackGateStructure } from './back-gate-geometry.js';
-import { fillBackStreetBase, fillBackStreetSignals, fillBackStreetNear, fillBackStreetDetail } from './back-street-geometry.js';
+import { fillBackStreetBase, fillBackStreetPaving, fillBackStreetSignals, fillBackStreetNear, fillBackStreetDetail } from './back-street-geometry.js';
 import { fillBackApproaches } from './back-approach-geometry.js';
 import { fillBackAlleyBase, fillBackAlleyNear, fillBackAlleyDetail } from './back-alley-geometry.js';
 import { fillBackWestBase, fillBackWestNear, fillBackWestDetail } from './back-west-geometry.js';
@@ -25,6 +25,7 @@ export function buildCampusRoads(root) {
   fillNorthRoads(new FacilityMeshBatch()).finish(root,'north_campus_roads',{castShadows:false});
   fillBackGatePaving(new FacilityMeshBatch()).finish(root,'back_gate_roads',{castShadows:false});
   fillBackGateStructure(new FacilityMeshBatch()).finish(root,'back_gate_structure');
+  fillBackStreetPaving(new FacilityMeshBatch()).finish(root,'back_street_paving',{castShadows:false});
   fillBackStreetBase(new FacilityMeshBatch()).finish(root,'back_street_base');
   fillBackStreetSignals(new FacilityMeshBatch()).finish(root,'back_street_signals');
   fillBackApproaches(new FacilityMeshBatch()).finish(root,'back_street_approaches',{castShadows:false});

@@ -66,7 +66,7 @@ test("HUD menu, keyboard help and Full Map use reusable BLOCKING_UI owners", () 
   assert.match(main, /onOpen:\s*\(\)\s*=>\s*\{\s*keyboardHelpInput\.acquire\(\)/s);
   assert.match(main, /onClose:\s*\(\)\s*=>\s*\{ keyboardHelpInput\.release\(\); \}/);
   assert.match(main, /onOpen:\s*\(\)\s*=>\s*\{\s*fullMapInput\.acquire\(\)/s);
-  assert.match(main, /onClose:\s*\(\)\s*=>\s*\{ fullMapInput\.release\(\); \}/);
+  assert.match(main, /onClose:\s*\(\)\s*=>\s*\{\s*fullMapInput\.release\(\);[^}]*minimap\?\.update\(\{ force: true \}\);\s*\}/);
   assert.doesNotMatch(
     main,
     /fullMap = createFullMapController\([\s\S]*?controller\.setInputEnabled\(false\); orbit\.setInputEnabled\(false\)[\s\S]*?documentLike:/s,

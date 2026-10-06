@@ -54,6 +54,8 @@ jobs:
           WORLD_SMOKE_BROWSER: chrome
           WORLD_HALL_LIBRARY_QA_OUTPUT: test-results/hall-library-candidate
           EXPECTED_HALL_HEAD: ${{ github.event.pull_request.head.sha }}
+          WORLD_HALL_LIBRARY_SCOPE_BASE: ${{ github.event.pull_request.base.sha }}
+          WORLD_HALL_LIBRARY_SCOPE_EXTENSION: ${{ github.event.pull_request.head.ref == 'fix/campus-surroundings-parity-20261004' && 'surroundings' || '' }}
         run: node apps/world/tests/browser/hall-library-hosted-smoke.mjs
       - name: Save exact-commit browser evidence
         if: always()

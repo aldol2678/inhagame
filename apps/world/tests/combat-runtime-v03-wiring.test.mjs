@@ -36,29 +36,20 @@ test('Combat v0.3 PC input preserves v9.22 action grammar without replacing Worl
   assert.match(main, /poseOffsets: combatFeedback\.poseOffsets\(\) \?\? biryong\?\.poseOffsets\(\) \?\? null/);
 });
 
-test('Combat v0.3 mobile HUD exposes all six action surfaces and hides incompatible Explore controls', () => {
-  for (const action of ['basic','active_1','active_2','active_3','dodge','ultimate']) {
-    assert.match(html, new RegExp(`data-combat-action="${action}"`));
-  }
-  for (const targetHook of [
-    'player-hp','player-hp-fill','dodge-state',
-    'target-name','target-hp','target-hp-fill','target-break','target-break-fill',
-    'telegraph','resource','status','reset'
-  ]) {
-    assert.match(html, new RegExp(`data-combat-${targetHook}`));
-  }
+test('Production removes the prototype combat panel while retaining runtime feedback', () => {
+  assert.doesNotMatch(html, /combat-hud-v03|data-combat-(action|reset|player-hp|target-hp|target-break|ult-gauge)/);
+  assert.doesNotMatch(html, /BLASTER|FREE AIM|훈련 재시작/);
+  assert.doesNotMatch(main, /createCombatHudV03|combatHud/);
   assert.match(html, /id="combat-impact-feedback"/);
-  assert.match(css, /COMBAT-V03-RUNTIME-P0:start/);
   assert.match(css, /combat-camera-kick/);
   assert.match(css, /combat-impact-flash/);
   assert.match(css, /body\[data-hud-mode="COMBAT"\] #transport-action/);
-  assert.match(css, /grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/);
 });
 
 test('Combat v0.3 local training disables resume and transport while active', () => {
   assert.match(main, /controller\.setTransportGate\(\(\) => !worldActionsSuspended\(\)\);/);
   assert.match(main, /controller\.setTransportLock\("combat-v03", state\.active\)/);
   assert.match(main, /controller\.combatDodgeDirection\(orbit\.yaw/);
-  assert.match(main, /enabled: firstPlayerMovement && !npcTestMode && !combatRuntime\.active/);
+  assert.match(main, /enabled: \(firstPlayerMovement \|\| inBiryong\) && !npcTestMode && !combatRuntime\.active/);
   assert.match(main, /transportActions\.set\("mount", null\)/);
 });

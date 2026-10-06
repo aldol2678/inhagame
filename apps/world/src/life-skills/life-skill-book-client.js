@@ -152,6 +152,8 @@ export function createLifeSkillBookClient({
   let state = LIFE_SKILL_BOOK_STATE.SIGNED_OUT;
   let book = null;
   let tree = null;
+  let treeState = null;
+  let treeReading = null;
   let selectedSkillId = null;
   let pending = null;
   // { kind, target, requestId } of an attempt whose outcome is unknown (transport failure).
@@ -160,7 +162,7 @@ export function createLifeSkillBookClient({
   const listeners = new Set();
 
   function emit(reason) {
-    const change = { state, book, tree, selectedSkillId, accountId, reason, pending: pending !== null };
+    const change = { state, book, tree, treeState, selectedSkillId, accountId, reason, pending: pending !== null };
     for (const listener of listeners) {
       try { listener(change); } catch (error) { console.warn("Life Skill Book listener failed:", error); }
     }
@@ -176,12 +178,31 @@ export function createLifeSkillBookClient({
     }
   }
 
-  async function loadTree(skillId, gen) {
-    const { data, error } = await call(LIFE_SKILL_BOOK_RPC.TREE, { p_skill_id: skillId });
-    if (gen !== generation || selectedSkillId !== skillId) return null;
-    const next = error ? null : parseLifeSkillTree(data);
-    if (next && next.skill.skillId !== skillId) return null;
-    return next;
+  function dropTree() {
+    treeReading = null;
+    tree = null;
+    treeState = null;
+  }
+
+  function loadTree(skillId, gen, reason, fresh = false) {
+    if (!fresh && treeReading?.skillId === skillId) return treeReading.run;
+    const token = { skillId, run: null };
+    treeReading = token;
+    tree = null;
+    treeState = LIFE_SKILL_BOOK_STATE.LOADING;
+    token.run = (async () => {
+      const { data, error } = await call(LIFE_SKILL_BOOK_RPC.TREE, { p_skill_id: skillId });
+      // The token also rejects an old response after leaving and returning to the same skill.
+      if (gen !== generation || selectedSkillId !== skillId || treeReading !== token) return false;
+      const next = error ? null : parseLifeSkillTree(data);
+      tree = next?.skill.skillId === skillId ? next : null;
+      treeState = tree ? LIFE_SKILL_BOOK_STATE.READY : LIFE_SKILL_BOOK_STATE.UNAVAILABLE;
+      treeReading = null;
+      emit(reason);
+      return tree !== null;
+    })();
+    emit(reason);
+    return token.run;
   }
 
   /** Re-reads the list (and the selected tree, if it is still visible). */
@@ -198,7 +219,7 @@ export function createLifeSkillBookClient({
         if (!next) {
           state = LIFE_SKILL_BOOK_STATE.UNAVAILABLE;
           book = null;
-          tree = null;
+          dropTree();
           emit(reason);
           return false;
         }
@@ -206,9 +227,10 @@ export function createLifeSkillBookClient({
         book = next;
         if (selectedSkillId && !next.skills.some(s => s.skillId === selectedSkillId)) {
           selectedSkillId = null;
-          tree = null;
+          dropTree();
         }
-        if (selectedSkillId) tree = (await loadTree(selectedSkillId, gen)) ?? tree;
+        // A recovery refresh must observe after the action, not reuse a pre-action tree read.
+        if (selectedSkillId) await loadTree(selectedSkillId, gen, reason, true);
         if (gen !== generation) return false;
         emit(reason);
         return true;
@@ -221,22 +243,15 @@ export function createLifeSkillBookClient({
   }
 
   /** Opens one visible skill's tree. Only skills the server listed can be selected. */
-  async function selectSkill(skillId) {
-    if (!book || !book.skills.some(s => s.skillId === skillId)) return false;
-    const gen = generation;
+  function selectSkill(skillId) {
+    if (!book || !book.skills.some(s => s.skillId === skillId)) return Promise.resolve(false);
     selectedSkillId = skillId;
-    tree = tree?.skill.skillId === skillId ? tree : null;
-    emit("select");
-    const next = await loadTree(skillId, gen);
-    if (gen !== generation || selectedSkillId !== skillId) return false;
-    tree = next;
-    emit("select");
-    return next !== null;
+    return loadTree(skillId, generation, "select");
   }
 
   function clearSelection() {
     selectedSkillId = null;
-    tree = null;
+    dropTree();
     emit("select");
   }
 
@@ -275,7 +290,11 @@ export function createLifeSkillBookClient({
         return { outcome: "FAILED", code: "MALFORMED_RESPONSE" };
       }
       pending = null;
-      if (selectedSkillId === next.skill.skillId) tree = next;
+      if (selectedSkillId === next.skill.skillId) {
+        treeReading = null;
+        tree = next;
+        treeState = LIFE_SKILL_BOOK_STATE.READY;
+      }
       if (book) {
         book = Object.freeze({
           ...book,
@@ -314,7 +333,7 @@ export function createLifeSkillBookClient({
     unsettled = null;
     reading = null;
     book = null;
-    tree = null;
+    dropTree();
     selectedSkillId = null;
     if (!next) {
       state = LIFE_SKILL_BOOK_STATE.SIGNED_OUT;
@@ -336,6 +355,7 @@ export function createLifeSkillBookClient({
     get state() { return state; },
     get book() { return book; },
     get tree() { return tree; },
+    get treeState() { return treeState; },
     get selectedSkillId() { return selectedSkillId; },
     get accountId() { return accountId; },
     get pending() { return pending !== null; },
@@ -347,7 +367,7 @@ export function createLifeSkillBookClient({
     },
     status() {
       return { state, accountBound: accountId !== null, visibleSkills: book?.skills.length ?? 0,
-        selectedSkillId, pending: pending !== null };
+        selectedSkillId, treeState, pending: pending !== null };
     }
   };
 }

@@ -1,5 +1,5 @@
 import { assertTmlReadResultStructure, isTmlDateTime } from './conformance.mjs';
-import { createTmlTraceRecorder } from './trace.mjs';
+import { createTmlRecordId, createTmlTraceRecorder } from './trace.mjs';
 import { TML_VERIFICATION_STATUS, verifyTmlTransition } from './verification.mjs';
 import { prepareTmlWriteTransition } from './write-admission.mjs';
 import { snapshotTmlData, summarizeTmlError } from './value-snapshot.mjs';
@@ -11,10 +11,6 @@ export const TML_P5_DISPOSITION = Object.freeze({
   VERIFICATION_FAILED: 'VERIFICATION_FAILED',
   EXECUTION_OUTCOME_UNKNOWN: 'EXECUTION_OUTCOME_UNKNOWN'
 });
-
-function token(value) {
-  return String(value).replace(/[^0-9A-Za-z._-]+/g, '-').replace(/^-|-$/g, '');
-}
 
 function ensureTime(value, label) {
   if (!isTmlDateTime(value) || !Number.isFinite(Date.parse(value))) {
@@ -47,11 +43,11 @@ function outputValues(output) {
     .map(([key, value]) => [key, toTmlValue(value)])));
 }
 
-function actionExecutionRecord(action, provider, attempt) {
+function actionExecutionRecord(action, provider, attempt, recordContext) {
   const attributed = provider.identityMatched === true;
   const record = {
     kind: 'action',
-    id: `action-execution.${token(action.id)}.${token(attempt.requestedExecutionKey)}`,
+    id: createTmlRecordId('action', [recordContext, action.id, action.capability, attempt.requestedExecutionKey]),
     call: action.id,
     capability: action.capability,
     execution_key: attempt.requestedExecutionKey,
@@ -171,6 +167,9 @@ export async function executeTmlVerifiedWriteTransition(options = {}) {
   // All static failures (including key creation) happen before the first await.
   const prepared = prepareTmlWriteTransition(options);
   const { module, profile, transition, action, context, questRef, event, executionKey, readAdapter, advanceAdapter, now } = prepared;
+  // This namespace distinguishes trace records only. It does not change the
+  // requested execution key or the production provider's idempotency contract.
+  const recordContext = Object.freeze([module.id, context.userId, executionKey]);
   const attempt = {
     requestedExecutionKey: executionKey, receivedExecutionKey: null,
     dispatchStatus: 'NOT_ATTEMPTED', providerReturned: false, requestedAt: null
@@ -219,13 +218,13 @@ export async function executeTmlVerifiedWriteTransition(options = {}) {
   try {
     const startedAt = ensureTime(now(), 'startedAt');
     recorder = createTmlTraceRecorder({
-      id: prepared.traceId ?? `trace.${token(transition.id)}.${token(startedAt)}`,
+      id: prepared.traceId ?? createTmlRecordId('trace', [recordContext, transition.id, startedAt]),
       module: module.id, profile: profile.id, startedAt
     });
     preRead = await safeRead(readAdapter, { userId: context.userId, questRef });
     if (preRead.ok) recorder.appendReadResult(preRead.result);
     preVerification = verifyTmlTransition({
-      transition, profile,
+      transition, profile, recordContext,
       observations: preRead.ok ? preRead.result.observations : [],
       facts: preRead.ok ? preRead.result.facts : [],
       checkedAt: ensureTime(now(), 'precondition checkedAt'), phase: 'precondition'
@@ -235,13 +234,13 @@ export async function executeTmlVerifiedWriteTransition(options = {}) {
 
     attempt.requestedAt = ensureTime(now(), 'dispatch requestedAt');
     provider = await safeAdvance(advanceAdapter, { userId: context.userId, questRef, event, executionKey }, attempt);
-    if (attempt.dispatchStatus !== 'NOT_ATTEMPTED') recorder.append(actionExecutionRecord(action, provider, attempt));
+    if (attempt.dispatchStatus !== 'NOT_ATTEMPTED') recorder.append(actionExecutionRecord(action, provider, attempt, recordContext));
     if (attempt.dispatchStatus === 'NOT_ATTEMPTED') return finish(TML_P5_DISPOSITION.HOLD_BEFORE_EXECUTION);
 
     postRead = await safeRead(readAdapter, { userId: context.userId, questRef });
     if (postRead.ok) recorder.appendReadResult(postRead.result);
     postVerification = verifyTmlTransition({
-      transition, profile,
+      transition, profile, recordContext,
       observations: postRead.ok ? postRead.result.observations : [],
       facts: postRead.ok ? postRead.result.facts : [],
       checkedAt: ensureTime(now(), 'postcondition checkedAt'), phase: 'postcondition'
