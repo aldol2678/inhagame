@@ -62,6 +62,7 @@ import { createSeatInteraction } from "./seat-interaction.js";
 import { campusSpawn } from './campus-spawn.js';
 import { createContextActionController } from "./context-action.js";
 import { createPhotoMode } from "./photo/photo-mode.js";
+import { createPhotoCapture } from "./photo/photo-capture.js";
 import { createPhotoModePanel } from "./photo/photo-mode-panel.js";
 import { createInkyungLivingMoment, INKYUNG_LIVING_ZONE_ID } from "./inkyung-living-moment.js";
 import { createNextDiscovery, FIRST_CAMPUS_REWARD_ID } from "./next-discovery.js";
@@ -1658,7 +1659,8 @@ const photoMode = createPhotoMode({
   requestPose: () => requestEmote("photo_pose"),
   cancelPose: () => { if (emotes.active?.id === "photo_pose") emotes.cancel("photo-mode-close"); }
 });
-const photoModePanel = createPhotoModePanel({ mode: photoMode, fallbackFocus: canvas });
+const photoModePanel = createPhotoModePanel({ mode: photoMode, fallbackFocus: canvas,
+  capture: createPhotoCapture({ app, canvas, mode: photoMode }) });
 window.addEventListener("pagehide", event => {
   photoMode.close("lifecycle");
   if (!event.persisted) { photoModePanel.destroy(); photoMode.destroy(); }

@@ -29,3 +29,14 @@ test('campus canvas is a programmatic focus-return anchor without an extra Tab s
   const html = await readFile(new URL('../campus/index.html', import.meta.url), 'utf8');
   assert.match(html, /<canvas id="application" tabindex="-1"/);
 });
+
+
+test('photo export uses the existing app canvas and the panel owns its capture lifecycle', async () => {
+  const capture = await readFile(new URL('../src/photo/photo-capture.js', import.meta.url), 'utf8');
+  const panel = await readFile(new URL('../src/photo/photo-mode-panel.js', import.meta.url), 'utf8');
+  assert.match(main, /capture: createPhotoCapture\(\{ app, canvas, mode: photoMode \}\)/);
+  assert.match(capture, /app\.on\('frameend', job\.frame\)/);
+  assert.doesNotMatch(capture, /preserveDrawingBuffer|new pc\.|app\.render\(|fetch\(|localStorage|sessionStorage/);
+  assert.match(panel, /capture\?\.destroy\(\)/);
+  assert.doesNotMatch(panel, /window\.open|win\.open|navigator\.share|localStorage|sessionStorage/);
+});
