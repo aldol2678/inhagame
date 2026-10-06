@@ -70,6 +70,15 @@ try {
       assert.deepEqual(servedSourceHashes, report.sourceHashes); caseReport.servedSourceHashes = servedSourceHashes;
       const panel = page.locator('#inventory');
       const retry = () => page.getByRole('button', { name: '기록 다시 불러오기', exact: true });
+      const assertFeedbackVisible = async locator => {
+        const position = await locator.evaluate(el => {
+          const rect = el.getBoundingClientRect();
+          const body = el.closest('.shop-panel-body').getBoundingClientRect();
+          return { top: rect.top, bottom: rect.bottom, bodyTop: body.top, bodyBottom: body.bottom };
+        });
+        assert.ok(position.top >= position.bodyTop - 1 && position.bottom <= position.bodyBottom + 1,
+          `read feedback must be visible inside the scroll viewport: ${JSON.stringify(position)}`);
+      };
       const open = async () => {
         if (mobile) await page.locator('#opener').tap(); else { await page.locator('#opener').focus(); await page.keyboard.press('Enter'); }
         const book = page.getByRole('button', { name: '수집도감', exact: true });
@@ -89,13 +98,16 @@ try {
       await page.evaluate(() => window.__COLLECTION_BOOK__.mode('fail'));
       if (mobile) await retry().tap(); else { await retry().focus(); await page.keyboard.press('Enter'); }
       await page.getByText('수집 기록을 불러오지 못했어요.', { exact:true }).waitFor();
+      await assertFeedbackVisible(page.getByText('수집 기록을 불러오지 못했어요.', { exact:true }));
       await screenshot(page, `${name}-error.png`);
       await page.evaluate(() => window.__COLLECTION_BOOK__.mode('hold'));
       await retry().click(); assert.equal(await retry().isDisabled(), true);
+      await assertFeedbackVisible(page.getByText('수집 기록을 불러오는 중…', { exact:true }));
       await screenshot(page, `${name}-loading.png`);
       await page.evaluate(() => window.__COLLECTION_BOOK__.settle());
       await page.getByText('발견 기록 1 / 2', { exact:false }).waitFor();
       assert.equal(await panel.evaluate(el => el.contains(document.activeElement)), true, 'retry retains modal focus');
+      await assertFeedbackVisible(page.getByRole('button', { name:'수집도감', exact:true }));
       await screenshot(page, `${name}-recovered.png`);
       await retry().click();
       await page.keyboard.press('Escape'); await page.evaluate(() => window.__COLLECTION_BOOK__.settle());

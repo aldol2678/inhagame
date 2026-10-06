@@ -76,6 +76,7 @@ export function createInventoryPanel({
   let renderedAccount = inventory.accountId;
   let activeTab = INVENTORY_TAB.ALL;
   let activeView = "inventory";
+  let renderedBookState = null;
   let viewButtons = new Map();
   let tabButtons = new Map();
 
@@ -131,7 +132,12 @@ export function createInventoryPanel({
     const hadFocus = panel.contains(doc.activeElement);
     const accountChanged = renderedAccount !== inventory.accountId;
     const focusKey = !accountChanged && hadFocus ? doc.activeElement?.dataset?.focusKey : null;
-    const scrollTop = accountChanged ? 0 : bodyElement?.scrollTop ?? 0;
+    const bookState = activeView === "book" ? collectionBook?.state ?? null : null;
+    const bookStateChanged = bookState !== renderedBookState;
+    renderedBookState = bookState;
+    // Book requests replace a tall history with a short status. An old offset would hide the
+    // loading/error feedback above the viewport and clip the recovered navigation.
+    const scrollTop = accountChanged || bookStateChanged ? 0 : bodyElement?.scrollTop ?? 0;
     const scrollLeft = accountChanged ? 0 : bodyElement?.scrollLeft ?? 0;
     renderedAccount = inventory.accountId;
     if (accountChanged) { activeTab = INVENTORY_TAB.ALL; activeView = "inventory"; }

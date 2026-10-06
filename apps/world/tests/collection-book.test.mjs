@@ -176,3 +176,12 @@ test('signed-out Book never pretends a holdings request is loading',()=>{
 test('current memento projection withholds unknown ownership catalog statuses',()=>{
   assert.deepEqual(view.currentMementoViews({items:[{itemId:'badge.main_gate',quantity:1,acquiredAt:date,sourceType:'QUEST',catalogStatus:'UNRECOGNIZED'}]}),[]);
 });
+test('Book read transitions reset the scroll offset so loading/error/recovery remain visible',async()=>{
+  const doc=createFakeDocument(),panel=doc.createElement('section'),gate=deferred();let count=0;
+  const inventory=createInventoryClient({getClient:()=>({rpc:async()=>({data:{items:[]}})})});await inventory.setAccount(A);
+  const book=browser.createCollectionBookClient({getToken:async()=> 'token',fetcher:()=>++count===1?response(project(raw(discovered()))):gate.promise});book.setAccount(A);
+  const ui=createInventoryPanel({panel,inventory,collectionBook:book,doc});ui.setOpen(true);button(panel,'수집도감').click();await flush();
+  const body=()=>walk(panel).find(n=>n.className==='shop-panel-body');body().scrollTop=350;
+  button(panel,'기록 다시 불러오기').click();assert.equal(book.state,'LOADING');assert.equal(body().scrollTop,0);
+  body().scrollTop=80;gate.resolve({ok:false});await flush();assert.equal(book.state,'UNAVAILABLE');assert.equal(body().scrollTop,0);
+});
