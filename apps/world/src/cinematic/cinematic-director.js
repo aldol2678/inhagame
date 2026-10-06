@@ -109,7 +109,9 @@ export function createCinematicDirector({
 
   function update(dt = 0) {
     if (!session) return false;
-    session.elapsed += Math.max(0, Math.min(Number(dt) || 0, 0.05));
+    // Presentation time may advance faster than gameplay's 50 ms simulation cap.
+    // Keep a bounded catch-up so low-FPS/SwiftShader sessions do not stretch a short reveal into minutes.
+    session.elapsed += Math.max(0, Math.min(Number(dt) || 0, 0.25));
     if (session.elapsed >= session.sequence.duration) finish("complete");
     return true;
   }
