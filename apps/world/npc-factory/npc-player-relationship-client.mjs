@@ -11,20 +11,22 @@ export function createNpcPlayerRelationshipClient({
   enabled = false,
   endpoint = '/api/npc-relationship',
   getSession = async () => null,
-  fetcher = fetch
+  fetcher = fetch,
+  now = () => new Date()
 } = {}) {
   let signedIn = false;
   let generation = 0;
   const inFlight = new Map();
   const sentOpen = new Set();
-  const sentTopic = new Set();
+  const sentTopicDay = new Map();
+  const dayKey = () => new Date(now().getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
   function setSignedIn(value) {
     generation += 1;
     signedIn = Boolean(value);
     inFlight.clear();
     sentOpen.clear();
-    sentTopic.clear();
+    sentTopicDay.clear();
   }
 
   function setEnabled(value) {
@@ -73,13 +75,18 @@ export function createNpcPlayerRelationshipClient({
   }
 
   async function recordMeaningfulDialogue(npcId) {
-    if (!enabled || !signedIn || !NPC_RELATIONSHIP_REGISTRY.has(npcId) || sentTopic.has(npcId)) return null;
-    sentTopic.add(npcId);
+    if (!enabled || !signedIn || !NPC_RELATIONSHIP_REGISTRY.has(npcId)) return null;
+    const day = dayKey();
+    if (sentTopicDay.get(npcId) === day) return null;
+    sentTopicDay.set(npcId, day);
     try {
       const result = await send(npcId, NPC_RELATIONSHIP_DIALOGUE_EVENT.TOPIC);
-      if (result === null) sentTopic.delete(npcId);
+      if (result === null && sentTopicDay.get(npcId) === day) sentTopicDay.delete(npcId);
       return result;
-    } catch (error) { sentTopic.delete(npcId); throw error; }
+    } catch (error) {
+      if (sentTopicDay.get(npcId) === day) sentTopicDay.delete(npcId);
+      throw error;
+    }
   }
 
   return Object.freeze({
@@ -93,7 +100,7 @@ export function createNpcPlayerRelationshipClient({
       inFlight: inFlight.size,
       heroCount: NPC_RELATIONSHIP_REGISTRY.size,
       openSentCount: sentOpen.size,
-      topicSentCount: sentTopic.size
+      topicSentCount: sentTopicDay.size
     })
   });
 }
