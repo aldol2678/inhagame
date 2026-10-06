@@ -70,7 +70,7 @@ test('first-person camera and caches restore exactly without stealing a newer in
 });
 
 for (const [name, patch] of Object.entries({ room: { campus: false }, mount: { mounted: true }, flight: { grounded: false },
-  seat: { seated: true }, combat: { combat: true }, transition: { transitioning: true } })) {
+  seat: { seated: true }, follow: { following: true }, combat: { combat: true }, transition: { transitioning: true } })) {
   test(`rejects ${name} on entry and closes on ${name} boundary`, () => {
     const h = harness(); Object.assign(h.state, patch); assert.equal(h.mode.open(), false); assert.equal(h.mode.contextAction(), null);
     const ready = harness(); const saved = view(ready); ready.mode.open(); Object.assign(ready.state, patch); ready.mode.update();
@@ -138,4 +138,20 @@ test('photo opens toward the existing lake from any arrival yaw, then restores t
     assert.ok(forwardDot > .999, `photo looks toward the actual lake, arrival yaw ${yaw}`);
     h.mode.close(); assert.deepEqual(view(h), original);
   }
+});
+
+test('the point-specific photo offer beats broad duck observation but yields to follow, seats and NPC dialogue', async () => {
+  const { selectContextAction } = await import('../src/context-action.js');
+  const { MECHANICAL_DUCK_CONTEXT_PRIORITY } = await import('../src/ambient-ducks-state.js');
+  const { FOLLOW_CONTEXT_PRIORITY } = await import('../src/social/follow-controller.js');
+  const h = harness(); h.position.z += 2.35;
+  const photo = h.mode.contextAction();
+  const duck = { id: 'inkyung-mechanical-duck', priority: MECHANICAL_DUCK_CONTEXT_PRIORITY, distance: .5 };
+  assert.equal(selectContextAction([photo, duck]).id, 'inkyung-photo-mode');
+  for (const [id, priority] of [['seat', 260], ['npc-talk', 300]]) {
+    assert.equal(selectContextAction([photo, { id, priority }]).id, id);
+  }
+  h.state.following = true;
+  assert.equal(h.mode.contextAction(), null, 'following offers its existing stop action first');
+  assert.equal(selectContextAction([h.mode.contextAction(), { id: 'follow', priority: FOLLOW_CONTEXT_PRIORITY }]).id, 'follow');
 });

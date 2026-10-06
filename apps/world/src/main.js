@@ -1632,7 +1632,7 @@ const photoMode = createPhotoMode({
     campus: rooms?.currentSpace === "campus" && biryongRealm?.inBiryong !== true &&
       !lobbyWorld.active && !lobbyTransition.active,
     grounded: controller.grounded,
-    mounted: controller.mounted, seated: seats.isSeated, combat: combatRuntime.active,
+    mounted: controller.mounted, seated: seats.isSeated, following: follow.active, combat: combatRuntime.active,
     transitioning: rooms?.status().busy === true || biryongRealm?.busy === true,
     accountId: online?.userId ?? null
   }),

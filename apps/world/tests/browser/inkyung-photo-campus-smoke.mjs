@@ -9,6 +9,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { worldTimePayload, NPC_WORLD_EPOCH_MS, NPC_WORLD_PERIOD_MS } from '../../npc-factory/npc-world-time-contract.mjs';
 
 const repo = fileURLToPath(new URL('../../../../', import.meta.url));
 const output = process.env.PHOTO_MODE_QA_OUTPUT || 'test-results/inkyung-photo-campus';
@@ -18,18 +19,23 @@ const sources = ['campus/index.html', 'src/main.js', 'styles.css',
   'src/photo/photo-mode.js', 'src/photo/photo-mode-panel.js', 'src/photo/inkyung-photo-point.js',
   'src/orbit-camera-controller.js', 'src/context-action.js', 'src/player-controller.js',
   'npc-factory/dev-runtime.mjs', 'src/world-scale.js', 'src/character-model.js',
+  'npc-factory/npc-world-time-contract.mjs', 'npc-factory/npc-world-clock.mjs',
+  'npc-factory/npc-shared-schedule.mjs', 'npc-factory/npc-shared-meetings.mjs',
+  'src/ambient-ducks.js', 'src/ambient-ducks-state.js',
   'assets/induck-v3.glb', 'tests/browser/inkyung-photo-campus-smoke.mjs'];
 const report = {
   status: 'RUNNING', expectedHead: process.env.PHOTO_MODE_HEAD_SHA ?? null,
   scope: 'Actual production campus, lake, avatar, UI and WebGL2. Offline APIs; no account/backend/live social acceptance.',
   poseFixture: 'Collision-checked player placement near the exported lake anchor preserves gameplay arrival yaw. Native F/touch opens the production lake-facing preset; exit must restore that arrival yaw exactly.',
   visualReview: 'Required: projected lake samples are composition diagnostics, not an occlusion or aesthetic oracle. Inspect the unchanged default screenshots.',
+  clockFixture: 'Each case serves the real worldTimePayload contract at class_time+60s, advancing with real elapsed monotonic time. All real NPC schedules, movement, collisions and actors remain active.',
   regressionBaseline: { head: '77d5813956edc4a860356e7328837370d8b4b365', run: '37428945564', status: 'FAIL',
     findings: ['Desktop stopped on DOM/runtime Pointer Lock acknowledgment race.',
       'Portrait controls passed but unchanged arrival-yaw default did not show the lake; visual acceptance failed.'],
     note: 'Historical evidence only. This report must establish its own exact-head result.' },
   sourceHashes: {}, cases: [], checks: [], screenshots: [], warnings: [],
   limits: ['Mobile viewport/touch emulation is not physical-device acceptance.',
+    'NPC availability is tested in the documented class_time+60..470s window, not across every crowd/meeting schedule.',
     'Room takeover uses the real local Club Room transition API as a lifecycle fixture, not a lake doorway.',
     'Browser blur is dispatched to the production listener; OS focus loss and authenticated identity changes are not simulated.']
 };
@@ -68,6 +74,24 @@ const characterStatus = page => page.evaluate(() => {
     assets: d.app.assets.list().filter(a => ['/assets/induck-v3.glb', '/assets/annyongi-flight-v1.glb'].includes(a.file?.url))
       .map(a => ({ url: a.file.url, loaded: a.loaded, loading: a.loading, resourcePresent: !!a.resource })),
     interpretation: 'modelState=glb only means the committed GLB loaded. Inspect report.characterAssetIdentity: a public QA cuboid asset is not full mascot visual approval.' };
+});
+const interactionDiagnostics = page => page.evaluate(async () => {
+  const d = window.__INHAGAME_P0__, s = d.getStatus(), p = d.player.getLocalPosition();
+  const { INKYUNG_PHOTO_POINT: anchor } = await import('/src/photo/inkyung-photo-point.js');
+  const ducks = await import('/src/ambient-ducks-state.js');
+  const summarize = a => a ? { id: a.id, label: a.label, priority: a.priority, distance: a.distance } : null;
+  return { position: { x: p.x, y: p.y, z: p.z }, clock: s.npcTest?.shared_schedule, period: s.npcTest?.period,
+    primaryAction: summarize(d.contextActions.active), photoCandidate: summarize(d.photoMode.contextAction()),
+    state: { grounded: d.controller.grounded, mounted: d.controller.mounted, seated: d.seats.isSeated,
+      following: d.follow.active, photoActive: d.photoMode.active, room: d.rooms.status(), focus: s.inputFocus },
+    mechanicalDuck: { present: !!d.app.root.findByName(ducks.MECHANICAL_DUCK_ID)?.enabled,
+      shoreEligible: ducks.canObserveInkyungDucksFromShore(p), shoreDistance: ducks.distanceToInkyungPondShore(p),
+      priority: ducks.MECHANICAL_DUCK_CONTEXT_PRIORITY },
+    nearbyNpcs: d.app.root.find(e => e.name?.startsWith('NPC_TEST_HUMAN_') && e.enabled).map(e => {
+      const n = e.getLocalPosition(); return { id: e.name, position: { x: n.x, y: n.y, z: n.z },
+        distanceToPlayer: Math.hypot(p.x - n.x, p.z - n.z), distanceToAnchor: Math.hypot(anchor.position.x - n.x, anchor.position.z - n.z) };
+    }).filter(n => n.distanceToPlayer < 10 || n.distanceToAnchor < 10),
+    approachSearch: window.__PHOTO_CAMPUS_APPROACH_DIAGNOSTICS__ ?? null };
 });
 async function frames(page, count = 3) {
   const at = await page.evaluate(() => window.__INHAGAME_P0__.app.frame);
@@ -108,12 +132,21 @@ async function placeApproach(page) {
       const n = e.getLocalPosition(); return Math.hypot(p.x - n.x, p.z - n.z);
     }));
     const yaw = d.orbit.yaw, forward = { x: -Math.sin(yaw), z: Math.cos(yaw) };
-    const valid = p => Math.hypot(p.x - anchor.position.x, p.z - anchor.position.z) <= anchor.radius - .1 &&
-      nearest(p) > talkRadius + .2 && !overPondWater(p.x, p.z) && canOccupy(p);
+    const diagnostics = { testedStarts: 0, rejected: { outsidePhotoBand: 0, npcRadius: 0, water: 0, collider: 0, sweep: 0, bank: 0 },
+      arrivalYaw: yaw, pathLength: 1.2, npcMargin: .2, clock: d.getStatus().npcTest?.shared_schedule };
+    window.__PHOTO_CAMPUS_APPROACH_DIAGNOSTICS__ = diagnostics;
+    const valid = p => {
+      if (Math.hypot(p.x - anchor.position.x, p.z - anchor.position.z) > anchor.radius - .1) { diagnostics.rejected.outsidePhotoBand++; return false; }
+      if (nearest(p) <= talkRadius + .2) { diagnostics.rejected.npcRadius++; return false; }
+      if (overPondWater(p.x, p.z)) { diagnostics.rejected.water++; return false; }
+      if (!canOccupy(p)) { diagnostics.rejected.collider++; return false; }
+      return true;
+    };
     let chosen;
     // Check the entire short walking segment, including pond and swept collider constraints.
     for (const radius of [2.35, 2.6, 2.1]) {
       for (let i = 0; i < 72; i++) {
+        diagnostics.testedStarts++;
         const angle = i * Math.PI / 36;
         const p = { x: anchor.position.x + Math.cos(angle) * radius,
           z: anchor.position.z + Math.sin(angle) * radius };
@@ -123,8 +156,9 @@ async function placeApproach(page) {
           const next = { x: p.x + forward.x * step / 10, z: p.z + forward.z * step / 10, y: p.y };
           const swept = moveAroundObstacles(previous, next.x - previous.x, next.z - previous.z);
           const bank = constrainPondWalk(previous, next);
-          if (!valid(next) || Math.hypot(swept.x - next.x, swept.z - next.z) > .001 ||
-            Math.hypot(bank.x - next.x, bank.z - next.z) > .001) { safe = false; break; }
+          if (!valid(next)) { safe = false; break; }
+          if (Math.hypot(swept.x - next.x, swept.z - next.z) > .001) { diagnostics.rejected.sweep++; safe = false; break; }
+          if (Math.hypot(bank.x - next.x, bank.z - next.z) > .001) { diagnostics.rejected.bank++; safe = false; break; }
           previous = next;
         }
         if (safe) { chosen = p; break; }
@@ -143,6 +177,51 @@ async function placeApproach(page) {
       guideDistance: Math.hypot(chosen.x - guidePosition.x, chosen.z - guidePosition.z),
       nearestNpcDistance: nearest(chosen), collisionCheckedWalkLength: 1.2 };
   });
+}
+
+async function checkMechanicalCompetition(page) {
+  const fixture = await page.evaluate(async () => {
+    const d = window.__INHAGAME_P0__, p = d.player.getLocalPosition();
+    const saved = { x: p.x, y: p.y, z: p.z };
+    const { INKYUNG_PHOTO_POINT: anchor } = await import('/src/photo/inkyung-photo-point.js');
+    const { canOccupy } = await import('/src/world-collision.js');
+    const { canObserveInkyungDucksFromShore } = await import('/src/ambient-ducks-state.js');
+    const { metersToWorld } = await import('/src/world-scale.js');
+    const npcs = d.app.root.find(e => e.name?.startsWith('NPC_TEST_HUMAN_') && e.enabled);
+    let outside;
+    for (const radius of [anchor.radius + .4, anchor.radius + .8]) {
+      for (let i = 0; i < 72; i++) {
+        const angle = i * Math.PI / 36;
+        const p = { x: anchor.position.x + Math.cos(angle) * radius, z: anchor.position.z + Math.sin(angle) * radius };
+        p.y = d.controller.groundY + d.controller.space.groundHeight(p.x, p.z);
+        if (canOccupy(p) && canObserveInkyungDucksFromShore(p) && npcs.every(e => {
+          const n = e.getLocalPosition(); return Math.hypot(p.x - n.x, p.z - n.z) > metersToWorld(3) + .2;
+        })) { outside = p; break; }
+      }
+      if (outside) break;
+    }
+    if (!outside) throw Error('No safe mechanical-duck-only shore position outside the photo radius');
+    d.controller.keys.clear(); d.controller.clearAssistedMovement(); d.controller.velocityY = 0; d.controller.grounded = true;
+    d.player.setLocalPosition(outside.x, outside.y, outside.z); d.app.fire('update', .016);
+    return { saved, outside, setup: 'Two collision-checked offline player poses; no actor disabled, candidate injected or duck action triggered' };
+  });
+  try {
+    await page.waitForFunction(() => window.__INHAGAME_P0__.contextActions.active?.id === 'inkyung-mechanical-duck');
+    fixture.outsideEvidence = await interactionDiagnostics(page);
+    assert.equal(fixture.outsideEvidence.photoCandidate, null, 'Photo unavailable outside its authored radius');
+    assert.equal(fixture.outsideEvidence.primaryAction.priority, 240, 'Real broad duck candidate remains priority 240');
+  } finally {
+    await page.evaluate(saved => {
+      const d = window.__INHAGAME_P0__; d.controller.velocityY = 0; d.controller.grounded = true;
+      d.player.setLocalPosition(saved.x, saved.y, saved.z); d.app.fire('update', .016);
+    }, fixture.saved);
+  }
+  await page.waitForFunction(() => window.__INHAGAME_P0__.contextActions.active?.id === 'inkyung-photo-mode');
+  fixture.insideEvidence = await interactionDiagnostics(page);
+  assert.equal(fixture.insideEvidence.mechanicalDuck.present, true, 'The real competing duck stays present');
+  assert.equal(fixture.insideEvidence.mechanicalDuck.shoreEligible, true, 'Broad duck observation remains eligible inside photo band');
+  assert.equal(fixture.insideEvidence.primaryAction.priority, 245, 'Local photo action outranks broad duck observation');
+  return fixture;
 }
 
 async function composition(page) {
@@ -227,7 +306,19 @@ async function runCase(startSmoke, TIMEOUT_MS, name, viewport, mobile) {
     smoke = await startSmoke({ viewport, contextOptions: { isMobile: mobile, hasTouch: mobile, deviceScaleFactor: 1 } });
     page = await smoke.context.newPage(); page.setDefaultTimeout(15_000);
     const fatal = smoke.watch(page);
-    await page.goto(`${smoke.origin}/campus/?npcSync=ng2&envTime=day&envWeather=clear`, { waitUntil: 'domcontentloaded', timeout: TIMEOUT_MS });
+    const clockStarted = performance.now(), clockBase = NPC_WORLD_EPOCH_MS + NPC_WORLD_PERIOD_MS + 60_000;
+    entry.clockFixture = { endpoint: '/api/world-time', basePayload: worldTimePayload(clockBase),
+      mode: 'class_time+60s advancing with real monotonic elapsed time',
+      observationWindow: { startOffsetSeconds: 60, exclusiveEndOffsetSeconds: 470, maxElapsedMs: 410_000 },
+      rationale: 'Real shared schedule sampled every 0.5s across the entire 900s class_time period: the chosen full path is clear from +60 through +470s; NPC010 enters its clearance band at +474.5s.', requests: [] };
+    // Existing NPC smokes use this same valid server contract. The real shared schedule and
+    // every actor remain active; runner wall time cannot accidentally select a different crowd.
+    await page.route(`${smoke.origin}/api/world-time`, route => {
+      const elapsedMs = Math.floor(performance.now() - clockStarted), payload = worldTimePayload(clockBase + elapsedMs);
+      entry.clockFixture.requests.push({ elapsedMs, serverNowMs: payload.serverNowMs });
+      return route.fulfill({ status: 200, contentType: 'application/json', headers: { 'cache-control': 'no-store' }, body: JSON.stringify(payload) });
+    });
+    await page.goto(`${smoke.origin}/campus/?npcSync=ng2&mechanicalDuck=1&envTime=day&envWeather=clear`, { waitUntil: 'domcontentloaded', timeout: TIMEOUT_MS });
     await Promise.race([page.waitForFunction(() => {
       const s = window.__INHAGAME_P0__?.getStatus?.(); return s?.renderer === 'UNAVAILABLE' || s?.loading?.finished;
     }, null, { timeout: TIMEOUT_MS }), fatal]);
@@ -240,6 +331,12 @@ async function runCase(startSmoke, TIMEOUT_MS, name, viewport, mobile) {
     }, null, { timeout: TIMEOUT_MS });
     entry.characterAtBoot = await characterStatus(page);
     await Promise.race([page.waitForFunction(() => window.__INHAGAME_P0__.getStatus().npcTest?.status === 'READY', null, { timeout: TIMEOUT_MS }), fatal]);
+    entry.clockAtBoot = await page.evaluate(() => {
+      const n = window.__INHAGAME_P0__.getStatus().npcTest; return { period: n.period, ...n.shared_schedule };
+    });
+    assert.equal(entry.clockAtBoot.state, 'SYNCED'); assert.equal(entry.clockAtBoot.period, 'class_time');
+    assert.ok(performance.now() - clockStarted < entry.clockFixture.observationWindow.maxElapsedMs,
+      'Authored NPC fixture observation window expired during boot');
     await page.waitForFunction(() => {
       const e = window.__INHAGAME_ENVIRONMENT__?.status?.(); return e?.settled && e?.weatherSettled;
     }, null, { timeout: TIMEOUT_MS });
@@ -254,6 +351,9 @@ async function runCase(startSmoke, TIMEOUT_MS, name, viewport, mobile) {
 
     entry.approach = await placeApproach(page); await frames(page, 6);
     await page.waitForFunction(() => window.__INHAGAME_P0__.contextActions.active?.id === 'inkyung-photo-mode');
+    entry.approachDiagnostics = await interactionDiagnostics(page);
+    entry.mechanicalCompetition = await checkMechanicalCompetition(page);
+    entry.checks.push('Actual mechanical duck 240 wins outside photo radius; real photo 245 wins inside while the duck remains eligible');
     const canvas = page.locator('#application'); await canvas.focus();
     const initial = await snapshot(page);
     await page.keyboard.down('KeyW');
@@ -422,10 +522,11 @@ async function runCase(startSmoke, TIMEOUT_MS, name, viewport, mobile) {
         d.controller.keys.clear(); d.controller.clearAssistedMovement(); d.controller.velocityY = 0;
         d.controller.grounded = true; d.player.setLocalPosition(at.x, at.y, at.z); d.app.fire('update', .016);
         return { position: at, action: d.contextActions.active?.id, priority: d.contextActions.active?.priority,
-          photoCandidate: d.photoMode.contextAction()?.id, guideId: QUEST_NPC_ID };
+          photoCandidate: d.photoMode.contextAction()?.id, photoPriority: d.photoMode.contextAction()?.priority, guideId: QUEST_NPC_ID };
       });
       await page.waitForFunction(() => window.__INHAGAME_P0__.contextActions.active?.id === 'npc-talk');
       assert.equal(entry.npcPriority.photoCandidate, 'inkyung-photo-mode');
+      assert.equal(entry.npcPriority.photoPriority, 245);
       assert.equal(entry.npcPriority.action, 'npc-talk'); assert.equal(entry.npcPriority.priority, 300);
       await canvas.focus(); await page.keyboard.press('KeyF');
       await page.waitForFunction(() => !!window.__INHAGAME_P0__.getStatus().npcTest?.conversation_active);
@@ -435,14 +536,20 @@ async function runCase(startSmoke, TIMEOUT_MS, name, viewport, mobile) {
       await page.keyboard.press('KeyF');
       await page.waitForFunction(() => !window.__INHAGAME_P0__.getStatus().npcTest?.conversation_active);
       assert.equal((await snapshot(page)).focus.activeClaimCount, 0);
-      entry.checks.push('Actual lake NPC priority 300 beats available photo action 240; native F opens and closes dialogue, restoring focus');
+      entry.checks.push('Actual lake NPC priority 300 beats available photo action 245; native F opens and closes dialogue, restoring focus');
     }
+    entry.clockFixture.observedElapsedMs = Math.floor(performance.now() - clockStarted);
+    entry.clockAtEnd = await page.evaluate(() => window.__INHAGAME_P0__.getStatus().npcTest?.shared_schedule);
+    assert.ok(entry.clockFixture.observedElapsedMs < entry.clockFixture.observationWindow.maxElapsedMs,
+      'Authored NPC fixture exceeded class_time+470s; rerun on a sufficiently responsive runner rather than accept crowd drift');
     assert.deepEqual(smoke.problems, [], 'No browser/runtime/same-origin errors');
     entry.status = 'PASS'; console.log(`${name}: PASS (${entry.checks.length} acceptance groups)`);
   } catch (error) {
     entry.status = 'FAIL'; entry.error = String(error.stack ?? error);
     entry.problems = smoke?.problems ?? [];
     if (page && !page.isClosed()) {
+      try { entry.interactionAtFailure = await interactionDiagnostics(page); }
+      catch (statusError) { entry.interactionStatusError = String(statusError); }
       try { entry.characterAtFailure = await characterStatus(page); }
       catch (statusError) { entry.characterStatusError = String(statusError); }
       try { entry.screenshots.push(await screenshot(page, `${name}-failure-${viewport.width}x${viewport.height}`, 'failure evidence; production page unchanged')); }

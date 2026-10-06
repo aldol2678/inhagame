@@ -11,7 +11,7 @@ export const PHOTO_MODE_OWNER = 'inkyung-photo-mode';
 const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
 const finitePosition = p => p && [p.x, p.y, p.z].every(Number.isFinite);
 const safeState = s => s?.campus === true && s.grounded === true &&
-  !s.mounted && !s.seated && !s.transitioning && !s.combat;
+  !s.mounted && !s.seated && !s.following && !s.transitioning && !s.combat;
 
 // This is a temporary view over the existing orbit, never a second camera or movement owner.
 // InputFocusManager releases held keys/touch/Pointer Lock. Orbit.apply retains camera collision.
@@ -99,7 +99,10 @@ export function createPhotoMode({
     contextAction() {
       if (!canOpen()) return null;
       return { id: PHOTO_MODE_OWNER, icon: '📸', label: '인경호 사진 모드', compactLabel: '사진 모드',
-        priority: 240, distance: distance(), trigger: open };
+        // This point-specific action outranks broad shore observation (240),
+        // while seats (260) and NPC dialogue (300) retain priority.
+        // Active Follow keeps its stop action by withholding photo entry above.
+        priority: 245, distance: distance(), trigger: open };
     },
     subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
     destroy() { if (destroyed) return; close('destroy'); destroyed = true; unsubscribe(); listeners.clear(); }
