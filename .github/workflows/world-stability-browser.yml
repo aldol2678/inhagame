@@ -7,6 +7,9 @@ on:
       - 'apps/world/src/attendance/**'
       - 'apps/world/src/daily-quiz/**'
       - 'apps/world/src/player-controller.js'
+      - 'apps/world/src/wallet/**'
+      - 'apps/world/src/progression/**'
+      - 'apps/world/src/main.js'
       - 'apps/world/tests/*stability*.test.mjs'
       - 'apps/world/tests/*readback*.test.mjs'
       - 'apps/world/tests/*ordering*.test.mjs'
@@ -38,7 +41,7 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y fonts-noto-cjk
       - name: Verify synthetic account and harness contracts
-        run: node --test apps/world/tests/shop-loadout-readback-account.test.mjs apps/world/tests/shop-loadout-retry-isolation.test.mjs apps/world/tests/daily-result-ordering.test.mjs apps/world/tests/player-touch-ownership.test.mjs apps/world/tests/world-stability-browser-contract.test.mjs
+        run: node --test apps/world/tests/shop-loadout-readback-account.test.mjs apps/world/tests/shop-loadout-retry-isolation.test.mjs apps/world/tests/daily-result-ordering.test.mjs apps/world/tests/player-touch-ownership.test.mjs apps/world/tests/world-stability-browser-contract.test.mjs apps/world/tests/daily-reward-readback.test.mjs apps/world/tests/daily-panel-notice-readback.test.mjs apps/world/tests/world-stability-daily-readback.test.mjs
       - name: Run native Chromium pointer and synthetic-account QA
         env:
           WORLD_SMOKE_DISABLE_WEBGPU: '1'

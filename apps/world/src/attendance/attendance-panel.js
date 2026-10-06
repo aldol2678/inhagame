@@ -52,6 +52,8 @@ export function createAttendancePanel({ panel, attendance, onOpenChange = () => 
   let open = false;
   let closeButton = null;
   let notice = null;
+  let noticeEpoch = 0;
+  let accountId = attendance.accountId;
 
   function renderSnapshot(body, s) {
     const summary = el("div", "inventory-item attendance-summary");
@@ -70,8 +72,11 @@ export function createAttendancePanel({ panel, attendance, onOpenChange = () => 
       button.addEventListener("click", async () => {
         if (button.disabled) return;
         notice = null;
+        const epoch = ++noticeEpoch;
+        const rewardDate = s.rewardDate;
         const result = await attendance.claim();
-        if (result.outcome === "FAILED" || result.outcome === "REFUSED") notice = ATTENDANCE_TEXT.failed;
+        if (!open || epoch !== noticeEpoch) return;
+        if (result.outcome === "FAILED" || result.outcome === "REFUSED") notice = { text: ATTENDANCE_TEXT.failed, rewardDate };
         render();
       });
       summary.append(rewards, button);
@@ -108,6 +113,9 @@ export function createAttendancePanel({ panel, attendance, onOpenChange = () => 
   function render() {
     if (!open) return;
     const snapshot = attendance.state === ATTENDANCE_STATE.READY ? attendance.snapshot : null;
+    // Recovery can finish before the awaited claim result reaches this panel.
+    // Reconcile here too, and only against the same server day as the failed write.
+    if (notice?.text === ATTENDANCE_TEXT.failed && snapshot?.claimedToday && snapshot.rewardDate === notice.rewardDate) notice = null;
     const head = el("div", "shop-panel-head");
     const titles = el("div", "shop-panel-titles");
     const title = el("h2", "", ATTENDANCE_TEXT.title);
@@ -132,7 +140,7 @@ export function createAttendancePanel({ panel, attendance, onOpenChange = () => 
       retry.addEventListener("click", () => void attendance.refresh("retry"));
       body.append(el("p", "shop-empty", ATTENDANCE_TEXT.unavailable), retry);
     } else renderSnapshot(body, snapshot);
-    if (notice) body.append(el("p", "shop-hint", notice));
+    if (notice) body.append(el("p", "shop-hint", notice.text));
     panel.dataset.state = attendance.state;
     panel.dataset.claimed = snapshot ? String(snapshot.claimedToday) : "";
     panel.replaceChildren(head, body);
@@ -141,6 +149,7 @@ export function createAttendancePanel({ panel, attendance, onOpenChange = () => 
   function setOpen(next) {
     const value = Boolean(next);
     if (value === open) return open;
+    noticeEpoch += 1;
     open = value;
     panel.hidden = !open;
     if (!open) {
@@ -157,7 +166,14 @@ export function createAttendancePanel({ panel, attendance, onOpenChange = () => 
     return true;
   }
 
-  attendance.onChange(() => render());
+  attendance.onChange(() => {
+    if (accountId !== attendance.accountId) {
+      accountId = attendance.accountId;
+      noticeEpoch += 1;
+      notice = null;
+    }
+    render();
+  });
   panel.addEventListener("pointerdown", (event) => event.stopPropagation());
   doc.addEventListener("keydown", (event) => {
     if (open && event.code === "Escape") setOpen(false);

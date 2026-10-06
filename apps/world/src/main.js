@@ -1088,6 +1088,10 @@ const inventory = createInventoryClient({ getClient: () => online?.supabase ?? n
 // the authorities it touched are re-read (never computed here). LEVEL UP follows the toast.
 const dailyQuiz = createDailyQuizClient({
   getClient: () => online?.supabase ?? null,
+  onRecoveryReadback: () => {
+    void progression.refresh("daily-reward-recovery");
+    void wallet.refresh("daily-reward-recovery");
+  },
   onReward: reward => {
     mcmEventUi.showReward({ status: reward.replayed ? "ALREADY_CLAIMED" : "CLAIMED", replayed: reward.replayed,
       rewardResult: { status: reward.status, entries: reward.entries } });
@@ -1100,6 +1104,7 @@ const dailyQuiz = createDailyQuizClient({
 // milestone), then only the Wallet is re-read (coin only: no EXP, no items).
 const attendance = createAttendanceClient({
   getClient: () => online?.supabase ?? null,
+  onRecoveryReadback: () => { void wallet.refresh("daily-reward-recovery"); },
   onRewards: (rewards) => {
     const [daily, ...milestones] = rewards;
     if (daily) mcmEventUi.showReward({ status: "CLAIMED", replayed: false, rewardResult: { status: daily.status, entries: daily.entries } });

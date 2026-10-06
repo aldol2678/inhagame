@@ -23,7 +23,8 @@ export function formatProgression(snapshot) {
 
 /** "LEVEL UP · Lv.N" only when the same account's server Level rose between two READY snapshots. */
 export function levelUpMessage(change) {
-  const { state, snapshot, previous } = change ?? {};
+  const { state, snapshot, previous, reason } = change ?? {};
+  if (reason === "daily-reward-recovery") return null;
   if (state !== PROGRESSION_STATE.READY || !snapshot || !previous) return null;
   return snapshot.level > previous.level ? `LEVEL UP · Lv.${snapshot.level}` : null;
 }

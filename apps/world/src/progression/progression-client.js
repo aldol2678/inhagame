@@ -55,10 +55,12 @@ export function createProgressionClient({
   let rerunReason = null;
   let rewardRetryTimer = null;
   let rewardRetryAttempt = 0;
+  let rewardRetryReason = null;
+  let dailyRecoveryPending = false;
   const listeners = new Set();
 
-  const reasonPriority = reason => reason === "core15-first-campus-reward" ? 3 : reason === "reward" ? 2 : 1;
-  const isRewardReadbackReason = reason => reason === "reward" || reason === "core15-first-campus-reward";
+  const reasonPriority = reason => reason === "core15-first-campus-reward" ? 4 : reason === "reward" ? 3 : reason === "daily-reward-recovery" ? 2 : 1;
+  const isRewardReadbackReason = reason => reason === "reward" || reason === "core15-first-campus-reward" || reason === "daily-reward-recovery";
   const strongerReason = (a, b) => {
     if (!a) return b;
     if (!b) return a;
@@ -68,11 +70,13 @@ export function createProgressionClient({
   function clearRewardRetry({ resetAttempt = false } = {}) {
     if (rewardRetryTimer !== null) clearTimer(rewardRetryTimer);
     rewardRetryTimer = null;
-    if (resetAttempt) rewardRetryAttempt = 0;
+    if (resetAttempt) { rewardRetryAttempt = 0; rewardRetryReason = null; }
   }
 
   function scheduleRewardRetry(reason, gen) {
-    if (!isRewardReadbackReason(reason) || !accountId || gen !== generation || rewardRetryTimer !== null) return false;
+    if (!isRewardReadbackReason(reason) || !accountId || gen !== generation) return false;
+    rewardRetryReason = strongerReason(rewardRetryReason, reason);
+    if (rewardRetryTimer !== null) return false;
     const delay = rewardRetryDelays[rewardRetryAttempt];
     if (!Number.isFinite(delay) || delay < 0) return false;
     rewardRetryAttempt += 1;
@@ -118,8 +122,17 @@ export function createProgressionClient({
     if (next) {
       const previousReady = lastReadySnapshot;
       clearRewardRetry({ resetAttempt: true });
-      set(PROGRESSION_STATE.READY, next, { reason, previous: previousReady });
-      lastReadySnapshot = next;
+      // An overlapping generic read (or one between retries) may observe the
+      // committed daily reward. Keep that repair silent until a read succeeds.
+      const displayReason = dailyRecoveryPending && reasonPriority(reason) < 3
+        ? "daily-reward-recovery" : reason;
+      set(PROGRESSION_STATE.READY, next, { reason: displayReason, previous: previousReady });
+      // A confirmed reward queued behind this silent repair still owns its
+      // level-up comparison and CORE-15's required fresh growth readback.
+      if (displayReason !== "daily-reward-recovery" || !rerun || reasonPriority(rerunReason) < 3) {
+        lastReadySnapshot = next;
+      }
+      if (!rerun) dailyRecoveryPending = false;
     } else {
       set(PROGRESSION_STATE.UNAVAILABLE, null, { reason, previous: lastReadySnapshot });
     }
@@ -127,6 +140,10 @@ export function createProgressionClient({
 
   function refresh(reason = "refresh") {
     if (!accountId) return Promise.resolve(false);
+    // A fresh ordinary read during a retry gap can fulfill the pending reward
+    // readback, but must not discard confirmed reward/CORE-15 semantics.
+    reason = strongerReason(reason, rewardRetryReason);
+    if (reason === "daily-reward-recovery") dailyRecoveryPending = true;
     // Coalesce: while a request runs, remember one more and preserve the strongest semantic reason.
     // CORE-15 reward readback must not be downgraded to a generic account/resume refresh.
     if (inFlight) {
@@ -168,6 +185,7 @@ export function createProgressionClient({
     rerunReason = null;
     inFlight = null;
     lastReadySnapshot = null;
+    dailyRecoveryPending = false;
     if (!next) {
       set(PROGRESSION_STATE.SIGNED_OUT, null, { reason: "account", sameAccount: false });
       return Promise.resolve(false);

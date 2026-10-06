@@ -40,7 +40,8 @@ function parseMilestones(raw) {
 
 /** Server status → frozen snapshot, or null when it is not the documented contract. */
 export function parseAttendance(raw) {
-  if (!raw || typeof raw !== "object" || !DATE.test(raw.rewardDate ?? "") || !MONTH.test(raw.month ?? "")) return null;
+  if (!raw || typeof raw !== "object" || typeof raw.rewardDate !== "string" || typeof raw.month !== "string" ||
+      !DATE.test(raw.rewardDate) || !MONTH.test(raw.month)) return null;
   if (!raw.rewardDate.startsWith(raw.month) || typeof raw.claimedToday !== "boolean" || !isCount(raw.attendedDays, 31)) return null;
   if (!isCoin(raw.dailyCoin) || !Array.isArray(raw.attendedDates)) return null;
   const dates = raw.attendedDates;
@@ -71,11 +72,11 @@ export function attendanceErrorCode(error) {
 }
 
 /**
- * @param {{ getClient: () => ({ rpc: Function } | null), onRewards?: (rewards: object[], snapshot: object) => void }} options
+ * @param {{ getClient: () => ({ rpc: Function } | null), onRewards?: (rewards: object[], snapshot: object) => void, onRecoveryReadback?: () => void }} options
  *   onRewards is called once with the server Reward results of a claim that paid (daily, then an
  *   optional milestone), for the current account only.
  */
-export function createAttendanceClient({ getClient, onRewards = () => {} } = {}) {
+export function createAttendanceClient({ getClient, onRewards = () => {}, onRecoveryReadback = () => {} } = {}) {
   if (typeof getClient !== "function") throw new Error("Attendance client requires getClient");
 
   let accountId = null;
@@ -100,10 +101,17 @@ export function createAttendanceClient({ getClient, onRewards = () => {} } = {})
     const client = getClient();
     if (!client?.rpc) return { error: { message: "SIGNED_OUT" } };
     try {
-      return await client.rpc(rpc);
+      return (await client.rpc(rpc)) ?? {};
     } catch (error) {
       return { error };
     }
+  }
+
+  // The server may have committed before an error/malformed response reached us.
+  // Re-read economic authorities separately; never synthesize/replay reward results.
+  function recoverReadback(gen) {
+    if (gen !== generation) return;
+    try { onRecoveryReadback(); } catch (error) { console.warn("Daily reward recovery readback failed:", error); }
   }
 
   function refresh(reason = "refresh") {
@@ -153,6 +161,7 @@ export function createAttendanceClient({ getClient, onRewards = () => {} } = {})
       if (error) {
         const code = attendanceErrorCode(error);
         pending = null;
+        recoverReadback(gen);
         void refresh("claim");
         return { outcome: code === "FAILED" ? "FAILED" : "REFUSED", code };
       }
@@ -165,11 +174,13 @@ export function createAttendanceClient({ getClient, onRewards = () => {} } = {})
         : replayed && rewards.length === 0);
       if (!valid) {
         pending = null;
+        recoverReadback(gen);
         void refresh("claim");
         return { outcome: "FAILED", code: "MALFORMED_RESPONSE" };
       }
       pending = null;
       set(ATTENDANCE_STATE.READY, next, "claim");
+      if (!claimed) recoverReadback(gen);
       if (claimed) {
         try { onRewards(rewards, next); } catch (error) { console.warn("Attendance reward display failed:", error); }
       }
