@@ -10,6 +10,7 @@ const routePath = fileURLToPath(new URL('../api/public-supabase-config.js', impo
 const indexHtml = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const hubAccount = readFileSync(new URL('../hub-account.js', import.meta.url), 'utf8');
 const campusHtml = readFileSync(new URL('../campus/index.html', import.meta.url), 'utf8');
+const profileHtml = readFileSync(new URL('../profile/index.html', import.meta.url), 'utf8');
 
 function responseRecorder() {
   return {
@@ -26,6 +27,17 @@ function responseRecorder() {
 test('hub loads production Supabase config before account bootstrap', () => {
   assert.match(indexHtml, /<script defer src="\/api\/public-supabase-config"><\/script>/);
   assert.doesNotMatch(indexHtml, /<script defer src="\/supabase-public-config\.js"><\/script>/);
+});
+
+test('profile loads production Supabase config before profile bootstrap', () => {
+  const configScript = '<script defer src="/api/public-supabase-config"></script>';
+  const profileScript = '<script defer src="/profile/profile.js"></script>';
+  const configOffset = profileHtml.indexOf(configScript);
+  const profileOffset = profileHtml.indexOf(profileScript);
+  assert.ok(configOffset >= 0, 'profile loads the shared production auth config');
+  assert.ok(profileOffset >= 0, 'profile bootstrap script remains present');
+  assert.ok(configOffset < profileOffset, 'profile config must execute before profile bootstrap');
+  assert.doesNotMatch(profileHtml, /<script defer src="\/supabase-public-config\.js"><\/script>/);
 });
 
 test('campus loads shared auth config synchronously before any module executes', () => {
