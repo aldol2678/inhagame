@@ -2,7 +2,8 @@ export const MAIN3_QUEST_ID = 'campus_first_style_v1';
 
 export const MAIN3_QUEST_EVENTS = Object.freeze([
   'status',
-  'start'
+  'start',
+  'visit_student_center'
 ]);
 
 export const MAIN3_QUEST_OBJECTIVES = Object.freeze([
@@ -17,5 +18,6 @@ export function nextMain3QuestStage(stage, event, { available = true } = {}) {
   if (!Number.isInteger(stage) || stage < 0 || stage > 4 || !MAIN3_QUEST_EVENTS.includes(event))
     throw Error('INVALID_QUEST_EVENT');
   if (stage === 0 && event === 'start' && available) return 1;
+  if (stage === 1 && event === 'visit_student_center' && available) return 2;
   return stage;
 }

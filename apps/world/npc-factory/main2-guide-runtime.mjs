@@ -1,3 +1,4 @@
+import { renderMain3GuideDialogue } from './main3-guide-dialogue.mjs';
 import { createHumanAvatar } from './dev-human-avatar.mjs';
 import { roadviewGroundHeight } from '../src/roadview-layout.js';
 import { MAIN2_QUEST_OBJECTIVES } from './main2-quest-contract.mjs';
@@ -44,6 +45,7 @@ export function createMain2GuideRuntime({
   root,
   player,
   quest,
+  firstStyleQuest = null,
   documentLike = globalThis.document,
   onConversationOpen = () => {},
   onConversationClose = () => {}
@@ -62,6 +64,7 @@ export function createMain2GuideRuntime({
   const ui = createGuideUi(documentLike);
   const keyTarget = documentLike.defaultView ?? globalThis;
   let dialogueOpen = false;
+  let dialogueRevision = 0;
   let elapsed = 0;
   let yaw = 0;
 
@@ -80,6 +83,7 @@ export function createMain2GuideRuntime({
 
   function renderDialogue() {
     const status = quest.status();
+    const revision = ++dialogueRevision;
     ui.choices.replaceChildren();
 
     if (!status.enabled) {
@@ -97,6 +101,11 @@ export function createMain2GuideRuntime({
       addChoice('알겠어요', closeDialogue);
       return;
     }
+    if (status.complete && renderMain3GuideDialogue({
+      quest: firstStyleQuest, line: ui.line,
+      clearChoices: () => ui.choices.replaceChildren(), addChoice, closeDialogue,
+      isCurrent: () => dialogueOpen && revision === dialogueRevision
+    })) return;
     if (status.complete) {
       ui.line.textContent = MAIN2_GUIDE_COPY.complete;
       addChoice('고마워요', closeDialogue);
@@ -140,6 +149,7 @@ export function createMain2GuideRuntime({
   function closeDialogue() {
     if (!dialogueOpen) return false;
     dialogueOpen = false;
+    dialogueRevision++;
     ui.root.hidden = true;
     onConversationClose();
     return true;

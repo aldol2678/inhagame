@@ -5169,6 +5169,33 @@ body[data-hud-mode="COMBAT"] #jump { display:none !important; }
 @media(max-width:600px) { .furniture-editor { inset:8px; width:auto; padding:12px; border-radius:14px; } }
 @media(max-height:500px) and (min-width:601px) { .furniture-editor { width:390px; top:6px; bottom:6px; padding:12px; } .furniture-plan { max-height:200px; } }
 
+/* MAIN3-HUD-CONTAINMENT:start */
+/* Main3's server-owned objective includes the action at the end. Keep that copy readable. */
+#quest-hud[data-quest-id="quest.main.first_style"] .tour-objective {
+  max-width: none;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
+  line-height: 1.4;
+}
+
+@media (pointer: coarse) {
+  /* The touch rail keeps one primary objective; desktop discovery stays unchanged. */
+  body:has(> #quest-hud[data-quest-id="quest.main.first_style"]:not([hidden])) > .inkyung-living-moment {
+    display: none !important;
+  }
+  #quest-hud[data-quest-id="quest.main.first_style"] .tracked-quest-hud-open {
+    grid-template-columns: 18px minmax(0, 1fr);
+    grid-template-areas:
+      "flag heading"
+      "flag objective"
+      "flag bearing";
+    row-gap: 4px;
+  }
+}
+/* MAIN3-HUD-CONTAINMENT:end */
+
 /* LANDSCAPE-HUD:start
    Mobile landscape HUD · phones held sideways (touch + landscape + short viewport).
    The portrait phone HUD keys off max-width, so a rotated phone (740–932px wide) used to fall through to the

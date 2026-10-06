@@ -39,6 +39,7 @@ export function createShopWorldInteraction({
   radius = anchor?.interactionRadius,
   getAvailable = () => false,
   openPanel = () => false,
+  onEnter = () => {},
   priority = STUDENT_CENTER_SHOP_CONTEXT_PRIORITY
 } = {}) {
   if (!anchor || !Number.isFinite(radius) || radius <= 0) throw new Error("Shop world interaction anchor/radius required");
@@ -49,7 +50,9 @@ export function createShopWorldInteraction({
 
   function open() {
     if (!nearby || blocked || getAvailable() !== true) return false;
-    void openPanel();
+    if (openPanel() === false) return false;
+    // Optional quest observation must never block the shop, including an unavailable quest API.
+    try { Promise.resolve(onEnter()).catch(() => {}); } catch { /* independent subsystem */ }
     return true;
   }
 

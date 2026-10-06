@@ -1548,7 +1548,10 @@ const lobbyDailyLoop = createLobbyDailyLoop({
 const shopWorldAvailable = () => shop.accountId !== null && online?.supabase != null;
 const shopWorld = createShopWorldInteraction({
   getAvailable: shopWorldAvailable,
-  openPanel: () => shopPanel.setOpen(true)
+  openPanel: () => shopPanel.setOpen(true),
+  onEnter: () => npcTest?.visitStudentCenterShop?.().catch(() => {
+    showWorldStatus("상점은 이용할 수 있지만 퀘스트 방문 기록을 저장하지 못했어요. 상점 입구에서 다시 열어 주세요.");
+  })
 });
 // A transform-only marker point (no mesh) above the entry for the floating label, about head
 // height so it reads from the pond path and stays on screen next to the player.
@@ -2872,7 +2875,8 @@ async function loadOptionalNpcRuntime() {
     const initialQuestStatus = runtime.getStatus?.() ?? null;
     questRuntime.update(initialQuestStatus ? {
       quest: initialQuestStatus.quest,
-      main2Quest: initialQuestStatus.main2Quest
+      main2Quest: initialQuestStatus.main2Quest,
+      main3Quest: initialQuestStatus.main3Quest
     } : null);
     inkyungLivingMoment?.setNpcAvailable(true);
     npcTest?.setAiSignedIn?.(npcAiSignedIn);

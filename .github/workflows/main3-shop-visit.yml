@@ -1,0 +1,149 @@
+name: Main3 shop visit acceptance
+on:
+  pull_request:
+    paths:
+      - 'apps/world/npc-factory/main3-*'
+      - 'apps/world/npc-factory/tests-main3-*.mjs'
+      - 'apps/world/npc-factory/main2-guide-*'
+      - 'apps/world/npc-factory/quest-*'
+      - 'apps/world/npc-factory/dev-runtime.mjs'
+      - 'apps/world/src/main.js'
+      - 'apps/world/src/context-action.js'
+      - 'apps/world/src/quest/**'
+      - 'apps/world/src/shop/**'
+      - 'apps/world/tests/main3-*'
+      - 'apps/world/tests/quest-*.test.mjs'
+      - 'apps/world/tests/core15-quest-bootstrap.test.mjs'
+      - 'apps/world/tests/next-discovery.test.mjs'
+      - 'apps/world/tests/shop-world-interaction.test.mjs'
+      - 'apps/world/tests/browser/main3-*'
+      - 'apps/world/tests/browser/package*.json'
+      - 'supabase/config.toml'
+      - 'supabase/database.types.ts'
+      - 'supabase/migrations/**'
+      - 'supabase/tests/database/**'
+      - 'scripts/public-db.sh'
+      - 'scripts/local-integration.mjs'
+      - '.github/ci/migration-*'
+      - '.github/ci/check-types-*'
+      - '.github/ci/main3-workflow-contract.test.mjs'
+      - '.github/workflows/main3-shop-visit.yml'
+permissions:
+  contents: read
+concurrency:
+  group: main3-shop-visit-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+env:
+  EXPECTED_MAIN3_HEAD: ${{ github.event.pull_request.head.sha }}
+  MAIN3_QA_OUTPUT: test-results/main3-shop-visit
+jobs:
+  database:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      EXPECTED_MAIN3_BASE: ${{ github.event.pull_request.base.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Record and verify exact database source
+        run: |
+          set -euo pipefail
+          mkdir -p "$MAIN3_QA_OUTPUT"
+          source_sha=$(git rev-parse HEAD)
+          source_tree=$(git rev-parse 'HEAD^{tree}')
+          printf '{"expectedSha":"%s","sourceSha":"%s","sourceTree":"%s","expectedBaseSha":"%s","job":"%s"}\n' "$EXPECTED_MAIN3_HEAD" "$source_sha" "$source_tree" "$EXPECTED_MAIN3_BASE" "$GITHUB_JOB" > "$MAIN3_QA_OUTPUT/database-source.json"
+          git status --porcelain=v1 > "$MAIN3_QA_OUTPUT/database-source-worktree.txt"
+          test "$source_sha" = "$EXPECTED_MAIN3_HEAD"
+          test ! -s "$MAIN3_QA_OUTPUT/database-source-worktree.txt"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - uses: supabase/setup-cli@v3
+        with:
+          version: 2.117.0
+      - name: Verify append-only migration contracts
+        env:
+          GITHUB_BASE_REF: ''
+        run: |
+          set -euo pipefail
+          {
+            git fetch --no-tags --depth=1 origin "$EXPECTED_MAIN3_BASE"
+            git cat-file -e "$EXPECTED_MAIN3_BASE^{commit}"
+            node --test .github/ci/migration-lint.test.mjs .github/ci/migration-contract-lint.test.mjs
+            node .github/ci/migration-lint.mjs "$EXPECTED_MAIN3_BASE"
+            node .github/ci/migration-contract-lint.mjs
+          } 2>&1 | tee "$MAIN3_QA_OUTPUT/migration-contracts.log"
+      - name: Replay all migrations and database tests in a disposable local stack
+        run: |
+          set -euo pipefail
+          bash scripts/public-db.sh 2>&1 | tee "$MAIN3_QA_OUTPUT/database.log"
+      - name: Save exact-head database evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: main3-shop-visit-database-evidence
+          path: test-results/main3-shop-visit/
+          if-no-files-found: error
+          retention-days: 7
+  chromium:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      MAIN3_BROWSER_CHANNEL: chrome
+      WORLD_SMOKE_BROWSER: chrome
+      WORLD_SMOKE_DISABLE_WEBGPU: '1'
+      MAIN3_HOSTED_QA: '1'
+      MAIN3_EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      MAIN3_CAMPUS_OUTPUT_DIR: test-results/main3-shop-visit/campus
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Record and verify exact browser source
+        run: |
+          set -euo pipefail
+          mkdir -p "$MAIN3_QA_OUTPUT"
+          source_sha=$(git rev-parse HEAD)
+          source_tree=$(git rev-parse 'HEAD^{tree}')
+          printf '{"expectedSha":"%s","sourceSha":"%s","sourceTree":"%s","job":"%s"}\n' "$EXPECTED_MAIN3_HEAD" "$source_sha" "$source_tree" "$GITHUB_JOB" > "$MAIN3_QA_OUTPUT/chromium-source.json"
+          git status --porcelain=v1 > "$MAIN3_QA_OUTPUT/chromium-source-worktree.txt"
+          test "$source_sha" = "$EXPECTED_MAIN3_HEAD"
+          test ! -s "$MAIN3_QA_OUTPUT/chromium-source-worktree.txt"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - name: Verify hosted acceptance contract
+        run: node --test .github/ci/main3-workflow-contract.test.mjs
+      - name: Install Korean glyph coverage and verify installed Chrome
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+          fc-match 'Noto Sans CJK KR'
+          dpkg-query -W fonts-noto-cjk
+          google-chrome --version
+      - name: Install existing pinned browser dependencies
+        working-directory: apps/world/tests/browser
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Verify real guide lifecycle with the null graphics device
+        run: |
+          set -euo pipefail
+          timeout --signal=TERM --kill-after=10s 120s node apps/world/tests/browser/main3-guide-null-smoke.mjs 2>&1 | tee "$MAIN3_QA_OUTPUT/guide-null.log"
+      - name: Verify desktop and touch shop-visit component flows
+        run: |
+          set -euo pipefail
+          timeout --signal=TERM --kill-after=10s 300s node apps/world/tests/browser/main3-shop-visit-smoke.mjs 2>&1 | tee "$MAIN3_QA_OUTPUT/component-browser.log"
+      - name: Verify Main3 guide and shop entry in the offline campus
+        run: |
+          set -euo pipefail
+          timeout --signal=TERM --kill-after=10s 900s node apps/world/tests/browser/main3-campus-smoke.mjs 2>&1 | tee "$MAIN3_QA_OUTPUT/campus-browser.log"
+      - name: Save exact-head browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: main3-shop-visit-chromium-evidence
+          path: test-results/main3-shop-visit/
+          if-no-files-found: error
+          retention-days: 7

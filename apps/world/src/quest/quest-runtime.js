@@ -1,12 +1,14 @@
 import {
   QUEST_ID_MAIN_FIRST_CAMPUS,
   QUEST_ID_MAIN_NAVIGATION_INTRO,
+  QUEST_ID_MAIN_FIRST_STYLE,
   QUEST_STATE,
   QUEST_TYPE
 } from './quest-registry.js';
 import {
   adaptMain1QuestStatus,
-  adaptMain2QuestStatus
+  adaptMain2QuestStatus,
+  adaptMain3QuestStatus
 } from './legacy-quest-adapters.js';
 
 function frozenSnapshot({ signedIn, loading, quests, trackedQuestId }) {
@@ -36,9 +38,10 @@ export function createQuestRuntime() {
   const update = (legacy = null) => {
     const main1 = legacy?.quest ?? null;
     const main2 = legacy?.main2Quest ?? null;
-    const signedIn = main1?.signedIn === true || main2?.signedIn === true;
+    const main3 = legacy?.main3Quest ?? null;
+    const signedIn = main1?.signedIn === true || main2?.signedIn === true || main3?.signedIn === true;
     const loading = signedIn && !(
-      main1?.ready === true || main2?.ready === true
+      main1?.ready === true || main2?.ready === true || main3?.ready === true
     );
     const quests = [];
 
@@ -58,6 +61,11 @@ export function createQuestRuntime() {
         main1Complete: main1?.complete === true,
         trackedQuestId
       }));
+    }
+
+    if (main3?.signedIn === true && main3?.ready === true) {
+      quests.push(adaptMain3QuestStatus({ quest_id: 'campus_first_style_v1',
+        stage: main3.stage, available: main3.available === true }, { trackedQuestId }));
     }
 
     if (!signedIn) trackedQuestId = null;
@@ -120,6 +128,7 @@ export function createQuestRuntime() {
 export {
   QUEST_ID_MAIN_FIRST_CAMPUS,
   QUEST_ID_MAIN_NAVIGATION_INTRO,
+  QUEST_ID_MAIN_FIRST_STYLE,
   QUEST_STATE,
   QUEST_TYPE
 };

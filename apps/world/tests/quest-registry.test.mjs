@@ -5,6 +5,7 @@ import {
   QUEST_CAMPAIGN_ONBOARDING,
   QUEST_ID_MAIN_FIRST_CAMPUS,
   QUEST_ID_MAIN_NAVIGATION_INTRO,
+  QUEST_ID_MAIN_FIRST_STYLE,
   QUEST_STATE,
   QUEST_TYPE,
   getQuestDefinition,
@@ -17,7 +18,7 @@ import {
   adaptMain2QuestStatus
 } from '../src/quest/legacy-quest-adapters.js';
 
-test('quest registry exposes Main 01 and Main 02 as one onboarding campaign', () => {
+test('quest registry exposes Main 01, Main 02 and Main 03 as one onboarding campaign', () => {
   const definitions = listQuestDefinitions({
     type: QUEST_TYPE.MAIN,
     campaignId: QUEST_CAMPAIGN_ONBOARDING
@@ -25,9 +26,10 @@ test('quest registry exposes Main 01 and Main 02 as one onboarding campaign', ()
 
   assert.deepEqual(definitions.map(definition => definition.questId), [
     QUEST_ID_MAIN_FIRST_CAMPUS,
-    QUEST_ID_MAIN_NAVIGATION_INTRO
+    QUEST_ID_MAIN_NAVIGATION_INTRO,
+    QUEST_ID_MAIN_FIRST_STYLE
   ]);
-  assert.deepEqual(definitions.map(definition => definition.sequence), [1, 2]);
+  assert.deepEqual(definitions.map(definition => definition.sequence), [1, 2, 3]);
   assert.equal(getQuestDefinitionByLegacyId('campus_first_walk_v1')?.questId, QUEST_ID_MAIN_FIRST_CAMPUS);
   assert.equal(getQuestDefinitionByLegacyId('campus_navigation_intro_v1')?.questId, QUEST_ID_MAIN_NAVIGATION_INTRO);
 });

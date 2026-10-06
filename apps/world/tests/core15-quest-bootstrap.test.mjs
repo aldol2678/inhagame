@@ -229,6 +229,6 @@ test('wiring: NPCs never wait on an unbounded flag, and a late quest flag reache
 
   const runtime = read('../npc-factory/dev-runtime.mjs');
   assert.match(runtime, /await loadNpcPopulation\(/);
-  assert.match(runtime, /setQuestEnabled: enabled => Promise\.all\(\[quest\.setEnabled\(enabled\), main2Quest\.setEnabled\(enabled\)\]\)/);
+  assert.match(runtime, /setQuestEnabled: enabled => Promise\.all\(\[quest\.setEnabled\(enabled\), main2Quest\.setEnabled\(enabled\), main3Quest\.setEnabled\(enabled\)\]\)/);
   assert.match(runtime, /population: \{ batch_id: batch\.batch_id, expansion: populationExpansion \}/);
 });
