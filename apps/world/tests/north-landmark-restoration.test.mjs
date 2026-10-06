@@ -51,7 +51,7 @@ test('surroundings integration preserves exact-main path shape and all ground co
  // Ignore incidental graph IDs but retain each undirected geometric edge to 1e-8 WU.
  const graph=campusNavGraphData(),points=new Map(graph.nodes.map(n=>[n.id,[n.x,n.z].map(x=>x.toFixed(8)).join(',')]));
  const edges=graph.edges.map(e=>[points.get(e.a),points.get(e.b)].sort().join('|')).sort();
- assert.equal(graph.nodes.length,186);assert.equal(graph.edges.length,211);
+ assert.equal(graph.nodes.length,187);assert.equal(graph.edges.length,212);
  assert.equal(digest(edges),'d0da0fa868800308a4ba6b2fc814d4c7120dc8059a3c843f114543fd51f0e3da');
  const paths=SITE_FEATURES.filter(f=>f.kind==='path').map(f=>({id:f.id,vertices:f.vertices,width:CAMPUS_PATH_WIDTHS[f.id]||3.5}));
  const roads=CAMPUS_ROADS.map(({id,vertices,width,shoulder})=>({id,vertices,width,shoulder}));
