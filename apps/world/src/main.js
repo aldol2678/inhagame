@@ -218,6 +218,7 @@ const npcSharedAuthorityPreviewMode = npcTestMode && startupParams.get('npcAutho
 // Normal deployments start campus NPCs without a domain allowlist. Local and Vercel
 // preview hosts retain the explicit selectors below; API flags still own AI/quest access.
 const npcProductionMode = !previewHost;
+const npcRecastRuntimeShadowMode = npcProductionMode && startupParams.get('recastShadow') === '1';
 const npcPreviewMode = location.hostname.endsWith('.vercel.app') &&
   startupParams.get('npcTest') === 'a-r1';
 // Production shares server time and deterministic NPC routes across clients.
@@ -2791,6 +2792,7 @@ async function loadOptionalNpcRuntime() {
       sharedAuthorityEnabled: npcSharedAuthorityEnabled,
       sharedAuthorityEndpoint: '/api/npc-shared-state',
       getSharedAuthorityPlaceZoneId: () => places.getCurrentPlaceZone()?.id ?? null,
+      recastRuntimeShadowEnabled: npcRecastRuntimeShadowMode,
       onNpcTalk: (id, now) => online?.network?.setNpcTalk(id, now),
       getBusyNpcIds: now => busyNpcIds(online?.network?.remotes.inZone(online.network.placeZoneId) ?? [], now),
       production: npcSharedScheduleMode || npcProductionMode || npcPreviewMode || npcRosterPreviewMode || npcSocialPreviewMode || npcObservedConversationMode,
