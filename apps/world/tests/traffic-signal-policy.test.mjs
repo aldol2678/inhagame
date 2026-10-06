@@ -103,3 +103,13 @@ test('pedestrian stop lens blinks deterministically during the clearance phase',
   const lit = [0.1, 0.6, 1.1, 1.6].map(offset => trafficSignalStateAt(start + offset).pedestrianLens.stop);
   assert.deepEqual(lit, [true, false, true, false]);
 });
+
+test('seek follows an absolute clock regardless of how often it is sampled', () => {
+  const sparse = createTrafficSignalController();
+  const dense = createTrafficSignalController();
+  sparse.seek(40.2);
+  for (let t = 0; t <= 40.2; t += 0.01) dense.seek(t);
+  dense.seek(40.2);
+  assert.deepEqual(sparse.state(), dense.state());
+  assert.equal(sparse.seek(-5).phaseId, trafficSignalStateAt(trafficSignalCycleSeconds() - 5).phaseId);
+});

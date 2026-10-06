@@ -75,8 +75,12 @@ function createHead(parent, name, mount, size, lensRows, materials, housingMater
 export function createTrafficSignals({
   root,
   intersection = TRAFFIC_SIGNAL_INTERSECTION,
-  controller = createTrafficSignalController()
+  controller = createTrafficSignalController(),
+  // Monotonic seconds. The cycle follows this clock rather than summed frame deltas, so a slow or
+  // stalled frame rate (PlayCanvas clamps dt) can never stretch or skip signal phases.
+  clock = () => globalThis.performance.now() / 1000
 }) {
+  const startSeconds = clock();
   const d = TRAFFIC_SIGNAL_DIMENSIONS;
   const lensMaterials = createLensMaterials();
   const poleMaterial = createStandardMaterial('traffic-signal-pole', [0.17, 0.19, 0.19]);
@@ -144,9 +148,9 @@ export function createTrafficSignals({
 
   apply(lastState);
 
-  function update(dt) {
+  function update() {
     if (destroyed) return;
-    apply(controller.advance(dt));
+    apply(controller.seek(clock() - startSeconds));
   }
 
   function status() {

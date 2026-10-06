@@ -96,6 +96,11 @@ export function createTrafficSignalController({ plan = TRAFFIC_SIGNAL_PLAN, elap
       if (Number.isFinite(dt) && dt > 0) time = normalizeSignalElapsed(time + dt, plan);
       return trafficSignalStateAt(time, plan);
     },
+    // Absolute positioning for clock-driven callers: the cycle then follows the clock, not frame dt.
+    seek(elapsedSeconds) {
+      time = normalizeSignalElapsed(elapsedSeconds, plan);
+      return trafficSignalStateAt(time, plan);
+    },
     state: () => trafficSignalStateAt(time, plan),
     elapsed: () => time
   });
