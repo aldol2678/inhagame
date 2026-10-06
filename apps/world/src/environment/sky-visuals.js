@@ -488,6 +488,7 @@ export function createSkyVisuals({
   let sunProfile = sunVisualProfile(skyState);
   let starOpacity = nightStarVisibility(skyState);
   let destroyed = false;
+  let materialSignalInitialized = false;
   const sunDirection = [0, 0, -1];
   const lastMaterialSignal = {
     sunColor: [Number.NaN, Number.NaN, Number.NaN],
@@ -510,10 +511,13 @@ export function createSkyVisuals({
   }
 
   function applyMaterials() {
-    const colorChanged = skyState.sunColor.some((value, index) =>
+    // The first frame must always push the authoritative environment state into
+    // sky materials. NaN cannot be used as a dirty sentinel here because every
+    // comparison against NaN is false, which would freeze the sky at its DAY defaults.
+    const colorChanged = !materialSignalInitialized || skyState.sunColor.some((value, index) =>
       Math.abs(value - lastMaterialSignal.sunColor[index]) >= 0.002
     );
-    const scalarChanged =
+    const scalarChanged = !materialSignalInitialized ||
       Math.abs(skyState.sunIntensity - lastMaterialSignal.sunIntensity) >= 0.002 ||
       Math.abs(skyState.artificialLightFactor - lastMaterialSignal.artificialLightFactor) >= 0.002 ||
       Math.abs(skyState.rainIntensity - lastMaterialSignal.rainIntensity) >= 0.002 ||
@@ -566,6 +570,7 @@ export function createSkyVisuals({
     lastMaterialSignal.snowIntensity = skyState.snowIntensity;
     lastMaterialSignal.cloudCover = skyState.cloudCover;
     lastMaterialSignal.sunLightScale = skyState.sunLightScale;
+    materialSignalInitialized = true;
   }
 
   function update(dt) {

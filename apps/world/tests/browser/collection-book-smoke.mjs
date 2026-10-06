@@ -16,6 +16,8 @@ assert.equal(head, expectedHead, 'Only the exact candidate head may run this acc
 const paths = ['src/collection/collection-book-client.js', 'src/collection/collection-book-view.js',
   'src/inventory/inventory-panel.js', 'src/inventory/inventory-client.js',
   'src/collection/item-catalog.js', 'src/inventory/inventory-category-registry.js',
+  'src/config/supabase-public-config.js', 'src/config/supabase-public-config.mjs',
+  'src/collection/collection-discovery-contract.js', 'src/collection/collection-discovery-contract.mjs',
   'tests/browser/collection-book-harness.html', 'styles.css'];
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const report = { head, expectedHead, result: 'RUNNING', scope: 'Synthetic reads; no live availability/history claim',

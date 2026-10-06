@@ -22,6 +22,12 @@ const sources = ['campus/index.html', 'src/main.js', 'styles.css',
   'npc-factory/npc-world-time-contract.mjs', 'npc-factory/npc-world-clock.mjs',
   'npc-factory/npc-shared-schedule.mjs', 'npc-factory/npc-shared-meetings.mjs',
   'src/ambient-ducks.js', 'src/ambient-ducks-state.js',
+  'src/environment/sky-visuals.js', 'src/environment/sky-visual-policy.js',
+  'src/environment/atmospheric-sky-policy.js', 'src/environment/night-star-policy.js',
+  'src/environment/environment-director.js', 'src/environment/environment-presets.js',
+  'src/environment/environment-clock.js', 'src/environment/environment-weather.js',
+  'src/config/supabase-public-config.js', 'src/config/supabase-public-config.mjs',
+  'src/collection/collection-discovery-contract.js', 'src/collection/collection-discovery-contract.mjs',
   'assets/induck-v3.glb', 'tests/browser/inkyung-photo-campus-smoke.mjs'];
 const report = {
   status: 'RUNNING', expectedHead: process.env.PHOTO_MODE_HEAD_SHA ?? null,
@@ -35,6 +41,7 @@ const report = {
     note: 'Historical evidence only. This report must establish its own exact-head result.' },
   sourceHashes: {}, cases: [], checks: [], screenshots: [], warnings: [],
   limits: ['Mobile viewport/touch emulation is not physical-device acceptance.',
+    'Sunset/night evidence is a desktop post-boot transition spot-check using the existing preview API, not cold-start sky initialization coverage.',
     'NPC availability is tested in the documented class_time+60..470s window, not across every crowd/meeting schedule.',
     'Room takeover uses the real local Club Room transition API as a lifecycle fixture, not a lake doorway.',
     'Browser blur is dispatched to the production listener; OS focus loss and authenticated identity changes are not simulated.']
@@ -292,6 +299,81 @@ async function realFrame(page) {
   }));
 }
 
+async function checkPhotoLightTransitions(page, entry, viewport) {
+  const before = await snapshot(page);
+  const readLighting = () => page.evaluate(() => ({
+    environment: window.__INHAGAME_ENVIRONMENT__.status(), sky: window.__INHAGAME_SKY__.status(),
+    streetLights: window.__INHAGAME_NIGHT_LIGHTS__.status(), windows: window.__INHAGAME_NIGHT_WINDOWS__.status()
+  }));
+  const evidence = { coverage: 'Existing desktop clear-frame photo: post-boot DAY -> SUNSET -> NIGHT -> DAY through the preview setter. Cold-start sky synchronization is outside this spot-check.',
+    before: await readLighting(), samples: [] };
+  entry.lightTransitions = evidence;
+  assert.equal(evidence.before.environment.targetTime, 'DAY');
+  assert.equal(before.active, true);
+  let primaryError = null, restorationError = null, currentTime = 'DAY';
+  try {
+    for (const time of ['SUNSET', 'NIGHT']) {
+      currentTime = time;
+      const selected = await page.evaluate(time => window.__INHAGAME_ENVIRONMENT__.setTimeOfDay(time, { immediate: true }), time);
+      assert.equal(selected, time, 'The existing preview setter recognizes the requested time');
+      await page.waitForFunction(time => {
+        const e = window.__INHAGAME_ENVIRONMENT__.status(), sky = window.__INHAGAME_SKY__.status();
+        return e.targetTime === time && e.settled && e.targetWeather === 'CLEAR' && e.weatherSettled &&
+          (time === 'NIGHT' ? sky.sunVisible === false : sky.atmosphereSunsetFactor > 0);
+      }, time, { timeout: 15_000 });
+      await frames(page, 3);
+      const current = await snapshot(page), lighting = await readLighting();
+      assert.equal(current.active, true); assert.equal(current.input, false); assert.equal(current.orbitInput, false);
+      assert.equal(current.hudVisibility, 'hidden');
+      assert.deepEqual(current.camera, before.camera, `${time}: lighting transition leaves photo composition unchanged`);
+      assert.equal(await page.locator('.photo-mode-dock').isVisible(), false);
+      const frame = await realFrame(page);
+      assert.equal(frame.glError, 0, `${time}: real WebGL frame renders without errors`);
+      const image = await screenshot(page, `desktop-${time.toLowerCase()}-clear-frame-${viewport.width}x${viewport.height}`,
+        `${time} post-boot lighting spot-check; actual unchanged photo camera, lake and avatar; framing dock hidden`);
+      entry.screenshots.push(image);
+      evidence.samples.push({ time, ...lighting, frame, composition: await composition(page), screenshot: image });
+      if (time === 'NIGHT') {
+        assert.equal(lighting.environment.artificialLightFactor, 1);
+        assert.equal(lighting.sky.sunVisible, false);
+        assert.ok(lighting.sky.atmosphereHorizonColor.reduce((sum, value) => sum + value, 0) < .24,
+          'Night sky uses the existing dark-atmosphere contract');
+        assert.ok(lighting.sky.atmosphereZenithColor.reduce((sum, value) => sum + value, 0) < .12);
+      }
+    }
+  } catch (error) {
+    primaryError = error;
+    evidence.failure = { time: currentTime, error: String(error.stack ?? error) };
+    // Capture the failing lighting before attempting DAY restoration. Diagnostics are bounded,
+    // best-effort evidence and must never replace the original assertion/runtime failure.
+    try { evidence.failure.lighting = await readLighting(); }
+    catch (diagnosticError) { evidence.failure.lightingError = String(diagnosticError); }
+    try {
+      const image = await screenshot(page, `desktop-${currentTime.toLowerCase()}-pre-restore-failure-${viewport.width}x${viewport.height}`,
+        `${currentTime} lighting failure before DAY restoration; best-effort actual photo evidence`);
+      evidence.failure.screenshot = image; entry.screenshots.push(image);
+    } catch (diagnosticError) { evidence.failure.screenshotError = String(diagnosticError); }
+  } finally {
+    try {
+      await page.evaluate(() => window.__INHAGAME_ENVIRONMENT__.setTimeOfDay('DAY', { immediate: true }));
+      await page.waitForFunction(() => {
+        const e = window.__INHAGAME_ENVIRONMENT__.status();
+        return e.targetTime === 'DAY' && e.settled && window.__INHAGAME_SKY__.status().sunVisible;
+      }, null, { timeout: 15_000 });
+      await frames(page, 3);
+      evidence.after = await readLighting();
+      const after = await snapshot(page);
+      assert.equal(after.active, true); assert.equal(after.input, false);
+      assert.deepEqual(after.camera, before.camera, 'Restoring DAY leaves photo composition unchanged');
+    } catch (error) {
+      restorationError = error; evidence.restorationError = String(error.stack ?? error);
+    }
+  }
+  if (primaryError) throw primaryError;
+  if (restorationError) throw restorationError;
+  entry.checks.push('Desktop SUNSET/NIGHT hashed clear-frame screenshots via existing preview API; photo/camera/input preserved; DAY restored');
+}
+
 async function nativeLakeLook(page, viewport) {
   const target = await page.evaluate(async () => {
     const { getCanonicalLandmark, projectPolygon, computePolygonCentroid } = await import('/src/reality-adapter.js');
@@ -495,6 +577,7 @@ async function runCase(startSmoke, TIMEOUT_MS, name, viewport, mobile) {
       assert.equal(box.x < avatar.right && box.x + box.width > avatar.left && box.y < avatar.bottom && box.y + box.height > avatar.top,
         false, 'Persistent clear-frame controls do not cover the projected avatar');
     }
+    if (!mobile) await checkPhotoLightTransitions(page, entry, viewport);
     if (mobile) await controlsToggle.tap(); else await controlsToggle.click();
     await dock.waitFor({ state: 'visible' });
     const controlsRestored = await snapshot(page);
