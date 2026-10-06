@@ -288,3 +288,172 @@ test("main.js wiring: member client, identity, open, purchase + reward refresh b
   // The wardrobe never changes the avatar or the network payload in P0.
   assert.doesNotMatch(main, /loadout\.[a-zA-Z]+\([^)]*\)[^;\n]*(character|avatar|network|broadcast)/);
 });
+
+const deferred = () => { let resolve; const promise = new Promise((r) => { resolve = r; }); return { promise, resolve }; };
+const ownedRetry = (h) => byClass(h.panel, "wardrobe-owned").flatMap((section) => byClass(section, "shop-retry"))[0];
+const body = (h) => byClass(h.panel, "shop-panel-body")[0];
+const fail = { data: null, error: { message: "internal: private.inventory unavailable" } };
+async function openInventoryFailure(h) {
+  for (let i = 0; i < 2; i += 1) {
+    h.client.respond(INV, fail);
+    h.client.respond(READ, ok(slotsRead({ HEAD: worn("head.inha_cap") })));
+  }
+  void h.inventory.setAccount(A);
+  void h.loadout.setAccount(A);
+  h.ui.setOpen(true);
+  await flush();
+  assert.ok(ownedRetry(h), "owned inventory errors need an inline retry control");
+}
+
+test("owned retry reads only inventory, keeps current loadout and prevents repeated clicks", async () => {
+  const h = harness();
+  await openInventoryFailure(h);
+  const previousLoadout = h.loadout.snapshot;
+  const pending = deferred();
+  h.client.respond(INV, pending.promise);
+  const retry = ownedRetry(h);
+  assert.equal(retry.tagName, "BUTTON", "native keyboard activation");
+  assert.equal(retry.type, "button");
+  assert.equal(retry.getAttribute("aria-label"), "보유 아이템 다시 불러오기");
+  retry.focus();
+  body(h).scrollTop = 137;
+  body(h).scrollLeft = 9;
+  retry.click();
+  retry.click();
+  ownedRetry(h).click();
+  assert.equal(ownedRetry(h).disabled, true);
+  assert.match(text(h.panel), /보유 아이템을 불러오는 중/);
+  assert.equal(h.client.count(INV), 3, "one retry read despite repeated clicks");
+  assert.equal(h.loadout.snapshot, previousLoadout);
+  assert.equal(slotRow(h.panel, "HEAD").dataset.itemId, "head.inha_cap");
+  assert.equal(h.doc.activeElement, byClass(h.panel, "wardrobe-owned")[0], "pending focus has a live non-action anchor");
+  assert.equal(h.doc.activeElement.tabIndex, -1);
+  assert.equal(body(h).scrollTop, 137);
+  assert.equal(body(h).scrollLeft, 9);
+  pending.resolve(ok({ items: OWNED }));
+  await flush();
+  assert.ok(card(h.panel, "head.inha_cap"));
+  assert.equal(ownedRetry(h), undefined);
+  assert.equal(h.doc.activeElement, byClass(h.panel, "profile-close")[0], "successful recovery follows existing close-focus fallback");
+  assert.equal(body(h).scrollTop, 137);
+  assert.equal(h.loadout.snapshot, previousLoadout);
+  assert.deepEqual([h.client.count(READ), h.client.count(EQUIP), h.client.count(UNEQUIP)], [2, 0, 0]);
+  assert.deepEqual(h.changes, []);
+  assert.deepEqual(h.statuses, []);
+});
+
+test("owned retry failure restores a keyboard-reachable action without exposing the raw error", async () => {
+  const h = harness();
+  await openInventoryFailure(h);
+  h.client.respond(INV, fail);
+  ownedRetry(h).focus();
+  ownedRetry(h).click();
+  await flush();
+  assert.equal(ownedRetry(h).disabled, false);
+  assert.equal(h.doc.activeElement, ownedRetry(h));
+  assert.match(text(h.panel), /보유 아이템을 불러오지 못했어요/);
+  assert.doesNotMatch(text(h.panel), /internal|private\.inventory/);
+  h.client.respond(INV, ok({ items: [] }));
+  ownedRetry(h).click();
+  await flush();
+  assert.match(text(h.panel), /보유한 착용 아이템이 없어요/);
+  assert.equal(ownedRetry(h), undefined);
+  assert.equal(h.client.count(INV), 4);
+});
+
+test("owned retry joins an existing read and keeps disabled through its one coalesced rerun", async () => {
+  const h = harness();
+  await openInventoryFailure(h);
+  const first = deferred(); const second = deferred();
+  h.client.respond(INV, first.promise);
+  h.client.respond(INV, second.promise);
+  const refresh = h.inventory.refresh("reward");
+  ownedRetry(h).click();
+  ownedRetry(h).click();
+  assert.equal(h.client.count(INV), 3, "retry never starts a parallel RPC");
+  first.resolve(fail);
+  await flush();
+  assert.equal(h.client.count(INV), 4, "existing client coalesces refresh requests into one follow-on read");
+  assert.equal(ownedRetry(h).disabled, true);
+  ownedRetry(h).click();
+  second.resolve(ok({ items: OWNED }));
+  await refresh;
+  await flush();
+  assert.equal(h.client.count(INV), 4, "disabled clicks do not queue more reads");
+  assert.ok(card(h.panel, "head.inha_cap"));
+});
+
+test("closing during an owned retry leaves the panel hidden and returns focus to the opener", async () => {
+  const h = harness();
+  const opener = h.doc.createElement("button");
+  opener.focus();
+  await openInventoryFailure(h);
+  const pending = deferred();
+  h.client.respond(INV, pending.promise);
+  ownedRetry(h).focus();
+  const detachedRetry = ownedRetry(h);
+  detachedRetry.click();
+  h.doc.dispatch("keydown", { code: "Escape" });
+  assert.equal(h.doc.activeElement, opener);
+  detachedRetry.click();
+  pending.resolve(ok({ items: OWNED }));
+  await flush();
+  assert.equal(h.ui.open, false);
+  assert.equal(h.panel.hidden, true);
+  assert.equal(h.panel.children.length, 0);
+  assert.equal(h.doc.activeElement, opener);
+  assert.equal(h.client.count(INV), 3);
+});
+
+test("an old account's late retry cannot reveal items or unlock the new account's pending retry", async () => {
+  const h = harness();
+  await openInventoryFailure(h);
+  const oldRead = deferred();
+  h.client.respond(INV, oldRead.promise);
+  ownedRetry(h).focus();
+  const oldButton = ownedRetry(h);
+  oldButton.click();
+  body(h).scrollTop = 180;
+  h.client.respond(INV, fail);
+  h.client.respond(READ, ok(slotsRead({ TOP: worn("top.inha_basic") })));
+  void h.inventory.setAccount(B);
+  void h.loadout.setAccount(B);
+  await flush();
+  assert.equal(ownedRetry(h).disabled, false, "the new account has its own retry state");
+  assert.equal(body(h).scrollTop, 0, "account boundary resets scroll");
+  assert.equal(h.doc.activeElement, byClass(h.panel, "profile-close")[0]);
+  assert.equal(slotRow(h.panel, "HEAD").dataset.itemId, "");
+  const before = h.client.count(INV);
+  oldButton.click();
+  assert.equal(h.client.count(INV), before, "detached old-account controls cannot act for the new account");
+  const currentRead = deferred();
+  h.client.respond(INV, currentRead.promise);
+  ownedRetry(h).click();
+  oldRead.resolve(ok({ items: [own("head.inha_cap")] }));
+  await flush();
+  assert.equal(ownedRetry(h).disabled, true);
+  assert.equal(card(h.panel, "head.inha_cap"), undefined);
+  currentRead.resolve(ok({ items: [own("top.inha_basic")] }));
+  await flush();
+  assert.deepEqual(byClass(h.panel, "wardrobe-item").map((row) => row.dataset.itemId), ["top.inha_basic"]);
+  assert.equal(slotRow(h.panel, "TOP").dataset.itemId, "top.inha_basic");
+});
+
+test("signing out during owned retry ignores its response and leaves no retry control", async () => {
+  const h = harness();
+  await openInventoryFailure(h);
+  const pending = deferred();
+  h.client.respond(INV, pending.promise);
+  const retry = ownedRetry(h);
+  retry.click();
+  void h.loadout.setAccount(null);
+  void h.inventory.setAccount(null);
+  retry.click();
+  pending.resolve(ok({ items: OWNED }));
+  await flush();
+  assert.equal(ownedRetry(h), undefined);
+  assert.equal(byClass(h.panel, "wardrobe-slot").length, 0);
+  assert.equal(byClass(h.panel, "wardrobe-item").length, 0);
+  assert.match(text(h.panel), /로그인한 INHAGAME 계정만/);
+  assert.equal(h.client.count(INV), 3);
+});
