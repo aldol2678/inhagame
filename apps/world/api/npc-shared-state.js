@@ -23,7 +23,8 @@ module.exports = async function handler(req, res) {
     return res.status(404).end();
 
   const placeZoneId = readPlaceZoneId(req);
-  if (!placeZoneId || !PLACE_ZONE_PATTERN.test(placeZoneId))
+  if (!placeZoneId) return res.status(200).json({ enabled: true });
+  if (!PLACE_ZONE_PATTERN.test(placeZoneId))
     return res.status(400).json({ error: 'INVALID_SHARED_NPC_PLACE_ZONE' });
 
   try {
