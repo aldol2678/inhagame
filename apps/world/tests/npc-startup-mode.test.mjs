@@ -15,7 +15,8 @@ function startup(url) {
     ${previewHostDeclaration}
     ${modes}
     ({ enabled: npcEnabled, production: npcProductionMode, shared: npcSharedScheduleMode,
-       social: npcSocialProductionMode, test: npcTestMode, aiPilot: npcAiPilotMode });
+       social: npcSocialProductionMode, test: npcTestMode, aiPilot: npcAiPilotMode,
+       authorityPreview: npcSharedAuthorityPreviewMode });
   `, { location, URLSearchParams });
 }
 
@@ -71,4 +72,11 @@ test('shared schedule preview keeps using the explicit server-synchronized mode'
 test('AI pilot remains local-only', () => {
   assert.equal(startup('http://localhost:3000/campus/?npcTest=a-r1&npcAiPilot=1').aiPilot, true);
   assert.equal(startup('https://campus-preview.vercel.app/campus/?npcTest=a-r1&npcAiPilot=1').aiPilot, false);
+});
+
+test('shared NPC authority preview stays local and explicit', () => {
+  assert.equal(startup('http://localhost:3000/campus/?npcTest=a-r1&npcAuthority=p0').authorityPreview, true);
+  assert.equal(startup('http://localhost:3000/campus/?npcAuthority=p0').authorityPreview, false);
+  assert.equal(startup('https://campus-preview.vercel.app/campus/?npcTest=a-r1&npcAuthority=p0').authorityPreview, false);
+  assert.equal(startup('https://campus.example.org/campus/?npcTest=a-r1&npcAuthority=p0').authorityPreview, false);
 });
