@@ -218,6 +218,33 @@
       ]
     },
     {
+      "id": "road_1098491074",
+      "name": "테니스장·소성로 연결",
+      "osmWayId": 1098491074,
+      "tags": {
+        "highway": "service"
+      },
+      "nodeIds": [
+        4741759492,
+        4741759491,
+        4741759503
+      ],
+      "line": [
+        [
+          37.4489698,
+          126.6512514
+        ],
+        [
+          37.4488071,
+          126.6515963
+        ],
+        [
+          37.4484321,
+          126.6524029
+        ]
+      ]
+    },
+    {
       "id": "road_481241683",
       "name": "로스쿨·정문 서측 연결",
       "osmWayId": 481241683,
@@ -475,10 +502,6 @@
     }
   ],
   "deferred": [
-    {
-      "osmWayId": 1098491074,
-      "reason": "Estimated road width overlaps the canonical law-school footprint; retain existing geometry until reconciled."
-    },
     {
       "osmWayId": 216916384,
       "fromNodeIndex": 3,
