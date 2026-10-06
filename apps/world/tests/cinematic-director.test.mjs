@@ -97,3 +97,35 @@ test("cinematic timing catches up under low FPS instead of stretching with the g
   assert.equal(director.active, false);
   assert.equal(director.status().reason, "complete");
 });
+
+
+test("user-facing skip control follows the skippable cinematic lifecycle", () => {
+  const listeners = new Map();
+  const skipButton = {
+    hidden: true,
+    attrs: new Map(),
+    addEventListener(type, listener) { listeners.set(type, listener); },
+    removeEventListener(type) { listeners.delete(type); },
+    setAttribute(name, value) { this.attrs.set(name, value); }
+  };
+  const director = createCinematicDirector({
+    camera: cameraFixture().camera,
+    inputFocus: createInputFocusManager(),
+    skipButton,
+    reducedMotion: { matches: false }
+  });
+
+  assert.equal(director.start(sequence), true);
+  assert.equal(skipButton.hidden, false);
+  assert.equal(skipButton.attrs.get("aria-hidden"), "false");
+  assert.equal(director.status().skipAvailable, true);
+
+  listeners.get("click")();
+  assert.equal(director.active, false);
+  assert.equal(director.status().reason, "skip");
+  assert.equal(skipButton.hidden, true);
+  assert.equal(skipButton.attrs.get("aria-hidden"), "true");
+
+  director.destroy();
+  assert.equal(listeners.has("click"), false);
+});
