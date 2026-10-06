@@ -16,6 +16,10 @@ insert into public.profiles(user_id,nickname,is_banned) values
 select is(private.world_biryong_relationship_advance_v1('dc100000-0000-4000-8000-0000000000c1','BR_NPC_001',2::smallint,
   'QUEST','quest.test.cascade','quest-result:cascade:2','relationship:cascade:2')->>'status','ADVANCED',
   'fixture: Biryong relationship event');
+select is(private.world_campus_npc_relationship_apply_v1(
+  'dc100000-0000-4000-8000-0000000000c1','INKYUNG-NPC-001',1,'FIRST_MEETING',null,1,2::smallint,
+  'SYSTEM','account-delete:cascade','campus-relationship:cascade')->>'status','APPLIED',
+  'fixture: Campus NPC relationship event');
 
 update private.world_life_skill_catalog set status='ACTIVE' where skill_id='life.fishing';
 update private.world_collection_entry_catalog set status='ACTIVE' where entry_id='collection.fish.carp';
@@ -38,8 +42,10 @@ select is(private.world_life_node_unlock_v1('dc100000-0000-4000-8000-0000000000c
   'life.node.fishing.cascade_test','cascade:unlock')->>'status','SUCCESS','fixture: Life SP spend and unlocked node');
 
 -- ---- direct deletes of a live account's history stay refused ----
-select throws_ok($$delete from private.world_biryong_npc_relationship_events$$,
+select throws_ok($delete from private.world_biryong_npc_relationship_events$,
   '42501','BIRYONG_RELATIONSHIP_EVENT_APPEND_ONLY','live Biryong history cannot be deleted');
+select throws_ok($delete from private.world_campus_npc_relationship_events$,
+  '42501','CAMPUS_NPC_RELATIONSHIP_EVENT_APPEND_ONLY','live Campus NPC relationship history cannot be deleted');
 select throws_ok($$delete from private.world_player_life_nodes$$,
   '42501','LIFE_NODE_APPEND_ONLY','live unlocked nodes cannot be deleted');
 select throws_ok($$delete from private.world_life_sp_transactions$$,
@@ -59,6 +65,8 @@ select is((
   select count(*) from (
     select user_id from private.world_biryong_npc_relationship_events
     union all select user_id from private.world_player_biryong_npc_relationships
+    union all select user_id from private.world_campus_npc_relationship_events
+    union all select user_id from private.world_player_campus_npc_relationships
     union all select user_id from private.world_life_creature_activity_contexts
     union all select user_id from private.world_life_creature_bridge_decisions
     union all select user_id from private.world_activity_settlements
