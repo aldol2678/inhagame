@@ -34,7 +34,7 @@ Night is a dark navy, moonless campus night.
 - A deterministic star field becomes visible only after the world enters the night portion of the lighting signal.
 - Cloud, rain, and snow reduce star visibility.
 - Campus roads and pedestrian paths receive persistent lamp props with emissive bulbs.
-- Only the nearest lamp bulbs receive real omni lights; the pool is graphics-tier bounded.
+- Only the nearest lamp bulbs receive real omni lights; the pool is graphics-tier bounded at 3 / 6 / 10 lights for low / medium / high. Selection stays within 68 WU of the player, and each non-shadow omni uses a 16.5 WU range so adjacent 22 WU road-lamp spacing does not collapse into isolated light islands.
 - Existing back-gate lamps remain part of the same runtime pool.
 - Building windows remain emissive-only but use a denser, brighter night policy so buildings read as occupied without multiplying real light sources.
 
