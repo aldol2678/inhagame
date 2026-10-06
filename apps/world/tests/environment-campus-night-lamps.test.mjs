@@ -19,7 +19,8 @@ test('campus night lamp registry covers roads and paths within the hard budget',
   }));
   assert.deepEqual(snapshot(layout), snapshot(CAMPUS_NIGHT_LAMPS));
   assert.ok(layout.length > 0);
-  assert.ok(layout.length <= CAMPUS_NIGHT_LAMP_POLICY.maxRoadLamps + CAMPUS_NIGHT_LAMP_POLICY.maxPathLamps);
+  const { maxRoadLamps, maxPathLamps, maxMajorRoadLamps, maxMajorPathLamps, maxJunctionLamps } = CAMPUS_NIGHT_LAMP_POLICY;
+  assert.ok(layout.length <= maxRoadLamps + maxPathLamps + maxMajorRoadLamps + maxMajorPathLamps + maxJunctionLamps);
   assert.ok(layout.some(lamp => lamp.sourceKind === 'road'));
 });
 
