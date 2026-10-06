@@ -95,6 +95,9 @@ function sampleSegments(segments, {
           z: head.z
         }),
         side,
+        corridorHalfWidth: width / 2,
+        poleLateralOffset: sideOffset,
+        headLateralOffset: Math.max(0, sideOffset - 0.88),
         height: CAMPUS_NIGHT_LAMP_POLICY.height
       }));
       accepted++;
