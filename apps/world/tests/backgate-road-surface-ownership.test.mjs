@@ -85,6 +85,15 @@ test('rear gate retains every full original tile seam without clipped gaps',()=>
   assert.ok(seams.every(q=>q.ring.length===4&&q.y===G.PAINT));
 });
 
+test('rear gate approach asphalt yields to the complete tile apron without coplanar overlap',()=>{
+  const faces=capture();
+  const tile=faces.find(q=>q.owner==='backGate'&&q.color==='#aaa99e');
+  const asphalt=faces.filter(q=>q.owner==='backGate'&&q.color==='#747d7b');
+  assert.ok(tile&&asphalt.length);
+  for(const road of asphalt)
+    assert.ok(Math.abs(area(intersect(tile.ring,road.ring)))<1e-7,'asphalt must not show through the continuous tile rectangle');
+});
+
 test('rear zebra long axes follow the road and retain the same crossing footprint',()=>{
   const stripes=capture().filter(q=>q.owner==='backGate'&&q.color==='#dedcd1');
   assert.equal(stripes.length,10);

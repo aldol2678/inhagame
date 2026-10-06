@@ -8,6 +8,7 @@ const stone='#c7c5bb',trim='#dedcd1',glass='#48666a',metal='#505b5b',yellow='#d8
 const point=(f,u,v,y)=>{const p=f.at(u,v);return [p.x,y,p.z];};
 const box=(b,f,c,u,v,y,w,h,d)=>b.box(c,point(f,u,v,y),[w,h,d],f.yaw||0);
 const crossing={frame:roadFrame(gate.at(-11.5,6.6),gate.at(-6.9,6.6)),road:{width:7}};
+const tileApron={frame:roadFrame(gate.at(-11,-.85),gate.at(5.5,-.85)),road:{width:6.3}};
 function clippedSurface(b,color,f,u0,u1,v0,v1,y,masks){
   let pieces=[[f.at(u0,v0),f.at(u0,v1),f.at(u1,v1),f.at(u1,v0)]];
   for(const mask of masks)pieces=pieces.flatMap(p=>subtractRoadFootprint(p,mask));
@@ -21,7 +22,10 @@ function clippedSurface(b,color,f,u0,u1,v0,v1,y,masks){
 export function fillBackGatePaving(b){
   for(const s of BACK_SEGMENTS){const f=s.frame,h=s.road.width/2;
     roadSurface(b,'#b4b4a8',f,-.08,f.length+.08,-h-.35,h+.35,G.UNDERLAY);
-    roadSurface(b,'#747d7b',f,-.06,f.length+.06,-h,h,G.SURFACE);
+    // Keep the complete tile apron; only its underlying gate approach asphalt
+    // gives up the shared surface. Other road segments remain unchanged.
+    if(s.id==='back_216916383_0'||s.id==='back_216916383_1')clippedSurface(b,'#747d7b',f,-.06,f.length+.06,-h,h,G.SURFACE,[tileApron]);
+    else roadSurface(b,'#747d7b',f,-.06,f.length+.06,-h,h,G.SURFACE);
     if(s.road.osmWayId===1223158575){
       // Zebra owns its paint footprint; lane lines must not show through it.
       for(const v of [-h+.14,h-.14])clippedSurface(b,yellow,f,0,f.length,v-.035,v+.035,G.PAINT,[crossing]);
