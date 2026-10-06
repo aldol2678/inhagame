@@ -13,7 +13,7 @@ const head = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).tr
 const expectedHead = process.env.EXPECTED_COLLECTION_BOOK_HEAD;
 assert.match(expectedHead ?? '', /^[0-9a-f]{40}$/, 'An immutable expected head is required');
 assert.equal(head, expectedHead, 'Only the exact candidate head may run this acceptance');
-const paths = ['src/collection/collection-book-client.js', 'src/collection/collection-book-view.js',
+const paths = ['src/collection/collection-book-contract.mjs', 'src/collection/collection-book-client.js', 'src/collection/collection-book-view.js',
   'src/inventory/inventory-panel.js', 'src/inventory/inventory-client.js',
   'src/collection/item-catalog.js', 'src/inventory/inventory-category-registry.js',
   'src/config/supabase-public-config.js', 'src/config/supabase-public-config.mjs',

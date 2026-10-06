@@ -3,8 +3,11 @@ on:
   pull_request:
     paths:
       - 'apps/world/api/world-collection-book.js'
-      - 'apps/world/server/collection-book-service.mjs'
-      - 'apps/world/src/collection/collection-book-*.js'
+      - 'apps/world/server/collection-book-*.mjs'
+      - 'apps/world/npc-factory/collection-book-cloud-handler.mjs'
+      - 'apps/world/npc-factory/npc-ai-cloud-run.mjs'
+      - 'apps/world/Dockerfile'
+      - 'apps/world/src/collection/collection-book-*'
       - 'apps/world/src/collection/collection-discovery-contract.*'
       - 'apps/world/src/config/supabase-public-config.*'
       - 'apps/world/npc-factory/npc-ai-auth.mjs'

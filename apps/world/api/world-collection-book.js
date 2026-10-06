@@ -1,15 +1,10 @@
-// Fixed self-only read. Service credentials never enter the browser bundle.
+// Fixed self-only read proxy. Supabase service credentials stay on the existing trusted backend.
 let handlerPromise;
 module.exports = async function handler(req, res) {
   res.setHeader('Cache-Control', 'private, no-store');
   try {
-    handlerPromise ??= Promise.all([
-      import('../server/collection-book-service.mjs'), import('../npc-factory/npc-ai-auth.mjs'),
-      import('../src/config/supabase-public-config.mjs')
-    ]).then(([server, auth, config]) => server.createCollectionBookApiHandler({
-      service: server.createCollectionBookService({ verifyUser: auth.verifyNpcAiUser,
-        rpc: server.createCollectionBookRpc({ url: config.SUPABASE_URL, serviceKey: process.env.SUPABASE_SERVICE_ROLE_KEY }) })
-    }));
+    handlerPromise ??= import('../server/collection-book-proxy.mjs').then(({ createCollectionBookProxy }) =>
+      createCollectionBookProxy({ url: process.env.NPC_AI_CLOUD_RUN_URL }));
     return await (await handlerPromise)(req, res);
   } catch { handlerPromise = null; return res.status(503).json({ error: 'COLLECTION_BOOK_UNAVAILABLE' }); }
 };

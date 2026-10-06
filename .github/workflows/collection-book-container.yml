@@ -1,0 +1,43 @@
+name: Collection Book Node 22 container QA
+on:
+  pull_request:
+    paths:
+      - 'apps/world/Dockerfile'
+      - 'apps/world/npc-factory/**'
+      - 'apps/world/server/**'
+      - 'apps/world/src/**'
+      - 'apps/world/data/**'
+      - 'apps/world/tests/collection-book-container-contract.test.mjs'
+      - 'apps/world/tests/container/collection-book-*'
+      - '.github/workflows/collection-book-container.yml'
+permissions:
+  contents: read
+concurrency:
+  group: collection-book-container-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  node22-container:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check fixture isolation and evidence contracts
+        run: node --test apps/world/tests/collection-book-container-contract.test.mjs
+      - name: Build actual Dockerfile and test packaged entrypoint offline
+        env:
+          EXPECTED_COLLECTION_BOOK_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: node apps/world/tests/container/collection-book-docker.mjs
+      - name: Preserve public synthetic container evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: collection-book-node22-${{ github.event.pull_request.head.sha }}
+          path: test-results/collection-book-container/
+          if-no-files-found: error
+          retention-days: 14
