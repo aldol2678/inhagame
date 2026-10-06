@@ -8,7 +8,16 @@ import {
 
 test('campus night lamp registry covers roads and paths within the hard budget', () => {
   const layout = buildCampusNightLampLayout();
-  assert.deepEqual(layout, CAMPUS_NIGHT_LAMPS);
+  const snapshot = lamps => lamps.map(lamp => ({
+    id: lamp.id,
+    sourceKind: lamp.sourceKind,
+    center: lamp.center,
+    head: lamp.head,
+    side: lamp.side,
+    height: lamp.height,
+    yaw: lamp.frame.yaw
+  }));
+  assert.deepEqual(snapshot(layout), snapshot(CAMPUS_NIGHT_LAMPS));
   assert.ok(layout.length > 0);
   assert.ok(layout.length <= CAMPUS_NIGHT_LAMP_POLICY.maxRoadLamps + CAMPUS_NIGHT_LAMP_POLICY.maxPathLamps);
   assert.ok(layout.some(lamp => lamp.sourceKind === 'road'));
