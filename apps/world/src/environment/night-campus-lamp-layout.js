@@ -6,6 +6,7 @@ import {
   roadFrame
 } from '../campus-road-layout.js';
 import { polygonOverlap } from '../polygon-collision.js';
+import { POND_RING, edgeFrame } from '../roadview-layout.js';
 
 export const CAMPUS_NIGHT_LAMP_POLICY = Object.freeze({
   roadSpacing: 22,
@@ -15,7 +16,12 @@ export const CAMPUS_NIGHT_LAMP_POLICY = Object.freeze({
   minGap: 10.5,
   height: 4.45,
   maxRoadLamps: 42,
-  maxPathLamps: 22
+  maxPathLamps: 22,
+  inkyungSpacing: 14,
+  inkyungPathWidth: 3,
+  inkyungCenterOffset: 5.9,
+  inkyungRoadsideOffset: 0.72,
+  maxInkyungLamps: 4
 });
 
 const obstacles = [
@@ -105,8 +111,46 @@ function sampleSegments(segments, {
   }
 }
 
+function sampleInkyungPromenade(lamps) {
+  const frame = edgeFrame(POND_RING, 1);
+  const width = CAMPUS_NIGHT_LAMP_POLICY.inkyungPathWidth;
+  const sideOffset = width / 2 + CAMPUS_NIGHT_LAMP_POLICY.inkyungRoadsideOffset;
+  const samples = candidateUs(frame.length, CAMPUS_NIGHT_LAMP_POLICY.inkyungSpacing)
+    .slice(0, CAMPUS_NIGHT_LAMP_POLICY.maxInkyungLamps);
+
+  for (let sampleIndex = 0; sampleIndex < samples.length; sampleIndex++) {
+    const localFrame = frameAt(
+      frame,
+      samples[sampleIndex],
+      CAMPUS_NIGHT_LAMP_POLICY.inkyungCenterOffset + sideOffset
+    );
+    const center = localFrame.at(0);
+    if (!isClear(center) || !farEnough(center, lamps)) continue;
+    const head = localFrame.at(0, -0.88);
+    lamps.push(Object.freeze({
+      id: `campus_night_inkyung_promenade_${sampleIndex}`,
+      kind: 'lamp',
+      source: 'campus',
+      sourceKind: 'inkyung-promenade',
+      frame: localFrame,
+      center: Object.freeze({ x: center.x, z: center.z }),
+      head: Object.freeze({
+        x: head.x,
+        y: CAMPUS_NIGHT_LAMP_POLICY.height + 0.055,
+        z: head.z
+      }),
+      side: 1,
+      corridorHalfWidth: width / 2,
+      poleLateralOffset: sideOffset,
+      headLateralOffset: sideOffset - 0.88,
+      height: CAMPUS_NIGHT_LAMP_POLICY.height
+    }));
+  }
+}
+
 export function buildCampusNightLampLayout() {
   const lamps = [];
+  sampleInkyungPromenade(lamps);
   sampleSegments(ROAD_SEGMENTS, {
     spacing: CAMPUS_NIGHT_LAMP_POLICY.roadSpacing,
     offset: CAMPUS_NIGHT_LAMP_POLICY.roadsideOffset,
