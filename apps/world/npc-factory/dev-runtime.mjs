@@ -8,6 +8,7 @@ import { createHumanAvatar } from './dev-human-avatar.mjs';
 import { createNpcExpressionController, NPC_EXPRESSION_NAMES } from './npc-expression-controller.mjs';
 import { npcNameplateOffset, npcSeatAnchorHeight } from './npc-dimensions.mjs';
 import { createNpcNavigator, advanceRoute } from './dev-navigation.mjs';
+import { createRecastRuntimeShadowNavigator } from './recast-runtime-shadow.mjs';
 import { createNpcMemory, createEncounterTracker } from './dev-memory.mjs';
 import { NPC_DIALOGUE_ACTION, NPC_DIALOGUE_STATE, createNpcDialogueSession, hasNpcDialogueMemory, npcDialogueHomeActions, npcTopicLabel } from './npc-dialogue-session.mjs';
 import { buildNpcDialogueCandidates, buildNpcDialogueContext, resolveNpcDialogueBaseline } from './npc-dialogue-context.mjs';
@@ -150,6 +151,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
   sharedSchedulePreview = false, worldClock = null,
   sharedAuthorityEnabled = false, sharedAuthorityEndpoint = '/api/npc-shared-state',
   getSharedAuthorityPlaceZoneId = () => null,
+  recastRuntimeShadowEnabled = false,
   socialEnabled = false, socialPreview = false, socialBehaviorPreview = false,
   observedConversationEnabled = false, isObservedConversationBlocked = () => true,
   getBusyNpcIds = () => [], onNpcTalk = () => {},
@@ -191,7 +193,14 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
   const rosterById = new Map(roster.npcs.map(entry => [entry.npc_id, entry]));
   const socialGraph = createPersistentNpcSocialGraph(batch, roster, hash, browserStorage);
   const first = snapshotForPeriod(batch, sharedFrameNow === null ? PULSE_PERIODS[0] : worldScheduleAt(sharedFrameNow).period);
-  const navigator = createNpcNavigator(batch);
+  const canonicalNavigator = createNpcNavigator(batch);
+  const navigator = createRecastRuntimeShadowNavigator(canonicalNavigator, { enabled: recastRuntimeShadowEnabled });
+  if (recastRuntimeShadowEnabled) {
+    window.__RECAST_RUNTIME_SHADOW__ = Object.freeze({ status: () => navigator.recastRuntimeShadow.status() });
+    window.addEventListener('pagehide', event => {
+      if (!event.persisted) navigator.recastRuntimeShadow.destroy();
+    });
+  }
   const purposefulRoster = createPurposefulRoster(batch, navigator);
   if (worldClock) bindSharedSchedule(purposefulRoster, navigator, () => sharedFrameNow);
   const sharedMeetings = worldClock ? createSharedMeetings({ batch, profiles: roster,
@@ -1342,6 +1351,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
       off_zone_count: [...avatars.values()].filter(v => !v.motion.position).length,
       largest_crowd: snapshot.largestCrowd, visible_entities: [...avatars.values()].filter(v => v.avatar.enabled).length,
       purposeful_count: purposefulRoster.size,
+      recast_runtime_shadow: navigator.recastRuntimeShadow.status(),
       purposeful_behavior: Object.fromEntries([...purposefulRoster].map(([id, { behavior }]) => [id, behavior.id])),
       shared_meetings: sharedMeetings?.status() ?? null,
       shared_schedule: worldClock ? { ...worldClock.status(), revision: NPC_SCHEDULE_REVISION,
