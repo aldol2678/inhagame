@@ -46,7 +46,7 @@ const ready = initialize()
   })
   .catch(error => {
     self.postMessage({ type: 'INIT_ERROR', reason: String(error?.message ?? error) });
-    throw error;
+    return null;
   });
 
 function resultFor(message) {
@@ -95,9 +95,7 @@ function resultFor(message) {
 self.addEventListener('message', event => {
   const message = event?.data ?? {};
   if (message.type !== 'OBSERVE_ROUTE') return;
-  void ready.then(() => self.postMessage(resultFor(message))).catch(() => {});
-});
-
-self.addEventListener('close', () => {
-  try { navigator?.destroy?.(); } catch {}
+  void ready.then(loaded => {
+    if (loaded) self.postMessage(resultFor(message));
+  });
 });
