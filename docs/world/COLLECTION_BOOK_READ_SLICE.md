@@ -6,18 +6,28 @@ write discoveries, settle rewards, or add SQL/grants. It has not established Pro
 ## Authority and request path
 
 - `GET /api/world-collection-book` accepts no body, actor selector or query parameters
-- The existing server Auth verifier resolves a permanent account from its Bearer token
+- Vercel forwards only the Bearer token to the fixed `/collection-book` route on its existing
+  `NPC_AI_CLOUD_RUN_URL`. It never receives a Supabase service credential
+- The existing Cloud Run Auth verifier resolves a permanent account from that Bearer token
 - The only permitted service RPC is `world_collection_list_v1({ p_user: verifiedActor })`
 - The raw service-role result stays server-side. Its `userId` must match the verified actor
 - Both code Registry and server mirror must agree on ACTIVE status, category, persistence mode
   and definition version before an entry is visible
 - PUBLIC/SILHOUETTE are supported. SECRET/HIDDEN, future/disabled and unknown entries fail closed,
   including totals. An undiscovered SILHOUETTE carries no original ID, title, category or source
+- The native Cloud Run GET rejects query/body selectors and nonempty/chunked request framing
+  before Auth/RPC; `/quest` and default NPC routes retain their existing handlers
+- Both credential-bearing read hops refuse redirects. The proxy bounds upstream JSON to 1 MiB,
+  validates/reconstructs the projected wire schema and maps only known error/status pairs
 - All responses use `private, no-store`; sensitive error details are never returned
 
 The code Registry and current migrations take precedence over the historical status notes in
 `COLLECTION_DISCOVERY_P0.md`. Carp is ACTIVE in current code; this does not establish that Fishing
-or this API is operationally enabled. The server runtime needs its existing service configuration.
+or this API is operationally enabled. The existing Cloud Run runtime retains its server credential;
+Vercel uses only its existing backend URL. No environment values or grants are changed by this slice.
+The backend route must be available before the proxy is released; an older/missing backend fails
+closed to the existing unavailable/retry UI. Current ownership remains an independent inventory read.
+Local and disposable fixtures do not establish the deployed backend revision or live RPC availability.
 
 ## Three different facts
 
@@ -69,5 +79,28 @@ or registry, and no global package-type change.
 
 `collection-book-server-runtime.test.mjs` runs the actual API entrypoint with Node's automatic
 `.js` ESM detection disabled. It covers unauthenticated 401 and a synthetic authenticated read,
-with all HTTP calls stubbed. This matches the production loader failure that ordinary Node tests
-did not expose; it does not prove live account history.
+with all HTTP calls stubbed. It verifies the CJS proxy without a Vercel service key and the new native
+Collection module with `.js` detection disabled. A separate fixture copies the Dockerfile sources
+and invokes the actual Cloud Run router without opening sockets, using Docker CMD module-detection
+semantics for the existing AI/quest dependencies. This is not a built-container or live service test.
+
+`collection-book-cloud-read.test.mjs` covers client → fixed proxy → native handler → existing Auth
+verifier/read RPC with synthetic identities only, account separation, anonymous refusal, redaction,
+query/body rejection, redirect/error/response-size guards and retry recovery. The shared projected
+wire parser is canonical `.mjs` and is also used by the browser; it contains no registry/ledger data.
+The proxy waits 18 seconds for the existing 5-second Auth + 10-second RPC budgets; the client waits
+20 seconds so the proxy can return a stable error before the UI timeout.
+
+Run the standalone quest/NPC regressions explicitly alongside `scripts/public-ci.sh`:
+`node apps/world/npc-factory/tests-quest.mjs`, `tests-main2-quest.mjs`, `tests-main3-quest.mjs`, and
+`tests-npc-ai-pilot.mjs` (all under the same npc-factory directory). Hosted browser/static hash checks
+include the shared `.mjs` wire parser. None of these tests proves live authenticated history.
+
+The separate `collection-book-container.yml` gate builds the actual `node:22-alpine` Dockerfile
+at the exact PR head. Its read-only, network-disabled container runs the packaged entrypoint
+with test-only synthetic Auth/read-RPC responses and real loopback HTTP. It compares every
+packaged source hash with the checkout and records the built image ID, actual parent/child
+Node 22 versions, platform and 16 route checks. The Dockerfile base reference is recorded as
+such, not claimed to be a separately resolved base digest. A successful hosted artifact is
+required before treating this as real-image proof; it still does not establish live backend
+availability or account history.

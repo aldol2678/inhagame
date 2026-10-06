@@ -73,7 +73,7 @@ export function createCollectionBookRpc({ url, serviceKey, fetcher = fetch }) {
         !args || Object.keys(args).join() !== 'p_user' || !UUID.test(args.p_user ?? '')) throw new CollectionBookError();
     try {
       const response = await fetcher(`${url.replace(/\/$/, '')}/rest/v1/rpc/${READ_RPC}`, {
-        method: 'POST', signal: AbortSignal.timeout(10000),
+        method: 'POST', redirect: 'error', signal: AbortSignal.timeout(10000),
         headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(args)
       });

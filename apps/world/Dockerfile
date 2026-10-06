@@ -3,4 +3,5 @@ WORKDIR /app
 COPY npc-factory ./npc-factory
 COPY src ./src
 COPY data ./data
+COPY server ./server
 CMD ["node", "npc-factory/npc-ai-cloud-run.mjs"]

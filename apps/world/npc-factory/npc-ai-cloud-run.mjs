@@ -5,6 +5,7 @@ import { createNpcAiQuota } from './npc-ai-quota.mjs';
 import { createVertexNpcGenerator } from './npc-ai-vertex.mjs';
 import { createQuestCloudHandler } from './quest-cloud-handler.mjs';
 import { createSupabaseQuestStore } from './quest-store.mjs';
+import { createCollectionBookCloudHandler } from './collection-book-cloud-handler.mjs';
 
 // Container entrypoint for apps/world/Dockerfile. The deployment supplies the project and the
 // server-only credential; nothing here names a specific cloud project.
@@ -46,5 +47,7 @@ const pilot = createNpcAiPilot({
 const aiHandler = createNpcAiCloudHandler({ pilot });
 const questHandler = createQuestCloudHandler({ store: createSupabaseQuestStore({
   serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY }) });
-http.createServer((req, res) => req.url?.split('?')[0] === '/quest'
-  ? questHandler(req, res) : aiHandler(req, res)).listen(Number(process.env.PORT || 8080), '0.0.0.0');
+const collectionBookHandler = createCollectionBookCloudHandler();
+http.createServer((req, res) => req.url?.split('?')[0] === '/collection-book'
+  ? collectionBookHandler(req, res) : req.url?.split('?')[0] === '/quest'
+    ? questHandler(req, res) : aiHandler(req, res)).listen(Number(process.env.PORT || 8080), '0.0.0.0');

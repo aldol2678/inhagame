@@ -137,24 +137,23 @@ test('main wires Collection Book to the same account and existing inventory moda
   assert.match(main,/getToken: async \(accountId\)/);
   assert.match(main,/session\?\.user\?\.id === accountId/);
 });
-test('deployment entry verifies permanent account and never returns raw service-role rows', async () => {
+test('deployment proxy keeps backend verification results private and does not use a service key', async () => {
   const {createRequire}=await import('node:module');
-  const oldFetch=globalThis.fetch, keys=['SUPABASE_SERVICE_ROLE_KEY','SUPABASE_URL','SUPABASE_PUBLISHABLE_KEY'];
-  const previous=Object.fromEntries(keys.map(key=>[key,process.env[key]]));let permanent=false, reads=0;
+  const oldFetch=globalThis.fetch, oldUrl=process.env.NPC_AI_CLOUD_RUN_URL;let permanent=false, reads=0;
   const res=()=>({headers:{},setHeader(k,v){this.headers[k]=v;},status(n){this.code=n;return this;},end(){return this;},json(data){this.data=data;return this;}});
   try{
-    process.env.SUPABASE_SERVICE_ROLE_KEY='fixture-secret';process.env.SUPABASE_URL='http://127.0.0.1:54321';process.env.SUPABASE_PUBLISHABLE_KEY='fixture-public';
+    process.env.NPC_AI_CLOUD_RUN_URL='https://cloud.fixture.invalid';
     globalThis.fetch=async(url,options)=>{
-      if(url.endsWith('/auth/v1/user'))return response({id:A,is_anonymous:!permanent});
-      reads++;assert.ok(url.endsWith('/rest/v1/rpc/world_collection_list_v1'));assert.deepEqual(JSON.parse(options.body),{p_user:A});
-      return response(raw(row({metadata:'private',sourceRef:'sensitive'})));
+      reads++;assert.equal(url,'https://cloud.fixture.invalid/collection-book');assert.equal(options.method,'GET');
+      assert.deepEqual(options.headers,{Authorization:'Bearer '+'v'.repeat(30)});
+      return new Response(JSON.stringify(permanent?project(raw(row())):{error:'AUTH_REQUIRED'}),{status:permanent?200:401});
     };
     const handler=createRequire(import.meta.url)('../api/world-collection-book.js');
     const req={method:'GET',url:'/api/world-collection-book',headers:{host:'world.test',authorization:'Bearer '+'v'.repeat(30)}};
-    const guest=res();await handler(req,guest);assert.equal(guest.code,401);assert.equal(reads,0);
-    permanent=true;const owner=res();await handler(req,owner);assert.equal(owner.code,200);assert.equal(reads,1);
+    const guest=res();await handler(req,guest);assert.equal(guest.code,401);assert.deepEqual(guest.data,{error:'AUTH_REQUIRED'});
+    permanent=true;const owner=res();await handler(req,owner);assert.equal(owner.code,200);assert.equal(reads,2);
     assert.doesNotMatch(JSON.stringify(owner.data),/carp|붕어|userId|private|sensitive|fixture-secret/);
-  }finally{globalThis.fetch=oldFetch;for(const key of keys)if(previous[key]===undefined)delete process.env[key];else process.env[key]=previous[key];}
+  }finally{globalThis.fetch=oldFetch;if(oldUrl===undefined)delete process.env.NPC_AI_CLOUD_RUN_URL;else process.env.NPC_AI_CLOUD_RUN_URL=oldUrl;}
 });
 test('close before read completion keeps modal closed and focus with opener', async () => {
   const doc=createFakeDocument(),panel=doc.createElement('section'),opener=doc.createElement('button');opener.focus();
