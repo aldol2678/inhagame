@@ -214,7 +214,7 @@ const worldTimeEl = document.getElementById("world-time-chip");
 const npcTestMode = ['localhost', '127.0.0.1'].includes(location.hostname) &&
   startupParams.get('npcTest') === 'a-r1';
 const npcAiPilotMode = npcTestMode && startupParams.get('npcAiPilot') === '1';
-const npcSharedAuthorityPreviewMode = npcTestMode && startupParams.get('npcAuthority') === 'p0';
+const npcSharedAuthorityPreviewMode = npcTestMode && startupParams.get('npcAuthority') === 'p0' && startupParams.get('npcSync') === 'ng2';
 // Normal deployments start campus NPCs without a domain allowlist. Local and Vercel
 // preview hosts retain the explicit selectors below; API flags still own AI/quest access.
 const npcProductionMode = !previewHost;
