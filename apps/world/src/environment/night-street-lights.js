@@ -1,5 +1,6 @@
 import * as pc from 'playcanvas';
 import { BACK_ROADSIDE_ASSETS } from '../back-roadside-layout.js';
+import { CAMPUS_NIGHT_LAMPS } from './night-campus-lamp-layout.js';
 import {
   NIGHT_LIGHT_BUDGET,
   lampHeadPosition,
@@ -18,30 +19,84 @@ function createGlowMaterial() {
   return material;
 }
 
+function createPoleMaterial() {
+  const material = new pc.StandardMaterial();
+  material.name = 'campus-night-lamp-pole';
+  material.diffuse = new pc.Color(0.18, 0.20, 0.20);
+  material.useLighting = true;
+  material.update();
+  return material;
+}
+
+function lampYaw(lamp) {
+  return Number.isFinite(lamp?.frame?.yaw) ? lamp.frame.yaw : 0;
+}
+
+function normalizeLamp(item, source) {
+  return Object.freeze({
+    ...item,
+    source: item.source ?? source,
+    head: item.head ?? lampHeadPosition(item)
+  });
+}
+
+function dedupeLamps(lamps, minDistance = 3.2) {
+  const accepted = [];
+  for (const lamp of lamps) {
+    if (accepted.some(other =>
+      Math.hypot(lamp.head.x - other.head.x, lamp.head.z - other.head.z) < minDistance
+    )) continue;
+    accepted.push(lamp);
+  }
+  return accepted;
+}
+
 function createBulb(root, lamp, material) {
   const head = lamp.head;
-  const e = new pc.Entity(`night_${lamp.id}_bulb`);
-  e.addComponent('render', { type: 'box', castShadows: false, receiveShadows: false });
-  e.render.material = material;
-  e.setLocalPosition(head.x, head.y, head.z);
-  e.setLocalScale(0.18, 0.025, 0.32);
-  e.setLocalEulerAngles(0, lamp.frame.yaw, 0);
-  root.addChild(e);
-  return e;
+  const entity = new pc.Entity(`night_${lamp.id}_bulb`);
+  entity.addComponent('render', { type: 'box', castShadows: false, receiveShadows: false });
+  entity.render.material = material;
+  entity.setLocalPosition(head.x, head.y, head.z);
+  entity.setLocalScale(0.22, 0.035, 0.38);
+  entity.setLocalEulerAngles(0, lampYaw(lamp), 0);
+  root.addChild(entity);
+  return entity;
+}
+
+function createCampusLampProp(root, lamp, material) {
+  const group = new pc.Entity(`night_${lamp.id}_prop`);
+
+  const shaft = new pc.Entity(`night_${lamp.id}_shaft`);
+  shaft.addComponent('render', { type: 'box', castShadows: true, receiveShadows: true });
+  shaft.render.material = material;
+  shaft.setLocalPosition(lamp.head.x, lamp.height / 2, lamp.head.z);
+  shaft.setLocalScale(0.10, lamp.height, 0.10);
+  group.addChild(shaft);
+
+  const hood = new pc.Entity(`night_${lamp.id}_hood`);
+  hood.addComponent('render', { type: 'box', castShadows: true, receiveShadows: true });
+  hood.render.material = material;
+  hood.setLocalPosition(lamp.head.x, lamp.head.y + 0.06, lamp.head.z);
+  hood.setLocalScale(0.32, 0.09, 0.58);
+  hood.setLocalEulerAngles(0, lampYaw(lamp), 0);
+  group.addChild(hood);
+
+  root.addChild(group);
+  return group;
 }
 
 function createOmni(root, index) {
-  const e = new pc.Entity(`night_street_omni_${index}`);
-  e.addComponent('light', {
+  const entity = new pc.Entity(`night_street_omni_${index}`);
+  entity.addComponent('light', {
     type: 'omni',
     color: new pc.Color(1, 0.80, 0.52),
     intensity: 0,
-    range: 9.5,
+    range: 12.5,
     castShadows: false
   });
-  e.enabled = false;
-  root.addChild(e);
-  return e;
+  entity.enabled = false;
+  root.addChild(entity);
+  return entity;
 }
 
 export function createNightStreetLights({
@@ -52,12 +107,18 @@ export function createNightStreetLights({
   getGraphicsTier,
   rebalanceSeconds = 0.2
 }) {
-  const lamps = BACK_ROADSIDE_ASSETS
+  const backLamps = BACK_ROADSIDE_ASSETS
     .filter(item => item.kind === 'lamp')
-    .map(item => Object.freeze({ ...item, head: lampHeadPosition(item) }));
+    .map(item => normalizeLamp(item, 'back-roadside'));
+  const campusLamps = CAMPUS_NIGHT_LAMPS.map(item => normalizeLamp(item, 'campus'));
+  const lamps = dedupeLamps([...backLamps, ...campusLamps]);
 
-  const material = createGlowMaterial();
-  const bulbs = lamps.map(lamp => createBulb(root, lamp, material));
+  const glowMaterial = createGlowMaterial();
+  const poleMaterial = createPoleMaterial();
+  const campusProps = lamps
+    .filter(lamp => lamp.source === 'campus')
+    .map(lamp => createCampusLampProp(root, lamp, poleMaterial));
+  const bulbs = lamps.map(lamp => createBulb(root, lamp, glowMaterial));
   const pool = Array.from({ length: NIGHT_LIGHT_BUDGET.high }, (_, i) => createOmni(root, i));
 
   let elapsed = rebalanceSeconds;
@@ -70,9 +131,9 @@ export function createNightStreetLights({
     const safe = Math.min(1, Math.max(0, Number.isFinite(next) ? next : 0));
     if (Math.abs(safe - factor) < 0.002) return;
     factor = safe;
-    material.emissiveIntensity = safe * 3.2;
-    material.update();
-    for (const light of pool) light.light.intensity = safe * 0.82;
+    glowMaterial.emissiveIntensity = safe * 4.0;
+    glowMaterial.update();
+    for (const light of pool) light.light.intensity = safe * 1.05;
     if (safe <= 0.002) {
       activeIndices = [];
       for (const light of pool) light.enabled = false;
@@ -93,8 +154,8 @@ export function createNightStreetLights({
         continue;
       }
       const head = lamps[lampIndex].head;
-      entity.setLocalPosition(head.x, head.y - 0.28, head.z);
-      entity.light.intensity = factor * 0.82;
+      entity.setLocalPosition(head.x, head.y - 0.30, head.z);
+      entity.light.intensity = factor * 1.05;
       entity.enabled = true;
     }
   }
@@ -111,11 +172,15 @@ export function createNightStreetLights({
   }
 
   function status() {
+    const currentTier = tier ?? (getGraphicsTier?.() ?? 'medium');
     return Object.freeze({
       lampCount: lamps.length,
+      backRoadsideLampCount: lamps.filter(lamp => lamp.source === 'back-roadside').length,
+      campusLampCount: lamps.filter(lamp => lamp.source === 'campus').length,
       bulbCount: bulbs.length,
-      graphicsTier: tier ?? (getGraphicsTier?.() ?? 'medium'),
-      dynamicBudget: nightLightBudget(tier ?? (getGraphicsTier?.() ?? 'medium')),
+      campusPropCount: campusProps.length,
+      graphicsTier: currentTier,
+      dynamicBudget: nightLightBudget(currentTier),
       activeDynamicLights: activeIndices.length,
       activeLampIndices: Object.freeze([...activeIndices]),
       artificialLightFactor: Math.max(0, factor)
@@ -125,9 +190,11 @@ export function createNightStreetLights({
   function destroy() {
     if (destroyed) return;
     destroyed = true;
+    for (const prop of campusProps) prop.destroy();
     for (const bulb of bulbs) bulb.destroy();
     for (const light of pool) light.destroy();
-    material.destroy();
+    glowMaterial.destroy();
+    poleMaterial.destroy();
   }
 
   return Object.freeze({ update, status, destroy });
