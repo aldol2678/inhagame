@@ -14,14 +14,16 @@ export const SHARED_NPC_P0_IDS = Object.freeze([
 
 let singleton = null;
 
-const readJson = relativePath => JSON.parse(readFileSync(new URL(relativePath, import.meta.url), 'utf8'));
-
 export function createCampusSharedNpcAuthorityP0() {
   if (singleton) return singleton;
 
-  const baseBatch = readJson('./data/repaired/INKYUNG-20-A-R1.json');
-  const baseRoster = readJson('./data/fixtures/public-roster.json');
-  const expansion = readJson('./data/expansion/CAMPUS-28-P2A.json');
+  // Keep file URLs literal so serverless file tracing includes these committed authority inputs.
+  const baseBatch = JSON.parse(readFileSync(
+    new URL('./data/repaired/INKYUNG-20-A-R1.json', import.meta.url), 'utf8'));
+  const baseRoster = JSON.parse(readFileSync(
+    new URL('./data/fixtures/public-roster.json', import.meta.url), 'utf8'));
+  const expansion = JSON.parse(readFileSync(
+    new URL('./data/expansion/CAMPUS-28-P2A.json', import.meta.url), 'utf8'));
   const { batch, roster: profiles } = mergeCampusPopulation(baseBatch, baseRoster, expansion);
   const navigator = createNpcNavigator(batch);
   const roster = bindSharedSchedule(
