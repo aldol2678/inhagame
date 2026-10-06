@@ -17,7 +17,7 @@ test("Road Network v2 P0 audit exposes current virtual junction and authority mi
   assert.equal(audit.nav.droppedLineIds.length, 0, "current authored navigation lines remain in one routable component");
 
   const deferred = new Set(audit.sourceEvidence.deferredRoads.map(road => road.osmWayId));
-  assert.ok(deferred.has(1098491074), "law-school road conflict stays visible");
+  assert.equal(deferred.has(1098491074), false, "southwest service-road conflict is reconciled by the bounded-width runtime corridor");
   assert.ok(deferred.has(216916384), "60th-building road conflict stays visible");
 
   assert.ok(
