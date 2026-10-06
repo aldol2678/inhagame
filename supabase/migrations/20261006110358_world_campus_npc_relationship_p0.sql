@@ -309,6 +309,7 @@ declare
   v_applied smallint := 0;
   v_encounter_inc integer := 0;
   v_meaningful_inc integer := 0;
+  v_state_found boolean := false;
   v_now timestamptz := now();
 begin
   if p_event_type is null or p_event_type not in (
@@ -396,7 +397,8 @@ begin
    where r.user_id = p_user and r.npc_id = p_npc_id
    for update;
 
-  if found then v_before := v_state.affinity; end if;
+  v_state_found := found;
+  if v_state_found then v_before := v_state.affinity; end if;
   v_after := greatest(0,least(100,v_before + p_requested_delta));
   v_applied := v_after - v_before;
   v_encounter_inc := case when p_event_type in ('FIRST_MEETING','REUNION') then 1 else 0 end;
@@ -412,7 +414,7 @@ begin
     v_npc.definition_version,v_now)
   returning * into v_event;
 
-  if not found then
+  if not v_state_found then
     insert into private.world_player_campus_npc_relationships(
       user_id,npc_id,affinity,encounter_count,meaningful_interaction_count,
       first_interaction_at,last_interaction_at,last_meaningful_at,revision,updated_at)
