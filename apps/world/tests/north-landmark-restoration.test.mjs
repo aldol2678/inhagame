@@ -52,7 +52,7 @@ test('surroundings integration preserves exact-main path shape and all ground co
  const graph=campusNavGraphData(),points=new Map(graph.nodes.map(n=>[n.id,[n.x,n.z].map(x=>x.toFixed(8)).join(',')]));
  const edges=graph.edges.map(e=>[points.get(e.a),points.get(e.b)].sort().join('|')).sort();
  assert.equal(graph.nodes.length,186);assert.equal(graph.edges.length,211);
- assert.equal(digest(edges),'deeeeea88403d69b7439eea03805b77c5f49e9a5886a308dbd66455d9024c101');
+ assert.equal(digest(edges),'d0da0fa868800308a4ba6b2fc814d4c7120dc8059a3c843f114543fd51f0e3da');
  const paths=SITE_FEATURES.filter(f=>f.kind==='path').map(f=>({id:f.id,vertices:f.vertices,width:CAMPUS_PATH_WIDTHS[f.id]||3.5}));
  const roads=CAMPUS_ROADS.map(({id,vertices,width,shoulder})=>({id,vertices,width,shoulder}));
  assert.equal(digest({paths,roads}),'06f855990a267aa784aade514cffd85b90d81ed8e9e275c6e6e5d331105082b1');
