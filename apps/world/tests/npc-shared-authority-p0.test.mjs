@@ -35,7 +35,7 @@ test('P0 authority quantizes canonical time and two replicas converge on the sam
   }
   assert.ok(observed, 'pilot NPC must be visible in at least one canonical period');
 
-  const raw = E + 123_456;
+  const raw = E + 123_500;
   const a = authority.snapshot({ placeZoneId: observed.placeZoneId, serverNowMs: raw + 1 });
   const b = authority.snapshot({ placeZoneId: observed.placeZoneId, serverNowMs: raw + 249 });
   assert.deepEqual(a, b, '250ms authority tick removes request-time browser drift');
