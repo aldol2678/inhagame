@@ -108,6 +108,8 @@ import { createWorldResumeStore } from "./lobby/world-resume.js";
 import { bindResumeEntry } from "./lobby/lobby-resume.js";
 import { bindLockedBackGate } from "./lobby/lobby-back-gate.js";
 import { createLobbyTransition } from "./lobby/lobby-transition.js";
+import { createCinematicDirector } from "./cinematic/cinematic-director.js";
+import { MAIN_GATE_REVEAL_V01 } from "./cinematic/main-gate-reveal.js";
 import { createLobbyMenu } from "./lobby/lobby-menu.js";
 import { createLobbyPlayerSummary } from "./lobby/lobby-player-summary.js";
 import { createLobbyPresenceSummary } from "./lobby/lobby-presence-summary.js";
@@ -761,6 +763,14 @@ const lobbyTransition = createLobbyTransition({
     else lobbyTransitionInput.release();
   }
 });
+const cinematic = createCinematicDirector({
+  camera,
+  inputFocus,
+  root: document.body
+});
+window.addEventListener("pagehide", event => {
+  if (!event.persisted) cinematic.destroy();
+});
 let npcTest = null;
 const questRuntime = createQuestRuntime();
 let questJournal = null;
@@ -785,7 +795,8 @@ const mainGateEntry = bindMainGateEntry({
   player,
   lobbyWorld,
   spawnDefinition: mainGateSpawn,
-  transition: lobbyTransition
+  transition: lobbyTransition,
+  onEntered: () => cinematic.start(MAIN_GATE_REVEAL_V01)
 });
 const resumeStore = createWorldResumeStore();
 const resumeEntry = bindResumeEntry({
@@ -2950,6 +2961,29 @@ app.on("update", (dt) => {
     renderNavigationHud();
     return;
   }
+  if (cinematic.active) {
+    const step = Math.min(dt, 0.05);
+    const pos = player.getLocalPosition();
+    playerActivityAudio.reset();
+    inkyungLivingMoment?.setSuppressed(true);
+    guestbookWorldLabel.hide();
+    shopWorldLabel.hide();
+    helicopterFlightHud.update({ suppressed: true });
+    cinematic.update(step);
+    character.setMounted(false);
+    character.setFirstPerson(false);
+    character.update(step, {
+      mounted: false, moving: false, grounded: controller.grounded, emote: null, seated: false
+    });
+    streaming.update(step, pos, cinematic.streamingInterestPoints());
+    places.update(pos);
+    orbit.apply(pos, character.eyeHeight);
+    cinematic.applyCamera();
+    minimap?.update();
+    fullMap?.update();
+    renderNavigationHud();
+    return;
+  }
   // Locomotion input and zone changes stand a seated player up before the controller moves.
   const inBiryong = biryongRealm?.inBiryong === true;
   const inside = rooms.insideRoom || inBiryong;
@@ -3388,6 +3422,7 @@ window.__INHAGAME_P0__ = {
   emotes,
   emoteMenu,
   photoMode,
+  cinematic,
   chatPanel,
   hudMenu,
   keyboardHelp,
@@ -3520,6 +3555,7 @@ window.__INHAGAME_P0__ = {
     populationCount: (() => { try { return populationCount?.status() ?? null; } catch { return null; } })(),
     emote: emotes.active,
     photoMode: { active: photoMode.active },
+    cinematic: cinematic.status(),
     seat: seats.seated?.id ?? null,
     follow: follow.status(),
     space: rooms.currentSpace,
