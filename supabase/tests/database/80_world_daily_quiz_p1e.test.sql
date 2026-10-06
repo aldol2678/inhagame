@@ -132,9 +132,9 @@ select results_eq($$select g.position, g.grant_entry_id, g.grant_type, g.target_
   'grants: +50 인덕코인, +25 EXP, no item');
 
 -- ---- KST day boundary (DB clock only) ----
-select results_eq($select private.world_daily_quiz_today_v1('2026-09-29 14:59:59+00'), private.world_daily_quiz_today_v1('2026-09-29 15:00:00+00'),
-    private.world_daily_quiz_today_v1('2026-09-29 23:59:59+09'), private.world_daily_quiz_today_v1('2026-09-30 00:00:00+09')$,
-  $values ('2026-09-29'::date, '2026-09-30'::date, '2026-09-29'::date, '2026-09-30'::date)$,
+select results_eq($q$select private.world_daily_quiz_today_v1('2026-09-29 14:59:59+00'), private.world_daily_quiz_today_v1('2026-09-29 15:00:00+00'),
+    private.world_daily_quiz_today_v1('2026-09-29 23:59:59+09'), private.world_daily_quiz_today_v1('2026-09-30 00:00:00+09')$q$,
+  $q$values ('2026-09-29'::date, '2026-09-30'::date, '2026-09-29'::date, '2026-09-30'::date)$q$,
   'the day turns at 00:00 Asia/Seoul (15:00 UTC)');
 select is((
     select sum(private.world_daily_quiz_major_count_v1(
