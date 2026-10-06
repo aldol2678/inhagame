@@ -42,6 +42,7 @@ export function createCinematicDirector({
   camera,
   inputFocus,
   root = globalThis.document?.body ?? null,
+  skipButton = null,
   reducedMotion = globalThis.matchMedia?.("(prefers-reduced-motion: reduce)") ?? { matches: false }
 } = {}) {
   if (!camera?.camera || !camera?.setPosition || !camera?.lookAt) {
@@ -60,6 +61,12 @@ export function createCinematicDirector({
   let session = null;
   let last = Object.freeze({ sequenceId: null, reason: "idle" });
 
+  function setSkipVisible(visible) {
+    if (!skipButton) return;
+    skipButton.hidden = !visible;
+    skipButton.setAttribute?.("aria-hidden", visible ? "false" : "true");
+  }
+
   function clearRoot() {
     if (root?.dataset) delete root.dataset.cinematic;
   }
@@ -71,6 +78,7 @@ export function createCinematicDirector({
     if (Number.isFinite(ended.originalFov)) camera.camera.fov = ended.originalFov;
     inputOwner.release();
     clearRoot();
+    setSkipVisible(false);
     last = Object.freeze({ sequenceId: ended.sequence.id ?? null, reason });
     try {
       ended.onComplete?.(last);
@@ -86,6 +94,7 @@ export function createCinematicDirector({
 
     const id = String(sequence.id ?? "cinematic");
     if (reducedMotion?.matches) {
+      setSkipVisible(false);
       last = Object.freeze({ sequenceId: id, reason: "reduced-motion" });
       try {
         onComplete?.(last);
@@ -104,6 +113,7 @@ export function createCinematicDirector({
     };
     inputOwner.acquire();
     if (root?.dataset) root.dataset.cinematic = id;
+    setSkipVisible(sequence.skippable !== false);
     return true;
   }
 
@@ -173,9 +183,17 @@ export function createCinematicDirector({
     return finish(reason);
   }
 
+  function onSkipClick() {
+    skip();
+  }
+
+  skipButton?.addEventListener?.("click", onSkipClick);
+
   function destroy() {
     if (session) finish("destroy");
     else inputOwner.release();
+    setSkipVisible(false);
+    skipButton?.removeEventListener?.("click", onSkipClick);
     clearRoot();
   }
 
@@ -188,6 +206,7 @@ export function createCinematicDirector({
       skippable: session ? session.sequence.skippable !== false : false,
       reason: session ? "running" : last.reason,
       reducedMotion: Boolean(reducedMotion?.matches),
+      skipAvailable: Boolean(session && session.sequence.skippable !== false),
       streamingInterestCount: session ? streamingInterestPoints().length : 0
     });
   }
