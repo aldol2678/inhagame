@@ -244,6 +244,8 @@ assert.match(playerControllerSource, /this\.descendButton\.hidden = bike \|\| st
   "bike hides 하강; the control only appears for a flight mount");
 
 const campusHtml = readFileSync(new URL("./campus/index.html", import.meta.url), "utf8");
+assert.match(campusHtml, /INHA WORLD는 인하대학교가 공식적으로 제작·운영·후원하는 서비스가 아닌 학생 창작 프로젝트입니다\./,
+  "campus loading screen keeps the required non-official student-project disclosure");
 assert.equal((campusHtml.match(/id="helicopter-flight-hud"/g) ?? []).length, 1,
   "campus owns exactly one helicopter Flight Instrument HUD");
 assert.match(campusHtml, /id="helicopter-flight-hud"[^>]*hidden/,
@@ -882,6 +884,8 @@ console.log("Main Lobby P0.7 static responsive/failure contracts PASS");
 
 
 const hubHtml = readFileSync(new URL("./index.html", import.meta.url), "utf8");
+assert.match(hubHtml, /INHA WORLD는 인하대학교가 공식적으로 제작·운영·후원하는 서비스가 아닌 학생 창작 프로젝트입니다\./,
+  "hub footer keeps the required non-official student-project disclosure");
 const hubSource = readFileSync(new URL("./hub.js", import.meta.url), "utf8");
 const hubCatalog = JSON.parse(readFileSync(new URL("./data/game-catalog.json", import.meta.url), "utf8"));
 const hubProfileSource = readFileSync(new URL("./profile/profile.js", import.meta.url), "utf8");
