@@ -75,8 +75,9 @@ test('AI pilot remains local-only', () => {
 });
 
 test('shared NPC authority preview stays local and explicit', () => {
-  assert.equal(startup('http://localhost:3000/campus/?npcTest=a-r1&npcAuthority=p0').authorityPreview, true);
-  assert.equal(startup('http://localhost:3000/campus/?npcAuthority=p0').authorityPreview, false);
+  assert.equal(startup('http://localhost:3000/campus/?npcTest=a-r1&npcAuthority=p0&npcSync=ng2').authorityPreview, true);
+  assert.equal(startup('http://localhost:3000/campus/?npcTest=a-r1&npcAuthority=p0').authorityPreview, false);
+  assert.equal(startup('http://localhost:3000/campus/?npcAuthority=p0&npcSync=ng2').authorityPreview, false);
   assert.equal(startup('https://campus-preview.vercel.app/campus/?npcTest=a-r1&npcAuthority=p0').authorityPreview, false);
   assert.equal(startup('https://campus.example.org/campus/?npcTest=a-r1&npcAuthority=p0').authorityPreview, false);
 });
