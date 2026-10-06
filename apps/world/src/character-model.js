@@ -98,7 +98,13 @@ export function createCharacter(app, player, { assetShadow = null, assetCanary =
   let mountedNow = false;
   let firstPerson = false;
   let cameraOccluded = false;
+  // Character pose/status follows the duck; the carrier settles independently.
   let modelState = "loading";
+  let dragonModelState = "loading";
+  let disposed = false;
+  const knownInstances = new WeakSet();
+  const duckInstances = new Set();
+  const dragonInstances = new Set();
   let nameplateHeight = 0;
   let duckBaseEuler = [0, 0, 0];
   let duckCanaryPrepared = null;
@@ -162,9 +168,32 @@ export function createCharacter(app, player, { assetShadow = null, assetCanary =
     return { wings, legs, valid: [...wings, ...legs].every(Boolean) };
   };
 
+  // Own instances, never the registry's shared container assets. The canary retains its
+  // canonical clone for rollback, so it also needs disposal even while unattached.
+  function ownInstance(entity, instances) {
+    if (entity && !knownInstances.has(entity)) {
+      knownInstances.add(entity);
+      instances.add(entity);
+      entity.once?.("destroy", () => instances.delete(entity));
+    }
+    return entity;
+  }
+  function releaseInstances(instances) {
+    for (const entity of [...instances]) {
+      instances.delete(entity);
+      entity.destroy();
+    }
+  }
+  player.once?.("destroy", () => {
+    disposed = true;
+    releaseInstances(duckInstances);
+    releaseInstances(dragonInstances);
+  });
+
   function loadModel(url, { productionCanary = false } = {}) {
     return new Promise((resolve, reject) => {
       app.assets.loadFromUrl(url, "container", async (error, asset) => {
+        if (disposed) { resolve(null); return; }
         if (error || !asset?.resource) {
           reject(error || new Error(`No GLB resource for ${url}`));
           return;
@@ -176,14 +205,21 @@ export function createCharacter(app, player, { assetShadow = null, assetCanary =
               subjectKey: assetCanarySubjectKey,
               consumer: "character-production",
               instantiateOptions: { castShadows: true, receiveShadows: true },
-              validateCanonicalEntity: entity => duckPivotSet(entity).valid,
-              validateOptimizedEntity: entity => duckPivotSet(entity).valid
+              // Validation runs at creation, before asynchronous canary preparation settles.
+              validateCanonicalEntity: entity => duckPivotSet(ownInstance(entity, duckInstances)).valid,
+              validateOptimizedEntity: entity => duckPivotSet(ownInstance(entity, duckInstances)).valid
             });
             duckCanaryReceipt = duckCanaryPrepared.receipt;
+            ownInstance(duckCanaryPrepared.canonicalEntity, duckInstances);
+            ownInstance(duckCanaryPrepared.activeEntity, duckInstances);
+            if (disposed) { releaseInstances(duckInstances); resolve(null); return; }
             resolve(duckCanaryPrepared.activeEntity);
             return;
           }
-          resolve(asset.resource.instantiateRenderEntity({ castShadows: true, receiveShadows: true }));
+          resolve(ownInstance(
+            asset.resource.instantiateRenderEntity({ castShadows: true, receiveShadows: true }),
+            productionCanary ? duckInstances : dragonInstances
+          ));
         } catch (cause) {
           reject(cause);
         }
@@ -191,45 +227,56 @@ export function createCharacter(app, player, { assetShadow = null, assetCanary =
     });
   }
 
-  const ready = Promise.all([
-    loadModel("/assets/induck-v3.glb", { productionCanary: true }),
-    loadModel("/assets/annyongi-flight-v1.glb")
-  ]).then(([loadedDuck, loadedDragon]) => {
-    const duckPivots = duckPivotSet(loadedDuck);
-    const newDuckWings = duckPivots.wings;
-    const newDragonWings = [-1, 1].map(side => loadedDragon.findByName(side < 0 ? "DragonWing_L" : "DragonWing_R"));
-    const newDuckLegs = duckPivots.legs;
-    if (!duckPivots.valid || newDragonWings.some(node => !node)) {
-      loadedDuck.destroy();
-      loadedDragon.destroy();
-      throw new Error("Campus GLB wing pivots are missing");
-    }
+  const duckReady = loadModel("/assets/induck-v3.glb", { productionCanary: true }).then(loadedDuck => {
+    if (disposed) { releaseInstances(duckInstances); return; }
+    const pivots = duckPivotSet(loadedDuck);
+    if (!pivots.valid) throw new Error("Campus duck GLB wing/leg pivots are missing");
     loadedDuck.name = "Induck_GLB_Visual";
-    loadedDragon.name = "Annyongi_GLB_Visual";
     loadedDuck.enabled = !firstPerson && !cameraOccluded;
     player.addChild(loadedDuck);
-    player.addChild(loadedDragon);
-    duck.enabled = false;
-    dragon.enabled = false;
     duckVisual = loadedDuck;
     { const e = loadedDuck.getLocalEulerAngles(); duckBaseEuler = [e.x, e.y, e.z]; }
-    dragonVisual = loadedDragon;
-    activeDuckWings = newDuckWings;
-    activeDragonWings = newDragonWings;
-    activeDuckLegs = newDuckLegs;
+    activeDuckWings = pivots.wings;
+    activeDuckLegs = pivots.legs;
     modelState = "glb";
     positionDuck(mountedNow);
-    showMountVisuals();
-    return modelState;
+    duck.enabled = false;
   }).catch(error => {
+    releaseInstances(duckInstances);
     modelState = "fallback";
-    console.warn("Campus character GLB unavailable; primitive fallback remains active:", error);
-    return modelState;
+    duckVisual = duck;
+    activeDuckWings = duckWings;
+    activeDuckLegs = [];
+    duckBaseEuler = [0, 0, 0];
+    if (!disposed) { positionDuck(mountedNow); syncCameraVisibility(); }
+    console.warn("Campus duck GLB unavailable; primitive fallback remains active:", error);
   });
+  const dragonReady = loadModel("/assets/annyongi-flight-v1.glb").then(loadedDragon => {
+    if (disposed) { releaseInstances(dragonInstances); return; }
+    const wings = [-1, 1].map(side => loadedDragon?.findByName?.(side < 0 ? "DragonWing_L" : "DragonWing_R"));
+    if (wings.some(node => !node)) throw new Error("Campus carrier GLB wing pivots are missing");
+    loadedDragon.name = "Annyongi_GLB_Visual";
+    player.addChild(loadedDragon);
+    dragonVisual = loadedDragon;
+    activeDragonWings = wings;
+    dragonModelState = "glb";
+    showMountVisuals();
+    dragon.enabled = false;
+  }).catch(error => {
+    releaseInstances(dragonInstances);
+    dragonModelState = "fallback";
+    dragonVisual = dragon;
+    activeDragonWings = dragonWings;
+    if (!disposed) showMountVisuals();
+    console.warn("Campus carrier GLB unavailable; primitive fallback remains active:", error);
+  });
+  // Wait for both handled outcomes without letting either suppress a good sibling.
+  const ready = Promise.all([duckReady, dragonReady]).then(() => modelState);
   return {
     dragon,
     ready,
     get modelState() { return modelState; },
+    get dragonModelState() { return dragonModelState; },
     get nameplateHeight() { return nameplateHeight; },
     get pose() { return lastPose; },
     get eyeHeight() { return nameplateHeight - .225; },
@@ -238,7 +285,7 @@ export function createCharacter(app, player, { assetShadow = null, assetCanary =
     get equipmentVisible() { return equipment.visible; },
     get assetCanary() { return duckCanaryReceipt; },
     rollbackAssetCanary(reason = "RUNTIME_ROLLBACK") {
-      if (!duckCanaryPrepared || duckCanaryPrepared.receipt?.authority !== "OPTIMIZED_CANARY") {
+      if (disposed || !duckCanaryPrepared || duckCanaryPrepared.receipt?.authority !== "OPTIMIZED_CANARY") {
         return duckCanaryReceipt;
       }
       const receipt = duckCanaryPrepared.rollback(reason);
@@ -279,7 +326,7 @@ export function createCharacter(app, player, { assetShadow = null, assetCanary =
       const fly = mounted && !bike && !helicopter && ![CAMPUS_KICKBOARD_ID, CAMPUS_KART_ID, DUCK_BOAT_ID, CAMPUS_SHUTTLE_ID, CAMPUS_BALLOON_ID].includes(player.mountKind);
       const attitude = helicopter && player.flightAttitude
         ? player.flightAttitude : { pitch: 0, roll: 0 };
-      const bob = fly && modelState === 'glb' ? Math.sin(elapsed * 4) * .045
+      const bob = fly && dragonModelState === 'glb' ? Math.sin(elapsed * 4) * .045
         : !mounted && moving && grounded ? Math.sin(elapsed * 10) * .017 : 0;
       const legSwing = moving && grounded && !mounted ? Math.sin(elapsed * 11) * 22 : 0;
       const pedal = bike && moving ? Math.sin(elapsed * 8) * 18 : 0;
@@ -313,7 +360,7 @@ export function createCharacter(app, player, { assetShadow = null, assetCanary =
       activeDragonWings.forEach((wing, index) => wing.setLocalEulerAngles(0, 0,
         (index ? -1 : 1) * (fly ? Math.sin(elapsed * 8) * 28 + 12 : 10)));
       activeDuckLegs.forEach((leg, index) => leg.setLocalEulerAngles(pose.legs[index], 0, 0));
-      if (modelState === "glb" && fly) {
+      if (dragonModelState === "glb" && fly) {
         dragonVisual.setLocalPosition(0, Math.sin(elapsed * 4) * 0.045, 0);
         dragonVisual.setLocalEulerAngles(0, 0, moving ? Math.sin(elapsed * 5) * 3 : 0);
       }

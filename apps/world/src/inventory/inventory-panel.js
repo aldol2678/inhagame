@@ -5,11 +5,12 @@
 // server's catalogStatus is shown as served; a non-ACTIVE item stays in the list. No RPC here.
 
 import { getItemDefinition } from "../collection/item-catalog.js";
+import { filterItemsForInventoryTab, INVENTORY_TAB, INVENTORY_TABS } from "./inventory-category-registry.js";
 import { INVENTORY_STATE } from "./inventory-client.js";
 
 const CATEGORY_TEXT = Object.freeze({
   WEARABLE: "착용 아이템", BADGE: "배지", EMOTE: "이모트", FURNITURE: "가구", MOUNT: "탈것",
-  MOUNT_COSMETIC: "탈것 꾸미기", MEMORABILIA: "기념품"
+  MOUNT_COSMETIC: "탈것 꾸미기", MEMORABILIA: "기념품", MATERIAL: "재료"
 });
 const RARITY_TEXT = Object.freeze({ COMMON: "일반", UNCOMMON: "고급", RARE: "희귀", SPECIAL: "특별" });
 const SOURCE_TEXT = Object.freeze({
@@ -71,6 +72,8 @@ export function createInventoryPanel({
   let bodyElement = null;
   let opener = null;
   let renderedAccount = inventory.accountId;
+  let activeTab = INVENTORY_TAB.ALL;
+  let tabButtons = new Map();
 
   function renderItem(item) {
     const view = itemView(item, { describe });
@@ -89,6 +92,36 @@ export function createInventoryPanel({
     return card;
   }
 
+  function renderTabs(items) {
+    const tabs = el("div", "inventory-tabs");
+    tabs.setAttribute("role", "tablist");
+    tabs.setAttribute("aria-label", "인벤토리 분류");
+    tabButtons = new Map();
+    for (const tab of INVENTORY_TABS) {
+      const count = filterItemsForInventoryTab(items, tab.id, describe).length;
+      const button = el("button", "inventory-tab", tab.label);
+      button.type = "button";
+      button.dataset.inventoryTab = tab.id;
+      button.dataset.focusKey = `tab:${tab.id}`;
+      button.setAttribute("role", "tab");
+      button.setAttribute("aria-selected", String(activeTab === tab.id));
+      button.setAttribute("aria-label", `${tab.label} ${count}종`);
+      button.addEventListener("click", () => {
+        if (activeTab === tab.id) return;
+        activeTab = tab.id;
+        if (bodyElement) {
+          bodyElement.scrollTop = 0;
+          bodyElement.scrollLeft = 0;
+        }
+        render();
+        tabButtons.get(tab.id)?.focus?.({ preventScroll: true });
+      });
+      tabButtons.set(tab.id, button);
+      tabs.append(button);
+    }
+    return tabs;
+  }
+
   function render() {
     if (!open) return;
     const hadFocus = panel.contains(doc.activeElement);
@@ -97,6 +130,7 @@ export function createInventoryPanel({
     const scrollTop = accountChanged ? 0 : bodyElement?.scrollTop ?? 0;
     const scrollLeft = accountChanged ? 0 : bodyElement?.scrollLeft ?? 0;
     renderedAccount = inventory.accountId;
+    if (accountChanged) activeTab = INVENTORY_TAB.ALL;
     let retryButton = null;
     const snapshot = inventory.state === INVENTORY_STATE.READY ? inventory.snapshot : null;
     const head = el("div", "shop-panel-head");
@@ -113,6 +147,8 @@ export function createInventoryPanel({
     head.append(titles, closeButton);
 
     const body = el("div", "shop-panel-body");
+    // Drop references to tab buttons from the previous DOM before rebuilding state-specific content.
+    tabButtons = new Map();
     if (inventory.state === INVENTORY_STATE.SIGNED_OUT) {
       body.append(el("p", "shop-empty", "로그인한 INHAGAME 계정만 인벤토리를 볼 수 있어요."));
     } else if (inventory.state === INVENTORY_STATE.LOADING) {
@@ -125,17 +161,30 @@ export function createInventoryPanel({
       retryButton = retry;
       retry.addEventListener("click", () => void inventory.refresh("retry"));
       body.append(retry);
-    } else if (!snapshot.items.length) {
-      body.append(el("p", "shop-empty", "아직 보유한 아이템이 없어요."));
     } else {
-      const list = el("ul", "inventory-items");
-      list.append(...snapshot.items.map(renderItem));
-      body.append(list);
+      const visibleItems = filterItemsForInventoryTab(snapshot.items, activeTab, describe);
+      body.append(renderTabs(snapshot.items));
+      if (!snapshot.items.length) {
+        body.append(el("p", "shop-empty", "아직 보유한 아이템이 없어요."));
+      } else if (!visibleItems.length) {
+        body.append(el("p", "shop-empty", "이 분류에 보유한 아이템이 없어요."));
+      } else {
+        const list = el("ul", "inventory-items");
+        list.id = "inventory-item-list";
+        list.append(...visibleItems.map(renderItem));
+        body.append(list);
+      }
     }
     panel.dataset.state = inventory.state;
+    panel.dataset.inventoryTab = activeTab;
     panel.replaceChildren(head, body);
     bodyElement = body;
-    if (hadFocus) (focusKey === "retry" ? retryButton ?? closeButton : closeButton).focus?.({ preventScroll: true });
+    if (hadFocus) {
+      let nextFocus = closeButton;
+      if (focusKey === "retry") nextFocus = retryButton ?? closeButton;
+      else if (focusKey?.startsWith("tab:")) nextFocus = tabButtons.get(focusKey.slice(4)) ?? closeButton;
+      nextFocus?.focus?.({ preventScroll: true });
+    }
     body.scrollTop = scrollTop;
     body.scrollLeft = scrollLeft;
   }
@@ -179,6 +228,6 @@ export function createInventoryPanel({
     get open() { return open; },
     setOpen,
     render,
-    status: () => ({ open })
+    status: () => ({ open, activeTab })
   };
 }

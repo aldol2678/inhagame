@@ -33,17 +33,19 @@ const progressionView = done => done
   : { totalExp: 90, level: 1, currentLevelStartExp: 0, nextLevelExp: 100, progressExp: 90, progressRequired: 100, maxDefinedLevel: 10, isMaxLevel: false };
 
 export function createDailyRewardFixture({ root, mainComposition, kind, scenario, doc = globalThis.document, timerOptions = {} }) {
-  if (!['attendance', 'quiz'].includes(kind) || !['lost-response', 'malformed-response', 'read-failure-retry', 'late-write', 'late-readback'].includes(scenario)) throw new Error('Unknown daily fixture case');
+  if (!['attendance', 'quiz'].includes(kind) || !['lost-response', 'malformed-response', 'read-failure-retry', 'late-write', 'late-readback', 'failed-response', 'late-failed-response', 'refused-response'].includes(scenario)) throw new Error('Unknown daily fixture case');
+  if (scenario === 'refused-response' && kind !== 'quiz') throw new Error('Refusal control requires quiz');
   const calls = [], changes = [], toasts = [], levelToasts = [], held = [], accounts = new Map(), failed = new Set();
-  let account = null, generation = 0, serverCommits = 0, mutationOutcome = null, mutationClicks = 0, trustedMutationClicks = 0, retryClicks = 0, trustedRetryClicks = 0, disposed = false;
+  let account = null, generation = 0, serverCommits = 0, mutationOutcome = null, mutationClicks = 0, trustedMutationClicks = 0, retryClicks = 0, trustedRetryClicks = 0, reopenClicks = 0, trustedReopenClicks = 0, heldReleased = false, disposed = false;
   const mutationRpc = kind === 'attendance' ? ATTENDANCE_RPC.CLAIM : DAILY_QUIZ_RPC.ANSWER;
   const statusRpc = kind === 'attendance' ? ATTENDANCE_RPC.READ : DAILY_QUIZ_RPC.READ;
   const el = (tag, className) => { const node = doc.createElement(tag); node.className = className; node.style ??= {}; return node; };
-  const walletNode = el('div', 'daily-wallet'), hudRoot = el('div', 'daily-hud'), panel = el('section', 'daily-panel');
+  const walletNode = el('div', 'daily-wallet'), hudRoot = el('div', 'daily-hud'), panel = el('section', 'daily-panel'), reopen = el('button', 'daily-reopen');
+  reopen.type = 'button'; reopen.textContent = '일일 패널 다시 열기'; reopen.hidden = true;
   const nodes = Object.fromEntries(['pill', 'pillLevel', 'pillExp', 'pillBar', 'pillFill', 'badge', 'badgeLevel', 'badgeBar', 'badgeFill', 'menuLine'].map(name => [name, el('span', `daily-${name}`)]));
   nodes.pillBar.append(nodes.pillFill); nodes.pill.append(nodes.pillLevel, nodes.pillExp, nodes.pillBar);
   nodes.badgeBar.append(nodes.badgeFill); nodes.badge.append(nodes.badgeLevel, nodes.badgeBar);
-  hudRoot.append(nodes.pill, nodes.badge, nodes.menuLine); root.replaceChildren(walletNode, hudRoot, panel); root.hidden = false;
+  hudRoot.append(nodes.pill, nodes.badge, nodes.menuLine); root.replaceChildren(walletNode, hudRoot, panel, reopen); root.hidden = false;
   panel.addEventListener('click', event => {
     if (disposed) return;
     const text = event.target?.textContent;
@@ -57,6 +59,12 @@ export function createDailyRewardFixture({ root, mainComposition, kind, scenario
     const record = accounts.get(account), requestGeneration = generation;
     calls.push({ fn, args: args ?? null, account, generation: requestGeneration });
     if (fn === mutationRpc) {
+      if (scenario === 'late-failed-response') await hold();
+      if (scenario === 'failed-response' || scenario === 'late-failed-response') return { error: { message: 'Synthetic mutation rejected before commit' } };
+      if (scenario === 'refused-response') {
+        // A competing request already completed this quiz; this refused call commits nothing.
+        record.done = true; return { error: { message: 'QUIZ_ALREADY_ANSWERED' } };
+      }
       record.done = true; serverCommits++; // Commit before losing/mangling the reply.
       if (scenario === 'late-write') await hold();
       if (scenario === 'malformed-response') return ok({ ...(kind === 'attendance' ? attendanceView(true) : quizView(true)), rewardDate: ['2026-10-05'] });
@@ -71,7 +79,7 @@ export function createDailyRewardFixture({ root, mainComposition, kind, scenario
       : fn === PROGRESSION_RPC ? progressionView(done && kind === 'quiz') : null;
     if (!response) throw new Error(`Unexpected synthetic RPC ${fn}`);
     // Capture the old server view before delaying it; later account reads are independent.
-    if (done && scenario === 'late-readback' && requestGeneration === 1) await hold();
+    if (done && scenario === 'late-readback' && requestGeneration === 1 && !heldReleased) await hold();
     return ok(response);
   };
   const readOptions = { getClient: () => ({ rpc }), rewardRetryDelays: [250, 500, 1000], ...timerOptions };
@@ -90,19 +98,22 @@ export function createDailyRewardFixture({ root, mainComposition, kind, scenario
   daily.onChange(change => changes.push({ client: 'daily', state: change.state, reason: change.reason, account: change.accountId }));
   const method = kind === 'attendance' ? 'claim' : 'answer', original = daily[method];
   daily[method] = async (...args) => { const result = await original(...args); mutationOutcome = result.outcome; return result; };
-  const ui = kind === 'attendance' ? createAttendancePanel({ panel, attendance: daily, doc }) : createDailyQuizPanel({ panel, quiz: daily, doc });
+  const onOpenChange = open => { reopen.hidden = open; };
+  const ui = kind === 'attendance' ? createAttendancePanel({ panel, attendance: daily, doc, onOpenChange }) : createDailyQuizPanel({ panel, quiz: daily, doc, onOpenChange });
+  reopen.addEventListener('click', event => { reopenClicks++; if (event.isTrusted) trustedReopenClicks++; ui.setOpen(true); });
+  const walk = node => [node, ...Array.from(node.children ?? []).flatMap(walk)];
   const bind = async id => {
     account = id; generation++;
     if (id && !accounts.has(id)) accounts.set(id, { done: false });
     await Promise.all([wallet.setAccount(id), progression.setAccount(id), daily.setAccount(id)]); await flush();
   };
   return {
-    bind, open: () => ui.setOpen(true),
-    releaseHeld: async () => { held.splice(0).forEach(resolve => resolve()); await flush(); },
-    snapshot: () => ({ kind, scenario, account, generation, state: daily.state, completed: daily.snapshot?.claimedToday ?? daily.snapshot?.status ?? null,
+    bind, open: () => ui.setOpen(true), refresh: () => daily.refresh('fixture-readback'),
+    releaseHeld: async () => { heldReleased = true; held.splice(0).forEach(resolve => resolve()); await flush(); },
+    snapshot: () => ({ kind, scenario, account, generation, panelOpen: ui.open, hintTexts: walk(panel).filter(node => node.className?.split(' ').includes('shop-hint')).map(node => node.textContent), state: daily.state, completed: daily.snapshot?.claimedToday ?? daily.snapshot?.status ?? null,
       wallet: wallet.balance(), exp: progression.snapshot?.totalExp ?? null, walletText: walletNode.textContent, hudText: nodes.menuLine.textContent,
       hudVisible: !nodes.menuLine.hidden, mutationOutcome, writes: calls.filter(call => call.fn === mutationRpc).length, serverCommits,
-      rewardToasts: toasts.length, levelToasts: levelToasts.length, heldResponses: held.length, mutationClicks, trustedMutationClicks, retryClicks, trustedRetryClicks,
+      rewardToasts: toasts.length, levelToasts: levelToasts.length, heldResponses: held.length, mutationClicks, trustedMutationClicks, retryClicks, trustedRetryClicks, reopenClicks, trustedReopenClicks,
       calls: calls.map(call => ({ ...call })), changes: changes.map(change => ({ ...change })) }),
     dispose() { disposed = true; ui.setOpen(false); void wallet.setAccount(null); void progression.setAccount(null); void daily.setAccount(null); }
   };

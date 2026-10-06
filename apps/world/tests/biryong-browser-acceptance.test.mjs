@@ -8,6 +8,145 @@ const helperUrl = new URL('./browser/biryong-map-guidance-qa.mjs', import.meta.u
 const smokeUrl = new URL('./browser/biryong-map-guidance-smoke.mjs', import.meta.url);
 const workflowUrl = new URL('../../../.github/workflows/biryong-map-guidance-browser.yml', import.meta.url);
 
+const nameplateReceipt = () => ({
+  canvas: { x: 20, y: 30, right: 370, bottom: 810, width: 350, height: 780 },
+  viewport: { width: 390, height: 844 }, nearest: { id: 'BR_NPC_001' },
+  candidates: [{ id: 'BR_NPC_001', x: 195, y: 240, depth: 4, distance: 1.2, visible: true }],
+  labels: [{ name: '강소라', detail: '운송·화물 담당 · 이동 중', font: '12px',
+    x: 130, y: 204, right: 260, bottom: 240, width: 130, height: 36 }]
+});
+
+test('hosted nameplate assertions reject real rectangle clipping, overlaps, and unreadable labels', async () => {
+  const { assertNpcNameplateLayout } = await import(helperUrl);
+  assert.equal(typeof assertNpcNameplateLayout, 'function');
+  const receipt = nameplateReceipt();
+  assert.doesNotThrow(() => assertNpcNameplateLayout(receipt, 'portrait'));
+  for (const changes of [{ x: 10 }, { y: 20 }, { right: 391 }, { bottom: 845 },
+    { x: NaN }, { width: 0 }, { name: '' }, { font: '8px' }]) {
+    assert.throws(() => assertNpcNameplateLayout({ ...receipt, labels: [{ ...receipt.labels[0], ...changes }] }, 'portrait'));
+  }
+  assert.throws(() => assertNpcNameplateLayout({ ...receipt, labels: [...receipt.labels,
+    { ...receipt.labels[0], name: '한여울', x: 145, right: 275 }] }, 'portrait'), /overlap/);
+  assert.doesNotThrow(() => assertNpcNameplateLayout({ ...receipt, labels: [] }, 'offscreen target'));
+});
+
+test('hosted nameplate acceptance rejects label intersections with visible HUD surfaces', async () => {
+  const { assertNpcNameplateLayout } = await import(helperUrl);
+  const receipt = nameplateReceipt();
+  assert.throws(() => assertNpcNameplateLayout({ ...receipt,
+    exclusions: [{ id: 'nav-guidance', x: 120, y: 180, right: 280, bottom: 230, width: 160, height: 50 }] }, 'portrait'), /HUD/);
+});
+
+test('hosted HUD oracle includes the first-tour card independently of the runtime selector', async () => {
+  const { BIRYONG_QA_HUD_SELECTORS } = await import(helperUrl);
+  assert.ok(Array.isArray(BIRYONG_QA_HUD_SELECTORS), 'the hosted oracle owns an independent HUD inventory');
+  assert.ok(BIRYONG_QA_HUD_SELECTORS.includes('#tour'));
+  assert.ok(BIRYONG_QA_HUD_SELECTORS.includes('#quest-hud'), 'first tour and tracked quest are separate surfaces');
+  const source = await readFile(smokeUrl, 'utf8');
+  assert.doesNotMatch(source, /BIRYONG_NPC_NAMEPLATE_HUD_SELECTOR/);
+  assert.match(source, /hudSelectors\.join\(','\)/);
+  assert.match(source, /tourHud/);
+  assert.match(source, /entry\.arrivalNameplates\.tourHud\.visible, true/);
+});
+
+test('hosted acceptance rejects omitted tour bounds and the actual landscape label intersection', async () => {
+  const { assertNpcNameplateLayout } = await import(helperUrl);
+  const tour = { id: 'tour', x: 12, y: 52, right: 212, bottom: 94, width: 200, height: 42 };
+  const receipt = { canvas: { x: 0, y: 0, right: 844, bottom: 390, width: 844, height: 390 },
+    viewport: { width: 844, height: 390 }, tourHud: { visible: true }, exclusions: [], labels: [] };
+  assert.throws(() => assertNpcNameplateLayout(receipt, 'landscape'), /visible first-tour/);
+  const label = { name: '강소라', detail: '운송·화물 담당 · 이동 중', font: '12px',
+    x: 183.375, y: 60.265625, right: 293.28125, bottom: 95, width: 109.90625, height: 34.734375 };
+  assert.throws(() => assertNpcNameplateLayout({ ...receipt, exclusions: [tour], labels: [label] }, 'landscape'), /HUD tour/);
+  assert.doesNotThrow(() => assertNpcNameplateLayout({ ...receipt, exclusions: [tour] }, 'culled label'));
+  assert.doesNotThrow(() => assertNpcNameplateLayout({ ...receipt, tourHud: { visible: false }, labels: [label] }, 'hidden tour'));
+});
+
+test('collision-compressed outdoor third-person camera hides local equipment without changing perspective', async () => {
+  const { assertBiryongCameraReadability, assertNpcNameplateLayout } = await import(helperUrl);
+  assert.equal(typeof assertBiryongCameraReadability, 'function');
+  const camera = { regionId: 'BIRYONG_REALM', indoor: false, mounted: false, firstPerson: false,
+    eyeDistance: .1906, chosenZoom: 3.5, localVisualOccluded: false, equipmentVisible: true };
+  assert.throws(() => assertBiryongCameraReadability(camera, 'desktop station north wall'), /occlusion/);
+  assert.throws(() => assertNpcNameplateLayout({ ...nameplateReceipt(), camera }, 'camera receipt'), /occlusion/);
+  assert.throws(() => assertBiryongCameraReadability({ ...camera, localVisualOccluded: true }, 'desktop'), /equipment/);
+  assert.doesNotThrow(() => assertBiryongCameraReadability({ ...camera, localVisualOccluded: true, equipmentVisible: false }, 'desktop'));
+  for (const exempt of [{ eyeDistance: 3.18 }, { indoor: true }, { mounted: true }, { firstPerson: true }]) {
+    assert.doesNotThrow(() => assertBiryongCameraReadability({ ...camera, ...exempt }, 'unchanged camera mode'));
+  }
+});
+
+test('hosted acceptance captures the exact station-wall camera regression and restores the prior pose', async () => {
+  const source = await readFile(smokeUrl, 'utf8');
+  const start = source.indexOf('// Deterministic station-close-wall camera regression');
+  const end = source.indexOf('// Retain a realm route', start);
+  assert.ok(start > source.indexOf('for (const npc of BIRYONG_QA_NPCS) {') && end > start);
+  const probe = source.slice(start, end);
+  assert.match(probe, /setLocalPosition\(-1\.2164960827128801, d\.controller\.groundY, 29\.446387731183304\)/);
+  assert.match(probe, /d\.orbit\.yaw = 0/);
+  assert.match(probe, /Math\.atan2\(7\.3, 18\.5\)/);
+  assert.match(probe, /d\.orbit\.distance = 3\.5/);
+  assert.match(probe, /await page\.evaluate\(waitForRenderedFrames\)/);
+  assert.match(probe, /entry\.stationCloseWall = await readNpcNameplates\(page\)/);
+  assert.match(probe, /eyeDistance < \.6/);
+  assert.match(probe, /equipmentVisible, false/);
+  assert.match(probe, /await capture\('station-close-wall'\)/);
+  assert.match(probe, /finally \{/);
+  assert.match(probe, /setLocalPosition\(saved\.player\.x, saved\.player\.y, saved\.player\.z\)/);
+  assert.doesNotMatch(probe, /pauseNpc|setPeriodForTest|\.app\.fire\(/);
+  assert.match(source, /camera-regression placement, not a walked journey/);
+});
+
+test('hosted nameplate coverage requires labels only when nearby heads are clearly on-screen', async () => {
+  const { assertNpcNameplateCoverage } = await import(helperUrl);
+  assert.equal(typeof assertNpcNameplateCoverage, 'function');
+  const visible = nameplateReceipt(), empty = { ...visible, labels: [] };
+  assert.throws(() => assertNpcNameplateCoverage([empty, empty, empty], 'portrait'), /readable nameplate coverage/);
+  const covered = assertNpcNameplateCoverage([empty, visible, empty], 'portrait');
+  assert.equal(covered.result, 'COVERED');
+  assert.equal(covered.readableLabelCount, 1);
+  for (const changes of [{ x: -100 }, { y: 900 }, { depth: -1 }, { distance: 23 }, { visible: false }, { x: 20 }]) {
+    const outside = { ...empty, candidates: [{ ...empty.candidates[0], ...changes }] };
+    const result = assertNpcNameplateCoverage([outside, outside, outside], 'portrait');
+    assert.equal(result.result, 'NO_CLEAR_ONSCREEN_HEADS', 'offscreen/edge targets are documented, never forced visible');
+  }
+  const targetOutside = { ...visible, nearest: { id: 'BR_NPC_008' } };
+  assert.doesNotThrow(() => assertNpcNameplateCoverage([targetOutside], 'offscreen nearest'),
+    'a particular nearest dialogue target need not have an on-screen nameplate');
+  const hudBlocked = { ...empty, exclusions: [{ id: 'minimap', x: 120, y: 170, right: 270, bottom: 250 }] };
+  assert.doesNotThrow(() => assertNpcNameplateCoverage([hudBlocked], 'HUD-occupied head'),
+    'a suppressed label is legitimate when its available head space is covered by HUD');
+});
+
+test('Biryong overview must expose the complete return label without text overflow', async () => {
+  const { assertBiryongReturnLabelVisible } = await import(helperUrl);
+  assert.equal(typeof assertBiryongReturnLabelVisible, 'function');
+  const label = { id: 'poi.biryong-realm.return', text: '귀환 · F1 인하대후문행',
+    clientWidth: 96, scrollWidth: 96, clientHeight: 36, scrollHeight: 36 };
+  assert.doesNotThrow(() => assertBiryongReturnLabelVisible({ labels: [label] }, 'portrait'));
+  assert.throws(() => assertBiryongReturnLabelVisible({ labels: [] }, 'portrait'), /return label/);
+  assert.throws(() => assertBiryongReturnLabelVisible({ labels: [{ ...label, text: '귀환' }] }, 'portrait'), /complete return/);
+  assert.throws(() => assertBiryongReturnLabelVisible({ labels: [{ ...label, scrollWidth: 180 }] }, 'portrait'), /overflow/);
+  assert.throws(() => assertBiryongReturnLabelVisible({ labels: [{ ...label, scrollHeight: 72 }] }, 'portrait'), /overflow/);
+});
+
+test('hosted captures record nameplate DOM geometry and public head projections without changing the scene', async () => {
+  const source = await readFile(smokeUrl, 'utf8');
+  assert.match(source, /async function readNpcNameplates\(page\)/);
+  assert.match(source, /querySelectorAll\('\.biryong-npc-nameplate'\)/);
+  assert.match(source, /npcNameplateOffset\(definition\.appearance\.height\)/);
+  assert.match(source, /worldToScreen\(point\)/);
+  assert.match(source, /npcReceipt\.nameplatesBeforeDialogue = await readNpcNameplates\(page\)/);
+  assert.match(source, /npcReceipt\.nameplatesAfterGuidance = await readNpcNameplates\(page\)/);
+  assert.match(source, /assertNpcNameplateCoverage\(/);
+  assert.match(source, /assertBiryongReturnLabelVisible\(entry\.overview/);
+  assert.match(source, /entry\.arrivalNameplates = await readNpcNameplates\(page\)/);
+  assert.match(source, /eye\.y \+= d\.character\.eyeHeight/);
+  const start = source.indexOf('async function readNpcNameplates(page)');
+  const end = source.indexOf('\nasync function inspectRoute(page)', start);
+  assert.doesNotMatch(source.slice(start, end), /setLocalPosition|\.pauseNpc\(|setPeriodForTest|\.app\.fire\(/);
+});
+
 test('Biryong desktop interaction and pointer help have separate visible rows', async () => {
   const { assertInteractionHintLayout, assertInteractionHintCoverage } = await import(helperUrl);
   assert.equal(typeof assertInteractionHintLayout, 'function');
@@ -156,7 +295,7 @@ test('actual map receipt keeps CSS percentages separate from DOMRect viewport pi
   // Execute only the pure DOM serializer in a tiny Node fixture. Never import the
   // guarded browser entrypoint or fabricate a hosted environment.
   const start = source.indexOf('async function readMap(page) {');
-  const end = source.indexOf('\nasync function inspectRoute(page) {', start);
+  const end = source.indexOf('\nasync function readNpcNameplates(page) {', start);
   assert.ok(start >= 0 && end > start);
   const rect = { x: 618, y: 558.4375, left: 618, top: 558.4375, right: 662, bottom: 602.4375, width: 44, height: 44 };
   const element = { hidden: true, children: [], getBoundingClientRect: () => ({ toJSON: () => ({ ...rect }) }) };

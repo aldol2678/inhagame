@@ -9,6 +9,7 @@ import { POND_TREE_SEATING, pondSeatTrees, roadviewGroundHeight } from "./roadvi
 import { getPlaceZoneAt } from "./place-zone-registry.js";
 import { BACK_FURNITURE, BACK_BENCH_SEAT } from './back-furniture-layout.js';
 import { GARDEN_BENCHES, GARDEN_SEAT } from './library-garden-layout.js';
+import { MATCHING_TREE } from './matching-tree-layout.js';
 
 // World units (1 unit ≈ 2 m). Player standing origin sits 1.15 above the ground.
 export const GROUND_ORIGIN_Y = 1.15;
@@ -57,8 +58,19 @@ function benchAnchors(benches,seatDimensions){
     });
   }));
 }
+// Existing public seating semantics; only two source-aligned anchors are added.
+function matchingTreeAnchors(){
+  const t=MATCHING_TREE;
+  return t.seatOffsets.map((u,i)=>{
+    const seat=t.at(u,t.seatV),stand=t.at(u,t.standV);
+    return Object.freeze({id:`SEAT_MATCHING_TREE_${i?'B':'A'}`,interactableId:t.id,type:'seat',
+      placeZoneId:getPlaceZoneAt(seat)?.id??null,approachDirection:t.front,yaw:t.yaw,
+      position:Object.freeze({...seat,y:GROUND_ORIGIN_Y+t.seatTopY-SIT_HIP_HEIGHT+roadviewGroundHeight(seat.x,seat.z)}),
+      standPoint:Object.freeze({...stand,y:GROUND_ORIGIN_Y+roadviewGroundHeight(stand.x,stand.z)})});
+  });
+}
 export const SEAT_ANCHORS = Object.freeze([...pondSeatAnchors(),
-  ...benchAnchors(BACK_FURNITURE.filter(q=>q.kind==='bench'),BACK_BENCH_SEAT),...benchAnchors(GARDEN_BENCHES,GARDEN_SEAT)]);
+  ...benchAnchors(BACK_FURNITURE.filter(q=>q.kind==='bench'),BACK_BENCH_SEAT),...benchAnchors(GARDEN_BENCHES,GARDEN_SEAT),...matchingTreeAnchors()]);
 
 const flat = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 

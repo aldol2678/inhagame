@@ -18,7 +18,8 @@ export function attachWorldResumeAccountScope(world = globalThis.window?.__INHAG
       player: world.player,
       orbit: world.orbit,
       lobbyWorld: world.lobbyWorld,
-      transition: world.lobbyTransition
+      transition: world.lobbyTransition,
+      getRegionTransition: () => world.biryongRealm
     });
   };
 

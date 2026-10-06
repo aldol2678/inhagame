@@ -10,7 +10,7 @@ const ring = points => Object.freeze(points.map(point));
 export function biryongMapRectangle({x,z,width,depth}) {
   return ring([{x:x-width/2,z:z-depth/2},{x:x+width/2,z:z-depth/2},{x:x+width/2,z:z+depth/2},{x:x-width/2,z:z+depth/2}]);
 }
-const geometryRecord = (id,kind,source,points) => Object.freeze({id,kind,source,rings:Object.freeze([ring(points)])});
+const geometryRecord = (id,kind,source,points) => Object.freeze({id,kind,source,style:'biryong',rings:Object.freeze([ring(points)])});
 function strips(item,kind,source) {
   return item.points.slice(1).map((b,i) => {
     const a=item.points[i],length=Math.hypot(b.x-a.x,b.z-a.z);
@@ -34,7 +34,7 @@ export const BIRYONG_MAP_DESTINATIONS=Object.freeze([
   destination('inn','BR_INN',destinations.INN_FRONT.position,'housing'),
   destination('council','BR_COUNCIL',destinations.COUNCIL_FRONT.position,'main-hall'),
   destination('residential','BR_RESIDENTIAL',destinations.RESIDENTIAL_WEST.position,'housing'),
-  destination('return','BR_STATION',BIRYONG_STATION_RETURN_STOP,'exit','F1 · 인하대후문행 정류장')
+  destination('return','BR_STATION',BIRYONG_STATION_RETURN_STOP,'exit','귀환 · F1 인하대후문행')
 ]);
 const bounds=BIRYONG_REALM_P0_BOUNDS;
 const geometry=Object.freeze([
@@ -54,7 +54,7 @@ export function createBiryongMapDataSource() {
     definitions:BIRYONG_MAP_DESTINATIONS.map((value,index)=>({
       ...value,kind:value.iconKey==='exit'?'EXIT':'LANDMARK',
       sourceRef:{type:'BIRYONG_RUNTIME_DESTINATION',id:value.poiId},
-      priority:100-index,labelMode:'FULL_MAP',surfaces:[MAP_SURFACE.MINIMAP,MAP_SURFACE.FULL_MAP]
+      priority:value.iconKey==='exit'?120:100-index,labelMode:'FULL_MAP',surfaces:[MAP_SURFACE.MINIMAP,MAP_SURFACE.FULL_MAP]
     })),
     resolvePosition:sourceRef=>byId.get(sourceRef.id)?.position
   });

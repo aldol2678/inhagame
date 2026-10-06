@@ -74,7 +74,13 @@ test('concurrent start/input/settle persist one result, one carp, one discovery 
   const full = await json(`select snapshot from private.world_fishing_attempt_snapshots where attempt_id=${lit(attempt.attemptId)};`);
   const core = createFishingAttempt({ request: { activityId: full.activityId, sourceRef: full.sourceRef, clientAttemptKey: key },
     actorUserId: actor, attemptId: full.attemptId, nonce: full.nonce, startedAtMs: full.startedAtMs, policy, biteRoll: 0.5 });
-  assert.deepEqual(full, core);
+  assert.deepEqual(full, { ...core, skillEffects: {
+    version: 'fishing.skill_effects.v1',
+    fishSenseRank: 0,
+    steadyHandsRank: 0,
+    waitReductionMs: 0,
+    responseWindowBonusMs: 0
+  } });
   const inputs = await Promise.all(Array.from({ length: 8 }, () => input(actor, attempt)));
   assert.equal(inputs.filter(r => r.status === 'RESOLVED').length, 1);
   for (const r of inputs) assert.deepEqual(r.attempt, inputs[0].attempt);

@@ -80,8 +80,25 @@ $f$;
 -- Onboarding fixture: 200 EXP (First Campus + Main2), Lv.2.
 do $$ begin perform private.world_exp_apply_v1('e1000000-0000-4000-8000-0000000000a1', 200, 'qa', 'p1e.fixture', 'p1e:fixture:a1'); end $$;
 
--- ---- 1-4. question bank ----
-select ok((select count(*) from private.world_daily_quiz_questions where status = 'ACTIVE') >= 12, '12+ ACTIVE questions');
+-- ---- question bank ----
+select is((select count(*) from private.world_daily_quiz_questions), 100::bigint, '100 questions in the bank');
+select is((select count(*) from private.world_daily_quiz_questions where status = 'ACTIVE'), 100::bigint, 'all 100 questions are ACTIVE');
+select results_eq($$select category, count(*) from private.world_daily_quiz_questions
+    where category in ('major', 'general', 'inha') group by category order by category$$,
+  $$values ('general'::text, 8::bigint), ('inha', 2), ('major', 74)$$,
+  'knowledge expansion: 74 major + 8 general + 2 INHA questions');
+select results_eq($$select min(position), max(position), count(distinct position) from private.world_daily_quiz_questions$$,
+  $$values (1::int, 100::int, 100::bigint)$$, 'question positions are contiguous 1..100');
+select results_eq($$
+  with expected(department) as (values ('기계공학과'::text), ('항공우주공학과'::text), ('조선해양공학과'::text), ('산업경영공학과'::text), ('화학공학과'::text), ('고분자공학과'::text), ('신소재공학과'::text), ('사회인프라공학과'::text), ('환경공학과'::text), ('공간정보공학과'::text), ('건축학부'::text), ('에너지자원공학과'::text), ('전기전자공학부'::text), ('반도체시스템공학과'::text), ('이차전지융합학과'::text), ('수학과'::text), ('통계학과'::text), ('물리학과'::text), ('화학과'::text), ('해양과학과'::text), ('식품영양학과'::text), ('경영학과'::text), ('파이낸스경영학과'::text), ('아태물류학부'::text), ('국제통상학과'::text), ('국어교육과'::text), ('영어교육과'::text), ('사회교육과'::text), ('체육교육과'::text), ('교육학과'::text), ('수학교육과'::text), ('행정학과'::text), ('정치외교학과'::text), ('미디어커뮤니케이션학과'::text), ('경제학과'::text), ('소비자학과'::text), ('아동심리학과'::text), ('사회복지학과'::text), ('한국어문학과'::text), ('사학과'::text), ('철학과'::text), ('중국학과'::text), ('일본언어문화학과'::text), ('영미유럽인문융합학부'::text), ('문화콘텐츠문화경영학과'::text), ('의예과'::text), ('간호학과'::text), ('조형예술학과'::text), ('디자인융합학과'::text), ('스포츠과학과'::text), ('연극영화학과'::text), ('의류디자인학과'::text), ('인공지능공학과'::text), ('데이터사이언스학과'::text), ('스마트모빌리티공학과'::text), ('디자인테크놀로지학과'::text), ('컴퓨터공학과'::text), ('IBT학과'::text), ('ISE학과'::text), ('KLC학과'::text), ('자유전공학부'::text), ('메카트로닉스공학과'::text), ('소프트웨어융합공학과'::text), ('산업경영학과'::text), ('금융투자학과'::text), ('반도체산업융합학과'::text))
+  select count(*)::bigint,
+         count(*) filter (where not exists (
+           select 1 from private.world_daily_quiz_questions q
+           where q.category = 'major' and q.prompt like '[' || expected.department || '%'
+         ))::bigint
+  from expected$$,
+  $$values (66::bigint, 0::bigint)$$,
+  'all 66 current playable departments have at least one major question');
 select is((select count(*) from private.world_daily_quiz_questions where jsonb_array_length(options) <> 4), 0::bigint, 'every question has exactly 4 options');
 select is((select count(*) from private.world_daily_quiz_questions where correct_index not between 0 and 3), 0::bigint, 'correct_index is 0..3');
 select is((select count(distinct correct_index) from private.world_daily_quiz_questions), 4::bigint, 'correct answers are spread over all four positions');

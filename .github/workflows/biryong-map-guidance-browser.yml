@@ -3,10 +3,12 @@ on:
   pull_request:
     paths:
       - 'apps/world/src/biryong/**'
+      - 'apps/world/src/lobby/**'
       - 'apps/world/src/minimap/**'
       - 'apps/world/src/navigation/**'
       - 'apps/world/src/main.js'
       - 'apps/world/src/player-controller.js'
+      - 'apps/world/src/orbit-camera-controller.js'
       - 'apps/world/src/input-focus*'
       - 'apps/world/src/world-loading*'
       - 'apps/world/npc-factory/**'
@@ -15,6 +17,8 @@ on:
       - 'apps/world/dev-server.mjs'
       - 'apps/world/tests/biryong-*.test.mjs'
       - 'apps/world/tests/browser/biryong-map-guidance-*'
+      - 'apps/world/tests/browser/biryong-resume-smoke.mjs'
+      - 'apps/world/tests/browser/biryong-camera-null-smoke.mjs'
       - 'apps/world/tests/browser/harness.mjs'
       - 'apps/world/tests/browser/package*.json'
       - '.github/workflows/biryong-map-guidance-browser.yml'
@@ -51,6 +55,8 @@ jobs:
           apps/world/tests/navigation-map-ui.test.mjs apps/world/tests/room-map-data.test.mjs
           apps/world/tests/world-loading-render.test.mjs apps/world/tests/npc-campus-life-diversity.test.mjs
           apps/world/tests/player-touch-ownership.test.mjs apps/world/tests/input-focus-biryong-wiring.test.mjs
+      - name: Verify regional camera with the pinned engine (no pixels)
+        run: node apps/world/tests/browser/biryong-camera-null-smoke.mjs
       - name: Render exact-head offline Campus and Biryong at three sizes
         timeout-minutes: 13
         env:
@@ -59,6 +65,14 @@ jobs:
           WORLD_BIRYONG_QA_OUTPUT: test-results/biryong-map-guidance
           EXPECTED_BIRYONG_HEAD: ${{ github.event.pull_request.head.sha }}
         run: timeout --signal=TERM --kill-after=10s 740s node apps/world/tests/browser/biryong-map-guidance-smoke.mjs
+      - name: Verify regional last-location resume and reload
+        timeout-minutes: 5
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+          WORLD_BIRYONG_QA_OUTPUT: test-results/biryong-map-guidance
+          EXPECTED_BIRYONG_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: timeout --signal=TERM --kill-after=10s 280s node apps/world/tests/browser/biryong-resume-smoke.mjs
       - name: Preserve exact-head screenshots and receipts for independent pixel review
         if: always()
         uses: actions/upload-artifact@v4

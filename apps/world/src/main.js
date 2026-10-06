@@ -798,7 +798,8 @@ const resumeEntry = bindResumeEntry({
   player,
   orbit,
   lobbyWorld,
-  transition: lobbyTransition
+  transition: lobbyTransition,
+  getRegionTransition: () => biryongRealm
 });
 const backGateLock = bindLockedBackGate({
   button: document.getElementById("back-gate-locked"),
@@ -1767,6 +1768,9 @@ const biryongCampusReturnAnchor = Object.freeze({
 });
 biryongRealm = createBiryongRealmTransition({
   fade: fadeSwitch,
+  onError: ({ recovered }) => showWorldStatus(recovered
+    ? "지역 이동을 완료하지 못해 원래 위치로 돌아왔어요. 다시 시도해 주세요."
+    : "지역 이동을 복구하지 못했어요. 새로고침해 주세요."),
   campusReturnAnchor: biryongCampusReturnAnchor,
   onBusyChange: busy => {
     if (busy) biryongRegionTransitionInput.acquire();
@@ -1855,7 +1859,9 @@ biryongRealm.onChange(status => {
   else biryongVillageDialogue?.close();
 });
 window.addEventListener("pagehide", event => {
+  biryongRealm?.cancelResume();
   if (!event.persisted) {
+    biryongRealm?.dispose();
     biryongVillageDialogue?.destroy();
     biryongVillageNpcs?.destroy();
   }
@@ -2548,6 +2554,7 @@ try {
     root: document.getElementById("full-map-panel"),
     openButton: document.getElementById("minimap-open-map"),
     closeButton: document.getElementById("full-map-close"),
+    searchRoot: document.getElementById("full-map-search"),
     surface: document.getElementById("full-map-surface"),
     svg: document.getElementById("full-map-svg"),
     markerLayer: document.getElementById("full-map-marker-layer"),
@@ -2614,7 +2621,12 @@ try {
       attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false); fishingPanel?.setOpen(false);
       questJournal?.setOpen(false);
     },
-    onClose: () => { fullMapInput.release(); },
+    onClose: () => {
+      fullMapInput.release();
+      // The map opener lives inside the suspended Mini-map. Restore visibility
+      // before Full Map validates its return-focus target, not on the next frame.
+      minimap?.update({ force: true });
+    },
     documentLike: document, windowTarget: window
   });
   rooms.onChange((status) => {
@@ -2713,6 +2725,8 @@ window.addEventListener("keydown", (event) => {
     return;
   }
   if (lobbyWorld.active || lobbyTransition.active) return;
+  // Opening obeys the common input policy; Q can still dismiss the journal's own blocking claim.
+  if (!questJournal.open && !inputFocus.can("GAMEPLAY_SHORTCUT")) return;
   event.preventDefault();
   questJournal.setOpen(!questJournal.open);
 });
@@ -2896,9 +2910,9 @@ places.onPlaceZoneChanged((previous,next)=>{
 
 app.on("update", (dt) => {
   syncAudio();
-  // Only render the camera while a room transaction owns the player's coordinate frame. Room
-  // pose publishing, campus observers and local motion must not consume an intermediate pose.
-  if (rooms.status().busy) {
+  // Only render the camera while a room/region transaction owns the coordinate frame.
+  // Campus observers, resume writes and local motion must not consume an intermediate pose.
+  if (rooms.status().busy || biryongRealm?.busy) {
     orbit.apply(player.getLocalPosition(), character.eyeHeight);
     return;
   }
@@ -3095,9 +3109,11 @@ app.on("update", (dt) => {
     place,
     grounded: controller.grounded,
     mounted: controller.mounted,
-    insideRoom: inside,
+    insideRoom: rooms.insideRoom,
+    transitioning: rooms.status().busy || biryongRealm?.busy || lobbyTransition.active,
+    inCombat: combatRuntime.active,
     regionId: biryongRealm?.regionId ?? WORLD_REGION_ID.CAMPUS,
-    enabled: firstPlayerMovement && !npcTestMode && !combatRuntime.active
+    enabled: (firstPlayerMovement || inBiryong) && !npcTestMode && !combatRuntime.active
   });
   if (!inside) streaming.update(dt, pos);
   if (!inside && !npcTestMode) tour.update(pos, place?.id, orbit.yaw);

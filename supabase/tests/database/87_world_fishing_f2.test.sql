@@ -21,8 +21,8 @@ select is((select status from private.world_life_skill_catalog where skill_id='l
   'fishing skill is active');
 select is((select status from private.world_collection_entry_catalog where entry_id='collection.fish.carp'),'ACTIVE',
   'carp discovery is active');
-select is((select count(*) from private.world_life_skill_tree_catalog where status <> 'COMING_SOON'),0::bigint,
-  'no tree node is active (nodes have no effects yet)');
+select is((select count(*) from private.world_life_skill_tree_catalog where status='ACTIVE'),2::bigint,
+  'only the two implemented Fishing timing nodes are active');
 select is((select status from private.world_creature_activity_bridge_catalog where bridge_id='creature.bridge.activity.fishing'),'COMING_SOON',
   'the fishing Creature bridge stays inactive');
 select is((select count(*) from private.world_life_skill_catalog where status <> 'COMING_SOON'),1::bigint,

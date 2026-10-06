@@ -1,7 +1,7 @@
 // INHA WORLD · Life Skill Book panel (P0). Presentation only: every number, rank, cost, lock reason,
 // reset availability and cooldown comes from the server views in life-skill-book-client.js. Names come
 // from the code Registries; an id the Registry does not know is shown as-is, never hidden or guessed.
-// Node effects are not implemented yet, so their placeholder descriptions are not shown to players.
+// Node descriptions are still placeholder Registry copy, so effect text is not shown to players; active effects are server-authoritative.
 // Buttons are enabled only when the server said canUnlock / canReset; the server re-checks on click.
 
 import { LIFE_SKILL_REGISTRY } from "./life-skill-registry.js";
