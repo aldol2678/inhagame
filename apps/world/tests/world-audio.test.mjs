@@ -2,8 +2,18 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { AUDIO_PROFILES, resolveAudioZone } from "../src/audio/audio-zones.js";
 import { createWorldAudio } from "../src/audio/world-audio.js";
+import {
+  AF07_R2_ASSET_IDS,
+  AF07_R2_PROFILE_ID,
+  resolveAssetFactoryPreviewAmbience
+} from "../src/audio/asset-factory-preview.js";
 
-function rig({ locked = false, unavailable = false } = {}) {
+function rig({
+  locked = false,
+  unavailable = false,
+  assetFactoryPreviewId = null,
+  ambienceAssetLoader = undefined
+} = {}) {
   const listeners = new Map();
   const timers = new Map();
   const sources = [];
@@ -37,9 +47,14 @@ function rig({ locked = false, unavailable = false } = {}) {
     emit(type) { for (const handler of listeners.get(type) ?? []) handler(); },
     count() { return [...listeners.values()].reduce((n, group) => n + group.size, 0); }
   };
-  const audio = createWorldAudio({ documentLike, AudioContextClass: unavailable ? null : Context,
+  const audio = createWorldAudio({
+    documentLike,
+    AudioContextClass: unavailable ? null : Context,
+    assetFactoryPreviewId,
+    ...(ambienceAssetLoader ? { ambienceAssetLoader } : {}),
     setTimeoutFn: handler => { const id = ++timerId; timers.set(id, handler); return id; },
-    clearTimeoutFn: id => timers.delete(id) });
+    clearTimeoutFn: id => timers.delete(id)
+  });
   const flush = () => { for (const [id, handler] of [...timers]) { timers.delete(id); handler(); } };
   return { audio, documentLike, flush, sources, contexts, timers };
 }
@@ -108,4 +123,73 @@ test("unavailable and suspended audio never block zone state", async () => {
   assert.equal(await blocked.audio.unlock(), false);
   assert.equal(blocked.audio.status().zone, "PERSONAL_ROOM");
   blocked.audio.dispose();
+});
+
+
+test("AF-07 R2 resolves central-registry base layers and rain variant", () => {
+  assert.equal(resolveAssetFactoryPreviewAmbience({
+    profileId: "unknown", zone: "INKYUNG", weather: "RAIN"
+  }), null);
+  const clear = resolveAssetFactoryPreviewAmbience({
+    profileId: AF07_R2_PROFILE_ID, zone: "INKYUNG", weather: "CLEAR"
+  });
+  assert.deepEqual(clear?.layers.map(layer => layer.asset.id), [
+    AF07_R2_ASSET_IDS.INKYUNG_WATER_SHORE,
+    AF07_R2_ASSET_IDS.INKYUNG_AIR_LIFE
+  ]);
+  const rain = resolveAssetFactoryPreviewAmbience({
+    profileId: AF07_R2_PROFILE_ID, zone: "INKYUNG", weather: "RAIN"
+  });
+  assert.equal(rain?.layers.length, 3);
+  assert.equal(rain?.layers[2].asset.id, AF07_R2_ASSET_IDS.INKYUNG_RAIN);
+  assert.ok(rain?.layers.every(layer => layer.asset.metadata.rights.status === "verified"));
+  assert.ok(rain?.layers.every(layer => layer.asset.metadata.qa.status === "owner-accepted"));
+});
+
+test("AF-07 R2 replaces the temporary Inkyung synth after central-registry layers load", async () => {
+  let loads = 0;
+  const r = rig({
+    assetFactoryPreviewId: AF07_R2_PROFILE_ID,
+    ambienceAssetLoader: async () => {
+      loads += 1;
+      return { id: `af09-buffer-${loads}`, duration: 30 };
+    }
+  });
+  r.audio.setState({ placeZoneId: "AREA_INKYUNG_STUDENT_CENTER", weather: "RAIN" });
+  await r.audio.unlock();
+  for (let i = 0; i < 6; i++) await Promise.resolve();
+  r.flush();
+  let status = r.audio.status();
+  assert.equal(loads, 3);
+  assert.equal(status.sampledAmbience.status, "active");
+  assert.equal(status.sampledAmbience.activeAssetIds.length, 3);
+  assert.equal(status.sampledAmbience.replacingSynthetic, true);
+  assert.equal(status.ambienceSources, 3);
+
+  r.audio.setState({ placeZoneId: "AREA_INKYUNG_STUDENT_CENTER", weather: "CLEAR" });
+  for (let i = 0; i < 6; i++) await Promise.resolve();
+  r.flush();
+  status = r.audio.status();
+  assert.equal(loads, 3);
+  assert.deepEqual(status.sampledAmbience.activeAssetIds, [
+    AF07_R2_ASSET_IDS.INKYUNG_WATER_SHORE,
+    AF07_R2_ASSET_IDS.INKYUNG_AIR_LIFE
+  ]);
+  assert.equal(status.ambienceSources, 2);
+  r.audio.dispose();
+});
+
+test("AF-07 R2 central-registry asset load failure preserves the procedural fallback", async () => {
+  const r = rig({
+    assetFactoryPreviewId: AF07_R2_PROFILE_ID,
+    ambienceAssetLoader: async () => { throw new Error("asset unavailable"); }
+  });
+  r.audio.setState({ placeZoneId: "AREA_INKYUNG_STUDENT_CENTER", weather: "RAIN" });
+  await r.audio.unlock();
+  for (let i = 0; i < 6; i++) await Promise.resolve();
+  const status = r.audio.status();
+  assert.equal(status.sampledAmbience.status, "degraded");
+  assert.equal(status.ambienceSources, 2);
+  assert.equal(status.zone, "INKYUNG");
+  r.audio.dispose();
 });
