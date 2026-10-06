@@ -24,7 +24,9 @@ test("NPC runtime emits one unified lifecycle across normal and Main 2 guide con
   assert.match(npcRuntime, /onConversationOpen: syncConversationLifecycle,\s*onConversationClose: syncConversationLifecycle/s);
   assert.match(npcRuntime, /closeConversation\(false, \{ sync: false \}\)/);
   assert.match(npcRuntime, /activeConversation = \{ id: actor\.id,[^}]*memoryBefore: before,[^}]*newEncounter \};/s);
-  assert.match(npcRuntime, /dialogueSession = createNpcDialogueSession\(\{ npcId: actor\.id \}\);\s*syncConversationLifecycle\(\);/s);
+  assert.match(npcRuntime,
+    /dialogueSession = createNpcDialogueSession\(\{ npcId: actor\.id \}\);[\s\S]*?recordConversationOpen\(actor\.id\)[\s\S]*?syncConversationLifecycle\(\);/s,
+    "direct NPC dialogue creates its session, records the best-effort relationship OPEN, then publishes lifecycle state");
 });
 
 test("Main 2 guide changes state before notifying open and close lifecycle", () => {
