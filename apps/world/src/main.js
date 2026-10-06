@@ -27,6 +27,7 @@ import { createEnvironmentWorldTime } from './environment/environment-world-time
 import { createWorldTimeHud } from './hud/world-time-hud.js';
 import { createNpcWorldClock } from '../npc-factory/npc-world-clock.mjs';
 import { createNightStreetLights } from './environment/night-street-lights.js';
+import { createTrafficSignals } from './traffic-signal-renderer.js';
 import { createNightBuildingWindows } from './environment/night-building-windows.js';
 import { createRainWeatherEffects } from './environment/rain-weather-effects.js';
 import { createSnowWeatherEffects } from './environment/snow-weather-effects.js';
@@ -405,6 +406,13 @@ const nightStreetLights = createNightStreetLights({
 app.on("update", dt => nightStreetLights.update(dt));
 window.__INHAGAME_NIGHT_LIGHTS__ = Object.freeze({
   status: () => nightStreetLights.status()
+});
+
+// Main Gate / Dormitory 1 junction: one shared deterministic controller drives every signal head.
+const trafficSignals = createTrafficSignals({ root: campusRoot });
+app.on("update", dt => trafficSignals.update(dt));
+window.__INHAGAME_TRAFFIC_SIGNALS__ = Object.freeze({
+  status: () => trafficSignals.status()
 });
 
 const nightBuildingWindows = createNightBuildingWindows({
