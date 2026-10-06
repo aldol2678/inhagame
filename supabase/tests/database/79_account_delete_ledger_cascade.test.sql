@@ -42,9 +42,9 @@ select is(private.world_life_node_unlock_v1('dc100000-0000-4000-8000-0000000000c
   'life.node.fishing.cascade_test','cascade:unlock')->>'status','SUCCESS','fixture: Life SP spend and unlocked node');
 
 -- ---- direct deletes of a live account's history stay refused ----
-select throws_ok($delete from private.world_biryong_npc_relationship_events$,
+select throws_ok($sql$delete from private.world_biryong_npc_relationship_events$sql$,
   '42501','BIRYONG_RELATIONSHIP_EVENT_APPEND_ONLY','live Biryong history cannot be deleted');
-select throws_ok($delete from private.world_campus_npc_relationship_events$,
+select throws_ok($sql$delete from private.world_campus_npc_relationship_events$sql$,
   '42501','CAMPUS_NPC_RELATIONSHIP_EVENT_APPEND_ONLY','live Campus NPC relationship history cannot be deleted');
 select throws_ok($$delete from private.world_player_life_nodes$$,
   '42501','LIFE_NODE_APPEND_ONLY','live unlocked nodes cannot be deleted');
