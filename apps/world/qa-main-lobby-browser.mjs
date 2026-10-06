@@ -56,7 +56,8 @@ try {
     { name: "mobile-390", viewport: { width: 390, height: 844 }, mobile: true },
     { name: "mobile-360", viewport: { width: 360, height: 800 }, mobile: true },
     { name: "mobile-short-360", viewport: { width: 360, height: 640 }, mobile: true },
-    { name: "mobile-narrow-320", viewport: { width: 320, height: 800 }, mobile: true }
+    { name: "mobile-narrow-320", viewport: { width: 320, height: 800 }, mobile: true },
+    { name: "mobile-landscape-844", viewport: { width: 844, height: 390 }, mobile: true, landscape: true }
   ]) {
     const context = await browser.newContext({ viewport: spec.viewport, isMobile: spec.mobile, hasTouch: spec.mobile, deviceScaleFactor: 1 });
     const { page, errors } = await openLobby(context, clearResumeStorage, [WORLD_RESUME_LEGACY_KEY, WORLD_RESUME_GUEST_KEY]);
@@ -92,6 +93,15 @@ try {
     if (spec.mobile) {
       assert.equal(await page.locator("#lobby-player-look").isVisible(), false,
         "mobile hides the low-value default appearance line");
+    }
+    if (spec.landscape) {
+      assert.ok(playerBox.height <= 56 && presenceBox.height <= 56,
+        "short landscape uses compact summary pills");
+      assert.ok(Math.max(playerBox.y + playerBox.height, presenceBox.y + presenceBox.height) <= mainBox.y,
+        "short landscape summaries stay clear of the primary entry CTA");
+      const backBox = await locked.boundingBox();
+      assert.ok(backBox && backBox.y + backBox.height <= spec.viewport.height,
+        "short landscape keeps the secondary entry action inside the first viewport");
     }
 
     await page.locator("#lobby-menu-toggle").click();
