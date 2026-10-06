@@ -22,6 +22,7 @@ import { MAIN_NPC_ID, QUEST_NPC_ID, runtimePresence } from './npc-presence.mjs';
 import { createNpcWorldClock } from './npc-world-clock.mjs';
 import { createSharedMeetings, createSharedMeetingObserver } from './npc-shared-meetings.mjs';
 import { bindSharedSchedule } from './npc-shared-schedule.mjs';
+import { createSharedNpcAuthorityConsumerP0 } from './npc-shared-authority-consumer-p0.mjs';
 import { worldScheduleAt, NPC_SCHEDULE_REVISION } from './npc-world-time-contract.mjs';
 import { createPurposefulRoster } from './purposeful-roster.mjs';
 import { loadNpcPopulation } from './npc-population-loader.mjs';
@@ -147,6 +148,8 @@ function addPanel(production = false, externalContextAction = false) {
 }
 export async function createNpcDevRuntime({ app, campusRoot, player, orbit, production = false, aiPilot = false,
   sharedSchedulePreview = false, worldClock = null,
+  sharedAuthorityEnabled = false, sharedAuthorityEndpoint = '/api/npc-shared-state',
+  getSharedAuthorityPlaceZoneId = () => null,
   socialEnabled = false, socialPreview = false, socialBehaviorPreview = false,
   observedConversationEnabled = false, isObservedConversationBlocked = () => true,
   getBusyNpcIds = () => [], onNpcTalk = () => {},
@@ -194,6 +197,11 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
   const sharedMeetings = worldClock ? createSharedMeetings({ batch, profiles: roster,
     roster: purposefulRoster, navigator, now: () => sharedFrameNow }) : null;
   const sharedObserver = worldClock ? createSharedMeetingObserver() : null;
+  const sharedAuthority = createSharedNpcAuthorityConsumerP0({
+    enabled: sharedAuthorityEnabled,
+    endpoint: sharedAuthorityEndpoint,
+    getPlaceZoneId: getSharedAuthorityPlaceZoneId
+  });
   const socialMotion = worldClock ? {
     status: () => ({ phase: 'SHARED_SCHEDULE', pairIds: [] }),
     setPeriod() {}, tick() { return this.status(); },
@@ -940,6 +948,22 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
     motion.moving = false;
     const purpose = purposefulRoster.get(actor.id);
     if (purpose) {
+      const authoritative = sharedAuthority.stateFor(actor.id);
+      if (authoritative) {
+        const position = authoritative.ready && authoritative.visible && authoritative.position
+          ? { ...authoritative.position } : null;
+        motion.position = position;
+        motion.heading = Number.isFinite(authoritative.heading) ? authoritative.heading : 0;
+        motion.sharedMeeting = Boolean(authoritative.meetingId);
+        motion.moving = authoritative.moving === true;
+        actor.position = position && { ...position };
+        actor.location = authoritative.destination ?? actor.location;
+        actor.activity = authoritative.activity ?? actor.activity;
+        visual.avatar.enabled = Boolean(position);
+        visual.seat = position && !motion.moving && authoritative.activity === 'RESTING'
+          ? findSeat(position, { range: 2 }) : null;
+        return;
+      }
       if (!worldClock && (activeConversation?.id === actor.id || socialMotion.shouldPauseForConversation(actor.id, activeConversation?.id) ||
           socialNg15Bridge?.shouldPauseForConversation(actor.id, activeConversation?.id) ||
           socialMotion.shouldHoldForJoin(actor.id)))
@@ -1156,6 +1180,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
         point.x>=0 && point.y>=0 && point.x<=canvasRect.width && point.y<=canvasRect.height},obstacles:observedObstacles });
   }
   function update(dt) {
+    sharedAuthority.update();
     if (!socialPreviewFastForward) {
       main2Guide.update(dt);
       expressionPilot?.update(dt);
@@ -1321,6 +1346,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
       shared_meetings: sharedMeetings?.status() ?? null,
       shared_schedule: worldClock ? { ...worldClock.status(), revision: NPC_SCHEDULE_REVISION,
         frameServerNowMs: sharedFrameNow } : null,
+      shared_authority: sharedAuthority.status(),
       social_motion: socialMotion.status(),
       purposeful: Object.fromEntries([...purposefulRoster].map(([id]) => [id, purposefulStatus(id)])),
       selected_id: selectedId, selected_activity: snapshot.actors.find(a => a.id === selectedId).activity,

@@ -214,6 +214,7 @@ const worldTimeEl = document.getElementById("world-time-chip");
 const npcTestMode = ['localhost', '127.0.0.1'].includes(location.hostname) &&
   startupParams.get('npcTest') === 'a-r1';
 const npcAiPilotMode = npcTestMode && startupParams.get('npcAiPilot') === '1';
+const npcSharedAuthorityPreviewMode = npcTestMode && startupParams.get('npcAuthority') === 'p0' && startupParams.get('npcSync') === 'ng2';
 // Normal deployments start campus NPCs without a domain allowlist. Local and Vercel
 // preview hosts retain the explicit selectors below; API flags still own AI/quest access.
 const npcProductionMode = !previewHost;
@@ -2763,18 +2764,21 @@ async function loadOptionalNpcRuntime() {
   if (!npcEnabled) return null;
   let npcAiEnabled = npcAiPilotMode;
   let npcJevEnabled = false;
+  let npcSharedAuthorityEnabled = npcSharedAuthorityPreviewMode;
   let npcQuestEnabled = npcTestMode || (npcPreviewMode && startupParams.get('backGateArrival') === 'preview');
   // CORE-15: each flag probe is bounded, so a slow AI flag never holds the NPCs or the first quest.
   // A transient quest-flag failure starts the NPCs with the quest off and turns it on once it resolves.
   let questFlagPending = false;
   if (npcProductionMode) {
-    const [aiResult, questResult, jevResult] = await Promise.all([
+    const [aiResult, questResult, jevResult, sharedAuthorityResult] = await Promise.all([
       probeFeatureFlag('/api/npc-ai'),
       probeFeatureFlag('/api/world-quest'),
-      probeFeatureFlag('/api/npc-dialogue-route')
+      probeFeatureFlag('/api/npc-dialogue-route'),
+      probeFeatureFlag('/api/npc-shared-state')
     ]);
     npcAiEnabled = aiResult === FLAG_ENABLED;
     npcJevEnabled = jevResult === FLAG_ENABLED;
+    npcSharedAuthorityEnabled = sharedAuthorityResult === FLAG_ENABLED;
     npcQuestEnabled = questResult === FLAG_ENABLED;
     questFlagPending = questResult === FLAG_UNAVAILABLE;
   }
@@ -2784,6 +2788,9 @@ async function loadOptionalNpcRuntime() {
       app, campusRoot, player, orbit,
       sharedSchedulePreview: npcSharedScheduleMode,
       worldClock,
+      sharedAuthorityEnabled: npcSharedAuthorityEnabled,
+      sharedAuthorityEndpoint: '/api/npc-shared-state',
+      getSharedAuthorityPlaceZoneId: () => places.getCurrentPlaceZone()?.id ?? null,
       onNpcTalk: (id, now) => online?.network?.setNpcTalk(id, now),
       getBusyNpcIds: now => busyNpcIds(online?.network?.remotes.inZone(online.network.placeZoneId) ?? [], now),
       production: npcSharedScheduleMode || npcProductionMode || npcPreviewMode || npcRosterPreviewMode || npcSocialPreviewMode || npcObservedConversationMode,

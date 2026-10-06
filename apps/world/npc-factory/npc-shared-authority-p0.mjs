@@ -6,6 +6,7 @@ import {
 } from './npc-world-time-contract.mjs';
 
 export const SHARED_NPC_AUTHORITY_REVISION = 'shared-npc-p0-v1';
+export const SHARED_NPC_P0_IDS = Object.freeze(['INKYUNG-NPC-003', 'INKYUNG-NPC-012']);
 export const SHARED_NPC_TICK_MS = 250;
 export const SHARED_NPC_LOD = Object.freeze({
   ACTIVE: 'ACTIVE',

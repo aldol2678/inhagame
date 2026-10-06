@@ -1,10 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import handler from '../api/npc-shared-state.js';
-import { createCampusSharedNpcAuthorityP0, SHARED_NPC_P0_IDS } from '../npc-factory/npc-shared-authority-server.mjs';
+import { createCampusSharedNpcAuthorityP0 } from '../npc-factory/npc-shared-authority-server.mjs';
 import {
   SHARED_NPC_AUTHORITY_REVISION,
-  SHARED_NPC_LOD
+  SHARED_NPC_LOD,
+  SHARED_NPC_P0_IDS
 } from '../npc-factory/npc-shared-authority-p0.mjs';
 import { createSharedNpcReplicaP0 } from '../npc-factory/npc-shared-replica-p0.mjs';
 import {
@@ -111,6 +112,11 @@ test('feature-gated read-only API rejects invalid requests and returns the autho
     assert.equal(res.statusCode, 404);
 
     process.env.NPC_SHARED_AUTHORITY_P0 = '1';
+    res = fakeResponse();
+    await handler({ method: 'GET', query: {} }, res);
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(res.body, { enabled: true });
+
     res = fakeResponse();
     await handler({ method: 'POST', query: { placeZoneId: 'AREA_MAIN_GATE' } }, res);
     assert.equal(res.statusCode, 405);
