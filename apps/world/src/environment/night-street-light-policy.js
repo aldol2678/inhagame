@@ -1,10 +1,11 @@
 export const NIGHT_LIGHT_BUDGET = Object.freeze({
-  low: 1,
-  medium: 4,
-  high: 8
+  low: 3,
+  medium: 6,
+  high: 10
 });
 
-export const NIGHT_LIGHT_MAX_DISTANCE = 46;
+export const NIGHT_LIGHT_MAX_DISTANCE = 68;
+export const NIGHT_LIGHT_OMNI_RANGE = 16.5;
 
 export function nightLightBudget(tier) {
   return Object.hasOwn(NIGHT_LIGHT_BUDGET, tier) ? NIGHT_LIGHT_BUDGET[tier] : NIGHT_LIGHT_BUDGET.medium;
