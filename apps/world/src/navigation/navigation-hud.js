@@ -1,7 +1,7 @@
 // INHA WORLD M3 guidance chip under the Mini-map: destination · direction · distance · cancel.
 // Consumes Guidance State snapshots only; never computes routes or reads world registries.
 
-import { NAV_STATUS, formatGuidanceDistance } from "./navigation-state.js";
+import { NAV_STATUS, formatGuidanceDistance, navigationPauseLabel } from "./navigation-state.js";
 
 function setText(element, value) {
   const next = String(value ?? "");
@@ -44,7 +44,7 @@ export function createNavigationHud({ root, arrow, title, detail, cancelButton, 
       }
       setText(arrow, "↑");
     } else if (status === NAV_STATUS.PAUSED) {
-      setText(detail, "실외로 나가면 안내 재개");
+      setText(detail, navigationPauseLabel(snapshot));
       setText(arrow, "⏸");
     } else if (status === NAV_STATUS.ARRIVED) {
       setText(detail, "도착했어요");

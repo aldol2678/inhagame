@@ -5,7 +5,7 @@ import * as pc from "playcanvas";
 import { box, surface } from "../campus-render-kit.js";
 import { DORM_1_LOBBY, DORM_1_LOBBY_FURNITURE } from "./dorm1-lobby-layout.js";
 
-const { halfWidth: W, halfDepth: D, ceiling: H, wall: T, campusDoor, myRoomDoor } = DORM_1_LOBBY;
+const { halfWidth: W, halfDepth: D, ceiling: H, wall: T, campusDoor, myRoomDoor, friendRoomDoor } = DORM_1_LOBBY;
 
 function glow(hex, intensity = 1) {
   const n = parseInt(hex.slice(1), 16);
@@ -75,6 +75,14 @@ export function createDorm1LobbyScene(app) {
     [myRoomDoor.width, myRoomDoor.height, 0.04], surface("#7d5c3e"));
   box(root, "my_room_sign", [myRoomDoor.x, myRoomDoor.height + 0.14, myRoomDoor.z - 0.04],
     [0.55, 0.12, 0.025], glow("#5fd38d", 0.65));
+
+  // Housing H3: west-corridor door to friends' rooms (visitors knock here).
+  box(root, "friend_room_frame", [friendRoomDoor.x, friendRoomDoor.height / 2 + 0.03, friendRoomDoor.z],
+    [friendRoomDoor.width + 0.16, friendRoomDoor.height + 0.08, 0.05], trim);
+  box(root, "friend_room_door", [friendRoomDoor.x, friendRoomDoor.height / 2, friendRoomDoor.z - 0.03],
+    [friendRoomDoor.width, friendRoomDoor.height, 0.04], surface("#6f5640"));
+  box(root, "friend_room_sign", [friendRoomDoor.x, friendRoomDoor.height + 0.14, friendRoomDoor.z - 0.04],
+    [0.55, 0.12, 0.025], glow("#6fb6ff", 0.65));
 
   // Elevator bank and a simple directory establish the lobby identity without reproducing a real interior.
   for (const x of [-1.35, 1.35]) {

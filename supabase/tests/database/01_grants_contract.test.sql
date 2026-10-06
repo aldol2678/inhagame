@@ -139,6 +139,11 @@ select set_eq($$select unnest(pg_temp.exec_surface('authenticated', 'anon'))$$, 
   'can_access_world_room_realtime_v1(text)',
   'get_world_room_furniture_v1(uuid)',
   'save_my_room_furniture_v1(uuid,integer,jsonb)',
+  -- Housing H3 (20261005022000): knock before a friend visit; caller = auth.uid().
+  'knock_friend_personal_room_v1(uuid)',
+  'get_my_room_knock_v1(uuid)',
+  'list_my_room_knocks_v1()',
+  'respond_room_knock_v1(uuid,boolean)',
   'delete_my_inhagame_account_v1(text)',
   'delete_my_grow_progress(timestamp with time zone)',
   'get_my_game_progress(text)',
@@ -268,6 +273,7 @@ select ok(not has_function_privilege(r, f, 'execute'), format('%s cannot execute
 from unnest(array['anon', 'authenticated']) r, unnest(array[
   'public.world_activity_start_v1(uuid,text,text,uuid,integer,integer,timestamp with time zone)',
   'public.world_activity_finalize_v1(uuid,uuid,text,text,text)',
+  'public.world_gathering_harvest_v1(uuid,text,uuid)',
   'public.world_collection_discover_v1(uuid,text,text,text,text,text,jsonb)',
   'public.world_collection_list_v1(uuid)',
   'public.world_combat_start_v1(uuid,text,text,uuid,integer,integer,jsonb)',
@@ -297,6 +303,7 @@ select ok(has_function_privilege('service_role', f, 'execute'), format('service_
 from unnest(array[
   'public.world_activity_start_v1(uuid,text,text,uuid,integer,integer,timestamp with time zone)',
   'public.world_activity_finalize_v1(uuid,uuid,text,text,text)',
+  'public.world_gathering_harvest_v1(uuid,text,uuid)',
   'public.world_collection_discover_v1(uuid,text,text,text,text,text,jsonb)',
   'public.world_collection_list_v1(uuid)',
   'public.world_combat_start_v1(uuid,text,text,uuid,integer,integer,jsonb)',

@@ -62,6 +62,12 @@ test('sunset warms the horizon far more than the zenith and strengthens the glow
   assert.ok(sunset.sunGlowOpacity > day.sunGlowOpacity);
 });
 
+test('canonical NIGHT is moonless and carries no hidden directional light', () => {
+  assert.equal(ENVIRONMENT_PRESETS.NIGHT.sunIntensity, 0);
+  assert.equal(ENVIRONMENT_PRESETS.NIGHT.shadowIntensity, 0);
+  assert.ok(ENVIRONMENT_PRESETS.NIGHT.exposure < ENVIRONMENT_PRESETS.DAY.exposure);
+});
+
 test('night becomes a dark navy gradient and disables atmospheric sun glow', () => {
   const profile = atmosphereSkyProfile({
     sunColor: ENVIRONMENT_PRESETS.NIGHT.sunColor,
@@ -74,6 +80,26 @@ test('night becomes a dark navy gradient and disables atmospheric sun glow', () 
   assert.ok(profile.zenithColor[2] > profile.zenithColor[0]);
   assert.equal(profile.sunGlowOpacity, 0);
   assert.ok(profile.sunsetFactor < 1e-12);
+});
+
+test('clear NIGHT stays dark even with the baseline cloud-cover signal', () => {
+  const day = atmosphereSkyProfile({
+    sunColor: ENVIRONMENT_PRESETS.DAY.sunColor,
+    artificialLightFactor: ENVIRONMENT_PRESETS.DAY.artificialLightFactor,
+    cloudCover: ENVIRONMENT_WEATHER_PRESETS.CLEAR.cloudCover,
+    sunLightScale: ENVIRONMENT_WEATHER_PRESETS.CLEAR.sunLightScale
+  });
+  const night = atmosphereSkyProfile({
+    sunColor: ENVIRONMENT_PRESETS.NIGHT.sunColor,
+    artificialLightFactor: ENVIRONMENT_PRESETS.NIGHT.artificialLightFactor,
+    cloudCover: ENVIRONMENT_WEATHER_PRESETS.CLEAR.cloudCover,
+    sunLightScale: ENVIRONMENT_WEATHER_PRESETS.CLEAR.sunLightScale
+  });
+
+  assert.ok(luminance(night.horizonColor) < 0.07);
+  assert.ok(luminance(night.zenithColor) < 0.03);
+  assert.ok(luminance(night.horizonColor) < luminance(day.horizonColor) * 0.12);
+  assert.ok(luminance(night.zenithColor) < luminance(day.zenithColor) * 0.08);
 });
 
 test('weather tint darkens rain, desaturates overcast and brightens snow haze', () => {

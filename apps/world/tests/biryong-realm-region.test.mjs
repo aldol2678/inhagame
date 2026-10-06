@@ -171,6 +171,7 @@ test("Biryong Station F1 return action rechecks player state at trigger time", (
 
 test("legacy Campus resume migrates to v2 while Biryong-local coordinates cannot validate as Campus", () => {
   const options = {
+    expectedRegionId: WORLD_REGION_ID.CAMPUS,
     bounds: { minX: -10, maxX: 10, minZ: -10, maxZ: 10 },
     groundHeight: () => 0,
     canOccupyPosition: () => true,
@@ -191,7 +192,7 @@ test("legacy Campus resume migrates to v2 while Biryong-local coordinates cannot
   assert.equal(wrongRegion.state, "INVALID");
 });
 
-test("resume store refuses Biryong writes until a region-specific resume validator exists", () => {
+test("resume store saves Biryong with its region-specific resume validator", () => {
   const data = new Map();
   const storage = {
     getItem: key => data.get(key) ?? null,
@@ -204,6 +205,7 @@ test("resume store refuses Biryong writes until a region-specific resume validat
     position: { x: 0, y: BIRYONG_STATION_SPAWN.y, z: 0 },
     place: { id: "BR_STATION", displayName: "비룡역" },
     grounded: true
-  }), false);
+  }), true);
+  assert.equal(store.read().record.regionId, WORLD_REGION_ID.BIRYONG_REALM);
   assert.equal(data.has("inhagame-world-resume-v1"), false);
 });

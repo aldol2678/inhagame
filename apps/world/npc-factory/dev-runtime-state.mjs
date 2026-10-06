@@ -2,6 +2,7 @@
 // These positions are inspection anchors, not new canonical location coordinates.
 import { getCanonicalLandmark, projectPolygon } from '../src/reality-adapter.js';
 import { edgeFrame } from '../src/roadview-layout.js';
+import { INKYUNG_PHOTO_ANCHOR_SPEC } from '../src/photo/inkyung-photo-point.js';
 import { polygonOverlap } from '../src/polygon-collision.js';
 import { FACILITIES, FACILITY_COLLIDERS } from '../src/campus-facilities.js';
 import { LANDMARKS, OBSTACLES } from '../src/campus-layout.js';
@@ -24,7 +25,7 @@ const anchorSpecs = Object.freeze({
   inkyung_bench_west: [7, .5, 4],
   inkyung_walkway: [1, .7, 4],
   inkyung_waterfront: [0, .5, 4],
-  inkyung_photo_point: [10, .5, 4],
+  inkyung_photo_point: INKYUNG_PHOTO_ANCHOR_SPEC,
   transit_to_main_hall: [4, .5, 10],
   transit_to_student_center: [11, .5, 10],
   transit_to_building: [2, .5, 10]

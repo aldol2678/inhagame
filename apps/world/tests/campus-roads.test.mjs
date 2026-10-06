@@ -10,12 +10,33 @@ import { polygonOverlap } from '../src/polygon-collision.js';
 const quads=[];
 fillCampusRoadBatch({quad(color,...vertices){quads.push({color,vertices});}});
 test('new roads preserve source centerlines and never duplicate existing paths or tunnels',()=>{
-  assert.equal(CAMPUS_ROADS.length,13);
+  assert.equal(CAMPUS_ROADS.length,15);
   for(const r of CAMPUS_ROADS){
     assert.equal(r.tags.highway,'service');assert.notEqual(r.tags.tunnel,'yes');
     assert.ok(!SITE_FEATURES.some(f=>f.id===`site_${r.osmWayId}`));
     assert.deepEqual(r.vertices,r.line.slice(0,r.vertices.length).map(ll=>geoToWorld(...ll)));
   }
+});
+test('9th-building / happiness-dorm site exit reaches Soseong-ro from the existing campus road node',()=>{
+  const campus=CAMPUS_ROADS.find(r=>r.osmWayId===481241661);
+  const exit=CAMPUS_ROADS.find(r=>r.osmWayId===1098489687);
+  assert.ok(campus&&exit,'campus road and Soseong-ro exit are present');
+  assert.deepEqual(exit.vertices[0],campus.vertices[0],'exit begins at the shared OSM campus node');
+  assert.deepEqual(exit.vertices[1],geoToWorld(37.4468509,126.6544119),'exit reaches the OSM node on Soseong-ro');
+  assert.equal(exit.tags.oneway,'yes');
+  assert.equal(exit.tags.service,'driveway');
+  assert.equal(exit.width,2.2,'one-way exit keeps a bounded game-scale width');
+  assert.equal(exit.shoulder,.25,'exit underlay stays local to the corridor');
+});
+test('southwest sports road reaches Soseong-ro through the reconciled OSM service link',()=>{
+  const north=CAMPUS_ROADS.find(r=>r.osmWayId===481241681);
+  const link=CAMPUS_ROADS.find(r=>r.osmWayId===1098491074);
+  const south=CAMPUS_ROADS.find(r=>r.osmWayId===481241683);
+  assert.ok(north&&link&&south,'three source roads are present');
+  assert.deepEqual(link.vertices[1],north.vertices.at(-1),'sports/tennis road joins the service link at the shared OSM node');
+  assert.deepEqual(link.vertices[2],south.vertices[0],'service link joins the Soseong-ro approach at the shared OSM node');
+  assert.equal(link.width,1.3,'narrow one-lane presentation avoids the Law School footprint');
+  assert.equal(link.shoulder,.05,'underlay stays inside the verified clearance');
 });
 test('road surfaces and markings are planar, upward-facing and clear of building interiors',()=>{
   const obstacles=[...FACILITY_COLLIDERS.filter(o=>o.minY===0),...BUILDINGS.map(b=>({id:b.id,polygon:b.vertices})),

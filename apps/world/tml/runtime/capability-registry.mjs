@@ -1,4 +1,5 @@
 import { TML_QUEST_READ_CAPABILITY } from './quest-read-adapter.mjs';
+import { sameTmlValue } from './value-snapshot.mjs';
 
 function capabilityError(capability) {
   const error = new Error(`TML capability is not bound in this runtime: ${capability}`);
@@ -36,10 +37,6 @@ export function createTmlReadOnlyCapabilityRegistry({ questReadAdapter } = {}) {
 import { TML_QUEST_ADVANCE_CAPABILITY } from './quest-advance-adapter.mjs';
 import { executeTmlVerifiedWriteTransition } from './verified-write-runtime.mjs';
 
-function stable(value) {
-  return JSON.stringify(value);
-}
-
 function verifyBoundActionArgs(module, transitionId, actionId, args) {
   const transition = module?.transitions?.find?.((item) => item.id === transitionId);
   if (!transition) {
@@ -56,7 +53,7 @@ function verifyBoundActionArgs(module, transitionId, actionId, args) {
     throw error;
   }
   const action = candidates[0];
-  if (stable(action.args) !== stable(args)) {
+  if (!sameTmlValue({ type: 'object', value: action.args }, { type: 'object', value: args })) {
     const error = capabilityError(TML_QUEST_ADVANCE_CAPABILITY);
     error.code = 'ACTION_ARGUMENT_MISMATCH';
     throw error;

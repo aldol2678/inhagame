@@ -46,6 +46,10 @@
       "dest": "/api/brand-media?asset=biryong-tower-01.mp3"
     },
     {
+      "src": "/worldforge/?",
+      "dest": "/studio/index.html"
+    },
+    {
       "handle": "filesystem"
     }
   ],

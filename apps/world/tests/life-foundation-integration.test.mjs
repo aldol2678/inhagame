@@ -70,8 +70,14 @@ test('P1-A semantic identities align across Material, Activity, Discovery and Li
   }
 });
 
-test('P0 foundations do not accidentally activate P1-A gameplay before adapters and balance land', () => {
+test('Only Fishing is activated; the other P1-A slices wait for their adapters and balance', () => {
   for (const slice of slices) {
+    if (slice.activityId === 'activity.fishing.inkyung') {
+      assert.equal(ACTIVITY_REGISTRY.get(slice.activityId).status, ACTIVITY_DEFINITION_STATUS.ACTIVE);
+      assert.equal(COLLECTION_ENTRY_REGISTRY.get(slice.collectionEntryId).status, COLLECTION_ENTRY_STATUS.ACTIVE);
+      assert.equal(LIFE_SKILL_REGISTRY.get(slice.skillId).status, LIFE_SKILL_STATUS.ACTIVE);
+      continue;
+    }
     assert.equal(ACTIVITY_REGISTRY.get(slice.activityId).status, ACTIVITY_DEFINITION_STATUS.COMING_SOON);
     assert.equal(COLLECTION_ENTRY_REGISTRY.get(slice.collectionEntryId).status, COLLECTION_ENTRY_STATUS.COMING_SOON);
     assert.equal(LIFE_SKILL_REGISTRY.get(slice.skillId).status, LIFE_SKILL_STATUS.COMING_SOON);

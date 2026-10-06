@@ -489,7 +489,7 @@ test('P5 verified-write capability registry binds read + advance and rejects act
   assert.equal(result.disposition, TML_P5_DISPOSITION.VERIFIED);
 });
 
-function attemptHarness({ postRead, providerChange, runtimeNow = () => NOW, adapterNow } = {}) {
+function attemptHarness({ postRead, providerChange, runtimeNow = () => NOW, adapterNow, executionKey = 'exec.p5.4_to_5.1' } = {}) {
   const counts = { reads: 0, dispatches: 0, mutations: 0 };
   let stage = 4;
   const readAdapter = {
@@ -523,7 +523,11 @@ function attemptHarness({ postRead, providerChange, runtimeNow = () => NOW, adap
   };
   return {
     counts,
-    run: () => executeTmlVerifiedWriteTransition({ ...executionOptions({ readAdapter, advanceAdapter }), now: runtimeNow })
+    run: () => executeTmlVerifiedWriteTransition({
+      ...executionOptions({ readAdapter, advanceAdapter }),
+      now: runtimeNow,
+      createExecutionKey: () => executionKey
+    })
   };
 }
 
@@ -534,6 +538,11 @@ test('D11b malformed successful post-reads retain one attempted mutation and pre
     ['invalid typed fact', () => {
       const read = serverReadResult(5, { sequence: 2 });
       read.facts[0].value.value = '5';
+      return read;
+    }],
+    ['hidden malformed typed fact', () => {
+      const read = serverReadResult(5, { sequence: 2 });
+      Object.defineProperty(read.facts[0].value, 'extra', { value: true });
       return read;
     }],
     ['copy failure', () => {
@@ -712,4 +721,123 @@ test('PR1 parseable but non-schema timestamps cannot produce a complete verified
   assert.equal(attempted.disposition, 'EXECUTION_OUTCOME_UNKNOWN');
   assert.equal(attempted.provider.completedAt, null);
   assert.equal(attempted.automaticMutationRetryAllowed, false);
+});
+
+test('PR2 conflicting post-read record IDs retain attempted work and reject the batch atomically', async () => {
+  const preRead = serverReadResult(4, { sequence: 1 });
+  const rejectedRead = serverReadResult(5, { sequence: 2 });
+  rejectedRead.facts[0].id = preRead.facts[0].id;
+  rejectedRead.observations[0].facts = [rejectedRead.facts[0].id];
+  const harness = attemptHarness({ postRead: () => rejectedRead });
+
+  const result = await harness.run();
+
+  assert.deepEqual(harness.counts, { reads: 2, dispatches: 1, mutations: 1 });
+  assert.equal(result.dispatchStatus, 'ATTEMPTED');
+  assert.equal(result.attempt.dispatchStatus, 'ATTEMPTED');
+  assert.equal(result.attempt.requestedExecutionKey, result.executionKey);
+  assert.equal(result.attempt.receivedExecutionKey, result.executionKey);
+  assert.equal(result.provider.output.stage, 5);
+  assert.equal(result.precondition, 'SATISFIED');
+  assert.equal(result.postcondition, 'UNKNOWN');
+  assert.equal(result.disposition, 'EXECUTED_UNVERIFIED');
+  assert.equal(result.traceComplete, false);
+  assert.ok(result.diagnostic.code);
+  assert.equal(result.reads.precondition.facts[0].value.value, 4);
+  assert.equal(result.reads.postcondition.facts[0].value.value, 5);
+  assert.equal(result.trace.records.filter((record) => record.kind === 'action').length, 1);
+  assert.equal(result.trace.records.find((record) => record.id === preRead.facts[0].id).value.value, 4);
+  assert.equal(result.trace.records.some((record) => rejectedRead.observations.some((observation) => observation.id === record.id)), false);
+  assert.equal(result.automaticMutationRetryAllowed, false);
+});
+
+test('PR2 dangling post-read references cannot complete a trace or erase an attempted mutation', async () => {
+  const rejectedRead = serverReadResult(5, { sequence: 2 });
+  rejectedRead.observations[0].facts.push('fact.pr2.missing');
+  const harness = attemptHarness({ postRead: () => rejectedRead });
+
+  const result = await harness.run();
+
+  assert.deepEqual(harness.counts, { reads: 2, dispatches: 1, mutations: 1 });
+  assert.equal(result.dispatchStatus, 'ATTEMPTED');
+  assert.equal(result.attempt.dispatchStatus, 'ATTEMPTED');
+  assert.equal(result.attempt.requestedExecutionKey, result.executionKey);
+  assert.equal(result.provider.output.stage, 5);
+  assert.equal(result.precondition, 'SATISFIED');
+  assert.equal(result.disposition, 'EXECUTED_UNVERIFIED');
+  assert.equal(result.traceComplete, false);
+  assert.ok(result.diagnostic.code);
+  assert.equal(result.reads.precondition.facts[0].value.value, 4);
+  assert.equal(result.reads.postcondition.facts[0].value.value, 5);
+  assert.equal(result.trace.records.filter((record) => record.kind === 'action').length, 1);
+  assert.equal(result.automaticMutationRetryAllowed, false);
+});
+
+test('PR2 retained provider responses and action outputs own nested caller data', async () => {
+  let callerResponse;
+  const harness = attemptHarness({ providerChange: (response) => {
+    response.output.details = { items: [{ label: 'recorded', values: [1, 2] }] };
+    response.response = { rows: [{ status: 'returned', values: [3, 4] }] };
+    callerResponse = response;
+    return response;
+  } });
+  const result = await harness.run();
+  const actionRecord = result.trace.records.find((record) => record.kind === 'action');
+  const recordedProvider = structuredClone(result.provider);
+  const recordedAction = structuredClone(actionRecord);
+
+  assert.equal(result.disposition, 'VERIFIED');
+  assert.equal(Object.isFrozen(callerResponse.output.details.items), false);
+  assert.equal(Object.isFrozen(callerResponse.response.rows[0]), false);
+  callerResponse.output.stage = 999;
+  callerResponse.output.details.items[0].label = 'changed';
+  callerResponse.output.details.items[0].values.push(9);
+  callerResponse.response.rows[0].status = 'changed';
+  callerResponse.response.rows.push({ status: 'later', values: [] });
+
+  assert.deepEqual(result.provider, recordedProvider);
+  assert.deepEqual(actionRecord, recordedAction);
+  assert.ok(Object.isFrozen(result.provider.output.details.items[0].values));
+  assert.ok(Object.isFrozen(result.provider.response.rows[0]));
+  assert.ok(Object.isFrozen(actionRecord.output.details.value.items.value[0].value.values.value));
+  assert.deepEqual(harness.counts, { reads: 2, dispatches: 1, mutations: 1 });
+  assert.equal(result.dispatchStatus, 'ATTEMPTED');
+  assert.equal(result.automaticMutationRetryAllowed, false);
+});
+
+test('PR2 formerly colliding execution keys produce independent action and evidence references', async () => {
+  const results = [];
+  for (const executionKey of ['key:a', 'key/a']) {
+    const harness = attemptHarness({ executionKey });
+    const result = await harness.run();
+    const recordsById = new Map(result.trace.records.map((record) => [record.id, record]));
+    assert.deepEqual(harness.counts, { reads: 2, dispatches: 1, mutations: 1 });
+    assert.equal(result.disposition, 'VERIFIED');
+    assert.equal(result.dispatchStatus, 'ATTEMPTED');
+    assert.equal(result.traceComplete, true);
+    assert.equal(result.executionKey, executionKey);
+    assert.equal(result.attempt.requestedExecutionKey, executionKey);
+    assert.equal(result.provider.executionKey, executionKey);
+    assert.equal(result.trace.records.find((record) => record.kind === 'action').execution_key, executionKey);
+    assert.equal(recordsById.size, result.trace.records.length);
+    for (const record of result.trace.records) {
+      for (const reference of record.kind === 'observation' || record.kind === 'evidence' ? record.facts : []) {
+        assert.equal(recordsById.get(reference)?.kind, 'fact');
+      }
+      for (const reference of record.kind === 'evidence' ? record.observations : []) {
+        assert.equal(recordsById.get(reference)?.kind, 'observation');
+      }
+      for (const reference of record.kind === 'verification' ? record.evidence : []) {
+        assert.equal(recordsById.get(reference)?.kind, 'evidence');
+      }
+    }
+    assert.equal(result.automaticMutationRetryAllowed, false);
+    results.push(result);
+  }
+  const [first, second] = results.map((result) => ({
+    actionId: result.trace.records.find((record) => record.kind === 'action').id,
+    evidenceIds: result.trace.records.filter((record) => record.kind === 'evidence').map((record) => record.id)
+  }));
+  assert.notEqual(first.actionId, second.actionId);
+  assert.equal(first.evidenceIds.some((id) => second.evidenceIds.includes(id)), false);
 });

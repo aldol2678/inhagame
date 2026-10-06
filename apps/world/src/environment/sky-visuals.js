@@ -18,6 +18,12 @@ import {
   atmosphereSkyProfile,
   writeAtmosphereColor
 } from './atmospheric-sky-policy.js';
+import {
+  NIGHT_STAR_BUDGET,
+  NIGHT_STAR_RADIUS,
+  nightStarLayout,
+  nightStarVisibility
+} from './night-star-policy.js';
 
 const ATMOSPHERE_GRADIENT_TEXTURE_HEIGHT = 64;
 
@@ -336,6 +342,85 @@ function createCloudTier(root, device, texture, tier) {
   return { entity, layers };
 }
 
+function createStarMaterial() {
+  const material = new pc.StandardMaterial();
+  material.name = 'environment-night-stars';
+  material.diffuse = new pc.Color(0, 0, 0);
+  material.emissive = new pc.Color(0.86, 0.92, 1.00);
+  material.emissiveIntensity = 1.5;
+  material.opacity = 0;
+  material.useLighting = false;
+  material.useFog = false;
+  material.useTonemap = false;
+  material.blendType = pc.BLEND_ADDITIVE;
+  material.depthWrite = false;
+  material.cull = pc.CULLFACE_NONE;
+  material.update();
+  return material;
+}
+
+function normalizedCross(ax, ay, az, bx, by, bz) {
+  const x = ay * bz - az * by;
+  const y = az * bx - ax * bz;
+  const z = ax * by - ay * bx;
+  const length = Math.hypot(x, y, z) || 1;
+  return [x / length, y / length, z / length];
+}
+
+function createStarMesh(device, tier) {
+  const positions = [];
+  const normals = [];
+  const indices = [];
+  for (const star of nightStarLayout(tier)) {
+    const dx = star.x, dy = star.y, dz = star.z;
+    const helper = dy > 0.92 ? [1, 0, 0] : [0, 1, 0];
+    const tangent = normalizedCross(helper[0], helper[1], helper[2], dx, dy, dz);
+    const bitangent = normalizedCross(dx, dy, dz, tangent[0], tangent[1], tangent[2]);
+    const cx = dx * NIGHT_STAR_RADIUS;
+    const cy = dy * NIGHT_STAR_RADIUS;
+    const cz = dz * NIGHT_STAR_RADIUS;
+    const size = star.size;
+    const corners = [
+      [-1, -1],
+      [ 1, -1],
+      [ 1,  1],
+      [-1,  1]
+    ];
+    const base = positions.length / 3;
+    for (const [u, v] of corners) {
+      positions.push(
+        cx + tangent[0] * size * u + bitangent[0] * size * v,
+        cy + tangent[1] * size * u + bitangent[1] * size * v,
+        cz + tangent[2] * size * u + bitangent[2] * size * v
+      );
+      normals.push(-dx, -dy, -dz);
+    }
+    indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
+  }
+  return pc.createMesh(device, positions, { normals, indices });
+}
+
+function createStarField(root, device) {
+  const entity = new pc.Entity('EnvironmentNightStars');
+  root.addChild(entity);
+  const material = createStarMaterial();
+  const tiers = Object.fromEntries(Object.keys(NIGHT_STAR_BUDGET).map(tier => {
+    const mesh = createStarMesh(device, tier);
+    const tierEntity = new pc.Entity(`environment_night_stars_${tier}`);
+    tierEntity.addComponent('render', {
+      type: 'asset',
+      castShadows: false,
+      receiveShadows: false,
+      meshInstances: [new pc.MeshInstance(mesh, material)]
+    });
+    tierEntity.enabled = false;
+    entity.addChild(tierEntity);
+    tierEntity.on('destroy', () => mesh.destroy());
+    return [tier, { entity: tierEntity, count: NIGHT_STAR_BUDGET[tier] }];
+  }));
+  return { entity, material, tiers };
+}
+
 function createSun(root) {
   const material = new pc.StandardMaterial();
   material.name = 'environment-sun-disc';
@@ -396,11 +481,14 @@ export function createSkyVisuals({
   // Add the soft halo before the solid sun disc so the core stays crisp.
   const sunGlow = createSunGlow(root, device);
   const sun = createSun(root);
+  const stars = createStarField(root, device);
 
   let tier = null;
   let cloudProfile = cloudVisualProfile(skyState);
   let sunProfile = sunVisualProfile(skyState);
+  let starOpacity = nightStarVisibility(skyState);
   let destroyed = false;
+  let materialSignalInitialized = false;
   const sunDirection = [0, 0, -1];
   const lastMaterialSignal = {
     sunColor: [Number.NaN, Number.NaN, Number.NaN],
@@ -418,13 +506,18 @@ export function createSkyVisuals({
     tier = resolved;
     for (const [name, cloudTier] of Object.entries(cloudTiers))
       cloudTier.entity.enabled = name === tier;
+    for (const [name, starTier] of Object.entries(stars.tiers))
+      starTier.entity.enabled = name === tier && starOpacity > 0.01;
   }
 
   function applyMaterials() {
-    const colorChanged = skyState.sunColor.some((value, index) =>
+    // The first frame must always push the authoritative environment state into
+    // sky materials. NaN cannot be used as a dirty sentinel here because every
+    // comparison against NaN is false, which would freeze the sky at its DAY defaults.
+    const colorChanged = !materialSignalInitialized || skyState.sunColor.some((value, index) =>
       Math.abs(value - lastMaterialSignal.sunColor[index]) >= 0.002
     );
-    const scalarChanged =
+    const scalarChanged = !materialSignalInitialized ||
       Math.abs(skyState.sunIntensity - lastMaterialSignal.sunIntensity) >= 0.002 ||
       Math.abs(skyState.artificialLightFactor - lastMaterialSignal.artificialLightFactor) >= 0.002 ||
       Math.abs(skyState.rainIntensity - lastMaterialSignal.rainIntensity) >= 0.002 ||
@@ -461,6 +554,13 @@ export function createSkyVisuals({
     sunGlow.material.emissiveIntensity = 1.25 + atmosphereProfile.sunsetFactor * 0.55;
     sunGlow.material.update();
 
+    starOpacity = nightStarVisibility(skyState);
+    stars.material.opacity = starOpacity;
+    stars.material.emissiveIntensity = 1.30 + starOpacity * 0.90;
+    stars.material.update();
+    for (const [name, starTier] of Object.entries(stars.tiers))
+      starTier.entity.enabled = name === (tier ?? 'medium') && starOpacity > 0.01;
+
     lastMaterialSignal.sunColor[0] = skyState.sunColor[0];
     lastMaterialSignal.sunColor[1] = skyState.sunColor[1];
     lastMaterialSignal.sunColor[2] = skyState.sunColor[2];
@@ -470,6 +570,7 @@ export function createSkyVisuals({
     lastMaterialSignal.snowIntensity = skyState.snowIntensity;
     lastMaterialSignal.cloudCover = skyState.cloudCover;
     lastMaterialSignal.sunLightScale = skyState.sunLightScale;
+    materialSignalInitialized = true;
   }
 
   function update(dt) {
@@ -480,6 +581,7 @@ export function createSkyVisuals({
 
     const cameraPosition = camera.getPosition();
     atmosphere.entity.setPosition(cameraPosition.x, cameraPosition.y, cameraPosition.z);
+    stars.entity.setPosition(cameraPosition.x, cameraPosition.y, cameraPosition.z);
 
     // PlayCanvas directional lights shine along -entity.up. The visible source
     // therefore lives in +entity.up, so reading the real light transform keeps
@@ -569,7 +671,11 @@ export function createSkyVisuals({
         direction[2] * shadowRayDirection[2],
       sunDrawMeshes: sunProfile.visible ? 1 : 0,
       sunGlowOpacity: atmosphereProfile.sunGlowOpacity,
-      sunGlowDrawMeshes: sunGlow.entity.enabled ? 1 : 0
+      sunGlowDrawMeshes: sunGlow.entity.enabled ? 1 : 0,
+      starCount: NIGHT_STAR_BUDGET[currentTier] ?? NIGHT_STAR_BUDGET.medium,
+      starOpacity,
+      starDrawMeshes: starOpacity > 0.01 ? 1 : 0,
+      moonVisible: false
     });
   }
 
@@ -585,6 +691,7 @@ export function createSkyVisuals({
     sunGlow.texture.destroy();
     sunGlow.material.destroy();
     sun.material.destroy();
+    stars.material.destroy();
   }
 
   return Object.freeze({ update, status, destroy });

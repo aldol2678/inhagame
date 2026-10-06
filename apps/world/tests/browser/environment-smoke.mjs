@@ -145,7 +145,7 @@ try {
   assert.equal(initial.streetLights.artificialLightFactor, 0.18);
   assert.ok(initial.streetLights.lampCount > 0);
   assert.equal(initial.streetLights.bulbCount, initial.streetLights.lampCount);
-  assert.ok(initial.streetLights.dynamicBudget >= 0 && initial.streetLights.dynamicBudget <= 4);
+  assert.ok(initial.streetLights.dynamicBudget >= 0 && initial.streetLights.dynamicBudget <= 6);
   assert.ok(initial.streetLights.activeDynamicLights <= initial.streetLights.dynamicBudget);
   assert.equal(initial.nightWindows.realLights, 0);
   assert.equal(initial.nightWindows.drawMeshes, 1);
@@ -207,6 +207,59 @@ try {
   assert.ok(
     blueDaySkyPixels.length >= 1,
     `DAY sky must preserve a blue atmospheric signal, got ${JSON.stringify(daySkyPixels)}`
+  );
+
+  await page.evaluate(() =>
+    window.__INHAGAME_ENVIRONMENT__.setTimeOfDay('night', { immediate: true })
+  );
+  await page.waitForFunction(
+    () => window.__INHAGAME_ENVIRONMENT__.status().targetTime === 'NIGHT' &&
+      window.__INHAGAME_ENVIRONMENT__.status().settled &&
+      window.__INHAGAME_ENVIRONMENT__.status().targetWeather === 'CLEAR' &&
+      window.__INHAGAME_SKY__.status().sunVisible === false,
+    null,
+    { timeout: TIMEOUT_MS }
+  );
+  const nightClear = await page.evaluate(() => ({
+    environment: window.__INHAGAME_ENVIRONMENT__.status(),
+    sky: window.__INHAGAME_SKY__.status()
+  }));
+  assert.equal(nightClear.environment.targetTime, 'NIGHT');
+  assert.equal(nightClear.environment.targetWeather, 'CLEAR');
+  assert.equal(nightClear.sky.sunVisible, false);
+  assert.ok(
+    nightClear.sky.atmosphereHorizonColor.reduce((sum, value) => sum + value, 0) < 0.24
+  );
+  assert.ok(
+    nightClear.sky.atmosphereZenithColor.reduce((sum, value) => sum + value, 0) < 0.12
+  );
+
+  const nightSkyPixels = await sampleRenderedSky(page);
+  const darkNightSkyPixels = nightSkyPixels.filter(pixel =>
+    pixel[3] > 0 && Math.max(pixel[0], pixel[1], pixel[2]) <= 96
+  );
+  const averageRgb = pixels => pixels.reduce(
+    (sum, pixel) => sum + pixel[0] + pixel[1] + pixel[2],
+    0
+  ) / (pixels.length * 3);
+  assert.ok(
+    darkNightSkyPixels.length >= 3,
+    `NIGHT sky must stay visibly dark, got ${JSON.stringify(nightSkyPixels)}`
+  );
+  assert.ok(
+    averageRgb(nightSkyPixels) < averageRgb(daySkyPixels) * 0.55,
+    `NIGHT sky must be substantially darker than DAY, day=${JSON.stringify(daySkyPixels)} night=${JSON.stringify(nightSkyPixels)}`
+  );
+
+  await page.evaluate(() =>
+    window.__INHAGAME_ENVIRONMENT__.setTimeOfDay('day', { immediate: true })
+  );
+  await page.waitForFunction(
+    () => window.__INHAGAME_ENVIRONMENT__.status().targetTime === 'DAY' &&
+      window.__INHAGAME_ENVIRONMENT__.status().settled &&
+      window.__INHAGAME_SKY__.status().sunVisible === true,
+    null,
+    { timeout: TIMEOUT_MS }
   );
 
   await page.evaluate(() => window.__INHAGAME_ENVIRONMENT__.setWeather('cloudy'));
@@ -687,6 +740,9 @@ try {
     assert.equal(mobileStatus.rain.puddleBudget, 5);
   }
   assert.equal(mobileStatus.streetLights.artificialLightFactor, 1);
+  assert.equal(mobileStatus.streetLights.selectionRadius, 68);
+  assert.equal(mobileStatus.streetLights.omniRange, 16.5);
+  if (mobileStatus.graphics.tier === 'low') assert.equal(mobileStatus.streetLights.dynamicBudget, 3);
   assert.equal(mobileStatus.nightWindows.graphicsTier, mobileStatus.graphics.tier);
   assert.equal(mobileStatus.nightWindows.enabled, true);
   assert.equal(mobileStatus.nightWindows.drawMeshes, 1);

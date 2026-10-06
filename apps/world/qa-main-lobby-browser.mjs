@@ -15,6 +15,9 @@ await mkdir(output, { recursive: true });
 const browser = await chromium.launch({ channel: "chrome", headless: true });
 const report = { url: base, browser: browser.version(), results: [] };
 
+const WORLD_RESUME_LEGACY_KEY = "inhagame-world-resume-v1";
+const WORLD_RESUME_GUEST_KEY = "inhagame-world-resume-v1:guest";
+
 const validResume = () => ({
   version: 1,
   x: 0,
@@ -26,6 +29,12 @@ const validResume = () => ({
   zoneId: "AREA_MAIN_GATE",
   displayName: "정문·남쪽 진입로"
 });
+
+function clearResumeStorage([legacyKey, guestKey]) {
+  localStorage.removeItem(legacyKey);
+  localStorage.removeItem(guestKey);
+  localStorage.removeItem("inhagame-campus-tour-v1");
+}
 
 async function openLobby(context, init = null, initArg = undefined) {
   const page = await context.newPage();
@@ -50,10 +59,7 @@ try {
     { name: "mobile-narrow-320", viewport: { width: 320, height: 800 }, mobile: true }
   ]) {
     const context = await browser.newContext({ viewport: spec.viewport, isMobile: spec.mobile, hasTouch: spec.mobile, deviceScaleFactor: 1 });
-    const { page, errors } = await openLobby(context, () => {
-      localStorage.removeItem("inhagame-world-resume-v1");
-      localStorage.removeItem("inhagame-campus-tour-v1");
-    });
+    const { page, errors } = await openLobby(context, clearResumeStorage, [WORLD_RESUME_LEGACY_KEY, WORLD_RESUME_GUEST_KEY]);
     const result = { mode: spec.name, errors };
     report.results.push(result);
 
@@ -120,11 +126,14 @@ try {
     await context.close();
   }
 
-  // Valid resume path.
+  // Valid resume path uses the live guest key. The unscoped legacy key is never a restore source.
   {
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
     const resume = validResume();
-    const { page, errors } = await openLobby(context, value => localStorage.setItem("inhagame-world-resume-v1", JSON.stringify(value)), resume);
+    const { page, errors } = await openLobby(context, value => {
+      localStorage.removeItem("inhagame-world-resume-v1");
+      localStorage.setItem("inhagame-world-resume-v1:guest", JSON.stringify(value));
+    }, resume);
     const result = { mode: "resume", errors };
     report.results.push(result);
     assert.ok(await page.locator("#resume-last-location").isVisible());
@@ -142,7 +151,10 @@ try {
   // Invalid resume degrades to MAIN_GATE.
   {
     const context = await browser.newContext({ viewport: { width: 360, height: 800 }, isMobile: true, hasTouch: true });
-    const { page, errors } = await openLobby(context, () => localStorage.setItem("inhagame-world-resume-v1", "{bad-json"));
+    const { page, errors } = await openLobby(context, () => {
+      localStorage.removeItem("inhagame-world-resume-v1");
+      localStorage.setItem("inhagame-world-resume-v1:guest", "{bad-json");
+    });
     const result = { mode: "invalid-resume", errors };
     report.results.push(result);
     assert.equal(await page.locator("#resume-last-location").isVisible(), false);
@@ -156,10 +168,7 @@ try {
     const context = await browser.newContext({ viewport: { width: 360, height: 640 }, isMobile: true, hasTouch: true });
     await context.route("**/api/world-quest", route => route.abort());
     await context.route("**/api/npc-ai", route => route.abort());
-    const { page, errors } = await openLobby(context, () => {
-      localStorage.removeItem("inhagame-world-resume-v1");
-      localStorage.removeItem("inhagame-campus-tour-v1");
-    });
+    const { page, errors } = await openLobby(context, clearResumeStorage, [WORLD_RESUME_LEGACY_KEY, WORLD_RESUME_GUEST_KEY]);
     const result = { mode: "optional-data-failure", errors };
     report.results.push(result);
     assert.ok(await page.locator("#main-gate-start").isVisible(), "MAIN_GATE survives optional API failure");
@@ -175,7 +184,7 @@ try {
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
     await context.route("**/assets/induck-v3.glb", route => route.abort());
     await context.route("**/assets/annyongi-flight-v1.glb", route => route.abort());
-    const { page, errors } = await openLobby(context, () => localStorage.removeItem("inhagame-world-resume-v1"));
+    const { page, errors } = await openLobby(context, clearResumeStorage, [WORLD_RESUME_LEGACY_KEY, WORLD_RESUME_GUEST_KEY]);
     const result = { mode: "avatar-fallback", errors };
     report.results.push(result);
     await page.waitForFunction(() => window.__INHAGAME_P0__.getStatus().characterModel === "fallback");

@@ -1,4 +1,4 @@
--- INHA WORLD Life Skill Tree v1 nodes (20261004136000). Activations below roll back.
+-- INHA WORLD Life Skill Tree v1 nodes (20261004136000 + later activation migrations). Test-only extra activations roll back.
 begin;
 create extension if not exists pgtap with schema extensions;
 select * from no_plan();
@@ -11,16 +11,20 @@ insert into public.profiles(user_id,nickname,is_banned) values
 -- ---- published shape ----
 select is((select count(*) from private.world_life_skill_tree_catalog where node_id like 'life.node.%'),18::bigint,
   '18 tree v1 nodes are published');
-select is((select count(*) from private.world_life_skill_tree_catalog where status <> 'COMING_SOON'),0::bigint,
-  'no tree node is activated');
+select is((select count(*) from private.world_life_skill_tree_catalog where status = 'ACTIVE'),2::bigint,
+  'only two implemented Fishing timing nodes are active');
+select results_eq($$
+  select node_id from private.world_life_skill_tree_catalog where status='ACTIVE' order by node_id
+$$,$$values ('life.node.fishing.fish_sense'::text),('life.node.fishing.steady_hands'::text)$$,
+  'active tree nodes are exactly fish_sense and steady_hands');
 select results_eq($$
   select skill_id,count(*),sum(max_rank*sp_cost)::int,max(required_skill_level),min(required_life_level),max(required_life_level)
     from private.world_life_skill_tree_catalog group by skill_id order by skill_id
 $$,$$values ('life.farming'::text,6::bigint,17,15,1,1),('life.fishing',6,17,15,1,1),('life.woodcutting',6,17,15,1,1)$$,
   'three trees of 6 nodes, 17 SP each, gated on skill level up to Lv15');
 select is((select count(*) from private.world_life_skill_tree_edges),18::bigint,'18 prerequisite edges');
-select is((select count(*) from private.world_life_skill_catalog where status <> 'COMING_SOON'),0::bigint,
-  'no Life Skill is activated');
+select is((select array_agg(skill_id) from private.world_life_skill_catalog where status <> 'COMING_SOON'),
+  array['life.fishing'],'Fishing remains the only active Life Skill');
 
 -- ---- a full fishing tree is reachable at skill Lv15 with exactly its 17 SP (test activation) ----
 update private.world_life_skill_catalog set status='ACTIVE' where skill_id='life.fishing';

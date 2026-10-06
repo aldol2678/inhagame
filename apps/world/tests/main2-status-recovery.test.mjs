@@ -159,3 +159,20 @@ test('unavailable Main 2 does not replace the active Main 1 task with a recovery
   assert.match(h.heading.textContent, /MAIN 01/);
   assert.equal(h.actionRoot.hidden, true);
 });
+
+test('refresh queued behind a failing status read resets its retry budget and cancels the old timer', async () => {
+  const h = harness(); await h.startFailure();
+  const [id, timer] = h.timers.entries().next().value;
+  h.timers.delete(id); timer.fn(); await h.flush();
+  await h.client.refresh(); await h.client.refresh();
+  h.fail(1); await h.flush();
+  assert.equal(h.requests.length, 3, 'coalesced refresh starts just one replacement read');
+  assert.equal(h.timers.size, 0, 'the replaced retry chain cannot issue an extra read');
+  assert.equal(h.client.status().retryAttempt, 0);
+  assert.equal(h.client.status().statusState, 'LOADING');
+  h.fail(2); await h.flush();
+  assert.equal(h.timers.values().next().value.ms, 1000, 'replacement gets a fresh bounded budget');
+  await h.failNextRetry(1000); await h.failNextRetry(3000); await h.failNextRetry(8000);
+  assert.equal(h.client.status().statusState, 'UNAVAILABLE');
+  assert.equal(h.timers.size, 0);
+});

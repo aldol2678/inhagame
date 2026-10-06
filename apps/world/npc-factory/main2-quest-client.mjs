@@ -122,6 +122,8 @@ export function createMain2QuestClient({
       if (pending === claim) pending = null;
       if (refreshDeferred && !pending) {
         refreshDeferred = false;
+        clearStatusRetry({ resetAttempt: true });
+        publish();
         void send('status').catch(() => {});
       }
       flushDeferredAutoMove();
@@ -249,4 +251,3 @@ export function createMain2QuestClient({
     }
   });
 }
-

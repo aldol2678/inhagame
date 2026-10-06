@@ -1,6 +1,7 @@
 import { createModuleRegistry } from "./core/module-registry.js";
 import { StudioState } from "./core/studio-state.js";
 import { createStudioDocumentHost } from "./core/document-host.js";
+import { createStudioAssetRegistry } from "./core/asset-registry.js";
 import { createWorldStudioAdapter } from "./adapters/world-adapter.js";
 import { createAudioStudioAdapter } from "./adapters/audio-adapter.js";
 import { worldModule } from "./modules/world/world-module.js";
@@ -12,6 +13,7 @@ import { gameplayModule } from "./modules/gameplay/gameplay-module.js";
 const registry = createModuleRegistry([worldModule, audioModule, npcModule, eventModule, gameplayModule]);
 const state = new StudioState({ activeModuleId: "world" });
 const documentHost = createStudioDocumentHost();
+const assetRegistry = createStudioAssetRegistry();
 
 const els = {
   app: document.getElementById("studio-app"),
@@ -48,6 +50,9 @@ const contentRequestTokens = new Map();
 const inspectorCache = new Map();
 const inspectorSignatures = new Map();
 const inspectorRequestTokens = new Map();
+let assetRegistryQuery = "";
+let assetRegistryType = "";
+let pendingRegistrySelection = null;
 
 function escapeText(value) {
   return String(value ?? "");
@@ -116,6 +121,15 @@ async function refreshContent(moduleId, status, { force = false } = {}) {
     const content = await documentHost.getContent(moduleId);
     if (contentRequestTokens.get(moduleId) !== token) return;
     contentCache.set(moduleId, content);
+    const assetSection = (content.sections || []).find(section => section.id === "assets");
+    assetRegistry.replaceModuleAssets(moduleId, (assetSection?.items || []).map(item => ({
+      id: item.id,
+      assetType: item.assetType || (moduleId === "audio" ? "audio" : "other"),
+      sourceKind: item.sourceKind || `${moduleId}-asset`,
+      label: item.label || item.id,
+      detail: item.detail || "",
+      selectable: item.selectable !== false
+    })));
     if (currentModule()?.id === moduleId) renderContent(currentModule());
   } catch (error) {
     if (contentRequestTokens.get(moduleId) !== token) return;
@@ -192,6 +206,126 @@ async function updateInspectorField(moduleId, inspector, field, value) {
   renderBottom(currentModule());
 }
 
+async function selectRegistryAsset(key) {
+  const asset = assetRegistry.get(key);
+  if (!asset || !asset.selectable) return;
+  studioNotice = `Asset Registry · ${asset.moduleId} · ${asset.id}`;
+  if (currentModule()?.id !== asset.moduleId) {
+    pendingRegistrySelection = asset;
+    state.setActiveModule(asset.moduleId);
+    return;
+  }
+  await selectContentItem(asset.moduleId, "asset", asset.id);
+}
+
+function renderAssetRegistry(container, module) {
+  const section = document.createElement("section");
+  section.className = "studio-content-section studio-asset-registry";
+  section.dataset.sectionId = "registry";
+
+  const heading = document.createElement("strong");
+  const snapshot = assetRegistry.snapshot();
+  heading.textContent = `ASSET REGISTRY · ${snapshot.total}`;
+  section.append(heading);
+
+  const controls = document.createElement("div");
+  controls.className = "studio-asset-registry-controls";
+
+  const search = document.createElement("input");
+  search.type = "search";
+  search.placeholder = "Asset 검색";
+  search.value = assetRegistryQuery;
+  search.setAttribute("aria-label", "Asset Registry search");
+
+  const filter = document.createElement("select");
+  filter.setAttribute("aria-label", "Asset Registry type filter");
+  const types = [
+    ["", "All types"],
+    ["model", "Model"],
+    ["audio", "Audio"],
+    ["other", "Other"]
+  ];
+  for (const [value, label] of types) {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = label;
+    filter.append(option);
+  }
+  filter.value = assetRegistryType;
+
+  controls.append(search, filter);
+  section.append(controls);
+
+  const assets = assetRegistry.list();
+
+  const indexed = document.createElement("div");
+  indexed.className = "studio-asset-registry-indexed";
+  indexed.textContent = `indexed: ${snapshot.indexedModules.join(", ") || "none"}`;
+  section.append(indexed);
+
+  const empty = document.createElement("p");
+  empty.className = "studio-content-empty";
+  section.append(empty);
+
+  const applyFilter = () => {
+    const needle = assetRegistryQuery.trim().toLowerCase();
+    let visible = 0;
+    for (const row of section.querySelectorAll("[data-registry-key]")) {
+      const asset = assetRegistry.get(row.dataset.registryKey);
+      const matchesType = !assetRegistryType || asset?.type === assetRegistryType;
+      const matchesQuery = !needle || [
+        asset?.label,
+        asset?.id,
+        asset?.detail,
+        asset?.moduleId
+      ].some(value => String(value || "").toLowerCase().includes(needle));
+      row.hidden = !(matchesType && matchesQuery);
+      if (!row.hidden) visible += 1;
+    }
+    empty.hidden = visible > 0;
+    empty.textContent = snapshot.total
+      ? "필터와 일치하는 Asset 없음"
+      : "모듈을 열면 Asset Registry가 인덱싱됩니다.";
+  };
+
+  search.addEventListener("input", () => {
+    assetRegistryQuery = search.value;
+    applyFilter();
+  });
+  filter.addEventListener("change", () => {
+    assetRegistryType = filter.value;
+    applyFilter();
+  });
+
+  for (const asset of assets) {
+    const row = document.createElement("button");
+    row.type = "button";
+    row.className = "studio-content-row studio-registry-row";
+    row.dataset.registryKey = asset.key;
+    row.dataset.registryModule = asset.moduleId;
+    row.dataset.registryType = asset.type;
+    row.disabled = !asset.selectable;
+
+    const top = document.createElement("span");
+    top.className = "studio-registry-row-top";
+    const badge = document.createElement("b");
+    badge.textContent = asset.moduleId.toUpperCase();
+    const label = document.createElement("span");
+    label.className = "studio-content-row-label";
+    label.textContent = asset.label;
+    top.append(badge, label);
+
+    const detail = document.createElement("small");
+    detail.textContent = `${asset.type} · ${asset.detail || asset.id}`;
+    row.append(top, detail);
+    if (!row.disabled) row.addEventListener("click", () => { void selectRegistryAsset(asset.key); });
+    section.append(row);
+  }
+
+  applyFilter();
+  container.append(section);
+}
+
 async function selectContentItem(moduleId, kind, id) {
   studioNotice = `Content 선택 · ${kind} · ${id}`;
   try {
@@ -212,6 +346,7 @@ async function selectContentItem(moduleId, kind, id) {
 function renderContent(module) {
   els.contentTitle.textContent = module.label;
   els.contentBody.replaceChildren();
+  renderAssetRegistry(els.contentBody, module);
 
   const liveModule = module.id === "world" || module.id === "audio";
   const content = liveModule ? contentCache.get(module.id) : null;
@@ -323,6 +458,11 @@ function onWorldAdapterStatus(status) {
   documentHost.updateStatus("world", status);
   void refreshContent("world", status);
   void refreshInspector("world", status);
+  if (status.ready && pendingRegistrySelection?.moduleId === "world") {
+    const pending = pendingRegistrySelection;
+    pendingRegistrySelection = null;
+    void selectContentItem("world", "asset", pending.id);
+  }
   if (currentModule()?.id !== "world") return;
   renderActions();
   renderInspector(currentModule());
@@ -334,6 +474,11 @@ function onAudioAdapterStatus(status) {
   documentHost.updateStatus("audio", status);
   void refreshContent("audio", status);
   void refreshInspector("audio", status);
+  if (status.ready && pendingRegistrySelection?.moduleId === "audio") {
+    const pending = pendingRegistrySelection;
+    pendingRegistrySelection = null;
+    void selectContentItem("audio", "asset", pending.id);
+  }
   if (currentModule()?.id !== "audio") return;
   renderActions();
   renderInspector(currentModule());
@@ -522,7 +667,7 @@ function renderBottom(module) {
   const tab = state.activeBottomTab;
   if (tab === "console") {
     const lines = [
-      '<div class="studio-log-line"><strong>Studio</strong> S3 Shared Core</div>',
+      '<div class="studio-log-line"><strong>WorldForge</strong> Editor · S3.4 Asset Registry</div>',
       `<div class="studio-log-line"><strong>Registry</strong> ${registry.listModules().length} modules</div>`,
       `<div class="studio-log-line"><strong>Active</strong> ${escapeText(module.id)} · ${escapeText(module.status)}</div>`
     ];
@@ -551,7 +696,7 @@ function renderBottom(module) {
           <button type="button" data-studio-core-action="validate">Run Validation</button>
           ${result}
         </div>
-        <div class="studio-core-note">Studio Shared Core가 활성 문서의 Validation 계약을 호출합니다.</div>
+        <div class="studio-core-note">WorldForge Shared Core가 활성 문서의 Validation 계약을 호출합니다.</div>
       `;
     }
   } else {
@@ -570,7 +715,7 @@ function renderBottom(module) {
             redo ${Number(history.redoCount || 0)}${history.nextRedo ? ` · ${escapeText(history.nextRedo)}` : ""}
           </span>
         </div>
-        <div class="studio-core-note">History 실행은 Studio가 담당하고, 실제 command stack은 각 Document가 소유합니다.</div>
+        <div class="studio-core-note">History 실행은 WorldForge가 담당하고, 실제 command stack은 각 Document가 소유합니다.</div>
       `;
     }
   }
@@ -695,11 +840,14 @@ render();
 const studioApi = Object.freeze({
   getStatus: () => Object.freeze({
     ready: true,
-    stage: "S3.3",
+    product: "WorldForge",
+    legacyShell: "studio",
+    stage: "S3.4",
     ...state.snapshot(),
     modules: registry.listModules().map(module => ({ id: module.id, status: module.status })),
     worldAdapter: Object.freeze({ ...worldAdapterStatus }),
-    audioAdapter: Object.freeze({ ...audioAdapterStatus })
+    audioAdapter: Object.freeze({ ...audioAdapterStatus }),
+    assetRegistry: assetRegistry.snapshot()
   }),
   validateWorld: () => documentHost.validate("world"),
   validateAudio: () => documentHost.validate("audio"),
@@ -707,6 +855,7 @@ const studioApi = Object.freeze({
   redoActive: () => documentHost.redo(currentModule()?.id)
 });
 
+globalThis.__WORLDFORGE__ = studioApi;
 globalThis.__INHA_STUDIO_S3__ = studioApi;
 globalThis.__INHA_STUDIO_S2__ = studioApi;
 globalThis.__INHA_STUDIO_S1__ = studioApi;

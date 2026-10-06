@@ -8,6 +8,7 @@ const environmentWorldTime = readFileSync(
   'utf8'
 );
 const npcRuntime = readFileSync(new URL('../npc-factory/dev-runtime.mjs', import.meta.url), 'utf8');
+const worldTimeHud = readFileSync(new URL('../src/hud/world-time-hud.js', import.meta.url), 'utf8');
 
 test('production environment and NPC runtime share one server-anchored world clock', () => {
   assert.match(main, /const worldClock = previewHost \? null : createNpcWorldClock\(\);/);
@@ -23,4 +24,13 @@ test('environment world-time bridge never reads the client wall clock', () => {
   assert.match(environmentWorldTime, /morning: 'DAY'/);
   assert.match(environmentWorldTime, /evening: 'SUNSET'/);
   assert.match(environmentWorldTime, /night: 'NIGHT'/);
+});
+
+
+test('world-time HUD is a read-only projection of the shared server-anchored clock', () => {
+  assert.match(main, /createWorldTimeHud\(\{[\s\S]*element: worldTimeEl,[\s\S]*getStatus: \(\) => environmentWorldTime\.status\(\)/);
+  assert.match(main, /worldTimeHud\.update\(dt\)/);
+  assert.match(main, /__INHAGAME_WORLD_TIME_HUD__/);
+  assert.doesNotMatch(worldTimeHud, /Date\.now\s*\(/);
+  assert.doesNotMatch(worldTimeHud, /new Date\s*\(/);
 });

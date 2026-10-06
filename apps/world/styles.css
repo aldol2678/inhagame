@@ -15,6 +15,13 @@ html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background:
 .pointer-lock-hint[hidden] { display: none !important; }
 .pointer-lock-hint[data-state="FALLBACK"] { color: #ffdf90; border-color: rgba(255,223,144,.45); }
 @media (pointer: coarse) { .pointer-lock-hint { display: none !important; } }
+/* Biryong place guidance can return directly to the desktop NPC interaction.
+   Keep both instructions readable without moving Campus or touch controls. */
+@media (pointer: fine) and (min-width: 700px) {
+  body[data-world-region="BIRYONG_REALM"]:has(> #context-action:not([hidden])) > .pointer-lock-hint {
+    bottom: max(72px, calc(env(safe-area-inset-bottom) + 64px));
+  }
+}
 .campus-location-stack {
   position: fixed;
   top: max(16px, env(safe-area-inset-top));
@@ -242,6 +249,19 @@ body.joystick-right #emote-toggle, body.joystick-right .emote-menu, body.joystic
   position: fixed; z-index: 9; transform: translate(-50%, -100%); max-width: min(220px, 60vw);
   padding: 6px 10px; border-radius: 12px; background: #ffffffee; color: #172430; font-size: 13px; font-weight: 700;
   line-height: 1.35; overflow-wrap: anywhere; box-shadow: 0 2px 8px #0005; pointer-events: none;
+}
+@media (pointer: coarse) {
+  /* P4 mobile Chat: keep the expanded composer above the 48px Social Cluster.
+     Preview stays at its existing height; only the open-chat layer moves upward. */
+  .chat-form {
+    bottom: calc(max(218px, env(safe-area-inset-bottom) + 176px) + var(--keyboard-inset, 0px));
+  }
+  .chat-feed[data-mode="EXPANDED"] {
+    bottom: calc(max(290px, env(safe-area-inset-bottom) + 248px) + var(--keyboard-inset, 0px));
+  }
+  .chat-hint {
+    bottom: calc(max(268px, env(safe-area-inset-bottom) + 226px) + var(--keyboard-inset, 0px));
+  }
 }
 @media (pointer: fine) and (min-width: 700px) {
   .chat-feed, .chat-form, .chat-hint {
@@ -473,12 +493,28 @@ body[data-space] #tour { display: none; }
   backdrop-filter: blur(8px);
 }
 .location-chip strong {
+  flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 13px;
 }
+.world-time-chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  padding-left: 7px;
+  border-left: 1px solid rgba(178,220,239,.28);
+  color: #dcecf5;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: -.01em;
+  line-height: 1;
+  white-space: nowrap;
+}
+.world-time-chip[hidden] { display: none !important; }
 .hud-menu-toggle {
   width: 44px;
   height: 44px;
@@ -745,6 +781,7 @@ body.joystick-right .emote-status {
   .campus-topbar { left: max(10px, env(safe-area-inset-left)); right: max(10px, env(safe-area-inset-right)); }
   .location-chip { max-width: 210px; height: 40px; padding-inline: 10px; }
   .location-chip strong { font-size: 12px; }
+  .world-time-chip { padding-left: 5px; font-size: 10.5px; }
   .tour { max-width: calc(100vw - 20px); }
   .tour-heading, .tour-objective, .tour-bearing { font-size: 10.5px; }
   .tour-objective { max-width: 118px; }
@@ -1910,6 +1947,14 @@ body[data-lobby-shell="true"] > #friend-panel:not([hidden]) {
   outline-offset: 3px;
 }
 .world-loading[data-state="ERROR"] .world-loading-message { color: #ffb5b5; }
+.world-loading-affiliation {
+  margin: 12px auto 0;
+  max-width: 520px;
+  color: rgba(231, 240, 245, .72);
+  font-size: 11px;
+  line-height: 1.5;
+  text-align: center;
+}
 @keyframes world-loading-walk {
   0%, 100% { transform: translateY(0) rotate(-2deg); }
   50% { transform: translateY(-7px) rotate(2deg); }
@@ -2506,6 +2551,7 @@ body {
 }
 .full-map-panel[hidden] { display: none !important; }
 .full-map-card {
+  --full-map-search-height: 0px;
   width: min(1040px, 100%);
   max-height: 100%;
   overflow: auto;
@@ -2544,6 +2590,73 @@ body {
   font-size: 24px;
   cursor: pointer;
 }
+.full-map-card:has(> .full-map-search:not([hidden])) { --full-map-search-height: 54px; }
+.full-map-search[hidden] { display: none !important; }
+.full-map-search {
+  position: relative;
+  z-index: 20;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  min-width: 0;
+  margin: 0 18px 10px;
+}
+.full-map-search-input {
+  min-width: 0;
+  width: 100%;
+  min-height: 44px;
+  padding: 9px 12px;
+  border: 1px solid #83adbe;
+  border-radius: 11px;
+  background: #102638;
+  color: #eef8fb;
+  font: 16px/1.4 system-ui, sans-serif;
+}
+.full-map-search-input::placeholder { color: #b6cbd6; }
+.full-map-search-clear {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid #83adbe;
+  border-radius: 11px;
+  background: #24516a;
+  color: #f5fbfd;
+  cursor: pointer;
+}
+.full-map-search-panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: min(220px, 35dvh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid #83adbe;
+  border-radius: 11px;
+  background: #102638;
+  box-shadow: 0 10px 22px rgba(0,0,0,.4);
+}
+.full-map-search-panel[hidden], .full-map-search-clear[hidden] { display: none !important; }
+.full-map-search-status { margin: 0; padding: 9px 12px; color: #b6cbd6; font-size: 12px; }
+.full-map-search-results { list-style: none; padding: 0; margin: 0; }
+.full-map-search-result {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 0;
+  border-top: 1px solid rgba(178,220,239,.2);
+  background: transparent;
+  color: #eef8fb;
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+  font: 14px/1.5 system-ui, sans-serif;
+}
+.full-map-search-result:hover { background: #24516a; }
+.full-map-search-input:focus-visible, .full-map-search-clear:focus-visible,
+.full-map-search-result:focus-visible, #full-map-info-title:focus-visible {
+  outline: 2px solid #fff0a8;
+  outline-offset: -3px;
+}
 .full-map-body {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(220px, 270px);
@@ -2557,7 +2670,7 @@ body {
   position: relative;
   min-width: 0;
   width: 100%;
-  max-width: min(100%, calc(100dvh - 160px));
+  max-width: min(100%, calc(100dvh - 160px - var(--full-map-search-height)));
   justify-self: center;
 }
 .full-map-surface {
@@ -2621,6 +2734,36 @@ body {
   fill: rgba(214,226,232,.76);
   stroke: rgba(248,252,253,.36);
   stroke-width: .8;
+}
+/* Regional paint travels with Biryong geometry, so campus/room maps keep their
+   own palette after a source switch. Opaque fills separate roads from solids. */
+.minimap-geometry [data-map-style="biryong"][data-map-kind="GROUND"],
+.full-map-geometry [data-map-style="biryong"][data-map-kind="GROUND"] {
+  fill: #263d40;
+  stroke: #526669;
+  stroke-width: .6;
+  vector-effect: non-scaling-stroke;
+}
+.minimap-geometry [data-map-style="biryong"][data-map-kind="ROAD"],
+.full-map-geometry [data-map-style="biryong"][data-map-kind="ROAD"] {
+  fill: #eedfb9;
+  stroke: #fff5db;
+  stroke-width: .65;
+  vector-effect: non-scaling-stroke;
+}
+.minimap-geometry [data-map-style="biryong"][data-map-kind="BUILDING"],
+.full-map-geometry [data-map-style="biryong"][data-map-kind="BUILDING"] {
+  fill: #846951;
+  stroke: #e8cda5;
+  stroke-width: 1.2;
+  vector-effect: non-scaling-stroke;
+}
+.minimap-geometry [data-map-style="biryong"][data-map-kind="WATER"],
+.full-map-geometry [data-map-style="biryong"][data-map-kind="WATER"] {
+  fill: #237f9e;
+  stroke: #9de7f6;
+  stroke-width: 1.1;
+  vector-effect: non-scaling-stroke;
 }
 .full-map-marker-layer {
   pointer-events: none;
@@ -2686,6 +2829,37 @@ body {
 .full-map-poi[data-label-visible="true"] .full-map-poi-label {
   visibility: visible;
   pointer-events: auto;
+}
+/* Keep the existing F1 stop recognizable by its return glyph, shape and label,
+   without moving its marker or changing any other region's exit treatment. */
+.minimap-poi[data-poi-id="poi.biryong-realm.return"] .minimap-poi-dot {
+  fill: #ffe29a;
+  stroke: #553b11;
+  stroke-width: 2;
+}
+.minimap-poi[data-poi-id="poi.biryong-realm.return"] .minimap-poi-glyph {
+  fill: #36270d;
+  font-weight: 950;
+}
+.full-map-poi[data-poi-id="poi.biryong-realm.return"] .full-map-poi-icon {
+  color: #ffe29a;
+  background: #553b11;
+  border: 2px solid #ffe29a;
+  border-radius: 9px;
+}
+.full-map-poi[data-poi-id="poi.biryong-realm.return"][data-emphasized="false"] {
+  z-index: 1;
+}
+.full-map-poi[data-poi-id="poi.biryong-realm.return"] .full-map-poi-label {
+  color: #ffe29a;
+  background: #203137;
+  padding: 2px 4px;
+  border-radius: 4px;
+  /* The full name must fit beside the stop even on the 260px landscape map. */
+  max-width: 96px;
+  white-space: normal;
+  word-break: keep-all;
+  text-align: center;
 }
 .full-map-poi-state {
   position: absolute;
@@ -2886,6 +3060,7 @@ body {
     grid-template-columns: 1fr;
     padding: 0 12px 14px;
   }
+  .full-map-search { margin-inline: 12px; }
   .full-map-header {
     padding: 14px 12px 9px;
   }
@@ -3679,6 +3854,18 @@ body[data-space]:not([data-space="campus"]) > .progression-hud { display: none !
 .inventory-panel .profile-close { display: grid; place-items: center; min-width: 44px; min-height: 44px; top: 6px; right: 8px; padding: 0; }
 .inventory-panel .shop-panel-titles { padding-right: 40px; }
 .inventory-summary { margin: 4px 0 0; color: #ffde86; font-size: 12px; font-weight: 800; }
+.inventory-tabs {
+  display: flex; gap: 6px; margin: 0 0 10px; padding: 0 0 2px;
+  overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin;
+}
+.inventory-tab {
+  flex: 0 0 auto; min-width: 58px; min-height: 44px; padding: 0 12px;
+  border: 1px solid rgba(178,220,239,.34); border-radius: 12px;
+  background: rgba(255,255,255,.045); color: #cfe5f3; font-size: 12px; font-weight: 850; cursor: pointer;
+}
+.inventory-tab:hover { background: rgba(255,255,255,.08); }
+.inventory-tab[aria-selected="true"] { border-color: #8fe2d3; background: #196d65; color: #fff; }
+.inventory-tab:focus-visible { outline: 2px solid #ffde86; outline-offset: 2px; }
 .inventory-items { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
 .inventory-item {
   min-width: 0;
@@ -3848,6 +4035,17 @@ body[data-space]:not([data-space="campus"]) > .progression-hud { display: none !
 .life-tree-reset { display: grid; gap: 6px; margin-top: 10px; }
 .life-tree-reset-button { width: 100%; min-height: 44px; }
 .life-tree-reset-button:disabled { opacity: .5; cursor: not-allowed; }
+.fishing-panel { width: min(360px, calc(100vw - 24px)); }
+.fishing-body { display: flex; flex-direction: column; align-items: stretch; gap: 10px; text-align: center; }
+.fishing-skill { margin: 0; }
+.fishing-bobber { font-size: 44px; line-height: 1; transition: transform .12s ease-out; }
+.fishing-bobber[data-phase="BITE"] { transform: translateY(6px) scale(1.15); animation: fishing-bite .25s ease-in-out infinite alternate; }
+@keyframes fishing-bite { from { transform: translateY(2px) scale(1.1); } to { transform: translateY(8px) scale(1.2); } }
+@media (prefers-reduced-motion: reduce) { .fishing-bobber[data-phase="BITE"] { animation: none; } }
+.fishing-status, .fishing-result { margin: 0; font-size: 15px; font-weight: 850; }
+.fishing-panel[data-phase="BITE"] .fishing-status { color: #ffde86; }
+.fishing-reward { margin: 0; color: #9ff0d6; font-weight: 800; font-variant-numeric: tabular-nums; }
+.fishing-panel .shop-offer-buy, .fishing-panel .shop-retry { width: 100%; }
 .wardrobe-action {
   flex: none; min-width: 72px; min-height: 44px; padding: 0 14px; border: 1px solid #8fe2d3; border-radius: 12px;
   background: #196d65; color: #fff; font-weight: 850; cursor: pointer; touch-action: manipulation;
@@ -4127,6 +4325,25 @@ body[data-space]:not([data-space="campus"]) > .inkyung-living-moment {
 }
 @media (max-width: 560px) {
   .room-hud { max-width: calc(100vw - 96px - 44px); top: max(58px, calc(env(safe-area-inset-top) + 50px)); }
+}
+
+/* Housing H3 · owner knock prompt: the last row of the owner Room HUD (it inherits the HUD slot). */
+.room-knock-prompt {
+  display: grid; gap: 6px; margin-top: 2px; padding: 8px; border-radius: 12px;
+  background: rgba(255,212,134,.14); border: 1px solid rgba(255,212,134,.6);
+}
+.room-knock-prompt[hidden] { display: none; }
+.room-knock-title { font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.room-knock-note { font-size: 12px; color: #ffdf90; }
+.room-knock-actions { display: flex; gap: 8px; }
+.room-knock-actions button {
+  flex: 1; min-height: 40px; padding: 4px 8px; border-radius: 10px; border: 1px solid #9fd3ea;
+  background: #263e52; color: #fff; font-size: 12.5px; font-weight: 800;
+}
+.room-knock-actions .room-knock-accept { background: #2f7d5b; border-color: #8fe0b6; }
+.room-knock-actions button:disabled { opacity: .6; }
+@media (pointer: coarse) {
+  .room-knock-actions button { min-height: 46px; }
 }
 
 /* EXPLORE-MOBILE-HUD:start
@@ -4801,8 +5018,8 @@ body[data-hud-mode="COMBAT"] #jump { display:none !important; }
   }
   body .full-map-card {
     --ls-full-map-available-height: calc(100dvh - max(12px, env(safe-area-inset-top)) - max(12px, env(safe-area-inset-bottom)));
-    /* 48px header + 10px body bottom padding + 2px card border. */
-    --ls-full-map-size: min(430px, calc(var(--ls-full-map-available-height) - 60px));
+    /* Existing 60px chrome; only Campus reserves the additional 54px search row. */
+    --ls-full-map-size: min(430px, calc(var(--ls-full-map-available-height) - 60px - var(--full-map-search-height)));
     width: min(700px, calc(100vw - max(16px, env(safe-area-inset-left)) - max(16px, env(safe-area-inset-right))));
     max-height: calc(100dvh - max(12px, env(safe-area-inset-top)) - max(12px, env(safe-area-inset-bottom)));
     overflow: hidden;
@@ -4810,7 +5027,7 @@ body[data-hud-mode="COMBAT"] #jump { display:none !important; }
   }
   body .full-map-card:has(> .full-map-nav:not([hidden])) {
     /* Guidance adds a 40px bar and its 6px bottom gap. */
-    --ls-full-map-size: min(390px, calc(var(--ls-full-map-available-height) - 106px));
+    --ls-full-map-size: min(390px, calc(var(--ls-full-map-available-height) - 106px - var(--full-map-search-height)));
   }
   /* With no selected POI the desktop detail column must not reserve empty width. */
   body .full-map-card:has(.full-map-info[hidden]) {
@@ -4913,7 +5130,31 @@ body[data-hud-mode="COMBAT"] #jump { display:none !important; }
 }
 /* FULL-MAP-LANDSCAPE:end */
 
-/* LANDSCAPE-HUD:start
+/* FULL-MAP-COMPACT-SEARCH:start */
+/* At 568x320, a separate search row would shrink guidance below the existing
+   153px control rail. Reuse the header's spare width on this compact surface. */
+@media (pointer: coarse) and (orientation: landscape) and (min-width: 568px) and (max-height: 340px) {
+  body .full-map-card:has(> .full-map-search:not([hidden])) {
+    position: relative;
+    --full-map-search-height: 0px;
+    width: min(700px, calc(100vw - max(16px, env(safe-area-inset-left)) - max(16px, env(safe-area-inset-right))));
+  }
+  body .full-map-search {
+    position: absolute;
+    top: 7px;
+    left: 185px;
+    right: 58px;
+    margin: 0;
+    gap: 6px;
+  }
+  body .full-map-search-input, body .full-map-search-clear {
+    min-height: 36px;
+    height: 36px;
+    padding: 4px 8px;
+  }
+}
+/* FULL-MAP-COMPACT-SEARCH:end */
+
 /* Collection furniture editor: input is owned by BLOCKING_UI while this modal is open. */
 .furniture-editor-backdrop { position:fixed; inset:0; z-index:1090; background:#10203355; }
 .furniture-editor { position:fixed; z-index:1100; right:14px; top:14px; bottom:14px; width:min(430px,calc(100vw - 28px)); overflow:auto; overscroll-behavior:contain; padding:18px; box-sizing:border-box; border:1px solid #b8c9d8; border-radius:18px; background:#f8fbff; color:#24394d; box-shadow:0 12px 50px #091b3c66; font:14px/1.5 sans-serif; }
@@ -4936,6 +5177,49 @@ body[data-hud-mode="COMBAT"] #jump { display:none !important; }
 @media(max-width:600px) { .furniture-editor { inset:8px; width:auto; padding:12px; border-radius:14px; } }
 @media(max-height:500px) and (min-width:601px) { .furniture-editor { width:390px; top:6px; bottom:6px; padding:12px; } .furniture-plan { max-height:200px; } }
 
+/* Player photo mode is presentation-only: underlying HUD hidden/open state stays untouched. */
+body[data-photo-mode="active"] > :not(#application):not(.photo-mode):not(script):not(style):not(#world-loading):not(#space-fade):not(#lobby-transition-fade) {
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+.photo-mode[hidden] { display: none; }
+.photo-mode {
+  position: fixed; inset: 0; z-index: 180; pointer-events: none; color: #f6fbff;
+  padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+  display: flex; flex-direction: column; justify-content: space-between; gap: 12px;
+}
+.photo-mode-header { display: flex; align-items: start; justify-content: space-between; gap: 12px; }
+.photo-mode-title, .photo-mode-close, .photo-mode-controls-toggle, .photo-mode-dock {
+  background: rgba(13, 28, 40, .9); border: 1px solid rgba(187, 221, 237, .45); border-radius: 16px;
+}
+.photo-mode-title { padding: 12px; font-size: 15px; }
+.photo-mode button { pointer-events: auto; min-height: 44px; padding: 10px 14px; color: #f6fbff; font: inherit; cursor: pointer; }
+.photo-mode-close, .photo-mode-controls-toggle { font-size: 14px; }
+.photo-mode-actions { display: flex; flex-direction: column; gap: 8px; }
+.photo-mode-dock[hidden] { display: none; }
+.photo-mode-dock { pointer-events: auto; align-self: center; width: min(560px, 100%); box-sizing: border-box; padding: 14px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.photo-mode-range { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.photo-mode-range input { width: 100%; min-width: 0; min-height: 44px; accent-color: #90d4ef; }
+.photo-mode-pose { grid-column: 1 / -1; background: #205671; border: 1px solid #90d4ef; border-radius: 12px; }
+.photo-mode-status, .photo-mode-note { grid-column: 1 / -1; margin: 0; text-align: center; font-size: 12px; line-height: 1.5; }
+.photo-mode-note { color: #b3c6d1; }
+.photo-mode :focus-visible { outline: 3px solid #9ee7ff; outline-offset: 3px; }
+@media (max-height: 430px) {
+  .photo-mode { padding-top: max(8px, env(safe-area-inset-top)); padding-bottom: max(8px, env(safe-area-inset-bottom)); }
+  .photo-mode-dock { padding: 8px 12px; gap: 3px 10px; }
+  .photo-mode-note { display: none; }
+}
+
+/* Collection Book is a read-only view inside the existing inventory modal. */
+.collection-book { display: grid; gap: 12px; }
+.collection-book-heading { margin: 8px 0 0; font-size: 16px; }
+.collection-book-note { margin: 0; font-size: 12px; line-height: 1.65; color: #8fa6c9; }
+.collection-book-summary { margin: 0; font-size: 13px; color: #9ddfc8; }
+.collection-book-navigation { margin-bottom: 16px; }
+.collection-book-navigation .inventory-tab[aria-pressed="true"] { border-color: #75ccb8; color: #c4fff0; }
+.collection-book-entry[data-state="UNKNOWN"] { border-style: dashed; }
+
+/* LANDSCAPE-HUD:start
    Mobile landscape HUD · phones held sideways (touch + landscape + short viewport).
    The portrait phone HUD keys off max-width, so a rotated phone (740–932px wide) used to fall through to the
    desktop-sized layout while joystick / jump / run were already active: the right rail and the action stack
@@ -5121,7 +5405,9 @@ body[data-hud-mode="COMBAT"] #jump { display:none !important; }
     width: min(340px, calc(100vw - var(--ls-lane-left) - var(--ls-lane-end)));
   }
   body .chat-form { bottom: calc(var(--ls-lane-bottom) + var(--keyboard-inset, 0px)); }
-  body .chat-feed {
+  /* Expanded chat must override the coarse-pointer portrait offset too. */
+  body .chat-feed,
+  body .chat-feed[data-mode="EXPANDED"] {
     bottom: calc(var(--ls-lane-bottom) + 50px + var(--keyboard-inset, 0px));
     max-height: 76px;
     font-size: 12px;

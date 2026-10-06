@@ -1,3 +1,5 @@
+import { biryongDialogueDestinations } from "./biryong-dialogue-guidance.js";
+import { BIRYONG_MAP_DESTINATIONS } from "./biryong-map-data.js";
 import {
   NPC_DIALOGUE_STATE
 } from "../../npc-factory/npc-dialogue-session.mjs";
@@ -62,6 +64,7 @@ export function createBiryongVillageDialogueRuntime({
   getRelationshipStage = () => 1,
   getUnlockedFacts = () => [],
   onOpenChange = () => {},
+  onNavigate = () => false,
   jevEnabled = false,
   jevEndpoint = "/api/npc-dialogue-route"
 } = {}) {
@@ -77,6 +80,7 @@ export function createBiryongVillageDialogueRuntime({
   const closeButton = panel.querySelector("[data-close]");
 
   let openNpcId = null;
+  let viewGeneration = 0;
   let turnCounter = 0;
   let lastTopic = null;
   let lastShadow = null;
@@ -203,6 +207,7 @@ export function createBiryongVillageDialogueRuntime({
     const npc = currentNpc();
     if (!npc) return false;
     const stage = relationshipStage(npc.id);
+    viewGeneration += 1;
     lastTopic = null;
     lineEl.textContent = authoredBiryongDialogueLine(npc.id, { relationshipStage: stage, mode: "GREETING" });
     actionsEl.replaceChildren();
@@ -222,6 +227,7 @@ export function createBiryongVillageDialogueRuntime({
   function showStatus() {
     const npc = currentNpc();
     if (!npc) return false;
+    viewGeneration += 1;
     const stage = relationshipStage(npc.id);
     turnCounter += 1;
     lineEl.textContent = authoredBiryongDialogueLine(npc.id, { relationshipStage: stage, mode: "STATUS" });
@@ -238,6 +244,7 @@ export function createBiryongVillageDialogueRuntime({
     if (!npc) return false;
     const fact = (getUnlockedFacts(npc.id) ?? []).find(item => item?.factId === factId);
     if (!fact) return false;
+    viewGeneration += 1;
     turnCounter += 1;
     lastTopic = fact.topicId ?? fact.factId;
     lastGeminiPacket = null;
@@ -259,6 +266,7 @@ export function createBiryongVillageDialogueRuntime({
     const npc = currentNpc();
     if (!npc) return false;
     const stage = relationshipStage(npc.id);
+    const view = ++viewGeneration;
     const world = getWorldContext() ?? {};
     const current = {
       period: npcRuntime.status().period ?? null,
@@ -283,6 +291,18 @@ export function createBiryongVillageDialogueRuntime({
       button("다른 이야기", () => showHome()),
       button("대화 마치기", () => close())
     );
+    for (const poiId of biryongDialogueDestinations(npc.id, topicId)) {
+      const place = BIRYONG_MAP_DESTINATIONS.find(item => item.poiId === poiId);
+      if (!place) continue;
+      actionsEl.append(button(`📍 ${place.title} 길안내`, () => {
+        // DOM callbacks can outlive their topic, conversation, or region.
+        if (view !== viewGeneration || openNpcId !== npc.id || panel.hidden) return;
+        let accepted = false;
+        try { accepted = onNavigate(poiId) === true; } catch { /* optional guidance */ }
+        if (accepted) close();
+        else lineEl.textContent = "지금은 길안내를 준비하지 못했어요. 잠시 후 다시 시도해 주세요.";
+      }));
+    }
     void shadowDecision(npc, { mode: "TOPIC", topicId, generationAllowed: true });
     lastTopic = topicId;
     return true;
@@ -310,6 +330,7 @@ export function createBiryongVillageDialogueRuntime({
   function close() {
     if (!openNpcId) return false;
     const npcId = openNpcId;
+    viewGeneration += 1;
     openNpcId = null;
     panel.hidden = true;
     npcRuntime.resumeNpc(npcId);

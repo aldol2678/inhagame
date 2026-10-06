@@ -147,6 +147,8 @@ insert into authority_allowed_call values
   -- Activity settlement: only reviewed server-only domain adapters that derive the plan from a frozen outcome.
   ('public.world_fishing_settle_v1',           'private.world_activity_settle_v1',
      'Fishing F2: plan derived from the frozen server catch; service_role + service claim only'),
+  ('public.world_gathering_harvest_v1',        'private.world_activity_settle_v1',
+     'Gathering P0: fixed plan derived from the frozen server source/output snapshot; service_role only'),
   -- Biryong NPC relationship: only the trusted service-role wrapper may advance persistent stage.
   ('public.world_biryong_npc_relationship_advance_v1', 'private.world_biryong_relationship_advance_v1',
      'Biryong NPC relationship P0: service_role wrapper advances exactly one verified stage');
@@ -222,6 +224,7 @@ insert into authority_table values
   ('world_creature_evolution_candidates','STATE'), ('world_creature_evolution_events','STATE'),
   ('world_creature_acquisition_claims','STATE'),
   ('world_activity_attempts','STATE'), ('world_activity_settlements','STATE'),
+  ('world_fishing_positions','STATE'), ('world_fishing_spot_leases','STATE'),
   ('world_combat_encounters','STATE'),
   ('world_biryong_npc_relationship_events','STATE'), ('world_player_biryong_npc_relationships','STATE'),
   ('world_quest_progress_v1','STATE'), ('world_event_progress','STATE'),
@@ -233,6 +236,7 @@ insert into authority_table values
   ('world_shops','CATALOG'), ('world_shop_listings','CATALOG'),
   ('world_life_skill_catalog','CATALOG'), ('world_life_skill_thresholds','CATALOG'),
   ('world_life_progression_thresholds','CATALOG'), ('world_life_skill_tree_catalog','CATALOG'),
+  ('world_fishing_spots','CATALOG'), ('world_gathering_source_catalog','CATALOG'),
   ('world_life_skill_tree_edges','CATALOG'), ('world_life_tree_reset_policy','CATALOG'), ('world_collection_entry_catalog','CATALOG'),
   ('world_combat_definition_catalog','CATALOG'), ('world_creature_species_catalog','CATALOG'),
   ('world_creature_form_catalog','CATALOG'), ('world_creature_activity_bridge_catalog','CATALOG'),
@@ -271,6 +275,9 @@ insert into authority_allowed_write values
   ('world_life_sp_transactions', 'private.world_life_node_unlock_v1'),
   ('world_player_life_nodes', 'private.world_life_node_unlock_v1'),
   ('world_life_tree_resets', 'private.world_life_tree_reset_v1'),
+  ('world_fishing_positions', 'public.world_fishing_observe_position_v1'),
+  ('world_fishing_spot_leases', 'public.world_fishing_start_v1'),
+  ('world_fishing_spot_leases', 'private.world_fishing_commit_v1'),
   ('world_player_collection_discoveries', 'private.world_collection_discover_v1'),
   ('world_collection_discovery_events', 'private.world_collection_discover_v1'),
   ('world_player_creatures', 'private.world_creature_grant_v1'),
@@ -299,6 +306,7 @@ insert into authority_allowed_write values
   ('world_player_biryong_npc_relationships', 'private.world_biryong_relationship_advance_v1'),
   ('world_quest_progress_v1', 'public.advance_world_quest_v1'),
   ('world_quest_progress_v1', 'public.advance_world_navigation_quest_v1'),
+  ('world_quest_progress_v1', 'public.advance_world_first_style_quest_v1'),
   ('world_event_progress', 'public.advance_mcm_2026_event_v1'),
   ('world_event_progress', 'private.world_mcm_try_complete_v1'),
   ('world_player_appearance_loadout', 'public.equip_my_world_item_v1'),

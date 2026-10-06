@@ -160,6 +160,8 @@ function audioContentSnapshot() {
         items: music.assets().map(asset => ({
           kind: "asset",
           id: asset.id,
+          assetType: "audio",
+          sourceKind: "audio-asset",
           label: asset.title || asset.id,
           detail: `${asset.fileName || asset.uri || "audio"} · ${formatTime(asset.durationSeconds)}`,
           selected: asset.id === selectedAssetId && !selectedCueId && !selectedBindingId,

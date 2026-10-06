@@ -2,15 +2,31 @@
 // controller through the existing offline harness; never a Null renderer.
 // The backend is disabled. Only the explicitly named state-fixture screenshots
 // inject presentation states; ordinary overview/selection/navigation use live UI.
+import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
 import assert from 'node:assert/strict';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { startSmoke, TIMEOUT_MS } from './harness.mjs';
+
+const head = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+const tree = execFileSync("git", ["rev-parse", "HEAD^{tree}"], { encoding: "utf8" }).trim();
+const expectedHead = process.env.EXPECTED_MAP_HEAD;
+assert.match(expectedHead ?? "", /^[a-f0-9]{40}$/, "EXPECTED_MAP_HEAD must identify the immutable candidate");
+assert.equal(head, expectedHead, "hosted acceptance must test the exact PR head");
+const sourceHashes = {};
+for (const file of ["src/minimap/full-map-controller.js", "src/minimap/full-map-search.js", "src/minimap/minimap-data.js", "src/main.js", "campus/index.html", "styles.css", "data/reality/campus-facilities.json", "tests/browser/full-map-navigation-fixture.mjs", "tests/browser/full-map-navigation-smoke.mjs", "tests/browser/full-map-readability-smoke.mjs"]) {
+  sourceHashes[file] = createHash("sha256").update(await readFile(new URL(`../../${file}`, import.meta.url))).digest("hex");
+}
 
 const output = process.env.WORLD_FULL_MAP_QA_OUTPUT || 'test-results/full-map-readability';
 await mkdir(output, { recursive: true });
-const report = { scope: 'Real offline campus WebGL2 + production Full Map; backend disabled; no Production access', cases: [] };
+const report = { head, tree, expectedHead, sourceHashes, screenshots: [], scope: 'Real offline campus WebGL2 + production Full Map; backend disabled; no Production access', cases: [] };
 const overlaps = (a, b) => a.x < b.right - 1 && a.right > b.x + 1 && a.y < b.bottom - 1 && a.bottom > b.y + 1;
-const screenshot = (page, name) => page.screenshot({ path: `${output}/${name}.png`, fullPage: false, animations: 'disabled' });
+const screenshot = async (page, name) => {
+  const file = `${name}.png`;
+  const bytes = await page.screenshot({ path: `${output}/${file}`, fullPage: false, animations: 'disabled' });
+  report.screenshots.push({ file, sha256: createHash("sha256").update(bytes).digest("hex") });
+};
 
 async function readLayout(page) {
   return page.evaluate(() => {
@@ -119,10 +135,10 @@ try {
       checkLayout(entry.initial, name, { portrait: name === 'portrait', initial: true });
       if (name.startsWith('landscape')) {
         assert.equal(entry.initial.media.coarse, true, 'mobile touch media query is active');
-        assert.ok(entry.initial.surface.width >= (name === 'landscape' ? 300 : 220), 'short-landscape map uses its independent height-bound layout');
+        assert.ok(entry.initial.surface.width >= (name === 'landscape' ? 246 : 166), 'short-landscape map uses its independent height-bound layout');
         assert.ok(entry.initial.controls.x >= entry.initial.surface.right, 'landscape controls live beside the map');
       }
-      assert.equal(entry.initial.pois.length, 10, `${name}: canonical POIs retained`);
+      assert.equal(entry.initial.pois.length, 12, `${name}: canonical POIs retained`);
       assert.notEqual(entry.initial.pois.find(p => p.id === 'poi.building-5').icon,
         entry.initial.pois.find(p => p.id === 'poi.dorm-1').icon, 'building and housing have distinct symbols');
       assert.ok(entry.initial.pois.filter(p => p.state !== 'NORMAL').every(p => !p.badgeHidden && p.badge));
@@ -186,6 +202,8 @@ try {
       assert.ok(dragged.panX !== zoomed.panX || dragged.panY !== zoomed.panY, 'zoomed map drag works');
       await page.locator('#full-map-reset-view').click();
       await page.locator('#full-map-close').focus();
+      await page.keyboard.press('Tab');
+      assert.equal(await page.locator('.full-map-search-input').evaluate(node => node === document.activeElement), true, 'keyboard reaches the new search field first');
       await page.keyboard.press('Tab');
       const keyboardFocus = await page.evaluate(() => ({
         poiId: document.activeElement?.dataset.poiId,

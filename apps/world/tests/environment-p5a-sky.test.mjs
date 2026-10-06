@@ -135,6 +135,8 @@ test('sun and clouds react to night and rain without creating a separate CLOUDY 
   assert.ok(rainCloud.opacity > clearCloud.opacity);
   assert.ok(rainCloud.color.every((value, i) => value < clearCloud.color[i]));
   assert.ok(nightCloud.color.every((value, i) => value < clearCloud.color[i]));
+  assert.ok(nightCloud.color[2] < 0.17);
+  assert.ok(nightCloud.emissiveIntensity <= 0.30);
 });
 
 test('Environment exposes allocation-free interpolated sky state for the renderer', () => {
@@ -176,4 +178,14 @@ test('sky runtime binds the visible sun to the live directional-light axis, not 
   assert.match(skyVisuals, /writeSunSourceDirection\(sunDirection, lightEntity\?\.up\)/);
   assert.doesNotMatch(skyVisuals, /writeSunDirection\(sunDirection, skyState\.sunEuler\)/);
   assert.match(main, /createSkyVisuals\(\{[\s\S]*?lightEntity: light,/);
+});
+
+
+test('sky material cache always performs the first authoritative environment sync', async () => {
+  const skyVisuals = await readFile(new URL('../src/environment/sky-visuals.js', import.meta.url), 'utf8');
+  assert.match(skyVisuals, /let materialSignalInitialized = false/);
+  assert.match(skyVisuals, /const colorChanged = !materialSignalInitialized \|\|/);
+  assert.match(skyVisuals, /const scalarChanged = !materialSignalInitialized \|\|/);
+  assert.match(skyVisuals, /materialSignalInitialized = true/);
+  assert.match(skyVisuals, /comparisons? against NaN is false|comparison against NaN is false/);
 });

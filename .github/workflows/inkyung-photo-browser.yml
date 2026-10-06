@@ -1,0 +1,63 @@
+name: Inkyung photo mode browser QA
+on:
+  pull_request:
+    paths:
+      - 'apps/world/src/photo/**'
+      - 'apps/world/src/main.js'
+      - 'apps/world/campus/index.html'
+      - 'apps/world/styles.css'
+      - 'apps/world/npc-factory/dev-runtime-state.mjs'
+      - 'apps/world/tests/inkyung-photo*.test.mjs'
+      - 'apps/world/tests/browser/inkyung-photo-*'
+      - '.github/workflows/inkyung-photo-browser.yml'
+permissions:
+  contents: read
+concurrency:
+  group: inkyung-photo-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  chromium:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - name: Install readable Korean glyphs
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+      - name: Install existing pinned browser dependencies
+        working-directory: apps/world/tests/browser
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Verify photo lifecycle and NPC anchor contracts
+        run: |
+          node --test apps/world/tests/inkyung-photo*.test.mjs
+          node apps/world/npc-factory/tests-dev-runtime.mjs
+      - name: Verify native photo controls with production modules
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+          PHOTO_MODE_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PHOTO_MODE_QA_OUTPUT: test-results/inkyung-photo/controls
+        run: timeout --signal=TERM --kill-after=10s 240s node apps/world/tests/browser/inkyung-photo-mode-smoke.mjs
+      - name: Render and exercise the actual campus lake
+        if: ${{ !cancelled() }}
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+          PHOTO_MODE_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PHOTO_MODE_QA_OUTPUT: test-results/inkyung-photo/campus
+        run: timeout --signal=TERM --kill-after=10s 660s node apps/world/tests/browser/inkyung-photo-campus-smoke.mjs
+      - name: Save exact-head photo evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: inkyung-photo-browser-evidence
+          path: test-results/inkyung-photo/
+          if-no-files-found: error
+          retention-days: 7

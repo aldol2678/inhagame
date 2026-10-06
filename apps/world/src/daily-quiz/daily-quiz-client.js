@@ -71,7 +71,8 @@ function parseLastAnswer(raw) {
 
 /** Server state → frozen snapshot, or null when it is not the documented contract. */
 export function parseDailyQuiz(raw) {
-  if (!raw || typeof raw !== "object" || !STATUSES.has(raw.status) || !DATE.test(raw.rewardDate ?? "")) return null;
+  if (!raw || typeof raw !== "object" || !STATUSES.has(raw.status) ||
+      typeof raw.rewardDate !== "string" || !DATE.test(raw.rewardDate)) return null;
   const progress = parseProgress(raw.progress);
   const rewardPreview = parsePreview(raw.rewardPreview);
   const lastAnswer = parseLastAnswer(raw.lastAnswer);
@@ -102,11 +103,11 @@ export function dailyQuizErrorCode(error) {
 }
 
 /**
- * @param {{ getClient: () => ({ rpc: Function } | null), onReward?: (reward: object) => void }} options
+ * @param {{ getClient: () => ({ rpc: Function } | null), onReward?: (reward: object) => void, onRecoveryReadback?: () => void }} options
  *   getClient returns the signed-in permanent-account Supabase client (online.supabase), or null.
  *   onReward is called once with the server Reward result of the PASSED answer, for the current account.
  */
-export function createDailyQuizClient({ getClient, onReward = () => {} } = {}) {
+export function createDailyQuizClient({ getClient, onReward = () => {}, onRecoveryReadback = () => {} } = {}) {
   if (typeof getClient !== "function") throw new Error("Daily quiz client requires getClient");
 
   let accountId = null;
@@ -115,6 +116,7 @@ export function createDailyQuizClient({ getClient, onReward = () => {} } = {}) {
   let snapshot = null;
   let pending = null;
   let reading = null;
+  let readVersion = 0;
   const listeners = new Set();
 
   function set(nextState, nextSnapshot, reason) {
@@ -130,20 +132,35 @@ export function createDailyQuizClient({ getClient, onReward = () => {} } = {}) {
     const client = getClient();
     if (!client?.rpc) return { error: { message: "SIGNED_OUT" } };
     try {
-      return await client.rpc(rpc, args);
+      return (await client.rpc(rpc, args)) ?? {};
     } catch (error) {
       return { error };
     }
   }
 
+  // The server may have committed before an error/malformed response reached us.
+  // Re-read economic authorities separately; never synthesize/replay reward results.
+  function recoverReadback(gen) {
+    if (gen !== generation) return;
+    try { onRecoveryReadback(); } catch (error) { console.warn("Daily reward recovery readback failed:", error); }
+  }
+
   function refresh(reason = "refresh") {
     if (!accountId) return Promise.resolve(false);
+    // A read sent during a write can still observe its old server snapshot. Defer and
+    // coalesce these refresh requests until the write settles, without retrying it.
+    if (pending) {
+      const gen = generation;
+      pending.refresh ??= pending.done.then(() => gen === generation ? refresh(reason) : false);
+      return pending.refresh;
+    }
     if (reading) return reading;
     const gen = generation;
+    const version = readVersion;
     const run = (async () => {
       try {
         const { data, error } = await call(DAILY_QUIZ_RPC.READ);
-        if (gen !== generation) return false;
+        if (gen !== generation || version !== readVersion) return false;
         const next = error ? null : parseDailyQuiz(data);
         if (error) console.warn("World daily quiz unavailable:", error?.message ?? error);
         if (next) set(DAILY_QUIZ_STATE.READY, next, reason);
@@ -163,7 +180,12 @@ export function createDailyQuizClient({ getClient, onReward = () => {} } = {}) {
     if (pending) return { outcome: "BUSY" };
     const gen = generation;
     const claim = {};
+    claim.done = new Promise(resolve => { claim.finish = resolve; });
     pending = claim;
+    // Invalidate reads already in flight so neither success nor failure recovery
+    // can be overwritten (or coalesced) with a pre-mutation status response.
+    readVersion += 1;
+    reading = null;
     set(state, snapshot, kind);
     try {
       const { data, error } = await call(rpc, args);
@@ -171,6 +193,7 @@ export function createDailyQuizClient({ getClient, onReward = () => {} } = {}) {
       if (error) {
         const code = dailyQuizErrorCode(error);
         pending = null;
+        recoverReadback(gen);
         void refresh(kind);
         return { outcome: code === "FAILED" ? "FAILED" : "REFUSED", code };
       }
@@ -178,11 +201,13 @@ export function createDailyQuizClient({ getClient, onReward = () => {} } = {}) {
       const reward = data?.reward ?? null;
       if (!next || (reward !== null && !(next.status === DAILY_QUIZ_STATUS.PASSED && isQuestRewardResult(reward)))) {
         pending = null;
+        recoverReadback(gen);
         void refresh(kind);
         return { outcome: "FAILED", code: "MALFORMED_RESPONSE" };
       }
       pending = null;
       set(DAILY_QUIZ_STATE.READY, next, kind);
+      if (!reward && next.status === DAILY_QUIZ_STATUS.PASSED) recoverReadback(gen);
       if (reward) {
         try { onReward(reward); } catch (error) { console.warn("Daily quiz reward display failed:", error); }
       }
@@ -192,6 +217,7 @@ export function createDailyQuizClient({ getClient, onReward = () => {} } = {}) {
         pending = null;
         if (gen === generation) set(state, snapshot, kind);
       }
+      claim.finish();
     }
   }
 

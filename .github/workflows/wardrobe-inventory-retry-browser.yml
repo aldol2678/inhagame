@@ -1,0 +1,53 @@
+name: Wardrobe inventory retry browser QA
+on:
+  pull_request:
+    paths:
+      - 'apps/world/src/appearance/wardrobe-panel.js'
+      - 'apps/world/src/appearance/loadout-client.js'
+      - 'apps/world/src/inventory/inventory-client.js'
+      - 'apps/world/styles.css'
+      - 'apps/world/tests/wardrobe-panel.test.mjs'
+      - 'apps/world/tests/panel-keyboard-focus.test.mjs'
+      - 'apps/world/tests/browser/wardrobe-inventory-retry-*'
+      - 'apps/world/tests/browser/package*.json'
+      - '.github/workflows/wardrobe-inventory-retry-browser.yml'
+permissions:
+  contents: read
+concurrency:
+  group: wardrobe-inventory-retry-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  chromium:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - name: Install pinned browser dependencies
+        working-directory: apps/world/tests/browser
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Install Chromium and Korean glyphs
+        run: |
+          cd apps/world/tests/browser
+          npx --no-install playwright install --with-deps chromium
+          sudo apt-get install -y fonts-noto-cjk
+      - name: Verify wardrobe retry and account/focus contracts
+        run: node --test apps/world/tests/wardrobe-panel.test.mjs apps/world/tests/panel-keyboard-focus.test.mjs apps/world/tests/inventory-client.test.mjs apps/world/tests/loadout-client.test.mjs
+      - name: Exercise native keyboard and touch with synthetic reads only
+        env:
+          WARDROBE_RETRY_HEAD: ${{ github.event.pull_request.head.sha }}
+          WARDROBE_RETRY_OUTPUT: test-results/wardrobe-inventory-retry
+        run: node apps/world/tests/browser/wardrobe-inventory-retry-smoke.mjs
+      - name: Preserve exact-head screenshots and read-only receipts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wardrobe-inventory-retry-browser-evidence
+          path: test-results/wardrobe-inventory-retry/
+          if-no-files-found: error
+          retention-days: 14

@@ -197,6 +197,8 @@ function studioContentSnapshot() {
         items: snapshot.assets.map(asset => ({
           kind: "asset",
           id: asset.id,
+          assetType: asset.type || "other",
+          sourceKind: "world-asset",
           label: asset.metadata?.label || asset.id,
           detail: `${asset.type || "other"} · ${asset.uri || "no uri"}`,
           selected: asset.id === placement.options.assetId,

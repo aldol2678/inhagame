@@ -1,0 +1,64 @@
+name: Backgate restoration browser QA
+on:
+  pull_request:
+    paths:
+      - 'apps/world/src/backgate-infill-geometry.js'
+      - 'apps/world/src/back-alley-geometry.js'
+      - 'apps/world/src/back-market-geometry.js'
+      - 'apps/world/src/back-street-geometry.js'
+      - 'apps/world/src/culture-street-geometry.js'
+      - 'apps/world/src/north-side-gate-geometry.js'
+      - 'apps/world/src/campus-road-blockout.js'
+      - 'apps/world/tests/backgate-infill*.test.mjs'
+      - 'apps/world/tests/backgate-road*.test.mjs'
+      - 'apps/world/tests/backgate-restoration*.test.mjs'
+      - 'apps/world/tests/browser/backgate-infill-*'
+      - 'apps/world/tests/browser/backgate-road-*'
+      - 'apps/world/tests/browser/backgate-restoration-*'
+      - '.github/workflows/backgate-restoration-browser.yml'
+permissions:
+  contents: read
+concurrency:
+  group: backgate-restoration-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  chromium:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - name: Verify pinned public baseline exists
+        run: git cat-file -e 3b95e37f3dec477ebe7e06456907176bb81a63a2^{commit}
+      - name: Install pinned offline browser dependencies
+        working-directory: apps/world/tests/browser
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Verify restored geometry and unchanged navigation
+        run: node --test apps/world/tests/backgate-infill*.test.mjs apps/world/tests/backgate-road*.test.mjs apps/world/tests/backgate-restoration*.test.mjs apps/world/tests/back-market.test.mjs apps/world/tests/backgate-shopfronts.test.mjs
+      - name: Verify pinned engine ownership and framing
+        run: |
+          node apps/world/tests/browser/backgate-infill-null-smoke.mjs
+          node apps/world/tests/browser/backgate-road-null-smoke.mjs
+          node apps/world/tests/browser/backgate-restoration-fixture-null-smoke.mjs
+      - name: Render exact-head same-camera baseline and restored campus
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+          WORLD_SMOKE_TIMEOUT_MS: '60000'
+          WORLD_BACKGATE_QA_OUTPUT: test-results/backgate-restoration
+          EXPECTED_BACKGATE_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: timeout --signal=TERM --kill-after=15s 18m node apps/world/tests/browser/backgate-restoration-smoke.mjs
+      - name: Save screenshots and hashed report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backgate-restoration-browser-${{ github.event.pull_request.head.sha }}
+          path: test-results/backgate-restoration/
+          if-no-files-found: error
+          retention-days: 7

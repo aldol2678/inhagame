@@ -47,6 +47,8 @@ export function createDailyQuizPanel({ panel, quiz, onOpenChange = () => {}, doc
   let open = false;
   let closeButton = null;
   let notice = null;
+  let noticeEpoch = 0;
+  let accountId = quiz.accountId;
 
   function button(text, className, onClick, { disabled = false } = {}) {
     const node = el("button", className, text);
@@ -58,9 +60,12 @@ export function createDailyQuizPanel({ panel, quiz, onOpenChange = () => {}, doc
 
   async function run(action) {
     notice = null;
+    const epoch = ++noticeEpoch;
+    const { rewardDate, runId } = quiz.snapshot ?? {};
     const result = await action();
-    if (result.outcome === "REFUSED") notice = DAILY_QUIZ_TEXT.refused;
-    else if (result.outcome === "FAILED") notice = DAILY_QUIZ_TEXT.failedWrite;
+    if (!open || epoch !== noticeEpoch) return;
+    if (result.outcome === "REFUSED") notice = { text: DAILY_QUIZ_TEXT.refused };
+    else if (result.outcome === "FAILED") notice = { text: DAILY_QUIZ_TEXT.failedWrite, rewardDate, runId };
     render();
   }
 
@@ -114,6 +119,10 @@ export function createDailyQuizPanel({ panel, quiz, onOpenChange = () => {}, doc
   function render() {
     if (!open) return;
     const snapshot = quiz.state === DAILY_QUIZ_STATE.READY ? quiz.snapshot : null;
+    // A trusted terminal readback may precede the awaited failed-write outcome.
+    // Only that run's failure hint is obsolete; other notices remain meaningful.
+    if (notice?.text === DAILY_QUIZ_TEXT.failedWrite && snapshot?.rewardDate === notice.rewardDate && snapshot?.runId === notice.runId &&
+        (snapshot?.status === DAILY_QUIZ_STATUS.PASSED || snapshot?.status === DAILY_QUIZ_STATUS.FAILED)) notice = null;
     const head = el("div", "shop-panel-head");
     const titles = el("div", "shop-panel-titles");
     const title = el("h2", "", DAILY_QUIZ_TEXT.title);
@@ -136,7 +145,7 @@ export function createDailyQuizPanel({ panel, quiz, onOpenChange = () => {}, doc
     } else {
       renderQuiz(body, snapshot);
     }
-    if (notice) body.append(el("p", "shop-hint", notice));
+    if (notice) body.append(el("p", "shop-hint", notice.text));
     panel.dataset.state = quiz.state;
     panel.dataset.quiz = snapshot?.status ?? "";
     panel.replaceChildren(head, body);
@@ -145,6 +154,7 @@ export function createDailyQuizPanel({ panel, quiz, onOpenChange = () => {}, doc
   function setOpen(next) {
     const value = Boolean(next);
     if (value === open) return open;
+    noticeEpoch += 1;
     open = value;
     panel.hidden = !open;
     if (!open) {
@@ -160,7 +170,14 @@ export function createDailyQuizPanel({ panel, quiz, onOpenChange = () => {}, doc
     return true;
   }
 
-  quiz.onChange(() => render());
+  quiz.onChange(() => {
+    if (accountId !== quiz.accountId) {
+      accountId = quiz.accountId;
+      noticeEpoch += 1;
+      notice = null;
+    }
+    render();
+  });
   panel.addEventListener("pointerdown", (event) => event.stopPropagation());
   doc.addEventListener("keydown", (event) => {
     if (open && event.code === "Escape") setOpen(false);

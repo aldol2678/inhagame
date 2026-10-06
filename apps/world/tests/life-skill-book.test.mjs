@@ -51,6 +51,14 @@ function harness() {
   return { client, book };
 }
 const flush = async () => { for (let i = 0; i < 6; i += 1) await new Promise((r) => setTimeout(r, 0)); };
+const deferred = () => {
+  let resolve;
+  const promise = new Promise(r => { resolve = r; });
+  return { promise, resolve };
+};
+const elements = (root) => [root, ...(root.children ?? []).flatMap(elements)];
+const panelText = (panel) => elements(panel).map(n => n.textContent).join(" ");
+const byClass = (panel, name) => elements(panel).find(n => (n.className ?? "").split(" ").includes(name));
 
 test("parsers accept the documented server views and refuse anything else", () => {
   assert.equal(parseLifeSkillList(list(skill())).skills[0].sp.available, 5);
@@ -173,4 +181,197 @@ test("panel renders server decisions and enables buttons only where the server a
   assert.equal(nodeName("life.node.fishing.unknown"), "life.node.fishing.unknown");
   assert.equal(lockText(nodes[2]), "스킬 Lv 8 필요");
   assert.equal(xpLine(skill({ isMaxLevel: true, nextLevelXp: null, totalXp: 20000, currentLevelStartXp: 19000 })), "최고 레벨 · XP 20000");
+});
+
+for (const failure of [
+  { name: "RPC error", result: { data: null, error: { message: "network down" } } },
+  { name: "malformed data", result: { data: {}, error: null } },
+  { name: "another skill", result: { data: tree([], {}, { skillId: "life.woodcutting" }), error: null } }
+]) {
+  test(`a tree ${failure.name} becomes unavailable and a retry reads only that tree`, async () => {
+    const { client, book } = harness();
+    client.respond(LIFE_SKILL_BOOK_RPC.LIST, { data: list(skill()), error: null });
+    await book.setAccount(A);
+    const first = deferred();
+    client.respond(LIFE_SKILL_BOOK_RPC.TREE, first.promise);
+    const selecting = book.selectSkill("life.fishing");
+    assert.equal(book.treeState, LIFE_SKILL_BOOK_STATE.LOADING);
+    first.resolve(failure.result);
+    assert.equal(await selecting, false);
+    assert.equal(book.state, LIFE_SKILL_BOOK_STATE.READY, "the list remains usable");
+    assert.equal(book.treeState, LIFE_SKILL_BOOK_STATE.UNAVAILABLE);
+    assert.equal(book.tree, null);
+    assert.equal(book.selectedSkillId, "life.fishing");
+    const retry = deferred();
+    client.respond(LIFE_SKILL_BOOK_RPC.TREE, retry.promise);
+    const retrying = book.selectSkill(book.selectedSkillId);
+    const repeated = book.selectSkill(book.selectedSkillId);
+    assert.equal(book.treeState, LIFE_SKILL_BOOK_STATE.LOADING);
+    assert.equal(client.count(LIFE_SKILL_BOOK_RPC.TREE), 2, "duplicate read clicks coalesce");
+    retry.resolve({ data: tree([node("steady_hands")]), error: null });
+    assert.equal(await retrying, true);
+    assert.equal(await repeated, true);
+    assert.equal(book.treeState, LIFE_SKILL_BOOK_STATE.READY);
+    assert.equal(book.tree.nodes[0].nodeId, "life.node.fishing.steady_hands");
+    assert.deepEqual(client.calls.map(c => c.fn), [LIFE_SKILL_BOOK_RPC.LIST, LIFE_SKILL_BOOK_RPC.TREE, LIFE_SKILL_BOOK_RPC.TREE]);
+    assert.deepEqual(client.calls.at(-1).args, { p_skill_id: "life.fishing" });
+  });
+}
+
+test("a rejected tree request becomes unavailable instead of remaining loading", async () => {
+  const book = createLifeSkillBookClient({ getClient: () => ({
+    rpc: (rpc) => rpc === LIFE_SKILL_BOOK_RPC.LIST
+      ? Promise.resolve({ data: list(skill()), error: null }) : Promise.reject(new Error("offline"))
+  }) });
+  await book.setAccount(A);
+  assert.equal(await book.selectSkill("life.fishing"), false);
+  assert.equal(book.treeState, LIFE_SKILL_BOOK_STATE.UNAVAILABLE);
+});
+
+test("a selected-tree refresh failure drops stale actions and remains retryable", async () => {
+  const { client, book } = harness();
+  client.respond(LIFE_SKILL_BOOK_RPC.LIST, { data: list(skill()), error: null });
+  client.respond(LIFE_SKILL_BOOK_RPC.TREE, { data: tree([node("steady_hands")]), error: null });
+  await book.setAccount(A);
+  await book.selectSkill("life.fishing");
+  client.respond(LIFE_SKILL_BOOK_RPC.LIST, { data: list(skill()), error: null });
+  client.respond(LIFE_SKILL_BOOK_RPC.TREE, { data: null, error: { message: "offline" } });
+  await book.refresh();
+  assert.equal(book.treeState, LIFE_SKILL_BOOK_STATE.UNAVAILABLE);
+  assert.equal(book.tree, null);
+  assert.equal(book.state, LIFE_SKILL_BOOK_STATE.READY);
+});
+
+test("post-action recovery supersedes a tree read begun before the action settled", async () => {
+  const { client, book } = harness();
+  client.respond(LIFE_SKILL_BOOK_RPC.LIST, { data: list(skill()), error: null });
+  client.respond(LIFE_SKILL_BOOK_RPC.TREE, { data: tree([node("steady_hands")]), error: null });
+  await book.setAccount(A);
+  await book.selectSkill("life.fishing");
+  const action = deferred();
+  client.respond(LIFE_SKILL_BOOK_RPC.UNLOCK, action.promise);
+  const unlocking = book.unlockNode("life.node.fishing.steady_hands");
+  book.clearSelection();
+  const old = deferred();
+  client.respond(LIFE_SKILL_BOOK_RPC.TREE, old.promise);
+  const oldRead = book.selectSkill("life.fishing");
+  const after = { sp: { earned: 5, spent: 1, available: 4, nextLevelEarned: 6 } };
+  client.respond(LIFE_SKILL_BOOK_RPC.LIST, { data: list(skill(after)), error: null });
+  client.respond(LIFE_SKILL_BOOK_RPC.TREE, { data: tree([node("steady_hands", { rank: 1 })], {}, after), error: null });
+  action.resolve({ data: null, error: { message: "response lost after commit" } });
+  assert.equal((await unlocking).outcome, "FAILED");
+  await flush();
+  old.resolve({ data: tree([node("steady_hands")]), error: null });
+  await oldRead;
+  await flush();
+  assert.equal(client.count(LIFE_SKILL_BOOK_RPC.TREE), 3, "recovery needs a fresh post-action tree read");
+  assert.equal(book.tree.nodes[0].rank, 1);
+  assert.equal(book.tree.skill.sp.spent, book.book.skills[0].sp.spent);
+  assert.equal(book.treeState, LIFE_SKILL_BOOK_STATE.READY);
+  assert.equal(client.count(LIFE_SKILL_BOOK_RPC.UNLOCK), 1, "recovery never repeats the write");
+});
+
+test("switching away and back rejects an older same-skill success or failure", async () => {
+  for (const stale of [{ data: tree([node("steady_hands", { rank: 2 })]), error: null },
+    { data: null, error: { message: "late failure" } }]) {
+    const { client, book } = harness();
+    client.respond(LIFE_SKILL_BOOK_RPC.LIST, { data: list(skill(), skill({ skillId: "life.woodcutting" })), error: null });
+    await book.setAccount(A);
+    const first = deferred();
+    client.respond(LIFE_SKILL_BOOK_RPC.TREE, first.promise);
+    const oldRead = book.selectSkill("life.fishing");
+    client.respond(LIFE_SKILL_BOOK_RPC.TREE, { data: tree([], {}, { skillId: "life.woodcutting" }), error: null });
+    await book.selectSkill("life.woodcutting");
+    client.respond(LIFE_SKILL_BOOK_RPC.TREE, { data: tree([node("steady_hands", { rank: 1 })]), error: null });
+    await book.selectSkill("life.fishing");
+    first.resolve(stale);
+    assert.equal(await oldRead, false);
+    assert.equal(book.treeState, LIFE_SKILL_BOOK_STATE.READY);
+    assert.equal(book.tree.nodes[0].rank, 1);
+  }
+});
+
+test("account changes and Back invalidate pending tree reads", async () => {
+  for (const boundary of ["account", "signout", "back"]) {
+    const { client, book } = harness();
+    client.respond(LIFE_SKILL_BOOK_RPC.LIST, { data: list(skill()), error: null });
+    await book.setAccount(A);
+    const pending = deferred();
+    client.respond(LIFE_SKILL_BOOK_RPC.TREE, pending.promise);
+    const read = book.selectSkill("life.fishing");
+    if (boundary === "account") {
+      client.respond(LIFE_SKILL_BOOK_RPC.LIST, { data: list(skill()), error: null });
+      await book.setAccount(B);
+    } else if (boundary === "signout") await book.setAccount(null);
+    else book.clearSelection();
+    pending.resolve({ data: tree([node("steady_hands")]), error: null });
+    assert.equal(await read, false);
+    assert.equal(book.tree, null);
+    assert.equal(book.treeState, null);
+    assert.equal(book.selectedSkillId, null);
+  }
+});
+
+test("panel replaces tree loading with an error and a tree-only retry, including repeated failures", async () => {
+  const doc = createFakeDocument();
+  const panel = doc.createElement("section");
+  const { client, book } = harness();
+  const ui = createLifeSkillBookPanel({ panel, book, doc });
+  client.respond(LIFE_SKILL_BOOK_RPC.LIST, { data: list(skill()), error: null });
+  await book.setAccount(A);
+  client.respond(LIFE_SKILL_BOOK_RPC.LIST, { data: list(skill()), error: null });
+  ui.setOpen(true);
+  await flush();
+  client.respond(LIFE_SKILL_BOOK_RPC.TREE, { data: null, error: { message: "offline" } });
+  byClass(panel, "life-skill-open").click();
+  await flush();
+  assert.ok(panelText(panel).includes(LIFE_SKILL_BOOK_TEXT.treeUnavailable));
+  assert.ok(!panelText(panel).includes(LIFE_SKILL_BOOK_TEXT.treeLoading));
+  assert.ok(byClass(panel, "life-skill-back"));
+  assert.equal(byClass(panel, "life-node-unlock"), undefined);
+  const retry = deferred();
+  client.respond(LIFE_SKILL_BOOK_RPC.TREE, retry.promise);
+  const retryButton = byClass(panel, "life-tree-retry");
+  retryButton.click();
+  retryButton.click();
+  assert.ok(panelText(panel).includes(LIFE_SKILL_BOOK_TEXT.treeLoading));
+  assert.equal(client.count(LIFE_SKILL_BOOK_RPC.TREE), 2);
+  retry.resolve({ data: null, error: { message: "still offline" } });
+  await flush();
+  assert.ok(panelText(panel).includes(LIFE_SKILL_BOOK_TEXT.treeUnavailable));
+  client.respond(LIFE_SKILL_BOOK_RPC.TREE, { data: tree([node("steady_hands")]), error: null });
+  byClass(panel, "life-tree-retry").click();
+  await flush();
+  assert.ok(byClass(panel, "life-node-unlock"));
+  assert.equal(byClass(panel, "life-tree-retry"), undefined);
+  assert.equal(client.count(LIFE_SKILL_BOOK_RPC.LIST), 2, "tree retry does not reload the list");
+  assert.equal(client.count(LIFE_SKILL_BOOK_RPC.UNLOCK), 0);
+  assert.equal(client.count(LIFE_SKILL_BOOK_RPC.RESET), 0);
+});
+
+test("closing a loading panel drops the selection and cannot be undone by its delayed read", async () => {
+  const doc = createFakeDocument();
+  const panel = doc.createElement("section");
+  const { client, book } = harness();
+  const ui = createLifeSkillBookPanel({ panel, book, doc });
+  client.respond(LIFE_SKILL_BOOK_RPC.LIST, { data: list(skill()), error: null });
+  await book.setAccount(A);
+  client.respond(LIFE_SKILL_BOOK_RPC.LIST, { data: list(skill()), error: null });
+  ui.setOpen(true);
+  await flush();
+  const pending = deferred();
+  client.respond(LIFE_SKILL_BOOK_RPC.TREE, pending.promise);
+  byClass(panel, "life-skill-open").click();
+  byClass(panel, "profile-close").click();
+  pending.resolve({ data: tree([node("steady_hands")]), error: null });
+  await flush();
+  assert.equal(panel.hidden, true);
+  assert.equal(panel.children.length, 0);
+  assert.equal(book.selectedSkillId, null);
+  assert.equal(book.treeState, null);
+  client.respond(LIFE_SKILL_BOOK_RPC.LIST, { data: list(skill()), error: null });
+  ui.setOpen(true);
+  await flush();
+  assert.ok(byClass(panel, "life-skill-open"));
+  assert.equal(byClass(panel, "life-node-unlock"), undefined);
 });
