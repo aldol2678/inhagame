@@ -61,6 +61,8 @@ import { createChatPanel } from "./online/chat-panel.js";
 import { createSeatInteraction } from "./seat-interaction.js";
 import { campusSpawn } from './campus-spawn.js';
 import { createContextActionController } from "./context-action.js";
+import { createPhotoMode } from "./photo/photo-mode.js";
+import { createPhotoModePanel } from "./photo/photo-mode-panel.js";
 import { createInkyungLivingMoment, INKYUNG_LIVING_ZONE_ID } from "./inkyung-living-moment.js";
 import { createNextDiscovery, FIRST_CAMPUS_REWARD_ID } from "./next-discovery.js";
 import { createCore15FunnelTelemetry } from "./core15-funnel-telemetry.js";
@@ -1621,6 +1623,32 @@ keyboardHelp = createKeyboardShortcutsPanel({
   },
   onClose: () => { keyboardHelpInput.release(); }
 });
+// Social S1 photo UI: one existing Inkyung semantic point, temporary local framing only.
+const photoMode = createPhotoMode({
+  orbit, inputFocus,
+  getPosition: () => player.getLocalPosition(),
+  getState: () => ({
+    campus: rooms?.currentSpace === "campus" && biryongRealm?.inBiryong !== true &&
+      !lobbyWorld.active && !lobbyTransition.active,
+    grounded: controller.grounded,
+    mounted: controller.mounted, seated: seats.isSeated, combat: combatRuntime.active,
+    transitioning: rooms?.status().busy === true || biryongRealm?.busy === true,
+    accountId: online?.userId ?? null
+  }),
+  beforeOpen: () => {
+    follow.stop(FollowStopReason.EMOTE);
+    playerAutoMove?.pause(AUTO_MOVE_CANCEL_REASON.INTERACTION);
+    emoteMenu.setOpen(false);
+    emotes.cancel("photo-mode");
+  },
+  requestPose: () => requestEmote("photo_pose"),
+  cancelPose: () => { if (emotes.active?.id === "photo_pose") emotes.cancel("photo-mode-close"); }
+});
+const photoModePanel = createPhotoModePanel({ mode: photoMode, fallbackFocus: canvas });
+window.addEventListener("pagehide", event => {
+  photoMode.close("lifecycle");
+  if (!event.persisted) { photoModePanel.destroy(); photoMode.destroy(); }
+});
 // Single input authority: migrated owners resolve WORLD_ACTION through InputFocusManager.
 const worldActionsSuspended = () => !inputFocus.can("WORLD_ACTION");
 // F: the interaction slot's current action (NPC talk, seat, guestbook, doors, Follow stop).
@@ -2913,6 +2941,7 @@ places.onPlaceZoneChanged((previous,next)=>{
 
 app.on("update", (dt) => {
   syncAudio();
+  photoMode.update();
   // Only render the camera while a room/region transaction owns the coordinate frame.
   // Campus observers, resume writes and local motion must not consume an intermediate pose.
   if (rooms.status().busy || biryongRealm?.busy) {
@@ -3053,6 +3082,7 @@ app.on("update", (dt) => {
         combatRuntime.active || !inputFocus.can("WORLD_ACTION")
     }) ?? null
     : null);
+  contextActions.set("inkyung-photo", photoMode.contextAction());
   contextActions.set("inkyung-duck", inside ? null : inkyungDucks.getContextAction(pos));
   const fishingBlocked = inside || controller.mounted || seats.isSeated || fishingPanel?.open === true;
   if (!fishingBlocked && fishing.state === FISHING_CLIENT_STATE.UNAVAILABLE && findNearbyFishingSpot(pos)) void fishing.probe();
@@ -3116,7 +3146,7 @@ app.on("update", (dt) => {
     transitioning: rooms.status().busy || biryongRealm?.busy || lobbyTransition.active,
     inCombat: combatRuntime.active,
     regionId: biryongRealm?.regionId ?? WORLD_REGION_ID.CAMPUS,
-    enabled: (firstPlayerMovement || inBiryong) && !npcTestMode && !combatRuntime.active
+    enabled: (firstPlayerMovement || inBiryong) && !npcTestMode && !combatRuntime.active && !photoMode.active
   });
   if (!inside) streaming.update(dt, pos);
   if (!inside && !npcTestMode) tour.update(pos, place?.id, orbit.yaw);
@@ -3164,6 +3194,7 @@ try {
   online.setLocalEquipment(loadout.accountId, publicEquipmentFor(loadout, loadout.accountId));
   // Nickname authority: the INHAGAME profile via the online identity; guests show 인덕이.
   online.onIdentity((identity) => {
+    photoMode.close("lifecycle");
     void syncBiryongAccount(identity);
     void progression.setAccount(identity ? online?.userId ?? null : null);
     void biryongRelationships.setAccount(identity ? online?.userId ?? null : null);
@@ -3389,6 +3420,7 @@ window.__INHAGAME_P0__ = {
   online,
   emotes,
   emoteMenu,
+  photoMode,
   chatPanel,
   hudMenu,
   keyboardHelp,
@@ -3520,6 +3552,7 @@ window.__INHAGAME_P0__ = {
     populationHeartbeat: (() => { try { return populationHeartbeat?.status() ?? null; } catch { return null; } })(),
     populationCount: (() => { try { return populationCount?.status() ?? null; } catch { return null; } })(),
     emote: emotes.active,
+    photoMode: { active: photoMode.active },
     seat: seats.seated?.id ?? null,
     follow: follow.status(),
     space: rooms.currentSpace,
