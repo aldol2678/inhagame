@@ -3,6 +3,8 @@ import { BACK_ROADSIDE_ASSETS } from '../back-roadside-layout.js';
 import { CAMPUS_NIGHT_LAMPS } from './night-campus-lamp-layout.js';
 import {
   NIGHT_LIGHT_BUDGET,
+  NIGHT_LIGHT_MAX_DISTANCE,
+  NIGHT_LIGHT_OMNI_RANGE,
   lampHeadPosition,
   nearestNightLampIndices,
   nightLightBudget
@@ -91,7 +93,7 @@ function createOmni(root, index) {
     type: 'omni',
     color: new pc.Color(1, 0.80, 0.52),
     intensity: 0,
-    range: 12.5,
+    range: NIGHT_LIGHT_OMNI_RANGE,
     castShadows: false
   });
   entity.enabled = false;
@@ -131,7 +133,7 @@ export function createNightStreetLights({
     const safe = Math.min(1, Math.max(0, Number.isFinite(next) ? next : 0));
     if (Math.abs(safe - factor) < 0.002) return;
     factor = safe;
-    glowMaterial.emissiveIntensity = safe * 4.0;
+    glowMaterial.emissiveIntensity = safe * 4.6;
     glowMaterial.update();
     for (const light of pool) light.light.intensity = safe * 1.05;
     if (safe <= 0.002) {
@@ -181,6 +183,8 @@ export function createNightStreetLights({
       campusPropCount: campusProps.length,
       graphicsTier: currentTier,
       dynamicBudget: nightLightBudget(currentTier),
+      selectionRadius: NIGHT_LIGHT_MAX_DISTANCE,
+      omniRange: NIGHT_LIGHT_OMNI_RANGE,
       activeDynamicLights: activeIndices.length,
       activeLampIndices: Object.freeze([...activeIndices]),
       artificialLightFactor: Math.max(0, factor)

@@ -1947,6 +1947,14 @@ body[data-lobby-shell="true"] > #friend-panel:not([hidden]) {
   outline-offset: 3px;
 }
 .world-loading[data-state="ERROR"] .world-loading-message { color: #ffb5b5; }
+.world-loading-affiliation {
+  margin: 12px auto 0;
+  max-width: 520px;
+  color: rgba(231, 240, 245, .72);
+  font-size: 11px;
+  line-height: 1.5;
+  text-align: center;
+}
 @keyframes world-loading-walk {
   0%, 100% { transform: translateY(0) rotate(-2deg); }
   50% { transform: translateY(-7px) rotate(2deg); }

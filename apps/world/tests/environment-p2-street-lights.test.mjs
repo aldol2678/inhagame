@@ -4,6 +4,7 @@ import { createEnvironmentDirector } from '../src/environment/environment-direct
 import {
   NIGHT_LIGHT_BUDGET,
   NIGHT_LIGHT_MAX_DISTANCE,
+  NIGHT_LIGHT_OMNI_RANGE,
   lampHeadPosition,
   nearestNightLampIndices,
   nightLightBudget
@@ -37,11 +38,18 @@ const frame = (x, z, yaw = 0) => ({
 });
 
 test('night graphics budgets keep real omni lights bounded while giving every tier local illumination', () => {
-  assert.deepEqual(NIGHT_LIGHT_BUDGET, { low: 1, medium: 4, high: 8 });
-  assert.equal(nightLightBudget('low'), 1);
-  assert.equal(nightLightBudget('medium'), 4);
-  assert.equal(nightLightBudget('high'), 8);
-  assert.equal(nightLightBudget('unknown'), 4);
+  assert.deepEqual(NIGHT_LIGHT_BUDGET, { low: 3, medium: 6, high: 10 });
+  assert.equal(nightLightBudget('low'), 3);
+  assert.equal(nightLightBudget('medium'), 6);
+  assert.equal(nightLightBudget('high'), 10);
+  assert.equal(nightLightBudget('unknown'), 6);
+});
+
+test('night light coverage reaches adjacent lamp spacing without unbounded mobile light counts', () => {
+  assert.equal(NIGHT_LIGHT_MAX_DISTANCE, 68);
+  assert.equal(NIGHT_LIGHT_OMNI_RANGE, 16.5);
+  assert.ok(NIGHT_LIGHT_OMNI_RANGE * 2 > 22, 'road-lamp pools overlap the 22 WU nominal road spacing');
+  assert.ok(NIGHT_LIGHT_BUDGET.low <= 3 && NIGHT_LIGHT_BUDGET.high <= 10, 'real omni pool remains tightly bounded');
 });
 
 test('lamp head follows the observed roadside LED head offset and height', () => {

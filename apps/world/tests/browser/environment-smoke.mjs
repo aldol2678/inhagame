@@ -145,7 +145,7 @@ try {
   assert.equal(initial.streetLights.artificialLightFactor, 0.18);
   assert.ok(initial.streetLights.lampCount > 0);
   assert.equal(initial.streetLights.bulbCount, initial.streetLights.lampCount);
-  assert.ok(initial.streetLights.dynamicBudget >= 0 && initial.streetLights.dynamicBudget <= 4);
+  assert.ok(initial.streetLights.dynamicBudget >= 0 && initial.streetLights.dynamicBudget <= 6);
   assert.ok(initial.streetLights.activeDynamicLights <= initial.streetLights.dynamicBudget);
   assert.equal(initial.nightWindows.realLights, 0);
   assert.equal(initial.nightWindows.drawMeshes, 1);
@@ -740,6 +740,9 @@ try {
     assert.equal(mobileStatus.rain.puddleBudget, 5);
   }
   assert.equal(mobileStatus.streetLights.artificialLightFactor, 1);
+  assert.equal(mobileStatus.streetLights.selectionRadius, 68);
+  assert.equal(mobileStatus.streetLights.omniRange, 16.5);
+  if (mobileStatus.graphics.tier === 'low') assert.equal(mobileStatus.streetLights.dynamicBudget, 3);
   assert.equal(mobileStatus.nightWindows.graphicsTier, mobileStatus.graphics.tier);
   assert.equal(mobileStatus.nightWindows.enabled, true);
   assert.equal(mobileStatus.nightWindows.drawMeshes, 1);
