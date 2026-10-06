@@ -121,8 +121,10 @@ try {
       assert.equal(boot.loading.phase, 'READY');
       entry.renderer = boot.renderer;
       await page.locator('#main-gate-start').click({ timeout: TIMEOUT_MS });
-      await page.waitForFunction(() => !window.__INHAGAME_P0__.getStatus().lobby.active &&
-        !window.__INHAGAME_P0__.getStatus().lobbyTransition.active, null, { timeout: TIMEOUT_MS });
+      await page.waitForFunction(() => {
+        const d = window.__INHAGAME_P0__, s = d.getStatus();
+        return !s.lobby.active && !s.lobbyTransition.active && !s.cinematic?.active && d.controller.inputEnabled;
+      }, null, { timeout: TIMEOUT_MS });
       await page.locator('#minimap-open-map').click({ timeout: TIMEOUT_MS });
       await page.locator('#full-map-panel').waitFor({ state: 'visible' });
       if (name === 'landscape-compact') {
