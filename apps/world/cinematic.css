@@ -1,0 +1,61 @@
+/* Cinematic presentation layer: gameplay/UI authority stays elsewhere.
+   The camera sequence temporarily clears ordinary HUD chrome while keeping one explicit skip affordance. */
+.cinematic-skip {
+  position: fixed;
+  top: max(14px, env(safe-area-inset-top));
+  right: max(14px, env(safe-area-inset-right));
+  z-index: 214;
+  min-height: 40px;
+  padding: 0 16px;
+  border: 1px solid rgba(255, 255, 255, .26);
+  border-radius: 999px;
+  background: rgba(10, 20, 31, .66);
+  color: #f7fbff;
+  font: 700 13px/1 system-ui, sans-serif;
+  letter-spacing: -.01em;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .16);
+  cursor: pointer;
+}
+.cinematic-skip[hidden] { display: none !important; }
+.cinematic-skip:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, .92);
+  outline-offset: 3px;
+}
+
+body[data-cinematic] > .campus-topbar,
+body[data-cinematic] > #progression-hud,
+body[data-cinematic] > #minimap,
+body[data-cinematic] > #nav-guidance,
+body[data-cinematic] > #auto-move-hud,
+body[data-cinematic] > #tour,
+body[data-cinematic] > #quest-hud,
+body[data-cinematic] > #inkyung-living-moment,
+body[data-cinematic] > #nameplate,
+body[data-cinematic] > #joystick,
+body[data-cinematic] > #run,
+body[data-cinematic] > #jump,
+body[data-cinematic] > #descend,
+body[data-cinematic] > .social-cluster,
+body[data-cinematic] > #context-action,
+body[data-cinematic] > #transport-action,
+body[data-cinematic] > #pointer-lock-hint,
+body[data-cinematic] > #chat,
+body[data-cinematic] > #follow-status,
+body[data-cinematic] > #room-hud,
+body[data-cinematic] > #helicopter-flight-hud,
+body[data-cinematic] > #helicopter-flight-hud-toggle,
+body[data-cinematic] > #emote-status,
+body[data-cinematic] > #local-chat-bubble {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+@media (pointer: coarse) {
+  .cinematic-skip {
+    min-height: 42px;
+    padding-inline: 15px;
+    font-size: 12.5px;
+  }
+}

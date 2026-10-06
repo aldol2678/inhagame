@@ -141,12 +141,17 @@ test("P0.3 MAIN_GATE skips the staged transition when already at the canonical s
     leave() { this.active = false; return true; }
   };
   let transitionStarts = 0;
+  let entered = 0;
   const transition = {
     start() { transitionStarts++; return true; }
   };
 
-  assert.equal(enterMainGate({ player, lobbyWorld, documentLike, transition }), true);
+  assert.equal(enterMainGate({
+    player, lobbyWorld, documentLike, transition,
+    onEntered: () => { entered++; }
+  }), true);
   assert.equal(transitionStarts, 0);
+  assert.equal(entered, 1);
   assert.equal(lobbyWorld.active, false);
   assert.equal(lobby.hidden, true);
 });
@@ -163,13 +168,20 @@ test("P0.3 MAIN_GATE keeps the staged transition when a real reposition is requi
     leave() { throw new Error("transition owns the handoff"); }
   };
   let args = null;
+  let entered = 0;
   const transition = {
     start(next) { args = next; return true; }
   };
 
-  assert.equal(enterMainGate({ player, lobbyWorld, transition }), true);
+  assert.equal(enterMainGate({
+    player, lobbyWorld, transition,
+    onEntered: () => { entered++; }
+  }), true);
   assert.deepEqual(args.position, MAIN_GATE_SPAWN);
   assert.equal(args.cameraYaw, MAIN_GATE_SPAWN.yaw);
+  assert.equal(entered, 0, 'presentation waits for the transition handoff');
+  args.onComplete();
+  assert.equal(entered, 1);
 });
 
 test("P0.3 MAIN_GATE start is inert outside lobby mode", () => {

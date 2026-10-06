@@ -78,7 +78,10 @@ try {
       await page.reload({ waitUntil: 'domcontentloaded' }); await boot();
       assert.equal(await page.locator('#resume-last-location').isVisible(), false);
       await page.locator('#main-gate-start').click();
-      await wait(() => !window.__INHAGAME_P0__.lobbyWorld.active);
+      await wait(() => {
+        const d = window.__INHAGAME_P0__, s = d.getStatus();
+        return !d.lobbyWorld.active && !s.cinematic?.active && d.controller.inputEnabled;
+      });
       const invalid = await page.evaluate(snapshot);
       assert.equal(invalid.region, 'CAMPUS'); assert.equal(invalid.minimap, 'campus');
       assert.ok(Math.abs(invalid.position.x - MAIN_GATE_SPAWN.x) < .01 && Math.abs(invalid.position.z - MAIN_GATE_SPAWN.z) < .01);

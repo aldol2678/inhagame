@@ -12,7 +12,7 @@ function fixture() {
     create(c){const handle={id:c.id};this.created.push(handle);return handle;},
     setState(h,s){h.state=s;},destroy(h){this.destroyed.push(h);}};
   const stream=new RenderChunkStreaming(new RenderChunkRegistry(),renderer);
-  const settle=p=>{for(let i=0;i<80;i++)stream.update(1/60,p);};
+  const settle=(p,interestPoints=[])=>{for(let i=0;i<80;i++)stream.update(1/60,p,interestPoints);};
   return {renderer,stream,settle};
 }
 
@@ -96,4 +96,17 @@ test('every preset preserves semantic place and ignores rendering lifetime',()=>
     for(const [i,position] of samples.entries())assert.strictEqual(getPlaceZoneAt(position),expected[i]);
   }
   assert.deepEqual(RENDER_CHUNKS.map(c=>c.id),chunkIds);
+});
+
+
+test('temporary render interests can prewarm cinematic detail without moving gameplay position',()=>{
+  const {stream,settle}=fixture();
+  const target=stream.registry.chunks.find(c=>c.buildings.includes('bldg_01'));
+  assert.ok(target,'main hall chunk is registered');
+  const interest={
+    x:(target.bounds.minX+target.bounds.maxX)/2,
+    z:(target.bounds.minZ+target.bounds.maxZ)/2
+  };
+  settle({x:10_000,z:10_000},[interest]);
+  assert.equal(stream.snapshot()[target.id],'ACTIVE');
 });
