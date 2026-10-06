@@ -1,5 +1,5 @@
 import { validateNpcDialogueDecision } from './npc-dialogue-context.mjs';
-import { JEV_DIALOGUE_PILOT_IDS } from './npc-jev-router.mjs';
+import { JEV_DIALOGUE_PILOT_IDS, validateNpcJevExpression } from './npc-jev-router.mjs';
 
 const PILOT_IDS = new Set(JEV_DIALOGUE_PILOT_IDS);
 
@@ -11,6 +11,7 @@ function fallbackDecision(baseline, reason, latencyMs = 0) {
     provider: 'DETERMINISTIC_BASELINE',
     role: 'EXPERIMENT_ONLY',
     authorityEffect: 'NONE',
+    expression: null,
     fallbackReason: reason,
     latencyMs
   });
@@ -91,7 +92,8 @@ export function createNpcJevDialogueRouter({
         if (!response.ok) return remember(fallbackDecision(baseline, `HTTP_${response.status}`, latencyMs));
         const payload = await response.json();
         if (payload?.role !== 'EXPERIMENT_ONLY' || payload?.authorityEffect !== 'NONE' ||
-            !validateNpcDialogueDecision(payload.decision, candidates)) {
+            !validateNpcDialogueDecision(payload.decision, candidates) ||
+            !validateNpcJevExpression(payload.expression)) {
           return remember(fallbackDecision(baseline, 'INVALID_DECISION', latencyMs));
         }
         const result = Object.freeze({
@@ -100,6 +102,7 @@ export function createNpcJevDialogueRouter({
           role: 'EXPERIMENT_ONLY',
           authorityEffect: 'NONE',
           model: payload.model ?? null,
+          expression: Object.freeze({ ...payload.expression }),
           confidence: payload.confidence ?? null,
           probabilities: payload.probabilities ?? null,
           serverLatencyMs: Number.isFinite(payload.shadow?.latencyMs) ? payload.shadow.latencyMs : null,

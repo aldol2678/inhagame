@@ -26,6 +26,7 @@ test('disabled and unauthenticated Jev routing fall back without breaking dialog
     fetcher: async () => { fetched++; } });
   const fallback = await unauth.route({ context, candidates, baseline });
   assert.equal(fallback.provider, 'DETERMINISTIC_BASELINE');
+  assert.equal(fallback.expression, null);
   assert.equal(fallback.fallbackReason, 'AUTH_REQUIRED');
   assert.equal(fetched, 0);
 });
@@ -38,7 +39,8 @@ test('valid Jev result is accepted while invalid or failed result falls back', a
     fetcher: async () => ({ ok: true, json: async () => ({
       role: 'EXPERIMENT_ONLY', authorityEffect: 'NONE', model: 'jev-latest',
       decision: { responseSource: 'GENERATIVE', intent: 'SOCIAL', contextPriority: 'WEATHER' },
-      confidence: { responseSource: .7 },
+      expression: { emotion: 'surprised', level: 2, intensity: .5 },
+      confidence: { responseSource: .7, expressionEmotion: .8, expressionIntensity: .6 },
       shadow: { latencyMs: 123 }
     }) })
   });
@@ -46,6 +48,7 @@ test('valid Jev result is accepted while invalid or failed result falls back', a
   assert.equal(result.provider, 'JEV');
   assert.equal(result.responseSource, 'GENERATIVE');
   assert.equal(result.authorityEffect, 'NONE');
+  assert.deepEqual(result.expression, { emotion: 'surprised', level: 2, intensity: .5 });
   assert.equal(result.serverLatencyMs, 123);
   assert.deepEqual(result.disagreement, { responseSource: true, intent: true, contextPriority: true });
   assert.equal(router.status().accepted, 1);
@@ -54,10 +57,21 @@ test('valid Jev result is accepted while invalid or failed result falls back', a
     enabled: true, getSession: async () => 'x'.repeat(30),
     fetcher: async () => ({ ok: true, json: async () => ({
       role: 'EXPERIMENT_ONLY', authorityEffect: 'NONE',
-      decision: { responseSource: 'MAGIC', intent: 'SOCIAL', contextPriority: 'WEATHER' }
+      decision: { responseSource: 'MAGIC', intent: 'SOCIAL', contextPriority: 'WEATHER' },
+      expression: { emotion: 'happy', level: 2, intensity: .5 }
     }) })
   });
   assert.equal((await invalid.route({ context, candidates, baseline })).fallbackReason, 'INVALID_DECISION');
+
+  const invalidExpression = createNpcJevDialogueRouter({
+    enabled: true, getSession: async () => 'x'.repeat(30),
+    fetcher: async () => ({ ok: true, json: async () => ({
+      role: 'EXPERIMENT_ONLY', authorityEffect: 'NONE',
+      decision: { responseSource: 'CONTEXTUAL', intent: 'STATUS', contextPriority: 'CURRENT_ACTIVITY' },
+      expression: { emotion: 'happy', level: 4, intensity: .5 }
+    }) })
+  });
+  assert.equal((await invalidExpression.route({ context, candidates, baseline })).fallbackReason, 'INVALID_DECISION');
 
   const failed = createNpcJevDialogueRouter({
     enabled: true, getSession: async () => 'x'.repeat(30),

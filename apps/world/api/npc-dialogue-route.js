@@ -45,6 +45,7 @@ module.exports = async function handler(req, res) {
       responseSource: result.decision.responseSource,
       intent: result.decision.intent,
       contextPriority: result.decision.contextPriority,
+      expression: result.expression,
       confidence: result.confidence
     }));
     return res.status(200).json({ ...result, shadow: { latencyMs } });

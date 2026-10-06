@@ -28,6 +28,9 @@ const DEFAULT_ENDPOINT = 'https://api.typesafe.ai/v1/systemone';
 const DEFAULT_MODEL = 'jev-latest';
 const FORBIDDEN_KEYS = /^(email|userId|studentNumber|wallet|inventory|reward|accessToken|authorization)$/i;
 
+export const JEV_EXPRESSION_EMOTIONS = Object.freeze(['neutral', 'happy', 'sad', 'angry', 'surprised']);
+export const JEV_EXPRESSION_LEVELS = Object.freeze(['0', '1', '2', '3', '4']);
+
 const SOURCE_DESCRIPTION = Object.freeze({
   [NPC_DIALOGUE_RESPONSE_SOURCE.QUEST]: 'Use canonical quest or side-event content already authorized by the game.',
   [NPC_DIALOGUE_RESPONSE_SOURCE.AUTHORED]: 'Use authored NPC copy without generated language.',
@@ -53,6 +56,20 @@ const PRIORITY_DESCRIPTION = Object.freeze({
   [NPC_DIALOGUE_CONTEXT_PRIORITY.WEATHER]: 'Prioritize current weather.',
   [NPC_DIALOGUE_CONTEXT_PRIORITY.EVENT]: 'Prioritize the active world event context.',
   [NPC_DIALOGUE_CONTEXT_PRIORITY.QUEST]: 'Prioritize current canonical quest state.'
+});
+const EXPRESSION_DESCRIPTION = Object.freeze({
+  neutral: 'Neutral, calm or unreadable facial reaction.',
+  happy: 'Warm, pleased, amused or friendly facial reaction.',
+  sad: 'Sad, disappointed, concerned or sympathetic facial reaction.',
+  angry: 'Angry, irritated, tense or confrontational facial reaction.',
+  surprised: 'Surprised, startled, impressed or suddenly curious facial reaction.'
+});
+const EXPRESSION_INTENSITY_DESCRIPTION = Object.freeze({
+  '0': 'No visible expression; keep the face effectively neutral.',
+  '1': 'Very subtle expression.',
+  '2': 'Moderate expression.',
+  '3': 'Strong but natural expression.',
+  '4': 'Very strong readable expression without exaggerating beyond the current stylized face.'
 });
 
 function hasForbiddenKey(value) {
@@ -117,6 +134,10 @@ export function buildNpcJevQuestions(candidates) {
   const priority = question(candidates.contextPriorities, PRIORITY_DESCRIPTION,
     'Choose the single context signal that should matter most for this response.');
   if (priority) questions.context_priority = priority;
+  questions.expression_emotion = question(JEV_EXPRESSION_EMOTIONS, EXPRESSION_DESCRIPTION,
+    'Choose the NPC facial reaction for this exact dialogue turn. This is presentation-only and must not alter dialogue, quests, rewards, memory or world state.');
+  questions.expression_intensity = question(JEV_EXPRESSION_LEVELS, EXPRESSION_INTENSITY_DESCRIPTION,
+    'Choose how visibly the NPC should show that facial reaction on a 0 to 4 scale. This is presentation-only.');
   return questions;
 }
 
@@ -141,6 +162,12 @@ function answerMeta(answers, name) {
   };
 }
 
+export function validateNpcJevExpression(expression) {
+  return Boolean(expression && JEV_EXPRESSION_EMOTIONS.includes(expression.emotion) &&
+    Number.isInteger(expression.level) && expression.level >= 0 && expression.level <= 4 &&
+    Number.isFinite(expression.intensity) && expression.intensity === expression.level / 4);
+}
+
 export function parseNpcJevResponse(body, candidates) {
   const answers = body?.answers;
   const decision = {
@@ -149,22 +176,34 @@ export function parseNpcJevResponse(body, candidates) {
     contextPriority: answerChoice(answers, 'context_priority', candidates.contextPriorities)
   };
   if (!validateNpcDialogueDecision(decision, candidates)) throw Error('JEV_DECISION_OUTSIDE_CANDIDATES');
+  const expressionLevel = Number(answerChoice(answers, 'expression_intensity', JEV_EXPRESSION_LEVELS));
+  const expression = Object.freeze({
+    emotion: answerChoice(answers, 'expression_emotion', JEV_EXPRESSION_EMOTIONS),
+    level: expressionLevel,
+    intensity: expressionLevel / 4
+  });
+  if (!validateNpcJevExpression(expression)) throw Error('JEV_EXPRESSION_INVALID');
   return {
-    schemaVersion: 'npc-dialogue-jev-v1',
+    schemaVersion: 'npc-dialogue-jev-v2',
     role: 'EXPERIMENT_ONLY',
     authorityEffect: 'NONE',
     provider: 'typesafe-jev',
     model: typeof body?.model === 'string' ? body.model : null,
     decision,
+    expression,
     confidence: {
       responseSource: answerMeta(answers, 'response_source')?.confidence ?? null,
       intent: answerMeta(answers, 'intent')?.confidence ?? null,
-      contextPriority: answerMeta(answers, 'context_priority')?.confidence ?? null
+      contextPriority: answerMeta(answers, 'context_priority')?.confidence ?? null,
+      expressionEmotion: answerMeta(answers, 'expression_emotion')?.confidence ?? null,
+      expressionIntensity: answerMeta(answers, 'expression_intensity')?.confidence ?? null
     },
     probabilities: {
       responseSource: answerMeta(answers, 'response_source')?.probabilities ?? null,
       intent: answerMeta(answers, 'intent')?.probabilities ?? null,
-      contextPriority: answerMeta(answers, 'context_priority')?.probabilities ?? null
+      contextPriority: answerMeta(answers, 'context_priority')?.probabilities ?? null,
+      expressionEmotion: answerMeta(answers, 'expression_emotion')?.probabilities ?? null,
+      expressionIntensity: answerMeta(answers, 'expression_intensity')?.probabilities ?? null
     },
     usage: body?.usage ?? null
   };
