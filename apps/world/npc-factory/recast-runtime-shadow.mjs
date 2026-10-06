@@ -128,8 +128,9 @@ export function createRecastRuntimeShadowNavigator(canonicalNavigator, {
   const onError = event => {
     state = 'ERROR';
     workerErrors += 1;
-    dropped += backlog.length;
+    dropped += backlog.length + pending;
     backlog.length = 0;
+    pending = 0;
     init = Object.freeze({ reason: String(event?.message ?? 'RECAST_RUNTIME_SHADOW_WORKER') });
   };
 
@@ -200,8 +201,9 @@ export function createRecastRuntimeShadowNavigator(canonicalNavigator, {
   function destroy() {
     if (state === 'DESTROYED') return;
     state = 'DESTROYED';
-    dropped += backlog.length;
+    dropped += backlog.length + pending;
     backlog.length = 0;
+    pending = 0;
     try { worker?.terminate?.(); } catch {}
     worker = null;
   }
