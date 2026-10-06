@@ -740,6 +740,9 @@ try {
     assert.equal(mobileStatus.rain.puddleBudget, 5);
   }
   assert.equal(mobileStatus.streetLights.artificialLightFactor, 1);
+  assert.equal(mobileStatus.streetLights.selectionRadius, 68);
+  assert.equal(mobileStatus.streetLights.omniRange, 16.5);
+  if (mobileStatus.graphics.tier === 'low') assert.equal(mobileStatus.streetLights.dynamicBudget, 3);
   assert.equal(mobileStatus.nightWindows.graphicsTier, mobileStatus.graphics.tier);
   assert.equal(mobileStatus.nightWindows.enabled, true);
   assert.equal(mobileStatus.nightWindows.drawMeshes, 1);
