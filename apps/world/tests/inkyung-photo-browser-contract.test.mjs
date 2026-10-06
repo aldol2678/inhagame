@@ -35,3 +35,13 @@ test('PNG smoke decodes downloaded bytes and compares all pixels, with explicit 
   assert.match(source, /'escape', 'account', 'pagehide', 'takeover'/);
   assert.match(workflow, /inkyung-photo-png-smoke\.mjs/);
 });
+
+test('actual campus smoke activates PNG save and decodes downloaded nonblank native-resolution bytes', () => {
+  const source = read('./browser/inkyung-photo-campus-smoke.mjs');
+  assert.match(source, /async function saveCampusPhoto\(page, name, mobile\)/);
+  assert.match(source, /entry\.downloads = \[await saveCampusPhoto\(page, name, mobile\)\]/);
+  assert.match(source, /createImageBitmap\(new Blob/);
+  assert.match(source, /Actual-campus saved PNG must not be blank/);
+  assert.match(source, /const \[download\] = await Promise\.all\(/);
+  assert.match(source, /src\/photo\/photo-capture\.js/);
+});

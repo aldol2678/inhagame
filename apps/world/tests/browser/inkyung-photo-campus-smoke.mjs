@@ -16,7 +16,7 @@ const output = process.env.PHOTO_MODE_QA_OUTPUT || 'test-results/inkyung-photo-c
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 const git = (...args) => execFileSync('git', args, { cwd: repo });
 const sources = ['campus/index.html', 'src/main.js', 'styles.css',
-  'src/photo/photo-mode.js', 'src/photo/photo-mode-panel.js', 'src/photo/inkyung-photo-point.js',
+  'src/photo/photo-capture.js', 'src/photo/photo-mode.js', 'src/photo/photo-mode-panel.js', 'src/photo/inkyung-photo-point.js',
   'src/orbit-camera-controller.js', 'src/context-action.js', 'src/player-controller.js',
   'npc-factory/dev-runtime.mjs', 'src/world-scale.js', 'src/character-model.js',
   'npc-factory/npc-world-time-contract.mjs', 'npc-factory/npc-world-clock.mjs',
@@ -72,6 +72,43 @@ const snapshot = page => page.evaluate(() => {
     emote: s.emote?.id ?? null, space: s.space, action: s.contextAction,
     frame: d.app.frame, grounded: d.controller.grounded, mounted: d.controller.mounted };
 });
+async function saveCampusPhoto(page, name, mobile) {
+  const dimensions = await page.locator('#application').evaluate(canvas => ({ width: canvas.width, height: canvas.height }));
+  const before = await snapshot(page);
+  const button = page.locator('[data-photo-control="save"]');
+  const [download] = await Promise.all([page.waitForEvent('download'), mobile ? button.tap() : button.click()]);
+  const file = `${name}-saved-photo-${dimensions.width}x${dimensions.height}.png`;
+  assert.match(download.suggestedFilename(), /^inha-world-.*\.png$/);
+  await download.saveAs(`${output}/${file}`); assert.equal(await download.failure(), null);
+  const bytes = await readFile(`${output}/${file}`);
+  assert.deepEqual([...bytes.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
+  assert.equal(bytes.readUInt32BE(16), dimensions.width); assert.equal(bytes.readUInt32BE(20), dimensions.height);
+  const decoded = await page.evaluate(async base64 => {
+    const raw = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+    const bitmap = await createImageBitmap(new Blob([raw], { type: 'image/png' }));
+    const canvas = document.createElement('canvas'); canvas.width = bitmap.width; canvas.height = bitmap.height;
+    const context = canvas.getContext('2d', { willReadFrequently: true }); context.drawImage(bitmap, 0, 0);
+    const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data, bins = new Set();
+    let opaque = 0;
+    for (let i = 0; i < pixels.length; i += 4) {
+      if (pixels[i + 3] === 255) opaque++;
+      if (i % 64 === 0) bins.add(`${pixels[i] >> 4},${pixels[i + 1] >> 4},${pixels[i + 2] >> 4}`);
+    }
+    const hash = [...new Uint8Array(await crypto.subtle.digest('SHA-256', pixels))].map(n => n.toString(16).padStart(2, '0')).join('');
+    const result = { width: canvas.width, height: canvas.height, opaque, colorBins: bins.size, rgbaSha256: hash };
+    bitmap.close(); canvas.width = canvas.height = 0; return result;
+  }, bytes.toString('base64'));
+  assert.equal(decoded.width, dimensions.width); assert.equal(decoded.height, dimensions.height);
+  assert.equal(decoded.opaque, dimensions.width * dimensions.height);
+  assert.ok(decoded.colorBins > 12, 'Actual-campus saved PNG must not be blank');
+  assert.match(await page.locator('[data-photo-control="status"]').textContent(), /다운로드.*요청/);
+  const after = await snapshot(page);
+  assert.equal(after.active, true); assert.deepEqual(after.camera, before.camera); assert.deepEqual(after.position, before.position);
+  // Continue the existing native keyboard assertions from their original focus anchor.
+  await page.locator('[data-photo-control="close"]').focus();
+  return { file, kind: 'Actual campus PNG downloaded by the production save button', bytes: bytes.length,
+    sha256: sha256(bytes), ...decoded };
+}
 const characterStatus = page => page.evaluate(() => {
   const d = window.__INHAGAME_P0__;
   return { modelState: d.character.modelState, carrierModelState: d.character.dragonModelState,
@@ -405,7 +442,7 @@ async function runCase(startSmoke, TIMEOUT_MS, name, viewport, mobile) {
   let stage = 'boot';
   const clockSamples = [];
   try {
-    smoke = await startSmoke({ viewport, contextOptions: { isMobile: mobile, hasTouch: mobile, deviceScaleFactor: 1 } });
+    smoke = await startSmoke({ viewport, contextOptions: { isMobile: mobile, hasTouch: mobile, deviceScaleFactor: 1, acceptDownloads: true } });
     page = await smoke.context.newPage(); page.setDefaultTimeout(15_000);
     const fatal = smoke.watch(page);
     const clockStarted = performance.now(), clockBase = NPC_WORLD_EPOCH_MS + NPC_WORLD_PERIOD_MS + 60_000;
@@ -563,6 +600,9 @@ async function runCase(startSmoke, TIMEOUT_MS, name, viewport, mobile) {
     assert.equal(entry.defaultComposition.playerProjection.inFrame, true, 'Local avatar remains inside the default composition');
     if (entry.characterAtDefault.modelState !== 'glb') report.warnings.push(`${name}: avatar modelState=${entry.characterAtDefault.modelState}; inspect fallback rendering separately`);
     entry.checks.push(`${mobile ? 'Native touch' : 'Native F with real Pointer Lock'} entry, HUD hidden, photo owns focus`);
+    stage = 'actual-campus-png-download';
+    entry.downloads = [await saveCampusPhoto(page, name, mobile)];
+    entry.checks.push('Native save button downloads an opaque, nonblank, decoded PNG at the actual render resolution without changing the photo camera');
     stage = 'photo-controls-and-clear-frame';
     for (const selector of ['.photo-mode-dock', '[data-photo-control="close"]', '[data-photo-control="controls"]', '[data-photo-control="yaw"]', '[data-photo-control="pitch"]', '[data-photo-control="distance"]']) {
       const box = await page.locator(selector).boundingBox();
