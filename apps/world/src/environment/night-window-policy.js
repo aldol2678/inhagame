@@ -2,22 +2,22 @@ const clamp01 = value => Math.min(1, Math.max(0, Number.isFinite(value) ? value 
 
 export const NIGHT_WINDOW_TIER_POLICY = Object.freeze({
   low: Object.freeze({
-    spacing: 6.2,
+    spacing: 5.8,
     maxFloors: 4,
-    litRatio: 0.38,
-    maxWindows: 160
+    litRatio: 0.44,
+    maxWindows: 220
   }),
   medium: Object.freeze({
-    spacing: 4.6,
+    spacing: 4.2,
     maxFloors: 6,
-    litRatio: 0.50,
-    maxWindows: 320
+    litRatio: 0.58,
+    maxWindows: 440
   }),
   high: Object.freeze({
-    spacing: 3.6,
+    spacing: 3.2,
     maxFloors: 8,
-    litRatio: 0.58,
-    maxWindows: 520
+    litRatio: 0.66,
+    maxWindows: 720
   })
 });
 
