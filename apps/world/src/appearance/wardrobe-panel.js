@@ -106,6 +106,7 @@ export function createWardrobePanel({
   let bodyElement = null;
   let opener = null;
   let accountRevision = 0;
+  let inventoryRetry = null;
   let renderedLoadoutAccount = loadout.accountId;
   let renderedInventoryAccount = inventory.accountId;
   const focusTargets = new Map();
@@ -149,6 +150,24 @@ export function createWardrobePanel({
     return result;
   }
 
+  async function retryOwned(revision) {
+    if (!open || inventoryRetry || revision !== accountRevision || !inventory.accountId
+      || inventory.accountId !== loadout.accountId || loadout.state !== LOADOUT_STATE.READY
+      || inventory.state !== INVENTORY_STATE.UNAVAILABLE) return;
+    const request = {};
+    inventoryRetry = request;
+    render();
+    try {
+      // The inventory client owns read coalescing and stale-account response rejection.
+      await inventory.refresh("retry");
+    } finally {
+      if (inventoryRetry === request) {
+        inventoryRetry = null;
+        render();
+      }
+    }
+  }
+
   function renderSlots(slots) {
     const list = el("ul", "wardrobe-slots");
     for (const slot of APPEARANCE_SLOTS) {
@@ -174,7 +193,20 @@ export function createWardrobePanel({
 
   function renderOwned(slots) {
     const section = el("div", "wardrobe-owned");
+    section.setAttribute("aria-busy", String(Boolean(inventoryRetry)));
     section.append(el("h3", "wardrobe-section-title", "보유 착용 아이템"));
+    if (inventoryRetry || inventory.state === INVENTORY_STATE.UNAVAILABLE) {
+      section.append(el("p", "shop-empty", inventoryRetry
+        ? "보유 아이템을 불러오는 중…" : "보유 아이템을 불러오지 못했어요."));
+      const revision = accountRevision;
+      const retry = button(inventoryRetry ? "불러오는 중…" : "다시 시도", {
+        disabled: Boolean(inventoryRetry), label: "보유 아이템 다시 불러오기",
+        onClick: () => retryOwned(revision)
+      });
+      retry.className = "shop-retry";
+      section.append(trackAction(section, retry, "inventory-retry", ""));
+      return section;
+    }
     if (inventory.state === INVENTORY_STATE.LOADING) {
       section.append(el("p", "shop-empty", "보유 아이템을 불러오는 중…"));
       return section;
@@ -231,7 +263,7 @@ export function createWardrobePanel({
 
   function render() {
     const accountChanged = renderedLoadoutAccount !== loadout.accountId || renderedInventoryAccount !== inventory.accountId;
-    if (accountChanged) { accountRevision += 1; hint = ""; }
+    if (accountChanged) { accountRevision += 1; hint = ""; inventoryRetry = null; }
     renderedLoadoutAccount = loadout.accountId;
     renderedInventoryAccount = inventory.accountId;
     if (!open) return;
