@@ -45,6 +45,13 @@ jobs:
           PHOTO_MODE_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PHOTO_MODE_QA_OUTPUT: test-results/inkyung-photo/controls
         run: timeout --signal=TERM --kill-after=10s 240s node apps/world/tests/browser/inkyung-photo-mode-smoke.mjs
+      - name: Decode local PNGs and verify rendered pixels
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+          PHOTO_MODE_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PHOTO_PNG_QA_OUTPUT: test-results/inkyung-photo/png
+        run: timeout --signal=TERM --kill-after=10s 240s node apps/world/tests/browser/inkyung-photo-png-smoke.mjs
       - name: Render and exercise the actual campus lake
         if: ${{ !cancelled() }}
         env:
