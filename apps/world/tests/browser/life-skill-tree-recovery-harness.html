@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="ko">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Life Skill tree recovery fixture</title>
+<link rel="stylesheet" href="../../styles.css">
+<style>body { margin: 20px; background: #182533; color: white; }</style>
+<button id="open-book" type="button">생활 스킬 열기</button>
+<section id="life-skill-book-panel" class="profile-panel shop-panel inventory-panel life-skill-book-panel" role="dialog" aria-modal="true" aria-labelledby="life-skill-book-title" hidden></section>
+<script type="module">
+  // Synthetic, read-only RPC boundary with the real production client and panel. No account or DB.
+  import { createLifeSkillBookClient, LIFE_SKILL_BOOK_RPC } from '../../src/life-skills/life-skill-book-client.js';
+  import { createLifeSkillBookPanel } from '../../src/life-skills/life-skill-book-panel.js';
+  const skill = skillId => ({ skillId, level: 5, totalXp: 1000, currentLevelStartXp: 1000,
+    nextLevelXp: 1500, maxDefinedLevel: 20, isMaxLevel: false,
+    sp: { earned: 5, spent: 0, available: 5, nextLevelEarned: 6 } });
+  const view = skillId => ({ skill: skill(skillId), nodes: [], reset: { cost: 0,
+    cooldownSeconds: 86400, lastResetAt: null, nextResetAt: null, canReset: false, resetBlockedBy: 'EMPTY' } });
+  const calls = [], queue = [], held = [];
+  const response = (kind, skillId) => kind === 'success'
+    ? { data: view(skillId), error: null } : { data: null, error: { message: 'Synthetic read failure' } };
+  const client = { rpc: async (rpc, args) => {
+    calls.push({ rpc, args });
+    if (rpc === LIFE_SKILL_BOOK_RPC.LIST) return { data: { lifeLevel: { level: 1, totalSkillXp: 1000 },
+      skills: [skill('life.fishing'), skill('life.woodcutting')] }, error: null };
+    if (rpc !== LIFE_SKILL_BOOK_RPC.TREE) throw new Error('Fixture forbids mutation RPCs');
+    const kind = queue.shift() ?? 'failure';
+    if (kind === 'hold') return new Promise(resolve => held.push({ resolve, skillId: args.p_skill_id }));
+    return response(kind, args.p_skill_id);
+  } };
+  const book = createLifeSkillBookClient({ getClient: () => client });
+  const panel = document.querySelector('#life-skill-book-panel');
+  const ui = createLifeSkillBookPanel({ panel, book });
+  document.querySelector('#open-book').addEventListener('click', () => ui.setOpen(true));
+  await book.setAccount('fixture-account-a');
+  window.__LIFE_TREE_QA__ = {
+    queue: kind => queue.push(kind),
+    release: kind => { const next = held.shift(); next.resolve(response(kind, next.skillId)); },
+    switchAccount: () => book.setAccount('fixture-account-b'),
+    snapshot: () => ({ calls, state: book.state, treeState: book.treeState,
+      selectedSkillId: book.selectedSkillId, treeSkillId: book.tree?.skill.skillId ?? null,
+      open: ui.open, hidden: panel.hidden })
+  };
+</script>
+</html>
