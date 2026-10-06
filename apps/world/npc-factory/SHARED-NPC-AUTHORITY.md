@@ -1,12 +1,26 @@
 # Shared NPC Authority · implementation contract mirror
 
-> Status: DESIGN LOCKED · IMPLEMENTATION PENDING
+> Status: DESIGN LOCKED · P0 AUTHORITY SLICE MERGED · PRODUCTION ACTIVATION OFF
 >
 > This file mirrors the current design decision. Product/design authority remains outside the repository:
 > - Notion `INHA WORLD · Online Architecture v0.1 [CURRENT DESIGN]` owns Network / Presence / Zone / Tick / AOI / reconnect HOW.
 > - Notion `INHA WORLD · Social S3 NPC Autonomous Intelligence v0.1 [CURRENT DESIGN]` owns NPC autonomous behavior / AI WHAT.
 >
-> The repository `main` remains implementation authority. This document does not claim that shared authoritative NPC runtime is already implemented.
+> The repository `main` remains implementation authority. Shared NPC Authority P0 is merged, but full renderer wiring and Production activation are not claimed.
+
+## P0 implementation status
+
+- Public PR `#229` merged as `77458ee906b39c3e6d7fe130be8c73ce4983479f`.
+- Pilot NPCs: `INKYUNG-NPC-003` and `INKYUNG-NPC-012`.
+- Server authority samples the existing deterministic schedule / shared-meeting runtime on a canonical 250 ms tick.
+- The read-only endpoint is `/api/npc-shared-state?placeZoneId=<AREA_ID>` and remains disabled unless `NPC_SHARED_AUTHORITY_P0=1`.
+- The replica contract rejects stale/duplicate revisions and supports reconnect reset + fresh snapshot application.
+- Interest output contains only `ACTIVE` NPCs for the requested Place Zone while the server evaluates `ACTIVE / COARSE / SLEEP`.
+- Player-specific dialogue, memory, reward and quest state are excluded from the shared snapshot.
+- Verification: `public-ci.sh` PASS, `public-db.sh` PASS, and Biryong/Campus Chromium QA PASS on PR #229.
+- No Production environment flag was changed, so this merge does not activate the endpoint in Production.
+
+Full shared-NPC renderer wiring, live two-device authority consumption, and Production activation remain follow-up work.
 
 ## Locked model
 
