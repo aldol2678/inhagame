@@ -30,7 +30,7 @@ const obstacles = [
 ];
 
 function frameAt(frame, u, v = 0) {
-  const a = frame.at(0), b = frame.at(Math.min(1, frame.length));
+  const a = frame.at(0, 0), b = frame.at(Math.min(1, frame.length), 0);
   const yaw = -Math.atan2(b.z - a.z, b.x - a.x) * 180 / Math.PI;
   return Object.freeze({
     yaw,
