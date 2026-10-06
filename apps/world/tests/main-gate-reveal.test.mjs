@@ -28,3 +28,24 @@ test("main gate reveal stays finite, bounded in duration and ends aimed at the a
   assert.ok(Math.abs(last.look.x - main.x) < 1e-9);
   assert.ok(Math.abs(last.look.z - main.z) < 1e-9);
 });
+
+
+test("portrait framing tilts down and tightens FOV without changing the authored camera path", () => {
+  for (const time of [0.65, 2.35, 5.15, MAIN_GATE_REVEAL_V01.duration]) {
+    const desktop = MAIN_GATE_REVEAL_V01.poseAt(time, { aspect: 1280 / 720 });
+    const portrait = MAIN_GATE_REVEAL_V01.poseAt(time, { aspect: 390 / 844 });
+    assert.equal(portrait.pos.x, desktop.pos.x);
+    assert.equal(portrait.pos.y, desktop.pos.y);
+    assert.equal(portrait.pos.z, desktop.pos.z);
+    assert.equal(portrait.look.x, desktop.look.x);
+    assert.equal(portrait.look.z, desktop.look.z);
+    assert.ok(portrait.look.y < desktop.look.y, "portrait looks lower to raise the horizon");
+    assert.ok(portrait.fov < desktop.fov, "portrait uses a slightly tighter vertical FOV");
+  }
+});
+
+test("landscape and desktop aspects preserve the original reveal framing", () => {
+  const baseline = MAIN_GATE_REVEAL_V01.poseAt(5.15);
+  assert.deepEqual(MAIN_GATE_REVEAL_V01.poseAt(5.15, { aspect: 1280 / 720 }), baseline);
+  assert.deepEqual(MAIN_GATE_REVEAL_V01.poseAt(5.15, { aspect: 844 / 390 }), baseline);
+});
