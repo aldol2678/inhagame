@@ -22,6 +22,7 @@ import { legacyTelemetryTarget } from './legacy-zone-compat.js';
 import { createViewDistanceSettings } from './view-distance-settings.js';
 import { createGraphicsPresetController } from './graphics-presets.js';
 import { createEnvironmentDirector } from './environment/environment-director.js';
+import { createBiryongVisualLighting } from './biryong/biryong-visual-lighting.js';
 import { resolveEnvironmentRuntimeTime, resolveEnvironmentRuntimeWeather } from './environment/environment-clock.js';
 import { createEnvironmentWorldTime } from './environment/environment-world-time.js';
 import { createWorldTimeHud } from './hud/world-time-hud.js';
@@ -246,6 +247,7 @@ const npcSocialProductionMode = npcProductionMode;
 const npcSocialMode = npcSocialProductionMode || npcSocialPreviewMode || npcObservedConversationMode;
 const npcEnabled = npcSharedScheduleMode || npcTestMode || npcProductionMode || npcPreviewMode || npcRosterPreviewMode || npcSocialMode;
 const campusLifePreview = previewHost && startupParams.get('campusLife') === 'p0a';
+const biryongVisualLabP0A = previewHost && startupParams.get('biryongVisual') === 'p0a';
 let lastTrackedZone = null;
 
 async function boot() {
@@ -1889,6 +1891,19 @@ biryongRealm = createBiryongRealmTransition({
       fullMap?.close?.();
     }
   })
+});
+const biryongVisualLighting = createBiryongVisualLighting({
+  scene: app.scene,
+  lightEntity: light,
+  environment,
+  getActive: () => biryongRealm?.inBiryong === true,
+  getGraphicsTier: () => graphics.tier,
+  enabled: biryongVisualLabP0A
+});
+app.on("update", () => biryongVisualLighting.update());
+window.__INHAGAME_BIRYONG_VISUAL_LAB__ = Object.freeze({
+  status: () => biryongVisualLighting.status(),
+  ...(previewHost ? { setEnabled: value => biryongVisualLighting.setEnabled(value === true) } : {})
 });
 biryongVillageNpcs = createBiryongVillageNpcRuntime({
   app,
