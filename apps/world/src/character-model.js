@@ -101,6 +101,8 @@ export function createCharacter(app, player, { assetShadow = null, assetCanary =
   // Character pose/status follows the duck; the carrier settles independently.
   let modelState = "loading";
   let dragonModelState = "loading";
+  let annyongiRiderAnchor = null;
+  let annyongiPitch = 0;
   let disposed = false;
   const knownInstances = new WeakSet();
   const duckInstances = new Set();
@@ -122,7 +124,18 @@ export function createCharacter(app, player, { assetShadow = null, assetCanary =
     const seat = mounted ? offsets[player.mountKind] : null;
     const pose = duckPose(modelState, seat ? false : mounted, bike, helicopter, bob);
     if (seat) { pose.y += seat[1]; pose.feetY += seat[1]; pose.labelY += seat[1]; }
-    const riderZ = seat ? seat[2] : bike ? BIKE_RIDER_Z : helicopter ? HELICOPTER_RIDER_Z : mounted ? -0.22 : 0;
+    // Authored anchor is in the same player-root space as the GLB. The same
+    // transform serves local and remote characters, including equipment/eye height.
+    const annyongi = mounted && !seat && !bike && !helicopter && annyongiRiderAnchor;
+    let anchorZ = -.22;
+    if (annyongi) {
+      const radians = annyongiPitch * Math.PI / 180;
+      const anchorY = annyongi.y * Math.cos(radians) - annyongi.z * Math.sin(radians);
+      anchorZ = annyongi.y * Math.sin(radians) + annyongi.z * Math.cos(radians);
+      const delta = anchorY - .55;
+      pose.y += delta; pose.feetY += delta; pose.labelY += delta;
+    }
+    const riderZ = seat ? seat[2] : bike ? BIKE_RIDER_Z : helicopter ? HELICOPTER_RIDER_Z : mounted ? anchorZ : 0;
     duckVisual.setLocalPosition(seat ? seat[0] : 0, pose.y, riderZ);
     duckVisual.setLocalEulerAngles(bodyEuler[0], bodyEuler[1], bodyEuler[2]);
     duckVisual.setLocalScale(pose.scale, pose.scale, pose.scale);
@@ -260,6 +273,9 @@ export function createCharacter(app, player, { assetShadow = null, assetCanary =
     dragonVisual = loadedDragon;
     activeDragonWings = wings;
     dragonModelState = "glb";
+    const anchor = loadedDragon.findByName?.("RiderAnchor")?.getLocalPosition?.();
+    annyongiRiderAnchor = anchor ? { y: anchor.y, z: anchor.z } : null;
+    positionDuck(mountedNow);
     showMountVisuals();
     dragon.enabled = false;
   }).catch(error => {
@@ -326,7 +342,8 @@ export function createCharacter(app, player, { assetShadow = null, assetCanary =
       const fly = mounted && !bike && !helicopter && ![CAMPUS_KICKBOARD_ID, CAMPUS_KART_ID, DUCK_BOAT_ID, CAMPUS_SHUTTLE_ID, CAMPUS_BALLOON_ID].includes(player.mountKind);
       const attitude = helicopter && player.flightAttitude
         ? player.flightAttitude : { pitch: 0, roll: 0 };
-      const bob = fly && dragonModelState === 'glb' ? Math.sin(elapsed * 4) * .045
+      annyongiPitch = fly && moving && !grounded && annyongiRiderAnchor ? 4 : 0;
+      const bob = fly && !grounded && dragonModelState === 'glb' ? Math.sin(elapsed * 4) * .045
         : !mounted && moving && grounded ? Math.sin(elapsed * 10) * .017 : 0;
       const legSwing = moving && grounded && !mounted ? Math.sin(elapsed * 11) * 22 : 0;
       const pedal = bike && moving ? Math.sin(elapsed * 8) * 18 : 0;
@@ -357,12 +374,13 @@ export function createCharacter(app, player, { assetShadow = null, assetCanary =
         roll: attitude.roll
       });
       activeDuckWings.forEach((wing, index) => wing.setLocalEulerAngles(...pose.wings[index]));
-      activeDragonWings.forEach((wing, index) => wing.setLocalEulerAngles(0, 0,
-        (index ? -1 : 1) * (fly ? Math.sin(elapsed * 8) * 28 + 12 : 10)));
+      // Legacy nodes stay empty and stationary; official cloud-wing geometry is
+      // decorative. Flight is hover/translation, not generic-dragon flapping.
+      activeDragonWings.forEach(wing => wing.setLocalEulerAngles(0, 0, 0));
       activeDuckLegs.forEach((leg, index) => leg.setLocalEulerAngles(pose.legs[index], 0, 0));
       if (dragonModelState === "glb" && fly) {
-        dragonVisual.setLocalPosition(0, Math.sin(elapsed * 4) * 0.045, 0);
-        dragonVisual.setLocalEulerAngles(0, 0, moving ? Math.sin(elapsed * 5) * 3 : 0);
+        dragonVisual.setLocalPosition(0, bob, 0);
+        dragonVisual.setLocalEulerAngles(annyongiPitch, 0, 0);
       }
     },
     setMounted(mounted) {

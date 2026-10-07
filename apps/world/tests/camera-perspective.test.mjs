@@ -171,3 +171,16 @@ test('first person follows eye height and world yaw, looks up/down and preserves
   orbit.togglePerspective();
   assert.equal(orbit.pitch, -1.35);
 });
+
+test('Annyongi frames the compact mascot without changing other flight cameras or walking zoom', () => {
+  const {orbit,camera}=fixture();globalThis.document.body={dataset:{mountId:'annyongi'}};
+  orbit.setMounted(true);assert.equal(orbit.distance,5);assert.equal(orbit.zoomLimits.min,3.5);
+  orbit.apply({x:0,y:3,z:-98});assert.equal(orbit.target.y,3.35);
+  assert.ok(Math.abs(orbit.target.z-(-98+.65))<1e-9);
+  orbit.zoom(1.4);assert.equal(orbit.distance,7);orbit.setMounted(false);assert.equal(orbit.distance,3.5);
+  globalThis.document.body.dataset.mountId='mount.campus_helicopter.prototype';
+  orbit.setMounted(true);assert.equal(orbit.distance,Math.hypot(7.3,18.5));assert.equal(orbit.zoomLimits.min,12);
+  orbit.apply({x:0,y:3,z:-98});assert.equal(orbit.target.y,5.1);
+  orbit.setMounted(false);globalThis.document.body.dataset.mountId='annyongi';orbit.setMounted(true);assert.equal(orbit.distance,7);
+  orbit.togglePerspective();orbit.apply({x:0,y:3,z:-98},1);assert.equal(camera.position[1],4);
+});

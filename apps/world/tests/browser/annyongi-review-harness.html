@@ -1,0 +1,26 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><title>Annyongi reconstruction review</title>
+<script type="importmap">{"imports":{"playcanvas":"https://cdn.jsdelivr.net/npm/playcanvas@2.22.4/build/playcanvas.mjs"}}</script>
+<style>body{margin:0;background:#e9eff5}canvas{width:100vw;height:100vh;display:block}</style><canvas id="stage"></canvas>
+<script type="module">
+import * as pc from 'playcanvas';
+import {createCharacter} from '/src/character-model.js';
+const canvas=document.querySelector('canvas');canvas.width=innerWidth;canvas.height=innerHeight;
+const device=await pc.createGraphicsDevice(canvas,{deviceTypes:[pc.DEVICETYPE_WEBGL2],antialias:true});
+const app=new pc.AppBase(canvas),options=new pc.AppOptions();options.graphicsDevice=device;
+options.componentSystems=[pc.RenderComponentSystem,pc.CameraComponentSystem,pc.LightComponentSystem];options.resourceHandlers=[pc.ContainerHandler,pc.TextureHandler];app.init(options);
+app.scene.ambientLight=new pc.Color(.65,.65,.65);
+const camera=new pc.Entity('ReviewCamera');camera.addComponent('camera',{clearColor:new pc.Color(.89,.93,.97),projection:pc.PROJECTION_ORTHOGRAPHIC,orthoHeight:1.55});app.root.addChild(camera);
+const light=new pc.Entity('Key');light.addComponent('light',{type:'directional',intensity:1.1});light.setEulerAngles(40,25,0);app.root.addChild(light);
+if(new URLSearchParams(location.search).has('optimized')) {
+ const originalLoad=app.assets.loadFromUrl.bind(app.assets);
+ app.assets.loadFromUrl=(url,...args)=>originalLoad(url==='/assets/annyongi-flight-v1.glb'?'/.generated/assets-optimized/annyongi-flight-v1.glb':url,...args);
+}
+const player=new pc.Entity('ReviewPlayer');app.root.addChild(player);player.mountKind='annyongi';
+const character=createCharacter(app,player);await character.ready;character.setMounted(true);character.update(0,{mounted:true,moving:false,grounded:false});
+const carrier=player.findByName('Annyongi_GLB_Visual'),rider=player.findByName('Induck_GLB_Visual');
+const view=(name,ride=false)=>{rider.enabled=ride;const poses={front:[0,.1,6],side:[6,.1,0],back:[0,.1,-6],ride:[3,1.6,5]};camera.setPosition(...poses[name]);camera.lookAt(0,.02,0);};
+view('front');app.start();
+window.__ANNYONGI_REVIEW__={app,player,character,carrier,rider,camera,view,frame:()=>app.frame,
+ pose:(dt,moving=false,grounded=false)=>character.update(dt,{mounted:true,moving,grounded}),
+ snapshot:()=>({model:character.dragonModelState,frame:app.frame,meshes:carrier.findComponents('render').length,anchor:carrier.findByName('RiderAnchor').getLocalPosition().toString(),rider:rider.getLocalPosition().toString()})};
+</script></html>
