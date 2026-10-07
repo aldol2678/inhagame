@@ -21,6 +21,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24.19.0'
+          cache: npm
+          cache-dependency-path: |
+            apps/world/tests/recast-runtime/package-lock.json
+            apps/induckup/package-lock.json
       - name: Test scope detection
         run: node --test .github/ci/public-ci-scope.test.mjs
       - name: Detect verification scope
@@ -30,13 +34,18 @@ jobs:
           CI_BEFORE: ${{ github.event.before }}
         run: node .github/ci/public-ci-scope.mjs >> "$GITHUB_OUTPUT"
       - uses: supabase/setup-cli@v3
-        if: steps.scope.outputs.mode == 'full'
+        if: steps.scope.outputs.mode == 'full' && steps.scope.outputs.db == 'true'
         with:
           version: 2.117.0
       - run: bash scripts/public-ci.sh
         if: steps.scope.outputs.mode == 'full'
       - run: bash scripts/public-db.sh
-        if: steps.scope.outputs.mode == 'full'
+        if: steps.scope.outputs.mode == 'full' && steps.scope.outputs.db == 'true'
+      - name: Complete database-independent verification
+        if: steps.scope.outputs.mode == 'full' && steps.scope.outputs.db != 'true'
+        run: |
+          echo "Database-independent change: local Supabase startup and integration DB suite were not required."
+          echo "Public source/unit/static verification still ran in full." >> "$GITHUB_STEP_SUMMARY"
       - name: Complete documentation-only verification
         if: steps.scope.outputs.mode == 'docs'
         run: |
