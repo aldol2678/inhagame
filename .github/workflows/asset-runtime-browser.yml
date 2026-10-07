@@ -1,0 +1,78 @@
+name: Asset runtime browser QA
+on:
+  pull_request:
+    paths:
+      - 'apps/world/assets/fishing-v1/**'
+      - 'apps/world/assets/life-props-v1/**'
+      - 'apps/world/src/activity/fishing-*.js'
+      - 'apps/world/src/life-props.js'
+      - 'apps/world/src/rooms/club-room-*.js'
+      - 'apps/world/src/rooms/personal-room-fixture-model.js'
+      - 'apps/world/src/appearance/equipment-*.js'
+      - 'apps/world/src/main.js'
+      - 'apps/world/npc-factory/dev-human-avatar.mjs'
+      - 'apps/world/npc-factory/dev-runtime.mjs'
+      - 'apps/world/npc-factory/purposeful-activity-*.mjs'
+      - 'apps/world/tests/*fishing*.test.mjs'
+      - 'apps/world/tests/life-props*.test.mjs'
+      - 'apps/world/tests/asset-runtime-browser-workflow.test.mjs'
+      - 'apps/world/tests/browser/fishing-*'
+      - 'apps/world/tests/browser/life-props-*'
+      - 'apps/world/tests/browser/harness.mjs'
+      - 'apps/world/tests/browser/package*.json'
+      - '.github/workflows/asset-runtime-browser.yml'
+permissions:
+  contents: read
+concurrency:
+  group: asset-runtime-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  browser:
+    name: ${{ matrix.lane }} WebGL2 fixture
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        lane: [fishing, life]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - name: Install pinned browser dependencies
+        working-directory: apps/world/tests/browser
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Install Chromium and Korean glyphs
+        run: |
+          cd apps/world/tests/browser
+          npx --no-install playwright install --with-deps chromium
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+      - name: Check asset and lifecycle contracts
+        run: |
+          node --test apps/world/tests/*fishing*.test.mjs apps/world/tests/life-props*.test.mjs apps/world/tests/asset-runtime-browser-workflow.test.mjs
+          node apps/world/tests/browser/fishing-engine-contract.mjs
+          node apps/world/tests/browser/life-props-engine.mjs
+      - name: Capture actual WebGL2 fixture pixels and lifecycle evidence
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          EXPECTED_ASSET_RUNTIME_HEAD: ${{ github.event.pull_request.head.sha }}
+          FISHING_ASSETS_OUTPUT: test-results/asset-runtime/fishing
+          LIFE_PROPS_BROWSER_OUTPUT: test-results/asset-runtime/life
+        run: |
+          if [[ '${{ matrix.lane }}' == 'fishing' ]]; then
+            node apps/world/tests/browser/fishing-assets-smoke.mjs
+          else
+            node apps/world/tests/browser/life-props-browser-smoke.mjs
+          fi
+      - name: Preserve exact-head browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: asset-runtime-${{ matrix.lane }}-${{ github.event.pull_request.head.sha }}
+          path: test-results/asset-runtime/${{ matrix.lane }}/
+          if-no-files-found: error
+          retention-days: 14
