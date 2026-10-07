@@ -158,15 +158,15 @@ test('Environment exposes allocation-free interpolated sky state for the rendere
   environment.setWeather('rain');
   environment.update(2);
   environment.copySkyVisualState(out);
-  near(out.sunEuler[0], (55 + 18) / 2);
-  near(out.sunEuler[1], (30 + 35) / 2);
-  near(out.artificialLightFactor, 0.09);
+  near(out.sunEuler[0], (55 + 84) / 2);
+  near(out.sunEuler[1], (30 + 258) / 2);
+  near(out.artificialLightFactor, 0.11);
   near(out.rainIntensity, 0.5);
 
   environment.update(2);
   environment.copySkyVisualState(out);
-  assert.deepEqual(out.sunEuler, [18, 35, 0]);
-  assert.equal(out.artificialLightFactor, 0.18);
+  assert.deepEqual(out.sunEuler, [84, 258, 0]);
+  assert.equal(out.artificialLightFactor, 0.22);
   assert.equal(out.rainIntensity, 1);
 });
 
