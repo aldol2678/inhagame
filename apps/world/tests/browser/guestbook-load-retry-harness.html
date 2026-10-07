@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Guestbook load retry · offline fixture</title>
+  <link rel="stylesheet" href="../../styles.css">
+  <style>body { padding: 24px; color: #eef8ff; } .profile-panel { max-height: calc(100dvh - 48px); }</style>
+</head>
+<body>
+  <p>Synthetic guestbook reads only. No login, backend, or writes.</p>
+  <button id="opener" type="button">방명록 열기</button>
+  <button id="outside" type="button">다른 화면</button>
+  <section id="guestbook" class="profile-panel guestbook-panel" role="dialog" aria-label="정문 방명록" hidden></section>
+  <script type="module">
+    import { createGuestbookPanel } from '../../src/guestbook/guestbook-panel.js';
+    import { GuestbookClient } from '../../src/guestbook/guestbook-client.js';
+    const A = '11111111-1111-4111-8111-111111111111', B = '22222222-2222-4222-8222-222222222222';
+    const ENTRY = '33333333-3333-4333-8333-333333333333';
+    const calls = [], pending = [], events = [];
+    let account = A, mode = 'error';
+    const board = owner => ({ locationKey: 'main_gate', entries: [{ id: ENTRY, userId: owner, mine: true,
+      nickname: owner === A ? '합성 A' : '합성 B', content: owner === A ? 'A의 방명록' : 'B의 방명록', avatar: 'classic',
+      createdAt: '2026-10-07T00:00:00Z' }], dailyUsed: 0, dailyLimit: 3, dailyRemaining: 3,
+      cooldownRemainingSeconds: 0, hasMore: false, nextBefore: null });
+    const response = (owner, success) => success ? { data: board(owner), error: null }
+      : { data: null, error: { message: 'SYNTHETIC_UNAVAILABLE' } };
+    const client = { rpc(name, args) {
+      const owner = account; calls.push({ name, args, owner });
+      if (name !== 'get_world_guestbook_v2') throw new Error(`Writes forbidden: ${name}`);
+      if (mode === 'hold') return new Promise(resolve => pending.push({ resolve, owner }));
+      return Promise.resolve(response(owner, mode === 'success'));
+    } };
+    const guestbook = new GuestbookClient({ getClient: () => client, getSelfUserId: () => account });
+    const ui = createGuestbookPanel({ panel: document.getElementById('guestbook'), guestbook });
+    ui.setAvailable(true, account);
+    document.getElementById('opener').addEventListener('click', () => void ui.setOpen(true));
+    for (const type of ['keydown', 'click', 'pointerdown']) document.addEventListener(type, event => {
+      events.push({ type, code: event.code, trusted: event.isTrusted, pointerType: event.pointerType });
+    }, true);
+    window.__GUESTBOOK_RETRY__ = {
+      ui, events,
+      mode(value) { mode = value; },
+      settle(index, success) {
+        const request = pending[index]; if (!request) throw new Error(`Missing read ${index}`);
+        request.resolve(response(request.owner, success));
+      },
+      switchAccount(value) {
+        const next = value === 'A' ? A : value === 'B' ? B : null;
+        ui.setAvailable(Boolean(next), next); account = next;
+      },
+      snapshot: () => ({ calls, pending: pending.length, open: ui.open, editingId: ui.editingId,
+        owner: ui.data?.entries[0]?.userId ?? null, writes: calls.filter(call => call.name !== 'get_world_guestbook_v2') })
+    };
+    document.getElementById('opener').focus();
+  </script>
+</body>
+</html>
