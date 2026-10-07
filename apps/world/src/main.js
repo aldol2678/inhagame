@@ -40,6 +40,7 @@ import { createSkyVisuals } from './environment/sky-visuals.js';
 import { createInkyungDuckSystem } from './ambient-ducks.js';
 import { createInkyungMechanicalDuckEvent } from './inkyung-mechanical-duck-event.js';
 import { createBiryongSystem } from './biryong/biryong-system.js';
+import { createBiryongCloudSync } from './biryong/biryong-cloud-sync.js';
 import { BIRYONG_PLACE_ID, isNearBiryong } from './biryong/biryong-layout.js';
 import { createBackGateArrivalEvent } from './back-gate-arrival-event.js';
 import { createAssetOptimizationShadow } from './asset-optimization-shadow.js';
@@ -806,9 +807,6 @@ let nextDiscovery = null;
 // 비룡탑 · 울림돌 · BR01 (created once the audio layer exists; read lazily by earlier hooks).
 let biryong = null;
 let backGateArrival = null;
-let biryongCloudGeneration = 0;
-let biryongCloudSaveTimer = null;
-let biryongResolvedAccountId = null;
 const lobbySpawnRegistry = createSpawnRegistry();
 const spawnProgressContext = () => ({
   completedQuestIds: npcQuestStatus()?.quest?.complete === true ? [QUEST_ID] : []
@@ -2237,91 +2235,41 @@ inkyungSideEvent.onChange(status => {
 });
 if (inkyungSideEvent.requiresMechanicalDuck()) inkyungDucks.ensureMechanicalDuck();
 window.addEventListener("pagehide", event => { if (!event.persisted) inkyungDucks.destroy(); });
+const biryongCloudSync = createBiryongCloudSync({
+  getClient: () => online?.supabase ?? null,
+  progress: {
+    snapshot: () => biryong?.progressSnapshot() ?? {},
+    setScope: (scope, options) => biryong?.setLocalScope(scope, options),
+    merge: (snapshot, options) => biryong?.mergeProgress(snapshot, options)
+  },
+  onStatus: status => biryong?.setCloudSyncStatus(status),
+  onAccountSyncing: value => biryong?.setAccountSyncing(value),
+  onSettled: () => { minimap?.refreshPois?.(); fullMap?.refreshPois?.(); }
+});
 // Preview hosts can replay first discovery and BR01 with ?biryong=reset (progress kept in memory).
 biryong = createBiryongSystem({
   app, root: campusRoot, player, camera, worldAudio,
   persist: !(previewHost && startupParams.get("biryong") === "reset"),
   onDiscovered: () => { minimap?.refreshPois?.(); fullMap?.refreshPois?.(); },
   onStatus: showWorldStatus,
-  onProgress: snapshot => queueBiryongCloudSave(snapshot),
+  onProgress: snapshot => biryongCloudSync.queue(snapshot),
+  onCloudRetry: () => biryongCloudSync.retry(),
   onInputLockChange: (locked) => {
     if (locked) biryongScriptedInput.acquire();
     else biryongScriptedInput.release();
   }
 });
 
-async function mergeBiryongCloud(client, snapshot, migratedFromLocal = false) {
-  const { data, error } = await client.rpc("merge_my_biryong_progress_v1", {
-    p_progress: snapshot,
-    p_migrated_from_local: Boolean(migratedFromLocal)
-  });
-  if (error) throw error;
-  return data ?? null;
+function syncBiryongAccount(identity) {
+  return biryongCloudSync.setAccount(identity?.userId ?? null);
 }
 
-function queueBiryongCloudSave(snapshot) {
-  const client = online?.supabase;
-  if (!client || !snapshot) return false;
-  const generation = biryongCloudGeneration;
-  clearTimeout(biryongCloudSaveTimer);
-  biryongCloudSaveTimer = setTimeout(() => {
-    if (generation !== biryongCloudGeneration || client !== online?.supabase) return;
-    void mergeBiryongCloud(client, snapshot).catch(error =>
-      console.warn("Biryong account progress save failed; local cache retained:", error));
-  }, 250);
-  return true;
-}
-
-async function syncBiryongAccount(identity) {
-  const userId = identity?.userId ?? null;
-  const client = online?.supabase ?? null;
-
-  if (!userId || !client) {
-    // The first null identity is emitted before Auth resolution. Only reset to guest after a
-    // previously resolved permanent account actually signs out.
-    if (biryongResolvedAccountId !== null) {
-      biryongCloudGeneration += 1;
-      clearTimeout(biryongCloudSaveTimer);
-      biryongCloudSaveTimer = null;
-      biryongResolvedAccountId = null;
-      biryong?.setLocalScope("guest");
-      biryong?.setAccountSyncing(false);
-      minimap?.refreshPois?.();
-      fullMap?.refreshPois?.();
-    }
-    return null;
+window.addEventListener("pagehide", event => {
+  if (!event.persisted) {
+    biryongCloudSync.dispose();
+    biryong?.destroy();
   }
-
-  const generation = ++biryongCloudGeneration;
-  clearTimeout(biryongCloudSaveTimer);
-  biryongCloudSaveTimer = null;
-  biryongResolvedAccountId = userId;
-  biryong?.setAccountSyncing(true);
-  const scope = biryong?.setLocalScope(`account:${userId}`, { adoptLegacy: true }) ??
-    { migrated: false, reset: false };
-
-  try {
-    const { data, error } = await client.rpc("get_my_biryong_progress_v1");
-    if (error) throw error;
-    if (generation !== biryongCloudGeneration || userId !== biryongResolvedAccountId) return null;
-
-    if (data) biryong?.mergeProgress(data, { notify: false });
-    const merged = await mergeBiryongCloud(client, biryong?.progressSnapshot?.() ?? {}, scope.migrated);
-    if (generation !== biryongCloudGeneration || userId !== biryongResolvedAccountId) return null;
-    if (merged) biryong?.mergeProgress(merged, { notify: false });
-    return merged;
-  } catch (error) {
-    console.warn("Biryong account progress sync failed; local cache retained:", error);
-    return null;
-  } finally {
-    if (generation === biryongCloudGeneration && userId === biryongResolvedAccountId) {
-      biryong?.setAccountSyncing(false);
-      minimap?.refreshPois?.();
-      fullMap?.refreshPois?.();
-    }
-  }
-}
-window.addEventListener("pagehide", event => { if (!event.persisted) biryong?.destroy(); });
+});
 worldLoading?.setPhase("STREAMING");
 const viewSettings = createViewDistanceSettings(streaming,camera,graphics,{
   onOpenChange: (open) => {

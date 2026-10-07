@@ -46,18 +46,24 @@ export function createGuestbookPanel({
   let saveOwner = null;
   let draft = "";
   let editingId = null;
+  let editTarget = null;
   let loadEpoch = 0;
   let lifecycle = 0;
+  let recoveryFocus = null;
   let accountId; // undefined keeps availability-only callers compatible
   const available = () => accountId !== null && guestbook.available;
   const currentView = (epoch) => epoch === lifecycle && open && available();
   const stale = (error) => error instanceof GuestbookError && error.code === "STALE";
 
-  const editingEntry = () => board?.entries.find((entry) => entry.id === editingId) ?? null;
+  const editingEntry = () => board?.entries.find((entry) => entry.id === editingId)
+    // Reopening reads page one. An older selected entry can still be on a later
+    // page; keep its edit identity until the complete result excludes it.
+    ?? (board?.hasMore && editTarget?.id === editingId ? editTarget : null);
 
   function startEdit(entry) {
     if (!entry?.mine || saving) return;
     editingId = entry.id;
+    editTarget = entry;
     draft = entry.content;
     hint = "";
     render();
@@ -65,6 +71,7 @@ export function createGuestbookPanel({
 
   function cancelEdit() {
     editingId = null;
+    editTarget = null;
     draft = "";
     hint = "";
     render();
@@ -83,6 +90,7 @@ export function createGuestbookPanel({
       if (!currentView(epoch)) return;
       if (editingId === entry.id) {
         editingId = null;
+        editTarget = null;
         draft = "";
       }
       hint = "방명록을 삭제했어요.";
@@ -184,7 +192,7 @@ export function createGuestbookPanel({
     save.disabled = saving || createBlocked || draft.trim().length < 1;
     save.addEventListener("click", async () => {
       if (!currentView(epoch) || saving) return;
-      const request = {};
+      const request = { draftSubmitted: true };
       saveOwner = request;
       saving = true;
       hint = "";
@@ -194,6 +202,7 @@ export function createGuestbookPanel({
           await guestbook.update(editing.id, draft);
           if (!currentView(epoch)) return;
           editingId = null;
+          editTarget = null;
           draft = "";
           hint = "방명록을 수정했어요.";
         } else {
@@ -221,10 +230,12 @@ export function createGuestbookPanel({
     if (createBlocked) {
       wrap.append(el("p", "guestbook-limit-note", "오늘 작성 횟수는 삭제해도 다시 늘어나지 않아요."));
     }
-    return wrap;
+    return { element: wrap, textarea };
   }
 
   function render() {
+    const restoreRecoveryFocus = recoveryFocus && doc.activeElement === recoveryFocus;
+    recoveryFocus = null;
     panel.replaceChildren();
 
     const head = el("div", "guestbook-panel-head");
@@ -241,21 +252,36 @@ export function createGuestbookPanel({
       panel.append(el("p", "guestbook-empty", "로그인한 계정만 방명록을 볼 수 있어요."));
       return;
     }
-    if (loading && !board) {
-      panel.append(el("p", "guestbook-empty", "방명록을 불러오는 중…"));
-      return;
-    }
     if (!board) {
-      panel.append(el("p", "guestbook-empty", hint || "방명록을 불러오지 못했어요."));
+      const epoch = lifecycle;
+      const status = el("p", "guestbook-empty guestbook-load-status", loading
+        ? "방명록을 불러오는 중…" : hint || "방명록을 불러오지 못했어요.");
+      status.setAttribute("role", "status");
+      status.setAttribute("aria-live", "polite");
+      status.tabIndex = -1;
+      const retry = el("button", "guestbook-more guestbook-retry", loading ? "불러오는 중…" : "다시 불러오기");
+      retry.type = "button";
+      retry.disabled = loading;
+      retry.addEventListener("click", () => {
+        if (!currentView(epoch) || loading || board) return;
+        hint = "";
+        void refresh();
+      });
+      panel.append(status, retry);
+      recoveryFocus = loading ? status : retry;
+      if (restoreRecoveryFocus) recoveryFocus.focus();
       return;
     }
 
     if (editingId && !editingEntry()) {
       editingId = null;
+      editTarget = null;
       draft = "";
     }
 
-    panel.append(renderEditor());
+    const editor = renderEditor();
+    panel.append(editor.element);
+    if (restoreRecoveryFocus) (editor.textarea.disabled ? close : editor.textarea).focus();
 
     const list = el("div", "guestbook-list");
     if (!board.entries.length) {
@@ -277,14 +303,18 @@ export function createGuestbookPanel({
 
   async function refresh() {
     if (!open || !available()) return null;
+    // Retry is read-only and single-flight. A post-write refresh can still replace
+    // an older paginated read when an existing board is visible.
+    if (loading && !board) return null;
+    const view = lifecycle;
     const epoch = ++loadEpoch;
     loading = true;
     render();
     try {
       const next = await guestbook.load();
-      if (epoch === loadEpoch && open) board = next;
+      if (epoch === loadEpoch && currentView(view)) board = next;
     } catch (error) {
-      if (epoch === loadEpoch && open && !stale(error)) {
+      if (epoch === loadEpoch && currentView(view) && !stale(error)) {
         board = null;
         hint = messageFor(error);
       }
@@ -299,12 +329,13 @@ export function createGuestbookPanel({
 
   async function loadMore() {
     if (!open || !available() || loading || !board?.hasMore || !board.nextBefore) return board;
+    const view = lifecycle;
     const epoch = ++loadEpoch;
     loading = true;
     render();
     try {
       const next = await guestbook.load({ before: board.nextBefore });
-      if (epoch === loadEpoch && open) {
+      if (epoch === loadEpoch && currentView(view)) {
         const seen = new Set(board.entries.map((entry) => entry.id));
         board = Object.freeze({
           ...next,
@@ -312,7 +343,7 @@ export function createGuestbookPanel({
         });
       }
     } catch (error) {
-      if (epoch === loadEpoch && open && !stale(error)) hint = messageFor(error);
+      if (epoch === loadEpoch && currentView(view) && !stale(error)) hint = messageFor(error);
     } finally {
       if (epoch === loadEpoch) {
         loading = false;
@@ -326,13 +357,20 @@ export function createGuestbookPanel({
     if (next && !available()) return Promise.resolve(false);
     const nextOpen = Boolean(next);
     const changed = open !== nextOpen;
+    if (!changed) return Promise.resolve(true);
     const epoch = ++lifecycle;
     loadEpoch += 1;
     open = nextOpen;
     board = null;
     hint = "";
-    draft = "";
-    editingId = null;
+    // Retain only unsent same-account drafts. A submitted write may already have
+    // committed, so closing it keeps the existing no-replay behavior.
+    if (saving && saveOwner?.draftSubmitted) {
+      draft = "";
+      editingId = null;
+      editTarget = null;
+    }
+    recoveryFocus = null;
     loading = false;
     panel.hidden = !open;
     panel.replaceChildren();
@@ -348,7 +386,7 @@ export function createGuestbookPanel({
   panel.addEventListener("pointerdown", (event) => event.stopPropagation());
   doc.addEventListener("keydown", (event) => {
     if (!open || event.code !== "Escape") return;
-    if (editingId) cancelEdit();
+    if (editingId && board) cancelEdit();
     else void setOpen(false);
   });
 
@@ -361,6 +399,11 @@ export function createGuestbookPanel({
     loadMore,
     setAvailable(isAvailable, nextAccountId = accountId) {
       // Use the identity callback's id (or null), never the transport's stale getter.
+      if (nextAccountId !== accountId || !isAvailable) {
+        draft = "";
+        editingId = null;
+        editTarget = null;
+      }
       if (nextAccountId !== accountId) {
         accountId = nextAccountId;
         saveOwner = null;

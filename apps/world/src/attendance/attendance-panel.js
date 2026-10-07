@@ -51,9 +51,23 @@ export function createAttendancePanel({ panel, attendance, onOpenChange = () => 
 
   let open = false;
   let closeButton = null;
+  let bodyElement = null;
+  let opener = null;
+  let renderedAccount = attendance.accountId;
+  let renderedView = null;
+  const focusTargets = new Map();
   let notice = null;
   let noticeEpoch = 0;
   let accountId = attendance.accountId;
+
+  // Pending controls remain disabled. A temporary, non-Tab-stop anchor preserves their
+  // semantic identity until the same action is available again (as in the wardrobe panel).
+  function trackAction(control, key, anchor = control) {
+    control.dataset.focusKey = key;
+    if (anchor !== control) anchor.tabIndex = -1;
+    focusTargets.set(key, { control, anchor });
+    return control;
+  }
 
   function renderSnapshot(body, s) {
     const summary = el("div", "inventory-item attendance-summary");
@@ -79,7 +93,7 @@ export function createAttendancePanel({ panel, attendance, onOpenChange = () => 
         if (result.outcome === "FAILED" || result.outcome === "REFUSED") notice = { text: ATTENDANCE_TEXT.failed, rewardDate };
         render();
       });
-      summary.append(rewards, button);
+      summary.append(rewards, trackAction(button, `claim:${s.rewardDate}`, summary));
     }
     body.append(summary);
 
@@ -113,6 +127,18 @@ export function createAttendancePanel({ panel, attendance, onOpenChange = () => 
   function render() {
     if (!open) return;
     const snapshot = attendance.state === ATTENDANCE_STATE.READY ? attendance.snapshot : null;
+    const hadFocus = panel.contains?.(doc.activeElement) ?? false;
+    const accountChanged = renderedAccount !== attendance.accountId;
+    const focusKey = !accountChanged && hadFocus ? doc.activeElement?.dataset?.focusKey : null;
+    const view = snapshot?.rewardDate ?? null;
+    const resetScroll = accountChanged || view !== renderedView;
+    const scrollTop = resetScroll ? 0 : bodyElement?.scrollTop ?? 0;
+    const scrollLeft = resetScroll ? 0 : bodyElement?.scrollLeft ?? 0;
+    const panelScrollTop = resetScroll ? 0 : panel.scrollTop ?? 0;
+    const panelScrollLeft = resetScroll ? 0 : panel.scrollLeft ?? 0;
+    renderedAccount = attendance.accountId;
+    renderedView = view;
+    focusTargets.clear();
     // Recovery can finish before the awaited claim result reaches this panel.
     // Reconcile here too, and only against the same server day as the failed write.
     if (notice?.text === ATTENDANCE_TEXT.failed && snapshot?.claimedToday && snapshot.rewardDate === notice.rewardDate) notice = null;
@@ -127,6 +153,7 @@ export function createAttendancePanel({ panel, attendance, onOpenChange = () => 
     }
     closeButton = el("button", "profile-close", "×");
     closeButton.type = "button";
+    trackAction(closeButton, "close");
     closeButton.setAttribute("aria-label", "출석부 닫기");
     closeButton.addEventListener("click", () => setOpen(false));
     head.append(titles, closeButton);
@@ -137,6 +164,7 @@ export function createAttendancePanel({ panel, attendance, onOpenChange = () => 
     else if (!snapshot) {
       const retry = el("button", "shop-retry", ATTENDANCE_TEXT.retry);
       retry.type = "button";
+      trackAction(retry, "retry");
       retry.addEventListener("click", () => void attendance.refresh("retry"));
       body.append(el("p", "shop-empty", ATTENDANCE_TEXT.unavailable), retry);
     } else renderSnapshot(body, snapshot);
@@ -144,18 +172,44 @@ export function createAttendancePanel({ panel, attendance, onOpenChange = () => 
     panel.dataset.state = attendance.state;
     panel.dataset.claimed = snapshot ? String(snapshot.claimedToday) : "";
     panel.replaceChildren(head, body);
+    bodyElement = body;
+    // Only restore focus owned by this panel at render time. A new question/day/account or a
+    // removed control falls back to Close, never to an unrelated answer with the same index.
+    if (hadFocus) {
+      const action = focusTargets.get(focusKey);
+      const target = action ? (action.control.disabled ? action.anchor : action.control) : closeButton;
+      if (action) target.dataset.focusKey = focusKey;
+      target.focus?.({ preventScroll: true });
+    }
+    body.scrollTop = scrollTop;
+    body.scrollLeft = scrollLeft;
+    panel.scrollTop = panelScrollTop;
+    panel.scrollLeft = panelScrollLeft;
   }
 
   function setOpen(next) {
     const value = Boolean(next);
     if (value === open) return open;
+    const focused = doc.activeElement;
+    const restoreOpener = !value && (panel.contains?.(focused) ?? false);
+    if (value) opener = focused;
     noticeEpoch += 1;
     open = value;
     panel.hidden = !open;
     if (!open) {
       notice = null;
       panel.replaceChildren();
+      bodyElement = null;
+      panel.scrollTop = 0;
+      panel.scrollLeft = 0;
+      focusTargets.clear();
       onOpenChange(false);
+      // Respect an explicit focus handoff performed by the close callback.
+      if (restoreOpener && (!doc.activeElement || doc.activeElement === doc.body || doc.activeElement === focused)
+        && opener?.isConnected !== false && !opener?.disabled && !opener?.closest?.("[hidden], [inert]")) {
+        opener?.focus?.({ preventScroll: true });
+      }
+      opener = null;
       return false;
     }
     render();
