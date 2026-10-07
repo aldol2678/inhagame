@@ -83,6 +83,8 @@ export function createEnvironmentWorldTime({
       cycleSeconds: schedule?.cycleSeconds ?? null,
       environmentTime,
       weather,
+      baseWeather: visual?.baseWeather ?? null,
+      rainEvent: visual?.rainEvent ?? null,
       visualPhase: visual?.phase ?? null,
       visualPhaseProgress: visual?.phaseProgress ?? null,
       cycleMinute: visual?.cycleMinute ?? null,
