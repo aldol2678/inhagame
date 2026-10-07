@@ -5,6 +5,12 @@ on:
       - 'apps/world/src/photo/**'
       - 'apps/world/src/main.js'
       - 'apps/world/src/world-collision.js'
+      - 'apps/world/src/player-controller.js'
+      - 'apps/world/src/campus-layout.js'
+      - 'apps/world/src/world-exterior-bounds.js'
+      - 'apps/world/src/main-gate-frame.js'
+      - 'apps/world/src/editor/main-gate-production.js'
+      - 'apps/world/src/student-center-*.js'
       - 'apps/world/src/orbit-camera-controller.js'
       - 'apps/world/src/input/**'
       - 'apps/world/campus/index.html'
@@ -12,6 +18,8 @@ on:
       - 'apps/world/npc-factory/dev-runtime-state.mjs'
       - 'apps/world/tests/photo-*.test.mjs'
       - 'apps/world/tests/inkyung-photo-point.test.mjs'
+      - 'apps/world/tests/world-bounds-boot-order.test.mjs'
+      - 'apps/world/tests/browser/ipad-webkit-boot-smoke.mjs'
       - 'apps/world/tests/browser/photo-mode-*'
       - '.github/workflows/photo-mode-browser.yml'
 permissions:
@@ -191,7 +199,9 @@ jobs:
       - name: Install Playwright WebKit
         working-directory: apps/world/tests/browser
         run: npx playwright install --with-deps webkit
-      - name: Verify iPad-class WebKit enters boot
+      - name: Verify boot-order ownership contract
+        run: node --test apps/world/tests/world-bounds-boot-order.test.mjs
+      - name: Verify iPad-class WebKit reaches Main Lobby
         env:
           WORLD_SMOKE_DISABLE_WEBGPU: '1'
         run: timeout --signal=TERM --kill-after=10s 180s node apps/world/tests/browser/ipad-webkit-boot-smoke.mjs

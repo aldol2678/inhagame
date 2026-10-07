@@ -12,7 +12,8 @@ import { CAMPUS_KICKBOARD_ID, getCampusKickboardParkedPose, parkCampusKickboardA
 import { GROUND_MOTION_PROFILES, stepGroundMount } from "./mounts/ground-mount-motion.js";
 import { getMobilityByMountId } from "./mobility/mobility-registry.js";
 import { findGroundSummonPose, findNearbyGroundSummonPose } from "./mobility/ground-summon.js";
-import { WORLD_BOUNDS, OBSTACLES } from "./campus-layout.js";
+import { OBSTACLES } from "./campus-layout.js";
+import { EXTERIOR_WORLD_BOUNDS as WORLD_BOUNDS } from "./world-exterior-bounds.js";
 import { moveAroundObstacles, resolveHeight, canOccupy } from "./world-collision.js";
 import { MOUNT_SHAPE, PLAYER_ORIGIN_Y } from './player-dimensions.js';
 import { roadviewGroundHeight } from './roadview-layout.js';
@@ -37,13 +38,19 @@ export function movementHudState({ mounted = false, grounded = true } = {}) {
 }
 
 export const CAMPUS_MOVEMENT_SPACE = Object.freeze({
-  id: "campus", obstacles: undefined, bounds: WORLD_BOUNDS, allowMount: true,
+  id: "campus", obstacles: undefined, get bounds() { return WORLD_BOUNDS; }, allowMount: true,
   groundHeight: roadviewGroundHeight, constrain: constrainPondWalk
 });
 
-const CAMPUS_OBSTACLES_WITHOUT_BIKE = Object.freeze(
-  OBSTACLES.filter(({ id }) => id !== MAIN_GATE_CAMPUS_BIKE.id)
-);
+let campusObstaclesWithoutBike = null;
+function CAMPUS_OBSTACLES_WITHOUT_BIKE() {
+  if (!campusObstaclesWithoutBike) {
+    campusObstaclesWithoutBike = Object.freeze(
+      OBSTACLES.filter(({ id }) => id !== MAIN_GATE_CAMPUS_BIKE.id)
+    );
+  }
+  return campusObstaclesWithoutBike;
+}
 
 // NPC talk is 300. Parked vehicles must win while standing on their props.
 export const BIKE_CONTEXT_PRIORITY = 320;
@@ -1144,7 +1151,7 @@ export class PlayerController {
 
     const space = this.space;
     const obstacles = this.onBike
-      ? (space.obstacles ?? CAMPUS_OBSTACLES_WITHOUT_BIKE)
+      ? (space.obstacles ?? CAMPUS_OBSTACLES_WITHOUT_BIKE())
       : space.obstacles;
     const groundVehicleShape = (this.onKickboard || this.onKart) ? {
       radius: getMobilityByMountId(this.mountId).summonClearance.radius,
