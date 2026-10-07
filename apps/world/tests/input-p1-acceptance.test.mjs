@@ -12,9 +12,10 @@ const main = read("../src/main.js");
 const html = read("../campus/index.html");
 const css = read("../styles.css");
 
-test("P1 acceptance: desktop Pointer Lock is user-gesture-only and never auto-retries", () => {
+test("P1 acceptance: desktop Pointer Lock uses trusted gestures and never loops on lock events", () => {
   assert.match(runtime, /event\.pointerType !== "mouse" \|\| event\.button !== 0/);
   assert.match(runtime, /canvas\.requestPointerLock\(\)/);
+  assert.match(runtime, /add\(documentLike, "click",[\s\S]*gestureRecoveryArmed[\s\S]*request\(\)/s);
   assert.doesNotMatch(runtime, /pointerlockchange[\s\S]{0,240}requestPointerLock\(/);
   assert.doesNotMatch(runtime, /pointerlockerror[\s\S]{0,240}requestPointerLock\(/);
   assert.match(runtime, /awaitingGesture:\s*supported && desired && !locked/);

@@ -6,11 +6,17 @@ import { createInputFocusManager } from '../src/input/input-focus-manager.js';
 import { INKYUNG_PHOTO_POINT } from '../src/photo/inkyung-photo-point.js';
 import { createFakeDocument } from './support/fake-dom.mjs';
 
-function fixture() {
+function fixture({ capture = null, downloadFailure = false, downloadSupported = true } = {}) {
+  const urls = [], revoked = [], downloads = [];
   const doc = createFakeDocument(); doc.body = doc.createElement('body');
   const create = doc.createElement;
   doc.createElement = tag => {
-    const el = create(tag); el.removeAttribute = name => delete el.attributes[name];
+    const el = create(tag);
+    if (tag === 'a') {
+      if (downloadSupported) el.download = '';
+      el.click = () => { if (downloadFailure) throw new Error('download blocked'); downloads.push({ href: el.href, filename: el.download }); };
+    }
+    el.removeAttribute = name => delete el.attributes[name];
     el.removeEventListener = (type, fn) => el.listeners.set(type, (el.listeners.get(type) ?? []).filter(f => f !== fn));
     el.remove = () => { el.parent.children = el.parent.children.filter(x => x !== el); el.parent = null; };
     Object.defineProperty(el, 'isConnected', { get: () => doc.body.contains(el) });
@@ -24,10 +30,11 @@ function fixture() {
   const mode = createPhotoMode({ orbit, inputFocus: createInputFocusManager(),
     getPosition: () => ({ ...INKYUNG_PHOTO_POINT.position, y: 1.1 }), getState: () => ({ campus: true, grounded: true }),
     requestPose: () => 'started' });
-  const ui = createPhotoModePanel({ mode, doc, win, fallbackFocus: canvas });
+  const ui = createPhotoModePanel({ mode, doc, win, fallbackFocus: canvas, capture,
+    urlApi: { createObjectURL(blob) { const url = `blob:photo-${urls.length}`; urls.push({ url, blob }); return url; }, revokeObjectURL(url) { revoked.push(url); } } });
   const nodes = () => { const walk = n => [n, ...n.children.flatMap(walk)]; return walk(ui.root); };
   const control = name => nodes().find(n => n.dataset.photoControl === name);
-  return { doc, win, opener, canvas, orbit, mode, ui, control };
+  return { doc, win, opener, canvas, orbit, mode, ui, control, urls, revoked, downloads };
 }
 
 test('photo UI hides HUD with a temporary presentation flag and restores focus on explicit close', () => {
@@ -99,4 +106,60 @@ test('a new photo session resets the temporary controls to visible', () => {
   assert.equal(toggle.getAttribute('aria-expanded'), 'true');
   assert.equal(h.control('yaw').parent.parent.hidden, false);
   assert.equal(h.doc.activeElement, h.control('close'));
+});
+
+function deferredCapture() {
+  let resolve, reject, calls = 0, cancelled = 0, destroyed = 0;
+  return { request() { calls++; return new Promise((yes, no) => { resolve = yes; reject = no; }); },
+    resolve() { resolve({ blob: new Blob(['image'], { type: 'image/png' }), width: 640, height: 360 }); },
+    reject() { reject(new Error('capture failed')); }, cancel() { cancelled++; }, destroy() { destroyed++; },
+    get calls() { return calls; }, get cancelled() { return cancelled; }, get destroyed() { return destroyed; } };
+}
+const flush = () => new Promise(resolve => setImmediate(resolve));
+
+test('save is busy once, downloads a local PNG and exposes explicit mobile preview without claiming saved', async () => {
+  const capture = deferredCapture(), h = fixture({ capture }); h.mode.open();
+  h.control('save').click(); h.control('save').click(); assert.equal(capture.calls, 1);
+  assert.equal(h.control('save').disabled, true); assert.equal(h.control('distance').disabled, true);
+  assert.equal(h.ui.root.getAttribute('aria-busy'), 'true');
+  capture.resolve(); await flush();
+  assert.equal(h.downloads.length, 1); assert.match(h.downloads[0].filename, /^inha-world-.*\.png$/);
+  assert.equal(h.downloads[0].href, h.urls[0].url); assert.equal(h.control('save').disabled, false);
+  assert.match(h.control('status').textContent, /다운로드.*요청/);
+  assert.doesNotMatch(h.control('status').textContent, /저장했|저장 완료/);
+  assert.equal(h.control('preview').hidden, false); assert.equal(h.control('image').parent.hidden, true);
+  h.control('preview').click(); assert.equal(h.control('image').parent.hidden, false);
+  assert.equal(h.control('image').src, h.urls[0].url); assert.match(h.control('status').textContent, /길게 눌러/);
+  h.control('preview').click(); assert.equal(h.control('image').parent.hidden, true);
+  h.mode.close(); assert.deepEqual(h.revoked, [h.urls[0].url]);
+});
+
+for (const reason of ['close', 'escape', 'lifecycle', 'takeover']) test(`late capture cannot download after ${reason} or repopulate a new photo session`, async () => {
+  const capture = deferredCapture(), h = fixture({ capture }); h.mode.open(); h.control('save').click();
+  h.mode.close(reason); h.mode.open(); capture.resolve(); await flush();
+  assert.equal(h.downloads.length, 0); assert.equal(h.urls.length, 0); assert.equal(h.control('preview').hidden, true);
+  assert.equal(h.control('save').disabled, false); assert.ok(capture.cancelled > 0);
+});
+
+test('failed encoding is visible and retry is possible; no artifact or URL is retained', async () => {
+  const capture = deferredCapture(), h = fixture({ capture }); h.mode.open(); h.control('save').click();
+  capture.reject(); await flush(); assert.match(h.control('status').textContent, /만들지 못했/);
+  assert.match(h.control('status').textContent, /화면 캡처/); assert.equal(h.urls.length, 0);
+  h.control('save').click(); assert.equal(capture.calls, 2); capture.resolve(); await flush();
+  assert.equal(h.downloads.length, 1);
+});
+
+for (const options of [{ downloadFailure: true }, { downloadSupported: false }]) test(`download fallback retains only the latest image: ${JSON.stringify(options)}`, async () => {
+  const capture = deferredCapture(), h = fixture({ capture, ...options }); h.mode.open();
+  h.control('save').click(); capture.resolve(); await flush();
+  assert.match(h.control('status').textContent, /다운로드.*(막혔|지원하지)/); assert.equal(h.control('preview').hidden, false);
+  h.control('save').click(); assert.deepEqual(h.revoked, [h.urls[0].url]); capture.resolve(); await flush();
+  assert.equal(h.urls.length, 2); h.ui.destroy();
+  assert.deepEqual(h.revoked, h.urls.map(x => x.url)); assert.equal(capture.destroyed, 1);
+});
+
+test('Tab skips disabled save/framing controls while close remains usable', () => {
+  const capture = deferredCapture(), h = fixture({ capture }); h.mode.open(); h.control('save').click();
+  h.control('controls').focus(); h.doc.dispatch('keydown', { code: 'Tab' });
+  assert.equal(h.doc.activeElement, h.control('close')); h.mode.close();
 });

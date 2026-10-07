@@ -1,4 +1,4 @@
-// CORE-15: NPC feature flags (/api/npc-ai, /api/world-quest) answer GET with 200 {enabled:true} when on
+// CORE-15: NPC feature flags (/api/npc-ai, /api/world-quest, /api/npc-relationship, etc.) answer GET with 200 {enabled:true} when on
 // and 404 when off. Anything else (network error, 5xx, timeout, bad body) is UNAVAILABLE: a transient
 // answer that must not switch the first quest off for the whole session.
 export const FLAG_ENABLED = 'ENABLED';

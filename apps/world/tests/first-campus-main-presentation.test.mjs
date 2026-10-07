@@ -52,9 +52,9 @@ for (const replayed of [false, true]) test(`actual main callback completes ${rep
   const progression = createProgressionClient({ getClient: () => ({ rpc: async () => new Promise(resolve => { releaseRead = resolve; }) }), rewardRetryDelays: [] });
   progression.onChange(change => { hud.render(change.state, change.snapshot); flow.growthReadback(change); });
   const accountRead = progression.setAccount('A'); await flush(); releaseRead({ data: snapshot, error: null }); await accountRead;
-  const invoke = new Function('firstCampusCompletion', 'core15Funnel', 'mcmEventUi', 'progression', 'wallet', 'inventory', 'FIRST_CAMPUS_REWARD_ID', 'lobbyWorld', 'lobbyTransition', 'photoMode', `return (${rewardCallback});`)(
+  const invoke = new Function('firstCampusCompletion', 'core15Funnel', 'mcmEventUi', 'progression', 'wallet', 'inventory', 'FIRST_CAMPUS_REWARD_ID', 'lobbyWorld', 'lobbyTransition', 'photoMode', 'cinematic', `return (${rewardCallback});`)(
     flow, funnel, { showReward(result, { isValid = () => true, canPresent = () => true } = {}) { const message = rewardToastMessage(result); return queue.say(message.text, message.ms, null, isValid, canPresent); } },
-    progression, { refresh() { assert.fail('First Campus has no currency'); } }, { refresh() {} }, reward.rewardId, { active: false }, { active: false }, { active: false }
+    progression, { refresh() { assert.fail('First Campus has no currency'); } }, { refresh() {} }, reward.rewardId, { active: false }, { active: false }, { active: false }, { active: false }
   );
   invoke({ ...reward, replayed }); await flush();
   flow.observe({ growthVisible: true, nextGoalVisible: true }); await flush();
@@ -105,12 +105,12 @@ test('actual main callback preserves an unseen receipt through a long photo sess
     flow.growthReadback({ accountId: 'A', reason, state: 'READY', snapshot });
   } };
   const invoke = new Function('firstCampusCompletion', 'core15Funnel', 'mcmEventUi', 'progression',
-    'wallet', 'inventory', 'FIRST_CAMPUS_REWARD_ID', 'lobbyWorld', 'lobbyTransition', 'photoMode', `return (${rewardCallback});`)(
+    'wallet', 'inventory', 'FIRST_CAMPUS_REWARD_ID', 'lobbyWorld', 'lobbyTransition', 'photoMode', 'cinematic', `return (${rewardCallback});`)(
     flow, null, { showReward(result, { isValid, canPresent } = {}) {
       const message = rewardToastMessage(result);
       return queue.say(message.text, message.ms, null, isValid, canPresent);
     } }, progression, { refresh() {} }, { refresh() {} }, reward.rewardId,
-    { active: false }, { active: false }, photoMode);
+    { active: false }, { active: false }, photoMode, { active: false });
   invoke({ ...reward, replayed: true });
   now = 10_000;
   while (timers.some(timer => timer.at <= now)) {

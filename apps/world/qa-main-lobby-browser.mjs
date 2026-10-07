@@ -53,10 +53,11 @@ async function openLobby(context, init = null, initArg = undefined) {
 try {
   for (const spec of [
     { name: "desktop", viewport: { width: 1440, height: 900 }, mobile: false },
-    { name: "mobile-390", viewport: { width: 390, height: 844 }, mobile: true },
+    { name: "mobile-390", viewport: { width: 390, height: 844 }, mobile: true, portrait: true },
     { name: "mobile-360", viewport: { width: 360, height: 800 }, mobile: true },
     { name: "mobile-short-360", viewport: { width: 360, height: 640 }, mobile: true },
-    { name: "mobile-narrow-320", viewport: { width: 320, height: 800 }, mobile: true }
+    { name: "mobile-narrow-320", viewport: { width: 320, height: 800 }, mobile: true },
+    { name: "mobile-landscape-844", viewport: { width: 844, height: 390 }, mobile: true, landscape: true }
   ]) {
     const context = await browser.newContext({ viewport: spec.viewport, isMobile: spec.mobile, hasTouch: spec.mobile, deviceScaleFactor: 1 });
     const { page, errors } = await openLobby(context, clearResumeStorage, [WORLD_RESUME_LEGACY_KEY, WORLD_RESUME_GUEST_KEY]);
@@ -93,6 +94,19 @@ try {
       assert.equal(await page.locator("#lobby-player-look").isVisible(), false,
         "mobile hides the low-value default appearance line");
     }
+    if (spec.portrait) {
+      assert.ok(mainBox && mainBox.y + mainBox.height <= spec.viewport.height,
+        "portrait mobile keeps the primary entry CTA visible before fullscreen handoff");
+    }
+    if (spec.landscape) {
+      assert.ok(playerBox.height <= 56 && presenceBox.height <= 56,
+        "short landscape uses compact summary pills");
+      assert.ok(Math.max(playerBox.y + playerBox.height, presenceBox.y + presenceBox.height) <= mainBox.y,
+        "short landscape summaries stay clear of the primary entry CTA");
+      const backBox = await locked.boundingBox();
+      assert.ok(backBox && backBox.y + backBox.height <= spec.viewport.height,
+        "short landscape keeps the secondary entry action inside the first viewport");
+    }
 
     await page.locator("#lobby-menu-toggle").click();
     assert.ok(await page.locator("#lobby-menu").isVisible(), "P1.1 menu opens");
@@ -119,9 +133,19 @@ try {
 
     await page.screenshot({ path: resolve(output, spec.name + "-lobby.png") });
     await main.click();
-    await page.waitForFunction(() => window.__INHAGAME_P0__.getStatus().lobbyTransition?.active === false);
+    await page.waitForFunction(() => {
+      const s = window.__INHAGAME_P0__.getStatus();
+      return s.lobbyTransition?.active === false && s.cinematic?.sequenceId === "MAIN_GATE_REVEAL_V01";
+    });
+    const reveal = await page.evaluate(() => window.__INHAGAME_P0__.getStatus().cinematic);
+    assert.ok(reveal.active || reveal.reason === "complete", "Main Gate reveal starts after lobby handoff");
+    await page.waitForFunction(() => {
+      const d = window.__INHAGAME_P0__, s = d.getStatus();
+      return s.cinematic?.active === false && d.controller.inputEnabled;
+    }, null, { timeout: 15000 });
     assert.equal(await page.locator("#world-lobby").isVisible(), false);
     assert.equal(await page.evaluate(() => window.__INHAGAME_P0__.controller.inputEnabled), true);
+    result.cinematic = await page.evaluate(() => window.__INHAGAME_P0__.getStatus().cinematic);
     result.pass = true;
     await context.close();
   }

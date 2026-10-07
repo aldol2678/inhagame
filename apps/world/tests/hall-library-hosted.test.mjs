@@ -22,11 +22,11 @@ test('historical source routes reject arbitrary files and traversal', () => {
   for (const name of ['data/private.json','src/../private.js','src/./main.js','../src/main.js','/src/main.js','data/editor/other.world.json','.git/config','src/secret.txt','https://example.com/src/main.js']) assert.equal(allowed(name),false,name);
 });
 
-test('current-main preservation allows only the eight approved runtime files', () => {
+test('current-main preservation allows only the nine approved runtime files', () => {
   const manifest = JSON.parse(read('./fixtures/hall-library-candidate-source-manifest.json'));
   assert.equal(manifest.currentMain, '1c6f43b36962f65f75cddd55b8661bb3aa4a268d');
-  assert.equal(manifest.allowedRuntimeChanges.length,8);
-  assert.equal(new Set(manifest.allowedRuntimeChanges).size,8);
+  assert.equal(manifest.allowedRuntimeChanges.length,9);
+  assert.equal(new Set(manifest.allowedRuntimeChanges).size,9);
   assert.deepEqual(manifest.allowedMetadataChanges,['apps/world/data/reality/hall-library-integration.provenance.json']);
   const runner=read('./browser/hall-library-hosted-smoke.mjs');
   assert.match(runner,/changedPaths/);
@@ -41,7 +41,7 @@ test('current PR scope may explicitly include surroundings but never unrelated a
   const allow=runInNewContext(`(${helper})`,{}, {timeout:1000});
   const manifest=JSON.parse(read('./fixtures/hall-library-candidate-source-manifest.json'));
   const original=allow(manifest,''),surroundings=allow(manifest,'surroundings');
-  assert.equal(original.length,9);assert.equal(surroundings.length,15);
+  assert.equal(original.length,10);assert.equal(surroundings.length,16);
   for(const path of ['apps/world/src/pond-surroundings-geometry.js','apps/world/src/main-hall-walkway-layout.js','apps/world/src/main-hall-walkway-geometry.js','apps/world/src/campus-grounds.js','apps/world/src/minimap/minimap-data.js','apps/world/src/navigation/campus-navigation.js']){
     assert.ok(surroundings.includes(path));assert.ok(!original.includes(path));
   }

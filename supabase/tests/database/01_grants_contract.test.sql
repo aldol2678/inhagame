@@ -127,6 +127,9 @@ select set_eq($$select unnest(pg_temp.exec_surface('authenticated', 'anon'))$$, 
   -- Biryong NPC relationship P0: own server-authoritative Stage/fact projection, read only.
   'get_my_biryong_npc_relationship_v1(text)',
   'get_my_biryong_npc_relationships_v1()',
+  -- Campus NPC Relationship P0: own HERO relationship projection, read only.
+  'get_my_world_campus_npc_relationship_v1(text)',
+  'get_my_world_campus_npc_relationships_v1()',
   -- Life Skill Book P0: own ACTIVE skills / tree reads; unlock and free reset decided by the server.
   'get_my_world_life_skills_v1()',
   'get_my_world_life_skill_tree_v1(text)',
@@ -237,6 +240,7 @@ from unnest(array['anon', 'authenticated']) r, unnest(array[
   'public.world_exp_grant_v1(uuid,bigint,text,text,text)',
   'public.world_progression_get_v1(uuid)',
   'public.world_biryong_npc_relationship_advance_v1(uuid,text,smallint,text,text,text,text)',
+  'public.world_campus_npc_relationship_apply_v1(uuid,text,integer,text,text,integer,smallint,text,text,text)',
   'public.advance_mcm_2026_event_v1(uuid,text)'
 ]) f;
 select ok(has_function_privilege('service_role', f, 'execute'), format('service_role can execute %s', f))
@@ -262,6 +266,7 @@ from unnest(array[
   'public.world_exp_grant_v1(uuid,bigint,text,text,text)',
   'public.world_progression_get_v1(uuid)',
   'public.world_biryong_npc_relationship_advance_v1(uuid,text,smallint,text,text,text,text)',
+  'public.world_campus_npc_relationship_apply_v1(uuid,text,integer,text,text,integer,smallint,text,text,text)',
   'public.advance_mcm_2026_event_v1(uuid,text)'
 ]) f;
 

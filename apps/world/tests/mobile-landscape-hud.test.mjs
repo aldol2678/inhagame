@@ -21,7 +21,11 @@ const MAP_END = '/* FULL-MAP-LANDSCAPE:end */';
 const mapSection = css.slice(css.indexOf(MAP_START), css.indexOf(MAP_END) + MAP_END.length);
 const COMPACT_START = '/* FULL-MAP-COMPACT-SEARCH:start */', COMPACT_END = '/* FULL-MAP-COMPACT-SEARCH:end */';
 const compactSection = css.slice(css.indexOf(COMPACT_START), css.indexOf(COMPACT_END) + COMPACT_END.length);
-const beforeWithoutMap = before.replace(mapSection, '').replace(compactSection, '');
+const LOBBY_START = '/* Main Lobby mobile-landscape correction.';
+const LOBBY_END = '/* Social S1-D2 · Personal Room HUD:';
+const lobbyStartIndex = css.indexOf(LOBBY_START), lobbyEndIndex = css.indexOf(LOBBY_END, lobbyStartIndex);
+const lobbySection = css.slice(lobbyStartIndex, lobbyEndIndex);
+const beforeWithoutExceptions = before.replace(mapSection, '').replace(compactSection, '').replace(lobbySection, '');
 const mapBlock = mapSection.slice(mapSection.indexOf(QUERY) + QUERY.length, mapSection.lastIndexOf('}'));
 const section = css.slice(startIndex, endIndex + END.length);
 // The override lives in exactly one media block; `body` is the inside of that block.
@@ -60,7 +64,7 @@ test('landscape HUD remains last while Full Map owns an isolated earlier media b
 test('the override is not a max-width rule and never touches portrait or desktop media', () => {
   assert.doesNotMatch(QUERY, /max-width/);
   // Every pre-existing orientation-free rule is still above the markers, unchanged in place.
-  assert.doesNotMatch(beforeWithoutMap, /orientation:\s*landscape/, 'no other existing rule was converted to a landscape rule');
+  assert.doesNotMatch(beforeWithoutExceptions, /orientation:\s*landscape/, 'no rule outside the verified Full Map and lobby exceptions was converted to landscape');
   assert.match(before, /@media \(pointer: coarse\) and \(max-width: 420px\) \{[\s\S]*?#run,\s*#jump,\s*#descend \{[\s\S]*?width: 68px;\s*height: 68px;/,
     'portrait small-phone action buttons are unchanged');
   assert.match(before, /@media \(pointer: coarse\) and \(max-width: 420px\) \{[\s\S]*?\.social-cluster #chat-toggle \{[\s\S]*?width: 44px;/,
@@ -71,6 +75,21 @@ test('the override is not a max-width rule and never touches portrait or desktop
     'desktop hides the touch controls as before');
   assert.match(before, /#jump \{ bottom: max\(42px, env\(safe-area-inset-bottom\)\); \}/);
   assert.match(before, /\.minimap \{\s*--minimap-size: var\(--world-right-rail-map-size, 112px\);/);
+});
+
+test('lobby landscape exceptions style only the lobby on coarse short screens', () => {
+  assert.ok(lobbyStartIndex >= 0 && lobbyEndIndex > lobbyStartIndex && lobbyEndIndex < startIndex);
+  const stripped = lobbySection.replace(/\/\*[\s\S]*?\*\//g, '');
+  const queries = [...stripped.matchAll(/@media\s*([^{}]+)\{/g)].map(match => match[1].trim());
+  assert.deepEqual(queries, [
+    '(orientation: landscape) and (max-height: 640px) and (pointer: coarse)',
+    '(orientation: landscape) and (max-height: 460px) and (pointer: coarse)'
+  ]);
+  const rules = stripped.replace(/@media[^{}]+\{/g, '').replace(/\{[^{}]*\}/g, match => match.slice(0, 1) + '}');
+  const selectors = [...rules.matchAll(/(?:^|})\s*([^{}]+)\{/g)].flatMap(match => match[1].split(','));
+  assert.ok(selectors.length > 20 && selectors.every(selector => /^\s*(?:\.world-lobby[\w-]*|#lobby-[\w-]*)(?:\s|$)/.test(selector)),
+    'lobby exceptions cannot style gameplay HUD, Full Map, or other panels');
+  assert.equal((stripped.match(/\{/g) ?? []).length, (stripped.match(/\}/g) ?? []).length);
 });
 
 test('every selector used by the override exists in the campus DOM or the HUD sources', () => {

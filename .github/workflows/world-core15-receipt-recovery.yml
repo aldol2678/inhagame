@@ -14,6 +14,7 @@ on:
       - 'apps/world/src/core15-funnel-telemetry.js'
       - 'apps/world/src/next-discovery.js'
       - 'apps/world/src/quest/**'
+      - 'apps/world/src/cinematic/**'
       - 'apps/world/src/progression/**'
       - 'apps/world/src/input/input-focus-*.js'
       - 'apps/world/src/hud/hud-context.js'
@@ -22,6 +23,7 @@ on:
       - 'apps/world/src/events/zombie-university-2026/event-ui.js'
       - 'apps/world/campus/index.html'
       - 'apps/world/styles.css'
+      - 'apps/world/cinematic.css'
       - 'apps/world/tests/first-campus-*.test.mjs'
       - 'apps/world/tests/core15-funnel-telemetry.test.mjs'
       - 'apps/world/tests/browser/core15-receipt-recovery-*.mjs'
@@ -69,7 +71,7 @@ jobs:
           WORLD_SMOKE_EVIDENCE_DIR: ${{ runner.temp }}/core15-receipt-recovery-evidence
         run: |
           set -euo pipefail
-          node --test apps/world/tests/first-campus-completion.test.mjs apps/world/tests/first-campus-main-presentation.test.mjs apps/world/tests/first-campus-receipt-recovery.test.mjs apps/world/tests/core15-funnel-telemetry.test.mjs | tee "$WORLD_SMOKE_EVIDENCE_DIR/focused-tests.log"
+          node --test apps/world/tests/first-campus-cinematic-presentation.test.mjs apps/world/tests/first-campus-completion.test.mjs apps/world/tests/first-campus-main-presentation.test.mjs apps/world/tests/first-campus-receipt-recovery.test.mjs apps/world/tests/core15-funnel-telemetry.test.mjs | tee "$WORLD_SMOKE_EVIDENCE_DIR/focused-tests.log"
           node apps/world/tests/browser/core15-receipt-recovery-smoke.mjs --contract | tee "$WORLD_SMOKE_EVIDENCE_DIR/fixture-contract.log"
       - name: Run isolated Chromium receipt recovery acceptance
         env:

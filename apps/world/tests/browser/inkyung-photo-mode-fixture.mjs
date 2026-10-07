@@ -8,6 +8,7 @@ import { bindInputFocusRuntime } from '/src/input/input-focus-runtime.js';
 import { createContextActionController } from '/src/context-action.js';
 import { EmoteController, emoteOffsets } from '/src/online/emotes.js';
 import { createPhotoMode } from '/src/photo/photo-mode.js';
+import { createPhotoCapture } from '/src/photo/photo-capture.js';
 import { createPhotoModePanel } from '/src/photo/photo-mode-panel.js';
 import { INKYUNG_PHOTO_POINT } from '/src/photo/inkyung-photo-point.js';
 import { roadviewGroundHeight } from '/src/roadview-layout.js';
@@ -15,7 +16,7 @@ import { box, surface } from '/src/campus-render-kit.js';
 const qa = window.__PHOTO_QA__ = { ready: false };
 try {
   const canvas = document.getElementById('application');
-  const device = await pc.createGraphicsDevice(canvas, { deviceTypes: [pc.DEVICETYPE_WEBGL2], antialias: true });
+  const device = await pc.createGraphicsDevice(canvas, { deviceTypes: [new URL(location.href).searchParams.get('backend') === 'webgpu' ? pc.DEVICETYPE_WEBGPU : pc.DEVICETYPE_WEBGL2], antialias: true });
   const app = new pc.Application(canvas, { graphicsDevice: device }); app.scene.ambientLight = new pc.Color(.7, .7, .75);
   const root = new pc.Entity('Photo_QA'); root.setLocalScale(1, 1, -1); app.root.addChild(root);
   const point = INKYUNG_PHOTO_POINT.position, ground = roadviewGroundHeight(point.x, point.z);
@@ -37,7 +38,7 @@ try {
     beforeOpen: () => emotes.cancel('photo-mode'),
     requestPose: () => emotes.request('photo_pose', { moving: controller.moving, grounded: controller.grounded, mounted: controller.mounted }),
     cancelPose: () => emotes.cancel('photo-mode-close') });
-  const panel = createPhotoModePanel({ mode, fallbackFocus: canvas });
+  const panel = createPhotoModePanel({ mode, fallbackFocus: canvas, capture: createPhotoCapture({ app, canvas, mode }) });
   const context = createContextActionController({ button: document.getElementById('context-action'), shortcut: 'F' });
   addEventListener('keydown', event => { if (event.code === 'KeyF' && !event.repeat && focus.can('WORLD_ACTION')) context.trigger(); });
   const resize = () => device.resizeCanvas(innerWidth, innerHeight); addEventListener('resize', resize); resize();
@@ -50,6 +51,7 @@ try {
     context.set('photo', mode.contextAction()); context.setSuspended(!focus.can('WORLD_ACTION')); context.refresh(); ticks++;
   });
   Object.assign(qa, { app, mode, panel, orbit, controller, state, focus,
+    backend: device.isWebGPU ? 'webgpu' : 'webgl2',
     takeover() { return focus.claim('qa-transition', INPUT_FOCUS_POLICY.SYSTEM_LOCK); },
     snapshot() { const p = player.getLocalPosition(); return { active: mode.active, ticks, input: controller.inputEnabled,
       cameraInput: orbit.inputEnabled, camera: { yaw: orbit.yaw, pitch: orbit.pitch, distance: orbit.distance, firstPerson: orbit.firstPerson, nearClip: camera.camera.nearClip },

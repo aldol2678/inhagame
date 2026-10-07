@@ -20,6 +20,8 @@ import { MAIN_GATE_SPAWN } from '/src/campus-spawn.js';
 import { createCampusNavigation, CAMPUS_NAV_SPACE } from '/src/navigation/campus-navigation.js';
 import { createNavigationState } from '/src/navigation/navigation-state.js';
 import { createNavigationHud } from '/src/navigation/navigation-hud.js';
+import { createCinematicDirector } from '/src/cinematic/cinematic-director.js';
+import { MAIN_GATE_REVEAL_V01 } from '/src/cinematic/main-gate-reveal.js';
 import * as seams from '/__fixture/main-seams.mjs';
 
 const el = id => document.getElementById(id);
@@ -28,6 +30,11 @@ const state = window.fixture = { ready: false, account: null, requests: [], rewa
   dropCompletionResponseOnce: false, lastCompletionError: null, generation: 0, frameCount: 0, visibilityEvents: [] };
 const lobbyWorld = { active: false }, lobbyTransition = { active: false }, photoMode = { active: false };
 const inputFocus = createInputFocusManager();
+// Real cinematic lifecycle/input policy; renderer/camera capture remains outside this fixture.
+const cinematic = createCinematicDirector({
+  camera: { camera: { fov: 62 }, getPosition: () => ({ x: 0, y: 2, z: 0 }), forward: { x: 0, y: 0, z: -1 }, setPosition() {}, lookAt() {} },
+  inputFocus, root: document.body, reducedMotion: { matches: false }
+});
 const hudContext = createHudContext();
 bindHudPresentation({ context: hudContext, root: document.body });
 inputFocus.subscribe(snapshot => hudContext.syncInputFocus(snapshot), { emitCurrent: true });
@@ -80,7 +87,7 @@ const questHud = createTrackedQuestHud({ root: el('quest-hud'), openButton: el('
   getTarget: () => ({ ...MAIN2_GUIDE_NPC.position, kind: 'quest-npc' }), getPlayerPosition: () => state.playerPosition });
 const nextDiscovery = createNextDiscovery({ root: el('next-discovery'), primaryButton: el('next-discovery-primary'), onProgress: progress => runtime.update(progress),
   onPrimary: discovery => seams.primary(discovery, scope()) });
-function scope() { return { firstCampusCompletion, core15Funnel, mcmEventUi, progression, wallet, inventory, FIRST_CAMPUS_REWARD_ID, lobbyWorld, lobbyTransition, photoMode,
+function scope() { return { firstCampusCompletion, core15Funnel, mcmEventUi, progression, wallet, inventory, FIRST_CAMPUS_REWARD_ID, lobbyWorld, lobbyTransition, photoMode, cinematic,
   inputFocus, isElementVisible, document, navigation, main2GuideNavigationTarget, nextDiscovery, setNavigationTarget, showWorldStatus }; }
 const fetchQuest = async (url, options) => {
   const body = JSON.parse(options.body), account = state.account;
@@ -106,7 +113,7 @@ function visible() { return {
   reward: isElementVisible(document.querySelector('.mcm26-toast')),
   growth: isElementVisible(el('progression-hud')) || isElementVisible(el('progression-badge')),
   nextGoal: isElementVisible(el('next-discovery-primary')),
-  worldActionAllowed: inputFocus.can('WORLD_ACTION'), lobby: lobbyWorld.active || lobbyTransition.active, photo: photoMode.active,
+  worldActionAllowed: inputFocus.can('WORLD_ACTION'), lobby: lobbyWorld.active || lobbyTransition.active, photo: photoMode.active, cinematic: cinematic.active,
   progression: progression.status(), toastText: document.querySelector('.mcm26-toast').textContent
 }; }
 async function setAccount(account) {
@@ -137,6 +144,8 @@ state.setPhotoMode = value => {
   if (value) document.body.dataset.photoMode = 'active'; else delete document.body.dataset.photoMode;
   mcmEventUi.update(0);
 };
+state.startCinematic = () => cinematic.start(MAIN_GATE_REVEAL_V01);
+state.skipCinematic = () => cinematic.skip();
 state.queueExistingToast = (ms = 1200) => mcmEventUi.say('기존 안내 메시지', ms);
 state.status = () => ({ quest: quest.status(), progression: progression.status(), recovery: firstCampusCompletion.needsRecovery(),
   telemetry: core15Funnel.status(), navigation: navigation.getSnapshot(), visible: visible(), main2: main2.status(), dialogue: npcDialogueInput.active });
@@ -148,7 +157,14 @@ state.injectVisibilityForTest = hidden => {
 state.restoreNativeVisibility = () => { delete document.visibilityState; document.dispatchEvent(new Event('visibilitychange')); };
 document.addEventListener('visibilitychange', () => state.visibilityEvents.push({ state: document.visibilityState, at: Date.now() }));
 el('zone').textContent = '정문'; el('minimap').hidden = false; el('minimap').removeAttribute('data-minimap-state');
-function frame() {
+let previousFrameAt = null;
+function frame(at) {
+  const dt = previousFrameAt === null ? 0 : Math.max(0, (at - previousFrameAt) / 1000);
+  previousFrameAt = at;
+  // Match current main's early return: presentation observation resumes on the following frame.
+  if (cinematic.active) {
+    cinematic.update(dt); state.frameCount++; requestAnimationFrame(frame); return;
+  }
   mcmEventUi.update(1 / 60); questHud.update();
   navigationHud.render(navigation.getSnapshot(), { visible: !lobbyWorld.active && !lobbyTransition.active });
   seams.observe(scope()); state.frameCount++;

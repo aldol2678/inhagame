@@ -7,7 +7,7 @@ import { startSmoke } from './harness.mjs';
 import { chromium } from 'playwright';
 const output = process.env.PHOTO_MODE_QA_OUTPUT || 'test-results/inkyung-photo-mode';
 await mkdir(output, { recursive: true });
-const paths = ['src/photo/photo-mode.js', 'src/photo/photo-mode-panel.js', 'src/photo/inkyung-photo-point.js', 'src/main.js', 'styles.css'];
+const paths = ['src/photo/photo-capture.js', 'src/photo/photo-mode.js', 'src/photo/photo-mode-panel.js', 'src/photo/inkyung-photo-point.js', 'src/main.js', 'styles.css'];
 const report = { head: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
   scope: 'Real photo UI, OrbitCameraController, PlayerController and EmoteController; synthetic rendered background/avatar. Offline only, not full lake visual or live social QA.',
   sourceHashes: {}, checks: [], screenshots: [], status: 'RUNNING' };

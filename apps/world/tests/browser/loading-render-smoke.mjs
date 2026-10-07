@@ -31,7 +31,10 @@ try {
   assert.equal(status.model, 'glb');
   assert.equal(status.inert, false);
   await page.locator('#main-gate-start').tap();
-  await page.waitForFunction(() => window.__INHAGAME_P0__.lobbyWorld.active === false);
+  await page.waitForFunction(() => {
+    const d = window.__INHAGAME_P0__, s = d.getStatus();
+    return d.lobbyWorld.active === false && !s.cinematic?.active && d.controller.inputEnabled;
+  }, null, { timeout: TIMEOUT_MS });
   assert.deepEqual(smoke.problems, []);
   console.log('mobile loading render smoke: PASS', JSON.stringify(status));
 } catch (error) {

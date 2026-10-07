@@ -1,9 +1,9 @@
 import { FacilityMeshBatch } from './facility-mesh-batch.js';
-import { POND_RING, POND_TREE_SEATING, edgeFrame, pondSeatTrees, pondBankTrees } from './roadview-layout.js';
+import { POND_RING, POND_TREE_SEATING, edgeFrame, pondSeatTrees, pondBankTrees, pondPromenadeCells } from './roadview-layout.js';
 import { polygonOverlap } from './polygon-collision.js';
 import { FLAT_GROUND_Y as G } from './flat-ground-surface.js';
 
-export const POND_COLORS=Object.freeze({stone:'#b8b4a5',wood:'#776750',trunk:'#6c5942',leaves:'#527745',willow:'#64854a'});
+export const POND_COLORS=Object.freeze({stone:'#b8b4a5',path:'#74766f',wood:'#776750',trunk:'#6c5942',leaves:'#527745',willow:'#64854a'});
 
 const cross=(a,b,p)=>(b.x-a.x)*(p.z-a.z)-(b.z-a.z)*(p.x-a.x);
 function crosses(a,b,c,d){
@@ -28,6 +28,16 @@ function stoneShore(batch){
       if((b[2]-a[2])*(c[0]-a[0])-(b[0]-a[0])*(c[2]-a[2])<0)vertices.reverse();
       batch.quad(POND_COLORS.stone,...vertices);
     }
+  }
+}
+function promenade(batch){
+  // The canonical pond edge already owns this collision-safe three-metre strip.
+  // Render it as the missing lakeside pedestrian road rather than inventing a new surveyed line.
+  for(const ring of pondPromenadeCells()){
+    const vertices=ring.map(p=>[p.x,G.SURFACE,p.z]);
+    const [a,b,c]=vertices;
+    if((b[2]-a[2])*(c[0]-a[0])-(b[0]-a[0])*(c[2]-a[2])<0)vertices.reverse();
+    batch.quad(POND_COLORS.path,...vertices);
   }
 }
 function seatRing(batch,center){
@@ -57,6 +67,7 @@ function tree(batch,p,{seat=false}={}){
 
 export function fillPondSurroundingsBase(batch){
   stoneShore(batch);
+  promenade(batch);
   for(const {center} of pondSeatTrees()){seatRing(batch,center);tree(batch,center,{seat:true});}
   for(const p of pondBankTrees())tree(batch,p);
   return batch;

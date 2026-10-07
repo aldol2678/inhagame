@@ -1,6 +1,7 @@
 import { PHOTO_FRAME_LIMITS } from './photo-mode.js';
 
-export function createPhotoModePanel({ mode, doc = globalThis.document, win = globalThis.window, fallbackFocus = null } = {}) {
+export function createPhotoModePanel({ mode, doc = globalThis.document, win = globalThis.window, fallbackFocus = null,
+  capture = null, urlApi = globalThis.URL } = {}) {
   const el = (tag, cls, text) => { const n = doc.createElement(tag); n.className = cls; if (text) n.textContent = text; return n; };
   const root = el('section', 'photo-mode'); root.hidden = true;
   root.setAttribute('role', 'dialog'); root.setAttribute('aria-modal', 'true');
@@ -29,12 +30,66 @@ export function createPhotoModePanel({ mode, doc = globalThis.document, win = gl
     row.append(input); dock.append(row); ranges.push({ input, initial });
   }
   const pose = el('button', 'photo-mode-pose', '📸 사진 포즈'); pose.type = 'button'; pose.dataset.photoControl = 'pose';
-  const status = el('p', 'photo-mode-status', '기기의 화면 캡처로 남겨 보세요 · Esc로 나가기');
+  const save = el('button', 'photo-mode-save', 'PNG 저장'); save.type = 'button'; save.dataset.photoControl = 'save';
+  const preview = el('button', 'photo-mode-preview-toggle', '이미지 보기'); preview.type = 'button';
+  preview.dataset.photoControl = 'preview'; preview.hidden = true; preview.setAttribute('aria-expanded', 'false');
+  preview.setAttribute('aria-controls', 'photo-mode-preview');
+  const imageBox = el('div', 'photo-mode-preview'); imageBox.hidden = true; imageBox.id = 'photo-mode-preview';
+  const image = el('img', ''); image.alt = 'HUD 없는 인경호 사진'; image.dataset.photoControl = 'image'; imageBox.append(image);
+  const buttons = el('div', 'photo-mode-buttons'); buttons.append(save, preview, pose);
+  const initialStatus = capture ? 'PNG로 현재 장면 저장 · Esc로 나가기' : '기기의 화면 캡처로 남겨 보세요 · Esc로 나가기';
+  const status = el('p', 'photo-mode-status', initialStatus);
   status.dataset.photoControl = 'status'; status.setAttribute('role', 'status');
-  const note = el('p', 'photo-mode-note', '사진은 자동으로 저장되거나 업로드되지 않아요');
-  dock.append(pose, status, note); root.append(header, dock); doc.body.append(root);
-  let savedHud, savedFocus = null, destroyed = false;
-  const controls = () => dock.hidden ? [close, controlsToggle] : [close, controlsToggle, ...ranges.map(r => r.input), pose];
+  const note = el('p', 'photo-mode-note', '사진은 이 기기에서만 처리되며 업로드되지 않아요');
+  dock.append(buttons, imageBox, status, note); root.append(header, dock); doc.body.append(root);
+  let savedHud, savedFocus = null, destroyed = false, session = 0, busy = false, imageUrl = null;
+  const controls = () => (dock.hidden ? [close, controlsToggle] :
+    [close, controlsToggle, ...ranges.map(r => r.input), save, preview, pose]).filter(node => !node.hidden && !node.disabled);
+  function setBusy(value) {
+    busy = value; save.disabled = value || !capture; pose.disabled = value;
+    for (const { input } of ranges) input.disabled = value;
+    root.setAttribute('aria-busy', String(value)); save.textContent = value ? 'PNG 만드는 중…' : 'PNG 저장';
+  }
+  function clearImage() {
+    image.removeAttribute('src'); imageBox.hidden = true; preview.hidden = true;
+    preview.textContent = '이미지 보기'; preview.setAttribute('aria-expanded', 'false');
+    if (imageUrl) urlApi.revokeObjectURL(imageUrl);
+    imageUrl = null;
+  }
+  function resetCapture() { session++; capture?.cancel(); setBusy(false); clearImage(); }
+  setBusy(false);
+  save.addEventListener('click', async () => {
+    if (!capture || busy || destroyed || !mode.update()) return;
+    const current = session; clearImage(); setBusy(true); status.textContent = 'HUD 없는 PNG를 만들고 있어요…';
+    try {
+      const result = await capture.request();
+      if (destroyed || current !== session || !mode.update()) return;
+      imageUrl = urlApi.createObjectURL(result.blob); image.src = imageUrl; preview.hidden = false;
+      const link = el('a', '');
+      if (!('download' in link)) {
+        status.textContent = '이 브라우저는 PNG 다운로드를 지원하지 않아요. 이미지 보기를 눌러 직접 저장해 주세요';
+      } else {
+        link.href = imageUrl; link.download = `inha-world-${new Date().toISOString().replace(/[:.]/g, '-')}.png`;
+        link.hidden = true; root.append(link);
+        try {
+          link.click();
+          status.textContent = `PNG 다운로드를 요청했어요 (${result.width} × ${result.height}). 파일이 없으면 이미지 보기를 눌러 주세요`;
+        } catch {
+          status.textContent = 'PNG 다운로드가 막혔어요. 이미지 보기를 눌러 직접 저장해 주세요';
+        } finally { link.remove(); }
+      }
+    } catch (error) {
+      if (current === session && !destroyed && mode.active && error?.name !== 'AbortError')
+        status.textContent = 'PNG를 만들지 못했어요. 다시 시도하거나 조작을 숨기고 기기의 화면 캡처를 이용해 주세요';
+    } finally { if (current === session && !destroyed) setBusy(false); }
+  });
+  preview.addEventListener('click', () => {
+    if (!imageUrl || !mode.update()) return;
+    imageBox.hidden = !imageBox.hidden;
+    preview.textContent = imageBox.hidden ? '이미지 보기' : '이미지 닫기';
+    preview.setAttribute('aria-expanded', String(!imageBox.hidden));
+    if (!imageBox.hidden) status.textContent = '이미지를 길게 눌러 사진에 저장하거나, 우클릭으로 저장해 주세요. 기기마다 메뉴가 달라요';
+  });
   function showControls(visible) {
     const ownedFocus = dock.contains(doc.activeElement);
     dock.hidden = !visible;
@@ -44,11 +99,12 @@ export function createPhotoModePanel({ mode, doc = globalThis.document, win = gl
   }
   controlsToggle.addEventListener('click', () => showControls(dock.hidden));
   const unsubscribe = mode.subscribe(({ active, reason }) => {
+    resetCapture();
     if (active) {
       savedHud = doc.body.dataset.photoMode; savedFocus = doc.activeElement;
       doc.body.dataset.photoMode = 'active'; root.hidden = false; showControls(true);
       for (const { input, initial } of ranges) input.value = String(initial);
-      status.textContent = '기기의 화면 캡처로 남겨 보세요 · Esc로 나가기';
+      status.textContent = initialStatus;
       close.focus?.({ preventScroll: true });
     } else {
       const ownedFocus = root.contains(doc.activeElement);
@@ -64,6 +120,7 @@ export function createPhotoModePanel({ mode, doc = globalThis.document, win = gl
   });
   close.addEventListener('click', () => mode.close());
   pose.addEventListener('click', () => {
+    if (busy) return;
     const result = mode.pose();
     if (result === 'started') status.textContent = '사진 포즈! 잠시 후 다시 포즈를 취할 수 있어요';
     else if (result === 'cooldown') status.textContent = '잠깐 기다린 뒤 다시 포즈를 취해 주세요';
@@ -91,7 +148,7 @@ export function createPhotoModePanel({ mode, doc = globalThis.document, win = gl
   win?.addEventListener('blur', leave); win?.addEventListener('pagehide', leave);
   return Object.freeze({ root,
     destroy() {
-      if (destroyed) return; destroyed = true; mode.close('destroy'); unsubscribe();
+      if (destroyed) return; destroyed = true; mode.close('destroy'); resetCapture(); capture?.destroy(); unsubscribe();
       doc.removeEventListener('keydown', keydown); doc.removeEventListener('visibilitychange', visibility);
       win?.removeEventListener('blur', leave); win?.removeEventListener('pagehide', leave);
       root.removeEventListener('pointerdown', stop); root.remove();

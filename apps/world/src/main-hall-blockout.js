@@ -78,7 +78,7 @@ export function buildMainHallBlockout(root,ids,tier='BASE',{mainHallDetail='exis
   }
   if(!ids.includes('bldg_jungseok'))return;
   if(tier==='BASE')buildLibraryApproaches(root);
-  if(tier==='DETAIL')buildLibraryWest(root);
+  if(tier==='BASE'||tier==='DETAIL')buildLibraryWest(root,tier);
   const libraryDetails=new FacilityMeshBatch();
   fillPhotoLibraryFront(libraryDetails,tier);
   for(const part of LIBRARY_ROOF_PARTS){

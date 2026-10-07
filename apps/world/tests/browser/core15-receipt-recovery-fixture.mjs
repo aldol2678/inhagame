@@ -58,6 +58,7 @@ export async function createReceiptFixture() {
   const main = await readFile(resolve(worldRoot, 'src/main.js'), 'utf8');
   const npc = await readFile(resolve(worldRoot, 'npc-factory/dev-runtime.mjs'), 'utf8');
   const styles = await readFile(resolve(worldRoot, 'styles.css'), 'utf8');
+  const cinematicSources = await Promise.all(['cinematic.css', 'src/cinematic/cinematic-director.js', 'src/cinematic/main-gate-reveal.js'].map(async path => [path, await readFile(resolve(worldRoot, path), 'utf8')]));
   const reward = between(main, '      onQuestReward: ', ',\n      getAiSession:');
   const observe = '  if (!lobbyWorld.active && !lobbyTransition.active) firstCampusCompletion.observe({' +
     between(main, '  if (!lobbyWorld.active && !lobbyTransition.active) firstCampusCompletion.observe({', '\n  resumeStore.maybeSave');
@@ -65,7 +66,7 @@ export async function createReceiptFixture() {
   const primary = between(discoveryBlock, '  onPrimary: ', '\n});');
   const navigationTarget = between(main, 'const main2GuideNavigationTarget = ', '\nnextDiscovery =');
   const panel = 'function addPanel(' + between(npc, 'function addPanel(', '\nexport async function createNpcDevRuntime');
-  const scope = 'firstCampusCompletion, core15Funnel, mcmEventUi, progression, wallet, inventory, FIRST_CAMPUS_REWARD_ID, lobbyWorld, lobbyTransition, photoMode, inputFocus, isElementVisible, document, navigation, main2GuideNavigationTarget, nextDiscovery, setNavigationTarget, showWorldStatus';
+  const scope = 'firstCampusCompletion, core15Funnel, mcmEventUi, progression, wallet, inventory, FIRST_CAMPUS_REWARD_ID, lobbyWorld, lobbyTransition, photoMode, cinematic, inputFocus, isElementVisible, document, navigation, main2GuideNavigationTarget, nextDiscovery, setNavigationTarget, showWorldStatus';
   const seams = `export function reward(reward, scope) { const {${scope}} = scope; return (${reward})(reward); }\n` +
     `export function observe(scope) { const {${scope}} = scope; ${observe} }\n` +
     `export function primary(discovery, scope) { const {${scope}} = scope; return (${primary})(discovery); }\n` +
@@ -75,7 +76,7 @@ export async function createReceiptFixture() {
   new Function(seams.replaceAll('export ', ''));
   const topbar = html.match(/<header class="campus-topbar"[\s\S]*?<\/header>/)?.[0];
   assert.ok(topbar);
-  const documentHtml = `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>CORE-15 synthetic component integration</title><link rel="stylesheet" href="/styles.css"></head><body data-space="campus">${topbar}${['progression-hud', 'quest-hud', 'minimap', 'nav-guidance', 'hud-menu', 'follow-status', 'context-action', 'transport-action'].map(id => element(html, id)).join('\n')}<script type="module" src="/tests/browser/core15-receipt-recovery-page.mjs"></script></body></html>`;
+  const documentHtml = `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>CORE-15 synthetic component integration</title><link rel="stylesheet" href="/styles.css"><link rel="stylesheet" href="/cinematic.css"></head><body data-space="campus">${topbar}${['progression-hud', 'quest-hud', 'minimap', 'nav-guidance', 'hud-menu', 'follow-status', 'context-action', 'transport-action'].map(id => element(html, id)).join('\n')}<script type="module" src="/tests/browser/core15-receipt-recovery-page.mjs"></script></body></html>`;
   const accounts = new Map(), rpcCalls = [], requests = [], telemetry = [], failures = [];
   const holds = new Map();
   function seed(account, options = {}) {
@@ -165,7 +166,7 @@ export async function createReceiptFixture() {
   return {
     origin: `http://127.0.0.1:${server.address().port}`, seed, get, release, holds, requests, rpcCalls, telemetry, failures, seams,
     ledgerSummary: () => Object.fromEntries([...accounts].map(([account, row]) => [account, { stage: row.stage, syntheticGrants: row.grants, receiptId: row.receipt?.rewardTransactionId ?? null }])),
-    sourceHashes: Object.fromEntries([['main.js', main], ['campus/index.html', html], ['styles.css', styles], ['npc-factory/dev-runtime.mjs', npc]].map(([path, source]) => [path, createHash('sha256').update(source).digest('hex')])),
+    sourceHashes: Object.fromEntries([['main.js', main], ['campus/index.html', html], ['styles.css', styles], ['npc-factory/dev-runtime.mjs', npc], ...cinematicSources].map(([path, source]) => [path, createHash('sha256').update(source).digest('hex')])),
     async close() { for (const key of holds.keys()) release(key); server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); }
   };
 }

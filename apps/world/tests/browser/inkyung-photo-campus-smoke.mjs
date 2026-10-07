@@ -16,7 +16,7 @@ const output = process.env.PHOTO_MODE_QA_OUTPUT || 'test-results/inkyung-photo-c
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 const git = (...args) => execFileSync('git', args, { cwd: repo });
 const sources = ['campus/index.html', 'src/main.js', 'styles.css',
-  'src/photo/photo-mode.js', 'src/photo/photo-mode-panel.js', 'src/photo/inkyung-photo-point.js',
+  'src/photo/photo-capture.js', 'src/photo/photo-mode.js', 'src/photo/photo-mode-panel.js', 'src/photo/inkyung-photo-point.js',
   'src/orbit-camera-controller.js', 'src/context-action.js', 'src/player-controller.js',
   'npc-factory/dev-runtime.mjs', 'src/world-scale.js', 'src/character-model.js',
   'npc-factory/npc-world-time-contract.mjs', 'npc-factory/npc-world-clock.mjs',
@@ -72,6 +72,43 @@ const snapshot = page => page.evaluate(() => {
     emote: s.emote?.id ?? null, space: s.space, action: s.contextAction,
     frame: d.app.frame, grounded: d.controller.grounded, mounted: d.controller.mounted };
 });
+async function saveCampusPhoto(page, name, mobile) {
+  const dimensions = await page.locator('#application').evaluate(canvas => ({ width: canvas.width, height: canvas.height }));
+  const before = await snapshot(page);
+  const button = page.locator('[data-photo-control="save"]');
+  const [download] = await Promise.all([page.waitForEvent('download'), mobile ? button.tap() : button.click()]);
+  const file = `${name}-saved-photo-${dimensions.width}x${dimensions.height}.png`;
+  assert.match(download.suggestedFilename(), /^inha-world-.*\.png$/);
+  await download.saveAs(`${output}/${file}`); assert.equal(await download.failure(), null);
+  const bytes = await readFile(`${output}/${file}`);
+  assert.deepEqual([...bytes.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
+  assert.equal(bytes.readUInt32BE(16), dimensions.width); assert.equal(bytes.readUInt32BE(20), dimensions.height);
+  const decoded = await page.evaluate(async base64 => {
+    const raw = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+    const bitmap = await createImageBitmap(new Blob([raw], { type: 'image/png' }));
+    const canvas = document.createElement('canvas'); canvas.width = bitmap.width; canvas.height = bitmap.height;
+    const context = canvas.getContext('2d', { willReadFrequently: true }); context.drawImage(bitmap, 0, 0);
+    const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data, bins = new Set();
+    let opaque = 0;
+    for (let i = 0; i < pixels.length; i += 4) {
+      if (pixels[i + 3] === 255) opaque++;
+      if (i % 64 === 0) bins.add(`${pixels[i] >> 4},${pixels[i + 1] >> 4},${pixels[i + 2] >> 4}`);
+    }
+    const hash = [...new Uint8Array(await crypto.subtle.digest('SHA-256', pixels))].map(n => n.toString(16).padStart(2, '0')).join('');
+    const result = { width: canvas.width, height: canvas.height, opaque, colorBins: bins.size, rgbaSha256: hash };
+    bitmap.close(); canvas.width = canvas.height = 0; return result;
+  }, bytes.toString('base64'));
+  assert.equal(decoded.width, dimensions.width); assert.equal(decoded.height, dimensions.height);
+  assert.equal(decoded.opaque, dimensions.width * dimensions.height);
+  assert.ok(decoded.colorBins > 12, 'Actual-campus saved PNG must not be blank');
+  assert.match(await page.locator('[data-photo-control="status"]').textContent(), /다운로드.*요청/);
+  const after = await snapshot(page);
+  assert.equal(after.active, true); assert.deepEqual(after.camera, before.camera); assert.deepEqual(after.position, before.position);
+  // Continue the existing native keyboard assertions from their original focus anchor.
+  await page.locator('[data-photo-control="close"]').focus();
+  return { file, kind: 'Actual campus PNG downloaded by the production save button', bytes: bytes.length,
+    sha256: sha256(bytes), ...decoded };
+}
 const characterStatus = page => page.evaluate(() => {
   const d = window.__INHAGAME_P0__;
   return { modelState: d.character.modelState, carrierModelState: d.character.dragonModelState,
@@ -402,21 +439,69 @@ async function runCase(startSmoke, TIMEOUT_MS, name, viewport, mobile) {
   const entry = { name, viewport, mobile, status: 'RUNNING', checks: [], screenshots: [] };
   report.cases.push(entry);
   let smoke, page;
+  let stage = 'boot';
+  const clockSamples = [];
   try {
-    smoke = await startSmoke({ viewport, contextOptions: { isMobile: mobile, hasTouch: mobile, deviceScaleFactor: 1 } });
+    smoke = await startSmoke({ viewport, contextOptions: { isMobile: mobile, hasTouch: mobile, deviceScaleFactor: 1, acceptDownloads: true } });
     page = await smoke.context.newPage(); page.setDefaultTimeout(15_000);
     const fatal = smoke.watch(page);
     const clockStarted = performance.now(), clockBase = NPC_WORLD_EPOCH_MS + NPC_WORLD_PERIOD_MS + 60_000;
     entry.clockFixture = { endpoint: '/api/world-time', basePayload: worldTimePayload(clockBase),
       mode: 'class_time+60s advancing with real monotonic elapsed time',
       observationWindow: { startOffsetSeconds: 60, exclusiveEndOffsetSeconds: 470, maxElapsedMs: 410_000 },
-      rationale: 'Real shared schedule sampled every 0.5s across the entire 900s class_time period: the chosen full path is clear from +60 through +470s; NPC010 enters its clearance band at +474.5s.', requests: [] };
+      rationale: 'Real shared schedule sampled every 0.5s across the entire 900s class_time period: the chosen full path is clear from +60 through +470s; NPC010 enters its clearance band at +474.5s.', requests: [], network: [], routeFailures: [], browserFailures: [] };
+    const elapsed = () => Math.floor(performance.now() - clockStarted);
+    const clockRequests = new Map();
+    const clockRecord = request => {
+      if (new URL(request.url()).pathname !== '/api/world-time') return null;
+      if (!clockRequests.has(request)) {
+        const record = { id: clockRequests.size + 1, stage, startedMs: elapsed() };
+        clockRequests.set(request, record); entry.clockFixture.network.push(record);
+      }
+      return clockRequests.get(request);
+    };
+    page.on('request', clockRecord);
+    page.on('response', response => {
+      const record = clockRecord(response.request());
+      if (record) Object.assign(record, { status: response.status(), responseMs: elapsed() });
+    });
+    page.on('requestfinished', request => {
+      const record = clockRecord(request);
+      if (record) Object.assign(record, { finishedMs: elapsed(), timing: request.timing() });
+    });
+    page.on('requestfailed', request => {
+      const record = clockRecord(request);
+      if (!record) return;
+      Object.assign(record, { failedMs: elapsed(), failureStage: stage, error: request.failure()?.errorText,
+        timing: request.timing() });
+      clockSamples.push(page.evaluate(() => window.__INHAGAME_P0__?.getStatus?.().npcTest?.shared_schedule ?? null)
+        .then(clock => { record.clockAfterFailure = clock; })
+        .catch(error => { record.clockSampleError = String(error); }));
+    });
+    const networkSession = await smoke.context.newCDPSession(page);
+    const browserClockRequests = new Set();
+    await networkSession.send('Network.enable');
+    networkSession.on('Network.requestWillBeSent', event => {
+      if (new URL(event.request.url).pathname === '/api/world-time') browserClockRequests.add(event.requestId);
+    });
+    networkSession.on('Network.loadingFailed', event => {
+      if (browserClockRequests.has(event.requestId)) entry.clockFixture.browserFailures.push({
+        elapsedMs: elapsed(), stage, requestId: event.requestId, error: event.errorText,
+        canceled: event.canceled ?? false, blockedReason: event.blockedReason ?? null, type: event.type });
+    });
     // Existing NPC smokes use this same valid server contract. The real shared schedule and
     // every actor remain active; runner wall time cannot accidentally select a different crowd.
-    await page.route(`${smoke.origin}/api/world-time`, route => {
+    await page.route(`${smoke.origin}/api/world-time`, async route => {
       const elapsedMs = Math.floor(performance.now() - clockStarted), payload = worldTimePayload(clockBase + elapsedMs);
-      entry.clockFixture.requests.push({ elapsedMs, serverNowMs: payload.serverNowMs });
-      return route.fulfill({ status: 200, contentType: 'application/json', headers: { 'cache-control': 'no-store' }, body: JSON.stringify(payload) });
+      const record = { elapsedMs, stage, serverNowMs: payload.serverNowMs };
+      entry.clockFixture.requests.push(record);
+      try {
+        await route.fulfill({ status: 200, contentType: 'application/json', headers: { 'cache-control': 'no-store' }, body: JSON.stringify(payload) });
+        record.fulfilledMs = elapsed();
+      } catch (error) {
+        record.fulfillError = String(error); entry.clockFixture.routeFailures.push(record);
+        throw error;
+      }
     });
     await page.goto(`${smoke.origin}/campus/?npcSync=ng2&mechanicalDuck=1&envTime=day&envWeather=clear`, { waitUntil: 'domcontentloaded', timeout: TIMEOUT_MS });
     await Promise.race([page.waitForFunction(() => {
@@ -449,6 +534,7 @@ async function runCase(startSmoke, TIMEOUT_MS, name, viewport, mobile) {
     assert.deepEqual(entry.servedHashes, report.sourceHashes);
     entry.checks.push('Actual production boot, real NPC runtime, served/local/committed SHA-256 match');
 
+    stage = 'approach-and-mechanical-duck';
     entry.approach = await placeApproach(page); await frames(page, 6);
     await page.waitForFunction(() => window.__INHAGAME_P0__.contextActions.active?.id === 'inkyung-photo-mode');
     entry.approachDiagnostics = await interactionDiagnostics(page);
@@ -469,6 +555,7 @@ async function runCase(startSmoke, TIMEOUT_MS, name, viewport, mobile) {
     assert.ok(Math.hypot(entry.walk.position[0] - initial.position[0], entry.walk.position[2] - initial.position[2]) >= .1);
     entry.checks.push('Native W movement on a collider/water-checked approach outside NPC talk radius');
 
+    stage = 'photo-entry-and-default-frame';
     if (!mobile) {
       await canvas.click({ position: { x: viewport.width / 2, y: viewport.height / 2 } });
       // The browser changes pointerLockElement before dispatching pointerlockchange.
@@ -513,6 +600,10 @@ async function runCase(startSmoke, TIMEOUT_MS, name, viewport, mobile) {
     assert.equal(entry.defaultComposition.playerProjection.inFrame, true, 'Local avatar remains inside the default composition');
     if (entry.characterAtDefault.modelState !== 'glb') report.warnings.push(`${name}: avatar modelState=${entry.characterAtDefault.modelState}; inspect fallback rendering separately`);
     entry.checks.push(`${mobile ? 'Native touch' : 'Native F with real Pointer Lock'} entry, HUD hidden, photo owns focus`);
+    stage = 'actual-campus-png-download';
+    entry.downloads = [await saveCampusPhoto(page, name, mobile)];
+    entry.checks.push('Native save button downloads an opaque, nonblank, decoded PNG at the actual render resolution without changing the photo camera');
+    stage = 'photo-controls-and-clear-frame';
     for (const selector of ['.photo-mode-dock', '[data-photo-control="close"]', '[data-photo-control="controls"]', '[data-photo-control="yaw"]', '[data-photo-control="pitch"]', '[data-photo-control="distance"]']) {
       const box = await page.locator(selector).boundingBox();
       assert.ok(box && box.x >= -1 && box.y >= -1 && box.x + box.width <= viewport.width + 1 && box.y + box.height <= viewport.height + 1, `${selector} is on-screen at ${name}`);
@@ -594,6 +685,7 @@ async function runCase(startSmoke, TIMEOUT_MS, name, viewport, mobile) {
       assert.equal((await snapshot(page)).pointerLock.awaitingGesture, true);
     }
     entry.checks.push('All native sliders, focus wrap, real avatar pose, blocked movement, close/HUD/camera/focus restoration');
+    stage = 'repeated-photo-lifecycle';
     for (let cycle = 0; cycle < 5; cycle++) {
       if (mobile) await page.locator('#context-action').tap(); else { await canvas.focus(); await page.keyboard.press('KeyF'); }
       await waitPhoto(page, true); await page.keyboard.press('Escape'); await waitPhoto(page, false);
@@ -615,6 +707,7 @@ async function runCase(startSmoke, TIMEOUT_MS, name, viewport, mobile) {
     await page.keyboard.press('Escape'); await waitPhoto(page, false);
     restored(await snapshot(page), lakeBefore, 'Lake-facing native look');
     entry.checks.push('Separately labelled real lake-facing screenshot reached by native gameplay camera drag');
+    stage = 'first-person-blur-and-room-takeover';
 
     if (!mobile) {
       await canvas.focus(); await page.keyboard.press('KeyV');
@@ -651,6 +744,7 @@ async function runCase(startSmoke, TIMEOUT_MS, name, viewport, mobile) {
       assert.equal(returned.camera.pitch, normal.camera.pitch);
       assert.equal(returned.focus.activeClaimCount, 0); assert.equal(returned.input, true);
       entry.checks.push('Native V first-person restoration; production blur handler; real Club Room takeover and campus return');
+      stage = 'npc-dialogue-priority';
 
       // Real NPC priority at the same lake anchor; never inject a fabricated context action.
       entry.npcPriority = await page.evaluate(async () => {
@@ -687,6 +781,10 @@ async function runCase(startSmoke, TIMEOUT_MS, name, viewport, mobile) {
     }
     entry.clockFixture.observedElapsedMs = Math.floor(performance.now() - clockStarted);
     entry.clockAtEnd = await page.evaluate(() => window.__INHAGAME_P0__.getStatus().npcTest?.shared_schedule);
+    await Promise.all(clockSamples);
+    assert.equal(entry.clockAtEnd.state, 'SYNCED', 'Shared clock remains synchronized after photo lifecycle checks');
+    assert.equal(entry.clockAtEnd.lastError, null);
+    assert.deepEqual(entry.clockFixture.routeFailures, [], 'Clock fixture responses must finish successfully');
     assert.ok(entry.clockFixture.observedElapsedMs < entry.clockFixture.observationWindow.maxElapsedMs,
       'Authored NPC fixture exceeded class_time+470s; rerun on a sufficiently responsive runner rather than accept crowd drift');
     assert.deepEqual(smoke.problems, [], 'No browser/runtime/same-origin errors');

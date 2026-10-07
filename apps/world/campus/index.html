@@ -6,6 +6,7 @@
   <meta name="theme-color" content="#101722" />
   <title>INHAGAME Campus · 인덕이와 안뇽이</title>
   <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/cinematic.css" />
   <!-- Auth config must execute before module imports snapshot the shared account config. -->
   <script src="/api/public-supabase-config"></script>
   <script type="importmap">
@@ -36,6 +37,7 @@
   </section>
   <script type="module" src="/src/lobby/lobby-loading.js"></script>
   <canvas id="application" tabindex="-1" aria-label="INHAGAME Campus 3D canvas"></canvas>
+  <button id="cinematic-skip" class="cinematic-skip" type="button" aria-label="연출 건너뛰기" hidden>건너뛰기</button>
   <p id="pointer-lock-hint" class="pointer-lock-hint" role="status" aria-live="polite" hidden></p>
   <div id="lobby-transition-fade" class="lobby-transition-fade" aria-hidden="true" hidden></div>
   <section id="world-lobby" class="world-lobby" aria-label="INHA WORLD 메인 로비" data-p0-stage="shell" hidden>
@@ -490,8 +492,12 @@
   </section>
   <script>
     try {
-      const config = JSON.parse(localStorage.getItem('inhagame-campus-settings-v1') || '{}');
-      if (config.side === 'right') document.body.classList.add('joystick-right');
+      const legacy = JSON.parse(localStorage.getItem('inhagame-campus-settings-v1') || '{}');
+      const device = JSON.parse(localStorage.getItem('inhagame-device-settings-v2') || '{}');
+      const side = ['left', 'right'].includes(legacy?.side)
+        ? legacy.side
+        : device?.controls?.joystickSide;
+      if (side === 'right') document.body.classList.add('joystick-right');
     } catch { /* Use default controls when local storage is unavailable. */ }
   </script>
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>

@@ -312,7 +312,10 @@ try {
       assert.equal(boot.renderer, 'WebGL2'); assert.equal(boot.loading.phase, 'READY');
       entry.boot = { renderer: boot.renderer, loading: boot.loading, npcMode: boot.npcMode ?? null };
       await action(page.locator('#main-gate-start'));
-      await wait(() => { const s = window.__INHAGAME_P0__.getStatus(); return !s.lobby.active && !s.lobbyTransition.active; });
+      await wait(() => {
+        const d = window.__INHAGAME_P0__, s = d.getStatus();
+        return !s.lobby.active && !s.lobbyTransition.active && !s.cinematic?.active && d.controller.inputEnabled;
+      });
       await evaluate(() => document.fonts.ready);
       entry.campusBefore = await state(page);
       assert.equal(entry.campusBefore.minimap.mapSourceId, 'campus');

@@ -97,10 +97,9 @@ test("Shop, Inventory and Wardrobe use BLOCKING_UI owners before closing sibling
   }
 });
 
-test("Lobby and lobby transition use SYSTEM_LOCK owners", () => {
-  for (const owner of ["lobby-world", "lobby-transition"]) {
-    assert.match(main, new RegExp(`ownerId: "${owner}".*policy: INPUT_FOCUS_POLICY\\.SYSTEM_LOCK`, "s"));
-  }
+test("Lobby stays SYSTEM_LOCK while the entry transition preserves desktop Pointer Lock", () => {
+  assert.match(main, /ownerId: "lobby-world".*policy: INPUT_FOCUS_POLICY\.SYSTEM_LOCK/s);
+  assert.match(main, /ownerId: "lobby-transition"[\s\S]*priority: INPUT_FOCUS_POLICY\.SYSTEM_LOCK\.priority \+ 10[\s\S]*pointerLockDesired: true/s);
   assert.match(main, /createLobbyWorldMode\(\{[\s\S]*onActiveChange:\s*\(active\)\s*=>\s*\{[\s\S]*lobbyWorldInput\.acquire\(\)[\s\S]*lobbyWorldInput\.release\(\)/s);
   assert.match(main, /createLobbyTransition\(\{[\s\S]*onActiveChange:\s*\(active\)\s*=>\s*\{[\s\S]*lobbyTransitionInput\.acquire\(\)[\s\S]*lobbyTransitionInput\.release\(\)/s);
   assert.match(main, /lobbyWorld:\s*lobbyWorldInput\.active/);

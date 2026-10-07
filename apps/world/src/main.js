@@ -28,6 +28,7 @@ import { createEnvironmentWorldTime } from './environment/environment-world-time
 import { createWorldTimeHud } from './hud/world-time-hud.js';
 import { createNpcWorldClock } from '../npc-factory/npc-world-clock.mjs';
 import { createNightStreetLights } from './environment/night-street-lights.js';
+import { createTrafficSignals } from './traffic-signal-renderer.js';
 import { createNightBuildingWindows } from './environment/night-building-windows.js';
 import { createRainWeatherEffects } from './environment/rain-weather-effects.js';
 import { createSnowWeatherEffects } from './environment/snow-weather-effects.js';
@@ -62,6 +63,7 @@ import { createSeatInteraction } from "./seat-interaction.js";
 import { campusSpawn } from './campus-spawn.js';
 import { createContextActionController } from "./context-action.js";
 import { createPhotoMode } from "./photo/photo-mode.js";
+import { createPhotoCapture } from "./photo/photo-capture.js";
 import { createPhotoModePanel } from "./photo/photo-mode-panel.js";
 import { createInkyungLivingMoment, INKYUNG_LIVING_ZONE_ID } from "./inkyung-living-moment.js";
 import { createNextDiscovery, FIRST_CAMPUS_REWARD_ID } from "./next-discovery.js";
@@ -109,6 +111,8 @@ import { createWorldResumeStore } from "./lobby/world-resume.js";
 import { bindResumeEntry } from "./lobby/lobby-resume.js";
 import { bindLockedBackGate } from "./lobby/lobby-back-gate.js";
 import { createLobbyTransition } from "./lobby/lobby-transition.js";
+import { createCinematicDirector } from "./cinematic/cinematic-director.js";
+import { MAIN_GATE_REVEAL_V01 } from "./cinematic/main-gate-reveal.js";
 import { createLobbyMenu } from "./lobby/lobby-menu.js";
 import { createLobbyPlayerSummary } from "./lobby/lobby-player-summary.js";
 import { createLobbyPresenceSummary } from "./lobby/lobby-presence-summary.js";
@@ -408,6 +412,13 @@ window.__INHAGAME_NIGHT_LIGHTS__ = Object.freeze({
   status: () => nightStreetLights.status()
 });
 
+// Main Gate / Dormitory 1 junction: one shared deterministic controller drives every signal head.
+const trafficSignals = createTrafficSignals({ root: campusRoot });
+app.on("update", dt => trafficSignals.update(dt));
+window.__INHAGAME_TRAFFIC_SIGNALS__ = Object.freeze({
+  status: () => trafficSignals.status()
+});
+
 const nightBuildingWindows = createNightBuildingWindows({
   root: campusRoot,
   app,
@@ -618,7 +629,16 @@ const lobbyWorldInput = createInputFocusOwner({
   manager: inputFocus, ownerId: "lobby-world", policy: INPUT_FOCUS_POLICY.SYSTEM_LOCK
 });
 const lobbyTransitionInput = createInputFocusOwner({
-  manager: inputFocus, ownerId: "lobby-transition", policy: INPUT_FOCUS_POLICY.SYSTEM_LOCK
+  manager: inputFocus,
+  ownerId: "lobby-transition",
+  // Entry is still a SYSTEM_LOCK, but it outranks the lobby's own lock and keeps
+  // desktop Pointer Lock alive while the fade/camera blend runs.
+  policy: Object.freeze({
+    ...INPUT_FOCUS_POLICY.SYSTEM_LOCK,
+    priority: INPUT_FOCUS_POLICY.SYSTEM_LOCK.priority + 10,
+    cursor: "HIDDEN",
+    pointerLockDesired: true
+  })
 });
 const profileInput = createInputFocusOwner({
   manager: inputFocus, ownerId: "profile", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
@@ -774,7 +794,18 @@ const lobbyTransition = createLobbyTransition({
     else lobbyTransitionInput.release();
   }
 });
+const cinematic = createCinematicDirector({
+  camera,
+  inputFocus,
+  root: document.body,
+  skipButton: document.getElementById("cinematic-skip")
+});
+window.addEventListener("pagehide", event => {
+  if (!event.persisted) cinematic.destroy();
+});
 let npcTest = null;
+// Lobby readers only need the quest slice; the full getStatus() snapshot walks every NPC.
+const npcQuestStatus = () => npcTest?.getQuestStatus?.() ?? npcTest?.getStatus?.() ?? null;
 const questRuntime = createQuestRuntime();
 let questJournal = null;
 let questHud = null;
@@ -787,7 +818,7 @@ let biryongCloudSaveTimer = null;
 let biryongResolvedAccountId = null;
 const lobbySpawnRegistry = createSpawnRegistry();
 const spawnProgressContext = () => ({
-  completedQuestIds: npcTest?.getStatus?.().quest?.complete === true ? [QUEST_ID] : []
+  completedQuestIds: npcQuestStatus()?.quest?.complete === true ? [QUEST_ID] : []
 });
 const mainGateSpawn = lobbySpawnRegistry.get(SPAWN_ID.MAIN_GATE, spawnProgressContext());
 const backGateSpawn = lobbySpawnRegistry.get(SPAWN_ID.BACK_GATE, spawnProgressContext());
@@ -798,7 +829,8 @@ const mainGateEntry = bindMainGateEntry({
   player,
   lobbyWorld,
   spawnDefinition: mainGateSpawn,
-  transition: lobbyTransition
+  transition: lobbyTransition,
+  onEntered: () => cinematic.start(MAIN_GATE_REVEAL_V01)
 });
 const resumeStore = createWorldResumeStore();
 const resumeEntry = bindResumeEntry({
@@ -867,7 +899,7 @@ const lobbyQuestHighlight = createLobbyQuestHighlight({
   objectiveElement: document.getElementById("lobby-quest-objective"),
   progressElement: document.getElementById("lobby-quest-progress"),
   getTourStage: () => tour.stage,
-  getQuest: () => npcTest?.getStatus?.() ?? null,
+  getQuest: npcQuestStatus,
   getSignedIn: () => profile.signedIn === true
 });
 let rooms = null;
@@ -1649,7 +1681,8 @@ const photoMode = createPhotoMode({
   requestPose: () => requestEmote("photo_pose"),
   cancelPose: () => { if (emotes.active?.id === "photo_pose") emotes.cancel("photo-mode-close"); }
 });
-const photoModePanel = createPhotoModePanel({ mode: photoMode, fallbackFocus: canvas });
+const photoModePanel = createPhotoModePanel({ mode: photoMode, fallbackFocus: canvas,
+  capture: createPhotoCapture({ app, canvas, mode: photoMode }) });
 window.addEventListener("pagehide", event => {
   photoMode.close("lifecycle");
   if (!event.persisted) { photoModePanel.destroy(); photoMode.destroy(); }
@@ -1932,8 +1965,13 @@ const syncAudio = () => {
   const placeId = space === "campus" && isNearBiryong(player.getLocalPosition()) ? BIRYONG_PLACE_ID : null;
   const key = `${space}:${placeZoneId ?? ""}:${placeId ?? ""}`;
   if (key === lastAudioState) return;
+  const leavingLobby = lastAudioState.startsWith("lobby:") && space !== "lobby";
   lastAudioState = key;
-  worldAudio.setState({ space, placeZoneId, placeId });
+  const state = { space, placeZoneId, placeId };
+  if (!leavingLobby) { worldAudio.setState(state); return; }
+  // Starting the campus ambience synthesizes its buffers; keep that out of the START frame.
+  const defer = globalThis.requestIdleCallback ?? (fn => setTimeout(fn, 0));
+  defer(() => { if (lastAudioState === key) worldAudio.setState(state); }, { timeout: 300 });
 };
 rooms.onChange(syncAudio);
 biryongRealm.onChange(syncAudio);
@@ -2416,6 +2454,7 @@ nextDiscovery = createNextDiscovery({
   root: document.getElementById("next-discovery"),
   primaryButton: document.getElementById("next-discovery-primary"),
   onProgress: progress => questRuntime.update(progress),
+  onRetry: () => npcTest?.refreshMain2Quest?.(),
   onPrimary: discovery => {
     if (discovery?.id !== "main2_back_gate_guide") return false;
     const started = setNavigationTarget(main2GuideNavigationTarget());
@@ -2762,23 +2801,28 @@ async function loadOptionalNpcRuntime() {
   if (!npcEnabled) return null;
   let npcAiEnabled = npcAiPilotMode;
   let npcJevEnabled = false;
+  let npcRelationshipEnabled = false;
   let npcSharedAuthorityEnabled = npcSharedAuthorityPreviewMode;
   let npcQuestEnabled = npcTestMode || (npcPreviewMode && startupParams.get('backGateArrival') === 'preview');
   // CORE-15: each flag probe is bounded, so a slow AI flag never holds the NPCs or the first quest.
   // A transient quest-flag failure starts the NPCs with the quest off and turns it on once it resolves.
   let questFlagPending = false;
+  let relationshipFlagPending = false;
   if (npcProductionMode) {
-    const [aiResult, questResult, jevResult, sharedAuthorityResult] = await Promise.all([
+    const [aiResult, questResult, jevResult, sharedAuthorityResult, relationshipResult] = await Promise.all([
       probeFeatureFlag('/api/npc-ai'),
       probeFeatureFlag('/api/world-quest'),
       probeFeatureFlag('/api/npc-dialogue-route'),
-      probeFeatureFlag('/api/npc-shared-state')
+      probeFeatureFlag('/api/npc-shared-state'),
+      probeFeatureFlag('/api/npc-relationship')
     ]);
     npcAiEnabled = aiResult === FLAG_ENABLED;
     npcJevEnabled = jevResult === FLAG_ENABLED;
+    npcRelationshipEnabled = relationshipResult === FLAG_ENABLED;
     npcSharedAuthorityEnabled = sharedAuthorityResult === FLAG_ENABLED;
     npcQuestEnabled = questResult === FLAG_ENABLED;
     questFlagPending = questResult === FLAG_UNAVAILABLE;
+    relationshipFlagPending = relationshipResult === FLAG_UNAVAILABLE;
   }
   try {
     const module = await import('../npc-factory/dev-runtime.mjs');
@@ -2790,6 +2834,8 @@ async function loadOptionalNpcRuntime() {
       sharedAuthorityEndpoint: '/api/npc-shared-state',
       getSharedAuthorityPlaceZoneId: () => places.getCurrentPlaceZone()?.id ?? null,
       recastRuntimeShadowEnabled: npcRecastRuntimeShadowMode,
+      // The lobby keeps quest/status readbacks only; NPC simulation and route compilation wait for START.
+      isSimulationHeld: () => lobbyWorld.active,
       onNpcTalk: (id, now) => online?.network?.setNpcTalk(id, now),
       getBusyNpcIds: now => busyNpcIds(online?.network?.remotes.inZone(online.network.placeZoneId) ?? [], now),
       production: npcSharedScheduleMode || npcProductionMode || npcPreviewMode || npcRosterPreviewMode || npcSocialPreviewMode || npcObservedConversationMode,
@@ -2806,6 +2852,8 @@ async function loadOptionalNpcRuntime() {
       aiEndpoint: npcAiPilotMode ? '/npc-ai/decide' : '/api/npc-ai',
       jevEnabled: npcJevEnabled,
       jevEndpoint: '/api/npc-dialogue-route',
+      relationshipEnabled: npcRelationshipEnabled,
+      relationshipEndpoint: '/api/npc-relationship',
       questEnabled: npcQuestEnabled,
       questEndpoint: npcTestMode ? '/npc-quest' : '/api/world-quest',
       sideEvent: inkyungSideEvent,
@@ -2845,7 +2893,7 @@ async function loadOptionalNpcRuntime() {
         const toast = mcmEventUi.showReward(
           { status: reward.replayed ? "ALREADY_CLAIMED" : "CLAIMED", replayed: reward.replayed,
             rewardResult: { status: reward.status, entries: reward.entries } },
-          receipt ? { isValid: receipt.isCurrent, canPresent: () => !lobbyWorld.active && !lobbyTransition.active && !photoMode.active } : undefined
+          receipt ? { isValid: receipt.isCurrent, canPresent: () => !lobbyWorld.active && !lobbyTransition.active && !photoMode.active && !cinematic.active } : undefined
         );
         if (receipt) firstCampusCompletion.trackToast(receipt, toast);
         void progression.refresh(receipt ? "core15-first-campus-reward" : "reward");
@@ -2871,7 +2919,7 @@ async function loadOptionalNpcRuntime() {
       onConversationClose: () => { npcDialogueInput.release(); }
     });
     npcTest = runtime;
-    const initialQuestStatus = runtime.getStatus?.() ?? null;
+    const initialQuestStatus = runtime.getQuestStatus?.() ?? runtime.getStatus?.() ?? null;
     questRuntime.update(initialQuestStatus ? {
       quest: initialQuestStatus.quest,
       main2Quest: initialQuestStatus.main2Quest
@@ -2881,6 +2929,11 @@ async function loadOptionalNpcRuntime() {
     if (questFlagPending) {
       retryFeatureFlag('/api/world-quest', {
         onResolved: enabled => { if (enabled && npcTest === runtime) void runtime.setQuestEnabled(true); }
+      });
+    }
+    if (relationshipFlagPending) {
+      retryFeatureFlag('/api/npc-relationship', {
+        onResolved: enabled => { if (enabled && npcTest === runtime) runtime.setRelationshipEnabled(true); }
       });
     }
     npcTest?.observeNavigation?.(navigation?.getSnapshot?.() ?? null);
@@ -2910,6 +2963,11 @@ places.onPlaceZoneChanged((previous,next)=>{
   }
 });
 
+const LOBBY_SUMMARY_INTERVAL_S = 0.25;
+let lobbySummaryElapsed = LOBBY_SUMMARY_INTERVAL_S;
+// The lobby camera and player are static, so the map/zone/HUD readbacks only need to settle once
+// per lobby position instead of every frame. Reset outside the lobby so re-entry settles again.
+let lobbyHudSettledKey = null;
 app.on("update", (dt) => {
   syncAudio();
   photoMode.update();
@@ -2936,9 +2994,14 @@ app.on("update", (dt) => {
     contextActions.set("student-center-shop", null);
     contextActions.set("backgate-transit", null);
     backgateTransitPanel.setOpen(false, { restoreFocus: false });
-    lobbyPresenceSummary.update();
-    lobbyQuestHighlight.update();
-    backGateLock.refresh();
+    // The summaries are DOM readbacks of slow-moving state; they do not need to run every frame.
+    lobbySummaryElapsed += dt;
+    if (lobbySummaryElapsed >= LOBBY_SUMMARY_INTERVAL_S) {
+      lobbySummaryElapsed = 0;
+      lobbyPresenceSummary.update();
+      lobbyQuestHighlight.update();
+      backGateLock.refresh();
+    }
   }
   if (lobbyTransition.active) {
     helicopterFlightHud.update({ suppressed: true });
@@ -2956,7 +3019,36 @@ app.on("update", (dt) => {
     const pos = player.getLocalPosition();
     lobbyWorld.update(Math.min(dt, 0.05));
     streaming.update(dt, pos);
+    const lobbyHudKey = `${pos.x}|${pos.z}`;
+    if (lobbyHudKey !== lobbyHudSettledKey) {
+      places.update(pos);
+      minimap?.update();
+      fullMap?.update();
+      renderNavigationHud();
+      // Keep refreshing until the minimap exists so it still gets its hidden state and geometry mount.
+      lobbyHudSettledKey = minimap ? lobbyHudKey : null;
+    }
+    return;
+  }
+  lobbyHudSettledKey = null;
+  if (cinematic.active) {
+    const step = Math.min(dt, 0.05);
+    const pos = player.getLocalPosition();
+    playerActivityAudio.reset();
+    inkyungLivingMoment?.setSuppressed(true);
+    guestbookWorldLabel.hide();
+    shopWorldLabel.hide();
+    helicopterFlightHud.update({ suppressed: true });
+    cinematic.update(dt);
+    character.setMounted(false);
+    character.setFirstPerson(false);
+    character.update(step, {
+      mounted: false, moving: false, grounded: controller.grounded, emote: null, seated: false
+    });
+    streaming.update(step, pos, cinematic.streamingInterestPoints());
     places.update(pos);
+    orbit.apply(pos, character.eyeHeight);
+    cinematic.applyCamera();
     minimap?.update();
     fullMap?.update();
     renderNavigationHud();
@@ -3410,6 +3502,7 @@ window.__INHAGAME_P0__ = {
   emotes,
   emoteMenu,
   photoMode,
+  cinematic,
   chatPanel,
   hudMenu,
   keyboardHelp,
@@ -3542,6 +3635,7 @@ window.__INHAGAME_P0__ = {
     populationCount: (() => { try { return populationCount?.status() ?? null; } catch { return null; } })(),
     emote: emotes.active,
     photoMode: { active: photoMode.active },
+    cinematic: cinematic.status(),
     seat: seats.seated?.id ?? null,
     follow: follow.status(),
     space: rooms.currentSpace,
