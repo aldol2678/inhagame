@@ -37,14 +37,14 @@ function worldBlock(s) {
 // The PhotoCameraRig owns the camera transform in between; the orbit is never modified.
 export function createPhotoMode({
   orbit, rig, inputFocus, getPosition, getState, getPointerLocked = () => false, beforeOpen = () => {},
-  requestPose = () => false, cancelPose = () => {}, onChange = () => {}
+  requestPose = () => false, cancelPose = () => {}, onChange = () => {}, entryOwnerId = null
 } = {}) {
   if (!orbit?.camera?.camera || !rig?.begin || !inputFocus?.can) throw new TypeError('Photo Mode requires orbit, rig and InputFocus');
   const owner = createInputFocusOwner({ manager: inputFocus, ownerId: PHOTO_MODE_OWNER, policy: PHOTO_MODE_POLICY });
   const listeners = new Set([onChange]);
-  let session = null, destroyed = false;
+  let session = null, destroyed = false, handingOff = false;
 
-  function blockedReason() {
+  function blockedReason({ entryOwner = null } = {}) {
     if (destroyed) return PHOTO_MODE_BLOCK.DESTROYED;
     if (session) return PHOTO_MODE_BLOCK.ACTIVE;
     const state = getState() ?? {};
@@ -52,12 +52,15 @@ export function createPhotoMode({
     if (block) return block;
     if (!state.grounded) return PHOTO_MODE_BLOCK.AIRBORNE;
     // Any dialog, panel or system lock already holding input keeps the camera to itself.
-    if (!inputFocus.can('WORLD_ACTION')) return PHOTO_MODE_BLOCK.FOCUS;
+    const focus = inputFocus.snapshot();
+    const fromPhone = entryOwnerId && entryOwner === entryOwnerId && focus.activeClaimCount === 1 &&
+      focus.topOwners.length === 1 && focus.topOwners[0] === entryOwnerId;
+    if (!inputFocus.can('WORLD_ACTION') && !fromPhone) return PHOTO_MODE_BLOCK.FOCUS;
     if (!finitePosition(getPosition())) return PHOTO_MODE_BLOCK.POSITION;
     return null;
   }
-  function publish(reason) {
-    const change = { active: !!session, reason };
+  function publish(reason, old = session) {
+    const change = { active: !!session, reason, origin: old?.origin ?? 'WORLD_SHORTCUT', purpose: old?.purpose ?? 'normal' };
     for (const listener of listeners) listener(change);
   }
   // Everything needed to put the exact play frame back, in the gameplay (unmirrored) frame.
@@ -89,18 +92,21 @@ export function createPhotoMode({
     }
     // Pointer Lock needs a fresh user gesture; the runtime re-arms it from InputFocus on release.
   }
-  function open() {
-    if (blockedReason()) return false;
+  function open({ origin = 'WORLD_SHORTCUT', purpose = 'normal', entryOwner = null } = {}) {
+    if (blockedReason({ entryOwner })) return false;
     beforeOpen();
     // beforeOpen may synchronously start another world transaction.
-    if (blockedReason()) return false;
+    if (blockedReason({ entryOwner })) return false;
     const p = getPosition(), state = getState() ?? {};
     const saved = snapshotPlayCamera();
     if (!rig.begin(saved)) return false;
     session = { saved, subject: { x: p.x, y: p.y, z: p.z }, space: state.space ?? null,
-      accountId: state.accountId ?? null, posed: false };
+      accountId: state.accountId ?? null, posed: false, origin, purpose };
+    handingOff = entryOwner === entryOwnerId && entryOwnerId !== null;
     owner.acquire();
     publish('open');
+    handingOff = false;
+    if (!inputAllowed()) { close('takeover'); return false; }
     return true;
   }
   function close(reason = 'close') {
@@ -110,8 +116,9 @@ export function createPhotoMode({
     // Restore before releasing the claim so later transition owners snapshot the normal view.
     restorePlayCamera(old.saved);
     if (old.posed) cancelPose();
+    // A Phone subscriber can acquire its return claim before Photo releases its claim.
+    publish(reason, old);
     owner.release();
-    publish(reason);
     return true;
   }
   function update() {
@@ -141,7 +148,7 @@ export function createPhotoMode({
     return topOwners.length === 1 && topOwners[0] === PHOTO_MODE_OWNER;
   }
   const unsubscribe = inputFocus.subscribe(state => {
-    if (session && state.topOwners.some(id => id !== PHOTO_MODE_OWNER)) close('takeover');
+    if (session && state.topOwners.some(id => id !== PHOTO_MODE_OWNER && !(handingOff && id === entryOwnerId))) close('takeover');
   });
   return Object.freeze({
     open, close, update, applyCamera, pose, blockedReason, inputAllowed,

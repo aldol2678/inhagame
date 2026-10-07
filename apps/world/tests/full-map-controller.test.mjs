@@ -626,7 +626,7 @@ test("production close callback restores the suspended minimap opener before foc
   const closeBody = mapSetup.match(/onClose:\s*\(\)\s*=>\s*\{([\s\S]*?)\},\s*documentLike:/)?.[1];
   assert.ok(closeBody);
   let parent, released = false;
-  const callback = new Function("fullMapInput", "minimap", closeBody);
+  const callback = new Function("fullMapInput", "minimap", "smartphone", closeBody);
   const r = rig({ onClose() { callback({ release() { released = true; } }, { update({ force }) { assert.equal(released, true); assert.equal(force, true); parent.hidden = false; } }); } });
   parent = r.d.createElement("div"); r.d.removeChild(r.elements.openButton); parent.appendChild(r.elements.openButton); r.d.appendChild(parent);
   r.elements.openButton.focus(); r.controller.open(); parent.hidden = true;
