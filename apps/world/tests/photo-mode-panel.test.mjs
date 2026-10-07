@@ -8,7 +8,8 @@ import { createInputFocusManager, INPUT_FOCUS_POLICY } from '../src/input/input-
 import { createFakeDocument } from './support/fake-dom.mjs';
 import { createFakeCameraEntity } from './support/fake-camera.mjs';
 
-function fixture({ capture = null, downloadFailure = false, downloadSupported = true, pose = 'started', coarsePointer = () => false } = {}) {
+function fixture({ capture = null, downloadFailure = false, downloadSupported = true, pose = 'started', coarsePointer = () => false,
+  getAlbumLatest = null, onCaptured = null, onOpenAlbum = null } = {}) {
   const urls = [], revoked = [], downloads = [], timers = [];
   const doc = createFakeDocument(); doc.body = doc.createElement('body');
   const create = doc.createElement;
@@ -37,6 +38,7 @@ function fixture({ capture = null, downloadFailure = false, downloadSupported = 
     requestPose: () => pose });
   const input = createPhotoInput({ mode, rig, canvas, doc, win });
   const ui = createPhotoModePanel({ mode, rig, input, doc, win, fallbackFocus: canvas, capture, coarsePointer,
+    getAlbumLatest, onCaptured, onOpenAlbum,
     setTimer: (fn, ms) => { timers.push({ fn, ms }); return timers.length; }, clearTimer: () => {},
     urlApi: { createObjectURL(blob) { const url = `blob:photo-${urls.length}`; urls.push({ url, blob }); return url; }, revokeObjectURL(url) { revoked.push(url); } } });
   const nodes = () => { const walk = n => [n, ...n.children.flatMap(walk)]; return walk(ui.root); };
@@ -164,6 +166,47 @@ function deferredCapture() {
     get calls() { return calls; }, get cancelled() { return cancelled; }, get destroyed() { return destroyed; } };
 }
 const flush = () => new Promise(resolve => setImmediate(resolve));
+
+for (const timing of ['during capture', 'during album save', 'after album failure']) test(`late previous Album photo cannot replace a failed shot's original: ${timing}`, async () => {
+  let resolveLatest, resolveSave;
+  const opened = [], capture = deferredCapture();
+  const h = fixture({ capture, downloadFailure: true,
+    getAlbumLatest: () => new Promise(resolve => { resolveLatest = resolve; }),
+    onCaptured: () => new Promise(resolve => { resolveSave = resolve; }),
+    onOpenAlbum: record => opened.push(record.id) });
+  h.mode.open(); h.control('capture').click();
+  const previous = { record: { id: 'previous-photo' }, blob: new Blob(['previous-thumbnail']) };
+  if (timing === 'during capture') { resolveLatest(previous); await flush(); }
+  capture.resolve(); await flush();
+  if (timing === 'during album save') { resolveLatest(previous); await flush(); }
+  resolveSave(null); await flush();
+  if (timing === 'after album failure') { resolveLatest(previous); await flush(); }
+  assert.equal(h.downloads.length, 0);
+  assert.match(h.ui.status().status, /앨범.*실패/);
+  assert.equal(h.ui.status().busy, false);
+  assert.equal(h.control('preview').children[0].src, h.control('image').src, 'thumbnail still points at this shot');
+  h.control('preview').click();
+  assert.deepEqual(opened, [], 'failed shot never opens a different saved photo');
+  assert.equal(h.control('image').parent.hidden, false, 'original PNG remains available for manual save');
+  assert.equal(h.urls.find(x => x.url === h.control('image').src).blob.type, 'image/png');
+  h.key('Escape'); h.key('Escape'); assert.equal(h.mode.active, false);
+  h.ui.destroy(); h.input.destroy(); h.mode.destroy();
+  assert.deepEqual(h.revoked, h.urls.map(x => x.url));
+});
+
+test('successful Album readback still opens the saved shot and ignores the entry lookup', async () => {
+  const queries = [], opened = [], capture = deferredCapture(), saved = { id: 'saved-shot' };
+  const h = fixture({ capture, getAlbumLatest: () => new Promise(resolve => queries.push(resolve)),
+    onCaptured: async () => saved, onOpenAlbum: record => opened.push(record.id) });
+  h.mode.open(); h.control('capture').click(); capture.resolve(); await flush();
+  queries[1]({ record: saved, blob: new Blob(['new-thumbnail'], { type: 'image/jpeg' }) }); await flush();
+  const currentThumbnail = h.control('preview').children[0].src;
+  queries[0]({ record: { id: 'previous-photo' }, blob: new Blob(['old-thumbnail']) }); await flush();
+  assert.equal(h.control('preview').children[0].src, currentThumbnail);
+  h.control('preview').click(); assert.deepEqual(opened, ['saved-shot']);
+  h.ui.destroy(); h.input.destroy(); h.mode.destroy();
+  assert.deepEqual(new Set(h.revoked), new Set(h.urls.map(x => x.url)));
+});
 
 test('capture is busy once, keeps shutter focus, downloads a local PNG and shows a last-shot preview', async () => {
   const capture = deferredCapture(), h = fixture({ capture }); h.mode.open();

@@ -14,9 +14,10 @@ export function photoNorthTowerParts(f){
   ]}];
  }
  if(f.id==='bldg_05'){
-  // Field photos and the official illustration place the attached clock core
-  // at the central south facade break. No free-standing ground obstacle.
-  const a=f.rings[0][4],b=f.rings[0][5],length=Math.hypot(b.x-a.x,b.z-a.z);
+  // The 2026-10-07 stadium-side field photo places the attached clock core
+  // farther toward the 60th Anniversary Hall than the earlier edge-4 fit.
+  // Keep this a reversible photographic fit: no free-standing ground obstacle.
+  const a=f.rings[0][6],b=f.rings[0][7],length=Math.hypot(b.x-a.x,b.z-a.z);
   const tx=(b.x-a.x)/length,tz=(b.z-a.z)/length;
   const at=(u,inward)=>({x:a.x+tx*u-tz*inward,z:a.z+tz*u+tx*inward});
   return [{id:'bldg_05_clock_core',height:23.5,

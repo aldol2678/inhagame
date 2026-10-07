@@ -50,6 +50,7 @@ import { createAssetCanaryTelemetry } from './asset-canary-telemetry.js';
 import { createWorldGraphicsDevice, GraphicsUnavailableError } from './webgpu-device.js';
 import { createCharacter } from "./character-model.js";
 import { createCampusProfile } from "./campus-profile.js";
+import { createSmartphone } from "./phone/smartphone.js";
 import { createCampusTour } from "./campus-tour.js";
 import { LANDMARKS, TOUR_STOPS } from "./campus-layout.js";
 import { worldToMeters } from "./world-scale.js";
@@ -851,6 +852,7 @@ const profile = createCampusProfile(player, camera, canvas, {
     else profileInput.release();
   }
 });
+let smartphone = null;
 const lobbyPlayerSummary = createLobbyPlayerSummary({
   nameElement: document.getElementById("lobby-player-name"),
   lookElement: document.getElementById("lobby-player-look"),
@@ -1076,6 +1078,7 @@ const progressionHud = createProgressionHud({
   menuLine: document.getElementById("progression-menu-line")
 });
 progression.onChange((change) => {
+  smartphone?.refresh();
   progressionHud.render(change.state, change.snapshot);
   lobbyPlayerSummary.setProgression(formatProgression(change.snapshot));
   if (change.reason === "core15-first-campus-reward" && change.state === PROGRESSION_STATE.READY) {
@@ -1668,6 +1671,7 @@ const photoCamera = createPhotoCameraController({
 });
 const photoMode = createPhotoMode({
   orbit, rig: photoCamera, inputFocus,
+  entryOwnerId: "smartphone",
   getPosition: () => player.getLocalPosition(),
   getState: () => ({
     world: !lobbyWorld.active && !lobbyTransition.active,
@@ -1695,7 +1699,11 @@ const photoInput = createPhotoInput({
   getMouseLook: () => ({ sensitivity: orbit.mouseSensitivity, invertY: orbit.invertMouseY })
 });
 const photoModePanel = createPhotoModePanel({ mode: photoMode, rig: photoCamera, input: photoInput, fallbackFocus: canvas,
-  capture: createPhotoCapture({ app, canvas, mode: photoMode }) });
+  capture: createPhotoCapture({ app, canvas, mode: photoMode }),
+  getCaptureContext: () => smartphone?.captureContext() ?? {},
+  onCaptured: (result, context) => smartphone?.capture(result, context) ?? null,
+  getAlbumLatest: () => smartphone?.latestPhoto() ?? null,
+  onOpenAlbum: record => smartphone?.openAlbum(record) });
 const photoModeEntry = bindPhotoModeEntry({ button: document.getElementById("photo-mode-toggle"), mode: photoMode });
 window.addEventListener("pagehide", event => {
   photoMode.close("lifecycle");
@@ -2267,6 +2275,7 @@ const viewSettings = createViewDistanceSettings(streaming,camera,graphics,{
   onOpenChange: (open) => {
     if (open) viewSettingsInput.acquire();
     else viewSettingsInput.release();
+    smartphone?.settingsChanged(open);
   }
 });
 
@@ -2530,7 +2539,7 @@ try {
     getOverlayState: () => ({
       hudMenu: hudMenu.open, keyboardHelp: keyboardHelp?.open === true, friends: friendPanel.open,
       playerCard: playerCard.current != null, guestbook: guestbookPanel.open, shop: shopPanel.open, inventory: inventoryPanel.open, wardrobe: wardrobePanel.open,
-      blocking: furnitureEditor?.open === true || dailyQuizPanel.open || attendancePanel.open || lifeSkillBookPanel?.open === true || fishingPanel?.open === true || questJournal?.open === true,
+      blocking: smartphone?.shell.ownsInput === true || furnitureEditor?.open === true || dailyQuizPanel.open || attendancePanel.open || lifeSkillBookPanel?.open === true || fishingPanel?.open === true || questJournal?.open === true,
       npcConversation: npcTest?.isConversationOpen?.() === true || biryongVillageDialogue?.open === true,
       mcmEvent: mcmEventUi.openState || mcmEventRuntime.isDialogueOpen() === true,
       profile: document.getElementById("profile-panel")?.hidden === false,
@@ -2573,6 +2582,7 @@ try {
       const samePausedDestination = playerAutoMove?.paused && state?.destinationId === snapshot?.destination?.id;
       const started = samePausedDestination ? playerAutoMove.resume(snapshot) : playerAutoMove?.start(snapshot) === true;
       if (!started) showWorldStatus("자동이동 경로를 준비하지 못했어요");
+      if (started) smartphone?.navigationStarted(snapshot?.destination);
       return started;
     },
     isAutoMoveActive: selected => {
@@ -2619,6 +2629,7 @@ try {
     },
     onClose: () => {
       fullMapInput.release();
+      smartphone?.mapClosed();
       // The map opener lives inside the suspended Mini-map. Restore visibility
       // before Full Map validates its return-focus target, not on the next frame.
       minimap?.update({ force: true });
@@ -2655,6 +2666,37 @@ try {
 } catch (error) {
   console.warn("INHAGAME Campus map layer unavailable; continuing without it:", error);
 }
+
+// PHONE-MVP-01: presentation/integration only. Existing Photo/Map/Progression own their data.
+smartphone = createSmartphone({
+  inputFocus, photoMode, getMap: () => fullMap, getSettings: () => viewSettings,
+  getIdentity: () => online?.identity ?? null, getClient: () => online?.supabase ?? null,
+  getProgression: () => ({ state: progression.state, snapshot: progression.snapshot }),
+  getClock: () => worldTimeHud.status().clock,
+  getCaptureContext: () => {
+    const p = player.getLocalPosition(), place = places.getCurrentPlaceZone();
+    const room = rooms?.status();
+    return { position: { x: p.x, y: p.y, z: p.z }, mapSourceId: navigationSpaceId(),
+      locationId: room?.insideRoom ? room.roomId : place?.id ?? null,
+      locationName: room?.insideRoom ? (room.roomName || "실내") : place?.displayName || "캠퍼스",
+      capturedAtWorld: { period: environmentWorldTime.status().period, environmentTime: environmentWorldTime.status().environmentTime,
+        serverNowMs: environmentWorldTime.status().clock.serverNowMs }, weatherId: environment.status().targetWeather };
+  },
+  canOpen: () => !lobbyWorld.active && !lobbyTransition.active && !rooms?.status().busy && !biryongRealm?.busy &&
+    (inputFocus.can("WORLD_ACTION") || inputFocus.snapshot().topOwners.every(id => id === "hud-menu")),
+  beforeOpen: () => {
+    playerAutoMove?.pause(AUTO_MOVE_CANCEL_REASON.INTERACTION);
+    hudMenu.setOpen(false, { focus: false }); chatPanel.setOpen(false, { focus: false }); emoteMenu.setOpen(false);
+  },
+  toggle: document.getElementById("phone-toggle"), mapElement: document.getElementById("full-map-panel"),
+  settingsElement: document.getElementById("view-settings"), onWarning: showWorldStatus
+});
+// Controller's existing destination handler runs first; Phone returns to World only on a solved route.
+document.getElementById("full-map-set-destination")?.addEventListener("click", () => {
+  const snapshot = navigation?.getSnapshot();
+  if (snapshot?.status === "GUIDING") smartphone?.navigationStarted(snapshot.destination);
+});
+window.addEventListener("pagehide", event => { if (!event.persisted) smartphone?.destroy(); });
 
 // Quest Journal P1 consumes the shared Quest Runtime only. Existing quest clients remain the progress
 // authorities; the journal never writes quest stages or rewards.
@@ -3267,6 +3309,7 @@ try {
     void mcmEvent.setSignedIn(npcAiSignedIn || mcmEventPreviewMode);
     npcTest?.setAiSignedIn(npcAiSignedIn);
     profile.setIdentity(identity);
+    smartphone?.setAccount(identity?.userId ?? null);
     lobbyPlayerSummary.render();
     lobbyQuestHighlight.update();
     chatPanel.refreshAvailability();
@@ -3462,10 +3505,12 @@ window.__INHAGAME_P0__ = {
   fullMap,
   navigation,
   campusNavigation,
+  playerAutoMove,
   online,
   emotes,
   emoteMenu,
   photoMode,
+  smartphone,
   photoCamera,
   photoInput,
   photoModePanel,
@@ -3734,5 +3779,3 @@ boot().catch((error) => {
   if (unsupported) console.warn("INHAGAME Campus WebGPU unavailable:", error);
   else console.error("INHAGAME Campus initialization failed:", error);
 });
-
-
