@@ -19,6 +19,8 @@ body[data-phone-open="true"] > :not(#application):not(.smartphone) { visibility:
   width:44px; height:44px; min-height:44px; padding:0; border:0;
   border-radius:50%; background:transparent; box-shadow:none;
   backdrop-filter:none; -webkit-tap-highlight-color:transparent;
+  /* Rasterize the inverse-scaled marker independently of the zoomed map layer. */
+  will-change:transform;
 }
 .smartphone .full-map-poi:focus { outline:none; }
 .smartphone .full-map-poi:focus-visible { outline:2px solid #fff2b2; outline-offset:1px; }
