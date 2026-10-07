@@ -26,3 +26,12 @@ the two protected campus NPCs, Biryong Village NPCs, wander and social detours.
 The standalone page still imports the pinned package from esm.sh; npm/WASM
 integration does not independently prove CDN/browser loading or production
 performance. This is a shadow PoC. Its result never authorizes runtime cutover.
+
+## INHA Native P0: DetourCrowd benchmark
+
+`npm run benchmark:crowd` runs the opt-in 48/100/200-agent benchmark defined in
+`crowd-benchmark.mjs`. It uses the same campus navigation surface and pinned real WASM,
+but it has no production authority and no CI performance threshold. The public gate only
+smokes 48 active agents and proves that Crowd initialization, move-target requests and
+fixed-step updates still work. See `docs/implementation/inha-native-p0-detour-crowd.md`
+for scope and promotion requirements.
