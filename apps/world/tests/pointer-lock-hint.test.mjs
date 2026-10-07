@@ -45,7 +45,7 @@ test("Pointer Lock hint binding updates DOM state without taking input", () => {
   });
   assert.equal(element.hidden, false);
   assert.equal(element.dataset.state, "READY");
-  assert.match(element.textContent, /게임 화면 클릭/);
+  assert.match(element.textContent, /게임 화면을 클릭/);
 
   hint.update({
     finePointer: true, supported: true, desired: true, locked: true, pending: false,
