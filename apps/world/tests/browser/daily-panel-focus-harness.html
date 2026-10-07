@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Daily panels focus · offline fixture</title>
+  <link rel="stylesheet" href="../../styles.css">
+  <style>
+    body { margin: 0; padding: 20px; background: #102334; color: #eef8ff; font: 16px sans-serif; }
+    .shop-panel-body { max-height: 260px; }
+    /* Synthetic overflow exercises native scroll retention independently of viewport height. */
+    .attendance-calendar::after, .daily-quiz-card::after { content: ''; display: block; height: 300px; }
+  </style>
+</head>
+<body>
+  <p>Offline synthetic responses. Real panels and account-scoped clients. No login or backend calls.</p>
+  <main id="fixture"></main>
+  <script type="module">
+    import { createDailyPanelFocusFixture, attendanceView, quizView, ok, failed } from './daily-panel-focus-fixture.mjs';
+    const kind = new URL(location.href).searchParams.get('kind') || 'attendance';
+    const h = createDailyPanelFocusFixture({ kind, root: document.getElementById('fixture') });
+    const events = [];
+    for (const type of ['keydown', 'click', 'pointerdown']) document.addEventListener(type, event => {
+      events.push({ type, code: event.code, trusted: event.isTrusted, pointerType: event.pointerType });
+    }, true);
+    window.__DAILY_FOCUS__ = { ...h, attendanceView, quizView, ok, failed, events };
+    void h.client.setAccount('synthetic-account-a');
+    h.opener.focus();
+  </script>
+</body>
+</html>

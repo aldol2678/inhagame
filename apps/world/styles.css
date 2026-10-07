@@ -3395,10 +3395,22 @@ body[data-space]:not([data-space="campus"]) > #biryong-ui { visibility: hidden !
 .biryong-objective {
   position: absolute; left: 50%; top: max(66px, calc(env(safe-area-inset-top) + 56px)); transform: translateX(-50%); margin: 0;
   max-width: min(440px, calc(100vw - 32px)); padding: 7px 13px; border: 1px solid rgba(255, 222, 134, .4);
-  border-radius: 999px; background: rgba(10, 16, 25, .78); color: #ffe9a8; font-size: 13px; font-weight: 750;
+  border-radius: 14px; background: rgba(10, 16, 25, .78); color: #ffe9a8; font-size: 13px; font-weight: 750;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.biryong-objective::before { content: "🐉 "; }
+.biryong-objective-text { display: block; overflow: hidden; text-overflow: ellipsis; }
+.biryong-objective-text::before { content: "🐉 "; }
+.biryong-cloud-status {
+  display: flex; align-items: center; gap: 8px; white-space: normal; overflow-wrap: anywhere; line-height: 1.4;
+}
+.biryong-objective-text:not([hidden]) + .biryong-cloud-status { margin-top: 6px; }
+.biryong-cloud-status > span { min-width: 0; flex: 1; }
+.biryong-cloud-retry {
+  flex: none; min-height: 44px; padding: 4px 9px; border: 1px solid #7aa8a4; border-radius: 9px;
+  background: #244955; color: #f4f8f7; font: inherit; cursor: pointer; pointer-events: auto;
+}
+.biryong-cloud-retry:focus-visible { outline: 2px solid #ffde86; outline-offset: -3px; }
+.biryong-cloud-retry:disabled { opacity: .65; cursor: default; }
 @media (max-width: 560px) {
   /* Keep the event objective below the topbar and out of the Mini-map's right-hand column. */
   .biryong-objective {
