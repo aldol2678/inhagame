@@ -3902,6 +3902,15 @@ body[data-space]:not([data-space="campus"]) > .progression-hud { display: none !
   border-radius: 14px;
   background: rgba(255,255,255,.04);
 }
+.inventory-item-with-icon { display: flex; align-items: flex-start; gap: 12px; }
+.inventory-item-copy { flex: 1; min-width: 0; }
+.item-icon {
+  display: grid; place-items: center; flex: 0 0 48px; width: 48px; height: 48px;
+  overflow: hidden; border-radius: 10px; background: rgba(178,220,239,.06);
+}
+.item-icon-image { width: 100%; height: 100%; object-fit: contain; }
+.item-icon-fallback { color: #acc3d1; font-size: 24px; line-height: 1; }
+.item-icon > [hidden] { display: none; }
 .inventory-item-muted { border-style: dashed; opacity: .78; }
 .inventory-item-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 .inventory-item-name { min-width: 0; overflow-wrap: anywhere; font-size: 14px; }

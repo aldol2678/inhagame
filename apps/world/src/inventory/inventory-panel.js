@@ -5,6 +5,7 @@
 // server's catalogStatus is shown as served; a non-ACTIVE item stays in the list. No RPC here.
 
 import { renderCollectionBook } from "../collection/collection-book-view.js";
+import { createItemIcon } from "../collection/item-icon.js";
 import { getItemDefinition } from "../collection/item-catalog.js";
 import { filterItemsForInventoryTab, INVENTORY_TAB, INVENTORY_TABS } from "./inventory-category-registry.js";
 import { INVENTORY_STATE } from "./inventory-client.js";
@@ -82,18 +83,20 @@ export function createInventoryPanel({
 
   function renderItem(item) {
     const view = itemView(item, { describe });
-    const card = el("li", `inventory-item${view.muted ? " inventory-item-muted" : ""}`);
+    const card = el("li", `inventory-item inventory-item-with-icon${view.muted ? " inventory-item-muted" : ""}`);
     card.dataset.itemId = view.itemId;
     card.dataset.status = view.status;
+    const copy = el("div", "inventory-item-copy");
+    card.append(createItemIcon({ doc, definition: describe(item.itemId), name: view.name }), copy);
     const head = el("div", "inventory-item-head");
     head.append(el("strong", "inventory-item-name", view.name), el("span", "inventory-item-quantity", view.quantityText));
-    card.append(head);
-    card.append(el("p", "inventory-item-description", view.description));
+    copy.append(head);
+    copy.append(el("p", "inventory-item-description", view.description));
     const meta = el("div", "inventory-item-meta");
     if (view.metaText) meta.append(el("span", "inventory-item-kind", view.metaText));
     meta.append(el("span", "inventory-item-source", view.sourceText));
     if (view.statusText) meta.append(el("span", "inventory-item-status", view.statusText));
-    card.append(meta);
+    copy.append(meta);
     return card;
   }
 

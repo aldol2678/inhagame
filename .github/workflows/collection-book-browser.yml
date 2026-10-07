@@ -5,6 +5,11 @@ on:
       - 'apps/world/api/world-collection-book.js'
       - 'apps/world/server/collection-book-service.mjs'
       - 'apps/world/src/collection/collection-book-*.js'
+      - 'apps/world/src/collection/item-catalog.js'
+      - 'apps/world/src/collection/item-icon.js'
+      - 'apps/world/assets/item-icons/**'
+      - 'apps/world/tests/item-icons.test.mjs'
+      - 'apps/world/tests/browser/item-icons-*'
       - 'apps/world/src/collection/collection-discovery-contract.*'
       - 'apps/world/src/config/supabase-public-config.*'
       - 'apps/world/npc-factory/npc-ai-auth.mjs'
@@ -40,12 +45,17 @@ jobs:
           npx --no-install playwright install --with-deps chromium
           sudo apt-get install -y --no-install-recommends fonts-noto-cjk
       - name: Verify self-only projection and account guards
-        run: node --test apps/world/tests/collection-book*.test.mjs apps/world/tests/inventory*.test.mjs apps/world/tests/guestbook-account-panel.test.mjs
+        run: node --test apps/world/tests/collection-book*.test.mjs apps/world/tests/inventory*.test.mjs apps/world/tests/guestbook-account-panel.test.mjs apps/world/tests/item-icons.test.mjs
       - name: Exercise offline keyboard, touch and stale-response recovery
         env:
           EXPECTED_COLLECTION_BOOK_HEAD: ${{ github.event.pull_request.head.sha }}
           COLLECTION_BOOK_OUTPUT: test-results/collection-book
         run: node apps/world/tests/browser/collection-book-smoke.mjs
+      - name: Verify icon decode, responsive layout and broken-image recovery
+        env:
+          EXPECTED_ITEM_ICONS_HEAD: ${{ github.event.pull_request.head.sha }}
+          ITEM_ICONS_OUTPUT: test-results/collection-book/item-icons
+        run: node apps/world/tests/browser/item-icons-smoke.mjs
       - name: Preserve immutable browser evidence
         if: always()
         uses: actions/upload-artifact@v4

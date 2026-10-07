@@ -4,6 +4,7 @@
 
 import * as pc from "playcanvas";
 import { box, surface } from "../campus-render-kit.js";
+import { createClubTableProps } from "./club-room-life-props.js";
 import { CLUB_ROOM, CLUB_ROOM_FURNITURE } from "./club-room-layout.js";
 
 const { halfWidth: W, halfDepth: D, ceiling: H, door: DOOR } = CLUB_ROOM;
@@ -29,7 +30,7 @@ function group(root, name, [x, y, z], yaw = 0) {
 
 const BOOK_COLORS = ["#c0392b", "#2e86c1", "#f1c40f", "#27ae60", "#8e44ad", "#e67e22", "#16a085"];
 
-function buildPiece(root, item) {
+function buildPiece(root, item, app, fixtureLoaders) {
   const g = group(root, `club_${item.id}`, item.at, item.yaw ?? 0);
   const [w, h, d] = item.size;
   const mat = surface(item.color);
@@ -45,6 +46,7 @@ function buildPiece(root, item) {
       box(g, "laptop", [0.45, h + 0.01, 0.05], [0.32, 0.015, 0.22], surface("#cfd6de"));
       box(g, "mug", [-0.55, h + 0.04, -0.12], [0.06, 0.08, 0.06], surface("#f5f1e6"), 0, "cylinder");
       box(g, "papers", [-0.1, h + 0.005, 0.18], [0.3, 0.008, 0.22], surface("#fbfbf3"), 12);
+      fixtureLoaders.push(createClubTableProps({ app, root, table: g, height: h }));
       break;
     case "chair": {
       box(g, "seat", [0, 0.23, 0], [w, 0.04, d], mat);
@@ -143,7 +145,8 @@ export function createClubRoomScene(app) {
   box(root, "clock", [-W + 0.03, 1.2, -1.8], [0.02, 0.22, 0.22], surface("#fafafa"), 0);
   // Ceiling lights (emissive panels) + a few cheap unshadowed lights.
   for (const x of [-1.8, 1.8]) box(root, "ceiling_panel", [x, H - 0.015, 0.4], [1.1, 0.03, 0.5], glow("#fff4dc", 1.2));
-  for (const item of CLUB_ROOM_FURNITURE) buildPiece(root, item);
+  const fixtureLoaders = [];
+  for (const item of CLUB_ROOM_FURNITURE) buildPiece(root, item, app, fixtureLoaders);
 
   const lights = [];
   const light = (name, [x, y, z], color, intensity, range) => {
@@ -162,6 +165,7 @@ export function createClubRoomScene(app) {
   return {
     root,
     lights,
+    ensureVisualAssets: () => Promise.all(fixtureLoaders.map(ensure => ensure())),
     ambient: new pc.Color(0.46, 0.43, 0.4),
     clearColor: new pc.Color(0.16, 0.14, 0.13),
     get entityCount() { let n = 0; const walk = (e) => { n += 1; e.children.forEach(walk); }; walk(root); return n; }
