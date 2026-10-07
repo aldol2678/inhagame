@@ -74,10 +74,10 @@ test('60th Anniversary regains a tall slab inside the original footprint, shared
  }
 });
 
-test('photo-review fit anchors the clock at the existing south notch and keeps the high slab slender',()=>{
- const clock=towerParts(FIVE)[0],notch=exteriorFrame(FIVE.rings[0],4),anchor=notch.at(notch.length/2,-2.19);
+test('field-photo fit anchors the clock on the stadium-visible south wing toward 60th and keeps the high slab slender',()=>{
+ const clock=towerParts(FIVE)[0],front=exteriorFrame(FIVE.rings[0],6),anchor=front.at(front.length/2,-2.19);
  const center=clock.vertices.reduce((p,q)=>({x:p.x+q.x/4,z:p.z+q.z/4}),{x:0,z:0});
- assert.ok(Math.hypot(center.x-anchor.x,center.z-anchor.z)<.01,'clock rises from central facade break, not the eastern window wing');
+ assert.ok(Math.hypot(center.x-anchor.x,center.z-anchor.z)<.01,'clock follows the 2026-10-07 edge-6 field-photo fit');
  const slab=towerParts(ANNIVERSARY)[0],length=Math.hypot(slab.vertices[1].x-slab.vertices[0].x,slab.vertices[1].z-slab.vertices[0].z);
  assert.ok(length>=24&&length<=27,'bounded slimmer photographic fit; not a surveyed dimension');
  assert.ok(length/(slab.height-ANNIVERSARY.height)<1.15,'exposed slab reads near-square/tall instead of a 2:1 panel');
