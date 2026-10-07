@@ -12,14 +12,17 @@ const hub = read("hub.js");
 const campus = read("campus/index.html");
 const css = read("styles.css");
 
-/** Runs the campus page's inline joystick script against a stored value; returns the body classes. */
-function campusClasses(stored) {
-  const script = campus.match(/<script>\s*(try \{[\s\S]*?inhagame-campus-settings-v1[\s\S]*?)<\/script>/)?.[1];
+/** Runs the campus page's inline joystick bootstrap against v1/v2 storage. */
+function campusClasses({ legacy = null, device = null } = {}) {
+  const script = campus.match(/<script>\s*(try \{[\s\S]*?inhagame-device-settings-v2[\s\S]*?)<\/script>/)?.[1];
   assert.ok(script, "campus inline joystick script");
   const classes = new Set();
   const context = {
-    localStorage: { getItem: (key) => (key === "inhagame-campus-settings-v1" ? stored : null) },
-    document: { body: { classList: { add: (c) => classes.add(c) } } }
+    localStorage: { getItem: (key) => ({
+      "inhagame-campus-settings-v1": legacy,
+      "inhagame-device-settings-v2": device
+    })[key] ?? null },
+    document: { body: { classList: { add: (name) => classes.add(name) } } }
   };
   vm.runInNewContext(script, context);
   return [...classes].sort();
@@ -32,20 +35,26 @@ test("1-3. settings page: no size control, side control kept", () => {
   assert.match(settingsHtml, /조이스틱 위치 설정입니다/);
 });
 
-test("4-5. hub.js: no size input; saves the side and drops a legacy size, keeping other fields", () => {
+test("4-6. hub.js writes registry v2 and keeps the legacy joystick mirror", () => {
   assert.doesNotMatch(hub, /sizeInput|joystick-size|saved\.size\)/);
   assert.match(hub, /const storageKey = "inhagame-campus-settings-v1";/);
-  assert.match(hub, /delete saved\.size;\s*localStorage\.setItem\(storageKey, JSON\.stringify\(\{ \.\.\.saved, side: sideInput\.value \}\)\);/);
+  assert.match(hub, /const deviceSettingsKey = "inhagame-device-settings-v2";/);
+  assert.match(hub, /controls: \{ \.\.\.controls, joystickSide: side \}/);
+  assert.match(hub, /delete saved\.size;\s*localStorage\.setItem\(storageKey, JSON\.stringify\(\{ \.\.\.saved, side \}\)\);/);
   assert.match(hub, /sideInput\.addEventListener\("change", save\);/);
 });
 
-test("6-8. campus: legacy { size: large, side: right } applies right only; size never adds a class", () => {
+test("7-11. campus supports registry v2, legacy rollback and the fixed joystick size", () => {
   assert.doesNotMatch(campus, /joystick-large|config\.size/);
-  assert.deepEqual(campusClasses(JSON.stringify({ size: "large", side: "right" })), ["joystick-right"]);
-  assert.deepEqual(campusClasses(JSON.stringify({ size: "large", side: "left" })), []);
-  assert.deepEqual(campusClasses(JSON.stringify({ side: "right" })), ["joystick-right"]);
-  assert.deepEqual(campusClasses(null), []);
-  assert.deepEqual(campusClasses("{not json"), [], "broken storage falls back to the default controls");
+  assert.deepEqual(campusClasses({ legacy: JSON.stringify({ size: "large", side: "right" }) }), ["joystick-right"]);
+  assert.deepEqual(campusClasses({ legacy: JSON.stringify({ side: "left" }) }), []);
+  assert.deepEqual(campusClasses({ device: JSON.stringify({ schemaVersion: 2, controls: { joystickSide: "right" } }) }), ["joystick-right"]);
+  assert.deepEqual(campusClasses({
+    legacy: JSON.stringify({ side: "right" }),
+    device: JSON.stringify({ schemaVersion: 2, controls: { joystickSide: "left" } })
+  }), ["joystick-right"], "legacy rollback changes win during the compatibility window");
+  assert.deepEqual(campusClasses(), []);
+  assert.deepEqual(campusClasses({ legacy: "{not json" }), [], "broken storage falls back to the default controls");
 });
 
 test("9-11. no joystick-large / joystick-size reference left in World source", () => {

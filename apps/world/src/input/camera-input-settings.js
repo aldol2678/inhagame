@@ -1,3 +1,5 @@
+import { getSetting, updateSettings } from '../settings-registry.js';
+
 export const CAMERA_INPUT_STORAGE_KEY = "inha-world-camera-input-v1";
 export const DEFAULT_CAMERA_INPUT_SETTINGS = Object.freeze({
   sensitivity: 1,
@@ -15,22 +17,18 @@ export function normalizeCameraInputSettings(value = {}) {
 }
 
 export function readCameraInputSettings(storage = null) {
-  try {
-    const raw = storage?.getItem?.(CAMERA_INPUT_STORAGE_KEY);
-    if (!raw) return DEFAULT_CAMERA_INPUT_SETTINGS;
-    return normalizeCameraInputSettings(JSON.parse(raw));
-  } catch {
-    return DEFAULT_CAMERA_INPUT_SETTINGS;
-  }
+  return normalizeCameraInputSettings({
+    sensitivity: getSetting(storage, 'controls.mouseSensitivity'),
+    invertY: getSetting(storage, 'controls.invertY')
+  });
 }
 
 export function saveCameraInputSettings(storage, settings) {
-  try {
-    storage?.setItem?.(CAMERA_INPUT_STORAGE_KEY, JSON.stringify(normalizeCameraInputSettings(settings)));
-    return Boolean(storage?.setItem);
-  } catch {
-    return false;
-  }
+  const normalized = normalizeCameraInputSettings(settings);
+  return updateSettings(storage, {
+    'controls.mouseSensitivity': normalized.sensitivity,
+    'controls.invertY': normalized.invertY
+  });
 }
 
 export function bindCameraInputSettings({

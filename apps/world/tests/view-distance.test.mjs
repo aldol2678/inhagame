@@ -45,8 +45,12 @@ test('view preference reload defaults and storage failure leave other saves unto
   assert.equal(entries.get('inhagame-campus-tour-v1'),'1');
   assert.equal(entries.get('inhagame-campus-settings-v1'),'{"side":"right"}');
   for(const invalid of ['__proto__','unknown','null','',null]){
-    entries.set(VIEW_DISTANCE_KEY,invalid);assert.equal(readViewDistance(storage).id,'NORMAL');
+    entries.set(VIEW_DISTANCE_KEY,invalid);
+    assert.equal(readViewDistance(storage).id,'MAX','invalid rollback-era v1 data must not poison valid v2 state');
     assert.equal(viewDistancePreset(invalid).id,'NORMAL');
+    const legacyOnly=new Map([[VIEW_DISTANCE_KEY,invalid]]);
+    const legacyStorage={getItem:k=>legacyOnly.get(k)??null,setItem:(k,v)=>legacyOnly.set(k,v)};
+    assert.equal(readViewDistance(legacyStorage).id,'NORMAL','invalid v1-only data still falls back safely');
   }
   assert.equal(readViewDistance({getItem(){throw Error('denied')}}).id,'NORMAL');
   assert.equal(saveViewDistance(undefined,'SHORT'),false);

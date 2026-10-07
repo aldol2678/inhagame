@@ -1,3 +1,4 @@
+import { getSetting, setSetting } from './settings-registry.js';
 export const GRAPHICS_QUALITY_KEY = 'inha-world-graphics-quality-v1';
 export const GRAPHICS_QUALITY_LABELS = Object.freeze({
   auto: '자동', low: '낮음', medium: '보통', high: '높음'
@@ -13,16 +14,13 @@ export const GRAPHICS_PRESETS = Object.freeze({
 });
 
 export function readGraphicsQuality(storage) {
-  try {
-    const value = storage?.getItem(GRAPHICS_QUALITY_KEY);
-    return Object.hasOwn(GRAPHICS_QUALITY_LABELS, value) ? value : 'auto';
-  } catch { return 'auto'; }
+  const value = getSetting(storage, 'graphics.quality');
+  return Object.hasOwn(GRAPHICS_QUALITY_LABELS, value) ? value : 'auto';
 }
 
 export function saveGraphicsQuality(storage, value) {
   if (!Object.hasOwn(GRAPHICS_QUALITY_LABELS, value)) return false;
-  try { storage?.setItem(GRAPHICS_QUALITY_KEY, value); return !!storage; }
-  catch { return false; }
+  return setSetting(storage, 'graphics.quality', value);
 }
 
 export function selectAutoGraphics({ width, height, dpr, mobile, maxTextureSize }) {

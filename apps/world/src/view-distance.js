@@ -1,3 +1,4 @@
+import { getSetting, setSetting } from './settings-registry.js';
 import { EXTERIOR_WORLD_BOUNDS } from './world-exterior-bounds.js';
 import { CHUNK_SIZE } from './render-chunk-registry.js';
 
@@ -22,11 +23,9 @@ export function viewDistancePreset(id) {
   return Object.hasOwn(VIEW_DISTANCE_PRESETS,id) ? VIEW_DISTANCE_PRESETS[id] : VIEW_DISTANCE_PRESETS.NORMAL;
 }
 export function readViewDistance(storage) {
-  try { return viewDistancePreset(storage.getItem(VIEW_DISTANCE_KEY)); }
-  catch { return VIEW_DISTANCE_PRESETS.NORMAL; }
+  return viewDistancePreset(getSetting(storage, 'graphics.viewDistance'));
 }
 export function saveViewDistance(storage,id) {
-  try { storage.setItem(VIEW_DISTANCE_KEY,viewDistancePreset(id).id); return true; }
-  catch { return false; }
+  return setSetting(storage, 'graphics.viewDistance', viewDistancePreset(id).id);
 }
 
