@@ -1,6 +1,9 @@
 import { createNpcWorldClock } from '../../npc-factory/npc-world-clock.mjs';
 import { worldScheduleAt } from '../../npc-factory/npc-world-time-contract.mjs';
+import { worldEnvironmentAt } from './environment-world-cycle.js';
 
+// Coarse compatibility projection. Runtime visuals use worldEnvironmentAt(),
+// which subdivides evening into afternoon/golden-hour/sunset/dusk.
 export const ENVIRONMENT_TIME_BY_WORLD_PERIOD = Object.freeze({
   morning: 'DAY',
   class_time: 'DAY',
@@ -25,6 +28,8 @@ export function createEnvironmentWorldTime({
   let initialized = false;
   let schedule = null;
   let environmentTime = null;
+  let weather = null;
+  let visual = null;
   let disposed = false;
 
   function apply({ immediate = false } = {}) {
@@ -33,16 +38,22 @@ export function createEnvironmentWorldTime({
     if (!Number.isFinite(serverNowMs)) return false;
 
     const nextSchedule = worldScheduleAt(serverNowMs);
-    const nextEnvironmentTime = environmentTimeForWorldPeriod(nextSchedule.period);
+    const nextVisual = worldEnvironmentAt(nextSchedule);
+    const forceImmediate = immediate || !initialized;
     schedule = nextSchedule;
-    if (!nextEnvironmentTime) return false;
+    visual = nextVisual;
 
-    if (nextEnvironmentTime !== environmentTime) {
-      environment.setTimeOfDay(nextEnvironmentTime, {
-        immediate: immediate || !initialized
-      });
-      environmentTime = nextEnvironmentTime;
+    if (nextVisual.environmentTime !== environmentTime) {
+      environment.setTimeOfDay(nextVisual.environmentTime, { immediate: forceImmediate });
+      environmentTime = nextVisual.environmentTime;
     }
+
+    if (nextVisual.weather !== weather && environment.setWeather) {
+      environment.setWeather(nextVisual.weather, { immediate: forceImmediate });
+      weather = nextVisual.weather;
+    }
+
+    environment.setCelestialPose?.(nextVisual.celestial, { immediate: forceImmediate });
     initialized = true;
     return true;
   }
@@ -71,6 +82,11 @@ export function createEnvironmentWorldTime({
       offsetSeconds: schedule?.offsetSeconds ?? null,
       cycleSeconds: schedule?.cycleSeconds ?? null,
       environmentTime,
+      weather,
+      visualPhase: visual?.phase ?? null,
+      visualPhaseProgress: visual?.phaseProgress ?? null,
+      cycleMinute: visual?.cycleMinute ?? null,
+      celestial: visual?.celestial ?? null,
       initialized,
       clock: Object.freeze({ ...clockStatus })
     });
