@@ -6,7 +6,8 @@ import {
 import { createInputFocusOwner } from "../input/input-focus-owner.js";
 
 export const CINEMATIC_INPUT_POLICY = createInputPolicy(INPUT_FOCUS_CLASS.SYSTEM_LOCK, {
-  cursor: INPUT_CURSOR.HIDDEN
+  cursor: INPUT_CURSOR.HIDDEN,
+  pointerLockDesired: true
 });
 
 const clamp01 = value => Math.max(0, Math.min(1, Number(value) || 0));

@@ -90,7 +90,7 @@ test("fine-pointer gameplay waits for a user gesture, locks, and routes movement
   assert.deepEqual(r.orbit.looks, [[17, -9]]);
 });
 
-test("Chat/UI desire releases lock and GAMEPLAY restoration waits for the next canvas click", () => {
+test("Chat/UI release exits lock and the same closing click can reacquire gameplay lock", () => {
   const r = rig();
   r.canvas.dispatch("pointerdown", { pointerType: "mouse", button: 0 });
   assert.equal(r.runtime.status().locked, true);
@@ -104,9 +104,11 @@ test("Chat/UI desire releases lock and GAMEPLAY restoration waits for the next c
   r.manager.release(chat);
   assert.equal(r.runtime.status().desired, true);
   assert.equal(r.runtime.status().awaitingGesture, true);
-  assert.equal(r.canvas.requestCount, 1, "focus restoration does not create a forbidden auto-retry");
+  assert.equal(r.canvas.requestCount, 1, "focus restoration alone never requests Pointer Lock");
 
-  r.canvas.dispatch("pointerdown", { pointerType: "mouse", button: 0 });
+  // In the browser this document click is the bubble phase of the same trusted
+  // close-button click that synchronously released the blocking focus owner.
+  r.documentLike.dispatch("click");
   assert.equal(r.canvas.requestCount, 2);
   assert.equal(r.runtime.status().locked, true);
 });
@@ -121,6 +123,9 @@ test("Esc-style browser unlock never immediately reacquires Pointer Lock", () =>
   assert.equal(r.runtime.status().locked, false);
   assert.equal(r.runtime.status().desired, true);
   assert.equal(r.canvas.requestCount, 1, "pointerlockchange does not loop requestPointerLock");
+
+  r.documentLike.dispatch("click");
+  assert.equal(r.canvas.requestCount, 1, "manual Esc unlock is not mistaken for a UI-close gesture");
 
   r.canvas.dispatch("pointerdown", { pointerType: "mouse", button: 0 });
   assert.equal(r.canvas.requestCount, 2, "next explicit gameplay click reacquires");
@@ -191,4 +196,14 @@ test("window blur exits active lock and destroy removes ownership cleanly", () =
 
   r.canvas.dispatch("pointerdown", { pointerType: "mouse", button: 0 });
   assert.equal(r.canvas.requestCount, 1, "destroyed runtime no longer listens to canvas gestures");
+});
+
+
+test("focus restoration without a same-task click does not leave a latent auto-lock", async () => {
+  const r = rig();
+  const ui = r.manager.claim("ui", INPUT_FOCUS_POLICY.BLOCKING_UI);
+  r.manager.release(ui);
+  await Promise.resolve();
+  r.documentLike.dispatch("click");
+  assert.equal(r.canvas.requestCount, 0, "reacquire window expires after the closing event task");
 });

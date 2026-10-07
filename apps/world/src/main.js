@@ -628,7 +628,16 @@ const lobbyWorldInput = createInputFocusOwner({
   manager: inputFocus, ownerId: "lobby-world", policy: INPUT_FOCUS_POLICY.SYSTEM_LOCK
 });
 const lobbyTransitionInput = createInputFocusOwner({
-  manager: inputFocus, ownerId: "lobby-transition", policy: INPUT_FOCUS_POLICY.SYSTEM_LOCK
+  manager: inputFocus,
+  ownerId: "lobby-transition",
+  // Entry is still a SYSTEM_LOCK, but it outranks the lobby's own lock and keeps
+  // desktop Pointer Lock alive while the fade/camera blend runs.
+  policy: Object.freeze({
+    ...INPUT_FOCUS_POLICY.SYSTEM_LOCK,
+    priority: INPUT_FOCUS_POLICY.SYSTEM_LOCK.priority + 10,
+    cursor: "HIDDEN",
+    pointerLockDesired: true
+  })
 });
 const profileInput = createInputFocusOwner({
   manager: inputFocus, ownerId: "profile", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
