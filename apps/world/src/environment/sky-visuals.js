@@ -1,9 +1,12 @@
 import * as pc from 'playcanvas';
 import {
   SKY_CLOUD_PATCH_BUDGET,
+  SKY_MOON_DIAMETER,
+  SKY_MOON_DISTANCE,
   SKY_SUN_DIAMETER,
   SKY_SUN_DISTANCE,
   cloudVisualProfile,
+  moonVisualProfile,
   skyCloudLayerLayout,
   skyCloudLayerPolicy,
   shadowRayDirectionFromSunSource,
@@ -421,6 +424,31 @@ function createStarField(root, device) {
   return { entity, material, tiers };
 }
 
+function createMoon(root) {
+  const material = new pc.StandardMaterial();
+  material.name = 'environment-moon-disc';
+  material.diffuse = new pc.Color(0.78, 0.84, 0.94);
+  material.emissive = new pc.Color(0.78, 0.84, 0.94);
+  material.emissiveIntensity = 0.9;
+  material.opacity = 0;
+  material.useLighting = false;
+  material.blendType = pc.BLEND_NORMAL;
+  material.depthWrite = false;
+  material.update();
+
+  const entity = new pc.Entity('EnvironmentMoonDisc');
+  entity.addComponent('render', {
+    type: 'sphere',
+    castShadows: false,
+    receiveShadows: false
+  });
+  entity.render.material = material;
+  entity.setLocalScale(SKY_MOON_DIAMETER, SKY_MOON_DIAMETER, SKY_MOON_DIAMETER);
+  entity.enabled = false;
+  root.addChild(entity);
+  return { entity, material };
+}
+
 function createSun(root) {
   const material = new pc.StandardMaterial();
   material.name = 'environment-sun-disc';
@@ -481,15 +509,18 @@ export function createSkyVisuals({
   // Add the soft halo before the solid sun disc so the core stays crisp.
   const sunGlow = createSunGlow(root, device);
   const sun = createSun(root);
+  const moon = createMoon(root);
   const stars = createStarField(root, device);
 
   let tier = null;
   let cloudProfile = cloudVisualProfile(skyState);
   let sunProfile = sunVisualProfile(skyState);
+  let moonProfile = moonVisualProfile(skyState);
   let starOpacity = nightStarVisibility(skyState);
   let destroyed = false;
   let materialSignalInitialized = false;
   const sunDirection = [0, 0, -1];
+  const moonDirection = [0, 0, 1];
   const lastMaterialSignal = {
     sunColor: [Number.NaN, Number.NaN, Number.NaN],
     sunIntensity: Number.NaN,
@@ -533,6 +564,14 @@ export function createSkyVisuals({
     sun.material.emissive.set(...sunProfile.color);
     sun.material.emissiveIntensity = sunProfile.emissiveIntensity;
     sun.material.update();
+
+    moonProfile = moonVisualProfile(skyState);
+    moon.entity.enabled = moonProfile.visible;
+    moon.material.opacity = moonProfile.opacity;
+    moon.material.diffuse.set(...moonProfile.color);
+    moon.material.emissive.set(...moonProfile.color);
+    moon.material.emissiveIntensity = moonProfile.emissiveIntensity;
+    moon.material.update();
 
     cloudProfile = cloudVisualProfile(skyState);
     for (const cloudTier of Object.values(cloudTiers)) {
@@ -593,6 +632,15 @@ export function createSkyVisuals({
     sun.entity.setPosition(sunX, sunY, sunZ);
     sunGlow.entity.setPosition(sunX, sunY, sunZ);
     sunGlow.entity.setRotation(camera.getRotation());
+
+    moonDirection[0] = -sunDirection[0];
+    moonDirection[1] = -sunDirection[1];
+    moonDirection[2] = -sunDirection[2];
+    moon.entity.setPosition(
+      cameraPosition.x + moonDirection[0] * SKY_MOON_DISTANCE,
+      cameraPosition.y + moonDirection[1] * SKY_MOON_DISTANCE,
+      cameraPosition.z + moonDirection[2] * SKY_MOON_DISTANCE
+    );
 
     const safeDt = Math.max(0, Number.isFinite(dt) ? dt : 0);
     const activeTier = cloudTiers[tier ?? 'medium'];
@@ -675,7 +723,10 @@ export function createSkyVisuals({
       starCount: NIGHT_STAR_BUDGET[currentTier] ?? NIGHT_STAR_BUDGET.medium,
       starOpacity,
       starDrawMeshes: starOpacity > 0.01 ? 1 : 0,
-      moonVisible: false
+      moonVisible: moonProfile.visible,
+      moonOpacity: moonProfile.opacity,
+      moonDirection: Object.freeze([...moonDirection]),
+      moonDrawMeshes: moonProfile.visible ? 1 : 0
     });
   }
 
@@ -691,6 +742,7 @@ export function createSkyVisuals({
     sunGlow.texture.destroy();
     sunGlow.material.destroy();
     sun.material.destroy();
+    moon.material.destroy();
     stars.material.destroy();
   }
 

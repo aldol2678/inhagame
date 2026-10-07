@@ -104,7 +104,7 @@ function mixFogColor(out, clearColor, fogTint, mix) {
     out[i] = clearColor[i] + (fogTint[i] - clearColor[i]) * mix;
 }
 
-function applyFrame({ scene, lightEntity, camera }, frame, fogFrame, fogType, fogColor) {
+function applyFrame({ scene, lightEntity, camera }, frame, fogFrame, fogType, fogColor, celestialSunEuler = null) {
   if (scene?.ambientLight?.set) {
     scene.ambientLight.set(
       frame.ambientColor[0] * fogFrame.ambientLightScale,
@@ -120,7 +120,7 @@ function applyFrame({ scene, lightEntity, camera }, frame, fogFrame, fogType, fo
     light.intensity = frame.sunIntensity * fogFrame.sunLightScale;
     light.shadowIntensity = frame.shadowIntensity;
   }
-  lightEntity?.setEulerAngles?.(...frame.sunEuler);
+  lightEntity?.setEulerAngles?.(...(celestialSunEuler ?? frame.sunEuler));
 
   setColor(camera?.camera?.clearColor, frame.clearColor);
 
@@ -164,8 +164,9 @@ export function createEnvironmentDirector({
   let fogElapsed = Math.max(0, fogTransitionSeconds);
   let fogProgress = 1;
   let fogType = environmentWeatherPreset(initialWeatherId).fogType;
+  let celestialSunEuler = null;
 
-  applyFrame(bindings, current, fogCurrent, fogType, fogColor);
+  applyFrame(bindings, current, fogCurrent, fogType, fogColor, celestialSunEuler);
 
   function setTimeOfDay(value, { immediate = false } = {}) {
     targetTime = resolveEnvironmentTime(value);
@@ -176,7 +177,7 @@ export function createEnvironmentDirector({
     if (immediate || transitionSeconds <= 0) {
       copyFrame(current, target);
       progress = 1;
-      applyFrame(bindings, current, fogCurrent, fogType, fogColor);
+      applyFrame(bindings, current, fogCurrent, fogType, fogColor, celestialSunEuler);
     } else {
       progress = 0;
     }
@@ -198,11 +199,20 @@ export function createEnvironmentDirector({
       copyFogFrame(fogCurrent, fogTarget);
       fogProgress = 1;
       fogType = next.fogType;
-      applyFrame(bindings, current, fogCurrent, fogType, fogColor);
+      applyFrame(bindings, current, fogCurrent, fogType, fogColor, celestialSunEuler);
     } else {
       fogProgress = 0;
     }
     return targetWeather;
+  }
+
+  function setCelestialPose(value) {
+    const next = value?.sunEuler;
+    if (!Array.isArray(next) || next.length < 3 || next.slice(0, 3).some(item => !Number.isFinite(item)))
+      return false;
+    celestialSunEuler = next.slice(0, 3);
+    applyFrame(bindings, current, fogCurrent, fogType, fogColor, celestialSunEuler);
+    return true;
   }
 
   function update(dt) {
@@ -229,7 +239,7 @@ export function createEnvironmentDirector({
       changed = true;
     }
 
-    if (changed) applyFrame(bindings, current, fogCurrent, fogType, fogColor);
+    if (changed) applyFrame(bindings, current, fogCurrent, fogType, fogColor, celestialSunEuler);
     return changed;
   }
 
@@ -254,7 +264,8 @@ export function createEnvironmentDirector({
       wetness: fogCurrent.wetness,
       cloudCover: fogCurrent.cloudCover,
       sunLightScale: fogCurrent.sunLightScale,
-      ambientLightScale: fogCurrent.ambientLightScale
+      ambientLightScale: fogCurrent.ambientLightScale,
+      celestialSunEuler: celestialSunEuler ? Object.freeze([...celestialSunEuler]) : null
     });
   }
 
@@ -279,7 +290,7 @@ export function createEnvironmentDirector({
     if (!Array.isArray(out.sunColor) || out.sunColor.length < 3) out.sunColor = [0, 0, 0];
     if (!Array.isArray(out.sunEuler) || out.sunEuler.length < 3) out.sunEuler = [0, 0, 0];
     copyTuple(out.sunColor, current.sunColor);
-    copyTuple(out.sunEuler, current.sunEuler);
+    copyTuple(out.sunEuler, celestialSunEuler ?? current.sunEuler);
     out.sunIntensity = current.sunIntensity;
     out.artificialLightFactor = current.artificialLightFactor;
     out.rainIntensity = fogCurrent.rainIntensity;
@@ -292,6 +303,7 @@ export function createEnvironmentDirector({
   return Object.freeze({
     setTimeOfDay,
     setWeather,
+    setCelestialPose,
     update,
     status,
     artificialLightFactor,

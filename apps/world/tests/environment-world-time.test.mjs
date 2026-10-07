@@ -39,13 +39,25 @@ function fakeClock(initialNow = null) {
 }
 
 function fakeEnvironment() {
-  const calls = [];
+  const timeCalls = [];
+  const weatherCalls = [];
+  const celestialCalls = [];
   return {
     setTimeOfDay(value, options) {
-      calls.push({ value, options });
+      timeCalls.push({ value, options });
       return value;
     },
-    calls
+    setWeather(value, options) {
+      weatherCalls.push({ value, options });
+      return value;
+    },
+    setCelestialPose(value, options) {
+      celestialCalls.push({ value, options });
+      return true;
+    },
+    timeCalls,
+    weatherCalls,
+    celestialCalls
   };
 }
 
@@ -57,7 +69,7 @@ test('canonical world day is five 15-minute periods, totaling 75 real minutes', 
   assert.equal(NPC_WORLD_CYCLE_MS, 75 * 60_000);
 });
 
-test('world schedule periods map onto the existing three environment states', () => {
+test('coarse period mapping stays compatible while runtime visuals subdivide evening', () => {
   assert.deepEqual(ENVIRONMENT_TIME_BY_WORLD_PERIOD, {
     morning: 'DAY',
     class_time: 'DAY',
@@ -70,49 +82,81 @@ test('world schedule periods map onto the existing three environment states', ()
   assert.equal(environmentTimeForWorldPeriod('unknown'), null);
 });
 
-test('first server-synced world period applies immediately, then boundaries use the normal transition', async () => {
-  const clock = fakeClock(E + 3 * P + 1_000);
+test('evening begins as afternoon, then advances through golden hour, sunset and dusk', async () => {
+  const clock = fakeClock(E + 45 * 60_000 + 1_000);
   const environment = fakeEnvironment();
   const controller = createEnvironmentWorldTime({ environment, clock });
 
   await controller.sync();
-  assert.deepEqual(environment.calls, [
-    { value: 'SUNSET', options: { immediate: true } }
-  ]);
   assert.equal(controller.status().period, 'evening');
+  assert.equal(controller.status().visualPhase, 'afternoon');
+  assert.equal(controller.status().environmentTime, 'DAY');
+  assert.deepEqual(environment.timeCalls[0], {
+    value: 'DAY',
+    options: { immediate: true }
+  });
+
+  clock.setNow(E + 50 * 60_000 + 1_000);
+  controller.update();
+  assert.equal(controller.status().visualPhase, 'golden_hour');
+  assert.equal(controller.status().environmentTime, 'GOLDEN_HOUR');
+
+  clock.setNow(E + 54 * 60_000 + 1_000);
+  controller.update();
+  assert.equal(controller.status().visualPhase, 'sunset');
   assert.equal(controller.status().environmentTime, 'SUNSET');
 
-  clock.setNow(E + 4 * P + 1_000);
+  clock.setNow(E + 58 * 60_000 + 1_000);
   controller.update();
-  assert.deepEqual(environment.calls[1], {
-    value: 'NIGHT',
-    options: { immediate: false }
-  });
+  assert.equal(controller.status().visualPhase, 'dusk');
+  assert.equal(controller.status().environmentTime, 'DUSK');
+
+  clock.setNow(E + 60 * 60_000 + 1_000);
+  controller.update();
   assert.equal(controller.status().period, 'night');
+  assert.equal(controller.status().visualPhase, 'night');
   assert.equal(controller.status().environmentTime, 'NIGHT');
-  assert.equal(clock.counts().refreshCalls, 1);
 });
 
-test('DAY periods do not retrigger the director until their visual state actually changes', async () => {
-  const clock = fakeClock(E + 1_000);
+test('server-synced weather and celestial pose are applied immediately then remain clock-driven', async () => {
+  const clock = fakeClock(E + 10 * 60_000);
   const environment = fakeEnvironment();
   const controller = createEnvironmentWorldTime({ environment, clock });
 
   await controller.sync();
-  assert.deepEqual(environment.calls, [
-    { value: 'DAY', options: { immediate: true } }
-  ]);
+  assert.equal(environment.weatherCalls.length, 1);
+  assert.equal(environment.weatherCalls[0].options.immediate, true);
+  assert.equal(environment.celestialCalls.length, 1);
+  assert.equal(environment.celestialCalls[0].options.immediate, true);
+  assert.equal(typeof controller.status().weather, 'string');
+  assert.equal(typeof controller.status().baseWeather, 'string');
+  assert.equal(typeof controller.status().rainEvent.occurs, 'boolean');
+  assert.equal(typeof controller.status().celestial.sunAltitudeDegrees, 'number');
+
+  clock.setNow(E + 10 * 60_000 + 1_000);
+  controller.update();
+  assert.equal(environment.celestialCalls.length, 2);
+  assert.equal(environment.celestialCalls[1].options.immediate, false);
+});
+
+test('visual DAY periods do not retrigger the director until the visual lighting state changes', async () => {
+  const clock = fakeClock(E + 5 * 60_000);
+  const environment = fakeEnvironment();
+  const controller = createEnvironmentWorldTime({ environment, clock });
+
+  await controller.sync();
+  assert.equal(environment.timeCalls[0].value, 'DAY');
 
   clock.setNow(E + P + 1_000);
   controller.update();
   clock.setNow(E + 2 * P + 1_000);
   controller.update();
-  assert.equal(environment.calls.length, 1);
+  assert.equal(environment.timeCalls.length, 1);
 
-  clock.setNow(E + 3 * P + 1_000);
+  clock.setNow(E + 50 * 60_000 + 1_000);
   controller.update();
-  assert.equal(environment.calls.length, 2);
-  assert.equal(environment.calls[1].value, 'SUNSET');
+  assert.equal(environment.timeCalls.length, 2);
+  assert.equal(environment.timeCalls[1].value, 'GOLDEN_HOUR');
 });
 
 test('unavailable world time never falls back to the client clock or invents a visual state', async () => {
@@ -122,7 +166,9 @@ test('unavailable world time never falls back to the client clock or invents a v
 
   await controller.sync();
   controller.update();
-  assert.deepEqual(environment.calls, []);
+  assert.deepEqual(environment.timeCalls, []);
+  assert.deepEqual(environment.weatherCalls, []);
+  assert.deepEqual(environment.celestialCalls, []);
   assert.equal(controller.status().state, 'UNAVAILABLE');
   assert.equal(controller.status().environmentTime, null);
 });
@@ -134,7 +180,9 @@ test('preview-disabled controller leaves manual environment controls untouched',
 
   await controller.sync();
   controller.update();
-  assert.deepEqual(environment.calls, []);
+  assert.deepEqual(environment.timeCalls, []);
+  assert.deepEqual(environment.weatherCalls, []);
+  assert.deepEqual(environment.celestialCalls, []);
   assert.equal(controller.status().state, 'DISABLED');
   assert.equal(clock.counts().syncCalls, 0);
 });
