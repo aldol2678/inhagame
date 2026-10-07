@@ -6,7 +6,7 @@ Y-up, +Z front, coordinates in player-root space. Python stdlib only.
 import json, math, struct, pathlib, hashlib
 ROOT=pathlib.Path(__file__).resolve().parents[2]
 OUT=ROOT/'apps/world/assets/annyongi-flight-v1.glb'
-GENERATOR='INHAGAME Annyongi procedural reconstruction v1'
+GENERATOR='INHAGAME Annyongi procedural flight reconstruction v2.1'
 COLORS={'blue':'d3edfb','cream':'fffde4','pink':'f6bec8','mouth':'bf6280','ink':'211f1f','white':'ffffff','curl':'9fc7dc'}
 def color(key):
  h=COLORS[key];s=[int(h[i:i+2],16)/255 for i in (0,2,4)]
@@ -136,12 +136,51 @@ for sign,label in [(-1,'L'),(1,'R')]:
   t=k/21;r=.095*(1-t)+.008;a=-math.pi/2+t*math.tau*1.2
   pts.append([sign*(.49+r*math.cos(a)),-.20+r*math.sin(a),-.027])
  wing.tube(pts,.012,'ink',6)
+# Rounded flight fans extend the cloud motif; local coordinates hinge at the shoulder.
+# Each side is one mesh. Broad overlapping lobes, no sharp membranes or claws.
+for sign,label in [(-1,'L'),(1,'R')]:
+ wing=part('FlightWing_'+label)
+ wing.ellipsoid([sign*.48,.08,0],[.57,.23,.13],'cream',20,10,sign*18)
+ for x,y,rx,ry,angle in [(.89,.38,.61,.18,32),(.97,.09,.53,.16,15),(.78,-.16,.42,.15,-5)]:
+  wing.ellipsoid([sign*x,y,-.015],[rx,ry,.105],'cream',20,10,sign*angle)
+ pts=curve([[sign*.17,.08,.13],[sign*.50,.17,.13],[sign*.86,.35,.11],[sign*1.22,.57,.07]],6)
+ wing.tube(pts,.018,'curl',6)
 # Back-view tail: a large curl leaving the rump and sweeping across the back.
 tail=part('Tail');pts=curve([[0,-.74,-.28],[-.38,-.59,-.44],[-.48,-.24,-.53],[-.27,-.04,-.56],[.11,-.04,-.60],[.48,-.18,-.57],[.71,-.44,-.49],[.79,-.67,-.38]],5)
 radii=[.16*(1-i/(len(pts)-1))+.048 for i in range(len(pts))];tail.tube(pts,radii,'blue',12)
 end=pts[-1];tip=part('TailCloud')
 for dx,dy in [(-.06,-.10),(0,-.16),(.08,-.09)]:tip.ellipsoid(add(end,[dx,dy,.015]),[.06,.105,.05],'cream',12,8)
-# Write a flat semantic hierarchy with one vertex-color material, no texture.
+# Preserve the curled identity but keep it below and inside the flight fan silhouette.
+for name in ['Tail','TailCloud']:
+ shape=parts[name]
+ for i in range(0,len(shape.p),3):
+  shape.p[i]*=.82;shape.p[i+1]=shape.p[i+1]*.82-.20;shape.p[i+2]*=.9
+ # Nonuniform position scaling requires inverse-transpose normals.
+ for i in range(0,len(shape.n),3):shape.n[i:i+3]=unit([shape.n[i]/.82,shape.n[i+1]/.82,shape.n[i+2]/.9])
+# Three topology-identical targets deform the tail itself, including its cloud tip.
+# Body-space curves deliberately compensate for the strong full-body flight pitch.
+# The root ring never moves, so every blend stays attached to the rump.
+tail_targets={name:[] for name in ['Tail','TailCloud']}
+root=[0,-.74*.82-.20,-.28*.9]
+for controls in [
+ [root,[-.20,-.95,-.43],[-.25,-1.10,-.61],[-.18,-1.24,-.80],[0,-1.36,-.96],[.19,-1.43,-1.09],[.32,-1.40,-1.17],[.38,-1.31,-1.16]],
+ [root,[-.08,-1.04,-.44],[-.12,-1.32,-.63],[-.09,-1.66,-.83],[-.04,-2.02,-1.02],[.02,-2.35,-1.21],[.07,-2.63,-1.39],[.08,-2.85,-1.50]],
+ [root,[-.14,-.96,-.51],[-.20,-1.05,-.84],[-.18,-1.12,-1.20],[-.08,-1.23,-1.56],[.07,-1.41,-1.91],[.20,-1.64,-2.18],[.25,-1.85,-2.35]]
+]:
+ points=curve(controls,5);target=Shape();target.tube(points,[r*.85 for r in radii],'blue',12)
+ cloud=Shape()
+ for dx,dy in [(-.06,-.10),(0,-.16),(.08,-.09)]:cloud.ellipsoid(add(points[-1],[dx*.82,dy*.82,.015*.9]),[.06*.82,.105*.82,.05*.9],'cream',12,8)
+ # Identical attachment ring for all targets, avoiding a moving seam at the body.
+ target.p[:36]=parts['Tail'].p[:36];target.n[:36]=parts['Tail'].n[:36]
+ for name,shape in [('Tail',target),('TailCloud',cloud)]:tail_targets[name].append(shape)
+# Keep the face level while the body pitches; every face detail follows one pivot.
+head_names=[n for n in parts if n=='Head' or n.split('_')[0] in ['Ear','Horn','Eye','Cheek','Fang'] or n in ['Mouth','Tongue','Nose','Forelock']]
+head_origin=[0,-.05,.05]
+for name in head_names:
+ shape=parts[name]
+ shape.p=[v-head_origin[i%3] for i,v in enumerate(shape.p)]
+
+# Write a semantic hierarchy with one vertex-color material, no texture.
 g={'asset':{'version':'2.0','generator':GENERATOR,'copyright':'Annyongi character design: Inha University. New geometry: INHAGAME project. Noncommercial review candidate; university design approval pending.'},'scene':0,'scenes':[{'nodes':[0]}],'nodes':[{'name':'Annyongi_Root','children':[]}],'meshes':[],'materials':[{'name':'Annyongi_VertexPalette','pbrMetallicRoughness':{'baseColorFactor':[1,1,1,1],'metallicFactor':0,'roughnessFactor':.9}}],'accessors':[],'bufferViews':[],'buffers':[{}]}
 binbuf=bytearray()
 def accessor(data,fmt,typ,component,target):
@@ -154,8 +193,24 @@ def accessor(data,fmt,typ,component,target):
 for name,s in parts.items():
  p=accessor(s.p,'f','VEC3',5126,34962);n=accessor(s.n,'f','VEC3',5126,34962);c=accessor(s.c,'f','VEC4',5126,34962);idx=accessor(s.i,'H','SCALAR',5123,34963)
  g['nodes'][0]['children'].append(len(g['nodes']));g['nodes'].append({'name':name,'mesh':len(g['meshes'])});g['meshes'].append({'name':name,'primitives':[{'attributes':{'POSITION':p,'NORMAL':n,'COLOR_0':c},'indices':idx,'material':0}]})
-for name,pos in [('DragonWing_L',[-.4,-.2,-.1]),('DragonWing_R',[.4,-.2,-.1]),('RiderAnchor',[0,.16,-.64])]:
+ # glTF morph positions and normals are deltas from the curled base.
+ if name in tail_targets:
+  mesh=g['meshes'][-1];mesh['weights']=[0,0,0];mesh['extras']={'targetNames':['TailAscend','TailForward','TailGlide']}
+  mesh['primitives'][0]['targets']=[]
+  for target in tail_targets[name]:
+   mesh['primitives'][0]['targets'].append({key:accessor([a-b for a,b in zip(values,base)],'f','VEC3',5126,34962) for key,values,base in [('POSITION',target.p,s.p),('NORMAL',target.n,s.n)]})
+for name,pos in [('DragonWing_L',[-.38,-.20,-.26]),('DragonWing_R',[.38,-.20,-.26]),('RiderAnchor',[0,-.08,-.80])]:
  g['nodes'][0]['children'].append(len(g['nodes']));g['nodes'].append({'name':name,'translation':pos,'extras':{'purpose':'invisible compatibility pivot' if name.startswith('Dragon') else 'rider feet; +Z forward'}})
+# The legacy pivots now drive actual flight fans; small CloudWing nodes remain fixed.
+for label in ['L','R']:
+ idx=next(i for i,n in enumerate(g['nodes']) if n['name']=='FlightWing_'+label)
+ pivot=next(n for n in g['nodes'] if n['name']=='DragonWing_'+label)
+ pivot['children']=[idx];pivot['extras']={'purpose':'animated flight fan; compatibility name retained'}
+ g['nodes'][0]['children'].remove(idx)
+head_children=[i for i,n in enumerate(g['nodes']) if n['name'] in head_names]
+g['nodes'][0]['children']=[i for i in g['nodes'][0]['children'] if i not in head_children]
+g['nodes'][0]['children'].append(len(g['nodes']))
+g['nodes'].append({'name':'FlightHeadPivot','translation':head_origin,'children':head_children,'extras':{'purpose':'face counter-pitch during full-body flight'}})
 g['buffers'][0]['byteLength']=len(binbuf)
 js=json.dumps(g,ensure_ascii=True,separators=(',',':')).encode();js+=b' '*((-len(js))%4);binbuf+=b'\0'*((-len(binbuf))%4)
 result=struct.pack('<III',0x46546c67,2,28+len(js)+len(binbuf))+struct.pack('<I4s',len(js),b'JSON')+js+struct.pack('<I4s',len(binbuf),b'BIN\0')+binbuf

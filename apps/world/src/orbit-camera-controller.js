@@ -6,7 +6,7 @@ import { inMainGateCameraArea } from './main-gate-camera-collision.js';
 
 const WALK = { initial: 3.5, min: 1.5, max: 7 };
 const FLIGHT = { initial: Math.hypot(7.3, 18.5), min: 12, max: 36 };
-const ANNYONGI_FLIGHT = Object.freeze({ initial: 5, min: 3.5, max: 12 });
+const ANNYONGI_FLIGHT = Object.freeze({ initial: 7.4, min: 4.5, max: 16 });
 export const INDOOR_CAMERA = Object.freeze({ initial: 2.2, min: 1.1, max: 3.2 });
 const THIRD_PERSON_PITCH = Object.freeze({ min: -1.25, orbitMin: 0.12, max: 1.2 });
 const FIRST_PERSON_PITCH = Object.freeze({ min: -1.35, max: 1.35 });
@@ -218,8 +218,8 @@ export class OrbitCameraController {
       return;
     }
     const annyongi = this.mounted && this.flightProfile === "annyongi";
-    const lead = this.mounted ? (annyongi ? .65 : 5.5) : 0.35;
-    const height = this.mounted ? (annyongi ? .35 : 2.1) : eyeHeight;
+    const lead = this.mounted ? (annyongi ? .2 : 5.5) : 0.35;
+    const height = this.mounted ? (annyongi ? .3 : 2.1) : eyeHeight;
     this.target.x = position.x - sin * lead;
     this.target.y = position.y + height;
     this.target.z = position.z + cos * lead;
@@ -229,11 +229,15 @@ export class OrbitCameraController {
     // the camera under the campus ground at normal third-person zoom distances.
     const viewPitch = this.pitch;
     const orbitPitch = Math.max(viewPitch, THIRD_PERSON_PITCH.orbitMin);
-    const horizontal = Math.cos(orbitPitch) * this.distance;
+    // Fit a 3.8-unit cloud-wing span in portrait without changing user zoom memory.
+    const aspect = Number(this.camera.camera?.aspectRatio) || 1;
+    const framingScale = annyongi ? Math.max(1, Math.min(1.35, .65 / aspect)) : 1;
+    const framedDistance = this.distance * framingScale;
+    const horizontal = Math.cos(orbitPitch) * framedDistance;
     const eye = [position.x, position.y + height, position.z];
     const candidate = [
       this.target.x + sin * horizontal,
-      this.target.y + Math.sin(orbitPitch) * this.distance,
+      this.target.y + Math.sin(orbitPitch) * framedDistance,
       this.target.z - cos * horizontal
     ];
     const fraction = cameraSafeFraction(eye, candidate, this.indoor ? this.indoor.obstacles : this.outdoorObstacles);

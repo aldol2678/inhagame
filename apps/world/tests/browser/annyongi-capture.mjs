@@ -11,6 +11,12 @@ await page.goto(smoke.origin+'/tests/browser/annyongi-review-harness.html?optimi
 await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));
 const optimized=await page.screenshot({path:out+'/optimized-front.png'});
 assert.deepEqual(optimized,canonical,'optimized geometry renders pixel-identically to canonical');
+for(const name of ['front','side','back']) {
+ await page.goto(smoke.origin+'/tests/browser/annyongi-review-harness.html?night=1');await page.waitForFunction(()=>window.__ANNYONGI_REVIEW__);
+ await page.evaluate(name=>window.__ANNYONGI_REVIEW__.view(name),name);
+ await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));
+ await page.screenshot({path:out+'/night-'+name+'.png'});
+}
 assert.deepEqual(smoke.problems,[]);
 await writeFile(out+'/result.json',JSON.stringify({pixelIdentical:true,frontSha256:createHash('sha256').update(canonical).digest('hex'),state:await page.evaluate(()=>window.__ANNYONGI_REVIEW__.snapshot()),problems:smoke.problems},null,2));console.log(out,smoke.problems);
 }finally{await smoke.close();}

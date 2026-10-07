@@ -78,3 +78,10 @@ has not been approved by the university. Design review is pending before release
 No official university operation, sponsorship or endorsement of INHA WORLD is implied.
 Commercial use requires separate consultation. See ASSET_PROVENANCE.json and
 `docs/implementation/annyongi-3d-redesign-01/DISCOVERY.md`.
+
+ANNYONGI-FLIGHT-V2 adds project-authored deployable rounded cloud flight fans,
+a compact tail, and game-only animation/readability adjustments. This is a game
+adaptation of the referenced design, not an official university mascot revision.
+See `docs/implementation/annyongi-flight-v2/README.md`.
+
+The V2-FIX game adaptation adds three authored tail morph targets and a face counter-pitch hierarchy. See `docs/implementation/annyongi-flight-v2-fix/README.md`; the same character attribution and pending design approval apply.

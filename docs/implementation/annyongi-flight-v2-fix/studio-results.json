@@ -1,0 +1,12 @@
+{
+  "pixelIdentical": true,
+  "frontSha256": "334b63bec3b539ed16da58aaf7eb73278f2db478e6092debe5af358ee433b601",
+  "state": {
+    "model": "glb",
+    "frame": 24,
+    "meshes": 28,
+    "anchor": "[0, -0.08, -0.8]",
+    "rider": "[0, 0.33794682746424326, -0.8]"
+  },
+  "problems": []
+}

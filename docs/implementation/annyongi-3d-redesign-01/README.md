@@ -1,5 +1,7 @@
 # ANNYONGI-3D-REDESIGN-01
 
+Historical V1 record. The fixed decorative wing decision is superseded for game flight by [ANNYONGI-FLIGHT-V2](../annyongi-flight-v2/README.md). The official reference observations remain unchanged.
+
 Status: implementation and local acceptance completed; **design review and deployment acceptance pending**. Do not interpret passing tests as university design approval. No merge, Production deployment or external email was performed.
 
 Baseline main was queried directly at work start: `c6916d17e4d57ec05ab08af26ce0633e8c2824d5`. A final remote query found two new main commits; this branch was cleanly rebased onto **`03b89364b32c064cab26db7e2e7d70b38fc5eb59`** before PR creation. The upstream changes fix main-gate initialization and fifth-building clock placement, without changing this asset or mount contract. Full World/static and campus desktop/mobile checks were rerun after rebase. Branch: `feat/annyongi-3d-redesign-01`.
