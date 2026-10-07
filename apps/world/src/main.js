@@ -247,6 +247,7 @@ const campusLifePreview = previewHost && startupParams.get('campusLife') === 'p0
 let lastTrackedZone = null;
 
 async function boot() {
+globalThis.__INHA_WORLD_BOOT_DIAGNOSTICS__?.markBootEntered?.();
 worldLoading?.setPhase("RENDERER");
 const device = await createWorldGraphicsDevice(pc, canvas);
 const rendererName = device.isWebGPU ? "WebGPU" : "WebGL2";
