@@ -1,6 +1,5 @@
 import { getSetting, setSetting } from '../settings-registry.js';
 
-const KEY = "inha-world-audio-volume-v1";
 
 export function bindAudioVolumeSettings(audio, select, suppliedStorage = null) {
   if (!audio || !select) return () => {};
