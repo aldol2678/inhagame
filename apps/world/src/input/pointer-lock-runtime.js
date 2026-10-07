@@ -112,10 +112,14 @@ export function bindPointerLockRuntime({
   function armGestureRecovery() {
     const generation = ++gestureRecoveryGeneration;
     gestureRecoveryArmed = true;
-    const queue = globalThis.queueMicrotask ?? (fn => Promise.resolve().then(fn));
-    queue(() => {
+    // Keep the arm through the rest of this trusted click's propagation. A microtask
+    // can run between target and document listeners in real browsers, which would
+    // clear it before the bubble phase. The zero-delay task expires before the next
+    // separate user event, so no latent auto-lock remains.
+    const expire = globalThis.setTimeout ?? (fn => fn());
+    expire(() => {
       if (generation === gestureRecoveryGeneration) gestureRecoveryArmed = false;
-    });
+    }, 0);
   }
 
   function applyFocus(state) {
