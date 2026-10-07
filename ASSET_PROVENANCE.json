@@ -1,1 +1,68 @@
-{"assets":[{"path":"apps/world/assets/induck-v3.glb","provenance":"Independent axis-aligned QA box or teal-square sprite; no original geometry/pixels/textures read.","sha256":"5057f3299a9d7e902b1370d203fa93e8279a2ff27a8bc2bdf68f09fe312c58f2"},{"path":"apps/world/assets/annyongi-flight-v1.glb","provenance":"Independent axis-aligned QA box or teal-square sprite; no original geometry/pixels/textures read.","sha256":"0714be46b19cf21a7190ffcfa3984e3338074db88f0a02f6edbc6ea14bf45242"},{"path":"apps/world/assets/induck-cap-v1.glb","provenance":"Independent axis-aligned QA box or teal-square sprite; no original geometry/pixels/textures read.","sha256":"b6436832f9716f3ef9791ffc18b47d300d73c2fd4820abb904050ec11daac8e0"},{"path":"apps/world/assets/induck-backpack-v1.glb","provenance":"Independent axis-aligned QA box or teal-square sprite; no original geometry/pixels/textures read.","sha256":"4529a2235a8549a7eca936fb07d7f531e27f386df967bfb2b83b80f10b80a478"},{"path":"apps/world/assets/induck-hoodie-v1.glb","provenance":"Independent axis-aligned QA box or teal-square sprite; no original geometry/pixels/textures read.","sha256":"924367e0538ca3cc29aaf087bf187f750d6030c9cd8844fdc27a02ea6f092ecf"},{"path":"apps/world/assets/p0-qa-building.glb","provenance":"Independent axis-aligned QA box or teal-square sprite; no original geometry/pixels/textures read.","sha256":"c4a61cbcb08303e6aef51ab379b0abcd7c5bac81bb39f653dcb975c6fcb6c6ed"},{"path":"apps/world/assets/mcm-survivor-top-v1.gltf","provenance":"Independent axis-aligned QA box or teal-square sprite; no original geometry/pixels/textures read.","sha256":"2f052c2a02614e11674ba5863a9b6dd860785e6dca03ab0ee932d0a29866a1cc"},{"path":"apps/classic/assets/indeoki.png","provenance":"Independent axis-aligned QA box or teal-square sprite; no original geometry/pixels/textures read.","sha256":"dfd676c3c9e2159be5e526f6475ccf990729655314f0edeb461804276f7a96fa"},{"path":"apps/classic/assets/annyongi.png","provenance":"Independent axis-aligned QA box or teal-square sprite; no original geometry/pixels/textures read.","sha256":"dfd676c3c9e2159be5e526f6475ccf990729655314f0edeb461804276f7a96fa"}],"generator":"Independent QA geometry v1","specification":"Box faces use axis-aligned normals and two triangles per face. Sprites are a central teal square on a transparent 128x128 canvas."}
+{
+  "assets": [
+    {
+      "path": "apps/world/assets/induck-v3.glb",
+      "provenance": "Independent axis-aligned QA box or teal-square sprite; no original geometry/pixels/textures read.",
+      "sha256": "5057f3299a9d7e902b1370d203fa93e8279a2ff27a8bc2bdf68f09fe312c58f2"
+    },
+    {
+      "path": "apps/world/assets/annyongi-flight-v1.glb",
+      "provenance": "New project-authored procedural 3D reconstruction referencing Inha University official Annyongi mascot design; not independent QA geometry.",
+      "sha256": "e00f7065fb4176277e2e3fdf2e7487d50686be983fffcdbced0ae379a6c8d8aa",
+      "generator": "INHAGAME Annyongi procedural reconstruction v1",
+      "geometrySource": "tools/world-assets/build-annyongi.py",
+      "textureUsage": "none",
+      "referenceSourceFamily": [
+        "Inha University / Public Relations Team mascot page and five orthographic PNGs",
+        "Inha official goods shop: 2D acrylic and 3D folder/plush"
+      ],
+      "referenceUrls": [
+        "http://www.inha.ac.kr/kr/4219/subview.do",
+        "http://www.inha.ac.kr/sites/kr/images/about/annyong01.png",
+        "http://www.inha.ac.kr/sites/kr/images/about/annyong02.png",
+        "http://www.inha.ac.kr/sites/kr/images/about/annyong03.png",
+        "http://www.inha.ac.kr/sites/kr/images/about/annyong04.png",
+        "http://www.inha.ac.kr/sites/kr/images/about/annyong05.png"
+      ],
+      "approvalStatus": "design-review-pending",
+      "permissionBasis": "User-reported technical commercialization team permission for noncommercial reproduction preserving design. Correspondence not independently inspected; no university approval of this new model claimed."
+    },
+    {
+      "path": "apps/world/assets/induck-cap-v1.glb",
+      "provenance": "Independent axis-aligned QA box or teal-square sprite; no original geometry/pixels/textures read.",
+      "sha256": "b6436832f9716f3ef9791ffc18b47d300d73c2fd4820abb904050ec11daac8e0"
+    },
+    {
+      "path": "apps/world/assets/induck-backpack-v1.glb",
+      "provenance": "Independent axis-aligned QA box or teal-square sprite; no original geometry/pixels/textures read.",
+      "sha256": "4529a2235a8549a7eca936fb07d7f531e27f386df967bfb2b83b80f10b80a478"
+    },
+    {
+      "path": "apps/world/assets/induck-hoodie-v1.glb",
+      "provenance": "Independent axis-aligned QA box or teal-square sprite; no original geometry/pixels/textures read.",
+      "sha256": "924367e0538ca3cc29aaf087bf187f750d6030c9cd8844fdc27a02ea6f092ecf"
+    },
+    {
+      "path": "apps/world/assets/p0-qa-building.glb",
+      "provenance": "Independent axis-aligned QA box or teal-square sprite; no original geometry/pixels/textures read.",
+      "sha256": "c4a61cbcb08303e6aef51ab379b0abcd7c5bac81bb39f653dcb975c6fcb6c6ed"
+    },
+    {
+      "path": "apps/world/assets/mcm-survivor-top-v1.gltf",
+      "provenance": "Independent axis-aligned QA box or teal-square sprite; no original geometry/pixels/textures read.",
+      "sha256": "2f052c2a02614e11674ba5863a9b6dd860785e6dca03ab0ee932d0a29866a1cc"
+    },
+    {
+      "path": "apps/classic/assets/indeoki.png",
+      "provenance": "Independent axis-aligned QA box or teal-square sprite; no original geometry/pixels/textures read.",
+      "sha256": "dfd676c3c9e2159be5e526f6475ccf990729655314f0edeb461804276f7a96fa"
+    },
+    {
+      "path": "apps/classic/assets/annyongi.png",
+      "provenance": "Independent axis-aligned QA box or teal-square sprite; no original geometry/pixels/textures read.",
+      "sha256": "dfd676c3c9e2159be5e526f6475ccf990729655314f0edeb461804276f7a96fa"
+    }
+  ],
+  "generator": "Mixed per-asset provenance; see each asset",
+  "specification": "Existing QA assets retain their original independent cuboid/sprite provenance. Annyongi is a separately attributed official-design reconstruction."
+}

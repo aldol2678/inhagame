@@ -1,0 +1,28 @@
+[
+  {
+    "file": "apps/world/assets/annyongi-flight-v1.glb",
+    "bytes": 287292,
+    "sha256": "e00f7065fb4176277e2e3fdf2e7487d50686be983fffcdbced0ae379a6c8d8aa",
+    "issues": {
+      "numErrors": 0,
+      "numWarnings": 0,
+      "numInfos": 0,
+      "numHints": 0,
+      "messages": [],
+      "truncated": false
+    }
+  },
+  {
+    "file": "apps/world/.generated/assets-optimized/annyongi-flight-v1.glb",
+    "bytes": 242612,
+    "sha256": "1cd7e98c5814b883a9b73a3903c252ab78df72776e25d3884ccab6d7a3d8a86f",
+    "issues": {
+      "numErrors": 0,
+      "numWarnings": 0,
+      "numInfos": 0,
+      "numHints": 0,
+      "messages": [],
+      "truncated": false
+    }
+  }
+]

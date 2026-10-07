@@ -127,3 +127,31 @@ test('real canary disposal during asynchronous preparation releases both resulti
   await f.character.ready; assert.equal(f.instances.length, 2); checkReleased(f);
   f.character.rollbackAssetCanary('AFTER_DESTROY'); checkReleased(f);
 });
+
+
+test('authored Annyongi anchor follows hover and bounded lean, with stationary compatibility pivots', async t => {
+  const f=await fixture(t);f.success('duck');f.success('dragon');await f.character.ready;
+  f.player.mountKind='annyongi';f.character.setMounted(true);
+  const carrier=f.player.findByName('Annyongi_GLB_Visual'),duck=f.player.findByName('Induck_GLB_Visual');
+  const anchor=carrier.findByName('RiderAnchor');assert.ok(anchor);
+  for (const moving of [false,true]) {
+    f.character.update(.19,{mounted:true,moving,grounded:false});
+    const position=carrier.getWorldTransform().transformPoint(anchor.getLocalPosition());
+    // Duck asset floor after the common HUMAN_HEIGHT normalization.
+    const feet=duck.getPosition().y-1.195*duck.getLocalScale().y;
+    assert.ok(Math.abs(feet-position.y)<1e-6,'rider floor follows authored anchor');
+    assert.ok(Math.abs(duck.getPosition().z-position.z)<1e-6,'rider follows pitch in Z');
+    assert.ok(Math.abs(carrier.getLocalEulerAngles().x)<=4.001);
+    for(const name of ['DragonWing_L','DragonWing_R']) {
+      const pivot=carrier.findByName(name);assert.equal(pivot.findComponents('render').length,0);
+      assert.ok(pivot.getLocalEulerAngles().length()<1e-6,'no flapping');
+    }
+  }
+  f.character.update(.1,{mounted:true,moving:false,grounded:true});
+  assert.equal(carrier.getLocalPosition().y,0,'no ground penetration from bob');
+  assert.ok(carrier.getLocalEulerAngles().length()<1e-6);
+  f.character.setFirstPerson(true);assert.equal(carrier.enabled,false);assert.equal(duck.enabled,false);
+  f.character.setFirstPerson(false);assert.equal(carrier.enabled,true);
+  f.character.setMounted(false);f.character.update(.1,{mounted:false,moving:false,grounded:true});
+  assert.equal(carrier.enabled,false);assert.ok(duck.enabled);
+});

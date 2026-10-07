@@ -78,6 +78,7 @@ export async function startSmoke({ viewport = { width: 1280, height: 720 }, cont
   const launcher = browserType === "webkit" ? webkit : chromium;
   const browser = await launcher.launch({
     headless: process.env.WORLD_SMOKE_HEADED !== '1',
+    ...(process.env.WORLD_SMOKE_EXECUTABLE ? { executablePath: process.env.WORLD_SMOKE_EXECUTABLE } : {}),
     ...(browserType === "chromium" && (process.env.WORLD_SMOKE_BROWSER || (process.platform === 'linux' && !disabled))
       ? { channel: process.env.WORLD_SMOKE_BROWSER || 'chromium' } : {}),
     ...(browserType === "chromium" ? { args: gpuArgs } : {})
