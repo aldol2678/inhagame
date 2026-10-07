@@ -50,16 +50,28 @@ The server-anchored shared clock drives the celestial pose continuously.
 
 ## Time-aware weather
 
-Production weather is selected deterministically from the same shared world schedule. All clients observing the same authoritative slot must resolve the same weather.
+Production weather is selected deterministically from the same shared world schedule. All clients observing the same authoritative slot and offset must resolve the same weather.
 
-Automatic weather weights differ by gameplay period:
+Base weather differs by gameplay period:
 
-- morning: increased fog chance
-- class/lunch: higher clear-weather chance
-- evening: mostly clear/cloudy with occasional rain
-- night: increased cloudy/rain/fog share
+- morning: increased fog share
+- class/lunch: higher clear-weather share
+- evening: mostly clear/cloudy
+- night: increased cloudy/fog share
 
-Automatic rotation currently includes `CLEAR`, `CLOUDY`, `FOG`, and `RAIN`.
+Rain is **not** a whole 15-minute weather state. Each authoritative period independently decides whether a short rain event occurs.
+
+- rain-event start time is deterministic-random within the 15-minute period
+- rain duration is deterministic-random between **3 and 7 real minutes**
+- at least one minute is reserved before rain and one minute after rain
+- the minute before rain resolves to `CLOUDY` as a lead-in
+- the minute after rain resolves to `CLOUDY` as a trail-out
+- outside that event window the period returns to its deterministic base weather
+- event incidence is calibrated so expected total rain-time stays close to the previous whole-period targets: about 5% morning, 12% class time, 10% lunch, 12% evening, and 14% night
+
+Because event timing is derived from the shared server slot, reloads and separate clients do not reroll the current rain window.
+
+Automatic rotation currently includes `CLEAR`, `CLOUDY`, `FOG`, and short `RAIN` events.
 
 `SNOW` is intentionally excluded from automatic time-based selection until a seasonal authority owns winter activation. Existing manual/winter snow systems remain intact.
 
