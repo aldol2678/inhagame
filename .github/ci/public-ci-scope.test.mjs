@@ -138,7 +138,7 @@ test('source renamed into an allowed document still chooses full', (t) => {
 });
 test('deleted README remains a documentation change', (t) => {
   const r = repo(t); r.git('rm', 'README.md'); r.commit('delete docs');
-  assert.equal(run(r.dir, 'push', r.base), 'mode=docs');
+  assert.equal(run(r.dir, 'push', r.base), 'docs');
 });
 test('newline in a Git filename cannot split into allowed documents', (t) => {
   const r = repo(t); r.write('README.md\nNOTICE.md', 'not a known document\n'); r.commit('newline filename');
@@ -156,10 +156,10 @@ test('depth-two synthetic PR checkout has the required base parent', (t) => {
   source.git('checkout', '--quiet', 'main'); source.git('merge', '--quiet', '--no-ff', 'docs-pr', '-m', 'merge');
   const clone = join(source.dir, 'pr-clone');
   execFileSync('git', ['clone', '--quiet', '--depth=2', 'file://' + source.dir, clone]);
-  assert.equal(run(clone, 'pull_request'), 'mode=docs');
+  assert.equal(run(clone, 'pull_request'), 'docs');
 });
 test('Git command failure chooses full', (t) => {
   const dir = mkdtempSync(join(tmpdir(), 'public-ci-no-git-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
-  assert.equal(run(dir, 'pull_request'), 'mode=full');
+  assert.equal(run(dir, 'pull_request'), 'full');
 });
