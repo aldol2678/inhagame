@@ -43,6 +43,7 @@ test("cinematic director owns input temporarily, blends the existing camera and 
   assert.equal(root.dataset.cinematic, "TEST_CINE");
   assert.equal(inputFocus.snapshot().movement, false);
   assert.equal(inputFocus.snapshot().camera, false);
+  assert.equal(inputFocus.snapshot().pointerLockDesired, true, "cinematic keeps an acquired desktop lock");
 
   director.update(.2);
   assert.equal(director.applyCamera(), true);
