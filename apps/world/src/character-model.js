@@ -277,11 +277,20 @@ export function createCharacter(app, player, { assetShadow = null, assetCanary =
     releaseInstances(dragonInstances);
   });
 
-  function loadModel(url, { productionCanary = false } = {}) {
+  function loadModel(url, { productionCanary = false, bootSpan = null } = {}) {
+    const bootProfile = globalThis.__INHA_WORLD_BOOT_PROFILE__ ?? null;
+    let bootSettled = false;
+    const settleBoot = detail => {
+      if (!bootSpan || bootSettled) return;
+      bootSettled = true;
+      bootProfile?.endSpan?.(bootSpan, detail);
+    };
+    if (bootSpan) bootProfile?.startSpan?.(bootSpan);
     return new Promise((resolve, reject) => {
       app.assets.loadFromUrl(url, "container", async (error, asset) => {
-        if (disposed) { resolve(null); return; }
+        if (disposed) { settleBoot({ status: "disposed" }); resolve(null); return; }
         if (error || !asset?.resource) {
+          settleBoot({ status: "error" });
           reject(error || new Error(`No GLB resource for ${url}`));
           return;
         }
@@ -299,22 +308,29 @@ export function createCharacter(app, player, { assetShadow = null, assetCanary =
             duckCanaryReceipt = duckCanaryPrepared.receipt;
             ownInstance(duckCanaryPrepared.canonicalEntity, duckInstances);
             ownInstance(duckCanaryPrepared.activeEntity, duckInstances);
-            if (disposed) { releaseInstances(duckInstances); resolve(null); return; }
+            if (disposed) { releaseInstances(duckInstances); settleBoot({ status: "disposed" }); resolve(null); return; }
+            settleBoot({ status: "ready" });
             resolve(duckCanaryPrepared.activeEntity);
             return;
           }
-          resolve(ownInstance(
+          const instance = ownInstance(
             asset.resource.instantiateRenderEntity({ castShadows: true, receiveShadows: true }),
             productionCanary ? duckInstances : dragonInstances
-          ));
+          );
+          settleBoot({ status: "ready" });
+          resolve(instance);
         } catch (cause) {
+          settleBoot({ status: "error" });
           reject(cause);
         }
       });
     });
   }
 
-  const duckReady = loadModel("/assets/induck-v3.glb", { productionCanary: true }).then(loadedDuck => {
+  const duckReady = loadModel("/assets/induck-v3.glb", {
+    productionCanary: true,
+    bootSpan: "asset-induck"
+  }).then(loadedDuck => {
     if (disposed) { releaseInstances(duckInstances); return; }
     const pivots = duckPivotSet(loadedDuck);
     if (!pivots.valid) throw new Error("Campus duck GLB wing/leg pivots are missing");
@@ -338,7 +354,9 @@ export function createCharacter(app, player, { assetShadow = null, assetCanary =
     if (!disposed) { positionDuck(mountedNow); syncCameraVisibility(); }
     console.warn("Campus duck GLB unavailable; primitive fallback remains active:", error);
   });
-  const dragonReady = loadModel("/assets/annyongi-flight-v1.glb").then(loadedDragon => {
+  const dragonReady = loadModel("/assets/annyongi-flight-v1.glb", {
+    bootSpan: "asset-annyongi"
+  }).then(loadedDragon => {
     if (disposed) { releaseInstances(dragonInstances); return; }
     const wings = [-1, 1].map(side => loadedDragon?.findByName?.(side < 0 ? "DragonWing_L" : "DragonWing_R"));
     if (wings.some(node => !node)) throw new Error("Campus carrier GLB wing pivots are missing");
