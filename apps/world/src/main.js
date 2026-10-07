@@ -63,7 +63,11 @@ import { campusSpawn } from './campus-spawn.js';
 import { createContextActionController } from "./context-action.js";
 import { createPhotoMode } from "./photo/photo-mode.js";
 import { createPhotoCapture } from "./photo/photo-capture.js";
-import { createPhotoModePanel } from "./photo/photo-mode-panel.js";
+import { bindPhotoModeEntry, createPhotoModePanel } from "./photo/photo-mode-panel.js";
+import { createPhotoCameraController } from "./photo/photo-camera-controller.js";
+import { createPhotoInput } from "./photo/photo-input.js";
+import { overPondWater } from "./landmark-detail-layout.js";
+import { INKYUNG_WATER_Y } from "./mounts/duck-boat-motion.js";
 import { createInkyungLivingMoment, INKYUNG_LIVING_ZONE_ID } from "./inkyung-living-moment.js";
 import { createNextDiscovery, FIRST_CAMPUS_REWARD_ID } from "./next-discovery.js";
 import { createCore15FunnelTelemetry } from "./core15-funnel-telemetry.js";
@@ -1640,32 +1644,54 @@ keyboardHelp = createKeyboardShortcutsPanel({
   },
   onClose: () => { keyboardHelpInput.release(); }
 });
-// Social S1 photo UI: one existing Inkyung semantic point, temporary local framing only.
+// Photo Mode 2.0: opens from the HUD 📷 (or P) anywhere in normal play, never by place.
+// PhotoMode owns lifecycle, InputFocus and the play-camera snapshot; while it is open the
+// PhotoCameraRig is the only writer of the camera transform (see the update loop).
+const photoCamera = createPhotoCameraController({
+  camera,
+  collision: {
+    // The gameplay chase camera's own obstacle authority; rooms and regions swap it in.
+    obstacles: () => orbit.indoor ? orbit.indoor.obstacles : orbit.outdoorObstacles,
+    floorHeight: (x, z) => {
+      const ground = controller.space?.groundHeight?.(x, z);
+      return rooms.insideRoom || !overPondWater(x, z) ? ground : Math.max(ground, INKYUNG_WATER_Y);
+    }
+  }
+});
 const photoMode = createPhotoMode({
-  orbit, inputFocus,
+  orbit, rig: photoCamera, inputFocus,
   getPosition: () => player.getLocalPosition(),
   getState: () => ({
-    campus: rooms?.currentSpace === "campus" && biryongRealm?.inBiryong !== true &&
-      !lobbyWorld.active && !lobbyTransition.active,
+    world: !lobbyWorld.active && !lobbyTransition.active,
+    region: biryongRealm?.inBiryong === true ? "biryong" : "campus",
+    space: rooms?.currentSpace ?? null,
     grounded: controller.grounded,
-    mounted: controller.mounted, seated: seats.isSeated, following: follow.active, combat: combatRuntime.active,
+    mounted: controller.mounted, combat: combatRuntime.active, cinematic: cinematic.active === true,
     transitioning: rooms?.status().busy === true || biryongRealm?.busy === true,
     accountId: online?.userId ?? null
   }),
+  getPointerLocked: () => pointerLock.status().locked,
   beforeOpen: () => {
     follow.stop(FollowStopReason.EMOTE);
     playerAutoMove?.pause(AUTO_MOVE_CANCEL_REASON.INTERACTION);
     emoteMenu.setOpen(false);
     emotes.cancel("photo-mode");
   },
-  requestPose: () => requestEmote("photo_pose"),
+  // A seated emote would stand the player up and move the subject out of frame.
+  requestPose: () => seats.isSeated ? "seated" : requestEmote("photo_pose"),
   cancelPose: () => { if (emotes.active?.id === "photo_pose") emotes.cancel("photo-mode-close"); }
 });
-const photoModePanel = createPhotoModePanel({ mode: photoMode, fallbackFocus: canvas,
+const photoInput = createPhotoInput({
+  mode: photoMode, rig: photoCamera, canvas,
+  canUseShortcut: () => inputFocus.can("GAMEPLAY_SHORTCUT"),
+  getMouseLook: () => ({ sensitivity: orbit.mouseSensitivity, invertY: orbit.invertMouseY })
+});
+const photoModePanel = createPhotoModePanel({ mode: photoMode, rig: photoCamera, input: photoInput, fallbackFocus: canvas,
   capture: createPhotoCapture({ app, canvas, mode: photoMode }) });
+const photoModeEntry = bindPhotoModeEntry({ button: document.getElementById("photo-mode-toggle"), mode: photoMode });
 window.addEventListener("pagehide", event => {
   photoMode.close("lifecycle");
-  if (!event.persisted) { photoModePanel.destroy(); photoMode.destroy(); }
+  if (!event.persisted) { photoModeEntry.destroy(); photoModePanel.destroy(); photoInput.destroy(); photoMode.destroy(); }
 });
 // Single input authority: migrated owners resolve WORLD_ACTION through InputFocusManager.
 const worldActionsSuspended = () => !inputFocus.can("WORLD_ACTION");
@@ -2942,6 +2968,8 @@ places.onPlaceZoneChanged((previous,next)=>{
 });
 
 const LOBBY_SUMMARY_INTERVAL_S = 0.25;
+// Same local-body envelope the orbit uses before it hides the player's own mesh.
+const PHOTO_SUBJECT_CLEARANCE = 0.6;
 let lobbySummaryElapsed = LOBBY_SUMMARY_INTERVAL_S;
 // The lobby camera and player are static, so the map/zone/HUD readbacks only need to settle once
 // per lobby position instead of every frame. Reset outside the lobby so re-entry settles again.
@@ -3054,7 +3082,8 @@ app.on("update", (dt) => {
   helicopterFlightHud.update();
   orbit.setMounted(controller.mounted);
   character.setMounted(controller.mounted);
-  character.setFirstPerson(orbit.firstPerson);
+  // Photo Mode shows the local body once its camera leaves the eye (see subject clearance below).
+  character.setFirstPerson(orbit.firstPerson && !photoMode.active);
   // Locomotion outranks expression: moving, mounting or an incompatible jump ends the emote.
   const emote = emotes.update(locomotion());
   emoteMenu.setAvailable(!controller.mounted && !combatRuntime.active);
@@ -3132,7 +3161,6 @@ app.on("update", (dt) => {
         combatRuntime.active || !inputFocus.can("WORLD_ACTION")
     }) ?? null
     : null);
-  contextActions.set("inkyung-photo", photoMode.contextAction());
   contextActions.set("inkyung-duck", inside ? null : inkyungDucks.getContextAction(pos));
   const fishingBlocked = inside || controller.mounted || seats.isSeated || fishingPanel?.open === true;
   if (!fishingBlocked && fishing.state === FISHING_CLIENT_STATE.UNAVAILABLE && findNearbyFishingSpot(pos)) void fishing.probe();
@@ -3175,6 +3203,7 @@ app.on("update", (dt) => {
     ]) contextActions.set(key, null);
     transportActions.set("mount", null);
   }
+  photoModeEntry.refresh();
   const suspended = worldActionsSuspended();
   contextActions.setSuspended(suspended);
   transportActions.setSuspended(suspended);
@@ -3204,11 +3233,20 @@ app.on("update", (dt) => {
     tourResultSent = true;
     if (window.InhaGameEntry?.result()) window.InhaGameEntry.clear();
   }
-  orbit.apply(pos, character.eyeHeight);
-  character.setCameraOccluded(orbit.localVisualOccluded);
-  if (!inside) {
-    biryong?.applyCamera();
-    backGateArrival?.applyCamera();
+  // One camera-transform owner per frame: the photo rig while Photo Mode is open, otherwise
+  // the gameplay orbit and the scripted overrides layered on it.
+  if (photoMode.active && photoMode.applyCamera(dt)) {
+    // Keep the local body hidden only while the photo camera is still at the eye (entry
+    // from first person shows the same frame); it reappears once the camera moves away.
+    const eye = { x: pos.x, y: pos.y + character.eyeHeight, z: pos.z };
+    character.setCameraOccluded(photoCamera.distanceTo(eye) < PHOTO_SUBJECT_CLEARANCE);
+  } else {
+    orbit.apply(pos, character.eyeHeight);
+    character.setCameraOccluded(orbit.localVisualOccluded);
+    if (!inside) {
+      biryong?.applyCamera();
+      backGateArrival?.applyCamera();
+    }
   }
   profile.update(controller.mounted, character.nameplateHeight, orbit.firstPerson);
   try {
@@ -3470,6 +3508,9 @@ window.__INHAGAME_P0__ = {
   emotes,
   emoteMenu,
   photoMode,
+  photoCamera,
+  photoInput,
+  photoModePanel,
   cinematic,
   chatPanel,
   hudMenu,
@@ -3602,7 +3643,8 @@ window.__INHAGAME_P0__ = {
     populationHeartbeat: (() => { try { return populationHeartbeat?.status() ?? null; } catch { return null; } })(),
     populationCount: (() => { try { return populationCount?.status() ?? null; } catch { return null; } })(),
     emote: emotes.active,
-    photoMode: { active: photoMode.active },
+    photoMode: { active: photoMode.active, blocked: photoMode.blockedReason(), camera: photoCamera.snapshot(),
+      input: photoInput.status(), panel: photoModePanel.status() },
     cinematic: cinematic.status(),
     seat: seats.seated?.id ?? null,
     follow: follow.status(),

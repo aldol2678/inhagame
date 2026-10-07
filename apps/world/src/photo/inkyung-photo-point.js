@@ -1,5 +1,7 @@
-// The existing semantic inkyung_photo_point anchor, shared by NPC invitations and the player UI.
+// The existing semantic inkyung_photo_point anchor used by NPC invitations and slots.
 // This projects the same pond edge/slot formula as the NPC runtime; it adds no new landmark.
+// Photo Mode never depends on it: entry is global. A future optional Inkyung composition
+// preset may read this anchor, and without that preset Photo Mode behaves identically.
 import { computePolygonCentroid, getCanonicalLandmark, projectPolygon } from '../reality-adapter.js';
 import { edgeFrame } from '../roadview-layout.js';
 const ring = projectPolygon(getCanonicalLandmark('lmk_inkyung_pond').polygon);
@@ -16,8 +18,8 @@ export const INKYUNG_PHOTO_POINT = Object.freeze({
   lookAt: Object.freeze(computePolygonCentroid(ring))
 });
 
-// The photo preset frames the existing lake from the player’s current safe position.
-// Arrival orientation is restored by the mode; this never turns or moves the player.
+// Lake-facing yaw from a position: a candidate input for that optional preset only.
+// It never turns or moves the player, and Photo Mode does not call it on entry.
 export function inkyungPhotoYaw(position = INKYUNG_PHOTO_POINT.position) {
   return Math.atan2(position.x - INKYUNG_PHOTO_POINT.lookAt.x, INKYUNG_PHOTO_POINT.lookAt.z - position.z);
 }

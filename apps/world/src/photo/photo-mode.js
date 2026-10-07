@@ -1,59 +1,104 @@
 import { INPUT_FOCUS_POLICY } from '../input/input-focus-manager.js';
 import { createInputFocusOwner } from '../input/input-focus-owner.js';
-import { INKYUNG_PHOTO_POINT, inkyungPhotoYaw } from './inkyung-photo-point.js';
 
-export const PHOTO_FRAME_LIMITS = Object.freeze({
-  yaw: .65,
-  pitch: Object.freeze({ min: .12, max: .65 }),
-  distance: Object.freeze({ min: 2.5, max: 6 })
+export const PHOTO_MODE_OWNER = 'photo-mode';
+// The same blocking class as other modal UI: gameplay movement, the gameplay camera, world
+// actions, shortcuts and Pointer Lock are suspended (InputFocusManager also releases held
+// keys, touch and assists). The photo camera is not the gameplay `camera` capability;
+// PhotoInput accepts it only while this owner alone holds the top claim (inputAllowed()).
+export const PHOTO_MODE_POLICY = INPUT_FOCUS_POLICY.BLOCKING_UI;
+
+// Why Photo Mode cannot open right now. Place never decides it: any normal world state can.
+export const PHOTO_MODE_BLOCK = Object.freeze({
+  DESTROYED: 'destroyed', ACTIVE: 'active', LOBBY: 'lobby', TRANSITION: 'transition', COMBAT: 'combat',
+  CINEMATIC: 'cinematic', REGION: 'region', MOUNTED: 'mounted', AIRBORNE: 'airborne', FOCUS: 'focus', POSITION: 'position'
 });
-export const PHOTO_MODE_OWNER = 'inkyung-photo-mode';
-const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
-const finitePosition = p => p && [p.x, p.y, p.z].every(Number.isFinite);
-const safeState = s => s?.campus === true && s.grounded === true &&
-  !s.mounted && !s.seated && !s.following && !s.transitioning && !s.combat;
+// A subject that drifts this far (~2 m) was teleported or carried; the bounded photo rig
+// around the old spot is stale. Settling, seating and emote poses stay well inside it.
+export const PHOTO_SUBJECT_DRIFT_LIMIT = 1;
 
-// This is a temporary view over the existing orbit, never a second camera or movement owner.
-// InputFocusManager releases held keys/touch/Pointer Lock. Orbit.apply retains camera collision.
+const finitePosition = p => p && [p.x, p.y, p.z].every(Number.isFinite);
+// Shared by entry and session validation, so a state that cannot open also closes a session.
+function worldBlock(s) {
+  if (s.world !== true) return PHOTO_MODE_BLOCK.LOBBY;
+  if (s.transitioning) return PHOTO_MODE_BLOCK.TRANSITION;
+  if (s.combat) return PHOTO_MODE_BLOCK.COMBAT;
+  if (s.cinematic) return PHOTO_MODE_BLOCK.CINEMATIC;
+  // TODO(photo-mode P1): the Biryong realm swaps the camera obstacle and ground authority
+  // with its own scripted camera; verify a free camera there before allowing it.
+  if (s.region !== 'campus') return PHOTO_MODE_BLOCK.REGION;
+  // TODO(photo-mode P1): mounts keep vehicle physics and the flight chase camera; a moving
+  // subject needs its own rig policy. Campus, rooms and seats share the walking camera.
+  if (s.mounted) return PHOTO_MODE_BLOCK.MOUNTED;
+  return null;
+}
+
+// Lifecycle owner: entry policy, InputFocus claim, play-camera snapshot/restore and pose.
+// The PhotoCameraRig owns the camera transform in between; the orbit is never modified.
 export function createPhotoMode({
-  orbit, inputFocus, getPosition, getState, beforeOpen = () => {},
+  orbit, rig, inputFocus, getPosition, getState, getPointerLocked = () => false, beforeOpen = () => {},
   requestPose = () => false, cancelPose = () => {}, onChange = () => {}
 } = {}) {
-  const owner = createInputFocusOwner({ manager: inputFocus, ownerId: PHOTO_MODE_OWNER, policy: INPUT_FOCUS_POLICY.BLOCKING_UI });
+  if (!orbit?.camera?.camera || !rig?.begin || !inputFocus?.can) throw new TypeError('Photo Mode requires orbit, rig and InputFocus');
+  const owner = createInputFocusOwner({ manager: inputFocus, ownerId: PHOTO_MODE_OWNER, policy: PHOTO_MODE_POLICY });
   const listeners = new Set([onChange]);
   let session = null, destroyed = false;
-  const distance = () => {
-    const p = getPosition();
-    return finitePosition(p) ? Math.hypot(p.x - INKYUNG_PHOTO_POINT.position.x, p.z - INKYUNG_PHOTO_POINT.position.z) : Infinity;
-  };
-  function canOpen() {
-    return !destroyed && !session && safeState(getState()) && inputFocus.can('WORLD_ACTION') &&
-      !orbit.indoor && !orbit.mounted && distance() <= INKYUNG_PHOTO_POINT.radius;
+
+  function blockedReason() {
+    if (destroyed) return PHOTO_MODE_BLOCK.DESTROYED;
+    if (session) return PHOTO_MODE_BLOCK.ACTIVE;
+    const state = getState() ?? {};
+    const block = worldBlock(state);
+    if (block) return block;
+    if (!state.grounded) return PHOTO_MODE_BLOCK.AIRBORNE;
+    // Any dialog, panel or system lock already holding input keeps the camera to itself.
+    if (!inputFocus.can('WORLD_ACTION')) return PHOTO_MODE_BLOCK.FOCUS;
+    if (!finitePosition(getPosition())) return PHOTO_MODE_BLOCK.POSITION;
+    return null;
   }
   function publish(reason) {
     const change = { active: !!session, reason };
     for (const listener of listeners) listener(change);
   }
-  function view() {
-    return { yaw: orbit.yaw, pitch: orbit.pitch, distance: orbit.distance, firstPerson: orbit.firstPerson,
-      nearClip: orbit.camera.camera.nearClip };
+  // Everything needed to put the exact play frame back, in the gameplay (unmirrored) frame.
+  function snapshotPlayCamera() {
+    const entity = orbit.camera, lens = entity.camera;
+    const p = entity.getPosition(), r = entity.getRotation(), f = entity.forward;
+    return Object.freeze({
+      position: Object.freeze({ x: p.x, y: p.y, z: -p.z }),
+      forward: Object.freeze({ x: f.x, y: f.y, z: -f.z }),
+      rotation: Object.freeze([r.x, r.y, r.z, r.w]),
+      fov: lens.fov, nearClip: lens.nearClip,
+      orbit: Object.freeze({ yaw: orbit.yaw, pitch: orbit.pitch, distance: orbit.distance, firstPerson: orbit.firstPerson,
+        firstPersonPitch: orbit.firstPersonPitch, thirdPersonPitch: orbit.thirdPersonPitch }),
+      pointerLocked: getPointerLocked() === true
+    });
   }
-  function applyView(next) {
-    orbit.yaw = next.yaw; orbit.pitch = next.pitch; orbit.distance = next.distance;
-    orbit.firstPerson = next.firstPerson; orbit.camera.camera.nearClip = next.nearClip;
-    orbit.perspectiveButton?.setAttribute('aria-pressed', String(next.firstPerson));
-    if (orbit.perspectiveButton) orbit.perspectiveButton.textContent = next.firstPerson ? '👁 3인칭으로' : '👁 1인칭으로';
+  function restorePlayCamera(saved) {
+    const entity = orbit.camera, lens = entity.camera, { position: p, rotation: r } = saved;
+    entity.setPosition(p.x, p.y, -p.z);
+    entity.setRotation(r[0], r[1], r[2], r[3]);
+    lens.fov = saved.fov; lens.nearClip = saved.nearClip;
+    // Photo Mode never writes the orbit; this only guards against an external writer.
+    const { firstPerson, ...view } = saved.orbit;
+    Object.assign(orbit, view);
+    if (orbit.firstPerson !== firstPerson) {
+      orbit.firstPerson = firstPerson;
+      orbit.perspectiveButton?.setAttribute('aria-pressed', String(firstPerson));
+      if (orbit.perspectiveButton) orbit.perspectiveButton.textContent = firstPerson ? '👁 3인칭으로' : '👁 1인칭으로';
+    }
+    // Pointer Lock needs a fresh user gesture; the runtime re-arms it from InputFocus on release.
   }
   function open() {
-    if (!canOpen()) return false;
+    if (blockedReason()) return false;
     beforeOpen();
     // beforeOpen may synchronously start another world transaction.
-    if (!canOpen()) return false;
-    const p = getPosition();
-    session = { saved: view(), position: { x: p.x, y: p.y, z: p.z }, accountId: getState().accountId,
-      baseYaw: inkyungPhotoYaw(p), posed: false };
-    applyView({ ...session.saved, yaw: session.baseYaw, firstPerson: false, nearClip: .3,
-      pitch: .25, distance: 4 });
+    if (blockedReason()) return false;
+    const p = getPosition(), state = getState() ?? {};
+    const saved = snapshotPlayCamera();
+    if (!rig.begin(saved)) return false;
+    session = { saved, subject: { x: p.x, y: p.y, z: p.z }, space: state.space ?? null,
+      accountId: state.accountId ?? null, posed: false };
     owner.acquire();
     publish('open');
     return true;
@@ -61,8 +106,9 @@ export function createPhotoMode({
   function close(reason = 'close') {
     if (!session) return false;
     const old = session; session = null;
+    rig.end();
     // Restore before releasing the claim so later transition owners snapshot the normal view.
-    applyView(old.saved);
+    restorePlayCamera(old.saved);
     if (old.posed) cancelPose();
     owner.release();
     publish(reason);
@@ -70,18 +116,17 @@ export function createPhotoMode({
   }
   function update() {
     if (!session) return false;
-    const state = getState(), p = getPosition(), at = session.position;
-    if (!safeState(state) || state.accountId !== session.accountId || !finitePosition(p) ||
-      Math.hypot(p.x - at.x, p.y - at.y, p.z - at.z) > .1) {
+    const state = getState() ?? {}, p = getPosition(), at = session.subject;
+    if (worldBlock(state) || state.space !== session.space || state.accountId !== session.accountId ||
+      !finitePosition(p) || Math.hypot(p.x - at.x, p.y - at.y, p.z - at.z) > PHOTO_SUBJECT_DRIFT_LIMIT) {
       close('lifecycle'); return false;
     }
     return true;
   }
-  function frame(values = {}) {
+  // Called once per frame at the camera-apply point: the rig is this frame's only camera owner.
+  function applyCamera(dt) {
     if (!update()) return false;
-    if (Number.isFinite(values.yaw)) orbit.yaw = session.baseYaw + clamp(values.yaw, -PHOTO_FRAME_LIMITS.yaw, PHOTO_FRAME_LIMITS.yaw);
-    if (Number.isFinite(values.pitch)) orbit.pitch = clamp(values.pitch, PHOTO_FRAME_LIMITS.pitch.min, PHOTO_FRAME_LIMITS.pitch.max);
-    if (Number.isFinite(values.distance)) orbit.distance = clamp(values.distance, PHOTO_FRAME_LIMITS.distance.min, PHOTO_FRAME_LIMITS.distance.max);
+    rig.update(dt);
     return true;
   }
   function pose() {
@@ -90,20 +135,20 @@ export function createPhotoMode({
     if (result === 'started') session.posed = true;
     return result;
   }
+  function inputAllowed() {
+    if (!session) return false;
+    const { topOwners } = inputFocus.snapshot();
+    return topOwners.length === 1 && topOwners[0] === PHOTO_MODE_OWNER;
+  }
   const unsubscribe = inputFocus.subscribe(state => {
     if (session && state.topOwners.some(id => id !== PHOTO_MODE_OWNER)) close('takeover');
   });
   return Object.freeze({
-    open, close, update, frame, pose,
+    open, close, update, applyCamera, pose, blockedReason, inputAllowed,
+    canOpen: () => blockedReason() === null,
+    toggle() { return session ? close() : open(); },
     get active() { return !!session; },
-    contextAction() {
-      if (!canOpen()) return null;
-      return { id: PHOTO_MODE_OWNER, icon: '📸', label: '인경호 사진 모드', compactLabel: '사진 모드',
-        // This point-specific action outranks broad shore observation (240),
-        // while seats (260) and NPC dialogue (300) retain priority.
-        // Active Follow keeps its stop action by withholding photo entry above.
-        priority: 245, distance: distance(), trigger: open };
-    },
+    get saved() { return session?.saved ?? null; },
     subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
     destroy() { if (destroyed) return; close('destroy'); destroyed = true; unsubscribe(); listeners.clear(); }
   });

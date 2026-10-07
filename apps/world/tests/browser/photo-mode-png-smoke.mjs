@@ -4,14 +4,14 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { startSmoke } from './harness.mjs';
-const output = process.env.PHOTO_PNG_QA_OUTPUT || 'test-results/inkyung-photo/png';
+const output = process.env.PHOTO_PNG_QA_OUTPUT || 'test-results/photo-mode/png';
 const backend = process.env.PHOTO_PNG_BACKEND || 'webgl2';
 assert.ok(['webgl2', 'webgpu'].includes(backend));
 await mkdir(output, { recursive: true });
 const paths = ['src/photo/photo-capture.js', 'src/photo/photo-mode.js', 'src/photo/photo-mode-panel.js',
-  'src/main.js', 'styles.css', 'tests/browser/inkyung-photo-mode-fixture.mjs'];
+  'src/photo/photo-camera-controller.js', 'src/photo/photo-input.js', 'src/main.js', 'styles.css', 'tests/browser/photo-mode-fixture.mjs'];
 const report = { head: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(), backend,
-  scope: 'Offline PlayCanvas render and production photo controls on a synthetic scene; actual downloaded PNG bytes decoded and compared pixel-for-pixel to the same existing framebuffer. Not a device-gallery or full-campus visual check.',
+  scope: 'Offline PlayCanvas render and production photo controls on a synthetic scene, with the 3x3 composition grid on; actual downloaded PNG bytes decoded and compared pixel-for-pixel to the same existing framebuffer. Not a device-gallery or full-campus visual check.',
   sourceHashes: {}, checks: [], downloads: [], screenshots: [], status: 'RUNNING' };
 const expectedHead = process.env.PHOTO_MODE_HEAD_SHA;
 assert.match(expectedHead ?? '', /^[a-f0-9]{40}$/, 'PHOTO_MODE_HEAD_SHA must identify the exact candidate');
@@ -21,7 +21,7 @@ let smoke;
 try {
   smoke = await startSmoke({ viewport: { width: 1280, height: 720 }, contextOptions: { hasTouch: true, acceptDownloads: true } });
   const page = await smoke.context.newPage(); smoke.watch(page);
-  await page.goto(`${smoke.origin}/tests/browser/inkyung-photo-mode-harness.html?backend=${backend}`);
+  await page.goto(`${smoke.origin}/tests/browser/photo-mode-harness.html?backend=${backend}`);
   await page.waitForFunction(() => window.__PHOTO_QA__?.ready || window.__PHOTO_QA__?.error);
   assert.equal(await page.evaluate(() => window.__PHOTO_QA__.error ?? null), null);
   assert.equal(await page.evaluate(() => window.__PHOTO_QA__.backend), backend, 'never silently count a fallback renderer');
@@ -51,7 +51,10 @@ try {
       }, type);
     };
   });
-  await page.locator('#context-action').click(); await page.waitForFunction(() => window.__PHOTO_QA__.mode.active);
+  await page.locator('#photo-mode-toggle').click(); await page.waitForFunction(() => window.__PHOTO_QA__.mode.active);
+  // The composition grid is DOM-only: with it visible, the PNG must still equal the bare framebuffer.
+  await page.evaluate(() => window.__PHOTO_QA__.panel.setGrid('thirds'));
+  assert.equal(await page.locator('.photo-mode-grid').isVisible(), true);
   let downloadEvents = 0; page.on('download', () => downloadEvents++);
   for (const [width, height] of [[1280, 720], [360, 800], [844, 390]]) {
     await page.setViewportSize({ width, height });
@@ -61,7 +64,7 @@ try {
     const count = await page.evaluate(() => window.__PNG_QA__.encoded);
     const received = page.waitForEvent('download');
     // Same-task duplicate click cannot queue a second save.
-    await page.locator('[data-photo-control="save"]').evaluate(button => { button.click(); button.click(); });
+    await page.locator('[data-photo-control="capture"]').evaluate(button => { button.click(); button.click(); });
     const download = await received, filename = `photo-${backend}-${width}x${height}.png`;
     assert.match(download.suggestedFilename(), /^inha-world-.*\.png$/);
     await download.saveAs(`${output}/${filename}`); assert.equal(await download.failure(), null);
@@ -79,29 +82,29 @@ try {
       const result = { width: canvas.width, height: canvas.height, hash: await state.hash(pixels), expected: await state.expected.hash, visible, colors: colors.size };
       bitmap.close(); canvas.width = canvas.height = 0; return result;
     }, bytes.toString('base64'));
-    assert.equal(decoded.hash, decoded.expected, 'downloaded PNG exactly matches framebuffer, without DOM/HUD or a flipped/blank image');
+    assert.equal(decoded.hash, decoded.expected, 'downloaded PNG exactly matches framebuffer, without DOM/HUD/grid or a flipped/blank image');
     assert.equal(decoded.visible, width * height); assert.ok(decoded.colors > 3, 'actual rendered scene has varied pixels');
     assert.equal(await page.evaluate(() => window.__PNG_QA__.encoded), count + 1);
     assert.match(await page.locator('[data-photo-control="status"]').textContent(), /다운로드.*요청/);
     report.downloads.push({ filename, bytes: bytes.length, width, height, sha256: createHash('sha256').update(bytes).digest('hex'), rgbaSha256: decoded.hash, colors: decoded.colors });
     await page.locator('[data-photo-control="preview"]').click();
     assert.equal(await page.locator('[data-photo-control="image"]').isVisible(), true);
-    for (const selector of ['.photo-mode-dock', '[data-photo-control="close"]']) {
+    for (const selector of ['.photo-mode-shutter', '[data-photo-control="close"]', '.photo-mode-preview']) {
       const box = await page.locator(selector).boundingBox(); assert.ok(box && box.x >= 0 && box.y >= 0 && box.x + box.width <= width + 1 && box.y + box.height <= height + 1);
     }
     const screenshot = `preview-${backend}-${width}x${height}.png`; await page.screenshot({ path: `${output}/${screenshot}` }); report.screenshots.push(screenshot);
     await page.locator('[data-photo-control="preview"]').click();
   }
-  report.checks.push('desktop, portrait and landscape decoded PNG pixels match existing render; repeated click creates one download; explicit preview fits viewport');
+  report.checks.push('desktop, portrait and landscape decoded PNG pixels match existing render with the grid on; repeated click creates one download; explicit preview fits viewport');
   await page.evaluate(() => { window.__PNG_QA__.fail = true; });
-  await page.locator('[data-photo-control="save"]').click();
+  await page.locator('[data-photo-control="capture"]').click();
   await page.waitForFunction(() => document.querySelector('[data-photo-control="status"]').textContent.includes('만들지 못했'));
   assert.equal(await page.evaluate(() => window.__PNG_QA__.urls.size), 0);
   await page.evaluate(() => { window.__PNG_QA__.fail = false; });
   report.checks.push('null encoding surfaces retry/screenshot fallback and drops prior image URL');
   for (const reason of ['escape', 'account', 'pagehide', 'takeover']) {
     await page.evaluate(() => { window.__PNG_QA__.hold = true; });
-    await page.locator('[data-photo-control="save"]').click();
+    await page.locator('[data-photo-control="capture"]').click();
     await page.waitForFunction(() => window.__PNG_QA__.callbacks.length === 1);
     const before = downloadEvents;
     if (reason === 'escape') await page.keyboard.press('Escape');
@@ -119,7 +122,7 @@ try {
     assert.equal(reopened, true, `${reason}: a new photo session must open before flushing the old encode`);
     assert.equal(await page.evaluate(() => window.__PHOTO_QA__.mode.active), true);
     await page.evaluate(() => window.__PNG_QA__.callbacks.splice(0).forEach(fn => fn()));
-    await page.waitForFunction(() => !document.querySelector('[data-photo-control="save"]').disabled);
+    await page.waitForFunction(() => document.querySelector('[data-photo-control="capture"]').getAttribute('aria-disabled') === 'false');
     assert.equal(downloadEvents, before); assert.equal(await page.evaluate(() => window.__PNG_QA__.urls.size), 0);
   }
   report.checks.push('Escape, account change, BFCache pagehide and transition takeover discard held encodes even after reopen');
