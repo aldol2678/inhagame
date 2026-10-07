@@ -27,7 +27,86 @@ app.init(options);
 const flush = () => new Promise(resolve => setImmediate(resolve));
 const approx = (actual, expected, message) => assert.ok(Math.abs(actual - expected) < 1e-6, `${message}: ${actual} != ${expected}`);
 const array = v => [v.x, v.y, v.z];
-const report = { engine: pc.version, device: 'NullGraphicsDevice', gpu: false, assets: [], npcAttachments: 0, roomModels: 0 };
+// Independent geometry gate: triangle interiors, not just mesh vertices or the model root.
+// The procedural Hand mesh is a radius-0.5 sphere before its nonuniform entity scale.
+function closestTrianglePoint(a, b, c) {
+  const ab = b.clone().sub(a), ac = c.clone().sub(a), ap = a.clone().mulScalar(-1);
+  const d1 = ab.dot(ap), d2 = ac.dot(ap);
+  if (d1 <= 0 && d2 <= 0) return a;
+  const bp = b.clone().mulScalar(-1), d3 = ab.dot(bp), d4 = ac.dot(bp);
+  if (d3 >= 0 && d4 <= d3) return b;
+  const vc = d1*d4 - d3*d2;
+  if (vc <= 0 && d1 >= 0 && d3 <= 0) return a.clone().add(ab.mulScalar(d1/(d1-d3)));
+  const cp = c.clone().mulScalar(-1), d5 = ab.dot(cp), d6 = ac.dot(cp);
+  if (d6 >= 0 && d5 <= d6) return c;
+  const vb = d5*d2 - d1*d6;
+  if (vb <= 0 && d2 >= 0 && d6 <= 0) return a.clone().add(ac.mulScalar(d2/(d2-d6)));
+  const va = d3*d6 - d5*d4;
+  if (va <= 0 && d4-d3 >= 0 && d5-d6 >= 0)
+    return b.clone().add(c.clone().sub(b).mulScalar((d4-d3)/((d4-d3)+(d5-d6))));
+  const denom = 1/(va+vb+vc);
+  return a.clone().add(ab.mulScalar(vb*denom)).add(ac.mulScalar(vc*denom));
+}
+function segmentDistance(a, b, c, d) {
+  const u = b.clone().sub(a), v = d.clone().sub(c), w = a.clone().sub(c);
+  const aa=u.dot(u), bb=u.dot(v), cc=v.dot(v), dd=u.dot(w), ee=v.dot(w), det=aa*cc-bb*bb;
+  let sn=det,sd=det,tn=det,td=det;
+  if (det<1e-20) { sn=0;sd=1;tn=ee;td=cc; }
+  else { sn=bb*ee-cc*dd;tn=aa*ee-bb*dd;
+    if(sn<0){sn=0;tn=ee;td=cc;} else if(sn>sd){sn=sd;tn=ee+bb;td=cc;}
+  }
+  if(tn<0){tn=0;if(-dd<0)sn=0;else if(-dd>aa)sn=sd;else{sn=-dd;sd=aa;}}
+  else if(tn>td){tn=td;if(-dd+bb<0)sn=0;else if(-dd+bb>aa)sn=sd;else{sn=-dd+bb;sd=aa;}}
+  return w.add(u.mulScalar(Math.abs(sn)<1e-20?0:sn/sd)).sub(v.mulScalar(Math.abs(tn)<1e-20?0:tn/td)).length();
+}
+function capsuleClearance(model, forearm) {
+  const positions=[];forearm.render.meshInstances[0].mesh.getPositions(positions);
+  let radius=0,minY=Infinity,maxY=-Infinity;
+  for(let i=0;i<positions.length;i+=3){radius=Math.max(radius,Math.hypot(positions[i],positions[i+2]));minY=Math.min(minY,positions[i+1]);maxY=Math.max(maxY,positions[i+1]);}
+  const low=new pc.Vec3(0,minY+radius,0),high=new pc.Vec3(0,maxY-radius,0),axis=high.clone().sub(low);
+  const inverse=forearm.getWorldTransform().clone().invert();let distance=Infinity;
+  for(const instance of model.findComponents('render').flatMap(render=>render.meshInstances)) {
+    const vertices=[],indices=[];instance.mesh.getPositions(vertices);instance.mesh.getIndices(indices);
+    const transform=new pc.Mat4().mul2(inverse,instance.node.getWorldTransform());
+    const point=i=>transform.transformPoint(new pc.Vec3(...vertices.slice(i*3,i*3+3)));
+    for(let i=0;i<indices.length;i+=3){
+      const triangle=[point(indices[i]),point(indices[i+1]),point(indices[i+2])];
+      const normal=new pc.Vec3().cross(triangle[1].clone().sub(triangle[0]),triangle[2].clone().sub(triangle[0]));
+      const denom=normal.dot(axis),t=Math.abs(denom)>1e-15?normal.dot(triangle[0].clone().sub(low))/denom:-1;
+      if(t>=0 && t<=1){const hit=low.clone().add(axis.clone().mulScalar(t));if(closestTrianglePoint(...triangle.map(p=>p.clone().sub(hit))).length()<1e-8)distance=0;}
+      for(const endpoint of [low,high])distance=Math.min(distance,closestTrianglePoint(...triangle.map(p=>p.clone().sub(endpoint))).length());
+      for(let edge=0;edge<3;edge++)distance=Math.min(distance,segmentDistance(low,high,triangle[edge],triangle[(edge+1)%3]));
+    }
+  }
+  return {radius,axisHalfLength:axis.length()/2,minimumAxisDistance:distance,
+    penetrationWorld:Math.max(0,radius-distance)*Math.max(...array(forearm.getWorldTransform().getScale(new pc.Vec3())))};
+}
+function handClearance(model, hand) {
+  const inverseHand = hand.getWorldTransform().clone().invert();
+  let nearest = null, minRadius = Infinity, triangles = 0;
+  for (const instance of model.findComponents('render').flatMap(render => render.meshInstances)) {
+    const positions = [], indices = [];
+    instance.mesh.getPositions(positions); instance.mesh.getIndices(indices);
+    const transform = new pc.Mat4().mul2(inverseHand, instance.node.getWorldTransform());
+    const point = index => transform.transformPoint(new pc.Vec3(...positions.slice(index*3,index*3+3)));
+    for (let i = 0; i < indices.length; i += 3) {
+      const candidate = closestTrianglePoint(point(indices[i]),point(indices[i+1]),point(indices[i+2]));
+      const radius = candidate.length(); triangles++;
+      if (radius < minRadius) { nearest = candidate; minRadius = radius; }
+    }
+  }
+  const handPositions = []; hand.render.meshInstances[0].mesh.getPositions(handPositions);
+  let radius = 0;
+  for (let i=0;i<handPositions.length;i+=3) radius = Math.max(radius,Math.hypot(...handPositions.slice(i,i+3)));
+  approx(radius, .5, 'actual hand sphere envelope');
+  const handScale = hand.getWorldTransform().getScale(new pc.Vec3());
+  const maxScale = Math.max(...array(handScale));
+  const worldPerRadius = hand.getWorldTransform().transformVector(nearest.clone().normalize()).length();
+  return { triangles, minRadius, handRadius: radius,
+    penetrationWorld: Math.max(0,radius-minRadius)*maxScale,
+    surfaceGapWorld: Math.max(0,minRadius-radius)*worldPerRadius };
+}
+const report = { engine: pc.version, device: 'NullGraphicsDevice', gpu: false, assets: [], npcAttachments: 0, roomModels: 0, contacts: [] };
 try {
   for (const entry of spec.assets) {
     const url = LIFE_PROP_MODELS[entry.id], buffer = readFileSync(new URL(`../..${url}`, import.meta.url));
@@ -67,13 +146,20 @@ try {
       for (const phase of [0, .8, 2]) {
         const pose = purposefulActivityPose(activity, { phase });
         visual.arms.forEach((arm, i) => arm.setLocalEulerAngles(pose.armPitch[i], pose.armYaw[i], pose.armRoll[i]));
-        const hand = visual.arms[0].getWorldTransform().transformPoint(new pc.Vec3(...binding.position));
-        array(model.getPosition()).forEach((n, i) => approx(n, array(hand)[i], `${activity} hand ${i}`));
+        const contact = handClearance(model, visual.avatar.findByName('Hand_-1'));
+        const forearm = capsuleClearance(model, visual.avatar.findByName('Forearm_-1'));
+        report.contacts.push({ activity, height, phase, ...contact, forearm });
+        assert.ok(forearm.penetrationWorld <= .0015, `${activity} intersects forearm capsule: ${JSON.stringify(forearm)}`);
+        assert.ok(contact.minRadius >= .47, `${activity} intersects hand interior: ${JSON.stringify(contact)}`);
+        assert.ok(contact.penetrationWorld <= .0015, `${activity} deep hand penetration: ${JSON.stringify(contact)}`);
+        assert.ok(contact.surfaceGapWorld <= .002, `${activity} floats away from hand: ${JSON.stringify(contact)}`);
+        assert.ok(model.getLocalPosition().distance(new pc.Vec3(...binding.position)) > .04, `${activity} must not use centre-origin attachment`);
         const scale = model.getWorldTransform().getScale(new pc.Vec3());
         array(scale).forEach(n => approx(n, .5, `${activity} world scale at height ${height}`));
         if (phase === 0) {
           const actual = new pc.Quat().mul2(visual.arms[0].getLocalRotation(), model.getLocalRotation());
-          const angles = spec.assets.find(a => a.id === binding.id).npc_attachment.desired_avatar_frame_euler_degrees;
+          const attachment = spec.assets.find(a => a.id === binding.id).npc_attachment;
+          const angles = attachment.runtime_surface_contact.avatar_frame_euler_degrees ?? attachment.desired_avatar_frame_euler_degrees;
           const expected = new pc.Quat().setFromEulerAngles(...angles);
           approx(Math.abs(actual.x*expected.x + actual.y*expected.y + actual.z*expected.z + actual.w*expected.w), 1, `${activity} phase-0 orientation`);
         }

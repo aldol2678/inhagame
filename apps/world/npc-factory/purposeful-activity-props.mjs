@@ -1,4 +1,21 @@
-import { LIFE_PROP_WORLD_SCALE, NPC_ACTIVITY_PROPS } from '../src/life-props.js';
+import { LIFE_PROP_WORLD_SCALE, NPC_ACTIVITY_PROPS, NPC_ACTIVITY_HAND_RADII, NPC_ACTIVITY_CONTACT_OVERLAP_WORLD } from '../src/life-props.js';
+
+// Map a prop-local surface point to the solid hand's ellipsoid surface. The normal
+// points from hand into prop. Only the small world-space contact overlap is permitted;
+// the model's GRIP origin is a reference, not a safe hand insertion point.
+export function purposefulActivityPropPosition(definition, worldScale) {
+  const [qx, qy, qz, qw] = definition.rotation;
+  const rotate = ([x, y, z]) => {
+    const tx = 2*(qy*z-qz*y), ty = 2*(qz*x-qx*z), tz = 2*(qx*y-qy*x);
+    return [x+qw*tx+qy*tz-qz*ty, y+qw*ty+qz*tx-qx*tz, z+qw*tz+qx*ty-qy*tx];
+  };
+  const normal = rotate(definition.contactNormal);
+  const contact = rotate(definition.contactPoint);
+  const supportRadius = Math.hypot(...normal.map((value, i) => value*NPC_ACTIVITY_HAND_RADII[i]));
+  return definition.position.map((centre, i) => centre +
+    NPC_ACTIVITY_HAND_RADII[i]**2*normal[i]/supportRadius -
+    (LIFE_PROP_WORLD_SCALE*contact[i] + NPC_ACTIVITY_CONTACT_OVERLAP_WORLD*normal[i])/worldScale);
+}
 
 // Render-only projection of the existing purposeful activity. The straight-arm rig is
 // unchanged: one primary hand, no claim of two-hand book/camera contact or face-level PHOTO.
@@ -33,7 +50,7 @@ export function createPurposefulActivityProps({ visual, loadModel }) {
       if (!model) return;
       try {
         model.name = `NPC_Activity_${next}`;
-        model.setLocalPosition(...definition.position);
+        model.setLocalPosition(...purposefulActivityPropPosition(definition, visual.worldScale));
         model.setLocalRotation(...definition.rotation);
         const scale = LIFE_PROP_WORLD_SCALE / visual.worldScale;
         model.setLocalScale(scale, scale, scale);

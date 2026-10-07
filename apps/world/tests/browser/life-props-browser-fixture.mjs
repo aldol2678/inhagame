@@ -6,6 +6,7 @@ import { createEquipmentModelLoader } from '../../src/appearance/equipment-asset
 import { createClubRoomScene } from '../../src/rooms/club-room-renderer.js';
 import { CLUB_ROOM_FURNITURE } from '../../src/rooms/club-room-layout.js';
 import { LIFE_PROP_MODELS, NPC_ACTIVITY_PROPS, CLUB_TABLE_PROPS } from '../../src/life-props.js';
+import { measureHandContact,measureCapsuleClearance } from './life-props-browser-contact.mjs';
 import { fitDiagnosticPoints, framebufferEvidence } from './life-props-browser-helpers.mjs';
 
 const xyz=v=>[v.x,v.y,v.z], quaternion=q=>[q.x,q.y,q.z,q.w];
@@ -14,6 +15,22 @@ const corners=root=>meshes(root).flatMap(m=>{
   const min=m.aabb.getMin(),max=m.aabb.getMax();
   return [min.x,max.x].flatMap(x=>[min.y,max.y].flatMap(y=>[min.z,max.z].map(z=>[x,y,z])));
 });
+
+function trianglesInHand(root,hand) {
+  const inverse=new pc.Mat4().invert(hand.getWorldTransform()),triangles=[];
+  for(const instance of meshes(root)) {
+    const positions=[],indices=[];instance.mesh.getPositions(positions);instance.mesh.getIndices(indices);
+    const transform=new pc.Mat4().mul2(inverse,instance.node.getWorldTransform());
+    const vertex=index=>xyz(transform.transformPoint(new pc.Vec3(...positions.slice(index*3,index*3+3))));
+    const primitive=instance.mesh.primitive[0];
+    if(primitive.type!==pc.PRIMITIVE_TRIANGLES)throw Error('Contact evidence requires actual triangle primitives');
+    for(let i=primitive.base;i<primitive.base+primitive.count;i+=3){
+      triangles.push([0,1,2].map(k=>vertex(primitive.indexed?indices[i+k]:i+k)));
+    }
+  }
+  return triangles;
+}
+
 const fallbackNames=['HeldBook','BookSpine'];
 const activityModels=visual=>visual.arms[0].children.filter(e=>e.name.startsWith('NPC_Activity_'));
 const tableModels=table=>table.children.filter(e=>e.name.startsWith('Club_Life_Prop_'));
@@ -67,7 +84,7 @@ export function createLifePropsBrowserFixture({app,device,canvas,spec,label=null
   }
   function npcStats() {
     const {visual,props,height}=npc,model=activityModels(visual)[0],binding=NPC_ACTIVITY_PROPS[state.activity];
-    const hand=visual.arms[0].findByName('Hand_-1');
+    const hand=visual.arms[0].findByName('Hand_-1'),forearm=visual.arms[0].findByName('Forearm_-1');
     const result={height,worldScale:visual.worldScale,reflection:campus.worldScaleSign,activity:state.activity,phase:state.phase,
       count:activityModels(visual).length,fallback:fallbackNames.map(n=>({name:n,enabled:visual.avatar.findByName(n).enabled})),
       handPosition:xyz(hand.getPosition()),facePosition:xyz(visual.face.head.getPosition()),armRotation:quaternion(visual.arms[0].getLocalRotation()),requests:requests.length};
@@ -76,7 +93,9 @@ export function createLifePropsBrowserFixture({app,device,canvas,spec,label=null
       result.prop.parentIsPrimaryArm=model.parent===visual.arms[0];
       result.prop.localRotation=quaternion(model.getLocalRotation());
       result.prop.avatarFrameRotation=quaternion(new pc.Quat().mul2(visual.arms[0].getLocalRotation(),model.getLocalRotation()));
-      result.prop.expectedHandPosition=xyz(visual.arms[0].getWorldTransform().transformPoint(new pc.Vec3(...binding.position)));
+      result.prop.handReferencePosition=xyz(visual.arms[0].getWorldTransform().transformPoint(new pc.Vec3(...binding.position)));
+      result.prop.contact=measureHandContact({handTriangles:trianglesInHand(hand,hand),propTriangles:trianglesInHand(model,hand),handWorldScale:xyz(hand.getWorldTransform().getScale(new pc.Vec3()))});
+      result.prop.forearmClearance=measureCapsuleClearance({bodyTriangles:trianglesInHand(forearm,forearm),propTriangles:trianglesInHand(model,forearm),bodyWorldScale:xyz(forearm.getWorldTransform().getScale(new pc.Vec3()))});
     }
     return result;
   }
@@ -102,9 +121,9 @@ export function createLifePropsBrowserFixture({app,device,canvas,spec,label=null
     state.mode=mode;
     let points,direction;
     if(campus.enabled) {
-      points=mode==='npc-hand'?corners(npc.visual.arms[0].findByName('Hand_-1')).concat(activityModels(npc.visual).flatMap(corners)):corners(npc.visual.avatar);
-      direction=[-1,.5,-2];
-      if(label)label.textContent=`Synthetic NPC · ${state.activity} · phase ${state.phase} · ${mode==='npc-hand'?'primary-hand detail':'full avatar'} · height ${npc.height}`;
+      points=mode!=='npc-full'?corners(npc.visual.arms[0].findByName('Hand_-1')).concat(activityModels(npc.visual).flatMap(corners)):corners(npc.visual.avatar);
+      direction=mode==='npc-contact-side'?[1,.3,-1.3]:[-1,.5,-2];
+      if(label)label.textContent=`Synthetic NPC · ${state.activity} · phase ${state.phase} · ${mode==='npc-contact-side'?'hand contact, opposite oblique':mode==='npc-hand'?'primary-hand detail':'full avatar'} · height ${npc.height}`;
     } else {
       const table=room.root.findByName('club_table');
       // Isolate the real table only for diagnostics; retain its true room parent,

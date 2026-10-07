@@ -7,7 +7,7 @@
   "render_transforms_applied": true,
   "static_uniform_scale": 0.5,
   "no_new_rig_or_animation": true,
-  "pose_caveat": "Current shoulder-only poses cannot achieve two-handed small-book or camera grip; existing props are not activity-switched. Runtime integration is not included.",
+  "pose_caveat": "The shoulder-only poses remain primary-hand attachments without finger or elbow articulation. Runtime surface contacts replace the unsafe centre-origin alignment; PHOTO remains below face level.",
   "assets": [
     {
       "id": "open_book",
@@ -75,8 +75,29 @@
           0.9867482801487086
         ],
         "orientation_formula": "inverse(reference arm quaternion) * desired avatar-frame quaternion",
-        "grip_contact_status": "Reference only. Offset contact from hand centre and review in game; not an integrated hand-fit result.",
-        "second_hand_supported_by_current_pose": false
+        "grip_contact_status": "The original GRIP root and hand centre are reference frames, not coincident attachment points. Use runtime_surface_contact and the scale-aware ellipsoid support offset.",
+        "second_hand_supported_by_current_pose": false,
+        "runtime_surface_contact": {
+          "point_gltf_metres": [
+            0.13606718182563782,
+            0.018869705498218536,
+            0
+          ],
+          "normal_gltf": [
+            -1,
+            0,
+            0
+          ],
+          "hand_radii_parent_model_units": [
+            0.07,
+            0.075,
+            0.07
+          ],
+          "overlap_world_units": 0.0006,
+          "normal_direction": "From the hand into the prop",
+          "placement_formula": "hand_centre + ellipsoid_support(R * normal) - (0.5 * R * point + overlap_world_units * R * normal) / visual.worldScale",
+          "description": "Outer cover edge; book extends outward from the primary hand."
+        }
       }
     },
     {
@@ -145,8 +166,29 @@
           0.9775517396441024
         ],
         "orientation_formula": "inverse(reference arm quaternion) * desired avatar-frame quaternion",
-        "grip_contact_status": "Reference only. Offset contact from hand centre and review in game; not an integrated hand-fit result.",
-        "second_hand_supported_by_current_pose": false
+        "grip_contact_status": "The original GRIP root and hand centre are reference frames, not coincident attachment points. Use runtime_surface_contact and the scale-aware ellipsoid support offset.",
+        "second_hand_supported_by_current_pose": false,
+        "runtime_surface_contact": {
+          "point_gltf_metres": [
+            -0.00418,
+            0,
+            0
+          ],
+          "normal_gltf": [
+            -0.998567769,
+            0.053501504,
+            0
+          ],
+          "hand_radii_parent_model_units": [
+            0.07,
+            0.075,
+            0.07
+          ],
+          "overlap_world_units": 0.0006,
+          "normal_direction": "From the hand into the prop",
+          "placement_formula": "hand_centre + ellipsoid_support(R * normal) - (0.5 * R * point + overlap_world_units * R * normal) / visual.worldScale",
+          "description": "Tapered sleeve side at y=0; derived from actual sleeve edge triangles."
+        }
       }
     },
     {
@@ -215,8 +257,29 @@
           0.006823575527879004
         ],
         "orientation_formula": "inverse(reference arm quaternion) * desired avatar-frame quaternion",
-        "grip_contact_status": "Reference only. Offset contact from hand centre and review in game; not an integrated hand-fit result.",
-        "second_hand_supported_by_current_pose": false
+        "grip_contact_status": "The original GRIP root and hand centre are reference frames, not coincident attachment points. Use runtime_surface_contact and the scale-aware ellipsoid support offset.",
+        "second_hand_supported_by_current_pose": false,
+        "runtime_surface_contact": {
+          "point_gltf_metres": [
+            -0.0375,
+            0.02,
+            0
+          ],
+          "normal_gltf": [
+            1,
+            0,
+            0
+          ],
+          "hand_radii_parent_model_units": [
+            0.07,
+            0.075,
+            0.07
+          ],
+          "overlap_world_units": 0.0006,
+          "normal_direction": "From the hand into the prop",
+          "placement_formula": "hand_centre + ellipsoid_support(R * normal) - (0.5 * R * point + overlap_world_units * R * normal) / visual.worldScale",
+          "description": "Side frame below midpoint; phone extends outward from the primary hand."
+        }
       }
     },
     {
@@ -285,8 +348,29 @@
           0.9019536486583567
         ],
         "orientation_formula": "inverse(reference arm quaternion) * desired avatar-frame quaternion",
-        "grip_contact_status": "Reference only. Offset contact from hand centre and review in game; not an integrated hand-fit result.",
-        "second_hand_supported_by_current_pose": false
+        "grip_contact_status": "The original GRIP root and hand centre are reference frames, not coincident attachment points. Use runtime_surface_contact and the scale-aware ellipsoid support offset.",
+        "second_hand_supported_by_current_pose": false,
+        "runtime_surface_contact": {
+          "point_gltf_metres": [
+            0.012,
+            0,
+            0
+          ],
+          "normal_gltf": [
+            -1,
+            0,
+            0
+          ],
+          "hand_radii_parent_model_units": [
+            0.07,
+            0.075,
+            0.07
+          ],
+          "overlap_world_units": 0.0006,
+          "normal_direction": "From the hand into the prop",
+          "placement_formula": "hand_centre + ellipsoid_support(R * normal) - (0.5 * R * point + overlap_world_units * R * normal) / visual.worldScale",
+          "description": "Outer grip-side face; camera extends outward from the primary hand."
+        }
       }
     },
     {
@@ -355,8 +439,41 @@
           0.9775517396441024
         ],
         "orientation_formula": "inverse(reference arm quaternion) * desired avatar-frame quaternion",
-        "grip_contact_status": "Reference only. Offset contact from hand centre and review in game; not an integrated hand-fit result.",
-        "second_hand_supported_by_current_pose": false
+        "grip_contact_status": "The original GRIP root and hand centre are reference frames, not coincident attachment points. Use runtime_surface_contact and the scale-aware ellipsoid support offset.",
+        "second_hand_supported_by_current_pose": false,
+        "runtime_surface_contact": {
+          "point_gltf_metres": [
+            -0.022,
+            0.038,
+            -0.033
+          ],
+          "normal_gltf": [
+            0,
+            0,
+            1
+          ],
+          "hand_radii_parent_model_units": [
+            0.07,
+            0.075,
+            0.07
+          ],
+          "overlap_world_units": 0.0006,
+          "normal_direction": "From the hand into the prop",
+          "placement_formula": "hand_centre + ellipsoid_support(R * normal) - (0.5 * R * point + overlap_world_units * R * normal) / visual.worldScale",
+          "description": "Back bread face at the lateral hand surface; the runtime-only -90 degree yaw keeps the upright sandwich clear of the elongated forearm capsule.",
+          "local_rotation_xyzw": [
+            0.1710646128960291,
+            -0.696364240320019,
+            -0.12278780396897286,
+            0.6861026878060833
+          ],
+          "avatar_frame_euler_degrees": [
+            0,
+            -90,
+            0
+          ],
+          "orientation_override_reason": "The original neutral-yaw authoring suggestion intersects the forearm when using forward contact. Original suggested quaternion remains above as authoring provenance."
+        }
       }
     },
     {
@@ -435,5 +552,6 @@
       },
       "collision": false
     }
-  ]
+  ],
+  "runtime_attachment_revision": 2
 }

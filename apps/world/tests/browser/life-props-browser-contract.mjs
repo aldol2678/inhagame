@@ -28,15 +28,18 @@ try {
   const label={scrollWidth:1,clientWidth:1,set textContent(value){canvas.clientHeight=canvas.viewportHeight-(value.length>75?130:90);}};
   qa=createLifePropsBrowserFixture({app,device:options.graphicsDevice,canvas,spec,label});
   assert.equal(qa.roomStats().models.length,0);assert.equal(qa.roomStats().enabled,false);
-  let attachmentChecks=0;
+  let attachmentChecks=0;const contactChecks=[];
   for(const height of [.9,1,1.1]){
     qa.newNpc(height);
     for(const [activity,binding]of Object.entries(NPC_ACTIVITY_PROPS))for(const phase of [0,2]){
       const stats=await qa.setActivity(activity,phase);
       assert.equal(stats.count,1);assert.equal(stats.prop.id,binding.id);assert.ok(stats.fallback.every(f=>!f.enabled));
-      vector(stats.prop.scale,[.5,.5,.5]);vector(stats.prop.position,stats.handPosition);
-      vector(stats.prop.position,stats.prop.expectedHandPosition);assert.equal(stats.prop.parentIsPrimaryArm,true);
+      vector(stats.prop.scale,[.5,.5,.5]);vector(stats.prop.handReferencePosition,stats.handPosition);
+      assert.equal(stats.prop.contact.acceptable,true,`${activity} height ${height}: ${JSON.stringify(stats.prop.contact)}`);
+      assert.equal(stats.prop.forearmClearance.acceptable,true,`${activity} wrist height ${height}: ${JSON.stringify(stats.prop.forearmClearance)}`);
+      assert.equal(stats.prop.parentIsPrimaryArm,true);
       for(const [name,local]of Object.entries(spec.assets.find(a=>a.id===binding.id).anchors_gltf_metres))vector(stats.prop.anchors[name].local,local);
+      contactChecks.push({activity,height,phase,handPenetrationWorld:stats.prop.contact.penetrationDepthWorld,handGapWorld:stats.prop.contact.contactGapWorld,forearmPenetrationWorld:stats.prop.forearmClearance.penetrationDepthWorld,forearmMinimumAxisDistance:stats.prop.forearmClearance.minimumAxisDistance});
       attachmentChecks++;
     }
   }
@@ -55,7 +58,7 @@ try {
   for(const [width,height]of [[1280,800],[390,844],[844,390]]){
     canvas.clientWidth=width;canvas.clientHeight=height;canvas.viewportHeight=height;
     for(const activity of Object.keys(NPC_ACTIVITY_PROPS)){
-      await qa.setActivity(activity,0);await checkView('npc-full');await checkView('npc-hand');
+      await qa.setActivity(activity,0);await checkView('npc-full');await checkView('npc-hand');await checkView('npc-contact-side');
     }
   }
   const entered=await qa.enterRoom();assert.equal(entered.models.length,4);for(const model of entered.models){vector(model.scale,[.5,.5,.5]);vector(model.anchors.rest.world,model.restTarget);approx(model.anchors.rest.world[1],entered.tableTop);assert.ok(model.bounds.min[1]>=entered.tableTop-.003);}
@@ -65,5 +68,5 @@ try {
   }
   const lifecycle=await qa.roomLifecycle();for(const key of ['hidden','reused','oldDetached','cachePreserved','lazy','recreated'])assert.equal(lifecycle[key],true,key);assert.equal(lifecycle.destroyed.length,4);
   const roomRace=await qa.roomRace();assert.equal(roomRace.callbacks,4);assert.equal(roomRace.countAfterDispose,0);assert.equal(roomRace.detached,true);assert.ok(roomRace.cache.every(a=>a.loaded));
-  console.log(JSON.stringify({status:'PASS',engine:pc.version,device:'NullGraphicsDevice',scope:'Browser fixture setup, lifecycle and camera mathematics only; no browser/GPU/HTTP evidence',attachmentChecks,fittedViews,fallbacks:fallbacks.receipt.map(r=>r.name),npcRaces:{switched:races.switched,disposed:races.disposed,destroyed:races.destroyed},tableProps:entered.models.map(m=>({id:m.id,rest:m.anchors.rest.world})),roomLifecycle:lifecycle,roomRace},null,2));
+  console.log(JSON.stringify({status:'PASS',engine:pc.version,device:'NullGraphicsDevice',scope:'Browser fixture setup, lifecycle and camera mathematics only; no browser/GPU/HTTP evidence',attachmentChecks,contactChecks,fittedViews,fallbacks:fallbacks.receipt.map(r=>r.name),npcRaces:{switched:races.switched,disposed:races.disposed,destroyed:races.destroyed},tableProps:entered.models.map(m=>({id:m.id,rest:m.anchors.rest.world})),roomLifecycle:lifecycle,roomRace},null,2));
 }finally{qa?.destroy();app.destroy();hook.deregister();}

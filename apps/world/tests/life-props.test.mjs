@@ -24,7 +24,10 @@ test('the seven approved life prop GLBs have an explicit runtime binding', async
     if (activity) {
       assert.equal(NPC_ACTIVITY_PROPS[activity].id, asset.id);
       assert.deepEqual(NPC_ACTIVITY_PROPS[activity].position, asset.npc_attachment.hand_centre_parent_model_units);
-      assert.deepEqual(NPC_ACTIVITY_PROPS[activity].rotation, asset.npc_attachment.suggested_fixed_local_quaternion_xyzw);
+      assert.deepEqual(NPC_ACTIVITY_PROPS[activity].rotation, asset.npc_attachment.runtime_surface_contact.local_rotation_xyzw ?? asset.npc_attachment.suggested_fixed_local_quaternion_xyzw);
+      assert.deepEqual(NPC_ACTIVITY_PROPS[activity].contactPoint, asset.npc_attachment.runtime_surface_contact.point_gltf_metres);
+      assert.deepEqual(NPC_ACTIVITY_PROPS[activity].contactNormal, asset.npc_attachment.runtime_surface_contact.normal_gltf);
+      assert.equal(asset.npc_attachment.runtime_surface_contact.overlap_world_units, .0006);
     }
   }
 });
@@ -59,7 +62,7 @@ async function propRig(height = .875 / 2.37) {
   return { visual, props, requests, arm, avatar };
 }
 
-test('activity props align to whole-arm hand centres and compensate each NPC height', async () => {
+test('activity props use shallow hand-surface contact and compensate each NPC height', async () => {
   const { NPC_ACTIVITY_PROPS } = await import(src);
   for (const height of [.32, .875 / 2.37, .42]) {
     const r = await propRig(height);
@@ -68,7 +71,19 @@ test('activity props align to whole-arm hand centres and compensate each NPC hei
       const model = new Entity(def.id);
       r.requests.at(-1).resolve(model); await flush();
       assert.equal(model.parent, r.arm);
-      assert.deepEqual(model.position, def.position);
+      // Independently reconstruct the contact in arm space, rather than accept a new root offset.
+      const [x,y,z,w] = def.rotation;
+      const rotate = v => [
+        (1-2*y*y-2*z*z)*v[0]+(2*x*y-2*z*w)*v[1]+(2*x*z+2*y*w)*v[2],
+        (2*x*y+2*z*w)*v[0]+(1-2*x*x-2*z*z)*v[1]+(2*y*z-2*x*w)*v[2],
+        (2*x*z-2*y*w)*v[0]+(2*y*z+2*x*w)*v[1]+(1-2*x*x-2*y*y)*v[2]
+      ];
+      const normal = rotate(def.contactNormal), point = rotate(def.contactPoint), radii = [.07,.075,.07];
+      const surface = model.position.map((v,i) => v-def.position[i]+point[i]*.5/height+normal[i]*.0006/height);
+      assert.ok(Math.abs(surface.reduce((n,v,i)=>n+(v/radii[i])**2,0)-1)<1e-7, 'contact lies on hand surface after the small overlap is restored');
+      const projection = surface.reduce((n,v,i)=>n+v*normal[i],0);
+      assert.ok(Math.abs(projection-Math.hypot(...normal.map((v,i)=>v*radii[i])))<1e-7, 'contact uses the correct support plane');
+      assert.notDeepEqual(model.position, def.position, 'the prop root cannot bisect the hand');
       assert.deepEqual(model.rotation, def.rotation);
       assert.deepEqual(model.scale, Array(3).fill(.5 / height));
       assert.equal(r.arm.children.length, 1, 'one model per NPC');
