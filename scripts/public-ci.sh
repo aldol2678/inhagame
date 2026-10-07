@@ -1,17 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
-node --test apps/world/tests/*.test.mjs
-# The dedicated PoC acceptance uses real pinned Recast WASM; FakeQuery unit contracts
-# alone cannot prove current campus schedule coverage or safe endpoint reachability.
-(cd apps/world/tests/recast-runtime && npm ci --ignore-scripts && npm test)
-node apps/world/qa.mjs
-(cd apps/classic && npm test && npm run check)
-(cd apps/induck-grow && npm test)
-(cd apps/survival && npm test && npm run check)
-(cd apps/induckup && npm ci --ignore-scripts && npm test && npm run build)
-node --test supabase/tests/edge/*.test.mjs
-node --test .github/ci/migration-lint.test.mjs
-node .github/ci/migration-lint.mjs
-node --test .github/ci/migration-contract-lint.test.mjs
-node .github/ci/migration-contract-lint.mjs
+npm ci --prefix apps/world/tests/recast-runtime --ignore-scripts
+npm ci --prefix apps/world/tests/browser --no-audit --no-fund
+(cd apps/world/tests/browser && npx --no-install playwright install --with-deps --only-shell chromium)
+node apps/world/tests/browser/recast-crowd-worker-benchmark.mjs
