@@ -936,6 +936,9 @@ export function createFullMapController({
       panY: viewport.panY
     }),
     selectMapPoint,
+    // Presentation wrappers reuse the same selection and projection authority.
+    selectPoi,
+    centerOnPoint: point => centerOn(point, { minimumZoom: FULL_MAP_ZOOM.locateMin }),
     destroy() {
       offNavigation?.();
       documentLike.removeEventListener?.("keydown", onKeyDown);
