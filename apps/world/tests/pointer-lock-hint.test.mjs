@@ -19,7 +19,7 @@ test("Pointer Lock hint guides explicit click, pending state and fallback", () =
     finePointer: true, supported: true, desired: true, locked: false, pending: false,
     awaitingGesture: true, lastError: null
   }), {
-    visible: true, state: "READY", text: "게임 화면 클릭 · 마우스 고정  |  Esc · 해제"
+    visible: true, state: "READY", text: "Esc로 커서 해제 · 게임 화면을 클릭하면 다시 고정"
   });
 
   assert.equal(pointerLockHintModel({
