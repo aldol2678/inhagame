@@ -10,6 +10,7 @@ Contributions are welcome; merge authority rests with the maintainer.
 3. PR은 작고 한 가지 목적에 집중해 주세요. 관련 Issue가 있다면 링크합니다.
 4. CI `verify`가 통과해야 merge됩니다. 로컬에서는 `bash scripts/public-ci.sh`와 `bash scripts/public-db.sh`로 같은 검사를 돌릴 수 있습니다.
 5. 리뷰 대화는 merge 전에 해결되어야 합니다.
+6. 일반 Production 출고는 [Short Release Train](docs/ops/RELEASE_TRAIN.md)을 따릅니다. 작은 PR을 짧은 `release/*` 브랜치에 모아 통합 검증한 뒤 `main`에 한 번 반영합니다. 명시적 Hotfix는 해당 계약의 우회 규칙을 따릅니다.
 
 ## Database changes
 
