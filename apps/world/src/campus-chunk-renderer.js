@@ -4,7 +4,7 @@ import { buildCampusLandmarks } from './campus-landmark-candidate-selector.js';
 import { buildCampusGrounds, buildCampusTrees } from './campus-grounds.js';
 import { buildGateBlockout } from './gate-blockout.js';
 import { buildCentralBlockout } from './central-blockout.js';
-import { WORLD_BOUNDS } from './campus-layout.js';
+import { EXTERIOR_WORLD_BOUNDS as WORLD_BOUNDS } from './world-exterior-bounds.js';
 import { buildPondShore } from './roadview-details.js';
 import { buildCampusRoads, buildBackStreetDetails } from './campus-road-blockout.js';
 import { buildLibraryGardenBase, buildLibraryGardenDetail } from './library-garden-geometry.js';
