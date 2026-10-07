@@ -1,4 +1,5 @@
 import { FacilityMeshBatch } from './facility-mesh-batch.js';
+import { fillPhotoLibraryWest } from './photo-hall-library-geometry.js';
 import { fillAgoraPhotoStructure,fillAgoraPhotoNear } from './agora-photo-geometry.js';
 import { mainGateProductionPath, mainGateProductionStructure } from './editor/main-gate-production.js';
 import { gateCurbFaces, gateRibbon, gateRibbonTop, gateArrowTriangles, MAIN_GATE_LEVELS } from './main-gate-terrain-layout.js';
@@ -34,6 +35,11 @@ export function buildGateRoadview(root){
   }
   b.finish(root,'gate_roadview');
 }
-export function buildLibraryWest(..._args) { return undefined; }
+export function buildLibraryWest(root,tier='DETAIL') {
+  if(tier!=='BASE'&&tier!=='DETAIL')return;
+  const batch=new FacilityMeshBatch();
+  fillPhotoLibraryWest(batch,tier);
+  batch.finish(root,'library_west_'+tier.toLowerCase());
+}
 export function buildPondShore(..._args) { return undefined; }
 export function buildPondFurniture(..._args) { return undefined; }

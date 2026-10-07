@@ -1,12 +1,26 @@
 // Fresh procedural dressing from field-photo observations. Photos establish only
 // the visible rhythm and palette; the public frames and roof bounds remain authority.
-import {HALL_FRONT,LIBRARY_FRONT} from './basic-campus.js';
+import {BUILDINGS,HALL_FRONT,LIBRARY_FRONT} from './basic-campus.js';
 
 export const PHOTO_HALL_LIBRARY_COLORS=Object.freeze({
   trim:'#eeece2',glass:'#548d99',darkGlass:'#3d626b',litGlass:'#c8c8a4',
   joint:'#bcbcb2',mullion:'#abc1bd',soffit:'#bba98a',soffitJoint:'#867e6d'
 });
 const libraryPoint=(u,y,v)=>{const p=LIBRARY_FRONT.at(u,v);return [p.x,y,p.z];};
+
+export const LIBRARY_WEST=(()=>{
+  const building=BUILDINGS.find(item=>item.id==='bldg_jungseok'),pts=building.vertices;
+  const rawA=pts[0],rawB=pts[1];
+  const area=pts.reduce((sum,p,i)=>sum+p.x*pts[(i+1)%pts.length].z-pts[(i+1)%pts.length].x*p.z,0);
+  // Orient the local U axis so vertical x U winding always faces away from the footprint.
+  const a=area>0?rawA:rawB,b=area>0?rawB:rawA,dx=b.x-a.x,dz=b.z-a.z,length=Math.hypot(dx,dz);
+  const along=Object.freeze({x:dx/length,z:dz/length});
+  const outward=Object.freeze({x:along.z,z:-along.x});
+  const center=Object.freeze({x:(a.x+b.x)/2,z:(a.z+b.z)/2});
+  return Object.freeze({a,b,length,along,outward,center,at:(u,v)=>({x:center.x+along.x*u+outward.x*v,z:center.z+along.z*u+outward.z*v})});
+})();
+
+const libraryWestPoint=(u,y,v)=>{const p=LIBRARY_WEST.at(u,v);return [p.x,y,p.z];};
 
 export function fillPhotoMainHallFacade(batch,tier='DETAIL'){
   if(tier!=='DETAIL')return batch;
@@ -86,6 +100,46 @@ export function fillPhotoLibraryFront(batch,tier='BASE'){
     for(let row=1;row<14;row++)for(let col=0;col<3;col++){
       panel(splits[col]+(col?.022:0),splits[col+1]-(col<2?.022:0),1+row-.025,1+row+.025);
     }
+  }
+  return batch;
+}
+
+export function fillPhotoLibraryWest(batch,tier='BASE'){
+  if(tier!=='BASE'&&tier!=='DETAIL')return batch;
+  const c=PHOTO_HALL_LIBRARY_COLORS,p=libraryWestPoint,half=LIBRARY_WEST.length/2;
+  const panel=(color,u0,u1,y0,y1,v)=>batch.quad(color,p(u0,y0,v),p(u0,y1,v),p(u1,y1,v),p(u1,y0,v));
+  const centerHalf=LIBRARY_WEST.length*.12,edge=.8,wingGap=.5;
+  const wings=[[-half+edge,-centerHalf-wingGap],[centerHalf+wingGap,half-edge]];
+  const floors=[1.15,3.55,5.95,8.35,10.75,13.15];
+  if(tier==='BASE'){
+    // Stadium-facing west elevation: preserve the source shell, but restore the
+    // observed horizontal window rhythm, darker central slot and strong top shadow.
+    panel(c.darkGlass,-centerHalf,centerHalf,.9,15.2,.055);
+    for(const [u0,u1] of wings)for(const y of floors)panel(c.glass,u0,u1,y,y+1.15,.06);
+    for(const side of [-1,1]){
+      const u=side*LIBRARY_WEST.length*.34,w=LIBRARY_WEST.length*.038;
+      panel(c.darkGlass,u-w,u+w,1.0,15.45,.075);
+    }
+    panel(c.soffitJoint,-half+.45,half-.45,15.55,16.25,.085);
+    return batch;
+  }
+  // DETAIL only adds structure over BASE surfaces, avoiding duplicate coplanar glass.
+  for(const [u0,u1] of wings){
+    const width=u1-u0,columns=Math.max(4,Math.floor(width/2.15));
+    for(let col=1;col<columns;col++){
+      const u=u0+width*col/columns;
+      for(const y of floors)panel(c.mullion,u-.025,u+.025,y,y+1.15,.082);
+    }
+    for(const y of floors)panel(c.joint,u0,u1,y+1.15,y+1.20,.079);
+  }
+  for(const side of [-1,1]){
+    const u=side*centerHalf;
+    panel(c.trim,u-.07,u+.07,.9,15.2,.09);
+  }
+  // Sparse stone-panel joints keep the large rear wall from reading as one smooth slab.
+  for(let y=2.55;y<15.3;y+=2.4){
+    panel(c.joint,-half+.45,-centerHalf-wingGap,y-.018,y+.018,.078);
+    panel(c.joint,centerHalf+wingGap,half-.45,y-.018,y+.018,.078);
   }
   return batch;
 }
