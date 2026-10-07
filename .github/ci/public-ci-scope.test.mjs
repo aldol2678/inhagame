@@ -5,7 +5,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { classify } from './public-ci-scope.mjs';
+import { classify, needsDatabase } from './public-ci-scope.mjs';
 
 const cli = fileURLToPath(new URL('./public-ci-scope.mjs', import.meta.url));
 const cases = [
@@ -32,6 +32,27 @@ for (const [name, files, expected] of cases) {
   test(name, () => assert.equal(classify(files), expected));
 }
 
+const databaseCases = [
+  ['unknown scope keeps database verification', null, true],
+  ['empty scope keeps database verification', [], true],
+  ['world main runtime can skip the local database', ['apps/world/src/main.js'], false],
+  ['world loading runtime can skip the local database', ['apps/world/src/world-loading-gate.js'], false],
+  ['visual geometry can skip the local database', ['apps/world/src/north-landmark-geometry.js'], false],
+  ['browser QA can skip the local database', ['apps/world/tests/browser/photo-mode-campus-smoke.mjs'], false],
+  ['other public games can skip the local database', ['apps/classic/src/game.js'], false],
+  ['specialized browser workflow can skip the local database', ['.github/workflows/photo-mode-browser.yml'], false],
+  ['database migration requires the local database', ['supabase/migrations/20261007000000_test.sql'], true],
+  ['database integration test requires the local database', ['supabase/tests/integration/inventory.integration.test.mjs'], true],
+  ['server code is conservative and requires the local database', ['apps/world/server/fishing-service.mjs'], true],
+  ['database-coupled client code is conservative and requires the local database', ['apps/world/src/activity/fishing-client.js'], true],
+  ['public CI workflow requires the local database', ['.github/workflows/public-ci.yml'], true],
+  ['unknown source remains conservative', ['tools/new-helper.mjs'], true],
+  ['mixed visual and database changes require the local database', ['apps/world/src/main.js', 'supabase/config.toml'], true],
+];
+for (const [name, files, expected] of databaseCases) {
+  test(name, () => assert.equal(needsDatabase(files), expected));
+}
+
 function repo(t) {
   const dir = mkdtempSync(join(tmpdir(), 'public-ci-scope-test-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
@@ -50,24 +71,30 @@ function repo(t) {
   const base = commit('baseline');
   return { dir, git, write, commit, base };
 }
-function run(dir, event, before) {
+function runScope(dir, event, before) {
   const result = spawnSync(process.execPath, [cli], {
     cwd: dir,
     env: { ...process.env, CI_EVENT: event, CI_BEFORE: before ?? '' },
     encoding: 'utf8',
   });
   assert.equal(result.status, 0, result.stderr);
-  assert.match(result.stdout, /^mode=(docs|full)\n$/);
-  return result.stdout.trim();
+  assert.match(result.stdout, /^mode=(docs|full)\ndb=(true|false)\n$/);
+  return Object.fromEntries(result.stdout.trim().split('\n').map(line => line.split('=')));
+}
+
+function run(dir, event, before) {
+  return runScope(dir, event, before).mode;
 }
 
 test('push with only README changes chooses docs', (t) => {
   const r = repo(t); r.write('README.md', 'updated\n'); r.commit('docs');
-  assert.equal(run(r.dir, 'push', r.base), 'mode=docs');
+  const scope = runScope(r.dir, 'push', r.base);
+  assert.equal(scope.mode, 'docs');
+  assert.equal(scope.db, 'false');
 });
 test('mixed docs and code push chooses full', (t) => {
   const r = repo(t); r.write('README.md', 'updated\n'); r.write('apps/world/src/example.js', 'export const value = 2;\n'); r.commit('mixed');
-  assert.equal(run(r.dir, 'push', r.base), 'mode=full');
+  assert.equal(run(r.dir, 'push', r.base), 'full');
 });
 test('PR merge diff excludes changes already in the base', (t) => {
   const r = repo(t);
@@ -76,38 +103,38 @@ test('PR merge diff excludes changes already in the base', (t) => {
   r.git('checkout', '--quiet', 'main');
   r.write('apps/world/src/example.js', 'export const value = 2;\n'); r.commit('base advanced');
   r.git('merge', '--quiet', '--no-ff', 'docs-pr', '-m', 'synthetic PR merge');
-  assert.equal(run(r.dir, 'pull_request'), 'mode=docs');
+  assert.equal(run(r.dir, 'pull_request'), 'docs');
 });
 test('PR merge containing source changes chooses full', (t) => {
   const r = repo(t);
   r.git('checkout', '--quiet', '-b', 'code-pr');
   r.write('apps/world/src/example.js', 'export const value = 3;\n'); r.commit('PR code');
   r.git('checkout', '--quiet', 'main'); r.git('merge', '--quiet', '--no-ff', 'code-pr', '-m', 'PR merge');
-  assert.equal(run(r.dir, 'pull_request'), 'mode=full');
+  assert.equal(run(r.dir, 'pull_request'), 'full');
 });
 test('PR checkout without two parents chooses full', (t) => {
-  const r = repo(t); assert.equal(run(r.dir, 'pull_request'), 'mode=full');
+  const r = repo(t); assert.equal(run(r.dir, 'pull_request'), 'full');
 });
 test('empty diff chooses full', (t) => {
-  const r = repo(t); assert.equal(run(r.dir, 'push', r.base), 'mode=full');
+  const r = repo(t); assert.equal(run(r.dir, 'push', r.base), 'full');
 });
 test('missing and zero before SHAs choose full', (t) => {
   const r = repo(t);
-  assert.equal(run(r.dir, 'push'), 'mode=full');
-  assert.equal(run(r.dir, 'push', '0'.repeat(40)), 'mode=full');
-  assert.equal(run(r.dir, 'push', 'bad-value'), 'mode=full');
+  assert.equal(run(r.dir, 'push'), 'full');
+  assert.equal(run(r.dir, 'push', '0'.repeat(40)), 'full');
+  assert.equal(run(r.dir, 'push', 'bad-value'), 'full');
 });
 test('unavailable history and failed fetch choose full', (t) => {
-  const r = repo(t); assert.equal(run(r.dir, 'push', 'f'.repeat(40)), 'mode=full');
+  const r = repo(t); assert.equal(run(r.dir, 'push', 'f'.repeat(40)), 'full');
 });
 test('unsupported event chooses full', (t) => {
-  const r = repo(t); assert.equal(run(r.dir, 'workflow_dispatch', r.base), 'mode=full');
+  const r = repo(t); assert.equal(run(r.dir, 'workflow_dispatch', r.base), 'full');
 });
 test('source renamed into an allowed document still chooses full', (t) => {
   const r = repo(t);
   r.git('rm', 'README.md');
   r.git('mv', 'apps/world/src/example.js', 'README.md'); r.commit('rename into docs');
-  assert.equal(run(r.dir, 'push', r.base), 'mode=full');
+  assert.equal(run(r.dir, 'push', r.base), 'full');
 });
 test('deleted README remains a documentation change', (t) => {
   const r = repo(t); r.git('rm', 'README.md'); r.commit('delete docs');
@@ -115,13 +142,13 @@ test('deleted README remains a documentation change', (t) => {
 });
 test('newline in a Git filename cannot split into allowed documents', (t) => {
   const r = repo(t); r.write('README.md\nNOTICE.md', 'not a known document\n'); r.commit('newline filename');
-  assert.equal(run(r.dir, 'push', r.base), 'mode=full');
+  assert.equal(run(r.dir, 'push', r.base), 'full');
 });
 test('missing before commit is fetched from a local origin', (t) => {
   const source = repo(t); source.write('README.md', 'new\n'); source.commit('docs');
   const clone = join(source.dir, 'shallow-clone');
   execFileSync('git', ['clone', '--quiet', '--depth=1', 'file://' + source.dir, clone]);
-  assert.equal(run(clone, 'push', source.base), 'mode=docs');
+  assert.equal(run(clone, 'push', source.base), 'docs');
 });
 test('depth-two synthetic PR checkout has the required base parent', (t) => {
   const source = repo(t);
