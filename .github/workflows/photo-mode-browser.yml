@@ -40,7 +40,7 @@ jobs:
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Verify photo lifecycle, rig, input and NPC anchor contracts
         run: |
-          node --test apps/world/tests/photo-*.test.mjs apps/world/tests/inkyung-photo-point.test.mjs
+          node --test apps/world/tests/photo-*.test.mjs apps/world/tests/inkyung-photo-point.test.mjs apps/world/tests/world-boot-diagnostics.test.mjs
           node apps/world/npc-factory/tests-dev-runtime.mjs
       - name: Verify native photo controls with production modules
         env:
