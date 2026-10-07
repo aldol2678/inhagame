@@ -1,5 +1,5 @@
 import {studentCampusGroundHeight} from '../student-center-runtime.js';
-import { EXTERIOR_WORLD_BOUNDS as WORLD_BOUNDS } from "../world-exterior-bounds.js";
+import { WORLD_BOUNDS } from "../campus-layout.js";
 import { roadviewGroundHeight } from "../roadview-layout.js";
 import { PLAYER_ORIGIN_Y, WALK_SHAPE } from "../player-dimensions.js";
 import { canOccupy } from "../world-collision.js";

@@ -22,7 +22,7 @@ import { MAIN_GATE_CAMPUS_BIKE_COLLIDER } from './mounts/campus-bike-world.js';
 import { CULTURE_COLLIDERS } from './culture-street-layout.js';
 import { MARKET_COLLIDERS } from './back-market-layout.js';
 import { INTERIOR_COLLIDERS } from './market-interior-layout.js';
-export { EXTERIOR_WORLD_BOUNDS as WORLD_BOUNDS } from './world-exterior-bounds.js';
+import { EXTERIOR_WORLD_BOUNDS } from './world-exterior-bounds.js';
 import { DORM_1_FENCES } from './gate-dorm-exterior-layout.js';
 import { BACKGATE_TRANSIT_COLLIDERS } from './transit/backgate-transit-layout.js';
 
@@ -67,6 +67,7 @@ export const OBSTACLES = Object.freeze([
   ...MAIN_GATE_WALL_COLLIDERS
 ]);
 
+export const WORLD_BOUNDS = EXTERIOR_WORLD_BOUNDS;
 export const TOUR_STOPS = Object.freeze([
   // zone is a deprecated compatibility field for old QA/callers; live tour uses placeZoneId.
   { id: "gate", label: "정문 통과", placeZoneId:'AREA_MAIN_GATE', zone: "C01_GATE", x: 0, z: -76, radius: 7 },

@@ -43,7 +43,7 @@ export const CAMPUS_MOVEMENT_SPACE = Object.freeze({
 });
 
 let campusObstaclesWithoutBike = null;
-function getCampusObstaclesWithoutBike() {
+function CAMPUS_OBSTACLES_WITHOUT_BIKE() {
   if (!campusObstaclesWithoutBike) {
     campusObstaclesWithoutBike = Object.freeze(
       OBSTACLES.filter(({ id }) => id !== MAIN_GATE_CAMPUS_BIKE.id)
@@ -1151,7 +1151,7 @@ export class PlayerController {
 
     const space = this.space;
     const obstacles = this.onBike
-      ? (space.obstacles ?? getCampusObstaclesWithoutBike())
+      ? (space.obstacles ?? CAMPUS_OBSTACLES_WITHOUT_BIKE())
       : space.obstacles;
     const groundVehicleShape = (this.onKickboard || this.onKart) ? {
       radius: getMobilityByMountId(this.mountId).summonClearance.radius,
