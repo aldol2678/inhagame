@@ -11,6 +11,7 @@ const indexHtml = readFileSync(new URL('../index.html', import.meta.url), 'utf8'
 const hubAccount = readFileSync(new URL('../hub-account.js', import.meta.url), 'utf8');
 const campusHtml = readFileSync(new URL('../campus/index.html', import.meta.url), 'utf8');
 const profileHtml = readFileSync(new URL('../profile/index.html', import.meta.url), 'utf8');
+const achievementsHtml = readFileSync(new URL('../achievements/index.html', import.meta.url), 'utf8');
 
 function responseRecorder() {
   return {
@@ -38,6 +39,17 @@ test('profile loads production Supabase config before profile bootstrap', () => 
   assert.ok(profileOffset >= 0, 'profile bootstrap script remains present');
   assert.ok(configOffset < profileOffset, 'profile config must execute before profile bootstrap');
   assert.doesNotMatch(profileHtml, /<script defer src="\/supabase-public-config\.js"><\/script>/);
+});
+
+test('achievements loads production Supabase config before achievements bootstrap', () => {
+  const configScript = '<script defer src="/api/public-supabase-config"></script>';
+  const achievementsScript = '<script defer src="/achievements/achievements.js"></script>';
+  const configOffset = achievementsHtml.indexOf(configScript);
+  const achievementsOffset = achievementsHtml.indexOf(achievementsScript);
+  assert.ok(configOffset >= 0, 'achievements loads the shared production auth config');
+  assert.ok(achievementsOffset >= 0, 'achievements bootstrap script remains present');
+  assert.ok(configOffset < achievementsOffset, 'achievements config must execute before achievements bootstrap');
+  assert.doesNotMatch(achievementsHtml, /<script defer src="\/supabase-public-config\.js"><\/script>/);
 });
 
 test('campus loads shared auth config synchronously before any module executes', () => {
