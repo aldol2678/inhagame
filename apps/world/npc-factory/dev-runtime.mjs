@@ -203,7 +203,25 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
   const yieldWhileHeld = () => isSimulationHeld() ? new Promise(resolve => setTimeout(resolve, 0)) : null;
   if (isSimulationHeld()) for (const period of PERIODS) { snapshotForPeriod(batch, period); await yieldWhileHeld(); }
   const first = snapshotForPeriod(batch, sharedFrameNow === null ? PULSE_PERIODS[0] : worldScheduleAt(sharedFrameNow).period);
-  const canonicalNavigator = createNpcNavigator(batch);
+  // Explicit P01 experiment only: download/compile never delays NPC boot. The
+  // regular navigator and every route decision stay in JS; only complete grid
+  // batches can use the optional numerical kernel once it is ready.
+  const wasmWalkabilityEnabled = new URLSearchParams(globalThis.location?.search ?? '').get('npcWalkabilityWasm') === '1';
+  let wasmWalkabilityExperiment = null;
+  const canonicalNavigator = createNpcNavigator(batch, {
+    walkabilityBatch: wasmWalkabilityEnabled ? points => wasmWalkabilityExperiment?.batch(points) ?? null : null
+  });
+  if (wasmWalkabilityEnabled) {
+    let disposed = false, loadError = null;
+    window.__NPC_WALKABILITY_WASM_P01__ = Object.freeze({ status: () =>
+      wasmWalkabilityExperiment?.status() ?? { state: disposed ? 'DESTROYED' : loadError ? 'FALLBACK' : 'LOADING', error: loadError } });
+    void import('./wasm-walkability-p01.mjs').then(({ createWalkabilityExperiment }) => {
+      if (!disposed) wasmWalkabilityExperiment = createWalkabilityExperiment({ enabled: true, navigator: canonicalNavigator });
+    }).catch(error => { loadError = String(error.message ?? error); });
+    window.addEventListener('pagehide', event => {
+      if (!event.persisted) { disposed = true; wasmWalkabilityExperiment?.destroy(); }
+    });
+  }
   const navigator = createRecastRuntimeShadowNavigator(canonicalNavigator, { enabled: recastRuntimeShadowEnabled });
   if (recastRuntimeShadowEnabled) {
     window.__RECAST_RUNTIME_SHADOW__ = Object.freeze({ status: () => navigator.recastRuntimeShadow.status() });
