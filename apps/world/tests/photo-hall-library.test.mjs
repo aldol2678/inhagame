@@ -24,7 +24,7 @@ const libraryLocal=([x,y,z])=>[(x-origin.x)*tx+(z-origin.z)*tz,y,-(x-origin.x)*t
 const glassColors=()=>new Set([api.PHOTO_HALL_LIBRARY_COLORS.glass,api.PHOTO_HALL_LIBRARY_COLORS.darkGlass,api.PHOTO_HALL_LIBRARY_COLORS.litGlass]);
 
 test('photo refinement exposes pure batched hall, curtain-wall and roof builders',()=>{
-  for(const name of ['fillPhotoMainHallFacade','fillPhotoLibraryFront','fillPhotoLibraryRoof'])assert.equal(typeof api[name],'function',name);
+  for(const name of ['fillPhotoMainHallFacade','fillPhotoLibraryFront','fillPhotoLibraryWest','fillPhotoLibraryRoof'])assert.equal(typeof api[name],'function',name);
   assert.ok(Object.isFrozen(api.PHOTO_HALL_LIBRARY_COLORS));
 });
 
@@ -86,6 +86,32 @@ test('library curtain glass and denser mullions remain in their existing tier an
     assert.ok(Math.abs(u)<=6.3+1e-7&&y>=1-1e-7&&y<=15+1e-7&&v>=0&&v<.64);
   }
   for(const face of detail){const n=normal(face.vertices);assert.ok(-n[0]*tz+n[2]*tx>0,'mullions face the observed front');}
+});
+
+test('library stadium-facing west elevation restores base massing and bounded detail', {skip:!ready},()=>{
+  const frame=api.LIBRARY_WEST,origin=frame.at(0,0);
+  const local=([x,y,z])=>[(x-origin.x)*frame.along.x+(z-origin.z)*frame.along.z,y,(x-origin.x)*frame.outward.x+(z-origin.z)*frame.outward.z];
+  const base=capture(b=>api.fillPhotoLibraryWest(b,'BASE')),detail=capture(b=>api.fillPhotoLibraryWest(b,'DETAIL'));
+  assert.deepEqual(capture(b=>api.fillPhotoLibraryWest(b,'NEAR')),[]);
+  assert.ok(base.length>=15&&base.length<30,'bounded long-range facade surfaces');
+  assert.ok(detail.length>=40&&detail.length<180,'bounded mullion and panel-joint detail');
+  assert.ok(base.some(f=>f.color===api.PHOTO_HALL_LIBRARY_COLORS.darkGlass),'central and vertical dark glazing');
+  assert.ok(base.some(f=>f.color===api.PHOTO_HALL_LIBRARY_COLORS.glass),'horizontal window bands');
+  assert.ok(base.some(f=>f.color===api.PHOTO_HALL_LIBRARY_COLORS.soffitJoint),'top shadow band');
+  assert.ok(detail.some(f=>f.color===api.PHOTO_HALL_LIBRARY_COLORS.mullion),'window rhythm mullions');
+  assert.ok(detail.some(f=>f.color===api.PHOTO_HALL_LIBRARY_COLORS.joint),'stone panel joints');
+  for(const face of [...base,...detail]){
+    for(const point of face.vertices){
+      const [u,y,v]=local(point);
+      assert.ok(Math.abs(u)<=frame.length/2+1e-7,'west detail stays on source edge span');
+      assert.ok(y>=.8&&y<=16.3,'west detail stays inside building height');
+      assert.ok(v>=.05&&v<=.1,'west dressing remains a shallow facade layer');
+    }
+    const n=normal(face.vertices);
+    assert.ok(n[0]*frame.outward.x+n[2]*frame.outward.z>0,'west facade faces stadium/outward');
+  }
+  assert.deepEqual(capture(b=>api.fillPhotoLibraryWest(b,'BASE')),base,'deterministic base');
+  assert.deepEqual(capture(b=>api.fillPhotoLibraryWest(b,'DETAIL')),detail,'deterministic detail');
 });
 
 test('curved library roof replaces its box within the exact source roof volume', {skip:!ready},()=>{
@@ -155,6 +181,9 @@ test('renderer replaces only observed front details and roof parts without extra
   assert.match(source,/fillPhotoLibraryRoof\(libraryDetails,part,tier\)/);
   assert.doesNotMatch(source,/library_glass_bay_|library_glass_rails/,'retired detail is not layered underneath');
   assert.match(source,/'hall_entry_glass'/,'existing entry doors remain');
-  assert.match(source,/buildLibraryWest\(root\)/,'ordinary nonfront hook remains');
+  assert.match(source,/buildLibraryWest\(root,tier\)/,'stadium-facing library facade is mounted in tiered renderer');
+  const roadview=readFileSync(new URL('../src/roadview-details.js',import.meta.url),'utf8');
+  assert.match(roadview,/fillPhotoLibraryWest\(batch,tier\)/,'west hook has a real geometry owner');
+  assert.doesNotMatch(roadview,/buildLibraryWest\(\.\.\._args\).*return undefined/,'west hook is no longer a no-op');
   assert.doesNotMatch(source,/addComponent\(['"](?:light|collision|rigidbody)/);
 });
