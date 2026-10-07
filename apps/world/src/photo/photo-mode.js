@@ -19,7 +19,7 @@ export const PHOTO_SUBJECT_DRIFT_LIMIT = 1;
 
 const finitePosition = p => p && [p.x, p.y, p.z].every(Number.isFinite);
 // Shared by entry and session validation, so a state that cannot open also closes a session.
-function worldBlock(s) {
+function worldBlock(s, mount = null) {
   if (s.world !== true) return PHOTO_MODE_BLOCK.LOBBY;
   if (s.transitioning) return PHOTO_MODE_BLOCK.TRANSITION;
   if (s.combat) return PHOTO_MODE_BLOCK.COMBAT;
@@ -27,9 +27,7 @@ function worldBlock(s) {
   // TODO(photo-mode P1): the Biryong realm swaps the camera obstacle and ground authority
   // with its own scripted camera; verify a free camera there before allowing it.
   if (s.region !== 'campus') return PHOTO_MODE_BLOCK.REGION;
-  // TODO(photo-mode P1): mounts keep vehicle physics and the flight chase camera; a moving
-  // subject needs its own rig policy. Campus, rooms and seats share the walking camera.
-  if (s.mounted) return PHOTO_MODE_BLOCK.MOUNTED;
+  if (s.mounted && !mount?.isValid?.()) return PHOTO_MODE_BLOCK.MOUNTED;
   return null;
 }
 
@@ -37,20 +35,35 @@ function worldBlock(s) {
 // The PhotoCameraRig owns the camera transform in between; the orbit is never modified.
 export function createPhotoMode({
   orbit, rig, inputFocus, getPosition, getState, getPointerLocked = () => false, beforeOpen = () => {},
-  requestPose = () => false, cancelPose = () => {}, onChange = () => {}, entryOwnerId = null
+  requestPose = () => false, cancelPose = () => {}, onChange = () => {}, entryOwnerId = null,
+  getMount = () => null, getMountBounds = () => null
 } = {}) {
   if (!orbit?.camera?.camera || !rig?.begin || !inputFocus?.can) throw new TypeError('Photo Mode requires orbit, rig and InputFocus');
   const owner = createInputFocusOwner({ manager: inputFocus, ownerId: PHOTO_MODE_OWNER, policy: PHOTO_MODE_POLICY });
   const listeners = new Set([onChange]);
+  const closingListeners = new Map();
   let session = null, destroyed = false, handingOff = false;
+  const safely = fn => { try { return fn(); } catch (error) { console.warn('Photo Mode cleanup failed', error); return false; } };
+  function mountedTarget(state) {
+    if (!state.mounted) return null;
+    try {
+      const mount = getMount(), bounds = getMountBounds();
+      return mount?.isValid?.() && validBounds(bounds) ? mount : null;
+    } catch { return null; }
+  }
+  function validBounds(bounds) {
+    return bounds?.min && bounds?.max && ['x','y','z'].every(axis => Number.isFinite(bounds.min[axis]) &&
+      Number.isFinite(bounds.max[axis]) && bounds.max[axis] >= bounds.min[axis]);
+  }
+  const boundsCenter = bounds => Object.fromEntries(['x','y','z'].map(axis => [axis, (bounds.min[axis] + bounds.max[axis]) / 2]));
 
   function blockedReason({ entryOwner = null } = {}) {
     if (destroyed) return PHOTO_MODE_BLOCK.DESTROYED;
     if (session) return PHOTO_MODE_BLOCK.ACTIVE;
     const state = getState() ?? {};
-    const block = worldBlock(state);
+    const block = worldBlock(state, mountedTarget(state));
     if (block) return block;
-    if (!state.grounded) return PHOTO_MODE_BLOCK.AIRBORNE;
+    if (!state.mounted && !state.grounded) return PHOTO_MODE_BLOCK.AIRBORNE;
     // Any dialog, panel or system lock already holding input keeps the camera to itself.
     const focus = inputFocus.snapshot();
     const fromPhone = entryOwnerId && entryOwner === entryOwnerId && focus.activeClaimCount === 1 &&
@@ -61,7 +74,7 @@ export function createPhotoMode({
   }
   function publish(reason, old = session) {
     const change = { active: !!session, reason, origin: old?.origin ?? 'WORLD_SHORTCUT', purpose: old?.purpose ?? 'normal' };
-    for (const listener of listeners) listener(change);
+    for (const listener of listeners) safely(() => listener(change));
   }
   // Everything needed to put the exact play frame back, in the gameplay (unmirrored) frame.
   function snapshotPlayCamera() {
@@ -73,7 +86,10 @@ export function createPhotoMode({
       rotation: Object.freeze([r.x, r.y, r.z, r.w]),
       fov: lens.fov, nearClip: lens.nearClip,
       orbit: Object.freeze({ yaw: orbit.yaw, pitch: orbit.pitch, distance: orbit.distance, firstPerson: orbit.firstPerson,
-        firstPersonPitch: orbit.firstPersonPitch, thirdPersonPitch: orbit.thirdPersonPitch }),
+        firstPersonPitch: orbit.firstPersonPitch, thirdPersonPitch: orbit.thirdPersonPitch,
+        mounted: orbit.mounted, flightProfile: orbit.flightProfile,
+        distances: orbit.distances ? Object.freeze({ ...orbit.distances }) : undefined,
+        target: orbit.target ? Object.freeze({ ...orbit.target }) : undefined }),
       pointerLocked: getPointerLocked() === true
     });
   }
@@ -84,7 +100,8 @@ export function createPhotoMode({
     lens.fov = saved.fov; lens.nearClip = saved.nearClip;
     // Photo Mode never writes the orbit; this only guards against an external writer.
     const { firstPerson, ...view } = saved.orbit;
-    Object.assign(orbit, view);
+    Object.assign(orbit, view, { distances: saved.orbit.distances ? { ...saved.orbit.distances } : undefined,
+      target: saved.orbit.target ? { ...saved.orbit.target } : undefined });
     if (orbit.firstPerson !== firstPerson) {
       orbit.firstPerson = firstPerson;
       orbit.perspectiveButton?.setAttribute('aria-pressed', String(firstPerson));
@@ -99,32 +116,60 @@ export function createPhotoMode({
     if (blockedReason({ entryOwner })) return false;
     const p = getPosition(), state = getState() ?? {};
     const saved = snapshotPlayCamera();
-    if (!rig.begin(saved)) return false;
+    const mount = mountedTarget(state);
+    if (state.mounted && !mount) return false;
+    let bounds = null;
+    try {
+      if (mount && !mount.enterPhotoHold()) return false;
+      bounds = mount ? getMountBounds() : null;
+      if ((mount && !validBounds(bounds)) || !rig.begin(saved, { subjectBounds: bounds })) {
+        mount?.exitPhotoHold(); restorePlayCamera(saved);
+        return false;
+      }
+    } catch {
+      safely(() => rig.end()); safely(() => restorePlayCamera(saved)); safely(() => mount?.exitPhotoHold());
+      return false;
+    }
     session = { saved, subject: { x: p.x, y: p.y, z: p.z }, space: state.space ?? null,
-      accountId: state.accountId ?? null, posed: false, origin, purpose };
+      accountId: state.accountId ?? null, posed: false, origin, purpose, mount,
+      mountSubject: mount ? boundsCenter(bounds) : null };
     handingOff = entryOwner === entryOwnerId && entryOwnerId !== null;
-    owner.acquire();
-    publish('open');
-    handingOff = false;
+    try { owner.acquire(); publish('open'); }
+    catch { close('takeover'); return false; }
+    finally { handingOff = false; }
     if (!inputAllowed()) { close('takeover'); return false; }
     return true;
   }
   function close(reason = 'close') {
     if (!session) return false;
     const old = session; session = null;
-    rig.end();
+    // Capture cancellation precedes UI/input cleanup; each hook is failure-isolated.
+    for (const [listener] of [...closingListeners].sort((a,b) => a[1] - b[1])) safely(() => listener());
+    safely(() => rig.end());
     // Restore before releasing the claim so later transition owners snapshot the normal view.
-    restorePlayCamera(old.saved);
-    if (old.posed) cancelPose();
+    safely(() => restorePlayCamera(old.saved));
+    if (old.posed) safely(cancelPose);
     // A Phone subscriber can acquire its return claim before Photo releases its claim.
     publish(reason, old);
-    owner.release();
+    safely(() => old.mount?.exitPhotoHold());
+    safely(() => owner.release());
     return true;
   }
   function update() {
     if (!session) return false;
-    const state = getState() ?? {}, p = getPosition(), at = session.subject;
-    if (worldBlock(state) || state.space !== session.space || state.accountId !== session.accountId ||
+    let state, p;
+    try { state = getState() ?? {}; p = getPosition(); }
+    catch { close('lifecycle'); return false; }
+    const at = session.subject;
+    const mount = mountedTarget(state);
+    let mountDrift = false;
+    if (mount && session.mountSubject) {
+      try {
+        const current = boundsCenter(getMountBounds()), saved = session.mountSubject;
+        mountDrift = !finitePosition(current) || Math.hypot(current.x-saved.x,current.y-saved.y,current.z-saved.z) > PHOTO_SUBJECT_DRIFT_LIMIT;
+      } catch { mountDrift = true; }
+    }
+    if (worldBlock(state, mount) || mount !== session.mount || mountDrift || state.space !== session.space || state.accountId !== session.accountId ||
       !finitePosition(p) || Math.hypot(p.x - at.x, p.y - at.y, p.z - at.z) > PHOTO_SUBJECT_DRIFT_LIMIT) {
       close('lifecycle'); return false;
     }
@@ -138,6 +183,7 @@ export function createPhotoMode({
   }
   function pose() {
     if (!update()) return false;
+    if (session.mount) return 'mounted';
     const result = requestPose();
     if (result === 'started') session.posed = true;
     return result;
@@ -157,6 +203,7 @@ export function createPhotoMode({
     get active() { return !!session; },
     get saved() { return session?.saved ?? null; },
     subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
-    destroy() { if (destroyed) return; close('destroy'); destroyed = true; unsubscribe(); listeners.clear(); }
+    subscribeClosing(listener, { priority = 20 } = {}) { closingListeners.set(listener, priority); return () => closingListeners.delete(listener); },
+    destroy() { if (destroyed) return; close('destroy'); destroyed = true; unsubscribe(); listeners.clear(); closingListeners.clear(); }
   });
 }

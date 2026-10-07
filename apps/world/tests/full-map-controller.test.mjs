@@ -675,3 +675,12 @@ test("campus-only search clears and hides across region switches, then restores 
   search(r, "후문"); results(r)[0].dispatch("click");
   assert.equal(r.elements.destinationButton.disabled, true, "source switch never changes existing state authority");
 });
+
+test('selection subscription follows markers and source invalidation without changing destinations',()=>{
+  const r=rig(),seen=[];r.controller.open();const off=r.controller.onSelectionChange(p=>seen.push(p?.poiId??null));
+  r.controller.selectPoi(r.definitions[0]);r.elements.destinationButton.dispatch('click');const destination=r.controller.destination;
+  assert.equal(seen.at(-1),'poi.main');assert.deepEqual(r.controller.destination,destination);
+  assert.equal(r.controller.selectStoredPlace({poiId:'deleted',x:1,z:1}),null);assert.equal(r.controller.selectedPoi.poiId,'poi.main');
+  assert.equal(r.controller.selectStoredPlace({poiId:'poi.main',x:9,z:9}).x,r.definitions[0].x);
+  off();r.controller.selectPoi(r.definitions[1]);assert.equal(seen.at(-1),'poi.main');r.controller.destroy();
+});

@@ -31,7 +31,8 @@ function harness({ position = { x: 12, y: 1.15, z: -40 } } = {}) {
   return { mode, rig, orbit, focus, controller, camera, subject, state, calls };
 }
 const orbitView = h => ({ yaw: h.orbit.yaw, pitch: h.orbit.pitch, distance: h.orbit.distance, firstPerson: h.orbit.firstPerson,
-  firstPersonPitch: h.orbit.firstPersonPitch, thirdPersonPitch: h.orbit.thirdPersonPitch });
+  firstPersonPitch: h.orbit.firstPersonPitch, thirdPersonPitch: h.orbit.thirdPersonPitch,
+  mounted: h.orbit.mounted, flightProfile: h.orbit.flightProfile, distances: { ...h.orbit.distances }, target: { ...h.orbit.target } });
 const frames = (h, n = 30, dt = 1 / 60) => { for (let i = 0; i < n; i++) h.mode.applyCamera(dt); };
 
 test('opens anywhere in normal play: campus points far from the lake and indoor rooms', () => {

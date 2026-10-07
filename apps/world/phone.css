@@ -13,6 +13,17 @@ body[data-phone-open="true"] > :not(#application):not(.smartphone) { visibility:
 .smartphone button, .smartphone select { font:inherit; color:inherit; border:1px solid #ffffff30; border-radius:12px; background:#142d4699; min-height:44px; padding:8px 12px; cursor:pointer; }
 .smartphone button:focus-visible,.smartphone select:focus-visible { outline:3px solid #ffe9a4; outline-offset:2px; }
 .smartphone button:disabled { opacity:.5; cursor:default; }
+/* Full Map buttons are invisible 44px hit targets. Phone's general button chrome
+   must not paint their wrapper; the icon alone owns the circular visual layer. */
+.smartphone .full-map-poi {
+  width:44px; height:44px; min-height:44px; padding:0; border:0;
+  border-radius:50%; background:transparent; box-shadow:none;
+  backdrop-filter:none; -webkit-tap-highlight-color:transparent;
+  /* Rasterize the inverse-scaled marker independently of the zoomed map layer. */
+  will-change:transform;
+}
+.smartphone .full-map-poi:focus { outline:none; }
+.smartphone .full-map-poi:focus-visible { outline:2px solid #fff2b2; outline-offset:1px; }
 .smartphone-header button { font-size:26px; width:44px; padding:0; background:transparent; border:0; }
 .smartphone-content { flex:1; min-height:0; overflow:auto; padding:10px 16px; overscroll-behavior:contain; }
 .smartphone:not([hidden]) .smartphone-frame { animation:phone-open .15s ease-out; }
