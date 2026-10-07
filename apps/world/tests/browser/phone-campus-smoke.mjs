@@ -74,7 +74,7 @@ async function run(name,viewport,mobile){
     await page.locator('.smartphone-header button').first().click();assert.equal((await phoneState(page)).state,'HOME');entry.checks.push('Album thumbnail grid, favorite, photo wallpaper, Album→Photo→Maps back stack');await save();
     await clickApp(page,'maps');await page.locator('.full-map-search-input').fill('본관');
     await page.locator('.full-map-search-result').first().click();assert.ok(await page.locator('#full-map-info').isVisible());
-    await page.getByRole('button',{name:'선택한 장소 즐겨찾기',exact:true}).click();await screen(page,entry,'maps');
+    await page.getByRole('button',{name:'☆ 즐겨찾기 추가',exact:true}).click();await screen(page,entry,'maps');
     await page.locator('#full-map-set-destination').click();assert.equal((await phoneState(page)).state,'CLOSED');
     assert.equal(await page.evaluate(()=>window.__INHAGAME_P0__.navigation.getSnapshot().active),true);
     await frames(page);assert.equal(await page.locator('#full-map-panel').getAttribute('data-phone-hosted'),null);assert.equal(await page.locator('#phone-toggle').isVisible(),true);

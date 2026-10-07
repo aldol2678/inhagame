@@ -1672,9 +1672,11 @@ const photoCamera = createPhotoCameraController({
 const photoMode = createPhotoMode({
   orbit, rig: photoCamera, inputFocus,
   entryOwnerId: "smartphone",
+  getMount: () => controller.getPhotoHoldTarget(),
+  getMountBounds: () => character.getPhotoSubjectBounds(controller.mountId),
   getPosition: () => player.getLocalPosition(),
   getState: () => ({
-    world: !lobbyWorld.active && !lobbyTransition.active,
+    world: player.parent !== null && !lobbyWorld.active && !lobbyTransition.active,
     region: biryongRealm?.inBiryong === true ? "biryong" : "campus",
     space: rooms?.currentSpace ?? null,
     grounded: controller.grounded,

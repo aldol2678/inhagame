@@ -59,7 +59,7 @@ export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, g
   }
   function closeSurface(kind) {
     suppressClose++;
-    try {if(kind==='maps'){getMap()?.close();mapSurface.restore();}else{getSettings()?.setOpen(false,{focus:false});settingsSurface.restore();}}
+    try {if(kind==='maps'){offMapSelection?.();offMapSelection=null;getMap()?.close();mapSurface.restore();}else{getSettings()?.setOpen(false,{focus:false});settingsSurface.restore();}}
     finally{suppressClose--;}
   }
   const registry=[
@@ -165,15 +165,25 @@ export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, g
   }
   function pickMapPlace(place) {
     const map=getMap();if(place.mapSourceId!==map?.status().mapSourceId){say('현재 지역의 지도에서만 위치를 선택할 수 있어요.');return;}
-    map.selectMapPoint(place);map.centerOnPoint(place);
+    const selected=map.selectStoredPlace?.(place) ?? (!place.poiId ? map.selectMapPoint(place) : null);
+    if(!selected){say('이 장소는 현재 지도에서 찾을 수 없어요.');return;}
+    map.centerOnPoint(selected);
   }
+  let offMapSelection=null;
   function renderMaps(params) {
+    offMapSelection?.();
     const tools=el('div','smartphone-map-tools');
-    tools.append(btn('선택한 장소 즐겨찾기',()=>{const map=getMap();history.toggle(map?.selectedPoi,map?.status().mapSourceId);renderMapHistory(tools);}),el('div','smartphone-map-history'));
+    const favorite=btn('',()=>{const map=getMap();history.toggle(map?.selectedPoi,map?.status().mapSourceId);renderMapHistory(tools);});
+    favorite.dataset.mapFavorite='true';tools.append(favorite,el('div','smartphone-map-history'));
+    offMapSelection=getMap()?.onSelectionChange(()=>renderMapHistory(tools));
     content.append(tools);renderMapHistory(tools);mapSurface.mount(content);getMap()?.open();getMap()?.update();
     if(params.point){if(params.mapSourceId===getMap()?.status().mapSourceId)pickMapPlace({...params.point,mapSourceId:params.mapSourceId});else say('사진을 찍은 지역과 현재 지도 지역이 달라요.');}
   }
   function renderMapHistory(tools) {
+    const map=getMap(),place=map?.selectedPoi,selected=!!place;
+    const favorite=tools.querySelector('[data-map-favorite]'),active=history.has(place,map?.status().mapSourceId);
+    favorite.disabled=!selected;favorite.textContent=active?'★ 즐겨찾기 해제':'☆ 즐겨찾기 추가';
+    favorite.setAttribute('aria-pressed',String(active));
     const list=tools.querySelector('.smartphone-map-history');list.replaceChildren();
     const view=history.snapshot();for(const [kind,records] of [['즐겨찾기',view.favorites],['최근 목적지',view.recent]]){
       if(!records.length)continue;const details=el('details');details.append(el('summary','',kind));

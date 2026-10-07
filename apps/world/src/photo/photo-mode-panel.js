@@ -260,6 +260,7 @@ export function createPhotoModePanel({ mode, rig, input, doc = globalThis.docume
     if (result === 'started') say('사진 포즈! 잠시 후 다시 포즈를 취할 수 있어요');
     else if (result === 'cooldown') say('잠깐 기다린 뒤 다시 포즈를 취해 주세요');
     else if (result === 'seated') say('앉아 있는 동안에는 포즈 대신 그대로 찍어 보세요');
+    else if (result === 'mounted') say('탑승 자세를 유지한 채 탈것과 함께 찍어 보세요');
   });
   close.addEventListener('click', () => mode.close());
   settingsToggle.addEventListener('click', () => setSettings(settings.hidden));
@@ -274,6 +275,7 @@ export function createPhotoModePanel({ mode, rig, input, doc = globalThis.docume
   });
   gridSelect.addEventListener('change', () => setGrid(gridSelect.value));
 
+  const offClosing = mode.subscribeClosing?.(() => { resetCapture(); root.hidden = true; });
   const unsubscribe = mode.subscribe(({ active, reason }) => {
     resetCapture();
     if (active) {
@@ -310,7 +312,7 @@ export function createPhotoModePanel({ mode, rig, input, doc = globalThis.docume
         preview: !imageBox.hidden, status: status.textContent });
     },
     destroy() {
-      if (destroyed) return; destroyed = true; mode.close('destroy'); resetCapture(); capture?.destroy(); unsubscribe();
+      if (destroyed) return; destroyed = true; mode.close('destroy'); resetCapture(); capture?.destroy(); unsubscribe(); offClosing?.();
       if (statusTimer !== null) clearTimer(statusTimer);
       doc.removeEventListener('visibilitychange', visibility); win?.removeEventListener('pagehide', leave);
       root.removeEventListener('pointerdown', stop); root.remove();
