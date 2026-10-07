@@ -26,7 +26,17 @@ for(let i=0;i<60;i++)character.update(.05,{mounted:true,moving:false,grounded:fa
 const carrier=player.findByName('Annyongi_GLB_Visual'),rider=player.findByName('Induck_GLB_Visual');
 const view=(name,ride=false)=>{rider.enabled=ride;const poses={front:[0,.1,6],side:[6,.1,0],back:[0,.1,-6],ride:[3,1.6,5]};camera.setPosition(...poses[name]);camera.lookAt(0,.02,0);};
 view('front');app.start();
-window.__ANNYONGI_REVIEW__={app,player,character,carrier,rider,camera,view,frame:()=>app.frame,
+const state=(name)=>{
+ // Fixed elapsed duration and displacement feed the shipping visual update.
+ for(let i=0;i<80;i++) {
+  const p=player.getLocalPosition();player.setLocalPosition(p.x,p.y+(name==='ascend'?.12:name==='descend'||name==='landing'?-.12:0),p.z+(name==='forward'?.15:0));
+  character.update(.025,{mounted:true,moving:name==='forward',grounded:name==='ground',flightClearance:name==='landing'?.8:Infinity});
+ }
+ player.setLocalPosition(0,0,0);
+
+};
+const flightView=()=>{rider.enabled=true;camera.camera.orthoHeight=innerWidth<500?4.7:2.65;camera.setPosition(6,1.5,3.5);camera.lookAt(0,0,-.8);};
+window.__ANNYONGI_REVIEW__={state,flightView,app,player,character,carrier,rider,camera,view,frame:()=>app.frame,
  pose:(dt,moving=false,grounded=false)=>character.update(dt,{mounted:true,moving,grounded}),
  snapshot:()=>({model:character.dragonModelState,frame:app.frame,meshes:carrier.findComponents('render').length,anchor:carrier.findByName('RiderAnchor').getLocalPosition().toString(),rider:rider.getLocalPosition().toString()})};
 </script></html>

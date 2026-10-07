@@ -45,9 +45,9 @@ try {
     assert.ok(state[good].renderComponents > 0);
     const duck = state.duck ?? state.fallbackDuck, carrier = state.dragon ?? state.fallbackDragon;
     // Tilt changes the seat relative to the carrier origin; follow the authored anchor.
-    const relativeY = duck.position[1] - (state.riderSeatY ?? carrier.position[1]);
+    const relativeY = state.riderFeet[1] - (state.riderSeatY ?? carrier.position[1]);
     await action(page, 'update', .3); state = await read(page);
-    assert.ok(Math.abs((state.duck ?? state.fallbackDuck).position[1] - (state.riderSeatY ?? (state.dragon ?? state.fallbackDragon).position[1]) - relativeY) < 1e-6);
+    assert.ok(Math.abs(state.riderFeet[1] - (state.riderSeatY ?? (state.dragon ?? state.fallbackDragon).position[1]) - relativeY) < 1e-6);
     assert.equal(state.unattachedLiveClones, 0); assert.equal(state.liveClones, 1);
     assert.equal(state[failed === 'duck' ? 'fallbackDuck' : 'fallbackDragon'].enabled, true);
     assert.equal(state[good === 'duck' ? 'fallbackDuck' : 'fallbackDragon'].enabled, false);

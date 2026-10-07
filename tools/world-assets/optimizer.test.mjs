@@ -77,7 +77,7 @@ test("strict allowlist optimization preserves sources and optimizes all validate
 
     const dragon = await io.read(path.join(dir, "annyongi-flight-v1.glb"));
     const dragonNodeNames = new Set(dragon.getRoot().listNodes().map(node => node.getName()));
-    for (const pivot of ["DragonWing_L", "DragonWing_R", "RiderAnchor", "CloudWing_L", "CloudWing_R", "Forelock", "Tail", "Head"]) {
+    for (const pivot of ["DragonWing_L", "DragonWing_R", "RiderAnchor", "CloudWing_L", "CloudWing_R", "Forelock", "Tail", "Head", "FlightHeadPivot"]) {
       assert.equal(dragonNodeNames.has(pivot), true, `${pivot} semantic pivot survives optimization`);
     }
     const sourceDragon=await io.read(path.join(REPO_ROOT,"apps/world/assets/annyongi-flight-v1.glb"));
@@ -90,6 +90,10 @@ test("strict allowlist optimization preserves sources and optimizes all validate
       for(let i=0;i<mesh.listPrimitives().length;i++) {
         const expected=mesh.listPrimitives()[i],result=actual.listPrimitives()[i];
         for(const semantic of ['POSITION','NORMAL','COLOR_0']) assert.deepEqual(result.getAttribute(semantic).getArray(),expected.getAttribute(semantic).getArray(),node.getName()+semantic);
+        assert.deepEqual(actual.getExtras(),mesh.getExtras());
+        assert.deepEqual(actual.getWeights(),mesh.getWeights());
+        assert.equal(result.listTargets().length,expected.listTargets().length);
+        for(let t=0;t<expected.listTargets().length;t++)for(const semantic of ['POSITION','NORMAL'])assert.deepEqual(result.listTargets()[t].getAttribute(semantic).getArray(),expected.listTargets()[t].getAttribute(semantic).getArray(),node.getName()+' morph '+t+semantic);
         assert.deepEqual(result.getIndices().getArray(),expected.getIndices().getArray());
       }
     }

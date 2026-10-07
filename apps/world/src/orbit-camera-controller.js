@@ -6,7 +6,7 @@ import { inMainGateCameraArea } from './main-gate-camera-collision.js';
 
 const WALK = { initial: 3.5, min: 1.5, max: 7 };
 const FLIGHT = { initial: Math.hypot(7.3, 18.5), min: 12, max: 36 };
-const ANNYONGI_FLIGHT = Object.freeze({ initial: 6.2, min: 4.5, max: 16 });
+const ANNYONGI_FLIGHT = Object.freeze({ initial: 7.4, min: 4.5, max: 16 });
 export const INDOOR_CAMERA = Object.freeze({ initial: 2.2, min: 1.1, max: 3.2 });
 const THIRD_PERSON_PITCH = Object.freeze({ min: -1.25, orbitMin: 0.12, max: 1.2 });
 const FIRST_PERSON_PITCH = Object.freeze({ min: -1.35, max: 1.35 });

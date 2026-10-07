@@ -3089,6 +3089,7 @@ app.on("update", (dt) => {
   emoteMenu.setAvailable(!controller.mounted && !combatRuntime.active);
   character.update(Math.min(dt, 0.05), {
     ...locomotion(),
+    flightClearance: player.getLocalPosition().y - controller.groundY - roadviewGroundHeight(player.getLocalPosition().x, player.getLocalPosition().z),
     emote,
     seated: seats.isSeated,
     poseOffsets: combatFeedback.poseOffsets() ?? biryong?.poseOffsets() ?? null

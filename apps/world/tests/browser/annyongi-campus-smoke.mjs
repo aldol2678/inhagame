@@ -7,11 +7,16 @@ const frames=[];
 async function screenshot(page,path) {
  const at=await page.evaluate(()=>window.__INHAGAME_P0__.app.frame);
  await page.waitForFunction(at=>window.__INHAGAME_P0__.app.frame>=at+3,at);
+ // Pause at a completed frame. SwiftShader must not compete with a continuously
+ // rendering campus while Chromium copies the framebuffer (remote run 37601290414).
+ await page.evaluate(()=>new Promise(resolve=>{const app=window.__INHAGAME_P0__.app;app.once('frameend',()=>{cancelAnimationFrame(app.frameRequestId);app.frameRequestId=null;resolve();});}));
  const evidence=await page.evaluate(async()=>{
   const d=window.__INHAGAME_P0__,carrier=d.player.findByName('Annyongi_GLB_Visual');
   const pc=await import('playcanvas');const points=[];
   for(const component of carrier.findComponents('render'))for(const mi of component.meshInstances){
-   const v=[];mi.mesh.getPositions(v);const transform=mi.node.getWorldTransform();
+   const v=[];mi.mesh.getPositions(v);
+   if(mi.morphInstance)mi.morphInstance.morph.targets.forEach((target,index)=>{const w=mi.morphInstance.getWeight(index);if(w)for(let i=0;i<v.length;i++)v[i]+=target.deltaPositions[i]*w;});
+   const transform=mi.node.getWorldTransform();
    for(let i=0;i<v.length;i+=3){const world=transform.transformPoint(new pc.Vec3(v[i],v[i+1],v[i+2]));const p=d.orbit.camera.camera.worldToScreen(world);points.push(p);}
   }
   return {state:d.character.flightVisualState??null, wings:['DragonWing_L','DragonWing_R'].map(n=>carrier.findByName(n).getLocalEulerAngles().toString()),
@@ -22,10 +27,11 @@ async function screenshot(page,path) {
   const state=path.match(/-(ascending|hover|flight|descending)\.png$/)[1];
   assert.equal(evidence.state.mode,{ascending:'ascend',hover:'hover',flight:'forward',descending:'descend'}[state]);
  }
- if(/-(hover|ride-three-quarter)\.png$/.test(path)) {
+ if(/-(ascending|hover|flight|descending|ride-three-quarter)\.png$/.test(path)) {
   assert.ok(evidence.bounds.left>=0&&evidence.bounds.right<=evidence.width&&evidence.bounds.top>=0&&evidence.bounds.bottom<=evidence.height,'whole mascot stays framed: '+JSON.stringify(evidence));
  }
- await page.screenshot({path});
+ try { await page.screenshot({path,timeout:60000}); }
+ finally { await page.evaluate(()=>{const app=window.__INHAGAME_P0__.app;app._time=performance.now();app.requestAnimationFrame();}); }
 }
 for(const time of (process.env.ANNYONGI_TIMES || 'day,night').split(',')) for(const [deviceName,viewport,touch] of [['desktop',{width:1280,height:800},false],['mobile',{width:390,height:844},true]]){
  const name=deviceName+'-'+time;
@@ -50,12 +56,15 @@ for(const time of (process.env.ANNYONGI_TIMES || 'day,night').split(',')) for(co
   const box=await page.locator('#jump').boundingBox();assert.ok(box);const cdp=await smoke.context.newCDPSession(page);page.touchSession=cdp;await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:box.x+box.width/2,y:box.y+box.height/2,id:1}]});
  }else await page.keyboard.down('Space');
  await page.waitForFunction(y=>window.__INHAGAME_P0__.player.getLocalPosition().y>y+.6,before,{timeout:15000});
+ await page.waitForFunction(()=>window.__INHAGAME_P0__.character.flightVisualState.pitch < -28);
  await screenshot(page,`${output}/${name}-ascending.png`);
  if(touch)await page.touchSession.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});else await page.keyboard.up('Space');
+ await page.waitForFunction(()=>Math.abs(window.__INHAGAME_P0__.character.flightVisualState.pitch)<1);
  await screenshot(page,`${output}/${name}-hover.png`);
  const start=await page.evaluate(()=>{const p=window.__INHAGAME_P0__.player.getLocalPosition();return [p.x,p.z];});
  if(touch){const box=await page.locator('#joystick').boundingBox();await page.touchSession.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:box.x+box.width/2,y:box.y+box.height*.2,id:2}]});}else await page.keyboard.down('w');
  await page.waitForFunction(([x,z])=>{const p=window.__INHAGAME_P0__.player.getLocalPosition();return Math.hypot(p.x-x,p.z-z)>.7},start,{timeout:15000});
+ await page.waitForFunction(()=>window.__INHAGAME_P0__.character.flightVisualState.tail[1]>.97);
  await screenshot(page,`${output}/${name}-flight.png`);
  if(touch)await page.touchSession.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});else await page.keyboard.up('w');
  const framing=await page.evaluate(()=>{const d=window.__INHAGAME_P0__,p=d.player.findByName('Annyongi_GLB_Visual').getPosition();const v=d.orbit.camera.camera.worldToScreen(p);return {x:v.x,y:v.y,w:innerWidth,h:innerHeight,visible:d.player.findByName('Annyongi_GLB_Visual').enabled};});
@@ -68,12 +77,12 @@ for(const time of (process.env.ANNYONGI_TIMES || 'day,night').split(',')) for(co
   const d=window.__INHAGAME_P0__,carrier=d.player.findByName('Annyongi_GLB_Visual'),rider=d.player.findByName('Induck_GLB_Visual');
   // Check actual rider vertices in head/model space, not rotated world AABBs
   // (those overlap falsely when the separated boxes turn diagonally together).
-  const inverse=carrier.getWorldTransform().clone().invert();let minimum=Infinity;
+  const inverse=carrier.findByName('FlightHeadPivot').getWorldTransform().clone().invert();let minimum=Infinity;
   for(const component of rider.findComponents('render')) for(const instance of component.meshInstances){
    const vertices=[];instance.mesh.getPositions(vertices);
    const transform=new pc.Mat4().mul2(inverse,instance.node.getWorldTransform());
    for(let i=0;i<vertices.length;i+=3){const p=transform.transformPoint(new pc.Vec3(...vertices.slice(i,i+3)));
-    minimum=Math.min(minimum,(p.x/.69)**2+((p.y-.32)/.63)**2+((p.z-.12)/.52)**2);
+    minimum=Math.min(minimum,(p.x/.69)**2+((p.y-.37)/.63)**2+((p.z-.07)/.52)**2);
    }
   }
   const headClip=minimum<1;
@@ -81,9 +90,10 @@ for(const time of (process.env.ANNYONGI_TIMES || 'day,night').split(',')) for(co
   return {headClip,minimum,hover:before!==after,anchor:!!carrier.findByName('RiderAnchor')};
  });assert.equal(clipping.headClip,false);assert.equal(clipping.hover,true);
  // Actual input descent, then release before exercising automatic landing.
- const high=await page.evaluate(()=>{const d=window.__INHAGAME_P0__;const p=d.player.getLocalPosition();d.player.setLocalPosition(p.x,d.controller.groundY+10,p.z);return d.player.getLocalPosition().y;});
+ const high=await page.evaluate(()=>{const d=window.__INHAGAME_P0__;const p=d.player.getLocalPosition();d.player.setLocalPosition(p.x,d.controller.groundY+18,p.z);return d.player.getLocalPosition().y;});
  if(touch){const b=await page.locator('#descend').boundingBox();await page.touchSession.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:b.x+b.width/2,y:b.y+b.height/2,id:3}]});}else await page.keyboard.down('c');
  await page.waitForFunction(y=>window.__INHAGAME_P0__.player.getLocalPosition().y<y-.6,high);
+ await page.waitForFunction(()=>window.__INHAGAME_P0__.character.flightVisualState.tail[2]>.95);
  await screenshot(page,`${output}/${name}-descending.png`);
  if(touch)await page.touchSession.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});else await page.keyboard.up('c');
  await page.evaluate(()=>{const d=window.__INHAGAME_P0__;d.orbit.distance=d.orbit.zoomLimits.min;});
@@ -92,6 +102,8 @@ for(const time of (process.env.ANNYONGI_TIMES || 'day,night').split(',')) for(co
  await page.waitForFunction(()=>!window.__INHAGAME_P0__.player.findByName('Annyongi_GLB_Visual').enabled);
  await screenshot(page,`${output}/${name}-first-person.png`);
  await page.evaluate(()=>{const d=window.__INHAGAME_P0__;d.orbit.togglePerspective();d.orbit.distance=d.orbit.zoomLimits.initial;d.controller.toggleMount();});
+ await page.waitForFunction(()=>{const s=window.__INHAGAME_P0__.character.flightVisualState;return s.mode==='landing'&&s.deployment<.6;},null,{timeout:30000});
+ await screenshot(page,`${output}/${name}-landing.png`);
  await page.waitForFunction(()=>!window.__INHAGAME_P0__.controller.mounted,null,{timeout:30000});
  await screenshot(page,`${output}/${name}-landed.png`);
  assert.equal(await page.evaluate(()=>window.__INHAGAME_P0__.player.findByName('Annyongi_GLB_Visual').enabled),false);

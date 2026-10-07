@@ -1,0 +1,410 @@
+[
+  {
+    "device": "desktop",
+    "night": false,
+    "state": "hover",
+    "pose": {
+      "mode": "hover",
+      "deployment": 0.6999999999999346,
+      "pitch": 0,
+      "tail": [
+        0,
+        0,
+        0
+      ],
+      "headPitch": 0,
+      "lift": 0.03999999999999626
+    }
+  },
+  {
+    "device": "desktop",
+    "night": false,
+    "state": "ascend",
+    "pose": {
+      "mode": "ascend",
+      "deployment": 0.9999981567362285,
+      "pitch": -31.99980338520469,
+      "tail": [
+        0.9999938557876465,
+        0,
+        0
+      ],
+      "headPitch": 11.99992626945176,
+      "lift": 0.1799991398102668
+    }
+  },
+  {
+    "device": "desktop",
+    "night": false,
+    "state": "forward",
+    "pose": {
+      "mode": "forward",
+      "deployment": 0.9199986482732168,
+      "pitch": 57.999643635683505,
+      "tail": [
+        0,
+        0.9999938557876465,
+        0
+      ],
+      "headPitch": -45.99971736623175,
+      "lift": 0.11999950846300798
+    }
+  },
+  {
+    "device": "desktop",
+    "night": false,
+    "state": "descend",
+    "pose": {
+      "mode": "descend",
+      "deployment": 0.9999981567362285,
+      "pitch": 23.99985253890352,
+      "tail": [
+        0,
+        0,
+        0.9999938557876465
+      ],
+      "headPitch": -19.99987711575293,
+      "lift": -0.05999938557876841
+    }
+  },
+  {
+    "device": "desktop",
+    "night": false,
+    "state": "landing",
+    "pose": {
+      "mode": "landing",
+      "deployment": 0.16000331787460528,
+      "pitch": 3.839976406224563,
+      "tail": [
+        0,
+        0,
+        0.15999901692602347
+      ],
+      "headPitch": -3.1999803385204695,
+      "lift": -0.009599695247071017
+    }
+  },
+  {
+    "device": "desktop",
+    "night": false,
+    "state": "ground",
+    "pose": {
+      "mode": "ground",
+      "deployment": 0.0000043009485818263845,
+      "pitch": 0,
+      "tail": [
+        0,
+        0,
+        0
+      ],
+      "headPitch": 0,
+      "lift": 2.4576849039007936e-7
+    }
+  },
+  {
+    "device": "desktop",
+    "night": true,
+    "state": "hover",
+    "pose": {
+      "mode": "hover",
+      "deployment": 0.6999999999999346,
+      "pitch": 0,
+      "tail": [
+        0,
+        0,
+        0
+      ],
+      "headPitch": 0,
+      "lift": 0.03999999999999626
+    }
+  },
+  {
+    "device": "desktop",
+    "night": true,
+    "state": "ascend",
+    "pose": {
+      "mode": "ascend",
+      "deployment": 0.9999981567362285,
+      "pitch": -31.99980338520469,
+      "tail": [
+        0.9999938557876465,
+        0,
+        0
+      ],
+      "headPitch": 11.99992626945176,
+      "lift": 0.1799991398102668
+    }
+  },
+  {
+    "device": "desktop",
+    "night": true,
+    "state": "forward",
+    "pose": {
+      "mode": "forward",
+      "deployment": 0.9199986482732168,
+      "pitch": 57.999643635683505,
+      "tail": [
+        0,
+        0.9999938557876465,
+        0
+      ],
+      "headPitch": -45.99971736623175,
+      "lift": 0.11999950846300798
+    }
+  },
+  {
+    "device": "desktop",
+    "night": true,
+    "state": "descend",
+    "pose": {
+      "mode": "descend",
+      "deployment": 0.9999981567362285,
+      "pitch": 23.99985253890352,
+      "tail": [
+        0,
+        0,
+        0.9999938557876465
+      ],
+      "headPitch": -19.99987711575293,
+      "lift": -0.05999938557876841
+    }
+  },
+  {
+    "device": "desktop",
+    "night": true,
+    "state": "landing",
+    "pose": {
+      "mode": "landing",
+      "deployment": 0.16000331787460528,
+      "pitch": 3.839976406224563,
+      "tail": [
+        0,
+        0,
+        0.15999901692602347
+      ],
+      "headPitch": -3.1999803385204695,
+      "lift": -0.009599695247071017
+    }
+  },
+  {
+    "device": "desktop",
+    "night": true,
+    "state": "ground",
+    "pose": {
+      "mode": "ground",
+      "deployment": 0.0000043009485818263845,
+      "pitch": 0,
+      "tail": [
+        0,
+        0,
+        0
+      ],
+      "headPitch": 0,
+      "lift": 2.4576849039007936e-7
+    }
+  },
+  {
+    "device": "mobile",
+    "night": false,
+    "state": "hover",
+    "pose": {
+      "mode": "hover",
+      "deployment": 0.6999999999999346,
+      "pitch": 0,
+      "tail": [
+        0,
+        0,
+        0
+      ],
+      "headPitch": 0,
+      "lift": 0.03999999999999626
+    }
+  },
+  {
+    "device": "mobile",
+    "night": false,
+    "state": "ascend",
+    "pose": {
+      "mode": "ascend",
+      "deployment": 0.9999981567362285,
+      "pitch": -31.99980338520469,
+      "tail": [
+        0.9999938557876465,
+        0,
+        0
+      ],
+      "headPitch": 11.99992626945176,
+      "lift": 0.1799991398102668
+    }
+  },
+  {
+    "device": "mobile",
+    "night": false,
+    "state": "forward",
+    "pose": {
+      "mode": "forward",
+      "deployment": 0.9199986482732168,
+      "pitch": 57.999643635683505,
+      "tail": [
+        0,
+        0.9999938557876465,
+        0
+      ],
+      "headPitch": -45.99971736623175,
+      "lift": 0.11999950846300798
+    }
+  },
+  {
+    "device": "mobile",
+    "night": false,
+    "state": "descend",
+    "pose": {
+      "mode": "descend",
+      "deployment": 0.9999981567362285,
+      "pitch": 23.99985253890352,
+      "tail": [
+        0,
+        0,
+        0.9999938557876465
+      ],
+      "headPitch": -19.99987711575293,
+      "lift": -0.05999938557876841
+    }
+  },
+  {
+    "device": "mobile",
+    "night": false,
+    "state": "landing",
+    "pose": {
+      "mode": "landing",
+      "deployment": 0.16000331787460528,
+      "pitch": 3.839976406224563,
+      "tail": [
+        0,
+        0,
+        0.15999901692602347
+      ],
+      "headPitch": -3.1999803385204695,
+      "lift": -0.009599695247071017
+    }
+  },
+  {
+    "device": "mobile",
+    "night": false,
+    "state": "ground",
+    "pose": {
+      "mode": "ground",
+      "deployment": 0.0000043009485818263845,
+      "pitch": 0,
+      "tail": [
+        0,
+        0,
+        0
+      ],
+      "headPitch": 0,
+      "lift": 2.4576849039007936e-7
+    }
+  },
+  {
+    "device": "mobile",
+    "night": true,
+    "state": "hover",
+    "pose": {
+      "mode": "hover",
+      "deployment": 0.6999999999999346,
+      "pitch": 0,
+      "tail": [
+        0,
+        0,
+        0
+      ],
+      "headPitch": 0,
+      "lift": 0.03999999999999626
+    }
+  },
+  {
+    "device": "mobile",
+    "night": true,
+    "state": "ascend",
+    "pose": {
+      "mode": "ascend",
+      "deployment": 0.9999981567362285,
+      "pitch": -31.99980338520469,
+      "tail": [
+        0.9999938557876465,
+        0,
+        0
+      ],
+      "headPitch": 11.99992626945176,
+      "lift": 0.1799991398102668
+    }
+  },
+  {
+    "device": "mobile",
+    "night": true,
+    "state": "forward",
+    "pose": {
+      "mode": "forward",
+      "deployment": 0.9199986482732168,
+      "pitch": 57.999643635683505,
+      "tail": [
+        0,
+        0.9999938557876465,
+        0
+      ],
+      "headPitch": -45.99971736623175,
+      "lift": 0.11999950846300798
+    }
+  },
+  {
+    "device": "mobile",
+    "night": true,
+    "state": "descend",
+    "pose": {
+      "mode": "descend",
+      "deployment": 0.9999981567362285,
+      "pitch": 23.99985253890352,
+      "tail": [
+        0,
+        0,
+        0.9999938557876465
+      ],
+      "headPitch": -19.99987711575293,
+      "lift": -0.05999938557876841
+    }
+  },
+  {
+    "device": "mobile",
+    "night": true,
+    "state": "landing",
+    "pose": {
+      "mode": "landing",
+      "deployment": 0.16000331787460528,
+      "pitch": 3.839976406224563,
+      "tail": [
+        0,
+        0,
+        0.15999901692602347
+      ],
+      "headPitch": -3.1999803385204695,
+      "lift": -0.009599695247071017
+    }
+  },
+  {
+    "device": "mobile",
+    "night": true,
+    "state": "ground",
+    "pose": {
+      "mode": "ground",
+      "deployment": 0.0000043009485818263845,
+      "pitch": 0,
+      "tail": [
+        0,
+        0,
+        0
+      ],
+      "headPitch": 0,
+      "lift": 2.4576849039007936e-7
+    }
+  }
+]

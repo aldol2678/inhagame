@@ -74,3 +74,5 @@ See [QA receipts](QA.md), [campus observations](campus-results.json), [studio re
 - Camera checks cover desktop 1280×800 and portrait 390×844, including default full-body framing, near zoom and first person. Extremely close manual orbit or collision-compressed angles may crop wings; this does not change collision authority.
 - Night fill deliberately favors readable identity. It adds two unshadowed directional lights with a private mask; device-specific performance still requires measurement.
 - No Production or Preview deployment is performed. Remote CI and the final PR status must be checked independently of local PASS.
+
+후속 전신 비행 포즈/꼬리 변형 수정: [ANNYONGI-FLIGHT-V2-FIX](../annyongi-flight-v2-fix/README.md).

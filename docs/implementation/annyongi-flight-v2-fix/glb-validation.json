@@ -1,0 +1,84 @@
+[
+  {
+    "path": "apps/world/assets/annyongi-flight-v1.glb",
+    "sha256": "5b53dd9a13e2123bab399f68483c3fa72259b75888edf67b9bab32553a53fc23",
+    "bytes": 394672,
+    "uri": "apps/world/assets/annyongi-flight-v1.glb",
+    "mimeType": "model/gltf-binary",
+    "validatorVersion": "2.0.0-dev.3.10",
+    "validatedAt": "2026-10-07T10:05:23.340Z",
+    "issues": {
+      "numErrors": 0,
+      "numWarnings": 0,
+      "numInfos": 0,
+      "numHints": 0,
+      "messages": [],
+      "truncated": false
+    },
+    "info": {
+      "version": "2.0",
+      "generator": "INHAGAME Annyongi procedural flight reconstruction v2.1",
+      "resources": [
+        {
+          "pointer": "/buffers/0",
+          "mimeType": "application/gltf-buffer",
+          "storage": "glb",
+          "byteLength": 366212
+        }
+      ],
+      "animationCount": 0,
+      "materialCount": 1,
+      "hasMorphTargets": true,
+      "hasSkins": false,
+      "hasTextures": false,
+      "hasDefaultScene": true,
+      "drawCallCount": 28,
+      "totalVertexCount": 6265,
+      "totalTriangleCount": 12188,
+      "maxUVs": 0,
+      "maxInfluences": 0,
+      "maxAttributes": 3
+    }
+  },
+  {
+    "path": "apps/world/.generated/assets-optimized/annyongi-flight-v1.glb",
+    "sha256": "72e616f07a41ba97562da62ab7b735631d7a21b99986131da5f83cf929ffd20a",
+    "bytes": 332520,
+    "uri": "apps/world/.generated/assets-optimized/annyongi-flight-v1.glb",
+    "mimeType": "model/gltf-binary",
+    "validatorVersion": "2.0.0-dev.3.10",
+    "validatedAt": "2026-10-07T10:05:23.357Z",
+    "issues": {
+      "numErrors": 0,
+      "numWarnings": 0,
+      "numInfos": 0,
+      "numHints": 0,
+      "messages": [],
+      "truncated": false
+    },
+    "info": {
+      "version": "2.0",
+      "generator": "glTF-Transform v4.5.1",
+      "resources": [
+        {
+          "pointer": "/buffers/0",
+          "mimeType": "application/gltf-buffer",
+          "storage": "glb",
+          "byteLength": 311292
+        }
+      ],
+      "animationCount": 0,
+      "materialCount": 1,
+      "hasMorphTargets": true,
+      "hasSkins": false,
+      "hasTextures": false,
+      "hasDefaultScene": true,
+      "drawCallCount": 28,
+      "totalVertexCount": 6265,
+      "totalTriangleCount": 12188,
+      "maxUVs": 0,
+      "maxInfluences": 0,
+      "maxAttributes": 3
+    }
+  }
+]

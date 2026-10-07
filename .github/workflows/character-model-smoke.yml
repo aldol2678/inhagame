@@ -34,6 +34,7 @@ jobs:
           npm ci --prefix tools/world-assets --ignore-scripts
           npm test --prefix tools/world-assets
           node tools/world-assets/optimize-world-assets.mjs --strict
+          node tools/world-assets/validate-annyongi.mjs
       - name: Real GLB ownership and lifecycle (pinned Null device)
         run: node --test apps/world/tests/browser/character-model-loading-runtime.test.mjs
       - name: Install Chromium
@@ -49,6 +50,7 @@ jobs:
           WORLD_SMOKE_DISABLE_WEBGPU: '1'
         run: |
           node apps/world/tests/browser/annyongi-capture.mjs
+          node apps/world/tests/browser/annyongi-flight-pose-capture.mjs
           node apps/world/tests/browser/annyongi-campus-smoke.mjs
       - name: Upload exact-head browser evidence
         if: always()

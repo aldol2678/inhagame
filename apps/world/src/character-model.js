@@ -56,6 +56,16 @@ function acquireAnnyongiFill(app) {
     release() { if (--owner.users === 0) { owner.root.destroy(); annyongiLightOwners.delete(app); } } };
 }
 
+// [body pitch, wing deployment, ascent/forward/glide tail weights,
+//  wing frequency, amplitude, sweep, dihedral, vertical lift]. +Z is forward.
+const ANNYONGI_FLIGHT_POSES = Object.freeze({
+  ground: [0, 0, 0, 0, 0, 3, 0, 18, 58, 0],
+  hover: [0, .70, 0, 0, 0, 3, 17, 8, 8, .04],
+  ascend: [-32, 1, 1, 0, 0, 11, 48, -10, 28, .18],
+  forward: [58, .92, 0, 1, 0, 6, 14, 38, -14, .12],
+  descend: [24, 1, 0, 0, 1, 2, 3, -18, 3, -.06]
+});
+
 const DUCK_BOUNDS = { glb: { bottom: -1.195, top: 1.67 }, fallback: { bottom: -1.1425, top: 1.205 } };
 const BIKE_RIDER_FOOT_Y = 0.31;
 const BIKE_RIDER_Z = -0.07;
@@ -131,6 +141,13 @@ export function createCharacter(app, player, { assetShadow = null, assetCanary =
   let flightMode = 'ground';
   let wingPhase = 0;
   let wingAmplitude = 15;
+  let wingFrequency = 3;
+  let wingDihedral = 0;
+  let bodyLift = 0;
+  let headCounterPitch = 0;
+  let flightHead = null;
+  const tailMorphs = [];
+  const tailWeights = [0, 0, 0];
   let wingSweep = 18;
   let previousFlightPosition = null;
   let lastReadability = null;
@@ -183,11 +200,21 @@ export function createCharacter(app, player, { assetShadow = null, assetCanary =
       pose.y += delta; pose.feetY += delta; pose.labelY += delta;
     }
     const riderZ = seat ? seat[2] : bike ? BIKE_RIDER_Z : helicopter ? HELICOPTER_RIDER_Z : mounted ? anchorZ : 0;
-    duckVisual.setLocalPosition(seat ? seat[0] : 0, pose.y, riderZ);
+    // Rotate the rider around the authored foot anchor, not around its torso.
+    let posedZ = riderZ;
+    if (annyongi) {
+      const radians = bodyEuler[0] * Math.PI / 180;
+      const bounds = DUCK_BOUNDS[modelState === 'glb' ? 'glb' : 'fallback'];
+      const pivotAboveFeet = -bounds.bottom * pose.scale;
+      pose.y = pose.feetY + pivotAboveFeet * Math.cos(radians);
+      posedZ += pivotAboveFeet * Math.sin(radians);
+      pose.labelY = pose.feetY + HUMAN_HEIGHT * Math.cos(radians) + .15;
+    }
+    duckVisual.setLocalPosition(seat ? seat[0] : 0, pose.y, posedZ);
     duckVisual.setLocalEulerAngles(bodyEuler[0], bodyEuler[1], bodyEuler[2]);
     duckVisual.setLocalScale(pose.scale, pose.scale, pose.scale);
     equipment.follow({
-      feetY: pose.feetY, pivotY: pose.y, z: riderZ,
+      feetY: pose.feetY, pivotY: pose.y, z: posedZ,
       euler: [bodyEuler[0] - duckBaseEuler[0], bodyEuler[1] - duckBaseEuler[1], bodyEuler[2] - duckBaseEuler[2]]
     });
     nameplateHeight = pose.labelY;
@@ -320,10 +347,12 @@ export function createCharacter(app, player, { assetShadow = null, assetCanary =
     dragonVisual = loadedDragon;
     activeDragonWings = wings;
     dragonModelState = "glb";
+    flightHead = loadedDragon.findByName?.('FlightHeadPivot');
     flightWings = !!loadedDragon.findByName?.('FlightWing_L') && !!loadedDragon.findByName?.('FlightWing_R');
     if (flightWings) {
       privateFill = acquireAnnyongiFill(app);
       for (const component of loadedDragon.findComponents('render')) for (const instance of component.meshInstances) {
+        if (instance.morphInstance && ['Tail', 'TailCloud'].includes(instance.node.name)) tailMorphs.push(instance.morphInstance);
         const source = instance.material;
         if (!readabilityMaterials.has(source)) {
           const clone = source.clone();
@@ -365,7 +394,7 @@ export function createCharacter(app, player, { assetShadow = null, assetCanary =
     get dragonModelState() { return dragonModelState; },
     get nameplateHeight() { return nameplateHeight; },
     get pose() { return lastPose; },
-    get flightVisualState() { return { mode: flightMode, deployment: flightBlend, pitch: annyongiPitch }; },
+    get flightVisualState() { return { mode: flightMode, deployment: flightBlend, pitch: annyongiPitch, tail: [...tailWeights], headPitch: headCounterPitch, lift: bodyLift }; },
     get eyeHeight() { return nameplateHeight - .225; },
     /** Slot attachment anchor for the local equipment projection (null for non-equipment slots). */
     getEquipmentAnchor: slot => equipment.anchor(slot),
@@ -406,7 +435,7 @@ export function createCharacter(app, player, { assetShadow = null, assetCanary =
       syncCameraVisibility();
     },
     // poseOffsets: a local-only scripted pose (e.g. the 울림돌 shout) that outranks emotes, not sitting.
-    update(dt, { mounted, moving, grounded, emote = null, seated = false, poseOffsets = null }) {
+    update(dt, { mounted, moving, grounded, emote = null, seated = false, poseOffsets = null, flightClearance = Infinity }) {
       elapsed += dt;
       const bike = ridingBike(player);
       const helicopter = ridingHelicopter(player);
@@ -421,13 +450,26 @@ export function createCharacter(app, player, { assetShadow = null, assetCanary =
       const validStep = dt > 0 && dt <= .15 && Math.abs(deltaY) < 2 && travel < 3;
       const vertical = validStep ? deltaY / dt : 0;
       previousFlightPosition = position ? { x: position.x, y: position.y, z: position.z } : null;
-      flightMode = !fly || grounded ? 'ground' : vertical > .6 ? 'ascend' : vertical < -.6 ? 'descend' : moving ? 'forward' : 'hover';
-      const smooth = 1 - Math.exp(-Math.max(0, dt) * 8);
-      flightBlend += ((fly && !grounded ? 1 : 0) - flightBlend) * smooth;
-      const pitchTarget = flightMode === 'forward' ? 13 : flightMode === 'ascend' ? -9 : flightMode === 'descend' ? -5 : 0;
-      annyongiPitch = !fly || grounded ? 0 : annyongiPitch + ((annyongiRiderAnchor ? pitchTarget : 0) - annyongiPitch) * smooth;
+      const landing = fly && !grounded && vertical < -.6 && flightClearance < 5;
+      flightMode = !fly || grounded ? 'ground' : landing ? 'landing' : vertical > .6 ? 'ascend' : vertical < -.6 ? 'descend' : moving ? 'forward' : 'hover';
+      const smooth = 1 - Math.exp(-Math.max(0, dt) * 6);
+      // One shared exponential blend keeps body, head, tail, rider and wings in phase.
+      // Landing progressively returns to the curled ground shape before contact.
+      const approach = landing ? Math.max(0, Math.min(1, flightClearance / 5)) : 1;
+      const target = flightMode === 'landing'
+        ? [24 * approach, approach, 0, 0, approach, 3, 8 * approach, -18 * approach, 38 * (1 - approach), -.06 * approach]
+        : ANNYONGI_FLIGHT_POSES[flightMode];
+      flightBlend += (target[1] - flightBlend) * smooth;
+      annyongiPitch += ((annyongiRiderAnchor ? target[0] : 0) - annyongiPitch) * smooth;
+      headCounterPitch += ((flightMode === 'forward' ? -46 : flightMode === 'ascend' ? 12 : flightMode === 'descend' ? -20 : flightMode === 'landing' ? -20 * approach : 0) - headCounterPitch) * smooth;
+      bodyLift += (target[9] - bodyLift) * smooth;
+      for (let i = 0; i < 3; i++) {
+        tailWeights[i] += (target[i + 2] - tailWeights[i]) * smooth;
+        for (const morph of tailMorphs) morph.setWeight(i, tailWeights[i]);
+      }
+      flightHead?.setLocalEulerAngles(headCounterPitch, 0, 0);
       if (flightWings && fly) updateReadability();
-      const bob = fly && !grounded && dragonModelState === 'glb' ? Math.sin(elapsed * 4) * .045
+      const bob = fly && dragonModelState === 'glb' ? bodyLift + Math.sin(elapsed * 3) * .045 * flightBlend
         : !mounted && moving && grounded ? Math.sin(elapsed * 10) * .017 : 0;
       const legSwing = moving && grounded && !mounted ? Math.sin(elapsed * 11) * 22 : 0;
       const pedal = bike && moving ? Math.sin(elapsed * 8) * 18 : 0;
@@ -438,7 +480,7 @@ export function createCharacter(app, player, { assetShadow = null, assetCanary =
           : helicopter
             ? [duckBaseEuler[0] + attitude.pitch * .35, duckBaseEuler[1], duckBaseEuler[2] - attitude.roll * .35]
             : fly && flightWings
-              ? [duckBaseEuler[0] + annyongiPitch * .45, duckBaseEuler[1], duckBaseEuler[2]]
+              ? [duckBaseEuler[0] + annyongiPitch * .30, duckBaseEuler[1], duckBaseEuler[2]]
               : duckBaseEuler,
         wings: bike
           ? [[12, -72, -58], [12, 72, 58]]
@@ -460,19 +502,18 @@ export function createCharacter(app, player, { assetShadow = null, assetCanary =
         roll: attitude.roll
       });
       activeDuckWings.forEach((wing, index) => wing.setLocalEulerAngles(...pose.wings[index]));
-      const wingFrequency = flightMode === 'ascend' ? 9 : flightMode === 'forward' ? 5.5 : 3;
-      const targetAmplitude = flightMode === 'ascend' ? 32 : flightMode === 'forward' ? 12 : flightMode === 'descend' ? 4 : 15;
-      const targetSweep = flightMode === 'forward' ? 27 : flightMode === 'descend' ? -12 : 18;
+      wingFrequency += (target[5] - wingFrequency) * smooth;
+      wingAmplitude += (target[6] - wingAmplitude) * smooth;
+      wingSweep += (target[7] - wingSweep) * smooth;
+      wingDihedral += (target[8] - wingDihedral) * smooth;
       wingPhase = (wingPhase + Math.max(0, dt) * wingFrequency) % (Math.PI * 2);
-      wingAmplitude += (targetAmplitude - wingAmplitude) * smooth;
-      wingSweep += (targetSweep - wingSweep) * smooth;
       activeDragonWings.forEach((wing, index) => {
         if (!flightWings) { wing.setLocalEulerAngles(0, 0, 0); return; }
         const side = index ? 1 : -1;
         const flap = Math.sin(wingPhase) * wingAmplitude;
         const scale = .24 + flightBlend * .76;
         wing.setLocalScale(scale, scale, scale);
-        wing.setLocalEulerAngles(0, side * wingSweep * flightBlend, side * (58 * (1 - flightBlend) + flap * flightBlend));
+        wing.setLocalEulerAngles(0, side * wingSweep * flightBlend, side * (wingDihedral + flap * flightBlend));
       });
       activeDuckLegs.forEach((leg, index) => leg.setLocalEulerAngles(pose.legs[index], 0, 0));
       if (dragonModelState === "glb" && fly) {
