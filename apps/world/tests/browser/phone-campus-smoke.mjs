@@ -94,7 +94,7 @@ async function run(name,viewport,mobile){
       await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{...point,x:b.x+b.width/2,y:b.y+b.height/2}]});await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await cdp.detach();
     }else{await page.mouse.move(a.x+a.width/2,a.y+a.height/2);await page.mouse.down();await page.mouse.move(b.x+b.width/2,b.y+b.height/2,{steps:5});await page.mouse.up();}
     assert.equal((await phoneState(page)).preferences.dock[2],'album');
-    await page.getByRole('button',{name:'편집 완료',exact:true}).click();await screen(page,entry,'customized-home');
+    await page.getByRole('button',{name:'편집 완료',exact:true}).click();assert.equal(await page.locator('.smartphone-content').evaluate(n=>n.scrollTop),0);await screen(page,entry,'customized-home');
     const persisted=(await phoneState(page)).preferences;await page.locator('.smartphone-header button').last().click();
     await page.reload({waitUntil:'domcontentloaded',timeout:TIMEOUT_MS});await page.waitForFunction(()=>window.__INHAGAME_P0__?.getStatus().loading?.finished,null,{timeout:120000});await page.locator('#phone-toggle').click();
     assert.deepEqual((await phoneState(page)).preferences,persisted);assert.equal((await page.evaluate(async()=>window.__INHAGAME_P0__.smartphone.album.list())).length,1);

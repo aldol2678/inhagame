@@ -186,7 +186,7 @@ export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, g
     worldVisibility(shell.ownsInput);if(!shell.ownsInput){preferences.save();if(s.state==='CLOSED'&&inputFocus.can('WORLD_ACTION')){
       const focus=savedFocus?.isConnected&&savedFocus.getClientRects().length?savedFocus:toggle;focus?.focus?.({preventScroll:true});savedFocus=null;
     }}
-    if(!force&&route===lastRoute)return;lastRoute=route;uiEpoch++;revokeImages();content.replaceChildren();say(warning);void setWallpaper();
+    if(!force&&route===lastRoute)return;const routeChanged=route!==lastRoute;lastRoute=route;uiEpoch++;revokeImages();content.replaceChildren();if(routeChanged)content.scrollTop=0;say(warning);void setWallpaper();
     if(s.state==='HOME'||s.state==='HOME_EDIT')renderHome();
     else if(s.state==='APP'){
       const app=s.current;title.textContent=registry.find(x=>x.id===app.appId)?.name||'스마트폰';
