@@ -199,11 +199,11 @@ test("window blur exits active lock and destroy removes ownership cleanly", () =
 });
 
 
-test("focus restoration without a same-task click does not leave a latent auto-lock", async () => {
+test("focus restoration without the closing click does not leave a latent auto-lock", async () => {
   const r = rig();
   const ui = r.manager.claim("ui", INPUT_FOCUS_POLICY.BLOCKING_UI);
   r.manager.release(ui);
-  await Promise.resolve();
+  await new Promise(resolve => setTimeout(resolve, 0));
   r.documentLike.dispatch("click");
-  assert.equal(r.canvas.requestCount, 0, "reacquire window expires after the closing event task");
+  assert.equal(r.canvas.requestCount, 0, "reacquire window expires before the next separate event task");
 });
