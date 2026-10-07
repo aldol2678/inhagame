@@ -169,6 +169,31 @@ export function getWorldLoading() {
   return globalThis.__INHA_WORLD_LOADING__ ?? null;
 }
 
+export function installWorldBootDiagnostics({ target = globalThis, loading = getWorldLoading() } = {}) {
+  if (!target?.addEventListener || !loading) return () => {};
+  let bootEntered = false;
+  const safeText = value => String(value ?? "").replace(/\s+/g, " ").trim().slice(0, 180);
+  const report = (kind, value) => {
+    if (bootEntered) return;
+    const message = safeText(value?.message ?? value?.reason?.message ?? value?.reason ?? value);
+    loading.fail(
+      "초기 로딩 중 오류가 발생했습니다.",
+      `진단: ${kind}${message ? ` · ${message}` : ""} · 새로고침 후에도 반복되면 이 문구를 알려주세요.`
+    );
+  };
+  const onError = event => report("BOOT_SCRIPT_ERROR", event?.error ?? event?.message);
+  const onRejection = event => report("BOOT_PROMISE_REJECTION", event);
+  target.addEventListener("error", onError);
+  target.addEventListener("unhandledrejection", onRejection);
+  return {
+    markBootEntered() { bootEntered = true; },
+    destroy() {
+      target.removeEventListener("error", onError);
+      target.removeEventListener("unhandledrejection", onRejection);
+    }
+  };
+}
+
 if (typeof document !== "undefined") {
   globalThis.__INHA_WORLD_LOADING__ = createWorldLoading({
     root: document.getElementById("world-loading"),
@@ -179,4 +204,5 @@ if (typeof document !== "undefined") {
     continueButton: document.getElementById("world-loading-continue"),
     interactionRoot: document.getElementById("world-lobby")
   });
+  globalThis.__INHA_WORLD_BOOT_DIAGNOSTICS__ = installWorldBootDiagnostics();
 }

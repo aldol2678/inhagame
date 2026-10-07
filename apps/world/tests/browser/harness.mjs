@@ -11,7 +11,7 @@ import { spawn } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { fileURLToPath } from "node:url";
-import { chromium } from "playwright";
+import { chromium, webkit } from "playwright";
 
 export const TIMEOUT_MS = Number(process.env.WORLD_SMOKE_TIMEOUT_MS || 90_000);
 const worldDir = fileURLToPath(new URL("../../", import.meta.url));
@@ -65,7 +65,7 @@ async function startServer() {
 // Starts the server and a headless Chromium with one offline context. `watch(page)` records page
 // errors, console errors and failed or 4xx/5xx same-origin requests into `problems`, and returns a
 // promise that rejects on the first uncaught page error or crash (race it against waits to fail fast).
-export async function startSmoke({ viewport = { width: 1280, height: 720 }, contextOptions = {} } = {}) {
+export async function startSmoke({ viewport = { width: 1280, height: 720 }, contextOptions = {}, browserType = "chromium" } = {}) {
   const playCanvas = await pinnedPlayCanvas();
   const server = await startServer();
   // GPU-less CI checks the explicit unsupported path and the Editor's legacy WebGL2 preview.
@@ -75,11 +75,12 @@ export async function startSmoke({ viewport = { width: 1280, height: 720 }, cont
     : process.platform === 'linux'
       ? ['--use-angle=vulkan', '--enable-features=Vulkan', '--disable-vulkan-surface', '--enable-unsafe-webgpu']
       : ['--enable-unsafe-webgpu'];
-  const browser = await chromium.launch({
+  const launcher = browserType === "webkit" ? webkit : chromium;
+  const browser = await launcher.launch({
     headless: process.env.WORLD_SMOKE_HEADED !== '1',
-    ...(process.env.WORLD_SMOKE_BROWSER || (process.platform === 'linux' && !disabled)
+    ...(browserType === "chromium" && (process.env.WORLD_SMOKE_BROWSER || (process.platform === 'linux' && !disabled))
       ? { channel: process.env.WORLD_SMOKE_BROWSER || 'chromium' } : {}),
-    args: gpuArgs
+    ...(browserType === "chromium" ? { args: gpuArgs } : {})
   });
   const problems = [];
   const blocked = new Set();
