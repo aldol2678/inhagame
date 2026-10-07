@@ -4,7 +4,7 @@ import { createFishingRenderer } from '/src/activity/fishing-renderer.js';
 import { FISHING_ASSETS, fishingWaterTarget } from '/src/activity/fishing-visuals.js';
 import { FISHING_SPOTS } from '/src/activity/fishing-spots.js';
 import { PLAYER_ORIGIN_Y } from '/src/player-dimensions.js';
-import { createFishingFixture, pixelEvidence } from './fishing-assets-fixture.mjs';
+import { createFishingFixture, pixelEvidence, FISHING_AVATAR_PROXY } from './fishing-assets-fixture.mjs';
 
 const qa = window.__FISHING_ASSETS_QA__ = { ready: false };
 try {
@@ -19,7 +19,7 @@ try {
   await character.ready;
   character.update(0, { mounted: false, moving: false, grounded: true });
   const anchors = { anchor: slot => character.getEquipmentAnchor(slot) };
-  if (character.modelState !== 'glb') throw Error('Production avatar GLB did not load');
+  if (character.modelState !== 'glb') throw Error('Public QA cuboid proxy GLB did not load through createCharacter');
   const primitive = (name, type, parent, at, scale, color) => {
     const e = new pc.Entity(name); parent.addChild(e); e.addComponent('render', { type, castShadows: false, receiveShadows: false });
     e.setLocalPosition(...at); e.setLocalScale(...scale);
@@ -88,9 +88,9 @@ try {
     return { engine: pc.version, device: device.deviceType, reflection: root.worldScaleSign, sourceRef: spot?.sourceRef,
       canvas: { width: canvas.width, height: canvas.height, cssWidth: canvas.clientWidth, cssHeight: canvas.clientHeight },
       captionOverlapsCanvas: a.bottom > c.top + .5, captionOverflow: document.body.scrollWidth > innerWidth || document.querySelector('aside').scrollHeight > document.querySelector('aside').clientHeight,
-      avatar: { modelState: character.modelState, source: '/assets/induck-v3.glb', helper: 'createCharacter',
-        rightWing: player.findByName('DuckWing_R')?.getPosition().toArray(),
-        gripToWingOrigin: grip ? grip.getPosition().distance(player.findByName('DuckWing_R').getPosition()) : null },
+      avatar: { ...FISHING_AVATAR_PROXY, modelState: character.modelState, source: FISHING_AVATAR_PROXY.url, helper: 'createCharacter',
+        compatibilityWingOrigin: player.findByName('DuckWing_R')?.getPosition().toArray(),
+        gripToCompatibilityWingOrigin: grip ? grip.getPosition().distance(player.findByName('DuckWing_R').getPosition()) : null },
       presentation: presentation?.status(), client: fixture.client.status(), models: modelStats,
       sprites: Object.fromEntries(['ripple', 'splash'].map(key => [key, Boolean(entity(key)?.enabled)])),
       grip: { present: Boolean(grip), dedicated: Boolean(grip && grip.parent === anchors.anchor('ACCESSORY').parent && grip.parent !== anchors.anchor('ACCESSORY')),
@@ -166,16 +166,16 @@ try {
   Object.assign(qa, { setup, tick, loaded, stats, cache, proof, resize,
     async gripCloseup() {
       const grip = player.findByName('Activity_Grip_R'), wing = player.findByName('DuckWing_R');
-      if (!grip || !wing) throw Error('Production grip/wing unavailable for close-up');
+      if (!grip || !wing) throw Error('QA proxy grip/compatibility node unavailable for close-up');
       const center = grip.getPosition().clone().add(wing.getPosition()).mulScalar(.5);
       const direction = player.getWorldTransform().transformVector(new pc.Vec3(1, .7, 1.2)).normalize().mulScalar(3);
       camera.setPosition(center.clone().add(direction)); camera.lookAt(center);
       camera.camera.orthoHeight = Math.max(.42, .38 / (canvas.width / canvas.height));
-      caption('PRODUCTION AVATAR GRIP / WING CLOSE-UP · inspect placement, no full-campus claim');
+      caption('QA PROXY GRIP / COMPATIBILITY NODE · no duck hand-fit acceptance');
       const captured = await frame();
       return { ...stats(), pixels: captured.evidence, cameraPosition: camera.getPosition().toArray(),
         gripScreen: camera.camera.worldToScreen(grip.getPosition()).toArray(),
-        wingScreen: camera.camera.worldToScreen(wing.getPosition()).toArray() };
+        compatibilityWingScreen: camera.camera.worldToScreen(wing.getPosition()).toArray() };
     },
     overview() { camera.setPosition(overview.position); camera.setRotation(overview.rotation); resize(); return stats(); },
     pixels: async () => (await frame()).evidence,

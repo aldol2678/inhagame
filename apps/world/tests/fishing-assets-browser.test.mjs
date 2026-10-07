@@ -63,7 +63,8 @@ test('diagnostic captions reserve layout space instead of changing canvas height
   const { readFile } = await import('node:fs/promises');
   const html = await readFile(new URL('./browser/fishing-assets-harness.html', import.meta.url), 'utf8');
   assert.match(html, /grid-template-rows:164px minmax\(0,1fr\)/);
-  assert.match(html, /production avatar/);
+  assert.match(html, /Public QA cuboid proxy/);
+  assert.match(html, /No duck hand-fit acceptance/);
   assert.match(html, /Not full-campus acceptance/);
 });
 test('orthographic contribution bounds use view-space depth rather than clip-space screen z', async () => {
@@ -72,4 +73,30 @@ test('orthographic contribution bounds use view-space depth rather than clip-spa
   assert.match(source, /camera\.getWorldTransform\(\)\.clone\(\)\.invert\(\)/);
   assert.match(source, /-view\.transformPoint\(p, new pc\.Vec3\(\)\)\.z/);
   assert.doesNotMatch(source, /minDepth: Math\.min\(\.\.\.screen\.map\(p => p\.z\)\)/);
+});
+
+test('public avatar proxy provenance and actual bytes are pinned without claiming anatomical fit', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const { createHash } = await import('node:crypto');
+  assert.ok(fixture.FISHING_AVATAR_PROXY, 'public proxy disclosure is required');
+  assert.equal(typeof fixture.validateFishingAvatarProxy, 'function');
+  const manifest = JSON.parse(await readFile(new URL('../../../ASSET_PROVENANCE.json', import.meta.url), 'utf8'));
+  const notice = await readFile(new URL('../../../NOTICE.md', import.meta.url), 'utf8');
+  const sha256 = createHash('sha256').update(await readFile(new URL('../assets/induck-v3.glb', import.meta.url))).digest('hex');
+  const receipt = fixture.validateFishingAvatarProxy({ manifest, notice, sha256 });
+  assert.equal(receipt.representation, 'public-qa-cuboid-proxy');
+  assert.equal(receipt.anatomicalFitValidated, false);
+  assert.equal(receipt.sha256, '5057f3299a9d7e902b1370d203fa93e8279a2ff27a8bc2bdf68f09fe312c58f2');
+  assert.throws(() => fixture.validateFishingAvatarProxy({ manifest, notice, sha256: '0'.repeat(64) }), /proxy provenance/);
+  assert.throws(() => fixture.validateFishingAvatarProxy({ manifest: { assets: [] }, notice, sha256 }), /proxy provenance/);
+  assert.throws(() => fixture.validateFishingAvatarProxy({ manifest, notice: 'Original mascot available', sha256 }), /proxy disclosure/);
+});
+test('hosted runner and close-up captions cannot describe the proxy as a real avatar wing', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const runner = await readFile(new URL('./browser/fishing-assets-smoke.mjs', import.meta.url), 'utf8');
+  const harness = await readFile(new URL('./browser/fishing-assets-harness.mjs', import.meta.url), 'utf8');
+  assert.match(runner, /validateFishingAvatarProxy/);
+  assert.match(runner, /public-qa-proxy-grip-closeup/);
+  assert.match(harness, /QA PROXY GRIP \/ COMPATIBILITY NODE/);
+  assert.doesNotMatch(runner + harness, /real avatar wing|PRODUCTION AVATAR GRIP|production-avatar-grip-closeup/);
 });

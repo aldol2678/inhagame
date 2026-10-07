@@ -44,7 +44,8 @@ export function allowedFixtureRequest(url,method,origin) {
   if (url===ENGINE_URL) return true;
   const parsed=new URL(url);
   if(parsed.origin!==origin || parsed.search) return false;
-  return /^\/tests\/browser\/life-props-browser-[a-z-]+\.(?:html|mjs)$/.test(parsed.pathname)
+  return parsed.pathname === '/data/reality/campus-landmarks.json'
+    || /^\/tests\/browser\/life-props-browser-[a-z-]+\.(?:html|mjs)$/.test(parsed.pathname)
     || /^\/npc-factory\/[a-z0-9-]+\.mjs$/.test(parsed.pathname)
     || /^\/src\/[a-zA-Z0-9_/-]+\.js$/.test(parsed.pathname)
     || /^\/assets\/life-props-v1\/(?:[a-z_]+\.glb|attachment-spec\.json|manifest\.json)$/.test(parsed.pathname);

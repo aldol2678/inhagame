@@ -39,7 +39,7 @@ try {
   report.fixtureFiles=execFileSync('git',['ls-files','--error-unmatch','apps/world/tests/browser/life-props-browser-fixture.mjs','apps/world/tests/browser/life-props-browser-harness.html','apps/world/tests/browser/life-props-browser-helpers.mjs','apps/world/tests/browser/life-props-browser-smoke.mjs'],{cwd:repo,encoding:'utf8'}).trim().split('\n');
   report.worktree=execFileSync('git',['status','--porcelain','--untracked-files=no'],{cwd:repo,encoding:'utf8'}).trim();
   assert.equal(report.worktree,'','tracked sources match the recorded commit');
-  const files=['npc-factory/dev-human-avatar.mjs','npc-factory/npc-dimensions.mjs','npc-factory/purposeful-activity-motion.mjs','npc-factory/purposeful-activity-props.mjs','src/life-props.js','src/appearance/equipment-asset-loader.js','src/rooms/club-room-renderer.js','src/rooms/club-room-layout.js','src/rooms/club-room-life-props.js','src/rooms/personal-room-fixture-model.js','assets/life-props-v1/attachment-spec.json','assets/life-props-v1/manifest.json',...Object.values(LIFE_PROP_MODELS).map(url=>url.slice(1))];
+  const files=['data/reality/campus-landmarks.json','npc-factory/dev-human-avatar.mjs','npc-factory/npc-dimensions.mjs','npc-factory/purposeful-activity-motion.mjs','npc-factory/purposeful-activity-props.mjs','src/life-props.js','src/appearance/equipment-asset-loader.js','src/rooms/club-room-renderer.js','src/rooms/club-room-layout.js','src/rooms/club-room-life-props.js','src/rooms/personal-room-fixture-model.js','assets/life-props-v1/attachment-spec.json','assets/life-props-v1/manifest.json',...Object.values(LIFE_PROP_MODELS).map(url=>url.slice(1))];
   for(const file of files){const bytes=await readFile(new URL('../../'+file,import.meta.url));report.sources.push({path:'apps/world/'+file,bytes:bytes.length,sha256:sha(bytes)});}
   report.engineSha256=sha(await readFile(new URL('./node_modules/playcanvas/build/playcanvas.mjs',import.meta.url)));
   process.env.WORLD_SMOKE_DISABLE_WEBGPU='1';
@@ -94,6 +94,15 @@ try {
     const disposed=await call('roomRace');assert.equal(disposed.callbacks,4);assert.equal(disposed.countAfterDispose,0);assert.equal(disposed.detached,true);assert.ok(disposed.cache.every(a=>a.loaded),'shared seven GLB containers survive all instance disposal');
     result.room={enter,tableView,tableProps,lifecycle,disposed};
     await call('destroy');await Promise.all(responseReads);await page.close();page=null;
+    const requiredDataPath='/data/reality/campus-landmarks.json';
+    const dataRequests=report.requests.filter(r=>r.viewport===viewport.name&&new URL(r.url).pathname===requiredDataPath);
+    assert.equal(dataRequests.length,1,'actual reality-adapter static-data request');
+    const dataResponse=report.responses.find(r=>r.viewport===viewport.name&&r.path===requiredDataPath);
+    const dataSource=report.sources.find(s=>s.path==='apps/world'+requiredDataPath);
+    assert.ok(dataResponse,'required static-data response evidence');assert.equal(dataResponse.status,200);
+    assert.equal(dataResponse.bytes,dataSource.bytes,'required static-data payload length');
+    assert.equal(dataResponse.sha256,dataSource.sha256,'required static-data payload matches recorded source');
+    result.requiredStaticData={path:requiredDataPath,requests:dataRequests.length,bytes:dataResponse.bytes,sourceSha256:dataSource.sha256,responseSha256:dataResponse.sha256};
     const glbs=report.requests.filter(r=>r.viewport===viewport.name&&r.url.endsWith('.glb'));
     assert.equal(glbs.length,7,'one HTTP request per GLB per app, including cached room reentry');
     for(const [id,url]of Object.entries(LIFE_PROP_MODELS)){

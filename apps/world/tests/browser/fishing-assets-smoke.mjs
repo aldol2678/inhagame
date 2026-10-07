@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { startSmoke } from './harness.mjs';
 import { FISHING_ASSETS } from '../../src/activity/fishing-visuals.js';
-import { requirePixelContribution } from './fishing-assets-fixture.mjs';
+import { requirePixelContribution, FISHING_AVATAR_PROXY, validateFishingAvatarProxy } from './fishing-assets-fixture.mjs';
 
 const repo = fileURLToPath(new URL('../../../../', import.meta.url));
 const output = path.resolve(process.env.FISHING_ASSETS_OUTPUT || 'test-results/asset-runtime/fishing');
@@ -20,8 +20,9 @@ const committedBytes = relative => execFileSync('git', ['show', `${report.gitHea
 await mkdir(output, { recursive: true });
 const reportPath = path.join(output, 'report.json'), started = Date.now();
 const report = { status: 'RUNNING', startedAt: new Date().toISOString(),
-  scope: 'Synthetic fishing scene, real production createCharacter/client/presentation/renderer, original HTTP-loaded GLBs and atlases, real PlayCanvas 2.22.4 WebGL2 pixels. Both canonical shore transforms; frozen synthetic server replies and diagnostic cameras. No live API, account, reward, full-campus, weather or first-person acceptance.',
-  avatarScope: 'Production createCharacter and induck-v3.glb from this exact repository. Magenta sphere is a synthetic existing wardrobe sentinel under the production ACCESSORY anchor. Grip/wing close-ups are for visual review, not an asserted anatomical fit threshold.',
+  scope: 'Synthetic fishing scene, production createCharacter/client/presentation/renderer code, original fishing GLBs/atlases and the public QA cuboid proxy over HTTP, real PlayCanvas 2.22.4 WebGL2 pixels. Both canonical shore transforms; frozen synthetic server replies and diagnostic cameras. No live API, account, reward, full-campus, weather or first-person acceptance.',
+  avatarScope: 'The production createCharacter/anchor path loads induck-v3.glb, an independent public QA cuboid proxy. Original mascot geometry is withheld; DuckWing_R is a compatibility node, not a real wing or hand. Close-ups prove code/anchor compatibility only. No duck anatomy or hand-fit acceptance. Magenta sphere is a synthetic wardrobe sentinel.',
+  anatomicalFitValidated: false,
   limits: { operationMs: 15000, frameMs: 6000, overallMs: 300000, cleanupMs: 8000 },
   viewports, assets: [], sourceHashes: [], responses: [], requests: [], syntheticRequests: [], cases: [], screenshots: [], errors: [] };
 const flush = () => writeFile(reportPath, JSON.stringify(report, null, 2) + '\n');
@@ -55,6 +56,8 @@ const cacheOkay = (state, gpu = false) => {
 const baseOkay = state => {
   assert.equal(state.engine, '2.22.4'); assert.equal(state.device, 'webgl2'); assert.equal(state.reflection, -1);
   assert.equal(state.avatar.modelState, 'glb'); assert.equal(state.avatar.helper, 'createCharacter');
+  assert.equal(state.avatar.representation, 'public-qa-cuboid-proxy'); assert.equal(state.avatar.anatomicalFitValidated, false);
+  assert.equal(state.avatar.sha256, FISHING_AVATAR_PROXY.sha256);
   assert.equal(state.canvas.width, state.canvas.cssWidth); assert.equal(state.canvas.height, state.canvas.cssHeight);
   assert.equal(state.captionOverlapsCanvas, false); assert.equal(state.captionOverflow, false);
   assert.equal(state.wardrobe.preserved, true); assert.equal(state.wardrobe.unchanged, true); assert.equal(state.wardrobe.enabled, true);
@@ -87,6 +90,15 @@ try {
   report.trackedWorldTreeClean = true;
   report.expectedHead = process.env.EXPECTED_ASSET_RUNTIME_HEAD || null;
   report.githubRunId = process.env.GITHUB_RUN_ID || null;
+  const provenanceBytes = await readFile(path.join(repo, 'ASSET_PROVENANCE.json'));
+  const noticeBytes = await readFile(path.join(repo, 'NOTICE.md'));
+  const proxyBytes = await readFile(path.join(repo, FISHING_AVATAR_PROXY.path));
+  for (const [relative, bytes] of [['ASSET_PROVENANCE.json', provenanceBytes], ['NOTICE.md', noticeBytes], [FISHING_AVATAR_PROXY.path, proxyBytes]]) {
+    assert.equal(hash(bytes), hash(committedBytes(relative)), `${relative}: exact HEAD proxy provenance bytes`);
+    report.sourceHashes.push({ path: relative, sha256: hash(bytes), matchesHead: true });
+  }
+  report.avatarProvenance = validateFishingAvatarProxy({ manifest: JSON.parse(provenanceBytes), notice: noticeBytes.toString('utf8'), sha256: hash(proxyBytes) });
+  report.avatarProvenance.sources = ['ASSET_PROVENANCE.json', 'NOTICE.md'];
   const runtimePaths = ['src/activity/fishing-renderer.js', 'src/activity/fishing-visuals.js', 'src/activity/fishing-client.js', 'src/activity/fishing-panel.js',
     'src/activity/fishing-spots.js', 'src/appearance/equipment-asset-loader.js', 'src/appearance/equipment-anchors.js', 'src/character-model.js', 'src/player-dimensions.js', 'src/world-scale.js'];
   for (const relative of runtimePaths) {
@@ -154,11 +166,11 @@ try {
         proofOkay(proof, minimum);
       }
       record.gripCloseup = await call('gripCloseup'); baseOkay(record.gripCloseup);
-      for (const point of [record.gripCloseup.gripScreen, record.gripCloseup.wingScreen]) {
-        assert.ok(point[0] > 0 && point[0] < record.gripCloseup.canvas.width && point[1] > 0 && point[1] < record.gripCloseup.canvas.height, 'grip and real avatar wing origin both visible in close-up');
+      for (const point of [record.gripCloseup.gripScreen, record.gripCloseup.compatibilityWingScreen]) {
+        assert.ok(point[0] > 0 && point[0] < record.gripCloseup.canvas.width && point[1] > 0 && point[1] < record.gripCloseup.canvas.height, 'grip and QA proxy compatibility node both visible; no anatomical fit claim');
       }
       record.gripPixels = await call('pixels'); pixelsOkay(record.gripPixels);
-      await shot(`${name}-production-avatar-grip-closeup`); await call('overview');
+      await shot(`${name}-public-qa-proxy-grip-closeup`); await call('overview');
       record.states.closed = await call('close'); detachedOkay(record.states.closed);
       const beforeReopen = await call('pixels'); pixelsOkay(beforeReopen);
       record.states.reopened = await call('reopen'); activeOkay(record.states.reopened, 'WAITING');
@@ -206,6 +218,7 @@ try {
     assert.equal(requests.length, 1, `${spec.url}: actual registry cache prevents repeated HTTP fetches across disposal/reopen`);
     assert.ok(report.responses.some(r => new URL(r.url).pathname === spec.url && r.status === 200 && r.sha256 === spec.sha256), `${spec.url}: original HTTP payload receipt`);
   }
+  assert.ok(report.responses.some(r => new URL(r.url).pathname === FISHING_AVATAR_PROXY.url && r.status === 200 && r.sha256 === FISHING_AVATAR_PROXY.sha256), 'HTTP-loaded body is the pinned public QA cuboid proxy');
   report.gitHeadAfter = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repo, encoding: 'utf8', timeout: 5000 }).trim();
   assert.equal(report.gitHeadAfter, report.gitHead, 'checkout did not move during evidence capture');
   assert.deepEqual(smoke.problems, []); assert.deepEqual(report.errors, []);

@@ -55,3 +55,14 @@ test('fixture request boundary permits only pinned engine and local read-only st
   for (const url of [origin+'/api/world-time',origin+'/api/hub-event',origin+'/campus/',origin+'/assets/unapproved.glb',
     'https://example.com/src/x.js', ENGINE_URL+'?other=1']) assert.equal(allowedFixtureRequest(url,'GET',origin),false,url);
 });
+
+test('required reality-adapter campus-landmarks read is allowed without opening data/API/write/query access', async () => {
+  const { allowedFixtureRequest } = await helpers();
+  const origin='http://127.0.0.1:1234',required='/data/reality/campus-landmarks.json';
+  assert.equal(allowedFixtureRequest(origin+required,'GET',origin),true,'actual room renderer dependency must load');
+  for(const method of ['POST','PUT','PATCH','DELETE']) assert.equal(allowedFixtureRequest(origin+required,method,origin),false,method);
+  for(const url of [origin+required+'?v=1',origin+'/data/reality/other.json',origin+required+'/extra',
+    origin+'/api/world-time',origin+'/api/hub-event','https://example.com'+required]) {
+    assert.equal(allowedFixtureRequest(url,'GET',origin),false,url);
+  }
+});

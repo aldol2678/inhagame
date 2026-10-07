@@ -1,6 +1,25 @@
 // Test-only server replies. This transport cannot reach a network, account or reward service.
 import { createFishingClient } from '../../src/activity/fishing-client.js';
 import { FISHING_ACTIVITY_ID, FISHING_SOURCES } from '../../src/activity/fishing-core.js';
+// The public repository deliberately withholds the original mascot. Compatibility node names
+// such as DuckWing_R in this cuboid are API fixtures, not evidence of duck anatomy.
+export const FISHING_AVATAR_PROXY = Object.freeze({
+  path: 'apps/world/assets/induck-v3.glb', url: '/assets/induck-v3.glb',
+  sha256: '5057f3299a9d7e902b1370d203fa93e8279a2ff27a8bc2bdf68f09fe312c58f2',
+  provenance: 'Independent axis-aligned QA box or teal-square sprite; no original geometry/pixels/textures read.',
+  representation: 'public-qa-cuboid-proxy', anatomicalFitValidated: false
+});
+export function validateFishingAvatarProxy({ manifest, notice, sha256 }) {
+  const entry = manifest?.assets?.find(asset => asset.path === FISHING_AVATAR_PROXY.path);
+  if (!entry || entry.provenance !== FISHING_AVATAR_PROXY.provenance || entry.sha256 !== FISHING_AVATAR_PROXY.sha256 || sha256 !== entry.sha256) {
+    throw Error('Public avatar proxy provenance/hash changed; review fixture scope before acceptance');
+  }
+  if (!/Original source mascot images,[\s\S]*?are withheld/.test(notice) || !/attachment names exist only for API compatibility/.test(notice)) {
+    throw Error('Public avatar proxy disclosure changed; review NOTICE.md before acceptance');
+  }
+  return { ...FISHING_AVATAR_PROXY, notice: 'Original mascot assets withheld; attachment names are compatibility-only. No duck hand-fit acceptance.' };
+}
+
 export function createFishingFixture() {
   const epoch = 1_000_000, requests = [];
   let time = epoch, serial = 0, sourceRef = FISHING_SOURCES[0], attempt = null, pendingHook = null;
