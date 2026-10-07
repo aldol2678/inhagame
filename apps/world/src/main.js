@@ -163,6 +163,7 @@ import { LIFE_SKILL_BOOK_STATE, createLifeSkillBookClient } from "./life-skills/
 import { createLifeSkillBookPanel } from "./life-skills/life-skill-book-panel.js";
 import { FISHING_CLIENT_STATE, createFishingClient } from "./activity/fishing-client.js";
 import { createFishingPanel } from "./activity/fishing-panel.js";
+import { createFishingRenderer } from "./activity/fishing-renderer.js";
 import { fishingContextAction, findNearbyFishingSpot } from "./activity/fishing-spots.js";
 import { createLoadoutClient } from "./appearance/loadout-client.js";
 import { createEquipmentProjection } from "./appearance/equipment-projection.js";
@@ -1533,10 +1534,32 @@ const fishing = createFishingClient({
       ? session.access_token : null;
   }
 });
+const fishingVisuals = createFishingRenderer({
+  pc, app, parent: campusRoot, player, character, camera, fishing, assetShadow: assetOptimizationShadow
+});
+let fishingPageHidden = false;
+const updateFishingVisuals = () => {
+  const equipmentFrame = character.getEquipmentAnchor("ACCESSORY")?.parent;
+  fishingVisuals.setSuppressed(fishingPageHidden || document.hidden || !equipmentFrame?.enabled ||
+    !equipmentFrame?.parent?.enabled || rooms.insideRoom || rooms.status().busy || biryongRealm?.inCampus === false ||
+    biryongRealm?.busy || lobbyWorld.active || lobbyTransition.active || cinematic.active || controller.mounted || seats.isSeated);
+  fishingVisuals.update();
+};
+app.on("update", updateFishingVisuals);
+window.addEventListener("pagehide", event => {
+  fishingPageHidden = true;
+  fishingVisuals.setSuppressed(true);
+  if (!event.persisted) { app.off("update", updateFishingVisuals); fishingVisuals.destroy(); }
+});
+window.addEventListener("pageshow", event => {
+  if (event.persisted) { fishingPageHidden = false; updateFishingVisuals(); }
+});
+player.once("destroy", () => { app.off("update", updateFishingVisuals); fishingVisuals.destroy(); });
 fishingPanel = createFishingPanel({
   panel: document.getElementById("fishing-panel"),
   fishing,
   onOpenChange: (open) => {
+    fishingVisuals.setOpen(open);
     if (open) {
       fishingInput.acquire();
       lifeSkillBookPanel?.setOpen(false);
@@ -3689,7 +3712,7 @@ window.__INHAGAME_P0__ = {
     dailyQuiz: { ...dailyQuiz.status(), panel: dailyQuizPanel.status() },
     attendance: { ...attendance.status(), panel: attendancePanel.status() },
     lifeSkillBook: { ...lifeSkillBook.status(), panel: lifeSkillBookPanel?.status() ?? null },
-    fishing: { ...fishing.status(), panel: fishingPanel?.status() ?? null },
+    fishing: { ...fishing.status(), panel: fishingPanel?.status() ?? null, visuals: fishingVisuals.status() },
     wardrobe: { ...loadout.status(), ...wardrobePanel.status() },
     equipment: equipmentProjection.status(),
     hudMenuOpen: hudMenu.open,

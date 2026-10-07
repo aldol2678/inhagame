@@ -93,8 +93,8 @@ export function createFishingClient({
   let lastProbeAt = -Infinity;
   const listeners = new Set();
 
-  function emit(reason) {
-    const change = { state, attempt, read, busy, lastError, reason };
+  function emit(reason, outcome = null) {
+    const change = { state, attempt, read, busy, lastError, reason, outcome };
     for (const listener of listeners) {
       try { listener(change); } catch (error) { console.warn("Fishing listener failed:", error); }
     }
@@ -146,15 +146,16 @@ export function createFishingClient({
     busy = kind;
     lastError = null;
     emit(kind);
+    let result = null;
     try {
-      const result = await task(gen);
+      result = await task(gen);
       if (gen !== generation) return { outcome: "STALE" };
       if (result.error) lastError = result.error;
       return result;
     } finally {
       if (gen === generation) {
         busy = null;
-        emit(kind);
+        emit(kind, result?.outcome ?? null);
       }
     }
   }

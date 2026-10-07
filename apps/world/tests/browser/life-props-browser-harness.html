@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Synthetic life prop runtime fixture</title><link rel="icon" href="data:,">
+<script type="importmap">{"imports":{"playcanvas":"https://cdn.jsdelivr.net/npm/playcanvas@2.22.4/build/playcanvas.mjs"}}</script>
+<style>html,body{margin:0;height:100%;overflow:hidden;background:#c9d6e3;color:#233038;font:12px/1.35 system-ui}body{display:grid;grid-template-rows:auto minmax(0,1fr)}aside{padding:7px 12px;background:#fffffff2}h1{font-size:14px;margin:0 0 3px}p{margin:2px 0}canvas{display:block;width:100%;height:100%;min-height:0}</style></head>
+<body><aside id="caption"><h1 id="label">Synthetic life prop runtime fixture</h1><p>Production avatar, poses and props in an isolated WebGL2 fixture. This is not full campus gameplay.</p><p>Existing straight shoulder-only arms; primary-hand attachment only. PHOTO remains below face level.</p></aside><canvas id="stage"></canvas>
+<script type="module">
+import * as pc from 'playcanvas';
+import { createLifePropsBrowserFixture } from './life-props-browser-fixture.mjs';
+const qa=window.__LIFE_PROPS_BROWSER_QA__={ready:false};
+try {
+  const canvas=document.getElementById('stage');canvas.width=canvas.clientWidth;canvas.height=canvas.clientHeight;
+  const device=await pc.createGraphicsDevice(canvas,{deviceTypes:[pc.DEVICETYPE_WEBGL2],antialias:true});
+  const app=new pc.Application(canvas,{graphicsDevice:device});app.autoRender=false;
+  const spec=await fetch('/assets/life-props-v1/attachment-spec.json').then(r=>{if(!r.ok)throw Error('Attachment spec unavailable');return r.json();});
+  Object.assign(qa,createLifePropsBrowserFixture({app,device,canvas,spec,label:document.getElementById('label'),caption:document.getElementById('caption')}));
+  canvas.addEventListener('webglcontextlost',()=>{qa.error='WebGL context lost';});
+  app.start();qa.ready=true;
+} catch(error){qa.error=error.stack||String(error);throw error;}
+</script></body></html>

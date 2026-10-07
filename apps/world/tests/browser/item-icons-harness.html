@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ACTIVE8 icons · synthetic read-only fixture</title>
+  <link rel="stylesheet" href="../../styles.css">
+  <style>body{margin:0;padding:24px;background:#102334;color:#eef8ff;font:16px sans-serif}</style>
+</head>
+<body>
+  <p>Synthetic inventory only. No live account or backend requests.</p>
+  <button id="opener" type="button">인벤토리 열기</button>
+  <section id="inventory" class="profile-panel shop-panel inventory-panel" role="dialog" aria-modal="true" aria-labelledby="inventory-panel-title" hidden></section>
+  <script type="module">
+    import { ITEM_CATALOG } from '../../src/collection/item-catalog.js';
+    import { createInventoryClient } from '../../src/inventory/inventory-client.js';
+    import { createInventoryPanel } from '../../src/inventory/inventory-panel.js';
+    import { createCollectionBookClient } from '../../src/collection/collection-book-client.js';
+    const A='11111111-1111-4111-8111-111111111111',B='22222222-2222-4222-8222-222222222222';
+    const time='2026-10-01T00:00:00Z',calls=[];
+    let account=A;
+    const items=[...ITEM_CATALOG.filter(d=>d.iconAssetId).map(d=>d.itemId),'head.future_hat'].map((itemId,i)=>({
+      itemId,quantity:i+1,acquiredAt:time,updatedAt:time,sourceType:'QUEST',sourceRef:'synthetic',eventId:null,catalogStatus:'ACTIVE'}));
+    const inventory=createInventoryClient({getClient:()=>({rpc:async name=>{
+      calls.push(name);if(name!=='get_my_world_inventory_v1')throw Error('Writes forbidden');
+      return {data:{items:account===A?items:[]}};
+    }})});
+    const book=createCollectionBookClient({getToken:async()=> 'synthetic-token',fetcher:async(path,options)=>{
+      calls.push(`${options.method} ${path}`);if(options.method!=='GET')throw Error('Writes forbidden');
+      return {ok:true,json:async()=>({version:1,discoveredCount:1,trackableCount:2,entries:[
+        {key:'collection.fish.carp',title:'붕어',state:'DISCOVERED',firstDiscoveredAt:time,discoveryCount:1,sourceLabel:null,hint:null},
+        {key:'unrevealed:1',title:'아직 발견하지 못한 기록',state:'UNKNOWN',firstDiscoveredAt:null,discoveryCount:0,sourceLabel:null,hint:null}]})};
+    }});
+    const ui=createInventoryPanel({panel:document.getElementById('inventory'),inventory,collectionBook:book});
+    document.getElementById('opener').addEventListener('click',()=>ui.setOpen(true));
+    book.setAccount(A);await inventory.setAccount(A);document.getElementById('opener').focus();
+    window.__ITEM_ICONS__={ui,inventory,book,calls,
+      async switchAccount(){account=B;book.setAccount(B);await inventory.setAccount(B);},
+      async signOut(){account=null;book.setAccount(null);await inventory.setAccount(null);}};
+  </script>
+</body>
+</html>
