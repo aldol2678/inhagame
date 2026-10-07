@@ -37,14 +37,16 @@ async function run(name,viewport,mobile){
     if(mobile)await page.locator('#phone-toggle').tap();else await page.keyboard.press('KeyN');
     assert.equal((await phoneState(page)).state,'HOME');assert.equal((await snapshot(page)).input,false);
     assert.equal((await snapshot(page)).orbitInput,false);let bounds=await layout(page);assert.ok(bounds.inViewport&&!bounds.horizontalClip&&bounds.focusInside&&bounds.inert,JSON.stringify(bounds));
-    await screen(page,entry,'home');entry.checks.push('Phone key/mobile button, frame bounds, focus isolation and inert World');
+    await screen(page,entry,'home');entry.checks.push('Phone key/mobile button, frame bounds, focus isolation and inert World');await save();
     await page.keyboard.down('KeyW');await frames(page,3);await page.keyboard.up('KeyW');
     const blocked=await snapshot(page);assert.deepEqual(blocked.position.slice(0,1).concat(blocked.position.slice(2)),initial.position.slice(0,1).concat(initial.position.slice(2)));assert.equal(blocked.yaw,initial.yaw);
     await clickApp(page,'student-id');await page.getByRole('button',{name:'뒷면 보기',exact:true}).click();assert.ok(await page.locator('.smartphone-student-card[data-face="back"]').isVisible());
     await page.getByRole('button',{name:'앞면 보기',exact:true}).click();assert.match(await page.locator('.smartphone-student-card').innerText(),/인덕이/);await screen(page,entry,'student-id');
-    await page.locator('.smartphone-home-button').click();entry.checks.push('World held movement/camera blocked; Student ID front/back guest fallbacks');
+    await page.locator('.smartphone-home-button').click();entry.checks.push('World held movement/camera blocked; Student ID front/back guest fallbacks');await save();
     await clickApp(page,'camera');assert.equal((await phoneState(page)).state,'CAMERA');assert.equal(await page.locator('.smartphone').isVisible(),false);assert.equal((await snapshot(page)).photo,true);
-    const [download]=await Promise.all([page.waitForEvent('download',{timeout:120000}),page.locator('[data-photo-control="capture"]').click()]);
+    const downloadReady=page.waitForEvent('download',{timeout:120000});
+    const captureFailed=page.waitForFunction(()=>window.__INHAGAME_P0__.photoModePanel.status().status.includes('PNG를 만들지 못'),null,{timeout:120000}).then(()=>{throw Error('Production Photo Mode reported PNG capture failure');});
+    await page.locator('[data-photo-control="capture"]').click();const download=await Promise.race([downloadReady,captureFailed]);
     await download.saveAs(`${output}/${name}-capture.png`);const bytes=await readFile(`${output}/${name}-capture.png`);assert.deepEqual([...bytes.subarray(0,8)],[137,80,78,71,13,10,26,10]);
     await page.waitForFunction(()=>!window.__INHAGAME_P0__.photoModePanel.status().busy,null,{timeout:120000});
     const photos=await page.evaluate(async()=>window.__INHAGAME_P0__.smartphone.album.list());assert.equal(photos.length,1);const photo=photos[0];
@@ -53,28 +55,28 @@ async function run(name,viewport,mobile){
       const result={originalType:original.type,thumbnailType:thumbnail.type,original:[o.width,o.height],thumbnail:[t.width,t.height]};o.close();t.close();return result;},photo.id);
     assert.equal(blobs.originalType,'image/png');assert.equal(blobs.thumbnailType,'image/jpeg');assert.ok(Math.max(...blobs.thumbnail)<=256);assert.ok(Math.max(...blobs.original)>256);
     await page.locator('[data-photo-control="close"]').click();assert.equal((await phoneState(page)).state,'HOME');assert.equal((await snapshot(page)).photo,false);
-    entry.checks.push('Existing Photo Mode capture/download + Album readback, distinct original/thumbnail, Phone-origin exit');
+    entry.checks.push('Existing Photo Mode capture/download + Album readback, distinct original/thumbnail, Phone-origin exit');await save();
     await clickApp(page,'album');await page.waitForSelector('.smartphone-album-grid button');await screen(page,entry,'album');
     await page.locator('.smartphone-album-grid button').first().click();await page.getByRole('button',{name:'☆ 즐겨찾기',exact:true}).click();await page.getByRole('button',{name:'★ 즐겨찾기 해제',exact:true}).waitFor();
     await page.getByRole('button',{name:'홈 배경으로 사용',exact:true}).click();assert.equal((await phoneState(page)).preferences.wallpaper.id,photo.id);
     await page.getByRole('button',{name:'지도에서 보기',exact:true}).click();assert.equal((await phoneState(page)).current.appId,'maps');assert.equal(await page.locator('#full-map-panel').getAttribute('data-phone-hosted'),'true');
     await page.locator('.smartphone-header button').first().click();assert.equal((await phoneState(page)).current.photoId,photo.id);
     await page.locator('.smartphone-header button').first().click();assert.equal((await phoneState(page)).current.appId,'album');
-    await page.locator('.smartphone-header button').first().click();assert.equal((await phoneState(page)).state,'HOME');entry.checks.push('Album thumbnail grid, favorite, photo wallpaper, Album→Photo→Maps back stack');
+    await page.locator('.smartphone-header button').first().click();assert.equal((await phoneState(page)).state,'HOME');entry.checks.push('Album thumbnail grid, favorite, photo wallpaper, Album→Photo→Maps back stack');await save();
     await clickApp(page,'maps');await page.locator('.full-map-search-input').fill('본관');
     await page.locator('.full-map-search-result').first().click();assert.ok(await page.locator('#full-map-info').isVisible());
     await page.getByRole('button',{name:'선택한 장소 즐겨찾기',exact:true}).click();await screen(page,entry,'maps');
     await page.locator('#full-map-set-destination').click();assert.equal((await phoneState(page)).state,'CLOSED');
     assert.equal(await page.evaluate(()=>window.__INHAGAME_P0__.navigation.getSnapshot().active),true);
     await frames(page);assert.equal(await page.locator('#full-map-panel').getAttribute('data-phone-hosted'),null);assert.equal(await page.locator('#phone-toggle').isVisible(),true);
-    entry.checks.push('Existing Full Map search/selection/favorites, solved destination closes Phone, shared waypoint/HUD authority');
+    entry.checks.push('Existing Full Map search/selection/favorites, solved destination closes Phone, shared waypoint/HUD authority');await save();
     await page.locator('#phone-toggle').click();await clickApp(page,'maps');
     const target=await page.evaluate(()=>{const d=window.__INHAGAME_P0__;const node=[...document.querySelectorAll('.full-map-poi')].find(n=>n.__mapPoi?.presentation==='NORMAL'&&/본관/.test(n.__mapPoi.title));d.fullMap.selectPoi(node.__mapPoi);return node.dataset.poiId;});assert.ok(target);
     await page.locator('#full-map-auto-move').click();assert.equal((await phoneState(page)).state,'CLOSED');
     assert.equal(await page.evaluate(()=>window.__INHAGAME_P0__.getStatus().autoMove?.active??window.__INHAGAME_P0__.playerAutoMove?.active),true);
     await page.locator('#phone-toggle').click();await clickApp(page,'maps');
     await page.evaluate(()=>window.__INHAGAME_P0__.fullMap.selectMapPoint({x:10000,z:10000}));assert.equal(await page.locator('#full-map-auto-move').isDisabled(),true);await page.locator('.smartphone-home-button').click();
-    entry.checks.push('Existing Auto Move invoked, unsupported map point disabled, old map restored to World DOM');
+    entry.checks.push('Existing Auto Move invoked, unsupported map point disabled, old map restored to World DOM');await save();
     await page.getByRole('button',{name:'홈 화면 편집',exact:true}).click();
     const source=page.locator('.smartphone-app[data-app-id="album"]'),dock=page.locator('.smartphone-app[data-area="dock"][data-slot="2"]');
     await source.scrollIntoViewIfNeeded();const a=await source.boundingBox(),b=await dock.boundingBox();
@@ -91,16 +93,16 @@ async function run(name,viewport,mobile){
     assert.equal((await page.evaluate(async()=>window.__INHAGAME_P0__.smartphone.album.list())).length,1);await page.getByRole('button',{name:'삭제 확인',exact:true}).click();
     await page.waitForFunction(()=>window.__INHAGAME_P0__.smartphone.status().preferences.wallpaper.type==='default');
     assert.equal((await page.evaluate(async()=>window.__INHAGAME_P0__.smartphone.album.list())).length,0);await page.getByRole('button',{name:'카메라 열기',exact:true}).waitFor();
-    entry.checks.push('Home pointer drag/Dock dedup + reload persistence; photo delete confirmation/three-entry cleanup/deleted wallpaper fallback/empty state');
+    entry.checks.push('Home pointer drag/Dock dedup + reload persistence; photo delete confirmation/three-entry cleanup/deleted wallpaper fallback/empty state');await save();
     await page.locator('.smartphone-home-button').click();await clickApp(page,'settings');assert.equal(await page.locator('#view-settings').getAttribute('data-phone-hosted'),'true');await page.keyboard.press('Escape');assert.equal((await phoneState(page)).state,'HOME');
     await page.getByRole('button',{name:'홈 화면 편집',exact:true}).click();await page.evaluate(()=>{window.__restoreStorageSet=Storage.prototype.setItem;Storage.prototype.setItem=()=>{throw Error('QA quota');};});
     await page.getByRole('button',{name:'밤',exact:true}).click();await page.getByRole('button',{name:'편집 완료',exact:true}).click();assert.match(await page.locator('.smartphone-message').innerText(),/저장하지 못/);
     await page.evaluate(()=>{Storage.prototype.setItem=window.__restoreStorageSet;});await page.keyboard.press('Escape');assert.equal((await phoneState(page)).state,'CLOSED');assert.equal(await page.locator('#application').evaluate(c=>c.inert),false);
     await page.keyboard.press('KeyP');assert.equal(await page.evaluate(()=>window.__INHAGAME_P0__.photoMode.active),true);await page.locator('[data-photo-control="close"]').click();assert.equal((await phoneState(page)).state,'CLOSED');
-    entry.checks.push('Reused Settings + Esc hierarchy; storage failure explicit, session preserved, World escape; direct P origin returns World');
+    entry.checks.push('Reused Settings + Esc hierarchy; storage failure explicit, session preserved, World escape; direct P origin returns World');await save();
     const errors=smoke.problems.filter(x=>!x.includes('net::ERR_ABORTED')||!x.includes('/api/world-time'));
     assert.deepEqual(errors,[]);entry.status='PASS';await save();
-  }catch(error){entry.status='FAIL';entry.error=String(error.stack??error);if(page)try{await screen(page,entry,'failure');}catch{}throw error;}
+  }catch(error){entry.status='FAIL';entry.error=String(error.stack??error);if(page)try{entry.diagnostic=await page.evaluate(()=>{const d=window.__INHAGAME_P0__;return {phone:d?.smartphone.status(),photo:d?.photoModePanel.status(),focus:d?.inputFocus?.snapshot(),canvas:[document.getElementById('application').width,document.getElementById('application').height],hidden:document.hidden,deviceLost:d?.app.graphicsDevice.contextLost};});}catch{}if(page)try{await screen(page,entry,'failure');}catch{}throw error;}
   finally{await smoke?.close();await save();}
 }
 try{for(const [name,viewport,mobile]of [['desktop',{width:1280,height:800},false],['portrait',{width:390,height:844},true],['landscape',{width:844,height:390},true]])await run(name,viewport,mobile);report.status='PASS';}

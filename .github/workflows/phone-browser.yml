@@ -1,0 +1,54 @@
+name: Smartphone integration browser QA
+on:
+  pull_request:
+    paths:
+      - 'apps/world/src/phone/**'
+      - 'apps/world/src/photo/**'
+      - 'apps/world/src/input/**'
+      - 'apps/world/src/minimap/**'
+      - 'apps/world/src/main.js'
+      - 'apps/world/campus/index.html'
+      - 'apps/world/phone.css'
+      - 'apps/world/tests/phone-*.test.mjs'
+      - 'apps/world/tests/browser/phone-campus-smoke.mjs'
+      - '.github/workflows/phone-browser.yml'
+permissions:
+  contents: read
+concurrency:
+  group: phone-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  chromium:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - name: Install readable Korean glyphs
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+      - name: Install existing pinned browser dependencies
+        working-directory: apps/world/tests/browser
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Verify Phone ownership, account isolation and persistence
+        run: node --test apps/world/tests/phone-*.test.mjs
+      - name: Exercise actual campus Phone on desktop and both mobile orientations
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+          PHONE_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: timeout --signal=TERM --kill-after=10s 900s node apps/world/tests/browser/phone-campus-smoke.mjs
+      - name: Save source hashes, PNG captures and browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phone-browser-evidence
+          path: test-results/phone-campus/
+          if-no-files-found: error
+          retention-days: 7
