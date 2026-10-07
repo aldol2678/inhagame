@@ -5,11 +5,13 @@
   "purpose": "Narrow current-main integration boundary, not an obsolete 17-file freeze. Historical SHAs supply read-only graphical comparisons.",
   "approvedExceptions": [
     "Activate only Main Hall and Jeongseok in both real rendering consumers",
-    "Clip first-row candidate reveals and sill around the central entrance"
+    "Clip first-row candidate reveals and sill around the central entrance",
+    "Restore the stadium-facing Jeongseok west facade through the existing roadview detail hook"
   ],
   "allowedRuntimeChanges": [
     "apps/world/src/main-hall-blockout.js",
     "apps/world/src/photo-hall-library-geometry.js",
+    "apps/world/src/roadview-details.js",
     "apps/world/src/main-hall-candidate-geometry.js",
     "apps/world/src/main-hall-candidate-renderer.js",
     "apps/world/src/jeongseok-candidate-renderer.js",
