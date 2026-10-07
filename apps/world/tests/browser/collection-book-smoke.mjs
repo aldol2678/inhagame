@@ -15,10 +15,12 @@ assert.match(expectedHead ?? '', /^[0-9a-f]{40}$/, 'An immutable expected head i
 assert.equal(head, expectedHead, 'Only the exact candidate head may run this acceptance');
 const paths = ['src/collection/collection-book-client.js', 'src/collection/collection-book-view.js',
   'src/inventory/inventory-panel.js', 'src/inventory/inventory-client.js',
-  'src/collection/item-catalog.js', 'src/inventory/inventory-category-registry.js',
+  'src/collection/item-catalog.js', 'src/collection/item-icon.js', 'src/inventory/inventory-category-registry.js',
   'src/config/supabase-public-config.js', 'src/config/supabase-public-config.mjs',
   'src/collection/collection-discovery-contract.js', 'src/collection/collection-discovery-contract.mjs',
-  'tests/browser/collection-book-harness.html', 'styles.css'];
+  'tests/browser/collection-book-harness.html', 'styles.css',
+  ...['badge.main_gate', 'material.fish_carp'].flatMap(id => [64,128].map(size =>
+    `assets/item-icons/active8-v1/png/${size}/${id}.png`))];
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const report = { head, expectedHead, result: 'RUNNING', scope: 'Synthetic reads; no live availability/history claim',
   sourceHashes: Object.fromEntries(await Promise.all(paths.map(async path =>

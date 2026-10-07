@@ -37,7 +37,8 @@ test("1-3. cap and backpack carry modelAssetIds and keep their catalog definitio
 test("4. only the four bound wearables carry modelAssetIds", () => {
   const bound = ITEM_CATALOG.filter((d) => d.modelAssetId !== null).map((d) => d.itemId).sort();
   assert.deepEqual(bound, [PACK, CAP, "top.induck_hoodie", "top.mcm_2026_survivor"].sort());
-  for (const d of ITEM_CATALOG) assert.equal(d.iconAssetId, null, d.itemId);
+  // Icon presentation bindings are verified separately in item-icons.test.mjs.
+  assert.equal(getItemDefinition(PACK).iconAssetId, null, "unbound backpack icon stays absent");
 });
 
 test("5-6. registry holds exactly the bound model ids and each URL is a committed asset", () => {

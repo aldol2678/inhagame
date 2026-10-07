@@ -29,6 +29,9 @@ import { worldScheduleAt, NPC_SCHEDULE_REVISION } from './npc-world-time-contrac
 import { createPurposefulRoster } from './purposeful-roster.mjs';
 import { loadNpcPopulation } from './npc-population-loader.mjs';
 import { createPurposefulSocialMotion } from './purposeful-social-motion.mjs';
+import { createPurposefulActivityProps } from './purposeful-activity-props.mjs';
+import { createEquipmentModelLoader } from '../src/appearance/equipment-asset-loader.js';
+import { LIFE_PROP_MODELS } from '../src/life-props.js';
 import { purposefulActivityPose } from './purposeful-activity-motion.mjs';
 import { createQuestClient } from './quest-client.mjs';
 import { QUEST_ID } from './quest-contract.mjs';
@@ -237,8 +240,10 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
     setPeriod() {}, tick() { return this.status(); },
     shouldPauseForConversation: () => false, shouldHoldForJoin: () => false
   } : createPurposefulSocialMotion(batch, purposefulRoster, navigator);
+  const loadLifeProp = createEquipmentModelLoader({ app, registry: LIFE_PROP_MODELS });
   const avatars = new Map(first.actors.map(actor => {
     const visual = createHumanAvatar(campusRoot, actor, appearanceFor(rosterById.get(actor.id), npcById.get(actor.id)));
+    visual.activityProps = createPurposefulActivityProps({ visual, loadModel: loadLifeProp });
     visual.motion = { position: actor.position && { ...actor.position }, route: [], moving: false,
       heading: 0, wait: Number(actor.id.slice(-3)) % 4, leg: 0 };
     return [actor.id, visual];
@@ -1293,7 +1298,10 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
     for (const visual of avatars.values()) {
       const actor = visual.actor, motion = visual.motion;
       advanceMotion(visual, running ? dt : 0);
-      if (!motion.position || socialPreviewFastForward) continue;
+      if (!motion.position || socialPreviewFastForward) {
+        visual.activityProps.update(null);
+        continue;
+      }
       const moving = motion.moving;
       const purposeful = purposefulRoster.get(actor.id);
       const behavior = purposeful?.behavior;
@@ -1304,6 +1312,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
         Math.sin(elapsed * 2 * animationPace + Number(actor.id.slice(-3))) * .015 * motionEnergy;
       const sitting = Boolean(visual.seat && !moving && !motion.route.length);
       const purposefulActivity = purposeful?.controller.status(false).activity;
+      visual.activityProps.update(purposefulActivity, { moving, sitting, visible: visual.avatar.enabled });
       const activityPose = purposefulActivityPose(purposefulActivity, { phase, motionEnergy, sitting });
       const renderPosition = sitting ? visual.seat.position : motion.position;
       const y = roadviewGroundHeight(renderPosition.x, renderPosition.z) +

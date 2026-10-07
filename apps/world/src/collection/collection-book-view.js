@@ -1,4 +1,5 @@
 import { getItemDefinition } from './item-catalog.js';
+import { createItemIcon } from './item-icon.js';
 // The first few existing badges/mementos only. This is current ownership presentation, not a
 // fabricated Collection acquisition ledger. No missing/zero holding creates a discovery fact.
 const MEMENTOS = new Set(['badge.main_gate','badge.mcm_2026_landlord','memorabilia.mcm_2026_wristband']);
@@ -6,7 +7,7 @@ const SOURCES = Object.freeze({QUEST:'퀘스트',EVENT:'이벤트',MINIGAME:'미
 export function currentMementoViews(snapshot) {
   return (snapshot?.items ?? []).filter(item => MEMENTOS.has(item.itemId) && ['ACTIVE','LOCKED','COMING_SOON','DISABLED'].includes(item.catalogStatus) &&
     Number.isSafeInteger(item.quantity) && item.quantity>0).map(item => ({
-    title:getItemDefinition(item.itemId).displayName,state:'OWNED_NOW',quantity:item.quantity,
+    itemId:item.itemId,title:getItemDefinition(item.itemId).displayName,state:'OWNED_NOW',quantity:item.quantity,
     acquiredAt:item.acquiredAt,sourceLabel:SOURCES[item.sourceType]??'출처 기록 미제공'
   }));
 }
@@ -29,12 +30,19 @@ export function renderCollectionBook({ doc, book, inventory, retry }) {
     const list=el('ul','inventory-items');
     for(const entry of snapshot.entries){
       const card=el('li','inventory-item collection-book-entry');card.dataset.state=entry.state;
-      card.append(el('strong','inventory-item-name',entry.title));
+      let copy=card;
+      // Only the already-revealed ACTIVE fish entry has a presentation binding. Never
+      // infer an undiscovered record's icon from inventory, title or an unrevealed key.
+      if(entry.state==='DISCOVERED' && entry.key==='collection.fish.carp'){
+        card.className+=' inventory-item-with-icon';copy=el('div','inventory-item-copy');
+        card.append(createItemIcon({doc,definition:getItemDefinition('material.fish_carp')}),copy);
+      }
+      copy.append(el('strong','inventory-item-name',entry.title));
       if(entry.state==='DISCOVERED'){
-        card.append(el('p','inventory-item-description',`첫 발견 · ${dateText(entry.firstDiscoveredAt)}`));
-        card.append(el('p','inventory-item-source','출처 기록 미제공'));
-      }else if(entry.state==='OWNER_DERIVED') card.append(el('p','inventory-item-description','별도 콘텐츠 기록 · 발견 여부 미확인'));
-      if(entry.hint)card.append(el('p','inventory-item-description',entry.hint));
+        copy.append(el('p','inventory-item-description',`첫 발견 · ${dateText(entry.firstDiscoveredAt)}`));
+        copy.append(el('p','inventory-item-source','출처 기록 미제공'));
+      }else if(entry.state==='OWNER_DERIVED') copy.append(el('p','inventory-item-description','별도 콘텐츠 기록 · 발견 여부 미확인'));
+      if(entry.hint)copy.append(el('p','inventory-item-description',entry.hint));
       list.append(card);
     }
     root.append(list);
@@ -50,8 +58,10 @@ export function renderCollectionBook({ doc, book, inventory, retry }) {
   else if(inventory.accountId!==book.accountId || inventory.state!=='READY')root.append(el('p','shop-empty',inventory.state==='UNAVAILABLE'?'보유 정보를 불러오지 못했어요. 인벤토리에서 다시 시도해 주세요.':'보유 정보를 확인하는 중이에요.'));
   else {
     const items=currentMementoViews(inventory.snapshot),list=el('ul','inventory-items');
-    for(const item of items){const card=el('li','inventory-item');card.dataset.state=item.state;
-      card.append(el('strong','inventory-item-name',item.title),el('p','inventory-item-description',`현재 보유 ${item.quantity} · 획득 ${dateText(item.acquiredAt)}`),el('p','inventory-item-source',`획득 출처 · ${item.sourceLabel}`));list.append(card);}
+    for(const item of items){const card=el('li','inventory-item inventory-item-with-icon');card.dataset.state=item.state;
+      const copy=el('div','inventory-item-copy');
+      card.append(createItemIcon({doc,definition:getItemDefinition(item.itemId)}),copy);
+      copy.append(el('strong','inventory-item-name',item.title),el('p','inventory-item-description',`현재 보유 ${item.quantity} · 획득 ${dateText(item.acquiredAt)}`),el('p','inventory-item-source',`획득 출처 · ${item.sourceLabel}`));list.append(card);}
     root.append(list);if(!items.length)root.append(el('p','shop-empty','현재 보유한 대상 배지·기념품이 없어요.'));
   }
   return {element:root,retryButton};

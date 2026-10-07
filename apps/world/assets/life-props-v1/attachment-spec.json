@@ -1,0 +1,439 @@
+{
+  "version": 1,
+  "source_commit": "c4fe1bcb30183c793cb4829f04e2b65590f92253",
+  "units": "metres",
+  "axes": "glTF +Y up, +Z forward",
+  "runtime_world_metres_per_unit": 2,
+  "render_transforms_applied": true,
+  "static_uniform_scale": 0.5,
+  "no_new_rig_or_animation": true,
+  "pose_caveat": "Current shoulder-only poses cannot achieve two-handed small-book or camera grip; existing props are not activity-switched. Runtime integration is not included.",
+  "assets": [
+    {
+      "id": "open_book",
+      "root": "GRIP_open_book",
+      "files": {
+        "glb": "assets/open_book.glb",
+        "blend": "assets/open_book.blend",
+        "preview": "preview/open_book.png"
+      },
+      "dimensions_metres_xyz_y_up": [
+        0.27213436365127563,
+        0.042241210117936134,
+        0.22999999672174454
+      ],
+      "triangles": 948,
+      "anchors_gltf_metres": {
+        "rest": [
+          0,
+          -0.0013204533606767654,
+          0
+        ],
+        "grip_left": [
+          -0.092,
+          0.015,
+          0
+        ],
+        "grip_right": [
+          0.092,
+          0.015,
+          0
+        ],
+        "display": [
+          0,
+          0.025,
+          0.02
+        ]
+      },
+      "collision": false,
+      "npc_attachment": {
+        "activity": "READING",
+        "parent": "ArmPivot_-1",
+        "hand_centre_parent_model_units": [
+          -0.07,
+          -0.68,
+          0
+        ],
+        "asset_scale_formula": "0.5 / visual.worldScale",
+        "nominal_uniform_local_scale": 1.3542857142857143,
+        "primary_marker": "GRIP_open_book",
+        "reference_arm_euler_degrees": [
+          -18,
+          0,
+          -5
+        ],
+        "reference_phase": 0,
+        "desired_avatar_frame_euler_degrees": [
+          0,
+          0,
+          0
+        ],
+        "suggested_fixed_local_quaternion_xyzw": [
+          0.15628557409255195,
+          -0.006823575527878943,
+          0.043082360324645234,
+          0.9867482801487086
+        ],
+        "orientation_formula": "inverse(reference arm quaternion) * desired avatar-frame quaternion",
+        "grip_contact_status": "Reference only. Offset contact from hand centre and review in game; not an integrated hand-fit result.",
+        "second_hand_supported_by_current_pose": false
+      }
+    },
+    {
+      "id": "takeaway_cup",
+      "root": "GRIP_takeaway_cup",
+      "files": {
+        "glb": "assets/takeaway_cup.glb",
+        "blend": "assets/takeaway_cup.blend",
+        "preview": "preview/takeaway_cup.png"
+      },
+      "dimensions_metres_xyz_y_up": [
+        0.0860000029206276,
+        0.1525000035762787,
+        0.0860000029206276
+      ],
+      "triangles": 1528,
+      "anchors_gltf_metres": {
+        "rest": [
+          -0.043,
+          -0.07000000029802322,
+          0
+        ],
+        "grip_left": [
+          -0.086,
+          0,
+          0
+        ],
+        "grip_right": [
+          0,
+          0,
+          0
+        ],
+        "display": [
+          -0.043,
+          0,
+          0
+        ]
+      },
+      "collision": false,
+      "npc_attachment": {
+        "activity": "COFFEE",
+        "parent": "ArmPivot_-1",
+        "hand_centre_parent_model_units": [
+          -0.07,
+          -0.68,
+          0
+        ],
+        "asset_scale_formula": "0.5 / visual.worldScale",
+        "nominal_uniform_local_scale": 1.3542857142857143,
+        "primary_marker": "GRIP_takeaway_cup",
+        "reference_arm_euler_degrees": [
+          -24,
+          0,
+          -4
+        ],
+        "reference_phase": 0,
+        "desired_avatar_frame_euler_degrees": [
+          0,
+          0,
+          0
+        ],
+        "suggested_fixed_local_quaternion_xyzw": [
+          0.20778503663329906,
+          -0.007256013368105794,
+          0.034136858966368686,
+          0.9775517396441024
+        ],
+        "orientation_formula": "inverse(reference arm quaternion) * desired avatar-frame quaternion",
+        "grip_contact_status": "Reference only. Offset contact from hand centre and review in game; not an integrated hand-fit result.",
+        "second_hand_supported_by_current_pose": false
+      }
+    },
+    {
+      "id": "smartphone",
+      "root": "GRIP_smartphone",
+      "files": {
+        "glb": "assets/smartphone.glb",
+        "blend": "assets/smartphone.blend",
+        "preview": "preview/smartphone.png"
+      },
+      "dimensions_metres_xyz_y_up": [
+        0.07640000060200691,
+        0.15299999341368675,
+        0.017100000753998756
+      ],
+      "triangles": 1456,
+      "anchors_gltf_metres": {
+        "rest": [
+          0,
+          -0.03449999913573265,
+          0
+        ],
+        "grip_left": [
+          -0.031,
+          0.017,
+          0
+        ],
+        "grip_right": [
+          0.031,
+          0.017,
+          0
+        ],
+        "display": [
+          0,
+          0.042,
+          0.007
+        ]
+      },
+      "collision": false,
+      "npc_attachment": {
+        "activity": "PHONE",
+        "parent": "ArmPivot_-1",
+        "hand_centre_parent_model_units": [
+          -0.07,
+          -0.68,
+          0
+        ],
+        "asset_scale_formula": "0.5 / visual.worldScale",
+        "nominal_uniform_local_scale": 1.3542857142857143,
+        "primary_marker": "GRIP_smartphone",
+        "reference_arm_euler_degrees": [
+          -38,
+          0,
+          -5
+        ],
+        "reference_phase": 0,
+        "desired_avatar_frame_euler_degrees": [
+          -20,
+          180,
+          0
+        ],
+        "suggested_fixed_local_quaternion_xyzw": [
+          -0.04308236032464522,
+          0.8737872629780586,
+          0.48434818891287884,
+          0.006823575527879004
+        ],
+        "orientation_formula": "inverse(reference arm quaternion) * desired avatar-frame quaternion",
+        "grip_contact_status": "Reference only. Offset contact from hand centre and review in game; not an integrated hand-fit result.",
+        "second_hand_supported_by_current_pose": false
+      }
+    },
+    {
+      "id": "compact_camera",
+      "root": "GRIP_compact_camera",
+      "files": {
+        "glb": "assets/compact_camera.glb",
+        "blend": "assets/compact_camera.blend",
+        "preview": "preview/compact_camera.png"
+      },
+      "dimensions_metres_xyz_y_up": [
+        0.11800000071525574,
+        0.08249999955296516,
+        0.07275000214576721
+      ],
+      "triangles": 1876,
+      "anchors_gltf_metres": {
+        "rest": [
+          -0.047,
+          -0.035999998450279236,
+          0
+        ],
+        "grip_left": [
+          -0.097,
+          0,
+          0
+        ],
+        "grip_right": [
+          0,
+          0,
+          0
+        ],
+        "display": [
+          -0.06,
+          0,
+          0.051
+        ]
+      },
+      "collision": false,
+      "npc_attachment": {
+        "activity": "PHOTO",
+        "parent": "ArmPivot_-1",
+        "hand_centre_parent_model_units": [
+          -0.07,
+          -0.68,
+          0
+        ],
+        "asset_scale_formula": "0.5 / visual.worldScale",
+        "nominal_uniform_local_scale": 1.3542857142857143,
+        "primary_marker": "GRIP_compact_camera",
+        "reference_arm_euler_degrees": [
+          -50,
+          -5,
+          -8
+        ],
+        "reference_phase": 0,
+        "desired_avatar_frame_euler_degrees": [
+          0,
+          0,
+          0
+        ],
+        "suggested_fixed_local_quaternion_xyzw": [
+          0.42394517989573843,
+          0.009983990122772006,
+          0.08155010764110686,
+          0.9019536486583567
+        ],
+        "orientation_formula": "inverse(reference arm quaternion) * desired avatar-frame quaternion",
+        "grip_contact_status": "Reference only. Offset contact from hand centre and review in game; not an integrated hand-fit result.",
+        "second_hand_supported_by_current_pose": false
+      }
+    },
+    {
+      "id": "sandwich",
+      "root": "GRIP_sandwich",
+      "files": {
+        "glb": "assets/sandwich.glb",
+        "blend": "assets/sandwich.blend",
+        "preview": "preview/sandwich.png"
+      },
+      "dimensions_metres_xyz_y_up": [
+        0.13663998991250992,
+        0.11661951243877411,
+        0.06720000132918358
+      ],
+      "triangles": 1268,
+      "anchors_gltf_metres": {
+        "rest": [
+          0,
+          0.0,
+          0
+        ],
+        "grip_left": [
+          -0.06,
+          0.027,
+          0
+        ],
+        "grip_right": [
+          0.016,
+          0.019,
+          0
+        ],
+        "display": [
+          -0.02,
+          0.05,
+          0.034
+        ]
+      },
+      "collision": false,
+      "npc_attachment": {
+        "activity": "EATING",
+        "parent": "ArmPivot_-1",
+        "hand_centre_parent_model_units": [
+          -0.07,
+          -0.68,
+          0
+        ],
+        "asset_scale_formula": "0.5 / visual.worldScale",
+        "nominal_uniform_local_scale": 1.3542857142857143,
+        "primary_marker": "GRIP_sandwich",
+        "reference_arm_euler_degrees": [
+          -24,
+          0,
+          -4
+        ],
+        "reference_phase": 0,
+        "desired_avatar_frame_euler_degrees": [
+          0,
+          0,
+          0
+        ],
+        "suggested_fixed_local_quaternion_xyzw": [
+          0.20778503663329906,
+          -0.007256013368105794,
+          0.034136858966368686,
+          0.9775517396441024
+        ],
+        "orientation_formula": "inverse(reference arm quaternion) * desired avatar-frame quaternion",
+        "grip_contact_status": "Reference only. Offset contact from hand centre and review in game; not an integrated hand-fit result.",
+        "second_hand_supported_by_current_pose": false
+      }
+    },
+    {
+      "id": "open_laptop",
+      "root": "GRIP_open_laptop",
+      "files": {
+        "glb": "assets/open_laptop.glb",
+        "blend": "assets/open_laptop.blend",
+        "preview": "preview/open_laptop.png"
+      },
+      "dimensions_metres_xyz_y_up": [
+        0.33000001311302185,
+        0.22538825869560242,
+        0.2732633948326111
+      ],
+      "triangles": 2168,
+      "anchors_gltf_metres": {
+        "rest": [
+          0,
+          0.0,
+          0
+        ],
+        "grip_left": [
+          -0.14,
+          0,
+          0.03
+        ],
+        "grip_right": [
+          0.14,
+          0,
+          0.03
+        ],
+        "display": [
+          0,
+          0.13,
+          -0.129
+        ]
+      },
+      "collision": false
+    },
+    {
+      "id": "stationery_notebook",
+      "root": "GRIP_stationery_notebook",
+      "files": {
+        "glb": "assets/stationery_notebook.glb",
+        "blend": "assets/stationery_notebook.blend",
+        "preview": "preview/stationery_notebook.png"
+      },
+      "dimensions_metres_xyz_y_up": [
+        0.1922999992966652,
+        0.025700001046061516,
+        0.21400000154972076
+      ],
+      "triangles": 1588,
+      "anchors_gltf_metres": {
+        "rest": [
+          0,
+          0.0,
+          0
+        ],
+        "grip_left": [
+          -0.06,
+          0.01,
+          0
+        ],
+        "grip_right": [
+          0.06,
+          0.01,
+          0
+        ],
+        "display": [
+          0,
+          0.025,
+          0
+        ]
+      },
+      "collision": false
+    }
+  ]
+}

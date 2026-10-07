@@ -233,3 +233,35 @@ test("phase and skill helpers are pure presentation of server numbers", () => {
   assert.equal(fishingPhase(parseFishingAttempt(caught()), 0), FISHING_PHASE.RESULT);
   assert.equal(fishingSkillLine({ level: 20, totalXp: 19000, nextLevelXp: null }), "낚시 Lv 20 · 최고 레벨 · XP 19000");
 });
+
+test('presentation observers can distinguish a newly STARTED cast from a recovered replay', async () => {
+  for (const status of ['STARTED', 'REPLAYED']) {
+    const { fishing, net } = harness(); const changes = [];
+    fishing.onChange(change => changes.push(change));
+    net.reply(readView()); await fishing.setAccount(A);
+    net.reply({ status, attempt: attempt() }); await fishing.start(FISHING_SOURCES[0]);
+    assert.equal(changes.at(-1).outcome, status);
+    assert.equal(changes.at(-1).busy, null);
+  }
+});
+
+test('an authoritative catch is visible during delayed settlement without replay on final hook emit', async () => {
+  const { createFishingPresentation } = await import('../src/activity/fishing-visuals.js');
+  const { fishing, net, clock } = harness(); const frames = [];
+  const visuals = createFishingPresentation({ fishing, createView: () => ({ render: f => frames.push(f), destroy() {} }) });
+  net.reply(readView()); await fishing.setAccount(A); visuals.setOpen(true);
+  net.reply({ status: 'STARTED', attempt: attempt() }); await fishing.start(FISHING_SOURCES[0]);
+  clock.t += 3000;
+  net.reply({ status: 'RESOLVED', attempt: caught() });
+  let settle;
+  net.reply(new Promise(resolve => { settle = resolve; }));
+  net.reply(readView({ attempt: caught(), settlement: 'SETTLED' }));
+  const pending = fishing.hook();
+  try {
+    for (let i = 0; i < 30 && fishing.attempt.status === 'ACTIVE'; i++) await Promise.resolve();
+    assert.equal(fishing.attempt.status, 'SUCCEEDED'); assert.equal(fishing.busy, 'hook');
+    visuals.update(); assert.equal(frames.at(-1).showFish, true);
+    clock.t += 600;visuals.update();assert.equal(frames.at(-1).reelProgress, 1);
+  } finally { settle({ status: 'SUCCESS' }); await pending; }
+  assert.equal(frames.at(-1).reelProgress, 1);visuals.destroy();
+});
