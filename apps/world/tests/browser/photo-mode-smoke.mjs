@@ -257,6 +257,18 @@ async function touchCase(smoke, name, viewport) {
     assert.ok((await snapshot(page)).rig.position.y > padded.rig.position.y + .15, `${name}: ▲ raises the camera`);
     entry.checks.push('photo move pad and ▲ hold move only the photo camera');
 
+    // Recompose from the entry frame through the ⚙ drawer so the shot is not of bare ground.
+    await page.locator('[data-photo-control="settings"]').tap();
+    assert.equal(await page.locator('.photo-mode-settings').isVisible(), true);
+    const drawer = await box(page, '.photo-mode-settings'), lens = await box(page, '[data-photo-control="capture"]');
+    assert.ok(drawer.x >= 0 && drawer.x + drawer.width <= viewport.width && !overlaps(drawer, lens), `${name}: drawer on screen, clear of the shutter`);
+    await shot(page, `${name}-settings`, entry);
+    await page.locator('[data-photo-control="reset"]').tap(); await frames(page, 2);
+    await page.locator('[data-photo-control="settings"]').tap();
+    const reset = await snapshot(page);
+    assert.deepEqual(reset.rig.position, opened.rig.position, `${name}: ⚙ reset returns to the entry position`);
+    assert.equal(reset.pose.fov, play.pose.fov, `${name}: ⚙ reset restores the lens`);
+    entry.checks.push('⚙ drawer on screen and clear of the shutter; its reset returns to the entry pose and lens');
     await capturePng(page, () => page.locator('[data-photo-control="capture"]').tap(), `${name}-captured`, entry);
     entry.checks.push('shutter tap downloads an opaque native-resolution PNG without moving the camera');
 
