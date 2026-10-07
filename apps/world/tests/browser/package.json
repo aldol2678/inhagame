@@ -4,7 +4,8 @@
   "type": "module",
   "description": "World browser boot smoke gate (CI only; not part of the deployed app).",
   "scripts": {
-    "smoke": "node boot-smoke.mjs"
+    "smoke": "node boot-smoke.mjs",
+    "benchmark:recast-crowd-worker": "node recast-crowd-worker-benchmark.mjs"
   },
   "devDependencies": {
     "playcanvas": "2.22.4",
