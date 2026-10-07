@@ -57,6 +57,11 @@ export function enterMainGate({
   return true;
 }
 
+// A touch tap is activated on pointerup so the lobby closes without waiting for the synthetic click.
+// The click that follows is ignored for this long; keyboard and mouse activation still use click.
+export const MAIN_GATE_TOUCH_CLICK_SUPPRESS_MS = 500;
+const TOUCH_POINTERS = new Set(["touch", "pen"]);
+
 export function bindMainGateEntry({
   button,
   player,
@@ -66,17 +71,74 @@ export function bindMainGateEntry({
   documentLike = globalThis.document,
   transition = null,
   onEntered = null,
-  requestFullscreen = requestLobbyFullscreen
+  requestFullscreen = requestLobbyFullscreen,
+  clock = () => globalThis.performance?.now?.() ?? Date.now()
 } = {}) {
   if (!button) return { start: () => false, destroy() {} };
   const start = () => {
     requestFullscreen?.({ documentLike });
     return enterMainGate({ player, lobbyWorld, spawn, spawnDefinition, documentLike, transition, onEntered });
   };
-  button.addEventListener("click", start);
+  let lastTouchActivation = -Infinity;
+
+  const setActivating = (on) => {
+    if (button.dataset) {
+      if (on) button.dataset.activating = "true";
+      else delete button.dataset.activating;
+    }
+    button.classList?.toggle?.("is-activating", on);
+  };
+  const insideButton = (event) => {
+    const rect = button.getBoundingClientRect?.();
+    if (!rect || !Number.isFinite(event.clientX) || !Number.isFinite(event.clientY)) return true;
+    return event.clientX >= rect.left && event.clientX <= rect.right &&
+      event.clientY >= rect.top && event.clientY <= rect.bottom;
+  };
+  // Once the lobby is gone, the browser may still deliver the tap's click to whatever is underneath.
+  const swallowGhostClick = () => {
+    if (!documentLike?.addEventListener) return;
+    let timer = null;
+    const stop = (event) => {
+      event.preventDefault?.();
+      event.stopImmediatePropagation?.();
+      release();
+    };
+    const release = () => {
+      documentLike.removeEventListener("click", stop, { capture: true });
+      if (timer !== null) clearTimeout(timer);
+    };
+    timer = setTimeout(release, MAIN_GATE_TOUCH_CLICK_SUPPRESS_MS);
+    documentLike.addEventListener("click", stop, { capture: true });
+  };
+
+  const onPointerDown = (event) => { if (event.isPrimary !== false) setActivating(true); };
+  const onPointerEnd = () => setActivating(false);
+  const onPointerUp = (event) => {
+    setActivating(false);
+    if (!TOUCH_POINTERS.has(event.pointerType) || event.isPrimary === false || !insideButton(event)) return;
+    lastTouchActivation = clock();
+    if (start()) swallowGhostClick();
+  };
+  // Returns start()'s result like the plain click handler it replaces.
+  const onClick = () => {
+    if (clock() - lastTouchActivation < MAIN_GATE_TOUCH_CLICK_SUPPRESS_MS) return false;
+    return start();
+  };
+
+  button.addEventListener("pointerdown", onPointerDown);
+  button.addEventListener("pointerup", onPointerUp);
+  button.addEventListener("pointercancel", onPointerEnd);
+  button.addEventListener("pointerleave", onPointerEnd);
+  button.addEventListener("click", onClick);
   return {
     start,
     definition: spawnDefinition,
-    destroy() { button.removeEventListener("click", start); }
+    destroy() {
+      button.removeEventListener("pointerdown", onPointerDown);
+      button.removeEventListener("pointerup", onPointerUp);
+      button.removeEventListener("pointercancel", onPointerEnd);
+      button.removeEventListener("pointerleave", onPointerEnd);
+      button.removeEventListener("click", onClick);
+    }
   };
 }

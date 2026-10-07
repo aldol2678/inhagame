@@ -135,13 +135,20 @@ export function validateDevCandidate(batch) {
 }
 
 const campusSlots = new Map();
-const dwellObstacles = OBSTACLES.filter(box => box.minY < 2.5 && box.maxY > 0);
-function safeDwell(point) {
-  if (polygonOverlap(point.x, point.z, pondRing, .65)) return false;
-  return !dwellObstacles.some(box => box.polygon
-    ? polygonOverlap(point.x, point.z, box.polygon, .65)
-    : point.x >= box.minX - .65 && point.x <= box.maxX + .65 &&
-      point.z >= box.minZ - .65 && point.z <= box.maxZ + .65);
+const DWELL_CLEARANCE = .65;
+const dwellObstacles = OBSTACLES.filter(box => box.minY < 2.5 && box.maxY > 0).map(box => box.polygon
+  ? { box, minX: Math.min(...box.polygon.map(p => p.x)), maxX: Math.max(...box.polygon.map(p => p.x)),
+    minZ: Math.min(...box.polygon.map(p => p.z)), maxZ: Math.max(...box.polygon.map(p => p.z)) }
+  : { box });
+const withinClearance = (point, { minX, maxX, minZ, maxZ }) => point.x >= minX - DWELL_CLEARANCE &&
+  point.x <= maxX + DWELL_CLEARANCE && point.z >= minZ - DWELL_CLEARANCE && point.z <= maxZ + DWELL_CLEARANCE;
+// polygonOverlap() is true only inside the ring or within the clearance of an edge, both of which lie
+// inside the ring's bounds grown by that clearance, so the bounds test rejects far obstacles exactly.
+export function safeDwell(point) {
+  if (polygonOverlap(point.x, point.z, pondRing, DWELL_CLEARANCE)) return false;
+  return !dwellObstacles.some(entry => entry.box.polygon
+    ? withinClearance(point, entry) && polygonOverlap(point.x, point.z, entry.box.polygon, DWELL_CLEARANCE)
+    : withinClearance(point, entry.box));
 }
 export function positionAt(location, slotIndex) {
   if (location === 'off_zone') return null;

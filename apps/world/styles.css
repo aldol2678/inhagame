@@ -1269,6 +1269,18 @@ body[data-lobby-world="true"] #application {
   outline: 3px solid #ffdf90;
   outline-offset: 3px;
 }
+/* P0 start latency: the press is shown on pointerdown and never waits for the click. */
+.world-lobby-main-gate {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.world-lobby-main-gate:active,
+.world-lobby-main-gate.is-activating {
+  transform: scale(.97);
+  border-color: rgba(255,223,144,.9);
+  background: rgba(30,78,106,.86);
+  transition: none;
+}
 .world-lobby-card-kicker {
   grid-area: kicker;
   color: #ffdf90;
