@@ -46,7 +46,7 @@ async function photoCase(smoke,entry,kind,mobile){let page=await boot(smoke,entr
   const photoRig=await page.evaluate(()=>window.__INHAGAME_P0__.getStatus().photoMode.camera);assert.ok(photoRig.subjectBounds);entry.subjects.push({kind,bounds:photoRig.subjectBounds,travel:photoRig.travel,framing:photoRig.position});
   // All eight corners of the rider+vehicle union fit on the canvas at the default frame.
   const projection=await page.evaluate(async()=>{const pc=await import('playcanvas'),d=window.__INHAGAME_P0__,b=d.getStatus().photoMode.camera.subjectBounds,c=d.orbit.camera.camera,canvas=document.getElementById('application');
-    const points=[];for(const x of [b.min.x,b.max.x])for(const y of [b.min.y,b.max.y])for(const z of [b.min.z,b.max.z]){const p=c.worldToScreen(new pc.Vec3(x,y,-z));points.push({x:p.x,y:p.y,z:p.z});}return {points,width:canvas.width,height:canvas.height};});
+    const points=[];for(const x of [b.min.x,b.max.x])for(const y of [b.min.y,b.max.y])for(const z of [b.min.z,b.max.z]){const p=c.worldToScreen(new pc.Vec3(x,y,-z));points.push({x:p.x,y:p.y,z:p.z});}return {points,width:canvas.clientWidth,height:canvas.clientHeight,raster:[canvas.width,canvas.height]};});
   entry.subjects.at(-1).projection=projection;assert.ok(projection.points.every(p=>p.x>=-2&&p.y>=-2&&p.x<=projection.width+2&&p.y<=projection.height+2),`${kind} full bounds fit: ${JSON.stringify(projection)}`);
   await screen(page,entry,`${kind}-mounted-photo`);console.log(`${entry.name}/${kind}: framed`);
   const beforePhoto=await page.evaluate(()=>window.__INHAGAME_P0__.getStatus().photoMode.camera);

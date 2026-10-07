@@ -28,7 +28,7 @@ function harness(id=CAMPUS_HELICOPTER_ID) {
   const mode=createPhotoMode({orbit,rig,inputFocus:focus,getPosition:()=>p,
     getState:()=>({...state,mounted:controller.mounted,grounded:controller.grounded}),
     getMount:()=>controller.getPhotoHoldTarget(),getMountBounds:()=>bounds,entryOwnerId:'smartphone'});
-  return {controller,camera,orbit,focus,rig,mode,p,state,loseVisual(){bounds=null;}};
+  return {controller,camera,orbit,focus,rig,mode,p,state,loseVisual(){bounds=null;},driftMount(){bounds={min:{x:5,y:9,z:-3},max:{x:11,y:12,z:3}};}};
 }
 for(const id of [CAMPUS_BIKE_ID,CAMPUS_KICKBOARD_ID,CAMPUS_KART_ID,DUCK_BOAT_ID,CAMPUS_HELICOPTER_ID]) {
   test(`${id}: held motion, input handoff, full subject rig and exact camera restoration`,()=>{
@@ -57,16 +57,17 @@ test('unsupported or partial runtime/visual state keeps mounted block',()=>{
   }
 });
 test('dismount, reference loss, visual disposal, transition, account, combat and teleport safely close',()=>{
-  for(const cause of ['dismount','reference','visual','transition','account','combat','teleport']){
+  for(const cause of ['dismount','reference','visual','transition','account','combat','teleport','mount-drift']){
     const h=harness();h.mode.open();h.rig.look(100,40);h.mode.applyCamera(.1);
     if(cause==='dismount')h.controller.mounted=false;if(cause==='reference')h.controller.mountId=null;if(cause==='visual')h.loseVisual();
     if(cause==='transition')h.state.transitioning=true;if(cause==='account')h.state.accountId='other';if(cause==='combat')h.state.combat=true;if(cause==='teleport')h.p.x=100;
+    if(cause==='mount-drift')h.driftMount();
     assert.equal(h.mode.update(),false,cause);assert.equal(h.controller.photoHolding,false);assert.equal(h.controller.inputEnabled,true);assert.equal(h.focus.size,0);assert.equal(h.rig.active,false);
   }
 });
 test('closing cleanup runs before rig restore and each failing cleanup cannot strand hold/input',()=>{
   const h=harness(),order=[];h.mode.subscribeClosing(()=>{order.push('cancel');throw Error('synthetic UI failure');});
-  h.mode.subscribeClosing(()=>{order.push('UI cleanup');});h.mode.subscribe(({active})=>{if(!active)order.push('restored');});
+  h.mode.subscribeClosing(()=>{order.push('UI cleanup');},{priority:30});h.mode.subscribe(({active})=>{if(!active)order.push('restored');});
   h.mode.open();h.mode.close();assert.deepEqual(order,['cancel','UI cleanup','restored']);assert.equal(h.focus.size,0);assert.equal(h.controller.photoHolding,false);assert.equal(h.controller.inputEnabled,true);
 });
 test('Phone origin handoff returns its owner after mounted camera restoration',()=>{

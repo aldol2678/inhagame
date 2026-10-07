@@ -275,7 +275,7 @@ export function createPhotoModePanel({ mode, rig, input, doc = globalThis.docume
   });
   gridSelect.addEventListener('change', () => setGrid(gridSelect.value));
 
-  const offClosing = mode.subscribeClosing?.(() => { resetCapture(); root.hidden = true; });
+  const offClosing = mode.subscribeClosing?.(() => { resetCapture(); root.hidden = true; }, { priority: 10 });
   const unsubscribe = mode.subscribe(({ active, reason }) => {
     resetCapture();
     if (active) {

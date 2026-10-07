@@ -41,7 +41,7 @@ export function createPhotoMode({
   if (!orbit?.camera?.camera || !rig?.begin || !inputFocus?.can) throw new TypeError('Photo Mode requires orbit, rig and InputFocus');
   const owner = createInputFocusOwner({ manager: inputFocus, ownerId: PHOTO_MODE_OWNER, policy: PHOTO_MODE_POLICY });
   const listeners = new Set([onChange]);
-  const closingListeners = new Set();
+  const closingListeners = new Map();
   let session = null, destroyed = false, handingOff = false;
   const safely = fn => { try { return fn(); } catch (error) { console.warn('Photo Mode cleanup failed', error); return false; } };
   function mountedTarget(state) {
@@ -55,6 +55,7 @@ export function createPhotoMode({
     return bounds?.min && bounds?.max && ['x','y','z'].every(axis => Number.isFinite(bounds.min[axis]) &&
       Number.isFinite(bounds.max[axis]) && bounds.max[axis] >= bounds.min[axis]);
   }
+  const boundsCenter = bounds => Object.fromEntries(['x','y','z'].map(axis => [axis, (bounds.min[axis] + bounds.max[axis]) / 2]));
 
   function blockedReason({ entryOwner = null } = {}) {
     if (destroyed) return PHOTO_MODE_BLOCK.DESTROYED;
@@ -117,9 +118,10 @@ export function createPhotoMode({
     const saved = snapshotPlayCamera();
     const mount = mountedTarget(state);
     if (state.mounted && !mount) return false;
+    let bounds = null;
     try {
       if (mount && !mount.enterPhotoHold()) return false;
-      const bounds = mount ? getMountBounds() : null;
+      bounds = mount ? getMountBounds() : null;
       if ((mount && !validBounds(bounds)) || !rig.begin(saved, { subjectBounds: bounds })) {
         mount?.exitPhotoHold(); restorePlayCamera(saved);
         return false;
@@ -129,7 +131,8 @@ export function createPhotoMode({
       return false;
     }
     session = { saved, subject: { x: p.x, y: p.y, z: p.z }, space: state.space ?? null,
-      accountId: state.accountId ?? null, posed: false, origin, purpose, mount };
+      accountId: state.accountId ?? null, posed: false, origin, purpose, mount,
+      mountSubject: mount ? boundsCenter(bounds) : null };
     handingOff = entryOwner === entryOwnerId && entryOwnerId !== null;
     try { owner.acquire(); publish('open'); }
     catch { close('takeover'); return false; }
@@ -140,7 +143,8 @@ export function createPhotoMode({
   function close(reason = 'close') {
     if (!session) return false;
     const old = session; session = null;
-    for (const listener of closingListeners) safely(() => listener());
+    // Capture cancellation precedes UI/input cleanup; each hook is failure-isolated.
+    for (const [listener] of [...closingListeners].sort((a,b) => a[1] - b[1])) safely(() => listener());
     safely(() => rig.end());
     // Restore before releasing the claim so later transition owners snapshot the normal view.
     safely(() => restorePlayCamera(old.saved));
@@ -158,7 +162,14 @@ export function createPhotoMode({
     catch { close('lifecycle'); return false; }
     const at = session.subject;
     const mount = mountedTarget(state);
-    if (worldBlock(state, mount) || mount !== session.mount || state.space !== session.space || state.accountId !== session.accountId ||
+    let mountDrift = false;
+    if (mount && session.mountSubject) {
+      try {
+        const current = boundsCenter(getMountBounds()), saved = session.mountSubject;
+        mountDrift = !finitePosition(current) || Math.hypot(current.x-saved.x,current.y-saved.y,current.z-saved.z) > PHOTO_SUBJECT_DRIFT_LIMIT;
+      } catch { mountDrift = true; }
+    }
+    if (worldBlock(state, mount) || mount !== session.mount || mountDrift || state.space !== session.space || state.accountId !== session.accountId ||
       !finitePosition(p) || Math.hypot(p.x - at.x, p.y - at.y, p.z - at.z) > PHOTO_SUBJECT_DRIFT_LIMIT) {
       close('lifecycle'); return false;
     }
@@ -192,7 +203,7 @@ export function createPhotoMode({
     get active() { return !!session; },
     get saved() { return session?.saved ?? null; },
     subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
-    subscribeClosing(listener) { closingListeners.add(listener); return () => closingListeners.delete(listener); },
+    subscribeClosing(listener, { priority = 20 } = {}) { closingListeners.set(listener, priority); return () => closingListeners.delete(listener); },
     destroy() { if (destroyed) return; close('destroy'); destroyed = true; unsubscribe(); listeners.clear(); closingListeners.clear(); }
   });
 }

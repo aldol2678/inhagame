@@ -19,7 +19,7 @@ export function createPhotoCapture({ app, canvas, mode, doc = globalThis.documen
     if (error) request.reject(error); else request.resolve(value);
   }
   const cancel = () => { if (pending) finish(pending, cancelled()); };
-  const offClosing = mode.subscribeClosing?.(cancel);
+  const offClosing = mode.subscribeClosing?.(cancel, { priority: 0 });
   const unsubscribe = mode.subscribe(({ active }) => { if (!active) cancel(); });
   function request() {
     if (destroyed || !mode.update()) return Promise.reject(cancelled());
