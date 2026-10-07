@@ -19,5 +19,5 @@ test('preferences are scoped and readback failures are exposed', () => {
   p.wallpaper({type:'default',id:'night'}); assert.equal(p.save(),true); scope='b';p.load(); assert.equal(p.snapshot().wallpaper.id,'campus');
   scope='a';p.load();assert.equal(p.snapshot().wallpaper.id,'night');
   const failed=createPhonePreferences({getScope:()=>scope,getStorage:()=>({setItem(){},getItem(){return null;}}),onError:e=>errors.push(e)});
-  assert.equal(failed.save(),false);assert.ok(errors.length);
+  failed.wallpaper({type:'default',id:'night'});assert.equal(failed.save(),false);assert.ok(errors.length);
 });

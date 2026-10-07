@@ -130,7 +130,7 @@ test("production identity callback passes explicit identity even when online.use
     lastPersonalRoomUserId: null, roomSession: { stop: noop }, roomFurniture: { reset: noop },
     rooms: { currentSpace: "CAMPUS" }, personalRoom: { reset: noop }, npcAiSignedIn: false,
     mcmEvent: { setSignedIn: noop }, mcmEventPreviewMode: false, npcTest: { setAiSignedIn: noop },
-    profile: { setIdentity: noop }, lobbyPlayerSummary: { render: noop }, chatPanel: { refreshAvailability: noop },
+    profile: { setIdentity: noop }, smartphone: { setAccount: noop }, lobbyPlayerSummary: { render: noop }, chatPanel: { refreshAvailability: noop },
     friendPanel: { setAvailable: noop }, nearbyPanel: { render: noop, setOpen: noop },
     accompany: { refresh: noop, reset: noop }, social: { mine: async () => ({ friends: [] }), reset: noop },
     socialAccountSession: { setAccount: noop }, lobbyPresenceSummary: { setFriends: noop, update: noop },

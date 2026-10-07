@@ -812,6 +812,7 @@ export function createFullMapController({
   const onKeyDown = event => {
     if (!opened || event.defaultPrevented || search?.composing || isMapCompositionEvent(event)) return;
     const key = event.key || event.code;
+    if (key === "Tab" && root.dataset.phoneHosted === "true") return; // Phone traps the complete dialog, including its close/home buttons.
     if (key === "Escape") {
       event.preventDefault?.();
       close();

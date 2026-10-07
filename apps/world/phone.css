@@ -1,0 +1,72 @@
+/* Personal device overlay. All coordinates/navigation remain in the existing World. */
+.smartphone[hidden] { display:none !important; }
+.smartphone { position:fixed; inset:0; z-index:78; display:grid; place-items:center; padding:max(12px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left)); background:rgba(6,12,22,.42); color:#f7fbff; }
+body[data-phone-open="true"] > :not(#application):not(.smartphone) { visibility:hidden !important; pointer-events:none !important; }
+.smartphone-frame { position:relative; isolation:isolate; display:flex; flex-direction:column; width:min(390px,100%); height:min(780px,calc(100dvh - 24px)); overflow:hidden; border:5px solid #17202c; border-radius:40px; box-shadow:0 24px 90px #0009,inset 0 0 0 1px #ffffff38; background:linear-gradient(145deg,#174e71 0%,#287783 48%,#d3ad74 100%); }
+.smartphone-frame[data-wallpaper="night"] { background:linear-gradient(160deg,#102333,#42496c 65%,#927780); }
+.smartphone-frame[data-wallpaper="mint"] { background:linear-gradient(140deg,#276d70,#88c4aa); }
+.smartphone-wallpaper { position:absolute; z-index:-1; inset:0; width:100%; height:100%; object-fit:cover; filter:brightness(.7); }
+.smartphone-statusbar { display:flex; align-items:center; justify-content:space-between; height:30px; flex:none; padding:7px 22px 0; font-size:11px; }
+.smartphone-island { width:90px; height:17px; background:#17202c; border-radius:20px; }
+.smartphone-header { display:flex; flex:none; align-items:center; justify-content:space-between; padding:4px 8px; gap:8px; }
+.smartphone-header h2 { font-size:14px; letter-spacing:.07em; margin:0; text-align:center; }
+.smartphone button, .smartphone select { font:inherit; color:inherit; border:1px solid #ffffff30; border-radius:12px; background:#142d4699; min-height:44px; padding:8px 12px; cursor:pointer; }
+.smartphone button:focus-visible,.smartphone select:focus-visible { outline:3px solid #ffe9a4; outline-offset:2px; }
+.smartphone button:disabled { opacity:.5; cursor:default; }
+.smartphone-header button { font-size:26px; width:44px; padding:0; background:transparent; border:0; }
+.smartphone-content { flex:1; min-height:0; overflow:auto; padding:10px 16px; overscroll-behavior:contain; }
+.smartphone:not([hidden]) .smartphone-frame { animation:phone-open .15s ease-out; }
+.smartphone-content > :not(.full-map-panel):not(.view-settings) { animation:phone-app .12s ease-out; }
+@keyframes phone-open { from { opacity:0; transform:translateY(12px) scale(.98); } to { opacity:1; transform:none; } }
+@keyframes phone-app { from { opacity:.5; transform:translateY(4px); } to { opacity:1; transform:none; } }
+@media (prefers-reduced-motion:reduce) { .smartphone *, .smartphone-frame { animation:none !important; transition:none !important; scroll-behavior:auto !important; } }
+.smartphone-content h3 { font-size:16px; }
+.smartphone-content p { line-height:1.5; font-size:13px; }
+.smartphone-content select { width:100%; margin:8px 0; background:#203e54; }
+.smartphone-clock { font-size:48px; font-weight:300; text-align:center; padding:14px 0 24px; font-variant-numeric:tabular-nums; }
+.smartphone-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px 6px; }
+.smartphone .smartphone-app { border:0; min-height:70px; padding:0; background:transparent; display:flex; flex-direction:column; align-items:center; gap:5px; touch-action:none; user-select:none; }
+.smartphone-app-icon { display:grid; place-items:center; width:58px; height:58px; font-size:29px; border-radius:17px; background:linear-gradient(140deg,#fffffff0,#dce9edf0); box-shadow:0 3px 8px #102c4430; }
+.smartphone-app-name { font-size:11px; text-shadow:0 1px 4px #000; }
+.smartphone .smartphone-empty { visibility:hidden; }
+.smartphone[data-state="HOME_EDIT"] .smartphone-empty { visibility:visible; border:1px dashed #ffffff50; border-radius:15px; }
+.smartphone-app[data-selected="true"] .smartphone-app-icon { outline:3px solid #ffe9a4; }
+.smartphone-dock { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:6px; margin:20px 0 12px; padding:12px 7px; border-radius:24px; background:#efffff24; }
+.smartphone-dock .smartphone-app-icon { width:52px; height:52px; }
+.smartphone[data-state="HOME_EDIT"] .smartphone-app { cursor:grab; }
+.smartphone-actions { display:flex; flex-wrap:wrap; gap:6px; margin:10px 0; }
+.smartphone-message { flex:none; margin:0; padding:0 16px; font-size:12px; background:#142d4666; line-height:1.5; }
+.smartphone-message:not(:empty) { padding:8px 16px; }
+.smartphone-footer { display:flex; justify-content:center; padding:6px 0 10px; flex:none; }
+.smartphone .smartphone-home-button { width:110px; min-height:36px; font-size:12px; background:#142d4644; }
+.smartphone-hint { opacity:.9; font-size:12px; }
+.smartphone-student-card { border-radius:22px; padding:20px; color:#153549; background:linear-gradient(135deg,#ffffff,#d7eaf1); text-align:center; }
+.smartphone-student-card .smartphone-eyebrow { font-size:10px; letter-spacing:.08em; }
+.smartphone-student-avatar { font-size:60px; padding:12px; }
+.smartphone-student-card small { font-size:10px; display:block; margin-top:14px; }
+.smartphone-badges { display:flex; flex-wrap:wrap; gap:6px; font-size:12px; }
+.smartphone-badges span { padding:8px; border-radius:10px; background:#142d4688; }
+.smartphone progress { width:100%; accent-color:#ffe9a4; }
+.smartphone-album-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; }
+.smartphone-album-grid button { padding:0; overflow:hidden; font-size:10px; }
+.smartphone-album-grid img { width:100%; aspect-ratio:1; object-fit:cover; display:block; }
+.smartphone-photo { display:block; width:100%; max-height:360px; object-fit:contain; border-radius:12px; }
+.smartphone-content > button { margin:4px 4px 4px 0; }
+.smartphone-empty-state { text-align:center; padding:50px 0 20px; }
+.smartphone-page-controls { display:flex; align-items:center; justify-content:center; gap:8px; }
+.smartphone-map-tools { font-size:12px; margin-bottom:8px; }
+.smartphone-map-history summary { padding:8px; cursor:pointer; }
+.smartphone .full-map-panel[data-phone-hosted="true"] { position:static; display:block; padding:0; background:none; backdrop-filter:none; }
+.smartphone .full-map-card { width:100%; overflow:visible; border-radius:14px; }
+.smartphone .full-map-header { padding:12px; }
+.smartphone .full-map-body { display:flex; flex-direction:column; padding:0 8px 8px; gap:10px; }
+.smartphone .full-map-stage { max-width:100%; width:100%; }
+.smartphone .full-map-search { margin:0 8px 8px; }
+.smartphone .full-map-search-panel { z-index:2; }
+.smartphone .full-map-info { width:100%; }
+.smartphone .full-map-controls { flex-wrap:wrap; }
+.smartphone .view-settings[data-phone-hosted="true"] { position:relative; inset:auto; transform:none; width:100%; max-width:none; max-height:none; box-sizing:border-box; background:#142d46ed; border-radius:16px; }
+#phone-toggle { pointer-events:auto; min-width:44px; min-height:44px; border:1px solid #ffffff32; border-radius:13px; color:#f7fbff; background:#172e42df; font-size:20px; cursor:pointer; }
+.campus-topbar { grid-template-columns:auto minmax(0,1fr) auto auto; }
+@media (pointer:coarse), (max-width:600px) { .smartphone { padding:max(4px,env(safe-area-inset-top)) max(4px,env(safe-area-inset-right)) max(4px,env(safe-area-inset-bottom)) max(4px,env(safe-area-inset-left)); } .smartphone-frame { height:100%; max-height:100%; width:min(430px,100%); border-width:3px; border-radius:26px; } }
+@media (max-height:500px) { .smartphone-frame { border-radius:20px; } .smartphone-clock { font-size:30px; padding:4px; } .smartphone-grid { gap:6px; } .smartphone-statusbar { height:20px; } .smartphone-content { padding-top:0; } }

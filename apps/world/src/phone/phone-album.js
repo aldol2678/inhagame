@@ -63,9 +63,9 @@ export function createPhoneAlbum({ indexedDB = globalThis.indexedDB, thumbnail =
     } catch (error) { reportError(error); throw error; }
   }
   async function image(id, kind = 'original') {
-    const record = await read(id); if (!record) return null;
+    const mine = epoch, record = await read(id); if (!record || mine !== epoch) return null;
     const ref = kind === 'thumbnail' ? record.thumbnailRef : record.imageRef;
-    return transact('readonly', epoch, (records,images,done) => { const r = images.get(ref); r.onsuccess = () => done(r.result?.blob ?? null); });
+    return transact('readonly', mine, (records,images,done) => { const r = images.get(ref); r.onsuccess = () => done(r.result?.blob ?? null); });
   }
   async function save(result, context = {}) {
     const mine = epoch, at = scope;
