@@ -1,6 +1,6 @@
 import { FURNITURE_BY_ID, ROOM_FURNITURE, SURFACE_NAMES, FURNITURE_ERRORS, firstFurniturePosition,
   positionOnSurface, validateFurniture } from "./furniture-layout.js";
-import { PERSONAL_ROOM_BASIC_FURNITURE } from "./personal-room-layout.js";
+import { PERSONAL_ROOM_BASIC, PERSONAL_ROOM_BASIC_FURNITURE, PERSONAL_ROOM_PLACEMENT_ENVELOPE } from "./personal-room-layout.js";
 
 // DOM-only editor: tap the plan or use the same movement buttons on desktop and mobile.
 // The client keeps the draft; closing a dirty draft always offers keep editing / discard.
@@ -59,9 +59,13 @@ export function createFurnitureEditor({ client, inventory, onOpenChange = () => 
     panel.replaceChildren();
     const header = node("header"); header.append(node("h2", "내 방 꾸미기"), button("닫기", () => requestClose(), state.pending)); panel.append(header);
     panel.append(node("p", "가구를 선택하고 평면도를 눌러 옮겨요. 기본 침대·책상은 고정 시설이에요.", "furniture-help"));
-    const map = svgNode("svg", { viewBox: "-5.4 -4.2 10.8 8.4", preserveAspectRatio: "none", role: "group", "aria-label": "방 평면도. 위쪽은 창문, 아래쪽은 출입문" });
+    const { halfWidth: mapW, halfDepth: mapD } = PERSONAL_ROOM_BASIC;
+    const placement = PERSONAL_ROOM_PLACEMENT_ENVELOPE.floor;
+    const map = svgNode("svg", { viewBox: `${-mapW} ${-mapD} ${2*mapW} ${2*mapD}`, preserveAspectRatio: "none", role: "group", "aria-label": "방 평면도. 위쪽은 창문, 아래쪽은 출입문" });
     map.classList.add("furniture-plan");
-    map.append(svgNode("rect", { x: -5.4, y: -4.2, width: 10.8, height: 8.4, fill: "#ebdbc5" }));
+    map.append(svgNode("rect", { x: -mapW, y: -mapD, width: 2*mapW, height: 2*mapD, fill: "#ebdbc5" }));
+    map.append(svgNode("rect", { x: placement.minX, y: -placement.maxZ, width: placement.maxX-placement.minX, height: placement.maxZ-placement.minZ,
+      fill: "#fffaf2", opacity: .28, stroke: "#8b765f", "stroke-width": .035, "stroke-dasharray": ".16 .12" }));
     map.append(svgNode("rect", { x: -.9, y: 2.25, width: 1.8, height: 1.95, fill: "#f5bfa4", opacity: .65 }));
     for (const fixed of PERSONAL_ROOM_BASIC_FURNITURE) {
       map.append(svgNode("rect", { x: fixed.at[0]-fixed.size[0]/2, y: -fixed.at[2]-fixed.size[2]/2, width: fixed.size[0], height: fixed.size[2], fill: fixed.kind === "rug" ? "#a6b6bc" : "#8c7967", opacity: .7 }));
@@ -72,16 +76,20 @@ export function createFurnitureEditor({ client, inventory, onOpenChange = () => 
         transform: `rotate(${row.yaw} ${row.x} ${-row.z})`, fill: row.id === selected ? validation ? "#c94d4d" : "#377ab7" : "#559e78", stroke: "#18324a", "stroke-width": .025, "data-object-id": row.id });
       const title = svgNode("title"); title.textContent = item.name; rect.append(title); map.append(rect);
     }
-    const north = svgNode("text", { x: .5, y: -3.7, "text-anchor": "middle", "font-size": .26, "pointer-events": "none" }); north.textContent = "창문"; map.append(north);
-    const exit = svgNode("text", { x: 0, y: 3.85, "text-anchor": "middle", "font-size": .26, "pointer-events": "none" }); exit.textContent = "출입문 · 비워두기"; map.append(exit);
+    const north = svgNode("text", { x: .5, y: -mapD+.5, "text-anchor": "middle", "font-size": .26, "pointer-events": "none" }); north.textContent = "창문"; map.append(north);
+    const exit = svgNode("text", { x: 0, y: mapD-.35, "text-anchor": "middle", "font-size": .26, "pointer-events": "none" }); exit.textContent = "출입문 · 비워두기"; map.append(exit);
     map.addEventListener("click", event => {
       if (locked) return;
       const hit = event.target.closest?.("[data-object-id]");
       if (hit) { selected = hit.dataset.objectId; message = ""; render(); return; }
       if (!object) return;
       const rect = map.getBoundingClientRect(); if (!rect.width || !rect.height) return;
-      const x = -5.4 + (event.clientX-rect.left)/rect.width*10.8;
-      const z = 4.2 - (event.clientY-rect.top)/rect.height*8.4;
+      const x = -mapW + (event.clientX-rect.left)/rect.width*(2*mapW);
+      const z = mapD - (event.clientY-rect.top)/rect.height*(2*mapD);
+      if (object.surface === "floor" && (x < placement.minX || x > placement.maxX || z < placement.minZ || z > placement.maxZ)) {
+        message = "확장된 C안 공간은 먼저 보행에 열렸어요. 저장 가구 범위는 기존 방 배치를 안전하게 보존해요.";
+        render(); return;
+      }
       changeObject(positionOnSurface(object.surface,x,z,object.yaw));
     }); panel.append(map);
     const choices = node("div", undefined, "furniture-owned");
