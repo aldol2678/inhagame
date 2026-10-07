@@ -20,9 +20,9 @@ concurrency:
   group: photo-mode-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 jobs:
-  chromium:
+  chromium-controls:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
@@ -31,6 +31,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24.19.0'
+          cache: npm
+          cache-dependency-path: apps/world/tests/browser/package-lock.json
       - name: Install readable Korean glyphs
         run: |
           sudo apt-get update -qq
@@ -49,6 +51,35 @@ jobs:
           PHOTO_MODE_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PHOTO_MODE_QA_OUTPUT: test-results/photo-mode/controls
         run: timeout --signal=TERM --kill-after=10s 420s node apps/world/tests/browser/photo-mode-smoke.mjs
+      - name: Preserve controls evidence shard
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: photo-mode-part-controls
+          path: test-results/photo-mode/
+          if-no-files-found: warn
+          retention-days: 1
+
+  chromium-png:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+          cache: npm
+          cache-dependency-path: apps/world/tests/browser/package-lock.json
+      - name: Install readable Korean glyphs
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+      - name: Install existing pinned browser dependencies
+        working-directory: apps/world/tests/browser
+        run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Decode local PNGs and verify rendered pixels
         env:
           WORLD_SMOKE_DISABLE_WEBGPU: '1'
@@ -56,22 +87,85 @@ jobs:
           PHOTO_MODE_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PHOTO_PNG_QA_OUTPUT: test-results/photo-mode/png
         run: timeout --signal=TERM --kill-after=10s 240s node apps/world/tests/browser/photo-mode-png-smoke.mjs
+      - name: Preserve PNG evidence shard
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: photo-mode-part-png
+          path: test-results/photo-mode/
+          if-no-files-found: warn
+          retention-days: 1
+
+  chromium-campus:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+          cache: npm
+          cache-dependency-path: apps/world/tests/browser/package-lock.json
+      - name: Install readable Korean glyphs
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+      - name: Install existing pinned browser dependencies
+        working-directory: apps/world/tests/browser
+        run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Exercise Photo Mode on the actual campus
-        if: ${{ !cancelled() }}
         env:
           WORLD_SMOKE_DISABLE_WEBGPU: '1'
           WORLD_SMOKE_BROWSER: chrome
           PHOTO_MODE_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PHOTO_MODE_QA_OUTPUT: test-results/photo-mode/campus
         run: timeout --signal=TERM --kill-after=10s 1560s node apps/world/tests/browser/photo-mode-campus-smoke.mjs
-      - name: Save exact-head photo evidence
+      - name: Preserve campus evidence shard
         if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: photo-mode-part-campus
+          path: test-results/photo-mode/
+          if-no-files-found: warn
+          retention-days: 1
+
+  chromium:
+    runs-on: ubuntu-latest
+    if: ${{ always() }}
+    needs:
+      - chromium-controls
+      - chromium-png
+      - chromium-campus
+    timeout-minutes: 5
+    steps:
+      - name: Collect Chromium evidence shards
+        if: ${{ always() }}
+        uses: actions/download-artifact@v4
+        with:
+          pattern: photo-mode-part-*
+          path: test-results/photo-mode
+          merge-multiple: true
+      - name: Save exact-head photo evidence
+        if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: photo-mode-browser-evidence
           path: test-results/photo-mode/
           if-no-files-found: error
           retention-days: 7
+      - name: Require all Chromium shards
+        if: ${{ always() }}
+        env:
+          CONTROLS_RESULT: ${{ needs.chromium-controls.result }}
+          PNG_RESULT: ${{ needs.chromium-png.result }}
+          CAMPUS_RESULT: ${{ needs.chromium-campus.result }}
+        run: |
+          test "$CONTROLS_RESULT" = "success"
+          test "$PNG_RESULT" = "success"
+          test "$CAMPUS_RESULT" = "success"
 
   ipad-webkit-boot:
     runs-on: ubuntu-latest
@@ -84,6 +178,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24.19.0'
+          cache: npm
+          cache-dependency-path: apps/world/tests/browser/package-lock.json
+      - name: Cache Playwright WebKit
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-webkit-${{ runner.os }}-${{ hashFiles('apps/world/tests/browser/package-lock.json') }}
       - name: Install pinned browser dependencies
         working-directory: apps/world/tests/browser
         run: npm ci --ignore-scripts --no-audit --no-fund
