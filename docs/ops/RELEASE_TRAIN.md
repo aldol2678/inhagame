@@ -36,14 +36,14 @@ A PR may enter a release branch only when all of the following hold:
 4. The PR does not require an unresolved external activation, Production migration, credential/config change, or other prerequisite.
 5. Its scope is compatible with the other candidates in the batch.
 
-After retargeting or rebasing onto the release branch, required checks must pass again before merge.
+Retargeting alone does not require duplicating an unchanged exact-head CI run. If the candidate head changes or is rebased, its required head checks must pass again. Cross-candidate integration is authoritative at the final Release PR → `main` gate.
 
 ## Release gate
 
 Before the release PR is merged to `main`:
 
-1. Every included PR has passed its required checks on the release base.
-2. The release branch integration head passes repository CI.
+1. Every included PR has green required checks for its admitted exact head.
+2. The final Release PR → `main` passes repository CI on the integrated release result.
 3. The release manifest records:
    - release base SHA
    - included PRs and exact heads
