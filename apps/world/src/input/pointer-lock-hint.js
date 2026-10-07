@@ -19,7 +19,7 @@ export function pointerLockHintModel(status = {}) {
     return Object.freeze({
       visible: true,
       state: "READY",
-      text: "게임 화면 클릭 · 마우스 고정  |  Esc · 해제"
+      text: "Esc로 커서 해제 · 게임 화면을 클릭하면 다시 고정"
     });
   }
   return Object.freeze({ visible: false, state: "HIDDEN", text: "" });
