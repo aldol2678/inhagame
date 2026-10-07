@@ -31,7 +31,7 @@ body[data-phone-open="true"] > :not(#application):not(.smartphone) { visibility:
 .smartphone .smartphone-empty { visibility:hidden; }
 .smartphone[data-state="HOME_EDIT"] .smartphone-empty { visibility:visible; border:1px dashed #ffffff50; border-radius:15px; }
 .smartphone-app[data-selected="true"] .smartphone-app-icon { outline:3px solid #ffe9a4; }
-.smartphone-dock { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:6px; margin:20px 0 12px; padding:12px 7px; border-radius:24px; background:#efffff24; }
+.smartphone-dock { position:sticky; bottom:0; z-index:1; display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:6px; margin:20px 0 12px; padding:12px 7px; border-radius:24px; background:#efffff24; backdrop-filter:blur(12px); }
 .smartphone-dock .smartphone-app-icon { width:52px; height:52px; }
 .smartphone[data-state="HOME_EDIT"] .smartphone-app { cursor:grab; }
 .smartphone-actions { display:flex; flex-wrap:wrap; gap:6px; margin:10px 0; }
@@ -68,5 +68,5 @@ body[data-phone-open="true"] > :not(#application):not(.smartphone) { visibility:
 .smartphone .view-settings[data-phone-hosted="true"] { position:relative; inset:auto; transform:none; width:100%; max-width:none; max-height:none; box-sizing:border-box; background:#142d46ed; border-radius:16px; }
 #phone-toggle { pointer-events:auto; min-width:44px; min-height:44px; border:1px solid #ffffff32; border-radius:13px; color:#f7fbff; background:#172e42df; font-size:20px; cursor:pointer; }
 .campus-topbar { grid-template-columns:auto minmax(0,1fr) auto auto; }
-@media (pointer:coarse), (max-width:600px) { .smartphone { padding:max(4px,env(safe-area-inset-top)) max(4px,env(safe-area-inset-right)) max(4px,env(safe-area-inset-bottom)) max(4px,env(safe-area-inset-left)); } .smartphone-frame { height:100%; max-height:100%; width:min(430px,100%); border-width:3px; border-radius:26px; } }
+@media (pointer:coarse), (max-width:600px) { .smartphone { padding:max(4px,env(safe-area-inset-top)) max(4px,env(safe-area-inset-right)) max(4px,env(safe-area-inset-bottom)) max(4px,env(safe-area-inset-left)); } .smartphone-frame { height:100%; max-height:100%; width:100%; border-width:3px; border-radius:26px; } }
 @media (max-height:500px) { .smartphone-frame { border-radius:20px; } .smartphone-clock { font-size:30px; padding:4px; } .smartphone-grid { gap:6px; } .smartphone-statusbar { height:20px; } .smartphone-content { padding-top:0; } }

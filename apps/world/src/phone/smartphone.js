@@ -111,6 +111,7 @@ export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, g
     const p=student.snapshot(), side=preferences.snapshot().studentIdFace;const card=el('article','smartphone-student-card');card.dataset.face=side;
     if(side==='front'){
     card.append(el('p','smartphone-eyebrow','INHA WORLD DIGITAL STUDENT ID'),el('div','smartphone-student-avatar',p.avatar),el('h3','',p.nickname),el('p','',p.department),el('strong','',p.progression?.levelText||'Campus Level 확인 전'),el('p','',p.title),el('small','','게임용 디지털 학생증 · 실제 학생증/학사 인증 아님'));
+    card.querySelector('.smartphone-student-avatar').setAttribute('role','img');card.querySelector('.smartphone-student-avatar').setAttribute('aria-label',`${p.nickname} 프로필 아바타`);
     content.append(card);
     }else{
     card.append(el('p','smartphone-eyebrow','INHA WORLD DIGITAL STUDENT ID'),el('h3','','성장과 기록'),el('p','',p.progression?.expText||(p.progressionState==='UNAVAILABLE'?'진행도를 불러오지 못했어요.':p.state==='GUEST'?'게스트는 계정 성장 기록을 표시하지 않아요.':'진행도를 확인하고 있어요.')));content.append(card);
@@ -182,7 +183,9 @@ export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, g
   function render(force=false) {
     if(!shell||destroyed)return;const s=shell.snapshot(), route=JSON.stringify([s.state,s.stack]);
     root.hidden=!shell.ownsInput;root.dataset.state=s.state;toggle?.setAttribute('aria-expanded',String(s.open));
-    worldVisibility(shell.ownsInput);if(!shell.ownsInput){preferences.save();if(s.state==='CLOSED')toggle?.focus?.({preventScroll:true});}
+    worldVisibility(shell.ownsInput);if(!shell.ownsInput){preferences.save();if(s.state==='CLOSED'&&inputFocus.can('WORLD_ACTION')){
+      const focus=savedFocus?.isConnected&&savedFocus.getClientRects().length?savedFocus:toggle;focus?.focus?.({preventScroll:true});savedFocus=null;
+    }}
     if(!force&&route===lastRoute)return;lastRoute=route;uiEpoch++;revokeImages();content.replaceChildren();say(warning);void setWallpaper();
     if(s.state==='HOME'||s.state==='HOME_EDIT')renderHome();
     else if(s.state==='APP'){
@@ -192,7 +195,7 @@ export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, g
     }
     if(shell.ownsInput){back.focus?.({preventScroll:true});}
   }
-  shell=createPhoneShell({inputFocus,registry,canOpen,beforeOpen:()=>{savedFocus=doc.activeElement;beforeOpen?.();},onChange:()=>render(),onError:()=>say('앱을 열지 못했어요. 홈이나 닫기로 돌아갈 수 있어요.')});
+  shell=createPhoneShell({inputFocus,registry,canOpen,beforeOpen:()=>{savedFocus=doc.activeElement;beforeOpen?.();},onChange:()=>render(),onError:()=>warn('앱을 열지 못했어요. 홈이나 닫기로 돌아갈 수 있어요.')});
   const unsubscribePhoto=photoMode.subscribe(shell.cameraChanged);
   function open() {return shell.open();}
   const toggleClick=()=>shell.state==='CLOSED'?open():shell.close();toggle?.addEventListener('click',toggleClick);

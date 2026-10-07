@@ -1,15 +1,17 @@
 // Move the existing DOM surface; its controller, listeners, search and coordinate system survive.
 export function createPhoneSurface(element) {
-  let parent = null, next = null, previousModal = null;
+  let parent = null, next = null, previousModal = null, previousInert = false;
   return Object.freeze({
     mount(host) {
       if (!element || parent) return;
       parent = element.parentNode; next = element.nextSibling; previousModal = element.getAttribute('aria-modal');
+      previousInert = element.inert; element.inert = false;
       element.dataset.phoneHosted = 'true'; element.removeAttribute('aria-modal'); host.append(element);
     },
     restore() {
       if (!parent) return;
       element.removeAttribute('data-phone-hosted');
+      element.inert = previousInert;
       if (previousModal !== null) element.setAttribute('aria-modal', previousModal);
       parent.insertBefore(element, next?.parentNode === parent ? next : null); parent = null; next = null;
     }

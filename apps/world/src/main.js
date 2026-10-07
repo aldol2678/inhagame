@@ -2729,8 +2729,9 @@ smartphone = createSmartphone({
     const room = rooms?.status();
     return { position: { x: p.x, y: p.y, z: p.z }, mapSourceId: navigationSpaceId(),
       locationId: room?.insideRoom ? room.roomId : place?.id ?? null,
-      locationName: room?.insideRoom ? (room.roomName || "실내") : place?.label || place?.name || "캠퍼스",
-      capturedAtWorld: environmentWorldTime.status(), weatherId: environment.status().targetWeather };
+      locationName: room?.insideRoom ? (room.roomName || "실내") : place?.displayName || "캠퍼스",
+      capturedAtWorld: { period: environmentWorldTime.status().period, environmentTime: environmentWorldTime.status().environmentTime,
+        serverNowMs: environmentWorldTime.status().clock.serverNowMs }, weatherId: environment.status().targetWeather };
   },
   canOpen: () => !lobbyWorld.active && !lobbyTransition.active && !rooms?.status().busy && !biryongRealm?.busy &&
     (inputFocus.can("WORLD_ACTION") || inputFocus.snapshot().topOwners.every(id => id === "hud-menu")),

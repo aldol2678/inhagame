@@ -191,7 +191,9 @@ export function createPhotoModePanel({ mode, rig, input, doc = globalThis.docume
   }
   async function shoot() {
     if (!capture || busy || destroyed || !mode.update()) return;
-    const current = session, context = getCaptureContext(); clearImage(); setBusy(true); say('HUD 없는 PNG를 만들고 있어요…', { sticky: true });
+    const current = session;
+    let context = {}; try { context = getCaptureContext(); } catch { /* Location metadata is optional; PNG capture remains available. */ }
+    clearImage(); setBusy(true); say('HUD 없는 PNG를 만들고 있어요…', { sticky: true });
     try {
       const result = await capture.request();
       if (destroyed || current !== session || !mode.update()) return;

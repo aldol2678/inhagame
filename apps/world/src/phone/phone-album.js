@@ -98,9 +98,10 @@ export function createPhoneAlbum({ indexedDB = globalThis.indexedDB, thumbnail =
     } catch (error) { reportError(error); return false; }
   }
   async function remove(id) {
-    const mine = epoch, key = keyFor(id), record = await read(id);
-    if (!record || mine !== epoch) return false;
+    const mine = epoch, key = keyFor(id);
     try {
+      const record = await read(id);
+      if (!record || mine !== epoch) return false;
       await transact('readwrite', mine, (records,images) => { records.delete(key); images.delete(record.imageRef); images.delete(record.thumbnailRef); });
       return await transact('readonly', mine, (records,images,done) => {
         const requests = [records.get(key),images.get(record.imageRef),images.get(record.thumbnailRef)];

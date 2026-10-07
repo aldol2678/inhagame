@@ -14,7 +14,8 @@ export function createPhoneShell({ inputFocus, registry, canOpen = () => true, b
   function leaveApp() { try { currentApp()?.close?.(); } catch (error) { onError(error); } }
   function open() {
     if (destroyed || state !== PHONE_STATE.CLOSED || !canOpen()) return false;
-    state = PHONE_STATE.TRANSITION; owner.acquire(); beforeOpen();
+    state = PHONE_STATE.TRANSITION; owner.acquire();
+    try { beforeOpen(); } catch (error) { state = PHONE_STATE.CLOSED; owner.release(); onError(error); publish(); return false; }
     stack = []; state = PHONE_STATE.HOME; publish(); return true;
   }
   function close() {
@@ -28,7 +29,7 @@ export function createPhoneShell({ inputFocus, registry, canOpen = () => true, b
     if (destroyed || !owner.active) return false;
     const app = registry.find(item => item.id === appId && item.available());
     if (!app) return false;
-    leaveApp(); stack.push({ appId, ...params }); state = PHONE_STATE.APP;
+    leaveApp(); stack.push({ ...params, appId }); state = PHONE_STATE.APP;
     try { app.open?.(params); } catch (error) { onError(error); }
     publish(); return true;
   }
@@ -48,7 +49,9 @@ export function createPhoneShell({ inputFocus, registry, canOpen = () => true, b
     if (!owner.active || destroyed) return false;
     leaveApp(); state = PHONE_STATE.TRANSITION; cameraSession = mode;
     // Photo Mode acquires first. Its synchronous open event releases Phone's claim.
-    const started = mode.open({ origin: 'PHONE', purpose, entryOwner: PHONE_OWNER });
+    let started = false;
+    try { started = mode.open({ origin: 'PHONE', purpose, entryOwner: PHONE_OWNER }); }
+    catch (error) { cameraSession = null; mode.close?.('phone-error'); onError(error); }
     if (!started) { cameraSession = null; state = PHONE_STATE.HOME; stack = []; publish(); }
     return started;
   }

@@ -77,7 +77,11 @@ async function run(name,viewport,mobile){
     entry.checks.push('Existing Auto Move invoked, unsupported map point disabled, old map restored to World DOM');
     await page.getByRole('button',{name:'홈 화면 편집',exact:true}).click();
     const source=page.locator('.smartphone-app[data-app-id="album"]'),dock=page.locator('.smartphone-app[data-area="dock"][data-slot="2"]');
-    const a=await source.boundingBox(),b=await dock.boundingBox();await page.mouse.move(a.x+a.width/2,a.y+a.height/2);await page.mouse.down();await page.mouse.move(b.x+b.width/2,b.y+b.height/2,{steps:5});await page.mouse.up();
+    await source.scrollIntoViewIfNeeded();const a=await source.boundingBox(),b=await dock.boundingBox();
+    if(mobile){const cdp=await smoke.context.newCDPSession(page),point={x:a.x+a.width/2,y:a.y+a.height/2,id:1,radiusX:2,radiusY:2,force:1};
+      await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[point]});await new Promise(r=>setTimeout(r,650));
+      await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{...point,x:b.x+b.width/2,y:b.y+b.height/2}]});await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await cdp.detach();
+    }else{await page.mouse.move(a.x+a.width/2,a.y+a.height/2);await page.mouse.down();await page.mouse.move(b.x+b.width/2,b.y+b.height/2,{steps:5});await page.mouse.up();}
     assert.equal((await phoneState(page)).preferences.dock[2],'album');
     await page.getByRole('button',{name:'편집 완료',exact:true}).click();await screen(page,entry,'customized-home');
     const persisted=(await phoneState(page)).preferences;await page.locator('.smartphone-header button').last().click();
