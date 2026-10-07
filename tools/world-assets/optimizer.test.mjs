@@ -77,8 +77,20 @@ test("strict allowlist optimization preserves sources and optimizes all validate
 
     const dragon = await io.read(path.join(dir, "annyongi-flight-v1.glb"));
     const dragonNodeNames = new Set(dragon.getRoot().listNodes().map(node => node.getName()));
-    for (const pivot of ["DragonWing_L", "DragonWing_R"]) {
+    for (const pivot of ["DragonWing_L", "DragonWing_R", "RiderAnchor", "CloudWing_L", "CloudWing_R", "Forelock", "Tail", "Head"]) {
       assert.equal(dragonNodeNames.has(pivot), true, `${pivot} semantic pivot survives optimization`);
+    }
+    const sourceDragon=await io.read(path.join(REPO_ROOT,"apps/world/assets/annyongi-flight-v1.glb"));
+    for(const node of sourceDragon.getRoot().listNodes()) {
+      const optimized=dragon.getRoot().listNodes().find(n=>n.getName()===node.getName());
+      assert.ok(optimized,node.getName());assert.deepEqual(optimized.getTranslation(),node.getTranslation());
+      const mesh=node.getMesh();if(!mesh)continue;
+      const actual=optimized.getMesh();assert.ok(actual);
+      for(let i=0;i<mesh.listPrimitives().length;i++) {
+        const expected=mesh.listPrimitives()[i],result=actual.listPrimitives()[i];
+        for(const semantic of ['POSITION','NORMAL','COLOR_0']) assert.deepEqual(result.getAttribute(semantic).getArray(),expected.getAttribute(semantic).getArray(),node.getName()+semantic);
+        assert.deepEqual(result.getIndices().getArray(),expected.getIndices().getArray());
+      }
     }
     const dragonReceipt = report.results.find(item => item.file === "annyongi-flight-v1.glb");
     assert.equal(dragonReceipt.keepEmptyLeafNodes, true);

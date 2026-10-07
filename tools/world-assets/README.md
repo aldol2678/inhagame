@@ -6,7 +6,7 @@ Build-time wrapper around glTF Transform for validated INHA WORLD GLB assets.
 
 The optimizer never mutates files under `apps/world/assets`.
 
-Current adoption covers all six World GLBs. Character semantic pivots are preserved explicitly for the duck and flight-dragon assets:
+Current adoption covers all six World GLBs. Character semantic pivots are preserved explicitly for the duck and Annyongi assets:
 
 - `induck-v3.glb` (preserve empty semantic leaf pivots)
 - `annyongi-flight-v1.glb` (preserve empty semantic leaf pivots)
@@ -59,3 +59,20 @@ source GLB
 ```
 
 The wrapper is build tooling. It is not a runtime dependency.
+
+## Annyongi reconstruction
+
+`python3 tools/world-assets/build-annyongi.py` deterministically rebuilds the
+newly authored official-reference model. It uses the Python standard library,
+vertex colors and one rough nonmetallic material; no source images or textures.
+`node apps/world/assets/check_characters.mjs` validates the real production
+geometry/semantic contract and provenance SHA (not the former QA generator).
+`DragonWing_L/R` remain empty; `CloudWing_L/R` are small fixed design details.
+The invisible `RiderAnchor` is preserved through optimization.
+
+Vercel now serves Annyongi's canonical and optimized paths from source/build
+output. Other brand assets continue through the unchanged Supabase proxy.
+Direct legacy brand API calls still refer to the old upstream and are not the
+authority for the new Annyongi. No Supabase deployment is needed for this switch.
+The build fails on optimizer fallback and invalid source metadata.
+Design review is pending; see `docs/implementation/annyongi-3d-redesign-01/`.

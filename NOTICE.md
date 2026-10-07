@@ -1,8 +1,8 @@
 # Notices
 
 Project code and generated QA assets: All Rights Reserved.
-Original mascot images, character/equipment meshes, their design recipes and internal-pilot audio
-are withheld. Included QA assets are independent flat-color cuboids and simple square sprites;
+Original source mascot images, legacy character/equipment meshes, their design recipes and internal-pilot audio
+are withheld. Except the Annyongi reconstruction below, included QA assets are independent flat-color cuboids and simple square sprites;
 technical filenames and attachment names exist only for API compatibility. See ASSET_PROVENANCE.json.
 
 The Google sign-in label identifies the authentication provider. Google is a trademark of Google LLC.
@@ -66,3 +66,15 @@ all-photo rights clearance, or trademark permission. The existing campus geometr
 and collision authority remain unchanged. See
 `docs/implementation/hall-library-main-integration.md` and
 `apps/world/data/reality/hall-library-integration.provenance.json`.
+
+## Annyongi 3D reconstruction review candidate
+
+`apps/world/assets/annyongi-flight-v1.glb` is newly authored project geometry
+based on Inha University's official Annyongi design and public orthographic views.
+The character design is attributed to Inha University; no ownership transfer or
+open license is asserted. No original image pixels or textures are redistributed.
+Noncommercial reproduction permission is user-reported; this specific 3D design
+has not been approved by the university. Design review is pending before release.
+No official university operation, sponsorship or endorsement of INHA WORLD is implied.
+Commercial use requires separate consultation. See ASSET_PROVENANCE.json and
+`docs/implementation/annyongi-3d-redesign-01/DISCOVERY.md`.
