@@ -108,7 +108,7 @@ export function createPhotoModePanel({ mode, rig, input, doc = globalThis.docume
   input?.bindHoldButton(down, -1);
 
   let savedHud, savedFocus = null, destroyed = false, session = 0, busy = false, imageUrl = null, statusTimer = null;
-  let albumUrl = null, albumRecord = null;
+  let albumUrl = null, albumRecord = null, previewEpoch = 0;
   const initialStatus = () => !capture ? '기기의 화면 캡처로 남겨 보세요 · Esc로 나가기'
     : coarsePointer() ? '촬영 버튼을 누르면 HUD 없는 PNG를 저장해요' : '촬영 버튼이나 Space로 HUD 없는 PNG를 저장해요';
   const visible = node => !node.hidden && !node.disabled && (node.getClientRects ? node.getClientRects().length > 0 : true);
@@ -132,6 +132,8 @@ export function createPhotoModePanel({ mode, rig, input, doc = globalThis.docume
     imageBox.hidden = true; preview.setAttribute('aria-expanded', 'false');
   }
   function clearImage() {
+    // A new shot owns its preview, even while the entry Album lookup is still pending.
+    previewEpoch++;
     image.removeAttribute('src'); thumb.removeAttribute('src'); hidePreview(); preview.hidden = true;
     if (imageUrl) urlApi.revokeObjectURL(imageUrl);
     imageUrl = null;
@@ -140,10 +142,10 @@ export function createPhotoModePanel({ mode, rig, input, doc = globalThis.docume
   }
   async function refreshAlbumLatest() {
     if (!getAlbumLatest) return;
-    const current = session;
+    const current = session, previewAt = previewEpoch;
     try {
       const latest = await getAlbumLatest();
-      if (destroyed || current !== session || !mode.active || !latest?.blob) return;
+      if (destroyed || current !== session || previewAt !== previewEpoch || !mode.active || !latest?.blob) return;
       if (albumUrl) urlApi.revokeObjectURL(albumUrl);
       albumUrl = urlApi.createObjectURL(latest.blob); albumRecord = latest.record;
       thumb.src = albumUrl; preview.hidden = false;
@@ -215,7 +217,7 @@ export function createPhotoModePanel({ mode, rig, input, doc = globalThis.docume
       if (onCaptured) {
         const stored = await onCaptured(result, context);
         if (destroyed || current !== session || !mode.active) return;
-        if (!stored) say('PNG 다운로드는 요청했지만 앨범 저장은 실패했어요. 이 기기에 파일을 저장해 주세요', { sticky: true });
+        if (!stored) say('앨범 저장은 실패했어요. 찍은 사진을 눌러 원본 PNG를 직접 저장해 주세요', { sticky: true });
         else { say('앨범에 저장했어요 · 최근 사진을 눌러 앨범 열기'); await refreshAlbumLatest(); }
       }
     } catch (error) {
