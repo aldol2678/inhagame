@@ -2,7 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   WORLD_VISUAL_PHASES,
+  baseWeatherForWorldSchedule,
   celestialPoseAtCycleSeconds,
+  rainEventForWorldSchedule,
   visualPhaseAtCycleSeconds,
   weatherForWorldSchedule
 } from '../src/environment/environment-world-cycle.js';
@@ -42,18 +44,73 @@ test('sun and moon follow opposite continuous orbits over the shared cycle', () 
   assert.equal(noon.sunEuler[0], 30);
 });
 
-test('weather selection is deterministic, period-aware and never auto-selects snow', () => {
-  const schedule = { slot: 12345, period: 'morning' };
-  assert.equal(weatherForWorldSchedule(schedule), weatherForWorldSchedule(schedule));
+test('base weather is deterministic, period-aware and never auto-selects rain or snow', () => {
+  const schedule = { slot: 12345, period: 'morning', offsetSeconds: 0 };
+  assert.equal(baseWeatherForWorldSchedule(schedule), baseWeatherForWorldSchedule(schedule));
 
   const seen = new Set();
   for (let slot = 0; slot < 500; slot++) {
     for (const period of ['morning', 'class_time', 'lunch', 'evening', 'night']) {
-      const weather = weatherForWorldSchedule({ slot, period });
+      const weather = baseWeatherForWorldSchedule({ slot, period, offsetSeconds: 0 });
+      assert.notEqual(weather, 'RAIN');
       assert.notEqual(weather, 'SNOW');
-      assert.ok(['CLEAR', 'CLOUDY', 'FOG', 'RAIN'].includes(weather));
+      assert.ok(['CLEAR', 'CLOUDY', 'FOG'].includes(weather));
       seen.add(weather);
     }
   }
-  assert.deepEqual([...seen].sort(), ['CLEAR', 'CLOUDY', 'FOG', 'RAIN']);
+  assert.deepEqual([...seen].sort(), ['CLEAR', 'CLOUDY', 'FOG']);
+});
+
+test('rain occurs at deterministic random offsets for 3 to 7 minutes, with cloudy shoulders', () => {
+  let sample = null;
+  for (let slot = 0; slot < 1000 && !sample; slot++) {
+    for (const period of ['morning', 'class_time', 'lunch', 'evening', 'night']) {
+      const schedule = { slot, period, offsetSeconds: 0 };
+      const event = rainEventForWorldSchedule(schedule);
+      if (event.occurs) sample = { schedule, event };
+    }
+  }
+
+  assert.ok(sample, 'expected at least one deterministic rain event');
+  const { schedule, event } = sample;
+  assert.ok(event.durationSeconds >= minute(3));
+  assert.ok(event.durationSeconds <= minute(7));
+  assert.ok(event.startSeconds >= minute(1));
+  assert.ok(event.endSeconds <= minute(14));
+
+  const same = rainEventForWorldSchedule(schedule);
+  assert.equal(same.startSeconds, event.startSeconds);
+  assert.equal(same.durationSeconds, event.durationSeconds);
+
+  const lead = {
+    ...schedule,
+    offsetSeconds: Math.max(0, event.startSeconds - 1)
+  };
+  const active = {
+    ...schedule,
+    offsetSeconds: event.startSeconds + Math.min(30, Math.max(0, event.durationSeconds - 1))
+  };
+  const trail = {
+    ...schedule,
+    offsetSeconds: event.endSeconds
+  };
+
+  assert.equal(weatherForWorldSchedule(lead), 'CLOUDY');
+  assert.equal(weatherForWorldSchedule(active), 'RAIN');
+  assert.equal(weatherForWorldSchedule(trail), 'CLOUDY');
+});
+
+test('rain events appear across all world periods and never occupy the full 15-minute period', () => {
+  const periods = ['morning', 'class_time', 'lunch', 'evening', 'night'];
+  for (const period of periods) {
+    let found = null;
+    for (let slot = 0; slot < 5000 && !found; slot++) {
+      const event = rainEventForWorldSchedule({ slot, period, offsetSeconds: 0 });
+      if (event.occurs) found = event;
+    }
+    assert.ok(found, `expected rain event for ${period}`);
+    assert.ok(found.startSeconds > 0);
+    assert.ok(found.endSeconds < minute(15));
+    assert.ok(found.durationSeconds < minute(15));
+  }
 });
