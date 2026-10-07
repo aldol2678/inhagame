@@ -31,7 +31,8 @@ export function bindPhotoModeEntry({ button, mode, messages = PHOTO_ENTRY_BLOCK_
 export function createPhotoModePanel({ mode, rig, input, doc = globalThis.document, win = globalThis.window,
   fallbackFocus = null, capture = null, urlApi = globalThis.URL,
   coarsePointer = () => win?.matchMedia?.('(pointer: coarse)')?.matches === true,
-  setTimer = globalThis.setTimeout, clearTimer = globalThis.clearTimeout } = {}) {
+  setTimer = globalThis.setTimeout, clearTimer = globalThis.clearTimeout,
+  getCaptureContext = () => ({}), onCaptured = null, getAlbumLatest = null, onOpenAlbum = null } = {}) {
   const el = (tag, cls, text) => { const n = doc.createElement(tag); n.className = cls; if (text) n.textContent = text; return n; };
   const button = (cls, name, text, label) => {
     const n = el('button', cls, text); n.type = 'button'; n.dataset.photoControl = name;
@@ -107,6 +108,7 @@ export function createPhotoModePanel({ mode, rig, input, doc = globalThis.docume
   input?.bindHoldButton(down, -1);
 
   let savedHud, savedFocus = null, destroyed = false, session = 0, busy = false, imageUrl = null, statusTimer = null;
+  let albumUrl = null, albumRecord = null;
   const initialStatus = () => !capture ? '기기의 화면 캡처로 남겨 보세요 · Esc로 나가기'
     : coarsePointer() ? '촬영 버튼을 누르면 HUD 없는 PNG를 저장해요' : '촬영 버튼이나 Space로 HUD 없는 PNG를 저장해요';
   const visible = node => !node.hidden && !node.disabled && (node.getClientRects ? node.getClientRects().length > 0 : true);
@@ -133,6 +135,19 @@ export function createPhotoModePanel({ mode, rig, input, doc = globalThis.docume
     image.removeAttribute('src'); thumb.removeAttribute('src'); hidePreview(); preview.hidden = true;
     if (imageUrl) urlApi.revokeObjectURL(imageUrl);
     imageUrl = null;
+    if (albumUrl) urlApi.revokeObjectURL(albumUrl);
+    albumUrl = null; albumRecord = null;
+  }
+  async function refreshAlbumLatest() {
+    if (!getAlbumLatest) return;
+    const current = session;
+    try {
+      const latest = await getAlbumLatest();
+      if (destroyed || current !== session || !mode.active || !latest?.blob) return;
+      if (albumUrl) urlApi.revokeObjectURL(albumUrl);
+      albumUrl = urlApi.createObjectURL(latest.blob); albumRecord = latest.record;
+      thumb.src = albumUrl; preview.hidden = false;
+    } catch { /* Album errors are reported by the Album surface, never block photography. */ }
   }
   function resetCapture() { session++; capture?.cancel(); setBusy(false); clearImage(); }
   function syncLens() {
@@ -176,7 +191,7 @@ export function createPhotoModePanel({ mode, rig, input, doc = globalThis.docume
   }
   async function shoot() {
     if (!capture || busy || destroyed || !mode.update()) return;
-    const current = session; clearImage(); setBusy(true); say('HUD 없는 PNG를 만들고 있어요…', { sticky: true });
+    const current = session, context = getCaptureContext(); clearImage(); setBusy(true); say('HUD 없는 PNG를 만들고 있어요…', { sticky: true });
     try {
       const result = await capture.request();
       if (destroyed || current !== session || !mode.update()) return;
@@ -194,6 +209,12 @@ export function createPhotoModePanel({ mode, rig, input, doc = globalThis.docume
         } catch {
           say('PNG 다운로드가 막혔어요. 찍은 사진을 눌러 직접 저장해 주세요', { sticky: true });
         } finally { link.remove(); }
+      }
+      if (onCaptured) {
+        const stored = await onCaptured(result, context);
+        if (destroyed || current !== session || !mode.active) return;
+        if (!stored) say('PNG 다운로드는 요청했지만 앨범 저장은 실패했어요. 이 기기에 파일을 저장해 주세요', { sticky: true });
+        else { say('앨범에 저장했어요 · 최근 사진을 눌러 앨범 열기'); await refreshAlbumLatest(); }
       }
     } catch (error) {
       if (current === session && !destroyed && mode.active && error?.name !== 'AbortError')
@@ -222,6 +243,7 @@ export function createPhotoModePanel({ mode, rig, input, doc = globalThis.docume
 
   shutter.addEventListener('click', () => { void shoot(); });
   preview.addEventListener('click', () => {
+    if (albumRecord && onOpenAlbum) { onOpenAlbum(albumRecord); return; }
     if (!imageUrl || !mode.update()) return;
     imageBox.hidden = !imageBox.hidden;
     preview.setAttribute('aria-expanded', String(!imageBox.hidden));
@@ -257,6 +279,7 @@ export function createPhotoModePanel({ mode, rig, input, doc = globalThis.docume
       setGrid('off'); setSettings(false, { focus: false }); setUiHidden(false, { focus: false });
       precisionBadge.hidden = true;
       say(initialStatus());
+      void refreshAlbumLatest();
       (capture ? shutter : close).focus?.({ preventScroll: true });
     } else {
       const ownedFocus = root.contains(doc.activeElement);
