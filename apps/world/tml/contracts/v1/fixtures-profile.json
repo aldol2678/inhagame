@@ -1,0 +1,184 @@
+{
+  "schema": "tml.profile",
+  "version": "1.0",
+  "id": "inha.world.v1.fixture",
+  "definition": {
+    "sources": [
+      {
+        "id": "host.evaluator",
+        "roles": [
+          "EVALUATOR"
+        ]
+      },
+      {
+        "id": "server.progression",
+        "roles": [
+          "SNAPSHOT_READER"
+        ]
+      },
+      {
+        "id": "server.quest",
+        "roles": [
+          "SNAPSHOT_READER"
+        ]
+      },
+      {
+        "id": "server.reward",
+        "roles": [
+          "TRANSACTION_AUTHORITY"
+        ]
+      },
+      {
+        "id": "server.wallet",
+        "roles": [
+          "SNAPSHOT_READER"
+        ]
+      },
+      {
+        "id": "worldforge",
+        "roles": [
+          "ARTIFACT_AUTHOR"
+        ]
+      }
+    ],
+    "predicates": [
+      {
+        "id": "exp.total",
+        "valueType": "integer",
+        "sources": [
+          "server.progression"
+        ]
+      },
+      {
+        "id": "quest.optional",
+        "valueType": "null",
+        "sources": [
+          "server.quest"
+        ]
+      },
+      {
+        "id": "quest.stage",
+        "valueType": "integer",
+        "sources": [
+          "server.quest"
+        ]
+      },
+      {
+        "id": "wallet.balance",
+        "valueType": "integer",
+        "sources": [
+          "server.wallet"
+        ]
+      }
+    ],
+    "capabilities": [
+      {
+        "id": "world.quest.advance",
+        "source": "server.reward",
+        "targetType": "quest",
+        "rewardRequired": true,
+        "allowedOutcomes": [
+          "APPLIED",
+          "SKIPPED"
+        ]
+      }
+    ],
+    "rewards": [
+      {
+        "capability": "world.quest.advance",
+        "reward": {
+          "id": "reward.quest.navigation_intro",
+          "version": "1"
+        },
+        "effects": [
+          {
+            "entryId": "grant:coin",
+            "ledger": "wallet",
+            "target": {
+              "type": "currency",
+              "id": "currency.induck_coin"
+            },
+            "effect": "ADD",
+            "requested": "180",
+            "applied": "180",
+            "allowedOutcome": "APPLIED"
+          },
+          {
+            "entryId": "grant:exp",
+            "ledger": "exp",
+            "target": {
+              "type": "progression",
+              "id": "exp.campus"
+            },
+            "effect": "ADD",
+            "requested": "100",
+            "applied": "100",
+            "allowedOutcome": "APPLIED"
+          }
+        ]
+      }
+    ],
+    "preconditions": [
+      {
+        "schema": "tml.claim-template",
+        "version": "1.0",
+        "id": "template:present",
+        "expr": {
+          "op": "exists",
+          "subject": {
+            "type": "quest",
+            "id": "quest:main2:A"
+          },
+          "predicate": "quest.stage"
+        }
+      },
+      {
+        "schema": "tml.claim-template",
+        "version": "1.0",
+        "id": "template:stage8",
+        "expr": {
+          "op": "eq",
+          "subject": {
+            "type": "quest",
+            "id": "quest:main2:A"
+          },
+          "predicate": "quest.stage",
+          "value": {
+            "type": "integer",
+            "value": "8"
+          }
+        }
+      }
+    ],
+    "streams": [
+      {
+        "source": "server.progression",
+        "stream": "exp:campus:A",
+        "target": {
+          "type": "progression",
+          "id": "exp.campus"
+        },
+        "includesPriorEffects": true
+      },
+      {
+        "source": "server.quest",
+        "stream": "quest:main2:A",
+        "target": {
+          "type": "quest",
+          "id": "quest:main2:A"
+        },
+        "includesPriorEffects": false
+      },
+      {
+        "source": "server.wallet",
+        "stream": "wallet:coin:A",
+        "target": {
+          "type": "currency",
+          "id": "currency.induck_coin"
+        },
+        "includesPriorEffects": true
+      }
+    ]
+  },
+  "revision": "sha256:d1688df3b952b56e8d9a21b409f64b9a6982ca9b4980dce8d9407bc3cfc35072"
+}

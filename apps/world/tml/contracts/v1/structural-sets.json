@@ -1,0 +1,310 @@
+{
+  "version": "1.0",
+  "sets": [
+    {
+      "schema": "tml.receipt",
+      "path": "/postState",
+      "sortKey": [
+        "id"
+      ],
+      "duplicateKey": [
+        "id"
+      ],
+      "comparison": "ASCII tuple; revision components exact U64 numeric",
+      "duplicateReason": "DUPLICATE_SET_MEMBER"
+    },
+    {
+      "schema": "tml.evidence",
+      "path": "/observations",
+      "sortKey": [
+        "id"
+      ],
+      "duplicateKey": [
+        "id"
+      ],
+      "comparison": "ASCII tuple; revision components exact U64 numeric",
+      "duplicateReason": "DUPLICATE_SET_MEMBER"
+    },
+    {
+      "schema": "tml.evidence",
+      "path": "/facts",
+      "sortKey": [
+        "id"
+      ],
+      "duplicateKey": [
+        "id"
+      ],
+      "comparison": "ASCII tuple; revision components exact U64 numeric",
+      "duplicateReason": "DUPLICATE_SET_MEMBER"
+    },
+    {
+      "schema": "tml.evidence",
+      "path": "/receipts",
+      "sortKey": [
+        "id"
+      ],
+      "duplicateKey": [
+        "id"
+      ],
+      "comparison": "ASCII tuple; revision components exact U64 numeric",
+      "duplicateReason": "DUPLICATE_SET_MEMBER"
+    },
+    {
+      "schema": "tml.observation",
+      "path": "/facts",
+      "sortKey": [
+        "id"
+      ],
+      "duplicateKey": [
+        "id"
+      ],
+      "comparison": "ASCII tuple; revision components exact U64 numeric",
+      "duplicateReason": "DUPLICATE_SET_MEMBER"
+    },
+    {
+      "schema": "tml.execution",
+      "path": "/receipts",
+      "sortKey": [
+        "id"
+      ],
+      "duplicateKey": [
+        "id"
+      ],
+      "comparison": "ASCII tuple; revision components exact U64 numeric",
+      "duplicateReason": "DUPLICATE_SET_MEMBER"
+    },
+    {
+      "schema": "request",
+      "path": "/preconditions",
+      "sortKey": [
+        "id"
+      ],
+      "duplicateKey": [
+        "id"
+      ],
+      "comparison": "ASCII tuple; revision components exact U64 numeric",
+      "duplicateReason": "DUPLICATE_SET_MEMBER"
+    },
+    {
+      "schema": "fingerprint",
+      "path": "/preconditions",
+      "sortKey": [
+        "id"
+      ],
+      "duplicateKey": [
+        "id"
+      ],
+      "comparison": "ASCII tuple; revision components exact U64 numeric",
+      "duplicateReason": "DUPLICATE_SET_MEMBER"
+    },
+    {
+      "schema": "tml.receipt",
+      "path": "/entries",
+      "sortKey": [
+        "entryId"
+      ],
+      "duplicateKey": [
+        "entryId"
+      ],
+      "comparison": "ASCII tuple; revision components exact U64 numeric",
+      "duplicateReason": "DUPLICATE_ENTRY"
+    },
+    {
+      "schema": "tml.claim",
+      "path": "/body/expectedEffects",
+      "sortKey": [
+        "entryId"
+      ],
+      "duplicateKey": [
+        "entryId"
+      ],
+      "comparison": "ASCII tuple; revision components exact U64 numeric",
+      "duplicateReason": "DUPLICATE_ENTRY"
+    },
+    {
+      "schema": "tml.claim",
+      "path": "/body/entryIds",
+      "sortKey": [
+        "$"
+      ],
+      "duplicateKey": [
+        "$"
+      ],
+      "comparison": "ASCII tuple; revision components exact U64 numeric",
+      "duplicateReason": "DUPLICATE_SET_MEMBER"
+    },
+    {
+      "schema": "tml.observation",
+      "path": "/query/predicates",
+      "sortKey": [
+        "$"
+      ],
+      "duplicateKey": [
+        "$"
+      ],
+      "comparison": "ASCII tuple; revision components exact U64 numeric",
+      "duplicateReason": "DUPLICATE_SET_MEMBER"
+    },
+    {
+      "schema": "tml.evidence",
+      "path": "/frame/snapshots",
+      "sortKey": [
+        "source",
+        "stream",
+        "epoch",
+        "revision"
+      ],
+      "duplicateKey": [
+        "source",
+        "stream",
+        "epoch",
+        "revision"
+      ],
+      "comparison": "ASCII tuple; revision components exact U64 numeric",
+      "duplicateReason": "DUPLICATE_SET_MEMBER"
+    },
+    {
+      "schema": "bundle",
+      "path": "/records",
+      "sortKey": [
+        "id"
+      ],
+      "duplicateKey": [
+        "id"
+      ],
+      "comparison": "ASCII tuple; revision components exact U64 numeric",
+      "duplicateReason": "DUPLICATE_SET_MEMBER"
+    },
+    {
+      "schema": "tml.profile",
+      "path": "/definition/sources",
+      "sortKey": [
+        "id"
+      ],
+      "duplicateKey": [
+        "id"
+      ],
+      "comparison": "ASCII tuple; revision components exact U64 numeric",
+      "duplicateReason": "DUPLICATE_SET_MEMBER"
+    },
+    {
+      "schema": "tml.profile",
+      "path": "/definition/sources/*/roles",
+      "sortKey": [
+        "$"
+      ],
+      "duplicateKey": [
+        "$"
+      ],
+      "comparison": "ASCII tuple; revision components exact U64 numeric",
+      "duplicateReason": "DUPLICATE_SET_MEMBER"
+    },
+    {
+      "schema": "tml.profile",
+      "path": "/definition/predicates",
+      "sortKey": [
+        "id"
+      ],
+      "duplicateKey": [
+        "id"
+      ],
+      "comparison": "ASCII tuple; revision components exact U64 numeric",
+      "duplicateReason": "DUPLICATE_SET_MEMBER"
+    },
+    {
+      "schema": "tml.profile",
+      "path": "/definition/predicates/*/sources",
+      "sortKey": [
+        "$"
+      ],
+      "duplicateKey": [
+        "$"
+      ],
+      "comparison": "ASCII tuple; revision components exact U64 numeric",
+      "duplicateReason": "DUPLICATE_SET_MEMBER"
+    },
+    {
+      "schema": "tml.profile",
+      "path": "/definition/capabilities",
+      "sortKey": [
+        "id"
+      ],
+      "duplicateKey": [
+        "id"
+      ],
+      "comparison": "ASCII tuple; revision components exact U64 numeric",
+      "duplicateReason": "DUPLICATE_SET_MEMBER"
+    },
+    {
+      "schema": "tml.profile",
+      "path": "/definition/capabilities/*/allowedOutcomes",
+      "sortKey": [
+        "$"
+      ],
+      "duplicateKey": [
+        "$"
+      ],
+      "comparison": "ASCII tuple; revision components exact U64 numeric",
+      "duplicateReason": "DUPLICATE_SET_MEMBER"
+    },
+    {
+      "schema": "tml.profile",
+      "path": "/definition/rewards",
+      "sortKey": [
+        "capability",
+        "reward.id",
+        "reward.version"
+      ],
+      "duplicateKey": [
+        "capability",
+        "reward.id",
+        "reward.version"
+      ],
+      "comparison": "ASCII tuple; revision components exact U64 numeric",
+      "duplicateReason": "DUPLICATE_SET_MEMBER"
+    },
+    {
+      "schema": "tml.profile",
+      "path": "/definition/rewards/*/effects",
+      "sortKey": [
+        "entryId"
+      ],
+      "duplicateKey": [
+        "entryId"
+      ],
+      "comparison": "ASCII tuple; revision components exact U64 numeric",
+      "duplicateReason": "DUPLICATE_SET_MEMBER"
+    },
+    {
+      "schema": "tml.profile",
+      "path": "/definition/preconditions",
+      "sortKey": [
+        "id"
+      ],
+      "duplicateKey": [
+        "id"
+      ],
+      "comparison": "ASCII tuple; revision components exact U64 numeric",
+      "duplicateReason": "DUPLICATE_SET_MEMBER"
+    },
+    {
+      "schema": "tml.profile",
+      "path": "/definition/streams",
+      "sortKey": [
+        "source",
+        "stream"
+      ],
+      "duplicateKey": [
+        "source",
+        "stream"
+      ],
+      "comparison": "ASCII tuple; revision components exact U64 numeric",
+      "duplicateReason": "DUPLICATE_SET_MEMBER"
+    }
+  ],
+  "ordered": [
+    "TypedValue.list.value",
+    "Expr.args",
+    "all arrays not explicitly registered"
+  ]
+}

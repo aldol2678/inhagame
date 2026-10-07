@@ -1,0 +1,1922 @@
+{
+  "schema": "tml.conformance-corpus.design",
+  "version": "1.0-draft",
+  "baselineCommit": "84448a7285bfda56aa466b5bf6f1ce374a584e14",
+  "notes": [
+    "This is a proposed corpus, not an implemented TML runtime.",
+    "Canonical cases have exact UTF-8 text and domain-separated SHA-256 oracles.",
+    "Scenario fixture patches use JSON Patch; rebuild derived Ref digests after semantic patches. The explicit request-fingerprint-mismatch case MUST retain the changed fingerprint.",
+    "Host admission is a harness operation, never a trusted=true field in submitted records.",
+    "Evidence/bridge scenarios describe minimal deterministic harness state; expand to full record bundles in PR1.",
+    "Scope-invalid input must be rejected before truth-table short-circuiting.",
+    "Execution UNKNOWN/RECOVERABLE are lookup knowledge states, not overwritten server commit states.",
+    "Typed-comparison cases exercise primitive semantic helpers. Full Claim evaluation MUST enforce pinned predicate types before these helpers.",
+    "Normalize declared structural set arrays before hashing: entries/expectedEffects by entryId, Ref sets by id, snapshot frames by tuple. Generic Value.list and expression.args remain ordered.",
+    "Baseline includes P9 browser shadow mode. Its MATCH/MISMATCH records are diagnostics and MUST NOT become admitted v1 runtime Evidence automatically."
+  ],
+  "fixtures": {
+    "base": {
+      "profileArtifact": {
+        "id": "inha.world.v1.fixture",
+        "sources": [
+          "server.quest",
+          "server.reward",
+          "server.wallet",
+          "server.progression"
+        ],
+        "note": "Synthetic contract test profile; no production policy"
+      },
+      "request": {
+        "version": "1.0",
+        "profile": {
+          "id": "inha.world.v1.fixture",
+          "revision": "sha256:59db28da61488e49c8156eec5ea2f8983b9da651b3250be8846b250f93e9fca7"
+        },
+        "scope": {
+          "tenantId": "tenant:test",
+          "worldId": "world:test",
+          "principal": {
+            "kind": "account",
+            "id": "account:A"
+          },
+          "executionId": "execution:1"
+        },
+        "capability": "world.quest.advance",
+        "args": {
+          "event": {
+            "type": "string",
+            "value": "visit_back_gate"
+          }
+        },
+        "target": {
+          "type": "quest",
+          "id": "quest:main2:A"
+        },
+        "preconditions": [],
+        "expectedReward": {
+          "id": "reward.quest.navigation_intro",
+          "version": "1"
+        },
+        "idempotencyKey": "idem:1"
+      },
+      "fingerprintPayload": {
+        "version": "1.0",
+        "profile": {
+          "id": "inha.world.v1.fixture",
+          "revision": "sha256:59db28da61488e49c8156eec5ea2f8983b9da651b3250be8846b250f93e9fca7"
+        },
+        "scope": {
+          "tenantId": "tenant:test",
+          "worldId": "world:test",
+          "principal": {
+            "kind": "account",
+            "id": "account:A"
+          }
+        },
+        "capability": "world.quest.advance",
+        "args": {
+          "event": {
+            "type": "string",
+            "value": "visit_back_gate"
+          }
+        },
+        "target": {
+          "type": "quest",
+          "id": "quest:main2:A"
+        },
+        "preconditions": [],
+        "expectedReward": {
+          "id": "reward.quest.navigation_intro",
+          "version": "1"
+        }
+      },
+      "requestFingerprint": "sha256:c765110c2c7a6d3030346b9d74cc608c2f9787a7ecd47adcecce9fa8c553dd5d",
+      "receipt": {
+        "schema": "tml.receipt",
+        "version": "1.0",
+        "id": "receipt:1",
+        "profile": {
+          "id": "inha.world.v1.fixture",
+          "revision": "sha256:59db28da61488e49c8156eec5ea2f8983b9da651b3250be8846b250f93e9fca7"
+        },
+        "scope": {
+          "tenantId": "tenant:test",
+          "worldId": "world:test",
+          "principal": {
+            "kind": "account",
+            "id": "account:A"
+          },
+          "executionId": "execution:1"
+        },
+        "source": "server.reward",
+        "transactionId": "transaction:reward:1",
+        "requestFingerprint": "sha256:c765110c2c7a6d3030346b9d74cc608c2f9787a7ecd47adcecce9fa8c553dd5d",
+        "capability": "world.quest.advance",
+        "target": {
+          "type": "quest",
+          "id": "quest:main2:A"
+        },
+        "reward": {
+          "id": "reward.quest.navigation_intro",
+          "version": "1"
+        },
+        "committedAt": "2026-10-03T03:00:00.000001Z",
+        "entries": [
+          {
+            "entryId": "grant:coin",
+            "ledger": "wallet",
+            "target": {
+              "type": "currency",
+              "id": "currency.induck_coin"
+            },
+            "effect": "ADD",
+            "requested": "180",
+            "applied": "180",
+            "outcome": "APPLIED",
+            "transactionId": "transaction:wallet:1",
+            "after": {
+              "source": "server.wallet",
+              "stream": "wallet:coin:A",
+              "epoch": "epoch:1",
+              "revision": "42"
+            }
+          },
+          {
+            "entryId": "grant:exp",
+            "ledger": "exp",
+            "target": {
+              "type": "progression",
+              "id": "exp.campus"
+            },
+            "effect": "ADD",
+            "requested": "100",
+            "applied": "100",
+            "outcome": "APPLIED",
+            "transactionId": "transaction:exp:1",
+            "after": {
+              "source": "server.progression",
+              "stream": "exp:campus:A",
+              "epoch": "epoch:1",
+              "revision": "9"
+            }
+          }
+        ],
+        "postState": []
+      },
+      "claim": {
+        "schema": "tml.claim",
+        "version": "1.0",
+        "id": "claim:settlement:1",
+        "profile": {
+          "id": "inha.world.v1.fixture",
+          "revision": "sha256:59db28da61488e49c8156eec5ea2f8983b9da651b3250be8846b250f93e9fca7"
+        },
+        "scope": {
+          "tenantId": "tenant:test",
+          "worldId": "world:test",
+          "principal": {
+            "kind": "account",
+            "id": "account:A"
+          },
+          "executionId": "execution:1"
+        },
+        "body": {
+          "kind": "SETTLEMENT",
+          "expectedReward": {
+            "id": "reward.quest.navigation_intro",
+            "version": "1"
+          },
+          "expectedEffects": [
+            {
+              "entryId": "grant:coin",
+              "ledger": "wallet",
+              "target": {
+                "type": "currency",
+                "id": "currency.induck_coin"
+              },
+              "effect": "ADD",
+              "requested": "180",
+              "applied": "180",
+              "allowedOutcome": "APPLIED"
+            },
+            {
+              "entryId": "grant:exp",
+              "ledger": "exp",
+              "target": {
+                "type": "progression",
+                "id": "exp.campus"
+              },
+              "effect": "ADD",
+              "requested": "100",
+              "applied": "100",
+              "allowedOutcome": "APPLIED"
+            }
+          ],
+          "effectSet": "EXACT"
+        }
+      },
+      "evidence": {
+        "schema": "tml.evidence",
+        "version": "1.0",
+        "id": "evidence:1",
+        "profile": {
+          "id": "inha.world.v1.fixture",
+          "revision": "sha256:59db28da61488e49c8156eec5ea2f8983b9da651b3250be8846b250f93e9fca7"
+        },
+        "scope": {
+          "tenantId": "tenant:test",
+          "worldId": "world:test",
+          "principal": {
+            "kind": "account",
+            "id": "account:A"
+          },
+          "executionId": "execution:1"
+        },
+        "claim": {
+          "id": "claim:settlement:1",
+          "digest": "sha256:5cc773a9d2d720234dfc261a97f557ecfed7f7fd94a7e82b1e21db14d2df0af4"
+        },
+        "frame": {
+          "phase": "POST",
+          "snapshots": []
+        },
+        "observations": [],
+        "facts": [],
+        "receipts": [
+          {
+            "id": "receipt:1",
+            "digest": "sha256:e9f9df03b0e6c62f00bf21fcbae7cc246714f136e32cd67704caacd4175b61d3"
+          }
+        ]
+      },
+      "hostContext": {
+        "expectedScope": {
+          "tenantId": "tenant:test",
+          "worldId": "world:test",
+          "principal": {
+            "kind": "account",
+            "id": "account:A"
+          },
+          "executionId": "execution:1"
+        },
+        "pinnedProfile": {
+          "id": "inha.world.v1.fixture",
+          "revision": "sha256:59db28da61488e49c8156eec5ea2f8983b9da651b3250be8846b250f93e9fca7"
+        },
+        "admittedSources": [
+          "server.reward",
+          "server.wallet",
+          "server.progression",
+          "server.quest"
+        ],
+        "streamSemantics": "All revisions are monotonic within epoch and include every earlier committed effect",
+        "minimumWalletRevision": "42"
+      },
+      "projection": {
+        "snapshot": {
+          "source": "server.wallet",
+          "stream": "wallet:coin:A",
+          "epoch": "epoch:1",
+          "revision": "43"
+        },
+        "balance": "230",
+        "beforeRewardBalance": "100",
+        "concurrentPurchaseDelta": "-50"
+      }
+    }
+  },
+  "cases": [
+    {
+      "id": "C01-object-order-a",
+      "category": "canonical",
+      "input": {
+        "rawJson": "{\"type\":\"object\",\"value\":{\"b\":{\"type\":\"integer\",\"value\":\"2\"},\"a\":{\"type\":\"integer\",\"value\":\"1\"}}}"
+      },
+      "expected": {
+        "valid": true,
+        "canonicalUtf8": "{\"type\":\"object\",\"value\":{\"a\":{\"type\":\"integer\",\"value\":\"1\"},\"b\":{\"type\":\"integer\",\"value\":\"2\"}}}",
+        "sha256": "sha256:1492e092a7353ba4905281775daf28162ea0741a3d1fe9004bf1aabc206dfc8c"
+      }
+    },
+    {
+      "id": "C02-object-order-b",
+      "category": "canonical",
+      "input": {
+        "rawJson": "{\"value\":{\"a\":{\"value\":\"1\",\"type\":\"integer\"},\"b\":{\"value\":\"2\",\"type\":\"integer\"}},\"type\":\"object\"}"
+      },
+      "expected": {
+        "valid": true,
+        "canonicalUtf8": "{\"type\":\"object\",\"value\":{\"a\":{\"type\":\"integer\",\"value\":\"1\"},\"b\":{\"type\":\"integer\",\"value\":\"2\"}}}",
+        "sha256": "sha256:1492e092a7353ba4905281775daf28162ea0741a3d1fe9004bf1aabc206dfc8c"
+      }
+    },
+    {
+      "id": "C03-number-one",
+      "category": "canonical",
+      "input": {
+        "rawJson": "{\"type\":\"number\",\"value\":1.0}"
+      },
+      "expected": {
+        "valid": true,
+        "canonicalUtf8": "{\"type\":\"number\",\"value\":1}",
+        "sha256": "sha256:883e0440bf61491fbaaaa23e6ddfc7509a07d1290eaeaeb963ea07717dc79b13"
+      }
+    },
+    {
+      "id": "C04-number-exponent",
+      "category": "canonical",
+      "input": {
+        "rawJson": "{\"type\":\"number\",\"value\":1e0}"
+      },
+      "expected": {
+        "valid": true,
+        "canonicalUtf8": "{\"type\":\"number\",\"value\":1}",
+        "sha256": "sha256:883e0440bf61491fbaaaa23e6ddfc7509a07d1290eaeaeb963ea07717dc79b13"
+      }
+    },
+    {
+      "id": "C05-negative-zero",
+      "category": "canonical",
+      "input": {
+        "rawJson": "{\"type\":\"number\",\"value\":-0}"
+      },
+      "expected": {
+        "valid": true,
+        "canonicalUtf8": "{\"type\":\"number\",\"value\":0}",
+        "sha256": "sha256:8890a11972dc6db5aaecf8c3af3c67814afa04afa1a58a666e0c70e0a481909a"
+      }
+    },
+    {
+      "id": "C06-small",
+      "category": "canonical",
+      "input": {
+        "rawJson": "{\"type\":\"number\",\"value\":1e-7}"
+      },
+      "expected": {
+        "valid": true,
+        "canonicalUtf8": "{\"type\":\"number\",\"value\":1e-7}",
+        "sha256": "sha256:2435ed398af161084b799606156c735f6991dcf26e1610bd5eac4d23fbe6b70a"
+      }
+    },
+    {
+      "id": "C07-decimal-boundary",
+      "category": "canonical",
+      "input": {
+        "rawJson": "{\"type\":\"number\",\"value\":0.000001}"
+      },
+      "expected": {
+        "valid": true,
+        "canonicalUtf8": "{\"type\":\"number\",\"value\":0.000001}",
+        "sha256": "sha256:de90a6fd1c6b959d53cbd0f5d0fd75510c824c0a6dc0829e765d9b4c9ed2d2db"
+      }
+    },
+    {
+      "id": "C08-rounding",
+      "category": "canonical",
+      "input": {
+        "rawJson": "{\"type\":\"number\",\"value\":333333333.33333329}"
+      },
+      "expected": {
+        "valid": true,
+        "canonicalUtf8": "{\"type\":\"number\",\"value\":333333333.3333333}",
+        "sha256": "sha256:2e186764a35eda20c504a5695e41fa5af80faedd1061dbed040f81e89a93b895"
+      }
+    },
+    {
+      "id": "C09-subnormal",
+      "category": "canonical",
+      "input": {
+        "rawJson": "{\"type\":\"number\",\"value\":5e-324}"
+      },
+      "expected": {
+        "valid": true,
+        "canonicalUtf8": "{\"type\":\"number\",\"value\":5e-324}",
+        "sha256": "sha256:c3e5d157534edc14b624de3640ae0022625326e8f7047db8ac81fd5ad7a937a3"
+      }
+    },
+    {
+      "id": "C10-i64-max",
+      "category": "canonical",
+      "input": {
+        "rawJson": "{\"type\": \"integer\", \"value\": \"9223372036854775807\"}"
+      },
+      "expected": {
+        "valid": true,
+        "canonicalUtf8": "{\"type\":\"integer\",\"value\":\"9223372036854775807\"}",
+        "sha256": "sha256:7eb529dfad672ae05dc7e0c3cd385da190b537675a79d74aa0fe2238761a9bf0"
+      }
+    },
+    {
+      "id": "C11-i64-min",
+      "category": "canonical",
+      "input": {
+        "rawJson": "{\"type\": \"integer\", \"value\": \"-9223372036854775808\"}"
+      },
+      "expected": {
+        "valid": true,
+        "canonicalUtf8": "{\"type\":\"integer\",\"value\":\"-9223372036854775808\"}",
+        "sha256": "sha256:288ef7fe93b7069dbfcab6f037068a8363f9ba5968aadf053098452e318e64f0"
+      }
+    },
+    {
+      "id": "C12-utf16-key-order",
+      "category": "canonical",
+      "input": {
+        "rawJson": "{\"type\": \"object\", \"value\": {\"\": {\"type\": \"string\", \"value\": \"private\"}, \"😀\": {\"type\": \"string\", \"value\": \"emoji\"}}}"
+      },
+      "expected": {
+        "valid": true,
+        "canonicalUtf8": "{\"type\":\"object\",\"value\":{\"😀\":{\"type\":\"string\",\"value\":\"emoji\"},\"\":{\"type\":\"string\",\"value\":\"private\"}}}",
+        "sha256": "sha256:299840dab79f6f7a0db8fc6d4656dc96a6a5a378a262bc0fcc4de69d6723375c"
+      }
+    },
+    {
+      "id": "V01-duplicate-key",
+      "category": "decode",
+      "input": {
+        "rawJson": "{\"type\":\"string\",\"value\":\"a\",\"value\":\"b\"}"
+      },
+      "expected": {
+        "status": "INVALID",
+        "reason": "DUPLICATE_KEY"
+      }
+    },
+    {
+      "id": "V02-escaped-duplicate",
+      "category": "decode",
+      "input": {
+        "rawJson": "{\"a\":1,\"\\u0061\":2}"
+      },
+      "expected": {
+        "status": "INVALID",
+        "reason": "DUPLICATE_KEY"
+      }
+    },
+    {
+      "id": "V03-i64-overflow",
+      "category": "decode",
+      "input": {
+        "rawJson": "{\"type\":\"integer\",\"value\":\"9223372036854775808\"}"
+      },
+      "expected": {
+        "status": "INVALID",
+        "reason": "INTEGER_RANGE"
+      }
+    },
+    {
+      "id": "V04-integer-leading-zero",
+      "category": "decode",
+      "input": {
+        "rawJson": "{\"type\":\"integer\",\"value\":\"01\"}"
+      },
+      "expected": {
+        "status": "INVALID",
+        "reason": "INTEGER_ENCODING"
+      }
+    },
+    {
+      "id": "V05-integer-minus-zero",
+      "category": "decode",
+      "input": {
+        "rawJson": "{\"type\":\"integer\",\"value\":\"-0\"}"
+      },
+      "expected": {
+        "status": "INVALID",
+        "reason": "INTEGER_ENCODING"
+      }
+    },
+    {
+      "id": "V06-unsafe-number",
+      "category": "decode",
+      "input": {
+        "rawJson": "{\"type\":\"number\",\"value\":9007199254740993}"
+      },
+      "expected": {
+        "status": "INVALID",
+        "reason": "NUMBER_RANGE"
+      }
+    },
+    {
+      "id": "V07-number-overflow",
+      "category": "decode",
+      "input": {
+        "rawJson": "{\"type\":\"number\",\"value\":1e309}"
+      },
+      "expected": {
+        "status": "INVALID",
+        "reason": "NONFINITE_NUMBER"
+      }
+    },
+    {
+      "id": "V08-number-underflow",
+      "category": "decode",
+      "input": {
+        "rawJson": "{\"type\":\"number\",\"value\":1e-400}"
+      },
+      "expected": {
+        "status": "INVALID",
+        "reason": "NUMBER_UNDERFLOW"
+      }
+    },
+    {
+      "id": "V09-nan",
+      "category": "decode",
+      "input": {
+        "rawJson": "{\"type\":\"number\",\"value\":NaN}"
+      },
+      "expected": {
+        "status": "INVALID",
+        "reason": "INVALID_JSON"
+      }
+    },
+    {
+      "id": "V10-infinity",
+      "category": "decode",
+      "input": {
+        "rawJson": "{\"type\":\"number\",\"value\":Infinity}"
+      },
+      "expected": {
+        "status": "INVALID",
+        "reason": "INVALID_JSON"
+      }
+    },
+    {
+      "id": "V11-surrogate",
+      "category": "decode",
+      "input": {
+        "rawJson": "{\"type\":\"string\",\"value\":\"\\ud800\"}"
+      },
+      "expected": {
+        "status": "INVALID",
+        "reason": "INVALID_UNICODE"
+      }
+    },
+    {
+      "id": "V12-malformed-value",
+      "category": "decode",
+      "input": {
+        "rawJson": "{\"type\":\"string\",\"value\":123}"
+      },
+      "expected": {
+        "status": "INVALID",
+        "reason": "SCHEMA_VIOLATION"
+      }
+    },
+    {
+      "id": "V13-null-with-value",
+      "category": "decode",
+      "input": {
+        "rawJson": "{\"type\":\"null\",\"value\":null}"
+      },
+      "expected": {
+        "status": "INVALID",
+        "reason": "SCHEMA_VIOLATION"
+      }
+    },
+    {
+      "id": "V14-time-offset",
+      "category": "decode",
+      "input": {
+        "rawJson": "{\"type\":\"time\",\"value\":\"2026-10-03T12:00:00.000000+09:00\"}"
+      },
+      "expected": {
+        "status": "INVALID",
+        "reason": "TIME_ENCODING"
+      }
+    },
+    {
+      "id": "V15-time-millis",
+      "category": "decode",
+      "input": {
+        "rawJson": "{\"type\":\"time\",\"value\":\"2026-10-03T03:00:00.000Z\"}"
+      },
+      "expected": {
+        "status": "INVALID",
+        "reason": "TIME_ENCODING"
+      }
+    },
+    {
+      "id": "V16-invalid-date",
+      "category": "decode",
+      "input": {
+        "rawJson": "{\"type\":\"time\",\"value\":\"2026-02-30T03:00:00.000000Z\"}"
+      },
+      "expected": {
+        "status": "INVALID",
+        "reason": "TIME_ENCODING"
+      }
+    },
+    {
+      "id": "V17-leap-second",
+      "category": "decode",
+      "input": {
+        "rawJson": "{\"type\":\"time\",\"value\":\"2026-10-03T03:00:60.000000Z\"}"
+      },
+      "expected": {
+        "status": "INVALID",
+        "reason": "TIME_ENCODING"
+      }
+    },
+    {
+      "id": "E01-list-order",
+      "category": "typed-comparison",
+      "input": {
+        "op": "eq",
+        "left": {
+          "type": "list",
+          "value": [
+            {
+              "type": "integer",
+              "value": "1"
+            },
+            {
+              "type": "integer",
+              "value": "2"
+            }
+          ]
+        },
+        "right": {
+          "type": "list",
+          "value": [
+            {
+              "type": "integer",
+              "value": "2"
+            },
+            {
+              "type": "integer",
+              "value": "1"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "status": "UNSATISFIED"
+      }
+    },
+    {
+      "id": "E02-no-number-coercion",
+      "category": "typed-comparison",
+      "input": {
+        "op": "eq",
+        "left": {
+          "type": "integer",
+          "value": "1"
+        },
+        "right": {
+          "type": "number",
+          "value": 1
+        }
+      },
+      "expected": {
+        "status": "UNSATISFIED"
+      }
+    },
+    {
+      "id": "E03-no-unicode-normalization",
+      "category": "typed-comparison",
+      "input": {
+        "op": "eq",
+        "left": {
+          "type": "string",
+          "value": "é"
+        },
+        "right": {
+          "type": "string",
+          "value": "é"
+        }
+      },
+      "expected": {
+        "status": "UNSATISFIED"
+      }
+    },
+    {
+      "id": "E04-time-order",
+      "category": "typed-comparison",
+      "input": {
+        "op": "lt",
+        "left": {
+          "type": "time",
+          "value": "2026-10-03T03:00:00.000001Z"
+        },
+        "right": {
+          "type": "time",
+          "value": "2026-10-03T03:00:00.000002Z"
+        }
+      },
+      "expected": {
+        "status": "SATISFIED"
+      }
+    },
+    {
+      "id": "E05-string-order-forbidden",
+      "category": "typed-comparison",
+      "input": {
+        "op": "lt",
+        "left": {
+          "type": "string",
+          "value": "a"
+        },
+        "right": {
+          "type": "string",
+          "value": "b"
+        }
+      },
+      "expected": {
+        "status": "INVALID"
+      }
+    },
+    {
+      "id": "E06-int-precision",
+      "category": "typed-comparison",
+      "input": {
+        "op": "gt",
+        "left": {
+          "type": "integer",
+          "value": "9007199254740993"
+        },
+        "right": {
+          "type": "integer",
+          "value": "9007199254740992"
+        }
+      },
+      "expected": {
+        "status": "SATISFIED"
+      }
+    },
+    {
+      "id": "E07-ref-case",
+      "category": "typed-comparison",
+      "input": {
+        "op": "eq",
+        "left": {
+          "type": "ref",
+          "value": "world:A"
+        },
+        "right": {
+          "type": "ref",
+          "value": "world:a"
+        }
+      },
+      "expected": {
+        "status": "UNSATISFIED"
+      }
+    },
+    {
+      "id": "E08-null-equality",
+      "category": "typed-comparison",
+      "input": {
+        "op": "eq",
+        "left": {
+          "type": "null"
+        },
+        "right": {
+          "type": "null"
+        }
+      },
+      "expected": {
+        "status": "SATISFIED"
+      }
+    },
+    {
+      "id": "E09-mixed-number-order",
+      "category": "typed-comparison",
+      "input": {
+        "op": "lt",
+        "left": {
+          "type": "integer",
+          "value": "1"
+        },
+        "right": {
+          "type": "number",
+          "value": 2
+        }
+      },
+      "expected": {
+        "status": "INVALID"
+      }
+    },
+    {
+      "id": "L-and-SATISFIED-SATISFIED",
+      "category": "logic",
+      "input": {
+        "op": "and",
+        "children": [
+          "SATISFIED",
+          "SATISFIED"
+        ]
+      },
+      "expected": {
+        "status": "SATISFIED"
+      }
+    },
+    {
+      "id": "L-and-SATISFIED-UNSATISFIED",
+      "category": "logic",
+      "input": {
+        "op": "and",
+        "children": [
+          "SATISFIED",
+          "UNSATISFIED"
+        ]
+      },
+      "expected": {
+        "status": "UNSATISFIED"
+      }
+    },
+    {
+      "id": "L-and-SATISFIED-UNKNOWN",
+      "category": "logic",
+      "input": {
+        "op": "and",
+        "children": [
+          "SATISFIED",
+          "UNKNOWN"
+        ]
+      },
+      "expected": {
+        "status": "UNKNOWN"
+      }
+    },
+    {
+      "id": "L-and-SATISFIED-CONFLICT",
+      "category": "logic",
+      "input": {
+        "op": "and",
+        "children": [
+          "SATISFIED",
+          "CONFLICT"
+        ]
+      },
+      "expected": {
+        "status": "CONFLICT"
+      }
+    },
+    {
+      "id": "L-and-UNSATISFIED-SATISFIED",
+      "category": "logic",
+      "input": {
+        "op": "and",
+        "children": [
+          "UNSATISFIED",
+          "SATISFIED"
+        ]
+      },
+      "expected": {
+        "status": "UNSATISFIED"
+      }
+    },
+    {
+      "id": "L-and-UNSATISFIED-UNSATISFIED",
+      "category": "logic",
+      "input": {
+        "op": "and",
+        "children": [
+          "UNSATISFIED",
+          "UNSATISFIED"
+        ]
+      },
+      "expected": {
+        "status": "UNSATISFIED"
+      }
+    },
+    {
+      "id": "L-and-UNSATISFIED-UNKNOWN",
+      "category": "logic",
+      "input": {
+        "op": "and",
+        "children": [
+          "UNSATISFIED",
+          "UNKNOWN"
+        ]
+      },
+      "expected": {
+        "status": "UNSATISFIED"
+      }
+    },
+    {
+      "id": "L-and-UNSATISFIED-CONFLICT",
+      "category": "logic",
+      "input": {
+        "op": "and",
+        "children": [
+          "UNSATISFIED",
+          "CONFLICT"
+        ]
+      },
+      "expected": {
+        "status": "CONFLICT"
+      }
+    },
+    {
+      "id": "L-and-UNKNOWN-SATISFIED",
+      "category": "logic",
+      "input": {
+        "op": "and",
+        "children": [
+          "UNKNOWN",
+          "SATISFIED"
+        ]
+      },
+      "expected": {
+        "status": "UNKNOWN"
+      }
+    },
+    {
+      "id": "L-and-UNKNOWN-UNSATISFIED",
+      "category": "logic",
+      "input": {
+        "op": "and",
+        "children": [
+          "UNKNOWN",
+          "UNSATISFIED"
+        ]
+      },
+      "expected": {
+        "status": "UNSATISFIED"
+      }
+    },
+    {
+      "id": "L-and-UNKNOWN-UNKNOWN",
+      "category": "logic",
+      "input": {
+        "op": "and",
+        "children": [
+          "UNKNOWN",
+          "UNKNOWN"
+        ]
+      },
+      "expected": {
+        "status": "UNKNOWN"
+      }
+    },
+    {
+      "id": "L-and-UNKNOWN-CONFLICT",
+      "category": "logic",
+      "input": {
+        "op": "and",
+        "children": [
+          "UNKNOWN",
+          "CONFLICT"
+        ]
+      },
+      "expected": {
+        "status": "CONFLICT"
+      }
+    },
+    {
+      "id": "L-and-CONFLICT-SATISFIED",
+      "category": "logic",
+      "input": {
+        "op": "and",
+        "children": [
+          "CONFLICT",
+          "SATISFIED"
+        ]
+      },
+      "expected": {
+        "status": "CONFLICT"
+      }
+    },
+    {
+      "id": "L-and-CONFLICT-UNSATISFIED",
+      "category": "logic",
+      "input": {
+        "op": "and",
+        "children": [
+          "CONFLICT",
+          "UNSATISFIED"
+        ]
+      },
+      "expected": {
+        "status": "CONFLICT"
+      }
+    },
+    {
+      "id": "L-and-CONFLICT-UNKNOWN",
+      "category": "logic",
+      "input": {
+        "op": "and",
+        "children": [
+          "CONFLICT",
+          "UNKNOWN"
+        ]
+      },
+      "expected": {
+        "status": "CONFLICT"
+      }
+    },
+    {
+      "id": "L-and-CONFLICT-CONFLICT",
+      "category": "logic",
+      "input": {
+        "op": "and",
+        "children": [
+          "CONFLICT",
+          "CONFLICT"
+        ]
+      },
+      "expected": {
+        "status": "CONFLICT"
+      }
+    },
+    {
+      "id": "L-or-SATISFIED-SATISFIED",
+      "category": "logic",
+      "input": {
+        "op": "or",
+        "children": [
+          "SATISFIED",
+          "SATISFIED"
+        ]
+      },
+      "expected": {
+        "status": "SATISFIED"
+      }
+    },
+    {
+      "id": "L-or-SATISFIED-UNSATISFIED",
+      "category": "logic",
+      "input": {
+        "op": "or",
+        "children": [
+          "SATISFIED",
+          "UNSATISFIED"
+        ]
+      },
+      "expected": {
+        "status": "SATISFIED"
+      }
+    },
+    {
+      "id": "L-or-SATISFIED-UNKNOWN",
+      "category": "logic",
+      "input": {
+        "op": "or",
+        "children": [
+          "SATISFIED",
+          "UNKNOWN"
+        ]
+      },
+      "expected": {
+        "status": "SATISFIED"
+      }
+    },
+    {
+      "id": "L-or-SATISFIED-CONFLICT",
+      "category": "logic",
+      "input": {
+        "op": "or",
+        "children": [
+          "SATISFIED",
+          "CONFLICT"
+        ]
+      },
+      "expected": {
+        "status": "SATISFIED"
+      }
+    },
+    {
+      "id": "L-or-UNSATISFIED-SATISFIED",
+      "category": "logic",
+      "input": {
+        "op": "or",
+        "children": [
+          "UNSATISFIED",
+          "SATISFIED"
+        ]
+      },
+      "expected": {
+        "status": "SATISFIED"
+      }
+    },
+    {
+      "id": "L-or-UNSATISFIED-UNSATISFIED",
+      "category": "logic",
+      "input": {
+        "op": "or",
+        "children": [
+          "UNSATISFIED",
+          "UNSATISFIED"
+        ]
+      },
+      "expected": {
+        "status": "UNSATISFIED"
+      }
+    },
+    {
+      "id": "L-or-UNSATISFIED-UNKNOWN",
+      "category": "logic",
+      "input": {
+        "op": "or",
+        "children": [
+          "UNSATISFIED",
+          "UNKNOWN"
+        ]
+      },
+      "expected": {
+        "status": "UNKNOWN"
+      }
+    },
+    {
+      "id": "L-or-UNSATISFIED-CONFLICT",
+      "category": "logic",
+      "input": {
+        "op": "or",
+        "children": [
+          "UNSATISFIED",
+          "CONFLICT"
+        ]
+      },
+      "expected": {
+        "status": "CONFLICT"
+      }
+    },
+    {
+      "id": "L-or-UNKNOWN-SATISFIED",
+      "category": "logic",
+      "input": {
+        "op": "or",
+        "children": [
+          "UNKNOWN",
+          "SATISFIED"
+        ]
+      },
+      "expected": {
+        "status": "SATISFIED"
+      }
+    },
+    {
+      "id": "L-or-UNKNOWN-UNSATISFIED",
+      "category": "logic",
+      "input": {
+        "op": "or",
+        "children": [
+          "UNKNOWN",
+          "UNSATISFIED"
+        ]
+      },
+      "expected": {
+        "status": "UNKNOWN"
+      }
+    },
+    {
+      "id": "L-or-UNKNOWN-UNKNOWN",
+      "category": "logic",
+      "input": {
+        "op": "or",
+        "children": [
+          "UNKNOWN",
+          "UNKNOWN"
+        ]
+      },
+      "expected": {
+        "status": "UNKNOWN"
+      }
+    },
+    {
+      "id": "L-or-UNKNOWN-CONFLICT",
+      "category": "logic",
+      "input": {
+        "op": "or",
+        "children": [
+          "UNKNOWN",
+          "CONFLICT"
+        ]
+      },
+      "expected": {
+        "status": "CONFLICT"
+      }
+    },
+    {
+      "id": "L-or-CONFLICT-SATISFIED",
+      "category": "logic",
+      "input": {
+        "op": "or",
+        "children": [
+          "CONFLICT",
+          "SATISFIED"
+        ]
+      },
+      "expected": {
+        "status": "SATISFIED"
+      }
+    },
+    {
+      "id": "L-or-CONFLICT-UNSATISFIED",
+      "category": "logic",
+      "input": {
+        "op": "or",
+        "children": [
+          "CONFLICT",
+          "UNSATISFIED"
+        ]
+      },
+      "expected": {
+        "status": "CONFLICT"
+      }
+    },
+    {
+      "id": "L-or-CONFLICT-UNKNOWN",
+      "category": "logic",
+      "input": {
+        "op": "or",
+        "children": [
+          "CONFLICT",
+          "UNKNOWN"
+        ]
+      },
+      "expected": {
+        "status": "CONFLICT"
+      }
+    },
+    {
+      "id": "L-or-CONFLICT-CONFLICT",
+      "category": "logic",
+      "input": {
+        "op": "or",
+        "children": [
+          "CONFLICT",
+          "CONFLICT"
+        ]
+      },
+      "expected": {
+        "status": "CONFLICT"
+      }
+    },
+    {
+      "id": "L-not-SATISFIED",
+      "category": "logic",
+      "input": {
+        "op": "not",
+        "children": [
+          "SATISFIED"
+        ]
+      },
+      "expected": {
+        "status": "UNSATISFIED"
+      }
+    },
+    {
+      "id": "L-not-UNSATISFIED",
+      "category": "logic",
+      "input": {
+        "op": "not",
+        "children": [
+          "UNSATISFIED"
+        ]
+      },
+      "expected": {
+        "status": "SATISFIED"
+      }
+    },
+    {
+      "id": "L-not-UNKNOWN",
+      "category": "logic",
+      "input": {
+        "op": "not",
+        "children": [
+          "UNKNOWN"
+        ]
+      },
+      "expected": {
+        "status": "UNKNOWN"
+      }
+    },
+    {
+      "id": "L-not-CONFLICT",
+      "category": "logic",
+      "input": {
+        "op": "not",
+        "children": [
+          "CONFLICT"
+        ]
+      },
+      "expected": {
+        "status": "CONFLICT"
+      }
+    },
+    {
+      "id": "S01-concurrent-wallet",
+      "category": "settlement",
+      "fixture": "base",
+      "input": {
+        "operation": "verifySettlement",
+        "note": "Receipt +180 and +100 EXP; wallet 100+180-50=230 must not fail"
+      },
+      "expected": {
+        "status": "SATISFIED"
+      }
+    },
+    {
+      "id": "S02-wrong-principal",
+      "category": "settlement",
+      "fixture": "base",
+      "input": {
+        "operation": "verifySettlement",
+        "patch": [
+          {
+            "op": "replace",
+            "path": "/receipt/scope/principal/id",
+            "value": "account:B"
+          }
+        ]
+      },
+      "expected": {
+        "status": "INVALID",
+        "reason": "SCOPE_MISMATCH"
+      }
+    },
+    {
+      "id": "S03-wrong-world",
+      "category": "settlement",
+      "fixture": "base",
+      "input": {
+        "operation": "verifySettlement",
+        "patch": [
+          {
+            "op": "replace",
+            "path": "/receipt/scope/worldId",
+            "value": "world:other"
+          }
+        ]
+      },
+      "expected": {
+        "status": "INVALID",
+        "reason": "SCOPE_MISMATCH"
+      }
+    },
+    {
+      "id": "S04-wrong-execution",
+      "category": "settlement",
+      "fixture": "base",
+      "input": {
+        "operation": "verifySettlement",
+        "patch": [
+          {
+            "op": "replace",
+            "path": "/receipt/scope/executionId",
+            "value": "execution:2"
+          }
+        ]
+      },
+      "expected": {
+        "status": "INVALID",
+        "reason": "SCOPE_MISMATCH"
+      }
+    },
+    {
+      "id": "S05-wrong-reward-version",
+      "category": "settlement",
+      "fixture": "base",
+      "input": {
+        "operation": "verifySettlement",
+        "patch": [
+          {
+            "op": "replace",
+            "path": "/receipt/reward/version",
+            "value": "2"
+          }
+        ]
+      },
+      "expected": {
+        "status": "UNSATISFIED",
+        "reason": "REWARD_VERSION_MISMATCH"
+      }
+    },
+    {
+      "id": "S06-wrong-grant",
+      "category": "settlement",
+      "fixture": "base",
+      "input": {
+        "operation": "verifySettlement",
+        "patch": [
+          {
+            "op": "replace",
+            "path": "/receipt/entries/0/applied",
+            "value": "100"
+          }
+        ]
+      },
+      "expected": {
+        "status": "UNSATISFIED",
+        "reason": "EFFECT_MISMATCH"
+      }
+    },
+    {
+      "id": "S07-missing-receipt",
+      "category": "settlement",
+      "fixture": "base",
+      "input": {
+        "operation": "verifySettlement",
+        "unresolvedRefs": [
+          "receipt:1"
+        ]
+      },
+      "expected": {
+        "status": "UNKNOWN",
+        "reason": "RECEIPT_MISSING"
+      }
+    },
+    {
+      "id": "S08-untrusted-source",
+      "category": "settlement",
+      "fixture": "base",
+      "input": {
+        "operation": "verifySettlement",
+        "patch": [
+          {
+            "op": "replace",
+            "path": "/hostContext/admittedSources",
+            "value": []
+          }
+        ]
+      },
+      "expected": {
+        "status": "UNKNOWN",
+        "reason": "UNTRUSTED_SOURCE"
+      }
+    },
+    {
+      "id": "S09-stale-projection",
+      "category": "projection",
+      "fixture": "base",
+      "input": {
+        "operation": "verifyProjectionApplied",
+        "patch": [
+          {
+            "op": "replace",
+            "path": "/projection/snapshot/revision",
+            "value": "41"
+          }
+        ]
+      },
+      "expected": {
+        "status": "UNKNOWN",
+        "reason": "STALE_SNAPSHOT"
+      }
+    },
+    {
+      "id": "S10-later-projection",
+      "category": "projection",
+      "fixture": "base",
+      "input": {
+        "operation": "verifyProjectionApplied"
+      },
+      "expected": {
+        "status": "SATISFIED"
+      }
+    },
+    {
+      "id": "S11-reset-epoch",
+      "category": "projection",
+      "fixture": "base",
+      "input": {
+        "operation": "verifyProjectionApplied",
+        "patch": [
+          {
+            "op": "replace",
+            "path": "/projection/snapshot/epoch",
+            "value": "epoch:2"
+          }
+        ]
+      },
+      "expected": {
+        "status": "INVALID",
+        "reason": "SNAPSHOT_MISMATCH"
+      }
+    },
+    {
+      "id": "S12-duplicate-entry",
+      "category": "settlement",
+      "fixture": "base",
+      "input": {
+        "operation": "verifySettlement",
+        "patch": [
+          {
+            "op": "add",
+            "path": "/receipt/entries/-",
+            "value": {
+              "entryId": "grant:coin",
+              "ledger": "wallet",
+              "target": {
+                "type": "currency",
+                "id": "currency.induck_coin"
+              },
+              "effect": "ADD",
+              "requested": "180",
+              "applied": "180",
+              "outcome": "APPLIED",
+              "transactionId": "transaction:wallet:1",
+              "after": {
+                "source": "server.wallet",
+                "stream": "wallet:coin:A",
+                "epoch": "epoch:1",
+                "revision": "42"
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "status": "INVALID",
+        "reason": "DUPLICATE_ENTRY"
+      }
+    },
+    {
+      "id": "S13-fingerprint-mismatch",
+      "category": "settlement",
+      "fixture": "base",
+      "input": {
+        "operation": "verifySettlement",
+        "patch": [
+          {
+            "op": "replace",
+            "path": "/receipt/requestFingerprint",
+            "value": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+          }
+        ]
+      },
+      "expected": {
+        "status": "INVALID",
+        "reason": "REQUEST_MISMATCH"
+      }
+    },
+    {
+      "id": "S14-transport-replay",
+      "category": "settlement",
+      "fixture": "base",
+      "input": {
+        "operation": "verifySettlement",
+        "transportMetadata": {
+          "replayed": true
+        }
+      },
+      "expected": {
+        "status": "SATISFIED"
+      }
+    },
+    {
+      "id": "S15-unexpected-effect",
+      "category": "settlement",
+      "fixture": "base",
+      "input": {
+        "operation": "verifySettlement",
+        "patch": [
+          {
+            "op": "add",
+            "path": "/receipt/entries/-",
+            "value": {
+              "entryId": "grant:extra",
+              "ledger": "wallet",
+              "target": {
+                "type": "currency",
+                "id": "currency.induck_coin"
+              },
+              "effect": "ADD",
+              "requested": "180",
+              "applied": "180",
+              "outcome": "APPLIED",
+              "transactionId": "transaction:wallet:extra",
+              "after": {
+                "source": "server.wallet",
+                "stream": "wallet:coin:A",
+                "epoch": "epoch:1",
+                "revision": "42"
+              }
+            }
+          }
+        ]
+      },
+      "expected": {
+        "status": "UNSATISFIED",
+        "reason": "EFFECT_SET_MISMATCH"
+      }
+    },
+    {
+      "id": "X01-accepted-response-lost",
+      "category": "execution",
+      "fixture": "base",
+      "input": {
+        "operation": "lookupAfterResponseLoss",
+        "authorityState": "SUCCEEDED",
+        "lookupInitiallyUnavailable": true,
+        "mutationCalls": 1
+      },
+      "expected": {
+        "status": "RECOVERABLE",
+        "reason": "RESPONSE_LOST"
+      }
+    },
+    {
+      "id": "X02-recovery",
+      "category": "execution",
+      "fixture": "base",
+      "input": {
+        "operation": "lookupCommittedExecution",
+        "authorityState": "SUCCEEDED",
+        "lookupAvailable": true,
+        "mutationCalls": 1
+      },
+      "expected": {
+        "status": "SUCCEEDED"
+      }
+    },
+    {
+      "id": "X03-duplicate",
+      "category": "execution",
+      "fixture": "base",
+      "input": {
+        "operation": "submitDuplicate",
+        "sameKey": true,
+        "sameFingerprint": true,
+        "proposedExecutionId": "execution:other",
+        "expectedCanonicalExecutionId": "execution:1",
+        "expectedNewMutationCalls": 0
+      },
+      "expected": {
+        "status": "SUCCEEDED"
+      }
+    },
+    {
+      "id": "X04-key-conflict",
+      "category": "execution",
+      "fixture": "base",
+      "input": {
+        "operation": "submitDuplicate",
+        "sameKey": true,
+        "sameFingerprint": false,
+        "expectedNewMutationCalls": 0
+      },
+      "expected": {
+        "status": "INVALID",
+        "reason": "IDEMPOTENCY_CONFLICT"
+      }
+    },
+    {
+      "id": "X05-timeout-notfound",
+      "category": "execution",
+      "fixture": "base",
+      "input": {
+        "operation": "lookupAfterTimeout",
+        "lookup": "NOT_FOUND",
+        "expectedNewMutationCalls": 0
+      },
+      "expected": {
+        "status": "UNKNOWN",
+        "reason": "EXECUTION_UNRESOLVED"
+      }
+    },
+    {
+      "id": "X06-wrong-profile",
+      "category": "execution",
+      "fixture": "base",
+      "input": {
+        "operation": "admitProfile",
+        "callerProfileRevision": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      },
+      "expected": {
+        "status": "INVALID",
+        "reason": "PROFILE_MISMATCH"
+      }
+    },
+    {
+      "id": "X07-retention-expired",
+      "category": "execution",
+      "fixture": "base",
+      "input": {
+        "operation": "lookupExpiredExecution",
+        "expectedNewMutationCalls": 0
+      },
+      "expected": {
+        "status": "UNKNOWN",
+        "reason": "RETENTION_EXPIRED"
+      }
+    },
+    {
+      "id": "X08-immutable-receipt",
+      "category": "execution",
+      "fixture": "base",
+      "input": {
+        "operation": "verifyReceiptIdentity",
+        "secondReceiptSameTransactionDifferentApplied": "179"
+      },
+      "expected": {
+        "status": "CONFLICT",
+        "reason": "RECEIPT_CONFLICT"
+      }
+    },
+    {
+      "id": "F01-wrong-principal",
+      "category": "evidence",
+      "fixture": "base",
+      "input": {
+        "operation": "stateEvidence",
+        "factPrincipal": "account:B"
+      },
+      "expected": {
+        "status": "INVALID",
+        "reason": "SCOPE_MISMATCH"
+      }
+    },
+    {
+      "id": "F02-mixed-snapshots",
+      "category": "evidence",
+      "fixture": "base",
+      "input": {
+        "operation": "stateEvidence",
+        "sameStreamRevisions": [
+          "10",
+          "11"
+        ]
+      },
+      "expected": {
+        "status": "INVALID",
+        "reason": "SNAPSHOT_MISMATCH"
+      }
+    },
+    {
+      "id": "F03-conflicting-values",
+      "category": "evidence",
+      "fixture": "base",
+      "input": {
+        "operation": "stateEvidence",
+        "sameSnapshot": true,
+        "values": [
+          "8",
+          "9"
+        ]
+      },
+      "expected": {
+        "status": "CONFLICT",
+        "reason": "AUTHORITATIVE_FACT_CONFLICT"
+      }
+    },
+    {
+      "id": "F04-missing-fact",
+      "category": "evidence",
+      "fixture": "base",
+      "input": {
+        "operation": "exists",
+        "facts": []
+      },
+      "expected": {
+        "status": "UNKNOWN",
+        "reason": "AUTHORITATIVE_FACT_MISSING"
+      }
+    },
+    {
+      "id": "F05-null-exists",
+      "category": "evidence",
+      "fixture": "base",
+      "input": {
+        "operation": "exists",
+        "value": {
+          "type": "null"
+        }
+      },
+      "expected": {
+        "status": "SATISFIED"
+      }
+    },
+    {
+      "id": "F06-malformed-fact",
+      "category": "evidence",
+      "fixture": "base",
+      "input": {
+        "operation": "stateEvidence",
+        "value": {
+          "type": "integer",
+          "value": 10
+        }
+      },
+      "expected": {
+        "status": "INVALID",
+        "reason": "SCHEMA_VIOLATION"
+      }
+    },
+    {
+      "id": "F07-historical-snapshot",
+      "category": "evidence",
+      "fixture": "base",
+      "input": {
+        "operation": "stateEvidence",
+        "revision": "10",
+        "mode": "HISTORICAL",
+        "claimRevision": "10"
+      },
+      "expected": {
+        "status": "SATISFIED"
+      }
+    },
+    {
+      "id": "F08-current-stale",
+      "category": "evidence",
+      "fixture": "base",
+      "input": {
+        "operation": "stateEvidence",
+        "revision": "10",
+        "mode": "CURRENT",
+        "minimumRevision": "11"
+      },
+      "expected": {
+        "status": "UNKNOWN",
+        "reason": "STALE_SNAPSHOT"
+      }
+    },
+    {
+      "id": "F09-no-masking-invalid",
+      "category": "evidence",
+      "fixture": "base",
+      "input": {
+        "operation": "compoundEvidence",
+        "op": "or",
+        "validChild": "SATISFIED",
+        "otherChild": "INVALID"
+      },
+      "expected": {
+        "status": "INVALID",
+        "reason": "SCHEMA_VIOLATION"
+      }
+    },
+    {
+      "id": "F10-i64-overflow",
+      "category": "evidence",
+      "fixture": "base",
+      "input": {
+        "operation": "checkedAdd",
+        "left": "9223372036854775807",
+        "right": "1"
+      },
+      "expected": {
+        "status": "ERROR",
+        "reason": "INTEGER_OVERFLOW"
+      }
+    },
+    {
+      "id": "F11-reader-timeout",
+      "category": "evidence",
+      "fixture": "base",
+      "input": {
+        "operation": "stateEvidence",
+        "providerFault": "TIMEOUT"
+      },
+      "expected": {
+        "status": "UNKNOWN",
+        "reason": "READ_UNAVAILABLE"
+      }
+    },
+    {
+      "id": "F12-internal-error",
+      "category": "evidence",
+      "fixture": "base",
+      "input": {
+        "operation": "stateEvidence",
+        "evaluatorFault": "INJECTED"
+      },
+      "expected": {
+        "status": "ERROR",
+        "reason": "INTERNAL_ERROR"
+      }
+    },
+    {
+      "id": "B01-released-handle",
+      "category": "bridge",
+      "fixture": "base",
+      "input": {
+        "operation": "useHandle",
+        "released": true
+      },
+      "expected": {
+        "status": "INVALID",
+        "reason": "HANDLE_EXPIRED"
+      }
+    },
+    {
+      "id": "B02-wrong-generation",
+      "category": "bridge",
+      "fixture": "base",
+      "input": {
+        "operation": "useHandle",
+        "issuedGeneration": "2",
+        "usedGeneration": "1"
+      },
+      "expected": {
+        "status": "INVALID",
+        "reason": "HANDLE_GENERATION_MISMATCH"
+      }
+    },
+    {
+      "id": "B03-wrong-scope",
+      "category": "bridge",
+      "fixture": "base",
+      "input": {
+        "operation": "useHandle",
+        "handlePrincipal": "account:B"
+      },
+      "expected": {
+        "status": "INVALID",
+        "reason": "SCOPE_MISMATCH"
+      }
+    }
+  ]
+}
