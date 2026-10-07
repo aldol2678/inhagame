@@ -84,6 +84,7 @@ test("strict allowlist optimization preserves sources and optimizes all validate
     for(const node of sourceDragon.getRoot().listNodes()) {
       const optimized=dragon.getRoot().listNodes().find(n=>n.getName()===node.getName());
       assert.ok(optimized,node.getName());assert.deepEqual(optimized.getTranslation(),node.getTranslation());
+      assert.deepEqual(optimized.listChildren().map(n=>n.getName()).sort(),node.listChildren().map(n=>n.getName()).sort(),node.getName()+" hierarchy");
       const mesh=node.getMesh();if(!mesh)continue;
       const actual=optimized.getMesh();assert.ok(actual);
       for(let i=0;i<mesh.listPrimitives().length;i++) {

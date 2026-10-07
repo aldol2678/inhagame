@@ -33,6 +33,29 @@ function material(hex) {
 }
 const mats = Object.fromEntries(Object.entries(palette).map(([key, value]) => [key, material(value)]));
 
+// Reserved instance/light mask bit: the fill can illuminate Annyongi meshes only.
+// Share two unshadowed lights per application, never two per remote avatar.
+const ANNYONGI_LIGHT_MASK = 1 << 8;
+const annyongiLightOwners = new WeakMap();
+function acquireAnnyongiFill(app) {
+  let owner = annyongiLightOwners.get(app);
+  if (!owner) {
+    const root = new pc.Entity('Annyongi_ReadabilityFill');
+    const lights = [[38, 25, .85], [25, 205, .38]].map(([pitch, yaw, strength]) => {
+      const entity = new pc.Entity('Annyongi_PrivateFill');
+      entity.addComponent('light', { type: 'directional', color: new pc.Color(.80, .91, 1), intensity: 0, castShadows: false, mask: ANNYONGI_LIGHT_MASK });
+      entity.setLocalEulerAngles(pitch, yaw, 0);root.addChild(entity);
+      return { entity, strength };
+    });
+    app.root.addChild(root);
+    owner = { root, lights, users: 0 };
+    annyongiLightOwners.set(app, owner);
+  }
+  owner.users++;
+  return { update(night) { for (const {entity, strength} of owner.lights) entity.light.intensity = night * strength; },
+    release() { if (--owner.users === 0) { owner.root.destroy(); annyongiLightOwners.delete(app); } } };
+}
+
 const DUCK_BOUNDS = { glb: { bottom: -1.195, top: 1.67 }, fallback: { bottom: -1.1425, top: 1.205 } };
 const BIKE_RIDER_FOOT_Y = 0.31;
 const BIKE_RIDER_Z = -0.07;
@@ -103,6 +126,30 @@ export function createCharacter(app, player, { assetShadow = null, assetCanary =
   let dragonModelState = "loading";
   let annyongiRiderAnchor = null;
   let annyongiPitch = 0;
+  let flightWings = false;
+  let flightBlend = 0;
+  let flightMode = 'ground';
+  let wingPhase = 0;
+  let wingAmplitude = 15;
+  let wingSweep = 18;
+  let previousFlightPosition = null;
+  let lastReadability = null;
+  let privateFill = null;
+  const readabilityMaterials = new Map();
+  function updateReadability() {
+    const ambient = app.scene?.ambientLight;
+    const light = ambient ? (ambient.r + ambient.g + ambient.b) / 3 : .5;
+    const night = Math.max(0, Math.min(1, (.43 - light) / .32));
+    if (lastReadability !== null && Math.abs(night - lastReadability) < .005) return;
+    lastReadability = night;
+    privateFill?.update(night);
+    for (const material of readabilityMaterials.values()) {
+      // A small palette floor keeps ink dark; private lights provide normal-based form.
+      material.emissiveIntensity = .045 + night * .025;
+      material.diffuse.set(1 - night * .15, 1 - night * .15, 1 - night * .15);
+      material.update();
+    }
+  }
   let disposed = false;
   const knownInstances = new WeakSet();
   const duckInstances = new Set();
@@ -273,6 +320,27 @@ export function createCharacter(app, player, { assetShadow = null, assetCanary =
     dragonVisual = loadedDragon;
     activeDragonWings = wings;
     dragonModelState = "glb";
+    flightWings = !!loadedDragon.findByName?.('FlightWing_L') && !!loadedDragon.findByName?.('FlightWing_R');
+    if (flightWings) {
+      privateFill = acquireAnnyongiFill(app);
+      for (const component of loadedDragon.findComponents('render')) for (const instance of component.meshInstances) {
+        const source = instance.material;
+        if (!readabilityMaterials.has(source)) {
+          const clone = source.clone();
+          clone.emissive.set(1, 1, 1);
+          clone.emissiveMapVertexColor = true;
+          readabilityMaterials.set(source, clone);
+        }
+        instance.material = readabilityMaterials.get(source);
+        instance.mask |= ANNYONGI_LIGHT_MASK;
+      }
+      loadedDragon.once('destroy', () => {
+        privateFill?.release();privateFill = null;
+        for (const material of readabilityMaterials.values()) material.destroy();
+        readabilityMaterials.clear();
+      });
+      updateReadability();
+    }
     const anchor = loadedDragon.findByName?.("RiderAnchor")?.getLocalPosition?.();
     annyongiRiderAnchor = anchor ? { y: anchor.y, z: anchor.z } : null;
     positionDuck(mountedNow);
@@ -281,6 +349,8 @@ export function createCharacter(app, player, { assetShadow = null, assetCanary =
   }).catch(error => {
     releaseInstances(dragonInstances);
     dragonModelState = "fallback";
+    flightWings = false;
+    annyongiRiderAnchor = null;
     dragonVisual = dragon;
     activeDragonWings = dragonWings;
     if (!disposed) showMountVisuals();
@@ -295,6 +365,7 @@ export function createCharacter(app, player, { assetShadow = null, assetCanary =
     get dragonModelState() { return dragonModelState; },
     get nameplateHeight() { return nameplateHeight; },
     get pose() { return lastPose; },
+    get flightVisualState() { return { mode: flightMode, deployment: flightBlend, pitch: annyongiPitch }; },
     get eyeHeight() { return nameplateHeight - .225; },
     /** Slot attachment anchor for the local equipment projection (null for non-equipment slots). */
     getEquipmentAnchor: slot => equipment.anchor(slot),
@@ -342,7 +413,20 @@ export function createCharacter(app, player, { assetShadow = null, assetCanary =
       const fly = mounted && !bike && !helicopter && ![CAMPUS_KICKBOARD_ID, CAMPUS_KART_ID, DUCK_BOAT_ID, CAMPUS_SHUTTLE_ID, CAMPUS_BALLOON_ID].includes(player.mountKind);
       const attitude = helicopter && player.flightAttitude
         ? player.flightAttitude : { pitch: 0, roll: 0 };
-      annyongiPitch = fly && moving && !grounded && annyongiRiderAnchor ? 4 : 0;
+      // Derive visual motion from the existing transform, for local and remote avatars.
+      // Ignore teleports and never write movement, collision or network state.
+      const position = player.getLocalPosition?.();
+      const deltaY = position && previousFlightPosition ? position.y - previousFlightPosition.y : 0;
+      const travel = position && previousFlightPosition ? Math.hypot(position.x - previousFlightPosition.x, position.z - previousFlightPosition.z) : 0;
+      const validStep = dt > 0 && dt <= .15 && Math.abs(deltaY) < 2 && travel < 3;
+      const vertical = validStep ? deltaY / dt : 0;
+      previousFlightPosition = position ? { x: position.x, y: position.y, z: position.z } : null;
+      flightMode = !fly || grounded ? 'ground' : vertical > .6 ? 'ascend' : vertical < -.6 ? 'descend' : moving ? 'forward' : 'hover';
+      const smooth = 1 - Math.exp(-Math.max(0, dt) * 8);
+      flightBlend += ((fly && !grounded ? 1 : 0) - flightBlend) * smooth;
+      const pitchTarget = flightMode === 'forward' ? 13 : flightMode === 'ascend' ? -9 : flightMode === 'descend' ? -5 : 0;
+      annyongiPitch = !fly || grounded ? 0 : annyongiPitch + ((annyongiRiderAnchor ? pitchTarget : 0) - annyongiPitch) * smooth;
+      if (flightWings && fly) updateReadability();
       const bob = fly && !grounded && dragonModelState === 'glb' ? Math.sin(elapsed * 4) * .045
         : !mounted && moving && grounded ? Math.sin(elapsed * 10) * .017 : 0;
       const legSwing = moving && grounded && !mounted ? Math.sin(elapsed * 11) * 22 : 0;
@@ -353,7 +437,9 @@ export function createCharacter(app, player, { assetShadow = null, assetCanary =
           ? [duckBaseEuler[0] + BIKE_RIDER_PITCH, duckBaseEuler[1], duckBaseEuler[2]]
           : helicopter
             ? [duckBaseEuler[0] + attitude.pitch * .35, duckBaseEuler[1], duckBaseEuler[2] - attitude.roll * .35]
-            : duckBaseEuler,
+            : fly && flightWings
+              ? [duckBaseEuler[0] + annyongiPitch * .45, duckBaseEuler[1], duckBaseEuler[2]]
+              : duckBaseEuler,
         wings: bike
           ? [[12, -72, -58], [12, 72, 58]]
           : helicopter
@@ -374,9 +460,20 @@ export function createCharacter(app, player, { assetShadow = null, assetCanary =
         roll: attitude.roll
       });
       activeDuckWings.forEach((wing, index) => wing.setLocalEulerAngles(...pose.wings[index]));
-      // Legacy nodes stay empty and stationary; official cloud-wing geometry is
-      // decorative. Flight is hover/translation, not generic-dragon flapping.
-      activeDragonWings.forEach(wing => wing.setLocalEulerAngles(0, 0, 0));
+      const wingFrequency = flightMode === 'ascend' ? 9 : flightMode === 'forward' ? 5.5 : 3;
+      const targetAmplitude = flightMode === 'ascend' ? 32 : flightMode === 'forward' ? 12 : flightMode === 'descend' ? 4 : 15;
+      const targetSweep = flightMode === 'forward' ? 27 : flightMode === 'descend' ? -12 : 18;
+      wingPhase = (wingPhase + Math.max(0, dt) * wingFrequency) % (Math.PI * 2);
+      wingAmplitude += (targetAmplitude - wingAmplitude) * smooth;
+      wingSweep += (targetSweep - wingSweep) * smooth;
+      activeDragonWings.forEach((wing, index) => {
+        if (!flightWings) { wing.setLocalEulerAngles(0, 0, 0); return; }
+        const side = index ? 1 : -1;
+        const flap = Math.sin(wingPhase) * wingAmplitude;
+        const scale = .24 + flightBlend * .76;
+        wing.setLocalScale(scale, scale, scale);
+        wing.setLocalEulerAngles(0, side * wingSweep * flightBlend, side * (58 * (1 - flightBlend) + flap * flightBlend));
+      });
       activeDuckLegs.forEach((leg, index) => leg.setLocalEulerAngles(pose.legs[index], 0, 0));
       if (dragonModelState === "glb" && fly) {
         dragonVisual.setLocalPosition(0, bob, 0);

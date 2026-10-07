@@ -52,6 +52,7 @@ try {
   const active = name => { const e = player.findByName(name); return e ? { enabled: e.enabled, position: vec(e.getLocalPosition()), renderComponents: e.findComponents('render').length } : null; };
   const snapshot = () => ({ ready, disposed, engine: pc.version, renderer: device.isWebGL2 ? 'WebGL2' : 'unknown', frame: app.frame,
     modelState: character.modelState, dragonModelState: character.dragonModelState, canary: character.assetCanary,
+    riderSeatY: player.findByName('RiderAnchor')?.getPosition().y ?? null,
     duck: active('Induck_GLB_Visual'), dragon: active('Annyongi_GLB_Visual'),
     fallbackDuck: active('Public_QA_Avatar'), fallbackDragon: active('Public_QA_Carrier'),
     playerChildren: player.children.length, playerRenderComponents: player.findComponents('render').length,

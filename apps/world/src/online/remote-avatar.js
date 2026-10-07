@@ -82,8 +82,10 @@ export function createRemoteAvatarFactory({ app, parent, camera, canvas, doc = d
         const emote = sample.emote && emoteIsActive(sample.emote) ? sample.emote : null;
         character.update(Math.min(dtSec, 0.05), {
           mounted: fly,
-          moving: MOVING.has(anim),
-          grounded: anim !== Anim.AIR,
+          // FLY does not encode grounded/hover separately. Use received velocity for
+          // Annyongi forward pose, and keep its wings deployed until dismount.
+          moving: nextMountId === 'annyongi' ? Math.hypot(pose.vx ?? 0, pose.vz ?? 0) > .1 : MOVING.has(anim),
+          grounded: anim !== Anim.AIR && nextMountId !== 'annyongi',
           emote: anim === Anim.SIT ? null : emote,
           seated: anim === Anim.SIT
         });

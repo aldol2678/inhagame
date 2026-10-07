@@ -8,8 +8,8 @@
     {
       "path": "apps/world/assets/annyongi-flight-v1.glb",
       "provenance": "New project-authored procedural 3D reconstruction referencing Inha University official Annyongi mascot design; not independent QA geometry.",
-      "sha256": "e00f7065fb4176277e2e3fdf2e7487d50686be983fffcdbced0ae379a6c8d8aa",
-      "generator": "INHAGAME Annyongi procedural reconstruction v1",
+      "sha256": "0fb517db8bfb01984b0d8e039a722858f1aa4189ddd688e7d25c65d819d30ee7",
+      "generator": "INHAGAME Annyongi procedural flight reconstruction v2",
       "geometrySource": "tools/world-assets/build-annyongi.py",
       "textureUsage": "none",
       "referenceSourceFamily": [
@@ -25,7 +25,8 @@
         "http://www.inha.ac.kr/sites/kr/images/about/annyong05.png"
       ],
       "approvalStatus": "design-review-pending",
-      "permissionBasis": "User-reported technical commercialization team permission for noncommercial reproduction preserving design. Correspondence not independently inspected; no university approval of this new model claimed."
+      "permissionBasis": "User-reported technical commercialization team permission for noncommercial reproduction preserving design. Correspondence not independently inspected; no university approval of this new model claimed.",
+      "gameAdaptation": "ANNYONGI-FLIGHT-V2: rounded deployable cloud flight fans, compact curled tail and lower rear rider anchor. Game-only adaptation, not a university-approved mascot revision."
     },
     {
       "path": "apps/world/assets/induck-cap-v1.glb",

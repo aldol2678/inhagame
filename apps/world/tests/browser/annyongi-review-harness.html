@@ -9,14 +9,20 @@ const device=await pc.createGraphicsDevice(canvas,{deviceTypes:[pc.DEVICETYPE_WE
 const app=new pc.AppBase(canvas),options=new pc.AppOptions();options.graphicsDevice=device;
 options.componentSystems=[pc.RenderComponentSystem,pc.CameraComponentSystem,pc.LightComponentSystem];options.resourceHandlers=[pc.ContainerHandler,pc.TextureHandler];app.init(options);
 app.scene.ambientLight=new pc.Color(.65,.65,.65);
-const camera=new pc.Entity('ReviewCamera');camera.addComponent('camera',{clearColor:new pc.Color(.89,.93,.97),projection:pc.PROJECTION_ORTHOGRAPHIC,orthoHeight:1.55});app.root.addChild(camera);
+const camera=new pc.Entity('ReviewCamera');camera.addComponent('camera',{clearColor:new pc.Color(.89,.93,.97),projection:pc.PROJECTION_ORTHOGRAPHIC,orthoHeight:2.25});app.root.addChild(camera);
 const light=new pc.Entity('Key');light.addComponent('light',{type:'directional',intensity:1.1});light.setEulerAngles(40,25,0);app.root.addChild(light);
 if(new URLSearchParams(location.search).has('optimized')) {
  const originalLoad=app.assets.loadFromUrl.bind(app.assets);
  app.assets.loadFromUrl=(url,...args)=>originalLoad(url==='/assets/annyongi-flight-v1.glb'?'/.generated/assets-optimized/annyongi-flight-v1.glb':url,...args);
 }
+if(new URLSearchParams(location.search).has('night')) {
+ app.scene.ambientLight=new pc.Color(.075,.095,.16);
+ light.light.color=new pc.Color(1,.72,.25);light.light.intensity=.48;
+ camera.camera.clearColor=new pc.Color(.025,.035,.065);
+}
 const player=new pc.Entity('ReviewPlayer');app.root.addChild(player);player.mountKind='annyongi';
 const character=createCharacter(app,player);await character.ready;character.setMounted(true);character.update(0,{mounted:true,moving:false,grounded:false});
+for(let i=0;i<60;i++)character.update(.05,{mounted:true,moving:false,grounded:false});
 const carrier=player.findByName('Annyongi_GLB_Visual'),rider=player.findByName('Induck_GLB_Visual');
 const view=(name,ride=false)=>{rider.enabled=ride;const poses={front:[0,.1,6],side:[6,.1,0],back:[0,.1,-6],ride:[3,1.6,5]};camera.setPosition(...poses[name]);camera.lookAt(0,.02,0);};
 view('front');app.start();
