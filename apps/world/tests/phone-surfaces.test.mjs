@@ -22,3 +22,27 @@ test('map presentation history preserves coordinates and keeps favorites scoped 
   scope='member:test';history.load();assert.equal(history.snapshot().favorites.length,0);
   scope='guest';history.load();assert.equal(history.snapshot().favorites[0].poiId,'main-hall');
 });
+
+test('favorites add/remove are idempotent, survive readback and never change selection/navigation',()=>{
+  const values=new Map(),storage={getItem:k=>values.get(k),setItem:(k,v)=>values.set(k,v)};let scope='guest';
+  const history=createPhoneMapHistory({getStorage:()=>storage,getScope:()=>scope});
+  const selected=Object.freeze({poiId:'poi.library',title:'도서관',x:1,z:2}),destination={...selected,id:'nav.library'};
+  history.remember(destination,'campus');history.favorite(selected,'campus',true);history.favorite({...selected,title:'새 이름'},'campus',true);
+  assert.equal(history.snapshot().favorites.length,1);assert.equal(history.has(selected,'campus'),true);
+  history.load();assert.equal(history.has(selected,'campus'),true);history.favorite(selected,'campus',false);
+  assert.equal(history.has(selected,'campus'),false);assert.equal(history.snapshot().favorites.length,0);
+  history.favorite({poiId:'missing',x:8,z:9},'campus',false);assert.equal(history.snapshot().favorites.length,0);
+  assert.equal(selected.poiId,'poi.library');assert.deepEqual(history.snapshot().recent[0].x,destination.x);
+  history.load();assert.equal(history.snapshot().favorites.length,0);
+  history.toggle(selected,'campus');scope='member:one';history.load();assert.equal(history.has(selected,'campus'),false);
+  scope='guest';history.load();assert.equal(history.has(selected,'campus'),true);
+  assert.equal(history.toggle({poiId:'invalid',x:NaN,z:0},'campus'),false);
+});
+test('map-picked locations use coordinate identity, legacy duplicates normalize without names as keys',()=>{
+  let serialized=JSON.stringify({favorites:[{id:'same',poiId:'p',x:1,z:2,title:'A'},{id:'other',poiId:'p',x:1,z:2,title:'B'},null],recent:[]});
+  const history=createPhoneMapHistory({getStorage:()=>({getItem:()=>serialized,setItem:(_,v)=>{serialized=v;}})});
+  assert.equal(history.snapshot().favorites.length,1);
+  history.favorite({poiId:'map.point',mapPoint:true,x:3,z:4},'campus',true);
+  history.favorite({poiId:'map.point',mapPoint:true,x:6,z:7},'campus',true);
+  assert.equal(history.snapshot().favorites.length,3);history.load();assert.equal(history.snapshot().favorites.length,3);
+});

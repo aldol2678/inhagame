@@ -79,11 +79,11 @@ export function createPhotoCameraController({ camera, collision = null, limits =
     return from;
   }
   function clampToBounds(point) {
-    const { entry } = session;
-    const dx = point.x - entry.x, dz = point.z - entry.z, r = Math.hypot(dx, dz);
-    const scale = r > limits.radius ? limits.radius / r : 1;
-    return { x: entry.x + dx * scale, z: entry.z + dz * scale,
-      y: clamp(point.y, entry.y - limits.below, entry.y + limits.above) };
+    const { anchor, travel } = session;
+    const dx = point.x - anchor.x, dz = point.z - anchor.z, r = Math.hypot(dx, dz);
+    const scale = r > travel.radius ? travel.radius / r : 1;
+    return { x: anchor.x + dx * scale, z: anchor.z + dz * scale,
+      y: clamp(point.y, anchor.y - travel.below, anchor.y + travel.above) };
   }
   function translate(dx, dy, dz) {
     if (!finite(dx, dy, dz) || (!dx && !dy && !dz)) return false;
@@ -117,24 +117,54 @@ export function createPhotoCameraController({ camera, collision = null, limits =
     return true;
   }
 
-  function begin(snapshot) {
+  function begin(snapshot, { subjectBounds = null } = {}) {
     if (session || !snapshot) return false;
     const { position: p, forward, fov } = snapshot;
     const angles = forward ? photoCameraAngles(forward) : null;
     if (!p || !angles || !finite(p.x, p.y, p.z, fov) || !(fov > 0 && fov < 180)) return false;
     const obstacles = collision?.obstacles?.();
+    const mounted = subjectBounds && ['x','y','z'].every(axis =>
+      Number.isFinite(subjectBounds.min?.[axis]) && Number.isFinite(subjectBounds.max?.[axis]) && subjectBounds.max[axis] >= subjectBounds.min[axis]);
+    if (subjectBounds && !mounted) return false;
+    const center = mounted ? Object.fromEntries(['x','y','z'].map(axis => [axis, (subjectBounds.min[axis] + subjectBounds.max[axis]) / 2])) : p;
+    const subjectRadius = mounted ? Math.hypot(...['x','y','z'].map(axis => (subjectBounds.max[axis] - subjectBounds.min[axis]) / 2)) : 0;
+    // Bound all mount rigs to the streamed local neighbourhood, including unusually large assets.
+    if (subjectRadius > metersToWorld(12)) return false;
+    const aspect = camera.camera.aspectRatio || 1;
+    const halfFov = Math.min(fov * Math.PI / 360, Math.atan(Math.tan(fov * Math.PI / 360) * aspect));
+    const framingDistance = mounted ? subjectRadius / Math.sin(halfFov) * 1.15 : 0;
+    if (mounted && framingDistance > metersToWorld(40) * .9) return false;
+    const travel = mounted ? { radius: Math.min(metersToWorld(40), Math.max(limits.radius, subjectRadius * 3 + 2, framingDistance / .9)),
+      above: Math.max(limits.above, subjectRadius * 2), below: Math.max(limits.below, subjectRadius * 2) } : limits;
+    const candidates = collision ? cameraObstaclesNear(center, travel.radius, obstacles) : [];
+    let entry = { x: p.x, y: p.y, z: p.z, yaw: angles.yaw, pitch: angles.pitch, fov };
+    if (mounted) {
+      // Conservative sphere framing accounts for the viewport's narrower field of view.
+      const distance = framingDistance;
+      const direction = photoCameraForward(angles.yaw, .25);
+      const desired = { x: center.x - direction.x * distance, y: center.y - direction.y * distance, z: center.z - direction.z * distance };
+      const fraction = collision ? cameraSafeFraction([p.x,p.y,p.z], [desired.x,desired.y,desired.z], obstacles, candidates) : 1;
+      const framed = Object.fromEntries(['x','y','z'].map(axis => [axis, p[axis] + (desired[axis] - p[axis]) * (fraction <= SWEEP_BLOCKED ? 0 : fraction)]));
+      framed.y = Math.max(framed.y, floorAt(framed.x, framed.z));
+      const view = photoCameraAngles({ x: center.x - framed.x, y: center.y - framed.y, z: center.z - framed.z });
+      if (!view) return false;
+      entry = { ...framed, ...view, fov };
+      // The current chase camera always remains reachable when nearby geometry limits framing.
+      travel.radius = Math.min(metersToWorld(40), Math.max(travel.radius, Math.hypot(p.x-center.x,p.z-center.z)));
+    }
     session = {
-      entry: Object.freeze({ x: p.x, y: p.y, z: p.z, yaw: angles.yaw, pitch: angles.pitch, fov }),
-      x: p.x, y: p.y, z: p.z, yaw: angles.yaw, pitch: angles.pitch, fov,
+      entry: Object.freeze(entry), anchor: Object.freeze({ ...center }), travel, subjectBounds,
+      ...entry,
       velocity: { x: 0, y: 0, z: 0 }, intent: { x: 0, y: 0, z: 0 },
       precision: false, collision: !!collision,
-      obstacles, candidates: collision ? cameraObstaclesNear(p, limits.radius, obstacles) : [],
+      obstacles, candidates,
       // Ranges always contain the entry pose, so opening never snaps the view.
       pitchLimit: Math.max(limits.pitch, Math.abs(angles.pitch)),
       fovLimits: Object.freeze({ min: Math.min(limits.fov.min, fov), max: Math.max(limits.fov.max, fov) }),
       // No transform write until something changes: the first photo frame is the play frame.
-      dirty: false
+      dirty: !!mounted
     };
+    if (mounted) apply();
     return true;
   }
   function end() {
@@ -212,6 +242,7 @@ export function createPhotoCameraController({ camera, collision = null, limits =
     const s = session;
     return Object.freeze({ position: Object.freeze({ x: s.x, y: s.y, z: s.z }), yaw: s.yaw, pitch: s.pitch, fov: s.fov,
       precision: s.precision, collision: s.collision, entry: s.entry, fovLimits: s.fovLimits,
+      subjectBounds: s.subjectBounds, anchor: s.anchor, travel: Object.freeze({ radius: s.travel.radius, above: s.travel.above, below: s.travel.below }),
       moving: !!(s.velocity.x || s.velocity.y || s.velocity.z) });
   }
 

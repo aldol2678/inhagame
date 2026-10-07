@@ -388,6 +388,27 @@ export function createCharacter(app, player, { assetShadow = null, assetCanary =
   // Wait for both handled outcomes without letting either suppress a good sibling.
   const ready = Promise.all([duckReady, dragonReady]).then(() => modelState);
   return {
+    // Render AABBs are world-space and include the authored rider seat and full vehicle.
+    // Bounds remain readable in first person; visibility must not decide photo support.
+    getPhotoSubjectBounds(mountId) {
+      if (disposed || !mountedNow || player.mountKind !== mountId) return null;
+      const mount = new Map([[CAMPUS_BIKE_ID, riderBike], [CAMPUS_HELICOPTER_ID, riderHelicopter.root],
+        [CAMPUS_KICKBOARD_ID, riderKickboard], [CAMPUS_KART_ID, riderKart], [DUCK_BOAT_ID, riderDuckBoat]]).get(mountId);
+      if (!mount || mount.parent !== player || duckVisual.parent !== player) return null;
+      const min = { x: Infinity, y: Infinity, z: Infinity }, max = { x: -Infinity, y: -Infinity, z: -Infinity };
+      for (const root of [duckVisual, mount]) {
+        let count = 0;
+        for (const render of root.findComponents('render')) for (const instance of render.meshInstances) {
+          const b = instance.aabb, c = b.center, h = b.halfExtents;
+          for (const axis of ['x', 'y', 'z']) { min[axis] = Math.min(min[axis], c[axis] - h[axis]); max[axis] = Math.max(max[axis], c[axis] + h[axis]); }
+          count++;
+        }
+        if (!count) return null;
+      }
+      // Campus render root mirrors Z; Photo and locomotion use the gameplay frame.
+      return [min.x,min.y,min.z,max.x,max.y,max.z].every(Number.isFinite)
+        ? { min: { ...min, z: -max.z }, max: { ...max, z: -min.z } } : null;
+    },
     dragon,
     ready,
     get modelState() { return modelState; },
@@ -527,4 +548,3 @@ export function createCharacter(app, player, { assetShadow = null, assetCanary =
     }
   };
 }
-

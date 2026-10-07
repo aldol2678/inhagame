@@ -145,6 +145,7 @@ export function createPhotoInput({ mode, rig, canvas, doc = globalThis.document,
     releaseAll();
     if (!active) precision = false;
   });
+  const offClosing = mode.subscribeClosing?.(releaseAll);
 
   // Small virtual stick: up = forward. Pointer capture keeps its drag off the camera look.
   function bindMovePad(element, knob = null) {
@@ -206,7 +207,7 @@ export function createPhotoInput({ mode, rig, canvas, doc = globalThis.document,
     },
     destroy() {
       if (destroyed) return;
-      destroyed = true; releaseAll(); unsubscribe();
+      destroyed = true; releaseAll(); unsubscribe(); offClosing?.();
       for (const unbind of unbinders.splice(0)) unbind();
       padResets.clear();
     }
