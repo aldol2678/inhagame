@@ -129,6 +129,8 @@ test('server-synced weather and celestial pose are applied immediately then rema
   assert.equal(environment.celestialCalls.length, 1);
   assert.equal(environment.celestialCalls[0].options.immediate, true);
   assert.equal(typeof controller.status().weather, 'string');
+  assert.equal(typeof controller.status().baseWeather, 'string');
+  assert.equal(typeof controller.status().rainEvent.occurs, 'boolean');
   assert.equal(typeof controller.status().celestial.sunAltitudeDegrees, 'number');
 
   clock.setNow(E + 10 * 60_000 + 1_000);
