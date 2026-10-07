@@ -492,8 +492,12 @@
   </section>
   <script>
     try {
-      const config = JSON.parse(localStorage.getItem('inhagame-campus-settings-v1') || '{}');
-      if (config.side === 'right') document.body.classList.add('joystick-right');
+      const legacy = JSON.parse(localStorage.getItem('inhagame-campus-settings-v1') || '{}');
+      const device = JSON.parse(localStorage.getItem('inhagame-device-settings-v2') || '{}');
+      const side = ['left', 'right'].includes(legacy?.side)
+        ? legacy.side
+        : device?.controls?.joystickSide;
+      if (side === 'right') document.body.classList.add('joystick-right');
     } catch { /* Use default controls when local storage is unavailable. */ }
   </script>
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
