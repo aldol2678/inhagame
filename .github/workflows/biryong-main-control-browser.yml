@@ -5,6 +5,8 @@ on:
     paths:
       - 'apps/world/**'
       - '.github/workflows/biryong-main-control-browser.yml'
+      - '.github/ci/biryong-ci-scope.mjs'
+      - '.github/ci/biryong-ci-scope.test.mjs'
   workflow_dispatch:
 
 permissions:
