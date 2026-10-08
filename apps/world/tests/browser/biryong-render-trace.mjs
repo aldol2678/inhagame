@@ -7,7 +7,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { startSmoke, TIMEOUT_MS } from './harness.mjs';
 import { boundedPerformancePhase } from './biryong-performance-diagnostics.mjs';
 import { finalizeTraceDiagnostic } from './biryong-render-trace-cleanup.mjs';
-import { TRACE_LIMITS, BoundedTrace, summarizeIntervals, assertResolutionControl, installWindowProbe, readTraceScene } from './biryong-render-trace-support.mjs';
+import { traceWindowCompletion, runTraceSequence, TRACE_LIMITS, BoundedTrace, summarizeIntervals, assertResolutionControl, installWindowProbe, readTraceScene } from './biryong-render-trace-support.mjs';
 
 const CONTROL_SHA = 'e49419c39d884515f2402a2f3a23fe4c754b8882';
 const output = resolve(process.env.BIRYONG_TRACE_OUTPUT || 'test-results/biryong-render-trace');
@@ -101,17 +101,18 @@ async function collect(label, scale, baseline) {
     await writeFile(join(output, `${label}.trace.json`), JSON.stringify(trace.document()));
     window.artifacts.trace = { file: `${label}.trace.json`, bytes: trace.bytes, events: trace.events.length,
       truncated: trace.truncated, complete: !traceActive, bufferUsageMax, dataLossOccurred: traceCompletion?.dataLossOccurred ?? null };
-    if (traceCompletion?.dataLossOccurred || bufferUsageMax >= .99) errors.push('Browser trace buffer filled or reported data loss; partial diagnostic only');
-    if (trace.truncated || !trace.events.length) errors.push('Trace capped or empty; partial diagnostic only');
-    if (window.status !== 'COLLECTED' || errors.length) window.status = 'PARTIAL';
+    const completion = traceWindowCompletion({ collected: window.status === 'COLLECTED', trace: window.artifacts.trace, errors });
+    window.status = completion.status;
     if (window.samples) window.samples.capped = {
       raf: window.samples.observedRaf - 1 > window.samples.raf.length,
       postrender: window.samples.observedPostrender - 1 > window.samples.postrender.length,
       frames: window.samples.observedFrames > window.samples.frames.length };
-    window.artifactErrors = errors;
+    window.artifactErrors = completion.artifactErrors;
+    window.recoverableArtifactWarnings = completion.recoverableArtifactWarnings;
     await persist();
-    if (errors.length) throw new Error(errors.join('; '));
+    if (completion.fatalErrors.length) throw new Error(completion.fatalErrors.join('; '));
   }
+  return window;
 }
 try {
   await phase('verify-source', async () => {
@@ -151,17 +152,18 @@ try {
   const baseline = await phase('baseline-scene', () => page.evaluate(readTraceScene));
   originalRatio = baseline.maxPixelRatio;
   assert.ok(baseline.cameraTransform.length === 7, 'active camera transform required');
-  for (const [label, scale] of [['baseline-before', 1], ['half-resolution', .5], ['baseline-after', 1]]) {
+  const sequenceStatus = await runTraceSequence(async (label, scale) => {
     await phase(`${label}:resolution`, () => page.evaluate(({ ratio, scale }) => {
       // Only drawing buffer changes; preserve CSS viewport, graphics preferences and frame limiter.
       const app = window.__INHAGAME_P0__.app;
       app.graphicsDevice.maxPixelRatio = ratio * scale; app.resizeCanvas();
     }, { ratio: originalRatio, scale }));
     await settle(label);
-    await collect(label, scale, baseline);
-  }
+    return collect(label, scale, baseline);
+  });
   assert.deepEqual(smoke.problems, []);
-  receipt.status = 'DIAGNOSTIC_COMPLETE';
+  receipt.status = sequenceStatus;
+  if (receipt.status === 'DIAGNOSTIC_PARTIAL') process.exitCode = 1;
 } catch (error) {
   receipt.status = 'DIAGNOSTIC_PARTIAL'; receipt.error = String(error); process.exitCode = 1;
 } finally {

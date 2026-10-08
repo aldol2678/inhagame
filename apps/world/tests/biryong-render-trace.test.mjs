@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import { EventEmitter } from 'node:events';
-import { installWindowProbe, BoundedTrace, assertResolutionControl, summarizeIntervals, TRACE_LIMITS } from './browser/biryong-render-trace-support.mjs';
+import { traceWindowCompletion, runTraceSequence, installWindowProbe, BoundedTrace, assertResolutionControl, summarizeIntervals, TRACE_LIMITS } from './browser/biryong-render-trace-support.mjs';
 
 // Removing the byte/event bound would retain the oversized event and fail this contract.
 test('trace collector keeps valid partial JSON under byte and event caps', () => {
@@ -46,7 +46,10 @@ test('diagnostic workflow pins immutable main and preserves artifacts without cl
   const script = await readFile(new URL('./browser/biryong-render-trace.mjs', import.meta.url), 'utf8');
   assert.match(script, /gpuTimeMeasured: false/);
   assert.match(script, /DIAGNOSTIC_ONLY/);
-  assert.match(script, /baseline-before.*half-resolution.*baseline-after/s);
+  const support = await readFile(new URL('./browser/biryong-render-trace-support.mjs', import.meta.url), 'utf8');
+  assert.match(support, /baseline-before.*half-resolution.*baseline-after/s);
+  assert.match(script, /await runTraceSequence/);
+  assert.match(script, /receipt\.status = sequenceStatus;\s+if \(receipt\.status === 'DIAGNOSTIC_PARTIAL'\) process\.exitCode = 1;/);
   assert.doesNotMatch(script, /setFrameLimit|setViewportSize|screenshot\(/);
 });
 
@@ -87,4 +90,49 @@ test('browser probe aligns CPU-wall spans, records raw stats and removes hooks w
   assert.equal(result.frames[0].drawCalls, 74);
   assert.equal(app.eventNames().length, 0); assert.equal(callbacks.size, 0);
   assert.equal(app.graphicsDevice.canvas.width, 1024);
+});
+
+
+const completeTrace = overrides => ({ events: 12, complete: true, truncated: false,
+  bufferUsageMax: .3, dataLossOccurred: false, ...overrides });
+test('only the output cap is recoverable; empty trace, browser loss and cleanup errors remain fatal', () => {
+  const capped = traceWindowCompletion({ collected: true, trace: completeTrace({ truncated: true }), errors: [] });
+  assert.equal(capped.status, 'PARTIAL'); assert.equal(capped.fatalErrors.length, 0);
+  assert.equal(capped.recoverableArtifactWarnings.length, 1);
+  for (const [trace, errors] of [
+    [completeTrace({ truncated: true, events: 0 }), []],
+    [completeTrace({ truncated: true, complete: false }), []],
+    [completeTrace({ truncated: true, dataLossOccurred: true }), []],
+    [completeTrace({ truncated: true, bufferUsageMax: 1 }), []],
+    [completeTrace({ truncated: true }), ['CDP stop-profile deadline']],
+  ]) {
+    const result = traceWindowCompletion({ collected: true, trace, errors });
+    assert.ok(result.fatalErrors.length > 0); assert.equal(result.recoverableArtifactWarnings.length, 0);
+  }
+});
+test('a capped half-resolution trace preserves partial status but still measures baseline-after', async () => {
+  const visited = [], windows = [];
+  const status = await runTraceSequence(async (label, scale) => {
+    visited.push([label, scale]);
+    const result = traceWindowCompletion({ collected: true,
+      trace: completeTrace({ truncated: label === 'half-resolution' }), errors: [] });
+    if (result.fatalErrors.length) throw new Error(result.fatalErrors.join('; '));
+    windows.push(result); return result;
+  });
+  assert.deepEqual(visited, [['baseline-before', 1], ['half-resolution', .5], ['baseline-after', 1]]);
+  assert.deepEqual(windows.map(w => w.status), ['COLLECTED', 'PARTIAL', 'COLLECTED']);
+  assert.equal(status, 'DIAGNOSTIC_PARTIAL');
+  assert.equal(TRACE_LIMITS.maxTraceBytes, 8 * 1024 * 1024);
+  assert.equal(TRACE_LIMITS.windowMs, 8000); assert.equal(TRACE_LIMITS.maxSamples, 120);
+  assert.equal(TRACE_LIMITS.phaseMs, 15000);
+});
+test('fatal collection errors stop the sequence; fully collected sequence remains complete', async () => {
+  const visited = [];
+  await assert.rejects(runTraceSequence(async label => {
+    visited.push(label);
+    if (label === 'half-resolution') throw new Error('CDP cleanup failed');
+    return { status: 'COLLECTED' };
+  }), /CDP cleanup failed/);
+  assert.deepEqual(visited, ['baseline-before', 'half-resolution']);
+  assert.equal(await runTraceSequence(async () => ({ status: 'COLLECTED' })), 'DIAGNOSTIC_COMPLETE');
 });

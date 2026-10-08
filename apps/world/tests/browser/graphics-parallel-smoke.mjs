@@ -158,6 +158,10 @@ async function clockAt(minute) {
 async function renderedSample() {
   return page.evaluate(() => new Promise(resolve => {
     const app = window.__INHAGAME_P0__.app;
+    const state = () => ({ visibility: document.visibilityState,
+      contextLost: app.graphicsDevice?.contextLost === true,
+      autoRender: app.autoRender, renderNextFrame: app.renderNextFrame });
+    const startState = state();
     const intervals = []; let previous = null, updates = 0, renders = 0;
     const start = performance.now();
     const update = () => { updates++; };
@@ -167,7 +171,7 @@ async function renderedSample() {
     setTimeout(() => { app.off('update', update); app.off('postrender', render);
       const elapsedMs = performance.now() - start;
       const sorted = [...intervals].sort((a,b) => a-b);
-      resolve({ updates, renders, elapsedMs, renderedFps: renders * 1000 / elapsedMs,
+      resolve({ startState, endState: state(), updates, renders, elapsedMs, renderedFps: renders * 1000 / elapsedMs,
         intervals, p50Ms: sorted[Math.floor(sorted.length * .5)] ?? null,
         p95Ms: sorted[Math.min(sorted.length-1, Math.ceil(sorted.length * .95)-1)] ?? null });
     }, 2500);
@@ -221,10 +225,10 @@ try {
   await page.locator('#close-settings').click();
   await verifyMovementRestored('after-detail-controls');
   const pacing = await renderedSample();
+  receipt.checks.framePacing = pacing;
   assert.ok(pacing.renders > 2, 'need actual rendered frames');
   assert.ok(pacing.updates >= pacing.renders, 'pacing must not stop simulation updates');
   assert.ok(pacing.renderedFps <= 34, '30 FPS ceiling with scheduling tolerance');
-  receipt.checks.framePacing = pacing;
 
   // Test actual persisted UI details, then clear only this disposable context's graphics settings.
   await page.reload({ waitUntil: 'domcontentloaded', timeout: TIMEOUT_MS });

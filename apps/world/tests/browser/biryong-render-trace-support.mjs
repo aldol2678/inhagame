@@ -20,6 +20,32 @@ export class BoundedTrace {
   }
   document() { return { traceEvents: this.events }; }
 }
+// Output truncation is recoverable only after valid samples and successful CDP cleanup.
+// Keep every other artifact failure fatal; partial evidence never becomes acceptance.
+export function traceWindowCompletion({ collected, trace, errors }) {
+  const fatalErrors = [...errors];
+  if (!trace.complete) fatalErrors.push('Trace collection did not stop cleanly');
+  if (trace.dataLossOccurred || trace.bufferUsageMax >= .99)
+    fatalErrors.push('Browser trace buffer filled or reported data loss; partial diagnostic only');
+  if (!trace.events) fatalErrors.push('Trace empty; partial diagnostic only');
+  const warnings = trace.truncated ? ['Trace output capped; partial diagnostic only'] : [];
+  return {
+    status: collected && !fatalErrors.length && !warnings.length ? 'COLLECTED' : 'PARTIAL',
+    artifactErrors: [...fatalErrors, ...warnings],
+    recoverableArtifactWarnings: collected && !fatalErrors.length ? warnings : [],
+    fatalErrors
+  };
+}
+export async function runTraceSequence(collectWindow) {
+  let status = 'DIAGNOSTIC_COMPLETE';
+  for (const [label, scale] of [['baseline-before', 1], ['half-resolution', .5], ['baseline-after', 1]]) {
+    const window = await collectWindow(label, scale);
+    assert.ok(['COLLECTED', 'PARTIAL'].includes(window?.status), 'window completion status required');
+    if (window.status === 'PARTIAL') status = 'DIAGNOSTIC_PARTIAL';
+  }
+  return status;
+}
+
 export function summarizeIntervals(values) {
   const valid = values.filter(value => Number.isFinite(value) && value > 0).sort((a, b) => a - b);
   return { sampleCount: valid.length, meanMs: valid.length ? valid.reduce((a, b) => a + b, 0) / valid.length : null,

@@ -116,3 +116,14 @@ dev-server, then attempts browser close. If abort also rejects/times out (or the
 hook is missing), the sampler persists the final partial receipt before explicitly
 exiting with status 1, allowing artifact upload. It never kills unrelated processes.
 The workflow process-group timeout remains an outer safeguard.
+
+## Continue controls after output-only trace truncation
+
+A trace JSON reaching the unchanged 8 MiB/50,000-event output cap is recoverable
+only when frame/scene validation and CDP profile/trace shutdown all succeeded.
+That window remains PARTIAL with its cap warning; the sequence continues through
+baseline-after. Any partial window keeps the final receipt DIAGNOSTIC_PARTIAL and
+process exit 1, even if baseline-after succeeds. Empty traces, browser buffer
+saturation/data loss, CPU-profile failures, CDP cleanup failures, and collection
+or scene-validation errors still abort the sequence. Trace categories, durations,
+sample limits, host deadlines, and performance acceptance gates are unchanged.

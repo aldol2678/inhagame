@@ -2,11 +2,44 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
+import { runInNewContext } from 'node:vm';
 const read = path => readFile(new URL(path, import.meta.url), 'utf8');
 const [smoke, main, campus, harness] = await Promise.all([
   read('./browser/graphics-parallel-smoke.mjs'), read('../src/main.js'),
   read('../campus/index.html'), read('./browser/harness.mjs')
 ]);
+test('pacing evidence is attached before unchanged acceptance assertions', () => {
+  const sample = smoke.indexOf('const pacing = await renderedSample();');
+  const attach = smoke.indexOf('receipt.checks.framePacing = pacing;', sample);
+  const assertion = smoke.indexOf("assert.ok(pacing.renders > 2, 'need actual rendered frames');", sample);
+  assert.ok(sample >= 0 && attach > sample && assertion > attach);
+  assert.ok(smoke.includes("assert.ok(pacing.updates >= pacing.renders"));
+  assert.ok(smoke.includes("assert.ok(pacing.renderedFps <= 34"));
+});
+test('pacing sampler retains start/end state and raw counts without changing its 2500 ms window', async () => {
+  const source = smoke.match(/async function renderedSample\(\) \{[\s\S]*?\n\}/)?.[0];
+  assert.ok(source);
+  const listeners = new Map();
+  const app = { autoRender: false, renderNextFrame: true, graphicsDevice: { contextLost: false },
+    on: (name, fn) => listeners.set(name, fn), off: name => listeners.delete(name) };
+  const document = { visibilityState: 'visible' };
+  let elapsed = 0, deadline, complete;
+  const resultPromise = runInNewContext(`(${source})()`, {
+    window: { __INHAGAME_P0__: { app } }, document,
+    page: { evaluate: fn => fn() }, performance: { now: () => elapsed },
+    setTimeout: (fn, ms) => { complete = fn; deadline = ms; }
+  });
+  assert.equal(deadline, 2500);
+  listeners.get('update')(); listeners.get('postrender')();
+  document.visibilityState = 'hidden'; app.graphicsDevice.contextLost = true;
+  app.autoRender = true; app.renderNextFrame = false; elapsed = 2500; complete();
+  const result = JSON.parse(JSON.stringify(await resultPromise));
+  assert.deepEqual(result.startState, { visibility: 'visible', contextLost: false, autoRender: false, renderNextFrame: true });
+  assert.deepEqual(result.endState, { visibility: 'hidden', contextLost: true, autoRender: true, renderNextFrame: false });
+  assert.equal(result.renders, 1); assert.equal(result.updates, 1);
+  assert.equal(result.elapsedMs, 2500); assert.equal(result.renderedFps, .4);
+  assert.equal(listeners.size, 0);
+});
 test('graphics smoke parses without launching browser', () => {
   const result = spawnSync(process.execPath, ['--check', new URL('./browser/graphics-parallel-smoke.mjs', import.meta.url).pathname], { encoding: 'utf8' });
   assert.equal(result.status, 0, result.stderr);
