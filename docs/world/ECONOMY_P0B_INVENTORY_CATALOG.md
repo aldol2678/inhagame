@@ -12,15 +12,15 @@ Design sources (Notion CURRENT DESIGN): `Collection C0–C2 상세설계 v0.1` �
 Code catalog: `apps/world/src/collection/item-catalog.js`.
 Base migration: `supabase/migrations/20261001213132_public_baseline.sql`.
 Life M1 compatibility extension: `supabase/migrations/20261002131000_world_material_catalog_m1.sql`.
+Housing F0 catalog extension: `supabase/migrations/20261008090000_world_personal_room_f0_furniture.sql`.
 
 `Catalog ≠ Ownership ≠ Inventory View ≠ Loadout ≠ Room Placement`. P0-B closes Catalog + Ownership only.
 
 ## C0 Catalog (code canon)
 
-29 items: the 6 VS01 pilot fixtures (kept unchanged) + the Starter Catalog 20 + three Life M1
-`MATERIAL` fixtures. IDs are lowercase `<category>.<name>`; the prefix must match the category (and,
-for wearables, the equip slot). The original 26 collection/cosmetic items remain `cosmeticOnly` +
-`UNIQUE`. Life M1 materials are gameplay items (`cosmeticOnly: false`) with `STACKABLE`, `maxStack: 99`
+36 items: the 6 VS01 pilot fixtures (kept unchanged) + the Starter Catalog 20 + seven Housing F0
+furniture identities + three Life M1 `MATERIAL` fixtures. IDs are lowercase `<category>.<name>`; the prefix must match the category (and,
+for wearables, the equip slot). The 33 collection/cosmetic items remain `cosmeticOnly` + `UNIQUE`. Life M1 materials are gameplay items (`cosmeticOnly: false`) with `STACKABLE`, `maxStack: 99`
 and `ACCOUNT_BOUND`; prices still belong to Shop Listings. Furniture carries a placement `subtype`
 (`WALL_DECOR / FLOOR_DECOR / CHAIR / LIGHT / DECOR`) but no position. `validateCatalog()` enforces the
 C0 rules; `describeOwnedItem()` turns a catalog miss into an `UNKNOWN_ITEM` placeholder instead of
