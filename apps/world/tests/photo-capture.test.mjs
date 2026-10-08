@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createPhotoCapture } from '../src/photo/photo-capture.js';
 
-function fixture({ width = 640, height = 360, contextLost = false, transparent = false, diagnostics = false, onDiagnostic, now, createWorker } = {}) {
+function fixture({ width = 640, height = 360, contextLost = false, transparent = false, diagnostics = false, onDiagnostic, now } = {}) {
   const listeners = new Map(), subscribers = new Set(), timers = new Set(), draws = [];
   const app = { graphicsDevice: { contextLost }, renderNextFrame: false,
     on(name, fn) { listeners.set(name, fn); }, off(name, fn) { if (listeners.get(name) === fn) listeners.delete(name); } };
@@ -15,7 +15,7 @@ function fixture({ width = 640, height = 360, contextLost = false, transparent =
     getContext() { return { drawImage(...args) { draws.push(args); },
       getImageData() { return { data: new Uint8ClampedArray([10, 30, 50, transparent ? 0 : 255]) }; } }; },
     toBlob(fn, type) { encode = fn; mime = type; } };
-  const capture = createPhotoCapture({ app, canvas, mode, diagnostics, onDiagnostic, now, createWorker, doc: { visibilityState: 'visible', createElement: () => snapshot },
+  const capture = createPhotoCapture({ app, canvas, mode, diagnostics, onDiagnostic, now, doc: { visibilityState: 'visible', createElement: () => snapshot },
     setTimer(fn) { timers.add(fn); return fn; }, clearTimer(fn) { timers.delete(fn); } });
   return { app, canvas, mode, capture, snapshot, draws, listeners, subscribers, timers,
     frame: () => listeners.get('frameend')?.(), encode: blob => encode(blob), get mime() { return mime; } };
@@ -359,85 +359,4 @@ test('fallback retains separately ordered read and scan timings and disabled dia
       [['drawImage', 2], ['getImageData', 3], ['alphaScan', 1], ['getImageData', 40], ['alphaScan', 1]]);
     else assert.deepEqual(h.capture.diagnostics(), []);
   }
-});
-
-function workerFixture(options = {}) {
-  const worker = { messages: [], terminated: 0, postMessage(value) { this.messages.push(value); }, terminate() { this.terminated++; } };
-  const h = fixture({ ...options, createWorker: () => worker });
-  const reply = value => worker.onmessage?.({ data: value });
-  return { ...h, worker, reply, ready: () => reply({ type: 'ready' }),
-    validated: (status = 'valid') => reply({ type: 'validated', id: worker.messages.at(-1)?.id, status,
-      timings: { decodeMs: 2, readbackMs: 3, scanMs: 1 } }) };
-}
-
-test('worker validates encoded PNG without main-thread pixel readback and preserves original blob', async () => {
-  const h = workerFixture({ diagnostics: true });
-  h.snapshot.getContext = () => ({ drawImage() {}, getImageData() { assert.fail('main-thread readback'); } });
-  const promise = h.capture.request(); h.frame(); h.ready(); const blob = png(); h.encode(blob);
-  assert.equal(h.worker.messages.at(-1).blob, blob);
-  h.validated(); assert.equal((await promise).blob, blob); assert.equal(h.worker.terminated, 1);
-  assert.equal(h.capture.diagnostics()[0].validation.path, 'worker');
-});
-
-for (const status of ['invalid']) test(`worker ${status} fails closed without legacy override`, async () => {
-  const h = workerFixture(), promise = h.capture.request(); h.frame(); h.ready(); h.encode(png()); h.validated(status);
-  await assert.rejects(promise, { code: 'unavailable' }); assert.equal(h.worker.terminated, 1);
-});
-
-for (const action of ['destroy', 'timeout', 'close']) test(`worker is terminated on ${action} and late replies discarded`, async () => {
-  const h = workerFixture(), promise = h.capture.request(); h.frame(); h.ready(); h.encode(png());
-  const callback = h.worker.onmessage;
-  if (action === 'timeout') [...h.timers][0](); else if (action === 'close') h.mode.close(); else h.capture.destroy();
-  await assert.rejects(promise, { code: action === 'timeout' ? 'timeout' : 'cancelled' });
-  assert.equal(h.worker.terminated, 1); callback({ data: { type: 'validated', id: h.worker.messages.at(-1).id, status: 'valid' } });
-  assert.equal(h.capture.busy, false);
-});
-
-for (const type of ['unsupported', 'error', 'messageerror']) test(`worker ${type} uses exact legacy fallback`, async () => {
-  const h = workerFixture({ diagnostics: true }), promise = h.capture.request(); h.frame();
-  if (type === 'unsupported') h.reply({ type: 'unsupported' }); else h.worker['on' + type]({ preventDefault() {} });
-  const blob = png(); h.encode(blob); assert.equal((await promise).blob, blob);
-  assert.equal(h.capture.diagnostics()[0].validation.path, 'legacy'); assert.equal(h.worker.terminated, 1);
-});
-
-test('stale worker request id cannot satisfy validation', async () => {
-  const h = workerFixture(), promise = h.capture.request(); h.frame(); h.ready(); h.encode(png());
-  h.reply({ type: 'validated', id: -1, status: 'valid' }); assert.equal(h.capture.busy, true);
-  h.validated(); await promise;
-});
-
-test('PNG callback waits for worker readiness without resolving or decoding twice', async () => {
-  const h = workerFixture(), p = h.capture.request(); h.frame(); const blob = png(); h.encode(blob);
-  assert.equal(h.worker.messages.length, 0); assert.equal(h.capture.busy, true);
-  h.ready(); assert.equal(h.worker.messages.length, 1); h.validated(); assert.equal((await p).blob, blob);
-});
-
-test('worker startup and communication exceptions explicitly fall back to exact validation', async () => {
-  const start = fixture({ diagnostics: true, createWorker() { throw Error('private CSP URL'); } });
-  const a = start.capture.request(); start.frame(); start.encode(png()); await a;
-  assert.equal(start.capture.diagnostics()[0].validation.fallbackReason, 'startup-error');
-  const h = workerFixture({ diagnostics: true }), p = h.capture.request(); h.frame(); h.ready();
-  h.worker.postMessage = () => { throw Error('private'); }; h.encode(png()); await p;
-  assert.equal(h.capture.diagnostics()[0].validation.fallbackReason, 'message-error');
-  assert.doesNotMatch(JSON.stringify(h.capture.diagnostics()), /private/);
-});
-
-test('infrastructure fallback after PNG encoding rejects a fully transparent snapshot', async () => {
-  const h = workerFixture({ transparent: true }), p = h.capture.request(); h.frame(); h.encode(png());
-  h.worker.onerror({ preventDefault() {} }); await assert.rejects(p, { code: 'unavailable' });
-});
-
-test('valid worker response revalidates mode and cannot save an invalid session', async () => {
-  const h = workerFixture(), p = h.capture.request(); h.frame(); h.ready(); h.encode(png());
-  h.mode.valid = false; h.validated(); await assert.rejects(p, { code: 'cancelled' });
-});
-
-test('encoding diagnostics distinguish synchronous toBlob return from callback and worker stages', async () => {
-  let t=0, callback; const h=workerFixture({diagnostics:true,now:()=>t});
-  h.snapshot.toBlob = fn => { callback=fn; t=40; };
-  const p=h.capture.request(); t=5; h.frame(); h.ready(); t=75; callback(png()); t=90; h.validated(); await p;
-  const record=h.capture.diagnostics()[0];
-  assert.deepEqual(record.encoding,{callStartElapsedMs:5,callReturnElapsedMs:40,callbackElapsedMs:75});
-  assert.deepEqual(record.validation,{path:'worker',fallbackReason:null,decodeMs:2,readbackMs:3,scanMs:1});
-  assert.equal(record.events.at(-1).elapsedMs,90);
 });

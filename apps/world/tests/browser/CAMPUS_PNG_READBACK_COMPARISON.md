@@ -12,7 +12,9 @@ This bounded comparison prepares evidence for the [1×1 alpha witness change](PH
 
 ## Hosted execution without merging
 
-The original `.github/workflows/campus-png-readback-comparison.yml` is now manual-only: its `pull_request` trigger was removed to avoid repeating the older 1×1 experiment alongside async validation. Its `workflow_dispatch`, baseline, experiment and measurement rules are preserved. The new narrowly path-filtered [async-v2 comparison](CAMPUS_PNG_ASYNC_COMPARISON.md) owns automatic PR runs; the same-source and Photo Mode regression workflows remain separate.
+The original `.github/workflows/campus-png-readback-comparison.yml` is manual-only: its `pull_request` trigger remains removed to avoid repeating the completed alpha-witness experiment. Its `workflow_dispatch`, baseline, experiment and measurement rules are preserved. The existing same-source and Photo Mode regression workflows remain unchanged.
+
+The asynchronous PNG candidate was reverted after its bounded hosted observations did not establish improved stability or performance. Candidate commit `088dbeb9ceaf27eb93436809231e829935934673` and its historical workflow artifacts retain that experiment; this rollback does not change or delete those receipts. Its new worker, async-v2 sampler extensions and automatic comparison workflow are removed together. The retained production capture matches `be2e683e5c18637327648b54da45dc2182a94a3e` exactly.
 
 The original experiment initially used a PR trigger, without depending on dispatch of a workflow absent from the default branch. GitHub documents the [PR event and exact-head checkout](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#pull_request) and the [manual dispatch availability restriction](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#workflow_dispatch). Manual execution remains subject to workflow availability and repository permissions.
 

@@ -3,12 +3,10 @@ import assert from 'node:assert/strict';
 // Pin both checkouts to the instrumented revision, while verifying their identities separately.
 // GITHUB_SHA can be a synthetic PR merge commit and is deliberately not consulted here.
 export function assertReproductionSourceIdentity({ appHead, samplerHead }, env = process.env) {
-  assert.ok(env.CAMPUS_REPRO_MODE === undefined || ['v1', 'async-v2'].includes(env.CAMPUS_REPRO_MODE), 'unknown campus reproduction mode');
   for (const key of ['CAMPUS_REPRO_APP_SHA', 'CAMPUS_REPRO_SAMPLER_SHA'])
     assert.match(env[key] ?? '', /^[0-9a-f]{40}$/, `${key} must be an explicit immutable commit SHA`);
   const pins = { app: env.CAMPUS_REPRO_APP_SHA, sampler: env.CAMPUS_REPRO_SAMPLER_SHA };
-  if (env.CAMPUS_REPRO_MODE !== 'async-v2')
-    assert.equal(pins.app, pins.sampler, 'application and sampler must use the same immutable revision containing instrumentation');
+  assert.equal(pins.app, pins.sampler, 'application and sampler must use the same immutable revision containing instrumentation');
   assert.equal(appHead, pins.app, 'application checkout must match CAMPUS_REPRO_APP_SHA');
   assert.equal(samplerHead, pins.sampler, 'sampler checkout must match CAMPUS_REPRO_SAMPLER_SHA');
   return pins;
