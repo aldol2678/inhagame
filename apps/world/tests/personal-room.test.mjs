@@ -198,13 +198,14 @@ test("guest personal-room attempt stays in the lobby and receives a truthful mes
   assert.match(messages.at(-1),/로그인/);
 });
 
-test("C70 shell reaches the approved 1.70 prototype ratio without widening H2 saved-placement authority",()=>{
+test("C70 shell and F0 floor placement share the widened room while legacy wall anchors stay stable",()=>{
   assert.equal(PERSONAL_ROOM_BASIC.aspectRatio,1.70);
   assert.ok(Math.abs(PERSONAL_ROOM_BASIC.halfWidth/PERSONAL_ROOM_BASIC.halfDepth-1.70)<1e-12);
-  assert.equal(PERSONAL_ROOM_PLACEMENT_ENVELOPE.floor.maxX,5.3);
+  assert.equal(PERSONAL_ROOM_PLACEMENT_ENVELOPE.floor.maxX,7.04);
   assert.equal(PERSONAL_ROOM_PLACEMENT_ENVELOPE.wall.eastX,5.35);
   assert.ok(PERSONAL_ROOM_PLACEMENT_ENVELOPE.floor.maxX<PERSONAL_ROOM_BASIC.halfWidth);
-  assert.ok(PERSONAL_ROOM_BASIC_BOUNDS.maxX>5.3,"walkable shell expands before persisted furniture authority");
+  assert.ok(PERSONAL_ROOM_BASIC_BOUNDS.maxX>PERSONAL_ROOM_PLACEMENT_ENVELOPE.floor.maxX,
+    "walkable bounds keep capsule clearance outside the F0 floor placement envelope");
 });
 
 test("DORM_1_BASIC template is human-scale, local-only and static in D1.3",()=>{
