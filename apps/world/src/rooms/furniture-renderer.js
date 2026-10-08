@@ -58,6 +58,45 @@ export function createFurnitureLayer(app, root) {
     } else if (id.includes("cushion")) {
       box(entity,"cushion",[0,.07,0],[.45,.14,.4],surface("#5ac9d1"),0,"sphere");
       box(entity,"beak",[0,.12,-.12],[.14,.025,.08],surface("#fac34e"));
+    } else if (id.includes("single_sofa")) {
+      const fabric=surface("#718da3"), dark=surface("#536b7c");
+      box(entity,"seat",[0,.25,0],[item.width,.22,item.depth*.72],fabric);
+      box(entity,"back",[0,.53,item.depth*.34],[item.width,.38,.16],fabric);
+      for(const x of [-item.width/2+.08,item.width/2-.08]) box(entity,"arm",[x,.38,0],[.16,.34,item.depth*.72],dark);
+      for(const x of [-item.width*.36,item.width*.36]) for(const z of [-item.depth*.23,item.depth*.23])
+        box(entity,"leg",[x,.07,z],[.07,.14,.07],surface("#5b4635"));
+    } else if (id.includes("side_table_low")) {
+      box(entity,"top",[0,item.height-.04,0],[item.width,.08,item.depth],surface("#a97b50"));
+      for(const x of [-item.width*.38,item.width*.38]) for(const z of [-item.depth*.38,item.depth*.38])
+        box(entity,"leg",[x,(item.height-.08)/2,z],[.06,item.height-.08,.06],surface("#634b38"));
+    } else if (id.includes("bookshelf_slim")) {
+      const wood=surface("#765338"), edge=surface("#a77a50");
+      box(entity,"back",[0,item.height/2,item.depth/2-.025],[item.width,item.height,.05],wood);
+      for(const x of [-item.width/2+.035,item.width/2-.035]) box(entity,"side",[x,item.height/2,0],[.07,item.height,item.depth],wood);
+      for(const y of [.04,item.height*.34,item.height*.66,item.height-.04]) box(entity,"shelf",[0,y,0],[item.width,.06,item.depth],edge);
+    } else if (id.includes("plant_medium")) {
+      box(entity,"pot",[0,.16,0],[.38,.32,.38],surface("#a95f3c"),0,"cylinder");
+      for(const [x,y,z,s] of [[0,.48,0,.42],[-.13,.58,.04,.3],[.13,.62,-.03,.32],[0,.72,.08,.28]])
+        box(entity,"leaf",[x,y,z],[s,.28,s*.72],surface("#4f8c58"),0,"sphere");
+    } else if (id.includes("dorm_monitor")) {
+      const bezel=surface("#26323b"), screen=surface("#78a9c8");
+      box(entity,"screen",[0,.22,0],[item.width,.30,.06],bezel);
+      box(entity,"panel",[0,.22,-.034],[item.width-.05,.25,.008],screen);
+      box(entity,"stem",[0,.065,.02],[.04,.13,.04],surface("#53616b"));
+      box(entity,"base",[0,.015,.02],[.22,.03,.12],surface("#53616b"));
+    } else if (id.includes("trophy_shelf")) {
+      const wood=surface("#725039"), shelf=surface("#a4774d");
+      box(entity,"back",[0,item.height/2,item.depth/2-.02],[item.width,item.height,.04],wood);
+      for(const x of [-item.width/2+.035,item.width/2-.035]) box(entity,"side",[x,item.height/2,0],[.07,item.height,item.depth],wood);
+      for(const y of [.04,item.height*.48,item.height-.04]) box(entity,"shelf",[0,y,0],[item.width,.06,item.depth],shelf);
+      box(entity,"trophy_cup",[0,.72,-.04],[.16,.16,.12],surface("#d8b452"),0,"cylinder");
+      box(entity,"trophy_stem",[0,.59,-.04],[.035,.12,.035],surface("#d8b452"));
+      box(entity,"trophy_base",[0,.51,-.04],[.16,.04,.10],surface("#544436"));
+    } else if (id.includes("study_books_set")) {
+      const colors=["#496b8c","#b05f54","#d0a14f","#6f8f62","#7d668e"];
+      colors.forEach((color,index)=>box(entity,"book",[0,index*.032+.018,(index%2)*.012-.006],
+        [item.width-index*.025,.03,item.depth],surface(color)));
+      box(entity,"notebook",[.03,.17,0],[item.width*.82,.025,item.depth*.9],surface("#e6dfcc"));
     } else {
       box(entity,"base",[0,.025,0],[item.width,.05,item.depth],surface("#977449"));
       const duckRoot = new pc.Entity("duck"); duckRoot.setLocalPosition(0,.04,0); entity.addChild(duckRoot);
