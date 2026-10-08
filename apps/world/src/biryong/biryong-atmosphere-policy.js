@@ -93,7 +93,9 @@ export function biryongAtmosphereProfile(base = {}, tier = "medium") {
     fogEnd,
     fogColor: Object.freeze(mixTuple(fogColor, tint, tintMix).map(clamp01)),
     clearColor: Object.freeze(mixTuple(clearColor, tint, clearMix).map(clamp01)),
-    toneMapping: quality.cinematicToneMapping ? "cinematic" : "neutral",
+    // Keep the LOW night mapper at every tier: cinematic grading compresses
+    // character/background separation even with the same ambient/exposure.
+    toneMapping: quality.cinematicToneMapping && time !== "NIGHT" ? "cinematic" : "neutral",
     canvasFilter: `saturate(${quality.saturation}) contrast(${gradeContrast}) brightness(${gradeBrightness.toFixed(3)})`,
     screenSpaceBloom: false,
     bloomReason: "No WebGPU-safe post-effect chain is present in the current World renderer; keep bloom out of P0-D rather than add a second render path."

@@ -124,3 +124,30 @@ test("P0-D disabled path is inert", () => {
   assert.equal(controller.update(), false);
   assert.equal(controller.status().enabled, false);
 });
+
+test('NIGHT uses the readable neutral mapper for every tier while daytime and twilight retain their mapper', () => {
+  for (const tier of ['low', 'medium', 'high']) {
+    assert.equal(biryongAtmosphereProfile({ ...base, targetTime: 'NIGHT', artificialLightFactor: 1 }, tier).toneMapping, 'neutral');
+    for (const targetTime of ['DAWN', 'DAY', 'GOLDEN_HOUR', 'SUNSET', 'DUSK'])
+      assert.equal(biryongAtmosphereProfile({ ...base, targetTime }, tier).toneMapping, tier === 'low' ? 'neutral' : 'cinematic');
+  }
+});
+
+test('NIGHT and quality transitions select neutral without changing the campus restoration baseline', () => {
+  const color = () => ({ set() {} });
+  const scene = { fog: { color: color() } };
+  const camera = { camera: { clearColor: color(), toneMapping: 7 } };
+  const canvas = { style: { filter: 'contrast(1.1)' } };
+  let active = true, tier = 'high', time = 'DAY';
+  const environment = { copyVisualAtmosphereState(out) { return Object.assign(out, base, { targetTime: time, artificialLightFactor: time === 'NIGHT' ? 1 : 0 }); } };
+  const controller = createBiryongAtmosphere({ scene, camera, canvas, environment, enabled: true,
+    getActive: () => active, getGraphicsTier: () => tier, toneMappingNeutral: 11, toneMappingCinematic: 22 });
+  controller.update(); assert.equal(camera.camera.toneMapping, 22);
+  time = 'NIGHT'; controller.update(); assert.equal(camera.camera.toneMapping, 11);
+  for (tier of ['medium', 'low', 'high']) { controller.update(); assert.equal(camera.camera.toneMapping, 11); }
+  time = 'SUNSET'; controller.update(); assert.equal(camera.camera.toneMapping, 22);
+  time = 'NIGHT'; controller.update();
+  active = false; controller.update();
+  assert.equal(camera.camera.toneMapping, 7);
+  assert.equal(canvas.style.filter, 'contrast(1.1)');
+});
