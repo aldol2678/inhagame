@@ -6,6 +6,8 @@ import { fileURLToPath } from 'node:url';
 import { PROTOCOL, assertSameCampusScene } from './campus-render-reproduction-support.mjs';
 
 export const BEFORE_SHA = 'aa35d922716e726beb92d53d359c357f6276296c';
+export const ASYNC_BEFORE_SHA = 'be2e683e5c18637327648b54da45dc2182a94a3e';
+export const ASYNC_BEFORE_TREE = 'a29becf3a727ce83a3a362e22649558128907912';
 const SHA = /^[0-9a-f]{40}$/;
 const HASH = /^[0-9a-f]{64}$/;
 const SCENE_KEYS = ['viewport','drawingBuffer','driver','visible','inBiryong','position','camera',
@@ -16,6 +18,30 @@ const SAMPLER_PATHS = ['campus-render-reproduction.mjs','campus-render-reproduct
 const SOURCE_PATHS = ['src/main.js','src/photo/photo-capture.js','src/photo/photo-mode.js','src/photo/photo-mode-panel.js',
   'src/photo/photo-camera-controller.js','src/graphics-presets.js','campus/index.html','styles.css','tests/browser/package.json'];
 const CAPTURE_PATH = 'src/photo/photo-capture.js';
+const WORKER_PATH = 'src/photo/photo-alpha-worker.js';
+
+const milliseconds = value => Number.isFinite(value) && value >= 0 ? value : null;
+function summarizeAsyncValidation(record) {
+  const validation = record.validation ?? {}, timing = record.encoding ?? {};
+  const callStartElapsedMs = milliseconds(timing.callStartElapsedMs);
+  const callReturnElapsedMs = milliseconds(timing.callReturnElapsedMs);
+  const callbackElapsedMs = milliseconds(timing.callbackElapsedMs);
+  const difference = (end,start) => end !== null && start !== null && end >= start ? end-start : null;
+  return { workerUsed: validation.path === 'worker' ? true : validation.path === 'legacy' ? false : null,
+    path: validation.path ?? null, fallbackReason: validation.fallbackReason ?? null,
+    encoding: { callStartElapsedMs,callReturnElapsedMs,callbackElapsedMs,
+      callDurationMs:difference(callReturnElapsedMs,callStartElapsedMs),
+      callbackAfterReturnMs:difference(callbackElapsedMs,callReturnElapsedMs),
+      callbackAfterCallMs:difference(callbackElapsedMs,callStartElapsedMs) },
+    worker: { decodeMs:milliseconds(validation.decodeMs),readbackMs:milliseconds(validation.readbackMs),scanMs:milliseconds(validation.scanMs) } };
+}
+function hasAsyncSuccessProof(record) {
+  const summary = summarizeAsyncValidation(record ?? {});
+  return summary.workerUsed !== null && summary.encoding.callDurationMs !== null
+    && summary.encoding.callbackAfterReturnMs !== null && (summary.workerUsed
+      ? record.validation.fallbackReason === null && Object.values(summary.worker).every(value => value !== null)
+      : ['unsupported','worker-error','message-error','protocol-error','startup-error'].includes(summary.fallbackReason));
+}
 
 // A measured failure can finish cleanly. An unfinished or unproven cleanup cannot
 // be called clean merely because PNG data exists. Each A/B arm owns a separate runner.
@@ -76,7 +102,9 @@ function summarizeArm(receipt, label, expectedSha) {
   const attempts = Array.isArray(receipt?.attempts) ? receipt.attempts : [];
   const measurements = attempts.map(run => ({attempt:run.attempt, status:run.status,
     before:run.before ?? null,beforePacing:run.beforePacing ?? null,after:run.after ?? null,invariants:run.invariants ?? null,
-    png:run.png ?? null,readbackSummary:(Array.isArray(run.png?.records) ? run.png.records : []).map(summarizeReadback),pacing:run.pacing ?? null,photoDiagnosticsAfterPacing:run.photoDiagnosticsAfterPacing ?? null,
+    png:run.png ?? null,readbackSummary:(Array.isArray(run.png?.records) ? run.png.records : []).map(summarizeReadback),
+    asyncValidationSummary:(Array.isArray(run.png?.records) ? run.png.records : []).map(summarizeAsyncValidation),
+    pacing:run.pacing ?? null,photoDiagnosticsAfterPacing:run.photoDiagnosticsAfterPacing ?? null,
     recoveredDiagnostics:run.recoveredDiagnostics ?? null,error:run.error ?? null}));
   const complete = measurements.length === 2 && measurements.every((run,index) => hasTerminalPngProof(run)
     && hasRawPacingProof(run.pacing) && run.error === null
@@ -98,30 +126,52 @@ function summarizeArm(receipt, label, expectedSha) {
     receipt:receipt ?? null};
 }
 
-export function compareCampusReceipts(before, candidate, { candidateSha } = {}) {
+export function compareCampusReceipts(before, candidate, options = {}) {
+  return compareReceipts(before,candidate,options,false);
+}
+export function compareAsyncCampusReceipts(before, candidate, options = {}) {
+  return compareReceipts(before,candidate,options,true);
+}
+function compareReceipts(before, candidate, { candidateSha } = {}, asyncMode) {
   const issues = [], missing = [];
+  const beforeSha = asyncMode ? ASYNC_BEFORE_SHA : BEFORE_SHA;
   const check = (label, work) => {try {work();} catch(error) {issues.push({check:label,error:error.message});}};
-  check('candidate pin', () => {assert.match(candidateSha ?? '',SHA);assert.notEqual(candidateSha,BEFORE_SHA);});
-  const arms = {before:summarizeArm(before,'BEFORE',BEFORE_SHA),candidate:summarizeArm(candidate,'CANDIDATE',candidateSha)};
+  check('candidate pin', () => {assert.match(candidateSha ?? '',SHA);assert.notEqual(candidateSha,beforeSha);});
+  const arms = {before:summarizeArm(before,'BEFORE',beforeSha),candidate:summarizeArm(candidate,'CANDIDATE',candidateSha)};
   let referenceScene;
-  for (const [label,receipt,expectedSha] of [['before',before,BEFORE_SHA],['candidate',candidate,candidateSha]]) {
+  for (const [label,receipt,expectedSha] of [['before',before,beforeSha],['candidate',candidate,candidateSha]]) {
     if (!receipt) {missing.push(`${label} receipt is absent`);continue;}
     check(`${label} source identity`, () => {
-      assert.equal(receipt.schema,'campus-render-reproduction-v1');
+      assert.equal(receipt.schema,asyncMode ? 'campus-render-reproduction-async-v2' : 'campus-render-reproduction-v1');
       assert.equal(receipt.measurementClass,'DIAGNOSTIC_ONLY');assert.equal(receipt.performanceAcceptance,'NOT_EVALUATED');
       assert.equal(receipt.realDevice,false);assert.equal(receipt.source?.head,expectedSha);
-      assert.equal(receipt.samplerHead,expectedSha);assert.deepEqual(receipt.sourcePins,{app:expectedSha,sampler:expectedSha});
-      assert.match(receipt.source?.tree ?? '',SHA);assert.equal(receipt.samplerTree,receipt.source.tree);
+      const samplerSha = asyncMode ? candidateSha : expectedSha;
+      assert.equal(receipt.samplerHead,samplerSha);assert.deepEqual(receipt.sourcePins,{app:expectedSha,sampler:samplerSha});
+      assert.match(receipt.source?.tree ?? '',SHA);assert.match(receipt.samplerTree ?? '',SHA);
+      if (asyncMode && label === 'before') assert.equal(receipt.source.tree,ASYNC_BEFORE_TREE);
+      else assert.equal(receipt.samplerTree,receipt.source.tree);
     });
     check(`${label} fixed protocol`, () => assert.deepEqual(receipt.protocol,PROTOCOL));
+    if (asyncMode) check(`${label} hosted image identity`, () => {
+      for (const key of ['os','version']) {
+        assert.equal(typeof receipt.runtime?.hostedImage?.[key],'string',`missing hosted image ${key}`);
+        assert.ok(receipt.runtime.hostedImage[key].trim(),`empty hosted image ${key}`);
+      }
+    });
     check(`${label} source hashes`, () => {
       for(const path of SOURCE_PATHS) assert.match(receipt.sourceHashes?.[path] ?? '',HASH,`missing source hash: ${path}`);
+      if (asyncMode) {
+        if (label === 'before') assert.equal(receipt.sourceHashes?.[WORKER_PATH],null,'before worker must be explicitly absent');
+        else assert.match(receipt.sourceHashes?.[WORKER_PATH] ?? '',HASH,'candidate worker source hash is required');
+      }
       for(const path of SAMPLER_PATHS) assert.match(receipt.samplerHashes?.[path] ?? '',HASH,`missing sampler hash: ${path}`);
       assert.match(receipt.clockOverride?.servedMainSha256 ?? '',HASH);
       assert.equal(receipt.clockOverride?.originalMainSha256,receipt.sourceHashes['src/main.js']);
     });
     check(`${label} preregistered attempt budget`, () => assert.deepEqual(receipt.attempts?.map(run => run.attempt),[1,2]));
     for(const run of Array.isArray(receipt.attempts) ? receipt.attempts : []) {
+      if (asyncMode && label === 'candidate' && run.png?.success && !hasAsyncSuccessProof(run.png.records?.at(-1)))
+        missing.push(`candidate attempt ${run.attempt} successful async validation/encoding proof absent`);
       const measured = run.png || run.pacing || run.before || run.beforePacing || run.after;
       if (run.servedHashes || measured) check(`${label} attempt ${run.attempt} served source`, () =>
         assert.deepEqual(run.servedHashes,{...receipt.sourceHashes,'src/main.js':receipt.clockOverride?.servedMainSha256}));
@@ -143,8 +193,12 @@ export function compareCampusReceipts(before, candidate, { candidateSha } = {}) 
   }
   if(before && candidate) {
     check('identical sampler and dependency bytes', () => assert.deepEqual(candidate.samplerHashes,before.samplerHashes));
-    check('only production capture source may differ', () => {
-      const unaffected = hashes => Object.fromEntries(Object.entries(hashes ?? {}).filter(([path]) => path !== CAPTURE_PATH));
+    if (asyncMode) check('identical common sampler identity', () => {
+      assert.equal(candidate.samplerHead,before.samplerHead);assert.equal(candidate.samplerTree,before.samplerTree);
+      assert.deepEqual(candidate.runtime?.hostedImage,before.runtime?.hostedImage,'hosted runner image differs');
+    });
+    check(asyncMode ? 'only recorded capture and worker source may differ' : 'only production capture source may differ', () => {
+      const unaffected = hashes => Object.fromEntries(Object.entries(hashes ?? {}).filter(([path]) => path !== CAPTURE_PATH && (!asyncMode || path !== WORKER_PATH)));
       assert.deepEqual(unaffected(candidate.sourceHashes),unaffected(before.sourceHashes));
     });
     check('identical fixed-clock override', () => assert.deepEqual(candidate.clockOverride,before.clockOverride));
@@ -161,7 +215,12 @@ export function compareCampusReceipts(before, candidate, { candidateSha } = {}) 
       for(const version of versions) assert.equal(version,versions[0]);
     });
   }
-  return {schema:'campus-png-readback-comparison-v1',measurementClass:'DIAGNOSTIC_ONLY',
+  const candidateRuns = candidate?.attempts ?? [];
+  const asyncEvidence = { workerValidated:candidateRuns.length === 2 && candidateRuns.every(run => hasTerminalPngProof(run) && run.png.success
+    && run.png.records?.at(-1)?.validation?.path === 'worker' && hasAsyncSuccessProof(run.png.records.at(-1))),
+    note:'Worker use and complete worker/encoding observations are independent of any performance-improvement claim.' };
+  return {schema:asyncMode ? 'campus-png-async-comparison-v2' : 'campus-png-readback-comparison-v1',measurementClass:'DIAGNOSTIC_ONLY',
+    ...(asyncMode ? {asyncEvidence} : {}),
     comparisonStatus:issues.length ? 'INVALID' : missing.length ? 'INCOMPLETE' : 'COMPARABLE',
     performanceAcceptance:'NOT_EVALUATED',realDevice:false,issues,missing,arms,
     conclusion:'UNRESOLVED: compatible bounded observations are not proof of optimization, a fixed timeout, or real-device 30 FPS.',
@@ -176,7 +235,9 @@ if(process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url
     const inputErrors=[];
     const load = async (path,label) => {try{return JSON.parse(await readFile(path,'utf8'));}
       catch(error){inputErrors.push(`${label}: ${error.message}`);return null;}};
-    const report=compareCampusReceipts(await load(process.argv[2],'before'),await load(process.argv[3],'candidate'),{candidateSha:process.argv[4]});
+    assert.ok(process.argv[5] === undefined || process.argv[5] === '--async-v2','unknown comparison mode');
+    const compare = process.argv[5] === '--async-v2' ? compareAsyncCampusReceipts : compareCampusReceipts;
+    const report=compare(await load(process.argv[2],'before'),await load(process.argv[3],'candidate'),{candidateSha:process.argv[4]});
     report.inputErrors=inputErrors;console.log(JSON.stringify(report,null,2));
     process.exitCode=report.comparisonStatus === 'COMPARABLE' ? 0 : 1;
   }

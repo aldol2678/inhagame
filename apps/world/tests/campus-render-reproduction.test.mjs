@@ -23,6 +23,15 @@ test('source identity requires explicit immutable app and sampler pins, ignoring
   assert.throws(() => assertReproductionSourceIdentity({ appHead: head, samplerHead: merge }, env), /sampler checkout/);
   assert.throws(() => assertReproductionSourceIdentity({ appHead: head, samplerHead: merge }, { ...env, CAMPUS_REPRO_SAMPLER_SHA: merge }), /same immutable revision/);
 });
+test('async-v2 permits separately pinned application and common sampler without relaxing v1 identity', async () => {
+  const { assertReproductionSourceIdentity } = await import('./browser/campus-render-reproduction-support.mjs');
+  const appHead = 'a'.repeat(40), samplerHead = 'b'.repeat(40);
+  const env = { CAMPUS_REPRO_APP_SHA: appHead, CAMPUS_REPRO_SAMPLER_SHA: samplerHead, CAMPUS_REPRO_MODE: 'async-v2' };
+  assert.deepEqual(assertReproductionSourceIdentity({ appHead, samplerHead }, env), { app: appHead, sampler: samplerHead });
+  assert.throws(() => assertReproductionSourceIdentity({ appHead, samplerHead }, { ...env, CAMPUS_REPRO_MODE: undefined }), /same immutable revision/);
+  assert.throws(() => assertReproductionSourceIdentity({ appHead, samplerHead }, { ...env, CAMPUS_REPRO_MODE: 'typo' }), /mode/);
+  assert.throws(() => assertReproductionSourceIdentity({ appHead: samplerHead, samplerHead }, env), /application checkout/);
+});
 test('scene invariant compares actual camera, source-independent environment and drawing buffer', async () => {
   assert.ok(source.includes('assertSameCampusScene'));
   const { assertSameCampusScene } = await import('./browser/campus-render-reproduction-support.mjs');

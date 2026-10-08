@@ -1,4 +1,6 @@
 const failure = code => Object.assign(new Error(`Photo capture: ${code}`), { code });
+const defaultWorker = () => typeof globalThis.Worker === 'function'
+  ? new globalThis.Worker(new URL('./photo-alpha-worker.js', import.meta.url), { type: 'module' }) : null;
 const cancelled = () => Object.assign(failure('cancelled'), { name: 'AbortError' });
 
 // Copies only the existing game canvas, never DOM/HUD or a second camera/render target.
@@ -8,8 +10,8 @@ const cancelled = () => Object.assign(failure('cancelled'), { name: 'AbortError'
 // finish later, so it uses an isolated 2D snapshot and revalidates the photo session.
 export function createPhotoCapture({ app, canvas, mode, doc = globalThis.document,
   setTimer = globalThis.setTimeout, clearTimer = globalThis.clearTimeout, timeoutMs = 10_000,
-  diagnostics = false, now = () => globalThis.performance.now(), onDiagnostic = null } = {}) {
-  let pending = null, destroyed = false;
+  diagnostics = false, now = () => globalThis.performance.now(), onDiagnostic = null, createWorker = defaultWorker } = {}) {
+  let pending = null, destroyed = false, nextId = 0;
   // QA-only bounded, in-memory evidence. Never retain pixels, error text or identity.
   const records = [];
   const copy = value => JSON.parse(JSON.stringify(value));
@@ -91,6 +93,7 @@ export function createPhotoCapture({ app, canvas, mode, doc = globalThis.documen
   function finish(request, error, value) {
     if (pending !== request) return;
     pending = null;
+    stopWorker(request);
     completeDiagnostic(request, error);
     app.off('frameend', request.frame);
     if (request.postrender) app.off('postrender', request.postrender);
@@ -99,6 +102,20 @@ export function createPhotoCapture({ app, canvas, mode, doc = globalThis.documen
     request.snapshot = null;
     if (error) request.reject(error); else request.resolve(value);
   }
+  function exceptionDiagnostic(job, error) {
+    if (job.diagnostic) job.diagnostic.exceptionKind =
+      ['SecurityError', 'InvalidStateError', 'TypeError', 'RangeError', 'Error'].includes(error?.name) ? error.name : 'Other';
+  }
+  function stopWorker(job) {
+    if (!job.worker) return;
+    const worker = job.worker; job.worker = null;
+    worker.onmessage = worker.onerror = worker.onmessageerror = null;
+    try { worker.terminate(); } catch { /* Already terminated. */ }
+  }
+  function encodingMark(job, field) {
+    if (!job.diagnostic) return;
+    try { (job.diagnostic.encoding ??= {})[field] = diagnosticElapsed(job); } catch { /* Optional only. */ }
+  }
   const cancel = () => { if (pending) finish(pending, cancelled()); };
   const offClosing = mode.subscribeClosing?.(cancel, { priority: 0 });
   const unsubscribe = mode.subscribe(({ active }) => { if (!active) cancel(); });
@@ -106,7 +123,7 @@ export function createPhotoCapture({ app, canvas, mode, doc = globalThis.documen
     if (destroyed || !mode.update()) return Promise.reject(cancelled());
     if (pending) return Promise.reject(failure('busy'));
     return new Promise((resolve, reject) => {
-      const job = { resolve, reject, snapshot: null, frame: null, timer: null };
+      const job = { id: ++nextId, resolve, reject, snapshot: null, frame: null, timer: null };
       pending = job;
       mark(job, 'request');
       // postrender is evidence that PlayCanvas rendered, not evidence of GPU completion.
@@ -148,21 +165,68 @@ export function createPhotoCapture({ app, canvas, mode, doc = globalThis.documen
             readbackOperation(job, 'alphaScan', true);
             return visible;
           };
-          const visible = hasVisiblePixel(1, 1) || hasVisiblePixel(width, height);
-          if (!visible) throw failure('unavailable');
-          mark(job, 'encoding');
-          snapshot.toBlob(blob => {
-            if (pending !== job) { lateEncodingDiagnostic(job); return; }
+          let blob = null, ready = false, sent = false, legacy = false;
+          const accept = () => {
+            if (pending !== job) return;
             if (!mode.update()) { cancel(); return; }
-            if (!blob || blob.type !== 'image/png' || !blob.size) { finish(job, failure('encoding')); return; }
             finish(job, null, { blob, width, height });
-          }, 'image/png');
-        } catch (error) {
-          if (job.diagnostic) {
-            // Error messages/stacks may contain private URLs or data.
-            job.diagnostic.exceptionKind = ['SecurityError', 'InvalidStateError', 'TypeError', 'RangeError', 'Error'].includes(error?.name)
-              ? error.name : 'Other';
+          };
+          const legacyCheck = () => {
+            const visible = hasVisiblePixel(1, 1) || hasVisiblePixel(width, height);
+            if (!visible) throw failure('unavailable');
+          };
+          const fallback = reason => {
+            if (pending !== job || legacy) return;
+            legacy = true; stopWorker(job);
+            if (job.diagnostic) job.diagnostic.validation = { path: 'legacy', fallbackReason: reason };
+            try { legacyCheck(); if (blob) accept(); }
+            catch (error) { exceptionDiagnostic(job, error); finish(job, failure('unavailable')); }
+          };
+          const send = () => {
+            if (!blob || !ready || sent || !job.worker || pending !== job) return;
+            sent = true;
+            mark(job, 'validation');
+            try { job.worker.postMessage({ type: 'validate', id: job.id, blob, width, height, diagnostics: !!job.diagnostic }); }
+            catch { fallback('message-error'); }
+          };
+          try { job.worker = createWorker(); } catch { fallback('startup-error'); }
+          if (!legacy && !job.worker) fallback('unsupported');
+          if (job.worker) {
+            if (job.diagnostic) job.diagnostic.validation = { path: 'worker', fallbackReason: null };
+            job.worker.onerror = event => { event.preventDefault?.(); fallback('worker-error'); };
+            job.worker.onmessageerror = () => fallback('message-error');
+            job.worker.onmessage = ({ data }) => {
+              if (pending !== job || legacy) return;
+              if (data?.type === 'unsupported') { fallback('unsupported'); return; }
+              if (data?.type === 'ready' && !ready) { ready = true; send(); return; }
+              if (data?.type !== 'validated') { fallback('protocol-error'); return; }
+              if (data.id !== job.id) return;
+              if (!sent) { fallback('protocol-error'); return; }
+              if (data.status === 'unsupported') { fallback('unsupported'); return; }
+              if (data.status !== 'valid' && data.status !== 'invalid') { fallback('protocol-error'); return; }
+              if (job.diagnostic) for (const key of ['decodeMs', 'readbackMs', 'scanMs']) {
+                const value = data.timings?.[key];
+                if (Number.isFinite(value) && value >= 0) job.diagnostic.validation[key] = value;
+              }
+              if (data.status === 'invalid') { finish(job, failure('unavailable')); return; }
+              accept();
+            };
           }
+          if (pending !== job) return;
+          mark(job, 'encoding');
+          encodingMark(job, 'callStartElapsedMs');
+          snapshot.toBlob(value => {
+            if (pending !== job) { lateEncodingDiagnostic(job); return; }
+            encodingMark(job, 'callbackElapsedMs');
+            if (!mode.update()) { cancel(); return; }
+            if (!value || value.type !== 'image/png' || !value.size) { finish(job, failure('encoding')); return; }
+            blob = value;
+            if (legacy) accept(); else send();
+          }, 'image/png');
+          encodingMark(job, 'callReturnElapsedMs');
+        } catch (error) {
+          // Error messages/stacks may contain private URLs or data.
+          exceptionDiagnostic(job, error);
           finish(job, failure('unavailable'));
         }
       };

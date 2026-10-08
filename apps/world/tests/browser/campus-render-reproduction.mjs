@@ -15,12 +15,16 @@ const repo = fileURLToPath(new URL('../../../../', import.meta.url));
 const output = resolve(process.env.CAMPUS_REPRO_OUTPUT || 'test-results/campus-render-reproduction');
 const git = (cwd, ...args) => execFileSync('git', ['-C', cwd, ...args], { encoding:'utf8', timeout:5000 }).trim();
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
-const receipt = { schema:'campus-render-reproduction-v1', measurementClass:'DIAGNOSTIC_ONLY',
+const asyncMode = process.env.CAMPUS_REPRO_MODE === 'async-v2';
+const receipt = { schema:asyncMode ? 'campus-render-reproduction-async-v2' : 'campus-render-reproduction-v1', measurementClass:'DIAGNOSTIC_ONLY',
   performanceAcceptance:'NOT_EVALUATED', realDevice:false, status:'RUNNING', protocol:PROTOCOL,
   samplerHead:git(repo,'rev-parse','HEAD'), samplerTree:git(repo,'rev-parse','HEAD^{tree}'),
   sourcePins:{app:process.env.CAMPUS_REPRO_APP_SHA??null,sampler:process.env.CAMPUS_REPRO_SAMPLER_SHA??null},
-  sourcePolicy:'Direct clean checkouts of the same immutable instrumented revision; no instrumentation overlay. Application and sampler identities and file hashes are recorded separately.',
-  runtime:{node:process.version,platform:process.platform,arch:process.arch,disableWebGpu:process.env.WORLD_SMOKE_DISABLE_WEBGPU==='1'},
+  sourcePolicy:asyncMode
+    ? 'Direct clean application checkouts with one separately pinned common async-v2 sampler. No production-source or instrumentation overlay. Worker presence/absence and served bytes recorded independently.'
+    : 'Direct clean checkouts of the same immutable instrumented revision; no instrumentation overlay. Application and sampler identities and file hashes are recorded separately.',
+  runtime:{node:process.version,platform:process.platform,arch:process.arch,disableWebGpu:process.env.WORLD_SMOKE_DISABLE_WEBGPU==='1',
+    ...(asyncMode ? {hostedImage:{os:process.env.ImageOS ?? null,version:process.env.ImageVersion ?? null}} : {})},
   source:null, sourceHashes:{}, samplerHashes:{}, attempts:Array.from({length:PROTOCOL.attempts},(_,index)=>({attempt:index+1,status:'NOT_ATTEMPTED',phases:[],png:null,pacing:null})),
   warmupPolicy:'Before PNG and after PNG terminal state plus decode: observe three natural postrender events, host bounded at 15 s. No forced frame, sleep-based success, retry or app timeout change. This excludes an active application capture request but does not establish that native encoding or GPU/driver work is idle, or that thermal history is identical.',
   limits:['Photo mode stays open for both measurements so the same real camera is fixed. This is not the gameplay-mode graphics acceptance run.',
@@ -50,6 +54,11 @@ try {
   for(const path of ['src/main.js','src/photo/photo-capture.js','src/photo/photo-mode.js','src/photo/photo-mode-panel.js',
     'src/photo/photo-camera-controller.js','src/graphics-presets.js','campus/index.html','styles.css','tests/browser/package.json'])
     receipt.sourceHashes[path] = sha256(await readFile(join(root,path)));
+  if (asyncMode) {
+    const workerPath = 'src/photo/photo-alpha-worker.js';
+    try { receipt.sourceHashes[workerPath] = sha256(await readFile(join(root,workerPath))); }
+    catch (error) { if (error.code !== 'ENOENT') throw error; receipt.sourceHashes[workerPath] = null; }
+  }
   for(const path of ['campus-render-reproduction.mjs','campus-render-reproduction-support.mjs','harness.mjs','harness-source.mjs','harness-cleanup.mjs','biryong-performance-diagnostics.mjs','biryong-render-trace-cleanup.mjs',
     'package.json','package-lock.json','../../npc-factory/npc-world-time-contract.mjs'])
     receipt.samplerHashes[path] = sha256(await readFile(new URL(path,import.meta.url)));
@@ -100,10 +109,13 @@ try {
         await page.waitForFunction(()=>{const d=window.__INHAGAME_P0__,e=window.__INHAGAME_ENVIRONMENT__.status();
           return d.getStatus().photoMode.blocked===null && e.settled && e.weatherSettled;},null,{timeout:TIMEOUT_MS});
       },TIMEOUT_MS);
-      run.servedHashes=await phase('verify-served-source',()=>page.evaluate(async paths=>Object.fromEntries(await Promise.all(paths.map(async path=>{
+      run.servedHashes=await phase('verify-served-source',()=>page.evaluate(async hashes=>Object.fromEntries(await Promise.all(Object.entries(hashes).map(async ([path,hash])=>{
+        // An absent optional worker is source evidence, not a failed capture. Do not
+        // request its known-missing URL and add a synthetic console/network failure.
+        if (hash === null) return [path,null];
         const response=await fetch(`/${path}`);if(!response.ok)throw Error(`source fetch failed: ${path}`);
         return [path,[...new Uint8Array(await crypto.subtle.digest('SHA-256',await response.arrayBuffer()))].map(n=>n.toString(16).padStart(2,'0')).join('')];
-      }))),Object.keys(receipt.sourceHashes)));
+      }))),receipt.sourceHashes));
       assert.deepEqual(run.servedHashes,{...receipt.sourceHashes,'src/main.js':receipt.clockOverride.servedMainSha256});
       await phase('three-renders-before-photo-entry',()=>page.evaluate(settleCampusRenders,PROTOCOL.settleRenders));
       await phase('open-photo-mode',async()=>{
