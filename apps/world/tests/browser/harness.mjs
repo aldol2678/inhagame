@@ -12,7 +12,7 @@ import { readFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { fileURLToPath } from "node:url";
 import { chromium, webkit } from "playwright";
-import { abortSmokeResources } from "./harness-cleanup.mjs";
+import { abortSmokeResources, startSmokeResources } from "./harness-cleanup.mjs";
 import { resolveWorldSmokeSource } from "./harness-source.mjs";
 
 export const TIMEOUT_MS = Number(process.env.WORLD_SMOKE_TIMEOUT_MS || 90_000);
@@ -38,23 +38,30 @@ async function startServer({ worldRoot, devServer }) {
   delete env.NPC_AI_PILOT;
   const child = spawn(process.execPath, [devServer], { cwd: worldRoot, env, stdio: ["ignore", "pipe", "pipe"] });
   let log = "";
-  await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(`dev-server did not start:\n${log}`)), 15_000);
-    const onData = chunk => {
-      log += chunk;
-      if (log.includes("listening")) { clearTimeout(timer); resolve(); }
-    };
-    child.stdout.on("data", onData);
-    child.stderr.on("data", onData);
-    child.once("exit", code => { clearTimeout(timer); reject(new Error(`dev-server exited (${code}):\n${log}`)); });
-  });
+  try {
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error(`dev-server did not start:\n${log}`)), 15_000);
+      const onData = chunk => {
+        log += chunk;
+        if (log.includes("listening")) { clearTimeout(timer); resolve(); }
+      };
+      child.stdout.on("data", onData);
+      child.stderr.on("data", onData);
+      child.once("error", error => { clearTimeout(timer); reject(error); });
+      child.once("exit", code => { clearTimeout(timer); reject(new Error(`dev-server exited (${code}):\n${log}`)); });
+    });
+  } catch (error) {
+    child.kill();
+    throw error;
+  }
   return { origin: `http://127.0.0.1:${port}`, stop: () => child.kill() };
 }
 
 // Starts the server and a headless Chromium with one offline context. `watch(page)` records page
 // errors, console errors and failed or 4xx/5xx same-origin requests into `problems`, and returns a
 // promise that rejects on the first uncaught page error or crash (race it against waits to fail fast).
-export async function startSmoke({ viewport = { width: 1280, height: 720 }, contextOptions = {}, browserType = "chromium", worldRoot } = {}) {
+// Optional startupTimeoutMs bounds browser/context setup while this harness still owns cleanup.
+export async function startSmoke({ viewport = { width: 1280, height: 720 }, contextOptions = {}, browserType = "chromium", worldRoot, startupTimeoutMs } = {}) {
   const playCanvas = await pinnedPlayCanvas(worldRoot);
   const server = await startServer(playCanvas);
   // GPU-less CI checks the explicit unsupported path and the Editor's legacy WebGL2 preview.
@@ -65,37 +72,45 @@ export async function startSmoke({ viewport = { width: 1280, height: 720 }, cont
       ? ['--use-angle=vulkan', '--enable-features=Vulkan', '--disable-vulkan-surface', '--enable-unsafe-webgpu']
       : ['--enable-unsafe-webgpu'];
   const launcher = browserType === "webkit" ? webkit : chromium;
-  const browser = await launcher.launch({
-    headless: process.env.WORLD_SMOKE_HEADED !== '1',
-    ...(process.env.WORLD_SMOKE_EXECUTABLE ? { executablePath: process.env.WORLD_SMOKE_EXECUTABLE } : {}),
-    ...(browserType === "chromium" && (process.env.WORLD_SMOKE_BROWSER || (process.platform === 'linux' && !disabled))
-      ? { channel: process.env.WORLD_SMOKE_BROWSER || 'chromium' } : {}),
-    ...(browserType === "chromium" ? { args: gpuArgs } : {})
-  });
   const problems = [];
   const blocked = new Set();
   const stubbed = new Set();
-  const context = await browser.newContext({ ...contextOptions, viewport, serviceWorkers: "block" });
-  if (disabled) await context.addInitScript(() => Object.defineProperty(navigator, 'gpu', { value: undefined }));
-  await context.route("**/*", route => {
-    const url = new URL(route.request().url());
-    if (url.origin === server.origin) {
-      // The shared clock consumes JSON. A mocked 204 here produces an artificial aborted
-      // request in Chromium; use the existing offline dev-server time endpoint instead.
-      if (!url.pathname.startsWith("/api/") || url.pathname === "/api/world-time") return route.continue();
-      stubbed.add(url.pathname);
-      return route.fulfill({ status: 204 });
+  const { browser, context } = await startSmokeResources({
+    stopServer: server.stop,
+    launchBrowser: () => launcher.launch({
+      headless: process.env.WORLD_SMOKE_HEADED !== '1',
+      ...(process.env.WORLD_SMOKE_EXECUTABLE ? { executablePath: process.env.WORLD_SMOKE_EXECUTABLE } : {}),
+      ...(browserType === "chromium" && (process.env.WORLD_SMOKE_BROWSER || (process.platform === 'linux' && !disabled))
+        ? { channel: process.env.WORLD_SMOKE_BROWSER || 'chromium' } : {}),
+      ...(browserType === "chromium" ? { args: gpuArgs } : {})
+    }),
+    setupContext: async (browser, ensureActive) => {
+      const context = await browser.newContext({ ...contextOptions, viewport, serviceWorkers: "block" });
+      ensureActive();
+      if (disabled) await context.addInitScript(() => Object.defineProperty(navigator, 'gpu', { value: undefined }));
+      ensureActive();
+      await context.route("**/*", route => {
+        const url = new URL(route.request().url());
+        if (url.origin === server.origin) {
+          // The shared clock consumes JSON. A mocked 204 here produces an artificial aborted
+          // request in Chromium; use the existing offline dev-server time endpoint instead.
+          if (!url.pathname.startsWith("/api/") || url.pathname === "/api/world-time") return route.continue();
+          stubbed.add(url.pathname);
+          return route.fulfill({ status: 204 });
+        }
+        if (playCanvas.urls.has(url.href)) {
+          return route.fulfill({ status: 200, contentType: "text/javascript; charset=utf-8", body: playCanvas.source });
+        }
+        if (url.hostname === "cdn.jsdelivr.net" && url.pathname.startsWith("/npm/@supabase/supabase-js@")) {
+          stubbed.add(`${url.hostname}${url.pathname}`);
+          return route.fulfill({ status: 200, contentType: "text/javascript; charset=utf-8", body: "/* supabase-js stubbed: World boots offline */" });
+        }
+        blocked.add(`${url.origin}${url.pathname}`);
+        return route.abort("blockedbyclient");
+      });
+      return context;
     }
-    if (playCanvas.urls.has(url.href)) {
-      return route.fulfill({ status: 200, contentType: "text/javascript; charset=utf-8", body: playCanvas.source });
-    }
-    if (url.hostname === "cdn.jsdelivr.net" && url.pathname.startsWith("/npm/@supabase/supabase-js@")) {
-      stubbed.add(`${url.hostname}${url.pathname}`);
-      return route.fulfill({ status: 200, contentType: "text/javascript; charset=utf-8", body: "/* supabase-js stubbed: World boots offline */" });
-    }
-    blocked.add(`${url.origin}${url.pathname}`);
-    return route.abort("blockedbyclient");
-  });
+  }, { timeoutMs: startupTimeoutMs });
 
   const watch = page => {
     let fatal;

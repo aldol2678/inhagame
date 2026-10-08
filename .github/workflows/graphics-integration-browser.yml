@@ -15,6 +15,10 @@ on:
       - 'apps/world/tests/browser/biryong-night-pixel-policy.mjs'
       - 'apps/world/tests/biryong-night-readability.test.mjs'
       - 'apps/world/tests/browser/harness.mjs'
+      - 'apps/world/tests/browser/harness-cleanup.mjs'
+      - 'apps/world/tests/browser/graphics-failure-artifact.mjs'
+      - 'apps/world/tests/graphics-failure-artifact.test.mjs'
+      - 'apps/world/tests/browser-harness-cleanup.test.mjs'
       - 'apps/world/tests/browser/package*.json'
       - 'apps/world/tests/graphics-parallel-smoke-contract.test.mjs'
       - '.github/workflows/graphics-integration-browser.yml'
@@ -44,7 +48,7 @@ jobs:
           npx --no-install playwright install --with-deps chromium
           sudo apt-get install -y --no-install-recommends fonts-noto-cjk
       - name: Verify graphics integration contracts
-        run: node --test apps/world/tests/graphics-parallel-smoke-contract.test.mjs
+        run: node --test apps/world/tests/graphics-parallel-smoke-contract.test.mjs apps/world/tests/graphics-failure-artifact.test.mjs apps/world/tests/browser-harness-cleanup.test.mjs
       - name: Run integrated graphics browser smoke
         env:
           WORLD_SMOKE_DISABLE_WEBGPU: '1'

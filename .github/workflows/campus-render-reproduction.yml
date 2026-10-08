@@ -1,0 +1,64 @@
+name: Same-source campus rendering diagnostic
+on:
+  pull_request:
+    paths:
+      - 'apps/world/tests/browser/campus-render-reproduction*.mjs'
+      - 'apps/world/tests/campus-render-reproduction.test.mjs'
+      - 'apps/world/tests/browser/harness*.mjs'
+      - 'apps/world/tests/browser/biryong-performance-diagnostics.mjs'
+      - 'apps/world/tests/browser/biryong-render-trace-cleanup.mjs'
+      - 'apps/world/tests/browser/package*.json'
+      - '.github/workflows/campus-render-reproduction.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  collect-same-source-diagnostic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout diagnostic sampler
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Checkout pinned current application (not old-main trace)
+        uses: actions/checkout@v4
+        with:
+          ref: 66695573c8857d05a761b987411c6812ea158984
+          path: .qa-campus-source
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - name: Verify bounded diagnostic contracts
+        run: node --test apps/world/tests/campus-render-reproduction.test.mjs
+      - name: Install pinned browser dependencies
+        working-directory: apps/world/tests/browser
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Install Chromium and Korean glyphs
+        run: |
+          cd apps/world/tests/browser
+          npx --no-install playwright install --with-deps chromium
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+      - name: Collect two fresh identical-campus PNG then pacing attempts
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          CAMPUS_REPRO_WORLD_ROOT: ${{ github.workspace }}/.qa-campus-source/apps/world
+          CAMPUS_REPRO_OUTPUT: ${{ runner.temp }}/campus-render-reproduction
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p "$CAMPUS_REPRO_OUTPUT"
+          GITHUB_SHA="$(git rev-parse HEAD)" timeout --signal=TERM --kill-after=10s 8m node apps/world/tests/browser/campus-render-reproduction.mjs 2>&1 | tee "$CAMPUS_REPRO_OUTPUT/diagnostic.log"
+      - name: State evidence limits
+        if: always()
+        run: echo 'Diagnostic only, not acceptance. At most two preregistered attempts at app 66695573; sampler identity is separate. Natural failure not reproduced stays unresolved. CI cannot validate physical-device 30 FPS.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Preserve complete or partial same-source evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: campus-same-source-66695573-sampler-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/campus-render-reproduction/**
+          if-no-files-found: error
+          retention-days: 7
