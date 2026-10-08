@@ -10,6 +10,9 @@ on:
       - '.github/workflows/shop-panel-focus-browser.yml'
 permissions:
   contents: read
+concurrency:
+  group: shop-panel-focus-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 jobs:
   shop-panel-focus-browser:
     runs-on: ubuntu-latest
