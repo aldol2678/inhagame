@@ -27,9 +27,10 @@ try {
     d.player.setLocalPosition(p.x,p.y+(['descend','landing'].includes(mode)?-5*dt:mode==='ascend'?5*dt:0),p.z+(mode==='forward'?6*dt:0));
     d.character.update(dt,{mounted:true,moving:mode==='forward',grounded:mode==='ground',flightClearance:mode==='landing'?.1:Infinity});
     const inverse=d.carrier.findByName('FlightHeadPivot').getWorldTransform().clone().invert();
+    // Generator v2.5 head, expressed relative to FlightHeadPivot [0,-.05,.05].
     for(const c of d.rider.findComponents('render'))for(const mi of c.meshInstances) {
      const v=[];mi.mesh.getPositions(v);const matrix=new pc.Mat4().mul2(inverse,mi.node.getWorldTransform());
-     for(let i=0;i<v.length;i+=3){const q=matrix.transformPoint(new pc.Vec3(v[i],v[i+1],v[i+2]));minimum=Math.min(minimum,(q.x/.69)**2+((q.y-.37)/.63)**2+((q.z-.07)/.52)**2);}
+     for(let i=0;i<v.length;i+=3){const q=matrix.transformPoint(new pc.Vec3(v[i],v[i+1],v[i+2]));minimum=Math.min(minimum,(q.x/.69)**2+((q.y-.37)/.63)**2+((q.z-.12)/.57)**2);}
     }
    }
    results.push({mode,minimum,actual:d.character.flightVisualState.mode});

@@ -8,8 +8,8 @@
     {
       "path": "apps/world/assets/annyongi-flight-v1.glb",
       "provenance": "New project-authored procedural 3D reconstruction referencing Inha University official Annyongi mascot design; not independent QA geometry.",
-      "sha256": "efbede43ea17770f22f2ee708842d54cfa10e058e4a7935b879241f985dde7cd",
-      "generator": "INHAGAME Annyongi procedural flight reconstruction v2.4",
+      "sha256": "8e56f0c47a48f74c2ac214904ea67d66bf54c4ba6c8ac15c1f22c6f50215e734",
+      "generator": "INHAGAME Annyongi procedural flight reconstruction v2.5",
       "geometrySource": "tools/world-assets/build-annyongi.py",
       "textureUsage": "none",
       "referenceSourceFamily": [
@@ -26,7 +26,7 @@
       ],
       "approvalStatus": "design-review-pending",
       "permissionBasis": "User-reported technical commercialization team permission for noncommercial reproduction preserving design. Correspondence not independently inspected; no university approval of this new model claimed.",
-      "gameAdaptation": "MASCOT-3D-FIDELITY-01-R2: curved arms with wrist/palm/thumb definition inside Arm_L/R; thinner, rearward shoulder clouds separated from hands; attached compact ground curl. Head/body, extended FlightWing, airborne tail targets, all pivots and runtime unchanged. Design approval pending."
+      "gameAdaptation": "MASCOT-3D-FIDELITY-01-R2-FACE: fuller front head depth with fixed rear pole; volumetric muzzle, smile rim/side walls and teeth; surface-oriented eyes and angled ears/horns. R2 arms/clouds/tail, all node hierarchy, pivots, flight targets and runtime retained. Design approval pending."
     },
     {
       "path": "apps/world/assets/induck-cap-v1.glb",

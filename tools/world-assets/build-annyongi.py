@@ -6,7 +6,7 @@ Y-up, +Z front, coordinates in player-root space. Python stdlib only.
 import json, math, struct, pathlib, hashlib
 ROOT=pathlib.Path(__file__).resolve().parents[2]
 OUT=ROOT/'apps/world/assets/annyongi-flight-v1.glb'
-GENERATOR='INHAGAME Annyongi procedural flight reconstruction v2.4'
+GENERATOR='INHAGAME Annyongi procedural flight reconstruction v2.5'
 COLORS={'blue':'d3edfb','cream':'fffde4','pink':'f6bec8','mouth':'bf6280','ink':'211f1f','white':'ffffff','curl':'9fc7dc'}
 def color(key):
  h=COLORS[key];s=[int(h[i:i+2],16)/255 for i in (0,2,4)]
@@ -74,18 +74,29 @@ def curve(points,steps=8):
    t=k/steps
    out.append([.5*((2*p1[d])+(-p0[d]+p2[d])*t+(2*p0[d]-5*p1[d]+4*p2[d]-p3[d])*t*t+(-p0[d]+3*p1[d]-3*p2[d]+p3[d])*t*t*t) for d in range(3)])
  return out+[points[-1]]
+def turn_y(shape,angle,center):
+ # Rotate positions and normals together about a design-local feature pivot.
+ co=math.cos(angle);si=math.sin(angle)
+ for i in range(len(shape.p)//3):
+  x,y,z=sub(shape.p[i*3:i*3+3],center)
+  shape.p[i*3:i*3+3]=add(center,[co*x+si*z,y,-si*x+co*z])
+  x,y,z=shape.n[i*3:i*3+3];shape.n[i*3:i*3+3]=[co*x+si*z,y,-si*x+co*z]
 parts={}
 def part(name):s=Shape();parts[name]=s;return s
 # Base silhouette, compact standing pose, large spherical head and rounded hands/feet.
 part('Body').ellipsoid([0,-.53,-.03],[.37,.47,.34],'blue',24,14)
-part('Head').ellipsoid([0,.32,.12],[.69,.63,.52],'blue',40,24)
+# Add depth toward the face only: the rear pole stays at Z=-.40, clear of the
+# unchanged rider. Frontal width/height and FlightHeadPivot are retained.
+part('Head').ellipsoid([0,.32,.17],[.69,.63,.57],'blue',40,24)
 for sign,label in [(-1,'L'),(1,'R')]:
- part('Ear_'+label).ellipsoid([sign*.59,.79,.09],[.16,.063,.065],'blue',16,8,sign*25)
+ ear=part('Ear_'+label);ear.ellipsoid([sign*.59,.79,.09],[.16,.063,.065],'blue',16,8,sign*25)
+ turn_y(ear,sign*math.radians(35),[sign*.54,.77,.09])
  horn=part('Horn_'+label)
  horn.tube(curve([[sign*.40,.80,.08],[sign*.47,1.02,.07],[sign*.49,1.26,.09]],5),.064,'cream',10)
  horn.ellipsoid([sign*.49,1.26,.09],[.065,.065,.065],'cream',10,6)
  horn.tube(curve([[sign*.46,1.04,.07],[sign*.59,1.08,.07],[sign*.62,1.18,.09]],4),.058,'cream',10)
  horn.ellipsoid([sign*.62,1.18,.09],[.058,.06,.058],'cream',10,6)
+ turn_y(horn,sign*math.radians(28),[sign*.40,.80,.08])
  # A curved upper arm narrows at the wrist and opens into a soft mitten palm.
  # The small thumb is part of Arm_L/R, not a new joint or animation contract.
  arm=part('Arm_'+label)
@@ -98,26 +109,39 @@ for sign,label in [(-1,'L'),(1,'R')]:
  leg=part('Leg_'+label);leg.ellipsoid([sign*.20,-.96,.01],[.125,.19,.14],'blue',16,10)
  leg.ellipsoid([sign*.23,-1.065,.11],[.19,.10,.22],'blue',20,8)
 # Surface projected details avoid floating face stickers or a long snout.
-def face(x,y,offset=.009):return .12+.52*math.sqrt(max(.01,1-(x/.69)**2-((y-.32)/.63)**2))+offset
+def face(x,y,offset=.009):return .17+.57*math.sqrt(max(.01,1-(x/.69)**2-((y-.32)/.63)**2))+offset
 for sign,label in [(-1,'L'),(1,'R')]:
- x=sign*.255;y=.43
- part('Eye_'+label).ellipsoid([x,y,face(x,y)],[.038,.043,.022],'ink',16,10)
+ x=sign*.30;y=.43;at=[x,y,face(x,y,.004)]
+ eye=part('Eye_'+label);eye.ellipsoid(at,[.038,.043,.022],'ink',16,10)
+ turn_y(eye,sign*math.radians(28),at)
  cheek=part('Cheek_'+label);x=sign*.46;y=.22
- cheek.patch([[x+.105*math.cos(k*math.tau/32),y+.11*math.sin(k*math.tau/32)] for k in range(32)],'pink',face)
+ cheek.patch([[x+.105*math.cos(k*math.tau/24),y+.11*math.sin(k*math.tau/24)] for k in range(24)],'pink',face)
 # Open smile with two ivory teeth, pink tongue, m-shaped nose: official basic/front expression.
+# A shallow smile relief gives the existing expression a visible side
+# wall. Depth tapers toward the chin; it is not a second side-face decal.
+def smile_depth(y):return .018+.092*max(0,min(1,(y+.015)/.33))
+def smile_surface(x,y,offset=0):return face(x,y,smile_depth(y)+offset)
 outline=[[-.20,.27],[-.11,.265],[0,.315],[.11,.265],[.20,.27],[.17,.09],[.10,.015],[0,-.015],[-.10,.015],[-.17,.09]]
-outline=[p[:2] for p in curve([[x,y,0] for x,y in outline+[outline[0]]],4)[:-1]][::-1];mouth=part('Mouth');mouth.patch(outline,'mouth',lambda x,y:face(x,y,.012))
-pts=[[x,y,face(x,y,.018)] for x,y in outline+[outline[0]]];mouth.tube(pts,.014,'ink',8)
-tongue=part('Tongue');tongue.patch([[-.11,.045],[-.06,.072],[0,.08],[.06,.072],[.11,.045],[.075,.01],[0,-.003],[-.075,.01]][::-1],'pink',lambda x,y:face(x,y,.022))
+outline=[p[:2] for p in curve([[x,y,0] for x,y in outline+[outline[0]]],3)[:-1]][::-1];mouth=part('Mouth');mouth.patch(outline,'mouth',smile_surface)
+for i,(x,y) in enumerate(outline):
+ nx,ny=outline[(i+1)%len(outline)];px,py=outline[i-1];qx,qy=outline[(i+2)%len(outline)]
+ normal=unit([ny-py,px-nx,0]);next_normal=unit([qy-y,x-qx,0])
+ a=mouth.vertex([x,y,smile_surface(x,y)],normal,'mouth');b=mouth.vertex([nx,ny,smile_surface(nx,ny)],next_normal,'mouth')
+ c=mouth.vertex([x,y,face(x,y,.002)],normal,'ink');d=mouth.vertex([nx,ny,face(nx,ny,.002)],next_normal,'ink')
+ mouth.tri(a,c,b);mouth.tri(b,c,d)
+pts=[[x,y,smile_surface(x,y,.006)] for x,y in outline+[outline[0]]];mouth.tube(pts,.013,'ink',8)
+tongue=part('Tongue');tongue.patch([[-.11,.045],[-.06,.072],[0,.08],[.06,.072],[.11,.045],[.075,.01],[0,-.003],[-.075,.01]][::-1],'pink',lambda x,y:smile_surface(x,y,.010))
 for sign,label in [(-1,'L'),(1,'R')]:
  x=sign*.135
- part('Fang_'+label).patch([[x-.035,.26],[x-.023,.20],[x,.183],[x+.023,.20],[x+.035,.26]],'cream',lambda x,y:face(x,y,.028))
-nose=part('Nose');points=curve([[-.115,.34,0],[-.09,.405,0],[-.04,.41,0],[0,.36,0],[.04,.41,0],[.09,.405,0],[.115,.34,0]],4)
-nose.tube([[x,y,face(x,y,.022)] for x,y,_ in points],.016,'ink',8)
+ fang=part('Fang_'+label)
+ fang.ellipsoid([x,.225,smile_surface(x,.235,.014)],[.027,.045,.027],'cream',10,6)
+nose=part('Nose');points=curve([[-.115,.34,0],[-.09,.405,0],[-.04,.41,0],[0,.36,0],[.04,.41,0],[.09,.405,0],[.115,.34,0]],3)
+for sign in [-1,1]:nose.ellipsoid([sign*.095,.315,face(sign*.095,.315,.045)],[.125,.073,.080],'blue',16,8)
+nose.tube([[x,y,face(x,y,.026+.063*max(0,(.41-y)/.07))] for x,y,_ in points],.016,'ink',8)
 forelock=part('Forelock');forelock.ellipsoid([-.03,.88,.18],[.15,.12,.15],'blue',20,12)
 pts=[]
-for k in range(33):
- t=k/32;angle=-math.pi/2+t*math.pi*3;radius=.115*(1-t)+.012;x=radius*math.cos(angle);y=.77+radius*math.sin(angle)
+for k in range(25):
+ t=k/24;angle=-math.pi/2+t*math.pi*3;radius=.115*(1-t)+.012;x=radius*math.cos(angle);y=.77+radius*math.sin(angle)
  pts.append([x,y,face(x,y,.017)])
 forelock.tube(pts,.014,'ink',6)
 # Cream belly and three subtle transverse bands visible in official front/side views.

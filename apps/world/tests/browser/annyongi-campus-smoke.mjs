@@ -83,11 +83,12 @@ for(const time of (process.env.ANNYONGI_TIMES || 'day,night').split(',')) for(co
   // Check actual rider vertices in head/model space, not rotated world AABBs
   // (those overlap falsely when the separated boxes turn diagonally together).
   const inverse=carrier.findByName('FlightHeadPivot').getWorldTransform().clone().invert();let minimum=Infinity;
+  // Generator v2.5 head, expressed relative to FlightHeadPivot [0,-.05,.05].
   for(const component of rider.findComponents('render')) for(const instance of component.meshInstances){
    const vertices=[];instance.mesh.getPositions(vertices);
    const transform=new pc.Mat4().mul2(inverse,instance.node.getWorldTransform());
    for(let i=0;i<vertices.length;i+=3){const p=transform.transformPoint(new pc.Vec3(...vertices.slice(i,i+3)));
-    minimum=Math.min(minimum,(p.x/.69)**2+((p.y-.37)/.63)**2+((p.z-.07)/.52)**2);
+    minimum=Math.min(minimum,(p.x/.69)**2+((p.y-.37)/.63)**2+((p.z-.12)/.57)**2);
    }
   }
   const headClip=minimum<1;
