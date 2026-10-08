@@ -117,6 +117,7 @@ function hallIntegrationScopePaths(manifest,extension) {
     'biryong/biryong-atmosphere-policy.js','biryong/biryong-atmosphere.js',
     'biryong/biryong-environment-density-policy.js','biryong/biryong-environment-density.js',
     'biryong/biryong-performance-budget.js','biryong/biryong-performance-monitor.js',
+    'biryong/biryong-night-visibility-policy.js',
     'biryong/biryong-realm-renderer.js','biryong/biryong-visual-lighting-policy.js',
     'biryong/biryong-visual-lighting.js','biryong/biryong-visual-material-policy.js',
     'biryong/biryong-visual-materials.js','environment/environment-director.js',

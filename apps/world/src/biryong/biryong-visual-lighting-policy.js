@@ -1,3 +1,5 @@
+import { BIRYONG_NIGHT_VISIBILITY, biryongNightVisibilityWeight } from "./biryong-night-visibility-policy.js";
+
 const clamp01 = value => Math.min(1, Math.max(0, Number.isFinite(value) ? value : 0));
 const clamp = (value, min, max) => Math.min(max, Math.max(min, Number.isFinite(value) ? value : min));
 
@@ -42,6 +44,7 @@ export function biryongVisualLightingProfile(base = {}, tier = "medium") {
 
   const night = clamp01(base.artificialLightFactor);
   const daylight = 1 - night;
+  const nightVisibility = biryongNightVisibilityWeight(night);
   const dayWeight = 0.35 + daylight * 0.65;
   const sunLightScale = clamp01(Number.isFinite(base.sunLightScale) ? base.sunLightScale : 1);
   const ambientLightScale = clamp01(Number.isFinite(base.ambientLightScale) ? base.ambientLightScale : 1);
@@ -52,13 +55,15 @@ export function biryongVisualLightingProfile(base = {}, tier = "medium") {
     clamp01(ambientBase[0] * (1 + quality.ambientLift * 0.45 * dayWeight)),
     clamp01(ambientBase[1] * (1 + quality.ambientLift * 0.92 * dayWeight)),
     clamp01(ambientBase[2] * (1 + quality.ambientLift * 1.18 * dayWeight))
-  ]);
+  ].map((value, index) => value + (Math.max(value,
+    BIRYONG_NIGHT_VISIBILITY.ambientFloor[index] * ambientLightScale) - value) * nightVisibility));
 
   const sunColor = Object.freeze(tuple3(base.sunColor, [1, 0.94, 0.81]).map(clamp01));
   const sunIntensity = Math.max(0, Number(base.sunIntensity) || 0) * sunLightScale *
     (1 + quality.sunGain * daylight);
   const shadowIntensity = clamp01((Number(base.shadowIntensity) || 0) + quality.shadowBoost * dayWeight);
-  const exposure = Math.max(0, (Number(base.exposure) || 0) + quality.exposureBoost * daylight);
+  const baseExposure = Math.max(0, (Number(base.exposure) || 0) + quality.exposureBoost * daylight);
+  const exposure = baseExposure + (Math.max(baseExposure, BIRYONG_NIGHT_VISIBILITY.exposureFloor) - baseExposure) * nightVisibility;
 
   const sourceEuler = tuple3(base.sunEuler, [55, 30, 0]);
   const sunEuler = Object.freeze([

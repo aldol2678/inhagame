@@ -1,3 +1,5 @@
+import { biryongNightVisibilityWeight } from "./biryong-night-visibility-policy.js";
+
 const clamp01 = value => Math.min(1, Math.max(0, Number.isFinite(value) ? value : 0));
 const mix = (a, b, t) => a + (b - a) * t;
 const mixTuple = (a, b, t) => a.map((value, index) => mix(value, b[index], t));
@@ -76,7 +78,10 @@ export function biryongAtmosphereProfile(base = {}, tier = "medium") {
   const clearMix = quality.clearMix * weatherWeight;
 
   const night = clamp01(base.artificialLightFactor);
-  const gradeBrightness = quality.brightness * (1 - night * 0.012);
+  const nightVisibility = biryongNightVisibilityWeight(night);
+  // Avoid clipping already dark night channels through CSS contrast/brightness.
+  const gradeBrightness = mix(quality.brightness * (1 - night * 0.012), 1, nightVisibility);
+  const gradeContrast = mix(quality.contrast, 1, nightVisibility);
 
   return Object.freeze({
     version: BIRYONG_ATMOSPHERE_PROFILE_VERSION,
@@ -89,7 +94,7 @@ export function biryongAtmosphereProfile(base = {}, tier = "medium") {
     fogColor: Object.freeze(mixTuple(fogColor, tint, tintMix).map(clamp01)),
     clearColor: Object.freeze(mixTuple(clearColor, tint, clearMix).map(clamp01)),
     toneMapping: quality.cinematicToneMapping ? "cinematic" : "neutral",
-    canvasFilter: `saturate(${quality.saturation}) contrast(${quality.contrast}) brightness(${gradeBrightness.toFixed(3)})`,
+    canvasFilter: `saturate(${quality.saturation}) contrast(${gradeContrast}) brightness(${gradeBrightness.toFixed(3)})`,
     screenSpaceBloom: false,
     bloomReason: "No WebGPU-safe post-effect chain is present in the current World renderer; keep bloom out of P0-D rather than add a second render path."
   });

@@ -12,6 +12,8 @@ on:
       - 'apps/world/campus/index.html'
       - 'apps/world/styles.css'
       - 'apps/world/tests/browser/graphics-parallel-smoke.mjs'
+      - 'apps/world/tests/browser/biryong-night-pixel-policy.mjs'
+      - 'apps/world/tests/biryong-night-readability.test.mjs'
       - 'apps/world/tests/browser/harness.mjs'
       - 'apps/world/tests/browser/package*.json'
       - 'apps/world/tests/graphics-parallel-smoke-contract.test.mjs'

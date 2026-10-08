@@ -29,8 +29,24 @@ async function shot(name) {
     app.once('postrender',rendered);app.renderNextFrame=true;
   }));
   // Full live canvas capture, not a generated reference image or NullGraphics output.
-  await page.screenshot({ path: `${output}/${name}.png`, timeout: TIMEOUT_MS });
+  const png = await page.screenshot({ path: `${output}/${name}.png`, timeout: TIMEOUT_MS });
   receipt.screenshots.push(`${name}.png`);
+  return png;
+}
+async function nightPixelReadback(png) {
+  // Decode the actual composited screenshot so CSS grading is included; WebGL
+  // readPixels alone would miss the contrast/brightness regression.
+  return page.evaluate(async encoded => {
+    const { analyzeBiryongNightPixels } = await import('/tests/browser/biryong-night-pixel-policy.mjs');
+    const bytes = Uint8Array.from(atob(encoded), value => value.charCodeAt(0));
+    const bitmap = await createImageBitmap(new Blob([bytes], { type: 'image/png' }));
+    const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+    const context = canvas.getContext('2d', { willReadFrequently: true });
+    context.drawImage(bitmap, 0, 0);
+    const pixels = context.getImageData(0, 0, canvas.width, canvas.height);
+    bitmap.close();
+    return analyzeBiryongNightPixels(pixels);
+  }, png.toString('base64'));
 }
 async function openSettings() {
   if (!(await page.locator('#view-settings').isVisible())) {
@@ -242,7 +258,23 @@ try {
   await shot('biryong-enter-day');
   await clockAt(65);
   await wait(() => window.__INHAGAME_BIRYONG_ATMOSPHERE__.status().profile?.targetTime === 'NIGHT');
-  await shot('biryong-night');
+  const nightFixture = () => page.evaluate(() => {
+    const d=window.__INHAGAME_P0__, p=d.player.getLocalPosition();
+    return { width:innerWidth, height:innerHeight, inBiryong:d.biryongRealm.inBiryong,
+      position:[p.x,p.y,p.z], camera:[d.orbit.yaw,d.orbit.pitch,d.orbit.distance,d.orbit.firstPerson] };
+  });
+  const fixedNightFixture = await nightFixture();
+  receipt.checks.biryongNightFixture = fixedNightFixture;
+  const nightPixels = {};
+  receipt.checks.biryongNightPixels = nightPixels;
+  for (const tier of ['low', 'medium', 'high']) {
+    await page.evaluate(value => window.__INHAGAME_P0__.graphics.setPreference(value), tier);
+    await page.waitForFunction(value => window.__INHAGAME_BIRYONG_VISUAL_LAB__.status().tier === value,
+      tier, { timeout: TIMEOUT_MS });
+    const image = await shot(tier === 'high' ? 'biryong-night' : `biryong-night-${tier}`);
+    nightPixels[tier] = await nightPixelReadback(image);
+    assert.deepEqual(await nightFixture(), fixedNightFixture, 'night ROI camera/position must remain fixed across tiers');
+  }
   const inside = await page.evaluate(() => ({ lighting: window.__INHAGAME_BIRYONG_VISUAL_LAB__.status(),
     atmosphere: window.__INHAGAME_BIRYONG_ATMOSPHERE__.status(), density: window.__INHAGAME_BIRYONG_DENSITY__.status() }));
   assert.equal(await page.evaluate(() => window.__INHAGAME_P0__.biryongRealm.returnToCampus()), true);
@@ -258,6 +290,8 @@ try {
   assert.equal(restored.toneMapping,campusPresentation.toneMapping,'restore campus tone mapping');
   await shot('campus-return-night');
   receipt.checks.biryong = { inside, restored };
+  for (const [tier, pixels] of Object.entries(nightPixels))
+    assert.equal(pixels.passed, true, `${tier} night pixel readability: ${pixels.errors.join('; ')}`);
   assert.deepEqual(smoke.problems, []);
   receipt.status = 'PASS';
 } catch (error) {
