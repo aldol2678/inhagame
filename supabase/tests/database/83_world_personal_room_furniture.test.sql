@@ -52,7 +52,7 @@ select lives_ok($$select public.save_my_room_furniture_v1(current_setting('housi
  {"id":"11111111-1111-4111-8111-111111111111","itemId":"furniture.induck_chair","surface":"floor","x":-2,"z":-1,"yaw":45},
  {"id":"22222222-2222-4222-8222-222222222222","itemId":"furniture.campus_rug_blue","surface":"floor","x":-2.5,"z":-1.75,"yaw":0},
  {"id":"33333333-3333-4333-8333-333333333333","itemId":"furniture.dorm_desk_lamp","surface":"desk","x":2.25,"z":1.5,"yaw":0},
- {"id":"44444444-4444-4444-8444-444444444444","itemId":"furniture.mini_induck","surface":"desk","x":2.45,"z":1.8,"yaw":0},
+ {"id":"44444444-4444-4444-8444-444444444444","itemId":"furniture.mini_induck","surface":"desk","x":2.5,"z":1.5,"yaw":0},
  {"id":"55555555-5555-4555-8555-555555555555","itemId":"furniture.induck_cushion","surface":"bed","x":-3.75,"z":1.5,"yaw":45},
  {"id":"66666666-6666-4666-8666-666666666666","itemId":"furniture.campus_map_poster","surface":"north","x":-3,"z":4.15,"yaw":0},
  {"id":"77777777-7777-4777-8777-777777777777","itemId":"furniture.dorm_resident_plate","surface":"south","x":2,"z":-4.15,"yaw":180},
@@ -62,9 +62,9 @@ select lives_ok($$select public.save_my_room_furniture_v1(current_setting('housi
  {"id":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2","itemId":"furniture.dorm_side_table_low","surface":"floor","x":-6.25,"z":2,"yaw":0},
  {"id":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3","itemId":"furniture.dorm_bookshelf_slim","surface":"floor","x":6.5,"z":0.5,"yaw":0},
  {"id":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa4","itemId":"furniture.dorm_plant_medium","surface":"floor","x":6.5,"z":-1,"yaw":0},
- {"id":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa5","itemId":"furniture.dorm_monitor","surface":"desk","x":2.8,"z":1.5,"yaw":0},
+ {"id":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa5","itemId":"furniture.dorm_monitor","surface":"desk","x":2.75,"z":1.75,"yaw":0},
  {"id":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa6","itemId":"furniture.dorm_trophy_shelf","surface":"floor","x":6.5,"z":2.5,"yaw":0},
- {"id":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa7","itemId":"furniture.study_books_set","surface":"desk","x":2.75,"z":1.9,"yaw":0}
+ {"id":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa7","itemId":"furniture.study_books_set","surface":"desk","x":2.25,"z":1.75,"yaw":0}
  ]')$$,'all sixteen F0 Collection items save together, including the C70 side bays');
 select set_config('housing.d3_saved',(public.get_world_room_furniture_v1(current_setting('housing.d3_room')::uuid)->'objects')::text,true);
 select is(public.get_world_room_furniture_v1(current_setting('housing.d3_room')::uuid)->>'revision','2','atomic replacement advances once');
