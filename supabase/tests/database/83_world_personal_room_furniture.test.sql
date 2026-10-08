@@ -26,6 +26,7 @@ select ok(has_function_privilege('authenticated',f,'execute'),'authenticated may
 from unnest(array['public.get_world_room_furniture_v1(uuid)','public.save_my_room_furniture_v1(uuid,integer,jsonb)']) f;
 select ok(not has_function_privilege(r,f,'execute'),r||' cannot call private helper '||f)
 from unnest(array['anon','authenticated']) r,unnest(array['private.world_room_furniture_v1()','private.validate_world_room_furniture_v1(uuid,jsonb)']) f;
+select is((select count(*) from private.world_room_furniture_v1()),16::bigint,'F0 server furniture catalog exposes sixteen placement definitions');
 
 set local role authenticated;
 select set_config('request.jwt.claims','{"sub":"a3000000-0000-4000-8000-000000000001","role":"authenticated","is_anonymous":false}',true);
@@ -33,7 +34,6 @@ select set_config('housing.d3_room',public.get_or_create_my_personal_room_v1()->
 select set_config('housing.d3_chair','[{"id":"11111111-1111-4111-8111-111111111111","itemId":"furniture.induck_chair","surface":"floor","x":-2,"z":-1,"yaw":0}]',true);
 select is(public.get_world_room_furniture_v1(current_setting('housing.d3_room')::uuid)->>'revision','0','uninitialized layout is empty revision zero');
 select is(public.get_world_room_furniture_v1(current_setting('housing.d3_room')::uuid)->'objects','[]'::jsonb,'no auto-grants or seeded ownership');
-select is((select count(*) from private.world_room_furniture_v1()),16::bigint,'F0 server furniture catalog exposes sixteen placement definitions');
 select is(public.save_my_room_furniture_v1(current_setting('housing.d3_room')::uuid,0,'[]')->>'revision','0','empty no-op does not bump revision');
 select throws_ok($$select public.save_my_room_furniture_v1(current_setting('housing.d3_room')::uuid,0,'[{"id":"11111111-1111-4111-8111-111111111111","itemId":"furniture.dorm_desk_lamp","surface":"desk","x":2.25,"z":1.5,"yaw":0}]')$$,'42501','ITEM_NOT_OWNED','unowned Collection item cannot be placed');
 select is(public.save_my_room_furniture_v1(current_setting('housing.d3_room')::uuid,0,current_setting('housing.d3_chair')::jsonb)->>'revision','1','first real save advances revision');
