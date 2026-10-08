@@ -1,0 +1,79 @@
+name: Private character acceptance
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/private-character-acceptance.yml'
+permissions:
+  contents: read
+jobs:
+  private-character-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - run: npm ci --prefix apps/world/tests/browser --ignore-scripts
+      - name: Download approved private assets and verify exact bytes
+        env:
+          ASSET_BASE: https://inhagame.app
+          ACCEPTANCE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          OPT_SHA: e285995845f126202ccf4372e81a571594af11259722114724a06dd33ee4f430
+          DUCK_SHA: 8aede8fd595dd84fda5460e375a18df49f6a91ba813ab7a952f75e768e8964eb
+        run: |
+          set -euo pipefail
+          [[ "$ASSET_BASE" =~ ^https://[a-zA-Z0-9.-]+$ ]]
+          [[ "$OPT_SHA" =~ ^[a-f0-9]{64}$ && "$DUCK_SHA" =~ ^[a-f0-9]{64}$ ]]
+          mkdir -p "$RUNNER_TEMP/private-character" apps/world/.generated/assets-optimized test-results/annyongi
+          curl --fail --silent --show-error --retry 2 "$ASSET_BASE/api/brand-asset?asset=annyongi-flight-v1.glb&variant=canonical&revision=5cc0bc54905da5b87314b81691c229bc583ad1980794239634008cd3f0d834fb" -o "$RUNNER_TEMP/private-character/source.glb"
+          curl --fail --silent --show-error --retry 2 "$ASSET_BASE/api/brand-asset?asset=annyongi-flight-v1.glb&variant=optimized&revision=5cc0bc54905da5b87314b81691c229bc583ad1980794239634008cd3f0d834fb" -o "$RUNNER_TEMP/private-character/optimized.glb"
+          curl --fail --silent --show-error --retry 2 "$ASSET_BASE/api/brand-asset?asset=induck-v3.glb&variant=canonical" -o "$RUNNER_TEMP/private-character/duck.glb"
+          printf '%s  %s\n' 5cc0bc54905da5b87314b81691c229bc583ad1980794239634008cd3f0d834fb "$RUNNER_TEMP/private-character/source.glb" "$OPT_SHA" "$RUNNER_TEMP/private-character/optimized.glb" "$DUCK_SHA" "$RUNNER_TEMP/private-character/duck.glb" | sha256sum --check
+          cp "$RUNNER_TEMP/private-character/source.glb" apps/world/assets/annyongi-flight-v1.glb
+          cp "$RUNNER_TEMP/private-character/optimized.glb" apps/world/.generated/assets-optimized/annyongi-flight-v1.glb
+          cp "$RUNNER_TEMP/private-character/duck.glb" apps/world/assets/induck-v3.glb
+          node -e 'const fs=require("fs"),crypto=require("crypto");const paths=["apps/world/assets/annyongi-flight-v1.glb","apps/world/.generated/assets-optimized/annyongi-flight-v1.glb","apps/world/assets/induck-v3.glb"];fs.writeFileSync("test-results/annyongi/private-asset-provenance.json",JSON.stringify({head:process.env.ACCEPTANCE_HEAD_SHA,assets:paths.map(path=>({path,sha256:crypto.createHash("sha256").update(fs.readFileSync(path)).digest("hex"),bytes:fs.statSync(path).size}))},null,2));'
+      - name: Real asset lifecycle and mount regression
+        run: node --test apps/world/tests/character-model-loading.test.mjs apps/world/tests/photo-mounted.test.mjs apps/world/tests/browser/character-model-loading-runtime.test.mjs
+      - name: Install Chromium
+        working-directory: apps/world/tests/browser
+        run: npx playwright install --with-deps chromium
+      - name: Browser ownership, six states, optimization parity and actual campus inputs
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          CHARACTER_SMOKE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          node apps/world/tests/browser/character-model-loading-smoke.mjs
+          node apps/world/tests/browser/annyongi-capture.mjs
+          node apps/world/tests/browser/annyongi-flight-pose-capture.mjs
+          node apps/world/tests/browser/annyongi-campus-smoke.mjs
+      - name: Optimized bytes in actual primary game route
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          CHARACTER_SMOKE_OUTPUT: test-results/character-model-optimized
+          CHARACTER_SMOKE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          ANNYONGI_OUTPUT: test-results/annyongi-optimized
+        run: |
+          cp "$RUNNER_TEMP/private-character/optimized.glb" apps/world/assets/annyongi-flight-v1.glb
+          node --test apps/world/tests/browser/character-model-loading-runtime.test.mjs
+          node apps/world/tests/browser/character-model-loading-smoke.mjs
+          node apps/world/tests/browser/annyongi-campus-smoke.mjs
+      - name: Upload metadata-only test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: private-character-metadata-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            test-results/character-model/result.json
+            test-results/annyongi/private-asset-provenance.json
+            test-results/annyongi/result.json
+            test-results/annyongi/poses/pose-results.json
+            test-results/annyongi/campus-results.json
+            test-results/character-model-optimized/result.json
+            test-results/annyongi-optimized/campus-results.json
+          if-no-files-found: warn
+          retention-days: 7

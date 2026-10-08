@@ -13,9 +13,9 @@ const assets = [
 const proxy = (asset, variant = null) =>
   `/api/brand-asset?asset=${asset}${variant ? `&variant=${variant}` : ""}`;
 
-test("production proxies legacy brand assets; authored Annyongi uses built static files", () => {
+test("production proxies brand assets including private Annyongi", () => {
   const expected = [];
-  for (const asset of assets.filter(name => name !== "annyongi-flight-v1.glb")) {
+  for (const asset of assets) {
     const escaped = asset.replaceAll(".", "\\.");
     expected.push({ src: `/assets/${escaped}`, dest: proxy(asset) });
     expected.push({
@@ -88,12 +88,30 @@ test("optimized edge function pins glTF Transform and preserves character pivots
   assert.match(source, /output\.byteLength < source\.byteLength/);
 });
 
-test("Annyongi source and optimized URLs cannot be intercepted by the legacy brand service", () => {
+test("Annyongi source and optimized URLs use the existing private brand service", () => {
   for (const url of ['/assets/annyongi-flight-v1.glb', '/.generated/assets-optimized/annyongi-flight-v1.glb']) {
     const intercept=config.routes.find(r=>r.src && new RegExp('^'+r.src+'$').test(url));
-    assert.equal(intercept,undefined,url);
+    assert.ok(intercept,url);
+    assert.ok(intercept.dest.startsWith('/api/brand-asset?asset=annyongi-flight-v1.glb'));
+    assert.equal(intercept.dest.includes('variant=optimized'), url.startsWith('/.generated/'));
   }
   const build=readFileSync(new URL('../build-recast-shadow.sh',import.meta.url),'utf8');
   assert.match(build,/optimize-world-assets.mjs --strict/);
   assert.match(build,/check_characters.mjs/);
+});
+
+
+test("Annyongi alone receives a fixed upstream asset revision", async () => {
+  const vm = await import('node:vm');
+  const source=readFileSync(new URL('../api/brand-asset.js',import.meta.url),'utf8');
+  const urls=[];
+  const context={module:{exports:{}},process:{env:{SUPABASE_URL:'https://example.supabase.co',SUPABASE_PUBLISHABLE_KEY:'sb_publishable_test'}},URL,AbortSignal,Buffer,fetch:async url=>{urls.push(url);return {ok:true,headers:new Headers()};}};
+  vm.runInNewContext(source,context);
+  for(const asset of assets) for(const variant of ['canonical','optimized']) {
+    const res={setHeader(){},status(code){assert.equal(code,200);return this;},end(){}};
+    await context.module.exports({method:'HEAD',url:`/api/brand-asset?asset=${asset}&variant=${variant}&revision=untrusted`},res);
+    const upstream=new URL(urls.at(-1));
+    assert.equal(upstream.searchParams.get('asset'),asset);
+    assert.equal(upstream.searchParams.get('revision'),asset==='annyongi-flight-v1.glb'?'5cc0bc54905da5b87314b81691c229bc583ad1980794239634008cd3f0d834fb':null);
+  }
 });

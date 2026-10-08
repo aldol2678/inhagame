@@ -245,9 +245,16 @@ test('tail morph geometry extends, glides and recurls continuously; instances ow
    assert.ok(pose.tail[1]>.999);assert.ok(pose.pitch>57);
    const mi=tails[1],base=[];mi.mesh.getPositions(base);
    const delta=mi.morphInstance.morph.targets[1].deltaPositions;
-   const point=new pc.Vec3(base[0]+delta[0],base[1]+delta[1],base[2]+delta[2]);
-   carrier.getLocalTransform().transformPoint(point,point);
-   assert.ok(point.z < -3,'cloud tip genuinely extends behind the body');
+   // Vertex order is not a tail-tip contract after a mesh rebuild.
+   // Transform the complete morphed cloud through its real world matrix,
+   // then measure behind the player, independent of player translation/rotation.
+   const transform=new pc.Mat4().mul2(f.player.getWorldTransform().clone().invert(),mi.node.getWorldTransform());
+   let tipZ=Infinity;
+   for(let i=0;i<base.length;i+=3) {
+    const point=new pc.Vec3(base[i]+delta[i],base[i+1]+delta[i+1],base[i+2]+delta[i+2]);
+    transform.transformPoint(point,point);tipZ=Math.min(tipZ,point.z);
+   }
+   assert.ok(tipZ < -3,'cloud tip genuinely extends behind the body');
    assert.ok(Math.abs(pose.pitch+pose.headPitch-12)<.01,'face remains forward, not nose-down');
   }
   if(mode==='hover'||mode==='ground')assert.ok(pose.tail.every(w=>w<.001),'curled source restored');
