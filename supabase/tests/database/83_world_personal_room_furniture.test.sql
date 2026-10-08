@@ -48,7 +48,7 @@ select private.world_inventory_grant_v1('a3000000-0000-4000-8000-000000000001',i
 from private.world_room_furniture_v1() where item_id<>'furniture.induck_chair';
 select set_config('housing.d3_owned_before',(select jsonb_agg(jsonb_build_object('item',item_id,'quantity',quantity) order by item_id)::text from private.world_player_items where user_id='a3000000-0000-4000-8000-000000000001'),true);
 set local role authenticated;
-select lives_ok($select public.save_my_room_furniture_v1(current_setting('housing.d3_room')::uuid,1,'[
+select lives_ok($$select public.save_my_room_furniture_v1(current_setting('housing.d3_room')::uuid,1,'[
  {"id":"11111111-1111-4111-8111-111111111111","itemId":"furniture.induck_chair","surface":"floor","x":-2,"z":-1,"yaw":45},
  {"id":"22222222-2222-4222-8222-222222222222","itemId":"furniture.campus_rug_blue","surface":"floor","x":-2.5,"z":-1.75,"yaw":0},
  {"id":"33333333-3333-4333-8333-333333333333","itemId":"furniture.dorm_desk_lamp","surface":"desk","x":2.25,"z":1.5,"yaw":0},
@@ -65,7 +65,7 @@ select lives_ok($select public.save_my_room_furniture_v1(current_setting('housin
  {"id":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa5","itemId":"furniture.dorm_monitor","surface":"desk","x":2.8,"z":1.5,"yaw":0},
  {"id":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa6","itemId":"furniture.dorm_trophy_shelf","surface":"floor","x":6.5,"z":2.5,"yaw":0},
  {"id":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa7","itemId":"furniture.study_books_set","surface":"desk","x":2.75,"z":1.9,"yaw":0}
- ]')$,'all sixteen F0 Collection items save together, including the C70 side bays');
+ ]')$$,'all sixteen F0 Collection items save together, including the C70 side bays');
 select set_config('housing.d3_saved',(public.get_world_room_furniture_v1(current_setting('housing.d3_room')::uuid)->'objects')::text,true);
 select is(public.get_world_room_furniture_v1(current_setting('housing.d3_room')::uuid)->>'revision','2','atomic replacement advances once');
 select is(public.save_my_room_furniture_v1(current_setting('housing.d3_room')::uuid,1,(select jsonb_agg(value order by value->>'id' desc) from jsonb_array_elements(current_setting('housing.d3_saved')::jsonb)))->>'revision','2','reordered identical snapshot is also idempotent');
