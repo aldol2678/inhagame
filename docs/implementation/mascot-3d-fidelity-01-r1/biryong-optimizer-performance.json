@@ -1,0 +1,642 @@
+{
+  "schema": "biryong-visual-performance-ci-v2",
+  "measurementClass": "CI_BROWSER_SURROGATE",
+  "frameMeasurement": "browser-animation-frame-interval",
+  "monitorMeasurement": "render-frame-interval",
+  "gpuTimeMeasured": false,
+  "mode": "visual-comparison",
+  "exactHead": "bba152a5149ecd15992a00d68def00691f5822ae",
+  "sourceTree": null,
+  "samplerHead": "bba152a5149ecd15992a00d68def00691f5822ae",
+  "realDevice": false,
+  "thermalMeasured": false,
+  "batteryMeasured": false,
+  "gpuDriverRepresentative": false,
+  "note": "Headless CI catches catastrophic regressions. It does not replace Android/PC real-device profiling.",
+  "cachePolicy": "Fresh page and cleared localStorage per boot; HTTP cache disabled by routed harness. Browser process/shader cache order effects are not controlled.",
+  "status": "INCONCLUSIVE",
+  "phase": "visual:low:snapshot",
+  "progress": [
+    {
+      "phase": "baseline:boot",
+      "state": "DONE",
+      "elapsedMs": 26582
+    },
+    {
+      "phase": "baseline:low:settle",
+      "state": "DONE",
+      "elapsedMs": 4621
+    },
+    {
+      "phase": "baseline:low:sample",
+      "state": "DONE",
+      "elapsedMs": 26704
+    },
+    {
+      "phase": "baseline:low:snapshot",
+      "state": "DONE",
+      "elapsedMs": 218
+    },
+    {
+      "phase": "baseline:medium:settle",
+      "state": "DONE",
+      "elapsedMs": 6639
+    },
+    {
+      "phase": "baseline:medium:sample",
+      "state": "DONE",
+      "elapsedMs": 60104
+    },
+    {
+      "phase": "baseline:medium:snapshot",
+      "state": "DONE",
+      "elapsedMs": 1498
+    },
+    {
+      "phase": "baseline:high:settle",
+      "state": "DONE",
+      "elapsedMs": 6055
+    },
+    {
+      "phase": "baseline:high:sample",
+      "state": "DONE",
+      "elapsedMs": 59332
+    },
+    {
+      "phase": "baseline:high:snapshot",
+      "state": "DONE",
+      "elapsedMs": 1456
+    },
+    {
+      "phase": "baseline:close",
+      "state": "DONE",
+      "elapsedMs": 42
+    },
+    {
+      "phase": "visual:boot",
+      "state": "DONE",
+      "elapsedMs": 28263
+    },
+    {
+      "phase": "visual:low:settle",
+      "state": "DONE",
+      "elapsedMs": 3933
+    },
+    {
+      "phase": "visual:low:reset",
+      "state": "DONE",
+      "elapsedMs": 3
+    },
+    {
+      "phase": "visual:low:sample",
+      "state": "DONE",
+      "elapsedMs": 29457
+    },
+    {
+      "phase": "visual:low:rendered-samples",
+      "state": "DONE",
+      "elapsedMs": 5
+    },
+    {
+      "phase": "visual:low:monitor",
+      "state": "DONE",
+      "elapsedMs": 3
+    },
+    {
+      "phase": "visual:low:snapshot",
+      "state": "DONE",
+      "elapsedMs": 706
+    }
+  ],
+  "baseline": {
+    "low": {
+      "sampleCount": 90,
+      "meanMs": 223.69333333333336,
+      "p50Ms": 216.6999999999971,
+      "p95Ms": 433.40000000000146,
+      "p99Ms": 466.70000000000437,
+      "maxMs": 466.70000000000437,
+      "estimatedFps": 4.470405912856887,
+      "longFrameRate": 0.8555555555555555,
+      "viewport": {
+        "width": 1280,
+        "height": 720,
+        "dpr": 1
+      },
+      "heap": {
+        "usedJSHeapSize": 63474010,
+        "totalJSHeapSize": 64839230,
+        "jsHeapSizeLimit": 4395630592
+      },
+      "scene": {
+        "viewport": {
+          "width": 1280,
+          "height": 720,
+          "dpr": 1
+        },
+        "drawingBuffer": {
+          "width": 1024,
+          "height": 576
+        },
+        "renderer": "WebGL2",
+        "driver": {
+          "vendor": "Google Inc. (Google)",
+          "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+        },
+        "visible": "visible",
+        "inBiryong": true,
+        "position": [
+          0,
+          1.15,
+          75
+        ],
+        "camera": {
+          "yaw": 0,
+          "pitch": 0.3758378769488502,
+          "distance": 3.5,
+          "firstPerson": false
+        },
+        "environment": {
+          "time": "DAY",
+          "weather": "CLEAR"
+        },
+        "graphics": {
+          "tier": "low",
+          "frameLimit": "auto",
+          "renderScale": "auto",
+          "shadowResolution": 512,
+          "castShadows": false
+        },
+        "drawCalls": 140,
+        "renderComponents": 2291
+      },
+      "validity": {
+        "validForComparison": false,
+        "outcome": "INCONCLUSIVE",
+        "violations": [
+          "p95Ms:433.40000000000146>85",
+          "p99Ms:466.70000000000437>160",
+          "longFrameRate:0.8555555555555555>0.35"
+        ]
+      }
+    },
+    "medium": {
+      "sampleCount": 90,
+      "meanMs": 499.7944444444444,
+      "p50Ms": 500,
+      "p95Ms": 999.9000000000087,
+      "p99Ms": 1033.300000000003,
+      "maxMs": 1033.300000000003,
+      "estimatedFps": 2.0008225603859366,
+      "longFrameRate": 0.8888888888888888,
+      "viewport": {
+        "width": 1280,
+        "height": 720,
+        "dpr": 1
+      },
+      "heap": {
+        "usedJSHeapSize": 63333278,
+        "totalJSHeapSize": 66416278,
+        "jsHeapSizeLimit": 4395630592
+      },
+      "scene": {
+        "viewport": {
+          "width": 1280,
+          "height": 720,
+          "dpr": 1
+        },
+        "drawingBuffer": {
+          "width": 1280,
+          "height": 720
+        },
+        "renderer": "WebGL2",
+        "driver": {
+          "vendor": "Google Inc. (Google)",
+          "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+        },
+        "visible": "visible",
+        "inBiryong": true,
+        "position": [
+          0,
+          1.15,
+          75
+        ],
+        "camera": {
+          "yaw": 0,
+          "pitch": 0.3758378769488502,
+          "distance": 3.5,
+          "firstPerson": false
+        },
+        "environment": {
+          "time": "DAY",
+          "weather": "CLEAR"
+        },
+        "graphics": {
+          "tier": "medium",
+          "frameLimit": "auto",
+          "renderScale": "auto",
+          "shadowResolution": 1024,
+          "castShadows": true
+        },
+        "drawCalls": 440,
+        "renderComponents": 2291
+      },
+      "validity": {
+        "validForComparison": false,
+        "outcome": "INCONCLUSIVE",
+        "violations": [
+          "p95Ms:999.9000000000087>100",
+          "p99Ms:1033.300000000003>180",
+          "longFrameRate:0.8888888888888888>0.38"
+        ]
+      }
+    },
+    "high": {
+      "sampleCount": 90,
+      "meanMs": 490.1655555555555,
+      "p50Ms": 483.3999999999942,
+      "p95Ms": 966.6000000000058,
+      "p99Ms": 983.3000000000175,
+      "maxMs": 983.3000000000175,
+      "estimatedFps": 2.040127031909854,
+      "longFrameRate": 0.9222222222222223,
+      "viewport": {
+        "width": 1280,
+        "height": 720,
+        "dpr": 1
+      },
+      "heap": {
+        "usedJSHeapSize": 63557230,
+        "totalJSHeapSize": 66416250,
+        "jsHeapSizeLimit": 4395630592
+      },
+      "scene": {
+        "viewport": {
+          "width": 1280,
+          "height": 720,
+          "dpr": 1
+        },
+        "drawingBuffer": {
+          "width": 1280,
+          "height": 720
+        },
+        "renderer": "WebGL2",
+        "driver": {
+          "vendor": "Google Inc. (Google)",
+          "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+        },
+        "visible": "visible",
+        "inBiryong": true,
+        "position": [
+          0,
+          1.15,
+          75
+        ],
+        "camera": {
+          "yaw": 0,
+          "pitch": 0.3758378769488502,
+          "distance": 3.5,
+          "firstPerson": false
+        },
+        "environment": {
+          "time": "DAY",
+          "weather": "CLEAR"
+        },
+        "graphics": {
+          "tier": "high",
+          "frameLimit": "auto",
+          "renderScale": "auto",
+          "shadowResolution": 2048,
+          "castShadows": true
+        },
+        "drawCalls": 470,
+        "renderComponents": 2291
+      },
+      "validity": {
+        "validForComparison": false,
+        "outcome": "INCONCLUSIVE",
+        "violations": [
+          "p95Ms:966.6000000000058>120",
+          "p99Ms:983.3000000000175>220",
+          "longFrameRate:0.9222222222222223>0.42"
+        ]
+      }
+    }
+  },
+  "desktop": {
+    "low": {
+      "baseline": {
+        "sampleCount": 90,
+        "meanMs": 223.69333333333336,
+        "p50Ms": 216.6999999999971,
+        "p95Ms": 433.40000000000146,
+        "p99Ms": 466.70000000000437,
+        "maxMs": 466.70000000000437,
+        "estimatedFps": 4.470405912856887,
+        "longFrameRate": 0.8555555555555555,
+        "viewport": {
+          "width": 1280,
+          "height": 720,
+          "dpr": 1
+        },
+        "heap": {
+          "usedJSHeapSize": 63474010,
+          "totalJSHeapSize": 64839230,
+          "jsHeapSizeLimit": 4395630592
+        },
+        "scene": {
+          "viewport": {
+            "width": 1280,
+            "height": 720,
+            "dpr": 1
+          },
+          "drawingBuffer": {
+            "width": 1024,
+            "height": 576
+          },
+          "renderer": "WebGL2",
+          "driver": {
+            "vendor": "Google Inc. (Google)",
+            "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+          },
+          "visible": "visible",
+          "inBiryong": true,
+          "position": [
+            0,
+            1.15,
+            75
+          ],
+          "camera": {
+            "yaw": 0,
+            "pitch": 0.3758378769488502,
+            "distance": 3.5,
+            "firstPerson": false
+          },
+          "environment": {
+            "time": "DAY",
+            "weather": "CLEAR"
+          },
+          "graphics": {
+            "tier": "low",
+            "frameLimit": "auto",
+            "renderScale": "auto",
+            "shadowResolution": 512,
+            "castShadows": false
+          },
+          "drawCalls": 140,
+          "renderComponents": 2291
+        },
+        "validity": {
+          "validForComparison": false,
+          "outcome": "INCONCLUSIVE",
+          "violations": [
+            "p95Ms:433.40000000000146>85",
+            "p99Ms:466.70000000000437>160",
+            "longFrameRate:0.8555555555555555>0.35"
+          ]
+        }
+      },
+      "visual": {
+        "sampleCount": 90,
+        "meanMs": 247.76666666666668,
+        "p50Ms": 250,
+        "p95Ms": 466.6000000000058,
+        "p99Ms": 483.40000000000146,
+        "maxMs": 483.40000000000146,
+        "estimatedFps": 4.036055428494551,
+        "longFrameRate": 0.8777777777777778,
+        "viewport": {
+          "width": 1280,
+          "height": 720,
+          "dpr": 1
+        },
+        "heap": {
+          "usedJSHeapSize": 64172011,
+          "totalJSHeapSize": 67895451,
+          "jsHeapSizeLimit": 4395630592
+        }
+      },
+      "ciSurrogatePass": false,
+      "structural": {
+        "version": "biryong.visual.performance.p0e.v1",
+        "tier": "low",
+        "budget": {
+          "placements": 20,
+          "renderMeshes": 28,
+          "potentialShadowCasters": 14,
+          "runtimeTargetP95Ms": 33.4,
+          "ciSurrogateP95Ms": 85,
+          "ciSurrogateP99Ms": 160,
+          "ciMaxP95Ratio": 2.75,
+          "ciMaxLongFrameRate": 0.35
+        },
+        "placements": 17,
+        "kindCounts": {
+          "tree": 4,
+          "shrub": 6,
+          "rock": 4,
+          "lantern": 2,
+          "marker": 1
+        },
+        "renderMeshes": 24,
+        "potentialShadowCasters": 11,
+        "extraRealLights": 0,
+        "externalTextures": 0,
+        "networkRequests": 0,
+        "screenSpacePostPasses": 0,
+        "withinBudget": true,
+        "violations": []
+      },
+      "scene": {
+        "viewport": {
+          "width": 1280,
+          "height": 720,
+          "dpr": 1
+        },
+        "drawingBuffer": {
+          "width": 1024,
+          "height": 576
+        },
+        "renderer": "WebGL2",
+        "driver": {
+          "vendor": "Google Inc. (Google)",
+          "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+        },
+        "visible": "visible",
+        "inBiryong": true,
+        "position": [
+          0,
+          1.15,
+          75
+        ],
+        "camera": {
+          "yaw": 0,
+          "pitch": 0.3758378769488502,
+          "distance": 3.5,
+          "firstPerson": false
+        },
+        "environment": {
+          "time": "DAY",
+          "weather": "CLEAR"
+        },
+        "graphics": {
+          "tier": "low",
+          "frameLimit": "auto",
+          "renderScale": "auto",
+          "shadowResolution": 512,
+          "castShadows": false
+        },
+        "drawCalls": 140,
+        "renderComponents": 2305
+      },
+      "monitor": {
+        "version": "biryong.visual.performance.p0e.v1",
+        "enabled": true,
+        "active": true,
+        "measurement": {
+          "kind": "render-frame-interval",
+          "gpuTimeMeasured": false
+        },
+        "tier": "low",
+        "frames": {
+          "sampleCount": 120,
+          "meanMs": 245.1200000000002,
+          "p50Ms": 243.20000000001164,
+          "p95Ms": 460.0999999999767,
+          "p99Ms": 470.29999999998836,
+          "maxMs": 475.29999999998836,
+          "estimatedFps": 4.079634464751955,
+          "longFrameRate": 0.875
+        },
+        "runtimeTarget": {
+          "p95Ms": 33.4,
+          "met": false
+        },
+        "structural": {
+          "version": "biryong.visual.performance.p0e.v1",
+          "tier": "low",
+          "budget": {
+            "placements": 20,
+            "renderMeshes": 28,
+            "potentialShadowCasters": 14,
+            "runtimeTargetP95Ms": 33.4,
+            "ciSurrogateP95Ms": 85,
+            "ciSurrogateP99Ms": 160,
+            "ciMaxP95Ratio": 2.75,
+            "ciMaxLongFrameRate": 0.35
+          },
+          "placements": 17,
+          "kindCounts": {
+            "tree": 4,
+            "shrub": 6,
+            "rock": 4,
+            "lantern": 2,
+            "marker": 1
+          },
+          "renderMeshes": 24,
+          "potentialShadowCasters": 11,
+          "extraRealLights": 0,
+          "externalTextures": 0,
+          "networkRequests": 0,
+          "screenSpacePostPasses": 0,
+          "withinBudget": true,
+          "violations": []
+        },
+        "visual": {
+          "density": {
+            "version": "biryong.visual.density.p0c.v1",
+            "enabled": true,
+            "tier": "low",
+            "counts": {
+              "base": 17,
+              "medium": 0,
+              "high": 0,
+              "total": 17
+            }
+          },
+          "lighting": {
+            "version": "biryong.visual.p0a.v1",
+            "enabled": true,
+            "active": true,
+            "tier": "low",
+            "profile": {
+              "daylight": 1,
+              "ambientColor": [
+                0.483888,
+                0.5489423999999999,
+                0.6229564
+              ],
+              "exposure": 1.058,
+              "sunIntensity": 1.1787499999999997,
+              "shadowIntensity": 0.515,
+              "sunEuler": [
+                53.5,
+                34,
+                0
+              ]
+            }
+          },
+          "atmosphere": {
+            "version": "biryong.visual.atmosphere.p0d.v1",
+            "enabled": true,
+            "active": true,
+            "tier": "low",
+            "screenSpaceBloom": false,
+            "profile": {
+              "targetTime": "DAY",
+              "targetWeather": "CLEAR",
+              "fogStart": 120,
+              "fogEnd": 285,
+              "fogColor": [
+                0.525,
+                0.709,
+                0.828
+              ],
+              "clearColor": [
+                0.52125,
+                0.70975,
+                0.837
+              ],
+              "toneMapping": "neutral",
+              "canvasFilter": "saturate(1.02) contrast(1.008) brightness(1.000)"
+            }
+          }
+        }
+      },
+      "assessment": {
+        "outcome": "INCONCLUSIVE",
+        "passed": false,
+        "baselineValid": false,
+        "baselineAssessment": {
+          "tier": "low",
+          "mobileViewport": false,
+          "p95Ratio": 1,
+          "withinCiSurrogateBudget": false,
+          "violations": [
+            "p95Ms:433.40000000000146>85",
+            "p99Ms:466.70000000000437>160",
+            "longFrameRate:0.8555555555555555>0.35"
+          ]
+        },
+        "visualAssessment": {
+          "tier": "low",
+          "mobileViewport": false,
+          "p95Ratio": 1.0766035994462488,
+          "withinCiSurrogateBudget": false,
+          "violations": [
+            "p95Ms:466.6000000000058>85",
+            "p99Ms:483.40000000000146>160",
+            "longFrameRate:0.8777777777777778>0.35"
+          ]
+        },
+        "reason": "Baseline cannot sustain the unchanged CI surrogate budget; this run cannot establish Visual Lab acceptance."
+      },
+      "p95Ratio": 1.077,
+      "sceneComparable": true
+    }
+  },
+  "mobileViewport": null,
+  "error": "Error: low INCONCLUSIVE: Baseline cannot sustain the unchanged CI surrogate budget; this run cannot establish Visual Lab acceptance.",
+  "completedAt": "2026-10-08T02:28:58.872Z",
+  "problems": []
+}

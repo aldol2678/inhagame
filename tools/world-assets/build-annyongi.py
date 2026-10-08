@@ -6,7 +6,7 @@ Y-up, +Z front, coordinates in player-root space. Python stdlib only.
 import json, math, struct, pathlib, hashlib
 ROOT=pathlib.Path(__file__).resolve().parents[2]
 OUT=ROOT/'apps/world/assets/annyongi-flight-v1.glb'
-GENERATOR='INHAGAME Annyongi procedural flight reconstruction v2.2'
+GENERATOR='INHAGAME Annyongi procedural flight reconstruction v2.3'
 COLORS={'blue':'d3edfb','cream':'fffde4','pink':'f6bec8','mouth':'bf6280','ink':'211f1f','white':'ffffff','curl':'9fc7dc'}
 def color(key):
  h=COLORS[key];s=[int(h[i:i+2],16)/255 for i in (0,2,4)]
@@ -133,11 +133,19 @@ for y,width in [(-.51,.207),(-.63,.201),(-.74,.173)]:
  bands.tube([[x,y,belly_surface(x,y)+.004] for x in [-width+2*width*k/20 for k in range(21)]],.008,'ink',6)
 # One continuous, scalloped cloud surface with a spiral, in both directions.
 # Same contour family on the small identity wing and airborne extension.
-def cloud_wing(shape,sign,origin,scale):
- outline=curve([[.02,-.08,0],[.12,.19,0],[.40,.32,0],[.73,.35,0],
+def cloud_wing(shape,sign,origin,scale,extended=False):
+ controls=[[.02,-.08,0],[.12,.19,0],[.40,.32,0],[.73,.35,0],
   [.99,.51,0],[1.08,.46,0],[1.05,.28,0],[1.22,.28,0],
   [1.25,.18,0],[1.08,.02,0],[1.15,-.06,0],[1.02,-.19,0],
-  [.82,-.26,0],[.42,-.26,0],[.02,-.08,0]],3)[:-1]
+  [.82,-.26,0],[.42,-.26,0],[.02,-.08,0]]
+ if extended:
+  # Broad, shallow scallops replace the narrow three-finger outer edge.
+  # Identity CloudWing, vertex ordering, spiral and animation pivot stay intact.
+  controls=[[.02,-.08,0],[.12,.19,0],[.36,.41,0],[.59,.34,0],
+   [.80,.48,0],[1.01,.43,0],[1.08,.29,0],[1.22,.24,0],
+   [1.24,.08,0],[1.12,-.04,0],[1.08,-.20,0],[.91,-.29,0],
+   [.68,-.27,0],[.36,-.24,0],[.02,-.08,0]]
+ outline=curve(controls,3)[:-1]
  center=[.58,.08];count=len(outline);rows=[];start=len(shape.p)//3
  def point(x,y,z):return add(origin,[sign*x*scale,y*scale,z*scale])
  # Elliptical cross-section closes to a smooth rim; same winding for both sides.
@@ -169,31 +177,41 @@ def cloud_wing(shape,sign,origin,scale):
   shape.tube(pts,.012*scale,'ink',6)
 for sign,label in [(-1,'L'),(1,'R')]:
  cloud_wing(part('CloudWing_'+label),sign,[sign*.35,-.43,-.08],.43)
- cloud_wing(part('FlightWing_'+label),sign,[0,0,0],1.0)
+ cloud_wing(part('FlightWing_'+label),sign,[0,0,0],1.0,extended=True)
 # Back-view tail: a fuller curl leaving the rump, with depth visible from the side.
 tail=part('Tail');pts=curve([[0,-.74,-.28],[-.38,-.59,-.62],[-.48,-.24,-.83],[-.27,-.04,-.91],[.11,-.04,-.90],[.48,-.18,-.76],[.71,-.44,-.60],[.79,-.67,-.46]],5)
 radii=[.17*(1-i/(len(pts)-1))+.075 for i in range(len(pts))];tail.tube(pts,radii,'blue',12)
+# Preserve the exact original attachment ring/cap while gathering the rest of
+# the standing curl close to the rump. Same 36 rings, indices and target order.
+attachment_p=tail.p[:36];attachment_n=tail.n[:36]
+cap_index=len(pts)*12*3
+cap_p=tail.p[cap_index:cap_index+3];cap_n=tail.n[cap_index:cap_index+3]
+pts=curve([[0,-.74,-.28],[-.25,-.62,-.62],[-.32,-.37,-.77],[-.13,-.22,-.82],[.16,-.25,-.83],[.40,-.39,-.77],[.55,-.58,-.64],[.55,-.75,-.54]],5)
+tail=part('Tail');tail.tube(pts,radii,'blue',12)
+tail.p[:36]=attachment_p;tail.n[:36]=attachment_n
+tail.p[cap_index:cap_index+3]=cap_p;tail.n[cap_index:cap_index+3]=cap_n
 end=pts[-1];tip=part('TailCloud')
 # Three rounded cloud lobes fan out from a common root, not thin dangling digits.
-def tail_cloud(shape,end):
+def tail_cloud(shape,end,scale=1):
  for dx,dy,angle in [(-.08,-.055,-40),(0,-.12,0),(.09,-.04,45)]:
-  shape.ellipsoid(add(end,[dx,dy,.015]),[.085,.12,.075],'cream',12,8,angle)
+  shape.ellipsoid(add(end,[dx*scale,dy*scale,.015]),[.085*scale,.12*scale,.075*scale],'cream',12,8,angle)
 tail_cloud(tip,end)
 # Three topology-identical targets deform the tail itself, including its cloud tip.
 # Body-space curves deliberately compensate for the strong full-body flight pitch.
 # The root ring never moves, so every blend stays attached to the rump.
 tail_targets={name:[] for name in ['Tail','TailCloud']}
 root=[0,-.74,-.28]
-for controls in [
+for target_index,controls in enumerate([
  [root,[-.20,-.95,-.43],[-.25,-1.10,-.61],[-.18,-1.24,-.80],[0,-1.36,-.96],[.19,-1.43,-1.09],[.32,-1.40,-1.17],[.38,-1.31,-1.16]],
- [root,[-.08,-1.04,-.44],[-.12,-1.32,-.63],[-.09,-1.66,-.83],[-.04,-2.02,-1.02],[.02,-2.35,-1.21],[.07,-2.63,-1.39],[.08,-2.85,-1.50]],
+ [root,[-.08,-1.04,-.44],[-.16,-1.32,-.67],[-.18,-1.66,-.94],[-.10,-2.02,-1.15],[.03,-2.35,-1.29],[.11,-2.63,-1.39],[.08,-2.85,-1.50]],
  [root,[-.14,-.96,-.51],[-.20,-1.05,-.84],[-.18,-1.12,-1.20],[-.08,-1.23,-1.56],[.07,-1.41,-1.91],[.20,-1.64,-2.18],[.25,-1.85,-2.35]]
-]:
+]):
  points=curve(controls,5);target=Shape();target.tube(points,radii,'blue',12)
  cloud=Shape()
- tail_cloud(cloud,points[-1])
+ tail_cloud(cloud,points[-1],[1.15,1.5,1.35][target_index])
  # Identical attachment ring for all targets, avoiding a moving seam at the body.
  target.p[:36]=parts['Tail'].p[:36];target.n[:36]=parts['Tail'].n[:36]
+ target.p[cap_index:cap_index+3]=cap_p;target.n[cap_index:cap_index+3]=cap_n
  for name,shape in [('Tail',target),('TailCloud',cloud)]:tail_targets[name].append(shape)
 # Keep the face level while the body pitches; every face detail follows one pivot.
 head_names=[n for n in parts if n=='Head' or n.split('_')[0] in ['Ear','Horn','Eye','Cheek','Fang'] or n in ['Mouth','Tongue','Nose','Forelock']]

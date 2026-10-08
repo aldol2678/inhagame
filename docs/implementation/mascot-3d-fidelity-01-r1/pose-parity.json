@@ -1,0 +1,5 @@
+{
+  "identical": true,
+  "samples": 24,
+  "compared": "ground/hover/ascend/forward/descend/landing x desktop/mobile x day/night, exact pose snapshots"
+}
