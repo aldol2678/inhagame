@@ -6,7 +6,7 @@ Y-up, +Z front, coordinates in player-root space. Python stdlib only.
 import json, math, struct, pathlib, hashlib
 ROOT=pathlib.Path(__file__).resolve().parents[2]
 OUT=ROOT/'apps/world/assets/annyongi-flight-v1.glb'
-GENERATOR='INHAGAME Annyongi procedural flight reconstruction v2.3'
+GENERATOR='INHAGAME Annyongi procedural flight reconstruction v2.4'
 COLORS={'blue':'d3edfb','cream':'fffde4','pink':'f6bec8','mouth':'bf6280','ink':'211f1f','white':'ffffff','curl':'9fc7dc'}
 def color(key):
  h=COLORS[key];s=[int(h[i:i+2],16)/255 for i in (0,2,4)]
@@ -86,7 +86,14 @@ for sign,label in [(-1,'L'),(1,'R')]:
  horn.ellipsoid([sign*.49,1.26,.09],[.065,.065,.065],'cream',10,6)
  horn.tube(curve([[sign*.46,1.04,.07],[sign*.59,1.08,.07],[sign*.62,1.18,.09]],4),.058,'cream',10)
  horn.ellipsoid([sign*.62,1.18,.09],[.058,.06,.058],'cream',10,6)
- arm=part('Arm_'+label);arm.ellipsoid([sign*.42,-.48,.13],[.13,.32,.13],'blue',16,10)
+ # A curved upper arm narrows at the wrist and opens into a soft mitten palm.
+ # The small thumb is part of Arm_L/R, not a new joint or animation contract.
+ arm=part('Arm_'+label)
+ arm.tube([[sign*x,y,z] for x,y,z in [(.40,-.22,.10),(.42,-.26,.13),
+  (.44,-.34,.16),(.455,-.43,.185),(.465,-.53,.20),(.475,-.60,.21),
+  (.48,-.66,.215),(.48,-.72,.22),(.47,-.765,.22),(.46,-.78,.22)]],
+  [.025,.079,.086,.082,.073,.078,.102,.099,.061,.012],'blue',12)
+ arm.ellipsoid([sign*.397,-.686,.282],[.049,.067,.052],'blue',10,6,sign*-18)
 
  leg=part('Leg_'+label);leg.ellipsoid([sign*.20,-.96,.01],[.125,.19,.14],'blue',16,10)
  leg.ellipsoid([sign*.23,-1.065,.11],[.19,.10,.22],'blue',20,8)
@@ -134,10 +141,10 @@ for y,width in [(-.51,.207),(-.63,.201),(-.74,.173)]:
 # One continuous, scalloped cloud surface with a spiral, in both directions.
 # Same contour family on the small identity wing and airborne extension.
 def cloud_wing(shape,sign,origin,scale,extended=False):
- controls=[[.02,-.08,0],[.12,.19,0],[.40,.32,0],[.73,.35,0],
-  [.99,.51,0],[1.08,.46,0],[1.05,.28,0],[1.22,.28,0],
-  [1.25,.18,0],[1.08,.02,0],[1.15,-.06,0],[1.02,-.19,0],
-  [.82,-.26,0],[.42,-.26,0],[.02,-.08,0]]
+ controls=[[.02,-.08,0],[.09,.13,0],[.28,.24,0],[.50,.22,0],
+  [.73,.28,0],[.95,.43,0],[1.02,.38,0],[.99,.19,0],
+  [1.07,.10,0],[1.02,-.04,0],[.88,-.17,0],[.66,-.20,0],
+  [.42,-.18,0],[.15,-.17,0],[.02,-.08,0]]
  if extended:
   # Broad, shallow scallops replace the narrow three-finger outer edge.
   # Identity CloudWing, vertex ordering, spiral and animation pivot stay intact.
@@ -176,7 +183,17 @@ def cloud_wing(shape,sign,origin,scale,extended=False):
    pts.append(point(.40+r*math.cos(angle),.08+r*math.sin(angle),side*.139))
   shape.tube(pts,.012*scale,'ink',6)
 for sign,label in [(-1,'L'),(1,'R')]:
- cloud_wing(part('CloudWing_'+label),sign,[sign*.35,-.43,-.08],.43)
+ # The identity cloud runs back along the shoulder, not out as a frontal plate.
+ # Rotate its contour 62 degrees around Y, mirror the rotation, and thin depth.
+ # Keep the hand below/in front of it; the expanded animated wing is untouched.
+ small=part('CloudWing_'+label)
+ cloud_wing(small,sign,[0,0,0],.43)
+ angle=sign*math.radians(62);co=math.cos(angle);si=math.sin(angle)
+ for i in range(len(small.p)//3):
+  x,y,z=small.p[i*3:i*3+3];z*=.68
+  small.p[i*3:i*3+3]=[sign*.40+co*x+si*z,y-.24,.12-si*x+co*z]
+  nx,ny,nz=small.n[i*3:i*3+3];nz/=.68
+  small.n[i*3:i*3+3]=unit([co*nx+si*nz,ny,-si*nx+co*nz])
  cloud_wing(part('FlightWing_'+label),sign,[0,0,0],1.0,extended=True)
 # Back-view tail: a fuller curl leaving the rump, with depth visible from the side.
 tail=part('Tail');pts=curve([[0,-.74,-.28],[-.38,-.59,-.62],[-.48,-.24,-.83],[-.27,-.04,-.91],[.11,-.04,-.90],[.48,-.18,-.76],[.71,-.44,-.60],[.79,-.67,-.46]],5)
@@ -186,7 +203,9 @@ radii=[.17*(1-i/(len(pts)-1))+.075 for i in range(len(pts))];tail.tube(pts,radii
 attachment_p=tail.p[:36];attachment_n=tail.n[:36]
 cap_index=len(pts)*12*3
 cap_p=tail.p[cap_index:cap_index+3];cap_n=tail.n[cap_index:cap_index+3]
-pts=curve([[0,-.74,-.28],[-.25,-.62,-.62],[-.32,-.37,-.77],[-.13,-.22,-.82],[.16,-.25,-.83],[.40,-.39,-.77],[.55,-.58,-.64],[.55,-.75,-.54]],5)
+# Keep the curl below the rider's feet as it crosses behind the body; the old
+# high central arc intersected the rider on ground/hover despite head clearance.
+pts=curve([[0,-.74,-.28],[-.24,-.69,-.48],[-.35,-.53,-.61],[-.22,-.39,-.66],[.07,-.37,-.64],[.34,-.44,-.58],[.49,-.59,-.48],[.53,-.74,-.41]],5)
 tail=part('Tail');tail.tube(pts,radii,'blue',12)
 tail.p[:36]=attachment_p;tail.n[:36]=attachment_n
 tail.p[cap_index:cap_index+3]=cap_p;tail.n[cap_index:cap_index+3]=cap_n
