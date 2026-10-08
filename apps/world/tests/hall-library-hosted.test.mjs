@@ -41,7 +41,8 @@ test('current PR scope may explicitly include surroundings but never unrelated a
   const allow=runInNewContext(`(${helper})`,{}, {timeout:1000});
   const manifest=JSON.parse(read('./fixtures/hall-library-candidate-source-manifest.json'));
   const original=allow(manifest,''),surroundings=allow(manifest,'surroundings');
-  assert.equal(original.length,10);assert.equal(surroundings.length,16);
+  assert.equal(original.length,14);assert.equal(surroundings.length,20);
+  for(const path of ['main.js','campus-contact-shading.js','campus-contact-shading-layout.js','campus-contact-shading-geometry.js'])assert.ok(original.includes('apps/world/src/'+path),'bounded contact pilot is allowed');
   for(const path of ['apps/world/src/pond-surroundings-geometry.js','apps/world/src/main-hall-walkway-layout.js','apps/world/src/main-hall-walkway-geometry.js','apps/world/src/campus-grounds.js','apps/world/src/minimap/minimap-data.js','apps/world/src/navigation/campus-navigation.js']){
     assert.ok(surroundings.includes(path));assert.ok(!original.includes(path));
   }

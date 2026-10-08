@@ -293,9 +293,14 @@ test("20. nickname: INHAGAME profile is the only authority; no World editing or 
   assert.doesNotMatch(panel, /<input|<form/, "profile panel is display-only");
   assert.deepEqual(
     [...html.matchAll(/<input[^>]*id="([^"]+)"/g)].map((m) => m[1]),
-    ["invert-mouse-y", "chat-input"],
-    "World inputs are limited to camera preference and local chat; nickname stays profile-owned"
+    ["graphics-show-fps", "invert-mouse-y", "chat-input"],
+    "World inputs are limited to graphics/camera preferences and local chat; nickname stays profile-owned"
   );
+  const settingsStart = html.indexOf('id="view-settings"');
+  assert.ok(settingsStart >= 0, "graphics preferences live in the existing settings panel");
+  const settingsPanel = html.slice(settingsStart, html.indexOf("</section>", settingsStart));
+  assert.match(settingsPanel, /<input\b(?=[^>]*\bid="graphics-show-fps")(?=[^>]*\btype="checkbox")[^>]*>/,
+    "the explicitly allowed FPS input is a checkbox inside the graphics settings panel");
   assert.doesNotMatch(profile, /localStorage|setItem|submit/, "no World nickname storage or form");
   assert.match(profile, /setIdentity\(identity\)/);
   assert.match(profile, /"\/profile\/"/, "members are sent to the INHAGAME profile to change it");

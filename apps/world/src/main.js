@@ -22,6 +22,9 @@ import { legacyTelemetryTarget } from './legacy-zone-compat.js';
 import { createViewDistanceSettings } from './view-distance-settings.js';
 import { createGraphicsPresetController } from './graphics-presets.js';
 import { createEnvironmentDirector } from './environment/environment-director.js';
+import { createBiryongVisualLighting } from './biryong/biryong-visual-lighting.js';
+import { createBiryongAtmosphere } from './biryong/biryong-atmosphere.js';
+import { createBiryongPerformanceMonitor } from './biryong/biryong-performance-monitor.js';
 import { resolveEnvironmentRuntimeTime, resolveEnvironmentRuntimeWeather } from './environment/environment-clock.js';
 import { createEnvironmentWorldTime } from './environment/environment-world-time.js';
 import { createWorldTimeHud } from './hud/world-time-hud.js';
@@ -247,6 +250,12 @@ const npcSocialProductionMode = npcProductionMode;
 const npcSocialMode = npcSocialProductionMode || npcSocialPreviewMode || npcObservedConversationMode;
 const npcEnabled = npcSharedScheduleMode || npcTestMode || npcProductionMode || npcPreviewMode || npcRosterPreviewMode || npcSocialMode;
 const campusLifePreview = previewHost && startupParams.get('campusLife') === 'p0a';
+const biryongVisualStage = previewHost ? startupParams.get('biryongVisual') : null;
+const biryongVisualLabP0A = ['p0a', 'p0b', 'p0c', 'p0d', 'p0e'].includes(biryongVisualStage);
+const biryongVisualLabP0B = ['p0b', 'p0c', 'p0d', 'p0e'].includes(biryongVisualStage);
+const biryongVisualLabP0C = ['p0c', 'p0d', 'p0e'].includes(biryongVisualStage);
+const biryongVisualLabP0D = ['p0d', 'p0e'].includes(biryongVisualStage);
+const biryongVisualLabP0E = biryongVisualStage === 'p0e';
 let lastTrackedZone = null;
 
 async function boot() {
@@ -325,6 +334,11 @@ const graphics = createGraphicsPresetController({
     maxTextureSize: device.maxTextureSize || 0
   }
 });
+
+window.addEventListener('pagehide', event => {
+  if (!event.persisted) graphics.destroy();
+});
+app.on('destroy', () => graphics.destroy());
 
 const camera = new pc.Entity("Camera");
 camera.addComponent("camera", {
@@ -1868,7 +1882,22 @@ rooms = createRoomTransition({
     markSpace: (id) => { if (id) document.body.dataset.space = id; else delete document.body.dataset.space; }
   })
 });
-const biryongRealmScene = createBiryongRealmScene(app);
+const biryongRealmScene = createBiryongRealmScene(app, {
+  visualMaterials: biryongVisualLabP0B,
+  visualDensity: biryongVisualLabP0C,
+  getGraphicsTier: () => graphics.tier
+});
+window.__INHAGAME_BIRYONG_MATERIALS__ = Object.freeze({
+  status: () => Object.freeze({
+    enabled: biryongVisualLabP0B,
+    mode: biryongRealmScene.materialMode
+  })
+});
+const updateBiryongDensity = () => biryongRealmScene.environmentDensity.update();
+if (biryongVisualLabP0C) app.on("update", updateBiryongDensity);
+window.__INHAGAME_BIRYONG_DENSITY__ = Object.freeze({
+  status: () => biryongRealmScene.environmentDensity.status()
+});
 const biryongCampusReturnAnchor = Object.freeze({
   x: BACKGATE_TRANSIT.wait.x,
   y: controller.groundY + roadviewGroundHeight(BACKGATE_TRANSIT.wait.x, BACKGATE_TRANSIT.wait.z),
@@ -1908,11 +1937,81 @@ biryongRealm = createBiryongRealmTransition({
     },
     setLocationLabel: text => { zoneEl.textContent = text; },
     markRegion: id => {
+      biryongPerformance.suspend();
       document.body.dataset.worldRegion = id;
       fullMap?.close?.();
     }
   })
 });
+const biryongVisualLighting = createBiryongVisualLighting({
+  scene: app.scene,
+  lightEntity: light,
+  environment,
+  getActive: () => biryongRealm?.inBiryong === true,
+  getGraphicsTier: () => graphics.tier,
+  enabled: biryongVisualLabP0A
+});
+const updateBiryongLighting = () => biryongVisualLighting.update();
+if (previewHost) app.on("update", updateBiryongLighting);
+window.__INHAGAME_BIRYONG_VISUAL_LAB__ = Object.freeze({
+  status: () => biryongVisualLighting.status(),
+  ...(previewHost ? { setEnabled: value => biryongVisualLighting.setEnabled(value === true) } : {})
+});
+const biryongAtmosphere = createBiryongAtmosphere({
+  scene: app.scene,
+  camera,
+  canvas,
+  environment,
+  getActive: () => biryongRealm?.inBiryong === true,
+  getGraphicsTier: () => graphics.tier,
+  enabled: biryongVisualLabP0D,
+  toneMappingNeutral: pc.TONEMAP_NEUTRAL,
+  toneMappingCinematic: pc.TONEMAP_ACES2 ?? pc.TONEMAP_ACES ?? pc.TONEMAP_NEUTRAL
+});
+const updateBiryongAtmosphere = () => biryongAtmosphere.update();
+if (biryongVisualLabP0D) app.on("update", updateBiryongAtmosphere);
+window.__INHAGAME_BIRYONG_ATMOSPHERE__ = Object.freeze({
+  status: () => biryongAtmosphere.status()
+});
+const biryongPerformance = createBiryongPerformanceMonitor({
+  getVisible: () => document.visibilityState !== "hidden",
+  enabled: biryongVisualLabP0E,
+  getActive: () => biryongRealm?.inBiryong === true,
+  getGraphicsTier: () => graphics.tier,
+  getDensityStatus: () => biryongRealmScene.environmentDensity.status(),
+  getLightingStatus: () => biryongVisualLighting.status(),
+  getAtmosphereStatus: () => biryongAtmosphere.status()
+});
+const updateBiryongPerformance = () => biryongPerformance.recordFrame(performance.now());
+const suspendBiryongPerformance = () => biryongPerformance.suspend();
+if (biryongVisualLabP0E) {
+  app.on("postrender", updateBiryongPerformance);
+  document.addEventListener("visibilitychange", suspendBiryongPerformance);
+}
+window.__INHAGAME_BIRYONG_PERFORMANCE__ = Object.freeze({
+  status: () => biryongPerformance.status(),
+  reset: () => biryongPerformance.reset()
+});
+// Non-persisted teardown releases the region experiment; BFCache retains its live graph.
+let biryongVisualDestroyed = false;
+function destroyBiryongVisualLab() {
+  if (biryongVisualDestroyed) return;
+  biryongVisualDestroyed = true;
+  app.off("update", updateBiryongDensity);
+  app.off("update", updateBiryongLighting);
+  app.off("update", updateBiryongAtmosphere);
+  app.off("postrender", updateBiryongPerformance);
+  document.removeEventListener("visibilitychange", suspendBiryongPerformance);
+  biryongAtmosphere.destroy();
+  biryongVisualLighting.destroy();
+  biryongRealmScene.environmentDensity.destroy();
+  biryongPerformance.reset();
+}
+window.addEventListener("pagehide", event => {
+  biryongPerformance.suspend();
+  if (!event.persisted) destroyBiryongVisualLab();
+});
+app.once("destroy", destroyBiryongVisualLab);
 biryongVillageNpcs = createBiryongVillageNpcRuntime({
   app,
   root: biryongRealmScene.root,
@@ -2226,7 +2325,14 @@ const mcmMinigame = createMcm2026MinigameRuntime({
 const registry = new RenderChunkRegistry();
 const chunkRenderer = new CampusChunkRenderer(app,campusRoot,registry,{
   getRainIntensity: () => environment.rainIntensity(),
-  getArtificialLightFactor: () => environment.artificialLightFactor()
+  getArtificialLightFactor: () => environment.artificialLightFactor(),
+  getGraphicsTier: () => graphics.tier,
+  getSnowAccumulation: () => snowWeatherEffects.getAccumulation(),
+  enabled: !(previewHost && startupParams.get('contactShading') === '0')
+});
+window.__INHAGAME_CONTACT_SHADING__ = Object.freeze({
+  status: () => chunkRenderer.contactShading.status(),
+  ...(previewHost ? { setEnabled: value => chunkRenderer.contactShading.setEnabled(value) } : {})
 });
 window.__INHAGAME_POND_WEATHER__ = Object.freeze({
   status: () => chunkRenderer.getPondWeatherStatus()
@@ -2302,6 +2408,9 @@ const viewSettings = createViewDistanceSettings(streaming,camera,graphics,{
     else viewSettingsInput.release();
     smartphone?.settingsChanged(open);
   }
+});
+window.addEventListener('pagehide', event => {
+  if (!event.persisted) viewSettings.destroy();
 });
 
 // M3 navigation (graph → solver → guidance) is its own best-effort layer, independent of the

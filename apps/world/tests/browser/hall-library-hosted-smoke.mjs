@@ -108,7 +108,8 @@ function hallIntegrationScopePaths(manifest,extension) {
   if(extension && extension!=='surroundings')throw Error('Unsupported hall integration scope extension');
   const surroundings=['campus-grounds.js','main-hall-walkway-layout.js','main-hall-walkway-geometry.js',
     'pond-surroundings-geometry.js','minimap/minimap-data.js','navigation/campus-navigation.js'];
-  return [...manifest.allowedRuntimeChanges,...manifest.allowedMetadataChanges,
+  const contactPilot=['main.js','campus-contact-shading.js','campus-contact-shading-layout.js','campus-contact-shading-geometry.js'];
+  return [...manifest.allowedRuntimeChanges,...manifest.allowedMetadataChanges,...contactPilot.map(p=>'apps/world/src/'+p),
     ...(extension==='surroundings'?surroundings.map(p=>'apps/world/src/'+p):[])];
 }
 try {

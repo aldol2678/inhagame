@@ -54,10 +54,10 @@ try {
   }
   report.router={deduplicated:true,unknownIgnored:true,emptyAndInvalidNonmutating:true,detachedRemounted:true,destroyedRebuilt:true,sourceMaterials:sourceMaterials.size};
   mixed.destroy();
-  let rain=0,night=0,graphics='medium';
+  let rain=0,night=0,graphics='medium',snow=0;
   const campus=new pc.Entity('RealCampusFrame');campus.setLocalScale(1,1,-1);app.root.addChild(campus);
   const registry=new RenderChunkRegistry();
-  const renderer=new CampusChunkRenderer(app,campus,registry,{getRainIntensity:()=>rain,getArtificialLightFactor:()=>night});
+  const renderer=new CampusChunkRenderer(app,campus,registry,{getRainIntensity:()=>rain,getArtificialLightFactor:()=>night,getGraphicsTier:()=>graphics,getSnowAccumulation:()=>snow});
   const persistentMaterials=new Set(meshes(renderer.base).map(m=>m.material));
   const windowRoot=new pc.Entity('IndependentEnvironmentWindows');campus.addChild(windowRoot);
   const windows=createNightBuildingWindows({app,root:windowRoot,getArtificialLightFactor:()=>night,getGraphicsTier:()=>graphics});
@@ -80,11 +80,38 @@ try {
     }
     const near=handle.near,detail=handle.detail,clones=new Set([...meshes(near),...meshes(detail)].map(m=>m.material));
     let verifiedOpticalClones=0;
-    for(const material of clones){assert.ok(!persistentMaterials.has(material),'tier fade never mutates BASE source material');assert.ok(!windowMaterials.has(material),'tier fade never owns night window material');assert.equal(material.opacityDither,pc.DITHER_BAYER8);assert.equal(material.alphaDither,1);if(sourceOpticsByName.has(material.name)){assert.deepEqual(optics(material),sourceOpticsByName.get(material.name),'fade clones retain current-main optical profiles');verifiedOpticalClones++;}}
+    const contacts=[...clones].filter(material=>material.name.startsWith('campus_contact_'));
+    assert.equal(contacts.length,1,'selected chunk owns one transparent contact batch');
+    for(const material of clones){
+      assert.ok(!persistentMaterials.has(material),'tier fade never mutates BASE source material');
+      assert.ok(!windowMaterials.has(material),'tier fade never owns night window material');
+      if(contacts.includes(material)){
+        assert.equal(material.blendType,pc.BLEND_NORMAL);
+        assert.equal(material.depthWrite,false);
+        assert.equal(material.opacityDither,pc.DITHER_NONE);
+        assert.equal(material.opacity,1,'transparent contact reached the same full layer fade');
+        assert.ok(!renderer.fades.get(near).materials.includes(material),'contact stays outside opaque clone/dither ownership');
+      }else{
+        assert.equal(material.opacityDither,pc.DITHER_BAYER8);assert.equal(material.alphaDither,1);
+      }
+      if(sourceOpticsByName.has(material.name)){assert.deepEqual(optics(material),sourceOpticsByName.get(material.name),'fade clones retain current-main optical profiles');verifiedOpticalClones++;}
+    }
     assert.ok(verifiedOpticalClones>0,'actual streamed landmark materials retain their source optics');
+    const contactStatus=()=>renderer.contactShading.status();
+    const contactBase=renderer.base.findByName('campus_contact_base');
+    const contactBaseMesh=contactBase.render.meshInstances[0].mesh;
+    graphics='low';renderer.update(0);assert.equal(contactStatus().activeMeshes,1,'low retains only BASE contact');
+    graphics='high';renderer.update(0);assert.equal(contactStatus().activeMeshes,2,'high restores selected NEAR contact');
+    snow=.07;renderer.update(0);assert.ok(contactStatus().batches.every(b=>Math.abs(b.opacity-.5)<1e-9),'partial snow halves opacity');
+    snow=.14;renderer.update(0);assert.equal(contactStatus().activeMeshes,0,'snow hides contacts');
+    snow=0;renderer.update(0);assert.equal(contactStatus().activeMeshes,2,'melt restores contacts');
+    renderer.contactShading.setEnabled(false);assert.equal(contactStatus().activeMeshes,0);
+    renderer.contactShading.setEnabled(true);assert.equal(contactStatus().activeMeshes,2);
+    assert.equal(contactBase.render.meshInstances[0].mesh,contactBaseMesh,'quality and snow do not rebuild BASE');
     const geometry=fingerprint(handle.root),metrics=renderer.getMetrics();
     renderer.setState(handle,'FAR');renderer.update(.1);
     assert.ok(renderer.fades.get(near).value>0&&renderer.fades.get(near).value<1,'partial fade');
+    for(const material of contacts)assert.equal(material.opacity,renderer.fades.get(near).value,'transparent contact follows partial layer fade');
     renderer.update(1);assert.equal(near.enabled,false);assert.equal(detail.enabled,false);
     renderer.setState(handle,'ACTIVE');renderer.update(1);
     assert.equal(handle.near,near);assert.equal(handle.detail,detail);assert.deepEqual(fingerprint(handle.root),geometry);
@@ -97,6 +124,7 @@ try {
     for(const mesh of ownedMeshes){const destroy=mesh.destroy.bind(mesh);mesh.destroy=()=>{destroyedMeshes++;return destroy();};}
     renderer.destroy(handle);
     assert.equal(renderer.fades.has(near),false);assert.equal(renderer.fades.has(detail),false);
+    assert.equal(renderer.contactShading.status().meshes,1,'destroy unregisters NEAR contact resources');
     assert.equal(destroyedMaterials,clones.size,'every fade clone disposed once');assert.ok(destroyedMeshes>=ownedMeshes.size,'custom mesh cleanup runs');for(const mesh of ownedMeshes)assert.equal(mesh.vertexBuffer,null,'custom vertex buffer is released');
     assert.equal(windows.status().enabled,true,'landmark destruction preserves independent environment');
     report.chunkCycles.push({cycle,id,sourceMaterials:persistentMaterials.size,verifiedOpticalClones,disposedFadeMaterials:destroyedMaterials,disposedCustomMeshes:ownedMeshes.size,meshDestroyCalls:destroyedMeshes});
