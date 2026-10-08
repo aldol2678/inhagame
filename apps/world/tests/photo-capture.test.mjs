@@ -202,7 +202,7 @@ test('readback diagnostics separately time draw, pixel read and alpha scan witho
   const [record] = h.capture.diagnostics();
   assert.deepEqual(record.readbackOperations, [
     { operation: 'drawImage', startElapsedMs: 10, endElapsedMs: 30, durationMs: 20 },
-    { operation: 'getImageData', startElapsedMs: 30, endElapsedMs: 430, durationMs: 400 },
+    { operation: 'getImageData', startElapsedMs: 30, endElapsedMs: 430, durationMs: 400, rectangle: [0, 0, 1, 1] },
     { operation: 'alphaScan', startElapsedMs: 430, endElapsedMs: 433, durationMs: 3 }
   ]);
   assert.doesNotMatch(JSON.stringify(record), /pixels|data:/);
@@ -215,7 +215,7 @@ test('failed readback records the started operation but does not fabricate its e
   const p = h.capture.request(); h.frame(); await assert.rejects(p, { code: 'unavailable' });
   assert.deepEqual(h.capture.diagnostics()[0].readbackOperations, [
     { operation: 'drawImage', startElapsedMs: 0, endElapsedMs: 2, durationMs: 2 },
-    { operation: 'getImageData', startElapsedMs: 2, endElapsedMs: null, durationMs: null }
+    { operation: 'getImageData', startElapsedMs: 2, endElapsedMs: null, durationMs: null, rectangle: [0, 0, 1, 1] }
   ]);
 });
 
@@ -268,4 +268,95 @@ test('a stale timeout callback cannot change successful terminal diagnostics', a
   h.frame(); h.encode(png()); await p;
   const before = h.capture.diagnostics(); t = 20000; staleTimer();
   assert.deepEqual(h.capture.diagnostics(), before);
+});
+
+// A rectangular pixel-plane fake models real getImageData coordinates, rather
+// than returning the same opaque pixel regardless of the requested rectangle.
+function pixelPlane(h, alphaAt) {
+  const reads = [], contexts = [];
+  h.snapshot.getContext = (kind, options) => {
+    contexts.push({ kind, options });
+    return {
+      drawImage(...args) { h.draws.push(args); },
+      getImageData(x, y, width, height) {
+        reads.push([x, y, width, height]);
+        const data = new Uint8ClampedArray(width * height * 4);
+        for (let row = 0; row < height; row++) for (let col = 0; col < width; col++)
+          data[(row * width + col) * 4 + 3] = alphaAt(x + col, y + row);
+        return { data };
+      }
+    };
+  };
+  return { reads, contexts };
+}
+
+for (const [width, height] of [[1, 1], [1, 7], [9, 1], [1280, 720], [360, 800], [844, 390]])
+  test(`positive original top-left alpha avoids full readback at ${width}x${height}`, async () => {
+    const h = fixture({ width, height });
+    const { reads, contexts } = pixelPlane(h, () => 1);
+    const p = h.capture.request(); h.frame(); h.encode(png());
+    const result = await p;
+    assert.deepEqual(reads, [[0, 0, 1, 1]], 'one exact source pixel proves the any-alpha predicate');
+    assert.deepEqual(contexts, [{ kind: '2d', options: { willReadFrequently: true } }]);
+    assert.equal(result.width, width); assert.equal(result.height, height);
+    assert.deepEqual(h.draws, [[h.canvas, 0, 0]], 'no scaling, compositing or source mutation');
+  });
+
+for (const alpha of [1, 127, 255]) for (let position = 0; position < 12; position++)
+  test(`lone alpha ${alpha} at every 4x3 position ${position} remains valid`, async () => {
+    const h = fixture({ width: 4, height: 3 });
+    const { reads } = pixelPlane(h, (x, y) => y * 4 + x === position ? alpha : 0);
+    const p = h.capture.request(); h.frame(); h.encode(png()); await p;
+    assert.deepEqual(reads, position === 0 ? [[0, 0, 1, 1]] : [[0, 0, 1, 1], [0, 0, 4, 3]],
+      'zero probe must never reject an unexamined visible pixel');
+  });
+
+test('all-zero alpha requires full verification and never reaches PNG encoding', async () => {
+  const h = fixture({ width: 4, height: 3 });
+  const { reads } = pixelPlane(h, () => 0);
+  const p = h.capture.request(); h.frame();
+  await assert.rejects(p, { code: 'unavailable' });
+  assert.deepEqual(reads, [[0, 0, 1, 1], [0, 0, 4, 3]]);
+  assert.equal(h.mime, undefined); assert.equal(h.capture.busy, false);
+});
+
+test('fallback readback exception fails closed and releases capture state', async () => {
+  const h = fixture({ diagnostics: true }); let reads = 0;
+  h.snapshot.getContext = () => ({ drawImage() {}, getImageData() {
+    if (++reads === 2) throw Object.assign(new Error('private'), { name: 'SecurityError' });
+    return { data: new Uint8ClampedArray(4) };
+  } });
+  const p = h.capture.request(); h.frame();
+  await assert.rejects(p, { code: 'unavailable' });
+  assert.equal(reads, 2); assert.equal(h.mime, undefined); assert.equal(h.timers.size, 0);
+  const [record] = h.capture.diagnostics();
+  assert.equal(record.exceptionKind, 'SecurityError');
+  assert.equal(record.readbackOperations.at(-1).endElapsedMs, null);
+  assert.deepEqual(record.readbackOperations.at(-1).rectangle, [0, 0, 640, 360]);
+  assert.doesNotMatch(JSON.stringify(record), /private/);
+});
+
+test('diagnostics distinguish probe and full fallback read rectangles without pixel contents', async () => {
+  const h = fixture({ width: 4, height: 3, diagnostics: true });
+  pixelPlane(h, (x, y) => x === 3 && y === 2 ? 1 : 0);
+  const p = h.capture.request(); h.frame(); h.encode(png()); await p;
+  const operations = h.capture.diagnostics()[0].readbackOperations;
+  assert.deepEqual(operations.filter(op => op.operation === 'getImageData').map(op => op.rectangle),
+    [[0, 0, 1, 1], [0, 0, 4, 3]]);
+  assert.equal(operations.filter(op => op.operation === 'alphaScan').length, 2);
+});
+
+test('fallback retains separately ordered read and scan timings and disabled diagnostics need no clock', async () => {
+  for (const diagnostics of [false, true]) {
+    let t = 0, reads = 0;
+    const h = fixture({ diagnostics, now: () => { if (!diagnostics) throw Error('clock must stay unused'); return t; } });
+    h.snapshot.getContext = () => ({ drawImage() { t += 2; }, getImageData() {
+      t += ++reads === 1 ? 3 : 40;
+      return { data: { length: 4, get 3() { t += 1; return reads === 2 ? 1 : 0; } } };
+    } });
+    const pending = h.capture.request(); h.frame(); h.encode(png()); await pending;
+    if (diagnostics) assert.deepEqual(h.capture.diagnostics()[0].readbackOperations.map(op => [op.operation, op.durationMs]),
+      [['drawImage', 2], ['getImageData', 3], ['alphaScan', 1], ['getImageData', 40], ['alphaScan', 1]]);
+    else assert.deepEqual(h.capture.diagnostics(), []);
+  }
 });

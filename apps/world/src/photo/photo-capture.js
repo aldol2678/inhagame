@@ -45,13 +45,13 @@ export function createPhotoCapture({ app, canvas, mode, doc = globalThis.documen
     return Number.isFinite(elapsed) ? Math.max(job.diagnostic.events.at(-1)?.elapsedMs ?? 0,
       operation?.endElapsedMs ?? operation?.startElapsedMs ?? 0, elapsed) : null;
   }
-  function readbackOperation(job, operation, end = false) {
+  function readbackOperation(job, operation, end = false, rectangle = null) {
     if (!job.diagnostic) return;
     try {
       const at = diagnosticElapsed(job);
       if (at === null) return;
       const operations = job.diagnostic.readbackOperations ??= [];
-      if (!end) operations.push({ operation, startElapsedMs: at, endElapsedMs: null, durationMs: null });
+      if (!end) operations.push({ operation, startElapsedMs: at, endElapsedMs: null, durationMs: null, ...(rectangle ? { rectangle } : {}) });
       else {
         const record = operations.at(-1);
         if (record?.operation !== operation || record.endElapsedMs !== null) return;
@@ -134,13 +134,21 @@ export function createPhotoCapture({ app, canvas, mode, doc = globalThis.documen
           readbackOperation(job, 'drawImage');
           context.drawImage(canvas, 0, 0);
           readbackOperation(job, 'drawImage', true);
-          readbackOperation(job, 'getImageData');
-          const pixels = context.getImageData(0, 0, width, height).data;
-          readbackOperation(job, 'getImageData', true);
-          readbackOperation(job, 'alphaScan');
-          let visible = false;
-          for (let i = 3; i < pixels.length; i += 4) if (pixels[i]) { visible = true; break; }
-          readbackOperation(job, 'alphaScan', true);
+          // Exact positive witness, not sparse negative sampling: a nonzero
+          // original pixel proves visibility. A zero probe always falls back to
+          // the full-resolution predicate, preserving even one alpha=1 pixel.
+          // No scaling/alpha averaging, and the encoded snapshot is untouched.
+          const hasVisiblePixel = (readWidth, readHeight) => {
+            readbackOperation(job, 'getImageData', false, [0, 0, readWidth, readHeight]);
+            const pixels = context.getImageData(0, 0, readWidth, readHeight).data;
+            readbackOperation(job, 'getImageData', true);
+            readbackOperation(job, 'alphaScan');
+            let visible = false;
+            for (let i = 3; i < pixels.length; i += 4) if (pixels[i]) { visible = true; break; }
+            readbackOperation(job, 'alphaScan', true);
+            return visible;
+          };
+          const visible = hasVisiblePixel(1, 1) || hasVisiblePixel(width, height);
           if (!visible) throw failure('unavailable');
           mark(job, 'encoding');
           snapshot.toBlob(blob => {

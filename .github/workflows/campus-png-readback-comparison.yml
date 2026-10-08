@@ -1,0 +1,169 @@
+name: Fixed-before campus PNG readback comparison
+on:
+  pull_request:
+    paths:
+      - 'apps/world/src/photo/photo-capture.js'
+      - 'apps/world/tests/browser/campus-png-readback-comparison.mjs'
+      - 'apps/world/tests/campus-png-readback-comparison.test.mjs'
+      - '.github/workflows/campus-png-readback-comparison.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+env:
+  CAMPUS_AB_BEFORE_SHA: aa35d922716e726beb92d53d359c357f6276296c
+  CAMPUS_AB_CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+  WORLD_SMOKE_DISABLE_WEBGPU: '1'
+jobs:
+  before:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Preregister fixed BEFORE on this isolated runner
+        run: |
+          export CAMPUS_AB_OUTPUT="$RUNNER_TEMP/campus-png-readback-comparison"
+          echo "CAMPUS_AB_OUTPUT=$CAMPUS_AB_OUTPUT" >> "$GITHUB_ENV"
+          mkdir -p "$CAMPUS_AB_OUTPUT/before"
+          printf 'ARM=BEFORE\nAPP=%s\nSAMPLER=%s\nCANDIDATE=%s\nRUNNER=%s\nIMAGE=%s\n' "$CAMPUS_AB_BEFORE_SHA" "$CAMPUS_AB_BEFORE_SHA" "$CAMPUS_AB_CANDIDATE_SHA" "$RUNNER_NAME" "$ImageVersion" > "$CAMPUS_AB_OUTPUT/before/pins.txt"
+      - name: Checkout fixed before sampler
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.CAMPUS_AB_BEFORE_SHA }}
+          persist-credentials: false
+      - name: Checkout fixed before application
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.CAMPUS_AB_BEFORE_SHA }}
+          path: .qa-campus-app
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - name: Verify unchanged before sampler contracts
+        run: node --test apps/world/tests/campus-render-reproduction.test.mjs
+      - name: Install pinned before browser dependencies
+        working-directory: apps/world/tests/browser
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Install Chromium and Korean glyphs
+        run: |
+          cd apps/world/tests/browser
+          npx --no-install playwright install --with-deps chromium
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+      - name: Collect at most two preregistered BEFORE attempts without retry
+        shell: bash
+        run: |
+          set -o pipefail
+          set +e
+          CAMPUS_REPRO_APP_SHA="$CAMPUS_AB_BEFORE_SHA" CAMPUS_REPRO_SAMPLER_SHA="$CAMPUS_AB_BEFORE_SHA" \
+            CAMPUS_REPRO_WORLD_ROOT="$GITHUB_WORKSPACE/.qa-campus-app/apps/world" CAMPUS_REPRO_OUTPUT="$CAMPUS_AB_OUTPUT/before" \
+            timeout --signal=TERM --kill-after=10s 8m node apps/world/tests/browser/campus-render-reproduction.mjs 2>&1 | tee "$CAMPUS_AB_OUTPUT/before/diagnostic.log"
+          status=${PIPESTATUS[0]}
+          printf '{"exitCode":%s}\n' "$status" > "$CAMPUS_AB_OUTPUT/before/process.json"
+          exit "$status"
+      - name: Preserve complete or partial BEFORE evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: campus-png-before-for-${{ env.CAMPUS_AB_CANDIDATE_SHA }}
+          path: ${{ runner.temp }}/campus-png-readback-comparison/before/**
+          if-no-files-found: error
+          retention-days: 7
+  candidate:
+    needs: before
+    if: ${{ always() && !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Preregister exact CANDIDATE on a fresh isolated runner
+        run: |
+          export CAMPUS_AB_OUTPUT="$RUNNER_TEMP/campus-png-readback-comparison"
+          echo "CAMPUS_AB_OUTPUT=$CAMPUS_AB_OUTPUT" >> "$GITHUB_ENV"
+          mkdir -p "$CAMPUS_AB_OUTPUT/candidate"
+          printf 'ARM=CANDIDATE\nAPP=%s\nSAMPLER=%s\nBEFORE=%s\nRUNNER=%s\nIMAGE=%s\n' "$CAMPUS_AB_CANDIDATE_SHA" "$CAMPUS_AB_CANDIDATE_SHA" "$CAMPUS_AB_BEFORE_SHA" "$RUNNER_NAME" "$ImageVersion" > "$CAMPUS_AB_OUTPUT/candidate/pins.txt"
+      - name: Checkout exact candidate sampler, not synthetic PR merge
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.CAMPUS_AB_CANDIDATE_SHA }}
+          persist-credentials: false
+      - name: Checkout exact candidate application
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.CAMPUS_AB_CANDIDATE_SHA }}
+          path: .qa-campus-app
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - name: Verify unchanged sampler and A/B comparison contracts
+        run: node --test apps/world/tests/campus-render-reproduction.test.mjs apps/world/tests/campus-png-readback-comparison.test.mjs
+      - name: Install pinned candidate browser dependencies
+        working-directory: apps/world/tests/browser
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Install Chromium and Korean glyphs
+        run: |
+          cd apps/world/tests/browser
+          npx --no-install playwright install --with-deps chromium
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+      - name: Collect at most two preregistered CANDIDATE attempts without retry
+        shell: bash
+        run: |
+          set -o pipefail
+          set +e
+          CAMPUS_REPRO_APP_SHA="$CAMPUS_AB_CANDIDATE_SHA" CAMPUS_REPRO_SAMPLER_SHA="$CAMPUS_AB_CANDIDATE_SHA" \
+            CAMPUS_REPRO_WORLD_ROOT="$GITHUB_WORKSPACE/.qa-campus-app/apps/world" CAMPUS_REPRO_OUTPUT="$CAMPUS_AB_OUTPUT/candidate" \
+            timeout --signal=TERM --kill-after=10s 8m node apps/world/tests/browser/campus-render-reproduction.mjs 2>&1 | tee "$CAMPUS_AB_OUTPUT/candidate/diagnostic.log"
+          status=${PIPESTATUS[0]}
+          printf '{"exitCode":%s}\n' "$status" > "$CAMPUS_AB_OUTPUT/candidate/process.json"
+          exit "$status"
+      - name: Preserve complete or partial CANDIDATE evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: campus-png-candidate-${{ env.CAMPUS_AB_CANDIDATE_SHA }}
+          path: ${{ runner.temp }}/campus-png-readback-comparison/candidate/**
+          if-no-files-found: error
+          retention-days: 7
+  compare:
+    needs: [before, candidate]
+    if: ${{ always() && !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Initialize comparison evidence directory
+        run: echo "CAMPUS_AB_OUTPUT=$RUNNER_TEMP/campus-png-readback-comparison" >> "$GITHUB_ENV"
+      - name: Checkout exact candidate comparison tool
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.CAMPUS_AB_CANDIDATE_SHA }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - name: Retrieve before evidence independently
+        if: always()
+        uses: actions/download-artifact@v4
+        with:
+          name: campus-png-before-for-${{ env.CAMPUS_AB_CANDIDATE_SHA }}
+          path: ${{ runner.temp }}/campus-png-readback-comparison/before
+      - name: Retrieve candidate evidence independently
+        if: always()
+        uses: actions/download-artifact@v4
+        with:
+          name: campus-png-candidate-${{ env.CAMPUS_AB_CANDIDATE_SHA }}
+          path: ${{ runner.temp }}/campus-png-readback-comparison/candidate
+      - name: Compare preserved receipts including partial or absent arms
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p "$CAMPUS_AB_OUTPUT"
+          node apps/world/tests/browser/campus-png-readback-comparison.mjs "$CAMPUS_AB_OUTPUT/before/receipt.json" "$CAMPUS_AB_OUTPUT/candidate/receipt.json" "$CAMPUS_AB_CANDIDATE_SHA" > "$CAMPUS_AB_OUTPUT/comparison.json"
+      - name: State evidence limits
+        if: always()
+        run: echo "Diagnostic only. Fixed BEFORE $CAMPUS_AB_BEFORE_SHA versus CANDIDATE $CAMPUS_AB_CANDIDATE_SHA. At most two attempts per arm, before first, no retries. Independent runners preserve candidate evidence after before cleanup failure; different machines and fixed order are confounds. Exact scene, sampler and source compatibility are checked. Cleanup failure is not PNG failure. No optimization or real-device 30 FPS acceptance." >> "$GITHUB_STEP_SUMMARY"
+      - name: Preserve complete or partial comparison evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: campus-png-comparison-${{ env.CAMPUS_AB_CANDIDATE_SHA }}
+          path: ${{ runner.temp }}/campus-png-readback-comparison/**
+          if-no-files-found: error
+          retention-days: 7
