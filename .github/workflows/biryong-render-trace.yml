@@ -19,7 +19,6 @@ jobs:
       WORLD_SMOKE_DISABLE_WEBGPU: '1'
       WORLD_SMOKE_BROWSER: chrome
       BIRYONG_PERF_WORLD_ROOT: ${{ github.workspace }}/.qa-control-main/apps/world
-      BIRYONG_TRACE_OUTPUT: ${{ runner.temp }}/biryong-render-trace
     steps:
       - name: Checkout diagnostic sampler
         uses: actions/checkout@v4
@@ -41,6 +40,8 @@ jobs:
         working-directory: apps/world/tests/browser
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Collect bounded LOW OFF baseline-half-baseline diagnostic
+        env:
+          BIRYONG_TRACE_OUTPUT: ${{ runner.temp }}/biryong-render-trace
         shell: bash
         run: |
           set -o pipefail

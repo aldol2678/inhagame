@@ -50,6 +50,19 @@ test('diagnostic workflow pins immutable main and preserves artifacts without cl
   assert.doesNotMatch(script, /setFrameLimit|setViewportSize|screenshot\(/);
 });
 
+test('runner temp context is scoped to the collection step, not job env', async () => {
+  const workflow = await readFile(new URL('../../../.github/workflows/biryong-render-trace.yml', import.meta.url), 'utf8');
+  // GitHub's context-availability contract permits runner in steps.env/with,
+  // but not jobs.<job_id>.env. This is a targeted semantic regression check.
+  const jobEnv = workflow.match(/^    env:\n([\s\S]*?)^    steps:/m)?.[1];
+  assert.ok(jobEnv, 'expected job env section');
+  assert.doesNotMatch(jobEnv, /\$\{\{[^}]*\brunner\./);
+  const collection = workflow.match(/      - name: Collect bounded[^\n]*\n([\s\S]*?)(?=      - name:)/)?.[1];
+  assert.ok(collection, 'expected collection step');
+  assert.match(collection, /^        env:\n          BIRYONG_TRACE_OUTPUT: \$\{\{ runner\.temp \}\}\/biryong-render-trace$/m);
+  assert.match(workflow, /^          path: \$\{\{ runner\.temp \}\}\/biryong-render-trace\/\*\*$/m);
+});
+
 // Removing hook cleanup, changing span boundaries or removing sample caps breaks this test.
 test('browser probe aligns CPU-wall spans, records raw stats and removes hooks without replacing engine methods', () => {
   const app = new EventEmitter();
