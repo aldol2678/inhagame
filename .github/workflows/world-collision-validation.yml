@@ -66,13 +66,14 @@ jobs:
           mkdir -p test-results/pr312-collision
           node --input-type=module <<'NODE'
           import assert from 'node:assert/strict';
+          import {execFileSync} from 'node:child_process';
           import {writeFile} from 'node:fs/promises';
           import {startSmoke,TIMEOUT_MS} from './apps/world/tests/browser/harness.mjs';
           const path='test-results/pr312-collision/backgate.json';
           const report={
             schema:'world-collision-pr312-backgate-v1',
             expectedOriginalHead:'77330a7014ea44a45643707f8853533bd2eb8b31',
-            actualHead:process.env.GITHUB_SHA,
+            actualHead:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),
             runner:process.env.ImageOS,
             coverage:'Eight real original-controller crossing routes, no synthetic replacement controller',
             result:'RUNNING'
