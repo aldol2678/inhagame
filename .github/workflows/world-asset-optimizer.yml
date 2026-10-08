@@ -47,6 +47,7 @@ on:
       - 'apps/world/tests/biryong-performance-budget.test.mjs'
       - 'apps/world/tests/browser/biryong-performance-smoke.mjs'
       - 'apps/world/tests/browser/biryong-performance-diagnostics.mjs'
+      - 'apps/world/tests/browser/biryong-measurement-environment.mjs'
       - 'apps/world/tests/biryong-performance-smoke-diagnostics.test.mjs'
       - 'apps/world/tests/asset-optimization-shadow.test.mjs'
       - 'apps/world/tests/asset-authority-canary.test.mjs'
@@ -70,7 +71,7 @@ concurrency:
 
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -119,10 +120,13 @@ jobs:
           WORLD_SMOKE_DISABLE_WEBGPU: '1'
           WORLD_SMOKE_BROWSER: chrome
         run: node apps/world/tests/browser/contact-shading-smoke.mjs
+      - name: Install pinned Biryong performance browser
+        working-directory: apps/world/tests/browser
+        run: npx --no-install playwright install --with-deps chromium
       - name: Run Biryong visual performance smoke
         env:
           WORLD_SMOKE_DISABLE_WEBGPU: '1'
-          WORLD_SMOKE_BROWSER: chrome
+          WORLD_SMOKE_BROWSER: chromium
           BIRYONG_PERF_RECEIPT: ${{ runner.temp }}/biryong-visual-performance.json
         run: node apps/world/tests/browser/biryong-performance-smoke.mjs
       - name: Preserve Biryong performance diagnostics

@@ -7,6 +7,7 @@ import {
 } from "../../src/biryong/biryong-performance-budget.js";
 
 import { classifyBiryongSamples, boundedPerformancePhase } from "./biryong-performance-diagnostics.mjs";
+import { collectBiryongEnvironment, biryongEnvironmentErrors } from './biryong-measurement-environment.mjs';
 
 const BASELINE_ONLY = process.env.BIRYONG_PERF_MODE === 'baseline-only';
 const TIERS = BASELINE_ONLY && process.env.BIRYONG_PERF_TIERS === 'low' ? ['low'] : ["low", "medium", "high"];
@@ -195,6 +196,9 @@ function assertComparable(baseline, visual) {
 }
 try {
   smoke = await startSmoke({ worldRoot: process.env.BIRYONG_PERF_WORLD_ROOT });
+  receipt.environment = await collectBiryongEnvironment(smoke.context.browser().version());
+  await persist();
+  assert.deepEqual(biryongEnvironmentErrors(receipt.environment), [], 'performance requires the pinned browser environment');
   const baselinePage = await bootScenario('baseline', '');
   for (const tier of TIERS) {
     await phase(`baseline:${tier}:settle`, () => setTier(baselinePage, tier), baselinePage);
