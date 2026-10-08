@@ -3,11 +3,25 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { runInNewContext } from 'node:vm';
 const source = await readFile(new URL('./browser/campus-render-reproduction-support.mjs', import.meta.url), 'utf8').catch(() => '');
-test('reproduction exposes explicit fixed app and bounded two-attempt protocol', async () => {
-  assert.ok(source.includes('66695573c8857d05a761b987411c6812ea158984'));
+test('reproduction preserves the bounded two-attempt protocol', async () => {
   const { PROTOCOL } = await import('./browser/campus-render-reproduction-support.mjs');
   assert.equal(PROTOCOL.attempts, 2); assert.equal(PROTOCOL.sampleMs, 2500);
   assert.equal(PROTOCOL.appPngTimeoutMs, 10000); assert.equal(PROTOCOL.settleRenders, 3);
+});
+test('source identity requires explicit immutable app and sampler pins, ignoring synthetic merge SHA', async () => {
+  const { assertReproductionSourceIdentity } = await import('./browser/campus-render-reproduction-support.mjs');
+  assert.equal(typeof assertReproductionSourceIdentity, 'function');
+  const head = 'a'.repeat(40), merge = 'b'.repeat(40);
+  const env = { CAMPUS_REPRO_APP_SHA: head, CAMPUS_REPRO_SAMPLER_SHA: head, GITHUB_SHA: merge };
+  assert.deepEqual(assertReproductionSourceIdentity({ appHead: head, samplerHead: head }, env), { app: head, sampler: head });
+  for (const key of ['CAMPUS_REPRO_APP_SHA', 'CAMPUS_REPRO_SAMPLER_SHA']) {
+    for (const invalid of [undefined, '', 'main', head.slice(0, 8), 'g'.repeat(40)]) {
+      assert.throws(() => assertReproductionSourceIdentity({ appHead: head, samplerHead: head }, { ...env, [key]: invalid }), new RegExp(key));
+    }
+  }
+  assert.throws(() => assertReproductionSourceIdentity({ appHead: merge, samplerHead: head }, env), /application checkout/);
+  assert.throws(() => assertReproductionSourceIdentity({ appHead: head, samplerHead: merge }, env), /sampler checkout/);
+  assert.throws(() => assertReproductionSourceIdentity({ appHead: head, samplerHead: merge }, { ...env, CAMPUS_REPRO_SAMPLER_SHA: merge }), /same immutable revision/);
 });
 test('scene invariant compares actual camera, source-independent environment and drawing buffer', async () => {
   assert.ok(source.includes('assertSameCampusScene'));
@@ -37,15 +51,23 @@ test('sampler retains actual postrender counts and unchanged minimum/ceiling/win
   assert.equal(assessPacing({renders:3,updates:3,renderedFps:1.2}).passed,true);
   assert.equal(assessPacing({renders:90,updates:90,renderedFps:36}).passed,false);
 });
-test('workflow pins app independently, preserves partial evidence and cannot claim performance acceptance', async () => {
+test('workflow checks out the instrumented PR head with separate explicit app and sampler identities', async () => {
   const workflow = await readFile(new URL('../../../.github/workflows/campus-render-reproduction.yml', import.meta.url), 'utf8').catch(() => '');
-  assert.match(workflow, /ref: 66695573c8857d05a761b987411c6812ea158984/);
+  for (const identity of ['APP', 'SAMPLER']) {
+    assert.match(workflow, new RegExp(`CAMPUS_REPRO_${identity}_SHA: \\$\\{\\{ github\\.event\\.pull_request\\.head\\.sha \\|\\| github\\.sha \\}\\}`));
+    assert.match(workflow, new RegExp(`ref: \\$\\{\\{ env\\.CAMPUS_REPRO_${identity}_SHA \\}\\}`));
+  }
+  assert.match(workflow, /'apps\/world\/src\/photo\/photo-capture.js'/);
+  assert.doesNotMatch(workflow, /ref: 66695573|GITHUB_SHA=/);
   assert.match(workflow, /contents: read/); assert.match(workflow, /if: always\(\)/);
   assert.doesNotMatch(workflow, /continue-on-error|secrets\.|pull_request_target/);
   const script = await readFile(new URL('./browser/campus-render-reproduction.mjs', import.meta.url), 'utf8').catch(() => '');
   assert.match(script, /samplerHead/); assert.match(script, /sourceHashes/);
   assert.match(script, /assertSameCampusScene/); assert.match(script, /NATURAL_FAILURE_NOT_REPRODUCED/);
   assert.match(script, /DIAGNOSTIC_ONLY/); assert.match(script, /warmupPolicy/);
+  assert.match(script, /assertReproductionSourceIdentity/);
+  assert.match(script, /samplerTree/); assert.match(script, /samplerHashes/);
+  assert.doesNotMatch(script, /process\.env\.GITHUB_SHA/);
 });
 test('warmup waits for three natural completed renders without forcing application frames', async () => {
   const { settleCampusRenders } = await import('./browser/campus-render-reproduction-support.mjs');
@@ -71,4 +93,19 @@ test('download event is prearmed before native request and awaited only inside b
   const bounded=script.indexOf("if(run.png.success) await phase('preserve-and-decode-png'");
   const wait=script.indexOf('const download=await downloadReady;');
   assert.ok(arm>=0 && arm<request && request<bounded && bounded<wait);
+});
+test('late diagnostics are reread once after the unchanged pacing sample without replacing terminal evidence', async () => {
+  const script = await readFile(new URL('./browser/campus-render-reproduction.mjs', import.meta.url), 'utf8');
+  const pacing = script.indexOf("run.pacing=await phase('unchanged-2500ms-pacing'");
+  const reread = script.indexOf("run.photoDiagnosticsAfterPacing=await phase('photo-diagnostics-after-pacing'");
+  const collected = script.indexOf("run.status='COLLECTED'");
+  assert.ok(pacing >= 0 && pacing < reread && reread < collected);
+  assert.equal(script.split("phase('photo-diagnostics-after-pacing'").length, 2);
+  assert.match(script, /run\.photoDiagnosticsAfterPacing=await phase\('photo-diagnostics-after-pacing',\(\)=>page\.evaluate\(\(\)=>window\.__INHAGAME_P0__\.getPhotoCaptureDiagnostics\(\)\)\)/);
+  assert.match(script, /Absent late callback evidence does not prove the callback never ran/);
+});
+test('post-terminal warmup does not claim a timed-out native encoder has stopped', async () => {
+  const script = await readFile(new URL('./browser/campus-render-reproduction.mjs', import.meta.url), 'utf8');
+  assert.match(script, /does not establish that native encoding or GPU\/driver work is idle/);
+  assert.doesNotMatch(script, /excludes active encoding/);
 });

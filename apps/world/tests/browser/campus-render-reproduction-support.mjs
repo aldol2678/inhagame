@@ -1,7 +1,16 @@
 import assert from 'node:assert/strict';
 
-// This diagnostic deliberately keeps application and sampler identities separate.
-export const APP_SOURCE_SHA = '66695573c8857d05a761b987411c6812ea158984';
+// Pin both checkouts to the instrumented revision, while verifying their identities separately.
+// GITHUB_SHA can be a synthetic PR merge commit and is deliberately not consulted here.
+export function assertReproductionSourceIdentity({ appHead, samplerHead }, env = process.env) {
+  for (const key of ['CAMPUS_REPRO_APP_SHA', 'CAMPUS_REPRO_SAMPLER_SHA'])
+    assert.match(env[key] ?? '', /^[0-9a-f]{40}$/, `${key} must be an explicit immutable commit SHA`);
+  const pins = { app: env.CAMPUS_REPRO_APP_SHA, sampler: env.CAMPUS_REPRO_SAMPLER_SHA };
+  assert.equal(pins.app, pins.sampler, 'application and sampler must use the same immutable revision containing instrumentation');
+  assert.equal(appHead, pins.app, 'application checkout must match CAMPUS_REPRO_APP_SHA');
+  assert.equal(samplerHead, pins.sampler, 'sampler checkout must match CAMPUS_REPRO_SAMPLER_SHA');
+  return pins;
+}
 export const PROTOCOL = Object.freeze({ attempts: 2, sampleMs: 2500, appPngTimeoutMs: 10000,
   settleRenders: 3, phaseMs: 15000, viewport: Object.freeze({ width: 1280, height: 720 }),
   player: Object.freeze([0, 1.15, -98]), orbit: Object.freeze({ yaw: 0, pitch: .4, distance: 3.5, firstPerson: false }),

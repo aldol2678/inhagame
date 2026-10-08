@@ -8,7 +8,7 @@ import { createHash } from 'node:crypto';
 import { startSmoke, TIMEOUT_MS } from './harness.mjs';
 import { boundedPerformancePhase } from './biryong-performance-diagnostics.mjs';
 import { finalizeTraceDiagnostic } from './biryong-render-trace-cleanup.mjs';
-import { APP_SOURCE_SHA, PROTOCOL, classifyReproduction, assertSameCampusScene, sampleCampusPacing, assessPacing, readCampusScene, settleCampusRenders } from './campus-render-reproduction-support.mjs';
+import { assertReproductionSourceIdentity, PROTOCOL, classifyReproduction, assertSameCampusScene, sampleCampusPacing, assessPacing, readCampusScene, settleCampusRenders } from './campus-render-reproduction-support.mjs';
 import { NPC_WORLD_EPOCH_MS } from '../../npc-factory/npc-world-time-contract.mjs';
 
 const repo = fileURLToPath(new URL('../../../../', import.meta.url));
@@ -18,13 +18,17 @@ const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 const receipt = { schema:'campus-render-reproduction-v1', measurementClass:'DIAGNOSTIC_ONLY',
   performanceAcceptance:'NOT_EVALUATED', realDevice:false, status:'RUNNING', protocol:PROTOCOL,
   samplerHead:git(repo,'rev-parse','HEAD'), samplerTree:git(repo,'rev-parse','HEAD^{tree}'),
+  sourcePins:{app:process.env.CAMPUS_REPRO_APP_SHA??null,sampler:process.env.CAMPUS_REPRO_SAMPLER_SHA??null},
+  sourcePolicy:'Direct clean checkouts of the same immutable instrumented revision; no instrumentation overlay. Application and sampler identities and file hashes are recorded separately.',
   runtime:{node:process.version,platform:process.platform,arch:process.arch,disableWebGpu:process.env.WORLD_SMOKE_DISABLE_WEBGPU==='1'},
   source:null, sourceHashes:{}, samplerHashes:{}, attempts:Array.from({length:PROTOCOL.attempts},(_,index)=>({attempt:index+1,status:'NOT_ATTEMPTED',phases:[],png:null,pacing:null})),
-  warmupPolicy:'Before PNG and after PNG terminal state plus decode: observe three natural postrender events, host bounded at 15 s. No forced frame, sleep-based success, retry or app timeout change. This excludes active encoding but cannot prove GPU/driver queues or thermal history are identical.',
+  warmupPolicy:'Before PNG and after PNG terminal state plus decode: observe three natural postrender events, host bounded at 15 s. No forced frame, sleep-based success, retry or app timeout change. This excludes an active application capture request but does not establish that native encoding or GPU/driver work is idle, or that thermal history is identical.',
   limits:['Photo mode stays open for both measurements so the same real camera is fixed. This is not the gameplay-mode graphics acceptance run.',
     'Two fresh offline browser contexts only. Natural failure not reproduced remains unresolved.',
+    'Photo diagnostics are reread once after pacing without an extra wait or retry. Absent late callback evidence does not prove the callback never ran; it may occur after the final observation or outside the retained-record observation limit.',
     '2500 ms window, minimum 3 rendered frames and <=34 FPS ceiling are unchanged. A ~1 FPS CI renderer cannot validate real 30 FPS pacing.',
-    'The separate e49419c3 old-main trace remains immutable historical evidence. PNG evidence from 2f991bb is not same-source evidence.'],
+    'The separate e49419c3 old-main trace remains immutable historical evidence. PNG evidence from 2f991bb is not same-source evidence.',
+    'The earlier 66695573 application did not include split readback instrumentation. This instrumented application is a different revision, not an identical-source rerun of that historical diagnostic.'],
   launchedAt:new Date().toISOString() };
 await mkdir(output,{recursive:true});
 const persist = () => {
@@ -40,13 +44,14 @@ try {
   assert.ok(process.env.CAMPUS_REPRO_WORLD_ROOT,'pinned application worldRoot is required');
   root = resolve(process.env.CAMPUS_REPRO_WORLD_ROOT);
   receipt.source = { head:git(root,'rev-parse','HEAD'),tree:git(root,'rev-parse','HEAD^{tree}') };
-  assert.equal(receipt.source.head,APP_SOURCE_SHA,'application source must be the explicit candidate, not sampler HEAD');
+  receipt.sourcePins = assertReproductionSourceIdentity({appHead:receipt.source.head,samplerHead:receipt.samplerHead});
   assert.equal(git(root,'status','--porcelain','--untracked-files=no'),'','application source must be clean');
-  if(process.env.GITHUB_SHA) assert.equal(receipt.samplerHead,process.env.GITHUB_SHA,'exact sampler head');
+  assert.equal(git(repo,'status','--porcelain','--untracked-files=no'),'','sampler source must be clean');
   for(const path of ['src/main.js','src/photo/photo-capture.js','src/photo/photo-mode.js','src/photo/photo-mode-panel.js',
     'src/photo/photo-camera-controller.js','src/graphics-presets.js','campus/index.html','styles.css','tests/browser/package.json'])
     receipt.sourceHashes[path] = sha256(await readFile(join(root,path)));
-  for(const path of ['campus-render-reproduction.mjs','campus-render-reproduction-support.mjs','harness.mjs','harness-source.mjs','harness-cleanup.mjs','biryong-performance-diagnostics.mjs','biryong-render-trace-cleanup.mjs'])
+  for(const path of ['campus-render-reproduction.mjs','campus-render-reproduction-support.mjs','harness.mjs','harness-source.mjs','harness-cleanup.mjs','biryong-performance-diagnostics.mjs','biryong-render-trace-cleanup.mjs',
+    'package.json','package-lock.json','../../npc-factory/npc-world-time-contract.mjs'])
     receipt.samplerHashes[path] = sha256(await readFile(new URL(path,import.meta.url)));
   receipt.runtime.engineVersion=JSON.parse(await readFile(new URL('./package.json',import.meta.url),'utf8')).devDependencies.playcanvas;
   receipt.runtime.engineSha256=sha256(await readFile(new URL('./node_modules/playcanvas/build/playcanvas.mjs',import.meta.url)));
@@ -152,6 +157,7 @@ try {
       run.pacing.assessment=assessPacing(run.pacing);
       run.after=await phase('scene-after-pacing',()=>page.evaluate(readCampusScene));
       assertSameCampusScene(run.before,run.after);run.invariants='PASS';
+      run.photoDiagnosticsAfterPacing=await phase('photo-diagnostics-after-pacing',()=>page.evaluate(()=>window.__INHAGAME_P0__.getPhotoCaptureDiagnostics()));
       assert.equal(downloads.length,run.png.success?1:0,'no delayed duplicate or failed-capture download');
       run.status='COLLECTED';await persist();
     } catch(error) {

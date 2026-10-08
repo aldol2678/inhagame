@@ -24,7 +24,9 @@ export function createPhotoCapture({ app, canvas, mode, doc = globalThis.documen
         if (records.length > 8) records.shift();
       }
       const record = job.diagnostic;
-      const elapsedMs = Math.max(record.events.at(-1)?.elapsedMs ?? 0, at - job.startedAt);
+      const operation = record.readbackOperations?.at(-1);
+      const elapsedMs = Math.max(record.events.at(-1)?.elapsedMs ?? 0,
+        operation?.endElapsedMs ?? operation?.startElapsedMs ?? 0, at - job.startedAt);
       record.events.push({ phase, elapsedMs: Number.isFinite(elapsedMs) ? elapsedMs : 0, state: {
         visibility: ['visible', 'hidden', 'prerender'].includes(doc.visibilityState) ? doc.visibilityState : 'unknown',
         contextLost: app.graphicsDevice?.contextLost === true,
@@ -36,6 +38,49 @@ export function createPhotoCapture({ app, canvas, mode, doc = globalThis.documen
       } });
       if (phase !== 'complete' && phase !== 'failed') record.phase = phase;
     } catch { /* Diagnostics must never affect capture. */ }
+  }
+  function diagnosticElapsed(job) {
+    const elapsed = now() - job.startedAt;
+    const operation = job.diagnostic.readbackOperations?.at(-1);
+    return Number.isFinite(elapsed) ? Math.max(job.diagnostic.events.at(-1)?.elapsedMs ?? 0,
+      operation?.endElapsedMs ?? operation?.startElapsedMs ?? 0, elapsed) : null;
+  }
+  function readbackOperation(job, operation, end = false) {
+    if (!job.diagnostic) return;
+    try {
+      const at = diagnosticElapsed(job);
+      if (at === null) return;
+      const operations = job.diagnostic.readbackOperations ??= [];
+      if (!end) operations.push({ operation, startElapsedMs: at, endElapsedMs: null, durationMs: null });
+      else {
+        const record = operations.at(-1);
+        if (record?.operation !== operation || record.endElapsedMs !== null) return;
+        record.endElapsedMs = Math.max(record.startElapsedMs, at);
+        record.durationMs = record.endElapsedMs - record.startElapsedMs;
+      }
+    } catch { /* Optional clock and diagnostic state cannot affect the operation. */ }
+  }
+  function timerDiagnostic(job, fired = false) {
+    if (!job.diagnostic) return;
+    try {
+      const at = diagnosticElapsed(job);
+      if (at === null) return;
+      if (!fired) job.diagnostic.timeout = { nominalDeadlineElapsedMs: at + timeoutMs, callbackElapsedMs: null, skewMs: null };
+      else if (job.diagnostic.timeout) {
+        job.diagnostic.timeout.callbackElapsedMs = at;
+        job.diagnostic.timeout.skewMs = Math.max(0, at - job.diagnostic.timeout.nominalDeadlineElapsedMs);
+      }
+    } catch { /* Diagnostics must never change the timeout. */ }
+  }
+  function lateEncodingDiagnostic(job) {
+    // Observe only a first callback within 30 s of timeout, while its receipt is
+    // still in the eight-record ring. No timer, blob inspection or observer call.
+    if (destroyed || job.diagnostic?.code !== 'timeout' || !records.includes(job.diagnostic) || job.diagnostic.lateEncodingCallback) return;
+    try {
+      const at = diagnosticElapsed(job), timeoutAt = job.diagnostic.timeout?.callbackElapsedMs;
+      if (at === null || timeoutAt == null || at < timeoutAt || at - timeoutAt > 30_000) return;
+      job.diagnostic.lateEncodingCallback = { elapsedMs: at, afterTimeoutMs: at - timeoutAt };
+    } catch { /* Late callbacks must remain inert for capture/session state. */ }
   }
   function completeDiagnostic(job, error) {
     if (!job.diagnostic) return;
@@ -86,14 +131,20 @@ export function createPhotoCapture({ app, canvas, mode, doc = globalThis.documen
           const context = snapshot.getContext('2d', { willReadFrequently: true });
           if (!context || typeof snapshot.toBlob !== 'function') throw failure('unavailable');
           mark(job, 'readback');
+          readbackOperation(job, 'drawImage');
           context.drawImage(canvas, 0, 0);
+          readbackOperation(job, 'drawImage', true);
+          readbackOperation(job, 'getImageData');
           const pixels = context.getImageData(0, 0, width, height).data;
+          readbackOperation(job, 'getImageData', true);
+          readbackOperation(job, 'alphaScan');
           let visible = false;
           for (let i = 3; i < pixels.length; i += 4) if (pixels[i]) { visible = true; break; }
+          readbackOperation(job, 'alphaScan', true);
           if (!visible) throw failure('unavailable');
           mark(job, 'encoding');
           snapshot.toBlob(blob => {
-            if (pending !== job) return;
+            if (pending !== job) { lateEncodingDiagnostic(job); return; }
             if (!mode.update()) { cancel(); return; }
             if (!blob || blob.type !== 'image/png' || !blob.size) { finish(job, failure('encoding')); return; }
             finish(job, null, { blob, width, height });
@@ -107,7 +158,11 @@ export function createPhotoCapture({ app, canvas, mode, doc = globalThis.documen
           finish(job, failure('unavailable'));
         }
       };
-      job.timer = setTimer(() => finish(job, failure('timeout')), timeoutMs);
+      timerDiagnostic(job);
+      job.timer = setTimer(() => {
+        if (pending !== job) return;
+        timerDiagnostic(job, true); finish(job, failure('timeout'));
+      }, timeoutMs);
       app.on('frameend', job.frame);
       app.renderNextFrame = true;
     });

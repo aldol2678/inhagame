@@ -2,6 +2,7 @@ name: Same-source campus rendering diagnostic
 on:
   pull_request:
     paths:
+      - 'apps/world/src/photo/photo-capture.js'
       - 'apps/world/tests/browser/campus-render-reproduction*.mjs'
       - 'apps/world/tests/campus-render-reproduction.test.mjs'
       - 'apps/world/tests/browser/harness*.mjs'
@@ -16,16 +17,19 @@ jobs:
   collect-same-source-diagnostic:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      CAMPUS_REPRO_APP_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      CAMPUS_REPRO_SAMPLER_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
       - name: Checkout diagnostic sampler
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ env.CAMPUS_REPRO_SAMPLER_SHA }}
           persist-credentials: false
-      - name: Checkout pinned current application (not old-main trace)
+      - name: Checkout exact instrumented application head (not synthetic merge)
         uses: actions/checkout@v4
         with:
-          ref: 66695573c8857d05a761b987411c6812ea158984
+          ref: ${{ env.CAMPUS_REPRO_APP_SHA }}
           path: .qa-campus-source
           persist-credentials: false
       - uses: actions/setup-node@v4
@@ -50,15 +54,15 @@ jobs:
         run: |
           set -o pipefail
           mkdir -p "$CAMPUS_REPRO_OUTPUT"
-          GITHUB_SHA="$(git rev-parse HEAD)" timeout --signal=TERM --kill-after=10s 8m node apps/world/tests/browser/campus-render-reproduction.mjs 2>&1 | tee "$CAMPUS_REPRO_OUTPUT/diagnostic.log"
+          timeout --signal=TERM --kill-after=10s 8m node apps/world/tests/browser/campus-render-reproduction.mjs 2>&1 | tee "$CAMPUS_REPRO_OUTPUT/diagnostic.log"
       - name: State evidence limits
         if: always()
-        run: echo 'Diagnostic only, not acceptance. At most two preregistered attempts at app 66695573; sampler identity is separate. Natural failure not reproduced stays unresolved. CI cannot validate physical-device 30 FPS.' >> "$GITHUB_STEP_SUMMARY"
+        run: echo "Diagnostic only, not acceptance. At most two preregistered attempts at instrumented app $CAMPUS_REPRO_APP_SHA; sampler $CAMPUS_REPRO_SAMPLER_SHA is recorded separately. This is not identical application source to the historical 66695573 run. Natural failure not reproduced stays unresolved. CI cannot validate physical-device 30 FPS." >> "$GITHUB_STEP_SUMMARY"
       - name: Preserve complete or partial same-source evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: campus-same-source-66695573-sampler-${{ github.event.pull_request.head.sha || github.sha }}
+          name: campus-same-source-${{ env.CAMPUS_REPRO_APP_SHA }}-sampler-${{ env.CAMPUS_REPRO_SAMPLER_SHA }}
           path: ${{ runner.temp }}/campus-render-reproduction/**
           if-no-files-found: error
           retention-days: 7

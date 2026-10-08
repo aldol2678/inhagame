@@ -119,7 +119,8 @@ for (const phase of ['request', 'encoding']) test('timeout diagnostics retain la
   assert.equal(record.code, 'timeout'); assert.equal(record.phase, phase);
   assert.equal(record.events.at(-1).phase, 'failed');
   const saved = JSON.stringify(record); if (phase === 'encoding') h.encode(png());
-  assert.equal(JSON.stringify(h.capture.diagnostics()[0]), saved, 'late callbacks cannot overwrite terminal evidence');
+  const after = h.capture.diagnostics()[0]; delete after.lateEncodingCallback;
+  assert.equal(JSON.stringify(after), saved, 'late callbacks cannot overwrite terminal evidence');
 });
 
 test('readback exceptions retain only an allowlisted kind; diagnostic observers cannot break capture', async () => {
@@ -190,4 +191,81 @@ test('disabled diagnostics never subscribe to postrender', async () => {
   const h = fixture(), p = h.capture.request();
   assert.equal(h.listeners.has('postrender'), false);
   h.frame(); h.encode(png()); await p;
+});
+
+test('readback diagnostics separately time draw, pixel read and alpha scan without retaining pixels', async () => {
+  let t = 100;
+  const h = fixture({ diagnostics: true, now: () => t });
+  const pixels = { length: 4, get 3() { t += 3; return 255; } };
+  h.snapshot.getContext = () => ({ drawImage() { t += 20; }, getImageData() { t += 400; return { data: pixels }; } });
+  const p = h.capture.request(); t = 110; h.frame(); h.encode(png()); await p;
+  const [record] = h.capture.diagnostics();
+  assert.deepEqual(record.readbackOperations, [
+    { operation: 'drawImage', startElapsedMs: 10, endElapsedMs: 30, durationMs: 20 },
+    { operation: 'getImageData', startElapsedMs: 30, endElapsedMs: 430, durationMs: 400 },
+    { operation: 'alphaScan', startElapsedMs: 430, endElapsedMs: 433, durationMs: 3 }
+  ]);
+  assert.doesNotMatch(JSON.stringify(record), /pixels|data:/);
+});
+
+test('failed readback records the started operation but does not fabricate its end', async () => {
+  let t = 0;
+  const h = fixture({ diagnostics: true, now: () => t });
+  h.snapshot.getContext = () => ({ drawImage() { t = 2; }, getImageData() { t = 5; throw new Error('private'); } });
+  const p = h.capture.request(); h.frame(); await assert.rejects(p, { code: 'unavailable' });
+  assert.deepEqual(h.capture.diagnostics()[0].readbackOperations, [
+    { operation: 'drawImage', startElapsedMs: 0, endElapsedMs: 2, durationMs: 2 },
+    { operation: 'getImageData', startElapsedMs: 2, endElapsedMs: null, durationMs: null }
+  ]);
+});
+
+test('timeout diagnostic separates nominal deadline, callback lateness and bounded late encoding observation', async () => {
+  let t = 100;
+  const h = fixture({ diagnostics: true, now: () => t });
+  const p = h.capture.request(); t = 110; h.frame(); t = 13567; [...h.timers][0]();
+  await assert.rejects(p, { code: 'timeout' });
+  const terminal = h.capture.diagnostics()[0];
+  assert.deepEqual(terminal.timeout, { nominalDeadlineElapsedMs: 10000, callbackElapsedMs: 13467, skewMs: 3467 });
+  t = 14000; h.encode(png());
+  const late = h.capture.diagnostics()[0];
+  assert.deepEqual(late.lateEncodingCallback, { elapsedMs: 13900, afterTimeoutMs: 433 });
+  delete late.lateEncodingCallback;
+  assert.deepEqual(late, terminal, 'terminal evidence stays unchanged');
+  t = 15000; h.encode(null);
+  assert.equal(h.capture.diagnostics()[0].lateEncodingCallback.elapsedMs, 13900, 'only first callback is retained');
+});
+
+for (const ending of ['expired', 'destroyed', 'cancelled', 'evicted']) test('late encoding observation excludes ' + ending, async () => {
+  let t = 0;
+  const h = fixture({ diagnostics: true, now: () => t });
+  const p = h.capture.request(); h.frame();
+  const oldEncode = h.encode;
+  // Save the actual callback before a later request replaces the fixture callback.
+  let callback;
+  h.snapshot.toBlob = fn => { callback = fn; };
+  if (ending === 'cancelled') h.capture.cancel(); else { t = 10000; [...h.timers][0](); }
+  await assert.rejects(p);
+  if (ending === 'destroyed') h.capture.destroy();
+  if (ending === 'expired') t = 40001;
+  if (ending === 'evicted') for (let i = 0; i < 8; i++) { const next = h.capture.request(); h.frame(); callback(png()); await next; }
+  oldEncode(png());
+  assert.ok(h.capture.diagnostics().every(record => !record.lateEncodingCallback));
+});
+
+test('readback operation timestamps never regress when the diagnostic clock goes backwards', async () => {
+  let t = 100;
+  const h = fixture({ diagnostics: true, now: () => t });
+  h.snapshot.getContext = () => ({ drawImage() { t = 120; }, getImageData() { t = 110; return { data: [0, 0, 0, 255] }; } });
+  const p = h.capture.request(); h.frame(); h.encode(png()); await p;
+  assert.deepEqual(h.capture.diagnostics()[0].readbackOperations.map(op => [op.startElapsedMs, op.endElapsedMs]), [[0, 20], [20, 20], [20, 20]]);
+  assert.equal(h.capture.diagnostics()[0].events.at(-1).elapsedMs, 20);
+});
+
+test('a stale timeout callback cannot change successful terminal diagnostics', async () => {
+  let t = 0;
+  const h = fixture({ diagnostics: true, now: () => t });
+  const p = h.capture.request(), staleTimer = [...h.timers][0];
+  h.frame(); h.encode(png()); await p;
+  const before = h.capture.diagnostics(); t = 20000; staleTimer();
+  assert.deepEqual(h.capture.diagnostics(), before);
 });
