@@ -18,6 +18,8 @@ const DB_INDEPENDENT_FILES = new Set([
   'apps/world/src/orbit-camera-controller.js',
   'apps/world/src/world-collision.js',
   'apps/world/src/polygon-collision.js',
+  // QA-only photo diagnostics prose; does not use Supabase or change runtime behavior.
+  'apps/world/docs/photo-capture-diagnostics.md',
 ]);
 
 const DB_INDEPENDENT_PREFIXES = [
