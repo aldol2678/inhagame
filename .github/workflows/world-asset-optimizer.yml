@@ -46,6 +46,8 @@ on:
       - 'apps/world/src/biryong/biryong-performance-monitor.js'
       - 'apps/world/tests/biryong-performance-budget.test.mjs'
       - 'apps/world/tests/browser/biryong-performance-smoke.mjs'
+      - 'apps/world/tests/browser/biryong-performance-diagnostics.mjs'
+      - 'apps/world/tests/biryong-performance-smoke-diagnostics.test.mjs'
       - 'apps/world/tests/asset-optimization-shadow.test.mjs'
       - 'apps/world/tests/asset-authority-canary.test.mjs'
       - 'apps/world/tests/asset-production-canary.test.mjs'
@@ -123,18 +125,12 @@ jobs:
           WORLD_SMOKE_BROWSER: chrome
           BIRYONG_PERF_RECEIPT: ${{ runner.temp }}/biryong-visual-performance.json
         run: node apps/world/tests/browser/biryong-performance-smoke.mjs
-      - name: Run integrated graphics browser smoke
-        env:
-          WORLD_SMOKE_DISABLE_WEBGPU: '1'
-          WORLD_SMOKE_BROWSER: chrome
-          WORLD_GRAPHICS_QA_OUTPUT: ${{ runner.temp }}/graphics-parallel-qa
-        run: node apps/world/tests/browser/graphics-parallel-smoke.mjs
-      - name: Upload graphics browser results
+      - name: Preserve Biryong performance diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: world-graphics-integration-evidence
-          path: ${{ runner.temp }}/graphics-parallel-qa/**
+          name: biryong-performance-diagnostics-${{ github.event.pull_request.head.sha }}
+          path: ${{ runner.temp }}/biryong-visual-performance.json
           if-no-files-found: warn
           retention-days: 7
       - name: Run asset authority canary smoke

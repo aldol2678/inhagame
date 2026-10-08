@@ -49,8 +49,22 @@ test('contact screenshots target an actual canonical garden receiver and restore
     assert.ok(smoke.includes(marker),marker);
 });
 test('launch failures reach receipt finally and region return asserts visual settings', () => {
-  assert.ok(smoke.indexOf('try {\n  smoke = await startSmoke')>=0);
+  assert.match(smoke, /try \{\n  if \(process\.env\.EXPECTED_GRAPHICS_HEAD\) assert\.equal[^\n]+\n  smoke = await startSmoke/);
   assert.ok(smoke.includes('smoke?.problems ?? []')); assert.ok(smoke.includes('await smoke?.close()'));
   assert.ok(smoke.includes('assert.equal(restored.canvasFilter,campusPresentation.canvasFilter'));
   assert.ok(smoke.includes('assert.equal(restored.toneMapping,campusPresentation.toneMapping'));
+});
+
+test('graphics browser QA runs independently of optimizer performance gates on the exact PR head', async () => {
+  const workflow = await read('../../../.github/workflows/graphics-integration-browser.yml');
+  const optimizer = await read('../../../.github/workflows/world-asset-optimizer.yml');
+  assert.match(workflow, /ref: \$\{\{ github.event.pull_request.head.sha \}\}/);
+  assert.match(workflow, /persist-credentials: false/);
+  assert.match(workflow, /contents: read/);
+  assert.match(workflow, /if: always\(\)/);
+  assert.match(workflow, /EXPECTED_GRAPHICS_HEAD: \$\{\{ github.event.pull_request.head.sha \}\}/);
+  assert.doesNotMatch(workflow, /needs:|continue-on-error|secrets\.|pull_request_target/);
+  assert.doesNotMatch(optimizer, /run: node apps\/world\/tests\/browser\/graphics-parallel-smoke.mjs/);
+  assert.match(smoke, /execFileSync\('git', \['rev-parse', 'HEAD'\]/);
+  assert.match(smoke, /assert.equal\(receipt.exactHead, process.env.EXPECTED_GRAPHICS_HEAD/);
 });

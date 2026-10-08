@@ -41,6 +41,16 @@ jobs:
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Verify geometry and narrow current-main preservation
         run: node --test apps/world/tests/main-hall-candidate.test.mjs apps/world/tests/photo-hall-library.test.mjs apps/world/tests/hall-library-integration.test.mjs apps/world/tests/hall-library-hosted.test.mjs
+      - name: Verify bounded graphics integration contracts
+        if: github.event.pull_request.head.ref == 'graphics/parallel-integration-20261008'
+        run: >-
+          node --test
+          apps/world/tests/biryong-*.test.mjs
+          apps/world/tests/environment-continuous-daylight.test.mjs
+          apps/world/tests/graphics-detail-settings.test.mjs
+          apps/world/tests/graphics-settings-panel.test.mjs
+          apps/world/tests/graphics-parallel-smoke-contract.test.mjs
+          apps/world/tests/campus-contact-shading.test.mjs
       - name: Verify real-engine chunk, preview and environment ownership
         run: node apps/world/tests/browser/hall-library-integration-null-smoke.mjs
       - name: Verify unchanged current-main material producer in actual campus
@@ -55,7 +65,7 @@ jobs:
           WORLD_HALL_LIBRARY_QA_OUTPUT: test-results/hall-library-candidate
           EXPECTED_HALL_HEAD: ${{ github.event.pull_request.head.sha }}
           WORLD_HALL_LIBRARY_SCOPE_BASE: ${{ github.event.pull_request.base.sha }}
-          WORLD_HALL_LIBRARY_SCOPE_EXTENSION: ${{ github.event.pull_request.head.ref == 'fix/campus-surroundings-parity-20261004' && 'surroundings' || '' }}
+          WORLD_HALL_LIBRARY_SCOPE_EXTENSION: ${{ github.event.pull_request.head.ref == 'fix/campus-surroundings-parity-20261004' && 'surroundings' || github.event.pull_request.head.ref == 'graphics/parallel-integration-20261008' && 'graphics' || '' }}
         run: node apps/world/tests/browser/hall-library-hosted-smoke.mjs
       - name: Save exact-commit browser evidence
         if: always()

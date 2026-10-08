@@ -4,12 +4,16 @@
 import assert from 'node:assert/strict';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { startSmoke, TIMEOUT_MS } from './harness.mjs';
 import { NPC_WORLD_EPOCH_MS } from '../../npc-factory/npc-world-time-contract.mjs';
 
 const output = resolve(process.env.WORLD_GRAPHICS_QA_OUTPUT || 'graphics-parallel-artifacts');
 await mkdir(output, { recursive: true });
-const receipt = { schema: 'graphics-parallel-smoke-v1', exactHead: process.env.GITHUB_SHA ?? null,
+const repo = fileURLToPath(new URL('../../../../', import.meta.url));
+const exactHead = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repo, encoding: 'utf8' }).trim();
+const receipt = { schema: 'graphics-parallel-smoke-v1', exactHead,
   measurementClass: 'CI_BROWSER_SURROGATE', realDevice: false, screenshots: [], checks: {},
   note: 'Real app with offline backend and injected fixed world clock. Not mobile GPU, battery or thermal evidence.' };
 let smoke = null, page;
@@ -154,6 +158,7 @@ async function renderedSample() {
   }));
 }
 try {
+  if (process.env.EXPECTED_GRAPHICS_HEAD) assert.equal(receipt.exactHead, process.env.EXPECTED_GRAPHICS_HEAD, 'exact PR head');
   smoke = await startSmoke({ viewport: { width: 1280, height: 720 } });
   const main = await readFile(new URL('../../src/main.js', import.meta.url), 'utf8');
   const needle = 'const worldClock = previewHost ? null : createNpcWorldClock();';

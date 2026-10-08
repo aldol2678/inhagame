@@ -105,12 +105,27 @@ function checkEntranceCrop(pixels) {
   // mask is a material diagnostic; only the fitted full-view gate proves silhouette.
 }
 function hallIntegrationScopePaths(manifest,extension) {
-  if(extension && extension!=='surroundings')throw Error('Unsupported hall integration scope extension');
+  if(extension && !['surroundings','graphics'].includes(extension))throw Error('Unsupported hall integration scope extension');
   const surroundings=['campus-grounds.js','main-hall-walkway-layout.js','main-hall-walkway-geometry.js',
     'pond-surroundings-geometry.js','minimap/minimap-data.js','navigation/campus-navigation.js'];
   const contactPilot=['main.js','campus-contact-shading.js','campus-contact-shading-layout.js','campus-contact-shading-geometry.js'];
+  // PR #301's four reviewed workstreams. No shared material producer, landmark
+  // geometry, unrelated realm logic or directory-wide exception is permitted.
+  // Environment/settings affect campus consumers, so their contracts run before
+  // the unchanged geometry, material, silhouette and real-consumer pixel gates.
+  const graphics=[
+    'biryong/biryong-atmosphere-policy.js','biryong/biryong-atmosphere.js',
+    'biryong/biryong-environment-density-policy.js','biryong/biryong-environment-density.js',
+    'biryong/biryong-performance-budget.js','biryong/biryong-performance-monitor.js',
+    'biryong/biryong-realm-renderer.js','biryong/biryong-visual-lighting-policy.js',
+    'biryong/biryong-visual-lighting.js','biryong/biryong-visual-material-policy.js',
+    'biryong/biryong-visual-materials.js','environment/environment-director.js',
+    'environment/environment-presets.js','environment/environment-world-time.js',
+    'graphics-presets.js','view-distance-settings.js'
+  ];
   return [...manifest.allowedRuntimeChanges,...manifest.allowedMetadataChanges,...contactPilot.map(p=>'apps/world/src/'+p),
-    ...(extension==='surroundings'?surroundings.map(p=>'apps/world/src/'+p):[])];
+    ...(extension==='surroundings'?surroundings.map(p=>'apps/world/src/'+p):[]),
+    ...(extension==='graphics'?graphics.map(p=>'apps/world/src/'+p):[])];
 }
 try {
   const {stdout:head}=await run('git',['rev-parse','HEAD'],{cwd:repo,timeout:5000,encoding:'utf8'});
@@ -127,7 +142,7 @@ try {
   const changedPaths=diff.trim().split('\n').filter(Boolean);
   const allowed=hallIntegrationScopePaths(manifest,process.env.WORLD_HALL_LIBRARY_SCOPE_EXTENSION||'');
   for(const changed of changedPaths)assert.ok(allowed.includes(changed),changed+' outside approved integration scope');
-  report.preservation={baseline:mergeBase.trim(),requestedBase:scopeBase,historicalComparison:CURRENT_MAIN,changedPaths,status:'PASS'};
+  report.preservation={baseline:mergeBase.trim(),requestedBase:scopeBase,historicalComparison:CURRENT_MAIN,extension:process.env.WORLD_HALL_LIBRARY_SCOPE_EXTENSION||'',changedPaths,status:'PASS'};
   await progress('Validate pinned baseline and start offline real-engine browser');
   for(const commit of new Set(Object.values(SOURCES).map(source=>source.commit))) await sourceAtBaseline('src/main-hall-blockout.js',commit);
   smoke=await withDeadline('browser startup',()=>startSmoke({viewport:{width:1280,height:720},contextOptions:{deviceScaleFactor:1}}),30000);

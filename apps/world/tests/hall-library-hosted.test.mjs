@@ -114,3 +114,43 @@ test('comparison captions settle to two lines before the framebuffer is resized'
   }
   assert.match(harness,/white-space:pre/,'explicit caption lines cannot change framebuffer height between materials');
 });
+
+test('parallel graphics extension is an exact allowlist, never a src or Biryong directory exemption', () => {
+  const runner=read('./browser/hall-library-hosted-smoke.mjs');
+  const helper=runner.match(/function hallIntegrationScopePaths\(manifest,extension\) \{[\s\S]*?\n\}/)?.[0];
+  const allow=runInNewContext(`(${helper})`,{}, {timeout:1000});
+  const manifest=JSON.parse(read('./fixtures/hall-library-candidate-source-manifest.json'));
+  const original=allow(manifest,''), graphics=allow(manifest,'graphics');
+  const extra=[
+    'biryong/biryong-atmosphere-policy.js','biryong/biryong-atmosphere.js',
+    'biryong/biryong-environment-density-policy.js','biryong/biryong-environment-density.js',
+    'biryong/biryong-performance-budget.js','biryong/biryong-performance-monitor.js',
+    'biryong/biryong-realm-renderer.js','biryong/biryong-visual-lighting-policy.js',
+    'biryong/biryong-visual-lighting.js','biryong/biryong-visual-material-policy.js',
+    'biryong/biryong-visual-materials.js','environment/environment-director.js',
+    'environment/environment-presets.js','environment/environment-world-time.js',
+    'graphics-presets.js','view-distance-settings.js'
+  ].map(p=>'apps/world/src/'+p);
+  assert.deepEqual([...graphics].sort(),[...original,...extra].sort());
+  assert.equal(new Set(graphics).size,graphics.length);
+  for(const name of extra)assert.ok(!original.includes(name),'extension is opt-in: '+name);
+  for(const name of ['biryong/unreviewed.js','biryong/biryong-realm-transition.js',
+    'campus-render-kit.js','campus-material-profile.js','campus-layout.js',
+    'environment/night-building-windows.js','activity/activity-contract.js',
+    'campus-grounds.js','../data/private.json'])assert.ok(!graphics.includes('apps/world/src/'+name),name);
+  assert.ok(!graphics.includes('apps/world/data/reality/campus-buildings.json'));
+  assert.throws(()=>allow(manifest,'graphics-and-everything'),/scope/);
+});
+
+test('graphics exception is branch-bound and keeps environmental and visual contracts mandatory', () => {
+  const workflow=read('../../../.github/workflows/hall-library-candidate-browser.yml');
+  assert.match(workflow,/WORLD_HALL_LIBRARY_SCOPE_EXTENSION:.*head\.ref == 'fix\/campus-surroundings-parity-20261004' && 'surroundings' \|\| github\.event\.pull_request\.head\.ref == 'graphics\/parallel-integration-20261008' && 'graphics' \|\| ''/);
+  const contracts=workflow.slice(workflow.indexOf('      - name: Verify bounded graphics integration contracts'),workflow.indexOf('      - name: Verify real-engine chunk'));
+  assert.match(contracts,/if: github.event.pull_request.head.ref == 'graphics\/parallel-integration-20261008'/);
+  for(const name of ['biryong-*.test.mjs','environment-continuous-daylight.test.mjs',
+    'graphics-detail-settings.test.mjs','graphics-settings-panel.test.mjs',
+    'graphics-parallel-smoke-contract.test.mjs','campus-contact-shading.test.mjs'])assert.ok(contracts.includes(name),name);
+  const runner=read('./browser/hall-library-hosted-smoke.mjs');
+  for(const gate of ["assert.equal(pixels.exactChanged,0", "assert.equal(pixels.maskChanged,0", "assert.equal(pixels.hash,cell.baseline108materials.pixels.hash", "await verifyPreviewRoute()", "cell.lifecycle", "report.campus.targets"])assert.ok(runner.includes(gate),gate);
+  assert.doesNotMatch(runner,/extension\s*===?\s*['"]graphics['"][\s\S]{0,30}(?:return|continue|process\.exit)/);
+});
