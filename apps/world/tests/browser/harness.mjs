@@ -12,6 +12,7 @@ import { readFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { fileURLToPath } from "node:url";
 import { chromium, webkit } from "playwright";
+import { abortSmokeResources } from "./harness-cleanup.mjs";
 import { resolveWorldSmokeSource } from "./harness-source.mjs";
 
 export const TIMEOUT_MS = Number(process.env.WORLD_SMOKE_TIMEOUT_MS || 90_000);
@@ -137,5 +138,6 @@ export async function startSmoke({ viewport = { width: 1280, height: 720 }, cont
     await browser.close();
     server.stop();
   };
-  return { origin: server.origin, context, problems, watch, close };
+  return { origin: server.origin, context, problems, watch, close,
+    abort: () => abortSmokeResources({ stopServer: server.stop, browser }) };
 }

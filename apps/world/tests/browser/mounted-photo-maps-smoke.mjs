@@ -4,17 +4,34 @@ import { execFileSync } from 'node:child_process';
 import { mkdir, writeFile, readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { startSmoke, TIMEOUT_MS } from './harness.mjs';
+import { savePhotoCaptureDiagnostics, closePhotoPageAfterSave } from './photo-capture-artifact.mjs';
 const head=execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();
 if(process.env.MOUNTED_PHOTO_HEAD_SHA)assert.equal(head,process.env.MOUNTED_PHOTO_HEAD_SHA);
 const output=process.env.MOUNTED_PHOTO_OUTPUT||'test-results/mounted-photo-maps';await mkdir(output,{recursive:true});
-const sources=['src/main.js','src/player-controller.js','src/character-model.js','src/photo/photo-mode.js','src/photo/photo-camera-controller.js','src/phone/smartphone.js','src/phone/phone-surfaces.js','src/minimap/full-map-controller.js','phone.css'];
+const sources=['src/main.js','src/photo/photo-capture.js','src/player-controller.js','src/character-model.js','src/photo/photo-mode.js','src/photo/photo-camera-controller.js','src/phone/smartphone.js','src/phone/phone-surfaces.js','src/minimap/full-map-controller.js','phone.css'];
 const hashes=Object.fromEntries(await Promise.all(sources.map(async p=>[p,createHash('sha256').update(await readFile(new URL(`../../${p}`,import.meta.url))).digest('hex')])));
 const report={head,sourceHashes:hashes,status:'RUNNING',cases:[],limits:['Offline guest Chromium + software WebGL2. Physical Android/iOS Safari, hardware WebGPU and authenticated server integration are unverified.']};
+let cleanupFailed = false;
 const save=()=>writeFile(`${output}/report.json`,JSON.stringify(report,null,2));
+async function closeWithReport(target, entry) {
+  const outcome = await closePhotoPageAfterSave(target, save);
+  if (outcome !== 'closed') {
+    cleanupFailed = true;
+    entry.status = report.status = 'FAIL';
+    entry.cleanup = outcome;
+    await save();
+    // Only this failed-cleanup path uses the owned harness emergency hook.
+    if (target.abort) {
+      entry.abort = await closePhotoPageAfterSave({ close: () => target.abort() }, save);
+      await save();
+    }
+    throw new Error(`Photo QA cleanup ${outcome}`);
+  }
+}
 const frames=async(page,count=2)=>{const at=await page.evaluate(()=>window.__INHAGAME_P0__.app.frame);await page.waitForFunction(({at,count})=>window.__INHAGAME_P0__.app.frame>=at+count,{at,count},{timeout:120000});};
 const snapshot=page=>page.evaluate(()=>{const d=window.__INHAGAME_P0__,p=d.player.getLocalPosition(),c=d.orbit.camera,r=c.getRotation(),cp=c.getPosition();return {position:[p.x,p.y,p.z],camera:[cp.x,cp.y,cp.z],rotation:[r.x,r.y,r.z,r.w],fov:c.camera.fov,mounted:d.controller.mounted,mountId:d.controller.mountId,held:d.controller.photoHolding,input:d.controller.inputEnabled,orbitInput:d.orbit.inputEnabled,orbit:{yaw:d.orbit.yaw,pitch:d.orbit.pitch,distance:d.orbit.distance,firstPerson:d.orbit.firstPerson,mounted:d.orbit.mounted,profile:d.orbit.flightProfile},photo:d.photoMode.active,rig:d.photoMode.active?d.photoMode.saved:null,phone:d.smartphone.shell.state,focus:d.getStatus().inputFocus,touch:d.controller.touchVector};});
 async function screen(page,entry,name){const path=`${entry.name}-${name}.png`;await page.screenshot({path:`${output}/${path}`,timeout:60000});entry.screenshots.push(path);}
-async function boot(smoke,entry){const page=await smoke.context.newPage();page.setDefaultTimeout(60000);smoke.watch(page);await page.goto(`${smoke.origin}/campus/?envTime=day&envWeather=clear`,{waitUntil:'domcontentloaded',timeout:TIMEOUT_MS});await page.waitForFunction(()=>window.__INHAGAME_P0__?.getStatus().loading?.finished,null,{timeout:120000});
+async function boot(smoke,entry){const page=await smoke.context.newPage();page.setDefaultTimeout(60000);smoke.watch(page);await page.goto(`${smoke.origin}/campus/?envTime=day&envWeather=clear&photoDiagnostics=1`,{waitUntil:'domcontentloaded',timeout:TIMEOUT_MS});await page.waitForFunction(()=>window.__INHAGAME_P0__?.getStatus().loading?.finished,null,{timeout:120000});
   const served=await page.evaluate(async paths=>Object.fromEntries(await Promise.all(paths.map(async p=>{const b=await(await fetch('/'+p)).arrayBuffer();return [p,[...new Uint8Array(await crypto.subtle.digest('SHA-256',b))].map(x=>x.toString(16).padStart(2,'0')).join('')];}))),sources);assert.deepEqual(served,hashes);await frames(page,2);return page;}
 async function setupMount(page,kind){return page.evaluate(async kind=>{
   const d=window.__INHAGAME_P0__,c=d.controller;
@@ -70,7 +87,21 @@ async function photoCase(smoke,entry,kind,mobile){let page=await boot(smoke,entr
   await page.evaluate(kind=>{const d=window.__INHAGAME_P0__;if(kind==='ground')d.controller.dismountBike();else d.controller.entity.mountKind=null;d.photoMode.update();},kind);
   const invalid=await snapshot(page);assert.equal(invalid.photo,false);assert.equal(invalid.held,false);assert.equal(invalid.input,true);assert.equal(invalid.focus.activeClaimCount,0);
   entry.checks.push(`${kind}: real board/move, stationary photo hold, union framing, look/free move/zoom, PNG+Album, reset, exact chase restore, ${phoneOrigin?'Phone':'World'} origin, resume driving, lifecycle safe close`);
-}finally{await page.close();await save();}}
+}catch(error){
+  entry.status = report.status = 'FAIL'; entry.error = String(error.stack ?? error); throw error;
+}finally{
+  entry.diagnostics ??= [];
+  try {
+    const receipt = await savePhotoCaptureDiagnostics(page, output, `${entry.name}-${kind}`);
+    entry.diagnostics.push({ kind, ...receipt });
+    if (receipt.status !== 'collected') {
+      entry.status = report.status = 'FAIL';
+      entry.error ??= `Photo diagnostics unavailable: ${receipt.reason}`;
+      throw new Error(entry.error);
+    }
+  }
+  finally { await closeWithReport(page, entry); }
+}}
 async function mapsCase(smoke,entry,mobile){const page=await boot(smoke,entry);try{
   await page.locator('#phone-toggle').click();await page.locator('.smartphone-app[data-app-id="maps"]').click();
   await page.locator('.full-map-search-input').fill('본관');await page.locator('.full-map-search-result').first().click();
@@ -97,7 +128,7 @@ async function mapsCase(smoke,entry,mobile){const page=await boot(smoke,entry);t
   await page.locator('#full-map-auto-move').click();assert.equal(await page.evaluate(()=>window.__INHAGAME_P0__.smartphone.shell.state),'CLOSED');
   assert.equal(await page.evaluate(()=>window.__INHAGAME_P0__.playerAutoMove.active),true);
   entry.checks.push('Maps transparent 44px marker wrappers/circular icons, one selected highlight, hit-area selection, favorite state/instant list/add+remove reload readback, selection+destination preserved, locate/zoom/reset/search/auto move');
-}finally{await page.close();await save();}}
+}finally{await closeWithReport(page, entry);}}
 try{
   const cases=new Set((process.env.MOUNTED_PHOTO_QA_CASES||'desktop,portrait,landscape').split(','));
   for(const [name,viewport,mobile]of [['desktop',{width:1280,height:800},false],['portrait',{width:390,height:844},true],['landscape',{width:844,height:390},true]]){
@@ -105,9 +136,13 @@ try{
     const entry={name,viewport,status:'RUNNING',checks:[],screenshots:[],captures:[],subjects:[]};report.cases.push(entry);await save();
     const smoke=await startSmoke({viewport,contextOptions:{isMobile:mobile,hasTouch:mobile,deviceScaleFactor:1,acceptDownloads:true,reducedMotion:'reduce'}});
     try{for(const kind of ['ground','water','air']){console.log(`${name}: ${kind}`);await photoCase(smoke,entry,kind,mobile);}console.log(`${name}: maps`);await mapsCase(smoke,entry,mobile);assert.deepEqual(smoke.problems.filter(x=>!x.includes('/api/world-time')),[]);entry.status='PASS';}
-    catch(error){entry.status='FAIL';entry.error=String(error.stack??error);throw error;}
-    finally{entry.problems=smoke.problems;await smoke.close();await save();}
+    catch(error){entry.status='FAIL';entry.error ??= String(error.stack??error);throw error;}
+    finally{entry.problems=smoke.problems;await closeWithReport(smoke, entry);}
   }
   report.status=cases.size===3?'PASS':'PARTIAL';
 }catch(error){report.status='FAIL';report.error=String(error.stack??error);process.exitCode=1;}
 finally{await save();console.log(JSON.stringify({status:report.status,cases:report.cases.map(c=>({name:c.name,status:c.status,checks:c.checks,error:c.error})),error:report.error},null,2));}
+
+// A stuck Playwright protocol may retain process handles after bounded cleanup.
+// Evidence above is already persisted; terminate this QA process as failure.
+if (cleanupFailed) process.exit(1);

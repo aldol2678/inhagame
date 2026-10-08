@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createPhotoCapture } from '../src/photo/photo-capture.js';
 
-function fixture({ width = 640, height = 360, contextLost = false, transparent = false } = {}) {
+function fixture({ width = 640, height = 360, contextLost = false, transparent = false, diagnostics = false, onDiagnostic, now } = {}) {
   const listeners = new Map(), subscribers = new Set(), timers = new Set(), draws = [];
   const app = { graphicsDevice: { contextLost }, renderNextFrame: false,
     on(name, fn) { listeners.set(name, fn); }, off(name, fn) { if (listeners.get(name) === fn) listeners.delete(name); } };
@@ -15,7 +15,7 @@ function fixture({ width = 640, height = 360, contextLost = false, transparent =
     getContext() { return { drawImage(...args) { draws.push(args); },
       getImageData() { return { data: new Uint8ClampedArray([10, 30, 50, transparent ? 0 : 255]) }; } }; },
     toBlob(fn, type) { encode = fn; mime = type; } };
-  const capture = createPhotoCapture({ app, canvas, mode, doc: { createElement: () => snapshot },
+  const capture = createPhotoCapture({ app, canvas, mode, diagnostics, onDiagnostic, now, doc: { visibilityState: 'visible', createElement: () => snapshot },
     setTimer(fn) { timers.add(fn); return fn; }, clearTimer(fn) { timers.delete(fn); } });
   return { app, canvas, mode, capture, snapshot, draws, listeners, subscribers, timers,
     frame: () => listeners.get('frameend')?.(), encode: blob => encode(blob), get mime() { return mime; } };
@@ -86,4 +86,108 @@ test('destroy cancels once and removes mode subscription; closed modes cannot ca
   await assert.rejects(pending, { name: 'AbortError' });
   assert.equal(h.subscribers.size, 0); await assert.rejects(h.capture.request(), { name: 'AbortError' });
   const closed = fixture(); closed.mode.close(); await assert.rejects(closed.capture.request(), { name: 'AbortError' });
+});
+
+
+test('diagnostics are disabled by default and never read the clock', async () => {
+  const h = fixture({ now: () => { throw new Error('must not run'); } });
+  const p = h.capture.request(); h.frame(); h.encode(png()); await p;
+  assert.deepEqual(h.capture.diagnostics(), []);
+});
+
+test('opt-in diagnostics record monotonic stages and bounded non-sensitive state', async () => {
+  let t = 100;
+  const h = fixture({ diagnostics: true, now: () => t });
+  h.app.autoRender = true;
+  const p = h.capture.request(); t = 110; h.frame(); t = 115; h.encode(png()); await p;
+  const [record] = h.capture.diagnostics();
+  assert.equal(record.code, 'success');
+  assert.deepEqual(record.events.map(e => e.phase), ['request', 'frame', 'readback', 'encoding', 'complete']);
+  assert.deepEqual(record.events.map(e => e.elapsedMs), [0, 10, 10, 10, 15]);
+  assert.deepEqual(record.events[0].state, { visibility: 'visible', contextLost: false, postrenderObservedSinceRequest: false, autoRender: true, renderNextFrame: false, width: 640, height: 360 });
+  record.events[0].state.width = -1;
+  assert.equal(h.capture.diagnostics()[0].events[0].state.width, 640, 'readers cannot mutate stored evidence');
+  for (let i = 0; i < 10; i++) { const p = h.capture.request(); h.frame(); h.encode(png()); await p; }
+  assert.equal(h.capture.diagnostics().length, 8);
+});
+
+for (const phase of ['request', 'encoding']) test('timeout diagnostics retain last reached phase: ' + phase, async () => {
+  const h = fixture({ diagnostics: true });
+  const p = h.capture.request(); if (phase === 'encoding') h.frame(); [...h.timers][0]();
+  await assert.rejects(p, { code: 'timeout' });
+  const [record] = h.capture.diagnostics();
+  assert.equal(record.code, 'timeout'); assert.equal(record.phase, phase);
+  assert.equal(record.events.at(-1).phase, 'failed');
+  const saved = JSON.stringify(record); if (phase === 'encoding') h.encode(png());
+  assert.equal(JSON.stringify(h.capture.diagnostics()[0]), saved, 'late callbacks cannot overwrite terminal evidence');
+});
+
+test('readback exceptions retain only an allowlisted kind; diagnostic observers cannot break capture', async () => {
+  const h = fixture({ diagnostics: true, onDiagnostic: () => { throw new Error('observer failure'); } });
+  h.snapshot.getContext = () => ({ drawImage() {}, getImageData() { throw Object.assign(new Error('private account https://secret.example/token'), { name: 'SecurityError' }); } });
+  const p = h.capture.request(); h.frame(); await assert.rejects(p, { code: 'unavailable' });
+  const [record] = h.capture.diagnostics();
+  assert.equal(record.phase, 'readback'); assert.equal(record.exceptionKind, 'SecurityError');
+  assert.doesNotMatch(JSON.stringify(record), /private|secret|token/);
+});
+
+test('null encoding and cancellation have distinct diagnostics without changing errors', async () => {
+  const h = fixture({ diagnostics: true });
+  let p = h.capture.request(); h.frame(); h.encode(null); await assert.rejects(p, { code: 'encoding' });
+  p = h.capture.request(); h.mode.close(); await assert.rejects(p, { name: 'AbortError' });
+  assert.deepEqual(h.capture.diagnostics().map(r => [r.code, r.phase]), [['encoding', 'encoding'], ['cancelled', 'request']]);
+});
+
+test('diagnostic clock and observer failures never change successful PNG completion', async () => {
+  for (const options of [
+    { now: () => { throw new Error('clock unavailable'); } },
+    { onDiagnostic: () => { throw new Error('observer unavailable'); } }
+  ]) {
+    const h = fixture({ diagnostics: true, ...options }), p = h.capture.request();
+    h.frame(); const blob = png(); h.encode(blob);
+    assert.deepEqual(await p, { blob, width: 640, height: 360 });
+    assert.equal(h.timers.size, 0); assert.equal(h.capture.busy, false);
+  }
+});
+
+test('diagnostic elapsed times never go backwards and final state is sampled again', async () => {
+  let t = 10;
+  const h = fixture({ diagnostics: true, now: () => t });
+  const p = h.capture.request(); t = 20; h.frame(); t = 15;
+  h.app.graphicsDevice.contextLost = true; h.encode(null);
+  await assert.rejects(p, { code: 'encoding' });
+  const [record] = h.capture.diagnostics();
+  assert.equal(record.events.at(-1).elapsedMs, 10);
+  assert.equal(record.events.at(-1).state.contextLost, true);
+});
+
+for (const rendered of [false, true]) test('diagnostics distinguish frameend from observed postrender: ' + rendered, async () => {
+  const h = fixture({ diagnostics: true }); h.app.autoRender = false;
+  const p = h.capture.request();
+  assert.equal(typeof h.listeners.get('postrender'), 'function');
+  if (rendered) h.listeners.get('postrender')();
+  h.app.renderNextFrame = false; h.frame(); h.encode(png()); await p;
+  const [record] = h.capture.diagnostics();
+  assert.equal(record.postrenderObservedSinceRequest, rendered);
+  assert.equal(record.events.find(e => e.phase === 'frame').state.postrenderObservedSinceRequest, rendered);
+  assert.equal(h.listeners.size, 0, 'all per-request listeners removed');
+});
+
+for (const end of ['cancel', 'timeout', 'unavailable']) test('postrender observer is removed on ' + end, async () => {
+  const h = fixture({ diagnostics: true, contextLost: end === 'unavailable' });
+  const p = h.capture.request(), late = h.listeners.get('postrender');
+  assert.equal(typeof late, 'function');
+  if (end === 'cancel') h.capture.cancel();
+  else if (end === 'timeout') [...h.timers][0]();
+  else h.frame();
+  await assert.rejects(p);
+  assert.equal(h.listeners.has('postrender'), false);
+  const before = JSON.stringify(h.capture.diagnostics()); late();
+  assert.equal(JSON.stringify(h.capture.diagnostics()), before);
+});
+
+test('disabled diagnostics never subscribe to postrender', async () => {
+  const h = fixture(), p = h.capture.request();
+  assert.equal(h.listeners.has('postrender'), false);
+  h.frame(); h.encode(png()); await p;
 });

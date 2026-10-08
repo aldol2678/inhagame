@@ -1737,8 +1737,10 @@ const photoInput = createPhotoInput({
   canUseShortcut: () => inputFocus.can("GAMEPLAY_SHORTCUT"),
   getMouseLook: () => ({ sensitivity: orbit.mouseSensitivity, invertY: orbit.invertMouseY })
 });
+const photoDiagnosticsEnabled = previewHost && startupParams.get('photoDiagnostics') === '1';
+const photoCapture = createPhotoCapture({ app, canvas, mode: photoMode, diagnostics: photoDiagnosticsEnabled });
 const photoModePanel = createPhotoModePanel({ mode: photoMode, rig: photoCamera, input: photoInput, fallbackFocus: canvas,
-  capture: createPhotoCapture({ app, canvas, mode: photoMode }),
+  capture: photoCapture,
   getCaptureContext: () => smartphone?.captureContext() ?? {},
   onCaptured: (result, context) => smartphone?.capture(result, context) ?? null,
   getAlbumLatest: () => smartphone?.latestPhoto() ?? null,
@@ -3649,6 +3651,7 @@ window.__INHAGAME_P0__ = {
   photoCamera,
   photoInput,
   photoModePanel,
+  ...(photoDiagnosticsEnabled ? { getPhotoCaptureDiagnostics: () => photoCapture.diagnostics() } : {}),
   cinematic,
   chatPanel,
   hudMenu,
