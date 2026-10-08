@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
-import {mkdir,writeFile} from 'node:fs/promises';
+import {mkdir,writeFile,readFile} from 'node:fs/promises';
 import {startSmoke,TIMEOUT_MS} from './harness.mjs';
 const output=process.env.ANNYONGI_OUTPUT||'test-results/annyongi';await mkdir(output,{recursive:true});
 const results=[];
+const riderSource=process.env.FIDELITY_RIDER_GLB?'local Production GLB (not committed)':'public QA cuboid';
 const frames=[];
 async function screenshot(page,path) {
  const at=await page.evaluate(()=>window.__INHAGAME_P0__.app.frame);
@@ -37,6 +38,10 @@ for(const time of (process.env.ANNYONGI_TIMES || 'day,night').split(',')) for(co
  const name=deviceName+'-'+time;
  const smoke=await startSmoke({viewport,contextOptions:touch?{isMobile:true,hasTouch:true,deviceScaleFactor:1}:{}});
  try {
+ if(process.env.FIDELITY_RIDER_GLB) {
+  const body=await readFile(process.env.FIDELITY_RIDER_GLB);
+  await smoke.context.route('**/assets/induck-v3.glb',route=>route.fulfill({status:200,contentType:'model/gltf-binary',body}));
+ }
  const page=await smoke.context.newPage();const fatal=smoke.watch(page);
  await page.goto(smoke.origin+'/campus/?envTime='+time+'&envWeather=clear',{waitUntil:'domcontentloaded',timeout:TIMEOUT_MS});
  await Promise.race([page.waitForFunction(()=>window.__INHAGAME_P0__?.getStatus?.().loading?.finished,null,{timeout:TIMEOUT_MS}),fatal]);
@@ -107,8 +112,8 @@ for(const time of (process.env.ANNYONGI_TIMES || 'day,night').split(',')) for(co
  await page.waitForFunction(()=>!window.__INHAGAME_P0__.controller.mounted,null,{timeout:30000});
  await screenshot(page,`${output}/${name}-landed.png`);
  assert.equal(await page.evaluate(()=>window.__INHAGAME_P0__.player.findByName('Annyongi_GLB_Visual').enabled),false);
- assert.deepEqual(smoke.problems,[]);results.push({name,setup,clipping,passed:true});
- }catch(error){results.push({name,passed:false,error:String(error.stack??error),problems:smoke.problems});throw error;}
+ assert.deepEqual(smoke.problems,[]);results.push({riderSource,name,setup,clipping,passed:true});
+ }catch(error){results.push({riderSource,name,passed:false,error:String(error.stack??error),problems:smoke.problems});throw error;}
  finally{await writeFile(output+'/campus-results.json',JSON.stringify({results,frames},null,2));await smoke.close();}
 }
 console.log('Annyongi campus desktop/mobile day/night PASS');

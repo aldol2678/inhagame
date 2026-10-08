@@ -85,3 +85,10 @@ adaptation of the referenced design, not an official university mascot revision.
 See `docs/implementation/annyongi-flight-v2/README.md`.
 
 The V2-FIX game adaptation adds three authored tail morph targets and a face counter-pitch hierarchy. See `docs/implementation/annyongi-flight-v2-fix/README.md`; the same character attribution and pending design approval apply.
+
+MASCOT-3D-FIDELITY-01 refines the project-authored cloud-wing surface, settled
+ground silhouette, curved tail/cloud tip and small identity details. It retains
+the three named tail morphs and existing flight motion. See
+`docs/implementation/mascot-3d-fidelity-01/README.md`. This remains a design-review
+candidate, not university approval. Private reference sheets and Production
+Induck source bytes are not redistributed.

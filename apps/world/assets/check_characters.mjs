@@ -8,7 +8,7 @@ for(const pivot of ['DuckWing_L','DuckWing_R','DuckLeg_L','DuckLeg_R'])assert.ok
 assert.ok(duck.meshes.every(m=>m.name.startsWith('qa_')));
 export function checkAnnyongi(bytes) {
  const {gltf,bounds}=inspectGlb(bytes,'Annyongi');
- assert.equal(gltf.asset.generator,'INHAGAME Annyongi procedural flight reconstruction v2.1');
+ assert.equal(gltf.asset.generator,'INHAGAME Annyongi procedural flight reconstruction v2.2');
  assert.equal(gltf.nodes[gltf.scenes[gltf.scene].nodes[0]].name,'Annyongi_Root');
  const names=['Body','Head','Horn_L','Horn_R','Ear_L','Ear_R','Eye_L','Eye_R','Cheek_L','Cheek_R','Mouth','Fang_L','Fang_R','Forelock','Belly','BellyBands','Arm_L','Arm_R','Leg_L','Leg_R','Tail','TailCloud','CloudWing_L','CloudWing_R','FlightWing_L','FlightWing_R'];
  for(const name of names)assert.ok(gltf.nodes.some(n=>n.name===name && Number.isInteger(n.mesh)),name);
