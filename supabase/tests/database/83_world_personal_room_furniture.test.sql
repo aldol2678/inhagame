@@ -33,6 +33,7 @@ select set_config('housing.d3_room',public.get_or_create_my_personal_room_v1()->
 select set_config('housing.d3_chair','[{"id":"11111111-1111-4111-8111-111111111111","itemId":"furniture.induck_chair","surface":"floor","x":-2,"z":-1,"yaw":0}]',true);
 select is(public.get_world_room_furniture_v1(current_setting('housing.d3_room')::uuid)->>'revision','0','uninitialized layout is empty revision zero');
 select is(public.get_world_room_furniture_v1(current_setting('housing.d3_room')::uuid)->'objects','[]'::jsonb,'no auto-grants or seeded ownership');
+select is((select count(*) from private.world_room_furniture_v1()),16::bigint,'F0 server furniture catalog exposes sixteen placement definitions');
 select is(public.save_my_room_furniture_v1(current_setting('housing.d3_room')::uuid,0,'[]')->>'revision','0','empty no-op does not bump revision');
 select throws_ok($$select public.save_my_room_furniture_v1(current_setting('housing.d3_room')::uuid,0,'[{"id":"11111111-1111-4111-8111-111111111111","itemId":"furniture.dorm_desk_lamp","surface":"desk","x":2.25,"z":1.5,"yaw":0}]')$$,'42501','ITEM_NOT_OWNED','unowned Collection item cannot be placed');
 select is(public.save_my_room_furniture_v1(current_setting('housing.d3_room')::uuid,0,current_setting('housing.d3_chair')::jsonb)->>'revision','1','first real save advances revision');
@@ -47,17 +48,24 @@ select private.world_inventory_grant_v1('a3000000-0000-4000-8000-000000000001',i
 from private.world_room_furniture_v1() where item_id<>'furniture.induck_chair';
 select set_config('housing.d3_owned_before',(select jsonb_agg(jsonb_build_object('item',item_id,'quantity',quantity) order by item_id)::text from private.world_player_items where user_id='a3000000-0000-4000-8000-000000000001'),true);
 set local role authenticated;
-select lives_ok($$select public.save_my_room_furniture_v1(current_setting('housing.d3_room')::uuid,1,'[
+select lives_ok($select public.save_my_room_furniture_v1(current_setting('housing.d3_room')::uuid,1,'[
  {"id":"11111111-1111-4111-8111-111111111111","itemId":"furniture.induck_chair","surface":"floor","x":-2,"z":-1,"yaw":45},
  {"id":"22222222-2222-4222-8222-222222222222","itemId":"furniture.campus_rug_blue","surface":"floor","x":-2.5,"z":-1.75,"yaw":0},
  {"id":"33333333-3333-4333-8333-333333333333","itemId":"furniture.dorm_desk_lamp","surface":"desk","x":2.25,"z":1.5,"yaw":0},
- {"id":"44444444-4444-4444-8444-444444444444","itemId":"furniture.mini_induck","surface":"desk","x":2.5,"z":1.5,"yaw":0},
+ {"id":"44444444-4444-4444-8444-444444444444","itemId":"furniture.mini_induck","surface":"desk","x":2.45,"z":1.8,"yaw":0},
  {"id":"55555555-5555-4555-8555-555555555555","itemId":"furniture.induck_cushion","surface":"bed","x":-3.75,"z":1.5,"yaw":45},
  {"id":"66666666-6666-4666-8666-666666666666","itemId":"furniture.campus_map_poster","surface":"north","x":-3,"z":4.15,"yaw":0},
  {"id":"77777777-7777-4777-8777-777777777777","itemId":"furniture.dorm_resident_plate","surface":"south","x":2,"z":-4.15,"yaw":180},
  {"id":"88888888-8888-4888-8888-888888888888","itemId":"furniture.mcm_2026_poster","surface":"west","x":-5.35,"z":-1,"yaw":270},
- {"id":"99999999-9999-4999-8999-999999999999","itemId":"furniture.mcm_2026_landlord_figure","surface":"floor","x":1.5,"z":-1.5,"yaw":0}
- ]')$$,'all nine Collection items, rotation, rug under chair, desk, bed and wall placements save together');
+ {"id":"99999999-9999-4999-8999-999999999999","itemId":"furniture.mcm_2026_landlord_figure","surface":"floor","x":1.5,"z":-1.5,"yaw":0},
+ {"id":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1","itemId":"furniture.dorm_single_sofa","surface":"floor","x":-6.25,"z":1,"yaw":0},
+ {"id":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2","itemId":"furniture.dorm_side_table_low","surface":"floor","x":-6.25,"z":2,"yaw":0},
+ {"id":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3","itemId":"furniture.dorm_bookshelf_slim","surface":"floor","x":6.5,"z":0.5,"yaw":0},
+ {"id":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa4","itemId":"furniture.dorm_plant_medium","surface":"floor","x":6.5,"z":-1,"yaw":0},
+ {"id":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa5","itemId":"furniture.dorm_monitor","surface":"desk","x":2.8,"z":1.5,"yaw":0},
+ {"id":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa6","itemId":"furniture.dorm_trophy_shelf","surface":"floor","x":6.5,"z":2.5,"yaw":0},
+ {"id":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa7","itemId":"furniture.study_books_set","surface":"desk","x":2.75,"z":1.9,"yaw":0}
+ ]')$,'all sixteen F0 Collection items save together, including the C70 side bays');
 select set_config('housing.d3_saved',(public.get_world_room_furniture_v1(current_setting('housing.d3_room')::uuid)->'objects')::text,true);
 select is(public.get_world_room_furniture_v1(current_setting('housing.d3_room')::uuid)->>'revision','2','atomic replacement advances once');
 select is(public.save_my_room_furniture_v1(current_setting('housing.d3_room')::uuid,1,(select jsonb_agg(value order by value->>'id' desc) from jsonb_array_elements(current_setting('housing.d3_saved')::jsonb)))->>'revision','2','reordered identical snapshot is also idempotent');
@@ -69,7 +77,7 @@ select throws_ok($$select public.save_my_room_furniture_v1(current_setting('hous
 select throws_ok($$select public.save_my_room_furniture_v1(current_setting('housing.d3_room')::uuid,2,jsonb_set(current_setting('housing.d3_chair')::jsonb,'{0,x}','-2.1'))$$,'22023','INVALID_LAYOUT','quarter-unit grid enforced');
 select throws_ok($$select public.save_my_room_furniture_v1(current_setting('housing.d3_room')::uuid,2,jsonb_set(current_setting('housing.d3_chair')::jsonb,'{0,yaw}','46'))$$,'22023','INVALID_LAYOUT','45-degree rotation enforced');
 select throws_ok($$select public.save_my_room_furniture_v1(current_setting('housing.d3_room')::uuid,2,jsonb_set(current_setting('housing.d3_chair')::jsonb,'{0,x}','1e100'))$$,'22023','INVALID_LAYOUT','huge coordinates rejected before float cast');
-select throws_ok($$select public.save_my_room_furniture_v1(current_setting('housing.d3_room')::uuid,2,jsonb_set(current_setting('housing.d3_chair')::jsonb,'{0,x}','-5.25'))$$,'22023','ROOM_BOUNDS','footprint must fit room');
+select throws_ok($$select public.save_my_room_furniture_v1(current_setting('housing.d3_room')::uuid,2,jsonb_set(current_setting('housing.d3_chair')::jsonb,'{0,x}','-7'))$$,'22023','ROOM_BOUNDS','footprint must fit room');
 select throws_ok($$select public.save_my_room_furniture_v1(current_setting('housing.d3_room')::uuid,2,jsonb_set(jsonb_set(current_setting('housing.d3_chair')::jsonb,'{0,x}','0'),'{0,z}','-2.75'))$$,'22023','EXIT_BLOCKED','door and spawn corridor cannot be blocked');
 select throws_ok($$select public.save_my_room_furniture_v1(current_setting('housing.d3_room')::uuid,2,jsonb_set(jsonb_set(current_setting('housing.d3_chair')::jsonb,'{0,x}','-3.75'),'{0,z}','1.5'))$$,'22023','FURNITURE_OVERLAP','base fixtures protected');
 select throws_ok($$select public.save_my_room_furniture_v1(current_setting('housing.d3_room')::uuid,2,jsonb_set(current_setting('housing.d3_chair')::jsonb,'{0,itemId}','"bed_basic"'))$$,'22023','INVALID_LAYOUT','obsolete generic furniture IDs are not accepted');
