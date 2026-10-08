@@ -6,7 +6,7 @@ Y-up, +Z front, coordinates in player-root space. Python stdlib only.
 import json, math, struct, pathlib, hashlib
 ROOT=pathlib.Path(__file__).resolve().parents[2]
 OUT=ROOT/'apps/world/assets/annyongi-flight-v1.glb'
-GENERATOR='INHAGAME Annyongi procedural flight reconstruction v2.5'
+GENERATOR='INHAGAME Annyongi procedural flight reconstruction v2.6'
 COLORS={'blue':'d3edfb','cream':'fffde4','pink':'f6bec8','mouth':'bf6280','ink':'211f1f','white':'ffffff','curl':'9fc7dc'}
 def color(key):
  h=COLORS[key];s=[int(h[i:i+2],16)/255 for i in (0,2,4)]
@@ -138,12 +138,23 @@ for sign,label in [(-1,'L'),(1,'R')]:
 nose=part('Nose');points=curve([[-.115,.34,0],[-.09,.405,0],[-.04,.41,0],[0,.36,0],[.04,.41,0],[.09,.405,0],[.115,.34,0]],3)
 for sign in [-1,1]:nose.ellipsoid([sign*.095,.315,face(sign*.095,.315,.045)],[.125,.073,.080],'blue',16,8)
 nose.tube([[x,y,face(x,y,.026+.063*max(0,(.41-y)/.07))] for x,y,_ in points],.016,'ink',8)
-forelock=part('Forelock');forelock.ellipsoid([-.03,.88,.18],[.15,.12,.15],'blue',20,12)
-pts=[]
-for k in range(25):
- t=k/24;angle=-math.pi/2+t*math.pi*3;radius=.115*(1-t)+.012;x=radius*math.cos(angle);y=.77+radius*math.sin(angle)
- pts.append([x,y,face(x,y,.017)])
-forelock.tube(pts,.014,'ink',6)
+# One tapered blue curl grows out of the forehead rather than a separate crest
+# and flat line. The familiar dark spiral follows the raised ridge in 3D.
+forelock=part('Forelock');pts=[];radii=[]
+for k in range(22):
+ t=k/21;angle=-math.pi/2+t*math.pi*3;radius=.145*(1-t)+.014;x=radius*math.cos(angle);y=.81+radius*math.sin(angle)
+ pts.append([x,y,face(x,y,0)]);radii.append(.060*(1-t)+.024)
+base=[];ridge=[]
+for i,(x,y,z) in enumerate(pts):
+ tangent=unit(sub(pts[min(i+1,len(pts)-1)],pts[max(0,i-1)]))
+ outward=unit([x/(.69*.69),(y-.32)/(.63*.63),(z-.17)/(.57*.57)])
+ outward=unit(sub(outward,mul(tangent,sum(a*b for a,b in zip(outward,tangent)))))
+ # Bury the attachment cap and blend the rest of the curl into the head.
+ embed=.35+.60*max(0,1-i/2)
+ center=add([x,y,z],mul(outward,-radii[i]*embed));base.append(center)
+ ridge.append(add(center,mul(outward,radii[i]*.90)))
+forelock.tube(base,radii,'blue',7)
+forelock.tube(ridge,[.012-.003*i/(len(ridge)-1) for i in range(len(ridge))],'ink',6)
 # Cream belly and three subtle transverse bands visible in official front/side views.
 def belly_surface(x,y):return -.03+.34*math.sqrt(max(.01,1-(x/.37)**2-((y+.53)/.47)**2))+.012
 belly=part('Belly')
@@ -211,12 +222,13 @@ for sign,label in [(-1,'L'),(1,'R')]:
  # Rotate its contour 62 degrees around Y, mirror the rotation, and thin depth.
  # Keep the hand below/in front of it; the expanded animated wing is untouched.
  small=part('CloudWing_'+label)
- cloud_wing(small,sign,[0,0,0],.43)
+ # Enlarge the identity contour by 11.6%, keeping its previous depth.
+ cloud_wing(small,sign,[0,0,0],.48)
  angle=sign*math.radians(62);co=math.cos(angle);si=math.sin(angle)
  for i in range(len(small.p)//3):
-  x,y,z=small.p[i*3:i*3+3];z*=.68
+  x,y,z=small.p[i*3:i*3+3];z*=.68*.43/.48
   small.p[i*3:i*3+3]=[sign*.40+co*x+si*z,y-.24,.12-si*x+co*z]
-  nx,ny,nz=small.n[i*3:i*3+3];nz/=.68
+  nx,ny,nz=small.n[i*3:i*3+3];nz/=.68*.43/.48
   small.n[i*3:i*3+3]=unit([co*nx+si*nz,ny,-si*nx+co*nz])
  cloud_wing(part('FlightWing_'+label),sign,[0,0,0],1.0,extended=True)
 # Back-view tail: a fuller curl leaving the rump, with depth visible from the side.
