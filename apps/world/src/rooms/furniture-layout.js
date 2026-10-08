@@ -105,9 +105,13 @@ export function canonicalFurniture(objects) {
   return objects.map(({ id, itemId, surface, x, z, yaw }) => ({ id, itemId, surface, x, z, yaw })).sort((a,b) => a.id.localeCompare(b.id));
 }
 export function firstFurniturePosition(itemId, surface, objects, owned) {
-  // Prefer a clear floor patch, then scan a bounded grid. No placement without a valid space.
+  // Keep the familiar H2 center-first behavior, then use the C70 side bays for floor furniture.
+  // No placement is returned unless the same validator accepts it.
   const id = "00000000-0000-4000-8000-000000000000";
-  for (let z = -3.75; z <= 3.75; z += .25) for (let x = -5; x <= 5; x += .25) {
+  const ranges = surface === "floor"
+    ? [[-5,5],[Math.ceil(PLACEMENT_FLOOR.minX*4)/4,-5.25],[5.25,Math.floor(PLACEMENT_FLOOR.maxX*4)/4]]
+    : [[-5,5]];
+  for (const [minX,maxX] of ranges) for (let z = -3.75; z <= 3.75; z += .25) for (let x = minX; x <= maxX; x += .25) {
     const candidate = { id, itemId, surface, ...positionOnSurface(surface, x, z) };
     if (!validateFurniture([...objects, candidate], owned)) return candidate;
   }
