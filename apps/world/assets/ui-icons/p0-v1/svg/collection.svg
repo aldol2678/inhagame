@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" role="img" aria-labelledby="title-collection" stroke-linejoin="round" stroke-linecap="round">
+<title id="title-collection">도감</title>
+
+  <path d="M5.2 4.6h8.9c1.2 0 2.2.9 2.2 2.1v12.8H7.2c-1.1 0-2-.9-2-2Z" fill="#FFFFFF" stroke="#103F7E" stroke-width="1.8" stroke-linejoin="round"/>
+  <path d="M16.4 6.3h2.1a1.8 1.8 0 0 1 1.8 1.8v11.3h-9.1" fill="#E5F5FF" stroke="#103F7E" stroke-width="1.6" stroke-linejoin="round"/>
+  <path d="M8.1 9.3h5.1M8.1 12h4.2M8.1 14.7h5.3" stroke="#7599B4" stroke-width="1.35" stroke-linecap="round"/>
+  <path d="M14.8 15.5 16 16.8l2.5-3" fill="none" stroke="#58C6AE" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

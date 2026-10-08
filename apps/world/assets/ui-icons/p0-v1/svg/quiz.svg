@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" role="img" aria-labelledby="title-quiz" stroke-linejoin="round" stroke-linecap="round">
+<title id="title-quiz">퀴즈</title>
+<path d="M5.4 4.6h9.2c1.15 0 2.1.95 2.1 2.1v12.1H7.6c-1.2 0-2.2-.95-2.2-2.2Z" fill="#FFFFFF" stroke="#103F7E" stroke-width="1.8" stroke-linejoin="round"/>
+  <path d="M16.8 6.1h1.9c1 0 1.9.8 1.9 1.9v10.8h-9.1" fill="#E5F5FF" stroke="#103F7E" stroke-width="1.55" stroke-linejoin="round"/>
+  <path d="M8.6 9.1c.1-1.2 1.1-1.9 2.4-1.9 1.35 0 2.3.8 2.3 1.9 0 .75-.4 1.25-1.2 1.75-.65.4-.95.8-.95 1.5" fill="none" stroke="#103F7E" stroke-width="1.45" stroke-linecap="round"/>
+  <circle cx="11.2" cy="13.6" r=".95" fill="#FFC85C" stroke="#103F7E" stroke-width=".9"/>
+  <path d="m14.6 15.2 1.2 1.2 3-3.6" fill="none" stroke="#58C6AE" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="m16.7 9.2 1.1-1.1 1.9 1.9-1.1 1.1" fill="#FFC85C" stroke="#103F7E" stroke-width="1.1" stroke-linejoin="round"/>
+  <path d="m16.1 10.8 1-1 1.3 1.3-1 1Z" fill="#398EF2" stroke="#103F7E" stroke-width="1" stroke-linejoin="round"/>
+</svg>

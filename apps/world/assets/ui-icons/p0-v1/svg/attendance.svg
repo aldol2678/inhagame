@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" role="img" aria-labelledby="title-attendance" stroke-linejoin="round" stroke-linecap="round">
+<title id="title-attendance">출석</title>
+
+  <rect x="4.2" y="5.3" width="15.6" height="15.1" rx="2.2" fill="#FFFFFF" stroke="#103F7E" stroke-width="1.8"/>
+  <path d="M7.7 3.5v3.6M16.3 3.5v3.6" stroke="#103F7E" stroke-width="1.8" stroke-linecap="round"/>
+  <path d="M4.2 9.1h15.6" stroke="#103F7E" stroke-width="1.4"/>
+  <path d="M8.1 13.2 10.2 15.2 15.8 11" fill="none" stroke="#58C6AE" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="17.8" cy="6.9" r="1.15" fill="#FFC85C" stroke="#103F7E" stroke-width=".9"/>
+</svg>
