@@ -4,11 +4,12 @@
 import * as pc from "playcanvas";
 import { box, surface } from "../campus-render-kit.js";
 import { PERSONAL_ROOM_BASIC, PERSONAL_ROOM_BASIC_FURNITURE } from "./personal-room-layout.js";
+import { createPersonalRoomShell } from "./personal-room-shell-renderer.js";
 import { createFurnitureLayer } from "./furniture-renderer.js";
 import { createPersonalRoomChairModel } from "./personal-room-chair-model.js";
 import { createPersonalRoomDecor } from "./personal-room-decor-renderer.js";
 
-const {halfWidth:W,halfDepth:D,ceiling:H,wall:T,door}=PERSONAL_ROOM_BASIC;
+const {ceiling:H}=PERSONAL_ROOM_BASIC;
 function glow(hex,intensity=1){
   const n=parseInt(hex.slice(1),16);
   const c=new pc.Color((n>>16&255)/255,(n>>8&255)/255,(n&255)/255);
@@ -42,16 +43,7 @@ function furniture(root,item,app){
 }
 export function createPersonalRoomScene(app){
   const root=new pc.Entity("Room_ROOM_PERSONAL_BASIC");root.setLocalScale(1,1,-1);
-  const wall=surface("#ece7dc"),trim=surface("#756a60");
-  box(root,"floor",[0,-0.05,0],[2*W+2*T,0.1,2*D+2*T],surface("#b99168"));
-  box(root,"ceiling",[0,H+0.05,0],[2*W+2*T,0.1,2*D+2*T],surface("#f2f0ea"));
-  box(root,"wall_north",[0,H/2,D+T/2],[2*W+2*T,H,T],wall);
-  box(root,"wall_south",[0,H/2,-D-T/2],[2*W+2*T,H,T],wall);
-  box(root,"wall_west",[-W-T/2,H/2,0],[T,H,2*D],wall);
-  box(root,"wall_east",[W+T/2,H/2,0],[T,H,2*D],wall);
-  box(root,"door_frame",[door.x,door.height/2+0.03,-D+0.02],[door.width+0.16,door.height+0.08,0.05],trim);
-  box(root,"door",[door.x,door.height/2,-D+0.05],[door.width,door.height,0.04],surface("#7d5c3e"));
-  box(root,"window",[0.5,1.18,D-0.025],[2.6,0.75,0.03],glow("#cfe9ff",0.45));
+  createPersonalRoomShell(root);
   const fixtureLoaders=[];
   for(const item of PERSONAL_ROOM_BASIC_FURNITURE){
     const ensureModel=furniture(root,item,app);
