@@ -87,7 +87,7 @@ export function createFurnitureEditor({ client, inventory, onOpenChange = () => 
       const x = -mapW + (event.clientX-rect.left)/rect.width*(2*mapW);
       const z = mapD - (event.clientY-rect.top)/rect.height*(2*mapD);
       if (object.surface === "floor" && (x < placement.minX || x > placement.maxX || z < placement.minZ || z > placement.maxZ)) {
-        message = "확장된 C안 공간은 먼저 보행에 열렸어요. 저장 가구 범위는 기존 방 배치를 안전하게 보존해요.";
+        message = "가구를 놓을 수 있는 바닥 범위 밖이에요. 평면도 안쪽을 선택해 주세요.";
         render(); return;
       }
       changeObject(positionOnSurface(object.surface,x,z,object.yaw));
