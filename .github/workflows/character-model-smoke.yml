@@ -8,12 +8,19 @@ on:
       - 'tools/world-assets/**'
       - 'apps/world/src/asset-authority-canary.js'
       - 'apps/world/tests/character-model-loading.test.mjs'
-      - 'apps/world/tests/browser/**'
+      # Keep this expensive suite scoped to the browser fixtures it actually executes.
+      - 'apps/world/tests/browser/harness.mjs'
+      - 'apps/world/tests/browser/package*.json'
+      - 'apps/world/tests/browser/character-model-loading-*'
+      - 'apps/world/tests/browser/annyongi-*'
       - 'apps/world/assets/induck-v3.glb'
       - 'apps/world/assets/annyongi-flight-v1.glb'
       - '.github/workflows/character-model-smoke.yml'
 permissions:
   contents: read
+concurrency:
+  group: character-model-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 jobs:
   character-model-browser:
     runs-on: ubuntu-latest
