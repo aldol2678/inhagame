@@ -1,4 +1,4 @@
-import { getSetting, setSetting } from './settings-registry.js';
+import { getSetting, setSetting, readSettings, updateSettings, SETTINGS_DEFAULTS } from './settings-registry.js';
 export const GRAPHICS_QUALITY_KEY = 'inha-world-graphics-quality-v1';
 export const GRAPHICS_QUALITY_LABELS = Object.freeze({
   auto: '자동', low: '낮음', medium: '보통', high: '높음'
@@ -43,20 +43,60 @@ export function visualPolicy(viewPreset, graphicsProfile) {
   });
 }
 
-export function createGraphicsPresetController({ app, device, light, storage, viewport }) {
+export function createGraphicsPresetController({ app, device, light, storage, viewport,
+  document: doc = globalThis.document, window: win = globalThis.window, fpsElement = doc?.getElementById('graphics-fps'),
+  now = () => performance.now() }) {
   if (!storage) { try { storage = globalThis.localStorage; } catch { /* Session-only setting. */ } }
   const auto = selectAutoGraphics(viewport);
-  let preference = readGraphicsQuality(storage);
+  let details = readSettings(storage).graphics;
+  let preference = details.quality;
   let tier = preference === 'auto' ? auto.tier : preference;
   let profile = GRAPHICS_PRESETS[tier];
   const policyCache = new WeakMap();
+  const originalAutoRender = app.autoRender;
+  let nextFrame = null, sampleStart = null, renderedFrames = 0, fps = null, destroyed = false;
+  const resetTiming = () => { nextFrame = null; sampleStart = null; renderedFrames = 0; fps = null;
+    if (fpsElement) fpsElement.textContent = '— FPS'; };
+  // Keep simulation/input on every engine update. Only GPU rendering is paced.
+  const update = () => {
+    if (doc?.hidden) { app.autoRender = false; app.renderNextFrame = false; return; }
+    app.autoRender = details.frameLimit === 'auto';
+    if (app.autoRender) return;
+    const time = now(), interval = 1000 / details.frameLimit;
+    if (nextFrame === null || time + 0.01 >= nextFrame) {
+      app.renderNextFrame = true;
+      nextFrame = nextFrame === null || time - nextFrame > interval
+        ? time + interval : nextFrame + interval;
+    }
+  };
+  const postrender = () => {
+    if (!details.showFps) return;
+    const time = now();
+    if (sampleStart === null) { sampleStart = time; return; }
+    renderedFrames++;
+    if (time - sampleStart >= 1000) {
+      fps = Math.round(renderedFrames * 1000 / (time - sampleStart));
+      if (fpsElement) fpsElement.textContent = `${fps} FPS`;
+      sampleStart = time; renderedFrames = 0;
+    }
+  };
+  app.on?.('update', update);
+  app.on?.('postrender', postrender);
+  doc?.addEventListener('visibilitychange', resetTiming);
+  win?.addEventListener('pageshow', resetTiming);
   const apply = () => {
     profile = GRAPHICS_PRESETS[tier];
-    device.maxPixelRatio = profile.maxPixelRatio;
+    device.maxPixelRatio = details.renderScale === 'auto' ? profile.maxPixelRatio
+      : Math.min(Math.max(1, viewport.dpr || 1), 2) * details.renderScale;
     app.resizeCanvas();
-    light.castShadows = profile.castShadows;
-    light.shadowResolution = profile.shadowResolution;
-    light.shadowDistance = profile.shadowDistance;
+    const shadow = GRAPHICS_PRESETS[details.shadows] || profile;
+    light.castShadows = details.shadows === 'auto' ? profile.castShadows : details.shadows !== 'off';
+    light.shadowResolution = shadow.shadowResolution;
+    light.shadowDistance = shadow.shadowDistance;
+    app.autoRender = details.frameLimit === 'auto';
+    app.renderNextFrame = false;
+    if (fpsElement) fpsElement.hidden = !details.showFps;
+    resetTiming();
     console.info(`Graphics: ${preference.toUpperCase()} → ${tier.toUpperCase()} (${preference === 'auto' ? auto.reason : 'user override'})`);
   };
   apply();
@@ -65,9 +105,36 @@ export function createGraphicsPresetController({ app, device, light, storage, vi
     get tier() { return tier; },
     get profile() { return profile; },
     get autoReason() { return auto.reason; },
+    setDetail(key, value) {
+      const allowed = { frameLimit: ['auto', 30, 45, 60, 90, 120], renderScale: ['auto', 0.7, 0.85, 1],
+        shadows: ['auto', 'off', 'low', 'medium', 'high'], showFps: [true, false] };
+      if (destroyed || !Object.hasOwn(allowed, key) || !allowed[key].includes(value)) return false;
+      details = { ...details, [key]: value };
+      apply();
+      return setSetting(storage, `graphics.${key}`, value);
+    },
+    reset() {
+      if (destroyed) return false;
+      // The separate view-distance choice and other settings remain untouched.
+      const { viewDistance: _viewDistance, ...defaults } = SETTINGS_DEFAULTS.graphics;
+      details = { ...details, ...defaults };
+      preference = details.quality; tier = auto.tier;
+      apply();
+      return updateSettings(storage, Object.fromEntries(Object.entries(defaults).map(([key,value]) => [`graphics.${key}`, value])));
+    },
+    destroy() {
+      if (destroyed) return;
+      destroyed = true;
+      app.off?.('update', update); app.off?.('postrender', postrender);
+      doc?.removeEventListener('visibilitychange', resetTiming);
+      win?.removeEventListener('pageshow', resetTiming);
+      app.autoRender = originalAutoRender; app.renderNextFrame = true;
+      if (fpsElement) fpsElement.hidden = true;
+    },
     setPreference(value) {
-      if (!Object.hasOwn(GRAPHICS_QUALITY_LABELS, value)) return false;
+      if (destroyed || !Object.hasOwn(GRAPHICS_QUALITY_LABELS, value)) return false;
       preference = value;
+      details = { ...details, quality: value };
       tier = value === 'auto' ? auto.tier : value;
       apply();
       return saveGraphicsQuality(storage, value);
@@ -79,7 +146,8 @@ export function createGraphicsPresetController({ app, device, light, storage, vi
       return byTier.get(tier);
     },
     status() {
-      return { preference, tier, autoReason: preference === 'auto' ? auto.reason : null,
+      return { frameLimit: details.frameLimit, renderScale: details.renderScale, shadows: details.shadows,
+        showFps: details.showFps, fps, preference, tier, autoReason: preference === 'auto' ? auto.reason : null,
         maxPixelRatio: device.maxPixelRatio, castShadows: light.castShadows,
         shadowResolution: light.shadowResolution, shadowDistance: light.shadowDistance };
     }

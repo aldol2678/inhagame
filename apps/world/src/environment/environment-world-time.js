@@ -43,7 +43,10 @@ export function createEnvironmentWorldTime({
     schedule = nextSchedule;
     visual = nextVisual;
 
-    if (nextVisual.environmentTime !== environmentTime) {
+    if (environment.setWorldTime) {
+      environment.setWorldTime(nextSchedule.cycleSeconds, nextVisual.environmentTime, { immediate: forceImmediate });
+      environmentTime = nextVisual.environmentTime;
+    } else if (nextVisual.environmentTime !== environmentTime) {
       environment.setTimeOfDay(nextVisual.environmentTime, { immediate: forceImmediate });
       environmentTime = nextVisual.environmentTime;
     }

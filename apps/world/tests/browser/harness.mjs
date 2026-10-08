@@ -12,28 +12,16 @@ import { readFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { fileURLToPath } from "node:url";
 import { chromium, webkit } from "playwright";
+import { resolveWorldSmokeSource } from "./harness-source.mjs";
 
 export const TIMEOUT_MS = Number(process.env.WORLD_SMOKE_TIMEOUT_MS || 90_000);
 const worldDir = fileURLToPath(new URL("../../", import.meta.url));
-const devServer = fileURLToPath(new URL("../../dev-server.mjs", import.meta.url));
 const localPlayCanvas = fileURLToPath(new URL("./node_modules/playcanvas/build/playcanvas.mjs", import.meta.url));
-// Every page that imports PlayCanvas; the smoke serves the version these import maps ask for.
-const IMPORT_MAP_PAGES = ["campus/index.html", "editor/index.html"];
-
-// The import maps are the contract: they must all name the version this package pins, so the smoke
-// fails clearly when a page moves to another PlayCanvas instead of silently testing a different one.
-async function pinnedPlayCanvas() {
-  const pinned = JSON.parse(await readFile(new URL("./package.json", import.meta.url), "utf8")).devDependencies.playcanvas;
-  const urls = new Set();
-  for (const page of IMPORT_MAP_PAGES) {
-    const html = await readFile(new URL(`../../${page}`, import.meta.url), "utf8");
-    const url = html.match(/"playcanvas"\s*:\s*"([^"]+)"/)?.[1];
-    assert.ok(url, `${page} import map has no playcanvas entry`);
-    assert.ok(url.includes(`playcanvas@${pinned}/`),
-      `${page} imports ${url}, but apps/world/tests/browser pins playcanvas ${pinned}; update package.json and package-lock.json`);
-    urls.add(url);
-  }
-  return { urls, source: await readFile(localPlayCanvas) };
+// Selectable roots are QA-only: sampler and imported engine stay pinned to this checkout.
+async function pinnedPlayCanvas(worldRoot) {
+  const selected = await resolveWorldSmokeSource({ worldRoot, defaultWorldRoot: worldDir,
+    samplerPackagePath: fileURLToPath(new URL("./package.json", import.meta.url)) });
+  return { ...selected, source: await readFile(localPlayCanvas) };
 }
 
 const freePort = () => new Promise((resolve, reject) => {
@@ -43,11 +31,11 @@ const freePort = () => new Promise((resolve, reject) => {
   });
 });
 
-async function startServer() {
+async function startServer({ worldRoot, devServer }) {
   const port = await freePort();
   const env = { ...process.env, PORT: String(port) };
   delete env.NPC_AI_PILOT;
-  const child = spawn(process.execPath, [devServer], { cwd: worldDir, env, stdio: ["ignore", "pipe", "pipe"] });
+  const child = spawn(process.execPath, [devServer], { cwd: worldRoot, env, stdio: ["ignore", "pipe", "pipe"] });
   let log = "";
   await new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error(`dev-server did not start:\n${log}`)), 15_000);
@@ -65,9 +53,9 @@ async function startServer() {
 // Starts the server and a headless Chromium with one offline context. `watch(page)` records page
 // errors, console errors and failed or 4xx/5xx same-origin requests into `problems`, and returns a
 // promise that rejects on the first uncaught page error or crash (race it against waits to fail fast).
-export async function startSmoke({ viewport = { width: 1280, height: 720 }, contextOptions = {}, browserType = "chromium" } = {}) {
-  const playCanvas = await pinnedPlayCanvas();
-  const server = await startServer();
+export async function startSmoke({ viewport = { width: 1280, height: 720 }, contextOptions = {}, browserType = "chromium", worldRoot } = {}) {
+  const playCanvas = await pinnedPlayCanvas(worldRoot);
+  const server = await startServer(playCanvas);
   // GPU-less CI checks the explicit unsupported path and the Editor's legacy WebGL2 preview.
   const disabled = process.env.WORLD_SMOKE_DISABLE_WEBGPU === '1';
   const gpuArgs = disabled
