@@ -96,21 +96,6 @@ export const ITEM_CATALOG = Object.freeze([
   item('furniture.campus_rug_blue', '파란 캠퍼스 러그', '인하 블루 색의 바닥 러그.',
     furniture('FLOOR_DECOR', { rarity: 'UNCOMMON', acquisition: [{ source: 'SHOP' }], tags: ['dorm'], introducedVersion: 'c0.v2' })),
 
-  // ---- Housing F0 · Personal Room Starter 7 (placement-ready, acquisition not activated here) ----
-  item('furniture.dorm_single_sofa', '생활관 1인 소파', '작은 방에서도 휴식 공간을 만드는 1인 소파.',
-    furniture('CHAIR', { rarity: 'UNCOMMON', acquisition: [{ source: 'SHOP' }], tags: ['dorm', 'f0', 'seating'], introducedVersion: 'housing.f0' })),
-  item('furniture.dorm_side_table_low', '낮은 사이드테이블', '소파와 러그 곁에 두기 좋은 낮은 테이블.',
-    furniture('DECOR', { rarity: 'COMMON', acquisition: [{ source: 'SHOP' }], tags: ['dorm', 'f0', 'table'], introducedVersion: 'housing.f0' })),
-  item('furniture.dorm_bookshelf_slim', '슬림 책장', '중앙 동선을 덜 차지하도록 깊이를 줄인 생활관 책장.',
-    furniture('DECOR', { rarity: 'UNCOMMON', acquisition: [{ source: 'SHOP' }], tags: ['dorm', 'f0', 'storage'], introducedVersion: 'housing.f0' })),
-  item('furniture.dorm_plant_medium', '중형 화분', '방에 자연스러운 실루엣을 더하는 중형 화분.',
-    furniture('DECOR', { rarity: 'COMMON', acquisition: [{ source: 'SHOP' }], tags: ['dorm', 'f0', 'plant'], introducedVersion: 'housing.f0' })),
-  item('furniture.dorm_monitor', '탁상 모니터', '책상 위 Study 구성을 위한 모니터. 별도 Device 기능은 포함하지 않는다.',
-    furniture('DECOR', { rarity: 'UNCOMMON', acquisition: [{ source: 'SHOP' }], tags: ['dorm', 'f0', 'electronics'], introducedVersion: 'housing.f0' })),
-  item('furniture.dorm_trophy_shelf', '트로피 선반', '대학생활의 기념품과 성취를 보여주기 위한 전시 선반.',
-    furniture('DECOR', { rarity: 'UNCOMMON', acquisition: [{ source: 'QUEST' }], tags: ['dorm', 'f0', 'display'], introducedVersion: 'housing.f0' })),
-  item('furniture.study_books_set', 'Study Books Set', '책 다섯 권과 노트를 하나의 배치로 묶은 공부 소품 세트.',
-    furniture('DECOR', { rarity: 'COMMON', acquisition: [{ source: 'SHOP' }], tags: ['dorm', 'f0', 'study', 'decor_set'], introducedVersion: 'housing.f0' })),
 
   // ---- Starter Catalog 20 · quest / collection 3 ----
   item('badge.campus_first_step', '캠퍼스 첫걸음 배지', '캠퍼스에서 첫걸음을 내디딘 기록.',
@@ -132,6 +117,23 @@ export const ITEM_CATALOG = Object.freeze([
     furniture('DECOR', { rarity: 'SPECIAL', eventId: MCM_2026, acquisition: [{ source: 'EVENT', ref: MCM_2026 }], tags: ['event', 'mcm_2026'], introducedVersion: 'c0.v2' })),
   item('furniture.mcm_2026_poster', '2026 일일호프 포스터', '2026 문콘경 일일호프 전체 완주 기념 포스터.',
     furniture('WALL_DECOR', { rarity: 'SPECIAL', eventId: MCM_2026, acquisition: [{ source: 'EVENT', ref: MCM_2026 }], tags: ['event', 'mcm_2026', 'vs_economy'], introducedVersion: 'c0.v2' })),
+
+  // ---- Housing F0 · Personal Room Starter 7 (placement-ready, acquisition not activated here) ----
+  item('furniture.dorm_single_sofa', '생활관 1인 소파', '작은 방에서도 휴식 공간을 만드는 1인 소파.',
+    furniture('CHAIR', { rarity: 'UNCOMMON', acquisition: [{ source: 'SHOP' }], tags: ['dorm', 'f0', 'seating'], introducedVersion: 'housing.f0' })),
+  item('furniture.dorm_side_table_low', '낮은 사이드테이블', '소파와 러그 곁에 두기 좋은 낮은 테이블.',
+    furniture('DECOR', { rarity: 'COMMON', acquisition: [{ source: 'SHOP' }], tags: ['dorm', 'f0', 'table'], introducedVersion: 'housing.f0' })),
+  item('furniture.dorm_bookshelf_slim', '슬림 책장', '중앙 동선을 덜 차지하도록 깊이를 줄인 생활관 책장.',
+    furniture('DECOR', { rarity: 'UNCOMMON', acquisition: [{ source: 'SHOP' }], tags: ['dorm', 'f0', 'storage'], introducedVersion: 'housing.f0' })),
+  item('furniture.dorm_plant_medium', '중형 화분', '방에 자연스러운 실루엣을 더하는 중형 화분.',
+    furniture('DECOR', { rarity: 'COMMON', acquisition: [{ source: 'SHOP' }], tags: ['dorm', 'f0', 'plant'], introducedVersion: 'housing.f0' })),
+  item('furniture.dorm_monitor', '탁상 모니터', '책상 위 Study 구성을 위한 모니터. 별도 Device 기능은 포함하지 않는다.',
+    furniture('DECOR', { rarity: 'UNCOMMON', acquisition: [{ source: 'SHOP' }], tags: ['dorm', 'f0', 'electronics'], introducedVersion: 'housing.f0' })),
+  item('furniture.dorm_trophy_shelf', '트로피 선반', '대학생활의 기념품과 성취를 보여주기 위한 전시 선반.',
+    furniture('DECOR', { rarity: 'UNCOMMON', acquisition: [{ source: 'QUEST' }], tags: ['dorm', 'f0', 'display'], introducedVersion: 'housing.f0' })),
+  item('furniture.study_books_set', 'Study Books Set', '책 다섯 권과 노트를 하나의 배치로 묶은 공부 소품 세트.',
+    furniture('DECOR', { rarity: 'COMMON', acquisition: [{ source: 'SHOP' }], tags: ['dorm', 'f0', 'study', 'decor_set'], introducedVersion: 'housing.f0' })),
+
 
   // ---- Life M1 · first persistent stackable materials ----
   item('material.campus_leaf', '캠퍼스 낙엽', '캠퍼스 생활 채집에서 얻는 기본 자연 재료.',
