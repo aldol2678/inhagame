@@ -1,0 +1,162 @@
+# One-off, non-release validation for PR #312. Never relax required CI.
+name: World collision PR312 validation
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/world-collision-validation.yml'
+permissions:
+  contents: read
+jobs:
+  road-contracts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - name: Assert PR312 collision code is unchanged
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --exit-code 77330a7014ea44a45643707f8853533bd2eb8b31 HEAD -- apps/world/src apps/world/tests
+      - name: Repeat production movement and original collision parity checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test \
+            apps/world/tests/polygon-sweep-broadphase.test.mjs \
+            apps/world/tests/back-gate.test.mjs \
+            apps/world/tests/back-street.test.mjs \
+            apps/world/tests/back-market.test.mjs \
+            apps/world/tests/culture-street.test.mjs \
+            apps/world/tests/main-gate-camera-collision.test.mjs \
+            apps/world/tests/student-center-campus.test.mjs \
+            apps/world/tests/backgate-road-qa.test.mjs
+  backgate-chromium:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      WORLD_SMOKE_DISABLE_WEBGPU: '1'
+      WORLD_SMOKE_BROWSER: chromium
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - name: Install pinned PlayCanvas and Playwright
+        working-directory: apps/world/tests/browser
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Install pinned Chromium
+        working-directory: apps/world/tests/browser
+        run: npx --no-install playwright install --with-deps chromium
+      - name: Verify backgate render-ownership contracts on pinned engine
+        run: node apps/world/tests/browser/backgate-road-null-smoke.mjs
+      - name: Browser-check eight real PlayerController backgate crossings
+        timeout-minutes: 8
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p test-results/pr312-collision
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import {writeFile} from 'node:fs/promises';
+          import {startSmoke,TIMEOUT_MS} from './apps/world/tests/browser/harness.mjs';
+          const path='test-results/pr312-collision/backgate.json';
+          const report={
+            schema:'world-collision-pr312-backgate-v1',
+            expectedOriginalHead:'77330a7014ea44a45643707f8853533bd2eb8b31',
+            actualHead:process.env.GITHUB_SHA,
+            runner:process.env.ImageOS,
+            coverage:'Eight real original-controller crossing routes, no synthetic replacement controller',
+            result:'RUNNING'
+          };
+          let smoke;
+          try {
+            smoke=await startSmoke({viewport:{width:1280,height:720}});
+            const page=await smoke.context.newPage();
+            const fatal=smoke.watch(page);
+            await page.goto(smoke.origin+'/campus/?envTime=day&envWeather=clear',
+              {waitUntil:'domcontentloaded',timeout:TIMEOUT_MS});
+            await Promise.race([
+              page.waitForFunction(()=>{
+                const s=window.__INHAGAME_P0__?.getStatus?.();
+                return s?.renderer==='UNAVAILABLE'||(s?.loading?.finished&&s?.characterModel==='glb');
+              },null,{timeout:TIMEOUT_MS}),fatal
+            ]);
+            const status=await page.evaluate(()=>window.__INHAGAME_P0__.getStatus());
+            assert.equal(status.renderer,'WebGL2');
+            assert.equal(status.loading.phase,'READY');
+            const walking=await Promise.race([
+              page.evaluate(async()=>{
+                const {runBackgateRoadWalking}=await import('/tests/browser/backgate-road-walking.mjs');
+                return runBackgateRoadWalking(window.__INHAGAME_P0__);
+              }),fatal
+            ]);
+            report.walking=walking;
+            assert.equal(walking.passed,true);
+            assert.equal(walking.cases.length,8);
+            assert.ok(walking.cases.every(c=>c.passed&&c.remaining<.005&&c.maxFootError<=1e-6));
+            assert.deepEqual(smoke.problems,[]);
+            report.result='PASS';
+            console.log('PR312 backgate browser actual PlayerController: 8/8 PASS');
+          }catch(error){
+            report.result='FAIL';report.error=String(error.stack||error);
+            throw error;
+          }finally{
+            report.problems=smoke?.problems??[];
+            await writeFile(path,JSON.stringify(report,null,2)+'\n');
+            if(smoke)await smoke.close();
+          }
+          NODE
+      - name: Preserve backgate evidence even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr312-backgate-browser-evidence
+          path: test-results/pr312-collision/
+          if-no-files-found: warn
+          retention-days: 7
+  maingate-chromium:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      WORLD_SMOKE_DISABLE_WEBGPU: '1'
+      WORLD_SMOKE_BROWSER: chromium
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - name: Install pinned PlayCanvas and Playwright
+        working-directory: apps/world/tests/browser
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Install pinned Chromium
+        working-directory: apps/world/tests/browser
+        run: npx --no-install playwright install --with-deps chromium
+      - name: Exercise existing main gate actual-browser camera and walk/RUN smoke
+        timeout-minutes: 10
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p test-results/pr312-maingate
+          timeout --signal=TERM --kill-after=10s 570s \
+            node apps/world/tests/browser/main-gate-camera-smoke.mjs \
+            2>&1 | tee test-results/pr312-maingate/main-gate.log
+      - name: Preserve main gate diagnostic log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr312-main-gate-browser-evidence
+          path: test-results/pr312-maingate/
+          if-no-files-found: warn
+          retention-days: 7
