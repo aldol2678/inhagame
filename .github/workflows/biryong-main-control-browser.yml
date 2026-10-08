@@ -26,16 +26,44 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+          fetch-depth: 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - name: Test fail-closed Biryong scope
+        run: node --test .github/ci/biryong-ci-scope.test.mjs
+      - name: Fetch exact PR base for scope
+        if: github.event_name == 'pull_request'
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        shell: bash
+        run: |
+          # If unavailable, the classifier fails closed to full measurement.
+          if [[ "$PR_BASE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            git fetch --quiet --no-tags --depth=1 origin "$PR_BASE_SHA" || true
+          fi
+      - name: Detect Biryong benchmark scope
+        id: scope
+        env:
+          CI_EVENT: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node .github/ci/biryong-ci-scope.mjs >> "$GITHUB_OUTPUT"
+      - name: Record verified UI-asset-only scope
+        if: steps.scope.outputs.mode == 'asset_only'
+        shell: bash
+        run: |
+          echo "UI icon asset-only change: Biryong benchmark not affected; compare-low-off passed scope gate." >> "$GITHUB_STEP_SUMMARY"
+          echo "Only apps/world/assets/ui-icons/p0-v1/svg/*.svg, README.md and manifest.json qualify." >> "$GITHUB_STEP_SUMMARY"
       - name: Checkout immutable main control
+        if: steps.scope.outputs.mode == 'measure'
         uses: actions/checkout@v4
         with:
           ref: e49419c39d884515f2402a2f3a23fe4c754b8882
           path: .qa-control-main
           persist-credentials: false
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24.19.0'
       - name: Verify source identity and prepare receipts
+        if: steps.scope.outputs.mode == 'measure'
         id: sources
         shell: bash
         run: |
@@ -46,10 +74,12 @@ jobs:
           echo "QA_CONTROL_TREE=$(git -C .qa-control-main rev-parse HEAD^{tree})" >> "$GITHUB_ENV"
           mkdir -p "$RUNNER_TEMP/biryong-main-control"
       - name: Install same pinned sampler engine
+        if: steps.scope.outputs.mode == 'measure'
         id: dependencies
         working-directory: apps/world/tests/browser
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Measure immutable main LOW Visual OFF
+        if: steps.scope.outputs.mode == 'measure'
         id: main
         continue-on-error: true
         shell: bash
@@ -63,7 +93,7 @@ jobs:
           node apps/world/tests/browser/biryong-performance-smoke.mjs 2>&1 | tee "$RUNNER_TEMP/biryong-main-control/main.log"
       - name: Measure candidate LOW Visual OFF
         id: candidate
-        if: always() && steps.dependencies.outcome == 'success' && steps.sources.outcome == 'success'
+        if: always() && steps.scope.outputs.mode == 'measure' && steps.dependencies.outcome == 'success' && steps.sources.outcome == 'success'
         continue-on-error: true
         shell: bash
         run: |
@@ -75,7 +105,7 @@ jobs:
           BIRYONG_PERF_RECEIPT="$RUNNER_TEMP/biryong-main-control/candidate.json" \
           node apps/world/tests/browser/biryong-performance-smoke.mjs 2>&1 | tee "$RUNNER_TEMP/biryong-main-control/candidate.log"
       - name: Compare same-runner LOW controls without relaxing budgets
-        if: always()
+        if: always() && steps.scope.outputs.mode == 'measure'
         env:
           BIRYONG_CONTROL_MAIN_OUTCOME: ${{ steps.main.outcome }}
           BIRYONG_CONTROL_CANDIDATE_OUTCOME: ${{ steps.candidate.outcome }}
@@ -87,7 +117,7 @@ jobs:
             "$RUNNER_TEMP/biryong-main-control/comparison.json" \
             "$CONTROL_SHA" "$QA_CANDIDATE_SHA"
       - name: Upload control receipts and logs
-        if: always()
+        if: always() && steps.scope.outputs.mode == 'measure'
         uses: actions/upload-artifact@v4
         with:
           name: biryong-immutable-main-control
