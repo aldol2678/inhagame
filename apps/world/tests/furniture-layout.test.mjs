@@ -48,10 +48,11 @@ for (const [name,object,expected] of [
   ["wrong mount",chair({surface:"north"}),"INVALID_LAYOUT"],
   ["invalid ID",chair({id:"bad"}),"INVALID_LAYOUT"]
 ]) test(`rejects ${name}`,()=>assert.equal(validateFurniture([object],owned),expected));
-test("C70 floor expansion accepts the side bays while rotation still honors the new bounds", () => {
+test("C70 floor expansion accepts the side bays while rotated footprints still honor the new bounds", () => {
   assert.equal(validateFurniture([chair({x:-6.5,z:0,yaw:0})],owned),null);
-  assert.equal(validateFurniture([chair({x:-6.7,z:0,yaw:0})],owned),null);
-  assert.equal(validateFurniture([chair({x:-6.7,z:0,yaw:45})],owned),"ROOM_BOUNDS");
+  const rug = {id,itemId:"furniture.campus_rug_blue",surface:"floor",x:-6,z:0,yaw:0};
+  assert.equal(validateFurniture([rug],owned),null);
+  assert.equal(validateFurniture([{...rug,yaw:45}],owned),"ROOM_BOUNDS");
 });
 test("the seven new F0 definitions fit their intended starter surfaces", () => {
   const expected = new Map([
