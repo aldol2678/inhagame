@@ -204,8 +204,10 @@ test("C70 shell and F0 floor placement share the widened room while legacy wall 
   assert.equal(PERSONAL_ROOM_PLACEMENT_ENVELOPE.floor.maxX,7.04);
   assert.equal(PERSONAL_ROOM_PLACEMENT_ENVELOPE.wall.eastX,5.35);
   assert.ok(PERSONAL_ROOM_PLACEMENT_ENVELOPE.floor.maxX<PERSONAL_ROOM_BASIC.halfWidth);
-  assert.ok(PERSONAL_ROOM_BASIC_BOUNDS.maxX>PERSONAL_ROOM_PLACEMENT_ENVELOPE.floor.maxX,
-    "walkable bounds keep capsule clearance outside the F0 floor placement envelope");
+  assert.ok(PERSONAL_ROOM_BASIC_BOUNDS.maxX>5.3,
+    "C70 widens the player-center walkable bound beyond the legacy H2 room");
+  assert.ok(PERSONAL_ROOM_BASIC_BOUNDS.maxX<PERSONAL_ROOM_PLACEMENT_ENVELOPE.floor.maxX,
+    "player-center bounds keep capsule clearance while furniture footprints may approach the wall");
 });
 
 test("DORM_1_BASIC template is human-scale, local-only and static in D1.3",()=>{
