@@ -58,6 +58,8 @@ export const SKY_CLOUD_ALTITUDE = Object.freeze({
 
 export const SKY_SUN_DISTANCE = 480;
 export const SKY_SUN_DIAMETER = 28;
+export const SKY_MOON_DISTANCE = 470;
+export const SKY_MOON_DIAMETER = 20;
 
 export function skyCloudPatchBudget(tier) {
   return Object.hasOwn(SKY_CLOUD_PATCH_BUDGET, tier)
@@ -154,6 +156,30 @@ export function sunVisualProfile({
     visible: opacity > 0.015,
     color: Object.freeze(color),
     emissiveIntensity: 1.55 + Math.max(0, Number(sunIntensity) || 0) * 0.72
+  });
+}
+
+export function moonVisualProfile({
+  artificialLightFactor = 0,
+  rainIntensity = 0,
+  snowIntensity = 0,
+  cloudCover = 0.24
+} = {}) {
+  const night = clamp01((clamp01(artificialLightFactor) - 0.28) / 0.72);
+  const rain = clamp01(rainIntensity);
+  const snow = clamp01(snowIntensity);
+  const cover = clamp01(cloudCover);
+  const weatherVisibility = clamp01(
+    (1 - cover * 0.76) *
+    (1 - rain * 0.58) *
+    (1 - snow * 0.42)
+  );
+  const opacity = clamp01(night * weatherVisibility);
+  return Object.freeze({
+    opacity,
+    visible: opacity > 0.015,
+    color: Object.freeze([0.78, 0.84, 0.94]),
+    emissiveIntensity: 0.70 + opacity * 0.55
   });
 }
 

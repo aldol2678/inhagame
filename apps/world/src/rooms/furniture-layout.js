@@ -1,7 +1,7 @@
 // Collection-backed housing placements. Keep dimensions in sync with world_room_furniture_v1 SQL.
 // Coordinates are room-local; height is derived from the surface, never supplied by a player.
 import { getItemDefinition } from "../collection/item-catalog.js";
-import { PERSONAL_ROOM_BASIC_FURNITURE } from "./personal-room-layout.js";
+import { PERSONAL_ROOM_BASIC_FURNITURE, PERSONAL_ROOM_PLACEMENT_ENVELOPE } from "./personal-room-layout.js";
 
 const definition = (itemId, width, height, depth, surfaces, solid = true, flat = false) => Object.freeze({
   itemId, width, height, depth, surfaces: Object.freeze(surfaces), solid, flat,
@@ -23,12 +23,13 @@ export const FURNITURE_LIMIT = 32;
 export const FURNITURE_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 export const SURFACE_NAMES = Object.freeze({ floor: "바닥", desk: "책상 위", bed: "침대 위", north: "창문 쪽 벽", east: "오른쪽 벽", south: "문 쪽 벽", west: "왼쪽 벽" });
 const WALL_YAW = Object.freeze({ north: 0, east: 90, south: 180, west: 270 });
+const { floor: PLACEMENT_FLOOR, exit: PLACEMENT_EXIT, wall: PLACEMENT_WALL } = PERSONAL_ROOM_PLACEMENT_ENVELOPE;
 const EPSILON = 1e-7;
 export const snapFurniture = value => Math.round(value * 4) / 4;
 export function positionOnSurface(surface, x, z, yaw = 0) {
   return {
-    x: surface === "east" ? 5.35 : surface === "west" ? -5.35 : snapFurniture(x),
-    z: surface === "north" ? 4.15 : surface === "south" ? -4.15 : snapFurniture(z),
+    x: surface === "east" ? PLACEMENT_WALL.eastX : surface === "west" ? PLACEMENT_WALL.westX : snapFurniture(x),
+    z: surface === "north" ? PLACEMENT_WALL.northZ : surface === "south" ? PLACEMENT_WALL.southZ : snapFurniture(z),
     yaw: WALL_YAW[surface] ?? ((Math.round(yaw / 45) * 45 % 360) + 360) % 360
   };
 }
@@ -65,8 +66,8 @@ export function validateFurniture(objects, owned = null) {
     if (owned && counts.get(object.itemId) > (owned.find(row => row.itemId === object.itemId)?.quantity ?? 0)) return "ITEM_NOT_OWNED";
     const box = furnitureBox(object);
     if (object.surface === "floor") {
-      if (!within(box, -5.3, 5.3, -4.1, 4.1)) return "ROOM_BOUNDS";
-      if (overlaps(box, { minX: -.9, maxX: .9, minZ: -4.2, maxZ: -2.25 })) return "EXIT_BLOCKED";
+      if (!within(box, PLACEMENT_FLOOR.minX, PLACEMENT_FLOOR.maxX, PLACEMENT_FLOOR.minZ, PLACEMENT_FLOOR.maxZ)) return "ROOM_BOUNDS";
+      if (overlaps(box, PLACEMENT_EXIT)) return "EXIT_BLOCKED";
       for (const fixed of PERSONAL_ROOM_BASIC_FURNITURE) {
         if ((!fixed.collide && fixed.kind !== "chair" && !(item.flat && fixed.kind === "rug"))) continue;
         if (overlaps(box, fixedBox(fixed))) return "FURNITURE_OVERLAP";
@@ -79,7 +80,7 @@ export function validateFurniture(objects, owned = null) {
       if (overlaps(box, { minX: -4.296, maxX: -3.304, minZ: 2.63, maxZ: 3.11 })) return "FURNITURE_OVERLAP";
     } else {
       const horizontal = object.surface === "north" || object.surface === "south";
-      const tangent = horizontal ? object.x : object.z, edge = horizontal ? 5.3 : 4.1;
+      const tangent = horizontal ? object.x : object.z, edge = horizontal ? PLACEMENT_WALL.maxX : PLACEMENT_WALL.maxZ;
       if (Math.abs(tangent) + item.width/2 > edge + EPSILON) return "ROOM_BOUNDS";
       if (object.surface === "north" && object.x - item.width/2 < 1.8 && object.x + item.width/2 > -.8) return "FURNITURE_OVERLAP";
       if (object.surface === "south" && Math.abs(object.x) < .68 + item.width/2) return "EXIT_BLOCKED";

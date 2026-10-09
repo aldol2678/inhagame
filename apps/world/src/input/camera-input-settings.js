@@ -1,3 +1,4 @@
+import { normalizeNumericSetting } from "../numeric-setting.js";
 import { getSetting, updateSettings } from '../settings-registry.js';
 
 export const CAMERA_INPUT_STORAGE_KEY = "inha-world-camera-input-v1";
@@ -6,12 +7,9 @@ export const DEFAULT_CAMERA_INPUT_SETTINGS = Object.freeze({
   invertY: false
 });
 
-const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
-
 export function normalizeCameraInputSettings(value = {}) {
-  const sensitivity = Number(value?.sensitivity);
   return Object.freeze({
-    sensitivity: Number.isFinite(sensitivity) ? clamp(sensitivity, 0.5, 2) : DEFAULT_CAMERA_INPUT_SETTINGS.sensitivity,
+    sensitivity: normalizeNumericSetting(value?.sensitivity, DEFAULT_CAMERA_INPUT_SETTINGS.sensitivity, 0.5, 2),
     invertY: value?.invertY === true
   });
 }
@@ -70,10 +68,10 @@ export function bindCameraInputSettings({
   }
 
   const onSensitivity = () => {
-    apply({ sensitivity: Number(sensitivitySelect.value), invertY: invertCheckbox.checked }, { persist: true });
+    apply({ sensitivity: sensitivitySelect.value, invertY: invertCheckbox.checked }, { persist: true });
   };
   const onInvert = () => {
-    apply({ sensitivity: Number(sensitivitySelect.value), invertY: invertCheckbox.checked }, { persist: true });
+    apply({ sensitivity: sensitivitySelect.value, invertY: invertCheckbox.checked }, { persist: true });
   };
 
   sensitivitySelect.addEventListener("change", onSensitivity);

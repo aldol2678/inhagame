@@ -13,9 +13,9 @@ const assets = [
 const proxy = (asset, variant = null) =>
   `/api/brand-asset?asset=${asset}${variant ? `&variant=${variant}` : ""}`;
 
-test("production routes canonical and optimized variants for every runtime brand GLB", () => {
+test("production proxies legacy brand assets; authored Annyongi uses built static files", () => {
   const expected = [];
-  for (const asset of assets) {
+  for (const asset of assets.filter(name => name !== "annyongi-flight-v1.glb")) {
     const escaped = asset.replaceAll(".", "\\.");
     expected.push({ src: `/assets/${escaped}`, dest: proxy(asset) });
     expected.push({
@@ -49,12 +49,15 @@ test("WorldForge editor route precedes the filesystem fallback", () => {
   assert.ok(serverSource.includes('reqPath = "/studio/index.html"'));
 });
 
-test("public repository retains QA provenance for restored runtime brand paths", () => {
+test("public repository records per-asset provenance without mislabeling Annyongi as QA", () => {
   const provenance = JSON.parse(readFileSync(new URL("../../../ASSET_PROVENANCE.json", import.meta.url), "utf8"));
   for (const name of assets) {
     const asset = provenance.assets.find(item => item.path === `apps/world/assets/${name}`);
     assert.ok(asset, name);
-    assert.match(asset.provenance, /Independent axis-aligned QA box|Independent QA geometry/i, name);
+    if (name === "annyongi-flight-v1.glb") {
+      assert.match(asset.provenance, /official Annyongi mascot design/);
+      assert.equal(asset.approvalStatus, 'design-review-pending');
+    } else assert.match(asset.provenance, /Independent axis-aligned QA box|Independent QA geometry/i, name);
   }
 });
 
@@ -83,4 +86,14 @@ test("optimized edge function pins glTF Transform and preserves character pivots
     assert.match(source, new RegExp(pivot));
   }
   assert.match(source, /output\.byteLength < source\.byteLength/);
+});
+
+test("Annyongi source and optimized URLs cannot be intercepted by the legacy brand service", () => {
+  for (const url of ['/assets/annyongi-flight-v1.glb', '/.generated/assets-optimized/annyongi-flight-v1.glb']) {
+    const intercept=config.routes.find(r=>r.src && new RegExp('^'+r.src+'$').test(url));
+    assert.equal(intercept,undefined,url);
+  }
+  const build=readFileSync(new URL('../build-recast-shadow.sh',import.meta.url),'utf8');
+  assert.match(build,/optimize-world-assets.mjs --strict/);
+  assert.match(build,/check_characters.mjs/);
 });

@@ -23,6 +23,9 @@ import { legacyTelemetryTarget } from './legacy-zone-compat.js';
 import { createViewDistanceSettings } from './view-distance-settings.js';
 import { createGraphicsPresetController } from './graphics-presets.js';
 import { createEnvironmentDirector } from './environment/environment-director.js';
+import { createBiryongVisualLighting } from './biryong/biryong-visual-lighting.js';
+import { createBiryongAtmosphere } from './biryong/biryong-atmosphere.js';
+import { createBiryongPerformanceMonitor } from './biryong/biryong-performance-monitor.js';
 import { resolveEnvironmentRuntimeTime, resolveEnvironmentRuntimeWeather } from './environment/environment-clock.js';
 import { createEnvironmentWorldTime } from './environment/environment-world-time.js';
 import { createWorldTimeHud } from './hud/world-time-hud.js';
@@ -41,6 +44,7 @@ import { createSkyVisuals } from './environment/sky-visuals.js';
 import { createInkyungDuckSystem } from './ambient-ducks.js';
 import { createInkyungMechanicalDuckEvent } from './inkyung-mechanical-duck-event.js';
 import { createBiryongSystem } from './biryong/biryong-system.js';
+import { createBiryongCloudSync } from './biryong/biryong-cloud-sync.js';
 import { BIRYONG_PLACE_ID, isNearBiryong } from './biryong/biryong-layout.js';
 import { createBackGateArrivalEvent } from './back-gate-arrival-event.js';
 import { createAssetOptimizationShadow } from './asset-optimization-shadow.js';
@@ -50,6 +54,7 @@ import { createAssetCanaryTelemetry } from './asset-canary-telemetry.js';
 import { createWorldGraphicsDevice, GraphicsUnavailableError } from './webgpu-device.js';
 import { createCharacter } from "./character-model.js";
 import { createCampusProfile } from "./campus-profile.js";
+import { createSmartphone } from "./phone/smartphone.js";
 import { createCampusTour } from "./campus-tour.js";
 import { LANDMARKS, TOUR_STOPS } from "./campus-layout.js";
 import { worldToMeters } from "./world-scale.js";
@@ -64,7 +69,11 @@ import { campusSpawn } from './campus-spawn.js';
 import { createContextActionController } from "./context-action.js";
 import { createPhotoMode } from "./photo/photo-mode.js";
 import { createPhotoCapture } from "./photo/photo-capture.js";
-import { createPhotoModePanel } from "./photo/photo-mode-panel.js";
+import { bindPhotoModeEntry, createPhotoModePanel } from "./photo/photo-mode-panel.js";
+import { createPhotoCameraController } from "./photo/photo-camera-controller.js";
+import { createPhotoInput } from "./photo/photo-input.js";
+import { overPondWater } from "./landmark-detail-layout.js";
+import { INKYUNG_WATER_Y } from "./mounts/duck-boat-motion.js";
 import { createInkyungLivingMoment, INKYUNG_LIVING_ZONE_ID } from "./inkyung-living-moment.js";
 import { createNextDiscovery, FIRST_CAMPUS_REWARD_ID } from "./next-discovery.js";
 import { createCore15FunnelTelemetry } from "./core15-funnel-telemetry.js";
@@ -158,6 +167,7 @@ import { LIFE_SKILL_BOOK_STATE, createLifeSkillBookClient } from "./life-skills/
 import { createLifeSkillBookPanel } from "./life-skills/life-skill-book-panel.js";
 import { FISHING_CLIENT_STATE, createFishingClient } from "./activity/fishing-client.js";
 import { createFishingPanel } from "./activity/fishing-panel.js";
+import { createFishingRenderer } from "./activity/fishing-renderer.js";
 import { fishingContextAction, findNearbyFishingSpot } from "./activity/fishing-spots.js";
 import { createLoadoutClient } from "./appearance/loadout-client.js";
 import { createEquipmentProjection } from "./appearance/equipment-projection.js";
@@ -241,9 +251,16 @@ const npcSocialProductionMode = npcProductionMode;
 const npcSocialMode = npcSocialProductionMode || npcSocialPreviewMode || npcObservedConversationMode;
 const npcEnabled = npcSharedScheduleMode || npcTestMode || npcProductionMode || npcPreviewMode || npcRosterPreviewMode || npcSocialMode;
 const campusLifePreview = previewHost && startupParams.get('campusLife') === 'p0a';
+const biryongVisualStage = previewHost ? startupParams.get('biryongVisual') : null;
+const biryongVisualLabP0A = ['p0a', 'p0b', 'p0c', 'p0d', 'p0e'].includes(biryongVisualStage);
+const biryongVisualLabP0B = ['p0b', 'p0c', 'p0d', 'p0e'].includes(biryongVisualStage);
+const biryongVisualLabP0C = ['p0c', 'p0d', 'p0e'].includes(biryongVisualStage);
+const biryongVisualLabP0D = ['p0d', 'p0e'].includes(biryongVisualStage);
+const biryongVisualLabP0E = biryongVisualStage === 'p0e';
 let lastTrackedZone = null;
 
 async function boot() {
+globalThis.__INHA_WORLD_BOOT_DIAGNOSTICS__?.markBootEntered?.();
 worldLoading?.setPhase("RENDERER");
 const device = await createWorldGraphicsDevice(pc, canvas);
 const rendererName = device.isWebGPU ? "WebGPU" : "WebGL2";
@@ -318,6 +335,11 @@ const graphics = createGraphicsPresetController({
     maxTextureSize: device.maxTextureSize || 0
   }
 });
+
+window.addEventListener('pagehide', event => {
+  if (!event.persisted) graphics.destroy();
+});
+app.on('destroy', () => graphics.destroy());
 
 const camera = new pc.Entity("Camera");
 camera.addComponent("camera", {
@@ -813,9 +835,6 @@ let nextDiscovery = null;
 // 비룡탑 · 울림돌 · BR01 (created once the audio layer exists; read lazily by earlier hooks).
 let biryong = null;
 let backGateArrival = null;
-let biryongCloudGeneration = 0;
-let biryongCloudSaveTimer = null;
-let biryongResolvedAccountId = null;
 const lobbySpawnRegistry = createSpawnRegistry();
 const spawnProgressContext = () => ({
   completedQuestIds: npcQuestStatus()?.quest?.complete === true ? [QUEST_ID] : []
@@ -861,6 +880,7 @@ const profile = createCampusProfile(player, camera, canvas, {
     else profileInput.release();
   }
 });
+let smartphone = null;
 const lobbyPlayerSummary = createLobbyPlayerSummary({
   nameElement: document.getElementById("lobby-player-name"),
   lookElement: document.getElementById("lobby-player-look"),
@@ -1086,6 +1106,7 @@ const progressionHud = createProgressionHud({
   menuLine: document.getElementById("progression-menu-line")
 });
 progression.onChange((change) => {
+  smartphone?.refresh();
   progressionHud.render(change.state, change.snapshot);
   lobbyPlayerSummary.setProgression(formatProgression(change.snapshot));
   firstCampusCompletion.growthReadback(change);
@@ -1538,10 +1559,32 @@ const fishing = createFishingClient({
       ? session.access_token : null;
   }
 });
+const fishingVisuals = createFishingRenderer({
+  pc, app, parent: campusRoot, player, character, camera, fishing, assetShadow: assetOptimizationShadow
+});
+let fishingPageHidden = false;
+const updateFishingVisuals = () => {
+  const equipmentFrame = character.getEquipmentAnchor("ACCESSORY")?.parent;
+  fishingVisuals.setSuppressed(fishingPageHidden || document.hidden || !equipmentFrame?.enabled ||
+    !equipmentFrame?.parent?.enabled || rooms.insideRoom || rooms.status().busy || biryongRealm?.inCampus === false ||
+    biryongRealm?.busy || lobbyWorld.active || lobbyTransition.active || cinematic.active || controller.mounted || seats.isSeated);
+  fishingVisuals.update();
+};
+app.on("update", updateFishingVisuals);
+window.addEventListener("pagehide", event => {
+  fishingPageHidden = true;
+  fishingVisuals.setSuppressed(true);
+  if (!event.persisted) { app.off("update", updateFishingVisuals); fishingVisuals.destroy(); }
+});
+window.addEventListener("pageshow", event => {
+  if (event.persisted) { fishingPageHidden = false; updateFishingVisuals(); }
+});
+player.once("destroy", () => { app.off("update", updateFishingVisuals); fishingVisuals.destroy(); });
 fishingPanel = createFishingPanel({
   panel: document.getElementById("fishing-panel"),
   fishing,
   onOpenChange: (open) => {
+    fishingVisuals.setOpen(open);
     if (open) {
       fishingInput.acquire();
       lifeSkillBookPanel?.setOpen(false);
@@ -1660,32 +1703,61 @@ keyboardHelp = createKeyboardShortcutsPanel({
   },
   onClose: () => { keyboardHelpInput.release(); }
 });
-// Social S1 photo UI: one existing Inkyung semantic point, temporary local framing only.
+// Photo Mode 2.0: opens from the HUD 📷 (or P) anywhere in normal play, never by place.
+// PhotoMode owns lifecycle, InputFocus and the play-camera snapshot; while it is open the
+// PhotoCameraRig is the only writer of the camera transform (see the update loop).
+const photoCamera = createPhotoCameraController({
+  camera,
+  collision: {
+    // The gameplay chase camera's own obstacle authority; rooms and regions swap it in.
+    obstacles: () => orbit.indoor ? orbit.indoor.obstacles : orbit.outdoorObstacles,
+    floorHeight: (x, z) => {
+      const ground = controller.space?.groundHeight?.(x, z);
+      return rooms.insideRoom || !overPondWater(x, z) ? ground : Math.max(ground, INKYUNG_WATER_Y);
+    }
+  }
+});
 const photoMode = createPhotoMode({
-  orbit, inputFocus,
+  orbit, rig: photoCamera, inputFocus,
+  entryOwnerId: "smartphone",
+  getMount: () => controller.getPhotoHoldTarget(),
+  getMountBounds: () => character.getPhotoSubjectBounds(controller.mountId),
   getPosition: () => player.getLocalPosition(),
   getState: () => ({
-    campus: rooms?.currentSpace === "campus" && biryongRealm?.inBiryong !== true &&
-      !lobbyWorld.active && !lobbyTransition.active,
+    world: player.parent !== null && !lobbyWorld.active && !lobbyTransition.active,
+    region: biryongRealm?.inBiryong === true ? "biryong" : "campus",
+    space: rooms?.currentSpace ?? null,
     grounded: controller.grounded,
-    mounted: controller.mounted, seated: seats.isSeated, following: follow.active, combat: combatRuntime.active,
+    mounted: controller.mounted, combat: combatRuntime.active, cinematic: cinematic.active === true,
     transitioning: rooms?.status().busy === true || biryongRealm?.busy === true,
     accountId: online?.userId ?? null
   }),
+  getPointerLocked: () => pointerLock.status().locked,
   beforeOpen: () => {
     follow.stop(FollowStopReason.EMOTE);
     playerAutoMove?.pause(AUTO_MOVE_CANCEL_REASON.INTERACTION);
     emoteMenu.setOpen(false);
     emotes.cancel("photo-mode");
   },
-  requestPose: () => requestEmote("photo_pose"),
+  // A seated emote would stand the player up and move the subject out of frame.
+  requestPose: () => seats.isSeated ? "seated" : requestEmote("photo_pose"),
   cancelPose: () => { if (emotes.active?.id === "photo_pose") emotes.cancel("photo-mode-close"); }
 });
-const photoModePanel = createPhotoModePanel({ mode: photoMode, fallbackFocus: canvas,
-  capture: createPhotoCapture({ app, canvas, mode: photoMode }) });
+const photoInput = createPhotoInput({
+  mode: photoMode, rig: photoCamera, canvas,
+  canUseShortcut: () => inputFocus.can("GAMEPLAY_SHORTCUT"),
+  getMouseLook: () => ({ sensitivity: orbit.mouseSensitivity, invertY: orbit.invertMouseY })
+});
+const photoModePanel = createPhotoModePanel({ mode: photoMode, rig: photoCamera, input: photoInput, fallbackFocus: canvas,
+  capture: createPhotoCapture({ app, canvas, mode: photoMode }),
+  getCaptureContext: () => smartphone?.captureContext() ?? {},
+  onCaptured: (result, context) => smartphone?.capture(result, context) ?? null,
+  getAlbumLatest: () => smartphone?.latestPhoto() ?? null,
+  onOpenAlbum: record => smartphone?.openAlbum(record) });
+const photoModeEntry = bindPhotoModeEntry({ button: document.getElementById("photo-mode-toggle"), mode: photoMode });
 window.addEventListener("pagehide", event => {
   photoMode.close("lifecycle");
-  if (!event.persisted) { photoModePanel.destroy(); photoMode.destroy(); }
+  if (!event.persisted) { photoModeEntry.destroy(); photoModePanel.destroy(); photoInput.destroy(); photoMode.destroy(); }
 });
 // Single input authority: migrated owners resolve WORLD_ACTION through InputFocusManager.
 const worldActionsSuspended = () => !inputFocus.can("WORLD_ACTION");
@@ -1821,7 +1893,22 @@ rooms = createRoomTransition({
     markSpace: (id) => { if (id) document.body.dataset.space = id; else delete document.body.dataset.space; }
   })
 });
-const biryongRealmScene = createBiryongRealmScene(app);
+const biryongRealmScene = createBiryongRealmScene(app, {
+  visualMaterials: biryongVisualLabP0B,
+  visualDensity: biryongVisualLabP0C,
+  getGraphicsTier: () => graphics.tier
+});
+window.__INHAGAME_BIRYONG_MATERIALS__ = Object.freeze({
+  status: () => Object.freeze({
+    enabled: biryongVisualLabP0B,
+    mode: biryongRealmScene.materialMode
+  })
+});
+const updateBiryongDensity = () => biryongRealmScene.environmentDensity.update();
+if (biryongVisualLabP0C) app.on("update", updateBiryongDensity);
+window.__INHAGAME_BIRYONG_DENSITY__ = Object.freeze({
+  status: () => biryongRealmScene.environmentDensity.status()
+});
 const biryongCampusReturnAnchor = Object.freeze({
   x: BACKGATE_TRANSIT.wait.x,
   y: controller.groundY + roadviewGroundHeight(BACKGATE_TRANSIT.wait.x, BACKGATE_TRANSIT.wait.z),
@@ -1861,11 +1948,81 @@ biryongRealm = createBiryongRealmTransition({
     },
     setLocationLabel: text => { zoneEl.textContent = text; },
     markRegion: id => {
+      biryongPerformance.suspend();
       document.body.dataset.worldRegion = id;
       fullMap?.close?.();
     }
   })
 });
+const biryongVisualLighting = createBiryongVisualLighting({
+  scene: app.scene,
+  lightEntity: light,
+  environment,
+  getActive: () => biryongRealm?.inBiryong === true,
+  getGraphicsTier: () => graphics.tier,
+  enabled: biryongVisualLabP0A
+});
+const updateBiryongLighting = () => biryongVisualLighting.update();
+if (previewHost) app.on("update", updateBiryongLighting);
+window.__INHAGAME_BIRYONG_VISUAL_LAB__ = Object.freeze({
+  status: () => biryongVisualLighting.status(),
+  ...(previewHost ? { setEnabled: value => biryongVisualLighting.setEnabled(value === true) } : {})
+});
+const biryongAtmosphere = createBiryongAtmosphere({
+  scene: app.scene,
+  camera,
+  canvas,
+  environment,
+  getActive: () => biryongRealm?.inBiryong === true,
+  getGraphicsTier: () => graphics.tier,
+  enabled: biryongVisualLabP0D,
+  toneMappingNeutral: pc.TONEMAP_NEUTRAL,
+  toneMappingCinematic: pc.TONEMAP_ACES2 ?? pc.TONEMAP_ACES ?? pc.TONEMAP_NEUTRAL
+});
+const updateBiryongAtmosphere = () => biryongAtmosphere.update();
+if (biryongVisualLabP0D) app.on("update", updateBiryongAtmosphere);
+window.__INHAGAME_BIRYONG_ATMOSPHERE__ = Object.freeze({
+  status: () => biryongAtmosphere.status()
+});
+const biryongPerformance = createBiryongPerformanceMonitor({
+  getVisible: () => document.visibilityState !== "hidden",
+  enabled: biryongVisualLabP0E,
+  getActive: () => biryongRealm?.inBiryong === true,
+  getGraphicsTier: () => graphics.tier,
+  getDensityStatus: () => biryongRealmScene.environmentDensity.status(),
+  getLightingStatus: () => biryongVisualLighting.status(),
+  getAtmosphereStatus: () => biryongAtmosphere.status()
+});
+const updateBiryongPerformance = () => biryongPerformance.recordFrame(performance.now());
+const suspendBiryongPerformance = () => biryongPerformance.suspend();
+if (biryongVisualLabP0E) {
+  app.on("postrender", updateBiryongPerformance);
+  document.addEventListener("visibilitychange", suspendBiryongPerformance);
+}
+window.__INHAGAME_BIRYONG_PERFORMANCE__ = Object.freeze({
+  status: () => biryongPerformance.status(),
+  reset: () => biryongPerformance.reset()
+});
+// Non-persisted teardown releases the region experiment; BFCache retains its live graph.
+let biryongVisualDestroyed = false;
+function destroyBiryongVisualLab() {
+  if (biryongVisualDestroyed) return;
+  biryongVisualDestroyed = true;
+  app.off("update", updateBiryongDensity);
+  app.off("update", updateBiryongLighting);
+  app.off("update", updateBiryongAtmosphere);
+  app.off("postrender", updateBiryongPerformance);
+  document.removeEventListener("visibilitychange", suspendBiryongPerformance);
+  biryongAtmosphere.destroy();
+  biryongVisualLighting.destroy();
+  biryongRealmScene.environmentDensity.destroy();
+  biryongPerformance.reset();
+}
+window.addEventListener("pagehide", event => {
+  biryongPerformance.suspend();
+  if (!event.persisted) destroyBiryongVisualLab();
+});
+app.once("destroy", destroyBiryongVisualLab);
 biryongVillageNpcs = createBiryongVillageNpcRuntime({
   app,
   root: biryongRealmScene.root,
@@ -2179,7 +2336,14 @@ const mcmMinigame = createMcm2026MinigameRuntime({
 const registry = new RenderChunkRegistry();
 const chunkRenderer = new CampusChunkRenderer(app,campusRoot,registry,{
   getRainIntensity: () => environment.rainIntensity(),
-  getArtificialLightFactor: () => environment.artificialLightFactor()
+  getArtificialLightFactor: () => environment.artificialLightFactor(),
+  getGraphicsTier: () => graphics.tier,
+  getSnowAccumulation: () => snowWeatherEffects.getAccumulation(),
+  enabled: !(previewHost && startupParams.get('contactShading') === '0')
+});
+window.__INHAGAME_CONTACT_SHADING__ = Object.freeze({
+  status: () => chunkRenderer.contactShading.status(),
+  ...(previewHost ? { setEnabled: value => chunkRenderer.contactShading.setEnabled(value) } : {})
 });
 window.__INHAGAME_POND_WEATHER__ = Object.freeze({
   status: () => chunkRenderer.getPondWeatherStatus()
@@ -2213,97 +2377,51 @@ inkyungSideEvent.onChange(status => {
 });
 if (inkyungSideEvent.requiresMechanicalDuck()) inkyungDucks.ensureMechanicalDuck();
 window.addEventListener("pagehide", event => { if (!event.persisted) inkyungDucks.destroy(); });
+const biryongCloudSync = createBiryongCloudSync({
+  getClient: () => online?.supabase ?? null,
+  progress: {
+    snapshot: () => biryong?.progressSnapshot() ?? {},
+    setScope: (scope, options) => biryong?.setLocalScope(scope, options),
+    merge: (snapshot, options) => biryong?.mergeProgress(snapshot, options)
+  },
+  onStatus: status => biryong?.setCloudSyncStatus(status),
+  onAccountSyncing: value => biryong?.setAccountSyncing(value),
+  onSettled: () => { minimap?.refreshPois?.(); fullMap?.refreshPois?.(); }
+});
 // Preview hosts can replay first discovery and BR01 with ?biryong=reset (progress kept in memory).
 biryong = createBiryongSystem({
   app, root: campusRoot, player, camera, worldAudio,
   persist: !(previewHost && startupParams.get("biryong") === "reset"),
   onDiscovered: () => { minimap?.refreshPois?.(); fullMap?.refreshPois?.(); },
   onStatus: showWorldStatus,
-  onProgress: snapshot => queueBiryongCloudSave(snapshot),
+  onProgress: snapshot => biryongCloudSync.queue(snapshot),
+  onCloudRetry: () => biryongCloudSync.retry(),
   onInputLockChange: (locked) => {
     if (locked) biryongScriptedInput.acquire();
     else biryongScriptedInput.release();
   }
 });
 
-async function mergeBiryongCloud(client, snapshot, migratedFromLocal = false) {
-  const { data, error } = await client.rpc("merge_my_biryong_progress_v1", {
-    p_progress: snapshot,
-    p_migrated_from_local: Boolean(migratedFromLocal)
-  });
-  if (error) throw error;
-  return data ?? null;
+function syncBiryongAccount(identity) {
+  return biryongCloudSync.setAccount(identity?.userId ?? null);
 }
 
-function queueBiryongCloudSave(snapshot) {
-  const client = online?.supabase;
-  if (!client || !snapshot) return false;
-  const generation = biryongCloudGeneration;
-  clearTimeout(biryongCloudSaveTimer);
-  biryongCloudSaveTimer = setTimeout(() => {
-    if (generation !== biryongCloudGeneration || client !== online?.supabase) return;
-    void mergeBiryongCloud(client, snapshot).catch(error =>
-      console.warn("Biryong account progress save failed; local cache retained:", error));
-  }, 250);
-  return true;
-}
-
-async function syncBiryongAccount(identity) {
-  const userId = identity?.userId ?? null;
-  const client = online?.supabase ?? null;
-
-  if (!userId || !client) {
-    // The first null identity is emitted before Auth resolution. Only reset to guest after a
-    // previously resolved permanent account actually signs out.
-    if (biryongResolvedAccountId !== null) {
-      biryongCloudGeneration += 1;
-      clearTimeout(biryongCloudSaveTimer);
-      biryongCloudSaveTimer = null;
-      biryongResolvedAccountId = null;
-      biryong?.setLocalScope("guest");
-      biryong?.setAccountSyncing(false);
-      minimap?.refreshPois?.();
-      fullMap?.refreshPois?.();
-    }
-    return null;
+window.addEventListener("pagehide", event => {
+  if (!event.persisted) {
+    biryongCloudSync.dispose();
+    biryong?.destroy();
   }
-
-  const generation = ++biryongCloudGeneration;
-  clearTimeout(biryongCloudSaveTimer);
-  biryongCloudSaveTimer = null;
-  biryongResolvedAccountId = userId;
-  biryong?.setAccountSyncing(true);
-  const scope = biryong?.setLocalScope(`account:${userId}`, { adoptLegacy: true }) ??
-    { migrated: false, reset: false };
-
-  try {
-    const { data, error } = await client.rpc("get_my_biryong_progress_v1");
-    if (error) throw error;
-    if (generation !== biryongCloudGeneration || userId !== biryongResolvedAccountId) return null;
-
-    if (data) biryong?.mergeProgress(data, { notify: false });
-    const merged = await mergeBiryongCloud(client, biryong?.progressSnapshot?.() ?? {}, scope.migrated);
-    if (generation !== biryongCloudGeneration || userId !== biryongResolvedAccountId) return null;
-    if (merged) biryong?.mergeProgress(merged, { notify: false });
-    return merged;
-  } catch (error) {
-    console.warn("Biryong account progress sync failed; local cache retained:", error);
-    return null;
-  } finally {
-    if (generation === biryongCloudGeneration && userId === biryongResolvedAccountId) {
-      biryong?.setAccountSyncing(false);
-      minimap?.refreshPois?.();
-      fullMap?.refreshPois?.();
-    }
-  }
-}
-window.addEventListener("pagehide", event => { if (!event.persisted) biryong?.destroy(); });
+});
 worldLoading?.setPhase("STREAMING");
 const viewSettings = createViewDistanceSettings(streaming,camera,graphics,{
   onOpenChange: (open) => {
     if (open) viewSettingsInput.acquire();
     else viewSettingsInput.release();
+    smartphone?.settingsChanged(open);
   }
+});
+window.addEventListener('pagehide', event => {
+  if (!event.persisted) viewSettings.destroy();
 });
 
 // M3 navigation (graph → solver → guidance) is its own best-effort layer, independent of the
@@ -2566,7 +2684,7 @@ try {
     getOverlayState: () => ({
       hudMenu: hudMenu.open, keyboardHelp: keyboardHelp?.open === true, friends: friendPanel.open,
       playerCard: playerCard.current != null, guestbook: guestbookPanel.open, shop: shopPanel.open, inventory: inventoryPanel.open, wardrobe: wardrobePanel.open,
-      blocking: furnitureEditor?.open === true || dailyQuizPanel.open || attendancePanel.open || lifeSkillBookPanel?.open === true || fishingPanel?.open === true || questJournal?.open === true,
+      blocking: smartphone?.shell.ownsInput === true || furnitureEditor?.open === true || dailyQuizPanel.open || attendancePanel.open || lifeSkillBookPanel?.open === true || fishingPanel?.open === true || questJournal?.open === true,
       npcConversation: npcTest?.isConversationOpen?.() === true || biryongVillageDialogue?.open === true,
       mcmEvent: mcmEventUi.openState || mcmEventRuntime.isDialogueOpen() === true,
       profile: document.getElementById("profile-panel")?.hidden === false,
@@ -2609,6 +2727,7 @@ try {
       const samePausedDestination = playerAutoMove?.paused && state?.destinationId === snapshot?.destination?.id;
       const started = samePausedDestination ? playerAutoMove.resume(snapshot) : playerAutoMove?.start(snapshot) === true;
       if (!started) showWorldStatus("자동이동 경로를 준비하지 못했어요");
+      if (started) smartphone?.navigationStarted(snapshot?.destination);
       return started;
     },
     isAutoMoveActive: selected => {
@@ -2655,6 +2774,7 @@ try {
     },
     onClose: () => {
       fullMapInput.release();
+      smartphone?.mapClosed();
       // The map opener lives inside the suspended Mini-map. Restore visibility
       // before Full Map validates its return-focus target, not on the next frame.
       minimap?.update({ force: true });
@@ -2691,6 +2811,37 @@ try {
 } catch (error) {
   console.warn("INHAGAME Campus map layer unavailable; continuing without it:", error);
 }
+
+// PHONE-MVP-01: presentation/integration only. Existing Photo/Map/Progression own their data.
+smartphone = createSmartphone({
+  inputFocus, photoMode, getMap: () => fullMap, getSettings: () => viewSettings,
+  getIdentity: () => online?.identity ?? null, getClient: () => online?.supabase ?? null,
+  getProgression: () => ({ state: progression.state, snapshot: progression.snapshot }),
+  getClock: () => worldTimeHud.status().clock,
+  getCaptureContext: () => {
+    const p = player.getLocalPosition(), place = places.getCurrentPlaceZone();
+    const room = rooms?.status();
+    return { position: { x: p.x, y: p.y, z: p.z }, mapSourceId: navigationSpaceId(),
+      locationId: room?.insideRoom ? room.roomId : place?.id ?? null,
+      locationName: room?.insideRoom ? (room.roomName || "실내") : place?.displayName || "캠퍼스",
+      capturedAtWorld: { period: environmentWorldTime.status().period, environmentTime: environmentWorldTime.status().environmentTime,
+        serverNowMs: environmentWorldTime.status().clock.serverNowMs }, weatherId: environment.status().targetWeather };
+  },
+  canOpen: () => !lobbyWorld.active && !lobbyTransition.active && !rooms?.status().busy && !biryongRealm?.busy &&
+    (inputFocus.can("WORLD_ACTION") || inputFocus.snapshot().topOwners.every(id => id === "hud-menu")),
+  beforeOpen: () => {
+    playerAutoMove?.pause(AUTO_MOVE_CANCEL_REASON.INTERACTION);
+    hudMenu.setOpen(false, { focus: false }); chatPanel.setOpen(false, { focus: false }); emoteMenu.setOpen(false);
+  },
+  toggle: document.getElementById("phone-toggle"), mapElement: document.getElementById("full-map-panel"),
+  settingsElement: document.getElementById("view-settings"), onWarning: showWorldStatus
+});
+// Controller's existing destination handler runs first; Phone returns to World only on a solved route.
+document.getElementById("full-map-set-destination")?.addEventListener("click", () => {
+  const snapshot = navigation?.getSnapshot();
+  if (snapshot?.status === "GUIDING") smartphone?.navigationStarted(snapshot.destination);
+});
+window.addEventListener("pagehide", event => { if (!event.persisted) smartphone?.destroy(); });
 
 // Quest Journal P1 consumes the shared Quest Runtime only. Existing quest clients remain the progress
 // authorities; the journal never writes quest stages or rewards.
@@ -2964,6 +3115,8 @@ places.onPlaceZoneChanged((previous,next)=>{
 });
 
 const LOBBY_SUMMARY_INTERVAL_S = 0.25;
+// Same local-body envelope the orbit uses before it hides the player's own mesh.
+const PHOTO_SUBJECT_CLEARANCE = 0.6;
 let lobbySummaryElapsed = LOBBY_SUMMARY_INTERVAL_S;
 // The lobby camera and player are static, so the map/zone/HUD readbacks only need to settle once
 // per lobby position instead of every frame. Reset outside the lobby so re-entry settles again.
@@ -3076,12 +3229,14 @@ app.on("update", (dt) => {
   helicopterFlightHud.update();
   orbit.setMounted(controller.mounted);
   character.setMounted(controller.mounted);
-  character.setFirstPerson(orbit.firstPerson);
+  // Photo Mode shows the local body once its camera leaves the eye (see subject clearance below).
+  character.setFirstPerson(orbit.firstPerson && !photoMode.active);
   // Locomotion outranks expression: moving, mounting or an incompatible jump ends the emote.
   const emote = emotes.update(locomotion());
   emoteMenu.setAvailable(!controller.mounted && !combatRuntime.active);
   character.update(Math.min(dt, 0.05), {
     ...locomotion(),
+    flightClearance: player.getLocalPosition().y - controller.groundY - roadviewGroundHeight(player.getLocalPosition().x, player.getLocalPosition().z),
     emote,
     seated: seats.isSeated,
     poseOffsets: combatFeedback.poseOffsets() ?? biryong?.poseOffsets() ?? null
@@ -3154,7 +3309,6 @@ app.on("update", (dt) => {
         combatRuntime.active || !inputFocus.can("WORLD_ACTION")
     }) ?? null
     : null);
-  contextActions.set("inkyung-photo", photoMode.contextAction());
   contextActions.set("inkyung-duck", inside ? null : inkyungDucks.getContextAction(pos));
   const fishingBlocked = inside || controller.mounted || seats.isSeated || fishingPanel?.open === true;
   if (!fishingBlocked && fishing.state === FISHING_CLIENT_STATE.UNAVAILABLE && findNearbyFishingSpot(pos)) void fishing.probe();
@@ -3197,6 +3351,7 @@ app.on("update", (dt) => {
     ]) contextActions.set(key, null);
     transportActions.set("mount", null);
   }
+  photoModeEntry.refresh();
   const suspended = worldActionsSuspended();
   contextActions.setSuspended(suspended);
   transportActions.setSuspended(suspended);
@@ -3232,11 +3387,20 @@ app.on("update", (dt) => {
     tourResultSent = true;
     if (window.InhaGameEntry?.result()) window.InhaGameEntry.clear();
   }
-  orbit.apply(pos, character.eyeHeight);
-  character.setCameraOccluded(orbit.localVisualOccluded);
-  if (!inside) {
-    biryong?.applyCamera();
-    backGateArrival?.applyCamera();
+  // One camera-transform owner per frame: the photo rig while Photo Mode is open, otherwise
+  // the gameplay orbit and the scripted overrides layered on it.
+  if (photoMode.active && photoMode.applyCamera(dt)) {
+    // Keep the local body hidden only while the photo camera is still at the eye (entry
+    // from first person shows the same frame); it reappears once the camera moves away.
+    const eye = { x: pos.x, y: pos.y + character.eyeHeight, z: pos.z };
+    character.setCameraOccluded(photoCamera.distanceTo(eye) < PHOTO_SUBJECT_CLEARANCE);
+  } else {
+    orbit.apply(pos, character.eyeHeight);
+    character.setCameraOccluded(orbit.localVisualOccluded);
+    if (!inside) {
+      biryong?.applyCamera();
+      backGateArrival?.applyCamera();
+    }
   }
   profile.update(controller.mounted, character.nameplateHeight, orbit.firstPerson);
   try {
@@ -3303,6 +3467,7 @@ try {
     void mcmEvent.setSignedIn(npcAiSignedIn || mcmEventPreviewMode);
     npcTest?.setAiSignedIn(npcAiSignedIn);
     profile.setIdentity(identity);
+    smartphone?.setAccount(identity?.userId ?? null);
     lobbyPlayerSummary.render();
     lobbyQuestHighlight.update();
     chatPanel.refreshAvailability();
@@ -3339,6 +3504,13 @@ try {
   const populationClient = window.supabase?.createClient?.(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
   populationHeartbeat = startWorldPopulationHeartbeat({
     client: populationClient,
+    onRevoked: () => {
+      // A world-only operator kick does not delete the account or character.
+      // Stop Realtime immediately; the server rejects further heartbeats until expiry.
+      online?.stop();
+      const status = document.getElementById('online-status');
+      if (status) status.textContent = '관리자가 월드 접속을 종료했습니다. 차단 해제 후 새로고침하세요.';
+    },
     getSnapshot: () => ({
       placeZoneId: rooms.insideRoom ? null : places.getCurrentPlaceZone()?.id ?? null,
       space: rooms.insideRoom
@@ -3498,10 +3670,15 @@ window.__INHAGAME_P0__ = {
   fullMap,
   navigation,
   campusNavigation,
+  playerAutoMove,
   online,
   emotes,
   emoteMenu,
   photoMode,
+  smartphone,
+  photoCamera,
+  photoInput,
+  photoModePanel,
   cinematic,
   chatPanel,
   hudMenu,
@@ -3634,7 +3811,8 @@ window.__INHAGAME_P0__ = {
     populationHeartbeat: (() => { try { return populationHeartbeat?.status() ?? null; } catch { return null; } })(),
     populationCount: (() => { try { return populationCount?.status() ?? null; } catch { return null; } })(),
     emote: emotes.active,
-    photoMode: { active: photoMode.active },
+    photoMode: { active: photoMode.active, blocked: photoMode.blockedReason(), camera: photoCamera.snapshot(),
+      input: photoInput.status(), panel: photoModePanel.status() },
     cinematic: cinematic.status(),
     seat: seats.seated?.id ?? null,
     follow: follow.status(),
@@ -3673,7 +3851,7 @@ window.__INHAGAME_P0__ = {
     dailyQuiz: { ...dailyQuiz.status(), panel: dailyQuizPanel.status() },
     attendance: { ...attendance.status(), panel: attendancePanel.status() },
     lifeSkillBook: { ...lifeSkillBook.status(), panel: lifeSkillBookPanel?.status() ?? null },
-    fishing: { ...fishing.status(), panel: fishingPanel?.status() ?? null },
+    fishing: { ...fishing.status(), panel: fishingPanel?.status() ?? null, visuals: fishingVisuals.status() },
     wardrobe: { ...loadout.status(), ...wardrobePanel.status() },
     equipment: equipmentProjection.status(),
     hudMenuOpen: hudMenu.open,
@@ -3766,6 +3944,3 @@ boot().catch((error) => {
   if (unsupported) console.warn("INHAGAME Campus WebGPU unavailable:", error);
   else console.error("INHAGAME Campus initialization failed:", error);
 });
-
-
-

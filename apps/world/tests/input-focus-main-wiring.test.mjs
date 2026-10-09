@@ -38,7 +38,10 @@ test("P1-B binds persistent desktop camera settings to OrbitCameraController", (
   assert.match(main, /cameraInput:\s*cameraInputSettings\.current/);
   assert.match(cameraSettings, /CAMERA_INPUT_STORAGE_KEY = "inha-world-camera-input-v1"/);
   assert.match(cameraSettings, /orbit\.setMouseLookSettings\(current\)/);
-  assert.match(cameraSettings, /sensitivity:\s*Number\(sensitivitySelect\.value\)/);
+  assert.equal((cameraSettings.match(/sensitivity:\s*sensitivitySelect\.value/g) ?? []).length, 2,
+    "both change handlers pass the raw value to normalization");
+  assert.doesNotMatch(cameraSettings, /Number\(sensitivitySelect\.value\)/,
+    "blank input must not become zero before normalization");
 });
 
 test("F/M/E/V gameplay gates consume the shared input focus snapshot", () => {

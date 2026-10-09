@@ -122,6 +122,8 @@ body.joystick-right #run, body.joystick-right #jump { right: auto; left: max(28p
   position: fixed; z-index: 19; right: max(16px, env(safe-area-inset-right));
   top: max(216px, calc(env(safe-area-inset-top) + 200px));
   width: min(270px, calc(100vw - 32px)); padding: 16px;
+  max-height: calc(100dvh - max(216px, calc(env(safe-area-inset-top) + 200px)) - 24px);
+  overflow-y: auto; overscroll-behavior: contain;
   border: 1px solid #a5cee2; border-radius: 14px; background: #10283cf5;
   color: #eef8ff; box-shadow: 0 8px 28px #0006;
 }
@@ -645,6 +647,7 @@ body[data-space] #tour { display: none; }
   display: flex;
   gap: 8px;
 }
+.social-cluster #photo-mode-toggle,
 .social-cluster #nearby-toggle,
 .social-cluster #emote-toggle,
 .social-cluster #chat-toggle {
@@ -660,6 +663,7 @@ body[data-space] #tour { display: none; }
   font-size: 18px;
   background: rgba(25,54,80,.88);
 }
+.social-cluster #photo-mode-toggle span,
 .social-cluster #nearby-toggle span,
 .social-cluster #emote-toggle span,
 .social-cluster #chat-toggle span {
@@ -695,6 +699,7 @@ body.joystick-right .emote-status {
     bottom: max(154px, calc(env(safe-area-inset-bottom) + 126px));
     gap: 6px;
   }
+  .social-cluster #photo-mode-toggle,
   .social-cluster #nearby-toggle,
   .social-cluster #emote-toggle,
   .social-cluster #chat-toggle {
@@ -907,6 +912,7 @@ body.joystick-right .emote-status {
     bottom: 20px;
     gap: 6px;
   }
+  .social-cluster #photo-mode-toggle,
   .social-cluster #nearby-toggle,
   .social-cluster #emote-toggle,
   .social-cluster #chat-toggle {
@@ -3391,10 +3397,22 @@ body[data-space]:not([data-space="campus"]) > #biryong-ui { visibility: hidden !
 .biryong-objective {
   position: absolute; left: 50%; top: max(66px, calc(env(safe-area-inset-top) + 56px)); transform: translateX(-50%); margin: 0;
   max-width: min(440px, calc(100vw - 32px)); padding: 7px 13px; border: 1px solid rgba(255, 222, 134, .4);
-  border-radius: 999px; background: rgba(10, 16, 25, .78); color: #ffe9a8; font-size: 13px; font-weight: 750;
+  border-radius: 14px; background: rgba(10, 16, 25, .78); color: #ffe9a8; font-size: 13px; font-weight: 750;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.biryong-objective::before { content: "🐉 "; }
+.biryong-objective-text { display: block; overflow: hidden; text-overflow: ellipsis; }
+.biryong-objective-text::before { content: "🐉 "; }
+.biryong-cloud-status {
+  display: flex; align-items: center; gap: 8px; white-space: normal; overflow-wrap: anywhere; line-height: 1.4;
+}
+.biryong-objective-text:not([hidden]) + .biryong-cloud-status { margin-top: 6px; }
+.biryong-cloud-status > span { min-width: 0; flex: 1; }
+.biryong-cloud-retry {
+  flex: none; min-height: 44px; padding: 4px 9px; border: 1px solid #7aa8a4; border-radius: 9px;
+  background: #244955; color: #f4f8f7; font: inherit; cursor: pointer; pointer-events: auto;
+}
+.biryong-cloud-retry:focus-visible { outline: 2px solid #ffde86; outline-offset: -3px; }
+.biryong-cloud-retry:disabled { opacity: .65; cursor: default; }
 @media (max-width: 560px) {
   /* Keep the event objective below the topbar and out of the Mini-map's right-hand column. */
   .biryong-objective {
@@ -3886,6 +3904,15 @@ body[data-space]:not([data-space="campus"]) > .progression-hud { display: none !
   border-radius: 14px;
   background: rgba(255,255,255,.04);
 }
+.inventory-item-with-icon { display: flex; align-items: flex-start; gap: 12px; }
+.inventory-item-copy { flex: 1; min-width: 0; }
+.item-icon {
+  display: grid; place-items: center; flex: 0 0 48px; width: 48px; height: 48px;
+  overflow: hidden; border-radius: 10px; background: rgba(178,220,239,.06);
+}
+.item-icon-image { width: 100%; height: 100%; object-fit: contain; }
+.item-icon-fallback { color: #acc3d1; font-size: 24px; line-height: 1; }
+.item-icon > [hidden] { display: none; }
 .inventory-item-muted { border-style: dashed; opacity: .78; }
 .inventory-item-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 .inventory-item-name { min-width: 0; overflow-wrap: anywhere; font-size: 14px; }
@@ -4535,6 +4562,7 @@ body[data-space]:not([data-space="campus"]) > .inkyung-living-moment {
     box-shadow: 0 7px 22px rgba(0,0,0,.34), 0 0 0 1px rgba(255,255,255,.06) inset;
   }
 
+  body[data-hud-mode="EXPLORE"][data-hud-overlay="NONE"] .social-cluster #photo-mode-toggle,
   body[data-hud-mode="EXPLORE"][data-hud-overlay="NONE"] .social-cluster #nearby-toggle,
   body[data-hud-mode="EXPLORE"][data-hud-overlay="NONE"] .social-cluster #emote-toggle {
     opacity: .84;
@@ -5332,43 +5360,143 @@ body[data-hud-mode="COMBAT"] #jump { display:none !important; }
 @media(max-width:600px) { .furniture-editor { inset:8px; width:auto; padding:12px; border-radius:14px; } }
 @media(max-height:500px) and (min-width:601px) { .furniture-editor { width:390px; top:6px; bottom:6px; padding:12px; } .furniture-plan { max-height:200px; } }
 
-/* Player photo mode is presentation-only: underlying HUD hidden/open state stays untouched. */
+/* Photo Mode 2.0 · the frame stays clear: identity top-left, actions top-right, shutter
+   bottom-centre, touch move controls on the bottom corners, settings only on request.
+   Presentation-only: the underlying HUD's hidden/open state stays untouched. */
 body[data-photo-mode="active"] > :not(#application):not(.photo-mode):not(script):not(style):not(#world-loading):not(#space-fade):not(#lobby-transition-fade) {
   visibility: hidden !important;
   pointer-events: none !important;
 }
+#photo-mode-toggle[aria-disabled="true"] { opacity: .5; }
 .photo-mode[hidden] { display: none; }
 .photo-mode {
+  --photo-edge-t: max(12px, env(safe-area-inset-top));
+  --photo-edge-r: max(12px, env(safe-area-inset-right));
+  --photo-edge-b: max(14px, env(safe-area-inset-bottom));
+  --photo-edge-l: max(12px, env(safe-area-inset-left));
+  --photo-glass: rgba(13, 28, 40, .6);
+  --photo-line: rgba(187, 221, 237, .4);
   position: fixed; inset: 0; z-index: 180; pointer-events: none; color: #f6fbff;
-  padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
-  display: flex; flex-direction: column; justify-content: space-between; gap: 12px;
 }
-.photo-mode-header { display: flex; align-items: start; justify-content: space-between; gap: 12px; }
-.photo-mode-title, .photo-mode-close, .photo-mode-controls-toggle, .photo-mode-dock {
-  background: rgba(13, 28, 40, .9); border: 1px solid rgba(187, 221, 237, .45); border-radius: 16px;
-}
-.photo-mode-title { padding: 12px; font-size: 15px; }
-.photo-mode button { pointer-events: auto; min-height: 44px; padding: 10px 14px; color: #f6fbff; font: inherit; cursor: pointer; }
-.photo-mode-close, .photo-mode-controls-toggle { font-size: 14px; }
-.photo-mode-actions { display: flex; flex-direction: column; gap: 8px; }
-.photo-mode-dock[hidden] { display: none; }
-.photo-mode-dock { max-height: 65dvh; overflow-y: auto; pointer-events: auto; align-self: center; width: min(560px, 100%); box-sizing: border-box; padding: 14px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
-.photo-mode-range { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
-.photo-mode-range input { width: 100%; min-width: 0; min-height: 44px; accent-color: #90d4ef; }
-.photo-mode-buttons { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; }
-.photo-mode-buttons button { flex: 1; }
-.photo-mode-buttons button[hidden], .photo-mode-preview[hidden] { display: none; }
-.photo-mode-save, .photo-mode-preview-toggle, .photo-mode-pose { background: #205671; border: 1px solid #90d4ef; border-radius: 12px; }
-.photo-mode button:disabled { opacity: .6; cursor: wait; }
-.photo-mode-preview { grid-column: 1 / -1; text-align: center; }
-.photo-mode-preview img { display: block; max-width: 100%; max-height: 22dvh; margin: auto; object-fit: contain; user-select: auto; -webkit-touch-callout: default; }
-.photo-mode-status, .photo-mode-note { grid-column: 1 / -1; margin: 0; text-align: center; font-size: 12px; line-height: 1.5; }
-.photo-mode-note { color: #b3c6d1; }
+.photo-mode [hidden] { display: none !important; }
+.photo-mode button, .photo-mode input, .photo-mode select { pointer-events: auto; font: inherit; color: inherit; }
+.photo-mode button { cursor: pointer; touch-action: manipulation; -webkit-user-select: none; user-select: none; }
+.photo-mode button:disabled { opacity: .5; cursor: not-allowed; }
 .photo-mode :focus-visible { outline: 3px solid #9ee7ff; outline-offset: 3px; }
-@media (max-height: 430px) {
-  .photo-mode { padding-top: max(8px, env(safe-area-inset-top)); padding-bottom: max(8px, env(safe-area-inset-bottom)); }
-  .photo-mode-dock { padding: 8px 12px; gap: 3px 10px; }
-  .photo-mode-note { display: none; }
+.photo-mode-top {
+  position: absolute; top: var(--photo-edge-t); left: var(--photo-edge-l); right: var(--photo-edge-r);
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+}
+.photo-mode-badge {
+  display: flex; align-items: center; gap: 6px; min-height: 36px; box-sizing: border-box; padding: 6px 12px;
+  border-radius: 999px; background: var(--photo-glass); border: 1px solid var(--photo-line);
+  font-size: 13px; letter-spacing: .08em; backdrop-filter: blur(6px);
+}
+.photo-mode-precision { padding: 2px 8px; border-radius: 999px; background: #ffd98a; color: #1c2a36; font-size: 11px; font-weight: 800; letter-spacing: 0; }
+.photo-mode-top-actions { display: flex; gap: 8px; }
+.photo-mode-icon, .photo-mode-restore, .photo-mode-side, .photo-mode-lift {
+  width: 44px; height: 44px; padding: 0; display: grid; place-items: center; border-radius: 50%;
+  background: var(--photo-glass); border: 1px solid var(--photo-line); font-size: 18px; line-height: 1;
+  backdrop-filter: blur(6px); overflow: hidden;
+}
+.photo-mode-icon[aria-expanded="true"] { background: #205671; border-color: #90d4ef; }
+.photo-mode-restore { position: absolute; top: var(--photo-edge-t); right: var(--photo-edge-r); opacity: .5; }
+.photo-mode-restore:hover, .photo-mode-restore:focus-visible { opacity: 1; }
+/* CAMERA settings: right edge under the actions, secondary to the frame and scrollable. */
+.photo-mode-settings {
+  position: absolute; top: calc(var(--photo-edge-t) + 56px); right: var(--photo-edge-r);
+  width: min(280px, calc(100vw - 32px)); max-height: calc(100dvh - var(--photo-edge-t) - var(--photo-edge-b) - 170px);
+  overflow-y: auto; box-sizing: border-box; padding: 12px 14px; display: grid; gap: 8px;
+  border-radius: 16px; background: rgba(13, 28, 40, .78); border: 1px solid var(--photo-line);
+  pointer-events: auto; backdrop-filter: blur(8px);
+}
+.photo-mode-settings-title { margin: 0; font-size: 12px; letter-spacing: .14em; color: #9fc6da; }
+.photo-mode-setting { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 2px 10px; min-height: 44px; font-size: 13px; }
+.photo-mode-setting input[type="range"] { grid-column: 1 / -1; grid-row: 2; width: 100%; min-height: 32px; margin: 0; accent-color: #90d4ef; }
+.photo-mode-setting-value { grid-column: 2; grid-row: 1; font-variant-numeric: tabular-nums; color: #cfe8f5; }
+.photo-mode-setting input[type="checkbox"] { width: 22px; height: 22px; margin: 0; accent-color: #90d4ef; }
+.photo-mode-setting select { min-height: 36px; padding: 4px 8px; border-radius: 10px; background: #102536; border: 1px solid var(--photo-line); }
+.photo-mode-reset { min-height: 44px; border-radius: 12px; background: #205671; border: 1px solid #90d4ef; }
+.photo-mode-help, .photo-mode-note { margin: 0; font-size: 12px; line-height: 1.5; color: #b3c6d1; }
+.photo-mode-help-coarse { display: none; }
+/* Bottom edge: one large shutter, flanked by pose and the last shot. */
+.photo-mode-bottom { position: absolute; left: var(--photo-edge-l); right: var(--photo-edge-r); bottom: var(--photo-edge-b); height: 0; }
+.photo-mode-shutter-row { position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); display: flex; align-items: center; gap: 18px; }
+.photo-mode-side { width: 48px; height: 48px; font-size: 20px; }
+.photo-mode-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.photo-mode-shutter {
+  width: 72px; height: 72px; padding: 0; display: grid; place-items: center; border-radius: 50%;
+  border: 4px solid #f6fbff; background: rgba(13, 28, 40, .35); box-shadow: 0 4px 18px rgba(0, 0, 0, .35);
+}
+.photo-mode-shutter::before { content: ""; width: 54px; height: 54px; border-radius: 50%; background: #f6fbff; transition: transform .12s ease-out; }
+.photo-mode-shutter:active::before { transform: scale(.86); }
+.photo-mode-shutter[aria-disabled="true"]::before { background: #9fb3c0; }
+.photo-mode-status {
+  position: absolute; left: 50%; bottom: 88px; transform: translateX(-50%); width: max-content;
+  max-width: min(440px, calc(100vw - 32px)); margin: 0; padding: 6px 12px; box-sizing: border-box; border-radius: 999px;
+  background: rgba(13, 28, 40, .7); font-size: 12px; line-height: 1.45; text-align: center; pointer-events: none;
+}
+.photo-mode-status:empty { display: none; }
+/* Touch move controls: small, photo-only (not the gameplay joystick), on the bottom corners. */
+.photo-mode-pad, .photo-mode-vertical { display: none; }
+@media (pointer: coarse) {
+  .photo-mode-help-fine { display: none; }
+  .photo-mode-help-coarse { display: inline; }
+  .photo-mode-pad {
+    position: absolute; left: 0; bottom: 0; width: 104px; height: 104px; display: grid; place-items: center;
+    border-radius: 50%; background: rgba(13, 28, 40, .36); border: 1px solid var(--photo-line);
+    pointer-events: auto; touch-action: none;
+  }
+  .photo-mode-pad-knob { width: 44px; height: 44px; border-radius: 50%; background: rgba(246, 251, 255, .78); pointer-events: none; }
+  .photo-mode-vertical { position: absolute; right: 0; bottom: 0; display: flex; flex-direction: column; gap: 10px; }
+  .photo-mode-lift { width: 48px; height: 48px; font-size: 16px; touch-action: none; }
+  body.joystick-right .photo-mode-pad { left: auto; right: 0; }
+  body.joystick-right .photo-mode-vertical { right: auto; left: 0; }
+}
+/* Portrait phones are too narrow for pad + shutter row + lift in one band: the move controls sit just above it. */
+@media (pointer: coarse) and (orientation: portrait) {
+  .photo-mode-pad, .photo-mode-vertical { bottom: 92px; }
+  .photo-mode-status { bottom: 210px; }
+  .photo-mode-settings { max-height: calc(100dvh - var(--photo-edge-t) - var(--photo-edge-b) - 290px); }
+}
+/* Composition grid (rule of thirds). DOM-only, so it never reaches the saved PNG. */
+.photo-mode-grid { position: absolute; inset: 0; display: none; pointer-events: none; }
+.photo-mode[data-grid="thirds"] .photo-mode-grid {
+  display: block;
+  background:
+    linear-gradient(to right, transparent calc(33.333% - .5px), rgba(255, 255, 255, .5) 0 calc(33.333% + .5px), transparent 0 calc(66.667% - .5px), rgba(255, 255, 255, .5) 0 calc(66.667% + .5px), transparent 0),
+    linear-gradient(to bottom, transparent calc(33.333% - .5px), rgba(255, 255, 255, .5) 0 calc(33.333% + .5px), transparent 0 calc(66.667% - .5px), rgba(255, 255, 255, .5) 0 calc(66.667% + .5px), transparent 0);
+}
+.photo-mode-flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
+.photo-mode-flash.is-on { animation: photo-mode-flash .32s ease-out; }
+@keyframes photo-mode-flash { from { opacity: .55; } to { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .photo-mode-flash.is-on { animation: none; } }
+/* Last shot: long-press / right-click save for browsers without a download. */
+.photo-mode-preview {
+  position: absolute; left: 50%; bottom: calc(var(--photo-edge-b) + 124px); transform: translateX(-50%);
+  max-width: min(520px, calc(100vw - 32px)); box-sizing: border-box; padding: 6px; border-radius: 14px;
+  background: rgba(13, 28, 40, .85); border: 1px solid var(--photo-line); pointer-events: auto;
+}
+.photo-mode-preview img { display: block; max-width: 100%; max-height: 40dvh; margin: auto; border-radius: 10px; object-fit: contain; user-select: auto; -webkit-touch-callout: default; }
+/* UI hidden (H / 👁): a clean frame with one faint restore control. */
+.photo-mode[data-ui="hidden"] > :not(.photo-mode-restore):not(.photo-mode-flash) { display: none !important; }
+/* Short viewports (phones held sideways, short windows): tighter edges keep the frame's height. */
+@media (max-height: 500px) {
+  .photo-mode {
+    --photo-edge-t: max(8px, env(safe-area-inset-top));
+    --photo-edge-b: max(10px, env(safe-area-inset-bottom));
+    --photo-edge-l: max(16px, env(safe-area-inset-left));
+    --photo-edge-r: max(16px, env(safe-area-inset-right));
+  }
+  .photo-mode-shutter { width: 64px; height: 64px; }
+  .photo-mode-shutter::before { width: 46px; height: 46px; }
+  .photo-mode-status { bottom: 76px; }
+  .photo-mode-preview { bottom: calc(var(--photo-edge-b) + 84px); }
+  .photo-mode-preview img { max-height: 48dvh; }
+  .photo-mode-settings {
+    top: calc(var(--photo-edge-t) + 52px); width: min(250px, 38vw);
+    max-height: calc(100dvh - var(--photo-edge-t) - var(--photo-edge-b) - 140px);
+  }
 }
 
 /* Collection Book is a read-only view inside the existing inventory modal. */
@@ -5379,6 +5507,12 @@ body[data-photo-mode="active"] > :not(#application):not(.photo-mode):not(script)
 .collection-book-navigation { margin-bottom: 16px; }
 .collection-book-navigation .inventory-tab[aria-pressed="true"] { border-color: #75ccb8; color: #c4fff0; }
 .collection-book-entry[data-state="UNKNOWN"] { border-style: dashed; }
+
+
+.graphics-fps { position: fixed; top: max(10px, env(safe-area-inset-top)); right: 12px; z-index: 40; padding: 4px 8px; border-radius: 6px; background: #10202dcc; color: #fff; font: 12px monospace; pointer-events: none; }
+.graphics-fps[hidden] { display: none; }
+#view-settings #graphics-reset { margin: 10px 0; min-height: 44px; }
+#view-settings #graphics-show-fps { width: auto; }
 
 /* LANDSCAPE-HUD:start
    Mobile landscape HUD · phones held sideways (touch + landscape + short viewport).
@@ -5467,6 +5601,7 @@ body[data-photo-mode="active"] > :not(#application):not(.photo-mode):not(script)
     bottom: calc(var(--ls-bottom) + var(--ls-pad) + 8px);
     gap: 6px;
   }
+  body .social-cluster #photo-mode-toggle,
   body .social-cluster #nearby-toggle,
   body .social-cluster #emote-toggle,
   body .social-cluster #chat-toggle { width: 44px; height: 44px; font-size: 17px; }
@@ -5799,6 +5934,11 @@ body[data-photo-mode="active"] > :not(#application):not(.photo-mode):not(script)
   body .mobility-detail-title h3 { font-size: 17px; }
   body .mobility-detail-description { margin: 7px 0; padding: 7px 8px; }
   body .mobility-actions { margin-top: 8px; }
+  /* Photo Mode 2.0: the photo-only move pad and settings drawer share this short-landscape authority;
+     the drawer stays clear of the ▲▼ column on the same edge. */
+  body .photo-mode-pad { width: 96px; height: 96px; }
+  body .photo-mode-settings { right: calc(var(--photo-edge-r) + 60px); }
+  body.joystick-right .photo-mode-settings { right: var(--photo-edge-r); }
 
 }
 /* LANDSCAPE-HUD:end */

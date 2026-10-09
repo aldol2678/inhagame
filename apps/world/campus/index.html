@@ -7,6 +7,7 @@
   <title>INHAGAME Campus · 인덕이와 안뇽이</title>
   <link rel="stylesheet" href="/styles.css" />
   <link rel="stylesheet" href="/cinematic.css" />
+  <link rel="stylesheet" href="/phone.css" />
   <!-- Auth config must execute before module imports snapshot the shared account config. -->
   <script src="/api/public-supabase-config"></script>
   <script type="importmap">
@@ -138,6 +139,7 @@
   <header class="campus-topbar" aria-label="캠퍼스 HUD">
     <a class="return-home" href="/" aria-label="메인 허브로 이동"><span class="return-home-arrow" aria-hidden="true">←</span><span class="return-home-label">메인허브</span></a>
     <div class="location-chip" aria-label="현재 위치와 INHA WORLD 시간"><span aria-hidden="true">📍</span><strong id="zone">-</strong><span id="world-time-chip" class="world-time-chip" aria-label="INHA WORLD 시간" hidden></span><span id="progression-badge" class="progression-badge" role="img" hidden><span id="progression-badge-level">Lv.1</span><span id="progression-badge-bar" class="progression-bar"><i id="progression-badge-fill"></i></span></span></div>
+    <button id="phone-toggle" type="button" aria-label="스마트폰 열기 (N)" aria-keyshortcuts="N" aria-controls="world-smartphone" aria-expanded="false">📱</button>
     <button id="hud-menu-toggle" class="hud-menu-toggle" type="button" aria-controls="hud-menu" aria-expanded="false" aria-label="메뉴 열기">☰</button>
   </header>
   <!-- P0-F3a: read-only server progression (get_my_world_progression_v1); wide screens only. -->
@@ -281,6 +283,7 @@
     </div>
   </aside>
   <div id="nameplate" class="nameplate" aria-label="내 캐릭터 닉네임">인덕이</div>
+  <output id="graphics-fps" class="graphics-fps" aria-label="현재 렌더링 FPS" hidden>— FPS</output>
   <div id="hud-menu" class="identity-actions" hidden>
     <div class="hud-menu-title">INHAGAME CAMPUS <span>인덕이와 안뇽이</span></div>
     <p id="progression-menu-line" class="progression-menu-line" hidden></p>
@@ -316,6 +319,25 @@
       <option value="medium">보통</option><option value="high">높음</option>
     </select>
     <p id="graphics-quality-hint">기기에 맞는 품질을 선택합니다.</p>
+    <label for="graphics-frame-limit">최대 프레임</label>
+    <select id="graphics-frame-limit">
+      <option value="auto">자동 (화면 주사율)</option><option value="30">30 FPS</option>
+      <option value="45">45 FPS</option><option value="60">60 FPS</option>
+      <option value="90">90 FPS</option><option value="120">120 FPS</option>
+    </select>
+    <label for="graphics-render-scale">렌더 해상도</label>
+    <select id="graphics-render-scale" aria-describedby="graphics-detail-hint">
+      <option value="auto">자동 (품질에 맞춤)</option><option value="0.7">70%</option>
+      <option value="0.85">85%</option><option value="1">100%</option>
+    </select>
+    <label for="graphics-shadows">그림자</label>
+    <select id="graphics-shadows">
+      <option value="auto">자동 (품질에 맞춤)</option><option value="off">끄기</option>
+      <option value="low">낮음</option><option value="medium">보통</option><option value="high">높음</option>
+    </select>
+    <label for="graphics-show-fps"><input id="graphics-show-fps" type="checkbox"> FPS 표시</label>
+    <p id="graphics-detail-hint">직접 고른 세부 값은 품질보다 우선합니다. 해상도 100%는 기기 픽셀 비율 최대 2배 기준입니다.</p>
+    <button id="graphics-reset" type="button">그래픽 자동 설정으로 초기화</button>
     <label for="view-distance">시야 거리</label>
     <select id="view-distance" aria-describedby="view-distance-hint">
       <option value="SHORT">짧게</option><option value="NORMAL" selected>보통</option>
@@ -368,6 +390,7 @@
       <div class="shortcut-group">
         <h3>화면 · 소셜</h3>
         <p><span><kbd>V</kbd></span><strong>1·3인칭 전환</strong></p>
+        <p><span><kbd>P</kbd></span><strong>사진 모드</strong></p>
         <p><span><kbd>Enter</kbd></span><strong>채팅 열기 / 빈 채팅 닫기</strong></p>
         <p><span><kbd>1</kbd>–<kbd>5</kbd></span><strong>감정표현 선택</strong></p>
         <p><span><kbd>Esc</kbd></span><strong>열린 패널 닫기</strong></p>
@@ -470,6 +493,7 @@
     <button id="nearby-toggle" type="button" aria-controls="nearby-panel" aria-expanded="false" aria-label="주변 플레이어 보기" title="주변 플레이어">👥<span>주변</span></button>
     <button id="emote-toggle" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="emote-menu" aria-label="감정표현 열기 (E)" title="감정표현 (E)">😀<span>감정</span></button>
     <button id="chat-toggle" type="button" aria-controls="chat-form" aria-expanded="false" aria-label="채팅 열기 (Enter)" title="채팅 (Enter)">💬<span>채팅</span></button>
+    <button id="photo-mode-toggle" type="button" aria-label="사진 모드 열기 (P)" aria-keyshortcuts="P" title="사진 모드 (P)">📷<span>사진</span></button>
   </div>
   <div id="emote-menu" class="emote-menu" role="menu" aria-label="감정표현" hidden></div>
   <p id="emote-status" class="emote-status" role="status" aria-live="polite"></p>
@@ -507,6 +531,5 @@
   <script type="module" src="/src/main.js"></script>
 </body>
 </html>
-
 
 

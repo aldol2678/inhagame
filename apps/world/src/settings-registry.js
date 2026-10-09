@@ -1,3 +1,5 @@
+import { normalizeNumericSetting } from "./numeric-setting.js";
+
 export const SETTINGS_STORAGE_KEY = "inhagame-device-settings-v2";
 export const SETTINGS_SCHEMA_VERSION = 2;
 
@@ -65,10 +67,7 @@ const KNOWN_PATHS = new Set([
 const plainObject = value => !!value && typeof value === "object" && !Array.isArray(value);
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const pick = (value, allowed, fallback) => allowed.includes(value) ? value : fallback;
-const finite = (value, fallback, min = -Infinity, max = Infinity) => {
-  const numeric = Number(value);
-  return Number.isFinite(numeric) ? clamp(numeric, min, max) : fallback;
-};
+const finite = normalizeNumericSetting;
 const bool = (value, fallback) => typeof value === "boolean" ? value : fallback;
 
 function cloneDefaults() {
@@ -91,10 +90,10 @@ export function normalizeSettings(value = {}) {
   const accessibility = plainObject(source.accessibility) ? source.accessibility : {};
   const frameLimit = graphics.frameLimit === "auto"
     ? "auto"
-    : pick(Number(graphics.frameLimit), [30, 45, 60, 90, 120], SETTINGS_DEFAULTS.graphics.frameLimit);
+    : pick(finite(graphics.frameLimit, NaN), [30, 45, 60, 90, 120], SETTINGS_DEFAULTS.graphics.frameLimit);
   const renderScale = graphics.renderScale === "auto"
     ? "auto"
-    : pick(Number(graphics.renderScale), [0.7, 0.85, 1], SETTINGS_DEFAULTS.graphics.renderScale);
+    : pick(finite(graphics.renderScale, NaN), [0.7, 0.85, 1], SETTINGS_DEFAULTS.graphics.renderScale);
 
   return {
     schemaVersion: SETTINGS_SCHEMA_VERSION,
@@ -170,7 +169,7 @@ function overlayLegacy(storage, value) {
 
   const volumeRaw = safeGet(storage, LEGACY_SETTINGS_KEYS.ambientVolume);
   if (volumeRaw !== null) {
-    const volume = Number(volumeRaw);
+    const volume = finite(volumeRaw, NaN);
     if (Number.isFinite(volume)) {
       next.audio.ambient = clamp(volume, 0, 1);
       found = true;
@@ -179,8 +178,9 @@ function overlayLegacy(storage, value) {
 
   const camera = parseObject(safeGet(storage, LEGACY_SETTINGS_KEYS.cameraInput));
   if (camera) {
-    if (Number.isFinite(Number(camera.sensitivity))) {
-      next.controls.mouseSensitivity = clamp(Number(camera.sensitivity), 0.5, 2);
+    const sensitivity = finite(camera.sensitivity, NaN, 0.5, 2);
+    if (Number.isFinite(sensitivity)) {
+      next.controls.mouseSensitivity = sensitivity;
       found = true;
     }
     if (typeof camera.invertY === "boolean") {

@@ -1,0 +1,30 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { createFakeDocument } from './support/fake-dom.mjs';
+import { createBiryongCloudStatus } from '../src/biryong/biryong-cloud-status.js';
+
+test('Biryong status announces pending, saving and persistent failure, and only enables failed retry', () => {
+  const documentLike = createFakeDocument(); let retries = 0;
+  const ui = createBiryongCloudStatus({ documentLike, onRetry: () => retries++ });
+  const [label, retry] = ui.element.children;
+  assert.equal(ui.element.hidden, true);
+  assert.equal(label.getAttribute('role'), 'status');
+  assert.equal(label.getAttribute('aria-live'), 'polite');
+  ui.setStatus({ state: 'pending' }); assert.match(label.textContent, /동기화 대기/);
+  assert.equal(ui.element.hidden, false); assert.equal(retry.hidden, true);
+  ui.setStatus({ state: 'failed' }); assert.match(label.textContent, /저장 확인 실패/);
+  assert.equal(retry.hidden, false); assert.equal(retry.disabled, false);
+  retry.click(); assert.equal(retries, 1);
+  ui.setStatus({ state: 'saving' }); assert.match(label.textContent, /저장 중/);
+  assert.equal(retry.disabled, true); retry.click(); assert.equal(retries, 1);
+  assert.equal(retry.dispatch('keydown', { code: 'Space' }).stopped, true);
+  const held = new Set(['KeyW', 'Space']);
+  documentLike.addEventListener('keyup', event => held.delete(event.code));
+  retry.dispatch('keyup', { code: 'KeyW' }); retry.dispatch('keyup', { code: 'Space' });
+  assert.equal(held.size, 0, 'releasing a gameplay key after focusing retry must clear held input');
+  ui.setStatus({ state: 'failed' }); retry.focus();
+  ui.setStatus({ state: 'saved' }); assert.equal(ui.element.hidden, true);
+  assert.equal(documentLike.activeElement, null, 'successful retry leaves no focus on a hidden control');
+  ui.setStatus({ state: 'failed' }); ui.setStatus({ state: 'idle' });
+  assert.equal(ui.element.hidden, true); retry.click(); assert.equal(retries, 1);
+});

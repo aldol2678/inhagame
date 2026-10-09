@@ -12,7 +12,8 @@ import { CAMPUS_KICKBOARD_ID, getCampusKickboardParkedPose, parkCampusKickboardA
 import { GROUND_MOTION_PROFILES, stepGroundMount } from "./mounts/ground-mount-motion.js";
 import { getMobilityByMountId } from "./mobility/mobility-registry.js";
 import { findGroundSummonPose, findNearbyGroundSummonPose } from "./mobility/ground-summon.js";
-import { WORLD_BOUNDS, OBSTACLES } from "./campus-layout.js";
+import { OBSTACLES } from "./campus-layout.js";
+import { EXTERIOR_WORLD_BOUNDS as WORLD_BOUNDS } from "./world-exterior-bounds.js";
 import { moveAroundObstacles, resolveHeight, canOccupy } from "./world-collision.js";
 import { MOUNT_SHAPE, PLAYER_ORIGIN_Y } from './player-dimensions.js';
 import { roadviewGroundHeight } from './roadview-layout.js';
@@ -37,13 +38,19 @@ export function movementHudState({ mounted = false, grounded = true } = {}) {
 }
 
 export const CAMPUS_MOVEMENT_SPACE = Object.freeze({
-  id: "campus", obstacles: undefined, bounds: WORLD_BOUNDS, allowMount: true,
+  id: "campus", obstacles: undefined, get bounds() { return WORLD_BOUNDS; }, allowMount: true,
   groundHeight: roadviewGroundHeight, constrain: constrainPondWalk
 });
 
-const CAMPUS_OBSTACLES_WITHOUT_BIKE = Object.freeze(
-  OBSTACLES.filter(({ id }) => id !== MAIN_GATE_CAMPUS_BIKE.id)
-);
+let campusObstaclesWithoutBike = null;
+function CAMPUS_OBSTACLES_WITHOUT_BIKE() {
+  if (!campusObstaclesWithoutBike) {
+    campusObstaclesWithoutBike = Object.freeze(
+      OBSTACLES.filter(({ id }) => id !== MAIN_GATE_CAMPUS_BIKE.id)
+    );
+  }
+  return campusObstaclesWithoutBike;
+}
 
 // NPC talk is 300. Parked vehicles must win while standing on their props.
 export const BIKE_CONTEXT_PRIORITY = 320;
@@ -91,6 +98,8 @@ export function findHelicopterSummonPose({
 
 export class PlayerController {
   #resetTouchPad = null;
+  #photoTarget = null;
+  #photoHold = null;
 
   constructor(entity, {
     walkSpeed = 7,
@@ -178,6 +187,7 @@ export class PlayerController {
   }
 
   #syncMountKind() {
+    if (!this.mounted || this.#photoTarget?.mountId !== this.mountId) this.#photoTarget = null;
     if (this.entity) this.entity.mountKind = this.mountId;
     if (typeof document !== "undefined" && document.body) {
       if (this.mountId) document.body.dataset.mountId = this.mountId;
@@ -366,6 +376,50 @@ export class PlayerController {
     this.moving = false;
     this.#updateMovementHud();
   }
+
+  // Local locomotion authority supplies a lease, never a second vehicle controller.
+  // Transit/creature/balloon mounts intentionally have no photo-hold contract yet.
+  getPhotoHoldTarget() {
+    const supported = this.onBike || this.onKickboard || this.onKart || this.onDuckBoat || this.onHelicopter;
+    const runtimeValid = () => {
+      const motion = this.onHelicopter ? this.helicopterFlight : this.onDuckBoat ? this.boatMotion : this.groundMotion;
+      return motion && ['yaw','vx','vz'].every(key => Number.isFinite(motion[key])) &&
+        (!this.onHelicopter || Number.isFinite(motion.vy)) &&
+        (!this.onKart || this.kartSeats.canDrive('local-player')) &&
+        (!this.onDuckBoat || this.boatSeats.canDrive('local-player'));
+    };
+    if (!supported || !runtimeValid() || this.space.id !== 'campus' || this.landing || this.mountBlocked) return null;
+    if (this.#photoTarget) return this.#photoTarget;
+    const mountId = this.mountId;
+    const valid = () => this.#photoTarget === target && this.mounted && this.mountId === mountId &&
+      this.entity.mountKind === mountId && this.space.id === 'campus' && !this.landing && !this.mountBlocked && runtimeValid();
+    const stop = () => {
+      const enabled = this.inputEnabled;
+      this.setInputEnabled(false); this.inputEnabled = enabled; this.velocityY = 0;
+      for (const motion of [this.onHelicopter ? this.helicopterFlight : this.onDuckBoat ? this.boatMotion : this.groundMotion]) {
+        for (const key of ['speed', 'vx', 'vy', 'vz', 'yawRate', 'pitch', 'roll']) if (key in motion) motion[key] = 0;
+      }
+      if (this.onHelicopter) this.entity.flightAttitude = { ...this.helicopterFlight };
+    };
+    const target = Object.freeze({ mountId, isValid: valid,
+      enterPhotoHold: () => {
+        if (!valid() || this.#photoHold) return false;
+        this.#photoHold = target; stop(); return true;
+      },
+      exitPhotoHold: () => {
+        if (this.#photoHold !== target) return false;
+        // InputFocus releases controls after this lease; never override another modal lock.
+        const enabled = this.inputEnabled;
+        try { this.setInputEnabled(false); this.inputEnabled = enabled; }
+        finally { this.#photoHold = null; }
+        return true;
+      }
+    });
+    this.#photoTarget = target;
+    return target;
+  }
+
+  get photoHolding() { return this.#photoHold !== null; }
 
   #nearParkedBike() {
     const p = this.entity.getLocalPosition();
@@ -937,6 +991,10 @@ export class PlayerController {
       this.#updateMovementHud();return;
     }
 
+    // A photo lease holds the current transform, including airborne altitude. No gravity,
+    // throttle, steering, inertial integration or auto landing runs while photographing.
+    if (this.#photoHold) { this.moving = false; return; }
+
     if (this.onKickboard || this.onKart) dt = Math.max(0, Math.min(Number.isFinite(dt) ? dt : 0, 0.1));
     if (!this.inputEnabled) {
       this.keys.clear();
@@ -1144,7 +1202,7 @@ export class PlayerController {
 
     const space = this.space;
     const obstacles = this.onBike
-      ? (space.obstacles ?? CAMPUS_OBSTACLES_WITHOUT_BIKE)
+      ? (space.obstacles ?? CAMPUS_OBSTACLES_WITHOUT_BIKE())
       : space.obstacles;
     const groundVehicleShape = (this.onKickboard || this.onKart) ? {
       radius: getMobilityByMountId(this.mountId).summonClearance.radius,
@@ -1182,4 +1240,3 @@ export class PlayerController {
     }
   }
 }
-

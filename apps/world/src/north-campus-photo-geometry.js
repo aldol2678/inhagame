@@ -95,8 +95,8 @@ export function fillAnniversaryPhotoFacade(b,tier='NEAR'){
 export function fillNorthPhotoTower(b,f,tier='NEAR'){
  const c=NORTH_PHOTO_COLORS;
  if(f.id==='bldg_05'&&tier==='NEAR'){
-  const front=exteriorFrame(f.rings[0],4),u=front.length/2;
-  // Continue the attached dark stair glazing down the existing south wall.
+  const front=exteriorFrame(f.rings[0],6),u=front.length/2;
+  // Continue the relocated attached dark stair glazing down the same south face.
   // This is a thin face on the already-solid building, not a second ground body.
   box(b,front,c.stone,u,f.height/2,4.02,f.height,.225,.10);
   box(b,front,c.darkGlass,u,(f.height+.45)/2,2.16,f.height-.45,.29,.04);

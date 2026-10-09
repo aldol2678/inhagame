@@ -171,3 +171,29 @@ test('first person follows eye height and world yaw, looks up/down and preserves
   orbit.togglePerspective();
   assert.equal(orbit.pitch, -1.35);
 });
+
+test('Annyongi frames the compact mascot without changing other flight cameras or walking zoom', () => {
+  const {orbit,camera}=fixture();globalThis.document.body={dataset:{mountId:'annyongi'}};
+  orbit.setMounted(true);assert.equal(orbit.distance,7.4);assert.equal(orbit.zoomLimits.min,4.5);
+  orbit.apply({x:0,y:3,z:-98});assert.equal(orbit.target.y,3.3);
+  assert.ok(Math.abs(orbit.target.z-(-98+.2))<1e-9);
+  orbit.zoom(1.4);assert.equal(orbit.distance,7.4*1.4);orbit.setMounted(false);assert.equal(orbit.distance,3.5);
+  globalThis.document.body.dataset.mountId='mount.campus_helicopter.prototype';
+  orbit.setMounted(true);assert.equal(orbit.distance,Math.hypot(7.3,18.5));assert.equal(orbit.zoomLimits.min,12);
+  orbit.apply({x:0,y:3,z:-98});assert.equal(orbit.target.y,5.1);
+  orbit.setMounted(false);globalThis.document.body.dataset.mountId='annyongi';orbit.setMounted(true);assert.equal(orbit.distance,7.4*1.4);
+  orbit.togglePerspective();orbit.apply({x:0,y:3,z:-98},1);assert.equal(camera.position[1],4);
+});
+
+test('Annyongi portrait framing adds bounded wing room, keeps zoom memory and restores walking', () => {
+  const {orbit,camera}=fixture();globalThis.document.body={dataset:{mountId:'annyongi'}};
+  orbit.setMounted(true);camera.camera.aspectRatio=390/844;
+  orbit.apply({x:0,y:10,z:-98});
+  const distance=Math.hypot(camera.position[0]-orbit.target.x,camera.position[1]-orbit.target.y,camera.position[2]+orbit.target.z);
+  assert.ok(Math.abs(distance-7.4*1.35)<1e-6);
+  assert.equal(orbit.distance,7.4,'aspect does not overwrite preferred zoom');
+  camera.camera.aspectRatio=1280/800;orbit.apply({x:0,y:10,z:-98});
+  const landscape=Math.hypot(camera.position[0]-orbit.target.x,camera.position[1]-orbit.target.y,camera.position[2]+orbit.target.z);
+  assert.ok(Math.abs(landscape-7.4)<1e-6);
+  orbit.setMounted(false);assert.equal(orbit.distance,3.5);
+});

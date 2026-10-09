@@ -36,8 +36,8 @@ function fixture(initialTime = ENVIRONMENT_TIME.DAY, transitionSeconds = 4) {
 
 const near = (actual, expected, epsilon = 1e-9) => assert.ok(Math.abs(actual - expected) <= epsilon, `${actual} != ${expected}`);
 
-test('environment presets expose bounded DAY, SUNSET and NIGHT values with DAY fail-safe', () => {
-  assert.deepEqual(Object.keys(ENVIRONMENT_PRESETS), ['DAY', 'SUNSET', 'NIGHT']);
+test('environment presets expose bounded visual-phase values with DAY fail-safe', () => {
+  assert.deepEqual(Object.keys(ENVIRONMENT_PRESETS), ['DAWN', 'DAY', 'GOLDEN_HOUR', 'SUNSET', 'DUSK', 'NIGHT']);
   for (const preset of Object.values(ENVIRONMENT_PRESETS)) {
     for (const tuple of [preset.sunColor, preset.ambientColor, preset.clearColor])
       for (const value of tuple) assert.ok(value >= 0 && value <= 1);

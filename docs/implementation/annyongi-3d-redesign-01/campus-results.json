@@ -1,0 +1,34 @@
+[
+  {
+    "name": "desktop",
+    "setup": {
+      "mounted": true,
+      "mountId": "annyongi",
+      "renderer": "WebGL2",
+      "model": true
+    },
+    "clipping": {
+      "headClip": false,
+      "minimum": 1.412950336873934,
+      "hover": true,
+      "anchor": true
+    },
+    "passed": true
+  },
+  {
+    "name": "mobile",
+    "setup": {
+      "mounted": true,
+      "mountId": "annyongi",
+      "renderer": "WebGL2",
+      "model": true
+    },
+    "clipping": {
+      "headClip": false,
+      "minimum": 1.412950370469522,
+      "hover": true,
+      "anchor": true
+    },
+    "passed": true
+  }
+]

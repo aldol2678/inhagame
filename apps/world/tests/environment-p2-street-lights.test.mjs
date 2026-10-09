@@ -121,12 +121,12 @@ test('time-of-day interpolation provides a scalar artificial-light signal withou
   assert.equal(environment.status().artificialLightFactor, 0);
 
   environment.setTimeOfDay('SUNSET', { immediate: true });
-  assert.equal(environment.artificialLightFactor(), 0.18);
+  assert.equal(environment.artificialLightFactor(), 0.22);
 
   environment.setTimeOfDay('NIGHT');
   environment.update(2);
   assert.equal(environment.status().progress, 0.5);
-  assert.ok(environment.artificialLightFactor() > 0.18 && environment.artificialLightFactor() < 1);
+  assert.ok(environment.artificialLightFactor() > 0.22 && environment.artificialLightFactor() < 1);
 
   environment.update(2);
   assert.equal(environment.artificialLightFactor(), 1);

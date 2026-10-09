@@ -626,7 +626,7 @@ test("production close callback restores the suspended minimap opener before foc
   const closeBody = mapSetup.match(/onClose:\s*\(\)\s*=>\s*\{([\s\S]*?)\},\s*documentLike:/)?.[1];
   assert.ok(closeBody);
   let parent, released = false;
-  const callback = new Function("fullMapInput", "minimap", closeBody);
+  const callback = new Function("fullMapInput", "minimap", "smartphone", closeBody);
   const r = rig({ onClose() { callback({ release() { released = true; } }, { update({ force }) { assert.equal(released, true); assert.equal(force, true); parent.hidden = false; } }); } });
   parent = r.d.createElement("div"); r.d.removeChild(r.elements.openButton); parent.appendChild(r.elements.openButton); r.d.appendChild(parent);
   r.elements.openButton.focus(); r.controller.open(); parent.hidden = true;
@@ -674,4 +674,13 @@ test("campus-only search clears and hides across region switches, then restores 
   assert.equal(searchInput(r).value, ""); assert.equal(results(r).length, 0);
   search(r, "후문"); results(r)[0].dispatch("click");
   assert.equal(r.elements.destinationButton.disabled, true, "source switch never changes existing state authority");
+});
+
+test('selection subscription follows markers and source invalidation without changing destinations',()=>{
+  const r=rig(),seen=[];r.controller.open();const off=r.controller.onSelectionChange(p=>seen.push(p?.poiId??null));
+  r.controller.selectPoi(r.definitions[0]);r.elements.destinationButton.dispatch('click');const destination=r.controller.destination;
+  assert.equal(seen.at(-1),'poi.main');assert.deepEqual(r.controller.destination,destination);
+  assert.equal(r.controller.selectStoredPlace({poiId:'deleted',x:1,z:1}),null);assert.equal(r.controller.selectedPoi.poiId,'poi.main');
+  assert.equal(r.controller.selectStoredPlace({poiId:'poi.main',x:9,z:9}).x,r.definitions[0].x);
+  off();r.controller.selectPoi(r.definitions[1]);assert.equal(seen.at(-1),'poi.main');r.controller.destroy();
 });

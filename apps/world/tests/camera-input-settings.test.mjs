@@ -100,3 +100,23 @@ test("desktop camera settings UI is present and hidden on coarse-pointer layouts
   assert.match(css, /\.desktop-camera-settings \{ display: none;/);
   assert.match(css, /@media \(pointer: fine\) \{\s*\.desktop-camera-settings \{ display: block; \}/s);
 });
+
+test('camera numeric normalization matches registry handling of corrupt sensitivity', () => {
+  for (const sensitivity of [null, undefined, '', ' \t ', false, true, [], [1.5], {}, NaN, Infinity, -Infinity, '1,5']) {
+    assert.deepEqual(normalizeCameraInputSettings({ sensitivity }), DEFAULT_CAMERA_INPUT_SETTINGS, String(sensitivity));
+    assert.deepEqual(readCameraInputSettings(storageWith(JSON.stringify({ sensitivity }))), DEFAULT_CAMERA_INPUT_SETTINGS);
+  }
+});
+
+test('empty camera control value falls back instead of becoming minimum sensitivity', () => {
+  const storage = storageWith();
+  const sensitivitySelect = control();
+  const invertCheckbox = control();
+  const binding = bindCameraInputSettings({ orbit: { setMouseLookSettings() {} }, sensitivitySelect, invertCheckbox, storage });
+  for (const eventControl of [sensitivitySelect, invertCheckbox]) {
+    sensitivitySelect.value = ' ';
+    eventControl.dispatch('change');
+    assert.equal(binding.current.sensitivity, 1);
+    assert.equal(readCameraInputSettings(storage).sensitivity, 1);
+  }
+});

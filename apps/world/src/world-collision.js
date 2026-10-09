@@ -65,11 +65,39 @@ export function resolveHeight(position, requestedY, groundY = FOOT_OFFSET, obsta
   return nextY;
 }
 
+const cameraBoundsCache = new WeakMap();
+function cameraHorizontalBounds(box) {
+  if (!box.polygon) return box;
+  let bounds = cameraBoundsCache.get(box);
+  if (!bounds) {
+    const xs = box.polygon.map(p => p.x), zs = box.polygon.map(p => p.z);
+    bounds = { minX: Math.min(...xs), maxX: Math.max(...xs), minZ: Math.min(...zs), maxZ: Math.max(...zs) };
+    cameraBoundsCache.set(box, bounds);
+  }
+  return bounds;
+}
+
+// Broad phase for a caller that sweeps many short camera segments inside one known
+// horizontal region (Photo Mode). The result is only a candidate subset: pass the same
+// `obstacles` value to cameraSafeFraction so its own policy (the Campus default and the
+// main-gate finite boundary) still applies.
+export function cameraObstaclesNear(center, radius, obstacles) {
+  const source = obstacles === undefined ? OBSTACLES : obstacles;
+  // 0.35 camera skin plus margin; every narrow-phase test expands by at most that much.
+  const reach = radius + 0.5;
+  return source.filter(box => {
+    const b = cameraHorizontalBounds(box);
+    return b.maxX >= center.x - reach && b.minX <= center.x + reach &&
+      b.maxZ >= center.z - reach && b.minZ <= center.z + reach;
+  });
+}
+
 // Segment vs expanded AABB, used to move the chase camera in front of a wall.
-export function cameraSafeFraction(from, to, obstacles) {
+// `candidates` optionally narrows the tested set (see cameraObstaclesNear).
+export function cameraSafeFraction(from, to, obstacles, candidates) {
   let fraction = 1;
   const mainGate = obstacles === undefined && inMainGateCameraArea(from);
-  const cameraObstacles = obstacles === undefined ? OBSTACLES : obstacles;
+  const cameraObstacles = candidates ?? (obstacles === undefined ? OBSTACLES : obstacles);
   for (const box of cameraObstacles) {
     if (box.polygon) {
       // Thin student prisms use the finite boundary sweep already proven at

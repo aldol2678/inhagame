@@ -182,6 +182,12 @@ export function createFullMapController({
   const poiNodes = new Map();
   const socialNodes = new Map();
   const destinationListeners = new Set();
+  const selectionListeners = new Set();
+  const emitSelection = () => {
+    for (const listener of selectionListeners) {
+      try { listener(selectedPoi ? { ...selectedPoi } : null); } catch { /* Presentation failure cannot block selection. */ }
+    }
+  };
   const pointers = new Map();
   let returnFocus = null;
   let opened = false;
@@ -381,8 +387,9 @@ export function createFullMapController({
 
   function selectPoi(poi) {
     selectedPoi = poi;
-    for (const [poiId, node] of poiNodes) node.classList?.toggle?.("is-selected", poiId === poi.poiId);
+    for (const [poiId, node] of poiNodes) node.classList?.toggle?.("is-selected", poiId === poi?.poiId);
     renderInfo();
+    emitSelection();
     return poi;
   }
 
@@ -583,6 +590,7 @@ export function createFullMapController({
     }
     if (selectedPoi && !selectedPoi.mapPoint && !keep.has(selectedPoi.poiId)) {
       selectedPoi = null;
+      emitSelection();
       infoPanel.hidden = true;
     }
     renderInfo();
@@ -719,6 +727,7 @@ export function createFullMapController({
     tap = null;
     if (selectedPoi?.mapPoint) {
       selectedPoi = null;
+      emitSelection();
       renderInfo();
     }
     root.hidden = true;
@@ -812,6 +821,7 @@ export function createFullMapController({
   const onKeyDown = event => {
     if (!opened || event.defaultPrevented || search?.composing || isMapCompositionEvent(event)) return;
     const key = event.key || event.code;
+    if (key === "Tab" && root.dataset.phoneHosted === "true") return; // Phone traps the complete dialog, including its close/home buttons.
     if (key === "Escape") {
       event.preventDefault?.();
       close();
@@ -877,6 +887,7 @@ export function createFullMapController({
     if (searchRoot) searchRoot.hidden = id !== "campus";
     selectedPoi = null;
     focusedPoiId = null;
+    emitSelection();
     hoveredPoiId = null;
     destination = null;
     infoPanel.hidden = true;
@@ -919,6 +930,7 @@ export function createFullMapController({
       destinationListeners.add(listener);
       return () => destinationListeners.delete(listener);
     },
+    onSelectionChange(listener) { selectionListeners.add(listener); return () => selectionListeners.delete(listener); },
     status: () => Object.freeze({
       open: opened,
       mounted,
@@ -936,7 +948,16 @@ export function createFullMapController({
       panY: viewport.panY
     }),
     selectMapPoint,
+    // Presentation wrappers reuse the same selection and projection authority.
+    selectPoi,
+    selectStoredPlace(place) {
+      const current = place?.poiId ? poiNodes.get(place.poiId)?.__mapPoi : null;
+      if (place?.poiId) return current ? selectPoi(current) : null;
+      return selectMapPoint(place);
+    },
+    centerOnPoint: point => centerOn(point, { minimumZoom: FULL_MAP_ZOOM.locateMin }),
     destroy() {
+      selectionListeners.clear();
       offNavigation?.();
       documentLike.removeEventListener?.("keydown", onKeyDown);
       windowTarget?.removeEventListener?.("resize", onResize);
