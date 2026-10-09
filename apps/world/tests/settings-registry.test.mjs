@@ -152,3 +152,93 @@ test("unavailable storage falls back to defaults without throwing", () => {
   assert.equal(readSettings(denied).graphics.quality, "auto");
   assert.equal(setSetting(undefined, "graphics.quality", "low"), false);
 });
+
+const numericFields = [
+  ['audio', 'master'], ['audio', 'music'], ['audio', 'ambient'], ['audio', 'effects'], ['audio', 'ui'],
+  ['controls', 'mobileCameraSensitivity'], ['controls', 'mouseSensitivity'],
+  ['hud', 'scale'], ['accessibility', 'uiScale'], ['accessibility', 'textScale'],
+  ['graphics', 'frameLimit'], ['graphics', 'renderScale']
+];
+const invalidNumbers = [null, undefined, '', ' \t\n ', false, true, [], [1], [30], {}, { valueOf: () => 1 }, NaN, Infinity, -Infinity, 'Infinity', 'NaN', '0,7', '1,000', '30fps'];
+
+test('corrupt numeric fields use defaults without coercing other types', () => {
+  for (const value of invalidNumbers) {
+    for (const [section, field] of numericFields) {
+      const result = normalizeSettings({ [section]: { [field]: value } });
+      assert.equal(result[section][field], SETTINGS_DEFAULTS[section][field], `${section}.${field}: ${String(value)}`);
+    }
+  }
+});
+
+test('finite numbers and legacy numeric strings retain zero, fractions and clamping', () => {
+  for (const [input, audio, sensitivity, scale] of [
+    [0, 0, 0.5, 0.8], ['0', 0, 0.5, 0.8], [' 0.75 ', 0.75, 0.75, 0.8],
+    [1.1, 1, 1.1, 1.1], ['1e0', 1, 1, 1], [-5, 0, 0.5, 0.8], ['99', 1, 2, 1.2]
+  ]) {
+    const result = normalizeSettings({ audio: { ambient: input }, controls: { mouseSensitivity: input }, hud: { scale: input } });
+    assert.equal(result.audio.ambient, audio);
+    assert.equal(result.controls.mouseSensitivity, sensitivity);
+    assert.equal(result.hud.scale, scale);
+  }
+  assert.equal(normalizeSettings({ graphics: { frameLimit: '60', renderScale: '0.85' } }).graphics.frameLimit, 60);
+  assert.equal(normalizeSettings({ graphics: { frameLimit: '60', renderScale: '0.85' } }).graphics.renderScale, 0.85);
+});
+
+test('invalid v1 numeric values do not overwrite valid v2 settings on migration or reread', () => {
+  for (const value of invalidNumbers) {
+    const storage = storageWith({
+      [SETTINGS_STORAGE_KEY]: JSON.stringify({ audio: { ambient: 0.35 }, controls: { mouseSensitivity: 1.5 } }),
+      [LEGACY_SETTINGS_KEYS.ambientVolume]: typeof value === 'string' ? value : JSON.stringify(value),
+      [LEGACY_SETTINGS_KEYS.cameraInput]: JSON.stringify({ sensitivity: value, invertY: true })
+    });
+    const result = readSettings(storage);
+    assert.equal(result.audio.ambient, 0.35, String(value));
+    assert.equal(result.controls.mouseSensitivity, 1.5, String(value));
+    assert.equal(result.controls.invertY, true);
+    assert.deepEqual(readSettings(storage), result);
+  }
+});
+
+test('corrupt v2 and blank v1 values recover to defaults and persist a stable round trip', () => {
+  const storage = storageWith({
+    [SETTINGS_STORAGE_KEY]: JSON.stringify({ audio: { master: null }, controls: { mobileCameraSensitivity: '' }, accessibility: { textScale: false } }),
+    [LEGACY_SETTINGS_KEYS.ambientVolume]: '  ',
+    [LEGACY_SETTINGS_KEYS.cameraInput]: JSON.stringify({ sensitivity: [] })
+  });
+  const settings = readSettings(storage);
+  assert.deepEqual(settings, SETTINGS_DEFAULTS);
+  assert.deepEqual(JSON.parse(storage.data.get(SETTINGS_STORAGE_KEY)), settings);
+  assert.deepEqual(readSettings(storage), settings);
+});
+
+test('legacy numeric strings migrate and later valid zero mute reconciles', () => {
+  const storage = storageWith({
+    [LEGACY_SETTINGS_KEYS.ambientVolume]: ' 0.35 ',
+    [LEGACY_SETTINGS_KEYS.cameraInput]: JSON.stringify({ sensitivity: '1.25' })
+  });
+  assert.equal(readSettings(storage).audio.ambient, 0.35);
+  assert.equal(readSettings(storage).controls.mouseSensitivity, 1.25);
+  storage.setItem(LEGACY_SETTINGS_KEYS.ambientVolume, '0');
+  assert.equal(readSettings(storage).audio.ambient, 0);
+  assert.equal(readSettings(storage).audio.ambient, 0);
+});
+
+test('numeric setters normalize corrupt values and preserve mute through write/read', () => {
+  const storage = storageWith();
+  assert.equal(updateSettings(storage, { 'audio.ambient': 0, 'controls.mouseSensitivity': '1.25', 'accessibility.textScale': false }), true);
+  const result = readSettings(storage);
+  assert.equal(result.audio.ambient, 0);
+  assert.equal(result.controls.mouseSensitivity, 1.25);
+  assert.equal(result.accessibility.textScale, 1);
+  assert.deepEqual(readSettings(storage), result);
+});
+
+test('denied persistence still returns recovered settings and reports write failure', () => {
+  const storage = {
+    getItem(key) { return key === SETTINGS_STORAGE_KEY ? JSON.stringify({ audio: { master: null } }) : null; },
+    setItem() { throw Error('denied'); }
+  };
+  assert.deepEqual(readSettings(storage), SETTINGS_DEFAULTS);
+  assert.equal(setSetting(storage, 'audio.master', 0), false);
+  assert.deepEqual(readSettings(undefined), SETTINGS_DEFAULTS);
+});
