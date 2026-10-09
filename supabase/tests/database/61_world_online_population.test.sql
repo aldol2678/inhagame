@@ -113,7 +113,7 @@ select has_function('public','restore_world_user_v1',array['uuid'],'admin restor
 set local role authenticated;
 set local request.jwt.claims='{"sub":"33333333-3333-4333-8333-333333333333","role":"authenticated","is_anonymous":false}';
 select throws_ok(
-  $select public.kick_world_user_v1('5f000000-0000-4000-8000-000000000061',30)$,
+  $q$select public.kick_world_user_v1('5f000000-0000-4000-8000-000000000061',30)$q$,
   '42501','unauthorized','normal member cannot eject even a staff account');
 reset role;
 
@@ -129,9 +129,9 @@ reset role;
 set local role authenticated;
 set local request.jwt.claims='{"sub":"33333333-3333-4333-8333-333333333333","role":"authenticated","is_anonymous":false}';
 select throws_ok(
-  $select public.touch_world_online_session_v2(
+  $q$select public.touch_world_online_session_v2(
    '44444444-4444-4444-8444-444444444444','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
-   'AREA_MAIN_HALL','campus')$,
+   'AREA_MAIN_HALL','campus')$q$,
   '42501','WORLD_SESSION_REVOKED','ejected account cannot recreate a world heartbeat');
 reset role;
 
@@ -143,9 +143,9 @@ reset role;
 
 set local role authenticated;
 set local request.jwt.claims='{"sub":"33333333-3333-4333-8333-333333333333","role":"authenticated","is_anonymous":false}';
-select lives_ok($select public.touch_world_online_session_v2(
+select lives_ok($q$select public.touch_world_online_session_v2(
   '44444444-4444-4444-8444-444444444444','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
-  'AREA_MAIN_HALL','campus')$,'restored account can heartbeat again');
+  'AREA_MAIN_HALL','campus')$q$,'restored account can heartbeat again');
 reset role;
 
 select * from finish();
