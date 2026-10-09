@@ -6,11 +6,13 @@
   <meta name="theme-color" content="#0d2739">
   <title>INHAGAME · 인하오리 게임 허브</title>
   <link rel="stylesheet" href="/hub.css">
+  <link rel="stylesheet" href="/hub-world-sessions.css">
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script defer src="/hub-telemetry.js"></script>
   <script defer src="/hub.js"></script>
   <script defer src="/api/public-supabase-config"></script>
   <script defer src="/hub-account.js"></script>
+  <script type="module" src="/hub-world-sessions.mjs"></script>
   <script defer src="/hub-friends-client.js"></script>
   <script defer src="/hub-friends.js"></script>
   <script defer src="/hub-messages-client.js"></script>
@@ -198,7 +200,33 @@
       </div>
     </section>
 
-
+      <section id="hub-world-session-admin" class="card hub-world-session-admin"
+        aria-labelledby="hub-world-session-title" hidden>
+        <div class="hub-world-session-heading">
+          <div>
+            <span class="tag">WORLD ADMIN</span>
+            <h2 id="hub-world-session-title">월드 접속자 관리</h2>
+            <p class="quiet">월드 접속만 차단합니다. 계정·캐릭터·보상 데이터는 삭제하지 않습니다.</p>
+          </div>
+          <button id="hub-world-session-refresh" class="secondary" type="button">새로고침</button>
+        </div>
+        <p id="hub-world-session-summary" class="hub-world-session-summary">접속 정보 확인 중</p>
+        <div class="hub-world-session-controls">
+          <label for="hub-world-session-duration">강제 퇴장 후 재접속 제한</label>
+          <select id="hub-world-session-duration" aria-label="월드 접속 차단 시간">
+            <option value="5">5분</option>
+            <option value="30" selected>30분</option>
+            <option value="60">1시간</option>
+            <option value="240">4시간</option>
+          </select>
+        </div>
+        <p id="hub-world-session-status" class="quiet" role="status" aria-live="polite"></p>
+        <h3>현재 접속 계정</h3>
+        <ul id="hub-world-session-accounts" class="hub-world-session-list" aria-label="현재 접속 계정"></ul>
+        <h3>접속 차단된 계정</h3>
+        <ul id="hub-world-session-blocks" class="hub-world-session-list" aria-label="차단된 계정"></ul>
+        <p class="quiet">게스트는 접속 수만 표시됩니다. 강제 퇴장은 로그인 계정 단위이며 다른 탭도 함께 적용됩니다.</p>
+      </section>
 
     <section class="view" data-view="friends" hidden>
       <span class="tag">소셜</span>
