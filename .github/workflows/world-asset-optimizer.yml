@@ -59,6 +59,7 @@ on:
       - 'apps/world/tests/browser/asset-canary-remote-kill-*'
       - 'supabase/migrations/*asset_canary*'
       - 'supabase/tests/database/91_world_asset_canary_remote_control.test.sql'
+      - '.github/ci/world-asset-scope*.mjs'
       - '.github/workflows/world-asset-optimizer.yml'
 
 permissions:
@@ -74,89 +75,133 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 2
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: '24.19.0'
           cache: npm
-          cache-dependency-path: tools/world-assets/package-lock.json
+          cache-dependency-path: |
+            tools/world-assets/package-lock.json
+            apps/world/tests/browser/package-lock.json
+      - name: Verify CI scope classifier
+        run: node --test .github/ci/world-asset-scope.test.mjs
+      - name: Detect verification lanes
+        id: scope
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          git fetch --no-tags --depth=1 origin "$BASE_REF"
+          git diff --name-only "$BASE_SHA" "$HEAD_SHA" | node .github/ci/world-asset-scope.mjs >> "$GITHUB_OUTPUT"
+      - name: Report verification lanes
+        env:
+          OPTIMIZER: ${{ steps.scope.outputs.optimizer }}
+          GRAPHICS: ${{ steps.scope.outputs.graphics }}
+          CANARY: ${{ steps.scope.outputs.canary }}
+        run: echo "optimizer=$OPTIMIZER graphics=$GRAPHICS canary=$CANARY" >> "$GITHUB_STEP_SUMMARY"
+
       - name: Install locked optimizer dependencies
+        if: steps.scope.outputs.optimizer == 'true' || steps.scope.outputs.canary == 'true'
         working-directory: tools/world-assets
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Run optimizer contract tests
+        if: steps.scope.outputs.optimizer == 'true'
         working-directory: tools/world-assets
         run: npm test
       - name: Run strict optimizer verification
+        if: steps.scope.outputs.optimizer == 'true'
         working-directory: tools/world-assets
         run: npm run verify -- --output-root "$RUNNER_TEMP/inhagame-world-assets"
       - name: Generate shadow-consumer assets
+        if: steps.scope.outputs.optimizer == 'true' || steps.scope.outputs.canary == 'true'
         working-directory: tools/world-assets
         run: npm run verify
+
       - name: Install World browser smoke dependencies
+        if: steps.scope.outputs.optimizer == 'true' || steps.scope.outputs.graphics == 'true' || steps.scope.outputs.canary == 'true'
         working-directory: apps/world/tests/browser
         run: npm ci --ignore-scripts --no-audit --no-fund
+
       - name: Run asset optimization shadow smoke
+        if: steps.scope.outputs.optimizer == 'true'
         env:
           WORLD_SMOKE_DISABLE_WEBGPU: '1'
           WORLD_SMOKE_BROWSER: chrome
         run: node apps/world/tests/browser/asset-optimization-shadow-smoke.mjs
+
       - name: Run campus material profile smoke
+        if: steps.scope.outputs.graphics == 'true'
         env:
           WORLD_SMOKE_DISABLE_WEBGPU: '1'
           WORLD_SMOKE_BROWSER: chrome
         run: node apps/world/tests/browser/material-profile-smoke.mjs
       - name: Run delayed-character loading render smoke
+        if: steps.scope.outputs.graphics == 'true'
         env:
           WORLD_SMOKE_DISABLE_WEBGPU: '1'
           WORLD_SMOKE_BROWSER: chrome
         run: node apps/world/tests/browser/loading-render-smoke.mjs
       - name: Run winter environment soak smoke
+        if: steps.scope.outputs.graphics == 'true'
         env:
           WORLD_SMOKE_DISABLE_WEBGPU: '1'
           WORLD_SMOKE_BROWSER: chrome
         run: node apps/world/tests/browser/winter-soak-smoke.mjs
       - name: Run campus contact shading smoke
+        if: steps.scope.outputs.graphics == 'true'
         env:
           WORLD_SMOKE_DISABLE_WEBGPU: '1'
           WORLD_SMOKE_BROWSER: chrome
         run: node apps/world/tests/browser/contact-shading-smoke.mjs
       - name: Run Biryong visual performance smoke
+        if: steps.scope.outputs.graphics == 'true'
         env:
           WORLD_SMOKE_DISABLE_WEBGPU: '1'
           WORLD_SMOKE_BROWSER: chrome
           BIRYONG_PERF_RECEIPT: ${{ runner.temp }}/biryong-visual-performance.json
         run: node apps/world/tests/browser/biryong-performance-smoke.mjs
       - name: Preserve Biryong performance diagnostics
-        if: always()
+        if: always() && steps.scope.outputs.graphics == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: biryong-performance-diagnostics-${{ github.event.pull_request.head.sha }}
           path: ${{ runner.temp }}/biryong-visual-performance.json
           if-no-files-found: warn
           retention-days: 7
+
       - name: Run asset authority canary smoke
+        if: steps.scope.outputs.canary == 'true'
         env:
           WORLD_SMOKE_DISABLE_WEBGPU: '1'
           WORLD_SMOKE_BROWSER: chrome
         run: node apps/world/tests/browser/asset-authority-canary-smoke.mjs
       - name: Run full-cohort production asset rollout smoke
+        if: steps.scope.outputs.canary == 'true'
         env:
           WORLD_SMOKE_DISABLE_WEBGPU: '1'
           WORLD_SMOKE_BROWSER: chrome
         run: node apps/world/tests/browser/asset-production-canary-smoke.mjs
       - name: Run remote asset canary kill-switch smoke
+        if: steps.scope.outputs.canary == 'true'
         env:
           WORLD_SMOKE_DISABLE_WEBGPU: '1'
           WORLD_SMOKE_BROWSER: chrome
         run: node apps/world/tests/browser/asset-canary-remote-kill-smoke.mjs
       - name: Verify production optimized brand route contracts
+        if: steps.scope.outputs.canary == 'true'
         run: node --test apps/world/tests/brand-asset-routing.test.mjs
+
       - name: Upload optimizer receipt and generated samples
+        if: steps.scope.outputs.optimizer == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: world-asset-optimizer-evidence
           path: |
             ${{ runner.temp }}/inhagame-world-assets/**
-            ${{ runner.temp }}/biryong-visual-performance.json
             tools/world-assets/package-lock.json
           if-no-files-found: error
           retention-days: 7
