@@ -1,0 +1,55 @@
+name: Housing browser QA
+on:
+  pull_request:
+    paths:
+      - 'apps/world/src/rooms/**'
+      - 'apps/world/src/collection/item-catalog.js'
+      - 'apps/world/tests/furniture-*.test.mjs'
+      - 'apps/world/tests/personal-room.test.mjs'
+      - 'apps/world/tests/item-catalog.test.mjs'
+      - 'apps/world/tests/browser/housing-smoke.mjs'
+      - 'apps/world/tests/browser/harness.mjs'
+      - 'apps/world/tests/browser/harness-source.mjs'
+      - 'apps/world/tests/browser/package*.json'
+      - '.github/workflows/housing-browser.yml'
+permissions:
+  contents: read
+concurrency:
+  group: housing-browser-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  chromium:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - name: Install pinned offline browser dependencies
+        working-directory: apps/world/tests/browser
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Verify furniture persistence and account isolation contracts
+        run: node --test apps/world/tests/furniture-*.test.mjs apps/world/tests/personal-room.test.mjs apps/world/tests/item-catalog.test.mjs
+      - name: Exercise offline housing save and reload
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+          WORLD_SMOKE_TIMEOUT_MS: '540000'
+          HOUSING_SMOKE_SHOTS: test-results/housing
+        run: |
+          mkdir -p test-results/housing
+          git rev-parse HEAD > test-results/housing/head-sha.txt
+          set -o pipefail
+          timeout --signal=TERM --kill-after=10s 960s node apps/world/tests/browser/housing-smoke.mjs 2>&1 | tee test-results/housing/smoke.log
+      - name: Save exact-head offline browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: housing-browser-evidence
+          path: test-results/housing/
+          if-no-files-found: error
+          retention-days: 7

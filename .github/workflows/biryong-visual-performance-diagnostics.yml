@@ -1,0 +1,58 @@
+name: Biryong visual performance diagnostics
+
+# Software-only CI is not a reliable FPS acceptance environment. Keep the expensive
+# Visual OFF/ON comparison available on demand, independently of asset verification.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: biryong-visual-diagnostics-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - name: Install pinned browser dependencies
+        working-directory: apps/world/tests/browser
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Check performance policy and diagnostic safeguards
+        run: |
+          node --test apps/world/tests/biryong-performance-budget.test.mjs
+          node --test apps/world/tests/biryong-performance-smoke-diagnostics.test.mjs
+          node --test apps/world/tests/biryong-control-diagnostic.test.mjs
+      - name: Measure Biryong visual OFF and ON
+        id: measure
+        continue-on-error: true
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+          BIRYONG_PERF_RECEIPT: ${{ runner.temp }}/biryong-visual-performance.json
+        run: node apps/world/tests/browser/biryong-performance-smoke.mjs
+      - name: Gate hard failures and mark software-only limits as inconclusive
+        if: always()
+        env:
+          BIRYONG_MEASURE_OUTCOME: ${{ steps.measure.outcome }}
+        run: |
+          node apps/world/tests/browser/biryong-ci-gate.mjs visual \
+            "$RUNNER_TEMP/biryong-visual-performance.json" \
+            "$BIRYONG_MEASURE_OUTCOME" "$GITHUB_SHA"
+      - name: Preserve Biryong diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: biryong-visual-diagnostics-${{ github.sha }}
+          path: ${{ runner.temp }}/biryong-visual-performance.json
+          if-no-files-found: warn
+          retention-days: 7

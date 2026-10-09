@@ -9,6 +9,9 @@ on:
       - '.github/workflows/world-population-bfcache.yml'
 permissions:
   contents: read
+concurrency:
+  group: world-population-bfcache-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 jobs:
   bfcache:
     runs-on: ubuntu-latest

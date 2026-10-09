@@ -12,7 +12,7 @@ Design sources (Notion CURRENT DESIGN): `Collection C0–C2 상세설계 v0.1` �
 Code catalog: `apps/world/src/collection/item-catalog.js`.
 Base migration: `supabase/migrations/20261001213132_public_baseline.sql`.
 Life M1 compatibility extension: `supabase/migrations/20261002131000_world_material_catalog_m1.sql`.
-Housing F0 catalog extension: `supabase/migrations/20261008090000_world_personal_room_f0_furniture.sql`.
+Housing F0 catalog extension: `supabase/migrations/20261009142600_world_personal_room_f0_furniture.sql`.
 
 `Catalog ≠ Ownership ≠ Inventory View ≠ Loadout ≠ Room Placement`. P0-B closes Catalog + Ownership only.
 

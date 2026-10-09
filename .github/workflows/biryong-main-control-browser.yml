@@ -3,9 +3,24 @@ name: Biryong immutable main control
 on:
   pull_request:
     paths:
-      - 'apps/world/**'
+      - 'apps/world/src/biryong/**'
+      - 'apps/world/src/graphics-presets.js'
+      - 'apps/world/src/campus-render-kit.js'
+      - 'apps/world/src/environment/environment-director.js'
+      - 'apps/world/src/environment/environment-presets.js'
+      - 'apps/world/tests/browser/biryong-control-*.mjs'
+      - 'apps/world/tests/browser/biryong-performance-*.mjs'
+      - 'apps/world/tests/browser/biryong-ci-gate.mjs'
+      - 'apps/world/tests/biryong-control-diagnostic.test.mjs'
+      - 'apps/world/tests/biryong-performance-*.test.mjs'
+      - 'apps/world/tests/browser/harness*.mjs'
+      - 'apps/world/tests/browser/package*.json'
       - '.github/workflows/biryong-main-control-browser.yml'
   workflow_dispatch:
+
+concurrency:
+  group: biryong-main-control-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -76,6 +91,7 @@ jobs:
           node apps/world/tests/browser/biryong-performance-smoke.mjs 2>&1 | tee "$RUNNER_TEMP/biryong-main-control/candidate.log"
       - name: Compare same-runner LOW controls without relaxing budgets
         if: always()
+        continue-on-error: true
         env:
           BIRYONG_CONTROL_MAIN_OUTCOME: ${{ steps.main.outcome }}
           BIRYONG_CONTROL_CANDIDATE_OUTCOME: ${{ steps.candidate.outcome }}
@@ -86,6 +102,9 @@ jobs:
             "$RUNNER_TEMP/biryong-main-control/candidate.json" \
             "$RUNNER_TEMP/biryong-main-control/comparison.json" \
             "$CONTROL_SHA" "$QA_CANDIDATE_SHA"
+      - name: Classify software-rendered comparison without treating it as performance PASS
+        if: always()
+        run: node apps/world/tests/browser/biryong-ci-gate.mjs control "$RUNNER_TEMP/biryong-main-control/comparison.json"
       - name: Upload control receipts and logs
         if: always()
         uses: actions/upload-artifact@v4

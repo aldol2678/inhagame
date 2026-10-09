@@ -1,0 +1,136 @@
+{
+  "pack": "INHA WORLD Icon Pack v1 P0 Full 19 v3",
+  "status": "APPROVED_ASSETS_NOT_RUNTIME_BOUND",
+  "based_on": "/mnt/data/inha_world_icon_pack_v1_p0_full19_v3",
+  "created": "2026-10-08",
+  "count": 19,
+  "style": {
+    "viewBox": "0 0 24 24",
+    "colors": [
+      "#103F7E",
+      "#398EF2",
+      "#B7E4FF",
+      "#58C6AE",
+      "#FF8079",
+      "#FFC85C"
+    ]
+  },
+  "assetIds": [
+    {
+      "id": "inha.ui.album.p0.v3",
+      "label": "앨범",
+      "file": "svg/album.svg",
+      "scope": "phone"
+    },
+    {
+      "id": "inha.ui.attendance.p0.v3",
+      "label": "출석",
+      "file": "svg/attendance.svg",
+      "scope": "hud"
+    },
+    {
+      "id": "inha.ui.camera.p0.v3",
+      "label": "카메라",
+      "file": "svg/camera.svg",
+      "scope": "phone"
+    },
+    {
+      "id": "inha.ui.chat.p0.v3",
+      "label": "채팅",
+      "file": "svg/chat.svg",
+      "scope": "hud"
+    },
+    {
+      "id": "inha.ui.collection.p0.v3",
+      "label": "도감",
+      "file": "svg/collection.svg",
+      "scope": "hud"
+    },
+    {
+      "id": "inha.ui.friends.p0.v3",
+      "label": "친구",
+      "file": "svg/friends.svg",
+      "scope": "hud"
+    },
+    {
+      "id": "inha.ui.help.p0.v3",
+      "label": "도움말",
+      "file": "svg/help.svg",
+      "scope": "hud"
+    },
+    {
+      "id": "inha.ui.inventory.p0.v3",
+      "label": "인벤토리",
+      "file": "svg/inventory.svg",
+      "scope": "hud"
+    },
+    {
+      "id": "inha.ui.lock.p0.v3",
+      "label": "잠금",
+      "file": "svg/lock.svg",
+      "scope": "status"
+    },
+    {
+      "id": "inha.ui.map.p0.v3",
+      "label": "지도",
+      "file": "svg/map.svg",
+      "scope": "phone"
+    },
+    {
+      "id": "inha.ui.mobility.p0.v3",
+      "label": "탈것",
+      "file": "svg/mobility.svg",
+      "scope": "hud"
+    },
+    {
+      "id": "inha.ui.notification.p0.v3",
+      "label": "알림",
+      "file": "svg/notification.svg",
+      "scope": "status"
+    },
+    {
+      "id": "inha.ui.profile.p0.v3",
+      "label": "프로필",
+      "file": "svg/profile.svg",
+      "scope": "hud"
+    },
+    {
+      "id": "inha.ui.quest.p0.v3",
+      "label": "퀘스트",
+      "file": "svg/quest.svg",
+      "scope": "hud"
+    },
+    {
+      "id": "inha.ui.quiz.p0.v3",
+      "label": "퀴즈",
+      "file": "svg/quiz.svg",
+      "scope": "hud"
+    },
+    {
+      "id": "inha.ui.settings.p0.v3",
+      "label": "설정",
+      "file": "svg/settings.svg",
+      "scope": "shared"
+    },
+    {
+      "id": "inha.ui.shop.p0.v3",
+      "label": "상점",
+      "file": "svg/shop.svg",
+      "scope": "hud"
+    },
+    {
+      "id": "inha.ui.student-id.p0.v3",
+      "label": "학생증",
+      "file": "svg/student-id.svg",
+      "scope": "phone"
+    },
+    {
+      "id": "inha.ui.wardrobe.p0.v3",
+      "label": "옷장",
+      "file": "svg/wardrobe.svg",
+      "scope": "hud"
+    }
+  ],
+  "legalNote": "student-id 24px does not include or reproduce Inha University's official CI; original CI can only be used separately within school's noncommercial scope and no official endorsement.",
+  "runtimeIntegrated": false
+}

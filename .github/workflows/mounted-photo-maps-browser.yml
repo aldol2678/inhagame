@@ -1,0 +1,80 @@
+name: Mounted Photo + Maps browser QA
+on:
+  pull_request:
+    paths:
+      - 'apps/world/src/photo/**'
+      - 'apps/world/src/phone/**'
+      - 'apps/world/src/minimap/**'
+      - 'apps/world/src/main.js'
+      - 'apps/world/src/player-controller.js'
+      - 'apps/world/src/character-model.js'
+      - 'apps/world/src/orbit-camera-controller.js'
+      - 'apps/world/src/input/**'
+      - 'apps/world/src/world-collision.js'
+      - 'apps/world/src/campus-layout.js'
+      - 'apps/world/src/world-exterior-bounds.js'
+      - 'apps/world/src/main-gate-frame.js'
+      - 'apps/world/src/editor/main-gate-production.js'
+      - 'apps/world/src/student-center-*.js'
+      - 'apps/world/npc-factory/dev-runtime-state.mjs'
+      - 'apps/world/src/mounts/campus-bike-world.js'
+      - 'apps/world/src/mounts/duck-boat-motion.js'
+      - 'apps/world/src/mounts/campus-helicopter-world.js'
+      - 'apps/world/campus/index.html'
+      - 'apps/world/phone.css'
+      - 'apps/world/styles.css'
+      - 'apps/world/tests/photo-*.test.mjs'
+      - 'apps/world/tests/inkyung-photo-point.test.mjs'
+      - 'apps/world/tests/world-bounds-boot-order.test.mjs'
+      - 'apps/world/tests/browser/ipad-webkit-boot-smoke.mjs'
+      - 'apps/world/tests/browser/photo-mode-*'
+      - 'apps/world/tests/browser/harness.mjs'
+      - 'apps/world/tests/browser/harness-source.mjs'
+      - 'apps/world/tests/browser/package*.json'
+      - 'apps/world/tests/browser/mounted-photo-maps-smoke.mjs'
+      - '.github/workflows/mounted-photo-maps-browser.yml'
+permissions:
+  contents: read
+concurrency:
+  group: mounted-photo-maps-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  mounted-photo-maps:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        viewport: [desktop, portrait, landscape]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+          cache: npm
+          cache-dependency-path: apps/world/tests/browser/package-lock.json
+      - name: Install readable Korean glyphs
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+      - name: Install pinned browser dependencies
+        working-directory: apps/world/tests/browser
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Verify mounted photo lifecycle and mobile Maps
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+          MOUNTED_PHOTO_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          MOUNTED_PHOTO_QA_CASES: ${{ matrix.viewport }}
+        run: timeout --signal=TERM --kill-after=10s 720s node apps/world/tests/browser/mounted-photo-maps-smoke.mjs
+      - name: Preserve mounted photo and Maps evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mounted-photo-maps-${{ matrix.viewport }}
+          path: test-results/mounted-photo-maps/
+          if-no-files-found: error
+          retention-days: 7

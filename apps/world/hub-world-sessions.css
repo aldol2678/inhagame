@@ -1,0 +1,40 @@
+/* Operator-only World roster. Server authorization is mandatory; hidden UI is not a security boundary. */
+#hub-world-session-admin[hidden] { display:none !important; }
+.hub-world-session-admin { margin-top:18px; }
+.hub-world-session-heading { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; }
+.hub-world-session-heading h2 { margin:6px 0; }
+.hub-world-session-heading .quiet { margin:3px 0 9px; }
+.hub-world-session-heading button { flex:none; }
+.hub-world-session-summary {
+  margin:15px 0; border-radius:12px; padding:12px 14px;
+  background:#eff7f4; color:#1a4d48; font-weight:800;
+}
+.hub-world-session-controls { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-bottom:12px; }
+.hub-world-session-controls label { color:#344c5b; font-weight:700; }
+.hub-world-session-controls select { background:#fff; border:1px solid #b9cbd1; color:#183b4a; padding:9px; border-radius:8px; }
+.hub-world-session-admin h3 { font-size:16px; margin:20px 0 8px; }
+.hub-world-session-list { list-style:none; margin:0; padding:0; border:1px solid #dfebee; border-radius:12px; overflow:hidden; }
+.hub-world-session-row {
+  display:flex; justify-content:space-between; align-items:center; gap:14px;
+  padding:13px 15px; border-bottom:1px solid #e7eef0;
+}
+.hub-world-session-row:last-child { border-bottom:0; }
+.hub-world-session-info { display:flex; flex:1; flex-direction:column; gap:4px; min-width:0; overflow-wrap:anywhere; }
+.hub-world-session-info strong { color:#203e4e; font-size:15px; }
+.hub-world-session-info small { color:#607984; font-size:12px; line-height:1.5; }
+.hub-world-session-kick, .hub-world-session-restore {
+  border-radius:9px; padding:10px 12px; min-height:42px; border:1px solid #d4a39e;
+  background:#fff6f4; color:#873a35; font-weight:800; white-space:nowrap; cursor:pointer;
+}
+.hub-world-session-restore { background:#eef7f8; border-color:#93c7cb; color:#225a62; }
+.hub-world-session-kick:disabled, .hub-world-session-restore:disabled { opacity:.5; cursor:not-allowed; }
+.hub-world-session-kick:focus-visible, .hub-world-session-restore:focus-visible {
+  outline:3px solid #daaa3f; outline-offset:2px;
+}
+.hub-world-session-empty { padding:15px; color:#617581; }
+@media (max-width:650px) {
+  .hub-world-session-heading { flex-wrap:wrap; }
+  .hub-world-session-row { align-items:stretch; flex-direction:column; }
+  .hub-world-session-kick, .hub-world-session-restore { width:100%; }
+  .hub-world-session-controls { align-items:stretch; flex-direction:column; }
+}

@@ -22,7 +22,7 @@ placing or recalling objects. An account without owned furniture sees an explici
 ## Persistence and authority
 
 - Base migration: `20261002136000_world_personal_room_furniture_d3.sql`.
-- F0 extension: `20261008090000_world_personal_room_f0_furniture.sql` registers the new seven catalog rows, mirrors all sixteen placement definitions and widens the C70 floor-placement bounds.
+- F0 extension: `20261009142600_world_personal_room_f0_furniture.sql` registers the new seven catalog rows, mirrors all sixteen placement definitions and widens the C70 floor-placement bounds.
 - `private.world_room_layouts`: one JSON snapshot per existing room UUID, integer revision.
 - `get_world_room_furniture_v1(p_room)`: D2 OWNER/VISITOR access, no stranger/unknown UUID disclosure.
 - `save_my_room_furniture_v1(p_room,p_revision,p_objects)`: owner derived from `auth.uid()`, full

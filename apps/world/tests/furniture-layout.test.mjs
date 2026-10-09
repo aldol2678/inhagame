@@ -9,7 +9,7 @@ const chair = extra => ({ id, itemId:"furniture.induck_chair", surface:"floor",x
 const owned = ROOM_FURNITURE.map(item => ({itemId:item.itemId,quantity:1}));
 
 test("all sixteen F0 placements are Collection furniture; server dimension/surface mirror agrees", () => {
-  const sql = readFileSync(new URL("../../../supabase/migrations/20261008090000_world_personal_room_f0_furniture.sql",import.meta.url),"utf8");
+  const sql = readFileSync(new URL("../../../supabase/migrations/20261009142600_world_personal_room_f0_furniture.sql",import.meta.url),"utf8");
   const rows = [...sql.matchAll(/\('(furniture\.[a-z0-9_]+)', ([\d.]+)(?:::float8)?, ([\d.]+)(?:::float8)?, ([\d.]+)(?:::float8)?, array\[([^\]]+)\], (true|false), (true|false)\)/g)];
   assert.equal(rows.length,16); assert.equal(ROOM_FURNITURE.length,16);
   for (const item of ROOM_FURNITURE) {

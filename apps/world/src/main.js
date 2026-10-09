@@ -3481,6 +3481,13 @@ try {
   const populationClient = window.supabase?.createClient?.(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
   populationHeartbeat = startWorldPopulationHeartbeat({
     client: populationClient,
+    onRevoked: () => {
+      // A world-only operator kick does not delete the account or character.
+      // Stop Realtime immediately; the server rejects further heartbeats until expiry.
+      online?.stop();
+      const status = document.getElementById('online-status');
+      if (status) status.textContent = '관리자가 월드 접속을 종료했습니다. 차단 해제 후 새로고침하세요.';
+    },
     getSnapshot: () => ({
       placeZoneId: rooms.insideRoom ? null : places.getCurrentPlaceZone()?.id ?? null,
       space: rooms.insideRoom

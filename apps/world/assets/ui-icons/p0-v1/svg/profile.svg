@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" role="img" aria-labelledby="title-profile" stroke-linejoin="round" stroke-linecap="round">
+<title id="title-profile">프로필</title>
+
+  <circle cx="12" cy="12" r="9.5" fill="#E5F5FF" stroke="#103F7E" stroke-width="1.7"/>
+  <circle cx="12" cy="9.3" r="3.1" fill="#B7E4FF" stroke="#103F7E" stroke-width="1.65"/>
+  <path d="M4.4 18.7c.35-4.6 3.4-6.1 7.6-6.1 4.3 0 7.3 1.5 7.6 6.1A9.4 9.4 0 0 1 12 21.5a9.4 9.4 0 0 1-7.6-2.8Z" fill="#398EF2" stroke="#103F7E" stroke-width="1.4"/>
+  <path d="M9.2 15.3h5.6" stroke="#FFFFFF" stroke-width="1.2" opacity=".75"/>
+</svg>
