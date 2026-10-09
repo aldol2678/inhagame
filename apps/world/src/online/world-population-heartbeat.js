@@ -35,7 +35,8 @@ export function startWorldPopulationHeartbeat({
   visitorStorage = globalThis.localStorage,
   scheduler = globalThis,
   windowTarget = globalThis.window,
-  intervalMs = WORLD_HEARTBEAT_MS
+  intervalMs = WORLD_HEARTBEAT_MS,
+  onRevoked = () => {}
 } = {}) {
   if (!client?.rpc) return null;
   const sessionId = randomId?.();
@@ -98,6 +99,10 @@ export function startWorldPopulationHeartbeat({
       } catch (error) {
         if (!isCurrent()) return false;
         lastError = String(error?.message ?? error);
+        if (lastError.includes('WORLD_SESSION_REVOKED')) {
+          stopLocal();
+          try { onRevoked(); } catch (callbackError) { console.warn('World session ejection callback failed:', callbackError); }
+        }
         return false;
       } finally {
         clearDeadline();
