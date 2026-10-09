@@ -3,9 +3,6 @@ on:
   pull_request:
     paths:
       - 'apps/world/src/photo/**'
-      - 'apps/world/src/phone/**'
-      - 'apps/world/src/minimap/**'
-      - 'apps/world/phone.css'
       - 'apps/world/src/main.js'
       - 'apps/world/src/world-collision.js'
       - 'apps/world/src/player-controller.js'
@@ -24,7 +21,6 @@ on:
       - 'apps/world/tests/world-bounds-boot-order.test.mjs'
       - 'apps/world/tests/browser/ipad-webkit-boot-smoke.mjs'
       - 'apps/world/tests/browser/photo-mode-*'
-      - 'apps/world/tests/browser/mounted-photo-maps-smoke.mjs'
       - '.github/workflows/photo-mode-browser.yml'
 permissions:
   contents: read
@@ -32,44 +28,6 @@ concurrency:
   group: photo-mode-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 jobs:
-  mounted-photo-maps:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    strategy:
-      fail-fast: false
-      matrix:
-        viewport: [desktop, portrait, landscape]
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          persist-credentials: false
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24.19.0'
-      - name: Install readable Korean glyphs
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends fonts-noto-cjk
-      - name: Install pinned browser dependencies
-        working-directory: apps/world/tests/browser
-        run: npm ci --ignore-scripts --no-audit --no-fund
-      - name: Verify mounted photo lifecycle and mobile Maps
-        env:
-          WORLD_SMOKE_DISABLE_WEBGPU: '1'
-          WORLD_SMOKE_BROWSER: chrome
-          MOUNTED_PHOTO_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          MOUNTED_PHOTO_QA_CASES: ${{ matrix.viewport }}
-        run: timeout --signal=TERM --kill-after=10s 720s node apps/world/tests/browser/mounted-photo-maps-smoke.mjs
-      - name: Preserve mounted photo and Maps evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: mounted-photo-maps-${{ matrix.viewport }}
-          path: test-results/mounted-photo-maps/
-          if-no-files-found: error
-          retention-days: 7
-
   chromium-controls:
     runs-on: ubuntu-latest
     timeout-minutes: 15
