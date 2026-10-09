@@ -185,6 +185,7 @@ async function checkFurniture(page, label) {
     const { createFurnitureEditor } = await import("/src/rooms/furniture-editor.js");
     const { createFurnitureLayer } = await import("/src/rooms/furniture-renderer.js");
     const { ROOM_FURNITURE } = await import("/src/rooms/furniture-layout.js");
+    const { housingFurnitureOrder } = await import("/tests/browser/housing-fixture.mjs");
     const d = window.__INHAGAME_P0__, room = d.app.root.findByName("Room_ROOM_PERSONAL_BASIC");
     const baselineChildren = room.children.length, enabled = d.controller.inputEnabled;
     const originalEditor = document.getElementById("furniture-editor"); originalEditor.id = "furniture-editor-inactive-smoke";
@@ -205,14 +206,17 @@ async function checkFurniture(page, label) {
     ui = createFurnitureEditor({ client,inventory,onOpenChange:open=>{ d.controller.inputEnabled = !open; } });
     await client.bind(roomId); ui.openEditor();
     window.__FURNITURE_SMOKE__ = {client,ui,layer,calls,inventory,roomId,room,baselineChildren,enabled,originalEditor,
-      items:ROOM_FURNITURE.map(item=>item.itemId),visitor:()=>{stored.role="visitor";} };
+      items:housingFurnitureOrder(ROOM_FURNITURE).map(item=>item.itemId),visitor:()=>{stored.role="visitor";} };
   });
   const editor = page.locator("#furniture-editor");
   assert.equal(await editor.isVisible(),true,`${label}: editor opens`);
   const bounds = await editor.boundingBox(); const viewport = page.viewportSize();
   assert.ok(bounds.x >= 0 && bounds.y >= 0 && bounds.x+bounds.width <= viewport.width && bounds.y+bounds.height <= viewport.height,`${label}: editor fits viewport`);
-  for (const itemId of await page.evaluate(()=>window.__FURNITURE_SMOKE__.items))
+  for (const itemId of await page.evaluate(()=>window.__FURNITURE_SMOKE__.items)) {
     await editor.locator(`button[data-focus="${itemId}"]`).click();
+    assert.equal(await page.evaluate(id=>window.__FURNITURE_SMOKE__.client.state().objects.filter(row=>row.itemId===id).length,itemId),
+      1,`${label}: native editor adds ${itemId}`);
+  }
   const chairId = await page.evaluate(()=>window.__FURNITURE_SMOKE__.client.state().objects.find(row=>row.itemId==="furniture.induck_chair").id);
   await editor.locator('select[data-focus="selection"]').selectOption(chairId);
   const plan = editor.locator("svg.furniture-plan"), planBounds = await plan.boundingBox();

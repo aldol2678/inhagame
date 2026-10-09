@@ -7,7 +7,7 @@ on:
       - 'apps/world/tests/furniture-*.test.mjs'
       - 'apps/world/tests/personal-room.test.mjs'
       - 'apps/world/tests/item-catalog.test.mjs'
-      - 'apps/world/tests/browser/housing-smoke.mjs'
+      - 'apps/world/tests/browser/housing-*.mjs'
       - 'apps/world/tests/browser/harness.mjs'
       - 'apps/world/tests/browser/harness-source.mjs'
       - 'apps/world/tests/browser/package*.json'
