@@ -1,0 +1,117 @@
+name: PR metadata labels
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize, edited, ready_for_review]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'Optional PR number; blank provisions the label catalog only'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+
+concurrency:
+  group: pr-metadata-labels-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  classify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # pull_request_target runs trusted default-branch workflow code only.
+      # Never check out the PR head or execute its files here.
+      - name: Provision catalog and classify metadata only
+        uses: actions/github-script@v7
+        env:
+          PR_NUMBER: ${{ inputs.pr_number }}
+        with:
+          script: |
+            const catalog = [
+              ['type:bug','E11D48','Bug fix'],
+              ['type:feature','1976D2','New functionality'],
+              ['type:performance','8B5CF6','Performance optimization'],
+              ['type:ci','D97706','CI or workflow infrastructure'],
+              ['type:test','059669','Testing and verification'],
+              ['type:docs','0284C7','Documentation'],
+              ['type:refactor','EA580C','Refactoring without intended feature change'],
+              ['type:maintenance','64748B','Maintenance and dependencies'],
+              ['area:world','0D9488','INHA WORLD runtime'],
+              ['area:3d-assets','06B6D4','3D models and asset delivery'],
+              ['area:ui-ux','F43F5E','Interface and user experience'],
+              ['area:backend','6366F1','API or data services'],
+              ['area:induckup','65A30D','Induckup game'],
+              ['priority:P0','B91C1C','Critical priority, manual decision'],
+              ['priority:P1','EA580C','High priority, manual decision'],
+              ['priority:P2','EAB308','Normal priority, manual decision'],
+              ['priority:P3','84CC16','Low priority, manual decision'],
+              ['status:triage','84CC16','Needs triage, manually verified'],
+              ['status:waiting-ci','D97706','Waiting for CI, manually verified'],
+              ['status:blocked','DC2626','Blocked, manually verified'],
+              ['status:review','64748B','Ready for review, manually verified'],
+              ['status:ready','15803D','Release-ready after all gates, manually verified']
+            ];
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const existing = await github.paginate(github.rest.issues.listLabelsForRepo, {owner,repo,per_page:100});
+            const known = new Set(existing.map(label => label.name.toLowerCase()));
+            for (const [name,color,description] of catalog) {
+              if (known.has(name.toLowerCase())) continue;
+              try {
+                await github.rest.issues.createLabel({owner,repo,name,color,description});
+                known.add(name.toLowerCase());
+              } catch (error) {
+                if (error.status !== 422) throw error;
+                // Another simultaneous run may have created this label.
+                await github.rest.issues.getLabel({owner,repo,name});
+                known.add(name.toLowerCase());
+              }
+            }
+            const input = (process.env.PR_NUMBER || '').trim();
+            let prNumber;
+            if (context.eventName === 'pull_request_target') {
+              prNumber = context.payload.pull_request.number;
+            } else if (input) {
+              if (!/^[1-9]\d{0,6}$/.test(input)) throw Error('Invalid PR number');
+              prNumber = Number(input);
+            }
+            if (!prNumber) {
+              core.info('Label catalog provisioned. No PR was changed.');
+              return;
+            }
+            const {data: pr} = await github.rest.pulls.get({owner,repo,pull_number:prNumber});
+            if (pr.state !== 'open' || pr.base.ref !== context.payload.repository.default_branch) {
+              core.info('Skipped closed PR or PR not targeting the default branch.');
+              return;
+            }
+            const files = await github.paginate(github.rest.pulls.listFiles, {owner,repo,pull_number:prNumber,per_page:100});
+            const paths = files.map(item => item.filename);
+            const title = String(pr.title || '').trim();
+            const kind = title.match(/^([a-z]+)(?:\([^)]*\))?!?:/i)?.[1]?.toLowerCase();
+            const typeNames = {
+              fix:'type:bug',feat:'type:feature',perf:'type:performance',
+              ci:'type:ci',test:'type:test',docs:'type:docs',
+              refactor:'type:refactor',chore:'type:maintenance',
+              build:'type:maintenance',deps:'type:maintenance'
+            };
+            const selected = new Set();
+            if (typeNames[kind]) selected.add(typeNames[kind]);
+            else if (paths.length && paths.every(path => /\.(md|mdx)$/i.test(path))) selected.add('type:docs');
+            else if (paths.some(path => path.startsWith('.github/workflows/'))) selected.add('type:ci');
+            if (paths.some(path => path.startsWith('apps/world/'))) selected.add('area:world');
+            if (paths.some(path => /(^|\/)assets\/|\.glb$|character-model|brand-asset/i.test(path))) selected.add('area:3d-assets');
+            if (paths.some(path => /(\/ui\/|\/hud\/|\/components\/|\/(?:menu|panel|lobby)[-/]|\.css$)/i.test(path))) selected.add('area:ui-ux');
+            if (paths.some(path => path.startsWith('supabase/') || path.startsWith('apps/world/api/'))) selected.add('area:backend');
+            if (paths.some(path => path.startsWith('apps/induckup/'))) selected.add('area:induckup');
+            const current = await github.paginate(github.rest.issues.listLabelsOnIssue, {owner,repo,issue_number:prNumber,per_page:100});
+            const present = new Set(current.map(label => label.name.toLowerCase()));
+            const additions = [...selected].filter(name => !present.has(name.toLowerCase()));
+            if (additions.length) {
+              await github.rest.issues.addLabels({owner,repo,issue_number:prNumber,labels:additions});
+            }
+            core.info('PR #' + prNumber + ': added ' + (additions.join(', ') || '(none)') + '. Existing labels preserved; status/priority never inferred.');
