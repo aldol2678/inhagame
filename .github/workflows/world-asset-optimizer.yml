@@ -69,7 +69,64 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Safety checks are independent of the renderer performance budget. A failure
+  # in one smoke still lets the other two report; setup failure skips all three.
+  canary-safety:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Verify exact safety source revision
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          actual_head="$(git rev-parse HEAD)"
+          test "$actual_head" = "$EXPECTED_HEAD"
+          echo "Canary safety source: $actual_head"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+          cache: npm
+          cache-dependency-path: tools/world-assets/package-lock.json
+      - name: Install locked optimizer dependencies
+        working-directory: tools/world-assets
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Generate shadow-consumer assets
+        working-directory: tools/world-assets
+        run: npm run verify
+      - name: Install World browser smoke dependencies
+        id: prepare
+        working-directory: apps/world/tests/browser
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Run asset authority canary smoke
+        id: authority
+        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+        run: node apps/world/tests/browser/asset-authority-canary-smoke.mjs
+      - name: Run full-cohort production asset rollout smoke
+        id: production
+        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+        run: node apps/world/tests/browser/asset-production-canary-smoke.mjs
+      - name: Run remote asset canary kill-switch smoke
+        id: remote-kill
+        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+        run: node apps/world/tests/browser/asset-canary-remote-kill-smoke.mjs
+
   verify:
+    # Keep the existing required context and fail closed on every safety result.
+    needs: [canary-safety]
+    if: ${{ always() && !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -133,30 +190,23 @@ jobs:
           path: ${{ runner.temp }}/biryong-visual-performance.json
           if-no-files-found: warn
           retention-days: 7
-      - name: Run asset authority canary smoke
-        env:
-          WORLD_SMOKE_DISABLE_WEBGPU: '1'
-          WORLD_SMOKE_BROWSER: chrome
-        run: node apps/world/tests/browser/asset-authority-canary-smoke.mjs
-      - name: Run full-cohort production asset rollout smoke
-        env:
-          WORLD_SMOKE_DISABLE_WEBGPU: '1'
-          WORLD_SMOKE_BROWSER: chrome
-        run: node apps/world/tests/browser/asset-production-canary-smoke.mjs
-      - name: Run remote asset canary kill-switch smoke
-        env:
-          WORLD_SMOKE_DISABLE_WEBGPU: '1'
-          WORLD_SMOKE_BROWSER: chrome
-        run: node apps/world/tests/browser/asset-canary-remote-kill-smoke.mjs
       - name: Verify production optimized brand route contracts
         run: node --test apps/world/tests/brand-asset-routing.test.mjs
-      - name: Upload optimizer receipt and generated samples
+      - name: Upload optimizer metadata-only evidence
         uses: actions/upload-artifact@v4
         with:
           name: world-asset-optimizer-evidence
           path: |
-            ${{ runner.temp }}/inhagame-world-assets/**
+            ${{ runner.temp }}/inhagame-world-assets/optimization-report.json
             ${{ runner.temp }}/biryong-visual-performance.json
-            tools/world-assets/package-lock.json
           if-no-files-found: error
           retention-days: 7
+      - name: Require independent canary safety success
+        if: always()
+        env:
+          SAFETY_RESULT: ${{ needs.canary-safety.result }}
+        run: |
+          if [ "$SAFETY_RESULT" != success ]; then
+            echo "Independent canary safety did not succeed: $SAFETY_RESULT"
+            exit 1
+          fi
