@@ -11,6 +11,9 @@ on:
       - '.github/workflows/quest-journal-controls-browser.yml'
 permissions:
   contents: read
+concurrency:
+  group: quest-journal-controls-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 jobs:
   quest-journal-controls-browser:
     runs-on: ubuntu-latest

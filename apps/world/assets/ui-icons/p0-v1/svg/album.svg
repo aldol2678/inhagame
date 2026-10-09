@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" role="img" aria-labelledby="title-album" stroke-linejoin="round" stroke-linecap="round">
+<title id="title-album">앨범</title>
+
+  <rect x="6.7" y="3.4" width="14.2" height="15.2" rx="2" fill="#E5F5FF" stroke="#103F7E" stroke-width="1.5"/>
+  <rect x="3.1" y="6.6" width="15.1" height="14.3" rx="2.1" fill="#FFFFFF" stroke="#103F7E" stroke-width="1.75"/>
+  <rect x="5.2" y="8.7" width="10.9" height="10.1" rx="1" fill="#B7E4FF"/>
+  <circle cx="12.9" cy="11.2" r="1.5" fill="#FFC85C"/>
+  <path d="m5.2 17 3.7-4.2 2.6 2.6 1.7-1.4 2.9 3v1.8H5.2Z" fill="#58C6AE"/>
+</svg>

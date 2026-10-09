@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" role="img" aria-labelledby="title-friends" stroke-linejoin="round" stroke-linecap="round">
+<title id="title-friends">친구</title>
+
+  <circle cx="9" cy="9.1" r="2.8" fill="#B7E4FF" stroke="#103F7E" stroke-width="1.5"/>
+  <circle cx="15.8" cy="9.6" r="2.45" fill="#58C6AE" stroke="#103F7E" stroke-width="1.35"/>
+  <path d="M3.9 18.3c.35-3.6 2.8-5.2 5.9-5.2 3.1 0 5.3 1.5 5.6 5.2Z" fill="#398EF2" stroke="#103F7E" stroke-width="1.45"/>
+  <path d="M13 18.2c.3-2.6 1.9-3.9 4.2-3.9 2.2 0 3.7 1.1 4 3.9Z" fill="#B7E4FF" stroke="#103F7E" stroke-width="1.25"/>
+  <path d="M16.9 5.5v2.1M15.8 6.55h2.2" stroke="#FFC85C" stroke-width="1.5" stroke-linecap="round"/>
+</svg>
