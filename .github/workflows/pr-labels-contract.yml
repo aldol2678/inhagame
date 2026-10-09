@@ -1,0 +1,23 @@
+name: PR labeler contract tests
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/pr-metadata-labels.yml'
+      - '.github/workflows/pr-labels-contract.yml'
+      - '.github/ci/pr-metadata-labels.test.mjs'
+
+permissions:
+  contents: read
+
+jobs:
+  labeler-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - name: Verify metadata-only labeler contracts
+        run: node --test .github/ci/pr-metadata-labels.test.mjs
