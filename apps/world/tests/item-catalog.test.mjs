@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  ITEM_CATALOG, PILOT_ITEM_IDS, DEFAULT_ITEM_IDS, VS_ECONOMY_ITEM_IDS, LIFE_M1_MATERIAL_IDS, ITEM_ID_PATTERN,
+  ITEM_CATALOG, PILOT_ITEM_IDS, DEFAULT_ITEM_IDS, VS_ECONOMY_ITEM_IDS, F0_FURNITURE_IDS, LIFE_M1_MATERIAL_IDS, ITEM_ID_PATTERN,
   getItemDefinition, validateCatalog, describeOwnedItem, catalogAuthorityRow
 } from '../src/collection/item-catalog.js';
 
@@ -14,18 +14,38 @@ const STARTER_20 = [
   'furniture.mcm_2026_landlord_figure', 'furniture.mcm_2026_poster'
 ];
 
+const HOUSING_F0_NEW_7 = [
+  'furniture.dorm_single_sofa', 'furniture.dorm_side_table_low', 'furniture.dorm_bookshelf_slim',
+  'furniture.dorm_plant_medium', 'furniture.dorm_monitor', 'furniture.dorm_trophy_shelf',
+  'furniture.study_books_set'
+];
+
 test('the committed catalog passes every C0 rule', () => {
   assert.deepEqual(validateCatalog(ITEM_CATALOG), []);
 });
 
-test('catalog is the 6 pilot fixtures plus Starter Catalog 20 plus Life M1 materials, with stable lowercase ids', () => {
+test('catalog is the 6 pilot fixtures plus Starter Catalog 20 plus Housing F0 7 plus Life M1 materials', () => {
   const ids = ITEM_CATALOG.map(d => d.itemId);
-  assert.deepEqual(ids, [...PILOT_ITEM_IDS, ...STARTER_20, ...LIFE_M1_MATERIAL_IDS], 'order and membership are the committed contract');
-  assert.equal(new Set(ids).size, 29);
+  assert.deepEqual(ids, [...PILOT_ITEM_IDS, ...STARTER_20, ...HOUSING_F0_NEW_7, ...LIFE_M1_MATERIAL_IDS], 'order and membership are the committed contract');
+  assert.equal(new Set(ids).size, 36);
   for (const id of ids) assert.match(id, ITEM_ID_PATTERN);
   assert.ok(ids.every(id => id === id.toLowerCase()), 'no uppercase COSMETIC_* style ids');
   for (const id of VS_ECONOMY_ITEM_IDS) assert.ok(getItemDefinition(id), `vertical slice item ${id} exists`);
   assert.equal(VS_ECONOMY_ITEM_IDS.length, 8);
+});
+
+test('Housing F0 exposes exactly sixteen placeable furniture identities without activating acquisition', () => {
+  assert.equal(F0_FURNITURE_IDS.length, 16);
+  assert.equal(new Set(F0_FURNITURE_IDS).size, 16);
+  assert.deepEqual(F0_FURNITURE_IDS.slice(-7), HOUSING_F0_NEW_7);
+  for (const id of F0_FURNITURE_IDS) assert.equal(getItemDefinition(id)?.category, 'FURNITURE', id);
+  for (const id of HOUSING_F0_NEW_7) {
+    const item = getItemDefinition(id);
+    assert.equal(item.status, 'COMING_SOON', id);
+    assert.ok(item.tags.includes('f0'), id);
+    assert.ok(['SHOP','QUEST'].includes(item.acquisition[0].source), id);
+  }
+  assert.equal(getItemDefinition('furniture.dorm_trophy_shelf').acquisition[0].source, 'QUEST');
 });
 
 test('pilot fixtures keep their C0 §1.6 contract', () => {

@@ -11,17 +11,18 @@ or recall it. **저장** persists the complete snapshot; **완료** closes the e
 whether to keep editing or discard. A failed save keeps the draft; a revision conflict never
 overwrites another tab's saved layout. Identity/room changes discard old drafts and late responses.
 
-The six existing DORM_1_BASIC fixtures remain fixed template decorations. The editor supports the
-nine existing `furniture.*` Collection IDs: campus map poster, Induck cushion, dorm desk lamp,
-Induck chair, mini Induck, campus blue rug, dorm resident plate, MCM landlord figure and MCM poster.
-Desk props fit around the fixed laptop; bed cushions fit around the pillow; wall decor avoids the
-window and entrance. Inventory quantities stay unchanged when placing or recalling objects. This
-feature adds no grants, currency, shop listings or new acquisition routes. An account without owned
-furniture sees an explicit empty state.
+The six existing DORM_1_BASIC fixtures remain fixed template decorations. Housing F0 supports
+sixteen `furniture.*` Collection IDs: the original nine plus single sofa, low side table, slim
+bookshelf, medium plant, desk monitor, trophy shelf and Study Books Set. The seven F0 additions are
+registered as COMING_SOON catalog identities and placement definitions; this slice does not activate
+Shop prices, grants or reward routes. Desk props fit around the fixed laptop; bed cushions fit around
+the pillow; wall decor avoids the window and entrance. Inventory quantities stay unchanged when
+placing or recalling objects. An account without owned furniture sees an explicit empty state.
 
 ## Persistence and authority
 
-- Migration: `20261002136000_world_personal_room_furniture_d3.sql`, created with Supabase CLI.
+- Base migration: `20261002136000_world_personal_room_furniture_d3.sql`.
+- F0 extension: `20261009142600_world_personal_room_f0_furniture.sql` registers the new seven catalog rows, mirrors all sixteen placement definitions and widens the C70 floor-placement bounds.
 - `private.world_room_layouts`: one JSON snapshot per existing room UUID, integer revision.
 - `get_world_room_furniture_v1(p_room)`: D2 OWNER/VISITOR access, no stranger/unknown UUID disclosure.
 - `save_my_room_furniture_v1(p_room,p_revision,p_objects)`: owner derived from `auth.uid()`, full
@@ -40,11 +41,11 @@ furniture sees an explicit empty state.
 
 Node contracts cover geometry, ownership, editor controls, dirty-close handling, save retry/conflict,
 in-flight operations, visitor read-only behavior and late replies across room/account changes.
-Disposable pgTAP covers real RPCs, RLS/grants, all nine placements, atomicity, retries, conflicting
+Disposable pgTAP covers real RPCs, RLS/grants, all sixteen F0 placements, atomicity, retries, conflicting
 revisions, invalid snapshots, friend/stranger/guest/private access and unchanged inventory quantities.
 The existing Housing Database CI includes the new test. Shared migration history remains append-only.
-The existing offline housing browser smoke also exercises native editor controls and all nine real
-PlayCanvas primitive models with an isolated in-memory authority, including lost-response retry,
+The existing offline housing browser smoke also exercises native editor controls and all sixteen
+F0 PlayCanvas fallback models with an isolated in-memory authority, including lost-response retry,
 reload, recall, visitor refusal and entity/material cleanup on desktop/portrait/landscape. This is
 module integration evidence; it does not verify real Auth tokens or real two-account WebSockets.
 

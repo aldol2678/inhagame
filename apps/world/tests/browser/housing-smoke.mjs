@@ -185,6 +185,7 @@ async function checkFurniture(page, label) {
     const { createFurnitureEditor } = await import("/src/rooms/furniture-editor.js");
     const { createFurnitureLayer } = await import("/src/rooms/furniture-renderer.js");
     const { ROOM_FURNITURE } = await import("/src/rooms/furniture-layout.js");
+    const { housingFurnitureOrder } = await import("/tests/browser/housing-fixture.mjs");
     const d = window.__INHAGAME_P0__, room = d.app.root.findByName("Room_ROOM_PERSONAL_BASIC");
     const baselineChildren = room.children.length, enabled = d.controller.inputEnabled;
     const originalEditor = document.getElementById("furniture-editor"); originalEditor.id = "furniture-editor-inactive-smoke";
@@ -205,21 +206,25 @@ async function checkFurniture(page, label) {
     ui = createFurnitureEditor({ client,inventory,onOpenChange:open=>{ d.controller.inputEnabled = !open; } });
     await client.bind(roomId); ui.openEditor();
     window.__FURNITURE_SMOKE__ = {client,ui,layer,calls,inventory,roomId,room,baselineChildren,enabled,originalEditor,
-      items:ROOM_FURNITURE.map(item=>item.itemId),visitor:()=>{stored.role="visitor";} };
+      items:housingFurnitureOrder(ROOM_FURNITURE).map(item=>item.itemId),visitor:()=>{stored.role="visitor";} };
   });
   const editor = page.locator("#furniture-editor");
   assert.equal(await editor.isVisible(),true,`${label}: editor opens`);
   const bounds = await editor.boundingBox(); const viewport = page.viewportSize();
   assert.ok(bounds.x >= 0 && bounds.y >= 0 && bounds.x+bounds.width <= viewport.width && bounds.y+bounds.height <= viewport.height,`${label}: editor fits viewport`);
-  for (const itemId of await page.evaluate(()=>window.__FURNITURE_SMOKE__.items))
+  for (const itemId of await page.evaluate(()=>window.__FURNITURE_SMOKE__.items)) {
     await editor.locator(`button[data-focus="${itemId}"]`).click();
+    assert.equal(await page.evaluate(id=>window.__FURNITURE_SMOKE__.client.state().objects.filter(row=>row.itemId===id).length,itemId),
+      1,`${label}: native editor adds ${itemId}`);
+  }
   const chairId = await page.evaluate(()=>window.__FURNITURE_SMOKE__.client.state().objects.find(row=>row.itemId==="furniture.induck_chair").id);
   await editor.locator('select[data-focus="selection"]').selectOption(chairId);
   const plan = editor.locator("svg.furniture-plan"), planBounds = await plan.boundingBox();
-  await plan.click({position:{x:planBounds.width*3.4/10.8,y:planBounds.height*5.2/8.4}});
+  // Move the selected chair to the open C70 west side bay using room coordinates (-6.5,-3).
+  await plan.click({position:{x:planBounds.width*((-6.5+7.14)/14.28),y:planBounds.height*((4.2-(-3))/8.4)}});
   await editor.getByRole("button",{name:"가구 이동 ↑",exact:true}).click();
   await editor.locator('button[data-focus="rotation"]').click();
-  assert.equal(await page.evaluate(()=>window.__FURNITURE_SMOKE__.layer.root.children.length),9,`${label}: all nine real 3D models render`);
+  assert.equal(await page.evaluate(()=>window.__FURNITURE_SMOKE__.layer.root.children.length),16,`${label}: all sixteen F0 3D fallbacks render`);
   assert.equal(await editor.getByRole("button",{name:"저장",exact:true}).isEnabled(),true);
   await editor.getByRole("button",{name:"저장",exact:true}).click();
   await page.waitForFunction(()=>window.__FURNITURE_SMOKE__.client.state().error==="UNAVAILABLE");
@@ -230,12 +235,12 @@ async function checkFurniture(page, label) {
   assert.equal(saves.length,2);assert.deepEqual(saves[0],saves[1],`${label}: identical snapshot retry`);
   await editor.getByRole("button",{name:"완료",exact:true}).click();
   await page.evaluate(async()=>{const f=window.__FURNITURE_SMOKE__;f.client.reset();await f.client.bind(f.roomId);f.ui.openEditor();});
-  assert.equal(await page.evaluate(()=>window.__FURNITURE_SMOKE__.client.state().objects.length),9,`${label}: reload restores saved layout`);
+  assert.equal(await page.evaluate(()=>window.__FURNITURE_SMOKE__.client.state().objects.length),16,`${label}: reload restores saved layout`);
   await editor.locator('select[data-focus="selection"]').selectOption(chairId);
   await editor.getByRole("button",{name:"회수",exact:true}).click();
   await editor.getByRole("button",{name:"닫기",exact:true}).click();
   await editor.getByRole("button",{name:"변경 버리고 닫기",exact:true}).click();
-  assert.equal(await page.evaluate(()=>window.__FURNITURE_SMOKE__.layer.root.children.length),9,`${label}: discard restores 3D layout`);
+  assert.equal(await page.evaluate(()=>window.__FURNITURE_SMOKE__.layer.root.children.length),16,`${label}: discard restores 3D layout`);
   await page.evaluate(()=>window.__FURNITURE_SMOKE__.ui.openEditor());
   await editor.locator('select[data-focus="selection"]').selectOption(chairId);
   await editor.getByRole("button",{name:"회수",exact:true}).click();
@@ -251,8 +256,8 @@ async function checkFurniture(page, label) {
     const noLeak=f.room.children.length===f.baselineChildren;delete window.__FURNITURE_SMOKE__;
     return {restored,quantityUnchanged,visitorDenied,noLeak};
   });
-  assert.deepEqual(result,{restored:8,quantityUnchanged:true,visitorDenied:true,noLeak:true},`${label}: recall save, visitor guard, ownership and cleanup`);
-  console.log(`furniture module smoke ${label}: nine models, lost-response retry, reload, recall and visitor guard PASS (in-memory authority)`);
+  assert.deepEqual(result,{restored:15,quantityUnchanged:true,visitorDenied:true,noLeak:true},`${label}: recall save, visitor guard, ownership and cleanup`);
+  console.log(`furniture module smoke ${label}: sixteen F0 models, lost-response retry, reload, recall and visitor guard PASS (in-memory authority)`);
 }
 
 async function runLoop(smoke, { page, fatalError }, viewport, label) {
