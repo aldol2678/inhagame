@@ -283,6 +283,7 @@
     </div>
   </aside>
   <div id="nameplate" class="nameplate" aria-label="내 캐릭터 닉네임">인덕이</div>
+  <output id="graphics-fps" class="graphics-fps" aria-label="현재 렌더링 FPS" hidden>— FPS</output>
   <div id="hud-menu" class="identity-actions" hidden>
     <div class="hud-menu-title">INHAGAME CAMPUS <span>인덕이와 안뇽이</span></div>
     <p id="progression-menu-line" class="progression-menu-line" hidden></p>
@@ -318,6 +319,25 @@
       <option value="medium">보통</option><option value="high">높음</option>
     </select>
     <p id="graphics-quality-hint">기기에 맞는 품질을 선택합니다.</p>
+    <label for="graphics-frame-limit">최대 프레임</label>
+    <select id="graphics-frame-limit">
+      <option value="auto">자동 (화면 주사율)</option><option value="30">30 FPS</option>
+      <option value="45">45 FPS</option><option value="60">60 FPS</option>
+      <option value="90">90 FPS</option><option value="120">120 FPS</option>
+    </select>
+    <label for="graphics-render-scale">렌더 해상도</label>
+    <select id="graphics-render-scale" aria-describedby="graphics-detail-hint">
+      <option value="auto">자동 (품질에 맞춤)</option><option value="0.7">70%</option>
+      <option value="0.85">85%</option><option value="1">100%</option>
+    </select>
+    <label for="graphics-shadows">그림자</label>
+    <select id="graphics-shadows">
+      <option value="auto">자동 (품질에 맞춤)</option><option value="off">끄기</option>
+      <option value="low">낮음</option><option value="medium">보통</option><option value="high">높음</option>
+    </select>
+    <label for="graphics-show-fps"><input id="graphics-show-fps" type="checkbox"> FPS 표시</label>
+    <p id="graphics-detail-hint">직접 고른 세부 값은 품질보다 우선합니다. 해상도 100%는 기기 픽셀 비율 최대 2배 기준입니다.</p>
+    <button id="graphics-reset" type="button">그래픽 자동 설정으로 초기화</button>
     <label for="view-distance">시야 거리</label>
     <select id="view-distance" aria-describedby="view-distance-hint">
       <option value="SHORT">짧게</option><option value="NORMAL" selected>보통</option>

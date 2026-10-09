@@ -105,5 +105,91 @@ reset role;
 select ok(not has_table_privilege('anon','public.world_online_sessions','select'),'anon cannot read raw sessions');
 select ok(not has_table_privilege('authenticated','public.world_online_sessions','select'),'authenticated cannot read raw sessions');
 
+-- Operator kick must be world-only, privileged, and resistant to heartbeat recreation.
+select has_table('private','world_session_kick_blocks','world-only session block table exists');
+select has_function('public','kick_world_user_v1',array['uuid','integer'],'admin kick RPC exists');
+select has_function('public','restore_world_user_v1',array['uuid'],'admin restore RPC exists');
+
+set local role authenticated;
+set local request.jwt.claims='{"sub":"33333333-3333-4333-8333-333333333333","role":"authenticated","is_anonymous":false}';
+select throws_ok(
+  $q$select public.kick_world_user_v1('5f000000-0000-4000-8000-000000000061',30)$q$,
+  '42501','unauthorized','normal member cannot eject even a staff account');
+reset role;
+
+set local role authenticated;
+set local request.jwt.claims='{"sub":"5f000000-0000-4000-8000-000000000061","role":"authenticated","is_anonymous":false}';
+select is(
+  (public.kick_world_user_v1('33333333-3333-4333-8333-333333333333',30)->>'sessionsRemoved')::integer,
+  1,'world admin can remove a member heartbeat without deleting the account');
+select is((public.get_world_online_count_v1()->>'online')::integer,0,
+  'the stale guest and ejected member are not counted');
+reset role;
+
+set local role authenticated;
+set local request.jwt.claims='{"sub":"33333333-3333-4333-8333-333333333333","role":"authenticated","is_anonymous":false}';
+select throws_ok(
+  $q$select public.touch_world_online_session_v2(
+   '44444444-4444-4444-8444-444444444444','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+   'AREA_MAIN_HALL','campus')$q$,
+  '42501','WORLD_SESSION_REVOKED','ejected account cannot recreate a world heartbeat');
+reset role;
+
+set local role authenticated;
+set local request.jwt.claims='{"sub":"5f000000-0000-4000-8000-000000000061","role":"authenticated","is_anonymous":false}';
+select ok(public.restore_world_user_v1('33333333-3333-4333-8333-333333333333'),
+  'world admin can restore access');
+reset role;
+
+set local role authenticated;
+set local request.jwt.claims='{"sub":"33333333-3333-4333-8333-333333333333","role":"authenticated","is_anonymous":false}';
+select lives_ok($q$select public.touch_world_online_session_v2(
+  '44444444-4444-4444-8444-444444444444','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  'AREA_MAIN_HALL','campus')$q$,'restored account can heartbeat again');
+reset role;
+
+-- Admin-only roster exposes currently active accounts, but never guest IDs or credentials.
+select has_function('public','get_world_session_admin_v1',array[]::text[],
+  'world admin session roster RPC exists');
+select ok(not has_function_privilege('anon','public.get_world_session_admin_v1()','EXECUTE'),
+  'anonymous callers cannot execute the world session roster');
+select ok(has_function_privilege('authenticated','public.get_world_session_admin_v1()','EXECUTE'),
+  'signed-in callers can reach the RPC (staff role checked inside)');
+
+set local role authenticated;
+set local request.jwt.claims='{"sub":"33333333-3333-4333-8333-333333333333","role":"authenticated","is_anonymous":false}';
+select throws_ok($q$select public.get_world_session_admin_v1()$q$,
+  '42501','unauthorized','regular members cannot read other online accounts');
+reset role;
+
+set local role authenticated;
+set local request.jwt.claims='{"sub":"5f000000-0000-4000-8000-000000000061","role":"authenticated","is_anonymous":false}';
+select is((public.get_world_session_admin_v1()->>'operatorUserId')::uuid,
+  '5f000000-0000-4000-8000-000000000061'::uuid,'roster identifies the authorized operator');
+select is((public.get_world_session_admin_v1()->>'onlineSessions')::integer,1,
+  'roster active count respects the 70-second heartbeat window');
+select is((public.get_world_session_admin_v1()->>'guestSessions')::integer,0,
+  'roster reports guest count without disclosing guest identifiers');
+select is((public.get_world_session_admin_v1()->'accounts'->0->>'userId')::uuid,
+  '33333333-3333-4333-8333-333333333333'::uuid,'roster enumerates active member account');
+select is((public.get_world_session_admin_v1()->'accounts'->0->>'sessionCount')::integer,1,
+  'roster groups browser sessions per account');
+select ok(not (public.get_world_session_admin_v1()::text ~* 'member@example.test'),
+  'roster does not expose member email');
+select is(jsonb_array_length(public.get_world_session_admin_v1()->'blocked'),0,
+  'roster starts with no active kick blocks');
+select lives_ok($q$select public.kick_world_user_v1(
+  '33333333-3333-4333-8333-333333333333',5)$q$,
+  'existing privileged kick remains available alongside admin list');
+select is(jsonb_array_length(public.get_world_session_admin_v1()->'accounts'),0,
+  'ejected member disappears from the active roster');
+select is(jsonb_array_length(public.get_world_session_admin_v1()->'blocked'),1,
+  'ejected member appears in reversible access blocks');
+select ok(public.restore_world_user_v1('33333333-3333-4333-8333-333333333333'),
+  'admin restore remains available from the same roster');
+select is(jsonb_array_length(public.get_world_session_admin_v1()->'blocked'),0,
+  'restored account disappears from the blocked roster');
+reset role;
+
 select * from finish();
 rollback;

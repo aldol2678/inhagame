@@ -1,3 +1,5 @@
+import { NPC_WORLD_CYCLE_MINUTES } from '../../npc-factory/npc-world-time-contract.mjs';
+
 export const ENVIRONMENT_TIME = Object.freeze({
   DAWN: 'DAWN',
   DAY: 'DAY',
@@ -92,4 +94,28 @@ export function resolveEnvironmentTime(value) {
 
 export function environmentPreset(value) {
   return ENVIRONMENT_PRESETS[resolveEnvironmentTime(value)];
+}
+
+// Approved preset magnitudes, sampled at representative solar-time anchors.
+// Sunrise/sunset use NIGHT at the horizon so a below-horizon sun never lights
+// the night. Only magnitudes change: existing phase color/art direction stays.
+const LIGHTING_ANCHORS = Object.freeze([
+  [0, 'NIGHT'], [2, 'DAWN'], [30, 'DAY'], [52, 'GOLDEN_HOUR'],
+  [56, 'SUNSET'], [59, 'DUSK'], [60, 'NIGHT'], [NPC_WORLD_CYCLE_MINUTES, 'NIGHT']
+].map(([minute, time]) => Object.freeze({ minute, preset: ENVIRONMENT_PRESETS[time] })));
+
+export function environmentLightingAtCycleSeconds(cycleSeconds, out = {}) {
+  const seconds = Number.isFinite(cycleSeconds) ? cycleSeconds : 0;
+  const duration = NPC_WORLD_CYCLE_MINUTES * 60;
+  const minute = ((seconds % duration) + duration) % duration / 60;
+  let index = 1;
+  while (index < LIGHTING_ANCHORS.length - 1 && minute > LIGHTING_ANCHORS[index].minute) index++;
+  const from = LIGHTING_ANCHORS[index - 1];
+  const to = LIGHTING_ANCHORS[index];
+  const linear = (minute - from.minute) / (to.minute - from.minute);
+  // Zero slope at anchors avoids sudden rate changes without overshoot.
+  const t = linear * linear * (3 - 2 * linear);
+  for (const key of ['sunIntensity', 'exposure', 'shadowIntensity'])
+    out[key] = from.preset[key] + (to.preset[key] - from.preset[key]) * t;
+  return out;
 }

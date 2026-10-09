@@ -10,6 +10,7 @@ on:
       - 'apps/world/tests/character-model-loading.test.mjs'
       # Keep this expensive suite scoped to the browser fixtures it actually executes.
       - 'apps/world/tests/browser/harness.mjs'
+      - 'apps/world/tests/browser/harness-source.mjs'
       - 'apps/world/tests/browser/package*.json'
       - 'apps/world/tests/browser/character-model-loading-*'
       - 'apps/world/tests/browser/annyongi-*'
