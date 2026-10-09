@@ -42,12 +42,6 @@ on:
       - 'apps/world/src/environment/winter-soak-policy.js'
       - 'apps/world/tests/environment-p6l-winter-soak.test.mjs'
       - 'apps/world/tests/browser/winter-soak-smoke.mjs'
-      - 'apps/world/src/biryong/biryong-performance-budget.js'
-      - 'apps/world/src/biryong/biryong-performance-monitor.js'
-      - 'apps/world/tests/biryong-performance-budget.test.mjs'
-      - 'apps/world/tests/browser/biryong-performance-smoke.mjs'
-      - 'apps/world/tests/browser/biryong-performance-diagnostics.mjs'
-      - 'apps/world/tests/biryong-performance-smoke-diagnostics.test.mjs'
       - 'apps/world/tests/asset-optimization-shadow.test.mjs'
       - 'apps/world/tests/asset-authority-canary.test.mjs'
       - 'apps/world/tests/asset-production-canary.test.mjs'
@@ -119,20 +113,6 @@ jobs:
           WORLD_SMOKE_DISABLE_WEBGPU: '1'
           WORLD_SMOKE_BROWSER: chrome
         run: node apps/world/tests/browser/contact-shading-smoke.mjs
-      - name: Run Biryong visual performance smoke
-        env:
-          WORLD_SMOKE_DISABLE_WEBGPU: '1'
-          WORLD_SMOKE_BROWSER: chrome
-          BIRYONG_PERF_RECEIPT: ${{ runner.temp }}/biryong-visual-performance.json
-        run: node apps/world/tests/browser/biryong-performance-smoke.mjs
-      - name: Preserve Biryong performance diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: biryong-performance-diagnostics-${{ github.event.pull_request.head.sha }}
-          path: ${{ runner.temp }}/biryong-visual-performance.json
-          if-no-files-found: warn
-          retention-days: 7
       - name: Run asset authority canary smoke
         env:
           WORLD_SMOKE_DISABLE_WEBGPU: '1'
@@ -156,7 +136,6 @@ jobs:
           name: world-asset-optimizer-evidence
           path: |
             ${{ runner.temp }}/inhagame-world-assets/**
-            ${{ runner.temp }}/biryong-visual-performance.json
             tools/world-assets/package-lock.json
           if-no-files-found: error
           retention-days: 7
