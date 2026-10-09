@@ -56,7 +56,10 @@ export function gateBiryongVisual(receipt, processOutcome, expectedHead) {
   if (!clean(receipt) || !expectedHead || receipt.exactHead !== expectedHead ||
       receipt.mode !== 'visual-comparison')
     return verdict('FAIL', 'Missing or untrusted visual performance receipt');
-  if (receipt.status === 'PASS' && processOutcome === 'success')
+  if (receipt.status === 'PASS' && processOutcome === 'success' &&
+      receipt.baseline?.low?.validity?.validForComparison === true &&
+      ['low', 'medium', 'high'].every(tier => receipt.desktop?.[tier]?.ciSurrogatePass === true) &&
+      receipt.mobileViewport?.ciSurrogatePass === true)
     return verdict('PASS', 'CI surrogate performance within unchanged budgets');
   if (receipt.status !== 'INCONCLUSIVE' || processOutcome !== 'failure' ||
       !completeLow(receipt) || receipt.baseline.low.validity?.validForComparison !== false ||
