@@ -5,7 +5,7 @@
 This repository uses a metadata-only GitHub Actions workflow at `.github/workflows/pr-metadata-labels.yml`.
 It is proposed in a separate PR, and **does not activate until merged into the default branch**.
 The job uses `pull_request_target` with the trusted default-branch workflow and **never checks out or runs PR head code**.
-The default `GITHUB_TOKEN` is limited to `contents: read`, `pull-requests: read`, `issues: write`.
+The default `GITHUB_TOKEN` is limited to `contents: read`, `pull-requests: write`, `issues: write`.
 No production credentials, CI thresholds, branch protection, deployments, or merge permissions are changed.
 
 On new or updated open PRs targeting the default branch, labels are **added** based on a Conventional Commit title prefix and changed filenames.
