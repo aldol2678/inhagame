@@ -105,5 +105,48 @@ reset role;
 select ok(not has_table_privilege('anon','public.world_online_sessions','select'),'anon cannot read raw sessions');
 select ok(not has_table_privilege('authenticated','public.world_online_sessions','select'),'authenticated cannot read raw sessions');
 
+-- Operator kick must be world-only, privileged, and resistant to heartbeat recreation.
+select has_table('private','world_session_kick_blocks','world-only session block table exists');
+select has_function('public','kick_world_user_v1',array['uuid','integer'],'admin kick RPC exists');
+select has_function('public','restore_world_user_v1',array['uuid'],'admin restore RPC exists');
+
+set local role authenticated;
+set local request.jwt.claims='{"sub":"33333333-3333-4333-8333-333333333333","role":"authenticated","is_anonymous":false}';
+select throws_ok(
+  $q$select public.kick_world_user_v1('5f000000-0000-4000-8000-000000000061',30)$q$,
+  '42501','unauthorized','normal member cannot eject even a staff account');
+reset role;
+
+set local role authenticated;
+set local request.jwt.claims='{"sub":"5f000000-0000-4000-8000-000000000061","role":"authenticated","is_anonymous":false}';
+select is(
+  (public.kick_world_user_v1('33333333-3333-4333-8333-333333333333',30)->>'sessionsRemoved')::integer,
+  1,'world admin can remove a member heartbeat without deleting the account');
+select is((public.get_world_online_count_v1()->>'online')::integer,0,
+  'the stale guest and ejected member are not counted');
+reset role;
+
+set local role authenticated;
+set local request.jwt.claims='{"sub":"33333333-3333-4333-8333-333333333333","role":"authenticated","is_anonymous":false}';
+select throws_ok(
+  $q$select public.touch_world_online_session_v2(
+   '44444444-4444-4444-8444-444444444444','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+   'AREA_MAIN_HALL','campus')$q$,
+  '42501','WORLD_SESSION_REVOKED','ejected account cannot recreate a world heartbeat');
+reset role;
+
+set local role authenticated;
+set local request.jwt.claims='{"sub":"5f000000-0000-4000-8000-000000000061","role":"authenticated","is_anonymous":false}';
+select ok(public.restore_world_user_v1('33333333-3333-4333-8333-333333333333'),
+  'world admin can restore access');
+reset role;
+
+set local role authenticated;
+set local request.jwt.claims='{"sub":"33333333-3333-4333-8333-333333333333","role":"authenticated","is_anonymous":false}';
+select lives_ok($q$select public.touch_world_online_session_v2(
+  '44444444-4444-4444-8444-444444444444','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  'AREA_MAIN_HALL','campus')$q$,'restored account can heartbeat again');
+reset role;
+
 select * from finish();
 rollback;
