@@ -94,6 +94,7 @@ select set_eq($$select unnest(pg_temp.exec_surface('authenticated', 'anon'))$$, 
   'get_inhagame_member_activity_ops_v1(text)',
   'get_inhagame_member_ops_v1(text)',
   'get_world_online_ops_v1(text)',
+  'get_world_session_admin_v1()',
   -- World-only emergency ejection: authenticated RPC surface, world_admin-gated in function.
   'kick_world_user_v1(uuid,integer)',
   'restore_world_user_v1(uuid)',
