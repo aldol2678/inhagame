@@ -30,7 +30,7 @@ module.exports = async function handler(req, res) {
 
   try {
     const upstream = await fetch(
-      SUPABASE_URL + '/functions/v1/' + functionName + '?asset=' + encodeURIComponent(asset),
+      SUPABASE_URL + '/functions/v1/' + functionName + '?asset=' + encodeURIComponent(asset) + (asset === 'annyongi-flight-v1.glb' ? '&revision=5cc0bc54905da5b87314b81691c229bc583ad1980794239634008cd3f0d834fb' : ''),
       {
         method: req.method,
         headers: { apikey: KEY },
