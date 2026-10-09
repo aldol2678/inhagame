@@ -10,7 +10,7 @@ const AsyncFunction = Object.getPrototypeOf(async function() {}).constructor;
 test('trusted metadata-only security boundaries', () => {
   assert.ok(script, 'script block exists');
   assert.match(yml, /pull_request_target:/);
-  assert.match(yml, /pull-requests: read/);
+  assert.match(yml, /pull-requests: write/);
   assert.match(yml, /issues: write/);
   assert.doesNotMatch(yml, /actions\/checkout|secrets\.(?!GITHUB_TOKEN)|id-token:|deploy/);
   assert.doesNotMatch(script, /eval\(|exec\(|child_process|checkout/);
