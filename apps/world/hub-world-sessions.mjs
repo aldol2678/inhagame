@@ -198,6 +198,8 @@ export function mountWorldSessionAdmin({
         "분 동안 차단할까요? 모든 해당 계정 세션에 적용되며 캐릭터 데이터는 삭제되지 않습니다."
       : record.nickname + "님의 월드 접속 차단을 해제할까요?";
     if (!confirmAction(question)) return;
+    // Invalidate an older read before mutating, so it cannot repaint stale buttons.
+    generation++;
     pending = true;
     button.disabled = true;
     refreshButton.disabled = true;
@@ -246,5 +248,8 @@ export function mountWorldSessionAdmin({
 }
 
 if (typeof window !== "undefined" && typeof document !== "undefined") {
-  mountWorldSessionAdmin({ client:window.InhaHubAccountClient });
+  // DOMContentLoaded runs after the hub's deferred account/auth scripts.
+  const bootstrap = () => { mountWorldSessionAdmin({ client:window.InhaHubAccountClient }); };
+  if (document.readyState === "complete") bootstrap();
+  else document.addEventListener("DOMContentLoaded", bootstrap, { once:true });
 }
