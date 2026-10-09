@@ -139,7 +139,7 @@ test("world admin sees account roster, can confirm kick and restore, with no gue
   assert.equal(kickButton.disabled,false);
   await accounts.listeners.click({ target:kickButton });
   assert.equal(h.calls.filter(([name])=>name===WORLD_SESSION_RPC.KICK).length,1);
-  assert.equal(accounts.children[0].textContent,"");
+  assert.equal(accounts.children[0].textContent,"접속 중인 로그인 계정이 없습니다.");
   assert.equal(blocked.children.length,1);
   assert.equal(blocked.children[0].children[1].textContent,"차단 해제");
   await blocked.listeners.click({ target:blocked.children[0].children[1] });
