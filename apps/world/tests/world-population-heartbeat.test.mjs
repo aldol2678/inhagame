@@ -29,7 +29,7 @@ function harness(snapshot = { placeZoneId:"AREA_MAIN_HALL", space:"campus" }, op
   };
   const hb = startWorldPopulationHeartbeat({
     client, getSnapshot:()=>snapshot, randomId:options.randomId || (()=> "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"),
-    visitorStorage, scheduler, windowTarget
+    visitorStorage, scheduler, windowTarget, onRevoked:options.onRevoked
   });
   return { hb,calls,scheduler,listeners,visitorStore,intervals,timeouts,get interval(){return [...intervals.values()][0] ?? null;} };
 }
@@ -388,4 +388,20 @@ test("completed requests clear their deadlines and ignore queued deadline callba
   assert.equal(await h.hb.pulse(),true);
   assert.equal(h.timeouts.size,0);
   h.hb.stop();
+});
+
+test("operator ejection stops the heartbeat and invokes disconnect exactly once", async () => {
+  let revocations = 0;
+  const h = harness(undefined, {
+    onRevoked: () => { revocations += 1; },
+    rpc: () => Promise.resolve({ data:null, error:{ code:"42501", message:"WORLD_SESSION_REVOKED" } })
+  });
+  assert.equal(await h.hb.initialPulse, false);
+  assert.equal(revocations, 1);
+  assert.equal(h.hb.status().stopped, true);
+  assert.equal(h.hb.status().lastError, "WORLD_SESSION_REVOKED");
+  assert.equal(h.intervals.size, 0);
+  assert.equal(await h.hb.pulse(), false);
+  assert.equal(revocations, 1);
+  assert.equal(h.calls.length, 1);
 });
