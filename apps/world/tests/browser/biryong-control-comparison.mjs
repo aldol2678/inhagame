@@ -1,10 +1,12 @@
 import { isDeepStrictEqual } from 'node:util';
 import { classifyBiryongSamples } from './biryong-performance-diagnostics.mjs';
+import { biryongEnvironmentErrors } from './biryong-measurement-environment.mjs';
 
 export function compareImmutableBiryongBaseline(main, candidate, { expectedMainSha, expectedCandidateSha } = {}) {
   const errors = [];
   for (const [label, receipt, expected] of [['main', main, expectedMainSha], ['candidate', candidate, expectedCandidateSha]]) {
     if (!receipt) { errors.push(`${label}: receipt missing`); continue; }
+    errors.push(...biryongEnvironmentErrors(receipt.environment).map(error => `${label}: ${error}`));
     if (receipt.exactHead !== expected) errors.push(`${label}: source SHA mismatch`);
     if (receipt.mode !== 'baseline-only') errors.push(`${label}: not Visual OFF baseline-only`);
     if (!['PASS', 'INCONCLUSIVE'].includes(receipt.status)) errors.push(`${label}: incomplete/failed collection`);
@@ -20,6 +22,7 @@ export function compareImmutableBiryongBaseline(main, candidate, { expectedMainS
     if (!baseline.scene.position?.every((value, index) => Math.abs(value - visual.scene.position?.[index]) < .01)) errors.push('position differs');
   }
   if (main?.frameMeasurement !== candidate?.frameMeasurement) errors.push('measurement methods differ');
+  if (!isDeepStrictEqual(main?.environment, candidate?.environment)) errors.push('measurement environments differ');
   const assessment = baseline && visual ? classifyBiryongSamples({ tier: 'low', baseline, visual }) : null;
   const outcome = errors.length || !assessment ? 'INCONCLUSIVE' : assessment.outcome;
   return {

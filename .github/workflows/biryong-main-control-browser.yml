@@ -12,12 +12,12 @@ permissions:
 
 jobs:
   compare-low-off:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
       CONTROL_SHA: e49419c39d884515f2402a2f3a23fe4c754b8882
       WORLD_SMOKE_DISABLE_WEBGPU: '1'
-      WORLD_SMOKE_BROWSER: chrome
+      WORLD_SMOKE_BROWSER: chromium
       BIRYONG_PERF_MODE: baseline-only
       BIRYONG_PERF_TIERS: low
     steps:
@@ -49,6 +49,9 @@ jobs:
         id: dependencies
         working-directory: apps/world/tests/browser
         run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Install pinned performance browser
+        working-directory: apps/world/tests/browser
+        run: npx --no-install playwright install --with-deps chromium
       - name: Measure immutable main LOW Visual OFF
         id: main
         continue-on-error: true

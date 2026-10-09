@@ -29,10 +29,34 @@ const scene = { viewport: { width: 1280, height: 720, dpr: 1 }, drawingBuffer: {
   renderer: 'WEBGL2', driver: { renderer: 'SwiftShader' }, visible: 'visible', inBiryong: true,
   position: [0, 1, 75], camera: { yaw: 0, pitch: .375, distance: 3.5, firstPerson: false },
   environment: { time: 'DAY', weather: 'CLEAR' }, graphics: { tier: 'low' } };
+const environment = { browserVersion: '153.0.8010.12', expectedBrowserVersion: '153.0.8010.12',
+  browserRevision: '1243', browserChannel: 'chromium', playwrightVersion: '1.63.0', engineVersion: '2.22.4',
+  nodeVersion: 'v24.19.0', platform: 'linux', arch: 'x64', kernel: 'test-kernel', cpuModel: 'test-cpu', cpuCount: 4,
+  imageOS: 'ubuntu24', imageVersion: '20261004.327.1', runId: '1', runAttempt: '1', job: 'compare-low-off' };
 const receipt = (head, p95Ms) => ({ mode: 'baseline-only', exactHead: head, samplerHead: 'candidate', problems: [],
+  environment: structuredClone(environment),
   frameMeasurement: 'browser-animation-frame-interval', status: p95Ms > 85 ? 'INCONCLUSIVE' : 'PASS',
   baseline: { low: { sampleCount: 90, p95Ms, p99Ms: p95Ms, longFrameRate: p95Ms > 85 ? .8 : 0, scene } } });
 const options = { expectedMainSha: 'main', expectedCandidateSha: 'candidate' };
+test('matching frame numbers cannot pass with different or missing browser environments', () => {
+  const main = receipt('main', 20), candidate = receipt('candidate', 22);
+  main.environment = { browserVersion: '153.0.8010.12' };
+  candidate.environment = { browserVersion: '154.0.8037.57' };
+  assert.equal(compareImmutableBiryongBaseline(main, candidate, options).outcome, 'INCONCLUSIVE');
+  delete main.environment; delete candidate.environment;
+  assert.equal(compareImmutableBiryongBaseline(main, candidate, options).outcome, 'INCONCLUSIVE');
+});
+test('browser drift, host drift and malformed environment cannot be accepted', () => {
+  for (const [key, value] of Object.entries({ browserVersion: '154.0.8037.57', browserChannel: 'chrome',
+    browserRevision: '', cpuCount: 0, engineVersion: '', imageVersion: 'different', runId: 'different' })) {
+    const main = receipt('main', 20), candidate = receipt('candidate', 22);
+    candidate.environment[key] = value;
+    assert.equal(compareImmutableBiryongBaseline(main, candidate, options).outcome, 'INCONCLUSIVE', key);
+  }
+  const main = receipt('main', 20), candidate = receipt('candidate', 22);
+  main.environment = {}; candidate.environment = {};
+  assert.equal(compareImmutableBiryongBaseline(main, candidate, options).outcome, 'INCONCLUSIVE');
+});
 test('main control invalid remains INCONCLUSIVE, and main valid/candidate slow is FAIL', () => {
   assert.equal(compareImmutableBiryongBaseline(receipt('main', 550), receipt('candidate', 600), options).outcome, 'INCONCLUSIVE');
   assert.equal(compareImmutableBiryongBaseline(receipt('main', 20), receipt('candidate', 550), options).outcome, 'FAIL');
