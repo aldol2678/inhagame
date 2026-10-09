@@ -29,6 +29,7 @@ on:
       - 'apps/world/tests/browser/ipad-webkit-boot-smoke.mjs'
       - 'apps/world/tests/browser/photo-mode-*'
       - 'apps/world/tests/browser/harness.mjs'
+      - 'apps/world/tests/browser/harness-source.mjs'
       - 'apps/world/tests/browser/package*.json'
       - 'apps/world/tests/browser/mounted-photo-maps-smoke.mjs'
       - '.github/workflows/mounted-photo-maps-browser.yml'

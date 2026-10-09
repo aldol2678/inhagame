@@ -122,6 +122,8 @@ body.joystick-right #run, body.joystick-right #jump { right: auto; left: max(28p
   position: fixed; z-index: 19; right: max(16px, env(safe-area-inset-right));
   top: max(216px, calc(env(safe-area-inset-top) + 200px));
   width: min(270px, calc(100vw - 32px)); padding: 16px;
+  max-height: calc(100dvh - max(216px, calc(env(safe-area-inset-top) + 200px)) - 24px);
+  overflow-y: auto; overscroll-behavior: contain;
   border: 1px solid #a5cee2; border-radius: 14px; background: #10283cf5;
   color: #eef8ff; box-shadow: 0 8px 28px #0006;
 }
@@ -5505,6 +5507,12 @@ body[data-photo-mode="active"] > :not(#application):not(.photo-mode):not(script)
 .collection-book-navigation { margin-bottom: 16px; }
 .collection-book-navigation .inventory-tab[aria-pressed="true"] { border-color: #75ccb8; color: #c4fff0; }
 .collection-book-entry[data-state="UNKNOWN"] { border-style: dashed; }
+
+
+.graphics-fps { position: fixed; top: max(10px, env(safe-area-inset-top)); right: 12px; z-index: 40; padding: 4px 8px; border-radius: 6px; background: #10202dcc; color: #fff; font: 12px monospace; pointer-events: none; }
+.graphics-fps[hidden] { display: none; }
+#view-settings #graphics-reset { margin: 10px 0; min-height: 44px; }
+#view-settings #graphics-show-fps { width: auto; }
 
 /* LANDSCAPE-HUD:start
    Mobile landscape HUD · phones held sideways (touch + landscape + short viewport).
