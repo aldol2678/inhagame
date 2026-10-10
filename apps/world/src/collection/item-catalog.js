@@ -7,10 +7,11 @@
 
 export const ITEM_ID_PATTERN = /^[a-z][a-z0-9_]*\.[a-z0-9_]+$/;
 
-export const ITEM_CATEGORIES = Object.freeze(['WEARABLE', 'BADGE', 'EMOTE', 'FURNITURE', 'MOUNT', 'MOUNT_COSMETIC', 'MEMORABILIA', 'MATERIAL', 'CONSUMABLE']);
+export const ITEM_CATEGORIES = Object.freeze(['WEARABLE', 'BADGE', 'EMOTE', 'FURNITURE', 'MOUNT', 'MOUNT_COSMETIC', 'MEMORABILIA', 'MATERIAL', 'CONSUMABLE', 'ROOM_FINISH']);
 export const APPEARANCE_SLOTS = Object.freeze(['BODY', 'FACE', 'HAIR', 'HEAD', 'TOP', 'BOTTOM', 'SHOES', 'BACK', 'ACCESSORY']);
 // BADGE is a Profile Decoration slot, not a Character Appearance slot.
 export const PROFILE_SLOTS = Object.freeze(['BADGE']);
+export const ROOM_FINISH_SLOTS = Object.freeze(['wall', 'floor']);
 export const FURNITURE_SUBTYPES = Object.freeze(['WALL_DECOR', 'FLOOR_DECOR', 'CHAIR', 'LIGHT', 'DECOR']);
 export const RARITIES = Object.freeze(['COMMON', 'UNCOMMON', 'RARE', 'SPECIAL']);
 export const ITEM_STATUSES = Object.freeze(['ACTIVE', 'LOCKED', 'COMING_SOON', 'DISABLED', 'HIDDEN']);
@@ -28,7 +29,7 @@ const PREFIX_CATEGORY = Object.freeze({
   body: 'WEARABLE', face: 'WEARABLE', hair: 'WEARABLE', head: 'WEARABLE', top: 'WEARABLE',
   bottom: 'WEARABLE', shoes: 'WEARABLE', back: 'WEARABLE', accessory: 'WEARABLE',
   badge: 'BADGE', emote: 'EMOTE', furniture: 'FURNITURE', mount: 'MOUNT',
-  mount_cosmetic: 'MOUNT_COSMETIC', memorabilia: 'MEMORABILIA', material: 'MATERIAL', consumable: 'CONSUMABLE'
+  mount_cosmetic: 'MOUNT_COSMETIC', memorabilia: 'MEMORABILIA', material: 'MATERIAL', consumable: 'CONSUMABLE', finish: 'ROOM_FINISH'
 });
 
 const MCM_2026 = 'event.mcm_2026';
@@ -49,6 +50,8 @@ const wear = (slot, extra) => ({ category: 'WEARABLE', equipSlot: slot, ...extra
 const badge = extra => ({ category: 'BADGE', equipSlot: 'BADGE', ...extra });
 const furniture = (subtype, extra) => ({ category: 'FURNITURE', subtype, ...extra });
 const memorabilia = extra => ({ category: 'MEMORABILIA', ...extra });
+const finish = (slot, extra) => ({ category: 'ROOM_FINISH', ...extra,
+  tags: ['housing', 'room_finish', slot, ...(extra.tags ?? [])] });
 const material = extra => ({ category: 'MATERIAL', cosmeticOnly: false, ownershipPolicy: 'STACKABLE', stackable: true,
   maxStack: 99, ...extra });
 
@@ -142,6 +145,20 @@ export const ITEM_CATALOG = Object.freeze([
     { category: 'CONSUMABLE', rarity: 'COMMON', cosmeticOnly: false, ownershipPolicy: 'STACKABLE', stackable: true, maxStack: 20,
       acquisition: [{ source: 'CRAFTING', ref: 'recipe.carp_grill' }], tags: ['cooking', 'food'], introducedVersion: 'cooking.b2' }),
 
+  // ---- HOUSING-FINISH-01 · identity only; shop listings stay LOCKED until finish slots launch ----
+  item('finish.wall_basic', '기본 아이보리 벽지', '개인방의 기본 아이보리 벽 마감재.',
+    finish('wall', { rarity: 'COMMON', acquisition: [{ source: 'DEFAULT' }], tags: ['starter'],
+      introducedVersion: 'housing.finish.p0' })),
+  item('finish.wall_white_plaster_02', '따뜻한 아이보리 석고 벽지', 'White Plaster 02의 따뜻한 아이보리 D안.',
+    finish('wall', { rarity: 'UNCOMMON', acquisition: [{ source: 'SHOP' }], tags: ['plaster', 'poly_haven'],
+      introducedVersion: 'housing.finish.p0' })),
+  item('finish.floor_basic', '기본 단색 바닥재', '개인방의 기존 단색 바닥 마감재.',
+    finish('floor', { rarity: 'COMMON', acquisition: [{ source: 'DEFAULT' }], tags: ['starter'],
+      introducedVersion: 'housing.finish.p0' })),
+  item('finish.floor_wood_051', '내추럴 우드 바닥재', 'Wood Floor 051 목재 바닥 마감재.',
+    finish('floor', { rarity: 'UNCOMMON', acquisition: [{ source: 'SHOP' }], tags: ['wood', 'ambientcg'],
+      introducedVersion: 'housing.finish.p0' })),
+
   // ---- Life M1 · first persistent stackable materials ----
   item('material.campus_leaf', '캠퍼스 낙엽', '캠퍼스 생활 채집에서 얻는 기본 자연 재료.',
     material({ rarity: 'COMMON', status: 'ACTIVE', iconAssetId: 'icon.material.campus_leaf.v1', acquisition: [{ source: 'ACTIVITY', ref: 'activity.gathering.campus' }],
@@ -168,6 +185,10 @@ export const F0_FURNITURE_IDS = Object.freeze([
   'furniture.dorm_single_sofa', 'furniture.dorm_side_table_low', 'furniture.dorm_bookshelf_slim',
   'furniture.dorm_plant_medium', 'furniture.dorm_monitor', 'furniture.dorm_trophy_shelf',
   'furniture.study_books_set'
+]);
+export const ROOM_FINISH_IDS = Object.freeze([
+  'finish.wall_basic', 'finish.wall_white_plaster_02',
+  'finish.floor_basic', 'finish.floor_wood_051'
 ]);
 export const LIFE_M1_MATERIAL_IDS = Object.freeze([
   'material.campus_leaf', 'material.fish_carp', 'material.artifact_fragment_01'
@@ -210,6 +231,12 @@ export function validateCatalog(items) {
     }
     if (d.category === 'FURNITURE' ? !FURNITURE_SUBTYPES.includes(d.subtype) : d.subtype !== null) {
       errors.push(`${at}: subtype ${d.subtype} is not valid for ${d.category}`);
+    }
+    if (d.category === 'ROOM_FINISH') {
+      const tags = Array.isArray(d.tags) ? d.tags : [];
+      const slots = tags.filter(tag => ROOM_FINISH_SLOTS.includes(tag));
+      if (slots.length !== 1 || !tags.includes('room_finish')) errors.push(`${at}: ROOM_FINISH needs one wall/floor finish tag`);
+      if (d.ownershipPolicy !== 'UNIQUE') errors.push(`${at}: ROOM_FINISH must use UNIQUE ownership`);
     }
     if (!RARITIES.includes(d.rarity)) errors.push(`${at}: unknown rarity ${d.rarity}`);
     if (!ITEM_STATUSES.includes(d.status)) errors.push(`${at}: unknown status ${d.status}`);

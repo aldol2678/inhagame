@@ -24,10 +24,11 @@ select has_table('private', 'world_item_grants', 'grant log exists');
 select col_is_pk('private', 'world_item_catalog', array['item_id'], 'item ids are unique');
 select col_is_unique('private', 'world_player_items', array['user_id', 'item_id'], 'one ownership row per (user, item)');
 select col_is_pk('private', 'world_item_grants', array['grant_id'], 'a grant key is used once');
-select is((select count(*) from private.world_item_catalog), 38::bigint, '36 existing catalog entries + 2 closed Cooking B2 candidates');
+select is((select count(*) from private.world_item_catalog), 42::bigint, '36 existing catalog entries + 2 closed Cooking B2 candidates + 4 closed room finishes');
 select is(
   array(select item_id from private.world_item_catalog
-    where item_id not in ('furniture.cooking_station', 'consumable.grilled_carp')
+    where item_id not in ('furniture.cooking_station', 'consumable.grilled_carp',
+      'finish.wall_basic', 'finish.wall_white_plaster_02', 'finish.floor_basic', 'finish.floor_wood_051')
     order by item_id collate "C"),
   array[
     'back.freshman_bag',
@@ -67,7 +68,7 @@ select is(
     'top.mcm_2026_survivor',
     'top.mcm_jacket'
   ],
-  'all 36 pre-cooking catalog members remain unchanged');
+  'all 36 baseline catalog members remain unchanged');
 select results_eq($query$select item_id, category, ownership_policy, max_stack, status
   from private.world_item_catalog
   where item_id in ('furniture.cooking_station', 'consumable.grilled_carp')
@@ -75,7 +76,16 @@ select results_eq($query$select item_id, category, ownership_policy, max_stack, 
   $expected$values
     ('consumable.grilled_carp'::text, 'CONSUMABLE'::text, 'STACKABLE'::text, 20, 'COMING_SOON'::text),
     ('furniture.cooking_station', 'FURNITURE', 'UNIQUE', null::integer, 'COMING_SOON')$expected$,
-  'only the exact two closed Cooking B2 definitions extend the existing catalog');
+  'the exact two closed Cooking B2 definitions coexist with room finishes');
+select results_eq($query$select item_id, category, ownership_policy, max_stack, status
+  from private.world_item_catalog where item_id like 'finish.%'
+  order by item_id collate "C"$query$,
+  $expected$values
+    ('finish.floor_basic'::text, 'ROOM_FINISH'::text, 'UNIQUE'::text, null::integer, 'COMING_SOON'::text),
+    ('finish.floor_wood_051', 'ROOM_FINISH', 'UNIQUE', null::integer, 'COMING_SOON'),
+    ('finish.wall_basic', 'ROOM_FINISH', 'UNIQUE', null::integer, 'COMING_SOON'),
+    ('finish.wall_white_plaster_02', 'ROOM_FINISH', 'UNIQUE', null::integer, 'COMING_SOON')$expected$,
+  'the exact four closed Room Finish P0 definitions coexist with cooking');
 select is(
   array(select item_id from private.world_item_catalog where item_id = any(array[
     'top.induck_hoodie', 'head.induck_cap', 'furniture.induck_cushion', 'furniture.campus_map_poster',
