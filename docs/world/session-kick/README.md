@@ -1,5 +1,7 @@
 # INHA WORLD 세션 강제퇴장 격리 수정안
 
+> **개정 2**: 독립 검토 반영(E1~E5, 마이그레이션 2개 추가, 롤백 단계화)은 [REVIEW_ROUND_2.md](REVIEW_ROUND_2.md)에 있다. 이 문서의 수치 중 아래 §6.2·§7 롤백은 개정 2 기준으로 갱신했다.
+>
 > 상태: **격리된 로컬 검증 완료 · 미배포 · 미병합.** 운영 DB, 배포, 설정, 권한, `main`, 기존 PR은 변경하지 않았다.
 > 이 브랜치의 변경은 함수 정의와 클라이언트 코드뿐이다. 계정·캐릭터·인벤토리·보상·개인방 데이터는 생성·수정·삭제하지 않는다.
 
@@ -145,14 +147,14 @@ pg_advisory_xact_lock(hashtextextended('world_session:' || <user_id>, 0))
 | 같은 테스트 — **수정 후** | **9/9 통과**, 3회 반복 안정, 잔여 행 0 |
 | 변이 시험: advisory lock 제거 | 경쟁 테스트 2·3만 실패(테스트가 lock을 실제로 검증함) |
 | 변이 시험: 소유권 조건 제거 | 테스트 5 실패 |
-| pgTAP `61_world_online_population` (shim) | main 계보 53/53 → 수정 후 **63/63** (신규 10개 단언 추가). 수정 전 DB에서는 신규 단언이 코어 함수 부재로 중단 |
+| pgTAP `61_world_online_population` (shim) | main 계보 53/53 → 1차 63/63 → **개정 2 최종 81/81**. 수정 전 DB에서는 신규 단언이 코어 함수 부재로 중단 |
 | `public` 함수 ACL 대조 | 223개 **동일** |
 | 롤백 SQL 적용 후 4개 함수 정의 | main과 `pg_get_functiondef` md5 **일치**, 코어 함수 제거, 재적용 가능 |
 | 마이그레이션 재적용(idempotent) | 통과 |
 | `migration-lint` / `migration-contract-lint` | 통과 |
 | 데이터 보존 | public·private·auth 전 테이블의 행 지문(md5)이 kick/restore/거절된 heartbeat 전후로 **동일**(제외: `world_online_sessions`, `world_session_kick_blocks` 두 테이블만). 시드: 프로필·인벤토리 기본 아이템·개인방 |
-| Node: 관련 4파일 | 34 → **51**(heartbeat 28, hub-world-sessions 14, online-connection-state 7, population-count 2) 전부 통과 |
-| Node: `apps/world/tests/*.test.mjs` 전체 | **3927 pass / 0 fail** |
+| Node: 관련 4파일 | 34 → 1차 51 → **개정 2: 62**(heartbeat 39, hub-world-sessions 14, online-connection-state 7, population-count 2). 신규 3파일(terminal 5, 합성 7, roster 10) 별도 |
+| Node: `apps/world/tests/*.test.mjs` 전체 | 1차 3927 → **개정 2: 3960 pass / 0 fail** |
 | `supabase/tests/edge` / `.github/ci` / `apps/world/qa.mjs` | 35 / 74 / 통과 |
 | 열린 PR 9건과 파일 겹침 | 없음 |
 
@@ -181,7 +183,7 @@ psql -d scratch -f docs/world/session-kick/local-harness/pgtap_shim.sql
 
 ### 롤백
 
-- **DB**: `docs/world/session-kick/rollback.sql`(main의 정확한 함수 본문을 `pg_get_functiondef`로 추출해 생성, 적용 후 정의 일치 검증됨). 함수 전용이라 **데이터 복구 불필요**. 이미 기록된 차단 행은 그대로 유효. 롤백하면 D1~D5가 다시 열린다.
+- **DB**: `docs/world/session-kick/rollback.sql`(main으로 전체 복귀)과 단계별 `rollback/undo-3-*.sql`, `rollback/undo-2-*.sql`. main의 정확한 함수 본문을 `pg_get_functiondef`로 추출해 생성했고 적용 후 정의 일치를 검증했다. 함수 전용이라 **데이터 복구 불필요**. 이미 기록된 차단 행은 그대로 유효. 롤백하면 D1~D5가 다시 열린다.
 - **클라이언트**: 해당 커밋 revert. DB 롤백과 독립적이다.
 - **Realtime 게이트(적용했다면)**: 초안 하단의 롤백 절차.
 - 앞으로 가는 수정(forward-fix)이 기본이며, 마이그레이션 디렉터리는 append-only라 파일을 지우지 않는다.
