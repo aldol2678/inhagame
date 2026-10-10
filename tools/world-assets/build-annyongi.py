@@ -6,7 +6,7 @@ Y-up, +Z front, coordinates in player-root space. Python stdlib only.
 import json, math, struct, pathlib, hashlib
 ROOT=pathlib.Path(__file__).resolve().parents[2]
 OUT=ROOT/'apps/world/assets/annyongi-flight-v1.glb'
-GENERATOR='INHAGAME Annyongi procedural flight reconstruction v2.1'
+GENERATOR='INHAGAME Annyongi procedural flight reconstruction v2.6'
 COLORS={'blue':'d3edfb','cream':'fffde4','pink':'f6bec8','mouth':'bf6280','ink':'211f1f','white':'ffffff','curl':'9fc7dc'}
 def color(key):
  h=COLORS[key];s=[int(h[i:i+2],16)/255 for i in (0,2,4)]
@@ -74,104 +74,199 @@ def curve(points,steps=8):
    t=k/steps
    out.append([.5*((2*p1[d])+(-p0[d]+p2[d])*t+(2*p0[d]-5*p1[d]+4*p2[d]-p3[d])*t*t+(-p0[d]+3*p1[d]-3*p2[d]+p3[d])*t*t*t) for d in range(3)])
  return out+[points[-1]]
+def turn_y(shape,angle,center):
+ # Rotate positions and normals together about a design-local feature pivot.
+ co=math.cos(angle);si=math.sin(angle)
+ for i in range(len(shape.p)//3):
+  x,y,z=sub(shape.p[i*3:i*3+3],center)
+  shape.p[i*3:i*3+3]=add(center,[co*x+si*z,y,-si*x+co*z])
+  x,y,z=shape.n[i*3:i*3+3];shape.n[i*3:i*3+3]=[co*x+si*z,y,-si*x+co*z]
 parts={}
 def part(name):s=Shape();parts[name]=s;return s
 # Base silhouette, compact standing pose, large spherical head and rounded hands/feet.
 part('Body').ellipsoid([0,-.53,-.03],[.37,.47,.34],'blue',24,14)
-part('Head').ellipsoid([0,.32,.12],[.69,.63,.52],'blue',40,24)
+# Add depth toward the face only: the rear pole stays at Z=-.40, clear of the
+# unchanged rider. Frontal width/height and FlightHeadPivot are retained.
+part('Head').ellipsoid([0,.32,.17],[.69,.63,.57],'blue',40,24)
 for sign,label in [(-1,'L'),(1,'R')]:
- part('Ear_'+label).ellipsoid([sign*.59,.83,.09],[.17,.07,.065],'blue',16,8,sign*35)
+ ear=part('Ear_'+label);ear.ellipsoid([sign*.59,.79,.09],[.16,.063,.065],'blue',16,8,sign*25)
+ turn_y(ear,sign*math.radians(35),[sign*.54,.77,.09])
  horn=part('Horn_'+label)
- horn.tube(curve([[sign*.40,.80,.08],[sign*.47,1.02,.07],[sign*.49,1.26,.09]],5),.052,'cream',10)
- horn.ellipsoid([sign*.49,1.26,.09],[.053,.055,.053],'cream',10,6)
- horn.tube(curve([[sign*.46,1.04,.07],[sign*.59,1.08,.07],[sign*.62,1.18,.09]],4),.048,'cream',10)
- horn.ellipsoid([sign*.62,1.18,.09],[.048,.05,.048],'cream',10,6)
- arm=part('Arm_'+label);arm.ellipsoid([sign*.42,-.48,.13],[.13,.32,.13],'blue',16,10)
+ horn.tube(curve([[sign*.40,.80,.08],[sign*.47,1.02,.07],[sign*.49,1.26,.09]],5),.064,'cream',10)
+ horn.ellipsoid([sign*.49,1.26,.09],[.065,.065,.065],'cream',10,6)
+ horn.tube(curve([[sign*.46,1.04,.07],[sign*.59,1.08,.07],[sign*.62,1.18,.09]],4),.058,'cream',10)
+ horn.ellipsoid([sign*.62,1.18,.09],[.058,.06,.058],'cream',10,6)
+ turn_y(horn,sign*math.radians(28),[sign*.40,.80,.08])
+ # A curved upper arm narrows at the wrist and opens into a soft mitten palm.
+ # The small thumb is part of Arm_L/R, not a new joint or animation contract.
+ arm=part('Arm_'+label)
+ arm.tube([[sign*x,y,z] for x,y,z in [(.40,-.22,.10),(.42,-.26,.13),
+  (.44,-.34,.16),(.455,-.43,.185),(.465,-.53,.20),(.475,-.60,.21),
+  (.48,-.66,.215),(.48,-.72,.22),(.47,-.765,.22),(.46,-.78,.22)]],
+  [.025,.079,.086,.082,.073,.078,.102,.099,.061,.012],'blue',12)
+ arm.ellipsoid([sign*.397,-.686,.282],[.049,.067,.052],'blue',10,6,sign*-18)
 
  leg=part('Leg_'+label);leg.ellipsoid([sign*.20,-.96,.01],[.125,.19,.14],'blue',16,10)
  leg.ellipsoid([sign*.23,-1.065,.11],[.19,.10,.22],'blue',20,8)
 # Surface projected details avoid floating face stickers or a long snout.
-def face(x,y,offset=.009):return .12+.52*math.sqrt(max(.01,1-(x/.69)**2-((y-.32)/.63)**2))+offset
+def face(x,y,offset=.009):return .17+.57*math.sqrt(max(.01,1-(x/.69)**2-((y-.32)/.63)**2))+offset
 for sign,label in [(-1,'L'),(1,'R')]:
- x=sign*.255;y=.43
- part('Eye_'+label).ellipsoid([x,y,face(x,y)],[.038,.043,.022],'ink',16,10)
+ x=sign*.30;y=.43;at=[x,y,face(x,y,.004)]
+ eye=part('Eye_'+label);eye.ellipsoid(at,[.038,.043,.022],'ink',16,10)
+ turn_y(eye,sign*math.radians(28),at)
  cheek=part('Cheek_'+label);x=sign*.46;y=.22
- cheek.patch([[x+.105*math.cos(k*math.tau/32),y+.11*math.sin(k*math.tau/32)] for k in range(32)],'pink',face)
+ cheek.patch([[x+.105*math.cos(k*math.tau/24),y+.11*math.sin(k*math.tau/24)] for k in range(24)],'pink',face)
 # Open smile with two ivory teeth, pink tongue, m-shaped nose: official basic/front expression.
+# A shallow smile relief gives the existing expression a visible side
+# wall. Depth tapers toward the chin; it is not a second side-face decal.
+def smile_depth(y):return .018+.092*max(0,min(1,(y+.015)/.33))
+def smile_surface(x,y,offset=0):return face(x,y,smile_depth(y)+offset)
 outline=[[-.20,.27],[-.11,.265],[0,.315],[.11,.265],[.20,.27],[.17,.09],[.10,.015],[0,-.015],[-.10,.015],[-.17,.09]]
-outline=[p[:2] for p in curve([[x,y,0] for x,y in outline+[outline[0]]],4)[:-1]][::-1];mouth=part('Mouth');mouth.patch(outline,'mouth',lambda x,y:face(x,y,.012))
-pts=[[x,y,face(x,y,.018)] for x,y in outline+[outline[0]]];mouth.tube(pts,.014,'ink',8)
-tongue=part('Tongue');tongue.patch([[-.11,.045],[-.06,.072],[0,.08],[.06,.072],[.11,.045],[.075,.01],[0,-.003],[-.075,.01]][::-1],'pink',lambda x,y:face(x,y,.022))
+outline=[p[:2] for p in curve([[x,y,0] for x,y in outline+[outline[0]]],3)[:-1]][::-1];mouth=part('Mouth');mouth.patch(outline,'mouth',smile_surface)
+for i,(x,y) in enumerate(outline):
+ nx,ny=outline[(i+1)%len(outline)];px,py=outline[i-1];qx,qy=outline[(i+2)%len(outline)]
+ normal=unit([ny-py,px-nx,0]);next_normal=unit([qy-y,x-qx,0])
+ a=mouth.vertex([x,y,smile_surface(x,y)],normal,'mouth');b=mouth.vertex([nx,ny,smile_surface(nx,ny)],next_normal,'mouth')
+ c=mouth.vertex([x,y,face(x,y,.002)],normal,'ink');d=mouth.vertex([nx,ny,face(nx,ny,.002)],next_normal,'ink')
+ mouth.tri(a,c,b);mouth.tri(b,c,d)
+pts=[[x,y,smile_surface(x,y,.006)] for x,y in outline+[outline[0]]];mouth.tube(pts,.013,'ink',8)
+tongue=part('Tongue');tongue.patch([[-.11,.045],[-.06,.072],[0,.08],[.06,.072],[.11,.045],[.075,.01],[0,-.003],[-.075,.01]][::-1],'pink',lambda x,y:smile_surface(x,y,.010))
 for sign,label in [(-1,'L'),(1,'R')]:
  x=sign*.135
- part('Fang_'+label).patch([[x-.035,.26],[x-.023,.20],[x,.183],[x+.023,.20],[x+.035,.26]],'cream',lambda x,y:face(x,y,.028))
-nose=part('Nose');points=curve([[-.115,.34,0],[-.09,.405,0],[-.04,.41,0],[0,.36,0],[.04,.41,0],[.09,.405,0],[.115,.34,0]],4)
-nose.tube([[x,y,face(x,y,.022)] for x,y,_ in points],.016,'ink',8)
-forelock=part('Forelock');forelock.ellipsoid([-.03,.91,.23],[.15,.13,.15],'blue',20,12)
-pts=[]
-for k in range(33):
- t=k/32;angle=-math.pi/2+t*math.pi*3;radius=.115*(1-t)+.012;x=radius*math.cos(angle);y=.77+radius*math.sin(angle)
- pts.append([x,y,face(x,y,.017)])
-forelock.tube(pts,.020,'curl',6)
+ fang=part('Fang_'+label)
+ fang.ellipsoid([x,.225,smile_surface(x,.235,.014)],[.027,.045,.027],'cream',10,6)
+nose=part('Nose');points=curve([[-.115,.34,0],[-.09,.405,0],[-.04,.41,0],[0,.36,0],[.04,.41,0],[.09,.405,0],[.115,.34,0]],3)
+for sign in [-1,1]:nose.ellipsoid([sign*.095,.315,face(sign*.095,.315,.045)],[.125,.073,.080],'blue',16,8)
+nose.tube([[x,y,face(x,y,.026+.063*max(0,(.41-y)/.07))] for x,y,_ in points],.016,'ink',8)
+# One tapered blue curl grows out of the forehead rather than a separate crest
+# and flat line. The familiar dark spiral follows the raised ridge in 3D.
+forelock=part('Forelock');pts=[];radii=[]
+for k in range(22):
+ t=k/21;angle=-math.pi/2+t*math.pi*3;radius=.145*(1-t)+.014;x=radius*math.cos(angle);y=.81+radius*math.sin(angle)
+ pts.append([x,y,face(x,y,0)]);radii.append(.060*(1-t)+.024)
+base=[];ridge=[]
+for i,(x,y,z) in enumerate(pts):
+ tangent=unit(sub(pts[min(i+1,len(pts)-1)],pts[max(0,i-1)]))
+ outward=unit([x/(.69*.69),(y-.32)/(.63*.63),(z-.17)/(.57*.57)])
+ outward=unit(sub(outward,mul(tangent,sum(a*b for a,b in zip(outward,tangent)))))
+ # Bury the attachment cap and blend the rest of the curl into the head.
+ embed=.35+.60*max(0,1-i/2)
+ center=add([x,y,z],mul(outward,-radii[i]*embed));base.append(center)
+ ridge.append(add(center,mul(outward,radii[i]*.90)))
+forelock.tube(base,radii,'blue',7)
+forelock.tube(ridge,[.012-.003*i/(len(ridge)-1) for i in range(len(ridge))],'ink',6)
 # Cream belly and three subtle transverse bands visible in official front/side views.
-belly=part('Belly');belly.ellipsoid([0,-.61,.269],[.23,.25,.045],'cream',24,12)
+def belly_surface(x,y):return -.03+.34*math.sqrt(max(.01,1-(x/.37)**2-((y+.53)/.47)**2))+.012
+belly=part('Belly')
+outline=curve([[-.20,-.42,0],[-.215,-.54,0],[-.19,-.72,0],[-.13,-.80,0],[0,-.83,0],[.13,-.80,0],[.19,-.72,0],[.215,-.54,0],[.20,-.42,0],[-.20,-.42,0]],4)[:-1]
+# Subdivide the curved patch so its triangles do not cut under the body surface.
+def belly_vertex(x,y):
+ z=belly_surface(x,y)
+ return belly.vertex([x,y,z],unit([x/(.37*.37),(y+.53)/(.47*.47),(z+.03)/(.34*.34)]),'cream')
+center=belly_vertex(0,-.61);rows=[]
+for j in range(1,7):
+ r=j/6;rows.append([belly_vertex(x*r,-.61+(y+.61)*r) for x,y,_ in outline])
+for k in range(len(outline)):belly.tri(center,rows[0][k],rows[0][(k+1)%len(outline)])
+for a,b in zip(rows,rows[1:]):
+ for k in range(len(outline)):
+  l=(k+1)%len(outline);belly.tri(a[k],b[k],a[l]);belly.tri(a[l],b[k],b[l])
 bands=part('BellyBands')
-for y in [-.49,-.61,-.73]:
- width=.225*math.sqrt(max(0,1-((y+.61)/.25)**2))
- points=[]
- for k in range(21):
-  x=-width+2*width*k/20;z=.269+.045*math.sqrt(max(0,1-(x/.23)**2-((y+.61)/.25)**2))+.004
-  points.append([x,y,z])
- bands.tube(points,.010,'ink',6)
-# Compact cloud wings; fixed identity detail, separate from legacy EMPTY wing pivots.
+for y,width in [(-.51,.207),(-.63,.201),(-.74,.173)]:
+ bands.tube([[x,y,belly_surface(x,y)+.004] for x in [-width+2*width*k/20 for k in range(21)]],.008,'ink',6)
+# One continuous, scalloped cloud surface with a spiral, in both directions.
+# Same contour family on the small identity wing and airborne extension.
+def cloud_wing(shape,sign,origin,scale,extended=False):
+ controls=[[.02,-.08,0],[.09,.13,0],[.28,.24,0],[.50,.22,0],
+  [.73,.28,0],[.95,.43,0],[1.02,.38,0],[.99,.19,0],
+  [1.07,.10,0],[1.02,-.04,0],[.88,-.17,0],[.66,-.20,0],
+  [.42,-.18,0],[.15,-.17,0],[.02,-.08,0]]
+ if extended:
+  # Broad, shallow scallops replace the narrow three-finger outer edge.
+  # Identity CloudWing, vertex ordering, spiral and animation pivot stay intact.
+  controls=[[.02,-.08,0],[.12,.19,0],[.36,.41,0],[.59,.34,0],
+   [.80,.48,0],[1.01,.43,0],[1.08,.29,0],[1.22,.24,0],
+   [1.24,.08,0],[1.12,-.04,0],[1.08,-.20,0],[.91,-.29,0],
+   [.68,-.27,0],[.36,-.24,0],[.02,-.08,0]]
+ outline=curve(controls,3)[:-1]
+ center=[.58,.08];count=len(outline);rows=[];start=len(shape.p)//3
+ def point(x,y,z):return add(origin,[sign*x*scale,y*scale,z*scale])
+ # Elliptical cross-section closes to a smooth rim; same winding for both sides.
+ front=shape.vertex(point(*center,.13),[0,0,1],'cream')
+ for j in range(1,7):
+  angle=math.pi*j/7;r=math.sin(angle);z=.13*math.cos(angle);row=[]
+  for x,y,_ in outline:
+   row.append(shape.vertex(point(center[0]+(x-center[0])*r,center[1]+(y-center[1])*r,z),[0,0,1],'cream'))
+  rows.append(row)
+ back=shape.vertex(point(*center,-.13),[0,0,-1],'cream')
+ def tri(a,b,c):shape.tri(a,c,b) if sign>0 else shape.tri(a,b,c)
+ for k in range(count):
+  l=(k+1)%count;tri(front,rows[0][k],rows[0][l]);tri(back,rows[-1][l],rows[-1][k])
+ for a,b in zip(rows,rows[1:]):
+  for k in range(count):
+   l=(k+1)%count;tri(a[k],b[k],a[l]);tri(a[l],b[k],b[l])
+ # Area-weighted normals for the sculpted cloud surface.
+ normals=[[0,0,0] for _ in range(len(shape.p)//3)]
+ for k in range(0,len(shape.i),3):
+  a,b,c=shape.i[k:k+3];pa,pb,pc=[shape.p[i*3:i*3+3] for i in (a,b,c)]
+  n=cross(sub(pb,pa),sub(pc,pa))
+  for i in (a,b,c):normals[i]=add(normals[i],n)
+ for i in range(start,len(normals)):shape.n[i*3:i*3+3]=unit(normals[i])
+ for side in [-1,1]:
+  pts=[]
+  for k in range(24):
+   t=k/23;r=.21*(1-t)+.015;angle=-math.pi*.60-t*math.tau*1.08
+   pts.append(point(.40+r*math.cos(angle),.08+r*math.sin(angle),side*.139))
+  shape.tube(pts,.012*scale,'ink',6)
 for sign,label in [(-1,'L'),(1,'R')]:
- wing=part('CloudWing_'+label)
- wing.ellipsoid([sign*.46,-.22,-.13],[.27,.20,.09],'cream',20,10)
- wing.ellipsoid([sign*.64,-.08,-.14],[.20,.09,.075],'cream',16,8)
- wing.ellipsoid([sign*.66,-.24,-.14],[.16,.075,.075],'cream',16,8)
- wing.ellipsoid([sign*.57,-.38,-.14],[.16,.10,.07],'cream',16,8)
- # Small raised curl on the outward/front side of each cloud.
- pts=[]
- for k in range(22):
-  t=k/21;r=.095*(1-t)+.008;a=-math.pi/2+t*math.tau*1.2
-  pts.append([sign*(.49+r*math.cos(a)),-.20+r*math.sin(a),-.027])
- wing.tube(pts,.012,'ink',6)
-# Rounded flight fans extend the cloud motif; local coordinates hinge at the shoulder.
-# Each side is one mesh. Broad overlapping lobes, no sharp membranes or claws.
-for sign,label in [(-1,'L'),(1,'R')]:
- wing=part('FlightWing_'+label)
- wing.ellipsoid([sign*.48,.08,0],[.57,.23,.13],'cream',20,10,sign*18)
- for x,y,rx,ry,angle in [(.89,.38,.61,.18,32),(.97,.09,.53,.16,15),(.78,-.16,.42,.15,-5)]:
-  wing.ellipsoid([sign*x,y,-.015],[rx,ry,.105],'cream',20,10,sign*angle)
- pts=curve([[sign*.17,.08,.13],[sign*.50,.17,.13],[sign*.86,.35,.11],[sign*1.22,.57,.07]],6)
- wing.tube(pts,.018,'curl',6)
-# Back-view tail: a large curl leaving the rump and sweeping across the back.
-tail=part('Tail');pts=curve([[0,-.74,-.28],[-.38,-.59,-.44],[-.48,-.24,-.53],[-.27,-.04,-.56],[.11,-.04,-.60],[.48,-.18,-.57],[.71,-.44,-.49],[.79,-.67,-.38]],5)
-radii=[.16*(1-i/(len(pts)-1))+.048 for i in range(len(pts))];tail.tube(pts,radii,'blue',12)
+ # The identity cloud runs back along the shoulder, not out as a frontal plate.
+ # Rotate its contour 62 degrees around Y, mirror the rotation, and thin depth.
+ # Keep the hand below/in front of it; the expanded animated wing is untouched.
+ small=part('CloudWing_'+label)
+ # Enlarge the identity contour by 11.6%, keeping its previous depth.
+ cloud_wing(small,sign,[0,0,0],.48)
+ angle=sign*math.radians(62);co=math.cos(angle);si=math.sin(angle)
+ for i in range(len(small.p)//3):
+  x,y,z=small.p[i*3:i*3+3];z*=.68*.43/.48
+  small.p[i*3:i*3+3]=[sign*.40+co*x+si*z,y-.24,.12-si*x+co*z]
+  nx,ny,nz=small.n[i*3:i*3+3];nz/=.68*.43/.48
+  small.n[i*3:i*3+3]=unit([co*nx+si*nz,ny,-si*nx+co*nz])
+ cloud_wing(part('FlightWing_'+label),sign,[0,0,0],1.0,extended=True)
+# Back-view tail: a fuller curl leaving the rump, with depth visible from the side.
+tail=part('Tail');pts=curve([[0,-.74,-.28],[-.38,-.59,-.62],[-.48,-.24,-.83],[-.27,-.04,-.91],[.11,-.04,-.90],[.48,-.18,-.76],[.71,-.44,-.60],[.79,-.67,-.46]],5)
+radii=[.17*(1-i/(len(pts)-1))+.075 for i in range(len(pts))];tail.tube(pts,radii,'blue',12)
+# Preserve the exact original attachment ring/cap while gathering the rest of
+# the standing curl close to the rump. Same 36 rings, indices and target order.
+attachment_p=tail.p[:36];attachment_n=tail.n[:36]
+cap_index=len(pts)*12*3
+cap_p=tail.p[cap_index:cap_index+3];cap_n=tail.n[cap_index:cap_index+3]
+# Keep the curl below the rider's feet as it crosses behind the body; the old
+# high central arc intersected the rider on ground/hover despite head clearance.
+pts=curve([[0,-.74,-.28],[-.24,-.69,-.48],[-.35,-.53,-.61],[-.22,-.39,-.66],[.07,-.37,-.64],[.34,-.44,-.58],[.49,-.59,-.48],[.53,-.74,-.41]],5)
+tail=part('Tail');tail.tube(pts,radii,'blue',12)
+tail.p[:36]=attachment_p;tail.n[:36]=attachment_n
+tail.p[cap_index:cap_index+3]=cap_p;tail.n[cap_index:cap_index+3]=cap_n
 end=pts[-1];tip=part('TailCloud')
-for dx,dy in [(-.06,-.10),(0,-.16),(.08,-.09)]:tip.ellipsoid(add(end,[dx,dy,.015]),[.06,.105,.05],'cream',12,8)
-# Preserve the curled identity but keep it below and inside the flight fan silhouette.
-for name in ['Tail','TailCloud']:
- shape=parts[name]
- for i in range(0,len(shape.p),3):
-  shape.p[i]*=.82;shape.p[i+1]=shape.p[i+1]*.82-.20;shape.p[i+2]*=.9
- # Nonuniform position scaling requires inverse-transpose normals.
- for i in range(0,len(shape.n),3):shape.n[i:i+3]=unit([shape.n[i]/.82,shape.n[i+1]/.82,shape.n[i+2]/.9])
+# Three rounded cloud lobes fan out from a common root, not thin dangling digits.
+def tail_cloud(shape,end,scale=1):
+ for dx,dy,angle in [(-.08,-.055,-40),(0,-.12,0),(.09,-.04,45)]:
+  shape.ellipsoid(add(end,[dx*scale,dy*scale,.015]),[.085*scale,.12*scale,.075*scale],'cream',12,8,angle)
+tail_cloud(tip,end)
 # Three topology-identical targets deform the tail itself, including its cloud tip.
 # Body-space curves deliberately compensate for the strong full-body flight pitch.
 # The root ring never moves, so every blend stays attached to the rump.
 tail_targets={name:[] for name in ['Tail','TailCloud']}
-root=[0,-.74*.82-.20,-.28*.9]
-for controls in [
+root=[0,-.74,-.28]
+for target_index,controls in enumerate([
  [root,[-.20,-.95,-.43],[-.25,-1.10,-.61],[-.18,-1.24,-.80],[0,-1.36,-.96],[.19,-1.43,-1.09],[.32,-1.40,-1.17],[.38,-1.31,-1.16]],
- [root,[-.08,-1.04,-.44],[-.12,-1.32,-.63],[-.09,-1.66,-.83],[-.04,-2.02,-1.02],[.02,-2.35,-1.21],[.07,-2.63,-1.39],[.08,-2.85,-1.50]],
+ [root,[-.08,-1.04,-.44],[-.16,-1.32,-.67],[-.18,-1.66,-.94],[-.10,-2.02,-1.15],[.03,-2.35,-1.29],[.11,-2.63,-1.39],[.08,-2.85,-1.50]],
  [root,[-.14,-.96,-.51],[-.20,-1.05,-.84],[-.18,-1.12,-1.20],[-.08,-1.23,-1.56],[.07,-1.41,-1.91],[.20,-1.64,-2.18],[.25,-1.85,-2.35]]
-]:
- points=curve(controls,5);target=Shape();target.tube(points,[r*.85 for r in radii],'blue',12)
+]):
+ points=curve(controls,5);target=Shape();target.tube(points,radii,'blue',12)
  cloud=Shape()
- for dx,dy in [(-.06,-.10),(0,-.16),(.08,-.09)]:cloud.ellipsoid(add(points[-1],[dx*.82,dy*.82,.015*.9]),[.06*.82,.105*.82,.05*.9],'cream',12,8)
+ tail_cloud(cloud,points[-1],[1.15,1.5,1.35][target_index])
  # Identical attachment ring for all targets, avoiding a moving seam at the body.
  target.p[:36]=parts['Tail'].p[:36];target.n[:36]=parts['Tail'].n[:36]
+ target.p[cap_index:cap_index+3]=cap_p;target.n[cap_index:cap_index+3]=cap_n
  for name,shape in [('Tail',target),('TailCloud',cloud)]:tail_targets[name].append(shape)
 # Keep the face level while the body pitches; every face detail follows one pivot.
 head_names=[n for n in parts if n=='Head' or n.split('_')[0] in ['Ear','Horn','Eye','Cheek','Fang'] or n in ['Mouth','Tongue','Nose','Forelock']]
@@ -201,7 +296,7 @@ for name,s in parts.items():
    mesh['primitives'][0]['targets'].append({key:accessor([a-b for a,b in zip(values,base)],'f','VEC3',5126,34962) for key,values,base in [('POSITION',target.p,s.p),('NORMAL',target.n,s.n)]})
 for name,pos in [('DragonWing_L',[-.38,-.20,-.26]),('DragonWing_R',[.38,-.20,-.26]),('RiderAnchor',[0,-.08,-.80])]:
  g['nodes'][0]['children'].append(len(g['nodes']));g['nodes'].append({'name':name,'translation':pos,'extras':{'purpose':'invisible compatibility pivot' if name.startswith('Dragon') else 'rider feet; +Z forward'}})
-# The legacy pivots now drive actual flight fans; small CloudWing nodes remain fixed.
+# The legacy pivots drive the cloud extensions; small CloudWing identity stays fixed.
 for label in ['L','R']:
  idx=next(i for i,n in enumerate(g['nodes']) if n['name']=='FlightWing_'+label)
  pivot=next(n for n in g['nodes'] if n['name']=='DragonWing_'+label)

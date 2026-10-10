@@ -255,3 +255,27 @@ test('tail morph geometry extends, glides and recurls continuously; instances ow
  const other=f.assets.dragon.resource.instantiateRenderEntity();
  assert.ok(other.findByName('Tail').render.meshInstances[0].morphInstance.getWeight(1)===0,'shared asset weights untouched');other.destroy();
 });
+
+
+test('fidelity: extension stows on ground while cloud identity and morph/anchor remain', async t => {
+ const f=await fixture(t);f.success('duck');f.success('dragon');await f.character.ready;
+ f.player.mountKind='annyongi';f.character.setMounted(true);
+ const carrier=f.player.findByName('Annyongi_GLB_Visual');
+ const anchor=carrier.findByName('RiderAnchor').getLocalPosition().clone();
+ for(let i=0;i<120;i++)f.character.update(1/60,{mounted:true,moving:false,grounded:true});
+ for(const side of ['L','R']) {
+  const wing=carrier.findByName('DragonWing_'+side);
+  assert.equal(wing.enabled,false,'no extra flight silhouette on ground');
+  assert.ok(wing.getLocalScale().x>0,'nonsingular transform');
+  assert.equal(carrier.findByName('CloudWing_'+side).enabled,true,'identity cloud retained');
+ }
+ let previous=carrier.findByName('DragonWing_R').getLocalScale().x;
+ for(let i=0;i<120;i++) {
+  f.character.update(1/60,{mounted:true,moving:false,grounded:false});
+  const scale=carrier.findByName('DragonWing_R').getLocalScale().x;
+  assert.ok(Math.abs(scale-previous)<.08,'continuous extension during takeoff');previous=scale;
+ }
+ assert.equal(carrier.findByName('DragonWing_R').enabled,true);
+ assert.ok(Math.abs(previous-.70)<.001);
+ assert.deepEqual(carrier.findByName('RiderAnchor').getLocalPosition(),anchor);
+});

@@ -1,0 +1,22 @@
+{
+  "baseline": "80da3eac51102ab019cd005a5a689f9698a9cf95",
+  "sourceSha256": "5128e60ee75c53cf36b062f7a5d275f005bd5a563416467b3fe7c4501692aceb",
+  "hierarchyExactEqual": true,
+  "allIndicesExactEqual": true,
+  "allVertexColorsExactEqual": true,
+  "allVertexCountsExactEqual": true,
+  "tailRootRingAndCapExactEqual": true,
+  "tailMorphNamesPositionNormalAndWeightsPreserved": true,
+  "smallCloudWingsExactEqual": true,
+  "changedAttributes": [
+    "FlightWing_L:POSITION",
+    "FlightWing_L:NORMAL",
+    "FlightWing_R:POSITION",
+    "FlightWing_R:NORMAL",
+    "Tail:POSITION",
+    "Tail:NORMAL",
+    "TailCloud:POSITION"
+  ],
+  "poseSnapshotsExactEqual": 24,
+  "deterministicRegeneration": true
+}

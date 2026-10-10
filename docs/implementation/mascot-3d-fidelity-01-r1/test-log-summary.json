@@ -1,0 +1,74 @@
+{
+  "world-tests": [
+    "✔ shared world periods map to compact icon + HH:MM presentation (0.279844ms)",
+    "✔ HUD hides rather than inventing device time when the shared clock is unavailable (0.142936ms)",
+    "✔ HUD keeps server-anchored clock progression readable during holdover (0.109035ms)",
+    "✔ runtime updates the existing location-chip slot without owning time authority (0.287595ms)",
+    "ℹ tests 3793",
+    "ℹ suites 0",
+    "ℹ pass 3793",
+    "ℹ fail 0",
+    "ℹ cancelled 0",
+    "ℹ skipped 0",
+    "ℹ todo 0",
+    "ℹ duration_ms 44843.696458"
+  ],
+  "runtime": [
+    "✔ flight V2 exposes distinct hover/ascent/forward/descent, rejects teleport spikes and folds on ground (157.604873ms)",
+    "✔ night fill retains vertex palette and owns clones without changing source/world materials (37.253511ms)",
+    "✔ tail morph geometry extends, glides and recurls continuously; instances own their weights (81.219694ms)",
+    "✔ fidelity: extension stows on ground while cloud identity and morph/anchor remain (25.731648ms)",
+    "ℹ tests 12",
+    "ℹ suites 0",
+    "ℹ pass 12",
+    "ℹ fail 0",
+    "ℹ cancelled 0",
+    "ℹ skipped 0",
+    "ℹ todo 0",
+    "ℹ duration_ms 2322.563263"
+  ],
+  "optimizer-tests": [
+    "✔ transform failure copies source bytes and exposes FALLBACK_COPY (22.163394ms)",
+    "✔ optimizer refuses in-place writes (4.501062ms)",
+    "✔ no useful size gain is reported as PASSTHROUGH_COPY instead of OPTIMIZED (9.87168ms)",
+    "✔ strict configured run writes fallback receipt and then fails (19.90784ms)",
+    "ℹ tests 6",
+    "ℹ suites 0",
+    "ℹ pass 6",
+    "ℹ fail 0",
+    "ℹ cancelled 0",
+    "ℹ skipped 0",
+    "ℹ todo 0",
+    "ℹ duration_ms 530.457508"
+  ],
+  "static-qa": [
+    "Wardrobe UI P0 static contracts PASS",
+    "Local Equipment Projection P0 static contracts PASS",
+    "Multiplayer Equipment Projection P0 static contracts PASS",
+    "compact top HUD / one-line objective / social cluster contract PASS",
+    "P2 WALK/MOUNT_GROUND/MOUNT_FLIGHT HUD state contract PASS",
+    "context action priority/distance/visibility PASS",
+    "campus geo, legacy zone compatibility, semantic tour, footprint collision, roof landing, camera occlusion PASS",
+    "walkable gate→hall, tour progress/persistence/restart PASS",
+    "Main Lobby P0.7 static responsive/failure contracts PASS",
+    "Hub Messages P0-M2 static contracts PASS",
+    "Hub Messages P0-M3 profile-to-message static contracts PASS",
+    "Hub Friends P0 static contracts PASS"
+  ],
+  "capture-before": [
+    "Fidelity six-state / five-view capture PASS"
+  ],
+  "capture-after": [
+    "Fidelity six-state / five-view capture PASS"
+  ],
+  "parity": [
+    "Source/optimized 4-state pixel parity PASS"
+  ],
+  "campus": [
+    "stubbed: /api/hub-event, /api/public-supabase-config, cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js",
+    "stubbed: /api/hub-event, /api/public-supabase-config, cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js",
+    "stubbed: /api/hub-event, /api/public-supabase-config, cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js",
+    "stubbed: /api/hub-event, /api/public-supabase-config, cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js",
+    "Annyongi campus desktop/mobile day/night PASS"
+  ]
+}

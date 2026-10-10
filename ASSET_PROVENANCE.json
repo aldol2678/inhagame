@@ -8,8 +8,8 @@
     {
       "path": "apps/world/assets/annyongi-flight-v1.glb",
       "provenance": "New project-authored procedural 3D reconstruction referencing Inha University official Annyongi mascot design; not independent QA geometry.",
-      "sha256": "5b53dd9a13e2123bab399f68483c3fa72259b75888edf67b9bab32553a53fc23",
-      "generator": "INHAGAME Annyongi procedural flight reconstruction v2.1",
+      "sha256": "c6eca9ad0ae569e2269dfe162c90ec75c9ff50ba43bf9b7ea4d8e4d4f2ab1e71",
+      "generator": "INHAGAME Annyongi procedural flight reconstruction v2.6",
       "geometrySource": "tools/world-assets/build-annyongi.py",
       "textureUsage": "none",
       "referenceSourceFamily": [
@@ -26,7 +26,7 @@
       ],
       "approvalStatus": "design-review-pending",
       "permissionBasis": "User-reported technical commercialization team permission for noncommercial reproduction preserving design. Correspondence not independently inspected; no university approval of this new model claimed.",
-      "gameAdaptation": "ANNYONGI-FLIGHT-V2-FIX: rounded flight fans, three tail morph targets with cloud tip, head counter-pitch and full-body flight poses. Game-only adaptation; university design approval pending."
+      "gameAdaptation": "R2 curl/cloud follow-up: tapered blue forehead curl with a raised dark ridge; standing CloudWing contour enlarged 11.6% at unchanged depth. Prior face, arms, body, flight wings, tail morphs, node hierarchy, pivots and runtime retained. Design approval pending."
     },
     {
       "path": "apps/world/assets/induck-cap-v1.glb",

@@ -1,0 +1,42 @@
+{
+  "sourceSha256": "bec8585e3e64f092585c23e353ae833215a25ceffa850d819bce7d34d70f01ea",
+  "bytes": 87788,
+  "transitions": [
+    {
+      "mode": "ground",
+      "minimum": 1.9188760623819099,
+      "actual": "ground"
+    },
+    {
+      "mode": "hover",
+      "minimum": 1.9188760623819099,
+      "actual": "hover"
+    },
+    {
+      "mode": "ascend",
+      "minimum": 1.5383468084970846,
+      "actual": "ascend"
+    },
+    {
+      "mode": "forward",
+      "minimum": 1.1976562551245649,
+      "actual": "forward"
+    },
+    {
+      "mode": "descend",
+      "minimum": 1.2432435364355399,
+      "actual": "descend"
+    },
+    {
+      "mode": "landing",
+      "minimum": 1.6801408137039835,
+      "actual": "landing"
+    },
+    {
+      "mode": "ground",
+      "minimum": 1.915038434713868,
+      "actual": "ground"
+    }
+  ],
+  "problems": []
+}
