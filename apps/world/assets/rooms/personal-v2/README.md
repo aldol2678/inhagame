@@ -11,6 +11,6 @@ File: `WoodFloor051_Color_1K_Q30.webp`
 - Derived size: 28,570 bytes; source JPEG: 1,047,153 bytes.
 - This repo includes only the re-encoded color map, not original texture/normal/roughness files.
 
-QA access: explicitly opt in with `?woodFloor051=1` on localhost or `inhagame.app`; default OFF.
-No change to personal room collision, saved layout, or server.
-Post-deployment mobile GPU QA and release approval are still pending.
+Default personal-room floor: Wood Floor 051 (B). For A/B comparison or immediate opt-out, use `?woodFloor051=0`; omitting the query uses B.
+If loading or decoding fails, the existing `#b99168` floor remains visible. No change to collision, saved layout, or server.
+Mobile GPU frame-time, FPS and memory verification remains a separate post-deployment task.

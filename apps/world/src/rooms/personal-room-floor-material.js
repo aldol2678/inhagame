@@ -1,16 +1,16 @@
-// Opt-in visual-only test: Wood Floor 051 never changes gameplay authority.
-// Original color floor remains the canonical/fail-closed material.
+// Wood Floor 051 is the default personal-room floor, without changing gameplay authority.
+// Original color floor is retained as the fail-closed fallback and optional comparison.
 
 export const PERSONAL_ROOM_FLOOR_QA_URL = "/assets/rooms/personal-v2/WoodFloor051_Color_1K_Q30.webp";
 export const PERSONAL_ROOM_FLOOR_TILING = Object.freeze([8, 5]);
 
-export function localWoodFloorQaEnabled(location = globalThis.location) {
-  if (!location || !["localhost", "127.0.0.1", "::1", "[::1]", "inhagame.app", "www.inhagame.app"].includes(location.hostname)) return false;
-  return new URLSearchParams(location.search ?? "").get("woodFloor051") === "1";
+export function woodFloor051Enabled(location = globalThis.location) {
+  // Default ON everywhere. ?woodFloor051=0 is a read-only A/B and recovery override.
+  return new URLSearchParams(location?.search ?? "").get("woodFloor051") !== "0";
 }
 
 export function createPersonalRoomFloorMaterial({
-  app, root, floor, engine, enabled = localWoodFloorQaEnabled(), url = PERSONAL_ROOM_FLOOR_QA_URL
+  app, root, floor, engine, enabled = woodFloor051Enabled(), url = PERSONAL_ROOM_FLOOR_QA_URL
 }) {
   if (!floor?.render?.material) throw new TypeError("Original personal-room floor material missing");
   if (typeof engine?.StandardMaterial !== "function" || typeof engine?.Vec2 !== "function")
@@ -47,7 +47,7 @@ export function createPersonalRoomFloorMaterial({
     if (!custom) {
       const candidate = new engine.StandardMaterial();
       try {
-        candidate.name = "qa-woodfloor051-color-1k";
+        candidate.name = "woodfloor051-color-1k";
         candidate.diffuseMap = texture;
         candidate.diffuseMapTiling = new engine.Vec2(...PERSONAL_ROOM_FLOOR_TILING);
         candidate.gloss = 0.28;
