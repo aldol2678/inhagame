@@ -340,6 +340,35 @@ These rules are the current architectural contract. Each subsection states what 
   transaction and does not touch Creature state. Combat outputs (drops, gear) will use this path once the Combat resolver
   exists; adding an output kind extends the plan schema.
 
+
+### 7.5 Integrated Life Loop v0.1 (planned current design)
+
+Product/design canon: [`docs/world/INTEGRATED_LIFE_LOOP_V01.md`](../world/INTEGRATED_LIFE_LOOP_V01.md).
+
+- **Status: planned, not implemented.** This subsection records the target cross-domain contract only.
+  It does not add a primitive caller, protected-table writer, public RPC, migration, ACTIVE Combat
+  definition, recipe, consumable or reward.
+- The target loop is Fishing → Personal Room cooking → optional Combat meal preparation →
+  server-authoritative Building 5 Combat → fixed Reward → Personal Room workbench → Fishing
+  preparation → Fishing.
+- Housing placement remains Housing-owned; functional capability is definition data and is never
+  accepted from the saved furniture placement JSON.
+- Cooking and workbench recipes target a migration-owned semantic recipe catalog. Recipe commands
+  accept recipe/request identity only and derive Inventory mutation plans server-side.
+- Inventory decrement/grant remains owned by the existing Inventory primitives. No generic
+  client-callable Inventory mutation endpoint is part of the target.
+- The existing local Building 5 training runtime remains no-reward presentation/training. Persistent
+  Combat reward eligibility requires the deterministic server resolver described in §7.3.
+- The target Combat reward routes through Reward authority rather than writing Inventory or EXP
+  directly. Before activation, the implementation PR must explicitly extend the current source
+  vocabularies to admit verified Combat provenance; unrelated source types must not be reused.
+- Fishing preparation effects are claimed at authoritative Fishing START, kept semantically separate
+  from Life Skill effects, and frozen into the attempt so retry/respec/config changes cannot rewrite
+  an in-flight cast.
+- `life.cooking`, `life.crafting`, Fishing `baitcraft`, rare-fish, boat-fishing and deep-sea
+  nodes remain outside this v0.1 activation target unless a separate reviewed slice supplies their
+  real authoritative consumer.
+
 ## 8. Recorded findings (not changed in this PR)
 
 - **Quest events are client-asserted.** The server enforces only the order of `visit_*` / `talk_*`

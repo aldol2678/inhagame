@@ -3,6 +3,10 @@
 INHA WORLD is the 3D virtual campus and game hub, served under `/campus/`. The implementation
 lives in this folder; design notes live in `docs/world/`.
 
+Current cross-system product canon for the first closed Life ↔ Housing ↔ Combat loop:
+[`Integrated Life Loop v0.1`](../../docs/world/INTEGRATED_LIFE_LOOP_V01.md). Its B1–B4 slices are
+design targets until their implementation PRs land; current code/migrations remain implementation authority.
+
 ## Run locally
 
 ```bash
