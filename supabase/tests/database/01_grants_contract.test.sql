@@ -146,6 +146,8 @@ select set_eq($$select unnest(pg_temp.exec_surface('authenticated', 'anon'))$$, 
   'can_access_world_room_realtime_v1(text)',
   'get_world_room_furniture_v1(uuid)',
   'save_my_room_furniture_v1(uuid,integer,jsonb)',
+  'cook_my_world_recipe_v1(text,uuid)', -- server recipe, actor and owned/saved station; candidate closed
+
   -- Housing H3 (20261005022000): knock before a friend visit; caller = auth.uid().
   'knock_friend_personal_room_v1(uuid)',
   'get_my_room_knock_v1(uuid)',

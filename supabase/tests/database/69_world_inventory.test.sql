@@ -24,7 +24,58 @@ select has_table('private', 'world_item_grants', 'grant log exists');
 select col_is_pk('private', 'world_item_catalog', array['item_id'], 'item ids are unique');
 select col_is_unique('private', 'world_player_items', array['user_id', 'item_id'], 'one ownership row per (user, item)');
 select col_is_pk('private', 'world_item_grants', array['grant_id'], 'a grant key is used once');
-select is((select count(*) from private.world_item_catalog), 36::bigint, '6 pilot fixtures + Starter Catalog 20 + Housing F0 7 + Life M1 materials 3');
+select is((select count(*) from private.world_item_catalog), 38::bigint, '36 existing catalog entries + 2 closed Cooking B2 candidates');
+select is(
+  array(select item_id from private.world_item_catalog
+    where item_id not in ('furniture.cooking_station', 'consumable.grilled_carp')
+    order by item_id collate "C"),
+  array[
+    'back.freshman_bag',
+    'back.induck_backpack',
+    'badge.campus_explorer',
+    'badge.campus_first_step',
+    'badge.main_gate',
+    'badge.mcm_2026_landlord',
+    'emote.wave_plus',
+    'furniture.campus_map_poster',
+    'furniture.campus_rug_blue',
+    'furniture.dorm_bookshelf_slim',
+    'furniture.dorm_desk_lamp',
+    'furniture.dorm_monitor',
+    'furniture.dorm_plant_medium',
+    'furniture.dorm_resident_plate',
+    'furniture.dorm_side_table_low',
+    'furniture.dorm_single_sofa',
+    'furniture.dorm_trophy_shelf',
+    'furniture.induck_chair',
+    'furniture.induck_cushion',
+    'furniture.mcm_2026_landlord_figure',
+    'furniture.mcm_2026_poster',
+    'furniture.mini_induck',
+    'furniture.study_books_set',
+    'head.induck_cap',
+    'head.inha_cap',
+    'head.inkyung_duck',
+    'material.artifact_fragment_01',
+    'material.campus_leaf',
+    'material.fish_carp',
+    'memorabilia.campus_mug',
+    'memorabilia.mcm_2026_wristband',
+    'shoes.campus_sneakers',
+    'top.induck_hoodie',
+    'top.inha_basic',
+    'top.mcm_2026_survivor',
+    'top.mcm_jacket'
+  ],
+  'all 36 pre-cooking catalog members remain unchanged');
+select results_eq($query$select item_id, category, ownership_policy, max_stack, status
+  from private.world_item_catalog
+  where item_id in ('furniture.cooking_station', 'consumable.grilled_carp')
+  order by item_id collate "C"$query$,
+  $expected$values
+    ('consumable.grilled_carp'::text, 'CONSUMABLE'::text, 'STACKABLE'::text, 20, 'COMING_SOON'::text),
+    ('furniture.cooking_station', 'FURNITURE', 'UNIQUE', null::integer, 'COMING_SOON')$expected$,
+  'only the exact two closed Cooking B2 definitions extend the existing catalog');
 select is(
   array(select item_id from private.world_item_catalog where item_id = any(array[
     'top.induck_hoodie', 'head.induck_cap', 'furniture.induck_cushion', 'furniture.campus_map_poster',

@@ -45,6 +45,7 @@ nothing is ACTIVE / no settlement path · **planned** = no backing schema yet ·
 | Character Level | Progression (derived) | `private.world_level_thresholds` (immutable, append-only) × `total_exp` | `get_my_world_progression_v1()`; client never computes it (`progression-client.js`) | none, derived | — | no | production |
 | Wallet | Economy | `private.world_wallets`, `private.world_currency_transactions`, `private.world_currencies` | `get_my_world_wallet_v1()` | `private.world_wallet_apply_v1` | Reward orchestrator; Shop purchase; `world_wallet_credit/debit_v1` (service_role) | no (purchase RPC prices from the server listing) | production |
 | Inventory | Inventory | `private.world_player_items` (UNIQUE user,item), `world_item_grants`, `world_item_consumptions`, `world_inventory_mutations(_entries)`, `world_item_catalog` | `get_my_world_inventory_v1()` | `private.world_inventory_grant_v1` (only increase), `world_inventory_consume_v1`, `world_inventory_mutate_v1` (atomic N-consume / M-grant) | Reward; Shop; Inventory-internal mutate; service_role wrappers | no | production (cosmetics / collectibles); MATERIAL rows foundation |
+| Cooking recipe | Recipe / Cooking | `private.world_recipe_catalog`, `world_recipe_receipts` | historical receipt returned by the self-only command | `cook_my_world_recipe_v1(recipe_id,request_id)` → Inventory mutation | authenticated owner, permanent non-banned account; own saved and owned station | narrow command only, no amounts/plan/user/room | B2 candidate CLOSED; no acquisition, Life XP or food-use/combat consumer |
 | Cosmetic equipment | Appearance | `private.world_player_appearance_loadout` (9 slots), `world_appearance_transactions` | `get_my_world_appearance_loadout_v1()` | `equip_my_world_item_v1`, `unequip_my_world_item_v1` (ownership checked) | the owner (authenticated, self-only) | via self-only RPC | production |
 | Combat equipment | Equipment (planned) | none. Combat v0.3 needs gear instances (8 slots, +20 enhancement, sets); `world_player_items` cannot hold instances | — | — | — | — | planned (static build catalog `src/combat/combat-v03-catalog.js`, #112; no schema) |
 | Combat progression | Combat (planned) | none. **Target**: Combat TP derived from Character Level (section 7.2) | — | — | — | — | planned |
@@ -93,7 +94,7 @@ Allowed callers on `8b7bf39`. The exact list with a reason per row is in test 93
 
 - **Wallet**: Reward orchestrator; `purchase_world_shop_listing_v1`; service_role `world_wallet_credit/debit_v1`.
 - **EXP**: Reward orchestrator; service_role `world_exp_grant_v1`.
-- **Inventory grant**: Reward; Inventory mutate; Shop purchase; Activity settlement; service_role `world_inventory_grant_item_v1` and `world_inventory_ensure_default_items_v1`. **Consume**: Inventory mutate only.
+- **Inventory grant**: Reward; Inventory mutate; Shop purchase; Activity settlement; service_role `world_inventory_grant_item_v1` and `world_inventory_ensure_default_items_v1`. **Consume**: Inventory mutate only. **Mutate**: `cook_my_world_recipe_v1` only; server recipe, owned/saved station and self-only actor.
 - **Collection discover**: service_role wrapper; Activity settlement.
 - **Life Skill XP**: Activity settlement only.
 - **Activity settlement**: `public.world_fishing_settle_v1` (service_role + service claim; frozen catch) and `public.world_gathering_harvest_v1` (service_role; frozen semantic source/output).
@@ -110,13 +111,13 @@ Allowed callers on `8b7bf39`. The exact list with a reason per row is in test 93
 - **Life Skill Tree**: `world_life_node_unlock_v1` ← `public.unlock_my_world_life_node_v1`;
   `world_life_tree_reset_v1` ← `public.reset_my_world_life_tree_v1` (Life Skill Book, self-only, caller =
   `auth.uid()`, only a node / skill id and a request id; ACTIVE skills / nodes only).
-- **No callers yet** (deliberately): `world_inventory_mutate_v1`.
+- **Recipe / Cooking**: `world_inventory_mutate_v1` ← `public.cook_my_world_recipe_v1` (B2 candidate; server recipe, self-only actor and owned/saved station, no client quantities).
 
 Client reachability: the only functions `anon` / `authenticated` can execute that reach any
 primitive, at any depth, are `purchase_world_shop_listing_v1`, `answer_my_world_daily_quiz_v1`,
 `claim_my_world_attendance_v1`, `claim_my_mcm_2026_main_reward_v1`,
 `claim_my_mcm_landlord_first_clear_reward_v1`, `bond_my_duck_companion_v1`,
-`unlock_my_world_life_node_v1` and `reset_my_world_life_tree_v1`. Each decides its outcome on the server.
+`unlock_my_world_life_node_v1`, `reset_my_world_life_tree_v1` and `cook_my_world_recipe_v1`. Each decides its outcome on the server.
 
 How the test reads the call graph:
 - Only the final catalog after replaying every migration is inspected. A superseded version of a
@@ -136,6 +137,7 @@ if it never calls the primitive.
 - EXP: `world_player_progression`, `world_exp_transactions` ← `world_exp_apply_v1`
 - Inventory: `world_player_items`, `world_item_grants`, `world_item_consumptions`,
   `world_inventory_mutations(_entries)` ← the three Inventory primitives
+- Recipe / Cooking: `world_recipe_receipts` ← `cook_my_world_recipe_v1`; frozen append-only response, account deletion cascade only. `world_recipe_catalog` is migration-owned.
 - Reward: `world_reward_transactions(_entries)` ← `world_reward_grant_v1`
 - Life: `world_player_life_skills`, `world_life_skill_xp_transactions` ← `world_life_skill_xp_apply_v1`;
   `world_life_sp_transactions`, `world_player_life_nodes` ← `world_life_node_unlock_v1`;
@@ -156,7 +158,7 @@ if it never calls the primitive.
 - Staff: `world_staff_assignments`, `world_staff_role_permissions` ← no function (ops DML only)
 
 Definition catalogs (currencies, items, level / life curves, reward definitions and grants, shops,
-life / combat / creature / collection / Gathering source / Biryong relationship catalogs, bridge catalogs) are written only by migrations.
+life / combat / creature / collection / recipe / Gathering source / Biryong relationship catalogs, bridge catalogs) are written only by migrations.
 **No function may write them.**
 
 ## 5. Migration collision guard

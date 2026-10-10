@@ -113,6 +113,7 @@ import { createKnockPrompt } from "./rooms/knock-prompt.js";
 import { createFurnitureClient } from "./rooms/furniture-client.js";
 import { createFurnitureEditor } from "./rooms/furniture-editor.js";
 import { createFurnitureFunctionProvider } from "./rooms/furniture-functions.js";
+import { createCookingFeature } from "./rooms/cooking-feature.js";
 import { createTrophyDisplay } from "./rooms/trophy-display.js";
 import { createTrophyDisplayPanel } from "./rooms/trophy-display-panel.js";
 import { PERSONAL_ROOM_BASIC_SPAWN } from "./rooms/personal-room-layout.js";
@@ -615,6 +616,9 @@ const biryongRegionTransitionInput = createInputFocusOwner({
 const furnitureInput = createInputFocusOwner({
   manager: inputFocus, ownerId: "room-furniture", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
 });
+const cookingInput = createInputFocusOwner({
+  manager: inputFocus, ownerId: "room-cooking", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
+});
 const trophyDisplayInput = createInputFocusOwner({
   manager: inputFocus, ownerId: "room-trophy-display", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
 });
@@ -905,7 +909,7 @@ let roomSession = null;
 let roomFurniture = null;
 let furnitureEditor = null;
 let trophyDisplay = null, trophyDisplayPanel = null;
-let roomFunctionAccountId = null;
+let cookingFeature = null, cookingOpening = false, roomFunctionAccountId = null;
 let furnitureRefreshSeconds = 0;
 let friendRoomVisit = null;
 const lobbyQuestHighlight = createLobbyQuestHighlight({
@@ -1917,6 +1921,7 @@ rooms = createRoomTransition({
     follow, stopFollowReason: FollowStopReason.ROOM, seating, seats, emotes,
     getOnline: () => online, places, streaming: { update: (dt, p) => streaming.update(dt, p) },
     closePanels: () => {
+      cookingFeature?.reset();
       trophyDisplayPanel?.close({ restoreFocus: false });
       furnitureEditor?.forceClose();
       emoteMenu.setOpen(false);
@@ -1976,6 +1981,7 @@ biryongRealm = createBiryongRealmTransition({
       playerAutoMove?.pause(AUTO_MOVE_CANCEL_REASON.TRANSPORT);
       backgateTransitPanel.setOpen(false, { restoreFocus: false });
       fullMap?.close?.();
+      cookingFeature?.reset();
       trophyDisplayPanel?.close({ restoreFocus: false });
       furnitureEditor?.forceClose();
       emoteMenu.setOpen(false);
@@ -2328,12 +2334,14 @@ roomFurniture = createFurnitureClient({
     furnitureEditor?.update(state);
     shopPanel.render();
     trophyDisplay?.update();
+    cookingFeature?.update();
   }
 });
 furnitureEditor = createFurnitureEditor({
   client:roomFurniture, inventory,
   onOpenChange: open => {
     if (open) {
+      cookingFeature?.panel.close({ restoreFocus: false });
       trophyDisplayPanel?.close({ restoreFocus: false });
       seating.standUp("furniture-edit");
       furnitureInput.acquire();
@@ -2373,15 +2381,41 @@ trophyDisplayPanel = createTrophyDisplayPanel({ display: trophyDisplay,
     } else trophyDisplayInput.release();
   }
 });
+// B2 candidate stays closed by default. Tests inject availability into the module fixture only;
+// no URL/local-storage/player toggle may turn a COMING_SOON recipe into an enabled consumer.
+cookingFeature = createCookingFeature({
+  getClient: () => online?.supabase ?? null,
+  getUserId: () => roomFunctionAccountId,
+  getRoomState: getRoomFunctionState,
+  inventory,
+  onOpenChange: open => {
+    if (!open) { cookingInput.release(); return; }
+    cookingOpening = true;
+    try {
+      trophyDisplayPanel?.close({ restoreFocus: false });
+      if (furnitureEditor?.open) furnitureEditor.forceClose();
+      inventoryPanel.setOpen(false); shopPanel.setOpen(false); wardrobePanel.setOpen(false); mobilityBook.setOpen(false);
+      dailyQuizPanel.setOpen(false); attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false);
+      fishingPanel?.setOpen(false); questJournal?.setOpen(false);
+      fullMap?.close(); smartphone?.close();
+      emoteMenu.setOpen(false); chatPanel.setOpen(false, { focus: false }); playerCard.close();
+      void guestbookPanel.setOpen(false);
+      cookingInput.acquire();
+    } finally { cookingOpening = false; }
+  }
+});
 const roomFurnitureFunctions = createFurnitureFunctionProvider({
   getState: getRoomFunctionState, getPosition: () => player.getLocalPosition(),
-  handlers: { display: target => trophyDisplayPanel.open(target) }
+  handlers: { display: target => trophyDisplayPanel.open(target), cook: cookingFeature.handler },
+  isAvailable: feature => cookingFeature.isAvailable(feature)
 });
 inventory.onChange(() => trophyDisplay.update());
 inputFocus.subscribe(snapshot => {
   trophyDisplayPanel.observeFocus(snapshot);
+  if (!cookingOpening && cookingFeature.panel.open && snapshot.topOwners.some(owner => owner !== "room-cooking"))
+    cookingFeature.panel.close({ restoreFocus: false });
 });
-window.addEventListener("pagehide", () => { trophyDisplayPanel.close({ restoreFocus: false }); trophyDisplay.reset(); });
+window.addEventListener("pagehide", () => { cookingFeature.reset(); trophyDisplayPanel.close({ restoreFocus: false }); trophyDisplay.reset(); });
 window.addEventListener("beforeunload", event => {
   const state = roomFurniture.state();
   if (state.editing && (state.dirty || state.pending)) { event.preventDefault(); event.returnValue = ""; }
@@ -2390,7 +2424,8 @@ window.addEventListener("beforeunload", event => {
 // The room scene is shared; the session (who is here, which channel) follows the room metadata.
 rooms.onChange((status) => {
   const meta = status.roomId === "ROOM_PERSONAL_BASIC" ? status.metadata : null;
-  if (!meta?.personalRoomId || !meta?.ownerUserId) { roomSession.stop(); roomFurniture.reset(); return; }
+  if (!meta?.personalRoomId || !meta?.ownerUserId) { cookingFeature.reset(); roomSession.stop(); roomFurniture.reset(); return; }
+  cookingFeature.update();
   void roomFurniture.bind(meta.personalRoomId.toLowerCase());
   const current = roomSession.status();
   if (current.active && current.roomId === meta.personalRoomId.toLowerCase()) return;
@@ -2769,7 +2804,7 @@ try {
     getOverlayState: () => ({
       hudMenu: hudMenu.open, keyboardHelp: keyboardHelp?.open === true, friends: friendPanel.open,
       playerCard: playerCard.current != null, guestbook: guestbookPanel.open, shop: shopPanel.open, inventory: inventoryPanel.open, wardrobe: wardrobePanel.open,
-      blocking: smartphone?.shell.ownsInput === true || furnitureEditor?.open === true || dailyQuizPanel.open || attendancePanel.open || lifeSkillBookPanel?.open === true || fishingPanel?.open === true || questJournal?.open === true,
+      blocking: smartphone?.shell.ownsInput === true || furnitureEditor?.open === true || cookingFeature?.panel.open === true || dailyQuizPanel.open || attendancePanel.open || lifeSkillBookPanel?.open === true || fishingPanel?.open === true || questJournal?.open === true,
       npcConversation: npcTest?.isConversationOpen?.() === true || biryongVillageDialogue?.open === true,
       mcmEvent: mcmEventUi.openState || mcmEventRuntime.isDialogueOpen() === true,
       profile: document.getElementById("profile-panel")?.hidden === false,
@@ -3367,6 +3402,7 @@ app.on("update", (dt) => {
     pressed: false, trigger: () => toggleSeat()
   } : null);
   contextActions.set("guestbook", guestbookAction);
+  cookingFeature.update();
   contextActions.set("room-furniture", roomFurnitureFunctions.contextAction());
   // Student Center shop entry: campus only, on foot, not while the shop is already open.
   const shopWorldAction = shopWorld.observe(pos, {
@@ -3519,6 +3555,7 @@ try {
     const roomFunctionIdentityChanged = nextRoomFunctionAccountId !== roomFunctionAccountId;
     roomFunctionAccountId = nextRoomFunctionAccountId;
     if (roomFunctionIdentityChanged) {
+      cookingFeature?.reset();
       trophyDisplayPanel?.close({ restoreFocus: false });
       trophyDisplay?.reset();
     }
@@ -3817,6 +3854,7 @@ window.__INHAGAME_P0__ = {
   trophyDisplay,
   trophyDisplayPanel,
   roomFurnitureFunctions,
+  cookingFeature,
   worldAudio,
   clubRoom,
   mcmEvent,
@@ -3955,6 +3993,7 @@ window.__INHAGAME_P0__ = {
         biryongRegionTransition: biryongRegionTransitionInput.active,
         inventory: inventoryInput.active,
         wardrobe: wardrobeInput.active,
+        cooking: cookingInput.active,
         dailyQuiz: dailyQuizInput.active,
         attendance: attendanceInput.active,
         lifeSkillBook: lifeSkillBookInput.active,
