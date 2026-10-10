@@ -1,0 +1,12 @@
+{
+  "abi": 1,
+  "runtimeImports": 0,
+  "compiler": "Debian clang version 19.1.7 (3+b1)",
+  "target": "wasm32",
+  "floatingPoint": "f64, no fast-math, no contraction",
+  "files": {
+    "walkability-p01.cpp": "2ecac0636cb56dbae70a763897425b294f0411bccc6e4e6be0e567c266096b40",
+    "walkability-p01.wasm": "92db411ff5d6a1968ccbbb4b6e4a11207b9130317b4e3c106a1435f6518449cf",
+    "build-walkability-p01.sh": "4642498f43188036f41c18c3cebe0857c8629da925530c0a6dea0079b93b2c81"
+  }
+}
