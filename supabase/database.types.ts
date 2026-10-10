@@ -157,6 +157,68 @@ export type Database = {
   }
   private: {
     Tables: {
+      world_recipe_catalog: {
+        Row: {
+          definition_version: number
+          mutation_type: string
+          plan: Json
+          recipe_id: string
+          required_capability: string
+          required_item_id: string
+          status: string
+        }
+        Insert: {
+          definition_version: number
+          mutation_type: string
+          plan: Json
+          recipe_id: string
+          required_capability: string
+          required_item_id: string
+          status: string
+        }
+        Update: {
+          definition_version?: number
+          mutation_type?: string
+          plan?: Json
+          recipe_id?: string
+          required_capability?: string
+          required_item_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "world_recipe_catalog_required_item_id_fkey"
+            columns: ["required_item_id"]
+            isOneToOne: false
+            referencedRelation: "world_item_catalog"
+            referencedColumns: ["item_id"]
+          },
+        ]
+      }
+      world_recipe_receipts: {
+        Row: {
+          created_at: string
+          receipt: Json
+          recipe_id: string
+          request_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          receipt: Json
+          recipe_id: string
+          request_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          receipt?: Json
+          recipe_id?: string
+          request_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       inhagame_member_activity_daily: {
         Row: {
           activity_date_kst: string
@@ -5205,6 +5267,10 @@ export type Database = {
           p_progress: Json
         }
         Returns: string
+      }
+      cook_my_world_recipe_v1: {
+        Args: { p_recipe_id: string; p_request_id: string }
+        Returns: Json
       }
       save_my_room_furniture_v1: {
         Args: { p_objects: Json; p_revision: number; p_room: string }

@@ -31,15 +31,17 @@ test('merged Fishing and Biryong dialogue both suppress the minimap through exis
   const expression=main.slice(start,end).trim().replace(/^getOverlayState: /,'').replace(/,$/,'');
   const names=['hudMenu','keyboardHelp','friendPanel','playerCard','guestbookPanel','shopPanel','inventoryPanel','wardrobePanel',
     'furnitureEditor','dailyQuizPanel','attendancePanel','lifeSkillBookPanel','fishingPanel','questJournal','npcTest',
-    'biryongVillageDialogue','mcmEventUi','mcmEventRuntime','fullMap','document','chatPanel','smartphone'];
+    'biryongVillageDialogue','mcmEventUi','mcmEventRuntime','fullMap','document','chatPanel','smartphone','cookingFeature'];
   const state=Object.fromEntries(names.map(name=>[name,{open:false,openState:false,current:null}]));
   state.npcTest.isConversationOpen=()=>false;state.mcmEventRuntime.isDialogueOpen=()=>false;
   state.document.getElementById=()=>({hidden:true});
   state.smartphone.shell={ownsInput:false};
+  state.cookingFeature.panel={open:false};
   const read=new Function(...names,`return (${expression})();`);
   const snapshot=()=>read(...names.map(name=>state[name]));
   assert.equal(snapshot().blocking,false);assert.equal(snapshot().npcConversation,false);
   state.smartphone.shell.ownsInput=true;assert.equal(snapshot().blocking,true);state.smartphone.shell.ownsInput=false;
   state.fishingPanel.open=true;assert.equal(snapshot().blocking,true);state.fishingPanel.open=false;
+  state.cookingFeature.panel.open=true;assert.equal(snapshot().blocking,true);state.cookingFeature.panel.open=false;
   state.biryongVillageDialogue.open=true;assert.equal(snapshot().npcConversation,true);
 });

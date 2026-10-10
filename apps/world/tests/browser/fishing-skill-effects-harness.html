@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="ko">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fishing skill effects fixture</title>
+<link rel="stylesheet" href="../../styles.css">
+<style>body { margin: 20px; background: #182533; color: white; }</style>
+<button id="open-book" type="button">생활 스킬 열기</button>
+<section id="life-skill-book-panel" class="profile-panel shop-panel inventory-panel life-skill-book-panel" role="dialog" aria-modal="true" aria-labelledby="life-skill-book-title" hidden></section>
+<script type="module">
+  // Only synthetic reads reach this fixture. Mutation RPCs are always rejected.
+  import { createLifeSkillBookClient, LIFE_SKILL_BOOK_RPC } from '../../src/life-skills/life-skill-book-client.js';
+  import { createLifeSkillBookPanel } from '../../src/life-skills/life-skill-book-panel.js';
+  const skill = { skillId: 'life.fishing', level: 5, totalXp: 1000, currentLevelStartXp: 1000,
+    nextLevelXp: 1500, maxDefinedLevel: 20, isMaxLevel: false,
+    sp: { earned: 5, spent: 0, available: 5, nextLevelEarned: 6 } };
+  const node = (key, rank) => ({ nodeId: `life.node.fishing.${key}`, rank, maxRank: 3,
+    requiredSkillLevel: key === 'steady_hands' ? 2 : 3, nextRankCost: rank < 3 ? 1 : null,
+    prerequisites: [], canUnlock: false, lockReason: rank === 3 ? 'MAX_RANK' : 'SP' });
+  let ranks = [0, 0], mode = 'success', held = null;
+  const calls = [];
+  const response = () => mode === 'failure' ? { data: null, error: { message: 'Synthetic error' } }
+    : { data: { skill, nodes: [node('steady_hands', ranks[0]), node('fish_sense', ranks[1])],
+      reset: { cost: 0, cooldownSeconds: 86400, lastResetAt: null, nextResetAt: null,
+        canReset: false, resetBlockedBy: 'EMPTY' } }, error: null };
+  const client = { rpc: async (rpc, args) => {
+    calls.push({ rpc, args });
+    if (rpc === LIFE_SKILL_BOOK_RPC.LIST) return { data: { lifeLevel: { level: 1, totalSkillXp: 1000 }, skills: [skill] }, error: null };
+    if (rpc !== LIFE_SKILL_BOOK_RPC.TREE) throw new Error('Fixture forbids mutation RPCs');
+    if (mode === 'hold') return new Promise(resolve => { held = resolve; });
+    return response();
+  } };
+  const book = createLifeSkillBookClient({ getClient: () => client });
+  const ui = createLifeSkillBookPanel({ panel: document.querySelector('#life-skill-book-panel'), book });
+  document.querySelector('#open-book').addEventListener('click', () => ui.setOpen(true));
+  await book.setAccount('fixture-fishing-effects');
+  window.__FISHING_EFFECTS_QA__ = {
+    configure: (nextMode, nextRanks = ranks) => { mode = nextMode; ranks = nextRanks; },
+    release: nextMode => { mode = nextMode; const resolve = held; held = null; resolve(response()); },
+    snapshot: () => ({ state: book.state, treeState: book.treeState, selectedSkillId: book.selectedSkillId, calls })
+  };
+</script>
+</html>

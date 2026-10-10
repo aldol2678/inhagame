@@ -1,12 +1,14 @@
 // INHA WORLD P0-F3b · Student Center Shop panel (presentation).
 // Shows what the server returned: the lock state and the buy button follow each offer's
-// `purchasable` / `unavailableReason` only. `requiredLevel` and `playerLevel` are display text; this
+// `purchasable` / `unavailableReason`. Pending operations and unconfirmed receipts pause repeat buys.
+// `requiredLevel` and `playerLevel` are display text; this
 // module never compares them to decide anything. Item names and descriptions come from the code
 // catalog (presentation metadata only); price and every gameplay field come from the Shop RPC.
 // The optional wallet line shows the server balance from the wallet read-model as served; it is
 // re-read after a purchase, never derived from a price.
 
 import { getItemDefinition } from "../collection/item-catalog.js";
+import { furnitureOfferDetails, ownsShopFurniture } from "./shop-furniture-handoff.js";
 import { SHOP_STATE } from "./shop-client.js";
 import { INDUCK_COIN, WALLET_STATE, walletBalance } from "../wallet/wallet-client.js";
 
@@ -75,6 +77,9 @@ export function createShopPanel({
   panel,
   shop,
   wallet = null,
+  inventory = null,
+  getFurnitureAction = () => null,
+  onDecorate = () => false,
   describe = getItemDefinition,
   onStatus = () => false,
   onPurchase = () => {},
@@ -99,6 +104,30 @@ export function createShopPanel({
   let openingRevision = 0;
   let renderedAccount = shop.accountId;
   const focusTargets = new Map();
+  // Keep successful receipts across panel close/reopen. An Inventory failure is never a purchase
+  // failure, and a read retry must not call purchase again. Account changes erase these receipts.
+  const receipts = new Map();
+  const purchases = new Map();
+  let accountRevision = 0;
+  const owns = itemId => ownsShopFurniture(inventory, shop.accountId, itemId);
+  const confirmed = receipt => receipt?.phase === "confirmed" && owns(receipt.itemId);
+  const receiptMessage = receipt => receipt.phase === "checking"
+    ? "구매는 완료됐어요. 보유 가구를 확인 중이에요."
+    : confirmed(receipt) ? "구매 완료 · 보유 확인 완료"
+      : "구매는 완료됐어요. 보유 목록 반영을 확인하지 못했어요. 다시 구매하지 말고 보유 가구를 다시 확인해 주세요.";
+
+  async function refreshOwnership(listingId) {
+    const receipt = receipts.get(listingId);
+    if (!receipt || receipt.phase === "checking") return;
+    const account = accountRevision;
+    receipt.phase = "checking";
+    render();
+    let ready = false;
+    try { ready = await inventory.refresh("shop-furniture-retry"); } catch { /* safe read-only retry */ }
+    if (account !== accountRevision || receipts.get(listingId) !== receipt) return;
+    receipt.phase = ready && owns(receipt.itemId) ? "confirmed" : "unconfirmed";
+    render();
+  }
 
   // Updated in place so a balance re-read never rebuilds (or scrolls) the offer list.
   function renderWallet() {
@@ -110,20 +139,36 @@ export function createShopPanel({
   }
 
   async function buy(listingId) {
+    const prior = receipts.get(listingId);
+    if (!open || purchases.has(listingId) || shop.isPending(listingId) || (prior && !confirmed(prior))) return;
     const revision = openingRevision;
+    const account = accountRevision;
+    const token = {};
+    purchases.set(listingId, token);
     hint = "";
     render();
     const result = await shop.purchase(listingId);
-    if (result.outcome === "STALE") return result;
+    if (result.outcome === "STALE" || account !== accountRevision) return result;
     // Money may have moved (or the shown balance was out of date): re-read the server balance.
     if (result.outcome === "SUCCESS" || result.code === "INSUFFICIENT_FUNDS") void wallet?.refresh("purchase");
-    // Other read-models (e.g. inventory) re-read the server; the purchase response is not ownership.
+    let receipt = null;
+    // Other read-models re-read the server. A purchase response alone never proves ownership.
     if (result.outcome === "SUCCESS") {
-      try { onPurchase(result); } catch (error) { console.warn("Shop purchase listener failed:", error); }
+      if (inventory && furnitureOfferDetails(result.offer?.itemId)) {
+        receipt = { itemId: result.offer.itemId, phase: "checking" };
+        receipts.set(listingId, receipt);
+        render();
+      }
+      let ready = false;
+      try { ready = await onPurchase(result); }
+      catch (error) { console.warn("Shop purchase listener failed:", error); }
+      if (account !== accountRevision) return result;
+      if (receipt) receipt.phase = ready === true && owns(receipt.itemId) ? "confirmed" : "unconfirmed";
     }
-    if (!open || revision !== openingRevision) return result;
+    if (purchases.get(listingId) === token) purchases.delete(listingId);
+    if (!open || revision !== openingRevision) { render(); return result; }
     const latest = shop.snapshot?.offers.find((offer) => offer.listingId === listingId) ?? result.offer;
-    const name = offerView(latest ?? result.offer, { describe }).name;
+    const name = latest ? offerView(latest, { describe }).name : "아이템";
     if (result.outcome === "SUCCESS") {
       hint = `구매 완료 · ${name}`;
       onStatus(hint);
@@ -134,8 +179,41 @@ export function createShopPanel({
     return result;
   }
 
+  function renderReceipt(listingId, receipt) {
+    const box = el("div", "shop-furniture-receipt");
+    box.tabIndex = -1;
+    box.setAttribute("role", "status");
+    box.setAttribute("aria-live", "polite");
+    box.append(el("p", "shop-furniture-note", receiptMessage(receipt)));
+    const isConfirmed = confirmed(receipt);
+    const action = isConfirmed ? getFurnitureAction(receipt.itemId) : null;
+    if (isConfirmed) box.append(el("p", "shop-furniture-note", action?.text
+      ?? "내 방에 들어가 권한과 저장된 배치를 확인한 뒤 ‘꾸미기’에서 배치할 수 있어요."));
+    if (action || !isConfirmed) {
+      const checking = receipt.phase === "checking";
+      const button = el("button", "shop-retry shop-furniture-action", action?.label
+        ?? (checking ? "보유 확인 중…" : "보유 가구 다시 확인"));
+      button.type = "button";
+      button.disabled = checking;
+      const focusKey = `furniture:${listingId}`;
+      box.dataset.focusKey = focusKey;
+      button.dataset.focusKey = focusKey;
+      focusTargets.set(focusKey, checking ? box : button);
+      button.addEventListener("click", () => {
+        if (!open || focusTargets.get(focusKey) !== button || !panel.contains(button) || receipts.get(listingId) !== receipt || button.disabled) return;
+        if (!confirmed(receipt)) { void refreshOwnership(listingId); return; }
+        if (getFurnitureAction(receipt.itemId) && onDecorate(receipt.itemId) === true) setOpen(false);
+        else { hint = "현재 방과 보유 가구를 다시 확인한 뒤 눌러 주세요."; render(); }
+      });
+      box.append(button);
+    }
+    return box;
+  }
+
   function renderOffer(offer) {
-    const view = offerView(offer, { pending: shop.isPending(offer.listingId), describe });
+    const receipt = receipts.get(offer.listingId);
+    const pending = purchases.has(offer.listingId) || shop.isPending(offer.listingId);
+    const view = offerView(offer, { pending, describe });
     const card = el("li", `shop-offer shop-offer-${view.state}`);
     card.dataset.listingId = view.listingId;
     card.dataset.state = view.state;
@@ -143,13 +221,19 @@ export function createShopPanel({
     head.append(el("strong", "shop-offer-name", view.name), el("span", "shop-offer-price", view.priceText));
     card.append(head);
     if (view.description) card.append(el("p", "shop-offer-description", view.description));
+    const furniture = furnitureOfferDetails(offer.itemId);
+    if (furniture) {
+      card.append(el("p", "shop-offer-furniture", furniture.sizeText), el("p", "shop-offer-furniture", furniture.surfaceText));
+    }
     const foot = el("div", "shop-offer-foot");
     const meta = el("span", "shop-offer-meta");
     if (view.levelText) meta.append(el("span", "shop-offer-level", view.levelText));
     meta.append(el("span", "shop-offer-status", view.statusText));
-    const button = el("button", "shop-offer-buy", view.buttonText);
+    const button = el("button", "shop-offer-buy", receipt
+      ? (receipt.phase === "checking" ? "보유 확인 중…" : confirmed(receipt) ? (pending ? "구매 중…" : "추가 구매") : "구매 완료")
+      : view.buttonText);
     button.type = "button";
-    button.disabled = view.buttonDisabled;
+    button.disabled = view.buttonDisabled || Boolean(receipt && !confirmed(receipt));
     // Pending/refused controls remain disabled. Their listing is a temporary focus anchor,
     // outside the native Tab order, so a readback can restore the same logical purchase action.
     const focusKey = `listing:${view.listingId}`;
@@ -157,16 +241,20 @@ export function createShopPanel({
     card.dataset.focusKey = focusKey;
     button.dataset.focusKey = focusKey;
     focusTargets.set(focusKey, button.disabled ? card : button);
-    button.setAttribute("aria-label", `${view.name} ${view.buttonDisabled ? view.statusText : "구매"}`);
-    button.addEventListener("click", () => { if (!button.disabled) void buy(view.listingId); });
+    button.setAttribute("aria-label", `${view.name} ${button.disabled ? receipt ? "구매 완료" : view.statusText : receipt ? "추가 구매" : "구매"}`);
+    button.addEventListener("click", () => { if (!button.disabled && focusTargets.get(focusKey) === button && panel.contains(button)) void buy(view.listingId); });
     foot.append(meta, button);
     card.append(foot);
+    if (receipt) card.append(renderReceipt(offer.listingId, receipt));
     return card;
   }
 
   function render() {
     const accountChanged = renderedAccount !== shop.accountId;
-    if (accountChanged) { openingRevision += 1; hint = ""; }
+    if (accountChanged) {
+      openingRevision += 1; accountRevision += 1; hint = "";
+      receipts.clear(); purchases.clear();
+    }
     renderedAccount = shop.accountId;
     if (!open) return;
     const hadFocus = panel.contains(doc.activeElement);
@@ -217,6 +305,14 @@ export function createShopPanel({
       list.append(...snapshot.offers.map(renderOffer));
       body.append(list);
     }
+    for (const [listingId, receipt] of receipts) {
+      if (!snapshot?.offers.some(offer => offer.listingId === listingId)) {
+        const name = describe(receipt.itemId)?.displayName ?? receipt.itemId;
+        const receiptCard = el("div", "shop-purchased-furniture");
+        receiptCard.append(el("strong", "", name), renderReceipt(listingId, receipt));
+        body.append(receiptCard);
+      }
+    }
     panel.dataset.state = shop.state;
     panel.replaceChildren(head, status, body);
     bodyElement = body;
@@ -264,6 +360,7 @@ export function createShopPanel({
     render();
   });
   wallet?.onChange(renderWallet);
+  inventory?.onChange(render);
   panel.addEventListener("pointerdown", (event) => event.stopPropagation());
   doc.addEventListener("keydown", (event) => {
     if (open && event.code === "Escape") setOpen(false);

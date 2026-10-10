@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Furniture history · offline fixture</title>
+  <link rel="stylesheet" href="../../styles.css">
+  <style>body { margin:0; padding:20px; background:#18304a; color:white; } #opener { min-height:44px; }</style>
+</head>
+<body>
+  <p>Synthetic furniture authority. No login, backend, or production writes.</p>
+  <button id="opener" type="button">꾸미기 열기</button>
+  <script type="module">
+    import { createFurnitureEditor } from '../../src/rooms/furniture-editor.js';
+    import { createFurnitureClient } from '../../src/rooms/furniture-client.js';
+    import { ROOM_FURNITURE } from '../../src/rooms/furniture-layout.js';
+    const ROOM = '11111111-1111-4111-8111-111111111111', USER = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const calls = [], pending = [], events = [], changes = [];
+    let ui, mode = 'success', stored = { roomId:ROOM, role:'owner', revision:0, objects:[] };
+    const response = (args, success) => {
+      if (!success) return { data:null, error:{ message:'UNAVAILABLE' } };
+      stored = { ...stored, revision:stored.revision+1, objects:structuredClone(args.p_objects) };
+      return { data:structuredClone(stored), error:null };
+    };
+    const client = createFurnitureClient({ getUserId:()=>USER, getClient:()=>({ rpc(name,args) {
+      calls.push({ name, args:structuredClone(args) });
+      if (name === 'get_world_room_furniture_v1') return Promise.resolve({ data:structuredClone(stored), error:null });
+      if (name !== 'save_my_room_furniture_v1') throw Error(`Unexpected RPC: ${name}`);
+      if (mode === 'hold') return new Promise(resolve=>pending.push({ args, resolve }));
+      return Promise.resolve(response(args,mode === 'success'));
+    } }), onChange:state=>{ changes.push(state); ui?.update(state); } });
+    const inventory = { state:'READY', snapshot:{ items:ROOM_FURNITURE.map(item=>({ itemId:item.itemId, quantity:1 })) },
+      onChange:()=>()=>{}, refresh:async()=>true };
+    ui = createFurnitureEditor({ client, inventory });
+    document.getElementById('opener').addEventListener('click',()=>ui.openEditor());
+    for (const type of ['keydown','pointerdown','click']) document.addEventListener(type,event=>{
+      events.push({ type, code:event.code, trusted:event.isTrusted, pointerType:event.pointerType });
+    },true);
+    await client.bind(ROOM);
+    window.__FURNITURE_HISTORY__ = { ui, client, inventory, calls, changes, events,
+      mode:value=>{ mode=value; }, settle:success=>{ const request=pending.shift(); request.resolve(response(request.args,success)); },
+      snapshot:()=>client.state() };
+    document.getElementById('opener').focus();
+  </script>
+</body>
+</html>

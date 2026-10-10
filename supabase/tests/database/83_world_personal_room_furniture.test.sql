@@ -26,7 +26,7 @@ select ok(has_function_privilege('authenticated',f,'execute'),'authenticated may
 from unnest(array['public.get_world_room_furniture_v1(uuid)','public.save_my_room_furniture_v1(uuid,integer,jsonb)']) f;
 select ok(not has_function_privilege(r,f,'execute'),r||' cannot call private helper '||f)
 from unnest(array['anon','authenticated']) r,unnest(array['private.world_room_furniture_v1()','private.validate_world_room_furniture_v1(uuid,jsonb)']) f;
-select is((select count(*) from private.world_room_furniture_v1()),16::bigint,'F0 server furniture catalog exposes sixteen placement definitions');
+select is((select count(*) from private.world_room_furniture_v1()),17::bigint,'server furniture catalog exposes sixteen F0 and one cooking candidate placement');
 
 set local role authenticated;
 select set_config('request.jwt.claims','{"sub":"a3000000-0000-4000-8000-000000000001","role":"authenticated","is_anonymous":false}',true);

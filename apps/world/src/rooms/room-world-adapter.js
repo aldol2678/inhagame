@@ -50,6 +50,9 @@ export function createRoomWorldAdapter({
     // Capture the actual source, not the target's return anchor (a campus friend visit may start
     // anywhere). The closure also survives failures after only part of showRoom/showCampus ran.
     createCheckpoint() {
+      // Stand in the source frame before taking a rollback snapshot or reparenting the player.
+      // Nested exits do not call leaveCampus, and a failed exit must restore a safe standing pose.
+      if (activeRoomScene && seats?.isSeated) seating.standUp("room");
       const source = {
         scene: activeRoomScene, room: activeRoom, outdoorLighting,
         campusEnabled: campusRoot.enabled, sunEnabled: sun?.enabled,

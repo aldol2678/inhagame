@@ -119,7 +119,7 @@ test("production identity callback passes explicit identity even when online.use
   const guestbook = new GuestbookClient({ getSelfUserId: () => getter,
     getClient: () => ({ rpc: async () => { calls.push(true); return { data: board(getter), error: null }; } }) });
   const guestbookPanel = createGuestbookPanel({ panel, guestbook, doc });
-  const collectionAccounts = [];
+  const collectionAccounts = [], cookingResets = [], trophyResets = [];
   const noop = () => {}, client = { setAccount: noop }, online = { get userId() { return getter; } };
   const source = readFileSync(new URL("../src/main.js", import.meta.url), "utf8");
   const body = source.match(/online\.onIdentity\(\(identity\) => \{([\s\S]*?)\n  \}\);\n  online\.chat\.feed/)?.[1];
@@ -128,6 +128,8 @@ test("production identity callback passes explicit identity even when online.use
     biryongRelationships: client, shop: client, wallet: client, inventory: client, collectionBook: { setAccount: id => collectionAccounts.push(id) }, dailyQuiz: client,
     attendance: client, lifeSkillBook: client, fishing: client, loadout: client, inkyungSideEvent: { setScope: noop }, duckCompanion: { refresh: noop, reset: noop },
     lastPersonalRoomUserId: null, roomSession: { stop: noop }, roomFurniture: { reset: noop },
+    roomFunctionAccountId: null, cookingFeature: { reset: () => cookingResets.push(true) },
+    trophyDisplayPanel: { close: noop }, trophyDisplay: { reset: () => trophyResets.push(true) },
     rooms: { currentSpace: "CAMPUS" }, personalRoom: { reset: noop }, npcAiSignedIn: false,
     mcmEvent: { setSignedIn: noop }, mcmEventPreviewMode: false, npcTest: { setAiSignedIn: noop },
     profile: { setIdentity: noop }, smartphone: { setAccount: noop }, lobbyPlayerSummary: { render: noop }, chatPanel: { refreshAvailability: noop },
@@ -140,10 +142,17 @@ test("production identity callback passes explicit identity even when online.use
   runInContext(`function identityHandler(identity) {${body}\n}`, context);
   context.identityHandler({ userId: A }); await guestbookPanel.setOpen(true);
   context.identityHandler(null);
+  assert.equal(cookingResets.length, 2, "sign-out clears the cooking session even with a stale user getter");
+  assert.equal(trophyResets.length, 2, "sign-out clears the private display even with a stale user getter");
   assert.equal(guestbook.available, false);
   assert.equal(await guestbookPanel.setOpen(true), false);
   context.identityHandler({ userId: B }); getter = B;
-  assert.deepEqual(collectionAccounts, [A, null, B], "Collection uses the identity event, not the stale online getter");
+  assert.equal(cookingResets.length, 3, "an identity change invalidates cooking before the online user getter catches up");
+  assert.equal(trophyResets.length, 3, "an identity change invalidates display before the online user getter catches up");
+  context.identityHandler({ userId: B });
+  assert.equal(cookingResets.length, 3, "a duplicate identity event preserves a pending cooking retry ID");
+  assert.equal(trophyResets.length, 3, "private displays reset on identity changes but not duplicate events");
+  assert.deepEqual(collectionAccounts, [A, null, B, B], "Collection uses the identity event, not the stale online getter");
   await guestbookPanel.setOpen(true);
   assert.equal(guestbookPanel.data.entries[0].userId, B);
   assert.equal(calls.length, 2);

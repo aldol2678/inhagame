@@ -99,6 +99,8 @@ insert into authority_allowed_call values
   ('private.world_activity_settle_v1',         'private.world_inventory_grant_v1',
      'Activity settlement path (7.4): item output of a verified SUCCEEDED result, atomic with its receipt'),
   ('private.world_inventory_mutate_v1',        'private.world_inventory_consume_v1', 'Inventory-internal atomic N-consume/M-grant'),
+  ('public.cook_my_world_recipe_v1', 'private.world_inventory_mutate_v1',
+     'Cooking B2: self-only actor, owned/saved station and closed-by-default server recipe; one frozen receipt'),
   -- Reward: fixed RewardDefinitions are executed only for these verified sources.
   ('public.advance_world_quest_v1',            'private.world_reward_grant_v1', 'Main 1 completion reward (same transaction as stage 4 -> 5)'),
   ('public.advance_world_navigation_quest_v1', 'private.world_reward_grant_v1', 'Main 2 completion reward (same transaction as the final stage)'),
@@ -155,7 +157,7 @@ insert into authority_allowed_call values
      'Biryong NPC relationship P0: service_role wrapper advances exactly one verified stage'),
   ('public.world_campus_npc_relationship_apply_v1', 'private.world_campus_npc_relationship_apply_v1',
      'Campus NPC relationship P0: service_role wrapper applies one verified semantic affinity event');
--- Intentionally NO callers yet: world_inventory_mutate_v1 (see the Authority Map).
+-- Cooking B2 is the first reviewed domain caller of Inventory mutation.
 
 select set_eq(
   'select caller || '' -> '' || primitive from authority_edge',
@@ -197,6 +199,7 @@ select set_eq(
     select distinct r.root from reach r
     where r.fn in (select 'private.' || name from authority_primitive)$$,
   array[
+    'public.cook_my_world_recipe_v1',                     -- self-only cooking, server recipe and owned/saved station
     'public.purchase_world_shop_listing_v1',              -- price and item come from the server listing
     'public.answer_my_world_daily_quiz_v1',               -- correctness judged by the server, one PASS per day
     'public.claim_my_world_attendance_v1',                -- day from the DB clock, one claim per day
@@ -211,6 +214,7 @@ select set_eq(
 -- ---- 2. protected table writers ----
 create temp table authority_table(tbl text primary key, kind text not null check (kind in ('STATE','CATALOG'))) on commit drop;
 insert into authority_table values
+  ('world_recipe_receipts','STATE'), ('world_recipe_catalog','CATALOG'),
   ('world_wallets','STATE'), ('world_currency_transactions','STATE'),
   ('world_player_progression','STATE'), ('world_exp_transactions','STATE'),
   ('world_player_items','STATE'), ('world_item_grants','STATE'), ('world_item_consumptions','STATE'),
@@ -263,6 +267,7 @@ where m[2] in (select tbl from authority_table);
 
 create temp table authority_allowed_write(tbl text, writer text) on commit drop;
 insert into authority_allowed_write values
+  ('world_recipe_receipts', 'public.cook_my_world_recipe_v1'),
   ('world_wallets', 'private.world_wallet_apply_v1'),
   ('world_currency_transactions', 'private.world_wallet_apply_v1'),
   ('world_player_progression', 'private.world_exp_apply_v1'),

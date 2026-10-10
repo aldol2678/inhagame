@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ko">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cooking B2 synthetic candidate QA</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="../../styles.css">
+<style>body { margin: 20px; background: #182533; color: white; font-family: sans-serif; } #open-cooking { min-height: 44px; }</style>
+<h1>요리 후보 오프라인 검증</h1>
+<p>실제 계정이나 DB를 사용하지 않는 테스트 화면입니다.</p>
+<button id="open-cooking" type="button">조리대 확인</button>
+<button id="outside-control" type="button">바깥 컨트롤</button>
+<script type="module">
+  import { createCookingFeature } from '../../src/rooms/cooking-feature.js';
+  import { COOKING_AVAILABLE, CARP_RECIPE } from '../../src/rooms/cooking-client.js';
+  import { getItemDefinition } from '../../src/collection/item-catalog.js';
+  import { createSyntheticCookingBackend } from './cooking-candidate-fixture.mjs';
+  const backend = createSyntheticCookingBackend();
+  const explicitlyEnabled = new URL(location.href).searchParams.get('synthetic') === 'enabled';
+  const openChanges = [], attempts = [], worldEvents = { escape: 0, pointerdown: 0 };
+  let blocking = false;
+  const feature = createCookingFeature({ getClient: backend.getClient, getUserId: backend.getUserId,
+    getRoomState: backend.getRoomState, inventory: backend.inventory,
+    // Deliberately absent in the default case. This fixture is never imported by the app.
+    ...(explicitlyEnabled ? { isAvailable: () => true } : {}),
+    onOpenChange: open => { blocking = open; openChanges.push(open); }
+  });
+  document.querySelector('#open-cooking').addEventListener('click', () => attempts.push(feature.handler()));
+  document.addEventListener('keydown', event => { if (event.key === 'Escape') worldEvents.escape++; });
+  document.addEventListener('pointerdown', () => worldEvents.pointerdown++);
+  window.__COOKING_QA__ = {
+    queueCook: backend.queueCook, queueRead: backend.queueRead,
+    releaseCook: backend.releaseCook, releaseRead: backend.releaseRead,
+    changeScope(kind) { backend.changeScope(kind); feature.update(); },
+    patchRoom(patch) { backend.patchRoom(patch); feature.update(); },
+    update: () => feature.update(),
+    snapshot: () => ({ ...backend.snapshot(), state: feature.client.state(), open: feature.panel.open,
+      available: feature.isAvailable({ kind: 'cook' }), otherAvailable: feature.isAvailable({ kind: 'other' }),
+      defaultAvailable: COOKING_AVAILABLE, explicitlyEnabled, blocking, attempts, openChanges, worldEvents,
+      recipe: CARP_RECIPE, catalog: ['furniture.cooking_station', 'consumable.grilled_carp']
+        .map(itemId => ({ itemId, status: getItemDefinition(itemId).status })) })
+  };
+</script>
+</html>

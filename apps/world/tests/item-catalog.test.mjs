@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  ITEM_CATALOG, PILOT_ITEM_IDS, DEFAULT_ITEM_IDS, VS_ECONOMY_ITEM_IDS, F0_FURNITURE_IDS, LIFE_M1_MATERIAL_IDS, ITEM_ID_PATTERN,
+  ITEM_CATALOG, PILOT_ITEM_IDS, DEFAULT_ITEM_IDS, VS_ECONOMY_ITEM_IDS, F0_FURNITURE_IDS, LIFE_M1_MATERIAL_IDS, ROOM_FINISH_IDS, ITEM_ID_PATTERN,
   getItemDefinition, validateCatalog, describeOwnedItem, catalogAuthorityRow
 } from '../src/collection/item-catalog.js';
 
@@ -24,10 +24,10 @@ test('the committed catalog passes every C0 rule', () => {
   assert.deepEqual(validateCatalog(ITEM_CATALOG), []);
 });
 
-test('catalog is the 6 pilot fixtures plus Starter Catalog 20 plus Housing F0 7 plus Life M1 materials', () => {
+test('catalog preserves all 36 legacy fixtures plus two closed cooking items and four room finishes', () => {
   const ids = ITEM_CATALOG.map(d => d.itemId);
-  assert.deepEqual(ids, [...PILOT_ITEM_IDS, ...STARTER_20, ...HOUSING_F0_NEW_7, ...LIFE_M1_MATERIAL_IDS], 'order and membership are the committed contract');
-  assert.equal(new Set(ids).size, 36);
+  assert.deepEqual(ids, [...PILOT_ITEM_IDS, ...STARTER_20, ...HOUSING_F0_NEW_7, "furniture.cooking_station", "consumable.grilled_carp", ...ROOM_FINISH_IDS, ...LIFE_M1_MATERIAL_IDS], 'order and membership are the committed contract');
+  assert.equal(new Set(ids).size, 42);
   for (const id of ids) assert.match(id, ITEM_ID_PATTERN);
   assert.ok(ids.every(id => id === id.toLowerCase()), 'no uppercase COSMETIC_* style ids');
   for (const id of VS_ECONOMY_ITEM_IDS) assert.ok(getItemDefinition(id), `vertical slice item ${id} exists`);
@@ -46,6 +46,31 @@ test('Housing F0 exposes exactly sixteen placeable furniture identities without 
     assert.ok(['SHOP','QUEST'].includes(item.acquisition[0].source), id);
   }
   assert.equal(getItemDefinition('furniture.dorm_trophy_shelf').acquisition[0].source, 'QUEST');
+});
+
+test('Room Finish P0 defines four unique non-placeable finishes without any active Shop acquisition', () => {
+  assert.deepEqual(ROOM_FINISH_IDS, [
+    'finish.wall_basic', 'finish.wall_white_plaster_02',
+    'finish.floor_basic', 'finish.floor_wood_051'
+  ]);
+  for (const [index, id] of ROOM_FINISH_IDS.entries()) {
+    const d = getItemDefinition(id);
+    assert.equal(d.category, 'ROOM_FINISH');
+    assert.equal(d.status, 'COMING_SOON');
+    assert.equal(d.cosmeticOnly, true);
+    assert.equal(d.ownershipPolicy, 'UNIQUE');
+    assert.equal(d.equipSlot, null);
+    assert.equal(d.subtype, null);
+    assert.ok(d.tags.includes(index < 2 ? 'wall' : 'floor'));
+    assert.equal(d.acquisition[0].source, index % 2 === 0 ? 'DEFAULT' : 'SHOP');
+    assert.deepEqual(catalogAuthorityRow(d), { item_id: id, category: 'ROOM_FINISH',
+      ownership_policy: 'UNIQUE', max_stack: null, status: 'COMING_SOON' });
+  }
+  const sample = getItemDefinition('finish.wall_basic');
+  assert.ok(validateCatalog([{ ...sample, tags: ['room_finish', 'wall', 'floor'] }]).some(e => /one wall\/floor/.test(e)));
+  assert.ok(validateCatalog([{ ...sample, tags: ['wall'] }]).some(e => /finish tag/.test(e)));
+  assert.ok(validateCatalog([{ ...sample, ownershipPolicy: 'STACKABLE', stackable: true, maxStack: 99 }])
+    .some(e => /ROOM_FINISH must use UNIQUE/.test(e)));
 });
 
 test('pilot fixtures keep their C0 §1.6 contract', () => {
@@ -73,7 +98,7 @@ test('earned starter rewards exposed in inventory/wardrobe are ACTIVE', () => {
 
 test('legacy items stay cosmetic UNIQUE while Life M1 materials are gameplay STACKABLE', () => {
   const materials = ITEM_CATALOG.filter(d => d.category === 'MATERIAL');
-  const legacy = ITEM_CATALOG.filter(d => d.category !== 'MATERIAL');
+  const legacy = ITEM_CATALOG.filter(d => !['MATERIAL', 'CONSUMABLE'].includes(d.category));
 
   assert.deepEqual(materials.map(d => d.itemId), [...LIFE_M1_MATERIAL_IDS], 'the three M1 material fixtures are committed');
   for (const d of legacy) {

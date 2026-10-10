@@ -1,12 +1,13 @@
 import * as pc from "playcanvas";
 import { box, surface } from "../campus-render-kit.js";
 import { FURNITURE_BY_ID, furnitureBox } from "./furniture-layout.js";
+import { trophyDisplayVisual } from "./trophy-display-visual.js";
 import { PERSONAL_ROOM_BASIC_OBSTACLES } from "./personal-room-layout.js";
 
 export function createFurnitureLayer(app, root) {
   const layer = new pc.Entity("personal_owned_furniture"); root.addChild(layer);
   const obstacles = [...PERSONAL_ROOM_BASIC_OBSTACLES];
-  const posters = new Map(); let signature = "";
+  const posters = new Map(); let signature = "", objects = [], displays = new Map();
   layer.on("destroy", () => {
     for (const material of posters.values()) { material.diffuseMap?.destroy(); material.destroy(); }
     posters.clear();
@@ -31,6 +32,19 @@ export function createFurnitureLayer(app, root) {
     const texture = new pc.Texture(app.graphicsDevice,{ width:512,height:384,mipmaps:true }); texture.setSource(canvas);
     const material = new pc.StandardMaterial(); material.diffuseMap = texture; material.update(); posters.set(item.itemId,material); return material;
   };
+  const displayNameplate = display => {
+    const key = `display:${display.itemId}`;
+    if (posters.has(key)) return posters.get(key);
+    const canvas = document.createElement("canvas"); canvas.width = 512; canvas.height = 128;
+    const context = canvas.getContext("2d");
+    if (!context) return surface("#f6efdc");
+    context.fillStyle = "#f6efdc"; context.fillRect(0,0,512,128);
+    context.fillStyle = "#294a64"; context.textAlign = "center"; context.font = "bold 34px sans-serif";
+    context.fillText(display.name,256,60,480);
+    context.font = "24px sans-serif"; context.fillText("내 화면 · 임시 전시",256,100,480);
+    const texture = new pc.Texture(app.graphicsDevice,{ width:512,height:128,mipmaps:true }); texture.setSource(canvas);
+    const material = new pc.StandardMaterial(); material.diffuseMap = texture; material.update(); posters.set(key,material); return material;
+  };
   function duck(parent, scale = 1) {
     box(parent,"body",[0,.13*scale,0],[.22*scale,.23*scale,.19*scale],surface("#33acb8"),0,"sphere");
     box(parent,"head",[0,.25*scale,-.025*scale],[.17*scale,.17*scale,.17*scale],surface("#47bfcc"),0,"sphere");
@@ -44,6 +58,13 @@ export function createFurnitureLayer(app, root) {
     if (item.surfaces.includes("north")) {
       box(entity,"frame",[0,item.height/2,0],[item.width+.03,item.height+.03,item.depth],surface("#75654e"));
       box(entity,"poster",[0,item.height/2,-.023],[item.width,item.height,.006],paintPoster(item));
+    } else if (id === "furniture.cooking_station") {
+      box(entity,"cabinet",[0,.4,0],[.96,.8,.61],surface("#967454"));
+      box(entity,"counter",[0,.83,0],[item.width,.08,item.depth],surface("#d9d7ce"));
+      for (const x of [-.25,.25]) {
+        box(entity,"burner",[x,.885,0],[.24,.03,.24],surface("#343a40"),0,"cylinder");
+        box(entity,"handle",[x,.5,-.318],[.16,.03,.025],surface("#474a4a"));
+      }
     } else if (id.includes("chair")) {
       box(entity,"seat",[0,.3,0],[.6,.08,.6],surface("#39aab7"));
       box(entity,"back",[0,.51,.28],[.6,.28,.08],surface("#6ecbd1"));
@@ -89,9 +110,9 @@ export function createFurnitureLayer(app, root) {
       box(entity,"back",[0,item.height/2,item.depth/2-.02],[item.width,item.height,.04],wood);
       for(const x of [-item.width/2+.035,item.width/2-.035]) box(entity,"side",[x,item.height/2,0],[.07,item.height,item.depth],wood);
       for(const y of [.04,item.height*.48,item.height-.04]) box(entity,"shelf",[0,y,0],[item.width,.06,item.depth],shelf);
-      box(entity,"trophy_cup",[0,.72,-.04],[.16,.16,.12],surface("#d8b452"),0,"cylinder");
-      box(entity,"trophy_stem",[0,.59,-.04],[.035,.12,.035],surface("#d8b452"));
-      box(entity,"trophy_base",[0,.51,-.04],[.16,.04,.10],surface("#544436"));
+      const display = displays.get(object.id);
+      for (const part of trophyDisplayVisual(display)) box(entity,part.name,part.at,part.size,surface(part.color),0,part.type ?? "box");
+      if (display) box(entity,"owned_item_nameplate",[0,.42,-item.depth/2-.006],[.62,.14,.008],displayNameplate(display));
     } else if (id.includes("study_books_set")) {
       const colors=["#496b8c","#b05f54","#d0a14f","#6f8f62","#7d668e"];
       colors.forEach((color,index)=>box(entity,"book",[0,index*.032+.018,(index%2)*.012-.006],
@@ -104,15 +125,19 @@ export function createFurnitureLayer(app, root) {
       if (id.includes("landlord")) box(entity,"building",[.08,.11,.075],[.1,.2,.08],surface("#b7c7dd"));
     }
   }
+  function render() {
+    const next = JSON.stringify([objects,[...displays]]); if (signature === next) return;
+    signature = next;
+    for (const child of [...layer.children]) child.destroy();
+    for (const object of objects) renderObject(object);
+  }
   return {
     root: layer,
     obstacles,
-    setObjects(objects) {
-      const next = JSON.stringify(objects); if (signature === next) return;
-      signature = next;
-      for (const child of [...layer.children]) child.destroy();
-      for (const object of objects) renderObject(object);
+    setObjects(next) {
+      objects = next; render();
       obstacles.splice(0,obstacles.length,...PERSONAL_ROOM_BASIC_OBSTACLES,...objects.filter(object => object.surface === "floor" && FURNITURE_BY_ID.get(object.itemId)?.solid).map(furnitureBox));
-    }
+    },
+    setDisplays(next = []) { displays = new Map(next.map(display => [display.objectId, display])); render(); }
   };
 }
