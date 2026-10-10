@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createPhotoCapture } from '../src/photo/photo-capture.js';
 
-function fixture({ width = 640, height = 360, contextLost = false, transparent = false } = {}) {
+function fixture({ width = 640, height = 360, contextLost = false, transparent = false, now } = {}) {
   const listeners = new Map(), subscribers = new Set(), timers = new Set(), draws = [];
   const app = { graphicsDevice: { contextLost }, renderNextFrame: false,
     on(name, fn) { listeners.set(name, fn); }, off(name, fn) { if (listeners.get(name) === fn) listeners.delete(name); } };
@@ -16,7 +16,7 @@ function fixture({ width = 640, height = 360, contextLost = false, transparent =
       getImageData() { return { data: new Uint8ClampedArray([10, 30, 50, transparent ? 0 : 255]) }; } }; },
     toBlob(fn, type) { encode = fn; mime = type; } };
   const capture = createPhotoCapture({ app, canvas, mode, doc: { createElement: () => snapshot },
-    setTimer(fn) { timers.add(fn); return fn; }, clearTimer(fn) { timers.delete(fn); } });
+    now, setTimer(fn) { timers.add(fn); return fn; }, clearTimer(fn) { timers.delete(fn); } });
   return { app, canvas, mode, capture, snapshot, draws, listeners, subscribers, timers,
     frame: () => listeners.get('frameend')?.(), encode: blob => encode(blob), get mime() { return mime; } };
 }
@@ -86,4 +86,42 @@ test('destroy cancels once and removes mode subscription; closed modes cannot ca
   await assert.rejects(pending, { name: 'AbortError' });
   assert.equal(h.subscribers.size, 0); await assert.rejects(h.capture.request(), { name: 'AbortError' });
   const closed = fixture(); closed.mode.close(); await assert.rejects(closed.capture.request(), { name: 'AbortError' });
+});
+
+for (const stage of ['awaiting-frame', 'encoding']) test(`timeout preserves the capture phase: ${stage}`, async () => {
+  const h = fixture(), pending = h.capture.request();
+  if (stage === 'encoding') h.frame();
+  [...h.timers][0]();
+  await assert.rejects(pending, error => {
+    assert.equal(error.code, 'timeout'); assert.equal(error.phase, stage);
+    assert.ok(Number.isFinite(error.elapsedMs) && error.elapsedMs >= 0);
+    return true;
+  });
+  if (stage === 'encoding') h.encode(png());
+  assert.equal(h.capture.busy, false); assert.equal(h.snapshot.width, 0);
+});
+
+for (const [options, reason] of [[{ width: 0 }, 'dimensions'], [{ contextLost: true }, 'context-lost'], [{ transparent: true }, 'empty-frame']])
+  test(`readback failure preserves a bounded reason: ${reason}`, async () => {
+    const h = fixture(options), pending = h.capture.request(); h.frame();
+    await assert.rejects(pending, { code: 'unavailable', phase: 'readback', reason });
+  });
+
+test('encoding callback and synchronous encoding exceptions preserve phase without raw exception text', async () => {
+  for (const throwing of [false, true]) {
+    const h = fixture();
+    if (throwing) h.snapshot.toBlob = () => { throw new Error('private raw exception'); };
+    const pending = h.capture.request(); h.frame(); if (!throwing) h.encode(null);
+    await assert.rejects(pending, error => {
+      assert.equal(error.phase, 'encoding'); assert.equal(error.reason, throwing ? 'exception' : 'invalid-blob');
+      assert.doesNotMatch(error.message, /private raw exception/); return true;
+    });
+  }
+});
+
+test('elapsed diagnostics use the injected monotonic clock without altering the deadline', async () => {
+  let at = 120;
+  const h = fixture({ now: () => at }), pending = h.capture.request();
+  at = 180; h.frame(); at = 10125; [...h.timers][0]();
+  await assert.rejects(pending, { code: 'timeout', phase: 'encoding', elapsedMs: 10005 });
 });

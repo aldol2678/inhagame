@@ -108,7 +108,7 @@ export function createPhotoModePanel({ mode, rig, input, doc = globalThis.docume
   input?.bindHoldButton(down, -1);
 
   let savedHud, savedFocus = null, destroyed = false, session = 0, busy = false, imageUrl = null, statusTimer = null;
-  let albumUrl = null, albumRecord = null, previewEpoch = 0;
+  let albumUrl = null, albumRecord = null, previewEpoch = 0, captureFailure = null;
   const initialStatus = () => !capture ? '기기의 화면 캡처로 남겨 보세요 · Esc로 나가기'
     : coarsePointer() ? '촬영 버튼을 누르면 HUD 없는 PNG를 저장해요' : '촬영 버튼이나 Space로 HUD 없는 PNG를 저장해요';
   const visible = node => !node.hidden && !node.disabled && (node.getClientRects ? node.getClientRects().length > 0 : true);
@@ -151,7 +151,7 @@ export function createPhotoModePanel({ mode, rig, input, doc = globalThis.docume
       thumb.src = albumUrl; preview.hidden = false;
     } catch { /* Album errors are reported by the Album surface, never block photography. */ }
   }
-  function resetCapture() { session++; capture?.cancel(); setBusy(false); clearImage(); }
+  function resetCapture() { captureFailure = null; session++; capture?.cancel(); setBusy(false); clearImage(); }
   function syncLens() {
     const camera = rig?.snapshot();
     if (!camera) return;
@@ -195,6 +195,7 @@ export function createPhotoModePanel({ mode, rig, input, doc = globalThis.docume
     if (!capture || busy || destroyed || !mode.update()) return;
     const current = session;
     let context = {}; try { context = getCaptureContext(); } catch { /* Location metadata is optional; PNG capture remains available. */ }
+    captureFailure = null;
     clearImage(); setBusy(true); say('HUD 없는 PNG를 만들고 있어요…', { sticky: true });
     try {
       const result = await capture.request();
@@ -221,8 +222,15 @@ export function createPhotoModePanel({ mode, rig, input, doc = globalThis.docume
         else { say('앨범에 저장했어요 · 최근 사진을 눌러 앨범 열기'); await refreshAlbumLatest(); }
       }
     } catch (error) {
-      if (current === session && !destroyed && mode.active && error?.name !== 'AbortError')
+      if (current === session && !destroyed && mode.active && error?.name !== 'AbortError') {
+        captureFailure = Object.freeze({
+          code: ['timeout', 'unavailable', 'encoding', 'busy'].includes(error?.code) ? error.code : 'unknown',
+          phase: ['awaiting-frame', 'readback', 'encoding'].includes(error?.phase) ? error.phase : null,
+          reason: ['context-lost', 'dimensions', 'canvas-api', 'empty-frame', 'invalid-blob', 'exception'].includes(error?.reason) ? error.reason : null,
+          elapsedMs: Number.isFinite(error?.elapsedMs) ? error.elapsedMs : null
+        });
         say('PNG를 만들지 못했어요. 다시 시도하거나 UI를 숨기고 기기의 화면 캡처를 이용해 주세요', { sticky: true });
+      }
     } finally { if (current === session && !destroyed) setBusy(false); }
   }
   function escape() {
@@ -309,7 +317,7 @@ export function createPhotoModePanel({ mode, rig, input, doc = globalThis.docume
   return Object.freeze({ root, setUiHidden, setGrid,
     status() {
       return Object.freeze({ ui: root.dataset.ui, grid: root.dataset.grid, settings: !settings.hidden, busy,
-        preview: !imageBox.hidden, status: status.textContent });
+        preview: !imageBox.hidden, status: status.textContent, captureFailure });
     },
     destroy() {
       if (destroyed) return; destroyed = true; mode.close('destroy'); resetCapture(); capture?.destroy(); unsubscribe(); offClosing?.();

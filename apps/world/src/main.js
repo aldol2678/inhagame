@@ -752,10 +752,17 @@ void character.ready.then(() => {
   else assetCanaryTelemetry.failure();
 });
 
-window.addEventListener("pagehide", () => {
+window.addEventListener("pagehide", event => {
+  if (event.persisted) {
+    assetCanaryRemoteControl.pause();
+    return;
+  }
   unbindAssetCanaryRemote();
   assetCanaryRemoteControl.stop();
-}, { once: true });
+});
+window.addEventListener("pageshow", event => {
+  if (event.persisted && !previewHost) void assetCanaryRemoteControl.start();
+});
 
 window.__INHAGAME_ASSET_PRODUCTION_CANARY__ = Object.freeze({
   status: () => Object.freeze({
