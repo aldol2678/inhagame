@@ -167,6 +167,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
   questEnabled = false, questEndpoint = '/npc-quest',
   sideEvent = null,
   onQuestReward = () => {},
+  firstCampusCompletion = null,
   onQuestStateChange = () => {},
   tmlShadowEnabled = false,
   getTmlShadowEconomicState = () => ({}),
@@ -376,7 +377,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
     getSession: getAiSession,
     getNpcPosition: id => avatars.get(id)?.motion?.position ? { ...avatars.get(id).motion.position } : null,
     tour: document.getElementById('tour'),
-    onReward: onQuestReward });
+    onReward: onQuestReward, completion: firstCampusCompletion });
   const main2Quest = createMain2QuestClient({
     enabled: questEnabled,
     endpoint: questEndpoint,

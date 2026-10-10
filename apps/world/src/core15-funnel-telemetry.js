@@ -98,7 +98,8 @@ export function createCore15FunnelTelemetry({
   storage = undefined,
   storageKey = CORE15_FUNNEL_STORAGE_KEY,
   encounterRadiusWorld = CORE15_ENCOUNTER_RADIUS_WORLD,
-  eventIdFactory = randomEventId
+  eventIdFactory = randomEventId,
+  isCurrent = () => true
 } = {}) {
   if (storage === undefined) {
     try { storage = globalThis.sessionStorage ?? null; } catch { storage = null; }
@@ -110,6 +111,7 @@ export function createCore15FunnelTelemetry({
   const inFlight = new Set();
 
   function persist() {
+    if (!isCurrent()) return;
     try {
       storage?.setItem?.(storageKey, JSON.stringify({
         version: 2,
@@ -128,7 +130,7 @@ export function createCore15FunnelTelemetry({
   }
 
   async function dispatch(eventType, eventId) {
-    if (inFlight.has(eventType) || seen.has(eventType) || !pending.has(eventType)) return false;
+    if (!isCurrent() || inFlight.has(eventType) || seen.has(eventType) || !pending.has(eventType)) return false;
     inFlight.add(eventType);
     try {
       let confirmed = null;
@@ -137,7 +139,7 @@ export function createCore15FunnelTelemetry({
       } catch {
         confirmed = null;
       }
-      if (confirmed !== eventId) return false;
+      if (!isCurrent() || confirmed !== eventId) return false;
       pending.delete(eventType);
       seen.add(eventType);
       persist();
@@ -149,7 +151,7 @@ export function createCore15FunnelTelemetry({
   }
 
   function mark(eventType) {
-    if (!ALLOWED.has(eventType) || seen.has(eventType)) return false;
+    if (!isCurrent() || !ALLOWED.has(eventType) || seen.has(eventType)) return false;
     const existing = pending.get(eventType);
     if (existing) {
       void dispatch(eventType, existing);

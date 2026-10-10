@@ -168,7 +168,7 @@ test("METRIC-1 ignores malformed remote points and unknown event names", async (
 
 test("METRIC-1 main wiring observes milestones without changing gameplay authority", () => {
   const main = readFileSync(new URL("../src/main.js", import.meta.url), "utf8");
-  assert.match(main, /const core15Funnel = npcTestMode \? null : createCore15FunnelTelemetry\(\)/,
+  assert.match(main, /core15Funnel = npcTestMode \? null : createCore15FunnelTelemetry\(\{/,
     "preview/test NPC mode never emits product funnel telemetry");
   const funnelSource = readFileSync(new URL("../src/core15-funnel-telemetry.js", import.meta.url), "utf8");
   assert.match(funnelSource, /InhaHubTelemetry\?\.trackConfirmed/,
@@ -183,12 +183,14 @@ test("METRIC-1 main wiring observes milestones without changing gameplay authori
     "player encounter reuses filtered same-zone map positions without storing an identity");
   assert.match(main, /firstPlayerMovement = true;\s*core15Funnel\?\.firstMove\(\);/,
     "existing movement gate owns the first-move milestone");
-  assert.match(main, /onQuestStateChange: progress => \{[\s\S]*?firstGoalSeen\(\)[\s\S]*?questStarted\(\)[\s\S]*?nextGoalSeen\(\)/,
-    "authoritative quest status observes first-goal, quest-start and next-goal presentation");
-  assert.match(main, /firstCampusReward[\s\S]*?core15Funnel\?\.firstReward\(\)[\s\S]*?mcmEventUi\.showReward\([\s\S]*?core15Funnel\?\.rewardSeen\(\)/,
-    "First Campus settlement and its visible reward are distinct milestones");
-  assert.match(main, /change\.reason === "core15-first-campus-reward"[\s\S]*?PROGRESSION_STATE\.READY[\s\S]*?core15Funnel\?\.growthSeen\(\)/,
-    "server progression readback owns growth_seen");
+  assert.match(main, /onQuestStateChange: progress => \{[\s\S]*?firstGoalSeen\(\)[\s\S]*?questStarted\(\)/);
+  assert.match(main, /firstCampusCompletion\.accept\(reward\)/);
+  assert.match(main, /firstCampusCompletion\.trackToast\(receipt, toast\)/);
+  assert.match(main, /firstCampusCompletion\.growthReadback\(change\)/);
+  assert.match(main, /firstCampusCompletion\.observe\(\{[\s\S]*?growthVisible:[\s\S]*?nextGoalVisible:/,
+    "the completion owner observes real reward/growth/next-goal surfaces, rather than status success alone");
+  assert.match(main, /bindCore15Account\(completionAccount\)[\s\S]*?firstCampusCompletion\.setAccount\(completionAccount\)/,
+    "account-scoped presentation and telemetry change together before async clients");
   assert.match(main, /freshFirstCampusReward[\s\S]*?core15Funnel\?\.coreLoopComplete\(\)/,
     "legacy core_loop_complete remains at fresh reward settlement for historical continuity");
   assert.doesNotMatch(main, /core15Funnel\?\.core15Complete\(/,

@@ -182,7 +182,8 @@ test('runtime publishes both progress states and the action has one inline HUD l
   assert.match(runtime, /refreshMain2Quest: \(\) => main2Quest\.refresh\(\)/);
   assert.match(main, /onRetry: \(\) => npcTest\?\.refreshMain2Quest\?\.\(\)/);
   assert.match(runtime, /onQuestStateChange\(\{ quest: quest.status\(\), main2Quest: main2Quest.status\(\) \}\)/);
-  assert.match(main, /onQuestStateChange: progress => \{[\s\S]*?nextDiscovery\?\.syncProgress\(progress\)[\s\S]*?nextGoalSeen\(\)/);
+  assert.match(main, /onQuestStateChange: progress => \{[\s\S]*?nextDiscovery\?\.syncProgress\(progress\)/);
+  assert.match(main, /firstCampusCompletion\.observe\(\{[\s\S]*?nextGoalVisible:[\s\S]*?nextDiscovery\?\.status\(\)/);
   assert.doesNotMatch(main, /offerFirstCampusReward|nextDiscovery\?\.dismiss/);
   const hud = html.match(/<section[^>]*id="quest-hud"[\s\S]*?<\/section>/)[0];
   assert.ok(hud.includes('id="next-discovery-primary"'));

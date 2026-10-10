@@ -1,3 +1,4 @@
+import { createFirstCampusCompletion, isElementVisible } from "./quest/first-campus-completion.js";
 import { busyNpcIds } from './network/npc-talk-presence.js';
 import {CAMPUS_BALLOON_ID,setCampusBalloonPropRoot} from "./mounts/campus-balloon-world.js";
 import {createCampusBalloon} from "./mounts/campus-balloon-render.js";
@@ -694,8 +695,20 @@ let inkyungLivingMoment = createInkyungLivingMoment({
   root: document.getElementById("inkyung-living-moment"),
   actionsElement: document.getElementById("inkyung-living-actions")
 });
-const core15Funnel = npcTestMode ? null : createCore15FunnelTelemetry();
-core15Funnel?.startSession();
+let core15Scope = null, core15Generation = 0;
+let core15Funnel = null;
+function bindCore15Account(accountId) {
+  if (core15Funnel && accountId === core15Scope) return;
+  core15Scope = accountId;
+  const generation = ++core15Generation;
+  core15Funnel = npcTestMode ? null : createCore15FunnelTelemetry({
+    storageKey: `inhagame-core15-funnel-v1:${accountId ?? "guest"}`,
+    isCurrent: () => generation === core15Generation
+  });
+  core15Funnel?.startSession();
+}
+bindCore15Account(null);
+const firstCampusCompletion = createFirstCampusCompletion({ getFunnel: () => core15Funnel });
 const contextActions = createContextActionController({
   button: document.getElementById("context-action"),
   shortcut: "F",
@@ -1096,9 +1109,7 @@ progression.onChange((change) => {
   smartphone?.refresh();
   progressionHud.render(change.state, change.snapshot);
   lobbyPlayerSummary.setProgression(formatProgression(change.snapshot));
-  if (change.reason === "core15-first-campus-reward" && change.state === PROGRESSION_STATE.READY) {
-    core15Funnel?.growthSeen();
-  }
+  firstCampusCompletion.growthReadback(change);
   const message = levelUpMessage(change);
   if (message) showWorldStatusAfterReward(message);
   npcTest?.observeTmlShadowEconomicState?.({
@@ -3023,18 +3034,20 @@ async function loadOptionalNpcRuntime() {
           core15Funnel?.firstGoalSeen();
           if (main1.stage > 0) core15Funnel?.questStarted();
         }
-        if (next) core15Funnel?.nextGoalSeen();
+        // A status-derived next goal is observed only when its actual control is visible below.
       },
+      firstCampusCompletion,
       onQuestReward: reward => {
         const firstCampusReward = reward.rewardId === FIRST_CAMPUS_REWARD_ID;
         const freshFirstCampusReward = firstCampusReward && reward.status === "SUCCESS" && reward.replayed !== true;
-        if (firstCampusReward) core15Funnel?.firstReward();
-        mcmEventUi.showReward(
+        const receipt = firstCampusReward ? firstCampusCompletion.accept(reward) : null;
+        const toast = mcmEventUi.showReward(
           { status: reward.replayed ? "ALREADY_CLAIMED" : "CLAIMED", replayed: reward.replayed,
             rewardResult: { status: reward.status, entries: reward.entries } },
-          freshFirstCampusReward ? { onShown: () => core15Funnel?.rewardSeen() } : undefined
+          receipt ? { isValid: receipt.isCurrent, canPresent: () => !lobbyWorld.active && !lobbyTransition.active && !photoMode.active && !cinematic.active } : undefined
         );
-        void progression.refresh(freshFirstCampusReward ? "core15-first-campus-reward" : "reward");
+        if (receipt) firstCampusCompletion.trackToast(receipt, toast);
+        void progression.refresh(receipt ? "core15-first-campus-reward" : "reward");
         if (reward.entries.some(entry => entry.grantType === "CURRENCY")) void wallet.refresh("reward");
         if (reward.entries.some(entry => entry.grantType === "ITEM")) void inventory.refresh("reward");
         // Historical metric remains at settlement for continuity. Product CORE-15 completion is
@@ -3349,6 +3362,12 @@ app.on("update", (dt) => {
     core15Funnel?.firstMove();
     window.InhaGameEntry?.play();
   }
+  if (!lobbyWorld.active && !lobbyTransition.active) firstCampusCompletion.observe({
+    growthVisible: inputFocus.can("WORLD_ACTION") && (isElementVisible(document.getElementById("progression-hud")) ||
+      isElementVisible(document.getElementById("progression-badge"))),
+    nextGoalVisible: inputFocus.can("WORLD_ACTION") && navigation && main2GuideNavigationTarget() && nextDiscovery?.status()?.id === "main2_back_gate_guide" &&
+      isElementVisible(document.getElementById("next-discovery-primary"))
+  });
   resumeStore.maybeSave({
     position: pos,
     yawDeg: player.getLocalEulerAngles().y,
@@ -3418,6 +3437,10 @@ try {
   // Nickname authority: the INHAGAME profile via the online identity; guests show 인덕이.
   online.onIdentity((identity) => {
     photoMode.close("lifecycle");
+    const completionAccount = identity?.userId ?? null;
+    bindCore15Account(completionAccount);
+    firstCampusCompletion.setAccount(completionAccount);
+    mcmEventUi.invalidateRewardPresentation();
     void syncBiryongAccount(identity);
     void progression.setAccount(identity ? online?.userId ?? null : null);
     void biryongRelationships.setAccount(identity ? online?.userId ?? null : null);

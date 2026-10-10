@@ -124,7 +124,8 @@ test("production identity callback passes explicit identity even when online.use
   const source = readFileSync(new URL("../src/main.js", import.meta.url), "utf8");
   const body = source.match(/online\.onIdentity\(\(identity\) => \{([\s\S]*?)\n  \}\);\n  online\.chat\.feed/)?.[1];
   assert.ok(body);
-  const context = createContext({ online, photoMode: { close: noop }, guestbookPanel, syncBiryongAccount: noop, progression: client,
+  const context = createContext({ online, photoMode: { close: noop }, guestbookPanel, bindCore15Account: noop, firstCampusCompletion: { setAccount: noop },
+    mcmEventUi: { invalidateRewardPresentation: noop }, syncBiryongAccount: noop, progression: client,
     biryongRelationships: client, shop: client, wallet: client, inventory: client, collectionBook: { setAccount: id => collectionAccounts.push(id) }, dailyQuiz: client,
     attendance: client, lifeSkillBook: client, fishing: client, loadout: client, inkyungSideEvent: { setScope: noop }, duckCompanion: { refresh: noop, reset: noop },
     lastPersonalRoomUserId: null, roomSession: { stop: noop }, roomFurniture: { reset: noop },
