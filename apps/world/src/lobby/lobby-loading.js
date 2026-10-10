@@ -1,3 +1,5 @@
+import { installWorldBootProfile } from "./boot-profile.js";
+
 export const WORLD_LOADING_PHASES = Object.freeze({
   BOOT: Object.freeze({ progress: 6, message: "인하월드를 여는 중…" }),
   RENDERER: Object.freeze({ progress: 18, message: "그래픽 장치를 준비하고 있어요" }),
@@ -24,7 +26,8 @@ export function createWorldLoading({
   timers = {
     setTimeout: globalThis.setTimeout?.bind(globalThis),
     clearTimeout: globalThis.clearTimeout?.bind(globalThis)
-  }
+  },
+  profile = globalThis.__INHA_WORLD_BOOT_PROFILE__ ?? null
 } = {}) {
   if (!root) return null;
   const startedAt = clock.now();
@@ -33,6 +36,7 @@ export function createWorldLoading({
   let renderReady = false;
   let slow = false;
   let finished = false;
+  profile?.mark?.("phase-BOOT");
   if (interactionRoot) interactionRoot.inert = true;
 
   const render = () => {
@@ -62,17 +66,23 @@ export function createWorldLoading({
     const currentProgress = WORLD_LOADING_PHASES[phase]?.progress ?? 0;
     if (WORLD_LOADING_PHASES[next].progress < currentProgress) return false;
     phase = next;
+    profile?.mark?.(`phase-${next}`);
     render();
     return true;
   };
 
   const setEssentialReady = (value = true) => {
     essentialReady = value === true;
+    if (essentialReady) profile?.mark?.("essential-ready");
     render();
     return essentialReady;
   };
 
-  const setRenderReady = (value = true) => { renderReady = value === true; return renderReady; };
+  const setRenderReady = (value = true) => {
+    renderReady = value === true;
+    if (renderReady) profile?.mark?.("render-ready");
+    return renderReady;
+  };
 
   const finish = ({ degraded = false } = {}) => {
     if (finished || !essentialReady || !renderReady) return false;
@@ -85,6 +95,7 @@ export function createWorldLoading({
       : "준비 완료";
     if (continueButton) continueButton.hidden = true;
     if (interactionRoot) interactionRoot.inert = false;
+    profile?.finish?.({ degraded });
     root.classList.add("is-leaving");
     timers.setTimeout?.(() => { root.hidden = true; }, fadeMs);
     return true;
@@ -128,13 +139,16 @@ export function waitForWorldRender({
   renderedFrames = 3,
   timeoutMs = 60000,
   requestFrame = globalThis.requestAnimationFrame?.bind(globalThis),
-  timers = globalThis
+  timers = globalThis,
+  profile = globalThis.__INHA_WORLD_BOOT_PROFILE__ ?? null
 } = {}) {
   return new Promise((resolve, reject) => {
     let assetsReady = false;
     let frames = 0;
     let draining = false;
     let settled = false;
+    let sceneReadyMarked = false;
+    let firstRenderMarked = false;
     const cleanup = () => {
       timers.clearTimeout(timeout);
       app.off("postrender", onRender);
@@ -150,18 +164,38 @@ export function waitForWorldRender({
       if (settled || draining || !assetsReady) return;
       try {
         if (!isSceneReady()) { frames = 0; return; }
+        if (!sceneReadyMarked) {
+          sceneReadyMarked = true;
+          profile?.mark?.("streaming-settled");
+        }
+        if (!firstRenderMarked) {
+          firstRenderMarked = true;
+          profile?.mark?.("first-render");
+        }
         if (++frames < renderedFrames) return;
+        profile?.mark?.("rendered-frames-ready", { renderedFrames: frames });
         draining = true;
+        profile?.startSpan?.("gpu-drain");
         Promise.resolve().then(async () => {
           await app.graphicsDevice?.wgpu?.queue?.onSubmittedWorkDone?.();
+          profile?.endSpan?.("gpu-drain");
           // Leave a browser paint opportunity while the opaque loader is still present.
-          requestFrame(() => requestFrame(() => finish()));
-        }).catch(finish);
+          requestFrame(() => requestFrame(() => {
+            profile?.mark?.("paint-ready");
+            finish();
+          }));
+        }).catch(error => {
+          profile?.endSpan?.("gpu-drain", { error: true });
+          finish(error);
+        });
       } catch (error) { finish(error); }
     };
     const timeout = timers.setTimeout(() => finish(new Error("Initial world rendering timed out")), timeoutMs);
     app.on("postrender", onRender);
-    Promise.resolve(ready).then(() => { assetsReady = true; }, finish);
+    Promise.resolve(ready).then(() => {
+      assetsReady = true;
+      profile?.mark?.("assets-ready-for-render");
+    }, finish);
   });
 }
 
@@ -195,6 +229,7 @@ export function installWorldBootDiagnostics({ target = globalThis, loading = get
 }
 
 if (typeof document !== "undefined") {
+  const profile = installWorldBootProfile();
   globalThis.__INHA_WORLD_LOADING__ = createWorldLoading({
     root: document.getElementById("world-loading"),
     messageElement: document.getElementById("world-loading-message"),
@@ -202,7 +237,8 @@ if (typeof document !== "undefined") {
     barElement: document.getElementById("world-loading-bar"),
     percentElement: document.getElementById("world-loading-percent"),
     continueButton: document.getElementById("world-loading-continue"),
-    interactionRoot: document.getElementById("world-lobby")
+    interactionRoot: document.getElementById("world-lobby"),
+    profile
   });
   globalThis.__INHA_WORLD_BOOT_DIAGNOSTICS__ = installWorldBootDiagnostics();
 }
