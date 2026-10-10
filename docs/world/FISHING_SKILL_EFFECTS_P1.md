@@ -31,6 +31,26 @@ start retries return the original frozen attempt, so idempotency semantics are u
 `world_fishing_project_v1` keeps both the policy and the effect snapshot private. The client receives
 only the already-required timestamps such as `biteAtMs` and `hookDeadlineMs`.
 
+## Player-facing effect copy
+
+The Life Skill Book shows effect details only for the two implemented P1 nodes above. Its display
+helper uses the rank and maximum rank returned by the server tree view; it does not read placeholder
+Registry descriptions, enable nodes, alter SP, or send an effect amount to the server.
+
+- Each card shows the per-rank modifier, current owned effect, next-rank total effect and maximum
+  total effect. Rank 0 explicitly says `미보유 (효과 없음)`; rank 3 says there is no next stage.
+- `안정된 손놀림` describes the response window **after the bite**, not a catch-success bonus.
+- `어군 감지` describes the reduction to both ends of the bite-wait range, with the server's minimum
+  wait of 1 ms. It makes no claim about fish rarity, rewards or catch success.
+- The tree explains that changes from learning, rank-up or reset take effect when the **next new
+  fishing attempt starts**. Already-started attempts retain their frozen effects, including retries.
+- No base-policy times or inferred attempt deadlines are displayed. Operator balance can change.
+- Unknown nodes and views outside P1's integer rank 0–3 / max-rank 3 contract receive no effect copy.
+  Error and initial-loading views cannot display a stale or guessed effect.
+
+The display contract is tied to `20261005185000_world_fishing_skill_effects_p1.sql`. Any later server
+change to these two modifiers must update the copy and its contract tests together.
+
 ## Deferred nodes
 
 The remaining Fishing nodes stay `COMING_SOON` because activating them now would sell SP for an
@@ -51,3 +71,11 @@ They should be activated only in the migration that introduces their authoritati
   forged-effect rejection, private projection, and reset-epoch behavior.
 - Fishing F3's trusted-position and spot-lease contract is unchanged.
 - Production HTTP exposure remains independently gated by `WORLD_FISHING_API_ENABLED=1`.
+- `node --test apps/world/tests/fishing-skill-effect-labels.test.mjs
+  apps/world/tests/life-skill-book.test.mjs apps/world/tests/life-skill-registry.test.mjs` verifies
+  rank 0–3 copy, deferred/unknown-node exclusion, the static SQL modifier contract, error/loading
+  states, and unchanged server-owned actions and recovery.
+- With the existing browser-test dependencies and browser installed,
+  `node apps/world/tests/browser/fishing-skill-effects-smoke.mjs` checks unowned/current/max copy,
+  read failure/retry, loading, close/reopen and 1280/390/320 px layouts. All RPC responses are
+  synthetic reads; the fixture rejects mutation RPCs and the harness blocks external requests.

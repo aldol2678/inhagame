@@ -48,12 +48,12 @@ export function parseRoomAccess(raw, roomId) {
 }
 
 export function createPersonalRoomSession({
-  player, controller, createAvatar, getClient, getIdentity, getEquipment = () => null,
+  player, controller, createAvatar, getClient, getIdentity, getEquipment = () => null, isSeated = () => false,
   clock = { now: () => Date.now() }, randomId = () => globalThis.crypto.randomUUID(),
   createTransport = (client, roomId) => new SupabaseRealtimeTransport(client, { topicFor: () => personalRoomTopic(roomId) }),
   accessCheckMs = ROOM_ACCESS_CHECK_MS, onAccessLost = () => {}, onChange = () => {}
 } = {}) {
-  const poseSource = createPoseSource({ player, controller, isSeated: () => false });
+  const poseSource = createPoseSource({ player, controller, isSeated });
   let active = null;
   let epoch = 0;
   let lastKey = "";
@@ -259,6 +259,18 @@ export function createPersonalRoomSession({
       return true;
     },
     reportEmote(id) { return active?.net?.reportEmote(id) === true; },
+    forcePose() {
+      if (!active?.net) return false;
+      active.net.publisher.forceSnapshot();
+      return true;
+    },
+    remoteSeatedPositions() {
+      if (!active?.net) return [];
+      return active.net.remotes.inZone(active.zoneId)
+        .filter(player => player.latestPose?.anim === "sit")
+        .map(player => ({ x: player.latestPose.x, y: player.latestPose.y, z: player.latestPose.z,
+          sessionId: player.sessionId }));
+    },
     remotePlayer(sessionId) {
       const p = active?.net?.remotes.get(sessionId);
       if (!p || p.guest) return null;

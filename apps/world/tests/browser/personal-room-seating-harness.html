@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>개인방 앉기 · 오프라인 QA</title>
+<script type="importmap">{"imports":{"playcanvas":"https://cdn.jsdelivr.net/npm/playcanvas@2.22.4/build/playcanvas.mjs"}}</script>
+<link rel="stylesheet" href="/styles.css">
+<style>
+  #stage{position:fixed;inset:0;width:100%;height:100%}
+  #qa-panel{position:fixed;z-index:70;top:12px;left:12px;right:12px;max-width:520px;padding:12px;background:#173049ed;color:#fff;border-radius:12px;font:14px system-ui}
+  #qa-panel p{margin:0 0 8px}#qa-panel button{min-height:40px;padding:6px 10px;margin:3px}
+  #joystick{display:block!important}#jump{display:block!important}
+</style></head><body>
+<canvas id="stage"></canvas>
+<section id="qa-panel"><p>개인방 앉기 · 합성 보유 가구 / 실제 렌더러·입력·자세</p>
+  <button id="qa-fixed">기본 의자</button><button id="qa-chair">배치 의자</button><button id="qa-sofa">소파</button>
+  <button id="qa-edit">꾸미기</button><button id="qa-exit">나가기</button><p id="qa-status"></p>
+</section>
+<button id="context-action" hidden></button><div id="joystick"><div id="joystick-knob"></div></div><button id="jump">점프</button><button id="run">달리기</button>
+<script type="module" src="./personal-room-seating-fixture.mjs"></script>
+</body></html>

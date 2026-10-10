@@ -1,7 +1,8 @@
-// INHA WORLD · Life Skill Book panel (P0). Presentation only: every number, rank, cost, lock reason,
-// reset availability and cooldown comes from the server views in life-skill-book-client.js. Names come
+// INHA WORLD · Life Skill Book panel. Presentation only: ranks, costs, lock reasons,
+// reset availability and cooldown come from the server views in life-skill-book-client.js. Names come
 // from the code Registries; an id the Registry does not know is shown as-is, never hidden or guessed.
-// Node descriptions are still placeholder Registry copy, so effect text is not shown to players; active effects are server-authoritative.
+// Only Fishing P1's two implemented effects have verified display copy. The server still applies
+// every effect at cast start; this panel never sends modifiers or predicts an attempt's timing.
 // Buttons are enabled only when the server said canUnlock / canReset; the server re-checks on click.
 
 import { LIFE_SKILL_REGISTRY } from "./life-skill-registry.js";
@@ -27,8 +28,38 @@ export const LIFE_SKILL_BOOK_TEXT = Object.freeze({
   resetConfirm: "정말 초기화할까요? 한 번 더 누르면 초기화돼요",
   resetEmpty: "초기화할 투자 SP가 없어요",
   failed: "요청을 처리하지 못했어요. 다시 시도해 주세요.",
-  hiddenPrerequisite: "미공개 노드"
+  hiddenPrerequisite: "미공개 노드",
+  fishingEffectTiming: "보유 랭크 기준이에요. 효과 변경은 다음 낚시 시작부터 적용돼요. 진행 중인 낚시는 바뀌지 않아요."
 });
+
+// Mirrors private.world_fishing_skill_effects_v1, not the Registry's placeholder descriptions.
+// Fail closed if a future server view changes this version's supported rank contract.
+const FISHING_EFFECTS_P1 = Object.freeze({
+  "life.node.fishing.steady_hands": Object.freeze({
+    perRank: "랭크당 입질 후 반응 시간 +250ms",
+    amount: (rank) => `반응 시간 +${rank * 250}ms`
+  }),
+  "life.node.fishing.fish_sense": Object.freeze({
+    perRank: "랭크당 입질 대기 시간 -250ms",
+    amount: (rank) => `입질 대기 시간 -${rank * 250}ms`,
+    limit: "대기 범위의 최솟값·최댓값에 적용돼요. 대기는 1ms 미만으로 줄어들지 않아요."
+  })
+});
+
+/** Copy only: current server-owned rank → the verified P1 modifier, never a gameplay input. */
+export function fishingEffectLines(node) {
+  const effect = Object.hasOwn(FISHING_EFFECTS_P1, node?.nodeId) ? FISHING_EFFECTS_P1[node.nodeId] : null;
+  if (!effect || node.maxRank !== 3 || !Number.isInteger(node.rank) || node.rank < 0 || node.rank > 3) return [];
+  return [
+    effect.perRank,
+    `현재 · 랭크 ${node.rank}/${node.maxRank} · ${node.rank === 0 ? "미보유 (효과 없음)" : effect.amount(node.rank)}`,
+    node.rank < node.maxRank
+      ? `다음 · 랭크 ${node.rank + 1}/${node.maxRank} · ${effect.amount(node.rank + 1)}`
+      : "다음 · 최대 단계에 도달했어요",
+    `최대 · 랭크 ${node.maxRank}/${node.maxRank} · ${effect.amount(node.maxRank)}`,
+    ...(effect.limit ? [effect.limit] : [])
+  ];
+}
 
 const LOCK_TEXT = Object.freeze({
   MAX_RANK: () => "최고 랭크",
@@ -123,6 +154,9 @@ export function createLifeSkillBookPanel({ panel, book, onOpenChange = () => {},
     card.dataset.nodeId = node.nodeId;
     card.dataset.lockReason = node.lockReason ?? "";
     card.append(el("strong", "inventory-item-name", `${nodeName(node.nodeId)} · ${node.rank}/${node.maxRank}`));
+    for (const line of fishingEffectLines(node)) {
+      card.append(el("p", "inventory-item-description life-node-effect", line));
+    }
     const facts = [`스킬 Lv ${node.requiredSkillLevel}`];
     if (node.nextRankCost !== null) facts.push(`다음 랭크 SP ${node.nextRankCost}`);
     card.append(el("p", "inventory-item-description life-node-facts", facts.join(" · ")));
@@ -157,6 +191,10 @@ export function createLifeSkillBookPanel({ panel, book, onOpenChange = () => {},
       el("p", "inventory-item-description", xpLine(skill)),
       el("p", "inventory-item-description life-skill-sp", `사용 가능 SP ${skill.sp.available} / 획득 ${skill.sp.earned}`));
     body.append(header);
+
+    if (tree.nodes.some((node) => fishingEffectLines(node).length)) {
+      header.append(el("p", "inventory-item-description life-tree-effect-timing", LIFE_SKILL_BOOK_TEXT.fishingEffectTiming));
+    }
 
     if (!tree.nodes.length) body.append(el("p", "shop-empty", LIFE_SKILL_BOOK_TEXT.treeEmpty));
     else {

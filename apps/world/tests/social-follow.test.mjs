@@ -243,7 +243,7 @@ test("25–26. Sit and Emote end Follow; seated players stand up before followin
   r.follow.update();
   assert.equal(r.follow.lastStop.reason, FollowStopReason.SIT);
   const main = code("../src/main.js");
-  assert.match(main, /const toggleSeat = \(\) => \{\s*if \(fullMap\?\.openState \|\| rooms\?\.insideRoom\) return false;\s*if \(!seats\.isSeated && seating\.nearby\) follow\.stop\(FollowStopReason\.SIT\);\s*return seating\.toggle\(\);/);
+  assert.match(main, /const toggleSeat = \(\) => \{\s*if \(fullMap\?\.openState \|\| rooms\?\.status\(\)\.busy \|\| furnitureEditor\?\.open\) return false;\s*if \(!seats\.isSeated && seating\.nearby\) follow\.stop\(FollowStopReason\.SIT\);\s*return seating\.toggle\(\);/);
   // F runs the interaction slot's action; the seat action sits through toggleSeat (asserted below).
   assert.match(main, /KeyF[\s\S]{0,300}interactionAction\(\);/, "F runs the interaction slot");
   assert.match(main, /const interactionAction = \(\) => \{[\s\S]{0,500}return contextActions\.trigger\(\);/, "interaction slot = the context button's action");
