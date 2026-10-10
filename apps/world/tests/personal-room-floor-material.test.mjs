@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createPersonalRoomFloorMaterial, localWoodFloorQaEnabled, PERSONAL_ROOM_FLOOR_QA_URL } from "../src/rooms/personal-room-floor-material.js";
+import { createPersonalRoomFloorMaterial, woodFloor051Enabled, PERSONAL_ROOM_FLOOR_QA_URL } from "../src/rooms/personal-room-floor-material.js";
 
 function rig({enabled=true, synchronous=false, throwLoad=false}={}) {
   const original={ name:"original-b99168", diffuseMap: null };
@@ -23,20 +23,18 @@ function rig({enabled=true, synchronous=false, throwLoad=false}={}) {
 }
 const flush=async()=>{await Promise.resolve();await Promise.resolve();};
 
-test("F01 defaults fail closed and doesn't request images when disabled",async()=>{
+test("F01 explicitly disabled mode retains original floor without a request",async()=>{
   const x=rig({enabled:false}); assert.equal(await x.controller.ensureVisual(),false); assert.equal(x.calls.length,0);assert.strictEqual(x.floor.render.material,x.original);
 });
-test("QA gate activates only with explicit local or production opt-in flag",()=>{
-  for(const host of ["example.org","192.168.0.2","staging.inhagame.app"])
-    assert.equal(localWoodFloorQaEnabled({hostname:host,search:"?woodFloor051=1"}),false);
-  assert.equal(localWoodFloorQaEnabled({hostname:"127.0.0.1",search:"?woodFloor051=1"}),true);
-  assert.equal(localWoodFloorQaEnabled({hostname:"inhagame.app",search:"?woodFloor051=1"}),true);
-  assert.equal(localWoodFloorQaEnabled({hostname:"www.inhagame.app",search:"?woodFloor051=1"}),true);
-  assert.equal(localWoodFloorQaEnabled({hostname:"inhagame.app",search:""}),false);
-  assert.equal(localWoodFloorQaEnabled({hostname:"localhost",search:"?woodFloor051=0"}),false);
-  assert.equal(localWoodFloorQaEnabled({hostname:"localhost",search:""}),false);
+test("B floor is default on all hosts; explicit query 0 uses original A floor",()=>{
+  for(const host of ["inhagame.app","www.inhagame.app","localhost","staging.inhagame.app","example.org"]){
+    assert.equal(woodFloor051Enabled({hostname:host,search:""}),true);
+    assert.equal(woodFloor051Enabled({hostname:host,search:"?woodFloor051=1"}),true);
+    assert.equal(woodFloor051Enabled({hostname:host,search:"?woodFloor051=0"}),false);
+  }
+  assert.equal(woodFloor051Enabled(undefined),true);
 });
-test("F02 successfully loads Color only, keeps original unmodified, tiles 8x5",async()=>{
+test("F02 default B successfully loads Color only, keeps original unmodified, tiles 8x5",async()=>{
   const x=rig();const pending=x.controller.ensureVisual();await flush();
   assert.equal(x.calls.length,1);assert.equal(x.calls[0].url,PERSONAL_ROOM_FLOOR_QA_URL);assert.equal(x.calls[0].type,"texture");assert.strictEqual(x.floor.render.material,x.original);
   x.finish();assert.equal(await pending,true);assert.notStrictEqual(x.floor.render.material,x.original);
