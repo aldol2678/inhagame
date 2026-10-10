@@ -226,8 +226,9 @@ export function validateCatalog(items) {
       errors.push(`${at}: subtype ${d.subtype} is not valid for ${d.category}`);
     }
     if (d.category === 'ROOM_FINISH') {
-      const slots = Array.isArray(d.tags) ? d.tags.filter(tag => ROOM_FINISH_SLOTS.includes(tag)) : [];
-      if (slots.length !== 1 || !d.tags.includes('room_finish')) errors.push(`${at}: ROOM_FINISH needs one wall/floor finish tag`);
+      const tags = Array.isArray(d.tags) ? d.tags : [];
+      const slots = tags.filter(tag => ROOM_FINISH_SLOTS.includes(tag));
+      if (slots.length !== 1 || !tags.includes('room_finish')) errors.push(`${at}: ROOM_FINISH needs one wall/floor finish tag`);
       if (d.ownershipPolicy !== 'UNIQUE') errors.push(`${at}: ROOM_FINISH must use UNIQUE ownership`);
     }
     if (!RARITIES.includes(d.rarity)) errors.push(`${at}: unknown rarity ${d.rarity}`);
