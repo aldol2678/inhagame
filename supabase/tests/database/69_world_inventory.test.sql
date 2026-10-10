@@ -24,7 +24,10 @@ select has_table('private', 'world_item_grants', 'grant log exists');
 select col_is_pk('private', 'world_item_catalog', array['item_id'], 'item ids are unique');
 select col_is_unique('private', 'world_player_items', array['user_id', 'item_id'], 'one ownership row per (user, item)');
 select col_is_pk('private', 'world_item_grants', array['grant_id'], 'a grant key is used once');
-select is((select count(*) from private.world_item_catalog), 36::bigint, '6 pilot fixtures + Starter Catalog 20 + Housing F0 7 + Life M1 materials 3');
+select is((select count(*) from private.world_item_catalog where item_id not like 'finish.%'), 36::bigint,
+  'the existing 6 pilot + 20 starter + 7 Housing F0 + 3 Life M1 identities remain unchanged');
+select is((select count(*) from private.world_item_catalog where item_id like 'finish.%'), 4::bigint,
+  'Housing Finish P0 adds exactly four independent finish identities');
 select is(
   array(select item_id from private.world_item_catalog where item_id = any(array[
     'top.induck_hoodie', 'head.induck_cap', 'furniture.induck_cushion', 'furniture.campus_map_poster',
