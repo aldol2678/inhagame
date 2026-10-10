@@ -22,8 +22,22 @@ export function moveAroundPolygons(position,dx,dz,obstacles,{radius,footOffset,h
   for(let pass=0;pass<4&&Math.hypot(v.x,v.z)>1e-7;pass++) {
     let hit=null;
     const consider=(time,n)=>{if(time>=-1e-8&&time<=1&&dot(v,n)<-1e-8&&(!hit||time<hit.time))hit={time:Math.max(0,time),n}};
+    // Conservative swept AABB: all possible hits (edge or rounded corner)
+    // must be within radius of this pass's segment. The small tolerance also
+    // covers the existing 0.00001 collision normal nudge.
+    const sweepSkin=radius+0.0001;
+    const minX=Math.min(p.x,p.x+v.x)-sweepSkin,maxX=Math.max(p.x,p.x+v.x)+sweepSkin;
+    const minZ=Math.min(p.z,p.z+v.z)-sweepSkin,maxZ=Math.max(p.z,p.z+v.z)+sweepSkin;
     for(const box of obstacles) {
       if(position.y-footOffset>=box.maxY-.001||position.y+headOffset<=box.minY+.001)continue;
+      // Do not cache polygon bounds: editable/test geometry may mutate in place.
+      // This early rejection changes only work performed, not collision geometry.
+      let left=Infinity,right=-Infinity,bottom=Infinity,top=-Infinity;
+      for(const point of box.polygon) {
+        left=Math.min(left,point.x);right=Math.max(right,point.x);
+        bottom=Math.min(bottom,point.z);top=Math.max(top,point.z);
+      }
+      if(right<minX||left>maxX||top<minZ||bottom>maxZ)continue;
       for(const {a,t,n,length}of edges(box.polygon)) {
         const relative={x:p.x-a.x,z:p.z-a.z},distance=dot(relative,n),speed=dot(v,n);
         if(distance>=radius-1e-7&&speed<0) {
