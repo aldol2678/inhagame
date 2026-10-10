@@ -237,8 +237,8 @@ test("classification keeps command acceptance, block confirmation and session en
   const result = { userId:TARGET, sessionsRemoved:2, blockedUntil:later };
   const full = classifyKickOutcome(result, parseWorldSessionRoster(blockedRoster()), TARGET);
   assert.deepEqual({ ...full }, {
-    accepted:true, blockConfirmed:true, heartbeatCleared:true, realtimeClosed:"UNKNOWN",
-    blockedUntil:later, sessionsRemoved:2
+    accepted:true, blockConfirmed:true, blockUnknown:false, heartbeatCleared:true, heartbeatUnknown:false,
+    realtimeClosed:"UNKNOWN", evidence:"roster", blockedUntil:later, sessionsRemoved:2
   });
   const noBlock = classifyKickOutcome(result, parseWorldSessionRoster(roster({ accounts:[] })), TARGET);
   assert.equal(noBlock.accepted, true);

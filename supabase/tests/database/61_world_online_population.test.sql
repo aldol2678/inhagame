@@ -237,12 +237,69 @@ select throws_ok(
   '42501','WORLD_SESSION_OWNER_MISMATCH','another account cannot take over an owned session UUID');
 reset role;
 set local role anon;
+set local request.jwt.claims='{"role":"anon"}';
 select throws_ok(
   $q$select public.touch_world_online_session_v2('55555555-5555-4555-8555-555555555555',null,'AREA_MAIN_HALL','campus')$q$,
   '42501','WORLD_SESSION_OWNER_MISMATCH','a signed-out call cannot downgrade an owned session to a guest');
 reset role;
 select is((select user_id from public.world_online_sessions where session_id='55555555-5555-4555-8555-555555555555'),
   '33333333-3333-4333-8333-333333333333'::uuid,'session ownership is unchanged after the refused takeovers');
+
+-- Session admin read-back (F08): the capped roster says when it was cut; one account can be read exactly.
+select has_function('public','get_world_session_admin_target_v1',array['uuid'],'exact per-account session read exists');
+select ok(not has_function_privilege('anon','public.get_world_session_admin_target_v1(uuid)','EXECUTE'),
+  'anonymous callers cannot execute the exact per-account read');
+select ok(has_function_privilege('authenticated','public.get_world_session_admin_target_v1(uuid)','EXECUTE'),
+  'signed-in callers reach the exact read (staff role checked inside)');
+
+set local role authenticated;
+set local request.jwt.claims='{"sub":"33333333-3333-4333-8333-333333333333","role":"authenticated","is_anonymous":false}';
+select throws_ok($q$select public.get_world_session_admin_target_v1('33333333-3333-4333-8333-333333333333')$q$,
+  '42501','unauthorized','regular members cannot use the exact per-account read');
+reset role;
+
+set local role authenticated;
+set local request.jwt.claims='{"sub":"5f000000-0000-4000-8000-000000000061","role":"authenticated","is_anonymous":false}';
+select ok((public.get_world_session_admin_v1()->>'accountsTruncated')::boolean = false
+  and (public.get_world_session_admin_v1()->>'blockedTruncated')::boolean = false
+  and (public.get_world_session_admin_v1()->>'accountsTotal')::integer = 1,
+  'roster exposes exact totals and says its lists were not cut');
+select is((public.get_world_session_admin_target_v1('33333333-3333-4333-8333-333333333333')->>'sessionRows')::integer,1,
+  'exact read counts the account heartbeat rows');
+select is(public.get_world_session_admin_target_v1('33333333-3333-4333-8333-333333333333')->>'blockedUntil',null,
+  'exact read reports no active block');
+select lives_ok($q$select public.kick_world_user_v1('33333333-3333-4333-8333-333333333333',5)$q$,'operator blocks the member again');
+select is((public.get_world_session_admin_target_v1('33333333-3333-4333-8333-333333333333')->>'sessionRows')::integer,0,
+  'after the kick the exact read proves no heartbeat row remains');
+select ok((public.get_world_session_admin_target_v1('33333333-3333-4333-8333-333333333333')->>'blockedUntil') is not null,
+  'after the kick the exact read shows the active block');
+select ok(public.restore_world_user_v1('33333333-3333-4333-8333-333333333333'),'operator restores the member');
+reset role;
+
+-- Guest session binding (F09): a row that carries a browser visitor id only answers to that id.
+set local role anon;
+set local request.jwt.claims='{"role":"anon"}';
+select is((select auth.uid()),null::uuid,'the guest block really runs signed out');
+select lives_ok($q$select public.touch_world_online_session_v2('66666666-6666-4666-8666-666666666666','cccccccc-cccc-4ccc-8ccc-cccccccccccc','AREA_MAIN_HALL','campus')$q$,
+  'a guest registers a session with its browser visitor id');
+select throws_ok(
+  $q$select public.touch_world_online_session_v2('66666666-6666-4666-8666-666666666666','dddddddd-dddd-4ddd-8ddd-dddddddddddd','AREA_MAIN_HALL','campus')$q$,
+  '42501','WORLD_SESSION_OWNER_MISMATCH','another browser cannot rewrite a guest row it did not create');
+select throws_ok(
+  $q$select public.touch_world_online_session_v1('66666666-6666-4666-8666-666666666666','AREA_MAIN_HALL','campus')$q$,
+  '42501','WORLD_SESSION_OWNER_MISMATCH','a visitor-less call cannot bypass the binding of a bound guest row');
+reset role;
+set local role authenticated;
+set local request.jwt.claims='{"sub":"33333333-3333-4333-8333-333333333333","role":"authenticated","is_anonymous":false}';
+select throws_ok(
+  $q$select public.touch_world_online_session_v2('66666666-6666-4666-8666-666666666666','dddddddd-dddd-4ddd-8ddd-dddddddddddd','AREA_MAIN_HALL','campus')$q$,
+  '42501','WORLD_SESSION_OWNER_MISMATCH','an account on another browser cannot claim the guest row');
+select lives_ok(
+  $q$select public.touch_world_online_session_v2('66666666-6666-4666-8666-666666666666','cccccccc-cccc-4ccc-8ccc-cccccccccccc','AREA_MAIN_HALL','campus')$q$,
+  'the same browser can claim its own guest row when the account signs in');
+reset role;
+select is((select user_id from public.world_online_sessions where session_id='66666666-6666-4666-8666-666666666666'),
+  '33333333-3333-4333-8333-333333333333'::uuid,'the sign-in claim by the same browser took effect');
 
 select * from finish();
 rollback;

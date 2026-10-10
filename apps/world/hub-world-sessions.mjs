@@ -3,8 +3,11 @@
 export const WORLD_SESSION_RPC = Object.freeze({
   LIST: "get_world_session_admin_v1",
   KICK: "kick_world_user_v1",
-  RESTORE: "restore_world_user_v1"
+  RESTORE: "restore_world_user_v1",
+  TARGET: "get_world_session_admin_target_v1"
 });
+// The server caps each roster list at this many rows.
+export const WORLD_ROSTER_LIST_LIMIT = 100;
 export const WORLD_KICK_MINUTES = Object.freeze([5, 30, 60, 240]);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const isCount = n => Number.isSafeInteger(n) && n >= 0;
@@ -38,13 +41,46 @@ export function parseWorldSessionRoster(raw) {
       blockedUntil:row.blockedUntil
     });
   });
+  const flag = value => typeof value === "boolean" ? value : null;
   return Object.freeze({
     operatorUserId:raw.operatorUserId,
     onlineSessions:raw.onlineSessions,
     guestSessions:raw.guestSessions,
     accounts:Object.freeze(accounts),
     blocked:Object.freeze(blocked),
+    // null = an older server that does not say whether the capped lists were cut.
+    accountsTotal:isCount(raw.accountsTotal) ? raw.accountsTotal : null,
+    accountsTruncated:flag(raw.accountsTruncated),
+    blockedTotal:isCount(raw.blockedTotal) ? raw.blockedTotal : null,
+    blockedTruncated:flag(raw.blockedTruncated),
     asOf:typeof raw.asOf === "string" ? raw.asOf : null
+  });
+}
+
+// Absence from a capped list proves nothing. A list is "complete" only when the server says it was not
+// cut, or (older server, no flag) when it is clearly shorter than the cap.
+export function rosterListComplete(roster, kind) {
+  if (!roster) return false;
+  const truncated = kind === "accounts" ? roster.accountsTruncated : roster.blockedTruncated;
+  const rows = kind === "accounts" ? roster.accounts : roster.blocked;
+  if (truncated === true) return false;
+  if (truncated === false) return true;
+  return rows.length < WORLD_ROSTER_LIST_LIMIT;
+}
+
+// Exact, uncapped facts about ONE account. This, not roster absence, is the evidence for
+// "heartbeat sessions ended" and "block active / lifted".
+export async function readWorldSessionTarget(client, userId) {
+  if (!isUUID(userId)) throw new Error("INVALID_TARGET_READ");
+  const { data, error } = await client.rpc(WORLD_SESSION_RPC.TARGET, { p_user_id:userId });
+  if (error) throw error;
+  if (data?.userId !== userId || !isCount(data.sessionRows) || !isCount(data.activeSessions)) {
+    throw new Error("TARGET_READ_UNCONFIRMED");
+  }
+  return Object.freeze({
+    sessionRows:data.sessionRows,
+    activeSessions:data.activeSessions,
+    blockedUntil:typeof data.blockedUntil === "string" ? data.blockedUntil : null
   });
 }
 
@@ -72,25 +108,52 @@ export async function restoreWorldAccount(client, userId) {
 
 // Three different facts, never collapsed into one "done":
 //   accepted  - the server returned success for the command (it ran inside one transaction);
-//   blockConfirmed - an independent roster read shows the account in the active block list;
-//   heartbeatCleared - the same read shows no live heartbeat session for the account.
+//   blockConfirmed - an independent read shows the account blocked until at least the promised time;
+//   heartbeatCleared - an independent read shows no heartbeat session row for the account.
+// `*Confirmed` is true ONLY when proven. `*Unknown` is true when the evidence cannot establish either
+// answer (truncated list and no exact read). Evidence order: the exact per-account read first; the
+// roster only when its list was provably not truncated.
 // Whether an already-open Realtime socket was closed is not observable from here: always "UNKNOWN".
-export function classifyKickOutcome(result, roster, userId) {
+export function classifyKickOutcome(result, roster, userId, target = null) {
   const entry = roster?.blocked?.find(row => row.userId === userId) ?? null;
   const promised = Date.parse(result?.blockedUntil ?? "");
-  const actual = Date.parse(entry?.blockedUntil ?? "");
+  const reaches = until => {
+    const actual = Date.parse(until ?? "");
+    return Number.isFinite(actual) && (!Number.isFinite(promised) || actual >= promised - 1000);
+  };
+  let blockConfirmed = null;
+  if (target) blockConfirmed = !!target.blockedUntil && reaches(target.blockedUntil);
+  else if (roster && rosterListComplete(roster, "blocked")) blockConfirmed = !!entry && reaches(entry.blockedUntil);
+  else if (entry && reaches(entry.blockedUntil)) blockConfirmed = true; // presence is proof; absence is not
+  let heartbeatCleared = null;
+  if (target) heartbeatCleared = target.sessionRows === 0;
+  else if (roster && rosterListComplete(roster, "accounts")) {
+    heartbeatCleared = !roster.accounts.some(row => row.userId === userId);
+  } else if (roster?.accounts?.some(row => row.userId === userId)) heartbeatCleared = false;
   return Object.freeze({
     accepted:true,
-    blockConfirmed:!!entry && (!Number.isFinite(promised) || (Number.isFinite(actual) && actual >= promised - 1000)),
-    heartbeatCleared:!!roster && !roster.accounts.some(row => row.userId === userId),
+    blockConfirmed:blockConfirmed === true,
+    blockUnknown:blockConfirmed === null,
+    heartbeatCleared:heartbeatCleared === true,
+    heartbeatUnknown:heartbeatCleared === null,
     realtimeClosed:"UNKNOWN",
-    blockedUntil:entry?.blockedUntil ?? result?.blockedUntil ?? null,
+    evidence:target ? "target" : roster ? "roster" : "none",
+    blockedUntil:target?.blockedUntil ?? entry?.blockedUntil ?? result?.blockedUntil ?? null,
     sessionsRemoved:result?.sessionsRemoved ?? 0
   });
 }
-export function classifyRestoreOutcome(removed, roster, userId) {
-  const stillBlocked = !!roster?.blocked?.some(row => row.userId === userId);
-  return Object.freeze({ accepted:true, removed, unblockConfirmed:!!roster && !stillBlocked });
+export function classifyRestoreOutcome(removed, roster, userId, target = null) {
+  let unblockConfirmed = null;
+  if (target) unblockConfirmed = target.blockedUntil === null;
+  else if (roster && rosterListComplete(roster, "blocked")) {
+    unblockConfirmed = !roster.blocked.some(row => row.userId === userId);
+  } else if (roster?.blocked?.some(row => row.userId === userId)) unblockConfirmed = false;
+  return Object.freeze({
+    accepted:true, removed,
+    unblockConfirmed:unblockConfirmed === true,
+    unblockUnknown:unblockConfirmed === null,
+    evidence:target ? "target" : roster ? "roster" : "none"
+  });
 }
 
 export function mountWorldSessionAdmin({
@@ -129,16 +192,26 @@ export function mountWorldSessionAdmin({
   }
   function describeKick(name, result) {
     const until = result.blockedUntil ? timeKst(result.blockedUntil) + "까지" : "시간 확인 불가";
+    if (result.blockUnknown) {
+      return name + " 퇴장 명령은 수락됐지만 차단을 확인할 수 없습니다" +
+        "(목록 한도 초과 또는 대상 조회 실패). 다시 조회해 주세요.";
+    }
     if (!result.blockConfirmed) {
       return name + " 퇴장 명령은 수락됐지만 차단 목록에서 확인되지 않았습니다. 다시 조회해 주세요.";
     }
     const sessions = result.heartbeatCleared
       ? "접속 집계 세션 종료 확인(정리 " + result.sessionsRemoved + "개)"
-      : "집계 세션이 아직 남아 있어 종료는 미확인(잠시 후 다시 조회)";
+      : result.heartbeatUnknown
+        ? "집계 세션 종료는 확인할 수 없음(목록 한도 초과 또는 대상 조회 실패)"
+        : "집계 세션이 아직 남아 있어 종료는 미확인(잠시 후 다시 조회)";
     return name + " 차단 확인됨(" + until + ") · " + sessions +
       ". 이미 열려 있는 실시간(Realtime) 연결이 닫혔는지는 확인할 수 없습니다.";
   }
   function describeRestore(name, result) {
+    if (result.unblockUnknown) {
+      return name + " 차단 해제 명령은 수락됐지만 해제를 확인할 수 없습니다" +
+        "(목록 한도 초과 또는 대상 조회 실패). 다시 조회해 주세요.";
+    }
     if (!result.unblockConfirmed) {
       return name + " 차단 해제 명령은 수락됐지만 차단이 아직 목록에 남아 있습니다. 다시 조회해 주세요.";
     }
@@ -158,7 +231,11 @@ export function mountWorldSessionAdmin({
     accountsEl.replaceChildren();
     blockedEl.replaceChildren();
     summary.textContent = "전체 " + roster.onlineSessions + "세션 · 로그인 계정 " +
-      roster.accounts.length + "명 · 게스트 " + roster.guestSessions + "세션";
+      (roster.accountsTotal ?? roster.accounts.length) + "명 · 게스트 " + roster.guestSessions + "세션";
+    if (roster.accountsTruncated === true || roster.blockedTruncated === true) {
+      summary.textContent += " · 목록은 상한 " + WORLD_ROSTER_LIST_LIMIT +
+        "개만 표시됩니다(없는 계정이 접속 중이 아니라는 뜻은 아닙니다)";
+    }
     if (!roster.accounts.length) accountsEl.appendChild(el("li","hub-world-session-empty","접속 중인 로그인 계정이 없습니다."));
     for (const account of roster.accounts) {
       const row = el("li", "hub-world-session-row");
@@ -264,8 +341,12 @@ export function mountWorldSessionAdmin({
       const failureText = action === "kick"
         ? "퇴장 명령의 수락 여부를 확인하지 못했습니다. 접속 목록을 다시 조회해 확인해 주세요."
         : "차단 해제 명령의 수락 여부를 확인하지 못했습니다. 접속 목록을 다시 조회해 확인해 주세요.";
+      const exact = await readWorldSessionTarget(client, userId).catch(() => null);
       const settled = await refresh({ outcome:roster => {
-        const blocked = roster.blocked.some(row => row.userId === userId);
+        const blocked = exact ? exact.blockedUntil !== null : roster.blocked.some(row => row.userId === userId);
+        if (!exact && !rosterListComplete(roster, "blocked") && !blocked) {
+          return record.nickname + " 응답을 받지 못했고 목록 한도 때문에 차단 여부를 확인할 수 없습니다. 다시 조회해 주세요.";
+        }
         if (action === "kick") {
           return blocked
             ? record.nickname + " 응답은 받지 못했지만 조회 결과 차단이 적용되어 있습니다."
@@ -280,12 +361,18 @@ export function mountWorldSessionAdmin({
     }
     pending = false;
     refreshButton.disabled = false;
+    const exact = await readWorldSessionTarget(client, userId).catch(() => null);
     const describe = roster => action === "kick"
-      ? describeKick(record.nickname, classifyKickOutcome(outcome, roster, userId))
-      : describeRestore(record.nickname, classifyRestoreOutcome(outcome, roster, userId));
+      ? describeKick(record.nickname, classifyKickOutcome(outcome, roster, userId, exact))
+      : describeRestore(record.nickname, classifyRestoreOutcome(outcome, roster, userId, exact));
     const confirmed = await refresh({ outcome:describe });
-    // Command accepted but the follow-up read failed: say exactly that, not "done".
-    if (!confirmed && refreshFailed) {
+    // The roster read failed but the exact per-account read worked: it is still real evidence.
+    if (!confirmed && refreshFailed && exact) {
+      status.textContent = action === "kick"
+        ? describeKick(record.nickname, classifyKickOutcome(outcome, null, userId, exact))
+        : describeRestore(record.nickname, classifyRestoreOutcome(outcome, null, userId, exact));
+    } else if (!confirmed && refreshFailed) {
+      // Command accepted but nothing could confirm it: say exactly that, not "done".
       status.textContent = action === "kick"
         ? record.nickname + " 퇴장 명령은 수락됐지만(차단 " + timeKst(outcome.blockedUntil) +
           "까지) 결과 확인에 실패했습니다. 접속 목록을 다시 조회해 주세요."

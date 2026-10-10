@@ -4,6 +4,9 @@
 
 export const WORLD_HEARTBEAT_MS = 20_000;
 export const WORLD_HEARTBEAT_TIMEOUT_MS = 10_000;
+// Three missed beats. Shorter than the server's 70 s active window, so a live connection whose allowed
+// state cannot be confirmed is held back before the roster would even stop listing it.
+export const WORLD_VERIFY_GRACE_MS = 60_000;
 export const WORLD_VISITOR_STORAGE_KEY = "inhagame-hub-visitor-v1";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -49,7 +52,14 @@ export function startWorldPopulationHeartbeat({
   scheduler = globalThis,
   windowTarget = globalThis.window,
   intervalMs = WORLD_HEARTBEAT_MS,
-  onRevoked = () => {}
+  onRevoked = () => {},
+  // Opt-in "allowed state" contract. A successful heartbeat is the only proof that the server still
+  // allows this account. If none arrives for graceMs, onUnverified() fires ONCE (the caller should
+  // suspend its Realtime connection); the next success fires onVerified() (resume). Revocation stays
+  // terminal and is unaffected. Signed-out visitors cannot be blocked and are never held back.
+  onUnverified = null,
+  onVerified = null,
+  graceMs = WORLD_VERIFY_GRACE_MS
 } = {}) {
   if (!client?.rpc) return null;
   let sessionId = randomId?.();
@@ -71,7 +81,36 @@ export function startWorldPopulationHeartbeat({
   let resumePending = false;
   let cancelPending = null;
   let authSubscription = null;
+  let graceTimer = null;
+  let unverified = false;
+  const graceEnabled = typeof onUnverified === "function" && graceMs > 0;
   const deadlineScheduler = scheduler?.setTimeout && scheduler?.clearTimeout ? scheduler : globalThis;
+
+  function clearGrace() {
+    if (graceTimer !== null) deadlineScheduler.clearTimeout(graceTimer);
+    graceTimer = null;
+  }
+  function armGrace() {
+    clearGrace();
+    if (!graceEnabled || stopped || paused) return;
+    graceTimer = deadlineScheduler.setTimeout(onGraceExpired, graceMs);
+  }
+  function onGraceExpired() {
+    graceTimer = null;
+    if (stopped || paused) return;
+    if (knownUid === null) { armGrace(); return; }
+    if (unverified) return;
+    unverified = true;
+    try { onUnverified({ lastError }); } catch (callbackError) { console.warn("World unverified callback failed:", callbackError); }
+  }
+  function markVerified() {
+    if (!graceEnabled) return;
+    if (unverified) {
+      unverified = false;
+      try { onVerified?.(); } catch (callbackError) { console.warn("World verified callback failed:", callbackError); }
+    }
+    armGrace();
+  }
 
   function revoke() {
     if (revoked) return;
@@ -115,10 +154,14 @@ export function startWorldPopulationHeartbeat({
           p_space: validSpace(snapshot.space)
         });
         if (controller && request?.abortSignal) request = request.abortSignal(controller.signal);
+        // Supabase's PostgrestBuilder is a thenable that sends a NEW HTTP request on every .then().
+        // Convert it to a Promise exactly once and share that Promise with every observer below;
+        // handing the builder itself to Promise.resolve() and Promise.race() would write twice.
+        const response = Promise.resolve(request);
         // A response that arrives after this request was abandoned (timeout, auth switch, BFCache) is
         // ignored, with one exception: a revocation for the SAME account is authoritative whenever it
         // arrives and must still end the session.
-        void Promise.resolve(request).then(
+        void response.then(
           late => { if (!consumed && isRevoked(late?.error) && sameAccount()) revoke(); },
           late => { if (!consumed && isRevoked(late) && sameAccount()) revoke(); }
         );
@@ -127,7 +170,7 @@ export function startWorldPopulationHeartbeat({
           timedOut = true;
           cancel();
         }, WORLD_HEARTBEAT_TIMEOUT_MS);
-        const result = await Promise.race([request, cancelled]);
+        const result = await Promise.race([response, cancelled]);
         // null means the request was abandoned (timeout / auth switch / stop): keep watching it.
         if (result !== null) consumed = true;
         if (result?.error && isRevoked(result.error) && sameAccount()) { revoke(); return false; }
@@ -142,6 +185,7 @@ export function startWorldPopulationHeartbeat({
         lastSentAt = Date.now();
         consecutiveFailures = 0;
         ownerRetryUsed = false;
+        markVerified();
         return true;
       } catch (error) {
         consumed = true;
@@ -188,6 +232,7 @@ export function startWorldPopulationHeartbeat({
     if (knownUid === undefined) { knownUid = uid; return; }
     if (uid === knownUid) return;
     knownUid = uid;
+    armGrace(); // the new account has not been verified yet
     if (!rotateSession()) return;
     ownerRetryUsed = false;
     // Abandon the request that carries the previous identity, then write once for the new one.
@@ -216,6 +261,7 @@ export function startWorldPopulationHeartbeat({
     resumePending = false;
     generation++;
     clearTimer();
+    clearGrace();
     cancelPending?.();
     cancelPending = null;
     try { authSubscription?.unsubscribe?.(); } catch { /* best effort */ }
@@ -233,6 +279,7 @@ export function startWorldPopulationHeartbeat({
     resumePending = false;
     generation++;
     clearTimer();
+    clearGrace();
   };
   const onPageShow = event => {
     if (!event?.persisted || stopped || !paused) return;
@@ -240,6 +287,7 @@ export function startWorldPopulationHeartbeat({
     if (inFlight) resumePending = true;
     else void pulse();
     schedule();
+    armGrace(); // a restored page gets a fresh grace window; its first write is the proof
   };
   windowTarget?.addEventListener?.("pagehide", onPageHide);
   windowTarget?.addEventListener?.("pageshow", onPageShow);
@@ -251,6 +299,7 @@ export function startWorldPopulationHeartbeat({
 
   const initialPulse = pulse();
   schedule();
+  armGrace();
 
   return {
     get sessionId() { return sessionId; },
@@ -258,7 +307,7 @@ export function startWorldPopulationHeartbeat({
     initialPulse,
     pulse,
     status: () => ({
-      sessionId, visitorId, lastSentAt, lastError, stopped, paused, revoked, consecutiveFailures
+      sessionId, visitorId, lastSentAt, lastError, stopped, paused, revoked, consecutiveFailures, unverified
     }),
     stop: stopLocal
   };

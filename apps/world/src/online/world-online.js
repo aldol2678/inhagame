@@ -71,7 +71,15 @@ export function startWorldOnline({
       try { listener(identity); } catch (error) { record("identity", error); }
     }
   };
+  // Connection-creation boundary. `stopped` is terminal (stop(): operator ejection, teardown).
+  // `suspended` is a recoverable hold used when the server-side allowed state cannot be confirmed;
+  // resume() lifts it. `startEpoch` orders auth resolutions: any later stop / sign-out / refresh makes
+  // an earlier, still-awaiting resolution stale. A Realtime session is only ever created through
+  // openSession(), and only while mayConnect(epoch) holds.
+  let stopped = false;
+  let suspended = null; // null | { reason }
   let startEpoch = 0;
+  const mayConnect = (epoch) => !stopped && suspended === null && epoch === startEpoch;
   let client = null;
   let guestClient = null;
   let memberActivityLastAt = 0;
@@ -105,7 +113,8 @@ export function startWorldOnline({
       guest: session?.guest === true,
       state: state === "ONLINE" && !net.zoneSynced ? "CONNECTING" : state,
       count: net?.onlineCount ?? 0,
-      localSpace: campusPaused?.label ?? null
+      localSpace: campusPaused?.label ?? null,
+      suspended: suspended !== null
     };
   };
 
@@ -166,14 +175,14 @@ export function startWorldOnline({
     }
   }
 
-  async function startFor(user) {
-    const epoch = ++startEpoch;
+  async function startFor(user, epoch) {
+    if (!mayConnect(epoch)) return;
     if (!isPermanent(user)) { await startGuest(epoch); return; }
     if (session?.userId === user.id && !session.guest) return;
     stopSession();
     const displayName = await displayNameFor(user.id);
-    if (epoch !== startEpoch) return;
-    openSession({ userId: user.id, displayName, guest: false, transportClient: client });
+    if (!mayConnect(epoch)) return;
+    if (!openSession({ userId: user.id, displayName, guest: false, transportClient: client })) return;
     void touchMemberActivity(true);
     // Exactly what other players see (presence applies the same nickname rule).
     setIdentity({ userId: user.id, displayName: normalizeDisplayName(displayName) });
@@ -183,6 +192,7 @@ export function startWorldOnline({
   // No permanent account: an anonymous guest session on its own client. A member sign-in later
   // bumps startEpoch and replaces it.
   async function startGuest(epoch) {
+    if (!mayConnect(epoch)) return;
     if (!allowGuests) { stopSession(); return; }
     if (session?.guest) return;
     stopSession();
@@ -192,13 +202,13 @@ export function startWorldOnline({
       const { data } = await guestClient.auth.getSession();
       let user = data?.session?.user ?? null;
       if (!user?.id) {
-        if (epoch !== startEpoch) return;
+        if (!mayConnect(epoch)) return;
         const result = await guestClient.auth.signInAnonymously();
         if (result?.error) throw result.error;
         user = result?.data?.user ?? result?.data?.session?.user ?? null;
       }
-      if (epoch !== startEpoch || !user?.id || session) return;
-      openSession({ userId: user.id, displayName: null, guest: true, transportClient: guestClient });
+      if (!mayConnect(epoch) || !user?.id || session) return;
+      if (!openSession({ userId: user.id, displayName: null, guest: true, transportClient: guestClient })) return;
       session.net.start();
     } catch (error) {
       // Anonymous sign-ins disabled or rate limited: stay offline until the next auth event.
@@ -207,6 +217,8 @@ export function startWorldOnline({
   }
 
   function openSession({ userId, displayName, guest, transportClient }) {
+    // Last line of defence: no Realtime transport is ever built after stop() or while suspended.
+    if (stopped || suspended !== null) return false;
     setStaffBadgeClient(transportClient);
     const transport = createTransport(transportClient, { allowGuest: guest });
     const sessionId = randomId();
@@ -235,15 +247,21 @@ export function startWorldOnline({
     // Before the first zone join, so the initial Presence already carries the current equipment.
     applyEquipment();
     bridge.observe(campusPaused ? null : places.getCurrentPlaceZone()?.id ?? null, clock.now());
+    return true;
   }
 
   async function refreshAuth() {
+    if (stopped || suspended !== null) return;
+    // The epoch is taken BEFORE awaiting the auth answer, so stop() / sign-out / a newer refresh that
+    // happens while getSession() is pending invalidates this resolution.
+    const epoch = ++startEpoch;
     try {
       const { data } = await client.auth.getSession();
-      await startFor(data?.session?.user ?? null);
+      if (!mayConnect(epoch)) return;
+      await startFor(data?.session?.user ?? null, epoch);
     } catch (error) {
       record("auth", error);
-      stopSession();
+      if (epoch === startEpoch && !stopped) stopSession();
     }
   }
 
@@ -278,7 +296,7 @@ export function startWorldOnline({
   // Best effort only: Presence removes a closed tab by itself when its socket drops.
   const onPageHide = () => stopSession();
   // A page restored from the back/forward cache starts a fresh session.
-  const onPageShow = (event) => { if (event?.persisted) void refreshAuth(); };
+  const onPageShow = (event) => { if (event?.persisted && !stopped) void refreshAuth(); };
   windowTarget?.addEventListener?.("pagehide", onPageHide);
   windowTarget?.addEventListener?.("pageshow", onPageShow);
 
@@ -293,6 +311,8 @@ export function startWorldOnline({
       const { data } = client.auth.onAuthStateChange((event) => {
         // Supabase advises not awaiting client calls inside this callback.
         setTimeout(() => {
+          // Already-scheduled callbacks outlive stop(); they must not reconnect.
+          if (stopped) return;
           if (event === "SIGNED_OUT") { startEpoch += 1; stopSession(); void refreshAuth(); return; }
           if (event === "SIGNED_IN" || event === "INITIAL_SESSION" || event === "USER_UPDATED") void refreshAuth();
         }, 0);
@@ -450,7 +470,29 @@ export function startWorldOnline({
       try { handler(identity); } catch (error) { record("identity", error); }
       return () => identityListeners.delete(handler);
     },
+    get suspended() { return suspended !== null; },
+    get stopped() { return stopped; },
+    // Recoverable hold: tear the Realtime session down and refuse to create one until resume().
+    // Used when the server-side allowed state cannot be confirmed (see world-population-heartbeat.js).
+    suspend(reason = "unverified") {
+      if (stopped || suspended !== null) return false;
+      suspended = { reason };
+      startEpoch += 1;
+      stopSession();
+      hud.render(view());
+      return true;
+    },
+    // Lifts a suspend() and reconnects through the normal auth path. Never revives a stopped layer.
+    resume() {
+      if (stopped || suspended === null) return false;
+      suspended = null;
+      hud.render(view());
+      void refreshAuth();
+      return true;
+    },
     stop() {
+      stopped = true;
+      suspended = null;
       startEpoch += 1;
       stopSession();
       offPlace?.();

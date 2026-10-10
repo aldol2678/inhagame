@@ -59,6 +59,7 @@ import { LANDMARKS, TOUR_STOPS } from "./campus-layout.js";
 import { worldToMeters } from "./world-scale.js";
 import { startWorldOnline, SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from "./online/world-online.js";
 import { startWorldPopulationCount, startWorldPopulationHeartbeat } from "./online/world-population-heartbeat.js";
+import { createWorldSessionGuard } from "./online/world-session-guard.js";
 import { createRemoteAvatarFactory } from "./online/remote-avatar.js";
 import { EmoteController } from "./online/emotes.js";
 import { createEmoteMenu } from "./online/emote-menu.js";
@@ -3479,15 +3480,21 @@ try {
 // It never affects gameplay; if telemetry is unavailable the World continues normally.
 try {
   const populationClient = window.supabase?.createClient?.(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+  const sessionGuard = createWorldSessionGuard({
+    getOnline: () => online,
+    // A world-only operator kick does not delete the account or character.
+    setNotice: message => {
+      const status = document.getElementById('online-status');
+      if (status) status.textContent = message;
+    }
+  });
   populationHeartbeat = startWorldPopulationHeartbeat({
     client: populationClient,
-    onRevoked: () => {
-      // A world-only operator kick does not delete the account or character.
-      // Stop Realtime immediately; the server rejects further heartbeats until expiry.
-      online?.stop();
-      const status = document.getElementById('online-status');
-      if (status) status.textContent = '관리자가 월드 접속을 종료했습니다. 차단 해제 후 새로고침하세요.';
-    },
+    // Revocation: stop Realtime for good; the server rejects further heartbeats until expiry.
+    onRevoked: sessionGuard.onRevoked,
+    // Allowed state unconfirmed for the grace window: hold Realtime back; resume once a heartbeat succeeds.
+    onUnverified: sessionGuard.onUnverified,
+    onVerified: sessionGuard.onVerified,
     getSnapshot: () => ({
       placeZoneId: rooms.insideRoom ? null : places.getCurrentPlaceZone()?.id ?? null,
       space: rooms.insideRoom

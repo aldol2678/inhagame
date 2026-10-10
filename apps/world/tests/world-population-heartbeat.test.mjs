@@ -37,7 +37,7 @@ function harness(snapshot = { placeZoneId:"AREA_MAIN_HALL", space:"campus" }, op
   };
   const hb = startWorldPopulationHeartbeat({
     client, getSnapshot:()=>snapshot, randomId:options.randomId || (()=> "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"),
-    visitorStorage, scheduler, windowTarget, onRevoked:options.onRevoked
+    visitorStorage, scheduler, windowTarget, onRevoked:options.onRevoked, ...(options.start ?? {})
   });
   return { hb,calls,scheduler,listeners,visitorStore,intervals,timeouts,
     emitAuth(event,uid){ authCallback?.(event, uid ? { user:{ id:uid } } : null); },
@@ -587,5 +587,193 @@ test("revocation is terminal: later auth events cannot resume the heartbeat, and
 test("heartbeats work with a client that has no auth API", async () => {
   const h=harness();
   assert.equal(await h.hb.initialPulse,true);
+  h.hb.stop();
+});
+
+// ---- thenable request builders -----------------------------------------------------------------
+// @supabase/postgrest-js' PostgrestBuilder is a thenable whose then() sends a NEW HTTP request every
+// time it is called (verified against postgrest-js 1.21.4: then() calls fetch() unconditionally).
+// This double keeps those semantics: `executions` is the number of HTTP requests that would be sent.
+function builderDouble(outcome) {
+  const builder = {
+    executions: 0,
+    aborted: false,
+    abortSignal(signal) { signal.addEventListener("abort", () => { builder.aborted = true; }); return builder; },
+    then(resolve, reject) {
+      builder.executions += 1;
+      return Promise.resolve(outcome()).then(resolve, reject);
+    }
+  };
+  return builder;
+}
+
+test("one heartbeat pulse sends exactly one HTTP request for a thenable query builder", async () => {
+  const builders = [];
+  const h = harness(undefined, { rpc: () => {
+    const builder = builderDouble(() => ({ error: null }));
+    builders.push(builder);
+    return builder;
+  } });
+  assert.equal(await h.hb.initialPulse, true);
+  await settle();
+  assert.equal(builders.length, 1);
+  assert.equal(builders[0].executions, 1, "Promise.resolve() and Promise.race() must share one execution");
+  assert.equal(await h.hb.pulse(), true);
+  assert.deepEqual(builders.map(builder => builder.executions), [1, 1]);
+  h.hb.stop();
+});
+
+test("a timed-out thenable request was still executed once, aborted once, and never replayed", async () => {
+  const never = new Promise(() => {});
+  const builders = [];
+  const h = harness(undefined, { rpc: () => {
+    const builder = builderDouble(() => never);
+    builders.push(builder);
+    return builder;
+  } });
+  [...h.timeouts.values()][0].fn();
+  assert.equal(await h.hb.initialPulse, false);
+  await settle();
+  assert.equal(builders[0].executions, 1);
+  assert.equal(builders[0].aborted, true);
+  h.hb.stop();
+});
+
+test("a revoked thenable response is observed without a second execution", async () => {
+  let builder;
+  const h = harness(undefined, { rpc: () => {
+    builder = builderDouble(() => ({ error: { code: "42501", message: "WORLD_SESSION_REVOKED" } }));
+    return builder;
+  } });
+  assert.equal(await h.hb.initialPulse, false);
+  await settle();
+  assert.equal(builder.executions, 1);
+  assert.equal(h.hb.status().revoked, true);
+});
+
+
+// ---- allowed-state grace contract ---------------------------------------------------------------
+const GRACE = 60_000;
+const graceTimer = h => [...h.timeouts.values()].find(timer => timer.ms === GRACE) ?? null;
+// A real timer disappears once it fires; the fake scheduler keeps it, so remove it explicitly.
+function fireGrace(h) {
+  const entry = [...h.timeouts.entries()].find(([, timer]) => timer.ms === GRACE);
+  assert.ok(entry, "a grace timer is pending");
+  h.timeouts.delete(entry[0]);
+  entry[1].fn();
+}
+function graceHarness(extra = {}) {
+  const events = [];
+  const h = harness(undefined, { auth:true, randomId:rotating(UUID_A,UUID_B), ...extra, start:{
+    onUnverified:info => { events.push(["unverified", info.lastError]); },
+    onVerified:() => { events.push(["verified"]); },
+    ...(extra.start ?? {})
+  } });
+  return { h, events };
+}
+
+test("without grace callbacks the heartbeat arms no grace timer (existing contract unchanged)", async () => {
+  const h = harness();
+  await h.hb.initialPulse;
+  assert.equal(graceTimer(h), null);
+  assert.equal(h.hb.status().unverified, false);
+  h.hb.stop();
+});
+
+test("a successful heartbeat keeps re-arming the grace window", async () => {
+  const { h, events } = graceHarness();
+  await h.hb.initialPulse;
+  const first = graceTimer(h);
+  assert.ok(first, "grace window is armed after the first proof");
+  await h.hb.pulse();
+  const second = graceTimer(h);
+  assert.notEqual(second, first, "each proof replaces the previous window");
+  assert.equal(h.timeouts.size, 1, "exactly one grace timer is pending");
+  assert.deepEqual(events, []);
+  h.hb.stop();
+  assert.equal(h.timeouts.size, 0, "stop clears the grace timer");
+});
+
+test("no proof for the grace window fires onUnverified once; the next proof fires onVerified once", async () => {
+  let fail = false;
+  const { h, events } = graceHarness({ rpc:() => fail ? Promise.resolve({ error:{ message:"network down" } }) : Promise.resolve({ error:null }) });
+  h.emitAuth("INITIAL_SESSION", "user-a");
+  await h.hb.initialPulse;
+  fail = true;
+  await h.hb.pulse();
+  await h.hb.pulse();
+  fireGrace(h);
+  assert.deepEqual(events, [["unverified", "network down"]]);
+  assert.equal(h.hb.status().unverified, true);
+  assert.equal(h.hb.status().stopped, false, "unverified is not terminal");
+  await h.hb.pulse();
+  if (graceTimer(h)) fireGrace(h);
+  assert.equal(events.length, 1, "no repeated onUnverified while still unproven");
+  fail = false;
+  assert.equal(await h.hb.pulse(), true);
+  assert.deepEqual(events, [["unverified", "network down"], ["verified"]]);
+  assert.equal(h.hb.status().unverified, false);
+  assert.ok(graceTimer(h), "a fresh window is armed after recovery");
+  h.hb.stop();
+});
+
+test("recoverable timeouts still end in unverified once the grace window passes", async () => {
+  const { h, events } = graceHarness({ rpc:() => new Promise(() => {}) });
+  h.emitAuth("INITIAL_SESSION", "user-a");
+  [...h.timeouts.values()].find(timer => timer.ms === 10_000).fn();
+  assert.equal(await h.hb.initialPulse, false);
+  assert.equal(h.hb.status().lastError, "WORLD_HEARTBEAT_TIMEOUT");
+  fireGrace(h);
+  assert.deepEqual(events, [["unverified", "WORLD_HEARTBEAT_TIMEOUT"]]);
+  h.hb.stop();
+});
+
+test("a signed-out visitor is never held back by the grace window", async () => {
+  const { h, events } = graceHarness({ rpc:() => Promise.resolve({ error:{ message:"network down" } }) });
+  h.emitAuth("INITIAL_SESSION", null);
+  await h.hb.initialPulse;
+  fireGrace(h);
+  assert.deepEqual(events, []);
+  assert.ok(graceTimer(h), "the window is simply re-armed");
+  h.hb.stop();
+});
+
+test("revocation after unverified is still terminal and never reports verified", async () => {
+  let answer = { error:{ message:"network down" } };
+  let revocations = 0;
+  const { h, events } = graceHarness({ rpc:() => Promise.resolve(answer), onRevoked:() => { revocations++; } });
+  h.emitAuth("INITIAL_SESSION", "user-a");
+  await h.hb.initialPulse;
+  fireGrace(h);
+  answer = { error:{ message:"WORLD_SESSION_REVOKED" } };
+  await h.hb.pulse();
+  assert.equal(revocations, 1);
+  assert.equal(h.hb.status().stopped, true);
+  assert.equal(h.timeouts.size, 0, "grace timer cleared by the terminal stop");
+  assert.deepEqual(events, [["unverified", "network down"]]);
+});
+
+test("a cached page gets a fresh grace window on restore; none while cached", async () => {
+  const { h } = graceHarness();
+  await h.hb.initialPulse;
+  const armed = graceTimer(h);
+  h.listeners.get("pagehide")({ persisted:true });
+  assert.equal(graceTimer(h), null, "no window runs while the page is cached");
+  h.listeners.get("pageshow")({ persisted:true });
+  assert.ok(graceTimer(h));
+  assert.ok(armed);
+  h.hb.stop();
+});
+
+test("an account switch starts a new grace window for the new account", async () => {
+  const { h } = graceHarness();
+  h.emitAuth("INITIAL_SESSION", "user-a");
+  await h.hb.initialPulse;
+  const before = graceTimer(h);
+  h.emitAuth("SIGNED_IN", "user-b");
+  await settle();
+  assert.equal(h.timeouts.size >= 1, true);
+  assert.ok(graceTimer(h));
+  assert.notEqual(graceTimer(h), before);
   h.hb.stop();
 });

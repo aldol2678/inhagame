@@ -3,9 +3,10 @@
 
 import { ConnectionState } from "../network/connection-state.js";
 
-export function onlineHudText({ state, count = 0, signedIn = true, guest = false, localSpace = null }) {
+export function onlineHudText({ state, count = 0, signedIn = true, guest = false, localSpace = null, suspended = false }) {
   // Club Room P0 interiors are local-only: never show a campus population there.
   if (localSpace) return `${localSpace} · LOCAL`;
+  if (suspended) return "◌ 접속 확인 중";
   if (!signedIn) return "OFFLINE";
   if (state === ConnectionState.ONLINE) return guest ? `● GUEST · ${count}명` : `● ONLINE · ${count}명`;
   if (state === ConnectionState.CONNECTING) return "◌ CONNECTING";
