@@ -58,6 +58,13 @@ export function createFurnitureLayer(app, root) {
     if (item.surfaces.includes("north")) {
       box(entity,"frame",[0,item.height/2,0],[item.width+.03,item.height+.03,item.depth],surface("#75654e"));
       box(entity,"poster",[0,item.height/2,-.023],[item.width,item.height,.006],paintPoster(item));
+    } else if (id === "furniture.cooking_station") {
+      box(entity,"cabinet",[0,.4,0],[.96,.8,.61],surface("#967454"));
+      box(entity,"counter",[0,.83,0],[item.width,.08,item.depth],surface("#d9d7ce"));
+      for (const x of [-.25,.25]) {
+        box(entity,"burner",[x,.885,0],[.24,.03,.24],surface("#343a40"),0,"cylinder");
+        box(entity,"handle",[x,.5,-.318],[.16,.03,.025],surface("#474a4a"));
+      }
     } else if (id.includes("chair")) {
       box(entity,"seat",[0,.3,0],[.6,.08,.6],surface("#39aab7"));
       box(entity,"back",[0,.51,.28],[.6,.28,.08],surface("#6ecbd1"));

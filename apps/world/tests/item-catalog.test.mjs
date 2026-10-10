@@ -26,8 +26,8 @@ test('the committed catalog passes every C0 rule', () => {
 
 test('catalog is the 6 pilot fixtures plus Starter Catalog 20 plus Housing F0 7 plus Life M1 materials', () => {
   const ids = ITEM_CATALOG.map(d => d.itemId);
-  assert.deepEqual(ids, [...PILOT_ITEM_IDS, ...STARTER_20, ...HOUSING_F0_NEW_7, ...LIFE_M1_MATERIAL_IDS], 'order and membership are the committed contract');
-  assert.equal(new Set(ids).size, 36);
+  assert.deepEqual(ids, [...PILOT_ITEM_IDS, ...STARTER_20, ...HOUSING_F0_NEW_7, "furniture.cooking_station", "consumable.grilled_carp", ...LIFE_M1_MATERIAL_IDS], 'order and membership are the committed contract');
+  assert.equal(new Set(ids).size, 38);
   for (const id of ids) assert.match(id, ITEM_ID_PATTERN);
   assert.ok(ids.every(id => id === id.toLowerCase()), 'no uppercase COSMETIC_* style ids');
   for (const id of VS_ECONOMY_ITEM_IDS) assert.ok(getItemDefinition(id), `vertical slice item ${id} exists`);
@@ -73,7 +73,7 @@ test('earned starter rewards exposed in inventory/wardrobe are ACTIVE', () => {
 
 test('legacy items stay cosmetic UNIQUE while Life M1 materials are gameplay STACKABLE', () => {
   const materials = ITEM_CATALOG.filter(d => d.category === 'MATERIAL');
-  const legacy = ITEM_CATALOG.filter(d => d.category !== 'MATERIAL');
+  const legacy = ITEM_CATALOG.filter(d => !['MATERIAL', 'CONSUMABLE'].includes(d.category));
 
   assert.deepEqual(materials.map(d => d.itemId), [...LIFE_M1_MATERIAL_IDS], 'the three M1 material fixtures are committed');
   for (const d of legacy) {

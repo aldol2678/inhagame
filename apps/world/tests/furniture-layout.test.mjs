@@ -8,10 +8,10 @@ const id = "11111111-1111-4111-8111-111111111111", id2 = "22222222-2222-4222-822
 const chair = extra => ({ id, itemId:"furniture.induck_chair", surface:"floor",x:-2,z:-1,yaw:0,...extra });
 const owned = ROOM_FURNITURE.map(item => ({itemId:item.itemId,quantity:1}));
 
-test("all sixteen F0 placements are Collection furniture; server dimension/surface mirror agrees", () => {
-  const sql = readFileSync(new URL("../../../supabase/migrations/20261009142600_world_personal_room_f0_furniture.sql",import.meta.url),"utf8");
+test("all seventeen candidate placements are Collection furniture; server dimension/surface mirror agrees", () => {
+  const sql = readFileSync(new URL("../../../supabase/migrations/20261010102000_world_cooking_b2_candidate.sql",import.meta.url),"utf8");
   const rows = [...sql.matchAll(/\('(furniture\.[a-z0-9_]+)', ([\d.]+)(?:::float8)?, ([\d.]+)(?:::float8)?, ([\d.]+)(?:::float8)?, array\[([^\]]+)\], (true|false), (true|false)\)/g)];
-  assert.equal(rows.length,16); assert.equal(ROOM_FURNITURE.length,16);
+  assert.equal(rows.length,17); assert.equal(ROOM_FURNITURE.length,17);
   for (const item of ROOM_FURNITURE) {
     assert.equal(getItemDefinition(item.itemId).category,"FURNITURE");
     const row = rows.find(row => row[1] === item.itemId); assert.ok(row);

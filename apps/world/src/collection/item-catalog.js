@@ -7,7 +7,7 @@
 
 export const ITEM_ID_PATTERN = /^[a-z][a-z0-9_]*\.[a-z0-9_]+$/;
 
-export const ITEM_CATEGORIES = Object.freeze(['WEARABLE', 'BADGE', 'EMOTE', 'FURNITURE', 'MOUNT', 'MOUNT_COSMETIC', 'MEMORABILIA', 'MATERIAL']);
+export const ITEM_CATEGORIES = Object.freeze(['WEARABLE', 'BADGE', 'EMOTE', 'FURNITURE', 'MOUNT', 'MOUNT_COSMETIC', 'MEMORABILIA', 'MATERIAL', 'CONSUMABLE']);
 export const APPEARANCE_SLOTS = Object.freeze(['BODY', 'FACE', 'HAIR', 'HEAD', 'TOP', 'BOTTOM', 'SHOES', 'BACK', 'ACCESSORY']);
 // BADGE is a Profile Decoration slot, not a Character Appearance slot.
 export const PROFILE_SLOTS = Object.freeze(['BADGE']);
@@ -28,7 +28,7 @@ const PREFIX_CATEGORY = Object.freeze({
   body: 'WEARABLE', face: 'WEARABLE', hair: 'WEARABLE', head: 'WEARABLE', top: 'WEARABLE',
   bottom: 'WEARABLE', shoes: 'WEARABLE', back: 'WEARABLE', accessory: 'WEARABLE',
   badge: 'BADGE', emote: 'EMOTE', furniture: 'FURNITURE', mount: 'MOUNT',
-  mount_cosmetic: 'MOUNT_COSMETIC', memorabilia: 'MEMORABILIA', material: 'MATERIAL'
+  mount_cosmetic: 'MOUNT_COSMETIC', memorabilia: 'MEMORABILIA', material: 'MATERIAL', consumable: 'CONSUMABLE'
 });
 
 const MCM_2026 = 'event.mcm_2026';
@@ -135,6 +135,13 @@ export const ITEM_CATALOG = Object.freeze([
     furniture('DECOR', { rarity: 'COMMON', acquisition: [{ source: 'SHOP' }], tags: ['dorm', 'f0', 'study', 'decor_set'], introducedVersion: 'housing.f0' })),
 
 
+  // ---- Cooking B2 candidate: definitions only, no acquisition activation ----
+  item('furniture.cooking_station', '생활관 조리대', '내 방에 보유·저장한 조리대. 요리 기능은 준비 중이에요.',
+    furniture('DECOR', { rarity: 'COMMON', acquisition: [{ source: 'CRAFTING' }], tags: ['dorm', 'cooking'], introducedVersion: 'cooking.b2' })),
+  item('consumable.grilled_carp', '인경호 붕어구이', '붕어로 만드는 음식. 서버 전투 준비 기능은 아직 이용할 수 없어요.',
+    { category: 'CONSUMABLE', rarity: 'COMMON', cosmeticOnly: false, ownershipPolicy: 'STACKABLE', stackable: true, maxStack: 20,
+      acquisition: [{ source: 'CRAFTING', ref: 'recipe.carp_grill' }], tags: ['cooking', 'food'], introducedVersion: 'cooking.b2' }),
+
   // ---- Life M1 · first persistent stackable materials ----
   item('material.campus_leaf', '캠퍼스 낙엽', '캠퍼스 생활 채집에서 얻는 기본 자연 재료.',
     material({ rarity: 'COMMON', status: 'ACTIVE', iconAssetId: 'icon.material.campus_leaf.v1', acquisition: [{ source: 'ACTIVITY', ref: 'activity.gathering.campus' }],
@@ -206,11 +213,11 @@ export function validateCatalog(items) {
     }
     if (!RARITIES.includes(d.rarity)) errors.push(`${at}: unknown rarity ${d.rarity}`);
     if (!ITEM_STATUSES.includes(d.status)) errors.push(`${at}: unknown status ${d.status}`);
-    if (d.category === 'MATERIAL') {
-      if (d.cosmeticOnly !== false) errors.push(`${at}: MATERIAL must set cosmeticOnly = false`);
-      if (d.ownershipPolicy !== 'STACKABLE') errors.push(`${at}: MATERIAL must use STACKABLE ownership`);
+    if (['MATERIAL', 'CONSUMABLE'].includes(d.category)) {
+      if (d.cosmeticOnly !== false) errors.push(`${at}: ${d.category} must set cosmeticOnly = false`);
+      if (d.ownershipPolicy !== 'STACKABLE') errors.push(`${at}: ${d.category} must use STACKABLE ownership`);
     } else if (d.cosmeticOnly !== true) {
-      errors.push(`${at}: non-MATERIAL items must remain cosmeticOnly (Cosmetic ≠ Power)`);
+      errors.push(`${at}: non-gameplay items must remain cosmeticOnly (Cosmetic ≠ Power)`);
     }
     if (!OWNERSHIP_POLICIES.includes(d.ownershipPolicy)) errors.push(`${at}: unknown ownershipPolicy ${d.ownershipPolicy}`);
     if (!TRADE_POLICIES.includes(d.tradePolicy)) errors.push(`${at}: unknown tradePolicy ${d.tradePolicy}`);

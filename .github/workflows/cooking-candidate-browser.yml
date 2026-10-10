@@ -1,0 +1,79 @@
+name: Cooking candidate browser QA
+on:
+  pull_request:
+    paths:
+      - 'apps/world/src/rooms/cooking-*.js'
+      - 'apps/world/src/rooms/furniture-*.js'
+      - 'apps/world/src/rooms/personal-room-layout.js'
+      - 'apps/world/src/rooms/room-session.js'
+      - 'apps/world/src/player-dimensions.js'
+      - 'apps/world/src/collection/item-catalog.js'
+      - 'apps/world/src/inventory/**'
+      - 'apps/world/src/main.js'
+      - 'apps/world/styles.css'
+      - 'apps/world/dev-server.mjs'
+      - 'apps/world/campus/index.html'
+      - 'apps/world/editor/index.html'
+      - 'apps/world/tests/cooking-*.test.mjs'
+      - 'apps/world/tests/support/fake-dom.mjs'
+      - 'apps/world/tests/browser/cooking-candidate-*'
+      - 'apps/world/tests/browser/harness*.mjs'
+      - 'apps/world/tests/browser/package*.json'
+      - 'supabase/migrations/*cooking*'
+      - '.github/workflows/cooking-candidate-browser.yml'
+permissions:
+  contents: read
+concurrency:
+  group: cooking-candidate-browser-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  chromium:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - name: Capture immutable candidate identity
+        env:
+          EXPECTED_COOKING_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          mkdir -p test-results/cooking-candidate
+          git rev-parse HEAD | tee test-results/cooking-candidate/head.txt
+          test "$(git rev-parse HEAD)" = "$EXPECTED_COOKING_HEAD"
+      - name: Install pinned browser dependencies
+        working-directory: apps/world/tests/browser
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Install Chromium and Korean glyph coverage
+        working-directory: apps/world/tests/browser
+        run: |
+          npx playwright install --with-deps chromium
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+      - name: Check production cooking regressions and fixture syntax
+        shell: bash
+        run: |
+          set -o pipefail
+          node --check apps/world/tests/browser/cooking-candidate-fixture.mjs
+          node --check apps/world/tests/browser/cooking-candidate-smoke.mjs
+          node --test apps/world/tests/cooking-client.test.mjs apps/world/tests/cooking-feature.test.mjs apps/world/tests/cooking-panel.test.mjs apps/world/tests/cooking-runtime-wiring.test.mjs 2>&1 | tee test-results/cooking-candidate/node-tests.log
+      - name: Exercise real DOM with synthetic local cooking and Inventory only
+        shell: bash
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          EXPECTED_COOKING_HEAD: ${{ github.event.pull_request.head.sha }}
+          COOKING_QA_OUTPUT: test-results/cooking-candidate
+        run: |
+          set -o pipefail
+          node apps/world/tests/browser/cooking-candidate-smoke.mjs 2>&1 | tee test-results/cooking-candidate/browser.log
+      - name: Save exact-head logs, screenshots and source hashes
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cooking-candidate-browser-${{ github.event.pull_request.head.sha }}
+          path: test-results/cooking-candidate/
+          if-no-files-found: error
+          retention-days: 14
