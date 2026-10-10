@@ -1,6 +1,5 @@
 // Opt-in visual-only test: Wood Floor 051 never changes gameplay authority.
 // Original color floor remains the canonical/fail-closed material.
-import * as pc from "playcanvas";
 
 export const PERSONAL_ROOM_FLOOR_QA_URL = "/assets/rooms/personal-v2/WoodFloor051_Color_1K_Q30.webp";
 export const PERSONAL_ROOM_FLOOR_TILING = Object.freeze([8, 5]);
@@ -11,9 +10,11 @@ export function localWoodFloorQaEnabled(location = globalThis.location) {
 }
 
 export function createPersonalRoomFloorMaterial({
-  app, root, floor, enabled = localWoodFloorQaEnabled(), url = PERSONAL_ROOM_FLOOR_QA_URL
+  app, root, floor, engine, enabled = localWoodFloorQaEnabled(), url = PERSONAL_ROOM_FLOOR_QA_URL
 }) {
   if (!floor?.render?.material) throw new TypeError("Original personal-room floor material missing");
+  if (typeof engine?.StandardMaterial !== "function" || typeof engine?.Vec2 !== "function")
+    throw new TypeError("PlayCanvas material constructors must be injected");
   const original = floor.render.material;
   let disposed = false;
   let active = false;
@@ -44,11 +45,11 @@ export function createPersonalRoomFloorMaterial({
   function applyLoaded() {
     if (!texture) return false;
     if (!custom) {
-      const candidate = new pc.StandardMaterial();
+      const candidate = new engine.StandardMaterial();
       try {
         candidate.name = "qa-woodfloor051-color-1k";
         candidate.diffuseMap = texture;
-        candidate.diffuseMapTiling = new pc.Vec2(...PERSONAL_ROOM_FLOOR_TILING);
+        candidate.diffuseMapTiling = new engine.Vec2(...PERSONAL_ROOM_FLOOR_TILING);
         candidate.gloss = 0.28;
         candidate.update();
         custom = candidate;

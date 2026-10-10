@@ -9,7 +9,15 @@ function rig({enabled=true, synchronous=false, throwLoad=false}={}) {
   const root={enabled:true,once(event,fn){assert.equal(event,"destroy");onDestroy=fn;}};
   const calls=[];
   const app={assets:{loadFromUrl(url,type,fn){calls.push({url,type,fn});if(throwLoad) throw new Error("no network");if(synchronous) fn(null,{resource:{id:"tex-sync",width:1024,height:1024}});}}};
-  const controller=createPersonalRoomFloorMaterial({app,root,floor,enabled});
+  const engine={
+    StandardMaterial: class {
+      constructor(){this.updateCount=0;this.destroyed=false;}
+      update(){this.updateCount++;}
+      destroy(){this.destroyed=true;}
+    },
+    Vec2: class { constructor(x,y){this.x=x;this.y=y;} }
+  };
+  const controller=createPersonalRoomFloorMaterial({app,root,floor,enabled,engine});
   const finish=(index=0,err=null,asset={resource:{id:"tex",width:1024,height:1024}})=>calls[index].fn(err,asset);
   return {original,floor,root,calls,app,controller,finish, destroy:()=>onDestroy()};
 }

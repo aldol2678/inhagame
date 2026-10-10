@@ -45,7 +45,7 @@ function furniture(root,item,app){
 export function createPersonalRoomScene(app){
   const root=new pc.Entity("Room_ROOM_PERSONAL_BASIC");root.setLocalScale(1,1,-1);
   const { floor } = createPersonalRoomShell(root);
-  const floorMaterial = createPersonalRoomFloorMaterial({ app, root, floor });
+  const floorMaterial = createPersonalRoomFloorMaterial({ app, root, floor, engine: pc });
   const fixtureLoaders=[];
   for(const item of PERSONAL_ROOM_BASIC_FURNITURE){
     const ensureModel=furniture(root,item,app);
