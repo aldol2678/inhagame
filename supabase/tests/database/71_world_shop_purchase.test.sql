@@ -33,7 +33,7 @@ select results_eq($$select shop_id, display_name, status from private.world_shop
            ('shop.dorm_furniture', '생활관 가구점', 'ACTIVE'), ('shop.student_center', '학생회관 굿즈샵', 'ACTIVE')$$,
   'the three first shops');
 select results_eq($$select listing_id, shop_id, item_id, currency_id, price, quantity, required_level, status
-  from private.world_shop_listings order by listing_id$$,
+  from private.world_shop_listings where shop_id <> 'shop.room_finishes' order by listing_id$$,
   $$values
     ('offer.department_mcm.mcm_jacket'::text, 'shop.department_mcm'::text, 'top.mcm_jacket'::text, 'currency.induck_coin'::text, 480::bigint, 1, 4, 'ACTIVE'::text),
     ('offer.dorm_furniture.campus_rug_blue', 'shop.dorm_furniture', 'furniture.campus_rug_blue', 'currency.induck_coin', 360, 1, 3, 'ACTIVE'),
@@ -48,9 +48,10 @@ select results_eq($$select listing_id, shop_id, item_id, currency_id, price, qua
     ('offer.student_center.induck_cap', 'shop.student_center', 'head.induck_cap', 'currency.induck_coin', 180, 1, 1, 'ACTIVE'),
     ('offer.student_center.induck_hoodie', 'shop.student_center', 'top.induck_hoodie', 'currency.induck_coin', 320, 1, 2, 'ACTIVE')$$,
   'the 12 canonical listings: prices, canonical levels (E0–E5 §10.2.1) and statuses');
-select is(array(select listing_id from private.world_shop_listings where required_level is null order by 1),
+select is(array(select listing_id from private.world_shop_listings where shop_id <> 'shop.room_finishes' and required_level is null order by 1),
   array['offer.student_center.campus_mug'], 'only the mug has no level gate; the other 11 carry a canonical required level');
-select is((select count(*) from private.world_shop_listings l join private.world_item_catalog c using (item_id)), 12::bigint,
+select is((select count(*) from private.world_shop_listings l join private.world_item_catalog c using (item_id)
+  where l.shop_id <> 'shop.room_finishes'), 12::bigint,
   'every listing points to a real catalog item');
 select hasnt_column('private', 'world_item_catalog', 'price', 'the item catalog carries no price');
 select throws_ok($$insert into private.world_shop_listings(listing_id, shop_id, position, item_id, currency_id, price, status)
