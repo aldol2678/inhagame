@@ -7,10 +7,18 @@ function harness(snapshot = { placeZoneId:"AREA_MAIN_HALL", space:"campus" }, op
   const intervals = new Map();
   const timeouts = new Map();
   let nextTimer = 0;
+  let authCallback = null;
+  let authUnsubscribes = 0;
   const client = { rpc(name,args) {
     calls.push([name,args]);
     return options.rpc?.(name,args) ?? Promise.resolve({ data:null,error:null });
   } };
+  if (options.auth) {
+    client.auth = { onAuthStateChange(callback) {
+      authCallback = callback;
+      return { data:{ subscription:{ unsubscribe(){ authUnsubscribes++; authCallback = null; } } } };
+    } };
+  }
   const scheduler = {
     setInterval(fn,ms) { const id=++nextTimer; intervals.set(id,{fn,ms}); return id; },
     clearInterval(id) { intervals.delete(id); },
@@ -31,7 +39,11 @@ function harness(snapshot = { placeZoneId:"AREA_MAIN_HALL", space:"campus" }, op
     client, getSnapshot:()=>snapshot, randomId:options.randomId || (()=> "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"),
     visitorStorage, scheduler, windowTarget, onRevoked:options.onRevoked
   });
-  return { hb,calls,scheduler,listeners,visitorStore,intervals,timeouts,get interval(){return [...intervals.values()][0] ?? null;} };
+  return { hb,calls,scheduler,listeners,visitorStore,intervals,timeouts,
+    emitAuth(event,uid){ authCallback?.(event, uid ? { user:{ id:uid } } : null); },
+    get authUnsubscribes(){ return authUnsubscribes; },
+    get authSubscribed(){ return authCallback !== null; },
+    get interval(){return [...intervals.values()][0] ?? null;} };
 }
 
 test("heartbeat sends an immediate world session and repeats every 20s", async () => {
@@ -317,47 +329,73 @@ test("a queued tick from before suspension cannot duplicate the restored heartbe
 });
 
 
-test("a never-settling pre-cache request fails closed after 10s without a replacement write", async () => {
+test("a never-settling request times out after 10s without ending the heartbeat", async () => {
+  // Contract change (session-kick hardening): timeout used to stop the heartbeat for good, which silently
+  // removed a live player from the roster. The server now serializes per account and owns the session
+  // UUID, so abandoning the slow request and trying again is safe.
   const pending=deferred();
   let signal;
-  const h=harness(undefined,{ rpc:()=>({
+  let count=0;
+  const h=harness(undefined,{ rpc:()=>++count===1 ? ({
     abortSignal(value) { signal=value; return this; },
     then(resolve,reject) { return pending.promise.then(resolve,reject); }
-  }) });
+  }) : Promise.resolve({ error:null }) });
   await settle();
   assert.equal(h.timeouts.size,1);
   const deadline=[...h.timeouts.values()][0];
   assert.equal(deadline.ms,10_000);
   assert.equal(signal.aborted,false);
-  h.listeners.get("pagehide")({ persisted:true });
-  const onShow=h.listeners.get("pageshow");
-  onShow({ persisted:true });
-  h.interval.fn();
   deadline.fn();
   assert.equal(await h.hb.initialPulse,false);
-  assert.equal(signal.aborted,true);
-  assert.equal(h.hb.status().stopped,true);
+  assert.equal(signal.aborted,true,"the abandoned request is aborted");
+  assert.equal(h.hb.status().stopped,false,"timeout is recoverable, not terminal");
   assert.equal(h.hb.status().lastError,"WORLD_HEARTBEAT_TIMEOUT");
-  assert.equal(h.hb.status().lastSentAt,null);
+  assert.equal(h.hb.status().consecutiveFailures,1);
   assert.equal(h.timeouts.size,0);
-  assert.equal(h.intervals.size,0);
-  assert.equal(h.listeners.size,0);
-  onShow({ persisted:true });
-  assert.equal(await h.hb.pulse(),false);
+  assert.equal(h.intervals.size,1,"the 20s cadence keeps running");
   pending.reject(new Error("late network abort"));
   await settle();
-  assert.equal(h.calls.length,1,"server cancellation is uncertain: never start a replacement write");
-  assert.equal(h.hb.status().lastError,"WORLD_HEARTBEAT_TIMEOUT");
+  assert.equal(h.calls.length,1,"the abandoned request never triggers a duplicate write by itself");
+  assert.equal(h.hb.status().lastError,"WORLD_HEARTBEAT_TIMEOUT","a late transport error cannot overwrite the timeout status");
+  h.interval.fn();
+  await settle();
+  assert.equal(h.calls.length,2);
+  assert.equal(h.calls[1][1].p_session_id,h.calls[0][1].p_session_id,"same session UUID continues");
+  assert.equal(h.hb.status().lastError,null);
+  assert.equal(h.hb.status().consecutiveFailures,0);
+  assert.equal(typeof h.hb.status().lastSentAt,"number");
+  h.hb.stop();
 });
 
-test("a pending request without abortSignal still has a terminal deadline", async () => {
-  const h=harness(undefined,{ rpc:()=>new Promise(()=>{}) });
+test("a pending request without abortSignal still has a deadline and the next tick recovers", async () => {
+  let count=0;
+  const h=harness(undefined,{ rpc:()=>++count===1 ? new Promise(()=>{}) : Promise.resolve({ error:null }) });
   assert.equal(h.timeouts.size,1);
   [...h.timeouts.values()][0].fn();
   assert.equal(await h.hb.initialPulse,false);
-  assert.equal(h.hb.status().stopped,true);
+  assert.equal(h.hb.status().stopped,false);
   assert.equal(h.hb.status().lastError,"WORLD_HEARTBEAT_TIMEOUT");
-  assert.equal(h.calls.length,1);
+  assert.equal(await h.hb.pulse(),true);
+  assert.equal(h.calls.length,2);
+  h.hb.stop();
+});
+
+test("a pre-cache request that times out after a persisted restore is replaced by one fresh write", async () => {
+  const pending=deferred();
+  let count=0;
+  const h=harness(undefined,{ rpc:()=>++count===1 ? pending.promise : Promise.resolve({ error:null }) });
+  const deadline=[...h.timeouts.values()][0];
+  h.listeners.get("pagehide")({ persisted:true });
+  h.listeners.get("pageshow")({ persisted:true });
+  h.interval.fn();
+  assert.equal(h.calls.length,1,"restore waits for the pending write");
+  deadline.fn();
+  assert.equal(await h.hb.initialPulse,false);
+  await settle();
+  assert.equal(h.calls.length,2,"exactly one replacement write");
+  assert.equal(h.hb.status().lastError,null,"a superseded timeout cannot overwrite the fresh status");
+  assert.equal(h.hb.status().stopped,false);
+  h.hb.stop();
 });
 
 test("explicit stop clears a request deadline and settles its pending pulse", async () => {
@@ -404,4 +442,150 @@ test("operator ejection stops the heartbeat and invokes disconnect exactly once"
   assert.equal(await h.hb.pulse(), false);
   assert.equal(revocations, 1);
   assert.equal(h.calls.length, 1);
+});
+
+
+const UUID_A = "11111111-1111-4111-8111-111111111111";
+const UUID_B = "22222222-2222-4222-8222-222222222222";
+const idQueue = (...ids) => { const queue=[...ids]; return () => queue.shift(); };
+// First id is the heartbeat session, second is the visitor id (already persisted by the harness), then rotations.
+const rotating = (...rotations) => idQueue("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", ...rotations);
+
+test("a late revocation after a timeout still ends the heartbeat once for the same account", async () => {
+  const pending=deferred();
+  let revocations=0;
+  const h=harness(undefined,{ onRevoked:()=>{ revocations++; }, rpc:()=>({
+    abortSignal() { return this; },
+    then(resolve,reject) { return pending.promise.then(resolve,reject); }
+  }) });
+  [...h.timeouts.values()][0].fn();
+  assert.equal(await h.hb.initialPulse,false);
+  assert.equal(h.hb.status().stopped,false);
+  pending.resolve({ error:{ code:"42501", message:"WORLD_SESSION_REVOKED" } });
+  await settle();
+  assert.equal(revocations,1);
+  assert.equal(h.hb.status().stopped,true);
+  assert.equal(h.hb.status().revoked,true);
+  assert.equal(h.hb.status().lastError,"WORLD_SESSION_REVOKED");
+  assert.equal(h.intervals.size,0);
+  assert.equal(h.listeners.size,0);
+});
+
+test("a revocation that arrives while the page is cached still ends the heartbeat", async () => {
+  const pending=deferred();
+  let revocations=0;
+  const h=harness(undefined,{ onRevoked:()=>{ revocations++; }, rpc:()=>pending.promise });
+  h.listeners.get("pagehide")({ persisted:true });
+  pending.resolve({ error:{ message:"WORLD_SESSION_REVOKED" } });
+  assert.equal(await h.hb.initialPulse,false);
+  await settle();
+  assert.equal(revocations,1);
+  assert.equal(h.hb.status().stopped,true);
+  h.listeners.get("pageshow")?.({ persisted:true });
+  assert.equal(await h.hb.pulse(),false);
+  assert.equal(h.calls.length,1);
+});
+
+test("a revocation answer for the previous account is ignored after an account switch", async () => {
+  const oldAccount=deferred();
+  let count=0;
+  let revocations=0;
+  const h=harness(undefined,{ auth:true, randomId:rotating(UUID_A), onRevoked:()=>{ revocations++; },
+    rpc:()=>++count===1 ? oldAccount.promise : Promise.resolve({ error:null }) });
+  h.emitAuth("INITIAL_SESSION","user-old");
+  h.emitAuth("SIGNED_IN","user-new");
+  oldAccount.resolve({ error:{ message:"WORLD_SESSION_REVOKED" } });
+  assert.equal(await h.hb.initialPulse,false);
+  await settle();
+  assert.equal(revocations,0,"revocation belongs to the previous account only");
+  assert.equal(h.hb.status().stopped,false);
+  assert.equal(h.calls.length,2);
+  assert.equal(h.hb.status().lastError,null);
+  h.hb.stop();
+});
+
+test("an account switch takes a new session UUID, aborts the old request and writes once", async () => {
+  const oldRequest=deferred();
+  let count=0;
+  let aborted=false;
+  const h=harness(undefined,{ auth:true, randomId:rotating(UUID_A),
+    rpc:()=>++count===1 ? ({
+      abortSignal(signal) { signal.addEventListener("abort",()=>{ aborted=true; }); return this; },
+      then(resolve,reject) { return oldRequest.promise.then(resolve,reject); }
+    }) : Promise.resolve({ error:null }) });
+  const firstId=h.calls[0][1].p_session_id;
+  h.emitAuth("INITIAL_SESSION","user-a");
+  assert.equal(h.calls.length,1,"learning the first identity does not rotate");
+  h.emitAuth("TOKEN_REFRESHED","user-a");
+  assert.equal(h.calls.length,1,"token refresh for the same account does not rotate");
+  h.emitAuth("SIGNED_IN","user-b");
+  assert.equal(aborted,true,"the request that carried account A is abandoned");
+  assert.equal(await h.hb.initialPulse,false);
+  await settle();
+  assert.equal(h.calls.length,2,"exactly one write for account B");
+  assert.equal(h.calls[1][1].p_session_id,UUID_A);
+  assert.notEqual(h.calls[1][1].p_session_id,firstId);
+  assert.equal(h.hb.sessionId,UUID_A);
+  assert.equal(h.hb.status().sessionId,UUID_A);
+  oldRequest.resolve({ error:{ message:"stale failure for account A" } });
+  await settle();
+  assert.equal(h.hb.status().lastError,null,"late result of the previous identity is dropped");
+  assert.equal(typeof h.hb.status().lastSentAt,"number");
+  h.hb.stop();
+});
+
+test("signing out also rotates the session UUID so a guest never downgrades a member row", async () => {
+  const h=harness(undefined,{ auth:true, randomId:rotating(UUID_A) });
+  await h.hb.initialPulse;
+  h.emitAuth("INITIAL_SESSION","user-a");
+  h.emitAuth("SIGNED_OUT",null);
+  await settle();
+  assert.equal(h.calls.length,2);
+  assert.equal(h.calls[1][1].p_session_id,UUID_A);
+  h.hb.stop();
+});
+
+test("owner mismatch from the server rotates the UUID, retries once, and never stops the heartbeat", async () => {
+  let count=0;
+  const h=harness(undefined,{ randomId:rotating(UUID_A,UUID_B),
+    rpc:()=>++count<=2 ? Promise.resolve({ error:{ code:"42501", message:"WORLD_SESSION_OWNER_MISMATCH" } })
+      : Promise.resolve({ error:null }) });
+  assert.equal(await h.hb.initialPulse,false);
+  await settle();
+  assert.equal(h.calls.length,2,"one immediate retry with a fresh UUID");
+  assert.equal(h.calls[1][1].p_session_id,UUID_A);
+  await settle();
+  assert.equal(h.calls.length,2,"a second mismatch does not loop");
+  assert.equal(h.hb.status().stopped,false);
+  assert.equal(h.hb.status().lastError,"WORLD_SESSION_OWNER_MISMATCH");
+  h.interval.fn();
+  await settle();
+  assert.equal(h.calls.length,3);
+  assert.equal(h.calls[2][1].p_session_id,UUID_B);
+  assert.equal(h.hb.status().lastError,null);
+  h.hb.stop();
+});
+
+test("revocation is terminal: later auth events cannot resume the heartbeat, and stop() unsubscribes", async () => {
+  let revocations=0;
+  const h=harness(undefined,{ auth:true, randomId:rotating(UUID_A), onRevoked:()=>{ revocations++; },
+    rpc:()=>Promise.resolve({ error:{ message:"WORLD_SESSION_REVOKED" } }) });
+  assert.equal(await h.hb.initialPulse,false);
+  assert.equal(revocations,1);
+  assert.equal(h.authSubscribed,false);
+  assert.equal(h.authUnsubscribes,1);
+  h.emitAuth("SIGNED_IN","user-b");
+  assert.equal(await h.hb.pulse(),false);
+  assert.equal(h.calls.length,1);
+  const live=harness(undefined,{ auth:true });
+  assert.equal(live.authSubscribed,true);
+  live.hb.stop();
+  assert.equal(live.authUnsubscribes,1);
+  assert.equal(live.authSubscribed,false);
+});
+
+test("heartbeats work with a client that has no auth API", async () => {
+  const h=harness();
+  assert.equal(await h.hb.initialPulse,true);
+  h.hb.stop();
 });

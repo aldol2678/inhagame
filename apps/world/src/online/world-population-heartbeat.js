@@ -28,6 +28,19 @@ function validSpace(value) {
   return ["lobby", "campus", "club_room", "housing_lobby", "personal_room"].includes(value) ? value : "campus";
 }
 
+export const WORLD_SESSION_REVOKED = "WORLD_SESSION_REVOKED";
+export const WORLD_SESSION_OWNER_MISMATCH = "WORLD_SESSION_OWNER_MISMATCH";
+export const WORLD_HEARTBEAT_TIMEOUT = "WORLD_HEARTBEAT_TIMEOUT";
+
+// PostgREST puts the raise-exception text in `message`; keep `details` as a fallback.
+const errorText = error => String(error?.message ?? error?.details ?? error ?? "");
+const isRevoked = error => !!error && errorText(error).includes(WORLD_SESSION_REVOKED);
+const isOwnerMismatch = error => !!error && errorText(error).includes(WORLD_SESSION_OWNER_MISMATCH);
+
+// Terminal states are only: operator revocation, pagehide (not BFCache), and explicit stop().
+// A slow or failed request is NOT terminal: the server serializes writes per account and rejects a
+// session UUID owned by another account, so a late or repeated write can neither resurrect a kicked
+// account nor take over another account's row. Aborting just abandons the request.
 export function startWorldPopulationHeartbeat({
   client,
   getSnapshot = () => ({}),
@@ -39,30 +52,49 @@ export function startWorldPopulationHeartbeat({
   onRevoked = () => {}
 } = {}) {
   if (!client?.rpc) return null;
-  const sessionId = randomId?.();
+  let sessionId = randomId?.();
   if (!sessionId) return null;
   const visitorId = persistentVisitorId(visitorStorage, randomId);
 
   let stopped = false;
   let paused = false;
+  let revoked = false;
   let timer = null;
   let lastSentAt = null;
   let lastError = null;
-  let generation = 0;
+  let consecutiveFailures = 0;
+  let generation = 0; // page lifecycle: pause / resume / stop
+  let authEpoch = 0; // account identity: bumped when the signed-in account changes
+  let knownUid; // undefined until the first auth event; null = signed out
+  let ownerRetryUsed = false;
   let inFlight = null;
   let resumePending = false;
   let cancelPending = null;
+  let authSubscription = null;
   const deadlineScheduler = scheduler?.setTimeout && scheduler?.clearTimeout ? scheduler : globalThis;
+
+  function revoke() {
+    if (revoked) return;
+    revoked = true;
+    lastError = WORLD_SESSION_REVOKED;
+    stopLocal();
+    try { onRevoked(); } catch (callbackError) { console.warn("World session ejection callback failed:", callbackError); }
+  }
 
   function pulse() {
     if (stopped || paused) return Promise.resolve(false);
-    // Keep client writes sequential across restore, including changes to auth-derived identity.
+    // Keep client writes sequential; a superseded request is abandoned (aborted), never overlapped.
     if (inFlight) return inFlight;
     const startedGeneration = generation;
-    const isCurrent = () => !stopped && !paused && startedGeneration === generation;
+    const startedEpoch = authEpoch;
+    const startedSessionId = sessionId;
+    const sameAccount = () => !stopped && startedEpoch === authEpoch;
+    const isCurrent = () => sameAccount() && !paused && startedGeneration === generation;
     const controller = typeof AbortController === "function" ? new AbortController() : null;
     let deadline = null;
     let finished = false;
+    let timedOut = false;
+    let consumed = false;
     const clearDeadline = () => {
       finished = true;
       if (deadline !== null) deadlineScheduler.clearTimeout(deadline);
@@ -77,31 +109,51 @@ export function startWorldPopulationHeartbeat({
       try {
         const snapshot = getSnapshot?.() ?? {};
         let request = client.rpc("touch_world_online_session_v2", {
-          p_session_id: sessionId,
+          p_session_id: startedSessionId,
           p_visitor_id: visitorId,
           p_place_zone_id: validZone(snapshot.placeZoneId),
           p_space: validSpace(snapshot.space)
         });
         if (controller && request?.abortSignal) request = request.abortSignal(controller.signal);
+        // A response that arrives after this request was abandoned (timeout, auth switch, BFCache) is
+        // ignored, with one exception: a revocation for the SAME account is authoritative whenever it
+        // arrives and must still end the session.
+        void Promise.resolve(request).then(
+          late => { if (!consumed && isRevoked(late?.error) && sameAccount()) revoke(); },
+          late => { if (!consumed && isRevoked(late) && sameAccount()) revoke(); }
+        );
         deadline = deadlineScheduler.setTimeout(() => {
           if (finished || stopped) return;
-          // Aborting fetch cannot prove the server cancelled its write. Stop until reload
-          // rather than race a replacement write using potentially different auth state.
-          lastError = "WORLD_HEARTBEAT_TIMEOUT";
-          stopLocal();
+          timedOut = true;
+          cancel();
         }, WORLD_HEARTBEAT_TIMEOUT_MS);
         const result = await Promise.race([request, cancelled]);
+        // null means the request was abandoned (timeout / auth switch / stop): keep watching it.
+        if (result !== null) consumed = true;
+        if (result?.error && isRevoked(result.error) && sameAccount()) { revoke(); return false; }
         if (!isCurrent()) return false;
-        if (result.error) throw result.error;
+        if (timedOut) {
+          consecutiveFailures += 1;
+          lastError = WORLD_HEARTBEAT_TIMEOUT;
+          return false;
+        }
+        if (result?.error) throw result.error;
         lastError = null;
         lastSentAt = Date.now();
+        consecutiveFailures = 0;
+        ownerRetryUsed = false;
         return true;
       } catch (error) {
+        consumed = true;
+        if (isRevoked(error) && sameAccount()) { revoke(); return false; }
         if (!isCurrent()) return false;
-        lastError = String(error?.message ?? error);
-        if (lastError.includes('WORLD_SESSION_REVOKED')) {
-          stopLocal();
-          try { onRevoked(); } catch (callbackError) { console.warn('World session ejection callback failed:', callbackError); }
+        consecutiveFailures += 1;
+        lastError = errorText(error);
+        if (isOwnerMismatch(error)) {
+          // This UUID belongs to another account (account switched without a clean auth event).
+          // Take a fresh UUID; retry once immediately, then fall back to the normal cadence.
+          rotateSession();
+          if (!ownerRetryUsed) { ownerRetryUsed = true; resumePending = true; }
         }
         return false;
       } finally {
@@ -118,6 +170,30 @@ export function startWorldPopulationHeartbeat({
       }
     });
     return run;
+  }
+
+  // A new UUID is the only safe way to continue as a different account: the old row stays owned by
+  // the old account and simply ages out (<= 70 s), exactly like a closed tab.
+  function rotateSession() {
+    const next = randomId?.();
+    if (!UUID_RE.test(String(next || "")) || next === sessionId) return false;
+    sessionId = next;
+    authEpoch++;
+    return true;
+  }
+
+  function onAuthChange(_event, authSession) {
+    if (stopped) return;
+    const uid = authSession?.user?.id ?? null;
+    if (knownUid === undefined) { knownUid = uid; return; }
+    if (uid === knownUid) return;
+    knownUid = uid;
+    if (!rotateSession()) return;
+    ownerRetryUsed = false;
+    // Abandon the request that carries the previous identity, then write once for the new one.
+    cancelPending?.();
+    if (inFlight) resumePending = true;
+    else if (!paused) void pulse();
   }
 
   function schedule() {
@@ -142,6 +218,8 @@ export function startWorldPopulationHeartbeat({
     clearTimer();
     cancelPending?.();
     cancelPending = null;
+    try { authSubscription?.unsubscribe?.(); } catch { /* best effort */ }
+    authSubscription = null;
     windowTarget?.removeEventListener?.("pagehide", onPageHide);
     windowTarget?.removeEventListener?.("pageshow", onPageShow);
   }
@@ -165,16 +243,23 @@ export function startWorldPopulationHeartbeat({
   };
   windowTarget?.addEventListener?.("pagehide", onPageHide);
   windowTarget?.addEventListener?.("pageshow", onPageShow);
+  try {
+    authSubscription = client.auth?.onAuthStateChange?.(onAuthChange)?.data?.subscription ?? null;
+  } catch (error) {
+    console.warn("World heartbeat auth listener unavailable:", error);
+  }
 
   const initialPulse = pulse();
   schedule();
 
   return {
-    sessionId,
+    get sessionId() { return sessionId; },
     visitorId,
     initialPulse,
     pulse,
-    status: () => ({ sessionId, visitorId, lastSentAt, lastError, stopped, paused }),
+    status: () => ({
+      sessionId, visitorId, lastSentAt, lastError, stopped, paused, revoked, consecutiveFailures
+    }),
     stop: stopLocal
   };
 }

@@ -1931,6 +1931,15 @@ export type Database = {
       purge_induck_grow_p2a_90d: { Args: never; Returns: number }
       purge_inhagame_hub_events_90d: { Args: never; Returns: number }
       purge_world_accompany_1d: { Args: never; Returns: number }
+      touch_world_online_session_core: {
+        Args: {
+          p_place_zone_id: string
+          p_session_id: string
+          p_space: string
+          p_visitor_id: string
+        }
+        Returns: undefined
+      }
       validate_world_room_furniture_v1: {
         Args: { p_objects: Json; p_user: string }
         Returns: undefined

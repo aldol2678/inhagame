@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   WORLD_KICK_MINUTES, WORLD_SESSION_RPC, parseWorldSessionRoster,
-  kickWorldAccount, restoreWorldAccount, mountWorldSessionAdmin
+  kickWorldAccount, restoreWorldAccount, mountWorldSessionAdmin,
+  classifyKickOutcome, classifyRestoreOutcome
 } from "../hub-world-sessions.mjs";
 
 const OPERATOR = "5f000000-0000-4000-8000-000000000061";
@@ -170,4 +171,147 @@ test("hub account view contains the hidden admin card and loads its scripts", ()
   assert.match(account,/id="hub-world-session-blocks"/);
   assert.match(html,/<script type="module" src="\/hub-world-sessions\.mjs"><\/script>/);
   assert.match(html,/<link rel="stylesheet" href="\/hub-world-sessions\.css">/);
+});
+
+
+// ---- Accepted / block-confirmed / session-ended are three separate facts -------------------------
+const later = "2026-10-09T11:10:00.000Z";
+function scenario({ listAfterKick, kick, restore, listAfterRestore, initial } = {}) {
+  const ids = [
+    "hub-world-session-admin", "hub-world-session-summary", "hub-world-session-status",
+    "hub-world-session-accounts", "hub-world-session-blocks", "hub-world-session-refresh",
+    "hub-world-session-duration"
+  ];
+  const nodes = Object.fromEntries(ids.map(id => [id, new FakeNode()]));
+  nodes["hub-world-session-admin"].hidden = true;
+  let phase = "initial";
+  let list = initial ?? roster();
+  const doc = { visibilityState:"visible", getElementById:id => nodes[id] ?? null,
+    createElement:tag => new FakeNode(tag), addEventListener() {} };
+  const win = { location:{ hash:"#account" }, addEventListener() {}, setInterval:() => 7,
+    clearInterval() {}, setTimeout(fn) { fn(); } };
+  const client = {
+    auth:{
+      async getUser() { return { data:{ user:{ id:OPERATOR, is_anonymous:false } } }; },
+      onAuthStateChange() { return { data:{ subscription:{ unsubscribe() {} } } }; }
+    },
+    async rpc(name, args) {
+      if (name === WORLD_SESSION_RPC.LIST) {
+        if (phase === "kicked") {
+          const next = typeof listAfterKick === "function" ? listAfterKick() : listAfterKick;
+          if (next instanceof Error) return { data:null, error:{ message:"offline" } };
+          return { data:next, error:null };
+        }
+        if (phase === "restored") return { data:listAfterRestore ?? roster(), error:null };
+        return { data:list, error:null };
+      }
+      if (name === WORLD_SESSION_RPC.KICK) {
+        phase = "kicked";
+        if (kick instanceof Error) return { data:null, error:{ message:"reply lost" } };
+        return { data:kick ?? { userId:args.p_user_id, sessionsRemoved:2, blockedUntil:later }, error:null };
+      }
+      if (name === WORLD_SESSION_RPC.RESTORE) {
+        phase = "restored";
+        return { data:restore ?? true, error:null };
+      }
+      throw new Error("UNEXPECTED_RPC");
+    }
+  };
+  mountWorldSessionAdmin({ client, documentLike:doc, windowLike:win, confirmAction:() => true });
+  return { nodes, status:() => nodes["hub-world-session-status"].textContent };
+}
+const blockedRoster = (accounts = []) => roster({
+  accounts, blocked:[{ userId:TARGET, nickname:"canary-a", blockedUntil:later }]
+});
+const stillOnline = () => [{ userId:TARGET, nickname:"canary-a", sessionCount:1, space:"campus",
+  placeZoneId:"AREA_MAIN_GATE", lastSeenAt:now }];
+async function kickViaUi(options) {
+  const h = scenario(options);
+  await settle();
+  const accounts = h.nodes["hub-world-session-accounts"];
+  await accounts.listeners.click({ target:accounts.children[0].children[1] });
+  return h;
+}
+
+test("classification keeps command acceptance, block confirmation and session end apart", () => {
+  const result = { userId:TARGET, sessionsRemoved:2, blockedUntil:later };
+  const full = classifyKickOutcome(result, parseWorldSessionRoster(blockedRoster()), TARGET);
+  assert.deepEqual({ ...full }, {
+    accepted:true, blockConfirmed:true, heartbeatCleared:true, realtimeClosed:"UNKNOWN",
+    blockedUntil:later, sessionsRemoved:2
+  });
+  const noBlock = classifyKickOutcome(result, parseWorldSessionRoster(roster({ accounts:[] })), TARGET);
+  assert.equal(noBlock.accepted, true);
+  assert.equal(noBlock.blockConfirmed, false);
+  const lingering = classifyKickOutcome(result,
+    parseWorldSessionRoster(blockedRoster(stillOnline())), TARGET);
+  assert.equal(lingering.blockConfirmed, true);
+  assert.equal(lingering.heartbeatCleared, false);
+  const shorter = classifyKickOutcome({ ...result, blockedUntil:"2026-10-09T12:00:00.000Z" },
+    parseWorldSessionRoster(blockedRoster()), TARGET);
+  assert.equal(shorter.blockConfirmed, false, "a shorter stored block than the one promised is not confirmed");
+  assert.equal(classifyKickOutcome(result, null, TARGET).blockConfirmed, false);
+  assert.equal(classifyRestoreOutcome(true, parseWorldSessionRoster(roster()), TARGET).unblockConfirmed, true);
+  assert.equal(classifyRestoreOutcome(true, parseWorldSessionRoster(blockedRoster()), TARGET).unblockConfirmed, false);
+});
+
+test("restore helper reports false (nothing to remove) instead of failing, and rejects non-booleans", async () => {
+  assert.equal(await restoreWorldAccount({ rpc:async () => ({ data:false, error:null }) }, TARGET), false);
+  assert.equal(await restoreWorldAccount({ rpc:async () => ({ data:true, error:null }) }, TARGET), true);
+  await assert.rejects(restoreWorldAccount({ rpc:async () => ({ data:null, error:null }) }, TARGET),
+    /RESTORE_UNCONFIRMED/);
+});
+
+test("kick: block confirmed and heartbeat session gone, with Realtime closure explicitly unproven", async () => {
+  const h = await kickViaUi({ listAfterKick:blockedRoster() });
+  assert.match(h.status(), /차단 확인됨/);
+  assert.match(h.status(), /접속 집계 세션 종료 확인\(정리 2개\)/);
+  assert.match(h.status(), /Realtime\) 연결이 닫혔는지는 확인할 수 없습니다/);
+  assert.doesNotMatch(h.status(), /퇴장 처리 완료/);
+});
+
+test("kick: accepted but the block is not visible in the independent read", async () => {
+  const h = await kickViaUi({ listAfterKick:roster({ accounts:[] }) });
+  assert.match(h.status(), /수락됐지만 차단 목록에서 확인되지 않았습니다/);
+  assert.doesNotMatch(h.status(), /차단 확인됨/);
+});
+
+test("kick: block confirmed while a heartbeat session still lingers is not reported as ended", async () => {
+  const h = await kickViaUi({ listAfterKick:blockedRoster(stillOnline()) });
+  assert.match(h.status(), /차단 확인됨/);
+  assert.match(h.status(), /집계 세션이 아직 남아 있어 종료는 미확인/);
+  assert.doesNotMatch(h.status(), /종료 확인/);
+});
+
+test("kick: accepted but the read-back fails says exactly that", async () => {
+  const h = await kickViaUi({ listAfterKick:new Error("offline") });
+  assert.match(h.status(), /퇴장 명령은 수락됐지만/);
+  assert.match(h.status(), /결과 확인에 실패/);
+  assert.doesNotMatch(h.status(), /차단 확인됨/);
+});
+
+test("kick: a lost reply is resolved by reading the real state back", async () => {
+  const applied = await kickViaUi({ kick:new Error("reply lost"), listAfterKick:blockedRoster() });
+  assert.match(applied.status(), /응답은 받지 못했지만 조회 결과 차단이 적용되어 있습니다/);
+  const notApplied = await kickViaUi({ kick:new Error("reply lost"), listAfterKick:roster() });
+  assert.match(notApplied.status(), /적용되지 않은 것으로 조회됩니다/);
+});
+
+async function restoreViaUi(options) {
+  const h = scenario({ initial:blockedRoster(), ...options });
+  await settle();
+  const blocks = h.nodes["hub-world-session-blocks"];
+  assert.equal(blocks.children[0].children[1].dataset.action, "restore");
+  await blocks.listeners.click({ target:blocks.children[0].children[1] });
+  return h;
+}
+
+test("restore: removed, already restored, and still blocked are three different messages", async () => {
+  const removed = await restoreViaUi({ restore:true, listAfterRestore:roster() });
+  assert.match(removed.status(), /차단 해제를 확인했습니다/);
+  const already = await restoreViaUi({ restore:false, listAfterRestore:roster() });
+  assert.match(already.status(), /이미 차단이 해제된 상태로 확인됩니다/);
+  const lingering = await restoreViaUi({ restore:true, listAfterRestore:blockedRoster() });
+  assert.match(lingering.status(), /수락됐지만 차단이 아직 목록에 남아 있습니다/);
+  assert.doesNotMatch(lingering.status(), /해제를 확인했습니다/);
 });

@@ -191,5 +191,58 @@ select is(jsonb_array_length(public.get_world_session_admin_v1()->'blocked'),0,
   'restored account disappears from the blocked roster');
 reset role;
 
+-- Session-kick hardening: one block decision for v1 and v2, session UUID ownership, private shared core.
+select ok(
+  not has_function_privilege('anon','private.touch_world_online_session_core(uuid,uuid,text,text)','EXECUTE')
+  and not has_function_privilege('authenticated','private.touch_world_online_session_core(uuid,uuid,text,text)','EXECUTE'),
+  'the shared heartbeat core is not executable through the Data API roles');
+select ok(
+  has_function_privilege('anon','public.touch_world_online_session_v1(uuid,text,text)','EXECUTE')
+  and has_function_privilege('authenticated','public.touch_world_online_session_v1(uuid,text,text)','EXECUTE')
+  and has_function_privilege('anon','public.touch_world_online_session_v2(uuid,uuid,text,text)','EXECUTE')
+  and has_function_privilege('authenticated','public.touch_world_online_session_v2(uuid,uuid,text,text)','EXECUTE'),
+  'v1 and v2 heartbeats keep the same anon and authenticated EXECUTE grants');
+
+set local role authenticated;
+set local request.jwt.claims='{"sub":"5f000000-0000-4000-8000-000000000061","role":"authenticated","is_anonymous":false}';
+select lives_ok($q$select public.kick_world_user_v1('33333333-3333-4333-8333-333333333333',5)$q$,
+  'operator blocks the member for the parity checks');
+reset role;
+
+set local role authenticated;
+set local request.jwt.claims='{"sub":"33333333-3333-4333-8333-333333333333","role":"authenticated","is_anonymous":false}';
+select throws_ok(
+  $q$select public.touch_world_online_session_v1('55555555-5555-4555-8555-555555555555','AREA_MAIN_HALL','campus')$q$,
+  '42501','WORLD_SESSION_REVOKED','legacy v1 heartbeat is refused for a blocked account like v2');
+reset role;
+select is((select count(*)::integer from public.world_online_sessions
+  where session_id='55555555-5555-4555-8555-555555555555'),0,
+  'a refused v1 heartbeat creates no session row');
+
+set local role authenticated;
+set local request.jwt.claims='{"sub":"5f000000-0000-4000-8000-000000000061","role":"authenticated","is_anonymous":false}';
+select ok(public.restore_world_user_v1('33333333-3333-4333-8333-333333333333'),'operator restores the member');
+reset role;
+
+set local role authenticated;
+set local request.jwt.claims='{"sub":"33333333-3333-4333-8333-333333333333","role":"authenticated","is_anonymous":false}';
+select lives_ok($q$select public.touch_world_online_session_v1('55555555-5555-4555-8555-555555555555','AREA_MAIN_HALL','campus')$q$,
+  'restored account can use the legacy v1 heartbeat again');
+reset role;
+
+set local role authenticated;
+set local request.jwt.claims='{"sub":"5f000000-0000-4000-8000-000000000061","role":"authenticated","is_anonymous":false}';
+select throws_ok(
+  $q$select public.touch_world_online_session_v2('55555555-5555-4555-8555-555555555555',null,'AREA_MAIN_HALL','campus')$q$,
+  '42501','WORLD_SESSION_OWNER_MISMATCH','another account cannot take over an owned session UUID');
+reset role;
+set local role anon;
+select throws_ok(
+  $q$select public.touch_world_online_session_v2('55555555-5555-4555-8555-555555555555',null,'AREA_MAIN_HALL','campus')$q$,
+  '42501','WORLD_SESSION_OWNER_MISMATCH','a signed-out call cannot downgrade an owned session to a guest');
+reset role;
+select is((select user_id from public.world_online_sessions where session_id='55555555-5555-4555-8555-555555555555'),
+  '33333333-3333-4333-8333-333333333333'::uuid,'session ownership is unchanged after the refused takeovers');
+
 select * from finish();
 rollback;
