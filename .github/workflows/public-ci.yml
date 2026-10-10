@@ -1,8 +1,18 @@
 name: Public local checks
 on:
   pull_request:
+    paths-ignore:
+      - '**/*.md'
+      - 'LICENSE'
+      - 'NOTICE.md'
+      - 'docs/**'
   push:
     branches: [main]
+    paths-ignore:
+      - '**/*.md'
+      - 'LICENSE'
+      - 'NOTICE.md'
+      - 'docs/**'
 permissions:
   contents: read
 concurrency:
