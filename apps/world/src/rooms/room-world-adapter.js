@@ -70,7 +70,7 @@ export function createRoomWorldAdapter({
         // An exit may have resumed campus before failing. Stop public pose publication first,
         // including when a later spatial restoration itself fails and must stay locked.
         attempt(() => getOnline()?.pauseCampus({ label: source.room?.label ?? "전환 복구 중" }));
-        attempt(() => { if (activeRoomScene?.root && activeRoomScene !== source.scene) activeRoomScene.root.enabled = false; });
+        attempt(() => { if (activeRoomScene?.root && activeRoomScene !== source.scene) { activeRoomScene.onDeactivate?.(); activeRoomScene.root.enabled = false; } });
         activeRoomScene = source.scene;
         activeRoom = source.room;
         outdoorLighting = source.outdoorLighting;
@@ -113,7 +113,7 @@ export function createRoomWorldAdapter({
     showRoom(room) {
       const nextRoomScene = resolveRoomScene(room);
       if (!activeRoomScene) outdoorLighting = lighting.save();
-      if (activeRoomScene?.root && activeRoomScene !== nextRoomScene) activeRoomScene.root.enabled = false;
+      if (activeRoomScene?.root && activeRoomScene !== nextRoomScene) { activeRoomScene.onDeactivate?.(); activeRoomScene.root.enabled = false; }
       activeRoomScene = nextRoomScene;
       activeRoom = room;
       activeRoomScene.root.enabled = true;
@@ -130,7 +130,7 @@ export function createRoomWorldAdapter({
       void nextRoomScene.ensureVisualAssets?.();
     },
     showCampus() {
-      if (activeRoomScene?.root) activeRoomScene.root.enabled = false;
+      if (activeRoomScene?.root) { activeRoomScene.onDeactivate?.(); activeRoomScene.root.enabled = false; }
       activeRoomScene = null;
       activeRoom = null;
       player.reparent(campusRoot);
