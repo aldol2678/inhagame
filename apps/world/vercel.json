@@ -46,5 +46,6 @@
     }
   ],
   "buildCommand": "sh ./build-recast-shadow.sh",
-  "outputDirectory": "."
+  "outputDirectory": ".",
+  "ignoreCommand": "sh ./vercel-ignore.sh"
 }
