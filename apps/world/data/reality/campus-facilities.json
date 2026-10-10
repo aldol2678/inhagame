@@ -354,7 +354,7 @@
       "floors": 5,
       "style": "public_qa",
       "geometryAccuracy": "OSM source outline",
-      "presentationAccuracy": "Neutral public QA geometry. No real-world visual likeness asserted.",
+      "presentationAccuracy": "Photo-informed south arches, east rectangular bands and attached clock core. Other elevations remain neutral; dimensions are game-scale estimates. See north-landmark-restoration.provenance.json.",
       "sourceHoleWays": [
         218221703
       ],
@@ -404,7 +404,7 @@
       "floors": 5,
       "style": "public_qa",
       "geometryAccuracy": "OSM source outline",
-      "presentationAccuracy": "Neutral public QA geometry. No real-world visual likeness asserted.",
+      "presentationAccuracy": "Photo-informed glass slab, gray shoulders and podium facade ribbon. Upper footprint and heights are approximate, not surveyed. See north-landmark-restoration.provenance.json.",
       "officialMarker": {
         "id": "3",
         "name": "60주년기념관",
@@ -447,7 +447,7 @@
       "floors": 4,
       "style": "public_qa",
       "geometryAccuracy": "OSM source outline",
-      "presentationAccuracy": "Neutral public QA geometry. No real-world visual likeness asserted.",
+      "presentationAccuracy": "Only Agora-facing elevation is photo-informed; remaining elevations keep neutral public presentation.",
       "officialMarker": {
         "id": "6",
         "name": "6호관",
@@ -506,7 +506,7 @@
       "floors": 4,
       "style": "public_qa",
       "geometryAccuracy": "OSM source outline",
-      "presentationAccuracy": "Neutral public QA geometry. No real-world visual likeness asserted.",
+      "presentationAccuracy": "Only Agora-facing elevations are photo-informed; remaining elevations keep neutral public presentation.",
       "officialMarker": {
         "id": "9",
         "name": "9호관",
@@ -2036,10 +2036,11 @@
       "name": "궁합나무",
       "kind": "landmark",
       "style": "tree",
-      "lat": 37.44828,
-      "lon": 126.65451,
-      "geometryAccuracy": "Game navigation anchor; not a surveyed real-world location",
-      "presentationAccuracy": "Neutral public QA geometry. No real-world visual likeness asserted."
+      "lat": 37.44792,
+      "lon": 126.65378,
+      "geometryAccuracy": "Estimated from illustrated campus-map marker in gate-side east lawn; horizontal uncertainty not quantified, not surveyed GPS",
+      "presentationAccuracy": "Photo-informed U-shaped trunk with game-scale paired seating; dimensions and bearing are illustrative",
+      "positionEvidencePath": "matching-tree-placement.provenance.json"
     },
     {
       "id": "lmk_woonam_aircraft",
@@ -2101,7 +2102,7 @@
         ]
       ],
       "geometryAccuracy": "Game navigation anchor; not a surveyed real-world location",
-      "presentationAccuracy": "Neutral public QA geometry. No real-world visual likeness asserted.",
+      "presentationAccuracy": "Photo-informed green rectangular terrace and pale cross-path; existing support/guard geometry retained. Ground-level sources uploaded in 2021, actual capture date unverified.",
       "boundaryAnchors": [
         "568420968 vertex 0",
         "568420969 vertex 0",

@@ -1,14 +1,24 @@
 import { GATE_FRAME } from '../main-gate-frame.js';
 
 const url=new URL('../../data/editor/main-gate.world.json',import.meta.url);
-export const MAIN_GATE_EDITOR_WORLD=typeof window==='undefined'
+
+// Keep boot-critical state out of top-level lexical TDZs. Physical iPad Safari has
+// been observed re-entering this async module graph while a dependency/fetch is
+// still settling, so exported entry points must fail explicitly rather than touch
+// an uninitialised lexical binding.
+export var MAIN_GATE_EDITOR_WORLD;
+export var MAIN_GATE_EDITOR_PRODUCTION_IDS=Object.freeze([]);
+var METERS_PER_WORLD_UNIT=2;
+var productionIndex=null;
+
+MAIN_GATE_EDITOR_WORLD=url.protocol==='file:'
   ? JSON.parse((await import('node:fs')).readFileSync(url,'utf8'))
   : await (async()=>{const r=await fetch(url);if(!r.ok)throw Error(`Main gate editor world load failed: ${r.status}`);return r.json();})();
 
 if(MAIN_GATE_EDITOR_WORLD.metadata?.productionAdapter!=='main-gate-v1')
   throw Error('E_MAIN_GATE_EDITOR_ADAPTER_MISMATCH');
 
-const METERS_PER_WORLD_UNIT=MAIN_GATE_EDITOR_WORLD.metadata.metersPerWorldUnit||2;
+METERS_PER_WORLD_UNIT=MAIN_GATE_EDITOR_WORLD.metadata.metersPerWorldUnit||2;
 
 function rotateByQuaternion(point,q){
   const [x,y,z]=point,[qx,qy,qz,qw]=q;
@@ -32,11 +42,23 @@ function toWorld(point){
   return {x:p.x,y:point[1]/METERS_PER_WORLD_UNIT,z:p.z};
 }
 
-const productionEntities=MAIN_GATE_EDITOR_WORLD.entities.filter(entity=>entity.enabled&&entity.metadata?.production?.owner==='main-gate');
-const byProductionId=new Map(productionEntities.map(entity=>[entity.metadata.production.id,entity]));
+function buildProductionIndex(world){
+  const productionEntities=world.entities.filter(entity=>entity.enabled&&entity.metadata?.production?.owner==='main-gate');
+  const byProductionId=new Map(productionEntities.map(entity=>[entity.metadata.production.id,entity]));
+  return Object.freeze({
+    get(productionId){return byProductionId.get(productionId);},
+    ids:Object.freeze([...byProductionId.keys()])
+  });
+}
+productionIndex=buildProductionIndex(MAIN_GATE_EDITOR_WORLD);
+MAIN_GATE_EDITOR_PRODUCTION_IDS=productionIndex.ids;
 
+function requireProductionIndex(){
+  if(!productionIndex)throw Error('E_MAIN_GATE_EDITOR_NOT_READY');
+  return productionIndex;
+}
 export function mainGateEditorEntity(productionId){
-  const entity=byProductionId.get(productionId);
+  const entity=requireProductionIndex().get(productionId);
   if(!entity)throw Error(`E_MAIN_GATE_EDITOR_ENTITY_MISSING:${productionId}`);
   return entity;
 }
@@ -85,4 +107,3 @@ export function mainGateProductionStructure(productionId){
     editorEntityId:entity.id
   });
 }
-export const MAIN_GATE_EDITOR_PRODUCTION_IDS=Object.freeze([...byProductionId.keys()]);

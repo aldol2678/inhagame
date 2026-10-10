@@ -27,7 +27,7 @@ test("1-3. cap and backpack carry modelAssetIds and keep their catalog definitio
   const pack = getItemDefinition(PACK);
   assert.equal(cap.modelAssetId, CAP_MODEL);
   assert.equal(pack.modelAssetId, PACK_MODEL);
-  assert.deepEqual([cap.displayName, cap.category, cap.equipSlot, cap.rarity, cap.status], ["인덕 캠퍼스 캡", "WEARABLE", "HEAD", "COMMON", "COMING_SOON"]);
+  assert.deepEqual([cap.displayName, cap.category, cap.equipSlot, cap.rarity, cap.status], ["인덕 캠퍼스 캡", "WEARABLE", "HEAD", "COMMON", "ACTIVE"]);
   assert.deepEqual([pack.displayName, pack.category, pack.equipSlot, pack.rarity, pack.status], ["인덕 백팩", "WEARABLE", "BACK", "UNCOMMON", "COMING_SOON"]);
   assert.deepEqual(cap.acquisition, [{ source: "SHOP" }]);
   assert.deepEqual(pack.acquisition, [{ source: "SHOP" }]);
@@ -37,7 +37,8 @@ test("1-3. cap and backpack carry modelAssetIds and keep their catalog definitio
 test("4. only the four bound wearables carry modelAssetIds", () => {
   const bound = ITEM_CATALOG.filter((d) => d.modelAssetId !== null).map((d) => d.itemId).sort();
   assert.deepEqual(bound, [PACK, CAP, "top.induck_hoodie", "top.mcm_2026_survivor"].sort());
-  for (const d of ITEM_CATALOG) assert.equal(d.iconAssetId, null, d.itemId);
+  // Icon presentation bindings are verified separately in item-icons.test.mjs.
+  assert.equal(getItemDefinition(PACK).iconAssetId, null, "unbound backpack icon stays absent");
 });
 
 test("5-6. registry holds exactly the bound model ids and each URL is a committed asset", () => {

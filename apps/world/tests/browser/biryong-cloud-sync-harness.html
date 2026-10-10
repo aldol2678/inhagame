@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Biryong cloud-save recovery · offline fixture</title>
+  <link rel="stylesheet" href="../../styles.css">
+  <style>
+    #fixture-modal-open { position: fixed; left: 20px; bottom: 20px; min-height: 44px; }
+    #fixture-modal { position: fixed; z-index: 80; left: 50%; top: 50%; transform: translate(-50%, -50%); padding: 20px; background: #17384c; color: white; border-radius: 14px; }
+    #fixture-modal[hidden] { display: none; }
+    #fixture-modal-close { min-height: 44px; }
+  </style>
+</head>
+<body data-space="campus">
+  <div id="biryong-ui" class="biryong-ui"><p class="biryong-objective"><span class="biryong-objective-text" hidden></span></p></div>
+  <button id="fixture-modal-open" type="button">다른 패널 열기</button>
+  <section id="fixture-modal" role="dialog" aria-label="합성 입력 소유권 패널" aria-modal="true" hidden>
+    <p>클라우드 저장 중에도 이 패널이 입력과 포커스를 유지해야 합니다.</p>
+    <button id="fixture-modal-close" type="button">다른 패널 닫기</button>
+  </section>
+  <script type="module">
+    import { createBiryongCloudSync } from '../../src/biryong/biryong-cloud-sync.js';
+    import { createBiryongCloudStatus } from '../../src/biryong/biryong-cloud-status.js';
+    import { createBiryongProgress } from '../../src/biryong/biryong-state.js';
+    import { createInputFocusManager, INPUT_FOCUS_POLICY } from '../../src/input/input-focus-manager.js';
+    import { createInputFocusOwner } from '../../src/input/input-focus-owner.js';
+    import { bindInputFocusRuntime } from '../../src/input/input-focus-runtime.js';
+    // All RPCs are in-memory synthetic promises. Never create an authenticated client.
+    const calls = [], pending = [], storage = new Map(), events = [], statusInputs = [], held = new Set();
+    const inputFocus = createInputFocusManager();
+    const modalOwner = createInputFocusOwner({ manager: inputFocus, ownerId: 'fixture-modal', policy: INPUT_FOCUS_POLICY.BLOCKING_UI });
+    // Production input arbitration and binding; tiny adapters replace graphics and movement.
+    const controller = { enabled: true, setInputEnabled(value) { this.enabled = value; if (!value) held.clear(); } };
+    const orbit = { enabled: true, setInputEnabled(value) { this.enabled = value; } };
+    const inputBinding = bindInputFocusRuntime({ manager: inputFocus, controller, orbit });
+    const modal = document.getElementById('fixture-modal'), opener = document.getElementById('fixture-modal-open');
+    const close = document.getElementById('fixture-modal-close'), root = document.getElementById('biryong-ui');
+    // Deliberately leave Biryong non-inert: generic production input owners do
+    // not inert background HUDs, and this test must expose any focus theft.
+    function closeModal() { modal.hidden = true; modalOwner.release(); opener.focus(); }
+    opener.addEventListener('click', () => { modalOwner.acquire(); modal.hidden = false; close.focus(); });
+    close.addEventListener('click', closeModal);
+    document.addEventListener('keydown', event => {
+      if (event.code === 'Escape' && modalOwner.active) { event.preventDefault(); closeModal(); }
+    });
+    for (const type of ['keydown', 'keyup', 'click', 'pointerdown']) document.addEventListener(type, event => {
+      events.push({ type, code: event.code, trusted: event.isTrusted, pointerType: event.pointerType,
+        target: event.target.id || event.target.className || event.target.tagName });
+    }, true);
+    window.addEventListener('keydown', event => { if (controller.enabled && ['KeyW', 'Space'].includes(event.code)) held.add(event.code); });
+    window.addEventListener('keyup', event => held.delete(event.code));
+    const inputSnapshot = () => ({ owners: inputFocus.snapshot().topOwners,
+      movement: controller.enabled, camera: orbit.enabled, focus: document.activeElement?.id || document.activeElement?.className || null,
+      held: [...held], biryongInert: root.inert === true });
+    let sync, mode = 'fail', account = 'A';
+    const progress = createBiryongProgress({
+      storage: { getItem: key => storage.get(key), setItem: (key, value) => storage.set(key, value) },
+      onChange: snapshot => sync?.queue(snapshot)
+    });
+    const objective = document.querySelector('.biryong-objective');
+    const ui = createBiryongCloudStatus({ onRetry: () => sync.retry() });
+    objective.append(ui.element);
+    const client = { rpc(name, args) {
+      calls.push({ name, args, account });
+      if (mode === 'hold') return new Promise(resolve => pending.push(resolve));
+      if (name === 'get_my_biryong_progress_v1') return Promise.resolve({ data: null });
+      return Promise.resolve(mode === 'fail' ? { error: { message: 'synthetic offline' } } : { data: args.p_progress });
+    } };
+    sync = createBiryongCloudSync({ getClient: () => client, progress,
+      onStatus: value => {
+        ui.setStatus(value); objective.hidden = ui.element.hidden && objective.querySelector('.biryong-objective-text').hidden;
+        statusInputs.push({ state: value.state, ...inputSnapshot() });
+      } });
+    progress.discover(); sync.setAccount(account);
+    window.__BIRYONG_CLOUD_SYNC__ = {
+      showObjective() {
+        const text = document.querySelector('.biryong-objective-text');
+        text.textContent = '돌아오는 목소리 · 울림돌 가운데에서 외쳐보기';
+        text.hidden = false;
+      },
+      hold() { mode = 'hold'; },
+      progress() { progress.recordShout(); },
+      account(value) { account = value; sync.setAccount(value); },
+      settle(index, shouts = 0) { pending[index]({ data: { shouts } }); },
+      ready() { mode = 'success'; },
+      snapshot() { return { status: sync.status(), shouts: progress.shouts, calls, pending: pending.length, input: inputSnapshot(), events, statusInputs }; },
+      dispose() { sync.dispose(); modalOwner.release(); inputBinding.destroy(); }
+    };
+  </script>
+</body>
+</html>

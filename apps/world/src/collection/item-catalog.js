@@ -34,12 +34,12 @@ const PREFIX_CATEGORY = Object.freeze({
 const MCM_2026 = 'event.mcm_2026';
 
 function item(itemId, displayName, description, { category, rarity, equipSlot = null, subtype = null,
-  status = 'COMING_SOON', acquisition, tags = [], eventId = null, introducedVersion, modelAssetId = null,
+  status = 'COMING_SOON', acquisition, tags = [], eventId = null, introducedVersion, modelAssetId = null, iconAssetId = null,
   cosmeticOnly = true, ownershipPolicy = 'UNIQUE', stackable = false, maxStack = null }) {
   return Object.freeze({
     itemId, displayName, description, category, rarity, equipSlot, subtype,
     cosmeticOnly, ownershipPolicy, tradePolicy: 'ACCOUNT_BOUND', stackable, maxStack,
-    iconAssetId: null, modelAssetId,
+    iconAssetId, modelAssetId,
     tags: Object.freeze([...tags]), status, eventId,
     acquisition: Object.freeze(acquisition.map(a => Object.freeze({ ...a }))),
     introducedVersion
@@ -55,15 +55,15 @@ const material = extra => ({ category: 'MATERIAL', cosmeticOnly: false, ownershi
 export const ITEM_CATALOG = Object.freeze([
   // ---- Collection VS01 pilot 6 (C0 §1.6): foundation fixtures, kept unchanged ----
   item('head.inha_cap', '인하 모자', '인하대학교 로고가 들어간 기본 모자.',
-    wear('HEAD', { rarity: 'COMMON', status: 'ACTIVE', acquisition: [{ source: 'DEFAULT' }], tags: ['starter'], introducedVersion: 'c0.v1' })),
+    wear('HEAD', { rarity: 'COMMON', status: 'ACTIVE', iconAssetId: 'icon.head.inha_cap.v1', acquisition: [{ source: 'DEFAULT' }], tags: ['starter'], introducedVersion: 'c0.v1' })),
   item('head.inkyung_duck', '인경호 오리모자', '인경호 오리를 닮은 모자.',
     wear('HEAD', { rarity: 'UNCOMMON', acquisition: [{ source: 'EXPLORATION' }], introducedVersion: 'c0.v1' })),
   item('top.inha_basic', '인하 기본 티셔츠', '캠퍼스 생활의 시작을 함께하는 기본 티셔츠.',
-    wear('TOP', { rarity: 'COMMON', status: 'ACTIVE', acquisition: [{ source: 'DEFAULT' }], tags: ['starter'], introducedVersion: 'c0.v1' })),
+    wear('TOP', { rarity: 'COMMON', status: 'ACTIVE', iconAssetId: 'icon.top.inha_basic.v1', acquisition: [{ source: 'DEFAULT' }], tags: ['starter'], introducedVersion: 'c0.v1' })),
   item('back.freshman_bag', '새내기 가방', '새 학기의 설렘을 담은 가방.',
-    wear('BACK', { rarity: 'COMMON', status: 'ACTIVE', acquisition: [{ source: 'DEFAULT' }], tags: ['starter'], introducedVersion: 'c0.v1' })),
+    wear('BACK', { rarity: 'COMMON', status: 'ACTIVE', iconAssetId: 'icon.back.freshman_bag.v1', acquisition: [{ source: 'DEFAULT' }], tags: ['starter'], introducedVersion: 'c0.v1' })),
   item('badge.main_gate', '정문 첫걸음 배지', '정문에서 캠퍼스 탐방을 시작한 기록.',
-    badge({ rarity: 'UNCOMMON', acquisition: [{ source: 'QUEST', ref: 'quest.first_campus' }], introducedVersion: 'c0.v1' })),
+    badge({ rarity: 'UNCOMMON', status: 'ACTIVE', iconAssetId: 'icon.badge.main_gate.v1', acquisition: [{ source: 'QUEST', ref: 'quest.first_campus' }], introducedVersion: 'c0.v1' })),
   item('emote.wave_plus', '씩씩한 인사', '평소보다 힘찬 인사 감정표현.',
     { category: 'EMOTE', rarity: 'UNCOMMON', acquisition: [{ source: 'QUEST' }], introducedVersion: 'c0.v1' }),
 
@@ -72,7 +72,7 @@ export const ITEM_CATALOG = Object.freeze([
     wear('TOP', { rarity: 'COMMON', acquisition: [{ source: 'SHOP' }], tags: ['campus', 'vs_economy'], introducedVersion: 'c0.v2',
       modelAssetId: 'equipment.top.induck_hoodie.v1' })),
   item('head.induck_cap', '인덕 캠퍼스 캡', '캠퍼스 산책에 어울리는 인덕이 캡.',
-    wear('HEAD', { rarity: 'COMMON', acquisition: [{ source: 'SHOP' }], tags: ['campus', 'vs_economy'], introducedVersion: 'c0.v2',
+    wear('HEAD', { rarity: 'COMMON', status: 'ACTIVE', iconAssetId: 'icon.head.induck_cap.v1', acquisition: [{ source: 'SHOP' }], tags: ['campus', 'vs_economy'], introducedVersion: 'c0.v2',
       modelAssetId: 'equipment.head.induck_cap.v1' })),
   item('back.induck_backpack', '인덕 백팩', '수업 자료를 넉넉히 담는 인덕이 백팩.',
     wear('BACK', { rarity: 'UNCOMMON', acquisition: [{ source: 'SHOP' }], tags: ['campus'], introducedVersion: 'c0.v2',
@@ -96,6 +96,7 @@ export const ITEM_CATALOG = Object.freeze([
   item('furniture.campus_rug_blue', '파란 캠퍼스 러그', '인하 블루 색의 바닥 러그.',
     furniture('FLOOR_DECOR', { rarity: 'UNCOMMON', acquisition: [{ source: 'SHOP' }], tags: ['dorm'], introducedVersion: 'c0.v2' })),
 
+
   // ---- Starter Catalog 20 · quest / collection 3 ----
   item('badge.campus_first_step', '캠퍼스 첫걸음 배지', '캠퍼스에서 첫걸음을 내디딘 기록.',
     badge({ rarity: 'COMMON', acquisition: [{ source: 'QUEST' }], tags: ['vs_economy'], introducedVersion: 'c0.v2' })),
@@ -117,15 +118,32 @@ export const ITEM_CATALOG = Object.freeze([
   item('furniture.mcm_2026_poster', '2026 일일호프 포스터', '2026 문콘경 일일호프 전체 완주 기념 포스터.',
     furniture('WALL_DECOR', { rarity: 'SPECIAL', eventId: MCM_2026, acquisition: [{ source: 'EVENT', ref: MCM_2026 }], tags: ['event', 'mcm_2026', 'vs_economy'], introducedVersion: 'c0.v2' })),
 
+  // ---- Housing F0 · Personal Room Starter 7 (placement-ready, acquisition not activated here) ----
+  item('furniture.dorm_single_sofa', '생활관 1인 소파', '작은 방에서도 휴식 공간을 만드는 1인 소파.',
+    furniture('CHAIR', { rarity: 'UNCOMMON', acquisition: [{ source: 'SHOP' }], tags: ['dorm', 'f0', 'seating'], introducedVersion: 'housing.f0' })),
+  item('furniture.dorm_side_table_low', '낮은 사이드테이블', '소파와 러그 곁에 두기 좋은 낮은 테이블.',
+    furniture('DECOR', { rarity: 'COMMON', acquisition: [{ source: 'SHOP' }], tags: ['dorm', 'f0', 'table'], introducedVersion: 'housing.f0' })),
+  item('furniture.dorm_bookshelf_slim', '슬림 책장', '중앙 동선을 덜 차지하도록 깊이를 줄인 생활관 책장.',
+    furniture('DECOR', { rarity: 'UNCOMMON', acquisition: [{ source: 'SHOP' }], tags: ['dorm', 'f0', 'storage'], introducedVersion: 'housing.f0' })),
+  item('furniture.dorm_plant_medium', '중형 화분', '방에 자연스러운 실루엣을 더하는 중형 화분.',
+    furniture('DECOR', { rarity: 'COMMON', acquisition: [{ source: 'SHOP' }], tags: ['dorm', 'f0', 'plant'], introducedVersion: 'housing.f0' })),
+  item('furniture.dorm_monitor', '탁상 모니터', '책상 위 Study 구성을 위한 모니터. 별도 Device 기능은 포함하지 않는다.',
+    furniture('DECOR', { rarity: 'UNCOMMON', acquisition: [{ source: 'SHOP' }], tags: ['dorm', 'f0', 'electronics'], introducedVersion: 'housing.f0' })),
+  item('furniture.dorm_trophy_shelf', '트로피 선반', '대학생활의 기념품과 성취를 보여주기 위한 전시 선반.',
+    furniture('DECOR', { rarity: 'UNCOMMON', acquisition: [{ source: 'QUEST' }], tags: ['dorm', 'f0', 'display'], introducedVersion: 'housing.f0' })),
+  item('furniture.study_books_set', 'Study Books Set', '책 다섯 권과 노트를 하나의 배치로 묶은 공부 소품 세트.',
+    furniture('DECOR', { rarity: 'COMMON', acquisition: [{ source: 'SHOP' }], tags: ['dorm', 'f0', 'study', 'decor_set'], introducedVersion: 'housing.f0' })),
+
+
   // ---- Life M1 · first persistent stackable materials ----
   item('material.campus_leaf', '캠퍼스 낙엽', '캠퍼스 생활 채집에서 얻는 기본 자연 재료.',
-    material({ rarity: 'COMMON', status: 'ACTIVE', acquisition: [{ source: 'ACTIVITY', ref: 'activity.gathering.campus' }],
+    material({ rarity: 'COMMON', status: 'ACTIVE', iconAssetId: 'icon.material.campus_leaf.v1', acquisition: [{ source: 'ACTIVITY', ref: 'activity.gathering.campus' }],
       tags: ['life', 'gathering', 'material'], introducedVersion: 'life.m1' })),
   item('material.fish_carp', '붕어', '인경호 낚시 활동에서 얻는 기본 어류 재료.',
-    material({ rarity: 'COMMON', status: 'ACTIVE', acquisition: [{ source: 'ACTIVITY', ref: 'activity.fishing.inkyung' }],
+    material({ rarity: 'COMMON', status: 'ACTIVE', iconAssetId: 'icon.material.fish_carp.v1', acquisition: [{ source: 'ACTIVITY', ref: 'activity.fishing.inkyung' }],
       tags: ['life', 'fishing', 'material'], introducedVersion: 'life.m1' })),
   item('material.artifact_fragment_01', '캠퍼스 유물 조각', '캠퍼스 역사 조사와 발굴에서 얻는 첫 유물 조각.',
-    material({ rarity: 'UNCOMMON', status: 'ACTIVE', acquisition: [{ source: 'ACTIVITY', ref: 'activity.archaeology.campus_history' }],
+    material({ rarity: 'UNCOMMON', status: 'ACTIVE', iconAssetId: 'icon.material.artifact_fragment_01.v1', acquisition: [{ source: 'ACTIVITY', ref: 'activity.archaeology.campus_history' }],
       tags: ['life', 'archaeology', 'material'], introducedVersion: 'life.m1' }))
 ]);
 
@@ -135,6 +153,14 @@ export const DEFAULT_ITEM_IDS = Object.freeze(['head.inha_cap', 'top.inha_basic'
 export const VS_ECONOMY_ITEM_IDS = Object.freeze([
   'top.induck_hoodie', 'head.induck_cap', 'furniture.induck_cushion', 'furniture.campus_map_poster',
   'badge.campus_first_step', 'badge.mcm_2026_landlord', 'top.mcm_2026_survivor', 'furniture.mcm_2026_poster'
+]);
+export const F0_FURNITURE_IDS = Object.freeze([
+  'furniture.campus_map_poster', 'furniture.induck_cushion', 'furniture.dorm_desk_lamp',
+  'furniture.induck_chair', 'furniture.mini_induck', 'furniture.campus_rug_blue',
+  'furniture.dorm_resident_plate', 'furniture.mcm_2026_landlord_figure', 'furniture.mcm_2026_poster',
+  'furniture.dorm_single_sofa', 'furniture.dorm_side_table_low', 'furniture.dorm_bookshelf_slim',
+  'furniture.dorm_plant_medium', 'furniture.dorm_monitor', 'furniture.dorm_trophy_shelf',
+  'furniture.study_books_set'
 ]);
 export const LIFE_M1_MATERIAL_IDS = Object.freeze([
   'material.campus_leaf', 'material.fish_carp', 'material.artifact_fragment_01'

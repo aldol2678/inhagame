@@ -1,8 +1,9 @@
+import {studentConnectedFrame} from '../src/student-center-frame.js';
 // PR #106 × Online: the real PlayerController walks roadview stairs and terraces; the online pose
 // source samples it; a second client renders it through FakeTransport + interpolation.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { AGORA, STUDENT_TERRACES, roadviewGroundHeight } from "../src/roadview-layout.js";
+import { AGORA, roadviewGroundHeight } from "../src/roadview-layout.js";
 import { PlayerController } from "../src/player-controller.js";
 import { OBSTACLES } from "../src/campus-layout.js";
 import { getPlaceZoneAt } from "../src/place-zone-registry.js";
@@ -90,14 +91,13 @@ test("#106 stairs: pose source reads the terrace height, never fakes a jump; rem
 });
 
 test("#106 jump on a terrace is one JUMP action and lands at terrace height", () => {
-  const t = STUDENT_TERRACES[0];
-  const start = t.frame.at(t.frame.length / 2, t.landing + t.run + 1);
-  const deck = t.frame.at(t.frame.length / 2, 0.75);
+  const f=studentConnectedFrame(),world=z=>{const p=f.toWorld([0,0,z]);return{x:p[0],z:p[2]};};
+  const start=world(29),deck=world(8),deckY=1.15+4.045/2;
   const ctx = onlinePair(getPlaceZoneAt(start).id);
   const a = actor(start);
   const report = { jumps: 0, airFrames: 0, maxFloat: 0, maxSink: 0 };
   walkOnline(ctx, a, deck, report);
-  assert.ok(Math.abs(a.entity.getLocalPosition().y - 1.75) < 1e-6);
+  assert.ok(Math.abs(a.entity.getLocalPosition().y - deckY) < 1e-6);
   a.controller.jumpQueued = true;
   let jumps = 0;
   for (let i = 0; i < 90; i += 1) {
@@ -110,9 +110,9 @@ test("#106 jump on a terrace is one JUMP action and lands at terrace height", ()
   }
   assert.equal(jumps, 1);
   assert.equal(a.controller.grounded, true);
-  assert.ok(Math.abs(a.entity.getLocalPosition().y - 1.75) < 1e-6, "landed on the terrace");
+  assert.ok(Math.abs(a.entity.getLocalPosition().y - deckY) < 1e-6, "landed on the terrace");
   assert.ok(ctx.b.remotes.get("sess-a").lastJumpAt !== null, "remote saw the jump");
-  assert.ok(Math.abs(ctx.b.remotes.get("sess-a").latestPose.y - 1.75) < 0.01);
+  assert.ok(Math.abs(ctx.b.remotes.get("sess-a").latestPose.y - deckY) < 0.01);
 });
 
 test("#106 colliders are static world geometry; remote players add none", () => {

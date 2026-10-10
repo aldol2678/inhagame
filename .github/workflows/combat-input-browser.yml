@@ -1,0 +1,50 @@
+name: Combat HUD native input checks
+on:
+  pull_request:
+    paths:
+      - 'apps/world/src/combat/combat-hud-v03.js'
+      - 'apps/world/tests/combat-hud-activation.test.mjs'
+      - 'apps/world/tests/browser/combat-hud-activation-*'
+      - '.github/workflows/combat-input-browser.yml'
+permissions:
+  contents: read
+concurrency:
+  group: combat-input-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  combat-native-input:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - name: Install existing pinned offline browser dependencies
+        working-directory: apps/world/tests/browser
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Ensure readable Korean pixels
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y fonts-noto-cjk
+      - name: Verify combat, chat, focus and touch contracts
+        run: node --test apps/world/tests/combat-hud-activation.test.mjs apps/world/tests/combat-input-authority.test.mjs apps/world/tests/input-focus-chat.test.mjs apps/world/tests/player-touch-ownership.test.mjs
+      - name: Verify exact-head native input and desktop/mobile Campus pixels
+        timeout-minutes: 10
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+          EXPECTED_COMBAT_HEAD: ${{ github.event.pull_request.head.sha }}
+          COMBAT_QA_OUTPUT: test-results/combat-input
+        run: timeout --signal=TERM --kill-after=10s 560s node apps/world/tests/browser/combat-hud-activation-smoke.mjs
+      - name: Preserve exact-head input receipts and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: combat-input-${{ github.event.pull_request.head.sha }}
+          path: test-results/combat-input/
+          if-no-files-found: error
+          retention-days: 14

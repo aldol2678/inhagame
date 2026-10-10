@@ -3,14 +3,48 @@
   "routes": [
     {
       "src": "/assets/induck-v3\\.glb",
-      "dest": "/api/brand-induck"
+      "dest": "/api/brand-asset?asset=induck-v3.glb"
     },
     {
       "src": "/\\.generated/assets-optimized/induck-v3\\.glb",
-      "dest": "/api/brand-induck"
+      "dest": "/api/brand-asset?asset=induck-v3.glb&variant=optimized"
+    },
+    {
+      "src": "/assets/induck-cap-v1\\.glb",
+      "dest": "/api/brand-asset?asset=induck-cap-v1.glb"
+    },
+    {
+      "src": "/\\.generated/assets-optimized/induck-cap-v1\\.glb",
+      "dest": "/api/brand-asset?asset=induck-cap-v1.glb&variant=optimized"
+    },
+    {
+      "src": "/assets/induck-backpack-v1\\.glb",
+      "dest": "/api/brand-asset?asset=induck-backpack-v1.glb"
+    },
+    {
+      "src": "/\\.generated/assets-optimized/induck-backpack-v1\\.glb",
+      "dest": "/api/brand-asset?asset=induck-backpack-v1.glb&variant=optimized"
+    },
+    {
+      "src": "/assets/induck-hoodie-v1\\.glb",
+      "dest": "/api/brand-asset?asset=induck-hoodie-v1.glb"
+    },
+    {
+      "src": "/\\.generated/assets-optimized/induck-hoodie-v1\\.glb",
+      "dest": "/api/brand-asset?asset=induck-hoodie-v1.glb&variant=optimized"
+    },
+    {
+      "src": "/assets/audio/biryong-tower-01\\.mp3",
+      "dest": "/api/brand-media?asset=biryong-tower-01.mp3"
+    },
+    {
+      "src": "/worldforge/?",
+      "dest": "/studio/index.html"
     },
     {
       "handle": "filesystem"
     }
-  ]
+  ],
+  "buildCommand": "sh ./build-recast-shadow.sh",
+  "outputDirectory": "."
 }

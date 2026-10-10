@@ -1,6 +1,7 @@
 import {
   DEFAULT_ENVIRONMENT_TIME,
   environmentPreset,
+  environmentLightingAtCycleSeconds,
   resolveEnvironmentTime
 } from './environment-presets.js';
 import {
@@ -31,7 +32,11 @@ function mutableFogFrame(source) {
     fogColorMix: source.fogColorMix,
     fogTint: [...source.fogTint],
     rainIntensity: source.rainIntensity,
-    wetness: source.wetness
+    snowIntensity: source.snowIntensity,
+    wetness: source.wetness,
+    cloudCover: source.cloudCover,
+    sunLightScale: source.sunLightScale,
+    ambientLightScale: source.ambientLightScale
   };
 }
 
@@ -56,7 +61,11 @@ function copyFogFrame(out, source) {
   out.fogColorMix = source.fogColorMix;
   copyTuple(out.fogTint, source.fogTint);
   out.rainIntensity = source.rainIntensity;
+  out.snowIntensity = source.snowIntensity;
   out.wetness = source.wetness;
+  out.cloudCover = source.cloudCover;
+  out.sunLightScale = source.sunLightScale;
+  out.ambientLightScale = source.ambientLightScale;
 }
 
 function mixTuple(out, from, to, t) {
@@ -80,7 +89,11 @@ function mixFogFrame(out, from, to, t) {
   out.fogColorMix = from.fogColorMix + (to.fogColorMix - from.fogColorMix) * t;
   mixTuple(out.fogTint, from.fogTint, to.fogTint, t);
   out.rainIntensity = from.rainIntensity + (to.rainIntensity - from.rainIntensity) * t;
+  out.snowIntensity = from.snowIntensity + (to.snowIntensity - from.snowIntensity) * t;
   out.wetness = from.wetness + (to.wetness - from.wetness) * t;
+  out.cloudCover = from.cloudCover + (to.cloudCover - from.cloudCover) * t;
+  out.sunLightScale = from.sunLightScale + (to.sunLightScale - from.sunLightScale) * t;
+  out.ambientLightScale = from.ambientLightScale + (to.ambientLightScale - from.ambientLightScale) * t;
 }
 
 function setColor(target, tuple) {
@@ -92,17 +105,23 @@ function mixFogColor(out, clearColor, fogTint, mix) {
     out[i] = clearColor[i] + (fogTint[i] - clearColor[i]) * mix;
 }
 
-function applyFrame({ scene, lightEntity, camera }, frame, fogFrame, fogType, fogColor) {
-  setColor(scene?.ambientLight, frame.ambientColor);
+function applyFrame({ scene, lightEntity, camera }, frame, fogFrame, fogType, fogColor, celestialSunEuler = null) {
+  if (scene?.ambientLight?.set) {
+    scene.ambientLight.set(
+      frame.ambientColor[0] * fogFrame.ambientLightScale,
+      frame.ambientColor[1] * fogFrame.ambientLightScale,
+      frame.ambientColor[2] * fogFrame.ambientLightScale
+    );
+  }
   if (scene) scene.exposure = frame.exposure;
 
   const light = lightEntity?.light;
   setColor(light?.color, frame.sunColor);
   if (light) {
-    light.intensity = frame.sunIntensity;
+    light.intensity = frame.sunIntensity * fogFrame.sunLightScale;
     light.shadowIntensity = frame.shadowIntensity;
   }
-  lightEntity?.setEulerAngles?.(...frame.sunEuler);
+  lightEntity?.setEulerAngles?.(...(celestialSunEuler ?? frame.sunEuler));
 
   setColor(camera?.camera?.clearColor, frame.clearColor);
 
@@ -146,10 +165,25 @@ export function createEnvironmentDirector({
   let fogElapsed = Math.max(0, fogTransitionSeconds);
   let fogProgress = 1;
   let fogType = environmentWeatherPreset(initialWeatherId).fogType;
+  let celestialSunEuler = null;
+  let lightingMode = 'preset';
+  let worldTime = null;
+  const worldLighting = {};
 
-  applyFrame(bindings, current, fogCurrent, fogType, fogColor);
+  function applyCurrentFrame() {
+    if (lightingMode === 'world' && worldTime) {
+      environmentLightingAtCycleSeconds(worldTime.cycleSeconds, worldLighting);
+      current.sunIntensity = worldLighting.sunIntensity;
+      current.exposure = worldLighting.exposure;
+      current.shadowIntensity = worldLighting.shadowIntensity;
+    }
+    applyFrame(bindings, current, fogCurrent, fogType, fogColor, celestialSunEuler);
+  }
 
-  function setTimeOfDay(value, { immediate = false } = {}) {
+  applyCurrentFrame();
+
+  function setTimeOfDay(value, { immediate = false, worldDriven = false } = {}) {
+    lightingMode = worldDriven ? 'world' : 'manual';
     targetTime = resolveEnvironmentTime(value);
     copyFrame(from, current);
     copyFrame(target, environmentPreset(targetTime));
@@ -158,11 +192,32 @@ export function createEnvironmentDirector({
     if (immediate || transitionSeconds <= 0) {
       copyFrame(current, target);
       progress = 1;
-      applyFrame(bindings, current, fogCurrent, fogType, fogColor);
+      applyCurrentFrame();
     } else {
       progress = 0;
     }
     return targetTime;
+  }
+
+  // Clock samples are authoritative, not a frame-delta accumulator. A manual
+  // override can hold while the latest world time continues to be recorded.
+  function setWorldTime(cycleSeconds, time, { immediate = false } = {}) {
+    if (!Number.isFinite(cycleSeconds)) return false;
+    worldTime = { cycleSeconds, time: resolveEnvironmentTime(time) };
+    if (lightingMode === 'manual') return false;
+    lightingMode = 'world';
+    if (targetTime !== worldTime.time)
+      setTimeOfDay(worldTime.time, { immediate, worldDriven: true });
+    applyCurrentFrame();
+    return true;
+  }
+
+  function resumeWorldTime({ immediate = false } = {}) {
+    if (!worldTime) return false;
+    lightingMode = 'world';
+    setTimeOfDay(worldTime.time, { immediate, worldDriven: true });
+    applyCurrentFrame();
+    return true;
   }
 
   function setWeather(value, { immediate = false } = {}) {
@@ -180,11 +235,20 @@ export function createEnvironmentDirector({
       copyFogFrame(fogCurrent, fogTarget);
       fogProgress = 1;
       fogType = next.fogType;
-      applyFrame(bindings, current, fogCurrent, fogType, fogColor);
+      applyCurrentFrame();
     } else {
       fogProgress = 0;
     }
     return targetWeather;
+  }
+
+  function setCelestialPose(value) {
+    const next = value?.sunEuler;
+    if (!Array.isArray(next) || next.length < 3 || next.slice(0, 3).some(item => !Number.isFinite(item)))
+      return false;
+    celestialSunEuler = next.slice(0, 3);
+    applyCurrentFrame();
+    return true;
   }
 
   function update(dt) {
@@ -211,13 +275,15 @@ export function createEnvironmentDirector({
       changed = true;
     }
 
-    if (changed) applyFrame(bindings, current, fogCurrent, fogType, fogColor);
+    if (changed) applyCurrentFrame();
     return changed;
   }
 
   function status() {
     return Object.freeze({
       targetTime,
+      lightingMode,
+      worldCycleSeconds: worldTime?.cycleSeconds ?? null,
       progress,
       settled: progress >= 1,
       exposure: current.exposure,
@@ -232,7 +298,12 @@ export function createEnvironmentDirector({
         color: Object.freeze([...fogColor])
       }),
       rainIntensity: fogCurrent.rainIntensity,
-      wetness: fogCurrent.wetness
+      snowIntensity: fogCurrent.snowIntensity,
+      wetness: fogCurrent.wetness,
+      cloudCover: fogCurrent.cloudCover,
+      sunLightScale: fogCurrent.sunLightScale,
+      ambientLightScale: fogCurrent.ambientLightScale,
+      celestialSunEuler: celestialSunEuler ? Object.freeze([...celestialSunEuler]) : null
     });
   }
 
@@ -244,17 +315,78 @@ export function createEnvironmentDirector({
     return fogCurrent.rainIntensity;
   }
 
+  function snowIntensity() {
+    return fogCurrent.snowIntensity;
+  }
+
   function wetnessFactor() {
     return fogCurrent.wetness;
   }
 
+  function copyVisualAtmosphereState(out) {
+    if (!out) return null;
+    if (!Array.isArray(out.clearColor) || out.clearColor.length < 3) out.clearColor = [0, 0, 0];
+    if (!Array.isArray(out.fogColor) || out.fogColor.length < 3) out.fogColor = [0, 0, 0];
+    copyTuple(out.clearColor, current.clearColor);
+    copyTuple(out.fogColor, fogColor);
+    out.targetTime = targetTime;
+    out.targetWeather = targetWeather;
+    out.artificialLightFactor = current.artificialLightFactor;
+    out.fogType = fogType;
+    out.fogStart = fogCurrent.fogStart;
+    out.fogEnd = fogCurrent.fogEnd;
+    out.rainIntensity = fogCurrent.rainIntensity;
+    out.snowIntensity = fogCurrent.snowIntensity;
+    out.cloudCover = fogCurrent.cloudCover;
+    return out;
+  }
+
+  function copyVisualLightingState(out) {
+    if (!out) return null;
+    if (!Array.isArray(out.sunColor) || out.sunColor.length < 3) out.sunColor = [0, 0, 0];
+    if (!Array.isArray(out.sunEuler) || out.sunEuler.length < 3) out.sunEuler = [0, 0, 0];
+    if (!Array.isArray(out.ambientColor) || out.ambientColor.length < 3) out.ambientColor = [0, 0, 0];
+    copyTuple(out.sunColor, current.sunColor);
+    copyTuple(out.sunEuler, celestialSunEuler ?? current.sunEuler);
+    copyTuple(out.ambientColor, current.ambientColor);
+    out.sunIntensity = current.sunIntensity;
+    out.shadowIntensity = current.shadowIntensity;
+    out.exposure = current.exposure;
+    out.artificialLightFactor = current.artificialLightFactor;
+    out.sunLightScale = fogCurrent.sunLightScale;
+    out.ambientLightScale = fogCurrent.ambientLightScale;
+    return out;
+  }
+
+  function copySkyVisualState(out) {
+    if (!out) return null;
+    if (!Array.isArray(out.sunColor) || out.sunColor.length < 3) out.sunColor = [0, 0, 0];
+    if (!Array.isArray(out.sunEuler) || out.sunEuler.length < 3) out.sunEuler = [0, 0, 0];
+    copyTuple(out.sunColor, current.sunColor);
+    copyTuple(out.sunEuler, celestialSunEuler ?? current.sunEuler);
+    out.sunIntensity = current.sunIntensity;
+    out.artificialLightFactor = current.artificialLightFactor;
+    out.rainIntensity = fogCurrent.rainIntensity;
+    out.snowIntensity = fogCurrent.snowIntensity;
+    out.cloudCover = fogCurrent.cloudCover;
+    out.sunLightScale = fogCurrent.sunLightScale;
+    return out;
+  }
+
   return Object.freeze({
     setTimeOfDay,
+    setWorldTime,
+    resumeWorldTime,
     setWeather,
+    setCelestialPose,
     update,
     status,
     artificialLightFactor,
     rainIntensity,
-    wetnessFactor
+    snowIntensity,
+    wetnessFactor,
+    copyVisualAtmosphereState,
+    copyVisualLightingState,
+    copySkyVisualState
   });
 }

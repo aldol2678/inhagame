@@ -1,32 +1,37 @@
 import * as pc from 'playcanvas';
 import { buildCampusFacilities } from './facility-blockout.js';
-import { buildMainHallBlockout } from './main-hall-blockout.js';
+import { buildCampusLandmarks } from './campus-landmark-candidate-selector.js';
 import { buildCampusGrounds, buildCampusTrees } from './campus-grounds.js';
 import { buildGateBlockout } from './gate-blockout.js';
 import { buildCentralBlockout } from './central-blockout.js';
 import { WORLD_BOUNDS } from './campus-layout.js';
 import { buildPondShore } from './roadview-details.js';
 import { buildCampusRoads, buildBackStreetDetails } from './campus-road-blockout.js';
-import { buildGardenCampusTerrain, buildLibraryGardenBase, buildLibraryGardenDetail } from './library-garden-geometry.js';
-import { SPORTS_CUT_RING, SPORTS_FLOOR } from './stadium-stands-layout.js';
+import { buildLibraryGardenBase, buildLibraryGardenDetail } from './library-garden-geometry.js';
+import { buildCampusTerrain } from './campus-terrain.js';
 import { buildStadiumStands } from './stadium-stands-geometry.js';
 import { buildLibraryRoute } from './library-route-geometry.js';
 import { buildCampusHelicopter } from './mounts/campus-helicopter-render.js';
+import { buildPondSurroundingsBase } from './pond-surroundings-geometry.js';
+import { buildMainHallWalkways } from './main-hall-walkway-geometry.js';
+import { createCampusContactShading } from './campus-contact-shading.js';
 
 const count=root=>1+root.children.reduce((sum,c)=>sum+count(c),0);
 export class CampusChunkRenderer {
-  constructor(app,parent,registry) {
+  constructor(app,parent,registry,environmentSignals={}) {
     this.parent=parent;this.metrics={entitiesCreated:0,entitiesDestroyed:0,nearBuilds:0,detailBuilds:0,baseBuilds:1};
     this.fades=new Map();
     // Small campus P0: persistent terrain/roads/silhouettes avoid holes and invisible walls.
     const base=new pc.Entity('CampusBase');parent.addChild(base);this.base=base;
-    buildGardenCampusTerrain(base,WORLD_BOUNDS,[{polygon:SPORTS_CUT_RING,floor:SPORTS_FLOOR}]);
-    buildCampusGrounds(base);buildCampusRoads(base);buildGateBlockout(base);buildCentralBlockout(base,app);buildPondShore(base);
+    buildCampusTerrain(base,WORLD_BOUNDS);
+    buildCampusGrounds(base);buildCampusRoads(base);buildGateBlockout(base);this.pondWeather=buildCentralBlockout(base,app,environmentSignals);buildPondShore(base);
+    buildPondSurroundingsBase(base);buildMainHallWalkways(base);
     buildLibraryGardenBase(base);
     buildStadiumStands(base);
     buildCampusHelicopter(base);
     buildLibraryRoute(base);
-    for(const chunk of registry.chunks){buildCampusFacilities(base,chunk.facilities,'BASE');buildMainHallBlockout(base,chunk.buildings,'BASE');}
+    for(const chunk of registry.chunks){buildCampusFacilities(base,chunk.facilities,'BASE');buildCampusLandmarks(base,chunk.buildings,'BASE');}
+    this.contactShading=createCampusContactShading({app,base,...environmentSignals});
     this.metrics.entitiesCreated+=count(base);
   }
   create(chunk) {
@@ -37,7 +42,7 @@ export class CampusChunkRenderer {
   #layer(handle,tier) {
     const root=new pc.Entity(`${handle.chunk.id}_${tier}`);handle.root.addChild(root);
     buildCampusFacilities(root,handle.chunk.facilities,tier);
-    buildMainHallBlockout(root,handle.chunk.buildings,tier);
+    buildCampusLandmarks(root,handle.chunk.buildings,tier);
     buildBackStreetDetails(root,handle.chunk.streetscape,tier);
     if(tier==='DETAIL')buildLibraryGardenDetail(root,handle.chunk.streetscape);
     if(tier==='NEAR')buildCampusTrees(root,handle.chunk.trees);
@@ -52,7 +57,10 @@ export class CampusChunkRenderer {
       }
       mi.material=copies.get(mi.material);
     }
-    this.fades.set(root,{value:0,target:0,materials:[...copies.values()]});
+    // Transparent contact batches are added after opaque fade-material cloning.
+    // They share the layer's fade value, not its depth-writing dither shader.
+    const contactFade=tier==='NEAR'?this.contactShading.addTrees(root,handle.chunk):null;
+    this.fades.set(root,{value:0,target:0,materials:[...copies.values()],contactFade});
     root.enabled=false;
     root.on('destroy',()=>{this.fades.delete(root);for(const material of copies.values())material.destroy();});
     this.metrics.entitiesCreated+=count(root);this.metrics[tier==='NEAR'?'nearBuilds':'detailBuilds']++;
@@ -69,14 +77,17 @@ export class CampusChunkRenderer {
     }
   }
   update(dt) {
+    this.contactShading.update();
     for(const [root,fade] of this.fades){
       if(fade.value===fade.target)continue;
       const delta=Math.max(0,dt)/.25;
       fade.value=fade.target>fade.value?Math.min(fade.target,fade.value+delta):Math.max(fade.target,fade.value-delta);
       for(const material of fade.materials){material.alphaDither=fade.value;material.update();}
+      fade.contactFade?.(fade.value);
       root.enabled=fade.value>0;
     }
   }
   destroy(handle) { this.metrics.entitiesDestroyed+=count(handle.root);handle.root.destroy(); }
   getMetrics() { return {...this.metrics}; }
+  getPondWeatherStatus() { return this.pondWeather?.status?.() ?? null; }
 }

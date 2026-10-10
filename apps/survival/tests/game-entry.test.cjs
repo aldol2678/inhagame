@@ -6,7 +6,7 @@ const fs=require('node:fs');
 const path=require('node:path');
 const vm=require('node:vm');
 const source=fs.readFileSync(path.join(__dirname,'..','..','world','game-entry.js'),'utf8');
-const HOSTS={classic:'duck.inhagame.example',induckup:'induckup.inhagame.example',survival:'survival.inhagame.example',campus:'inhagame.example'};
+const HOSTS={classic:'duck.inhagame.app',induckup:'induckup.inhagame.app',survival:'survival.inhagame.app',campus:'inhagame.app'};
 const ENTRY='3f2b8c1e-5d4a-4e6b-9c7d-1a2b3c4d5e6f';
 const OTHER='9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d';
 
@@ -45,7 +45,7 @@ const types=t=>t.requests.map(r=>r.body.event_type);
 test('landing is sent once, confirmed, and not repeated by a new document in the same tab',async()=>{
   const t=tab();
   const home=t.load('induckup',{query:`?ih_entry=${ENTRY}`});
-  assert.equal(home.url(),'https://induckup.inhagame.example/','ih_entry is removed from the URL');
+  assert.equal(home.url(),'https://induckup.inhagame.app/','ih_entry is removed from the URL');
   assert.equal(home.api.landing(),true);
   assert.equal(home.api.landing(),false);
   await t.settle();
@@ -56,7 +56,7 @@ test('landing is sent once, confirmed, and not repeated by a new document in the
   await t.settle();
   assert.deepEqual(types(t),['game_landing','game_play_start']);
   for(const {url,init,body} of t.requests){
-    assert.equal(url,'https://inhagame.example/api/hub-entry');
+    assert.equal(url,'https://inhagame.app/api/hub-entry');
     assert.equal(init.method,'POST');
     assert.deepEqual(Object.keys(body).sort(),['entry_id','event_id','event_type','target']);
     assert.equal(body.entry_id,ENTRY);

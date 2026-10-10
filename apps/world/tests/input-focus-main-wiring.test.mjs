@@ -38,7 +38,10 @@ test("P1-B binds persistent desktop camera settings to OrbitCameraController", (
   assert.match(main, /cameraInput:\s*cameraInputSettings\.current/);
   assert.match(cameraSettings, /CAMERA_INPUT_STORAGE_KEY = "inha-world-camera-input-v1"/);
   assert.match(cameraSettings, /orbit\.setMouseLookSettings\(current\)/);
-  assert.match(cameraSettings, /sensitivity:\s*Number\(sensitivitySelect\.value\)/);
+  assert.equal((cameraSettings.match(/sensitivity:\s*sensitivitySelect\.value/g) ?? []).length, 2,
+    "both change handlers pass the raw value to normalization");
+  assert.doesNotMatch(cameraSettings, /Number\(sensitivitySelect\.value\)/,
+    "blank input must not become zero before normalization");
 });
 
 test("F/M/E/V gameplay gates consume the shared input focus snapshot", () => {
@@ -66,7 +69,7 @@ test("HUD menu, keyboard help and Full Map use reusable BLOCKING_UI owners", () 
   assert.match(main, /onOpen:\s*\(\)\s*=>\s*\{\s*keyboardHelpInput\.acquire\(\)/s);
   assert.match(main, /onClose:\s*\(\)\s*=>\s*\{ keyboardHelpInput\.release\(\); \}/);
   assert.match(main, /onOpen:\s*\(\)\s*=>\s*\{\s*fullMapInput\.acquire\(\)/s);
-  assert.match(main, /onClose:\s*\(\)\s*=>\s*\{ fullMapInput\.release\(\); \}/);
+  assert.match(main, /onClose:\s*\(\)\s*=>\s*\{\s*fullMapInput\.release\(\);[^}]*minimap\?\.update\(\{ force: true \}\);\s*\}/);
   assert.doesNotMatch(
     main,
     /fullMap = createFullMapController\([\s\S]*?controller\.setInputEnabled\(false\); orbit\.setInputEnabled\(false\)[\s\S]*?documentLike:/s,
@@ -97,10 +100,9 @@ test("Shop, Inventory and Wardrobe use BLOCKING_UI owners before closing sibling
   }
 });
 
-test("Lobby and lobby transition use SYSTEM_LOCK owners", () => {
-  for (const owner of ["lobby-world", "lobby-transition"]) {
-    assert.match(main, new RegExp(`ownerId: "${owner}".*policy: INPUT_FOCUS_POLICY\\.SYSTEM_LOCK`, "s"));
-  }
+test("Lobby stays SYSTEM_LOCK while the entry transition preserves desktop Pointer Lock", () => {
+  assert.match(main, /ownerId: "lobby-world".*policy: INPUT_FOCUS_POLICY\.SYSTEM_LOCK/s);
+  assert.match(main, /ownerId: "lobby-transition"[\s\S]*priority: INPUT_FOCUS_POLICY\.SYSTEM_LOCK\.priority \+ 10[\s\S]*pointerLockDesired: true/s);
   assert.match(main, /createLobbyWorldMode\(\{[\s\S]*onActiveChange:\s*\(active\)\s*=>\s*\{[\s\S]*lobbyWorldInput\.acquire\(\)[\s\S]*lobbyWorldInput\.release\(\)/s);
   assert.match(main, /createLobbyTransition\(\{[\s\S]*onActiveChange:\s*\(active\)\s*=>\s*\{[\s\S]*lobbyTransitionInput\.acquire\(\)[\s\S]*lobbyTransitionInput\.release\(\)/s);
   assert.match(main, /lobbyWorld:\s*lobbyWorldInput\.active/);

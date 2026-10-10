@@ -1,0 +1,147 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Player activity audio · offline fixture</title>
+<style>body{font:16px system-ui;background:#13212b;color:#eef5f8;max-width:760px;margin:2rem auto;padding:0 1rem}button,select{font:inherit;padding:.6rem;margin:.3rem}pre{white-space:pre-wrap;background:#223440;padding:1rem}label{display:block;margin:1rem 0}</style>
+<h1>Footsteps and doorway cues</h1>
+<p>Offline procedural prototype. Synthetic movement uses the real PlayerController, AudioRuntime and activity cue path. No account, server write, upload or saved file. This is not whole-campus or device listening approval.</p>
+<button id="unlock">Enable audio</button><button id="walk">Walk / stop</button><button id="mute">Mute / unmute</button>
+<label>Surface <select id="surface"><option>hard-outdoor</option><option>soft-outdoor</option><option>indoor-hard</option><option>indoor-soft</option></select></label>
+<label>Gait <select id="gait"><option>WALK</option><option>RUN</option></select></label>
+<button id="glass">Dorm doorway</button><button id="wood">Personal-room doorway</button><button id="threshold">Event doorway</button>
+<pre id="status" aria-live="polite"></pre>
+<script type="module">
+import { createWorldAudio } from '../../src/audio/world-audio.js';
+import { createPlayerActivityAudio } from '../../src/audio/player-activity-audio.js';
+import { PlayerController } from '../../src/player-controller.js';
+import { MCM_2026_ROOM_ID } from '../../src/events/zombie-university-2026/minigame-room-layout.js';
+const contexts = [];
+const NativeAudioContext = window.AudioContext ?? window.webkitAudioContext;
+class TrackedContext extends NativeAudioContext { constructor() { super(); contexts.push(this); } }
+const audio = createWorldAudio({ AudioContextClass: TrackedContext });
+const player = { position: { x: 0, y: 1.15, z: 0 }, getLocalPosition() { return this.position; },
+  setLocalPosition(x, y, z) { this.position = { x, y, z }; }, setLocalEulerAngles() {} };
+const controller = new PlayerController(player, { campusShuttleEnabled: false });
+const obstacles = [];
+controller.setMovementSpace({ id: 'ROOM_PERSONAL_BASIC', allowMount: false, obstacles,
+  bounds: { minX: -100000, maxX: 100000, minZ: -100000, maxZ: 100000 }, groundHeight: () => 0, constrain: (_p, next) => next });
+const activity = createPlayerActivityAudio({ audio, resolveSurface: () => document.querySelector('#surface').value });
+let walking = false, muted = false, room = 'campus', disposed = false, last = performance.now();
+let tap = null, masterProbe = null, probeActive = false;
+function stopProbe() { masterProbe?.(); masterProbe = null; }
+function probeMaster() {
+  stopProbe();
+  return audio.playCue((context, master) => {
+    const source = context.createOscillator(), gain = context.createGain();
+    source.frequency.value = 440; gain.gain.value = .06;
+    source.connect(gain); gain.connect(master);
+    let ended = false;
+    const cleanup = () => { if (ended) return; ended = true; probeActive = false; source.disconnect(); gain.disconnect(); };
+    source.onended = cleanup;
+    masterProbe = () => { try { source.stop(); } catch {} cleanup(); };
+    probeActive = true; source.start(); source.stop(context.currentTime + 2);
+  });
+}
+function ensureTap() {
+  if (tap) return tap;
+  audio.playCue((context, master) => {
+    const analyser = context.createAnalyser(), destination = context.createMediaStreamDestination();
+    analyser.fftSize = 2048;
+    master.connect(analyser); analyser.connect(destination);
+    tap = { master, analyser, destination, data: new Float32Array(analyser.fftSize) };
+  });
+  return tap;
+}
+function rms() {
+  const current = ensureTap();
+  if (!current) return 0;
+  current.analyser.getFloatTimeDomainData(current.data);
+  return Math.sqrt(current.data.reduce((sum, sample) => sum + sample * sample, 0) / current.data.length);
+}
+const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+async function captureDemo() {
+  const current = ensureTap();
+  if (!current || typeof MediaRecorder !== 'function') return { status: 'UNSUPPORTED' };
+  const mimeType = ['audio/webm;codecs=opus', 'audio/webm'].find(type => MediaRecorder.isTypeSupported(type));
+  if (!mimeType) return { status: 'UNSUPPORTED' };
+  walking = false;
+  const recorder = new MediaRecorder(current.destination.stream, { mimeType }), chunks = [], segments = [];
+  const stopped = new Promise((resolve, reject) => {
+    recorder.ondataavailable = event => { if (event.data.size) chunks.push(event.data); };
+    recorder.onstop = resolve;
+    recorder.onerror = event => reject(event.error ?? new Error('recording failed'));
+  });
+  const started = performance.now();
+  recorder.start();
+  for (const surface of ['hard-outdoor', 'soft-outdoor', 'indoor-hard', 'indoor-soft']) {
+    for (const gait of ['WALK', 'RUN']) {
+      document.querySelector('#surface').value = surface; document.querySelector('#gait').value = gait;
+      activity.reset();
+      const beforeSteps = activity.status().steps;
+      const segment = { label: `${surface} ${gait}`, seconds: (performance.now() - started) / 1000, maxRms: 0, peakSources: 0 };
+      for (let i = 0; i < 24; i++) {
+        frame(.05); segment.peakSources = Math.max(segment.peakSources, activity.status().activeSources);
+        await delay(50); segment.maxRms = Math.max(segment.maxRms, rms());
+      }
+      segment.steps = activity.status().steps - beforeSteps;
+      segment.expectedSteps = gait === 'RUN' ? 4 : 3;
+      segments.push(segment); await delay(200);
+    }
+  }
+  for (const [label, target] of [['glass door', 'ROOM_DORM1_LOBBY'], ['wood door', 'ROOM_PERSONAL_BASIC'], ['threshold', MCM_2026_ROOM_ID]]) {
+    if (room !== 'campus') { doorway('campus'); await delay(400); }
+    segments.push({ label, seconds: (performance.now() - started) / 1000 });
+    doorway(target); await delay(600);
+  }
+  recorder.stop(); await stopped;
+  const blob = new Blob(chunks, { type: mimeType });
+  const base64 = await new Promise((resolve, reject) => {
+    const reader = new FileReader(); reader.onload = () => resolve(reader.result.split(',')[1]); reader.onerror = reject; reader.readAsDataURL(blob);
+  });
+  return { status: 'CAPTURED_GENERATED_OUTPUT', mimeType, bytes: blob.size, segments, base64,
+    subjectiveListening: 'NOT_PERFORMED', physicalDeviceBalance: 'NOT_PERFORMED' };
+}
+const snapshot = () => ({ audio: audio.status(), activity: activity.status(), contextCount: contexts.length,
+  controllerMoving: controller.moving, masterProbeActive: probeActive, position: { ...player.position }, walking, room, disposed });
+const show = () => { document.querySelector('#status').textContent = JSON.stringify(snapshot(), null, 2); };
+function frame(dt = .05, { blocked = false, mounted = false, inputEnabled = true } = {}) {
+  controller.setInputEnabled(inputEnabled);
+  if (inputEnabled) controller.keys.add('KeyD');
+  if (document.querySelector('#gait').value === 'RUN') controller.keys.add('ShiftLeft');
+  else controller.keys.delete('ShiftLeft');
+  obstacles.length = 0;
+  if (blocked) obstacles.push({ minX: player.position.x + .24, maxX: player.position.x + 10, minZ: -10, maxZ: 10, minY: 0, maxY: 10 });
+  const from = { ...player.position }, groundedBefore = controller.grounded;
+  controller.update(Math.min(dt, .05), 0);
+  activity.observeMove({ from, to: player.position, dt, space: controller.space.id,
+    groundedBefore, grounded: controller.grounded, moving: controller.moving, inputEnabled: controller.inputEnabled,
+    mounted, walkSpeed: controller.walkSpeed, maxSpeed: controller.sprintSpeed });
+}
+function doorway(next) {
+  if (room === next) next = 'campus';
+  else if (room !== 'campus') { activity.onRoomChange({ space: 'campus' }, 'exit'); room = 'campus'; }
+  const event = next === 'campus' ? 'exit' : room === 'campus' ? 'enter' : 'enter-nested';
+  room = next; activity.onRoomChange({ space: next }, event); show();
+}
+function dispose() {
+  disposed = true; walking = false; stopProbe(); activity.dispose();
+  if (tap) { tap.master.disconnect(tap.analyser); tap.analyser.disconnect(); for (const track of tap.destination.stream.getTracks()) track.stop(); tap = null; }
+  audio.dispose(); show();
+}
+document.querySelector('#unlock').onclick = async () => { await audio.unlock(); show(); };
+document.querySelector('#walk').onclick = () => { walking = !walking; activity.reset(); show(); };
+document.querySelector('#mute').onclick = () => { muted = !muted; audio.setVolume(muted ? 0 : 1); show(); };
+document.querySelector('#glass').onclick = () => doorway('ROOM_DORM1_LOBBY');
+document.querySelector('#wood').onclick = () => doorway('ROOM_PERSONAL_BASIC');
+document.querySelector('#threshold').onclick = () => doorway(MCM_2026_ROOM_ID);
+window.addEventListener('pagehide', event => { if (!event.persisted) dispose(); });
+function tick(now) {
+  const dt = (now - last) / 1000; last = now;
+  if (walking && !disposed) { frame(dt); show(); }
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+window.__ACTIVITY_AUDIO_QA__ = { snapshot, doorway, dispose, rms, captureDemo, probeMaster, stopProbe,
+  frames(count, options) { for (let i = 0; i < count; i++) frame(.05, options); show(); return snapshot(); } };
+show();
+</script>

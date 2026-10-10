@@ -26,17 +26,25 @@ export class RenderChunkStreaming {
     // Keep live handles. Reconcile only differences, at most one chunk per frame.
     this.policyDirty=true;this.pending=[];this.elapsedMs=this.intervalMs;
   }
-  update(dt,position) {
+  update(dt,position,interestPoints=[]) {
+    const supplemental=Array.isArray(interestPoints)
+      ? interestPoints.filter(p=>p&&Number.isFinite(p.x)&&Number.isFinite(p.z))
+      : [];
+    const distance=chunk=>{
+      let best=this.registry.distance(position,chunk);
+      for(const point of supplemental)best=Math.min(best,this.registry.distance(point,chunk));
+      return best;
+    };
     this.elapsedMs+=dt*1000;
     if(this.elapsedMs>=this.intervalMs&&!this.pending.length){
       this.elapsedMs=0;this.metrics.evaluations++;
-      this.pending=[...this.registry.chunks].sort((a,b)=>this.registry.distance(position,a)-this.registry.distance(position,b));
+      this.pending=[...this.registry.chunks].sort((a,b)=>distance(a)-distance(b));
     }
-    // Normal motion uses the same queue as settings; no full-campus rebuild path.
+    // Normal motion and temporary camera interests use the same queue; no full-campus rebuild path.
     const limit=this.policyDirty?1:this.registry.chunks.length;
     for(let i=0;i<limit&&this.pending.length;i++){
       const chunk=this.pending.shift();
-      const current=this.runtime.get(chunk.id),desired=desiredChunkState(this.registry.distance(position,chunk),current.state,this.policy);
+      const current=this.runtime.get(chunk.id),desired=desiredChunkState(distance(chunk),current.state,this.policy);
       if(desired===current.state)continue;
       this.metrics.transitions++;
       if(desired===ChunkState.UNLOADED){this.renderer.destroy(current.handle);current.handle=null;this.metrics.chunkDestroys++;}

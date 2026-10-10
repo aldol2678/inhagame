@@ -1,0 +1,42 @@
+name: Shop panel focus browser checks
+on:
+  pull_request:
+    paths:
+      - 'apps/world/src/shop/**'
+      - 'apps/world/src/collection/item-catalog.js'
+      - 'apps/world/styles.css'
+      - 'apps/world/tests/shop-panel*.test.mjs'
+      - 'apps/world/tests/browser/shop-panel-focus-*'
+      - '.github/workflows/shop-panel-focus-browser.yml'
+permissions:
+  contents: read
+concurrency:
+  group: shop-panel-focus-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  shop-panel-focus-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - run: npm ci --prefix apps/world/tests/browser --ignore-scripts
+      - name: Install Chromium
+        working-directory: apps/world/tests/browser
+        run: npx playwright install --with-deps chromium
+      - name: Native keyboard focus and scroll preservation
+        env:
+          SHOP_FOCUS_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node apps/world/tests/browser/shop-panel-focus-smoke.mjs
+      - name: Upload exact-head browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: shop-panel-focus-${{ github.event.pull_request.head.sha }}
+          path: test-results/shop-panel-focus
+          if-no-files-found: error
+          retention-days: 14

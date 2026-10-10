@@ -38,6 +38,39 @@ const server = http.createServer((req, res) => {
     res.end(req.method === 'GET' ? JSON.stringify(worldTimePayload()) : '');
     return;
   }
+  if (reqPath === '/api/npc-shared-state') {
+    const headers = { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' };
+    if (req.method !== 'GET') {
+      res.writeHead(405, { ...headers, Allow: 'GET' });
+      res.end();
+      return;
+    }
+    if (process.env.NPC_SHARED_AUTHORITY_P0 !== '1') {
+      res.writeHead(404, headers);
+      res.end();
+      return;
+    }
+    const placeZoneId = new URL(req.url, `http://127.0.0.1:${PORT}`).searchParams.get('placeZoneId');
+    if (!placeZoneId) {
+      res.writeHead(200, headers);
+      res.end(JSON.stringify({ enabled: true }));
+      return;
+    }
+    if (!/^AREA_[A-Z0-9_]{1,60}$/u.test(placeZoneId)) {
+      res.writeHead(400, headers);
+      res.end(JSON.stringify({ error: 'INVALID_SHARED_NPC_PLACE_ZONE' }));
+      return;
+    }
+    void import('./npc-factory/npc-shared-authority-server.mjs').then(({ createCampusSharedNpcAuthorityP0 }) => {
+      res.writeHead(200, headers);
+      res.end(JSON.stringify(createCampusSharedNpcAuthorityP0().snapshot({ placeZoneId })));
+    }).catch(error => {
+      console.warn('Shared NPC authority P0 unavailable:', error?.message ?? error);
+      res.writeHead(503, headers);
+      res.end(JSON.stringify({ error: 'SHARED_NPC_AUTHORITY_UNAVAILABLE' }));
+    });
+    return;
+  }
   if (reqPath === '/api/model-convert') {
     if (req.method === 'GET') {
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
@@ -137,6 +170,8 @@ const server = http.createServer((req, res) => {
     reqPath = "/editor/index.html";
   } else if (reqPath === "/editor/music" || reqPath === "/editor/music/") {
     reqPath = "/editor/music/index.html";
+  } else if (reqPath === "/worldforge" || reqPath === "/worldforge/") {
+    reqPath = "/studio/index.html";
   } else if (reqPath === "/studio" || reqPath === "/studio/") {
     reqPath = "/studio/index.html";
   } else if (reqPath === "/") {

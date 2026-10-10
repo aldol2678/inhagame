@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Shop focus · offline fixture</title>
+  <link rel="stylesheet" href="../../styles.css">
+  <style>
+    body { margin: 0; padding: 24px; background: #102334; color: #eef8ff; font: 16px sans-serif; }
+    .shop-panel-body { max-height: 240px; }
+  </style>
+</head>
+<body>
+  <p>Offline shop keyboard fixture. Real panel/client, synthetic RPC responses, no account or backend</p>
+  <button id="opener" type="button">상점 열기</button>
+  <button id="outside" type="button">다른 화면</button>
+  <section id="shop" class="profile-panel shop-panel" role="dialog" aria-modal="true" aria-labelledby="shop-panel-title" hidden></section>
+  <script type="module">
+    import { createShopClient, SHOP_STUDENT_CENTER, SHOP_READ_RPC, SHOP_PURCHASE_RPC } from '../../src/shop/shop-client.js';
+    import { createShopPanel } from '../../src/shop/shop-panel.js';
+    const initialOffers = Array.from({ length: 18 }, (_, index) => ({
+      listingId: `fixture.${index}`, itemId: 'memorabilia.campus_mug', currencyId: 'currency.induck_coin',
+      price: 120, quantity: 1, requiredLevel: null, purchaseLimit: null, startAt: null, endAt: null,
+      status: 'ACTIVE', purchasable: true, unavailableReason: null
+    }));
+    let offers = initialOffers, failRead = false, finishPurchase;
+    const calls = [], events = [], statuses = [];
+    const client = { rpc(name, args) {
+      calls.push({ name, args });
+      if (name === SHOP_READ_RPC) return Promise.resolve(failRead
+        ? { data: null, error: { message: 'FIXTURE_FAILED' } }
+        : { data: { shopId: SHOP_STUDENT_CENTER, status: 'ACTIVE', playerLevel: 1, offers }, error: null });
+      if (name === SHOP_PURCHASE_RPC) return new Promise(resolve => { finishPurchase = resolve; });
+      throw new Error(`Unexpected fixture RPC ${name}`);
+    } };
+    const shop = createShopClient({ getClient: () => client, createKey: () => `fixture:${calls.length}` });
+    shop.setAccount('fixture-account-a');
+    const panel = createShopPanel({ panel: document.getElementById('shop'), shop, onStatus: value => statuses.push(value) });
+    document.getElementById('opener').addEventListener('click', () => panel.setOpen(true));
+    for (const type of ['keydown', 'pointerdown']) document.addEventListener(type, event => {
+      events.push({ type, code: event.code, shiftKey: event.shiftKey, trusted: event.isTrusted });
+    }, true);
+    window.__SHOP_FOCUS__ = {
+      shop, panel, calls, events, statuses,
+      async read({ fail = false, reverse = false, remove = null, disable = null } = {}) {
+        failRead = fail;
+        offers = initialOffers.filter(offer => offer.listingId !== remove).map(offer => offer.listingId === disable
+          ? { ...offer, purchasable: false, unavailableReason: 'ITEM_UNAVAILABLE' } : offer);
+        if (reverse) offers.reverse();
+        await shop.refresh('fixture');
+      },
+      finish(code = null) {
+        if (!finishPurchase) throw new Error('No fixture purchase is pending');
+        const resolve = finishPurchase; finishPurchase = null;
+        resolve(code ? { data: null, error: { message: code } } : { data: { status: 'SUCCESS' }, error: null });
+      },
+      async account(id) { shop.setAccount(id); if (id) await shop.refresh('fixture-account'); },
+      snapshot: () => ({ open: panel.open, focus: document.activeElement?.dataset.focusKey ?? document.activeElement?.id,
+        state: shop.state, hint: panel.status().hint, scroll: document.querySelector('.shop-panel-body')?.scrollTop })
+    };
+    document.getElementById('opener').focus();
+  </script>
+</body>
+</html>

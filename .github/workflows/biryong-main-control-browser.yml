@@ -1,0 +1,115 @@
+name: Biryong immutable main control
+
+on:
+  pull_request:
+    paths:
+      - 'apps/world/src/biryong/**'
+      - 'apps/world/src/graphics-presets.js'
+      - 'apps/world/src/campus-render-kit.js'
+      - 'apps/world/src/environment/environment-director.js'
+      - 'apps/world/src/environment/environment-presets.js'
+      - 'apps/world/tests/browser/biryong-control-*.mjs'
+      - 'apps/world/tests/browser/biryong-performance-*.mjs'
+      - 'apps/world/tests/browser/biryong-ci-gate.mjs'
+      - 'apps/world/tests/biryong-control-diagnostic.test.mjs'
+      - 'apps/world/tests/biryong-performance-*.test.mjs'
+      - 'apps/world/tests/browser/harness*.mjs'
+      - 'apps/world/tests/browser/package*.json'
+      - '.github/workflows/biryong-main-control-browser.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: biryong-main-control-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  compare-low-off:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CONTROL_SHA: e49419c39d884515f2402a2f3a23fe4c754b8882
+      WORLD_SMOKE_DISABLE_WEBGPU: '1'
+      WORLD_SMOKE_BROWSER: chrome
+      BIRYONG_PERF_MODE: baseline-only
+      BIRYONG_PERF_TIERS: low
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Checkout immutable main control
+        uses: actions/checkout@v4
+        with:
+          ref: e49419c39d884515f2402a2f3a23fe4c754b8882
+          path: .qa-control-main
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - name: Verify source identity and prepare receipts
+        id: sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C .qa-control-main rev-parse HEAD)" = "$CONTROL_SHA"
+          echo "QA_CANDIDATE_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          echo "QA_CANDIDATE_TREE=$(git rev-parse HEAD^{tree})" >> "$GITHUB_ENV"
+          echo "QA_CONTROL_TREE=$(git -C .qa-control-main rev-parse HEAD^{tree})" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/biryong-main-control"
+      - name: Install same pinned sampler engine
+        id: dependencies
+        working-directory: apps/world/tests/browser
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Measure immutable main LOW Visual OFF
+        id: main
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          GITHUB_SHA="$QA_CANDIDATE_SHA" \
+          BIRYONG_PERF_SOURCE_SHA="$CONTROL_SHA" \
+          BIRYONG_PERF_SOURCE_TREE="$QA_CONTROL_TREE" \
+          BIRYONG_PERF_WORLD_ROOT="$GITHUB_WORKSPACE/.qa-control-main/apps/world" \
+          BIRYONG_PERF_RECEIPT="$RUNNER_TEMP/biryong-main-control/main.json" \
+          node apps/world/tests/browser/biryong-performance-smoke.mjs 2>&1 | tee "$RUNNER_TEMP/biryong-main-control/main.log"
+      - name: Measure candidate LOW Visual OFF
+        id: candidate
+        if: always() && steps.dependencies.outcome == 'success' && steps.sources.outcome == 'success'
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          GITHUB_SHA="$QA_CANDIDATE_SHA" \
+          BIRYONG_PERF_SOURCE_SHA="$QA_CANDIDATE_SHA" \
+          BIRYONG_PERF_SOURCE_TREE="$QA_CANDIDATE_TREE" \
+          BIRYONG_PERF_WORLD_ROOT="$GITHUB_WORKSPACE/apps/world" \
+          BIRYONG_PERF_RECEIPT="$RUNNER_TEMP/biryong-main-control/candidate.json" \
+          node apps/world/tests/browser/biryong-performance-smoke.mjs 2>&1 | tee "$RUNNER_TEMP/biryong-main-control/candidate.log"
+      - name: Compare same-runner LOW controls without relaxing budgets
+        if: always()
+        continue-on-error: true
+        env:
+          BIRYONG_CONTROL_MAIN_OUTCOME: ${{ steps.main.outcome }}
+          BIRYONG_CONTROL_CANDIDATE_OUTCOME: ${{ steps.candidate.outcome }}
+        shell: bash
+        run: |
+          node apps/world/tests/browser/biryong-control-report.mjs \
+            "$RUNNER_TEMP/biryong-main-control/main.json" \
+            "$RUNNER_TEMP/biryong-main-control/candidate.json" \
+            "$RUNNER_TEMP/biryong-main-control/comparison.json" \
+            "$CONTROL_SHA" "$QA_CANDIDATE_SHA"
+      - name: Classify software-rendered comparison without treating it as performance PASS
+        if: always()
+        run: node apps/world/tests/browser/biryong-ci-gate.mjs control "$RUNNER_TEMP/biryong-main-control/comparison.json"
+      - name: Upload control receipts and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: biryong-immutable-main-control
+          path: ${{ runner.temp }}/biryong-main-control/**
+          if-no-files-found: warn
+          retention-days: 7

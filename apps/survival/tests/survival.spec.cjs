@@ -3,7 +3,7 @@ const {offline}=require('./offline.cjs');
 
 const LOCAL='http://localhost:4173/';
 // Routed to local files by offline.cjs: game-entry.js only activates on the real Survival hostname.
-const PROD_HOST='https://survival.inhagame.example/';
+const PROD_HOST='https://survival.inhagame.app/';
 const ENTRY='3f2b8c1e-5d4a-4e6b-9c7d-1a2b3c4d5e6f';
 
 let net,problems;
@@ -111,7 +111,7 @@ test('ih_entry is cleaned and reports landing and play exactly once',async({page
   for(const {body,origin} of net.entries){
     expect(Object.keys(body).sort()).toEqual(['entry_id','event_id','event_type','target']);
     expect(body).toMatchObject({entry_id:ENTRY,target:'survival'});
-    expect(origin).toBe('https://survival.inhagame.example');
+    expect(origin).toBe('https://survival.inhagame.app');
   }
   expect(new Set(net.entries.map(e=>e.body.event_id)).size).toBe(2);
 });

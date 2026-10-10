@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" role="img" aria-labelledby="title-mobility" stroke-linejoin="round" stroke-linecap="round">
+<title id="title-mobility">탈것</title>
+
+  <circle cx="12" cy="14.7" r="6.1" fill="#B7E4FF" stroke="#103F7E" stroke-width="1.8"/>
+  <circle cx="12" cy="14.7" r="2.25" fill="#FFFFFF" stroke="#103F7E" stroke-width="1.6"/>
+  <path d="M12 8.6v3.7M6.7 17.8l3.3-1.9M17.3 17.8 14 15.9" stroke="#103F7E" stroke-width="1.6" stroke-linecap="round"/>
+  <path d="M5 4.9h10.1M12.5 2.5l3 2.4-3 2.5" stroke="#398EF2" stroke-width="2.0" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M4.4 9.7h-2" stroke="#58C6AE" stroke-width="2.0" stroke-linecap="round"/>
+</svg>

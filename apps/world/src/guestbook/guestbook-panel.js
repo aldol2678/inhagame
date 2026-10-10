@@ -43,15 +43,27 @@ export function createGuestbookPanel({
   let hint = "";
   let loading = false;
   let saving = false;
+  let saveOwner = null;
   let draft = "";
   let editingId = null;
+  let editTarget = null;
   let loadEpoch = 0;
+  let lifecycle = 0;
+  let recoveryFocus = null;
+  let accountId; // undefined keeps availability-only callers compatible
+  const available = () => accountId !== null && guestbook.available;
+  const currentView = (epoch) => epoch === lifecycle && open && available();
+  const stale = (error) => error instanceof GuestbookError && error.code === "STALE";
 
-  const editingEntry = () => board?.entries.find((entry) => entry.id === editingId) ?? null;
+  const editingEntry = () => board?.entries.find((entry) => entry.id === editingId)
+    // Reopening reads page one. An older selected entry can still be on a later
+    // page; keep its edit identity until the complete result excludes it.
+    ?? (board?.hasMore && editTarget?.id === editingId ? editTarget : null);
 
   function startEdit(entry) {
     if (!entry?.mine || saving) return;
     editingId = entry.id;
+    editTarget = entry;
     draft = entry.content;
     hint = "";
     render();
@@ -59,6 +71,7 @@ export function createGuestbookPanel({
 
   function cancelEdit() {
     editingId = null;
+    editTarget = null;
     draft = "";
     hint = "";
     render();
@@ -66,26 +79,35 @@ export function createGuestbookPanel({
 
   async function removeEntry(entry) {
     if (!entry?.mine || saving) return;
+    const epoch = lifecycle;
+    const request = {};
+    saveOwner = request;
     saving = true;
     hint = "";
     render();
     try {
       await guestbook.remove(entry.id);
+      if (!currentView(epoch)) return;
       if (editingId === entry.id) {
         editingId = null;
+        editTarget = null;
         draft = "";
       }
       hint = "방명록을 삭제했어요.";
       await refresh();
     } catch (error) {
-      hint = messageFor(error);
+      if (currentView(epoch) && !stale(error)) hint = messageFor(error);
     } finally {
-      saving = false;
-      render();
+      if (saveOwner === request) {
+        saveOwner = null;
+        saving = false;
+        if (open) render();
+      }
     }
   }
 
   function renderEntry(entry) {
+    const epoch = lifecycle;
     const item = el("article", "guestbook-entry");
     item.dataset.entryId = entry.id;
 
@@ -103,7 +125,7 @@ export function createGuestbookPanel({
     }
     if (entry.mine) identity.append(el("span", "guestbook-mine", "내 글"));
     identity.append(el("span", "guestbook-profile-chevron", "›"));
-    identity.addEventListener("click", () => void onOpenProfile(entry));
+    identity.addEventListener("click", () => { if (currentView(epoch)) void onOpenProfile(entry); });
 
     head.append(identity);
     head.append(el("time", "guestbook-time", formatTime(entry.updatedAt ?? entry.createdAt)));
@@ -114,11 +136,11 @@ export function createGuestbookPanel({
       const edit = el("button", "guestbook-entry-edit", editingId === entry.id ? "수정 중" : "수정");
       edit.type = "button";
       edit.disabled = saving;
-      edit.addEventListener("click", () => startEdit(entry));
+      edit.addEventListener("click", () => { if (currentView(epoch)) startEdit(entry); });
       const remove = el("button", "guestbook-entry-delete", "삭제");
       remove.type = "button";
       remove.disabled = saving;
-      remove.addEventListener("click", () => void removeEntry(entry));
+      remove.addEventListener("click", () => { if (currentView(epoch)) void removeEntry(entry); });
       actions.append(edit, remove);
       item.append(actions);
     }
@@ -126,6 +148,7 @@ export function createGuestbookPanel({
   }
 
   function renderEditor() {
+    const epoch = lifecycle;
     const editing = editingEntry();
     const wrap = el("section", "guestbook-editor");
     wrap.append(el("h3", "", editing ? "내 글 수정" : "방명록 남기기"));
@@ -146,6 +169,7 @@ export function createGuestbookPanel({
     textarea.value = draft;
     textarea.disabled = saving || createBlocked;
     textarea.addEventListener("input", () => {
+      if (!currentView(epoch)) return;
       draft = textarea.value;
       counter.textContent = `${draft.length}/150`;
       save.disabled = saving || createBlocked || draft.trim().length < 1;
@@ -159,7 +183,7 @@ export function createGuestbookPanel({
       const cancel = el("button", "guestbook-cancel", "취소");
       cancel.type = "button";
       cancel.disabled = saving;
-      cancel.addEventListener("click", cancelEdit);
+      cancel.addEventListener("click", () => { if (currentView(epoch)) cancelEdit(); });
       actions.append(cancel);
     }
 
@@ -167,27 +191,35 @@ export function createGuestbookPanel({
     save.type = "button";
     save.disabled = saving || createBlocked || draft.trim().length < 1;
     save.addEventListener("click", async () => {
-      if (saving) return;
+      if (!currentView(epoch) || saving) return;
+      const request = { draftSubmitted: true };
+      saveOwner = request;
       saving = true;
       hint = "";
       render();
       try {
         if (editing) {
           await guestbook.update(editing.id, draft);
+          if (!currentView(epoch)) return;
           editingId = null;
+          editTarget = null;
           draft = "";
           hint = "방명록을 수정했어요.";
         } else {
           await guestbook.create(draft);
+          if (!currentView(epoch)) return;
           draft = "";
           hint = "새 방명록을 남겼어요.";
         }
         await refresh();
       } catch (error) {
-        hint = messageFor(error);
+        if (currentView(epoch) && !stale(error)) hint = messageFor(error);
       } finally {
-        saving = false;
-        render();
+        if (saveOwner === request) {
+          saveOwner = null;
+          saving = false;
+          if (open) render();
+        }
       }
     });
 
@@ -198,10 +230,12 @@ export function createGuestbookPanel({
     if (createBlocked) {
       wrap.append(el("p", "guestbook-limit-note", "오늘 작성 횟수는 삭제해도 다시 늘어나지 않아요."));
     }
-    return wrap;
+    return { element: wrap, textarea };
   }
 
   function render() {
+    const restoreRecoveryFocus = recoveryFocus && doc.activeElement === recoveryFocus;
+    recoveryFocus = null;
     panel.replaceChildren();
 
     const head = el("div", "guestbook-panel-head");
@@ -214,25 +248,40 @@ export function createGuestbookPanel({
     head.append(titles, close);
     panel.append(head);
 
-    if (!guestbook.available) {
+    if (!available()) {
       panel.append(el("p", "guestbook-empty", "로그인한 계정만 방명록을 볼 수 있어요."));
       return;
     }
-    if (loading && !board) {
-      panel.append(el("p", "guestbook-empty", "방명록을 불러오는 중…"));
-      return;
-    }
     if (!board) {
-      panel.append(el("p", "guestbook-empty", hint || "방명록을 불러오지 못했어요."));
+      const epoch = lifecycle;
+      const status = el("p", "guestbook-empty guestbook-load-status", loading
+        ? "방명록을 불러오는 중…" : hint || "방명록을 불러오지 못했어요.");
+      status.setAttribute("role", "status");
+      status.setAttribute("aria-live", "polite");
+      status.tabIndex = -1;
+      const retry = el("button", "guestbook-more guestbook-retry", loading ? "불러오는 중…" : "다시 불러오기");
+      retry.type = "button";
+      retry.disabled = loading;
+      retry.addEventListener("click", () => {
+        if (!currentView(epoch) || loading || board) return;
+        hint = "";
+        void refresh();
+      });
+      panel.append(status, retry);
+      recoveryFocus = loading ? status : retry;
+      if (restoreRecoveryFocus) recoveryFocus.focus();
       return;
     }
 
     if (editingId && !editingEntry()) {
       editingId = null;
+      editTarget = null;
       draft = "";
     }
 
-    panel.append(renderEditor());
+    const editor = renderEditor();
+    panel.append(editor.element);
+    if (restoreRecoveryFocus) (editor.textarea.disabled ? close : editor.textarea).focus();
 
     const list = el("div", "guestbook-list");
     if (!board.entries.length) {
@@ -253,15 +302,19 @@ export function createGuestbookPanel({
   }
 
   async function refresh() {
-    if (!open || !guestbook.available) return null;
+    if (!open || !available()) return null;
+    // Retry is read-only and single-flight. A post-write refresh can still replace
+    // an older paginated read when an existing board is visible.
+    if (loading && !board) return null;
+    const view = lifecycle;
     const epoch = ++loadEpoch;
     loading = true;
     render();
     try {
       const next = await guestbook.load();
-      if (epoch === loadEpoch && open) board = next;
+      if (epoch === loadEpoch && currentView(view)) board = next;
     } catch (error) {
-      if (epoch === loadEpoch && open) {
+      if (epoch === loadEpoch && currentView(view) && !stale(error)) {
         board = null;
         hint = messageFor(error);
       }
@@ -275,13 +328,14 @@ export function createGuestbookPanel({
   }
 
   async function loadMore() {
-    if (!open || loading || !board?.hasMore || !board.nextBefore) return board;
+    if (!open || !available() || loading || !board?.hasMore || !board.nextBefore) return board;
+    const view = lifecycle;
     const epoch = ++loadEpoch;
     loading = true;
     render();
     try {
       const next = await guestbook.load({ before: board.nextBefore });
-      if (epoch === loadEpoch && open) {
+      if (epoch === loadEpoch && currentView(view)) {
         const seen = new Set(board.entries.map((entry) => entry.id));
         board = Object.freeze({
           ...next,
@@ -289,7 +343,7 @@ export function createGuestbookPanel({
         });
       }
     } catch (error) {
-      if (epoch === loadEpoch && open) hint = messageFor(error);
+      if (epoch === loadEpoch && currentView(view) && !stale(error)) hint = messageFor(error);
     } finally {
       if (epoch === loadEpoch) {
         loading = false;
@@ -300,33 +354,39 @@ export function createGuestbookPanel({
   }
 
   function setOpen(next) {
-    if (next && !guestbook.available) return Promise.resolve(false);
+    if (next && !available()) return Promise.resolve(false);
     const nextOpen = Boolean(next);
     const changed = open !== nextOpen;
+    if (!changed) return Promise.resolve(true);
+    const epoch = ++lifecycle;
+    loadEpoch += 1;
     open = nextOpen;
-    panel.hidden = !open;
-    if (changed) onOpenChange(open);
-    if (!open) {
-      loadEpoch += 1;
-      board = null;
-      hint = "";
+    board = null;
+    hint = "";
+    // Retain only unsent same-account drafts. A submitted write may already have
+    // committed, so closing it keeps the existing no-replay behavior.
+    if (saving && saveOwner?.draftSubmitted) {
       draft = "";
       editingId = null;
-      panel.replaceChildren();
-      return Promise.resolve(true);
+      editTarget = null;
     }
-    hint = "";
-    board = null;
-    draft = "";
-    editingId = null;
+    recoveryFocus = null;
+    loading = false;
+    panel.hidden = !open;
+    panel.replaceChildren();
+    // Publish after invalidating the old view. Reentrant close/open/account callbacks
+    // own the new view; this call must not clear or refresh it afterwards.
+    if (changed) onOpenChange(open);
+    if (epoch !== lifecycle) return Promise.resolve(false);
+    if (!open) return Promise.resolve(true);
     render();
-    return refresh().then(() => true);
+    return refresh().then(() => epoch === lifecycle && open);
   }
 
   panel.addEventListener("pointerdown", (event) => event.stopPropagation());
   doc.addEventListener("keydown", (event) => {
     if (!open || event.code !== "Escape") return;
-    if (editingId) cancelEdit();
+    if (editingId && board) cancelEdit();
     else void setOpen(false);
   });
 
@@ -337,8 +397,20 @@ export function createGuestbookPanel({
     setOpen,
     refresh,
     loadMore,
-    setAvailable(available) {
-      if (!available && open) void setOpen(false);
+    setAvailable(isAvailable, nextAccountId = accountId) {
+      // Use the identity callback's id (or null), never the transport's stale getter.
+      if (nextAccountId !== accountId || !isAvailable) {
+        draft = "";
+        editingId = null;
+        editTarget = null;
+      }
+      if (nextAccountId !== accountId) {
+        accountId = nextAccountId;
+        saveOwner = null;
+        saving = false;
+        guestbook.setAccount?.(nextAccountId);
+        void setOpen(false);
+      } else if (!isAvailable) void setOpen(false);
     }
   };
 }

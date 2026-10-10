@@ -4,12 +4,24 @@
 import { PLAYER_ORIGIN_Y, WALK_SHAPE } from "../player-dimensions.js";
 
 export const PERSONAL_ROOM_BASIC=Object.freeze({
-  halfWidth:5.4,
+  // C · Creative / Open Creator runtime shell. 7.14 / 4.2 = 1.70 exactly.
+  // These remain world units, not surveyed physical metres.
+  halfWidth:7.14,
   halfDepth:4.2,
+  aspectRatio:1.70,
   ceiling:2.15,
   wall:0.32,
   camera:Object.freeze({initial:2.7,min:1.2,max:4.2}),
   door:Object.freeze({x:0,width:1.2,height:1.22})
+});
+
+// H2 persistence compatibility: existing saved coordinates remain valid. Housing F0 widens only
+// the floor placement envelope to the C70 shell; legacy east/west wall anchors remain unchanged
+// until a dedicated wall-placement migration can move persisted wall objects safely.
+export const PERSONAL_ROOM_PLACEMENT_ENVELOPE=Object.freeze({
+  floor:Object.freeze({minX:-7.04,maxX:7.04,minZ:-4.1,maxZ:4.1}),
+  exit:Object.freeze({minX:-.9,maxX:.9,minZ:-4.2,maxZ:-2.25}),
+  wall:Object.freeze({northZ:4.15,southZ:-4.15,eastX:5.35,westX:-5.35,maxX:5.3,maxZ:4.1})
 });
 const {halfWidth:W,halfDepth:D,ceiling:H,wall:T}=PERSONAL_ROOM_BASIC;
 

@@ -16,6 +16,17 @@ const QUERY = '@media (pointer: coarse) and (orientation: landscape) and (max-he
 const startIndex = css.indexOf(START);
 const endIndex = css.indexOf(END);
 const before = css.slice(0, startIndex);
+const MAP_START = '/* Full Map short-landscape: independent of the legacy HUD block. */';
+const MAP_END = '/* FULL-MAP-LANDSCAPE:end */';
+const mapSection = css.slice(css.indexOf(MAP_START), css.indexOf(MAP_END) + MAP_END.length);
+const COMPACT_START = '/* FULL-MAP-COMPACT-SEARCH:start */', COMPACT_END = '/* FULL-MAP-COMPACT-SEARCH:end */';
+const compactSection = css.slice(css.indexOf(COMPACT_START), css.indexOf(COMPACT_END) + COMPACT_END.length);
+const LOBBY_START = '/* Main Lobby mobile-landscape correction.';
+const LOBBY_END = '/* Social S1-D2 · Personal Room HUD:';
+const lobbyStartIndex = css.indexOf(LOBBY_START), lobbyEndIndex = css.indexOf(LOBBY_END, lobbyStartIndex);
+const lobbySection = css.slice(lobbyStartIndex, lobbyEndIndex);
+const beforeWithoutExceptions = before.replace(mapSection, '').replace(compactSection, '').replace(lobbySection, '');
+const mapBlock = mapSection.slice(mapSection.indexOf(QUERY) + QUERY.length, mapSection.lastIndexOf('}'));
 const section = css.slice(startIndex, endIndex + END.length);
 // The override lives in exactly one media block; `body` is the inside of that block.
 const blockOpen = section.indexOf(QUERY);
@@ -31,9 +42,14 @@ function sourceFiles(dir, out = []) {
   return out;
 }
 
-test('landscape HUD override is one coarse + landscape + short-viewport media block at the end of the stylesheet', () => {
+test('landscape HUD remains last while Full Map owns an isolated earlier media block', () => {
   assert.ok(startIndex > 0 && endIndex > startIndex, 'LANDSCAPE-HUD markers exist');
-  assert.equal(css.split(QUERY).length - 1, 1, 'the exact landscape query appears once');
+  assert.equal(css.split(QUERY).length - 1, 2, 'one HUD block and one isolated Full Map block');
+  assert.ok(css.indexOf(MAP_START) >= 0 && css.indexOf(MAP_END) < startIndex);
+  const mapSelectors = [...mapBlock.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/(?:^|})\s*([^{}]+)\{/g)]
+    .flatMap(match => match[1].split(','));
+  assert.ok(mapSelectors.length > 10 && mapSelectors.every(selector => selector.trim().startsWith('body .full-map')),
+    'the earlier landscape exception can style Full Map only');
   assert.match(QUERY, /pointer: coarse/);
   assert.match(QUERY, /orientation: landscape/);
   assert.match(QUERY, /max-height: 500px/);
@@ -48,7 +64,7 @@ test('landscape HUD override is one coarse + landscape + short-viewport media bl
 test('the override is not a max-width rule and never touches portrait or desktop media', () => {
   assert.doesNotMatch(QUERY, /max-width/);
   // Every pre-existing orientation-free rule is still above the markers, unchanged in place.
-  assert.doesNotMatch(before, /orientation:\s*landscape/, 'no existing rule was converted to a landscape rule');
+  assert.doesNotMatch(beforeWithoutExceptions, /orientation:\s*landscape/, 'no rule outside the verified Full Map and lobby exceptions was converted to landscape');
   assert.match(before, /@media \(pointer: coarse\) and \(max-width: 420px\) \{[\s\S]*?#run,\s*#jump,\s*#descend \{[\s\S]*?width: 68px;\s*height: 68px;/,
     'portrait small-phone action buttons are unchanged');
   assert.match(before, /@media \(pointer: coarse\) and \(max-width: 420px\) \{[\s\S]*?\.social-cluster #chat-toggle \{[\s\S]*?width: 44px;/,
@@ -59,6 +75,21 @@ test('the override is not a max-width rule and never touches portrait or desktop
     'desktop hides the touch controls as before');
   assert.match(before, /#jump \{ bottom: max\(42px, env\(safe-area-inset-bottom\)\); \}/);
   assert.match(before, /\.minimap \{\s*--minimap-size: var\(--world-right-rail-map-size, 112px\);/);
+});
+
+test('lobby landscape exceptions style only the lobby on coarse short screens', () => {
+  assert.ok(lobbyStartIndex >= 0 && lobbyEndIndex > lobbyStartIndex && lobbyEndIndex < startIndex);
+  const stripped = lobbySection.replace(/\/\*[\s\S]*?\*\//g, '');
+  const queries = [...stripped.matchAll(/@media\s*([^{}]+)\{/g)].map(match => match[1].trim());
+  assert.deepEqual(queries, [
+    '(orientation: landscape) and (max-height: 640px) and (pointer: coarse)',
+    '(orientation: landscape) and (max-height: 460px) and (pointer: coarse)'
+  ]);
+  const rules = stripped.replace(/@media[^{}]+\{/g, '').replace(/\{[^{}]*\}/g, match => match.slice(0, 1) + '}');
+  const selectors = [...rules.matchAll(/(?:^|})\s*([^{}]+)\{/g)].flatMap(match => match[1].split(','));
+  assert.ok(selectors.length > 20 && selectors.every(selector => /^\s*(?:\.world-lobby[\w-]*|#lobby-[\w-]*)(?:\s|$)/.test(selector)),
+    'lobby exceptions cannot style gameplay HUD, Full Map, or other panels');
+  assert.equal((stripped.match(/\{/g) ?? []).length, (stripped.match(/\}/g) ?? []).length);
 });
 
 test('every selector used by the override exists in the campus DOM or the HUD sources', () => {
@@ -171,16 +202,16 @@ test('menu and settings drawers fit a short screen (3-column menu, scrollable se
 });
 
 test('Full Map fits short landscape viewports without reserving an empty desktop detail column', () => {
-  assert.match(block, /body \.full-map-card \{/);
-  assert.match(block, /--ls-full-map-size: clamp\(250px, calc\(100dvh - 70px\), 430px\);/);
-  assert.match(block, /body \.full-map-card:has\(\.full-map-info\[hidden\]\) \{[^}]*width: fit-content;/s,
+  assert.match(mapBlock, /body \.full-map-card \{/);
+  assert.match(mapBlock, /--ls-full-map-size: min\(430px, calc\(var\(--ls-full-map-available-height\) - 60px - var\(--full-map-search-height\)\)\);/);
+  assert.match(mapBlock, /body \.full-map-card:has\(\.full-map-info\[hidden\]\) \{[^}]*width: fit-content;/s,
     'closed info panel does not reserve the desktop detail column');
-  assert.match(block, /body \.full-map-body \{[^}]*width: fit-content;[^}]*margin-inline: auto;[^}]*grid-template-columns: var\(--ls-full-map-size\) minmax\(170px, 210px\);/s);
-  assert.match(block, /body \.full-map-body:has\(> \.full-map-info\[hidden\]\) \{\s*grid-template-columns: var\(--ls-full-map-size\);/);
-  assert.match(block, /body \.full-map-surface \{[^}]*width: var\(--ls-full-map-size\);[^}]*height: var\(--ls-full-map-size\);[^}]*aspect-ratio: 1;/s,
+  assert.match(mapBlock, /body \.full-map-body \{[^}]*width: fit-content;[^}]*margin-inline: auto;[^}]*grid-template-columns: calc\(var\(--ls-full-map-size\) \+ 76px\) minmax\(170px, 210px\);/s);
+  assert.match(mapBlock, /body \.full-map-body:has\(> \.full-map-info\[hidden\]\) \{\s*grid-template-columns: calc\(var\(--ls-full-map-size\) \+ 76px\);/);
+  assert.match(mapBlock, /body \.full-map-surface \{[^}]*width: var\(--ls-full-map-size\);[^}]*height: var\(--ls-full-map-size\);[^}]*aspect-ratio: 1;/s,
     'map remains square so SVG geometry and percentage marker layers stay aligned');
-  assert.match(block, /body \.full-map-info \{[^}]*max-height: var\(--ls-full-map-size\);[^}]*overflow-y: auto;/s);
-  assert.match(block, /body \.full-map-controls \{[^}]*left: 50%;[^}]*right: auto;[^}]*bottom: 6px;[^}]*transform: translateX\(-50%\);/s);
+  assert.match(mapBlock, /body \.full-map-info \{[^}]*max-height: var\(--ls-full-map-size\);[^}]*overflow-y: auto;/s);
+  assert.match(mapBlock, /body \.full-map-controls \{[^}]*position: static;[^}]*width: 68px;[^}]*flex-direction: column;[^}]*transform: none;/s);
   assert.match(before, /\.full-map-surface \{[^}]*aspect-ratio: 1;/s,
     'portrait and desktop Full Map base contract remains unchanged');
 });
@@ -190,4 +221,13 @@ test('the override changes presentation only: no JS, DOM or authority edits are 
   // Touch controls are still the existing nodes, in the existing document order.
   assert.match(html, /<div id="joystick"[^>]*><div id="joystick-knob"><\/div><\/div>\s*<button id="run"[^>]*>RUN<\/button>\s*<button id="jump"[^>]*>JUMP<\/button>\s*<button id="descend"[^>]*hidden>/);
   assert.match(html, /<button id="context-action"[^>]*hidden><\/button>\s*<button id="transport-action"[^>]*hidden><\/button>/);
+});
+
+
+test('compact search exception is limited to Full Map selectors and its verified width', () => {
+  assert.match(compactSection, /min-width: 568px/);
+  const body = compactSection.slice(compactSection.indexOf('{') + 1, compactSection.lastIndexOf('}'));
+  const selectors = [...body.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/(?:^|})\s*([^{}]+)\{/g)].flatMap(match => match[1].split(','));
+  assert.ok(selectors.length >= 4 && selectors.every(selector => selector.trim().startsWith('body .full-map')));
+  assert.equal((body.match(/\{/g) ?? []).length, (body.match(/\}/g) ?? []).length);
 });

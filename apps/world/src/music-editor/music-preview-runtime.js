@@ -1,6 +1,7 @@
 import { normalizeMusicState, resolveMusicBinding } from "../audio/music-binding-resolver.js";
 
 const clamp01 = value => Math.max(0, Math.min(1, Number(value) || 0));
+const assetKey = asset => JSON.stringify([asset.id, asset.uri || ""]);
 
 export const normalizeMusicPreviewState = normalizeMusicState;
 export const resolveMusicPreviewBinding = resolveMusicBinding;
@@ -63,20 +64,22 @@ export function createMusicPreviewRuntime({
     if (!musicBus.gain.setTargetAtTime) musicBus.gain.value = musicVolume;
   }
 
-  function stopHandle(id) {
+  function stopHandle(id, stopSource = true) {
     const handle = handles.get(id);
     if (!handle) return false;
+    handles.delete(id);
     if (handle.timer !== null) clearTimeoutFn(handle.timer);
     handle.timer = null;
     handle.source.onended = null;
-    try { handle.source.stop(); } catch {}
+    if (stopSource) { try { handle.source.stop(); } catch {} }
     handle.source.disconnect();
     handle.gain.disconnect();
-    handles.delete(id);
     return true;
   }
 
-  function fadeHandle(handle, target, seconds) {
+  function fadeHandle(handle, target, seconds, retire = false) {
+    // Repeated state refreshes must not postpone an already scheduled stop.
+    if (retire && handle.timer !== null) return;
     if (!context) return;
     if (handle.timer !== null) {
       clearTimeoutFn(handle.timer);
@@ -90,16 +93,18 @@ export function createMusicPreviewRuntime({
     if (duration === 0) {
       handle.gain.gain.setValueAtTime?.(target, now);
       handle.gain.gain.value = target;
-      if (target === 0) stopHandle(handle.cueId);
+      if (retire) stopHandle(handle.cueId);
       return;
     }
     handle.gain.gain.linearRampToValueAtTime?.(target, now + duration);
     if (!handle.gain.gain.linearRampToValueAtTime) handle.gain.gain.value = target;
-    if (target === 0) {
-      handle.timer = setTimeoutFn(() => {
+    if (retire) {
+      const timer = setTimeoutFn(() => {
+        if (handles.get(handle.cueId) !== handle || handle.timer !== timer) return;
         stopHandle(handle.cueId);
         emit();
       }, Math.ceil(duration * 1000) + 50);
+      handle.timer = timer;
     }
   }
 
@@ -113,14 +118,23 @@ export function createMusicPreviewRuntime({
   }
 
   async function bufferFor(asset) {
-    const key = `${asset.id}::${asset.uri || ""}`;
+    const key = assetKey(asset);
     if (buffers.has(key)) return buffers.get(key);
-    const blob = await loadAssetBlob(asset);
-    if (!blob) throw new Error(`E_MUSIC_PREVIEW_ASSET_BLOB_MISSING:${asset.id}`);
-    const bytes = await blob.arrayBuffer();
-    const buffer = await context.decodeAudioData(bytes.slice(0));
-    buffers.set(key, buffer);
-    return buffer;
+    // Cache the in-flight decode too. Clearing the cache cannot be undone by
+    // an older load completing after a project change or disposal.
+    const pending = (async () => {
+      const blob = await loadAssetBlob(asset);
+      if (!blob) throw new Error(`E_MUSIC_PREVIEW_ASSET_BLOB_MISSING:${asset.id}`);
+      const bytes = await blob.arrayBuffer();
+      const buffer = await context.decodeAudioData(bytes.slice(0));
+      return buffer;
+    })();
+    buffers.set(key, pending);
+    try { return await pending; }
+    catch (error) {
+      if (buffers.get(key) === pending) buffers.delete(key);
+      throw error;
+    }
   }
 
   function startCue(resolved, buffer) {
@@ -129,17 +143,14 @@ export function createMusicPreviewRuntime({
     const gain = context.createGain();
     source.buffer = buffer;
     source.connect(gain).connect(musicBus);
-    const handle = { cueId: cue.id, assetId: asset.id, source, gain, cue, timer: null };
+    const handle = { cueId: cue.id, assetKey: assetKey(asset), source, gain, cue, timer: null };
     configureSource(handle, cue);
     const fadeIn = Math.max(0, Number(cue.transition?.fadeInSeconds) || 0);
     gain.gain.value = fadeIn > 0 ? 0 : cue.gain;
     handles.set(cue.id, handle);
     source.onended = () => {
       if (handles.get(cue.id) !== handle) return;
-      source.onended = null;
-      source.disconnect();
-      gain.disconnect();
-      handles.delete(cue.id);
+      stopHandle(cue.id, false);
       emit();
     };
     source.start();
@@ -157,7 +168,7 @@ export function createMusicPreviewRuntime({
     if (!resolved.binding || !resolved.cue || !resolved.asset) {
       currentResolved = resolved;
       for (const handle of [...handles.values()]) {
-        fadeHandle(handle, 0, handle.cue.transition?.fadeOutSeconds ?? 0);
+        fadeHandle(handle, 0, handle.cue.transition?.fadeOutSeconds ?? 0, true);
       }
       degraded = false;
       lastError = null;
@@ -174,7 +185,7 @@ export function createMusicPreviewRuntime({
       degraded = true;
       lastError = error?.message || "E_MUSIC_PREVIEW_ASSET_LOAD";
       for (const handle of [...handles.values()]) {
-        fadeHandle(handle, 0, handle.cue.transition?.fadeOutSeconds ?? 0);
+        fadeHandle(handle, 0, handle.cue.transition?.fadeOutSeconds ?? 0, true);
       }
       emit();
       return false;
@@ -186,12 +197,12 @@ export function createMusicPreviewRuntime({
     lastError = null;
     for (const handle of [...handles.values()]) {
       if (handle.cueId !== resolved.cue.id) {
-        fadeHandle(handle, 0, handle.cue.transition?.fadeOutSeconds ?? 0);
+        fadeHandle(handle, 0, handle.cue.transition?.fadeOutSeconds ?? 0, true);
       }
     }
 
     let handle = handles.get(resolved.cue.id);
-    if (handle && handle.assetId !== resolved.asset.id) {
+    if (handle && handle.assetKey !== assetKey(resolved.asset)) {
       stopHandle(handle.cueId);
       handle = null;
     }

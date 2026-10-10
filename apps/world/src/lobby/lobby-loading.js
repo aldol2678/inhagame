@@ -5,6 +5,8 @@ export const WORLD_LOADING_PHASES = Object.freeze({
   CHARACTER: Object.freeze({ progress: 54, message: "인덕이를 불러오고 있어요" }),
   STREAMING: Object.freeze({ progress: 76, message: "캠퍼스 시설을 배치하고 있어요" }),
   ONLINE: Object.freeze({ progress: 90, message: "온라인 연결을 확인하고 있어요" }),
+  ASSETS: Object.freeze({ progress: 94, message: "캐릭터 모델을 마저 준비하고 있어요" }),
+  RENDERING: Object.freeze({ progress: 98, message: "첫 화면을 렌더링하고 있어요" }),
   READY: Object.freeze({ progress: 100, message: "정문을 열고 있어요" })
 });
 
@@ -15,6 +17,7 @@ export function createWorldLoading({
   barElement,
   percentElement,
   continueButton,
+  interactionRoot,
   slowAfterMs = 6500,
   fadeMs = 240,
   clock = { now: () => Date.now() },
@@ -27,8 +30,10 @@ export function createWorldLoading({
   const startedAt = clock.now();
   let phase = "BOOT";
   let essentialReady = false;
+  let renderReady = false;
   let slow = false;
   let finished = false;
+  if (interactionRoot) interactionRoot.inert = true;
 
   const render = () => {
     const spec = WORLD_LOADING_PHASES[phase] ?? WORLD_LOADING_PHASES.BOOT;
@@ -41,11 +46,9 @@ export function createWorldLoading({
     }
     if (percentElement) percentElement.textContent = `${spec.progress}%`;
     if (detailElement) detailElement.textContent = slow
-      ? essentialReady
-        ? "기본 월드는 준비됐어요. NPC와 온라인 기능은 입장 후 이어서 연결됩니다."
-        : "조금 오래 걸리고 있어요. 필수 월드를 계속 준비하고 있습니다."
-      : "필수 월드부터 준비하고, 소셜·NPC 기능은 뒤에서 이어서 연결합니다.";
-    if (continueButton) continueButton.hidden = !(slow && essentialReady && !finished);
+      ? "조금 오래 걸리고 있어요. 화면이 준비될 때까지 로딩을 계속합니다."
+      : "캐릭터와 첫 화면 렌더링이 끝나면 접속 화면이 열립니다.";
+    if (continueButton) continueButton.hidden = true;
   };
 
   const slowTimer = timers.setTimeout?.(() => {
@@ -69,18 +72,19 @@ export function createWorldLoading({
     return essentialReady;
   };
 
-  const finish = ({ degraded = false, early = false } = {}) => {
-    if (finished) return false;
+  const setRenderReady = (value = true) => { renderReady = value === true; return renderReady; };
+
+  const finish = ({ degraded = false } = {}) => {
+    if (finished || !essentialReady || !renderReady) return false;
     finished = true;
     phase = "READY";
     timers.clearTimeout?.(slowTimer);
     render();
-    if (detailElement) detailElement.textContent = early
-      ? "기본 월드로 먼저 들어갑니다. 나머지 기능은 이어서 연결됩니다."
-      : degraded
-        ? "일부 부가 기능 없이 먼저 시작합니다."
-        : "준비 완료";
+    if (detailElement) detailElement.textContent = degraded
+      ? "일부 부가 기능 없이 먼저 시작합니다."
+      : "준비 완료";
     if (continueButton) continueButton.hidden = true;
+    if (interactionRoot) interactionRoot.inert = false;
     root.classList.add("is-leaving");
     timers.setTimeout?.(() => { root.hidden = true; }, fadeMs);
     return true;
@@ -97,19 +101,17 @@ export function createWorldLoading({
     return true;
   };
 
-  continueButton?.addEventListener?.("click", () => {
-    if (essentialReady) finish({ degraded: true, early: true });
-  });
-
   render();
   return {
     setPhase,
     setEssentialReady,
+    setRenderReady,
     finish,
     fail,
     status: () => ({
       phase,
       essentialReady,
+      renderReady,
       slow,
       finished,
       elapsedMs: Math.max(0, clock.now() - startedAt)
@@ -117,8 +119,79 @@ export function createWorldLoading({
   };
 }
 
+// Wait for actual scene frames after critical assets settle, not just JS initialization.
+// postrender precedes PlayCanvas frameEnd, so drain WebGPU in a microtask after submission.
+export function waitForWorldRender({
+  app,
+  ready = Promise.resolve(),
+  isSceneReady = () => true,
+  renderedFrames = 3,
+  timeoutMs = 60000,
+  requestFrame = globalThis.requestAnimationFrame?.bind(globalThis),
+  timers = globalThis
+} = {}) {
+  return new Promise((resolve, reject) => {
+    let assetsReady = false;
+    let frames = 0;
+    let draining = false;
+    let settled = false;
+    const cleanup = () => {
+      timers.clearTimeout(timeout);
+      app.off("postrender", onRender);
+    };
+    const finish = error => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      if (error) reject(error);
+      else resolve({ renderedFrames: frames });
+    };
+    const onRender = () => {
+      if (settled || draining || !assetsReady) return;
+      try {
+        if (!isSceneReady()) { frames = 0; return; }
+        if (++frames < renderedFrames) return;
+        draining = true;
+        Promise.resolve().then(async () => {
+          await app.graphicsDevice?.wgpu?.queue?.onSubmittedWorkDone?.();
+          // Leave a browser paint opportunity while the opaque loader is still present.
+          requestFrame(() => requestFrame(() => finish()));
+        }).catch(finish);
+      } catch (error) { finish(error); }
+    };
+    const timeout = timers.setTimeout(() => finish(new Error("Initial world rendering timed out")), timeoutMs);
+    app.on("postrender", onRender);
+    Promise.resolve(ready).then(() => { assetsReady = true; }, finish);
+  });
+}
+
 export function getWorldLoading() {
   return globalThis.__INHA_WORLD_LOADING__ ?? null;
+}
+
+export function installWorldBootDiagnostics({ target = globalThis, loading = getWorldLoading() } = {}) {
+  if (!target?.addEventListener || !loading) return () => {};
+  let bootEntered = false;
+  const safeText = value => String(value ?? "").replace(/\s+/g, " ").trim().slice(0, 180);
+  const report = (kind, value) => {
+    if (bootEntered) return;
+    const message = safeText(value?.message ?? value?.reason?.message ?? value?.reason ?? value);
+    loading.fail(
+      "초기 로딩 중 오류가 발생했습니다.",
+      `진단: ${kind}${message ? ` · ${message}` : ""} · 새로고침 후에도 반복되면 이 문구를 알려주세요.`
+    );
+  };
+  const onError = event => report("BOOT_SCRIPT_ERROR", event?.error ?? event?.message);
+  const onRejection = event => report("BOOT_PROMISE_REJECTION", event);
+  target.addEventListener("error", onError);
+  target.addEventListener("unhandledrejection", onRejection);
+  return {
+    markBootEntered() { bootEntered = true; },
+    destroy() {
+      target.removeEventListener("error", onError);
+      target.removeEventListener("unhandledrejection", onRejection);
+    }
+  };
 }
 
 if (typeof document !== "undefined") {
@@ -128,6 +201,8 @@ if (typeof document !== "undefined") {
     detailElement: document.getElementById("world-loading-detail"),
     barElement: document.getElementById("world-loading-bar"),
     percentElement: document.getElementById("world-loading-percent"),
-    continueButton: document.getElementById("world-loading-continue")
+    continueButton: document.getElementById("world-loading-continue"),
+    interactionRoot: document.getElementById("world-lobby")
   });
+  globalThis.__INHA_WORLD_BOOT_DIAGNOSTICS__ = installWorldBootDiagnostics();
 }

@@ -10,7 +10,7 @@ import { OBSERVED_POLICY } from './npc-observed-conversation.mjs';
 export const SHARED_MEETING_POLICY = Object.freeze({ dwell: 60, travel: 90, lineSeconds: 3.6,
   dialogueDelay: 15, repeatSeconds: 300, seedTicks: 120 });
 const distance = (a,b) => Math.hypot(a.x-b.x,a.z-b.z);
-const safeActivities = new Set(['RESTING','READING','COFFEE','EATING','PHOTO','PHONE','WAITING','TRANSIT','WALK_BREAK','MUSIC']);
+const safeActivities = new Set(['RESTING','READING','COFFEE','EATING','PHOTO','PHONE','WAITING','TRANSIT','WALK_BREAK','MUSIC','CLUB']);
 function compileRoute(from,to,navigator,speed) {
   if (distance(from,to)/speed > SHARED_MEETING_POLICY.travel) return null;
   const points = navigator.networkRoute?.(from,to) ?? navigator.route(from,to);
@@ -26,32 +26,45 @@ function along(route,seconds) {
     if(progress<s.start+s.length){const t=Math.max(0,(progress-s.start)/s.length);return {position:{x:s.from.x+(s.to.x-s.from.x)*t,z:s.from.z+(s.to.z-s.from.z)*t},heading};}}
   return {position:{...route.to},heading};
 }
-export function createSharedMeetings({batch,profiles,roster,navigator,now,positionAtFn=positionAt,groups: suppliedGroups=null}) {
+// Replay a bounded, revisioned NG1 seed snapshot; never import one player's learned bonds.
+// A generator so a caller can spend the seed ticks in slices; the returned value is the group list.
+export function* seedSharedMeetingGroups({batch,profiles,sliceTicks=10}) {
   const canonicalBatch={...batch,npcs:[...batch.npcs].sort((a,b)=>a.npc_id.localeCompare(b.npc_id))};
-  // Replay a bounded, revisioned NG1 seed snapshot; never import one player's learned bonds.
   const graph=createPersistentNpcSocialGraph(canonicalBatch,profiles,NPC_SCHEDULE_REVISION,null);
-  const model=suppliedGroups ? null : createNpcSocialNg1Model(canonicalBatch,{relationshipGraph:graph});
-  model?.advanceTicks(SHARED_MEETING_POLICY.seedTicks);
-  const groups=(suppliedGroups ?? model.snapshot().groups).filter(g=>g.status==='ACTIVE' && g.meetingPlaceRef)
+  const model=createNpcSocialNg1Model(canonicalBatch,{relationshipGraph:graph});
+  for(let done=0;done<SHARED_MEETING_POLICY.seedTicks;done+=sliceTicks){
+    model.advanceTicks(Math.min(sliceTicks,SHARED_MEETING_POLICY.seedTicks-done));
+    yield;
+  }
+  return model.snapshot().groups;
+}
+function seedGroupsNow(options) {
+  const steps=seedSharedMeetingGroups(options);
+  for(let step=steps.next();;step=steps.next())if(step.done)return step.value;
+}
+export function createSharedMeetings({batch,profiles,roster,navigator,now,positionAtFn=positionAt,groups: suppliedGroups=null}) {
+  const groups=(suppliedGroups ?? seedGroupsNow({batch,profiles})).filter(g=>g.status==='ACTIVE' && g.meetingPlaceRef)
     .sort((a,b)=>a.groupId.localeCompare(b.groupId));
   const profileById=new Map(profiles.npcs.map(n=>[n.npc_id,n]));
   const npcById=new Map(batch.npcs.map(n=>[n.npc_id,n]));
   const base=new Map([...roster].map(([id,m])=>[id,m.controller]));
+  const canMeet = (id, state, index) => !roster.get(id)?.schedule[index].walkDestination &&
+    state.visible && !state.moving && !state.transfer && safeActivities.has(state.activity);
   const cache=new Map();
-  function plansFor(index) {
-    if(cache.has(index))return cache.get(index);
-    const plans=[];cache.set(index,plans);
-    if(index===1)return plans; // scheduled classes take precedence
+  // The plan build compiles every member's routes. It is a generator so a caller can spend it in
+  // frame-sized slices (warm); plansFor() runs the identical steps to completion in one call.
+  function* buildPlans(index,plans) {
     const periodStart=NPC_WORLD_EPOCH_MS+index*NPC_WORLD_PERIOD_MS;
-    const occupied=[...base.values()].map(c=>c.sample(periodStart+899000)).filter(s=>s.visible).map(s=>s.position);
+    const occupied=[];
+    for(const c of base.values()){const s=c.sample(periodStart+899000);if(s.visible)occupied.push(s.position);yield;}
     // The stationary quest NPC owns the photo point's first slot.
     occupied.push(positionAtFn('inkyung_photo_point',0));
     const used=new Set();
     for(const [ordinal,g] of groups.entries()) {
-      const depart=180+ordinal*120;
+      const depart=index===1 ? 420+ordinal*90 : 180+ordinal*120;
       const locations=[g.meetingPlaceRef,...new Set(g.memberNpcIds.filter(id=>base.has(id)).map(id=>{
         const s=base.get(id).sample(periodStart+depart*1000);
-        return s.visible&&!s.moving&&!s.transfer&&safeActivities.has(s.activity)
+        return canMeet(id,s,index)
           ? s.destination.replace(/^c04\./,'').replace(`.${id}`,'') : null;
       }).filter(Boolean))];
       for (const location of locations) {
@@ -66,11 +79,12 @@ export function createSharedMeetings({batch,profiles,roster,navigator,now,positi
       for(const id of [...g.memberNpcIds].sort()) {
         if(used.has(id)||!base.has(id)||members.length>=spots.length)continue;
         const s=base.get(id).sample(periodStart+depart*1000);
-        if(!s.visible||s.moving||s.transfer||!safeActivities.has(s.activity))continue;
+        if(!canMeet(id,s,index))continue;
         const target=spots[members.length],speed=roster.get(id).moveSpeed;
         const outward=compileRoute(s.position,target,navigator,speed);
         const home=compileRoute(target,s.position,navigator,speed);
         if(outward&&home)members.push({id,outward,home});
+        yield;
       }
       if(members.length<2)continue;
       const centroid=members.reduce((p,m)=>({x:p.x+m.outward.to.x/members.length,z:p.z+m.outward.to.z/members.length}),{x:0,z:0});
@@ -86,7 +100,26 @@ export function createSharedMeetings({batch,profiles,roster,navigator,now,positi
       }
     }
     for (const p of [...plans]) if(p.end+SHARED_MEETING_POLICY.repeatSeconds<899) plans.push({...p,depart:p.depart+SHARED_MEETING_POLICY.repeatSeconds,arrive:p.arrive+SHARED_MEETING_POLICY.repeatSeconds,leave:p.leave+SHARED_MEETING_POLICY.repeatSeconds,end:p.end+SHARED_MEETING_POLICY.repeatSeconds});
-    return plans;
+  }
+  const jobs=new Map();
+  function jobFor(index) {
+    let job=jobs.get(index);
+    if(!job){const plans=[];job={plans,steps:buildPlans(index,plans)};jobs.set(index,job);}
+    return job;
+  }
+  function finish(index,job) {cache.set(index,job.plans);jobs.delete(index);return job.plans;}
+  function plansFor(index) {
+    if(cache.has(index))return cache.get(index);
+    const job=jobFor(index);
+    while(!job.steps.next().done);
+    return finish(index,job);
+  }
+  // Advances the plan build for one period by about budgetMs; true once the plans are cached.
+  function warm(index,budgetMs=Infinity) {
+    if(cache.has(index))return true;
+    const job=jobFor(index),deadline=performance.now()+budgetMs;
+    do{if(job.steps.next().done){finish(index,job);return true;}}while(performance.now()<deadline);
+    return false;
   }
   function eventFrame(ms=now()) {
     if(ms===null)return [];
@@ -119,7 +152,7 @@ export function createSharedMeetings({batch,profiles,roster,navigator,now,positi
       meetingId:p.groupId,meetingLocation:p.location,meetingPhase:returning?'RETURNING':time.offsetSeconds<p.arrive?'ASSEMBLING':'MEETING'};
   }
   for(const [id,m] of roster){m.controller={...m.controller,sample:ms=>sample(id,ms),status:()=>sample(id),tick:()=>sample(id)};}
-  return {events:eventFrame,plans:plansFor,groups:()=>groups,status:()=>({groups:groups.length,events:eventFrame().map(e=>({eventId:e.eventId,phase:e.phase,members:e.members.map(m=>m.id),conversation_id:e.line?e.conversation_id:null,index:e.line?e.index:null}))})};
+  return {events:eventFrame,plans:plansFor,warm,groups:()=>groups,status:()=>({groups:groups.length,events:eventFrame().map(e=>({eventId:e.eventId,phase:e.phase,members:e.members.map(m=>m.id),conversation_id:e.line?e.conversation_id:null,index:e.line?e.index:null}))})};
 }
 
 // Per-view presentation: hides an event without cancelling the shared social timeline.

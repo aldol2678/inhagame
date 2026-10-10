@@ -11,10 +11,11 @@ const clearance = .6;
 const cellSize = 1.5;
 const pointDistance = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 const campusGraph = campusNavGraph();
-const campusRouteSolver = createRouteSolver(campusGraph, { directDistance: 0, snapMaxDistance: 2 });
+const campusRouteSolver = createRouteSolver(campusGraph, { directDistance: 0, snapMaxDistance: 3 });
 const campusSnap = point => campusGraph.nearestEdgePoint(point, { maxDistance: .4 });
+const campusAccessSnap = point => campusGraph.nearestEdgePoint(point, { maxDistance: 3 });
 const campusNetworkRoute = (from, to) => {
-  if (!campusSnap(from) || !campusSnap(to)) return null;
+  if (!campusAccessSnap(from) || !campusAccessSnap(to)) return null;
   const solved = campusRouteSolver.solve(from, to);
   if (!solved?.ok || solved.mode !== 'NETWORK') return null;
   return solved.points.slice(1).map(({ x, z }) => ({ x, z }));
@@ -63,6 +64,24 @@ export function createNpcNavigator(batch, { additionalAnchors = [] } = {}) {
     .map(obstacleRecord).filter(box => box.maxX >= bounds.minX && box.minX <= bounds.maxX &&
       box.maxZ >= bounds.minZ && box.minZ <= bounds.maxZ);
   const pondBounds = boundsOf(pond);
+  // walkable() runs thousands of times per route. Bucket the obstacles on a uniform grid, each one in every
+  // cell its clearance-grown bounds touch, so a probe only tests the boxes that could contain it. The
+  // per-box predicate is unchanged, so the result is identical to scanning the whole list.
+  const bucketSize = 8;
+  const bucketColumns = Math.ceil((bounds.maxX - bounds.minX) / bucketSize) + 1;
+  const bucketRows = Math.ceil((bounds.maxZ - bounds.minZ) / bucketSize) + 1;
+  const buckets = new Array(bucketColumns * bucketRows);
+  for (const box of obstacles) {
+    const first = Math.max(0, Math.floor((box.minX - clearance - bounds.minX) / bucketSize));
+    const last = Math.min(bucketColumns - 1, Math.floor((box.maxX + clearance - bounds.minX) / bucketSize));
+    const top = Math.max(0, Math.floor((box.minZ - clearance - bounds.minZ) / bucketSize));
+    const bottom = Math.min(bucketRows - 1, Math.floor((box.maxZ + clearance - bounds.minZ) / bucketSize));
+    for (let row = top; row <= bottom; row++) for (let column = first; column <= last; column++)
+      (buckets[row * bucketColumns + column] ??= []).push(box);
+  }
+  const noObstacles = [];
+  const obstaclesNear = (x, z) => buckets[Math.floor((z - bounds.minZ) / bucketSize) * bucketColumns +
+    Math.floor((x - bounds.minX) / bucketSize)] ?? noObstacles;
   function walkable(point) {
     const { x, z } = point;
     if (!Number.isFinite(x) || !Number.isFinite(z) || x < bounds.minX || x > bounds.maxX ||
@@ -70,7 +89,7 @@ export function createNpcNavigator(batch, { additionalAnchors = [] } = {}) {
     if (x >= pondBounds.minX - clearance && x <= pondBounds.maxX + clearance &&
         z >= pondBounds.minZ - clearance && z <= pondBounds.maxZ + clearance &&
         polygonOverlap(x, z, pond, clearance)) return false;
-    const legacyBlocked = obstacles.some(box => x >= box.minX - clearance && x <= box.maxX + clearance &&
+    const legacyBlocked = obstaclesNear(x, z).some(box => x >= box.minX - clearance && x <= box.maxX + clearance &&
       z >= box.minZ - clearance && z <= box.maxZ + clearance &&
       (box.polygon ? polygonOverlap(x, z, box.polygon, clearance) : true));
     // Campus-wide P2-A anchors are snapped to the canonical World navigation graph. A path can
@@ -86,10 +105,33 @@ export function createNpcNavigator(batch, { additionalAnchors = [] } = {}) {
     }
     return true;
   }
+  function networkRoute(from, to) {
+    const access = campusAccessSnap(from), egress = campusAccessSnap(to);
+    // Only the existing narrow on-network exception can bypass legacy clearance.
+    // Dwell spots beside the path must have genuinely safe access/egress segments.
+    if (!access || !egress || !segmentSafe(from, access) || !segmentSafe(egress, to)) return null;
+    return campusNetworkRoute(from, to);
+  }
   const cellPoint = index => ({ x: bounds.minX + (index % width) * cellSize,
     z: bounds.minZ + Math.floor(index / width) * cellSize });
-  const openCells = Uint8Array.from({ length: width * height }, (_, index) => Number(walkable(cellPoint(index))));
+  // The A* grid costs width*height walkable() probes. Only route()/wanderRoute() fallbacks need it
+  // (the shared schedule uses networkRoute), so it is built on first use, or incrementally via
+  // warmGrid() when the caller wants to spread the cost over frames. Results are identical either way.
+  const cellCount = width * height;
+  let openCells = null, builtCells = 0;
+  function warmGrid(budgetMs = Infinity) {
+    if (builtCells >= cellCount) return true;
+    openCells ??= new Uint8Array(cellCount);
+    const deadline = Number.isFinite(budgetMs) ? performance.now() + budgetMs : Infinity;
+    while (builtCells < cellCount) {
+      const stop = Math.min(cellCount, builtCells + 256);
+      for (; builtCells < stop; builtCells++) openCells[builtCells] = Number(walkable(cellPoint(builtCells)));
+      if (performance.now() >= deadline) break;
+    }
+    return builtCells >= cellCount;
+  }
   function nearestCell(point) {
+    warmGrid();
     const centerX = Math.round((point.x - bounds.minX) / cellSize);
     const centerZ = Math.round((point.z - bounds.minZ) / cellSize);
     let best = -1, bestDistance = Infinity;
@@ -110,10 +152,10 @@ export function createNpcNavigator(batch, { additionalAnchors = [] } = {}) {
     if (!walkable(from) || !walkable(to)) return null;
     if (segmentSafe(from, to)) return [{ ...to }];
     const start = nearestCell(from), goal = nearestCell(to);
-    if (start < 0 || goal < 0) return campusNetworkRoute(from, to);
-    const score = new Float64Array(openCells.length).fill(Infinity);
-    const previous = new Int32Array(openCells.length).fill(-1);
-    const closed = new Uint8Array(openCells.length);
+    if (start < 0 || goal < 0) return networkRoute(from, to);
+    const score = new Float64Array(cellCount).fill(Infinity);
+    const previous = new Int32Array(cellCount).fill(-1);
+    const closed = new Uint8Array(cellCount);
     const queue = [];
     const push = (index, priority) => {
       let at = queue.push({ index, priority }) - 1;
@@ -161,7 +203,7 @@ export function createNpcNavigator(batch, { additionalAnchors = [] } = {}) {
         push(next, candidate + pointDistance(cellPoint(next), cellPoint(goal)));
       }
     }
-    if (start !== goal && previous[goal] < 0) return campusNetworkRoute(from, to);
+    if (start !== goal && previous[goal] < 0) return networkRoute(from, to);
     const cells = [];
     for (let at = goal; at >= 0; at = previous[at]) {
       cells.push(cellPoint(at));
@@ -188,5 +230,9 @@ export function createNpcNavigator(batch, { additionalAnchors = [] } = {}) {
     }
     return route(from, anchor);
   }
-  return { walkable, segmentSafe, route, networkRoute: campusNetworkRoute, wanderRoute, bounds };
+  // Snapshot the effective inputs used by these closures. Downstream source data changes
+  // are captured here after projection/filtering; logic sources are hashed separately.
+  const navigationGeometry = () => structuredClone({ bounds, obstacles, pond, clearance, cellSize,
+    segmentStep: .45, graphOverrideMaxDistance: .4, graphAccessMaxDistance: 3 });
+  return { walkable, segmentSafe, route, networkRoute, wanderRoute, bounds, navigationGeometry, warmGrid };
 }

@@ -53,13 +53,13 @@ async function send(handler, headers, body) {
   await handler({ method: 'POST', headers, body: JSON.stringify(body) }, res);
   return res.statusCode;
 }
-const GAME_ORIGIN = { classic: 'https://duck.inhagame.example', induckup: 'https://induckup.inhagame.example',
-  survival: 'https://survival.inhagame.example', 'induck-grow': 'https://grow.inhagame.example', campus: 'https://inhagame.example' };
+const GAME_ORIGIN = { classic: 'https://duck.inhagame.app', induckup: 'https://induckup.inhagame.app',
+  survival: 'https://survival.inhagame.app', 'induck-grow': 'https://grow.inhagame.app', campus: 'https://inhagame.app' };
 
 /** A hub card click through /api/hub-event; returns its event id (the entry id games carry). */
 async function click(target, ids = { session: randomUUID(), visitor: randomUUID() }) {
   const eventId = randomUUID();
-  const status = await send(hubEvent, { origin: 'https://inhagame.example', host: 'inhagame.example' }, {
+  const status = await send(hubEvent, { origin: 'https://inhagame.app', host: 'inhagame.app' }, {
     event_id: eventId, session_id: ids.session, visitor_id: ids.visitor,
     event_type: target === 'campus' ? 'campus_entry_click' : 'hub_game_click', surface: 'home', target,
     acquisition_source: 'direct', campaign: null,
@@ -152,7 +152,7 @@ test('Grow click -> landing -> play is supported', async () => {
 
 test('hub events outside the stored context are refused by the database (400)', async () => {
   const eventId = randomUUID();
-  const status = await send(hubEvent, { origin: 'https://inhagame.example', host: 'inhagame.example' }, {
+  const status = await send(hubEvent, { origin: 'https://inhagame.app', host: 'inhagame.app' }, {
     event_id: eventId, session_id: randomUUID(), visitor_id: randomUUID(),
     event_type: 'hub_game_click', surface: 'home', target: 'campus',
   });

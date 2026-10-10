@@ -36,10 +36,10 @@ test('Agora approach ascends and descends continuously; jump and flight land on 
   assert.equal(a.controller.mounted,false);assert.equal(a.entity.getLocalPosition().y,2.75);
   walk(a,AGORA.frame.at(u,6));assert.equal(a.entity.getLocalPosition().y,1.15);
 });
-for(const t of STUDENT_TERRACES)test(`${t.id}: bidirectional lake-facing approach`,()=>{
+for(const t of STUDENT_TERRACES)test(`${t.id}: retired invisible approach stays flat in both directions`,()=>{
   const a=actor(t.frame.at(t.frame.length/2,t.landing+t.run+1));
   walk(a,t.frame.at(t.frame.length/2,.75));
-  assert.ok(Math.abs(a.entity.getLocalPosition().y-1.75)<1e-6);
+  assert.ok(Math.abs(a.entity.getLocalPosition().y-1.15)<1e-6);
   walk(a,t.frame.at(t.frame.length/2,t.landing+t.run+1));
   assert.equal(a.entity.getLocalPosition().y,1.15);
 });

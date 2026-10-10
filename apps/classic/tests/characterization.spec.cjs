@@ -16,7 +16,7 @@ test.beforeEach(async({page})=>{
     if(/supabase\.co|cdn\.jsdelivr\.net/.test(u))return;
     // Chromium reports a routed keepalive fetch as aborted even though the page gets the reply;
     // the hub test proves delivery through game-entry's own confirmation record instead.
-    if(u==='https://inhagame.example/api/hub-entry'&&reason==='net::ERR_ABORTED')return;
+    if(u==='https://inhagame.app/api/hub-entry'&&reason==='net::ERR_ABORTED')return;
     failed.push('failed '+r.method()+' '+u+' '+reason);
   });
   // Network isolation, as in game.spec.cjs: no Supabase client, no real reads or writes.
@@ -58,20 +58,20 @@ test('Page assets: stylesheets apply, sprites decode, scripts define the game gl
 
 test('Hub entry: landing and play start are reported once with only the entry fields',async({page})=>{
   const hub=[];
-  // Serve the local build as duck.inhagame.example so badge-system.js loads the hub entry script.
-  await page.route('https://duck.inhagame.example/**',async r=>{
+  // Serve the local build as duck.inhagame.app so badge-system.js loads the hub entry script.
+  await page.route('https://duck.inhagame.app/**',async r=>{
     const u=new URL(r.request().url());
     await r.fulfill({response:await r.fetch({url:'http://127.0.0.1:4173'+u.pathname})});
   });
-  await page.route('https://inhagame.example/game-entry.js',r=>r.fulfill({contentType:'text/javascript',
+  await page.route('https://inhagame.app/game-entry.js',r=>r.fulfill({contentType:'text/javascript',
     body:fs.readFileSync(path.join(__dirname,'../../world/game-entry.js'),'utf8')}));
-  await page.route('https://inhagame.example/api/hub-entry',r=>{
+  await page.route('https://inhagame.app/api/hub-entry',r=>{
     if(r.request().method()==='POST')hub.push(JSON.parse(r.request().postData()));
     // Same CORS answer as apps/world/api/hub-entry.js, preflight included.
-    return r.fulfill({status:204,headers:{'access-control-allow-origin':'https://duck.inhagame.example',vary:'Origin',
+    return r.fulfill({status:204,headers:{'access-control-allow-origin':'https://duck.inhagame.app',vary:'Origin',
       'access-control-allow-methods':'POST, OPTIONS','access-control-allow-headers':'Content-Type'}});
   });
-  await open(page,{url:`https://duck.inhagame.example/?ih_entry=${ENTRY}`});
+  await open(page,{url:`https://duck.inhagame.app/?ih_entry=${ENTRY}`});
   await expect(page.locator('#startBtn')).toBeVisible();
   await expect.poll(()=>hub.map(e=>e.event_type)).toEqual(['game_landing']);
   expect(Object.keys(hub[0]).sort()).toEqual(['entry_id','event_id','event_type','target']);

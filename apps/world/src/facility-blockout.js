@@ -1,25 +1,29 @@
 import * as pc from 'playcanvas';
+import {buildStudentCenterConnected} from './student-center-connected-renderer.js';
 import { FACILITIES, towerParts } from './campus-facilities.js';
 import { polygon,surface } from './campus-render-kit.js';
 import { FacilityMeshBatch } from './facility-mesh-batch.js';
 import { fillSports } from './sports-detail-geometry.js';
 import { SPORTS_FLOOR, LOWERED_SPORTS_IDS } from './stadium-stands-layout.js';
-import { forestRoadTrees } from './campus-road-layout.js';
+import { fillHeideggerForest } from './heidegger-forest-geometry.js';
+import { fillMatchingTree } from './matching-tree-geometry.js';
 import { AGORA } from './roadview-layout.js';
 import { GAZEBO } from './landmark-detail-layout.js';
 import { fillAircraft, fillGazebo } from './landmark-detail-geometry.js';
 import { buildAgoraStructure, buildAgoraNear, buildStudentTerraces, buildPondFurniture, fillStudentFront } from './roadview-details.js';
 
 import { fillFiveFacade, fillAnniversaryFacade, fillNorthEntrances, fillNorthFurniture, fillFiveGardenPaths } from './north-campus-geometry.js';
+import { fillNorthPhotoTower,fillFivePhotoEntry,fillAgoraEnclosingFacade,NORTH_PHOTO_COLORS } from './north-campus-photo-geometry.js';
 import { buildDorm1EntranceDetail, fillDorm1Facade } from './dorm1-detail-geometry.js';
 import { DORM_1_NAME_SIGN } from './gate-dorm-exterior-layout.js';
 import { buildStreetSigns } from './street-sign-renderer.js';
 import { fillBiryongTower } from './biryong/biryong-geometry.js';
 
 const stone='#d7d3c7',trim='#ece9df',glass='#396773',darkGlass='#304d65',roof='#6f7775';
-function facade(batch,f,ring,h,style) {
+function facade(batch,f,ring,h,style,skipEdges=[]) {
   const area=ring.reduce((s,p,i)=>s+p.x*ring[(i+1)%ring.length].z-ring[(i+1)%ring.length].x*p.z,0);
   for(let i=0;i<ring.length;i++){
+    if(skipEdges.includes(i))continue;
     const a=ring[i],b=ring[(i+1)%ring.length],dx=b.x-a.x,dz=b.z-a.z,len=Math.hypot(dx,dz);
     if(len<1.3)continue;
     const nx=(area>0?dz:-dz)/len,nz=(area>0?-dx:dx)/len,yaw=-Math.atan2(dz,dx)*180/Math.PI;
@@ -58,15 +62,11 @@ function facade(batch,f,ring,h,style) {
     batch.box(trim,at(.5,h-.12,.06),[len,.24,.35],yaw);
   }
 }
-function tree(batch,x,z,scale=1,color='#527447') {
-  batch.tube('#6c5942',[x,0,z],[x,3.2*scale,z],.24*scale);
-  batch.crown(color,[x,4.1*scale,z],[4*scale,3.4*scale,4*scale]);
-}
 function court(root,batch,f) {
-  const grass=f.style==='park'||f.style==='stadium',color=grass?'#607c48':f.style==='agora'?'#758b89':f.style==='parking'?'#737b79':f.style==='tennis'?'#bc9571':'#6c9290';
+  const grass=f.style==='park'||f.style==='stadium',color=grass?'#607c48':f.style==='agora'?'#408f88':f.style==='parking'?'#737b79':f.style==='tennis'?'#bc9571':'#6c9290';
   polygon(root,f.id+'_surface',f.rings[0],surface(color),{y:f.style==='agora'?AGORA.height+.02:.035});
   if(f.style==='agora'){
-    // Public QA uses a single neutral platform without the withheld cross-path design.
+    // The mapped green terrace, supported stair opening and photographed cross-path.
     buildAgoraStructure(root,batch);
     return;
   }
@@ -87,15 +87,11 @@ function court(root,batch,f) {
   fillSports(batch,f);
 }
 function landmark(root,batch,f) {
-  const {x,z}=f.center;const p=(u,y,v)=>[x+u,y,z+v];
   if(f.style==='forest'){
-    forestRoadTrees(f.center).forEach((p,i)=>tree(batch,p.x,p.z,1.25,i%2?'#567f48':'#41694b'));
+    fillHeideggerForest(batch,f.center);
     return;
   }
-  if(f.style==='tree'){
-    batch.tube('#685443',p(-2,0,0),p(-1,1.2,0),.4);batch.tube('#685443',p(-1,1.2,0),p(1.5,1.2,0),.4);batch.tube('#685443',p(1.5,1.2,0),p(2.2,4,0),.35);
-    batch.tube('#685443',p(-1,1.2,0),p(-2.8,4.2,0),.3);batch.crown('#65894b',p(-2,5,0),[5,3,5]);batch.crown('#5c8144',p(2,5,0),[5,3,5]);return;
-  }
+  if(f.id==='lmk_matching_tree'){fillMatchingTree(batch);return;}
   if(f.style==='aircraft'){
     fillAircraft(batch,f.center);return;
   }
@@ -106,6 +102,7 @@ function landmark(root,batch,f) {
 }
 export function buildCampusFacilities(root,ids,tier='BASE') {
   for(const f of FACILITIES.filter(f=>ids.includes(f.id))){
+    if(f.id==='bldg_07'){buildStudentCenterConnected(root,tier);continue;}
     const batch=new FacilityMeshBatch();
     const group=new pc.Entity(tier==='BASE'?f.id:f.id+'_'+tier);root.addChild(group);
     if(LOWERED_SPORTS_IDS.includes(f.id))group.setLocalPosition(0,SPORTS_FLOOR,0);
@@ -115,24 +112,33 @@ export function buildCampusFacilities(root,ids,tier='BASE') {
     if(f.kind==='building'){
       if(['bldg_05','bldg_60th'].includes(f.id)){
         if(tier==='BASE'){fillNorthEntrances(batch,f.id);if(f.id==='bldg_05')fillFiveGardenPaths(batch);}
-        if(tier==='NEAR')fillNorthFurniture(batch,f.id);
+        if(tier==='NEAR'){
+          fillNorthFurniture(batch,f.id);fillNorthPhotoTower(batch,f,tier);
+          if(f.id==='bldg_05'){fillFiveFacade(batch,tier);fillFivePhotoEntry(batch);}
+          else fillAnniversaryFacade(batch,tier);
+        }
       }
       if(tier==='BASE')for(const [i,part] of f.parts.entries()){
-        polygon(group,f.id+'_body_'+i,part,surface(f.style==='dorm'?'#e7e6dd':f.style==='student'?'#cbbda1':stone),{height:f.height});
+        polygon(group,f.id+'_body_'+i,part,surface(f.id==='bldg_05'?NORTH_PHOTO_COLORS.stone:f.style==='dorm'?'#e7e6dd':f.style==='student'?'#cbbda1':stone),{height:f.height});
         polygon(group,f.id+'_roof_'+i,part,surface(f.id==='bldg_dorm1'?'#6f9b87':roof),{y:f.height+.02});
       }
       for(const t of towerParts(f)){
-        if(tier==='BASE')polygon(group,t.id,t.vertices,surface(f.style==='anniversary'?glass:stone),{height:t.height-f.height,y:f.height});
-        if(tier==='DETAIL')facade(batch,{...f,floors:12},t.vertices,t.height,f.style==='anniversary'?'anniversary':'bands');
+        if(tier==='BASE')polygon(group,t.id,t.vertices,surface(f.id==='bldg_60th'?NORTH_PHOTO_COLORS.glass:f.id==='bldg_05'?NORTH_PHOTO_COLORS.stone:f.style==='anniversary'?glass:stone),{height:t.height-f.height,y:f.height});
+        if(tier==='DETAIL'&&!['bldg_05','bldg_60th'].includes(f.id))facade(batch,{...f,floors:12},t.vertices,t.height,f.style==='anniversary'?'anniversary':'bands');
       }
+      if(tier==='NEAR'&&['bldg_06','bldg_09'].includes(f.id))fillAgoraEnclosingFacade(batch,f.id,tier);
       if(f.id==='bldg_dorm1'&&tier==='NEAR'){
         buildDorm1EntranceDetail(batch,'NEAR');
         buildStreetSigns(group,[DORM_1_NAME_SIGN],'dorm1_entrance_name');
       }
       if(tier==='DETAIL'){
         if(f.id==='bldg_dorm1')buildDorm1EntranceDetail(batch,'DETAIL');
-        if(f.id==='bldg_05')fillFiveFacade(batch);
-        else if(f.id==='bldg_60th')fillAnniversaryFacade(batch);
+        if(f.id==='bldg_05')fillFiveFacade(batch,tier);
+        else if(f.id==='bldg_60th')fillAnniversaryFacade(batch,tier);
+        else if(['bldg_06','bldg_09'].includes(f.id)){
+          fillAgoraEnclosingFacade(batch,f.id,tier);
+          for(const ring of f.rings)facade(batch,f,ring,f.height,f.style,f.id==='bldg_06'?[0]:[6,7]);
+        }
         else if(f.id==='bldg_dorm1')fillDorm1Facade(batch,f);
         else for(const ring of f.rings)facade(batch,f,ring,f.height,f.style);
       }
@@ -155,4 +161,3 @@ export function buildCampusFacilities(root,ids,tier='BASE') {
 
   }
 }
-

@@ -20,11 +20,11 @@ const ID = {
   visitor: '3c4d5e6f-7081-4c9d-be0f-2a3b4c5d6e7f',
 };
 const ORIGINS = {
-  'https://inhagame.example': 'campus',
-  'https://duck.inhagame.example': 'classic',
-  'https://induckup.inhagame.example': 'induckup',
-  'https://survival.inhagame.example': 'survival',
-  'https://grow.inhagame.example': 'induck-grow',
+  'https://inhagame.app': 'campus',
+  'https://duck.inhagame.app': 'classic',
+  'https://induckup.inhagame.app': 'induckup',
+  'https://survival.inhagame.app': 'survival',
+  'https://grow.inhagame.app': 'induck-grow',
 };
 
 // ---- harness ----
@@ -56,14 +56,14 @@ async function call(handler, { method = 'POST', headers = {}, body }) {
 const entryBody = (overrides = {}) => ({
   event_id: ID.event, entry_id: ID.entry, event_type: 'game_landing', target: 'classic', ...overrides,
 });
-const entry = (body = entryBody(), origin = 'https://duck.inhagame.example', extra = {}) =>
+const entry = (body = entryBody(), origin = 'https://duck.inhagame.app', extra = {}) =>
   call(hubEntry, { headers: { origin, ...extra }, body: typeof body === 'string' ? body : JSON.stringify(body) });
 const eventBody = (overrides = {}) => ({
   event_id: ID.event, session_id: ID.session, visitor_id: ID.visitor,
   event_type: 'hub_game_click', surface: 'home', target: 'classic',
   acquisition_source: 'direct', campaign: null, ...overrides,
 });
-const hubHeaders = { origin: 'https://inhagame.example', host: 'inhagame.example' };
+const hubHeaders = { origin: 'https://inhagame.app', host: 'inhagame.app' };
 const event = (body = eventBody(), headers = hubHeaders) =>
   call(hubEvent, { headers, body: typeof body === 'string' ? body : JSON.stringify(body) });
 
@@ -72,7 +72,7 @@ test('hub-entry: a valid stage is forwarded with the target taken from the Origi
   stubUpstream();
   const res = await entry();
   assert.equal(res.statusCode, 204);
-  assert.equal(res.headers['access-control-allow-origin'], 'https://duck.inhagame.example');
+  assert.equal(res.headers['access-control-allow-origin'], 'https://duck.inhagame.app');
   assert.equal(res.headers.vary, 'Origin');
   assert.equal(calls.length, 1);
   assert.equal(calls[0].url, `${RPC_BASE}log_inhagame_game_entry_v1`);
@@ -102,9 +102,9 @@ test('hub-entry: every supported stage is accepted', async () => {
 
 test('hub-entry: CORS preflight from a game origin', async () => {
   stubUpstream();
-  const res = await call(hubEntry, { method: 'OPTIONS', headers: { origin: 'https://survival.inhagame.example' } });
+  const res = await call(hubEntry, { method: 'OPTIONS', headers: { origin: 'https://survival.inhagame.app' } });
   assert.equal(res.statusCode, 204);
-  assert.equal(res.headers['access-control-allow-origin'], 'https://survival.inhagame.example');
+  assert.equal(res.headers['access-control-allow-origin'], 'https://survival.inhagame.app');
   assert.equal(res.headers['access-control-allow-methods'], 'POST, OPTIONS');
   assert.equal(res.headers['access-control-allow-headers'], 'Content-Type');
   assert.equal(calls.length, 0);
@@ -112,15 +112,15 @@ test('hub-entry: CORS preflight from a game origin', async () => {
 
 test('hub-entry: object and Buffer bodies are accepted like JSON text', async () => {
   stubUpstream();
-  assert.equal((await call(hubEntry, { headers: { origin: 'https://duck.inhagame.example' }, body: entryBody() })).statusCode, 204);
+  assert.equal((await call(hubEntry, { headers: { origin: 'https://duck.inhagame.app' }, body: entryBody() })).statusCode, 204);
   const buffer = Buffer.from(JSON.stringify(entryBody()));
-  assert.equal((await call(hubEntry, { headers: { origin: 'https://duck.inhagame.example' }, body: buffer })).statusCode, 204);
+  assert.equal((await call(hubEntry, { headers: { origin: 'https://duck.inhagame.app' }, body: buffer })).statusCode, 204);
 });
 
 // ---- hub-entry: invalid cases ----
 test('hub-entry: unknown or spoofed origins are refused before anything else', async () => {
-  for (const origin of [undefined, 'https://evil.example', 'http://duck.inhagame.example',
-    'https://duck.inhagame.example.evil.example', 'https://duck.inhagame.example:8443', 'null']) {
+  for (const origin of [undefined, 'https://evil.example', 'http://duck.inhagame.app',
+    'https://duck.inhagame.app.evil.example', 'https://duck.inhagame.app:8443', 'null']) {
     stubUpstream();
     const headers = origin === undefined ? {} : { origin };
     const res = await call(hubEntry, { headers, body: JSON.stringify(entryBody()) });
@@ -132,7 +132,7 @@ test('hub-entry: unknown or spoofed origins are refused before anything else', a
 
 test('hub-entry: only POST is served', async () => {
   stubUpstream();
-  assert.equal((await call(hubEntry, { method: 'GET', headers: { origin: 'https://duck.inhagame.example' } })).statusCode, 405);
+  assert.equal((await call(hubEntry, { method: 'GET', headers: { origin: 'https://duck.inhagame.app' } })).statusCode, 405);
 });
 
 test('hub-entry: malformed requests are 400/413 and never reach Supabase', async () => {
@@ -181,7 +181,7 @@ test('hub-entry: only the four entry fields are needed and forwarded', async () 
   const res = await entry({
     ...entryBody(), email: 'duck@inha.edu', nickname: 'duck', access_token: 'jwt', user_id: ID.visitor,
     visitor_id: ID.visitor, session_id: ID.session, user_agent: 'x',
-  }, 'https://duck.inhagame.example', { authorization: 'Bearer user-jwt', cookie: 'sb-access-token=secret' });
+  }, 'https://duck.inhagame.app', { authorization: 'Bearer user-jwt', cookie: 'sb-access-token=secret' });
   assert.equal(res.statusCode, 204);
   assert.deepEqual(Object.keys(calls[0].body).sort(), ['p_entry_id', 'p_event_id', 'p_event_type', 'p_target']);
   const sentHeaders = Object.keys(calls[0].init.headers).map((h) => h.toLowerCase()).sort();
@@ -251,12 +251,12 @@ test('hub-event: CORE-15 canonical targets are forwarded without account context
 
 test('hub-event: same-origin requests pass, cross-site origins are refused', async () => {
   stubUpstream();
-  assert.equal((await event(eventBody(), { host: 'inhagame.example' })).statusCode, 204, 'no Origin (beacon)');
+  assert.equal((await event(eventBody(), { host: 'inhagame.app' })).statusCode, 204, 'no Origin (beacon)');
   for (const headers of [
-    { origin: 'https://evil.example', host: 'inhagame.example' },
-    { origin: 'https://duck.inhagame.example', host: 'inhagame.example' },
-    { origin: 'not a url', host: 'inhagame.example' },
-    { origin: 'https://inhagame.example' },
+    { origin: 'https://evil.example', host: 'inhagame.app' },
+    { origin: 'https://duck.inhagame.app', host: 'inhagame.app' },
+    { origin: 'not a url', host: 'inhagame.app' },
+    { origin: 'https://inhagame.app' },
   ]) {
     stubUpstream();
     const res = await event(eventBody(), headers);
@@ -334,18 +334,18 @@ function runBrowserScript(file, { hostname, search = '', game, storage = {}, fet
 
 test('browser: game-entry.js sends only event_id, entry_id, event_type and target', () => {
   const { window, sent } = runBrowserScript('game-entry.js', {
-    hostname: 'survival.inhagame.example', search: `?ih_entry=${ID.entry}`, game: 'survival',
+    hostname: 'survival.inhagame.app', search: `?ih_entry=${ID.entry}`, game: 'survival',
   });
   window.InhaGameEntry.landing();
   const landing = sent.find((s) => s.body.event_type === 'game_landing');
   assert.ok(landing, 'landing sent');
-  assert.equal(landing.url, 'https://inhagame.example/api/hub-entry');
+  assert.equal(landing.url, 'https://inhagame.app/api/hub-entry');
   assert.deepEqual(Object.keys(landing.body).sort(), ['entry_id', 'event_id', 'event_type', 'target']);
   assert.deepEqual(landing.body, { event_id: ID.event, entry_id: ID.entry, event_type: 'game_landing', target: 'survival' });
 });
 
 test('browser: game-entry.js reports nothing without a hub entry', () => {
-  const { window, sent } = runBrowserScript('game-entry.js', { hostname: 'duck.inhagame.example', game: 'classic' });
+  const { window, sent } = runBrowserScript('game-entry.js', { hostname: 'duck.inhagame.app', game: 'classic' });
   window.InhaGameEntry.landing();
   window.InhaGameEntry.play();
   assert.equal(sent.length, 0);
@@ -353,7 +353,7 @@ test('browser: game-entry.js reports nothing without a hub entry', () => {
 
 test('browser: hub-telemetry.js sends pseudonymous browser ids and no account fields', () => {
   const { window, sent } = runBrowserScript('hub-telemetry.js', {
-    hostname: 'inhagame.example', game: undefined,
+    hostname: 'inhagame.app', game: undefined,
     storage: { 'inhagame-hub-visitor-v1': ID.visitor, 'inhagame-hub-session-v1': ID.session },
   });
   window.InhaHubTelemetry.track('hub_game_click', 'home', 'classic');
@@ -366,7 +366,7 @@ test('browser: hub-telemetry.js sends pseudonymous browser ids and no account fi
 test('browser: confirmed telemetry waits for a 204 and retries the same event_id on transient failure', async () => {
   let attempt = 0;
   const { window, sent } = runBrowserScript('hub-telemetry.js', {
-    hostname: 'inhagame.example', game: undefined,
+    hostname: 'inhagame.app', game: undefined,
     storage: { 'inhagame-hub-visitor-v1': ID.visitor, 'inhagame-hub-session-v1': ID.session },
     fetcher: async () => new Response(null, { status: ++attempt === 1 ? 503 : 204 })
   });
@@ -381,7 +381,7 @@ test('browser: confirmed telemetry waits for a 204 and retries the same event_id
 
 test('browser: confirmed telemetry does not retry a permanent 4xx contract refusal', async () => {
   const { window, sent } = runBrowserScript('hub-telemetry.js', {
-    hostname: 'inhagame.example', game: undefined,
+    hostname: 'inhagame.app', game: undefined,
     storage: { 'inhagame-hub-visitor-v1': ID.visitor, 'inhagame-hub-session-v1': ID.session },
     fetcher: async () => new Response(null, { status: 400 })
   });

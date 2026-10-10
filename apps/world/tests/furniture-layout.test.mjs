@@ -8,10 +8,10 @@ const id = "11111111-1111-4111-8111-111111111111", id2 = "22222222-2222-4222-822
 const chair = extra => ({ id, itemId:"furniture.induck_chair", surface:"floor",x:-2,z:-1,yaw:0,...extra });
 const owned = ROOM_FURNITURE.map(item => ({itemId:item.itemId,quantity:1}));
 
-test("all nine placements are existing Collection furniture; server dimension/surface mirror agrees", () => {
-  const sql = readFileSync(new URL("../../../supabase/migrations/20261002136000_world_personal_room_furniture_d3.sql",import.meta.url),"utf8");
+test("all sixteen F0 placements are Collection furniture; server dimension/surface mirror agrees", () => {
+  const sql = readFileSync(new URL("../../../supabase/migrations/20261009142600_world_personal_room_f0_furniture.sql",import.meta.url),"utf8");
   const rows = [...sql.matchAll(/\('(furniture\.[a-z0-9_]+)', ([\d.]+)(?:::float8)?, ([\d.]+)(?:::float8)?, ([\d.]+)(?:::float8)?, array\[([^\]]+)\], (true|false), (true|false)\)/g)];
-  assert.equal(rows.length,9); assert.equal(ROOM_FURNITURE.length,9);
+  assert.equal(rows.length,16); assert.equal(ROOM_FURNITURE.length,16);
   for (const item of ROOM_FURNITURE) {
     assert.equal(getItemDefinition(item.itemId).category,"FURNITURE");
     const row = rows.find(row => row[1] === item.itemId); assert.ok(row);
@@ -35,7 +35,7 @@ test("placements enforce server ownership and aggregate quantities without consu
   assert.equal(two[0].quantity,2);
 });
 for (const [name,object,expected] of [
-  ["outside room",chair({x:-5.25}),"ROOM_BOUNDS"],
+  ["outside room",chair({x:-7}),"ROOM_BOUNDS"],
   ["exit/spawn corridor",chair({x:0,z:-2.75}),"EXIT_BLOCKED"],
   ["fixed bed",chair({x:-3.75,z:1.5}),"FURNITURE_OVERLAP"],
   ["fixed chair",chair({x:3,z:.75}),"FURNITURE_OVERLAP"],
@@ -48,10 +48,30 @@ for (const [name,object,expected] of [
   ["wrong mount",chair({surface:"north"}),"INVALID_LAYOUT"],
   ["invalid ID",chair({id:"bad"}),"INVALID_LAYOUT"]
 ]) test(`rejects ${name}`,()=>assert.equal(validateFurniture([object],owned),expected));
-test("rotation expands footprint and still honors bounds", () => {
-  assert.equal(validateFurniture([chair({x:-5,yaw:0})],owned),null);
-  assert.equal(validateFurniture([chair({x:-5,yaw:45})],owned),"ROOM_BOUNDS");
+test("C70 floor expansion accepts the side bays while rotated footprints still honor the new bounds", () => {
+  assert.equal(validateFurniture([chair({x:-6.5,z:0,yaw:0})],owned),null);
+  const rug = {id,itemId:"furniture.campus_rug_blue",surface:"floor",x:-6,z:0,yaw:0};
+  assert.equal(validateFurniture([rug],owned),null);
+  assert.equal(validateFurniture([{...rug,yaw:45}],owned),"ROOM_BOUNDS");
 });
+test("the seven new F0 definitions fit their intended starter surfaces", () => {
+  const expected = new Map([
+    ["furniture.dorm_single_sofa", ["floor"]],
+    ["furniture.dorm_side_table_low", ["floor"]],
+    ["furniture.dorm_bookshelf_slim", ["floor"]],
+    ["furniture.dorm_plant_medium", ["floor"]],
+    ["furniture.dorm_monitor", ["desk"]],
+    ["furniture.dorm_trophy_shelf", ["floor"]],
+    ["furniture.study_books_set", ["desk"]]
+  ]);
+  for (const [itemId,surfaces] of expected) {
+    const item = ROOM_FURNITURE.find(row => row.itemId === itemId); assert.ok(item,itemId);
+    assert.deepEqual(item.surfaces,surfaces,itemId);
+    const position = firstFurniturePosition(itemId,surfaces[0],[],owned); assert.ok(position,itemId);
+    assert.equal(validateFurniture([position],owned),null,itemId);
+  }
+});
+
 test("wall mounts snap the normal and yaw, keep the window and door clear", () => {
   const poster = {id,itemId:"furniture.campus_map_poster",surface:"north",...positionOnSurface("north",-3,0,45)};
   assert.deepEqual({x:poster.x,z:poster.z,yaw:poster.yaw},{x:-3,z:4.15,yaw:0});

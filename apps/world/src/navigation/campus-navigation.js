@@ -11,6 +11,7 @@ import { INTERIOR_PATHS } from "../market-interior-plan.js";
 import { SIDE_GATE_PATHS } from "../north-side-gate-layout.js";
 import { FIVE_SOUTH_ENTRY_APPROACH, NORTH_LANES, ANNIVERSARY_BACK_GATE_LINKS } from "../north-campus-layout.js";
 import { LIBRARY_ROUTE_LINES } from "../library-route-layout.js";
+import { MAIN_HALL_WALKWAYS } from "../main-hall-walkway-layout.js";
 import { GARDEN_LIBRARY_PATHS } from "../library-garden-layout.js";
 import { DORM_1_CAMPUS_RETURN } from "../dorm1-layout.js";
 import { studentCenterFrontPoint } from "../student-center-front.js";
@@ -43,6 +44,9 @@ export function campusNavPolylines() {
   }
   for (const feature of SITE_FEATURES.filter(f => f.kind === "path")) {
     lines.push({ id: feature.id, kind: NAV_EDGE_KIND.PATH, source: "SITE_FEATURES_PATH", points: feature.vertices });
+  }
+  for (const path of MAIN_HALL_WALKWAYS) {
+    lines.push({id:path.id,kind:NAV_EDGE_KIND.PATH,source:'MAIN_HALL_WALKWAYS',points:path.points});
   }
   for (const road of BACK_ROADS) {
     lines.push({ id: `back_gate_${road.osmWayId}`, kind: NAV_EDGE_KIND.ROAD, source: "BACK_ROADS", points: road.vertices });

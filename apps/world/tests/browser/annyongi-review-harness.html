@@ -1,0 +1,42 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><title>Annyongi reconstruction review</title>
+<script type="importmap">{"imports":{"playcanvas":"https://cdn.jsdelivr.net/npm/playcanvas@2.22.4/build/playcanvas.mjs"}}</script>
+<style>body{margin:0;background:#e9eff5}canvas{width:100vw;height:100vh;display:block}</style><canvas id="stage"></canvas>
+<script type="module">
+import * as pc from 'playcanvas';
+import {createCharacter} from '/src/character-model.js';
+const canvas=document.querySelector('canvas');canvas.width=innerWidth;canvas.height=innerHeight;
+const device=await pc.createGraphicsDevice(canvas,{deviceTypes:[pc.DEVICETYPE_WEBGL2],antialias:true});
+const app=new pc.AppBase(canvas),options=new pc.AppOptions();options.graphicsDevice=device;
+options.componentSystems=[pc.RenderComponentSystem,pc.CameraComponentSystem,pc.LightComponentSystem];options.resourceHandlers=[pc.ContainerHandler,pc.TextureHandler];app.init(options);
+app.scene.ambientLight=new pc.Color(.65,.65,.65);
+const camera=new pc.Entity('ReviewCamera');camera.addComponent('camera',{clearColor:new pc.Color(.89,.93,.97),projection:pc.PROJECTION_ORTHOGRAPHIC,orthoHeight:2.25});app.root.addChild(camera);
+const light=new pc.Entity('Key');light.addComponent('light',{type:'directional',intensity:1.1});light.setEulerAngles(40,25,0);app.root.addChild(light);
+if(new URLSearchParams(location.search).has('optimized')) {
+ const originalLoad=app.assets.loadFromUrl.bind(app.assets);
+ app.assets.loadFromUrl=(url,...args)=>originalLoad(url==='/assets/annyongi-flight-v1.glb'?'/.generated/assets-optimized/annyongi-flight-v1.glb':url,...args);
+}
+if(new URLSearchParams(location.search).has('night')) {
+ app.scene.ambientLight=new pc.Color(.075,.095,.16);
+ light.light.color=new pc.Color(1,.72,.25);light.light.intensity=.48;
+ camera.camera.clearColor=new pc.Color(.025,.035,.065);
+}
+const player=new pc.Entity('ReviewPlayer');app.root.addChild(player);player.mountKind='annyongi';
+const character=createCharacter(app,player);await character.ready;character.setMounted(true);character.update(0,{mounted:true,moving:false,grounded:false});
+for(let i=0;i<60;i++)character.update(.05,{mounted:true,moving:false,grounded:false});
+const carrier=player.findByName('Annyongi_GLB_Visual'),rider=player.findByName('Induck_GLB_Visual');
+const view=(name,ride=false)=>{rider.enabled=ride;const poses={front:[0,.1,6],side:[6,.1,0],back:[0,.1,-6],ride:[3,1.6,5]};camera.setPosition(...poses[name]);camera.lookAt(0,.02,0);};
+view('front');app.start();
+const state=(name)=>{
+ // Fixed elapsed duration and displacement feed the shipping visual update.
+ for(let i=0;i<80;i++) {
+  const p=player.getLocalPosition();player.setLocalPosition(p.x,p.y+(name==='ascend'?.12:name==='descend'||name==='landing'?-.12:0),p.z+(name==='forward'?.15:0));
+  character.update(.025,{mounted:true,moving:name==='forward',grounded:name==='ground',flightClearance:name==='landing'?.8:Infinity});
+ }
+ player.setLocalPosition(0,0,0);
+
+};
+const flightView=()=>{rider.enabled=true;camera.camera.orthoHeight=innerWidth<500?4.7:2.65;camera.setPosition(6,1.5,3.5);camera.lookAt(0,0,-.8);};
+window.__ANNYONGI_REVIEW__={state,flightView,app,player,character,carrier,rider,camera,view,frame:()=>app.frame,
+ pose:(dt,moving=false,grounded=false)=>character.update(dt,{mounted:true,moving,grounded}),
+ snapshot:()=>({model:character.dragonModelState,frame:app.frame,meshes:carrier.findComponents('render').length,anchor:carrier.findByName('RiderAnchor').getLocalPosition().toString(),rider:rider.getLocalPosition().toString()})};
+</script></html>

@@ -99,7 +99,13 @@ function lifecycleHarness({ previewHost = false } = {}) {
     timers.delete(entry[0]);
     return entry[1].fn();
   };
-  return { remote, requests, states, reasons, character, dispatch, flush, settle, polls, poll };
+  const timeout = () => {
+    const entry = [...timers].find(([, timer]) => timer.ms === 1500);
+    assert.ok(entry, "one request timeout is scheduled");
+    timers.delete(entry[0]);
+    entry[1].fn();
+  };
+  return { remote, requests, states, reasons, character, dispatch, flush, settle, polls, poll, timeout };
 }
 
 test("persisted restore immediately rechecks a flag disabled while cached and keeps polling", async () => {
@@ -246,5 +252,31 @@ test("preview BFCache lifecycle never starts production remote polling", async (
   await h.flush();
   assert.equal(h.requests.length, 0);
   assert.equal(h.polls().length, 0);
+  h.remote.stop();
+});
+
+test("restored timeout fails closed and ignores the timed-out response", async () => {
+  const h = lifecycleHarness();
+  const started = h.remote.start();
+  await h.settle(0, reply(200, { enabled: true }));
+  await started;
+  h.dispatch("pagehide", true);
+  h.dispatch("pageshow", true);
+  h.timeout();
+  await h.flush();
+  assert.equal(h.remote.state, FLAG_UNAVAILABLE);
+  assert.equal(h.remote.status().failClosed, true);
+  assert.deepEqual(h.reasons, ["REMOTE_KILL_UNAVAILABLE"]);
+  assert.equal(h.character.assetCanary.authority, "CANONICAL");
+  assert.equal(h.polls().length, 1);
+  await h.settle(1, reply(200, { enabled: true }));
+  assert.equal(h.remote.state, FLAG_UNAVAILABLE, "a late timed-out response cannot publish");
+  const polling = h.poll();
+  await h.settle(2, reply(200, { enabled: true }));
+  await polling;
+  assert.equal(h.remote.state, FLAG_ENABLED);
+  assert.equal(h.character.assetCanary.authority, "CANONICAL", "a fresh true never reactivates the asset");
+  assert.deepEqual(h.reasons, ["REMOTE_KILL_UNAVAILABLE"]);
+  assert.equal(h.polls().length, 1);
   h.remote.stop();
 });

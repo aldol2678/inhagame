@@ -1,36 +1,32 @@
+import { normalizeNumericSetting } from "../numeric-setting.js";
+import { getSetting, updateSettings } from '../settings-registry.js';
+
 export const CAMERA_INPUT_STORAGE_KEY = "inha-world-camera-input-v1";
 export const DEFAULT_CAMERA_INPUT_SETTINGS = Object.freeze({
   sensitivity: 1,
   invertY: false
 });
 
-const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
-
 export function normalizeCameraInputSettings(value = {}) {
-  const sensitivity = Number(value?.sensitivity);
   return Object.freeze({
-    sensitivity: Number.isFinite(sensitivity) ? clamp(sensitivity, 0.5, 2) : DEFAULT_CAMERA_INPUT_SETTINGS.sensitivity,
+    sensitivity: normalizeNumericSetting(value?.sensitivity, DEFAULT_CAMERA_INPUT_SETTINGS.sensitivity, 0.5, 2),
     invertY: value?.invertY === true
   });
 }
 
 export function readCameraInputSettings(storage = null) {
-  try {
-    const raw = storage?.getItem?.(CAMERA_INPUT_STORAGE_KEY);
-    if (!raw) return DEFAULT_CAMERA_INPUT_SETTINGS;
-    return normalizeCameraInputSettings(JSON.parse(raw));
-  } catch {
-    return DEFAULT_CAMERA_INPUT_SETTINGS;
-  }
+  return normalizeCameraInputSettings({
+    sensitivity: getSetting(storage, 'controls.mouseSensitivity'),
+    invertY: getSetting(storage, 'controls.invertY')
+  });
 }
 
 export function saveCameraInputSettings(storage, settings) {
-  try {
-    storage?.setItem?.(CAMERA_INPUT_STORAGE_KEY, JSON.stringify(normalizeCameraInputSettings(settings)));
-    return Boolean(storage?.setItem);
-  } catch {
-    return false;
-  }
+  const normalized = normalizeCameraInputSettings(settings);
+  return updateSettings(storage, {
+    'controls.mouseSensitivity': normalized.sensitivity,
+    'controls.invertY': normalized.invertY
+  });
 }
 
 export function bindCameraInputSettings({
@@ -72,10 +68,10 @@ export function bindCameraInputSettings({
   }
 
   const onSensitivity = () => {
-    apply({ sensitivity: Number(sensitivitySelect.value), invertY: invertCheckbox.checked }, { persist: true });
+    apply({ sensitivity: sensitivitySelect.value, invertY: invertCheckbox.checked }, { persist: true });
   };
   const onInvert = () => {
-    apply({ sensitivity: Number(sensitivitySelect.value), invertY: invertCheckbox.checked }, { persist: true });
+    apply({ sensitivity: sensitivitySelect.value, invertY: invertCheckbox.checked }, { persist: true });
   };
 
   sensitivitySelect.addEventListener("change", onSensitivity);

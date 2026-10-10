@@ -10,6 +10,7 @@
   setInterval(updateClassicEventBadge, 60000);
   const pages = new Set(["home", "ranking", "friends", "messages", "account", "settings"]);
   const storageKey = "inhagame-campus-settings-v1";
+  const deviceSettingsKey = "inhagame-device-settings-v2";
   const sideInput = document.getElementById("joystick-side");
   const status = document.getElementById("settings-status");
 
@@ -38,20 +39,36 @@
   });
 
   try {
-    const saved = JSON.parse(localStorage.getItem(storageKey) || "{}");
-    if (["left", "right"].includes(saved.side)) sideInput.value = saved.side;
+    const legacy = JSON.parse(localStorage.getItem(storageKey) || "{}");
+    const device = JSON.parse(localStorage.getItem(deviceSettingsKey) || "{}");
+    const side = ["left", "right"].includes(legacy?.side)
+      ? legacy.side
+      : device?.controls?.joystickSide;
+    if (["left", "right"].includes(side)) sideInput.value = side;
   } catch {
     status.textContent = "이 브라우저에서는 설정을 불러올 수 없습니다.";
   }
 
   function save() {
     try {
-      // One fixed joystick size: keep any other stored field, drop a legacy "size", store the side.
+      const side = sideInput.value;
+      // Registry v2 is the new device authority. Keep the v1 mirror during the rollback window.
+      let device = {};
+      try { device = JSON.parse(localStorage.getItem(deviceSettingsKey) || "{}"); } catch { device = {}; }
+      if (!device || typeof device !== "object" || Array.isArray(device)) device = {};
+      const controls = device.controls && typeof device.controls === "object" && !Array.isArray(device.controls)
+        ? device.controls : {};
+      localStorage.setItem(deviceSettingsKey, JSON.stringify({
+        ...device,
+        schemaVersion: 2,
+        controls: { ...controls, joystickSide: side }
+      }));
+
       let saved = {};
       try { saved = JSON.parse(localStorage.getItem(storageKey) || "{}"); } catch { saved = {}; }
       if (!saved || typeof saved !== "object" || Array.isArray(saved)) saved = {};
       delete saved.size;
-      localStorage.setItem(storageKey, JSON.stringify({ ...saved, side: sideInput.value }));
+      localStorage.setItem(storageKey, JSON.stringify({ ...saved, side }));
       status.textContent = "설정이 저장되었습니다. 다음 캠퍼스 입장부터 적용됩니다.";
     } catch {
       status.textContent = "저장할 수 없습니다. 브라우저 저장소 설정을 확인해 주세요.";
@@ -69,10 +86,10 @@
     if (!link) return;
     const destination = new URL(link.href, location.href);
     const target = {
-      "duck.inhagame.example": "classic",
-      "induckup.inhagame.example": "induckup",
-      "survival.inhagame.example": "survival",
-      "grow.inhagame.example": "induck-grow"
+      "duck.inhagame.app": "classic",
+      "induckup.inhagame.app": "induckup",
+      "survival.inhagame.app": "survival",
+      "grow.inhagame.app": "induck-grow"
     }[destination.hostname];
     const campus = destination.origin === location.origin && destination.pathname === "/campus/";
     if (!target && !campus) return;
@@ -116,10 +133,10 @@
   telemetry?.track("hub_panel_view", pages.has(location.hash.slice(1)) ? location.hash.slice(1) : "home");
   // A checked-in manifest is the source of truth; the HTML cards remain usable if loading fails.
   const gameOrigins = new Set([
-    "https://duck.inhagame.example",
-    "https://induckup.inhagame.example",
-    "https://survival.inhagame.example",
-    "https://grow.inhagame.example"
+    "https://duck.inhagame.app",
+    "https://induckup.inhagame.app",
+    "https://survival.inhagame.app",
+    "https://grow.inhagame.app"
   ]);
 
   function checkedPlayUrl(value) {

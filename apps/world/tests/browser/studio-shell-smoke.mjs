@@ -33,14 +33,20 @@ try {
   const page = await smoke.context.newPage();
   const fatal = smoke.watch(page);
 
-  await page.goto(`${smoke.origin}/studio/`, { waitUntil: "domcontentloaded", timeout: TIMEOUT_MS });
+  await page.goto(`${smoke.origin}/worldforge/`, { waitUntil: "domcontentloaded", timeout: TIMEOUT_MS });
   await race(fatal, page.waitForFunction(() =>
-    window.__INHA_STUDIO_S3__?.getStatus?.().ready === true &&
-    window.__INHA_STUDIO_S3__.getStatus().worldAdapter?.ready === true,
+    window.__WORLDFORGE__?.getStatus?.().ready === true &&
+    window.__WORLDFORGE__.getStatus().worldAdapter?.ready === true,
   null, { timeout: TIMEOUT_MS }));
 
-  let status = await page.evaluate(() => window.__INHA_STUDIO_S3__.getStatus());
-  assert.equal(status.stage, "S3.3");
+  assert.equal(await page.title(), "WorldForge · INHA WORLD · S3.4");
+  assert.equal(await page.locator(".studio-brand strong").textContent(), "WORLDFORGE");
+  assert.equal(await page.evaluate(() => window.__WORLDFORGE__ === window.__INHA_STUDIO_S3__), true);
+
+  let status = await page.evaluate(() => window.__WORLDFORGE__.getStatus());
+  assert.equal(status.product, "WorldForge");
+  assert.equal(status.legacyShell, "studio");
+  assert.equal(status.stage, "S3.4");
   assert.equal(status.activeModuleId, "world");
   assert.deepEqual(status.modules.map(module => module.id), ["world", "audio", "npc", "event", "gameplay"]);
   assert.equal(await page.locator(".studio-module-button").count(), 5);
@@ -76,6 +82,14 @@ try {
     window.__INHA_STUDIO_S3__?.getStatus?.().worldAdapter?.selectedEntityId === entityId,
   worldEntityId, { timeout: TIMEOUT_MS }));
   assert.equal(await worldContentRow.getAttribute("data-selected"), "true");
+
+  // S3.4 Asset Registry: the World module is indexed even when the bootstrap scene has no model Asset.
+  // The default Test Prop is a data-only entity, not a persisted model Asset.
+  await race(fatal, page.waitForFunction(() => {
+    const registry = window.__INHA_STUDIO_S3__?.getStatus?.().assetRegistry;
+    return registry?.indexedModules?.includes("world") === true;
+  }, null, { timeout: TIMEOUT_MS }));
+  assert.equal(await page.locator('[data-section-id="registry"]').count(), 1);
 
   // S3.3 Inspector: edit the selected World Entity through Studio, then verify the hosted editor.
   const worldNameInput = page.locator('[data-field-key="name"] [data-inspector-field="name"]');
@@ -246,6 +260,24 @@ try {
       ?.querySelector('[data-field="title"]')?.value === "Studio Track QA",
   null, { timeout: TIMEOUT_MS }));
 
+  // Registry keeps both module indexes and contains the real imported Audio asset.
+  // The bootstrap World scene intentionally has no persisted model Asset.
+  await race(fatal, page.waitForFunction(() => {
+    const registry = window.__INHA_STUDIO_S3__?.getStatus?.().assetRegistry;
+    return registry?.indexedModules?.includes("world") &&
+      registry?.indexedModules?.includes("audio") &&
+      registry.counts?.audio === 1;
+  }, null, { timeout: TIMEOUT_MS }));
+
+  const registrySearch = page.locator('[aria-label="Asset Registry search"]');
+  const registryFilter = page.locator('[aria-label="Asset Registry type filter"]');
+  await registryFilter.selectOption("audio");
+  await registrySearch.fill("Studio Track QA");
+  assert.equal(await page.locator('[data-registry-module="audio"][data-registry-type="audio"]').count(), 1);
+  assert.equal(await page.locator('[data-registry-module="world"]').count(), 0);
+  await registrySearch.fill("");
+  await registryFilter.selectOption("");
+
   await audioCueRow.click();
   await race(fatal, page.waitForFunction(id =>
     window.__INHA_STUDIO_S3__?.getStatus?.().audioAdapter?.selectedCueId === id,
@@ -323,13 +355,24 @@ try {
   }, null, { timeout: TIMEOUT_MS }));
   assert.equal(await page.locator("#studio-audio-frame").count(), 0);
 
-  await page.locator('[data-module-id="audio"]').click();
-  await race(fatal, page.waitForFunction(() => {
+  // Cross-module Registry routing: click cached Audio asset while World is active.
+  const registryAudioRow = page.locator('[data-registry-module="audio"][data-registry-type="audio"]').first();
+  await registryAudioRow.waitFor({ state: "visible", timeout: TIMEOUT_MS });
+  await registryAudioRow.click();
+  await race(fatal, page.waitForFunction(assetId => {
     const next = window.__INHA_STUDIO_S3__?.getStatus?.();
-    return next?.activeModuleId === "audio" && next.audioAdapter?.ready === true &&
-      next.audioAdapter.name === "INHA WORLD · New Music Project" && next.audioAdapter.dirty === false;
-  }, null, { timeout: TIMEOUT_MS }));
+    return next?.activeModuleId === "audio" &&
+      next.audioAdapter?.ready === true &&
+      next.audioAdapter.selectedAssetId === assetId &&
+      !next.audioAdapter.selectedCueId &&
+      !next.audioAdapter.selectedBindingId &&
+      next.audioAdapter.name === "INHA WORLD · New Music Project" &&
+      next.audioAdapter.dirty === false;
+  }, audioAssetId, { timeout: TIMEOUT_MS }));
   assert.equal(await page.locator("#studio-audio-frame").count(), 1);
+  await page.locator('[data-field-key="title"] [data-inspector-field="title"]').waitFor({
+    state: "visible", timeout: TIMEOUT_MS
+  });
 
   await page.locator('[data-module-id="npc"]').click();
   await race(fatal, page.waitForFunction(() => window.__INHA_STUDIO_S3__.getStatus().activeModuleId === "npc"));
@@ -367,9 +410,9 @@ try {
   assert.equal(status.contentOpen, false);
 
   assert.deepEqual(smoke.problems, [], "no page errors, console errors or failed same-origin requests");
-  console.log(`studio S3.3 inspector smoke: PASS in ${((Date.now() - started) / 1000).toFixed(1)}s`);
+  console.log(`studio S3.4 asset-registry smoke: PASS in ${((Date.now() - started) / 1000).toFixed(1)}s`);
 } catch (error) {
-  console.error("studio S3.3 inspector smoke: FAIL");
+  console.error("studio S3.4 asset-registry smoke: FAIL");
   if (smoke.problems.length) console.error(smoke.problems.map(line => `  - ${line}`).join("\n"));
   throw error;
 } finally {

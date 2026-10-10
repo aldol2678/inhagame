@@ -94,6 +94,11 @@ export function createShopPanel({
   let hint = "";
   let closeButton = null;
   let walletNode = null;
+  let bodyElement = null;
+  let opener = null;
+  let openingRevision = 0;
+  let renderedAccount = shop.accountId;
+  const focusTargets = new Map();
 
   // Updated in place so a balance re-read never rebuilds (or scrolls) the offer list.
   function renderWallet() {
@@ -105,6 +110,7 @@ export function createShopPanel({
   }
 
   async function buy(listingId) {
+    const revision = openingRevision;
     hint = "";
     render();
     const result = await shop.purchase(listingId);
@@ -115,7 +121,7 @@ export function createShopPanel({
     if (result.outcome === "SUCCESS") {
       try { onPurchase(result); } catch (error) { console.warn("Shop purchase listener failed:", error); }
     }
-    if (!open) return result;
+    if (!open || revision !== openingRevision) return result;
     const latest = shop.snapshot?.offers.find((offer) => offer.listingId === listingId) ?? result.offer;
     const name = offerView(latest ?? result.offer, { describe }).name;
     if (result.outcome === "SUCCESS") {
@@ -144,6 +150,13 @@ export function createShopPanel({
     const button = el("button", "shop-offer-buy", view.buttonText);
     button.type = "button";
     button.disabled = view.buttonDisabled;
+    // Pending/refused controls remain disabled. Their listing is a temporary focus anchor,
+    // outside the native Tab order, so a readback can restore the same logical purchase action.
+    const focusKey = `listing:${view.listingId}`;
+    card.tabIndex = -1;
+    card.dataset.focusKey = focusKey;
+    button.dataset.focusKey = focusKey;
+    focusTargets.set(focusKey, button.disabled ? card : button);
     button.setAttribute("aria-label", `${view.name} ${view.buttonDisabled ? view.statusText : "구매"}`);
     button.addEventListener("click", () => { if (!button.disabled) void buy(view.listingId); });
     foot.append(meta, button);
@@ -152,7 +165,15 @@ export function createShopPanel({
   }
 
   function render() {
+    const accountChanged = renderedAccount !== shop.accountId;
+    if (accountChanged) { openingRevision += 1; hint = ""; }
+    renderedAccount = shop.accountId;
     if (!open) return;
+    const hadFocus = panel.contains(doc.activeElement);
+    const focusKey = !accountChanged && hadFocus ? doc.activeElement?.dataset?.focusKey : null;
+    const scrollTop = accountChanged ? 0 : bodyElement?.scrollTop ?? 0;
+    const scrollLeft = accountChanged ? 0 : bodyElement?.scrollLeft ?? 0;
+    focusTargets.clear();
     const snapshot = shop.state === SHOP_STATE.READY ? shop.snapshot : null;
     const head = el("div", "shop-panel-head");
     const titles = el("div", "shop-panel-titles");
@@ -165,6 +186,8 @@ export function createShopPanel({
     titles.append(walletNode);
     closeButton = el("button", "profile-close", "×");
     closeButton.type = "button";
+    closeButton.dataset.focusKey = "close";
+    focusTargets.set("close", closeButton);
     closeButton.setAttribute("aria-label", "상점 닫기");
     closeButton.addEventListener("click", () => setOpen(false));
     head.append(titles, closeButton);
@@ -183,6 +206,8 @@ export function createShopPanel({
       body.append(el("p", "shop-empty", "상점을 불러오지 못했어요."));
       const retry = el("button", "shop-retry", "다시 시도");
       retry.type = "button";
+      retry.dataset.focusKey = "retry";
+      focusTargets.set("retry", retry);
       retry.addEventListener("click", () => void shop.refresh("retry"));
       body.append(retry);
     } else if (!snapshot.offers.length) {
@@ -194,19 +219,35 @@ export function createShopPanel({
     }
     panel.dataset.state = shop.state;
     panel.replaceChildren(head, status, body);
+    bodyElement = body;
     renderWallet();
+    if (hadFocus) (focusTargets.get(focusKey) ?? closeButton).focus?.({ preventScroll: true });
+    body.scrollTop = scrollTop;
+    body.scrollLeft = scrollLeft;
   }
 
   function setOpen(next) {
     const value = Boolean(next);
     if (value === open) return open;
+    const focused = doc.activeElement;
+    const restoreOpener = !value && panel.contains(focused);
+    if (value) opener = focused;
+    openingRevision += 1;
     open = value;
     panel.hidden = !open;
     hint = "";
     if (!open) {
       walletNode = null;
+      bodyElement = null;
+      focusTargets.clear();
       panel.replaceChildren();
       onOpenChange(false);
+      // Respect a callback's handoff to another panel and never revive an invalid trigger.
+      if (restoreOpener && (!doc.activeElement || doc.activeElement === doc.body || doc.activeElement === focused)
+        && opener?.isConnected !== false && !opener?.disabled && !opener?.closest?.("[hidden], [inert]")) {
+        opener?.focus?.({ preventScroll: true });
+      }
+      opener = null;
       return false;
     }
     render();

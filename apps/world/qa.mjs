@@ -244,6 +244,8 @@ assert.match(playerControllerSource, /this\.descendButton\.hidden = bike \|\| st
   "bike hides 하강; the control only appears for a flight mount");
 
 const campusHtml = readFileSync(new URL("./campus/index.html", import.meta.url), "utf8");
+assert.match(campusHtml, /INHA WORLD는 인하대학교가 공식적으로 제작·운영·후원하는 서비스가 아닌 학생 창작 프로젝트입니다\./,
+  "campus loading screen keeps the required non-official student-project disclosure");
 assert.equal((campusHtml.match(/id="helicopter-flight-hud"/g) ?? []).length, 1,
   "campus owns exactly one helicopter Flight Instrument HUD");
 assert.match(campusHtml, /id="helicopter-flight-hud"[^>]*hidden/,
@@ -605,7 +607,11 @@ assert.match(campusHtml, /class="social-cluster"[\s\S]*id="emote-toggle"[\s\S]*i
   "chat and emote share one social cluster");
 assert.equal((campusHtml.match(/id="chat-toggle"/g) ?? []).length, 1, "chat toggle remains unique");
 assert.equal((campusHtml.match(/id="zone"/g) ?? []).length, 1, "location authority remains a single DOM target");
+assert.equal((campusHtml.match(/id="world-time-chip"/g) ?? []).length, 1, "world time HUD remains a single DOM target");
+assert.match(campusHtml, /id="zone"[\s\S]*id="world-time-chip"[\s\S]*id="progression-badge"/,
+  "world time sits beside the current location before the narrow progression badge");
 assert.match(campusCss, /\.campus-topbar\s*\{/);
+assert.match(campusCss, /\.world-time-chip\s*\{/);
 // P0-F3a: read-only progression HUD. Wide pill + narrow in-chip badge + menu line; no authority.
 for (const id of ["progression-hud", "progression-level", "progression-exp", "progression-fill",
   "progression-badge", "progression-badge-level", "progression-badge-fill", "progression-menu-line"]) {
@@ -741,7 +747,7 @@ console.log("Wardrobe UI P0 static contracts PASS");
   assert.match(characterSource, /parent: player, height: HUMAN_HEIGHT/, "equipment anchors hang off the player, not the visual");
   assert.match(characterSource, /equipment\.setVisible\(!firstPerson && !cameraOccluded\)/,
     "first person and a compressed gate camera hide equipment with the character");
-  assert.match(catalogSource, /iconAssetId: null, modelAssetId,/, "catalog items take an optional modelAssetId");
+  assert.match(catalogSource, /iconAssetId, modelAssetId,/, "catalog items take an optional modelAssetId");
   assert.equal((catalogSource.match(/modelAssetId: '[^']+'/g) ?? []).length, 4, "bound items: cap + backpack + hoodie + MCM survivor top");
   assert.match(loaderSource, /"equipment\.head\.induck_cap\.v1": "\/assets\/induck-cap-v1\.glb"/, "cap model binding");
   assert.match(loaderSource, /"equipment\.back\.induck_backpack\.v1": "\/assets\/induck-backpack-v1\.glb"/, "backpack model binding");
@@ -878,6 +884,8 @@ console.log("Main Lobby P0.7 static responsive/failure contracts PASS");
 
 
 const hubHtml = readFileSync(new URL("./index.html", import.meta.url), "utf8");
+assert.match(hubHtml, /INHA WORLD는 인하대학교가 공식적으로 제작·운영·후원하는 서비스가 아닌 학생 창작 프로젝트입니다\./,
+  "hub footer keeps the required non-official student-project disclosure");
 const hubSource = readFileSync(new URL("./hub.js", import.meta.url), "utf8");
 const hubCatalog = JSON.parse(readFileSync(new URL("./data/game-catalog.json", import.meta.url), "utf8"));
 const hubProfileSource = readFileSync(new URL("./profile/profile.js", import.meta.url), "utf8");

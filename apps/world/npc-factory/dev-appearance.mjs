@@ -1,3 +1,5 @@
+import { resolveNpcAppearance } from './npc-appearance-resolver.mjs';
+
 // Separate, inspectable local roster. It does not amend the frozen A-R1 batch.
 const hairStyles = new Set(['long', 'bob', 'ponytail', 'bun', 'short', 'sidepart', 'curly', 'medium']);
 const outfitStyles = new Set(['cardigan', 'jacket', 'shirt', 'coat', 'hoodie', 'sweater']);
@@ -53,10 +55,6 @@ export function validateDevRoster(batch, roster, candidateHash) {
   return roster;
 }
 
-export function appearanceFor(entry) {
-  return {
-    ...entry.visual,
-    presentation: entry.gender,
-    label: entry.gender === 'female' ? '여성' : '남성'
-  };
+export function appearanceFor(entry, npc = null) {
+  return resolveNpcAppearance(entry, npc);
 }

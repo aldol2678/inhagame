@@ -6,6 +6,10 @@
   <meta name="theme-color" content="#101722" />
   <title>INHAGAME Campus · 인덕이와 안뇽이</title>
   <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/cinematic.css" />
+  <link rel="stylesheet" href="/phone.css" />
+  <!-- Auth config must execute before module imports snapshot the shared account config. -->
+  <script src="/api/public-supabase-config"></script>
   <script type="importmap">
     {
       "imports": {
@@ -25,14 +29,16 @@
         <span id="world-loading-bar" style="width:6%"></span>
       </div>
       <div class="world-loading-progress-meta">
-        <span id="world-loading-detail">필수 월드부터 준비하고, 소셜·NPC 기능은 뒤에서 이어서 연결합니다.</span>
+        <span id="world-loading-detail">캐릭터와 첫 화면 렌더링이 끝나면 접속 화면이 열립니다.</span>
         <strong id="world-loading-percent">6%</strong>
       </div>
+      <p class="world-loading-affiliation">INHA WORLD는 인하대학교가 공식적으로 제작·운영·후원하는 서비스가 아닌 학생 창작 프로젝트입니다.</p>
       <button id="world-loading-continue" type="button" hidden>기본 월드 먼저 보기</button>
     </div>
   </section>
   <script type="module" src="/src/lobby/lobby-loading.js"></script>
-  <canvas id="application" aria-label="INHAGAME Campus 3D canvas"></canvas>
+  <canvas id="application" tabindex="-1" aria-label="INHAGAME Campus 3D canvas"></canvas>
+  <button id="cinematic-skip" class="cinematic-skip" type="button" aria-label="연출 건너뛰기" hidden>건너뛰기</button>
   <p id="pointer-lock-hint" class="pointer-lock-hint" role="status" aria-live="polite" hidden></p>
   <div id="lobby-transition-fade" class="lobby-transition-fade" aria-hidden="true" hidden></div>
   <section id="world-lobby" class="world-lobby" aria-label="INHA WORLD 메인 로비" data-p0-stage="shell" hidden>
@@ -132,7 +138,8 @@
   </section>
   <header class="campus-topbar" aria-label="캠퍼스 HUD">
     <a class="return-home" href="/" aria-label="메인 허브로 이동"><span class="return-home-arrow" aria-hidden="true">←</span><span class="return-home-label">메인허브</span></a>
-    <div class="location-chip" aria-label="현재 위치"><span aria-hidden="true">📍</span><strong id="zone">-</strong><span id="progression-badge" class="progression-badge" role="img" hidden><span id="progression-badge-level">Lv.1</span><span id="progression-badge-bar" class="progression-bar"><i id="progression-badge-fill"></i></span></span></div>
+    <div class="location-chip" aria-label="현재 위치와 INHA WORLD 시간"><span aria-hidden="true">📍</span><strong id="zone">-</strong><span id="world-time-chip" class="world-time-chip" aria-label="INHA WORLD 시간" hidden></span><span id="progression-badge" class="progression-badge" role="img" hidden><span id="progression-badge-level">Lv.1</span><span id="progression-badge-bar" class="progression-bar"><i id="progression-badge-fill"></i></span></span></div>
+    <button id="phone-toggle" type="button" aria-label="스마트폰 열기 (N)" aria-keyshortcuts="N" aria-controls="world-smartphone" aria-expanded="false">📱</button>
     <button id="hud-menu-toggle" class="hud-menu-toggle" type="button" aria-controls="hud-menu" aria-expanded="false" aria-label="메뉴 열기">☰</button>
   </header>
   <!-- P0-F3a: read-only server progression (get_my_world_progression_v1); wide screens only. -->
@@ -201,6 +208,7 @@
         </div>
         <button id="full-map-close" class="full-map-close" type="button" aria-label="전체 지도 닫기">×</button>
       </header>
+      <div id="full-map-search" class="full-map-search"></div>
       <div id="full-map-nav" class="full-map-nav" data-status="IDLE" hidden>
         <span class="full-map-nav-glyph" aria-hidden="true">◆</span>
         <span id="full-map-nav-text" class="full-map-nav-text"></span>
@@ -275,6 +283,7 @@
     </div>
   </aside>
   <div id="nameplate" class="nameplate" aria-label="내 캐릭터 닉네임">인덕이</div>
+  <output id="graphics-fps" class="graphics-fps" aria-label="현재 렌더링 FPS" hidden>— FPS</output>
   <div id="hud-menu" class="identity-actions" hidden>
     <div class="hud-menu-title">INHAGAME CAMPUS <span>인덕이와 안뇽이</span></div>
     <p id="progression-menu-line" class="progression-menu-line" hidden></p>
@@ -286,6 +295,7 @@
     <button id="open-wardrobe" type="button" aria-controls="wardrobe-panel" aria-expanded="false">👕 옷장</button>
     <button id="open-daily-quiz" type="button" aria-controls="daily-quiz-panel" aria-expanded="false">📚 오늘의 퀴즈</button>
     <button id="open-attendance" type="button" aria-controls="attendance-panel" aria-expanded="false">📅 출석부</button>
+    <button id="open-life-skills" type="button" aria-controls="life-skill-book-panel" aria-expanded="false" hidden>📘 생활 스킬</button>
     <button id="open-friends" type="button" aria-controls="friend-panel" aria-expanded="false" hidden>👥 친구</button>
     <button id="toggle-first-person" type="button" aria-pressed="false" aria-label="1인칭 시점" aria-keyshortcuts="V">👁 1인칭으로</button>
     <button id="open-keyboard-help" class="desktop-only" type="button" aria-controls="keyboard-shortcuts-panel" aria-expanded="false">⌨ 키보드 조작</button>
@@ -309,6 +319,25 @@
       <option value="medium">보통</option><option value="high">높음</option>
     </select>
     <p id="graphics-quality-hint">기기에 맞는 품질을 선택합니다.</p>
+    <label for="graphics-frame-limit">최대 프레임</label>
+    <select id="graphics-frame-limit">
+      <option value="auto">자동 (화면 주사율)</option><option value="30">30 FPS</option>
+      <option value="45">45 FPS</option><option value="60">60 FPS</option>
+      <option value="90">90 FPS</option><option value="120">120 FPS</option>
+    </select>
+    <label for="graphics-render-scale">렌더 해상도</label>
+    <select id="graphics-render-scale" aria-describedby="graphics-detail-hint">
+      <option value="auto">자동 (품질에 맞춤)</option><option value="0.7">70%</option>
+      <option value="0.85">85%</option><option value="1">100%</option>
+    </select>
+    <label for="graphics-shadows">그림자</label>
+    <select id="graphics-shadows">
+      <option value="auto">자동 (품질에 맞춤)</option><option value="off">끄기</option>
+      <option value="low">낮음</option><option value="medium">보통</option><option value="high">높음</option>
+    </select>
+    <label for="graphics-show-fps"><input id="graphics-show-fps" type="checkbox"> FPS 표시</label>
+    <p id="graphics-detail-hint">직접 고른 세부 값은 품질보다 우선합니다. 해상도 100%는 기기 픽셀 비율 최대 2배 기준입니다.</p>
+    <button id="graphics-reset" type="button">그래픽 자동 설정으로 초기화</button>
     <label for="view-distance">시야 거리</label>
     <select id="view-distance" aria-describedby="view-distance-hint">
       <option value="SHORT">짧게</option><option value="NORMAL" selected>보통</option>
@@ -361,6 +390,7 @@
       <div class="shortcut-group">
         <h3>화면 · 소셜</h3>
         <p><span><kbd>V</kbd></span><strong>1·3인칭 전환</strong></p>
+        <p><span><kbd>P</kbd></span><strong>사진 모드</strong></p>
         <p><span><kbd>Enter</kbd></span><strong>채팅 열기 / 빈 채팅 닫기</strong></p>
         <p><span><kbd>1</kbd>–<kbd>5</kbd></span><strong>감정표현 선택</strong></p>
         <p><span><kbd>Esc</kbd></span><strong>열린 패널 닫기</strong></p>
@@ -383,6 +413,7 @@
   <section id="quest-journal-panel" class="profile-panel shop-panel inventory-panel quest-journal-panel" role="dialog" aria-modal="true" aria-labelledby="quest-journal-title" hidden></section>
   <!-- P0-F3b: Student Center shop. Content is rendered by src/shop/shop-panel.js from get_world_shop_v1. -->
   <section id="shop-panel" class="profile-panel shop-panel" role="dialog" aria-modal="true" aria-labelledby="shop-panel-title" hidden></section>
+  <section id="backgate-transit-panel" class="profile-panel shop-panel transit-panel" role="dialog" aria-modal="true" aria-labelledby="backgate-transit-title" hidden></section>
   <!-- Inventory P0: read-only owned items, rendered by src/inventory/inventory-panel.js from get_my_world_inventory_v1. -->
   <section id="inventory-panel" class="profile-panel shop-panel inventory-panel" role="dialog" aria-modal="true" aria-labelledby="inventory-panel-title" hidden></section>
   <!-- Mobility Book P0.8: player-facing registry browser; no ownership authority. -->
@@ -393,6 +424,10 @@
   <section id="daily-quiz-panel" class="profile-panel shop-panel inventory-panel daily-quiz-panel" role="dialog" aria-modal="true" aria-labelledby="daily-quiz-panel-title" hidden></section>
   <!-- Progression P1f: 캠퍼스 출석부, rendered by src/attendance/attendance-panel.js from the server-owned attendance RPCs. -->
   <section id="attendance-panel" class="profile-panel shop-panel inventory-panel attendance-panel" role="dialog" aria-modal="true" aria-labelledby="attendance-panel-title" hidden></section>
+  <!-- Life Skill Book P0: own ACTIVE Life Skills, tree ranks and free reset, rendered by src/life-skills/life-skill-book-panel.js from the server-owned get/unlock/reset_my_world_life_* RPCs. The menu entry stays hidden until the server lists a visible skill. -->
+  <section id="life-skill-book-panel" class="profile-panel shop-panel inventory-panel life-skill-book-panel" role="dialog" aria-modal="true" aria-labelledby="life-skill-book-title" hidden></section>
+  <!-- Inkyung fishing: rendered by src/activity/fishing-panel.js from the server-owned /api/world-fishing replies (start / HOOK / CANCEL / settle). Opened from the 🎣 action at the two pond spots. -->
+  <section id="fishing-panel" class="profile-panel shop-panel fishing-panel" role="dialog" aria-modal="true" aria-labelledby="fishing-title" hidden></section>
   <div id="guestbook-world-label" class="guestbook-world-label" aria-hidden="true" hidden>
     <span class="guestbook-world-marker-icon" data-guestbook-marker-icon>📖</span>
     <span class="guestbook-world-marker-copy">
@@ -458,10 +493,12 @@
     <button id="nearby-toggle" type="button" aria-controls="nearby-panel" aria-expanded="false" aria-label="주변 플레이어 보기" title="주변 플레이어">👥<span>주변</span></button>
     <button id="emote-toggle" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="emote-menu" aria-label="감정표현 열기 (E)" title="감정표현 (E)">😀<span>감정</span></button>
     <button id="chat-toggle" type="button" aria-controls="chat-form" aria-expanded="false" aria-label="채팅 열기 (Enter)" title="채팅 (Enter)">💬<span>채팅</span></button>
+    <button id="photo-mode-toggle" type="button" aria-label="사진 모드 열기 (P)" aria-keyshortcuts="P" title="사진 모드 (P)">📷<span>사진</span></button>
   </div>
   <div id="emote-menu" class="emote-menu" role="menu" aria-label="감정표현" hidden></div>
   <p id="emote-status" class="emote-status" role="status" aria-live="polite"></p>
   <div id="local-chat-bubble" class="chat-bubble" aria-hidden="true" hidden></div>
+  <div id="combat-impact-feedback" class="combat-impact-feedback" aria-hidden="true"></div>
   <button id="context-action" type="button" class="context-action" aria-label="상호작용" hidden></button>
   <button id="transport-action" type="button" class="context-action transport-action" aria-label="탈것" hidden></button>
   <p id="follow-status" class="follow-status" role="status" aria-live="polite" hidden></p>
@@ -479,8 +516,12 @@
   </section>
   <script>
     try {
-      const config = JSON.parse(localStorage.getItem('inhagame-campus-settings-v1') || '{}');
-      if (config.side === 'right') document.body.classList.add('joystick-right');
+      const legacy = JSON.parse(localStorage.getItem('inhagame-campus-settings-v1') || '{}');
+      const device = JSON.parse(localStorage.getItem('inhagame-device-settings-v2') || '{}');
+      const side = ['left', 'right'].includes(legacy?.side)
+        ? legacy.side
+        : device?.controls?.joystickSide;
+      if (side === 'right') document.body.classList.add('joystick-right');
     } catch { /* Use default controls when local storage is unavailable. */ }
   </script>
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
@@ -490,6 +531,5 @@
   <script type="module" src="/src/main.js"></script>
 </body>
 </html>
-
 
 

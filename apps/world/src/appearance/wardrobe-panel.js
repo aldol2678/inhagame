@@ -103,6 +103,25 @@ export function createWardrobePanel({
   let open = false;
   let hint = "";
   let closeButton = null;
+  let bodyElement = null;
+  let opener = null;
+  let accountRevision = 0;
+  let inventoryRetry = null;
+  let renderedLoadoutAccount = loadout.accountId;
+  let renderedInventoryAccount = inventory.accountId;
+  const focusTargets = new Map();
+
+  // A disabled action cannot receive focus. Its row is a temporary programmatic anchor,
+  // retaining item identity without adding a Tab stop or enabling a pending/refused action.
+  function trackAction(row, control, key, itemId) {
+    row.tabIndex = -1;
+    for (const node of [row, control]) {
+      node.dataset.focusKey = key;
+      node.dataset.focusItemId = itemId;
+    }
+    focusTargets.set(key, control.disabled ? row : control);
+    return control;
+  }
 
   function button(text, { disabled = false, onClick, label }) {
     const node = el("button", "wardrobe-action", text);
@@ -114,10 +133,11 @@ export function createWardrobePanel({
   }
 
   async function change(action, slot, itemId, name) {
+    const revision = accountRevision;
     hint = "";
     render();
     const result = action === "EQUIP" ? await loadout.equip(slot, itemId) : await loadout.unequip(slot);
-    if (result.outcome === "STALE" || result.code === "BUSY") return result;
+    if (revision !== accountRevision || result.outcome === "STALE" || result.code === "BUSY") return result;
     if (result.outcome === "SUCCESS") {
       hint = `${action === "EQUIP" ? "장착 완료" : "해제 완료"} · ${name}`;
       onStatus(hint);
@@ -128,6 +148,24 @@ export function createWardrobePanel({
     try { onChange(result); } catch (error) { console.warn("Wardrobe change listener failed:", error); }
     render();
     return result;
+  }
+
+  async function retryOwned(revision) {
+    if (!open || inventoryRetry || revision !== accountRevision || !inventory.accountId
+      || inventory.accountId !== loadout.accountId || loadout.state !== LOADOUT_STATE.READY
+      || inventory.state !== INVENTORY_STATE.UNAVAILABLE) return;
+    const request = {};
+    inventoryRetry = request;
+    render();
+    try {
+      // The inventory client owns read coalescing and stale-account response rejection.
+      await inventory.refresh("retry");
+    } finally {
+      if (inventoryRetry === request) {
+        inventoryRetry = null;
+        render();
+      }
+    }
   }
 
   function renderSlots(slots) {
@@ -143,10 +181,10 @@ export function createWardrobePanel({
       row.append(text);
       if (!view.empty) {
         const pending = loadout.isPending(slot);
-        row.append(button(pending ? "처리 중…" : "해제", {
+        row.append(trackAction(row, button(pending ? "처리 중…" : "해제", {
           disabled: pending, label: `${view.name} 해제`,
           onClick: () => change("UNEQUIP", slot, null, view.name)
-        }));
+        }), `slot:${slot}:${view.itemId}`, view.itemId));
       }
       list.append(row);
     }
@@ -155,7 +193,20 @@ export function createWardrobePanel({
 
   function renderOwned(slots) {
     const section = el("div", "wardrobe-owned");
+    section.setAttribute("aria-busy", String(Boolean(inventoryRetry)));
     section.append(el("h3", "wardrobe-section-title", "보유 착용 아이템"));
+    if (inventoryRetry || inventory.state === INVENTORY_STATE.UNAVAILABLE) {
+      section.append(el("p", "shop-empty", inventoryRetry
+        ? "보유 아이템을 불러오는 중…" : "보유 아이템을 불러오지 못했어요."));
+      const revision = accountRevision;
+      const retry = button(inventoryRetry ? "불러오는 중…" : "다시 시도", {
+        disabled: Boolean(inventoryRetry), label: "보유 아이템 다시 불러오기",
+        onClick: () => retryOwned(revision)
+      });
+      retry.className = "shop-retry";
+      section.append(trackAction(section, retry, "inventory-retry", ""));
+      return section;
+    }
     if (inventory.state === INVENTORY_STATE.LOADING) {
       section.append(el("p", "shop-empty", "보유 아이템을 불러오는 중…"));
       return section;
@@ -189,7 +240,7 @@ export function createWardrobePanel({
           : button(pending ? "처리 중…" : "장착", { disabled: pending || !item.canEquip,
             label: item.canEquip ? `${item.name} 장착` : `${item.name} 장착 불가`,
             onClick: () => change("EQUIP", item.slot, item.itemId, item.name) });
-        foot.append(meta, action);
+        foot.append(meta, trackAction(card, action, `owned:${item.itemId}`, item.itemId));
         card.append(foot);
         list.append(card);
       }
@@ -211,8 +262,17 @@ export function createWardrobePanel({
   }
 
   function render() {
+    const accountChanged = renderedLoadoutAccount !== loadout.accountId || renderedInventoryAccount !== inventory.accountId;
+    if (accountChanged) { accountRevision += 1; hint = ""; inventoryRetry = null; }
+    renderedLoadoutAccount = loadout.accountId;
+    renderedInventoryAccount = inventory.accountId;
     if (!open) return;
-    const previousScroll = panel.querySelector?.(".shop-panel-body")?.scrollTop ?? 0;
+    const hadFocus = panel.contains(doc.activeElement);
+    const focusKey = !accountChanged && hadFocus ? doc.activeElement?.dataset?.focusKey : null;
+    const focusItemId = !accountChanged && hadFocus ? doc.activeElement?.dataset?.focusItemId : null;
+    const scrollTop = accountChanged ? 0 : bodyElement?.scrollTop ?? 0;
+    const scrollLeft = accountChanged ? 0 : bodyElement?.scrollLeft ?? 0;
+    focusTargets.clear();
     const head = el("div", "shop-panel-head");
     const titles = el("div", "shop-panel-titles");
     const title = el("h2", "", "👕 옷장");
@@ -220,6 +280,8 @@ export function createWardrobePanel({
     titles.append(title, el("p", "wardrobe-subtitle", "보유한 착용 아이템을 슬롯별로 관리해요"));
     closeButton = el("button", "profile-close", "×");
     closeButton.type = "button";
+    closeButton.dataset.focusKey = "close";
+    focusTargets.set("close", closeButton);
     closeButton.setAttribute("aria-label", "옷장 닫기");
     closeButton.addEventListener("click", () => setOpen(false));
     head.append(titles, closeButton);
@@ -232,12 +294,14 @@ export function createWardrobePanel({
     const body = el("div", "shop-panel-body");
     if (loadout.state === LOADOUT_STATE.SIGNED_OUT) {
       body.append(el("p", "shop-empty", "로그인한 INHAGAME 계정만 옷장을 이용할 수 있어요."));
-    } else if (loadout.state === LOADOUT_STATE.LOADING) {
+    } else if (loadout.state === LOADOUT_STATE.LOADING || inventory.accountId !== loadout.accountId) {
       body.append(el("p", "shop-empty", "옷장을 불러오는 중…"));
     } else if (loadout.state === LOADOUT_STATE.UNAVAILABLE) {
       body.append(el("p", "shop-empty", "옷장을 불러오지 못했어요."));
       const retry = el("button", "shop-retry", "다시 시도");
       retry.type = "button";
+      retry.dataset.focusKey = "retry";
+      focusTargets.set("retry", retry);
       retry.addEventListener("click", () => void loadout.refresh("retry"));
       body.append(retry);
     } else {
@@ -247,18 +311,36 @@ export function createWardrobePanel({
     }
     panel.dataset.state = loadout.state;
     panel.replaceChildren(head, status, body);
-    if (previousScroll) body.scrollTop = previousScroll;
+    bodyElement = body;
+    if (hadFocus) {
+      // A slot's unequip control disappears after success: prefer that same owned item.
+      const target = focusTargets.get(focusKey) ?? focusTargets.get(`owned:${focusItemId}`) ?? closeButton;
+      target.focus?.({ preventScroll: true });
+    }
+    body.scrollTop = scrollTop;
+    body.scrollLeft = scrollLeft;
   }
 
   function setOpen(next) {
     const value = Boolean(next);
     if (value === open) return open;
+    const focused = doc.activeElement;
+    const restoreOpener = !value && panel.contains(focused);
+    if (value) opener = focused;
     open = value;
     panel.hidden = !open;
     hint = "";
     if (!open) {
       panel.replaceChildren();
+      bodyElement = null;
+      focusTargets.clear();
       onOpenChange(false);
+      // A close callback may already have focused a different panel. Never override that handoff.
+      if (restoreOpener && (!doc.activeElement || doc.activeElement === doc.body || doc.activeElement === focused)
+        && opener?.isConnected !== false && !opener?.disabled && !opener?.closest?.("[hidden], [inert]")) {
+        opener?.focus?.({ preventScroll: true });
+      }
+      opener = null;
       return false;
     }
     render();

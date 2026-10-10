@@ -141,12 +141,17 @@ test("P0.3 MAIN_GATE skips the staged transition when already at the canonical s
     leave() { this.active = false; return true; }
   };
   let transitionStarts = 0;
+  let entered = 0;
   const transition = {
     start() { transitionStarts++; return true; }
   };
 
-  assert.equal(enterMainGate({ player, lobbyWorld, documentLike, transition }), true);
+  assert.equal(enterMainGate({
+    player, lobbyWorld, documentLike, transition,
+    onEntered: () => { entered++; }
+  }), true);
   assert.equal(transitionStarts, 0);
+  assert.equal(entered, 1);
   assert.equal(lobbyWorld.active, false);
   assert.equal(lobby.hidden, true);
 });
@@ -163,13 +168,20 @@ test("P0.3 MAIN_GATE keeps the staged transition when a real reposition is requi
     leave() { throw new Error("transition owns the handoff"); }
   };
   let args = null;
+  let entered = 0;
   const transition = {
     start(next) { args = next; return true; }
   };
 
-  assert.equal(enterMainGate({ player, lobbyWorld, transition }), true);
+  assert.equal(enterMainGate({
+    player, lobbyWorld, transition,
+    onEntered: () => { entered++; }
+  }), true);
   assert.deepEqual(args.position, MAIN_GATE_SPAWN);
   assert.equal(args.cameraYaw, MAIN_GATE_SPAWN.yaw);
+  assert.equal(entered, 0, 'presentation waits for the transition handoff');
+  args.onComplete();
+  assert.equal(entered, 1);
 });
 
 test("P0.3 MAIN_GATE start is inert outside lobby mode", () => {
@@ -704,6 +716,15 @@ test("C15.2 signed-in degraded quest status never falls back to the guest guided
   assert.equal(selected, null);
 });
 
+
+test("P1.4 signed-in account never sees browser-local tour when quest runtime is absent", () => {
+  assert.equal(selectLobbyQuest({
+    tourStage: 0,
+    quest: null,
+    accountSignedIn: true
+  }), null);
+});
+
 test("P1.4 incomplete first tour is the guest-safe fallback", () => {
   const selected = selectLobbyQuest({
     tourStage: 1,
@@ -972,12 +993,13 @@ test("P1.7 loading phases are monotonic and finish at READY", () => {
   const bar = { style: {}, attrs: new Map(), setAttribute(k, v) { this.attrs.set(k, v); } };
   const percent = { textContent: "" };
   const button = { hidden: true, addEventListener(_type, cb) { this.click = cb; } };
+  const lobby = { inert: false };
   const callbacks = [];
   const timers = { setTimeout(cb) { callbacks.push(cb); return callbacks.length; }, clearTimeout() {} };
   let now = 0;
   const loading = createWorldLoading({
     root, messageElement: message, detailElement: detail, barElement: bar,
-    percentElement: percent, continueButton: button,
+    percentElement: percent, continueButton: button, interactionRoot: lobby,
     clock: { now: () => now }, timers, slowAfterMs: 6500, fadeMs: 0
   });
 
@@ -988,8 +1010,14 @@ test("P1.7 loading phases are monotonic and finish at READY", () => {
   loading.setPhase("STREAMING");
   loading.setEssentialReady(true);
   callbacks[0]();
-  assert.equal(button.hidden, false, "slow essential-ready load exposes early entry");
-  button.click();
+  assert.equal(button.hidden, true, "slow load never exposes an early-entry bypass");
+  assert.equal(lobby.inert, true, "keyboard and touch cannot enter the unfinished scene");
+  assert.equal(loading.finish({ early: true }), false, "essential readiness cannot bypass rendering");
+  assert.equal(root.hidden, false);
+  loading.setPhase("RENDERING");
+  loading.setRenderReady(true);
+  loading.finish();
+  assert.equal(lobby.inert, false);
   assert.equal(loading.status().finished, true);
   assert.equal(loading.status().phase, "READY");
 });

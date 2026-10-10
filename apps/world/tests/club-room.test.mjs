@@ -81,7 +81,9 @@ test("2–5, 35. the enter action: only at the doorway, never mounted or airborn
   assert.match(main, /contextActions\.set\("room-door", rooms\.contextAction\(\{ position: pos, grounded: controller\.grounded, mounted: controller\.mounted \}\)\);/);
   for (const id of ["seat", "follow", "npc"]) assert.match(main, new RegExp(`contextActions\\.set\\("${id}"`), `${id} still publishes`);
   // Transport has its own slot (M): the door and the mount never compete for one button.
-  assert.match(main, /transportActions\.set\("mount", controller\.getMountContextAction\(\)\);/, "mount publishes to the transport slot");
+  assert.match(main, /const mountContextAction = controller\.getMountContextAction\(\);/, "controller provides the mount offer");
+  assert.match(main, /transportActions\.set\("mount", mountContextAction \? \{ \.\.\.mountContextAction, trigger: \(\) => controller\.transportAction\(\) \} : null\);/,
+    "mount publishes to the transport slot and rechecks controller authority on activation");
   assert.doesNotMatch(main, /contextActions\.set\("mount"/, "mount is not an interaction-slot action");
   assert.match(read("../npc-factory/dev-runtime.mjs"), /priority: 300/);
 });
@@ -392,7 +394,7 @@ test("33–34, 45. mobile: the shared context slot only; no room button, a short
   assert.match(css, /\.space-fade \{[^}]*transition: opacity \.15s/);
   assert.match(css, /body\[data-space\] #tour \{ display: none; \}/, "outdoor tour compass steps aside indoors");
   const main = code("../src/main.js");
-  assert.match(main, /reducedMotion\.matches\) \{ run\(\); return; \}/, "reduced motion switches instantly");
+  assert.match(main, /createSpaceFade\(\{ overlay: spaceFade, reducedMotion \}\)/, "shared fade honors reduced motion (behavior covered by space-fade tests)");
   assert.doesNotMatch(main, /createElement\("button"\)/);
   assert.match(code("../src/rooms/room-world-adapter.js"), /setLocationLabel\(room\.locationLabel \?\? `🏠 \$\{room\.label\}`\)/);
 });

@@ -1,9 +1,12 @@
+import {inStudentCampusRegion} from './student-center-frame.js';
+import {WALK_SHAPE} from './player-dimensions.js';
 import { cameraSafeFraction } from "./world-collision.js";
 import { CAMPUS_BIKE_ID } from "./mounts/campus-bike-world.js";
 import { inMainGateCameraArea } from './main-gate-camera-collision.js';
 
 const WALK = { initial: 3.5, min: 1.5, max: 7 };
 const FLIGHT = { initial: Math.hypot(7.3, 18.5), min: 12, max: 36 };
+const ANNYONGI_FLIGHT = Object.freeze({ initial: 7.4, min: 4.5, max: 16 });
 export const INDOOR_CAMERA = Object.freeze({ initial: 2.2, min: 1.1, max: 3.2 });
 const THIRD_PERSON_PITCH = Object.freeze({ min: -1.25, orbitMin: 0.12, max: 1.2 });
 const FIRST_PERSON_PITCH = Object.freeze({ min: -1.35, max: 1.35 });
@@ -31,7 +34,8 @@ export class OrbitCameraController {
     this.mounted = false;
     this.firstPerson = false;
     this.localVisualOccluded = false;
-    this.distances = { walk: WALK.initial, flight: FLIGHT.initial };
+    this.distances = { walk: WALK.initial, flight: FLIGHT.initial, annyongi: ANNYONGI_FLIGHT.initial };
+    this.flightProfile = "flight";
     this.thirdPersonPitch = this.pitch;
     this.firstPersonPitch = 0;
     this.target = { x: 0, y: 0, z: 0 };
@@ -40,6 +44,7 @@ export class OrbitCameraController {
     this.mouseSensitivity = 1;
     this.invertMouseY = false;
     this.indoor = null;
+    this.outdoorObstacles = undefined;
     this.perspectiveButton = document.getElementById("toggle-first-person");
     this.perspectiveButton?.addEventListener("click", () => {
       if (this.canUseGameplayShortcut()) this.togglePerspective();
@@ -56,7 +61,13 @@ export class OrbitCameraController {
     this.#bindInput();
   }
 
-  get zoomLimits() { return this.indoor ? this.indoor.limits : this.mounted ? FLIGHT : WALK; }
+  get zoomLimits() { return this.indoor ? this.indoor.limits : this.mounted ? (this.flightProfile === "annyongi" ? ANNYONGI_FLIGHT : FLIGHT) : WALK; }
+
+  // Undefined preserves Campus's default collision policy; an explicit set belongs
+  // to a different outdoor coordinate frame. Indoor rooms override it temporarily.
+  setOutdoorObstacles(obstacles = undefined) {
+    this.outdoorObstacles = obstacles;
+  }
 
   setIndoor(indoor = null) {
     if (indoor && !this.indoor) {
@@ -79,10 +90,12 @@ export class OrbitCameraController {
 
   setMounted(mounted) {
     const useFlight = mounted && flightMount();
-    if (this.mounted === useFlight) return;
-    this.distances[this.mounted ? "flight" : "walk"] = this.distance;
+    const profile = typeof document !== "undefined" && document.body?.dataset?.mountId === "annyongi" ? "annyongi" : "flight";
+    if (this.mounted === useFlight && (!useFlight || this.flightProfile === profile)) return;
+    this.distances[this.mounted ? this.flightProfile : "walk"] = this.distance;
     this.mounted = useFlight;
-    this.distance = clamp(this.distances[useFlight ? "flight" : "walk"], this.zoomLimits.min, this.zoomLimits.max);
+    this.flightProfile = profile;
+    this.distance = clamp(this.distances[useFlight ? profile : "walk"], this.zoomLimits.min, this.zoomLimits.max);
   }
 
   togglePerspective() {
@@ -204,8 +217,9 @@ export class OrbitCameraController {
       this.camera.lookAt(position.x - sin * horizontal, eyeY - Math.sin(this.pitch), -(position.z + cos * horizontal));
       return;
     }
-    const lead = this.mounted ? 5.5 : 0.35;
-    const height = this.mounted ? 2.1 : eyeHeight;
+    const annyongi = this.mounted && this.flightProfile === "annyongi";
+    const lead = this.mounted ? (annyongi ? .2 : 5.5) : 0.35;
+    const height = this.mounted ? (annyongi ? .3 : 2.1) : eyeHeight;
     this.target.x = position.x - sin * lead;
     this.target.y = position.y + height;
     this.target.z = position.z + cos * lead;
@@ -215,22 +229,42 @@ export class OrbitCameraController {
     // the camera under the campus ground at normal third-person zoom distances.
     const viewPitch = this.pitch;
     const orbitPitch = Math.max(viewPitch, THIRD_PERSON_PITCH.orbitMin);
-    const horizontal = Math.cos(orbitPitch) * this.distance;
+    // Fit a 3.8-unit cloud-wing span in portrait without changing user zoom memory.
+    const aspect = Number(this.camera.camera?.aspectRatio) || 1;
+    const framingScale = annyongi ? Math.max(1, Math.min(1.35, .65 / aspect)) : 1;
+    const framedDistance = this.distance * framingScale;
+    const horizontal = Math.cos(orbitPitch) * framedDistance;
     const eye = [position.x, position.y + height, position.z];
     const candidate = [
       this.target.x + sin * horizontal,
-      this.target.y + Math.sin(orbitPitch) * this.distance,
+      this.target.y + Math.sin(orbitPitch) * framedDistance,
       this.target.z - cos * horizontal
     ];
-    const fraction = cameraSafeFraction(eye, candidate, this.indoor?.obstacles);
+    const fraction = cameraSafeFraction(eye, candidate, this.indoor ? this.indoor.obstacles : this.outdoorObstacles);
     const cameraX = eye[0] + (candidate[0] - eye[0]) * fraction;
     const cameraY = eye[1] + (candidate[1] - eye[1]) * fraction;
     const cameraZ = -(eye[2] + (candidate[2] - eye[2]) * fraction);
     // A real wall/prop can legitimately compress the chase orbit. Hide only the
     // local body/equipment when that camera enters their envelope; keep third
     // person input, chosen zoom, the obstacle and all other actors unchanged.
-    this.localVisualOccluded = !this.indoor && !this.mounted && inMainGateCameraArea(eye) &&
-      Math.hypot(cameraX - eye[0], cameraY - eye[1], -cameraZ - eye[2]) < .6;
+    const campusOutdoor = this.outdoorObstacles === undefined;
+    const studentArea=campusOutdoor && inStudentCampusRegion(eye[0],eye[2]);
+    let bodyClearance=.6;
+    if(studentArea&&fraction<1){
+      // A collision-compressed portrait orbit can let the local body fill the
+      // route before the eye enters it. Bound the projected collision diameter
+      // to half the viewport width; retain intentional uncompressed close zoom.
+      const lens=this.camera.camera,fov=Number(lens.fov),aspect=Number(lens.aspectRatio);
+      if(fov>0&&fov<180&&aspect>0){
+        const horizontalTan=Math.tan(fov*Math.PI/360)*(lens.horizontalFov?1:aspect);
+        bodyClearance=Math.max(bodyClearance,WALK_SHAPE.radius/(horizontalTan*.5));
+      }
+    }
+    // Regional walls can legitimately compress the camera into the local body
+    // too. Reuse the existing local-only mask; never remove the real collider.
+    const regionalCompression = !campusOutdoor && fraction < 1;
+    this.localVisualOccluded = !this.indoor && !this.mounted && (regionalCompression || (campusOutdoor && inMainGateCameraArea(eye)) || studentArea) &&
+      Math.hypot(cameraX - eye[0], cameraY - eye[1], -cameraZ - eye[2]) < bodyClearance;
     this.camera.setPosition(cameraX, cameraY, cameraZ);
     if (viewPitch < THIRD_PERSON_PITCH.orbitMin) {
       const viewHorizontal = Math.cos(viewPitch);

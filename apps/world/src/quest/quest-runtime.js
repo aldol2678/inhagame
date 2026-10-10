@@ -9,10 +9,11 @@ import {
   adaptMain2QuestStatus
 } from './legacy-quest-adapters.js';
 
-function frozenSnapshot({ signedIn, loading, quests, trackedQuestId }) {
+function frozenSnapshot({ signedIn, loading, quests, trackedQuestId, main2StatusState = null }) {
   return Object.freeze({
     signedIn: Boolean(signedIn),
     loading: Boolean(loading),
+    main2StatusState,
     trackedQuestId: trackedQuestId ?? null,
     quests: Object.freeze([...quests])
   });
@@ -55,7 +56,8 @@ export function createQuestRuntime() {
         stage: main2.stage,
         available: main2.available === true
       }, {
-        main1Complete: main1?.complete === true,
+        // This is an authoritative Main 2 read. Main 1 completion must not
+        // turn an explicit available:false result into a guide objective.
         trackedQuestId
       }));
     }
@@ -69,6 +71,7 @@ export function createQuestRuntime() {
     snapshot = frozenSnapshot({
       signedIn,
       loading,
+      main2StatusState: main2?.enabled === true && main2.signedIn === true ? main2.statusState ?? null : null,
       quests: quests.map(quest => Object.freeze({
         ...quest,
         tracked: quest.questId === trackedQuestId
@@ -87,6 +90,7 @@ export function createQuestRuntime() {
     snapshot = frozenSnapshot({
       signedIn: snapshot.signedIn,
       loading: snapshot.loading,
+      main2StatusState: snapshot.main2StatusState,
       quests: snapshot.quests.map(item => Object.freeze({ ...item, tracked: item.questId === trackedQuestId })),
       trackedQuestId
     });

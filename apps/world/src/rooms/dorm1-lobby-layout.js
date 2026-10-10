@@ -13,7 +13,9 @@ export const DORM_1_LOBBY = Object.freeze({
   wall: 0.35,
   camera: Object.freeze({ initial: 2.9, min: 1.25, max: 4.6 }),
   campusDoor: Object.freeze({ x: 0, width: 1.6, height: 1.25 }),
-  myRoomDoor: Object.freeze({ x: 5.25, z: 5.08, width: 1.15, height: 1.22 })
+  myRoomDoor: Object.freeze({ x: 5.25, z: 5.08, width: 1.15, height: 1.22 }),
+  // Housing H3: west-corridor door to friends' rooms. Visits knock here; it clears the directory.
+  friendRoomDoor: Object.freeze({ x: -6.05, z: 5.08, width: 1.15, height: 1.22 })
 });
 
 const { halfWidth: W, halfDepth: D, ceiling: H, wall: T } = DORM_1_LOBBY;
@@ -35,6 +37,13 @@ export const DORM_1_LOBBY_MY_ROOM = Object.freeze({
   position: Object.freeze({ x: DORM_1_LOBBY.myRoomDoor.x, z: DORM_1_LOBBY.myRoomDoor.z - 0.18 }),
   radius: 1.0,
   status: "ACTIVE"
+});
+
+// Housing H3 · friend visits knock at the west-corridor door instead of appearing in the room.
+export const DORM_1_LOBBY_FRIEND_ROOM = Object.freeze({
+  id: "DORM_1_LOBBY_FRIEND_ROOM",
+  position: Object.freeze({ x: DORM_1_LOBBY.friendRoomDoor.x, z: DORM_1_LOBBY.friendRoomDoor.z - 0.18 }),
+  radius: 1.0
 });
 
 export const DORM_1_LOBBY_MY_ROOM_RETURN = Object.freeze({

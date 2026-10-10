@@ -4,6 +4,7 @@ import { createFakeDocument,FakeElement } from "./support/fake-dom.mjs";
 import { createFurnitureClient } from "../src/rooms/furniture-client.js";
 import { createFurnitureEditor } from "../src/rooms/furniture-editor.js";
 import { ROOM_FURNITURE } from "../src/rooms/furniture-layout.js";
+import { PERSONAL_ROOM_BASIC } from "../src/rooms/personal-room-layout.js";
 
 const ROOM="11111111-1111-4111-8111-111111111111",USER="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const walk=node=>[node,...(node.children??[]).flatMap(walk)];
@@ -34,11 +35,15 @@ async function rig({role="owner",objects=[],items=ROOM_FURNITURE.map(item=>({ite
   return {ui,client,doc,panel,inventory,calls,openChanges,byText,queue,notify:()=>listeners.forEach(fn=>fn())};
 }
 const flush=async()=>{for(let i=0;i<4;i++)await Promise.resolve();};
+const clickMapAt=(map,x,z)=>{
+  const {halfWidth:W,halfDepth:D}=PERSONAL_ROOM_BASIC;
+  map.dispatch("click",{target:map,clientX:(x+W)/(2*W)*1080,clientY:(D-z)/(2*D)*840});
+};
 
 test("owner can place, tap to move, rotate, save, close and reopen the saved layout",async()=>{
   const h=await rig();assert.equal(h.ui.openEditor(),true);
   h.byText("인덕 책상 의자 (0/1) +").click();assert.equal(h.client.state().objects.length,1);
-  const map=walk(h.panel).find(row=>row.tagName==="SVG");map.dispatch("click",{target:map,clientX:340,clientY:520});
+  const map=walk(h.panel).find(row=>row.tagName==="SVG");clickMapAt(map,-2,-1);
   assert.deepEqual({x:h.client.state().objects[0].x,z:h.client.state().objects[0].z},{x:-2,z:-1});
   h.byText("회전 0°").click();assert.equal(h.client.state().objects[0].yaw,45);
   h.byText("저장").click();await flush();assert.equal(h.client.state().dirty,false);
@@ -59,10 +64,10 @@ test("recall is draft-only until save, and quota disables a second placement",as
 });
 test("invalid door placement disables save, keeps selection and can be moved back",async()=>{
   const h=await rig();h.ui.openEditor();h.byText("인덕 책상 의자 (0/1) +").click();
-  const map=walk(h.panel).find(row=>row.tagName==="SVG");map.dispatch("click",{target:map,clientX:540,clientY:695});
+  const map=walk(h.panel).find(row=>row.tagName==="SVG");clickMapAt(map,0,-2.75);
   assert.equal(h.byText("저장").disabled,true);
   assert.ok(walk(h.panel).some(row=>row.textContent==="문과 입장 통로는 비워 주세요."));
-  const nextMap=walk(h.panel).find(row=>row.tagName==="SVG");nextMap.dispatch("click",{target:nextMap,clientX:340,clientY:520});
+  const nextMap=walk(h.panel).find(row=>row.tagName==="SVG");clickMapAt(nextMap,-2,-1);
   assert.equal(h.byText("저장").disabled,false);
 });
 test("pending save prevents closing and failed save retains the visible draft",async()=>{

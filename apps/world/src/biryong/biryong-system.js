@@ -4,6 +4,7 @@
 // dialogue or camera move is running.
 import { createHumanAvatar } from '../../npc-factory/dev-human-avatar.mjs';
 import { playEchoStoneCue } from './biryong-audio.js';
+import { createBiryongCloudStatus } from './biryong-cloud-status.js';
 import {
   BIRYONG_AXIS, BIRYONG_CENTER, BIRYONG_DISCOVER_RADIUS, BIRYONG_DRAGON_BASE_Y, BIRYONG_EVENT_NPC,
   BIRYONG_PLACE_ID, BIRYONG_PLATFORM, ECHO_CENTER, distanceTo, isAtEchoCenter, isNearBiryong
@@ -33,7 +34,7 @@ function el(documentLike, tag, className, text) {
   return node;
 }
 
-function createUi(documentLike) {
+function createUi(documentLike, onCloudRetry) {
   const root = el(documentLike, 'div', 'biryong-ui');
   root.id = 'biryong-ui';
 
@@ -52,6 +53,9 @@ function createUi(documentLike) {
 
   const objective = el(documentLike, 'p', 'biryong-objective');
   objective.hidden = true;
+  const objectiveText = el(documentLike, 'span', 'biryong-objective-text');
+  const cloudStatus = createBiryongCloudStatus({ documentLike, onRetry: onCloudRetry });
+  objective.append(objectiveText, cloudStatus.element);
 
   const dialog = el(documentLike, 'section', 'biryong-dialogue');
   dialog.setAttribute('role', 'dialog');
@@ -76,7 +80,7 @@ function createUi(documentLike) {
 
   root.append(objective, caption, toast, dialog);
   documentLike.body.appendChild(root);
-  return { root, toast, toastKicker, toastTitle, toastDetail, caption, objective, dialog, close, playerLine, line, choices };
+  return { root, toast, toastKicker, toastTitle, toastDetail, caption, objective, objectiveText, cloudStatus, dialog, close, playerLine, line, choices };
 }
 
 export function createBiryongSystem({
@@ -94,11 +98,12 @@ export function createBiryongSystem({
   onLoreFound = () => {},
   onStatus = () => {},
   onProgress = () => {},
+  onCloudRetry = () => {},
   onInputLockChange = () => {}
 } = {}) {
   if (!app || !root || !player || !camera) throw new Error('Biryong system requires app, root, player and camera');
   const progress = createBiryongProgress({ storage, onChange: onProgress });
-  const ui = createUi(documentLike);
+  const ui = createUi(documentLike, onCloudRetry);
   const timers = new Set();
   const later = (ms, fn) => { const id = setTimeout(() => { timers.delete(id); fn(); }, ms); timers.add(id); return id; };
 
@@ -152,8 +157,9 @@ export function createBiryongSystem({
       : step === BR01_STEP.FIND_CENTER ? `${BR01_EVENT.title} · ${BR01_EVENT.objectiveFindCenter}`
       : step === BR01_STEP.SHOUT ? `${BR01_EVENT.title} · ${BR01_EVENT.objectiveShout}`
       : null;
-    ui.objective.hidden = !text;
-    if (text && ui.objective.textContent !== text) ui.objective.textContent = text;
+    ui.objective.hidden = !text && ui.cloudStatus.element.hidden;
+    ui.objectiveText.hidden = !text;
+    if (text && ui.objectiveText.textContent !== text) ui.objectiveText.textContent = text;
   }
 
   // ---- Dialogue -------------------------------------------------------------------------------
@@ -436,6 +442,10 @@ export function createBiryongSystem({
       accountSyncing = Boolean(value);
       renderObjective();
       return accountSyncing;
+    },
+    setCloudSyncStatus(status) {
+      ui.cloudStatus.setStatus(status);
+      renderObjective();
     },
     status: () => Object.freeze({
       ...progress.snapshot(),

@@ -1,24 +1,63 @@
+import {studentCampusGroundHeight} from '../student-center-runtime.js';
 import { WORLD_BOUNDS } from "../campus-layout.js";
 import { roadviewGroundHeight } from "../roadview-layout.js";
 import { PLAYER_ORIGIN_Y, WALK_SHAPE } from "../player-dimensions.js";
 import { canOccupy } from "../world-collision.js";
 import { getPlaceZoneAt } from "../place-zone-registry.js";
+import { BIRYONG_REALM_MOVEMENT_SPACE } from "../biryong/biryong-realm-world-adapter.js";
+import { getBiryongRealmPlaceZone } from "../biryong/biryong-village-layout.js";
+import { WORLD_REGION_ID, isWorldRegionId } from "../regions/world-region-registry.js";
 
-export const WORLD_RESUME_STORAGE_KEY = "inhagame-world-resume-v1";
-export const WORLD_RESUME_VERSION = 1;
+export const WORLD_RESUME_STORAGE_PREFIX = "inhagame-world-resume-v1";
+export const WORLD_RESUME_SCOPE_GUEST = "guest";
+// Historical export name now points at the default guest key so existing P0.4
+// assertions keep checking the live write target. The unscoped prefix is never a live key.
+export const WORLD_RESUME_STORAGE_KEY = `${WORLD_RESUME_STORAGE_PREFIX}:${WORLD_RESUME_SCOPE_GUEST}`;
+export const WORLD_RESUME_VERSION = 2;
+export const WORLD_RESUME_LEGACY_VERSION = 1;
 export const WORLD_RESUME_SAVE_INTERVAL_MS = 2000;
 
-const finite = (value) => Number.isFinite(Number(value)) ? Number(value) : null;
+const finite = (value) => Number.isFinite(value) ? value : null;
 const inBounds = ({ x, z }, bounds = WORLD_BOUNDS) =>
   x >= bounds.minX && x <= bounds.maxX && z >= bounds.minZ && z <= bounds.maxZ;
 
-export function validateResumeRecord(raw, {
-  getZone = getPlaceZoneAt,
-  canOccupyPosition = (position) => canOccupy(position, WALK_SHAPE),
-  groundHeight = roadviewGroundHeight,
-  bounds = WORLD_BOUNDS
-} = {}) {
-  if (!raw || raw.version !== WORLD_RESUME_VERSION) return { state: "INVALID", record: null };
+function recordRegion(raw) {
+  if (raw?.version === WORLD_RESUME_LEGACY_VERSION) return WORLD_REGION_ID.CAMPUS;
+  return isWorldRegionId(raw?.regionId) ? raw.regionId : null;
+}
+
+export function normalizeResumeScope(scope) {
+  const cleaned = String(scope ?? "").replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 96);
+  return cleaned || WORLD_RESUME_SCOPE_GUEST;
+}
+
+export function worldResumeStorageKey(scope = WORLD_RESUME_SCOPE_GUEST) {
+  return `${WORLD_RESUME_STORAGE_PREFIX}:${normalizeResumeScope(scope)}`;
+}
+
+function discardLegacyUnscoped(storage) {
+  // Unscoped v1 keys have no owner. Never adopt them into guest or an account.
+  try { storage?.removeItem?.(WORLD_RESUME_STORAGE_PREFIX); } catch { /* ignore quota / private mode */ }
+}
+
+export function validateResumeRecord(raw, options = {}) {
+  if (!raw || ![WORLD_RESUME_LEGACY_VERSION, WORLD_RESUME_VERSION].includes(raw.version)) {
+    return { state: "INVALID", record: null };
+  }
+  const regionId = recordRegion(raw);
+  if (!regionId || (options.expectedRegionId != null && regionId !== options.expectedRegionId)) {
+    return { state: "INVALID", record: null };
+  }
+  const regional = regionId === WORLD_REGION_ID.BIRYONG_REALM;
+  const {
+    getZone = regional ? getBiryongRealmPlaceZone : getPlaceZoneAt,
+    canOccupyPosition = regional
+      ? position => canOccupy(position, WALK_SHAPE, BIRYONG_REALM_MOVEMENT_SPACE.obstacles)
+      : position => canOccupy(position, WALK_SHAPE),
+    groundHeight = regional ? BIRYONG_REALM_MOVEMENT_SPACE.groundHeight : roadviewGroundHeight,
+    bounds = regional ? BIRYONG_REALM_MOVEMENT_SPACE.bounds : WORLD_BOUNDS
+  } = options;
+
   const x = finite(raw.x), z = finite(raw.z), storedY = finite(raw.y);
   const yawDeg = finite(raw.yawDeg) ?? 0;
   const cameraYaw = finite(raw.cameraYaw) ?? 0;
@@ -26,9 +65,11 @@ export function validateResumeRecord(raw, {
   if ([x, z, storedY, savedAt].some(value => value === null) || savedAt <= 0) return { state: "INVALID", record: null };
   if (!inBounds({ x, z }, bounds)) return { state: "INVALID", record: null };
 
-  const y = PLAYER_ORIGIN_Y + groundHeight(x, z);
-  // Only ground saves are resumable. Old/corrupt airborne records never become ground teleports.
-  if (Math.abs(storedY - y) > 0.35) return { state: "INVALID", record: null };
+  const studentGround = groundHeight===roadviewGroundHeight ? studentCampusGroundHeight(x,z,storedY-PLAYER_ORIGIN_Y) : null;
+  // Restore only real source slabs/treads, never an arbitrary saved airborne altitude.
+  if(studentGround>0&&Math.abs(storedY-PLAYER_ORIGIN_Y-studentGround)>1e-6)return {state:'INVALID',record:null};
+  const y = PLAYER_ORIGIN_Y + (studentGround ?? groundHeight(x, z));
+  if (!Number.isFinite(y) || Math.abs(storedY - y) > 0.35) return { state: "INVALID", record: null };
   const position = { x, y, z };
   if (!canOccupyPosition(position)) return { state: "INVALID", record: null };
   const zone = getZone(position);
@@ -38,6 +79,7 @@ export function validateResumeRecord(raw, {
     state: "VALID",
     record: Object.freeze({
       version: WORLD_RESUME_VERSION,
+      regionId,
       x, y, z, yawDeg, cameraYaw, savedAt,
       zoneId: zone.id,
       displayName: zone.displayName ?? "캠퍼스"
@@ -51,10 +93,12 @@ function browserStorage() {
 
 export function readWorldResume(storage = null, options = {}) {
   storage ??= browserStorage();
+  const scope = normalizeResumeScope(options.scope ?? WORLD_RESUME_SCOPE_GUEST);
+  discardLegacyUnscoped(storage);
   if (!storage?.getItem) return { state: "MISSING", record: null };
   let raw;
   try {
-    const value = storage.getItem(WORLD_RESUME_STORAGE_KEY);
+    const value = storage.getItem(worldResumeStorageKey(scope));
     if (!value) return { state: "MISSING", record: null };
     raw = JSON.parse(value);
   } catch {
@@ -66,10 +110,15 @@ export function readWorldResume(storage = null, options = {}) {
 export function createWorldResumeStore({
   storage = null,
   clock = { now: () => Date.now() },
-  saveIntervalMs = WORLD_RESUME_SAVE_INTERVAL_MS
+  saveIntervalMs = WORLD_RESUME_SAVE_INTERVAL_MS,
+  scope = WORLD_RESUME_SCOPE_GUEST
 } = {}) {
   storage ??= browserStorage();
+  let currentScope = normalizeResumeScope(scope);
   let lastWriteAt = 0;
+  discardLegacyUnscoped(storage);
+
+  const key = () => worldResumeStorageKey(currentScope);
 
   const maybeSave = ({
     position,
@@ -79,14 +128,19 @@ export function createWorldResumeStore({
     grounded = false,
     mounted = false,
     insideRoom = false,
-    enabled = true
+    enabled = true,
+    transitioning = false,
+    inCombat = false,
+    regionId = WORLD_REGION_ID.CAMPUS
   } = {}) => {
-    if (!enabled || !grounded || mounted || insideRoom || !position || !place?.id) return false;
+    if (!enabled || !grounded || mounted || insideRoom || transitioning || inCombat || !position || !place?.id) return false;
+    if (!isWorldRegionId(regionId)) return false;
     const now = Number(clock.now());
     if (!Number.isFinite(now) || now <= 0 || now - lastWriteAt < saveIntervalMs) return false;
 
     const candidate = {
       version: WORLD_RESUME_VERSION,
+      regionId,
       x: position.x, y: position.y, z: position.z,
       yawDeg, cameraYaw, savedAt: now,
       zoneId: place.id, displayName: place.displayName
@@ -94,7 +148,8 @@ export function createWorldResumeStore({
     const checked = validateResumeRecord(candidate);
     if (checked.state !== "VALID") return false;
     try {
-      storage?.setItem?.(WORLD_RESUME_STORAGE_KEY, JSON.stringify(checked.record));
+      storage?.setItem?.(key(), JSON.stringify(checked.record));
+      discardLegacyUnscoped(storage);
       lastWriteAt = now;
       return true;
     } catch {
@@ -103,9 +158,18 @@ export function createWorldResumeStore({
   };
 
   return {
-    read: () => readWorldResume(storage),
+    get scope() { return currentScope; },
+    setScope(nextScope) {
+      const next = normalizeResumeScope(nextScope);
+      if (next === currentScope) return { changed: false, scope: currentScope };
+      currentScope = next;
+      lastWriteAt = 0;
+      discardLegacyUnscoped(storage);
+      return { changed: true, scope: currentScope };
+    },
+    read: () => readWorldResume(storage, { scope: currentScope }),
     maybeSave,
-    clear() { try { storage?.removeItem?.(WORLD_RESUME_STORAGE_KEY); } catch {} },
+    clear() { try { storage?.removeItem?.(key()); } catch {} },
     get lastWriteAt() { return lastWriteAt; }
   };
 }

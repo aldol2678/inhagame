@@ -5,8 +5,53 @@ on:
     branches: [main]
 permissions:
   contents: read
+concurrency:
+  # Only newer runs of the same PR supersede older runs.
+  # Main pushes use a distinct run ID and are never cancelled by this policy.
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || format('run-{0}', github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
-  verify:
+  scope:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      mode: ${{ steps.scope.outputs.mode }}
+      db: ${{ steps.scope.outputs.db }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - name: Test scope detection
+        run: node --test .github/ci/public-ci-scope.test.mjs
+      - name: Detect verification scope
+        id: scope
+        env:
+          CI_EVENT: ${{ github.event_name }}
+          CI_BEFORE: ${{ github.event.before }}
+        run: node .github/ci/public-ci-scope.mjs >> "$GITHUB_OUTPUT"
+
+  source:
+    needs: scope
+    if: needs.scope.outputs.mode == 'full'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+          cache: npm
+          cache-dependency-path: |
+            apps/world/tests/recast-runtime/package-lock.json
+            apps/induckup/package-lock.json
+      - run: bash scripts/public-ci.sh
+
+  database:
+    needs: scope
+    if: needs.scope.outputs.mode == 'full' && needs.scope.outputs.db == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -17,5 +62,53 @@ jobs:
       - uses: supabase/setup-cli@v3
         with:
           version: 2.117.0
-      - run: bash scripts/public-ci.sh
       - run: bash scripts/public-db.sh
+
+  # Keep the historical required status context "verify" while the expensive
+  # source and database checks execute in parallel.
+  verify:
+    needs: [scope, source, database]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Aggregate verification result
+        env:
+          SCOPE_RESULT: ${{ needs.scope.result }}
+          SOURCE_RESULT: ${{ needs.source.result }}
+          DATABASE_RESULT: ${{ needs.database.result }}
+          MODE: ${{ needs.scope.outputs.mode }}
+          DB_REQUIRED: ${{ needs.scope.outputs.db }}
+        run: |
+          if [[ "$SCOPE_RESULT" != "success" ]]; then
+            echo "Scope detection failed: $SCOPE_RESULT"
+            exit 1
+          fi
+
+          case "$MODE" in
+            full)
+              if [[ "$SOURCE_RESULT" != "success" ]]; then
+                echo "Source/unit/static verification failed: $SOURCE_RESULT"
+                exit 1
+              fi
+
+              if [[ "$DB_REQUIRED" == "true" ]]; then
+                if [[ "$DATABASE_RESULT" != "success" ]]; then
+                  echo "Database verification failed: $DATABASE_RESULT"
+                  exit 1
+                fi
+                echo "Full source and database verification completed successfully." >> "$GITHUB_STEP_SUMMARY"
+              else
+                echo "Database-independent change: local Supabase startup and integration DB suite were not required."
+                echo "Public source/unit/static verification ran in full." >> "$GITHUB_STEP_SUMMARY"
+              fi
+              ;;
+            docs)
+              echo "Documentation-only change: full verification not required."
+              echo "Documentation-only verification completed; full CI and local DB steps were not needed." >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            *)
+              echo "Unexpected verification mode: '$MODE'"
+              exit 1
+              ;;
+          esac

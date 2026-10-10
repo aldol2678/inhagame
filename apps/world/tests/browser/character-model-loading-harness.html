@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Character model isolation smoke</title>
+<script type="importmap">{"imports":{"playcanvas":"https://cdn.jsdelivr.net/npm/playcanvas@2.22.4/build/playcanvas.mjs"}}</script>
+<style>body{margin:0;background:#17202e;color:#e8edf6;font:16px sans-serif}h1{font-size:18px;margin:12px}canvas{display:block}p{margin:12px}</style></head>
+<body><h1>Independent character/carrier loading · local QA GLBs</h1><canvas id="stage" width="640" height="480"></canvas><p id="status">Loading fixture</p>
+<script type="module">
+import * as pc from 'playcanvas';
+import { createCharacter } from '/src/character-model.js';
+import { createAssetAuthorityCanary } from '/src/asset-authority-canary.js';
+import { ASSET_OPTIMIZATION_SHADOW_STATUS } from '/src/asset-optimization-shadow.js';
+const query = new URLSearchParams(location.search), useCanary = query.has('canary');
+try {
+  const canvas = document.getElementById('stage');
+  const device = await pc.createGraphicsDevice(canvas, { deviceTypes: [pc.DEVICETYPE_WEBGL2], antialias: false });
+  const app = new pc.AppBase(canvas), options = new pc.AppOptions();
+  options.graphicsDevice = device;
+  options.componentSystems = [pc.RenderComponentSystem, pc.CameraComponentSystem, pc.LightComponentSystem];
+  options.resourceHandlers = [pc.TextureHandler, pc.ContainerHandler];
+  app.init(options);
+  const camera = new pc.Entity('Camera');
+  camera.addComponent('camera', { clearColor: new pc.Color(.09, .12, .18), projection: pc.PROJECTION_ORTHOGRAPHIC, orthoHeight: 2.25 });
+  camera.setPosition(4, 2.5, 6); camera.lookAt(0, .4, 0); app.root.addChild(camera);
+  const light = new pc.Entity('Light'); light.addComponent('light', { type: 'directional', intensity: 1.8 });
+  light.setEulerAngles(45, 35, 0); app.root.addChild(light); app.scene.ambientLight = new pc.Color(.5, .5, .5);
+  const urls = { duck: '/assets/induck-v3.glb', dragon: '/assets/annyongi-flight-v1.glb', optimized: '/assets/induck-v3.glb?character-smoke-optimized=1' };
+  const assets = {}, records = [], pending = new Map();
+  for (const kind of ['duck', 'dragon', ...(useCanary ? ['optimized'] : [])]) {
+    assets[kind] = await new Promise((resolve, reject) => app.assets.loadFromUrl(urls[kind], 'container', (error, asset) => error ? reject(error) : resolve(asset)));
+    const instantiate = assets[kind].resource.instantiateRenderEntity.bind(assets[kind].resource);
+    assets[kind].resource.instantiateRenderEntity = opts => {
+      const entity = instantiate(opts), record = { kind, entity, destroys: 0 };
+      const destroy = entity.destroy.bind(entity);
+      entity.destroy = () => { record.destroys += 1; destroy(); };
+      records.push(record); return entity;
+    };
+  }
+  // Only timing/error delivery is controlled; GLB parsing, instantiation, rendering and
+  // character/canary behavior above and below are the real shipping implementation.
+  app.assets.loadFromUrl = (url, _type, callback) => pending.set(url, callback);
+  let releaseOptimized;
+  const optimizedWait = query.has('hold') ? new Promise(resolve => { releaseOptimized = resolve; }) : Promise.resolve();
+  const assetCanary = useCanary ? createAssetAuthorityCanary({ app, enabled: true, percentage: 100,
+    shadow: { optimizedUrlFor: () => urls.optimized, observeResource: async () => ({ status: ASSET_OPTIMIZATION_SHADOW_STATUS.MATCH }) },
+    optimizedLoader: async () => { await optimizedWait; return assets.optimized; }
+  }) : null;
+  const player = new pc.Entity('SmokePlayer'); app.root.addChild(player);
+  const character = createCharacter(app, player, { assetCanary, assetCanarySubjectKey: 'browser-isolation' });
+  character.setMounted(true);
+  let ready = false, disposed = false;
+  character.ready.then(() => { ready = true; });
+  const vec = v => [v.x, v.y, v.z];
+  const active = name => { const e = player.findByName(name); return e ? { enabled: e.enabled, position: vec(e.getLocalPosition()), renderComponents: e.findComponents('render').length } : null; };
+  const snapshot = () => ({ ready, disposed, engine: pc.version, renderer: device.isWebGL2 ? 'WebGL2' : 'unknown', frame: app.frame,
+    modelState: character.modelState, dragonModelState: character.dragonModelState, canary: character.assetCanary,
+    riderFeet: (()=>{const e=player.findByName('Induck_GLB_Visual')??player.findByName('Public_QA_Avatar');return e?vec(e.getWorldTransform().transformPoint(new pc.Vec3(0,character.modelState==='glb'?-1.195:-1.1425,0))):null;})(),
+    riderSeatY: player.findByName('RiderAnchor')?.getPosition().y ?? null,
+    duck: active('Induck_GLB_Visual'), dragon: active('Annyongi_GLB_Visual'),
+    fallbackDuck: active('Public_QA_Avatar'), fallbackDragon: active('Public_QA_Carrier'),
+    playerChildren: player.children.length, playerRenderComponents: player.findComponents('render').length,
+    sceneRenderComponents: app.root.findComponents('render').length,
+    containerAssets: app.assets.list().filter(asset => asset.type === 'container').length,
+    assetCount: app.assets.list().length,
+    clones: records.map(r => ({ kind: r.kind, destroys: r.destroys, attached: r.entity.parent === player, renderComponents: r.entity.findComponents('render').length })),
+    liveClones: records.filter(r => r.destroys === 0).length,
+    unattachedLiveClones: records.filter(r => !r.entity.parent && r.destroys === 0).length,
+    duplicateDestroy: records.some(r => r.destroys > 1)
+  });
+  const label = text => { document.getElementById('status').textContent = text; };
+  window.__CHARACTER_MODEL_HARNESS__ = { initialized: true, snapshot, label,
+    success(kind, badPivot = false) {
+      if (badPivot) {
+        const instantiate = assets[kind].resource.instantiateRenderEntity;
+        assets[kind].resource.instantiateRenderEntity = opts => { const entity = instantiate(opts); entity.findByName(kind === 'duck' ? 'DuckLeg_L' : 'DragonWing_L').name = 'injected-invalid-pivot'; return entity; };
+      }
+      pending.get(urls[kind])(null, assets[kind]);
+    },
+    fail(kind) { pending.get(urls[kind])(new Error(`Injected ${kind} load failure`)); },
+    update(dt) { character.update(dt, { mounted: true, moving: true, grounded: false }); },
+    firstPerson: value => character.setFirstPerson(value),
+    occluded: value => character.setCameraOccluded(value),
+    rollback: () => character.rollbackAssetCanary('BROWSER_TEST'),
+    releaseOptimized: () => releaseOptimized?.(),
+    destroy() { disposed = true; player.destroy(); }
+  };
+  label('Fixture ready · outcomes controlled by the browser test'); app.start();
+} catch (error) { window.__CHARACTER_MODEL_HARNESS__ = { initialized: false, error: String(error?.stack ?? error) }; }
+</script></body></html>

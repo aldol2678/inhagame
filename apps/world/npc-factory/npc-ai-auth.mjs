@@ -1,4 +1,4 @@
-import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from '../src/online/world-online.js';
+import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from '../src/config/supabase-public-config.mjs';
 
 export async function verifyNpcAiUser(authorization, fetcher = fetch) {
   const match = /^Bearer ([A-Za-z0-9._~-]{20,4096})$/.exec(authorization ?? '');

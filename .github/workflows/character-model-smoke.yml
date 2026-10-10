@@ -1,0 +1,72 @@
+name: Character model browser checks
+on:
+  pull_request:
+    paths:
+      - 'apps/world/src/character-model.js'
+      - 'apps/world/src/orbit-camera-controller.js'
+      - 'apps/world/assets/check_characters.mjs'
+      - 'tools/world-assets/**'
+      - 'apps/world/src/asset-authority-canary.js'
+      - 'apps/world/tests/character-model-loading.test.mjs'
+      # Keep this expensive suite scoped to the browser fixtures it actually executes.
+      - 'apps/world/tests/browser/harness.mjs'
+      - 'apps/world/tests/browser/harness-source.mjs'
+      - 'apps/world/tests/browser/package*.json'
+      - 'apps/world/tests/browser/character-model-loading-*'
+      - 'apps/world/tests/browser/annyongi-*'
+      - 'apps/world/assets/induck-v3.glb'
+      - 'apps/world/assets/annyongi-flight-v1.glb'
+      - '.github/workflows/character-model-smoke.yml'
+permissions:
+  contents: read
+concurrency:
+  group: character-model-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  character-model-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - run: npm ci --prefix apps/world/tests/browser --ignore-scripts
+      - name: Reproducible Annyongi asset, provenance and optimization
+        run: |
+          python3 tools/world-assets/build-annyongi.py
+          git diff --exit-code -- apps/world/assets/annyongi-flight-v1.glb
+          node apps/world/assets/check_characters.mjs
+          npm ci --prefix tools/world-assets --ignore-scripts
+          npm test --prefix tools/world-assets
+          node tools/world-assets/optimize-world-assets.mjs --strict
+          node tools/world-assets/validate-annyongi.mjs
+      - name: Real GLB ownership and lifecycle (pinned Null device)
+        run: node --test apps/world/tests/browser/character-model-loading-runtime.test.mjs
+      - name: Install Chromium
+        working-directory: apps/world/tests/browser
+        run: npx playwright install --with-deps chromium
+      - name: Actual WebGL2 partial failure and disposal
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          CHARACTER_SMOKE_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node apps/world/tests/browser/character-model-loading-smoke.mjs
+      - name: Annyongi desktop and mobile flight acceptance
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+        run: |
+          node apps/world/tests/browser/annyongi-capture.mjs
+          node apps/world/tests/browser/annyongi-flight-pose-capture.mjs
+          node apps/world/tests/browser/annyongi-campus-smoke.mjs
+      - name: Upload exact-head browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: character-model-browser-${{ github.event.pull_request.head.sha }}
+          path: |
+            test-results/character-model
+            test-results/annyongi
+          if-no-files-found: warn
+          retention-days: 14

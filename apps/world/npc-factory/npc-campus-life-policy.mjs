@@ -20,6 +20,18 @@ export const NPC_CAMPUS_LIFE_LOCATIONS = Object.freeze({
 });
 
 const L = NPC_CAMPUS_LIFE_LOCATIONS;
+const protectedIds = new Set(['INKYUNG-NPC-001', 'INKYUNG-NPC-002']);
+
+// Identity and authored life context, never client RNG or join time, own the plan.
+export function campusLifeSeed(npc, entry, salt = '') {
+  const context = JSON.stringify([npc.npc_id, entry?.department, npc.identity?.year_level,
+    entry?.residence, [...(npc.interests ?? [])].sort(),
+    (npc.relationships ?? []).map(r => [r.target_id, r.type]).sort((a, b) =>
+      JSON.stringify(a).localeCompare(JSON.stringify(b)))]);
+  let hash = 2166136261;
+  for (const character of context + salt) hash = Math.imul(hash ^ character.charCodeAt(0), 16777619);
+  return hash >>> 0;
+}
 
 const LOCATION_LABEL = Object.freeze({
   [L.BUILDING_2]: '2호관',
@@ -44,10 +56,13 @@ const LOCATION_LABEL = Object.freeze({
 
 function dialogueFor(period, slot) {
   const label = LOCATION_LABEL[slot.location] ?? '캠퍼스';
-  if (period === 'class_time') return [
-    `${label} 쪽에서 수업이 있어요.`,
-    '수업이 끝나면 다음 일정에 맞춰 다시 이동할 거예요.'
-  ];
+  if (period === 'class_time') {
+    const action = { walk_to_class: '수업', read: '독서', eat_snack: '식사',
+      walk_to_club: '동아리 활동', use_phone: '공강 휴식', walk: '산책' }[slot.activity] ?? '공강';
+    return [`${label} 쪽에서 ${action} 시간을 보내고 있어요.`,
+      slot.sink ? '수업이 끝나면 다음 일정에 맞춰 다시 이동할 거예요.' :
+        '지금은 수업이 없는 시간이라 제 일정대로 움직이고 있어요.'];
+  }
   if (period === 'lunch') return [
     `${label} 쪽에서 점심 시간을 보내고 있어요.`,
     slot.location.startsWith('life_back_market_') ? '수업 사이에 후문 쪽으로 잠깐 나온 거예요.' : '다음 일정 전까지 잠깐 쉬는 중이에요.'
@@ -219,6 +234,18 @@ export function campusLifeScheduleFor(npc, rosterEntry) {
   const classLocation = n % 4 === 0 && sharedClass.length
     ? sharedClass[n % sharedClass.length]
     : primary;
+  const choice = campusLifeSeed(npc, rosterEntry, 'activity-v3') % 20;
+  const freeLocations = NPC_LIFE_COMMON.betweenClasses;
+  const freeLocation = freeLocations[campusLifeSeed(npc, rosterEntry, 'free-place') % freeLocations.length];
+  const classSlot = choice < 10
+    ? { location: classLocation, activity: 'walk_to_class', sink: true, social_mode: 'low' }
+    : choice < 12 ? { location: L.JUNGSEOK, activity: 'read', social_mode: 'low' }
+    : choice < 14 ? { location: freeLocation === L.JUNGSEOK ? L.STUDENT_CENTER : freeLocation,
+      activity: 'eat_snack', social_mode: 'medium' }
+    : choice < 16 ? { location: L.STUDENT_CENTER, activity: 'walk_to_club', social_mode: 'high' }
+    : choice < 18 ? { location: freeLocation, activity: 'use_phone', social_mode: 'medium' }
+    : { location: freeLocation, activity: 'walk', social_mode: 'medium',
+      walkLocation: freeLocations[(freeLocations.indexOf(freeLocation) + 1) % freeLocations.length] };
   const lunchPool = NPC_LIFE_COMMON.lunch;
   const eveningPool = NPC_LIFE_COMMON.evening;
   const lunch = residence && n % 5 === 0 ? residence : lunchPool[n % lunchPool.length];
@@ -240,11 +267,8 @@ export function campusLifeScheduleFor(npc, rosterEntry) {
         activity: morningAtResidence ? 'wait' : 'walk_to_class',
         social_mode: 'low'
       }),
-      class_time: Object.freeze({
-        location: classLocation,
-        activity: 'walk_to_class',
-        social_mode: 'medium'
-      }),
+      class_time: Object.freeze({ ...classSlot,
+        departureSeconds: 15 + campusLifeSeed(npc, rosterEntry, 'class-departure') % 151 }),
       lunch: Object.freeze({
         location: lunch,
         activity: lunch === L.JUNGSEOK ? 'read' : lunch === residence ? 'wait' : 'walk',
@@ -264,6 +288,7 @@ export function applyCampusLifeSchedule(batch, roster) {
   return {
     ...batch,
     npcs: batch.npcs.map(npc => {
+      if (protectedIds.has(npc.npc_id)) return npc;
       const entry = rosterById.get(npc.npc_id);
       const life = campusLifeScheduleFor(npc, entry);
       if (!life) return npc;

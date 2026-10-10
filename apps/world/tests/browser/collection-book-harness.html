@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Collection Book · synthetic read-only fixture</title>
+  <link rel="stylesheet" href="../../styles.css">
+  <style>body{margin:0;padding:24px;background:#102334;color:#eef8ff;font:16px sans-serif}.shop-panel-body{max-height:420px}</style>
+</head>
+<body>
+  <p>Synthetic self-only records. No account, backend, discovery or reward writes.</p>
+  <button id="opener" type="button">인벤토리 열기</button>
+  <section id="inventory" class="profile-panel shop-panel inventory-panel" role="dialog" aria-modal="true" aria-labelledby="inventory-panel-title" hidden></section>
+  <script type="module">
+    import * as configJs from '../../src/config/supabase-public-config.js';
+    import * as configMjs from '../../src/config/supabase-public-config.mjs';
+    import * as registryJs from '../../src/collection/collection-discovery-contract.js';
+    import * as registryMjs from '../../src/collection/collection-discovery-contract.mjs';
+    if (configJs.getPublicSupabaseConfig !== configMjs.getPublicSupabaseConfig ||
+        registryJs.COLLECTION_ENTRY_REGISTRY !== registryMjs.COLLECTION_ENTRY_REGISTRY) {
+      throw Error('Browser compatibility entrypoints must preserve canonical module identity');
+    }
+    import { createInventoryClient } from '../../src/inventory/inventory-client.js';
+    import { createInventoryPanel } from '../../src/inventory/inventory-panel.js';
+    import { createCollectionBookClient } from '../../src/collection/collection-book-client.js';
+    const A='11111111-1111-4111-8111-111111111111',B='22222222-2222-4222-8222-222222222222';
+    const time='2026-09-28T01:00:00+00:00',calls=[],pending=[];
+    const snapshot={version:1,entries:[
+      {key:'collection.fish.carp',title:'붕어',state:'DISCOVERED',firstDiscoveredAt:time,discoveryCount:1,sourceLabel:null,hint:null},
+      {key:'unrevealed:1',title:'아직 발견하지 못한 기록',state:'UNKNOWN',firstDiscoveredAt:null,discoveryCount:0,sourceLabel:null,hint:'월드에서 기록을 발견하면 자세한 내용이 표시돼요'},
+      {key:'collection.place.biryong_tower',title:'비룡탑',state:'OWNER_DERIVED',firstDiscoveredAt:null,discoveryCount:null,sourceLabel:null,hint:'이 항목의 발견 여부는 해당 콘텐츠의 기록에서 확인해요'}
+    ],discoveredCount:1,trackableCount:2};
+    let mode='ready', account=A;
+    const inventory=createInventoryClient({getClient:()=>({rpc:async name=>{
+      calls.push(name);if(name!=='get_my_world_inventory_v1')throw Error('Writes forbidden');
+      return {data:{items:(account===A?['badge.main_gate','badge.mcm_2026_landlord','memorabilia.mcm_2026_wristband']:[]).map(itemId=>({itemId,quantity:1,acquiredAt:time,updatedAt:time,sourceType:itemId==='badge.main_gate'?'QUEST':'EVENT',sourceRef:'fixture',eventId:null,catalogStatus:'ACTIVE'}))}};
+    }})});
+    const book=createCollectionBookClient({getToken:async()=> 'synthetic-token',fetcher:async(path,options)=>{
+      calls.push(`${options.method} ${path}`);if(options.method!=='GET')throw Error('Writes forbidden');
+      if(mode==='hold')return new Promise(resolve=>pending.push(resolve));
+      return mode==='fail'?{ok:false}:{ok:true,json:async()=>snapshot};
+    }});
+    const ui=createInventoryPanel({panel:document.getElementById('inventory'),inventory,collectionBook:book});
+    document.getElementById('opener').addEventListener('click',()=>ui.setOpen(true));
+    book.setAccount(A);await inventory.setAccount(A);document.getElementById('opener').focus();
+    window.__COLLECTION_BOOK__={ui,book,calls,pending,mode(value){mode=value;},
+      settle(){pending.shift()?.({ok:true,json:async()=>snapshot});},
+      async switchAccount(){account=B;book.setAccount(B);await inventory.setAccount(B);},
+      async signOut(){account=null;book.setAccount(null);await inventory.setAccount(null);}};
+  </script>
+</body>
+</html>

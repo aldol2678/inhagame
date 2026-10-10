@@ -28,6 +28,8 @@ export function bindPointerLockRuntime({
   let pending = false;
   let errors = 0;
   let lastError = null;
+  let gestureRecoveryArmed = false;
+  let gestureRecoveryGeneration = 0;
 
   const listeners = [];
   const add = (target, type, fn) => {
@@ -107,12 +109,29 @@ export function bindPointerLockRuntime({
     }
   }
 
+  function armGestureRecovery() {
+    const generation = ++gestureRecoveryGeneration;
+    gestureRecoveryArmed = true;
+    const queue = globalThis.queueMicrotask ?? (fn => Promise.resolve().then(fn));
+    queue(() => {
+      if (generation === gestureRecoveryGeneration) gestureRecoveryArmed = false;
+    });
+  }
+
   function applyFocus(state) {
     if (destroyed || !state) return;
+    const wasDesired = desired;
     desired = state.pointerLockDesired === true;
     if (!desired) {
+      gestureRecoveryGeneration += 1;
+      gestureRecoveryArmed = false;
       pending = false;
       exit();
+    } else if (!wasDesired) {
+      // When a user closes a blocking panel (or presses START), the focus owner is
+      // released inside that same trusted click. Arm only for the remainder of the
+      // current event so the document bubble handler can reacquire without a second click.
+      armGestureRecovery();
     }
     publish();
   }
@@ -127,6 +146,12 @@ export function bindPointerLockRuntime({
   });
   add(canvas, "pointerdown", event => {
     if (event.pointerType !== "mouse" || event.button !== 0) return;
+    request();
+  });
+  add(documentLike, "click", () => {
+    if (!gestureRecoveryArmed) return;
+    gestureRecoveryGeneration += 1;
+    gestureRecoveryArmed = false;
     request();
   });
   add(windowTarget, "blur", () => {
@@ -153,6 +178,8 @@ export function bindPointerLockRuntime({
       }
       locked = false;
       pending = false;
+      gestureRecoveryGeneration += 1;
+      gestureRecoveryArmed = false;
       setOrbitLock(false);
       publish();
       return true;
