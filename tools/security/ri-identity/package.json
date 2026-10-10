@@ -1,0 +1,13 @@
+{
+  "name": "inhaworld-ri-isolated-security-candidate",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "check": "node --check src/crypto.mjs && node --check src/identity-service.mjs && node --check src/identity-http.mjs && node --check src/supabase-auth.mjs && node --check src/postgres-store.mjs && node --check src/verified-receiver.mjs && node --check src/supabase-trusted-publisher.mjs && node --check src/composition.mjs"
+  }
+}
