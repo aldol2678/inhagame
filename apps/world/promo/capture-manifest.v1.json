@@ -1,0 +1,59 @@
+{
+  "schema": "inha-world.promo-capture.v1",
+  "title": "INHA WORLD Promo Capture P0",
+  "description": "Deterministic offline real-render capture recipe for downstream editing agents.",
+  "output": {
+    "width": 1280,
+    "height": 720,
+    "timelineFps": 30,
+    "container": "webm"
+  },
+  "environment": {
+    "time": "day",
+    "weather": "clear"
+  },
+  "shots": [
+    {
+      "id": "campus-entry-walk",
+      "label": "Campus entry walk",
+      "kind": "walk",
+      "target": "current",
+      "durationMs": 3200,
+      "camera": { "yawOffsetDeg": 0, "pitchDeg": -13, "distance": 7.5 },
+      "movement": { "key": "KeyW", "activeMs": 2400 }
+    },
+    {
+      "id": "main-hall-reveal",
+      "label": "Main Hall reveal",
+      "kind": "orbit",
+      "target": "main-hall",
+      "durationMs": 3000,
+      "camera": { "yawOffsetDeg": -8, "yawSweepDeg": 16, "pitchDeg": -11, "distance": 9.5 }
+    },
+    {
+      "id": "jeongseok-reveal",
+      "label": "Jeongseok Library reveal",
+      "kind": "orbit",
+      "target": "jeongseok-library",
+      "durationMs": 3000,
+      "camera": { "yawOffsetDeg": 8, "yawSweepDeg": -16, "pitchDeg": -12, "distance": 10 }
+    },
+    {
+      "id": "student-center-walk",
+      "label": "Student Center walk",
+      "kind": "walk",
+      "target": "student-center",
+      "durationMs": 3200,
+      "camera": { "yawOffsetDeg": 0, "pitchDeg": -12, "distance": 8.5 },
+      "movement": { "key": "KeyW", "activeMs": 2200 }
+    },
+    {
+      "id": "full-map-navigation",
+      "label": "Full Map navigation",
+      "kind": "ui",
+      "target": "poi.main-hall",
+      "action": "full-map-navigation",
+      "durationMs": 3000
+    }
+  ]
+}
