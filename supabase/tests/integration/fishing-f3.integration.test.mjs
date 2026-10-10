@@ -7,6 +7,7 @@ import { promisify } from 'node:util';
 import { randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 import { FISHING_SPOTS } from '../../../apps/world/src/activity/fishing-spots.js';
+import { createPositionAuthorityPrototype } from '../../../apps/world/prototypes/fishing-position-authority.mjs';
 
 const run = promisify(execFile), DB_URL = process.env.DB_URL;
 assert.match(DB_URL ?? '', /^postgres(?:ql)?:\/\/(?:[^@/]+@)?(?:127\.0\.0\.1|localhost)(?::\d+)?\//);
@@ -49,6 +50,47 @@ before(async () => {
   assert.equal(previous.presence_required, true);
   await query(`update private.world_fishing_runtime set enabled=true,presence_required=true,
     policy=${lit(JSON.stringify(policy))}::jsonb,minimum_start_interval_ms=1`);
+});
+
+test('input-driven authority prototype produces real F3 evidence; walking away blocks HOOK', async () => {
+  const u = await user(); let monotonic = 0, wall;
+  const dbClock = async () => { wall = Number(await query('select floor(extract(epoch from clock_timestamp())*1000)')) - 100; };
+  await dbClock();
+  const authority = createPositionAuthorityPrototype({ verifyUser: async () => u.id,
+    monotonicNow: () => monotonic, wallNow: () => wall,
+    rpc: (name, args) => {
+      assert.equal(name, 'world_fishing_observe_position_v1');
+      return serverSql(`public.${name}(${Object.values(args).map(lit).join(',')})`);
+    } });
+  const connection = await authority.connect('disposable authenticated connection');
+  connection.advance(); await connection.flush();
+  await assert.rejects(start(u), /FISHING_OUT_OF_RANGE/);
+  async function walk(first, count, direction) {
+    for (let seq = first; seq < first+count; seq++) {
+      connection.input({ seq, moveX: 0, moveZ: direction }); monotonic += 50;
+      await dbClock(); connection.advance(); await connection.flush();
+    }
+  }
+  await walk(1, 12, -1);
+  const attempt = (await start(u)).attempt;
+  await walk(13, 12, 1);
+  await assert.rejects(input(u, attempt), /FISHING_OUT_OF_RANGE/);
+  await noCatch(u);
+  assert.equal((await input(u, attempt, 'CANCEL')).attempt.status, 'CANCELLED');
+  await walk(25, 12, -1);
+  const caught = (await start(u)).attempt;
+  await delay(5);
+  assert.equal((await input(u, caught)).attempt.status, 'SUCCEEDED');
+  await rpc('settle', [u.id, caught.attemptId]);
+  const replay = await rpc('settle', [u.id, caught.attemptId]);
+  assert.equal(replay.status, 'ALREADY_PROCESSED');
+  const caughtRead = await rpc('read', [u.id, caught.attemptId]);
+  assert.equal(caughtRead.inventory.quantity, 1);
+  assert.equal(caughtRead.lifeSkill.totalXp, 2);
+  connection.disconnect(); await dbClock(); connection.advance(); await connection.flush();
+  const row = await json(`select to_jsonb(p) from private.world_fishing_positions p where user_id=${lit(u.id)}`);
+  assert.equal(row.mode, 'INELIGIBLE');
+  assert.equal(row.session_id, connection.snapshot().sessionId);
 });
 after(async () => {
   if (previous) await query(`update private.world_fishing_runtime set enabled=${previous.enabled},presence_required=${previous.presence_required},
