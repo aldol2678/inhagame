@@ -3872,6 +3872,12 @@ body[data-space]:not([data-space="campus"]) > .progression-hud { display: none !
 .shop-offer-name { min-width: 0; overflow-wrap: anywhere; font-size: 14px; }
 .shop-offer-price { flex: none; color: #ffde86; font-size: 13px; font-weight: 850; white-space: nowrap; }
 .shop-offer-description { margin: 4px 0 0; color: #acc3d1; font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
+.shop-offer-furniture, .shop-furniture-note { margin: 6px 0; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.shop-offer-furniture { color: #c5dded; }
+.shop-furniture-receipt { margin-top: 10px; padding-top: 8px; border-top: 1px solid #5c7281; }
+.shop-furniture-action { max-width: 100%; min-height: 44px; padding: 8px 12px; white-space: normal; }
+.shop-furniture-action:disabled { background: #2a3d4b; color: #c5dded; cursor: wait; }
+.shop-purchased-furniture { margin-top: 12px; padding: 10px; border: 1px solid #5c7281; border-radius: 12px; }
 .shop-offer-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 8px; }
 .shop-offer-meta { display: flex; flex-wrap: wrap; gap: 4px 8px; min-width: 0; font-size: 12px; font-weight: 800; }
 .shop-offer-level { color: #d6ebf9; }
@@ -5349,7 +5355,9 @@ body[data-hud-mode="COMBAT"] #jump { display:none !important; }
 .furniture-editor button:focus-visible,.furniture-editor select:focus-visible { outline:3px solid #3488ca; outline-offset:2px; }
 .furniture-help { margin:12px 0; color:#566b7e; }
 .furniture-plan { display:block; width:100%; aspect-ratio:10.8/8.4; border:2px solid #8f7760; border-radius:8px; cursor:crosshair; }
-.furniture-owned,.furniture-controls { display:flex; flex-wrap:wrap; gap:7px; margin:12px 0; }
+.furniture-owned,.furniture-controls,.furniture-history { display:flex; flex-wrap:wrap; gap:7px; margin:12px 0; }
+.furniture-history button { flex:1; }
+.furniture-history-help { margin:0 0 12px; color:#566b7e; font-size:12px; }
 .furniture-owned button { flex:1 1 170px; font-size:13px; text-align:left; }
 .furniture-editor label { display:flex; align-items:center; flex-wrap:wrap; gap:8px; }
 .furniture-controls label { width:100%; }
@@ -5513,6 +5521,12 @@ body[data-photo-mode="active"] > :not(#application):not(.photo-mode):not(script)
 .graphics-fps[hidden] { display: none; }
 #view-settings #graphics-reset { margin: 10px 0; min-height: 44px; }
 #view-settings #graphics-show-fps { width: auto; }
+
+/* B1 private, session-only owned memorabilia preview. Shares the housing dialog shell. */
+.trophy-display-panel { width:min(430px,calc(100vw - 28px)); bottom:auto; max-height:calc(100dvh - 28px); }
+.trophy-display-choices { display:grid; gap:8px; margin:14px 0; }
+.trophy-display-choices button[aria-pressed="true"] { border-color:#2868a4; background:#deedf9; }
+@media(max-width:600px) { .trophy-display-panel { width:auto; max-height:calc(100dvh - 16px); } }
 
 /* LANDSCAPE-HUD:start
    Mobile landscape HUD · phones held sideways (touch + landscape + short viewport).

@@ -1,15 +1,57 @@
 import { FURNITURE_BY_ID, ROOM_FURNITURE, SURFACE_NAMES, FURNITURE_ERRORS, firstFurniturePosition,
-  positionOnSurface, validateFurniture } from "./furniture-layout.js";
+  positionOnSurface, validateFurniture, canonicalFurniture, FURNITURE_LIMIT } from "./furniture-layout.js";
 import { PERSONAL_ROOM_BASIC, PERSONAL_ROOM_BASIC_FURNITURE, PERSONAL_ROOM_PLACEMENT_ENVELOPE } from "./personal-room-layout.js";
 
 // DOM-only editor: tap the plan or use the same movement buttons on desktop and mobile.
 // The client keeps the draft; closing a dirty draft always offers keep editing / discard.
 export function createFurnitureEditor({ client, inventory, onOpenChange = () => {}, doc = document }) {
   const panel = doc.createElement("section"); panel.id = "furniture-editor"; panel.hidden = true;
-  panel.className = "furniture-editor"; panel.setAttribute("role", "dialog"); panel.setAttribute("aria-modal", "true");
+  panel.className = "furniture-editor"; panel.tabIndex = -1; panel.setAttribute("role", "dialog"); panel.setAttribute("aria-modal", "true");
   panel.setAttribute("aria-label", "내 방 꾸미기"); doc.body.append(panel);
   const backdrop = doc.createElement("div"); backdrop.className = "furniture-editor-backdrop"; backdrop.hidden = true; doc.body.append(backdrop);
   let selected = null, message = "", closing = null, previousFocus = null;
+  // History belongs to one open editor session, never to the inventory or server snapshot.
+  // A successful save establishes a new checkpoint; a failed save keeps the whole draft/history.
+  const HISTORY_LIMIT = 100;
+  let undo = [], redo = [], session = 0, disposed = false;
+  const capture = (state = client.state(), selection = selected) => ({
+    objects: state.objects.map(object => ({ ...object })),
+    selected: state.objects.some(object => object.id === selection) ? selection : null
+  });
+  const sameObjects = (a, b) => JSON.stringify(canonicalFurniture(a)) === JSON.stringify(canonicalFurniture(b));
+  function clearHistory() { undo = []; redo = []; }
+  function resetSession() { session++; clearHistory(); selected = null; message = ""; closing = null; }
+  function editable(state = client.state()) { return !disposed && !panel.hidden && state.editing && !closing && !state.pending; }
+  function edit(objects, nextSelected = selected) {
+    const state = client.state();
+    if (!editable(state) || sameObjects(objects, state.objects)) return false;
+    const before = capture(state), previousUndo = undo, previousRedo = redo;
+    undo = [...undo, before].slice(-HISTORY_LIMIT); redo = []; selected = nextSelected; message = "";
+    // edit emits synchronously, so publish history first to render the right button state.
+    if (client.edit(objects)) return true;
+    undo = previousUndo; redo = previousRedo; selected = before.selected; render(); return false;
+  }
+  function restoreHistory(direction) {
+    const state = client.state(), source = direction === "undo" ? undo : redo;
+    if (!editable(state) || !source.length) return false;
+    const target = source.at(-1), currentCounts = new Map(), targetCounts = new Map();
+    for (const object of state.objects) currentCounts.set(object.itemId, (currentCounts.get(object.itemId) ?? 0) + 1);
+    for (const object of target.objects) targetCounts.set(object.itemId, (targetCounts.get(object.itemId) ?? 0) + 1);
+    // Inventory may have refreshed since this step. Never restore additional unowned copies.
+    // Removals/moves still work so an already-invalid draft can be repaired.
+    const addsUnowned = [...targetCounts].some(([itemId, count]) => count > (currentCounts.get(itemId) ?? 0)
+      && (inventory.state !== "READY" || count > (owned().find(item => item.itemId === itemId)?.quantity ?? 0)));
+    if (target.objects.length > FURNITURE_LIMIT || addsUnowned) {
+      message = inventory.state === "READY" ? "현재 보유한 수량으로는 이 배치를 복원할 수 없어요." : "보유 가구 확인이 끝나면 다시 시도해 주세요.";
+      render(); return false;
+    }
+    const before = capture(state), previousUndo = undo, previousRedo = redo;
+    if (direction === "undo") { undo = undo.slice(0, -1); redo = [...redo, before].slice(-HISTORY_LIMIT); }
+    else { redo = redo.slice(0, -1); undo = [...undo, before].slice(-HISTORY_LIMIT); }
+    selected = target.selected; message = direction === "undo" ? "이전 배치로 되돌렸어요." : "배치를 다시 적용했어요.";
+    if (client.edit(target.objects)) return true;
+    undo = previousUndo; redo = previousRedo; selected = before.selected; render(); return false;
+  }
   const node = (tag, text, className) => { const el = doc.createElement(tag); if (text !== undefined) el.textContent = text; if (className) el.className = className; return el; };
   const button = (text, action, disabled = false, key = text) => {
     const el = node("button", text); el.type = "button"; el.disabled = disabled; el.dataset.focus = key;
@@ -21,8 +63,11 @@ export function createFurnitureEditor({ client, inventory, onOpenChange = () => 
   };
   const owned = () => inventory.state === "READY" ? inventory.snapshot?.items ?? [] : [];
   function closeNow(action) {
-    closing = null; panel.hidden = true; backdrop.hidden = true; client.cancel(); onOpenChange(false);
+    resetSession(); panel.hidden = true; backdrop.hidden = true; client.cancel(); onOpenChange(false);
     previousFocus?.focus?.({ preventScroll: true }); action?.();
+  }
+  function forceClose() {
+    resetSession(); panel.hidden = true; backdrop.hidden = true; client.cancel({ force: true }); onOpenChange(false);
   }
   function requestClose(action = null) {
     if (panel.hidden) { action?.(); return true; }
@@ -31,34 +76,42 @@ export function createFurnitureEditor({ client, inventory, onOpenChange = () => 
     closeNow(action); return true;
   }
   function changeObject(patch) {
-    const state = client.state(); if (closing || state.pending) return;
+    const state = client.state(); if (!editable(state)) return;
     const object = state.objects.find(object => object.id === selected); if (!object) return;
     message = "";
     const next = { ...object, ...patch };
-    client.edit(state.objects.map(row => row.id === selected ? next : row));
+    edit(state.objects.map(row => row.id === selected ? next : row));
   }
   function move(dx, dz) {
     const object = client.state().objects.find(row => row.id === selected); if (!object) return;
     changeObject(positionOnSurface(object.surface, object.x + dx, object.z + dz, object.yaw));
   }
   function add(itemId) {
-    if (closing || client.state().pending || inventory.state !== "READY") return;
+    if (!editable() || inventory.state !== "READY") return;
     const state = client.state(), item = FURNITURE_BY_ID.get(itemId);
+    if (!item || state.objects.length >= FURNITURE_LIMIT) return;
     let position = null;
     for (const surface of item.surfaces) { position = firstFurniturePosition(itemId, surface, state.objects, owned()); if (position) break; }
     if (!position) { message = "보유 수량 또는 놓을 공간을 확인해 주세요."; render(); return; }
-    const object = { ...position, id: globalThis.crypto.randomUUID() }; selected = object.id; message = "";
-    client.edit([...state.objects, object]);
+    const object = { ...position, id: globalThis.crypto.randomUUID() };
+    edit([...state.objects, object], object.id);
   }
   function render() {
     if (panel.hidden) return;
     const focusKey = panel.contains(doc.activeElement) ? doc.activeElement?.dataset?.focus : null;
     const state = client.state(), items = owned(), object = state.objects.find(row => row.id === selected);
     const validation = validateFurniture(state.objects, inventory.state === "READY" ? items : null);
-    const locked = state.pending || closing !== null;
+    const locked = !editable(state);
     panel.replaceChildren();
     const header = node("header"); header.append(node("h2", "내 방 꾸미기"), button("닫기", () => requestClose(), state.pending)); panel.append(header);
     panel.append(node("p", "가구를 선택하고 평면도를 눌러 옮겨요. 기본 침대·책상은 고정 시설이에요.", "furniture-help"));
+    const history = node("div", undefined, "furniture-history"); history.setAttribute("role", "group"); history.setAttribute("aria-label", "배치 실행 기록");
+    const undoButton = button("↶ 되돌리기", () => restoreHistory("undo"), locked || !undo.length, "undo");
+    const redoButton = button("↷ 다시 실행", () => restoreHistory("redo"), locked || !redo.length, "redo");
+    undoButton.setAttribute("aria-keyshortcuts", "Control+Z Meta+Z"); redoButton.setAttribute("aria-keyshortcuts", "Control+Shift+Z Meta+Shift+Z Control+Y");
+    undoButton.title = "되돌리기 (Ctrl/⌘+Z)"; redoButton.title = "다시 실행 (Ctrl/⌘+Shift+Z, Ctrl+Y)";
+    history.append(undoButton, redoButton); panel.append(history);
+    panel.append(node("p", "최근 100단계를 되돌릴 수 있어요. 저장하면 실행 기록이 새로 시작돼요.", "furniture-history-help"));
     const { halfWidth: mapW, halfDepth: mapD } = PERSONAL_ROOM_BASIC;
     const placement = PERSONAL_ROOM_PLACEMENT_ENVELOPE.floor;
     const map = svgNode("svg", { viewBox: `${-mapW} ${-mapD} ${2*mapW} ${2*mapD}`, preserveAspectRatio: "none", role: "group", "aria-label": "방 평면도. 위쪽은 창문, 아래쪽은 출입문" });
@@ -97,7 +150,7 @@ export function createFurnitureEditor({ client, inventory, onOpenChange = () => 
       const quantity = items.find(row => row.itemId === item.itemId)?.quantity ?? 0;
       if (!quantity) continue;
       const placed = state.objects.filter(row => row.itemId === item.itemId).length;
-      choices.append(button(`${item.name} (${placed}/${quantity}) +`, () => add(item.itemId), locked || placed >= quantity, item.itemId));
+      choices.append(button(`${item.name} (${placed}/${quantity}) +`, () => add(item.itemId), locked || placed >= quantity || state.objects.length >= FURNITURE_LIMIT, item.itemId));
     }
     if (!choices.childElementCount) choices.append(node("p", inventory.state === "READY" ? "보유한 배치용 가구가 없어요. 획득한 가구가 여기에 나타나요." : "보유 가구를 확인 중이에요."));
     if (inventory.state === "UNAVAILABLE") choices.append(button("보유 가구 다시 확인", () => void inventory.refresh("furniture"), locked));
@@ -124,7 +177,7 @@ export function createFurnitureEditor({ client, inventory, onOpenChange = () => 
         const arrow = button(text, () => move(dx,dz), locked || disabledAxis); arrow.setAttribute("aria-label", `가구 이동 ${text}`); controls.append(arrow);
       }
       controls.append(button(`회전 ${object.yaw}°`, () => changeObject(positionOnSurface(object.surface,object.x,object.z,object.yaw+45)), locked || !["floor","desk","bed"].includes(object.surface), "rotation"));
-      controls.append(button("회수", () => { selected = null; message = ""; client.edit(state.objects.filter(row => row.id !== object.id)); }, locked)); panel.append(controls);
+      controls.append(button("회수", () => edit(client.state().objects.filter(row => row.id !== object.id), null), locked)); panel.append(controls);
     }
     const note = node("p", FURNITURE_ERRORS[state.error] ?? (validation ? FURNITURE_ERRORS[validation] : message || (state.dirty ? "변경한 배치를 저장해 주세요." : "저장된 배치예요.")), "furniture-note");
     note.setAttribute("role", "status"); note.setAttribute("aria-live", "polite"); panel.append(note);
@@ -133,21 +186,42 @@ export function createFurnitureEditor({ client, inventory, onOpenChange = () => 
       confirmation.append(button("계속 꾸미기", () => { closing = null; render(); }), button("변경 버리고 닫기", () => closeNow(closing.action))); panel.append(confirmation);
     } else {
       const footer = node("footer"); footer.append(button(state.pending ? "저장 중…" : "저장", async () => {
+        if (!editable()) return;
+        const savingSession = session;
         message = ""; const saved = await client.save(items);
-        if (panel.hidden) return;
-        if (saved) message = "저장했어요. 다음에 들어와도 그대로예요.";
+        if (disposed || panel.hidden || savingSession !== session) return;
+        if (saved) { clearHistory(); message = "저장했어요. 다음에 들어와도 그대로예요."; }
         else if (client.state().error === "ITEM_NOT_OWNED") void inventory.refresh("furniture-save"); render();
       }, state.pending || !!validation || inventory.state !== "READY"));
       footer.append(button("완료", () => requestClose(), state.pending)); panel.append(footer);
     }
-    if (focusKey) [...panel.querySelectorAll("[data-focus]")].find(el => el.dataset.focus === focusKey)?.focus({ preventScroll: true });
+    if (focusKey) {
+      const buttons = [...panel.querySelectorAll("[data-focus]")];
+      const preferred = buttons.find(el => el.dataset.focus === focusKey && !el.disabled);
+      const historyFallback = ["undo", "redo"].includes(focusKey) && buttons.find(el => ["undo", "redo"].includes(el.dataset.focus) && !el.disabled);
+      (preferred || historyFallback || buttons.find(el => !el.disabled) || panel).focus({ preventScroll: true });
+    }
   }
   panel.addEventListener("keydown", event => {
+    // Keep native text/select editing and IME composition intact. Buttons and the panel own
+    // the familiar desktop shortcuts; every action is also available as a 44px touch button.
+    const target = event.target, nativeControl = ["INPUT", "TEXTAREA", "SELECT"].includes(target?.tagName)
+      || target?.isContentEditable;
+    const key = event.key?.toLowerCase();
+    if (!nativeControl && !event.isComposing && !event.altKey && (event.ctrlKey || event.metaKey)) {
+      const isZ = key === "z" || event.code === "KeyZ", isY = key === "y" || event.code === "KeyY";
+      if (isZ || (isY && event.ctrlKey && !event.shiftKey)) {
+        event.preventDefault();
+        if (!event.repeat) restoreHistory(isZ && !event.shiftKey ? "undo" : "redo");
+      }
+    }
     if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); requestClose(); }
     if (event.key === "Tab") {
       const focusable = [...panel.querySelectorAll("button:not(:disabled),select:not(:disabled)")];
       const next = event.shiftKey ? focusable.at(-1) : focusable[0], boundary = event.shiftKey ? focusable[0] : focusable.at(-1);
-      if (doc.activeElement === boundary || !panel.contains(doc.activeElement)) { event.preventDefault(); next?.focus(); }
+      if (!focusable.length || doc.activeElement === panel || doc.activeElement === boundary || !panel.contains(doc.activeElement)) {
+        event.preventDefault(); (next || panel).focus();
+      }
     }
     // Gameplay handlers must not consume editor keys, including typing/select navigation.
     event.stopPropagation();
@@ -156,15 +230,16 @@ export function createFurnitureEditor({ client, inventory, onOpenChange = () => 
   return {
     get open() { return !panel.hidden; },
     openEditor() {
+      if (disposed) return false;
       if (!panel.hidden) return true;
       if (!client.begin()) return false;
-      previousFocus = doc.activeElement; selected = null; message = ""; closing = null;
+      previousFocus = doc.activeElement; resetSession();
       panel.hidden = false; backdrop.hidden = false; onOpenChange(true); render(); panel.querySelector("button")?.focus();
       void inventory.refresh("furniture-open"); return true;
     },
     requestClose,
-    forceClose() { closing = null; panel.hidden = true; backdrop.hidden = true; client.cancel({ force: true }); onOpenChange(false); },
-    update(state) { if (!state.editing && !panel.hidden) { panel.hidden = true; backdrop.hidden = true; closing = null; onOpenChange(false); } render(); },
-    dispose() { unsubscribe(); panel.remove(); backdrop.remove(); }
+    forceClose,
+    update(state) { if (!state.editing && !panel.hidden) { resetSession(); panel.hidden = true; backdrop.hidden = true; onOpenChange(false); } render(); },
+    dispose() { if (!panel.hidden) forceClose(); disposed = true; resetSession(); unsubscribe(); panel.remove(); backdrop.remove(); }
   };
 }

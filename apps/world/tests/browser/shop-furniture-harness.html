@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Shop furniture · offline fixture</title>
+  <link rel="stylesheet" href="../../styles.css">
+  <style>body { background: #102334; color: #eef8ff; font: 16px sans-serif; } #opener { margin: 12px; } .shop-panel { top: 16px; transform: translateX(-50%); }</style>
+</head>
+<body>
+  <button id="opener">상점 열기</button>
+  <section id="shop" class="profile-panel shop-panel" role="dialog" aria-modal="true" aria-labelledby="shop-panel-title" hidden></section>
+  <section id="editor" hidden><h2>내 방 꾸미기 · 테스트 편집기</h2></section>
+  <script type="module">
+    import { createShopClient, SHOP_READ_RPC, SHOP_PURCHASE_RPC, SHOP_STUDENT_CENTER } from '../../src/shop/shop-client.js';
+    import { createInventoryClient, INVENTORY_RPC } from '../../src/inventory/inventory-client.js';
+    import { createShopPanel } from '../../src/shop/shop-panel.js';
+    import { createShopFurnitureHandoff } from '../../src/shop/shop-furniture-handoff.js';
+    const A = '11111111-1111-4111-8111-111111111111', R = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const items = ['furniture.induck_cushion', 'furniture.campus_map_poster', 'furniture.dorm_desk_lamp'];
+    const offers = items.map((itemId, i) => ({ listingId: `fixture.${i}`, itemId, currencyId: 'currency.induck_coin',
+      price: 120, quantity: 1, requiredLevel: null, purchaseLimit: null, startAt: null, endAt: null,
+      status: 'ACTIVE', purchasable: true, unavailableReason: null }));
+    const calls = [], notices = []; let purchaseResolve, inventoryResolve, inventoryMode = 'empty', purchased = null;
+    const inventorySnapshot = () => ({ items: inventoryMode === 'owned' && purchased ? [{ itemId: purchased, quantity: 1,
+      acquiredAt: '2026-10-10T00:00:00Z', sourceType: 'SHOP', sourceRef: 'fixture', catalogStatus: 'ACTIVE' }] : [] });
+    const read = () => inventoryMode === 'failed' ? { error: { message: 'fixture.failure' }, data: null }
+      : { data: inventorySnapshot(), error: null };
+    const client = { rpc(name, args) {
+      calls.push({ name, args });
+      if (name === SHOP_READ_RPC) return Promise.resolve({ data: { shopId: SHOP_STUDENT_CENTER, status: 'ACTIVE', playerLevel: 1, offers }, error: null });
+      if (name === SHOP_PURCHASE_RPC) { purchased = offers.find(item => item.listingId === args.p_listing_id)?.itemId;
+        return new Promise(resolve => { purchaseResolve = resolve; }); }
+      if (name === INVENTORY_RPC) return inventoryMode === 'deferred' ? new Promise(resolve => { inventoryResolve = resolve; }) : Promise.resolve(read());
+      throw Error(`Unexpected RPC: ${name}`);
+    } };
+    const shop = createShopClient({ getClient: () => client, createKey: () => `fixture:${calls.length}` });
+    const inventory = createInventoryClient({ getClient: () => client });
+    const context = { available: true, busy: false, space: 'ROOM_PERSONAL_BASIC',
+      metadata: { visitRole: 'owner', ownerUserId: A, personalRoomId: R },
+      furniture: { role: 'owner', roomId: R, ready: true, pending: false, reading: false, error: null },
+      session: { active: true, role: 'owner', ownerUserId: A, roomId: R } };
+    const handoff = createShopFurnitureHandoff({ inventory, getAccountId: () => shop.accountId, getContext: () => context,
+      openEditor() { document.getElementById('editor').hidden = false; return true; },
+      guideToDorm() { notices.push('guide'); return true; }, onStatus: value => notices.push(value) });
+    const panel = createShopPanel({ panel: document.getElementById('shop'), shop, inventory,
+      onPurchase: () => inventory.refresh('purchase'), getFurnitureAction: itemId => handoff.action(itemId),
+      onDecorate: itemId => handoff.open(itemId), onStatus: value => notices.push(value) });
+    await inventory.setAccount(A); shop.setAccount(A);
+    document.getElementById('opener').addEventListener('click', () => panel.setOpen(true));
+    window.__FURNITURE_SHOP__ = { calls, notices, shop, inventory, panel, context,
+      finishPurchase({ inventory: mode = 'owned', error = null } = {}) {
+        inventoryMode = mode; const finish = purchaseResolve; purchaseResolve = null;
+        finish(error ? { error: { message: error }, data: null } : { data: { status: 'SUCCESS' }, error: null });
+      },
+      setInventory(mode) { inventoryMode = mode; },
+      finishInventory(mode = 'owned') { inventoryMode = mode; const finish = inventoryResolve; inventoryResolve = null; finish(read()); },
+      writes: () => calls.filter(call => call.name === SHOP_PURCHASE_RPC).length
+    };
+  </script>
+</body>
+</html>

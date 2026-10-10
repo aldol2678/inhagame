@@ -278,7 +278,7 @@ test("main.js wiring: member client, identity, open, purchase + reward refresh b
   const main = source("../src/main.js");
   assert.match(main, /createLoadoutClient\(\{ getClient: \(\) => online\?\.supabase \?\? null \}\)/);
   assert.match(main, /void loadout\.setAccount\(identity \? online\?\.userId \?\? null : null\)/);
-  assert.match(main, /onPurchase: \(\) => \{\s*void inventory\.refresh\("purchase"\);\s*void loadout\.refresh\("purchase"\);\s*\}/);
+  assert.match(main, /onPurchase: \(\) => \{\s*const inventoryRead = inventory\.refresh\("purchase"\);\s*void loadout\.refresh\("purchase"\);\s*return inventoryRead;\s*\}/);
   assert.match(main, /void inventory\.refresh\("reward"\);\s*void loadout\.refresh\("reward"\);/);
   assert.match(main, /addEventListener\("pageshow"[\s\S]*?void loadout\.refresh\("resume"\)/);
   assert.match(main, /ownerId: "wardrobe".*policy: INPUT_FOCUS_POLICY\.BLOCKING_UI/s,

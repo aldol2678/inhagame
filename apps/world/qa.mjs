@@ -712,7 +712,7 @@ console.log("Mobility Book P0.8 static contracts PASS");
   assert.deepEqual([...inventoryClientSource.matchAll(/"([a-z_]+_v1)"/g)].map((m) => m[1]), ["get_my_world_inventory_v1"],
     "the inventory makes exactly one read RPC and no write RPC");
   assert.doesNotMatch(inventoryClientSource, /createClient\(/, "no inventory-owned Supabase client");
-  assert.match(m3MainSource, /onPurchase: \(\) => \{\s*void inventory\.refresh\("purchase"\);/, "shop purchase re-reads the inventory");
+  assert.match(m3MainSource, /onPurchase: \(\) => \{\s*const inventoryRead = inventory\.refresh\("purchase"\);\s*void loadout\.refresh\("purchase"\);\s*return inventoryRead;/, "shop purchase returns the server Inventory read for ownership confirmation");
   assert.match(m3MainSource, /void inventory\.refresh\("reward"\)/, "MCM reward re-reads the inventory");
   assert.match(campusCss, /body\[data-lobby-shell="true"\] > #inventory-panel,/, "the lobby shell hides the inventory panel");
 }

@@ -172,7 +172,7 @@ test("main.js wiring: member client, identity, open, shop purchase, MCM reward, 
   const main = source("../src/main.js");
   assert.match(main, /createInventoryClient\(\{ getClient: \(\) => online\?\.supabase \?\? null \}\)/);
   assert.match(main, /void inventory\.setAccount\(identity \? online\?\.userId \?\? null : null\)/);
-  assert.match(main, /onPurchase: \(\) => \{\s*void inventory\.refresh\("purchase"\);/, "shop purchase success re-reads the inventory");
+  assert.match(main, /onPurchase: \(\) => \{\s*const inventoryRead = inventory\.refresh\("purchase"\);/, "shop purchase success re-reads the inventory");
   assert.match(main, /void progression\.refresh\("reward"\);\s*void wallet\.refresh\("reward"\);\s*void inventory\.refresh\("reward"\);/,
     "MCM reward keeps progression + wallet and adds inventory");
   assert.match(main, /addEventListener\("pageshow"[\s\S]*?void inventory\.refresh\("resume"\)/);
