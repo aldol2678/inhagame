@@ -4,12 +4,13 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { startSmoke } from './harness.mjs';
+import { validateAlphaCaptures } from './photo-mode-alpha-cases.mjs';
 const output = process.env.PHOTO_PNG_QA_OUTPUT || 'test-results/photo-mode/png';
 const backend = process.env.PHOTO_PNG_BACKEND || 'webgl2';
 assert.ok(['webgl2', 'webgpu'].includes(backend));
 await mkdir(output, { recursive: true });
 const paths = ['src/photo/photo-capture.js', 'src/photo/photo-mode.js', 'src/photo/photo-mode-panel.js',
-  'src/photo/photo-camera-controller.js', 'src/photo/photo-input.js', 'src/main.js', 'styles.css', 'tests/browser/photo-mode-fixture.mjs'];
+  'tests/browser/photo-mode-alpha-cases.mjs', 'src/photo/photo-camera-controller.js', 'src/photo/photo-input.js', 'src/main.js', 'styles.css', 'tests/browser/photo-mode-fixture.mjs'];
 const report = { head: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(), backend,
   scope: 'Offline PlayCanvas render and production photo controls on a synthetic scene, with the 3x3 composition grid on; actual downloaded PNG bytes decoded and compared pixel-for-pixel to the same existing framebuffer. Not a device-gallery or full-campus visual check.',
   sourceHashes: {}, checks: [], downloads: [], screenshots: [], status: 'RUNNING' };
@@ -30,6 +31,7 @@ try {
     return [path, [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map(n => n.toString(16).padStart(2, '0')).join('')];
   }))), paths);
   assert.deepEqual(served, report.sourceHashes);
+  report.alphaValidation = await page.evaluate(validateAlphaCaptures);
   await page.evaluate(() => {
     const original = HTMLCanvasElement.prototype.toBlob;
     const state = window.__PNG_QA__ = { encoded: 0, hold: false, fail: false, callbacks: [], urls: new Set() };
