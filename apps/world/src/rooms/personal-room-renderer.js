@@ -5,6 +5,7 @@ import * as pc from "playcanvas";
 import { box, surface } from "../campus-render-kit.js";
 import { PERSONAL_ROOM_BASIC, PERSONAL_ROOM_BASIC_FURNITURE } from "./personal-room-layout.js";
 import { createPersonalRoomShell } from "./personal-room-shell-renderer.js";
+import { createPersonalRoomFloorMaterial } from "./personal-room-floor-material.js";
 import { createFurnitureLayer } from "./furniture-renderer.js";
 import { createPersonalRoomChairModel } from "./personal-room-chair-model.js";
 import { createPersonalRoomDecor } from "./personal-room-decor-renderer.js";
@@ -43,7 +44,8 @@ function furniture(root,item,app){
 }
 export function createPersonalRoomScene(app){
   const root=new pc.Entity("Room_ROOM_PERSONAL_BASIC");root.setLocalScale(1,1,-1);
-  createPersonalRoomShell(root);
+  const { floor } = createPersonalRoomShell(root);
+  const floorMaterial = createPersonalRoomFloorMaterial({ app, root, floor, engine: pc });
   const fixtureLoaders=[];
   for(const item of PERSONAL_ROOM_BASIC_FURNITURE){
     const ensureModel=furniture(root,item,app);
@@ -63,6 +65,6 @@ export function createPersonalRoomScene(app){
     decor.update(objects);
   };
   decor.update([]);
-  const ensureVisualAssets = () => Promise.all([...fixtureLoaders.map(ensure => ensure()),decor.ensureVisualAssets()]);
-  return {root,lights,ownedFurniture,ensureVisualAssets,obstacles:ownedFurniture.obstacles,ambient:new pc.Color(0.43,0.41,0.39),clearColor:new pc.Color(0.17,0.16,0.15)};
+  const ensureVisualAssets = () => Promise.all([...fixtureLoaders.map(ensure => ensure()),decor.ensureVisualAssets(),floorMaterial.ensureVisual()]);
+  return {root,lights,ownedFurniture,ensureVisualAssets,onDeactivate:floorMaterial.deactivate,obstacles:ownedFurniture.obstacles,ambient:new pc.Color(0.43,0.41,0.39),clearColor:new pc.Color(0.17,0.16,0.15)};
 }

@@ -85,3 +85,12 @@ adaptation of the referenced design, not an official university mascot revision.
 See `docs/implementation/annyongi-flight-v2/README.md`.
 
 The V2-FIX game adaptation adds three authored tail morph targets and a face counter-pitch hierarchy. See `docs/implementation/annyongi-flight-v2-fix/README.md`; the same character attribution and pending design approval apply.
+
+## ambientCG Wood Floor 051
+
+Wood Floor 051 1K Color, re-encoded as `WoodFloor051_Color_1K_Q30.webp`,
+source: ambientCG (https://ambientcg.com/view?id=WoodFloor051), licensed under
+Creative Commons Zero (CC0 1.0, https://ambientcg.com/info/license/).
+The asset is not subject to the project's All Rights Reserved terms.
+Source and derived SHA-256 values are documented in
+`apps/world/assets/rooms/personal-v2/README.md`.
