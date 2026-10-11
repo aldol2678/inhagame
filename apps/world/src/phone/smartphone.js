@@ -280,6 +280,9 @@ export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, g
       : event.target?.closest?.('#open-attendance') ? 'attendance' : null;
     if(!kind || !canOpen())return;
     event.preventDefault();event.stopImmediatePropagation();
+    // Release HUD-menu ownership before Phone acquires its own blocking owner.
+    // Doing this only after admission preserves legacy fallback outside the World.
+    beforeOpen?.();
     if(open())launch(kind);
   };
   doc.addEventListener('click',legacyDaily,true);
