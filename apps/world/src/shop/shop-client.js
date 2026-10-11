@@ -10,6 +10,7 @@
 export const SHOP_STUDENT_CENTER = "shop.student_center";
 export const SHOP_READ_RPC = "get_world_shop_v1";
 export const SHOP_PURCHASE_RPC = "purchase_world_shop_listing_v1";
+export const SHOP_SCOPED_PURCHASE_RPC = "purchase_world_shop_listing_v2";
 
 export const SHOP_STATE = Object.freeze({
   SIGNED_OUT: "SIGNED_OUT",
@@ -21,14 +22,14 @@ export const SHOP_STATE = Object.freeze({
 // Stable server refusal codes (the exception message of the P0-D / P0-F2 RPCs).
 export const SHOP_ERROR_CODES = Object.freeze([
   "PERMANENT_ACCOUNT_REQUIRED", "ACCOUNT_UNAVAILABLE", "INVALID_IDEMPOTENCY_KEY", "IDEMPOTENCY_CONFLICT",
-  "INVALID_LISTING", "SHOP_NOT_FOUND", "SHOP_INACTIVE", "LISTING_INACTIVE", "LISTING_LOCKED",
+  "INVALID_LISTING", "SHOP_LISTING_MISMATCH", "SHOP_NOT_FOUND", "SHOP_INACTIVE", "LISTING_INACTIVE", "LISTING_LOCKED",
   "LISTING_NOT_STARTED", "LISTING_EXPIRED", "LEVEL_REQUIRED", "ITEM_UNAVAILABLE",
   "PURCHASE_LIMIT_REACHED", "ITEM_ALREADY_OWNED", "INSUFFICIENT_FUNDS"
 ]);
 const KNOWN_ERRORS = new Set(SHOP_ERROR_CODES);
 // Refusals that mean the open snapshot is out of date, so the panel re-reads the shop.
 const STALE_SNAPSHOT_ERRORS = new Set([
-  "LEVEL_REQUIRED", "ITEM_ALREADY_OWNED", "PURCHASE_LIMIT_REACHED", "INVALID_LISTING", "SHOP_INACTIVE",
+  "LEVEL_REQUIRED", "ITEM_ALREADY_OWNED", "PURCHASE_LIMIT_REACHED", "INVALID_LISTING", "SHOP_LISTING_MISMATCH", "SHOP_INACTIVE",
   "LISTING_INACTIVE", "LISTING_LOCKED", "LISTING_NOT_STARTED", "LISTING_EXPIRED", "ITEM_UNAVAILABLE"
 ]);
 
@@ -79,7 +80,7 @@ const defaultKey = () => `shop:${globalThis.crypto.randomUUID()}`;
  * @param {{ getClient: () => ({ rpc: Function } | null), shopId?: string, createKey?: () => string }} options
  *   getClient returns the signed-in permanent-account Supabase client (online.supabase), or null.
  */
-export function createShopClient({ getClient, shopId = SHOP_STUDENT_CENTER, createKey = defaultKey } = {}) {
+export function createShopClient({ getClient, shopId = SHOP_STUDENT_CENTER, createKey = defaultKey, scopedPurchase = false } = {}) {
   if (typeof getClient !== "function") throw new Error("Shop client requires getClient");
 
   let accountId = null;
@@ -91,6 +92,7 @@ export function createShopClient({ getClient, shopId = SHOP_STUDENT_CENTER, crea
   const pending = new Set();
   // A key whose outcome is unknown (transport failure) is reused so a retry replays, never re-buys.
   const unresolvedKeys = new Map();
+  const unresolvedOffers = new Map();
   const listeners = new Set();
 
   function publish(reason) {
@@ -154,6 +156,7 @@ export function createShopClient({ getClient, shopId = SHOP_STUDENT_CENTER, crea
     inFlight = null;
     pending.clear();
     unresolvedKeys.clear();
+    unresolvedOffers.clear();
     set(next ? SHOP_STATE.LOADING : SHOP_STATE.SIGNED_OUT, null, "account");
   }
 
@@ -166,16 +169,19 @@ export function createShopClient({ getClient, shopId = SHOP_STUDENT_CENTER, crea
     const gen = generation;
     const account = accountId;
     const client = getClient();
-    const offer = snapshot?.offers.find((candidate) => candidate.listingId === listingId) ?? null;
+    const offer = snapshot?.offers.find((candidate) => candidate.listingId === listingId) ?? unresolvedOffers.get(listingId) ?? null;
     if (!account || !client?.rpc) return { outcome: "SIGNED_OUT", code: "PERMANENT_ACCOUNT_REQUIRED", offer };
     if (!isText(listingId) || pending.has(listingId)) return { outcome: "FAILED", code: "BUSY", offer };
     const key = unresolvedKeys.get(listingId) ?? createKey();
     unresolvedKeys.set(listingId, key);
+    if (offer) unresolvedOffers.set(listingId, offer);
     pending.add(listingId);
     publish("purchase");
     let response;
     try {
-      const { data, error } = await client.rpc(SHOP_PURCHASE_RPC, { p_listing_id: listingId, p_idempotency_key: key });
+      const { data, error } = await client.rpc(scopedPurchase ? SHOP_SCOPED_PURCHASE_RPC : SHOP_PURCHASE_RPC, {
+        ...(scopedPurchase ? { p_shop_id: shopId } : {}), p_listing_id: listingId, p_idempotency_key: key
+      });
       if (error) {
         const code = shopErrorCode(error);
         response = { outcome: code === "FAILED" ? "FAILED" : "REFUSED", code, offer };
@@ -189,7 +195,9 @@ export function createShopClient({ getClient, shopId = SHOP_STUDENT_CENTER, crea
     }
     if (gen !== generation || account !== accountId) return { outcome: "STALE", code: null, offer };
     // Only the owning generation may retire its key; unknown outcomes keep it for a safe retry.
-    if (response.outcome === "SUCCESS" || response.outcome === "REFUSED") unresolvedKeys.delete(listingId);
+    if (response.outcome === "SUCCESS" || response.outcome === "REFUSED") {
+      unresolvedKeys.delete(listingId); unresolvedOffers.delete(listingId);
+    }
     pending.delete(listingId);
     publish("purchase");
     if (response.outcome === "SUCCESS" || STALE_SNAPSHOT_ERRORS.has(response.code)) await refresh("purchase");
@@ -206,6 +214,8 @@ export function createShopClient({ getClient, shopId = SHOP_STUDENT_CENTER, crea
     get state() { return state; },
     get snapshot() { return snapshot; },
     get accountId() { return accountId; },
+    get unresolvedOffers() { return [...unresolvedOffers.values()]; },
+    hasUnresolved: listingId => unresolvedKeys.has(listingId),
     isPending: (listingId) => pending.has(listingId),
     onChange(listener) {
       listeners.add(listener);

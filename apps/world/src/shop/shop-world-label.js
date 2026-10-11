@@ -5,8 +5,8 @@ export const SHOP_MARKER_MAX_DISTANCE = 26;
 
 export function shopMarkerCopy({ nearby = false, available = false, coarsePointer = false } = {}) {
   if (!available) return Object.freeze({ icon: "🔒", title: "학생회관 상점", hint: "로그인 후 이용" });
-  if (nearby) return Object.freeze({ icon: "🛍", title: "학생회관 상점", hint: coarsePointer ? "버튼으로 상점 열기" : "F · 상점 열기" });
-  return Object.freeze({ icon: "🛍", title: "학생회관 상점", hint: "굿즈를 둘러보세요" });
+  if (nearby) return Object.freeze({ icon: "🛍", title: "학생회관 상점", hint: coarsePointer ? "버튼으로 판매대 안내" : "F · 판매대 안내" });
+  return Object.freeze({ icon: "🛍", title: "학생회관 상점", hint: "실내 기념품·패션 판매대" });
 }
 
 export function createShopWorldLabel({

@@ -71,7 +71,7 @@ test("far away → no action; inside the radius → 🛍 학생회관 상점 (F)
   const action = world.observe(at(0, A.interactionRadius - 0.01), { placeZoneId: ZONE });
   assert.equal(action.id, "student-center-shop");
   assert.equal(action.icon, "🛍");
-  assert.equal(action.label, "학생회관 상점");
+  assert.equal(action.label, "학생회관 판매대 안내");
   assert.equal(action.shortcut, "F");
   assert.equal(action.disabled, false);
   assert.equal(action.priority, STUDENT_CENTER_SHOP_CONTEXT_PRIORITY);
@@ -112,7 +112,7 @@ test("PC F and the mobile #context-action button run the same slot trigger", () 
     slot.set("student-center-shop", h.world.observe(at(0.2), { placeZoneId: ZONE }));
     slot.refresh();
     assert.equal(button.hidden, false);
-    assert.equal(button.textContent, "🛍 학생회관 상점");
+    assert.equal(button.textContent, "🛍 학생회관 판매대 안내");
     assert.equal(button.dataset.shortcut, coarsePointer ? undefined : "F", "touch never shows a keyboard hint");
     assert.equal(slot.trigger(), true, "F → interactionAction → contextActions.trigger()");
     button.click();
@@ -198,17 +198,17 @@ test("menu entry kept; both entries open the one existing shop panel", () => {
   const html = source("../campus/index.html");
   assert.match(html, /id="open-shop"[^>]*>🛍 상점</, "☰ → 🛍 상점 stays");
   assert.equal((main.match(/createShopPanel\(/g) ?? []).length, 1, "one panel");
-  assert.equal((main.match(/createShopClient\(/g) ?? []).length, 1, "one shop client");
-  assert.match(main, /shopButton\?\.addEventListener\("click", \(\) => shopPanel\.setOpen\(true\)\)/);
-  assert.match(main, /createShopWorldInteraction\(\{\s*getAvailable: shopWorldAvailable,\s*openPanel: \(\) => shopPanel\.setOpen\(true\)\s*\}\)/);
+  assert.equal((main.match(/createShopRouter\(/g) ?? []).length, 1, "one shop router");
+  assert.match(main, /shopButton\?\.addEventListener\("click", \(\) => guideStudentCenterShops\(\)\)/);
+  assert.match(main, /createShopWorldInteraction\(\{\s*getAvailable: shopWorldAvailable,\s*openPanel: \(\) => guideStudentCenterShops\(\)\s*\}\)/);
   assert.match(main, /contextActions\.set\("student-center-shop", shopWorldAction\)/);
   const world = source("../src/shop/shop-world-interaction.js");
   assert.doesNotMatch(world, /\.rpc\(|createClient|document\.|localStorage|addEventListener/, "no RPC, DOM or key handling in the interaction");
 });
 
 test("marker copy: F hint only for keyboard pointers; locked for guests", () => {
-  assert.deepEqual({ ...shopMarkerCopy({ available: true }) }, { icon: "🛍", title: "학생회관 상점", hint: "굿즈를 둘러보세요" });
-  assert.equal(shopMarkerCopy({ available: true, nearby: true }).hint, "F · 상점 열기");
+  assert.deepEqual({ ...shopMarkerCopy({ available: true }) }, { icon: "🛍", title: "학생회관 상점", hint: "실내 기념품·패션 판매대" });
+  assert.equal(shopMarkerCopy({ available: true, nearby: true }).hint, "F · 판매대 안내");
   assert.doesNotMatch(shopMarkerCopy({ available: true, nearby: true, coarsePointer: true }).hint, /F/);
   assert.deepEqual({ ...shopMarkerCopy({ available: false, nearby: true }) }, { icon: "🔒", title: "학생회관 상점", hint: "로그인 후 이용" });
 });
@@ -227,7 +227,7 @@ test("marker: projects when visible and in range, hides otherwise", () => {
   const label = createShopWorldLabel({ element, camera, canvas, getWorldPosition: () => ({ x: 0, y: 2, z: 0 }), coarsePointer: false });
   assert.equal(label.update({ visible: true, nearby: true, available: true }), true);
   assert.equal(element.hidden, false);
-  assert.equal(nodes.hint.textContent, "F · 상점 열기");
+  assert.equal(nodes.hint.textContent, "F · 판매대 안내");
   assert.equal(element.dataset.state, "near");
   assert.ok(classes.has("is-near"));
   assert.equal(label.update({ visible: false }), false);

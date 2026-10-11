@@ -121,7 +121,7 @@ test("panel: Lv.1 read shows the server playerLevel, buyable Lv.1 offer and lock
   const h = harness();
   await openWith(h, LV1);
   assert.deepEqual(h.opened, [true]);
-  assert.match(text(h.panel), /학생회관 상점/);
+  assert.match(text(h.panel), /학생회관 굿즈샵/);
   assert.match(text(h.panel), /내 레벨 Lv\.1/);
   assert.equal(card(h.panel, CAP.listingId).dataset.state, "available");
   assert.equal(buyButton(h.panel, CAP.listingId).disabled, false);
@@ -239,7 +239,7 @@ test("shop code: no Level comparison, only the two P0-F2 RPCs, no new Supabase c
   const rpcs = [...client.matchAll(/"([a-z_]+_v1)"/g)].map((m) => m[1]).sort();
   assert.deepEqual(rpcs, ["get_world_shop_v1", "purchase_world_shop_listing_v1"]);
   const main = readFileSync(new URL("../src/main.js", import.meta.url), "utf8");
-  assert.match(main, /createShopClient\(\{ getClient: \(\) => online\?\.supabase \?\? null \}\)/);
+  assert.match(main, /createShopRouter\(\{\s*getClient: \(\) => online\?\.supabase \?\? null,/);
 });
 
 // ---- wallet balance line (read-model from get_my_world_wallet_v1, shown as served) ----

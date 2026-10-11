@@ -28,10 +28,11 @@ insert into public.profiles(user_id, nickname, is_banned) values
 select has_table('private', t, format('%s exists', t))
 from unnest(array['world_shops', 'world_shop_listings', 'world_purchase_transactions']) t;
 select results_eq($$select shop_id, display_name, status from private.world_shops
-  where shop_id in ('shop.student_center', 'shop.dorm_furniture', 'shop.department_mcm') order by shop_id$$,
+  where shop_id in ('shop.student_center', 'shop.student_center_fashion', 'shop.dorm_furniture', 'shop.department_mcm') order by shop_id$$,
   $$values ('shop.department_mcm'::text, '문콘경 학과 상점'::text, 'ACTIVE'::text),
-           ('shop.dorm_furniture', '생활관 가구점', 'ACTIVE'), ('shop.student_center', '학생회관 굿즈샵', 'ACTIVE')$$,
-  'the three first shops');
+           ('shop.dorm_furniture', '생활관 가구점', 'ACTIVE'), ('shop.student_center', '학생회관 기념품점', 'ACTIVE'),
+           ('shop.student_center_fashion', '패션 상점', 'ACTIVE')$$,
+  'the four routed shops');
 select results_eq($$select listing_id, shop_id, item_id, currency_id, price, quantity, required_level, status
   from private.world_shop_listings where shop_id <> 'shop.room_finishes' order by listing_id$$,
   $$values
@@ -41,12 +42,12 @@ select results_eq($$select listing_id, shop_id, item_id, currency_id, price, qua
     ('offer.dorm_furniture.induck_chair', 'shop.dorm_furniture', 'furniture.induck_chair', 'currency.induck_coin', 420, 1, 3, 'ACTIVE'),
     ('offer.dorm_furniture.induck_cushion', 'shop.dorm_furniture', 'furniture.induck_cushion', 'currency.induck_coin', 220, 1, 1, 'ACTIVE'),
     ('offer.dorm_furniture.mini_induck', 'shop.dorm_furniture', 'furniture.mini_induck', 'currency.induck_coin', 650, 1, 5, 'ACTIVE'),
-    ('offer.student_center.campus_map_poster', 'shop.student_center', 'furniture.campus_map_poster', 'currency.induck_coin', 250, 1, 2, 'ACTIVE'),
+    ('offer.student_center.campus_map_poster', 'shop.dorm_furniture', 'furniture.campus_map_poster', 'currency.induck_coin', 250, 1, 2, 'ACTIVE'),
     ('offer.student_center.campus_mug', 'shop.student_center', 'memorabilia.campus_mug', 'currency.induck_coin', 120, 1, null, 'ACTIVE'),
-    ('offer.student_center.campus_sneakers', 'shop.student_center', 'shoes.campus_sneakers', 'currency.induck_coin', 240, 1, 2, 'ACTIVE'),
-    ('offer.student_center.induck_backpack', 'shop.student_center', 'back.induck_backpack', 'currency.induck_coin', 420, 1, 3, 'ACTIVE'),
-    ('offer.student_center.induck_cap', 'shop.student_center', 'head.induck_cap', 'currency.induck_coin', 180, 1, 1, 'ACTIVE'),
-    ('offer.student_center.induck_hoodie', 'shop.student_center', 'top.induck_hoodie', 'currency.induck_coin', 320, 1, 2, 'ACTIVE')$$,
+    ('offer.student_center.campus_sneakers', 'shop.student_center_fashion', 'shoes.campus_sneakers', 'currency.induck_coin', 240, 1, 2, 'ACTIVE'),
+    ('offer.student_center.induck_backpack', 'shop.student_center_fashion', 'back.induck_backpack', 'currency.induck_coin', 420, 1, 3, 'ACTIVE'),
+    ('offer.student_center.induck_cap', 'shop.student_center_fashion', 'head.induck_cap', 'currency.induck_coin', 180, 1, 1, 'ACTIVE'),
+    ('offer.student_center.induck_hoodie', 'shop.student_center_fashion', 'top.induck_hoodie', 'currency.induck_coin', 320, 1, 2, 'ACTIVE')$$,
   'the 12 canonical listings: prices, canonical levels (E0–E5 §10.2.1) and statuses');
 select is(array(select listing_id from private.world_shop_listings where shop_id <> 'shop.room_finishes' and required_level is null order by 1),
   array['offer.student_center.campus_mug'], 'only the mug has no level gate; the other 11 carry a canonical required level');
@@ -128,20 +129,22 @@ set local role authenticated;
 set local request.jwt.claims = '{"role":"authenticated","sub":"a6000000-0000-4000-8000-0000000000a6","is_anonymous":false}';
 select results_eq($$select o->>'listingId', (o->>'price')::bigint, (o->>'requiredLevel')::int, (o->>'purchasable')::boolean, o->>'unavailableReason'
   from jsonb_array_elements(public.get_world_shop_v1('shop.student_center')->'offers') o$$,
-  $$values ('offer.student_center.campus_mug'::text, 120::bigint, null::int, true, null::text),
-           ('offer.student_center.induck_cap', 180, 1, true, null),
+  $$values ('offer.student_center.campus_mug'::text, 120::bigint, null::int, true, null::text)$$,
+  'souvenir shop retains the mug without a level gate');
+select results_eq($$select o->>'listingId', (o->>'price')::bigint, (o->>'requiredLevel')::int, (o->>'purchasable')::boolean, o->>'unavailableReason'
+  from jsonb_array_elements(public.get_world_shop_v1('shop.student_center_fashion')->'offers') o$$,
+  $$values ('offer.student_center.induck_cap'::text, 180::bigint, 1, true, null::text),
            ('offer.student_center.campus_sneakers', 240, 2, false, 'LEVEL_REQUIRED'),
-           ('offer.student_center.campus_map_poster', 250, 2, false, 'LEVEL_REQUIRED'),
            ('offer.student_center.induck_hoodie', 320, 2, false, 'LEVEL_REQUIRED'),
            ('offer.student_center.induck_backpack', 420, 3, false, 'LEVEL_REQUIRED')$$,
-  'Lv.1 (0 EXP): the mug and the Lv.1 cap are purchasable, Lv.2+ offers read LEVEL_REQUIRED');
+  'fashion shop preserves canonical prices and level gates');
 select is((public.get_world_shop_v1('shop.student_center')->>'playerLevel')::int, 1, 'the read carries the server-derived Lv.1');
 reset role;
 select is((select count(*) from private.world_player_progression where user_id = 'a6000000-0000-4000-8000-0000000000a6'),
   0::bigint, 'reading the shop provisions no progression row');
 set local role authenticated;
 set local request.jwt.claims = '{"role":"authenticated","sub":"a6000000-0000-4000-8000-0000000000a6","is_anonymous":false}';
-select is(public.get_world_shop_v1('shop.student_center')->>'displayName', '학생회관 굿즈샵', 'shop display name');
+select is(public.get_world_shop_v1('shop.student_center')->>'displayName', '학생회관 기념품점', 'shop display name');
 select is(array(select o->>'listingId' from jsonb_array_elements(public.get_world_shop_v1('shop.p0d_test')->'offers') o),
   array['offer.p0d_test.cushion', 'offer.p0d_test.future_lamp', 'offer.p0d_test.expired_chair', 'offer.p0d_test.ticket', 'offer.p0d_test.locked_mug'],
   'HIDDEN and DISABLED listings are not shown');
@@ -255,7 +258,7 @@ select public.world_wallet_credit_v1('f6000000-0000-4000-8000-0000000000f6', 'cu
 reset role;
 create temp table p0f2_levels(listing_id text primary key, required_level int, price bigint) on commit drop;
 insert into p0f2_levels select listing_id, required_level, price from private.world_shop_listings
-  where required_level is not null and shop_id in ('shop.student_center', 'shop.dorm_furniture', 'shop.department_mcm');
+  where required_level is not null and shop_id in ('shop.student_center', 'shop.student_center_fashion', 'shop.dorm_furniture', 'shop.department_mcm');
 grant select on p0f2_levels to authenticated;
 select is((select count(*) from p0f2_levels), 11::bigint, '11 level-gated canonical listings');
 
@@ -316,7 +319,8 @@ select results_eq($$select o->>'listingId', (o->>'purchasable')::boolean, o->>'u
            ('offer.dorm_furniture.dorm_desk_lamp', true, null),
            ('offer.dorm_furniture.campus_rug_blue', false, 'LEVEL_REQUIRED'),
            ('offer.dorm_furniture.induck_chair', false, 'LEVEL_REQUIRED'),
-           ('offer.dorm_furniture.mini_induck', false, 'LEVEL_REQUIRED')$$,
+           ('offer.dorm_furniture.mini_induck', false, 'LEVEL_REQUIRED'),
+           ('offer.student_center.campus_map_poster', true, null)$$,
   'Lv.2: the read re-evaluates every offer against the new server level');
 select is((public.get_world_shop_v1('shop.dorm_furniture')->>'playerLevel')::int, 2, 'the read shows Lv.2');
 select is(public.purchase_world_shop_listing_v1(listing_id, 'purchase:f6:' || listing_id)->>'status', 'SUCCESS',
@@ -366,7 +370,7 @@ select is(public.purchase_world_shop_listing_v1('offer.dorm_furniture.mini_induc
   'SUCCESS', 'Lv.5: the mini figure is bought');
 select ok(not exists (select 1 from jsonb_array_elements(public.get_world_shop_v1(s)->'offers') o
   where o->>'unavailableReason' = 'LEVEL_REQUIRED'), format('Lv.5: nothing in %s is level-locked', s))
-from unnest(array['shop.student_center', 'shop.dorm_furniture', 'shop.department_mcm']) s;
+from unnest(array['shop.student_center', 'shop.student_center_fashion', 'shop.dorm_furniture', 'shop.department_mcm']) s;
 reset role;
 select is((select balance from private.world_wallets where user_id = 'f6000000-0000-4000-8000-0000000000f6'),
   (5000 - (select sum(price) from p0f2_levels))::bigint, 'F paid exactly the 11 listing prices, once each');

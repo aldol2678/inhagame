@@ -194,6 +194,7 @@ select set_eq($$select unnest(pg_temp.exec_surface('authenticated', 'anon'))$$, 
   -- Economy P0-D (20260927130000): shop read and purchase; buyer = auth.uid(), price from the listing.
   'get_world_shop_v1(text)',
   'purchase_world_shop_listing_v1(text,text)',
+  'purchase_world_shop_listing_v2(text,text,text)',
   -- MCM 2026 P0-E0 (20260927150000): own event state + server-judged landlord runs; caller = auth.uid().
   'get_my_mcm_2026_event_v1()',
   'start_mcm_landlord_run_v1()',

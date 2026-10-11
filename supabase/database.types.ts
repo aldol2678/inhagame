@@ -5081,6 +5081,10 @@ export type Database = {
         Args: { p_idempotency_key: string; p_listing_id: string }
         Returns: Json
       }
+      purchase_world_shop_listing_v2: {
+        Args: { p_idempotency_key: string; p_listing_id: string; p_shop_id: string }
+        Returns: Json
+      }
       ranked_grade_code: {
         Args: {
           p_completed_calls: number
