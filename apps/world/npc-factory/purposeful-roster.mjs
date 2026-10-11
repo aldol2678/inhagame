@@ -2,8 +2,10 @@ import { PULSE_PERIODS, positionAt } from './dev-runtime-state.mjs';
 import { MAIN_NPC_ID, QUEST_NPC_ID, runtimePresence } from './npc-presence.mjs';
 import { createPurposefulStudent } from './purposeful-student-state.mjs';
 import { purposefulBehaviorForNpc } from './purposeful-behavior.mjs';
+import { SEAT_ANCHORS } from '../src/seat-anchors.js';
 
 const protectedIds = new Set([MAIN_NPC_ID, QUEST_NPC_ID]);
+const c04LivingSeat = SEAT_ANCHORS.find(anchor => anchor.id === 'SEAT_INKYUNG_TREE_1_A');
 const locationLabels = Object.freeze({
   inkyung_spawn: '인경호 입구',
   inkyung_bench_east: '인경호 동쪽 벤치',
@@ -79,10 +81,15 @@ export function createPurposefulRoster(batch, navigator, { duration = 12, speed 
       const offZone = slot.location === 'off_zone';
       const sink = offZone || slot.sink === true;
       const remote = slot.location === 'life_dorm_2';
+      const c04SeatVisit = id === 'INKYUNG-NPC-010' &&
+        slot.location === 'inkyung_bench_east' && slot.activity === 'sit';
+      if (c04SeatVisit && !c04LivingSeat) throw new Error('C04 living seat anchor missing');
       destinations[destination] ??= {
         type: remote ? 'REMOTE' : sink ? 'SINK' : slot.location.includes('bench') ? 'REST' : 'CAMPUS',
         label: offZone ? '구역 경계' : locationLabels[slot.location] ?? slot.location,
-        position: positionAt(offZone ? 'transit_to_building' : slot.location, slotFor(slot.location, id))
+        position: c04SeatVisit
+          ? { x: c04LivingSeat.standPoint.x, z: c04LivingSeat.standPoint.z }
+          : positionAt(offZone ? 'transit_to_building' : slot.location, slotFor(slot.location, id))
       };
       const [need, goal, activity] = activityMeaning[slot.activity] ?? activityMeaning.idle;
       let walkDestination;
