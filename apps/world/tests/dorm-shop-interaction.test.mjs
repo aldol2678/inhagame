@@ -38,7 +38,7 @@ test('main reads room-local coordinates despite the mirrored dorm root', async (
   const { readFileSync } = await import('node:fs');
   const { default: vm } = await import('node:vm');
   const source = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
-  const body = source.match(/const dormShop = createDormShopInteraction\(\{\s*getState: \(\) => \(\{([\s\S]*?)\}\),/)[1];
+  const body = source.match(/const dormShop = createDormShopInteraction\(\{[\s\S]*?getState: \(\) => \(\{([\s\S]*?)\}\),/)[1];
   const getState = vm.runInNewContext(`() => ({${body}})`, {
     rooms: { currentSpace: 'ROOM_DORM1_LOBBY', status: () => ({ busy: false }) },
     player: { getLocalPosition: () => ({ x: 0, z: .85 }), getPosition: () => ({ x: 0, z: -.85 }) },

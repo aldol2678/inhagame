@@ -34,10 +34,11 @@ try{
    d.controller.velocityY=0;d.controller.grounded=true;
    return {...v,approach,clearance,actualAvatar:{name:avatar.name,position:[p.x,p.y,p.z],renderComponents:avatar.findComponents('render').length}};
   },index);
-  await Promise.race([page.waitForFunction(id=>window.__INHAGAME_P0__.contextActions.active?.id===`npc-shop-${id}`,vendor.npcId,{timeout:TIMEOUT_MS}),fatal]);
-  const action=await evaluate(()=>{const d=window.__INHAGAME_P0__,a=d.contextActions.active;return{id:a.id,label:a.label,disabled:a.disabled,triggered:d.contextActions.trigger(),panelOpen:d.shopPanel.open};});
-  assert.equal(action.disabled,true);assert.equal(action.triggered,false);assert.equal(action.panelOpen,false);assert.match(action.label,/로그인 후 상점/);
-  const button=page.getByRole('button',{name:new RegExp(vendor.name+' · 로그인 후 상점')});assert.equal(await button.isVisible(),true);assert.equal(await button.isDisabled(),true);
+  await page.waitForTimeout(400);
+  const action=await evaluate(()=>{const d=window.__INHAGAME_P0__,a=d.contextActions.active;return{id:a?.id??null,label:a?.label??null,panelOpen:d.shopPanel.open};});
+  assert.notEqual(action.id,`npc-shop-${vendor.npcId}`,'unnegotiated signed-out session cannot expose a split purchase entry');
+  assert.equal(action.panelOpen,false);
+
   await page.keyboard.press('f');assert.equal(await evaluate(()=>window.__INHAGAME_P0__.shopPanel.open),false);
   // Reuse established full-campus ownership checks, then freeze unrelated callbacks for a stable frame.
   const ownership=await evaluate(configureStudentCampusFixture);

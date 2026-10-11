@@ -37,13 +37,13 @@ export function applyStudentVendorPlacement(visual, actor, vendor) {
   return true;
 }
 
-export function createStudentVendorInteraction({ getAvailable = () => false,
+export function createStudentVendorInteraction({ getMode = () => 'split', getAvailable = () => false,
   getBlocked = () => true, getPosition = () => null, getNpcReady = () => false,
   openShop = () => false } = {}) {
   const walk = createStudentConnectedWalk({ space: 'world' });
   let current = null;
   function eligible(vendor, position, ignoreInputGate = false) {
-    if (!position || ![position.x, position.y, position.z].every(Number.isFinite) ||
+    if (getMode() !== 'split' || !position || ![position.x, position.y, position.z].every(Number.isFinite) ||
         (!ignoreInputGate && getBlocked() !== false) || getNpcReady(vendor.npcId) !== true) return false;
     const feet = position.y - WALK_SHAPE.footOffset;
     if (Math.abs(feet - vendor.position.y) > .16 ||

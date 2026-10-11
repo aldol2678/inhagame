@@ -6,9 +6,9 @@ import {mkdir,readFile,writeFile} from 'node:fs/promises';
 import {startSmoke} from './harness.mjs';
 const output=process.env.NPC_SHOP_OUTPUT||'test-results/npc-shop-routing';
 await mkdir(output,{recursive:true});
-const paths=['src/shop/shop-router.js','src/shop/shop-client.js','src/shop/shop-panel.js','src/shop/student-center-vendors.js','src/shop/dorm-shop-interaction.js'];
+const paths=['src/shop/shop-router.js','src/shop/shop-capabilities.js','src/shop/shop-client.js','src/shop/shop-panel.js','src/shop/student-center-vendors.js','src/shop/dorm-shop-interaction.js'];
 const hashes=Object.fromEntries(await Promise.all(paths.map(async p=>[p,createHash('sha256').update(await readFile(new URL('../../'+p,import.meta.url))).digest('hex')])));
-const report={head:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),scope:'Production modules in Chromium; synthetic RPC and accounts, no backend transactions or gameplay walking claim',hashes,checks:[],result:'running'};
+const report={head:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),scope:'Production modules in Chromium; synthetic RPC and accounts. Compatibility cases exercise router/panel through fixture provider controls, not main-world entry/access gates; no backend transactions or gameplay walking claim',hashes,checks:[],result:'running'};
 let smoke,page;
 try{
  if(process.env.NPC_SHOP_HEAD_SHA)assert.equal(report.head,process.env.NPC_SHOP_HEAD_SHA);
@@ -19,7 +19,7 @@ try{
   const fresh=async()=>{await page.goto(`${smoke.origin}/tests/browser/npc-shop-routing-harness.html`);await page.waitForFunction(()=>!!window.__NPC_SHOPS__);};
   const open=async i=>{await page.locator(`#vendor-${i}`).click();await page.locator('.shop-offer-buy').waitFor();};
   const finish=async(lost=false)=>{await evalQA(lost=>window.__NPC_SHOPS__.finish('purchase',lost),lost);await page.waitForFunction(()=>!window.__NPC_SHOPS__.shop.isPending(window.__NPC_SHOPS__.shop.shopId+'.listing'));};
-  const writes=()=>evalQA(()=>window.__NPC_SHOPS__.calls.filter(c=>c.name==='purchase_world_shop_listing_v2'));
+  const writes=()=>evalQA(()=>window.__NPC_SHOPS__.calls.filter(c=>['purchase_world_shop_listing_v1','purchase_world_shop_listing_v2'].includes(c.name)));
   await fresh();
   await run('served exact source hashes',async()=>{assert.deepEqual(await evalQA(async paths=>Object.fromEntries(await Promise.all(paths.map(async p=>[p,[...new Uint8Array(await crypto.subtle.digest('SHA-256',await(await fetch('/'+p)).arrayBuffer()))].map(n=>n.toString(16).padStart(2,'0')).join('')]))),paths),hashes);});
   await run('per-identity proximity, height, readiness and account gates',async()=>{
@@ -54,6 +54,55 @@ try{
    await page.locator('#dorm').click();await page.waitForFunction(()=>window.__NPC_SHOPS__.shop.snapshot?.shopId==='shop.dorm_furniture');assert.match(await page.locator('#shop').textContent(),/생활관 가구점/);
    assert.equal(await evalQA(()=>{const q=window.__NPC_SHOPS__;q.setDorm({position:{x:0,z:1.8}});return q.dorm.contextAction();}),null);await page.screenshot({path:`${output}/dorm-${viewport.width}.png`});
   });
+  const capability = {
+   missing: {data:null,error:{code:'PGRST202',message:'Could not find the function public.get_world_shop_capabilities_v1 without parameters in the schema cache'}},
+   prepared: {data:{version:1,purchaseRpc:'purchase_world_shop_listing_v2',catalogLayout:'legacy'},error:null},
+   split: {data:{version:1,purchaseRpc:'purchase_world_shop_listing_v2',catalogLayout:'split'},error:null},
+   mixed: {data:{version:1,purchaseRpc:'purchase_world_shop_listing_v1',catalogLayout:'split'},error:null},
+   network: {data:null,error:{code:'FETCH_ERROR',message:'synthetic network loss'}}
+  };
+  const negotiate=async response=>{
+   await evalQA(async response=>{const q=window.__NPC_SHOPS__;q.setCapability(response);await q.shop.refresh('fixture-capability');},response);
+   await page.waitForFunction(()=>!window.__NPC_SHOPS__.shop.capabilityChecking);
+  };
+  await fresh();
+  await run('exact missing capability selects legacy v1 once and rejects new routes',async()=>{
+   await negotiate(capability.missing);await open(0);
+   assert.equal(await evalQA(()=>window.__NPC_SHOPS__.shop.mode),'legacy');
+   assert.deepEqual(await evalQA(()=>{const q=window.__NPC_SHOPS__;return [q.panel.openShop(q.ids[1]),q.panel.openShop(q.ids[2])];}),[false,false]);
+   await page.locator('.shop-offer-buy').click();await page.locator('.shop-offer-buy').evaluate(button=>{button.click();button.click();});
+   assert.equal((await writes()).length,1);await finish();await page.waitForFunction(()=>window.__NPC_SHOPS__.counts().readbacks===1);
+   const [call]=await writes();assert.equal(call.name,'purchase_world_shop_listing_v1');assert.equal('p_shop_id' in call.args,false);
+   await page.screenshot({path:`${output}/legacy-${viewport.width}.png`});
+  });
+  await fresh();
+  await run('API-prepared legacy catalog uses scoped v2 without enabling new routes',async()=>{
+   await negotiate(capability.prepared);await open(0);assert.equal(await evalQA(()=>window.__NPC_SHOPS__.shop.mode),'legacy');
+   assert.equal(await evalQA(()=>window.__NPC_SHOPS__.shop.select('shop.student_center_fashion')),false);
+   await page.locator('.shop-offer-buy').click();await finish();await page.waitForFunction(()=>window.__NPC_SHOPS__.counts().readbacks===1);
+   const calls=await writes();assert.equal(calls.length,1);assert.equal(calls[0].name,'purchase_world_shop_listing_v2');assert.equal(calls[0].args.p_shop_id,'shop.student_center');
+  });
+  for(const kind of ['mixed','network']){
+   await fresh();await run(`${kind} capability fails closed with zero purchase RPCs`,async()=>{
+    await negotiate(capability[kind]);await open(0);assert.equal(await evalQA(()=>window.__NPC_SHOPS__.shop.mode),'unavailable');
+    assert.equal(await page.locator('.shop-offer-buy').isDisabled(),true);
+    await page.locator('.shop-offer-buy').evaluate(button=>button.click());
+    const refused=await evalQA(()=>{const q=window.__NPC_SHOPS__;return q.shop.purchase(q.ids[0]+'.listing');});assert.equal(refused.outcome,'REFUSED');
+    assert.equal((await writes()).length,0);assert.equal(await evalQA(()=>window.__NPC_SHOPS__.shop.select('shop.dorm_furniture')),false);
+    await page.screenshot({path:`${output}/${kind}-${viewport.width}.png`});
+   });
+  }
+  for(const [from,to] of [['missing','split'],['split','missing']]){
+   await fresh();await run(`${from} to ${to} unknown receipt retains original RPC and key`,async()=>{
+    await negotiate(capability[from]);await open(0);await page.locator('.shop-offer-buy').click();await finish(true);
+    await page.waitForFunction(()=>window.__NPC_SHOPS__.panel.status().hint.length>0);
+    const original=(await writes())[0];await page.keyboard.press('Escape');await negotiate(capability[to]);await open(0);
+    assert.equal(await evalQA(()=>window.__NPC_SHOPS__.shop.mode),to==='split'?'split':'legacy');
+    assert.equal((await writes()).length,1,'Capability transition must not submit a purchase');
+    await page.locator('.shop-offer-buy').click();await finish();await page.waitForFunction(()=>window.__NPC_SHOPS__.counts().readbacks===1);
+    const calls=await writes();assert.equal(calls.length,2);assert.deepEqual(calls[1],original,'Receipt recovery retains exact original RPC and arguments');
+   });
+  }
   assert.deepEqual(errors,[]);assert.deepEqual(smoke.problems,[]);await smoke.close();smoke=null;
  }
  report.result='pass';console.log(`PASS: ${report.checks.length} NPC shop routing browser checks`);

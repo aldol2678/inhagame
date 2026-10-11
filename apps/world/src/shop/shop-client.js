@@ -80,7 +80,7 @@ const defaultKey = () => `shop:${globalThis.crypto.randomUUID()}`;
  * @param {{ getClient: () => ({ rpc: Function } | null), shopId?: string, createKey?: () => string }} options
  *   getClient returns the signed-in permanent-account Supabase client (online.supabase), or null.
  */
-export function createShopClient({ getClient, shopId = SHOP_STUDENT_CENTER, createKey = defaultKey, scopedPurchase = false } = {}) {
+export function createShopClient({ getClient, shopId = SHOP_STUDENT_CENTER, createKey = defaultKey, scopedPurchase = false, getPurchaseRpc = null } = {}) {
   if (typeof getClient !== "function") throw new Error("Shop client requires getClient");
 
   let accountId = null;
@@ -93,6 +93,7 @@ export function createShopClient({ getClient, shopId = SHOP_STUDENT_CENTER, crea
   // A key whose outcome is unknown (transport failure) is reused so a retry replays, never re-buys.
   const unresolvedKeys = new Map();
   const unresolvedOffers = new Map();
+  const unresolvedRpcs = new Map();
   const listeners = new Set();
 
   function publish(reason) {
@@ -157,6 +158,7 @@ export function createShopClient({ getClient, shopId = SHOP_STUDENT_CENTER, crea
     pending.clear();
     unresolvedKeys.clear();
     unresolvedOffers.clear();
+    unresolvedRpcs.clear();
     set(next ? SHOP_STATE.LOADING : SHOP_STATE.SIGNED_OUT, null, "account");
   }
 
@@ -172,15 +174,23 @@ export function createShopClient({ getClient, shopId = SHOP_STUDENT_CENTER, crea
     const offer = snapshot?.offers.find((candidate) => candidate.listingId === listingId) ?? unresolvedOffers.get(listingId) ?? null;
     if (!account || !client?.rpc) return { outcome: "SIGNED_OUT", code: "PERMANENT_ACCOUNT_REQUIRED", offer };
     if (!isText(listingId) || pending.has(listingId)) return { outcome: "FAILED", code: "BUSY", offer };
+    // Freeze the API contract with the key. Capability changes never reissue through
+    // another API, and only a preflight (not a failed purchase) chooses legacy v1.
+    const rpc = unresolvedRpcs.get(listingId) ?? (getPurchaseRpc
+      ? getPurchaseRpc() : scopedPurchase ? SHOP_SCOPED_PURCHASE_RPC : SHOP_PURCHASE_RPC);
+    if (![SHOP_PURCHASE_RPC, SHOP_SCOPED_PURCHASE_RPC].includes(rpc)) {
+      return { outcome: "REFUSED", code: "SHOP_UNAVAILABLE", offer };
+    }
     const key = unresolvedKeys.get(listingId) ?? createKey();
+    unresolvedRpcs.set(listingId, rpc);
     unresolvedKeys.set(listingId, key);
     if (offer) unresolvedOffers.set(listingId, offer);
     pending.add(listingId);
     publish("purchase");
     let response;
     try {
-      const { data, error } = await client.rpc(scopedPurchase ? SHOP_SCOPED_PURCHASE_RPC : SHOP_PURCHASE_RPC, {
-        ...(scopedPurchase ? { p_shop_id: shopId } : {}), p_listing_id: listingId, p_idempotency_key: key
+      const { data, error } = await client.rpc(rpc, {
+        ...(rpc === SHOP_SCOPED_PURCHASE_RPC ? { p_shop_id: shopId } : {}), p_listing_id: listingId, p_idempotency_key: key
       });
       if (error) {
         const code = shopErrorCode(error);
@@ -196,7 +206,7 @@ export function createShopClient({ getClient, shopId = SHOP_STUDENT_CENTER, crea
     if (gen !== generation || account !== accountId) return { outcome: "STALE", code: null, offer };
     // Only the owning generation may retire its key; unknown outcomes keep it for a safe retry.
     if (response.outcome === "SUCCESS" || response.outcome === "REFUSED") {
-      unresolvedKeys.delete(listingId); unresolvedOffers.delete(listingId);
+      unresolvedKeys.delete(listingId); unresolvedOffers.delete(listingId); unresolvedRpcs.delete(listingId);
     }
     pending.delete(listingId);
     publish("purchase");

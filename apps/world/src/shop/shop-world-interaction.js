@@ -38,6 +38,7 @@ export function createShopWorldInteraction({
   anchor = STUDENT_CENTER_SHOP_ENTRY,
   radius = anchor?.interactionRadius,
   getAvailable = () => false,
+  getMode = () => "split",
   openPanel = () => false,
   priority = STUDENT_CENTER_SHOP_CONTEXT_PRIORITY
 } = {}) {
@@ -68,7 +69,7 @@ export function createShopWorldInteraction({
     return {
       id: "student-center-shop",
       icon: available ? "🛍" : "🔒",
-      label: available ? "학생회관 판매대 안내" : "로그인 후 상점",
+      label: !available ? "로그인 후 상점" : getMode() === "legacy" ? "학생회관 상점" : getMode() === "split" ? "학생회관 판매대 안내" : "상점 정보 확인",
       shortcut: "F",
       priority,
       distance,

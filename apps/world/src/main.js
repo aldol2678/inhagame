@@ -159,6 +159,7 @@ import { createProgressionClient, PROGRESSION_STATE } from "./progression/progre
 import { createProgressionHud, formatProgression, levelUpMessage } from "./progression/progression-hud.js";
 import { createShopRouter } from "./shop/shop-router.js";
 import { SHOP_ROUTE_IDS } from "./shop/shop-routes.js";
+import { createShopEntryCompatibility } from "./shop/shop-entry-compat.js";
 import { createDormShopInteraction } from "./shop/dorm-shop-interaction.js";
 import { createStudentVendorInteraction } from "./shop/student-center-vendors.js";
 import { createShopPanel } from "./shop/shop-panel.js";
@@ -1374,6 +1375,7 @@ const shopFurnitureHandoff = createShopFurnitureHandoff({
   onStatus: showWorldStatus
 });
 let activeShopAccess = null;
+let shopEntry = null;
 const shopPanel = createShopPanel({
   panel: document.getElementById("shop-panel"),
   shop,
@@ -1405,11 +1407,27 @@ const shopPanel = createShopPanel({
       return;
     }
     activeShopAccess = null;
+    shopEntry?.cancel();
     shopInput.release();
   }
 });
-shopButton?.addEventListener("click", () => guideStudentCenterShops());
+const shopEntryBlocked = () => (!inputFocus.can("WORLD_ACTION") && !shopPanel.open) || rooms?.insideRoom === true || controller.mounted || combatRuntime.active ||
+  lobbyWorld.active || lobbyTransition.active || rooms?.status().busy ||
+  npcTest?.isConversationOpen?.() === true || biryongVillageDialogue?.open === true;
+shopEntry = createShopEntryCompatibility({
+  shop, getAvailable: () => shop.accountId !== null && online?.supabase != null,
+  getBlocked: shopEntryBlocked,
+  openLegacy: () => openWorldShop(SHOP_STUDENT_CENTER, () => shop.mode === "legacy"),
+  openRecovery: () => openWorldShop(SHOP_STUDENT_CENTER, () => shop.mode === "unavailable"),
+  guideSplit: () => guideStudentCenterShops(), onStatus: showWorldStatus
+});
+shopButton?.addEventListener("click", () => {
+  hudMenu?.setOpen(false, { focus: false });
+  void shopEntry.enter();
+});
+window.addEventListener("keydown", event => { if (event.code === "Escape") shopEntry.cancel(); });
 const dormShop = createDormShopInteraction({
+  getMode: () => shop.mode,
   getState: () => ({
     space: rooms?.currentSpace, position: player.getLocalPosition(), grounded: controller.grounded,
     available: shop.accountId !== null && online?.supabase != null,
@@ -1420,12 +1438,14 @@ const dormShop = createDormShopInteraction({
 });
 function openWorldShop(shopId, canAccess) {
   if (!canAccess()) return false;
+  shopEntry?.cancel();
   activeShopAccess = canAccess;
   if (shopPanel.openShop(shopId)) return true;
   activeShopAccess = null;
   return false;
 }
 const studentVendors = createStudentVendorInteraction({
+  getMode: () => shop.mode,
   getAvailable: () => shop.accountId !== null && online?.supabase != null,
   getBlocked: () => !inputFocus.can("WORLD_ACTION") || rooms?.insideRoom === true ||
     controller.mounted || seats.isSeated || combatRuntime.active || shopPanel.open ||
@@ -1706,7 +1726,12 @@ const lobbyDailyLoop = createLobbyDailyLoop({
 const shopWorldAvailable = () => shop.accountId !== null && online?.supabase != null;
 const shopWorld = createShopWorldInteraction({
   getAvailable: shopWorldAvailable,
-  openPanel: () => guideStudentCenterShops()
+  getMode: () => shop.mode,
+  openPanel: () => shopEntry.enter({ canAccess: () => {
+    const position = player.getLocalPosition();
+    return !shopEntryBlocked() && Math.hypot(position.x - STUDENT_CENTER_SHOP_ENTRY.x,
+      position.z - STUDENT_CENTER_SHOP_ENTRY.z) <= STUDENT_CENTER_SHOP_ENTRY.interactionRadius;
+  } })
 });
 // A transform-only marker point (no mesh) above the entry for the floating label, about head
 // height so it reads from the pond path and stays on screen next to the player.
@@ -2702,6 +2727,7 @@ const renderNavigationHud = () => {
 };
 const setNavigationTarget = target => {
   if (!navigation || !target) return false;
+  shopEntry?.cancel();
   const snapshot = navigation.setDestination(target, { position: player.getLocalPosition(), spaceId: navigationSpaceId() });
   return target.mapSourceId !== WORLD_REGION_ID.BIRYONG_REALM || snapshot.status === "GUIDING";
 };
@@ -3463,7 +3489,7 @@ app.on("update", (dt) => {
   shopWorldLabel.update({
     visible: !inside && !shopPanel.open && place?.id === STUDENT_CENTER_SHOP_ENTRY.placeZoneId,
     nearby: shopWorld.nearby,
-    available: shopWorldAvailable()
+    available: shopWorldAvailable(), mode: shop.mode
   });
   contextActions.set("student-center-shop", shopWorldAction);
   contextActions.set("dorm-furniture-shop", dormShop.contextAction());
@@ -3616,6 +3642,7 @@ try {
     void progression.setAccount(identity ? online?.userId ?? null : null);
     void biryongRelationships.setAccount(identity ? online?.userId ?? null : null);
     shop.setAccount(identity ? online?.userId ?? null : null);
+    if (shop.accountId) void shop.refresh("account-capability");
     void wallet.setAccount(identity ? online?.userId ?? null : null);
     collectionBook.setAccount(identity?.userId ?? null);
     void inventory.setAccount(identity ? online?.userId ?? null : null);

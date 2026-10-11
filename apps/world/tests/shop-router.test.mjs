@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createShopRouter } from '../src/shop/shop-router.js';
 import { createShopPanel } from '../src/shop/shop-panel.js';
+import { SHOP_CAPABILITIES_RPC } from '../src/shop/shop-capabilities.js';
 import { SHOP_READ_RPC, SHOP_SCOPED_PURCHASE_RPC } from '../src/shop/shop-client.js';
 import { createFakeDocument } from './support/fake-dom.mjs';
 
@@ -21,6 +22,7 @@ function harness() {
   const client = { rpc(fn, args) {
     calls.push({ fn, args });
     const queue = queues.get(fn);
+    if (fn === SHOP_CAPABILITIES_RPC && !queue?.length) return Promise.resolve(ok({version:1,purchaseRpc:SHOP_SCOPED_PURCHASE_RPC,catalogLayout:'split'}));
     return Promise.resolve(queue?.length ? queue.shift() : fn === SHOP_READ_RPC ? ok(snapshot(args.p_shop_id)) : ok({ status: 'SUCCESS' }));
   } };
   const shop = createShopRouter({ getClient: () => client, shopIds: [STUDENT, DORM], createKey: () => 'key:' + ++keys });

@@ -199,8 +199,9 @@ test("menu entry kept; both entries open the one existing shop panel", () => {
   assert.match(html, /id="open-shop"[^>]*>🛍 상점</, "☰ → 🛍 상점 stays");
   assert.equal((main.match(/createShopPanel\(/g) ?? []).length, 1, "one panel");
   assert.equal((main.match(/createShopRouter\(/g) ?? []).length, 1, "one shop router");
-  assert.match(main, /shopButton\?\.addEventListener\("click", \(\) => guideStudentCenterShops\(\)\)/);
-  assert.match(main, /createShopWorldInteraction\(\{\s*getAvailable: shopWorldAvailable,\s*openPanel: \(\) => guideStudentCenterShops\(\)\s*\}\)/);
+  assert.match(main, /shopButton\?\.addEventListener\("click",[\s\S]*?shopEntry\.enter\(\)/);
+  assert.match(main, /openPanel: \(\) => shopEntry\.enter\(/);
+  assert.match(main, /openLegacy: \(\) => openWorldShop\(SHOP_STUDENT_CENTER/);
   assert.match(main, /contextActions\.set\("student-center-shop", shopWorldAction\)/);
   const world = source("../src/shop/shop-world-interaction.js");
   assert.doesNotMatch(world, /\.rpc\(|createClient|document\.|localStorage|addEventListener/, "no RPC, DOM or key handling in the interaction");

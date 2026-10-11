@@ -139,9 +139,11 @@ export function createShopPanel({
     walletNode.dataset.state = line === WALLET_UNAVAILABLE_TEXT ? WALLET_STATE.UNAVAILABLE : wallet?.state ?? "";
   }
 
+  const hasUnresolved = listingId => (shop.unresolvedOffers ?? []).some(offer => offer.listingId === listingId);
+  const capabilityLocked = () => shop.mode === "checking" || shop.mode === "unavailable" || shop.capabilityChecking === true;
   async function buy(listingId) {
     const prior = receipts.get(listingId);
-    if (!open || purchases.has(listingId) || shop.isPending(listingId) || (prior && !confirmed(prior))) return;
+    if ((capabilityLocked() && !hasUnresolved(listingId)) || !open || purchases.has(listingId) || shop.isPending(listingId) || (prior && !confirmed(prior))) return;
     const revision = openingRevision;
     const purchaseShopId = shop.shopId;
     const account = accountRevision;
@@ -235,8 +237,10 @@ export function createShopPanel({
     const button = el("button", "shop-offer-buy", receipt
       ? (receipt.phase === "checking" ? "보유 확인 중…" : confirmed(receipt) ? (pending ? "구매 중…" : "추가 구매") : "구매 완료")
       : view.buttonText);
+    const recovering = hasUnresolved(view.listingId);
+    if (recovering) button.textContent = pending ? "구매 중…" : "이전 구매 결과 확인";
     button.type = "button";
-    button.disabled = view.buttonDisabled || Boolean(receipt && !confirmed(receipt));
+    button.disabled = recovering ? pending : capabilityLocked() || view.buttonDisabled || Boolean(receipt && !confirmed(receipt));
     // Pending/refused controls remain disabled. Their listing is a temporary focus anchor,
     // outside the native Tab order, so a readback can restore the same logical purchase action.
     const focusKey = `listing:${view.listingId}`;
@@ -244,7 +248,7 @@ export function createShopPanel({
     card.dataset.focusKey = focusKey;
     button.dataset.focusKey = focusKey;
     focusTargets.set(focusKey, button.disabled ? card : button);
-    button.setAttribute("aria-label", `${view.name} ${button.disabled ? receipt ? "구매 완료" : view.statusText : receipt ? "추가 구매" : "구매"}`);
+    button.setAttribute("aria-label", `${view.name} ${recovering ? "이전 구매 결과 확인" : button.disabled ? receipt ? "구매 완료" : view.statusText : receipt ? "추가 구매" : "구매"}`);
     button.addEventListener("click", () => { if (!button.disabled && focusTargets.get(focusKey) === button && panel.contains(button)) void buy(view.listingId); });
     foot.append(meta, button);
     card.append(foot);
@@ -286,10 +290,13 @@ export function createShopPanel({
     closeButton.addEventListener("click", () => setOpen(false));
     head.append(titles, closeButton);
 
-    const status = el("p", "shop-hint", hint);
+    const capabilityHint = !shop.accountId ? "" : shop.mode === "unavailable"
+      ? "상점 준비 상태를 확인하지 못했어요. 새 구매는 잠겨 있어요. 닫았다가 다시 열어 주세요."
+      : shop.mode === "checking" || shop.capabilityChecking === true ? "상점 준비 상태를 확인 중이에요. 새 구매는 잠시 기다려 주세요." : "";
+    const status = el("p", "shop-hint", hint || capabilityHint);
     status.setAttribute("role", "status");
     status.setAttribute("aria-live", "polite");
-    status.hidden = !hint;
+    status.hidden = !hint && !capabilityHint;
 
     const body = el("div", "shop-panel-body");
     if (shop.state === SHOP_STATE.SIGNED_OUT) {

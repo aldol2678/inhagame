@@ -27,8 +27,8 @@ test('main keeps direct NPC purchases separate from HUD/entrance guidance and cl
   const { readFileSync } = await import('node:fs');
   const { default: vm } = await import('node:vm');
   const source = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
-  assert.match(source, /shopButton\?\.addEventListener\("click", \(\) => guideStudentCenterShops\(\)\)/);
-  assert.match(source, /openPanel: \(\) => guideStudentCenterShops\(\)/);
+  assert.match(source, /shopButton\?\.addEventListener\("click",[\s\S]*?shopEntry\.enter\(\)/);
+  assert.match(source, /openPanel: \(\) => shopEntry\.enter\(/);
   assert.match(source, /studentCenterVendors: true/);
   assert.doesNotMatch(source, /getShopRoutes:/);
   const condition = source.match(/  if \(shopPanel.open && activeShopAccess &&[\s\S]*?shopPanel.setOpen\(false\);\n  \}/)[0];

@@ -665,7 +665,7 @@ console.log("Student Center shop wallet balance static contracts PASS");
 // Student Center shop world entry P0: the same panel from the terrace in front of 학생회관.
 assert.match(m3MainSource, /contextActions\.set\("student-center-shop", shopWorldAction\)/,
   "the world entry competes in the shared interaction slot (F / #context-action)");
-assert.match(m3MainSource, /openPanel: \(\) => guideStudentCenterShops\(\)/, "the world entry opens the existing shop panel");
+assert.match(m3MainSource, /openPanel: \(\) => shopEntry\.enter\(/, "the world entry opens the existing shop panel");
 assert.equal((campusHtml.match(/id="shop-world-label"/g) ?? []).length, 1, "one shop world marker");
 assert.match(campusHtml, /id="shop-world-label"[^>]*aria-hidden="true"[^>]*hidden/, "the marker is decorative and starts hidden");
 assert.match(campusHtml, /id="open-shop"/, "the HUD menu shop entry stays");

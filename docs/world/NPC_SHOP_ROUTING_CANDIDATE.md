@@ -4,7 +4,7 @@ Local implementation candidate based on `03f4aafaedc4c3168a963a84d7a4a285f9f8598
 Prepared for Draft PR review and exact-head CI. No production migration, product activation,
 merge or deployment is included.
 
-## Catalog routing
+## Catalog routing after verified split
 
 | Region | Department | Authoritative shop ID | Existing listings |
 | --- | --- | --- | --- |
@@ -34,9 +34,11 @@ Fishing/photo have no shop ID and cannot instantiate a purchase client.
   already represented these stores. Their old movement, two-person social script and
   outdoor conversation/observation participation are suppressed; no avatar is cloned and
   no quest NPC is repurposed. Nameplates identify each department and hide across floors.
-- Existing HUD and exterior entry shortcuts guide to the Student Center, not remote
-  purchases. NPC interaction opens only the assigned shop; there are no cross-shop tabs.
-- Dorm furniture opens at the existing first-dorm lobby reception counter via F/mobile
+- After verified split, existing HUD and exterior entry shortcuts guide to the Student Center.
+  Before split, they preserve the original combined student-center shop. Unknown capability
+  locks new purchases; existing uncertain receipts have a recovery-only entry. NPC interaction
+  opens only the assigned shop when split is ready; there are no cross-shop tabs.
+- After verified split, dorm furniture opens at the existing first-dorm lobby reception counter via F/mobile
   interaction. No student is turned into a merchant and no dorm vendor identity is invented.
 - The MCM catalog route remains available in the contract, but its dedicated vendor/entry
   remains unassigned. Fishing/photo are planned only. Do not call all five NPC shops done.
@@ -60,7 +62,7 @@ NPC opt-in such as `?npcTest=a-r1`.
 - A completed receipt is replayed only for its original user/listing/shop. Moving a listing
   does not rewrite a purchase, wallet transaction or inventory grant. Legacy v1 remains
   callable; it still enforces canonical listing/shop availability and all economic rules.
-- An uncertain response retains its original shop/key even when another shop now lists the
+- An uncertain response retains its original shop/RPC/key even when another shop now lists the
   same item. Global pending checks prevent a fresh key from bypassing that retry. If the
   original shop no longer displays the listing, a recovery control remains available.
 - Successful purchases refresh Wallet, Inventory and Loadout. Furniture ownership and room
@@ -77,10 +79,16 @@ NPC opt-in such as `?npcTest=a-r1`.
 2. Visually verify the two indoor NPC counters and dorm reception entry in a working
    browser, including mobile, camera/nameplate occlusion and input return. The dorm route
    must ship with the poster relocation, and fashion access with the student-center split.
-3. Coordinate schema/client release: v2 must exist before a client using scoped purchases
-   goes live. Do not expose category routes against an older database that lacks the split.
+3. The capability-aware client can ship safely before new DB APIs: exact missing-capability
+   PGRST202 selects the original combined shop and v1, without attempting a v2 purchase.
+   API-prepared/legacy catalog selects the original route with v2. Only verified split+v2
+   enables the new trading routes. Auth/network/malformed/mixed capability locks new buys.
+   See [staged rollout and rollback](../ops/NPC_SHOP_STAGED_ROLLOUT.md): public migrations
+   are immutable development lineage, not the independently approved Production API-only
+   and catalog-only change sets. Never replay the combined public migrations as API prep.
 4. Obtain separate approval for production migration, publication and deployment. Verify
-   production catalog, statuses and permissions at that time; they were not inspected here.
+   production catalog, statuses and permissions at that time. Read-only API inspection found
+   v1 present and v2 absent; a subsequent catalog query was cancelled and not retried.
 
 ## Future smartphone Delivery (design only)
 
@@ -125,3 +133,22 @@ or a walking acceptance claim. Public local checks independently run the disposa
 suite, including `shop-migration-preservation.integration.test.mjs`, which executes these exact
 migration files inside a rolled-back transaction around real synthetic-account purchases and
 compares complete historical economy records. CI results must be read separately before release.
+
+## Capability compatibility UI (#336)
+
+The authenticated server capability determines purchase access. HUD and outdoor Student
+Center entries first refresh capability, then open only the original unified Student Center
+shop in `legacy` mode, or guide to the indoor counters in `split` mode. Indoor souvenir/fashion
+and dorm-reception actions exist only in `split`; retained callbacks recheck this at activation.
+The existing two NPC visuals remain indoors in every mode, avoiding a live schedule/authority
+handoff. Their presence alone never authorizes purchases. Signed-out users cannot negotiate
+capability or enter a purchase panel and receive login guidance from the HUD entry.
+
+`checking` and `unavailable` never fall back to new legacy purchases. READY listings remain
+non-purchasable during capability negotiation/failure. In `unavailable`, an already uncertain
+purchase can reopen the Student Center panel from the HUD/outdoor entry solely for receipt
+recovery, including a retained fashion/dorm receipt. Recovery preserves the original RPC/key;
+new buys remain locked. Escape, a newer entry request, account change, a new blocking UI,
+room transition, and loss of outdoor proximity invalidate an awaited entry.
+
+These changes do not enable delivery, change production data, or imply SQL/browser validation.
