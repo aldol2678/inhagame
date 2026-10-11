@@ -34,7 +34,8 @@ import { createPurposefulSocialMotion } from './purposeful-social-motion.mjs';
 import { createPurposefulActivityProps } from './purposeful-activity-props.mjs';
 import { createEquipmentModelLoader } from '../src/appearance/equipment-asset-loader.js';
 import { LIFE_PROP_MODELS } from '../src/life-props.js';
-import { purposefulActivityPose } from './purposeful-activity-motion.mjs';
+import { INKYUNG_PHOTO_POINT } from '../src/photo/inkyung-photo-point.js';
+import { purposefulActivityPose, purposefulPhotoHeading } from './purposeful-activity-motion.mjs';
 import { createQuestClient } from './quest-client.mjs';
 import { QUEST_ID } from './quest-contract.mjs';
 import { createMain2QuestClient } from './main2-quest-client.mjs';
@@ -1337,8 +1338,12 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
         Math.hypot(playerPos.x - motion.position.x, playerPos.z - motion.position.z) < NPC_CONVERSATION_RELEASE_RADIUS;
       const pilotFacing = visual.pilotFacingUntil > performance.now() && Math.hypot(playerPos.x - motion.position.x, playerPos.z - motion.position.z) < NPC_NAMEPLATE_RADIUS;
       const observing = observedFrame?.members.includes(actor.id);
+      const activityHeading = actor.id === 'INKYUNG-NPC-009' &&
+        actor.location === 'c04.inkyung_photo_point.INKYUNG-NPC-009'
+        ? purposefulPhotoHeading(purposefulActivity, { position: motion.position,
+          target: INKYUNG_PHOTO_POINT.lookAt, heading: motion.heading }) : motion.heading;
       const facing = sitting ? visual.seat.yaw : moving ? motion.heading : motion.sharedMeeting && activeConversation?.id !== actor.id ? motion.heading : observing ? visual.avatar.getLocalEulerAngles().y : nearSelected || pilotFacing
-        ? Math.atan2(playerPos.x - motion.position.x, playerPos.z - motion.position.z) * 180 / Math.PI : motion.heading;
+        ? Math.atan2(playerPos.x - motion.position.x, playerPos.z - motion.position.z) * 180 / Math.PI : activityHeading;
       visual.avatar.setLocalEulerAngles(0, facing, 0);
     }
     const socialMotionState = socialMotion.tick(running ? dt : 0, activeConversation?.id);

@@ -96,7 +96,7 @@ export async function checkCampusLifeDiversity(smoke, outputDir) {
   } finally { await living.close(); }
   assert.deepEqual(smoke.problems,[]);
   if(outputDir) await writeFile(outputDir+'/receipt.json',JSON.stringify(receipts,null,2)+'\n');
-  console.log('Campus life diversity browser PASS',JSON.stringify(receipts.map(({labels,...r})=>({...r,labelCount:labels.length}))));
+  console.log('Campus life diversity browser PASS',JSON.stringify(receipts.map(({labels,...r})=>({...r,labelCount:labels?.length ?? null}))));
 }
 
 if(process.argv[1] && import.meta.url===pathToFileURL(process.argv[1]).href) {

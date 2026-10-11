@@ -160,12 +160,9 @@ export function createCharacter(app, player, { assetShadow = null, assetCanary =
     if (lastReadability !== null && Math.abs(night - lastReadability) < .005) return;
     lastReadability = night;
     privateFill?.update(night);
-    for (const material of readabilityMaterials.values()) {
-      // A small palette floor keeps ink dark; private lights provide normal-based form.
-      material.emissiveIntensity = .045 + night * .025;
-      material.diffuse.set(1 - night * .15, 1 - night * .15, 1 - night * .15);
-      material.update();
-    }
+    // Readability comes from normal-based, Annyongi-only fill lights. Never
+    // replace authored albedo/emission: v13 uses material colors on most meshes,
+    // while older assets use vertex colors. Both palettes must remain intact.
   }
   let disposed = false;
   const knownInstances = new WeakSet();
@@ -355,10 +352,9 @@ export function createCharacter(app, player, { assetShadow = null, assetCanary =
         if (instance.morphInstance && ['Tail', 'TailCloud'].includes(instance.node.name)) tailMorphs.push(instance.morphInstance);
         const source = instance.material;
         if (!readabilityMaterials.has(source)) {
-          const clone = source.clone();
-          clone.emissive.set(1, 1, 1);
-          clone.emissiveMapVertexColor = true;
-          readabilityMaterials.set(source, clone);
+          // Keep every authored PBR/alpha/texture/vertex-color property. An
+          // instance owns its clone, but lighting changes never rewrite it.
+          readabilityMaterials.set(source, source.clone());
         }
         instance.material = readabilityMaterials.get(source);
         instance.mask |= ANNYONGI_LIGHT_MASK;

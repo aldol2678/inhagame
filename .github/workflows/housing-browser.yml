@@ -2,6 +2,7 @@ name: Housing browser QA
 on:
   pull_request:
     paths:
+      - 'apps/world/src/phone/smartphone.js'
       - 'apps/world/src/rooms/**'
       - 'apps/world/src/collection/item-catalog.js'
       - 'apps/world/tests/furniture-*.test.mjs'
@@ -48,6 +49,7 @@ jobs:
       - name: Verify room lifecycle and real chair container parsing
         run: |
           node apps/world/tests/browser/personal-room-v2-null-smoke.mjs
+          node apps/world/tests/browser/personal-room-environment-null-smoke.mjs
           node apps/world/tests/browser/personal-room-chair-container-null-smoke.mjs
       - name: Exercise room loaded assets and intentional loader fallback
         env:

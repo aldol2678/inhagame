@@ -131,7 +131,7 @@ async function checkRoomHud(page, label) {
     for (const other of ["topbar", "menu", "minimap", "context"])
       assert.ok(!overlap(boxes.hud, boxes[other]), `${label} ${role}: HUD overlaps ${other} ${JSON.stringify(boxes)}`);
     for (const b of boxes.buttons) assert.ok(b.height >= 36, `${label} ${role}: ${b.text} tap target ${b.height}px`);
-    assert.deepEqual(boxes.buttons.map((b) => b.text), role === "owner" ? ["👥 친구 공개", "꾸미기", "나가기"] : ["나가기"]);
+    assert.deepEqual(boxes.buttons.map((b) => b.text), role === "owner" ? ["👥 친구 공개", "꾸미기", "방의 한 장면", "나가기"] : ["나가기"]);
     out[role] = { hud: boxes.hud, buttons: boxes.buttons.length };
     if (role === "owner") {
       // Housing H3: the owner's knock prompt is the owner Room HUD footer; the HUD stays clear of the rails.

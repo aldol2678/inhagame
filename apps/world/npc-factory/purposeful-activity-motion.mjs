@@ -60,3 +60,12 @@ export function purposefulActivityPose(activity, {
       ]);
   }
 }
+
+// Render-only: the shared route keeps its canonical heading and position.
+// Human avatars face local +Z; this yaw aims a stationary photo pose at its scene.
+export function purposefulPhotoHeading(activity, { position, target, heading } = {}) {
+  if (activity !== 'PHOTO' || ![position?.x, position?.z, target?.x, target?.z].every(Number.isFinite))
+    return heading;
+  const dx = target.x - position.x, dz = target.z - position.z;
+  return Math.hypot(dx, dz) > 1e-6 ? Math.atan2(dx, dz) * 180 / Math.PI : heading;
+}

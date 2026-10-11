@@ -5,6 +5,10 @@ import { mergeCampusPopulation } from '../npc-factory/npc-campus-expansion.mjs';
 import { applyCampusLifeSchedule } from '../npc-factory/npc-campus-life-policy.mjs';
 import { createPurposefulRoster } from '../npc-factory/purposeful-roster.mjs';
 import { createNpcNavigator } from '../npc-factory/dev-navigation.mjs';
+import { purposefulPhotoHeading } from '../npc-factory/purposeful-activity-motion.mjs';
+import { INKYUNG_PHOTO_POINT } from '../src/photo/inkyung-photo-point.js';
+import { bindSharedSchedule } from '../npc-factory/npc-shared-schedule.mjs';
+import { NPC_WORLD_EPOCH_MS as E, NPC_WORLD_PERIOD_MS as P } from '../npc-factory/npc-world-time-contract.mjs';
 import { SEAT_ANCHORS, findSeat } from '../src/seat-anchors.js';
 
 const read = path => JSON.parse(readFileSync(new URL('../npc-factory/data/' + path, import.meta.url)));
@@ -66,4 +70,23 @@ test('C04 seated NPC arrives at an existing physical tree bench', () => {
   assert.ok(path?.length, 'bench must be reachable from the previous scheduled destination');
   assert.equal(findSeat(approach, { range: 2 })?.id, seat.id,
     'NPC should visibly sit on the actual seat instead of a symbolic bench point');
+});
+
+test('C04 photograph faces the pond without mutating shared schedule movement', () => {
+  const navigator = createNpcNavigator(expanded);
+  const roster = bindSharedSchedule(createPurposefulRoster(expanded, navigator), navigator, () => E + 2*P + 799000);
+  const controller = roster.get('INKYUNG-NPC-009').controller;
+  const before = controller.status();
+  const position = Object.freeze({ ...before.position });
+  const target = INKYUNG_PHOTO_POINT.lookAt;
+  const heading = purposefulPhotoHeading(before.activity, { position, target, heading: before.heading });
+  const radians = heading * Math.PI / 180;
+  const dx = target.x-position.x, dz = target.z-position.z;
+  const alignment = (Math.sin(radians)*dx + Math.cos(radians)*dz) / Math.hypot(dx,dz);
+  assert.ok(alignment > .999999, 'rendered human +Z faces the lake, not its last route segment');
+  assert.deepEqual(controller.status(), before, 'render-only direction cannot mutate shared authority');
+  for (const activity of ['RESTING', 'PHONE', 'READING', null])
+    assert.equal(purposefulPhotoHeading(activity, { position, target, heading: 37 }), 37);
+  assert.equal(purposefulPhotoHeading('PHOTO', { position, target: position, heading: 37 }), 37);
+  assert.equal(purposefulPhotoHeading('PHOTO', { position, target: { x: NaN, z: 0 }, heading: 37 }), 37);
 });

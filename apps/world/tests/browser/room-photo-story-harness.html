@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Room photo story · offline integration fixture</title>
+  <link rel="stylesheet" href="../../styles.css">
+  <link rel="stylesheet" href="../../phone.css">
+  <style>
+    #application { position: fixed; inset: 0; width: 100%; height: 100%; }
+    #qa-note { position: fixed; left: 12px; bottom: 12px; z-index: 60; max-width: min(420px, calc(100vw - 24px));
+      padding: 8px; border-radius: 8px; background: #102a3bea; color: white; font: 12px/1.5 system-ui; pointer-events: none; }
+    #room-hud { position: fixed; top: 12px; left: 12px; z-index: 61; }
+    #qa-controls { position: fixed; right: 12px; bottom: 64px; z-index: 61; display: grid; gap: 8px; }
+    #qa-controls button { min-height: 44px; }
+  </style>
+</head>
+<body>
+  <canvas id="application" tabindex="-1" aria-label="합성 오프라인 방"></canvas>
+  <aside id="room-hud" class="room-hud"></aside>
+  <aside id="qa-note">실제 방 안내·가구 편집·사진·기기 내 앨범 / 합성 2D 배경·계정·RPC<br>서버 저장·로그인·자동 업로드 없음</aside>
+  <div id="qa-controls">
+    <button id="qa-light" type="button">QA: 조명 앞으로 이동</button>
+    <button id="qa-curtain" type="button">QA: 커튼 앞으로 이동</button>
+    <button id="qa-action" type="button" hidden></button>
+    <button id="phone-toggle" type="button">스마트폰</button>
+  </div>
+  <script type="module" src="./room-photo-story-fixture.mjs"></script>
+</body>
+</html>

@@ -17,9 +17,9 @@ export function createPersonalRoomLighting(root, materials) {
     e.addComponent('light', { type: 'omni', color: new pc.Color(1, .94, .84), intensity: .7, range: 7, castShadows: false });
     e.setLocalPosition(x, H - .25, 0); root.addChild(e); lights.push(e);
   }
-  // A shallow switch beside the entrance is a visual cue only in the foundation.
+  // Session-local rocker, driven by the room environment controller.
   const z = -PERSONAL_ROOM_BASIC.halfDepth + .021;
   box(root, 'personal_light_switch_plate', [.84, .72, z], [.12, .18, .027], materials.get('switchPlate'));
-  box(root, 'personal_light_switch_inset', [.84, .72, z + .016], [.063, .11, .012], materials.get('switchInset'));
-  return { lights };
+  const rocker = box(root, 'personal_light_switch_inset', [.84, .72, z + .016], [.063, .11, .012], materials.get('switchInset'));
+  return { lights, setOn(on) { rocker.setLocalEulerAngles(on ? -12 : 12, 0, 0); } };
 }

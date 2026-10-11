@@ -1,0 +1,39 @@
+import assert from 'node:assert/strict';
+export const C04_VIEWPORTS = Object.freeze({
+  desktop: { width: 1280, height: 800, mobile: false },
+  portrait: { width: 390, height: 844, mobile: true },
+  landscape: { width: 844, height: 390, mobile: true }
+});
+export function assertC04Hosted(env) {
+  assert.equal(env.GITHUB_ACTIONS, 'true', 'C04 pixels require the approved hosted runner');
+  assert.equal(env.RUNNER_ENVIRONMENT, 'github-hosted');
+  assert.equal(env.GITHUB_EVENT_NAME, 'pull_request');
+  assert.match(env.EXPECTED_C04_HEAD || '', /^[0-9a-f]{40}$/);
+  assert.ok(Object.hasOwn(C04_VIEWPORTS, env.C04_VIEWPORT));
+  assert.equal(env.WORLD_SMOKE_DISABLE_WEBGPU, '1');
+  assert.equal(env.WORLD_SMOKE_BROWSER, 'chrome');
+}
+export const angleError = (a,b) => Math.abs(((a-b+540)%360)-180);
+export function assertC04Frame(frame, { id, phase }) {
+  assert.equal(frame.actor.id,id);
+  assert.equal(frame.actor.phase, phase);
+  assert.equal(frame.actor.visible,true);
+  assert.equal(frame.render.enabled,true);
+  assert.ok(frame.renderedFrames>=3,'at least three real postrender events');
+  assert.equal(frame.clock.state,'SYNCED');
+  assert.equal(frame.count,46);
+  assert.ok(frame.screen.x>=0 && frame.screen.x<=frame.viewport.width && frame.screen.y>=0 && frame.screen.y<=frame.viewport.height,'NPC is in the captured viewport');
+  if(phase==='MOVING') {
+    assert.equal(frame.actor.moving,true);
+    assert.ok(Math.hypot(frame.render.position.x-frame.actor.position.x,frame.render.position.z-frame.actor.position.z)<.02,'moving renderer follows actual shared position');
+  } else if(id==='INKYUNG-NPC-009') {
+    assert.equal(frame.actor.activity,'PHOTO');
+    assert.ok(angleError(frame.render.heading,frame.photoTargetYaw)<1,'photographer actually renders toward the pond');
+    assert.equal(frame.photoPropVisible,true,'actual photo prop is loaded and visible');
+  } else {
+    assert.equal(frame.actor.activity,'RESTING');
+    assert.ok(Math.hypot(frame.render.position.x-frame.seat.position.x,frame.render.position.z-frame.seat.position.z)<.02,'rendered body uses the physical seat');
+    assert.ok(Math.abs(frame.render.seatAnchorY-frame.seatTopY)<.02,'human seat anchor meets the rendered slab');
+    assert.ok(angleError(frame.render.heading,frame.seat.yaw)<1,'seated model faces outward');
+  }
+}
