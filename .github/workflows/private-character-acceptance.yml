@@ -58,18 +58,18 @@ jobs:
       - name: Install Chromium
         working-directory: apps/world/tests/browser
         run: npx playwright install --with-deps chromium
-      - name: Representative facial cause diagnostic
-        timeout-minutes: 10
+      - name: Full facial contrast and measured-continuity regression
+        timeout-minutes: 25
         env:
           WORLD_SMOKE_DISABLE_WEBGPU: '1'
-          ANNYONGI_FACE_PROFILE: triage
+          ANNYONGI_FACE_PROFILE: acceptance
           CHARACTER_SMOKE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: node apps/world/tests/browser/annyongi-face-diagnostic.mjs
       - name: Upload early facial metadata only
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: private-face-triage-${{ github.event.pull_request.head.sha || github.sha }}
+          name: private-face-acceptance-${{ github.event.pull_request.head.sha || github.sha }}
           path: |
             test-results/annyongi/face-diagnostic.json
             test-results/annyongi/face-source-geometry.json
