@@ -7,6 +7,7 @@ import { resolve } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { startSmoke, TIMEOUT_MS } from './harness.mjs';
+import { saveGraphicsFailureArtifacts, closeGraphicsSmokeAfterSave, withGraphicsDeadline } from './graphics-failure-artifact.mjs';
 import { NPC_WORLD_EPOCH_MS } from '../../npc-factory/npc-world-time-contract.mjs';
 
 const output = resolve(process.env.WORLD_GRAPHICS_QA_OUTPUT || 'graphics-parallel-artifacts');
@@ -156,8 +157,12 @@ async function clockAt(minute) {
   return page.evaluate(() => window.__INHAGAME_ENVIRONMENT__.status());
 }
 async function renderedSample() {
-  return page.evaluate(() => new Promise(resolve => {
+  return withGraphicsDeadline(() => page.evaluate(() => new Promise(resolve => {
     const app = window.__INHAGAME_P0__.app;
+    const state = () => ({ visibility: document.visibilityState,
+      contextLost: app.graphicsDevice?.contextLost === true,
+      autoRender: app.autoRender, renderNextFrame: app.renderNextFrame });
+    const startState = state();
     const intervals = []; let previous = null, updates = 0, renders = 0;
     const start = performance.now();
     const update = () => { updates++; };
@@ -167,15 +172,15 @@ async function renderedSample() {
     setTimeout(() => { app.off('update', update); app.off('postrender', render);
       const elapsedMs = performance.now() - start;
       const sorted = [...intervals].sort((a,b) => a-b);
-      resolve({ updates, renders, elapsedMs, renderedFps: renders * 1000 / elapsedMs,
+      resolve({ startState, endState: state(), updates, renders, elapsedMs, renderedFps: renders * 1000 / elapsedMs,
         intervals, p50Ms: sorted[Math.floor(sorted.length * .5)] ?? null,
         p95Ms: sorted[Math.min(sorted.length-1, Math.ceil(sorted.length * .95)-1)] ?? null });
     }, 2500);
-  }));
+  })), TIMEOUT_MS, 'rendered frame sample');
 }
 try {
   if (process.env.EXPECTED_GRAPHICS_HEAD) assert.equal(receipt.exactHead, process.env.EXPECTED_GRAPHICS_HEAD, 'exact PR head');
-  smoke = await startSmoke({ viewport: { width: 1280, height: 720 } });
+  smoke = await startSmoke({ viewport: { width: 1280, height: 720 }, startupTimeoutMs: TIMEOUT_MS });
   const main = await readFile(new URL('../../src/main.js', import.meta.url), 'utf8');
   const needle = 'const worldClock = previewHost ? null : createNpcWorldClock();';
   assert.equal(main.split(needle).length, 2, 'test-only clock seam must match exactly once');
@@ -221,10 +226,10 @@ try {
   await page.locator('#close-settings').click();
   await verifyMovementRestored('after-detail-controls');
   const pacing = await renderedSample();
+  receipt.checks.framePacing = pacing;
   assert.ok(pacing.renders > 2, 'need actual rendered frames');
   assert.ok(pacing.updates >= pacing.renders, 'pacing must not stop simulation updates');
   assert.ok(pacing.renderedFps <= 34, '30 FPS ceiling with scheduling tolerance');
-  receipt.checks.framePacing = pacing;
 
   // Test actual persisted UI details, then clear only this disposable context's graphics settings.
   await page.reload({ waitUntil: 'domcontentloaded', timeout: TIMEOUT_MS });
@@ -296,11 +301,26 @@ try {
   receipt.status = 'PASS';
 } catch (error) {
   receipt.status = 'FAIL'; receipt.error = error.stack || String(error);
-  if (page) { try { await shot('failure'); } catch (captureError) { receipt.captureError = String(captureError); } }
+  if (error.code) receipt.errorCode = error.code;
+  if (error.startupCleanup) receipt.startupCleanup = error.startupCleanup;
+  receipt.problems = [...(smoke?.problems ?? [])];
+  await saveGraphicsFailureArtifacts(page, output, receipt);
   throw error;
 } finally {
-  receipt.problems = [...(smoke?.problems ?? [])];
-  await writeFile(`${output}/report.json`, JSON.stringify(receipt, null, 2));
-  await smoke?.close();
+  const passed = receipt.status === 'PASS';
+  await closeGraphicsSmokeAfterSave(smoke, async cleanup => {
+    if (cleanup) {
+      receipt.cleanup = cleanup;
+      if (cleanup.close !== 'complete') {
+        receipt.status = 'FAIL';
+        receipt.error ??= `graphics smoke cleanup ${cleanup.close}`;
+      }
+    }
+    receipt.problems = [...(smoke?.problems ?? [])];
+    await writeFile(`${output}/report.json`, JSON.stringify(receipt, null, 2));
+  });
+  // Startup still owns any late protocol handles; never wait on them after saving.
+  if (!smoke && (receipt.errorCode === 'SMOKE_STARTUP_TIMEOUT' || ['failed', 'timeout'].includes(receipt.startupCleanup))) process.exit(1);
+  if (passed && receipt.status === 'FAIL') throw new Error(receipt.error);
 }
 console.log(`graphics parallel smoke: PASS (${output})`);

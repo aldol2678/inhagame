@@ -45,7 +45,10 @@ test('the rig reuses the gameplay camera collision authority and the existing ex
 test('photo export uses the existing app canvas and the panel owns its capture lifecycle', async () => {
   const capture = await readFile(new URL('../src/photo/photo-capture.js', import.meta.url), 'utf8');
   const panel = await readFile(new URL('../src/photo/photo-mode-panel.js', import.meta.url), 'utf8');
-  assert.match(main, /capture: createPhotoCapture\(\{ app, canvas, mode: photoMode \}\)/);
+  assert.match(main, /const photoCapture = createPhotoCapture\(\{ app, canvas, mode: photoMode, diagnostics: photoDiagnosticsEnabled \}\)/);
+  assert.match(main, /capture: photoCapture/);
+  assert.match(main, /const photoDiagnosticsEnabled = previewHost && startupParams.get\('photoDiagnostics'\) === '1';/);
+  assert.match(main, /\.\.\.\(photoDiagnosticsEnabled \? \{ getPhotoCaptureDiagnostics: \(\) => photoCapture\.diagnostics\(\) \} : \{\}\)/);
   assert.match(capture, /app\.on\('frameend', job\.frame\)/);
   assert.doesNotMatch(capture, /preserveDrawingBuffer|new pc\.|app\.render\(|fetch\(|localStorage|sessionStorage/);
   assert.match(panel, /capture\?\.destroy\(\)/);
