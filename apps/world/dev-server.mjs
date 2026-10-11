@@ -1,3 +1,4 @@
+import { createConfiguredIncomeCandidateHandler } from './server/income-candidate-http.mjs';
 import http from "node:http";
 import { worldTimePayload } from './npc-factory/npc-world-time-contract.mjs';
 import fs from "node:fs";
@@ -12,6 +13,7 @@ import { convertFbxBuffer } from './model-converter/convert-model.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 8080;
+const incomeCandidateHandler = createConfiguredIncomeCandidateHandler();
 const npcAiPilot = process.env.NPC_AI_PILOT === '1'
   ? createNpcAiPilot({ generate: createVertexNpcGenerator({ project: process.env.NPC_AI_PROJECT }) })
   : null;
@@ -31,6 +33,10 @@ const MIME_TYPES = {
 
 const server = http.createServer((req, res) => {
   let reqPath = decodeURIComponent(req.url.split("?")[0]);
+  if (reqPath === '/api/world-income-candidate') {
+    void incomeCandidateHandler(req, res);
+    return;
+  }
   if (reqPath === '/api/world-time') {
     res.writeHead(req.method === 'GET' ? 200 : 405, {
       'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'Allow': 'GET'

@@ -1,3 +1,4 @@
+import { incomeLocalEntityPosition } from '../src/income/income-scene-geometry.mjs';
 import * as pc from 'playcanvas';
 import { WALK_SHAPE } from '../src/player-dimensions.js';
 import { studentCenterVendor, applyStudentVendorPlacement } from '../src/shop/student-center-vendors.js';
@@ -168,6 +169,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
   externalContextAction = false, aiEndpoint = '/npc-ai/decide', getAiSession = async () => null,
   questEnabled = false, questEndpoint = '/npc-quest',
   sideEvent = null,
+  incomeCandidateChoice = () => null,
   onQuestReward = () => {},
   onQuestStateChange = () => {},
   tmlShadowEnabled = false,
@@ -646,6 +648,13 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
     const actions = npcDialogueHomeActions({
       hasPriority: dialoguePriorityAvailable(actor.id),
       hasMemory: hasNpcDialogueMemory(remembered)
+    });
+    // Optional explicit authored candidate; existing main quest/event choices remain first.
+    const incomeChoice = !dialoguePriorityAvailable(actor.id) ? incomeCandidateChoice(actor.id) : null;
+    if (incomeChoice) addDialogueChoice(incomeChoice.label, () => {
+      if (activeConversation?.id !== actor.id || dialoguePriorityAvailable(actor.id)) return;
+      closeConversation();
+      incomeChoice.trigger();
     });
     for (const action of actions) {
       if (action === NPC_DIALOGUE_ACTION.QUEST) {
@@ -1423,6 +1432,15 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
     },
     getContextAction,
     isStudentVendorReady,
+    // Display-only current rendered position; never a server player-position proof.
+    getIncomeCandidateGiverView: () => {
+      const visual = avatars.get('INKYUNG-NPC-013');
+      if (isSimulationHeld() || !visual?.avatar.enabled || !visual.motion.position) return null;
+      const position = incomeLocalEntityPosition(visual.avatar);
+      if (!position) return null;
+      return { id: 'INKYUNG-NPC-013', visible: true,
+        position: { x: position.x, y: position.y, z: position.z } };
+    },
     // Cheap readback for the lobby; getStatus() below walks every NPC.
     getQuestStatus: () => ({ quest: quest.status(), main2Quest: main2Quest.status() }),
     getQuestMapObjective: legacyProgressId =>

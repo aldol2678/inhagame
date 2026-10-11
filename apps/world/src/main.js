@@ -829,6 +829,7 @@ window.addEventListener("pagehide", event => {
   if (!event.persisted) cinematic.destroy();
 });
 let npcTest = null;
+let incomeGameCandidate = null;
 // Lobby readers only need the quest slice; the full getStatus() snapshot walks every NPC.
 const npcQuestStatus = () => npcTest?.getQuestStatus?.() ?? npcTest?.getStatus?.() ?? null;
 const questRuntime = createQuestRuntime();
@@ -3201,6 +3202,7 @@ async function loadOptionalNpcRuntime() {
       questEnabled: npcQuestEnabled,
       questEndpoint: npcTestMode ? '/npc-quest' : '/api/world-quest',
       sideEvent: inkyungSideEvent,
+      incomeCandidateChoice: id => incomeGameCandidate?.incomeChoice(id) ?? null,
       // P9: TML observes accepted Main 2 server results and existing Wallet/Progression readbacks only.
       // It sends no request, owns no write and cannot block the legacy quest path.
       tmlShadowEnabled: true,
@@ -3312,6 +3314,29 @@ let lobbySummaryElapsed = LOBBY_SUMMARY_INTERVAL_S;
 // The lobby camera and player are static, so the map/zone/HUD readbacks only need to settle once
 // per lobby position instead of every frame. Reset outside the lobby so re-entry settles again.
 let lobbyHudSettledKey = null;
+// Normal game discovery is informational/CLOSED. Paid operations have no player route here.
+{
+  const candidateInput = createInputFocusOwner({ manager: inputFocus, ownerId: 'income-scene-candidate', policy: INPUT_FOCUS_POLICY.BLOCKING_UI });
+  Promise.all([import('./income/income-game-entry.mjs'), import('../npc-factory/dev-human-avatar.mjs')]).then(([{ createIncomeGameEntry, bindIncomeGameLifecycle }, { createHumanAvatar }]) => {
+    incomeGameCandidate = createIncomeGameEntry({ campusRoot, contextActions, createAvatar: createHumanAvatar,
+      getLocalAuthHost: () => globalThis.INCOME_CANDIDATE_LOCAL_AUTH ?? null,
+      acquireInput: () => { candidateInput.acquire(); return () => candidateInput.release(); },
+      readScene: ({ ownsInput = false } = {}) => ({
+        accountId: online?.userId ?? null,
+        sceneId: biryongRealm?.inBiryong || rooms.insideRoom ? 'other' : 'campus',
+        position: player.getLocalPosition(), npc: npcTest?.getIncomeCandidateGiverView?.(),
+        mounted: controller.mounted, seated: seats.isSeated, inside: rooms.insideRoom,
+        conversationOpen: npcTest?.isConversationOpen?.() === true,
+        mainQuestPending: Boolean(npcTest?.getContextAction?.()?.id === 'main2-guide-talk'),
+        blocked: combatRuntime.active || rooms.status().busy || biryongRealm?.busy || lobbyWorld.active || lobbyTransition.active ||
+          (!inputFocus.can('WORLD_ACTION') && inputFocus.snapshot().topOwners.some(owner =>
+            !(ownsInput && owner === 'income-scene-candidate') &&
+            !(npcTest?.isConversationOpen?.() && owner === 'npc-dialogue')))
+      })
+    });
+    bindIncomeGameLifecycle({ navigation: window, getRuntime: () => incomeGameCandidate });
+  }).catch(error => console.warn('Income local candidate unavailable:', error.message));
+}
 app.on("update", (dt) => {
   syncAudio();
   photoMode.update();
@@ -3323,9 +3348,11 @@ app.on("update", (dt) => {
   // Only render the camera while a room/region transaction owns the coordinate frame.
   // Campus observers, resume writes and local motion must not consume an intermediate pose.
   if (rooms.status().busy || biryongRealm?.busy) {
+    incomeGameCandidate?.suspend();
     orbit.apply(player.getLocalPosition(), character.eyeHeight);
     return;
   }
+  incomeGameCandidate?.update();
   roomSession?.update(dt);
   if (rooms.currentSpace === "ROOM_PERSONAL_BASIC") {
     furnitureRefreshSeconds += dt;
