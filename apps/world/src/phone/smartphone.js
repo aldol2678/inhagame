@@ -1,5 +1,7 @@
 import { createPhoneShell, PHONE_STATE } from './phone-shell.js';
 import { createStudentId } from './student-id.js';
+import { createAlbumManager } from './phone-album-manager.js';
+import { formatPhotoBytes } from './phone-album-export.js';
 import { createPhoneAlbum } from './phone-album.js';
 import { createPhonePreferences } from './phone-preferences.js';
 import { createPhoneSurface, createPhoneMapHistory } from './phone-surfaces.js';
@@ -27,6 +29,7 @@ export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, g
   const warn = text => {warning=text;say(text);onWarning(text);};
   const storage = () => {try {return win.localStorage;} catch {return null;}};
   const album=createPhoneAlbum({onError:warn});
+  const albumManager=createAlbumManager({album,doc,win,el,btn});
   const preferences=createPhonePreferences({getStorage:storage,getScope:()=>album.scope,onError:warn});
   const history=createPhoneMapHistory({getStorage:storage,getScope:()=>album.scope,onError:warn});
   const mapSurface=createPhoneSurface(mapElement), settingsSurface=createPhoneSurface(settingsElement);
@@ -128,10 +131,13 @@ export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, g
     content.append(el('p','smartphone-hint','사진은 이 브라우저·계정에 저장돼요. 다른 기기와 동기화되지 않아요.'));
     try {
       const records=await album.list();if(at!==uiEpoch||destroyed)return;
+      if(params.storage){await albumManager.mount(content,{storage:true});return;}
       if(params.photoId){
         const record=records.find(x=>x.id===params.photoId);if(!record){content.append(el('p','','이 사진을 찾을 수 없어요.'));return;}
         const image=el('img','smartphone-photo');image.alt=record.locationName;content.append(image);
         const blob=await album.image(record.id);if(at!==uiEpoch||destroyed)return;if(blob)attachImage(image,blob);
+        const sizes=await album.sizes(record.id);if(at!==uiEpoch||destroyed)return;
+        content.append(el('p','',`원본 ${formatPhotoBytes(sizes.originalBytes)} · 썸네일 ${formatPhotoBytes(sizes.thumbnailBytes)}`));
         content.append(el('h3','',record.locationName),el('p','',new Date(record.capturedAtReal).toLocaleString('ko-KR')),
           el('p','',record.position?`월드 위치 ${record.position.x.toFixed(1)}, ${record.position.z.toFixed(1)}`:'촬영 위치 기록 없음'));
         if(record.weatherId)content.append(el('p','',`날씨 · ${record.weatherId}`));
@@ -144,6 +150,8 @@ export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, g
           shell.back();
         });confirm.hidden=true;content.append(btn('사진 삭제',()=>{confirm.hidden=false;}),confirm);return;
       }
+      const manager=await albumManager.mount(content,{openStorage:()=>launch('album',{storage:true})});
+      if(at!==uiEpoch||destroyed)return;
       const filters=el('div','smartphone-actions');for(const [id,label] of [['all','전체'],['recent','최근'],['favorites','즐겨찾기'],['places','장소별']]){
         const button=btn(label,()=>{photoFilter=id;render(true);});button.setAttribute('aria-pressed',String(photoFilter===id));filters.append(button);
       }content.append(filters);
@@ -158,7 +166,8 @@ export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, g
       const grid=el('div','smartphone-album-grid');content.append(grid);
       // Thumbnails only in the grid. Original blobs are opened solely in Viewer/wallpaper.
       for(const record of visible){
-        const button=btn('',()=>launch('album',{photoId:record.id}),`${record.locationName} 사진 열기`),image=el('img');image.alt=record.locationName;image.loading='lazy';button.append(image,el('span','',`${record.favorite?'★ ':''}${record.locationName}`));grid.append(button);
+        const button=btn('',()=>{if(!manager?.pick(record.id))launch('album',{photoId:record.id});},`${record.locationName} 사진 열기`),image=el('img');image.alt=record.locationName;image.loading='lazy';button.append(image,el('span','',`${record.favorite?'★ ':''}${record.locationName}`));grid.append(button);manager?.bind(record.id,button);
+        if(manager)button.append(el('small','',`원본 ${formatPhotoBytes(manager.byId.get(record.id)?.originalBytes)}`));
         const blob=await album.image(record.id,'thumbnail');if(at!==uiEpoch||destroyed)return;if(blob)attachImage(image,blob);
       }
     } catch(error){if(at===uiEpoch&&error.name!=='AbortError'){content.append(el('p','','앨범을 불러오지 못했어요.'),btn('다시 시도',()=>render(true)));}}
@@ -196,7 +205,7 @@ export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, g
     worldVisibility(shell.ownsInput);if(!shell.ownsInput){preferences.save();if(s.state==='CLOSED'&&inputFocus.can('WORLD_ACTION')){
       const focus=savedFocus?.isConnected&&savedFocus.getClientRects().length?savedFocus:toggle;focus?.focus?.({preventScroll:true});savedFocus=null;
     }}
-    if(!force&&route===lastRoute)return;const routeChanged=route!==lastRoute;lastRoute=route;uiEpoch++;revokeImages();content.replaceChildren();if(routeChanged)content.scrollTop=0;say(warning);void setWallpaper();
+    if(!force&&route===lastRoute)return;const routeChanged=route!==lastRoute;lastRoute=route;uiEpoch++;albumManager.leave();revokeImages();content.replaceChildren();if(routeChanged)content.scrollTop=0;say(warning);void setWallpaper();
     if(s.state==='HOME'||s.state==='HOME_EDIT')renderHome();
     else if(s.state==='APP'){
       const app=s.current;title.textContent=registry.find(x=>x.id===app.appId)?.name||'스마트폰';
@@ -257,7 +266,7 @@ export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, g
   doc.addEventListener('click',legacyProfile,true);
   const clockTimer=win.setInterval(()=>{const n=content.querySelector('.smartphone-clock');if(n)n.textContent=getClock()||new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'});},1000);
   return Object.freeze({root,album,shell,registry,open,close:()=>shell.close(),launch,
-    setAccount(userId){shell.close();student.invalidate();album.setScope(userId);warning='';preferences.load();history.load();wallpaperKey='';void setWallpaper();},
+    setAccount(userId){albumManager.reset();shell.close();student.invalidate();album.setScope(userId);warning='';preferences.load();history.load();wallpaperKey='';void setWallpaper();},
     capture:async(result,context)=>album.save(result,context),
     captureContext:()=>({...getCaptureContext(),scope:album.scope,capturedAtReal:new Date().toISOString()}),
     async latestPhoto(){const records=await album.list(),record=records[0];return record?{record,blob:await album.image(record.id,'thumbnail')}:null;},
@@ -267,7 +276,7 @@ export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, g
     navigationStarted(destination){if(shell.snapshot().current?.appId!=='maps')return;history.remember(destination,getMap()?.status().mapSourceId);shell.close();},
     refresh(){if(shell.snapshot().current?.appId==='student-id')render(true);},
     status:()=>({...shell.snapshot(),scope:album.scope,preferences:preferences.snapshot(),albumError:album.error}),
-    destroy(){shell.close();destroyed=true;clearHold();win.clearInterval(clockTimer);shell.destroy();album.destroy();unsubscribePhoto();
+    destroy(){albumManager.reset();shell.close();destroyed=true;clearHold();win.clearInterval(clockTimer);shell.destroy();album.destroy();unsubscribePhoto();
       toggle?.removeEventListener('click',toggleClick);doc.removeEventListener('keydown',keyboard,true);doc.removeEventListener('click',legacyProfile,true);doc.removeEventListener('visibilitychange',visibility);win.removeEventListener('pagehide',pagehide);
       revokeImages();if(wallpaperUrl)win.URL.revokeObjectURL(wallpaperUrl);worldVisibility(false);root.remove();}
   });
