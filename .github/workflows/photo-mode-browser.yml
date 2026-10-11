@@ -2,6 +2,7 @@ name: Photo Mode browser QA
 on:
   pull_request:
     paths:
+      - 'apps/world/src/phone/smartphone.js'
       - 'apps/world/src/photo/**'
       - 'apps/world/src/main.js'
       - 'apps/world/src/world-collision.js'
