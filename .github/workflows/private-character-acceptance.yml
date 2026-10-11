@@ -60,6 +60,7 @@ jobs:
           CHARACTER_SMOKE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           node apps/world/tests/browser/character-model-loading-smoke.mjs
+          node apps/world/tests/browser/annyongi-color-smoke.mjs
           node apps/world/tests/browser/annyongi-capture.mjs
           node apps/world/tests/browser/annyongi-flight-pose-capture.mjs
           node apps/world/tests/browser/annyongi-campus-smoke.mjs
@@ -83,6 +84,7 @@ jobs:
             test-results/character-model/result.json
             test-results/annyongi/private-asset-provenance.json
             test-results/annyongi/result.json
+            test-results/annyongi/color-results.json
             test-results/annyongi/poses/pose-results.json
             test-results/annyongi/campus-results.json
             test-results/character-model-optimized/result.json
