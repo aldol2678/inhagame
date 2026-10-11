@@ -1,6 +1,6 @@
 // Student Center Shop world entry (P0). A pure proximity controller in front of 학생회관: it only
 // publishes a candidate for the shared interaction slot. The World's F key and the mobile
-// #context-action button both run that action's trigger, which opens the existing shop panel.
+// #context-action button both run that action's trigger, which guides to the indoor vendor counters.
 // No DOM, no Shop / Wallet RPC: being near the shop never reads the shop.
 import { studentCenterFrontPoint } from "../student-center-front.js";
 import { metersToWorld } from "../world-scale.js";
@@ -38,6 +38,7 @@ export function createShopWorldInteraction({
   anchor = STUDENT_CENTER_SHOP_ENTRY,
   radius = anchor?.interactionRadius,
   getAvailable = () => false,
+  getMode = () => "split",
   openPanel = () => false,
   priority = STUDENT_CENTER_SHOP_CONTEXT_PRIORITY
 } = {}) {
@@ -68,7 +69,7 @@ export function createShopWorldInteraction({
     return {
       id: "student-center-shop",
       icon: available ? "🛍" : "🔒",
-      label: available ? "학생회관 상점" : "로그인 후 상점",
+      label: !available ? "로그인 후 상점" : getMode() === "legacy" ? "학생회관 상점" : getMode() === "split" ? "학생회관 판매대 안내" : "상점 정보 확인",
       shortcut: "F",
       priority,
       distance,

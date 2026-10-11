@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NPC shop routing · synthetic backend fixture</title><link rel="stylesheet" href="../../styles.css">
+<style>body{background:#102334;color:#eef8ff;font:16px sans-serif}.shop-panel{top:150px;transform:translateX(-50%)}</style></head>
+<body><p>Real interaction/router/panel modules. Synthetic accounts and RPC only.</p>
+<button id="vendor-0">나수현 · 기념품</button><button id="vendor-1">가지안 · 패션</button><button id="dorm">생활관 가구점</button>
+<section id="shop" class="profile-panel shop-panel" role="dialog" aria-modal="true" aria-labelledby="shop-panel-title" hidden></section>
+<script type="module">
+import {createShopRouter} from '../../src/shop/shop-router.js';
+import {createShopPanel} from '../../src/shop/shop-panel.js';
+import {SHOP_CAPABILITIES_RPC} from '../../src/shop/shop-capabilities.js';
+import {SHOP_READ_RPC,SHOP_PURCHASE_RPC,SHOP_SCOPED_PURCHASE_RPC} from '../../src/shop/shop-client.js';
+import {STUDENT_CENTER_VENDORS as vendors,createStudentVendorInteraction} from '../../src/shop/student-center-vendors.js';
+import {createDormShopInteraction,DORM_SHOP_ENTRY} from '../../src/shop/dorm-shop-interaction.js';
+import {WALK_SHAPE} from '../../src/player-dimensions.js';
+const ids=[...vendors.map(v=>v.shopId),DORM_SHOP_ENTRY.shopId];
+const names=['학생회관 기념품점','학생회관 패션점','생활관 가구점'];
+const calls=[],pending=[],statuses=[];let keys=0,readbacks=0,walletReads=0,holdRead=null,position=null,available=true,blocked=false,ready=true;
+const offer=id=>({listingId:id+'.listing',itemId:'memorabilia.campus_mug',currencyId:'currency.induck_coin',price:120,quantity:1,requiredLevel:null,purchaseLimit:null,startAt:null,endAt:null,status:'ACTIVE',purchasable:true,unavailableReason:null});
+const snapshot=id=>({shopId:id,displayName:names[ids.indexOf(id)],status:'ACTIVE',playerLevel:3,offers:[offer(id)]});
+const ok=data=>({data,error:null});
+let capability={data:{version:1,purchaseRpc:SHOP_SCOPED_PURCHASE_RPC,catalogLayout:'split'},error:null};
+const client={rpc(name,args){calls.push({name,args});if(name===SHOP_CAPABILITIES_RPC)return Promise.resolve(capability);if(name===SHOP_READ_RPC){if(holdRead===args.p_shop_id){holdRead=null;return new Promise(resolve=>pending.push({kind:'read',args,resolve}));}return Promise.resolve(ok(snapshot(args.p_shop_id)));}if(name===SHOP_SCOPED_PURCHASE_RPC||name===SHOP_PURCHASE_RPC)return new Promise(resolve=>pending.push({kind:'purchase',args,resolve}));throw Error(name);}};
+const shop=createShopRouter({getClient:()=>client,shopIds:ids,createKey:()=>`fixture:${++keys}`});shop.setAccount('fixture-account-a');
+const panel=createShopPanel({panel:document.querySelector('#shop'),shop,onPurchase:()=>{readbacks++;return true;},wallet:{onChange(){},refresh:()=>{walletReads++;}},onStatus:s=>statuses.push(s)});
+const interaction=createStudentVendorInteraction({getAvailable:()=>available,getBlocked:()=>blocked,getPosition:()=>position,getNpcReady:()=>ready,openShop:id=>panel.openShop(id)});
+let dormState={space:DORM_SHOP_ENTRY.space,position:{...DORM_SHOP_ENTRY.position},grounded:true,available:true,blocked:false};
+const dorm=createDormShopInteraction({getState:()=>dormState,openShop:id=>panel.openShop(id)});
+function place(index){const v=vendors[index];position={...v.position,y:v.position.y+WALK_SHAPE.footOffset};return interaction.observe();}
+vendors.forEach((v,i)=>document.querySelector(`#vendor-${i}`).onclick=()=>place(i)?.trigger());
+document.querySelector('#dorm').onclick=()=>dorm.contextAction()?.trigger();
+window.__NPC_SHOPS__={setCapability:r=>{capability=r;},vendors,ids,calls,pending,statuses,shop,panel,interaction,dorm,place,
+counts:()=>({readbacks,walletReads}),setGate(values){({available=available,blocked=blocked,ready=ready}=values);},setPosition:p=>{position=p;},setDorm:s=>{dormState={...dormState,...s};},holdRead:id=>{holdRead=id;},
+finish(kind='purchase',lost=false){const i=pending.findIndex(p=>p.kind===kind);if(i<0)throw Error(`No pending ${kind}`);const p=pending.splice(i,1)[0];p.resolve(lost?{data:null,error:{message:'synthetic transport loss'}}:ok(kind==='read'?snapshot(p.args.p_shop_id):{status:'SUCCESS'}));},
+async account(id){shop.setAccount(id);if(id)await shop.refresh('fixture-account');}};
+</script></body></html>

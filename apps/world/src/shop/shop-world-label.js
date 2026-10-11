@@ -3,10 +3,12 @@
 
 export const SHOP_MARKER_MAX_DISTANCE = 26;
 
-export function shopMarkerCopy({ nearby = false, available = false, coarsePointer = false } = {}) {
+export function shopMarkerCopy({ nearby = false, available = false, coarsePointer = false, mode = "split" } = {}) {
   if (!available) return Object.freeze({ icon: "🔒", title: "학생회관 상점", hint: "로그인 후 이용" });
-  if (nearby) return Object.freeze({ icon: "🛍", title: "학생회관 상점", hint: coarsePointer ? "버튼으로 상점 열기" : "F · 상점 열기" });
-  return Object.freeze({ icon: "🛍", title: "학생회관 상점", hint: "굿즈를 둘러보세요" });
+  if (mode === "legacy") return Object.freeze({ icon: "🛍", title: "학생회관 상점", hint: nearby ? (coarsePointer ? "버튼으로 상점 열기" : "F · 상점 열기") : "굿즈를 둘러보세요" });
+  if (mode !== "split") return Object.freeze({ icon: "🔒", title: "학생회관 상점", hint: "상점 정보 확인" });
+  if (nearby) return Object.freeze({ icon: "🛍", title: "학생회관 상점", hint: coarsePointer ? "버튼으로 판매대 안내" : "F · 판매대 안내" });
+  return Object.freeze({ icon: "🛍", title: "학생회관 상점", hint: "실내 기념품·패션 판매대" });
 }
 
 export function createShopWorldLabel({
@@ -30,7 +32,7 @@ export function createShopWorldLabel({
     return false;
   }
 
-  function update({ visible = true, nearby = false, available = false } = {}) {
+  function update({ visible = true, nearby = false, available = false, mode = "split" } = {}) {
     if (!visible) return hide();
     const point = getWorldPosition();
     if (!point) return hide();
@@ -45,7 +47,7 @@ export function createShopWorldLabel({
       projected.y >= 0 && projected.y <= canvas.clientHeight;
     if (!onScreen) return hide();
 
-    const copy = shopMarkerCopy({ nearby, available, coarsePointer });
+    const copy = shopMarkerCopy({ nearby, available, coarsePointer, mode });
     if (icon) icon.textContent = copy.icon;
     if (title) title.textContent = copy.title;
     if (hint) hint.textContent = copy.hint;

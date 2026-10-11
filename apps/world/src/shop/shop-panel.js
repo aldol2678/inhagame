@@ -21,7 +21,7 @@ const REASON_TEXT = Object.freeze({
 });
 const UNAVAILABLE_NOW = new Set([
   "LISTING_INACTIVE", "LISTING_LOCKED", "LISTING_NOT_STARTED", "LISTING_EXPIRED", "SHOP_INACTIVE",
-  "ITEM_UNAVAILABLE", "INVALID_LISTING", "SHOP_NOT_FOUND"
+  "ITEM_UNAVAILABLE", "INVALID_LISTING", "SHOP_LISTING_MISMATCH", "SHOP_NOT_FOUND"
 ]);
 
 const formatCount = (value) => Number(value).toLocaleString("en-US");
@@ -103,6 +103,7 @@ export function createShopPanel({
   let opener = null;
   let openingRevision = 0;
   let renderedAccount = shop.accountId;
+  let renderedShop = shop.shopId;
   const focusTargets = new Map();
   // Keep successful receipts across panel close/reopen. An Inventory failure is never a purchase
   // failure, and a read retry must not call purchase again. Account changes erase these receipts.
@@ -138,10 +139,13 @@ export function createShopPanel({
     walletNode.dataset.state = line === WALLET_UNAVAILABLE_TEXT ? WALLET_STATE.UNAVAILABLE : wallet?.state ?? "";
   }
 
+  const hasUnresolved = listingId => (shop.unresolvedOffers ?? []).some(offer => offer.listingId === listingId);
+  const capabilityLocked = () => shop.mode === "checking" || shop.mode === "unavailable" || shop.capabilityChecking === true;
   async function buy(listingId) {
     const prior = receipts.get(listingId);
-    if (!open || purchases.has(listingId) || shop.isPending(listingId) || (prior && !confirmed(prior))) return;
+    if ((capabilityLocked() && !hasUnresolved(listingId)) || !open || purchases.has(listingId) || shop.isPending(listingId) || (prior && !confirmed(prior))) return;
     const revision = openingRevision;
+    const purchaseShopId = shop.shopId;
     const account = accountRevision;
     const token = {};
     purchases.set(listingId, token);
@@ -155,7 +159,7 @@ export function createShopPanel({
     // Other read-models re-read the server. A purchase response alone never proves ownership.
     if (result.outcome === "SUCCESS") {
       if (inventory && furnitureOfferDetails(result.offer?.itemId)) {
-        receipt = { itemId: result.offer.itemId, phase: "checking" };
+        receipt = { itemId: result.offer.itemId, shopId: purchaseShopId, phase: "checking" };
         receipts.set(listingId, receipt);
         render();
       }
@@ -211,7 +215,8 @@ export function createShopPanel({
   }
 
   function renderOffer(offer) {
-    const receipt = receipts.get(offer.listingId);
+    const storedReceipt = receipts.get(offer.listingId);
+    const receipt = storedReceipt?.shopId === shop.shopId ? storedReceipt : null;
     const pending = purchases.has(offer.listingId) || shop.isPending(offer.listingId);
     const view = offerView(offer, { pending, describe });
     const card = el("li", `shop-offer shop-offer-${view.state}`);
@@ -232,8 +237,10 @@ export function createShopPanel({
     const button = el("button", "shop-offer-buy", receipt
       ? (receipt.phase === "checking" ? "보유 확인 중…" : confirmed(receipt) ? (pending ? "구매 중…" : "추가 구매") : "구매 완료")
       : view.buttonText);
+    const recovering = hasUnresolved(view.listingId);
+    if (recovering) button.textContent = pending ? "구매 중…" : "이전 구매 결과 확인";
     button.type = "button";
-    button.disabled = view.buttonDisabled || Boolean(receipt && !confirmed(receipt));
+    button.disabled = recovering ? pending : capabilityLocked() || view.buttonDisabled || Boolean(receipt && !confirmed(receipt));
     // Pending/refused controls remain disabled. Their listing is a temporary focus anchor,
     // outside the native Tab order, so a readback can restore the same logical purchase action.
     const focusKey = `listing:${view.listingId}`;
@@ -241,7 +248,7 @@ export function createShopPanel({
     card.dataset.focusKey = focusKey;
     button.dataset.focusKey = focusKey;
     focusTargets.set(focusKey, button.disabled ? card : button);
-    button.setAttribute("aria-label", `${view.name} ${button.disabled ? receipt ? "구매 완료" : view.statusText : receipt ? "추가 구매" : "구매"}`);
+    button.setAttribute("aria-label", `${view.name} ${recovering ? "이전 구매 결과 확인" : button.disabled ? receipt ? "구매 완료" : view.statusText : receipt ? "추가 구매" : "구매"}`);
     button.addEventListener("click", () => { if (!button.disabled && focusTargets.get(focusKey) === button && panel.contains(button)) void buy(view.listingId); });
     foot.append(meta, button);
     card.append(foot);
@@ -251,6 +258,9 @@ export function createShopPanel({
 
   function render() {
     const accountChanged = renderedAccount !== shop.accountId;
+    const shopChanged = renderedShop !== shop.shopId;
+    if (shopChanged) { openingRevision += 1; hint = ""; }
+    renderedShop = shop.shopId;
     if (accountChanged) {
       openingRevision += 1; accountRevision += 1; hint = "";
       receipts.clear(); purchases.clear();
@@ -258,14 +268,14 @@ export function createShopPanel({
     renderedAccount = shop.accountId;
     if (!open) return;
     const hadFocus = panel.contains(doc.activeElement);
-    const focusKey = !accountChanged && hadFocus ? doc.activeElement?.dataset?.focusKey : null;
-    const scrollTop = accountChanged ? 0 : bodyElement?.scrollTop ?? 0;
-    const scrollLeft = accountChanged ? 0 : bodyElement?.scrollLeft ?? 0;
+    const focusKey = !accountChanged && !shopChanged && hadFocus ? doc.activeElement?.dataset?.focusKey : null;
+    const scrollTop = accountChanged || shopChanged ? 0 : bodyElement?.scrollTop ?? 0;
+    const scrollLeft = accountChanged || shopChanged ? 0 : bodyElement?.scrollLeft ?? 0;
     focusTargets.clear();
     const snapshot = shop.state === SHOP_STATE.READY ? shop.snapshot : null;
     const head = el("div", "shop-panel-head");
     const titles = el("div", "shop-panel-titles");
-    const title = el("h2", "", "학생회관 상점");
+    const title = el("h2", "", snapshot?.displayName ?? "상점");
     title.id = "shop-panel-title";
     titles.append(title);
     if (snapshot) titles.append(el("p", "shop-panel-level", `내 레벨 Lv.${snapshot.playerLevel}`));
@@ -280,10 +290,13 @@ export function createShopPanel({
     closeButton.addEventListener("click", () => setOpen(false));
     head.append(titles, closeButton);
 
-    const status = el("p", "shop-hint", hint);
+    const capabilityHint = !shop.accountId ? "" : shop.mode === "unavailable"
+      ? "상점 준비 상태를 확인하지 못했어요. 새 구매는 잠겨 있어요. 닫았다가 다시 열어 주세요."
+      : shop.mode === "checking" || shop.capabilityChecking === true ? "상점 준비 상태를 확인 중이에요. 새 구매는 잠시 기다려 주세요." : "";
+    const status = el("p", "shop-hint", hint || capabilityHint);
     status.setAttribute("role", "status");
     status.setAttribute("aria-live", "polite");
-    status.hidden = !hint;
+    status.hidden = !hint && !capabilityHint;
 
     const body = el("div", "shop-panel-body");
     if (shop.state === SHOP_STATE.SIGNED_OUT) {
@@ -305,8 +318,24 @@ export function createShopPanel({
       list.append(...snapshot.offers.map(renderOffer));
       body.append(list);
     }
+    // A moved/hidden listing must not erase the safe retry for an uncertain purchase.
+    // The client retains its original shop/key; the server either replays or refuses it.
+    for (const offer of shop.unresolvedOffers ?? []) {
+      if (snapshot?.offers.some(candidate => candidate.listingId === offer.listingId)) continue;
+      const box = el("div", "shop-purchased-furniture");
+      box.append(el("p", "shop-furniture-note", `${describe(offer.itemId)?.displayName ?? offer.itemId} · 구매 결과를 아직 확인하지 못했어요.`));
+      const retry = el("button", "shop-retry", "구매 결과 다시 확인");
+      const focusKey = `unresolved:${offer.listingId}`;
+      retry.type = "button"; retry.dataset.focusKey = focusKey;
+      retry.disabled = purchases.has(offer.listingId) || shop.isPending(offer.listingId);
+      focusTargets.set(focusKey, retry);
+      retry.addEventListener("click", () => {
+        if (open && !retry.disabled && focusTargets.get(focusKey) === retry && panel.contains(retry)) void buy(offer.listingId);
+      });
+      box.append(retry); body.append(box);
+    }
     for (const [listingId, receipt] of receipts) {
-      if (!snapshot?.offers.some(offer => offer.listingId === listingId)) {
+      if (receipt.shopId === shop.shopId && !snapshot?.offers.some(offer => offer.listingId === listingId)) {
         const name = describe(receipt.itemId)?.displayName ?? receipt.itemId;
         const receiptCard = el("div", "shop-purchased-furniture");
         receiptCard.append(el("strong", "", name), renderReceipt(listingId, receipt));
@@ -320,6 +349,12 @@ export function createShopPanel({
     if (hadFocus) (focusTargets.get(focusKey) ?? closeButton).focus?.({ preventScroll: true });
     body.scrollTop = scrollTop;
     body.scrollLeft = scrollLeft;
+  }
+
+  function openShop(shopId) {
+    if (typeof shop.select !== "function" || !shop.select(shopId)) return false;
+    if (open) { render(); if (shop.accountId) void shop.refresh("shop"); return true; }
+    return setOpen(true);
   }
 
   function setOpen(next) {
@@ -368,6 +403,7 @@ export function createShopPanel({
 
   return {
     get open() { return open; },
+    openShop,
     setOpen,
     render,
     status: () => ({ open, hint })
