@@ -1,0 +1,18 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import { createIncomeSceneInteraction, INCOME_SCENE_GIVER } from '../src/income/income-scene-interaction.mjs';
+import { selectContextAction } from '../src/context-action.js';
+import { INCOME_CONVENIENCE_LOCATION as shop } from '../src/income/income-convenience-location.mjs';
+import { OBSTACLES } from '../src/campus-layout.js';
+import { polygonOverlap } from '../src/polygon-collision.js';
+function setup() { let state={accountId:'A',sceneId:'campus',position:{x:0,y:0,z:0},npc:{id:INCOME_SCENE_GIVER,visible:true,position:{x:1,y:0,z:0}}};
+const panel={open:false,opens:0,closes:0,setAccount(id){this.account=id;},openPanel(){this.open=true;this.opens++;},close(){if(this.open)this.closes++;this.open=false;},dispose(){this.close();}};
+const api=createIncomeSceneInteraction({enabled:true,location:{hostname:'localhost'},readScene:()=>state,panel});return {api,panel,get state(){return state;},set state(s){state=s;}};}
+test('candidate F/touch callback rechecks proximity and respects Main2 priority',()=>{const s=setup();const a=s.api.observe();assert.equal(a.shortcut,'F');assert.equal(selectContextAction([a,{id:'main2',priority:310}]).id,'main2');s.state.position.x=20;assert.equal(a.trigger(),false);s.state.position.x=0;assert.equal(s.api.observe().trigger(),true);assert.equal(s.panel.opens,1);assert.equal(a.trigger(),false);});
+test('main quest, invisible/wrong NPC, another floor and blocking modes hide action',()=>{for(const change of [{mainQuestPending:true},{conversationOpen:true},{inside:true},{mounted:true},{seated:true},{blocked:true},{sceneId:'biryong'},{accountId:null},{npc:{id:'INKYUNG-NPC-003',visible:true,position:{x:1,y:0,z:0}}},{npc:{id:INCOME_SCENE_GIVER,visible:false,position:{x:1,y:0,z:0}}},{position:{x:0,y:5,z:0}}]){const s=setup();Object.assign(s.state,change);assert.equal(s.api.observe(),null);}});
+test('account switch/logout/scene departure closes without teleport and stale action is inert',()=>{for(const change of [{accountId:'B'},{accountId:null},{sceneId:'room'},{position:{x:50,y:0,z:0}}]){const s=setup(),a=s.api.observe();a.trigger();Object.assign(s.state,change);s.api.observe();assert.equal(s.panel.open,false);assert.equal(a.trigger(),false);assert.equal(s.panel.closes,1);s.api.dispose();}});
+test('hosted/default-disabled adapters expose no action',()=>{for(const options of [{enabled:false,location:{hostname:'localhost'}},{enabled:true,location:{hostname:'example.com'}}]){const s=setup();const api=createIncomeSceneInteraction({...options,readScene:()=>s.state,panel:s.panel});assert.equal(api.observe(),null);}});
+test('selected existing convenience facade is close to gate, approach and sightline are unobstructed',()=>{assert.equal(shop.buildingId,'back_street_4');assert.equal(shop.employerId,null);assert.equal(shop.enabled,false);assert.ok(shop.gateDistance<15);
+const obstacles=OBSTACLES.filter(o=>(o.maxY??10)>.1&&(o.minY??0)<1.8);const path=[...shop.approach,shop.position];
+for(let i=1;i<path.length;i++)for(let j=0;j<=100;j++){const t=j/100,p={x:path[i-1].x+(path[i].x-path[i-1].x)*t,z:path[i-1].z+(path[i].z-path[i-1].z)*t};assert.deepEqual(obstacles.filter(o=>polygonOverlap(p.x,p.z,o.polygon,.35)).map(o=>o.id),[]);}
+// Approach to facade front, not through the building; eye ray uses zero radius.
+for(let j=0;j<100;j++){const t=j/100,p={x:shop.position.x+(shop.facade.x-shop.position.x)*t,z:shop.position.z+(shop.facade.z-shop.position.z)*t};assert.deepEqual(OBSTACLES.filter(o=>(o.minY??0)<1.5&&(o.maxY??10)>1.5&&polygonOverlap(p.x,p.z,o.polygon,0)).map(o=>o.id),[]);}});

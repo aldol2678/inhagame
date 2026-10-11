@@ -1,11 +1,11 @@
 # NPC side quests + short shift income: CLOSED local candidate
 
-Base: main `82538ea`. This is an implementation candidate, not a release, a migration applied to Production, an activated game feature, or a validated economy balance. A local-only authenticated candidate HTTP entry point and explicit developer mount are included. Production Node/Vercel modes and all non-loopback database targets are hard-blocked. No main gameplay/NPC runtime handler is added.
+Base: main `82538ea`. This is an implementation candidate, not a release, a migration applied to Production, an activated game feature, or a validated economy balance. A local-only authenticated candidate HTTP entry point and explicit developer mount are included. Production Node/Vercel modes and all non-loopback database targets are hard-blocked. The initial foundation did not add a main gameplay/NPC handler. The later [scene followup](npc-income-scene-candidate.md) now adds normal-game informational dialogue and unpaid practice; the paid HTTP/DB authority remains CLOSED.
 
 ## Small vertical slice
 
 - Explicit QuestDefinition `quest.side.taerin_carp` binds only `INKYUNG-NPC-013` (가태린). One owned `material.fish_carp` is consumed for the candidate 20 coin reward. The server selects item, amount, giver and reward; dialogue output cannot choose them.
-- `quest.side.convenience_help` binds a development-only, unassigned `npc.authored.convenience_employer`. This is not an existing NPC and does not claim a placed employer. Its three interactive steps are stock, checkout and tidy; the server chooses and verifies the challenge. Candidate pay is 30 coins only after all steps pass and one completion commits. The employer label is explicitly “NPC 배정 미확정 · 개발용 계약”.
+- `quest.side.convenience_help` binds a development-only, unassigned `npc.authored.convenience_employer`. This SQL placeholder is not an existing NPC and does not itself claim a placed employer. The scene followup adds fictional BACKGATE-NPC-001 도유진 at back_street_4, without granting that actor this reward authority. Its three interactive steps are stock, checkout and tidy; the server chooses and verifies the challenge. Candidate pay is 30 coins only after all steps pass and one completion commits. The employer label is explicitly “NPC 배정 미확정 · 개발용 계약”.
 - Generated NPC `can_start_quest=false` remains unchanged. No global quest capability is enabled. Closed definitions are accessible through explicit lookup or opt-in `includeCandidates`, never the default live journal list.
 - The income accounting authority is shared; existing Reward owns grants and Wallet changes, Inventory owns item consumption. Fishing and gathering do not directly grant coins.
 
