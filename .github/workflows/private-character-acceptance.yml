@@ -58,13 +58,30 @@ jobs:
       - name: Install Chromium
         working-directory: apps/world/tests/browser
         run: npx playwright install --with-deps chromium
+      - name: Representative facial cause diagnostic
+        timeout-minutes: 10
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          ANNYONGI_FACE_PROFILE: triage
+          CHARACTER_SMOKE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: node apps/world/tests/browser/annyongi-face-diagnostic.mjs
+      - name: Upload early facial metadata only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: private-face-triage-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            test-results/annyongi/face-diagnostic.json
+            test-results/annyongi/face-source-geometry.json
+            test-results/annyongi/face-optimized-geometry.json
+          if-no-files-found: warn
+          retention-days: 7
       - name: Browser ownership, six states, optimization parity and actual campus inputs
         env:
           WORLD_SMOKE_DISABLE_WEBGPU: '1'
           CHARACTER_SMOKE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           node apps/world/tests/browser/character-model-loading-smoke.mjs
-          node apps/world/tests/browser/annyongi-face-diagnostic.mjs
           node apps/world/tests/browser/annyongi-color-smoke.mjs
           node apps/world/tests/browser/annyongi-capture.mjs
           node apps/world/tests/browser/annyongi-flight-pose-capture.mjs
