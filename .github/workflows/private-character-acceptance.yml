@@ -49,6 +49,10 @@ jobs:
           cp "$RUNNER_TEMP/private-character/optimized.glb" apps/world/.generated/assets-optimized/annyongi-flight-v1.glb
           cp "$RUNNER_TEMP/private-character/duck.glb" apps/world/assets/induck-v3.glb
           node -e 'const fs=require("fs"),crypto=require("crypto");const paths=["apps/world/assets/annyongi-flight-v1.glb","apps/world/.generated/assets-optimized/annyongi-flight-v1.glb","apps/world/assets/induck-v3.glb"];fs.writeFileSync("test-results/annyongi/private-asset-provenance.json",JSON.stringify({head:process.env.ACCEPTANCE_HEAD_SHA,assets:paths.map(path=>({path,sha256:crypto.createHash("sha256").update(fs.readFileSync(path)).digest("hex"),bytes:fs.statSync(path).size}))},null,2));'
+      - name: Audit exact private facial surface separation
+        run: |
+          node apps/world/tests/browser/annyongi-face-interior-audit.mjs apps/world/assets/annyongi-flight-v1.glb 5cc0bc54905da5b87314b81691c229bc583ad1980794239634008cd3f0d834fb > test-results/annyongi/face-source-geometry.json
+          node apps/world/tests/browser/annyongi-face-interior-audit.mjs apps/world/.generated/assets-optimized/annyongi-flight-v1.glb e285995845f126202ccf4372e81a571594af11259722114724a06dd33ee4f430 > test-results/annyongi/face-optimized-geometry.json
       - name: Real asset lifecycle and mount regression
         run: node --test apps/world/tests/character-model-loading.test.mjs apps/world/tests/photo-mounted.test.mjs apps/world/tests/browser/character-model-loading-runtime.test.mjs
       - name: Install Chromium
@@ -60,6 +64,7 @@ jobs:
           CHARACTER_SMOKE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           node apps/world/tests/browser/character-model-loading-smoke.mjs
+          node apps/world/tests/browser/annyongi-face-diagnostic.mjs
           node apps/world/tests/browser/annyongi-color-smoke.mjs
           node apps/world/tests/browser/annyongi-capture.mjs
           node apps/world/tests/browser/annyongi-flight-pose-capture.mjs
@@ -85,6 +90,9 @@ jobs:
             test-results/annyongi/private-asset-provenance.json
             test-results/annyongi/result.json
             test-results/annyongi/color-results.json
+            test-results/annyongi/face-diagnostic.json
+            test-results/annyongi/face-source-geometry.json
+            test-results/annyongi/face-optimized-geometry.json
             test-results/annyongi/poses/pose-results.json
             test-results/annyongi/campus-results.json
             test-results/character-model-optimized/result.json
