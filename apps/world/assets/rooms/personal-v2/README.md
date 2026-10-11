@@ -14,3 +14,28 @@ File: `WoodFloor051_Color_1K_Q30.webp`
 Default personal-room floor: Wood Floor 051 (B). For A/B comparison or immediate opt-out, use `?woodFloor051=0`; omitting the query uses B.
 If loading or decoding fails, the existing `#b99168` floor remains visible. No change to collision, saved layout, or server.
 Mobile GPU frame-time, FPS and memory verification remains a separate post-deployment task.
+
+## Fixed personal-room oak / linen chair
+
+`fixed-chair-oak-linen.glb` is original procedural geometry authored for INHAGAME.
+It contains no downloaded mesh, third-party texture, image or external dependency.
+The repository `LICENSE` applies; no additional third-party license is required.
+
+- Source shapes and layout: `apps/world/src/rooms/personal-room-chair-design.js`
+- Generator: `tools/world-assets/generate-personal-room-chair.mjs`
+- Regenerate: `node tools/world-assets/generate-personal-room-chair.mjs`
+- Verify determinism without writing: append `--check`
+- Asset format: self-contained glTF 2.0 binary; 3 shared shapes, 17 semantic parts
+- Model-space floor pivot: Y = 0; back: +Z; seat support top: Y = 0.27 m
+- Runtime fixed anchor yaw: 180° toward the desk; owned-chair yaw is unchanged
+- Visual bounds: X ±0.25 m, Z -0.2485..0.248 m, Y 0..0.5975 m
+- Fixed anchor and 0.55 × 0.55 m gameplay footprint remain unchanged
+
+The production loader binds each new instance's four material slots to the
+room-owned `woodOak`, `woodOakDark`, `fabricLinen`, and `fabricLinenSeam` palette.
+It does not mutate shared GLB materials. The visible loading/offline fallback
+uses the exact same source shapes and slots. Ground contact shading is owned by
+the room and remains visible in both paths. Collection-owned chairs are unrelated.
+
+This new asset replaces only the fixed chair's old KayKit `chair_A` URL. Existing
+KayKit files and their attribution remain intact for other references.

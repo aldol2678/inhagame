@@ -2,14 +2,20 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createPersonalRoomChairModel, PERSONAL_ROOM_CHAIR_MODEL_URL } from "../src/rooms/personal-room-chair-model.js";
+import { PERSONAL_ROOM_CHAIR_PARTS, buildPersonalRoomChairGeometry } from "../src/rooms/personal-room-chair-design.js";
+import { generatePersonalRoomChairGlb } from "../../../tools/world-assets/generate-personal-room-chair.mjs";
 import { PERSONAL_ROOM_BASIC_FURNITURE } from "../src/rooms/personal-room-layout.js";
 import { createRoomWorldAdapter } from "../src/rooms/room-world-adapter.js";
 import { ROOMS } from "../src/rooms/room-registry.js";
 
-function rig({ loadError = null, instantiateError = false, attachError = false } = {}) {
+function rig({ loadError = null, instantiateError = false, attachError = false, materialError = false, bindMaterials = false } = {}) {
   let callback, destroyRoot;
   const calls = [], children = [];
+  const sharedMaterial = { name: 'woodOak', unchanged: true }, roomMaterial = { name: 'room-owned-oak' };
+  const instance = { material: sharedMaterial };
+  const materials = bindMaterials ? { get(name) { assert.equal(name, 'woodOak'); if (materialError) throw Error('material unavailable'); return roomMaterial; } } : undefined;
   const model = {
+    findComponents: () => [{ meshInstances: [instance] }],
     destroyed: false,
     setLocalPosition: (...v) => { model.position = v; },
     setLocalScale: (...v) => { model.scale = v; },
@@ -34,8 +40,8 @@ function rig({ loadError = null, instantiateError = false, attachError = false }
     if (instantiateError) throw new Error("instance failed");
     return model;
   } } };
-  const ensure = createPersonalRoomChairModel({ app, root, anchor, fallback });
-  return { root, model, fallback, calls, children, ensure,
+  const ensure = createPersonalRoomChairModel({ app, root, anchor, fallback, materials });
+  return { root, model, fallback, calls, children, ensure, sharedMaterial, roomMaterial, instance,
     complete: (error = null, value = asset) => callback(error, value),
     destroy: () => destroyRoot(), instances: () => instances };
 }
@@ -54,8 +60,8 @@ test("chair load is lazy and concurrent/repeated activations share one instance"
   assert.equal(r.fallback.enabled, false);
   assert.deepEqual(r.children, [r.model]);
   assert.deepEqual(r.model.position, [0, 0, 0]);
-  assert.deepEqual(r.model.scale, [0.5, 0.5, 0.5]);
-  assert.deepEqual(r.model.angles, [0, 180, 0]);
+  assert.deepEqual(r.model.scale, [1, 1, 1]);
+  assert.deepEqual(r.model.angles, [0, 0, 0]);
   assert.strictEqual(r.ensure(), first);
   assert.equal(await r.ensure(), true);
   assert.equal(r.calls.length, 1);
@@ -151,39 +157,77 @@ test("room activation starts optional visuals without waiting and other rooms re
   assert.equal(r.calls.length, 1);
 });
 
-test("vendored chair dependencies resolve locally and decoded bounds fit the fixed chair footprint", () => {
-  const base = new URL("../assets/kaykit/furniture-bits/", import.meta.url);
-  const gltf = JSON.parse(readFileSync(new URL("chair_A.gltf", base), "utf8"));
-  assert.equal(gltf.asset.version, "2.0");
-  for (const resource of [...gltf.buffers, ...gltf.images]) {
-    assert.match(resource.uri, /^[\w-]+\.(bin|png)$/);
-    const bytes = readFileSync(new URL(resource.uri, base));
-    assert.ok(bytes.length > 0);
-    if (resource.byteLength) assert.equal(bytes.length, resource.byteLength);
-  }
-  const buffer = readFileSync(new URL(gltf.buffers[0].uri, base));
-  const primitive = gltf.meshes[0].primitives[0];
-  const positions = gltf.accessors[primitive.attributes.POSITION];
-  const view = gltf.bufferViews[positions.bufferView];
-  assert.equal(positions.componentType, 5126);
-  assert.equal(positions.type, "VEC3");
+test("loaded chair binds room-owned materials without mutating shared asset materials", async () => {
+  const r = rig({ bindMaterials: true }), pending = r.ensure();
+  await Promise.resolve(); r.complete();
+  assert.equal(await pending, true);
+  assert.strictEqual(r.instance.material, r.roomMaterial);
+  assert.deepEqual(r.sharedMaterial, { name: 'woodOak', unchanged: true });
+  assert.equal(r.model.name, 'personal_chair_oak_linen');
+});
+
+test("material preparation failure cleans the candidate and retains the visible fallback", async () => {
+  const r = rig({ bindMaterials: true, materialError: true }), pending = r.ensure();
+  await Promise.resolve(); r.complete();
+  assert.equal(await pending, false);
+  assert.equal(r.model.destroyed, true);
+  assert.equal(r.fallback.enabled, true);
+  assert.equal(r.children.length, 0);
+  assert.deepEqual(r.sharedMaterial, { name: 'woodOak', unchanged: true });
+});
+
+function decodeChair() {
+  const file = readFileSync(new URL('../assets/rooms/personal-v2/fixed-chair-oak-linen.glb', import.meta.url));
+  assert.equal(file.readUInt32LE(0), 0x46546c67); assert.equal(file.readUInt32LE(4), 2); assert.equal(file.readUInt32LE(8), file.length);
+  const jsonLength = file.readUInt32LE(12), gltf = JSON.parse(file.subarray(20, 20 + jsonLength).toString());
+  const binary = file.subarray(28 + jsonLength);
+  return { file, gltf, binary };
+}
+
+test("self-authored GLB is deterministic, dependency-free and bounded to the fixed chair", () => {
+  const { file, gltf, binary } = decodeChair();
+  assert.deepEqual(file, generatePersonalRoomChairGlb(), 'committed binary is reproducible from owned source');
+  assert.equal(gltf.asset.version, '2.0'); assert.ok(file.length < 30000);
+  assert.equal(gltf.images, undefined); assert.equal(gltf.textures, undefined);
+  assert.ok(gltf.buffers.every(b => b.uri === undefined)); assert.equal(gltf.buffers[0].byteLength, binary.length);
+  assert.deepEqual(gltf.materials.map(m => m.name), ['woodOak', 'fabricLinenSeam', 'fabricLinen', 'woodOakDark']);
+  assert.equal(gltf.nodes.length, PERSONAL_ROOM_CHAIR_PARTS.length);
+  const chair = PERSONAL_ROOM_BASIC_FURNITURE.find(item => item.kind === 'chair');
+  assert.deepEqual(chair.at, [2.95, 0, .85]); assert.deepEqual([chair.size[0], chair.size[2]], [.55, .55]); assert.equal(chair.collide, false);
   const min = [Infinity, Infinity, Infinity], max = [-Infinity, -Infinity, -Infinity];
-  let highBackZ = -Infinity;
-  for (let i = 0; i < positions.count; i++) {
-    const offset = (view.byteOffset ?? 0) + (positions.byteOffset ?? 0) + i * (view.byteStride ?? 12);
-    const point = [0, 1, 2].map(axis => buffer.readFloatLE(offset + axis * 4));
-    for (let axis = 0; axis < 3; axis++) { min[axis] = Math.min(min[axis], point[axis]); max[axis] = Math.max(max[axis], point[axis]); }
-    if (point[1] > 0.9) highBackZ = Math.max(highBackZ, point[2]);
+  for (const node of gltf.nodes) {
+    const part = PERSONAL_ROOM_CHAIR_PARTS.find(p => p.name === node.name);
+    assert.deepEqual(node.translation, part.at); assert.deepEqual(node.scale, part.size);
+    const primitive = gltf.meshes[node.mesh].primitives[0], positions = gltf.accessors[primitive.attributes.POSITION];
+    assert.equal(gltf.materials[primitive.material].name, part.material);
+    assert.equal(positions.componentType, 5126); assert.equal(positions.type, 'VEC3');
+    const view = gltf.bufferViews[positions.bufferView], expected = buildPersonalRoomChairGeometry(part.shape).positions;
+    let partTop = -Infinity, backMinZ = Infinity;
+    for (let i = 0; i < positions.count; i++) for (let axis = 0; axis < 3; axis++) {
+      const local = binary.readFloatLE((view.byteOffset ?? 0) + i * 12 + axis * 4);
+      assert.ok(Math.abs(local - expected[i * 3 + axis]) < 1e-7, 'asset and fallback geometry agree');
+      const value = local * node.scale[axis] + node.translation[axis];
+      min[axis] = Math.min(min[axis], value); max[axis] = Math.max(max[axis], value);
+      if (axis === 1) partTop = Math.max(partTop, value);
+      if (axis === 2) backMinZ = Math.min(backMinZ, value);
+    }
+    if (node.name === 'seat') assert.ok(Math.abs(partTop - .27) < 1e-7, 'seat support top stays exactly .27');
+    if (node.name.startsWith('back')) assert.ok(backMinZ > .15, 'back remains at +Z');
   }
-  assert.deepEqual(min, positions.min);
-  assert.deepEqual(max, positions.max);
-  assert.ok(Math.abs(min[1]) < 1e-7, "source pivot is on the floor");
-  assert.ok(highBackZ < 0, "backrest needs a half turn to match the original chair");
-  const chair = PERSONAL_ROOM_BASIC_FURNITURE.find(item => item.kind === "chair");
-  assert.deepEqual(chair.at, [2.95, 0, 0.85]);
-  assert.equal(chair.collide, false);
-  assert.ok((max[0] - min[0]) * 0.5 < chair.size[0]);
-  assert.ok((max[2] - min[2]) * 0.5 < chair.size[2]);
-  assert.ok(max[1] * 0.5 < 0.65, "chair remains below normal furniture height");
-  assert.match(readFileSync(new URL("License.txt", base), "utf8"), /Creative Commons Zero, CC0/);
+  assert.ok(Math.abs(min[1]) < 1e-7); assert.ok(max[1] < .60);
+  for (const axis of [0, 2]) { assert.ok(min[axis] >= -chair.size[axis] / 2); assert.ok(max[axis] <= chair.size[axis] / 2); }
+  assert.match(readFileSync(new URL('../assets/rooms/personal-v2/README.md', import.meta.url), 'utf8'), /original procedural geometry/);
+});
+
+for (const shape of ['timber', 'cushion', 'leg']) test(`chair ${shape} geometry is finite and closed`, () => {
+  const mesh = buildPersonalRoomChairGeometry(shape), edges = new Map();
+  assert.ok([...mesh.positions, ...mesh.normals, ...mesh.uvs].every(Number.isFinite));
+  assert.equal(mesh.normals.length, mesh.positions.length);
+  assert.equal(mesh.uvs.length * 3, mesh.positions.length * 2);
+  assert.ok(mesh.indices.length / 3 <= 224);
+  for (let i = 0; i < mesh.indices.length; i += 3) {
+    const ids = mesh.indices.slice(i, i + 3);
+    for (let j = 0; j < 3; j++) { const key = [ids[j], ids[(j + 1) % 3]].sort((a, b) => a - b).join(':'); edges.set(key, (edges.get(key) ?? 0) + 1); }
+  }
+  assert.ok([...edges.values()].every(n => n === 2));
 });

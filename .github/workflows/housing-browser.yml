@@ -5,9 +5,17 @@ on:
       - 'apps/world/src/rooms/**'
       - 'apps/world/src/collection/item-catalog.js'
       - 'apps/world/tests/furniture-*.test.mjs'
-      - 'apps/world/tests/personal-room.test.mjs'
+      - 'apps/world/tests/personal-room*.test.mjs'
+      - 'apps/world/assets/rooms/**'
+      - 'apps/world/assets/kaykit/furniture-bits/**'
+      - 'apps/world/dev-server.mjs'
+      - 'apps/world/src/campus-render-kit.js'
+      - 'apps/world/src/player-dimensions.js'
+      - 'apps/world/src/campus-material-profile.js'
+      - 'tools/world-assets/generate-personal-room-chair.mjs'
       - 'apps/world/tests/item-catalog.test.mjs'
       - 'apps/world/tests/browser/housing-*.mjs'
+      - 'apps/world/tests/browser/personal-room-*'
       - 'apps/world/tests/browser/harness.mjs'
       - 'apps/world/tests/browser/harness-source.mjs'
       - 'apps/world/tests/browser/package*.json'
@@ -20,7 +28,7 @@ concurrency:
 jobs:
   chromium:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
@@ -32,8 +40,33 @@ jobs:
       - name: Install pinned offline browser dependencies
         working-directory: apps/world/tests/browser
         run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Install pinned Chromium
+        working-directory: apps/world/tests/browser
+        run: npx --no-install playwright install --with-deps chromium
       - name: Verify furniture persistence and account isolation contracts
-        run: node --test apps/world/tests/furniture-*.test.mjs apps/world/tests/personal-room.test.mjs apps/world/tests/item-catalog.test.mjs
+        run: node --test apps/world/tests/furniture-*.test.mjs apps/world/tests/personal-room*.test.mjs apps/world/tests/item-catalog.test.mjs
+      - name: Verify room lifecycle and real chair container parsing
+        run: |
+          node apps/world/tests/browser/personal-room-v2-null-smoke.mjs
+          node apps/world/tests/browser/personal-room-chair-container-null-smoke.mjs
+      - name: Exercise room loaded assets and intentional loader fallback
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          ROOM_VISUAL_QA_OUTPUT: test-results/personal-room-visual-foundation
+          WORLD_SMOKE_TIMEOUT_MS: '90000'
+        run: |
+          mkdir -p test-results/personal-room-visual-foundation
+          git rev-parse HEAD > test-results/personal-room-visual-foundation/head-sha.txt
+          set -o pipefail
+          timeout --signal=TERM --kill-after=10s 480s node apps/world/tests/browser/personal-room-visual-foundation-smoke.mjs 2>&1 | tee test-results/personal-room-visual-foundation/smoke.log
+      - name: Save exact-head room visual evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: personal-room-visual-foundation-${{ github.event.pull_request.head.sha }}
+          path: test-results/personal-room-visual-foundation/
+          if-no-files-found: error
+          retention-days: 7
       - name: Exercise offline housing save and reload
         env:
           WORLD_SMOKE_DISABLE_WEBGPU: '1'

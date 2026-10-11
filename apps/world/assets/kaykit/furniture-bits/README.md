@@ -20,13 +20,20 @@ The following files are copied unmodified from the pack. The included original
 | table_medium.bin | 9328 | `0e6ba8fd006f673d946979e45487067f4e274be9bbd07816fd371578d2a37518` |
 | table_medium.gltf | 2973 | `fd5e5fe8bbf1d3729b6bd725165d58490e9cbd8dd46ce42314b01f20951a302b` |
 
-The fixed personal-room chair uses `chair_A`. The room-local anchor stays at
+## Legacy fixed chair
+
+The V2 fixed personal-room chair now uses the self-authored
+`assets/rooms/personal-v2/fixed-chair-oak-linen.glb`; see its adjacent README for
+source, generator and current transforms. These KayKit chair files remain
+unmodified and retain the pack's CC0 attribution.
+
+Before the V2 oak/linen refinement, the fixed chair used `chair_A`. Its anchor was
 `[2.95, 0, 0.85]`, with uniform scale `0.5` and yaw `180` degrees to put the backrest
 on the existing +Z side. The room root applies its existing Z reflection.
 Scaled bounds are about 0.375 × 0.629 × 0.423 world units (width × height × depth).
 The glTF references the colocated binary and texture; no remote asset dependency is added.
 
-The existing box chair remains visible until the container is instantiated and attached.
+The legacy box chair remained visible until its container was instantiated and attached.
 A failed load keeps it visible for the lifetime of that scene. Room re-entry reuses
 the same request/result; destroying the room ignores a late loader callback.
 

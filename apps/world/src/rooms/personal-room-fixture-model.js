@@ -18,6 +18,7 @@ export function createPersonalRoomFixtureModel({ app, root, anchor, fallback, mo
           model.setLocalPosition(...definition.offset);
           model.setLocalScale(definition.scale, definition.scale, definition.scale);
           model.setLocalEulerAngles(0, definition.yaw, 0);
+          definition.prepare?.(model);
           anchor.addChild(model);
           fallback.enabled = false;
           resolve(true);
