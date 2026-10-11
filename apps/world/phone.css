@@ -82,3 +82,9 @@ body[data-phone-open="true"] > :not(#application):not(.smartphone) { visibility:
 .campus-topbar { grid-template-columns:auto minmax(0,1fr) auto auto; }
 @media (pointer:coarse), (max-width:600px) { .smartphone { padding:max(4px,env(safe-area-inset-top)) max(4px,env(safe-area-inset-right)) max(4px,env(safe-area-inset-bottom)) max(4px,env(safe-area-inset-left)); } .smartphone-frame { height:100%; max-height:100%; width:100%; border-width:3px; border-radius:26px; } }
 @media (max-height:500px) { .smartphone-frame { border-radius:20px; } .smartphone-clock { font-size:30px; padding:4px; } .smartphone-grid { gap:6px; } .smartphone-statusbar { height:20px; } .smartphone-content { padding-top:0; } }
+.smartphone-album-manager { padding:10px; margin-block:8px; border:1px solid #ffffff32; border-radius:12px; overflow-wrap:anywhere; }
+.smartphone-album-manager progress { width:100%; }
+.smartphone-album-grid button[data-selecting="true"] { border:2px solid #89a7c4; }
+.smartphone-album-grid button[aria-pressed="true"] { border-color:#83f2c9; background:#28574e; }
+.smartphone-album-grid button[aria-pressed="true"]::before { content:'✓ 선택됨'; display:block; }
+.smartphone-album-grid small { display:block; }
