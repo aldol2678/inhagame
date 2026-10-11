@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="/styles.css" />
   <link rel="stylesheet" href="/cinematic.css" />
   <link rel="stylesheet" href="/phone.css" />
+  <link rel="stylesheet" href="/runtime-diagnostics.css" />
   <!-- Auth config must execute before module imports snapshot the shared account config. -->
   <script src="/api/public-supabase-config"></script>
   <script type="importmap">
@@ -367,6 +368,7 @@
       <option value="0.7" selected>보통</option>
       <option value="1">크게</option>
     </select>
+    <button id="open-runtime-diagnostics" type="button" aria-controls="runtime-diagnostics-panel" aria-expanded="false">진단 · 버그 보고</button>
     <p id="view-settings-status" role="status">이 기기에 저장됩니다.</p>
   </section>
   <section id="keyboard-shortcuts-panel" class="keyboard-shortcuts-panel" aria-labelledby="keyboard-shortcuts-title" hidden>
