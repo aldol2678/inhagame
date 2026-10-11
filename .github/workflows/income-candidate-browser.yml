@@ -1,0 +1,58 @@
+name: Income candidate browser QA
+on:
+  pull_request:
+    paths:
+      - 'apps/world/src/income/**'
+      - 'apps/world/styles.css'
+      - 'apps/world/api/world-income-candidate.js'
+      - 'apps/world/dev-server.mjs'
+      - 'apps/world/dev/income-candidate*'
+      - 'apps/world/tests/delivery-income*.test.mjs'
+      - 'apps/world/server/income-*.mjs'
+      - 'apps/world/tests/income-*.test.mjs'
+      - 'apps/world/tests/convenience-job*.test.mjs'
+      - 'apps/world/tests/browser/income-candidate-*'
+      - 'apps/world/tests/browser/package*.json'
+      - '.github/workflows/income-candidate-browser.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: income-candidate-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  browser:
+    name: Exact-head synthetic income browser
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - name: Install pinned browser dependencies
+        working-directory: apps/world/tests/browser
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Install Chromium and Korean glyphs
+        run: |
+          cd apps/world/tests/browser
+          npx --no-install playwright install --with-deps chromium
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+      - name: Verify candidate contracts
+        run: node --test apps/world/tests/convenience-job*.test.mjs apps/world/tests/income-*.test.mjs apps/world/tests/delivery-income*.test.mjs
+      - name: Verify isolated real panels and synthetic RPC recovery
+        env:
+          EXPECTED_INCOME_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          INCOME_BROWSER_OUTPUT: test-results/income-candidate-browser
+        run: node apps/world/tests/browser/income-candidate-smoke.mjs
+      - name: Preserve exact-head evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: income-candidate-browser-${{ github.event.pull_request.head.sha || github.sha }}
+          path: test-results/income-candidate-browser/
+          if-no-files-found: error
+          retention-days: 14

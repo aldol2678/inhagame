@@ -45,6 +45,7 @@ nothing is ACTIVE / no settlement path · **planned** = no backing schema yet ·
 | Character Level | Progression (derived) | `private.world_level_thresholds` (immutable, append-only) × `total_exp` | `get_my_world_progression_v1()`; client never computes it (`progression-client.js`) | none, derived | — | no | production |
 | Wallet | Economy | `private.world_wallets`, `private.world_currency_transactions`, `private.world_currencies` | `get_my_world_wallet_v1()` | `private.world_wallet_apply_v1` | Reward orchestrator; Shop purchase; `world_wallet_credit/debit_v1` (service_role) | no (purchase RPC prices from the server listing) | production |
 | Inventory | Inventory | `private.world_player_items` (UNIQUE user,item), `world_item_grants`, `world_item_consumptions`, `world_inventory_mutations(_entries)`, `world_item_catalog` | `get_my_world_inventory_v1()` | `private.world_inventory_grant_v1` (only increase), `world_inventory_consume_v1`, `world_inventory_mutate_v1` (atomic N-consume / M-grant) | Reward; Shop; Inventory-internal mutate; service_role wrappers | no | production (cosmetics / collectibles); MATERIAL rows foundation |
+| NPC income candidate | NPC Income | `private.world_income_runtime`, `world_income_definitions`, `world_income_sessions`, `world_income_requests` | service-role `world_income_status_v1` | service-role `world_income_start/action/finish_v1` → private command → Inventory CONSUME / Reward | trusted server supplies verified actor; fixed Taerin giver and authored convenience employer only | no direct authenticated RPC | CLOSED; semantic shift checks are not presence or anti-bot proof |
 | Cooking recipe | Recipe / Cooking | `private.world_recipe_catalog`, `world_recipe_receipts` | historical receipt returned by the self-only command | `cook_my_world_recipe_v1(recipe_id,request_id)` → Inventory mutation | authenticated owner, permanent non-banned account; own saved and owned station | narrow command only, no amounts/plan/user/room | B2 candidate CLOSED; no acquisition, Life XP or food-use/combat consumer |
 | Cosmetic equipment | Appearance | `private.world_player_appearance_loadout` (9 slots), `world_appearance_transactions` | `get_my_world_appearance_loadout_v1()` | `equip_my_world_item_v1`, `unequip_my_world_item_v1` (ownership checked) | the owner (authenticated, self-only) | via self-only RPC | production |
 | Combat equipment | Equipment (planned) | none. Combat v0.3 needs gear instances (8 slots, +20 enhancement, sets); `world_player_items` cannot hold instances | — | — | — | — | planned (static build catalog `src/combat/combat-v03-catalog.js`, #112; no schema) |
@@ -94,11 +95,11 @@ Allowed callers on `8b7bf39`. The exact list with a reason per row is in test 93
 
 - **Wallet**: Reward orchestrator; `purchase_world_shop_listing_v1`; service_role `world_wallet_credit/debit_v1`.
 - **EXP**: Reward orchestrator; service_role `world_exp_grant_v1`.
-- **Inventory grant**: Reward; Inventory mutate; Shop purchase; Activity settlement; service_role `world_inventory_grant_item_v1` and `world_inventory_ensure_default_items_v1`. **Consume**: Inventory mutate only. **Mutate**: `cook_my_world_recipe_v1` only; server recipe, owned/saved station and self-only actor.
+- **Inventory grant**: Reward; Inventory mutate; Shop purchase; Activity settlement; service_role `world_inventory_grant_item_v1` and `world_inventory_ensure_default_items_v1`. **Consume**: Inventory mutate only. **Mutate**: `cook_my_world_recipe_v1` (server recipe, owned/saved station, self-only actor) and `private.world_income_command_v1` (fixed carp consumption, service-only capped settlement).
 - **Collection discover**: service_role wrapper; Activity settlement.
 - **Life Skill XP**: Activity settlement only.
 - **Activity settlement**: `public.world_fishing_settle_v1` (service_role + service claim; frozen catch) and `public.world_gathering_harvest_v1` (service_role; frozen semantic source/output).
-- **Reward**: `advance_world_quest_v1`, `advance_world_navigation_quest_v1`, `answer_my_world_daily_quiz_v1`, `world_attendance_claim_v1`, `world_mcm_claim_reward_v1`, service_role wrapper.
+- **Reward**: `advance_world_quest_v1`, `advance_world_navigation_quest_v1`, `answer_my_world_daily_quiz_v1`, `world_attendance_claim_v1`, `world_mcm_claim_reward_v1`, `private.world_income_command_v1` (CLOSED bounded income candidate), service_role wrapper.
 - **Creature observe / grant / party set**: service_role wrappers, plus Duck Companion P1:
   `world_inkyung_duck_observe_v1` → observe; `world_duck_companion_bond_v1` → grant and, only
   when the party is empty, party set.
@@ -138,6 +139,7 @@ if it never calls the primitive.
 - Inventory: `world_player_items`, `world_item_grants`, `world_item_consumptions`,
   `world_inventory_mutations(_entries)` ← the three Inventory primitives
 - Recipe / Cooking: `world_recipe_receipts` ← `cook_my_world_recipe_v1`; frozen append-only response, account deletion cascade only. `world_recipe_catalog` is migration-owned.
+- NPC Income: `world_income_sessions`, `world_income_requests` ← `world_income_command_v1`; completed sessions and request responses immutable, account deletion cascade only. `world_income_runtime` and `world_income_definitions` are migration-owned catalogs.
 - Reward: `world_reward_transactions(_entries)` ← `world_reward_grant_v1`
 - Life: `world_player_life_skills`, `world_life_skill_xp_transactions` ← `world_life_skill_xp_apply_v1`;
   `world_life_sp_transactions`, `world_player_life_nodes` ← `world_life_node_unlock_v1`;
@@ -393,3 +395,10 @@ These rules are the current architectural contract. Each subsection states what 
 - Production values of `NPC_AI_ENABLED`, `NPC_QUEST_ENABLED`, `NPC_JEV_ENABLED`.
 - Whether the Production migration lineage (separate repository) matches public `main` object-for-object.
 - Whether operator-issued grants are attributed to an operator outside this repository. The Wallet / EXP / Item / Reward ledgers have no actor column (only `source_type = 'ADMIN'` / `reason`).
+
+### NPC income CLOSED candidate (2026-10-11)
+- `private.world_income_command_v1` may call Inventory `world_inventory_mutate_v1` only for `CONSUME` / `QUEST`, one `material.fish_carp`, and Reward `world_reward_grant_v1` for fixed 20/30-coin definitions. It never writes Wallet, Inventory or Reward ledgers directly.
+- All four public RPCs are service-role-only; the command checks the service claim and stored permanent, non-banned account. HTTP must supply its authenticated actor, never a browser user ID.
+- At most one live session per quest across dates; one paid delivery and one paid shift per frozen start KST date; common 60-coin ceiling (current maximum 50). Account lock serializes starts/actions/settlements; Reward account lock serializes reward callers, then fixed CURRENCY reward takes Wallet before Inventory consumption, matching Shop lock order. Session and request idempotency prevent double pay; completion, consumption and reward all roll back if reward fails.
+- Shift validates server-generated stock/checkout/tidy semantic choices, ordered revisions, three-second active intervals and ten-minute expiry. These are bounded candidate checks, not a trusted position producer or anti-bot guarantee.
+- Runtime and definitions are CLOSED; rewards DISABLED. The authored convenience employer is a candidate semantic identity, not a live spawn or shop-staff permission. Gathering stays CLOSED. No Production application or activation is implied.

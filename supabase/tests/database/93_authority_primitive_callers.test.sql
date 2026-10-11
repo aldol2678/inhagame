@@ -101,6 +101,8 @@ insert into authority_allowed_call values
   ('private.world_inventory_mutate_v1',        'private.world_inventory_consume_v1', 'Inventory-internal atomic N-consume/M-grant'),
   ('public.cook_my_world_recipe_v1', 'private.world_inventory_mutate_v1',
      'Cooking B2: self-only actor, owned/saved station and closed-by-default server recipe; one frozen receipt'),
+  ('private.world_income_command_v1', 'private.world_inventory_mutate_v1', 'CLOSED income candidate: fixed carp delivery consumes atomically with capped reward settlement'),
+  ('private.world_income_command_v1', 'private.world_reward_grant_v1', 'CLOSED income candidate: server-verified session, frozen KST day and shared daily cap'),
   -- Reward: fixed RewardDefinitions are executed only for these verified sources.
   ('public.advance_world_quest_v1',            'private.world_reward_grant_v1', 'Main 1 completion reward (same transaction as stage 4 -> 5)'),
   ('public.advance_world_navigation_quest_v1', 'private.world_reward_grant_v1', 'Main 2 completion reward (same transaction as the final stage)'),
@@ -253,7 +255,9 @@ insert into authority_table values
   ('world_combat_creature_bridge_catalog','CATALOG'),
   ('world_creature_acquisition_rule_catalog','CATALOG'), ('world_inkyung_duck_observation_subjects','CATALOG'),
   ('world_biryong_npc_relationship_npc_catalog','CATALOG'), ('world_biryong_npc_relationship_fact_catalog','CATALOG'),
-  ('world_campus_npc_relationship_npc_catalog','CATALOG');
+  ('world_campus_npc_relationship_npc_catalog','CATALOG'),
+  ('world_income_sessions','STATE'), ('world_income_requests','STATE'),
+  ('world_income_runtime','CATALOG'), ('world_income_definitions','CATALOG');
 
 select ok(to_regclass('private.' || tbl) is not null, format('protected table private.%s exists', tbl))
 from authority_table;
@@ -269,6 +273,8 @@ where m[2] in (select tbl from authority_table);
 create temp table authority_allowed_write(tbl text, writer text) on commit drop;
 insert into authority_allowed_write values
   ('world_recipe_receipts', 'public.cook_my_world_recipe_v1'),
+  ('world_income_sessions', 'private.world_income_command_v1'),
+  ('world_income_requests', 'private.world_income_command_v1'),
   ('world_wallets', 'private.world_wallet_apply_v1'),
   ('world_currency_transactions', 'private.world_wallet_apply_v1'),
   ('world_player_progression', 'private.world_exp_apply_v1'),
