@@ -5357,6 +5357,11 @@ body[data-hud-mode="COMBAT"] #jump { display:none !important; }
 .furniture-plan { display:block; width:100%; aspect-ratio:10.8/8.4; border:2px solid #8f7760; border-radius:8px; cursor:crosshair; }
 .furniture-owned,.furniture-controls,.furniture-history { display:flex; flex-wrap:wrap; gap:7px; margin:12px 0; }
 .furniture-history button { flex:1; }
+.furniture-recommendations { margin:12px 0; padding:12px; border:1px solid #c3d6e5; border-radius:12px; background:#edf5fc; }
+.furniture-recommendations h3 { margin:0 0 6px; font-size:15px; }
+.furniture-recommendations button { margin:3px 4px 3px 0; }
+.furniture-recommendations button[aria-pressed="true"] { background:#2868a4; border-color:#2868a4; color:#fff; }
+
 .furniture-history-help { margin:0 0 12px; color:#566b7e; font-size:12px; }
 .furniture-owned button { flex:1 1 170px; font-size:13px; text-align:left; }
 .furniture-editor label { display:flex; align-items:center; flex-wrap:wrap; gap:8px; }

@@ -13,6 +13,8 @@ on:
       - 'apps/world/src/collection/**'
       - 'apps/world/src/main.js'
       - 'apps/world/tests/browser/*seating*'
+      - 'apps/world/tests/browser/personal-room-environment*'
+      - 'apps/world/tests/personal-room-environment.test.mjs'
       - 'apps/world/tests/browser/*furniture*'
       - 'apps/world/tests/browser/*trophy*'
       - 'apps/world/tests/browser/*fishing-skill-effects*'
@@ -44,6 +46,8 @@ jobs:
         smoke:
           - personal-room-seating
           - furniture-history
+          - furniture-recommendations
+          - personal-room-environment
           - trophy-display
           - trophy-display-null
           - shop-furniture

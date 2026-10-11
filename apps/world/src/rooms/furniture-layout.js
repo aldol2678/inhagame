@@ -32,6 +32,12 @@ export const FURNITURE_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-
 export const SURFACE_NAMES = Object.freeze({ floor: "바닥", desk: "책상 위", bed: "침대 위", north: "창문 쪽 벽", east: "오른쪽 벽", south: "문 쪽 벽", west: "왼쪽 벽" });
 const WALL_YAW = Object.freeze({ north: 0, east: 90, south: 180, west: 270 });
 const { floor: PLACEMENT_FLOOR, exit: PLACEMENT_EXIT, wall: PLACEMENT_WALL } = PERSONAL_ROOM_PLACEMENT_ENVELOPE;
+// Shared horizontal envelopes for validation and bounded candidate enumeration.
+export const FURNITURE_SURFACE_BOUNDS = Object.freeze({
+  floor: PLACEMENT_FLOOR,
+  desk: Object.freeze({minX:2.05,maxX:3.85,minZ:1.375,maxZ:2.025}),
+  bed: Object.freeze({minX:-4.55,maxX:-3.05,minZ:.6,maxZ:3.2})
+});
 const EPSILON = 1e-7;
 export const snapFurniture = value => Math.round(value * 4) / 4;
 export function positionOnSurface(surface, x, z, yaw = 0) {
@@ -81,10 +87,12 @@ export function validateFurniture(objects, owned = null) {
         if (overlaps(box, fixedBox(fixed))) return "FURNITURE_OVERLAP";
       }
     } else if (object.surface === "desk") {
-      if (!within(box, 2.05, 3.85, 1.375, 2.025)) return "ROOM_BOUNDS";
+      const bounds = FURNITURE_SURFACE_BOUNDS.desk;
+      if (!within(box, bounds.minX, bounds.maxX, bounds.minZ, bounds.maxZ)) return "ROOM_BOUNDS";
       if (overlaps(box, { minX: 3.09, maxX: 3.51, minZ: 1.56, maxZ: 1.84 })) return "FURNITURE_OVERLAP";
     } else if (object.surface === "bed") {
-      if (!within(box, -4.55, -3.05, .6, 3.2)) return "ROOM_BOUNDS";
+      const bounds = FURNITURE_SURFACE_BOUNDS.bed;
+      if (!within(box, bounds.minX, bounds.maxX, bounds.minZ, bounds.maxZ)) return "ROOM_BOUNDS";
       if (overlaps(box, { minX: -4.296, maxX: -3.304, minZ: 2.63, maxZ: 3.11 })) return "FURNITURE_OVERLAP";
     } else {
       const horizontal = object.surface === "north" || object.surface === "south";
@@ -102,13 +110,29 @@ export function validateFurniture(objects, owned = null) {
   }
   return null;
 }
+// Conservative broad-phase used only to skip impossible candidates. Final proposals
+// still pass validateFurniture, including live quantity and all persistence rules.
+export function furniturePlacementsOverlap(a, b) {
+  if (a.surface !== b.surface) return false;
+  const first = FURNITURE_BY_ID.get(a.itemId), second = FURNITURE_BY_ID.get(b.itemId);
+  if (!first || !second) return true;
+  if (a.surface === 'floor' && first.flat !== second.flat) return false;
+  return overlaps(furnitureBox(a), furnitureBox(b));
+}
 export function canonicalFurniture(objects) {
   return objects.map(({ id, itemId, surface, x, z, yaw }) => ({ id, itemId, surface, x, z, yaw })).sort((a,b) => a.id.localeCompare(b.id));
 }
-export function firstFurniturePosition(itemId, surface, objects, owned) {
+export function firstFurniturePosition(itemId, surface, objects, owned, options = {}) {
   // Keep the familiar H2 center-first behavior, then use the C70 side bays for floor furniture.
   // No placement is returned unless the same validator accepts it.
-  const id = "00000000-0000-4000-8000-000000000000";
+  const id = options.id ?? "00000000-0000-4000-8000-000000000000";
+  if (options.positions) {
+    for (const point of options.positions) {
+      const candidate = { id, itemId, surface, ...positionOnSurface(surface, point.x, point.z, point.yaw) };
+      if (!validateFurniture([...objects, candidate], owned)) return candidate;
+    }
+    return null;
+  }
   const ranges = surface === "floor"
     ? [[-5,5],[Math.ceil(PLACEMENT_FLOOR.minX*4)/4,-5.25],[5.25,Math.floor(PLACEMENT_FLOOR.maxX*4)/4]]
     : [[-5,5]];

@@ -1,3 +1,4 @@
+import { FURNITURE_STYLES, recommendFurniture } from "./furniture-recommendations.js";
 import { FURNITURE_BY_ID, ROOM_FURNITURE, SURFACE_NAMES, FURNITURE_ERRORS, firstFurniturePosition,
   positionOnSurface, validateFurniture, canonicalFurniture, FURNITURE_LIMIT } from "./furniture-layout.js";
 import { PERSONAL_ROOM_BASIC, PERSONAL_ROOM_BASIC_FURNITURE, PERSONAL_ROOM_PLACEMENT_ENVELOPE } from "./personal-room-layout.js";
@@ -9,19 +10,20 @@ export function createFurnitureEditor({ client, inventory, onOpenChange = () => 
   panel.className = "furniture-editor"; panel.tabIndex = -1; panel.setAttribute("role", "dialog"); panel.setAttribute("aria-modal", "true");
   panel.setAttribute("aria-label", "내 방 꾸미기"); doc.body.append(panel);
   const backdrop = doc.createElement("div"); backdrop.className = "furniture-editor-backdrop"; backdrop.hidden = true; doc.body.append(backdrop);
-  let selected = null, message = "", closing = null, previousFocus = null;
+  let selected = null, message = "", closing = null, previousFocus = null, preview = null;
   // History belongs to one open editor session, never to the inventory or server snapshot.
   // A successful save establishes a new checkpoint; a failed save keeps the whole draft/history.
   const HISTORY_LIMIT = 100;
   let undo = [], redo = [], session = 0, disposed = false;
   const capture = (state = client.state(), selection = selected) => ({
     objects: state.objects.map(object => ({ ...object })),
-    selected: state.objects.some(object => object.id === selection) ? selection : null
+    selected: state.objects.some(object => object.id === selection) ? selection : null,
+    preview
   });
   const sameObjects = (a, b) => JSON.stringify(canonicalFurniture(a)) === JSON.stringify(canonicalFurniture(b));
   function clearHistory() { undo = []; redo = []; }
-  function resetSession() { session++; clearHistory(); selected = null; message = ""; closing = null; }
-  function editable(state = client.state()) { return !disposed && !panel.hidden && state.editing && !closing && !state.pending; }
+  function resetSession() { preview = null; session++; clearHistory(); selected = null; message = ""; closing = null; }
+  function editable(state = client.state()) { return !disposed && !panel.hidden && state.editing && state.role === "owner" && !closing && !state.pending; }
   function edit(objects, nextSelected = selected) {
     const state = client.state();
     if (!editable(state) || sameObjects(objects, state.objects)) return false;
@@ -31,25 +33,30 @@ export function createFurnitureEditor({ client, inventory, onOpenChange = () => 
     if (client.edit(objects)) return true;
     undo = previousUndo; redo = previousRedo; selected = before.selected; render(); return false;
   }
-  function restoreHistory(direction) {
-    const state = client.state(), source = direction === "undo" ? undo : redo;
-    if (!editable(state) || !source.length) return false;
-    const target = source.at(-1), currentCounts = new Map(), targetCounts = new Map();
+  function canRestore(targetObjects, state = client.state()) {
+    const currentCounts = new Map(), targetCounts = new Map();
     for (const object of state.objects) currentCounts.set(object.itemId, (currentCounts.get(object.itemId) ?? 0) + 1);
-    for (const object of target.objects) targetCounts.set(object.itemId, (targetCounts.get(object.itemId) ?? 0) + 1);
-    // Inventory may have refreshed since this step. Never restore additional unowned copies.
-    // Removals/moves still work so an already-invalid draft can be repaired.
+    for (const object of targetObjects) targetCounts.set(object.itemId, (targetCounts.get(object.itemId) ?? 0) + 1);
+    // Same live ownership check for Undo/Redo and recommendation cancellation.
+    // Moving/removing already-present objects remains possible while repairing a draft.
     const addsUnowned = [...targetCounts].some(([itemId, count]) => count > (currentCounts.get(itemId) ?? 0)
       && (inventory.state !== "READY" || count > (owned().find(item => item.itemId === itemId)?.quantity ?? 0)));
-    if (target.objects.length > FURNITURE_LIMIT || addsUnowned) {
+    if (targetObjects.length > FURNITURE_LIMIT || addsUnowned) {
       message = inventory.state === "READY" ? "현재 보유한 수량으로는 이 배치를 복원할 수 없어요." : "보유 가구 확인이 끝나면 다시 시도해 주세요.";
       render(); return false;
     }
+    return true;
+  }
+  function restoreHistory(direction) {
+    const state = client.state(), source = direction === "undo" ? undo : redo;
+    if (!editable(state) || !source.length) return false;
+    const target = source.at(-1);
+    if (!canRestore(target.objects, state)) return false;
     const before = capture(state), previousUndo = undo, previousRedo = redo;
     if (direction === "undo") { undo = undo.slice(0, -1); redo = [...redo, before].slice(-HISTORY_LIMIT); }
     else { redo = redo.slice(0, -1); undo = [...undo, before].slice(-HISTORY_LIMIT); }
     selected = target.selected; message = direction === "undo" ? "이전 배치로 되돌렸어요." : "배치를 다시 적용했어요.";
-    if (client.edit(target.objects)) return true;
+    if (client.edit(target.objects)) { preview = target.preview ?? null; render(); return true; }
     undo = previousUndo; redo = previousRedo; selected = before.selected; render(); return false;
   }
   const node = (tag, text, className) => { const el = doc.createElement(tag); if (text !== undefined) el.textContent = text; if (className) el.className = className; return el; };
@@ -96,6 +103,30 @@ export function createFurnitureEditor({ client, inventory, onOpenChange = () => 
     const object = { ...position, id: globalThis.crypto.randomUUID() };
     edit([...state.objects, object], object.id);
   }
+  function recommend(style) {
+    if (!editable() || inventory.state !== "READY") return;
+    const before = preview?.before ?? capture();
+    const result = recommendFurniture(style, owned(), before.objects);
+    if (result.error) { message = "보유 가구와 방 범위를 확인하지 못했어요. 배치는 바꾸지 않았어요."; render(); return; }
+    if (!result.objects.length) { message = "추천할 수 있는 보유 가구나 배치 공간이 없어요."; render(); return; }
+    const previousPreview = preview, previousUndo = undo, previousRedo = redo, previousSelection = selected;
+    const baseUndo = preview?.undo ?? undo, baseRedo = preview?.redo ?? redo;
+    preview = { before, undo: baseUndo, redo: baseRedo, style, unplaced: result.unplaced };
+    undo = [...baseUndo, before].slice(-HISTORY_LIMIT); redo = []; selected = null; message = "";
+    if (!client.edit(result.objects)) {
+      preview = previousPreview; undo = previousUndo; redo = previousRedo; selected = previousSelection;
+    }
+    render();
+  }
+  function cancelRecommendation() {
+    if (!editable() || !preview || !canRestore(preview.before.objects)) return;
+    const saved = preview, previousUndo = undo, previousRedo = redo, previousSelection = selected;
+    preview = null; undo = saved.undo; redo = saved.redo; selected = saved.before.selected;
+    if (!client.edit(saved.before.objects)) {
+      preview = saved; undo = previousUndo; redo = previousRedo; selected = previousSelection;
+    } else message = "추천 전 배치로 돌아왔어요.";
+    render();
+  }
   function render() {
     if (panel.hidden) return;
     const focusKey = panel.contains(doc.activeElement) ? doc.activeElement?.dataset?.focus : null;
@@ -112,6 +143,25 @@ export function createFurnitureEditor({ client, inventory, onOpenChange = () => 
     undoButton.title = "되돌리기 (Ctrl/⌘+Z)"; redoButton.title = "다시 실행 (Ctrl/⌘+Shift+Z, Ctrl+Y)";
     history.append(undoButton, redoButton); panel.append(history);
     panel.append(node("p", "최근 100단계를 되돌릴 수 있어요. 저장하면 실행 기록이 새로 시작돼요.", "furniture-history-help"));
+    const recommendations = node("section", undefined, "furniture-recommendations");
+    recommendations.setAttribute("aria-label", "보유 가구 추천 배치");
+    recommendations.append(node("h3", "보유 가구 추천 배치"), node("p", "가진 가구로만 미리봐요. 직접 고치거나 되돌릴 수 있고, 저장을 눌러야 확정돼요."));
+    const hasFurniture = ROOM_FURNITURE.some(item => (items.find(row => row.itemId === item.itemId)?.quantity ?? 0) > 0);
+    for (const style of FURNITURE_STYLES) {
+      const choice = button(style.name, () => recommend(style.id), locked || inventory.state !== "READY" || !hasFurniture, `recommend-${style.id}`);
+      choice.title = style.description; choice.setAttribute("aria-pressed", String(preview?.style === style.id)); recommendations.append(choice);
+    }
+    if (preview) {
+      recommendations.append(node("p", `${FURNITURE_STYLES.find(style => style.id === preview.style).name} 미리보기 · 아직 저장하지 않았어요.`));
+      recommendations.append(button("추천 전으로 돌아가기", cancelRecommendation, locked, "recommend-cancel"));
+      if (preview.unplaced.length) {
+        recommendations.append(node("p", "추천에서 미배치된 가구는 보유 목록에 그대로 남아요. 직접 추가할 수 있어요."));
+        const list = node("ul");
+        for (const row of preview.unplaced) list.append(node("li", `${FURNITURE_BY_ID.get(row.itemId)?.name ?? row.itemId} ${row.quantity}개: ${row.reason}`));
+        recommendations.append(list);
+      }
+    }
+    panel.append(recommendations);
     const { halfWidth: mapW, halfDepth: mapD } = PERSONAL_ROOM_BASIC;
     const placement = PERSONAL_ROOM_PLACEMENT_ENVELOPE.floor;
     const map = svgNode("svg", { viewBox: `${-mapW} ${-mapD} ${2*mapW} ${2*mapD}`, preserveAspectRatio: "none", role: "group", "aria-label": "방 평면도. 위쪽은 창문, 아래쪽은 출입문" });
@@ -186,11 +236,11 @@ export function createFurnitureEditor({ client, inventory, onOpenChange = () => 
       confirmation.append(button("계속 꾸미기", () => { closing = null; render(); }), button("변경 버리고 닫기", () => closeNow(closing.action))); panel.append(confirmation);
     } else {
       const footer = node("footer"); footer.append(button(state.pending ? "저장 중…" : "저장", async () => {
-        if (!editable()) return;
+        if (!editable() || inventory.state !== "READY") return;
         const savingSession = session;
-        message = ""; const saved = await client.save(items);
+        message = ""; const saved = await client.save(owned());
         if (disposed || panel.hidden || savingSession !== session) return;
-        if (saved) { clearHistory(); message = "저장했어요. 다음에 들어와도 그대로예요."; }
+        if (saved) { preview = null; clearHistory(); message = "저장했어요. 다음에 들어와도 그대로예요."; }
         else if (client.state().error === "ITEM_NOT_OWNED") void inventory.refresh("furniture-save"); render();
       }, state.pending || !!validation || inventory.state !== "READY"));
       footer.append(button("완료", () => requestClose(), state.pending)); panel.append(footer);

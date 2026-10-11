@@ -101,6 +101,7 @@ import { createSpaceFade } from "./rooms/space-fade.js";
 import { DORM_1_LOBBY_MY_ROOM_RETURN } from "./rooms/dorm1-lobby-layout.js";
 import { createRoomWorldAdapter } from "./rooms/room-world-adapter.js";
 import { createDorm1LobbyScene } from "./rooms/dorm1-lobby-renderer.js";
+import { createPersonalRoomEnvironment } from "./rooms/personal-room-environment.js";
 import { createPersonalRoomScene } from "./rooms/personal-room-renderer.js";
 import { PersonalRoomClient } from "./rooms/personal-room-client.js";
 import { createPersonalRoomInteraction } from "./rooms/personal-room-interaction.js";
@@ -1975,7 +1976,7 @@ rooms = createRoomTransition({
     player, controller, orbit, campusRoot, getRoomScene: (room) => roomScenes.get(room.id) ?? null, sun: light,
     lighting: {
       save: () => ({ ambient: app.scene.ambientLight.clone(), clearColor: camera.camera.clearColor.clone() }),
-      apply: ({ ambient, clearColor }) => { app.scene.ambientLight = ambient; camera.camera.clearColor = clearColor; }
+      apply: ({ ambient, clearColor }) => { app.scene.ambientLight.copy(ambient); camera.camera.clearColor.copy(clearColor); }
     },
     follow, stopFollowReason: FollowStopReason.ROOM, seating, seats, emotes,
     getOnline: () => online, places, streaming: { update: (dt, p) => streaming.update(dt, p) },
@@ -1999,6 +2000,33 @@ rooms = createRoomTransition({
     setLocationLabel: (text) => { zoneEl.textContent = text; },
     markSpace: (id) => { if (id) document.body.dataset.space = id; else delete document.body.dataset.space; }
   })
+});
+// The shared world director stays authoritative outdoors. Room-local visuals read
+// its projection after the time update and never write to that director or its clock.
+const personalRoomOutdoorFrame = {};
+const personalRoomEnvironment = createPersonalRoomEnvironment({
+  getContext: () => {
+    const state = rooms.status();
+    return {
+      active: state.space === "ROOM_PERSONAL_BASIC" && personalRoomScene.root.enabled,
+      sessionKey: `${online?.userId ?? "guest"}:${state.metadata?.personalRoomId ?? ""}:${state.metadata?.ownerUserId ?? ""}`,
+      position: player.getLocalPosition(), grounded: controller.grounded, mounted: controller.mounted,
+      seated: seats.isSeated, blocked: state.busy || combatRuntime.active || !inputFocus.can("WORLD_ACTION") || furnitureEditor?.open === true,
+      reducedMotion: reducedMotion.matches
+    };
+  },
+  getOutdoor: () => environment.copyVisualAtmosphereState(personalRoomOutdoorFrame),
+  applyFrame: frame => {
+    personalRoomScene.applyEnvironment(frame);
+    app.scene.ambientLight.copy(personalRoomScene.ambient);
+    camera.camera.clearColor.copy(personalRoomScene.clearColor);
+  },
+  setCurtainOpen: personalRoomScene.setCurtainOpen
+});
+app.on("update", dt => personalRoomEnvironment.update(dt));
+rooms.onChange(() => personalRoomEnvironment.update(0));
+window.__INHAGAME_PERSONAL_ROOM_ENVIRONMENT__ = Object.freeze({
+  status: () => ({ ...personalRoomEnvironment.status(), worldTime: environmentWorldTime.status().environmentTime })
 });
 const biryongRealmScene = createBiryongRealmScene(app, {
   visualMaterials: biryongVisualLabP0B,
@@ -3481,6 +3509,7 @@ app.on("update", (dt) => {
   contextActions.set("guestbook", guestbookAction);
   cookingFeature.update();
   contextActions.set("room-furniture", roomFurnitureFunctions.contextAction());
+  contextActions.set("personal-room-environment", personalRoomEnvironment.contextAction());
   // Student Center shop entry: campus only, on foot, not while the shop is already open.
   const shopWorldAction = shopWorld.observe(pos, {
     blocked: inside || controller.mounted || shopPanel.open || lobbyWorld.active || lobbyTransition.active,
@@ -3544,7 +3573,7 @@ app.on("update", (dt) => {
   transportActions.set("mount", mountContextAction ? { ...mountContextAction, trigger: () => controller.transportAction() } : null);
   if (combatRuntime.active) {
     for (const key of [
-      "seat", "room-furniture", "guestbook", "student-center-shop", "student-center-vendors", "dorm-furniture-shop", "backgate-transit", "biryong-station-transit",
+      "seat", "room-furniture", "personal-room-environment", "guestbook", "student-center-shop", "student-center-vendors", "dorm-furniture-shop", "backgate-transit", "biryong-station-transit",
       "biryong-npc", "inkyung-duck", "inkyung-fishing", "biryong", "mcm-event", "mcm-minigame", "follow",
       "room-door", "personal-room-door", "npc"
     ]) contextActions.set(key, null);
