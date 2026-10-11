@@ -46,15 +46,32 @@ try {
     await Promise.race([page.waitForFunction(target=>{const c=window.__INHAGAME_P0__?.getStatus?.().npcTest?.shared_schedule;return c?.state==='SYNCED'&&c.frameServerNowMs>=target&&c.frameServerNowMs<target+12000},serverTime,{timeout:15000}),fatal]);
   }
   async function capture(id,phase,label){
-    await page.evaluate(id=>{const d=window.__INHAGAME_P0__,s=d.getStatus().npcTest.purposeful[id];d.player.setLocalPosition(s.position.x+2,d.controller.groundY,s.position.z+2);d.orbit.distance=8;d.orbit.pitch=.65;d.orbit.yaw=3*Math.PI/4;window.__C04_CAPTURE_START__=window.__C04_QA_FRAMES__},id);
+    // Inspection camera only: retain the actual NPC, props, benches and every HUD.
+    // Keep the guest fallback avatar out of the shot instead of hiding any entity.
+    await page.evaluate(id=>{
+      const d=window.__INHAGAME_P0__,s=d.getStatus().npcTest.purposeful[id];
+      d.player.setLocalPosition(s.position.x+5,d.controller.groundY,s.position.z+5);
+      if(window.__C04_CAMERA__)d.app.off('postupdate',window.__C04_CAMERA__);
+      window.__C04_CAMERA__=()=>{const v=d.app.root.findByName('NPC_TEST_HUMAN_'+id),p=v.getPosition();
+        d.orbit.camera.setPosition(p.x+2.4,p.y+1.2,p.z+(id.endsWith('009')?1.8:-1.8));
+        d.orbit.camera.lookAt(p.x,p.y+.45,p.z);};
+      d.app.on('postupdate',window.__C04_CAMERA__);window.__C04_CAMERA__();
+      window.__C04_CAPTURE_START__=window.__C04_QA_FRAMES__;
+    },id);
     await Promise.race([page.waitForFunction(()=>window.__C04_QA_FRAMES__-window.__C04_CAPTURE_START__>=3,null,{timeout:30000}),fatal]);
     if(phase==='ACTING'&&id.endsWith('009'))await page.waitForFunction(()=>window.__INHAGAME_P0__.app.root.findByName('NPC_TEST_HUMAN_INKYUNG-NPC-009')?.findByName('NPC_Activity_compact_camera')?.enabled===true,null,{timeout:15000});
     const frame=await page.evaluate(async id=>{
       const [{SEAT_ANCHORS,SEAT_TOP_Y},{roadviewGroundHeight},{INKYUNG_PHOTO_POINT},{NPC_ACTIVITY_PROPS},{NPC_SEAT_ANCHOR_MODEL_Y}]=await Promise.all([import('/src/seat-anchors.js'),import('/src/roadview-layout.js'),import('/src/photo/inkyung-photo-point.js'),import('/src/life-props.js'),import('/npc-factory/npc-dimensions.mjs')]);
       const d=window.__INHAGAME_P0__,n=d.getStatus().npcTest,s=n.purposeful[id],v=d.app.root.findByName('NPC_TEST_HUMAN_'+id),p=v.getLocalPosition(),q=v.getLocalRotation(),seat=SEAT_ANCHORS.find(a=>a.id==='SEAT_INKYUNG_TREE_1_A'),target=INKYUNG_PHOTO_POINT.lookAt;
       const projected=v.getPosition().clone();projected.y+=.5;const screen=d.orbit.camera.camera.worldToScreen(projected);
+      const world=v.getPosition(),corners=[];
+      for(const x of [-.35,.35])for(const z of [-.35,.35])for(const y of [0,2.37*v.getLocalScale().y]){
+        const point=world.clone();point.x+=x;point.y+=y;point.z+=z;corners.push(d.orbit.camera.camera.worldToScreen(point));}
+      const left=Math.min(...corners.map(p=>p.x)),top=Math.min(...corners.map(p=>p.y));
+      const avatarBounds={x:left,y:top,width:Math.max(...corners.map(p=>p.x))-left,height:Math.max(...corners.map(p=>p.y))-top};
+      const hud=[...document.querySelectorAll('#inkyung-living-moment,#minimap,#quest-hud,#tour,.campus-topbar > *,.social-cluster > button,#joystick,#run,#jump,#transport-action')].filter(e=>{const c=getComputedStyle(e);return !e.hidden&&c.display!=='none'&&c.visibility!=='hidden'&&Number(c.opacity)>0}).map(e=>{const r=e.getBoundingClientRect();return {id:e.id||e.className,x:r.x,y:r.y,width:r.width,height:r.height}}).filter(r=>r.width>0&&r.height>0);
       const others=Object.entries(n.purposeful).filter(([other,x])=>other!==id&&x.visible).map(([other,x])=>({id:other,distance:Math.hypot(x.position.x-s.position.x,x.position.z-s.position.z)})).sort((a,b)=>a.distance-b.distance);
-      return {actor:s,clock:n.shared_schedule,count:n.purposeful_count,renderer:d.getStatus().renderer,renderedFrames:window.__C04_QA_FRAMES__-window.__C04_CAPTURE_START__,viewport:{width:innerWidth,height:innerHeight},screen:{x:screen.x,y:screen.y},render:{enabled:v.enabled,position:{x:p.x,y:p.y,z:p.z},heading:Math.atan2(2*(q.x*q.z+q.w*q.y),1-2*(q.x*q.x+q.y*q.y))*180/Math.PI,seatAnchorY:p.y+NPC_SEAT_ANCHOR_MODEL_Y*v.getLocalScale().y},seat,seatTopY:roadviewGroundHeight(seat.position.x,seat.position.z)+SEAT_TOP_Y,photoTargetYaw:Math.atan2(target.x-s.position.x,target.z-s.position.z)*180/Math.PI,photoPropVisible:v.findByName('NPC_Activity_'+NPC_ACTIVITY_PROPS.PHOTO.id)?.enabled===true,nearest:others.slice(0,3)};
+      return {cameraMode:'inspection camera; actual scene and HUD retained',avatarBounds,hud,actor:s,clock:n.shared_schedule,count:n.purposeful_count,renderer:d.getStatus().renderer,renderedFrames:window.__C04_QA_FRAMES__-window.__C04_CAPTURE_START__,viewport:{width:innerWidth,height:innerHeight},screen:{x:screen.x,y:screen.y},render:{enabled:v.enabled,position:{x:p.x,y:p.y,z:p.z},heading:Math.atan2(2*(q.x*q.z+q.w*q.y),1-2*(q.x*q.x+q.y*q.y))*180/Math.PI,seatAnchorY:p.y+NPC_SEAT_ANCHOR_MODEL_Y*v.getLocalScale().y},seat,seatTopY:roadviewGroundHeight(seat.position.x,seat.position.z)+SEAT_TOP_Y,photoTargetYaw:Math.atan2(target.x-s.position.x,target.z-s.position.z)*180/Math.PI,photoPropVisible:v.findByName('NPC_Activity_'+NPC_ACTIVITY_PROPS.PHOTO.id)?.enabled===true,nearest:others.slice(0,3)};
     },id);
     const screenshot=`${name}-${id.slice(-3)}-${label}.png`;
     await page.screenshot({path:path.join(output,screenshot)});

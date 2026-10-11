@@ -22,6 +22,10 @@ export function assertC04Frame(frame, { id, phase }) {
   assert.ok(frame.renderedFrames>=3,'at least three real postrender events');
   assert.equal(frame.clock.state,'SYNCED');
   assert.equal(frame.count,46);
+  const box=frame.avatarBounds;
+  assert.ok(box&&box.height>=60,'NPC is large enough for independent pixel review');
+  assert.ok(box.x>=0&&box.y>=0&&box.x+box.width<=frame.viewport.width&&box.y+box.height<=frame.viewport.height,'whole NPC body fits the viewport');
+  assert.ok(frame.hud.every(h=>box.x+box.width<=h.x||h.x+h.width<=box.x||box.y+box.height<=h.y||h.y+h.height<=box.y),'HUD does not cover the reviewed NPC');
   assert.ok(frame.screen.x>=0 && frame.screen.x<=frame.viewport.width && frame.screen.y>=0 && frame.screen.y<=frame.viewport.height,'NPC is in the captured viewport');
   if(phase==='MOVING') {
     assert.equal(frame.actor.moving,true);
