@@ -10,7 +10,7 @@ export function createFurnitureEditor({ client, inventory, onOpenChange = () => 
   panel.className = "furniture-editor"; panel.tabIndex = -1; panel.setAttribute("role", "dialog"); panel.setAttribute("aria-modal", "true");
   panel.setAttribute("aria-label", "내 방 꾸미기"); doc.body.append(panel);
   const backdrop = doc.createElement("div"); backdrop.className = "furniture-editor-backdrop"; backdrop.hidden = true; doc.body.append(backdrop);
-  let selected = null, message = "", closing = null, previousFocus = null, preview = null;
+  let selected = null, message = "", closing = null, previousFocus = null, preview = null, guidedDone = null, suggestedStyle = null;
   // History belongs to one open editor session, never to the inventory or server snapshot.
   // A successful save establishes a new checkpoint; a failed save keeps the whole draft/history.
   const HISTORY_LIMIT = 100;
@@ -22,7 +22,7 @@ export function createFurnitureEditor({ client, inventory, onOpenChange = () => 
   });
   const sameObjects = (a, b) => JSON.stringify(canonicalFurniture(a)) === JSON.stringify(canonicalFurniture(b));
   function clearHistory() { undo = []; redo = []; }
-  function resetSession() { preview = null; session++; clearHistory(); selected = null; message = ""; closing = null; }
+  function resetSession() { guidedDone = null; suggestedStyle = null; preview = null; session++; clearHistory(); selected = null; message = ""; closing = null; }
   function editable(state = client.state()) { return !disposed && !panel.hidden && state.editing && state.role === "owner" && !closing && !state.pending; }
   function edit(objects, nextSelected = selected) {
     const state = client.state();
@@ -104,7 +104,7 @@ export function createFurnitureEditor({ client, inventory, onOpenChange = () => 
     edit([...state.objects, object], object.id);
   }
   function recommend(style) {
-    if (!editable() || inventory.state !== "READY") return;
+    if (!editable() || inventory.state !== "READY" || !FURNITURE_STYLES.some(row => row.id === style)) return;
     const before = preview?.before ?? capture();
     const result = recommendFurniture(style, owned(), before.objects);
     if (result.error) { message = "보유 가구와 방 범위를 확인하지 못했어요. 배치는 바꾸지 않았어요."; render(); return; }
@@ -161,6 +161,7 @@ export function createFurnitureEditor({ client, inventory, onOpenChange = () => 
         recommendations.append(list);
       }
     }
+    if (suggestedStyle) recommendations.append(node("p", `방의 한 장면 · ${FURNITURE_STYLES.find(row => row.id === suggestedStyle)?.name ?? ""}. 원하는 추천을 눌러 미리보고, 가구를 한두 개 직접 조정해 보세요.`));
     panel.append(recommendations);
     const { halfWidth: mapW, halfDepth: mapD } = PERSONAL_ROOM_BASIC;
     const placement = PERSONAL_ROOM_PLACEMENT_ENVELOPE.floor;
@@ -243,7 +244,7 @@ export function createFurnitureEditor({ client, inventory, onOpenChange = () => 
         if (saved) { preview = null; clearHistory(); message = "저장했어요. 다음에 들어와도 그대로예요."; }
         else if (client.state().error === "ITEM_NOT_OWNED") void inventory.refresh("furniture-save"); render();
       }, state.pending || !!validation || inventory.state !== "READY"));
-      footer.append(button("완료", () => requestClose(), state.pending)); panel.append(footer);
+      footer.append(button(guidedDone ? "완료 · 빛과 구도로" : "완료", () => requestClose(guidedDone), state.pending)); panel.append(footer);
     }
     if (focusKey) {
       const buttons = [...panel.querySelectorAll("[data-focus]")];
@@ -279,12 +280,18 @@ export function createFurnitureEditor({ client, inventory, onOpenChange = () => 
   const unsubscribe = inventory.onChange(() => render());
   return {
     get open() { return !panel.hidden; },
-    openEditor() {
+    get guided() { return !panel.hidden && guidedDone !== null; },
+    // BFCache keeps the existing edit session/draft/history. Only detach the expired guide.
+    detachGuide() { guidedDone = null; suggestedStyle = null; render(); },
+    openEditor({ recommendationStyle = null, onDone = null } = {}) {
       if (disposed) return false;
       if (!panel.hidden) return true;
       if (!client.begin()) return false;
       previousFocus = doc.activeElement; resetSession();
+      guidedDone = typeof onDone === "function" ? onDone : null;
+      suggestedStyle = FURNITURE_STYLES.some(row => row.id === recommendationStyle) ? recommendationStyle : null;
       panel.hidden = false; backdrop.hidden = false; onOpenChange(true); render(); panel.querySelector("button")?.focus();
+      if (suggestedStyle && inventory.state === "READY") recommend(suggestedStyle);
       void inventory.refresh("furniture-open"); return true;
     },
     requestClose,

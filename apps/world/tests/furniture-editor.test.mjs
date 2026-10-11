@@ -312,3 +312,37 @@ test('Undo of a manual recommendation edit retains preview metadata; Undo of rec
   undo(h);undo(h);assert.deepEqual(objects(h),[]);assert.equal(h.byText('추천 전으로 돌아가기'),undefined);
   redo(h);assert.deepEqual(objects(h),suggested);assert.ok(h.byText('추천 전으로 돌아가기'));
 });
+
+test('guided mood preview uses existing ownership, explicit save and dirty-close decision',async()=>{
+  const h=await rig();let done=0;h.ui.openEditor({recommendationStyle:'relax',onDone:()=>done++});
+  assert.ok(objects(h).length);assert.equal(h.calls.filter(x=>x.name.startsWith('save')).length,0);
+  h.byText('완료 · 빛과 구도로').click();assert.equal(done,0);assert.ok(h.byText('계속 꾸미기'));
+  h.byText('계속 꾸미기').click();h.byText('저장').click();await flush();
+  assert.equal(h.client.state().dirty,false);assert.equal(done,0);h.byText('완료 · 빛과 구도로').click();assert.equal(done,1);
+});
+test('guided preview can be explicitly discarded; close, reset and later ordinary editor never fire stale continuation',async()=>{
+  const h=await rig();let done=0;h.ui.openEditor({recommendationStyle:'study',onDone:()=>done++});
+  h.byText('완료 · 빛과 구도로').click();h.byText('변경 버리고 닫기').click();assert.equal(done,1);assert.deepEqual(objects(h),[]);
+  h.ui.openEditor({onDone:()=>done++});h.byText('닫기').click();assert.equal(done,1);
+  h.ui.openEditor({onDone:()=>done++});h.ui.forceClose();h.ui.openEditor();h.byText('완료').click();assert.equal(done,1);
+});
+test('guided preview waits for inventory without silently overwriting later manual edits',async()=>{
+  const h=await rig();h.inventory.state='LOADING';h.ui.openEditor({recommendationStyle:'study',onDone:()=>{}});
+  assert.deepEqual(objects(h),[]);h.inventory.state='READY';h.notify();assert.deepEqual(objects(h),[]);
+  h.byText('공부 중심').click();assert.ok(objects(h).length);
+});
+test('BFCache guide detachment preserves dirty draft, undo/redo and explicit save/cancel without stale continuation',async()=>{
+  const h=await rig();let done=0;h.ui.openEditor({recommendationStyle:'study',onDone:()=>done++});
+  const draft=objects(h);assert.equal(h.ui.guided,true);h.ui.detachGuide();
+  assert.equal(h.ui.open,true);assert.equal(h.ui.guided,false);assert.deepEqual(objects(h),draft);assert.equal(h.client.state().dirty,true);
+  undo(h);assert.deepEqual(objects(h),[]);redo(h);assert.deepEqual(objects(h),draft);
+  h.byText('완료').click();assert.ok(h.byText('계속 꾸미기'));h.byText('계속 꾸미기').click();
+  h.byText('저장').click();await flush();h.byText('완료').click();assert.equal(done,0);assert.equal(h.ui.open,false);
+});
+test('BFCache guide detachment keeps pending save alive and still blocks close until readback',async()=>{
+  const h=await rig();let done=0,resolve;h.ui.openEditor({recommendationStyle:'relax',onDone:()=>done++});
+  const draft=objects(h);h.queue.push(new Promise(r=>resolve=r));h.byText('저장').click();h.ui.detachGuide();
+  assert.equal(h.client.state().pending,true);assert.equal(h.ui.requestClose(),false);assert.equal(h.ui.open,true);
+  resolve({data:{roomId:ROOM,role:'owner',revision:1,objects:draft},error:null});await flush();
+  assert.equal(h.client.state().dirty,false);h.byText('완료').click();assert.equal(done,0);
+});

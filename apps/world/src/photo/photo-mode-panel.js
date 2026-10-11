@@ -218,7 +218,7 @@ export function createPhotoModePanel({ mode, rig, input, doc = globalThis.docume
         const stored = await onCaptured(result, context);
         if (destroyed || current !== session || !mode.active) return;
         if (!stored) say('앨범 저장은 실패했어요. 찍은 사진을 눌러 원본 PNG를 직접 저장해 주세요', { sticky: true });
-        else { say('앨범에 저장했어요 · 최근 사진을 눌러 앨범 열기'); await refreshAlbumLatest(); }
+        else { albumRecord = stored; say('앨범에 저장했어요 · 찍은 사진을 눌러 앨범 열기'); }
       }
     } catch (error) {
       if (current === session && !destroyed && mode.active && error?.name !== 'AbortError')

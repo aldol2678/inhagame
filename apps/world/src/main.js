@@ -67,6 +67,7 @@ import { createSeatInteraction } from "./seat-interaction.js";
 import { personalRoomSeatAnchors, personalRoomSeatZone, resolveRoomSeatStandPoint } from "./rooms/personal-room-seats.js";
 import { campusSpawn } from './campus-spawn.js';
 import { createContextActionController } from "./context-action.js";
+import { createRoomPhotoStory } from "./rooms/room-photo-story.js";
 import { createPhotoMode } from "./photo/photo-mode.js";
 import { createPhotoCapture } from "./photo/photo-capture.js";
 import { bindPhotoModeEntry, createPhotoModePanel } from "./photo/photo-mode-panel.js";
@@ -913,6 +914,7 @@ let lastPersonalRoomUserId = null;
 let roomSession = null;
 let roomFurniture = null;
 let furnitureEditor = null;
+let roomPhotoStory = null;
 let trophyDisplay = null, trophyDisplayPanel = null;
 let cookingFeature = null, cookingOpening = false, roomFunctionAccountId = null;
 let furnitureRefreshSeconds = 0;
@@ -1856,10 +1858,14 @@ const photoInput = createPhotoInput({
 });
 const photoModePanel = createPhotoModePanel({ mode: photoMode, rig: photoCamera, input: photoInput, fallbackFocus: canvas,
   capture: createPhotoCapture({ app, canvas, mode: photoMode }),
-  getCaptureContext: () => smartphone?.captureContext() ?? {},
-  onCaptured: (result, context) => smartphone?.capture(result, context) ?? null,
+  getCaptureContext: () => ({ ...smartphone?.captureContext(), roomStoryTicket: roomPhotoStory?.ticket() }),
+  onCaptured: async (result, context) => {
+    const stored = await smartphone?.capture(result, context) ?? null;
+    roomPhotoStory?.captured(stored, context.roomStoryTicket);
+    return stored;
+  },
   getAlbumLatest: () => smartphone?.latestPhoto() ?? null,
-  onOpenAlbum: record => smartphone?.openAlbum(record) });
+  onOpenAlbum: record => smartphone?.openAlbum(record) === true });
 const photoModeEntry = bindPhotoModeEntry({ button: document.getElementById("photo-mode-toggle"), mode: photoMode });
 window.addEventListener("pagehide", event => {
   photoMode.close("lifecycle");
@@ -2303,6 +2309,7 @@ knockPromptRoot.hidden = true;
 const roomHud = createRoomHud({
   root: document.getElementById("room-hud"),
   footer: knockPromptRoot,
+  onStory: () => roomPhotoStory?.open(),
   onLeave: () => furnitureEditor?.open ? furnitureEditor.requestClose(() => rooms.exit()) : rooms.exit(),
   onEdit: () => {
     if (!furnitureEditor?.openEditor()) {
@@ -2457,6 +2464,29 @@ const getRoomFunctionState = () => {
     mounted: controller.mounted, seated: seats.isSeated, grounded: controller.grounded
   };
 };
+roomPhotoStory = createRoomPhotoStory({
+  inputFocus, photoMode, fallbackFocus: canvas, onStatus: showWorldStatus,
+  getContext: () => {
+    const room = rooms.status(), state = getRoomFunctionState();
+    return { ...state, active: state.space === "ROOM_PERSONAL_BASIC" && !!state.roomId,
+      role: room.metadata?.visitRole ?? null, reading: roomFurniture.state().reading,
+      pending: roomFurniture.state().pending, error: roomFurniture.state().error,
+      blocked: combatRuntime.active || lobbyWorld.active || lobbyTransition.active || cinematic.active === true };
+  },
+  openEditor: options => furnitureEditor.openEditor(options),
+  getEnvironment: personalRoomEnvironment.status,
+  openAlbum: record => smartphone?.openAlbum(record) === true
+});
+app.on("update", () => roomPhotoStory.update());
+rooms.onChange(() => roomPhotoStory.update());
+window.addEventListener("pagehide", event => {
+  // BFCache preserves unsaved furniture exactly like ordinary editing; only its old guide callback expires.
+  if (event.persisted) { if (furnitureEditor?.guided) furnitureEditor.detachGuide(); }
+  else {
+    if (furnitureEditor?.guided) furnitureEditor.forceClose();
+    roomPhotoStory.destroy();
+  }
+});
 trophyDisplay = createTrophyDisplay({ inventory, getContext: getRoomFunctionState,
   onChange: state => { personalRoomScene.ownedFurniture.setDisplays(state.displays); trophyDisplayPanel?.update(state); }
 });
@@ -3038,6 +3068,7 @@ smartphone = createSmartphone({
   getIdentity: () => online?.identity ?? null, getClient: () => online?.supabase ?? null,
   getProgression: () => ({ state: progression.state, snapshot: progression.snapshot }),
   getClock: () => worldTimeHud.status().clock,
+  onAlbumViewed: record => roomPhotoStory?.albumViewed(record),
   getCaptureContext: () => {
     const p = player.getLocalPosition(), place = places.getCurrentPlaceZone();
     const room = rooms?.status();
@@ -3664,6 +3695,7 @@ try {
     roomFunctionAccountId = nextRoomFunctionAccountId;
     if (roomFunctionIdentityChanged) {
       cookingFeature?.reset();
+      roomPhotoStory?.reset();
       trophyDisplayPanel?.close({ restoreFocus: false });
       trophyDisplay?.reset();
     }
@@ -3960,6 +3992,7 @@ window.__INHAGAME_P0__ = {
   roomHud,
   roomFurniture,
   furnitureEditor,
+  roomPhotoStory,
   trophyDisplay,
   trophyDisplayPanel,
   roomFurnitureFunctions,
