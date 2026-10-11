@@ -45,7 +45,13 @@ test('current campus cold generation and serialized import preserve every accept
   assert.equal(result.population, 48);
   assert.equal(result.expansion, 'READY');
   assert.equal(result.eligibleLegs, 200);
-  assert.equal(result.movementLegs, 141);
+  // C04 lunch activity anchors now make one additional itinerary leg a movement.
+  // Keep both movement and stationary budgets explicit instead of weakening coverage.
+  assert.equal(result.movementLegs, 142);
+  assert.equal(result.stationaryLegs, 58);
+  assert.equal(result.movementLegs + result.stationaryLegs, result.eligibleLegs);
+  assert.equal(result.stationaryRoutes, result.stationaryLegs);
+  assert.equal(result.comparableMovement, result.movementLegs);
   assert.equal(result.recastRoutes, 200);
   assert.equal(result.movementCoverage, 1);
   assert.equal(result.legacyRoutes, 200);
