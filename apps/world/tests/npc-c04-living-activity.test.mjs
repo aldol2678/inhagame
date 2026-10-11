@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { mergeCampusPopulation } from '../npc-factory/npc-campus-expansion.mjs';
 import { applyCampusLifeSchedule } from '../npc-factory/npc-campus-life-policy.mjs';
 import { createPurposefulRoster } from '../npc-factory/purposeful-roster.mjs';
+import { createNpcNavigator } from '../npc-factory/dev-navigation.mjs';
 import { SEAT_ANCHORS, findSeat } from '../src/seat-anchors.js';
 
 const read = path => JSON.parse(readFileSync(new URL('../npc-factory/data/' + path, import.meta.url)));
@@ -25,8 +26,13 @@ test('C04 lunch adds exactly one photographer and one bench visitor in both rost
     assert.deepEqual(npc('INKYUNG-NPC-002'), source.npcs[1], 'photo guide quest NPC unchanged');
     assert.deepEqual(batch.npcs.filter(member => member.schedule.lunch.activity === 'take_photo')
       .map(member => member.npc_id), ['INKYUNG-NPC-009']);
-    assert.deepEqual(batch.npcs.filter(member => member.schedule.lunch.activity === 'sit')
-      .map(member => member.npc_id), ['INKYUNG-NPC-010']);
+    // The authored quest NPC 001 already sits at lunch; do not count it as a
+    // newly assigned living-activity visitor or mutate its protected schedule.
+    assert.deepEqual(batch.npcs.filter(member =>
+      member.npc_id !== 'INKYUNG-NPC-001' &&
+      member.npc_id !== 'INKYUNG-NPC-002' &&
+      member.schedule.lunch.activity === 'sit'
+    ).map(member => member.npc_id), ['INKYUNG-NPC-010']);
     for (const id of ['INKYUNG-NPC-009', 'INKYUNG-NPC-010']) {
       const current = npc(id);
       const original = source.npcs.find(member => member.npc_id === id);
@@ -39,7 +45,9 @@ test('C04 lunch adds exactly one photographer and one bench visitor in both rost
 });
 
 test('C04 seated NPC arrives at an existing physical tree bench', () => {
-  const navigator = { route: (_from, to) => [{ ...to }] };
+  // Use the real campus obstacle/navigation contract instead of a stub with
+  // missing walkable(). All NPC destinations must be physically traversable.
+  const navigator = createNpcNavigator(expanded);
   const roster = createPurposefulRoster(expanded, navigator);
   const photo = roster.get('INKYUNG-NPC-009');
   const sitter = roster.get('INKYUNG-NPC-010');
@@ -51,6 +59,11 @@ test('C04 seated NPC arrives at an existing physical tree bench', () => {
   assert.ok(seat, 'the world must still have its rendered pond tree bench');
   const approach = sitter.destinations[sitter.schedule[2].destination].position;
   assert.deepEqual(approach, { x: seat.standPoint.x, z: seat.standPoint.z });
+  assert.equal(navigator.walkable(approach), true, 'existing bench approach must be walkable');
+  assert.equal(navigator.walkable(photoPoint), true, 'photo anchor must be walkable');
+  const from = sitter.destinations[sitter.schedule[1].destination].position;
+  const path = navigator.networkRoute(from, approach) ?? navigator.route(from, approach);
+  assert.ok(path?.length, 'bench must be reachable from the previous scheduled destination');
   assert.equal(findSeat(approach, { range: 2 })?.id, seat.id,
     'NPC should visibly sit on the actual seat instead of a symbolic bench point');
 });
