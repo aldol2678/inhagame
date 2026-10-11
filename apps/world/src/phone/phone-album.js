@@ -46,7 +46,7 @@ export function createPhoneAlbum({ indexedDB = globalThis.indexedDB, thumbnail =
     });
   }
   const keyFor = id => `${scope}/${id}`;
-  const reportError = error => { if (error.name !== 'AbortError') { lastError = '앨범 저장소를 사용할 수 없어요. PNG 파일을 이 기기에 저장해 주세요.'; onError(lastError); } };
+  const reportError = error => { if (error.name !== 'AbortError') { lastError = error.name === 'QuotaExceededError' ? '브라우저 저장공간이 부족해요. 사진을 따로 보관한 뒤 저장공간을 확인해 주세요.' : '앨범 저장소를 사용할 수 없어요. PNG 파일을 이 기기에 저장해 주세요.'; onError(lastError); } };
   async function read(id) {
     const key = keyFor(id), mine = epoch;
     return transact('readonly', mine, (records,images,done) => {
@@ -65,7 +65,28 @@ export function createPhoneAlbum({ indexedDB = globalThis.indexedDB, thumbnail =
   async function image(id, kind = 'original') {
     const mine = epoch, record = await read(id); if (!record || mine !== epoch) return null;
     const ref = kind === 'thumbnail' ? record.thumbnailRef : record.imageRef;
+    if (ref !== `${keyFor(id)}:${kind === 'thumbnail' ? 'thumbnail' : 'original'}`) throw Error('Invalid photo reference');
     return transact('readonly', mine, (records,images,done) => { const r = images.get(ref); r.onsuccess = () => done(r.result?.blob ?? null); });
+  }
+  // Read Blob sizes without decoding or retaining original image bytes. No schema migration.
+  async function sizes(id) {
+    const mine = epoch, record = await read(id);
+    if (mine !== epoch) throw abortError();
+    if (!record) throw Error('Missing photo');
+    const key = keyFor(id);
+    if (record.imageRef !== `${key}:original` || record.thumbnailRef !== `${key}:thumbnail`) throw Error('Invalid photo reference');
+    return transact('readonly', mine, (records, images, done) => {
+      let originalBytes, thumbnailBytes, left = 2;
+      for (const kind of ['original', 'thumbnail']) {
+        const r = images.get(`${key}:${kind}`);
+        r.onsuccess = () => {
+          const blob = r.result?.blob;
+          const bytes = blob instanceof Blob && blob.size > 0 ? blob.size : null;
+          if (kind === 'original') originalBytes = bytes; else thumbnailBytes = bytes;
+          if (!--left) done({ originalBytes, thumbnailBytes, damaged: originalBytes === null || thumbnailBytes === null });
+        };
+      }
+    });
   }
   async function save(result, context = {}) {
     const mine = epoch, at = scope;
@@ -110,9 +131,9 @@ export function createPhoneAlbum({ indexedDB = globalThis.indexedDB, thumbnail =
       });
     } catch (error) { reportError(error); return false; }
   }
-  return Object.freeze({ list, read, image, save, favorite, remove,
+  return Object.freeze({ list, read, image, sizes, save, favorite, remove,
     setScope(userId) { epoch++; for (const tx of activeTransactions) { try { tx.abort(); } catch {} } scope = userId ? `member:${userId}` : 'guest'; lastError = null; },
-    get scope() { return scope; }, get error() { return lastError; },
+    get generation() { return epoch; }, get scope() { return scope; }, get error() { return lastError; },
     destroy() { epoch++; for (const tx of activeTransactions) { try { tx.abort(); } catch {} } }
   });
 }
