@@ -6,7 +6,7 @@ import { createPhoneSurface, createPhoneMapHistory } from './phone-surfaces.js';
 import { PHOTO_ENTRY_BLOCK_MESSAGES } from '../photo/photo-mode-panel.js';
 
 export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, getIdentity, getClient,
-  getProgression, getCaptureContext, canOpen, beforeOpen, getClock = () => '',
+  getProgression, getCaptureContext, canOpen, beforeOpen, getClock = () => '', onAlbumViewed = () => {},
   toggle, mapElement, settingsElement, onWarning = () => {}, doc = globalThis.document, win = globalThis.window }) {
   const el = (tag, cls = '', text = '') => { const n=doc.createElement(tag); n.className=cls; n.textContent=text; return n; };
   const btn = (text, action, label = text) => { const n=el('button','',text); n.type='button'; n.setAttribute('aria-label',label); n.addEventListener('click',action); return n; };
@@ -74,7 +74,7 @@ export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, g
       if(!shell.camera(photoMode)){say(PHOTO_ENTRY_BLOCK_MESSAGES[photoMode.blockedReason({entryOwner:'smartphone'})]||'지금은 카메라를 열 수 없어요.');}
       return;
     }
-    selectedApp=null;shell.launch(id,params);
+    selectedApp=null;return shell.launch(id,params);
   }
   function appSlot(id,area,slot,page) {
     const app=registry.find(x=>x.id===id), editing=shell.state===PHONE_STATE.HOME_EDIT;
@@ -130,7 +130,10 @@ export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, g
       const records=await album.list();if(at!==uiEpoch||destroyed)return;
       if(params.photoId){
         const record=records.find(x=>x.id===params.photoId);if(!record){content.append(el('p','','이 사진을 찾을 수 없어요.'));return;}
-        const image=el('img','smartphone-photo');image.alt=record.locationName;content.append(image);
+        const image=el('img','smartphone-photo');image.alt=record.locationName;
+        image.addEventListener('load',()=>{if(at===uiEpoch&&!destroyed&&image.naturalWidth>0)onAlbumViewed(record);},{once:true});
+        image.addEventListener('error',()=>{if(at===uiEpoch&&!destroyed)say('사진을 표시하지 못했어요. 앨범에서 다시 열어 주세요.');},{once:true});
+        content.append(image);
         const blob=await album.image(record.id);if(at!==uiEpoch||destroyed)return;if(blob)attachImage(image,blob);
         content.append(el('h3','',record.locationName),el('p','',new Date(record.capturedAtReal).toLocaleString('ko-KR')),
           el('p','',record.position?`월드 위치 ${record.position.x.toFixed(1)}, ${record.position.z.toFixed(1)}`:'촬영 위치 기록 없음'));
@@ -261,7 +264,7 @@ export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, g
     capture:async(result,context)=>album.save(result,context),
     captureContext:()=>({...getCaptureContext(),scope:album.scope,capturedAtReal:new Date().toISOString()}),
     async latestPhoto(){const records=await album.list(),record=records[0];return record?{record,blob:await album.image(record.id,'thumbnail')}:null;},
-    openAlbum(record){photoMode.close('close');if(shell.state==='CLOSED')open();if(shell.ownsInput){launch('album');if(record)launch('album',{photoId:record.id});}},
+    openAlbum(record){photoMode.close('close');if(shell.state==='CLOSED')open();if(!shell.ownsInput||!launch('album'))return false;return record?launch('album',{photoId:record.id}):true;},
     mapClosed(){if(suppressClose||shell.snapshot().current?.appId!=='maps')return;shell.back();},
     settingsChanged(open){if(!open&&!suppressClose&&shell.snapshot().current?.appId==='settings')shell.back();},
     navigationStarted(destination){if(shell.snapshot().current?.appId!=='maps')return;history.remember(destination,getMap()?.status().mapSourceId);shell.close();},

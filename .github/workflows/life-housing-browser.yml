@@ -3,6 +3,8 @@ on:
   pull_request:
     paths:
       - 'apps/world/src/rooms/**'
+      - 'apps/world/src/phone/**'
+      - 'apps/world/src/photo/**'
       - 'apps/world/src/seat-interaction.js'
       - 'apps/world/src/seat-anchors.js'
       - 'apps/world/src/context-action.js'
@@ -13,7 +15,11 @@ on:
       - 'apps/world/src/collection/**'
       - 'apps/world/src/main.js'
       - 'apps/world/tests/browser/*seating*'
+      - 'apps/world/tests/browser/personal-room-environment*'
+      - 'apps/world/tests/personal-room-environment.test.mjs'
       - 'apps/world/tests/browser/*furniture*'
+      - 'apps/world/tests/browser/room-photo-story-*'
+      - 'apps/world/tests/room-photo-story.test.mjs'
       - 'apps/world/tests/browser/*trophy*'
       - 'apps/world/tests/browser/*fishing-skill-effects*'
       - 'apps/world/tests/personal-room-seating.test.mjs'
@@ -25,6 +31,7 @@ on:
       - 'apps/world/tests/browser/package*.json'
       - 'apps/world/qa.mjs'
       - 'apps/world/styles.css'
+      - 'apps/world/phone.css'
       - 'apps/world/campus/index.html'
       - 'apps/world/dev-server.mjs'
       - '.github/workflows/life-housing-browser.yml'
@@ -44,6 +51,9 @@ jobs:
         smoke:
           - personal-room-seating
           - furniture-history
+          - furniture-recommendations
+          - personal-room-environment
+          - room-photo-story
           - trophy-display
           - trophy-display-null
           - shop-furniture
@@ -72,13 +82,14 @@ jobs:
           mkdir -p test-results
           git rev-parse HEAD > test-results/head-sha.txt
           find apps/world/src apps/world/tests/browser -type f -not -path '*/node_modules/*' -print0 | sort -z | xargs -0 sha256sum > test-results/source-hashes.txt
-          sha256sum apps/world/styles.css >> test-results/source-hashes.txt
+          sha256sum apps/world/styles.css apps/world/phone.css >> test-results/source-hashes.txt
       - name: Exercise offline candidate flow
         env:
           WORLD_SMOKE_DISABLE_WEBGPU: '1'
           WORLD_SMOKE_TIMEOUT_MS: '120000'
           SMOKE: ${{ matrix.smoke }}
           TROPHY_DISPLAY_QA_OUTPUT: test-results/trophy-display
+          ROOM_PHOTO_STORY_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -o pipefail
           timeout --signal=TERM --kill-after=10s 840s node "apps/world/tests/browser/${SMOKE}-smoke.mjs" 2>&1 | tee "test-results/${SMOKE}.log"

@@ -67,6 +67,7 @@ import { createSeatInteraction } from "./seat-interaction.js";
 import { personalRoomSeatAnchors, personalRoomSeatZone, resolveRoomSeatStandPoint } from "./rooms/personal-room-seats.js";
 import { campusSpawn } from './campus-spawn.js';
 import { createContextActionController } from "./context-action.js";
+import { createRoomPhotoStory } from "./rooms/room-photo-story.js";
 import { createPhotoMode } from "./photo/photo-mode.js";
 import { createPhotoCapture } from "./photo/photo-capture.js";
 import { bindPhotoModeEntry, createPhotoModePanel } from "./photo/photo-mode-panel.js";
@@ -101,6 +102,7 @@ import { createSpaceFade } from "./rooms/space-fade.js";
 import { DORM_1_LOBBY_MY_ROOM_RETURN } from "./rooms/dorm1-lobby-layout.js";
 import { createRoomWorldAdapter } from "./rooms/room-world-adapter.js";
 import { createDorm1LobbyScene } from "./rooms/dorm1-lobby-renderer.js";
+import { createPersonalRoomEnvironment } from "./rooms/personal-room-environment.js";
 import { createPersonalRoomScene } from "./rooms/personal-room-renderer.js";
 import { PersonalRoomClient } from "./rooms/personal-room-client.js";
 import { createPersonalRoomInteraction } from "./rooms/personal-room-interaction.js";
@@ -912,6 +914,7 @@ let lastPersonalRoomUserId = null;
 let roomSession = null;
 let roomFurniture = null;
 let furnitureEditor = null;
+let roomPhotoStory = null;
 let trophyDisplay = null, trophyDisplayPanel = null;
 let cookingFeature = null, cookingOpening = false, roomFunctionAccountId = null;
 let furnitureRefreshSeconds = 0;
@@ -1855,10 +1858,14 @@ const photoInput = createPhotoInput({
 });
 const photoModePanel = createPhotoModePanel({ mode: photoMode, rig: photoCamera, input: photoInput, fallbackFocus: canvas,
   capture: createPhotoCapture({ app, canvas, mode: photoMode }),
-  getCaptureContext: () => smartphone?.captureContext() ?? {},
-  onCaptured: (result, context) => smartphone?.capture(result, context) ?? null,
+  getCaptureContext: () => ({ ...smartphone?.captureContext(), roomStoryTicket: roomPhotoStory?.ticket() }),
+  onCaptured: async (result, context) => {
+    const stored = await smartphone?.capture(result, context) ?? null;
+    roomPhotoStory?.captured(stored, context.roomStoryTicket);
+    return stored;
+  },
   getAlbumLatest: () => smartphone?.latestPhoto() ?? null,
-  onOpenAlbum: record => smartphone?.openAlbum(record) });
+  onOpenAlbum: record => smartphone?.openAlbum(record) === true });
 const photoModeEntry = bindPhotoModeEntry({ button: document.getElementById("photo-mode-toggle"), mode: photoMode });
 window.addEventListener("pagehide", event => {
   photoMode.close("lifecycle");
@@ -1975,7 +1982,7 @@ rooms = createRoomTransition({
     player, controller, orbit, campusRoot, getRoomScene: (room) => roomScenes.get(room.id) ?? null, sun: light,
     lighting: {
       save: () => ({ ambient: app.scene.ambientLight.clone(), clearColor: camera.camera.clearColor.clone() }),
-      apply: ({ ambient, clearColor }) => { app.scene.ambientLight = ambient; camera.camera.clearColor = clearColor; }
+      apply: ({ ambient, clearColor }) => { app.scene.ambientLight.copy(ambient); camera.camera.clearColor.copy(clearColor); }
     },
     follow, stopFollowReason: FollowStopReason.ROOM, seating, seats, emotes,
     getOnline: () => online, places, streaming: { update: (dt, p) => streaming.update(dt, p) },
@@ -1999,6 +2006,33 @@ rooms = createRoomTransition({
     setLocationLabel: (text) => { zoneEl.textContent = text; },
     markSpace: (id) => { if (id) document.body.dataset.space = id; else delete document.body.dataset.space; }
   })
+});
+// The shared world director stays authoritative outdoors. Room-local visuals read
+// its projection after the time update and never write to that director or its clock.
+const personalRoomOutdoorFrame = {};
+const personalRoomEnvironment = createPersonalRoomEnvironment({
+  getContext: () => {
+    const state = rooms.status();
+    return {
+      active: state.space === "ROOM_PERSONAL_BASIC" && personalRoomScene.root.enabled,
+      sessionKey: `${online?.userId ?? "guest"}:${state.metadata?.personalRoomId ?? ""}:${state.metadata?.ownerUserId ?? ""}`,
+      position: player.getLocalPosition(), grounded: controller.grounded, mounted: controller.mounted,
+      seated: seats.isSeated, blocked: state.busy || combatRuntime.active || !inputFocus.can("WORLD_ACTION") || furnitureEditor?.open === true,
+      reducedMotion: reducedMotion.matches
+    };
+  },
+  getOutdoor: () => environment.copyVisualAtmosphereState(personalRoomOutdoorFrame),
+  applyFrame: frame => {
+    personalRoomScene.applyEnvironment(frame);
+    app.scene.ambientLight.copy(personalRoomScene.ambient);
+    camera.camera.clearColor.copy(personalRoomScene.clearColor);
+  },
+  setCurtainOpen: personalRoomScene.setCurtainOpen
+});
+app.on("update", dt => personalRoomEnvironment.update(dt));
+rooms.onChange(() => personalRoomEnvironment.update(0));
+window.__INHAGAME_PERSONAL_ROOM_ENVIRONMENT__ = Object.freeze({
+  status: () => ({ ...personalRoomEnvironment.status(), worldTime: environmentWorldTime.status().environmentTime })
 });
 const biryongRealmScene = createBiryongRealmScene(app, {
   visualMaterials: biryongVisualLabP0B,
@@ -2275,6 +2309,7 @@ knockPromptRoot.hidden = true;
 const roomHud = createRoomHud({
   root: document.getElementById("room-hud"),
   footer: knockPromptRoot,
+  onStory: () => roomPhotoStory?.open(),
   onLeave: () => furnitureEditor?.open ? furnitureEditor.requestClose(() => rooms.exit()) : rooms.exit(),
   onEdit: () => {
     if (!furnitureEditor?.openEditor()) {
@@ -2429,6 +2464,29 @@ const getRoomFunctionState = () => {
     mounted: controller.mounted, seated: seats.isSeated, grounded: controller.grounded
   };
 };
+roomPhotoStory = createRoomPhotoStory({
+  inputFocus, photoMode, fallbackFocus: canvas, onStatus: showWorldStatus,
+  getContext: () => {
+    const room = rooms.status(), state = getRoomFunctionState();
+    return { ...state, active: state.space === "ROOM_PERSONAL_BASIC" && !!state.roomId,
+      role: room.metadata?.visitRole ?? null, reading: roomFurniture.state().reading,
+      pending: roomFurniture.state().pending, error: roomFurniture.state().error,
+      blocked: combatRuntime.active || lobbyWorld.active || lobbyTransition.active || cinematic.active === true };
+  },
+  openEditor: options => furnitureEditor.openEditor(options),
+  getEnvironment: personalRoomEnvironment.status,
+  openAlbum: record => smartphone?.openAlbum(record) === true
+});
+app.on("update", () => roomPhotoStory.update());
+rooms.onChange(() => roomPhotoStory.update());
+window.addEventListener("pagehide", event => {
+  // BFCache preserves unsaved furniture exactly like ordinary editing; only its old guide callback expires.
+  if (event.persisted) { if (furnitureEditor?.guided) furnitureEditor.detachGuide(); }
+  else {
+    if (furnitureEditor?.guided) furnitureEditor.forceClose();
+    roomPhotoStory.destroy();
+  }
+});
 trophyDisplay = createTrophyDisplay({ inventory, getContext: getRoomFunctionState,
   onChange: state => { personalRoomScene.ownedFurniture.setDisplays(state.displays); trophyDisplayPanel?.update(state); }
 });
@@ -3010,6 +3068,7 @@ smartphone = createSmartphone({
   getIdentity: () => online?.identity ?? null, getClient: () => online?.supabase ?? null,
   getProgression: () => ({ state: progression.state, snapshot: progression.snapshot }),
   getClock: () => worldTimeHud.status().clock,
+  onAlbumViewed: record => roomPhotoStory?.albumViewed(record),
   getCaptureContext: () => {
     const p = player.getLocalPosition(), place = places.getCurrentPlaceZone();
     const room = rooms?.status();
@@ -3481,6 +3540,7 @@ app.on("update", (dt) => {
   contextActions.set("guestbook", guestbookAction);
   cookingFeature.update();
   contextActions.set("room-furniture", roomFurnitureFunctions.contextAction());
+  contextActions.set("personal-room-environment", personalRoomEnvironment.contextAction());
   // Student Center shop entry: campus only, on foot, not while the shop is already open.
   const shopWorldAction = shopWorld.observe(pos, {
     blocked: inside || controller.mounted || shopPanel.open || lobbyWorld.active || lobbyTransition.active,
@@ -3544,7 +3604,7 @@ app.on("update", (dt) => {
   transportActions.set("mount", mountContextAction ? { ...mountContextAction, trigger: () => controller.transportAction() } : null);
   if (combatRuntime.active) {
     for (const key of [
-      "seat", "room-furniture", "guestbook", "student-center-shop", "student-center-vendors", "dorm-furniture-shop", "backgate-transit", "biryong-station-transit",
+      "seat", "room-furniture", "personal-room-environment", "guestbook", "student-center-shop", "student-center-vendors", "dorm-furniture-shop", "backgate-transit", "biryong-station-transit",
       "biryong-npc", "inkyung-duck", "inkyung-fishing", "biryong", "mcm-event", "mcm-minigame", "follow",
       "room-door", "personal-room-door", "npc"
     ]) contextActions.set(key, null);
@@ -3635,6 +3695,7 @@ try {
     roomFunctionAccountId = nextRoomFunctionAccountId;
     if (roomFunctionIdentityChanged) {
       cookingFeature?.reset();
+      roomPhotoStory?.reset();
       trophyDisplayPanel?.close({ restoreFocus: false });
       trophyDisplay?.reset();
     }
@@ -3931,6 +3992,7 @@ window.__INHAGAME_P0__ = {
   roomHud,
   roomFurniture,
   furnitureEditor,
+  roomPhotoStory,
   trophyDisplay,
   trophyDisplayPanel,
   roomFurnitureFunctions,

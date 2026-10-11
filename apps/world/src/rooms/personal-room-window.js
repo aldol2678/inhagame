@@ -1,4 +1,4 @@
-// PERSONAL-ROOM-V2 PR A · fixed, open window treatment. No input, time or save state.
+// PERSONAL-ROOM-V2 PR A · room-local window treatment. No persistence or clock authority.
 // The shared material factory owns materials; each procedural curtain owns its mesh.
 
 import * as pc from "playcanvas";
@@ -124,6 +124,7 @@ export function createPersonalRoomWindow(root, { materials }) {
   const rail = box(group, "curtain_rail", [x, top + .155, D - .07], [.023, width + .68, .023], materials.get("metal"), 0, "cylinder");
   rail.setLocalEulerAngles(0, 0, 90);
   const panels = [];
+  const loops = [];
   for (const side of [-1, 1]) {
     const panelX = x + side * (width / 2 + .015);
     box(group, `curtain_rail_finial_${side}`, [x + side * (width / 2 + .35), top + .155, D - .07], [.043, .043, .043], materials.get("metal"), 0, "sphere");
@@ -131,8 +132,22 @@ export function createPersonalRoomWindow(root, { materials }) {
     panels.push(curtain(group, `curtain_open_${side}`, [panelX, top + .107, D - .082], materials, side));
     // Five small fabric loops make the connection to the rail readable.
     for (let i = 0; i < 5; i++) {
-      box(group, `curtain_loop_${side}_${i}`, [panelX + (i - 2) * .11, top + .13, D - .075], [.02, .055, .026], materials.get("curtainHem"));
+      loops.push({ side, i, entity: box(group, `curtain_loop_${side}_${i}`, [panelX + (i - 2) * .11, top + .13, D - .075], [.02, .055, .026], materials.get("curtainHem")) });
     }
   }
-  return Object.freeze({ root: group, panels: Object.freeze(panels) });
+  function setOpenness(value) {
+    const open = Math.min(1, Math.max(0, Number.isFinite(value) ? value : 1));
+    // Outer hems remain within the existing H2 window reservation. The panels
+    // gather outward when open, spread to overlap at the center when closed.
+    const panelWidth = 1.12 + (.62 - 1.12) * open;
+    const centerOffset = .46 + (.915 - .46) * open;
+    panels.forEach((panel, index) => {
+      const side = index === 0 ? -1 : 1;
+      panel.setLocalPosition(x + side * centerOffset, top + .107, D - .082);
+      panel.setLocalScale(panelWidth / .62, 1, 1);
+    });
+    for (const { side, i, entity } of loops) entity.setLocalPosition(
+      x + side * centerOffset + (i - 2) * .11 * panelWidth / .62, top + .13, D - .075);
+  }
+  return Object.freeze({ root: group, panels: Object.freeze(panels), setOpenness });
 }
