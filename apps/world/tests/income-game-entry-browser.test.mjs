@@ -29,3 +29,11 @@ test('framebuffer evidence reads resolved default and restores engine binding, e
   calls.length=0; gl.readPixels=()=>{throw new Error('read failed');};
   assert.throws(()=>readIncomeResolvedFramebuffer(gl),/read failed/); assert.deepEqual(calls.at(-1),['bind',1,old]);
 });
+
+test('fixture button layout excludes hidden choices instead of overriding native hidden', async () => {
+  const html = await read('./browser/income-game-entry-browser.html');
+  assert.match(html, /\.furniture-editor button:not\(\[hidden\]\)\{display:block/);
+  assert.doesNotMatch(html, /\.furniture-editor button\s*\{[^}]*display\s*:/);
+  const smoke = await read('./browser/income-game-entry-browser-smoke.mjs');
+  for (const assertion of ["button[hidden]", "getComputedStyle(node).display", "node.getClientRects().length", "completed modal cannot tab to hidden choices", "delivery-only view hides practice and wage note"]) assert.ok(smoke.includes(assertion), assertion);
+});

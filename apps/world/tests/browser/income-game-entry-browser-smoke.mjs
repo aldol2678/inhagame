@@ -53,10 +53,15 @@ try {
       assert.match(await dialog().innerText(),/출근·정산·보상은 발생하지 않았어요/);
       assert.equal(await close().evaluate(el=>document.activeElement===el),true,'completion restores focus to visible close control');
       assert.equal(await dialog().getByRole('button',{includeHidden:false}).count(),1);
+      const hiddenChoices=await dialog().locator('button[hidden]').evaluateAll(nodes=>nodes.map(node=>({display:getComputedStyle(node).display,rects:node.getClientRects().length})));
+      assert.equal(hiddenChoices.length,2);assert.ok(hiddenChoices.every(node=>node.display==='none'&&node.rects===0),'completed choices remain CSS-hidden');
+      await page.keyboard.press('Tab');assert.equal(await close().evaluate(el=>document.activeElement===el),true,'completed modal cannot tab to hidden choices');
+      item.checks.push('completed choices have display:none, no layout boxes, and cannot receive Tab focus');
       await page.screenshot({path:`${output}/${device.name}-practice-complete.png`});await press(close());assert.equal((await stats()).locks,0);
       item.checks.push('trusted F/touch entry; recoverable wrong choice; unpaid practice completion and focus');
       await press(page.locator('#delivery'));assert.match(await dialog().innerText(),/수락·제출·지급하지 않아요/);
-      assert.equal(await dialog().getByRole('button').count(),1);await press(close());item.checks.push('delivery remains CLOSED information only with no accept/submit controls');
+      assert.equal(await dialog().getByRole('button').count(),1);
+      assert.equal(await dialog().locator('[hidden]').evaluateAll(nodes=>nodes.every(node=>node.getClientRects().length===0)),true,'delivery-only view hides practice and wage note');await press(close());item.checks.push('delivery remains CLOSED information only with no accept/submit controls');
       await openEmployer();await page.evaluate(()=>window.__INCOME_GAME_QA__.mode({accountId:'synthetic-account-b'}));assert.equal((await stats()).dialogOpen,false);assert.equal((await stats()).locks,0);
       item.checks.push('account switch closes dialogue and releases input');
       for(let i=0;i<2;i++){
