@@ -36,3 +36,9 @@ test('C04 workflow preserves main-only deployment policy and uploads exact-head 
   assert.match(workflow,/npc-c04-living-smoke.mjs/);assert.match(workflow,/actions\/upload-artifact@v4/);
   const policy=JSON.parse(read('../../../vercel.json'));assert.deepEqual(policy.git.deploymentEnabled,{'**':false,main:true});
 });
+
+test('C04 inspection camera runs on the actual PlayCanvas pre-render event',()=>{
+  const smoke=read('./browser/npc-c04-living-smoke.mjs');
+  assert.match(smoke,/d\.app\.on\('prerender',window\.__C04_CAMERA__\)/);
+  assert.doesNotMatch(smoke,/['"]postupdate['"]/);
+});

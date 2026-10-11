@@ -1,5 +1,5 @@
 // Exact-head hosted C04 acceptance. The normal app renders; only the server clock
-// response and player-follow camera are fixtures. No production network requests.
+// response and inspection camera are fixtures. No production network requests.
 import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
@@ -51,11 +51,11 @@ try {
     await page.evaluate(id=>{
       const d=window.__INHAGAME_P0__,s=d.getStatus().npcTest.purposeful[id];
       d.player.setLocalPosition(s.position.x+5,d.controller.groundY,s.position.z+5);
-      if(window.__C04_CAMERA__)d.app.off('postupdate',window.__C04_CAMERA__);
+      if(window.__C04_CAMERA__)d.app.off('prerender',window.__C04_CAMERA__);
       window.__C04_CAMERA__=()=>{const v=d.app.root.findByName('NPC_TEST_HUMAN_'+id),p=v.getPosition();
         d.orbit.camera.setPosition(p.x+2.4,p.y+1.2,p.z+(id.endsWith('009')?1.8:-1.8));
         d.orbit.camera.lookAt(p.x,p.y+.45,p.z);};
-      d.app.on('postupdate',window.__C04_CAMERA__);window.__C04_CAMERA__();
+      d.app.on('prerender',window.__C04_CAMERA__);window.__C04_CAMERA__();
       window.__C04_CAPTURE_START__=window.__C04_QA_FRAMES__;
     },id);
     await Promise.race([page.waitForFunction(()=>window.__C04_QA_FRAMES__-window.__C04_CAPTURE_START__>=3,null,{timeout:30000}),fatal]);
