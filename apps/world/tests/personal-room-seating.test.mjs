@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { personalRoomSeatAnchors, personalRoomSeatZone, roomSeatPointIsClear,
   resolveRoomSeatStandPoint, PERSONAL_ROOM_SEAT_TOP } from "../src/rooms/personal-room-seats.js";
-import { PERSONAL_ROOM_BASIC_OBSTACLES, PERSONAL_ROOM_BASIC_SPAWN } from "../src/rooms/personal-room-layout.js";
+import { PERSONAL_ROOM_BASIC_FURNITURE, PERSONAL_ROOM_BASIC_OBSTACLES, PERSONAL_ROOM_BASIC_SPAWN } from "../src/rooms/personal-room-layout.js";
+import { PERSONAL_ROOM_FIXED_CHAIR_YAW } from "../src/rooms/personal-room-chair-design.js";
 import { furnitureBox } from "../src/rooms/furniture-layout.js";
 import { createSeatInteraction } from "../src/seat-interaction.js";
 import { SEAT_ANCHORS, findSeat } from "../src/seat-anchors.js";
@@ -45,6 +46,7 @@ function rig({ roomId = ROOM, objects = [], online = null } = {}) {
     setScope: value => { scope = value; }, setOnline: value => { online = value; },
     setPosition: value => { position = { ...value }; }, setEditing: value => { editing = value; },
     setLayout: value => { layout = value; blockers = [...PERSONAL_ROOM_BASIC_OBSTACLES, ...value.map(furnitureBox)]; },
+    setObstacles: value => { blockers = value; },
     get obstacles() { return blockers; }, get yaw() { return yaw; }
   };
 }
@@ -54,7 +56,10 @@ test("room anchors have isolated UUID scope; fixed chair is available without ow
   assert.equal(personalRoomSeatAnchors({ roomId: "AREA_MAIN_HALL" }).length, 0);
   const [anchor] = personalRoomSeatAnchors({ roomId: ROOM });
   assert.equal(anchor.interactableId, "fixed-chair");
-  assert.equal(anchor.yaw, 180);
+  assert.equal(PERSONAL_ROOM_FIXED_CHAIR_YAW, 180);
+  assert.equal(anchor.yaw, (PERSONAL_ROOM_FIXED_CHAIR_YAW + 180) % 360);
+  assert.equal(anchor.yaw, 0);
+  assert.equal(PERSONAL_ROOM_SEAT_TOP.fixed, .27);
   assert.equal(anchor.position.x, 2.95);
   assert.equal(anchor.position.z, .85);
   close(anchor.position.y, 1.15 + PERSONAL_ROOM_SEAT_TOP.fixed - .1);
@@ -63,7 +68,32 @@ test("room anchors have isolated UUID scope; fixed chair is available without ow
   assert.ok(SEAT_ANCHORS.every(campus => campus.id !== anchor.id));
   assert.ok(roomSeatPointIsClear(anchor.standPoint, PERSONAL_ROOM_BASIC_OBSTACLES));
   assert.equal(findSeat(near(anchor), { anchors: [anchor] }), anchor);
-  assert.equal(findSeat({ x: 2.95, z: 1.2 }, { anchors: [anchor] }), null, "backrest is not an approach");
+  assert.equal(findSeat({ x: 2.95, z: 1.2 }, { anchors: [anchor] }), null, "desk-facing yaw is not the side approach");
+});
+
+test("fixed chair faces the desk while safe left, right, and rear approaches stay usable", () => {
+  const desk = PERSONAL_ROOM_BASIC_FURNITURE.find(item => item.id === "desk");
+  for (const position of [{ x: 2.25, z: .85 }, { x: 3.65, z: .85 }, { x: 2.95, z: .15 }]) {
+    const [anchor] = personalRoomSeatAnchors({ roomId: ROOM, position });
+    assert.ok(anchor);
+    assert.equal(anchor.yaw, 0);
+    assert.equal(findSeat(position, { anchors: [anchor] }), anchor);
+    const distance = Math.hypot(anchor.standPoint.x - anchor.position.x, anchor.standPoint.z - anchor.position.z);
+    close(anchor.approachDirection.x, (anchor.standPoint.x - anchor.position.x) / distance);
+    close(anchor.approachDirection.z, (anchor.standPoint.z - anchor.position.z) / distance);
+    assert.ok(roomSeatPointIsClear(anchor.standPoint, PERSONAL_ROOM_BASIC_OBSTACLES));
+    const r = rig(); r.setPosition(position);
+    assert.equal(r.seating.toggle(), true);
+    assert.equal(r.seating.beforeController(), true, "approach changes do not evict an occupied fixed chair");
+    assert.equal(r.yaw, 0);
+    close(Math.sin(r.yaw * Math.PI / 180), 0);
+    assert.ok(Math.cos(r.yaw * Math.PI / 180) * (desk.at[2] - r.player.getLocalPosition().z) > 0);
+    assert.equal(r.seating.toggle(), true);
+    assert.deepEqual(r.player.getLocalPosition(), anchor.standPoint);
+    assert.ok(roomSeatPointIsClear(r.player.getLocalPosition(), r.obstacles));
+  }
+  assert.deepEqual(personalRoomSeatAnchors({ roomId: ROOM, position: { x: 2.95, z: 1.55 } }), [],
+    "F does not reach through the desk to its chair");
 });
 
 test("placed chair and sofa follow all eight saved rotations and use the rendered seat top", () => {
@@ -84,16 +114,50 @@ test("placed chair and sofa follow all eight saved rotations and use the rendere
   }
 });
 
-test("a blocked stand point or obstructed front approach never offers a seat", () => {
-  const chair = fixed(), front = chair.standPoint;
+test("owned chairs retain front-only behavior when their landing or approach is blocked", () => {
+  const object = placed(), objects = [object];
+  const owned = options => personalRoomSeatAnchors({ roomId: ROOM, objects, ...options }).find(a => a.interactableId === OBJECT);
+  const chair = owned(), front = chair.standPoint;
+  const obstacles = [...PERSONAL_ROOM_BASIC_OBSTACLES, furnitureBox(object)];
   const block = { id: "block", minX: front.x - .15, maxX: front.x + .15,
     minZ: front.z - .15, maxZ: front.z + .15, minY: 0, maxY: .8 };
-  assert.equal(personalRoomSeatAnchors({ roomId: ROOM, obstacles: [...PERSONAL_ROOM_BASIC_OBSTACLES, block] }).length, 0);
+  assert.equal(owned({ obstacles: [...obstacles, block] }), undefined);
   const approachBlock = { ...block, minZ: front.z - .85, maxZ: front.z - .55 };
-  assert.equal(personalRoomSeatAnchors({ roomId: ROOM, obstacles: [...PERSONAL_ROOM_BASIC_OBSTACLES, approachBlock],
-    position: { x: front.x, z: front.z - .9 } }).length, 0);
+  assert.equal(owned({ obstacles: [...obstacles, approachBlock], position: { x: front.x, z: front.z - .9 } }), undefined);
   const hidden = personalRoomSeatAnchors({ roomId: ROOM, objects: [{ ...placed(), z: -3.5 }] });
   assert.equal(hidden.length, 1, "wall-facing owned chair has no safe front landing");
+});
+
+test("dense fixed-chair blockers select a safe rear corridor or make the seat unavailable", () => {
+  const sides = [
+    { id: "left", minX: 2.4, maxX: 2.52, minZ: .52, maxZ: 1.32, minY: 0, maxY: 1 },
+    { id: "right", minX: 3.38, maxX: 3.5, minZ: .52, maxZ: 1.32, minY: 0, maxY: 1 }
+  ];
+  const obstacles = [...PERSONAL_ROOM_BASIC_OBSTACLES, ...sides];
+  const [anchor] = personalRoomSeatAnchors({ roomId: ROOM, obstacles });
+  assert.ok(anchor);
+  assert.equal(anchor.yaw, 0);
+  close(anchor.approachDirection.x, 0);
+  close(anchor.approachDirection.z, -1);
+  assert.ok(anchor.standPoint.z < anchor.position.z);
+  assert.ok(roomSeatPointIsClear(anchor.standPoint, obstacles));
+  const r = rig(); r.setObstacles(obstacles); r.setPosition(anchor.standPoint);
+  assert.equal(r.seating.toggle(), true);
+  assert.equal(r.seating.beforeController(), true);
+  assert.equal(r.seating.toggle(), true);
+  assert.ok(roomSeatPointIsClear(r.player.getLocalPosition(), obstacles));
+
+  const rear = { id: "rear", minX: 2.4, maxX: 3.5, minZ: .4, maxZ: .5, minY: 0, maxY: 1 };
+  const enclosed = [...obstacles, rear];
+  for (const position of [{ x: 1.95, z: .85 }, { x: 3.95, z: .85 }, { x: 2.95, z: -.15 }]) {
+    assert.ok(roomSeatPointIsClear(position, enclosed), "a clear endpoint alone is not a clear corridor");
+    assert.deepEqual(personalRoomSeatAnchors({ roomId: ROOM, obstacles: enclosed, position }), []);
+  }
+  assert.deepEqual(personalRoomSeatAnchors({ roomId: ROOM, obstacles: enclosed }), []);
+  assert.equal(resolveRoomSeatStandPoint(anchor, enclosed, { allowSpawnFallback: false }), null);
+  const fallback = resolveRoomSeatStandPoint(anchor, enclosed);
+  assert.deepEqual(fallback, PERSONAL_ROOM_BASIC_SPAWN.position);
+  assert.ok(roomSeatPointIsClear(fallback, enclosed));
 });
 
 test("standing resolves changed obstacles and falls back to the reserved entrance", () => {
@@ -108,15 +172,25 @@ test("standing resolves changed obstacles and falls back to the reserved entranc
   assert.deepEqual(resolveRoomSeatStandPoint(anchor, encircled), PERSONAL_ROOM_BASIC_SPAWN.position);
 });
 
+test("a fixed chair blocked during sitting releases to clear floor instead of a collision landing", () => {
+  const r = rig(); assert.equal(r.seating.toggle(), true);
+  const encircled = { id: "new-surroundings", minX: 1.4, maxX: 4.5, minZ: -.7, maxZ: 2.4, minY: 0, maxY: 1 };
+  r.setObstacles([...PERSONAL_ROOM_BASIC_OBSTACLES, encircled]);
+  assert.equal(r.seating.beforeController(), false);
+  assert.deepEqual(r.player.getLocalPosition(), PERSONAL_ROOM_BASIC_SPAWN.position);
+  assert.ok(roomSeatPointIsClear(r.player.getLocalPosition(), r.obstacles));
+});
+
 test("repeated F/tap cycles refresh candidates at activation and never drift", () => {
   const r = rig();
   for (let i = 0; i < 20; i++) {
     assert.equal(r.seating.toggle(), true, "no prior refresh required");
     assert.equal(r.seating.beforeController(), true);
     assert.deepEqual(r.player.getLocalPosition(), fixed().position);
-    assert.equal(r.yaw, 180);
+    assert.equal(r.yaw, 0);
     assert.equal(r.seating.toggle(), true);
     assert.deepEqual(r.player.getLocalPosition(), fixed().standPoint);
+    assert.ok(roomSeatPointIsClear(r.player.getLocalPosition(), r.obstacles));
   }
   r.setEditing(true);
   assert.equal(r.seating.refreshNearby(), null);
@@ -131,6 +205,7 @@ test("keyboard, touch, jump, and emote stand in the room frame; decorating can s
     r.seating.toggle(); input(r); r.seating.beforeController();
     assert.equal(r.seating.seats.isSeated, false);
     assert.deepEqual(r.player.getLocalPosition(), fixed().standPoint);
+    assert.ok(roomSeatPointIsClear(r.player.getLocalPosition(), r.obstacles));
   }
 });
 
