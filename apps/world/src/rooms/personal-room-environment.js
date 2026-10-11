@@ -12,7 +12,7 @@ export function personalRoomLightingFrame({ artificialLightFactor = 0, clearColo
   const transmission = .12 + .88 * clamp(curtainOpen);
   // Readable floor/exit at NIGHT, lights OFF, curtains CLOSED, including LOW.
   // This is ambient fill, not another light or shadow/render pass.
-  const fill = .19 + .17 * daylight * transmission + (lightsOn ? .065 : 0);
+  const fill = .27 + .10 * daylight * transmission + (lightsOn ? .065 : 0);
   return {
     ambient: [fill * (1 + .04 * daylight), fill, fill * (1.06 - .1 * daylight)],
     intensity: lightsOn ? .7 : 0,

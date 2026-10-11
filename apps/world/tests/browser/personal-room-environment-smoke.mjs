@@ -12,11 +12,13 @@ for(const mobile of [false,true]){
   assert.equal(await page.evaluate(()=>window.__ROOM_ENV_QA__.error??null),null);
   const snap=()=>page.evaluate(()=>window.__ROOM_ENV_QA__.snapshot());
   const initial=await snap();assert.equal(initial.device,'webgl2');assert.equal(initial.graphicsTier,'low');assert.equal(initial.lightCount,3);
+  assert.ok(initial.canvasRect.height >= (mobile?844:900)-1,'canvas fills viewport height');
+  assert.ok(initial.canvasRect.width >= (mobile?390:1440)-1,'canvas fills viewport width');
   const activate=async()=>mobile? page.locator('#action').tap():page.keyboard.press('f');
   await activate();assert.equal((await snap()).lightsOn,false);
   await page.evaluate(()=>{window.__ROOM_ENV_QA__.time(67);window.__ROOM_ENV_QA__.control('curtain');});
   await activate();await page.waitForFunction(()=>window.__ROOM_ENV_QA__.snapshot().openness===0);
-  const dark=await snap();assert.ok(dark.ambient.every(v=>v>=.19));assert.equal(dark.lights.every(l=>l.intensity===0&&!l.shadow),true);
+  const dark=await snap();assert.ok(dark.ambient.every(v=>v>=.27));assert.equal(dark.lights.every(l=>l.intensity===0&&!l.shadow),true);
   assert.equal(dark.other.every(n=>n===.7),true);assert.equal(dark.renderCount,initial.renderCount);
   await page.screenshot({path:`${output}/${mobile?'mobile':'desktop'}-night-off-closed.png`});
   await page.evaluate(()=>window.__ROOM_ENV_QA__.block(true));assert.equal(await page.locator('#action').isHidden(),true);

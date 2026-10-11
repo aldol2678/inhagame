@@ -12,7 +12,7 @@ function rig() {
 test('world projection controls daylight without a second clock, night OFF stays readable',()=>{
   const night = personalRoomLightingFrame({artificialLightFactor:1},{lightsOn:false,curtainOpen:0});
   const day = personalRoomLightingFrame({artificialLightFactor:0},{lightsOn:false,curtainOpen:1});
-  assert.ok(night.ambient.every(v=>v>=.19)); assert.equal(night.intensity,0); assert.equal(night.diffuser,0);
+  assert.ok(night.ambient.every(v=>v>=.27)); assert.equal(night.intensity,0); assert.equal(night.diffuser,0);
   assert.ok(day.ambient[0]>night.ambient[0]);
   assert.ok(personalRoomLightingFrame({artificialLightFactor:0},{lightsOn:false,curtainOpen:0}).ambient[0]<day.ambient[0]);
   const invalid=personalRoomLightingFrame({artificialLightFactor:NaN,clearColor:[NaN,Infinity,-1]});

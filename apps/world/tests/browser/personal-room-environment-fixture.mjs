@@ -14,7 +14,9 @@ try {
  const device=await pc.createGraphicsDevice(canvas,{deviceTypes:[pc.DEVICETYPE_WEBGL2],antialias:false});
  if(device.deviceType!=='webgl2')throw Error('Real WebGL2 required');
  const app=new pc.Application(canvas,{graphicsDevice:device});
+ app.setCanvasFillMode(pc.FILLMODE_FILL_WINDOW);app.setCanvasResolution(pc.RESOLUTION_AUTO);
  const camera=new pc.Entity('camera');camera.addComponent('camera',{fov:65,nearClip:.03,farClip:100});app.root.addChild(camera);
+ camera.camera.toneMapping=pc.TONEMAP_NEUTRAL;
  camera.setPosition(0,1.64,3.78);camera.lookAt(0,1.05,-1.3);
  const sun=new pc.Entity('sun');sun.addComponent('light',{type:'directional',castShadows:false});app.root.addChild(sun);
  const settings=new Map();
@@ -36,7 +38,7 @@ try {
  qa.account=value=>{context.sessionKey=value;runtime.update(0);refresh();};
  qa.active=value=>{context.active=value;room.root.enabled=value;runtime.update(0);refresh();};
  qa.time=minutes=>{now=NPC_WORLD_EPOCH_MS+minutes*60*1000;worldTime.update();outdoor.update(99);runtime.update(0);};
- qa.snapshot=()=>({ ...runtime.status(),frames:qa.frames,device:device.deviceType,graphicsTier:graphics.tier,worldTime:worldTime.status().environmentTime,
+ qa.snapshot=()=>({ ...runtime.status(),canvasRect:{width:canvas.getBoundingClientRect().width,height:canvas.getBoundingClientRect().height},frames:qa.frames,device:device.deviceType,graphicsTier:graphics.tier,worldTime:worldTime.status().environmentTime,
    ambient:[room.ambient.r,room.ambient.g,room.ambient.b], lights:room.lights.map(e=>({intensity:e.light.intensity,shadow:e.light.castShadows})),
    other:other.lights.map(e=>e.light.intensity),sky:room.root.findByName('window_exterior_sky').render.meshInstances[0].material.diffuse.toString(),
    panels:[-1,1].map(side=>{const e=room.root.findByName(`curtain_open_${side}`);return {x:e.getLocalPosition().x,scale:e.getLocalScale().x};}),
