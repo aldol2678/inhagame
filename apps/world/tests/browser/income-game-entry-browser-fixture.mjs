@@ -3,7 +3,7 @@ import { createHumanAvatar } from '../../npc-factory/dev-human-avatar.mjs';
 import { createContextActionController } from '../../src/context-action.js';
 import { createIncomeGameEntry, bindIncomeGameLifecycle } from '../../src/income/income-game-entry.mjs';
 import { INCOME_CONVENIENCE_LOCATION as shop } from '../../src/income/income-convenience-location.mjs';
-import { framebufferEvidence } from './life-props-browser-helpers.mjs';
+import { readIncomeResolvedFramebuffer } from './income-game-entry-framebuffer.mjs';
 const qa = window.__INCOME_GAME_QA__ = { ready: false, kind: 'ACTUAL_MODULE_RENDER_HARNESS', fullMainBoot: false,
   persistedLifecycleIsSynthetic: true, requests: [], events: [], locks: 0 };
 const lifecycleLogKey = 'income-game-browser-real-lifecycle';
@@ -42,11 +42,25 @@ try {
   document.getElementById('delivery').addEventListener('click', () => entry.incomeChoice('INKYUNG-NPC-013')?.trigger());
   for (const type of ['click','keydown','pointerdown']) document.addEventListener(type, e => qa.events.push({ type, trusted: e.isTrusted, code: e.code, pointerType: e.pointerType }), true);
   function pixels() {
-    const drawCallsBefore = device._drawCallsPerFrame; app.render(); const drawCalls = device._drawCallsPerFrame - drawCallsBefore;
-    const gl = device.gl, data = new Uint8Array(canvas.width * canvas.height * 4);
-    gl.readPixels(0, 0, canvas.width, canvas.height, gl.RGBA, gl.UNSIGNED_BYTE, data);
-    return { ...framebufferEvidence(data, canvas.width, canvas.height), drawCalls, renderer: device.deviceType, humanRenderComponents: entry.employerEntity.findComponents('render').length };
+    return new Promise((resolve, reject) => {
+      let before = 0;
+      const beforeFrame = () => { before = device._drawCallsPerFrame; };
+      const afterFrame = () => {
+        clearTimeout(timer);
+        try {
+          resolve({ ...readIncomeResolvedFramebuffer(device.gl), drawCalls: device._drawCallsPerFrame - before,
+            renderer: device.deviceType, humanRenderComponents: entry.employerEntity.findComponents('render').length });
+        } catch (error) { reject(error); }
+      };
+      const timer = setTimeout(() => {
+        app.off('prerender', beforeFrame); app.off('postrender', afterFrame);
+        reject(new Error('Income framebuffer read exceeded 6000ms'));
+      }, 6000);
+      app.once('prerender', beforeFrame); app.once('postrender', afterFrame);
+      app.renderNextFrame = true;
+    });
   }
+
   Object.assign(qa, { entry, app, device, state, context,
     update, pixels, close, realLifecycle: () => JSON.parse(sessionStorage.getItem(lifecycleLogKey) || '[]'),
     stats: () => ({ enabled: entry.employerEntity.enabled, parts: entry.employerEntity.findComponents('render').length,

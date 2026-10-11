@@ -6,7 +6,7 @@ const output = process.env.INCOME_GAME_BROWSER_OUTPUT || 'test-results/income-ga
 await mkdir(output, { recursive: true });
 const sources = ['src/income/income-game-entry.mjs','src/income/convenience-employer.mjs','src/income/income-convenience-location.mjs',
   'src/income/income-scene-panel-adapter.mjs','src/context-action.js','npc-factory/dev-human-avatar.mjs','npc-factory/npc-dimensions.mjs',
-  'src/main.js','npc-factory/dev-runtime.mjs','styles.css','tests/browser/income-game-entry-browser.html','tests/browser/income-game-entry-browser-fixture.mjs','tests/browser/income-game-entry-browser-away.html'];
+  'src/main.js','npc-factory/dev-runtime.mjs','styles.css','tests/browser/income-game-entry-browser.html','tests/browser/income-game-entry-browser-fixture.mjs','tests/browser/income-game-entry-browser-away.html','tests/browser/income-game-entry-framebuffer.mjs'];
 const report = { kind: 'ACTUAL_MODULE_RENDER_HARNESS', fullMainBoot: false, productionPaymentEvidence: false,
   lifecycleEvidence: 'Synthetic persisted PageTransitionEvent checks are not a real back-forward cache navigation; a separate real away/back attempt reports observed eligibility',
   head: execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(), expectedHead: process.env.EXPECTED_INCOME_GAME_HEAD ?? null,
@@ -38,6 +38,7 @@ try {
       assert.deepEqual(item.servedHashes,report.hashes);
       const avatar=await stats(); assert.equal(avatar.enabled,true);assert.ok(avatar.parts>15);assert.ok(avatar.hasHead&&avatar.hasTorso);
       item.initialPixels=await page.evaluate(()=>window.__INCOME_GAME_QA__.pixels()); assert.ok(item.initialPixels.foreground>300,'actual human mesh pixels present');
+      assert.equal(item.initialPixels.glError,0); assert.equal(item.initialPixels.contextLost,false); assert.equal(item.initialPixels.readbackFramebuffer,'resolved-default');
       assert.ok(item.initialPixels.drawCalls>0,'actual renderer submitted draw calls'); assert.equal(item.initialPixels.renderer,'webgl2');
       await page.screenshot({path:`${output}/${device.name}-human.png`});
       for(const mode of ['mounted','seated','blocked']){

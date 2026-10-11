@@ -11,6 +11,7 @@ on:
       - 'apps/world/styles.css'
       - 'apps/world/tests/income-game-entry*.test.mjs'
       - 'apps/world/tests/browser/income-game-entry-browser*'
+      - 'apps/world/tests/browser/income-game-entry-framebuffer.mjs'
       - 'apps/world/tests/browser/harness*.mjs'
       - 'apps/world/tests/browser/package*.json'
       - '.github/workflows/income-game-entry-browser.yml'
