@@ -4,9 +4,9 @@
 
 - Release base: `82538ea1dfd4b3f82123673786ab052a76fc1a7c`.
 - Sole source candidate: #345 head `ebaaa20bd17621523436eaefb23676d8070f68c0`, tree `262e4f48ca7f292e004bcaafacedec370cafad12`.
-- Preserve every source candidate blob, including the current main life-housing workflow. No color-only intermediate release.
+- Preserve every source runtime/test blob, including the current main life-housing workflow. The sole source-file exception is the private acceptance workflow's execution time allowance described below. No color-only intermediate release.
 - Additional test-only change: `apps/world/tests/browser/annyongi-campus-smoke.mjs`, adding observation metadata from the existing campus PNGs. Expected patched blob: `995e0bc6fe03c9d2282cdb3f810490deb220223e`.
-- The only other addition is this release manifest. No runtime, geometry, private asset, routing, threshold or camera change beyond the reviewed #345 source.
+- Additional workflow-only change: private acceptance job execution timeout 45 to 60 minutes and facial-step execution timeout 25 to 35 minutes. The only new file is this release manifest. No runtime, geometry, private asset, routing, performance/quality threshold or camera change beyond the reviewed #345 source.
 - #346 and all other unmerged candidates are excluded. If another owner's release reaches main first, preserve its main changes, revalidate the release base and rerun relevant integrated CI; do not merge or modify those candidates here.
 
 ## Evidence and honest limits
@@ -30,3 +30,9 @@ No Production SQL/migration, RPC installation, catalog/feature activation, crede
 At preparation time, the previous READY Production is `dpl_4e779CfBopYjsAn2edxAYjamZfN2`, Git SHA `952a826c3a38d4dd88f2d5fe316cacc9c9b41dd6`, serving `inhagame.app`; repository main is newer at `82538ea1dfd4b3f82123673786ab052a76fc1a7c`. Do not treat a non-READY main deployment as a rollback candidate. Recheck the last READY Production before release. Rollback execution requires separate approval.
 
 After authorized merge, verify expected main SHA/tree, matching Git-triggered READY Production deployment, canonical alias and live dev-status, exact changed renderer source and unchanged private source/optimized/Induck hashes, campus HTTP entry and deployment-scoped runtime errors. Source/HTTP readback alone is not visual acceptance. Until all required postconditions are verified, report PENDING/HOLD rather than COMPLETE.
+
+## Integrated CI execution-budget correction
+
+The initial release head `f0234b3993ada61a163dd4cc419251510ce75db5` reached twenty-one of twenty-four facial conditions before the 25-minute GitHub step timeout. The log explicitly reports execution timeout, not an assertion failure. Preserved partial metadata remained IN_PROGRESS with failure null; independent recomputation found no gate failure in completed cases. The final three mobile/optimized/night cases and subsequent campus stages were not completed and are not counted as PASS.
+
+Increase only the execution allowances in `.github/workflows/private-character-acceptance.yml`: facial step 25 to 35 minutes; whole private job 45 to 60 minutes. All twenty-four cases, assertions, performance budgets, quality thresholds, asset pins, commands and metadata-only allowlists remain unchanged. This addresses observed runner throughput without relying on a lucky unchanged-head retry. Run the full integrated validation on the new exact head and inspect all final metadata before merging. Original failed run: https://github.com/aldol2678/inhagame/actions/runs/38133728348 .

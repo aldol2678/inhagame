@@ -16,7 +16,7 @@ permissions:
 jobs:
   private-character-browser:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
         with:
@@ -59,7 +59,7 @@ jobs:
         working-directory: apps/world/tests/browser
         run: npx playwright install --with-deps chromium
       - name: Full facial contrast and measured-continuity regression
-        timeout-minutes: 25
+        timeout-minutes: 35
         env:
           WORLD_SMOKE_DISABLE_WEBGPU: '1'
           ANNYONGI_FACE_PROFILE: acceptance
