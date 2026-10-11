@@ -1,6 +1,8 @@
 # Phone album storage and ZIP export
 
 Base: `03f4aafaedc4c3168a963a84d7a4a285f9f85985` (latest main at task start).
+Rebased onto `952a826c3a38d4dd88f2d5fe316cacc9c9b41dd6` after #341 merged during
+verification; no NPC or migration files are part of this PR diff.
 Checked open PRs #337, #340, #336 and #314; their owned code is unchanged.
 
 ## Player behavior
@@ -33,7 +35,8 @@ closing the phone, logging out or switching accounts cancels a pending job.
   failures, missing originals and unsupported dimensions fail the whole job.
 - Originals are processed sequentially in 1 MiB chunks; each chunk yields to permit
   cancellation. One bounded archive is assembled in memory (not streamed to disk).
-  Temporary parts are released on completion/failure; download Blob URLs are revoked
+  Cancellation also completes while an IDB read or decoder is stalled; late results
+  are discarded. Temporary parts are released on completion/failure; download Blob URLs are revoked
   after one second. Browser decoding/Blob copies still contribute to peak memory.
 - The UI reports ZIP creation and download request, **not confirmed disk persistence**.
   Browser JavaScript cannot observe OS disk-full errors or completed native downloads;
@@ -45,7 +48,7 @@ closing the phone, logging out or switching accounts cancels a pending job.
 ```sh
 node --test apps/world/tests/phone-*.test.mjs
 WORLD_SMOKE_DISABLE_WEBGPU=1 node apps/world/tests/browser/phone-album-manager-smoke.mjs
-PHONE_HEAD_SHA=$(git rev-parse HEAD) WORLD_SMOKE_DISABLE_WEBGPU=1 node apps/world/tests/browser/phone-campus-smoke.mjs
+PHONE_HEAD_SHA=$(git rev-parse HEAD) WORLD_SMOKE_DISABLE_WEBGPU=1 WORLD_SMOKE_BROWSER=chromium node apps/world/tests/browser/phone-campus-smoke.mjs
 bash scripts/public-ci.sh
 ```
 
@@ -66,3 +69,8 @@ Artifacts: `test-results/phone-album-manager/` (ZIPs, screenshots, JSON report) 
 Only synthetic local data is used. Chromium viewport/touch emulation does not replace
 physical Android/iOS browser acceptance. No production deployment, main merge,
 server/DB configuration change, external service or live user data access is involved.
+
+Local browser note: the full Phone capture regression failed in Chromium Headless
+Shell (including a sequential run), while the installed full Chromium browser
+passed all three viewports. Use the full Chromium command above for that suite;
+GitHub runs the existing Phone regression with Chrome. The capture engine is unchanged.

@@ -3,6 +3,16 @@ export const ALBUM_EXPORT_LIMITS = Object.freeze({ photos: 100, bytes: 32 * 1024
 const fail = code => Object.assign(new Error(code), { code });
 const abort = () => Object.assign(new Error('Export cancelled'), { name: 'AbortError' });
 const turn = () => new Promise(resolve => setTimeout(resolve, 0));
+// IDB/decoder promises may be slow and cannot always be interrupted by the browser.
+// Stop retaining the ZIP parts/UI job immediately; any late result is discarded.
+function abortable(operation, signal) {
+  if (!signal) return operation;
+  return new Promise((resolve, reject) => {
+    const stop = () => { signal.removeEventListener('abort', stop); reject(abort()); };
+    if (signal.aborted) stop(); else signal.addEventListener('abort', stop, { once: true });
+    Promise.resolve(operation).then(value => { signal.removeEventListener('abort', stop); resolve(value); }, error => { signal.removeEventListener('abort', stop); reject(error); });
+  });
+}
 export const formatPhotoBytes = bytes => bytes == null ? '확인 불가' : bytes < 1024 ? `${bytes} B` : `${(bytes / (bytes < 1048576 ? 1024 : 1048576)).toFixed(1)} ${bytes < 1048576 ? 'KiB' : 'MiB'}`;
 
 export async function measureAlbum(album, { signal } = {}) {
@@ -43,13 +53,13 @@ export async function createAlbumZip({ album, mode = 'all', selected = [], signa
   const check = () => { if (signal?.aborted || album.generation !== generation) throw abort(); };
   check();
   if (!['all', 'favorites', 'selected'].includes(mode)) throw fail('INVALID_SELECTION');
-  const wanted = new Set(selected), records = await album.list(); check();
+  const wanted = new Set(selected), records = await abortable(album.list(), signal); check();
   const photos = records.filter(p => mode === 'all' || (mode === 'favorites' ? p.favorite === true : wanted.has(p.id)));
   if (!photos.length) throw fail('EMPTY');
   if (photos.length > ALBUM_EXPORT_LIMITS.photos) throw fail('LIMIT');
   let totalBytes = 0;
   for (const photo of photos) {
-    const size = await album.sizes(photo.id); check();
+    const size = await abortable(album.sizes(photo.id), signal); check();
     if (size.originalBytes === null || !Number.isSafeInteger(size.originalBytes) || size.originalBytes <= 0) throw fail('DAMAGED_PHOTO');
     totalBytes += size.originalBytes;
     if (totalBytes > ALBUM_EXPORT_LIMITS.bytes) throw fail('LIMIT');
@@ -57,10 +67,10 @@ export async function createAlbumZip({ album, mode = 'all', selected = [], signa
   const parts = [], directory = []; let offset = 0, processedBytes = 0;
   try {
     for (let index = 0; index < photos.length; index++) {
-      check(); const blob = await album.image(photos[index].id); check();
+      check(); const blob = await abortable(album.image(photos[index].id), signal); check();
       if (!(blob instanceof Blob) || !blob.size) throw fail('DAMAGED_PHOTO');
       if (processedBytes + blob.size > totalBytes || processedBytes + blob.size > ALBUM_EXPORT_LIMITS.bytes) throw fail('LIMIT');
-      const signature = new Uint8Array(await blob.slice(0, 24).arrayBuffer()); check();
+      const signature = new Uint8Array(await abortable(blob.slice(0, 24).arrayBuffer(), signal)); check();
       const png = [137,80,78,71,13,10,26,10].every((n,i) => signature[i] === n);
       const jpeg = signature[0] === 255 && signature[1] === 216 && signature[2] === 255;
       if (!png && !jpeg) throw fail('DAMAGED_PHOTO');
@@ -70,7 +80,7 @@ export async function createAlbumZip({ album, mode = 'all', selected = [], signa
         if (signature.length < 24) throw fail('DAMAGED_PHOTO');
         const view = new DataView(signature.buffer); width = view.getUint32(16); height = view.getUint32(20);
       } else {
-        const bytes = new Uint8Array(await blob.slice(0, 1024 * 1024).arrayBuffer()); check();
+        const bytes = new Uint8Array(await abortable(blob.slice(0, 1024 * 1024).arrayBuffer(), signal)); check();
         const view = new DataView(bytes.buffer);
         for (let at = 2; at + 8 < bytes.length;) {
           if (bytes[at++] !== 255) break;
@@ -84,17 +94,17 @@ export async function createAlbumZip({ album, mode = 'all', selected = [], signa
         }
       }
       if (!width || !height || width * height > 16 * 1024 * 1024) throw fail('DAMAGED_PHOTO');
-      await yieldTask(); check();
-      try { await validate(blob); } catch { throw fail('DAMAGED_PHOTO'); } check();
+      await abortable(yieldTask(), signal); check();
+      try { await abortable(validate(blob), signal); } catch (error) { if (error.name === 'AbortError') throw error; throw fail('DAMAGED_PHOTO'); } check();
       const name = new TextEncoder().encode(`photo-${String(index + 1).padStart(4, '0')}.${png ? 'png' : 'jpg'}`);
       let crc = 0xffffffff;
       const chunks = [];
       for (let start = 0; start < blob.size; start += 1024 * 1024) {
-        check(); const chunk = new Uint8Array(await blob.slice(start, start + 1024 * 1024).arrayBuffer()); check();
+        check(); const chunk = new Uint8Array(await abortable(blob.slice(start, start + 1024 * 1024).arrayBuffer(), signal)); check();
         for (const byte of chunk) crc = crcTable[(crc ^ byte) & 255] ^ (crc >>> 8);
         chunks.push(chunk); processedBytes += chunk.length;
         onProgress({ completed: index, count: photos.length, processedBytes, totalBytes });
-        await yieldTask(); check();
+        await abortable(yieldTask(), signal); check();
       }
       crc = (crc ^ 0xffffffff) >>> 0;
       // Fixed valid DOS date avoids copying private timestamps into ZIP metadata.

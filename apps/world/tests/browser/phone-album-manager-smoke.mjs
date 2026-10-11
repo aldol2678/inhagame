@@ -85,7 +85,7 @@ with zipfile.ZipFile(sys.argv[1]) as z:
       const holdDecode=()=>page.evaluate(()=>{window.__realDecode=createImageBitmap;window.__releaseDecode=null;globalThis.createImageBitmap=async(...args)=>{await new Promise(resolve=>{window.__releaseDecode=resolve;});return window.__realDecode(...args);};});
       const releaseDecode=()=>page.evaluate(()=>{globalThis.createImageBitmap=window.__realDecode;window.__releaseDecode?.();});
       const pendingExport=async()=>{await holdDecode();await tap('전체 사진 ZIP');await page.waitForFunction(()=>!!window.__releaseDecode);};
-      await pendingExport();await tap('다운로드 취소');await releaseDecode();await page.getByText(/다운로드를 취소했어요/).waitFor();assert.equal(downloads,0);
+      await pendingExport();await tap('다운로드 취소');await page.getByText(/다운로드를 취소했어요/).waitFor();await releaseDecode();assert.equal(downloads,0);
       // Switch A→B→A while a ZIP is pending; stale scope must never download.
       await pendingExport();await page.evaluate(async()=>{const p=window.__INHAGAME_P0__.smartphone;p.setAccount('qa-album-b');const records=await p.album.list();if(records.length!==1||records[0].id!==window.__otherPhoto.id)throw Error('Account isolation failed');p.setAccount('qa-album-a');});await releaseDecode();
       await open();await page.waitForTimeout(100);assert.equal(downloads,0);assert.equal(await page.evaluate(async()=>(await window.__INHAGAME_P0__.smartphone.album.list()).length),4);

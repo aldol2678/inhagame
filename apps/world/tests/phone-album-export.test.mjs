@@ -60,3 +60,15 @@ test('download errors propagate and object URLs are revoked, successful request 
     assert.deepEqual(revoked,['blob:qa']);assert.equal(link.download,'inha-world-photos.zip');
   }
 });
+
+test('cancel completes even when storage or decoder never settles',async()=>{
+  for (const phase of ['list','sizes','image','decode']) {
+    const album=fixture(),controller=new AbortController();let entered;
+    const ready=new Promise(resolve=>{entered=resolve;});
+    const stalled=()=>{entered();return new Promise(()=>{});};
+    const options={signal:controller.signal};
+    if(phase==='decode')options.validate=stalled;else album[phase]=stalled;
+    const pending=zip(album,options);await ready;controller.abort();
+    await assert.rejects(pending,{name:'AbortError'});
+  }
+});
