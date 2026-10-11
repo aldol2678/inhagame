@@ -157,7 +157,11 @@ import { MCM_2026_ROOM_ID } from "./events/zombie-university-2026/minigame-room-
 import { createMcm2026MinigameRuntime } from "./events/zombie-university-2026/minigame-room-runtime.js";
 import { createProgressionClient, PROGRESSION_STATE } from "./progression/progression-client.js";
 import { createProgressionHud, formatProgression, levelUpMessage } from "./progression/progression-hud.js";
-import { createShopClient } from "./shop/shop-client.js";
+import { createShopRouter } from "./shop/shop-router.js";
+import { SHOP_ROUTE_IDS } from "./shop/shop-routes.js";
+import { createShopEntryCompatibility } from "./shop/shop-entry-compat.js";
+import { createDormShopInteraction } from "./shop/dorm-shop-interaction.js";
+import { createStudentVendorInteraction } from "./shop/student-center-vendors.js";
 import { createShopPanel } from "./shop/shop-panel.js";
 import { createShopFurnitureHandoff } from "./shop/shop-furniture-handoff.js";
 import { createWalletClient } from "./wallet/wallet-client.js";
@@ -1310,7 +1314,10 @@ const lobbyPresenceSummary = createLobbyPresenceSummary({
 });
 // P0-F3b: Student Center shop on the signed-in member client (never a new client). The server decides
 // price, Level lock and purchasability; the panel only shows them and forwards purchases.
-const shop = createShopClient({ getClient: () => online?.supabase ?? null });
+const shop = createShopRouter({
+  getClient: () => online?.supabase ?? null,
+  shopIds: SHOP_ROUTE_IDS
+});
 // Inventory panel (☰ → 🎒 인벤토리). One modal at a time with the shop; same input gate as the shop.
 const inventoryButton = document.getElementById("open-inventory");
 const collectionBook = createCollectionBookClient({
@@ -1367,6 +1374,8 @@ const shopFurnitureHandoff = createShopFurnitureHandoff({
   },
   onStatus: showWorldStatus
 });
+let activeShopAccess = null;
+let shopEntry = null;
 const shopPanel = createShopPanel({
   panel: document.getElementById("shop-panel"),
   shop,
@@ -1397,10 +1406,55 @@ const shopPanel = createShopPanel({
       void guestbookPanel.setOpen(false);
       return;
     }
+    activeShopAccess = null;
+    shopEntry?.cancel();
     shopInput.release();
   }
 });
-shopButton?.addEventListener("click", () => shopPanel.setOpen(true));
+const shopEntryBlocked = () => (!inputFocus.can("WORLD_ACTION") && !shopPanel.open) || rooms?.insideRoom === true || controller.mounted || combatRuntime.active ||
+  lobbyWorld.active || lobbyTransition.active || rooms?.status().busy ||
+  npcTest?.isConversationOpen?.() === true || biryongVillageDialogue?.open === true;
+shopEntry = createShopEntryCompatibility({
+  shop, getAvailable: () => shop.accountId !== null && online?.supabase != null,
+  getBlocked: shopEntryBlocked,
+  openLegacy: () => openWorldShop(SHOP_STUDENT_CENTER, () => shop.mode === "legacy"),
+  openRecovery: () => openWorldShop(SHOP_STUDENT_CENTER, () => shop.mode === "unavailable"),
+  guideSplit: () => guideStudentCenterShops(), onStatus: showWorldStatus
+});
+shopButton?.addEventListener("click", () => {
+  hudMenu?.setOpen(false, { focus: false });
+  void shopEntry.enter();
+});
+window.addEventListener("keydown", event => { if (event.code === "Escape") shopEntry.cancel(); });
+const dormShop = createDormShopInteraction({
+  getMode: () => shop.mode,
+  getState: () => ({
+    space: rooms?.currentSpace, position: player.getLocalPosition(), grounded: controller.grounded,
+    available: shop.accountId !== null && online?.supabase != null,
+    blocked: shopPanel.open || controller.mounted || seats.isSeated || combatRuntime.active || rooms?.status().busy ||
+      lobbyWorld.active || lobbyTransition.active || !inputFocus.can("WORLD_ACTION")
+  }),
+  openShop: shopId => openWorldShop(shopId, () => dormShop.canAccess())
+});
+function openWorldShop(shopId, canAccess) {
+  if (!canAccess()) return false;
+  shopEntry?.cancel();
+  activeShopAccess = canAccess;
+  if (shopPanel.openShop(shopId)) return true;
+  activeShopAccess = null;
+  return false;
+}
+const studentVendors = createStudentVendorInteraction({
+  getMode: () => shop.mode,
+  getAvailable: () => shop.accountId !== null && online?.supabase != null,
+  getBlocked: () => !inputFocus.can("WORLD_ACTION") || rooms?.insideRoom === true ||
+    controller.mounted || seats.isSeated || combatRuntime.active || shopPanel.open ||
+    lobbyWorld.active || lobbyTransition.active || rooms?.status().busy ||
+    npcTest?.isConversationOpen?.() === true || biryongVillageDialogue?.open === true,
+  getPosition: () => player.getLocalPosition(),
+  getNpcReady: id => npcTest?.isStudentVendorReady?.(id) === true,
+  openShop: shopId => openWorldShop(shopId, () => rooms?.insideRoom !== true && studentVendors.canAccess(shopId))
+});
 // Wardrobe panel (☰ → 👕 옷장): equip / unequip owned wearables through the loadout authority.
 // One modal at a time with the shop and the inventory; same input gate. No avatar change (projection
 // is a follow-up).
@@ -1672,7 +1726,12 @@ const lobbyDailyLoop = createLobbyDailyLoop({
 const shopWorldAvailable = () => shop.accountId !== null && online?.supabase != null;
 const shopWorld = createShopWorldInteraction({
   getAvailable: shopWorldAvailable,
-  openPanel: () => shopPanel.setOpen(true)
+  getMode: () => shop.mode,
+  openPanel: () => shopEntry.enter({ canAccess: () => {
+    const position = player.getLocalPosition();
+    return !shopEntryBlocked() && Math.hypot(position.x - STUDENT_CENTER_SHOP_ENTRY.x,
+      position.z - STUDENT_CENTER_SHOP_ENTRY.z) <= STUDENT_CENTER_SHOP_ENTRY.interactionRadius;
+  } })
 });
 // A transform-only marker point (no mesh) above the entry for the floating label, about head
 // height so it reads from the pond path and stays on screen next to the player.
@@ -2668,10 +2727,23 @@ const renderNavigationHud = () => {
 };
 const setNavigationTarget = target => {
   if (!navigation || !target) return false;
+  shopEntry?.cancel();
   const snapshot = navigation.setDestination(target, { position: player.getLocalPosition(), spaceId: navigationSpaceId() });
   return target.mapSourceId !== WORLD_REGION_ID.BIRYONG_REALM || snapshot.status === "GUIDING";
 };
 // Housing H3: a friend visit from the campus routes to 제1생활관 and starts auto-move when allowed.
+// Discovery shortcuts guide to the building, never remotely purchase another NPC's stock.
+const guideStudentCenterShops = () => {
+  hudMenu.setOpen(false, { focus: false });
+  shopPanel.setOpen(false);
+  const target = campusNavigation?.poiTarget({
+    poiId: "poi.student-center-shops", title: "학생회관 실내 판매대",
+    x: STUDENT_CENTER_SHOP_ENTRY.x, z: STUDENT_CENTER_SHOP_ENTRY.z
+  }, CAMPUS_NAV_SPACE) ?? null;
+  const guided = setNavigationTarget(target);
+  showWorldStatus("학생회관 1층 안쪽 판매대에서 나수현(기념품)·가지안(패션)을 만나세요. 가구는 제1생활관 로비 접수대에서 살 수 있어요.");
+  return guided;
+};
 const guideToDorm1 = () => {
   const target = campusNavigation?.poiTarget({
     poiId: "poi.dorm-1", title: "제1생활관",
@@ -3099,6 +3171,7 @@ async function loadOptionalNpcRuntime() {
     const module = await import('../npc-factory/dev-runtime.mjs');
     const runtime = await module.createNpcDevRuntime({
       app, campusRoot, player, orbit,
+      studentCenterVendors: true,
       sharedSchedulePreview: npcSharedScheduleMode,
       worldClock,
       sharedAuthorityEnabled: npcSharedAuthorityEnabled,
@@ -3242,6 +3315,10 @@ let lobbyHudSettledKey = null;
 app.on("update", (dt) => {
   syncAudio();
   photoMode.update();
+  if (shopPanel.open && activeShopAccess && (rooms.status().busy || biryongRealm?.busy ||
+      lobbyWorld.active || lobbyTransition.active || controller.mounted || combatRuntime.active || !activeShopAccess())) {
+    shopPanel.setOpen(false);
+  }
   if (rooms.status().busy || biryongRealm?.busy || lobbyWorld.active || lobbyTransition.active) playerActivityAudio.reset();
   // Only render the camera while a room/region transaction owns the coordinate frame.
   // Campus observers, resume writes and local motion must not consume an intermediate pose.
@@ -3412,9 +3489,11 @@ app.on("update", (dt) => {
   shopWorldLabel.update({
     visible: !inside && !shopPanel.open && place?.id === STUDENT_CENTER_SHOP_ENTRY.placeZoneId,
     nearby: shopWorld.nearby,
-    available: shopWorldAvailable()
+    available: shopWorldAvailable(), mode: shop.mode
   });
   contextActions.set("student-center-shop", shopWorldAction);
+  contextActions.set("dorm-furniture-shop", dormShop.contextAction());
+  contextActions.set("student-center-vendors", studentVendors.observe());
   if (inside || controller.mounted) backgateTransitPanel.setOpen(false, { restoreFocus: false });
   contextActions.set("backgate-transit", inBiryong ? null : backgateTransit.observe(pos, backgateTransitState()));
   contextActions.set("biryong-station-transit", inBiryong
@@ -3465,7 +3544,7 @@ app.on("update", (dt) => {
   transportActions.set("mount", mountContextAction ? { ...mountContextAction, trigger: () => controller.transportAction() } : null);
   if (combatRuntime.active) {
     for (const key of [
-      "seat", "room-furniture", "guestbook", "student-center-shop", "backgate-transit", "biryong-station-transit",
+      "seat", "room-furniture", "guestbook", "student-center-shop", "student-center-vendors", "dorm-furniture-shop", "backgate-transit", "biryong-station-transit",
       "biryong-npc", "inkyung-duck", "inkyung-fishing", "biryong", "mcm-event", "mcm-minigame", "follow",
       "room-door", "personal-room-door", "npc"
     ]) contextActions.set(key, null);
@@ -3563,6 +3642,7 @@ try {
     void progression.setAccount(identity ? online?.userId ?? null : null);
     void biryongRelationships.setAccount(identity ? online?.userId ?? null : null);
     shop.setAccount(identity ? online?.userId ?? null : null);
+    if (shop.accountId) void shop.refresh("account-capability");
     void wallet.setAccount(identity ? online?.userId ?? null : null);
     collectionBook.setAccount(identity?.userId ?? null);
     void inventory.setAccount(identity ? online?.userId ?? null : null);

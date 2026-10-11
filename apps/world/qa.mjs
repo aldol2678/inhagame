@@ -635,7 +635,7 @@ assert.match(campusHtml, /id="shop-panel"[^>]*role="dialog"[^>]*aria-modal="true
 assert.match(campusCss, /body\[data-lobby-shell="true"\] > #shop-panel,/, "the lobby shell hides the shop panel");
 assert.match(campusCss, /\.shop-panel \{[^}]*z-index: 70;/s, "the shop modal stacks above the fixed event chip");
 assert.match(campusCss, /\.shop-offer-buy \{[^}]*min-height: 44px/s, "shop buttons keep a 44px touch target");
-assert.match(m3MainSource, /createShopClient\(\{ getClient: \(\) => online\?\.supabase \?\? null \}\)/,
+assert.match(m3MainSource, /createShopRouter\(\{\s*getClient: \(\) => online\?\.supabase \?\? null,/,
   "the shop reuses the online member client");
 assert.match(m3MainSource, /ownerId:\s*"shop"[\s\S]*INPUT_FOCUS_POLICY\.BLOCKING_UI/s,
   "an open shop suspends world actions through InputFocusManager");
@@ -665,7 +665,7 @@ console.log("Student Center shop wallet balance static contracts PASS");
 // Student Center shop world entry P0: the same panel from the terrace in front of 학생회관.
 assert.match(m3MainSource, /contextActions\.set\("student-center-shop", shopWorldAction\)/,
   "the world entry competes in the shared interaction slot (F / #context-action)");
-assert.match(m3MainSource, /openPanel: \(\) => shopPanel\.setOpen\(true\)/, "the world entry opens the existing shop panel");
+assert.match(m3MainSource, /openPanel: \(\) => shopEntry\.enter\(/, "the world entry opens the existing shop panel");
 assert.equal((campusHtml.match(/id="shop-world-label"/g) ?? []).length, 1, "one shop world marker");
 assert.match(campusHtml, /id="shop-world-label"[^>]*aria-hidden="true"[^>]*hidden/, "the marker is decorative and starts hidden");
 assert.match(campusHtml, /id="open-shop"/, "the HUD menu shop entry stays");

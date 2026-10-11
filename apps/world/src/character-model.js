@@ -532,7 +532,10 @@ export function createCharacter(app, player, { assetShadow = null, assetCanary =
         if (!flightWings) { wing.setLocalEulerAngles(0, 0, 0); return; }
         const side = index ? 1 : -1;
         const flap = Math.sin(wingPhase) * wingAmplitude;
-        const scale = .24 + flightBlend * .76;
+        // Only the small CloudWing identity remains in the settled ground pose.
+        // Keep a nonsingular transform and the existing smooth deployment/phase.
+        const scale = Math.max(.001, flightBlend);
+        wing.enabled = flightBlend > .002;
         wing.setLocalScale(scale, scale, scale);
         wing.setLocalEulerAngles(0, side * wingSweep * flightBlend, side * (wingDihedral + flap * flightBlend));
       });

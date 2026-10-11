@@ -409,10 +409,10 @@ async function firstCampus(user) {
       ${lit(`grant:quest.first_campus:${user}`)})::text`);
   return JSON.parse(out.split('\n').at(-1));
 }
-/** "itemId=reason" for the Lv.2 / Lv.3 offers of both shops ('' = purchasable), as the player sees them. */
+/** "itemId=reason" for the Lv.2 / Lv.3 offers of the routed shops ('' = purchasable), as the player sees them. */
 async function gatedOffers(token) {
   const offers = [];
-  for (const shopId of ['shop.student_center', 'shop.dorm_furniture']) {
+  for (const shopId of ['shop.student_center', 'shop.student_center_fashion', 'shop.dorm_furniture']) {
     const shop = await rest('/rest/v1/rpc/get_world_shop_v1', { token, body: { p_shop_id: shopId } });
     assert.equal(shop.status, 200, shop.text);
     offers.push(...shop.body.offers.filter((o) => o.requiredLevel === 2 || o.requiredLevel === 3));

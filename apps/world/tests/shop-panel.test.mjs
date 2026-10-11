@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { SHOP_STATE, SHOP_STUDENT_CENTER, createShopClient } from "../src/shop/shop-client.js";
+import { SHOP_STATE, SHOP_STUDENT_CENTER, SHOP_PURCHASE_RPC, createShopClient } from "../src/shop/shop-client.js";
 import { createShopPanel, offerView, purchaseMessage, walletLine } from "../src/shop/shop-panel.js";
 import { WALLET_STATE, createWalletClient, parseWalletSnapshot } from "../src/wallet/wallet-client.js";
 import { getItemDefinition } from "../src/collection/item-catalog.js";
@@ -121,7 +121,7 @@ test("panel: Lv.1 read shows the server playerLevel, buyable Lv.1 offer and lock
   const h = harness();
   await openWith(h, LV1);
   assert.deepEqual(h.opened, [true]);
-  assert.match(text(h.panel), /학생회관 상점/);
+  assert.match(text(h.panel), /학생회관 굿즈샵/);
   assert.match(text(h.panel), /내 레벨 Lv\.1/);
   assert.equal(card(h.panel, CAP.listingId).dataset.state, "available");
   assert.equal(buyButton(h.panel, CAP.listingId).disabled, false);
@@ -239,7 +239,7 @@ test("shop code: no Level comparison, only the two P0-F2 RPCs, no new Supabase c
   const rpcs = [...client.matchAll(/"([a-z_]+_v1)"/g)].map((m) => m[1]).sort();
   assert.deepEqual(rpcs, ["get_world_shop_v1", "purchase_world_shop_listing_v1"]);
   const main = readFileSync(new URL("../src/main.js", import.meta.url), "utf8");
-  assert.match(main, /createShopClient\(\{ getClient: \(\) => online\?\.supabase \?\? null \}\)/);
+  assert.match(main, /createShopRouter\(\{\s*getClient: \(\) => online\?\.supabase \?\? null,/);
 });
 
 // ---- wallet balance line (read-model from get_my_world_wallet_v1, shown as served) ----
@@ -407,4 +407,43 @@ test("panel wallet: without a wallet the P0-F3b panel is unchanged (no line)", a
 test("shop panel: no balance arithmetic on prices", () => {
   const panel = readFileSync(new URL("../src/shop/shop-panel.js", import.meta.url), "utf8");
   assert.doesNotMatch(panel, /balance\s*[-+]|[-+]\s*[a-z]+\.price|[a-z]+\.price\s*[-+]|localStorage/);
+});
+
+test('panel capability checking/unavailable lock new purchases even with a READY listing', async () => {
+  for (const mode of ['checking','unavailable']) {
+    const h=harness();Object.defineProperty(h.shop,'mode',{value:mode});
+    await openWith(h,LV1);
+    assert.equal(buyButton(h.panel,MUG.listingId).disabled,true);
+    assert.match(text(h.panel),/상점 준비 상태/);
+    buyButton(h.panel,MUG.listingId).click();await flush();
+    assert.equal(h.client.calls.filter(c=>c.fn===SHOP_PURCHASE_RPC).length,0);
+  }
+});
+test('panel repeat capability negotiation locks new buys without clearing READY offers', async () => {
+  const h=harness();Object.defineProperty(h.shop,'mode',{value:'split'});Object.defineProperty(h.shop,'capabilityChecking',{value:true});
+  await openWith(h,LV1);assert.equal(buyButton(h.panel,MUG.listingId).disabled,true);assert.match(text(h.panel),/확인 중/);
+});
+test('unavailable panel permits a retained cross-shop receipt but never a new READY listing', async () => {
+  const doc=createFakeDocument(),panel=doc.createElement('section'),calls=[];
+  const previous={...MUG,listingId:'offer.dorm.previous',itemId:'furniture.room.small_table'};
+  const shop={mode:'unavailable',state:SHOP_STATE.READY,accountId:A,shopId:SHOP_STUDENT_CENTER,
+    snapshot:LV1,unresolvedOffers:[previous],onChange:()=>()=>{},refresh:async()=>false,
+    isPending:()=>false,purchase:async id=>{calls.push(id);return {outcome:'FAILED',code:'FAILED',offer:previous}}};
+  const ui=createShopPanel({panel,shop,doc});ui.setOpen(true);
+  assert.equal(buyButton(panel,MUG.listingId).disabled,true);
+  const retry=walk(panel).find(node=>node.dataset?.focusKey==='unresolved:offer.dorm.previous');
+  assert.ok(retry);assert.equal(retry.disabled,false);retry.click();await flush();
+  assert.deepEqual(calls,['offer.dorm.previous']);assert.equal(buyButton(panel,MUG.listingId).disabled,true);
+});
+
+test('retained uncertain purchase ignores current listing refusal when confirming its original receipt',async()=>{
+ for(const reason of ['ITEM_ALREADY_OWNED','LEVEL_REQUIRED','LISTING_INACTIVE']) {
+  const doc=createFakeDocument(),panel=doc.createElement('section'),calls=[];
+  const offer={...MUG,purchasable:false,unavailableReason:reason};
+  const shop={mode:'unavailable',state:SHOP_STATE.READY,accountId:A,shopId:SHOP_STUDENT_CENTER,
+   snapshot:{...LV1,offers:[offer]},unresolvedOffers:[offer],onChange:()=>()=>{},refresh:async()=>false,
+   isPending:()=>false,purchase:async id=>{calls.push(id);return {outcome:'FAILED',code:'FAILED',offer}}};
+  const ui=createShopPanel({panel,shop,doc});ui.setOpen(true);const retry=buyButton(panel,offer.listingId);
+  assert.equal(retry.disabled,false);assert.match(retry.textContent,/이전 구매 결과 확인/);retry.click();await flush();assert.deepEqual(calls,[offer.listingId]);
+ }
 });

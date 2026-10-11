@@ -112,21 +112,23 @@ test('shop read: server prices and purchasability through the Data API', async (
   const shop = await rest('/rest/v1/rpc/get_world_shop_v1', { token, body: { p_shop_id: 'shop.student_center' } });
   assert.equal(shop.status, 200, JSON.stringify(shop.body));
   assert.equal(shop.body.playerLevel, 1, 'a fresh account reads the server-derived Lv.1');
-  assert.deepEqual(shop.body.offers.map((o) => [o.listingId, o.price, o.purchasable, o.unavailableReason]), [
-    [MUG, 120, true, null],
+  assert.deepEqual(shop.body.offers.map((o) => [o.listingId, o.price, o.requiredLevel]), [[MUG, 120, null]]);
+  const fashion = await rest('/rest/v1/rpc/get_world_shop_v1', { token, body: { p_shop_id: 'shop.student_center_fashion' } });
+  assert.equal(fashion.status, 200, JSON.stringify(fashion.body));
+  assert.deepEqual(fashion.body.offers.map((o) => [o.listingId, o.price, o.purchasable, o.unavailableReason]), [
     [CAP, 180, true, null],
     [SNEAKERS, 240, false, 'LEVEL_REQUIRED'],
-    ['offer.student_center.campus_map_poster', 250, false, 'LEVEL_REQUIRED'],
     ['offer.student_center.induck_hoodie', 320, false, 'LEVEL_REQUIRED'],
     [BACKPACK, 420, false, 'LEVEL_REQUIRED']]);
-  assert.deepEqual(shop.body.offers.map((o) => o.requiredLevel), [null, 1, 2, 2, 2, 3], 'canonical required levels (E0–E5 §10.2.1)');
+  assert.deepEqual(fashion.body.offers.map((o) => o.requiredLevel), [1, 2, 2, 3], 'canonical required levels (E0–E5 §10.2.1)');
   const dorm = await rest('/rest/v1/rpc/get_world_shop_v1', { token, body: { p_shop_id: 'shop.dorm_furniture' } });
   assert.deepEqual(dorm.body.offers.map((o) => [o.listingId, o.price, o.requiredLevel, o.status, o.purchasable, o.unavailableReason]), [
     ['offer.dorm_furniture.induck_cushion', 220, 1, 'ACTIVE', true, null],
     ['offer.dorm_furniture.dorm_desk_lamp', 280, 2, 'ACTIVE', false, 'LEVEL_REQUIRED'],
     ['offer.dorm_furniture.campus_rug_blue', 360, 3, 'ACTIVE', false, 'LEVEL_REQUIRED'],
     ['offer.dorm_furniture.induck_chair', 420, 3, 'ACTIVE', false, 'LEVEL_REQUIRED'],
-    ['offer.dorm_furniture.mini_induck', 650, 5, 'ACTIVE', false, 'LEVEL_REQUIRED']]);
+    ['offer.dorm_furniture.mini_induck', 650, 5, 'ACTIVE', false, 'LEVEL_REQUIRED'],
+    ['offer.student_center.campus_map_poster', 250, 2, 'ACTIVE', false, 'LEVEL_REQUIRED']]);
   const guest = await rest('/rest/v1/rpc/get_world_shop_v1', { body: { p_shop_id: 'shop.student_center' } });
   assert.ok(guest.status >= 400, 'guests have no shop read');
 });
@@ -278,7 +280,7 @@ test('level gate: Lv.1 is refused a Lv.2 listing with nothing moved, then buys i
   // Earn exactly the Lv.2 threshold through the P0-F0 server authority.
   const exp = await grantExp(user, 100);
   assert.deepEqual([exp.levelBefore, exp.levelAfter], [1, 2]);
-  const read = await rest('/rest/v1/rpc/get_world_shop_v1', { token: jwt(user), body: { p_shop_id: 'shop.student_center' } });
+  const read = await rest('/rest/v1/rpc/get_world_shop_v1', { token: jwt(user), body: { p_shop_id: 'shop.student_center_fashion' } });
   assert.equal(read.body.playerLevel, 2);
   const offer = (id) => read.body.offers.find((o) => o.listingId === id);
   assert.deepEqual([offer(SNEAKERS).purchasable, offer(SNEAKERS).unavailableReason], [true, null], 'Lv.2 unlocks the sneakers');
@@ -302,7 +304,7 @@ test('level gate: a forged client level cannot pass', async () => {
   const user = createUser();
   await credit(user, 1000);
   const forged = jwt(user, { level: 99, app_metadata: { level: 99 }, user_metadata: { level: 99 } });
-  const shop = await rest('/rest/v1/rpc/get_world_shop_v1', { token: forged, body: { p_shop_id: 'shop.student_center' } });
+  const shop = await rest('/rest/v1/rpc/get_world_shop_v1', { token: forged, body: { p_shop_id: 'shop.student_center_fashion' } });
   assert.equal(shop.body.playerLevel, 1, 'JWT claims are not a level source');
   assert.equal(shop.body.offers.find((o) => o.listingId === SNEAKERS).unavailableReason, 'LEVEL_REQUIRED');
   const viaClaims = await buy(forged, SNEAKERS, `purchase:${randomUUID()}`);
