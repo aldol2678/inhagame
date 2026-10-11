@@ -56,6 +56,44 @@ export async function checkCampusLifeDiversity(smoke, outputDir) {
         activities:[...new Set(members.filter(n=>n.visible).map(n=>n.activity))],labels});
     } finally { await page.close(); }
   }
+  // C04 Living Campus: exercise the real rendered lunch runtime without changing
+  // the protected quest NPCs or relying on a synthetic-only prop fixture.
+  const living = await smoke.context.newPage();
+  const livingFatal = smoke.watch(living);
+  await living.setViewportSize({width:1280,height:800});
+  await living.route('**/api/world-time', route => route.fulfill({status:200,
+    contentType:'application/json',body:JSON.stringify(worldTimePayload(E+2*P+799_000))}));
+  try {
+    await living.goto(smoke.origin+'/campus/?npcSync=ng2',{waitUntil:'domcontentloaded',timeout:90000});
+    await Promise.race([living.waitForFunction(()=>{
+      const n=window.__INHAGAME_P0__?.getStatus?.().npcTest;
+      return n?.shared_schedule?.state==='SYNCED' && n?.purposeful_count===46;
+    },null,{timeout:90000}),livingFatal]);
+    const observation=await living.evaluate(()=>{
+      const n=window.__INHAGAME_P0__.getStatus().npcTest;
+      return {period:n.period,photo:n.purposeful['INKYUNG-NPC-009'],
+        seated:n.purposeful['INKYUNG-NPC-010']};
+    });
+    assert.equal(observation.period,'lunch');
+    assert.equal(observation.photo?.activity,'PHOTO');
+    assert.equal(observation.photo?.phase,'ACTING');
+    assert.equal(observation.photo?.visible,true);
+    assert.equal(observation.seated?.activity,'RESTING');
+    assert.equal(observation.seated?.phase,'ACTING');
+    assert.equal(observation.seated?.visible,true);
+    // Screenshot is acceptance evidence for reviewers, not by itself a proof of
+    // natural pose, real-world direction or real-device framerate.
+    await living.evaluate(()=>{
+      const d=window.__INHAGAME_P0__;
+      const npc=d.getStatus().npcTest.purposeful['INKYUNG-NPC-010'];
+      d.player.setLocalPosition(npc.position.x+2,d.controller.groundY,npc.position.z+2);
+      d.orbit.distance=8;d.orbit.pitch=.65;d.orbit.yaw=3*Math.PI/4;
+    });
+    await living.waitForTimeout(1200);
+    if(outputDir) await living.screenshot({path:outputDir+'/c04-living-seat-lunch.png'});
+    receipts.push({name:'c04-living-lunch',photo:'PHOTO',seated:'RESTING',
+      photoPosition:observation.photo.position,seatPosition:observation.seated.position});
+  } finally { await living.close(); }
   assert.deepEqual(smoke.problems,[]);
   if(outputDir) await writeFile(outputDir+'/receipt.json',JSON.stringify(receipts,null,2)+'\n');
   console.log('Campus life diversity browser PASS',JSON.stringify(receipts.map(({labels,...r})=>({...r,labelCount:labels.length}))));
