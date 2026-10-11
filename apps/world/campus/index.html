@@ -33,15 +33,17 @@
         <strong id="world-loading-percent">6%</strong>
       </div>
       <p class="world-loading-affiliation">INHA WORLD는 인하대학교가 공식적으로 제작·운영·후원하는 서비스가 아닌 학생 창작 프로젝트입니다.</p>
+      <button id="world-loading-retry" type="button" hidden>다시 시도</button>
       <button id="world-loading-continue" type="button" hidden>기본 월드 먼저 보기</button>
     </div>
   </section>
-  <script type="module" src="/src/lobby/lobby-loading.js"></script>
+  <script src="/src/lobby/boot-recovery.js"></script>
+  <script type="module" data-world-boot src="/src/lobby/lobby-loading.js"></script>
   <canvas id="application" tabindex="-1" aria-label="INHAGAME Campus 3D canvas"></canvas>
   <button id="cinematic-skip" class="cinematic-skip" type="button" aria-label="연출 건너뛰기" hidden>건너뛰기</button>
   <p id="pointer-lock-hint" class="pointer-lock-hint" role="status" aria-live="polite" hidden></p>
   <div id="lobby-transition-fade" class="lobby-transition-fade" aria-hidden="true" hidden></div>
-  <section id="world-lobby" class="world-lobby" aria-label="INHA WORLD 메인 로비" data-p0-stage="shell" hidden>
+  <section id="world-lobby" inert class="world-lobby" aria-label="INHA WORLD 메인 로비" data-p0-stage="shell" hidden>
     <header class="world-lobby-topbar">
       <div class="world-lobby-brand" aria-label="INHA WORLD">INHA WORLD</div>
       <button id="lobby-menu-toggle" class="world-lobby-menu-button" type="button"
@@ -528,7 +530,7 @@
   <script defer src="/hub-telemetry.js"></script>
   <script defer src="/game-entry.js" data-game="campus"></script>
   <script type="module" src="/src/lobby/lobby-shell.js"></script>
-  <script type="module" src="/src/main.js"></script>
+  <script type="module" data-world-boot src="/src/main.js"></script>
 </body>
 </html>
 

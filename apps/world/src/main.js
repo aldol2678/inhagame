@@ -3660,7 +3660,7 @@ window.addEventListener("pagehide", event => {
 });
 
 streaming.update(1, player.getLocalPosition());
-worldLoading?.setEssentialReady(true);
+// Essential readiness is granted only after the required character models settle.
 minimapReady = true;
 minimap?.update({ force: true });
 if (roomPreviewStart) rooms.enter("ROOM_CLUBHOUSE_01");
@@ -3694,11 +3694,16 @@ worldLoading?.setPhase("ASSETS");
 await waitForWorldRender({
   app,
   ready: character.ready.then(() => {
+    if (character.modelState !== "glb" || character.dragonModelState !== "glb") {
+      throw Object.assign(new Error("Required character model unavailable"), { code: "ASSET_LOAD_FAILED" });
+    }
+    worldLoading?.setEssentialReady(true);
     worldLoading?.setPhase("RENDERING");
     // The model swap changes eye height; apply the camera before counting rendered frames.
     if (lobbyWorld.active) lobbyWorld.update(0);
     else orbit.apply(player.getLocalPosition(), character.eyeHeight);
   }),
+  onProgress: () => globalThis.__INHA_WORLD_BOOT_RECOVERY__?.progress("RENDERING"),
   isSceneReady: () => streaming.pending.length === 0
 });
 worldLoading?.setRenderReady(true);
@@ -3891,6 +3896,7 @@ window.__INHAGAME_P0__ = {
       error: editorWorldStatus.error ?? null
     },
     loading: worldLoading?.status?.() ?? null,
+    bootRecovery: globalThis.__INHA_WORLD_BOOT_RECOVERY__?.status() ?? null,
     lobby: lobbyWorld.status(),
     resume: resumeStore.read(),
     backGateLock: { open: backGateLock.open, ...backGateLock.definition },
@@ -4038,6 +4044,9 @@ window.__INHAGAME_P0__ = {
 
 boot().catch((error) => {
   const unsupported = error instanceof GraphicsUnavailableError;
+  globalThis.__INHA_WORLD_BOOT_RECOVERY__?.fail(error?.code === "ASSET_LOAD_FAILED" ? error.code
+    : unsupported || worldLoading?.status().phase === "RENDERER" ? "GRAPHICS_INIT_FAILED"
+    : worldLoading?.status().phase === "RENDERING" ? "INITIAL_RENDER_FAILED" : "BOOT_INIT_FAILED");
   worldLoading?.fail(
     unsupported ? "이 환경에서는 INHA WORLD 3D 렌더링을 사용할 수 없습니다." : "월드를 시작하지 못했습니다.",
     unsupported ? "브라우저와 그래픽 드라이버를 최신 상태로 업데이트한 뒤 다시 시도해 주세요." : undefined
@@ -4061,6 +4070,8 @@ boot().catch((error) => {
       activeZone: null,
       zones: null,
       position: null,
+      loading: worldLoading?.status?.() ?? null,
+      bootRecovery: globalThis.__INHA_WORLD_BOOT_RECOVERY__?.status() ?? null,
       error: String(error)
     })
   };

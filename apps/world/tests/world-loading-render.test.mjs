@@ -37,14 +37,24 @@ test('loader waits for assets, an empty streaming queue, real frames and GPU wor
   assert.equal(app.listenerCount('postrender'), 0);
 });
 
-test('render timeout and asset failure reject instead of revealing the scene', async () => {
+test('long asset waits do not fail; confirmed asset and GPU errors reject', async () => {
   const app = new EventEmitter();
-  let timeoutCallback;
+  let timeoutCallback, rejectAssets, delayed = false, settled = false;
   const timers = { setTimeout(callback) { timeoutCallback = callback; return 1; }, clearTimeout() {} };
-  const waiting = waitForWorldRender({ app, ready: new Promise(() => {}), timers });
+  const waiting = waitForWorldRender({ app, ready: new Promise((resolve, reject) => { rejectAssets = reject; }),
+    timers, onDelay: () => { delayed = true; } });
+  waiting.then(() => { settled = true; }, () => { settled = true; });
   timeoutCallback();
-  await assert.rejects(waiting, /rendering timed out/);
+  await Promise.resolve();
+  assert.equal(delayed, true);
+  assert.equal(settled, false, 'elapsed time is not evidence of failure');
+  rejectAssets(new Error('model failed'));
+  await assert.rejects(waiting, /model failed/);
   assert.equal(app.listenerCount('postrender'), 0);
-  await assert.rejects(waitForWorldRender({ app, ready: Promise.reject(new Error('model failed')) }), /model failed/);
+  app.graphicsDevice = { wgpu: { queue: { onSubmittedWorkDone() { throw new Error('GPU lost'); } } } };
+  const rendering = waitForWorldRender({ app });
+  await Promise.resolve();
+  for (let i = 0; i < 3; i++) app.emit('postrender');
+  await assert.rejects(rendering, /GPU lost/);
   assert.equal(app.listenerCount('postrender'), 0);
 });

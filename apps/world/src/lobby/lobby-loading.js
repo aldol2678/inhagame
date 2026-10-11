@@ -18,6 +18,7 @@ export function createWorldLoading({
   percentElement,
   continueButton,
   interactionRoot,
+  recovery = globalThis.__INHA_WORLD_BOOT_RECOVERY__,
   slowAfterMs = 6500,
   fadeMs = 240,
   clock = { now: () => Date.now() },
@@ -33,9 +34,11 @@ export function createWorldLoading({
   let renderReady = false;
   let slow = false;
   let finished = false;
+  let failed = false;
   if (interactionRoot) interactionRoot.inert = true;
 
   const render = () => {
+    if (failed) return;
     const spec = WORLD_LOADING_PHASES[phase] ?? WORLD_LOADING_PHASES.BOOT;
     root.dataset.phase = phase;
     root.dataset.state = finished ? "DONE" : slow ? "SLOW" : "LOADING";
@@ -49,35 +52,40 @@ export function createWorldLoading({
       ? "조금 오래 걸리고 있어요. 화면이 준비될 때까지 로딩을 계속합니다."
       : "캐릭터와 첫 화면 렌더링이 끝나면 접속 화면이 열립니다.";
     if (continueButton) continueButton.hidden = true;
+    recovery?.refresh();
   };
 
   const slowTimer = timers.setTimeout?.(() => {
-    if (finished) return;
+    if (finished || failed) return;
     slow = true;
     render();
   }, slowAfterMs);
 
   const setPhase = (next) => {
-    if (finished || !WORLD_LOADING_PHASES[next]) return false;
+    if (finished || failed || next === "READY" || !WORLD_LOADING_PHASES[next]) return false;
     const currentProgress = WORLD_LOADING_PHASES[phase]?.progress ?? 0;
     if (WORLD_LOADING_PHASES[next].progress < currentProgress) return false;
+    const changed = phase !== next;
     phase = next;
+    if (changed) recovery?.progress(next);
     render();
     return true;
   };
 
   const setEssentialReady = (value = true) => {
+    if (failed || finished) return false;
     essentialReady = value === true;
     render();
     return essentialReady;
   };
 
-  const setRenderReady = (value = true) => { renderReady = value === true; return renderReady; };
+  const setRenderReady = (value = true) => { if (failed || finished) return false; renderReady = value === true; return renderReady; };
 
   const finish = ({ degraded = false } = {}) => {
-    if (finished || !essentialReady || !renderReady) return false;
+    if (failed || finished || !essentialReady || !renderReady) return false;
     finished = true;
     phase = "READY";
+    recovery?.complete();
     timers.clearTimeout?.(slowTimer);
     render();
     if (detailElement) detailElement.textContent = degraded
@@ -91,6 +99,8 @@ export function createWorldLoading({
   };
 
   const fail = (message = "월드를 시작하지 못했습니다.", detail = "브라우저 그래픽 지원과 네트워크 연결을 확인해 주세요.") => {
+    if (finished || failed) return false;
+    failed = true;
     timers.clearTimeout?.(slowTimer);
     slow = false;
     finished = false;
@@ -108,12 +118,14 @@ export function createWorldLoading({
     setRenderReady,
     finish,
     fail,
+    refresh: render,
     status: () => ({
       phase,
       essentialReady,
       renderReady,
       slow,
       finished,
+      failed,
       elapsedMs: Math.max(0, clock.now() - startedAt)
     })
   };
@@ -127,6 +139,8 @@ export function waitForWorldRender({
   isSceneReady = () => true,
   renderedFrames = 3,
   timeoutMs = 60000,
+  onDelay = () => {},
+  onProgress = () => {},
   requestFrame = globalThis.requestAnimationFrame?.bind(globalThis),
   timers = globalThis
 } = {}) {
@@ -150,6 +164,7 @@ export function waitForWorldRender({
       if (settled || draining || !assetsReady) return;
       try {
         if (!isSceneReady()) { frames = 0; return; }
+        onProgress();
         if (++frames < renderedFrames) return;
         draining = true;
         Promise.resolve().then(async () => {
@@ -159,7 +174,9 @@ export function waitForWorldRender({
         }).catch(finish);
       } catch (error) { finish(error); }
     };
-    const timeout = timers.setTimeout(() => finish(new Error("Initial world rendering timed out")), timeoutMs);
+    // A deadline is only a diagnostic reminder: slow downloads, hidden tabs and GPU
+    // scheduling are not proof of failure. Only rejected work can reject this gate.
+    const timeout = timers.setTimeout(() => onDelay(), timeoutMs);
     app.on("postrender", onRender);
     Promise.resolve(ready).then(() => { assetsReady = true; }, finish);
   });
@@ -170,6 +187,10 @@ export function getWorldLoading() {
 }
 
 export function installWorldBootDiagnostics({ target = globalThis, loading = getWorldLoading() } = {}) {
+  if (target.__INHA_WORLD_BOOT_RECOVERY__) {
+    target.__INHA_WORLD_BOOT_RECOVERY__.attach(loading);
+    return target.__INHA_WORLD_BOOT_RECOVERY__;
+  }
   if (!target?.addEventListener || !loading) return () => {};
   let bootEntered = false;
   const safeText = value => String(value ?? "").replace(/\s+/g, " ").trim().slice(0, 180);

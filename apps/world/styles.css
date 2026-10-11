@@ -1858,6 +1858,7 @@ body[data-lobby-shell="true"] > #friend-panel:not([hidden]) {
   position: fixed;
   inset: 0;
   z-index: 300;
+  overflow-y: auto;
   display: grid;
   place-items: center;
   padding: max(20px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left));
@@ -1868,6 +1869,7 @@ body[data-lobby-shell="true"] > #friend-panel:not([hidden]) {
   opacity: 1;
   transition: opacity .24s ease, visibility .24s ease;
 }
+#world-loading-detail { overflow-wrap: anywhere; }
 .world-loading[hidden] { display: none !important; }
 .world-loading.is-leaving {
   opacity: 0;
@@ -1944,8 +1946,8 @@ body[data-lobby-shell="true"] > #friend-panel:not([hidden]) {
   color: #eef8ff;
   font-size: 11px;
 }
-#world-loading-continue {
-  min-height: 42px;
+#world-loading-continue, #world-loading-retry {
+  min-height: 44px;
   margin-top: 5px;
   padding: 9px 14px;
   border: 1px solid rgba(255,223,144,.46);
@@ -1957,10 +1959,10 @@ body[data-lobby-shell="true"] > #friend-panel:not([hidden]) {
   font-weight: 900;
   cursor: pointer;
 }
-#world-loading-continue:hover {
+#world-loading-continue:hover, #world-loading-retry:hover {
   background: rgba(255,223,144,.16);
 }
-#world-loading-continue:focus-visible {
+#world-loading-continue:focus-visible, #world-loading-retry:focus-visible {
   outline: 2px solid #ffdf90;
   outline-offset: 3px;
 }
@@ -1986,6 +1988,12 @@ body[data-lobby-shell="true"] > #friend-panel:not([hidden]) {
   .world-loading-card { width: min(330px, 94vw); gap: 8px; }
   .world-loading-duck { width: 62px; height: 62px; font-size: 32px; }
   .world-loading-progress-meta { gap: 10px; font-size: 9px; }
+}
+
+@media (max-height: 480px) {
+  .world-loading-card { gap: 6px; }
+  .world-loading-duck { width: 48px; height: 48px; font-size: 28px; }
+  .world-loading-affiliation { margin-top: 4px; }
 }
 
 /* Main-gate Guestbook P0: authenticated-only social trace panel. */
