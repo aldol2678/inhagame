@@ -8,6 +8,8 @@ on:
       - 'apps/world/tests/furniture-*.test.mjs'
       - 'apps/world/tests/personal-room*.test.mjs'
       - 'apps/world/assets/rooms/**'
+      - 'apps/world/assets/furniture/**'
+      - 'scripts/assets/build-dorm-single-sofa.py'
       - 'apps/world/assets/kaykit/furniture-bits/**'
       - 'apps/world/dev-server.mjs'
       - 'apps/world/src/campus-render-kit.js'
@@ -51,6 +53,7 @@ jobs:
           node apps/world/tests/browser/personal-room-v2-null-smoke.mjs
           node apps/world/tests/browser/personal-room-environment-null-smoke.mjs
           node apps/world/tests/browser/personal-room-chair-container-null-smoke.mjs
+          node apps/world/tests/browser/housing-sofa-glb-null.mjs
       - name: Exercise room loaded assets and intentional loader fallback
         env:
           WORLD_SMOKE_DISABLE_WEBGPU: '1'
@@ -87,4 +90,19 @@ jobs:
           name: housing-browser-evidence
           path: test-results/housing/
           if-no-files-found: error
+          retention-days: 7
+
+      - name: Compare optional sofa GLB against exact procedural fallback
+        if: ${{ !cancelled() }}
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_TIMEOUT_MS: '90000'
+        run: node apps/world/tests/browser/housing-sofa-glb-smoke.mjs
+      - name: Save sofa A/B and lifecycle evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sofa-glb-pilot-${{ github.event.pull_request.head.sha }}
+          path: test-results/sofa-glb-pilot/
+          if-no-files-found: warn
           retention-days: 7

@@ -31,6 +31,15 @@ test('smoke covers four workstreams, saves failure receipts and labels CI surrog
   assert.match(smoke, /app\.off\('postrender', render\)/);
   assert.match(smoke, /returnToCampus\(\)/);
 });
+test('five-tier QA exercises the live graphics selector and persisted ULTRA choice', () => {
+  for (const value of ["'very_low'", "'low'", "'medium'", "'high'", "'ultra'",
+    'receipt.checks.fiveTiers', "graphics-five-tier-ultra",
+    "assert.equal(sample.maxPixelRatio,ratio", "assert.equal(sample.shadowResolution,shadowResolution",
+    "receipt.checks.fiveTiers.persistedUltra = true"]) {
+    assert.ok(smoke.includes(value), value);
+  }
+});
+
 test('settings dismissal checks ownership and native movement without forcibly releasing claims', () => {
   for (const marker of ['beforeFocus.owners.viewSettings, false', "beforeFocus.topOwners.includes('view-settings')",
     'beforeFocus.movement, true', "page.keyboard.down('w')", "page.keyboard.up('w')",

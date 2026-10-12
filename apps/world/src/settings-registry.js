@@ -98,7 +98,7 @@ export function normalizeSettings(value = {}) {
   return {
     schemaVersion: SETTINGS_SCHEMA_VERSION,
     graphics: {
-      quality: pick(graphics.quality, ["auto", "low", "medium", "high"], SETTINGS_DEFAULTS.graphics.quality),
+      quality: pick(graphics.quality, ["auto", "very_low", "low", "medium", "high", "ultra"], SETTINGS_DEFAULTS.graphics.quality),
       viewDistance: pick(graphics.viewDistance, ["SHORT", "NORMAL", "FAR", "MAX"], SETTINGS_DEFAULTS.graphics.viewDistance),
       frameLimit,
       renderScale,
@@ -156,7 +156,7 @@ function overlayLegacy(storage, value) {
   let found = false;
 
   const quality = safeGet(storage, LEGACY_SETTINGS_KEYS.graphicsQuality);
-  if (["auto", "low", "medium", "high"].includes(quality)) {
+  if (["auto", "very_low", "low", "medium", "high", "ultra"].includes(quality)) {
     next.graphics.quality = quality;
     found = true;
   }

@@ -1,7 +1,7 @@
 export const PHONE_PAGE_SLOTS = 12;
 export const PHONE_DOCK_SLOTS = 4;
 export const PHONE_WALLPAPERS = Object.freeze(['campus', 'night', 'mint']);
-export const PHONE_APP_IDS = Object.freeze(['student-id','maps','camera','album','settings','daily-quiz','attendance']);
+export const PHONE_APP_IDS = Object.freeze(['student-id','maps','camera','album','settings','daily-quiz','attendance','messages']);
 export function defaultPhonePreferences() {
   const page = Array(PHONE_PAGE_SLOTS).fill(null); ['student-id','album','settings'].forEach((id,i)=>{page[i]=id;});
   return { version:1, pages:[page], dock:['maps','camera',null,null], hiddenApps:[], widgets:['clock'], wallpaper:{type:'default',id:'campus'} };
