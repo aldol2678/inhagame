@@ -102,6 +102,40 @@ test('endpoints and active leaks are validated; unconnected decoys ignored',()=>
   assert.equal(rejected.cleared,false);
   assert.ok(rejected.leaks>0);
 });
+// PR #377: END must be reachable with zero active leaks; disconnected decoys
+// do not count. Fixtures and expected values are authored independently of
+// makeLevel(), solution() and waterPathMask(). Path: 0 -> 1 -> 2 -> 5 -> 8.
+function fixedWaterPathBoard() {
+  return {size:3,tiles:[
+    {kind:'START',rotation:1},{kind:'STRAIGHT',rotation:1},{kind:'ELBOW',rotation:2},
+    {kind:'BLOCK',rotation:0},{kind:'BLOCK',rotation:0},{kind:'STRAIGHT',rotation:0},
+    {kind:'BLOCK',rotation:0},{kind:'BLOCK',rotation:0},{kind:'END',rotation:0}
+  ]};
+}
+test('fixed connected goal with an active leak must not clear',()=>{
+  const state=fixedWaterPathBoard();
+  assert.deepEqual(validateWaterPath(state),
+    {cleared:true,goalConnected:true,leaks:0,activeTiles:5});
+  // South + west preserve the route; the added east port leaks off the board.
+  state.tiles[2]={kind:'TEE',rotation:2};
+  assert.deepEqual(validateWaterPath(state),
+    {cleared:false,goalConnected:true,leaks:1,activeTiles:5});
+});
+test('fixed disconnected leaking decoy must not change the active network',()=>{
+  const state=fixedWaterPathBoard();
+  // This isolated bottom-left TEE has open north/east/west ports, but no
+  // reciprocal connection to START. Its west port points off the board.
+  state.tiles[6]={kind:'TEE',rotation:0};
+  assert.deepEqual(validateWaterPath(state),
+    {cleared:true,goalConnected:true,leaks:0,activeTiles:5});
+});
+test('TEE has independently specified ports in all four orientations',()=>{
+  // Bits N=1, E=2, S=4, W=8. Rotations: NEW, NES, ESW, NSW.
+  const expected=[11,7,14,13];
+  for(let rotation=0;rotation<4;rotation++) {
+    assert.equal(waterPathMask('TEE',rotation),expected[rotation]);
+  }
+});
 test('unsupported game sizes, seeds, actions and board tampering fail closed',()=>{
   for(const size of [0,2,5,3.5])assert.throws(()=>createWaterPathDefinition({size}),/3x3/);
   for(const seed of ['', '../secret', '한글'])assert.throws(()=>createWaterPathDefinition({seed}),/seed/);
