@@ -127,14 +127,14 @@ test("NPC presence follows the phase; ENDED fully retires the event cast", () =>
   assert.deepEqual(all.filter(id => mcm2026ActorVisible(id, P.DISABLED)), []);
 });
 
-test("Geonmulju entry needs the server window; after ENDED only an earned clear may settle", () => {
+test("retired Geonmulju venue rejects every legacy progress and server state", () => {
   const state = (eventState, stage, firstClearedAt = null) => ({ eventState, progress: { stage }, landlord: { firstClearedAt } });
-  assert.equal(mcm2026CanEnterVenue(state("ACTIVE", "VENUE_UNLOCKED")), true);
-  assert.equal(mcm2026CanEnterVenue(state("ACTIVE", "COMPLETED", "2026-09-30T04:00:00Z")), true);
+  assert.equal(mcm2026CanEnterVenue(state("ACTIVE", "VENUE_UNLOCKED")), false);
+  assert.equal(mcm2026CanEnterVenue(state("ACTIVE", "COMPLETED", "2026-09-30T04:00:00Z")), false);
   assert.equal(mcm2026CanEnterVenue(state("ACTIVE", "STARTED")), false);
   assert.equal(mcm2026CanEnterVenue(state("SCHEDULED", "VENUE_UNLOCKED")), false);
   assert.equal(mcm2026CanEnterVenue(state("ENDED", "VENUE_UNLOCKED")), false, "no new minigame after 01:00");
-  assert.equal(mcm2026CanEnterVenue(state("ENDED", "COMPLETED", "2026-09-30T15:00:00Z")), true);
+  assert.equal(mcm2026CanEnterVenue(state("ENDED", "COMPLETED", "2026-09-30T15:00:00Z")), false);
   assert.equal(mcm2026CanEnterVenue(state("DISABLED", "COMPLETED", "2026-09-30T15:00:00Z")), false);
   assert.equal(mcm2026CanEnterVenue(null), false);
 });
@@ -206,7 +206,7 @@ test("from 00:00:00 the whole route clears; 18:00 does not break a run in progre
   assert.equal((await client.advance("start")).progress.stage, MCM_2026_PROGRESS_STAGE.STARTED);
   await investigateAll(client);
   assert.equal(client.state.progress.stage, MCM_2026_PROGRESS_STAGE.VENUE_UNLOCKED, "any investigation order");
-  assert.equal(mcm2026CanEnterVenue(client.state), true);
+  assert.equal(mcm2026CanEnterVenue(client.state), false,"historical preview progress must not open retired venue");
 
   set("2026-09-30T17:59:50");
   const run = await client.startRun();
@@ -251,7 +251,7 @@ test("from 01:00:00 no new start, run or venue entry; earned completion stays", 
   assert.equal(client.phase(), P.ENDED);
   await assert.rejects(client.advance("start"), /EVENT_NOT_ACTIVE/);
   assert.equal(client.state.progress.completedAt, completedAt, "completion record is kept");
-  assert.equal(mcm2026CanEnterVenue(client.state), true, "an earned clear may still come back to settle");
+  assert.equal(mcm2026CanEnterVenue(client.state), false, "historical rewards persist but venue is closed");
 });
 
 test("live client re-reads the server at the 00:00 edge and trusts the server clock over the local one", async () => {

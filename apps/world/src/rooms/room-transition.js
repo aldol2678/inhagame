@@ -212,6 +212,7 @@ export function createRoomTransition({
   function enter(roomId, { entranceId = null } = {}) {
     if (space !== CAMPUS_SPACE || !isRoomId(roomId) || !ready()) return false;
     const room = rooms[roomId];
+    if (room.access === "closed") return false;
     const entrance = entrances.find((e) => e.id === (entranceId ?? room.entranceId)) ?? null;
     if (!entrance || !canEnter(entrance, room)) return false;
     let context;
@@ -230,6 +231,7 @@ export function createRoomTransition({
     if (fromRoomId && fromRoomId !== space) return false;
     if (!returnPosition || !Number.isFinite(returnPosition.x) || !Number.isFinite(returnPosition.z)) return false;
     const room = rooms[roomId];
+    if (room.access === "closed") return false;
     const target = nestedContext(space, returnPosition, returnYaw, metadata);
     return transition({ roomId, event: "enter-nested", counter: "nestedEnters", isValid,
       steps: [() => world.showRoom(room), () => world.placePlayer(room.spawn.position, room.spawn.yaw)],
@@ -244,6 +246,7 @@ export function createRoomTransition({
     if (space !== CAMPUS_SPACE || !isRoomId(roomId) || !isRoomId(parentRoomId) || roomId === parentRoomId || !ready()) return false;
     if (!returnPosition || !Number.isFinite(returnPosition.x) || !Number.isFinite(returnPosition.z)) return false;
     const room = rooms[roomId];
+    if (room.access === "closed") return false;
     const entrance = entrances.find((e) => e.id === rooms[parentRoomId].entranceId) ?? null;
     if (!entrance || !anchors[entrance.returnAnchor]) return false;
     let context;
@@ -290,7 +293,7 @@ export function createRoomTransition({
       const near = nearestEntrance(position);
       if (!near) return null;
       const room = rooms[near.entrance.roomId];
-      if (!canEnter(near.entrance, room)) return null;
+      if (room.access === "closed" || !canEnter(near.entrance, room)) return null;
       return { id: "room-door", icon: "🚪", label: room.enterLabel ?? `${room.label} 들어가기`, priority: ROOM_CONTEXT_PRIORITY,
         distance: near.distance, pressed: false, trigger: () => enter(room.id, { entranceId: near.entrance.id }) };
     }

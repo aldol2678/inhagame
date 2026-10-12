@@ -11,6 +11,7 @@ import {createShopPanel} from '../../src/shop/shop-panel.js';
 import {SHOP_CAPABILITIES_RPC} from '../../src/shop/shop-capabilities.js';
 import {SHOP_READ_RPC,SHOP_PURCHASE_RPC,SHOP_SCOPED_PURCHASE_RPC} from '../../src/shop/shop-client.js';
 import {STUDENT_CENTER_VENDORS as vendors,createStudentVendorInteraction} from '../../src/shop/student-center-vendors.js';
+import {createDormShopDialogue} from '../../src/shop/dorm-shop-dialogue.js';
 import {createDormShopInteraction,DORM_SHOP_ENTRY} from '../../src/shop/dorm-shop-interaction.js';
 import {WALK_SHAPE} from '../../src/player-dimensions.js';
 const ids=[...vendors.map(v=>v.shopId),DORM_SHOP_ENTRY.shopId];
@@ -25,7 +26,8 @@ const shop=createShopRouter({getClient:()=>client,shopIds:ids,createKey:()=>`fix
 const panel=createShopPanel({panel:document.querySelector('#shop'),shop,onPurchase:()=>{readbacks++;return true;},wallet:{onChange(){},refresh:()=>{walletReads++;}},onStatus:s=>statuses.push(s)});
 const interaction=createStudentVendorInteraction({getAvailable:()=>available,getBlocked:()=>blocked,getPosition:()=>position,getNpcReady:()=>ready,openShop:id=>panel.openShop(id)});
 let dormState={space:DORM_SHOP_ENTRY.space,position:{...DORM_SHOP_ENTRY.position},grounded:true,available:true,blocked:false};
-const dorm=createDormShopInteraction({getState:()=>dormState,openShop:id=>panel.openShop(id)});
+const dorm=createDormShopInteraction({dialogue:createDormShopDialogue(),getMode:()=>shop.mode,getState:()=>({...dormState,accountId:shop.accountId}),openShop:id=>panel.openShop(id)});
+shop.onChange(change=>{if(change.reason==='account')dorm.invalidate();});
 function place(index){const v=vendors[index];position={...v.position,y:v.position.y+WALK_SHAPE.footOffset};return interaction.observe();}
 vendors.forEach((v,i)=>document.querySelector(`#vendor-${i}`).onclick=()=>place(i)?.trigger());
 document.querySelector('#dorm').onclick=()=>dorm.contextAction()?.trigger();

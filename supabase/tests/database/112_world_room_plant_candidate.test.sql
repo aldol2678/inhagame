@@ -18,6 +18,22 @@ insert into public.profiles(user_id,nickname,is_banned) values
  ('a1120000-0000-4000-8000-000000000001','화분A',false),('a1120000-0000-4000-8000-000000000002','화분B',false);
 insert into public.world_player_rooms(id,owner_user_id) values
  ('b1120000-0000-4000-8000-000000000001','a1120000-0000-4000-8000-000000000001');
+-- Integration contract: free starter/care cannot debit or reward economy/XP, reprice
+-- the two starter offers, or alter the separate STATIC decor catalog definition.
+create function pg_temp.plant_economy_snapshot_v1() returns jsonb language sql stable as $$
+ select jsonb_build_object(
+  'wallets',(select coalesce(jsonb_agg(to_jsonb(x) order by currency_id),'[]') from private.world_wallets x where user_id='a1120000-0000-4000-8000-000000000001'),
+  'currency',(select coalesce(jsonb_agg(to_jsonb(x) order by transaction_id),'[]') from private.world_currency_transactions x where user_id='a1120000-0000-4000-8000-000000000001'),
+  'progression',(select coalesce(jsonb_agg(to_jsonb(x)),'[]') from private.world_player_progression x where user_id='a1120000-0000-4000-8000-000000000001'),
+  'exp',(select coalesce(jsonb_agg(to_jsonb(x) order by transaction_id),'[]') from private.world_exp_transactions x where user_id='a1120000-0000-4000-8000-000000000001'),
+  'skills',(select coalesce(jsonb_agg(to_jsonb(x) order by skill_id),'[]') from private.world_player_life_skills x where user_id='a1120000-0000-4000-8000-000000000001'),
+  'skill_xp',(select coalesce(jsonb_agg(to_jsonb(x) order by transaction_id),'[]') from private.world_life_skill_xp_transactions x where user_id='a1120000-0000-4000-8000-000000000001'),
+  'shop',(select jsonb_agg(to_jsonb(x) order by listing_id) from private.world_shop_listings x),
+  'decor',(select to_jsonb(x) from private.world_item_catalog x where item_id='furniture.dorm_plant_medium')
+ )
+$$;
+create temporary table plant_baseline_effects as select pg_temp.plant_economy_snapshot_v1() as value;
+select is((select count(*) from private.world_shop_listings where item_id='furniture.indoor_planter'),0::bigint,'free planter is not a paid shop listing');
 set local role authenticated;
 set local request.jwt.claims='{"sub":"a1120000-0000-4000-8000-000000000001","role":"authenticated","is_anonymous":false}';
 select throws_ok($$select public.claim_my_room_planter_v1('b1120000-0000-4000-8000-000000000001')$$,'P0001','PLANT_UNAVAILABLE','closed claim writes nothing');
@@ -59,10 +75,16 @@ select is(public.get_world_room_plants_v1('b1120000-0000-4000-8000-000000000001'
 select public.save_my_room_furniture_v1('b1120000-0000-4000-8000-000000000001',2,
  '[{"id":"c1120000-0000-4000-8000-000000000002","itemId":"furniture.indoor_planter","surface":"floor","x":-6,"z":0,"yaw":0}]');
 select is(public.get_world_room_plants_v1('b1120000-0000-4000-8000-000000000001')->'plant'->>'objectId','c1120000-0000-4000-8000-000000000002','new placement UUID has old flower');
+reset role;
+update private.world_room_plants set planted_at=clock_timestamp()-interval '22 hours',first_cared_at=clock_timestamp()-interval '21 hours'
+ where user_id='a1120000-0000-4000-8000-000000000001';
+set local role authenticated;
+select is(public.care_my_room_plant_v1('b1120000-0000-4000-8000-000000000001','c1120000-0000-4000-8000-000000000002',2,'d1120000-0000-4000-8000-000000000004')->>'plantRevision','3','second care after stored/replaced target');
 set local request.jwt.claims='{"sub":"a1120000-0000-4000-8000-000000000002","role":"authenticated","is_anonymous":false}';
 select throws_ok($$select public.get_world_room_plants_v1('b1120000-0000-4000-8000-000000000001')$$,'42501','PLANT_ACCESS_DENIED','stranger cannot read owner state');
 select throws_ok($$select public.care_my_room_plant_v1('b1120000-0000-4000-8000-000000000001','c1120000-0000-4000-8000-000000000002',2,'d1120000-0000-4000-8000-000000000008')$$,
  '42501','PLANT_ACCESS_DENIED','other user cannot care');
 reset role;
+select is(pg_temp.plant_economy_snapshot_v1()::text,(select value::text from plant_baseline_effects),'free claim and both cares leave money/XP/shop/STATIC decor unchanged');
 select * from finish();
 rollback;

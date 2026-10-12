@@ -164,6 +164,7 @@ import { createProgressionHud, formatProgression, levelUpMessage } from "./progr
 import { createShopRouter } from "./shop/shop-router.js";
 import { SHOP_ROUTE_IDS } from "./shop/shop-routes.js";
 import { createShopEntryCompatibility } from "./shop/shop-entry-compat.js";
+import { createDormShopDialogue } from "./shop/dorm-shop-dialogue.js";
 import { createDormShopInteraction } from "./shop/dorm-shop-interaction.js";
 import { createStudentVendorInteraction } from "./shop/student-center-vendors.js";
 import { createShopPanel } from "./shop/shop-panel.js";
@@ -614,6 +615,9 @@ const fullMapInput = createInputFocusOwner({
 });
 const shopInput = createInputFocusOwner({
   manager: inputFocus, ownerId: "shop", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
+});
+const dormShopDialogueInput = createInputFocusOwner({
+  manager: inputFocus, ownerId: "dorm-shop-dialogue", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
 });
 const backgateTransitInput = createInputFocusOwner({
   manager: inputFocus, ownerId: "backgate-transit", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
@@ -1418,6 +1422,7 @@ const shopPanel = createShopPanel({
     activeShopAccess = null;
     shopEntry?.cancel();
     shopInput.release();
+    if (shop.shopId === "shop.dorm_furniture") refreshDormShopAction();
   }
 });
 const shopEntryBlocked = () => (!inputFocus.can("WORLD_ACTION") && !shopPanel.open) || rooms?.insideRoom === true || controller.mounted || combatRuntime.active ||
@@ -1435,15 +1440,38 @@ shopButton?.addEventListener("click", () => {
   void shopEntry.enter();
 });
 window.addEventListener("keydown", event => { if (event.code === "Escape") shopEntry.cancel(); });
+const dormShopDialogue = createDormShopDialogue({
+  onOpenChange: open => {
+    if (open) dormShopDialogueInput.acquire();
+    else {
+      dormShopDialogueInput.release();
+      // The shared HUD slot was hidden while dialogue owned input. Revalidate it synchronously
+      // before the greeting/shop restore focus, rather than focusing a hidden previous trigger.
+      refreshDormShopAction();
+    }
+  }
+});
 const dormShop = createDormShopInteraction({
+  dialogue: dormShopDialogue,
   getMode: () => shop.mode,
   getState: () => ({
     space: rooms?.currentSpace, position: player.getLocalPosition(), grounded: controller.grounded,
+    accountId: shop.accountId,
     available: shop.accountId !== null && online?.supabase != null,
-    blocked: shopPanel.open || controller.mounted || seats.isSeated || combatRuntime.active || rooms?.status().busy ||
-      lobbyWorld.active || lobbyTransition.active || !inputFocus.can("WORLD_ACTION")
+    invalid: controller.mounted || seats.isSeated || combatRuntime.active || rooms?.status().busy ||
+      lobbyWorld.active || lobbyTransition.active,
+    blocked: shopPanel.open || !inputFocus.can("WORLD_ACTION")
   }),
   openShop: shopId => openWorldShop(shopId, () => dormShop.canAccess())
+});
+function refreshDormShopAction() {
+  contextActions.set("dorm-furniture-shop", dormShop.contextAction());
+  contextActions.setSuspended(!inputFocus.can("WORLD_ACTION"));
+  contextActions.refresh();
+}
+const unbindDormShopAccount = shop.onChange(change => { if (change.reason === "account") dormShop.invalidate(); });
+const unbindDormShopFocus = inputFocus.subscribe(snapshot => {
+  if (dormShop.open && snapshot.topOwners.some(owner => owner !== "dorm-shop-dialogue")) dormShop.cancel();
 });
 function openWorldShop(shopId, canAccess) {
   if (!canAccess()) return false;
@@ -1576,7 +1604,8 @@ const dailyQuizPanel = createDailyQuizPanel({
     dailyQuizButton?.setAttribute("aria-expanded", String(open));
     lobbyDailyLoop.setPanelOpen("quiz", open);
     if (open) {
-      dailyQuizInput.acquire();
+      // Phone owns the blocking focus while its existing quiz panel is hosted inside it.
+      if (document.getElementById("daily-quiz-panel")?.dataset.phoneHosted !== "true") dailyQuizInput.acquire();
       questJournal?.setOpen(false);
       attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false); fishingPanel?.setOpen(false);
       shopPanel.setOpen(false);
@@ -1590,6 +1619,7 @@ const dailyQuizPanel = createDailyQuizPanel({
       return;
     }
     dailyQuizInput.release();
+    smartphone?.dailyPanelClosed("daily-quiz");
   }
 });
 dailyQuizButton?.addEventListener("click", () => dailyQuizPanel.setOpen(true));
@@ -1602,7 +1632,7 @@ const attendancePanel = createAttendancePanel({
     attendanceButton?.setAttribute("aria-expanded", String(open));
     lobbyDailyLoop.setPanelOpen("attendance", open);
     if (open) {
-      attendanceInput.acquire();
+      if (document.getElementById("attendance-panel")?.dataset.phoneHosted !== "true") attendanceInput.acquire();
       lifeSkillBookPanel?.setOpen(false); fishingPanel?.setOpen(false);
       questJournal?.setOpen(false);
       dailyQuizPanel.setOpen(false);
@@ -1617,6 +1647,7 @@ const attendancePanel = createAttendancePanel({
       return;
     }
     attendanceInput.release();
+    smartphone?.dailyPanelClosed("attendance");
   }
 });
 attendanceButton?.addEventListener("click", () => attendancePanel.setOpen(true));
@@ -1960,7 +1991,7 @@ inkyungLivingMoment?.setZone(places.getCurrentPlaceZone?.()?.id ?? null);
 // Club Room P0: the main-hall entrance leads to a separate interior scene in this same app.
 // Only one space is active; the room is local-only (no Realtime) and nothing is stored.
 const clubRoom = createClubRoomScene(app);
-const dorm1Lobby = createDorm1LobbyScene(app);
+const dorm1Lobby = createDorm1LobbyScene(app, { player, camera });
 const personalRoomScene = createPersonalRoomScene(app);
 const mcmRoomScene = createMcm2026RoomScene(app);
 const roomScenes = new Map([
@@ -1993,6 +2024,7 @@ rooms = createRoomTransition({
     follow, stopFollowReason: FollowStopReason.ROOM, seating, seats, emotes,
     getOnline: () => online, places, streaming: { update: (dt, p) => streaming.update(dt, p) },
     closePanels: () => {
+      dormShop.cancel();
       cookingFeature?.reset();
       trophyDisplayPanel?.close({ restoreFocus: false });
       roomPlantFeature?.reset();
@@ -2234,6 +2266,14 @@ window.addEventListener("pagehide", event => {
     biryongRealm?.dispose();
     biryongVillageDialogue?.destroy();
     biryongVillageNpcs?.destroy();
+  }
+});
+
+window.addEventListener("pagehide", event => {
+  dormShop.cancel();
+  if (!event.persisted) {
+    unbindDormShopAccount(); unbindDormShopFocus();
+    dormShop.destroy(); dorm1Lobby.shopVendor.destroy();
   }
 });
 
@@ -3125,7 +3165,10 @@ smartphone = createSmartphone({
     hudMenu.setOpen(false, { focus: false }); chatPanel.setOpen(false, { focus: false }); emoteMenu.setOpen(false);
   },
   toggle: document.getElementById("phone-toggle"), mapElement: document.getElementById("full-map-panel"),
-  settingsElement: document.getElementById("view-settings"), onWarning: showWorldStatus
+  settingsElement: document.getElementById("view-settings"),
+  dailyQuizElement: document.getElementById("daily-quiz-panel"), attendanceElement: document.getElementById("attendance-panel"),
+  getDailyQuizPanel: () => dailyQuizPanel, getAttendancePanel: () => attendancePanel,
+  onWarning: showWorldStatus
 });
 // Controller's existing destination handler runs first; Phone returns to World only on a solved route.
 document.getElementById("full-map-set-destination")?.addEventListener("click", () => {
@@ -3414,6 +3457,7 @@ let lobbyHudSettledKey = null;
 app.on("update", (dt) => {
   syncAudio();
   photoMode.update();
+  dormShop.update();
   if (shopPanel.open && activeShopAccess && (rooms.status().busy || biryongRealm?.busy ||
       lobbyWorld.active || lobbyTransition.active || controller.mounted || combatRuntime.active || !activeShopAccess())) {
     shopPanel.setOpen(false);
