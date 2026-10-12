@@ -46,7 +46,7 @@ test("1. the main-hall entrance anchor sits on the rendered entry landing, in AR
   assert.equal(e.id, "CLUB_ROOM_ENTRANCE");
   assert.equal(e.roomId, "ROOM_CLUBHOUSE_01");
   assert.ok(ROOM_ENTRANCES.includes(e));
-  assert.equal(ROOM_ENTRANCES.length, 3, "club room coexists with the first-dormitory lobby and MCM event entrances");
+  assert.equal(ROOM_ENTRANCES.length, 2, "only the club room and first-dormitory lobby remain enterable");
   const v = hallV(e.position);
   assert.ok(v < -0.48 && v > -1.2, `on the entry steps in front of the doors, outside the centre column (v=${v.toFixed(2)})`);
   assert.ok(roadviewGroundHeight(e.position.x, e.position.z) > 0.15, "raised entry steps");

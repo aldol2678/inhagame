@@ -11,7 +11,9 @@ import { gateMessage } from '../jeongseok/gate-panel.js';
 
 export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, getIdentity, getClient,
   getProgression, getCaptureContext, canOpen, beforeOpen, getClock = () => '', onAlbumViewed = () => {},
-  toggle, mapElement, settingsElement, onWarning = () => {}, jeongseok = null, doc = globalThis.document, win = globalThis.window }) {
+  toggle, mapElement, settingsElement, dailyQuizElement, attendanceElement,
+  getDailyQuizPanel = () => null, getAttendancePanel = () => null,
+  onWarning = () => {}, jeongseok = null, doc = globalThis.document, win = globalThis.window }) {
   const el = (tag, cls = '', text = '') => { const n=doc.createElement(tag); n.className=cls; n.textContent=text; return n; };
   const btn = (text, action, label = text) => { const n=el('button','',text); n.type='button'; n.setAttribute('aria-label',label); n.addEventListener('click',action); return n; };
   const root=el('section','smartphone'); root.id='world-smartphone'; root.hidden=true; root.setAttribute('role','dialog'); root.setAttribute('aria-modal','true'); root.setAttribute('aria-label','INHA WORLD 스마트폰');
@@ -36,6 +38,19 @@ export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, g
   const preferences=createPhonePreferences({getStorage:storage,getScope:()=>album.scope,onError:warn});
   const history=createPhoneMapHistory({getStorage:storage,getScope:()=>album.scope,onError:warn});
   const mapSurface=createPhoneSurface(mapElement), settingsSurface=createPhoneSurface(settingsElement);
+  const dailySurfaces={ 'daily-quiz':createPhoneSurface(dailyQuizElement), attendance:createPhoneSurface(attendanceElement) };
+  const dailyPanels={ 'daily-quiz':getDailyQuizPanel, attendance:getAttendancePanel };
+  function closeDailySurface(kind) {
+    suppressClose++;
+    try { dailyPanels[kind]?.()?.setOpen(false); dailySurfaces[kind]?.restore(); }
+    finally { suppressClose--; }
+  }
+  function renderDailySurface(kind) {
+    const panel=dailyPanels[kind]?.();
+    if(!panel){content.append(el('p','smartphone-empty-state','이 앱을 지금 열 수 없어요.'));return;}
+    dailySurfaces[kind].mount(content);
+    panel.setOpen(true);
+  }
   const student=createStudentId({getClient,getIdentity,getProgression,onChange:()=>{if(shell?.snapshot().current?.appId==='student-id')render(true);}});
   function revokeImages() {for (const url of objectUrls) win.URL.revokeObjectURL(url); objectUrls.clear();}
   function attachImage(node,blob) {const url=win.URL.createObjectURL(blob);objectUrls.add(url);node.src=url;}
@@ -73,7 +88,9 @@ export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, g
     {id:'maps',name:'지도',icon:'🗺️',available:()=>!!getMap(),open(){},close:()=>closeSurface('maps')},
     {id:'camera',name:'카메라',icon:'📷',available:()=>true,open(){},close(){}},
     {id:'album',name:'앨범',icon:'🖼️',available:()=>true,open(){},close(){}},
-    {id:'settings',name:'설정',icon:'⚙️',available:()=>!!getSettings(),open(){},close:()=>closeSurface('settings')}
+    {id:'settings',name:'설정',icon:'⚙️',available:()=>!!getSettings(),open(){},close:()=>closeSurface('settings')},
+    {id:'daily-quiz',name:'오늘의 퀴즈',icon:'📚',available:()=>!!getDailyQuizPanel(),open(){},close:()=>closeDailySurface('daily-quiz')},
+    {id:'attendance',name:'출석부',icon:'📅',available:()=>!!getAttendancePanel(),open(){},close:()=>closeDailySurface('attendance')}
   ];
   function launch(id,params={}) {
     if(id==='camera'){
@@ -281,8 +298,9 @@ export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, g
       const app=s.current;title.textContent=registry.find(x=>x.id===app.appId)?.name||'스마트폰';
       if(app.appId==='student-id'){if(app.view==='jeongseok')renderJeongseok();else renderStudent();}else if(app.appId==='album')void renderAlbum(app,uiEpoch);
       else if(app.appId==='maps')renderMaps(app);else if(app.appId==='settings'){settingsSurface.mount(content);getSettings()?.setOpen(true,{focus:false});}
+      else if(app.appId==='daily-quiz'||app.appId==='attendance')renderDailySurface(app.appId);
     }
-    if(shell.ownsInput){
+    if(shell.ownsInput && !['daily-quiz','attendance'].includes(s.current?.appId)){
       const same=keepFocus&&[...content.querySelectorAll('button')].find(n=>n.textContent===keepFocus&&!n.disabled);
       (same||back).focus?.({preventScroll:true});
     }
@@ -337,6 +355,19 @@ export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, g
   const visibility=()=>{if(doc.hidden){clearHold();pointer=null;shell.close();}};doc.addEventListener('visibilitychange',visibility);
   const legacyProfile=event=>{if(event.target?.closest?.('#open-profile')&&canOpen()){event.preventDefault();event.stopImmediatePropagation();if(open())launch('student-id');}};
   doc.addEventListener('click',legacyProfile,true);
+  // The original HUD menu entries become Phone deep links only when Phone admission is possible.
+  // Lobby/pre-world entry keeps its existing panel fallback, and never auto-claims attendance.
+  const legacyDaily=event=>{
+    const kind=event.target?.closest?.('#open-daily-quiz') ? 'daily-quiz'
+      : event.target?.closest?.('#open-attendance') ? 'attendance' : null;
+    if(!kind || !canOpen())return;
+    event.preventDefault();event.stopImmediatePropagation();
+    // Release HUD-menu ownership before Phone acquires its own blocking owner.
+    // Doing this only after admission preserves legacy fallback outside the World.
+    beforeOpen?.();
+    if(open())launch(kind);
+  };
+  doc.addEventListener('click',legacyDaily,true);
   const clockTimer=win.setInterval(()=>{const n=content.querySelector('.smartphone-clock');if(n)n.textContent=getClock()||new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'});},1000);
   return Object.freeze({root,album,shell,registry,open,close:()=>shell.close(),launch,
     setAccount(userId){albumManager.reset();shell.close();student.invalidate();album.setScope(userId);warning='';preferences.load();history.load();wallpaperKey='';void setWallpaper();},
@@ -345,6 +376,7 @@ export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, g
     async latestPhoto(){const records=await album.list(),record=records[0];return record?{record,blob:await album.image(record.id,'thumbnail')}:null;},
     openAlbum(record){photoMode.close('close');if(shell.state==='CLOSED')open();if(!shell.ownsInput||!launch('album'))return false;return record?launch('album',{photoId:record.id}):true;},
     mapClosed(){if(suppressClose||shell.snapshot().current?.appId!=='maps')return;shell.back();},
+    dailyPanelClosed(kind){if(suppressClose||shell.snapshot().current?.appId!==kind)return false;return shell.back();},
     settingsChanged(open){if(!open&&!suppressClose&&shell.snapshot().current?.appId==='settings')shell.back();},
     navigationStarted(destination){if(shell.snapshot().current?.appId!=='maps')return;history.remember(destination,getMap()?.status().mapSourceId);shell.close();},
     refresh(){if(shell.snapshot().current?.appId==='student-id')render(true);},
@@ -365,7 +397,7 @@ export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, g
     },
     status:()=>({...shell.snapshot(),scope:album.scope,preferences:preferences.snapshot(),albumError:album.error}),
     destroy(){albumManager.reset();shell.close();destroyed=true;clearHold();win.clearInterval(clockTimer);shell.destroy();album.destroy();unsubscribePhoto();
-      toggle?.removeEventListener('click',toggleClick);doc.removeEventListener('keydown',keyboard,true);doc.removeEventListener('click',legacyProfile,true);doc.removeEventListener('visibilitychange',visibility);win.removeEventListener('pagehide',pagehide);
+      toggle?.removeEventListener('click',toggleClick);doc.removeEventListener('keydown',keyboard,true);doc.removeEventListener('click',legacyProfile,true);doc.removeEventListener('click',legacyDaily,true);doc.removeEventListener('visibilitychange',visibility);win.removeEventListener('pagehide',pagehide);
       revokeImages();if(wallpaperUrl)win.URL.revokeObjectURL(wallpaperUrl);worldVisibility(false);root.remove();}
   });
 }

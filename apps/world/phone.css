@@ -78,6 +78,23 @@ body[data-phone-open="true"] > :not(#application):not(.smartphone) { visibility:
 .smartphone .full-map-info { width:100%; box-sizing:border-box; max-height:none; overflow:visible; }
 .smartphone .full-map-controls { position:static; display:flex; flex-wrap:wrap; margin-top:8px; }
 .smartphone .view-settings[data-phone-hosted="true"] { position:relative; inset:auto; transform:none; width:100%; max-width:none; max-height:none; box-sizing:border-box; background:#142d46ed; border-radius:16px; }
+/* Existing Quiz / Attendance DOM and server-bound controllers stay unchanged.
+   Only their standalone modal chrome is neutralized inside the Phone surface. */
+.smartphone .daily-quiz-panel[data-phone-hosted="true"],
+.smartphone .attendance-panel[data-phone-hosted="true"] {
+  display:block; position:relative; inset:auto; left:auto; top:auto; transform:none;
+  width:100%; min-width:0; max-width:none; max-height:none; margin:0;
+  padding:12px; box-sizing:border-box; overflow:visible; z-index:auto;
+  background:#142d46ed; border-radius:16px; box-shadow:none;
+}
+.smartphone .daily-quiz-panel[data-phone-hosted="true"] .shop-panel-body,
+.smartphone .attendance-panel[data-phone-hosted="true"] .shop-panel-body {
+  max-height:none; overflow:visible; overscroll-behavior:contain;
+}
+.smartphone .daily-quiz-panel[data-phone-hosted="true"] .profile-close,
+.smartphone .attendance-panel[data-phone-hosted="true"] .profile-close {
+  position:static; flex:none;
+}
 #phone-toggle { pointer-events:auto; min-width:44px; min-height:44px; border:1px solid #ffffff32; border-radius:13px; color:#f7fbff; background:#172e42df; font-size:20px; cursor:pointer; }
 .campus-topbar { grid-template-columns:auto minmax(0,1fr) auto auto; }
 @media (pointer:coarse), (max-width:600px) { .smartphone { padding:max(4px,env(safe-area-inset-top)) max(4px,env(safe-area-inset-right)) max(4px,env(safe-area-inset-bottom)) max(4px,env(safe-area-inset-left)); } .smartphone-frame { height:100%; max-height:100%; width:100%; border-width:3px; border-radius:26px; } }
