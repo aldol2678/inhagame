@@ -11,7 +11,7 @@ test('graphics preference persists stable values and rejects invalid storage', (
   const entries = new Map();
   const storage = { getItem: key => entries.get(key) ?? null, setItem: (key, value) => entries.set(key, value) };
   assert.equal(readGraphicsQuality(storage), 'auto');
-  for (const value of ['low', 'medium', 'high', 'auto']) {
+  for (const value of ['very_low', 'low', 'medium', 'high', 'ultra', 'auto']) {
     assert.equal(saveGraphicsQuality(storage, value), true);
     assert.equal(entries.get(GRAPHICS_QUALITY_KEY), value);
     assert.equal(readGraphicsQuality(storage), value);
@@ -25,7 +25,7 @@ test('graphics preference persists stable values and rejects invalid storage', (
 
 test('AUTO chooses a tier from capability without overriding a saved manual tier', () => {
   const viewport = { width: 1280, height: 720, dpr: 1, mobile: false, maxTextureSize: 8192 };
-  assert.equal(selectAutoGraphics(viewport).tier, 'high');
+  assert.equal(selectAutoGraphics(viewport).tier, 'high'); // New tiers require manual selection until P1.
   assert.equal(selectAutoGraphics({ ...viewport, mobile: true }).tier, 'low');
   assert.equal(selectAutoGraphics({ ...viewport, width: 4000, height: 1400 }).tier, 'low');
   assert.equal(selectAutoGraphics({ ...viewport, maxTextureSize: 4096 }).tier, 'medium');
@@ -42,6 +42,11 @@ test('AUTO chooses a tier from capability without overriding a saved manual tier
     assert.equal(controller.tier, 'medium');
     assert.equal(device.maxPixelRatio, GRAPHICS_PRESETS.medium.maxPixelRatio);
     assert.equal(light.shadowResolution, 1024);
+    controller.setPreference('very_low');
+    assert.equal(light.castShadows, false);
+    assert.equal(device.maxPixelRatio, 0.65);
+    assert.equal(light.shadowDistance, 40);
+    assert.ok(controller.visualPolicy(VIEW_DISTANCE_PRESETS.NORMAL).detailEnter < VIEW_DISTANCE_PRESETS.NORMAL.detailEnter * 0.7);
     controller.setPreference('low');
     assert.equal(light.castShadows, false);
     assert.equal(device.maxPixelRatio, 0.8);
@@ -54,12 +59,17 @@ test('AUTO chooses a tier from capability without overriding a saved manual tier
     assert.equal(highPolicy.load, VIEW_DISTANCE_PRESETS.NORMAL.load);
     assert.equal(highPolicy.preserveCampus, true);
     assert.strictEqual(controller.visualPolicy(VIEW_DISTANCE_PRESETS.NORMAL), highPolicy);
+    controller.setPreference('ultra');
+    assert.equal(device.maxPixelRatio, 2);
+    assert.equal(light.shadowResolution, 3072);
+    assert.equal(light.shadowDistance, 120);
+    assert.ok(controller.visualPolicy(VIEW_DISTANCE_PRESETS.NORMAL).detailEnter > highPolicy.detailEnter);
     controller.setPreference('auto');
     assert.equal(controller.tier, 'high');
     assert.equal(values.get(GRAPHICS_QUALITY_KEY), 'auto');
     controller.setPreference('low');
     assert.ok(controller.visualPolicy(VIEW_DISTANCE_PRESETS.NORMAL).detailEnter < VIEW_DISTANCE_PRESETS.NORMAL.detailEnter);
-    assert.equal(app.resizeCanvasCalls, 5);
+    assert.equal(app.resizeCanvasCalls, 7);
   } finally { console.info = originalInfo; }
 });
 
