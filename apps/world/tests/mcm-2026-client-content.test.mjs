@@ -7,7 +7,7 @@ import { MCM_2026_ROOM_ID } from "../src/events/zombie-university-2026/minigame-
 import { ROOMS, ROOM_ENTRANCES } from "../src/rooms/room-registry.js";
 import { createRoomTransition } from "../src/rooms/room-transition.js";
 import { BACK_GATE_SPAWN, campusSpawn } from "../src/campus-spawn.js";
-import { isMcm2026PreviewRequest } from "../src/events/zombie-university-2026/event-route.js";
+import { isMcm2026PreviewRequest, MCM_2026_ROUTE } from "../src/events/zombie-university-2026/event-route.js";
 
 
 test("production review URL enables isolated MCM preview and starts at the back gate", async () => {
@@ -98,8 +98,8 @@ test("retired Geonmulju event room rejects regular, preview and nested entry", (
   let now=1000;
   const rooms=createRoomTransition({world,canEnter:()=>true,clock:{now:()=>now}});
   assert.equal(rooms.enter(MCM_2026_ROOM_ID),false,"even permissive preview gates cannot enter");
-  const venue={x:0,z:0};
-  assert.equal(rooms.contextAction({position:venue,grounded:true,mounted:false})?.label?.includes("좀비대학교")??false,false);
+  const venue=MCM_2026_ROUTE.venue.position;
+  assert.equal(rooms.contextAction({position:venue,grounded:true,mounted:false}),null,"no zombie venue door prompt");
   assert.equal(rooms.enterNestedFromCampus(MCM_2026_ROOM_ID,{
     parentRoomId:"ROOM_DORM1_LOBBY",returnPosition:venue
   }),false,"direct nested campus entry is blocked");
