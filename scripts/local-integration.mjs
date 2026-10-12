@@ -11,7 +11,7 @@ const status = JSON.parse(execFileSync(cli, ['--workdir', workdir, 'status', '-o
 }));
 if (!/^http:\/\/(127\.0\.0\.1|localhost):\d+$/.test(status.API_URL || '')) throw Error('NON_LOCAL_API');
 if (!/^postgres(?:ql)?:\/\/[^@]*@(127\.0\.0\.1|localhost):\d+\//.test(status.DB_URL || '')) throw Error('NON_LOCAL_DB');
-for (const key of ['API_URL', 'DB_URL', 'ANON_KEY', 'JWT_SECRET']) {
+for (const key of ['API_URL', 'DB_URL', 'ANON_KEY', 'JWT_SECRET', 'SERVICE_ROLE_KEY']) {
   if (!status[key]) throw Error(`MISSING_LOCAL_${key}`);
   env[key] = status[key];
 }

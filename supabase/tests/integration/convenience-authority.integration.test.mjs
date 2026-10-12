@@ -5,11 +5,11 @@ import assert from 'node:assert/strict';
 import http from 'node:http';
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
-import {randomUUID,createHmac} from 'node:crypto';
+import {randomUUID} from 'node:crypto';
 import {setTimeout as delay} from 'node:timers/promises';
 import {createConfiguredConvenienceAuthorityHandler} from '../../../apps/world/server/convenience-authority-service.mjs';
 import {INCOME_CONVENIENCE_LOCATION as shop} from '../../../apps/world/src/income/income-convenience-location.mjs';
-const { DB_URL, PSQL_FALLBACK_CONTAINER, API_URL, ANON_KEY, JWT_SECRET } = process.env;
+const { DB_URL, PSQL_FALLBACK_CONTAINER, API_URL, ANON_KEY, SERVICE_ROLE_KEY } = process.env;
 assert.ok(DB_URL, 'DB_URL must come from the disposable local stack');
 const database = new URL(DB_URL);
 assert.ok(['postgres:', 'postgresql:'].includes(database.protocol), 'PostgreSQL URL required');
@@ -33,12 +33,9 @@ async function query(sql) {
 }
 const json = async sql => JSON.parse((await query(sql)).split('\n').at(-1));
 assert.match(API_URL??'',/^http:\/\/(localhost|127\.0\.0\.1):\d+$/);
-assert.ok(ANON_KEY&&JWT_SECRET,'disposable auth fixture keys required');
-const jwt=claims=>{const h=Buffer.from(JSON.stringify({alg:'HS256',typ:'JWT'})).toString('base64url');
- const b=Buffer.from(JSON.stringify({iat:Math.floor(Date.now()/1000),exp:Math.floor(Date.now()/1000)+3600,aud:'authenticated',...claims})).toString('base64url');
- return `${h}.${b}.${createHmac('sha256',JWT_SECRET).update(`${h}.${b}`).digest('base64url')}`;};
+assert.ok(ANON_KEY&&SERVICE_ROLE_KEY,'disposable local gateway keys required');
 const env={WORLD_INCOME_CANDIDATE_ENABLED:'1',WORLD_CONVENIENCE_AUTHORITY_CANDIDATE:'1',NODE_ENV:'test',
- WORLD_INCOME_CANDIDATE_SUPABASE_URL:API_URL,WORLD_INCOME_CANDIDATE_ANON_KEY:ANON_KEY,WORLD_INCOME_CANDIDATE_SERVICE_ROLE_KEY:jwt({role:'service_role'})};
+ WORLD_INCOME_CANDIDATE_SUPABASE_URL:API_URL,WORLD_INCOME_CANDIDATE_ANON_KEY:ANON_KEY,WORLD_INCOME_CANDIDATE_SERVICE_ROLE_KEY:SERVICE_ROLE_KEY};
 let server,origin,previous;const actors=[];const gateTable='convenience_it_'+randomUUID().replaceAll('-','');
 before(async()=>{
  previous=await json(`select jsonb_build_object('income',(select to_jsonb(r) from private.world_income_runtime r),'convenience',(select to_jsonb(r) from private.world_convenience_runtime r),'definition',(select to_jsonb(d) from private.world_income_definitions d where kind='SHIFT'),'reward',(select to_jsonb(r) from private.world_reward_definitions r where reward_id='reward.income.convenience_help'));`);
