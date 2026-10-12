@@ -87,7 +87,7 @@ test("server locks remain authoritative in showroom detail and card", async () =
   const poster = named(h.panel,"shop-showroom-card").find(n=>n.dataset.listingId === POSTER.listingId);
   assert.equal(named(poster,"shop-offer-buy")[0].disabled,true);
   named(poster,"shop-showroom-view")[0].click();
-  assert.match(text(h.panel), /Lv\\.4 필요/);
+  assert.match(text(h.panel), /Lv[.]4 필요/);
   assert.equal(named(h.panel,"shop-offer-buy")[0].disabled,true);
 });
 
