@@ -48,6 +48,29 @@ async function run(name,viewport,mobile){
     await clickApp(page,'student-id');await page.getByRole('button',{name:'뒷면 보기',exact:true}).click();assert.ok(await page.locator('.smartphone-student-card[data-face="back"]').isVisible());
     await page.getByRole('button',{name:'앞면 보기',exact:true}).click();assert.match(await page.locator('.smartphone-student-card').innerText(),/인덕이/);await screen(page,entry,'student-id');
     await page.locator('.smartphone-home-button').click();entry.checks.push('World held movement/camera blocked; Student ID front/back guest fallbacks');await save();
+    // MENU-01: the two already-shipped server-owned daily panels live inside Phone.
+    // Guest fixture has no reward authority: opening either app must never claim anything.
+    for (const [appId,panelId] of [['daily-quiz','#daily-quiz-panel'],['attendance','#attendance-panel']]) {
+      await clickApp(page,appId);
+      assert.equal((await phoneState(page)).current.appId,appId);
+      assert.equal(await page.locator(panelId).getAttribute('data-phone-hosted'),'true');
+      assert.equal(await page.locator(panelId).getAttribute('aria-modal'),null);
+      assert.equal(await page.locator(panelId).isVisible(),true);
+      assert.match(await page.locator(panelId).innerText(),/로그인|계정/);
+      const hosted=await layout(page);
+      assert.ok(hosted.inViewport&&!hosted.horizontalClip&&hosted.focusInside&&hosted.inert,JSON.stringify({appId,hosted}));
+      await screen(page,entry,appId);
+      await page.keyboard.press('Escape');
+      assert.equal((await phoneState(page)).state,'HOME');
+      assert.equal(await page.locator(panelId).getAttribute('data-phone-hosted'),null);
+      assert.equal(await page.locator(panelId).isVisible(),false);
+      assert.equal((await snapshot(page)).input,false,'Phone remains the only gameplay lock after app Back');
+    }
+    await clickApp(page,'daily-quiz');
+    await page.locator('#daily-quiz-panel .profile-close').click();
+    assert.equal((await phoneState(page)).state,'HOME','legacy close button returns to Phone Home');
+    assert.equal(await page.locator('#daily-quiz-panel').getAttribute('data-phone-hosted'),null);
+    entry.checks.push('MENU-01: existing Quiz/Attendance panels embedded; guest no-claim, focus/inert, Escape, native close and DOM restoration');await save();
     const beforeCamera=await snapshot(page);await clickApp(page,'camera');assert.equal((await phoneState(page)).state,'CAMERA');assert.equal(await page.locator('.smartphone').isVisible(),false);assert.equal((await snapshot(page)).photo,true);
     const downloadReady=page.waitForEvent('download',{timeout:120000});
     downloadReady.catch(()=>{});
