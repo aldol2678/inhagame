@@ -59,10 +59,12 @@ const port = 8700 + Math.floor(Math.random() * 200);
 const server = spawn(process.execPath, ['apps/world/dev-server.mjs'], { env: { ...process.env, PORT: String(port) }, stdio: ['ignore', 'pipe', 'inherit'] });
 await new Promise((resolve, reject) => { server.stdout.on('data', d => { if (/listening/.test(String(d))) resolve(); }); server.on('exit', reject); });
 const origin = `http://127.0.0.1:${port}`;
-const browser = await chromium.launch({ headless: true, args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'],
+// One browser per case, like the shared harness: SwiftShader state is not reused across cases.
+const launch = () => chromium.launch({ headless: true, args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'],
   ...(process.env.WORLD_SMOKE_EXECUTABLE ? { executablePath: process.env.WORLD_SMOKE_EXECUTABLE } : {}) });
 
 async function openWorld(entry, { viewport, mobile = false, account = null }) {
+  const browser = await launch();
   const context = await browser.newContext({ viewport, isMobile: mobile, hasTouch: mobile, deviceScaleFactor: 1, reducedMotion: 'reduce', serviceWorkers: 'block' });
   await context.addInitScript(({ url, key, session }) => {
     Object.defineProperty(navigator, 'gpu', { value: undefined });
@@ -88,7 +90,10 @@ async function openWorld(entry, { viewport, mobile = false, account = null }) {
   if (account) await page.waitForFunction(id => window.__INHAGAME_P0__.jeongseok.access.accountId === id &&
     window.__INHAGAME_P0__.jeongseok.access.state === 'READY', account.id, { timeout: 60000 });
   entry.renderer = await page.evaluate(() => window.__INHAGAME_P0__.getStatus().renderer);
-  return { context, page, problems };
+  let closed = false;
+  const close = async () => { if (closed) return; closed = true; await context.close().catch(() => {}); await browser.close().catch(() => {}); };
+  currentClose = close;
+  return { context, page, problems, close };
 }
 const P0 = 'window.__INHAGAME_P0__';
 const gateState = page => page.evaluate(() => window.__INHAGAME_P0__.jeongseok.gate.snapshot());
@@ -124,7 +129,7 @@ async function worldRestored(page) {
     canWorld: (d.getStatus().inputFocus.topOwners ?? []).length === 0, inert: document.getElementById('application').inert, space: d.rooms.currentSpace }; });
 }
 
-let currentPage = null;
+let currentPage = null, currentClose = null;
 const only = process.env.JSL_CASES ? new Set(process.env.JSL_CASES.split(',')) : null;
 async function runCase(name, fn) {
   if (only && !only.has(name)) return true;
@@ -138,6 +143,7 @@ async function runCase(name, fn) {
       activeElement: document.activeElement?.id || document.activeElement?.tagName, log: window.__jslLog }; }); } catch { /* page gone */ }
     try { await currentPage?.screenshot({ path: `${output}/${name}-failure.png` }); } catch { /* page gone */ }
   }
+  await currentClose?.(); currentClose = null;
   await save();
   return entry.status === 'PASS';
 }
@@ -151,7 +157,7 @@ try {
   const poor = await createUser('P', { credit: 99 });
 
   ok &= await runCase('desktop-general-purchase', async entry => {
-    const { context, page, problems } = await openWorld(entry, { viewport: { width: 1280, height: 800 }, account: general });
+    const { page, problems, close } = await openWorld(entry, { viewport: { width: 1280, height: 800 }, account: general });
     await goToReader(page); await shot(page, entry, 'at-reader');
     assert.match(await page.locator('#context-action').innerText(), /학생증 태그/, 'reader action label');
     await press(page, false);
@@ -214,11 +220,11 @@ try {
     entry.checks.push('Student ID → 정석 출입 screen (pass + expiry) → Back to card → Esc to World');
     assert.equal(before.accountId, general.id);
     assert.deepEqual(problems, []);
-    await context.close();
+    await close();
   });
 
   ok &= await runCase('desktop-verified-free', async entry => {
-    const { context, page, problems } = await openWorld(entry, { viewport: { width: 1280, height: 800 }, account: verified });
+    const { page, problems, close } = await openWorld(entry, { viewport: { width: 1280, height: 800 }, account: verified });
     await page.keyboard.press('KeyN'); await page.locator('.smartphone-app[data-app-id="student-id"]').click();
     await page.waitForSelector('.smartphone-student-mail[data-verified="true"]');
     await shot(page, entry, 'student-id-verified'); await page.keyboard.press('Escape'); await page.keyboard.press('Escape');
@@ -236,12 +242,12 @@ try {
     await page.waitForFunction(() => window.__INHAGAME_P0__.jeongseok.gate.snapshot().state === 'NEEDS_PASS');
     entry.checks.push('Server-side verification change is reflected on the next check (NEEDS_PASS)');
     assert.deepEqual(problems, []);
-    await context.close();
+    await close();
   });
 
   for (const [name, viewport] of [['mobile-portrait', { width: 390, height: 844 }], ['mobile-landscape', { width: 844, height: 390 }]]) {
     ok &= await runCase(`${name}-insufficient`, async entry => {
-      const { context, page, problems } = await openWorld(entry, { viewport, mobile: true, account: poor });
+      const { page, problems, close } = await openWorld(entry, { viewport, mobile: true, account: poor });
       await goToReader(page); await press(page, true);
       await page.waitForFunction(() => window.__INHAGAME_P0__.smartphone.status().current?.view === 'jeongseok');
       const text = await page.locator('.smartphone-content').innerText();
@@ -252,16 +258,16 @@ try {
       await shot(page, entry, 'insufficient');
       await page.getByRole('button', { name: '정석 출입 취소' }).tap();
       await page.waitForFunction(() => window.__INHAGAME_P0__.smartphone.shell.state === 'CLOSED');
-      assert.equal(await page.locator('#context-action').isVisible(), true, 'mobile Context Action is back');
+      await page.locator('#context-action').waitFor({ state: 'visible' });
       assert.equal(debits(poor.id), 0);
       entry.checks.push('Touch Context Action → server shortfall (1) → purchase disabled; Phone in viewport/no clip; cancel restores HUD');
       assert.deepEqual(problems, []);
-      await context.close();
+      await close();
     });
   }
 
   ok &= await runCase('account-switch-isolation', async entry => {
-    const { context, page, problems } = await openWorld(entry, { viewport: { width: 1280, height: 800 }, account: general });
+    const { page, problems, close } = await openWorld(entry, { viewport: { width: 1280, height: 800 }, account: general });
     assert.equal((await page.evaluate(() => window.__INHAGAME_P0__.jeongseok.access.snapshot.via)), 'VISITOR_PASS');
     // Switch account in place: sign out, then sign in as the poor account.
     await page.evaluate(async session => { const c = window.__INHAGAME_P0__.online.supabase;
@@ -275,11 +281,11 @@ try {
     await shot(page, entry, 'switched');
     entry.checks.push('A (valid pass) → sign out → B in place: no A pass/balance/receipt in B access or Student ID');
     assert.deepEqual(problems, []);
-    await context.close();
+    await close();
   });
 
   ok &= await runCase('guest-auth-required', async entry => {
-    const { context, page } = await openWorld(entry, { viewport: { width: 1280, height: 800 } });
+    const { page, close } = await openWorld(entry, { viewport: { width: 1280, height: 800 } });
     await goToReader(page); await press(page, false);
     await page.waitForFunction(() => window.__INHAGAME_P0__.jeongseok.gate.snapshot().state === 'AUTH_REQUIRED');
     assert.equal((await phone(page)).state, 'CLOSED', 'no purchase UI for guests');
@@ -287,11 +293,11 @@ try {
     assert.equal(await page.locator('#jeongseok-gate').getAttribute('data-light'), 'red');
     await shot(page, entry, 'guest');
     entry.checks.push('Guest: AUTH_REQUIRED with login guidance, red light, no purchase UI, campus play continues');
-    await context.close();
+    await close();
   });
 
   ok &= await runCase('server-closed-and-unknown', async entry => {
-    const { context, page, problems } = await openWorld(entry, { viewport: { width: 1280, height: 800 }, account: poor });
+    const { page, problems, close } = await openWorld(entry, { viewport: { width: 1280, height: 800 }, account: poor });
     sql(`update private.world_jeongseok_gate_policy set status='COMING_SOON'`);
     await goToReader(page); await press(page, false);
     await page.waitForFunction(() => window.__INHAGAME_P0__.jeongseok.gate.snapshot().state === 'DISABLED');
@@ -304,13 +310,13 @@ try {
     await shot(page, entry, 'unknown');
     entry.checks.push('Server COMING_SOON → DISABLED (no CTA); network failure → UNKNOWN (not "unverified"), no entry');
     assert.deepEqual(problems, []);
-    await context.close();
+    await close();
   });
 } finally {
   sql(`update private.world_jeongseok_gate_policy set status='COMING_SOON'`);
   sql(`update private.world_jeongseok_pass_catalog set status='COMING_SOON' where pass_type='jeongseok.visitor.day'`);
   if (users.length) sql(`delete from auth.users where id in (${users.map(lit).join(',')})`);
-  await browser.close(); server.kill();
+  server.kill();
   report.status = ok ? 'PASS' : 'FAIL'; await save();
 }
 console.log(JSON.stringify(report.cases.map(c => [c.name, c.status, c.error?.split('\n')[0]]), null, 1));
