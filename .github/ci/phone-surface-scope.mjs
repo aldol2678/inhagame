@@ -22,9 +22,65 @@ const MAIN_ADDED = Object.freeze([
   '    if (smartphone?.openMessages?.(userId)) return true;'
 ]);
 
-export function scopedPhoneMessagesOnly(paths, mainPatch = '') {
+
+// Only the reviewed MENU-02A registry and badge binding may count as a safe
+// smartphone.js or preferences.js edit. All other Phone shell/input changes run full.
+const REVIEWED_PHONE_DELTAS = Object.freeze({
+  "apps/world/src/phone/smartphone.js": Object.freeze([
+  "+import { createPhoneMessages } from './phone-messages.js';",
+  "+  let messageUnread=0;",
+  "+  const messages=createPhoneMessages({getClient,onUnread:count=>{",
+  "+    messageUnread=count;",
+  "+    const badge=root.querySelector('.smartphone-app[data-app-id=\"messages\"] .smartphone-notification-badge');",
+  "+    if(badge){badge.hidden=!count;badge.textContent=count>99?'99+':String(count);}",
+  "+  }});",
+  "-    {id:'attendance',name:'출석부',icon:'📅',available:()=>!!getAttendancePanel(),open(){},close:()=>closeDailySurface('attendance')}",
+  "+    {id:'attendance',name:'출석부',icon:'📅',available:()=>!!getAttendancePanel(),open(){},close:()=>closeDailySurface('attendance')},",
+  "+    {id:'messages',name:'메시지',icon:'💬',available:()=>true,open:params=>messages.activate(params),close:()=>messages.close()}",
+  "-    if(app?.available())n.append(el('span','smartphone-app-icon',app.icon),el('span','smartphone-app-name',app.name));",
+  "+    if(app?.available()){n.append(el('span','smartphone-app-icon',app.icon),el('span','smartphone-app-name',app.name));",
+  "+      if(id==='messages'){const badge=el('b','smartphone-notification-badge',messageUnread>99?'99+':String(messageUnread));badge.hidden=!messageUnread;badge.setAttribute('aria-label','읽지 않은 메시지');n.append(badge);}",
+  "+    }",
+  "+      else if(app.appId==='messages')messages.mount(content);",
+  "-    setAccount(userId){albumManager.reset();shell.close();student.invalidate();album.setScope(userId);warning='';preferences.load();history.load();wallpaperKey='';void setWallpaper();},",
+  "+    setAccount(userId){albumManager.reset();shell.close();messages.setAccount(userId);student.invalidate();album.setScope(userId);warning='';preferences.load();history.load();wallpaperKey='';void setWallpaper();},",
+  "+    openMessages(recipientId){if(shell.state==='CLOSED'&&!open())return false;return shell.ownsInput && launch('messages',{recipientId});},",
+  "-    status:()=>({...shell.snapshot(),scope:album.scope,preferences:preferences.snapshot(),albumError:album.error}),",
+  "-    destroy(){albumManager.reset();shell.close();destroyed=true;clearHold();win.clearInterval(clockTimer);shell.destroy();album.destroy();unsubscribePhoto();",
+  "+    status:()=>({...shell.snapshot(),scope:album.scope,preferences:preferences.snapshot(),albumError:album.error,messages:messages.status()}),",
+  "+    destroy(){albumManager.reset();shell.close();messages.setAccount(null);destroyed=true;clearHold();win.clearInterval(clockTimer);shell.destroy();album.destroy();unsubscribePhoto();"
+]),
+  "apps/world/src/phone/phone-preferences.js": Object.freeze([
+  "-export const PHONE_APP_IDS = Object.freeze(['student-id','maps','camera','album','settings','daily-quiz','attendance']);",
+  "+export const PHONE_APP_IDS = Object.freeze(['student-id','maps','camera','album','settings','daily-quiz','attendance','messages']);"
+])
+});
+const scopedDiffLines = (path,patch) => {
+  if(typeof patch!=='string'||!patch.startsWith('diff --git a/'+path+' b/'+path+'\n')) return null;
+  return patch.split('\n').filter(line=>(line.startsWith('+')&&!line.startsWith('+++'))||
+    (line.startsWith('-')&&!line.startsWith('---')));
+};
+
+export function scopedPhoneMessagesOnly(paths, mainPatch = '', extraPatches = {}) {
   if (!Array.isArray(paths) || paths.length === 0) return false;
   if (!paths.every(path => typeof path === 'string' && (PHONE_FILES.has(path) || path === MAIN))) return false;
+  for(const [path,expected] of Object.entries(REVIEWED_PHONE_DELTAS)){
+    if(!paths.includes(path))continue;
+    const actual=scopedDiffLines(path,extraPatches[path]);
+    if(!actual||actual.length!==expected.length||actual.some((line,i)=>line!==expected[i]))return false;
+  }
+  const phoneCss='apps/world/phone.css';
+  if(paths.includes(phoneCss)){
+    const actual=scopedDiffLines(phoneCss,extraPatches[phoneCss]);
+    if(!actual||actual.length===0||actual.some(line=>
+      !line.startsWith('+') ||
+      !(line.startsWith('+.phone-messages') ||
+        line.startsWith('+.smartphone .smartphone-notification-badge') ||
+        line.startsWith('+.smartphone .smartphone-app { position:relative; }') ||
+        line.startsWith('+@media(max-width:380px) { .phone-messages') ||
+        line.startsWith('+/* PHONE-MENU-02A') ||
+        line === '+')))return false;
+  }
   if (!paths.includes(MAIN)) return true;
   if (typeof mainPatch !== 'string' || !mainPatch.startsWith('diff --git a/apps/world/src/main.js b/apps/world/src/main.js\n')) return false;
   const lines = mainPatch.split('\n').filter(x => (x.startsWith('+') && !x.startsWith('+++')) ||
@@ -54,7 +110,10 @@ export function inspect(env = process.env) {
     const nameStatus=git('diff','--no-renames','--name-status','-z',base,head,'--');
     if (/(^|\0)(?:D|R|C|T|U)(?:\d+)?\0/.test(nameStatus)) return {skip:false,reason:'unsafe-file-change'};
     const mainPatch=paths.includes(MAIN) ? git('diff','--no-ext-diff','--no-renames','--unified=0',base,head,'--',MAIN) : '';
-    return scopedPhoneMessagesOnly(paths,mainPatch)
+    const extraPatches={};
+    for(const path of [...Object.keys(REVIEWED_PHONE_DELTAS),'apps/world/phone.css'])if(paths.includes(path))
+      extraPatches[path]=git('diff','--no-ext-diff','--no-renames','--unified=0',base,head,'--',path);
+    return scopedPhoneMessagesOnly(paths,mainPatch,extraPatches)
       ? {skip:true,reason:'isolated-member-message-ui',paths}
       : {skip:false,reason:'broader-or-unknown-impact',paths};
   } catch {
