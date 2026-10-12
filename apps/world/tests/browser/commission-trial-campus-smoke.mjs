@@ -30,9 +30,14 @@ for(const [name,viewport,mobile] of cases){
     const panel=page.locator('#cooking-trial-panel');
     const click=key=>panel.locator(`[data-focus-key="${key}"]`).click();
     const layout=async()=>{const b=await panel.boundingBox();assert.ok(b&&b.x>=0&&b.y>=0&&b.x+b.width<=viewport.width+1&&b.y+b.height<=viewport.height+1,JSON.stringify(b));assert.equal(await panel.evaluate(n=>n.scrollWidth>n.clientWidth+1),false);};
-    await load();assert.equal((await state()).available,false);assert.equal(await page.evaluate(()=>window.__INHAGAME_P0__.commissionTrials.open('cooking')),false);
-    await openJournal();assert.equal(await page.locator('.commission-trial-entry').count(),0);await page.keyboard.press('Escape');
-    result.checks.push('Production source defaults CLOSED; no trial entry; direct open denied');
+    if(name==='desktop') {
+      await load();assert.equal((await state()).available,false);assert.equal(await page.evaluate(()=>window.__INHAGAME_P0__.commissionTrials.open('cooking')),false);
+      await openJournal();assert.equal(await page.locator('.commission-trial-entry').count(),0);await page.keyboard.press('Escape');
+      // Finish the default page's static reads before the intentional test-only reload.
+      // Do not turn an aborted navigation read into a product request-failure exemption.
+      await page.waitForLoadState('networkidle',{timeout:60000});
+      result.checks.push('Production source defaults CLOSED; no trial entry; direct open denied');
+    }
     await smoke.context.addInitScript(() => { globalThis.__COMMISSION_ACCOUNT__ = 'fixture-a'; });
     await smoke.context.route('**/src/main.js',route=>{
       const needle='commissionTrials = createCommissionTrialFeature({\n  getAccountId: () => roomFunctionAccountId,';
@@ -73,10 +78,16 @@ for(const [name,viewport,mobile] of cases){
     result.checks.push('Close/Cancel/Escape/Back, modal takeover, account switch, stale prior-session callback, repeated reopen, focus trap and Phone Home return');
     // Shared sample-room integration is exercised by its own focused harness and the same entry.
     await openJournal();await page.getByRole('button',{name:'책 펼칠 자리 · 샘플방 체험',exact:true}).click();
-    assert.equal((await state()).active,'room');await screen('sample-room-entry');
+    assert.equal((await state()).active,'room');
+    await page.waitForFunction(()=>{const p=window.__INHAGAME_P0__.commissionTrials.state().room.preview;return p?.frames>2||p?.error;});
+    const preview=(await state()).room.preview;assert.ok(preview?.frames>2,JSON.stringify(preview));
+    const mainFrame=await page.evaluate(()=>window.__INHAGAME_P0__.app.frame);
+    await page.waitForFunction(frame=>window.__INHAGAME_P0__.app.frame>frame,mainFrame);
+    assert.equal(await page.evaluate(()=>window.__INHAGAME_P0__.getStatus().renderer),'WebGL2');
+    await screen('sample-room-entry');
     await page.evaluate(()=>window.__INHAGAME_P0__.commissionTrials.close());assert.equal((await state()).active,null);
     assert.deepEqual(smoke.problems,[]);result.status='PASS';await save();
-  }catch(error){result.status='FAIL';result.error=error.stack;await save();throw error;}
+  }catch(error){report.status='FAIL';result.status='FAIL';result.error=error.stack;await save();throw error;}
   finally{await smoke.close();}
 }
 report.status='PASS';await save();console.log(JSON.stringify(report,null,2));

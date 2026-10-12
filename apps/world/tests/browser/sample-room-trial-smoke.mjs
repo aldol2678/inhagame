@@ -10,13 +10,16 @@ for(const file of ['src/commissions/sample-room-trial.js','src/commissions/sampl
 const save=()=>writeFile(`${output}/report.json`,JSON.stringify(report,null,2));await save();
 try {
 for(const[name,width,height]of [['desktop',1280,800],['portrait',390,844],['landscape',844,390]]){
- let smoke,page;const errors=[];
+ let smoke,page;const errors=[],consoleErrors=[],failedRequests=[];
  try{
   smoke=await startSmoke({viewport:{width,height}});
   page=await smoke.context.newPage();page.on('pageerror',e=>errors.push(e.message));
+  page.on('console',message=>{if(message.type()==='error')consoleErrors.push(message.text());});
+  page.on('requestfailed',request=>failedRequests.push({url:request.url(),failure:request.failure()}));
   let writes=0;page.on('request',req=>{if(!['GET','HEAD'].includes(req.method()))writes++;});
   await page.goto(`${smoke.origin}/tests/browser/sample-room-trial-harness.html`);await page.click('#open');
-  await page.waitForFunction(()=>window.__SAMPLE_TRIAL_QA__?.panel.state().preview?.frames>2);
+  await page.waitForFunction(()=>{const preview=window.__SAMPLE_TRIAL_QA__?.panel.state().preview;return preview?.frames>2||preview?.error;});
+  assert.equal(await page.evaluate(()=>window.__SAMPLE_TRIAL_QA__.panel.state().preview?.error??null),null);
   const initial=await page.evaluate(()=>window.__SAMPLE_TRIAL_QA__.panel.state());assert.equal(initial.objects.length,5);assert.equal(initial.result.complete,false);
   const panel=page.locator('#sample-room-trial');await panel.locator('iframe').scrollIntoViewIfNeeded();await page.screenshot({path:`${output}/${name}-initial.png`});
   const select=panel.locator('select');
@@ -36,7 +39,8 @@ for(const[name,width,height]of [['desktop',1280,800],['portrait',390,844],['land
   await page.evaluate(()=>window.__SAMPLE_TRIAL_QA__.panel.destroy());assert.equal(await panel.count(),0);assert.equal(writes,0);assert.deepEqual(errors,[]);
   results.push({name,initial:initial.preview,writeRequests:writes,errors,status:'PASS'});
  }catch(error){
-  results.push({name,status:'FAIL',error:error.stack,errors});
+  const state=page&&!page.isClosed()?await page.evaluate(()=>window.__SAMPLE_TRIAL_QA__?.panel.state()).catch(()=>null):null;
+  results.push({name,status:'FAIL',error:error.stack,errors,consoleErrors,failedRequests,state});
   if(page&&!page.isClosed())await page.screenshot({path:`${output}/${name}-failure.png`}).catch(()=>{});
   throw error;
  }finally{await save();await smoke?.close();}
