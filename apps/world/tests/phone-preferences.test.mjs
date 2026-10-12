@@ -35,3 +35,16 @@ test('MENU-01 installs two Daily apps into old layouts without erasing existing 
   assert.equal(next.wallpaper.id, 'campus');
   assert.deepEqual(normalizePhonePreferences(next), next, 'reloading the same layout must be stable');
 });
+
+test('MENU-02A installs messages exactly once while preserving existing Home, Dock and wallpaper', () => {
+  const old=defaultPhonePreferences();
+  old.pages[0][10]='attendance';old.pages[0][8]='daily-quiz';
+  const normalized=normalizePhonePreferences(old);
+  const ids=[...normalized.pages.flat(),...normalized.dock].filter(Boolean);
+  assert.equal(ids.filter(x=>x==='messages').length,1);
+  assert.equal(ids.filter(x=>x==='attendance').length,1);
+  assert.equal(ids.filter(x=>x==='daily-quiz').length,1);
+  assert.deepEqual(normalized.dock,['maps','camera',null,null]);
+  assert.equal(normalized.wallpaper.id,'campus');
+  assert.deepEqual(normalizePhonePreferences(normalized),normalized);
+});

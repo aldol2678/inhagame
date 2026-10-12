@@ -1,14 +1,20 @@
 import * as pc from "playcanvas";
+import { attachSofaVisual, furnitureAssetStatus } from "./furniture-glb-visual.js";
 import { box, surface } from "../campus-render-kit.js";
 import { FURNITURE_BY_ID, furnitureBox } from "./furniture-layout.js";
 import { trophyDisplayVisual } from "./trophy-display-visual.js";
 import { PERSONAL_ROOM_BASIC_OBSTACLES } from "./personal-room-layout.js";
 
-export function createFurnitureLayer(app, root) {
+export function createFurnitureLayer(app, root, { modelMode = "glb" } = {}) {
   const layer = new pc.Entity("personal_owned_furniture"); root.addChild(layer);
   const obstacles = [...PERSONAL_ROOM_BASIC_OBSTACLES];
+  let generation = 0, revision = 0, destroyed = false, suspended = false;
+  let visuals = [];
   const posters = new Map(); let signature = "", objects = [], displays = new Map();
   layer.on("destroy", () => {
+    destroyed = true; generation++;
+    for (const visual of visuals) visual.destroy();
+    visuals = [];
     for (const material of posters.values()) { material.diffuseMap?.destroy(); material.destroy(); }
     posters.clear();
   });
@@ -80,12 +86,16 @@ export function createFurnitureLayer(app, root) {
       box(entity,"cushion",[0,.07,0],[.45,.14,.4],surface("#5ac9d1"),0,"sphere");
       box(entity,"beak",[0,.12,-.12],[.14,.025,.08],surface("#fac34e"));
     } else if (id.includes("single_sofa")) {
+      const fallback = new pc.Entity("sofa_procedural_fallback"); entity.addChild(fallback);
       const fabric=surface("#718da3"), dark=surface("#536b7c");
-      box(entity,"seat",[0,.25,0],[item.width,.22,item.depth*.72],fabric);
-      box(entity,"back",[0,.53,item.depth*.34],[item.width,.38,.16],fabric);
-      for(const x of [-item.width/2+.08,item.width/2-.08]) box(entity,"arm",[x,.38,0],[.16,.34,item.depth*.72],dark);
+      box(fallback,"seat",[0,.25,0],[item.width,.22,item.depth*.72],fabric);
+      box(fallback,"back",[0,.53,item.depth*.34],[item.width,.38,.16],fabric);
+      for(const x of [-item.width/2+.08,item.width/2-.08]) box(fallback,"arm",[x,.38,0],[.16,.34,item.depth*.72],dark);
       for(const x of [-item.width*.36,item.width*.36]) for(const z of [-item.depth*.23,item.depth*.23])
-        box(entity,"leg",[x,.07,z],[.07,.14,.07],surface("#5b4635"));
+        box(fallback,"leg",[x,.07,z],[.07,.14,.07],surface("#5b4635"));
+
+      if (id === "furniture.dorm_single_sofa" && modelMode !== "procedural" && !suspended)
+        visuals.push(attachSofaVisual({ app, anchor: entity, fallback, onChange: () => { revision++; layer.fire("visualchange"); } }));
     } else if (id.includes("side_table_low")) {
       box(entity,"top",[0,item.height-.04,0],[item.width,.08,item.depth],surface("#a97b50"));
       for(const x of [-item.width*.38,item.width*.38]) for(const z of [-item.depth*.38,item.depth*.38])
@@ -127,12 +137,18 @@ export function createFurnitureLayer(app, root) {
   }
   function render() {
     const next = JSON.stringify([objects,[...displays]]); if (signature === next) return;
-    signature = next;
+    signature = next; generation++;
+    for (const visual of visuals) visual.destroy();
+    visuals = [];
     for (const child of [...layer.children]) child.destroy();
     for (const object of objects) renderObject(object);
   }
   return {
     root: layer,
+    deactivate() { suspended = true; generation++; for (const visual of visuals) visual.destroy(); visuals = []; },
+    activate() { if (destroyed) return; if (suspended) { suspended = false; signature = ""; render(); } },
+    whenVisualsReady: () => Promise.all(visuals.map(visual => visual.ready)),
+    visualStatus: () => ({ generation, revision, destroyed, suspended, modelMode, placementCount: objects.length, contentKey: JSON.stringify([objects,[...displays]]), objects: visuals.map(visual => visual.status()), resources: furnitureAssetStatus(app) }),
     obstacles,
     setObjects(next) {
       objects = next; render();

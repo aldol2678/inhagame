@@ -1,4 +1,6 @@
 /* UI-ICON-RUNTIME-01: self-contained existing P0 SVG, original emoji on load error. */
+/* Decorative visuals must never steal Phone pointer gestures or start native image drag. */
+.world-ui-icon, .world-ui-icon * { pointer-events:none; }
 .world-ui-icon { display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;flex:0 0 auto;vertical-align:middle;line-height:1; }
 .world-ui-icon[data-mode="label"] { margin-inline-end:6px; }
 .world-ui-icon-image { display:block;width:100%;height:100%;object-fit:contain; }

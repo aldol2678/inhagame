@@ -16,3 +16,9 @@ A small allowlisted presentation module uses decorative `<img alt="" aria-hidden
 Scope exclusions: original university CI, reward/permissions/RPC/account logic, new apps and notifications, ACTIVE8 item-icon renderer, asset-file edits, merge, deployment, and production data operations.
 
 Verification contract: source manifest completeness; Node mapping assertions; browser local World (desktop 1280×800, portrait 390×844, landscape 844×390), SVG fetch/load, screenshots, button labels and focus, re-render, image-error fallback. Real-member RPC, real devices and Production deployment are NOT claimed by this local offline acceptance.
+
+## Pointer drag regression guard
+
+The presentation layer marks each image `draggable=false` and makes decorative icon trees pointer-transparent. Phone owns pointer capture, gesture cancellation and persistence; no Phone controller or CSS is changed. Existing main stylesheets retain their relative order, including the commission stylesheet.
+
+The existing icon browser QA now runs an icon-off control and the fixed SVG presentation with real mouse/touch input on all three viewports, verifies unique Dock placement and reload persistence, and repeats fixed Dock moves. A desktop fixture restores only the previous image dragging/hit-testing defaults and requires an actual native `IMG` dragstart, pointercancel and an unchanged Dock. This establishes the cause through an A/B comparison instead of inferring it from source. The existing full Phone browser QA remains unchanged and must also pass at the exact candidate head. Browser results are not claimed until the workflows finish.

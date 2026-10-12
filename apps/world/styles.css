@@ -5560,6 +5560,30 @@ body[data-photo-mode="active"] > :not(#application):not(.photo-mode):not(script)
 .trophy-display-choices button[aria-pressed="true"] { border-color:#2868a4; background:#deedf9; }
 @media(max-width:600px) { .trophy-display-panel { width:auto; max-height:calc(100dvh - 16px); } }
 
+/* JSL-A · Jeongseok virtual tag reader HUD (non-modal; claims no input). */
+.jeongseok-gate {
+  position: fixed; z-index: 13; left: 50%; transform: translateX(-50%);
+  top: max(76px, calc(env(safe-area-inset-top) + 64px));
+  width: min(340px, calc(100vw - 32px)); box-sizing: border-box;
+  display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; align-items: center;
+  padding: 10px 14px; border-radius: 16px; background: #0f2233e8; color: #f3f8ff;
+  border: 1px solid #5e7f99; box-shadow: 0 6px 20px #0006; pointer-events: none;
+}
+.jeongseok-gate[hidden] { display: none !important; }
+.jeongseok-gate-reader { grid-row: span 3; position: relative; width: 38px; height: 50px; border-radius: 9px; background: #24384a; box-shadow: inset 0 0 0 2px #4d6a82; }
+.jeongseok-gate-light { position: absolute; top: 6px; left: 50%; width: 12px; height: 12px; margin-left: -6px; border-radius: 50%; background: #5b6d7c; }
+.jeongseok-gate-card { position: absolute; bottom: 4px; left: 50%; transform: translateX(-50%); font-size: 18px; }
+.jeongseok-gate[data-light="scan"] .jeongseok-gate-light { background: #7fc8ff; box-shadow: 0 0 10px #7fc8ff; animation: jeongseok-blink .5s steps(2) infinite; }
+.jeongseok-gate[data-light="green"] .jeongseok-gate-light { background: #3dff98; box-shadow: 0 0 12px #3dff98; }
+.jeongseok-gate[data-light="green"] { border-color: #3dff98; }
+.jeongseok-gate[data-light="red"] .jeongseok-gate-light { background: #ff5a4f; box-shadow: 0 0 12px #ff5a4f; }
+.jeongseok-gate[data-light="red"] { border-color: #ff8a80; }
+.jeongseok-gate strong { font-size: 14px; }
+.jeongseok-gate-status { margin: 0; font-size: 13px; line-height: 1.35; }
+.jeongseok-gate small { font-size: 10px; opacity: .75; }
+@keyframes jeongseok-blink { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .jeongseok-gate-light { animation: none !important; } }
+
 /* LANDSCAPE-HUD:start
    Mobile landscape HUD · phones held sideways (touch + landscape + short viewport).
    The portrait phone HUD keys off max-width, so a rotated phone (740–932px wide) used to fall through to the

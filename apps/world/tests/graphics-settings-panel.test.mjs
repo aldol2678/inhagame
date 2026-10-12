@@ -16,12 +16,13 @@ test('detail controls apply typed values, reset UI and remove listeners on destr
   globalThis.document=doc;globalThis.window={localStorage:undefined};
   let calls=0;
   let state={frameLimit:45,renderScale:0.85,shadows:'off',showFps:true};
-  const graphics={preference:'auto',tier:'low',visualPolicy:p=>p,status:()=>state,
+  const graphics={preference:'auto',tier:'very_low',visualPolicy:p=>p,status:()=>state,
     setDetail(key,value){state[key]=value;calls++;return true;},
     reset(){state={frameLimit:'auto',renderScale:'auto',shadows:'auto',showFps:false};return true;}};
   try {
     const panel=createViewDistanceSettings({setPolicy(){}},{camera:{}},graphics);
     assert.equal(nodes['graphics-frame-limit'].value,'45');
+    assert.equal(nodes['graphics-quality-hint'].textContent,'자동으로 최저 품질을 사용 중입니다.');
     nodes['graphics-frame-limit'].value='30';nodes['graphics-frame-limit'].dispatchEvent(new Event('change'));
     assert.equal(state.frameLimit,30);
     nodes['graphics-show-fps'].checked=false;nodes['graphics-show-fps'].dispatchEvent(new Event('change'));

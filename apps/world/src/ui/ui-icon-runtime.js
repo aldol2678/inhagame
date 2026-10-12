@@ -58,7 +58,7 @@ function visual(doc,name,fallback,mode){
  root.dataset.icon=name;root.dataset.mode=mode;root.dataset.state='loading';
  root.setAttribute('aria-hidden','true');
  const emoji=doc.createElement('span');emoji.className='world-ui-icon-fallback';emoji.textContent=fallback||ALIASES[name][0];
- const img=doc.createElement('img');img.className='world-ui-icon-image';img.alt='';img.width=24;img.height=24;img.decoding='async';img.hidden=true;
+ const img=doc.createElement('img');img.className='world-ui-icon-image';img.alt='';img.width=24;img.height=24;img.decoding='async';img.hidden=true;img.draggable=false;
  img.addEventListener('load',()=>{img.hidden=false;emoji.hidden=true;root.dataset.state='ready';});
  img.addEventListener('error',()=>{img.hidden=true;emoji.hidden=false;root.dataset.state='fallback';});
  root.append(emoji,img);img.src=uiIconSource(name);return root;

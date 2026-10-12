@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { UI_ICON_NAMES, UI_ICON_TARGETS, uiIconSource } from '../src/ui/ui-icon-runtime.js';
+import { UI_ICON_NAMES, UI_ICON_TARGETS, uiIconSource, refreshUiIcons } from '../src/ui/ui-icon-runtime.js';
 const root=new URL('../assets/ui-icons/p0-v1/',import.meta.url);
 test('all 19 approved SVG files are mapped to existing presentation',async()=>{
  const manifest=JSON.parse(await readFile(new URL('manifest.json',root),'utf8'));
@@ -24,4 +24,16 @@ test('notification binds status, collection maps inventory, future member messag
    assert.ok(selector && UI_ICON_NAMES.includes(name));
    assert.ok(['glyph','label'].includes(mode));
  }
+});
+
+test('decorative images cannot initiate native dragging and retain error fallback',async()=>{
+ const doc={createElement(tag){return {tag,dataset:{},children:[],listeners:{},setAttribute(name,value){this[name]=value;},addEventListener(type,fn){this.listeners[type]=fn;},append(...nodes){this.children.push(...nodes);}};}};
+ const host={nodeType:1,ownerDocument:doc,textContent:'🖼️',matches:selector=>selector===UI_ICON_TARGETS[3][0],querySelector:()=>null,querySelectorAll:()=>[],replaceChildren(node){this.visual=node;}};
+ refreshUiIcons(host);
+ const [emoji,img]=host.visual.children;
+ assert.equal(img.draggable,false);assert.equal(img.alt,'');assert.equal(host.visual['aria-hidden'],'true');
+ img.listeners.load();assert.equal(img.hidden,false);assert.equal(emoji.hidden,true);
+ img.listeners.error();assert.equal(img.hidden,true);assert.equal(emoji.hidden,false);assert.equal(emoji.textContent,'🖼️');
+ const css=await readFile(new URL('../ui-icon-runtime.css',import.meta.url),'utf8');
+ assert.match(css,/\.world-ui-icon, \.world-ui-icon \*\s*\{\s*pointer-events:none;/);
 });

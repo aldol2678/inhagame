@@ -105,3 +105,49 @@ body[data-phone-open="true"] > :not(#application):not(.smartphone) { visibility:
 .smartphone-album-grid button[aria-pressed="true"] { border-color:#83f2c9; background:#28574e; }
 .smartphone-album-grid button[aria-pressed="true"]::before { content:'✓ 선택됨'; display:block; }
 .smartphone-album-grid small { display:block; }
+/* JSL-A · Jeongseok access on the Student ID screen (game-only; no QR / barcode). */
+.smartphone-student-mail { font-size:12px; font-weight:700; }
+.smartphone-student-mail[data-verified="true"] { color:#0b6b4c; }
+.smartphone-jeongseok-card { border-radius:22px; padding:18px; color:#153549; background:linear-gradient(135deg,#ffffff,#dfe9f6); display:grid; gap:6px; }
+.smartphone-jeongseok-card p { margin:0; }
+.smartphone-jeongseok-card small { font-size:10px; display:block; margin-top:8px; }
+.smartphone-jeongseok-ok { font-weight:800; color:#0b6b4c; }
+.smartphone-jeongseok-error { color:#ffd2cc; font-weight:700; }
+.smartphone-jeongseok-gate { font-size:13px; }
+.smartphone-jeongseok-offer { display:grid; grid-template-columns:auto 1fr; gap:4px 12px; margin:6px 0; font-size:13px; }
+.smartphone-jeongseok-offer dt { opacity:.75; }
+.smartphone-jeongseok-offer dd { margin:0; font-weight:700; text-align:right; }
+.smartphone-jeongseok-tag { position:relative; height:86px; display:flex; align-items:center; justify-content:center; gap:18px; }
+.smartphone-jeongseok-tag-card { font-size:40px; transition:transform .5s ease; }
+.smartphone-jeongseok-tag-reader { width:44px; height:58px; border-radius:10px; background:#24384a; box-shadow:inset 0 0 0 3px #4d6a82; }
+.smartphone-jeongseok-tag[data-state="SCANNING"] .smartphone-jeongseok-tag-card { transform:translateX(22px) rotate(-8deg); animation:jeongseok-tap .7s ease-in-out infinite alternate; }
+.smartphone-jeongseok-tag[data-state="SCANNING"] .smartphone-jeongseok-tag-reader { box-shadow:inset 0 0 0 3px #7fc8ff, 0 0 14px #7fc8ff; }
+.smartphone-jeongseok-tag:is([data-state="GRANTED"],[data-state="OPENING"],[data-state="READY_TO_ENTER"]) .smartphone-jeongseok-tag-reader { background:#167a4c; box-shadow:inset 0 0 0 3px #7dffb8, 0 0 18px #3dff98; }
+@keyframes jeongseok-tap { to { transform:translateX(30px) rotate(-4deg); } }
+@media (prefers-reduced-motion: reduce) { .smartphone-jeongseok-tag-card { animation:none !important; transition:none; } }
+
+/* PHONE-MENU-02A · single account-scoped Hub messages view inside the Phone. */
+.smartphone .smartphone-app { position:relative; }
+.smartphone .smartphone-notification-badge { position:absolute; top:0; right:8px; z-index:2; min-width:18px; padding:2px 5px; color:#132e45; background:#ffe393; border-radius:20px; font-size:11px; }
+.smartphone .smartphone-notification-badge[hidden] { display:none; }
+.phone-messages { display:grid; gap:10px; min-width:0; }
+.phone-messages h3 { margin:0; }
+.phone-messages-controls { display:flex; gap:8px; flex-wrap:wrap; align-items:center; justify-content:space-between; }
+.phone-messages-unread { font-size:12px; }
+.phone-messages-new { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:6px; }
+.phone-messages input, .phone-messages textarea { min-width:0; width:100%; box-sizing:border-box; border:1px solid #ffffff55; border-radius:10px; background:#15394e; color:#fff; font:inherit; padding:10px; }
+.phone-messages input:focus-visible, .phone-messages textarea:focus-visible { outline:3px solid #ffe9a4; }
+.phone-messages-inbox { display:grid; gap:6px; }
+.smartphone .phone-messages-inbox-item { display:grid; grid-template-columns:1fr auto; text-align:left; gap:3px; overflow-wrap:anywhere; width:100%; }
+.phone-messages-inbox-item small { grid-column:1 / -1; font-size:12px; opacity:.85; }
+.phone-messages-count { color:#172d3c; background:#ffe393; border-radius:30px; padding:2px 7px; }
+.phone-messages-thread { display:grid; gap:8px; max-height:none; }
+.phone-messages-entry { padding:10px; min-width:0; overflow-wrap:anywhere; background:#17374dcc; border-radius:14px; }
+.phone-messages-entry.is-mine { background:#24645dcc; margin-left:14px; }
+.phone-messages-entry p { margin:0 0 6px; white-space:pre-wrap; }
+.phone-messages-entry small { opacity:.75; }
+.phone-messages-composer { display:grid; gap:6px; }
+.phone-messages-report { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+.phone-messages-report select { width:auto; min-width:0; flex:1; }
+.phone-messages-notice { margin:0; padding:8px; border-radius:8px; background:#15394e; }
+@media(max-width:380px) { .phone-messages-new { grid-template-columns:1fr; } }

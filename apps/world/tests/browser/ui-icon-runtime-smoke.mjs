@@ -1,7 +1,7 @@
 // UI-ICON-RUNTIME-01: real local Campus browser, isolated network and no live writes.
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { startSmoke, TIMEOUT_MS } from './harness.mjs';
 const head=execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();
 assert.equal(head,process.env.UI_ICON_HEAD_SHA,'exact-head checkout required');
@@ -9,14 +9,94 @@ const output='test-results/ui-icon-runtime';await mkdir(output,{recursive:true})
 const variants=[['desktop',{width:1280,height:800},false],['portrait',{width:390,height:844},true],['landscape',{width:844,height:390},true]];
 const report={head,status:'RUNNING',cases:[],limits:['Mobile viewport emulation is not physical Android/iOS QA.','No production, authenticated member, or live server writes.']};
 const save=()=>writeFile(output+'/report.json',JSON.stringify(report,null,2));
+// The regression fixture restores exactly the two pre-fix interaction defaults.
+// Controllers, layout, source assets and backend isolation stay identical in all modes.
+const iconSource=await readFile(new URL('../../src/ui/ui-icon-runtime.js',import.meta.url),'utf8');
+const iconCss=await readFile(new URL('../../ui-icon-runtime.css',import.meta.url),'utf8');
+assert.ok(iconSource.includes('img.draggable=false;'));
+assert.ok(iconCss.includes('.world-ui-icon, .world-ui-icon * { pointer-events:none; }'));
+const priorSource=iconSource.replace('img.draggable=false;','');
+const priorCss=iconCss.replace('.world-ui-icon, .world-ui-icon * { pointer-events:none; }','');
+const state=page=>page.evaluate(()=>window.__INHAGAME_P0__.smartphone.status());
+async function freshPage(smoke,mode){
+ const page=await smoke.context.newPage();page.setDefaultTimeout(60000);
+ await page.addInitScript(()=>{if(!sessionStorage.getItem('ui-icon-drag-fixture')){localStorage.clear();sessionStorage.setItem('ui-icon-drag-fixture','1');}});
+ if(mode==='off')await page.route('**/src/ui/ui-icon-runtime.js',route=>route.fulfill({status:200,contentType:'text/javascript',body:'/* icon-off control: existing emoji presentation */'}));
+ if(mode==='prior'){
+   await page.route('**/src/ui/ui-icon-runtime.js',route=>route.fulfill({status:200,contentType:'text/javascript',body:priorSource}));
+   await page.route('**/ui-icon-runtime.css',route=>route.fulfill({status:200,contentType:'text/css',body:priorCss}));
+ }
+ return page;
+}
+async function openCampus(smoke,page){
+ const fatal=smoke.watch(page);
+ await page.goto(smoke.origin+'/campus/?envTime=day&envWeather=clear',{waitUntil:'domcontentloaded',timeout:TIMEOUT_MS});
+ await Promise.race([page.waitForFunction(()=>window.__INHAGAME_P0__?.getStatus().loading?.finished===true,null,{timeout:120000}),fatal]);
+}
+async function dragAlbum(smoke,page,mobile,slot=2){
+ const source=page.locator('.smartphone-app[data-app-id="album"] .smartphone-app-icon');
+ await source.scrollIntoViewIfNeeded();
+ const a=await source.boundingBox(),b=await page.locator(`.smartphone-app[data-area="dock"][data-slot="${slot}"]`).boundingBox();
+ assert.ok(a&&b,'both icon and destination must be visible');
+ const point={x:a.x+a.width/2,y:a.y+a.height/2,id:1,radiusX:2,radiusY:2,force:1};
+ await page.evaluate(()=>{
+   window.__iconDragEvents=[];
+   if(window.__iconDragRecording)return;window.__iconDragRecording=true;
+   for(const type of ['pointerdown','pointercancel','pointerup','dragstart','dragend'])document.addEventListener(type,event=>window.__iconDragEvents.push({type,target:event.target.tagName,className:event.target.className}),true);
+ });
+ if(mobile){
+   const cdp=await smoke.context.newCDPSession(page);
+   try{await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[point]});await new Promise(r=>setTimeout(r,650));
+     await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{...point,x:b.x+b.width/2,y:b.y+b.height/2}]});
+     await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+   }finally{await cdp.detach();}
+ }else{await page.mouse.move(point.x,point.y);await page.mouse.down();await page.mouse.move(b.x+b.width/2,b.y+b.height/2,{steps:5});await page.mouse.up();}
+ return {dock:(await state(page)).preferences.dock,events:await page.evaluate(()=>window.__iconDragEvents)};
+}
+async function verifyDrag(smoke,page,mobile,entry,mode){
+ await page.getByRole('button',{name:'홈 화면 편집',exact:true}).click();
+ if(mode!=='off')await page.waitForFunction(()=>!!document.querySelector('.smartphone-app[data-app-id="album"] .world-ui-icon[data-state="ready"]'));
+ const before=(await state(page)).preferences;
+ const result=await dragAlbum(smoke,page,mobile);entry.dragComparisons??=[];entry.dragComparisons.push({mode,...result});await save();
+ if(mode==='prior'){
+   assert.equal(result.dock[2],null,'prior native-image behavior must reproduce the failed Dock drop');
+   assert.ok(result.events.some(e=>e.type==='dragstart'&&e.target==='IMG'),'regression requires a real native image dragstart');
+   assert.ok(result.events.some(e=>e.type==='pointercancel'),'native drag must cancel the Phone pointer gesture');
+   assert.deepEqual((await state(page)).preferences,before,'cancelled native drag must not mutate preferences');
+   entry.checks.push('prior image defaults reproduce native IMG dragstart → pointercancel → unchanged Dock');return;
+ }
+ assert.equal(result.dock[2],'album',mode+' actual pointer drag reaches Dock 2');
+ assert.equal(result.events.some(e=>e.type==='dragstart'||e.type==='pointercancel'),false,mode+' decorative content must not steal pointer gesture');
+ if(mode==='fixed'){
+   for(const slot of [3,2]){
+     await page.waitForFunction(()=>!!document.querySelector('.smartphone-app[data-app-id="album"] .world-ui-icon[data-state="ready"]'));
+     const repeated=await dragAlbum(smoke,page,mobile,slot);assert.equal(repeated.dock[slot],'album');
+     assert.equal(repeated.dock.filter(id=>id==='album').length,1,'repeated drop must not duplicate Album');
+     assert.equal(repeated.events.some(e=>e.type==='dragstart'||e.type==='pointercancel'),false);
+   }
+ }
+ await page.getByRole('button',{name:'편집 완료',exact:true}).click();
+ const persisted=(await state(page)).preferences;
+ await page.reload({waitUntil:'domcontentloaded',timeout:TIMEOUT_MS});
+ await page.waitForFunction(()=>window.__INHAGAME_P0__?.getStatus().loading?.finished===true,null,{timeout:120000});
+ await page.locator('#phone-toggle').click();assert.deepEqual((await state(page)).preferences,persisted,mode+' Dock preferences survive reload');
+ await page.screenshot({path:output+'/'+entry.name+'-'+mode+'-drag-reload.png',animations:'disabled'});
+ entry.screenshots.push(entry.name+'-'+mode+'-drag-reload.png');
+ entry.checks.push(mode+' real '+(mobile?'touch':'mouse')+' icon-center drag, unique Dock placement and reload persistence');
+}
+
 for(const [name,viewport,mobile] of variants){
  const entry={name,viewport,status:'RUNNING',checks:[],screenshots:[]};report.cases.push(entry);await save();
  let smoke;
  try{
    smoke=await startSmoke({viewport,contextOptions:{isMobile:mobile,hasTouch:mobile,deviceScaleFactor:1,reducedMotion:'reduce'}});
-   const page=await smoke.context.newPage(),fatal=smoke.watch(page);
-   await page.goto(smoke.origin+'/campus/?envTime=day&envWeather=clear',{waitUntil:'domcontentloaded',timeout:TIMEOUT_MS});
-   await Promise.race([page.waitForFunction(()=>window.__INHAGAME_P0__?.getStatus().loading?.finished===true,null,{timeout:120000}),fatal]);
+   for(const mode of (mobile?['off']:['off','prior'])){
+     const control=await freshPage(smoke,mode);await openCampus(smoke,control);
+     await control.locator('#phone-toggle').click();
+     if(mode==='off')assert.equal(await control.locator('.world-ui-icon').count(),0);
+     await verifyDrag(smoke,control,mobile,entry,mode);await control.close();
+   }
+   const page=await freshPage(smoke,'fixed');await openCampus(smoke,page);
    const assets=await page.evaluate(async()=>{
      const names=['album','attendance','camera','chat','collection','friends','help','inventory','lock','map','mobility','notification','profile','quest','quiz','settings','shop','student-id','wardrobe'];
      return Promise.all(names.map(async name=>{
@@ -73,6 +153,7 @@ for(const [name,viewport,mobile] of variants){
    await page.locator('.smartphone-home-button').click();
    await page.waitForFunction(()=>!!document.querySelector('.smartphone-app[data-app-id="album"] .world-ui-icon[data-state="ready"]'));
    entry.checks.push('student ID and Home re-render preserved');
+   await verifyDrag(smoke,page,mobile,entry,'fixed');
    assert.deepEqual(smoke.problems,[]);
    entry.status='PASS';await save();
  }catch(error){entry.status='FAIL';entry.error=String(error.stack||error);report.status='FAIL';await save();throw error;}
