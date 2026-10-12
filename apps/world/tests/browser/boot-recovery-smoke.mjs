@@ -13,7 +13,8 @@ const url = `${smoke.origin}/campus/?lobby=1#boot-recovery`;
 const status = page => page.evaluate(() => ({
   recovery: globalThis.__INHA_WORLD_BOOT_RECOVERY__?.status(),
   loading: globalThis.__INHA_WORLD_LOADING__?.status(),
-  inert: document.getElementById('world-lobby').inert
+  inert: document.getElementById('world-lobby').inert,
+  focus: document.activeElement?.id ?? null
 }));
 const waitCode = (page, code) => page.waitForFunction(code =>
   globalThis.__INHA_WORLD_BOOT_RECOVERY__?.status().code === code, code, { timeout: TIMEOUT_MS });
@@ -46,6 +47,10 @@ try {
       for (const viewport of [{ width: 320, height: 568 }, { width: 800, height: 360 }]) {
         await page.setViewportSize(viewport); await checkRetry(page);
       }
+      await page.evaluate(() => {
+        localStorage.setItem('boot-recovery-test', JSON.stringify({ scope: 'synthetic-user-a', value: 17 }));
+        sessionStorage.setItem('boot-recovery-session-test', 'preserve');
+      });
       await page.unroute(`**${dependency}`);
       await Promise.all([page.waitForURL(url, { waitUntil: 'domcontentloaded' }), page.locator('#world-loading-retry').tap()]);
       await ready(page);
@@ -54,6 +59,10 @@ try {
       assert.equal(recovered.loading.renderReady, true);
       assert.equal(page.url(), url);
       assert.equal(recovered.inert, false);
+      assert.deepEqual(await page.evaluate(() => ({ local: JSON.parse(localStorage.getItem('boot-recovery-test')),
+        session: sessionStorage.getItem('boot-recovery-session-test') })),
+        { local: { scope: 'synthetic-user-a', value: 17 }, session: 'preserve' });
+      await page.evaluate(() => { localStorage.removeItem('boot-recovery-test'); sessionStorage.removeItem('boot-recovery-session-test'); });
     }
     console.log(`PASS module request failure: ${dependency}${path === '/src/main.js' ? ' + manual retry + portrait/landscape' : ''}`);
     await page.close();
@@ -73,7 +82,10 @@ try {
     await page.goto(url, { waitUntil: 'commit' });
     await waitCode(page, 'BOOT_ENTRY_DELAY'); await checkRetry(page);
     assert.equal((await status(page)).recovery.state, 'DELAYED');
+    await page.locator('#world-loading-retry').focus();
     release(); await ready(page);
+    assert.equal(await page.locator('#world-loading-retry').isVisible(), false);
+    assert.equal((await status(page)).focus, 'world-lobby', 'natural recovery transfers loader-owned focus to the lobby');
     console.log('PASS entry stall warning + natural recovery'); await page.close();
   }
   for (const model of ['induck-v3.glb', 'annyongi-flight-v1.glb']) {

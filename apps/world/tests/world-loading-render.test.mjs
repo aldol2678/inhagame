@@ -37,24 +37,101 @@ test('loader waits for assets, an empty streaming queue, real frames and GPU wor
   assert.equal(app.listenerCount('postrender'), 0);
 });
 
-test('long asset waits do not fail; confirmed asset and GPU errors reject', async () => {
+test('render timeout and asset failure reject instead of revealing the scene', async () => {
   const app = new EventEmitter();
-  let timeoutCallback, rejectAssets, delayed = false, settled = false;
+  let timeoutCallback;
   const timers = { setTimeout(callback) { timeoutCallback = callback; return 1; }, clearTimeout() {} };
-  const waiting = waitForWorldRender({ app, ready: new Promise((resolve, reject) => { rejectAssets = reject; }),
-    timers, onDelay: () => { delayed = true; } });
-  waiting.then(() => { settled = true; }, () => { settled = true; });
+  const waiting = waitForWorldRender({ app, ready: new Promise(() => {}), timers });
   timeoutCallback();
-  await Promise.resolve();
-  assert.equal(delayed, true);
-  assert.equal(settled, false, 'elapsed time is not evidence of failure');
-  rejectAssets(new Error('model failed'));
-  await assert.rejects(waiting, /model failed/);
+  await assert.rejects(waiting, /rendering timed out/);
   assert.equal(app.listenerCount('postrender'), 0);
-  app.graphicsDevice = { wgpu: { queue: { onSubmittedWorkDone() { throw new Error('GPU lost'); } } } };
-  const rendering = waitForWorldRender({ app });
-  await Promise.resolve();
+  await assert.rejects(waitForWorldRender({ app, ready: Promise.reject(new Error('model failed')) }), /model failed/);
+  assert.equal(app.listenerCount('postrender'), 0);
+});
+
+
+test('the existing 60s hard deadline distinguishes asset wait from first-render wait', async () => {
+  for (const assetsReady of [false, true]) {
+    const app = new EventEmitter();
+    let timeout;
+    const timers = { setTimeout(fn, ms) { assert.equal(ms, 60000); timeout = fn; return 1; }, clearTimeout() {} };
+    const pending = waitForWorldRender({ app, ready: assetsReady ? Promise.resolve() : new Promise(() => {}), timers });
+    await Promise.resolve();
+    timeout();
+    await assert.rejects(pending, { code: assetsReady ? 'INITIAL_RENDER_TIMEOUT' : 'ASSET_LOADING_TIMEOUT' });
+    assert.equal(app.listenerCount('postrender'), 0);
+  }
+});
+
+test('slow assets can still finish before the hard deadline and only real eligible frames count', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const app = new EventEmitter();
+  let release, progress = 0;
+  const pending = waitForWorldRender({ app, ready: new Promise(resolve => { release = resolve; }),
+    onProgress: () => { progress++; }, requestFrame: fn => { fn(); return 1; } });
+  t.mock.timers.tick(59000);
+  app.emit('postrender');
+  assert.equal(progress, 0, 'unresolved assets cannot report rendering progress');
+  release(); await Promise.resolve();
   for (let i = 0; i < 3; i++) app.emit('postrender');
-  await assert.rejects(rendering, /GPU lost/);
+  assert.deepEqual(await pending, { renderedFrames: 3 });
+  assert.equal(progress, 3);
+  assert.equal(app.listenerCount('postrender'), 0);
+});
+
+test('scene stalls do not fabricate progress and GPU rejection never reveals a READY frame', async () => {
+  const app = new EventEmitter();
+  let progress = 0, sceneReady = false;
+  app.graphicsDevice = { wgpu: { queue: { onSubmittedWorkDone() { throw Error('device lost'); } } } };
+  const pending = waitForWorldRender({ app, isSceneReady: () => sceneReady, onProgress: () => { progress++; } });
+  await Promise.resolve();
+  for (let i = 0; i < 10; i++) app.emit('postrender');
+  assert.equal(progress, 0);
+  sceneReady = true;
+  for (let i = 0; i < 3; i++) app.emit('postrender');
+  await assert.rejects(pending, /device lost/);
+  assert.equal(app.listenerCount('postrender'), 0);
+});
+
+for (const when of ['already', 'assets', 'gpu', 'paint', 'progress']) {
+  test(`cancel ${when} removes the render gate and ignores stale completion`, async () => {
+    const app = new EventEmitter(), controller = new AbortController();
+    let release, gpuDone, painted = 0, progress = 0;
+    const frames = new Map(); let nextFrame = 0;
+    app.graphicsDevice = { wgpu: { queue: { onSubmittedWorkDone: () => new Promise(resolve => { gpuDone = resolve; }) } } };
+    if (when === 'already') controller.abort();
+    const pending = waitForWorldRender({ app, signal: controller.signal,
+      ready: when === 'assets' ? new Promise(resolve => { release = resolve; }) : Promise.resolve(),
+      onProgress() { progress++; if (when === 'progress') controller.abort(); },
+      requestFrame(fn) { painted++; frames.set(++nextFrame, fn); return nextFrame; },
+      cancelFrame(id) { frames.delete(id); } });
+    const rejected = assert.rejects(pending, { name: 'AbortError', code: 'BOOT_CANCELLED' });
+    await Promise.resolve();
+    if (['gpu', 'paint', 'progress'].includes(when)) {
+      for (let i = 0; i < 3; i++) app.emit('postrender');
+      await Promise.resolve();
+      if (when === 'paint') { gpuDone(); await Promise.resolve(); }
+    }
+    controller.abort();
+    await rejected;
+    release?.(); gpuDone?.();
+    await Promise.resolve(); await Promise.resolve();
+    for (let i = 0; i < 5; i++) app.emit('postrender');
+    assert.equal(app.listenerCount('postrender'), 0);
+    assert.equal(frames.size, 0);
+    if (when !== 'paint') assert.equal(painted, 0);
+    if (when === 'progress') assert.equal(progress, 1);
+  });
+}
+
+test('cancelling one of two render waiters leaves the other waiter intact', async () => {
+  const app = new EventEmitter(), controller = new AbortController();
+  const cancelled = waitForWorldRender({ app, signal: controller.signal });
+  const next = waitForWorldRender({ app, requestFrame: fn => { fn(); return 1; } });
+  controller.abort();
+  await assert.rejects(cancelled, { code: 'BOOT_CANCELLED' });
+  assert.equal(app.listenerCount('postrender'), 1);
+  for (let i = 0; i < 3; i++) app.emit('postrender');
+  assert.deepEqual(await next, { renderedFrames: 3 });
   assert.equal(app.listenerCount('postrender'), 0);
 });

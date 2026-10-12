@@ -1,0 +1,63 @@
+name: NPC shop routing browser checks
+on:
+  pull_request:
+    paths:
+      - 'apps/world/src/shop/**'
+      - 'apps/world/src/main.js'
+      - 'apps/world/npc-factory/dev-runtime.mjs'
+      - 'apps/world/src/student-center-*.js'
+      - 'apps/world/src/rooms/dorm1-lobby-*.js'
+      - 'apps/world/tests/shop-*.test.mjs'
+      - 'apps/world/tests/student-center-vendors.test.mjs'
+      - 'apps/world/tests/browser/npc-shop-*'
+      - 'apps/world/tests/browser/shop-furniture-*'
+      - 'apps/world/tests/browser/harness*.mjs'
+      - 'apps/world/tests/browser/student-center-campus-smoke.mjs'
+      - 'apps/world/tests/browser/package*.json'
+      - '.github/workflows/npc-shop-routing-browser.yml'
+permissions:
+  contents: read
+concurrency:
+  group: npc-shop-routing-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  chromium:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      WORLD_SMOKE_DISABLE_WEBGPU: '1'
+      NPC_SHOP_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - run: npm ci --prefix apps/world/tests/browser --ignore-scripts --no-audit --no-fund
+      - name: Install pinned Chromium
+        working-directory: apps/world/tests/browser
+        run: npx playwright install --with-deps chromium
+      - name: Shop route and geometry contracts
+        run: node --test apps/world/tests/shop-router.test.mjs apps/world/tests/shop-routes.test.mjs apps/world/tests/student-center-vendors.test.mjs apps/world/tests/dorm-shop-interaction.test.mjs
+      - name: Real DOM routing and race recovery with synthetic RPC
+        run: node apps/world/tests/browser/npc-shop-routing-smoke.mjs
+      - name: Furniture ownership and room handoff with synthetic RPC
+        if: ${{ !cancelled() }}
+        run: node apps/world/tests/browser/shop-furniture-smoke.mjs
+      - name: Actual full-campus NPC placement and signed-out HUD gate
+        if: ${{ !cancelled() }}
+        timeout-minutes: 10
+        run: timeout --signal=TERM --kill-after=10s 570s node apps/world/tests/browser/npc-shop-campus-smoke.mjs
+      - name: Upload exact-head browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: npc-shop-routing-${{ github.event.pull_request.head.sha }}
+          path: |
+            test-results/npc-shop-routing/
+            test-results/npc-shop-campus/
+            test-results/shop-furniture/
+          if-no-files-found: error
+          retention-days: 14

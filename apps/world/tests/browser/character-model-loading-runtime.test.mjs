@@ -194,30 +194,87 @@ test('flight V2 exposes distinct hover/ascent/forward/descent, rejects teleport 
   assert.ok(Math.abs(carrier.getLocalPosition().y)<.001);
 });
 
-test('night fill retains vertex palette and owns clones without changing source/world materials', async t => {
-  const f=await fixture(t);f.success('duck');f.success('dragon');await f.character.ready;
-  f.player.mountKind='annyongi';f.character.setMounted(true);
-  const carrier=f.player.findByName('Annyongi_GLB_Visual');
-  const material=carrier.findComponents('render')[0].meshInstances[0].material;
-  const original=f.assets.dragon.resource.materials[0];
-  assert.notEqual(material,original,'never mutate container/shared material');
-  const fill=f.app.root.findByName('Annyongi_ReadabilityFill');assert.ok(fill);
-  assert.equal(fill.findComponents('light').length,2);
-  for(const light of fill.findComponents('light')){assert.equal(light.mask,256);assert.equal(light.castShadows,false);}
-  assert.ok(carrier.findComponents('render').every(c=>c.meshInstances.every(mi=>(mi.mask&256)!==0)));
-  assert.ok(f.player.findByName('Induck_GLB_Visual').findComponents('render').every(c=>c.meshInstances.every(mi=>(mi.mask&256)===0)));
-  const old=original.emissiveIntensity;
-  f.app.scene.ambientLight.set(.075,.095,.16);
-  f.character.update(.05,{mounted:true,moving:false,grounded:false});
-  assert.equal(material.emissiveMapVertexColor,true);assert.ok(material.emissiveIntensity>.065 && material.emissiveIntensity<=.07);
-  assert.equal(original.emissiveIntensity,old);
-  assert.equal(f.app.scene.ambientLight.r,.075,'world lighting unchanged');
-  f.app.scene.ambientLight.set(.48,.54,.61);
-  f.character.update(.05,{mounted:true,moving:false,grounded:false});
-  assert.equal(material.emissiveIntensity,.045);assert.equal(material.diffuse.r,1);
-  for(const light of fill.findComponents('light'))assert.equal(light.intensity,0);
-  f.player.destroy();assert.equal(f.app.root.findByName('Annyongi_ReadabilityFill'),null,'last owner releases private lights');
+// Snapshot authored inputs, not the old whitening implementation. Textures are
+// compared by identity; no model byte, image or private path enters evidence.
+function materialInputs(material) {
+  const colors = ['diffuse', 'emissive', 'specular'];
+  const keys = ['opacity', 'alphaTest', 'blendType', 'depthWrite', 'cull',
+    'useMetalness', 'metalness', 'gloss', 'emissiveIntensity',
+    'diffuseVertexColor', 'diffuseVertexColorChannel',
+    'emissiveVertexColor', 'emissiveVertexColorChannel',
+    'opacityVertexColor', 'opacityVertexColorChannel',
+    'diffuseMap', 'emissiveMap', 'opacityMap', 'metalnessMap', 'glossMap',
+    'diffuseTint', 'emissiveTint', 'specularityFactor'];
+  return Object.fromEntries([...colors.map(key => [key, material[key] && [material[key].r, material[key].g, material[key].b]]),
+    ...keys.map(key => [key, material[key]])]);
+}
+test('day/night fill preserves authored material and vertex palettes, alpha/PBR/emission and clone ownership', async t => {
+  const f = await fixture(t);
+  const reference = f.assets.dragon.resource.instantiateRenderEntity();
+  const originals = new Map(reference.findComponents('render').flatMap(c => c.meshInstances.map(({material: m}) => [m.name, { material: m, inputs: materialInputs(m) }])));
+  reference.destroy();
+  const duckOriginals = f.assets.duck.resource.materials.map(m => [m, materialInputs(m)]);
+  f.success('duck'); f.success('dragon'); await f.character.ready;
+  f.player.mountKind = 'annyongi'; f.character.setMounted(true);
+  const carrier = f.player.findByName('Annyongi_GLB_Visual');
+  const meshes = carrier.findComponents('render').flatMap(c => c.meshInstances);
+  const clones = [...new Set(meshes.map(mi => mi.material))];
+  const destroyed = new Map(clones.map(m => [m, 0]));
+  for (const m of clones) { const destroy = m.destroy.bind(m); m.destroy = () => { destroyed.set(m, destroyed.get(m) + 1); destroy(); }; }
+  const fill = f.app.root.findByName('Annyongi_ReadabilityFill'); assert.ok(fill);
+  assert.equal(fill.findComponents('light').length, 2);
+  for (const light of fill.findComponents('light')) { assert.equal(light.mask, 256); assert.equal(light.castShadows, false); }
+  assert.ok(meshes.every(mi => (mi.mask & 256) !== 0));
+  assert.ok(f.player.findByName('Induck_GLB_Visual').findComponents('render').every(c => c.meshInstances.every(mi => (mi.mask & 256) === 0)));
+  for (let cycle = 0; cycle < 4; cycle++) for (const night of [false, true, false]) {
+    const ambient = night ? [.075, .095, .16] : [.48, .54, .61];
+    f.app.scene.ambientLight.set(...ambient);
+    f.character.update(.05, { mounted: true, moving: false, grounded: false });
+    for (const clone of clones) {
+      const {material, inputs} = originals.get(clone.name);
+      assert.notEqual(clone, material, 'instance owns its material clone');
+      assert.deepEqual(materialInputs(clone), inputs, `${clone.name}: authored color/PBR/alpha/emission survives day/night`);
+      assert.deepEqual(materialInputs(material), inputs, 'shared source remains unchanged');
+    }
+    for (const [material, inputs] of duckOriginals) assert.deepEqual(materialInputs(material), inputs, 'Induck unchanged');
+    assert.deepEqual([f.app.scene.ambientLight.r, f.app.scene.ambientLight.g, f.app.scene.ambientLight.b], ambient, 'world light unchanged');
+    for (const light of fill.findComponents('light')) assert.ok(night ? light.intensity > 0 : light.intensity === 0);
+  }
+  // Another player keeps its independent clones and the shared fill alive.
+  const other = new pc.Entity('OtherColorPlayer'); f.app.root.addChild(other);
+  const otherCharacter = createCharacter(f.app, other); f.success('duck'); f.success('dragon'); await otherCharacter.ready;
+  const otherMaterials = other.findByName('Annyongi_GLB_Visual').findComponents('render').flatMap(c => c.meshInstances.map(mi => mi.material));
+  assert.ok(otherMaterials.every(m => !clones.includes(m)));
+  f.player.destroy(); assert.ok([...destroyed.values()].every(n => n === 1));
+  assert.equal(f.app.root.findByName('Annyongi_ReadabilityFill'), fill, 'remaining owner keeps fill');
+  for (const material of otherMaterials) assert.deepEqual(materialInputs(material), originals.get(material.name).inputs);
+  other.destroy(); assert.equal(f.app.root.findByName('Annyongi_ReadabilityFill'), null);
+  assert.ok([...destroyed.values()].every(n => n === 1), 'owned clones destroyed once');
 });
+
+
+test('authored non-default opacity, alpha, metallic/roughness and emission are not repurposed for readability', async t => {
+  const f = await fixture(t);
+  const reference = f.assets.dragon.resource.instantiateRenderEntity();
+  const original = reference.findComponents('render')[0].meshInstances[0].material;
+  reference.destroy();
+  original.diffuse.set(.823, .926, .98); // representative material-factor blue, not a golden-render fixture
+  original.opacity = .43; original.alphaTest = .16; original.blendType = pc.BLEND_NORMAL;
+  original.depthWrite = false; original.metalness = .63; original.gloss = .24;
+  original.emissive.set(.10, .05, .02); original.emissiveIntensity = .37;
+  original.emissiveVertexColor = false; original.opacityVertexColor = true;
+  const expected = materialInputs(original);
+  f.success('duck'); f.success('dragon'); await f.character.ready;
+  const clone = f.player.findByName('Annyongi_GLB_Visual').findComponents('render')[0].meshInstances[0].material;
+  for (const level of [.08, .65, .08, .65]) {
+    f.app.scene.ambientLight.set(level, level, level);
+    f.character.update(.05, { mounted: true, moving: false, grounded: false });
+    assert.deepEqual(materialInputs(clone), expected);
+    assert.deepEqual(materialInputs(original), expected);
+  }
+  f.player.destroy();
+});
+
 
 
 test('tail morph geometry extends, glides and recurls continuously; instances own their weights', async t => {
@@ -245,9 +302,16 @@ test('tail morph geometry extends, glides and recurls continuously; instances ow
    assert.ok(pose.tail[1]>.999);assert.ok(pose.pitch>57);
    const mi=tails[1],base=[];mi.mesh.getPositions(base);
    const delta=mi.morphInstance.morph.targets[1].deltaPositions;
-   const point=new pc.Vec3(base[0]+delta[0],base[1]+delta[1],base[2]+delta[2]);
-   carrier.getLocalTransform().transformPoint(point,point);
-   assert.ok(point.z < -3,'cloud tip genuinely extends behind the body');
+   // Vertex order is not a tail-tip contract after a mesh rebuild.
+   // Transform the complete morphed cloud through its real world matrix,
+   // then measure behind the player, independent of player translation/rotation.
+   const transform=new pc.Mat4().mul2(f.player.getWorldTransform().clone().invert(),mi.node.getWorldTransform());
+   let tipZ=Infinity;
+   for(let i=0;i<base.length;i+=3) {
+    const point=new pc.Vec3(base[i]+delta[i],base[i+1]+delta[i+1],base[i+2]+delta[i+2]);
+    transform.transformPoint(point,point);tipZ=Math.min(tipZ,point.z);
+   }
+   assert.ok(tipZ < -3,'cloud tip genuinely extends behind the body');
    assert.ok(Math.abs(pose.pitch+pose.headPitch-12)<.01,'face remains forward, not nose-down');
   }
   if(mode==='hover'||mode==='ground')assert.ok(pose.tail.every(w=>w<.001),'curled source restored');

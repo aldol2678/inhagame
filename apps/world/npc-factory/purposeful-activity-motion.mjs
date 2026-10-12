@@ -60,3 +60,23 @@ export function purposefulActivityPose(activity, {
       ]);
   }
 }
+
+// Render-only: the shared route keeps its canonical heading and position.
+// Human avatars face local +Z; this yaw aims a stationary photo pose at its scene.
+export function purposefulPhotoHeading(activity, { position, target, heading } = {}) {
+  if (activity !== 'PHOTO' || ![position?.x, position?.z, target?.x, target?.z].every(Number.isFinite))
+    return heading;
+  const dx = target.x - position.x, dz = target.z - position.z;
+  return Math.hypot(dx, dz) > 1e-6 ? Math.atan2(dx, dz) * 180 / Math.PI : heading;
+}
+
+// C04's existing shoulder-only avatar has a unit-height-2 capsule torso:
+// its lowest clothed silhouette is 1.27 - .69, not the .85 leg pivot.
+// Support that real silhouette on the slab, with a 0.10-world-unit outward leg clearance.
+// This is a render projection only; the shared standPoint/route is unchanged.
+export function c04BenchRenderPosition(seat, worldScale, groundY, seatTopY) {
+  const yaw = seat.yaw * Math.PI / 180;
+  return { x: seat.position.x + Math.sin(yaw) * .10,
+    y: groundY + seatTopY - (1.27 - .69) * worldScale,
+    z: seat.position.z + Math.cos(yaw) * .10 };
+}

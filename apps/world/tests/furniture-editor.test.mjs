@@ -247,3 +247,102 @@ test("history is bounded to the latest 100 changes",async()=>{
   for(let i=0;i<100;i++)redo(h);
   assert.equal(objects(h)[0].yaw,270);assert.equal(byFocus(h,"redo").disabled,true);
 });
+
+test("recommendation preview is draft only, replaces styles as one undo step, and cancel restores previous edits and history",async()=>{
+  const h=await rig();h.ui.openEditor();h.byText("인덕 책상 의자 (0/1) +").click();const before=objects(h);
+  h.byText("공부 중심").click();const study=objects(h);assert.ok(study.length>1);assert.equal(h.calls.length,1);
+  h.byText("휴식 중심").click();assert.notDeepEqual(objects(h),study);
+  h.byText("추천 전으로 돌아가기").click();assert.deepEqual(objects(h),before);
+  undo(h);assert.deepEqual(objects(h),[]);redo(h);assert.deepEqual(objects(h),before);
+  h.byText("중앙 비우기").click();h.byText("중앙 비우기").click();undo(h);assert.deepEqual(objects(h),before);
+});
+test("recommendations can be edited manually, cancelled, then saved through the existing readback checkpoint",async()=>{
+  const h=await rig();h.ui.openEditor();h.byText("공부 중심").click();const layout=objects(h);
+  selectObject(h,layout.find(x=>x.surface==='floor').id);h.byText("회수").click();assert.equal(objects(h).length,layout.length-1);
+  h.byText("추천 전으로 돌아가기").click();assert.deepEqual(objects(h),[]);
+  h.byText("공부 중심").click();const saved=objects(h);h.byText("저장").click();await flush();
+  assert.equal(h.client.state().dirty,false);assert.equal(byFocus(h,'undo').disabled,true);assert.equal(h.byText("추천 전으로 돌아가기"),undefined);
+  assert.deepEqual(h.calls.find(x=>x.name.startsWith('save')).args.p_objects,saved.toSorted((a,b)=>a.id.localeCompare(b.id)));
+});
+test("recommendations wait for inventory and lock during save or close; stale account callbacks do not revive preview",async()=>{
+  const h=await rig();h.ui.openEditor();h.inventory.state='LOADING';h.notify();assert.equal(h.byText('공부 중심').disabled,true);
+  h.byText('공부 중심').click();assert.deepEqual(objects(h),[]);
+  h.inventory.state='READY';h.notify();h.byText('공부 중심').click();const preview=objects(h);
+  h.ui.requestClose();h.byText('휴식 중심').click();assert.deepEqual(objects(h),preview);h.byText('계속 꾸미기').click();
+  let resolve;h.queue.push(new Promise(r=>resolve=r));h.byText('저장').click();assert.equal(h.byText('휴식 중심').disabled,true);
+  h.byText('휴식 중심').click();assert.deepEqual(objects(h),preview);
+  h.switchUser();await h.client.bind(ROOM);h.ui.openEditor();h.notify();assert.equal(h.byText('추천 전으로 돌아가기'),undefined);
+  resolve({data:null,error:{message:'offline'}});await flush();assert.deepEqual(objects(h),[]);
+});
+test("no owned furniture disables suggestions and refreshed ownership is used at save time",async()=>{
+  const empty=await rig({items:[]});empty.ui.openEditor();assert.equal(empty.byText('공부 중심').disabled,true);
+  const h=await rig();h.ui.openEditor();h.byText('휴식 중심').click();h.inventory.snapshot.items=[];h.notify();
+  assert.equal(h.byText('저장').disabled,true);h.byText('추천 전으로 돌아가기').click();assert.deepEqual(objects(h),[]);
+});
+test("recommendation omissions are visible and malformed inventory cannot replace a draft",async()=>{
+  const h=await rig({items:[{itemId:'furniture.dorm_monitor',quantity:50}]});h.ui.openEditor();h.byText('공부 중심').click();
+  assert.ok(walk(h.panel).some(row=>row.textContent.includes('추천에서 미배치된 가구는 보유 목록에 그대로 남아요')));
+  assert.ok(walk(h.panel).some(row=>row.tagName==='LI' && row.textContent.includes('공간이 부족')));
+  const draft=objects(h);h.inventory.snapshot.items=[{itemId:'furniture.dorm_monitor',quantity:NaN}];h.notify();
+  // A stale event can still be dispatched programmatically; generation revalidates the live snapshot.
+  h.byText('휴식 중심').click();assert.deepEqual(objects(h),draft);
+  h.inventory.state='LOADING';h.notify();h.byText('추천 전으로 돌아가기').click();assert.deepEqual(objects(h),[]);
+});
+
+test('recommendation cancel rechecks live ownership and keeps preview retryable after inventory loss',async()=>{
+  const itemId='furniture.induck_chair', items=[{itemId,quantity:1}];
+  const initial=firstFurniturePosition(itemId,'floor',[],items);
+  const h=await rig({objects:[initial],items});h.ui.openEditor();h.byText('공부 중심').click();
+  selectObject(h,objects(h)[0].id);h.byText('회수').click();assert.deepEqual(objects(h),[]);
+  const staleCancel=h.byText('추천 전으로 돌아가기');
+  h.inventory.snapshot.items=[];h.notify();staleCancel.click();
+  assert.deepEqual(objects(h),[]);assert.ok(h.byText('추천 전으로 돌아가기'));
+  assert.ok(walk(h.panel).some(row=>row.textContent==='현재 보유한 수량으로는 이 배치를 복원할 수 없어요.'));
+  h.inventory.snapshot.items=items;h.inventory.state='LOADING';h.notify();h.byText('추천 전으로 돌아가기').click();
+  assert.deepEqual(objects(h),[]);assert.ok(h.byText('추천 전으로 돌아가기'));
+  h.inventory.state='READY';h.notify();h.byText('추천 전으로 돌아가기').click();
+  assert.deepEqual(objects(h),[initial]);assert.equal(h.byText('추천 전으로 돌아가기'),undefined);
+  assert.equal(h.calls.length,1,'no save or inventory write');
+});
+test('Undo of a manual recommendation edit retains preview metadata; Undo of recommendation exits preview',async()=>{
+  const h=await rig();h.ui.openEditor();h.byText('공부 중심').click();const suggested=objects(h);
+  selectObject(h,suggested.find(x=>x.surface==='floor').id);h.byText('회수').click();
+  undo(h);assert.deepEqual(objects(h),suggested);assert.ok(h.byText('추천 전으로 돌아가기'));
+  redo(h);assert.equal(objects(h).length,suggested.length-1);assert.ok(h.byText('추천 전으로 돌아가기'));
+  undo(h);undo(h);assert.deepEqual(objects(h),[]);assert.equal(h.byText('추천 전으로 돌아가기'),undefined);
+  redo(h);assert.deepEqual(objects(h),suggested);assert.ok(h.byText('추천 전으로 돌아가기'));
+});
+
+test('guided mood preview uses existing ownership, explicit save and dirty-close decision',async()=>{
+  const h=await rig();let done=0;h.ui.openEditor({recommendationStyle:'relax',onDone:()=>done++});
+  assert.ok(objects(h).length);assert.equal(h.calls.filter(x=>x.name.startsWith('save')).length,0);
+  h.byText('완료 · 빛과 구도로').click();assert.equal(done,0);assert.ok(h.byText('계속 꾸미기'));
+  h.byText('계속 꾸미기').click();h.byText('저장').click();await flush();
+  assert.equal(h.client.state().dirty,false);assert.equal(done,0);h.byText('완료 · 빛과 구도로').click();assert.equal(done,1);
+});
+test('guided preview can be explicitly discarded; close, reset and later ordinary editor never fire stale continuation',async()=>{
+  const h=await rig();let done=0;h.ui.openEditor({recommendationStyle:'study',onDone:()=>done++});
+  h.byText('완료 · 빛과 구도로').click();h.byText('변경 버리고 닫기').click();assert.equal(done,1);assert.deepEqual(objects(h),[]);
+  h.ui.openEditor({onDone:()=>done++});h.byText('닫기').click();assert.equal(done,1);
+  h.ui.openEditor({onDone:()=>done++});h.ui.forceClose();h.ui.openEditor();h.byText('완료').click();assert.equal(done,1);
+});
+test('guided preview waits for inventory without silently overwriting later manual edits',async()=>{
+  const h=await rig();h.inventory.state='LOADING';h.ui.openEditor({recommendationStyle:'study',onDone:()=>{}});
+  assert.deepEqual(objects(h),[]);h.inventory.state='READY';h.notify();assert.deepEqual(objects(h),[]);
+  h.byText('공부 중심').click();assert.ok(objects(h).length);
+});
+test('BFCache guide detachment preserves dirty draft, undo/redo and explicit save/cancel without stale continuation',async()=>{
+  const h=await rig();let done=0;h.ui.openEditor({recommendationStyle:'study',onDone:()=>done++});
+  const draft=objects(h);assert.equal(h.ui.guided,true);h.ui.detachGuide();
+  assert.equal(h.ui.open,true);assert.equal(h.ui.guided,false);assert.deepEqual(objects(h),draft);assert.equal(h.client.state().dirty,true);
+  undo(h);assert.deepEqual(objects(h),[]);redo(h);assert.deepEqual(objects(h),draft);
+  h.byText('완료').click();assert.ok(h.byText('계속 꾸미기'));h.byText('계속 꾸미기').click();
+  h.byText('저장').click();await flush();h.byText('완료').click();assert.equal(done,0);assert.equal(h.ui.open,false);
+});
+test('BFCache guide detachment keeps pending save alive and still blocks close until readback',async()=>{
+  const h=await rig();let done=0,resolve;h.ui.openEditor({recommendationStyle:'relax',onDone:()=>done++});
+  const draft=objects(h);h.queue.push(new Promise(r=>resolve=r));h.byText('저장').click();h.ui.detachGuide();
+  assert.equal(h.client.state().pending,true);assert.equal(h.ui.requestClose(),false);assert.equal(h.ui.open,true);
+  resolve({data:{roomId:ROOM,role:'owner',revision:1,objects:draft},error:null});await flush();
+  assert.equal(h.client.state().dirty,false);h.byText('완료').click();assert.equal(done,0);
+});

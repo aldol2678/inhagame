@@ -8,7 +8,7 @@ import { chromium } from 'playwright';
 
 const output = process.env.FURNITURE_HISTORY_OUTPUT || 'test-results/furniture-history';
 await mkdir(output,{ recursive:true });
-const paths = ['src/rooms/furniture-editor.js','src/rooms/furniture-client.js','src/rooms/furniture-layout.js',
+const paths = ['src/rooms/furniture-editor.js','src/rooms/furniture-client.js','src/rooms/furniture-layout.js','src/rooms/furniture-recommendations.js',
   'src/rooms/personal-room-layout.js','src/player-dimensions.js','src/collection/item-catalog.js',
   'tests/browser/furniture-history-harness.html','styles.css'];
 const sources = new Map(await Promise.all(paths.map(async name=>[`/${name}`,await readFile(new URL(`../../${name}`,import.meta.url))])));

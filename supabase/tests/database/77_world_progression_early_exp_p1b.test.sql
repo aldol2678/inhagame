@@ -98,6 +98,8 @@ begin
     into v
     from (select jsonb_array_elements(public.get_world_shop_v1('shop.student_center') -> 'offers') o
           union all
+          select jsonb_array_elements(public.get_world_shop_v1('shop.student_center_fashion') -> 'offers')
+          union all
           select jsonb_array_elements(public.get_world_shop_v1('shop.dorm_furniture') -> 'offers')) x
    where (o ->> 'requiredLevel')::int in (2, 3);
   perform set_config('request.jwt.claims', '', true);

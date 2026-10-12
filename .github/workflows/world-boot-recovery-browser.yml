@@ -35,6 +35,15 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24.19.0'
+      - name: Install readable Korean glyphs
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+      - name: Record exact source for browser evidence
+        run: |
+          mkdir -p test-results/boot-recovery
+          git rev-parse HEAD > test-results/boot-recovery/head-sha.txt
+          sha256sum apps/world/campus/index.html apps/world/src/lobby/boot-recovery.js apps/world/src/lobby/lobby-loading.js apps/world/src/main.js apps/world/src/webgpu-device.js apps/world/styles.css > test-results/boot-recovery/source-sha256.txt
       - name: Install pinned browser dependencies
         working-directory: apps/world/tests/browser
         run: |
@@ -42,7 +51,7 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Unit and static boot contracts
         run: |
-          node --test apps/world/tests/boot-recovery.test.mjs apps/world/tests/world-boot-diagnostics.test.mjs apps/world/tests/world-loading-render.test.mjs
+          node --test apps/world/tests/boot-recovery.test.mjs apps/world/tests/world-boot-diagnostics.test.mjs apps/world/tests/world-loading-render.test.mjs apps/world/tests/graphics-presets.test.mjs
           node apps/world/qa.mjs
       - name: Offline mobile boot, slow assets, failures and manual retry
         env:

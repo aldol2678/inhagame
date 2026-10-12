@@ -69,3 +69,13 @@ test('unknown material keys cannot introduce remote or server-provided material 
   const r=rig(); assert.throws(()=>r.materials.get('https://example.test/model'), /Unknown/);
   assert.equal(r.created.length,0);
 });
+
+test('dynamic room visuals mutate only owned materials, never shared fallback surfaces',()=>{
+  const first=rig(), second=rig();
+  const sky=first.materials.get('exteriorSky'), other=second.materials.get('exteriorSky');
+  assert.equal(first.materials.updateVisual('exteriorSky',{color:[.02,.04,.1],emissiveIntensity:.2}),true);
+  assert.equal(sky.diffuse.r,.02);assert.notEqual(other.diffuse.r,.02);
+  const fallback=rig({failMaterial:true});const shared=fallback.materials.get('exteriorSky');
+  assert.equal(fallback.materials.updateVisual('exteriorSky',{color:[0,0,0],emissiveIntensity:0}),false);
+  assert.equal(shared.emissiveIntensity,undefined);
+});

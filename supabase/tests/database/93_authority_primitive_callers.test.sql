@@ -201,6 +201,7 @@ select set_eq(
   array[
     'public.cook_my_world_recipe_v1',                     -- self-only cooking, server recipe and owned/saved station
     'public.purchase_world_shop_listing_v1',              -- price and item come from the server listing
+    'public.purchase_world_shop_listing_v2',              -- validates shop binding, delegates unchanged v1
     'public.answer_my_world_daily_quiz_v1',               -- correctness judged by the server, one PASS per day
     'public.claim_my_world_attendance_v1',                -- day from the DB clock, one claim per day
     'public.claim_my_mcm_2026_main_reward_v1',            -- requires server-recorded event completion

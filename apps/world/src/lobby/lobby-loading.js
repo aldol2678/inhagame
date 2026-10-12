@@ -35,10 +35,11 @@ export function createWorldLoading({
   let slow = false;
   let finished = false;
   let failed = false;
+  let cancelled = false;
   if (interactionRoot) interactionRoot.inert = true;
 
   const render = () => {
-    if (failed) return;
+    if (failed || cancelled) return;
     const spec = WORLD_LOADING_PHASES[phase] ?? WORLD_LOADING_PHASES.BOOT;
     root.dataset.phase = phase;
     root.dataset.state = finished ? "DONE" : slow ? "SLOW" : "LOADING";
@@ -56,13 +57,13 @@ export function createWorldLoading({
   };
 
   const slowTimer = timers.setTimeout?.(() => {
-    if (finished || failed) return;
+    if (finished || failed || cancelled) return;
     slow = true;
     render();
   }, slowAfterMs);
 
   const setPhase = (next) => {
-    if (finished || failed || next === "READY" || !WORLD_LOADING_PHASES[next]) return false;
+    if (finished || failed || cancelled || next === "READY" || !WORLD_LOADING_PHASES[next]) return false;
     const currentProgress = WORLD_LOADING_PHASES[phase]?.progress ?? 0;
     if (WORLD_LOADING_PHASES[next].progress < currentProgress) return false;
     const changed = phase !== next;
@@ -73,16 +74,17 @@ export function createWorldLoading({
   };
 
   const setEssentialReady = (value = true) => {
-    if (failed || finished) return false;
+    if (failed || cancelled || finished) return false;
     essentialReady = value === true;
     render();
     return essentialReady;
   };
 
-  const setRenderReady = (value = true) => { if (failed || finished) return false; renderReady = value === true; return renderReady; };
+  const setRenderReady = (value = true) => { if (failed || cancelled || finished) return false; renderReady = value === true; return renderReady; };
 
   const finish = ({ degraded = false } = {}) => {
-    if (failed || finished || !essentialReady || !renderReady) return false;
+    if (failed || cancelled || finished || !essentialReady || !renderReady) return false;
+    const hadLoadingFocus = root.contains?.(root.ownerDocument?.activeElement);
     finished = true;
     phase = "READY";
     recovery?.complete();
@@ -92,14 +94,17 @@ export function createWorldLoading({
       ? "일부 부가 기능 없이 먼저 시작합니다."
       : "준비 완료";
     if (continueButton) continueButton.hidden = true;
-    if (interactionRoot) interactionRoot.inert = false;
+    if (interactionRoot) {
+      interactionRoot.inert = false;
+      if (hadLoadingFocus) interactionRoot.focus?.({ preventScroll: true });
+    }
     root.classList.add("is-leaving");
     timers.setTimeout?.(() => { root.hidden = true; }, fadeMs);
     return true;
   };
 
   const fail = (message = "월드를 시작하지 못했습니다.", detail = "브라우저 그래픽 지원과 네트워크 연결을 확인해 주세요.") => {
-    if (finished || failed) return false;
+    if (finished || failed || cancelled) return false;
     failed = true;
     timers.clearTimeout?.(slowTimer);
     slow = false;
@@ -118,6 +123,12 @@ export function createWorldLoading({
     setRenderReady,
     finish,
     fail,
+    cancel() {
+      if (finished || cancelled) return false;
+      cancelled = true;
+      timers.clearTimeout?.(slowTimer);
+      return true;
+    },
     refresh: render,
     status: () => ({
       phase,
@@ -126,6 +137,7 @@ export function createWorldLoading({
       slow,
       finished,
       failed,
+      cancelled,
       elapsedMs: Math.max(0, clock.now() - startedAt)
     })
   };
@@ -139,9 +151,10 @@ export function waitForWorldRender({
   isSceneReady = () => true,
   renderedFrames = 3,
   timeoutMs = 60000,
-  onDelay = () => {},
   onProgress = () => {},
+  signal,
   requestFrame = globalThis.requestAnimationFrame?.bind(globalThis),
+  cancelFrame = globalThis.cancelAnimationFrame?.bind(globalThis),
   timers = globalThis
 } = {}) {
   return new Promise((resolve, reject) => {
@@ -149,9 +162,15 @@ export function waitForWorldRender({
     let frames = 0;
     let draining = false;
     let settled = false;
+    let paintFrame;
+    let timeout;
+    const abortError = () => Object.assign(new Error("World boot cancelled"), { name: "AbortError", code: "BOOT_CANCELLED" });
+    const onAbort = () => finish(abortError());
     const cleanup = () => {
       timers.clearTimeout(timeout);
       app.off("postrender", onRender);
+      signal?.removeEventListener("abort", onAbort);
+      if (paintFrame !== undefined) cancelFrame?.(paintFrame);
     };
     const finish = error => {
       if (settled) return;
@@ -165,20 +184,31 @@ export function waitForWorldRender({
       try {
         if (!isSceneReady()) { frames = 0; return; }
         onProgress();
+        if (settled) return;
         if (++frames < renderedFrames) return;
         draining = true;
         Promise.resolve().then(async () => {
+          if (settled) return;
           await app.graphicsDevice?.wgpu?.queue?.onSubmittedWorkDone?.();
           // Leave a browser paint opportunity while the opaque loader is still present.
-          requestFrame(() => requestFrame(() => finish()));
+          if (settled) return;
+          paintFrame = requestFrame(() => {
+            if (settled) return;
+            paintFrame = requestFrame(() => finish());
+          });
         }).catch(finish);
       } catch (error) { finish(error); }
     };
-    // A deadline is only a diagnostic reminder: slow downloads, hidden tabs and GPU
-    // scheduling are not proof of failure. Only rejected work can reject this gate.
-    const timeout = timers.setTimeout(() => onDelay(), timeoutMs);
+    // Keep the existing bounded 60s asset + initial-render gate. The independent
+    // 15s idle hint is nonfatal; a deadline is diagnosed as a timeout, not a proven
+    // missing asset or unsupported device. No arbitrary progress/READY bypass.
+    timeout = timers.setTimeout(() => finish(Object.assign(new Error("Initial world rendering timed out"), {
+      code: assetsReady ? "INITIAL_RENDER_TIMEOUT" : "ASSET_LOADING_TIMEOUT"
+    })), timeoutMs);
     app.on("postrender", onRender);
-    Promise.resolve(ready).then(() => { assetsReady = true; }, finish);
+    Promise.resolve(ready).then(() => { if (!settled) assetsReady = true; }, finish);
+    signal?.addEventListener("abort", onAbort, { once: true });
+    if (signal?.aborted) onAbort();
   });
 }
 

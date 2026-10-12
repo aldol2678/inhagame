@@ -199,7 +199,7 @@ test('successful Album readback still opens the saved shot and ignores the entry
   const h = fixture({ capture, getAlbumLatest: () => new Promise(resolve => queries.push(resolve)),
     onCaptured: async () => saved, onOpenAlbum: record => opened.push(record.id) });
   h.mode.open(); h.control('capture').click(); capture.resolve(); await flush();
-  queries[1]({ record: saved, blob: new Blob(['new-thumbnail'], { type: 'image/jpeg' }) }); await flush();
+  assert.equal(queries.length, 1, 'new shot uses its saved ID, never whichever photo became latest');
   const currentThumbnail = h.control('preview').children[0].src;
   queries[0]({ record: { id: 'previous-photo' }, blob: new Blob(['old-thumbnail']) }); await flush();
   assert.equal(h.control('preview').children[0].src, currentThumbnail);

@@ -8,23 +8,27 @@
   const message = doc.getElementById('world-loading-message');
   const detail = doc.getElementById('world-loading-detail');
   const retry = doc.getElementById('world-loading-retry');
+  if (!message || !detail || !retry) return;
   const delayMs = 15000;
+  const controller = new target.AbortController();
   let loading, timer, entered = false, phase = 'BOOT', state = 'LOADING', code = null;
-  let retrying = false;
+  let retrying = false, destroyed = false;
+  const inactive = () => destroyed || retrying || state === 'ERROR' || state === 'READY';
   const delayCode = () => !entered ? 'BOOT_ENTRY_DELAY'
     : phase === 'ASSETS' ? 'ASSET_LOADING_DELAY'
     : phase === 'RENDERING' ? 'INITIAL_RENDER_DELAY'
     : phase === 'RENDERER' ? 'GRAPHICS_INIT_DELAY' : 'BOOT_PROGRESS_DELAY';
   const stop = () => target.clearTimeout(timer);
   const display = () => {
-    if (state !== 'ERROR' && state !== 'DELAYED') return;
+    if (destroyed || retrying || (state !== 'ERROR' && state !== 'DELAYED')) return;
     root.dataset.state = state;
     root.dataset.diagnostic = code;
     retry.hidden = false;
-    message.textContent = code === 'GRAPHICS_INIT_FAILED'
+    const timedOut = code?.endsWith('_TIMEOUT');
+    message.textContent = timedOut ? '월드 준비 시간이 초과됐어요.' : code === 'GRAPHICS_INIT_FAILED'
       ? '이 환경에서는 INHA WORLD 3D 렌더링을 사용할 수 없습니다.'
       : state === 'ERROR' ? '월드를 시작하지 못했습니다.' : '월드 준비가 지연되고 있어요.';
-    const advice = code === 'GRAPHICS_INIT_FAILED'
+    const advice = timedOut ? '준비를 완료하지 못했습니다. 연결 상태를 확인하고 다시 시도해 주세요.' : code === 'GRAPHICS_INIT_FAILED'
       ? '브라우저와 그래픽 드라이버를 최신 상태로 업데이트한 뒤 다시 시도해 주세요.'
       : state === 'ERROR' ? '네트워크 연결을 확인한 뒤 다시 시도해 주세요.'
       : '로딩은 계속 진행 중입니다. 기다리거나 다시 시도할 수 있어요.';
@@ -32,16 +36,18 @@
   };
   const arm = () => {
     stop();
-    if (state === 'ERROR' || state === 'READY' || doc.hidden) return;
+    if (inactive() || doc.hidden) return;
     timer = target.setTimeout(() => {
+      if (inactive() || doc.hidden) return;
       state = 'DELAYED'; code = delayCode(); display();
     }, delayMs);
   };
   const progress = next => {
-    if (state === 'ERROR' || state === 'READY') return;
+    if (inactive()) return;
     phase = next || phase;
     state = 'LOADING'; code = null;
     delete root.dataset.diagnostic;
+    if (doc.activeElement === retry) root.focus?.({ preventScroll: true });
     retry.hidden = true;
     if (loading) loading.refresh();
     else {
@@ -52,7 +58,7 @@
     arm();
   };
   const fail = (kind = 'BOOT_INIT_FAILED') => {
-    if (state === 'ERROR' || state === 'READY') return false;
+    if (inactive()) return false;
     state = 'ERROR'; code = kind; stop();
     loading?.fail();
     display();
@@ -74,34 +80,51 @@
     target.removeEventListener('error', onError, true);
     target.removeEventListener('unhandledrejection', onRejection);
     doc.removeEventListener('visibilitychange', onVisibility);
+    retry.removeEventListener('click', onRetry);
   };
-  retry.addEventListener('click', () => {
-    if (retrying || (state !== 'ERROR' && state !== 'DELAYED')) return;
+  const onRetry = () => {
+    if (destroyed || retrying || (state !== 'ERROR' && state !== 'DELAYED')) return;
     retrying = true;
+    loading?.cancel();
+    controller.abort();
+    cleanup();
     retry.disabled = true;
     retry.textContent = '다시 여는 중…';
     // A new document discards failed module promises and partial graphics/app state.
     // Preserve the entry URL; do not clear accounts, caches, or saved game data.
     target.location.reload();
-  });
+  };
+  retry.addEventListener('click', onRetry);
   target.addEventListener('error', onError, true);
   target.addEventListener('unhandledrejection', onRejection);
   doc.addEventListener('visibilitychange', onVisibility);
   target.__INHA_WORLD_BOOT_RECOVERY__ = {
-    attach(value) { loading = value; if (state === 'ERROR') loading?.fail(); display(); },
+    signal: controller.signal,
+    attach(value) {
+      loading = value;
+      if (destroyed || retrying) loading?.cancel();
+      else if (state === 'ERROR') loading?.fail();
+      display();
+    },
     markBootEntered() { entered = true; progress(); },
     progress,
     fail,
     refresh: display,
     complete() {
-      if (state === 'ERROR' || !loading?.status().finished) return false;
+      if (inactive() || !loading?.status().finished) return false;
       state = 'READY'; phase = 'READY'; code = null; retry.hidden = true;
       delete root.dataset.diagnostic;
       cleanup();
       return true;
     },
-    status: () => ({ state, code, phase, bootEntered: entered, retrying }),
-    destroy: cleanup
+    status: () => ({ state, code, phase, bootEntered: entered, retrying, destroyed }),
+    destroy() {
+      if (destroyed) return;
+      destroyed = true;
+      loading?.cancel();
+      controller.abort();
+      cleanup();
+    }
   };
   arm();
 })(globalThis);

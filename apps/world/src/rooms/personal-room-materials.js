@@ -121,6 +121,19 @@ export function createPersonalRoomMaterials({ root, app, engine, fallbackSurface
     cache.set(name, material);
     return material;
   }
+  // Only mutate materials owned by this room. The fallback surface may be shared
+  // campus-wide; silently retain its static appearance instead of contaminating it.
+  function updateVisual(name, { color: rgb, emissiveIntensity } = {}) {
+    const material = get(name);
+    if (!ownedMaterials.has(material)) return false;
+    if (rgb) {
+      material.diffuse = new engine.Color(...rgb);
+      material.emissive = new engine.Color(...rgb);
+    }
+    if (emissiveIntensity !== undefined) material.emissiveIntensity = emissiveIntensity;
+    material.update();
+    return true;
+  }
   function destroy() {
     if (disposed) return;
     disposed = true;
@@ -129,7 +142,7 @@ export function createPersonalRoomMaterials({ root, app, engine, fallbackSurface
     ownedMaterials.clear(); textures.clear(); cache.clear();
   }
   root.once('destroy', destroy);
-  return Object.freeze({ get, destroy, status: () => Object.freeze({
+  return Object.freeze({ get, updateVisual, destroy, status: () => Object.freeze({
     disposed, materialCount: cache.size, ownedMaterialCount: ownedMaterials.size,
     textureCount: [...textures.values()].filter(Boolean).length
   }) });

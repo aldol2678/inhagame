@@ -14,10 +14,11 @@ import { createPersonalRoomDecor } from "./personal-room-decor-renderer.js";
 export function createPersonalRoomScene(app){
   const root=new pc.Entity("Room_ROOM_PERSONAL_BASIC");root.setLocalScale(1,1,-1);
   const materials = createPersonalRoomMaterials({ root, app, engine: pc, fallbackSurface: surface });
-  const { floor } = createPersonalRoomShell(root, { materials });
+  const { floor, window } = createPersonalRoomShell(root, { materials });
   const floorMaterial = createPersonalRoomFloorMaterial({ app, root, floor, engine: pc });
   const fixtures = createPersonalRoomFixtures({ app, root, materials });
-  const { lights } = createPersonalRoomLighting(root, materials);
+  const lighting = createPersonalRoomLighting(root, materials);
+  const { lights } = lighting;
   root.enabled=false;app.root.addChild(root);
   const ownedFurniture = createFurnitureLayer(app,root);
   const decor = createPersonalRoomDecor(app,root,ownedFurniture.obstacles);
@@ -28,5 +29,22 @@ export function createPersonalRoomScene(app){
   };
   decor.update([]);
   const ensureVisualAssets = () => Promise.all([fixtures.ensureVisualAssets(),decor.ensureVisualAssets(),floorMaterial.ensureVisual()]);
-  return {root,lights,ownedFurniture,ensureVisualAssets,onDeactivate:floorMaterial.deactivate,obstacles:ownedFurniture.obstacles,ambient:new pc.Color(0.43,0.41,0.39),clearColor:new pc.Color(0.17,0.16,0.15)};
+  const ambient = new pc.Color(.43,.41,.39), clearColor = new pc.Color(.17,.16,.15);
+  let previousVisual = '';
+  function applyEnvironment(frame) {
+    ambient.set(...frame.ambient);
+    for (const light of lights) light.light.intensity = frame.intensity;
+    lighting.setOn(frame.intensity > 0);
+    // Avoid shader/material updates on every frame when the world is settled.
+    const visualKey = [...frame.sky, frame.skyEmissive, frame.diffuser].map(n => n.toFixed(3)).join(':');
+    if (visualKey !== previousVisual) {
+      previousVisual = visualKey;
+      materials.updateVisual('exteriorSky', { color: frame.sky, emissiveIntensity: frame.skyEmissive });
+      materials.updateVisual('exteriorHaze', { color: frame.sky.map(n => Math.min(1, n * .85 + .08)), emissiveIntensity: frame.hazeEmissive });
+      materials.updateVisual('exteriorFoliage', { color: frame.sky.map(n => n * .4), emissiveIntensity: .1 });
+      materials.updateVisual('practicalDiffuser', { emissiveIntensity: frame.diffuser });
+    }
+  }
+  return {root,lights,ownedFurniture,ensureVisualAssets,onDeactivate:floorMaterial.deactivate,
+    obstacles:ownedFurniture.obstacles,ambient,clearColor,applyEnvironment,setCurtainOpen:window.setOpenness};
 }

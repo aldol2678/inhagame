@@ -1,4 +1,6 @@
 import * as pc from 'playcanvas';
+import { WALK_SHAPE } from '../src/player-dimensions.js';
+import { studentCenterVendor, applyStudentVendorPlacement } from '../src/shop/student-center-vendors.js';
 import { roadviewGroundHeight } from '../src/roadview-layout.js';
 import { findSeat, SEAT_TOP_Y } from '../src/seat-anchors.js';
 import { metersToWorld } from '../src/world-scale.js';
@@ -32,7 +34,8 @@ import { createPurposefulSocialMotion } from './purposeful-social-motion.mjs';
 import { createPurposefulActivityProps } from './purposeful-activity-props.mjs';
 import { createEquipmentModelLoader } from '../src/appearance/equipment-asset-loader.js';
 import { LIFE_PROP_MODELS } from '../src/life-props.js';
-import { purposefulActivityPose } from './purposeful-activity-motion.mjs';
+import { INKYUNG_PHOTO_POINT } from '../src/photo/inkyung-photo-point.js';
+import { purposefulActivityPose, purposefulPhotoHeading, c04BenchRenderPosition } from './purposeful-activity-motion.mjs';
 import { createQuestClient } from './quest-client.mjs';
 import { QUEST_ID } from './quest-contract.mjs';
 import { createMain2QuestClient } from './main2-quest-client.mjs';
@@ -152,7 +155,7 @@ function addPanel(production = false, externalContextAction = false) {
   return panel;
 }
 export async function createNpcDevRuntime({ app, campusRoot, player, orbit, production = false, aiPilot = false,
-  sharedSchedulePreview = false, worldClock = null,
+  sharedSchedulePreview = false, worldClock = null, studentCenterVendors = false,
   sharedAuthorityEnabled = false, sharedAuthorityEndpoint = '/api/npc-shared-state',
   getSharedAuthorityPlaceZoneId = () => null,
   recastRuntimeShadowEnabled = false,
@@ -175,6 +178,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
   relationshipEnabled = false, relationshipEndpoint = '/api/npc-relationship',
   onConversationOpen = () => {},
   onConversationClose = () => {} }) {
+  const assignedVendor = id => studentCenterVendors ? studentCenterVendor(id) : null;
   // Shared schedules own physical movement. Local-only scenes must not override it.
   if (sharedSchedulePreview) {
     socialEnabled = false; socialPreview = false;
@@ -223,7 +227,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
     // The NG1 seed replay is the heaviest part of createSharedMeetings; slice it behind the lobby.
     const seed = seedSharedMeetingGroups({ batch, profiles: roster });
     for (let step = seed.next(); ; step = seed.next()) {
-      if (step.done) { meetingGroups = step.value; break; }
+      if (step.done) { meetingGroups = step.value.filter(group => !group.memberNpcIds.some(assignedVendor)); break; }
       await yieldWhileHeld();
     }
   }
@@ -235,7 +239,8 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
     endpoint: sharedAuthorityEndpoint,
     getPlaceZoneId: getSharedAuthorityPlaceZoneId
   });
-  const socialMotion = worldClock ? {
+  // This script owns only the two shop coworkers, not the general social graph.
+  const socialMotion = worldClock || studentCenterVendors ? {
     status: () => ({ phase: 'SHARED_SCHEDULE', pairIds: [] }),
     setPeriod() {}, tick() { return this.status(); },
     shouldPauseForConversation: () => false, shouldHoldForJoin: () => false
@@ -257,7 +262,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
   const nameplates = new Map(first.actors.map(actor => {
     const label = document.createElement('span');
     label.className = 'npc-test-tag';
-    label.textContent = production ? actor.name : `${actor.id.slice(-3)} · ${actor.name}`;
+    label.textContent = assignedVendor(actor.id) ? `${actor.name} · ${assignedVendor(actor.id).label}` : production ? actor.name : `${actor.id.slice(-3)} · ${actor.name}`;
     label.dataset.status = '';
     label.style.borderColor = avatars.get(actor.id).appearance.accent_color;
     labelLayer.appendChild(label);
@@ -513,7 +518,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
 
   function nearestVisible() {
     const playerPos = player.getLocalPosition();
-    return snapshot.actors.filter(actor => avatars.get(actor.id).motion.position)
+    return snapshot.actors.filter(actor => !assignedVendor(actor.id) && avatars.get(actor.id).motion.position)
       .map(actor => ({ actor, distance: Math.hypot(avatars.get(actor.id).motion.position.x - playerPos.x,
         avatars.get(actor.id).motion.position.z - playerPos.z) }))
       .sort((a, b) => a.distance - b.distance)[0];
@@ -523,7 +528,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
     const actor = snapshot.actors.find(item => item.id === selectedId);
     const position = avatars.get(selectedId).motion.position;
     const playerPos = player.getLocalPosition();
-    if (actor && position) {
+    if (actor && position && !assignedVendor(actor.id)) {
       const distance = Math.hypot(position.x - playerPos.x, position.z - playerPos.z);
       if (distance <= NPC_TALK_RADIUS) return { actor, distance };
     }
@@ -953,6 +958,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
   function applyActor(next, actor, instant) {
     const visual = avatars.get(actor.id);
     visual.actor = actor;
+    if (applyStudentVendorPlacement(visual, actor, assignedVendor(actor.id))) return;
     const purpose = purposefulRoster.get(actor.id);
     if (purpose && startupDeferred.has(actor.id)) {
       visual.seat = null;
@@ -1025,6 +1031,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
   }
   function advanceMotion(visual, dt) {
     const motion = visual.motion, actor = visual.actor;
+    if (applyStudentVendorPlacement(visual, actor, assignedVendor(actor.id))) return;
     motion.moving = false;
     const purpose = purposefulRoster.get(actor.id);
     if (purpose) {
@@ -1150,13 +1157,15 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
       nearby.findIndex(n=>n.actor.id===a)-nearby.findIndex(n=>n.actor.id===b)));
     for (const [id, label] of ordered) {
       const visual = avatars.get(id);
-      if (!shown.has(id) || !visual.avatar.enabled || observedFrame?.members.includes(id)) { label.hidden = true; continue; }
+      const vendor = assignedVendor(id);
+      const otherFloor = vendor && Math.abs(playerPos.y - WALK_SHAPE.footOffset - vendor.position.y) > .35;
+      if (otherFloor || !shown.has(id) || !visual.avatar.enabled || observedFrame?.members.includes(id)) { label.hidden = true; continue; }
       const purpose = purposefulRoster.get(id);
       const ai = aiEnabled(id);
-      label.textContent = `${ai ? '✦ AI · ' : ''}${production ? visual.actor.name : `${id.slice(-3)} · ${visual.actor.name}`}`;
+      label.textContent = assignedVendor(id) ? `${visual.actor.name} · ${assignedVendor(id).label}` : `${ai ? '✦ AI · ' : ''}${production ? visual.actor.name : `${id.slice(-3)} · ${visual.actor.name}`}`;
       label.classList.toggle('npc-ai-tag', ai);
-      label.dataset.status = '';
-      if (purpose) {
+      label.dataset.status = assignedVendor(id) ? '상점 안내' : '';
+      if (purpose && !assignedVendor(id)) {
         const state = purposefulStatus(id);
         const action = state.phase === 'TALKING' ? '대화 중' :
           state.phase === 'MOVING' && state.interrupted ? '함께 이동 중' :
@@ -1172,7 +1181,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
       const world = visual.avatar.getPosition();
       projectedPoint.set(world.x, world.y + npcNameplateOffset(visual.appearance.height), world.z);
       const point = orbit.camera.camera.worldToScreen(projectedPoint);
-      label.hidden = point.x < 0 || point.x > canvasRect.width || point.y < 0 || point.y > canvasRect.height;
+      label.hidden = (vendor && point.z <= 0) || point.x < 0 || point.x > canvasRect.width || point.y < 0 || point.y > canvasRect.height;
       if (!label.hidden) {
         label.style.left = `${point.x + canvasRect.left}px`;
         label.style.top = `${point.y + canvasRect.top}px`;
@@ -1199,7 +1208,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
       observedNextScan = now + OBSERVED_RUNTIME_SCAN_SECONDS;
       observedFrame = sharedMeetings
         ? sharedObserver.update({ now: sharedFrameNow === null ? null : sharedFrameNow/1000,
-            events: sharedMeetings.events(), player: playerPos, forward, busyIds: getBusyNpcIds(sharedFrameNow) })
+            events: sharedMeetings.events().filter(event => !event.members.some(member => assignedVendor(member.id))), player: playerPos, forward, busyIds: getBusyNpcIds(sharedFrameNow) })
         : null;
       // Shared deterministic meeting scenes win. When none is nearby, the local
       // observation layer may surface a non-authoritative ambient conversation.
@@ -1216,7 +1225,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
           const destination = state.destination ?? '';
           const location = meetingId ? meeting.meetingLocation : destination.replace(/^c04\./,'').replace(`.${id}`,'');
           return { ...state, id, name: visual.actor.name, location, meetingId,
-            position: visual.motion.position, visible: visual.avatar.enabled && state.visible,
+            position: visual.motion.position, visible: !assignedVendor(id) && visual.avatar.enabled && state.visible,
             busy: activeConversation?.id === id || visual.pilotFacingUntil > performance.now(),
             department: rosterById.get(id)?.department, residence: rosterById.get(id)?.residence,
             interests: npcById.get(id)?.interests ?? [] };
@@ -1311,13 +1320,16 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
       const bob = moving ? Math.abs(Math.sin(phase)) * .035 * motionEnergy :
         Math.sin(elapsed * 2 * animationPace + Number(actor.id.slice(-3))) * .015 * motionEnergy;
       const sitting = Boolean(visual.seat && !moving && !motion.route.length);
-      const purposefulActivity = purposeful?.controller.status(false).activity;
+      const purposefulActivity = assignedVendor(actor.id) ? 'SHOP_SERVICE' : purposeful?.controller.status(false).activity;
       visual.activityProps.update(purposefulActivity, { moving, sitting, visible: visual.avatar.enabled });
       const activityPose = purposefulActivityPose(purposefulActivity, { phase, motionEnergy, sitting });
-      const renderPosition = sitting ? visual.seat.position : motion.position;
-      const y = roadviewGroundHeight(renderPosition.x, renderPosition.z) +
+      const c04SeatPosition = sitting && actor.id === 'INKYUNG-NPC-010' && visual.seat.id === 'SEAT_INKYUNG_TREE_1_A'
+        ? c04BenchRenderPosition(visual.seat, visual.worldScale,
+          roadviewGroundHeight(visual.seat.position.x, visual.seat.position.z), SEAT_TOP_Y) : null;
+      const renderPosition = c04SeatPosition ?? (sitting ? visual.seat.position : motion.position);
+      const y = (assignedVendor(actor.id)?.position.y ?? roadviewGroundHeight(renderPosition.x, renderPosition.z)) +
         (sitting ? SEAT_TOP_Y - npcSeatAnchorHeight(visual.appearance.height) : bob);
-      visual.avatar.setLocalPosition(renderPosition.x, y, renderPosition.z);
+      visual.avatar.setLocalPosition(renderPosition.x, c04SeatPosition?.y ?? y, renderPosition.z);
       visual.arms.forEach((arm, index) => arm.setLocalEulerAngles(
         moving ? Math.sin(phase) * (index ? -23 : 23) : activityPose.armPitch[index],
         moving ? 0 : activityPose.armYaw[index],
@@ -1329,8 +1341,12 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
         Math.hypot(playerPos.x - motion.position.x, playerPos.z - motion.position.z) < NPC_CONVERSATION_RELEASE_RADIUS;
       const pilotFacing = visual.pilotFacingUntil > performance.now() && Math.hypot(playerPos.x - motion.position.x, playerPos.z - motion.position.z) < NPC_NAMEPLATE_RADIUS;
       const observing = observedFrame?.members.includes(actor.id);
+      const activityHeading = actor.id === 'INKYUNG-NPC-009' &&
+        actor.location === 'c04.inkyung_photo_point.INKYUNG-NPC-009'
+        ? purposefulPhotoHeading(purposefulActivity, { position: motion.position,
+          target: INKYUNG_PHOTO_POINT.lookAt, heading: motion.heading }) : motion.heading;
       const facing = sitting ? visual.seat.yaw : moving ? motion.heading : motion.sharedMeeting && activeConversation?.id !== actor.id ? motion.heading : observing ? visual.avatar.getLocalEulerAngles().y : nearSelected || pilotFacing
-        ? Math.atan2(playerPos.x - motion.position.x, playerPos.z - motion.position.z) * 180 / Math.PI : motion.heading;
+        ? Math.atan2(playerPos.x - motion.position.x, playerPos.z - motion.position.z) * 180 / Math.PI : activityHeading;
       visual.avatar.setLocalEulerAngles(0, facing, 0);
     }
     const socialMotionState = socialMotion.tick(running ? dt : 0, activeConversation?.id);
@@ -1372,6 +1388,9 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
   if (!production) focusSelected();
   drawStatus();
   app.on('update', update);
+  function isStudentVendorReady(id) {
+    return Boolean(assignedVendor(id) && avatars.get(id)?.avatar.enabled && !isSimulationHeld());
+  }
   function getContextAction() {
     if (activeConversation || main2Guide.isDialogueOpen()) return null;
     const guideAction = main2Guide.getContextAction();
@@ -1411,6 +1430,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
       catch { return null; }
     },
     getContextAction,
+    isStudentVendorReady,
     // Cheap readback for the lobby; getStatus() below walks every NPC.
     getQuestStatus: () => ({ quest: quest.status(), main2Quest: main2Quest.status() }),
     getQuestMapObjective: legacyProgressId =>
