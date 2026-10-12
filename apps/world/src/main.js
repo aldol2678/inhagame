@@ -1570,7 +1570,8 @@ const dailyQuizPanel = createDailyQuizPanel({
     dailyQuizButton?.setAttribute("aria-expanded", String(open));
     lobbyDailyLoop.setPanelOpen("quiz", open);
     if (open) {
-      dailyQuizInput.acquire();
+      // Phone owns the blocking focus while its existing quiz panel is hosted inside it.
+      if (document.getElementById("daily-quiz-panel")?.dataset.phoneHosted !== "true") dailyQuizInput.acquire();
       questJournal?.setOpen(false);
       attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false); fishingPanel?.setOpen(false);
       shopPanel.setOpen(false);
@@ -1584,6 +1585,7 @@ const dailyQuizPanel = createDailyQuizPanel({
       return;
     }
     dailyQuizInput.release();
+    smartphone?.dailyPanelClosed("daily-quiz");
   }
 });
 dailyQuizButton?.addEventListener("click", () => dailyQuizPanel.setOpen(true));
@@ -1596,7 +1598,7 @@ const attendancePanel = createAttendancePanel({
     attendanceButton?.setAttribute("aria-expanded", String(open));
     lobbyDailyLoop.setPanelOpen("attendance", open);
     if (open) {
-      attendanceInput.acquire();
+      if (document.getElementById("attendance-panel")?.dataset.phoneHosted !== "true") attendanceInput.acquire();
       lifeSkillBookPanel?.setOpen(false); fishingPanel?.setOpen(false);
       questJournal?.setOpen(false);
       dailyQuizPanel.setOpen(false);
@@ -1611,6 +1613,7 @@ const attendancePanel = createAttendancePanel({
       return;
     }
     attendanceInput.release();
+    smartphone?.dailyPanelClosed("attendance");
   }
 });
 attendanceButton?.addEventListener("click", () => attendancePanel.setOpen(true));
@@ -3085,7 +3088,10 @@ smartphone = createSmartphone({
     hudMenu.setOpen(false, { focus: false }); chatPanel.setOpen(false, { focus: false }); emoteMenu.setOpen(false);
   },
   toggle: document.getElementById("phone-toggle"), mapElement: document.getElementById("full-map-panel"),
-  settingsElement: document.getElementById("view-settings"), onWarning: showWorldStatus
+  settingsElement: document.getElementById("view-settings"),
+  dailyQuizElement: document.getElementById("daily-quiz-panel"), attendanceElement: document.getElementById("attendance-panel"),
+  getDailyQuizPanel: () => dailyQuizPanel, getAttendancePanel: () => attendancePanel,
+  onWarning: showWorldStatus
 });
 // Controller's existing destination handler runs first; Phone returns to World only on a solved route.
 document.getElementById("full-map-set-destination")?.addEventListener("click", () => {
