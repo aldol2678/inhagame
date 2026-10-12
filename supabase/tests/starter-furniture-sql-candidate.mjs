@@ -139,7 +139,16 @@ await q('rollback'); inTransaction = false; await q('reset role');
 assert.equal(await scalar('select count(*)::int from private.world_player_items'),0);
 assert.equal(await scalar('select count(*)::int from private.world_purchase_transactions'),0);
 assert.equal(await scalar(`select count(*)::int from private.world_shop_listings where listing_id in ('offer.dorm_furniture.study_books_set','offer.dorm_furniture.dorm_single_sofa') and status='LOCKED'`),2);
+// Exact narrow operational SQL, only in memory and rolled back. Existing value is empty here;
+// the full local-stack test additionally checks aggregate player-value preservation.
+await q('begin'); inTransaction = true;
+await q("delete from private.world_shop_listings where listing_id in ('offer.dorm_furniture.study_books_set','offer.dorm_furniture.dorm_single_sofa')");
+await q(read('docs/ops/sql/20261012_starter_furniture_open.sql'));
+assert.equal(await scalar("select count(*)::int from private.world_shop_listings where listing_id in ('offer.dorm_furniture.study_books_set','offer.dorm_furniture.dorm_single_sofa') and status='ACTIVE'"),2);
+await fail(() => q(read('docs/ops/sql/20261012_starter_furniture_open.sql')), 'STARTER_LISTING_ALREADY_EXISTS_INSPECT_FIRST');
+await q('rollback'); inTransaction = false;
+assert.equal(await scalar("select count(*)::int from private.world_shop_listings where listing_id in ('offer.dorm_furniture.study_books_set','offer.dorm_furniture.dorm_single_sofa') and status='LOCKED'"),2);
 console.log(JSON.stringify({result:'PASS', sqlFunctions:ordered.length, realTables:neededTables.size,
-  checks:['default LOCKED','unchanged old stock','no pre-grant or wallet creation','server shop binding','insufficient funds','guest denied','failed grant rolls back debit/logs','disabled item denied','authoritative prices','same-key replay','UNIQUE duplicate rejection','conflicting-key rejection','cross-account replay denial','fresh inventory','two exact debits/grants','server placement ownership/count/surface','replay after pause','rollback restores LOCKED'],
+  checks:['default LOCKED','unchanged old stock','no pre-grant or wallet creation','server shop binding','insufficient funds','guest denied','failed grant rolls back debit/logs','disabled item denied','authoritative prices','same-key replay','UNIQUE duplicate rejection','conflicting-key rejection','cross-account replay denial','fresh inventory','two exact debits/grants','server placement ownership/count/surface','replay after pause','rollback restores LOCKED','exact narrow operational SQL and repeat refusal'],
   limitations:['Synthetic auth boundary; focused in-memory PostgreSQL subset, not full Supabase migration replay.', 'No real concurrent transactions, PostgREST, browser rendering or deployed DB verified.']},null,2));
 await db.close();

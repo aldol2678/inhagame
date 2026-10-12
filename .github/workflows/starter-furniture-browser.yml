@@ -1,0 +1,75 @@
+name: Starter furniture real purchase browser QA
+on:
+  pull_request:
+    paths:
+      - 'apps/world/src/shop/**'
+      - 'apps/world/src/rooms/**'
+      - 'apps/world/src/main.js'
+      - 'apps/world/tests/starter-furniture-*.test.mjs'
+      - 'apps/world/tests/browser/starter-furniture-*'
+      - 'supabase/migrations/**'
+      - 'supabase/tests/**'
+      - 'docs/ops/sql/20261012_starter_furniture_open.sql'
+      - 'apps/world/tests/browser/dorm-shop-vendor-*'
+      - 'scripts/starter-furniture-browser-local.mjs'
+      - '.github/workflows/starter-furniture-browser.yml'
+permissions:
+  contents: read
+concurrency:
+  group: starter-furniture-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  real-purchase:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      WORLD_SMOKE_DISABLE_WEBGPU: '1'
+      STARTER_FURNITURE_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - uses: supabase/setup-cli@v3
+        with:
+          version: 2.117.0
+      - name: Install pinned browser and Korean glyphs
+        run: |
+          npm ci --prefix apps/world/tests/browser --ignore-scripts --no-audit --no-fund
+          (cd apps/world/tests/browser && npx --no-install playwright install --with-deps chromium)
+          sudo apt-get install -y fonts-noto-cjk postgresql-client
+      - name: Record exact source
+        run: |
+          mkdir -p test-results/starter-furniture
+          test "$(git rev-parse HEAD)" = "$STARTER_FURNITURE_HEAD_SHA"
+          git rev-parse HEAD > test-results/starter-furniture/head-sha.txt
+          find apps/world/src apps/world/tests/browser supabase/migrations supabase/tests/support -type f -not -path '*/node_modules/*' -print0 | sort -z | xargs -0 sha256sum > test-results/starter-furniture/source-hashes.txt
+      - name: Full disposable Supabase replay and transactions
+        run: |
+          set -o pipefail
+          unset SUPABASE_ACCESS_TOKEN SUPABASE_DB_PASSWORD
+          supabase start > /tmp/starter-supabase-start.log 2>&1 || { cat /tmp/starter-supabase-start.log; exit 1; }
+          supabase test db 2>&1 | tee test-results/starter-furniture/pgtap.log
+          node scripts/local-integration.mjs 2>&1 | tee test-results/starter-furniture/integration.log
+      - name: Room-local vendor greeting and lifecycle on three viewports
+        env:
+          DORM_VENDOR_OUTPUT: test-results/starter-furniture/dorm-vendor
+        run: node apps/world/tests/browser/dorm-shop-vendor-smoke.mjs
+      - name: Actual purchases, inventory, placement and sitting on three viewports
+        run: |
+          set -o pipefail
+          node scripts/starter-furniture-browser-local.mjs 2>&1 | tee test-results/starter-furniture/browser.log
+      - name: Stop disposable stack
+        if: always()
+        run: supabase stop --no-backup
+      - name: Upload exact-head receipts and pixels
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: starter-furniture-${{ github.event.pull_request.head.sha }}
+          path: test-results/starter-furniture/
+          if-no-files-found: error
+          retention-days: 14

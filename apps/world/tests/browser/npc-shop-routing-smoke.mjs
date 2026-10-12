@@ -6,7 +6,7 @@ import {mkdir,readFile,writeFile} from 'node:fs/promises';
 import {startSmoke} from './harness.mjs';
 const output=process.env.NPC_SHOP_OUTPUT||'test-results/npc-shop-routing';
 await mkdir(output,{recursive:true});
-const paths=['src/shop/shop-router.js','src/shop/shop-capabilities.js','src/shop/shop-client.js','src/shop/shop-panel.js','src/shop/student-center-vendors.js','src/shop/dorm-shop-interaction.js'];
+const paths=['src/shop/shop-router.js','src/shop/shop-capabilities.js','src/shop/shop-client.js','src/shop/shop-panel.js','src/shop/student-center-vendors.js','src/shop/dorm-shop-interaction.js','src/shop/dorm-shop-dialogue.js','src/shop/dorm-shop-vendor.js'];
 const hashes=Object.fromEntries(await Promise.all(paths.map(async p=>[p,createHash('sha256').update(await readFile(new URL('../../'+p,import.meta.url))).digest('hex')])));
 const report={head:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),scope:'Production modules in Chromium; synthetic RPC and accounts. Compatibility cases exercise router/panel through fixture provider controls, not main-world entry/access gates; no backend transactions or gameplay walking claim',hashes,checks:[],result:'running'};
 let smoke,page;
@@ -51,7 +51,7 @@ try{
    await page.locator('.shop-offer-buy').click();await open(1);await evalQA(()=>window.__NPC_SHOPS__.account('fixture-account-b'));await finish();await open(0);assert.deepEqual(await evalQA(()=>window.__NPC_SHOPS__.counts()),{readbacks:0,walletReads:0});await page.locator('.shop-offer-buy').click();await finish();await page.waitForFunction(()=>window.__NPC_SHOPS__.counts().readbacks===1);const p=await writes();assert.notEqual(p[0].args.p_idempotency_key,p[1].args.p_idempotency_key);
   });
   await run('dorm reception exact route and rear-of-counter exclusion',async()=>{
-   await page.locator('#dorm').click();await page.waitForFunction(()=>window.__NPC_SHOPS__.shop.snapshot?.shopId==='shop.dorm_furniture');assert.match(await page.locator('#shop').textContent(),/생활관 가구점/);
+   await page.locator('#dorm').click();await page.locator('#dorm-shop-dialogue [data-action="browse"]').click();await page.waitForFunction(()=>window.__NPC_SHOPS__.shop.snapshot?.shopId==='shop.dorm_furniture');assert.match(await page.locator('#shop').textContent(),/생활관 가구점/);
    assert.equal(await evalQA(()=>{const q=window.__NPC_SHOPS__;q.setDorm({position:{x:0,z:1.8}});return q.dorm.contextAction();}),null);await page.screenshot({path:`${output}/dorm-${viewport.width}.png`});
   });
   const capability = {
@@ -74,6 +74,19 @@ try{
    assert.equal((await writes()).length,1);await finish();await page.waitForFunction(()=>window.__NPC_SHOPS__.counts().readbacks===1);
    const [call]=await writes();assert.equal(call.name,'purchase_world_shop_listing_v1');assert.equal('p_shop_id' in call.args,false);
    await page.screenshot({path:`${output}/legacy-${viewport.width}.png`});
+  });
+  await fresh();
+  await run('legacy dorm greeting reaches the preexisting shop and buys once through original v1',async()=>{
+   await negotiate(capability.missing);await page.locator('#dorm').click();
+   await page.locator('#dorm-shop-dialogue [data-action="browse"]').click();
+   await page.waitForFunction(()=>window.__NPC_SHOPS__.shop.snapshot?.shopId==='shop.dorm_furniture');
+   assert.match(await page.locator('#shop').textContent(),/생활관 가구점/);
+   await page.locator('.shop-offer-buy').click();await finish();
+   await page.waitForFunction(()=>window.__NPC_SHOPS__.counts().readbacks===1);
+   const [call]=await writes();assert.equal(call.name,'purchase_world_shop_listing_v1');
+   assert.equal(call.args.p_listing_id,'shop.dorm_furniture.listing');assert.equal('p_shop_id' in call.args,false);
+   assert.equal(await evalQA(()=>window.__NPC_SHOPS__.shop.select('shop.student_center_fashion')),false);
+   await page.screenshot({path:`${output}/legacy-dorm-${viewport.width}.png`});
   });
   await fresh();
   await run('API-prepared legacy catalog uses scoped v2 without enabling new routes',async()=>{

@@ -103,7 +103,7 @@ test('exact shop migrations preserve business fields and historical economy whil
   const result = JSON.parse(lines.at(-1));
   assert.deepEqual(result, {
     economyUnchanged: true, businessUnchanged: true, otherPositionsUnchanged: true, dormUnchanged: true,
-    fashionStatus: 'DISABLED', fashionCount: 4, posterShop: 'shop.dorm_furniture', posterPosition: 5,
+    fashionStatus: 'DISABLED', fashionCount: 4, posterShop: 'shop.dorm_furniture', posterPosition: 8, // after unchanged starter candidate positions 6 and 7
     remainingSouvenirs: ['offer.student_center.campus_mug'], receiptCount: 2,
     originalReceiptShops: ['shop.student_center', 'shop.student_center'], balance: 570,
   });

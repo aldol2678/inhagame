@@ -11,7 +11,22 @@ await mkdir(output,{ recursive:true });
 const paths = ['src/rooms/furniture-editor.js','src/rooms/furniture-client.js','src/rooms/furniture-layout.js','src/rooms/furniture-recommendations.js',
   'src/rooms/personal-room-layout.js','src/player-dimensions.js','src/collection/item-catalog.js',
   'tests/browser/furniture-history-harness.html','styles.css'];
-const sources = new Map(await Promise.all(paths.map(async name=>[`/${name}`,await readFile(new URL(`../../${name}`,import.meta.url))])));
+// Serve the exact transitive production module graph, including the editor's seat-availability
+// dependency. Keep off-origin and non-source requests blocked instead of replacing seat logic.
+const sources = new Map();
+const sourceRoot = new URL('../../', import.meta.url);
+async function addSource(name) {
+  const url = new URL(name, sourceRoot);
+  assert.ok(url.href.startsWith(sourceRoot.href), 'fixture source stays inside apps/world');
+  const path = '/' + url.href.slice(sourceRoot.href.length);
+  if (sources.has(path)) return;
+  const bytes = await readFile(url); sources.set(path, bytes);
+  if (!path.endsWith('.js')) return;
+  for (const match of bytes.toString().matchAll(/from\s+["'](\.[^"']+)["']/g)) {
+    await addSource(new URL(match[1], url).href.slice(sourceRoot.href.length));
+  }
+}
+for (const path of paths) await addSource(path);
 const report = { status:'RUNNING', scope:'Offline source integration; synthetic RPCs only; no backend or production changes',
   sourceHashes:Object.fromEntries([...sources].map(([path,bytes])=>[path,createHash('sha256').update(bytes).digest('hex')])), viewports:[] };
 let browser, server;
