@@ -15,7 +15,9 @@ try {
     page.waitForFunction(() => document.getElementById('world-loading').dataset.phase === 'ASSETS', null, { timeout: TIMEOUT_MS }), fatal
   ]);
   // Cross the slow-load threshold with the actual character request held open.
-  await page.waitForFunction(() => window.__INHA_WORLD_LOADING__?.status().slow === true);
+  await page.waitForFunction(() => window.__INHA_WORLD_BOOT_RECOVERY__?.status().code === 'ASSET_LOADING_DELAY');
+  assert.equal(await page.evaluate(() => window.__INHA_WORLD_LOADING__.status().failed), false);
+  assert.equal(await page.locator('#world-loading-retry').isVisible(), true);
   assert.equal(await page.locator('#world-loading').isVisible(), true);
   assert.equal(await page.locator('#world-loading-continue').isVisible(), false);
   assert.equal(await page.evaluate(() => document.getElementById('world-lobby').inert), true);
