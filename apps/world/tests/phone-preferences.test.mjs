@@ -21,3 +21,17 @@ test('preferences are scoped and readback failures are exposed', () => {
   const failed=createPhonePreferences({getScope:()=>scope,getStorage:()=>({setItem(){},getItem(){return null;}}),onError:e=>errors.push(e)});
   failed.wallpaper({type:'default',id:'night'});assert.equal(failed.save(),false);assert.ok(errors.length);
 });
+
+test('MENU-01 installs two Daily apps into old layouts without erasing existing preferences', () => {
+  const legacy = defaultPhonePreferences();
+  legacy.dock = ['maps','camera',null,null];
+  legacy.pages[0][7] = 'album'; legacy.pages[0][1] = null;
+  const next = normalizePhonePreferences(legacy);
+  const ids = [...next.pages.flat(), ...next.dock].filter(Boolean);
+  assert.equal(ids.filter(id => id === 'daily-quiz').length, 1);
+  assert.equal(ids.filter(id => id === 'attendance').length, 1);
+  assert.equal(next.pages[0][7], 'album');
+  assert.deepEqual(next.dock, ['maps','camera',null,null]);
+  assert.equal(next.wallpaper.id, 'campus');
+  assert.deepEqual(normalizePhonePreferences(next), next, 'reloading the same layout must be stable');
+});
