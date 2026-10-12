@@ -1,1 +1,12 @@
-<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>샘플방 미리보기</title><style>html,body{margin:0;width:100%;height:100%;overflow:hidden}canvas{width:100%;height:100%;display:block}</style><script type="importmap">{"imports":{"playcanvas":"https://cdn.jsdelivr.net/npm/playcanvas@2.22.4/build/playcanvas.mjs"}}</script></head><body><canvas id="sample-room-preview" aria-label="샘플방 3D 미리보기"></canvas><script>window.addEventListener("error",event=>{window.__SAMPLE_ROOM_PREVIEW_ERROR__=event.message;});</script><script type="module" src="./sample-room-trial-preview-frame.js"></script></body></html>
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>샘플방 미리보기</title><style>html,body{margin:0;width:100%;height:100%;overflow:hidden}canvas{width:100%;height:100%;display:block}</style><script type="importmap">{"imports":{"playcanvas":"https://cdn.jsdelivr.net/npm/playcanvas@2.22.4/build/playcanvas.mjs"}}</script></head><body><canvas id="sample-room-preview" aria-label="샘플방 3D 미리보기"></canvas><script>
+// Establish the bridge before the module graph can suspend on a top-level await.
+window.__SAMPLE_ROOM_PREVIEW_READY__ = new Promise((resolve,reject) => {
+  window.__SAMPLE_ROOM_PREVIEW_RESOLVE__ = resolve;
+  window.__SAMPLE_ROOM_PREVIEW_REJECT__ = reject;
+});
+window.__SAMPLE_ROOM_PREVIEW_READY__.catch(() => {});
+window.addEventListener('error', event => {
+  window.__SAMPLE_ROOM_PREVIEW_ERROR__ = event.message || 'Preview module failed';
+  if (event.error || event.target?.tagName === 'SCRIPT') window.__SAMPLE_ROOM_PREVIEW_REJECT__(event.error || new Error(window.__SAMPLE_ROOM_PREVIEW_ERROR__));
+}, true);
+</script><script type="module" src="./sample-room-trial-preview-frame.js"></script></body></html>

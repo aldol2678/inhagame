@@ -38,9 +38,7 @@ async function createFramePreview(canvas) {
 
 let leaving = false, runtime = null;
 window.addEventListener('pagehide', () => { leaving = true; runtime?.destroy(); runtime = null; });
-window.__SAMPLE_ROOM_PREVIEW_READY__ = createFramePreview(document.querySelector('canvas')).then(value => {
+createFramePreview(document.querySelector('canvas')).then(value => {
   if (leaving) { value?.destroy(); return null; }
   runtime = value; return value;
-});
-// The parent observes this rejection on iframe load; avoid an interim unhandled event.
-window.__SAMPLE_ROOM_PREVIEW_READY__.catch(() => {});
+}).then(window.__SAMPLE_ROOM_PREVIEW_RESOLVE__, window.__SAMPLE_ROOM_PREVIEW_REJECT__);
