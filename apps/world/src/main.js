@@ -3492,7 +3492,7 @@ let lobbyHudSettledKey = null;
     if (['localhost', '127.0.0.1'].includes(location.hostname) && convenienceHost?.convenienceAuthority === true) {
       import('./income/convenience-authority-runtime.mjs').then(({ mountConvenienceAuthorityRuntime }) => {
         const authorityInput = createInputFocusOwner({ manager: inputFocus, ownerId: 'convenience-authority', policy: INPUT_FOCUS_POLICY.BLOCKING_UI });
-        const localRuntime = mountConvenienceAuthorityRuntime({ controller, host: convenienceHost,
+        const localRuntime = mountConvenienceAuthorityRuntime({ controller, host: convenienceHost, getCameraYaw: () => orbit.yaw,
           onCommitted: () => { void wallet.refresh("reward"); },
           acquireInput: () => { authorityInput.acquire(); return () => authorityInput.release(); },
           readScene: ({ ownsInput = false } = {}) => ({ accountId: online?.userId ?? null,

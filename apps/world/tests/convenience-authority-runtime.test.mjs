@@ -25,7 +25,7 @@ function eventTarget(target = {}) {
     dispatch(type, event = {}) { for (const fn of [...listeners.get(type) ?? []]) fn({ type, ...event }); }
   });
 }
-function fixture(t, { actualController = false, hostname = 'localhost', accountId = 'account-a' } = {}) {
+function fixture(t, { actualController = false, hostname = 'localhost', accountId = 'account-a', getCameraYaw } = {}) {
   const doc = eventTarget(createFakeDocument()); doc.hidden = false; doc.body = doc.createElement('body'); doc.getElementById = () => null;
   const create = doc.createElement.bind(doc);
   doc.createElement = tag => {
@@ -60,7 +60,7 @@ function fixture(t, { actualController = false, hostname = 'localhost', accountI
         z: server.state.position.z + body.command.moveZ }, lastCommand: { ...body.command } } });
     return { ok: true, json: async () => body.op === 'status' ? status() : body.op === 'revoke' ? { revoked: true } : server };
   };
-  const runtime = mountConvenienceAuthorityRuntime({ controller, host, doc, navigation, readScene: () => scene, fetcher,
+  const runtime = mountConvenienceAuthorityRuntime({ controller, host, doc, navigation, getCameraYaw, readScene: () => scene, fetcher,
     acquireInput() { acquired++; locks++; controller.inputEnabled = false; let active = true; return () => {
       if (!active) throw Error('INPUT_LEASE_RELEASED_TWICE'); active = false; released++; locks--; controller.inputEnabled = locks === 0;
     }; } });
@@ -124,6 +124,31 @@ test('disabled controller input produces zero direction despite held keyboard an
   const h = fixture(t); await h.start(); h.controller.keys.add('KeyW'); h.controller.touchVector = { x: 1, y: -1 };
   h.controller.inputEnabled = false; h.controller.update(1 / 60, 0); await h.tick();
   assert.deepEqual(h.operations('move').at(-1).body.command, { sequence: 1, moveX: 0, moveZ: 0 });
+});
+
+for (const source of ['keyboard', 'touch', 'disabled']) {
+  test(`${source} release sends zero without another render frame`, async t => {
+    const h = fixture(t); await h.start();
+    if (source === 'touch') h.controller.touchVector.y = -1;
+    else h.controller.keys.add('KeyW');
+    h.controller.update(1 / 60, 0); await h.tick();
+    assert.equal(h.operations('move').at(-1).body.command.moveZ, 1);
+    if (source === 'touch') h.controller.touchVector.y = 0;
+    else if (source === 'disabled') h.controller.inputEnabled = false;
+    else h.controller.keys.clear();
+    await h.tick();
+    assert.deepEqual(h.operations('move').at(-1).body.command, { sequence: 2, moveX: 0, moveZ: 0 });
+  });
+}
+
+test('transport samples current camera yaw without another render frame and rejects nonfinite yaw', async t => {
+  let yaw = 0; const h = fixture(t, { getCameraYaw: () => yaw }); await h.start();
+  h.controller.keys.add('KeyW'); h.controller.update(1 / 60, 0); await h.tick();
+  yaw = Math.PI / 2; await h.tick();
+  const command = h.operations('move').at(-1).body.command;
+  assert.equal(command.moveX, -1); assert.ok(Math.abs(command.moveZ) < 1e-10);
+  yaw = NaN; await h.tick();
+  assert.deepEqual(h.operations('move').at(-1).body.command, { sequence: 3, moveX: 0, moveZ: 0 });
 });
 
 test('work panel owns one input lease and stops prior movement before another player frame; Escape releases once', async t => {
@@ -293,7 +318,7 @@ async function mainMount(hostname = 'localhost', optedIn = true) {
   const incomeGameCandidate = { update() { calls.push('discovery-update'); }, suspend() { calls.push('discovery-suspend'); } };
   const localRuntime = { update() { calls.push('authority-update'); }, dispose() { calls.push('authority-dispose'); } };
   const env = { globalThis: { INCOME_CANDIDATE_LOCAL_AUTH: { accountId: 'account-a', convenienceAuthority: optedIn } },
-    location: { hostname }, window, controller, online: { userId: 'account-a' }, rooms, seats: { isSeated: false },
+    location: { hostname }, window, controller, orbit: { yaw: 0 }, online: { userId: 'account-a' }, rooms, seats: { isSeated: false },
     biryongRealm: {}, combatRuntime: {}, lobbyWorld: {}, lobbyTransition: {}, npcTest: { isConversationOpen: () => conversationOpen },
     inputFocus, createInputFocusOwner, INPUT_FOCUS_POLICY, incomeGameCandidate, wallet: { refresh(reason) { calls.push(`wallet-${reason}`); } },
     mountConvenienceAuthorityRuntime(value) { options = value; calls.push('mount'); return localRuntime; }
@@ -310,6 +335,8 @@ test('actual main mount wiring excludes hosted and non-opted-in execution', asyn
   for (const hostname of ['localhost', '127.0.0.1']) {
     const h = await mainMount(hostname); assert.equal(h.options.controller, h.controller);
     assert.equal(h.options.host, h.env.globalThis.INCOME_CANDIDATE_LOCAL_AUTH); assert.deepEqual(h.calls, ['mount']);
+    h.env.orbit.yaw = .75; assert.equal(h.options.getCameraYaw(), .75);
+    h.env.orbit.yaw = -.5; assert.equal(h.options.getCameraYaw(), -.5);
   }
 });
 
