@@ -17,7 +17,8 @@ for(const[name,width,height]of [['desktop',1280,800],['portrait',390,844],['land
   page.on('console',message=>{if(message.type()==='error')consoleErrors.push(message.text());});
   page.on('requestfailed',request=>failedRequests.push({url:request.url(),failure:request.failure()}));
   let writes=0;page.on('request',req=>{if(!['GET','HEAD'].includes(req.method()))writes++;});
-  await page.goto(`${smoke.origin}/tests/browser/sample-room-trial-harness.html`);await page.click('#open');
+  await page.goto(`${smoke.origin}/tests/browser/sample-room-trial-harness.html`);
+  await page.waitForFunction(()=>!!window.__SAMPLE_TRIAL_QA__);await page.click('#open');
   await page.waitForFunction(()=>{const preview=window.__SAMPLE_TRIAL_QA__?.panel.state().preview;return preview?.frames>2||preview?.error;});
   assert.equal(await page.evaluate(()=>window.__SAMPLE_TRIAL_QA__.panel.state().preview?.error??null),null);
   const initial=await page.evaluate(()=>window.__SAMPLE_TRIAL_QA__.panel.state());assert.equal(initial.objects.length,5);assert.equal(initial.result.complete,false);

@@ -53,6 +53,14 @@ jobs:
           WORLD_SMOKE_BROWSER: chrome
           COMMISSION_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: timeout --signal=TERM --kill-after=10s 480s node apps/world/tests/browser/commission-trial-campus-smoke.mjs
+      - name: Save commission trial screenshots before legacy Phone regressions
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: commission-trials-${{ github.event.pull_request.head.sha }}
+          path: test-results/commission-trials/
+          if-no-files-found: warn
+          retention-days: 7
       - name: Exercise actual campus Phone on desktop and both mobile orientations
         env:
           WORLD_SMOKE_DISABLE_WEBGPU: '1'
