@@ -1,0 +1,48 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dorm shop vendor · offline fixture</title><link rel="stylesheet" href="../../styles.css">
+<script type="importmap">{"imports":{"playcanvas":"https://cdn.jsdelivr.net/npm/playcanvas@2.22.4/build/playcanvas.mjs"}}</script>
+<style>body{margin:0;background:#111;color:white}#scene{width:100vw;height:100vh;display:block}#opener{position:fixed;bottom:36px;left:50%;transform:translateX(-50%);min-height:48px;padding:8px 20px;font-size:16px;z-index:80}.shop-panel{z-index:110}.fixture-label{position:fixed;top:12px;left:12px;z-index:65;font:12px sans-serif;background:#19332fcc;padding:6px;border-radius:6px}</style></head>
+<body><canvas id="scene"></canvas><span class="fixture-label">오프라인 테스트 · 실제 로비/점원/대화/상점 모듈</span><button id="opener"></button>
+<section id="shop" class="profile-panel shop-panel" role="dialog" aria-modal="true" aria-labelledby="shop-panel-title" hidden></section>
+<script type="module">
+import * as pc from 'playcanvas';
+import {createDorm1LobbyScene} from '../../src/rooms/dorm1-lobby-renderer.js';
+import {createDormShopInteraction} from '../../src/shop/dorm-shop-interaction.js';
+import {createDormShopDialogue} from '../../src/shop/dorm-shop-dialogue.js';
+import {createShopRouter} from '../../src/shop/shop-router.js';
+import {createShopPanel} from '../../src/shop/shop-panel.js';
+import {createInputFocusManager,INPUT_FOCUS_POLICY} from '../../src/input/input-focus-manager.js';
+import {createInputFocusOwner} from '../../src/input/input-focus-owner.js';
+import {inspectVendorFace} from './starter-furniture-visual-probe.mjs';
+const canvas=document.querySelector('#scene'),device=await pc.createGraphicsDevice(canvas,{deviceTypes:['webgl2']});
+const app=new pc.Application(canvas,{graphicsDevice:device});app.setCanvasFillMode(pc.FILLMODE_FILL_WINDOW);app.setCanvasResolution(pc.RESOLUTION_AUTO);
+window.addEventListener('resize',()=>app.resizeCanvas());
+const camera=new pc.Entity('fixture-camera');camera.addComponent('camera',{clearColor:new pc.Color(.12,.14,.15),nearClip:.01,fov:55});
+app.root.addChild(camera);camera.setPosition(1.8,1.65,1.9);camera.lookAt(0,.6,-2.2);app.scene.ambientLight=new pc.Color(.65,.65,.65);
+let state={space:'ROOM_DORM1_LOBBY',position:{x:0,z:.85},grounded:true,available:true,accountId:'fixture-a'},opened=0;
+let stateRevision=0,appliedRevision=-1,frames=0;
+const player={getLocalPosition:()=>state.position};const scene=createDorm1LobbyScene(app,{player,camera});scene.root.enabled=true;
+const vendorWorld=scene.shopVendor.visual.avatar.getPosition();camera.lookAt(vendorWorld.x,.6,vendorWorld.z);
+const calls=[];let mode='split';
+const offer={listingId:'offer.dorm.fixture',itemId:'furniture.induck_chair',currencyId:'currency.induck_coin',price:100,quantity:1,requiredLevel:null,purchaseLimit:1,startAt:null,endAt:null,status:'ACTIVE',purchasable:true,unavailableReason:null};
+const client={rpc(name,args){calls.push({name,args});if(name==='get_world_shop_capabilities_v1')return Promise.resolve({data:{version:1,purchaseRpc:'purchase_world_shop_listing_v2',catalogLayout:'split'},error:null});if(name==='get_world_shop_v1')return Promise.resolve({data:{shopId:args.p_shop_id,displayName:'생활관 가구점',status:'ACTIVE',playerLevel:3,offers:[offer]},error:null});throw Error('Unexpected RPC '+name)}};
+const shop=createShopRouter({getClient:()=>client,shopIds:['shop.student_center','shop.dorm_furniture']});shop.setAccount('fixture-a');await shop.refresh('fixture');
+const focus=createInputFocusManager();const dialogueInput=createInputFocusOwner({manager:focus,ownerId:'dorm-shop-dialogue',policy:INPUT_FOCUS_POLICY.BLOCKING_UI});
+const shopInput=createInputFocusOwner({manager:focus,ownerId:'shop',policy:INPUT_FOCUS_POLICY.BLOCKING_UI});
+const panel=createShopPanel({panel:document.querySelector('#shop'),shop,onOpenChange:open=>{if(open)shopInput.acquire();else{shopInput.release();refreshAction()}}});
+const dialogue=createDormShopDialogue({onOpenChange:open=>{if(open)dialogueInput.acquire();else{dialogueInput.release();refreshAction()}}});
+const interaction=createDormShopInteraction({dialogue,getMode:()=>mode,getState:()=>({...state,blocked:!!state.blocked||!focus.can('WORLD_ACTION')||panel.open}),openShop:id=>{opened++;return panel.openShop(id)}});
+shop.onChange(change=>{if(change.reason==='account')interaction.invalidate()});
+focus.subscribe(snapshot=>{if(interaction.open&&snapshot.topOwners.some(owner=>owner!=='dorm-shop-dialogue'))interaction.cancel()});
+const opener=document.querySelector('#opener');const act=()=>interaction.contextAction()?.trigger();opener.onclick=act;
+document.addEventListener('keydown',e=>{if(e.code==='KeyF'&&!e.repeat)act()});
+function refreshAction(){const action=interaction.contextAction();opener.textContent=action?.label??'대화 중';opener.disabled=!action||action.disabled}
+app.on('update',()=>{frames++;interaction.update();refreshAction();if(panel.open&&!interaction.canAccess())panel.setOpen(false);appliedRevision=stateRevision});app.start();
+window.__DORM_VENDOR__={app,scene,camera,shop,panel,interaction,focus,calls,get opened(){return opened},
+ snapshot(){const action=interaction.contextAction();return{state:structuredClone(state),stateRevision,appliedRevision,frames,opened,dialogueOpen:interaction.open,shopOpen:panel.open,
+  action:action?{label:action.label,disabled:action.disabled}:null,openerDisabled:opener.disabled,openerLabel:opener.textContent,focus:document.activeElement?.id,
+  face:inspectVendorFace({sceneRoot:scene.root,visual:scene.shopVendor.visual,camera,canvas})}},
+ set(patch){state={...state,...patch};return ++stateRevision},mode(value){mode=value;stateRevision++},
+ async account(id){state.accountId=id;state.available=!!id;stateRevision++;shop.setAccount(id);if(id)await shop.refresh('fixture-account')},
+ leave(){state.space='campus';stateRevision++;interaction.cancel();scene.root.enabled=false},dispose(){interaction.destroy();scene.root.destroy()}};
+</script></body></html>

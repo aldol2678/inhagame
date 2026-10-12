@@ -2,6 +2,7 @@ import { FURNITURE_STYLES, recommendFurniture } from "./furniture-recommendation
 import { FURNITURE_BY_ID, ROOM_FURNITURE, SURFACE_NAMES, FURNITURE_ERRORS, firstFurniturePosition,
   positionOnSurface, validateFurniture, canonicalFurniture, FURNITURE_LIMIT } from "./furniture-layout.js";
 import { PERSONAL_ROOM_BASIC, PERSONAL_ROOM_BASIC_FURNITURE, PERSONAL_ROOM_PLACEMENT_ENVELOPE } from "./personal-room-layout.js";
+import { personalRoomSeatAnchors } from "./personal-room-seats.js";
 
 // DOM-only editor: tap the plan or use the same movement buttons on desktop and mobile.
 // The client keeps the draft; closing a dirty draft always offers keep editing / discard.
@@ -97,8 +98,13 @@ export function createFurnitureEditor({ client, inventory, onOpenChange = () => 
     if (!editable() || inventory.state !== "READY") return;
     const state = client.state(), item = FURNITURE_BY_ID.get(itemId);
     if (!item || state.objects.length >= FURNITURE_LIMIT) return;
+    // A first sofa should be usable immediately after saving. A bounds-valid
+    // south-edge default can face into the wall and have no safe approach point.
+    const options = itemId === "furniture.dorm_single_sofa" ? { accept: candidate =>
+      personalRoomSeatAnchors({ roomId: state.roomId, objects: [...state.objects, candidate] })
+        .some(anchor => anchor.interactableId === candidate.id) } : {};
     let position = null;
-    for (const surface of item.surfaces) { position = firstFurniturePosition(itemId, surface, state.objects, owned()); if (position) break; }
+    for (const surface of item.surfaces) { position = firstFurniturePosition(itemId, surface, state.objects, owned(), options); if (position) break; }
     if (!position) { message = "보유 수량 또는 놓을 공간을 확인해 주세요."; render(); return; }
     const object = { ...position, id: globalThis.crypto.randomUUID() };
     edit([...state.objects, object], object.id);

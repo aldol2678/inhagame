@@ -229,6 +229,7 @@ export function createShopPanel({
     const furniture = furnitureOfferDetails(offer.itemId);
     if (furniture) {
       card.append(el("p", "shop-offer-furniture", furniture.sizeText), el("p", "shop-offer-furniture", furniture.surfaceText));
+      if (furniture.useText) card.append(el("p", "shop-offer-furniture", furniture.useText));
     }
     const foot = el("div", "shop-offer-foot");
     const meta = el("span", "shop-offer-meta");
