@@ -2,6 +2,7 @@ name: Quest journal controls browser checks
 on:
   pull_request:
     paths:
+      - '.github/ci/phone-surface-scope*.mjs'
       - 'apps/world/src/main.js'
       - 'apps/world/src/quest/**'
       - 'apps/world/src/input/input-focus-manager.js'
@@ -22,20 +23,32 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          fetch-depth: 20
+      - name: Conservative scope gate for isolated Phone Messages change
+        id: phone_scope
+        env:
+          CI_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CI_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node .github/ci/phone-surface-scope.mjs >> "$GITHUB_OUTPUT"
       - uses: actions/setup-node@v4
+        if: steps.phone_scope.outputs.skip != 'true'
         with:
           node-version: '24.19.0'
       - run: npm ci --prefix apps/world/tests/browser --ignore-scripts
+        if: steps.phone_scope.outputs.skip != 'true'
       - name: Install Chromium
+        if: steps.phone_scope.outputs.skip != 'true'
         working-directory: apps/world/tests/browser
         run: npx playwright install --with-deps chromium
       - name: Actual keyboard and mobile touch journal controls
+        if: steps.phone_scope.outputs.skip != 'true'
         env:
           WORLD_SMOKE_DISABLE_WEBGPU: '1'
           QUEST_CONTROLS_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: node apps/world/tests/browser/quest-journal-controls-smoke.mjs
       - name: Upload exact-head browser evidence
-        if: always()
+        if: always() && steps.phone_scope.outputs.skip != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: quest-journal-controls-${{ github.event.pull_request.head.sha }}
