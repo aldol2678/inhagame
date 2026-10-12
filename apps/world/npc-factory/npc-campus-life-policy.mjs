@@ -250,6 +250,13 @@ export function campusLifeScheduleFor(npc, rosterEntry) {
   const eveningPool = NPC_LIFE_COMMON.evening;
   const lunch = residence && n % 5 === 0 ? residence : lunchPool[n % lunchPool.length];
   const evening = residence ?? eveningPool[n % eveningPool.length];
+  // C04 Living Campus: two existing non-quest students demonstrate a meaningful
+  // destination activity. Preserve the other timetable periods and NPC roster.
+  const c04LunchActivity = npc.npc_id === 'INKYUNG-NPC-009'
+    ? { location: 'inkyung_photo_point', activity: 'take_photo', social_mode: 'low' }
+    : npc.npc_id === 'INKYUNG-NPC-010'
+      ? { location: 'inkyung_bench_east', activity: 'sit', social_mode: 'low' }
+      : null;
   // Dorm residents no longer all idle at the residence entrance for the whole morning band.
   // Even-numbered NPCs wait near the dorm while odd-numbered NPCs have already departed
   // toward their primary teaching area. This deterministic split keeps reconnect/replay stable
@@ -269,7 +276,7 @@ export function campusLifeScheduleFor(npc, rosterEntry) {
       }),
       class_time: Object.freeze({ ...classSlot,
         departureSeconds: 15 + campusLifeSeed(npc, rosterEntry, 'class-departure') % 151 }),
-      lunch: Object.freeze({
+      lunch: Object.freeze(c04LunchActivity ?? {
         location: lunch,
         activity: lunch === L.JUNGSEOK ? 'read' : lunch === residence ? 'wait' : 'walk',
         social_mode: lunch === L.JUNGSEOK || lunch === residence ? 'low' : 'medium'
