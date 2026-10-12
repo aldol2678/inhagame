@@ -1,16 +1,18 @@
 import { getSetting, setSetting, readSettings, updateSettings, SETTINGS_DEFAULTS } from './settings-registry.js';
 export const GRAPHICS_QUALITY_KEY = 'inha-world-graphics-quality-v1';
 export const GRAPHICS_QUALITY_LABELS = Object.freeze({
-  auto: '자동', low: '낮음', medium: '보통', high: '높음'
+  auto: '자동', very_low: '최저', low: '낮음', medium: '보통', high: '높음', ultra: '울트라'
 });
 
 // maxPixelRatio caps the PlayCanvas drawing buffer independently of CSS/HUD pixels.
 // The detail scales affect only visual chunk layers; residency and campus BASE stay
 // under the user's separate view-distance setting.
 export const GRAPHICS_PRESETS = Object.freeze({
+  very_low: Object.freeze({ maxPixelRatio: 0.65, castShadows: false, shadowResolution: 512, shadowDistance: 40, detailScale: 0.5, nearScale: 0.6 }),
   low: Object.freeze({ maxPixelRatio: 0.8, castShadows: false, shadowResolution: 512, shadowDistance: 50, detailScale: 0.7, nearScale: 0.75 }),
   medium: Object.freeze({ maxPixelRatio: 1.25, castShadows: true, shadowResolution: 1024, shadowDistance: 75, detailScale: 1, nearScale: 1 }),
-  high: Object.freeze({ maxPixelRatio: 2, castShadows: true, shadowResolution: 2048, shadowDistance: 100, detailScale: 1.2, nearScale: 1.15 })
+  high: Object.freeze({ maxPixelRatio: 2, castShadows: true, shadowResolution: 2048, shadowDistance: 100, detailScale: 1.2, nearScale: 1.15 }),
+  ultra: Object.freeze({ maxPixelRatio: 2, castShadows: true, shadowResolution: 3072, shadowDistance: 120, detailScale: 1.35, nearScale: 1.25 })
 });
 
 export function readGraphicsQuality(storage) {
@@ -23,6 +25,7 @@ export function saveGraphicsQuality(storage, value) {
   return setSetting(storage, 'graphics.quality', value);
 }
 
+// P0 preserves established AUTO selection; adaptive benchmarks are separate.
 export function selectAutoGraphics({ width, height, dpr, mobile, maxTextureSize }) {
   const pixels = Math.max(1, width) * Math.max(1, height) * Math.max(1, dpr) ** 2;
   if (mobile || pixels > 5_000_000 || maxTextureSize < 4096)

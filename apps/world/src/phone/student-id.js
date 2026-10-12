@@ -11,7 +11,9 @@ export function createStudentId({ getClient, getIdentity, getProgression, onChan
       title: p?.title || '칭호 미설정', avatar: STUDENT_AVATARS[p?.avatar] || STUDENT_AVATARS.classic,
       progression: progress?.state === 'READY' ? formatProgression(progress.snapshot) : null,
       progressionState: progress?.state ?? 'SIGNED_OUT', badges: badges.slice(0, 3),
-      playedGames: Number.isInteger(data?.stats?.playedGames) ? data.stats.playedGames : null };
+      playedGames: Number.isInteger(data?.stats?.playedGames) ? data.stats.playedGames : null,
+      // Existing Hub mail badge (mailbox ownership only); null when not read, never guessed.
+      inhaMailVerified: typeof p?.inhaVerified === 'boolean' ? p.inhaVerified : null };
   };
   async function refresh() {
     const mine = ++epoch, id = getIdentity()?.userId;

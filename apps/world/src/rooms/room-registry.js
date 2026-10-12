@@ -14,6 +14,7 @@ import {
   MCM_2026_ROOM, MCM_2026_ROOM_BOUNDS, MCM_2026_ROOM_EXIT, MCM_2026_ROOM_ID,
   MCM_2026_ROOM_OBSTACLES, MCM_2026_ROOM_SPAWN
 } from "../events/zombie-university-2026/minigame-room-layout.js";
+import { JEONGSEOK_CAMPUS_RETURN, JEONGSEOK_ENTRANCE, JEONGSEOK_ROOMS } from "../jeongseok/interior-rooms.js";
 
 export const CAMPUS_SPACE = "campus";
 
@@ -60,6 +61,8 @@ export const RETURN_ANCHORS = Object.freeze({
     yaw: facing(-HALL_FRONT.inward.x, -HALL_FRONT.inward.z)
   }),
   [DORM_1_CAMPUS_RETURN.id]: DORM_1_CAMPUS_RETURN,
+  // JSL-B: Jeongseok front landing. Entry itself is decided by the Jeongseok entry policy.
+  [JEONGSEOK_CAMPUS_RETURN.id]: JEONGSEOK_CAMPUS_RETURN,
   MCM_2026_VENUE_RETURN: Object.freeze({
     id: "MCM_2026_VENUE_RETURN",
     position: Object.freeze({ ...MCM_2026_ROUTE.venue.position, y: 1.15 }),
@@ -68,7 +71,9 @@ export const RETURN_ANCHORS = Object.freeze({
 });
 
 // The former event doorway remains a historical coordinate, not an active entrance.
-export const ROOM_ENTRANCES = Object.freeze([CLUB_ROOM_ENTRANCE, DORM_1_LOBBY_ENTRANCE]);
+// The Jeongseok entrance is listed but stays closed unless the Jeongseok entry policy allows it
+// (closed pending JSL-A server access on every production host).
+export const ROOM_ENTRANCES = Object.freeze([CLUB_ROOM_ENTRANCE, DORM_1_LOBBY_ENTRANCE, JEONGSEOK_ENTRANCE]);
 
 export const ROOMS = Object.freeze({
   ROOM_CLUBHOUSE_01: Object.freeze({
@@ -125,7 +130,9 @@ export const ROOMS = Object.freeze({
     cameraLimits: MCM_2026_ROOM.camera,
     access: "closed",
     entranceId: null
-  })
+  }),
+  // JSL-B: 1F lobby, B1 Second Reading Room and B1 Creative Space (local-only interiors).
+  ...JEONGSEOK_ROOMS
 });
 
 export const isRoomId = (id) => typeof id === "string" && Object.hasOwn(ROOMS, id);

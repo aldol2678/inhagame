@@ -46,7 +46,9 @@ test("1. the main-hall entrance anchor sits on the rendered entry landing, in AR
   assert.equal(e.id, "CLUB_ROOM_ENTRANCE");
   assert.equal(e.roomId, "ROOM_CLUBHOUSE_01");
   assert.ok(ROOM_ENTRANCES.includes(e));
-  assert.equal(ROOM_ENTRANCES.length, 2, "only the club room and first-dormitory lobby remain enterable");
+  assert.equal(ROOM_ENTRANCES.length, 3, "club room, first-dormitory lobby and the policy-gated Jeongseok entrance");
+  assert.deepEqual(ROOM_ENTRANCES.filter(entry => ROOMS[entry.roomId].access === undefined).map(entry => entry.roomId),
+    ["ROOM_CLUBHOUSE_01", "ROOM_DORM1_LOBBY"], "only these two are enterable without an access policy");
   const v = hallV(e.position);
   assert.ok(v < -0.48 && v > -1.2, `on the entry steps in front of the doors, outside the centre column (v=${v.toFixed(2)})`);
   assert.ok(roadviewGroundHeight(e.position.x, e.position.z) > 0.15, "raised entry steps");
@@ -120,7 +122,8 @@ test("6, 9, 19, 32. enter → room spawn; exit → safe anchor; no bounce-back",
 });
 
 test("11. rooms are a registry of their own spaces (not AREA_* Place Zones)", () => {
-  assert.deepEqual(Object.keys(ROOMS), ["ROOM_CLUBHOUSE_01", "ROOM_DORM1_LOBBY", "ROOM_PERSONAL_BASIC", "ROOM_ZOMBIE_UNIVERSITY_2026"]);
+  assert.deepEqual(Object.keys(ROOMS), ["ROOM_CLUBHOUSE_01", "ROOM_DORM1_LOBBY", "ROOM_PERSONAL_BASIC", "ROOM_ZOMBIE_UNIVERSITY_2026",
+    "ROOM_JEONGSEOK_LOBBY", "ROOM_JEONGSEOK_B1_READING", "ROOM_JEONGSEOK_B1_CREATIVE"]);
   assert.equal(ROOM.label, "동아리방");
   assert.equal(ROOM.type, "club");
   assert.ok(!new PlaceZoneRegistry().zones?.some?.((z) => /CLUB|ROOM/.test(z.id)), "no AREA_CLUBHOUSE place zone");

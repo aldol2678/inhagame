@@ -34,3 +34,15 @@ test('browser requests are GET-only and limited to the fixture static asset allo
   assert.match(source,/route.request\(\).method\(\) === 'GET'/);
   assert.match(source,/staticPaths.has\(url.pathname\)/);
 });
+test('strict Collection and icon fixtures allow the inventory presentation dependency closure',()=>{
+  for(const name of ['collection-book-smoke.mjs','item-icons-smoke.mjs']) {
+    const source=read(`./browser/${name}`);
+    for(const path of ['src/inventory/inventory-display-query.js','src/collection/item-acquisition-guide.js',
+      'src/collection/item-acquisition-guide-view.js','src/shop/shop-client.js','src/shop/shop-routes.js',
+      'src/inventory/inventory-query.css','src/collection/item-acquisition-guide.css']) {
+      assert.ok(source.includes(`'${path}'`),`${name}: exact local dependency ${path}`);
+    }
+    assert.match(source,/staticPaths.has\(/,'network still uses an explicit static allowlist');
+    assert.match(source,/route.abort/,'unknown requests remain blocked');
+  }
+});

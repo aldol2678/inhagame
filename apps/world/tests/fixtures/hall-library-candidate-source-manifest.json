@@ -6,7 +6,8 @@
   "approvedExceptions": [
     "Activate only Main Hall and Jeongseok in both real rendering consumers",
     "Clip first-row candidate reveals and sill around the central entrance",
-    "Restore the stadium-facing Jeongseok west facade through the existing roadview detail hook"
+    "Restore the stadium-facing Jeongseok west facade through the existing roadview detail hook",
+    "Change only bounded Jeongseok entrance, existing canopy soffit and canonical approach-stair presentation; preserve upper/west exterior and Main Hall exactly"
   ],
   "allowedRuntimeChanges": [
     "apps/world/src/main-hall-blockout.js",
@@ -17,9 +18,13 @@
     "apps/world/src/jeongseok-candidate-renderer.js",
     "apps/world/src/campus-landmark-candidate-selector.js",
     "apps/world/src/campus-chunk-renderer.js",
-    "apps/world/src/preview/place-scene-preview.js"
+    "apps/world/src/preview/place-scene-preview.js",
+    "apps/world/src/library-approaches.js",
+    "apps/world/src/jeongseok-entry-geometry.js"
   ],
   "allowedMetadataChanges": [
     "apps/world/data/reality/hall-library-integration.provenance.json"
-  ]
+  ],
+  "preExterior": "2b9a09615f7986e3d5e5b93d731fba21f33afbdd",
+  "preExteriorTree": "96155632b0301631744bae69b9dd6f02e9d990b5"
 }
