@@ -177,7 +177,9 @@ export function createShopPanel({
     if (!stage || !previewCanvas) return;
     previewCanvas.className = "shop-showroom-canvas";
     stage.replaceChildren(previewCanvas);
-    engine.show(itemId, previewAngle, previewZoom);
+    if (!engine.show(itemId, previewAngle, previewZoom)) {
+      stage.replaceChildren(el("span", "shop-showroom-preview-fallback", "이 가구는 3D 미리보기를 표시할 수 없어요."));
+    }
     const fallback = stage.querySelector?.(".shop-showroom-preview-fallback");
     if (fallback) fallback.hidden = true;
   }
@@ -425,7 +427,10 @@ export function createShopPanel({
     wrap.append(stage, controls, el("h3", "shop-showroom-detail-name", view.name));
     if (view.description) wrap.append(el("p", "shop-showroom-detail-description", view.description));
     const furniture = furnitureOfferDetails(offer.itemId);
-    if (furniture) wrap.append(el("p", "shop-showroom-placement", furniture.surfaceText));
+    if (furniture) {
+      wrap.append(el("p", "shop-showroom-placement", furniture.surfaceText));
+      if (furniture.useText) wrap.append(el("p", "shop-showroom-use", furniture.useText));
+    }
     const row = el("div", "shop-showroom-detail-bottom");
     row.append(el("strong", "shop-showroom-detail-price", view.priceText));
     if (view.levelText) row.append(el("span", "shop-showroom-detail-level", view.levelText));
