@@ -27,6 +27,11 @@ async function addSource(name) {
   for (const match of bytes.toString().matchAll(/from\s+["'](\.[^"']+)["']/g)) {
     await addSource(new URL(match[1], url).href.slice(sourceRoot.href.length));
   }
+  // Layout dependencies fetch canonical JSON through import.meta.url at module startup.
+  // Include only literal in-repository JSON dependencies; all other requests remain blocked.
+  for (const match of bytes.toString().matchAll(/new URL\(\s*["'](\.[^"']+\.json)["']\s*,\s*import\.meta\.url\s*\)/g)) {
+    await addSource(new URL(match[1], url).href.slice(sourceRoot.href.length));
+  }
 }
 for (const path of paths) await addSource(path);
 const report = { status:'RUNNING', scope:'Offline source integration; synthetic RPCs only; no backend or production changes',

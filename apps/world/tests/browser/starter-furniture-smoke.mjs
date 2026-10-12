@@ -85,6 +85,7 @@ function assertEconomic(value, count, balance) {
 }
 async function capture(page, name, { subject = null } = {}) {
   await page.waitForFunction(() => window.__STARTER_FURNITURE__.snapshot().frames > 5);
+  await page.evaluate(()=>window.__STARTER_FURNITURE__.waitForRenderedFrame());
   const before = await page.evaluate(() => window.__STARTER_FURNITURE__.snapshot());
   if (subject) {
     const target = before[subject], viewport = page.viewportSize();
@@ -123,6 +124,7 @@ async function openShop(page, mobile) {
   if (mobile) await browse.tap(); else await browse.click();
   await page.locator('#starter-shop').waitFor({state:'visible'});
   await page.locator(`[data-listing-id="${listings[0]}"]`).waitFor();
+  await page.waitForFunction(()=>{const s=window.__STARTER_FURNITURE__.snapshot();return s.rpcPending===0&&s.shop.state==='READY';},null,{timeout:TIMEOUT_MS});
 }
 try {
   for (const view of views) {
@@ -188,7 +190,8 @@ try {
       const button=page.locator(`[data-listing-id="${listings[index]}"] .shop-offer-buy`);
       held=new Promise(resolve=>{releasePurchase=resolve;});
       report.transportControls.push(`${view.label}/${items[index]}: delay delivery of actual DB result while testing repeated UI clicks`);
-      await button.scrollIntoViewIfNeeded();if(view.mobile)await button.tap();else await button.click();
+      // Locator click/tap re-resolves detached nodes and scrolls the current control itself.
+      if(view.mobile)await button.tap();else await button.click();
       await page.waitForFunction(id=>document.querySelector(`[data-listing-id="${id}"] .shop-offer-buy`)?.disabled,listings[index]);
       await button.evaluate(node=>{node.click();node.click();node.dispatchEvent(new MouseEvent('click',{bubbles:true}));});
       releasePurchase();releasePurchase=null;
@@ -203,7 +206,7 @@ try {
     const owned=await db.readback();
     const duplicateButton=page.locator(`[data-listing-id="${listings[0]}"] .shop-offer-buy`);
     if(await duplicateButton.isEnabled()) {
-      await duplicateButton.scrollIntoViewIfNeeded();if(view.mobile)await duplicateButton.tap();else await duplicateButton.click();
+      if(view.mobile)await duplicateButton.tap();else await duplicateButton.click();
       await page.waitForFunction(()=>document.querySelector('#starter-shop .shop-hint')?.textContent.includes('이미 보유한 아이템'));
       assert.deepEqual(economicState(await db.readback()),economicState(owned));
     } else {
@@ -222,18 +225,19 @@ try {
 
     const guidance=page.locator(`[data-listing-id="${listings[1]}"] .shop-furniture-action`);
     assert.equal(await guidance.textContent(),'내 방 위치 안내');
-    await guidance.scrollIntoViewIfNeeded();if(view.mobile)await guidance.tap();else await guidance.click();
+    if(view.mobile)await guidance.tap();else await guidance.click();
     assert.equal((await state()).shopOpen,false);assert.match((await state()).notices.at(-1),/내 방 문/);
     await tap('#starter-room');
     await page.waitForFunction(()=>window.__STARTER_FURNITURE__.snapshot().space==='ROOM_PERSONAL_BASIC');
     assert.equal((await state()).access.allowed,true);assert.equal((await state()).access.role,'owner');
     await tap('#starter-decorate');await page.locator('#furniture-editor').waitFor({state:'visible'});
-    for(const item of items) {const add=page.locator(`#furniture-editor [data-focus="${item}"]`);await add.scrollIntoViewIfNeeded();if(view.mobile)await add.tap();else await add.click();}
+    await page.waitForFunction(()=>window.__STARTER_FURNITURE__.snapshot().rpcPending===0,null,{timeout:TIMEOUT_MS});
+    for(const item of items) {const add=page.locator(`#furniture-editor [data-focus="${item}"]`);if(view.mobile)await add.tap();else await add.click();}
     const draft=(await state()).furniture;
     assert.equal(draft.objects.length,2);assert.equal(draft.objects.find(row=>row.itemId===items[0]).surface,'desk');
     assert.equal(draft.objects.find(row=>row.itemId===items[1]).surface,'floor');assert.equal(draft.dirty,true);
     const save=page.locator('#furniture-editor footer button').filter({hasText:/^저장$/});
-    await save.scrollIntoViewIfNeeded();if(view.mobile)await save.tap();else await save.click();
+    if(view.mobile)await save.tap();else await save.click();
     await page.waitForFunction(()=>{const value=window.__STARTER_FURNITURE__.snapshot().furniture;return !value.pending&&!value.dirty&&value.revision>0;});
     assert.equal((await state()).furniture.error,null);await capture(page,`${view.label}-saved-editor`);
     const done=page.locator('#furniture-editor footer button').filter({hasText:/^완료$/});if(view.mobile)await done.tap();else await done.click();
@@ -297,7 +301,7 @@ try {
     await openShop(legacyPage,view.mobile);
     for(let index=0;index<items.length;index++) {
       const buy=legacyPage.locator(`[data-listing-id="${listings[index]}"] .shop-offer-buy`);
-      await buy.scrollIntoViewIfNeeded();if(view.mobile)await buy.tap();else await buy.click();
+      if(view.mobile)await buy.tap();else await buy.click();
       await legacyPage.waitForFunction(item=>window.__STARTER_FURNITURE__.snapshot().inventory?.items.some(row=>row.itemId===item),items[index]);
     }
     await legacyPage.waitForFunction(()=>window.__STARTER_FURNITURE__.snapshot().wallet?.balances['currency.induck_coin']===0);
@@ -317,7 +321,7 @@ try {
 } catch(error) {
   report.result='fail';report.error=error.stack;
   if(!privateMode)await activePage?.screenshot({path:path.join(output,'failure.png')}).catch(()=>{});
-  else report.failureState=await activePage?.evaluate(()=>window.__STARTER_FURNITURE__?.snapshot()).catch(()=>null);
+  report.failureState=await activePage?.evaluate(()=>window.__STARTER_FURNITURE__?.snapshot()).catch(()=>null);
   throw error;
 } finally {
   releasePurchase?.();await smoke?.close();await db?.close();

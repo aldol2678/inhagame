@@ -38,8 +38,13 @@ try {
     ? '격리 DB · 실제 캐릭터 geometry only · 이미지 저장 금지'
     : '격리 DB · Public_QA_Avatar 대체 모델 · 실제 캐릭터 픽셀 미검증';
   let accountId = identity.userId, space = 'ROOM_DORM1_LOBBY', access = null, metadata = null;
-  let frames = 0, blocked = false, invalid = false, savingRoom = false, fixedCamera = 'vendor';
-  const notices = [], client = { rpc: (name, args) => window.__STARTER_RPC__(name, args ?? {}) };
+  let frames = 0, renderedFrames = 0, rpcPending = 0, rpcRevision = 0;
+  let blocked = false, invalid = false, savingRoom = false, fixedCamera = 'vendor';
+  const notices = [], client = { async rpc(name, args) {
+    rpcPending++;rpcRevision++;
+    try { return await window.__STARTER_RPC__(name,args??{}); }
+    finally { rpcPending--;rpcRevision++; }
+  } };
   const canvas = document.getElementById('starter-stage');
   const device = await pc.createGraphicsDevice(canvas, { deviceTypes: [pc.DEVICETYPE_WEBGL2], antialias: true });
   const app = new pc.Application(canvas, { graphicsDevice: device });
@@ -172,7 +177,8 @@ try {
       camera.setPosition(point.x + inward.x, 1.65, point.z + inward.z); camera.lookAt(point);
     }
   }
-  qa.snapshot = () => ({ ready: qa.ready, frames, space, accountId, access, metadata,renderMode,
+  qa.snapshot = () => ({ ready: qa.ready, frames, renderedFrames, rpcPending, rpcRevision, space, accountId, access, metadata,renderMode,
+    camera:{position:{...camera.getPosition()},rotation:{...camera.getEulerAngles()},view:fixedCamera},
     shop: shop.status(), wallet: wallet.snapshot, inventory: inventory.snapshot, furniture: furniture.state(),
     seated: seating.seats.isSeated, seat: seating.seats.seated?.interactableId ?? null,
     position: { ...player.getLocalPosition() }, pose: character.pose, characterModel: character.modelState,
@@ -198,6 +204,9 @@ try {
     world.placePlayer(anchor.standPoint, anchor.yaw); captureView('sofa'); refreshContext();
   };
   qa.captureView = captureView;
+  // PlayCanvas invalidates its cached view/projection matrix at prerender. A camera edit
+  // followed immediately by worldToScreen can otherwise report the previous frame's view.
+  qa.waitForRenderedFrame = () => new Promise(resolve=>app.once('postrender',()=>resolve(renderedFrames)));
   qa.refreshFurniture = () => furniture.refresh();
   qa.enterRoom = enterRoom;
   qa.refreshInventory = () => inventory.refresh('qa-verification');
@@ -216,6 +225,7 @@ try {
     if (panel.open && space === 'ROOM_DORM1_LOBBY' && !interaction.canAccess()) panel.setOpen(false);
     if (fixedCamera) captureView(fixedCamera); else orbit.apply(player.getLocalPosition(),character.eyeHeight);
   });
+  app.on('postrender',()=>{renderedFrames++;});
   app.start(); await character.ready;
   if (character.modelState !== 'glb') throw Error('Actual character GLB did not load');
   qa.ready = true;
