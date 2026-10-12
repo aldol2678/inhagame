@@ -115,6 +115,7 @@ import { createKnockPrompt } from "./rooms/knock-prompt.js";
 import { createFurnitureClient } from "./rooms/furniture-client.js";
 import { createFurnitureEditor } from "./rooms/furniture-editor.js";
 import { createFurnitureFunctionProvider } from "./rooms/furniture-functions.js";
+import { createCommissionTrialFeature, createCommissionTrialEntry } from "./commissions/commission-trial-feature.js";
 import { createCookingFeature } from "./rooms/cooking-feature.js";
 import { createTrophyDisplay } from "./rooms/trophy-display.js";
 import { createTrophyDisplayPanel } from "./rooms/trophy-display-panel.js";
@@ -170,6 +171,7 @@ import { createShopFurnitureHandoff } from "./shop/shop-furniture-handoff.js";
 import { createWalletClient } from "./wallet/wallet-client.js";
 import { createInventoryClient } from "./inventory/inventory-client.js";
 import { createCollectionBookClient } from "./collection/collection-book-client.js";
+import { createInventoryAcquisitionClient } from "./inventory/inventory-acquisition-client.js";
 import { createInventoryPanel } from "./inventory/inventory-panel.js";
 import { createDailyQuizClient } from "./daily-quiz/daily-quiz-client.js";
 import { createDailyQuizPanel } from "./daily-quiz/daily-quiz-panel.js";
@@ -840,6 +842,8 @@ let incomeGameCandidate = null;
 const npcQuestStatus = () => npcTest?.getQuestStatus?.() ?? npcTest?.getStatus?.() ?? null;
 const questRuntime = createQuestRuntime();
 let questJournal = null;
+let commissionTrials = null, commissionTrialOpening = false;
+const commissionTrialInput = createInputFocusOwner({ manager: inputFocus, ownerId: "commission-trial", policy: INPUT_FOCUS_POLICY.BLOCKING_UI });
 let questHud = null;
 let nextDiscovery = null;
 // 비룡탑 · 울림돌 · BR01 (created once the audio layer exists; read lazily by earlier hooks).
@@ -1340,10 +1344,30 @@ const collectionBook = createCollectionBookClient({
       ? session.access_token : null;
   }
 });
+const inventoryAcquisition = createInventoryAcquisitionClient({ getClient: () => online?.supabase ?? null });
 const inventoryPanel = createInventoryPanel({
   panel: document.getElementById("inventory-panel"),
   inventory,
   collectionBook,
+  acquisition: inventoryAcquisition,
+  getKnownPois: () => rooms?.insideRoom || biryongRealm?.inBiryong || lobbyWorld.active || lobbyTransition.active
+    ? [] : campusMapDataSource?.poiRegistry?.().list({ surface: "FULL_MAP" }) ?? [],
+  onShowAcquisitionLocation: ({ poiId }) => {
+    // Revalidate discovery at click time. Only show the existing campus map: no teleport,
+    // purchase or automatic movement. Other regions retain their current map provider.
+    const poi = campusMapDataSource?.poiRegistry?.().get(poiId);
+    if (!fullMap || rooms?.insideRoom || biryongRealm?.inBiryong || lobbyWorld.active || lobbyTransition.active ||
+        !poi?.visible || !poi.validPosition || poi.discoveryState !== "DISCOVERED" ||
+        !["AVAILABLE", "NEW"].includes(poi.gateState)) {
+      showWorldStatus("캠퍼스에서 발견한 판매처의 지도 위치를 확인할 수 있어요.");
+      return false;
+    }
+    inventoryPanel.setOpen(false);
+    fullMap.open();
+    fullMap.selectPoi(poi);
+    fullMap.centerOnPoint(poi);
+    return true;
+  },
   onOpenChange: (open) => {
     inventoryButton?.setAttribute("aria-expanded", String(open));
     if (open) {
@@ -1362,6 +1386,11 @@ const inventoryPanel = createInventoryPanel({
     }
     inventoryInput.release();
   }
+});
+shop.onChange(() => {
+  const changed = inventoryAcquisition.setScope({ accountId: shop.accountId,
+    capabilityMode: shop.mode, capabilityChecking: shop.capabilityChecking });
+  if (changed && inventoryPanel.open) void inventoryAcquisition.refresh();
 });
 inventoryButton?.addEventListener("click", () => inventoryPanel.setOpen(true));
 const shopButton = document.getElementById("open-shop");
@@ -3156,7 +3185,26 @@ const navigateQuestObjective = (navigationTarget, quest) => {
   showWorldStatus(`${quest?.title ?? "퀘스트"} 목표까지 길을 표시했어요.`);
   return true;
 };
+commissionTrials = createCommissionTrialFeature({
+  getAccountId: () => roomFunctionAccountId,
+  onOpenChange: open => {
+    if (!open) { commissionTrialInput.release(); return; }
+    commissionTrialOpening = true;
+    try {
+      questJournal?.setOpen(false); smartphone?.close();
+      playerAutoMove?.pause(AUTO_MOVE_CANCEL_REASON.INTERACTION);
+      commissionTrialInput.acquire();
+    } finally { commissionTrialOpening = false; }
+  }
+});
+inputFocus.subscribe(snapshot => {
+  if (!commissionTrialOpening && commissionTrialInput.active && snapshot.topOwners.some(id => id !== "commission-trial"))
+    commissionTrials.close();
+});
+window.addEventListener("popstate", () => commissionTrials.close());
+window.addEventListener("pagehide", () => commissionTrials.close());
 questJournal = createQuestJournal({
+  createSideEntry: () => createCommissionTrialEntry({ feature: commissionTrials }),
   panel: document.getElementById("quest-journal-panel"),
   runtime: questRuntime,
   onNavigate: navigateQuestObjective,
@@ -3631,6 +3679,7 @@ app.on("update", (dt) => {
     pressed: false, trigger: () => toggleSeat()
   } : null);
   contextActions.set("guestbook", guestbookAction);
+  commissionTrials?.update();
   cookingFeature.update();
   contextActions.set("room-furniture", roomFurnitureFunctions.contextAction());
   contextActions.set("personal-room-environment", personalRoomEnvironment.contextAction());
@@ -3820,6 +3869,7 @@ try {
     npcTest?.setAiSignedIn(npcAiSignedIn);
     profile.setIdentity(identity);
     smartphone?.setAccount(identity?.userId ?? null);
+    if (roomFunctionIdentityChanged) commissionTrials?.close();
     lobbyPlayerSummary.render();
     lobbyQuestHighlight.update();
     chatPanel.refreshAvailability();
@@ -4096,6 +4146,7 @@ window.__INHAGAME_P0__ = {
   trophyDisplayPanel,
   roomFurnitureFunctions,
   cookingFeature,
+  commissionTrials,
   worldAudio,
   clubRoom,
   mcmEvent,

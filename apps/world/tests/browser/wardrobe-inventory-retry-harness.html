@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Wardrobe inventory retry · offline fixture</title>
   <link rel="stylesheet" href="../../styles.css">
+  <link rel="stylesheet" href="../../src/collection/item-acquisition-guide.css">
+  <link rel="stylesheet" href="../../src/inventory/inventory-query.css">
   <style>
     body { margin: 0; padding: 24px; background: #102334; color: #eef8ff; font: 16px sans-serif; }
     .shop-panel-body { max-height: 320px; }
@@ -19,6 +21,83 @@
     import { createWardrobePanel } from '../../src/appearance/wardrobe-panel.js';
     import { createInventoryClient, INVENTORY_RPC } from '../../src/inventory/inventory-client.js';
     import { createLoadoutClient, APPEARANCE_SLOTS, LOADOUT_READ_RPC } from '../../src/appearance/loadout-client.js';
+    import { createInventoryPanel } from '../../src/inventory/inventory-panel.js';
+    import { createInventoryAcquisitionClient } from '../../src/inventory/inventory-acquisition-client.js';
+    import { createFullMapController } from '../../src/minimap/full-map-controller.js';
+    if (new URLSearchParams(location.search).has('inventory')) {
+      const calls = [], pending = [], mapEvents = [];
+      let account = 'A', shopMode = 'ready', available = true, space = 'campus';
+      const own = (itemId, acquiredAt, catalogStatus = 'ACTIVE') => ({ itemId, quantity: 1, acquiredAt,
+        updatedAt: acquiredAt, sourceType: 'SHOP', sourceRef: 'synthetic.previous-source', eventId: null, catalogStatus });
+      const rows = [own('head.induck_cap', '2026-10-01T00:00:00Z'), own('material.fish_carp', '2026-10-03T00:00:00Z'),
+        own('furniture.dorm_single_sofa', '2026-10-02T00:00:00Z'), own('top.inha_basic', '2026-10-04T00:00:00Z'),
+        own('memorabilia.campus_mug', '2026-10-05T00:00:00Z', 'HIDDEN')];
+      const shopData = (shopId, purchasable = available) => ({ data: { shopId, status: 'ACTIVE', playerLevel: 1,
+        offers: ['shop.student_center','shop.dorm_furniture'].includes(shopId) ? [{ listingId: 'fixture.' + shopId,
+          itemId: shopId === 'shop.student_center' ? 'head.induck_cap' : 'furniture.dorm_single_sofa',
+          currencyId: 'coin', price: 10, quantity: 1, requiredLevel: 2, purchaseLimit: null,
+          startAt: null, endAt: null, status: 'ACTIVE', purchasable,
+          unavailableReason: purchasable ? null : 'LEVEL_REQUIRED' }] : [] }, error: null });
+      const client = { rpc(fn, args) {
+        calls.push({ fn, args, account });
+        if (fn === INVENTORY_RPC) return Promise.resolve({data: {items: account === 'B' ? [rows[3]] : rows}, error: null});
+        if (fn === 'get_world_shop_v1') {
+          if (shopMode === 'hold') return new Promise(resolve => pending.push({resolve, shopId: args.p_shop_id, account}));
+          return Promise.resolve(shopMode === 'error' ? {data:null,error:{message:'SYNTHETIC_SHOP_ERROR'}} : shopData(args.p_shop_id));
+        }
+        throw new Error(`Writes forbidden in fixture: ${fn}`);
+      }};
+      const inventory = createInventoryClient({getClient:()=>client});
+      const acquisition = createInventoryAcquisitionClient({getClient:()=>client});
+      const panel = document.getElementById('wardrobe'); panel.id = 'inventory';
+      panel.setAttribute('aria-labelledby','inventory-panel-title');
+      const opener = document.getElementById('opener'); opener.textContent = '인벤토리 열기';
+      const pois = [Object.freeze({poiId:'poi.student-center',title:'학생회관',kind:'BUILDING',iconKey:'student-center',
+        presentation:'NORMAL',visible:true,validPosition:true,discoveryState:'DISCOVERED',gateState:'AVAILABLE',x:30,z:40}),
+        Object.freeze({poiId:'poi.dorm-1',title:'제1생활관',kind:'HOUSING',iconKey:'housing',presentation:'NORMAL',
+        visible:true,validPosition:true,discoveryState:'DISCOVERED',gateState:'AVAILABLE',x:70,z:60})];
+      // Real map controller; geometry coordinates are synthetic fixture inputs only.
+      const mapRoot = document.createElement('section'); mapRoot.id='fixture-map'; mapRoot.hidden=true;
+      mapRoot.setAttribute('role','dialog'); mapRoot.setAttribute('aria-modal','true');
+      Object.assign(mapRoot.style,{position:'fixed',inset:'20px',zIndex:100,background:'#123',padding:'12px'});
+      const elements={root:mapRoot,openButton:document.getElementById('outside')};
+      for (const id of ['closeButton','surface','svg','markerLayer','geometryLayer','poiLayer','playerMarker',
+        'objectiveMarker','destinationMarker','socialLayer','titleElement','infoPanel','infoTitle','infoMeta',
+        'destinationButton','clearDestinationButton','zoomInButton','zoomOutButton','locateButton','resetViewButton','zoomLabel']) {
+        elements[id]=id==='svg'||id==='geometryLayer' ? document.createElementNS('http://www.w3.org/2000/svg',id==='svg'?'svg':'g')
+          : document.createElement(id.endsWith('Button')?'button':'div');
+        elements[id].id='map-'+id;
+        if(id.endsWith('Button')) elements[id].textContent=id;
+      }
+      mapRoot.append(elements.closeButton,elements.titleElement,elements.surface,elements.infoPanel);
+      elements.surface.style.cssText='position:relative;width:100%;height:180px;overflow:hidden';
+      elements.surface.append(elements.svg,elements.markerLayer,elements.poiLayer,elements.socialLayer,
+        elements.zoomInButton,elements.zoomOutButton,elements.locateButton,elements.resetViewButton,elements.zoomLabel);
+      elements.svg.append(elements.geometryLayer);
+      elements.markerLayer.append(elements.playerMarker,elements.objectiveMarker,elements.destinationMarker);
+      elements.infoPanel.append(elements.infoTitle,elements.infoMeta,elements.destinationButton,elements.clearDestinationButton);
+      document.body.append(mapRoot);
+      const fullMap=createFullMapController({...elements,dataSource:{bounds:{minX:0,maxX:100,minZ:0,maxZ:100},geometry:()=>[],
+        poiRegistry:()=>({list:()=>pois})},getPlayerPosition:()=>({x:0,z:0}),onOpen:()=>mapEvents.push('open'),onClose:()=>mapEvents.push('close')});
+      fullMap.onSelectionChange?.(poi=>mapEvents.push(poi?.poiId));
+      const ui=createInventoryPanel({panel,inventory,acquisition,getKnownPois:()=>space==='campus'?pois:[],
+        onShowAcquisitionLocation:location=>{
+          if(space!=='campus') return false;
+          const poi=pois.find(p=>p.poiId===location.poiId); if(!poi) return false;
+          ui.setOpen(false); fullMap.open(); fullMap.selectPoi(poi); fullMap.centerOnPoint(poi); return true;
+        }});
+      const scope=()=>acquisition.setScope({accountId:account,capabilityMode:'split',capabilityChecking:false});
+      opener.addEventListener('click',()=>ui.setOpen(true));
+      scope(); await inventory.setAccount(account);
+      window.__INVENTORY_GUIDE__={calls,mapEvents,ui,inventory,acquisition,
+        setMode(mode){shopMode=mode;}, setAvailability(value){available=value;},
+        async switchAccount(next){account=next;scope();await inventory.setAccount(next);},
+        settleRange(start,end,purchasable=true){for(const p of pending.slice(start,end)) p.resolve(shopData(p.shopId,purchasable));},
+        setSpace(next){space=next;ui.render();},
+        snapshot:()=>({pending:pending.length,context:acquisition.context(),writes:calls.filter(c=>![INVENTORY_RPC,'get_world_shop_v1'].includes(c.fn)),
+          open:ui.open,mapOpen:!mapRoot.hidden,mapDestination:fullMap.destination,owned:inventory.snapshot?.items.map(r=>r.itemId)})};
+      opener.focus();
+    } else {
     const A = '11111111-1111-4111-8111-111111111111';
     const B = '22222222-2222-4222-8222-222222222222';
     const time = '2026-09-28T07:00:00+00:00';
@@ -65,6 +144,7 @@
         writes: calls.filter(fn => fn !== INVENTORY_RPC && fn !== LOADOUT_READ_RPC), open: ui.open })
     };
     document.getElementById('opener').focus();
+    }
   </script>
 </body>
 </html>

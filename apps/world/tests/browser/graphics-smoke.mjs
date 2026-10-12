@@ -25,7 +25,7 @@ try {
   });
   const initial = await measure();
   const readings = {};
-  for (const tier of ['low', 'medium', 'high']) {
+  for (const tier of ['very_low', 'low', 'medium', 'high', 'ultra']) {
     await page.locator('#graphics-quality').selectOption(tier);
     readings[tier] = await measure();
     assert.equal(readings[tier].graphics.preference, tier);
@@ -33,16 +33,20 @@ try {
     assert.equal(readings[tier].viewDistance, initial.viewDistance);
     assert.equal(readings[tier].map, initial.map);
   }
+  assert.ok(readings.very_low.canvasWidth < readings.low.canvasWidth);
   assert.ok(readings.low.canvasWidth < readings.medium.canvasWidth);
   assert.equal(readings.low.graphics.castShadows, false);
   assert.equal(readings.medium.graphics.shadowResolution, 1024);
   assert.equal(readings.high.graphics.shadowResolution, 2048);
+  assert.equal(readings.ultra.graphics.shadowResolution, 3072);
+  assert.equal(readings.very_low.graphics.castShadows, false);
   assert.ok(readings.low.detailEnter < readings.medium.detailEnter);
   assert.ok(readings.high.detailEnter > readings.medium.detailEnter);
+  assert.ok(readings.ultra.detailEnter > readings.high.detailEnter);
 
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => window.__INHAGAME_P0__?.getStatus?.().loading?.finished, null, { timeout: TIMEOUT_MS });
-  assert.equal((await measure()).graphics.preference, 'high', 'manual choice survives reload');
+  assert.equal((await measure()).graphics.preference, 'ultra', 'manual choice survives reload');
   await page.locator('#hud-menu-toggle').click();
   await page.locator('#open-settings').click();
   await page.locator('#graphics-quality').selectOption('auto');
@@ -69,8 +73,10 @@ try {
   await mobile.locator('#lobby-menu-toggle').click();
   await mobile.locator('#lobby-open-settings').click();
   assert.equal(await mobile.locator('#view-settings').isVisible(), true);
+  await mobile.locator('#graphics-quality').selectOption('very_low');
+  assert.equal((await mobile.evaluate(() => window.__INHAGAME_P0__.getStatus())).graphics.tier, 'very_low');
   await mobile.locator('#graphics-quality').selectOption('medium');
   assert.equal((await mobile.evaluate(() => window.__INHAGAME_P0__.getStatus())).graphics.tier, 'medium');
   assert.deepEqual(smoke.problems, []);
-  console.log(`world graphics smoke: PASS (low/medium/high, persistence, AUTO, WebGL2 fallback, mobile lobby settings; ${JSON.stringify(readings)})`);
+  console.log(`world graphics smoke: PASS (five tiers, persistence, AUTO, WebGL2 fallback, mobile lobby settings; ${JSON.stringify(readings)})`);
 } finally { await smoke.close(); }

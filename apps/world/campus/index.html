@@ -6,8 +6,11 @@
   <meta name="theme-color" content="#101722" />
   <title>INHAGAME Campus · 인덕이와 안뇽이</title>
   <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/src/collection/item-acquisition-guide.css" />
+  <link rel="stylesheet" href="/src/inventory/inventory-query.css" />
   <link rel="stylesheet" href="/cinematic.css" />
   <link rel="stylesheet" href="/phone.css" />
+  <link rel="stylesheet" href="/src/commissions/commission-trial.css" />
   <!-- Auth config must execute before module imports snapshot the shared account config. -->
   <script src="/api/public-supabase-config"></script>
   <script type="importmap">
@@ -317,8 +320,9 @@
     <h2 id="view-settings-title">화면·소리·조작 설정</h2>
     <label for="graphics-quality">그래픽 품질</label>
     <select id="graphics-quality" aria-describedby="graphics-quality-hint">
-      <option value="auto" selected>자동</option><option value="low">낮음</option>
-      <option value="medium">보통</option><option value="high">높음</option>
+      <option value="auto" selected>자동</option><option value="very_low">최저</option>
+      <option value="low">낮음</option><option value="medium">보통</option>
+      <option value="high">높음</option><option value="ultra">울트라</option>
     </select>
     <p id="graphics-quality-hint">기기에 맞는 품질을 선택합니다.</p>
     <label for="graphics-frame-limit">최대 프레임</label>

@@ -20,6 +20,7 @@ export function createQuestJournal({
   panel,
   runtime,
   onNavigate = () => false,
+  createSideEntry = () => null,
   onOpenChange = () => {},
   doc = globalThis.document
 } = {}) {
@@ -214,6 +215,11 @@ export function createQuestJournal({
       body.append(list, detail);
     }
 
+    const sideEntry = tab === QUEST_TYPE.SIDE ? createSideEntry() : null;
+    if (sideEntry) {
+      body.append(sideEntry);
+      for (const button of sideEntry.querySelectorAll("button")) focusTarget(button, button.dataset.focusKey);
+    }
     panel.replaceChildren(head, tabs, body);
     // Runtime notifications rebuild the DOM. Keep the same semantic control focused, or a safe
     // close action when the old control disappeared or became disabled. Outside focus stays put.
