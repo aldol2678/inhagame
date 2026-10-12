@@ -105,7 +105,7 @@ try {
   qa.revalidate = () => session.revalidateNow();
   qa.identityChange = () => { identity = { userId: "10000000-0000-4000-8000-000000999999" }; session.update(.01); chat.update(); panel.reset(); };
   qa.reconnectChat = () => { for(const channel of channels.values())if(channel.topic.startsWith("world:room-chat:"))channel.status("CHANNEL_ERROR"); };
-  qa.reenterChat = () => chat.enter({kind,roomId,sessionId:session.status().sessionId});
+  qa.reenterChat = () => chat.enter({kind,roomId,sessionId:session.status().sessionId,admissionId:personal?null:session.admissionId});
   qa.chat = chat; qa.panel = panel;
   qa.captureChat = text => {
     const entry = chat.feed.entries.findLast(e => e.text === text);

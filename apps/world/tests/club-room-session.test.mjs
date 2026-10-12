@@ -19,7 +19,7 @@ const id = n => `10000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const flush = async () => { for (let i = 0; i < 5; i++) await new Promise(r => setImmediate(r)); };
 
 
-function member(server, n) {
+function member(server, n, fixedSession = null) {
   let identity = { userId: id(n), displayName: "인덕이" };
   const p = { x: 0, y: 1.15, z: -1.8 }, avatars = new Map(), lost = [], seatLost = [];
   const controller = { grounded: true, mounted: false, moving: false, keys: new Set() };
@@ -29,7 +29,7 @@ function member(server, n) {
   let nextSession = 1000 + n * 10;
   const session = createClubRoomSession({ player, controller, clock: server.clock,
     getClient: () => client, getIdentity: () => identity,
-    randomId: () => id(nextSession++), onAccessLost: e => lost.push(e), onSeatLost: e => seatLost.push(e),
+    randomId: () => fixedSession ?? id(nextSession++), onAccessLost: e => lost.push(e), onSeatLost: e => seatLost.push(e),
     createAvatar: sample => { const avatar = { sample, update(next) { this.sample = next; }, destroy() { avatars.delete(sample.sessionId); } };
       avatars.set(sample.sessionId, avatar); return avatar; }
   });
@@ -125,7 +125,8 @@ test("access loss, identity change, lease expiry and same-account replacement te
     if (cause === "identity") { a.setIdentity({ userId: id(99) }); a.session.update(.05); }
     if (cause === "expiry") { server.state.failing = true; server.advance(20_001); a.session.update(.05); }
     if (cause === "replacement") {
-      await server.client(id(1)).rpc("join_world_club_room_v1", { p_room: CLUB_ROOM_ID, p_session: id(9999) });
+      server.advance(1000);
+      assert.equal((await server.client(id(1)).rpc("join_world_club_room_v1", { p_room: CLUB_ROOM_ID, p_session: id(9999) })).data.allowed,true);
       await a.session.revalidateNow();
     }
     assert.equal(a.session.active, false, cause); assert.equal(server.channels.size, 0, cause);
@@ -135,10 +136,11 @@ test("access loss, identity change, lease expiry and same-account replacement te
 
 test("snapshot parser refuses mismatched identity, duplicate participants, capacity and seat spoofing", async () => {
   const server = serverFixture(), a = member(server, 1); await a.session.enter(); await flush();
-  const ctx = { roomId: CLUB_ROOM_ID, sessionId: a.session.status().sessionId, userId: id(1) };
+  const ctx = { roomId: CLUB_ROOM_ID, sessionId: a.session.status().sessionId, admissionId:a.session.admissionId, userId: id(1) };
   const good = server.snapshot(ctx.userId, ctx.sessionId);
   assert.equal(parseClubSnapshot(good, ctx).allowed, true);
   for (const bad of [null, { ...good, userId: id(2) }, { ...good, capacity: 99 },
+    {...good,admissionId:id(999),topic:clubRoomTopic(CLUB_ROOM_ID,id(999))},{...good,topic:clubRoomTopic(CLUB_ROOM_ID,ctx.sessionId)},
     { ...good, participants: [...good.participants, ...good.participants] },
     { ...good, seats: [{ seatId: "sofa", sessionId: ctx.sessionId, userId: ctx.userId }] },
     { ...good, seats: [{ seatId: "chair_s0", sessionId: id(3), userId: id(3) }] }]) {
@@ -197,7 +199,7 @@ test("late club seat approval cannot move the player after exit, movement, overl
     if (cause === "emote") actions.cancel();
     const before = { ...p }; resolve(true);
     assert.equal(await result, false); assert.deepEqual(p, before); assert.equal(seating.seats.isSeated, false);
-    assert.equal(releases.length, 1); assert.deepEqual(releases[0], [anchor.seatId, id(10)]);
+    assert.equal(releases.length, 1); assert.deepEqual(releases[0], [anchor.seatId, id(10),undefined]);
     actions.destroy();
   }
 });
@@ -254,7 +256,7 @@ test('cached club channel rejects guessed and cross-recipient capabilities befor
   const server=serverFixture(),a=member(server,1),b=member(server,2);
   await a.session.enter(CLUB_ROOM_ID);await b.session.enter(CLUB_ROOM_ID);await frames(server,[a,b]);
   const sid=a.session.status().sessionId,other=b.session.status().sessionId;
-  const channel=[...server.channels].find(c=>c.topic.endsWith(other));
+  const channel=[...server.channels].find(c=>c.topic.endsWith(b.session.admissionId));
   const snapshot=server.snapshot(id(2),other);
   assert.equal(snapshot.participants.some(p=>'inboxNonce' in p),false,'roster never discloses capabilities');
   const payload={roomId:CLUB_ROOM_ID,sid,event:'action',p:{v:1,id:99,type:'emote',payload:{emote:'wave'}},presence:snapshot.participants.find(p=>p.sessionId===sid)};
@@ -267,4 +269,54 @@ test('cached club channel rejects guessed and cross-recipient capabilities befor
   assert.equal(b.avatars.get(sid)?.sample?.emote?.id,'wave','same valid envelope is accepted only with authenticated recipient authority');
   assert.equal(JSON.stringify(b.session.status()).includes('inboxNonce'),false,'public status excludes admission capability');
   a.session.stop();b.session.stop();
+});
+
+test('same client UUID reentry gets a fresh inbox; every stale admission mutation is fenced', async () => {
+  const server=serverFixture(),a=member(server,1,id(500)),b=member(server,2);
+  await a.session.enter();await b.session.enter();await frames(server,[a,b],2);
+  const oldAdmission=a.session.admissionId, oldChannel=[...server.channels].find(c=>c.topic.endsWith(oldAdmission));
+  let raw=0;const receiver=oldChannel.receiver;oldChannel.receiver=e=>{raw++;receiver(e);};
+  a.session.stop();await flush();server.channels.add(oldChannel); // model a cached stale subscription
+  server.advance(1000);await a.session.enter();await frames(server,[a,b],2);
+  const current=a.session.admissionId;
+  assert.notEqual(current,oldAdmission);assert.equal(a.session.status().sessionId,id(500));
+  assert.equal(await a.session.claimSeat('chair_s0'),true);
+  for(const name of ['heartbeat_world_club_room_v1','claim_world_club_room_seat_v1','release_world_club_room_seat_v1','publish_world_club_room_v1']) {
+    const result=await a.client.rpc(name,{p_room:CLUB_ROOM_ID,p_admission:oldAdmission,p_seat:'chair_s0',p_event:'action',p_packet:{v:1,id:50,type:'jump'}});
+    assert.equal(result.data.allowed,false,name);
+  }
+  await a.client.rpc('leave_world_club_room_v1',{p_room:CLUB_ROOM_ID,p_admission:oldAdmission});
+  assert.equal(server.sessions.get(id(500)).admissionId,current);
+  assert.equal(server.sessions.get(id(500)).seatId,'chair_s0');
+  assert.equal(await a.session.releaseSeat('chair_s0',id(500),oldAdmission),false,'late local release cannot target new admission');
+  b.session.reportEmote('wave');await frames(server,[a,b],2);
+  assert.equal(raw,0,'server double never even fans out raw payload to retired topic');
+  assert.equal([...a.avatars.values()][0].sample.emote?.id,'wave');
+  a.session.stop();b.session.stop();server.channels.delete(oldChannel);
+});
+
+test('delayed join is compensated before same-client-UUID next admission; stop leaves no ghost', async () => {
+  const server=serverFixture(),a=member(server,1,id(500)),original=a.client.rpc;
+  let release; a.client.rpc=async(name,args)=>{
+    const result=await original(name,args);
+    if(name==='join_world_club_room_v1'&&!release)await new Promise(r=>{release=r;});
+    return result;
+  };
+  const first=a.session.enter();await flush();const firstAdmission=server.sessions.get(id(500)).admissionId;
+  const next=a.session.enter();server.advance(1000);release();
+  assert.equal(await first,false);assert.equal(await next,true);await flush();
+  assert.notEqual(a.session.admissionId,firstAdmission);assert.equal(server.sessions.size,1);
+  const names=server.calls.filter(c=>['join_world_club_room_v1','leave_world_club_room_v1'].includes(c.name)).map(c=>c.name);
+  assert.deepEqual(names,['join_world_club_room_v1','leave_world_club_room_v1','join_world_club_room_v1']);
+  a.session.stop();await flush();assert.equal(server.sessions.size,0);
+});
+
+test('standing releases the admission that acquired the seat even after same-session replacement', async () => {
+  const anchor=CLUB_ROOM_SEATS[0],p={...anchor.standPoint},releases=[];
+  const controller={grounded:true,mounted:false,keys:new Set()},player={getLocalPosition:()=>({...p}),setLocalPosition:(x,y,z)=>Object.assign(p,{x,y,z}),setLocalEulerAngles(){}};
+  const session={admissionId:id(70),status:()=>({sessionId:id(10),online:true}),claimSeat:async()=>true,releaseSeat:async(...args)=>releases.push(args)};
+  const seating=createSeatInteraction({player,controller,getAnchors:()=>CLUB_ROOM_SEATS,getSpaceId:()=>CLUB_ROOM_ID,getPlaceZoneId:()=>CLUB_ROOM_ID});
+  const actions=createClubRoomSeatActions({session,seating,player,controller,getRoomId:()=>CLUB_ROOM_ID});
+  assert.equal(await actions.toggle(),true);session.admissionId=id(71);seating.standUp('replacement');await flush();
+  assert.deepEqual(releases,[[anchor.seatId,id(10),id(70)]]);actions.destroy();
 });

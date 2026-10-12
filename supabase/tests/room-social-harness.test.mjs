@@ -36,3 +36,10 @@ test('synthetic user RPCs run in separate bounded authenticated transactions', (
   assert.match(statement, /"is_anonymous":false/); assert.match(statement, /commit;$/);
   assert.throws(() => userTransaction("bad';commit;", 'select 1'));
 });
+
+import { assertLocalApi } from '../../scripts/room-social-realtime-harness.mjs';
+test('raw Realtime harness cannot connect to hosted URLs or override checked-in local port', () => {
+  assert.equal(assertLocalApi('http://127.0.0.1:54321').origin,'http://127.0.0.1:54321');
+  for(const value of ['https://example.supabase.co','http://localhost:54322','http://user:secret@localhost:54321','http://localhost:54321/realtime','http://localhost:54321?redirect=remote'])
+    assert.throws(()=>assertLocalApi(value));
+});

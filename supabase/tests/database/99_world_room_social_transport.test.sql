@@ -4,6 +4,26 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 select * from no_plan();
+select ok(not (select enabled from private.world_club_rooms),'club candidate starts CLOSED');
+update private.world_club_rooms set enabled=true;
+
+create temp table fixture_admissions(session_id uuid primary key,admission_id uuid) on commit drop;
+grant select,insert,update on fixture_admissions to authenticated;
+create function pg_temp.admission(p_session uuid) returns uuid language sql as $$
+  select coalesce((select admission_id from fixture_admissions where session_id=p_session),p_session)
+$$;
+create function pg_temp.join_club(p_room text,p_session uuid) returns jsonb language plpgsql as $$
+declare result jsonb;
+begin
+  result := public.join_world_club_room_v1(p_room,p_session);
+  if result->>'allowed'='true' then
+    insert into fixture_admissions values(p_session,(result->>'admissionId')::uuid)
+      on conflict(session_id) do update set admission_id=excluded.admission_id;
+  end if;
+  return result;
+end;
+$$;
+
 
 select ok(not (select enabled from private.world_room_chat_config where singleton), 'transport fixture starts CLOSED');
 select is((select relkind::text from pg_class where oid='realtime.messages'::regclass), 'p',
@@ -26,15 +46,15 @@ update private.world_room_chat_config set enabled=true where singleton;
 
 set local role authenticated;
 set local request.jwt.claims='{"sub":"e1000000-0000-4000-8000-000000000001","role":"authenticated","is_anonymous":false}';
-select is(public.join_world_club_room_v1('ROOM_CLUBHOUSE_01','e2000000-0000-4000-8000-000000000001')->>'allowed','true','sender club admission');
-select set_config('rs.sender',(public.join_world_room_chat_v1('club','ROOM_CLUBHOUSE_01','e2000000-0000-4000-8000-000000000001')->>'leaseId'),true);
+select is(pg_temp.join_club('ROOM_CLUBHOUSE_01','e2000000-0000-4000-8000-000000000001')->>'allowed','true','sender club admission');
+select set_config('rs.sender',(public.join_world_room_chat_v1('club','ROOM_CLUBHOUSE_01','e2000000-0000-4000-8000-000000000001',pg_temp.admission('e2000000-0000-4000-8000-000000000001'))->>'leaseId'),true);
 set local request.jwt.claims='{"sub":"e1000000-0000-4000-8000-000000000002","role":"authenticated","is_anonymous":false}';
-select is(public.join_world_club_room_v1('ROOM_CLUBHOUSE_01','e2000000-0000-4000-8000-000000000002')->>'allowed','true','recipient club admission');
-select set_config('rs.recipient',(public.join_world_room_chat_v1('club','ROOM_CLUBHOUSE_01','e2000000-0000-4000-8000-000000000002')->>'leaseId'),true);
+select is(pg_temp.join_club('ROOM_CLUBHOUSE_01','e2000000-0000-4000-8000-000000000002')->>'allowed','true','recipient club admission');
+select set_config('rs.recipient',(public.join_world_room_chat_v1('club','ROOM_CLUBHOUSE_01','e2000000-0000-4000-8000-000000000002',pg_temp.admission('e2000000-0000-4000-8000-000000000002'))->>'leaseId'),true);
 select set_config('rs.topic','world:room-chat:' || current_setting('rs.recipient'),true);
 set local request.jwt.claims='{"sub":"e1000000-0000-4000-8000-000000000001","role":"authenticated","is_anonymous":false}';
 select is(public.send_world_room_chat_v1(current_setting('rs.sender')::uuid,'실제 전송 검증')->>'ok','true','server chat send accepted');
-select is(public.publish_world_club_room_v1('ROOM_CLUBHOUSE_01','e2000000-0000-4000-8000-000000000001','action',
+select is(public.publish_world_club_room_v1('ROOM_CLUBHOUSE_01',pg_temp.admission('e2000000-0000-4000-8000-000000000001'),'action',
   '{"v":1,"id":7,"type":"jump","payload":{}}')->>'sent','true','server numeric action accepted');
 reset role;
 
@@ -46,7 +66,7 @@ select ok((select bool_and(private and extension='broadcast' and event='room_cha
   'provider envelope is private, canonical and attributed to the authenticated sender');
 select ok((select payload->>'inboxNonce'=(select inbox_nonce::text from private.world_room_chat_sessions where id=current_setting('rs.recipient')::uuid) from realtime.messages where topic=current_setting('rs.topic')), 'server fanout carries only the recipient capability');
 select is((select payload#>'{p,id}' from realtime.messages
-  where topic='world:club:ROOM_CLUBHOUSE_01:e2000000-0000-4000-8000-000000000002'), '7'::jsonb,
+  where topic=('world:club:ROOM_CLUBHOUSE_01:' || pg_temp.admission('e2000000-0000-4000-8000-000000000002')::text)), '7'::jsonb,
   'real provider preserves the numeric action ID');
 
 -- Deliberately permissive unrelated policies must never bypass either restrictive guard.
@@ -56,7 +76,7 @@ set local role authenticated;
 set local request.jwt.claims='{"sub":"e1000000-0000-4000-8000-000000000002","role":"authenticated","is_anonymous":false}';
 select set_config('realtime.topic',current_setting('rs.topic'),true);
 select is((select count(*) from realtime.messages where topic=current_setting('rs.topic')),1::bigint,'recipient reads own chat inbox');
-select is((select count(*) from realtime.messages where topic='world:club:ROOM_CLUBHOUSE_01:e2000000-0000-4000-8000-000000000002'),0::bigint,
+select is((select count(*) from realtime.messages where topic=('world:club:ROOM_CLUBHOUSE_01:' || pg_temp.admission('e2000000-0000-4000-8000-000000000002')::text)),0::bigint,
   'chat subscription cannot read the same account club inbox');
 -- The actual provider catches RLS errors and returns void. A successful-looking RPC is NOT
 -- proof of publication. Check both client-visible and administrator-visible rows below.
@@ -87,9 +107,9 @@ select throws_ok($$insert into realtime.messages(topic,extension,event,payload,p
   values(current_setting('rs.topic'),'broadcast','room_chat_v1','{}',true)$$,'42501',null,
   'campus subscription cannot write stored chat topic');
 select throws_ok($$insert into realtime.messages(topic,extension,event,payload,private)
-  values('world:club:ROOM_CLUBHOUSE_01:e2000000-0000-4000-8000-000000000002','broadcast','club-packet','{}',true)$$,'42501',null,
+  values(('world:club:ROOM_CLUBHOUSE_01:' || pg_temp.admission('e2000000-0000-4000-8000-000000000002')::text),'broadcast','club-packet','{}',true)$$,'42501',null,
   'campus subscription cannot write stored club topic');
-set local realtime.topic='world:club:ROOM_CLUBHOUSE_01:e2000000-0000-4000-8000-000000000002';
+select set_config('realtime.topic',('world:club:ROOM_CLUBHOUSE_01:' || pg_temp.admission('e2000000-0000-4000-8000-000000000002')::text),true);
 select is((select count(*) from realtime.messages where topic=current_setting('realtime.topic')),1::bigint,'recipient reads own club inbox');
 select is((select count(*) from realtime.messages where topic=current_setting('rs.topic')),0::bigint,'club subscription cannot read chat inbox');
 select throws_ok($$insert into realtime.messages(topic,extension,event,payload,private)
@@ -98,7 +118,7 @@ select throws_ok($$insert into realtime.messages(topic,extension,event,payload,p
 set local request.jwt.claims='{"sub":"e1000000-0000-4000-8000-000000000003","role":"authenticated","is_anonymous":false}';
 select set_config('realtime.topic',current_setting('rs.topic'),true);
 select is((select count(*) from realtime.messages where topic=current_setting('rs.topic')),0::bigint,'third account cannot read known chat inbox UUID');
-set local realtime.topic='world:club:ROOM_CLUBHOUSE_01:e2000000-0000-4000-8000-000000000002';
+select set_config('realtime.topic',('world:club:ROOM_CLUBHOUSE_01:' || pg_temp.admission('e2000000-0000-4000-8000-000000000002')::text),true);
 select is((select count(*) from realtime.messages where topic=current_setting('realtime.topic')),0::bigint,'third account cannot read known club inbox UUID');
 reset role;
 

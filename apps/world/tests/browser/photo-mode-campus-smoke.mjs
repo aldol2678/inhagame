@@ -245,8 +245,8 @@ async function desktopCase(startSmoke, TIMEOUT_MS) {
     await page.evaluate(() => {
       const online=window.__INHAGAME_P0__.online;
       const saved=Object.getOwnPropertyDescriptors(online), userId='90000000-0000-4000-8000-000000000001';
-      let sid=null, revision=0, nonce=crypto.randomUUID(), lastPose=null;
-      const snapshot=()=>({allowed:true,roomId:'ROOM_CLUBHOUSE_01',sessionId:sid,userId,capacity:6,
+      let sid=null, admissionId=null, revision=0, nonce=crypto.randomUUID(), lastPose=null;
+      const snapshot=()=>({allowed:true,roomId:'ROOM_CLUBHOUSE_01',sessionId:sid,admissionId,topic:`world:club:ROOM_CLUBHOUSE_01:${admissionId}`,userId,capacity:6,
         revision:++revision,leaseMs:20000,inboxNonce:nonce,
         participants:[{v:1,sessionId:sid,userId,displayName:'사진 검증',placeZoneId:'ROOM_CLUBHOUSE_01',joinedAt:Date.now()}],
         seats:[],poses:lastPose?[{sessionId:sid,packet:lastPose}]:[]});
@@ -254,10 +254,10 @@ async function desktopCase(startSmoke, TIMEOUT_MS) {
         realtime:{setAuth:async()=>{}},removeChannel:async()=>{},
         channel:()=>({on(){return this;},subscribe(fn){queueMicrotask(()=>fn('SUBSCRIBED'));return this;}}),
         async rpc(name,args){
-          if(name==='join_world_club_room_v1'){sid=args.p_session;nonce=crypto.randomUUID();return {data:snapshot()};}
-          if(name==='heartbeat_world_club_room_v1'&&sid===args.p_session){nonce=crypto.randomUUID();return {data:snapshot()};}
-          if(name==='leave_world_club_room_v1'){sid=null;return {data:{allowed:true}};}
-          if(name==='publish_world_club_room_v1'&&sid===args.p_session){if(args.p_event==='pose')lastPose=args.p_packet;return {data:{allowed:true,sent:true}};}
+          if(name==='join_world_club_room_v1'){if(sid!==args.p_session||!admissionId)admissionId=crypto.randomUUID();sid=args.p_session;nonce=crypto.randomUUID();return {data:snapshot()};}
+          if(name==='heartbeat_world_club_room_v1'&&admissionId===args.p_admission){nonce=crypto.randomUUID();return {data:snapshot()};}
+          if(name==='leave_world_club_room_v1'){if(admissionId===args.p_admission){sid=null;admissionId=null;lastPose=null;}return {data:{allowed:true}};}
+          if(name==='publish_world_club_room_v1'&&admissionId===args.p_admission){if(args.p_event==='pose')lastPose=args.p_packet;return {data:{allowed:true,sent:true}};}
           return {data:{allowed:false,reason:'SYNTHETIC_PHOTO_SCOPE_ONLY'}};
         }};
       Object.defineProperties(online,{userId:{configurable:true,get:()=>userId},

@@ -5,12 +5,13 @@ create extension if not exists pgtap with schema extensions;
 select * from no_plan();
 
 select ok(not (select enabled from private.world_room_chat_config where singleton), 'candidate starts CLOSED');
+select ok(private.world_room_chat_personal_authority_ready_v1(),'reviewed H3 helper definitions and tables are present');
 select ok(not has_table_privilege(r, 'private.world_room_chat_sessions', p), format('%s cannot %s room leases', r, p))
 from unnest(array['anon','authenticated']) r, unnest(array['select','insert','update','delete']) p;
 select ok(not has_table_privilege(r, 'private.world_room_chat_limits', p), format('%s cannot %s rate timestamps', r, p))
 from unnest(array['anon','authenticated']) r, unnest(array['select','insert','update','delete']) p;
 select ok(not has_function_privilege('anon', f, 'execute'), format('anon cannot execute %s', f)) from unnest(array[
-  'public.join_world_room_chat_v1(text,text,uuid)', 'public.renew_world_room_chat_v1(uuid)',
+  'public.join_world_room_chat_v1(text,text,uuid,uuid)', 'public.renew_world_room_chat_v1(uuid)',
   'public.send_world_room_chat_v1(uuid,text)', 'public.leave_world_room_chat_v1(uuid)',
   'public.can_receive_world_room_chat_v1(text)']) f;
 

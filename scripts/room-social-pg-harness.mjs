@@ -58,12 +58,12 @@ export function assertContendedBackends(rows, names) {
 }
 
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
-export async function waitUntil(check, { timeoutMs = 10000, description = 'condition' } = {}) {
+export async function waitUntil(check, { timeoutMs = 10000, pollMs = 25, description = 'condition' } = {}) {
   const deadline = Date.now() + timeoutMs;
   do {
     const result = await check();
     if (result) return result;
-    await pause(25);
+    await pause(pollMs);
   } while (Date.now() < deadline);
   throw new Error(`ROOM_SOCIAL_TIMEOUT: ${description}`);
 }

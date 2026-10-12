@@ -11,10 +11,10 @@ export const ROOM_CHAT_EVENT = 'room_chat_v1';
 export const ROOM_CHAT_RENEW_MS = 10_000;
 export const ROOM_CHAT_LEASE_MS = 30_000;
 export const ROOM_CHAT_RETRY_MS = 5_000;
-const contextKey = (c) => `${c.kind}:${c.roomId}:${c.sessionId}`;
+const contextKey = (c) => `${c.kind}:${c.roomId}:${c.sessionId}:${c.admissionId ?? ''}`;
 export function validRoomChatContext(c) {
-  return !!c && UUID.test(c.sessionId ?? '') && (c.kind === 'personal' && UUID.test(c.roomId ?? '') ||
-    c.kind === 'club' && c.roomId === 'ROOM_CLUBHOUSE_01');
+  return !!c && UUID.test(c.sessionId ?? '') && (c.kind === 'personal' && UUID.test(c.roomId ?? '') && c.admissionId == null ||
+    c.kind === 'club' && c.roomId === 'ROOM_CLUBHOUSE_01' && UUID.test(c.admissionId ?? ''));
 }
 
 export function parseRoomChatMessage(raw, context) {
@@ -94,6 +94,7 @@ export function createRoomChat({ getClient, getIdentity, clock = { now: () => Da
   function acceptLease(c, data) {
     if (data?.version !== 1 || data?.allowed !== true || data.kind !== c.kind || data.roomId !== c.roomId ||
       data.userId !== c.userId || data.sessionId !== c.sessionId || !UUID.test(data.leaseId ?? '') ||
+      data.admissionId !== (c.admissionId ?? null) ||
       data.topic !== `world:room-chat:${data.leaseId}` || data.ttlMs !== ROOM_CHAT_LEASE_MS) return false;
     if (!inbox.admit(data.inboxNonce, c.requestAt + ROOM_CHAT_LEASE_MS)) return false;
     c.leaseId = data.leaseId; c.topic = data.topic;
@@ -122,7 +123,7 @@ export function createRoomChat({ getClient, getIdentity, clock = { now: () => Da
       const joining = joinTail.catch(() => {}).then(async () => {
         if (myEpoch !== epoch || !identityMatches(c)) return null;
         const data = await rpc(c, 'join_world_room_chat_v1', {
-          p_kind: c.kind, p_room: c.roomId, p_session: c.sessionId
+          p_kind: c.kind, p_room: c.roomId, p_session: c.sessionId, p_admission: c.admissionId ?? null
         });
         if (myEpoch !== epoch || !identityMatches(c)) {
           if (UUID.test(data?.leaseId ?? '')) {
@@ -207,6 +208,12 @@ export function createRoomChat({ getClient, getIdentity, clock = { now: () => Da
   windowTarget?.addEventListener?.('offline', onOffline);
   windowTarget?.addEventListener?.('pagehide', stop);
   return { enter, stop, update, submit, feed, status, revalidateNow: () => renew(),
+    // Narrow caller-bound admission for friend plant CARE. UI/composer state is irrelevant;
+    // server CARE must independently recheck this short lease and current H3 authority.
+    personalVisitLease(roomId) {
+      return canChat() && current.kind === 'personal' && current.roomId === roomId
+        ? { leaseId: current.leaseId, sessionId: current.sessionId } : null;
+    },
     get canChat() { return canChat(); }, get signedIn() { return !!getIdentity?.()?.userId; },
     ownBubble: () => current ? trustedBubble(current.sessionId, current.userId)?.text ?? null : null,
     bubbleFor(sessionId, userId) {

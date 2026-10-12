@@ -11,10 +11,12 @@ import { CLUB_ROOM_ID, CLUB_ROOM_CAPACITY, CLUB_ROOM_SEAT_IDS, CLUB_ROOM_SEATS }
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const CLUB_HEARTBEAT_MS = 5_000;
 export const CLUB_LEASE_MS = 20_000;
-export function parseClubSnapshot(raw, { roomId, sessionId, userId }) {
+export function parseClubSnapshot(raw, { roomId, sessionId, userId, admissionId = null }) {
   const denied = { allowed: false, reason: typeof raw?.reason === "string" ? raw.reason : "DENIED" };
   if (raw?.allowed !== true || raw.roomId !== roomId || roomId !== CLUB_ROOM_ID ||
       raw.sessionId !== sessionId || raw.userId !== userId || raw.capacity !== CLUB_ROOM_CAPACITY ||
+      !UUID.test(raw.admissionId ?? "") || (admissionId && raw.admissionId !== admissionId) ||
+      raw.topic !== `world:club:${roomId}:${raw.admissionId}` ||
       !UUID.test(raw.inboxNonce ?? "") || !Number.isSafeInteger(raw.revision) || raw.revision < 0 ||
       !Number.isFinite(raw.leaseMs) || raw.leaseMs <= 0 || raw.leaseMs > CLUB_LEASE_MS ||
       !Array.isArray(raw.participants) || raw.participants.length > CLUB_ROOM_CAPACITY ||
@@ -40,7 +42,7 @@ export function parseClubSnapshot(raw, { roomId, sessionId, userId }) {
     if (parsed.ok && sessions.has(pose.sessionId)) poses.push({ sessionId: pose.sessionId, packet: parsed.pose });
   }
   return { allowed: true, roomId, sessionId, userId, capacity: CLUB_ROOM_CAPACITY,
-    inboxNonce: raw.inboxNonce, leaseMs: raw.leaseMs, revision: raw.revision, participants, seats, poses, claimed: raw.claimed === true,
+    admissionId: raw.admissionId, topic: raw.topic, inboxNonce: raw.inboxNonce, leaseMs: raw.leaseMs, revision: raw.revision, participants, seats, poses, claimed: raw.claimed === true,
     reason: typeof raw.reason === "string" ? raw.reason : null };
 }
 
@@ -52,6 +54,7 @@ export function createClubRoomSession({
 } = {}) {
   const poseSource = createPoseSource({ player, controller, isSeated });
   let active = null, epoch = 0, lastKey = "", getChatBubble = () => null;
+  let joinTail = Promise.resolve();
   const stats = { entered: 0, denied: 0, evicted: 0, heartbeats: 0, errors: 0, claims: 0 };
   const safe = (fn, value) => { try { return fn(value); } catch { return undefined; } };
   const ownsIdentity = current => getIdentity?.()?.userId === current.userId && getIdentity?.()?.guest !== true;
@@ -75,10 +78,11 @@ export function createClubRoomSession({
     if (!force && key === lastKey) return;
     lastKey = key; safe(onChange, value);
   }
-  function releaseAdmission(current) {
-    try { Promise.resolve(current.client.rpc("leave_world_club_room_v1", {
-      p_room: current.roomId, p_session: current.sessionId
-    })).catch(() => {}); } catch { /* lease expiry is the reliable disconnect fallback */ }
+  async function releaseAdmission(current, admissionId = current.admissionId) {
+    if (!UUID.test(admissionId ?? "")) return;
+    try { await current.client.rpc("leave_world_club_room_v1", {
+      p_room: current.roomId, p_admission: admissionId
+    }); } catch { /* lease expiry is the reliable disconnect fallback */ }
   }
   function stop() {
     epoch += 1;
@@ -86,7 +90,7 @@ export function createClubRoomSession({
     if (previous) {
       if (previous.snapshot?.seats.some(s => s.sessionId === previous.sessionId)) safe(onSeatLost, { roomId: previous.roomId, reason: "STOPPED" });
       safe(() => previous.net?.stop()); safe(() => previous.transport?.destroy?.()); safe(() => previous.view?.clear());
-      releaseAdmission(previous);
+      void releaseAdmission(previous);
     }
     emit(true); return !!previous;
   }
@@ -103,6 +107,7 @@ export function createClubRoomSession({
     // Heartbeat and seat responses can cross in flight. Only server order may change occupancy.
     if (snapshot.revision < (current.snapshot?.revision ?? -1)) return true;
     const oldSeat = current.snapshot?.seats.find(s => s.sessionId === current.sessionId)?.seatId;
+    current.admissionId = snapshot.admissionId;
     current.snapshot = snapshot;
     // Request start is conservative: delayed responses never extend a lease beyond the server.
     current.leaseUntil = requestedAt + snapshot.leaseMs;
@@ -122,17 +127,30 @@ export function createClubRoomSession({
     const sessionId = randomId();
     if (!UUID.test(sessionId ?? "")) return false;
     const myEpoch = ++epoch;
-    const current = active = { roomId, sessionId, userId: identity.userId, client,
+    const current = active = { roomId, sessionId, admissionId: null, userId: identity.userId, client,
       net: null, view: null, transport: null, snapshot: null, leaseUntil: 0, checking: false,
       seatPending: false, lastHeartbeatAt: clock.now(), wasOnline: false };
     emit(true);
     try {
       const requestedAt = clock.now();
-      const { data, error } = await client.rpc("join_world_club_room_v1", { p_room: roomId, p_session: sessionId });
-      if (myEpoch !== epoch || active !== current) { releaseAdmission(current); return false; }
+      // Serialize local admission intents. A delayed older join must revoke its own returned
+      // admission before a new join, even when both attempts reuse the same client pose UUID.
+      const joining = joinTail.catch(() => {}).then(async () => {
+        if (myEpoch !== epoch || active !== current) return null;
+        const result = await client.rpc("join_world_club_room_v1", { p_room: roomId, p_session: sessionId });
+        if (myEpoch !== epoch || active !== current) {
+          await releaseAdmission(current, result?.data?.admissionId);
+          return null;
+        }
+        return result;
+      });
+      joinTail = joining.catch(() => {});
+      const result = await joining;
+      if (myEpoch !== epoch || active !== current) return false;
+      const { data, error } = result ?? {};
       if (error) throw error;
       if (!acceptSnapshot(current, data, requestedAt)) { stats.denied += 1; evict(current, data?.reason ?? "DENIED"); return false; }
-      current.transport = createTransport(client, { roomId, sessionId, userId: current.userId, clock,
+      current.transport = createTransport(client, { roomId, sessionId, admissionId: current.admissionId, userId: current.userId, clock,
         onSnapshot: (raw, requestedAt) => acceptSnapshot(current, raw, requestedAt), onDenied: reason => evict(current, reason) });
       current.transport.setSnapshot?.(current.snapshot, current.leaseUntil);
       current.net = new NetworkManager({ transport: current.transport, clock,
@@ -153,7 +171,7 @@ export function createClubRoomSession({
     const requestedAt = clock.now();
     try {
       const { data, error } = await current.client.rpc("heartbeat_world_club_room_v1", {
-        p_room: current.roomId, p_session: current.sessionId
+        p_room: current.roomId, p_admission: current.admissionId
       });
       if (active !== current) return false;
       if (error) throw error;
@@ -162,15 +180,15 @@ export function createClubRoomSession({
     } catch { stats.errors += 1; return false; }
     finally { current.checking = false; current.lastHeartbeatAt = clock.now(); }
   }
-  async function seatMutation(name, seatId, expectedSessionId, claim) {
+  async function seatMutation(name, seatId, expectedSessionId, expectedAdmissionId, claim) {
     const current = active;
-    if (!current || current.sessionId !== expectedSessionId || !ownsIdentity(current) ||
+    if (!current || current.sessionId !== expectedSessionId || current.admissionId !== expectedAdmissionId || !ownsIdentity(current) ||
         !CLUB_ROOM_SEAT_IDS.includes(seatId) || (claim && (!status().online || current.seatPending))) return false;
     if (claim) current.seatPending = true;
     try {
       const requestedAt = clock.now();
       const { data, error } = await current.client.rpc(name, {
-        p_room: current.roomId, p_session: current.sessionId, p_seat: seatId
+        p_room: current.roomId, p_admission: current.admissionId, p_seat: seatId
       });
       if (active !== current || !ownsIdentity(current)) return false;
       if (error) throw error;
@@ -200,8 +218,8 @@ export function createClubRoomSession({
   }
   return {
     enter, stop, update, status, revalidateNow: () => revalidate(),
-    claimSeat: seatId => seatMutation("claim_world_club_room_seat_v1", seatId, active?.sessionId, true),
-    releaseSeat: (seatId, sessionId = active?.sessionId) => seatMutation("release_world_club_room_seat_v1", seatId, sessionId, false),
+    claimSeat: seatId => seatMutation("claim_world_club_room_seat_v1", seatId, active?.sessionId, active?.admissionId, true),
+    releaseSeat: (seatId, sessionId = active?.sessionId, admissionId = active?.admissionId) => seatMutation("release_world_club_room_seat_v1", seatId, sessionId, admissionId, false),
     reportEmote: id => status().online && active.net.reportEmote(id) === true,
     setEquipment: value => active?.net?.setEquipment(value ?? null) === true,
     forcePose() { if (!active?.net) return false; active.net.publisher.forceSnapshot(); return true; },
@@ -217,6 +235,7 @@ export function createClubRoomSession({
       return p ? { ...p, roomId: active.roomId, role: "member" } : null;
     },
     get active() { return !!active; },
+    get admissionId() { return active?.admissionId ?? null; },
     get stats() { return { ...stats, liveChannels: active?.transport?.liveChannelCount ?? 0, avatars: active?.view?.size ?? 0 }; }
   };
 }

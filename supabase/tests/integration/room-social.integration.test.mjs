@@ -10,7 +10,7 @@ import { encodeAction, validateAction, validatePresence, EMOTE_IDS } from '../..
 const db = createPgHarness();
 const users = Array.from({ length: 8 }, () => randomUUID());
 const userList = users.map(lit).join(',');
-const sessionIds = new Set();
+const sessionIds = new Set(), admissions = new Map(), chatTopics = new Set();
 const freshSession = () => { const id = randomUUID(); sessionIds.add(id); return id; };
 const call = (name, args) => `public.${name}(${args.map(value => value === null ? 'null' : lit(value)).join(',')})`;
 const rpc = (user, name, args) => db.asUser(user, `select ${call(name, args)}`);
@@ -19,14 +19,16 @@ const join = async user => {
   const result = await rpc(user, 'join_world_club_room_v1', [ROOM_ID, sessionId]);
   assert.equal(result.allowed, true, JSON.stringify({allowed:result.allowed,reason:result.reason}));
   assert.ok(result.participants.every(p => validatePresence(p).ok));
-  return sessionId;
+  admissions.set(result.admissionId, result);
+  return result.admissionId;
 };
 const liveCount = () => db.json(`select count(*)::int from private.world_club_room_sessions where room_id=${lit(ROOM_ID)}`);
-const chatJoin = (user, sessionId) => rpc(user, 'join_world_room_chat_v1', ['club', ROOM_ID, sessionId]);
+const chatJoin = async (user, admissionId) => { const result = await rpc(user, 'join_world_room_chat_v1', ['club', ROOM_ID, admissions.get(admissionId).sessionId, admissionId]); if(result.allowed) chatTopics.add(result.topic); return result; };
 
 test.before(async () => {
   const versions = await db.json("select jsonb_agg(version order by version) from supabase_migrations.schema_migrations");
-  for (const version of ['20261001213132', '20261012010000', '20261012011000']) assert.ok(versions.includes(version), `full replay missing ${version}`);
+  for (const version of ['20261001213132', '20261012023000', '20261012023100']) assert.ok(versions.includes(version), `full replay missing ${version}`);
+  assert.equal(await db.json('select enabled from private.world_club_rooms'),false,'club starts CLOSED');
   assert.equal(await liveCount(), 0, 'room-social suite must start in an empty disposable room');
   assert.equal(await db.json('select enabled from private.world_room_chat_config where singleton'), false,
     'candidate activation must remain CLOSED outside the isolated fixture');
@@ -40,18 +42,19 @@ test.beforeEach(async () => {
   await db.query(`delete from private.world_club_room_sessions where user_id in (${userList});
     delete from private.world_room_chat_sessions where user_id in (${userList});
     delete from private.world_room_chat_limits where user_id in (${userList});
-    update private.world_club_room_session_ids set created_at=clock_timestamp()-interval '2 seconds' where user_id in (${userList});
-    update private.world_room_chat_config set enabled=false where singleton;`);
+    delete from private.world_club_room_admission_limits where user_id in (${userList});
+    select private.world_room_cleanup_v1();
+    update private.world_room_chat_config set enabled=false where singleton;
+    update private.world_club_rooms set enabled=true;`);
 });
 
 test.after(async () => {
   // Only this suite's synthetic identities and topics are removed. The default feature flag is restored.
   await db.query(`update private.world_room_chat_config set enabled=false where singleton;
-    delete from realtime.messages where topic in (
-      select 'world:room-chat:' || id::text from private.world_room_chat_sessions where user_id in (${userList})
-      union all select 'world:club:' || room_id || ':' || session_id::text from private.world_club_room_session_ids where user_id in (${userList}));
+    update private.world_club_rooms set enabled=false;
+    delete from realtime.messages where topic in (${[...admissions.values()].map(v=>v.topic).concat([...chatTopics]).map(lit).join(',') || "''"});
     delete from auth.users where id in (${userList});
-    delete from private.world_club_room_session_ids where user_id in (${userList});`);
+    delete from private.world_club_room_admission_limits where user_id in (${userList});`);
   assert.equal(await db.json('select enabled from private.world_room_chat_config where singleton'), false);
   assert.equal(await db.json(`select count(*)::int from auth.users where id in (${userList})`), 0);
 });
@@ -60,7 +63,7 @@ test('replayed authority is CLOSED and clients cannot mutate metadata or forge p
   const permissions = await db.json(`select jsonb_build_object(
     'clientConfig',has_table_privilege('authenticated','private.world_room_chat_config','update'),
     'clientMembership',has_table_privilege('authenticated','private.world_club_room_sessions','insert'),
-    'clientLedger',has_table_privilege('authenticated','private.world_club_room_session_ids','insert'),
+    'clientLedger',has_table_privilege('authenticated','private.world_club_room_admission_limits','insert'),
     'clientChatRows',has_table_privilege('authenticated','private.world_room_chat_sessions','select'),
     'clientFanout',has_function_privilege('authenticated','private.world_club_room_fanout_v1(text,uuid,text,jsonb,jsonb)','execute'))`);
   assert.ok(Object.values(permissions).every(value => value === false), JSON.stringify(permissions));
@@ -115,17 +118,18 @@ test('all six chairs have one winner under real two-account claim contention', a
 
 test('competing replacement UUIDs preserve one account admission; stale leave cannot erase it', async () => {
   const user = users[0], oldSession = await join(user);
-  await db.query(`update private.world_club_room_session_ids set created_at=clock_timestamp()-interval '2 seconds' where user_id=${lit(user)}`);
+  await db.query(`update private.world_club_room_admission_limits set created_at=clock_timestamp()-interval '2 seconds' where user_id=${lit(user)}`);
   const replacementIds = [freshSession(), freshSession()];
   const { values } = await db.race(replacementIds.map(id => ({ userId: user,
     expression: call('join_world_club_room_v1', [ROOM_ID, id]) })), 'replacement');
   assert.equal(values.filter(value => value.allowed).length, 1);
   assert.equal(values.find(value => !value.allowed).reason, 'JOIN_COOLDOWN');
-  const current = replacementIds[values.findIndex(value => value.allowed)];
+  const current = values.find(value => value.allowed).admissionId;
+  admissions.set(current,values.find(value => value.allowed));
   assert.equal((await rpc(user, 'leave_world_club_room_v1', [ROOM_ID, oldSession])).allowed, false);
   assert.equal((await rpc(user, 'heartbeat_world_club_room_v1', [ROOM_ID, current])).allowed, true);
   assert.equal(await liveCount(), 1);
-  assert.equal((await rpc(user, 'join_world_club_room_v1', [ROOM_ID, oldSession])).reason, 'SESSION_REUSED');
+  assert.equal((await rpc(user, 'join_world_club_room_v1', [ROOM_ID, admissions.get(oldSession).sessionId])).reason, 'JOIN_COOLDOWN');
 });
 
 test('expired admission and chair are reclaimed without reviving the old inbox', async () => {
@@ -234,4 +238,70 @@ test('production numeric actions survive actual provider SQL insertion and clien
     assert.equal(envelopes[0].presence.userId, sender);
   }
   await db.query(`delete from realtime.messages where topic=${lit(topic)}`);
+});
+
+
+test('reusing a client pose UUID creates a fresh inbox and never resurrects old club/chat authority', async () => {
+  const user=users[0], oldId=await join(user), old=admissions.get(oldId);
+  await db.query('update private.world_room_chat_config set enabled=true where singleton');
+  try {
+    const oldChat=await chatJoin(user,oldId); assert.equal(oldChat.allowed,true);
+    assert.equal((await rpc(user,'leave_world_club_room_v1',[ROOM_ID,oldId])).allowed,true);
+    await db.query(`update private.world_club_room_admission_limits set created_at=clock_timestamp()-interval '2 seconds' where user_id=${lit(user)}`);
+    const fresh=await rpc(user,'join_world_club_room_v1',[ROOM_ID,old.sessionId]);
+    assert.equal(fresh.allowed,true); assert.equal(fresh.sessionId,old.sessionId);
+    assert.notEqual(fresh.admissionId,oldId); assert.notEqual(fresh.topic,old.topic); admissions.set(fresh.admissionId,fresh);
+    for(const operation of ['heartbeat_world_club_room_v1','leave_world_club_room_v1'])
+      assert.equal((await rpc(user,operation,[ROOM_ID,oldId])).allowed,false);
+    for(const operation of ['claim_world_club_room_seat_v1','release_world_club_room_seat_v1'])
+      assert.equal((await rpc(user,operation,[ROOM_ID,oldId,'chair_s0'])).allowed,false);
+    assert.equal((await rpc(user,'publish_world_club_room_v1',[ROOM_ID,oldId,'presence','{}'])).allowed,false);
+    assert.equal(await rpc(user,'can_access_world_club_room_realtime_v1',[old.topic]),false);
+    assert.equal((await rpc(user,'send_world_room_chat_v1',[oldChat.leaseId,'old admission'])).ok,false);
+    assert.equal((await rpc(user,'renew_world_room_chat_v1',[oldChat.leaseId])).allowed,false);
+    assert.equal(await rpc(user,'can_receive_world_room_chat_v1',[oldChat.topic]),false);
+    assert.equal((await rpc(user,'join_world_room_chat_v1',['club',ROOM_ID,old.sessionId,oldId])).allowed,false);
+    const freshChat=await chatJoin(user,fresh.admissionId);assert.equal(freshChat.allowed,true);
+    assert.notEqual(freshChat.leaseId,oldChat.leaseId);
+    assert.equal((await rpc(user,'heartbeat_world_club_room_v1',[ROOM_ID,fresh.admissionId])).allowed,true);
+  } finally { await db.query('update private.world_room_chat_config set enabled=false where singleton'); }
+});
+
+test('actual pg_cron deletes expired identifying metadata without any user activity', async t => {
+  assert.equal(await db.json("select exists(select 1 from pg_extension where extname='pg_cron')"),true);
+  assert.equal(await db.json("select count(*)::int from cron.job where jobname='world-room-social-cleanup-v1' and active and schedule='* * * * *' and command='select private.world_room_cleanup_v1();'"),1);
+  assert.equal(await db.json("select to_regclass('private.world_club_room_session_ids') is null"),true,'no permanent tombstone table exists');
+  const user=users[0], member=await join(user);
+  await db.query('update private.world_room_chat_config set enabled=true where singleton');
+  try {
+    const chat=await chatJoin(user,member);assert.equal(chat.allowed,true);
+    await db.query(`update private.world_club_room_sessions set lease_expires_at=clock_timestamp()-interval '1 second' where user_id=${lit(user)};
+      update private.world_club_room_admission_limits set created_at=clock_timestamp()-interval '1 hour 1 second' where user_id=${lit(user)};
+      insert into private.world_room_chat_limits(user_id,sent_at) values(${lit(user)},array[clock_timestamp()-interval '6 seconds']);`);
+    const before=await db.json('select to_jsonb(last_succeeded_at) from private.world_room_cleanup_state');
+    await waitUntil(async()=> {
+      const state=await db.json(`select jsonb_build_object('club',(select count(*) from private.world_club_room_sessions where user_id=${lit(user)}),
+        'chat',(select count(*) from private.world_room_chat_sessions where user_id=${lit(user)}),
+        'rates',(select count(*) from private.world_room_chat_limits where user_id=${lit(user)}),
+        'admissions',(select count(*) from private.world_club_room_admission_limits where user_id=${lit(user)}),
+        'advanced',(select last_succeeded_at > ${lit(before)}::timestamptz from private.world_room_cleanup_state))`);
+      return state.advanced && [state.club,state.chat,state.rates,state.admissions].every(v=>v===0);
+    },{timeoutMs:90000,pollMs:1000,description:'actual once/minute pg_cron worker removes old rows'});
+    t.diagnostic(JSON.stringify({case:'actual-pg-cron-expiry',backgroundCleanupObserved:true,identifyingRowsRemaining:0}));
+  } finally { await db.query('update private.world_room_chat_config set enabled=false where singleton'); }
+});
+
+test('cleanup outage fails closed and account deletion cascades every application metadata row', async () => {
+  const user=users[7], member=await join(user);
+  await db.query('update private.world_room_chat_config set enabled=true where singleton');
+  try {
+    const chat=await chatJoin(user,member);assert.equal(chat.allowed,true);
+    assert.equal((await rpc(user,'send_world_room_chat_v1',[chat.leaseId,'account cleanup'])).ok,true);
+    await db.query("update private.world_room_cleanup_state set last_succeeded_at=clock_timestamp()-interval '91 seconds'");
+    assert.equal((await rpc(user,'heartbeat_world_club_room_v1',[ROOM_ID,member])).reason,'CLEANUP_UNAVAILABLE');
+    assert.equal((await rpc(user,'send_world_room_chat_v1',[chat.leaseId,'cleanup unavailable'])).ok,false);
+    await db.query(`select private.world_room_cleanup_v1(); delete from auth.users where id=${lit(user)}`);
+    for(const table of ['world_club_room_sessions','world_club_room_admission_limits','world_room_chat_sessions','world_room_chat_limits'])
+      assert.equal(await db.json(`select count(*)::int from private.${table} where user_id=${lit(user)}`),0);
+  } finally { await db.query('select private.world_room_cleanup_v1(); update private.world_room_chat_config set enabled=false where singleton'); }
 });

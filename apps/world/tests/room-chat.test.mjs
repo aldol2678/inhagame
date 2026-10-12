@@ -16,7 +16,7 @@ function fixture() {
   const pair = (a, b) => [a, b].sort().join(':');
   const allowed = (u) => !denied.has(u);
   const dataFor = l => ({ version: 1, allowed: true, leaseId: l.id, inboxNonce: l.inboxNonce, kind: l.kind, roomId: l.roomId,
-    sessionId: l.sessionId, userId: l.userId, topic: `world:room-chat:${l.id}`, ttlMs: 30000 });
+    sessionId: l.sessionId, admissionId:l.admissionId, userId: l.userId, topic: `world:room-chat:${l.id}`, ttlMs: 30000 });
   const client = userId => ({
     auth: { getSession: async () => ({ data: { session: { user: { id: userId, is_anonymous: false }, access_token: 'fixture-token' } } }) },
     realtime: { setAuth: async () => {} },
@@ -27,7 +27,7 @@ function fixture() {
       if (name === 'join_world_room_chat_v1') {
         if (!allowed(userId)) return { data: { allowed: false } };
         for (const [key, l] of leases) if (l.userId === userId) leases.delete(key);
-        const l = { id: id(++serial), inboxNonce: id(++serial), userId, kind: args.p_kind, roomId: args.p_room, sessionId: args.p_session, expires: clock.t + 30000, sent: [] };
+        const l = { id: id(++serial), inboxNonce: id(++serial), userId, kind: args.p_kind, roomId: args.p_room, sessionId: args.p_session, admissionId:args.p_admission??null, expires: clock.t + 30000, sent: [] };
         leases.set(l.id, l); return { data: dataFor(l) };
       }
       const l = leases.get(args.p_lease);
@@ -74,7 +74,9 @@ async function join(f, userId, n, roomId = room) {
 
 test('strict personal/club contexts and sender envelopes reject malformed or cross-room messages', () => {
   assert.equal(validRoomChatContext(context(20)), true);
-  assert.equal(validRoomChatContext({ ...context(20), kind: 'club', roomId: 'ROOM_CLUBHOUSE_01' }), true);
+  assert.equal(validRoomChatContext({ ...context(20), kind: 'club', roomId: 'ROOM_CLUBHOUSE_01',admissionId:id(80) }), true);
+  assert.equal(validRoomChatContext({ ...context(20), kind: 'club', roomId: 'ROOM_CLUBHOUSE_01' }), false);
+  assert.equal(validRoomChatContext({ ...context(20), admissionId:id(80) }), false);
   for (const c of [{ ...context(20), roomId: 'AREA_MAIN' }, { ...context(20), sessionId: 'spoof' }, { ...context(20), kind: 'campus' }])
     assert.equal(validRoomChatContext(c), false);
   const msg = { v: 1, id: id(99), ...context(20), userId: owner, name: '방주인', text: '안녕' };
@@ -257,4 +259,25 @@ test('cached provider callbacks cannot inject another inbox capability or surviv
   stale.receive({payload:{...packet,id:id(8003),inboxNonce:own().inboxNonce}});
   assert.equal(b.chat.feed.entries.length,0,'permission loss clears authority and feed even for cached callbacks');
   a.chat.destroy(); b.chat.destroy();
+});
+
+test('club reentry with the same pose UUID changes chat source and fences old acknowledgements', async () => {
+  const f=fixture(),a=f.make(owner),club={kind:'club',roomId:'ROOM_CLUBHOUSE_01',sessionId:id(20),admissionId:id(70)};
+  await a.chat.enter(club);await flush();await a.chat.submit('old admission');
+  const old=a.channel,release=f.deferResponse(),pending=a.chat.submit('old pending');await flush();
+  await a.chat.enter({...club,admissionId:id(71)});await flush();
+  assert.equal(old.removed,true);assert.equal(a.chat.feed.entries.length,0);assert.equal(a.chat.canChat,true);
+  release();assert.equal((await pending).result,'cancelled');assert.equal(a.chat.ownBubble(),null);
+  assert.equal([...f.leases.values()][0].admissionId,id(71));
+});
+
+test('room-entry lease is available for friend CARE without opening or using the chat composer', async () => {
+  const f=fixture(),a=await join(f,friend,20);
+  assert.deepEqual(a.chat.personalVisitLease(room),{leaseId:[...f.leases.keys()][0],sessionId:id(20)});
+  assert.equal(a.chat.feed.entries.length,0);assert.equal(f.calls.some(c=>c.name==='send_world_room_chat_v1'),false);
+  assert.equal(a.chat.personalVisitLease(otherRoom),null);
+  assert.equal('leaseId' in a.chat.status(),false,'debug status excludes admission credential');
+  f.clock.t+=30001;assert.equal(a.chat.personalVisitLease(room),null);a.chat.stop();assert.equal(a.chat.personalVisitLease(room),null);
+  const b=await join(f,friend,21);b.setIdentity(owner);assert.equal(b.chat.personalVisitLease(room),null);
+  const c=await join(f,owner,22);f.denied.add(owner);await c.chat.revalidateNow();assert.equal(c.chat.personalVisitLease(room),null);
 });

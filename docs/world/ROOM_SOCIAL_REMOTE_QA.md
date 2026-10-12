@@ -2,8 +2,9 @@
 
 This draft contains friend-room chat and shared-club multiplayer only. Mobile boot recovery is
 maintained separately. Final compatibility verification is frozen against
-`7967c6ea6d71a45746c996bc57ff8e26309385ba` (Phone menu integration and retired venue preserved).
-Production activation, hosted database changes, merge and deployment are not authorized.
+`3aaec7999c8d7a52bc73c0749c1af83586e8a558` (starter furniture, Phone menu and retired venue preserved).
+The 8bde3d4 baseline passed 26 workflows against 7967c6e; it does not certify this revised head.
+Hosted database writes, merge and deployment await the final parent-coordinated execution plan.
 `vercel.json` remains main-only; this PR must not create a Vercel Preview deployment.
 
 ## Separate evidence layers
@@ -63,7 +64,7 @@ WORLD_SMOKE_DISABLE_WEBGPU=1 WORLD_SMOKE_BROWSER=chrome \
 
 ## Operating boundary
 
-Chat starts CLOSED in `private.world_room_chat_config` and there is no client toggle. No hosted
+Chat starts CLOSED in `private.world_room_chat_config`; club admission independently starts CLOSED in `private.world_club_rooms.enabled`. There is no client toggle. No hosted
 DB/Realtime configuration is modified by these workflows. Existing Phone, ZIP-room visual and
 room-photo code is preserved; existing regression workflows remain enabled.
 
@@ -71,7 +72,7 @@ UI transcripts clear on leaving/switching/reconnecting. This is not zero-retenti
 Database Broadcast stores delivery payloads in `realtime.messages` and documents deletion after
 3 days. See [Supabase documentation](https://supabase.com/docs/guides/realtime/broadcast#broadcast-from-the-database).
 That retention requires separate disclosure/approval before activation; it is not an E2EE claim.
-Real two-account Realtime and physical mobile acceptance remain a distinct activation gate.
+Disposable real two-account Realtime is covered by the new raw-WebSocket integration test and must pass on this head. Hosted production smoke remains an activation step. Physical mobile checks are a disclosed post-merge check, not the sole reason to hold the candidate.
 
 ## First remote head: findings preserved, not acceptance evidence
 
@@ -94,3 +95,11 @@ placeholder, not the private production mascot asset.
 Subsequent head checks must pass before treating either correction as remotely verified. PGlite
 fault injection changes only its synthetic provider, and browser authority attacks use synthetic
 transport. Live two-account provider delivery remains a separate, explicitly unverified layer.
+
+## Fresh-admission revision
+
+The revised database integration adds loopback-only actual Supabase WebSocket delivery checks: establish baseline raw club/chat receipt, retire admissions, reuse client pose UUID, and require zero raw new payloads to old sockets while the new sockets receive. It never logs JWTs, keys, nonce values or message payloads. Row-effect and actual socket evidence are separate assertions.
+
+Finite rate/lease/H3 cleanup, cleanup-health fail-closed behavior, current-time checks after locks, and visitor CARE admission checks are new to this revision and invalidate prior baseline evidence for those behaviors. The runbook distinguishes healthy-scheduler bounds from outage retention.
+
+Local checkpoint after the privacy/main3aa integration: public-ci aggregate PASS (World 4300, all other app tests/builds, Recast, edge and migration checks), focused room client 60/60, QA PASS. The first local aggregate stopped at an unwritable default npm cache; the same checks with an owned temporary cache passed. Full PostgreSQL and WebSocket stages still require the final remote head.

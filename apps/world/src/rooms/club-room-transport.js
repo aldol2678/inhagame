@@ -9,17 +9,18 @@ import { CLUB_ROOM_ID } from "./club-room-seats.js";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const FAILED = new Set(["CHANNEL_ERROR", "TIMED_OUT", "CLOSED"]);
 export const CLUB_POSE_INTERVAL_MS = 120;
-export function clubRoomTopic(roomId, sessionId) {
-  if (roomId !== CLUB_ROOM_ID || !UUID.test(sessionId ?? "")) throw new TypeError("Invalid club session");
-  return `world:club:${roomId}:${sessionId.toLowerCase()}`;
+export function clubRoomTopic(roomId, admissionId) {
+  if (roomId !== CLUB_ROOM_ID || !UUID.test(admissionId ?? "")) throw new TypeError("Invalid club admission");
+  return `world:club:${roomId}:${admissionId.toLowerCase()}`;
 }
 
 export class ClubRoomTransport {
-  constructor(client, { roomId, sessionId, userId, clock = { now: () => Date.now() },
+  constructor(client, { roomId, sessionId, admissionId, userId, clock = { now: () => Date.now() },
     onSnapshot = () => {}, onDenied = () => {}, windowTarget = globalThis.window } = {}) {
     if (!client?.rpc || !client?.channel || !client?.auth) throw new TypeError("Club transport needs a Supabase client");
-    clubRoomTopic(roomId, sessionId);
+    clubRoomTopic(roomId, admissionId);
     this.client = client; this.roomId = roomId; this.sessionId = sessionId; this.userId = userId;
+    this.admissionId = admissionId;
     this.inbox = createInboxAuthority(clock, 20_000);
     this.clock = clock; this.onSnapshot = onSnapshot; this.onDenied = onDenied; this.windowTarget = windowTarget;
     this.handlers = { status: new Set(), presence: new Set(), pose: new Set(), action: new Set() };
@@ -40,6 +41,7 @@ export class ClubRoomTransport {
     this.emit("status", { status: TransportStatus.DISCONNECTED, reason });
   }
   setSnapshot(snapshot, validUntil) {
+    if (snapshot.admissionId !== this.admissionId || snapshot.topic !== clubRoomTopic(this.roomId, this.admissionId)) return;
     if (validUntil !== undefined && !this.inbox.admit(snapshot.inboxNonce, validUntil)) return;
     this.snapshot = snapshot;
     if (!this.entry?.subscribed) return;
@@ -60,7 +62,7 @@ export class ClubRoomTransport {
       }
       // Revalidate before every reconnect. An expired UUID is never re-admitted by a transport.
       const requestedAt = this.clock.now();
-      const result = await this.client.rpc("heartbeat_world_club_room_v1", { p_room: this.roomId, p_session: this.sessionId });
+      const result = await this.client.rpc("heartbeat_world_club_room_v1", { p_room: this.roomId, p_admission: this.admissionId });
       if (epoch !== this.epoch) return;
       if (result.error) throw result.error;
       if (!this.onSnapshot(result.data, requestedAt)) { this.onDenied(result.data?.reason ?? "DENIED"); return; }
@@ -75,7 +77,7 @@ export class ClubRoomTransport {
   joinPlaceZone(placeZoneId, presence) {
     if (placeZoneId !== this.roomId || !this.connected) return;
     this.leavePlaceZone();
-    const channel = this.client.channel(clubRoomTopic(this.roomId, this.sessionId), {
+    const channel = this.client.channel(clubRoomTopic(this.roomId, this.admissionId), {
       config: { private: true, broadcast: { self: false, ack: false } }
     });
     const entry = this.entry = { channel, subscribed: false };
@@ -109,7 +111,7 @@ export class ClubRoomTransport {
     const epoch = this.epoch;
     try {
       const { data, error } = await this.client.rpc("publish_world_club_room_v1", {
-        p_room: this.roomId, p_session: this.sessionId, p_event: event, p_packet: packet
+        p_room: this.roomId, p_admission: this.admissionId, p_event: event, p_packet: packet
       });
       if (epoch !== this.epoch) return;
       if (error) throw error;

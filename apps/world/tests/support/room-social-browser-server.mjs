@@ -9,9 +9,9 @@ export function browserSocialServer() {
   const club = serverFixture(), leases = new Map(), subscribers = new Map(), denied = new Set(), blocked = new Set(), limits = new Map();
   const allowed = l => !denied.has(l.userId) && l.expires > Date.now() &&
     (l.kind === 'personal' ? [socialUser(1),socialUser(2)].includes(l.userId) :
-      club.sessions.get(l.sessionId)?.userId === l.userId);
+      club.sessions.get(l.sessionId)?.userId === l.userId && club.sessions.get(l.sessionId)?.admissionId === l.admissionId && club.sessions.get(l.sessionId)?.expires>club.clock.now());
   const leaseData = l => ({ version:1, allowed:true, leaseId:l.id, inboxNonce:l.inboxNonce, kind:l.kind, roomId:l.roomId,
-    userId:l.userId, sessionId:l.sessionId, topic:`world:room-chat:${l.id}`, ttlMs:30000 });
+    userId:l.userId, sessionId:l.sessionId, admissionId:l.admissionId, topic:`world:room-chat:${l.id}`, ttlMs:30000 });
   const pair = (a,b) => [a,b].sort().join(':');
   const sync = topic => {
     const state = Object.fromEntries([...subscribers.values()].filter(s=>s.topic===topic && s.presence).map(s=>[s.presence.sessionId,[s.presence]]));
@@ -22,7 +22,7 @@ export function browserSocialServer() {
     if (name === 'check_world_room_access_v1') return { data:{ roomId:args.p_room, allowed:!denied.has(userId),
       role:userId===socialUser(1)?'owner':'visitor',ownerUserId:socialUser(1),visibility:'friends' } };
     if (name === 'join_world_room_chat_v1') {
-      const l={id:randomUUID(),inboxNonce:randomUUID(),userId,kind:args.p_kind,roomId:args.p_room,sessionId:args.p_session,expires:Date.now()+30000};
+      const l={id:randomUUID(),inboxNonce:randomUUID(),userId,kind:args.p_kind,roomId:args.p_room,sessionId:args.p_session,admissionId:args.p_admission??null,expires:Date.now()+30000};
       if(!allowed(l)) return {data:{allowed:false}};
       for(const [id,old] of leases) if(old.userId===userId) leases.delete(id);
       leases.set(l.id,l);return {data:leaseData(l)};

@@ -1,6 +1,6 @@
 # Shared club room candidate: client validation
 
-Base: `af532a53c433479e12354f88a5a1c234075de5e7` (main verified on 2026-10-12).
+Current compatibility target: `3aaec7999c8d7a52bc73c0749c1af83586e8a558`. The counts below retain original baseline history; the fresh-admission revision requires its own exact-head evidence.
 
 This is a draft implementation candidate. Remote PR/CI validation is authorized; production
 migration application, activation, release and deployment are not. The original local checks below
@@ -11,7 +11,7 @@ The existing personal-room owner/visitor UUID contract is unchanged.
 ## Implemented
 
 - One shared `ROOM_CLUBHOUSE_01`, six admitted accounts and six existing authored chairs.
-- Separate club admission/heartbeat/leave/seat RPCs and server-only per-session Realtime inbox.
+- Separate club admission/heartbeat/leave/seat RPCs and server-only fresh server-admission Realtime inbox.
 - Existing network interpolation and real remote-avatar renderer; server-confirmed seat ownership.
 - Room-local sit/stand, locomotion release, emotes, shared occupancy HUD, profile inspection.
 - Async seat claims recheck room/session, movement, overlays and input ownership before moving.
@@ -77,5 +77,7 @@ owner furniture and visitor access remain owned by their existing modules. Updat
 tests add the club branch without removing the personal-room behavior assertions.
 
 The integrated private-room chat candidate must install `clubRoomSession.setChatBubbles(getBubble)`
-and route chat only to a READY club session's `{kind:'club',roomId,sessionId}`. Stop/room/identity
+and route chat only to a READY club session's `{kind:'club',roomId,sessionId,admissionId}`. Stop/room/identity
 changes clear that chat source; no club message is sent through the campus chat transport.
+
+Fresh-admission local client verification: 4,300 World tests and QA passed after main3aa integration. Focused regressions include same pose UUID/new inbox, stale admission RPC rejection, delayed join compensation, old seat-release fencing, and automatic personal visit-lease access without opening or sending chat. SQL/H3 work was still in progress at that checkpoint; it is not final-head acceptance.

@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { CLUB_ROOM_ID } from "../../src/rooms/club-room-seats.js";
 export function serverFixture() {
   let time = 10_000, revision = 0;
-  const sessions = new Map(), used = new Set(), restricted = new Set(), channels = new Set(), calls = [];
+  const sessions = new Map(), admissions = new Map(), restricted = new Set(), channels = new Set(), calls = [];
   const clock = { now: () => time };
   const state = { failing: false };
   const prune = () => { for (const [key, s] of sessions) if (s.expires <= time || restricted.has(s.userId)) sessions.delete(key); };
@@ -12,7 +12,8 @@ export function serverFixture() {
   const snapshot = (userId, sessionId) => {
     const own = sessions.get(sessionId);
     if (!own || own.userId !== userId) return { allowed: false, reason: "SESSION_EXPIRED" };
-    return { allowed: true, roomId: CLUB_ROOM_ID, sessionId, userId, capacity: 6, inboxNonce: own.inboxNonce, leaseMs: own.expires - time, revision: ++revision,
+    return { allowed: true, roomId: CLUB_ROOM_ID, sessionId, userId, admissionId: own.admissionId,
+      topic: `world:club:${CLUB_ROOM_ID}:${own.admissionId}`, capacity: 6, inboxNonce: own.inboxNonce, leaseMs: own.expires - time, revision: ++revision,
       participants: [...sessions.values()].map(presence),
       seats: [...sessions.values()].filter(s => s.seatId).map(s => ({ seatId: s.seatId, sessionId: s.sessionId, userId: s.userId })),
       poses: [...sessions.values()].filter(s => s.pose).map(s => ({ sessionId: s.sessionId, packet: s.pose })) };
@@ -33,7 +34,7 @@ export function serverFixture() {
       calls.push({ name, args, userId });
       if (state.failing) return { data: null, error: { message: "network unavailable" } };
       prune();
-      const key = args.p_session;
+      const key = name === "join_world_club_room_v1" ? args.p_session : [...sessions.values()].find(s=>s.admissionId===args.p_admission)?.sessionId;
       if (name === "leave_world_club_room_v1") {
         if (sessions.get(key)?.userId === userId) sessions.delete(key);
         return { data: { allowed: true } };
@@ -41,10 +42,13 @@ export function serverFixture() {
       if (args.p_room !== CLUB_ROOM_ID || restricted.has(userId) || anonymous) return { data: { allowed: false, reason: "DENIED" } };
       if (name === "join_world_club_room_v1") {
         if (!sessions.has(key)) {
-          if (used.has(key)) return { data: { allowed: false, reason: "SESSION_REUSED" } };
+          const recent=(admissions.get(userId)||[]).filter(t=>time-t<3600000);
+          if(recent.length && time-recent.at(-1)<1000)return {data:{allowed:false,reason:"JOIN_COOLDOWN"}};
+          if(recent.length>=60)return {data:{allowed:false,reason:"RATE_LIMITED"}};
           for (const [k, s] of sessions) if (s.userId === userId) sessions.delete(k);
           if (sessions.size >= 6) return { data: { allowed: false, reason: "ROOM_FULL" } };
-          sessions.set(key, { inboxNonce: randomUUID(), userId, sessionId: key, expires: time + 20_000, joinedAt: time, seatId: null }); used.add(key);
+          sessions.set(key, { admissionId:randomUUID(), inboxNonce: randomUUID(), userId, sessionId: key, expires: time + 20_000, joinedAt: time, seatId: null });
+          recent.push(time);admissions.set(userId,recent);
         }
       }
       const own = sessions.get(key);
@@ -59,7 +63,7 @@ export function serverFixture() {
       if (name === "publish_world_club_room_v1") {
         if (args.p_event === "pose") own.pose = args.p_packet;
         for (const channel of channels) {
-          const recipient = sessions.get(channel.topic.split(":").at(-1));
+          const recipient = [...sessions.values()].find(s=>s.admissionId===channel.topic.split(":").at(-1));
           if (recipient && recipient.sessionId !== key && !restricted.has(recipient.userId)) channel.receiver?.({ payload: {
             inboxNonce: recipient.inboxNonce, roomId: CLUB_ROOM_ID, sid: key, p: args.p_packet, event: args.p_event, presence: presence(own)
           } });

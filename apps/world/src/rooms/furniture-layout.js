@@ -126,10 +126,14 @@ export function firstFurniturePosition(itemId, surface, objects, owned, options 
   // Keep the familiar H2 center-first behavior, then use the C70 side bays for floor furniture.
   // No placement is returned unless the same validator accepts it.
   const id = options.id ?? "00000000-0000-4000-8000-000000000000";
+  // Optional interaction filter may reject an otherwise valid suggestion. It never
+  // weakens placement/ownership validation and is not part of saved layout authority.
+  const accepts = candidate => !validateFurniture([...objects, candidate], owned)
+    && (typeof options.accept !== "function" || options.accept(candidate) === true);
   if (options.positions) {
     for (const point of options.positions) {
       const candidate = { id, itemId, surface, ...positionOnSurface(surface, point.x, point.z, point.yaw) };
-      if (!validateFurniture([...objects, candidate], owned)) return candidate;
+      if (accepts(candidate)) return candidate;
     }
     return null;
   }
@@ -138,7 +142,7 @@ export function firstFurniturePosition(itemId, surface, objects, owned, options 
     : [[-5,5]];
   for (const [minX,maxX] of ranges) for (let z = -3.75; z <= 3.75; z += .25) for (let x = minX; x <= maxX; x += .25) {
     const candidate = { id, itemId, surface, ...positionOnSurface(surface, x, z) };
-    if (!validateFurniture([...objects, candidate], owned)) return candidate;
+    if (accepts(candidate)) return candidate;
   }
   return null;
 }
