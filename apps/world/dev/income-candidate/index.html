@@ -1,0 +1,18 @@
+<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>수입 후보 · 로컬 개발 검토</title><link rel="stylesheet" href="../../styles.css">
+<body style="overflow:auto;background:#f5f3ee;color:#222;padding:24px"><h1>납품 · 편의점 근무 후보</h1>
+<p>운영에 노출되지 않는 로컬 검토 페이지예요. NPC 배정과 위치는 미확정이며 실제 재화는 지급하지 않아요.</p>
+<p id="candidate-status">로컬 인증 세션 연결이 필요해요. 비밀 인증정보를 이 페이지에 붙여넣지 마세요.</p><div id="candidate-actions"></div>
+<script type="module">
+import { mountIncomeCandidate } from '../../src/income/income-candidate-runtime.mjs';
+const local = ['localhost','127.0.0.1'].includes(location.hostname);
+// A developer harness/local auth host may supply this callback; no credentials or defaults are saved.
+const host = globalThis.INCOME_CANDIDATE_LOCAL_AUTH;
+if (local && host?.getAuthorization && host?.subscribe && host?.accountId) {
+  const runtime = mountIncomeCandidate({ root: document.querySelector('#candidate-actions'), enabled: true,
+    accountId: host.accountId, getAuthorization: host.getAuthorization });
+  const unsubscribe = host.subscribe(accountId => void runtime.setAccount(accountId));
+  addEventListener('pagehide', () => { unsubscribe?.(); runtime.dispose(); }, { once: true });
+  document.querySelector('#candidate-status').textContent = '로컬 인증 세션에 연결됐어요. 서버의 CLOSED 상태와 테스트용 영수증을 확인하세요.';
+} else if (!local) document.querySelector('#candidate-status').textContent = '이 후보는 localhost에서만 열 수 있어요.';
+</script></body></html>

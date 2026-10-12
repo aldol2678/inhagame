@@ -4335,6 +4335,13 @@ export type Database = {
       }
     }
     Functions: {
+      world_convenience_authority_v1: { Args: { p_user: string; p_auth: string; p_connection: string; p_op: string; p_session?: string | null; p_fence?: number | null; p_revision?: number | null; p_state?: Json | null; p_geometry?: string | null; p_eligible?: boolean }; Returns: Json }
+      world_convenience_income_v2: { Args: { p_user: string; p_auth: string; p_connection: string; p_authority_session: string | null; p_fence: number | null; p_op: string; p_request?: string | null; p_session?: string | null; p_action?: string | null; p_value?: string | null; p_revision?: number | null }; Returns: Json }
+      world_income_start_v1: { Args: { p_user: string; p_quest_id: string; p_giver_id: string; p_request_id: string }; Returns: Json }
+      world_income_status_v1: { Args: { p_user: string; p_session_id?: string; p_quest_id?: string }; Returns: Json }
+      world_income_action_v1: { Args: { p_user: string; p_session_id: string; p_request_id: string; p_action: string; p_value: string; p_revision: number }; Returns: Json }
+      world_income_finish_v1: { Args: { p_user: string; p_session_id: string; p_request_id: string }; Returns: Json }
+
       abandon_ranked_session_v1: { Args: { p_run_id: string }; Returns: string }
       admin_review_world_user_report_v1: {
         Args: { p_action: string; p_report_id: number }
