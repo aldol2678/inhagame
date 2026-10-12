@@ -116,6 +116,8 @@ import { createFurnitureClient } from "./rooms/furniture-client.js";
 import { createFurnitureEditor } from "./rooms/furniture-editor.js";
 import { createFurnitureFunctionProvider } from "./rooms/furniture-functions.js";
 import { createCookingFeature } from "./rooms/cooking-feature.js";
+import { createRoomPlantFeature } from "./rooms/room-plant-feature.js";
+import { ROOM_PLANT_AVAILABLE } from "./rooms/room-plant-client.js";
 import { createTrophyDisplay } from "./rooms/trophy-display.js";
 import { createTrophyDisplayPanel } from "./rooms/trophy-display-panel.js";
 import { PERSONAL_ROOM_BASIC_SPAWN } from "./rooms/personal-room-layout.js";
@@ -625,6 +627,9 @@ const furnitureInput = createInputFocusOwner({
 const cookingInput = createInputFocusOwner({
   manager: inputFocus, ownerId: "room-cooking", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
 });
+const roomPlantInput = createInputFocusOwner({
+  manager: inputFocus, ownerId: "room-plant", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
+});
 const trophyDisplayInput = createInputFocusOwner({
   manager: inputFocus, ownerId: "room-trophy-display", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
 });
@@ -917,6 +922,7 @@ let furnitureEditor = null;
 let roomPhotoStory = null;
 let trophyDisplay = null, trophyDisplayPanel = null;
 let cookingFeature = null, cookingOpening = false, roomFunctionAccountId = null;
+let roomPlantFeature = null, roomPlantOpening = false;
 let furnitureRefreshSeconds = 0;
 let friendRoomVisit = null;
 const lobbyQuestHighlight = createLobbyQuestHighlight({
@@ -1989,6 +1995,7 @@ rooms = createRoomTransition({
     closePanels: () => {
       cookingFeature?.reset();
       trophyDisplayPanel?.close({ restoreFocus: false });
+      roomPlantFeature?.reset();
       furnitureEditor?.forceClose();
       emoteMenu.setOpen(false);
       chatPanel.setOpen(false, { focus: false });
@@ -2076,6 +2083,7 @@ biryongRealm = createBiryongRealmTransition({
       fullMap?.close?.();
       cookingFeature?.reset();
       trophyDisplayPanel?.close({ restoreFocus: false });
+      roomPlantFeature?.reset();
       furnitureEditor?.forceClose();
       emoteMenu.setOpen(false);
       chatPanel.setOpen(false, { focus: false });
@@ -2310,6 +2318,7 @@ const roomHud = createRoomHud({
   root: document.getElementById("room-hud"),
   footer: knockPromptRoot,
   onStory: () => roomPhotoStory?.open(),
+  onPlant: ROOM_PLANT_AVAILABLE ? () => roomPlantFeature?.handler() : null,
   onLeave: () => furnitureEditor?.open ? furnitureEditor.requestClose(() => rooms.exit()) : rooms.exit(),
   onEdit: () => {
     if (!furnitureEditor?.openEditor()) {
@@ -2369,6 +2378,7 @@ roomSession = createPersonalRoomSession({
   getEquipment: () => publicEquipmentFor(loadout, online?.userId ?? null),
   onAccessLost: ({ role, reason }) => {
     if (rooms.currentSpace !== "ROOM_PERSONAL_BASIC") return;
+    roomPlantFeature?.reset();
     rooms.exit({ force: true });
     showWorldStatus(role === "owner" || reason === "IDENTITY" || reason === "SIGNED_OUT"
       ? "개인방 연결이 끊겨 생활관 로비로 돌아왔어요."
@@ -2429,6 +2439,7 @@ roomFurniture = createFurnitureClient({
     shopPanel.render();
     trophyDisplay?.update();
     cookingFeature?.update();
+    roomPlantFeature?.update();
   }
 });
 furnitureEditor = createFurnitureEditor({
@@ -2436,6 +2447,7 @@ furnitureEditor = createFurnitureEditor({
   onOpenChange: open => {
     if (open) {
       cookingFeature?.panel.close({ restoreFocus: false });
+      roomPlantFeature?.panel.close({ restoreFocus: false });
       trophyDisplayPanel?.close({ restoreFocus: false });
       seating.standUp("furniture-edit");
       furnitureInput.acquire();
@@ -2460,6 +2472,10 @@ const getRoomFunctionState = () => {
     role: layout.role,
     ready: layout.ready && layout.roomId === meta?.personalRoomId?.toLowerCase() && layout.role === meta?.visitRole,
     objects: layout.objects, editing: layout.editing, busy: status.busy,
+    revision: layout.revision, layoutError: layout.error, layoutPending: layout.pending,
+    sessionActive: roomSession?.status().active === true && roomSession.status().roomId === meta?.personalRoomId?.toLowerCase()
+      && ["READY", "LOCAL"].includes(roomSession.status().phase),
+    sessionVersion: roomSession?.status().participants?.find(p => p.local)?.sessionId ?? "",
     blocked: !inputFocus.can("WORLD_ACTION") || combatRuntime.active || lobbyWorld.active || lobbyTransition.active,
     mounted: controller.mounted, seated: seats.isSeated, grounded: controller.grounded
   };
@@ -2521,18 +2537,41 @@ cookingFeature = createCookingFeature({
     } finally { cookingOpening = false; }
   }
 });
+// Plant P0 is a closed local candidate. Server RPCs independently enforce their own CLOSED gate.
+roomPlantFeature = createRoomPlantFeature({
+  getClient: () => online?.supabase ?? null, getUserId: () => roomFunctionAccountId,
+  getRoomState: getRoomFunctionState, inventory,
+  onVisuals: plants => personalRoomScene.ownedFurniture.setPlants(plants),
+  openEditor: () => furnitureEditor.openEditor(),
+  onOpenChange: open => {
+    if (!open) { roomPlantInput.release(); return; }
+    roomPlantOpening = true;
+    try {
+      cookingFeature?.panel.close({ restoreFocus: false });
+      trophyDisplayPanel?.close({ restoreFocus: false });
+      if (furnitureEditor?.open) furnitureEditor.forceClose();
+      inventoryPanel.setOpen(false); shopPanel.setOpen(false); wardrobePanel.setOpen(false); mobilityBook.setOpen(false);
+      dailyQuizPanel.setOpen(false); attendancePanel.setOpen(false); lifeSkillBookPanel?.setOpen(false);
+      fishingPanel?.setOpen(false); questJournal?.setOpen(false); fullMap?.close(); smartphone?.close();
+      emoteMenu.setOpen(false); chatPanel.setOpen(false, { focus: false }); playerCard.close();
+      void guestbookPanel.setOpen(false); roomPlantInput.acquire();
+    } finally { roomPlantOpening = false; }
+  }
+});
 const roomFurnitureFunctions = createFurnitureFunctionProvider({
   getState: getRoomFunctionState, getPosition: () => player.getLocalPosition(),
-  handlers: { display: target => trophyDisplayPanel.open(target), cook: cookingFeature.handler },
-  isAvailable: feature => cookingFeature.isAvailable(feature)
+  handlers: { display: target => trophyDisplayPanel.open(target), cook: cookingFeature.handler, plant: roomPlantFeature.handler },
+  isAvailable: feature => cookingFeature.isAvailable(feature) || roomPlantFeature.isAvailable(feature)
 });
-inventory.onChange(() => trophyDisplay.update());
+inventory.onChange(() => { trophyDisplay.update(); roomPlantFeature.inventoryChanged(); });
 inputFocus.subscribe(snapshot => {
   trophyDisplayPanel.observeFocus(snapshot);
+  if (!roomPlantOpening && roomPlantFeature.panel.open && snapshot.topOwners.some(owner => owner !== "room-plant"))
+    roomPlantFeature.panel.close({ restoreFocus: false });
   if (!cookingOpening && cookingFeature.panel.open && snapshot.topOwners.some(owner => owner !== "room-cooking"))
     cookingFeature.panel.close({ restoreFocus: false });
 });
-window.addEventListener("pagehide", () => { cookingFeature.reset(); trophyDisplayPanel.close({ restoreFocus: false }); trophyDisplay.reset(); });
+window.addEventListener("pagehide", () => { cookingFeature.reset(); roomPlantFeature.reset(); trophyDisplayPanel.close({ restoreFocus: false }); trophyDisplay.reset(); });
 window.addEventListener("beforeunload", event => {
   const state = roomFurniture.state();
   if (state.editing && (state.dirty || state.pending)) { event.preventDefault(); event.returnValue = ""; }
@@ -2541,8 +2580,9 @@ window.addEventListener("beforeunload", event => {
 // The room scene is shared; the session (who is here, which channel) follows the room metadata.
 rooms.onChange((status) => {
   const meta = status.roomId === "ROOM_PERSONAL_BASIC" ? status.metadata : null;
-  if (!meta?.personalRoomId || !meta?.ownerUserId) { cookingFeature.reset(); roomSession.stop(); roomFurniture.reset(); return; }
+  if (!meta?.personalRoomId || !meta?.ownerUserId) { roomPlantFeature.reset(); cookingFeature.reset(); roomSession.stop(); roomFurniture.reset(); return; }
   cookingFeature.update();
+  roomPlantFeature.update();
   void roomFurniture.bind(meta.personalRoomId.toLowerCase());
   const current = roomSession.status();
   if (current.active && current.roomId === meta.personalRoomId.toLowerCase()) return;
@@ -2934,7 +2974,7 @@ try {
     getOverlayState: () => ({
       hudMenu: hudMenu.open, keyboardHelp: keyboardHelp?.open === true, friends: friendPanel.open,
       playerCard: playerCard.current != null, guestbook: guestbookPanel.open, shop: shopPanel.open, inventory: inventoryPanel.open, wardrobe: wardrobePanel.open,
-      blocking: smartphone?.shell.ownsInput === true || furnitureEditor?.open === true || cookingFeature?.panel.open === true || dailyQuizPanel.open || attendancePanel.open || lifeSkillBookPanel?.open === true || fishingPanel?.open === true || questJournal?.open === true,
+      blocking: smartphone?.shell.ownsInput === true || furnitureEditor?.open === true || cookingFeature?.panel.open === true || roomPlantFeature?.panel.open === true || dailyQuizPanel.open || attendancePanel.open || lifeSkillBookPanel?.open === true || fishingPanel?.open === true || questJournal?.open === true,
       npcConversation: npcTest?.isConversationOpen?.() === true || biryongVillageDialogue?.open === true,
       mcmEvent: mcmEventUi.openState || mcmEventRuntime.isDialogueOpen() === true,
       profile: document.getElementById("profile-panel")?.hidden === false,
@@ -3538,6 +3578,7 @@ app.on("update", (dt) => {
     pressed: false, trigger: () => toggleSeat()
   } : null);
   contextActions.set("guestbook", guestbookAction);
+  roomPlantFeature.update();
   cookingFeature.update();
   contextActions.set("room-furniture", roomFurnitureFunctions.contextAction());
   contextActions.set("personal-room-environment", personalRoomEnvironment.contextAction());
@@ -3695,6 +3736,7 @@ try {
     roomFunctionAccountId = nextRoomFunctionAccountId;
     if (roomFunctionIdentityChanged) {
       cookingFeature?.reset();
+      roomPlantFeature?.reset();
       roomPhotoStory?.reset();
       trophyDisplayPanel?.close({ restoreFocus: false });
       trophyDisplay?.reset();
@@ -3997,6 +4039,7 @@ window.__INHAGAME_P0__ = {
   trophyDisplayPanel,
   roomFurnitureFunctions,
   cookingFeature,
+  roomPlantFeature,
   worldAudio,
   clubRoom,
   mcmEvent,
@@ -4136,6 +4179,7 @@ window.__INHAGAME_P0__ = {
         inventory: inventoryInput.active,
         wardrobe: wardrobeInput.active,
         cooking: cookingInput.active,
+        roomPlant: roomPlantInput.active,
         dailyQuiz: dailyQuizInput.active,
         attendance: attendanceInput.active,
         lifeSkillBook: lifeSkillBookInput.active,

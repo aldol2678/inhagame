@@ -24,6 +24,7 @@ export const ROOM_FURNITURE = Object.freeze([
   definition("furniture.dorm_monitor", .52, .36, .18, ["desk"]),
   definition("furniture.dorm_trophy_shelf", .90, 1.10, .32, ["floor"]),
   definition("furniture.study_books_set", .38, .18, .22, ["desk"]),
+  definition("furniture.indoor_planter", .55, .80, .55, ["floor"]),
   definition("furniture.cooking_station", 1.00, .90, .65, ["floor"])
 ]);
 export const FURNITURE_BY_ID = new Map(ROOM_FURNITURE.map(item => [item.itemId, item]));

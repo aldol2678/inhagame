@@ -1,0 +1,65 @@
+name: Room plant candidate QA
+on:
+  pull_request:
+    paths:
+      - 'apps/world/src/rooms/room-plant-*.js'
+      - 'apps/world/src/rooms/furniture-*.js'
+      - 'apps/world/src/rooms/personal-room-*.js'
+      - 'apps/world/src/collection/item-catalog.js'
+      - 'apps/world/tests/room-plant-*.test.mjs'
+      - 'apps/world/tests/browser/room-plant-*'
+      - 'apps/world/tests/browser/harness*.mjs'
+      - 'apps/world/tests/browser/package*.json'
+      - 'apps/world/styles.css'
+      - 'supabase/migrations/*room_plant*'
+      - '.github/workflows/room-plant-candidate.yml'
+permissions:
+  contents: read
+concurrency:
+  group: room-plant-candidate-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  visible-room:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - name: Verify immutable head and closed production gates
+        env:
+          EXPECTED_PLANT_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          mkdir -p test-results/room-plant
+          git rev-parse HEAD | tee test-results/room-plant/head.txt
+          test "$(git rev-parse HEAD)" = "$EXPECTED_PLANT_HEAD"
+          grep -q 'ROOM_PLANT_AVAILABLE = false' apps/world/src/rooms/room-plant-client.js
+          grep -Fq 'as $$ select false $$' supabase/migrations/20261012024000_world_room_plant_candidate.sql
+          node --test apps/world/tests/room-plant-client.test.mjs apps/world/tests/room-plant-panel.test.mjs
+      - name: Install pinned browser and font dependencies
+        working-directory: apps/world/tests/browser
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npx --no-install playwright install --with-deps chromium
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+      - name: Actual room renderer and two-context browser QA
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          EXPECTED_PLANT_HEAD: ${{ github.event.pull_request.head.sha }}
+          ROOM_PLANT_QA_OUTPUT: test-results/room-plant
+        run: |
+          set -o pipefail
+          node apps/world/tests/browser/room-plant-null-smoke.mjs
+          node apps/world/tests/browser/room-plant-smoke.mjs 2>&1 | tee test-results/room-plant/browser.log
+      - name: Save exact-head screenshots and evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: room-plant-candidate-${{ github.event.pull_request.head.sha }}
+          path: test-results/room-plant/
+          if-no-files-found: error
+          retention-days: 14

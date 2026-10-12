@@ -1,13 +1,14 @@
 import * as pc from "playcanvas";
 import { box, surface } from "../campus-render-kit.js";
 import { FURNITURE_BY_ID, furnitureBox } from "./furniture-layout.js";
+import { roomPlantVisual } from "./room-plant-visual.js";
 import { trophyDisplayVisual } from "./trophy-display-visual.js";
 import { PERSONAL_ROOM_BASIC_OBSTACLES } from "./personal-room-layout.js";
 
 export function createFurnitureLayer(app, root) {
   const layer = new pc.Entity("personal_owned_furniture"); root.addChild(layer);
   const obstacles = [...PERSONAL_ROOM_BASIC_OBSTACLES];
-  const posters = new Map(); let signature = "", objects = [], displays = new Map();
+  const posters = new Map(); let signature = "", objects = [], displays = new Map(), plants = new Map();
   layer.on("destroy", () => {
     for (const material of posters.values()) { material.diffuseMap?.destroy(); material.destroy(); }
     posters.clear();
@@ -58,6 +59,8 @@ export function createFurnitureLayer(app, root) {
     if (item.surfaces.includes("north")) {
       box(entity,"frame",[0,item.height/2,0],[item.width+.03,item.height+.03,item.depth],surface("#75654e"));
       box(entity,"poster",[0,item.height/2,-.023],[item.width,item.height,.006],paintPoster(item));
+    } else if (id === "furniture.indoor_planter") {
+      for (const p of roomPlantVisual(plants.get(object.id)?.stage)) box(entity,p.name,p.at,p.size,surface(p.color),0,p.type);
     } else if (id === "furniture.cooking_station") {
       box(entity,"cabinet",[0,.4,0],[.96,.8,.61],surface("#967454"));
       box(entity,"counter",[0,.83,0],[item.width,.08,item.depth],surface("#d9d7ce"));
@@ -126,7 +129,7 @@ export function createFurnitureLayer(app, root) {
     }
   }
   function render() {
-    const next = JSON.stringify([objects,[...displays]]); if (signature === next) return;
+    const next = JSON.stringify([objects,[...displays],[...plants]]); if (signature === next) return;
     signature = next;
     for (const child of [...layer.children]) child.destroy();
     for (const object of objects) renderObject(object);
@@ -138,6 +141,7 @@ export function createFurnitureLayer(app, root) {
       objects = next; render();
       obstacles.splice(0,obstacles.length,...PERSONAL_ROOM_BASIC_OBSTACLES,...objects.filter(object => object.surface === "floor" && FURNITURE_BY_ID.get(object.itemId)?.solid).map(furnitureBox));
     },
+    setPlants(next = []) { plants = new Map(next.map(plant => [plant.objectId, plant])); render(); },
     setDisplays(next = []) { displays = new Map(next.map(display => [display.objectId, display])); render(); }
   };
 }

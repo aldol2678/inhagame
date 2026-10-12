@@ -8,7 +8,7 @@
 export const ROOM_VISIBILITY_TEXT = Object.freeze({ friends: "👥 친구 공개", private: "🔒 비공개" });
 
 // `footer` (Housing H3): a node the HUD keeps as its last child across re-renders (the owner knock prompt).
-export function createRoomHud({ root, onLeave = () => false, onEdit = null, onStory = null, onSetVisibility = async () => null, footer = null, doc = document }) {
+export function createRoomHud({ root, onLeave = () => false, onEdit = null, onStory = null, onPlant = null, onSetVisibility = async () => null, footer = null, doc = document }) {
   const el = (tag, className, text) => {
     const node = doc.createElement(tag);
     if (className) node.className = className;
@@ -56,6 +56,10 @@ export function createRoomHud({ root, onLeave = () => false, onEdit = null, onSt
       const story = el("button", "room-hud-story", "방의 한 장면"); story.type = "button";
       story.disabled = state.phase === "CHECKING";
       story.addEventListener("click", () => onStory()); actions.append(story);
+    }
+    if (owner && onPlant) {
+      const plant = el("button", "room-hud-plant", "화분 키우기"); plant.type = "button";
+      plant.disabled = state.phase === "CHECKING"; plant.addEventListener("click", () => onPlant()); actions.append(plant);
     }
     const leave = el("button", "room-hud-leave", "나가기");
     leave.type = "button";

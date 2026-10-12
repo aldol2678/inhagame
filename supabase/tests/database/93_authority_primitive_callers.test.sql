@@ -91,6 +91,7 @@ insert into authority_allowed_call values
   ('private.world_reward_grant_v1',            'private.world_exp_apply_v1',    'Reward orchestrator EXP grant'),
   ('public.world_exp_grant_v1',                'private.world_exp_apply_v1',    'service_role server API wrapper'),
   -- Inventory
+  ('public.claim_my_room_planter_v1', 'private.world_inventory_grant_v1', 'Indoor Plant P0: CLOSED self-only starter claim, fixed UNIQUE item and one server-owned grant key'),
   ('private.world_reward_grant_v1',            'private.world_inventory_grant_v1', 'Reward orchestrator ITEM grant'),
   ('private.world_inventory_mutate_v1',        'private.world_inventory_grant_v1', 'Inventory-internal atomic N-consume/M-grant'),
   ('public.purchase_world_shop_listing_v1',    'private.world_inventory_grant_v1', 'Shop purchase delivery (same transaction as the debit)'),
@@ -199,6 +200,7 @@ select set_eq(
     select distinct r.root from reach r
     where r.fn in (select 'private.' || name from authority_primitive)$$,
   array[
+    'public.claim_my_room_planter_v1',                   -- fixed starter planter grant, explicit server gate
     'public.cook_my_world_recipe_v1',                     -- self-only cooking, server recipe and owned/saved station
     'public.purchase_world_shop_listing_v1',              -- price and item come from the server listing
     'public.purchase_world_shop_listing_v2',              -- validates shop binding, delegates unchanged v1
@@ -215,6 +217,7 @@ select set_eq(
 -- ---- 2. protected table writers ----
 create temp table authority_table(tbl text primary key, kind text not null check (kind in ('STATE','CATALOG'))) on commit drop;
 insert into authority_table values
+  ('world_room_plants','STATE'), ('world_room_plant_receipts','STATE'),
   ('world_recipe_receipts','STATE'), ('world_recipe_catalog','CATALOG'),
   ('world_wallets','STATE'), ('world_currency_transactions','STATE'),
   ('world_player_progression','STATE'), ('world_exp_transactions','STATE'),
@@ -268,6 +271,8 @@ where m[2] in (select tbl from authority_table);
 
 create temp table authority_allowed_write(tbl text, writer text) on commit drop;
 insert into authority_allowed_write values
+  ('world_room_plants', 'private.world_room_plant_command_v1'),
+  ('world_room_plant_receipts', 'private.world_room_plant_command_v1'),
   ('world_recipe_receipts', 'public.cook_my_world_recipe_v1'),
   ('world_wallets', 'private.world_wallet_apply_v1'),
   ('world_currency_transactions', 'private.world_wallet_apply_v1'),

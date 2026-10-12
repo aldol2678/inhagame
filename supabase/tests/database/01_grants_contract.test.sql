@@ -147,6 +147,11 @@ select set_eq($$select unnest(pg_temp.exec_surface('authenticated', 'anon'))$$, 
   'get_world_room_furniture_v1(uuid)',
   'save_my_room_furniture_v1(uuid,integer,jsonb)',
   'cook_my_world_recipe_v1(text,uuid)', -- server recipe, actor and owned/saved station; candidate closed
+  -- Indoor Plant P0: server-gated, self-only commands and authorized room projection; candidate closed.
+  'claim_my_room_planter_v1(uuid)',
+  'plant_my_room_plant_v1(uuid,uuid,uuid)',
+  'care_my_room_plant_v1(uuid,uuid,integer,uuid)',
+  'get_world_room_plants_v1(uuid)',
 
   -- Housing H3 (20261005022000): knock before a friend visit; caller = auth.uid().
   'knock_friend_personal_room_v1(uuid)',

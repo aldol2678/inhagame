@@ -45,6 +45,7 @@ nothing is ACTIVE / no settlement path · **planned** = no backing schema yet ·
 | Character Level | Progression (derived) | `private.world_level_thresholds` (immutable, append-only) × `total_exp` | `get_my_world_progression_v1()`; client never computes it (`progression-client.js`) | none, derived | — | no | production |
 | Wallet | Economy | `private.world_wallets`, `private.world_currency_transactions`, `private.world_currencies` | `get_my_world_wallet_v1()` | `private.world_wallet_apply_v1` | Reward orchestrator; Shop purchase; `world_wallet_credit/debit_v1` (service_role) | no (purchase RPC prices from the server listing) | production |
 | Inventory | Inventory | `private.world_player_items` (UNIQUE user,item), `world_item_grants`, `world_item_consumptions`, `world_inventory_mutations(_entries)`, `world_item_catalog` | `get_my_world_inventory_v1()` | `private.world_inventory_grant_v1` (only increase), `world_inventory_consume_v1`, `world_inventory_mutate_v1` (atomic N-consume / M-grant) | Reward; Shop; Inventory-internal mutate; service_role wrappers | no | production (cosmetics / collectibles); MATERIAL rows foundation |
+| Indoor planter | Housing / Plant | `private.world_room_plants`, `world_room_plant_receipts` | `get_world_room_plants_v1(room)`; visitors see only visible silhouettes | `plant_my_room_plant_v1`, `care_my_room_plant_v1` → private plant command; `claim_my_room_planter_v1` → Inventory grant | self-only owner, current saved placement and UNIQUE ownership; server elapsed time | narrow commands only; no XP, sales or replant | P0 candidate CLOSED on client + server, COMING_SOON item; separate operational approval required |
 | Cooking recipe | Recipe / Cooking | `private.world_recipe_catalog`, `world_recipe_receipts` | historical receipt returned by the self-only command | `cook_my_world_recipe_v1(recipe_id,request_id)` → Inventory mutation | authenticated owner, permanent non-banned account; own saved and owned station | narrow command only, no amounts/plan/user/room | B2 candidate CLOSED; no acquisition, Life XP or food-use/combat consumer |
 | Cosmetic equipment | Appearance | `private.world_player_appearance_loadout` (9 slots), `world_appearance_transactions` | `get_my_world_appearance_loadout_v1()` | `equip_my_world_item_v1`, `unequip_my_world_item_v1` (ownership checked) | the owner (authenticated, self-only) | via self-only RPC | production |
 | Combat equipment | Equipment (planned) | none. Combat v0.3 needs gear instances (8 slots, +20 enhancement, sets); `world_player_items` cannot hold instances | — | — | — | — | planned (static build catalog `src/combat/combat-v03-catalog.js`, #112; no schema) |
@@ -94,7 +95,7 @@ Allowed callers on `8b7bf39`. The exact list with a reason per row is in test 93
 
 - **Wallet**: Reward orchestrator; `purchase_world_shop_listing_v1`; service_role `world_wallet_credit/debit_v1`.
 - **EXP**: Reward orchestrator; service_role `world_exp_grant_v1`.
-- **Inventory grant**: Reward; Inventory mutate; Shop purchase; Activity settlement; service_role `world_inventory_grant_item_v1` and `world_inventory_ensure_default_items_v1`. **Consume**: Inventory mutate only. **Mutate**: `cook_my_world_recipe_v1` only; server recipe, owned/saved station and self-only actor.
+- **Inventory grant**: `claim_my_room_planter_v1` (CLOSED starter, fixed UNIQUE item and lifetime server grant key); Reward; Inventory mutate; Shop purchase; Activity settlement; service_role `world_inventory_grant_item_v1` and `world_inventory_ensure_default_items_v1`. **Consume**: Inventory mutate only. **Mutate**: `cook_my_world_recipe_v1` only; server recipe, owned/saved station and self-only actor.
 - **Collection discover**: service_role wrapper; Activity settlement.
 - **Life Skill XP**: Activity settlement only.
 - **Activity settlement**: `public.world_fishing_settle_v1` (service_role + service claim; frozen catch) and `public.world_gathering_harvest_v1` (service_role; frozen semantic source/output).
@@ -111,6 +112,7 @@ Allowed callers on `8b7bf39`. The exact list with a reason per row is in test 93
 - **Life Skill Tree**: `world_life_node_unlock_v1` ← `public.unlock_my_world_life_node_v1`;
   `world_life_tree_reset_v1` ← `public.reset_my_world_life_tree_v1` (Life Skill Book, self-only, caller =
   `auth.uid()`, only a node / skill id and a request id; ACTIVE skills / nodes only).
+- **Indoor Plant**: `world_room_plants` and `world_room_plant_receipts` are written only by `private.world_room_plant_command_v1`; the self-only public wrappers select PLANT or CARE, validate saved/owned placement, and advance at most three revisions. No table grants or generic mutation surface.
 - **Recipe / Cooking**: `world_inventory_mutate_v1` ← `public.cook_my_world_recipe_v1` (B2 candidate; server recipe, self-only actor and owned/saved station, no client quantities).
 
 Client reachability: the only functions `anon` / `authenticated` can execute that reach any

@@ -23,7 +23,7 @@ test('later finish migration preserves every cooking category and matches the cl
 });
 
 test('finish integration changes the allowed category union without activating cooking or finish items', () => {
-  assert.equal(ITEM_CATALOG.length, 42);
+  assert.equal(ITEM_CATALOG.length, 43);
   const additions = ITEM_CATALOG.filter(d => d.itemId.startsWith('finish.') ||
     ['furniture.cooking_station', 'consumable.grilled_carp'].includes(d.itemId));
   assert.equal(additions.length, 6);
