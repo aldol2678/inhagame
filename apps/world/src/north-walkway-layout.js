@@ -16,8 +16,8 @@ export const WALKWAY_EVIDENCE=Object.freeze({
   surveyStatus:'SURVEY_TBD',fiveEastFacade:'FACADE_TBD',
   deferred:Object.freeze(['current_crosswalk','bench','fixed_bike_rack','bollard','stairs','tree_species'])
 });
-export const WALKWAY_COLORS=Object.freeze({paving:'#b9b4a6',plaza:'#c5c4bc',band:'#a37765',joint:'#8d8e85',
-  curb:'#deded1',soil:'#65594b',wood:'#77604a',leaf:'#657a47',metal:'#505b5b',globe:'#e6e4d3'});
+export const WALKWAY_COLORS=Object.freeze({paving:'#b9b4a6',plaza:'#c5c4bc',band:'#a37765',joint:'#758b89',
+  curb:'#ece9df',soil:'#77604a',wood:'#77604a',leaf:'#657a47',metal:'#777f80',globe:'#ece9df'});
 const west=[2,3].map(i=>exteriorFrame(ANNIVERSARY.rings[0],i));
 const fiveEdges=FIVE.rings[0].map((p,i)=>roadFrame(p,FIVE.rings[0][(i+1)%FIVE.rings[0].length]));
 const gapAt=(f,u)=>Math.min(...fiveEdges.map(frame=>distanceToRoad(f.at(u,0),{frame})));

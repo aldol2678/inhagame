@@ -20,7 +20,7 @@ export function fillWalkwayPaving(b){
     if(plaza){
       for(const t of [.67,.9]){
         const u=f.length*t;clipped(b,s,C.metal,u-.20,u+.20,1.65,1.95,G.DETAIL);
-        for(let i=0;i<5;i++)clipped(b,s,C.curb,u-.18+i*.08,u-.15+i*.08,1.67,1.93,G.DETAIL+.001);
+        for(let i=0;i<5;i++)clipped(b,s,C.plaza,u-.18+i*.08,u-.15+i*.08,1.67,1.93,G.DETAIL+.001);
       }
       const center=f.at(f.length*.74,max*.72),r=.32;
       for(let i=0;i<12;i++){
@@ -29,7 +29,7 @@ export function fillWalkwayPaving(b){
         for(const mask of s.rings){const cut=intersectSurface(ring,mask);if(cut.length)emitSurface(b,C.metal,cut,G.DETAIL);}
       }
       // Flat visual edging; no invented surveyed curb height or stair collision.
-      clipped(b,s,C.curb,f.length+.12,f.length+.3,.35,max,G.DETAIL);
+      clipped(b,s,C.plaza,f.length+.12,f.length+.3,.35,max,G.DETAIL);
     }
   }
   return b;
@@ -78,7 +78,7 @@ export function fillWalkwayProps(b,tier='NEAR'){
             tube(b,q,C.metal,[o+u+.27*Math.cos(a),0,.32+.27*Math.sin(a)],[o+u+.27*Math.cos(d),0,.32+.27*Math.sin(d)],.025);
           }
         }
-        for(const [a,d]of [[[o-.42,0,.32],[o-.14,0,.8]],[[o-.14,0,.8],[o+.42,0,.32]],[[o+.42,0,.32],[o-.42,0,.32]],[[o+.42,0,.32],[o+.3,0,1.0]]])tube(b,q,i===1?C.band:C.metal,a,d,.028);
+        for(const [a,d]of [[[o-.42,0,.32],[o-.14,0,.8]],[[o-.14,0,.8],[o+.42,0,.32]],[[o+.42,0,.32],[o-.42,0,.32]],[[o+.42,0,.32],[o+.3,0,1.0]]])tube(b,q,i===1?C.wood:C.metal,a,d,.028);
         box(b,q,C.metal,o-.15,0,.82,.26,.06,.16);box(b,q,C.metal,o+.3,0,1,.08,.05,.36);
       }
       box(b,q,C.metal,2.7,0,.16,.65,.07,.18);tube(b,q,C.metal,[2.95,0,.18],[2.95,0,1],.03);box(b,q,C.metal,2.95,0,1,.05,.05,.35);

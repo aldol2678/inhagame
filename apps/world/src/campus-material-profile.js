@@ -15,10 +15,10 @@ const PROFILE = Object.freeze({
 export const CAMPUS_MATERIAL_PROFILES = PROFILE;
 
 const PALETTE = Object.freeze({
-  ground: new Set(['#65594b', '#8b9274', '#729451', '#607c48', '#b5a187']),
+  ground: new Set(['#8b9274', '#729451', '#607c48', '#b5a187']),
   asphalt: new Set(['#747d7b', '#737b79', '#92968e', '#555f5d']),
   concrete: new Set([
-    '#b9b4a6', '#c5c4bc', '#8d8e85', '#deded1', '#b4b4a8', '#c1bfb1', '#b6b2a0', '#c9c8ba', '#c8c7b4',
+    '#b9b4a6', '#c5c4bc', '#b4b4a8', '#c1bfb1', '#b6b2a0', '#c9c8ba', '#c8c7b4',
     '#d5d2c6', '#d7d3c7', '#ece9df', '#eeece2', '#b5b4a5',
     '#687472', '#b0ada2', '#a7aaa2', '#758b89',
     '#e4e2d8', '#f0eee4', '#cfcec1', '#d5d3c7', '#dcd9cc'
