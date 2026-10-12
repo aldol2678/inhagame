@@ -51,7 +51,7 @@ export async function createFurnitureShopPreview(canvas) {
       furniture.root.setLocalEulerAngles(0, angle, 0);
       const extent = Math.max(item.width, item.height, item.depth);
       camera.camera.orthoHeight = Math.max(.48, extent * .85);
-      camera.setPosition(extent * 1.75, item.height * .9 + extent * .6, extent * 2);
+      camera.setPosition(extent * 1.75, item.height * .9 + extent * .6, -extent * 2);
       camera.lookAt(0, .025 + item.height / 2, 0);
       app.renderNextFrame = true;
       return true;
