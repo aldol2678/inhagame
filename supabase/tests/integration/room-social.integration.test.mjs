@@ -17,7 +17,7 @@ const rpc = (user, name, args) => db.asUser(user, `select ${call(name, args)}`);
 const join = async user => {
   const sessionId = freshSession();
   const result = await rpc(user, 'join_world_club_room_v1', [ROOM_ID, sessionId]);
-  assert.equal(result.allowed, true, JSON.stringify(result));
+  assert.equal(result.allowed, true, JSON.stringify({allowed:result.allowed,reason:result.reason}));
   assert.ok(result.participants.every(p => validatePresence(p).ok));
   return sessionId;
 };
@@ -56,9 +56,8 @@ test.after(async () => {
   assert.equal(await db.json(`select count(*)::int from auth.users where id in (${userList})`), 0);
 });
 
-test('replayed authority is CLOSED and clients cannot mutate metadata or call the publisher', async () => {
+test('replayed authority is CLOSED and clients cannot mutate metadata or forge provider publications', async () => {
   const permissions = await db.json(`select jsonb_build_object(
-    'clientSend',has_function_privilege('authenticated','realtime.send(jsonb,text,text,boolean)','execute'),
     'clientConfig',has_table_privilege('authenticated','private.world_room_chat_config','update'),
     'clientMembership',has_table_privilege('authenticated','private.world_club_room_sessions','insert'),
     'clientLedger',has_table_privilege('authenticated','private.world_club_room_session_ids','insert'),
@@ -70,14 +69,18 @@ test('replayed authority is CLOSED and clients cannot mutate metadata or call th
   assert.ok(columns.every(name => !['text', 'body', 'message', 'payload', 'history'].includes(name)), 'application authority stores no message body');
   const session = await join(users[0]);
   assert.equal((await chatJoin(users[0], session)).allowed, false, 'room admission cannot enable the closed chat feature');
-  await assert.rejects(() => db.asUser(users[0], "select realtime.send('{}'::jsonb,'room_chat_v1','world:room-chat:forged',true)"), /permission denied/);
+  assert.equal(await db.json('select private.world_room_publisher_safe_v1()'), true);
+  await db.query(`begin; set local role authenticated;
+    select realtime.send('{"forged":true}'::jsonb,'room_chat_v1','world:room-chat:forged',true); commit;`);
+  assert.equal(await db.json("select count(*)::int from realtime.messages where topic='world:room-chat:forged'"),0,
+    'provider RPC success-looking response must produce zero forged delivery rows');
 });
 
 test('seven independently blocked PostgreSQL admissions commit exactly six members', async t => {
   const operations = users.slice(0, 7).map(userId => ({ userId,
     expression: call('join_world_club_room_v1', [ROOM_ID, freshSession()]) }));
   const { values, contention } = await db.race(operations, 'capacity');
-  assert.equal(values.filter(value => value.allowed).length, 6, JSON.stringify(values));
+  assert.equal(values.filter(value => value.allowed).length, 6, JSON.stringify(values.map(({inboxNonce,...value})=>value)));
   assert.deepEqual(values.filter(value => !value.allowed).map(value => value.reason), ['ROOM_FULL']);
   assert.equal(await liveCount(), 6);
   t.diagnostic(JSON.stringify({ case: 'seven-admissions', independentBackends: contention.length, allObservedLockWaiting: true }));
@@ -102,7 +105,7 @@ test('all six chairs have one winner under real two-account claim contention', a
       expression: call('claim_world_club_room_seat_v1', [ROOM_ID, sessions[i], seat]) }));
     const { values, contention } = await db.race(operations, `seat-${seat}`);
     const winner = values.findIndex(value => value.claimed);
-    assert.equal(values.filter(value => value.claimed).length, 1, JSON.stringify(values));
+    assert.equal(values.filter(value => value.claimed).length, 1, JSON.stringify(values.map(({inboxNonce,...value})=>value)));
     assert.equal(values.find(value => !value.claimed).reason, 'SEAT_TAKEN');
     assert.equal(await db.json(`select count(*)::int from private.world_club_room_sessions where room_id=${lit(ROOM_ID)} and seat_id=${lit(seat)}`), 1);
     assert.equal((await rpc(pair[winner], 'release_world_club_room_seat_v1', [ROOM_ID, sessions[winner], seat])).released, true);
@@ -146,7 +149,7 @@ test('chat rate limit serializes actual transactions and survives fresh chat lea
       expression: call('send_world_room_chat_v1', [lease.leaseId, `동시 채팅 ${i}`]) })), 'chat-rate', {
       gateQuery: `select id from private.world_room_chat_sessions where id=${lit(lease.leaseId)} for update`
     });
-    assert.equal(values.filter(value => value.ok).length, 3, JSON.stringify(values));
+    assert.equal(values.filter(value => value.ok).length, 3, JSON.stringify(values.map(({inboxNonce,...value})=>value)));
     assert.equal(values.find(value => !value.ok).reason, 'rate_limited');
     const next = await chatJoin(user, session);
     assert.notEqual(next.leaseId, lease.leaseId);
@@ -166,7 +169,7 @@ test('production numeric actions survive actual provider SQL insertion and clien
   for (const action of actions) {
     await db.query(`update private.world_club_room_sessions set last_action_at=null where user_id=${lit(sender)}`);
     const result = await rpc(sender, 'publish_world_club_room_v1', [ROOM_ID, senderSession, 'action', JSON.stringify(action)]);
-    assert.equal(result.sent, true, JSON.stringify(result));
+    assert.equal(result.sent, true, JSON.stringify({allowed:result.allowed,reason:result.reason}));
     const envelopes = await db.json(`select coalesce(jsonb_agg(payload),'[]'::jsonb) from realtime.messages
       where topic=${lit(topic)} and payload->>'event'='action' and payload#>>'{p,id}'=${lit(action.id)}`);
     assert.equal(envelopes.length, 1, 'actual provider table contains exactly this numeric action');

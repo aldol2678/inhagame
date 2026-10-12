@@ -15,7 +15,7 @@ function fixture() {
   let serial = 1000, failing = false, gate = null, responseGate = null;
   const pair = (a, b) => [a, b].sort().join(':');
   const allowed = (u) => !denied.has(u);
-  const dataFor = l => ({ version: 1, allowed: true, leaseId: l.id, kind: l.kind, roomId: l.roomId,
+  const dataFor = l => ({ version: 1, allowed: true, leaseId: l.id, inboxNonce: l.inboxNonce, kind: l.kind, roomId: l.roomId,
     sessionId: l.sessionId, userId: l.userId, topic: `world:room-chat:${l.id}`, ttlMs: 30000 });
   const client = userId => ({
     auth: { getSession: async () => ({ data: { session: { user: { id: userId, is_anonymous: false }, access_token: 'fixture-token' } } }) },
@@ -27,13 +27,13 @@ function fixture() {
       if (name === 'join_world_room_chat_v1') {
         if (!allowed(userId)) return { data: { allowed: false } };
         for (const [key, l] of leases) if (l.userId === userId) leases.delete(key);
-        const l = { id: id(++serial), userId, kind: args.p_kind, roomId: args.p_room, sessionId: args.p_session, expires: clock.t + 30000, sent: [] };
+        const l = { id: id(++serial), inboxNonce: id(++serial), userId, kind: args.p_kind, roomId: args.p_room, sessionId: args.p_session, expires: clock.t + 30000, sent: [] };
         leases.set(l.id, l); return { data: dataFor(l) };
       }
       const l = leases.get(args.p_lease);
       if (!l || l.userId !== userId || l.expires <= clock.t || !allowed(userId)) return { data: { allowed: false, ok: false, reason: 'denied' } };
       if (name === 'leave_world_room_chat_v1') { leases.delete(l.id); return { data: true }; }
-      if (name === 'renew_world_room_chat_v1') { l.expires = clock.t + 30000; return { data: dataFor(l) }; }
+      if (name === 'renew_world_room_chat_v1') { l.inboxNonce = id(++serial); l.expires = clock.t + 30000; return { data: dataFor(l) }; }
       if (name === 'send_world_room_chat_v1') {
         l.sent = l.sent.filter(t => clock.t - t < 5000);
         if (l.sent.length >= 3) return { data: { ok: false, reason: 'rate_limited' } };
@@ -42,7 +42,7 @@ function fixture() {
           userId, name: userId === owner ? '방주인' : '친구', text: args.p_text };
         for (const target of leases.values()) if (target.userId !== userId && target.kind === l.kind && target.roomId === l.roomId &&
           allowed(target.userId) && target.expires > clock.t && !blocks.has(pair(userId, target.userId))) {
-          for (const c of channels) if (!c.removed && c.topic === dataFor(target).topic) c.receive({ payload: message });
+          for (const c of channels) if (!c.removed && c.topic === dataFor(target).topic) c.receive({ payload: { ...message, inboxNonce: target.inboxNonce } });
         }
         if (responseGate) await responseGate;
         return { data: { ok: true, message } };
@@ -235,4 +235,26 @@ test('reused input accurately labels room scope and restores the campus distance
   panel.setRoomScope(true); assert.equal(input.placeholder,'이 방 참가자에게 말하기');
   assert.equal(input.getAttribute('aria-label'),'이 방 참가자에게 채팅');
   panel.setRoomScope(false); assert.equal(input.placeholder,'근처 15m에 말하기');
+});
+
+test('cached provider callbacks cannot inject another inbox capability or survive lease loss', async () => {
+  const f=fixture(), a=await join(f,owner,20), b=await join(f,friend,21);
+  const own=()=>[...f.leases.values()].find(l=>l.userId===friend);
+  const sender=[...f.leases.values()].find(l=>l.userId===owner);
+  const packet={v:1,id:id(8000),...context(20),userId:owner,name:'방주인',text:'forged'};
+  b.channel.receive({payload:packet});
+  b.channel.receive({payload:{...packet,inboxNonce:sender.inboxNonce}});
+  assert.equal(b.chat.feed.entries.length,0,'missing or another recipient capability is never authority');
+  const previous=own().inboxNonce;
+  f.clock.t+=10000; await b.chat.revalidateNow();
+  assert.notEqual(own().inboxNonce,previous,'renew rotates its authenticated capability');
+  b.channel.receive({payload:{...packet,id:id(8001),text:'in flight before renew',inboxNonce:previous}});
+  assert.equal(b.chat.feed.entries.length,1,'old authorized in-flight packet may finish only within its original lease');
+  f.clock.t+=20001; await b.chat.revalidateNow();
+  b.channel.receive({payload:{...packet,id:id(8002),inboxNonce:previous}});
+  assert.equal(b.chat.feed.entries.length,1,'old capability cannot be prolonged by subsequent renewals');
+  const stale=b.channel; f.denied.add(friend); await b.chat.revalidateNow();
+  stale.receive({payload:{...packet,id:id(8003),inboxNonce:own().inboxNonce}});
+  assert.equal(b.chat.feed.entries.length,0,'permission loss clears authority and feed even for cached callbacks');
+  a.chat.destroy(); b.chat.destroy();
 });

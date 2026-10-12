@@ -1,6 +1,7 @@
 // Server-only recipient inboxes: clients cannot broadcast or track a forged club identity.
 // Every publication authenticates the sender and rechecks every recipient's live server lease.
 // This avoids treating Supabase's cached channel RLS decision as a continuing admission.
+import { createInboxAuthority } from "./inbox-authority.js";
 import { TransportStatus } from "../network/transport.js";
 import { sanitizeEquipment } from "../network/protocol.js";
 import { CLUB_ROOM_ID } from "./club-room-seats.js";
@@ -19,10 +20,11 @@ export class ClubRoomTransport {
     if (!client?.rpc || !client?.channel || !client?.auth) throw new TypeError("Club transport needs a Supabase client");
     clubRoomTopic(roomId, sessionId);
     this.client = client; this.roomId = roomId; this.sessionId = sessionId; this.userId = userId;
+    this.inbox = createInboxAuthority(clock, 20_000);
     this.clock = clock; this.onSnapshot = onSnapshot; this.onDenied = onDenied; this.windowTarget = windowTarget;
     this.handlers = { status: new Set(), presence: new Set(), pose: new Set(), action: new Set() };
     this.epoch = 0; this.entry = null; this.connected = false; this.snapshot = null;
-    this.poseBusy = false; this.poseAt = -Infinity;
+    this.poseBusy = false; this.poseAt = -Infinity; this.pendingPose = null;
     this.onOffline = () => this.lost("browser_offline");
     windowTarget?.addEventListener?.("offline", this.onOffline);
   }
@@ -34,10 +36,11 @@ export class ClubRoomTransport {
   subscribeAction(fn) { return this.subscribe("action", fn); }
   lost(reason) {
     if (!this.connected) return;
-    this.connected = false;
+    this.connected = false; this.pendingPose = null; this.inbox.clear();
     this.emit("status", { status: TransportStatus.DISCONNECTED, reason });
   }
-  setSnapshot(snapshot) {
+  setSnapshot(snapshot, validUntil) {
+    if (validUntil !== undefined && !this.inbox.admit(snapshot.inboxNonce, validUntil)) return;
     this.snapshot = snapshot;
     if (!this.entry?.subscribed) return;
     this.emit("presence", { type: "sync", placeZoneId: this.roomId, presences: snapshot.participants });
@@ -77,7 +80,7 @@ export class ClubRoomTransport {
     });
     const entry = this.entry = { channel, subscribed: false };
     channel.on("broadcast", { event: "club-packet" }, ({ payload } = {}) => {
-      if (this.entry !== entry || !entry.subscribed || payload?.roomId !== this.roomId ||
+      if (this.entry !== entry || !this.connected || !entry.subscribed || !this.inbox.accepts(payload?.inboxNonce) || payload?.roomId !== this.roomId ||
           !UUID.test(payload.sid ?? "") || payload.sid === this.sessionId ||
           payload.presence?.sessionId !== payload.sid || payload.presence?.placeZoneId !== this.roomId) return;
       this.emit("presence", { type: "join", placeZoneId: this.roomId, presences: [payload.presence] });
@@ -100,7 +103,7 @@ export class ClubRoomTransport {
     const entry = this.entry; this.entry = null;
     if (entry) try { Promise.resolve(this.client.removeChannel(entry.channel)).catch(() => {}); } catch { /* best effort */ }
   }
-  disconnect() { this.epoch += 1; this.connected = false; this.leavePlaceZone(); }
+  disconnect() { this.epoch += 1; this.connected = false; this.pendingPose = null; this.inbox.clear(); this.leavePlaceZone(); }
   async publish(event, packet) {
     if (!this.connected || !this.entry?.subscribed) return;
     const epoch = this.epoch;
@@ -118,7 +121,16 @@ export class ClubRoomTransport {
     return this.publish("presence", { equipment: sanitizeEquipment(presence?.equipment) });
   }
   publishPose(placeZoneId, packet) {
-    if (placeZoneId !== this.roomId || this.poseBusy || this.clock.now() - this.poseAt < CLUB_POSE_INTERVAL_MS) return;
+    if (placeZoneId !== this.roomId || !this.connected) return;
+    // NetworkManager marks a pose published before the async channel is necessarily subscribed.
+    // Keep only the latest snapshot: a dropped first/forced idle pose otherwise never retries.
+    this.pendingPose = packet;
+    return this.flushPose();
+  }
+  flushPose() {
+    if (!this.pendingPose || !this.connected || !this.entry?.subscribed || this.poseBusy ||
+        this.clock.now() - this.poseAt < CLUB_POSE_INTERVAL_MS) return;
+    const packet = this.pendingPose; this.pendingPose = null;
     this.poseAt = this.clock.now(); this.poseBusy = true;
     return this.publish("pose", packet).finally(() => { this.poseBusy = false; });
   }

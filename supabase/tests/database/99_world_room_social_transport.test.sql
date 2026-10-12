@@ -8,8 +8,11 @@ select * from no_plan();
 select ok(not (select enabled from private.world_room_chat_config where singleton), 'transport fixture starts CLOSED');
 select is((select relkind::text from pg_class where oid='realtime.messages'::regclass), 'p',
   'transport test requires the real partitioned provider table, never a stand-in');
-select ok(not has_function_privilege(r, 'realtime.send(jsonb,text,text,boolean)', 'execute'),
-  r || ' cannot invoke trusted provider publisher') from unnest(array['anon','authenticated']) r;
+select ok(private.world_room_publisher_safe_v1(), 'provider invoker + RLS safety gate is open');
+select ok(not rolsuper and not rolbypassrls, rolname || ' remains subject to RLS')
+  from pg_roles where rolname in ('anon','authenticated');
+select ok(rolbypassrls, 'service_role is a trusted backend with RLS bypass, never a client credential')
+  from pg_roles where rolname='service_role';
 select is_empty($$select column_name from information_schema.columns where table_schema='private'
   and table_name in ('world_room_chat_config','world_room_chat_sessions','world_room_chat_limits')
   and column_name in ('text','body','message','payload','history')$$, 'application metadata stores no transcript body');
@@ -41,21 +44,36 @@ select ok((select bool_and(private and extension='broadcast' and event='room_cha
   and payload->>'userId'='e1000000-0000-4000-8000-000000000001' and payload->>'name'='전송검증1'
   and payload->>'text'='실제 전송 검증') from realtime.messages where topic=current_setting('rs.topic')),
   'provider envelope is private, canonical and attributed to the authenticated sender');
+select ok((select payload->>'inboxNonce'=(select inbox_nonce::text from private.world_room_chat_sessions where id=current_setting('rs.recipient')::uuid) from realtime.messages where topic=current_setting('rs.topic')), 'server fanout carries only the recipient capability');
 select is((select payload#>'{p,id}' from realtime.messages
   where topic='world:club:ROOM_CLUBHOUSE_01:e2000000-0000-4000-8000-000000000002'), '7'::jsonb,
   'real provider preserves the numeric action ID');
 
 -- Deliberately permissive unrelated policies must never bypass either restrictive guard.
-create policy "room social fixture permissive read" on realtime.messages for select to authenticated using(true);
-create policy "room social fixture permissive write" on realtime.messages for insert to authenticated with check(true);
+create policy "room social fixture permissive read" on realtime.messages for select to anon, authenticated using(true);
+create policy "room social fixture permissive write" on realtime.messages for insert to anon, authenticated with check(true);
 set local role authenticated;
 set local request.jwt.claims='{"sub":"e1000000-0000-4000-8000-000000000002","role":"authenticated","is_anonymous":false}';
 select set_config('realtime.topic',current_setting('rs.topic'),true);
 select is((select count(*) from realtime.messages where topic=current_setting('rs.topic')),1::bigint,'recipient reads own chat inbox');
 select is((select count(*) from realtime.messages where topic='world:club:ROOM_CLUBHOUSE_01:e2000000-0000-4000-8000-000000000002'),0::bigint,
   'chat subscription cannot read the same account club inbox');
-select throws_ok($$select realtime.send('{}'::jsonb,'room_chat_v1',current_setting('rs.topic'),true)$$,'42501',null,
-  'authenticated client cannot directly broadcast through provider function');
+-- The actual provider catches RLS errors and returns void. A successful-looking RPC is NOT
+-- proof of publication. Check both client-visible and administrator-visible rows below.
+select lives_ok($$select realtime.send('{"forged":true}'::jsonb,'room_chat_v1',current_setting('rs.topic'),true)$$,
+  'provider direct call may return normally while its INSERT is rejected by RLS');
+select is((select count(*) from realtime.messages where payload ? 'forged'),0::bigint,
+  'authenticated inbox receives zero forged stored envelopes');
+reset role;
+select is((select count(*) from realtime.messages where payload ? 'forged'),0::bigint,
+  'administrator confirms direct provider call inserted zero forged rows');
+set local role anon;
+select lives_ok($$select realtime.send('{"forged":true}'::jsonb,'room_chat_v1',current_setting('rs.topic'),true)$$,
+  'anonymous provider invocation also cannot escape invoker RLS');
+reset role;
+select is((select count(*) from realtime.messages where payload ? 'forged'),0::bigint,
+  'anonymous direct call inserted zero forged rows');
+set local role authenticated;
 select throws_ok($$insert into realtime.messages(topic,extension,event,payload,private)
   values(current_setting('rs.topic'),'broadcast','room_chat_v1','{}',true)$$,'42501',null,
   'client cannot INSERT into its own chat inbox even with permissive policy');

@@ -24,7 +24,7 @@ That transport retention must be disclosed and approved before activation. No re
 
 Each send checks the sender's current lease/access and each recipient's current lease/access and both block directions. The common club room also checks its live `(room,user,session)` admission. This protects against stale Realtime subscription authorization: a revoked inbox may remain connected temporarily, but is omitted from new server fanout.
 
-The recipient inbox is `world:room-chat:<server-generated random UUID>`. Restrictive read policies bind both the row's `topic` and Realtime authorization topic to the caller's live inbox; restrictive write policies prohibit clients from publishing in this namespace even if an unrelated permissive policy is broad. Execution of the provider's trusted `realtime.send` primitive is revoked from PUBLIC/anon/authenticated in the candidate.
+The recipient inbox is `world:room-chat:<server-generated random UUID>`. Restrictive read policies bind both the row's `topic` and Realtime authorization topic to the caller's live inbox; restrictive write policies prohibit clients from publishing in this namespace even if an unrelated permissive policy is broad. The provider owns its `realtime.send` EXECUTE grants. Its current SECURITY INVOKER implementation can return normally after warning that INSERT was rejected; tests require zero forged rows, rather than assuming EXECUTE is denied. The private safety gate requires invoker semantics, enabled table RLS, and non-bypass anonymous/authenticated roles. Unsafe provider semantics close admission, renewal, publication and new reads.
 
 Personal-room pose/Presence remains the existing client-asserted implementation. It is not a certified identity or proof of physical avatar location. Chat identity does not trust that Presence: speech bubbles bind `(authenticated user ID, session ID)` and display the server-certified nickname and text from the same message. A malicious duplicate pose session ID cannot overwrite another user's speech bubble.
 
@@ -77,3 +77,22 @@ Actual two-browser attempts in this environment were blocked before page creatio
 ## Draft PR verification
 
 See [Room social remote QA](ROOM_SOCIAL_REMOTE_QA.md) for exact-head CI, two isolated browser contexts, and disposable PostgreSQL race/replay scope. Mobile boot recovery is a separate PR and is not included in this candidate.
+
+## Cached-channel capability defense
+
+Authenticated admission/renewal responses include a server-random per-recipient inbox capability.
+It is absent from roster/presence, send acknowledgements to other users, public status, screenshots
+and diagnostics. Only server fanout to that recipient includes it. The client requires it before
+processing a provider callback. Renewal rotates it; in-flight previous capabilities are accepted
+only until their original request-start-bounded lease expires (chat at most 30 seconds, club 20).
+The store is bounded to eight capabilities and is cleared on lost connection, room/account change
+or denial. Reconnect authenticates again and obtains a fresh capability. This does not promise
+cryptographic signatures, E2EE, protection from the recipient modifying its own UI, or protection
+from a compromised privileged backend/service key.
+
+A synthetic-provider SECURITY DEFINER mutation test deliberately demonstrates that direct
+provider INSERT may then bypass RLS. The application authority closes; the actual resulting
+forged envelope lacks the target capability and is rejected by production client authority.
+Real Supabase's protected function is never altered by the test. Browser tests separately inject
+missing/cross-recipient capabilities into already-subscribed channels and require zero feed entries.
+No live WebSocket zero-delivery result is inferred from a database zero-row assertion.

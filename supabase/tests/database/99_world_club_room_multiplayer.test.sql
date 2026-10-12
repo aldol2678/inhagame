@@ -30,8 +30,8 @@ select ('c1000000-0000-4000-8000-' || lpad(i::text, 12, '0'))::uuid, '동방테�
 
 -- Inspect the actual provider table in this disposable local transaction. Do not replace or
 -- rename protected realtime functions. Rollback prevents these rows reaching subscribers.
-select ok(not has_function_privilege('authenticated', 'realtime.send(jsonb,text,text,boolean)', 'execute'),
-  'client cannot invoke trusted Realtime send primitive');
+select ok(private.world_room_publisher_safe_v1(),
+  'actual provider is invoker and preserves restrictive RLS authority');
 create temp view club_outbox as
   select payload, event, topic, private from realtime.messages
   where topic ~ '^world:club:ROOM_CLUBHOUSE_01:c[23]000000-0000-4000-8000-00000000000[1-8]$';

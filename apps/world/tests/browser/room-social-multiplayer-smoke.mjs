@@ -28,7 +28,7 @@ for(const viewport of viewports)for(const kind of ['personal','club']){
       await smoke.context.exposeBinding('__socialTrack',(_s,id,p)=>server.track(id,p));
       await smoke.context.exposeBinding('__socialSend',(_s,id,p)=>server.send(id,p));
       await smoke.context.exposeBinding('__socialRemove',(_s,id)=>server.remove(id));
-      const page=await smoke.context.newPage();pages.push(page);smoke.watch(page);
+      const page=await smoke.context.newPage();page.setDefaultTimeout(TIMEOUT_MS);pages.push(page);smoke.watch(page);
       await page.goto(`${smoke.origin}/tests/browser/room-social-multiplayer-harness.html?member=${n}&kind=${kind}`);
       await page.waitForFunction(()=>window.__SOCIAL_QA__?.ready||window.__SOCIAL_QA__?.error,null,{timeout:TIMEOUT_MS});
       assert.equal(await page.evaluate(()=>window.__SOCIAL_QA__.error??null),null);
@@ -68,6 +68,14 @@ for(const viewport of viewports)for(const kind of ['personal','club']){
     await a.evaluate(()=>window.__SOCIAL_QA__.panel.setOpen(true));await a.locator('#chat-input').fill('취소할 문장');await a.locator('#chat-input').press('Escape');
     assert.equal(await a.locator('#chat-form').isVisible(),false);assert.notEqual(await a.evaluate(()=>document.activeElement?.id),'chat-input');
     row.checks.push('XSS remains inert text and Escape releases composer');
+    const feedBefore=await b.evaluate(()=>window.__SOCIAL_QA__.snapshot().feed.length);
+    const target=[...server.leases.values()].find(l=>l.userId===socialUser(2));
+    const source=[...server.leases.values()].find(l=>l.userId===socialUser(1));
+    for(const sub of server.subscribers.values())if(sub.userId===socialUser(2)&&sub.topic.startsWith('world:room-chat:')) {
+      for(const inboxNonce of [undefined,source.inboxNonce])sub.deliver({kind:'broadcast',event:'room_chat_v1',payload:{v:1,id:'30000000-0000-4000-8000-000000009999',kind:target.kind,roomId:target.roomId,sessionId:source.sessionId,userId:source.userId,name:'위조',text:'forged cached provider packet',inboxNonce}});
+    }
+    await new Promise(r=>setTimeout(r,100));assert.equal(await b.evaluate(()=>window.__SOCIAL_QA__.snapshot().feed.length),feedBefore);
+    row.checks.push('cached provider forgery with missing or cross-recipient nonce adds zero feed entries');
     server.resetLimits();
     for(const text of ['limit-1','limit-2','limit-3'])assert.equal(await a.evaluate(text=>window.__SOCIAL_QA__.chat.submit(text),text).then(v=>v.result),'sent');
     assert.equal((await a.evaluate(()=>window.__SOCIAL_QA__.chat.submit('limit-4'))).result,'rate_limited');
@@ -109,6 +117,8 @@ for(const viewport of viewports)for(const kind of ['personal','club']){
     row.snapshots=await Promise.all(pages.map(page=>page.evaluate(()=>window.__SOCIAL_QA__.snapshot())));
     assert.deepEqual(smokes.flatMap(s=>s.problems),[]);row.pass=true;
   }catch(error){row.error=String(error?.stack??error);failure=error;
+    row.snapshots=await Promise.all(pages.map(page=>page.evaluate(()=>window.__SOCIAL_QA__?.snapshot?.()).catch(error=>({error:String(error)}))));
+    row.server={sessions:[...server.club.sessions.values()].map(({inboxNonce,...safe})=>safe),calls:server.club.calls.slice(-40)};
     await Promise.all(pages.map((page,i)=>page.screenshot({path:path.join(output,`${viewport.name}-${kind}-${i+1}-failure.png`)}).catch(()=>{})));
   }finally{clearInterval(tick);await Promise.all(smokes.map(s=>s.close()));await writeFile(path.join(output,'report.json'),JSON.stringify(report,null,2));}
   if(failure)throw failure;

@@ -30,6 +30,7 @@ create table private.world_club_room_sessions (
   user_id uuid not null references auth.users(id) on delete cascade,
   session_id uuid not null unique,
   lease_expires_at timestamptz not null,
+  inbox_nonce uuid not null default gen_random_uuid(),
   seat_id text check (seat_id in ('chair_s0','chair_n0','chair_s1','chair_n1','chair_s2','chair_n2')),
   joined_at timestamptz not null default clock_timestamp(),
   equipment jsonb not null default '{}'::jsonb check (jsonb_typeof(equipment) = 'object' and octet_length(equipment::text) <= 4096),
@@ -63,9 +64,20 @@ alter table private.world_club_room_sessions enable row level security;
 revoke all on private.world_club_rooms, private.world_club_room_session_ids,
   private.world_club_room_sessions from public, anon, authenticated, service_role;
 
+-- Provider-owned EXECUTE grants are not the authority boundary: its invoker function may
+-- swallow an RLS rejection and return normally. Never alter its permissions. Detect unsafe
+-- definer semantics / disabled RLS / client BYPASSRLS on every admission and publication.
+create function private.world_room_publisher_safe_v1()
+returns boolean language sql stable security definer set search_path = '' as $$
+  select exists (select 1 from pg_catalog.pg_proc where oid = to_regprocedure('realtime.send(jsonb,text,text,boolean)') and not prosecdef)
+    and exists (select 1 from pg_catalog.pg_class where oid = to_regclass('realtime.messages') and relrowsecurity)
+    and not exists (select 1 from pg_catalog.pg_roles where rolname in ('anon','authenticated') and (rolsuper or rolbypassrls))
+$$;
+revoke all on function private.world_room_publisher_safe_v1() from public, anon, authenticated, service_role;
+
 create function private.world_club_room_access_v1(p_viewer uuid, p_room_id text)
 returns text language sql stable security definer set search_path = '' as $$
-  select case when p_room_id = 'ROOM_CLUBHOUSE_01' and exists (
+  select case when private.world_room_publisher_safe_v1() and p_room_id = 'ROOM_CLUBHOUSE_01' and exists (
     select 1 from auth.users u join public.profiles p on p.user_id = u.id
     where u.id = p_viewer and u.is_anonymous = false and p.is_banned = false
       and not exists (
@@ -124,16 +136,16 @@ $$;
 
 create function private.world_club_room_snapshot_v1(p_room text, p_session uuid, p_viewer uuid)
 returns jsonb language plpgsql stable security definer set search_path = '' as $$
-declare v_result jsonb; v_lease timestamptz;
+declare v_result jsonb; v_lease timestamptz; v_nonce uuid;
 begin
   if private.world_club_room_access_v1(p_viewer, p_room) <> 'MEMBER' or not exists (
     select 1 from private.world_club_room_sessions s where s.room_id = p_room
       and s.user_id = p_viewer and s.session_id = p_session and s.lease_expires_at > clock_timestamp()
   ) then return private.world_club_room_result_v1(false, 'SESSION_REQUIRED', p_room, p_session, p_viewer); end if;
-  select s.lease_expires_at into v_lease from private.world_club_room_sessions s
+  select s.lease_expires_at, s.inbox_nonce into v_lease, v_nonce from private.world_club_room_sessions s
     where s.room_id = p_room and s.user_id = p_viewer and s.session_id = p_session;
   v_result := private.world_club_room_result_v1(true, 'OK', p_room, p_session, p_viewer)
-    || jsonb_build_object('revision', (select r.revision from private.world_club_rooms r where r.room_id = p_room),
+    || jsonb_build_object('inboxNonce', v_nonce, 'revision', (select r.revision from private.world_club_rooms r where r.room_id = p_room),
       'leaseMs', greatest(0, floor(extract(epoch from (v_lease - clock_timestamp())) * 1000)::integer));
   return v_result || (
     select jsonb_build_object(
@@ -172,7 +184,7 @@ begin
   select s.* into v_current from private.world_club_room_sessions s where s.room_id = p_room and s.user_id = v_uid;
   if p_operation = 'join' then
     if v_current.session_id = p_session then
-      update private.world_club_room_sessions set lease_expires_at = v_now + interval '20 seconds'
+      update private.world_club_room_sessions set inbox_nonce = gen_random_uuid(), lease_expires_at = v_now + interval '20 seconds'
         where room_id = p_room and user_id = v_uid and session_id = p_session;
       return private.world_club_room_snapshot_v1(p_room, p_session, v_uid);
     end if;
@@ -208,7 +220,7 @@ begin
       case when v_current.session_id is null then 'SESSION_EXPIRED' else 'SESSION_REPLACED' end, p_room, p_session, v_uid);
   end if;
   if p_operation = 'heartbeat' then
-    update private.world_club_room_sessions set lease_expires_at = v_now + interval '20 seconds'
+    update private.world_club_room_sessions set inbox_nonce = gen_random_uuid(), lease_expires_at = v_now + interval '20 seconds'
       where room_id = p_room and user_id = v_uid and session_id = p_session;
   elsif p_operation = 'leave' then
     delete from private.world_club_room_sessions where room_id = p_room and user_id = v_uid and session_id = p_session;
@@ -314,12 +326,12 @@ returns integer language plpgsql volatile security definer set search_path = '' 
 declare v_target record; v_count integer := 0; v_envelope jsonb;
 begin
   v_envelope := jsonb_build_object('roomId', p_room, 'sid', p_session, 'p', p_packet, 'event', p_event, 'presence', p_presence);
-  for v_target in select s.session_id from private.world_club_room_sessions s
+  for v_target in select s.session_id, s.inbox_nonce from private.world_club_room_sessions s
     where s.room_id = p_room and s.session_id <> p_session and s.lease_expires_at > clock_timestamp()
       and private.world_club_room_access_v1(s.user_id, s.room_id) = 'MEMBER'
   loop
     execute 'select realtime.send($1, $2, $3, $4)'
-      using v_envelope, 'club-packet'::text, 'world:club:' || p_room || ':' || v_target.session_id::text, true;
+      using v_envelope || jsonb_build_object('inboxNonce', v_target.inbox_nonce), 'club-packet'::text, 'world:club:' || p_room || ':' || v_target.session_id::text, true;
     v_count := v_count + 1;
   end loop;
   return v_count;
@@ -334,6 +346,9 @@ begin
   if p_room is distinct from 'ROOM_CLUBHOUSE_01' or p_session is null
     or v_uid is null or (auth.jwt() ->> 'is_anonymous') is distinct from 'false' then
     return jsonb_build_object('allowed', false, 'sent', false, 'reason', 'DENIED');
+  end if;
+  if not private.world_room_publisher_safe_v1() then
+    return jsonb_build_object('allowed', false, 'sent', false, 'reason', 'REALTIME_UNAVAILABLE');
   end if;
   perform 1 from private.world_club_rooms r where r.room_id = p_room for update;
   if not found then return jsonb_build_object('allowed', false, 'sent', false, 'reason', 'DENIED'); end if;
@@ -421,22 +436,19 @@ $$;
 create function private.install_world_club_room_realtime_policies_v1()
 returns void language plpgsql security invoker set search_path = '' as $$
 begin
-  if to_regprocedure('realtime.send(jsonb,text,text,boolean)') is not null then
-    execute 'revoke execute on function realtime.send(jsonb,text,text,boolean) from public, anon, authenticated';
-  end if;
   execute 'drop policy if exists "world club leased inbox read" on realtime.messages';
   execute $policy$create policy "world club leased inbox read" on realtime.messages for select to authenticated
     using (extension = 'broadcast' and realtime.messages.topic = (select realtime.topic())
       and public.can_access_world_club_room_realtime_v1((select realtime.topic())))$policy$;
   -- Restrictive guards keep an unrelated permissive policy from enabling club spoofing/reads.
   execute 'drop policy if exists "world club inbox read guard" on realtime.messages';
-  execute $policy$create policy "world club inbox read guard" on realtime.messages as restrictive for select to authenticated
+  execute $policy$create policy "world club inbox read guard" on realtime.messages as restrictive for select to anon, authenticated
     using ((coalesce((select realtime.topic()), '') !~ '^world:club:'
         and coalesce(realtime.messages.topic, '') !~ '^world:club:') or
       (extension = 'broadcast' and realtime.messages.topic = (select realtime.topic())
         and public.can_access_world_club_room_realtime_v1((select realtime.topic()))))$policy$;
   execute 'drop policy if exists "world club server writes only" on realtime.messages';
-  execute $policy$create policy "world club server writes only" on realtime.messages as restrictive for insert to authenticated
+  execute $policy$create policy "world club server writes only" on realtime.messages as restrictive for insert to anon, authenticated
     with check (coalesce((select realtime.topic()), '') !~ '^world:club:'
       and coalesce(realtime.messages.topic, '') !~ '^world:club:')$policy$;
 end;
@@ -467,10 +479,6 @@ to authenticated;
 
 do $$
 begin
-  -- realtime.send is a trusted server primitive, never an authenticated-client escape hatch.
-  if to_regprocedure('realtime.send(jsonb,text,text,boolean)') is not null then
-    execute 'revoke execute on function realtime.send(jsonb,text,text,boolean) from public, anon, authenticated';
-  end if;
   if to_regclass('realtime.messages') is not null and to_regprocedure('realtime.topic()') is not null then
     perform private.install_world_club_room_realtime_policies_v1();
   else

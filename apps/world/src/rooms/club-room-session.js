@@ -15,7 +15,7 @@ export function parseClubSnapshot(raw, { roomId, sessionId, userId }) {
   const denied = { allowed: false, reason: typeof raw?.reason === "string" ? raw.reason : "DENIED" };
   if (raw?.allowed !== true || raw.roomId !== roomId || roomId !== CLUB_ROOM_ID ||
       raw.sessionId !== sessionId || raw.userId !== userId || raw.capacity !== CLUB_ROOM_CAPACITY ||
-      !Number.isSafeInteger(raw.revision) || raw.revision < 0 ||
+      !UUID.test(raw.inboxNonce ?? "") || !Number.isSafeInteger(raw.revision) || raw.revision < 0 ||
       !Number.isFinite(raw.leaseMs) || raw.leaseMs <= 0 || raw.leaseMs > CLUB_LEASE_MS ||
       !Array.isArray(raw.participants) || raw.participants.length > CLUB_ROOM_CAPACITY ||
       !Array.isArray(raw.seats) || raw.seats.length > CLUB_ROOM_CAPACITY) return denied;
@@ -40,7 +40,7 @@ export function parseClubSnapshot(raw, { roomId, sessionId, userId }) {
     if (parsed.ok && sessions.has(pose.sessionId)) poses.push({ sessionId: pose.sessionId, packet: parsed.pose });
   }
   return { allowed: true, roomId, sessionId, userId, capacity: CLUB_ROOM_CAPACITY,
-    leaseMs: raw.leaseMs, revision: raw.revision, participants, seats, poses, claimed: raw.claimed === true,
+    inboxNonce: raw.inboxNonce, leaseMs: raw.leaseMs, revision: raw.revision, participants, seats, poses, claimed: raw.claimed === true,
     reason: typeof raw.reason === "string" ? raw.reason : null };
 }
 
@@ -107,7 +107,7 @@ export function createClubRoomSession({
     // Request start is conservative: delayed responses never extend a lease beyond the server.
     current.leaseUntil = requestedAt + snapshot.leaseMs;
     current.lastHeartbeatAt = clock.now();
-    current.transport?.setSnapshot?.(snapshot);
+    current.transport?.setSnapshot?.(snapshot, current.leaseUntil);
     if (oldSeat && !snapshot.seats.some(s => s.sessionId === current.sessionId && s.seatId === oldSeat)) {
       safe(onSeatLost, { roomId: current.roomId, reason: "SEAT_LOST" });
     }
@@ -134,7 +134,7 @@ export function createClubRoomSession({
       if (!acceptSnapshot(current, data, requestedAt)) { stats.denied += 1; evict(current, data?.reason ?? "DENIED"); return false; }
       current.transport = createTransport(client, { roomId, sessionId, userId: current.userId, clock,
         onSnapshot: (raw, requestedAt) => acceptSnapshot(current, raw, requestedAt), onDenied: reason => evict(current, reason) });
-      current.transport.setSnapshot?.(current.snapshot);
+      current.transport.setSnapshot?.(current.snapshot, current.leaseUntil);
       current.net = new NetworkManager({ transport: current.transport, clock,
         identity: { sessionId, userId: current.userId, displayName: identity.displayName } });
       current.view = new RemotePlayerView({ createAvatar, localSessionId: sessionId });
@@ -190,6 +190,7 @@ export function createClubRoomSession({
     const sample = poseSource.sample(step);
     if (sample.jumped) current.net.reportJump();
     current.net.update(sample.pose);
+    current.transport?.flushPose?.();
     current.view.sync(current.net.sampleRemotes().filter(remote => current.snapshot?.participants.some(
       p => p.sessionId === remote.sessionId && p.userId === remote.userId)).map(remote => ({ ...remote,
       bubble: safe(() => getChatBubble(remote.sessionId, remote.userId)) ?? null })), step);

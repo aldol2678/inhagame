@@ -14,6 +14,7 @@ create table private.world_room_chat_sessions (
   room_id text not null,
   session_id uuid not null,
   lease_expires_at timestamptz not null,
+  inbox_nonce uuid not null default gen_random_uuid(),
   check ((kind = 'personal' and room_id ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
     or (kind = 'club' and room_id = 'ROOM_CLUBHOUSE_01'))
 );
@@ -31,7 +32,7 @@ revoke all on private.world_room_chat_config, private.world_room_chat_sessions, 
 create or replace function private.world_room_chat_access_v1(p_user uuid, p_kind text, p_room text, p_session uuid)
 returns boolean language plpgsql volatile security definer set search_path = '' as $$
 begin
-  if p_user is null or p_session is null or not exists (
+  if not private.world_room_publisher_safe_v1() or p_user is null or p_session is null or not exists (
     select 1 from private.world_room_chat_config where singleton and enabled
   ) then return false; end if;
   if exists (select 1 from private.world_user_moderation_actions a
@@ -55,7 +56,7 @@ create or replace function private.world_room_chat_lease_json_v1(p_session priva
 returns jsonb language sql stable security definer set search_path = '' as $$
   select jsonb_build_object('version', 1, 'allowed', true, 'leaseId', p_session.id,
     'kind', p_session.kind, 'roomId', p_session.room_id, 'userId', p_session.user_id,
-    'sessionId', p_session.session_id, 'topic', 'world:room-chat:' || p_session.id::text, 'ttlMs', 30000);
+    'sessionId', p_session.session_id, 'inboxNonce', p_session.inbox_nonce, 'topic', 'world:room-chat:' || p_session.id::text, 'ttlMs', 30000);
 $$;
 
 create or replace function public.can_receive_world_room_chat_v1(p_topic text)
@@ -98,7 +99,7 @@ begin
   if not found or v_session.lease_expires_at <= clock_timestamp() or not
     private.world_room_chat_access_v1(v_user, v_session.kind, v_session.room_id, v_session.session_id)
     then return jsonb_build_object('allowed', false, 'reason', 'DENIED'); end if;
-  update private.world_room_chat_sessions set lease_expires_at = clock_timestamp() + interval '30 seconds' where id = p_lease
+  update private.world_room_chat_sessions set inbox_nonce = gen_random_uuid(), lease_expires_at = clock_timestamp() + interval '30 seconds' where id = p_lease
     returning * into v_session;
   return private.world_room_chat_lease_json_v1(v_session);
 end;
@@ -150,7 +151,7 @@ begin
       and not exists (select 1 from public.world_user_blocks b where
         (b.blocker_id = v_user and b.blocked_id = v_target.user_id) or
         (b.blocker_id = v_target.user_id and b.blocked_id = v_user)) then
-      perform realtime.send(v_message, 'room_chat_v1', 'world:room-chat:' || v_target.id::text, true);
+      perform realtime.send(v_message || jsonb_build_object('inboxNonce', v_target.inbox_nonce), 'room_chat_v1', 'world:room-chat:' || v_target.id::text, true);
     end if;
   end loop;
   return jsonb_build_object('ok', true, 'message', v_message);
@@ -171,15 +172,11 @@ begin
     execute 'create policy "world room chat receive own inbox" on realtime.messages for select to authenticated
       using (extension = ''broadcast'' and topic = (select realtime.topic()) and public.can_receive_world_room_chat_v1((select realtime.topic())))';
     -- Restrictive guards survive unrelated broad permissive policies. This namespace is server-only.
-    execute 'create policy "world room chat restrict inbox reads" on realtime.messages as restrictive for select to authenticated
+    execute 'create policy "world room chat restrict inbox reads" on realtime.messages as restrictive for select to anon, authenticated
       using ((topic !~ ''^world:room-chat:'' and coalesce((select realtime.topic()), '''') !~ ''^world:room-chat:'') or
         (topic = (select realtime.topic()) and public.can_receive_world_room_chat_v1((select realtime.topic()))))';
-    execute 'create policy "world room chat prohibit client writes" on realtime.messages as restrictive for insert to authenticated
+    execute 'create policy "world room chat prohibit client writes" on realtime.messages as restrictive for insert to anon, authenticated
       with check (topic !~ ''^world:room-chat:'' and coalesce((select realtime.topic()), '''') !~ ''^world:room-chat:'')';
-  end if;
-  if to_regprocedure('realtime.send(jsonb,text,text,boolean)') is not null then
-    -- Only trusted SECURITY DEFINER authorities may invoke the provider's server publisher.
-    revoke all on function realtime.send(jsonb,text,text,boolean) from public, anon, authenticated;
   end if;
 end;
 $$;

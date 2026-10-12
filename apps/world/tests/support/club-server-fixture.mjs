@@ -1,4 +1,5 @@
 // Deterministic contract double, not PostgreSQL or live Supabase evidence.
+import { randomUUID } from "node:crypto";
 import assert from "node:assert/strict";
 import { CLUB_ROOM_ID } from "../../src/rooms/club-room-seats.js";
 export function serverFixture() {
@@ -11,7 +12,7 @@ export function serverFixture() {
   const snapshot = (userId, sessionId) => {
     const own = sessions.get(sessionId);
     if (!own || own.userId !== userId) return { allowed: false, reason: "SESSION_EXPIRED" };
-    return { allowed: true, roomId: CLUB_ROOM_ID, sessionId, userId, capacity: 6, leaseMs: own.expires - time, revision: ++revision,
+    return { allowed: true, roomId: CLUB_ROOM_ID, sessionId, userId, capacity: 6, inboxNonce: own.inboxNonce, leaseMs: own.expires - time, revision: ++revision,
       participants: [...sessions.values()].map(presence),
       seats: [...sessions.values()].filter(s => s.seatId).map(s => ({ seatId: s.seatId, sessionId: s.sessionId, userId: s.userId })),
       poses: [...sessions.values()].filter(s => s.pose).map(s => ({ sessionId: s.sessionId, packet: s.pose })) };
@@ -43,12 +44,12 @@ export function serverFixture() {
           if (used.has(key)) return { data: { allowed: false, reason: "SESSION_REUSED" } };
           for (const [k, s] of sessions) if (s.userId === userId) sessions.delete(k);
           if (sessions.size >= 6) return { data: { allowed: false, reason: "ROOM_FULL" } };
-          sessions.set(key, { userId, sessionId: key, expires: time + 20_000, joinedAt: time, seatId: null }); used.add(key);
+          sessions.set(key, { inboxNonce: randomUUID(), userId, sessionId: key, expires: time + 20_000, joinedAt: time, seatId: null }); used.add(key);
         }
       }
       const own = sessions.get(key);
       if (!own || own.userId !== userId) return { data: { allowed: false, reason: "SESSION_REPLACED" } };
-      if (name === "heartbeat_world_club_room_v1" || name === "join_world_club_room_v1") own.expires = time + 20_000;
+      if (name === "heartbeat_world_club_room_v1" || name === "join_world_club_room_v1") { own.expires = time + 20_000; own.inboxNonce = randomUUID(); }
       if (name === "claim_world_club_room_seat_v1") {
         const other = [...sessions.values()].some(s => s.sessionId !== key && s.seatId === args.p_seat);
         if (!other) own.seatId = args.p_seat;
@@ -60,7 +61,7 @@ export function serverFixture() {
         for (const channel of channels) {
           const recipient = sessions.get(channel.topic.split(":").at(-1));
           if (recipient && recipient.sessionId !== key && !restricted.has(recipient.userId)) channel.receiver?.({ payload: {
-            roomId: CLUB_ROOM_ID, sid: key, p: args.p_packet, event: args.p_event, presence: presence(own)
+            inboxNonce: recipient.inboxNonce, roomId: CLUB_ROOM_ID, sid: key, p: args.p_packet, event: args.p_event, presence: presence(own)
           } });
         }
         return { data: { allowed: true, sent: true } };

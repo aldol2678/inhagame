@@ -53,3 +53,25 @@ Database Broadcast stores delivery payloads in `realtime.messages` and documents
 3 days. See [Supabase documentation](https://supabase.com/docs/guides/realtime/broadcast#broadcast-from-the-database).
 That retention requires separate disclosure/approval before activation; it is not an E2EE claim.
 Real two-account Realtime and physical mobile acceptance remain a distinct activation gate.
+
+## First remote head: findings preserved, not acceptance evidence
+
+At head `c936b14af9d00c5b2939b0d4a5b12018199d7599`, required source checks and the
+PGlite contract job passed, but [real database checks](https://github.com/aldol2678/inhagame/actions/runs/38196081988)
+failed five pgTAP assertions. One exact RPC allowlist had not been extended; four assertions
+incorrectly assumed the provider's EXECUTE privilege remained revoked. The actual provider
+returned normally with `WarnSendingBroadcastMessage` because restrictive INSERT RLS rejected
+the attempted row. This is corrected by testing row effects directly, not by changing provider
+grants or weakening the no-forgery requirement. Anonymous/authenticated clients remain RLS-bound;
+`service_role` is a trusted BYPASSRLS backend and must never be shipped to browsers.
+
+The [first browser run](https://github.com/aldol2678/inhagame/actions/runs/38196082135) passed
+desktop personal/club and portrait personal, then exposed a stationary club avatar's first pose
+being dropped before channel subscription. Latest-only pending pose buffering fixes that production
+race; a delayed-subscription regression failed before the fix and passes after it. Landscape was
+not reached in that first run. Screenshots use the repository's intentional Public_QA_Avatar
+placeholder, not the private production mascot asset.
+
+Subsequent head checks must pass before treating either correction as remotely verified. PGlite
+fault injection changes only its synthetic provider, and browser authority attacks use synthetic
+transport. Live two-account provider delivery remains a separate, explicitly unverified layer.

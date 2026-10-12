@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 const { PGlite } = await import(process.env.PGLITE_MODULE ?? '@electric-sql/pglite');
 import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
+import { createInboxAuthority } from '../../apps/world/src/rooms/inbox-authority.js';
 import { encodeAction, validateAction, validatePresence, validatePose, EMOTE_IDS, ActionType } from '../../apps/world/src/network/protocol.js';
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const db = new PGlite();
@@ -26,11 +27,11 @@ create function auth.uid() returns uuid language sql as $$select (auth.jwt()->>'
 grant usage on schema public,auth,realtime to authenticated,anon;
 create table realtime.messages(id uuid default gen_random_uuid(),topic text,extension text default 'broadcast',payload jsonb);
 alter table realtime.messages enable row level security;
-grant select,insert on realtime.messages to authenticated;
+grant select,insert on realtime.messages to authenticated,anon;
 create function realtime.topic() returns text language sql as $$select current_setting('realtime.topic',true)$$;
-create function realtime.send(payload jsonb,event text,topic text,private boolean default true) returns void language sql as $$insert into realtime.messages(topic,payload) values (topic,payload)$$;
-create policy broad_existing_read on realtime.messages for select to authenticated using(true);
-create policy broad_existing_write on realtime.messages for insert to authenticated with check(true);
+create function realtime.send(payload jsonb,event text,topic text,private boolean default true) returns void language plpgsql as $$begin insert into realtime.messages(topic,payload) values (topic,payload); exception when insufficient_privilege then raise warning 'synthetic provider RLS rejection'; end$$;
+create policy broad_existing_read on realtime.messages for select to anon,authenticated using(true);
+create policy broad_existing_write on realtime.messages for insert to anon,authenticated with check(true);
 insert into auth.users values('${id(1)}',false),('${id(2)}',false),('${id(3)}',false),('${id(4)}',true);
 insert into public.profiles values('${id(1)}','방주인',false),('${id(2)}','친구',false),('${id(3)}','외부인',false),('${id(4)}','게스트',false);
 insert into public.world_player_rooms values('${id(100)}','${id(1)}','friends');
@@ -64,7 +65,9 @@ await auth(id(3));await db.query(`select set_config('realtime.topic',$1,false)`,
 await db.query(`select set_config('realtime.topic','world:campus:AREA_MAIN',false)`);assert.equal(await scalar('select count(*)::int from realtime.messages'),0,'broad campus policy cannot leak a chat row');
 await auth(id(2));await db.query(`select set_config('realtime.topic',$1,false)`,[b.topic]);
 await assert.rejects(()=>db.query('insert into realtime.messages(topic,payload) values($1,$2)',[b.topic,JSON.stringify(first.message)]),/row-level security/);
-await assert.rejects(()=>db.query(`select realtime.send('{}','room_chat_v1',$1,true)`,[b.topic]),/permission denied/);
+await db.query(`select realtime.send('{"forged":true}','room_chat_v1',$1,true)`,[b.topic]);
+await q('reset role'); assert.equal(await scalar("select count(*)::int from realtime.messages where payload ? 'forged'"),0,'invoker response does not imply a forged insert');
+await auth(id(2));
 assert.equal((await scalar(`select public.send_world_room_chat_v1($1,'spoof')`,[a.leaseId])).ok,false,'cannot use another sender lease');
 await q(`reset role; insert into public.world_user_blocks values('${id(2)}','${id(1)}')`);
 await auth(id(1));assert.equal((await send('blocked')).ok,true);
@@ -129,12 +132,34 @@ await q(`reset role; update private.world_club_room_sessions set lease_expires_a
 await auth(id(1));await scalar('select public.send_world_room_chat_v1($1,$2)',[ca2.leaseId,'after recipient club expiry']);
 await q('reset role');assert.equal(await scalar('select count(*)::int from realtime.messages'),2);
 await auth(id(2));assert.equal((await scalar('select public.renew_world_room_chat_v1($1)',[cb2.leaseId])).allowed,false);
+// Mutate only this disposable synthetic provider. The real Supabase provider schema is not
+// changed. Unsafe SECURITY DEFINER closes every application authority despite cached leases.
+await q('reset role; alter function realtime.send(jsonb,text,text,boolean) security definer');
+assert.equal(await scalar('select private.world_room_publisher_safe_v1()'),false);
+await auth(id(1));
+assert.equal((await scalar('select public.renew_world_room_chat_v1($1)',[ca2.leaseId])).allowed,false);
+assert.equal((await scalar('select public.send_world_room_chat_v1($1,$2)',[ca2.leaseId,'unsafe provider'])).ok,false);
+assert.equal(await scalar('select public.can_receive_world_room_chat_v1($1)',[ca2.topic]),false);
+assert.equal((await scalar("select public.heartbeat_world_club_room_v1('ROOM_CLUBHOUSE_01',$1)",[id(43)])).allowed,false);
+assert.equal(await scalar('select public.can_access_world_club_room_realtime_v1($1)',[`world:club:ROOM_CLUBHOUSE_01:${id(43)}`]),false);
+// Demonstrate why cached channels also need an admission-only capability: a hypothetical
+// changed definer CAN bypass INSERT RLS. It does not know another recipient's inbox nonce.
+await db.query(`select realtime.send('{"forged":true}','room_chat_v1',$1,true)`,[ca2.topic]);
+await q('reset role'); assert.equal(await scalar("select count(*)::int from realtime.messages where payload ? 'forged'"),1);
+const capability=createInboxAuthority({now:()=>1000},30000); assert.equal(capability.admit(ca2.inboxNonce,31000),true);
+const forged=await scalar("select payload from realtime.messages where payload ? 'forged'");
+assert.equal(capability.accepts(forged.inboxNonce),false,'actual changed-definer forged row is rejected by production cached-channel authority');
+await q("delete from realtime.messages where payload ? 'forged'; alter function realtime.send(jsonb,text,text,boolean) security invoker");
+// The unsafe heartbeat prunes its sessions. Recreate a fresh authenticated admission only after
+// restoring safe semantics, then exercise missing-publisher closure independently.
+await q("update private.world_club_room_session_ids set created_at=clock_timestamp()-interval '2 seconds'");
+await clubJoin(id(1),44);
 // Provider absence is fault-injected only into this synthetic in-memory schema, never a
 // protected Supabase schema. Exercise the actual club RPC's operational fail-closed branch.
 await q('reset role; alter function realtime.send(jsonb,text,text,boolean) rename to fixture_unavailable_send');
 await auth(id(1));
-const unavailable = await scalar("select public.publish_world_club_room_v1('ROOM_CLUBHOUSE_01',$1,'presence','{}')",[id(43)]);
+const unavailable = await scalar("select public.publish_world_club_room_v1('ROOM_CLUBHOUSE_01',$1,'presence','{}')",[id(44)]);
 assert.equal(unavailable.allowed,false); assert.equal(unavailable.sent,false);
 assert.equal(unavailable.reason,'REALTIME_UNAVAILABLE');
-console.log('PASS: actual personal/club/chat candidate SQL in PGlite; synthetic auth and provider transport. Default CLOSED, sender binding, blocks/moderation/privacy, strict cross-policy RLS, rate across rejoin, club admission/leave/replacement/expiry and missing-provider fail-closed all checked. Full Supabase replay and live Realtime delivery UNKNOWN.');
+console.log('PASS: actual personal/club/chat candidate SQL in PGlite; synthetic auth and provider transport. Default CLOSED, sender binding, blocks/moderation/privacy, strict cross-policy RLS, rate across rejoin, club admission/leave/replacement/expiry provider invoker rejection and unsafe-definer/missing-provider fail-closed all checked. Full Supabase replay and live Realtime delivery UNKNOWN.');
 await db.close();

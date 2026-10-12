@@ -115,7 +115,7 @@ The separately installed club policies preserve the existing campus/personal-roo
 - Permissive SELECT allows a live owned inbox, broadcast only, with stored `realtime.messages.topic` equal to `realtime.topic()`.
 - Restrictive SELECT checks **both** the stored row topic and the subscription topic. A campus topic cannot be supplied to read stored club rows through the existing campus permissive policy.
 - Restrictive INSERT rejects club topics in **either** field. There is no client club INSERT policy, no direct club broadcast, and no client presence-tracking grant.
-- Client execution (`public`, `anon`, `authenticated`) of `realtime.send(jsonb,text,text,boolean)` is revoked when that function is present. Trusted definer RPCs call it as their owner.
+- Provider-owned `realtime.send` grants are unchanged. SECURITY INVOKER plus restrictive anonymous/authenticated INSERT guards enforce server-only publication; a normal-looking provider call may still have inserted zero rows. An unsafe-definer/RLS/client-bypass gate closes application access. Admission-only recipient capabilities additionally protect cached client channels; see `ROOM_CHAT_CANDIDATE.md`.
 
 If the Realtime service/schema is absent in a stripped replay fixture, the installer emits a notice instead of replacing unrelated policy installers. Delivery explicitly returns `allowed:false, sent:false, reason:REALTIME_UNAVAILABLE` when the send function is absent. A real deployment must verify the function, its grants, and all club policies after Realtime is available; merely creating these SQL functions is not activation evidence.
 

@@ -221,3 +221,50 @@ test("main wires club session, identity cleanup, seat claims and emotes separate
   assert.match(main, /identity\?\.userId !== clubRoomSession\.status\(\)\.userId/);
   assert.match(main, /\(!identity \|\| clubIdentityChanged\) && rooms\?\.currentSpace === CLUB_ROOM_ID/);
 });
+
+test('a stationary first pose survives delayed subscription and the transport rate window', async () => {
+  const server = serverFixture(), original = server.client;
+  const subscriptions = [];
+  server.client = (...args) => {
+    const client = original(...args), channel = client.channel;
+    client.channel = (...params) => {
+      const value = channel(...params);
+      value.subscribe = fn => { value.status = fn; subscriptions.push(fn); return value; };
+      return value;
+    };
+    return client;
+  };
+  const a = member(server, 1);
+  assert.equal(await a.session.enter(), true); await flush();
+  a.session.update(.05); // NetworkManager may publish before private inbox subscription resolves.
+  await flush();
+  for (const subscribed of subscriptions) subscribed('SUBSCRIBED');
+  await frames(server, [a], 5); // No movement, no test-induced forcePose workaround.
+  const first = server.sessions.get(a.session.status().sessionId)?.pose;
+  assert.ok(first, 'first stationary pose is delivered after subscribe/rate readiness');
+  assert.equal(first.x, 0); assert.equal(first.anim, 'idle');
+  const b = member(server, 2); await b.session.enter(); await flush();
+  subscriptions.at(-1)('SUBSCRIBED'); await frames(server, [a,b], 5);
+  await a.session.revalidateNow(); await frames(server, [a,b], 3);
+  assert.equal(a.avatars.size,1); assert.equal(b.avatars.size,1,'late join sees idle participant without movement');
+  a.session.stop(); b.session.stop();
+});
+
+test('cached club channel rejects guessed and cross-recipient capabilities before presence or actions', async () => {
+  const server=serverFixture(),a=member(server,1),b=member(server,2);
+  await a.session.enter(CLUB_ROOM_ID);await b.session.enter(CLUB_ROOM_ID);await frames(server,[a,b]);
+  const sid=a.session.status().sessionId,other=b.session.status().sessionId;
+  const channel=[...server.channels].find(c=>c.topic.endsWith(other));
+  const snapshot=server.snapshot(id(2),other);
+  assert.equal(snapshot.participants.some(p=>'inboxNonce' in p),false,'roster never discloses capabilities');
+  const payload={roomId:CLUB_ROOM_ID,sid,event:'action',p:{v:1,id:99,type:'emote',payload:{emote:'wave'}},presence:snapshot.participants.find(p=>p.sessionId===sid)};
+  channel.receiver({payload});
+  channel.receiver({payload:{...payload,inboxNonce:server.sessions.get(sid).inboxNonce}});
+  await frames(server,[a,b],1);
+  assert.notEqual(b.avatars.get(sid)?.sample?.emote?.id,'wave');
+  channel.receiver({payload:{...payload,inboxNonce:server.sessions.get(other).inboxNonce}});
+  await frames(server,[a,b],1);
+  assert.equal(b.avatars.get(sid)?.sample?.emote?.id,'wave','same valid envelope is accepted only with authenticated recipient authority');
+  assert.equal(JSON.stringify(b.session.status()).includes('inboxNonce'),false,'public status excludes admission capability');
+  a.session.stop();b.session.stop();
+});

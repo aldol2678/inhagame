@@ -2,6 +2,7 @@
 // broadcast chat. Each send rechecks sender, every recipient, room admission and both block edges.
 // No fallback to campus/pose broadcasts when the server contract is absent. No app history.
 // Provider DB Broadcast retains delivery payloads temporarily; see ROOM_CHAT_CANDIDATE.md.
+import { createInboxAuthority } from './inbox-authority.js';
 import { ChatFeed, normalizeChatText } from '../online/local-chat.js';
 import { normalizeDisplayName } from '../network/protocol.js';
 
@@ -32,6 +33,7 @@ export function createRoomChat({ getClient, getIdentity, clock = { now: () => Da
   const feed = new ChatFeed({ clock, moderation: { check: () => ({ ok: true }), isBlocked } });
   let current = null, epoch = 0, phase = 'IDLE';
   let joinTail = Promise.resolve();
+  const inbox = createInboxAuthority(clock, ROOM_CHAT_LEASE_MS);
   const seen = new Set();
   // Presence session IDs are not identity credentials. Bind every bubble to the certified user too.
   const trustedBubbles = new Map();
@@ -55,7 +57,7 @@ export function createRoomChat({ getClient, getIdentity, clock = { now: () => Da
     if (c) { c.channel = null; c.subscribed = false; }
     if (channel) { try { Promise.resolve(c.client.removeChannel(channel)).catch(() => {}); } catch { /* best effort */ } }
   }
-  function clear() { seen.clear(); trustedBubbles.clear(); feed.clear(); }
+  function clear() { inbox.clear(); seen.clear(); trustedBubbles.clear(); feed.clear(); }
   function stop() {
     epoch += 1;
     const c = current; current = null; phase = 'IDLE';
@@ -93,6 +95,7 @@ export function createRoomChat({ getClient, getIdentity, clock = { now: () => Da
     if (data?.version !== 1 || data?.allowed !== true || data.kind !== c.kind || data.roomId !== c.roomId ||
       data.userId !== c.userId || data.sessionId !== c.sessionId || !UUID.test(data.leaseId ?? '') ||
       data.topic !== `world:room-chat:${data.leaseId}` || data.ttlMs !== ROOM_CHAT_LEASE_MS) return false;
+    if (!inbox.admit(data.inboxNonce, c.requestAt + ROOM_CHAT_LEASE_MS)) return false;
     c.leaseId = data.leaseId; c.topic = data.topic;
     // Do not trust the client clock versus server wall time; bound the local lease from request start.
     c.validUntil = c.requestAt + ROOM_CHAT_LEASE_MS;
@@ -142,7 +145,7 @@ export function createRoomChat({ getClient, getIdentity, clock = { now: () => Da
       const channel = c.client.channel(c.topic, { config: { private: true, broadcast: { self: false } } });
       c.channel = channel; phase = 'CONNECTING';
       channel.on('broadcast', { event: ROOM_CHAT_EVENT }, ({ payload } = {}) => {
-        if (myEpoch === epoch && c.channel === channel) receive(c, payload);
+        if (myEpoch === epoch && c.channel === channel && inbox.accepts(payload?.inboxNonce)) receive(c, payload);
       });
       c.checking = false;
       channel.subscribe((state) => {
