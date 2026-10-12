@@ -33,7 +33,7 @@ const { JEONGSEOK_B1_READING } = await import("../src/jeongseok/b1-reading-layou
 const { GROUP_STUDY_ROOM_SLOTS, JEONGSEOK_B1_CREATIVE } = await import("../src/jeongseok/b1-creative-layout.js");
 const { createJeongseokEntryPolicy, resolveJeongseokEntryMode, JEONGSEOK_ENTRY_MODE, JEONGSEOK_ACCESS_POLICY_KEY, JEONGSEOK_GRANT_TTL_MS } = await import("../src/jeongseok/entry-policy.js");
 const { createJeongseokInterior } = await import("../src/jeongseok/interior-feature.js");
-const { buildRoomGeometry } = await import("../src/jeongseok/interior-renderer.js");
+const { buildRoomGeometry, interiorDetailForTier } = await import("../src/jeongseok/interior-renderer.js");
 const { createStaticBatch } = await import("../src/jeongseok/static-batch.js");
 
 const flat = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -451,7 +451,7 @@ test("generic transition: switchNested needs a parent, and toCampus clears the n
 });
 
 // ------------------------------------------------------------------ geometry budget
-test("each room renders every module through merged geometry within a mobile-minded budget", () => {
+test("each room renders every module through merged geometry within a mobile-minded budget", async () => {
   for (const layout of LAYOUTS) {
     const full = buildRoomGeometry(createStaticBatch(), layout, "full");
     const low = buildRoomGeometry(createStaticBatch(), layout, "low");
@@ -460,4 +460,8 @@ test("each room renders every module through merged geometry within a mobile-min
     assert.ok(low.vertexCount <= full.vertexCount);
     assert.ok(full.primitiveCount > layout.items.length / 2);
   }
+  // The shared graphics tiers pick interior detail: the two lowest presets drop decor.
+  const { GRAPHICS_PRESETS } = await import("../src/graphics-presets.js");
+  for (const tier of Object.keys(GRAPHICS_PRESETS))
+    assert.equal(interiorDetailForTier(tier), ["very_low", "low"].includes(tier) ? "low" : "full", tier);
 });

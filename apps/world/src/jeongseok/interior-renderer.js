@@ -486,6 +486,10 @@ const LIGHTING = {
   [JEONGSEOK_B1_CREATIVE_ROOM_ID]: { ambient: [0.46, 0.45, 0.44], clear: [0.12, 0.12, 0.13], lights: [[-6, 1.6, 0, [1, 0.9, 0.76], 0.9, 15], [8, 1.6, 0, [0.85, 0.9, 1], 0.7, 12]] }
 };
 
+// Existing graphics tiers decide interior detail; no separate interior quality setting.
+const REDUCED_DETAIL_TIERS = new Set(["very_low", "low"]);
+export const interiorDetailForTier = tier => REDUCED_DETAIL_TIERS.has(tier) ? "low" : "full";
+
 /** Engine-free count of what one room batches (Node tests use the layout; browser QA reads status()). */
 export function buildRoomGeometry(batch, layout, detail = "full") {
   const H = layout.shell.ceiling;
@@ -527,7 +531,7 @@ export function createJeongseokInteriorScenes(app, { getGraphicsTier = () => "me
     if (!layout) throw new Error(`Unknown Jeongseok room ${roomId}`);
     if (failNext === "build") { failNext = null; throw new Error("QA: injected Jeongseok scene build failure"); }
     const started = now();
-    const detail = getGraphicsTier() === "low" ? "low" : "full";
+    const detail = interiorDetailForTier(getGraphicsTier());
     const root = new pc.Entity(`Room_${roomId}`);
     root.setLocalScale(1, 1, -1);
     root.enabled = false;
