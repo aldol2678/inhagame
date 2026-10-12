@@ -48,3 +48,11 @@ test('last pending release aborts and evicts hung transport, allowing fresh retr
  const a=pool.acquire('url');await tick();a.release();await tick();assert.equal(signals[0].aborted,true);assert.deepEqual(pool.status(),[]);
  const b=pool.acquire('url');await tick();assert.equal(signals.length,2);assert.equal(signals[1].aborted,false);b.release();await tick();assert.deepEqual(pool.status(),[]);
 });
+
+import {createSofaCancellationTracker} from './browser/housing-sofa-cancellation-policy.mjs';
+test('browser ignores only observed signal cancellations, including reversed event delivery',()=>{
+ const errors=[],page={},other={},tracker=createSofaCancellationTracker(errors);
+ assert.equal(tracker.failed(page,'url','net::ERR_FAILED','1'),false);
+ tracker.failed(page,'url','net::ERR_ABORTED','1');assert.equal(errors.length,1);tracker.signalled(other,'url','1');assert.equal(errors.length,1,'another page cannot license cancellation');tracker.signalled(page,'url','2');assert.equal(errors.length,1,'another request cannot license cancellation');tracker.signalled(page,'url','1');assert.equal(errors.length,0);
+ tracker.signalled(page,'url','3');tracker.failed(page,'url','net::ERR_ABORTED','3');assert.equal(errors.length,0);tracker.failed(page,'url','net::ERR_ABORTED','4');assert.equal(errors.length,1,'no signal means real failure');
+});

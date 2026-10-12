@@ -11,11 +11,12 @@ try{
  const app=new pc.Application(canvas,{graphicsDevice:device}),scene=createPersonalRoomScene(app);scene.root.enabled=true;app.scene.ambientLight=scene.ambient;
  // Same real room shell/fixtures and same renderer entry point for both branches.
  const layer=createFurnitureLayer(app,scene.root,{modelMode:mode==='procedural'?'procedural':'glb'});
- const camera=new pc.Entity('ABCamera');camera.addComponent('camera',{fov:42,nearClip:.03,farClip:100,clearColor:scene.clearColor});app.root.addChild(camera);camera.setPosition(1.55,1.2,2.2);camera.lookAt(0,.39,0);
+ const camera=new pc.Entity('ABCamera');camera.addComponent('camera',{fov:42,nearClip:.03,farClip:100,clearColor:scene.clearColor});app.root.addChild(camera);const fit=Math.max(1,.8/(innerWidth/innerHeight));const cameraAt=[1.55*fit,.39+.81*fit,2.2*fit];camera.setPosition(...cameraAt);camera.lookAt(0,.39,0);
  const profile=GRAPHICS_PRESETS[quality];const ratio=Math.min(devicePixelRatio||1,profile.maxPixelRatio);device.resizeCanvas(Math.round(innerWidth*ratio),Math.round(innerHeight*ratio));
  const object=(i=0,yaw=0)=>({id:`10000000-0000-4000-8000-${String(i+1).padStart(12,'0')}`,itemId:SOFA_VISUAL.itemId,surface:'floor',x:i*1.5,z:0,yaw});
- const frames=[],start=performance.now();let last;
- app.on('postrender',()=>{qa.frames++;if(last!==undefined)frames.push(performance.now()-last);last=performance.now();});
+ const frames=[],cpuSubmission=[],start=performance.now();let last,cpuStart;
+ app.on('prerender',()=>{cpuStart=performance.now();});
+ app.on('postrender',()=>{if(cpuStart!==undefined)cpuSubmission.push(performance.now()-cpuStart);qa.frames++;if(last!==undefined)frames.push(performance.now()-last);last=performance.now();});
  qa.objects=[object()];layer.setObjects(qa.objects);app.start();await scene.ensureVisualAssets();await layer.whenVisualsReady();
  const gl=device.gl,debug=gl.getExtension('WEBGL_debug_renderer_info');
  const renderer=debug?gl.getParameter(debug.UNMASKED_RENDERER_WEBGL):gl.getParameter(gl.RENDERER);
@@ -23,8 +24,8 @@ try{
  const snapshot=()=>{
   const renders=layer.root.findComponents('render').filter(c=>active(c.entity)),instances=renders.flatMap(c=>c.meshInstances);
   return {mode,quality,engine:pc.version,device:device.deviceType,renderer,hardwareGPU:/swiftshader|llvmpipe|software/i.test(renderer)?false:null,
-   graphicsProfile:profile,renderSize:[device.width,device.height],roomLightingPolicy:'existing non-shadowed practicals unchanged',visual:layer.visualStatus(),resources:furnitureAssetStatus(app),triangles:instances.reduce((sum,mi)=>sum+mi.mesh.primitive[0].count/3,0),meshInstances:instances.length,
-   drawCalls:app.stats.drawCalls.total,frameRenderMs:app.stats.frame.renderTime,frameIntervalsMs:frames.slice(-60),gpuFrameMs:null,gpuFrameReason:'No validated disjoint timer sample; CPU render duration is not GPU time',
+   cameraAt,cameraTarget:[0,.39,0],graphicsProfile:profile,renderSize:[device.width,device.height],roomLightingPolicy:'existing non-shadowed practicals unchanged',visual:layer.visualStatus(),resources:furnitureAssetStatus(app),triangles:instances.reduce((sum,mi)=>sum+mi.mesh.primitive[0].count/3,0),meshInstances:instances.length,
+   drawCalls:app.stats.drawCalls.total,cpuSubmissionMs:cpuSubmission.at(-1)??null,cpuSubmissionSamplesMs:cpuSubmission.slice(-60),engineFrameRenderTimeRaw:app.stats.frame.renderTime,engineFrameRenderTimeAccepted:false,frameIntervalsMs:frames.slice(-60),gpuFrameMs:null,gpuFrameReason:'No validated disjoint timer sample; CPU render duration is not GPU time',
    vram:{...device._vram},jsHeapBytes:performance.memory?.usedJSHeapSize??null,frames:qa.frames,loadMs:qa.loadMs,objects:qa.objects,obstacles:layer.obstacles};
  };
  qa.snapshot=snapshot;qa.loadMs=performance.now()-start;
@@ -39,7 +40,7 @@ try{
   }
   qa.objects=[object()];layer.setObjects(qa.objects);await layer.whenVisualsReady();return records;
  };
- qa.capture=async()=>captureFurnitureVisual(layer,()=>new Promise(resolve=>{app.once('postrender',()=>resolve(canvas.toDataURL('image/png')));app.renderNextFrame=true;}),{viewKey:JSON.stringify({quality,camera:[1.55,1.2,2.2],target:[0,.39,0],size:[device.width,device.height]})});
+ qa.capture=async()=>captureFurnitureVisual(layer,()=>new Promise(resolve=>{app.once('postrender',()=>resolve(canvas.toDataURL('image/png')));app.renderNextFrame=true;}),{viewKey:JSON.stringify({quality,camera:cameraAt,target:[0,.39,0],size:[device.width,device.height]})});
  qa.dispose=()=>{layer.root.destroy();};
  qa.ready=true;document.getElementById('status').textContent=`${mode.toUpperCase()} · ${quality} · PlayCanvas ${pc.version}\nIdentical room / camera / placement · ${renderer}`;
 }catch(error){qa.error=error.stack??String(error);document.getElementById('status').textContent=qa.error;console.error(error);}

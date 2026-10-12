@@ -12,6 +12,7 @@ import { readFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { fileURLToPath } from "node:url";
 import { chromium, webkit } from "playwright";
+import { createSofaCancellationTracker } from "./housing-sofa-cancellation-policy.mjs";
 import { resolveWorldSmokeSource } from "./harness-source.mjs";
 
 export const TIMEOUT_MS = Number(process.env.WORLD_SMOKE_TIMEOUT_MS || 90_000);
@@ -72,9 +73,27 @@ export async function startSmoke({ viewport = { width: 1280, height: 720 }, cont
     ...(browserType === "chromium" ? { args: gpuArgs } : {})
   });
   const problems = [];
+  const sofaCancellations = createSofaCancellationTracker(problems);
   const blocked = new Set();
   const stubbed = new Set();
   const context = await browser.newContext({ ...contextOptions, viewport, serviceWorkers: "block" });
+  await context.exposeBinding('__worldSmokeSofaAbort', ({ page }, { url, requestId }) => {
+    if (url === `${server.origin}/assets/furniture/dorm-single-sofa-v1.glb` && /^\d+$/.test(requestId)) sofaCancellations.signalled(page, url, requestId);
+  });
+  await context.addInitScript(() => {
+    const original = globalThis.fetch; let sequence=0;
+    globalThis.fetch = function(input, options) {
+      const url = new URL(typeof input === 'string' || input instanceof URL ? input : input.url, location.href);
+      const signal = options?.signal;
+      if (url.origin === location.origin && url.pathname === '/assets/furniture/dorm-single-sofa-v1.glb' && signal) {
+        const requestId=String(++sequence),headers=new Headers(options?.headers);
+        headers.set('x-world-smoke-sofa-request',requestId);options={...options,headers};
+        const notify = () => { void globalThis.__worldSmokeSofaAbort({url:url.href,requestId}).catch(() => {}); };
+        if (signal.aborted) notify(); else signal.addEventListener('abort', notify, { once:true });
+      }
+      return original.call(this, input, options);
+    };
+  });
   if (disabled) await context.addInitScript(() => Object.defineProperty(navigator, 'gpu', { value: undefined }));
   await context.route("**/*", route => {
     const url = new URL(route.request().url());
@@ -120,6 +139,7 @@ export async function startSmoke({ viewport = { width: 1280, height: 720 }, cont
       // this harness deliberately fulfilled the request. Keep the production 204 contract strict;
       // ignore only this known artifact for the one confirmed telemetry endpoint we stub ourselves.
       if (url.pathname === "/api/hub-event" && stubbed.has(url.pathname) && errorText === "net::ERR_ABORTED") return;
+      if (url.pathname === "/assets/furniture/dorm-single-sofa-v1.glb" && sofaCancellations.failed(page, request.url(), errorText, request.headers()["x-world-smoke-sofa-request"])) return;
       problems.push(`request failed: ${request.url()} ${errorText}`);
     });
     page.on("response", response => {
@@ -131,11 +151,12 @@ export async function startSmoke({ viewport = { width: 1280, height: 720 }, cont
   };
 
   const close = async () => {
+    if (sofaCancellations.records.length) console.log(`observed optional sofa cancellations: ${JSON.stringify(sofaCancellations.records)}`);
     if (stubbed.size) console.log(`stubbed: ${[...stubbed].sort().join(", ")}`);
     if (blocked.size) console.log(`blocked off-origin: ${[...blocked].sort().join(", ")}`);
     await context.close();
     await browser.close();
     server.stop();
   };
-  return { origin: server.origin, context, problems, watch, close };
+  return { origin: server.origin, context, problems, watch, close, sofaCancellations: sofaCancellations.records };
 }

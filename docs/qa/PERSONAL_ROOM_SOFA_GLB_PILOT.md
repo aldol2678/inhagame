@@ -64,11 +64,12 @@ Current #362 branch has NOT been integrated or tested with these future changes.
 - Housing workflow is extended; no new CI workflow. Existing housing save/reload/
   chair/room tests remain. Dedicated fixture uses actual room + furniture renderer,
   identical camera/light/placements for A/B and low/medium/high profile pixel caps.
+  Portrait camera distance fits the full sofa; both A/B use the same recorded matrix.
   Room's established non-shadowed practicals stay unchanged at every tier.
 - Matrix: desktop1280×800,portrait390×844,landscape844×390 × three quality tiers × A/B;
   intentional 404 fallback; shared two-sofa source; six remove/re-enter cycles;
   actual canvas thumbnail captured only after settled model generation.
-- JSON records GL renderer, triangles, draw calls, loading time, CPU render duration,
+- JSON records GL renderer, triangles, draw calls, loading time, explicit prerender-to-postrender CPU submission duration,
   frame intervals, buffer memory, JS heap if available. GPU frame time remains
   UNKNOWN without validated timer-query evidence. CPU times are not GPU times.
 - Local Chromium is blocked by socket() EPERM. Remote CI results must be read back
@@ -80,3 +81,22 @@ Current #362 branch has NOT been integrated or tested with these future changes.
 Reproduce: node --test apps/world/tests/*.test.mjs; node apps/world/qa.mjs;
 node apps/world/tests/browser/housing-sofa-glb-null.mjs;
 WORLD_SMOKE_DISABLE_WEBGPU=1 node apps/world/tests/browser/housing-sofa-glb-smoke.mjs.
+
+### Hosted iteration receipts
+
+- ded77ff: existing room asset readback unexpectedly gained a fourth array item;
+  corrected by awaiting sofa readiness separately while returning the old 3-part contract.
+- da4ff341: dedicated 21-case A/B/fallback, six-cycle resource release and thumbnail
+  tests PASS in actual PlayCanvas WebGL2 (SwiftShader), not hardware GPU proof.
+  Existing housing CRUD tests passed but intentionally aborted optional sofa loads
+  were counted as network errors. QA now correlates only actual page AbortSignal
+  receipts to the same unique request header ID + URL + ERR_ABORTED. Unknown
+  aborts and all other failures still fail. All cancellation receipts are logged.
+  Portrait A/B camera was also pulled back equally to avoid cropping the full sofa.
+
+The first A/B receipt's `frameRenderMs` read from engine stats is not an accepted
+CPU duration: the pinned build leaves renderStart at its initial value in this
+fixture. Later receipts measure prerender→postrender explicitly and preserve raw
+engine values with `engineFrameRenderTimeAccepted=false`. Neither is GPU time.
+Initial load samples include the common fixture startup (not isolated network RTT),
+and A then B ordering/cache effects preclude a hardware performance conclusion.
