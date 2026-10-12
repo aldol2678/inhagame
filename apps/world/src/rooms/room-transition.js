@@ -10,6 +10,8 @@
 //   getPlaceZoneId()             current campus Place Zone (for the return context)
 //   createCheckpoint()           return a rollback closure for scene/player/presence state
 // `fade(run)` may return a Promise and must await run() before completing its cleanup.
+// A room with a string `access` other than "open"/"closed" is entered only when `accessPolicies`
+// has a predicate for that key and it returns true (fail closed when the policy is missing).
 // Public actions still return a boolean acceptance result; only onChange signals success.
 
 import { CAMPUS_SPACE, RETURN_ANCHORS, ROOMS, ROOM_ENTRANCES, isRoomId } from "./room-registry.js";
@@ -24,7 +26,7 @@ const flat = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 export function createRoomTransition({
   world, clock = { now: () => Date.now() }, fade = (run) => run(),
   rooms = ROOMS, entrances = ROOM_ENTRANCES, anchors = RETURN_ANCHORS,
-  canEnter = () => true,
+  canEnter = () => true, accessPolicies = {},
   onBusyChange = () => {}, onError = () => {}
 }) {
   let space = CAMPUS_SPACE;
@@ -34,7 +36,16 @@ export function createRoomTransition({
   let nestedReturn = null;
   let forcedExitFrom = null;
   const listeners = new Set();
-  const stats = { enters: 0, exits: 0, nestedEnters: 0, nestedExits: 0, directNestedEnters: 0 };
+  const stats = { enters: 0, exits: 0, nestedEnters: 0, nestedExits: 0, directNestedEnters: 0, nestedSwitches: 0 };
+  const accessAllowed = (entrance, room) => {
+    if (!room || room.access === "closed") return false;
+    if (typeof room.access === "string" && room.access !== "open") {
+      const policy = accessPolicies[room.access];
+      if (typeof policy !== "function") return false;
+      try { return policy(entrance, room) === true; } catch { return false; }
+    }
+    return true;
+  };
 
   const setBusy = (next) => {
     const value = Boolean(next);
@@ -79,7 +90,7 @@ export function createRoomTransition({
   const drainForcedExit = () => {
     const source = forcedExitFrom;
     forcedExitFrom = null;
-    if (source === space && !busy) exit({ force: true });
+    if (source?.space === space && !busy) exit({ force: true, toCampus: source.toCampus });
   };
 
   function transition({ roomId, steps, commit, event, counter, isValid = () => true, prepare = () => {}, requireDeparture = false }) {
@@ -209,14 +220,13 @@ export function createRoomTransition({
     metadata: metadata && typeof metadata === "object" ? { ...metadata } : null
   });
 
-  function enter(roomId, { entranceId = null } = {}) {
+  function enter(roomId, { entranceId = null, isValid = () => true } = {}) {
     if (space !== CAMPUS_SPACE || !isRoomId(roomId) || !ready()) return false;
     const room = rooms[roomId];
-    if (room.access === "closed") return false;
     const entrance = entrances.find((e) => e.id === (entranceId ?? room.entranceId)) ?? null;
-    if (!entrance || !canEnter(entrance, room)) return false;
+    if (!entrance || !accessAllowed(entrance, room) || !canEnter(entrance, room)) return false;
     let context;
-    return transition({ roomId, event: "enter", counter: "enters",
+    return transition({ roomId, event: "enter", counter: "enters", isValid,
       prepare: () => { context = campusContext(entrance); },
       steps: [() => world.leaveCampus(room), () => world.showRoom(room),
         () => world.placePlayer(room.spawn.position, room.spawn.yaw)],
@@ -231,7 +241,7 @@ export function createRoomTransition({
     if (fromRoomId && fromRoomId !== space) return false;
     if (!returnPosition || !Number.isFinite(returnPosition.x) || !Number.isFinite(returnPosition.z)) return false;
     const room = rooms[roomId];
-    if (room.access === "closed") return false;
+    if (!accessAllowed(null, room)) return false;
     const target = nestedContext(space, returnPosition, returnYaw, metadata);
     return transition({ roomId, event: "enter-nested", counter: "nestedEnters", isValid,
       steps: [() => world.showRoom(room), () => world.placePlayer(room.spawn.position, room.spawn.yaw)],
@@ -246,7 +256,7 @@ export function createRoomTransition({
     if (space !== CAMPUS_SPACE || !isRoomId(roomId) || !isRoomId(parentRoomId) || roomId === parentRoomId || !ready()) return false;
     if (!returnPosition || !Number.isFinite(returnPosition.x) || !Number.isFinite(returnPosition.z)) return false;
     const room = rooms[roomId];
-    if (room.access === "closed") return false;
+    if (!accessAllowed(null, room) || !accessAllowed(null, rooms[parentRoomId])) return false;
     const entrance = entrances.find((e) => e.id === rooms[parentRoomId].entranceId) ?? null;
     if (!entrance || !anchors[entrance.returnAnchor]) return false;
     let context;
@@ -259,16 +269,39 @@ export function createRoomTransition({
     });
   }
 
-  function exit({ force = false } = {}) {
+  // Move between two rooms that share the same parent (e.g. two B1 spaces under one lobby). The
+  // parent return target survives; `returnPosition` may retarget it to the new room's doorway.
+  function switchNested(roomId, {
+    fromRoomId = null, arrival = null, returnPosition = null, returnYaw = null, isValid = () => true
+  } = {}) {
+    if (space === CAMPUS_SPACE || !nestedReturn || !isRoomId(roomId) || roomId === space || roomId === nestedReturn.roomId || !ready()) return false;
+    if (fromRoomId && fromRoomId !== space) return false;
+    const room = rooms[roomId];
+    if (!accessAllowed(null, room)) return false;
+    const spawn = arrival ?? room.spawn;
+    if (!spawn?.position || !Number.isFinite(spawn.position.x) || !Number.isFinite(spawn.position.z)) return false;
+    if (returnPosition && (!Number.isFinite(returnPosition.x) || !Number.isFinite(returnPosition.z))) return false;
+    const target = returnPosition
+      ? nestedContext(nestedReturn.roomId, returnPosition, returnYaw ?? nestedReturn.yaw, nestedReturn.metadata)
+      : nestedReturn;
+    return transition({ roomId, event: "switch-nested", counter: "nestedSwitches", isValid,
+      steps: [() => world.showRoom(room), () => world.placePlayer(spawn.position, spawn.yaw ?? 0)],
+      commit: () => { nestedReturn = target; space = roomId; }
+    });
+  }
+
+  // `toCampus` (forced exits only need it) leaves a nested room straight to the campus return
+  // anchor of the outermost room instead of stopping in the parent room.
+  function exit({ force = false, toCampus = false } = {}) {
     // Forced access-loss exits bypass only cooldown, never an in-flight switch or recovery.
     if (space === CAMPUS_SPACE) return false;
     if (busy) {
-      if (force) forcedExitFrom = space;
+      if (force) forcedExitFrom = { space, toCampus: toCampus || forcedExitFrom?.toCampus === true };
       return false;
     }
     if (!force && !ready()) return false;
     const room = rooms[space];
-    if (nestedReturn) {
+    if (nestedReturn && !(toCampus && returnContext)) {
       const parent = rooms[nestedReturn.roomId];
       if (!parent) return false;
       const target = nestedReturn;
@@ -281,7 +314,7 @@ export function createRoomTransition({
     if (!anchor) return false;
     return transition({ roomId: CAMPUS_SPACE, event: "exit", counter: "exits", requireDeparture: force,
       steps: [() => world.showCampus(room), () => world.placePlayer(anchor.position, anchor.yaw), () => world.resumeCampus()],
-      commit: () => { space = CAMPUS_SPACE; }
+      commit: () => { space = CAMPUS_SPACE; nestedReturn = null; }
     });
   }
 
@@ -293,7 +326,7 @@ export function createRoomTransition({
       const near = nearestEntrance(position);
       if (!near) return null;
       const room = rooms[near.entrance.roomId];
-      if (room.access === "closed" || !canEnter(near.entrance, room)) return null;
+      if (!accessAllowed(near.entrance, room) || !canEnter(near.entrance, room)) return null;
       return { id: "room-door", icon: "🚪", label: room.enterLabel ?? `${room.label} 들어가기`, priority: ROOM_CONTEXT_PRIORITY,
         distance: near.distance, pressed: false, trigger: () => enter(room.id, { entranceId: near.entrance.id }) };
     }
@@ -309,6 +342,7 @@ export function createRoomTransition({
     enter,
     enterNested,
     enterNestedFromCampus,
+    switchNested,
     exit,
     contextAction,
     status,
