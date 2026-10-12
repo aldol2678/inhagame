@@ -67,12 +67,12 @@ export function createPhoneMessages({ getClient, getFactory = loadHubMessagesFac
     if (!accountId) {root.append(el('p','smartphone-empty-state','로그인하면 메시지를 확인할 수 있어요.'));return;}
     if (view === 'inbox') {
       const controls=el('div','phone-messages-controls');
-      controls.append(button(busy?'불러오는 중…':'새로고침',()=>{void loadInbox();}));
+      const refresh=button(busy?'불러오는 중…':'새로고침',()=>{if(!busy)void loadInbox();});refresh.disabled=busy;controls.append(refresh);
       const count=el('span','phone-messages-unread',unread ? '읽지 않음 '+unread+'개' : '읽지 않은 메시지 없음');
       controls.append(count);root.append(controls);
       const form=el('form','phone-messages-new');
       const entry=el('input');entry.type='text';entry.maxLength=36;entry.placeholder='상대방 사용자 ID';entry.setAttribute('aria-label','새 쪽지 받을 사용자 ID');
-      const start=button('새 대화',()=>{});start.type='submit';
+      const start=button('새 대화',()=>{});start.type='submit';start.disabled=busy;
       form.addEventListener('submit',event=>{event.preventDefault();if(!busy)void startConversation(entry.value.trim());});
       form.append(entry,start);root.append(form);
       if (!inbox.length) root.append(el('p','smartphone-empty-state',busy?'쪽지함을 불러오는 중…':'아직 받은 쪽지가 없어요.'));
@@ -180,7 +180,7 @@ export function createPhoneMessages({ getClient, getFactory = loadHubMessagesFac
     try {
       const model=await getModel();if(!safe(ticket))return;
       const result=await model.send(target,draft);if(!safe(ticket))return;
-      if(result.outcome!=='SUCCESS'){notice=phoneMessageErrorText(result.code);return;}
+      if(result.outcome!=='SUCCESS'){notice=result.code==='FAILED'?'전송 상태를 확인하지 못했어요. 재전송 전 쪽지함을 새로고침해 주세요.':phoneMessageErrorText(result.code);return;}
       draft='';busy=false;await loadInbox({selectUserId:target});
     } catch {if(safe(ticket))notice='전송 결과를 확인하지 못했어요. 재전송 전에 쪽지함을 확인해 주세요.';}
     finally{if(safe(ticket)){busy=false;render();}}
@@ -233,6 +233,6 @@ export function createPhoneMessages({ getClient, getFactory = loadHubMessagesFac
   function close() {epoch++;active=false;busy=false;current=null;thread=[];draft='';host=null;pendingRecipient=null;}
   return Object.freeze({activate,mount,close,setAccount,refreshUnread,
     get available(){return true;},
-    status:()=>({active,view,accountId,unreadCount:unread,conversationCount:inbox.length})
+    status:()=>({active,view,accountId,busy,unreadCount:unread,conversationCount:inbox.length})
   });
 }
