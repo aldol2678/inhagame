@@ -52,7 +52,7 @@ test('event scheduling always pauses before a week; only a valid choice resumes 
   assert.equal(prompted.pendingEvent.year,1);
   assert.equal(prompted.pendingEvent.week,5);
   assert.equal(prompted.weeksCompleted,4);
-  assert.deepEqual(state,advanceLife(advanceLife(state)).pendingEvent?state:state); // pre-event state remains unchanged
+  assert.equal(state.pendingEvent,null); // querying a future event never changes the original snapshot
   assert.deepEqual(old,createLife({majorId:'ai',seed:70}));
   assert.deepEqual(advanceLife(prompted),prompted);
   assert.throws(()=>chooseLifeEvent(prompted,'not-offered'),RangeError);
