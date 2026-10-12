@@ -52,6 +52,7 @@ async function check(name,viewport,mobile) {
   assert.equal(await page.getByRole('textbox',{name:'메시지 내용'}).count(),0);
   entry.checks.push('A: unread/list, thread, read, report, one send, two-step block, composer permission');
   await page.evaluate(()=>window.fixture.switchAccount(window.fixture.B));
+  await page.waitForFunction(()=>window.fixture.snapshot.accountId===window.fixture.B && !window.fixture.snapshot.busy);
   await page.getByText('아직 받은 쪽지가 없어요.').waitFor();
   assert.equal(await page.getByText('안뇽! 캠퍼스에서 만나!',{exact:true}).count(),0);
   await page.getByRole('textbox',{name:'새 쪽지 받을 사용자 ID'}).fill('33333333-3333-4333-8333-333333333333');
@@ -65,11 +66,13 @@ async function check(name,viewport,mobile) {
   assert.equal((await calls(page)).filter(x=>x.name==='archive_hub_conversation_v1').length,1);
   entry.checks.push('B: account-specific inbox, server recipient eligibility, new send, archive');
   await page.evaluate(()=>window.fixture.switchAccount(window.fixture.A));
+  await page.waitForFunction(()=>window.fixture.snapshot.accountId===window.fixture.A && !window.fixture.snapshot.busy);
   await page.getByRole('button',{name:/검증 플레이어/}).waitFor();
   await page.evaluate(()=>window.fixture.deferNextList());
   await page.getByRole('button',{name:'새로고침',exact:true}).click();
   await page.waitForFunction(()=>window.fixture.holding);
   await page.evaluate(()=>window.fixture.switchAccount(window.fixture.B));
+  await page.waitForFunction(()=>window.fixture.snapshot.accountId===window.fixture.B && !window.fixture.snapshot.busy);
   await page.getByText('아직 받은 쪽지가 없어요.').waitFor();
   await page.evaluate(()=>window.fixture.release());
   await page.waitForTimeout(70);
