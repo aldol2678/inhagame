@@ -46,6 +46,15 @@ test('fail closed for missing main diff, unknown paths, other functionality, or 
   assert.equal(scopedPhoneMessagesOnly(files,patch.replace('openMessages','openAlbum')),false);
   assert.equal(scopedPhoneMessagesOnly(files,[...patch.split('\n')].reverse().join('\n')),false);
 });
+test('release, hotfix and explicit full-ci never opt out', () => {
+  for (const title of ['release(world): menu update', 'hotfix: save regression',
+    '[full-ci] feat(phone): messages', '릴리스 통합', '출시 준비']) {
+    const decision=inspect({CI_PR_TITLE:title,
+      CI_BASE_SHA:'a'.repeat(40),CI_HEAD_SHA:'b'.repeat(40)});
+    assert.deepEqual({skip:decision.skip,reason:decision.reason},{skip:false,reason:'release-or-unknown-pr'});
+  }
+});
+
 test('missing CI refs cannot opt out of tests', () => {
   assert.equal(inspect({}).skip,false);
   assert.equal(inspect({CI_BASE_SHA:'x',CI_HEAD_SHA:'y'}).skip,false);
