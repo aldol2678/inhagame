@@ -39,6 +39,9 @@ function git(...args) {
 
 export function inspect(env = process.env) {
   const base = env.CI_BASE_SHA, head = env.CI_HEAD_SHA;
+  const title = typeof env.CI_PR_TITLE === 'string' ? env.CI_PR_TITLE.trim() : '';
+  // Release/hotfix reviews never take the fast path, even if their files look narrow.
+  if (!title || /(?:\brelease\b|\bhotfix\b|릴리스|출시|\[full-ci\])/i.test(title)) return {skip:false,reason:'release-or-unknown-pr'};
   if (!/^[0-9a-f]{40}$/.test(base ?? '') || !/^[0-9a-f]{40}$/.test(head ?? '')) return {skip:false,reason:'unknown-sha'};
   try {
     if (git('rev-parse','HEAD').trim() !== head) return {skip:false,reason:'head-mismatch'};
