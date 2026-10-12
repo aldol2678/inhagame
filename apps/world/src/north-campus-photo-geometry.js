@@ -95,12 +95,23 @@ export function fillAnniversaryPhotoFacade(b,tier='NEAR'){
     const profile=[[.01,12.55],[.46,12.55],[.49,12.48],[.515,12.20],[.54,11.55],
       [.575,8.0],[.60,5.05],[.625,4.40],[.65,4.20],
       ...(i===3?[[.84,4.20],[.86,4.15],[.88,3.95],[.90,3.60],[.94,1.85],[.98,.15]]:[[.98,4.20]])];
-    for(let j=1;j<profile.length;j++){
-     const a=profile[j-1],p=profile[j],u=q=>(reverse?1-q:q)*len;
-     const x0=u(a[0]),x1=u(p[0]),dx=x1-x0,dy=p[1]-a[1],length=Math.hypot(dx,dy),nx=-dy/length*.40,ny=dx/length*.40;
-     const face=[point(f,x0+nx,a[1]+ny,.29),point(f,x1+nx,p[1]+ny,.29),point(f,x1-nx,p[1]-ny,.29),point(f,x0-nx,a[1]-ny,.29)];
+    const centers=profile.map(([u,y])=>({x:(reverse?1-u:u)*len,y}));
+    const normals=centers.slice(1).map((p,j)=>{
+     const a=centers[j],dx=p.x-a.x,dy=p.y-a.y,length=Math.hypot(dx,dy);
+     return {x:-dy/length,y:dx/length};
+    });
+    // Shared miter vertices close the old wedge gaps between ribbon segments.
+    // Both adjacent faces consume the SAME joint, preserving the original axis.
+    const joints=centers.map((p,j)=>{
+     const a=normals[Math.max(0,j-1)],d=normals[Math.min(j,normals.length-1)];
+     const x=a.x+d.x,y=a.y+d.y,scale=.40/(x*a.x+y*a.y);
+     return {left:point(f,p.x+x*scale,p.y+y*scale,.29),right:point(f,p.x-x*scale,p.y-y*scale,.29),
+       edge:point(f,p.x+x*scale,p.y+y*scale,.31)};
+    });
+    for(let j=1;j<joints.length;j++){
+     const a=joints[j-1],p=joints[j],face=[a.left,p.left,p.right,a.right];
      b.quad(c.ribbon,...face);b.quad(c.ribbon,...[...face].reverse());
-     b.tube(c.joint,point(f,x0+nx,a[1]+ny,.31),point(f,x1+nx,p[1]+ny,.31),.045,4);
+     b.tube(c.joint,a.edge,p.edge,.045,4);
     }
    }
   }else if(tier==='DETAIL'){

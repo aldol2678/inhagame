@@ -18,7 +18,7 @@ import {PlayerController} from '../src/player-controller.js';
 import {roadviewGroundHeight} from '../src/roadview-layout.js';
 import {RENDER_CHUNKS} from '../src/render-chunk-registry.js';
 import {CAMPUS_NIGHT_LAMPS} from '../src/environment/night-campus-lamp-layout.js';
-import {NORTH_PHOTO_COLORS} from '../src/north-campus-photo-geometry.js';
+import {NORTH_PHOTO_COLORS,fillAnniversaryPhotoFacade} from '../src/north-campus-photo-geometry.js';
 const capture=fn=>{const calls=[];fn(Object.fromEntries(['box','quad','triangle','tube','crown'].map(kind=>[kind,(c,...args)=>calls.push({kind,c,args})])));return calls;};
 const allRings=WALKWAY_SURFACES.flatMap(s=>s.rings);
 const onWalk=p=>[...allRings,...WALKWAY_EXTERNAL_MASKS].some(r=>polygonOverlap(p.x,p.z,r,.015));
@@ -107,4 +107,16 @@ test('survey uncertainties and unsupported facilities stay explicit, not generat
  assert.equal(WALKWAY_ENTRANCE.orientation,'INFERRED');
  for(const kind of ['bench','rack','bollard','stairs','crosswalk'])assert.ok(![...WALKWAY_PROPS,...WALKWAY_WALL_PROPS].some(p=>p.kind===kind));
  assert.ok(WALKWAY_EVIDENCE.deferred.includes('current_crosswalk'));
+});
+
+
+test('curved facade frame segments share exact joints without visible wedge gaps',()=>{
+ const faces=capture(fillAnniversaryPhotoFacade).filter(c=>c.kind==='quad'&&c.c===NORTH_PHOTO_COLORS.ribbon).filter((_,i)=>i%2===0);
+ let joins=0;
+ for(let i=1;i<faces.length;i++){
+  const previous=faces[i-1].args,next=faces[i].args;
+  const distance=Math.hypot(...previous[1].map((v,k)=>v-next[0][k]));
+  if(distance<2){assert.deepEqual(previous[1],next[0]);assert.deepEqual(previous[2],next[3]);joins++;}
+ }
+ assert.ok(joins>=25,'all three existing ribbons retain connected silhouettes');
 });
