@@ -29,10 +29,14 @@ export function createJeongseokInterior({ rooms, policy, layouts = JEONGSEOK_LAY
   const accessPredicate = (doorway, room) => room?.id === JEONGSEOK_LOBBY_ROOM_ID
     ? policy.allowsLobby() && (!doorway || entering)
     : !doorway && isJeongseokRoomId(room?.id) && protectedSpace() && policy.allowsProtectedRoom();
+  // Keep the shared collision current at the policy change, including a cached lobby while
+  // B1 is active. Waiting for the next scene frame leaves a completed return with an open gate.
+  const syncGateAccess = () => scenes?.setGateAccess?.(policy.allowsStay());
+  const endSession = reason => { policy.endSession(reason); syncGateAccess(); };
 
   function forcePublic(message) {
     if (!inside()) return false;
-    policy.endSession("RETURNED_TO_PUBLIC");
+    endSession("RETURNED_TO_PUBLIC");
     stats.forcedExits += 1;
     if (message) onStatus(message);
     if (rooms.currentSpace !== JEONGSEOK_LOBBY_ROOM_ID) {
@@ -70,8 +74,9 @@ export function createJeongseokInterior({ rooms, policy, layouts = JEONGSEOK_LAY
     if (rooms.currentSpace !== JEONGSEOK_LOBBY_ROOM_ID || rooms.status().busy ||
         nearJeongseokGate(getPosition(), JEONGSEOK_GATE) === null || isJeongseokProtectedPosition(getPosition()) || policy.mode !== JEONGSEOK_ENTRY_MODE.SERVER_GRANT ||
         !policy.acceptServerGrant(snapshot) || !policy.commitEntry()) {
-      policy.discardGrant(); stats.refused += 1; return { status: "REFUSED" };
+      policy.discardGrant(); syncGateAccess(); stats.refused += 1; return { status: "REFUSED" };
     }
+    syncGateAccess();
     stats.protectedEntries += 1;
     return { status: "INNER_ACCESS_GRANTED" };
   }
@@ -123,10 +128,10 @@ export function createJeongseokInterior({ rooms, policy, layouts = JEONGSEOK_LAY
     const was = lastSpace; lastSpace = state.space;
     if (event === "enter" && state.space === JEONGSEOK_LOBBY_ROOM_ID && was === CAMPUS_SPACE) stats.entries += 1;
     if (state.space === JEONGSEOK_LOBBY_ROOM_ID && was !== CAMPUS_SPACE && was !== state.space) {
-      forcing = false; policy.endSession("RETURNED_TO_PUBLIC");
+      forcing = false; endSession("RETURNED_TO_PUBLIC");
     }
     if (state.space === CAMPUS_SPACE && isJeongseokRoomId(was)) {
-      forcing = false; policy.endSession("LEFT");
+      forcing = false; endSession("LEFT");
       if (scenes?.releaseAll) { scenes.releaseAll(); stats.released += 1; }
     }
     if (!isJeongseokRoomId(state.space)) forcing = false;
@@ -135,25 +140,32 @@ export function createJeongseokInterior({ rooms, policy, layouts = JEONGSEOK_LAY
   return {
     contextAction, enter, enterFromServerGrant, usePortal, accessPredicate,
     update() {
+      syncGateAccess();
       if (!inside() || forcing || rooms.status().busy) return false;
       const position = getPosition();
       if (policy.allowsStay()) {
         if (protectedSpace()) policy.confirmCrossing();
-        else if (policy.status().crossed && position?.z < JEONGSEOK_INNER_BOUNDARY_Z - 0.5) policy.endSession("LEFT_INNER_AREA");
+        else if (policy.status().crossed && position?.z < JEONGSEOK_INNER_BOUNDARY_Z - 0.5) endSession("LEFT_INNER_AREA");
         return false;
       }
       return protectedSpace() ? forcePublic(JEONGSEOK_TEXT.revoked) : false;
     },
     revalidate(snapshot) {
-      if (!policy.status().session) return true;
-      if (policy.revalidate(snapshot)) return true;
+      const allowed = !policy.status().session || policy.revalidate(snapshot);
+      syncGateAccess();
+      if (allowed) return true;
       if (protectedSpace()) forcePublic(JEONGSEOK_TEXT.revoked);
       return false;
     },
     // Background/resume never trusts the old client stay. Re-entry performs a new server read.
-    suspend() { if (policy.status().session) { policy.endSession("SUSPENDED"); if (protectedSpace()) forcePublic(JEONGSEOK_TEXT.revoked); } },
+    suspend() {
+      if (policy.status().session) { endSession("SUSPENDED"); if (protectedSpace()) forcePublic(JEONGSEOK_TEXT.revoked); }
+      else syncGateAccess();
+    },
     setAccount(accountId) {
-      if (!policy.setAccount(accountId)) return false;
+      const changed = policy.setAccount(accountId);
+      syncGateAccess();
+      if (!changed) return false;
       accountGeneration += 1;
       if (protectedSpace()) forcePublic(JEONGSEOK_TEXT.account);
       return true;

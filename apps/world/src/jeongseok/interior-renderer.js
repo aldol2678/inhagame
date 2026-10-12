@@ -600,6 +600,8 @@ export function createJeongseokInteriorScenes(app, { getGraphicsTier = () => "me
       if (!scenes.has(id)) scenes.set(id, build(id));
       return scenes.get(id);
     },
+    /** Policy changes update even an inactive lobby, without building any new scenes. */
+    setGateAccess(open) { for (const scene of scenes.values()) scene.setGateAccess(open); },
     /** Release every inactive interior scene (mesh memory) once the player is back on campus. */
     releaseAll() {
       let released = 0;
