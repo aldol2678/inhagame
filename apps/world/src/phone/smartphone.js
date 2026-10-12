@@ -167,9 +167,10 @@ export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, g
     if(['CHECKING','SCANNING','GRANTED','OPENING','READY_TO_ENTER','PURCHASING','UNKNOWN'].includes(g.state)){const live=el('strong','smartphone-jeongseok-gate',gateMessage(g));live.setAttribute('role','status');card.append(live);}
     const line=(text,cls='')=>card.append(el('p',cls,text));
     // An unresolved request is recovered with its own key before anything else, whatever the read says.
-    if(a.pendingKey&&v.atReader&&a.accountId){
+    // Only after the request ended without a definitive answer; an in-flight request is not "unresolved".
+    if(a.pendingKey&&!a.purchasing&&g.state!=='PURCHASING'&&v.atReader&&a.accountId){
       line('이전 방문증 발급 요청의 결과를 확인하지 못했어요. 같은 요청으로 다시 확인하면 중복 결제 없이 결과를 받아요.','smartphone-jeongseok-error');
-      const retry=btn('같은 요청 다시 확인',()=>{void jeongseok.purchase();});retry.disabled=g.state==='PURCHASING'||a.purchasing;content.append(retry);
+      content.append(btn('같은 요청 다시 확인',()=>{void jeongseok.purchase();}));
     }
     if(a.state==='SIGNED_OUT')line('로그인하지 않았어요. 정식 계정으로 로그인하면 출입할 수 있어요. 캠퍼스 탐험은 그대로 즐길 수 있어요.');
     else if(!s&&a.state==='LOADING')line('출입 자격을 서버에서 확인하고 있어요…');

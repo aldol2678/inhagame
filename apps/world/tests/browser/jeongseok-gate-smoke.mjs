@@ -190,6 +190,8 @@ try {
     await page.getByRole('button', { name: '방문증 발급하기 · 100 인덕코인' }).click();
     // Duplicate activation of the confirm button in the same tick.
     await page.getByRole('button', { name: '결제 확인 · 100 인덕코인 사용' }).evaluate(n => { n.click(); n.click(); });
+    // The first request has ended (reply dropped after the server answered) and left its key unresolved.
+    await page.waitForFunction(() => { const v = window.__INHAGAME_P0__.jeongseok.access.view(); return !v.purchasing && v.pendingKey; });
     await page.getByRole('button', { name: '같은 요청 다시 확인' }).waitFor();
     assert.equal(debits(general.id), 1, 'server committed exactly once although the reply was lost');
     await shot(page, entry, 'lost-reply');
