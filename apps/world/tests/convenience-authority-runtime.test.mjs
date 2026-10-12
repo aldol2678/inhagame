@@ -337,7 +337,7 @@ test('actual main stylesheet exposes local authority controls above the campus c
   const css = fs.readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
   const toolbar = css.match(/\.convenience-authority-candidate\s*\{([^}]+)\}/)?.[1] ?? '';
   assert.match(toolbar, /position:\s*fixed/);
-  assert.match(toolbar, /z-index:\s*1000/);
+  assert.match(toolbar, /z-index:\s*10;/);
   assert.match(toolbar, /pointer-events:\s*auto/);
   assert.match(toolbar, /100vw\s*-\s*24px/);
   assert.match(css, /\.convenience-authority-candidate button\s*\{[^}]*min-height:\s*44px/);

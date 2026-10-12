@@ -5561,12 +5561,12 @@ body[data-photo-mode="active"] > :not(#application):not(.photo-mode):not(script)
 @media(max-width:600px) { .trophy-display-panel { width:auto; max-height:calc(100dvh - 16px); } }
 
 /* Explicit loopback-only convenience QA mount. Keep real main controls clickable above
-   the fixed campus canvas, below blocking dialogs; this class is never mounted on hosted builds. */
+   the fixed campus canvas, below the HUD menu (13), settings (19) and dialogs; this class is never mounted on hosted builds. */
 .convenience-authority-candidate {
   position: fixed;
   right: max(12px, env(safe-area-inset-right));
   bottom: max(96px, calc(env(safe-area-inset-bottom) + 76px));
-  z-index: 1000;
+  z-index: 10;
   width: min(360px, calc(100vw - 24px));
   box-sizing: border-box;
   padding: 12px;
