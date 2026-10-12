@@ -37,7 +37,7 @@ const report = {
   approximation:'Main Hall retains illustrative four-row/nine-pier estimates; Jeongseok retains the #108 upper/west exterior with a bounded historical-reference entrance and existing canonical stair surfaces; basement location is not inferred.',
   entranceRepair:{previousCoplanarCrossings:4,currentCrossings:0,clipU:[-1.75,1.75],belowY:2.85},
   limits:{operationMs:12000,pixelFrameMs:6000,overallMs:420000,cleanupMs:8000},
-  comparisonSources:SOURCES,resolvedSources:[],baselineFiles:[], requests:{unexpectedRequests:[],api:[],offOrigin:[]}, cases:[], closeups:[], screenshots:[], progress:[]
+  comparisonSources:SOURCES,resolvedSources:[],baselineFiles:[], requests:{unexpectedRequests:[],api:[],offOrigin:[]}, cases:[], closeups:[], screenshots:[], diagnosticScreenshots:[], progress:[]
 };
 const flush = () => writeFile(reportPath,JSON.stringify(report,null,2)+'\n');
 const progress = async label => {
@@ -407,6 +407,21 @@ try {
 } catch(error) {
   report.status='FAIL'; report.error=String(error.stack||error); process.exitCode=1;
   console.error(report.error);
+  // Preserve the already-read source frame pair even when an assertion aborts
+  // before normal screenshots. Diagnostic files never count toward the 26-shot gate.
+  if(page){
+    try{
+      const evidence=await withDeadline('failure framebuffer diagnostics',()=>page.evaluate(()=>window.__HALL_LIBRARY_HOSTED_QA__?.diagnosticEvidence?.()),12000);
+      if(evidence){
+        const {images,...metadata}=evidence;report.failureEvidence={...metadata,files:[]};
+        for(const image of images){
+          const filename=`failure-frame-${image.kind}.png`;
+          await writeFile(path.join(output,filename),Buffer.from(image.bytes));
+          report.diagnosticScreenshots.push(filename);report.failureEvidence.files.push({kind:image.kind,path:filename});
+        }
+      }
+    }catch(diagnosticError){report.diagnosticError=String(diagnosticError.stack||diagnosticError);}
+  }
 } finally {
   report.problems=smoke?.problems || []; report.finishedAt=new Date().toISOString(); report.elapsedMs=Date.now()-began;
   await flush();

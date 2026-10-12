@@ -17,6 +17,34 @@ import {selectCampusLandmark as selectPreExterior} from '/__hall_library_pre_ext
 import {CampusChunkRenderer} from '/src/campus-chunk-renderer.js';
 import {RenderChunkRegistry} from '/src/render-chunk-registry.js';
 import {HALL_FRONT} from '/src/basic-campus.js';
+
+function emptyOutsidePixelDiagnostic(){
+  return {total:0,significant:0,bounds:null,maxL1Delta:0,maxChannelDelta:0,sampleLimit:256,samples:[],truncated:false,coordinateOrigin:'top-left',pixelCoordinates:'integer pixel index; sample center is x+0.5,y+0.5'};
+}
+function recordOutsidePixelDiagnostic(diagnostic,index,width,height,before,after,protectedRegions){
+  const delta=[0,1,2].map(k=>Math.abs(after[index+k]-before[index+k]));
+  const l1=delta.reduce((sum,n)=>sum+n,0);if(!l1)return;
+  const x=(index/4)%width,y=height-1-Math.floor(index/4/width);
+  diagnostic.total++;if(l1>15)diagnostic.significant++;
+  diagnostic.maxL1Delta=Math.max(diagnostic.maxL1Delta,l1);diagnostic.maxChannelDelta=Math.max(diagnostic.maxChannelDelta,...delta);
+  const bounds=diagnostic.bounds??={minX:x,minY:y,maxX:x,maxY:y};
+  bounds.minX=Math.min(bounds.minX,x);bounds.minY=Math.min(bounds.minY,y);bounds.maxX=Math.max(bounds.maxX,x);bounds.maxY=Math.max(bounds.maxY,y);
+  if(diagnostic.samples.length<diagnostic.sampleLimit)diagnostic.samples.push({x,y,previousRgb:Array.from(before.subarray(index,index+3)),candidateRgb:Array.from(after.subarray(index,index+3)),deltaL1:l1,maxChannelDelta:Math.max(...delta),protectedRegions});
+  diagnostic.truncated=diagnostic.total>diagnostic.sampleLimit;
+}
+function diagnosticRgba(before,after,width,height,mode,allowed){
+  if(!['previous','candidate','rgb-diff','outside-mask'].includes(mode))throw Error('Unsupported framebuffer diagnostic');
+  if(before.length!==width*height*4||after.length!==before.length)throw Error('Diagnostic framebuffer size mismatch');
+  const result=new Uint8ClampedArray(before.length);
+  for(let y=0;y<height;y++)for(let x=0;x<width;x++){
+    const src=((height-1-y)*width+x)*4,dst=(y*width+x)*4;
+    const changed=[0,1,2].some(k=>before[src+k]!==after[src+k]);
+    for(let k=0;k<3;k++)result[dst+k]=mode==='previous'?before[src+k]:mode==='candidate'?after[src+k]:mode==='rgb-diff'?Math.abs(after[src+k]-before[src+k]):changed&&(!allowed||!allowed[src/4])?255:0;
+    result[dst+3]=mode==='previous'?before[src+3]:mode==='candidate'?after[src+3]:255;
+  }
+  return result;
+}
+
 const qa = window.__HALL_LIBRARY_HOSTED_QA__ = {ready:false};
 try {
   const canvas = document.getElementById('stage');
@@ -58,7 +86,7 @@ try {
   sun.setLocalEulerAngles(40,35,0); app.root.addChild(sun);
   const camera = new pc.Entity('Camera'); camera.addComponent('camera', {fov:48, farClip:1500, clearColor:new pc.Color(.79,.84,.89)}); app.root.addChild(camera);
   let state = {id:'bldg_01', presentation:'candidate', reflected:true, detail:'all', mode:'full'};
-  let previous = null, previousViewKey = null, regionCache = null, pending = false, contextLost = false;
+  let previous = null, previousViewKey = null, previousCaptureState = null, previousCameraEvidence = null, lastCapture = null, lastCandidatePair = null, regionCache = null, pending = false, contextLost = false;
   canvas.addEventListener('webglcontextlost', () => { contextLost = true; qa.error = 'WebGL context lost'; });
   const fail = message => { throw new Error(message); };
   function view(options = {}) {
@@ -131,6 +159,23 @@ try {
     }
     regionCache={viewKey,allowed,protectedMask,regions,protectedRegions,roiPixels,padding:projected.padding};return regionCache;
   }
+  function diagnosticCamera(gl){
+    return {position:camera.getPosition().toArray(),rotation:camera.getRotation().toArray(),nearClip:camera.camera.nearClip,farClip:camera.camera.farClip,fov:camera.camera.fov,aspectRatio:camera.camera.aspectRatio,
+      viewMatrix:Array.from(camera.camera.viewMatrix.data),projectionMatrix:Array.from(camera.camera.projectionMatrix.data),
+      depthBits:gl.getParameter(gl.DEPTH_BITS),samples:gl.getParameter(gl.SAMPLES),depthReadback:'No depth framebuffer read or render-state change; matrices and projected ROI minDepth are diagnostic evidence'};
+  }
+  async function diagnosticEvidence(){
+    const currentPair=lastCandidatePair&&['id','reflected','mode','detail'].every(key=>lastCandidatePair.candidateState[key]===state[key])&&lastCandidatePair.width===canvas.width&&lastCandidatePair.height===canvas.height;
+    const pair=currentPair?lastCandidatePair:lastCapture;if(!pair?.before||pair.before.length!==pair.after.length)return null;
+    const images=[];
+    for(const kind of ['previous','candidate','rgb-diff','outside-mask']){
+      const canvas=new OffscreenCanvas(pair.width,pair.height),context=canvas.getContext('2d');
+      context.putImageData(new ImageData(diagnosticRgba(pair.before,pair.after,pair.width,pair.height,kind,pair.allowed),pair.width,pair.height),0,0);
+      const blob=await canvas.convertToBlob({type:'image/png'});images.push({kind,bytes:Array.from(new Uint8Array(await blob.arrayBuffer()))});
+    }
+    return {width:pair.width,height:pair.height,previousState:pair.previousState,candidateState:pair.candidateState,sameRenderState:pair.sameRenderState,previousCamera:pair.previousCamera,camera:pair.camera,exterior:pair.exterior,
+      source:'Previously captured gl.readPixels bytes; no camera change or recapture',rgbDiff:'Per-channel absolute RGB difference, 1:1 values; alpha 255',outsideMask:'White only where exact RGB changes lie outside approved ROI; black elsewhere',images};
+  }
   function pixels() {
     if (pending) return Promise.reject(new Error('Concurrent pixel capture'));
     if (contextLost || device.gl.isContextLost()) return Promise.reject(new Error('WebGL context lost'));
@@ -146,7 +191,7 @@ try {
           finally { gl.bindFramebuffer(gl.READ_FRAMEBUFFER,old); }
           const viewKey=JSON.stringify({id:state.id,reflected:state.reflected,mode:state.mode,detail:state.detail,width,height,position:camera.getPosition().toArray(),rotation:camera.getRotation().toArray()});
           const roi=exteriorPixelRegions(width,height,viewKey);
-          const exterior=roi?{compared:!!previous&&previousViewKey===viewKey,padding:roi.padding,roiPixels:roi.roiPixels,outsidePixels:width*height-roi.roiPixels,outsideExactChanged:0,outsideMaskChanged:0,insideExactChanged:0,insideSignificantChanged:0,regions:roi.regions.map(region=>({...region,exactChanged:0})),protected:roi.protectedRegions.map(region=>({...region,exactChanged:0,foreground:0}))}:null;
+          const exterior=roi?{compared:!!previous&&previousViewKey===viewKey,padding:roi.padding,roiPixels:roi.roiPixels,outsidePixels:width*height-roi.roiPixels,outsideExactChanged:0,outsideMaskChanged:0,insideExactChanged:0,insideSignificantChanged:0,outsidePixelDiagnostics:emptyOutsidePixelDiagnostic(),regions:roi.regions.map(region=>({...region,exactChanged:0})),protected:roi.protectedRegions.map(region=>({...region,exactChanged:0,foreground:0}))}:null;
           let changed = 0, exactChanged = 0, foreground = 0, maskChanged = 0, entryChanged = 0, hash = 2166136261;
           const {a,b,along,inward} = HALL_FRONT;
           const entryPoints = [-1.75,1.75].flatMap(u=>[.80,1.02].map(y=>camera.camera.worldToScreen(new pc.Vec3((a.x+b.x)/2+along.x*u-inward.x*.23,y,((a.z+b.z)/2+along.z*u-inward.z*.23)*(state.reflected?-1:1)))));
@@ -167,7 +212,10 @@ try {
                   if(Math.abs(data[i]-previous[i])+Math.abs(data[i+1]-previous[i+1])+Math.abs(data[i+2]-previous[i+2])>15)exterior.insideSignificantChanged++;
                   if(exact)for(let k=0;k<exterior.regions.length;k++)if(roi.allowed[i/4]&(1<<k))exterior.regions[k].exactChanged++;
                 }else{
-                  if(exact)exterior.outsideExactChanged++;
+                  if(exact){
+                    exterior.outsideExactChanged++;
+                    recordOutsidePixelDiagnostic(exterior.outsidePixelDiagnostics,i,width,height,previous,data,exterior.protected.filter((_,k)=>roi.protectedMask[i/4]&(1<<k)).map(region=>region.name));
+                  }
                   if(fg!==oldFg)exterior.outsideMaskChanged++;
                   if(exact)for(let k=0;k<exterior.protected.length;k++)if(roi.protectedMask[i/4]&(1<<k))exterior.protected[k].exactChanged++;
                 }
@@ -177,8 +225,11 @@ try {
             }
             for (let k=0;k<3;k++) hash = Math.imul((hash^data[i+k])>>>0,16777619);
           }
-          previous = data;previousViewKey=viewKey;
-          resolve({width,height,hash:hash>>>0,changed,exactChanged,foreground,maskChanged,maskReferenceRgb:Array.from(data.subarray(0,3)),entryChanged,entryBounds,exterior,glError:gl.getError(),contextLost:false});
+          const cameraEvidence=diagnosticCamera(gl);
+          lastCapture={width,height,before:previous,after:data,previousState:previousCaptureState,candidateState:{...state},sameRenderState:previousViewKey===viewKey,previousCamera:previousCameraEvidence,camera:cameraEvidence,allowed:roi?.allowed??null,exterior};
+          if(state.presentation==='candidate'&&previousCaptureState?.presentation==='preexterior'&&lastCapture.sameRenderState)lastCandidatePair=lastCapture;
+          previous = data;previousViewKey=viewKey;previousCaptureState={...state};previousCameraEvidence=cameraEvidence;
+          resolve({width,height,hash:hash>>>0,changed,exactChanged,foreground,maskChanged,maskReferenceRgb:Array.from(data.subarray(0,3)),entryChanged,entryBounds,exterior,camera:cameraEvidence,glError:gl.getError(),contextLost:false});
         } catch (error) { reject(error); }
       };
       const timer = setTimeout(() => { app.off('postrender',finish); pending=false; reject(new Error('Pixel frame deadline exceeded (6000ms)')); },6000);
@@ -248,7 +299,7 @@ try {
     campus.root.destroy();campus=null;world.enabled=true;
     return {fadesAfterDestroy};
   }
-  Object.assign(qa,{view,stats,framing,pixels,lifecycle,campusLifecycle,campusView,campusVisibility,disposeCampus});
+  Object.assign(qa,{view,stats,framing,pixels,diagnosticEvidence,lifecycle,campusLifecycle,campusView,campusVisibility,disposeCampus});
   app.start(); view(); qa.ready = true;
 } catch (error) { qa.error = error.stack || String(error); throw error; }
 </script></body></html>

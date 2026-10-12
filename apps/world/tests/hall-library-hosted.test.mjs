@@ -243,3 +243,47 @@ test('Main Hall entire framebuffer gate rejects color-only regressions outside t
   assert.throws(()=>gate({...pixels,hash:13},cell),/full RGB/);
   assert.throws(()=>gate({...pixels,maskChanged:1},cell),/silhouette/);
 });
+
+
+test('outside-pixel diagnostics cap samples, never totals, extrema, deltas or coordinate bounds',()=>{
+  const harness=read('./browser/hall-library-hosted-harness.html');
+  const empty=harness.match(/function emptyOutsidePixelDiagnostic\(\)\{[\s\S]*?\n\}/)?.[0];
+  const record=harness.match(/function recordOutsidePixelDiagnostic\(diagnostic,index,width,height,before,after,protectedRegions\)\{[\s\S]*?\n\}/)?.[0];
+  assert.ok(empty&&record);
+  const helpers=runInNewContext(`${empty}\n${record}\n({empty:emptyOutsidePixelDiagnostic,record:recordOutsidePixelDiagnostic})`,{},{timeout:1000});
+  const none=helpers.empty(),before=new Uint8Array(257*4),after=new Uint8Array(257*4);
+  helpers.record(none,0,257,1,before,after,[]);assert.equal(none.total,0);assert.equal(none.bounds,null);assert.equal(none.samples.length,0);
+  const d=helpers.empty();
+  for(let i=0;i<257;i++){after.set(i===256?[255,255,255,255]:[1,1,1,255],i*4);helpers.record(d,i*4,257,1,before,after,['upper-building']);}
+  assert.equal(d.total,257);assert.equal(d.samples.length,256);assert.equal(d.truncated,true);assert.equal(d.maxL1Delta,765);assert.equal(d.maxChannelDelta,255);assert.equal(d.significant,1);
+  assert.equal(JSON.stringify(d.bounds),JSON.stringify({minX:0,minY:0,maxX:256,maxY:0}));assert.equal(d.samples.at(-1).x,255);
+  const one=helpers.empty(),a=new Uint8Array(16),b=new Uint8Array(16);b.set([12,34,56],8);helpers.record(one,8,2,2,a,b,['west-facade']);
+  assert.equal(one.samples[0].x,0);assert.equal(one.samples[0].y,0,'WebGL bottom-up buffer is converted to top-left pixel indices');
+  assert.equal(JSON.stringify(one.samples[0].candidateRgb),'[12,34,56]');assert.equal(one.truncated,false);
+});
+
+test('diagnostic images preserve captured RGB, vertical orientation and exact unsaturated differences',()=>{
+  const harness=read('./browser/hall-library-hosted-harness.html');
+  const source=harness.match(/function diagnosticRgba\(before,after,width,height,mode,allowed\)\{[\s\S]*?\n\}/)?.[0];assert.ok(source);
+  const convert=runInNewContext(`(${source})`,{},{timeout:1000});
+  const before=new Uint8Array([10,20,30,255,40,50,60,255,70,80,90,255,100,110,120,255]);
+  const after=new Uint8Array([11,22,33,255,44,55,66,255,77,88,99,255,110,121,132,255]);
+  assert.equal(JSON.stringify([...convert(before,after,2,2,'previous')]),JSON.stringify([70,80,90,255,100,110,120,255,10,20,30,255,40,50,60,255]));
+  assert.equal(JSON.stringify([...convert(before,after,2,2,'candidate')]),JSON.stringify([77,88,99,255,110,121,132,255,11,22,33,255,44,55,66,255]));
+  assert.equal(JSON.stringify([...convert(before,after,2,2,'rgb-diff')]),JSON.stringify([7,8,9,255,10,11,12,255,1,2,3,255,4,5,6,255]));
+  assert.equal(JSON.stringify([...convert(before,after,2,2,'outside-mask',new Uint8Array([0,1,1,0]))]),JSON.stringify([0,0,0,255,255,255,255,255,255,255,255,255,0,0,0,255]));
+  assert.throws(()=>convert(before,after,2,3,'rgb-diff'),/size mismatch/);assert.throws(()=>convert(before,after,2,2,'approximation'),/Unsupported/);
+});
+
+test('failed assertions retain captured source pair, camera and depth metadata without relaxing gates',()=>{
+  const harness=read('./browser/hall-library-hosted-harness.html'),runner=read('./browser/hall-library-hosted-smoke.mjs');
+  const evidence=harness.slice(harness.indexOf('  async function diagnosticEvidence()'),harness.indexOf('  function pixels()'));
+  assert.match(evidence,/lastCandidatePair/);assert.match(evidence,/previousState:pair.previousState/);assert.match(evidence,/sameRenderState:pair.sameRenderState/);
+  assert.match(evidence,/convertToBlob\(\{type:'image\/png'\}\)/);assert.doesNotMatch(evidence,/view\(|pixels\(|renderNextFrame|readPixels\(/,'diagnostics encode retained bytes without changing camera or recapturing');
+  for(const key of ['nearClip:','farClip:','projectionMatrix:','viewMatrix:','depthBits:','samples:'])assert.ok(harness.includes(key),key);
+  assert.match(harness,/previousCaptureState\?\.presentation==='preexterior'&&lastCapture.sameRenderState/);
+  assert.match(runner,/catch\(error\) \{[\s\S]*report.status='FAIL'[\s\S]*failure framebuffer diagnostics[\s\S]*report.diagnosticScreenshots.push\(filename\)/);
+  assert.match(runner,/assert.equal\(report.screenshots.length,26\)/,'passing screenshot contract stays unchanged');
+  assert.match(runner,/assert.equal\(exterior.outsideExactChanged,0/);assert.match(runner,/assert.equal\(exterior.padding,2/);
+  assert.match(runner,/catch\(diagnosticError\)\{report.diagnosticError=/,'diagnostic failures cannot replace the original failure');
+});
