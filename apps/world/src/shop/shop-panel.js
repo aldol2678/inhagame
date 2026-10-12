@@ -108,6 +108,7 @@ export function createShopPanel({
   let category = "all";
   let detailListingId = null;
   let previewAngle = 35;
+  let previewZoom = 1;
   let previewCanvas = null;
   let previewEngine = null;
   let previewStarting = null;
@@ -176,7 +177,7 @@ export function createShopPanel({
     if (!stage || !previewCanvas) return;
     previewCanvas.className = "shop-showroom-canvas";
     stage.replaceChildren(previewCanvas);
-    engine.show(itemId, previewAngle);
+    engine.show(itemId, previewAngle, previewZoom);
     const fallback = stage.querySelector?.(".shop-showroom-preview-fallback");
     if (fallback) fallback.hidden = true;
   }
@@ -347,14 +348,14 @@ export function createShopPanel({
     image.loading = "lazy";
     image.hidden = !thumbnailCache.has(offer.itemId);
     if (!image.hidden) image.src = thumbnailCache.get(offer.itemId);
-    const fallback = el("span", "shop-showroom-picture-fallback", "✦");
+    const fallback = el("span", "shop-showroom-picture-fallback", ({ bedding: "🛏️", seating: "🪑", light: "💡", floor: "▤", decor: "🧸", wall: "🖼️", storage: "▦", kitchen: "☕" })[furnitureShopCategory(offer.itemId)] ?? "✦");
     picture.append(image, fallback);
     button.append(picture, el("span", "shop-showroom-view-label", "미리보기 ↗"));
     focusTargets.set(button.dataset.focusKey, button);
     button.addEventListener("click", () => {
       if (!open || !isShowroom() || !panel.contains(button)) return;
       detailListingId = offer.listingId;
-      previewAngle = 35;
+      previewAngle = 35; previewZoom = 1;
       render();
     });
     return button;
@@ -411,12 +412,13 @@ export function createShopPanel({
     const stage = el("div", "shop-showroom-stage");
     stage.append(el("span", "shop-showroom-preview-fallback", "3D 미리보기를 불러오는 중…"));
     const controls = el("div", "shop-showroom-rotation");
-    for (const [label, step] of [["↶ 왼쪽", -45], ["오른쪽 ↷", 45]]) {
+    for (const [label, step, scale] of [["↶ 왼쪽", -45, 0], ["− 축소", 0, -.15], ["+ 확대", 0, .15], ["오른쪽 ↷", 45, 0]]) {
       const rotate = el("button", "shop-showroom-rotate", label);
       rotate.type = "button";
       rotate.addEventListener("click", () => {
         previewAngle = (previewAngle + step + 360) % 360;
-        previewEngine?.show(offer.itemId, previewAngle);
+        previewZoom = Math.max(.75, Math.min(1.75, previewZoom + scale));
+        previewEngine?.show(offer.itemId, previewAngle, previewZoom);
       });
       controls.append(rotate);
     }
