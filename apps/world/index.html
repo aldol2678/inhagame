@@ -17,15 +17,6 @@
   <script defer src="/hub-friends.js"></script>
   <script defer src="/hub-messages-client.js"></script>
   <script defer src="/hub-messages.js"></script>
-<script>
-  // Decorative navigation only. Existing panel switching is still owned by hub.js.
-  document.addEventListener('DOMContentLoaded', () => {
-    document.querySelector('[data-portal-games-link]')?.addEventListener('click', event => {
-      event.preventDefault();
-      document.getElementById('portal-games')?.scrollIntoView({behavior:'smooth',block:'start'});
-    });
-  });
-</script>
 </head>
 <body>
   <header class="header">

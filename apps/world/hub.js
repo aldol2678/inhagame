@@ -261,6 +261,15 @@
     }
   }
 
+  // Portal-local scroll: preserve hash-based panel navigation and avoid inline scripts.
+  document.querySelector("[data-portal-games-link]")?.addEventListener("click", event => {
+    event.preventDefault();
+    document.getElementById("portal-games")?.scrollIntoView({
+      behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+      block: "start"
+    });
+  });
+
   render();
   void loadGameCatalog();
 })();
