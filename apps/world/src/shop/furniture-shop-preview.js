@@ -39,7 +39,7 @@ export async function createFurnitureShopPreview(canvas) {
     let current = null;
     let closed = false;
     let angle = 35;
-    function show(itemId, degrees = angle) {
+    function show(itemId, degrees = angle, zoom = 1) {
       if (closed) return false;
       const item = FURNITURE_BY_ID.get(itemId);
       if (!item) return false;
@@ -50,7 +50,7 @@ export async function createFurnitureShopPreview(canvas) {
       angle = degrees;
       furniture.root.setLocalEulerAngles(0, angle, 0);
       const extent = Math.max(item.width, item.height, item.depth);
-      camera.camera.orthoHeight = Math.max(.48, extent * .85);
+      camera.camera.orthoHeight = Math.max(.48, extent * .85) / Math.max(.75, Math.min(1.75, zoom));
       camera.setPosition(extent * 1.75, item.height * .9 + extent * .6, -extent * 2);
       camera.lookAt(0, .025 + item.height / 2, 0);
       app.renderNextFrame = true;
