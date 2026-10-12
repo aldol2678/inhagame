@@ -3,6 +3,7 @@
 // graph from the same runtime road/walkway centerlines the 3D world and the maps already use,
 // and resolves map destinations to reachable approach points. It owns no coordinates itself.
 
+import { WALKWAY_LINKS } from '../north-walkway-layout.js';
 import { CAMPUS_ROADS } from "../campus-road-layout.js";
 import { SITE_FEATURES, MAIN_ENTRANCE } from "../basic-campus.js";
 import { BACK_ROADS } from "../back-gate-layout.js";
@@ -59,6 +60,7 @@ export function campusNavPolylines() {
   }
   for (const path of SIDE_GATE_PATHS) lines.push(frameLine(path.id, path.frame, NAV_EDGE_KIND.PATH, "SIDE_GATE_PATHS"));
   for (const lane of NORTH_LANES) lines.push(frameLine(lane.id, lane.frame, NAV_EDGE_KIND.PATH, "NORTH_LANES"));
+  for (const link of WALKWAY_LINKS) lines.push(frameLine(link.id, link.frame, NAV_EDGE_KIND.PATH, "WALKWAY_LINKS"));
   for (const link of ANNIVERSARY_BACK_GATE_LINKS) lines.push(frameLine(link.id, link.frame, NAV_EDGE_KIND.ROAD, "ANNIVERSARY_BACK_GATE_LINKS"));
   // P0 graph is ground-level: the raised library walk (y > 0) needs a height-aware graph.
   for (const route of LIBRARY_ROUTE_LINES.filter(line => line.nodes.every(node => (node.y ?? 0) <= 0.5))) {

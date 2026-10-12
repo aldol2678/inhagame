@@ -1,3 +1,4 @@
+import { walkwayTreeClear, WALKWAY_PROPS } from './north-walkway-layout.js';
 import { northRoadTreeClear } from './north-campus-layout.js';
 import { backRoadTreeClear } from './back-gate-layout.js';
 import { BACK_STREET_BLOCKS } from './back-street-layout.js';
@@ -36,7 +37,7 @@ function add(kind,item,position,vertices,pad=0) {
   for(const p of vertices){chunk.bounds.minX=Math.min(chunk.bounds.minX,p.x-pad);chunk.bounds.maxX=Math.max(chunk.bounds.maxX,p.x+pad);
     chunk.bounds.minZ=Math.min(chunk.bounds.minZ,p.z-pad);chunk.bounds.maxZ=Math.max(chunk.bounds.maxZ,p.z+pad);}
 }
-for(const f of FACILITIES)add('facilities',f.id,f.center,f.id==='bldg_dorm1'?[...f.rings[0],...DORM_1_EXTERIOR_BOUNDS]:f.style==='forest'?forestRoadTrees(f.center):f.id==='bldg_07'?[...f.rings[0],...POND_RING,...pondBankTrees()]:f.rings[0]||[f.center],
+for(const f of FACILITIES)add('facilities',f.id,f.center,f.id==='bldg_dorm1'?[...f.rings[0],...DORM_1_EXTERIOR_BOUNDS]:f.style==='forest'?forestRoadTrees(f.center):f.id==='bldg_07'?[...f.rings[0],...POND_RING,...pondBankTrees()]:f.id==='bldg_60th'?[...f.rings[0],...WALKWAY_PROPS.map(q=>q.position)]:f.rings[0]||[f.center],
   f.id==='bldg_07'?20:f.id==='bldg_05'?12:f.id==='bldg_60th'?4:f.id==='fac_agora_courtyard'?6:f.kind==='landmark'?12:1);
 for(const f of BUILDINGS)add('buildings',f.id,center(f.vertices),f.vertices,12);
 for(const q of BACK_STREET_BLOCKS)add('streetscape',q.id,q.center,q.bounds,1);
@@ -49,7 +50,7 @@ for(const q of BACK_FURNITURE)add('streetscape',q.id,q.center,[q.center],2);
 for(const q of LIBRARY_GREENS)add('streetscape',q.id,center(q.polygon),q.polygon,3);
 const aircraft=FACILITIES.filter(f=>f.style==='aircraft').map(f=>f.center);
 for(const f of SITE_FEATURES.filter(f=>f.kind==='lawn')){
-  lawnTreePositions(f.vertices,aircraft).filter(p=>gateDormRoadTreeClear(p)&&interiorTreeClear(p)&&marketTreeClear(p)&&cultureTreeClear(p)&&libraryRouteTreeClear(p)&&libraryGardenTreeClear(p)&&roadTreeClear(p)&&northRoadTreeClear(p)&&backRoadTreeClear(p)&&backApproachClear(p,1.9)&&sideGateTreeClear(p)&&backFurnitureTreeClear(p)&&backRoadsideTreeClear(p)).forEach((p,i)=>add('trees',{...p,id:`${f.id}_tree_${i}`,index:i},p,[p],2));
+  lawnTreePositions(f.vertices,aircraft).filter(p=>walkwayTreeClear(p)&&gateDormRoadTreeClear(p)&&interiorTreeClear(p)&&marketTreeClear(p)&&cultureTreeClear(p)&&libraryRouteTreeClear(p)&&libraryGardenTreeClear(p)&&roadTreeClear(p)&&northRoadTreeClear(p)&&backRoadTreeClear(p)&&backApproachClear(p,1.9)&&sideGateTreeClear(p)&&backFurnitureTreeClear(p)&&backRoadsideTreeClear(p)).forEach((p,i)=>add('trees',{...p,id:`${f.id}_tree_${i}`,index:i},p,[p],2));
 }
 export const RENDER_CHUNKS=[...chunks.values()];
 export class RenderChunkRegistry {

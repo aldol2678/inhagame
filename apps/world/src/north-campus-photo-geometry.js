@@ -1,6 +1,8 @@
 // Newly authored procedural interpretation of photographed architecture.
 // Source photos/brands/textures are never embedded. See the provenance record.
 import {FIVE,ANNIVERSARY,exteriorFrame,NORTH_APPROACHES} from './north-campus-layout.js';
+import { WALKWAY_ENTRANCE } from './north-walkway-layout.js';
+import { fillWalkwayEntrance, fillWalkwayProps } from './north-walkway-geometry.js';
 import {FACILITIES,towerParts} from './campus-facilities.js';
 export const NORTH_PHOTO_COLORS=Object.freeze({stone:'#e4e2d8',trim:'#f0eee4',glass:'#467e89',
  darkGlass:'#29494f',metal:'#777f80',ribbon:'#727674',joint:'#aeb8b4'});
@@ -64,20 +66,35 @@ export function fillAgoraEnclosingFacade(b,id,tier='NEAR'){
  return archedBays(b,f.rings[0],indices,f.height,{fullGlass:true,tier});
 }
 export function fillAnniversaryPhotoFacade(b,tier='NEAR'){
+ if(tier==='NEAR')fillWalkwayEntrance(b,NORTH_PHOTO_COLORS);
+ if(tier==='DETAIL')fillWalkwayProps(b,tier);
  const c=NORTH_PHOTO_COLORS,ring=ANNIVERSARY.rings[0];
  for(let i=0;i<ring.length;i++){
   const f=exteriorFrame(ring,i),len=f.length;
   if(tier==='NEAR'){
    box(b,f,c.glass,len/2,8.0,len-.16,9.7,.095,.12);
-   box(b,f,c.darkGlass,len/2,1.58,len-.16,3.16,.095,.12);
-   for(let u=.5;u<len-.3;u+=1.35)box(b,f,c.metal,u,6.4,.045,12.6,.18,.045);
-   for(let y=.8;y<13;y+=.78)box(b,f,c.metal,len/2,y,len-.15,.045,.18,.045);
+   if(i===3){
+    const lo=WALKWAY_ENTRANCE.u-WALKWAY_ENTRANCE.width/2,hi=WALKWAY_ENTRANCE.u+WALKWAY_ENTRANCE.width/2;
+    box(b,f,c.darkGlass,lo/2,1.58,lo-.16,3.16,.095,.12);
+    box(b,f,c.darkGlass,(hi+len)/2,1.58,len-hi-.16,3.16,.095,.12);
+   }else box(b,f,c.darkGlass,len/2,1.58,len-.16,3.16,.095,.12);
+   for(let u=.5;u<len-.3;u+=1.35){
+    const doorway=i===3&&Math.abs(u-WALKWAY_ENTRANCE.u)<WALKWAY_ENTRANCE.width/2;
+    box(b,f,c.metal,u,doorway?7.9:6.4,.045,doorway?9.6:12.6,.18,.045);
+   }
+   for(let y=.8;y<13;y+=.78){
+    if(i===3&&y<3){
+     const lo=WALKWAY_ENTRANCE.u-WALKWAY_ENTRANCE.width/2,hi=WALKWAY_ENTRANCE.u+WALKWAY_ENTRANCE.width/2;
+     box(b,f,c.metal,lo/2,y,lo-.15,.045,.18,.045);box(b,f,c.metal,(hi+len)/2,y,len-hi-.15,.045,.18,.045);
+    }else box(b,f,c.metal,len/2,y,len-.15,.045,.18,.045);
+   }
    // The observed S-shaped dark/silver ribbon is a facade frame, not a
    // surveyed roof section. Keep the existing podium envelope and roof.
    if([0,2,3].includes(i)){
     const reverse=i===0;
     const profile=[[.01,12.55],[.46,12.55],[.49,12.48],[.515,12.20],[.54,11.55],
-      [.575,8.0],[.60,5.05],[.625,4.40],[.65,4.20],[.98,4.20]];
+      [.575,8.0],[.60,5.05],[.625,4.40],[.65,4.20],
+      ...(i===3?[[.84,4.20],[.86,4.15],[.88,3.95],[.90,3.60],[.94,1.85],[.98,.15]]:[[.98,4.20]])];
     for(let j=1;j<profile.length;j++){
      const a=profile[j-1],p=profile[j],u=q=>(reverse?1-q:q)*len;
      const x0=u(a[0]),x1=u(p[0]),dx=x1-x0,dy=p[1]-a[1],length=Math.hypot(dx,dy),nx=-dy/length*.40,ny=dx/length*.40;

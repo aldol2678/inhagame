@@ -9,7 +9,8 @@ import {fillFiveFacade,fillAnniversaryFacade} from '../src/north-campus-geometry
 import {polygonOverlap} from '../src/polygon-collision.js';
 import {canOccupy,resolveHeight,cameraSafeFraction} from '../src/world-collision.js';
 import {AGORA,ROADVIEW_OBSTACLES,roadviewGroundHeight} from '../src/roadview-layout.js';
-import {campusNavGraphData} from '../src/navigation/campus-navigation.js';
+import {campusNavGraphData,campusNavPolylines,CAMPUS_NAV_TOLERANCE,canConnectCampusJunction} from '../src/navigation/campus-navigation.js';
+import {buildNavGraph,largestNavComponent} from '../src/navigation/nav-graph.js';
 import {SITE_FEATURES} from '../src/basic-campus.js';
 import {CAMPUS_ROADS,CAMPUS_PATH_WIDTHS} from '../src/campus-road-layout.js';
 import {OBSTACLES} from '../src/campus-layout.js';
@@ -19,6 +20,14 @@ const url=new URL('../src/agora-photo-geometry.js',import.meta.url);
 const agora=existsSync(url)?await import(url.href):{};
 const capture=fn=>{const calls=[];const b=Object.fromEntries(['box','tube','crown','quad','triangle'].map(kind=>[kind,(color,...args)=>calls.push({kind,color,args})]));fn(b);return calls;};
 const digest=value=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
+// The walkway mission adds exactly two physical south-corner links. Keep the
+// original golden hashes for ALL previous polylines, instead of replacing them
+// with a new unreviewable snapshot. The live superset is tested separately.
+const originalGraph=()=>largestNavComponent(buildNavGraph({
+ polylines:campusNavPolylines().filter(l=>l.source!=='WALKWAY_LINKS'),
+ mergeTolerance:CAMPUS_NAV_TOLERANCE.merge,junctionTolerance:CAMPUS_NAV_TOLERANCE.junction,
+ canConnect:canConnectCampusJunction
+}));
 
 test('restored glass, stone and frame palettes retain the current semantic optical profiles',()=>{
  for(const key of ['glass','darkGlass'])assert.equal(inferCampusMaterialProfile(NORTH_PHOTO_COLORS[key]),'glass');
@@ -43,7 +52,7 @@ test('pinned ground facilities, previous colliders and approved navigation metad
   '7de36ac06fe915500ba8bf761ce6a0b5bef4793a125bb8ced291c8861fb4b0b7');
  // #201 explicitly promotes two existing geometric connectors to authored PATHs.
  // Geometry/collision stay pinned independently below; this hash includes metadata.
- assert.equal(digest(campusNavGraphData()),'ae73226173d2113c9446f22ea2903efb56bca1ba1d2c8e027d7ff3f264a96e80');
+ assert.equal(digest(originalGraph()),'ae73226173d2113c9446f22ea2903efb56bca1ba1d2c8e027d7ff3f264a96e80');
 });
 
 test('surroundings integration preserves exact-main path shape and all ground collision',()=>{

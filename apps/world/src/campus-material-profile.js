@@ -15,15 +15,15 @@ const PROFILE = Object.freeze({
 export const CAMPUS_MATERIAL_PROFILES = PROFILE;
 
 const PALETTE = Object.freeze({
-  ground: new Set(['#8b9274', '#729451', '#607c48', '#b5a187']),
+  ground: new Set(['#65594b', '#8b9274', '#729451', '#607c48', '#b5a187']),
   asphalt: new Set(['#747d7b', '#737b79', '#92968e', '#555f5d']),
   concrete: new Set([
-    '#b4b4a8', '#c1bfb1', '#b6b2a0', '#c9c8ba', '#c8c7b4',
+    '#b9b4a6', '#c5c4bc', '#8d8e85', '#deded1', '#b4b4a8', '#c1bfb1', '#b6b2a0', '#c9c8ba', '#c8c7b4',
     '#d5d2c6', '#d7d3c7', '#ece9df', '#eeece2', '#b5b4a5',
     '#687472', '#b0ada2', '#a7aaa2', '#758b89',
     '#e4e2d8', '#f0eee4', '#cfcec1', '#d5d3c7', '#dcd9cc'
   ]),
-  brick: new Set(['#ac7965', '#ad7465', '#bc9571']),
+  brick: new Set(['#a37765', '#ac7965', '#ad7465', '#bc9571']),
   paint: new Set([
     '#e6e4d3', '#d8b453', '#d0b04e', '#c2aa63', '#e0c982',
     '#528b78', '#c7b29a', '#e8e3cf', '#dedcd1', '#6c9290', '#408f88'
@@ -38,11 +38,11 @@ const PALETTE = Object.freeze({
     '#548d99', '#396773', '#304d65', '#486271', '#426574', '#467e89', '#29494f'
   ]),
   wood: new Set([
-    '#93765e', '#8d6848', '#9d5944', '#8c4c3f', '#776750',
+    '#77604a', '#93765e', '#8d6848', '#9d5944', '#8c4c3f', '#776750',
     '#6c5942', '#685443'
   ]),
   foliage: new Set([
-    '#64854a', '#527745', '#527447', '#66866b', '#496443',
+    '#657a47', '#64854a', '#527745', '#527447', '#66866b', '#496443',
     '#65894b', '#5c8144', '#567f48', '#41694b', '#58784a'
   ]),
   rubber: new Set(['#303735', '#2c2d2d', '#1c2d38'])

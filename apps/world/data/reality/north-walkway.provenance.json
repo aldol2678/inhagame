@@ -1,0 +1,23 @@
+{
+  "mission": "INHA-WORLD-60TH-FIVE-WALKWAY-IMPLEMENT-01",
+  "implementationBase": "5b0bf8746c1a1f361125319b5a884213a3014109",
+  "archive": "INHA-WORLD-60TH-FIVE-WALKWAY-MUSE-R1",
+  "inspected": ["final-report.md", "build-spec.md", "build-spec.json", "spatial-analysis.md", "camera-views.csv", "sources.md", "sources.csv", "USER-01 HEIC", "USER-02 HEIC"],
+  "access": "Authenticated Drive archive ZIP read on 2026-10-12; both user photographs directly inspected outside repository",
+  "geometryStatus": "DERIVED_BLOCKOUT",
+  "surveyStatus": "SURVEY_TBD",
+  "coordinates": "Existing WGS84 facility rings and geoToWorld. No new origin or rotation. Existing navigation geometric edges are byte-normalized hash identical.",
+  "observed": {
+    "P-06": ["longitudinal block paving", "western tree strip and square pits", "globe lamps", "wood lattice pergola", "hedges", "bicycles and scooter", "metal railing and banner bay"],
+    "P-07": ["rectangular plaza pavers", "red-brown entrance band", "manhole and two drains", "low curb appearance", "glass doors and canopy", "lobby divisions", "curved frame foot", "wood planter"]
+  },
+  "inferred": ["west-podium door position and orientation", "game widths from building separation", "plant counts and spacing", "south junction angles and plaza extent"],
+  "unverified": ["5th east facade details", "survey dimensions", "slope and level changes", "current crosswalk", "benches", "fixed bicycle rack", "bollards", "stairs", "tree species"],
+  "historicalReferences": [
+    {"url": "https://jinkuk.tistory.com/entry/전통과-미래가-흐르는-길", "source": "W-01 / P-01, P-02", "accessThisTask": "MOA source analysis read; external image not independently revalidated", "rights": "No reproduction permission; link only"},
+    {"url": "https://news.unn.net/news/articleView.html?idxno=523193", "source": "W-02 / P-03", "accessThisTask": "MOA source analysis read; external image not independently revalidated", "rights": "No reproduction permission; link only"},
+    {"url": "https://blog.naver.com/inhanuri/222128231860", "source": "W-05 / P-04, P-05", "accessThisTask": "MOA official-text analysis read; CAM-F/G have no verified matching photograph", "rights": "No reproduction permission; link only"}
+  ],
+  "assets": "New procedural primitives and solid colors only. No source photographs, extracted textures, logos, notices, identities or photo metadata are committed.",
+  "ownership": {"paving": "north_campus_roads BASE", "facade": "bldg_60th NEAR", "props": "bldg_60th NEAR; pergola lattice DETAIL", "disposal": "FacilityMeshBatch and CampusChunkRenderer", "collision": "existing unchanged owners"}
+}

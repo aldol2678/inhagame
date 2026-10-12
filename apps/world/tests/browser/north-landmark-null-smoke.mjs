@@ -51,6 +51,8 @@ try{
    assert.equal(Math.min(...positions.filter((_,i)=>i%3===1)),c.minY);
    assert.equal(Math.max(...positions.filter((_,i)=>i%3===1)),c.maxY);
   }
+  const paving=base.children.filter(e=>e.name.startsWith('north_campus_roads_')).flatMap(meshes).map(m=>m.mesh);
+  assert.ok(paving.length>0,'north paving uses existing BASE owner');
   const baseHash=hash(base),chunks=registry.chunks.filter(c=>c.facilities.some(id=>ids.includes(id))),tierReceipts=[];
   for(const chunk of chunks){
    stage(`cycle ${cycle} ${chunk.id} start`);
@@ -70,7 +72,7 @@ try{
    stage(`cycle ${cycle} ${chunk.id} disposed`);
   }
   for(const [m,s]of states)assert.deepEqual({alpha:m.alphaDither,dither:m.opacityDither,opacity:m.opacity},s);
-  const owned=targets.flat().flatMap(meshes).map(m=>m.mesh),receipt={cycle,sign,baseTargetMeshes:owned.length,chunks:tierReceipts};
+  const owned=[...targets.flat().flatMap(meshes).map(m=>m.mesh),...paving],receipt={cycle,sign,baseTargetMeshes:owned.length,chunks:tierReceipts};
   root.destroy();for(const mesh of owned)assert.ok(mesh.vertexBuffer===null,'base target mesh released');report.cycles.push(receipt);
   stage(`cycle ${cycle} disposed`);
  }
