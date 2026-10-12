@@ -16,7 +16,7 @@ const LAMP = offer("furniture.dorm_desk_lamp", "dorm.lamp", 280, 2);
 const POSTER = offer("furniture.campus_map_poster", "dorm.poster", 360, 4, false, "LEVEL_REQUIRED");
 const rows = [CUSHION, LAMP, POSTER];
 const walk = (n, out = []) => { out.push(n); for (const child of n.children ?? []) walk(child, out); return out; };
-const named = (root, className) => walk(root).filter(n => (n.className ?? "").split(/\\s+/).includes(className));
+const named = (root, className) => walk(root).filter(n => (n.className ?? "").split(" ").includes(className));
 const text = root => walk(root).map(n => n.textContent).join(" ");
 const flush = () => new Promise(resolve => setTimeout(resolve, 0));
 
@@ -57,7 +57,7 @@ test("dorm showroom creates real offer cards, removes size paragraphs and filter
   assert.equal(named(h.panel,"shop-showroom-card").length, 3);
   assert.equal(named(h.panel,"shop-showroom-view").length, 3);
   assert.equal(named(h.panel,"shop-offer-buy").length, 3);
-  assert.doesNotMatch(text(h.panel), /크기 \\(월드 단위\\)/);
+  assert.doesNotMatch(text(h.panel), /크기/);
   assert.equal(h.calls.filter(c=>c.name==="get_world_shop_v1").length,1);
   const lightTab = named(h.panel,"shop-showroom-tab").find(tab => tab.dataset.category === "light");
   lightTab.click();
@@ -75,7 +75,7 @@ test("details show actual listing metadata and location; browsing/rotation never
   assert.equal(named(h.panel,"shop-showroom-detail").length,1);
   assert.match(text(h.panel), /인덕 쿠션/);
   assert.match(text(h.panel), /놓을 곳: 바닥 · 침대 위/);
-  assert.doesNotMatch(text(h.panel), /크기 \\(월드 단위\\)/);
+  assert.doesNotMatch(text(h.panel), /크기/);
   named(h.panel,"shop-showroom-rotate")[0].click();
   assert.equal(h.calls.length,1, "preview is read-only");
   named(h.panel,"shop-showroom-back")[0].click();
