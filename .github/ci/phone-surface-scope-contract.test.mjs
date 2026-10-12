@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { declaredPaths, matchPath } from './phone-surface-scope.mjs';
 
 const scoped = [
   'graphics-integration-browser.yml',
@@ -53,4 +54,19 @@ test('core release, security and gameplay integration gates remain unconditional
     const text=readFileSync(new URL('../workflows/'+file,import.meta.url),'utf8');
     assert.doesNotMatch(text,/id: phone_scope/,file+' must not be scoped');
   }
+});
+
+
+test('all scoped browser workflows trigger for the imported SEO policy and regressions', () => {
+  const missing = [];
+  for (const file of scoped) {
+    const text = readFileSync(new URL('../workflows/' + file, import.meta.url), 'utf8');
+    const name = text.split('\n')[0].slice('name: '.length);
+    const paths = declaredPaths(text, name);
+    assert.ok(paths, file + ': invalid trigger declaration');
+    for (const changed of ['.github/ci/seo-only-scope.mjs', '.github/ci/seo-only-scope.test.mjs']) {
+      if (!paths.some(pattern => matchPath(pattern, changed))) missing.push(file + ': ' + changed);
+    }
+  }
+  assert.deepEqual(missing, [], 'imported classification changes must run their browser callers');
 });
