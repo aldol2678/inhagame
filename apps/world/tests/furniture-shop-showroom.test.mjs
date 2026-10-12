@@ -34,7 +34,8 @@ async function fixture(offers = rows) {
       throw Error("Unexpected RPC " + name);
     }
   };
-  const shop = createShopClient({getClient:()=>client,createKey:()=> "showroom:test"});
+  const shop = createShopClient({getClient:()=>client,shopId:"shop.dorm_furniture",createKey:()=> "showroom:test"});
+  shop.select = id => id === "shop.dorm_furniture";
   const ui = createShopPanel({shop,panel,doc});
   shop.setAccount(ACCOUNT);
   ui.openShop("shop.dorm_furniture");
