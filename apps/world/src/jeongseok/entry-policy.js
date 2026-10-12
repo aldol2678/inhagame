@@ -1,22 +1,16 @@
-// JSL-B · Jeongseok interior entry policy (engine-free).
+// Jeongseok public lobby and protected inner-area policy (engine-free).
 //
-// The interior never decides who may enter. Modes:
-//   CLOSED_PENDING_JSL_A       default everywhere. No door action, no transition, no stay.
-//   VISUAL_PREVIEW_LOCAL_ONLY  preview hosts with an explicit QA flag only. Local blockout review;
-//                              it is NOT server-protected access and must never be reported as such.
-//   SERVER_GRANT_JSL_A         contract for the JSL-A gate (PR #358): its controller calls onEnter
-//                              only with a fresh server snapshot (get_jeongseok_access_v1). One
-//                              short-lived grant opens one entry for the same account; the stay ends
-//                              when the account changes, the pass expires or a re-read is not GRANTED.
-// The gate animation (green light, flaps) is presentation and never reaches this module.
-// Interiors are local-only scenes without a Room/Realtime channel, so there is no server room
-// join, invite, resume or channel to bypass; when one is added, it must re-check the server.
+// The public lobby never needs an account or grant. Only an explicit CLOSED deployment mode
+// closes its outer door. SERVER_GRANT protects the inner lobby and B1: a fresh account-bound
+// snapshot gives one short crossing window, then a stay bounded by server pass expiry/rechecks.
+// These are local scene guards, not authoritative server position or multiplayer-room checks.
 
 export const JEONGSEOK_ENTRY_MODE = Object.freeze({
   CLOSED: "CLOSED_PENDING_JSL_A",
   VISUAL_PREVIEW: "VISUAL_PREVIEW_LOCAL_ONLY",
   SERVER_GRANT: "SERVER_GRANT_JSL_A"
 });
+export const JEONGSEOK_LOBBY_POLICY_KEY = "jeongseok-public-lobby";
 export const JEONGSEOK_ACCESS_POLICY_KEY = "jeongseok-policy";
 export const JEONGSEOK_GRANT_TTL_MS = 15_000;
 
@@ -31,8 +25,8 @@ function localAccessExpiry(snapshot) {
 }
 
 export function resolveJeongseokEntryMode({ previewHost = false, params = new URLSearchParams(), serverAccessAvailable = false } = {}) {
-  if (serverAccessAvailable) return JEONGSEOK_ENTRY_MODE.SERVER_GRANT;
   if (previewHost === true && params.get("jeongseok") === "jsl-b") return JEONGSEOK_ENTRY_MODE.VISUAL_PREVIEW;
+  if (serverAccessAvailable) return JEONGSEOK_ENTRY_MODE.SERVER_GRANT;
   return JEONGSEOK_ENTRY_MODE.CLOSED;
 }
 
@@ -56,16 +50,17 @@ export function createJeongseokEntryPolicy({ mode = JEONGSEOK_ENTRY_MODE.CLOSED,
   function allowsStay() {
     if (mode === JEONGSEOK_ENTRY_MODE.VISUAL_PREVIEW) return true;
     if (!server() || !session || !accountId) return false;
-    return session.accountId === accountId && notExpired(session.accessExpiresAt, clock.now());
+    return session.accountId === accountId && notExpired(session.accessExpiresAt, clock.now()) &&
+      (session.crossed || clock.now() <= session.notAfter);
   }
 
   return {
     get mode() { return mode; },
     get serverProtected() { return server(); },
-    /** Room-transition access predicate: campus entry needs a grant, moves inside need a valid stay. */
-    predicate: (entrance, _room) => entrance ? allowsEntry() : allowsStay(),
+    allowsLobby: () => mode !== JEONGSEOK_ENTRY_MODE.CLOSED,
     allowsEntry,
     allowsStay,
+    allowsProtectedRoom: () => allowsStay() && (mode === JEONGSEOK_ENTRY_MODE.VISUAL_PREVIEW || session?.crossed === true),
     setAccount(next) {
       const id = typeof next === "string" && next ? next : null;
       if (id === accountId) return false;
@@ -75,26 +70,27 @@ export function createJeongseokEntryPolicy({ mode = JEONGSEOK_ENTRY_MODE.CLOSED,
     },
     /** JSL-A onEnter hand-off: only a fresh GRANTED snapshot for the current account counts. */
     acceptServerGrant(snapshot) {
-      if (!server() || !accountId || snapshot?.granted !== true || snapshot.decision !== "GRANTED" || snapshot.userId !== accountId) return false;
+      if (!server() || !accountId || snapshot?.granted !== true || snapshot.decision !== "GRANTED" || !["INHA_MAIL", "VISITOR_PASS"].includes(snapshot.via) || snapshot.userId !== accountId) return false;
       const accessExpiresAt = localAccessExpiry(snapshot);
       if (accessExpiresAt !== null && !(accessExpiresAt > clock.now())) return false;
       grant = { accountId, notAfter: clock.now() + grantTtlMs, accessExpiresAt };
       return true;
     },
-    /** Called once the campus → lobby transition commits. A grant opens exactly one entry. */
+    /** Consume one fresh grant at the inner reader; walking across completes the crossing. */
     commitEntry() {
       if (!server()) return mode === JEONGSEOK_ENTRY_MODE.VISUAL_PREVIEW;
-      if (!grant) return false;
-      session = { accountId: grant.accountId, accessExpiresAt: grant.accessExpiresAt };
+      if (!allowsEntry()) { grant = null; return false; }
+      session = { accountId: grant.accountId, accessExpiresAt: grant.accessExpiresAt, notAfter: grant.notAfter, crossed: false };
       grant = null;
       return true;
     },
+    confirmCrossing() { if (!allowsStay()) return false; if (session) session.crossed = true; return true; },
     discardGrant() { grant = null; },
     /** Fresh server re-read while inside (expiry tick, resume, focus). Returns true when the stay continues. */
     revalidate(snapshot) {
       if (!server()) return mode === JEONGSEOK_ENTRY_MODE.VISUAL_PREVIEW;
       if (!session) return false;
-      if (snapshot?.granted !== true || snapshot.userId !== session.accountId || session.accountId !== accountId) {
+      if (snapshot?.granted !== true || snapshot.decision !== "GRANTED" || !["INHA_MAIL", "VISITOR_PASS"].includes(snapshot.via) || snapshot.userId !== session.accountId || session.accountId !== accountId) {
         session = null; lastRevocation = snapshot ? `SERVER_${snapshot.decision ?? "UNKNOWN"}` : "SERVER_UNKNOWN";
         return false;
       }
@@ -104,7 +100,7 @@ export function createJeongseokEntryPolicy({ mode = JEONGSEOK_ENTRY_MODE.CLOSED,
     },
     endSession(reason = "LEFT") { if (session) lastRevocation = reason; session = null; grant = null; },
     status: () => Object.freeze({ mode, serverProtected: server(), accountBound: accountId !== null,
-      pendingGrant: grant !== null, session: session !== null,
+      pendingGrant: grant !== null, session: session !== null, crossed: session?.crossed === true,
       accessExpiresAt: session?.accessExpiresAt ?? null, lastRevocation })
   };
 }

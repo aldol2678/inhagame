@@ -1,6 +1,7 @@
 # JSL-B · 정석학술정보관 1F/B1 실내 블록아웃
 
-상태: **JSL_B_BLOCKOUT_READY / JSL_B_INTEGRATION_PENDING (JSL-A) / JSL_B_FULL_FIDELITY_HOLD**.
+상태: **PUBLIC_LOBBY_CONNECTED / INNER_GATE_SERVER_CONTROLLED / JSL_B_FULL_FIDELITY_HOLD**.
+클라이언트 연결 후보이며 Production 적용 완료를 뜻하지 않는다. 서버 게이트·판매 상태는 별도 활성화 승인 전까지 `COMING_SOON`이다.
 게임용 제한 블록아웃이며 실제 평면·현행 게이트 위치·층간 동선의 재현이 아니다
 (`JEONGSEOK_INTERIOR_CLAIM.realityReproduction === false`).
 
@@ -13,37 +14,49 @@
 | `ROOM_JEONGSEOK_B1_CREATIVE` | Creative Space 학습 존(목재 세로살 원형 기둥, 어두운 격자 천장·다운라이트, 긴 테이블, 소파, 창, 곡선 유리) + 강연 존(남색 벽, 스크린, 계단식 좌석, 링 펜던트, 카펫) + 대표 유리 스터디룸 2개 | `JSL-R0-F03-CREATIVE-2024`, `JSL-R0-CREATIVE-FACILITY-GUIDE` |
 
 ```
-캠퍼스(LIBRARY_FRONT 착지) ─문─▶ 1F 로비 ─임시 층간 이동─▶ B1 제2열람실 ⇄(B1 임시 연결)⇄ B1 Creative Space
-B1 ─나가기─▶ 1F 로비(사용한 이동 지점) ─나가기─▶ JEONGSEOK_CAMPUS_RETURN
+캠퍼스(LIBRARY_FRONT 착지) ─문─▶ 1F 공개 로비 ─서버 재확인·내부 게이트─▶ 내부 로비 ─임시 층간 이동─▶ B1 두 공간
+B1 ─나가기/권한 소실─▶ 1F 공개 로비 안전 앵커 ─나가기─▶ JEONGSEOK_CAMPUS_RETURN
 ```
 
 모든 이동 지점·스폰·앵커·존 경계는 `GAME_ADAPTATION`이며 계단·엘리베이터 위치를 주장하지 않는다.
-게이트 열은 `JEONGSEOK_LOBBY_GATE_SLOT` 하나로 교체 가능하고, 플랩 애니메이션은 근접 시 시각 효과일 뿐 권한과 무관하다.
+게이트 열은 `JEONGSEOK_LOBBY_GATE_SLOT` 하나로 교체 가능하고, 플랩 애니메이션은 유효한 내부 세션이 있을 때만 근접 반응한다. 실제 닫힌 충돌 경계는 별도 전체 높이 collider로 정상 런타임에 포함된다.
 474석·대학원생 54석은 참고 수치이며 벽이나 별실로 만들지 않는다. 미배치 스터디룸 6개는 좌표 없는 `RESERVED_UNPLACED` 슬롯이다.
 
 ## 출입 정책 (`src/jeongseok/entry-policy.js`)
 
+- 게스트를 포함해 누구나 외부 문에서 공개 로비로 입장한다. 공개 로비 입장은 보호 grant를 요구하거나 소비하지 않는다.
+- 내부 게이트의 리더는 `get_jeongseok_access_v1`을 재조회한다. 인하대 메일 인증 영구 계정은 무료, 나머지 적격 영구 계정은 유효한 방문증이 필요하다. 메일 인증은 재학 여부 증명이 아니다.
+- 공개 쪽의 가상 안내 NPC에서만 방문증 구매 UI를 시작한다. 게스트는 안내를 읽을 수 있지만 구매에는 로그인이 필요하다.
+- 확정 상품은 100인덕코인 / 발급 시점부터 현실 시간 24시간. 새 forward migration은 가격 근거를 `CONFIRMED`로 바꾸며 rollout 상태는 보존한다. 초기 상태는 계속 `COMING_SOON`이다.
+- Reader의 최종 `onEnter`는 같은 계정의 fresh grant 하나를 15초의 내부 진입 기회로 소비한다. 실제 경계를 넘어야 체류가 시작되고, 공개 쪽으로 돌아오면 세션이 끝난다.
+- 내부/B1 체류는 방문증 만료, 계정 변경, 인증 철회/서버 거절/조회 오류 시 종료한다. 30초마다 서버 확인, 조회 제한 8초. 페이지 숨김·복귀·BFCache 복귀·창 포커스 복귀는 기존 세션을 폐기하고 다시 태그하도록 한다.
+- B1 복귀 앵커는 항상 공개 로비다. 강제 복귀 실패 시 Room Transition이 입력 잠금을 유지하며, 로비 위치 복구 실패도 별도 SYSTEM_LOCK으로 처리한다.
+- 승인 없는 복원·텔레포트·고속 이동으로 내부 좌표에 놓이면 다음 정상 런타임 갱신에서 공개 앵커로 보정한다. B1 직접/형제 이동은 보호 predicate와 전환 중 재검증을 거친다.
+
 | 모드 | 조건 | 결과 |
 | --- | --- | --- |
-| `CLOSED_PENDING_JSL_A` | 기본(모든 운영 호스트) | 문 액션 없음, Room Transition이 Jeongseok room을 거절 |
-| `VISUAL_PREVIEW_LOCAL_ONLY` | preview host + `?jeongseok=jsl-b` | 로컬 시각 검수 전용. 서버 보호 출입이 아님 |
-| `SERVER_GRANT_JSL_A` | JSL-A 병합 후 연결 | JSL-A `onEnter(fresh)`의 GRANTED 스냅샷 1회 = 입장 1회 |
+| `CLOSED_PENDING_JSL_A` | 명시적 폐쇄 설정 | 외부 문 없음, 모든 정석 방 입장 거절 |
+| `VISUAL_PREVIEW_LOCAL_ONLY` | preview host + `?jeongseok=jsl-b` | 시각 검수용 보호 경계 우회. 운영 출입 검증으로 주장하지 않음 |
+| `SERVER_GRANT_JSL_A` | 기본 연결 | 공개 로비 자유 입장, 내부/B1만 서버 결과 기반 세션 |
 
-`room-transition.js`의 `accessPolicies`는 정책 키가 없으면 **fail-closed**로 거절한다.
-실내는 Realtime 채널 없는 로컬 장면이라 서버 room join/invite/resume/Realtime 경로가 존재하지 않는다.
-공용 실내 세션을 추가할 때는 서버 재검증(`private.world_jeongseok_access_v1()`)이 전제다.
+`room-transition.js`의 `accessPolicies`는 정책 키가 없으면 fail-closed로 거절한다.
+기존 외관, canonical footprint, 캠퍼스 출입 위치는 바꾸지 않는다. 안내 NPC는 실존 직원·사서를 재현하지 않는 게임 캐릭터다.
 
-### JSL-A(PR #358) 연결 계약
+### 권위와 명확한 한계
 
-```js
-// jeongseok-feature.js 의 gate controller
-onEnter: fresh => jeongseokInterior.enterFromServerGrant(fresh, { mounted: controller.mounted })
-// 모드: resolveJeongseokEntryMode({ serverAccessAvailable: true })
-// 계정: jeongseokInterior.setAccount(userId)  (이미 main.js 연결)
-// 체류 중 재조회: jeongseok.access.onChange(() => jeongseokInterior.revalidate(access.snapshot))
-```
+`purchase_jeongseok_pass_v1`의 서버 카탈로그·계정 검증·Wallet 원자 차감·advisory lock·idempotency를 그대로 재사용한다.
+학생증 앱은 자격/방문증 표시이며 구매·차감을 자체 계산하지 않는다. 응답 유실은 같은 계정의 같은 요청 키로 복구한다.
 
-계정 전환·만료·재조회 거절 시 B1에서도 로비를 거치지 않고 캠퍼스 복귀 앵커로 강제 퇴장한다(`exit({ force, toCampus })`).
+실내는 서버 Room/Realtime 채널이 없는 로컬 장면이다. 충돌, 위치 보정, NPC 근접 확인은 정상 클라이언트의 흐름을 보호하지만 변조 클라이언트의 서버 위치 권위를 만들지는 않는다.
+현 구매 RPC는 NPC 근접을 검증하지 않는다. 서버에 강제되는 권한은 인증/메일 자격/가격/차감/발급/기한이며, 서버 이동·공용 실내 세션은 별도 범위다.
+
+### 적용 순서와 승인 경계
+
+1. 로컬 코드·DB 후보·회귀 QA를 검토한다. 기존 migration 수정, grants 확장, 새 workflow는 없다.
+2. 별도 승인 후 정확한 main 위에 한 번 게시하고 기존 필수 CI를 통과시킨다.
+3. PR 병합/Production 배포와 운영 DB migration 적용은 각각 승인 범위 안에서 수행한다.
+4. 운영 DB의 원본 JSL-A 및 새 정책 migration 존재·RPC·권한을 확인한다. 게이트·상품 활성화는 별도 승인 후 수행한다. 코드 병합만으로 상품 상태를 `ACTIVE`로 바꾸지 않는다.
+5. 활성화 후 합성/허용된 테스트 계정으로 무료/유료/잔액 부족/중복 키/만료/계정 전환을 재검증한다. 운영 결제 테스트는 사전 승인 없이는 수행하지 않는다.
 
 ## 성능 원칙
 
@@ -69,7 +82,7 @@ Creative Space 존 연결·외부 출입·창 방위, 스터디룸 8개 배치.
 
 ## JSL-C 연결 요구사항
 
-- 사서 NPC 앵커: 로비 `info_desk` 슬롯 뒤(교체 가능), 기존 NPC Population 재사용
+- 공개 안내 NPC는 출입 안내·구매 전용. 추후 사서/검색/퀘스트 역할 확장은 별도 범위
 - 도서 검색: `search_kiosk_*` 모듈에 Context Action 추가, 결과는 결정적 데이터·서버 퀘스트 확인
 - 독서/좌석: 열람실 `chair`/`carrel` 항목을 기존 seating 시스템 좌석으로 등록(현재 미등록)
 - 보상은 기존 Quest/Reward 권위만, 입장 권한은 JSL-A 서버 판정 유지

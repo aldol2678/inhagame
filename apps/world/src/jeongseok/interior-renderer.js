@@ -10,6 +10,7 @@
 import * as pc from "playcanvas";
 import { box, surface } from "../campus-render-kit.js";
 import { createStaticBatch } from "./static-batch.js";
+import { createJeongseokLobbyCollision } from "./lobby-layout.js";
 import { PORTAL_WALL_INSET } from "./interior-kit.js";
 import { JEONGSEOK_LAYOUTS, JEONGSEOK_LOBBY_ROOM_ID, JEONGSEOK_B1_READING_ROOM_ID, JEONGSEOK_B1_CREATIVE_ROOM_ID } from "./interior-rooms.js";
 
@@ -214,6 +215,17 @@ const MODULES = {
     for (const sx of [-1, 1]) b.box(M.steel(), [x + sx * (w / 2 - 0.3), y + h + 0.6, z], [0.03, 1.2, 0.03]);
     // Abstract arrows only.
     for (const dx of [-1.4, 0, 1.4]) downArrow(b, glow("#e9f1f8", 0.75), [x + dx, y + h / 2 + 0.02, z - d / 2], 0.18, -1);
+  },
+  guide_npc(b, e) {
+    // Original stylized game guide, with no school insignia or real employee likeness.
+    const [x, y, z] = e.at;
+    b.sphere(M.laminate(), [x, y + 0.78, z], 0.16);
+    b.box(M.navy(), [x, y + 0.48, z], [0.34, 0.36, 0.22]);
+    for (const side of [-1, 1]) {
+      b.box(M.darkMetal(), [x + side * 0.10, y + 0.16, z], [0.12, 0.28, 0.15]);
+      b.box(M.navy(), [x + side * 0.23, y + 0.47, z], [0.10, 0.30, 0.12]);
+    }
+    b.box(glow("#a5e4e8", 0.4), [x, y + 0.48, z - 0.12], [0.12, 0.09, 0.02]);
   },
   info_desk(b, e) {
     const [x, , z] = e.at, [w, h, d] = e.size;
@@ -521,7 +533,7 @@ function buildGateFlaps(root, layout) {
   return flaps;
 }
 
-export function createJeongseokInteriorScenes(app, { getGraphicsTier = () => "medium", now = () => performance.now() } = {}) {
+export function createJeongseokInteriorScenes(app, { getGraphicsTier = () => "medium", now = () => performance.now(), isGateOpen = () => false } = {}) {
   const scenes = new Map();
   let failNext = null;
   const history = [];
@@ -551,16 +563,22 @@ export function createJeongseokInteriorScenes(app, { getGraphicsTier = () => "me
       });
       app.root.addChild(root);
       const buildMs = now() - started;
+      const collision = roomId === JEONGSEOK_LOBBY_ROOM_ID ? createJeongseokLobbyCollision(isGateOpen() === true) : null;
       const scene = {
         root, lights, roomId, detail,
+        obstacles: collision?.obstacles ?? [...layout.obstacles],
         ambient: new pc.Color(...config.ambient),
         clearColor: new pc.Color(...config.clear),
         stats: Object.freeze({ drawMeshes: meshes.length, primitives, vertices, flaps: flaps.length, lights: lights.length, buildMs }),
-        /** Visual-only gate flaps: swing open while the player is near a lane. No authority. */
+        /** Stable collision array is shared with PlayerController/Orbit; no test-only barrier. */
+        setGateAccess(open) { collision?.setGateAccess(open); },
+        /** Proximity may animate only an already-authorized gate, never unlock it. */
         update(position, dt = 0.016) {
+          const allowed = isGateOpen() === true;
+          this.setGateAccess(allowed);
           for (const flap of flaps) {
             const near = position && Math.abs(position.x - flap.lane.x) < flap.lane.width / 2 + 0.35 && Math.abs(position.z - flap.lane.z) < 1.4;
-            const target = near ? flap.side * 80 : 0;
+            const target = allowed && near ? flap.side * 80 : 0;
             const current = flap.hinge.getLocalEulerAngles().y;
             const next = current + (target - current) * Math.min(1, dt * 10);
             flap.hinge.setLocalEulerAngles(0, Math.abs(next - target) < 0.5 ? target : next, 0);
@@ -569,6 +587,7 @@ export function createJeongseokInteriorScenes(app, { getGraphicsTier = () => "me
         get flapAngles() { return flaps.map(flap => Math.round(flap.hinge.getLocalEulerAngles().y)); },
         onDeactivate() { for (const flap of flaps) flap.hinge.setLocalEulerAngles(0, 0, 0); }
       };
+      scene.setGateAccess(isGateOpen() === true);
       history.push({ roomId, buildMs, detail, drawMeshes: meshes.length });
       return scene;
     } catch (error) { root.destroy(); throw error; }

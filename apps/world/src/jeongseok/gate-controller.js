@@ -2,7 +2,7 @@
 //
 //   IDLE → CHECKING → SCANNING → GRANTED → OPENING → READY_TO_ENTER
 //   refusals: NEEDS_PASS · EXPIRED · INSUFFICIENT_FUNDS · AUTH_REQUIRED · ACCOUNT_BLOCKED · UNKNOWN · DISABLED
-//   purchase: NEEDS_PASS / EXPIRED → PURCHASING → CHECKING (fresh server read) → …
+//   guide: fresh check / purchase → refreshed guidance (no tag or open-gate animation)
 //
 // The green light is presentation only. Every grant comes from a fresh server read, and entering
 // asks the server again; a READY_TO_ENTER state is never a credential. The interior is not part of
@@ -22,7 +22,8 @@ const BUSY = new Set([GATE_STATE.CHECKING, GATE_STATE.SCANNING, GATE_STATE.GRANT
 const PURCHASABLE = new Set([GATE_STATE.NEEDS_PASS, GATE_STATE.EXPIRED, GATE_STATE.INSUFFICIENT_FUNDS]);
 
 export function createJeongseokGateController({ access, isEnabled = () => true, hasAccount = () => access.accountId !== null,
-  onEnter = () => ({ status: "PENDING_JSL_B" }), onChange = () => {}, onCue = () => {},
+  canTag = () => true, canGuide = () => true, canPurchase = () => true,
+  onEnter = () => ({ status: "UNAVAILABLE" }), onChange = () => {}, onCue = () => {},
   setTimer = setTimeout, clearTimer = clearTimeout, timings = GATE_TIMINGS } = {}) {
   if (!access?.verifyEntry || !access?.purchase) throw new Error("Gate controller requires the Jeongseok access client");
   let state = GATE_STATE.IDLE, epoch = 0, timer = null, decision = null, notice = null, purchaseRecovery = false;
@@ -67,17 +68,21 @@ export function createJeongseokGateController({ access, isEnabled = () => true, 
       });
     });
   }
-  function apply(gen, result) {
+  function apply(gen, result, { tag = true } = {}) {
     if (gen !== epoch) return false;
     if (!result) { refuse(GATE_STATE.UNKNOWN, { decision: null }); return false; }
-    if (result.granted) { tagSequence(gen, result); return true; }
+    if (result.granted) {
+      if (tag) tagSequence(gen, result);
+      else set(GATE_STATE.IDLE, { decision: result.decision });
+      return true;
+    }
     refuse(REFUSAL[result.decision] ?? GATE_STATE.UNKNOWN, { decision: result.decision });
     return false;
   }
 
   /** F / Context Action at the reader. */
   async function start() {
-    if (BUSY.has(state)) return false;
+    if (BUSY.has(state) || !canTag()) return false;
     const gen = ++epoch;
     clear(); notice = null;
     if (!isEnabled()) { refuse(GATE_STATE.DISABLED, { decision: "DISABLED" }); return false; }
@@ -85,12 +90,28 @@ export function createJeongseokGateController({ access, isEnabled = () => true, 
     set(GATE_STATE.CHECKING, { decision: null });
     let result = null;
     try { result = await access.verifyEntry(); } catch { result = null; }
+    if (gen === epoch && !canTag()) { reset(); return false; }
     return apply(gen, result);
+  }
+
+  /** The public-side guide shows eligibility without tagging or opening the reader. */
+  async function guide() {
+    if (BUSY.has(state) || !canGuide()) return false;
+    const gen = ++epoch;
+    clear(); notice = null;
+    if (!isEnabled()) { refuse(GATE_STATE.DISABLED, { decision: "DISABLED" }); return false; }
+    if (!hasAccount()) { refuse(GATE_STATE.AUTH_REQUIRED, { decision: "AUTH_REQUIRED" }); return false; }
+    set(GATE_STATE.CHECKING, { decision: null });
+    let result = null;
+    try { result = await access.verifyEntry(); } catch { result = null; }
+    if (gen === epoch && !canGuide()) { reset(); return false; }
+    return apply(gen, result, { tag: false });
   }
 
   async function purchase() {
     // A reload recreates the controller but the access client restores an unresolved purchase key.
     // Replay that exact key even when this controller is still IDLE, never mint a second charge.
+    if (!isEnabled() || !hasAccount() || !canPurchase()) return false;
     const hasPendingKey = access.view().pendingKey === true;
     if (state === GATE_STATE.PURCHASING || (!PURCHASABLE.has(state) && !hasPendingKey)) return false;
     if (!hasPendingKey && !snapshot().canPurchase) return false;
@@ -105,7 +126,7 @@ export function createJeongseokGateController({ access, isEnabled = () => true, 
       set(GATE_STATE.CHECKING, { notice: result.status === "ALREADY_PROCESSED" ? "RECOVERED" : "ISSUED" });
       let fresh = null;
       try { fresh = await access.verifyEntry(); } catch { fresh = null; }
-      return apply(gen, fresh);
+      return apply(gen, fresh, { tag: false });
     }
     const code = access.view().purchaseError;
     purchaseRecovery = access.view().pendingKey === true;
@@ -115,7 +136,7 @@ export function createJeongseokGateController({ access, isEnabled = () => true, 
       set(GATE_STATE.CHECKING, { notice: code });
       let fresh = null;
       try { fresh = await access.verifyEntry(); } catch { fresh = null; }
-      return apply(gen, fresh);
+      return apply(gen, fresh, { tag: false });
     }
     if (code === "PERMANENT_ACCOUNT_REQUIRED") { refuse(GATE_STATE.AUTH_REQUIRED, { decision: "AUTH_REQUIRED", notice: code }); return false; }
     if (code === "ACCOUNT_UNAVAILABLE") { refuse(GATE_STATE.ACCOUNT_BLOCKED, { decision: "ACCOUNT_BLOCKED", notice: code }); return false; }
@@ -126,13 +147,14 @@ export function createJeongseokGateController({ access, isEnabled = () => true, 
 
   /** Entry asks the server again; only a fresh grant for the same account reaches onEnter. */
   async function enter() {
-    if (state !== GATE_STATE.READY_TO_ENTER) return null;
+    if (state !== GATE_STATE.READY_TO_ENTER || !isEnabled() || !hasAccount() || !canTag()) return null;
     const gen = ++epoch;
     clear();
     set(GATE_STATE.CHECKING, { notice: null });
     let fresh = null;
     try { fresh = await access.verifyEntry(); } catch { fresh = null; }
     if (gen !== epoch) return null;
+    if (!canTag() || !isEnabled() || !hasAccount()) { reset(); return null; }
     if (!fresh?.granted) { apply(gen, fresh); return null; }
     let outcome = null;
     try { outcome = await onEnter(fresh); } catch { outcome = { status: "FAILED" }; }
@@ -151,7 +173,7 @@ export function createJeongseokGateController({ access, isEnabled = () => true, 
   }
   function accountChanged() { epoch++; clear(); purchaseRecovery = false; set(GATE_STATE.IDLE, { decision: null, notice: null }); }
 
-  return { start, purchase, enter, reset, accountChanged, snapshot,
+  return { start, guide, purchase, enter, reset, accountChanged, snapshot,
     get state() { return state; },
     onChange(listener) { listeners.add(listener); return () => listeners.delete(listener); },
     destroy() { epoch++; clear(); listeners.clear(); } };

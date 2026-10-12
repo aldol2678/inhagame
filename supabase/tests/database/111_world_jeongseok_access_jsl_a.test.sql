@@ -30,11 +30,12 @@ create function pg_temp.ledger(p_uid uuid) returns bigint language sql as $$
 $$;
 grant execute on function pg_temp.as_user(text,boolean), pg_temp.coin(uuid), pg_temp.ledger(uuid) to authenticated;
 
--- ---- defaults: closed, candidate price, migration-owned catalogs ----
+-- ---- defaults: confirmed terms, closed rollout, migration-owned catalogs ----
 select is((select status from private.world_jeongseok_gate_policy),'COMING_SOON','gate ships closed');
 select is((select status from private.world_jeongseok_pass_catalog where pass_type='jeongseok.visitor.day'),'COMING_SOON','pass ships closed');
-select is((select price_basis from private.world_jeongseok_pass_catalog where pass_type='jeongseok.visitor.day'),'CANDIDATE','100 coins is a candidate, not confirmed');
-select is((select price from private.world_jeongseok_pass_catalog where pass_type='jeongseok.visitor.day'),100::bigint,'candidate price 100');
+select is((select price_basis from private.world_jeongseok_pass_catalog where pass_type='jeongseok.visitor.day'),'CONFIRMED','approved terms are confirmed without activating sales');
+select is((select currency_id from private.world_jeongseok_pass_catalog where pass_type='jeongseok.visitor.day'),'currency.induck_coin','confirmed currency is Induck Coin');
+select is((select price from private.world_jeongseok_pass_catalog where pass_type='jeongseok.visitor.day'),100::bigint,'confirmed price 100');
 select is((select duration_seconds from private.world_jeongseok_pass_catalog where pass_type='jeongseok.visitor.day'),86400,'real-time 24h');
 select is((select count(*) from private.world_jeongseok_pass_catalog),1::bigint,'exactly one P0 product');
 
@@ -64,12 +65,16 @@ select ok((select bool_and(relrowsecurity) from pg_class where oid in ('private.
 set local role authenticated;
 select pg_temp.as_user('a1110000-0000-4000-8000-00000000000a');
 select is(public.get_jeongseok_access_v1()->>'decision','COMING_SOON','closed gate reads COMING_SOON');
-select is(public.get_jeongseok_access_v1()->'offer','null'::jsonb,'closed gate exposes no candidate price');
+select is(public.get_jeongseok_access_v1()->'offer','null'::jsonb,'closed gate hides even a confirmed price');
 select is((public.get_jeongseok_access_v1()->>'granted')::boolean,false,'closed gate grants nobody');
 select throws_ok($$select public.purchase_jeongseok_pass_v1('jeongseok.visitor.day','jsl-closed-1')$$,
   'P0001','JEONGSEOK_GATE_UNAVAILABLE','closed gate cannot move value');
+select pg_temp.as_user('a1110000-0000-4000-8000-00000000000c');
+select is(public.get_jeongseok_access_v1()->>'decision','COMING_SOON','term confirmation does not open the gate for verified accounts');
 reset role;
 select is(pg_temp.ledger('a1110000-0000-4000-8000-00000000000a'),0::bigint,'closed gate wrote no ledger row');
+select is((select count(*) from private.world_jeongseok_pass_purchases),0::bigint,'closed gate wrote no receipt');
+select is((select count(*) from private.world_jeongseok_pass_entitlements),0::bigint,'closed gate issued no pass');
 
 -- ---- gate open, product still closed: verified enter free, others see no price ----
 update private.world_jeongseok_gate_policy set status='ACTIVE';
@@ -81,12 +86,15 @@ select is(public.get_jeongseok_access_v1()->'offer','null'::jsonb,'verified acco
 select pg_temp.as_user('a1110000-0000-4000-8000-00000000000a');
 select is(public.get_jeongseok_access_v1()->>'decision','NEEDS_PASS','general account needs a pass');
 select is(public.get_jeongseok_access_v1()->'offer'->>'status','COMING_SOON','closed product state is visible');
-select is(public.get_jeongseok_access_v1()->'offer'->'price','null'::jsonb,'closed product never exposes its candidate price');
+select is(public.get_jeongseok_access_v1()->'offer'->'price','null'::jsonb,'closed product hides even a confirmed price');
 select throws_ok($$select public.purchase_jeongseok_pass_v1('jeongseok.visitor.day','jsl-closed-2')$$,
   'P0001','PASS_UNAVAILABLE','closed product cannot be bought');
 reset role;
 
 -- ---- candidate price is not publishable, including by an accidental ops update ----
+-- The approved seed is CONFIRMED; deliberately downgrade this transaction-only fixture
+-- to retain regression coverage of the original candidate-price safety constraint.
+update private.world_jeongseok_pass_catalog set price_basis='CANDIDATE' where pass_type='jeongseok.visitor.day';
 select throws_ok('update private.world_jeongseok_pass_catalog set status=''ACTIVE'' where pass_type=''jeongseok.visitor.day''',
   '23514','new row for relation "world_jeongseok_pass_catalog" violates check constraint "world_jeongseok_pass_catalog_confirmed_active"',
   'candidate price cannot be activated');
