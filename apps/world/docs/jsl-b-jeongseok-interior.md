@@ -1,7 +1,7 @@
 # JSL-B · 정석학술정보관 1F/B1 실내 블록아웃
 
-상태: **PUBLIC_LOBBY_CONNECTED / INNER_GATE_SERVER_CONTROLLED / JSL_B_FULL_FIDELITY_HOLD**.
-클라이언트 연결 후보이며 Production 적용 완료를 뜻하지 않는다. 서버 게이트·판매 상태는 별도 활성화 승인 전까지 `COMING_SOON`이다.
+상태: **PUBLIC_LOBBY_CONNECTED / ROLLOUT_CLOSED / INNER_GATE_SERVER_CONTROLLED / JSL_B_FULL_FIDELITY_HOLD**.
+클라이언트 연결 후보이며 공개 로비를 포함한 운영 노출 기본값은 `CLOSED_PENDING_JSL_A`다. 코드 병합·배포만으로 문을 열지 않는다. 서버 게이트·판매 상태는 별도 활성화 승인 전까지 `COMING_SOON`이다.
 게임용 제한 블록아웃이며 실제 평면·현행 게이트 위치·층간 동선의 재현이 아니다
 (`JEONGSEOK_INTERIOR_CLAIM.realityReproduction === false`).
 
@@ -24,7 +24,7 @@ B1 ─나가기/권한 소실─▶ 1F 공개 로비 안전 앵커 ─나가기�
 
 ## 출입 정책 (`src/jeongseok/entry-policy.js`)
 
-- 게스트를 포함해 누구나 외부 문에서 공개 로비로 입장한다. 공개 로비 입장은 보호 grant를 요구하거나 소비하지 않는다.
+- 별도 공개 로비 활성화 후에는 게스트를 포함해 누구나 외부 문에서 공개 로비로 입장한다. 공개 로비 입장은 보호 grant를 요구하거나 소비하지 않는다.
 - 내부 게이트의 리더는 `get_jeongseok_access_v1`을 재조회한다. 인하대 메일 인증 영구 계정은 무료, 나머지 적격 영구 계정은 유효한 방문증이 필요하다. 메일 인증은 재학 여부 증명이 아니다.
 - 공개 쪽의 가상 안내 NPC에서만 방문증 구매 UI를 시작한다. 게스트는 안내를 읽을 수 있지만 구매에는 로그인이 필요하다.
 - 확정 상품은 100인덕코인 / 발급 시점부터 현실 시간 24시간. 새 forward migration은 가격 근거를 `CONFIRMED`로 바꾸며 rollout 상태는 보존한다. 초기 상태는 계속 `COMING_SOON`이다.
@@ -35,9 +35,9 @@ B1 ─나가기/권한 소실─▶ 1F 공개 로비 안전 앵커 ─나가기�
 
 | 모드 | 조건 | 결과 |
 | --- | --- | --- |
-| `CLOSED_PENDING_JSL_A` | 명시적 폐쇄 설정 | 외부 문 없음, 모든 정석 방 입장 거절 |
+| `CLOSED_PENDING_JSL_A` | 운영 기본값·활성화 승인 전 | 외부 문 없음, 모든 정석 방 입장 거절 |
 | `VISUAL_PREVIEW_LOCAL_ONLY` | preview host + `?jeongseok=jsl-b` | 시각 검수용 보호 경계 우회. 운영 출입 검증으로 주장하지 않음 |
-| `SERVER_GRANT_JSL_A` | 기본 연결 | 공개 로비 자유 입장, 내부/B1만 서버 결과 기반 세션 |
+| `SERVER_GRANT_JSL_A` | 승인된 활성화 또는 테스트 전용 constructor DI | 공개 로비 자유 입장, 내부/B1만 서버 결과 기반 세션 |
 
 `room-transition.js`의 `accessPolicies`는 정책 키가 없으면 fail-closed로 거절한다.
 기존 외관, canonical footprint, 캠퍼스 출입 위치는 바꾸지 않는다. 안내 NPC는 실존 직원·사서를 재현하지 않는 게임 캐릭터다.
@@ -55,7 +55,7 @@ B1 ─나가기/권한 소실─▶ 1F 공개 로비 안전 앵커 ─나가기�
 1. 로컬 코드·DB 후보·회귀 QA를 검토한다. 기존 migration 수정, grants 확장, 새 workflow는 없다.
 2. 별도 승인 후 정확한 main 위에 한 번 게시하고 기존 필수 CI를 통과시킨다.
 3. PR 병합/Production 배포와 운영 DB migration 적용은 각각 승인 범위 안에서 수행한다.
-4. 운영 DB의 원본 JSL-A 및 새 정책 migration 존재·RPC·권한을 확인한다. 게이트·상품 활성화는 별도 승인 후 수행한다. 코드 병합만으로 상품 상태를 `ACTIVE`로 바꾸지 않는다.
+4. 공개 로비 활성화는 별도 승인을 받아 기존 rollout constructor 인자를 변경한다. Production query로 활성화하지 않는다. 운영 DB의 원본 JSL-A 및 새 정책 migration 존재·RPC·권한을 확인한다. 게이트·상품 활성화는 별도 승인 후 수행한다. 코드 병합만으로 상품 상태를 `ACTIVE`로 바꾸지 않는다.
 5. 활성화 후 합성/허용된 테스트 계정으로 무료/유료/잔액 부족/중복 키/만료/계정 전환을 재검증한다. 운영 결제 테스트는 사전 승인 없이는 수행하지 않는다.
 
 ## 성능 원칙
@@ -65,6 +65,8 @@ B1 ─나가기/권한 소실─▶ 1F 공개 로비 안전 앵커 ─나가기�
 PC 60FPS / 모바일 30FPS는 목표 후보이며 GPU 실기기 측정 전 PASS가 아니다.
 
 ## 검증
+
+브라우저 QA는 원본 main의 CLOSED 및 직접 로비/B1 거절을 먼저 확인한다. 이어 loopback 응답에서 기존 `serverAccessAvailable` constructor 인자만 주입하며 원본/제공 main SHA-256을 기록한다. 접근 정책·충돌·세션·RPC를 테스트 대역으로 교체하지 않는다. 합성 Auth/RPC 케이스와 실제 disposable DB 케이스를 구분한다.
 
 - `node --test apps/world/tests/jeongseok-interior.test.mjs`
 - `node apps/world/tests/browser/jeongseok-interior-smoke.mjs` (오프라인 Chromium, desktop / 390×844 / 844×390)

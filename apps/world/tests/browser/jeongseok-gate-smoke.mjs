@@ -8,6 +8,7 @@
 // Scope: Chromium desktop + mobile touch emulation (not physical devices). Public lobby is free;
 // the public-side guide sells passes, and the inner reader re-verifies before opening real collision.
 import assert from 'node:assert/strict';
+import { installJeongseokServerMode } from './jeongseok-synthetic-access.mjs';
 import { execFileSync, spawn } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
@@ -25,7 +26,8 @@ const output = 'test-results/jeongseok-gate'; await mkdir(output, { recursive: t
 const report = { head, status: 'RUNNING', cases: [], limits: [
   'Chromium (SwiftShader WebGL2) desktop and mobile touch emulation only; not physical Android/iOS.',
   'Local Supabase fixture only: no Production authorization, price or wallet claim.',
-  'Inner reader and guide use GAME_ADAPTATION lobby anchors, not surveyed real-world positions.'] };
+  'Shipped rollout is CLOSED. Loopback-only constructor DI enables SERVER_GRANT; all access RPCs, policy and runtime collision remain real.',
+    'Inner reader and guide use GAME_ADAPTATION lobby anchors, not surveyed real-world positions.'] };
 const save = () => writeFile(`${output}/report.json`, JSON.stringify(report, null, 2));
 
 const sql = q => execFileSync('psql', [DB_URL, '-v', 'ON_ERROR_STOP=1', '-Atq', '-c', q], { encoding: 'utf8' }).trim();
@@ -83,6 +85,7 @@ async function openWorld(entry, { viewport, mobile = false, account = null }) {
       return route.fulfill({ status: 200, contentType: 'text/javascript; charset=utf-8', body: supabaseJs });
     return route.abort('blockedbyclient');
   });
+  entry.rolloutFixture = await installJeongseokServerMode(context);
   const page = await context.newPage(); page.setDefaultTimeout(60000); currentPage = page;
   page.on('pageerror', e => problems.push(`pageerror: ${e.message}`));
   await page.goto(`${origin}/campus/?jeongseok=jsl-a&envTime=day&envWeather=clear`, { waitUntil: 'domcontentloaded' });
@@ -159,7 +162,10 @@ async function runCase(name, fn) {
     try { entry.diagnostic = await currentPage?.evaluate(() => { const d = window.__INHAGAME_P0__; return { gate: d.jeongseok.gate.snapshot(),
       access: { state: d.jeongseok.access.state, decision: d.jeongseok.access.snapshot?.decision }, phone: d.smartphone.status().state,
       route: d.smartphone.status().current, action: d.contextActions.active?.id ?? null, focus: d.getStatus().inputFocus.topOwners,
-      activeElement: document.activeElement?.id || document.activeElement?.tagName, log: window.__jslLog }; }); } catch { /* page gone */ }
+      activeElement: document.activeElement?.id || document.activeElement?.tagName,
+      position: { ...d.player.getLocalPosition() }, frame: d.app.frame, inputEnabled: d.controller.inputEnabled,
+      closedGateCollider: d.controller.space.obstacles.some(box => box.id === 'jsl_lobby_closed_gate'),
+      interior: window.__INHAGAME_JEONGSEOK_INTERIOR__.status(), log: window.__jslLog }; }); } catch { /* page gone */ }
     try { await currentPage?.screenshot({ path: `${output}/${name}-failure.png` }); } catch { /* page gone */ }
   }
   await currentClose?.(); currentClose = null;
@@ -254,14 +260,20 @@ try {
     assert.ok(await page.evaluate(() =>
       window.__jslLog.filter(value => value === 'access:verify-entry:READY').length) > checksBeforeEntry,
       'entry re-verifies on the server separately from the fresh tag');
-    assert.deepEqual([debits(general.id), coins(general.id)], [1, 150], 'expiry, retag and entry never debit again');
-    entry.checks.push('Real READY expiry closes entry; native retag and entry each re-verify, with one total debit');
     assert.equal((await worldRestored(page)).space, LOBBY);
-    await frames(page);
+    await page.waitForFunction(() => !window.__INHAGAME_P0__.controller.space.obstacles.some(box => box.id === 'jsl_lobby_closed_gate'), null, { timeout: 10000 });
     assert.equal(await page.evaluate(() => window.__INHAGAME_P0__.controller.space.obstacles.some(box => box.id === 'jsl_lobby_closed_gate')), false, 'fresh inner grant removes actual collision');
-    await page.keyboard.down('KeyW'); await page.waitForTimeout(1200); await page.keyboard.up('KeyW');
+    // Physics dt is capped per frame. A fixed wall-clock press does not guarantee enough
+    // rendered frames on SwiftShader; hold real input until crossing, within the real grant TTL.
+    await page.keyboard.down('KeyW');
+    try {
+      await page.waitForFunction(() => window.__INHAGAME_P0__.player.getLocalPosition().z > -3.2, null, { timeout: 10000, polling: 50 });
+    } finally { await page.keyboard.up('KeyW'); }
     assert.ok(await page.evaluate(() => window.__INHAGAME_P0__.player.getLocalPosition().z > -3.2), 'native movement crosses the open inner gate');
     assert.equal(await page.evaluate(() => window.__INHAGAME_JEONGSEOK_INTERIOR__.status().policy.crossed), true);
+    // Slow SQL readback must not consume the 15-second unused crossing opportunity.
+    assert.deepEqual([debits(general.id), coins(general.id)], [1, 150], 'expiry, retag and entry never debit again');
+    entry.checks.push('Real READY expiry closes entry; native retag and entry each re-verify, with one total debit');
     // Real B1 entry and return consume the inner stay and land safely on the public side.
     await page.evaluate(async () => { const d = window.__INHAGAME_P0__, m = await import('/src/jeongseok/lobby-layout.js');
       const p = m.JEONGSEOK_LOBBY_PORTALS[0].position; d.player.setLocalPosition(p.x, 1.15, p.z - 0.3); });

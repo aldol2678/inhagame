@@ -269,9 +269,10 @@ const npcSocialProductionMode = npcProductionMode;
 const npcSocialMode = npcSocialProductionMode || npcSocialPreviewMode || npcObservedConversationMode;
 const npcEnabled = npcSharedScheduleMode || npcTestMode || npcProductionMode || npcPreviewMode || npcRosterPreviewMode || npcSocialMode;
 const campusLifePreview = previewHost && startupParams.get('campusLife') === 'p0a';
-// Public lobby is available to guests. Inner gates still require a fresh server decision;
-// the server policy/product remain COMING_SOON until separately approved activation.
-const jeongseokEntryMode = resolveJeongseokEntryMode({ previewHost, params: startupParams, serverAccessAvailable: true });
+// Public-lobby/inner-gate wiring is ready, but rollout remains CLOSED until separately
+// approved activation. Browser QA injects only the existing serverAccessAvailable argument;
+// no Production query parameter grants access. The local jsl-b visual preview is unchanged.
+const jeongseokEntryMode = resolveJeongseokEntryMode({ previewHost, params: startupParams });
 const biryongVisualStage = previewHost ? startupParams.get('biryongVisual') : null;
 const biryongVisualLabP0A = ['p0a', 'p0b', 'p0c', 'p0d', 'p0e'].includes(biryongVisualStage);
 const biryongVisualLabP0B = ['p0b', 'p0c', 'p0d', 'p0e'].includes(biryongVisualStage);

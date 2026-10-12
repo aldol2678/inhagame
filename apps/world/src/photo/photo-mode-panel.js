@@ -309,7 +309,7 @@ export function createPhotoModePanel({ mode, rig, input, doc = globalThis.docume
   return Object.freeze({ root, setUiHidden, setGrid,
     status() {
       return Object.freeze({ ui: root.dataset.ui, grid: root.dataset.grid, settings: !settings.hidden, busy,
-        preview: !imageBox.hidden, status: status.textContent });
+        preview: !imageBox.hidden, status: status.textContent, capture: capture?.status?.() ?? null });
     },
     destroy() {
       if (destroyed) return; destroyed = true; mode.close('destroy'); resetCapture(); capture?.destroy(); unsubscribe(); offClosing?.();

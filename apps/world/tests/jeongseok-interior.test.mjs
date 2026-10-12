@@ -288,6 +288,27 @@ test("entry mode resolver selects explicit server integration or preview; unconf
   assert.throws(() => createJeongseokEntryPolicy({ mode: "OPEN" }));
 });
 
+test("shipped main keeps rollout CLOSED; server integration is loopback-only test constructor DI", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const { installJeongseokServerMode } = await import("./browser/jeongseok-synthetic-access.mjs");
+  const source = await readFile(new URL("../src/main.js", import.meta.url), "utf8");
+  const needle = "const jeongseokEntryMode = resolveJeongseokEntryMode({ previewHost, params: startupParams });";
+  assert.equal(source.split(needle).length, 2);
+  assert.doesNotMatch(source, /serverAccessAvailable:\s*true/);
+  let routeHandler;
+  const evidence = await installJeongseokServerMode({ route: async (pattern, handler) => {
+    assert.equal(pattern, "**/src/main.js"); routeHandler = handler;
+  } });
+  assert.equal(evidence.mode, "TEST_ONLY_ROLLOUT_CONSTRUCTOR");
+  assert.match(evidence.shippedMainSha256, /^[a-f0-9]{64}$/);
+  assert.notEqual(evidence.shippedMainSha256, evidence.servedMainSha256);
+  let served;
+  await routeHandler({ request: () => ({ url: () => "http://127.0.0.1:8000/src/main.js" }), fulfill: value => { served = value.body; } });
+  assert.equal(served, source.replace(needle, needle.replace("startupParams }", "startupParams, serverAccessAvailable: true }")));
+  assert.throws(() => routeHandler({ request: () => ({ url: () => "https://production.example/src/main.js" }) }), /loopback-only/);
+  assert.equal(await readFile(new URL("../src/main.js", import.meta.url), "utf8"), source, "fixture never edits shipped source");
+});
+
 const userA = "00000000-0000-4000-8000-00000000000a", userB = "00000000-0000-4000-8000-00000000000b";
 const granted = (userId, extra = {}) => ({ decision: "GRANTED", granted: true, via: "INHA_MAIL", userId, pass: null, clockOffsetMs: 0, ...extra });
 

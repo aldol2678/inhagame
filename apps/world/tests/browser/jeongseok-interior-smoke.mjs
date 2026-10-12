@@ -1,7 +1,7 @@
 // Jeongseok public lobby + 1F/B1 browser QA: real /campus/ boot, Room Transition, PlayCanvas,
 // native keyboard / touch input and actual runtime collision. Offline (harness.mjs): supabase-js
-// is stubbed, so no account, database or production call exists. Default SERVER_GRANT mode
-// covers guest/public behavior only. ?jeongseok=jsl-b is a LOCAL VISUAL_PREVIEW of all rooms,
+// is stubbed, so no account, database or production call exists. Shipped mode remains CLOSED; test-only constructor DI
+// enables SERVER_GRANT for guest/public behavior. ?jeongseok=jsl-b is a LOCAL VISUAL_PREVIEW of all rooms,
 // NOT a server-grant/authorization claim. Emulated mobile viewports are NOT physical devices.
 //
 //   npm ci --prefix apps/world/tests/browser
@@ -13,7 +13,7 @@ import { execFileSync } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { startSmoke, TIMEOUT_MS } from "./harness.mjs";
-import { installSyntheticJeongseokAccess } from "./jeongseok-synthetic-access.mjs";
+import { installJeongseokServerMode, installSyntheticJeongseokAccess } from "./jeongseok-synthetic-access.mjs";
 
 const output = path.resolve(process.env.JSL_B_QA_OUTPUT || "test-results/jeongseok-interior");
 await mkdir(output, { recursive: true });
@@ -21,7 +21,7 @@ const head = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).tr
 if (process.env.EXPECTED_JSL_B_HEAD) assert.equal(head, process.env.EXPECTED_JSL_B_HEAD, "browser must test the exact candidate head");
 const STEP_TIMEOUT_MS = 45_000;
 const LOBBY = "ROOM_JEONGSEOK_LOBBY", READING = "ROOM_JEONGSEOK_B1_READING", CREATIVE = "ROOM_JEONGSEOK_B1_CREATIVE";
-const report = { head, scope: "Offline Chromium: default SERVER_GRANT guest/public checks, synthetic Auth/RPC main integration, VISUAL_PREVIEW_LOCAL_ONLY tour; emulated mobile, no real server-authority or physical-device claim",
+const report = { head, scope: "Offline Chromium: shipped CLOSED proof, test-only SERVER_GRANT rollout DI guest/public checks, synthetic Auth/RPC integration, VISUAL_PREVIEW_LOCAL_ONLY tour; emulated mobile, no real server-authority or physical-device claim",
   startedAt: new Date().toISOString(), environment: {}, publicLobby: [], syntheticAuthority: [], viewports: [], screenshots: [], status: "RUNNING" };
 const viewports = [
   { label: "desktop", width: 1280, height: 720, mobile: false },
@@ -86,12 +86,12 @@ async function useAction(ctx, viewport, { id, label, space }) {
   throw new Error(`${id} never reached ${space}: ${JSON.stringify(await state(ctx.page))}`);
 }
 // Native movement: held key on desktop, a trusted CDP touch drag on the joystick on mobile.
-async function move(ctx, viewport, { key = "KeyW", dx = 0, dy = -40, ms = 1400 } = {}) {
+async function move(ctx, viewport, { key = "KeyW", dx = 0, dy = -40, ms = 1400, until = null } = {}) {
   const before = await state(ctx.page);
+  const hold = () => until ? ctx.page.waitForFunction(until, null, { timeout: 10000, polling: 50 }) : ctx.page.waitForTimeout(ms);
   if (!viewport.mobile) {
     await ctx.page.keyboard.down(key);
-    await ctx.page.waitForTimeout(ms);
-    await ctx.page.keyboard.up(key);
+    try { await hold(); } finally { await ctx.page.keyboard.up(key); }
   } else {
     const cdp = await ctx.page.context().newCDPSession(ctx.page);
     const rect = await ctx.page.locator("#joystick").boundingBox();
@@ -99,9 +99,10 @@ async function move(ctx, viewport, { key = "KeyW", dx = 0, dy = -40, ms = 1400 }
     const cx = rect.x + rect.width / 2, cy = rect.y + rect.height / 2;
     await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: cx, y: cy, id: 7 }] });
     await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: cx + dx, y: cy + dy, id: 7 }] });
-    await ctx.page.waitForTimeout(ms);
-    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
-    await cdp.detach();
+    try { await hold(); } finally {
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+      await cdp.detach();
+    }
   }
   await ctx.page.waitForTimeout(200);
   const after = await state(ctx.page);
@@ -133,13 +134,24 @@ const SHELLS = {
 };
 
 try {
-  // 1. Default shipped mode: anyone reaches the public lobby, inner gates remain closed.
+  // 1. Shipped mode is CLOSED. Constructor-only rollout DI then verifies the future public lobby.
   for (const viewport of modeEnabled("public") ? viewports : []) {
     const smoke = await startSmoke({ viewport: { width: viewport.width, height: viewport.height },
       contextOptions: { isMobile: viewport.mobile, hasTouch: viewport.mobile } });
     const result = { viewport: viewport.label, status: "RUNNING", checks: {} };
     report.publicLobby.push(result);
     try {
+      if (viewport === viewports[0]) {
+        const closed = await boot(smoke, "?jeongseok=jsl-a");
+        const shipped = await state(closed.page);
+        assert.equal(shipped.interior.policy.mode, "CLOSED_PENDING_JSL_A", "unmodified main remains CLOSED, even with the old gate QA query");
+        assert.equal(await closed.page.evaluate(() => window.__INHAGAME_P0__.rooms.enter("ROOM_JEONGSEOK_LOBBY")), false);
+        assert.equal(await closed.page.evaluate(() => window.__INHAGAME_P0__.rooms.enter("ROOM_JEONGSEOK_B1_READING")), false);
+        assert.deepEqual(shipped.interior.scenes.built, []);
+        report.productionClosed = { status: "PASS", mode: shipped.interior.policy.mode, queryDoesNotActivate: true };
+        await closed.page.close();
+      }
+      result.rolloutFixture = await installJeongseokServerMode(smoke.context);
       const ctx = await boot(smoke, "");
       const anchors = await ctx.page.evaluate(async () => {
         const rooms = await import("/src/jeongseok/interior-rooms.js");
@@ -150,7 +162,7 @@ try {
           lanes: lobby.JEONGSEOK_LOBBY_LAYOUT.gateLanes, guide: gate.JEONGSEOK_GUIDE.position, reader: gate.JEONGSEOK_GATE.position };
       });
       assert.equal((await state(ctx.page)).interior.policy.mode, "SERVER_GRANT_JSL_A");
-      assert.equal(await ctx.page.evaluate(() => typeof window.__INHAGAME_JEONGSEOK_INTERIOR__.failNextBuild), "undefined", "no preview fault hooks in default mode");
+      assert.equal(await ctx.page.evaluate(() => typeof window.__INHAGAME_JEONGSEOK_INTERIOR__.failNextBuild), "undefined", "no visual-preview fault hooks in SERVER_GRANT mode");
       const directCampusB1 = await ctx.page.evaluate(() => window.__INHAGAME_P0__.rooms.enter("ROOM_JEONGSEOK_B1_READING"));
       assert.equal(directCampusB1, false, "direct campus → B1 rejected");
       await teleport(ctx.page, anchors.entrance.x, anchors.entrance.z, 0, 2.8);
@@ -177,7 +189,10 @@ try {
         lanes.push({ x: lane.x, before: walk.before.position, after: walk.after.position });
       }
       const flaps = await ctx.page.evaluate(() => window.__INHAGAME_JEONGSEOK_INTERIOR__.activeFlapAngles());
-      assert.ok(flaps.length === 4 && flaps.every(angle => Math.abs(angle) < 0.01), "proximity cannot visually open closed flaps");
+      // Each lane has a west/east hinge; assert coverage separately from closure.
+      assert.equal(flaps.length, anchors.lanes.length * 2, "both flaps in every lane are inspected");
+      assert.ok(flaps.every(angle => Number.isFinite(angle) && Math.abs(angle) < 0.01),
+        `proximity cannot visually open closed flaps: ${JSON.stringify(flaps)}`);
       result.checks.closedGateCollision = { status: "PASS", lanes, flaps };
       await shot(ctx, viewport, "public-02-closed-inner-gates");
 
@@ -194,7 +209,7 @@ try {
 
       // The public-side fictional NPC is physically reachable, with guest login guidance.
       await teleport(ctx.page, anchors.guide.x + 1.8, anchors.guide.z, 270);
-      const guideWalk = await move(ctx, viewport, { ms: 1000 });
+      const guideWalk = await move(ctx, viewport, { until: () => window.__INHAGAME_P0__.contextActions.active?.id === "jeongseok-guide" });
       assert.ok(guideWalk.moved > 0.1, "native movement reaches the public guide");
       assert.equal(guideWalk.after.interior.stats.forcedExits, guideWalk.before.interior.stats.forcedExits);
       await waitFor(ctx, () => window.__INHAGAME_P0__.contextActions.active?.id === "jeongseok-guide", null, "public guide action");
@@ -224,17 +239,20 @@ try {
       assert.equal(s.interior.scenes.built.length, 0);
       assert.deepEqual(smoke.problems, []);
       result.status = "PASS"; console.log(`public lobby ${viewport.label}: PASS`);
-    } catch (error) { result.status = "FAIL"; result.error = error.stack || String(error); throw error; }
+    } catch (error) { result.status = "FAIL"; result.error = error.stack || String(error);
+      try { const pages = smoke.context.pages(); if (pages.length) result.diagnostic = await state(pages.at(-1)); } catch { /* preserve original failure */ }
+      throw error; }
     finally { await smoke.close(); }
   }
 
   // 2. The normal main/auth/RPC parsing/gate/room/collision path with SYNTHETIC replies only.
-  // No runtime hooks, access-policy replacement or injected collider. Not real server-authority QA.
+  // Constructor-only rollout DI; no access-policy replacement or injected collider. Not real server-authority QA.
   for (const viewport of modeEnabled("synthetic") ? viewports.filter(v => !v.mobile) : []) {
     const smoke = await startSmoke({ viewport: { width: viewport.width, height: viewport.height } });
     const result = { viewport: viewport.label, status: "RUNNING", authority: "SYNTHETIC_SUPABASE_REPLIES_NO_SERVER_CLAIM", checks: {} };
     report.syntheticAuthority.push(result);
     try {
+      result.rolloutFixture = await installJeongseokServerMode(smoke.context);
       await installSyntheticJeongseokAccess(smoke.context);
       const ctx = await boot(smoke, "");
       await waitFor(ctx, () => { const d = window.__INHAGAME_P0__; return d.jeongseok.access.state === "READY" &&
@@ -264,9 +282,14 @@ try {
         await waitFor(ctx, () => !window.__INHAGAME_P0__.controller.space.obstacles.some(box => box.id === "jsl_lobby_closed_gate"), null, "actual gate collider removed");
         const after = await ctx.page.evaluate(() => window.__JSL_SYNTHETIC__.status().calls.filter(c => c.name === "get_jeongseok_access_v1").length);
         assert.ok(after >= before + 2, "tag and actual entry both use the real access client's RPC path");
-        const walk = await move(ctx, viewport, { ms: 1300 });
-        assert.ok(walk.after.position.z > -3.2, `native input crosses freshly opened inner gate (${walk.after.position.z})`);
-        assert.equal(walk.after.interior.policy.crossed, true);
+        // Wait for real native-input crossing, not a fixed press duration at variable FPS.
+        await ctx.page.keyboard.down("KeyW");
+        try {
+          await ctx.page.waitForFunction(() => window.__INHAGAME_P0__.player.getLocalPosition().z > -3.2, null, { timeout: 10000, polling: 50 });
+        } finally { await ctx.page.keyboard.up("KeyW"); }
+        const crossed = await state(ctx.page);
+        assert.ok(crossed.position.z > -3.2, `native input crosses freshly opened inner gate (${crossed.position.z})`);
+        assert.equal(crossed.interior.policy.crossed, true);
       };
       const enterB1 = async () => {
         await teleport(ctx.page, a.portal.position.x, a.portal.position.z - 0.3);
@@ -322,7 +345,9 @@ try {
       await shot(ctx, viewport, "synthetic-03-revoked-public-return");
       assert.deepEqual(smoke.problems, []);
       result.status = "PASS"; console.log("synthetic main integration: PASS (no server-authority claim)");
-    } catch (error) { result.status = "FAIL"; result.error = error.stack || String(error); throw error; }
+    } catch (error) { result.status = "FAIL"; result.error = error.stack || String(error);
+      try { const pages = smoke.context.pages(); if (pages.length) result.diagnostic = await state(pages.at(-1)); } catch { /* preserve original failure */ }
+      throw error; }
     finally { await smoke.close(); }
   }
 
