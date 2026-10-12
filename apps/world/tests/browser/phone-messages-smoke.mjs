@@ -84,7 +84,7 @@ async function check(name,viewport,mobile) {
   assert.equal(clip,false,'No horizontal overflow');
   entry.status='PASS';await save();
  }catch(err){entry.status='FAIL';entry.error=String(err.stack||err);await save();throw err;}
- finally{await page?.close().catch(()=>{});await smoke.stop();}
+ finally{await page?.close().catch(()=>{});await smoke.close();}
 }
 try{
  for(const [n,v,m] of [['desktop',{width:1280,height:800},false],['portrait',{width:390,height:844},true],['landscape',{width:844,height:390},true]])await check(n,v,m);
