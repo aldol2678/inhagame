@@ -145,7 +145,7 @@ test('parallel graphics extension is an exact allowlist, never a src or Biryong 
 
 test('graphics exception is branch-bound and keeps environmental and visual contracts mandatory', () => {
   const workflow=read('../../../.github/workflows/hall-library-candidate-browser.yml');
-  assert.match(workflow,/WORLD_HALL_LIBRARY_SCOPE_EXTENSION:.*head\.ref == 'fix\/campus-surroundings-parity-20261004' && 'surroundings' \|\| github\.event\.pull_request\.head\.ref == 'graphics\/parallel-integration-20261008' && 'graphics' \|\| ''/);
+  assert.match(workflow,/WORLD_HALL_LIBRARY_SCOPE_EXTENSION:.*head\.ref == 'fix\/campus-surroundings-parity-20261004' && 'surroundings' \|\| github\.event\.pull_request\.head\.ref == 'graphics\/parallel-integration-20261008' && 'graphics' \|\| github\.event\.pull_request\.head\.ref == 'feat\/60th-five-walkway-20261012' && 'walkway' \|\| ''/);
   const contracts=workflow.slice(workflow.indexOf('      - name: Verify bounded graphics integration contracts'),workflow.indexOf('      - name: Verify real-engine chunk'));
   assert.match(contracts,/if: github.event.pull_request.head.ref == 'graphics\/parallel-integration-20261008'/);
   for(const name of ['biryong-*.test.mjs','environment-continuous-daylight.test.mjs',
@@ -154,4 +154,20 @@ test('graphics exception is branch-bound and keeps environmental and visual cont
   const runner=read('./browser/hall-library-hosted-smoke.mjs');
   for(const gate of ["assert.equal(pixels.exactChanged,0", "assert.equal(pixels.maskChanged,0", "assert.equal(pixels.hash,cell.baseline108materials.pixels.hash", "await verifyPreviewRoute()", "cell.lifecycle", "report.campus.targets"])assert.ok(runner.includes(gate),gate);
   assert.doesNotMatch(runner,/extension\s*===?\s*['"]graphics['"][\s\S]{0,30}(?:return|continue|process\.exit)/);
+});
+
+
+test('walkway scope extension is exact, branch-bound, and preserves historical hall gates',()=>{
+ const runner=read('./browser/hall-library-hosted-smoke.mjs');
+ const helper=runner.match(/function hallIntegrationScopePaths\(manifest,extension\) \{[\s\S]*?\n\}/)?.[0];
+ const allow=runInNewContext(`(${helper})`,{}, {timeout:1000});
+ const manifest=JSON.parse(read('./fixtures/hall-library-candidate-source-manifest.json'));
+ const original=allow(manifest,''),walkway=allow(manifest,'walkway');
+ assert.equal(walkway.length,original.length+10);
+ for(const path of ['north-walkway-layout.js','north-walkway-geometry.js','north-walkway-surface.js','campus-material-profile.js'])assert.ok(walkway.includes('apps/world/src/'+path));
+ for(const path of ['campus-layout.js','campus-facilities.js','north-side-gate-layout.js','north-landmark-massing.js','north-campus-layout.js','environment/night-street-lights.js','biryong/biryong-realm-transition.js'])assert.ok(!walkway.includes('apps/world/src/'+path));
+ assert.ok(walkway.includes('apps/world/data/reality/north-walkway.provenance.json'));
+ const workflow=read('../../../.github/workflows/hall-library-candidate-browser.yml');
+ assert.ok(workflow.includes("head.ref == 'feat/60th-five-walkway-20261012' && 'walkway'"));
+ for(const step of ['north-walkway.test.mjs','material-profile-smoke.mjs','hall-library-hosted-smoke.mjs','hall-library-integration-null-smoke.mjs'])assert.ok(workflow.includes(step));
 });

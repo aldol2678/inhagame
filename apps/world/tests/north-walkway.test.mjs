@@ -17,6 +17,7 @@ import {createPlayerAutoMove} from '../src/navigation/player-auto-move.js';
 import {PlayerController} from '../src/player-controller.js';
 import {roadviewGroundHeight} from '../src/roadview-layout.js';
 import {RENDER_CHUNKS} from '../src/render-chunk-registry.js';
+import {CAMPUS_NIGHT_LAMPS} from '../src/environment/night-campus-lamp-layout.js';
 import {NORTH_PHOTO_COLORS} from '../src/north-campus-photo-geometry.js';
 const capture=fn=>{const calls=[];fn(Object.fromEntries(['box','quad','triangle','tube','crown'].map(kind=>[kind,(c,...args)=>calls.push({kind,c,args})])));return calls;};
 const allRings=WALKWAY_SURFACES.flatMap(s=>s.rings);
@@ -85,6 +86,7 @@ test('photo props stay clear of route capsules, existing trees and building bodi
  const props=[...WALKWAY_PROPS,...WALKWAY_WALL_PROPS];assert.equal(new Set(props.map(q=>q.id)).size,props.length);
  for(const q of props){
   assert.ok(!FACILITY_COLLIDERS.filter(c=>c.minY===0).some(c=>polygonOverlap(q.position.x,q.position.z,c.polygon,q.radius)),q.id);
+  if(q.kind==='globe')assert.ok(CAMPUS_NIGHT_LAMPS.every(l=>Math.hypot(l.center.x-q.position.x,l.center.z-q.position.z)>3.2),'no duplicate existing street lamp');
   assert.ok(!FIVE_FRONT_TREES.some(p=>Math.hypot(p.x-q.position.x,p.z-q.position.z)<1.3+q.radius),q.id);
   for(const lane of NORTH_LANES.filter(s=>s.id.endsWith('_2')||s.id.endsWith('_3'))){
    for(let u=0;u<lane.frame.length;u+=.3){const p=lane.frame.at(u);assert.ok(Math.hypot(p.x-q.position.x,p.z-q.position.z)>.65+q.radius,q.id);}

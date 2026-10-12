@@ -105,7 +105,7 @@ function checkEntranceCrop(pixels) {
   // mask is a material diagnostic; only the fitted full-view gate proves silhouette.
 }
 function hallIntegrationScopePaths(manifest,extension) {
-  if(extension && !['surroundings','graphics'].includes(extension))throw Error('Unsupported hall integration scope extension');
+  if(extension && !['surroundings','graphics','walkway'].includes(extension))throw Error('Unsupported hall integration scope extension');
   const surroundings=['campus-grounds.js','main-hall-walkway-layout.js','main-hall-walkway-geometry.js',
     'pond-surroundings-geometry.js','minimap/minimap-data.js','navigation/campus-navigation.js'];
   const contactPilot=['main.js','campus-contact-shading.js','campus-contact-shading-layout.js','campus-contact-shading-geometry.js'];
@@ -124,9 +124,17 @@ function hallIntegrationScopePaths(manifest,extension) {
     'environment/environment-presets.js','environment/environment-world-time.js',
     'graphics-presets.js','view-distance-settings.js'
   ];
+  // The walkway mission changes only these shared campus presentation owners.
+  // All historical hall/library pixel/material/collision gates still run.
+  const walkway=[
+    'campus-material-profile.js','minimap/minimap-data.js','navigation/campus-navigation.js',
+    'north-campus-geometry.js','north-campus-photo-geometry.js','north-walkway-geometry.js',
+    'north-walkway-layout.js','north-walkway-surface.js','render-chunk-registry.js'
+  ];
   return [...manifest.allowedRuntimeChanges,...manifest.allowedMetadataChanges,...contactPilot.map(p=>'apps/world/src/'+p),
     ...(extension==='surroundings'?surroundings.map(p=>'apps/world/src/'+p):[]),
-    ...(extension==='graphics'?graphics.map(p=>'apps/world/src/'+p):[])];
+    ...(extension==='graphics'?graphics.map(p=>'apps/world/src/'+p):[]),
+    ...(extension==='walkway'?[...walkway.map(p=>'apps/world/src/'+p),'apps/world/data/reality/north-walkway.provenance.json']:[])];
 }
 try {
   const {stdout:head}=await run('git',['rev-parse','HEAD'],{cwd:repo,timeout:5000,encoding:'utf8'});
