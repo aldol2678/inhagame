@@ -250,7 +250,12 @@ try {
   await until(() => latestIncome?.state === 'ACTIVE' && latestIncome.revision === 0, 'REAL_SHIFT_START_TIMEOUT');
   for (let revision = 0; revision < 3; revision++) {
     await until(() => latestIncome?.state === 'ACTIVE' && latestIncome.revision === revision, 'REAL_STEP_READBACK_TIMEOUT');
-    const prompt = await panel.locator('h3').innerText(); let choice;
+    // The HTTP response listener can observe the committed revision before the client's
+    // follow-up status read has rendered it. Wait for that real DOM readback, not just RPC arrival.
+    const expectedPrompt = latestIncome.nextChallenge.prompt;
+    await page.waitForFunction(prompt => [...document.querySelectorAll('.convenience-job-panel')]
+      .some(panel => !panel.hidden && panel.querySelector('h3')?.textContent === prompt), expectedPrompt);
+    const prompt = await panel.locator('h3').innerText(); assert.equal(prompt, expectedPrompt); let choice;
     if (revision === 0) { const item = ['우유', '빵', '삼각김밥'].find(item => prompt.startsWith(item)); assert.ok(item); choice = `${item} 진열대`; }
     else if (revision === 1) { const match = prompt.match(/(\d+)원 상품 (\d+)개의/); assert.ok(match); choice = `${Number(match[1]) * Number(match[2])}원`; }
     else { choice = prompt.startsWith('빈 알루미늄 캔') ? '금속류' : prompt.startsWith('빈 유리병') ? '유리류' : prompt.startsWith('깨끗한 종이 상자') ? '종이류' : null; assert.ok(choice); }
