@@ -13,7 +13,10 @@ if(process.env.EXPECTED_ITEM_ICONS_HEAD)assert.equal(head,process.env.EXPECTED_I
 const prefix='assets/item-icons/active8-v1/';
 const manifest=JSON.parse(await readFile(new URL(`../../${prefix}manifest.json`,import.meta.url)));
 const assets=manifest.items.flatMap(item=>item.exports.map(file=>`${prefix}${file.path}`));
-const modules=['src/inventory/inventory-panel.js','src/inventory/inventory-client.js',
+const modules=['src/inventory/inventory-display-query.js', 'src/collection/item-acquisition-guide.js',
+  'src/collection/item-acquisition-guide-view.js', 'src/shop/shop-client.js', 'src/shop/shop-routes.js',
+  'src/inventory/inventory-query.css', 'src/collection/item-acquisition-guide.css',
+  'src/inventory/inventory-panel.js','src/inventory/inventory-client.js',
   'src/inventory/inventory-category-registry.js','src/collection/item-catalog.js','src/collection/item-icon.js',
   'src/collection/collection-book-view.js','src/collection/collection-book-client.js'];
 const paths=[...modules,...assets,'styles.css','tests/browser/item-icons-harness.html'];

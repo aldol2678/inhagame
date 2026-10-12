@@ -1,0 +1,5 @@
+.item-acquisition-guide { margin-top: .55rem; padding-top: .45rem; border-top: 1px solid rgba(128, 144, 166, .25); }
+.item-acquisition-guide-label { margin: 0; font-size: .85rem; font-weight: 600; }
+.item-acquisition-guide-detail { margin: .25rem 0 0; font-size: .8rem; line-height: 1.5; opacity: .85; overflow-wrap: anywhere; }
+.item-acquisition-guide-location { margin-top: .4rem; min-height: 36px; cursor: pointer; }
+.item-acquisition-guide-location:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }

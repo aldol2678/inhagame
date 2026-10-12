@@ -31,6 +31,7 @@ jobs:
         env:
           CI_EVENT: ${{ github.event_name }}
           CI_BEFORE: ${{ github.event.before }}
+          CI_PR_TITLE: ${{ github.event.pull_request.title }}
         run: node .github/ci/public-ci-scope.mjs >> "$GITHUB_OUTPUT"
 
   source:
