@@ -118,6 +118,7 @@ import { createKnockPrompt } from "./rooms/knock-prompt.js";
 import { createFurnitureClient } from "./rooms/furniture-client.js";
 import { createFurnitureEditor } from "./rooms/furniture-editor.js";
 import { createFurnitureFunctionProvider } from "./rooms/furniture-functions.js";
+import { createCommissionTrialFeature, createCommissionTrialEntry } from "./commissions/commission-trial-feature.js";
 import { createCookingFeature } from "./rooms/cooking-feature.js";
 import { createTrophyDisplay } from "./rooms/trophy-display.js";
 import { createTrophyDisplayPanel } from "./rooms/trophy-display-panel.js";
@@ -845,6 +846,8 @@ let npcTest = null;
 const npcQuestStatus = () => npcTest?.getQuestStatus?.() ?? npcTest?.getStatus?.() ?? null;
 const questRuntime = createQuestRuntime();
 let questJournal = null;
+let commissionTrials = null, commissionTrialOpening = false;
+const commissionTrialInput = createInputFocusOwner({ manager: inputFocus, ownerId: "commission-trial", policy: INPUT_FOCUS_POLICY.BLOCKING_UI });
 let questHud = null;
 let nextDiscovery = null;
 // 비룡탑 · 울림돌 · BR01 (created once the audio layer exists; read lazily by earlier hooks).
@@ -3177,7 +3180,26 @@ const navigateQuestObjective = (navigationTarget, quest) => {
   showWorldStatus(`${quest?.title ?? "퀘스트"} 목표까지 길을 표시했어요.`);
   return true;
 };
+commissionTrials = createCommissionTrialFeature({
+  getAccountId: () => roomFunctionAccountId,
+  onOpenChange: open => {
+    if (!open) { commissionTrialInput.release(); return; }
+    commissionTrialOpening = true;
+    try {
+      questJournal?.setOpen(false); smartphone?.close();
+      playerAutoMove?.pause(AUTO_MOVE_CANCEL_REASON.INTERACTION);
+      commissionTrialInput.acquire();
+    } finally { commissionTrialOpening = false; }
+  }
+});
+inputFocus.subscribe(snapshot => {
+  if (!commissionTrialOpening && commissionTrialInput.active && snapshot.topOwners.some(id => id !== "commission-trial"))
+    commissionTrials.close();
+});
+window.addEventListener("popstate", () => commissionTrials.close());
+window.addEventListener("pagehide", () => commissionTrials.close());
 questJournal = createQuestJournal({
+  createSideEntry: () => createCommissionTrialEntry({ feature: commissionTrials }),
   panel: document.getElementById("quest-journal-panel"),
   runtime: questRuntime,
   onNavigate: navigateQuestObjective,
@@ -3606,6 +3628,7 @@ app.on("update", (dt) => {
     pressed: false, trigger: () => toggleSeat()
   } : null);
   contextActions.set("guestbook", guestbookAction);
+  commissionTrials?.update();
   cookingFeature.update();
   contextActions.set("room-furniture", roomFurnitureFunctions.contextAction());
   contextActions.set("personal-room-environment", personalRoomEnvironment.contextAction());
@@ -3802,6 +3825,7 @@ try {
     npcTest?.setAiSignedIn(npcAiSignedIn);
     profile.setIdentity(identity);
     smartphone?.setAccount(identity?.userId ?? null);
+    if (roomFunctionIdentityChanged) commissionTrials?.close();
     lobbyPlayerSummary.render();
     lobbyQuestHighlight.update();
     chatPanel.refreshAvailability();
@@ -4078,6 +4102,7 @@ window.__INHAGAME_P0__ = {
   trophyDisplayPanel,
   roomFurnitureFunctions,
   cookingFeature,
+  commissionTrials,
   worldAudio,
   clubRoom,
   mcmEvent,
