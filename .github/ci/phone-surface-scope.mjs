@@ -54,24 +54,34 @@ export function safeModularPath(path) {
 const CARD_START = 'const playerCard = createPlayerCard({';
 const HOOK_START = '  onMessage: (userId) => {';
 const HOOK_END = '\n  accompany:';
-function hideSafeHandoff(source) {
+// Exact addition-only exception: two UI handoff statements immediately before the
+// untouched Hub fallback. Any other callback mutation, reordered statement,
+// altered return path or change anywhere else in main.js forces the FULL suite.
+const ALLOWED_HANDOFF_INSERT = '\n    playerCard.close();\n    if (smartphone?.openMessages?.(userId)) return true;';
+function findHandoff(source) {
   if (typeof source !== 'string') return null;
   const card = source.indexOf(CARD_START);
-  const start = source.indexOf(HOOK_START);
-  if (card < 0 || start <= card || start > card + 2600 ||
-      source.indexOf(HOOK_START, start + 1) !== -1) return null;
+  if (card < 0 || source.indexOf(CARD_START, card + CARD_START.length) !== -1) return null;
+  const start = source.indexOf(HOOK_START, card);
+  if (start <= card || start > card + 2600 ||
+      source.indexOf(HOOK_START, start + HOOK_START.length) !== -1) return null;
   const end = source.indexOf(HOOK_END, start + HOOK_START.length);
   if (end < 0 || end - start > 2200) return null;
   const body = source.slice(start + HOOK_START.length, end);
-  // Maintain the original Hub fallback and leave unrelated player-card actions alone.
-  if (!body.includes('sessionStorage.setItem("inhagame-hub-message-draft-v1"') ||
-      !body.includes('window.location.assign("/#messages")')) return null;
-  return source.slice(0, start + HOOK_START.length) +
-    '\n/* PRESENTATION_ONLY_MESSAGE_HANDOFF */' + source.slice(end);
+  // The baseline Hub route must remain an actual try/catch fallback.
+  if (!body.startsWith('\n    try {\n') ||
+      !body.includes('sessionStorage.setItem("inhagame-hub-message-draft-v1"') ||
+      !body.includes('window.location.assign("/#messages")') ||
+      !body.includes('\n    } catch {\n')) return null;
+  return { start, body };
 }
 export function safeMainHandoff(before, after) {
-  const a = hideSafeHandoff(before), b = hideSafeHandoff(after);
-  return a !== null && a === b && before !== after;
+  const original = findHandoff(before);
+  if (!original) return false;
+  // Compare every byte, not only changed-line patterns or a redacted callback.
+  const expected = before.slice(0, original.start + HOOK_START.length) +
+    ALLOWED_HANDOFF_INSERT + before.slice(original.start + HOOK_START.length);
+  return after === expected;
 }
 
 // Read existing paths for the CURRENT workflow instead of maintaining a
