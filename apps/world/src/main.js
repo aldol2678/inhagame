@@ -1062,6 +1062,8 @@ const playerCard = createPlayerCard({
     else playerCardInput.release();
   },
   onMessage: (userId) => {
+    playerCard.close();
+    if (smartphone?.openMessages?.(userId)) return true;
     try {
       sessionStorage.setItem("inhagame-hub-message-draft-v1", JSON.stringify({ userId, createdAt: Date.now() }));
       window.location.assign("/#messages");

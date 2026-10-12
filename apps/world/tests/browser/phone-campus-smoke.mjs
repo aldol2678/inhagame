@@ -71,6 +71,14 @@ async function run(name,viewport,mobile){
     assert.equal((await phoneState(page)).state,'HOME','legacy close button returns to Phone Home');
     assert.equal(await page.locator('#daily-quiz-panel').getAttribute('data-phone-hosted'),null);
     entry.checks.push('MENU-01: existing Quiz/Attendance panels embedded; guest no-claim, focus/inert, Escape, native close and DOM restoration');await save();
+    // MENU-02A: guests see an honest sign-in state and no private message content.
+    await clickApp(page,'messages');
+    await page.getByText('로그인하면 메시지를 확인할 수 있어요.',{exact:true}).waitFor();
+    assert.equal((await phoneState(page)).current.appId,'messages');
+    await screen(page,entry,'messages-guest');
+    await page.keyboard.press('Escape');
+    assert.equal((await phoneState(page)).state,'HOME');
+    entry.checks.push('MENU-02A: guest messages sign-in view, no private RPC, Back/Home and world lock');await save();
     const beforeCamera=await snapshot(page);await clickApp(page,'camera');assert.equal((await phoneState(page)).state,'CAMERA');assert.equal(await page.locator('.smartphone').isVisible(),false);assert.equal((await snapshot(page)).photo,true);
     const downloadReady=page.waitForEvent('download',{timeout:120000});
     downloadReady.catch(()=>{});
