@@ -58,6 +58,12 @@ for(const viewport of viewports)for(const kind of ['personal','club']){
     await b.waitForFunction(()=>window.__SOCIAL_QA__.snapshot().feed.some(e=>e.text==='안녕, 같은 방 친구!'));
     await b.waitForFunction(()=>[...document.querySelectorAll('.chat-bubble')].some(e=>!e.hidden&&e.textContent==='방주인: 안녕, 같은 방 친구!'));
     for(const page of pages)assert.equal(await page.evaluate(()=>[...document.querySelectorAll('.chat-bubble')].filter(e=>!e.hidden).every(e=>{const r=e.getBoundingClientRect();return r.left>=0&&r.right<=innerWidth&&r.top>=0&&r.bottom<=innerHeight;})),true,'speech bubbles fit the viewport');
+    for(const page of pages)assert.equal(await page.evaluate(()=>{
+      const q=document.querySelector('#qa-panel').getBoundingClientRect();
+      return [...document.querySelectorAll('.chat-bubble')].filter(e=>!e.hidden).every(e=>{
+        const r=e.getBoundingClientRect();return r.right<=q.left||r.left>=q.right||r.bottom<=q.top||r.top>=q.bottom;
+      });
+    }),true,'QA-only annotation must not obscure a production speech bubble');
     assert.equal(await a.locator('#chat-input').inputValue(),'');
     assert.notEqual(await a.evaluate(()=>document.activeElement?.id),'chat-input');
     row.checks.push('real input IME/Enter, no movement while typing, server-named feed + rendered remote bubble, focus released');
