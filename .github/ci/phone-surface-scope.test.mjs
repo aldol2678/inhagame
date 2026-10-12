@@ -64,7 +64,7 @@ test('shared Phone code and styling must match reviewed change lines', () => {
   for(const path of [smartphone,prefs,css])
     assert.equal(scopedPhoneMessagesOnly(['apps/world/src/phone/phone-messages.js',path]),false,path);
   const cssPatch='diff --git a/'+css+' b/'+css+'\n'+'+.phone-messages { display:grid; }\n';
-  assert.equal(scopedPhoneMessagesOnly(['apps/world/src/phone/phone-messages.js',css],'',{[css]:cssPatch}),true);
+  assert.equal(scopedPhoneMessagesOnly(['apps/world/src/phone/phone-messages.js',css],'',{[css]:cssPatch}),false,'partial or unreviewed CSS cannot suppress browser QA');
   assert.equal(scopedPhoneMessagesOnly(['apps/world/src/phone/phone-messages.js',css],'',{
     [css]:cssPatch.replace('.phone-messages','body')}),false);
   assert.equal(scopedPhoneMessagesOnly(['apps/world/src/phone/phone-messages.js',smartphone],'',{
