@@ -22,3 +22,12 @@ test('normal ID reads existing authority, caps badges at three and does not muta
   await id.refresh();const p=id.snapshot();assert.equal(p.department,'콘텐츠');assert.equal(p.progression.levelText,'Lv.9');assert.equal(p.badges.length,3);
   assert.deepEqual({profile,achievements},before);
 });
+test('mail verification is read from the existing badge and never guessed', async () => {
+  const make = profile => createStudentId({getIdentity:()=>({userId:'a'}),getProgression:()=>null,
+    getClient:()=>({rpc:async name=>({data:name==='get_my_profile'?{profile}:{achievements:[]}})})});
+  const yes=make({department:'x',inhaVerified:true}); await yes.refresh(); assert.equal(yes.snapshot().inhaMailVerified,true);
+  const no=make({department:'x',inhaVerified:false}); await no.refresh(); assert.equal(no.snapshot().inhaMailVerified,false);
+  const missing=make({department:'x'}); await missing.refresh(); assert.equal(missing.snapshot().inhaMailVerified,null);
+  const guest=createStudentId({getIdentity:()=>null,getProgression:()=>null,getClient:()=>null}); await guest.refresh();
+  assert.equal(guest.snapshot().inhaMailVerified,null);
+});

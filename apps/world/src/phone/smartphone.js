@@ -6,10 +6,12 @@ import { createPhoneAlbum } from './phone-album.js';
 import { createPhonePreferences } from './phone-preferences.js';
 import { createPhoneSurface, createPhoneMapHistory } from './phone-surfaces.js';
 import { PHOTO_ENTRY_BLOCK_MESSAGES } from '../photo/photo-mode-panel.js';
+import { PURCHASE_ERRORS } from '../jeongseok/access-client.js';
+import { gateMessage } from '../jeongseok/gate-panel.js';
 
 export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, getIdentity, getClient,
   getProgression, getCaptureContext, canOpen, beforeOpen, getClock = () => '', onAlbumViewed = () => {},
-  toggle, mapElement, settingsElement, onWarning = () => {}, doc = globalThis.document, win = globalThis.window }) {
+  toggle, mapElement, settingsElement, onWarning = () => {}, jeongseok = null, doc = globalThis.document, win = globalThis.window }) {
   const el = (tag, cls = '', text = '') => { const n=doc.createElement(tag); n.className=cls; n.textContent=text; return n; };
   const btn = (text, action, label = text) => { const n=el('button','',text); n.type='button'; n.setAttribute('aria-label',label); n.addEventListener('click',action); return n; };
   const root=el('section','smartphone'); root.id='world-smartphone'; root.hidden=true; root.setAttribute('role','dialog'); root.setAttribute('aria-modal','true'); root.setAttribute('aria-label','INHA WORLD 스마트폰');
@@ -23,7 +25,8 @@ export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, g
   const footer=el('footer','smartphone-footer'); footer.append(home);
   frame.append(wallpaper,statusBar,header,content,message,footer); root.append(frame); doc.body.append(root);
   let shell, uiEpoch=0, lastRoute='', suppressClose=0, currentPage=0, selectedApp=null, photoFilter='all', locationFilter='',
-    savedFocus=null, wallpaperUrl=null, wallpaperKey='', wallpaperEpoch=0, destroyed=false, warning='';
+    savedFocus=null, wallpaperUrl=null, wallpaperKey='', wallpaperEpoch=0, destroyed=false, warning='',
+    jeongseokReturn=null, jeongseokConfirm=false;
   const objectUrls = new Set(), inertNodes=new Map();
   const say = text => {message.textContent=text;};
   const warn = text => {warning=text;say(text);onWarning(text);};
@@ -66,7 +69,7 @@ export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, g
     finally{suppressClose--;}
   }
   const registry=[
-    {id:'student-id',name:'학생증',icon:'🎓',available:()=>true,open:()=>{void student.refresh();},close(){}},
+    {id:'student-id',name:'학생증',icon:'🎓',available:()=>true,open:params=>{if(params?.view==='jeongseok'){if(jeongseok?.phoneView().enabled)void jeongseok.refresh();}else void student.refresh();},close(){}},
     {id:'maps',name:'지도',icon:'🗺️',available:()=>!!getMap(),open(){},close:()=>closeSurface('maps')},
     {id:'camera',name:'카메라',icon:'📷',available:()=>true,open(){},close(){}},
     {id:'album',name:'앨범',icon:'🖼️',available:()=>true,open(){},close(){}},
@@ -113,7 +116,9 @@ export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, g
   function renderStudent() {
     const p=student.snapshot(), side=preferences.snapshot().studentIdFace;const card=el('article','smartphone-student-card');card.dataset.face=side;
     if(side==='front'){
-    card.append(el('p','smartphone-eyebrow','INHA WORLD DIGITAL STUDENT ID'),el('div','smartphone-student-avatar',p.avatar),el('h3','',p.nickname),el('p','',p.department),el('strong','',p.progression?.levelText||'Campus Level 확인 전'),el('p','',p.title),el('small','','게임용 디지털 학생증 · 실제 학생증/학사 인증 아님'));
+    card.append(el('p','smartphone-eyebrow','INHA WORLD DIGITAL STUDENT ID'),el('div','smartphone-student-avatar',p.avatar),el('h3','',p.nickname),el('p','',p.department),el('strong','',p.progression?.levelText||'Campus Level 확인 전'),el('p','',p.title));
+    if(p.inhaMailVerified!==null){const mail=el('p','smartphone-student-mail',p.inhaMailVerified?'✉️ 인하대 이메일 인증됨':'인하대 이메일 미인증');mail.dataset.verified=String(p.inhaMailVerified);card.append(mail);}
+    card.append(el('small','','게임용 디지털 학생증 · 실제 학생증/학사 인증 아님 · 이메일 인증은 메일 소유 확인일 뿐 재학·재직 증명이 아니에요'));
     card.querySelector('.smartphone-student-avatar').setAttribute('role','img');card.querySelector('.smartphone-student-avatar').setAttribute('aria-label',`${p.nickname} 프로필 아바타`);
     content.append(card);
     }else{
@@ -124,8 +129,59 @@ export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, g
     if(p.playedGames!==null)content.append(el('p','',`플레이한 게임 ${p.playedGames}개`));
     }
     content.append(btn(side==='front'?'뒷면 보기':'앞면 보기',()=>{preferences.face(side==='front'?'back':'front');render(true);}));
+    if(jeongseok?.phoneView().enabled)content.append(btn('🏛️ 정석학술정보관 출입',()=>launch('student-id',{view:'jeongseok'})));
     if(p.state==='LOADING')content.append(el('p','','프로필을 불러오는 중…'));
     if(p.state==='UNAVAILABLE')content.append(el('p','','프로필을 불러오지 못했어요.'),btn('다시 불러오기',()=>{void student.refresh();}));
+  }
+  const passTime=iso=>new Date(iso).toLocaleString('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
+  function renderJeongseok() {
+    const v=jeongseok?.phoneView(); title.textContent='정석 출입';
+    const card=el('article','smartphone-jeongseok-card');content.append(card);
+    card.append(el('p','smartphone-eyebrow','INHA WORLD · 정석학술정보관 출입 (게임 전용)'));
+    if(!v?.enabled){card.append(el('p','','정석학술정보관 출입은 준비 중이에요.'));return;}
+    const a=v.access,s=a.snapshot,g=v.gate;card.dataset.gate=g.state;
+    if(['SCANNING','GRANTED','OPENING','READY_TO_ENTER'].includes(g.state)){
+      const tag=el('div','smartphone-jeongseok-tag');tag.dataset.state=g.state;tag.setAttribute('role','img');
+      tag.setAttribute('aria-label',g.via==='VISITOR_PASS'?'가상 방문증을 리더기에 태그':'가상 학생증을 리더기에 태그');
+      tag.append(el('span','smartphone-jeongseok-tag-card',g.via==='VISITOR_PASS'?'🪪':'🎓'),el('span','smartphone-jeongseok-tag-reader',''));
+      card.append(tag);
+    }
+    if(g.state!=='IDLE'){const live=el('strong','smartphone-jeongseok-gate',gateMessage(g));live.setAttribute('role','status');card.append(live);}
+    const line=(text,cls='')=>card.append(el('p',cls,text));
+    if(a.state==='SIGNED_OUT')line('로그인하지 않았어요. 정식 계정으로 로그인하면 출입할 수 있어요. 캠퍼스 탐험은 그대로 즐길 수 있어요.');
+    else if(a.state==='LOADING'||(a.state!=='READY'&&a.state!=='UNKNOWN'))line('출입 자격을 서버에서 확인하고 있어요…');
+    else if(a.state==='UNKNOWN'||!s){line('출입 자격을 확인하지 못했어요. 새 입장은 막혀 있어요.');content.append(btn('다시 확인',()=>{void jeongseok.refresh();}));}
+    else{
+      if(s.inhaMailVerified!==null)line(s.inhaMailVerified?'✉️ 인하대 이메일 인증 회원':'인하대 이메일 미인증 계정','smartphone-student-mail');
+      if(s.decision==='DISABLED'||s.decision==='COMING_SOON')line(s.decision==='COMING_SOON'?'정석학술정보관 출입은 준비 중이에요.':'정석학술정보관 출입이 지금은 닫혀 있어요.');
+      else if(s.decision==='AUTH_REQUIRED')line('정식 계정으로 로그인하면 출입할 수 있어요.');
+      else if(s.decision==='ACCOUNT_BLOCKED')line('현재 계정 상태로는 출입할 수 없어요.');
+      else if(s.via==='INHA_MAIL')line('무료 출입 가능 · 방문증이 필요하지 않아요.','smartphone-jeongseok-ok');
+      else if(s.via==='VISITOR_PASS'){
+        line('🪪 가상 정석 방문증 보유','smartphone-jeongseok-ok');
+        const left=Math.max(0,Date.parse(s.pass.expiresAt)-(Date.now()+s.clockOffsetMs));
+        line(`만료 ${passTime(s.pass.expiresAt)} · 약 ${Math.floor(left/3600000)}시간 ${Math.floor(left%3600000/60000)}분 남음 (서버 시각 기준)`);
+      }else renderJeongseokOffer(v,line);
+    }
+    if(v.atReader&&g.state!=='IDLE'){const cancel=btn('출입 취소',()=>{jeongseokConfirm=false;jeongseok.cancel();},'정석 출입 취소');cancel.disabled=!g.canCancel;content.append(cancel);}
+    card.append(el('small','','가상 학생증·방문증은 게임 속 표현이에요. 실제 학교 출입·학생 신분을 증명하지 않으며 QR·바코드를 사용하지 않아요.'));
+  }
+  function renderJeongseokOffer(v,line) {
+    const a=v.access,s=a.snapshot,o=s.offer,g=v.gate;
+    line(s.decision==='EXPIRED'?`방문증이 ${passTime(s.pass.expiresAt)}에 만료됐어요.`:'방문증이 필요해요.');
+    if(!o||o.status!=='ACTIVE'){line('방문증 발급은 아직 준비 중이에요.');return;}
+    const facts=el('dl','smartphone-jeongseok-offer');
+    for(const [k,val] of [['상품','정석 24시간 방문증 (게임 전용)'],['가격',`${o.price} 인덕코인`],['보유',`${o.balance} 인덕코인`],
+      ...(o.canPurchase?[['결제 후',`${o.balance-o.price} 인덕코인`]]:[]),['유효기간','발급 시각부터 현실 시간 24시간']])facts.append(el('dt','',k),el('dd','',val));
+    content.append(facts,el('p','smartphone-hint','계정 귀속 · 양도·거래 불가 · 유효기간 중 중복 구매 불가'));
+    if(!o.canPurchase)content.append(el('p','',`인덕코인이 ${o.shortfall}개 부족해요.`));
+    if(a.purchaseError)content.append(el('p','smartphone-jeongseok-error',PURCHASE_ERRORS[a.purchaseError]??PURCHASE_ERRORS.UNKNOWN));
+    if(!v.atReader){content.append(el('p','','방문증은 정석학술정보관 앞 가상 리더기에서 발급할 수 있어요.'));return;}
+    if(g.state==='PURCHASING'||a.purchasing){const wait=btn('발급 확인 중…',()=>{});wait.disabled=true;content.append(wait);return;}
+    if(a.pendingKey){content.append(btn('같은 요청 다시 확인',()=>{void jeongseok.purchase();}));return;}
+    if(!jeongseokConfirm){const buy=btn(`방문증 발급하기 · ${o.price} 인덕코인`,()=>{jeongseokConfirm=true;render(true);});buy.disabled=!g.canPurchase;content.append(buy);return;}
+    content.append(btn(`결제 확인 · ${o.price} 인덕코인 사용`,()=>{jeongseokConfirm=false;void jeongseok.purchase();}),
+      btn('구매 취소',()=>{jeongseokConfirm=false;render(true);}));
   }
   async function renderAlbum(params,at) {
     content.append(el('p','smartphone-hint','사진은 이 브라우저·계정에 저장돼요. 다른 기기와 동기화되지 않아요.'));
@@ -208,14 +264,20 @@ export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, g
     worldVisibility(shell.ownsInput);if(!shell.ownsInput){preferences.save();if(s.state==='CLOSED'&&inputFocus.can('WORLD_ACTION')){
       const focus=savedFocus?.isConnected&&savedFocus.getClientRects().length?savedFocus:toggle;focus?.focus?.({preventScroll:true});savedFocus=null;
     }}
-    if(!force&&route===lastRoute)return;const routeChanged=route!==lastRoute;lastRoute=route;uiEpoch++;albumManager.leave();revokeImages();content.replaceChildren();if(routeChanged)content.scrollTop=0;say(warning);void setWallpaper();
+    const gateView=s.current?.appId==='student-id'&&s.current.view==='jeongseok'&&s.current.origin==='gate';
+    if(jeongseokReturn&&(!shell.ownsInput||!gateView)){jeongseokReturn=null;jeongseok?.phoneClosed();}
+    if(!force&&route===lastRoute)return;const routeChanged=route!==lastRoute;lastRoute=route;if(routeChanged)jeongseokConfirm=false;
+    const keepFocus=!routeChanged&&root.contains(doc.activeElement)?doc.activeElement.textContent:null;uiEpoch++;albumManager.leave();revokeImages();content.replaceChildren();if(routeChanged)content.scrollTop=0;say(warning);void setWallpaper();
     if(s.state==='HOME'||s.state==='HOME_EDIT')renderHome();
     else if(s.state==='APP'){
       const app=s.current;title.textContent=registry.find(x=>x.id===app.appId)?.name||'스마트폰';
-      if(app.appId==='student-id')renderStudent();else if(app.appId==='album')void renderAlbum(app,uiEpoch);
+      if(app.appId==='student-id'){if(app.view==='jeongseok')renderJeongseok();else renderStudent();}else if(app.appId==='album')void renderAlbum(app,uiEpoch);
       else if(app.appId==='maps')renderMaps(app);else if(app.appId==='settings'){settingsSurface.mount(content);getSettings()?.setOpen(true,{focus:false});}
     }
-    if(shell.ownsInput){back.focus?.({preventScroll:true});}
+    if(shell.ownsInput){
+      const same=keepFocus&&[...content.querySelectorAll('button')].find(n=>n.textContent===keepFocus&&!n.disabled);
+      (same||back).focus?.({preventScroll:true});
+    }
   }
   shell=createPhoneShell({inputFocus,registry,canOpen,beforeOpen:()=>{savedFocus=doc.activeElement;beforeOpen?.();},onChange:()=>render(),onError:()=>warn('앱을 열지 못했어요. 홈이나 닫기로 돌아갈 수 있어요.')});
   const unsubscribePhoto=photoMode.subscribe(shell.cameraChanged);
@@ -278,6 +340,21 @@ export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, g
     settingsChanged(open){if(!open&&!suppressClose&&shell.snapshot().current?.appId==='settings')shell.back();},
     navigationStarted(destination){if(shell.snapshot().current?.appId!=='maps')return;history.remember(destination,getMap()?.status().mapSourceId);shell.close();},
     refresh(){if(shell.snapshot().current?.appId==='student-id')render(true);},
+    // JSL-A: the gate shows its tag / guidance on the Student ID screen, then returns the player.
+    openJeongseok({tag=false}={}){
+      if(!jeongseok?.phoneView().enabled||destroyed)return false;
+      const s=shell.snapshot();
+      if(s.current?.appId==='student-id'&&s.current.view==='jeongseok'){render(true);return true;}
+      const wasOpen=s.state!=='CLOSED';
+      if(!wasOpen&&!open())return false;
+      if(!shell.ownsInput||!launch('student-id',{view:'jeongseok',origin:'gate',tag})){if(!wasOpen)shell.close();return false;}
+      jeongseokReturn=wasOpen?'BACK':'CLOSE';return true;
+    },
+    endJeongseok(){
+      const s=shell.snapshot(),how=jeongseokReturn;jeongseokReturn=null;
+      if(s.current?.appId!=='student-id'||s.current.view!=='jeongseok'||s.current.origin!=='gate')return false;
+      return how==='CLOSE'?shell.close():how==='BACK'?shell.back():false;
+    },
     status:()=>({...shell.snapshot(),scope:album.scope,preferences:preferences.snapshot(),albumError:album.error}),
     destroy(){albumManager.reset();shell.close();destroyed=true;clearHold();win.clearInterval(clockTimer);shell.destroy();album.destroy();unsubscribePhoto();
       toggle?.removeEventListener('click',toggleClick);doc.removeEventListener('keydown',keyboard,true);doc.removeEventListener('click',legacyProfile,true);doc.removeEventListener('visibilitychange',visibility);win.removeEventListener('pagehide',pagehide);

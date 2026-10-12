@@ -88,3 +88,23 @@ body[data-phone-open="true"] > :not(#application):not(.smartphone) { visibility:
 .smartphone-album-grid button[aria-pressed="true"] { border-color:#83f2c9; background:#28574e; }
 .smartphone-album-grid button[aria-pressed="true"]::before { content:'✓ 선택됨'; display:block; }
 .smartphone-album-grid small { display:block; }
+/* JSL-A · Jeongseok access on the Student ID screen (game-only; no QR / barcode). */
+.smartphone-student-mail { font-size:12px; font-weight:700; }
+.smartphone-student-mail[data-verified="true"] { color:#0b6b4c; }
+.smartphone-jeongseok-card { border-radius:22px; padding:18px; color:#153549; background:linear-gradient(135deg,#ffffff,#dfe9f6); display:grid; gap:6px; }
+.smartphone-jeongseok-card p { margin:0; }
+.smartphone-jeongseok-card small { font-size:10px; display:block; margin-top:8px; }
+.smartphone-jeongseok-ok { font-weight:800; color:#0b6b4c; }
+.smartphone-jeongseok-error { color:#ffd2cc; font-weight:700; }
+.smartphone-jeongseok-gate { font-size:13px; }
+.smartphone-jeongseok-offer { display:grid; grid-template-columns:auto 1fr; gap:4px 12px; margin:6px 0; font-size:13px; }
+.smartphone-jeongseok-offer dt { opacity:.75; }
+.smartphone-jeongseok-offer dd { margin:0; font-weight:700; text-align:right; }
+.smartphone-jeongseok-tag { position:relative; height:86px; display:flex; align-items:center; justify-content:center; gap:18px; }
+.smartphone-jeongseok-tag-card { font-size:40px; transition:transform .5s ease; }
+.smartphone-jeongseok-tag-reader { width:44px; height:58px; border-radius:10px; background:#24384a; box-shadow:inset 0 0 0 3px #4d6a82; }
+.smartphone-jeongseok-tag[data-state="SCANNING"] .smartphone-jeongseok-tag-card { transform:translateX(22px) rotate(-8deg); animation:jeongseok-tap .7s ease-in-out infinite alternate; }
+.smartphone-jeongseok-tag[data-state="SCANNING"] .smartphone-jeongseok-tag-reader { box-shadow:inset 0 0 0 3px #7fc8ff, 0 0 14px #7fc8ff; }
+.smartphone-jeongseok-tag:is([data-state="GRANTED"],[data-state="OPENING"],[data-state="READY_TO_ENTER"]) .smartphone-jeongseok-tag-reader { background:#167a4c; box-shadow:inset 0 0 0 3px #7dffb8, 0 0 18px #3dff98; }
+@keyframes jeongseok-tap { to { transform:translateX(30px) rotate(-4deg); } }
+@media (prefers-reduced-motion: reduce) { .smartphone-jeongseok-tag-card { animation:none !important; transition:none; } }

@@ -167,6 +167,7 @@ import { createStudentVendorInteraction } from "./shop/student-center-vendors.js
 import { createShopPanel } from "./shop/shop-panel.js";
 import { createShopFurnitureHandoff } from "./shop/shop-furniture-handoff.js";
 import { createWalletClient } from "./wallet/wallet-client.js";
+import { createJeongseokFeature } from "./jeongseok/jeongseok-feature.js";
 import { createInventoryClient } from "./inventory/inventory-client.js";
 import { createCollectionBookClient } from "./collection/collection-book-client.js";
 import { createInventoryPanel } from "./inventory/inventory-panel.js";
@@ -262,6 +263,9 @@ const npcSocialProductionMode = npcProductionMode;
 const npcSocialMode = npcSocialProductionMode || npcSocialPreviewMode || npcObservedConversationMode;
 const npcEnabled = npcSharedScheduleMode || npcTestMode || npcProductionMode || npcPreviewMode || npcRosterPreviewMode || npcSocialMode;
 const campusLifePreview = previewHost && startupParams.get('campusLife') === 'p0a';
+// JSL-A Jeongseok gate: preview-only client entry. The server gate policy and pass product (both
+// COMING_SOON by default) still decide every grant and purchase.
+const jeongseokGatePreview = previewHost && startupParams.get('jeongseok') === 'jsl-a';
 const biryongVisualStage = previewHost ? startupParams.get('biryongVisual') : null;
 const biryongVisualLabP0A = ['p0a', 'p0b', 'p0c', 'p0d', 'p0e'].includes(biryongVisualStage);
 const biryongVisualLabP0B = ['p0b', 'p0c', 'p0d', 'p0e'].includes(biryongVisualStage);
@@ -3062,6 +3066,15 @@ try {
   console.warn("INHAGAME Campus map layer unavailable; continuing without it:", error);
 }
 
+// JSL-A: access read, visitor pass and the temporary tag reader. No room or channel is opened here.
+const jeongseok = createJeongseokFeature({
+  getClient: () => online?.supabase ?? null, isEnabled: () => jeongseokGatePreview, audio: worldAudio,
+  getPhone: () => smartphone, storage: () => { try { return window.localStorage; } catch { return null; } }
+});
+jeongseok.access.onChange(change => {
+  // A paid pass moved coins on the server: re-read the Wallet authority, never subtract locally.
+  if (change.reason === "purchase" && change.lastPurchase) void wallet.refresh("jeongseok-pass");
+});
 // PHONE-MVP-01: presentation/integration only. Existing Photo/Map/Progression own their data.
 smartphone = createSmartphone({
   inputFocus, photoMode, getMap: () => fullMap, getSettings: () => viewSettings,
@@ -3085,7 +3098,7 @@ smartphone = createSmartphone({
     hudMenu.setOpen(false, { focus: false }); chatPanel.setOpen(false, { focus: false }); emoteMenu.setOpen(false);
   },
   toggle: document.getElementById("phone-toggle"), mapElement: document.getElementById("full-map-panel"),
-  settingsElement: document.getElementById("view-settings"), onWarning: showWorldStatus
+  settingsElement: document.getElementById("view-settings"), onWarning: showWorldStatus, jeongseok
 });
 // Controller's existing destination handler runs first; Phone returns to World only on a solved route.
 document.getElementById("full-map-set-destination")?.addEventListener("click", () => {
@@ -3584,6 +3597,9 @@ app.on("update", (dt) => {
     trigger: () => follow.stop(FollowStopReason.EXPLICIT)
   } : null);
   // Club Room P0 door: 🚪 동아리방 들어가기 outside, 🚪 본관으로 나가기 inside.
+  contextActions.set("jeongseok-gate", inBiryong ? null : jeongseok.contextAction({
+    position: pos, grounded: controller.grounded, mounted: controller.mounted, inside
+  }));
   if (inBiryong) {
     contextActions.set("room-door", null);
     contextActions.set("personal-room-door", null);
@@ -3606,7 +3622,7 @@ app.on("update", (dt) => {
     for (const key of [
       "seat", "room-furniture", "personal-room-environment", "guestbook", "student-center-shop", "student-center-vendors", "dorm-furniture-shop", "backgate-transit", "biryong-station-transit",
       "biryong-npc", "inkyung-duck", "inkyung-fishing", "biryong", "mcm-event", "mcm-minigame", "follow",
-      "room-door", "personal-room-door", "npc"
+      "room-door", "personal-room-door", "npc", "jeongseok-gate"
     ]) contextActions.set(key, null);
     transportActions.set("mount", null);
   }
@@ -3705,6 +3721,7 @@ try {
     shop.setAccount(identity ? online?.userId ?? null : null);
     if (shop.accountId) void shop.refresh("account-capability");
     void wallet.setAccount(identity ? online?.userId ?? null : null);
+    void jeongseok.setAccount(identity ? online?.userId ?? null : null);
     collectionBook.setAccount(identity?.userId ?? null);
     void inventory.setAccount(identity ? online?.userId ?? null : null);
     void dailyQuiz.setAccount(identity ? online?.userId ?? null : null);
@@ -3935,6 +3952,7 @@ window.__INHAGAME_P0__ = {
   emoteMenu,
   photoMode,
   smartphone,
+  jeongseok,
   photoCamera,
   photoInput,
   photoModePanel,
