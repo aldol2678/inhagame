@@ -309,6 +309,18 @@ test("shipped main keeps rollout CLOSED; server integration is loopback-only tes
   assert.equal(await readFile(new URL("../src/main.js", import.meta.url), "utf8"), source, "fixture never edits shipped source");
 });
 
+test("guide browser QA waits for Phone opening animation before unchanged viewport bounds", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const smoke = await readFile(new URL("./browser/jeongseok-interior-smoke.mjs", import.meta.url), "utf8");
+  const wait = smoke.indexOf('getAnimations().every(animation => animation.playState === "finished")');
+  const measure = smoke.indexOf('const phoneBounds = await ctx.page.locator(".smartphone-frame").boundingBox()');
+  const record = smoke.indexOf('result.checks.publicGuideBounds =');
+  const check = smoke.indexOf('assert.ok(phoneBounds.x >= 0 && phoneBounds.y >= 0');
+  assert.ok(wait > 0 && wait < measure && measure < record && record < check);
+  assert.ok(smoke.includes('phoneBounds.x + phoneBounds.width <= viewport.width + 1 && phoneBounds.y + phoneBounds.height <= viewport.height + 1'));
+  assert.ok(smoke.includes('{ timeout: 5000 }'), "animation condition remains bounded");
+});
+
 const userA = "00000000-0000-4000-8000-00000000000a", userB = "00000000-0000-4000-8000-00000000000b";
 const granted = (userId, extra = {}) => ({ decision: "GRANTED", granted: true, via: "INHA_MAIL", userId, pass: null, clockOffsetMs: 0, ...extra });
 

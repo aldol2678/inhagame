@@ -218,8 +218,12 @@ try {
       const guideText = await ctx.page.locator(".smartphone-content").innerText();
       assert.match(guideText, /로비 안내 NPC/); assert.match(guideText, /정식 계정 로그인/); assert.match(guideText, /인하대 이메일 인증/);
       assert.equal(await ctx.page.getByRole("button", { name: /방문증 발급하기/ }).count(), 0, "guest cannot purchase");
+      // Normal-motion Phone opens with a 150ms translate/scale animation. Measure its
+      // settled frame, as the other Phone suites do with reduced-motion, not a transient pose.
+      await ctx.page.waitForFunction(() => document.querySelector(".smartphone-frame").getAnimations().every(animation => animation.playState === "finished"), null, { timeout: 5000 });
       const phoneBounds = await ctx.page.locator(".smartphone-frame").boundingBox();
-      assert.ok(phoneBounds.x >= 0 && phoneBounds.y >= 0 && phoneBounds.x + phoneBounds.width <= viewport.width + 1 && phoneBounds.y + phoneBounds.height <= viewport.height + 1, "guide UI fits viewport");
+      result.checks.publicGuideBounds = { viewport: { width: viewport.width, height: viewport.height }, frame: phoneBounds };
+      assert.ok(phoneBounds.x >= 0 && phoneBounds.y >= 0 && phoneBounds.x + phoneBounds.width <= viewport.width + 1 && phoneBounds.y + phoneBounds.height <= viewport.height + 1, `guide UI fits viewport: ${JSON.stringify(result.checks.publicGuideBounds)}`);
       await shot(ctx, viewport, "public-03-guide-login");
       await ctx.page.getByRole("button", { name: "정석 출입 취소" }).click();
       await waitFor(ctx, () => window.__INHAGAME_P0__.smartphone.shell.state === "CLOSED" && window.__INHAGAME_P0__.controller.inputEnabled, null, "guide closes and restores movement");
@@ -240,7 +244,10 @@ try {
       assert.deepEqual(smoke.problems, []);
       result.status = "PASS"; console.log(`public lobby ${viewport.label}: PASS`);
     } catch (error) { result.status = "FAIL"; result.error = error.stack || String(error);
-      try { const pages = smoke.context.pages(); if (pages.length) result.diagnostic = await state(pages.at(-1)); } catch { /* preserve original failure */ }
+      try { const pages = smoke.context.pages(); if (pages.length) {
+        const page = pages.at(-1); result.diagnostic = await state(page);
+        await page.screenshot({ path: path.join(output, `${viewport.label}-${result.authority ? "synthetic" : "public"}-failure.png`) });
+      } } catch { /* preserve original failure */ }
       throw error; }
     finally { await smoke.close(); }
   }
@@ -346,7 +353,10 @@ try {
       assert.deepEqual(smoke.problems, []);
       result.status = "PASS"; console.log("synthetic main integration: PASS (no server-authority claim)");
     } catch (error) { result.status = "FAIL"; result.error = error.stack || String(error);
-      try { const pages = smoke.context.pages(); if (pages.length) result.diagnostic = await state(pages.at(-1)); } catch { /* preserve original failure */ }
+      try { const pages = smoke.context.pages(); if (pages.length) {
+        const page = pages.at(-1); result.diagnostic = await state(page);
+        await page.screenshot({ path: path.join(output, `${viewport.label}-${result.authority ? "synthetic" : "public"}-failure.png`) });
+      } } catch { /* preserve original failure */ }
       throw error; }
     finally { await smoke.close(); }
   }

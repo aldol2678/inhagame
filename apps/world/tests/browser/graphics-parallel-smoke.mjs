@@ -158,19 +158,47 @@ async function clockAt(minute) {
 async function renderedSample() {
   return page.evaluate(() => new Promise(resolve => {
     const app = window.__INHAGAME_P0__.app;
+    const minimumDurationMs = 2500, maximumDurationMs = 10000, minimumRenders = 3;
     const intervals = []; let previous = null, updates = 0, renders = 0;
+    let settled = false, minimumTimer, deadlineTimer;
     const start = performance.now();
-    const update = () => { updates++; };
-    const render = () => { const now = performance.now(); renders++;
-      if (previous !== null) intervals.push(now - previous); previous = now; };
-    app.on('update', update); app.on('postrender', render);
-    setTimeout(() => { app.off('update', update); app.off('postrender', render);
+    const finish = endReason => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(minimumTimer); clearTimeout(deadlineTimer);
+      app.off('update', update); app.off('postrender', render);
       const elapsedMs = performance.now() - start;
       const sorted = [...intervals].sort((a,b) => a-b);
-      resolve({ updates, renders, elapsedMs, renderedFps: renders * 1000 / elapsedMs,
+      resolve({ updates, renders, elapsedMs, renderedFps: renders * 1000 / elapsedMs, endReason,
+        minimumDurationMs, maximumDurationMs, minimumRenders,
         intervals, p50Ms: sorted[Math.floor(sorted.length * .5)] ?? null,
         p95Ms: sorted[Math.min(sorted.length-1, Math.ceil(sorted.length * .95)-1)] ?? null });
-    }, 2500);
+    };
+    const maybeFinish = () => {
+      const elapsedMs = performance.now() - start;
+      if (elapsedMs >= maximumDurationMs) finish('deadline');
+      else if (elapsedMs >= minimumDurationMs && renders >= minimumRenders) finish('sample-complete');
+    };
+    const update = () => {
+      if (settled) return;
+      if (performance.now() - start >= maximumDurationMs) { finish('deadline'); return; }
+      updates++;
+    };
+    const render = () => {
+      if (settled) return;
+      const now = performance.now();
+      // A delayed deadline callback must not admit frames outside the bounded sample.
+      if (now - start >= maximumDurationMs) { finish('deadline'); return; }
+      renders++;
+      if (previous !== null) intervals.push(now - previous);
+      previous = now;
+      maybeFinish();
+    };
+    app.on('update', update); app.on('postrender', render);
+    // Keep the original observation window on normal runners, but let slow software
+    // renderers supply three real frames before the explicit, non-retrying deadline.
+    minimumTimer = setTimeout(maybeFinish, minimumDurationMs);
+    deadlineTimer = setTimeout(() => finish('deadline'), maximumDurationMs);
   }));
 }
 try {
@@ -262,10 +290,10 @@ try {
   await page.locator('#close-settings').click();
   await verifyMovementRestored('after-detail-controls');
   const pacing = await renderedSample();
+  receipt.checks.framePacing = pacing;
   assert.ok(pacing.renders > 2, 'need actual rendered frames');
   assert.ok(pacing.updates >= pacing.renders, 'pacing must not stop simulation updates');
   assert.ok(pacing.renderedFps <= 34, '30 FPS ceiling with scheduling tolerance');
-  receipt.checks.framePacing = pacing;
 
   // Prove a newly added manual tier persists through a full application reload.
   assert.equal(await page.evaluate(() => window.__INHAGAME_P0__.graphics.setPreference('ultra')), true);
