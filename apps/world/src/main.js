@@ -223,6 +223,7 @@ import { FLAG_DISABLED, FLAG_ENABLED, FLAG_UNAVAILABLE, probeFeatureFlag, retryF
 
 const canvas = document.getElementById("application");
 const worldLoading = getWorldLoading();
+const bootProfile = globalThis.__INHA_WORLD_BOOT_PROFILE__ ?? null;
 worldLoading?.setPhase("BOOT");
 const startupParams = new URLSearchParams(location.search);
 const editorWorldRequested = startupParams.get('editorWorld') === '1';
@@ -273,8 +274,11 @@ let lastTrackedZone = null;
 async function boot() {
 globalThis.__INHA_WORLD_BOOT_DIAGNOSTICS__?.markBootEntered?.();
 worldLoading?.setPhase("RENDERER");
+bootProfile?.startSpan?.("renderer");
 const device = await createWorldGraphicsDevice(pc, canvas);
 const rendererName = device.isWebGPU ? "WebGPU" : "WebGL2";
+bootProfile?.endSpan?.("renderer", { renderer: rendererName });
+bootProfile?.annotate?.("renderer", rendererName);
 
 const options = new pc.AppOptions();
 options.graphicsDevice = device;
@@ -306,10 +310,12 @@ if (assetOptimizationShadow.enabled) {
 }
 
 const assetCanaryRemoteControl = createAssetCanaryRemoteControl();
+bootProfile?.startSpan?.("asset-canary");
 const assetCanaryRemoteInitial = previewHost
   ? Promise.resolve(FLAG_DISABLED)
   : assetCanaryRemoteControl.start();
 const assetCanaryRemoteState = await assetCanaryRemoteInitial;
+bootProfile?.endSpan?.("asset-canary", { state: assetCanaryRemoteState, bypassed: previewHost });
 const assetProductionCanary = createProductionAssetCanary({
   app,
   enabled: !previewHost && assetCanaryRemoteState === FLAG_ENABLED,
@@ -346,6 +352,9 @@ const graphics = createGraphicsPresetController({
     maxTextureSize: device.maxTextureSize || 0
   }
 });
+bootProfile?.annotate?.("graphicsTier", graphics.tier);
+bootProfile?.annotate?.("previewHost", previewHost);
+bootProfile?.annotate?.("lobbyPreview", lobbyPreview);
 
 window.addEventListener('pagehide', event => {
   if (!event.persisted) graphics.destroy();
@@ -378,7 +387,15 @@ const environmentWorldTime = createEnvironmentWorldTime({
   clock: worldClock,
   enabled: worldClock !== null
 });
-if (worldClock) await environmentWorldTime.sync();
+if (worldClock) {
+  bootProfile?.startSpan?.("world-time");
+  await environmentWorldTime.sync();
+  const worldTimeStatus = environmentWorldTime.status();
+  bootProfile?.endSpan?.("world-time", {
+    state: worldTimeStatus.state,
+    rttMs: worldTimeStatus.clock?.rttMs ?? null
+  });
+}
 const worldTimeHud = createWorldTimeHud({
   element: worldTimeEl,
   getStatus: () => environmentWorldTime.status()
@@ -745,6 +762,7 @@ const cameraInputSettings = bindCameraInputSettings({
   status: document.getElementById("view-settings-status")
 });
 orbit.yaw=spawn.yaw;
+bootProfile?.mark?.("character-start");
 const character = createCharacter(app, player, {
   assetShadow: assetOptimizationShadow,
   assetCanary: assetProductionCanary.canary,
@@ -3676,6 +3694,7 @@ app.on("update", (dt) => {
 
 // Online P0 observes the local player after it moves; any failure leaves the World offline.
 worldLoading?.setPhase("ONLINE");
+bootProfile?.startSpan?.("online-init");
 try {
   online = startWorldOnline({
     app, places, player, controller,
@@ -3755,6 +3774,8 @@ try {
   });
 } catch (error) {
   console.warn("INHAGAME Campus online layer unavailable; continuing offline:", error);
+} finally {
+  bootProfile?.endSpan?.("online-init", { available: Boolean(online) });
 }
 
 // World-wide population telemetry is independent from signed-in Realtime Presence so guests count too.
@@ -3800,7 +3821,12 @@ window.addEventListener("pagehide", event => {
   if (!event.persisted) populationCount?.stop();
 });
 
+bootProfile?.startSpan?.("initial-streaming-update");
 streaming.update(1, player.getLocalPosition());
+bootProfile?.endSpan?.("initial-streaming-update", {
+  pendingChunks: streaming.pending.length,
+  counts: streaming.getMetrics().counts
+});
 worldLoading?.setEssentialReady(true);
 minimapReady = true;
 minimap?.update({ force: true });
@@ -3832,6 +3858,7 @@ if (lobbyWorld.active) {
 
 const bootDegraded = !online;
 worldLoading?.setPhase("ASSETS");
+bootProfile?.startSpan?.("render-ready-wait");
 await waitForWorldRender({
   app,
   ready: character.ready.then(() => {
@@ -3840,8 +3867,10 @@ await waitForWorldRender({
     if (lobbyWorld.active) lobbyWorld.update(0);
     else orbit.apply(player.getLocalPosition(), character.eyeHeight);
   }),
-  isSceneReady: () => streaming.pending.length === 0
+  isSceneReady: () => streaming.pending.length === 0,
+  profile: bootProfile
 });
+bootProfile?.endSpan?.("render-ready-wait");
 worldLoading?.setRenderReady(true);
 worldLoading?.finish({ degraded: bootDegraded });
 void loadOptionalNpcRuntime();
@@ -4033,6 +4062,7 @@ window.__INHAGAME_P0__ = {
       error: editorWorldStatus.error ?? null
     },
     loading: worldLoading?.status?.() ?? null,
+    bootProfile: bootProfile?.status?.() ?? null,
     lobby: lobbyWorld.status(),
     resume: resumeStore.read(),
     backGateLock: { open: backGateLock.open, ...backGateLock.definition },
