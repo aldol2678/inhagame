@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="data:,"><title>Convenience authority module-render QA</title>
+<link rel="stylesheet" href="../../styles.css">
+<script type="importmap">{"imports":{"playcanvas":"https://cdn.jsdelivr.net/npm/playcanvas@2.22.4/build/playcanvas.mjs"}}</script>
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#c9d6e3;font:14px sans-serif}canvas{width:100%;height:100%;display:block}
+#evidence{position:fixed;top:8px;left:8px;box-sizing:border-box;max-width:min(370px,calc(100vw - 16px));padding:10px;background:#fffffff0;color:#203044;z-index:1}
+.convenience-authority-candidate{position:fixed;top:100px;left:8px;max-width:min(360px,calc(100vw - 16px));padding:10px;background:#fffffff0;color:#203044;z-index:2}
+.convenience-authority-candidate button{margin:4px;min-height:44px;max-width:100%}
+.furniture-editor button:not([hidden]){display:block;margin:8px 0;min-height:44px}
+#joystick{position:fixed!important;left:24px!important;bottom:24px!important;width:120px!important;height:120px!important;display:grid!important;place-items:center;background:#23456077;border-radius:50%;touch-action:none;z-index:3}
+#joystick-knob{left:40px;top:40px;width:40px;height:40px;background:#fff;border-radius:50%;pointer-events:none}
+#jump,#run{position:fixed;right:16px;bottom:24px;min-height:44px;z-index:3}#run{bottom:80px}
+</style></head><body>
+<aside id="evidence">실제 PlayerController + PlayCanvas + 근무 UI 모듈 검증. HTTP 응답은 합성 fixture입니다. 전체 main 부팅, 실제 DB·인증·지급 증빙이 아닙니다.</aside>
+<canvas id="stage"></canvas><div id="joystick" aria-label="이동 조이스틱"><div id="joystick-knob"></div></div><button id="jump" type="button">점프</button><button id="run" type="button">달리기</button>
+<script type="module" src="./convenience-authority-browser.mjs"></script></body></html>

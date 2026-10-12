@@ -1,0 +1,70 @@
+name: Income game entry render QA
+on:
+  pull_request:
+    paths:
+      - 'apps/world/src/income/**'
+      - 'apps/world/src/main.js'
+      - 'apps/world/src/player-controller.js'
+      - 'apps/world/server/convenience-authority-service.mjs'
+      - 'apps/world/server/presence/**'
+      - 'apps/world/tests/browser/convenience-authority-browser*'
+      - 'apps/world/src/context-action.js'
+      - 'apps/world/npc-factory/dev-human-avatar.mjs'
+      - 'apps/world/npc-factory/npc-dimensions.mjs'
+      - 'apps/world/npc-factory/dev-runtime.mjs'
+      - 'apps/world/styles.css'
+      - 'apps/world/tests/income-game-entry*.test.mjs'
+      - 'apps/world/tests/browser/income-game-entry-browser*'
+      - 'apps/world/tests/browser/income-game-entry-framebuffer.mjs'
+      - 'apps/world/tests/browser/harness*.mjs'
+      - 'apps/world/tests/browser/package*.json'
+      - '.github/workflows/income-game-entry-browser.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: income-game-entry-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  render:
+    name: Exact-head game-entry module render
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - name: Install pinned engine and browser
+        working-directory: apps/world/tests/browser
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Install Chromium and Korean glyphs
+        run: |
+          cd apps/world/tests/browser
+          npx --no-install playwright install --with-deps chromium
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+      - name: Verify game-entry contracts
+        run: node --test apps/world/tests/income-game-entry*.test.mjs
+      - name: Render actual module avatar and interaction evidence
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          EXPECTED_INCOME_GAME_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          INCOME_GAME_BROWSER_OUTPUT: test-results/income-game-entry-browser
+        run: node apps/world/tests/browser/income-game-entry-browser-smoke.mjs
+      - name: Render convenience authority with synthetic HTTP evidence
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          EXPECTED_INCOME_GAME_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          CONVENIENCE_AUTHORITY_BROWSER_OUTPUT: test-results/income-game-entry-browser/convenience-authority
+        run: node apps/world/tests/browser/convenience-authority-browser-smoke.mjs
+      - name: Preserve exact-head evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: income-game-entry-${{ github.event.pull_request.head.sha || github.sha }}
+          path: test-results/income-game-entry-browser/
+          if-no-files-found: error
+          retention-days: 14

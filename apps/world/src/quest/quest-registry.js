@@ -1,3 +1,4 @@
+import { INCOME_QUEST_CANDIDATES } from '../income/income-catalog.mjs';
 import { QUEST_ID, QUEST_OBJECTIVES } from '../../npc-factory/quest-contract.mjs';
 import { MAIN2_QUEST_ID, MAIN2_QUEST_OBJECTIVES } from '../../npc-factory/main2-quest-contract.mjs';
 
@@ -79,7 +80,8 @@ const DEFINITIONS = Object.freeze([
   })
 ]);
 
-const BY_ID = new Map(DEFINITIONS.map(definition => [definition.questId, definition]));
+const CANDIDATE_DEFINITIONS = Object.freeze(INCOME_QUEST_CANDIDATES.map(freezeDefinition));
+const BY_ID = new Map([...DEFINITIONS, ...CANDIDATE_DEFINITIONS].map(definition => [definition.questId, definition]));
 const BY_LEGACY_ID = new Map(DEFINITIONS.map(definition => [definition.legacyProgressId, definition]));
 
 export function getQuestDefinition(questId) {
@@ -90,8 +92,8 @@ export function getQuestDefinitionByLegacyId(legacyProgressId) {
   return BY_LEGACY_ID.get(legacyProgressId) ?? null;
 }
 
-export function listQuestDefinitions({ type = null, campaignId = null } = {}) {
-  return DEFINITIONS.filter(definition =>
+export function listQuestDefinitions({ type = null, campaignId = null, includeCandidates = false } = {}) {
+  return (includeCandidates ? [...DEFINITIONS, ...CANDIDATE_DEFINITIONS] : DEFINITIONS).filter(definition =>
     (type == null || definition.type === type) &&
     (campaignId == null || definition.campaignId === campaignId)
   );

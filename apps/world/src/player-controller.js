@@ -983,6 +983,8 @@ export class PlayerController {
   }
 
   update(dt, cameraYaw = 0) {
+    // Explicit local authority session owns the actual player transform and movement.
+    if (this.authoritativeWalk?.updatePlayer(this, dt, cameraYaw)) return;
     this.shuttle.update(dt);
     const bus=this.shuttle.pose;syncCampusShuttleProp(bus,!this.onShuttle);
     if(this.onShuttle){

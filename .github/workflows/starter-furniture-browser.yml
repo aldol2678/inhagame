@@ -12,6 +12,11 @@ on:
       - 'docs/ops/sql/20261012_starter_furniture_open.sql'
       - 'apps/world/tests/browser/dorm-shop-vendor-*'
       - 'scripts/starter-furniture-browser-local.mjs'
+      - 'scripts/convenience-campus-browser-local.mjs'
+      - 'apps/world/tests/browser/convenience-campus-*'
+      - 'apps/world/src/income/**'
+      - 'apps/world/server/convenience-authority-service.mjs'
+      - 'apps/world/server/presence/**'
       - '.github/workflows/starter-furniture-browser.yml'
 permissions:
   contents: read
@@ -55,6 +60,24 @@ jobs:
           supabase start > /tmp/starter-supabase-start.log 2>&1 || { cat /tmp/starter-supabase-start.log; exit 1; }
           supabase test db 2>&1 | tee test-results/starter-furniture/pgtap.log
           node scripts/local-integration.mjs 2>&1 | tee test-results/starter-furniture/integration.log
+      - name: Full campus convenience with disposable real Auth and database
+        id: convenience_campus
+        timeout-minutes: 8
+        if: ${{ !cancelled() && steps.database.outcome == 'success' }}
+        env:
+          CONVENIENCE_CAMPUS_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          CONVENIENCE_CAMPUS_OUTPUT: test-results/starter-furniture/convenience-campus
+        run: |
+          set -o pipefail
+          node scripts/convenience-campus-browser-local.mjs 2>&1 | tee test-results/starter-furniture/convenience-campus.log
+      - name: Preserve full-campus evidence before remaining browser checks
+        if: ${{ always() && steps.convenience_campus.outcome != 'skipped' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: convenience-campus-${{ github.event.pull_request.head.sha }}
+          path: test-results/starter-furniture/convenience-campus/
+          if-no-files-found: warn
+          retention-days: 14
       - name: Room-local vendor greeting and lifecycle on three viewports
         env:
           DORM_VENDOR_OUTPUT: test-results/starter-furniture/dorm-vendor

@@ -13,6 +13,7 @@ test("main update holds all local gameplay consumers while only rendering the tr
   let regionBusy = false;
   const calls = [];
   const frame = vm.runInNewContext(`dt => { ${prefix} calls.push("remaining-gameplay"); }`, {
+    incomeGameCandidate: { suspend: () => calls.push("income-ui-close"), update: () => calls.push("income-update") },
     shopPanel: { open: false }, dormShop: { update() {} },
     photoMode: { update() {} }, syncAudio: () => calls.push("audio"), rooms: { status: () => ({ busy }) },
     biryongRealm: { get busy() { return regionBusy; } },
@@ -24,11 +25,11 @@ test("main update holds all local gameplay consumers while only rendering the tr
     character: { eyeHeight: 1.6 }, calls
   });
   frame(.016);
-  assert.deepEqual(calls, ["audio", "audio-reset", "camera"], "no source-room pose, campus place update, auto movement or furniture refresh");
+  assert.deepEqual(calls, ["audio", "audio-reset", "income-ui-close", "camera"], "no source-room pose, campus place update, auto movement or furniture refresh");
   busy = false; calls.length = 0; frame(.016);
-  assert.deepEqual(calls, ["audio", "room-pose", "remaining-gameplay"]);
+  assert.deepEqual(calls, ["audio", "income-update", "room-pose", "remaining-gameplay"]);
   regionBusy = true; calls.length = 0; frame(.016);
-  assert.deepEqual(calls, ["audio", "audio-reset", "camera"], "regional handoff has the same frame isolation");
+  assert.deepEqual(calls, ["audio", "audio-reset", "income-ui-close", "camera"], "regional handoff has the same frame isolation");
 });
 
 test("late furniture readback cannot teleport an intermediate lobby pose using personal-room colliders", () => {

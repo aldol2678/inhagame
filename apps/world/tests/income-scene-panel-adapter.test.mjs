@@ -1,0 +1,9 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {createFakeDocument} from './support/fake-dom.mjs';import {createIncomeScenePanelAdapter} from '../src/income/income-scene-panel-adapter.mjs';
+test('actual scene panel displays CLOSED even if backend ACTIVE, cannot mutate, restores input lease',async()=>{
+const doc=createFakeDocument();doc.body=doc.createElement('body');const opener=doc.createElement('button');doc.body.append(opener);let locks=0,returns=0,calls=[];
+const raw={enabled:true,questId:'quest.side.taerin_carp',coin:20,sessionId:null,state:null,receipt:null,budget:{remainingCoin:60,remainingDeliveries:1,budgetDate:'2026-10-11'},inventory:{itemId:'material.fish_carp',requiredQuantity:1,ownedQuantity:2}};
+const adapter=createIncomeScenePanelAdapter({enabled:true,location:{hostname:'localhost'},doc,navigation:{},getAuthorization:async()=> 'Bearer local.synthetic.token.for.test.only',fetcher:async(url,init)=>{calls.push(JSON.parse(init.body));return {ok:true,json:async()=>raw};},acquireInput:()=>{locks++;return()=>locks--;},onReturn:()=>returns++});
+await adapter.setAccount('A');await adapter.openPanel({opener});assert.equal(adapter.open,true);assert.equal(locks,1);assert.equal(adapter.delivery.state().snapshot.enabled,false);await adapter.delivery.accept();await adapter.delivery.submit();assert.ok(calls.every(c=>c.op==='status'));adapter.close();assert.equal(locks,0);assert.equal(returns,1);assert.equal(doc.activeElement,opener);await adapter.openPanel();await adapter.setAccount(null);assert.equal(adapter.open,false);assert.equal(locks,0);adapter.dispose();assert.equal(locks,0);
+});
+test('scene panel disallows hosted or unapproved mounts',()=>{assert.throws(()=>createIncomeScenePanelAdapter({enabled:true,location:{hostname:'prod.example'}}),/LOCAL_ONLY/);assert.throws(()=>createIncomeScenePanelAdapter({location:{hostname:'localhost'}}),/LOCAL_ONLY/);});
