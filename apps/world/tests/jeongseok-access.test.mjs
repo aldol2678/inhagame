@@ -7,7 +7,9 @@ import { gateContextAction, gateMessage } from '../src/jeongseok/gate-panel.js';
 import { JEONGSEOK_FOOTPRINT, JEONGSEOK_GATE, nearJeongseokGate } from '../src/jeongseok/gate-layout.js';
 import { polygonOverlap } from '../src/polygon-collision.js';
 import { getPlaceZoneAt } from '../src/place-zone-registry.js';
-import { isRoomId, ROOM_ENTRANCES } from '../src/rooms/room-registry.js';
+import { isRoomId, ROOM_ENTRANCES, ROOMS } from '../src/rooms/room-registry.js';
+import { createRoomTransition } from '../src/rooms/room-transition.js';
+import { createJeongseokEntryPolicy, JEONGSEOK_ACCESS_POLICY_KEY } from '../src/jeongseok/entry-policy.js';
 
 const A = '0a000000-0000-4000-8000-00000000000a', B = '0b000000-0000-4000-8000-00000000000b';
 const NOW = '2026-10-12T03:00:00.000Z', LATER = '2026-10-13T03:00:00.000Z';
@@ -278,9 +280,19 @@ test('temporary reader derives from canonical bldg_jungseok geometry and opens n
   assert.equal(getPlaceZoneAt(JEONGSEOK_GATE.position).id, 'AREA_JUNGSEOK_WOONAM');
   assert.equal(nearJeongseokGate(JEONGSEOK_GATE.position), 0);
   assert.equal(nearJeongseokGate({ x: JEONGSEOK_GATE.position.x + 5, z: JEONGSEOK_GATE.position.z }), null);
-  // No Jeongseok room or door exists until JSL-B: nothing to teleport, resume or join into.
-  assert.equal(isRoomId('ROOM_JEONGSEOK_LOBBY'), false);
-  assert.equal(ROOM_ENTRANCES.some(e => /JEONGSEOK|JUNGSEOK/i.test(e.id + e.roomId)), false);
+  // JSL-B can register a room without authorizing entry: missing and default CLOSED policies refuse it.
+  const roomId = 'ROOM_JEONGSEOK_LOBBY';
+  assert.equal(isRoomId(roomId), true);
+  assert.equal(ROOMS[roomId].access, JEONGSEOK_ACCESS_POLICY_KEY);
+  assert.ok(ROOM_ENTRANCES.some(e => e.roomId === roomId));
+  const closed = createJeongseokEntryPolicy();
+  assert.equal(closed.allowsEntry(), false);
+  assert.equal(closed.acceptServerGrant(granted()), false);
+  for (const accessPolicies of [{}, { [JEONGSEOK_ACCESS_POLICY_KEY]: closed.predicate }]) {
+    const rooms = createRoomTransition({ world: {}, accessPolicies });
+    assert.equal(rooms.enter(roomId), false);
+    assert.equal(rooms.currentSpace, 'campus');
+  }
 });
 
 test('integration stays closed by default and never computes balances or rights', async () => {
@@ -291,6 +303,9 @@ test('integration stays closed by default and never computes balances or rights'
   assert.match(main, /isEnabled: \(\) => jeongseokGatePreview/);
   assert.match(main, /void jeongseok\.setAccount\(identity \? online\?\.userId \?\? null : null\);/);
   assert.match(main, /void wallet\.refresh\("jeongseok-pass"\)/);
+  assert.match(feature, /onEnter: \(\) => \(\{ status: JEONGSEOK_INTERIOR_STATUS \}\)/);
+  assert.match(feature, /JEONGSEOK_INTERIOR_STATUS = "PENDING_JSL_B"/);
+  assert.match(main, /resolveJeongseokEntryMode\(\{ previewHost, params: startupParams \}\)/);
   assert.doesNotMatch(feature + client, /rooms\.enter|enterNested|teleport\(|\.channel\(|'world:room:|"world:room:/);
   assert.doesNotMatch(client, /balance\s*-\s*|-\s*price|\+\s*86400|Date\.now\(\)\s*\+\s*\d/);
 });
