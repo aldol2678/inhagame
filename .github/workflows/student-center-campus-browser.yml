@@ -2,6 +2,7 @@ name: Student center integrated campus browser QA
 on:
   pull_request:
     paths:
+      - '.github/ci/phone-surface-scope*.mjs'
       - 'apps/world/src/student-center-*.js'
       - 'apps/world/src/facility-blockout.js'
       - 'apps/world/src/campus-chunk-renderer.js'
@@ -40,17 +41,29 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
+          fetch-depth: 20
+      - name: Conservative scope gate for isolated Phone Messages change
+        id: phone_scope
+        env:
+          CI_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CI_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node .github/ci/phone-surface-scope.mjs >> "$GITHUB_OUTPUT"
       - uses: actions/setup-node@v4
+        if: steps.phone_scope.outputs.skip != 'true'
         with:
           node-version: '24.19.0'
       - name: Install existing pinned Playwright and PlayCanvas dependencies
+        if: steps.phone_scope.outputs.skip != 'true'
         working-directory: apps/world/tests/browser
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Verify student geometry and default campus controller contracts
+        if: steps.phone_scope.outputs.skip != 'true'
         run: node --test apps/world/tests/student-center-candidate.test.mjs apps/world/tests/student-center-connected.test.mjs apps/world/tests/student-center-campus.test.mjs
       - name: Verify actual engine ownership without claiming rendered pixels
+        if: steps.phone_scope.outputs.skip != 'true'
         run: node apps/world/tests/browser/student-center-campus-null-smoke.mjs
       - name: Render exact-head full campus and walk both directions at three sizes
+        if: steps.phone_scope.outputs.skip != 'true'
         timeout-minutes: 10
         env:
           WORLD_SMOKE_DISABLE_WEBGPU: '1'
@@ -59,7 +72,7 @@ jobs:
           EXPECTED_STUDENT_HEAD: ${{ github.event.pull_request.head.sha }}
         run: timeout --signal=TERM --kill-after=10s 570s node apps/world/tests/browser/student-center-campus-smoke.mjs
       - name: Save exact-commit frames, trusted-input and per-tick support receipts
-        if: always()
+        if: always() && steps.phone_scope.outputs.skip != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: student-center-campus-browser-evidence
