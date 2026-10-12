@@ -356,6 +356,28 @@ test("guide browser QA waits for Phone opening animation before unchanged viewpo
   assert.ok(smoke.includes('{ timeout: 5000 }'), "animation condition remains bounded");
 });
 
+test("native movement QA requires held-input frames as well as time and preserves aggregate failures", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const { runInNewContext } = await import("node:vm");
+  const smoke = await readFile(new URL("./browser/jeongseok-interior-smoke.mjs", import.meta.url), "utf8");
+  const start = smoke.indexOf("function nativeMovementObserved(");
+  const end = smoke.indexOf("\n// Native movement:", start);
+  assert.ok(start >= 0 && end > start);
+  const d = { app: { frame: 10 } }; let now = 0;
+  const predicate = runInNewContext(`${smoke.slice(start, end)}; nativeMovementObserved`, {
+    window: { __INHAGAME_P0__: d }, performance: { now: () => now }
+  });
+  const observation = { startFrame: 10, startedAt: 0, minimumMs: 1100, minimumFrames: 6 };
+  now = 2000; assert.equal(predicate(observation), false, "elapsed wall time without frames is insufficient");
+  d.app.frame = 15; assert.equal(predicate(observation), false, "all six held-input frames are required");
+  d.app.frame = 16; now = 1099; assert.equal(predicate(observation), false, "frames do not shorten the original observation");
+  now = 1100; assert.equal(predicate(observation), true);
+  assert.ok(smoke.includes('minimumMs: ms, minimumFrames: 6 }, { timeout: 10000, polling: 50 }'));
+  assert.ok(smoke.includes('if (failures.length) throw new Error('));
+  assert.ok(smoke.includes('process.exitCode = 1'));
+  assert.ok(smoke.includes('assert.equal(s.closedGateCollider, true)'), "immediate B1 return assertion is unchanged");
+});
+
 const userA = "00000000-0000-4000-8000-00000000000a", userB = "00000000-0000-4000-8000-00000000000b";
 const granted = (userId, extra = {}) => ({ decision: "GRANTED", granted: true, via: "INHA_MAIL", userId, pass: null, clockOffsetMs: 0, ...extra });
 

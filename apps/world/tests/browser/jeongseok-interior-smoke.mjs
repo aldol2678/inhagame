@@ -52,7 +52,7 @@ const state = page => page.evaluate(() => {
   const j = window.__INHAGAME_JEONGSEOK_INTERIOR__.status();
   return { space: d.rooms.currentSpace, busy: d.rooms.status().busy, action: d.contextActions.active?.id ?? null,
     actionLabel: d.contextActions.active?.label ?? null, position: { x: p.x, y: p.y, z: p.z }, camera: { x: c.x, y: c.y, z: c.z },
-    input: d.controller.inputEnabled, zone: document.getElementById("zone")?.textContent ?? null,
+    frame: d.app.frame, input: d.controller.inputEnabled, zone: document.getElementById("zone")?.textContent ?? null,
     placeZone: d.getStatus().placeZone ?? null, rootChildren: d.app.root.children.length, interior: j,
     phone: d.smartphone?.shell?.state ?? null, mounted: d.controller.mounted,
     gate: d.jeongseok.gate.snapshot(), grounded: d.controller.grounded,
@@ -85,10 +85,23 @@ async function useAction(ctx, viewport, { id, label, space }) {
   }
   throw new Error(`${id} never reached ${space}: ${JSON.stringify(await state(ctx.page))}`);
 }
+// Both requirements are needed: wall time alone can contain zero simulation frames on CI.
+function nativeMovementObserved({ startFrame, startedAt, minimumMs, minimumFrames }) {
+  return window.__INHAGAME_P0__.app.frame >= startFrame + minimumFrames && performance.now() - startedAt >= minimumMs;
+}
 // Native movement: held key on desktop, a trusted CDP touch drag on the joystick on mobile.
 async function move(ctx, viewport, { key = "KeyW", dx = 0, dy = -40, ms = 1400, until = null } = {}) {
   const before = await state(ctx.page);
-  const hold = () => until ? ctx.page.waitForFunction(until, null, { timeout: 10000, polling: 50 }) : ctx.page.waitForTimeout(ms);
+  const observation = report.lastMovement = { viewport: viewport.label, beforeFrame: before.frame, beforePosition: before.position,
+    kind: until ? "condition" : "native-frames", minimumMs: until ? null : ms, minimumFrames: until ? null : 6, timeoutMs: 10000 };
+  const hold = async () => {
+    if (until) return ctx.page.waitForFunction(until, null, { timeout: 10000, polling: 50 });
+    // Read the baseline only after key/touch down. Keep the original duration, and require
+    // real frames while that same native input remains held; never inject motion or collision.
+    const start = await ctx.page.evaluate(() => ({ startFrame: window.__INHAGAME_P0__.app.frame, startedAt: performance.now() }));
+    observation.startFrame = start.startFrame;
+    return ctx.page.waitForFunction(nativeMovementObserved, { ...start, minimumMs: ms, minimumFrames: 6 }, { timeout: 10000, polling: 50 });
+  };
   if (!viewport.mobile) {
     await ctx.page.keyboard.down(key);
     try { await hold(); } finally { await ctx.page.keyboard.up(key); }
@@ -106,6 +119,7 @@ async function move(ctx, viewport, { key = "KeyW", dx = 0, dy = -40, ms = 1400, 
   }
   await ctx.page.waitForTimeout(200);
   const after = await state(ctx.page);
+  observation.afterFrame = after.frame; observation.afterPosition = after.position;
   return { before, after, moved: Math.hypot(after.position.x - before.position.x, after.position.z - before.position.z) };
 }
 async function frames(page, ms = 3000) {
@@ -186,7 +200,7 @@ try {
         assert.ok(walk.moved > 0.1, `lane ${lane.x}: trusted input moved toward gate`);
         assert.ok(walk.after.position.z <= anchors.boundary - 0.2, `lane ${lane.x}: physical gate stops movement`);
         assert.equal(walk.after.interior.stats.forcedExits, walk.before.interior.stats.forcedExits, "collision, not correction, stops native movement");
-        lanes.push({ x: lane.x, before: walk.before.position, after: walk.after.position });
+        lanes.push({ x: lane.x, before: walk.before.position, after: walk.after.position, frames: [walk.before.frame, walk.after.frame] });
       }
       const flaps = await ctx.page.evaluate(() => window.__INHAGAME_JEONGSEOK_INTERIOR__.activeFlapAngles());
       // Each lane has a west/east hinge; assert coverage separately from closure.
@@ -248,7 +262,7 @@ try {
         const page = pages.at(-1); result.diagnostic = await state(page);
         await page.screenshot({ path: path.join(output, `${viewport.label}-${result.authority ? "synthetic" : "public"}-failure.png`) });
       } } catch { /* preserve original failure */ }
-      throw error; }
+      result.movementDiagnostic = report.lastMovement; }
     finally { await smoke.close(); }
   }
 
@@ -357,7 +371,7 @@ try {
         const page = pages.at(-1); result.diagnostic = await state(page);
         await page.screenshot({ path: path.join(output, `${viewport.label}-${result.authority ? "synthetic" : "public"}-failure.png`) });
       } } catch { /* preserve original failure */ }
-      throw error; }
+      result.movementDiagnostic = report.lastMovement; }
     finally { await smoke.close(); }
   }
 
@@ -542,10 +556,15 @@ try {
       assert.deepEqual(smoke.problems, [], `${viewport.label}: page problems`);
       result.status = "PASS"; console.log(`visual preview ${viewport.label}: PASS (no server-grant claim)`);
     } catch (error) {
-      result.status = "FAIL"; result.error = error.stack || String(error);
-      throw error;
+      result.status = "FAIL"; result.error = error.stack || String(error); result.movementDiagnostic = report.lastMovement;
+      try { const page = smoke.context.pages().at(-1); if (page) {
+        result.diagnostic = await state(page);
+        await page.screenshot({ path: path.join(output, `${viewport.label}-preview-failure.png`) });
+      } } catch { /* preserve original failure */ }
     } finally { await smoke.close(); }
   }
+  const failures = [...report.publicLobby, ...report.syntheticAuthority, ...report.viewports].filter(result => result.status === "FAIL");
+  if (failures.length) throw new Error(`${failures.length} independent Jeongseok cases failed: ${failures.map(result => `${result.viewport}: ${result.error.split("\n")[0]}`).join("; ")}`);
   report.status = "PASS";
 } catch (error) {
   report.status = "FAIL"; report.error = error.stack || String(error);
