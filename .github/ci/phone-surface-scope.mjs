@@ -53,6 +53,34 @@ const REVIEWED_PHONE_DELTAS = Object.freeze({
   "apps/world/src/phone/phone-preferences.js": Object.freeze([
   "-export const PHONE_APP_IDS = Object.freeze(['student-id','maps','camera','album','settings','daily-quiz','attendance']);",
   "+export const PHONE_APP_IDS = Object.freeze(['student-id','maps','camera','album','settings','daily-quiz','attendance','messages']);"
+]),
+  "apps/world/phone.css": Object.freeze([
+  "+",
+  "+/* PHONE-MENU-02A · single account-scoped Hub messages view inside the Phone. */",
+  "+.smartphone .smartphone-app { position:relative; }",
+  "+.smartphone .smartphone-notification-badge { position:absolute; top:0; right:8px; z-index:2; min-width:18px; padding:2px 5px; color:#132e45; background:#ffe393; border-radius:20px; font-size:11px; }",
+  "+.smartphone .smartphone-notification-badge[hidden] { display:none; }",
+  "+.phone-messages { display:grid; gap:10px; min-width:0; }",
+  "+.phone-messages h3 { margin:0; }",
+  "+.phone-messages-controls { display:flex; gap:8px; flex-wrap:wrap; align-items:center; justify-content:space-between; }",
+  "+.phone-messages-unread { font-size:12px; }",
+  "+.phone-messages-new { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:6px; }",
+  "+.phone-messages input, .phone-messages textarea { min-width:0; width:100%; box-sizing:border-box; border:1px solid #ffffff55; border-radius:10px; background:#15394e; color:#fff; font:inherit; padding:10px; }",
+  "+.phone-messages input:focus-visible, .phone-messages textarea:focus-visible { outline:3px solid #ffe9a4; }",
+  "+.phone-messages-inbox { display:grid; gap:6px; }",
+  "+.smartphone .phone-messages-inbox-item { display:grid; grid-template-columns:1fr auto; text-align:left; gap:3px; overflow-wrap:anywhere; width:100%; }",
+  "+.phone-messages-inbox-item small { grid-column:1 / -1; font-size:12px; opacity:.85; }",
+  "+.phone-messages-count { color:#172d3c; background:#ffe393; border-radius:30px; padding:2px 7px; }",
+  "+.phone-messages-thread { display:grid; gap:8px; max-height:none; }",
+  "+.phone-messages-entry { padding:10px; min-width:0; overflow-wrap:anywhere; background:#17374dcc; border-radius:14px; }",
+  "+.phone-messages-entry.is-mine { background:#24645dcc; margin-left:14px; }",
+  "+.phone-messages-entry p { margin:0 0 6px; white-space:pre-wrap; }",
+  "+.phone-messages-entry small { opacity:.75; }",
+  "+.phone-messages-composer { display:grid; gap:6px; }",
+  "+.phone-messages-report { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }",
+  "+.phone-messages-report select { width:auto; min-width:0; flex:1; }",
+  "+.phone-messages-notice { margin:0; padding:8px; border-radius:8px; background:#15394e; }",
+  "+@media(max-width:380px) { .phone-messages-new { grid-template-columns:1fr; } }"
 ])
 });
 const scopedDiffLines = (path,patch) => {
@@ -68,18 +96,6 @@ export function scopedPhoneMessagesOnly(paths, mainPatch = '', extraPatches = {}
     if(!paths.includes(path))continue;
     const actual=scopedDiffLines(path,extraPatches[path]);
     if(!actual||actual.length!==expected.length||actual.some((line,i)=>line!==expected[i]))return false;
-  }
-  const phoneCss='apps/world/phone.css';
-  if(paths.includes(phoneCss)){
-    const actual=scopedDiffLines(phoneCss,extraPatches[phoneCss]);
-    if(!actual||actual.length===0||actual.some(line=>
-      !line.startsWith('+') ||
-      !(line.startsWith('+.phone-messages') ||
-        line.startsWith('+.smartphone .smartphone-notification-badge') ||
-        line.startsWith('+.smartphone .smartphone-app { position:relative; }') ||
-        line.startsWith('+@media(max-width:380px) { .phone-messages') ||
-        line.startsWith('+/* PHONE-MENU-02A') ||
-        line === '+')))return false;
   }
   if (!paths.includes(MAIN)) return true;
   if (typeof mainPatch !== 'string' || !mainPatch.startsWith('diff --git a/apps/world/src/main.js b/apps/world/src/main.js\n')) return false;
@@ -111,7 +127,7 @@ export function inspect(env = process.env) {
     if (/(^|\0)(?:D|R|C|T|U)(?:\d+)?\0/.test(nameStatus)) return {skip:false,reason:'unsafe-file-change'};
     const mainPatch=paths.includes(MAIN) ? git('diff','--no-ext-diff','--no-renames','--unified=0',base,head,'--',MAIN) : '';
     const extraPatches={};
-    for(const path of [...Object.keys(REVIEWED_PHONE_DELTAS),'apps/world/phone.css'])if(paths.includes(path))
+    for(const path of Object.keys(REVIEWED_PHONE_DELTAS))if(paths.includes(path))
       extraPatches[path]=git('diff','--no-ext-diff','--no-renames','--unified=0',base,head,'--',path);
     return scopedPhoneMessagesOnly(paths,mainPatch,extraPatches)
       ? {skip:true,reason:'isolated-member-message-ui',paths}
