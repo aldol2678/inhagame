@@ -33,8 +33,8 @@ test('water, waiting and permanent flower states never offer XP/sale/replant',()
   assert.ok(h.find('꽃이 활짝 피었어요. 이제 물주기 없이 이 모습을 계속 간직해요.'));
   assert.equal(walk(h.panel).some(e=>e.tagName==='BUTTON'&&/XP|판매|재심기|수확/.test(e.textContent)),false);
 });
-test('visitors see only appearance and no caretaker actions',()=>{
-  const h=rig();h.state.role='visitor';h.state.snapshot={featureStatus:'ACTIVE',plants:[{objectId:'object',stage:'BLOOM'}]};h.ui.openPanel(object);
+test('completed visitor flower has no further caretaker actions',()=>{
+  const h=rig();h.state.role='visitor';h.state.visitorCareAvailable=true;h.state.snapshot={featureStatus:'ACTIVE',plants:[{objectId:'object',stage:'BLOOM'}]};h.ui.openPanel(object);
   assert.ok(h.find('활짝 핀 꽃'));assert.equal(walk(h.panel).filter(e=>e.tagName==='BUTTON').length,1);assert.deepEqual(h.calls,['read']);
 });
 test('unknown response and committed unread result have distinct bounded retry actions',()=>{
@@ -66,4 +66,11 @@ test('all three silhouettes are distinct, self-authored and contained within .55
     for(const p of parts){assert.ok(Math.abs(p.at[0])+p.size[0]/2<=.275);assert.ok(Math.abs(p.at[2])+p.size[2]/2<=.275);assert.ok(p.at[1]+p.size[1]/2<=.8);assert.ok(p.at[1]-p.size[1]/2>=0);}
   }
   assert.equal(new Set(counts).size,3);assert.equal(roomPlantVisual(null).length,2);assert.ok(roomPlantVisual('BLOOM').some(p=>p.name==='grow_flower_center'));
+});
+
+test('friend ready-care panel only offers watering, never claim, plant or placement',()=>{
+ const h=rig();h.state.role='visitor';h.state.visitorCareAvailable=true;h.state.snapshot={featureStatus:'ACTIVE',plants:[{objectId:'object',stage:'SPROUT',canCare:true,careToken:'opaque'}]};h.ui.openPanel(object);
+ h.find('친구 꽃 물주기').click();assert.deepEqual(h.calls,['read',['care','object']]);
+ assert.equal(h.find('꽃 심기'),undefined);assert.equal(h.find('첫 화분 받기 · 무료'),undefined);assert.equal(h.find('꾸미기에서 배치'),undefined);
+ h.state.snapshot.plants[0].canCare=false;h.ui.update();assert.equal(h.find('친구 꽃 물주기'),undefined);
 });

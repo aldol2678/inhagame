@@ -53,7 +53,7 @@ async function startServer({ worldRoot, devServer }) {
 // Starts the server and a headless Chromium with one offline context. `watch(page)` records page
 // errors, console errors and failed or 4xx/5xx same-origin requests into `problems`, and returns a
 // promise that rejects on the first uncaught page error or crash (race it against waits to fail fast).
-export async function startSmoke({ viewport = { width: 1280, height: 720 }, contextOptions = {}, browserType = "chromium", worldRoot } = {}) {
+export async function startSmoke({ viewport = { width: 1280, height: 720 }, contextOptions = {}, browserType = "chromium", worldRoot, sharedBrowser = null } = {}) {
   const playCanvas = await pinnedPlayCanvas(worldRoot);
   const server = await startServer(playCanvas);
   // GPU-less CI checks the explicit unsupported path and the Editor's legacy WebGL2 preview.
@@ -64,7 +64,8 @@ export async function startSmoke({ viewport = { width: 1280, height: 720 }, cont
       ? ['--use-angle=vulkan', '--enable-features=Vulkan', '--disable-vulkan-surface', '--enable-unsafe-webgpu']
       : ['--enable-unsafe-webgpu'];
   const launcher = browserType === "webkit" ? webkit : chromium;
-  const browser = await launcher.launch({
+  // Multi-user tests may share the GPU process, never their independent BrowserContexts.
+  const browser = sharedBrowser ?? await launcher.launch({
     headless: process.env.WORLD_SMOKE_HEADED !== '1',
     ...(process.env.WORLD_SMOKE_EXECUTABLE ? { executablePath: process.env.WORLD_SMOKE_EXECUTABLE } : {}),
     ...(browserType === "chromium" && (process.env.WORLD_SMOKE_BROWSER || (process.platform === 'linux' && !disabled))
@@ -134,7 +135,7 @@ export async function startSmoke({ viewport = { width: 1280, height: 720 }, cont
     if (stubbed.size) console.log(`stubbed: ${[...stubbed].sort().join(", ")}`);
     if (blocked.size) console.log(`blocked off-origin: ${[...blocked].sort().join(", ")}`);
     await context.close();
-    await browser.close();
+    if (!sharedBrowser) await browser.close();
     server.stop();
   };
   return { origin: server.origin, context, problems, watch, close };

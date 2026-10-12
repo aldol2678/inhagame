@@ -6,6 +6,7 @@ export const ROOM_PLANT_ITEM = "furniture.indoor_planter";
 export const ROOM_PLANT_ID = "plant.room_flower";
 export const ROOM_PLANT_STAGES = Object.freeze(["SPROUT", "BUD", "BLOOM"]);
 export const ROOM_PLANT_ERRORS = Object.freeze({
+  INVALID_PLANT_REQUEST: "화분 요청을 확인하지 못했어요. 현재 상태를 다시 확인해 주세요.",
   PLANT_UNAVAILABLE: "화분 키우기는 아직 준비 중이에요.",
   PLANT_ACCESS_DENIED: "지금은 이 방의 화분을 확인할 수 없어요.",
   PLANTER_REQUIRED: "내가 보유한 재배용 화분을 내 방에 배치하고 저장해 주세요.",
@@ -30,8 +31,8 @@ export function parseRoomPlantSnapshot(raw, context) {
     || !["CLOSED", "ACTIVE"].includes(raw.featureStatus)) return null;
   const base = { roomId: raw.roomId, role: raw.role, layoutRevision: raw.layoutRevision, featureStatus: raw.featureStatus };
   if (raw.role === "visitor") {
-    if (!Array.isArray(raw.plants) || raw.plants.length > 1 || raw.plants.some(p => !silhouette(p))) return null;
-    return { ...base, plants: raw.plants.map(p => ({ objectId: p.objectId, plantId: p.plantId, stage: p.stage })) };
+    if (!Array.isArray(raw.plants) || raw.plants.length > 1 || raw.plants.some(p => !silhouette(p) || typeof p.canCare !== "boolean" || (p.canCare ? !uuid(p.careToken) || p.stage === "BLOOM" : p.careToken !== null))) return null;
+    return { ...base, plants: raw.plants.map(p => ({ objectId: p.objectId, plantId: p.plantId, stage: p.stage, canCare: p.canCare, careToken: p.careToken })) };
   }
   if (raw.role !== "owner" || !time(raw.serverNow) || typeof raw.planterOwned !== "boolean") return null;
   let plant = null;
@@ -62,7 +63,7 @@ export function createRoomPlantClient({ getClient, getUserId, getRoomState, isAv
       || s.layoutError || s.layoutPending || !["owner", "visitor"].includes(s.role) || (s.role === "owner" && s.ownerUserId !== actor)) return null;
     return s;
   }
-  const keyOf = s => s ? `${s.accountId}:${s.roomId}:${s.ownerUserId}:${s.role}:${s.sessionVersion ?? 0}` : "";
+  const keyOf = s => s ? `${s.accountId}:${s.roomId}:${s.ownerUserId}:${s.role}:${s.sessionVersion ?? 0}:${s.role === "visitor" ? `${s.visitLease?.leaseId ?? ""}:${s.visitLease?.sessionId ?? ""}` : ""}` : "";
   const available = () => !!context();
   function reset() {
     observedInventoryOwned = null; generation++; scope = ""; accountId = null; roomId = null; snapshot = null; reading = false; pending = false;
@@ -80,7 +81,7 @@ export function createRoomPlantClient({ getClient, getUserId, getRoomState, isAv
   const current = (gen, key) => gen === generation && key === scope && key === keyOf(context());
   function state() {
     const s = context(), valid = !!s && keyOf(s) === scope;
-    return { accountId, roomId, generation, role: s?.role ?? null, pending, reading, error, needsReadback,
+    return { accountId, roomId, generation, visitorCareAvailable: !!s && uuid(s.visitLease?.leaseId) && uuid(s.visitLease?.sessionId) && s.visitLease.sessionId === s.sessionVersion, role: s?.role ?? null, pending, reading, error, needsReadback,
       inventoryConfirmed, retry: operation ? { action: operation.action, requestId: operation.requestId ?? null } : null,
       confirmed: clone(confirmed), ready: valid && !!snapshot && snapshot.layoutRevision === s.revision && !needsReadback && !error,
       snapshot: valid ? clone(snapshot) : null };
@@ -116,9 +117,11 @@ export function createRoomPlantClient({ getClient, getUserId, getRoomState, isAv
     } finally { if (current(gen, key)) { reading = false; emit(); } else sync(); }
   }
   const target = objectId => context()?.objects?.find(o => o.id === objectId && o.itemId === ROOM_PLANT_ITEM && o.surface === "floor");
-  const ownerReady = () => state().ready && context()?.role === "owner" && snapshot.featureStatus === "ACTIVE" && !pending && !reading && !operation;
+  const commandReady = () => state().ready && snapshot.featureStatus === "ACTIVE" && !pending && !reading && !operation;
+  const ownerReady = () => commandReady() && context()?.role === "owner";
   async function send(op) {
-    const s = context(); if (!s || s.role !== "owner" || pending || reading) return false;
+    const s = context(); if (!s || (s.role !== "owner" && !(s.role === "visitor" && op.visitor && op.action === "CARE")) || pending || reading) return false;
+    if (op.visitor && (s.visitLease?.leaseId !== op.args.p_visit_lease || s.visitLease?.sessionId !== op.args.p_visit_session)) { operation = null; snapshot = null; error = "PLANT_ACCESS_DENIED"; emit(); return false; }
     const gen = generation, key = scope;
     pending = true; error = null; operation = op; confirmed = null; emit();
     let success = false;
@@ -134,7 +137,7 @@ export function createRoomPlantClient({ getClient, getUserId, getRoomState, isAv
           || !["GRANTED", "ALREADY_PROCESSED", "ALREADY_OWNED"].includes(r.inventory.status)) throw Error("UNAVAILABLE");
         inventoryConfirmed = false;
       } else if (r.requestId !== op.requestId || r.objectId !== op.args.p_object || r.action !== op.action
-        || r.definitionVersion !== 1 || r.plantRevision !== op.expectedRevision + 1) throw Error("UNAVAILABLE");
+        || r.definitionVersion !== 1 || (op.visitor ? r.plantRevision !== undefined : r.plantRevision !== op.expectedRevision + 1)) throw Error("UNAVAILABLE");
       confirmed = { action: op.action }; operation = null; needsReadback = true; snapshot = null; success = true;
     } catch (cause) {
       if (current(gen, key)) {
@@ -164,9 +167,13 @@ export function createRoomPlantClient({ getClient, getUserId, getRoomState, isAv
         args: { p_room: roomId, p_object: objectId, p_request_id: id } });
     },
     async care(objectId) {
-      sync(); const p = snapshot?.plant;
-      if (!ownerReady() || !snapshot.planterOwned || !p?.canCare || p.objectId !== objectId || !target(objectId)) return false;
+      sync(); const visitor = context()?.role === "visitor";
+      const p = visitor ? snapshot?.plants?.find(p => p.objectId === objectId) : snapshot?.plant;
+      if (!commandReady() || (!visitor && !snapshot.planterOwned) || !p?.canCare || p.objectId !== objectId || !target(objectId)) return false;
       const id = requestId(); if (!uuid(id)) return false;
+      if (visitor && !state().visitorCareAvailable) return false;
+      if (visitor) return send({ action: "CARE", visitor: true, requestId: id, name: "care_visited_room_plant_v1",
+        args: { p_room: roomId, p_object: objectId, p_care_token: p.careToken, p_request_id: id, p_visit_session: context().visitLease.sessionId, p_visit_lease: context().visitLease.leaseId } });
       return send({ action: "CARE", expectedRevision: p.revision, requestId: id, name: "care_my_room_plant_v1",
         args: { p_room: roomId, p_object: objectId, p_revision: p.revision, p_request_id: id } });
     },

@@ -63,3 +63,45 @@ jobs:
           path: test-results/room-plant/
           if-no-files-found: error
           retention-days: 14
+  real-admission:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      WORLD_SMOKE_DISABLE_WEBGPU: '1'
+      EXPECTED_PLANT_HEAD: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - uses: supabase/setup-cli@v3
+        with:
+          version: 2.117.0
+      - name: Install pinned browser and SQL client
+        run: |
+          npm ci --prefix apps/world/tests/browser --ignore-scripts --no-audit --no-fund
+          (cd apps/world/tests/browser && npx --no-install playwright install --with-deps chromium)
+          sudo apt-get install -y fonts-noto-cjk postgresql-client
+      - name: Exact-head disposable replay and actual lease-to-CARE browser integration
+        run: |
+          set -euo pipefail
+          unset SUPABASE_ACCESS_TOKEN SUPABASE_DB_PASSWORD
+          mkdir -p test-results/room-plant-live
+          test "$(git rev-parse HEAD)" = "$EXPECTED_PLANT_HEAD"
+          git rev-parse HEAD > test-results/room-plant-live/head.txt
+          supabase start > /tmp/plant-supabase-start.log 2>&1 || { cat /tmp/plant-supabase-start.log; exit 1; }
+          node scripts/room-plant-browser-local.mjs 2>&1 | tee test-results/room-plant-live/browser.log
+      - name: Stop disposable stack
+        if: always()
+        run: supabase stop --no-backup
+      - name: Preserve actual SQL and browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: room-plant-real-admission-${{ github.event.pull_request.head.sha }}
+          path: test-results/room-plant-live/
+          if-no-files-found: error
+          retention-days: 14

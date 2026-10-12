@@ -9,7 +9,8 @@ const root = fileURLToPath(new URL('../../', import.meta.url)), db = new PGlite(
 const id=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 const q=s=>db.exec(s), scalar=async(s,p=[])=>Object.values((await db.query(s,p)).rows[0])[0];
 const base='supabase/migrations/20261001213132_public_baseline.sql', h3='supabase/migrations/20261005022000_world_personal_room_knock_h3.sql';
-const source=p=>readFileSync(root+p,'utf8');
+const productionMirror=process.env.PLANT_PRODUCTION_MIRROR_QA==='1';
+const source=p=>{const raw=readFileSync(root+p,'utf8');return productionMirror&&p.endsWith('20261012024000_world_room_plant_candidate.sql')?raw.replace(/^    \('furniture\.cooking_station'.*\n/m,''):raw;};
 function fn(path,name) { const s=source(path),i=s.toLowerCase().indexOf(`function ${name}(`),start=s.toLowerCase().lastIndexOf('create',i);assert.ok(i>=0,name);const m=/\bAS\s+(\$[^$]*\$)/i.exec(s.slice(i));const end=s.indexOf(m[1]+';',i+m.index+m[0].length);return s.slice(start,end+m[1].length+1); }
 function table(name) {const s=source(base),i=s.indexOf('CREATE TABLE '+name+' (');assert.ok(i>=0,name);return s.slice(i,s.indexOf('\n);',i)+4);}
 const auth=async(n,anonymous=false)=>{await q('reset role');await db.query("select set_config('request.jwt.claims',$1,false)",[JSON.stringify({sub:id(n),role:'authenticated',is_anonymous:anonymous})]);await q('set role authenticated');};
@@ -41,18 +42,19 @@ try {
   await q(fn('supabase/migrations/20261002131000_world_material_catalog_m1.sql','private.world_inventory_grant_v1'));
   for (const name of ['private.world_room_owner_present_v1','private.world_room_access_v1']) await q(fn(h3,name));
   const f0new=new Set(['furniture.dorm_single_sofa','furniture.dorm_side_table_low','furniture.dorm_bookshelf_slim','furniture.dorm_plant_medium','furniture.dorm_monitor','furniture.dorm_trophy_shelf','furniture.study_books_set']);
-  for (const d of ITEM_CATALOG.filter(d=>d.category==='FURNITURE'&&!f0new.has(d.itemId)&&d.itemId!=='furniture.indoor_planter'))
+  for (const d of ITEM_CATALOG.filter(d=>d.category==='FURNITURE'&&!f0new.has(d.itemId)&&d.itemId!=='furniture.indoor_planter'&&(!productionMirror||d.itemId!=='furniture.cooking_station')))
     await db.query('insert into private.world_item_catalog values($1,$2,$3,$4,$5)',[d.itemId,d.category,d.ownershipPolicy,d.maxStack,d.status]);
   await q(source('supabase/migrations/20261002136000_world_personal_room_furniture_d3.sql'));
   await q(source('supabase/migrations/20261009142600_world_personal_room_f0_furniture.sql'));
   await q(source('supabase/migrations/20261012024000_world_room_plant_candidate.sql'));
+  await q(source('supabase/migrations/20261012052000_world_room_plant_friend_care.sql'));
   await q(`insert into auth.users values('${id(1)}',false),('${id(2)}',false),('${id(3)}',false),('${id(4)}',true),('${id(5)}',false);
     insert into public.profiles values('${id(1)}','owner',false),('${id(2)}','friend',false),('${id(3)}','stranger',false),('${id(4)}','guest',false),('${id(5)}','banned',true);
     insert into public.world_player_rooms(id,owner_user_id) values('${room}','${id(1)}'),('${roomB}','${id(2)}');
     insert into public.world_friendships values('${id(1)}','${id(2)}','accepted','${id(1)}');`);
   eq(await scalar('select private.world_room_plant_enabled_v1()'),false,'CLOSED by default');
   eq(await scalar("select status from private.world_item_catalog where item_id='furniture.indoor_planter'"),'COMING_SOON');
-  eq(await scalar('select count(*)::int from private.world_room_furniture_v1()'),18,'all legacy + cooking definitions preserved');
+  eq(await scalar('select count(*)::int from private.world_room_furniture_v1()'),productionMirror?17:18,productionMirror?'Production legacy16 + planter only':'all legacy + cooking definitions preserved');
   for(const role of ['anon','authenticated','service_role']) for(const t of ['world_room_plants','world_room_plant_receipts'])
     for(const perm of ['SELECT','INSERT','UPDATE','DELETE']) eq(await scalar('select has_table_privilege($1,$2,$3)',[role,`private.${t}`,perm]),false,'no direct table access');
   for(const signature of ['public.claim_my_room_planter_v1(uuid)','public.plant_my_room_plant_v1(uuid,uuid,uuid)','public.care_my_room_plant_v1(uuid,uuid,integer,uuid)','public.get_world_room_plants_v1(uuid)']) {
@@ -102,7 +104,7 @@ try {
   await q("reset role; update private.world_room_plants set planted_at=clock_timestamp()-interval '43 hours',first_cared_at=clock_timestamp()-interval '42 hours',second_cared_at=clock_timestamp()-interval '21 hours'");
   await auth(1);eq((await read()).plant.stage,'BLOOM');eq((await read()).plant.canCare,false);
   await auth(2);const visitor=await read();eq(Object.keys(visitor).sort(),['featureStatus','layoutRevision','plants','role','roomId']);
-  eq(Object.keys(visitor.plants[0]).sort(),['objectId','plantId','stage']);eq(visitor.plants[0].stage,'BLOOM');
+  eq(Object.keys(visitor.plants[0]).sort(),['canCare','careToken','objectId','plantId','stage']);eq(visitor.plants[0].stage,'BLOOM');
   await rejects(()=>care(600,3,other),/PLANT_ACCESS_DENIED/);await rejects(()=>scalar('select public.claim_my_room_planter_v1($1)',[room]),/PLANT_ACCESS_DENIED/);
   await q(`reset role; insert into private.world_room_owner_presence values('${room}',now())`);
   await auth(2);await rejects(read,/PLANT_ACCESS_DENIED/);
@@ -133,5 +135,45 @@ try {
   await q('reset role');eq(await scalar('select count(*)::int from private.world_room_plants'),0,'receipt failure rolls back plant state atomically');
   await q('drop trigger fixture_fail_plant_receipt on private.world_room_plant_receipts; drop function private.fixture_fail_plant_receipt()');
   await auth(2);eq((await scalar('select public.plant_my_room_plant_v1($1,$2,$3)',[roomB,object,id(300)])).userId,id(2),'same request is actor scoped');
+  // Local contract fixture only. Full Supabase tests exercise the actual #353 lease authority.
+  await q(`reset role; insert into public.world_friendships values('${id(2)}','${id(3)}','accepted','${id(2)}')`);
+  const visit=(req,token,session=id(900),lease=id(901),o=object)=>scalar(
+    'select public.care_visited_room_plant_v1($1,$2,$3,$4,$5,$6)',[roomB,o,token,id(req),session,lease]);
+  const readB=()=>scalar('select public.get_world_room_plants_v1($1)',[roomB]);
+  await auth(3);let tip=(await readB()).plants[0].careToken;
+  eq(typeof tip,'string');await rejects(()=>visit(700,tip),/PLANT_ACCESS_DENIED/,'missing lease integration fails closed');
+  await q(`reset role; create table private.fixture_plant_visit_leases(actor uuid,room uuid,session uuid,lease uuid,expires timestamptz,enabled boolean);
+    insert into private.fixture_plant_visit_leases values('${id(3)}','${roomB}','${id(900)}','${id(901)}',clock_timestamp()+interval '30 seconds',true);
+    create function private.world_room_chat_plant_lease_v1(p_user uuid,p_room uuid,p_session uuid,p_lease uuid) returns boolean language sql volatile security definer set search_path='' as $$
+      select private.world_room_access_v1(p_user,p_room)='VISITOR' and exists(select 1 from private.fixture_plant_visit_leases where actor=p_user and room=p_room and session=p_session and lease=p_lease and expires>clock_timestamp() and enabled)
+    $$;`);
+  await auth(3);await rejects(()=>visit(700,tip,id(902)),/PLANT_ACCESS_DENIED/);await rejects(()=>visit(700,tip,id(900),id(902)),/PLANT_ACCESS_DENIED/);
+  await rejects(()=>scalar('select public.claim_my_room_planter_v1($1)',[roomB]),/PLANT_ACCESS_DENIED/);
+  await rejects(()=>scalar('select public.plant_my_room_plant_v1($1,$2,$3)',[roomB,object,id(700)]),/PLANT_ACCESS_DENIED/);
+  await rejects(()=>scalar('select public.save_my_room_furniture_v1($1,1,$2)',[roomB,'[]']),/LAYOUT_DENIED/);
+  const friendCare=await visit(700,tip);eq(Object.keys(friendCare).sort(),['action','definitionVersion','objectId','requestId','roomId','status','userId']);
+  eq(friendCare.userId,id(3));eq(await visit(700,tip),friendCare,'exact current-lease replay');
+  for(let i=0;i<12;i++)eq(await visit(700,tip),friendCare,'same request does not grow twice');
+  await rejects(()=>visit(701,tip),/PLANT_CONFLICT/);
+  await q('reset role');eq(await scalar('select revision from private.world_room_plants where user_id=$1',[id(2)]),2);
+  eq(await scalar('select count(*)::int from private.world_room_plant_receipts where coalesce(owner_user_id,user_id)=$1',[id(2)]),2,'owner/visitor share one bounded ledger');
+  await q(`update private.fixture_plant_visit_leases set enabled=false`);await auth(3);await rejects(()=>visit(700,tip),/PLANT_ACCESS_DENIED/,'retry is not admission');
+  await q(`reset role; update private.fixture_plant_visit_leases set enabled=true,expires=clock_timestamp()-interval '1 millisecond'`);await auth(3);await rejects(()=>visit(700,tip),/PLANT_ACCESS_DENIED/);
+  await q(`reset role; update private.fixture_plant_visit_leases set expires=clock_timestamp()+interval '30 seconds'; insert into public.world_user_blocks values('${id(2)}','${id(3)}')`);
+  await auth(3);await rejects(()=>visit(700,tip),/PLANT_ACCESS_DENIED/);
+  await q(`reset role; delete from public.world_user_blocks; update public.world_player_rooms set visibility='private' where id='${roomB}'`);await auth(3);await rejects(()=>visit(700,tip),/PLANT_ACCESS_DENIED/);
+  await q(`reset role; update public.world_player_rooms set visibility='friends' where id='${roomB}'; insert into private.world_room_knocks values('${roomB}','${id(3)}','DECLINED',now(),now())`);await auth(3);await rejects(()=>visit(700,tip),/PLANT_ACCESS_DENIED/);
+  await q('reset role; delete from private.world_room_knocks');await auth(2);await scalar('select public.save_my_room_furniture_v1($1,1,$2)',[roomB,'[]']);
+  await auth(3);await rejects(()=>visit(700,tip),/PLANTER_REQUIRED/,'visitor historical retry requires present saved object');
+  await auth(2);await scalar('select public.save_my_room_furniture_v1($1,2,$2)',[roomB,objects(other)]);
+  await auth(3);await rejects(()=>visit(700,tip,id(900),id(901),other),/IDEMPOTENCY_CONFLICT/);
+  await q(`reset role; update private.world_room_plants set planted_at=clock_timestamp()-interval '22 hours',first_cared_at=clock_timestamp()-interval '21 hours' where user_id='${id(2)}'`);
+  await auth(3);const newTip=(await readB()).plants[0].careToken;eq(newTip===tip,false,'token rotated on prior care');
+  await rejects(()=>visit(702,tip,id(900),id(901),other),/PLANT_CONFLICT/);
+  await q('reset role; update private.fixture_plant_visit_leases set enabled=false');await auth(2);
+  eq((await scalar('select public.care_my_room_plant_v1($1,$2,2,$3)',[roomB,other,id(703)])).plantRevision,3,'owner independent of chat outage');
+  await q('reset role');eq(await scalar('select count(*)::int from private.world_room_plant_receipts where coalesce(owner_user_id,user_id)=$1',[id(2)]),3);
+  await q(`delete from auth.users where id='${id(2)}'`);
+  eq(await scalar('select count(*)::int from private.world_room_plants'),0);eq(await scalar('select count(*)::int from private.world_room_plant_receipts'),0,'owner cascade removes visiting-actor receipts without append-only conflict');
   console.log(`PASS: ${checks} SQL assertions in PGlite; real candidate, Inventory grant, H2 save and H3 access helpers. Full Supabase replay, independent-connection concurrency and live accounts UNKNOWN.`);
 } finally { await db.close(); }

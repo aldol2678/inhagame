@@ -19,7 +19,10 @@ const FEEDBACK = Object.freeze({
   moderated: "보낼 수 없는 표현이 있어요.",
   offline: "온라인 연결이 돌아오면 다시 보내 주세요.",
   signed_out: "INHAGAME에 로그인하면 채팅할 수 있어요.",
-  local_room: "실내 공간은 아직 혼자만 있는 공간이라 채팅이 연결되지 않아요."
+  local_room: "이 공간에서는 채팅을 사용할 수 없어요.",
+  room_unavailable: "지금은 방 채팅을 사용할 수 없어요. 연결 후 다시 시도해 주세요.",
+  pending: "전송 중이에요.",
+  cancelled: ""
 });
 
 const isTyping = (target) => !!target?.closest?.("input, textarea, select, [contenteditable]");
@@ -41,6 +44,9 @@ export function createChatPanel({
   let feedEntries = [];
   let fadeTimer = null;
   let previewFaded = false;
+  let sendEpoch = 0;
+  let pending = false;
+  let roomScope = false;
 
   const setTimer = typeof win?.setTimeout === "function" ? win.setTimeout.bind(win) : null;
   const clearTimer = typeof win?.clearTimeout === "function" ? win.clearTimeout.bind(win) : null;
@@ -103,6 +109,8 @@ export function createChatPanel({
       onFocusChat();
       if (focus) input.focus?.();
     } else {
+      sendEpoch += 1;
+      pending = false;
       input.blur?.();
       hint.textContent = "";
       if (changed) onOpenChange(false);
@@ -118,18 +126,30 @@ export function createChatPanel({
   function send() {
     const chat = getChat();
     if (!chat) return "signed_out";
+    if (pending) return "pending";
     if (!input.value.trim()) {
       input.value = "";
       setOpen(false);
       return "empty";
     }
-    const { result } = chat.submit(input.value);
-    hint.textContent = FEEDBACK[result] ?? "";
-    if (result === "sent") {
-      input.value = "";
-      setOpen(false);
+    const value = input.value;
+    const token = ++sendEpoch;
+    const finish = ({ result } = { result: "offline" }, checkSource = false) => {
+      // A late acknowledgement cannot close a newer composer, erase edited text, or cross rooms.
+      if (token !== sendEpoch || (checkSource && getChat() !== chat)) return "cancelled";
+      pending = false;
+      if (input.value !== value) { hint.textContent = ""; return result; }
+      hint.textContent = FEEDBACK[result] ?? "";
+      if (result === "sent") { input.value = ""; setOpen(false); }
+      return result;
+    };
+    let outcome;
+    try { outcome = chat.submit(value); } catch { return finish({ result: "offline" }); }
+    if (outcome?.then) {
+      pending = true; hint.textContent = FEEDBACK.pending;
+      return Promise.resolve(outcome).then(value => finish(value, true), () => finish({ result: "offline" }, true));
     }
-    return result;
+    return finish(outcome);
   }
 
   function refreshAvailability() {
@@ -167,6 +187,13 @@ export function createChatPanel({
     setOpen,
     send,
     renderFeed,
-    refreshAvailability
+    refreshAvailability,
+    setRoomScope(value) {
+      if (roomScope === Boolean(value)) return;
+      roomScope = Boolean(value);
+      input.placeholder = roomScope ? "이 방 참가자에게 말하기" : "근처 15m에 말하기";
+      input.setAttribute("aria-label", roomScope ? "이 방 참가자에게 채팅" : "근처 15m 채팅");
+    },
+    reset() { sendEpoch += 1; pending = false; input.value = ""; setOpen(false, { focus: false }); renderFeed([]); refreshAvailability(); }
   };
 }

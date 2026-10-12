@@ -57,6 +57,7 @@ export function createPersonalRoomSession({
   let active = null;
   let epoch = 0;
   let lastKey = "";
+  let chatBubbleFor = () => null;
   const stats = { entered: 0, denied: 0, evicted: 0, checks: 0, checkErrors: 0 };
 
   function status() {
@@ -79,6 +80,7 @@ export function createPersonalRoomSession({
       active: true,
       phase: active.local ? RoomSessionPhase.LOCAL
         : active.net ? (online ? RoomSessionPhase.READY : RoomSessionPhase.DEGRADED) : RoomSessionPhase.CHECKING,
+      sessionId: active.sessionId, zoneId: active.zoneId,
       roomId: active.roomId, ownerUserId: active.ownerUserId, ownerDisplayName: active.ownerDisplayName,
       role: active.role, visibility: active.visibility, state, online,
       count: participants.length,
@@ -236,7 +238,8 @@ export function createPersonalRoomSession({
     const sample = poseSource.sample(step);
     if (sample.jumped) current.net.reportJump();
     current.net.update(sample.pose);
-    current.view.sync(current.net.sampleRemotes(), step);
+    current.view.sync(current.net.sampleRemotes().map(sample => ({ ...sample,
+      bubble: chatBubbleFor(sample.sessionId, sample.userId) })), step);
     const online = current.net.state === ConnectionState.ONLINE;
     // A reconnect re-asks at once: access may have changed while we were away.
     if (online && !current.wasOnline) {
@@ -250,6 +253,7 @@ export function createPersonalRoomSession({
 
   return {
     enter, stop, update,
+    setChatBubbles: (getBubble) => { chatBubbleFor = typeof getBubble === "function" ? getBubble : () => null; },
     revalidateNow: () => revalidate(active),
     setEquipment(equipment) { return active?.net?.setEquipment(equipment ?? null) === true; },
     setVisibility(visibility) {

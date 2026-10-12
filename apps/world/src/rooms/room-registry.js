@@ -1,8 +1,8 @@
 // Indoor spaces and the campus doorways that lead to them.
 //
 // A room is its own space, identified by a ROOM_* id. It is NOT a campus Place Zone (AREA_*),
-// and it has no Realtime channel in Club Room P0: interiors are local-only. A future Room
-// Session (S1-D) attaches to this id with its own channel, never world:campus:*.
+// and never joins world:campus:*. ClubRoomSession admits members to ROOM_CLUBHOUSE_01;
+// PersonalRoomSession uses persistent personal-room UUIDs. The two access contracts stay separate.
 
 import { HALL_FRONT } from "../basic-campus.js";
 import { CLUB_ROOM_BOUNDS, CLUB_ROOM_EXIT, CLUB_ROOM_OBSTACLES, CLUB_ROOM_SPAWN } from "./club-room-layout.js";
@@ -78,6 +78,8 @@ export const ROOMS = Object.freeze({
     exitLabel: "본관으로 나가기",
     locationLabel: "🏠 동아리방",
     type: "club",
+    sessionKind: "club",
+    capacity: 6,
     spawn: CLUB_ROOM_SPAWN,
     exit: CLUB_ROOM_EXIT,
     obstacles: CLUB_ROOM_OBSTACLES,

@@ -271,8 +271,8 @@ where m[2] in (select tbl from authority_table);
 
 create temp table authority_allowed_write(tbl text, writer text) on commit drop;
 insert into authority_allowed_write values
-  ('world_room_plants', 'private.world_room_plant_command_v1'),
-  ('world_room_plant_receipts', 'private.world_room_plant_command_v1'),
+  ('world_room_plants', 'private.world_room_plant_command_v2'),
+  ('world_room_plant_receipts', 'private.world_room_plant_command_v2'),
   ('world_recipe_receipts', 'public.cook_my_world_recipe_v1'),
   ('world_wallets', 'private.world_wallet_apply_v1'),
   ('world_currency_transactions', 'private.world_wallet_apply_v1'),

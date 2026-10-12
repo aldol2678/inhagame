@@ -41,7 +41,12 @@ export function createRoomPlantPanel({ client, getRoomState, onPlace = async () 
     else if (s.role === "visitor") {
       const p = s.snapshot.plants.find(p => p.objectId === targetId);
       panel.append(node("p", p ? LABEL[p.stage] : "아직 꽃을 심지 않은 화분이에요."));
-      panel.append(node("p", "친구가 키운 모습을 감상할 수 있어요. 돌봄은 방 주인만 할 수 있어요."));
+      panel.append(node("p", "물주기가 필요할 때 친구의 꽃을 함께 돌볼 수 있어요. 보상 없이 꽃이 자라는 걸 도와줘요."));
+      if (p?.canCare) {
+        panel.append(button("친구 꽃 물주기", () => void client.care(p.objectId), s.reading || s.pending || !s.visitorCareAvailable));
+        if (!s.visitorCareAvailable) panel.append(node("p", "방 연결을 확인하고 있어요. 연결되면 물을 줄 수 있어요."));
+      }
+      else if (p && p.stage !== "BLOOM") panel.append(node("p", "지금은 자라는 중이에요. 서두르지 않아도 괜찮아요."));
     } else if (!s.snapshot.planterOwned) {
       panel.append(node("p", "무료 재배용 화분을 계정당 한 번 받을 수 있어요. 작은 꽃 한 송이를 심어 방에 남겨 보세요."));
       panel.append(button("첫 화분 받기 · 무료", () => void client.claim(), s.reading || s.pending));

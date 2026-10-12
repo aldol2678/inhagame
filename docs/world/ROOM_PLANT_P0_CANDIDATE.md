@@ -10,24 +10,25 @@ Baseline: `af532a53c433479e12354f88a5a1c234075de5e7` (main, checked 2026-10-12).
 - Three appearances: SPROUT → BUD → BLOOM. Before planting, the pot contains soil. No death, regression, expiration, late penalty, restart, harvest, sale, seed multiplication, XP or repeat reward.
 - Planting and first care fit a short visit. Two later visits are encouraged, without a deadline or a forced 3–5 minute wait. The 20-hour interval provides four hours of scheduling flexibility against a daily habit. It is independent of the existing 75-minute World cycle.
 - Bloom stays permanently. Recalling a planter and placing it with a new furniture object UUID preserves its plant. Existing `furniture.dorm_plant_medium` stays a STATIC decoration.
-- Allowed visitors see the current silhouette in the room. They cannot claim, plant, water, or read the owner's inventory, plant revision, deadlines or receipts.
+- Allowed visitors see the current silhouette in the room and can water when ready with their current 30-second room-chat admission lease. They may help water after normal server admission, but cannot claim, plant, edit furniture, or read the owner's inventory, plant revision, deadlines or receipts.
 
 ## Authority and data
 
 `private.world_room_plants` is keyed by `(user_id, planter_item_id)`. It stores the fixed plant/version, planting and two care timestamps, and mutation revision 1–3. Stage is derived by the server at read time; no scheduler or per-frame database write is necessary. Growth continues while stored, but care requires a currently saved placement.
 
-`private.world_room_plant_receipts` binds actor/request UUID to room/object/action/expected revision and stores the historical success receipt. There are at most three successful receipts per owner. Failed, early, conflicting and no-op requests create no receipt. Receipts are append-only except for account-deletion cascade. State and receipt commit or roll back together.
+`private.world_room_plant_receipts` binds actor/request UUID (separately from owner/revision uniqueness) to room/object/action/expected revision and stores the historical success receipt. There are at most three successful receipts per owner. Failed, early, conflicting and no-op requests create no receipt. Receipts are append-only except for account-deletion cascade. State and receipt commit or roll back together.
 
 Both tables are private with RLS and no direct anon/authenticated/service-role grants. The candidate adds no fields to Housing's `{id,itemId,surface,x,z,yaw}` object contract. The SQL furniture mirror retains all prior 17 definitions and adds the new planter.
 
-Public authenticated RPCs:
+Public authenticated RPCs (all remain operationally CLOSED):
 
 | RPC | Purpose |
 | --- | --- |
 | `claim_my_room_planter_v1(p_room)` | Free starter with a server-owned lifetime grant key; retries cannot regrant even after revocation |
 | `plant_my_room_plant_v1(p_room,p_object,p_request_id)` | Create one permanent plant using the currently saved owned planter |
 | `care_my_room_plant_v1(p_room,p_object,p_revision,p_request_id)` | Guarded first/second care with expected revision |
-| `get_world_room_plants_v1(p_room)` | Fresh server-derived owner state or visitor silhouette projection |
+| `care_visited_room_plant_v1(p_room,p_object,p_care_token,p_request_id,p_visit_session,p_visit_lease)` | Admitted friend care, no claim/edit/reward; every call checks fresh 30-second server lease and H3 |
+| `get_world_room_plants_v1(p_room)` | Fresh server-derived owner state or visitor appearance + ready-care token projection |
 
 Writes validate the authenticated permanent account, current owner room, saved object and current UNIQUE ownership. Lock order follows Inventory advisory → room → layout → ownership → plant, matching Housing save. The command clock is captured once after locks. An old matching request returns its existing success receipt after actor/owner checks; this is historical proof, never authority to restore a removed item or object. The client must read current state afterward.
 
@@ -39,7 +40,7 @@ Reads reuse current H3 room access, including relationship/privacy/block/ban/kno
 - Account, room, owner/visitor role, session generation, saved layout revision, layout loading/error, editor mode and busy transitions invalidate stale responses. A→B→A account switching cannot accept an earlier A response.
 - Lost command replies retain the exact immutable request UUID and arguments. Confirmed success with failed fresh readback offers a readback action rather than creating a new mutation. Starter acquisition also requires fresh account-bound Inventory before placement.
 - Inventory revocation invalidates in-flight plant reads and cached visuals. Stored/replaced object IDs are resolved against the latest saved layout. Client clocks never determine growth or unlock care.
-- The panel reuses the room editor shell, focus handling and touch-sized controls; Escape, Tab and browser Back are covered by deterministic tests. Owner entry is through an optional HUD button and saved-object action. Visitors have display-only text.
+- The panel reuses the room editor shell, focus handling and touch-sized controls; Escape, Tab and browser Back are covered by deterministic tests. Owner entry is through an optional HUD button and saved-object action. Visitors get a water button only while the flower is ready and a current account/room/session-bound chat lease is available.
 - Three self-authored procedural meshes reuse PlayCanvas materials and the existing furniture renderer. The visible growth overlay does not replace the existing furniture collider array. No external bitmap/model dependency or additional light is introduced.
 
 ## Local evidence (2026-10-12)
@@ -91,3 +92,16 @@ Minimum opening sequence (requires separate approval; none of these operational 
 3. After DB readback verifies those exact changes, release the client availability change (`ROOM_PLANT_AVAILABLE=true`) and replace the preparatory catalog copy. This client change/deployment also needs the applicable explicit approval. Confirm claim once, saved-object planting, server-time care, lost-reply replay, visitor denial, recall/re-add and no Wallet/XP movement using authorized test accounts. Client/server/catalog must agree; a lone client or server flag must fail closed.
 
 Rollback/hold: close server/client access and preserve all owned items, plant timestamps and immutable receipts. Never delete growth or regrant the starter to reset users. Actual target migration state, production accounts, client activation, deployment and physical-device review are not established by CI and must be recorded separately.
+
+
+## Approved friend-care extension (2026-10-12)
+
+The user explicitly added helping water a friend's planter. The original owner-only closed migration is preserved. The new forward migration `20261012052000_world_room_plant_friend_care.sql` adds an opaque rotating care token, separates command actor from plant owner in immutable receipts, and adds the narrow friend CARE RPC. There is still exactly one free planter per eligible account, at most two care mutations per plant, fixed 20-hour growth intervals, and zero coin/Character EXP/Life Skill XP output.
+
+A visitor never receives owner inventory, private growth timestamps, mutation revision, wallet/XP or another actor's receipts. Appearance plus readiness and an opaque concurrency token is the complete visitor projection. The token alone confers no access. Every visitor command requires the exact server-generated 30-second lease, authenticated actor, personal room and session. The same real #353 room-chat authority is reused; the lease is issued on room entry without opening chat or sending a message. It certifies bounded server admission, not physical position. Explicit leave/replacement revokes the lease; disconnect expires it. Chat disabled, cleanup unhealthy, missing #353 helper, expired/replaced lease, invalid H3, block/unfriend/privacy/ban all fail closed for friend CARE. Owner care remains independent.
+
+Lock order is asset-owner Inventory advisory → room → saved layout → ownership/catalog → plant → visit lease. The last helper locks the lease then checks wall-clock expiry and current H3/chat/cleanup authority. Account and plant gates are rechecked after blocking locks. Owner/friend races either mutate once or return an optimistic conflict; timestamps cannot advance twice. One actor can care for different owners: receipt identity is actor/request, while the unique success bound is owner/revision. A visitor's exact response-loss retry revalidates current lease, layout and ownership before returning its redacted historical proof; it never revives access or placement. Owner-only historical proof semantics remain unchanged.
+
+Client scope includes visitor lease identity as well as account/room/session generation, so lease replacement and L1→L2→L1 or A→B→A invalidate delayed responses. Owner scopes ignore chat lease changes. The combined browser test runs actual RoomChat/Plant/Furniture clients and actual PostgreSQL RPC authorities through a local role bridge; its websocket subscription transport is explicitly doubled and is not evidence of message delivery. #353's real provider tests remain separate. The existing visual suite continues to require enabled actual-room meshes and three growth stages across desktop/portrait/landscape.
+
+Production preflight found 16 existing furniture definitions and no cooking-station catalog, versus the repository's 17-definition baseline. A targeted plant rollout must preserve those exact 16 definitions and append only this planter (17 live definitions), without installing or activating cooking. Inventory grant, account guard, caller and furniture-save bodies match the repository after comment/whitespace normalization. Existing STATIC medium plant and starter book/sofa stock/catalog contracts are preserved. The common H3/retention/lease prerequisite is owned and applied once by the chat rollout; the plant rollout must record and verify that receipt before proceeding.

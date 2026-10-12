@@ -416,7 +416,7 @@ test("31. mobile layout: chat shares the compact social cluster above the joysti
   assert.match(css, /--keyboard-inset/, "chat input still lifts above the on-screen keyboard");
 });
 
-test("34. chat is ephemeral: no storage, no table, no archive", () => {
+test("34. campus chat stays ephemeral; room authority stores no app message history", () => {
   for (const file of ["../src/online/local-chat.js", "../src/online/chat-panel.js", "../src/online/world-online.js"]) {
     assert.doesNotMatch(code(file), /localStorage|sessionStorage|indexedDB|from\("chat|chat_messages|chat_history/, file);
   }
@@ -426,5 +426,9 @@ test("34. chat is ephemeral: no storage, no table, no archive", () => {
   assert.doesNotMatch(main, /(?:chat|Chat)[^\n]*(?:localStorage|sessionStorage|indexedDB)|(?:localStorage|sessionStorage|indexedDB)[^\n]*(?:chat|Chat)/,
     "chat wiring has no persistence calls");
   const migrations = readdirSync(new URL("../../../supabase/migrations/", import.meta.url));
-  assert.ok(!migrations.some((m) => /chat/i.test(m)), "no chat migration");
+  for (const migration of migrations.filter(m => /chat/i.test(m))) {
+    const sql = read(`../../../supabase/migrations/${migration}`);
+    assert.doesNotMatch(sql, /create table[^;]*(?:message_body|chat_messages|chat_history|text_content)/i,
+      "room chat authority adds leases/rate timestamps, not application message history");
+  }
 });

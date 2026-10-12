@@ -51,9 +51,9 @@ test("grant is fixed once; failed Inventory read permits read-only retry, not an
   assert.equal(await h.client.claim(),false);assert.equal(h.calls.filter(c=>c.name==="claim_my_room_planter_v1").length,1);
   h.inventoryOK=true;assert.equal(await h.client.refresh(),true);assert.equal(h.client.state().inventoryConfirmed,true);assert.equal(h.inventoryReads,2);
 });
-test("visitor projection drops private fields and never exposes a mutation",async()=>{
-  const h=rig();h.context.role="visitor";h.context.ownerUserId=B;
-  h.snapshot={roomId:ROOM,role:"visitor",layoutRevision:1,featureStatus:"ACTIVE",plants:[{objectId:OBJECT,plantId:ROOM_PLANT_ID,stage:"BLOOM",lastCare:"secret"}],serverNow:"secret",planterOwned:true};
+test("visitor projection drops private fields and never exposes owner-only mutations",async()=>{
+  const h=rig();h.context.role="visitor";h.context.ownerUserId=B;h.context.sessionVersion=id(80);h.context.visitLease={sessionId:id(80),leaseId:id(81)};
+  h.snapshot={roomId:ROOM,role:"visitor",layoutRevision:1,featureStatus:"ACTIVE",plants:[{objectId:OBJECT,plantId:ROOM_PLANT_ID,stage:"BLOOM",canCare:false,careToken:null,lastCare:"secret"}],serverNow:"secret",planterOwned:true};
   await h.client.refresh();assert.deepEqual(h.client.visuals(),[{objectId:OBJECT,plantId:ROOM_PLANT_ID,stage:"BLOOM"}]);
   assert.equal(h.client.state().snapshot.serverNow,undefined);assert.equal(h.client.state().snapshot.plants[0].lastCare,undefined);
   assert.equal(await h.client.claim(),false);assert.equal(await h.client.plant(OBJECT),false);assert.equal(await h.client.care(OBJECT),false);assert.equal(h.inventoryReads,0);
@@ -104,4 +104,68 @@ test('revocation during an owned read invalidates the stale reply; repeated abse
   const absent={accountId:A,state:'READY',snapshot:{items:[]}};h.client.inventoryChanged(absent);
   finish({data:snap({plant:plant()})});assert.equal(await pending,false);assert.deepEqual(h.client.visuals(),[]);
   h.snapshot=snap({planterOwned:false});h.client.inventoryChanged(absent);assert.equal(await h.client.refresh(),true);assert.equal(h.client.state().snapshot.planterOwned,false);
+});
+
+test("friend care uses opaque token, never owner revision or Inventory, and retries one request",async()=>{
+  const h=rig();h.context.role="visitor";h.context.ownerUserId=B;h.context.sessionVersion=id(80);h.context.visitLease={sessionId:id(80),leaseId:id(81)};
+  h.snapshot={roomId:ROOM,role:"visitor",layoutRevision:1,featureStatus:"ACTIVE",plants:[{objectId:OBJECT,plantId:ROOM_PLANT_ID,stage:"SPROUT",canCare:true,careToken:id(90)}]};
+  await h.client.refresh();h.queue.push({error:{message:"lost reply"}});
+  assert.equal(await h.client.care(OBJECT),false);const op=h.calls.at(-1);
+  assert.deepEqual(op,{name:"care_visited_room_plant_v1",args:{p_room:ROOM,p_object:OBJECT,p_care_token:id(90),p_request_id:id(10),p_visit_session:id(80),p_visit_lease:id(81)}});
+  h.snapshot.plants[0]={...h.snapshot.plants[0],canCare:false,careToken:null};
+  h.queue.push({data:{status:"SUCCESS",userId:A,roomId:ROOM,objectId:OBJECT,requestId:id(10),action:"CARE",definitionVersion:1}});
+  assert.equal(await h.client.retry(),true);assert.deepEqual(h.calls.at(-2),op);assert.equal(h.inventoryReads,0);assert.equal(h.ids,1);
+  assert.equal(await h.client.care(OBJECT),false);assert.equal(await h.client.claim(),false);assert.equal(await h.client.plant(OBJECT),false);
+});
+test("friend care rejects stale A-B-A write result and server permission revocation",async()=>{
+  const h=rig();h.context.role="visitor";h.context.ownerUserId=B;h.context.sessionVersion=id(80);h.context.visitLease={sessionId:id(80),leaseId:id(81)};
+  h.snapshot={roomId:ROOM,role:"visitor",layoutRevision:1,featureStatus:"ACTIVE",plants:[{objectId:OBJECT,plantId:ROOM_PLANT_ID,stage:"SPROUT",canCare:true,careToken:id(90)}]};
+  await h.client.refresh();let finish;h.queue.push(new Promise(r=>finish=r));const pending=h.client.care(OBJECT);
+  h.context.sessionVersion=id(82);h.client.sync();h.context.sessionVersion=id(80);h.client.sync();
+  finish({data:{status:"SUCCESS",userId:A,roomId:ROOM,objectId:OBJECT,requestId:id(10),action:"CARE",definitionVersion:1}});
+  assert.equal(await pending,false);assert.equal(h.client.state().confirmed,null);assert.equal(h.client.state().snapshot,null);
+  await h.client.refresh();h.queue.push({error:{message:"PLANT_ACCESS_DENIED"}});assert.equal(await h.client.care(OBJECT),false);
+  assert.equal(h.client.state().retry,null);assert.equal(h.client.state().snapshot,null);
+});
+test("visitor care projection refuses contradictory or forged tokens",()=>{
+  const ctx={...context(),role:"visitor",ownerUserId:B};
+  for(const extra of [{canCare:true,careToken:null},{canCare:false,careToken:id(90)},{canCare:true,careToken:id(90),stage:"BLOOM"}]){
+    assert.equal(parseRoomPlantSnapshot({roomId:ROOM,role:"visitor",layoutRevision:1,featureStatus:"ACTIVE",plants:[{objectId:OBJECT,plantId:ROOM_PLANT_ID,stage:"SPROUT",...extra}]},ctx),null);
+  }
+});
+
+test("visitor lease replacement and L1-L2-L1 ABA discard old replies; owner scope ignores chat leases",async()=>{
+ for(const aba of [false,true]){
+  const h=rig();h.context.role="visitor";h.context.ownerUserId=B;h.context.sessionVersion=id(80);h.context.visitLease={sessionId:id(80),leaseId:id(81)};
+  h.snapshot={roomId:ROOM,role:"visitor",layoutRevision:1,featureStatus:"ACTIVE",plants:[{objectId:OBJECT,plantId:ROOM_PLANT_ID,stage:"SPROUT",canCare:true,careToken:id(90)}]};
+  await h.client.refresh();let finish;h.queue.push(new Promise(r=>finish=r));const pending=h.client.care(OBJECT);
+  h.context.visitLease={sessionId:id(80),leaseId:id(82)};h.client.sync();
+  if(aba){h.context.visitLease={sessionId:id(80),leaseId:id(81)};h.client.sync();}
+  finish({data:{status:"SUCCESS",userId:A,roomId:ROOM,objectId:OBJECT,requestId:id(10),action:"CARE",definitionVersion:1}});
+  assert.equal(await pending,false);assert.equal(h.client.state().confirmed,null);assert.equal(h.client.state().snapshot,null);
+ }
+ const h=rig();await h.client.refresh();const generation=h.client.state().generation;
+ h.context.visitLease={sessionId:id(80),leaseId:id(81)};h.client.sync();assert.equal(h.client.state().generation,generation);
+});
+
+// Production RoomChat consumes the browser fixture contract too; keep nonce/admission exact.
+test("browser fixture actual RoomChat issues an admission without a message and authorizes friend care",async()=>{
+ const {createRoomChat}=await import('../src/rooms/room-chat.js');
+ const {createPlantBackend,IDS}=await import('./browser/room-plant-backend.mjs');
+ const backend=createPlantBackend(),object=id(88),session=id(89);
+ const own=(name,args)=>backend.rpc(IDS.a,name,args);
+ await own('claim_my_room_planter_v1',{p_room:IDS.roomA});
+ await own('save_my_room_furniture_v1',{p_room:IDS.roomA,p_revision:0,p_objects:[{id:object,itemId:ROOM_PLANT_ITEM,surface:'floor',x:-6,z:0,yaw:0}]});
+ await own('plant_my_room_plant_v1',{p_room:IDS.roomA,p_object:object,p_request_id:id(90)});
+ const rpc={rpc:(name,args)=>backend.rpc(IDS.b,name,args),auth:{getSession:async()=>({data:{session:{user:{id:IDS.b,is_anonymous:false},access_token:'fixture'}}})},
+  realtime:{setAuth:async()=>{}},channel:()=>({on(){return this;},subscribe(fn){queueMicrotask(()=>fn('SUBSCRIBED'));return this;}}),removeChannel:async()=>{}};
+ const chat=createRoomChat({getClient:()=>rpc,getIdentity:()=>({userId:IDS.b}),windowTarget:null});
+ await chat.enter({kind:'personal',roomId:IDS.roomA,sessionId:session});
+ for(let n=0;n<10&&!chat.canChat;n++)await new Promise(r=>setImmediate(r));
+ const lease=chat.personalVisitLease(IDS.roomA);assert.ok(lease);assert.equal(lease.sessionId,session);
+ const read=await backend.rpc(IDS.b,'get_world_room_plants_v1',{p_room:IDS.roomA});
+ const result=await backend.rpc(IDS.b,'care_visited_room_plant_v1',{p_room:IDS.roomA,p_object:object,p_care_token:read.data.plants[0].careToken,p_request_id:id(91),p_visit_session:session,p_visit_lease:lease.leaseId});
+ assert.equal(result.data.status,'SUCCESS');assert.equal(result.data.plantRevision,undefined);
+ assert.equal(backend.snapshot().calls.some(c=>c.name==='send_world_room_chat_v1'),false);
+ chat.stop();assert.equal(chat.personalVisitLease(IDS.roomA),null);
 });
