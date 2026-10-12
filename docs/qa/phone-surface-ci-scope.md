@@ -69,3 +69,11 @@ GitHub 워크플로 및 잡 이름, 필수 체크 컨텍스트는 변경하지 �
 6. 최신 Main과의 호환성 및 보호 규칙 확인 전에는 Draft 해제, 병합 및 배포 금지.
 
 PR #357의 이미 수집된 메시지함 QA는 수정하지 않으며, 이 정책으로 소급해서 PASS/면제를 부여하지 않는다.
+
+## SEO-only extension (2026-10-12, CI-SCOPE-02)
+
+- Content-sensitive exception, not a filename-only bypass: only approved search tags inside the six known HTML page heads may differ; everything else must match byte-for-byte against PR base.
+- Public site root and /campus/ require correct self-canonical and description; four account/editor pages require noindex. Exact static robots.txt and 2-URL sitemap are checked; only the specific SEO test and audit note are optional companions.
+- Required `verify` stays named and must see a successful focused `seo` job. The Public source and local DB suites may be skipped **only** for a verified SEO-only PR merge diff. On unknown history, CI/config edits, scripts, body changes or release/hotfix, fail closed to the full suite.
+- Eleven module-guarded browser jobs may skip expensive steps after their own exact SHA and ancestry check. The nine unmodified protected workflows remain unconditional by previous policy; no claim that all workflow jobs stop running.
+- This CI policy PR changes CI files itself, so requires its ordinary full exact-head verification. Later check SEO-P0 PR #370 after the policy is merged and #370 is rebased; until then SEO-P0 still runs the original CI.

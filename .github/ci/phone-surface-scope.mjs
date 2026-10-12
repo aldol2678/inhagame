@@ -5,6 +5,7 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
+import { isSeoOnly } from './seo-only-scope.mjs';
 
 export const GUARDED_WORKFLOWS = Object.freeze({
   'Graphics integration browser QA': 'graphics-integration-browser.yml',
@@ -165,6 +166,12 @@ export function inspect(env = process.env, runGit = git, loadWorkflow = (file) =
     }
     const before = files.includes(MAIN) ? runGit('show',base+':'+MAIN) : null;
     const after = files.includes(MAIN) ? runGit('show',head+':'+MAIN) : null;
+    // Verified SEO-only edits cannot modify the rendered game/runtime. Check the
+    // WHOLE HTML document outside approved <head> tags, never just path names.
+    const oldBlob = (path) => { try { return runGit('show', base+':'+path); } catch { return null; } };
+    const newBlob = (path) => { try { return runGit('show', head+':'+path); } catch { return null; } };
+    if (isSeoOnly(files, oldBlob, newBlob))
+      return { skip: true, reason: 'verified-seo-only', paths: files };
     return classify(files, {
       workflowName, workflowYaml: loadWorkflow(filename),
       mainBefore: before, mainAfter: after, prTitle: env.CI_PR_TITLE

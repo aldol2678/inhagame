@@ -7,6 +7,13 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { classify, needsDatabase } from './public-ci-scope.mjs';
 
+test('only verified SEO classifications opt into lightweight checks', () => {
+  const files = ['apps/world/index.html', 'apps/world/sitemap.xml'];
+  assert.equal(classify(files), 'full');
+  assert.equal(classify(files, { seoOnly: true }), 'seo');
+  assert.equal(classify(['.github/workflows/public-ci.yml']), 'full');
+});
+
 const cli = fileURLToPath(new URL('./public-ci-scope.mjs', import.meta.url));
 const cases = [
   ['unknown', null, 'full'],
@@ -78,7 +85,7 @@ function runScope(dir, event, before) {
     encoding: 'utf8',
   });
   assert.equal(result.status, 0, result.stderr);
-  assert.match(result.stdout, /^mode=(docs|full)\ndb=(true|false)\n$/);
+  assert.match(result.stdout, /^mode=(docs|seo|full)\ndb=(true|false)\n$/);
   return Object.fromEntries(result.stdout.trim().split('\n').map(line => line.split('=')));
 }
 

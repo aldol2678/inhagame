@@ -2,6 +2,7 @@
 // Unknown scope always runs full verification, including the local Supabase stack.
 import { execFileSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
+import { isSeoOnly } from './seo-only-scope.mjs';
 
 const DOC_FILES = new Set([
   'README.md', 'CONTRIBUTING.md', 'SECURITY.md', 'NOTICE.md', 'LICENSE',
@@ -52,8 +53,9 @@ function isDatabaseIndependent(file) {
   return false;
 }
 
-export function classify(files) {
-  return Array.isArray(files) && files.length > 0 && files.every(isDocs) ? 'docs' : 'full';
+export function classify(files, { seoOnly = false } = {}) {
+  if (Array.isArray(files) && files.length > 0 && files.every(isDocs)) return 'docs';
+  return seoOnly ? 'seo' : 'full';
 }
 
 export function needsDatabase(files) {
@@ -98,7 +100,13 @@ export function changedFiles(env = process.env) {
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   const files = changedFiles();
-  const mode = classify(files);
+  // Only PR merge checkouts with a verified base parent may use SEO fast routing.
+  // Push, unknown history, or any file outside the strict SEO allowlist run full.
+  const oldBlob = (path) => { try { return git('show', 'HEAD^1:' + path); } catch { return null; } };
+  const newBlob = (path) => { try { return git('show', 'HEAD:' + path); } catch { return null; } };
+  const seoOnly = process.env.CI_EVENT === 'pull_request' && files !== null &&
+    isSeoOnly(files, oldBlob, newBlob);
+  const mode = classify(files, { seoOnly });
   const db = mode === 'full' && needsDatabase(files);
   console.log('mode=' + mode);
   console.log('db=' + (db ? 'true' : 'false'));
