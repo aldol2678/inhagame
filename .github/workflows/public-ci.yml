@@ -25,7 +25,7 @@ jobs:
         with:
           node-version: '24.19.0'
       - name: Test scope detection
-        run: node --test .github/ci/public-ci-scope.test.mjs .github/ci/phone-surface-scope.test.mjs
+        run: node --test .github/ci/public-ci-scope.test.mjs .github/ci/phone-surface-scope.test.mjs .github/ci/phone-surface-scope-contract.test.mjs
       - name: Detect verification scope
         id: scope
         env:
