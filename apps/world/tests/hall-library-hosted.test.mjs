@@ -275,6 +275,43 @@ test('diagnostic images preserve captured RGB, vertical orientation and exact un
   assert.throws(()=>convert(before,after,2,3,'rgb-diff'),/size mismatch/);assert.throws(()=>convert(before,after,2,2,'approximation'),/Unsupported/);
 });
 
+test('silhouette background is configured RGBA8 cross-checked against actual empty full-view corners',()=>{
+  const harness=read('./browser/hall-library-hosted-harness.html');
+  const source=harness.match(/function framebufferMaskReference\(clearColor,data,width,height,calibration=null\)\{[\s\S]*?\n\}/)?.[0];assert.ok(source);
+  const reference=runInNewContext(`(${source})`,{},{timeout:1000}),clear={r:.79,g:.84,b:.89};
+  const background=new Uint8Array(Array.from({length:4},()=>[201,214,227,255]).flat());
+  const calibrated=reference(clear,background,2,2);
+  assert.deepEqual(Array.from(calibrated.rgb),[201,214,227],'RGBA8 rounding matches the raw GPU artifact background');
+  assert.equal(calibrated.corners.length,4);
+  const closeup=new Uint8Array(background);closeup.set([211,209,198,255],0);
+  assert.equal(reference(clear,closeup,2,2,calibrated),calibrated,'closeup geometry cannot redefine the established background');
+  assert.throws(()=>reference(clear,closeup,2,2),/does not match/,'an occupied calibration corner must fail');
+  const transformed=new Uint8Array(Array.from({length:4},()=>[230,236,242,255]).flat());
+  assert.throws(()=>reference(clear,transformed,2,2),/does not match/,'a transfer-function or tone-mapping mismatch must fail');
+  assert.throws(()=>reference({...clear,r:.8},background,2,2,calibrated),/changed after calibration/);
+  assert.throws(()=>reference({...clear,r:.7901},background,2,2,calibrated),/changed after calibration/,'even same-byte configured-color drift is rejected');
+  assert.throws(()=>reference({...clear,r:NaN},background,2,2),/Invalid configured/);
+  assert.match(harness,/state.mode!=='full'\|\|campus/,'initial calibration is restricted to the fitted full-view camera');
+  assert.match(harness,/maskReferenceCalibration:maskReference/,'actual background cross-check is retained in every pixel receipt');
+});
+
+test('one shared silhouette background rejects real changes without corner-color false positives',()=>{
+  const harness=read('./browser/hall-library-hosted-harness.html');
+  const source=harness.match(/function isMaskForeground\(data,index,reference\)\{[\s\S]*?\n\}/)?.[0];assert.ok(source);
+  const foreground=runInNewContext(`(${source})`,{},{timeout:1000}),reference=[201,214,227];
+  const before=new Uint8Array([201,214,227,255,211,208,196,255,201,214,227,255]),after=new Uint8Array(before);
+  after.set([211,209,198,255],0); // approved staircase occupies the corner only
+  const changes=()=>[0,4,8].map(index=>foreground(before,index,reference)!==foreground(after,index,reference));
+  assert.deepEqual(changes(),[true,false,false],'unchanged outside RGB keeps the same silhouette classification');
+  after.set([211,209,198,255],8);
+  assert.deepEqual(changes(),[true,false,true],'a real outside background-to-geometry change is still detected');
+  assert.equal(foreground(new Uint8Array([206,219,232]),0,reference),false,'existing L1 threshold 15 is unchanged');
+  assert.equal(foreground(new Uint8Array([207,219,232]),0,reference),true);
+  assert.match(harness,/const fg = isMaskForeground\(data,i,maskReference.rgb\)/);
+  assert.match(harness,/const oldFg = isMaskForeground\(previous,i,maskReference.rgb\)/);
+  assert.doesNotMatch(harness,/data\[i\]-data\[0\]|previous\[i\]-previous\[0\]/,'all hosted silhouette and protected-foreground paths use the common reference');
+});
+
 test('failed assertions retain captured source pair, camera and depth metadata without relaxing gates',()=>{
   const harness=read('./browser/hall-library-hosted-harness.html'),runner=read('./browser/hall-library-hosted-smoke.mjs');
   const evidence=harness.slice(harness.indexOf('  async function diagnosticEvidence()'),harness.indexOf('  function pixels()'));

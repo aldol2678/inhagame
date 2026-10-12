@@ -45,6 +45,26 @@ function diagnosticRgba(before,after,width,height,mode,allowed){
   return result;
 }
 
+function framebufferMaskReference(clearColor,data,width,height,calibration=null){
+  const channels=[clearColor.r,clearColor.g,clearColor.b];
+  if(channels.some(value=>!Number.isFinite(value)||value<0||value>1))throw Error('Invalid configured framebuffer clear color');
+  const rgb=channels.map(value=>Math.round(value*255));
+  if(calibration){
+    if(channels.some((value,index)=>value!==calibration.configured[index])||rgb.some((value,index)=>value!==calibration.rgb[index]))throw Error('Silhouette background changed after calibration');
+    return calibration;
+  }
+  if(data.length!==width*height*4||width<2||height<2)throw Error('Invalid clear-color calibration framebuffer');
+  // The first fitted full view leaves all four corners empty. Cross-check actual
+  // RGBA8 readback, so a linear/sRGB/tonemap mismatch fails instead of silently
+  // choosing a model pixel as background. No additional render or state change.
+  const corners=[0,width-1,(height-1)*width,width*height-1].map(pixel=>Array.from(data.subarray(pixel*4,pixel*4+4)));
+  if(corners.some(pixel=>pixel[3]!==255||rgb.some((value,index)=>value!==pixel[index])))throw Error('Configured clear color does not match fitted-view RGBA8 background');
+  return {rgb,configured:channels,width,height,corners,source:'camera.clearColor rounded to RGBA8; exact four-corner readback calibration on first fitted full view'};
+}
+function isMaskForeground(data,index,reference){
+  return Math.abs(data[index]-reference[0])+Math.abs(data[index+1]-reference[1])+Math.abs(data[index+2]-reference[2])>15;
+}
+
 const qa = window.__HALL_LIBRARY_HOSTED_QA__ = {ready:false};
 try {
   const canvas = document.getElementById('stage');
@@ -86,7 +106,7 @@ try {
   sun.setLocalEulerAngles(40,35,0); app.root.addChild(sun);
   const camera = new pc.Entity('Camera'); camera.addComponent('camera', {fov:48, farClip:1500, clearColor:new pc.Color(.79,.84,.89)}); app.root.addChild(camera);
   let state = {id:'bldg_01', presentation:'candidate', reflected:true, detail:'all', mode:'full'};
-  let previous = null, previousViewKey = null, previousCaptureState = null, previousCameraEvidence = null, lastCapture = null, lastCandidatePair = null, regionCache = null, pending = false, contextLost = false;
+  let previous = null, previousViewKey = null, previousCaptureState = null, previousCameraEvidence = null, lastCapture = null, lastCandidatePair = null, regionCache = null, maskReference = null, pending = false, contextLost = false;
   canvas.addEventListener('webglcontextlost', () => { contextLost = true; qa.error = 'WebGL context lost'; });
   const fail = message => { throw new Error(message); };
   function view(options = {}) {
@@ -173,7 +193,7 @@ try {
       context.putImageData(new ImageData(diagnosticRgba(pair.before,pair.after,pair.width,pair.height,kind,pair.allowed),pair.width,pair.height),0,0);
       const blob=await canvas.convertToBlob({type:'image/png'});images.push({kind,bytes:Array.from(new Uint8Array(await blob.arrayBuffer()))});
     }
-    return {width:pair.width,height:pair.height,previousState:pair.previousState,candidateState:pair.candidateState,sameRenderState:pair.sameRenderState,previousCamera:pair.previousCamera,camera:pair.camera,exterior:pair.exterior,
+    return {width:pair.width,height:pair.height,previousState:pair.previousState,candidateState:pair.candidateState,sameRenderState:pair.sameRenderState,previousCamera:pair.previousCamera,camera:pair.camera,exterior:pair.exterior,maskReferenceCalibration:maskReference,
       source:'Previously captured gl.readPixels bytes; no camera change or recapture',rgbDiff:'Per-channel absolute RGB difference, 1:1 values; alpha 255',outsideMask:'White only where exact RGB changes lie outside approved ROI; black elsewhere',images};
   }
   function pixels() {
@@ -189,6 +209,8 @@ try {
           const data = new Uint8Array(width*height*4), old = gl.getParameter(gl.READ_FRAMEBUFFER_BINDING);
           try { gl.bindFramebuffer(gl.READ_FRAMEBUFFER,null); gl.readPixels(0,0,width,height,gl.RGBA,gl.UNSIGNED_BYTE,data); }
           finally { gl.bindFramebuffer(gl.READ_FRAMEBUFFER,old); }
+          if(!maskReference&&(state.mode!=='full'||campus))fail('Silhouette background must be calibrated in the initial fitted full view');
+          maskReference=framebufferMaskReference(camera.camera.clearColor,data,width,height,maskReference);
           const viewKey=JSON.stringify({id:state.id,reflected:state.reflected,mode:state.mode,detail:state.detail,width,height,position:camera.getPosition().toArray(),rotation:camera.getRotation().toArray()});
           const roi=exteriorPixelRegions(width,height,viewKey);
           const exterior=roi?{compared:!!previous&&previousViewKey===viewKey,padding:roi.padding,roiPixels:roi.roiPixels,outsidePixels:width*height-roi.roiPixels,outsideExactChanged:0,outsideMaskChanged:0,insideExactChanged:0,insideSignificantChanged:0,outsidePixelDiagnostics:emptyOutsidePixelDiagnostic(),regions:roi.regions.map(region=>({...region,exactChanged:0})),protected:roi.protectedRegions.map(region=>({...region,exactChanged:0,foreground:0}))}:null;
@@ -199,11 +221,11 @@ try {
           for (let i=0; i<data.length; i+=4) {
             if (previous && (data[i]!==previous[i] || data[i+1]!==previous[i+1] || data[i+2]!==previous[i+2])) exactChanged++;
             if (previous && Math.abs(data[i]-previous[i])+Math.abs(data[i+1]-previous[i+1])+Math.abs(data[i+2]-previous[i+2])>15) changed++;
-            const fg = Math.abs(data[i]-data[0])+Math.abs(data[i+1]-data[1])+Math.abs(data[i+2]-data[2])>15;
+            const fg = isMaskForeground(data,i,maskReference.rgb);
             if (fg) foreground++;
             if(exterior)for(let k=0;k<exterior.protected.length;k++)if((roi.protectedMask[i/4]&(1<<k))&&fg)exterior.protected[k].foreground++;
             if (previous) {
-              const oldFg = Math.abs(previous[i]-previous[0])+Math.abs(previous[i+1]-previous[1])+Math.abs(previous[i+2]-previous[2])>15;
+              const oldFg = isMaskForeground(previous,i,maskReference.rgb);
               if (fg !== oldFg) maskChanged++;
               if(exterior?.compared){
                 const exact=data[i]!==previous[i]||data[i+1]!==previous[i+1]||data[i+2]!==previous[i+2];
@@ -229,7 +251,7 @@ try {
           lastCapture={width,height,before:previous,after:data,previousState:previousCaptureState,candidateState:{...state},sameRenderState:previousViewKey===viewKey,previousCamera:previousCameraEvidence,camera:cameraEvidence,allowed:roi?.allowed??null,exterior};
           if(state.presentation==='candidate'&&previousCaptureState?.presentation==='preexterior'&&lastCapture.sameRenderState)lastCandidatePair=lastCapture;
           previous = data;previousViewKey=viewKey;previousCaptureState={...state};previousCameraEvidence=cameraEvidence;
-          resolve({width,height,hash:hash>>>0,changed,exactChanged,foreground,maskChanged,maskReferenceRgb:Array.from(data.subarray(0,3)),entryChanged,entryBounds,exterior,camera:cameraEvidence,glError:gl.getError(),contextLost:false});
+          resolve({width,height,hash:hash>>>0,changed,exactChanged,foreground,maskChanged,maskReferenceRgb:maskReference.rgb,maskReferenceCalibration:maskReference,entryChanged,entryBounds,exterior,camera:cameraEvidence,glError:gl.getError(),contextLost:false});
         } catch (error) { reject(error); }
       };
       const timer = setTimeout(() => { app.off('postrender',finish); pending=false; reject(new Error('Pixel frame deadline exceeded (6000ms)')); },6000);

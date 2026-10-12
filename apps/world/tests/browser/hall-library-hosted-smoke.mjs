@@ -105,8 +105,8 @@ function checkEntranceCrop(pixels) {
     && roi.minY>=0 && roi.maxY<=pixels.height && roi.maxY>roi.minY,
   'entry ROI is finite, nonempty and entirely within the framebuffer');
   assert.ok(pixels.entryChanged>10,'central doorway sill pixels actually changed');
-  // A cropped control view starts on the apron, not clear sky. Its corner-color
-  // mask is a material diagnostic; only the fitted full-view gate proves silhouette.
+  // Crops use the same calibrated clear-color reference as all hosted views;
+  // only the fitted full-view gate proves preservation of the whole silhouette.
 }
 function checkJeongseokExterior(pixels,options={}) {
   const exterior=pixels.exterior;
@@ -365,7 +365,7 @@ try {
     if(presentation==='candidate') {
       checkEntranceCrop(pixels);
     }
-    report.closeups.push({id:'bldg_01',presentation,reflected,mode:'entry',scope:presentation==='previous144'?'Literal historical #144 entrance crop':'Entrance crop under the current-main material producer, not full-building framing',maskInterpretation:'Corner-color diagnostic only; full-building silhouette is checked in fitted views',pixels,stable});
+    report.closeups.push({id:'bldg_01',presentation,reflected,mode:'entry',scope:presentation==='previous144'?'Literal historical #144 entrance crop':'Entrance crop under the current-main material producer, not full-building framing',maskInterpretation:'Calibrated-background diagnostic only; full-building silhouette is checked in fitted views',pixels,stable});
     await shot(`desktop-bldg_01-${presentation}-entrance-${reflected?'reflected':'control'}`); await flush();
   }
   // Independent eye-level entrance, underside and stadium-facing views retain
