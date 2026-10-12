@@ -1,145 +1,173 @@
-// Conservative opt-out of unrelated *browser* suites for an isolated Phone member-messages change.
-// This never disables Public verify, Smartphone, Photo, Housing, Mounted Maps, Life Housing,
-// Private Character or World asset canary. Unknown input always runs the full suite.
+// CI-SCOPE-02: fail-closed, workflow-specific impact routing for modular World features.
+// GitHub check names remain stable. A successful skip is a routing decision, NOT a test PASS.
+// Required Public, Smartphone, Photo, Housing, Life Housing, Mounted Maps,
+// Private Character, World stability and Asset Optimizer are intentionally not gated.
 import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
-const PHONE_FILES = new Set([
-  'apps/world/src/phone/phone-messages.js',
-  'apps/world/src/phone/smartphone.js',
-  'apps/world/src/phone/phone-preferences.js',
-  'apps/world/phone.css',
-  'apps/world/tests/browser/phone-messages-harness.html',
-  'apps/world/tests/browser/phone-messages-smoke.mjs',
-  'apps/world/tests/browser/phone-campus-smoke.mjs',
-  'apps/world/tests/phone-preferences.test.mjs'
-]);
-const MAIN = 'apps/world/src/main.js';
-// No context-free main.js edits qualify. This is the reviewed player-card handoff only.
-// Changes to Phone admission, rendering, ownership, lifecycle, game integrations, etc. fail closed.
-const MAIN_ADDED = Object.freeze([
-  '    playerCard.close();',
-  '    if (smartphone?.openMessages?.(userId)) return true;'
-]);
-
-
-// Only the reviewed MENU-02A registry and badge binding may count as a safe
-// smartphone.js or preferences.js edit. All other Phone shell/input changes run full.
-const REVIEWED_PHONE_DELTAS = Object.freeze({
-  "apps/world/src/phone/smartphone.js": Object.freeze([
-  "+import { createPhoneMessages } from './phone-messages.js';",
-  "+  let messageUnread=0;",
-  "+  const messages=createPhoneMessages({getClient,onUnread:count=>{",
-  "+    messageUnread=count;",
-  "+    const badge=root.querySelector('.smartphone-app[data-app-id=\"messages\"] .smartphone-notification-badge');",
-  "+    if(badge){badge.hidden=!count;badge.textContent=count>99?'99+':String(count);}",
-  "+  }});",
-  "-    {id:'attendance',name:'출석부',icon:'📅',available:()=>!!getAttendancePanel(),open(){},close:()=>closeDailySurface('attendance')}",
-  "+    {id:'attendance',name:'출석부',icon:'📅',available:()=>!!getAttendancePanel(),open(){},close:()=>closeDailySurface('attendance')},",
-  "+    {id:'messages',name:'메시지',icon:'💬',available:()=>true,open:params=>messages.activate(params),close:()=>messages.close()}",
-  "-    if(app?.available())n.append(el('span','smartphone-app-icon',app.icon),el('span','smartphone-app-name',app.name));",
-  "+    if(app?.available()){n.append(el('span','smartphone-app-icon',app.icon),el('span','smartphone-app-name',app.name));",
-  "+      if(id==='messages'){const badge=el('b','smartphone-notification-badge',messageUnread>99?'99+':String(messageUnread));badge.hidden=!messageUnread;badge.setAttribute('aria-label','읽지 않은 메시지');n.append(badge);}",
-  "+    }",
-  "+      else if(app.appId==='messages')messages.mount(content);",
-  "-    setAccount(userId){albumManager.reset();shell.close();student.invalidate();album.setScope(userId);warning='';preferences.load();history.load();wallpaperKey='';void setWallpaper();},",
-  "+    setAccount(userId){albumManager.reset();shell.close();messages.setAccount(userId);student.invalidate();album.setScope(userId);warning='';preferences.load();history.load();wallpaperKey='';void setWallpaper();},",
-  "+    openMessages(recipientId){if(shell.state==='CLOSED'&&!open())return false;return shell.ownsInput && launch('messages',{recipientId});},",
-  "-    status:()=>({...shell.snapshot(),scope:album.scope,preferences:preferences.snapshot(),albumError:album.error}),",
-  "-    destroy(){albumManager.reset();shell.close();destroyed=true;clearHold();win.clearInterval(clockTimer);shell.destroy();album.destroy();unsubscribePhoto();",
-  "+    status:()=>({...shell.snapshot(),scope:album.scope,preferences:preferences.snapshot(),albumError:album.error,messages:messages.status()}),",
-  "+    destroy(){albumManager.reset();shell.close();messages.setAccount(null);destroyed=true;clearHold();win.clearInterval(clockTimer);shell.destroy();album.destroy();unsubscribePhoto();"
-]),
-  "apps/world/src/phone/phone-preferences.js": Object.freeze([
-  "-export const PHONE_APP_IDS = Object.freeze(['student-id','maps','camera','album','settings','daily-quiz','attendance']);",
-  "+export const PHONE_APP_IDS = Object.freeze(['student-id','maps','camera','album','settings','daily-quiz','attendance','messages']);"
-]),
-  "apps/world/phone.css": Object.freeze([
-  "+",
-  "+/* PHONE-MENU-02A · single account-scoped Hub messages view inside the Phone. */",
-  "+.smartphone .smartphone-app { position:relative; }",
-  "+.smartphone .smartphone-notification-badge { position:absolute; top:0; right:8px; z-index:2; min-width:18px; padding:2px 5px; color:#132e45; background:#ffe393; border-radius:20px; font-size:11px; }",
-  "+.smartphone .smartphone-notification-badge[hidden] { display:none; }",
-  "+.phone-messages { display:grid; gap:10px; min-width:0; }",
-  "+.phone-messages h3 { margin:0; }",
-  "+.phone-messages-controls { display:flex; gap:8px; flex-wrap:wrap; align-items:center; justify-content:space-between; }",
-  "+.phone-messages-unread { font-size:12px; }",
-  "+.phone-messages-new { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:6px; }",
-  "+.phone-messages input, .phone-messages textarea { min-width:0; width:100%; box-sizing:border-box; border:1px solid #ffffff55; border-radius:10px; background:#15394e; color:#fff; font:inherit; padding:10px; }",
-  "+.phone-messages input:focus-visible, .phone-messages textarea:focus-visible { outline:3px solid #ffe9a4; }",
-  "+.phone-messages-inbox { display:grid; gap:6px; }",
-  "+.smartphone .phone-messages-inbox-item { display:grid; grid-template-columns:1fr auto; text-align:left; gap:3px; overflow-wrap:anywhere; width:100%; }",
-  "+.phone-messages-inbox-item small { grid-column:1 / -1; font-size:12px; opacity:.85; }",
-  "+.phone-messages-count { color:#172d3c; background:#ffe393; border-radius:30px; padding:2px 7px; }",
-  "+.phone-messages-thread { display:grid; gap:8px; max-height:none; }",
-  "+.phone-messages-entry { padding:10px; min-width:0; overflow-wrap:anywhere; background:#17374dcc; border-radius:14px; }",
-  "+.phone-messages-entry.is-mine { background:#24645dcc; margin-left:14px; }",
-  "+.phone-messages-entry p { margin:0 0 6px; white-space:pre-wrap; }",
-  "+.phone-messages-entry small { opacity:.75; }",
-  "+.phone-messages-composer { display:grid; gap:6px; }",
-  "+.phone-messages-report { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }",
-  "+.phone-messages-report select { width:auto; min-width:0; flex:1; }",
-  "+.phone-messages-notice { margin:0; padding:8px; border-radius:8px; background:#15394e; }",
-  "+@media(max-width:380px) { .phone-messages-new { grid-template-columns:1fr; } }"
-])
+export const GUARDED_WORKFLOWS = Object.freeze({
+  'Graphics integration browser QA': 'graphics-integration-browser.yml',
+  'Biryong cloud-save recovery browser QA': 'biryong-cloud-sync-browser.yml',
+  'World Main 2 recovery': 'world-main2-recovery.yml',
+  'NPC shop routing browser checks': 'npc-shop-routing-browser.yml',
+  'Cooking candidate browser QA': 'cooking-candidate-browser.yml',
+  'Room transition recovery browser QA': 'room-transition-recovery-browser.yml',
+  'Quest journal controls browser checks': 'quest-journal-controls-browser.yml',
+  'Asset runtime browser QA': 'asset-runtime-browser.yml',
+  'Player activity audio browser QA': 'player-activity-audio-browser.yml',
+  'Student center integrated campus browser QA': 'student-center-campus-browser.yml',
+  'Biryong map and NPC guidance browser QA': 'biryong-map-guidance-browser.yml'
 });
-const scopedDiffLines = (path,patch) => {
-  if(typeof patch!=='string'||!patch.startsWith('diff --git a/'+path+' b/'+path+'\n')) return null;
-  return patch.split('\n').filter(line=>(line.startsWith('+')&&!line.startsWith('+++'))||
-    (line.startsWith('-')&&!line.startsWith('---')));
-};
-
-export function scopedPhoneMessagesOnly(paths, mainPatch = '', extraPatches = {}) {
-  if (!Array.isArray(paths) || paths.length === 0) return false;
-  if (!paths.every(path => typeof path === 'string' && (PHONE_FILES.has(path) || path === MAIN))) return false;
-  for(const [path,expected] of Object.entries(REVIEWED_PHONE_DELTAS)){
-    if(!paths.includes(path))continue;
-    const actual=scopedDiffLines(path,extraPatches[path]);
-    if(!actual||actual.length!==expected.length||actual.some((line,i)=>line!==expected[i]))return false;
+const MAIN = 'apps/world/src/main.js';
+// Only independent, already-covered modular surfaces are eligible for selective routing.
+// A shared input/engine/CI/backend/scene change, even within a feature PR, runs full.
+const SCOPED_MODULES = [
+  'apps/world/src/phone/',
+  'apps/world/src/quest/',
+  'apps/world/src/shop/',
+  'apps/world/src/appearance/',
+  'apps/world/src/daily-quiz/',
+  'apps/world/src/attendance/',
+  'apps/world/src/life-skills/'
+];
+const SCOPED_TESTS = [
+  /^apps\/world\/tests\/(?:phone|quest|shop|appearance|daily-quiz|attendance|life-skill)[^/]*\.test\.mjs$/,
+  /^apps\/world\/tests\/browser\/(?:phone|quest|shop)[^/]*\.(?:mjs|html)$/
+];
+const NO_FAST_TITLE = /(?:\brelease\b|\bhotfix\b|릴리스|출시|\[full-ci\])/i;
+export function safeModularPath(path) {
+  if (path === MAIN || path === 'apps/world/phone.css') return true;
+  if (typeof path !== 'string' || path.includes('\0') || path.includes('..')) return false;
+  if (SCOPED_MODULES.some(prefix => path.startsWith(prefix))) {
+    // Shared shell/input, camera/album storage and account-session state have broad impacts.
+    if (/^apps\/world\/src\/phone\/(?:phone-shell|phone-album|phone-surfaces)\b/.test(path)) return false;
+    return /\.(?:js|mjs)$/.test(path);
   }
-  if (!paths.includes(MAIN)) return true;
-  if (typeof mainPatch !== 'string' || !mainPatch.startsWith('diff --git a/apps/world/src/main.js b/apps/world/src/main.js\n')) return false;
-  const lines = mainPatch.split('\n').filter(x => (x.startsWith('+') && !x.startsWith('+++')) ||
-    (x.startsWith('-') && !x.startsWith('---')));
-  if (lines.length !== MAIN_ADDED.length || lines.some(x => !x.startsWith('+'))) return false;
-  return lines.every((x, i) => x.slice(1) === MAIN_ADDED[i]);
+  return SCOPED_TESTS.some(pattern => pattern.test(path))
+    || /^docs\/(?:world|qa|implementation)\/.+\.md$/.test(path);
 }
 
-function git(...args) {
-  return execFileSync('git', args, {encoding:'utf8',stdio:['ignore','pipe','pipe']});
+// The World entrypoint is otherwise a high-impact file. This independently
+// verified hook is a presentation-only player-card handoff, not world state.
+// Compare the WHOLE file outside this unique callback, not just diff snippets.
+const CARD_START = 'const playerCard = createPlayerCard({';
+const HOOK_START = '  onMessage: (userId) => {';
+const HOOK_END = '\n  accompany:';
+function hideSafeHandoff(source) {
+  if (typeof source !== 'string') return null;
+  const card = source.indexOf(CARD_START);
+  const start = source.indexOf(HOOK_START);
+  if (card < 0 || start <= card || start > card + 2600 ||
+      source.indexOf(HOOK_START, start + 1) !== -1) return null;
+  const end = source.indexOf(HOOK_END, start + HOOK_START.length);
+  if (end < 0 || end - start > 2200) return null;
+  const body = source.slice(start + HOOK_START.length, end);
+  // Maintain the original Hub fallback and leave unrelated player-card actions alone.
+  if (!body.includes('sessionStorage.setItem("inhagame-hub-message-draft-v1"') ||
+      !body.includes('window.location.assign("/#messages")')) return null;
+  return source.slice(0, start + HOOK_START.length) +
+    '\n/* PRESENTATION_ONLY_MESSAGE_HANDOFF */' + source.slice(end);
+}
+export function safeMainHandoff(before, after) {
+  const a = hideSafeHandoff(before), b = hideSafeHandoff(after);
+  return a !== null && a === b && before !== after;
 }
 
-export function inspect(env = process.env) {
+// Read existing paths for the CURRENT workflow instead of maintaining a
+// second fragile per-suite path list. Unknown YAML structure -> full QA.
+export function declaredPaths(workflowYaml, expectedName) {
+  if (typeof workflowYaml !== 'string' || typeof expectedName !== 'string') return null;
+  const lines = workflowYaml.split(/\r?\n/);
+  if (lines[0] !== 'name: ' + expectedName) return null;
+  const start = lines.findIndex((line, i) => line === '    paths:' &&
+    lines.slice(Math.max(0, i - 2), i).includes('  pull_request:'));
+  if (start < 0) return null;
+  const patterns = [];
+  for (let i = start + 1; i < lines.length && lines[i].startsWith('      - '); i++) {
+    const match = lines[i].match(/^      - '([^']+)'$/);
+    if (!match || match[1].startsWith('!') || match[1].includes('..')) return null;
+    patterns.push(match[1]);
+  }
+  return patterns.length ? patterns : null;
+}
+export function matchPath(glob, path) {
+  if (typeof glob !== 'string' || typeof path !== 'string') return false;
+  // GitHub paths patterns in these 11 workflows use *, **, and literal names.
+  // Unknown metacharacters are interpreted conservatively as a match.
+  if (/[\[\]{}!?+]/.test(glob)) return true;
+  let re = '^';
+  for (let i = 0; i < glob.length; i++) {
+    const c = glob[i];
+    if (c === '*' && glob[i + 1] === '*') {
+      if (glob[i + 2] === '/') { re += '(?:.*/)?'; i += 2; }
+      else { re += '.*'; i++; }
+    } else if (c === '*') re += '[^/]*';
+    else re += c.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&');
+  }
+  return new RegExp(re + '$').test(path);
+}
+export function classify(files, { workflowName, workflowYaml, mainBefore, mainAfter, prTitle } = {}) {
+  if (!Array.isArray(files) || files.length === 0 || new Set(files).size !== files.length)
+    return { skip: false, reason: 'empty-or-invalid-changes' };
+  if (!prTitle || NO_FAST_TITLE.test(prTitle))
+    return { skip: false, reason: 'release-or-unknown-pr' };
+  if (!Object.hasOwn(GUARDED_WORKFLOWS, workflowName))
+    return { skip: false, reason: 'unknown-workflow' };
+  if (!files.every(safeModularPath))
+    return { skip: false, reason: 'shared-or-unknown-path' };
+  if (files.includes(MAIN) && !safeMainHandoff(mainBefore, mainAfter))
+    return { skip: false, reason: 'shared-main-unknown-change' };
+  const triggers = declaredPaths(workflowYaml, workflowName);
+  if (!triggers) return { skip: false, reason: 'unknown-workflow-triggers' };
+  const direct = triggers.filter(pattern => pattern !== MAIN);
+  // A suite must still run whenever it explicitly claims any changed source/test.
+  if (files.some(path => direct.some(pattern => matchPath(pattern, path))))
+    return { skip: false, reason: 'suite-direct-impact' };
+  return { skip: true, reason: 'unrelated-modular-feature', paths: files };
+}
+const git = (...args) => execFileSync('git', args, {
+  encoding: 'utf8', stdio: ['ignore','pipe','pipe']
+});
+export function inspect(env = process.env, runGit = git, loadWorkflow = (file) =>
+  readFileSync(new URL('../workflows/' + file, import.meta.url), 'utf8')) {
   const base = env.CI_BASE_SHA, head = env.CI_HEAD_SHA;
-  const title = typeof env.CI_PR_TITLE === 'string' ? env.CI_PR_TITLE.trim() : '';
-  // Release/hotfix reviews never take the fast path, even if their files look narrow.
-  if (!title || /(?:\brelease\b|\bhotfix\b|릴리스|출시|\[full-ci\])/i.test(title)) return {skip:false,reason:'release-or-unknown-pr'};
-  if (!/^[0-9a-f]{40}$/.test(base ?? '') || !/^[0-9a-f]{40}$/.test(head ?? '')) return {skip:false,reason:'unknown-sha'};
+  const workflowName = env.CI_WORKFLOW_NAME || env.GITHUB_WORKFLOW;
+  const filename = GUARDED_WORKFLOWS[workflowName];
+  if (!filename) return { skip: false, reason: 'unknown-workflow' };
+  if (!env.CI_PR_TITLE || NO_FAST_TITLE.test(env.CI_PR_TITLE))
+    return { skip: false, reason: 'release-or-unknown-pr' };
+  if (!/^[0-9a-f]{40}$/.test(base ?? '') || !/^[0-9a-f]{40}$/.test(head ?? ''))
+    return { skip: false, reason: 'unknown-sha' };
   try {
-    if (git('rev-parse','HEAD').trim() !== head) return {skip:false,reason:'head-mismatch'};
-    git('cat-file','-e',base+'^{commit}');
-    execFileSync('git',['merge-base','--is-ancestor',base,head],{stdio:'ignore'});
-    const output=git('diff','--no-renames','--name-only','-z',base,head,'--');
-    if (!output.endsWith('\0')) return {skip:false,reason:'empty-or-invalid-diff'};
-    const paths=output.slice(0,-1).split('\0');
-    // Deletions, renames and type changes are not merely Phone presentations.
-    const nameStatus=git('diff','--no-renames','--name-status','-z',base,head,'--');
-    if (/(^|\0)(?:D|R|C|T|U)(?:\d+)?\0/.test(nameStatus)) return {skip:false,reason:'unsafe-file-change'};
-    const mainPatch=paths.includes(MAIN) ? git('diff','--no-ext-diff','--no-renames','--unified=0',base,head,'--',MAIN) : '';
-    const extraPatches={};
-    for(const path of Object.keys(REVIEWED_PHONE_DELTAS))if(paths.includes(path))
-      extraPatches[path]=git('diff','--no-ext-diff','--no-renames','--unified=0',base,head,'--',path);
-    return scopedPhoneMessagesOnly(paths,mainPatch,extraPatches)
-      ? {skip:true,reason:'isolated-member-message-ui',paths}
-      : {skip:false,reason:'broader-or-unknown-impact',paths};
+    if (runGit('rev-parse','HEAD').trim() !== head)
+      return { skip: false, reason: 'head-mismatch' };
+    runGit('cat-file','-e',base+'^{commit}');
+    runGit('merge-base','--is-ancestor',base,head);
+    const changed = runGit('diff','--no-renames','--name-status','-z',base,head,'--');
+    if (!changed || !changed.endsWith('\0')) return { skip: false, reason: 'empty-or-invalid-diff' };
+    const parts = changed.slice(0,-1).split('\0');
+    if (parts.length % 2 !== 0) return { skip: false, reason: 'invalid-file-status' };
+    const files=[];
+    for (let i=0; i<parts.length; i+=2) {
+      if (!['A','M'].includes(parts[i])) return { skip: false, reason: 'unsafe-file-change' };
+      files.push(parts[i+1]);
+    }
+    const before = files.includes(MAIN) ? runGit('show',base+':'+MAIN) : null;
+    const after = files.includes(MAIN) ? runGit('show',head+':'+MAIN) : null;
+    return classify(files, {
+      workflowName, workflowYaml: loadWorkflow(filename),
+      mainBefore: before, mainAfter: after, prTitle: env.CI_PR_TITLE
+    });
   } catch {
-    return {skip:false,reason:'missing-history-or-diff-error'};
+    // Missing merge ancestry, shallow history, malformed diff, bad workflow:
+    // do not opt out of ANY tests.
+    return { skip: false, reason: 'missing-history-or-diff-error' };
   }
 }
-
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   const result=inspect();
   process.stdout.write('skip='+String(result.skip)+'\n');
-  console.error('phone-surface-scope: '+(result.skip?'skip unrelated heavy suite':'run full suite')+
-    ' ('+result.reason+', '+(result.paths?.length??'?')+' changed file(s))');
+  console.error('ci-impact: '+(result.skip?'SKIP costly unrelated steps':'RUN full suite')+
+    ' ('+result.reason+', '+(result.paths?.length??'?')+' files; '+(process.env.GITHUB_WORKFLOW||'unknown workflow')+')');
 }
