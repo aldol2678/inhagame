@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "test": "node tests/release.cjs && node tests/account.cjs && node tests/analytics.cjs && node tests/analytics-decisions.cjs && node --test v2/tests/registry.test.mjs",
+    "test": "node tests/release.cjs && node tests/account.cjs && node tests/analytics.cjs && node tests/analytics-decisions.cjs && node --test v2/tests/registry.test.mjs v2/tests/life-engine.test.mjs",
     "test:e2e": "playwright test"
   },
   "devDependencies": {
