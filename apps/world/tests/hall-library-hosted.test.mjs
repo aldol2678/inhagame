@@ -163,9 +163,9 @@ test('walkway scope extension is exact, branch-bound, and preserves historical h
  const allow=runInNewContext(`(${helper})`,{}, {timeout:1000});
  const manifest=JSON.parse(read('./fixtures/hall-library-candidate-source-manifest.json'));
  const original=allow(manifest,''),walkway=allow(manifest,'walkway');
- assert.equal(walkway.length,original.length+12);
- for(const path of ['north-walkway-layout.js','north-walkway-geometry.js','north-walkway-surface.js','campus-material-profile.js','north-landmark-massing.js'])assert.ok(walkway.includes('apps/world/src/'+path));
- for(const path of ['campus-layout.js','campus-facilities.js','north-side-gate-layout.js','north-campus-layout.js','environment/night-street-lights.js','biryong/biryong-realm-transition.js'])assert.ok(!walkway.includes('apps/world/src/'+path));
+ assert.equal(walkway.length,original.length+13);
+ for(const path of ['north-walkway-layout.js','north-walkway-geometry.js','north-walkway-surface.js','campus-material-profile.js','north-landmark-massing.js','north-campus-layout.js'])assert.ok(walkway.includes('apps/world/src/'+path));
+ for(const path of ['campus-layout.js','campus-facilities.js','north-side-gate-layout.js','environment/night-street-lights.js','biryong/biryong-realm-transition.js'])assert.ok(!walkway.includes('apps/world/src/'+path));
  assert.ok(walkway.includes('apps/world/data/reality/north-walkway.provenance.json'));
  const workflow=read('../../../.github/workflows/hall-library-candidate-browser.yml');
  assert.ok(workflow.includes("head.ref == 'feat/60th-five-walkway-20261012' && 'walkway'"));

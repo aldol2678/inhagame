@@ -129,7 +129,7 @@ function hallIntegrationScopePaths(manifest,extension) {
   const walkway=[
     'campus-material-profile.js','minimap/minimap-data.js','navigation/campus-navigation.js',
     'north-campus-geometry.js','north-campus-photo-geometry.js','north-walkway-geometry.js',
-    'north-walkway-layout.js','north-walkway-surface.js','render-chunk-registry.js','north-landmark-massing.js'
+    'north-walkway-layout.js','north-walkway-surface.js','render-chunk-registry.js','north-landmark-massing.js','north-campus-layout.js'
   ];
   return [...manifest.allowedRuntimeChanges,...manifest.allowedMetadataChanges,...contactPilot.map(p=>'apps/world/src/'+p),
     ...(extension==='surroundings'?surroundings.map(p=>'apps/world/src/'+p):[]),

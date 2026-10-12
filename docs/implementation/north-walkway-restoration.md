@@ -79,8 +79,8 @@ WORLD_SMOKE_DISABLE_WEBGPU=1 node apps/world/tests/browser/north-walkway-smoke.m
 ```
 
 `north-walkway-browser.yml` checks out the exact PR head, runs the same sampler
-against pinned main and candidate sequentially, captures 21 views each, exercises
-six runtime Auto Move traversals, and uploads the receipts. No online services,
+against pinned main and candidate sequentially, captures 24 views each (CAM-A–G plus the Five entrance), exercises
+twelve runtime Auto Move traversals, and uploads the receipts. No online services,
 login, operating DB, deployment or account data are used.
 
 Performance samples use eight warm-up frames and thirty measured rAF intervals
@@ -122,3 +122,28 @@ frontage alignment, with surveyed position still null. No source photo is shippe
 The branch was rebased onto current main `b6e08b22337d014f760b9866b9738fc4f0e1f0e5`
 before this edit, including the upstream Messages test previously absent from
 its exact head. Original walkway performance HOLD is not waived by relocation.
+
+
+## South entrance under the clock (2026-10-12 follow-up)
+
+The user confirmed the south entrance is directly beneath the clock. The existing
+`five_south_entry` now derives its frame and along-edge position from
+`FIVE_CLOCK_PLACEMENT`. Door, canopy, landing, three existing steps, ground-height
+support, map/Auto Move destination and combat interaction all follow that owner.
+Shaft glazing begins at the door head, so no second panel hides the relocated door.
+The old entrance/support is removed. Step count/dimensions are inherited blockout,
+not newly surveyed facts. No building footprint or ground collider changes.
+
+The destination lies on existing road `road_481241675_2`, 0.275 WU from its centre;
+no new navigation edge or guessed shortcut is needed. Tests sample both routes
+and actual PlayerController trajectories on physical paving from the north gate
+and south junction. The unchanged lanes, front trees, 60th approach and Five step
+dimensions retain a pre-change runtime digest, replacing only the whole-file lock
+that prevented this expressly requested location edit.
+
+Development base for this follow-up is main
+`2b9a09615f7986e3d5e5b93d731fba21f33afbdd`. Open PRs were checked; #365 remains
+the walkway owner. Other active library, furniture, UI and commission candidates
+were not copied. The browser sampler adds an entrance/clock alignment view on all
+three viewports and two entrance Auto Move traversals per viewport. Survey and
+physical-device limits, CAM-F/G uncertainty and performance HOLD policy persist.

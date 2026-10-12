@@ -6,7 +6,7 @@ import {WALKWAY_EVIDENCE,WALKWAY_SURFACES,WALKWAY_EXTERNAL_MASKS,WALKWAY_PROPS,W
 import {intersectSurface,surfaceArea} from '../src/north-walkway-surface.js';
 import {fillWalkwayPaving,fillWalkwayProps,fillWalkwayEntrance} from '../src/north-walkway-geometry.js';
 import {SIDE_GATE_PATHS} from '../src/north-side-gate-layout.js';
-import {NORTH_LANES,FIVE,ANNIVERSARY,FIVE_FRONT_TREES} from '../src/north-campus-layout.js';
+import {NORTH_LANES,FIVE,ANNIVERSARY,FIVE_FRONT_TREES,NORTH_APPROACHES,ANNIVERSARY_BACK_GATE_LINKS,FIVE_FRONTAGES} from '../src/north-campus-layout.js';
 import {FACILITY_COLLIDERS,towerParts} from '../src/campus-facilities.js';
 import {FLAT_GROUND_Y as G,FLAT_GROUND_MAX_Y} from '../src/flat-ground-surface.js';
 import {polygonOverlap} from '../src/polygon-collision.js';
@@ -46,6 +46,11 @@ test('four gate paths, lane centres and footprint remain pinned; relocated clock
  // with the user-authorized elevated clock relocation tested independently.
  // in addition to the historical hashes in north-landmark-restoration.test.
  for(const [file,hash]of Object.entries(JSON.parse(readFileSync(new URL('./fixtures/north-walkway-owners.json',import.meta.url),'utf8'))))assert.equal(digest(file),hash,file);
+ // Pin the pre-move runtime layout except the explicitly authorized Five entry
+ // frame/u. Its dimensions, every other entry, lanes and tree positions stay fixed.
+ const frame=f=>({a:f.at(0),b:f.at(f.length),offset:f.at(0,1),length:f.length,yaw:f.yaw});
+ const unchanged={lanes:[...NORTH_LANES,...ANNIVERSARY_BACK_GATE_LINKS].map(({frame:f,...s})=>({...s,frame:frame(f)})),frontages:FIVE_FRONTAGES.map(frame),trees:FIVE_FRONT_TREES,approaches:NORTH_APPROACHES.map(({frame:f,u,...s})=>s.id==='five_south_entry'?s:{...s,u,frame:frame(f)})};
+ assert.equal(createHash('sha256').update(JSON.stringify(unchanged)).digest('hex'),'605dd677e67331e241d35f982d8289ab39c58d7a7f6edfcbc2c0aa93769dc251');
  assert.equal(towerParts(FIVE).filter(t=>t.id==='bldg_05_clock_core').length,1);
  for(const f of [FIVE,ANNIVERSARY])assert.deepEqual(FACILITY_COLLIDERS.filter(c=>c.id.startsWith(f.id+'_')&&c.minY===0).map(c=>c.polygon),f.parts);
 });

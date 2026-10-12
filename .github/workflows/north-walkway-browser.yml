@@ -39,9 +39,9 @@ jobs:
           node apps/world/tests/browser/north-landmark-null-smoke.mjs
       - name: Pinned main, identical offline camera and performance sampler
         run: |
-          git worktree add --detach /tmp/walkway-main b6e08b22337d014f760b9866b9738fc4f0e1f0e5
-          WALKWAY_WORLD_ROOT=/tmp/walkway-main/apps/world WALKWAY_OUTPUT=test-results/north-walkway/before EXPECTED_WALKWAY_HEAD=b6e08b22337d014f760b9866b9738fc4f0e1f0e5 node apps/world/tests/browser/north-walkway-smoke.mjs
-      - name: Exact head, 21 views and six real runtime Auto Move traversals
+          git worktree add --detach /tmp/walkway-main 2b9a09615f7986e3d5e5b93d731fba21f33afbdd
+          WALKWAY_WORLD_ROOT=/tmp/walkway-main/apps/world WALKWAY_OUTPUT=test-results/north-walkway/before EXPECTED_WALKWAY_HEAD=2b9a09615f7986e3d5e5b93d731fba21f33afbdd node apps/world/tests/browser/north-walkway-smoke.mjs
+      - name: Exact head, 24 views and twelve real runtime Auto Move traversals
         env:
           EXPECTED_WALKWAY_HEAD: ${{ github.event.pull_request.head.sha }}
           WALKWAY_OUTPUT: test-results/north-walkway/after

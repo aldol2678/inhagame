@@ -128,8 +128,10 @@ export function fillNorthPhotoTower(b,f,tier='NEAR'){
   // Continue the relocated attached dark stair glazing down the same south face.
   // This is a thin face on the already-solid building, not a second ground body.
   box(b,front,c.stone,u,f.height/2,4.02,f.height,.225,.10);
-  box(b,front,c.darkGlass,u,(f.height+.45)/2,2.16,f.height-.45,.29,.04);
-  for(let y=1;y<f.height;y+=1.0)box(b,front,c.joint,u,y,2.16,.035,.325,.025);
+  // The moved doorway owns the lower glazing; stop shaft glazing/divisions at
+  // its head instead of hiding the door behind a second glass panel.
+  box(b,front,c.darkGlass,u,(f.height+2.4)/2,2.16,f.height-2.4,.29,.04);
+  for(let y=3;y<f.height;y+=1.0)box(b,front,c.joint,u,y,2.16,.035,.325,.025);
  }
  for(const tower of towerParts(f)){
   const ring=tower.vertices;
@@ -169,7 +171,7 @@ export function fillFivePhotoEntry(b){
  // Existing landing and opening remain authoritative. Thin canopy is above the
  // standing/jumping player envelope; columns hug existing wall footprint.
  box(b,e.frame,c.trim,e.u,3.50,e.width+1,.18,.62,1.45);
- box(b,e.frame,c.darkGlass,e.u,1.35,e.width*.66,2.1,.09,.10);
+ box(b,e.frame,c.darkGlass,e.u,1.35,e.width*.66,2.1,.29,.04);
  for(const side of [-1,1])box(b,e.frame,c.trim,e.u+side*(e.width/2+.25),1.7,.18,3.4,.12,.20);
  return b;
 }

@@ -15,7 +15,7 @@ import {SITE_FEATURES} from '../src/basic-campus.js';
 import {CAMPUS_ROADS,CAMPUS_PATH_WIDTHS} from '../src/campus-road-layout.js';
 import {OBSTACLES} from '../src/campus-layout.js';
 import {inferCampusMaterialProfile} from '../src/campus-material-profile.js';
-import {NORTH_PHOTO_COLORS,fillNorthPhotoTower} from '../src/north-campus-photo-geometry.js';
+import {NORTH_PHOTO_COLORS,fillNorthPhotoTower,fillFivePhotoEntry} from '../src/north-campus-photo-geometry.js';
 import {FIVE_CLOCK_PLACEMENT} from '../src/north-landmark-massing.js';
 const url=new URL('../src/agora-photo-geometry.js',import.meta.url);
 const agora=existsSync(url)?await import(url.href):{};
@@ -123,8 +123,12 @@ test('5th-building restores verified south arches without inventing arched court
 });
 
 test('5th clock core visually continues into its facade rather than floating as a rooftop box',()=>{
- const boxes=capture(b=>fillNorthPhotoTower(b,FIVE)).filter(c=>c.kind==='box'&&c.color===NORTH_PHOTO_COLORS.darkGlass);
- assert.ok(boxes.some(c=>c.args[0][1]-c.args[1][1]/2<1&&c.args[0][1]+c.args[1][1]/2>=FIVE.height));
+ const glass=fn=>capture(fn).filter(c=>c.kind==='box'&&c.color===NORTH_PHOTO_COLORS.darkGlass);
+ const shaft=glass(b=>fillNorthPhotoTower(b,FIVE))[0],door=glass(fillFivePhotoEntry)[0];
+ assert.ok(Math.abs(door.args[0][1]-door.args[1][1]/2-.3)<1e-8);
+ assert.ok(Math.abs((door.args[0][1]+door.args[1][1]/2)-(shaft.args[0][1]-shaft.args[1][1]/2))<1e-8,'door and shaft glazing meet without overlapping');
+ assert.equal(shaft.args[0][1]+shaft.args[1][1]/2,FIVE.height);
+ assert.deepEqual([door.args[0][0],door.args[0][2]],[shaft.args[0][0],shaft.args[0][2]]);
 });
 
 test('60th podium has a continuous glass grid and bounded curved facade-ribbon segments',()=>{

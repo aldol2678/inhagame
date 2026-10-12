@@ -5,6 +5,7 @@ import {mkdir,writeFile} from 'node:fs/promises';
 import {execFileSync} from 'node:child_process';
 import {startSmoke,TIMEOUT_MS} from './harness.mjs';
 import {WALKWAY_SPANS,WALKWAY_ENTRANCE as E,WALKWAY_SOUTH_ANCHOR} from '../../src/north-walkway-layout.js';
+import {NORTH_APPROACHES,FIVE_SOUTH_ENTRY_APPROACH} from '../../src/north-campus-layout.js';
 import {SIDE_GATE_PATHS} from '../../src/north-side-gate-layout.js';
 const output=process.env.WALKWAY_OUTPUT||'test-results/north-walkway';
 const root=process.env.WALKWAY_WORLD_ROOT;
@@ -12,6 +13,7 @@ const head=execFileSync('git',['-C',root||process.cwd(),'rev-parse','HEAD'],{enc
 if(process.env.EXPECTED_WALKWAY_HEAD)assert.equal(head,process.env.EXPECTED_WALKWAY_HEAD);
 await mkdir(output,{recursive:true});
 const [north,south]=WALKWAY_SPANS;
+const fiveEntry=NORTH_APPROACHES.find(e=>e.id==='five_south_entry');
 const xyz=(p,y)=>[p.x,y,-p.z]; // Production reflection, no alternate handedness.
 const view=(id,from,to,photo,grade)=>({id,from,to,photo,grade});
 const cameras=[
@@ -21,7 +23,8 @@ const cameras=[
   view('CAM-D',xyz(E.frame.at(E.u,8.5),3.6),xyz(E.frame.at(E.u,0),3.6),'P-07','OBSERVED+INFERRED'),
   view('CAM-E',xyz(E.frame.at(E.frame.length+12,10),9),xyz(E.frame.at(E.u-4,0),11),'P-03','HISTORICAL_REFERENCE_ONLY'),
   view('CAM-F',xyz(SIDE_GATE_PATHS[1].frame.at(0),3),xyz(SIDE_GATE_PATHS[3].frame.at(0),4),'P-04','TEXT_ONLY_NO_PHOTO_MATCH'),
-  view('CAM-G',xyz(WALKWAY_SOUTH_ANCHOR,4),[-18,12,-81],'P-05','TEXT_ONLY_NO_PHOTO_MATCH')
+  view('CAM-G',xyz(WALKWAY_SOUTH_ANCHOR,4),[-18,12,-81],'P-05','TEXT_ONLY_NO_PHOTO_MATCH'),
+  view('FIVE-SOUTH-ENTRY',xyz(fiveEntry.frame.at(fiveEntry.u,34),12),xyz(fiveEntry.frame.at(fiveEntry.u,0),11),'USER-CORRECTION','USER_CONFIRMED_RELATIVE_ALIGNMENT_SURVEY_TBD')
 ];
 const report={head,sourceRoot:root||'candidate',renderer:null,scope:'Offline Chromium software GPU, viewport emulation; not physical mobile performance',measurement:'requestAnimationFrame intervals around explicit app.render + gl.finish; frozen simulation; submission wall time reported separately; draw/triangle counts include all passes',cameras,views:[]};
 try{
@@ -35,9 +38,9 @@ try{
    report.renderer=await page.evaluate(()=>window.__INHAGAME_P0__.getStatus().renderer);assert.equal(report.renderer,'WebGL2');
    await page.addStyleTag({content:'body > :not(#application):not(script):not(style){visibility:hidden!important}'});
    await page.evaluate(()=>{const d=window.__INHAGAME_P0__;d.app.off('update');d.app.autoRender=false;});
-   const traversal=await page.evaluate(({north,south})=>{
+   const traversal=await page.evaluate(({north,south,entry})=>{
     const d=window.__INHAGAME_P0__,results=[];
-    for(const [from,to]of [[north,south],[south,north]]){
+    for(const [from,to]of [[north,south],[south,north],[north,entry],[south,entry]]){
      d.player.setLocalPosition(from.x,1.15,from.z);d.controller.mounted=false;d.controller.velocityY=0;d.controller.grounded=true;
      d.navigation.setDestination({...to,id:'walkway-qa',title:'Walkway QA',approach:to,arrivalRadius:.4},{position:from,spaceId:'campus'});
      if(!d.playerAutoMove.start(d.navigation.getSnapshot()))throw Error('Auto Move refused');
@@ -49,7 +52,7 @@ try{
      const p=d.player.getLocalPosition();results.push({status:d.navigation.getSnapshot().status,frames,distance:Math.hypot(p.x-to.x,p.z-to.z)});
     }
     return results;
-   },{north:SIDE_GATE_PATHS[0].frame.at(1.4),south:WALKWAY_SOUTH_ANCHOR});
+   },{north:SIDE_GATE_PATHS[0].frame.at(1.4),south:WALKWAY_SOUTH_ANCHOR,entry:FIVE_SOUTH_ENTRY_APPROACH});
    assert.ok(traversal.every(t=>t.status==='ARRIVED'&&t.distance<.5));
    (report.traversals??=[]).push({viewport:name,traversal});
    for(const camera of cameras){
