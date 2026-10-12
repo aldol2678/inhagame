@@ -9,7 +9,7 @@
 //   local clock only for signed-out presentation.
 // Every boundary is an absolute instant with an explicit +09:00 offset, so the browser time zone
 // never changes the result.
-import { MCM_2026_EVENT_STATE, MCM_2026_PROGRESS_STAGE } from "./event-data.js";
+import { MCM_2026_EVENT_STATE } from "./event-data.js";
 
 export const MCM_2026_TIME_ZONE = "Asia/Seoul";
 
@@ -96,14 +96,11 @@ export function formatMcm2026Countdown(ms) {
 }
 
 /**
- * Geonmulju room entry. New entries need the server window open (ACTIVE). After ENDED only an
- * account that already has a server-recorded clear may come back, to settle what it earned.
+ * Retired venue policy. Keep the historical event/progress state but never grant room entry,
+ * including to previously cleared accounts. This also guards old callers outside the registry.
  */
-export function mcm2026CanEnterVenue(state) {
-  const stage = state?.progress?.stage;
-  if (stage !== MCM_2026_PROGRESS_STAGE.VENUE_UNLOCKED && stage !== MCM_2026_PROGRESS_STAGE.COMPLETED) return false;
-  if (state.eventState === S.ACTIVE) return true;
-  return state.eventState === S.ENDED && Boolean(state.landlord?.firstClearedAt);
+export function mcm2026CanEnterVenue(_state) {
+  return false;
 }
 
 // PRELUDE → ONSITE_LIVE: all four ZUE NPCs stand in the world. ENDED/DISABLED: the event cast is fully retired.

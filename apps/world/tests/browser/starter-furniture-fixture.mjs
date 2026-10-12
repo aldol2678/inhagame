@@ -154,6 +154,7 @@ try {
         top: Math.min(...points.map(p=>p.y)), bottom: Math.max(...points.map(p=>p.y)), inFront: points.every(p=>p.z>0) } : null };
   }
   const sofa = () => furniture.state().objects.find(object => object.itemId === 'furniture.dorm_single_sofa');
+  const books = () => furniture.state().objects.find(object => object.itemId === 'furniture.study_books_set');
   function contactGeometry() {
     const object=sofa();if(!object)return null;
     const bounds=furnitureBox(object),supportY=bounds.minY+.36,position=player.getLocalPosition();
@@ -175,9 +176,16 @@ try {
       const point = room.root.getWorldTransform().transformPoint(new pc.Vec3(object.x, .57, object.z));
       const inward = new pc.Vec3(-point.x, 0, -point.z).normalize().mulScalar(innerWidth < 600 ? 3.4 : 2.6);
       camera.setPosition(point.x + inward.x, 1.65, point.z + inward.z); camera.lookAt(point);
+    } else if(kind==='books') {
+      const object=books();if(!object)throw Error('No server-saved book set');
+      const bounds=furnitureBox(object);
+      const point=room.root.getWorldTransform().transformPoint(new pc.Vec3(object.x,(bounds.minY+bounds.maxY)/2,object.z));
+      // An ordinary front-left desktop view keeps the original desk/chair/monitor visible.
+      camera.setPosition(point.x-.9,1.2,point.z+1.4);camera.lookAt(point);
     }
   }
   qa.snapshot = () => ({ ready: qa.ready, frames, renderedFrames, rpcPending, rpcRevision, space, accountId, access, metadata,renderMode,
+    page:{visibility:document.visibilityState,focused:document.hasFocus()},
     camera:{position:{...camera.getPosition()},rotation:{...camera.getEulerAngles()},view:fixedCamera},
     shop: shop.status(), wallet: wallet.snapshot, inventory: inventory.snapshot, furniture: furniture.state(),
     seated: seating.seats.isSeated, seat: seating.seats.seated?.interactableId ?? null,
@@ -189,6 +197,7 @@ try {
     vendorFace: inspectVendorFace({sceneRoot:lobby.root,visual:lobby.shopVendor.visual,camera,canvas}),
     seatContact:contactGeometry(),
     sofa: subject(sofa() && room.ownedFurniture.root.findByName(`placed_${sofa().id}`)),
+    books: subject(books() && room.ownedFurniture.root.findByName(`placed_${books().id}`)),
     renderedObjects: room.ownedFurniture.root.children.map(entity => entity.name), notices: [...notices] });
   qa.setBlocked = value => { blocked = value; refreshContext(); };
   qa.setInvalid = value => { invalid = value; refreshContext(); };
@@ -204,9 +213,9 @@ try {
     world.placePlayer(anchor.standPoint, anchor.yaw); captureView('sofa'); refreshContext();
   };
   qa.captureView = captureView;
-  // PlayCanvas invalidates its cached view/projection matrix at prerender. A camera edit
-  // followed immediately by worldToScreen can otherwise report the previous frame's view.
-  qa.waitForRenderedFrame = () => new Promise(resolve=>app.once('postrender',()=>resolve(renderedFrames)));
+  // The driver waits on this actual renderer counter with its own bounded timeout.
+  // This remains a frame checkpoint, never a simulated view-matrix invalidation.
+  qa.frameCounts = () => ({updated:frames,rendered:renderedFrames});
   qa.refreshFurniture = () => furniture.refresh();
   qa.enterRoom = enterRoom;
   qa.refreshInventory = () => inventory.refresh('qa-verification');

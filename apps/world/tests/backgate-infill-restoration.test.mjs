@@ -8,14 +8,14 @@ const {BACK_ALLEY_BLOCKS,BACK_ALLEY_COLLIDERS}=await import('../src/back-alley-l
 const {MARKET_BUILDINGS,MARKET_COLLIDERS,MARKET_EXISTING_SHOPS,GEONMULJU_BUILDING}=await import('../src/back-market-layout.js');
 const alley=await import('../src/back-alley-geometry.js');
 const market=await import('../src/back-market-geometry.js');
-const genericMarket=MARKET_BUILDINGS.filter(q=>q!==GEONMULJU_BUILDING);
+const genericMarket=MARKET_BUILDINGS;
 const targets=[...BACK_ALLEY_BLOCKS,...genericMarket];
 const hash=value=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const record=()=>{const operations=[];return {operations,batch:Object.fromEntries(['box','tube','quad','triangle','crown'].map(k=>[k,(...args)=>operations.push([k,...args])]))}};
 const geometryPoints=b=>[...b.groups.values()].flatMap(g=>Array.from({length:g.positions.length/3},(_,i)=>g.positions.slice(i*3,i*3+3)));
 
-test('all 114 residual QA bodies receive persistent glazing and real roof profiles',()=>{
-  assert.equal(targets.length,114);
+test('all 115 residual QA bodies including former event venue receive generic glazing and roofs',()=>{
+  assert.equal(targets.length,115);
   for(const [fill,minimum] of [[alley.fillBackAlleyBase,35],[market.fillMarketBase,79]]){
     const b=new FacilityMeshBatch();fill(b);
     assert.equal(b.groups.get('#598f91')?.indices.length||0,0,'cyan QA shell must not survive');
@@ -133,11 +133,16 @@ test('closed door caps are vertically inset from the overlapping glazing caps',(
 });
 
 
-test('dedicated Geonmulju venue base and detailed geometry are unchanged',()=>{
-  const r=record();market.fillMarketBase(r.batch);
-  // Dedicated venue is emitted after generic infill; preserve its nine base boxes.
-  const operations=r.operations.slice(-9),near=record(),detail=record();
-  market.fillMarketNear(near.batch,[GEONMULJU_BUILDING.id]);market.fillMarketDetail(detail.batch,[GEONMULJU_BUILDING.id]);
-  operations.push(...near.operations,...detail.operations);
-  assert.equal(hash(operations),'6224a0714af5a8ec62753889615f6da9c142673cda6cc7332e0ad753084e90c5');
+test('retired Geonmulju building uses ordinary market geometry at all LOD tiers',()=>{
+  assert.equal(GEONMULJU_BUILDING.style,'brick');
+  const actualBase=record(),expectedBase=record();
+  market.fillMarketBase(actualBase.batch);
+  for(const q of MARKET_BUILDINGS)fillInfillBase(expectedBase.batch,q,'market');
+  assert.deepEqual(actualBase.operations,expectedBase.operations);
+  for(const [tier,fill] of [['Near',fillInfillNear],['Detail',fillInfillDetail]]) {
+    const actual=record(),expected=record();
+    market['fillMarket'+tier](actual.batch,[GEONMULJU_BUILDING.id]);
+    fill(expected.batch,GEONMULJU_BUILDING,'market');
+    assert.deepEqual(actual.operations,expected.operations,tier+' must have no zombie venue special case');
+  }
 });

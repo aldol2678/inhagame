@@ -35,9 +35,9 @@ const profiles={
   'cross':[['brick','#7f6660','#b85d55','치킨'],['panel','#adae9e','#455e69','노래방'],['cafe','#d6d1bf','#c6a447','COFFEE'],['stone','#c1c2bb','#657f70','식당']]
 };
 const additions=[];
-// Geonmulju event venue: April 2026 street-view reference, game-side blockout only.
+// Geonmulju commercial building: retain its mapped footprint and business identity after the 2026 event.
 // 10.7 m mapped frontage ~= 5.35 WU (1 WU ~= 2 m). The doorway trigger is a
-// road-side gameplay approach, not a surveyed physical threshold.
+// former event approach, not an active room-entry trigger.
 const venueStation=40.44, venueRoad='culture_67_link', venueSide=1;
 const venueFrame=frontFrame(venueRoad,venueStation,venueSide,2.5/2+.72);
 const venueWidth=5.35,venueDepth=4.5;
@@ -46,9 +46,9 @@ const venueBounds=cultureRectangle(venueFrame,0,venueDepth/2-.30,venueWidth+.45,
 if(!clear(venuePolygon)||!interiorReservationClear(venueBounds))
   throw Error('Geonmulju venue footprint overlaps an existing street or building');
 export const GEONMULJU_BUILDING=Object.freeze({
-  id:'back_market_geonmulju',roadId:venueRoad,district:'67',index:-1,
+  id:'back_market_geonmulju',roadId:venueRoad,district:'67',index:0,
   station:venueStation,side:venueSide,frame:venueFrame,w:venueWidth,d:venueDepth,h:6.3,
-  style:'geonmulju',color:'#66524a',sign:'#212024',label:'건물酒',
+  style:'brick',color:'#9e7160',sign:'#343b40',label:'건물酒',
   polygon:venuePolygon,bounds:venueBounds,center:venueFrame.at(0,venueDepth/2),
   door:venueFrame.at(venueWidth/2-.85,-.77)
 });

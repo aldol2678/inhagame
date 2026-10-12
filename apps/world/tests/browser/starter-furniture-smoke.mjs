@@ -60,6 +60,13 @@ const report = { result:'running', commit, sourceHash:provenance.sourceHash,
   exclusions:['Production database/deployment','Private room Realtime presence/channel','Actual Induck rendered pixels: UNKNOWN'],
   evidence:[], checks:[], db:[], transportControls:[] };
 let activePage, smoke, db, releasePurchase;
+let activeStage='starting';
+async function stage(name,details={}) {
+  activeStage=name;report.stage=name;
+  await writeFile(path.join(output,'progress.json'),JSON.stringify({stage:name,at:new Date().toISOString(),commit,
+    sourceHash:provenance.sourceHash,characterEvidence,completedChecks:report.checks.length,...details},null,2));
+  console.log(`STARTER_QA_STAGE: ${name}`);
+}
 function check(name, details = {}) { report.checks.push({name,...details}); }
 function economicState(value) { return { balance:value.balance, items:value.items, purchases:value.purchases, debits:value.debits, grants:value.grants }; }
 function stableScene(value) {
@@ -84,8 +91,16 @@ function assertEconomic(value, count, balance) {
   }
 }
 async function capture(page, name, { subject = null } = {}) {
+  await stage(`${name}: await-rendered-frame`);
   await page.waitForFunction(() => window.__STARTER_FURNITURE__.snapshot().frames > 5);
-  await page.evaluate(()=>window.__STARTER_FURNITURE__.waitForRenderedFrame());
+  const frame=await page.evaluate(()=>window.__STARTER_FURNITURE__.frameCounts().rendered);
+  try {
+    await page.waitForFunction(before=>window.__STARTER_FURNITURE__.frameCounts().rendered>before,frame,{timeout:TIMEOUT_MS});
+  } catch(error) {
+    const snapshot=await page.evaluate(()=>window.__STARTER_FURNITURE__.snapshot());
+    await stage(`${name}: rendered-frame-timeout`,{expectedFrameGreaterThan:frame,snapshot});
+    throw error;
+  }
   const before = await page.evaluate(() => window.__STARTER_FURNITURE__.snapshot());
   if (subject) {
     const target = before[subject], viewport = page.viewportSize();
@@ -109,6 +124,7 @@ async function capture(page, name, { subject = null } = {}) {
   // This branch is the only successful capture path. Private mode never calls screenshot,
   // including screenshots returned as buffers without a path.
   const file = privateMode?null:`${name}.png`;
+  await stage(`${name}: ${privateMode?'record-metadata':'capture-public-pixels'}`,{snapshot:before});
   const pixels = privateMode?null:await page.screenshot({path:path.join(output,file)});
   const after = await page.evaluate(() => window.__STARTER_FURNITURE__.snapshot());
   assert.deepEqual(stableScene(after),stableScene(before),`${name}: screenshot must match before/after economic/layout/seat state`);
@@ -128,6 +144,7 @@ async function openShop(page, mobile) {
 }
 try {
   for (const view of views) {
+    await stage(`${view.label}: create-disposable-fixture`);
     db = await createStarterFurnitureBrowserDatabase();
     const beforeActivation = await db.readback(); assertEconomic(beforeActivation,0,600);
     assert.ok(beforeActivation.listings.every(row=>row.status==='LOCKED'));
@@ -141,12 +158,14 @@ try {
       return response;
     });
     await page.addInitScript(identity=>{window.__STARTER_IDENTITY__=identity;},{userId:db.userId,roomId:db.roomId,renderMode:characterEvidence.mode});
+    await stage(`${view.label}: initialize-production-modules`);
     await page.goto(`${smoke.origin}/tests/browser/starter-furniture-harness.html`,{waitUntil:'domcontentloaded'});
     await Promise.race([fatal,page.waitForFunction(()=>window.__STARTER_FURNITURE__?.ready||window.__STARTER_FURNITURE__?.error,null,{timeout:TIMEOUT_MS})]);
     assert.equal(await page.evaluate(()=>window.__STARTER_FURNITURE__.error??null),null);
     const state = () => page.evaluate(()=>window.__STARTER_FURNITURE__.snapshot());
     const tap = async selector => view.mobile ? page.locator(selector).tap() : page.locator(selector).click();
     await capture(page,`${view.label}-vendor`,{subject:'vendor'});
+    await stage(`${view.label}: guest-and-world-gates`);
     for (const gate of ['setBlocked','setInvalid']) {
       await page.evaluate(name=>window.__STARTER_FURNITURE__[name](true),gate); await page.keyboard.press('KeyF');
       assert.equal((await state()).dialogueOpen,false); assert.equal((await state()).shopOpen,false);
@@ -175,6 +194,7 @@ try {
     assert.equal((await state()).focus,'context-action','dialogue restores actual shared action focus');
     await openShop(page,view.mobile);
     for(let index=0;index<items.length;index++) {
+      await stage(`${view.label}: inspect-offer-${index}`);
       const card=page.locator(`[data-listing-id="${listings[index]}"]`);
       assert.equal(await card.count(),1);assert.match(await card.textContent(),new RegExp(`${index?480:120} 인덕코인`));
       assert.match(await card.textContent(),/Lv\.1 이상/);assert.equal(await card.locator('.shop-offer-buy').isEnabled(),true);
@@ -188,6 +208,7 @@ try {
 
     for(let index=0;index<items.length;index++) {
       const button=page.locator(`[data-listing-id="${listings[index]}"] .shop-offer-buy`);
+      await stage(`${view.label}: purchase-${index}`);
       held=new Promise(resolve=>{releasePurchase=resolve;});
       report.transportControls.push(`${view.label}/${items[index]}: delay delivery of actual DB result while testing repeated UI clicks`);
       // Locator click/tap re-resolves detached nodes and scrolls the current control itself.
@@ -203,6 +224,7 @@ try {
       assert.ok((await state()).inventory.items.some(row=>row.itemId===receipt.item_id&&row.quantity===1));
       await capture(page,`${view.label}-purchased-${index}`);report.db.push({view:view.label,phase:`purchase-${index}`,readback});
     }
+    await stage(`${view.label}: replay-and-duplicate-ownership`);
     const owned=await db.readback();
     const duplicateButton=page.locator(`[data-listing-id="${listings[0]}"] .shop-offer-buy`);
     if(await duplicateButton.isEnabled()) {
@@ -223,6 +245,7 @@ try {
     assert.deepEqual(economicState(await db.readback()),economicState(owned));
     check(`${view.label}: two real purchases, inventory readback, ledger linkage, rapid clicks, v2 receipt replay and v1 UNIQUE rejection`);
 
+    await stage(`${view.label}: own-room-editor`);
     const guidance=page.locator(`[data-listing-id="${listings[1]}"] .shop-furniture-action`);
     assert.equal(await guidance.textContent(),'내 방 위치 안내');
     if(view.mobile)await guidance.tap();else await guidance.click();
@@ -247,12 +270,19 @@ try {
     assert.deepEqual(canonicalFurniture(saved.objects),canonicalFurniture(draft.objects));assertEconomic(persisted,2,0);
     assert.equal((await state()).renderedObjects.length,2);
     report.db.push({view:view.label,phase:'saved-layout',readback:persisted});
+    await stage(`${view.label}: saved-book-set-on-actual-desk`);
+    await page.evaluate(()=>window.__STARTER_FURNITURE__.captureView('books'));
+    assert.equal((await state()).books.meshCount,6,'The saved book set renders five books plus the notebook');
+    await capture(page,`${view.label}-books-on-desk`,{subject:'books'});
+    await stage(`${view.label}: sofa-approach-and-seat-controller`);
     await page.evaluate(()=>window.__STARTER_FURNITURE__.approachSofa());
     await page.waitForFunction(()=>window.__STARTER_FURNITURE__.snapshot().action==='앉기');
     await capture(page,`${view.label}-sofa-before`,{subject:'sofa'});
     const standing=await state();
     if(view.mobile)await tap('#context-action');else await page.keyboard.press('KeyF');
-    await page.waitForFunction(beforeFrames=>{const s=window.__STARTER_FURNITURE__.snapshot();return s.seated&&s.frames>beforeFrames+1;},standing.frames);
+    // The input can arrive several frames after the standing snapshot on a busy GPU.
+    // Observe the actual Character pose, not a frame count relative to that older snapshot.
+    await page.waitForFunction(()=>{const s=window.__STARTER_FURNITURE__.snapshot();return s.seated&&s.pose?.legs?.[0]===70&&s.pose?.legs?.[1]===70;},null,{timeout:TIMEOUT_MS});
     const seated=await state();assert.equal(seated.seat,saved.objects.find(row=>row.itemId===items[1]).id);
     assert.notDeepEqual(seated.pose,standing.pose,'actual Character pose changes');
     assert.ok(Math.abs(seated.seatContact.rootHeight-seated.seatContact.expectedSeatedRootY)<1e-5,'SeatController aligns the character to the real sofa support plane');
@@ -261,7 +291,7 @@ try {
     assert.deepEqual(seated.pose.legs,[70,70],'The actual Character has applied both seated leg pivots');
     await capture(page,`${view.label}-sofa-seated`,{subject:'sofa'});
     if(view.mobile)await tap('#context-action');else await page.keyboard.press('KeyF');
-    await page.waitForFunction(()=>!window.__STARTER_FURNITURE__.snapshot().seated);
+    await page.waitForFunction(()=>{const s=window.__STARTER_FURNITURE__.snapshot();return !s.seated&&s.pose?.legs?.[0]===0&&s.pose?.legs?.[1]===0;},null,{timeout:TIMEOUT_MS});
     assert.equal((await state()).safe,true);assert.deepEqual((await state()).position,standing.position);
     await capture(page,`${view.label}-sofa-standing`,{subject:'sofa'});
     assert.deepEqual(economicState(await db.readback()),economicState(persisted));
@@ -269,6 +299,7 @@ try {
     assert.deepEqual(smoke.problems,[]);
 
     // Real refusal/concurrency coverage does not rely on disabled UI controls.
+    await stage(`${view.label}: real-server-refusals-and-concurrency`);
     const poor=await db.createAccount({balance:0}), anonymous=await db.createAccount({anonymous:true});
     for(const listing of listings) {
       const args={p_listing_id:listing,p_idempotency_key:`starter:poor:${randomUUID()}`};
@@ -287,6 +318,7 @@ try {
 
     // Only preflight capability discovery is fault-injected. Legacy reads, purchases,
     // wallet and inventory still execute the actual server v1 functions and are read back in SQL.
+    await stage(`${view.label}: legacy-v1-browser`);
     const legacy=await db.createAccount({balance:600});
     const legacyPage=activePage=await smoke.context.newPage(),legacyFatal=smoke.watch(legacyPage);
     await legacyPage.exposeFunction('__STARTER_RPC__',(name,args)=>name==='get_world_shop_capabilities_v1'
@@ -313,13 +345,15 @@ try {
     check(`${view.label}: exact missing-capability legacy UI still purchases two products through real v1 server authority`);
     assert.deepEqual(smoke.problems,[]);
     await writeFile(path.join(output,`${view.label}-rpc.json`),JSON.stringify({calls:db.calls,guestCalls:db.guestCalls,poor:poor.calls,anonymous:anonymous.calls,concurrent:concurrent.calls,legacy:legacy.calls},null,2));
+    await stage(`${view.label}: close-browser-and-restore-fixture`);
     await smoke.close();smoke=null;activePage=null;
     await db.close();const restored=await db.readback();assert.ok(restored.listings.every(row=>row.status==='LOCKED'));
     report.db.push({view:view.label,phase:'restored-locked-listings',readback:restored});db=null;
   }
   report.result='pass';console.log(`PASS: ${report.checks.length} starter furniture acceptance checks; ${privateMode?'private geometry metadata only, zero screenshots':`${report.evidence.length} public QA substitute screenshots`}; actual character pixels UNKNOWN`);
+  await stage('complete');
 } catch(error) {
-  report.result='fail';report.error=error.stack;
+  report.result='fail';report.error=error.stack;report.failedStage=activeStage;
   if(!privateMode)await activePage?.screenshot({path:path.join(output,'failure.png')}).catch(()=>{});
   report.failureState=await activePage?.evaluate(()=>window.__STARTER_FURNITURE__?.snapshot()).catch(()=>null);
   throw error;

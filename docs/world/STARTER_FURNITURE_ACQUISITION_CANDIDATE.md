@@ -1,8 +1,8 @@
 # First living furniture acquisition candidate
 
 Status: Draft PR #354, original independent base `af532a53c433479e12354f88a5a1c234075de5e7`.
-The validation branch incorporates current main `07ad0db0255164feff1f9125a46dbdf6f18f9f25`
-without changing its MENU-01 Phone integration.
+The validation branch incorporates current main `7967c6ea6d71a45746c996bc57ff8e26309385ba`
+without changing its MENU-01 Phone integration or closed event-venue access.
 The user subsequently approved remote validation, sale of exactly books 120 / sofa 480 coins
 at Lv1, and a dedicated room-local shopkeeper. The Public migration remains LOCKED staging;
 the separately guarded operation in `docs/ops/sql/20261012_starter_furniture_open.sql` is the
