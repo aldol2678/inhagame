@@ -52,7 +52,8 @@ const report = { kind: 'FULL_MAIN_DISPOSABLE_AUTH_HTTP_POSTGRES', result: 'runni
   exclusions: ['Production/player accounts', 'Production opening/deployment', 'Private character pixels', 'Human/bot presence proof', 'Full-main mobile coverage'],
   fixturePreparation: 'Disposable candidate gates plus completed campus intro progression only. No seeded balance, position, work step, challenge answer or clock overrides.',
   steering: 'Trusted W keyboard events with camera-yaw orientation only; no controller keys, touch vector, player position or authority snapshot injection',
-  checks: [], stages: [], http: [], pageErrors: [], unexpectedExternal: [], cleanup: 'pending' };
+  screenshotPolicy: 'Semantic JSON only during active authority. One bounded public-proxy screenshot after acknowledged revocation, with the real historical receipt open.',
+  evidence: [], checks: [], stages: [], http: [], pageErrors: [], unexpectedExternal: [], cleanup: 'pending' };
 let smoke, page, db, latestAuthority = null, latestIncome = null, authorityFailure = null, publicPixelsAllowed = true;
 const responseTasks = new Set(), requestTimes = new Map();
 const stage = async name => { report.stages.push({ name, at: new Date().toISOString() }); report.stage = name; await save('progress.json', report); console.log(`CONVENIENCE_CAMPUS_STAGE: ${name}`); };
@@ -62,15 +63,29 @@ const sdkUrl = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/su
 const snapshot = () => page.evaluate(() => {
   const d = window.__INHAGAME_P0__, p = d.player.getLocalPosition(), status = d.getStatus();
   return { position: { x: p.x, y: p.y, z: p.z }, frames: d.app.frame, renderer: status.renderer,
-    loading: status.loading?.phase, onlineSignedIn: status.online?.signedIn, onlineGuest: status.online?.guest,
+    loading: status.loading?.phase, graphics: status.graphics, onlineSignedIn: status.online?.signedIn, onlineGuest: status.online?.guest,
     accountMatches: d.online?.userId === window.INCOME_CANDIDATE_LOCAL_AUTH?.accountId,
     walker: !!d.controller.authoritativeWalk, transportLocks: [...d.controller.transportLocks], inputEnabled: d.controller.inputEnabled,
     focusClass: status.inputFocus?.focusClass, walletState: status.wallet?.state, walletLabel: document.getElementById('lobby-player-wallet')?.textContent ?? null, panelOpen: [...document.querySelectorAll('.convenience-job-panel')].some(el => !el.hidden) };
 });
-async function capture(name) {
-  assert.ok(publicPixelsAllowed); const before = await snapshot();
+async function semantic(name) {
+  // GPU readback can stall software-rendered Chromium longer than the real authority lease.
+  // Read ordinary state only while walking/working; never create a screenshot-driven keepalive.
+  const state = await snapshot(); await save(`${name}.json`, { evidence: 'semantic-only', ...state });
+}
+async function captureRevokedReceipt(name) {
+  assert.ok(publicPixelsAllowed);
+  assert.equal(latestAuthority?.active, false, 'A real acknowledged revoke is required before GPU readback');
+  const before = await snapshot(); assert.equal(before.walker, false); assert.equal(before.panelOpen, true);
+  assert.equal(before.graphics.tier, 'low');
   await page.waitForFunction(frame => window.__INHAGAME_P0__.app.frame > frame + 1, before.frames);
-  await page.screenshot({ path: path.join(output, `${name}.png`) }); await save(`${name}.json`, await snapshot());
+  // One attempt, one bounded deadline. Failure stays a failed pixel-evidence stage; no retries
+  // or authority TTL/freshness changes hide a GPU stall. CSS scaling keeps the public HUD legible.
+  const pixels = await page.screenshot({ path: path.join(output, `${name}.png`), timeout: 30000,
+    fullPage: false, scale: 'css', animations: 'disabled', caret: 'hide' });
+  const after = await snapshot(); assert.equal(after.walker, false); assert.equal(latestAuthority.active, false);
+  const evidence = { evidence: 'actual-public-pixels-after-revoke', file: `${name}.png`, sha256: sha(pixels), before, after };
+  report.evidence.push(evidence); await save(`${name}.json`, evidence);
 }
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function until(predicate, message, timeout = 15000) {
@@ -178,7 +193,21 @@ try {
     const d = window.__INHAGAME_P0__;
     return !d.lobbyWorld.active && !d.lobbyTransition.active && !d.cinematic.active && d.controller.inputEnabled;
   }, null, { timeout: 30000 });
+  await stage('select-supported-low-graphics-before-authority');
+  // Exercise the normal settings UI, as graphics-smoke does. This changes only supported
+  // rendering quality, not simulation cadence, server freshness, geometry or authority timing.
+  await page.locator('#hud-menu-toggle').click();
+  await page.locator('#open-settings').click();
+  await page.locator('#graphics-quality').selectOption('low');
+  await page.locator('#close-settings').click();
+  await page.waitForFunction(() => {
+    const d = window.__INHAGAME_P0__, g = d.getStatus().graphics;
+    return g.preference === 'low' && g.tier === 'low' && g.castShadows === false && g.maxPixelRatio === .8 && d.controller.inputEnabled;
+  });
+  const lowFrame = await page.evaluate(() => window.__INHAGAME_P0__.app.frame);
+  await page.waitForFunction(frame => window.__INHAGAME_P0__.app.frame > frame + 5, lowFrame, { timeout: 30000 });
   report.boot = await snapshot(); check('Original /campus HTML and main boot READY with advancing actual renderer, normal gameplay entry and matching real permanent SDK/Auth account');
+  check('Normal graphics settings UI applies supported LOW preset before authority; no simulation or server TTL modifications');
   const toolbar = page.locator('.convenience-authority-candidate'); await toolbar.waitFor({ state: 'visible' });
   const begin = toolbar.getByRole('button', { name: '검증 이동 시작 (서버 출발점으로 이동)', exact: true });
   const work = toolbar.getByRole('button', { name: '근무·영수증', exact: true });
@@ -188,7 +217,7 @@ try {
   await begin.click(); await until(() => latestAuthority?.active === true, 'AUTHORITY_OPEN_TIMEOUT');
   assert.equal(latestAuthority.spawnId, 'BACK_GATE');
   await page.waitForFunction(() => !!window.__INHAGAME_P0__.controller.authoritativeWalk);
-  await capture('full-main-authority-start'); check('Trusted visible start control reaches real handler/Auth/Postgres and mounts real main controller at server-authorized BACK_GATE');
+  await semantic('full-main-authority-start'); check('Trusted visible start control reaches real handler/Auth/Postgres and mounts real main controller at server-authorized BACK_GATE');
   await stage('trusted-keyboard-server-canonical-walk');
   const walkStart = Date.now();
   for (const target of shop.approach.slice(1)) {
@@ -214,7 +243,7 @@ try {
   const atSite = latestAuthority.state.position;
   await page.waitForFunction(p => { const now = window.__INHAGAME_P0__.player.getLocalPosition(); return Math.hypot(now.x - p.x, now.y - p.y, now.z - p.z) < 1e-6; }, atSite);
   report.walk = { durationMs: Date.now() - walkStart, finalPosition: atSite, eligible: true, waypoints: shop.approach.length - 1 };
-  await capture('full-main-at-convenience'); check('Main trusted W input reaches shop only through canonical real-clock server movement; final actual player transform matches acknowledged state');
+  await semantic('full-main-at-convenience'); check('Main trusted W input reaches shop only through canonical real-clock server movement; final actual player transform matches acknowledged state');
   await stage('trusted-work-ui-three-real-steps');
   await work.click(); await panel.waitFor({ state: 'visible' }); assert.equal((await snapshot()).inputEnabled, false);
   await panel.getByRole('button', { name: '출근하기', exact: true }).click();
@@ -226,7 +255,7 @@ try {
     else if (revision === 1) { const match = prompt.match(/(\d+)원 상품 (\d+)개의/); assert.ok(match); choice = `${Number(match[1]) * Number(match[2])}원`; }
     else { choice = prompt.startsWith('빈 알루미늄 캔') ? '금속류' : prompt.startsWith('빈 유리병') ? '유리류' : prompt.startsWith('깨끗한 종이 상자') ? '종이류' : null; assert.ok(choice); }
     await panel.getByRole('button', { name: choice, exact: true }).click();
-    if (revision === 0) await capture('full-main-work-panel');
+    if (revision === 0) await semantic('full-main-work-panel');
     // Respect the real server's availableAt. Never rewrite DB timestamps or fast-forward a clock.
     const readyAt = Date.parse(latestIncome.nextChallenge.availableAt); assert.ok(Number.isFinite(readyAt));
     await wait(Math.max(0, readyAt - Date.now() + 200));
@@ -239,7 +268,7 @@ try {
   report.after = db.readback(); assert.equal(report.after.balance, 30); assert.equal(report.after.settled, 1); assert.equal(report.after.rewards, 1); assert.equal(report.after.linkedCredits, 1);
   await page.waitForFunction(() => window.__INHAGAME_P0__.getStatus().wallet.state === 'READY' && document.getElementById('lobby-player-wallet')?.textContent === '🪙 30');
   report.wallet = { state: 'READY', renderedLobbyLabel: '🪙 30', note: 'Actual main wallet read-model and retained lobby DOM updated after reward; lobby itself remains closed during campus gameplay' };
-  await capture('full-main-real-receipt'); check('Trusted three visible choices and settlement UI produce one PostgreSQL receipt, one SUCCESS reward and linked +30 wallet ledger credit; main wallet refresh updates actual UI read-model to 30');
+  await semantic('full-main-real-receipt'); check('Trusted three visible choices and settlement UI produce one PostgreSQL receipt, one SUCCESS reward and linked +30 wallet ledger credit; main wallet refresh updates actual UI read-model to 30');
   await stage('cancel-reopen-real-historical-receipt');
   const receiptId = latestIncome.receipt.settlementId;
   await panel.getByRole('button', { name: '닫기', exact: true }).click(); await cancel.click();
@@ -250,6 +279,8 @@ try {
   await page.getByText('서버 정산 확인: 30 코인. 최신 잔액은 지갑에서 확인해 주세요.', { exact: true }).waitFor();
   assert.equal(latestIncome.receipt.settlementId, receiptId); assert.equal((await snapshot()).walker, false);
   assert.deepEqual(db.readback(), { ...report.after, authorityActive: false });
+  await stage('capture-historical-receipt-after-confirmed-revoke');
+  await captureRevokedReceipt('full-main-historical-receipt');
   await panel.getByRole('button', { name: '닫기', exact: true }).click();
   assert.equal((await snapshot()).inputEnabled, true);
   check('Trusted cancel confirms durable revocation; reopening real historical receipt does not restart authority or pay twice; input ownership is restored');
@@ -267,7 +298,12 @@ try {
   report.result = 'pass';
 } catch (error) {
   report.result = 'fail'; report.error = scrub(error.message);
-  if (page && publicPixelsAllowed && page.url().includes('/campus/')) await page.screenshot({ path: path.join(output, 'full-main-failure.png') }).catch(() => {});
+  // Never start another GPU capture on failure, especially while a live authority lease may
+  // still exist. A bounded ordinary read preserves useful diagnostics without altering it.
+  if (page && page.url().includes('/campus/')) {
+    const failureState = await Promise.race([snapshot().catch(() => null), wait(2000).then(() => null)]);
+    await save('full-main-failure.json', { evidence: 'semantic-only', state: failureState });
+  }
   console.error(`CONVENIENCE_CAMPUS_FAILED: ${scrub(error.message)}`); process.exitCode = 1;
 } finally {
   if (page) await page.keyboard.up('w').catch(() => {});

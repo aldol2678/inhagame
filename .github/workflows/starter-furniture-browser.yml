@@ -60,6 +60,24 @@ jobs:
           supabase start > /tmp/starter-supabase-start.log 2>&1 || { cat /tmp/starter-supabase-start.log; exit 1; }
           supabase test db 2>&1 | tee test-results/starter-furniture/pgtap.log
           node scripts/local-integration.mjs 2>&1 | tee test-results/starter-furniture/integration.log
+      - name: Full campus convenience with disposable real Auth and database
+        id: convenience_campus
+        timeout-minutes: 8
+        if: ${{ !cancelled() && steps.database.outcome == 'success' }}
+        env:
+          CONVENIENCE_CAMPUS_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          CONVENIENCE_CAMPUS_OUTPUT: test-results/starter-furniture/convenience-campus
+        run: |
+          set -o pipefail
+          node scripts/convenience-campus-browser-local.mjs 2>&1 | tee test-results/starter-furniture/convenience-campus.log
+      - name: Preserve full-campus evidence before remaining browser checks
+        if: ${{ always() && steps.convenience_campus.outcome != 'skipped' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: convenience-campus-${{ github.event.pull_request.head.sha }}
+          path: test-results/starter-furniture/convenience-campus/
+          if-no-files-found: warn
+          retention-days: 14
       - name: Room-local vendor greeting and lifecycle on three viewports
         env:
           DORM_VENDOR_OUTPUT: test-results/starter-furniture/dorm-vendor
@@ -69,14 +87,6 @@ jobs:
         run: |
           set -o pipefail
           node scripts/starter-furniture-browser-local.mjs 2>&1 | tee test-results/starter-furniture/browser.log
-      - name: Full campus convenience with disposable real Auth and database
-        if: ${{ !cancelled() && steps.database.outcome == 'success' }}
-        env:
-          CONVENIENCE_CAMPUS_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          CONVENIENCE_CAMPUS_OUTPUT: test-results/starter-furniture/convenience-campus
-        run: |
-          set -o pipefail
-          node scripts/convenience-campus-browser-local.mjs 2>&1 | tee test-results/starter-furniture/convenience-campus.log
       - name: Actual Induck geometry and seating metadata only
         if: ${{ !cancelled() && steps.database.outcome == 'success' }}
         env:
@@ -113,7 +123,5 @@ jobs:
             test-results/starter-furniture/dorm-vendor/*.json
             test-results/starter-furniture/dorm-vendor/*.png
             test-results/starter-furniture/private-metadata/*.json
-            test-results/starter-furniture/convenience-campus/*.json
-            test-results/starter-furniture/convenience-campus/*.png
           if-no-files-found: error
           retention-days: 14
