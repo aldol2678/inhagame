@@ -28,7 +28,12 @@ export function createPersonalRoomScene(app){
     decor.update(objects);
   };
   decor.update([]);
-  const ensureVisualAssets = () => Promise.all([fixtures.ensureVisualAssets(),decor.ensureVisualAssets(),floorMaterial.ensureVisual()]);
+  const ensureVisualAssets = async () => {
+    ownedFurniture.activate();
+    const existing = await Promise.all([fixtures.ensureVisualAssets(),decor.ensureVisualAssets(),floorMaterial.ensureVisual()]);
+    await ownedFurniture.whenVisualsReady();
+    return existing; // Preserve the established three-part room asset readback contract.
+  };
   const ambient = new pc.Color(.43,.41,.39), clearColor = new pc.Color(.17,.16,.15);
   let previousVisual = '';
   function applyEnvironment(frame) {
@@ -45,6 +50,6 @@ export function createPersonalRoomScene(app){
       materials.updateVisual('practicalDiffuser', { emissiveIntensity: frame.diffuser });
     }
   }
-  return {root,lights,ownedFurniture,ensureVisualAssets,onDeactivate:floorMaterial.deactivate,
+  return {root,lights,ownedFurniture,ensureVisualAssets,onDeactivate:() => { floorMaterial.deactivate(); ownedFurniture.deactivate(); },
     obstacles:ownedFurniture.obstacles,ambient,clearColor,applyEnvironment,setCurtainOpen:window.setOpenness};
 }

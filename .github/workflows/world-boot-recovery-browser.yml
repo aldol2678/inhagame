@@ -1,0 +1,71 @@
+name: World boot recovery browser QA
+on:
+  pull_request:
+    paths:
+      - 'apps/world/campus/index.html'
+      - 'apps/world/styles.css'
+      - 'apps/world/src/lobby/**'
+      - 'apps/world/src/main.js'
+      - 'apps/world/src/character-model.js'
+      - 'apps/world/src/webgpu-device.js'
+      - 'apps/world/tests/boot-recovery.test.mjs'
+      - 'apps/world/tests/world-boot-diagnostics.test.mjs'
+      - 'apps/world/tests/world-loading-render.test.mjs'
+      - 'apps/world/tests/browser/boot-recovery-smoke.mjs'
+      - 'apps/world/tests/browser/loading-render-smoke.mjs'
+      - 'apps/world/tests/browser/mobile-boot-smoke.mjs'
+      - 'apps/world/tests/browser/unsupported-smoke.mjs'
+      - 'apps/world/tests/browser/harness*.mjs'
+      - 'apps/world/tests/browser/package*.json'
+      - '.github/workflows/world-boot-recovery-browser.yml'
+permissions:
+  contents: read
+concurrency:
+  group: world-boot-recovery-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  chromium:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - name: Install readable Korean glyphs
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+      - name: Record exact source for browser evidence
+        run: |
+          mkdir -p test-results/boot-recovery
+          git rev-parse HEAD > test-results/boot-recovery/head-sha.txt
+          sha256sum apps/world/campus/index.html apps/world/src/lobby/boot-recovery.js apps/world/src/lobby/lobby-loading.js apps/world/src/main.js apps/world/src/webgpu-device.js apps/world/styles.css > test-results/boot-recovery/source-sha256.txt
+      - name: Install pinned browser dependencies
+        working-directory: apps/world/tests/browser
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npx playwright install --with-deps chromium
+      - name: Unit and static boot contracts
+        run: |
+          node --test apps/world/tests/boot-recovery.test.mjs apps/world/tests/world-boot-diagnostics.test.mjs apps/world/tests/world-loading-render.test.mjs apps/world/tests/graphics-presets.test.mjs
+          node apps/world/qa.mjs
+      - name: Offline mobile boot, slow assets, failures and manual retry
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+        run: |
+          node apps/world/tests/browser/mobile-boot-smoke.mjs
+          node apps/world/tests/browser/loading-render-smoke.mjs
+          WORLD_SMOKE_DISABLE_WEBGPU=0 node apps/world/tests/browser/unsupported-smoke.mjs
+          node apps/world/tests/browser/boot-recovery-smoke.mjs
+      - name: Save recovery screenshots and diagnostic states
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: world-boot-recovery-evidence
+          path: test-results/boot-recovery/
+          if-no-files-found: warn
+          retention-days: 7
