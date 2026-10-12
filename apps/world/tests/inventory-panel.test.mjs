@@ -256,3 +256,78 @@ test("an inventory failure never blocks the shop, the purchase or the wallet", a
   assert.equal(h.statuses.length, 1, "purchase completes");
   assert.equal(byClass(h.shopPanelEl, "shop-panel-wallet")[0].textContent, "🪙 인덕코인 320");
 });
+
+test("search filters results only, retains input focus and combines tabs and stable sort", async () => {
+  const h = harness();
+  const read = { data: inv(row(MUG, { quantity: 3 }), row(CAP), row("head.future_hat")), error: null };
+  await openWith(h, [read, read]);
+  const input = byClass(h.panel, "inventory-query-input")[0];
+  input.focus();
+  input.value = "head.";
+  input.dispatch("input");
+  assert.equal(byClass(h.panel, "inventory-query-input")[0], input);
+  assert.equal(h.doc.activeElement, input);
+  assert.deepEqual(cards(h.panel).map((c) => c.dataset.itemId), [CAP, "head.future_hat"]);
+  assert.match(text(h.panel), /표시 2종 · 전체 보유 3종/);
+  const other = byClass(h.panel, "inventory-tab").find((n) => n.dataset.inventoryTab === "OTHER");
+  other.click();
+  assert.deepEqual(cards(h.panel).map((c) => c.dataset.itemId), ["head.future_hat"]);
+  const current = byClass(h.panel, "inventory-query-input")[0];
+  current.value = "nothing";
+  current.dispatch("input");
+  assert.match(text(h.panel), /검색 결과가 없어요/);
+  assert.match(text(h.panel), /보유 아이템 3종/);
+  current.value = "";
+  current.dispatch("input");
+  assert.match(text(cards(h.panel)[0]), /보유 3/);
+  assert.equal(h.client.count("get_my_world_inventory_v1"), 2, "display queries never fetch");
+});
+
+test("IME survives same-account refresh, Escape composition, and resets immediately at account boundary", async () => {
+  const h = harness();
+  const read = { data: inv(row(CAP), row(MUG)), error: null };
+  await openWith(h, [read, read]);
+  const input = byClass(h.panel, "inventory-query-input")[0];
+  input.focus();
+  input.dispatch("compositionstart");
+  input.value = "인덕";
+  input.dispatch("input", { isComposing: true });
+  h.client.respond("get_my_world_inventory_v1", read);
+  await h.inventory.refresh();
+  assert.equal(byClass(h.panel, "inventory-query-input")[0], input);
+  h.doc.dispatch("keydown", { code: "Escape", isComposing: true });
+  assert.equal(h.ui.open, true);
+  input.dispatch("compositionend");
+  assert.equal(h.doc.activeElement, byClass(h.panel, "inventory-query-input")[0]);
+  assert.equal(byClass(h.panel, "inventory-query-input")[0].value, "인덕");
+  let resolveB;
+  h.client.respond("get_my_world_inventory_v1", new Promise((r) => { resolveB = r; }));
+  void h.inventory.setAccount(B);
+  assert.equal(cards(h.panel).length, 0);
+  resolveB(read);
+  await flush();
+  assert.equal(byClass(h.panel, "inventory-query-input")[0].value, "");
+  assert.equal(byClass(h.panel, "inventory-query-select")[0].value, "server");
+  assert.equal(h.panel.dataset.inventoryTab, "ALL");
+});
+
+test("hidden panel resets search and sort across account A to B to A", async () => {
+  const h = harness();
+  const read = { data: inv(row(CAP), row(MUG)), error: null };
+  await openWith(h, [read, read]);
+  const input = byClass(h.panel, "inventory-query-input")[0];
+  input.value = "no match"; input.dispatch("input");
+  const select = byClass(h.panel, "inventory-query-select")[0];
+  select.value = "name"; select.dispatch("change");
+  h.ui.setOpen(false);
+  h.client.respond("get_my_world_inventory_v1", read);
+  await h.inventory.setAccount(B);
+  h.client.respond("get_my_world_inventory_v1", read);
+  await h.inventory.setAccount(A);
+  h.client.respond("get_my_world_inventory_v1", read);
+  h.ui.setOpen(true);
+  await flush();
+  assert.equal(byClass(h.panel, "inventory-query-input")[0].value, "");
+  assert.equal(byClass(h.panel, "inventory-query-select")[0].value, "server");
+  assert.equal(cards(h.panel).length, 2);
+});
