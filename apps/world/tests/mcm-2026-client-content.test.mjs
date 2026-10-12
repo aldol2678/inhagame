@@ -85,20 +85,29 @@ test("live MCM client uses trusted progress endpoint and zero-argument value RPC
   assert.ok(claims.every(call=>Object.keys(call[2]).length===0),"claimant cannot choose reward payload");
 });
 
-test("MCM event room is registered on the current room authority", () => {
+test("the historical MCM room remains archived but has no campus doorway", () => {
   assert.ok(ROOMS[MCM_2026_ROOM_ID]);
-  assert.ok(ROOM_ENTRANCES.some(entry=>entry.roomId===MCM_2026_ROOM_ID));
   assert.equal(ROOMS[MCM_2026_ROOM_ID].type,"event");
+  assert.equal(ROOMS[MCM_2026_ROOM_ID].access,"closed");
+  assert.equal(ROOMS[MCM_2026_ROOM_ID].entranceId,null);
+  assert.equal(ROOM_ENTRANCES.some(entry=>entry.roomId===MCM_2026_ROOM_ID),false);
 });
 
-test("event-room entry obeys the server-projected canEnter gate", () => {
-  const entrance=ROOM_ENTRANCES.find(entry=>entry.roomId===MCM_2026_ROOM_ID);
+test("retired Geonmulju event room rejects regular, preview and nested entry", () => {
   const world={getPlaceZoneId:()=>null,leaveCampus(){},showRoom(){},showCampus(){},resumeCampus(){},placePlayer(){}};
-  const denied=createRoomTransition({world,canEnter:()=>false,clock:{now:()=>1000}});
-  assert.equal(denied.enter(MCM_2026_ROOM_ID),false);
-  assert.equal(denied.contextAction({position:entrance.position,grounded:true,mounted:false}),null);
-  const allowed=createRoomTransition({world,canEnter:()=>true,clock:{now:()=>1000}});
-  assert.equal(allowed.enter(MCM_2026_ROOM_ID),true);
+  let now=1000;
+  const rooms=createRoomTransition({world,canEnter:()=>true,clock:{now:()=>now}});
+  assert.equal(rooms.enter(MCM_2026_ROOM_ID),false,"even permissive preview gates cannot enter");
+  const venue={x:0,z:0};
+  assert.equal(rooms.contextAction({position:venue,grounded:true,mounted:false})?.label?.includes("좀비대학교")??false,false);
+  assert.equal(rooms.enterNestedFromCampus(MCM_2026_ROOM_ID,{
+    parentRoomId:"ROOM_DORM1_LOBBY",returnPosition:venue
+  }),false,"direct nested campus entry is blocked");
+  assert.equal(rooms.enter("ROOM_CLUBHOUSE_01"),true,"other rooms keep working");
+  now+=1000;
+  assert.equal(rooms.enterNested(MCM_2026_ROOM_ID,{
+    fromRoomId:"ROOM_CLUBHOUSE_01",returnPosition:venue
+  }),false,"nested entry from an ordinary room is also blocked");
 });
 
 test("MCM investigation actors render as zombies while the guide remains human", async () => {
