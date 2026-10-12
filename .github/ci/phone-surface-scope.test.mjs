@@ -10,7 +10,15 @@ const quest='Quest journal controls browser checks';
 const shop='NPC shop routing browser checks';
 const phone='apps/world/src/phone/phone-messages.js';
 const main='apps/world/src/main.js';
-const authCode='    try { sessionStorage.setItem("inhagame-hub-message-draft-v1","target"); window.location.assign("/#messages"); } catch {}';
+const authCode=[
+ '    try {',
+ '      sessionStorage.setItem("inhagame-hub-message-draft-v1", JSON.stringify({ userId, createdAt: Date.now() }));',
+ '      window.location.assign("/#messages");',
+ '      return true;',
+ '    } catch {',
+ '      return false;',
+ '    }'
+].join('\n');
 const baseMain=[
  'const playerCard = createPlayerCard({',
  '  onMessage: (userId) => {',
@@ -78,6 +86,26 @@ test('only player-card presentation handoff is permitted in shared main',()=>{
  assert.equal(decide([phone,main],graphics,{mainBefore:baseMain,mainAfter:phoneMain+'\nconst newGameState = true;'}).skip,false);
  assert.equal(decide([phone,main],graphics,{mainBefore:baseMain,mainAfter:phoneMain.replace('window.location.assign','window.location.reload')}).skip,false);
  assert.equal(safeMainHandoff(baseMain,baseMain),false);
+});
+test('main.js exception rejects ANY changed callback side effect, fallback or statement order',()=> {
+ const all=[
+  phoneMain.replace('    playerCard.close();','    playerCard.close();\n    changeWorldState();'),
+  phoneMain.replace('playerCard.close();','playerCard.open();'),
+  phoneMain.replace('return true;\n    try','return false;\n    try'),
+  phoneMain.replace('if (smartphone?.openMessages?.(userId)) return true;','void smartphone?.openMessages?.(userId);'),
+  phoneMain.replace('    try {','    logPrivateMessage();\n    try {'),
+  phoneMain.replace('    try {','    try {\n      broadcastToZone();'),
+  phoneMain.replace('window.location.assign("/#messages")','window.location.reload()'),
+  phoneMain.replace('      return false;','      return true;'),
+  phoneMain.replace('    playerCard.close();\n    if (smartphone?.openMessages?.(userId)) return true;',
+    '    if (smartphone?.openMessages?.(userId)) return true;\n    playerCard.close();'),
+  phoneMain + '// unrelated change'
+ ];
+ for(const value of all){
+  assert.equal(safeMainHandoff(baseMain,value),false);
+  assert.equal(decide([main,phone],graphics,{mainBefore:baseMain,mainAfter:value}).skip,false);
+ }
+ assert.equal(safeMainHandoff(baseMain.replace('  accompany:', '  onMessage: (userId) => {}\n  accompany:'),phoneMain),false);
 });
 test('PR release/hotfix/full-ci titles and unknown workflows force full',()=>{
  for(const title of ['release(world): publish','hotfix: urgent','[full-ci] feat: app','릴리스 통합','출시 준비']){
