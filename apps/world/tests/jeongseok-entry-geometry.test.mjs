@@ -33,6 +33,9 @@ test('base owns paired round enclosures, flanking ordinary doors and stone piers
   for(const u of L.pierCenters)assert.ok(base.boxes.some(([c,p,s])=>c===C.stone&&Math.abs(local(p).u-u)<1e-8&&s[0]===L.pierWidth));
   assert.deepEqual(capture(b=>fillJeongseokEntry(b,'UNKNOWN')),{boxes:[],quads:[],tubes:[]});
   assert.deepEqual(capture(b=>fillJeongseokEntry(b,'BASE')),base);
+  const sign=capture(b=>fillJeongseokEntry(b,'DETAIL')).boxes.filter(([color])=>color===C.tactile);
+  assert.equal(sign.length,1,'one plain sign band, not dot-pattern pseudo lettering');
+  assert.equal(sign[0][2][0],2.80);
 });
 
 test('entry geometry remains finite and inside the unchanged front canopy presentation region',()=>{
@@ -102,6 +105,12 @@ test('closed entrance glazing has independent depth, seated doors and no coincid
   for(const u of L.pierCenters){
     const pier=boxes.find(([c,p,size])=>c===C.stone&&Math.abs(local(p).u-u)<1e-8&&size[0]===L.pierWidth);
     close(pier[1][1]-pier[2][1]/2,L.floor);
+    const support=boxes.find(([c,p,size])=>c===C.stone&&Math.abs(local(p).u-u)<1e-8&&size[0]===.20);
+    const canopy=LIBRARY_ROOF_PARTS.find(part=>part.id==='library_entry_canopy');
+    close(support[1][1]-support[2][1]/2,pier[1][1]+pier[2][1]/2);
+    close(support[1][1]+support[2][1]/2,canopy.y-canopy.height/2);
+    const oldAtPier=['BASE','DETAIL'].flatMap(tier=>capture(b=>fillPhotoLibraryFront(b,tier)).quads).filter(([, ...points])=>{const us=points.map(p=>local(p).u);return Math.min(...us)<=u+.1&&Math.max(...us)>=u-.1;}).flatMap(([, ...points])=>points.map(p=>local(p).v));
+    assert.ok(L.pierV-.1-Math.max(...oldAtPier)>.04,'narrow support stays visibly ahead of old glass');
   }
 });
 

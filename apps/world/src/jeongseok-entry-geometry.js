@@ -1,6 +1,6 @@
 // Historical entrance vocabulary, newly authored procedural geometry only.
 // The photo is a reference, never a shipped texture or a 2026 surveyed plan.
-import { LIBRARY_FRONT } from './basic-campus.js';
+import { LIBRARY_FRONT, LIBRARY_ROOF_PARTS } from './basic-campus.js';
 import { LIBRARY_ENTRY_HEIGHT } from './library-route-layout.js';
 import { LIBRARY_APPROACHES, librarySideRailStart } from './roadview-layout.js';
 
@@ -16,7 +16,7 @@ export const JEONGSEOK_ENTRY_LAYOUT = Object.freeze({
   openingHalfWidth: 2.70, facadeV: .725, facadeDepth: .04,
   revolvingCenters: Object.freeze([-.86, .86]), revolvingRadius: .51, revolvingV: .69,
   ordinaryCenters: Object.freeze([-2.0, 2.0]), ordinaryWidth: .80, ordinaryV: .80, ordinaryFrameV: .85,
-  pierCenters: Object.freeze([-3.32, 3.32]), pierWidth: .50, pierV: .36,
+  pierCenters: Object.freeze([-3.32, 3.32]), pierWidth: .50, pierV: .62,
   // Existing return at (-2.6,1.05), entry at (0,.45) and reader at (0,1)
   // retain their clear landing. No collider, trigger or authority is created.
   clearancePoints: Object.freeze([Object.freeze({u:-2.6,v:1.05}),Object.freeze({u:0,v:.45}),Object.freeze({u:0,v:1})])
@@ -51,9 +51,12 @@ export function fillJeongseokEntry(batch,tier='BASE'){
     // Keep a real gap from that wall and both canonical entry/reader capsule positions.
     box(batch,c.glass,0,y+.78,l.facadeV,5.40,1.56,l.facadeDepth);
     box(batch,c.metal,0,y+h+.09,.80,5.42,.17,.18);
+    const canopy=LIBRARY_ROOF_PARTS.find(part=>part.id==='library_entry_canopy');
+    const pierTop=y+2.06,canopyBottom=canopy.y-canopy.height/2;
     for(const u of l.pierCenters){
       box(batch,c.stone,u,y+1.03,l.pierV,l.pierWidth,2.06,.52);
-      box(batch,c.stone,u,y+2.34,l.pierV,.20,.56,.20);
+      // The narrow support is in front of the old glass and touches both pier and soffit.
+      box(batch,c.stone,u,(pierTop+canopyBottom)/2,l.pierV,.20,canopyBottom-pierTop,.20);
     }
     for(const u of l.ordinaryCenters){
       box(batch,c.lightGlass,u,y+h/2,l.ordinaryV,l.ordinaryWidth,h,.05);
@@ -88,9 +91,9 @@ export function fillJeongseokEntry(batch,tier='BASE'){
   if(tier==='DETAIL'){
     for(const u of l.pierCenters)for(const yy of [.52,1.04,1.56])
       box(batch,c.joint,u,y+yy,l.pierV+.263,l.pierWidth,.009,.004);
-    // Abstract gold letter strokes evoke the observed sign band without copying a photograph,
-    // a school logo or the foreground sculpture. They create no information/interaction UI.
-    for(let i=0;i<27;i++)box(batch,c.tactile,(i-13)*.105,y+h+.10,.912,.045,.070,.007);
+    // A single unlettered sign band marks the architectural strip only.
+    // It does not reproduce the library name, a logo or the foreground sculpture.
+    box(batch,c.tactile,0,y+h+.10,.912,2.80,.025,.007);
   }
   return batch;
 }

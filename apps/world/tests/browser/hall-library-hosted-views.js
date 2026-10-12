@@ -34,6 +34,7 @@ export function jeongseokEntryView(aspect=1,mode='entry-front'){
  const bearingDegrees=bearings[mode],angle=bearingDegrees*Math.PI/180,walking=mode==='entry-walk';
  const targetPoint=LIBRARY_FRONT.at(0,.85),target=[targetPoint.x,approach.height+1.00,targetPoint.z];
  const regions=jeongseokExteriorRegions(),points=regions.allowed.filter(region=>['entry-doors','entry-canopy'].includes(region.name)).flatMap(region=>region.points);
+ const allowedPoints=regions.allowed.flatMap(region=>region.points);
  const preservationPoints=[...regions.allowed,...regions.protected].flatMap(region=>region.points);
  const tan=Math.tan(48*Math.PI/360),margin=.84;
  const atDistance=distance=>{
@@ -43,11 +44,16 @@ export function jeongseokEntryView(aspect=1,mode='entry-front'){
   const offset=position.map((n,i)=>n-target[i]),back=offset.map(n=>n/Math.hypot(...offset));
   const side=[back[2],0,-back[0]],right=side.map(n=>n/Math.hypot(...side));
   const up=[back[1]*right[2],back[2]*right[0]-back[0]*right[2],-back[1]*right[0]];
-  const projected=points.map(point=>{const delta=point.map((n,i)=>n-position[i]),depth=-dot(delta,back);return {x:dot(delta,right)/(depth*tan*aspect),y:dot(delta,up)/(depth*tan),depth};});
+  const project=point=>{const delta=point.map((n,i)=>n-position[i]),depth=-dot(delta,back);return {x:dot(delta,right)/(depth*tan*aspect),y:dot(delta,up)/(depth*tan),depth};};
+  const projected=points.map(project);
   // The unchanged ROI projection rejects volumes behind the camera. Keep their
   // nearest corner ahead without widening or clipping that preservation mask.
   const minPreservationDepth=Math.min(...preservationPoints.map(point=>-dot(point.map((n,i)=>n-position[i]),back)));
-  const fit=minPreservationDepth>.25&&projected.every(p=>p.depth>0&&Math.abs(p.x)<=margin&&Math.abs(p.y)<=margin);
+  // A walking eye can sit inside the front-stair allow volume. Back up only until
+  // the original allowed volumes leave a top strip for preservation evidence;
+  // fitting their full width would make the entrance unnecessarily distant.
+  const walkingPreservationFit=!walking||allowedPoints.every(point=>project(point).y<=margin);
+  const fit=minPreservationDepth>.25&&walkingPreservationFit&&projected.every(p=>p.depth>0&&Math.abs(p.x)<=margin&&Math.abs(p.y)<=margin);
   return {position,target,points,mode,fit,entryCamera:{bearingDegrees,walking,eyeHeight,groundHeight,minPreservationDepth,local:{u,v},horizontalDistance:distance,fitPolicy:walking?'canonical-ground-plus-eye':'fixed-landing-eye',
     framing:{minX:Math.min(...projected.map(p=>(p.x+1)/2)),maxX:Math.max(...projected.map(p=>(p.x+1)/2)),minY:Math.min(...projected.map(p=>(1-p.y)/2)),maxY:Math.max(...projected.map(p=>(1-p.y)/2)),minDepth:Math.min(...projected.map(p=>p.depth))}}};
  };

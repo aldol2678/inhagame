@@ -23,7 +23,7 @@ This is a historically informed game exterior, not a surveyed reconstruction of 
 
 `library-approaches.js` now draws the pre-existing front/rear landing, steps and parapet/rail surfaces. It uses the same step intervals as `libraryStairHeight`.
 
-`jeongseok-entry-geometry.js` contains the evidence record and replaceable pure geometry modules. BASE keeps the paired revolving casings, ordinary glazing and piers visible. NEAR adds handles and landing details; DETAIL adds narrow stone joints and abstract sign strokes. Static faces share the existing campus material producer and per-material batch ownership.
+`jeongseok-entry-geometry.js` contains the evidence record and replaceable pure geometry modules. BASE keeps the paired revolving casings, ordinary glazing and piers visible. NEAR adds handles and landing details; DETAIL adds narrow stone joints and one plain, unlettered sign band (not a reproduction of the library name). Static faces share the existing campus material producer and per-material batch ownership.
 
 The complete pre-exterior curtain-wall triangles, including their lower vertices, are retained byte-for-byte. Shortening long glass and mullion quads changed 61 upper-facade MSAA pixels despite identical normals and surface depths, so the entrance is instead a separate closed glazed vestibule in front of that wall, with a positive depth gap. Stylized opaque glazing and static rotors are consistent with the existing solid exterior shell; there is no physical passage through the doors. The existing room-transition anchors remain clear. The established canopy volume is retained, with its underside retiled in grey.
 

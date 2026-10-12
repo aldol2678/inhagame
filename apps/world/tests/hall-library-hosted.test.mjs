@@ -304,6 +304,30 @@ test('entrance views preserve exact azimuth and fixed or canonical-ground-relati
  assert.throws(()=>jeongseokEntryView(0,'entry-front'),/Unsupported/);assert.throws(()=>jeongseokEntryView(2,'unreviewed'),/Unsupported/);
 });
 
+test('walking view retains approved and protected pixel samples in all three aspects and both reflections',()=>{
+ // CPU perspective projection is engine-free, so this regression also runs in
+ // the clean World unit suite. Use the actual hosted framebuffer dimensions.
+ const dot=(a,b)=>a.reduce((sum,n,i)=>sum+n*b[i],0),unit=a=>a.map(n=>n/Math.hypot(...a));
+ for(const [width,height]of [[1280,635],[390,717],[844,305]])for(const reflected of [false,true]){
+  const view=jeongseokEntryView(width/height,'entry-walk'),reflect=([x,y,z])=>[x,y,reflected?-z:z];
+  const position=reflect(view.position),target=reflect(view.target),back=unit(position.map((n,i)=>n-target[i]));
+  const right=unit([back[2],0,-back[0]]),up=[back[1]*right[2],back[2]*right[0]-back[0]*right[2],-back[1]*right[0]],tan=Math.tan(48*Math.PI/360);
+  const project=point=>{const delta=point.map((n,i)=>n-position[i]),depth=-dot(delta,back);return {x:(1+dot(delta,right)/(depth*tan*width/height))*width/2,y:(1-dot(delta,up)/(depth*tan))*height/2,z:depth};};
+  const regions=projectJeongseokExteriorRegions(project,reflected);let roiPixels=0,outsidePixels=0,upperPixels=0;
+  for(let y=0;y<height;y++)for(let x=0;x<width;x++){
+   if(regions.allowed.some(region=>insideProjectedRegion(x+.5,y+.5,region.polygon,regions.padding)))roiPixels++;
+   else{outsidePixels++;if(insideProjectedRegion(x+.5,y+.5,regions.protected.find(region=>region.name==='upper-building').polygon))upperPixels++;}
+  }
+  const label=`${width}x${height}, reflected=${reflected}`;
+  assert.ok(roiPixels>0,label+' samples the approved entry/stair surfaces');
+  assert.ok(outsidePixels>width*height*.05,label+' retains a meaningful preserved area outside the original ROI');
+  assert.ok(upperPixels>width*height*.02,label+' retains independently protected upper-building samples');
+  const doors=jeongseokExteriorRegions().allowed.find(region=>region.name==='entry-doors').points.map(point=>project(reflect(point)));
+  assert.ok(Math.max(...doors.map(p=>p.x))-Math.min(...doors.map(p=>p.x))>=300,label+' retains at least 300 pixels of doorway width');
+  assert.equal(roiPixels+outsidePixels,width*height);
+ }
+});
+
 test('real rendered entrance camera rejects raised eyes and wrong-side reflection',()=>{
  const runner=read('./browser/hall-library-hosted-smoke.mjs');
  const source=runner.match(/function checkJeongseokCloseupCamera\(pixels,expected\)\{[\s\S]*?\n\}/)?.[0];assert.ok(source);
