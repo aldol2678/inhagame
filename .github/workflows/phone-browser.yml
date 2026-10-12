@@ -3,6 +3,12 @@ on:
   pull_request:
     paths:
       - 'apps/world/src/phone/**'
+      - 'apps/world/src/commissions/**'
+      - 'apps/world/src/quest/quest-journal.js'
+      - 'apps/world/tests/commission-*.test.mjs'
+      - 'apps/world/tests/cooking-trial.test.mjs'
+      - 'apps/world/tests/sample-room-trial*.test.mjs'
+      - 'apps/world/tests/browser/commission-trial-campus-smoke.mjs'
       - 'apps/world/src/photo/**'
       - 'apps/world/src/input/**'
       - 'apps/world/src/minimap/**'
@@ -57,6 +63,13 @@ jobs:
           WORLD_SMOKE_BROWSER: chrome
           PHONE_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: timeout --signal=TERM --kill-after=10s 480s node apps/world/tests/browser/phone-messages-smoke.mjs
+      - name: Verify closed-by-default commission trials in the actual campus
+        if: ${{ !cancelled() }}
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+          COMMISSION_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: timeout --signal=TERM --kill-after=10s 480s node apps/world/tests/browser/commission-trial-campus-smoke.mjs
       - name: Save source hashes, PNG captures and browser evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -66,5 +79,6 @@ jobs:
             test-results/phone-campus/
             test-results/phone-album-manager/
             test-results/phone-messages/
+            test-results/commission-trials/
           if-no-files-found: error
           retention-days: 7
