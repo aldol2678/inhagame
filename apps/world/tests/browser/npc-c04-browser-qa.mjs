@@ -34,10 +34,14 @@ export function assertC04Frame(frame, { id, phase }) {
     assert.equal(frame.actor.activity,'PHOTO');
     assert.ok(angleError(frame.render.heading,frame.photoTargetYaw)<1,'photographer actually renders toward the pond');
     assert.equal(frame.photoPropVisible,true,'actual photo prop is loaded and visible');
+    assert.ok(frame.photoLensAlignment>.98,'actual camera lens faces the pond');
+    assert.ok(Math.abs(frame.photoLensVertical)<.15,'actual camera lens is nearly level');
   } else {
     assert.equal(frame.actor.activity,'RESTING');
-    assert.ok(Math.hypot(frame.render.position.x-frame.seat.position.x,frame.render.position.z-frame.seat.position.z)<.02,'rendered body uses the physical seat');
-    assert.ok(Math.abs(frame.render.seatAnchorY-frame.seatTopY)<.02,'human seat anchor meets the rendered slab');
+    assert.ok(Math.hypot(frame.render.position.x-frame.seat.position.x-.02*Math.sin(frame.seat.yaw*Math.PI/180),frame.render.position.z-frame.seat.position.z-.02*Math.cos(frame.seat.yaw*Math.PI/180))<.002,'rendered body uses the physical seat');
+    assert.ok(frame.seatGeometry?.triangles>0,'actual body mesh triangles are inspected');
+    assert.equal(frame.seatGeometry.penetrations,0,'body meshes do not intersect the seat slab');
+    assert.ok(Math.abs(frame.seatGeometry.contactGap)<.002,'actual clothed silhouette touches the slab');
     assert.ok(angleError(frame.render.heading,frame.seat.yaw)<1,'seated model faces outward');
   }
 }

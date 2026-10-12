@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
+import {trianglePenetratesBox} from './browser/npc-c04-geometry.mjs';
 import {C04_VIEWPORTS,assertC04Hosted,assertC04Frame,angleError} from './browser/npc-c04-browser-qa.mjs';
 const read=p=>readFileSync(new URL(p,import.meta.url),'utf8');
 test('C04 hosted gate requires exact PR head and every requested viewport',()=>{
@@ -10,16 +11,18 @@ test('C04 hosted gate requires exact PR head and every requested viewport',()=>{
   for(const key of Object.keys(env))assert.throws(()=>assertC04Hosted({...env,[key]:''}));
 });
 test('C04 actual-render oracle rejects wrong heading, missing prop, wrong seat and absent pixels',()=>{
-  const f={avatarBounds:{x:100,y:300,width:70,height:120},hud:[],actor:{id:'INKYUNG-NPC-009',phase:'ACTING',visible:true,activity:'PHOTO'},render:{enabled:true,heading:171,position:{x:2,z:3},seatAnchorY:.53},renderedFrames:3,clock:{state:'SYNCED'},count:46,viewport:{width:390,height:844},screen:{x:100,y:300},photoTargetYaw:171,photoPropVisible:true,seat:{position:{x:2,z:3},yaw:90},seatTopY:.53};
+  const f={seatGeometry:{triangles:100,penetrations:0,contactGap:0},photoLensAlignment:1,photoLensVertical:0,avatarBounds:{x:100,y:300,width:70,height:120},hud:[],actor:{id:'INKYUNG-NPC-009',phase:'ACTING',visible:true,activity:'PHOTO'},render:{enabled:true,heading:171,position:{x:2,z:3},seatAnchorY:.53},renderedFrames:3,clock:{state:'SYNCED'},count:46,viewport:{width:390,height:844},screen:{x:100,y:300},photoTargetYaw:171,photoPropVisible:true,seat:{position:{x:2,z:3},yaw:90},seatTopY:.53};
   assert.doesNotThrow(()=>assertC04Frame(f,{id:f.actor.id,phase:'ACTING'}));
   assert.throws(()=>assertC04Frame({...f,render:{...f.render,heading:37}},{id:f.actor.id,phase:'ACTING'}));
   assert.throws(()=>assertC04Frame({...f,photoPropVisible:false},{id:f.actor.id,phase:'ACTING'}));
   assert.throws(()=>assertC04Frame({...f,renderedFrames:0},{id:f.actor.id,phase:'ACTING'}));
-  const seat={...f,actor:{...f.actor,id:'INKYUNG-NPC-010',activity:'RESTING'},render:{...f.render,heading:90}};
+  const seat={...f,actor:{...f.actor,id:'INKYUNG-NPC-010',activity:'RESTING'},render:{...f.render,position:{x:2.02,z:3},heading:90}};
   assert.doesNotThrow(()=>assertC04Frame(seat,{id:seat.actor.id,phase:'ACTING'}));
   assert.throws(()=>assertC04Frame({...seat,render:{...seat.render,position:{x:5,z:3}}},{id:seat.actor.id,phase:'ACTING'}));
-  assert.throws(()=>assertC04Frame({...seat,render:{...seat.render,seatAnchorY:1}},{id:seat.actor.id,phase:'ACTING'}));
+  assert.throws(()=>assertC04Frame({...seat,seatGeometry:{...seat.seatGeometry,contactGap:.03}},{id:seat.actor.id,phase:'ACTING'}));
   assert.throws(()=>assertC04Frame({...f,hud:[{x:100,y:300,width:70,height:120}]},{id:f.actor.id,phase:'ACTING'}));
+  assert.throws(()=>assertC04Frame({...f,photoLensAlignment:-1},{id:f.actor.id,phase:'ACTING'}));
+  assert.throws(()=>assertC04Frame({...seat,seatGeometry:{...seat.seatGeometry,penetrations:1}},{id:seat.actor.id,phase:'ACTING'}));
   assert.equal(angleError(-179,179),2);
 });
 test('actual campus-life receipt summary handles the C04 record without inventing labels',()=>{
@@ -41,4 +44,10 @@ test('C04 inspection camera runs on the actual PlayCanvas pre-render event',()=>
   const smoke=read('./browser/npc-c04-living-smoke.mjs');
   assert.match(smoke,/d\.app\.on\('prerender',window\.__C04_CAMERA__\)/);
   assert.doesNotMatch(smoke,/['"]postupdate['"]/);
+});
+
+test('C04 seat triangle SAT distinguishes penetration from surface contact',()=>{
+  assert.equal(trianglePenetratesBox([[0,0,0],[.1,0,0],[0,.1,0]],[.25,.05,.2]),true);
+  assert.equal(trianglePenetratesBox([[0,.05,0],[.1,.05,0],[0,.05,.1]],[.25,.05,.2]),false);
+  assert.equal(trianglePenetratesBox([[2,0,0],[3,0,0],[2,1,0]],[.25,.05,.2]),false);
 });

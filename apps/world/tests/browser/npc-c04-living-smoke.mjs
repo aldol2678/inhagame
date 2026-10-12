@@ -62,6 +62,8 @@ try {
     if(phase==='ACTING'&&id.endsWith('009'))await page.waitForFunction(()=>window.__INHAGAME_P0__.app.root.findByName('NPC_TEST_HUMAN_INKYUNG-NPC-009')?.findByName('NPC_Activity_compact_camera')?.enabled===true,null,{timeout:15000});
     const frame=await page.evaluate(async id=>{
       const [{SEAT_ANCHORS,SEAT_TOP_Y},{roadviewGroundHeight},{INKYUNG_PHOTO_POINT},{NPC_ACTIVITY_PROPS},{NPC_SEAT_ANCHOR_MODEL_Y}]=await Promise.all([import('/src/seat-anchors.js'),import('/src/roadview-layout.js'),import('/src/photo/inkyung-photo-point.js'),import('/src/life-props.js'),import('/npc-factory/npc-dimensions.mjs')]);
+      const {trianglePenetratesBox}=await import('/tests/browser/npc-c04-geometry.mjs');
+      const {POND_TREE_SEATING}=await import('/src/roadview-layout.js');
       const d=window.__INHAGAME_P0__,n=d.getStatus().npcTest,s=n.purposeful[id],v=d.app.root.findByName('NPC_TEST_HUMAN_'+id),p=v.getLocalPosition(),q=v.getLocalRotation(),seat=SEAT_ANCHORS.find(a=>a.id==='SEAT_INKYUNG_TREE_1_A'),target=INKYUNG_PHOTO_POINT.lookAt;
       const projected=v.getPosition().clone();projected.y+=.5;const screen=d.orbit.camera.camera.worldToScreen(projected);
       const world=v.getPosition(),corners=[];
@@ -70,8 +72,36 @@ try {
       const left=Math.min(...corners.map(p=>p.x)),top=Math.min(...corners.map(p=>p.y));
       const avatarBounds={x:left,y:top,width:Math.max(...corners.map(p=>p.x))-left,height:Math.max(...corners.map(p=>p.y))-top};
       const hud=[...document.querySelectorAll('#inkyung-living-moment,#minimap,#quest-hud,#tour,.campus-topbar > *,.social-cluster > button,#joystick,#run,#jump,#transport-action')].filter(e=>{const c=getComputedStyle(e);return !e.hidden&&c.display!=='none'&&c.visibility!=='hidden'&&Number(c.opacity)>0}).map(e=>{const r=e.getBoundingClientRect();return {id:e.id||e.className,x:r.x,y:r.y,width:r.width,height:r.height}}).filter(r=>r.width>0&&r.height>0);
-      const others=Object.entries(n.purposeful).filter(([other,x])=>other!==id&&x.visible).map(([other,x])=>({id:other,distance:Math.hypot(x.position.x-s.position.x,x.position.z-s.position.z)})).sort((a,b)=>a.distance-b.distance);
-      return {cameraMode:'inspection camera; actual scene and HUD retained',avatarBounds,hud,actor:s,clock:n.shared_schedule,count:n.purposeful_count,renderer:d.getStatus().renderer,renderedFrames:window.__C04_QA_FRAMES__-window.__C04_CAPTURE_START__,viewport:{width:innerWidth,height:innerHeight},screen:{x:screen.x,y:screen.y},render:{enabled:v.enabled,position:{x:p.x,y:p.y,z:p.z},heading:Math.atan2(2*(q.x*q.z+q.w*q.y),1-2*(q.x*q.x+q.y*q.y))*180/Math.PI,seatAnchorY:p.y+NPC_SEAT_ANCHOR_MODEL_Y*v.getLocalScale().y},seat,seatTopY:roadviewGroundHeight(seat.position.x,seat.position.z)+SEAT_TOP_Y,photoTargetYaw:Math.atan2(target.x-s.position.x,target.z-s.position.z)*180/Math.PI,photoPropVisible:v.findByName('NPC_Activity_'+NPC_ACTIVITY_PROPS.PHOTO.id)?.enabled===true,nearest:others.slice(0,3)};
+      const prop=v.findByName('NPC_Activity_'+NPC_ACTIVITY_PROPS.PHOTO.id);
+      let photoLensAlignment=null,photoLensVertical=null;
+      if(prop?.enabled){const f=prop.getWorldTransform().transformVector(world.clone().set(0,0,1)).normalize();
+        const dx=target.x-s.position.x,dz=target.z-s.position.z;
+        photoLensAlignment=(f.x*dx-f.z*dz)/Math.hypot(dx,dz)/Math.hypot(f.x,f.z);photoLensVertical=f.y;}
+      let seatGeometry=null;
+      if(id.endsWith('010')&&s.phase==='ACTING'){
+        const yaw=seat.yaw*Math.PI/180,front={x:Math.sin(yaw),z:Math.cos(yaw)},side={x:Math.cos(yaw),z:-Math.sin(yaw)};
+        const centre={x:seat.position.x-front.x*.08,z:seat.position.z-front.z*.08,y:roadviewGroundHeight(seat.position.x,seat.position.z)+POND_TREE_SEATING.slabY};
+        let penetrations=0,triangles=0,torsoBottom=Infinity;
+        for(const name of ['Torso','Hips','TrouserLeg_-1','TrouserLeg_1','Shoe_-1','Shoe_1']){
+          for(const mesh of v.findByName(name).render.meshInstances){
+            const positions=[],indices=[];mesh.mesh.getPositions(positions);mesh.mesh.getIndices(indices);
+            const vertices=[];for(let i=0;i<positions.length;i+=3){
+              const w=mesh.node.getWorldTransform().transformPoint(world.clone().set(...positions.slice(i,i+3)));
+              if(name==='Torso')torsoBottom=Math.min(torsoBottom,w.y);
+              const dx=w.x-centre.x,dz=-w.z-centre.z;
+              vertices.push([dx*side.x+dz*side.z,w.y-centre.y,dx*front.x+dz*front.z]);}
+            const primitive=mesh.mesh.primitive[0];if(primitive.type!==4)throw Error('C04 geometry requires actual triangles');
+            for(let i=primitive.base;i<primitive.base+primitive.count;i+=3){triangles++;
+              const tri=[0,1,2].map(k=>vertices[primitive.indexed?indices[i+k]:i+k]);
+              if(trianglePenetratesBox(tri,POND_TREE_SEATING.slabSize.map(x=>x/2)))penetrations++;}
+          }
+        }
+        seatGeometry={triangles,penetrations,torsoBottom,contactGap:torsoBottom-(centre.y+POND_TREE_SEATING.slabSize[1]/2)};
+      }
+      const others=Object.entries(n.purposeful).filter(([other,x])=>other!==id&&x.visible).map(([other,x])=>{
+        const otherPosition=d.app.root.findByName('NPC_TEST_HUMAN_'+other).getLocalPosition();
+        return {id:other,distance:Math.hypot(otherPosition.x-p.x,otherPosition.z-p.z),sharedDistance:Math.hypot(x.position.x-s.position.x,x.position.z-s.position.z)};}).sort((a,b)=>a.distance-b.distance);
+      return {seatGeometry,photoLensAlignment,photoLensVertical,cameraMode:'inspection camera; actual scene and HUD retained',avatarBounds,hud,actor:s,clock:n.shared_schedule,count:n.purposeful_count,renderer:d.getStatus().renderer,renderedFrames:window.__C04_QA_FRAMES__-window.__C04_CAPTURE_START__,viewport:{width:innerWidth,height:innerHeight},screen:{x:screen.x,y:screen.y},render:{enabled:v.enabled,position:{x:p.x,y:p.y,z:p.z},heading:Math.atan2(2*(q.x*q.z+q.w*q.y),1-2*(q.x*q.x+q.y*q.y))*180/Math.PI,seatAnchorY:p.y+NPC_SEAT_ANCHOR_MODEL_Y*v.getLocalScale().y},seat,seatTopY:roadviewGroundHeight(seat.position.x,seat.position.z)+SEAT_TOP_Y,photoTargetYaw:Math.atan2(target.x-s.position.x,target.z-s.position.z)*180/Math.PI,photoPropVisible:v.findByName('NPC_Activity_'+NPC_ACTIVITY_PROPS.PHOTO.id)?.enabled===true,nearest:others.slice(0,3)};
     },id);
     const screenshot=`${name}-${id.slice(-3)}-${label}.png`;
     await page.screenshot({path:path.join(output,screenshot)});

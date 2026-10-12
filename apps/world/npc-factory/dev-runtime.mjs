@@ -35,7 +35,7 @@ import { createPurposefulActivityProps } from './purposeful-activity-props.mjs';
 import { createEquipmentModelLoader } from '../src/appearance/equipment-asset-loader.js';
 import { LIFE_PROP_MODELS } from '../src/life-props.js';
 import { INKYUNG_PHOTO_POINT } from '../src/photo/inkyung-photo-point.js';
-import { purposefulActivityPose, purposefulPhotoHeading } from './purposeful-activity-motion.mjs';
+import { purposefulActivityPose, purposefulPhotoHeading, c04BenchRenderPosition } from './purposeful-activity-motion.mjs';
 import { createQuestClient } from './quest-client.mjs';
 import { QUEST_ID } from './quest-contract.mjs';
 import { createMain2QuestClient } from './main2-quest-client.mjs';
@@ -1323,10 +1323,13 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
       const purposefulActivity = assignedVendor(actor.id) ? 'SHOP_SERVICE' : purposeful?.controller.status(false).activity;
       visual.activityProps.update(purposefulActivity, { moving, sitting, visible: visual.avatar.enabled });
       const activityPose = purposefulActivityPose(purposefulActivity, { phase, motionEnergy, sitting });
-      const renderPosition = sitting ? visual.seat.position : motion.position;
+      const c04SeatPosition = sitting && actor.id === 'INKYUNG-NPC-010' && visual.seat.id === 'SEAT_INKYUNG_TREE_1_A'
+        ? c04BenchRenderPosition(visual.seat, visual.worldScale,
+          roadviewGroundHeight(visual.seat.position.x, visual.seat.position.z), SEAT_TOP_Y) : null;
+      const renderPosition = c04SeatPosition ?? (sitting ? visual.seat.position : motion.position);
       const y = (assignedVendor(actor.id)?.position.y ?? roadviewGroundHeight(renderPosition.x, renderPosition.z)) +
         (sitting ? SEAT_TOP_Y - npcSeatAnchorHeight(visual.appearance.height) : bob);
-      visual.avatar.setLocalPosition(renderPosition.x, y, renderPosition.z);
+      visual.avatar.setLocalPosition(renderPosition.x, c04SeatPosition?.y ?? y, renderPosition.z);
       visual.arms.forEach((arm, index) => arm.setLocalEulerAngles(
         moving ? Math.sin(phase) * (index ? -23 : 23) : activityPose.armPitch[index],
         moving ? 0 : activityPose.armYaw[index],

@@ -5,7 +5,7 @@ import { mergeCampusPopulation } from '../npc-factory/npc-campus-expansion.mjs';
 import { applyCampusLifeSchedule } from '../npc-factory/npc-campus-life-policy.mjs';
 import { createPurposefulRoster } from '../npc-factory/purposeful-roster.mjs';
 import { createNpcNavigator } from '../npc-factory/dev-navigation.mjs';
-import { purposefulPhotoHeading } from '../npc-factory/purposeful-activity-motion.mjs';
+import { purposefulPhotoHeading, c04BenchRenderPosition } from '../npc-factory/purposeful-activity-motion.mjs';
 import { INKYUNG_PHOTO_POINT } from '../src/photo/inkyung-photo-point.js';
 import { bindSharedSchedule } from '../npc-factory/npc-shared-schedule.mjs';
 import { NPC_WORLD_EPOCH_MS as E, NPC_WORLD_PERIOD_MS as P } from '../npc-factory/npc-world-time-contract.mjs';
@@ -89,4 +89,13 @@ test('C04 photograph faces the pond without mutating shared schedule movement', 
     assert.equal(purposefulPhotoHeading(activity, { position, target, heading: 37 }), 37);
   assert.equal(purposefulPhotoHeading('PHOTO', { position, target: position, heading: 37 }), 37);
   assert.equal(purposefulPhotoHeading('PHOTO', { position, target: { x: NaN, z: 0 }, heading: 37 }), 37);
+});
+
+
+test('C04 bench projection supports the real capsule silhouette without changing seat or route',()=>{
+  const seat=SEAT_ANCHORS.find(a=>a.id==='SEAT_INKYUNG_TREE_1_A'),before=JSON.stringify(seat),scale=.35;
+  const position=c04BenchRenderPosition(seat,scale,0,.53);
+  assert.ok(Math.abs(position.y+(1.27-.69)*scale-.53)<1e-12);
+  assert.ok(Math.abs(position.x-seat.position.x-.02)<1e-12);
+  assert.equal(position.z,seat.position.z);assert.equal(JSON.stringify(seat),before);
 });
