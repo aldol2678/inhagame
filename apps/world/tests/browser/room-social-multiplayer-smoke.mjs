@@ -46,9 +46,11 @@ for(const viewport of viewports)for(const kind of ['personal','club']){
       for(const page of pages)await page.evaluate(()=>window.__SOCIAL_QA__.revalidate());
       row.checks.push('simultaneous browser seat intent, unique winner and second separate chair');
     }
-    // Warm the browser's screenshot/font pipeline before the real four-second bubble starts.
-    // Never extend/freeze production bubble lifetime to make visual evidence pass.
-    await Promise.all(pages.map(page=>page.screenshot()));
+    // Direct Chromium capture avoids Playwright's additional two-animation-frame preparation,
+    // which can outlive a four-second bubble on software-rendered CI. No clock or UI is frozen.
+    const captureSessions=await Promise.all(pages.map(page=>page.context().newCDPSession(page)));
+    const captureOptions={format:'png',fromSurface:true,captureBeyondViewport:false};
+    await Promise.all(captureSessions.map(session=>session.send('Page.captureScreenshot',captureOptions)));
     await a.locator('#chat-toggle').click();
     await a.locator('#chat-input').fill('안녕, 같은 방 친구!');
     await a.locator('#chat-input').dispatchEvent('keydown',{key:'Enter',code:'Enter',isComposing:true,bubbles:true});
@@ -59,12 +61,17 @@ for(const viewport of viewports)for(const kind of ['personal','club']){
     await a.locator('#chat-input').fill('안녕, 같은 방 친구!');
     await a.locator('#chat-input').press('Enter');
     row.captures=await Promise.all(pages.map(async(page,i)=>{
-      const text='안녕, 같은 방 친구!',expected=i===0?text:`방주인: ${text}`;
+      const text='안녕, 같은 방 친구!';
       await page.waitForFunction(text=>window.__SOCIAL_QA__.captureChat(text).visible,text);
       const before=await page.evaluate(text=>window.__SOCIAL_QA__.captureChat(text),text);
       const file=`${viewport.name}-${kind}-${i+1}-chat.png`;
-      await page.screenshot({path:path.join(output,file)});
+      const image=await captureSessions[i].send('Page.captureScreenshot',captureOptions);
       const after=await page.evaluate(text=>window.__SOCIAL_QA__.captureChat(text),text);
+      await writeFile(path.join(output,file),Buffer.from(image.data,'base64'));
+      return {file,method:'Chromium Page.captureScreenshot fromSurface',before,after};
+    }));
+    for(const [i,capture] of row.captures.entries()){
+      const {before,after}=capture,text='안녕, 같은 방 친구!',expected=i===0?text:`방주인: ${text}`;
       for(const receipt of [before,after]){
         assert.match(receipt.messageId,/^[0-9a-f-]{36}$/i,'server message ID is captured');
         assert.ok(receipt.feedId>0);assert.equal(receipt.text,text);assert.equal(receipt.modelBubble,expected);
@@ -74,8 +81,7 @@ for(const viewport of viewports)for(const kind of ['personal','club']){
         assert.equal(receipt.inputValue,'');assert.notEqual(receipt.activeInput,'chat-input');
       }
       assert.equal(after.messageId,before.messageId);assert.equal(after.feedId,before.feedId);
-      return {file,before,after};
-    }));
+    }
     assert.equal(row.captures[0].before.messageId,row.captures[1].before.messageId,'both contexts captured the same server message');
     row.checks.push('real input IME/Enter, no movement while typing, server-named feed + rendered remote bubble, focus released');
     row.checks.push('same message ID and visible production bubble verified before and after both screenshots');
