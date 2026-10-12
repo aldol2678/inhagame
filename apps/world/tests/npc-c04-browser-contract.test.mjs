@@ -16,7 +16,7 @@ test('C04 actual-render oracle rejects wrong heading, missing prop, wrong seat a
   assert.throws(()=>assertC04Frame({...f,render:{...f.render,heading:37}},{id:f.actor.id,phase:'ACTING'}));
   assert.throws(()=>assertC04Frame({...f,photoPropVisible:false},{id:f.actor.id,phase:'ACTING'}));
   assert.throws(()=>assertC04Frame({...f,renderedFrames:0},{id:f.actor.id,phase:'ACTING'}));
-  const seat={...f,actor:{...f.actor,id:'INKYUNG-NPC-010',activity:'RESTING'},render:{...f.render,position:{x:2.02,z:3},heading:90}};
+  const seat={...f,actor:{...f.actor,id:'INKYUNG-NPC-010',activity:'RESTING'},render:{...f.render,position:{x:2.10,z:3},heading:90}};
   assert.doesNotThrow(()=>assertC04Frame(seat,{id:seat.actor.id,phase:'ACTING'}));
   assert.throws(()=>assertC04Frame({...seat,render:{...seat.render,position:{x:5,z:3}}},{id:seat.actor.id,phase:'ACTING'}));
   assert.throws(()=>assertC04Frame({...seat,seatGeometry:{...seat.seatGeometry,contactGap:.03}},{id:seat.actor.id,phase:'ACTING'}));
@@ -47,6 +47,7 @@ test('C04 inspection camera runs on the actual PlayCanvas pre-render event',()=>
 });
 
 test('C04 seat triangle SAT distinguishes penetration from surface contact',()=>{
+  assert.equal(trianglePenetratesBox([[-1,0,0],[1,1,0],[1,-1,0]],[.25,.05,.2]),true);
   assert.equal(trianglePenetratesBox([[0,0,0],[.1,0,0],[0,.1,0]],[.25,.05,.2]),true);
   assert.equal(trianglePenetratesBox([[0,.05,0],[.1,.05,0],[0,.05,.1]],[.25,.05,.2]),false);
   assert.equal(trianglePenetratesBox([[2,0,0],[3,0,0],[2,1,0]],[.25,.05,.2]),false);

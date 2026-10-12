@@ -96,6 +96,6 @@ test('C04 bench projection supports the real capsule silhouette without changing
   const seat=SEAT_ANCHORS.find(a=>a.id==='SEAT_INKYUNG_TREE_1_A'),before=JSON.stringify(seat),scale=.35;
   const position=c04BenchRenderPosition(seat,scale,0,.53);
   assert.ok(Math.abs(position.y+(1.27-.69)*scale-.53)<1e-12);
-  assert.ok(Math.abs(position.x-seat.position.x-.02)<1e-12);
+  assert.ok(Math.abs(position.x-seat.position.x-.10)<1e-12);
   assert.equal(position.z,seat.position.z);assert.equal(JSON.stringify(seat),before);
 });

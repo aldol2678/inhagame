@@ -38,7 +38,7 @@ export function assertC04Frame(frame, { id, phase }) {
     assert.ok(Math.abs(frame.photoLensVertical)<.15,'actual camera lens is nearly level');
   } else {
     assert.equal(frame.actor.activity,'RESTING');
-    assert.ok(Math.hypot(frame.render.position.x-frame.seat.position.x-.02*Math.sin(frame.seat.yaw*Math.PI/180),frame.render.position.z-frame.seat.position.z-.02*Math.cos(frame.seat.yaw*Math.PI/180))<.002,'rendered body uses the physical seat');
+    assert.ok(Math.hypot(frame.render.position.x-frame.seat.position.x-.10*Math.sin(frame.seat.yaw*Math.PI/180),frame.render.position.z-frame.seat.position.z-.10*Math.cos(frame.seat.yaw*Math.PI/180))<.002,'rendered body uses the physical seat');
     assert.ok(frame.seatGeometry?.triangles>0,'actual body mesh triangles are inspected');
     assert.equal(frame.seatGeometry.penetrations,0,'body meshes do not intersect the seat slab');
     assert.ok(Math.abs(frame.seatGeometry.contactGap)<.002,'actual clothed silhouette touches the slab');

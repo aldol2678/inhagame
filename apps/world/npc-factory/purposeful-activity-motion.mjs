@@ -72,11 +72,11 @@ export function purposefulPhotoHeading(activity, { position, target, heading } =
 
 // C04's existing shoulder-only avatar has a unit-height-2 capsule torso:
 // its lowest clothed silhouette is 1.27 - .69, not the .85 leg pivot.
-// Support that real silhouette on the slab, with a 2 cm outward leg clearance.
+// Support that real silhouette on the slab, with a 10 cm outward leg clearance.
 // This is a render projection only; the shared standPoint/route is unchanged.
 export function c04BenchRenderPosition(seat, worldScale, groundY, seatTopY) {
   const yaw = seat.yaw * Math.PI / 180;
-  return { x: seat.position.x + Math.sin(yaw) * .02,
+  return { x: seat.position.x + Math.sin(yaw) * .10,
     y: groundY + seatTopY - (1.27 - .69) * worldScale,
-    z: seat.position.z + Math.cos(yaw) * .02 };
+    z: seat.position.z + Math.cos(yaw) * .10 };
 }
