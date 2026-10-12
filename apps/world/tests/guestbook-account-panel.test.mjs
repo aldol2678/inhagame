@@ -119,7 +119,7 @@ test("production identity callback passes explicit identity even when online.use
   const guestbook = new GuestbookClient({ getSelfUserId: () => getter,
     getClient: () => ({ rpc: async () => { calls.push(true); return { data: board(getter), error: null }; } }) });
   const guestbookPanel = createGuestbookPanel({ panel, guestbook, doc });
-  const collectionAccounts = [], cookingResets = [], trophyResets = [], storyResets = [];
+  const collectionAccounts = [], cookingResets = [], trophyResets = [], storyResets = [], plantResets = [];
   const noop = () => {}, client = { setAccount: noop }, online = { get userId() { return getter; } };
   const source = readFileSync(new URL("../src/main.js", import.meta.url), "utf8");
   const body = source.match(/online\.onIdentity\(\(identity\) => \{([\s\S]*?)\n  \}\);\n  online\.chat\.feed/)?.[1];
@@ -128,12 +128,14 @@ test("production identity callback passes explicit identity even when online.use
     biryongRelationships: client, shop: client, wallet: client, inventory: client, collectionBook: { setAccount: id => collectionAccounts.push(id) }, dailyQuiz: client,
     attendance: client, lifeSkillBook: client, fishing: client, loadout: client, inkyungSideEvent: { setScope: noop }, duckCompanion: { refresh: noop, reset: noop },
     lastPersonalRoomUserId: null, roomSession: { stop: noop }, roomFurniture: { reset: noop },
+    roomChat: { stop: noop }, clubRoomSession: { active: false, stop: noop }, clubRoomSeatActions: { cancel: noop }, CLUB_ROOM_ID: "ROOM_CLUBHOUSE_01",
+    roomPlantFeature: { reset: () => plantResets.push(true) },
     roomPhotoStory: { reset: () => storyResets.push(true) },
     roomFunctionAccountId: null, cookingFeature: { reset: () => cookingResets.push(true) },
     trophyDisplayPanel: { close: noop }, trophyDisplay: { reset: () => trophyResets.push(true) },
     rooms: { currentSpace: "CAMPUS" }, personalRoom: { reset: noop }, npcAiSignedIn: false,
     mcmEvent: { setSignedIn: noop }, mcmEventPreviewMode: false, npcTest: { setAiSignedIn: noop },
-    profile: { setIdentity: noop }, smartphone: { setAccount: noop }, lobbyPlayerSummary: { render: noop }, chatPanel: { refreshAvailability: noop },
+    profile: { setIdentity: noop }, smartphone: { setAccount: noop }, lobbyPlayerSummary: { render: noop }, chatPanel: { reset: noop, refreshAvailability: noop },
     friendPanel: { setAvailable: noop }, nearbyPanel: { render: noop, setOpen: noop },
     accompany: { refresh: noop, reset: noop }, social: { mine: async () => ({ friends: [] }), reset: noop },
     socialAccountSession: { setAccount: noop }, lobbyPresenceSummary: { setFriends: noop, update: noop },
@@ -153,6 +155,7 @@ test("production identity callback passes explicit identity even when online.use
   context.identityHandler({ userId: B });
   assert.equal(cookingResets.length, 3, "a duplicate identity event preserves a pending cooking retry ID");
   assert.equal(trophyResets.length, 3, "private displays reset on identity changes but not duplicate events");
+  assert.equal(plantResets.length, 3, "plant scope resets once per identity change");
   assert.equal(storyResets.length, 3, "guide resets on account changes, not duplicate identity events");
   assert.deepEqual(collectionAccounts, [A, null, B, B], "Collection uses the identity event, not the stale online getter");
   await guestbookPanel.setOpen(true);

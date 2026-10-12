@@ -239,6 +239,32 @@ async function desktopCase(startSmoke, TIMEOUT_MS) {
     entry.checks.push('first-person entry keeps the eye frame, reveals the body once the camera leaves the eye, restores first person');
 
     stage = 'room-takeover-and-indoor';
+    // Indoor photo acceptance needs a server-admitted shared room now. Supply only a synthetic
+    // single-member authority through the existing debug online object's getters; do not replace
+    // room/session/photo production code or relax its admission checks. Never contacts Supabase.
+    await page.evaluate(() => {
+      const online=window.__INHAGAME_P0__.online;
+      const saved=Object.getOwnPropertyDescriptors(online), userId='90000000-0000-4000-8000-000000000001';
+      let sid=null, admissionId=null, revision=0, nonce=crypto.randomUUID(), lastPose=null;
+      const snapshot=()=>({allowed:true,roomId:'ROOM_CLUBHOUSE_01',sessionId:sid,admissionId,topic:`world:club:ROOM_CLUBHOUSE_01:${admissionId}`,userId,capacity:6,
+        revision:++revision,leaseMs:20000,inboxNonce:nonce,
+        participants:[{v:1,sessionId:sid,userId,displayName:'사진 검증',placeZoneId:'ROOM_CLUBHOUSE_01',joinedAt:Date.now()}],
+        seats:[],poses:lastPose?[{sessionId:sid,packet:lastPose}]:[]});
+      const client={auth:{getSession:async()=>({data:{session:{user:{id:userId,is_anonymous:false},access_token:'synthetic-photo-fixture'}}})},
+        realtime:{setAuth:async()=>{}},removeChannel:async()=>{},
+        channel:()=>({on(){return this;},subscribe(fn){queueMicrotask(()=>fn('SUBSCRIBED'));return this;}}),
+        async rpc(name,args){
+          if(name==='join_world_club_room_v1'){if(sid!==args.p_session||!admissionId)admissionId=crypto.randomUUID();sid=args.p_session;nonce=crypto.randomUUID();return {data:snapshot()};}
+          if(name==='heartbeat_world_club_room_v1'&&admissionId===args.p_admission){nonce=crypto.randomUUID();return {data:snapshot()};}
+          if(name==='leave_world_club_room_v1'){if(admissionId===args.p_admission){sid=null;admissionId=null;lastPose=null;}return {data:{allowed:true}};}
+          if(name==='publish_world_club_room_v1'&&admissionId===args.p_admission){if(args.p_event==='pose')lastPose=args.p_packet;return {data:{allowed:true,sent:true}};}
+          return {data:{allowed:false,reason:'SYNTHETIC_PHOTO_SCOPE_ONLY'}};
+        }};
+      Object.defineProperties(online,{userId:{configurable:true,get:()=>userId},
+        identity:{configurable:true,get:()=>({userId,displayName:'사진 검증',guest:false})},supabase:{configurable:true,get:()=>client}});
+      window.__restorePhotoRoomAuthority=()=>{for(const key of ['userId','identity','supabase'])Object.defineProperty(online,key,saved[key]);delete window.__restorePhotoRoomAuthority;};
+    });
+    entry.checks.push('synthetic authenticated single-member admission for indoor photo only; no live account/backend evidence');
     const normal = await snapshot(page);
     await page.keyboard.press('KeyP'); await page.waitForFunction(() => window.__INHAGAME_P0__.photoMode.active);
     // PhotoMode's own entry snapshot is the restoration contract (the pre-entry frame may differ in the last bits).
@@ -261,6 +287,7 @@ async function desktopCase(startSmoke, TIMEOUT_MS) {
       entry.roomTakeover.pose.fov === saved.fov && entry.roomTakeover.pose.nearClip === saved.nearClip,
       `the transition sees the restored play camera: ${JSON.stringify({ seen: entry.roomTakeover.pose, saved })}`);
     await page.waitForFunction(() => { const d = window.__INHAGAME_P0__; return d.rooms.currentSpace === 'ROOM_CLUBHOUSE_01' && d.rooms.status().ready; }, null, { timeout: 120_000 });
+    await page.waitForFunction(()=>window.__INHAGAME_P0__.clubRoomSession.status().online);
     await frames(page, 3);
     const indoor = await snapshot(page);
     assert.equal(await page.evaluate(() => window.__INHAGAME_P0__.photoMode.open()), true, 'indoor rooms open Photo Mode');
@@ -274,6 +301,7 @@ async function desktopCase(startSmoke, TIMEOUT_MS) {
     restored(await snapshot(page), indoor, 'Indoor exit');
     assert.equal(await page.evaluate(() => window.__INHAGAME_P0__.rooms.exit()), true);
     await page.waitForFunction(() => { const d = window.__INHAGAME_P0__; return d.rooms.currentSpace === 'campus' && !d.rooms.status().busy; }, null, { timeout: 120_000 });
+    await page.evaluate(()=>window.__restorePhotoRoomAuthority());
     const returned = await snapshot(page);
     assert.equal(returned.focus.activeClaimCount, 0); assert.equal(returned.input, true);
     entry.checks.push('real Club Room transition takes over (camera restored first); indoor Photo Mode opens, room walls bound it, exit restores; campus return clean');

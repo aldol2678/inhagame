@@ -7,6 +7,7 @@ export const FURNITURE_FUNCTION_BY_ITEM = new Map([
   ["furniture.induck_chair", entry("seat", "앉기", "🪑", 1.15, 260)],
   ["furniture.dorm_single_sofa", entry("seat", "앉기", "🪑", 1.3, 260)],
   ["furniture.dorm_trophy_shelf", entry("display", "기념품 전시 확인", "🏅", 1.5)],
+  ["furniture.indoor_planter", Object.freeze({ ...entry("plant", "화분 살펴보기", "🌱", 1.5), status: "COMING_SOON" })],
   ["furniture.cooking_station", Object.freeze({ ...entry("cook", "요리하기", "🍳", 1.8), status: "COMING_SOON", ownerOnly: true })]
 ]);
 export const getFurnitureFunction = itemId => FURNITURE_FUNCTION_BY_ITEM.get(itemId) ?? null;

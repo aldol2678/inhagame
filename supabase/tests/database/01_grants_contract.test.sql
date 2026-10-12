@@ -78,6 +78,13 @@ select set_eq($$select unnest(pg_temp.exec_surface('anon'))$$, array[
 
 select set_eq($$select unnest(pg_temp.exec_surface('authenticated', 'anon'))$$, array[
   'abandon_ranked_session_v1(uuid)',
+  -- Room social candidate: authenticated lease/admission RPCs, no table access or client publisher.
+  'join_world_club_room_v1(text,uuid)', 'heartbeat_world_club_room_v1(text,uuid)',
+  'leave_world_club_room_v1(text,uuid)', 'claim_world_club_room_seat_v1(text,uuid,text)',
+  'release_world_club_room_seat_v1(text,uuid,text)', 'publish_world_club_room_v1(text,uuid,text,jsonb)',
+  'can_access_world_club_room_realtime_v1(text)', 'join_world_room_chat_v1(text,text,uuid,uuid)',
+  'renew_world_room_chat_v1(uuid)', 'leave_world_room_chat_v1(uuid)',
+  'send_world_room_chat_v1(uuid,text)', 'can_receive_world_room_chat_v1(text)',
   -- World Social S1-C1 (20260926030000): card, relationships, blocks, reports; caller = auth.uid().
   'block_world_user(uuid)',
   'end_world_accompany(uuid)',
@@ -147,6 +154,12 @@ select set_eq($$select unnest(pg_temp.exec_surface('authenticated', 'anon'))$$, 
   'get_world_room_furniture_v1(uuid)',
   'save_my_room_furniture_v1(uuid,integer,jsonb)',
   'cook_my_world_recipe_v1(text,uuid)', -- server recipe, actor and owned/saved station; candidate closed
+  -- Indoor Plant P0: server-gated, self-only commands and authorized room projection; candidate closed.
+  'claim_my_room_planter_v1(uuid)',
+  'plant_my_room_plant_v1(uuid,uuid,uuid)',
+  'care_my_room_plant_v1(uuid,uuid,integer,uuid)',
+  'care_visited_room_plant_v1(uuid,uuid,uuid,uuid,uuid,uuid)', -- current same-account server lease and H3 required
+  'get_world_room_plants_v1(uuid)',
 
   -- Housing H3 (20261005022000): knock before a friend visit; caller = auth.uid().
   'knock_friend_personal_room_v1(uuid)',

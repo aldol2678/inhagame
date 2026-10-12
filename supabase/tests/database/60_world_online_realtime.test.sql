@@ -37,8 +37,12 @@ end;
 $$;
 
 select policies_are('realtime', 'messages',
-  array['world online players read place zone', 'world online players write place zone'],
-  'realtime.messages carries exactly the world online policies');
+  case when current_setting('world.realtime_stub') = 'true' then
+    array['world online players read place zone', 'world online players write place zone']
+  else array['world online players read place zone', 'world online players write place zone',
+    'world club leased inbox read', 'world club inbox read guard', 'world club server writes only',
+    'world room chat receive own inbox', 'world room chat restrict inbox reads', 'world room chat prohibit client writes'] end,
+  'Realtime has exactly the campus policies plus the committed leased-inbox policies');
 select ok(not has_function_privilege(r, 'private.install_world_online_realtime_policies()', 'execute'),
   format('%s cannot run the policy installer', r))
 from unnest(array['anon', 'authenticated']) r;

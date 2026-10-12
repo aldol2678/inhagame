@@ -1,0 +1,12 @@
+{
+  "name": "inha-world-room-social-sql-fixture",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test ../room-social-harness.test.mjs && node run.mjs"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.3.14"
+  }
+}

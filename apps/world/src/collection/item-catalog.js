@@ -138,6 +138,11 @@ export const ITEM_CATALOG = Object.freeze([
     furniture('DECOR', { rarity: 'COMMON', acquisition: [{ source: 'SHOP' }], tags: ['dorm', 'f0', 'study', 'decor_set'], introducedVersion: 'housing.f0' })),
 
 
+  // ---- Indoor Plant P0: separate from STATIC F0 decor; grant/runtime remain CLOSED ----
+  item('furniture.indoor_planter', '작은 꽃 재배 화분', '내 방에서 작은 꽃 한 송이를 키우고 간직하는 화분. 기능은 준비 중이에요.',
+    furniture('DECOR', { rarity: 'COMMON', acquisition: [{ source: 'DEFAULT', ref: 'housing.planter_starter.v1' }],
+      tags: ['dorm', 'plant', 'starter'], introducedVersion: 'housing.plant.p0' })),
+
   // ---- Cooking B2 candidate: definitions only, no acquisition activation ----
   item('furniture.cooking_station', '생활관 조리대', '내 방에 보유·저장한 조리대. 요리 기능은 준비 중이에요.',
     furniture('DECOR', { rarity: 'COMMON', acquisition: [{ source: 'CRAFTING' }], tags: ['dorm', 'cooking'], introducedVersion: 'cooking.b2' })),

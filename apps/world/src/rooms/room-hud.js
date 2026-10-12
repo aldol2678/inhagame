@@ -8,7 +8,7 @@
 export const ROOM_VISIBILITY_TEXT = Object.freeze({ friends: "👥 친구 공개", private: "🔒 비공개" });
 
 // `footer` (Housing H3): a node the HUD keeps as its last child across re-renders (the owner knock prompt).
-export function createRoomHud({ root, onLeave = () => false, onEdit = null, onStory = null, onSetVisibility = async () => null, footer = null, doc = document }) {
+export function createRoomHud({ root, onLeave = () => false, onEdit = null, onStory = null, onPlant = null, onSetVisibility = async () => null, footer = null, doc = document }) {
   const el = (tag, className, text) => {
     const node = doc.createElement(tag);
     if (className) node.className = className;
@@ -25,15 +25,17 @@ export function createRoomHud({ root, onLeave = () => false, onEdit = null, onSt
     root.hidden = false;
     root.dataset.role = state.role ?? "";
     const owner = state.role === "owner";
-    const title = el("strong", "room-hud-title", owner ? "🏠 내 방" : `🏠 ${state.ownerDisplayName ?? "친구"}의 방`);
+    const club = state.kind === "club";
+    const title = el("strong", "room-hud-title", club ? "🏠 공용 동아리방" : owner ? "🏠 내 방" : `🏠 ${state.ownerDisplayName ?? "친구"}의 방`);
     const meta = el("span", "room-hud-meta");
     const parts = [];
     if (state.phase === "CHECKING") parts.push("입장 확인 중…");
     else if (state.phase === "DEGRADED") parts.push("연결 중…");
     else if (state.phase === "LOCAL") parts.push("오프라인 · 혼자 있는 중");
-    else parts.push(`${state.count}명`);
-    if (!owner) parts.push("방문 중 · 편집 불가");
-    if (!owner && state.phase === "READY" && !state.ownerPresent) parts.push("주인 부재");
+    else parts.push(club ? `${state.count}/${state.capacity}명` : `${state.count}명`);
+    if (club) parts.push("공용 좌석 6개");
+    if (!owner && !club) parts.push("방문 중 · 편집 불가");
+    if (!owner && !club && state.phase === "READY" && !state.ownerPresent) parts.push("주인 부재");
     meta.textContent = parts.join(" · ");
     root.append(title, meta);
 
@@ -56,6 +58,10 @@ export function createRoomHud({ root, onLeave = () => false, onEdit = null, onSt
       const story = el("button", "room-hud-story", "방의 한 장면"); story.type = "button";
       story.disabled = state.phase === "CHECKING";
       story.addEventListener("click", () => onStory()); actions.append(story);
+    }
+    if (owner && onPlant) {
+      const plant = el("button", "room-hud-plant", "화분 키우기"); plant.type = "button";
+      plant.disabled = state.phase === "CHECKING"; plant.addEventListener("click", () => onPlant()); actions.append(plant);
     }
     const leave = el("button", "room-hud-leave", "나가기");
     leave.type = "button";
