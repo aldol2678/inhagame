@@ -163,7 +163,7 @@ test("20–21. a block hides that user's chat: incoming suppressed, current entr
   // The live wiring uses the same two hooks.
   const main = code("../src/main.js");
   assert.match(main, /isBlocked: \(userId\) => social\.isBlocked\(userId\)/);
-  assert.match(main, /social\.onBlockedChange\(\(userId, blocked\) => \{\s*if \(blocked\) online\?\.chat\.removeSender\(userId\);\s*nearbyPanel\.render\(\);\s*\}\)/);
+  assert.match(main, /social\.onBlockedChange\(\(userId, blocked\) => \{\s*if \(blocked\) \{ online\?\.chat\.removeSender\(userId\); roomChat\?\.removeSender\(userId\); \}\s*nearbyPanel\.render\(\);\s*\}\)/);
   assert.match(code("../src/online/world-online.js"), /removeSender\(userId\) \{ chatFeed\.removeSender\(userId\); \}/);
 });
 

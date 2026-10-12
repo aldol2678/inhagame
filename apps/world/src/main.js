@@ -108,6 +108,10 @@ import { PersonalRoomClient } from "./rooms/personal-room-client.js";
 import { createPersonalRoomInteraction } from "./rooms/personal-room-interaction.js";
 import { FriendRoomVisitClient, FRIEND_ROOM_VISIT_TEXT, createFriendRoomVisitController } from "./rooms/friend-room-visit.js";
 import { createPersonalRoomSession } from "./rooms/room-session.js";
+import { createRoomChat } from './rooms/room-chat.js';
+import { createClubRoomSession } from './rooms/club-room-session.js';
+import { CLUB_ROOM_ID, clubRoomSeatAnchors } from './rooms/club-room-seats.js';
+import { createClubRoomSeatActions } from './rooms/club-room-seat-actions.js';
 import { createRoomHud } from "./rooms/room-hud.js";
 import { DORM_1_CAMPUS_RETURN } from "./dorm1-layout.js";
 import { RoomKnockClient, createOwnerKnockWatcher, diffRoomVisitors } from "./rooms/room-knock.js";
@@ -916,6 +920,11 @@ let personalRoomInteraction = null;
 let lastPersonalRoomUserId = null;
 // Social S1-D2: the Personal Room Session (private world:room:<uuid> channel) and friend visits.
 let roomSession = null;
+let clubRoomSession = null;
+let clubRoomSeatActions = null;
+let roomChat = null;
+const activeChat = () => ["ROOM_PERSONAL_BASIC", "ROOM_CLUBHOUSE_01"].includes(rooms?.currentSpace)
+  ? roomChat : online?.chat;
 let roomFurniture = null;
 let furnitureEditor = null;
 let roomPhotoStory = null;
@@ -945,7 +954,8 @@ let playerAutoMove = null;
 let unbindAutoMoveManual = null;
 // Inside a Personal Room the expression goes to the room channel; the campus session is paused there.
 const emotes = new EmoteController({ clock: { now: () => Date.now() },
-  send: (id) => roomSession?.active ? roomSession.reportEmote(id) : online?.reportEmote(id) === true });
+  send: (id) => clubRoomSession?.active ? clubRoomSession.reportEmote(id)
+    : roomSession?.active ? roomSession.reportEmote(id) : online?.reportEmote(id) === true });
 // Social S1-B sit: explicit seat anchors; while seated PlayerController does not translate the player.
 const seatSpaceId = () => rooms?.insideRoom
   ? `${rooms.currentSpace}:${rooms.status().metadata?.personalRoomId ?? ""}`
@@ -955,14 +965,18 @@ const personalSeatRoomId = () => rooms?.currentSpace === "ROOM_PERSONAL_BASIC"
 const seating = createSeatInteraction({
   player, controller, emotes, places: { getCurrentPlaceZone: () => places.getCurrentPlaceZone() },
   getSpaceId: seatSpaceId,
-  getPlaceZoneId: () => rooms?.insideRoom ? personalRoomSeatZone(personalSeatRoomId()) : places.getCurrentPlaceZone()?.id ?? null,
+  getPlaceZoneId: () => rooms?.currentSpace === CLUB_ROOM_ID ? CLUB_ROOM_ID
+    : rooms?.insideRoom ? personalRoomSeatZone(personalSeatRoomId()) : places.getCurrentPlaceZone()?.id ?? null,
   getOnline: () => rooms?.insideRoom
-    ? roomSession?.status().roomId === personalSeatRoomId() ? roomSession : null
+    ? rooms.currentSpace === CLUB_ROOM_ID ? clubRoomSession
+      : roomSession?.status().roomId === personalSeatRoomId() ? roomSession : null
     : biryongRealm?.inBiryong ? null : online,
   canInteract: () => !fullMap?.openState && !rooms?.status().busy && !furnitureEditor?.open &&
-    !biryongRealm?.inBiryong && (!rooms?.insideRoom || !!personalSeatRoomId()),
+    !biryongRealm?.inBiryong && (!rooms?.insideRoom || !!personalSeatRoomId() ||
+      (rooms.currentSpace === CLUB_ROOM_ID && clubRoomSession?.status().online)),
   getAnchors: () => rooms?.insideRoom
-    ? personalRoomSeatAnchors({ roomId: personalSeatRoomId(), objects: roomFurniture?.state().objects ?? [],
+    ? rooms.currentSpace === CLUB_ROOM_ID ? clubRoomSeatAnchors({ position: player.getLocalPosition() })
+      : personalRoomSeatAnchors({ roomId: personalSeatRoomId(), objects: roomFurniture?.state().objects ?? [],
       obstacles: personalRoomScene.obstacles, position: player.getLocalPosition() })
     : biryongRealm?.inBiryong ? [] : undefined,
   resolveStandPoint: anchor => anchor.roomId
@@ -992,10 +1006,12 @@ const follow = new FollowController({
 const toggleSeat = () => {
   if (fullMap?.openState || rooms?.status().busy || furnitureEditor?.open) return false;
   if (!seats.isSeated && seating.nearby) follow.stop(FollowStopReason.SIT);
+  if (rooms?.currentSpace === CLUB_ROOM_ID) return clubRoomSeatActions?.toggle() ?? false;
   return seating.toggle();
 };
 // An emote ends Follow, then plays as if standing still (no walking emotes in S1).
 const requestEmote = (id) => {
+  clubRoomSeatActions?.cancel();
   const loco = locomotion();
   if (follow.stop(FollowStopReason.EMOTE)) loco.moving = locomotionIntent(controller).move;
   return seating.requestEmote(id, loco);
@@ -1018,7 +1034,7 @@ const chatPanel = createChatPanel({
   input: document.getElementById("chat-input"),
   feedList: document.getElementById("chat-feed"),
   hint: document.getElementById("chat-hint"),
-  getChat: () => online?.chat,
+  getChat: activeChat,
   shouldIgnoreShortcut: () => !inputFocus.can("WORLD_ACTION"),
   onOpenChange: (open) => {
     if (open) {
@@ -1212,6 +1228,7 @@ loadout.onChange((change) => online?.setLocalEquipment(change.accountId, publicE
 // Personal Room Session carries the same public equipment on the room channel.
 loadout.onChange((change) => {
   if (change.accountId && change.accountId === online?.userId) roomSession?.setEquipment(publicEquipmentFor(change, change.accountId));
+  if (change.accountId && change.accountId === online?.userId) clubRoomSession?.setEquipment(publicEquipmentFor(change, change.accountId));
 });
 // A page restored from the back/forward cache may have missed progression / wallet / inventory changes.
 window.addEventListener("pageshow", (event) => {
@@ -1285,6 +1302,7 @@ const friendPanel = createFriendPanel({
 });
 // Unfriend / block from any panel: a live room visit re-asks the server at once (not in 15 s).
 social.onRelationshipChange(() => { void roomSession?.revalidateNow(); });
+social.onRelationshipChange(() => { void roomChat?.revalidateNow(); });
 const guestbook = new GuestbookClient({
   getClient: () => online?.supabase ?? null,
   getSelfUserId: () => online?.userId ?? null
@@ -1817,7 +1835,7 @@ social.onRelationshipChange((userId, state) => lobbyPresenceSummary.applyRelatio
 social.onRelationshipChange(() => nearbyPanel.render());
 // A block hides that user's local chat immediately (feed entries and bubbles).
 social.onBlockedChange((userId, blocked) => {
-  if (blocked) online?.chat.removeSender(userId);
+  if (blocked) { online?.chat.removeSender(userId); roomChat?.removeSender(userId); }
   nearbyPanel.render();
 });
 const hudMenu = createCampusHudMenu({
@@ -1982,8 +2000,7 @@ document.getElementById('tour-restart')?.addEventListener('click', () => {
 
 const places = new PlaceZoneRegistry();
 inkyungLivingMoment?.setZone(places.getCurrentPlaceZone?.()?.id ?? null);
-// Club Room P0: the main-hall entrance leads to a separate interior scene in this same app.
-// Only one space is active; the room is local-only (no Realtime) and nothing is stored.
+// The main-hall entrance leads to the server-admitted shared club interior. Campus stays paused.
 const clubRoom = createClubRoomScene(app);
 const dorm1Lobby = createDorm1LobbyScene(app, { player, camera });
 const personalRoomScene = createPersonalRoomScene(app);
@@ -2004,6 +2021,7 @@ rooms = createRoomTransition({
     ? "방을 전환하지 못했어요. 이전 위치에서 다시 시도해 주세요."
     : "방 전환을 복구하지 못했어요. 새로고침해 주세요."),
   onBusyChange: (busy) => {
+    if (busy) { clubRoomSeatActions?.cancel(); roomChat?.stop(); chatPanel.reset(); }
     if (busy) roomTransitionInput.acquire();
     else roomTransitionInput.release();
   },
@@ -2422,6 +2440,67 @@ roomSession = createPersonalRoomSession({
     if (state.active && rooms.currentSpace === "ROOM_PERSONAL_BASIC") zoneEl.textContent = roomLocationLabel(state);
   }
 });
+clubRoomSession = createClubRoomSession({
+  player, controller,
+  isSeated: () => seats.isSeated && seats.seated?.clubRoomId === CLUB_ROOM_ID,
+  createAvatar: createRemoteAvatarFactory({ app, parent: clubRoom.root, camera, canvas,
+    onInspect: sessionId => {
+      const remote = clubRoomSession?.remotePlayer(sessionId);
+      if (remote && !chatPanel.open) void playerCard.openUser(remote.userId, remote.displayName);
+    } }),
+  getClient: () => online?.supabase ?? null,
+  getIdentity: () => online?.userId ? { userId: online.userId, displayName: online.identity?.displayName ?? null,
+    guest: online.identity?.guest === true } : null,
+  getEquipment: () => publicEquipmentFor(loadout, online?.userId ?? null),
+  onSeatLost: () => { if (seats.seated?.clubRoomId === CLUB_ROOM_ID) seating.standUp("club-lease"); },
+  onAccessLost: ({ reason }) => {
+    if (rooms.currentSpace !== CLUB_ROOM_ID) return;
+    clubRoomSeatActions?.cancel();
+    rooms.exit({ force: true });
+    showWorldStatus(reason === "ROOM_FULL" ? "동아리방은 최대 6명까지 함께할 수 있어요. 잠시 후 다시 와 주세요."
+      : reason === "PERMANENT_ACCOUNT_REQUIRED" ? "공용 동아리방은 로그인 후 들어갈 수 있어요."
+        : reason === "JOIN_COOLDOWN" ? "방에 너무 빠르게 다시 들어왔어요. 잠시 후 다시 시도해 주세요."
+          : reason === "RATE_LIMITED" ? "동아리방에 자주 입장해 잠시 쉬어야 해요. 나중에 다시 와 주세요."
+        : reason === "UNAVAILABLE" ? "공용 동아리방 연결을 확인하지 못해 본관으로 돌아왔어요."
+          : "동아리방 참가 권한이나 연결이 바뀌어 본관으로 돌아왔어요.");
+  },
+  onChange: state => {
+    if (rooms.currentSpace !== CLUB_ROOM_ID) return;
+    roomHud.update(state);
+    if (state.active) zoneEl.textContent = `🏠 공용 동아리방 · ${state.count}/${state.capacity}명`;
+  }
+});
+clubRoomSeatActions = createClubRoomSeatActions({ session: clubRoomSession, seating, player, controller,
+  getRoomId: () => rooms.currentSpace,
+  canInteract: () => !rooms.status().busy && !fullMap?.openState && inputFocus.can("WORLD_ACTION"),
+  onStatus: showWorldStatus });
+window.addEventListener("pagehide", () => {
+  clubRoomSeatActions.cancel();
+  if (seats.seated?.clubRoomId === CLUB_ROOM_ID) seating.standUp("pagehide");
+  clubRoomSession.stop();
+});
+window.addEventListener("pageshow", event => {
+  if (event.persisted && rooms.currentSpace === CLUB_ROOM_ID) void clubRoomSession.enter();
+});
+roomChat = createRoomChat({
+  getClient: () => online?.supabase ?? null,
+  getIdentity: () => online?.identity ?? null,
+  isBlocked: userId => social.isBlocked(userId),
+  onChange: () => chatPanel.refreshAvailability()
+});
+roomSession.setChatBubbles((sessionId, userId) => roomChat.bubbleFor(sessionId, userId));
+clubRoomSession.setChatBubbles((sessionId, userId) => roomChat.bubbleFor(sessionId, userId));
+roomChat.feed.onChange(entries => { if (activeChat() === roomChat) chatPanel.renderFeed(entries); });
+// Context routing is independent of the campus chat. Unsupported/interrupted room sessions fail closed.
+const syncRoomChat = () => {
+  const kind = rooms.currentSpace === "ROOM_PERSONAL_BASIC" ? "personal" : rooms.currentSpace === CLUB_ROOM_ID ? "club" : null;
+  chatPanel.setRoomScope(Boolean(kind));
+  const state = kind === "personal" ? roomSession.status() : kind === "club" ? clubRoomSession.status() : null;
+  if (!state?.online || !state.sessionId) { if (roomChat.status().active) roomChat.stop(); return; }
+  void roomChat.enter({ kind, roomId: state.roomId, sessionId: state.sessionId,
+    admissionId: kind === "club" ? clubRoomSession.admissionId : null });
+};
+rooms.onChange(() => { roomChat.stop(); chatPanel.reset(); });
 friendRoomVisit = createFriendRoomVisitController({
   client: friendRoomVisitClient,
   knockClient: roomKnockClient,
@@ -2580,6 +2659,13 @@ window.addEventListener("beforeunload", event => {
 
 // The room scene is shared; the session (who is here, which channel) follows the room metadata.
 rooms.onChange((status) => {
+  clubRoomSeatActions.cancel();
+  if (status.roomId === CLUB_ROOM_ID) {
+    cookingFeature.reset(); roomSession.stop(); roomFurniture.reset();
+    if (!clubRoomSession.active) void clubRoomSession.enter();
+    return;
+  }
+  clubRoomSession.stop();
   const meta = status.roomId === "ROOM_PERSONAL_BASIC" ? status.metadata : null;
   if (!meta?.personalRoomId || !meta?.ownerUserId) { cookingFeature.reset(); roomSession.stop(); roomFurniture.reset(); return; }
   cookingFeature.update();
@@ -3430,6 +3516,10 @@ app.on("update", (dt) => {
     return;
   }
   roomSession?.update(dt);
+  clubRoomSession?.update(dt);
+  clubRoomSeatActions?.update();
+  syncRoomChat();
+  roomChat?.update();
   if (rooms.currentSpace === "ROOM_PERSONAL_BASIC") {
     furnitureRefreshSeconds += dt;
     if (furnitureRefreshSeconds >= 15) { furnitureRefreshSeconds = 0; void roomFurniture?.refresh(); }
@@ -3708,7 +3798,7 @@ app.on("update", (dt) => {
   questHud?.update();
   renderNavigationHud();
   // Own chat bubble above the local nameplate; hidden in first person (the feed shows it).
-  const say = online?.chat.ownBubble() ?? null;
+  const say = activeChat()?.ownBubble() ?? null;
   const showBubble = !!say && !orbit.firstPerson && !nameplateEl.hidden;
   if (showBubble) {
     if (localBubble.textContent !== say) localBubble.textContent = say;
@@ -3756,12 +3846,17 @@ try {
     void lifeSkillBook.setAccount(identity ? online?.userId ?? null : null);
     void fishing.setAccount(identity ? online?.userId ?? null : null);
     void loadout.setAccount(identity ? online?.userId ?? null : null);
-    const nextRoomUserId = online?.userId ?? null;
+    const nextRoomUserId = identity?.userId ?? null;
     inkyungSideEvent.setScope(nextRoomUserId ?? "guest");
     const roomIdentityChanged = lastPersonalRoomUserId !== null && nextRoomUserId !== lastPersonalRoomUserId;
     if (!identity || roomIdentityChanged) roomSession?.stop();
+    const clubIdentityChanged = clubRoomSession?.active && identity?.userId !== clubRoomSession.status().userId;
+    if (!identity || clubIdentityChanged) { clubRoomSeatActions?.cancel(); clubRoomSession?.stop(); }
+    roomChat?.stop();
+    chatPanel.reset();
     if (!identity || roomIdentityChanged) roomFurniture?.reset();
-    if ((!identity || roomIdentityChanged) && rooms?.currentSpace === "ROOM_PERSONAL_BASIC") {
+    if (((!identity || roomIdentityChanged) && rooms?.currentSpace === "ROOM_PERSONAL_BASIC") ||
+        ((!identity || clubIdentityChanged) && rooms?.currentSpace === CLUB_ROOM_ID)) {
       rooms.exit({ force: true });
     }
     personalRoom.reset();
@@ -3792,7 +3887,7 @@ try {
     }
     lobbyPresenceSummary.update();
   });
-  online.chat.feed.onChange((entries) => chatPanel.renderFeed(entries));
+  online.chat.feed.onChange((entries) => { if (activeChat() === online.chat) chatPanel.renderFeed(entries); });
   online.onRemoteTeleport((userId) => {
     follow.notifyTeleport(userId);
     if (accompany?.peerId === userId) void accompany.end("teleport");
@@ -4030,6 +4125,8 @@ window.__INHAGAME_P0__ = {
   personalRoom,
   personalRoomInteraction,
   roomSession,
+  clubRoomSession,
+  roomChat,
   friendRoomVisit,
   knockPrompt,
   friendRoomVisitClient,
@@ -4133,7 +4230,7 @@ window.__INHAGAME_P0__ = {
       available: guestbook.available
     },
     personalRoom: rooms.currentSpace === "ROOM_PERSONAL_BASIC"
-      ? { active: true, session: roomSession?.status() ?? null, sessionStats: roomSession?.stats ?? null, furniture: roomFurniture?.state() ?? null }
+      ? { active: true, session: roomSession?.status() ?? null, sessionStats: roomSession?.stats ?? null, chat: roomChat?.status() ?? null, furniture: roomFurniture?.state() ?? null }
       : { active: false, sessionStats: roomSession?.stats ?? null },
     mcm2026: {
       preview: mcmEventPreviewMode,

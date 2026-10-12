@@ -1963,6 +1963,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      world_room_chat_plant_lease_v1: {
+        Args: { p_lease: string; p_room: string; p_session: string; p_user: string }
+        Returns: boolean
+      }
+      world_room_chat_personal_authority_ready_v1: { Args: never; Returns: boolean }
+      world_room_cleanup_healthy_v1: { Args: never; Returns: boolean }
+      world_room_cleanup_v1: { Args: never; Returns: undefined }
+      world_room_h3_writer_v1: { Args: never; Returns: string }
+
       hub_message_caller: { Args: never; Returns: string }
       hub_message_card: { Args: { p_user: string }; Returns: Json }
       hub_message_inha_verified: { Args: { p_user: string }; Returns: boolean }
@@ -4335,6 +4344,55 @@ export type Database = {
       }
     }
     Functions: {
+      can_access_world_club_room_realtime_v1: {
+        Args: { p_topic: string }
+        Returns: boolean
+      }
+      can_receive_world_room_chat_v1: {
+        Args: { p_topic: string }
+        Returns: boolean
+      }
+      claim_world_club_room_seat_v1: {
+        Args: { p_admission: string; p_room: string; p_seat: string }
+        Returns: Json
+      }
+      heartbeat_world_club_room_v1: {
+        Args: { p_admission: string; p_room: string }
+        Returns: Json
+      }
+      join_world_club_room_v1: {
+        Args: { p_room: string; p_session: string }
+        Returns: Json
+      }
+      join_world_room_chat_v1: {
+        Args: { p_admission?: string; p_kind: string; p_room: string; p_session: string }
+        Returns: Json
+      }
+      leave_world_club_room_v1: {
+        Args: { p_admission: string; p_room: string }
+        Returns: Json
+      }
+      leave_world_room_chat_v1: {
+        Args: { p_lease: string }
+        Returns: boolean
+      }
+      publish_world_club_room_v1: {
+        Args: { p_admission: string; p_event: string; p_packet: Json; p_room: string }
+        Returns: Json
+      }
+      release_world_club_room_seat_v1: {
+        Args: { p_admission: string; p_room: string; p_seat: string }
+        Returns: Json
+      }
+      renew_world_room_chat_v1: {
+        Args: { p_lease: string }
+        Returns: Json
+      }
+      send_world_room_chat_v1: {
+        Args: { p_lease: string; p_text: string }
+        Returns: Json
+      }
+
       abandon_ranked_session_v1: { Args: { p_run_id: string }; Returns: string }
       admin_review_world_user_report_v1: {
         Args: { p_action: string; p_report_id: number }
