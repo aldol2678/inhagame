@@ -87,8 +87,7 @@ select throws_ok($$select public.purchase_jeongseok_pass_v1('jeongseok.visitor.d
 reset role;
 
 -- ---- candidate price is not publishable, including by an accidental ops update ----
-select throws_ok($update private.world_jeongseok_pass_catalog set status='ACTIVE'
- where pass_type='jeongseok.visitor.day'$,
+select throws_ok('update private.world_jeongseok_pass_catalog set status=''ACTIVE'' where pass_type=''jeongseok.visitor.day''',
   '23514','new row for relation "world_jeongseok_pass_catalog" violates check constraint "world_jeongseok_pass_catalog_confirmed_active"',
   'candidate price cannot be activated');
 select is((select status from private.world_jeongseok_pass_catalog where pass_type='jeongseok.visitor.day'),
