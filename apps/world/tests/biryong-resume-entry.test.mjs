@@ -29,12 +29,12 @@ function fixture({ fade, failAt } = {}) {
   let now = 1000;
   const errors = [], changes = [];
   const region = createBiryongRealmTransition({ world, campusReturnAnchor: { x: 0, y: 1.15, z: -76 },
-    clock: { now: () => now }, fade, onError: info => errors.push(info) });
+    clock: { now: () => now }, fade, accessEnabled: true, onError: info => errors.push(info) });
   region.onChange(status => changes.push(status));
   const lobbyTransition = { active: false };
   const button = { hidden: true, addEventListener() {}, removeEventListener() {} };
   const bind = (value = record()) => bindResumeEntry({ button, resume: { state: 'VALID', record: value }, player, orbit,
-    lobbyWorld, transition: lobbyTransition, getRegionTransition: () => region, documentLike });
+    lobbyWorld, transition: lobbyTransition, getRegionTransition: () => region, allowBiryongResume: true, documentLike });
   const entry = bind();
   return { entry, bind, player, controller, orbit, online, region, lobbyWorld, campusRoot, biryongRoot, errors, changes, shell, lobbyTransition,
     advance() { now += 1000; } };
