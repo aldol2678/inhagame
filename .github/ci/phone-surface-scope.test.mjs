@@ -25,8 +25,10 @@ const patch = [
   ''
 ].join('\n');
 test('Phone Messages UI and reviewed player-card additions may skip unrelated heavy suites', () => {
-  assert.equal(scopedPhoneMessagesOnly(files,patch),true);
-  assert.equal(scopedPhoneMessagesOnly(files.filter(p=>p!==main)),true);
+  const minimal=['apps/world/src/phone/phone-messages.js',main];
+  assert.equal(scopedPhoneMessagesOnly(minimal,patch),true);
+  assert.equal(scopedPhoneMessagesOnly(minimal.filter(p=>p!==main)),true);
+  assert.equal(scopedPhoneMessagesOnly(files,patch),false,'name-only trust of shared Phone UI files is forbidden');
 });
 test('fail closed for missing main diff, unknown paths, other functionality, or unknown changes', () => {
   assert.equal(scopedPhoneMessagesOnly(files,''),false);
@@ -53,6 +55,20 @@ test('release, hotfix and explicit full-ci never opt out', () => {
       CI_BASE_SHA:'a'.repeat(40),CI_HEAD_SHA:'b'.repeat(40)});
     assert.deepEqual({skip:decision.skip,reason:decision.reason},{skip:false,reason:'release-or-unknown-pr'});
   }
+});
+
+test('shared Phone code and styling must match reviewed change lines', () => {
+  const smartphone='apps/world/src/phone/smartphone.js';
+  const prefs='apps/world/src/phone/phone-preferences.js';
+  const css='apps/world/phone.css';
+  for(const path of [smartphone,prefs,css])
+    assert.equal(scopedPhoneMessagesOnly(['apps/world/src/phone/phone-messages.js',path]),false,path);
+  const cssPatch='diff --git a/'+css+' b/'+css+'\\n'+'+.phone-messages { display:grid; }\\n';
+  assert.equal(scopedPhoneMessagesOnly(['apps/world/src/phone/phone-messages.js',css],'',{[css]:cssPatch}),true);
+  assert.equal(scopedPhoneMessagesOnly(['apps/world/src/phone/phone-messages.js',css],'',{
+    [css]:cssPatch.replace('.phone-messages','body')}),false);
+  assert.equal(scopedPhoneMessagesOnly(['apps/world/src/phone/phone-messages.js',smartphone],'',{
+    [smartphone]:'diff --git a/'+smartphone+' b/'+smartphone+'\\n+  shell.close();\\n'}),false);
 });
 
 test('missing CI refs cannot opt out of tests', () => {
