@@ -1,6 +1,7 @@
 // Full, unchanged /campus/ -> main.js -> real GoTrue login -> actual local HTTP handler ->
 // durable reducer -> disposable PostgreSQL settlement. No main/authority/Auth response mocks.
 import assert from 'node:assert/strict';
+import { isConfirmedRevokeRace, unexpectedBrowserProblems } from './convenience-revoke-evidence.mjs';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
@@ -41,7 +42,7 @@ async function hashes(dir) {
 }
 const sources = [...await hashes('apps/world/src'), ...await hashes('apps/world/npc-factory'), ...await hashes('apps/world/server')];
 for (const file of ['apps/world/campus/index.html', 'apps/world/styles.css', 'apps/world/dev-server.mjs',
-  'apps/world/tests/browser/convenience-campus-smoke.mjs', 'supabase/tests/support/convenience-campus-browser-db.mjs',
+  'apps/world/tests/browser/convenience-campus-smoke.mjs', 'apps/world/tests/browser/convenience-revoke-evidence.mjs', 'supabase/tests/support/convenience-campus-browser-db.mjs',
   'scripts/convenience-campus-browser-local.mjs']) sources.push({ path: file, sha256: sha(await readFile(path.join(root, file))) });
 await save('source-manifest.json', { commit, sourceHash: sha(JSON.stringify(sources)), publicAvatar: modelHash, files: sources });
 const report = { kind: 'FULL_MAIN_DISPOSABLE_AUTH_HTTP_POSTGRES', result: 'running', commit, sourceHash: sha(JSON.stringify(sources)),
@@ -127,7 +128,9 @@ try {
     const url = new URL(request.url());
     if (url.origin === smoke.origin && url.pathname === authorityPath) requestTimes.set(request, performance.now());
   });
+  let confirmedRevoke = null, observedRevokeTask = null;
   page.on('response', response => {
+    const receivedAt = performance.now();
     const url = new URL(response.url()); if (url.origin !== smoke.origin || url.pathname !== authorityPath) return;
     const task = (async () => {
       const request = response.request(), body = request.postDataJSON(), value = await response.json();
@@ -136,9 +139,25 @@ try {
       if (body.op === 'move') { assert.deepEqual(Object.keys(body.command).sort(), ['moveX', 'moveZ', 'sequence']); record.command = body.command; }
       if (value.state?.position) { record.position = value.state.position; record.sequence = value.state.sequence; record.eligible = value.eligible; latestAuthority = value; }
       if (value.questId) latestIncome = value;
-      if (!response.ok()) { record.error = value.error ?? 'UNKNOWN'; authorityFailure = `${body.op}:${response.status()}:${record.error}`; }
+      if (body.op === 'revoke' && response.status() === 200 && value.active === false) {
+        confirmedRevoke = { request: body, status: 200, active: false, sequence: value.state?.sequence,
+          startedAt: requestTimes.get(request), receivedAt };
+      }
+      if (!response.ok()) {
+        // A revoke response already observed by Playwright may still be decoding JSON.
+        // Drain only that earlier response; its exact receive timestamp remains mandatory.
+        if (body.op === 'move' && observedRevokeTask) await observedRevokeTask;
+        record.error = value.error ?? 'UNKNOWN';
+        if (isConfirmedRevokeRace({ request: body, status: response.status(), error: record.error,
+          startedAt: requestTimes.get(request), receivedAt, revoke: confirmedRevoke })) {
+          record.classification = 'CONFIRMED_REVOKE_INFLIGHT_REFUSAL';
+          record.order = { moveStartedAt: requestTimes.get(request), revokeStartedAt: confirmedRevoke.startedAt,
+            revokeReceivedAt: confirmedRevoke.receivedAt, moveReceivedAt: receivedAt, sameScope: true };
+        } else authorityFailure = `${body.op}:${response.status()}:${record.error}`;
+      }
       report.http.push(record);
     })().catch(error => { authorityFailure = scrub(error.message); });
+    if (response.request().postDataJSON()?.op === 'revoke') observedRevokeTask = task;
     responseTasks.add(task); task.finally(() => responseTasks.delete(task));
   });
   await stage('real-browser-password-login');
@@ -295,7 +314,9 @@ try {
   assert.equal(report.http.filter(record => record.op === 'start').length, 1);
   assert.equal(report.http.filter(record => record.op === 'step').length, 3);
   assert.equal(report.http.filter(record => record.op === 'complete').length, 1);
-  assert.equal(authorityFailure, null); assert.deepEqual(report.pageErrors, []); assert.deepEqual(smoke.problems, []); assert.deepEqual(report.unexpectedExternal, []);
+  assert.ok(report.http.filter(record => record.classification === 'CONFIRMED_REVOKE_INFLIGHT_REFUSAL').length <= 1, 'Only the single already in-flight move may race with revoke');
+  assert.equal(authorityFailure, null); assert.deepEqual(report.pageErrors, []); assert.deepEqual(unexpectedBrowserProblems(smoke.problems, `${smoke.origin}${authorityPath}`,
+    report.http.filter(record => record.classification === 'CONFIRMED_REVOKE_INFLIGHT_REFUSAL').length), []); assert.deepEqual(report.unexpectedExternal, []);
   report.httpSummary = Object.fromEntries([...new Set(report.http.map(r => r.op))].map(op => {
     const rows = report.http.filter(r => r.op === op), timings = rows.map(r => r.latencyMs).sort((a, b) => a - b);
     return [op, { count: rows.length, failures: rows.filter(r => r.status !== 200).length, medianMs: timings[Math.floor(timings.length / 2)], maxMs: timings.at(-1) }];
@@ -314,6 +335,14 @@ try {
   if (page) await page.keyboard.up('w').catch(() => {});
   await smoke?.close().catch(error => { report.closeError = scrub(error.message); report.result = 'fail'; process.exitCode = 1; });
   await Promise.allSettled(responseTasks);
+  report.browserProblems = smoke?.problems ?? []; // Preserve original diagnostics even for proven expected refusals.
+  if (report.result === 'pass') {
+    const unexpected = unexpectedBrowserProblems(report.browserProblems, `${smoke.origin}${authorityPath}`,
+      report.http.filter(record => record.classification === 'CONFIRMED_REVOKE_INFLIGHT_REFUSAL').length);
+    if (report.http.filter(record => record.classification === 'CONFIRMED_REVOKE_INFLIGHT_REFUSAL').length > 1 || authorityFailure || report.pageErrors.length || unexpected.length || report.unexpectedExternal.length) {
+      report.result = 'fail'; report.error = authorityFailure ?? 'Unexpected browser diagnostics during close'; process.exitCode = 1;
+    }
+  }
   if (db) {
     try { await db.close(); report.cleanup = 'Exact original candidate launch rows restored; disposable fixture ledgers left intact until unconditional workflow stack destruction'; }
     catch (error) { report.cleanup = `FAILED: ${scrub(error.message)}`; report.result = 'fail'; process.exitCode = 1; }
