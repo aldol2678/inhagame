@@ -9,6 +9,7 @@
 
 import { getItemDefinition } from "../collection/item-catalog.js";
 import { furnitureOfferDetails, ownsShopFurniture } from "./shop-furniture-handoff.js";
+import { furnitureShopCategory, furnitureShopTabs, filterFurnitureShopOffers } from "./furniture-shop-categories.js";
 import { SHOP_STATE } from "./shop-client.js";
 import { INDUCK_COIN, WALLET_STATE, walletBalance } from "../wallet/wallet-client.js";
 
@@ -104,7 +105,112 @@ export function createShopPanel({
   let openingRevision = 0;
   let renderedAccount = shop.accountId;
   let renderedShop = shop.shopId;
+  let category = "all";
+  let detailListingId = null;
+  let previewAngle = 35;
+  let previewZoom = 1;
+  let previewCanvas = null;
+  let previewEngine = null;
+  let previewStarting = null;
+  let previewEpoch = 0;
+  let previewUnavailable = false;
+  let thumbnailsBusy = false;
+  const thumbnailCache = new Map();
   const focusTargets = new Map();
+  const isShowroom = () => shop.shopId === "shop.dorm_furniture";
+
+  function clearPreview() {
+    previewEpoch++;
+    previewEngine?.dispose();
+    previewEngine = null;
+    previewStarting = null;
+    previewCanvas?.remove?.();
+    previewCanvas = null;
+    thumbnailsBusy = false;
+  }
+
+  async function ensurePreview() {
+    if (!open || previewUnavailable || !isShowroom()) return null;
+    if (previewEngine) return previewEngine;
+    if (previewStarting) return previewStarting;
+    const canvas = doc.createElement("canvas");
+    if (typeof canvas.getContext !== "function" || !doc.body?.append) return null;
+    canvas.width = 256; canvas.height = 192;
+    canvas.className = "shop-showroom-canvas-offscreen";
+    doc.body.append(canvas);
+    previewCanvas = canvas;
+    const epoch = previewEpoch;
+    previewStarting = import("./furniture-shop-preview.js")
+      .then(({ createFurnitureShopPreview }) => createFurnitureShopPreview(canvas))
+      .then(engine => {
+        if (epoch !== previewEpoch || !open || !isShowroom()) {
+          engine.dispose();
+          canvas.remove();
+          return null;
+        }
+        previewEngine = engine;
+        return engine;
+      }).catch(() => {
+        if (epoch === previewEpoch) {
+          previewUnavailable = true;
+          canvas.remove();
+          previewCanvas = null;
+        }
+        return null;
+      }).finally(() => { if (epoch === previewEpoch) previewStarting = null; });
+    return previewStarting;
+  }
+
+  async function showDetailPreview(itemId) {
+    const epoch = previewEpoch;
+    if (thumbnailsBusy) return; // Never rotate the renderer during a capture.
+    const engine = await ensurePreview();
+    if (!engine) {
+      const fallback = panel.querySelector?.(".shop-showroom-preview-fallback");
+      if (fallback) fallback.textContent = "이 기기에서는 3D 미리보기를 사용할 수 없어요.";
+      return;
+    }
+    if (epoch !== previewEpoch || !open || !detailListingId) return;
+    const selected = shop.snapshot?.offers.find(offer => offer.listingId === detailListingId);
+    if (selected?.itemId !== itemId) return;
+    const stage = panel.querySelector?.(".shop-showroom-stage");
+    if (!stage || !previewCanvas) return;
+    previewCanvas.className = "shop-showroom-canvas";
+    stage.replaceChildren(previewCanvas);
+    if (!engine.show(itemId, previewAngle, previewZoom)) {
+      stage.replaceChildren(el("span", "shop-showroom-preview-fallback", "이 가구는 3D 미리보기를 표시할 수 없어요."));
+    }
+    const fallback = stage.querySelector?.(".shop-showroom-preview-fallback");
+    if (fallback) fallback.hidden = true;
+  }
+
+  async function populateThumbnails(offers) {
+    if (thumbnailsBusy || detailListingId || !open || !isShowroom()) return;
+    const ids = [...new Set(offers.filter(offer => furnitureOfferDetails(offer.itemId)).map(offer => offer.itemId))]
+      .filter(id => !thumbnailCache.has(id));
+    if (!ids.length) return;
+    thumbnailsBusy = true;
+    try {
+      const engine = await ensurePreview();
+      if (!engine) return;
+      for (const id of ids) {
+        if (!open || detailListingId || !isShowroom()) break;
+        const thumbnail = await engine.capture(id);
+        if (thumbnail) {
+          thumbnailCache.set(id, thumbnail);
+          for (const img of panel.querySelectorAll?.(".shop-showroom-thumbnail") ?? []) {
+            if (img.dataset.itemId === id) { img.src = thumbnail; img.hidden = false; }
+          }
+        }
+      }
+    } finally {
+      thumbnailsBusy = false;
+      if (detailListingId) {
+        const offer = shop.snapshot?.offers.find(row => row.listingId === detailListingId);
+        if (offer) void showDetailPreview(offer.itemId);
+      }
+    }
+  }
   // Keep successful receipts across panel close/reopen. An Inventory failure is never a purchase
   // failure, and a read retry must not call purchase again. Account changes erase these receipts.
   const receipts = new Map();
@@ -214,27 +320,7 @@ export function createShopPanel({
     return box;
   }
 
-  function renderOffer(offer) {
-    const storedReceipt = receipts.get(offer.listingId);
-    const receipt = storedReceipt?.shopId === shop.shopId ? storedReceipt : null;
-    const pending = purchases.has(offer.listingId) || shop.isPending(offer.listingId);
-    const view = offerView(offer, { pending, describe });
-    const card = el("li", `shop-offer shop-offer-${view.state}`);
-    card.dataset.listingId = view.listingId;
-    card.dataset.state = view.state;
-    const head = el("div", "shop-offer-head");
-    head.append(el("strong", "shop-offer-name", view.name), el("span", "shop-offer-price", view.priceText));
-    card.append(head);
-    if (view.description) card.append(el("p", "shop-offer-description", view.description));
-    const furniture = furnitureOfferDetails(offer.itemId);
-    if (furniture) {
-      card.append(el("p", "shop-offer-furniture", furniture.sizeText), el("p", "shop-offer-furniture", furniture.surfaceText));
-      if (furniture.useText) card.append(el("p", "shop-offer-furniture", furniture.useText));
-    }
-    const foot = el("div", "shop-offer-foot");
-    const meta = el("span", "shop-offer-meta");
-    if (view.levelText) meta.append(el("span", "shop-offer-level", view.levelText));
-    meta.append(el("span", "shop-offer-status", view.statusText));
+  function purchaseControl(offer, view, receipt, pending, location = "listing") {
     const button = el("button", "shop-offer-buy", receipt
       ? (receipt.phase === "checking" ? "보유 확인 중…" : confirmed(receipt) ? (pending ? "구매 중…" : "추가 구매") : "구매 완료")
       : view.buttonText);
@@ -242,32 +328,131 @@ export function createShopPanel({
     if (recovering) button.textContent = pending ? "구매 중…" : "이전 구매 결과 확인";
     button.type = "button";
     button.disabled = recovering ? pending : capabilityLocked() || view.buttonDisabled || Boolean(receipt && !confirmed(receipt));
-    // Pending/refused controls remain disabled. Their listing is a temporary focus anchor,
-    // outside the native Tab order, so a readback can restore the same logical purchase action.
+    const focusKey = `${location}:${view.listingId}`;
+    button.dataset.focusKey = focusKey;
+    focusTargets.set(focusKey, button.disabled ? null : button);
+    button.setAttribute("aria-label", `${view.name} ${recovering ? "이전 구매 결과 확인" : button.disabled ? receipt ? "구매 완료" : view.statusText : receipt ? "추가 구매" : "구매"}`);
+    button.addEventListener("click", () => {
+      if (!button.disabled && focusTargets.get(focusKey) === button && panel.contains(button)) void buy(view.listingId);
+    });
+    return button;
+  }
+
+  function showroomThumb(offer, view) {
+    const button = el("button", "shop-showroom-view");
+    button.type = "button";
+    button.dataset.focusKey = `view:${offer.listingId}`;
+    button.setAttribute("aria-label", `${view.name} 3D 미리보기`);
+    const picture = el("span", `shop-showroom-picture shop-showroom-picture-${furnitureShopCategory(offer.itemId)}`);
+    const image = el("img", "shop-showroom-thumbnail");
+    image.dataset.itemId = offer.itemId;
+    image.alt = "";
+    image.loading = "lazy";
+    image.hidden = !thumbnailCache.has(offer.itemId);
+    if (!image.hidden) image.src = thumbnailCache.get(offer.itemId);
+    const fallback = el("span", "shop-showroom-picture-fallback", ({ bedding: "🛏️", seating: "🪑", light: "💡", floor: "▤", decor: "🧸", wall: "🖼️", storage: "▦", kitchen: "☕" })[furnitureShopCategory(offer.itemId)] ?? "✦");
+    picture.append(image, fallback);
+    button.append(picture, el("span", "shop-showroom-view-label", "미리보기 ↗"));
+    focusTargets.set(button.dataset.focusKey, button);
+    button.addEventListener("click", () => {
+      if (!open || !isShowroom() || !panel.contains(button)) return;
+      detailListingId = offer.listingId;
+      previewAngle = 35; previewZoom = 1;
+      render();
+    });
+    return button;
+  }
+
+  function renderOffer(offer) {
+    const storedReceipt = receipts.get(offer.listingId);
+    const receipt = storedReceipt?.shopId === shop.shopId ? storedReceipt : null;
+    const pending = purchases.has(offer.listingId) || shop.isPending(offer.listingId);
+    const view = offerView(offer, { pending, describe });
+    const showroom = isShowroom() && Boolean(furnitureOfferDetails(offer.itemId));
+    const card = el("li", `shop-offer shop-offer-${view.state}${showroom ? " shop-showroom-card" : ""}`);
+    card.dataset.listingId = view.listingId;
+    card.dataset.state = view.state;
+    if (showroom) card.append(showroomThumb(offer, view));
+    const copy = showroom ? el("div", "shop-showroom-copy") : card;
+    const head = el("div", "shop-offer-head");
+    head.append(el("strong", "shop-offer-name", view.name), el("span", "shop-offer-price", view.priceText));
+    copy.append(head);
+    if (view.description && !showroom) copy.append(el("p", "shop-offer-description", view.description));
+    const furniture = furnitureOfferDetails(offer.itemId);
+    if (furniture && !showroom) {
+      copy.append(el("p", "shop-offer-furniture", furniture.sizeText), el("p", "shop-offer-furniture", furniture.surfaceText));
+      if (furniture.useText) copy.append(el("p", "shop-offer-furniture", furniture.useText));
+    }
+    const foot = el("div", "shop-offer-foot");
+    const meta = el("span", "shop-offer-meta");
+    if (view.levelText) meta.append(el("span", "shop-offer-level", view.levelText));
+    meta.append(el("span", "shop-offer-status", view.statusText));
+    const button = purchaseControl(offer, view, receipt, pending);
     const focusKey = `listing:${view.listingId}`;
     card.tabIndex = -1;
     card.dataset.focusKey = focusKey;
-    button.dataset.focusKey = focusKey;
-    focusTargets.set(focusKey, button.disabled ? card : button);
-    button.setAttribute("aria-label", `${view.name} ${recovering ? "이전 구매 결과 확인" : button.disabled ? receipt ? "구매 완료" : view.statusText : receipt ? "추가 구매" : "구매"}`);
-    button.addEventListener("click", () => { if (!button.disabled && focusTargets.get(focusKey) === button && panel.contains(button)) void buy(view.listingId); });
+    if (button.disabled) focusTargets.set(focusKey, card);
     foot.append(meta, button);
-    card.append(foot);
-    if (receipt) card.append(renderReceipt(offer.listingId, receipt));
+    copy.append(foot);
+    if (receipt) copy.append(renderReceipt(offer.listingId, receipt));
+    if (showroom) card.append(copy);
     return card;
+  }
+
+  function renderShowroomDetail(offer) {
+    const storedReceipt = receipts.get(offer.listingId);
+    const receipt = storedReceipt?.shopId === shop.shopId ? storedReceipt : null;
+    const pending = purchases.has(offer.listingId) || shop.isPending(offer.listingId);
+    const view = offerView(offer, { pending, describe });
+    const wrap = el("section", "shop-showroom-detail");
+    const back = el("button", "shop-showroom-back", "← 가구 둘러보기");
+    back.type = "button";
+    back.dataset.focusKey = "detail-back";
+    focusTargets.set("detail-back", back);
+    back.addEventListener("click", () => { detailListingId = null; render(); });
+    wrap.append(back);
+    const stage = el("div", "shop-showroom-stage");
+    stage.append(el("span", "shop-showroom-preview-fallback", "3D 미리보기를 불러오는 중…"));
+    const controls = el("div", "shop-showroom-rotation");
+    for (const [label, step, scale] of [["↶ 왼쪽", -45, 0], ["− 축소", 0, -.15], ["+ 확대", 0, .15], ["오른쪽 ↷", 45, 0]]) {
+      const rotate = el("button", "shop-showroom-rotate", label);
+      rotate.type = "button";
+      rotate.addEventListener("click", () => {
+        previewAngle = (previewAngle + step + 360) % 360;
+        previewZoom = Math.max(.75, Math.min(1.75, previewZoom + scale));
+        previewEngine?.show(offer.itemId, previewAngle, previewZoom);
+      });
+      controls.append(rotate);
+    }
+    wrap.append(stage, controls, el("h3", "shop-showroom-detail-name", view.name));
+    if (view.description) wrap.append(el("p", "shop-showroom-detail-description", view.description));
+    const furniture = furnitureOfferDetails(offer.itemId);
+    if (furniture) {
+      wrap.append(el("p", "shop-showroom-placement", furniture.surfaceText));
+      if (furniture.useText) wrap.append(el("p", "shop-showroom-use", furniture.useText));
+    }
+    const row = el("div", "shop-showroom-detail-bottom");
+    row.append(el("strong", "shop-showroom-detail-price", view.priceText));
+    if (view.levelText) row.append(el("span", "shop-showroom-detail-level", view.levelText));
+    row.append(el("span", "shop-showroom-detail-status", view.statusText));
+    row.append(purchaseControl(offer, view, receipt, pending, "detail"));
+    wrap.append(row);
+    if (receipt) wrap.append(renderReceipt(offer.listingId, receipt));
+    return wrap;
   }
 
   function render() {
     const accountChanged = renderedAccount !== shop.accountId;
     const shopChanged = renderedShop !== shop.shopId;
-    if (shopChanged) { openingRevision += 1; hint = ""; }
+    if (shopChanged) { openingRevision += 1; hint = ""; category = "all"; detailListingId = null; clearPreview(); }
     renderedShop = shop.shopId;
     if (accountChanged) {
       openingRevision += 1; accountRevision += 1; hint = "";
-      receipts.clear(); purchases.clear();
+      receipts.clear(); purchases.clear(); detailListingId = null; clearPreview();
     }
     renderedAccount = shop.accountId;
     if (!open) return;
+    panel.dataset.presentation = isShowroom() ? "furniture-showroom" : "standard";
     const hadFocus = panel.contains(doc.activeElement);
     const focusKey = !accountChanged && !shopChanged && hadFocus ? doc.activeElement?.dataset?.focusKey : null;
     const scrollTop = accountChanged || shopChanged ? 0 : bodyElement?.scrollTop ?? 0;
@@ -314,6 +499,31 @@ export function createShopPanel({
       body.append(retry);
     } else if (!snapshot.offers.length) {
       body.append(el("p", "shop-empty", "판매 중인 상품이 없어요."));
+    } else if (isShowroom()) {
+      const selected = snapshot.offers.find(offer => offer.listingId === detailListingId);
+      if (selected && furnitureOfferDetails(selected.itemId)) {
+        body.append(renderShowroomDetail(selected));
+      } else {
+        detailListingId = null;
+        const tabs = el("nav", "shop-showroom-tabs");
+        tabs.setAttribute("aria-label", "가구 종류");
+        for (const tab of furnitureShopTabs(snapshot.offers)) {
+          const button = el("button", "shop-showroom-tab", `${tab.icon} ${tab.label}`);
+          button.type = "button";
+          button.dataset.category = tab.id;
+          button.dataset.focusKey = `category:${tab.id}`;
+          button.setAttribute("aria-pressed", String(category === tab.id));
+          focusTargets.set(button.dataset.focusKey, button);
+          button.addEventListener("click", () => { category = tab.id; render(); });
+          tabs.append(button);
+        }
+        body.append(tabs);
+        const offers = filterFurnitureShopOffers(snapshot.offers, category);
+        body.append(el("p", "shop-showroom-count", `가구 ${offers.length}개`));
+        const list = el("ul", "shop-offers shop-showroom-grid");
+        list.append(...offers.map(renderOffer));
+        body.append(list);
+      }
     } else {
       const list = el("ul", "shop-offers");
       list.append(...snapshot.offers.map(renderOffer));
@@ -350,6 +560,14 @@ export function createShopPanel({
     if (hadFocus) (focusTargets.get(focusKey) ?? closeButton).focus?.({ preventScroll: true });
     body.scrollTop = scrollTop;
     body.scrollLeft = scrollLeft;
+    if (isShowroom() && snapshot && shop.state === SHOP_STATE.READY) {
+      if (detailListingId) {
+        const selected = snapshot.offers.find(offer => offer.listingId === detailListingId);
+        if (selected) void showDetailPreview(selected.itemId);
+      } else {
+        void populateThumbnails(snapshot.offers);
+      }
+    }
   }
 
   function openShop(shopId) {
@@ -371,6 +589,7 @@ export function createShopPanel({
     if (!open) {
       walletNode = null;
       bodyElement = null;
+      detailListingId = null; clearPreview();
       focusTargets.clear();
       panel.replaceChildren();
       onOpenChange(false);
@@ -399,7 +618,10 @@ export function createShopPanel({
   inventory?.onChange(render);
   panel.addEventListener("pointerdown", (event) => event.stopPropagation());
   doc.addEventListener("keydown", (event) => {
-    if (open && event.code === "Escape") setOpen(false);
+    if (open && event.code === "Escape") {
+      if (isShowroom() && detailListingId) { detailListingId = null; render(); }
+      else setOpen(false);
+    }
   });
 
   return {
