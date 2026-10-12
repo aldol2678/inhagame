@@ -23,7 +23,7 @@ function rig() {
 test('room-local actor idles in place, faces front customers and hides outside the room', () => {
  const r=rig(); r.tick();r.draw();assert.equal(r.label.hidden,true);assert.equal(r.renderer.visual.avatar.enabled,false);
  r.root.enabled=true;r.tick();r.draw();const v=r.renderer.visual;
- assert.equal(v.avatar.enabled,true);assert.equal(v.avatar.position.z,2.7);assert.equal(v.avatar.heading,180);
+ assert.equal(v.avatar.enabled,true);assert.equal(v.avatar.position.z,2.7);assert.ok(v.avatar.heading<180&&v.avatar.heading>=145,'faces the front customer from the side of the monitor');
  assert.equal(v.marker.enabled,false);assert.equal(v.identityMarker.enabled,false);assert.equal(r.label.hidden,false);
  r.position({x:1,z:.85});r.tick();assert.ok(v.avatar.heading<180&&v.avatar.heading>=145);
  r.position({x:1,z:3});r.tick();assert.equal(v.avatar.heading,180,'does not turn its back on the counter');

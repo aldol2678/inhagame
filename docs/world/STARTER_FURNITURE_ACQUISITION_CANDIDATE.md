@@ -110,10 +110,19 @@ adds an optional rejecting predicate, used only for a new sofa's editor suggesti
   and insufficient balances. `starter-furniture-rollout.integration.test.mjs` executes the exact
   guarded live-operation SQL inside a disposable rollback transaction.
 - The dedicated exact-head workflow starts only a loopback disposable Supabase stack, runs the
-  complete pgTAP/integration suite, then renders the real vendor/shop/editor/room/character with
-  actual PostgREST purchases and SQL readback at desktop/portrait/landscape. Synthetic accounts
-  and their initial 600 coins exist only in that disposable stack. Browser evidence does not
+  complete pgTAP/integration suite, then renders the production vendor/shop/editor/room with
+  actual PostgREST purchases and SQL readback at desktop/portrait/landscape. Published screenshots
+  use the clearly labeled Public_QA_Avatar placeholder, not the private Induck model. Synthetic accounts and their initial 600 coins exist only in that disposable stack. Browser evidence does not
   prove physical-device behavior or private realtime transport.
+- Head `49cbd386` passed all 3,750 pgTAP assertions and 155 actual PostgREST integration tests,
+  including simultaneous starter v1/v2 requests and the exact stock-open SQL preservation test.
+  Subsequent UI fixes must pass those checks again at their final head.
+- A second CI-only pass fetches the already-approved canonical Induck bytes, verifies SHA-256
+  `8aede8fd595dd84fda5460e375a18df49f6a91ba813ab7a952f75e768e8964eb`, and records aggregate
+  mesh bounds, seat/root alignment and pose metadata only. Every screenshot path is disabled
+  in this mode; the upload allowlist includes only its JSON. No GLB, base64 model, private render
+  or manual is published. Actual private-character pixels remain **UNKNOWN**, and an AABB/contact
+  envelope is not exact mesh collision or visual naturalness proof.
 - World is served as static modules; there is no `apps/world/package.json` build script.
   Node World suite, `qa.mjs`, syntax and migration lint are the applicable available checks.
 - Actual housing browser smoke was attempted with pinned Playwright. Chrome channel was absent;

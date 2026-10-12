@@ -66,10 +66,11 @@ try{
    await page.waitForFunction(()=>!window.__NPC_SHOPS__.shop.capabilityChecking);
   };
   await fresh();
-  await run('exact missing capability selects legacy v1 once and rejects new routes',async()=>{
+  await run('exact missing capability retains student v1 and rejects the separate fashion route',async()=>{
    await negotiate(capability.missing);await open(0);
    assert.equal(await evalQA(()=>window.__NPC_SHOPS__.shop.mode),'legacy');
-   assert.deepEqual(await evalQA(()=>{const q=window.__NPC_SHOPS__;return [q.panel.openShop(q.ids[1]),q.panel.openShop(q.ids[2])];}),[false,false]);
+   assert.equal(await evalQA(()=>{const q=window.__NPC_SHOPS__;return q.panel.openShop(q.ids[1]);}),false);
+   assert.equal(await evalQA(()=>window.__NPC_SHOPS__.shop.shopId),'shop.student_center');
    await page.locator('.shop-offer-buy').click();await page.locator('.shop-offer-buy').evaluate(button=>{button.click();button.click();});
    assert.equal((await writes()).length,1);await finish();await page.waitForFunction(()=>window.__NPC_SHOPS__.counts().readbacks===1);
    const [call]=await writes();assert.equal(call.name,'purchase_world_shop_listing_v1');assert.equal('p_shop_id' in call.args,false);

@@ -19,7 +19,7 @@ try {
   assert.equal(vendor.visual.avatar.name,'NPC_TEST_HUMAN_DORM-SHOP-NPC-001');
   const meshes=vendor.visual.avatar.findComponents('render').flatMap(component=>component.meshInstances);
   assert.ok(meshes.length>20);for(const mi of meshes){const positions=[];mi.mesh.getPositions(positions);assert.ok(positions.length>0&&positions.every(Number.isFinite))}
-  const position=vendor.visual.avatar.getLocalPosition();assert.equal(position.x,0);assert.equal(position.z,2.7);
+  const position=vendor.visual.avatar.getLocalPosition();assert.equal(position.x,-.75);assert.equal(position.z,2.7);
   assert.ok(Math.abs(vendor.visual.avatar.getPosition().z+2.7)<1e-6,'room mirror applies only once');
   scene.root.enabled=false;app.fire('update',.05);assert.equal(labels.at(-1).hidden,true);
   scene.root.destroy();assert.equal(vendor.disposed,true);assert.equal(labels.at(-1).removed,true);

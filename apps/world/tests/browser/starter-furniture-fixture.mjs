@@ -24,11 +24,19 @@ import { createRoomWorldAdapter } from '/src/rooms/room-world-adapter.js';
 import { ROOMS } from '/src/rooms/room-registry.js';
 import { createInputFocusManager, INPUT_FOCUS_POLICY } from '/src/input/input-focus-manager.js';
 import { createInputFocusOwner } from '/src/input/input-focus-owner.js';
+import { inspectVendorFace } from './starter-furniture-visual-probe.mjs';
+import { furnitureBox } from '/src/rooms/furniture-layout.js';
+import { PLAYER_ORIGIN_Y } from '/src/player-dimensions.js';
+import { SIT_HIP_HEIGHT } from '/src/seat-anchors.js';
 
 const qa = window.__STARTER_FURNITURE__ = { ready: false };
 try {
   if (!window.__STARTER_IDENTITY__?.userId || typeof window.__STARTER_RPC__ !== 'function') throw Error('Disposable DB binding is required');
   const identity = window.__STARTER_IDENTITY__;
+  const renderMode = identity.renderMode === 'private-metadata' ? 'private-metadata' : 'public-proxy';
+  document.querySelector('.starter-caption').textContent = renderMode === 'private-metadata'
+    ? '격리 DB · 실제 캐릭터 geometry only · 이미지 저장 금지'
+    : '격리 DB · Public_QA_Avatar 대체 모델 · 실제 캐릭터 픽셀 미검증';
   let accountId = identity.userId, space = 'ROOM_DORM1_LOBBY', access = null, metadata = null;
   let frames = 0, blocked = false, invalid = false, savingRoom = false, fixedCamera = 'vendor';
   const notices = [], client = { rpc: (name, args) => window.__STARTER_RPC__(name, args ?? {}) };
@@ -129,19 +137,34 @@ try {
   const project = position => { const p = camera.camera.worldToScreen(position); return { x: p.x, y: p.y, z: p.z }; };
   function subject(root) {
     const renders = root?.findComponents('render').filter(render => render.entity.enabled) ?? [];
-    const points = [];
+    const points = [], min={x:Infinity,y:Infinity,z:Infinity},max={x:-Infinity,y:-Infinity,z:-Infinity};
     for (const render of renders) for (const mesh of render.meshInstances) {
       const { center: c, halfExtents: h } = mesh.aabb;
+      for(const axis of ['x','y','z']) { min[axis]=Math.min(min[axis],c[axis]-h[axis]);max[axis]=Math.max(max[axis],c[axis]+h[axis]); }
       for (const x of [-1, 1]) for (const y of [-1, 1]) for (const z of [-1, 1]) points.push(project(new pc.Vec3(c.x + x*h.x, c.y + y*h.y, c.z + z*h.z)));
     }
     return { exists: Boolean(root?.enabled), meshCount: renders.reduce((n,r) => n+r.meshInstances.length,0),
+      worldBounds:points.length?{min,max}:null,
       bounds: points.length ? { left: Math.min(...points.map(p=>p.x)), right: Math.max(...points.map(p=>p.x)),
         top: Math.min(...points.map(p=>p.y)), bottom: Math.max(...points.map(p=>p.y)), inFront: points.every(p=>p.z>0) } : null };
   }
   const sofa = () => furniture.state().objects.find(object => object.itemId === 'furniture.dorm_single_sofa');
+  function contactGeometry() {
+    const object=sofa();if(!object)return null;
+    const bounds=furnitureBox(object),supportY=bounds.minY+.36,position=player.getLocalPosition();
+    const geometry=subject(player).worldBounds;
+    return {supportY,rootHeight:position.y,expectedSeatedRootY:PLAYER_ORIGIN_Y+supportY-SIT_HIP_HEIGHT,
+      horizontalError:Math.hypot(position.x-object.x,position.z-object.z),
+      supportWithinAvatarBounds:!!geometry&&geometry.min.y<=supportY+.15&&geometry.max.y>=supportY-.15,
+      avatarWorldBounds:geometry,pose:character.pose,
+      scope:'Actual mesh AABB/support envelope and SeatController alignment; not per-vertex contact or pixel evidence'};
+  }
   function captureView(kind) {
     fixedCamera = kind;
-    if (kind === 'vendor') { camera.setPosition(1.4, 1.48, .8); camera.lookAt(0, .66, -2.7); }
+    if (kind === 'vendor') {
+      const vendor=lobby.shopVendor.visual.avatar.getPosition();
+      camera.setPosition(1.4, 1.48, .8); camera.lookAt(vendor.x, .66, vendor.z);
+    }
     else if (kind === 'sofa') {
       const object = sofa(); if (!object) throw Error('No server-saved sofa');
       const point = room.root.getWorldTransform().transformPoint(new pc.Vec3(object.x, .57, object.z));
@@ -149,7 +172,7 @@ try {
       camera.setPosition(point.x + inward.x, 1.65, point.z + inward.z); camera.lookAt(point);
     }
   }
-  qa.snapshot = () => ({ ready: qa.ready, frames, space, accountId, access, metadata,
+  qa.snapshot = () => ({ ready: qa.ready, frames, space, accountId, access, metadata,renderMode,
     shop: shop.status(), wallet: wallet.snapshot, inventory: inventory.snapshot, furniture: furniture.state(),
     seated: seating.seats.isSeated, seat: seating.seats.seated?.interactableId ?? null,
     position: { ...player.getLocalPosition() }, pose: character.pose, characterModel: character.modelState,
@@ -157,6 +180,8 @@ try {
     focus: document.activeElement?.id || document.activeElement?.dataset?.focusKey || null,
     dialogueOpen: dialogue.open, shopOpen: panel.open, editorOpen: editor.open,
     vendor: subject(lobby.shopVendor.visual.avatar), player: subject(player),
+    vendorFace: inspectVendorFace({sceneRoot:lobby.root,visual:lobby.shopVendor.visual,camera,canvas}),
+    seatContact:contactGeometry(),
     sofa: subject(sofa() && room.ownedFurniture.root.findByName(`placed_${sofa().id}`)),
     renderedObjects: room.ownedFurniture.root.children.map(entity => entity.name), notices: [...notices] });
   qa.setBlocked = value => { blocked = value; refreshContext(); };

@@ -10,7 +10,9 @@ const output = process.env.FURNITURE_HISTORY_OUTPUT || 'test-results/furniture-h
 await mkdir(output,{ recursive:true });
 const paths = ['src/rooms/furniture-editor.js','src/rooms/furniture-client.js','src/rooms/furniture-layout.js','src/rooms/furniture-recommendations.js',
   'src/rooms/personal-room-layout.js','src/player-dimensions.js','src/collection/item-catalog.js',
-  'tests/browser/furniture-history-harness.html','styles.css'];
+  'tests/browser/furniture-history-harness.html','styles.css',
+  'data/reality/campus-landmarks.json','data/reality/campus-facilities.json',
+  'data/reality/campus-buildings.json','data/reality/campus-site.json'];
 // Serve the exact transitive production module graph, including the editor's seat-availability
 // dependency. Keep off-origin and non-source requests blocked instead of replacing seat logic.
 const sources = new Map();
@@ -34,7 +36,7 @@ try {
   server=createServer((request,response)=>{
     const path=new URL(request.url,'http://localhost').pathname, body=sources.get(path);
     if (!body) { response.writeHead(404).end(); return; }
-    response.writeHead(200,{'Content-Type':path.endsWith('.html')?'text/html; charset=utf-8':path.endsWith('.css')?'text/css':'text/javascript; charset=utf-8'}).end(body);
+    response.writeHead(200,{'Content-Type':path.endsWith('.html')?'text/html; charset=utf-8':path.endsWith('.css')?'text/css':path.endsWith('.json')?'application/json':'text/javascript; charset=utf-8'}).end(body);
   });
   await new Promise((resolve,reject)=>server.once('error',reject).listen(0,'127.0.0.1',resolve));
   const origin=`http://127.0.0.1:${server.address().port}`;
@@ -103,7 +105,7 @@ try {
       assert.equal(item.calls.filter(call=>call.name==='save_my_room_furniture_v1').length,2);
       assert.ok(await page.evaluate(()=>window.__FURNITURE_HISTORY__.inventory.snapshot.items.every(item=>item.quantity===1)));
       assert.deepEqual(errors,[]);assert.deepEqual(blocked,[]);item.status='PASS';
-    } finally {await context.close();}
+    } finally {item.pageErrors=errors;item.blockedRequests=blocked;await context.close();}
   }
   report.status='PASS';console.log('PASS: furniture undo/redo on desktop, 360px touch and landscape; failed-save retry, save checkpoint, focus and close boundaries.');
 } catch(error) {report.status=browser?'FAIL':'BLOCKED';report.error=error.stack;throw error;}

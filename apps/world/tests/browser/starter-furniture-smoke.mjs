@@ -11,8 +11,25 @@ import { canonicalFurniture } from '../../src/rooms/furniture-layout.js';
 import { createStarterFurnitureBrowserDatabase } from '../../../../supabase/tests/support/starter-furniture-browser-db.mjs';
 
 const repo = fileURLToPath(new URL('../../../../', import.meta.url));
-const output = path.resolve(process.env.STARTER_FURNITURE_OUTPUT || 'test-results/starter-furniture');
+const privateMode=process.env.STARTER_FURNITURE_PRIVATE_GEOMETRY_ONLY==='1';
+const output = path.resolve(process.env.STARTER_FURNITURE_OUTPUT || (privateMode?'test-results/starter-furniture/private-metadata':'test-results/starter-furniture'));
+if(privateMode)assert.equal(path.basename(output),'private-metadata','Private metadata must stay in its isolated JSON-only artifact directory');
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
+const modelBytes=await readFile(path.join(repo,'apps/world/assets/induck-v3.glb'));
+const modelHash=sha(modelBytes),jsonLength=modelBytes.readUInt32LE(12);
+const modelJson=JSON.parse(modelBytes.subarray(20,20+jsonLength).toString('utf8').trim());
+const privateSha='8aede8fd595dd84fda5460e375a18df49f6a91ba813ab7a952f75e768e8964eb';
+if(privateMode){
+  assert.equal(process.env.STARTER_FURNITURE_PRIVATE_SHA,privateSha,'Explicit exact approved private asset identity required');
+  assert.equal(modelHash,privateSha,'Private geometry mode requires the approved original bytes');
+}else{
+  assert.equal(modelHash,'5057f3299a9d7e902b1370d203fa93e8279a2ff27a8bc2bdf68f09fe312c58f2','Public images must use the known independent QA substitute');
+  assert.equal(modelJson.asset.generator,'INHAGAME independent QA cuboids v1');
+  assert.ok(modelJson.nodes.some(node=>node.name==='Public_QA_Avatar'));
+}
+const characterEvidence={mode:privateMode?'private-metadata':'public-proxy',sha256:modelHash,
+  label:privateMode?'Actual Induck geometry only':'Public_QA_Avatar independent substitute',
+  realCharacterPixels:'UNKNOWN',screenshotsAllowed:!privateMode};
 const items = ['furniture.study_books_set', 'furniture.dorm_single_sofa'];
 const listings = items.map(id => `offer.dorm_furniture.${id.split('.')[1]}`);
 const views = [{ label: 'desktop', width: 1280, height: 800, mobile: false },
@@ -30,6 +47,7 @@ async function sourceFiles(dir) {
 const sources = [...await sourceFiles('apps/world/src'), ...await sourceFiles('apps/world/npc-factory')];
 for (const file of ['apps/world/styles.css', 'apps/world/assets/induck-v3.glb', 'apps/world/assets/annyongi-flight-v1.glb', 'apps/world/tests/browser/starter-furniture-harness.html',
   'apps/world/tests/browser/starter-furniture-fixture.mjs', 'apps/world/tests/browser/starter-furniture-smoke.mjs',
+  'apps/world/tests/browser/starter-furniture-visual-probe.mjs',
   'supabase/tests/support/starter-furniture-browser-db.mjs']) sources.push({path:file,sha256:sha(await readFile(path.join(repo,file)))});
 const commit = execFileSync('git',['rev-parse','HEAD'],{cwd:repo,encoding:'utf8'}).trim();
 if (process.env.STARTER_FURNITURE_HEAD_SHA) assert.equal(commit,process.env.STARTER_FURNITURE_HEAD_SHA,'CI must test the requested exact head');
@@ -38,8 +56,8 @@ const provenance = { commit, expectedCommit:process.env.STARTER_FURNITURE_HEAD_S
   sourceHash:sha(JSON.stringify(sources)), files:sources };
 await writeFile(path.join(output,'source-manifest.json'),JSON.stringify(provenance,null,2));
 const report = { result:'running', commit, sourceHash:provenance.sourceHash,
-  scope:'Actual production UI, renderers, Character and SeatController; disposable PostgREST RPCs and SQL readback',
-  exclusions:['Production database/deployment','Private room Realtime presence/channel'],
+  scope:'Production UI, renderers, Character/SeatController and disposable PostgREST/SQL; character visual identity is explicitly scoped below',characterEvidence,
+  exclusions:['Production database/deployment','Private room Realtime presence/channel','Actual Induck rendered pixels: UNKNOWN'],
   evidence:[], checks:[], db:[], transportControls:[] };
 let activePage, smoke, db, releasePurchase;
 function check(name, details = {}) { report.checks.push({name,...details}); }
@@ -80,11 +98,20 @@ async function capture(page, name, { subject = null } = {}) {
     assert.equal(before.dialogueOpen,false);
     const center = {x:(target.bounds.left+target.bounds.right)/2,y:(target.bounds.top+target.bounds.bottom)/2};
     assert.equal(await page.evaluate(p=>document.elementFromPoint(p.x,p.y)?.id,center),'starter-stage',`${name}: subject is not covered by a DOM panel`);
+    if(subject==='vendor') {
+      assert.equal(before.vendorFace.available,true,`${name}: actual authored eyes and mouth are present`);
+      assert.ok(before.vendorFace.facingCamera>.15,`${name}: camera sees the face rather than the back of the head`);
+      assert.equal(before.vendorFace.unobscured,true,`${name}: actual eyes/mouth are not behind the monitor or desk: ${JSON.stringify(before.vendorFace)}`);
+      assert.ok(before.vendorFace.samples.every(sample=>sample.dom==='starter-stage'),`${name}: no UI covers the actual face`);
+    }
   }
-  const file = `${name}.png`, pixels = await page.screenshot({path:path.join(output,file)});
+  // This branch is the only successful capture path. Private mode never calls screenshot,
+  // including screenshots returned as buffers without a path.
+  const file = privateMode?null:`${name}.png`;
+  const pixels = privateMode?null:await page.screenshot({path:path.join(output,file)});
   const after = await page.evaluate(() => window.__STARTER_FURNITURE__.snapshot());
   assert.deepEqual(stableScene(after),stableScene(before),`${name}: screenshot must match before/after economic/layout/seat state`);
-  const evidence = {file,sha256:sha(pixels),commit,sourceHash:provenance.sourceHash,viewport:page.viewportSize(),before,after};
+  const evidence = {file,sha256:pixels?sha(pixels):null,characterEvidence,commit,sourceHash:provenance.sourceHash,viewport:page.viewportSize(),before,after};
   await writeFile(path.join(output,`${name}.json`),JSON.stringify(evidence,null,2)); report.evidence.push(evidence);
 }
 async function openShop(page, mobile) {
@@ -111,7 +138,7 @@ try {
       if (name.startsWith('purchase_world_shop_listing_') && held) { const waiting=held; held=null; await waiting; }
       return response;
     });
-    await page.addInitScript(identity=>{window.__STARTER_IDENTITY__=identity;},{userId:db.userId,roomId:db.roomId});
+    await page.addInitScript(identity=>{window.__STARTER_IDENTITY__=identity;},{userId:db.userId,roomId:db.roomId,renderMode:characterEvidence.mode});
     await page.goto(`${smoke.origin}/tests/browser/starter-furniture-harness.html`,{waitUntil:'domcontentloaded'});
     await Promise.race([fatal,page.waitForFunction(()=>window.__STARTER_FURNITURE__?.ready||window.__STARTER_FURNITURE__?.error,null,{timeout:TIMEOUT_MS})]);
     assert.equal(await page.evaluate(()=>window.__STARTER_FURNITURE__.error??null),null);
@@ -224,13 +251,17 @@ try {
     await page.waitForFunction(beforeFrames=>{const s=window.__STARTER_FURNITURE__.snapshot();return s.seated&&s.frames>beforeFrames+1;},standing.frames);
     const seated=await state();assert.equal(seated.seat,saved.objects.find(row=>row.itemId===items[1]).id);
     assert.notDeepEqual(seated.pose,standing.pose,'actual Character pose changes');
+    assert.ok(Math.abs(seated.seatContact.rootHeight-seated.seatContact.expectedSeatedRootY)<1e-5,'SeatController aligns the character to the real sofa support plane');
+    assert.ok(seated.seatContact.horizontalError<1e-5,'Character is horizontally aligned with the saved sofa');
+    assert.equal(seated.seatContact.supportWithinAvatarBounds,true,'The actual avatar geometry spans the sofa support envelope');
+    assert.deepEqual(seated.pose.legs,[70,70],'The actual Character has applied both seated leg pivots');
     await capture(page,`${view.label}-sofa-seated`,{subject:'sofa'});
     if(view.mobile)await tap('#context-action');else await page.keyboard.press('KeyF');
     await page.waitForFunction(()=>!window.__STARTER_FURNITURE__.snapshot().seated);
     assert.equal((await state()).safe,true);assert.deepEqual((await state()).position,standing.position);
     await capture(page,`${view.label}-sofa-standing`,{subject:'sofa'});
     assert.deepEqual(economicState(await db.readback()),economicState(persisted));
-    check(`${view.label}: actual editor save/reload, SQL layout equality, rendered sofa, Character/SeatController sit and safe stand`);
+    check(`${view.label}: actual editor save/reload, SQL layout equality, sofa and Character/SeatController sit and safe stand`,{characterEvidence,seatContact:seated.seatContact});
     assert.deepEqual(smoke.problems,[]);
 
     // Real refusal/concurrency coverage does not rely on disabled UI controls.
@@ -258,7 +289,7 @@ try {
       ? {data:null,error:{code:'PGRST202',message:'Could not find the function public.get_world_shop_capabilities_v1() in the schema cache'}}
       : legacy.rpc(name,args));
     report.transportControls.push(`${view.label}: exact missing-capability response selects legacy UI; every economic RPC remains real v1`);
-    await legacyPage.addInitScript(identity=>{window.__STARTER_IDENTITY__=identity;},{userId:legacy.userId,roomId:legacy.roomId});
+    await legacyPage.addInitScript(identity=>{window.__STARTER_IDENTITY__=identity;},{userId:legacy.userId,roomId:legacy.roomId,renderMode:characterEvidence.mode});
     await legacyPage.goto(`${smoke.origin}/tests/browser/starter-furniture-harness.html`,{waitUntil:'domcontentloaded'});
     await Promise.race([legacyFatal,legacyPage.waitForFunction(()=>window.__STARTER_FURNITURE__?.ready||window.__STARTER_FURNITURE__?.error,null,{timeout:TIMEOUT_MS})]);
     assert.equal(await legacyPage.evaluate(()=>window.__STARTER_FURNITURE__.error??null),null);
@@ -282,10 +313,11 @@ try {
     await db.close();const restored=await db.readback();assert.ok(restored.listings.every(row=>row.status==='LOCKED'));
     report.db.push({view:view.label,phase:'restored-locked-listings',readback:restored});db=null;
   }
-  report.result='pass';console.log(`PASS: ${report.checks.length} starter furniture acceptance checks; ${report.evidence.length} actual screenshots`);
+  report.result='pass';console.log(`PASS: ${report.checks.length} starter furniture acceptance checks; ${privateMode?'private geometry metadata only, zero screenshots':`${report.evidence.length} public QA substitute screenshots`}; actual character pixels UNKNOWN`);
 } catch(error) {
   report.result='fail';report.error=error.stack;
-  await activePage?.screenshot({path:path.join(output,'failure.png')}).catch(()=>{});
+  if(!privateMode)await activePage?.screenshot({path:path.join(output,'failure.png')}).catch(()=>{});
+  else report.failureState=await activePage?.evaluate(()=>window.__STARTER_FURNITURE__?.snapshot()).catch(()=>null);
   throw error;
 } finally {
   releasePurchase?.();await smoke?.close();await db?.close();

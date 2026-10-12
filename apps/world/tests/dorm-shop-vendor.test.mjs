@@ -37,3 +37,14 @@ test('main has one shared desk trigger, immediate account/focus invalidation and
   assert.match(main, /dormShop.destroy\(\); dorm1Lobby.shopVendor.destroy\(\)/);
   assert.match(main, /photoMode.update\(\);\s+dormShop.update\(\)/);
 });
+
+// Same monitor dimensions as the production desk renderer. Front approach / QA camera rays
+// to the head must pass beside the screen, not directly through its .42-unit silhouette.
+test('shopkeeper face is offset clear of the reception monitor from front approaches', () => {
+  const monitor={x:.45,z:1.9,width:.42};
+  for(const camera of [{x:0,z:-1.9},{x:1.8,z:-1.9},{x:-.8,z:-1.9},{x:0,z:.85}]){
+    const t=(monitor.z-camera.z)/(vendor.position.z-camera.z);
+    const faceX=camera.x+(vendor.position.x-camera.x)*t;
+    assert.ok(Math.abs(faceX-monitor.x)>monitor.width/2+.08,`face ray from ${JSON.stringify(camera)} clears monitor`);
+  }
+});

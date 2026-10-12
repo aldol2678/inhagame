@@ -48,6 +48,7 @@ jobs:
           git rev-parse HEAD > test-results/starter-furniture/head-sha.txt
           find apps/world/src apps/world/tests/browser supabase/migrations supabase/tests/support -type f -not -path '*/node_modules/*' -print0 | sort -z | xargs -0 sha256sum > test-results/starter-furniture/source-hashes.txt
       - name: Full disposable Supabase replay and transactions
+        id: database
         run: |
           set -o pipefail
           unset SUPABASE_ACCESS_TOKEN SUPABASE_DB_PASSWORD
@@ -59,17 +60,45 @@ jobs:
           DORM_VENDOR_OUTPUT: test-results/starter-furniture/dorm-vendor
         run: node apps/world/tests/browser/dorm-shop-vendor-smoke.mjs
       - name: Actual purchases, inventory, placement and sitting on three viewports
+        if: ${{ !cancelled() && steps.database.outcome == 'success' }}
         run: |
           set -o pipefail
           node scripts/starter-furniture-browser-local.mjs 2>&1 | tee test-results/starter-furniture/browser.log
+      - name: Actual Induck geometry and seating metadata only
+        if: ${{ !cancelled() && steps.database.outcome == 'success' }}
+        env:
+          STARTER_FURNITURE_PRIVATE_GEOMETRY_ONLY: '1'
+          STARTER_FURNITURE_OUTPUT: test-results/starter-furniture/private-metadata
+          STARTER_FURNITURE_PRIVATE_SHA: 8aede8fd595dd84fda5460e375a18df49f6a91ba813ab7a952f75e768e8964eb
+        run: |
+          set -euo pipefail
+          # Existing approved read-only brand-asset route; no private bytes or renders in artifacts.
+          curl --fail --silent --show-error --retry 2 'https://inhagame.app/api/brand-asset?asset=induck-v3.glb&variant=canonical' -o "$RUNNER_TEMP/starter-private-induck.glb"
+          printf '%s  %s\n' "$STARTER_FURNITURE_PRIVATE_SHA" "$RUNNER_TEMP/starter-private-induck.glb" | sha256sum --check
+          cp "$RUNNER_TEMP/starter-private-induck.glb" apps/world/assets/induck-v3.glb
+          node scripts/starter-furniture-browser-local.mjs
+      - name: Enforce private metadata-only artifact boundary
+        id: artifact_boundary
+        if: always()
+        run: |
+          if [ -d test-results/starter-furniture/private-metadata ]; then
+            test -z "$(find test-results/starter-furniture/private-metadata -type f ! -name '*.json' -print)"
+          fi
       - name: Stop disposable stack
         if: always()
         run: supabase stop --no-backup
-      - name: Upload exact-head receipts and pixels
-        if: always()
+      - name: Upload exact-head receipts and public-model pixels
+        if: ${{ always() && steps.artifact_boundary.outcome == 'success' }}
         uses: actions/upload-artifact@v4
         with:
           name: starter-furniture-${{ github.event.pull_request.head.sha }}
-          path: test-results/starter-furniture/
+          path: |
+            test-results/starter-furniture/*.json
+            test-results/starter-furniture/*.png
+            test-results/starter-furniture/*.txt
+            test-results/starter-furniture/*.log
+            test-results/starter-furniture/dorm-vendor/*.json
+            test-results/starter-furniture/dorm-vendor/*.png
+            test-results/starter-furniture/private-metadata/*.json
           if-no-files-found: error
           retention-days: 14
