@@ -27,7 +27,7 @@ test('all 11 unrelated suites preserve jobs and check names, guard EVERY costly 
     const text = readFileSync(new URL('../workflows/'+file,import.meta.url),'utf8');
     assert.match(text,/pull_request:/,file);
     assert.match(text,/\.github\/ci\/phone-surface-scope\*\.mjs/,file);
-    assert.match(text,/fetch-depth: 20/,file);
+    assert.match(text,/fetch-depth: 128/,file);
     assert.match(text,/persist-credentials: false/,file);
     assert.match(text,/id: phone_scope/,file);
     assert.match(text,/CI_BASE_SHA: \$\{\{ github\.event\.pull_request\.base\.sha \}\}/,file);
