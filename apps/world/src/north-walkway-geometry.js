@@ -36,12 +36,12 @@ export function fillWalkwayPaving(b){
 }
 const point=(q,u,out,y)=>{const p=q.frame.at(q.u+u,q.out+out);return[p.x,y,p.z];};
 const box=(b,q,c,u,out,y,w,h,d)=>b.box(c,point(q,u,out,y),[w,h,d],q.frame.yaw);
-const tube=(b,q,c,a,d,r=.035)=>b.tube(c,point(q,...a),point(q,...d),r,6);
+const tube=(b,q,c,a,d,r=.035)=>b.tube(c,point(q,...a),point(q,...d),r,4);
 function globe(b,p,r){
-  // A small 6 x 8 latitude mesh survives silhouette inspection as a globe.
+  // A small 4 x 8 latitude mesh survives silhouette inspection as a globe.
   const at=(lat,lon)=>[p[0]+r*Math.cos(lat)*Math.cos(lon),p[1]+r*Math.sin(lat),p[2]+r*Math.cos(lat)*Math.sin(lon)];
-  for(let j=0;j<6;j++)for(let i=0;i<8;i++){
-    const a=-Math.PI/2+j*Math.PI/6,c=a+Math.PI/6,u=i*Math.PI/4,v=u+Math.PI/4;
+  for(let j=0;j<4;j++)for(let i=0;i<8;i++){
+    const a=-Math.PI/2+j*Math.PI/4,c=a+Math.PI/4,u=i*Math.PI/4,v=u+Math.PI/4;
     b.quad(C.globe,at(a,u),at(c,u),at(c,v),at(a,v));
   }
 }
@@ -73,9 +73,13 @@ export function fillWalkwayProps(b,tier='NEAR'){
       for(let i=0;i<3;i++){
         const o=(i-1)*1.35;
         for(const u of [-.42,.42]){
-          for(let j=0;j<10;j++){
-            const a=j*Math.PI/5,d=(j+1)*Math.PI/5;
-            tube(b,q,C.metal,[o+u+.27*Math.cos(a),0,.32+.27*Math.sin(a)],[o+u+.27*Math.cos(d),0,.32+.27*Math.sin(d)],.025);
+          // Double-sided annulus: visible parked-wheel silhouette without
+          // sixty high-sided tube segments. No collider or wheel animation.
+          for(let j=0;j<8;j++){
+            const a=j*Math.PI/4,d=(j+1)*Math.PI/4;
+            const at=(angle,r)=>point(q,o+u+r*Math.cos(angle),0,.32+r*Math.sin(angle));
+            const face=[at(a,.285),at(d,.285),at(d,.245),at(a,.245)];
+            b.quad(C.metal,...face);b.quad(C.metal,...[...face].reverse());
           }
         }
         for(const [a,d]of [[[o-.42,0,.32],[o-.14,0,.8]],[[o-.14,0,.8],[o+.42,0,.32]],[[o+.42,0,.32],[o-.42,0,.32]],[[o+.42,0,.32],[o+.3,0,1.0]]])tube(b,q,i===1?C.wood:C.metal,a,d,.028);
