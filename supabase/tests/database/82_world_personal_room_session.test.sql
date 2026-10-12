@@ -188,8 +188,12 @@ begin
 end;
 $$;
 select policies_are('realtime', 'messages',
-  array['world online players read place zone', 'world online players write place zone'],
-  'D2 keeps exactly the two world online policies');
+  case when current_setting('world.realtime_stub') = 'true' then
+    array['world online players read place zone', 'world online players write place zone']
+  else array['world online players read place zone', 'world online players write place zone',
+    'world club leased inbox read', 'world club inbox read guard', 'world club server writes only',
+    'world room chat receive own inbox', 'world room chat restrict inbox reads', 'world room chat prohibit client writes'] end,
+  'D2 policies coexist with exactly the committed club and chat inbox policies');
 
 select skip('real realtime.messages present; behaviour runs on the CI stand-in', 6)
 where current_setting('world.realtime_stub') = 'false';

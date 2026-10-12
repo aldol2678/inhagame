@@ -19,6 +19,10 @@ test("main update holds all local gameplay consumers while only rendering the tr
     playerActivityAudio: { reset: () => calls.push("audio-reset") },
     lobbyWorld: { active: false }, lobbyTransition: { active: false },
     roomSession: { update: () => calls.push("room-pose") },
+    clubRoomSession: { update: () => calls.push("club-pose") },
+    clubRoomSeatActions: { update: () => calls.push("club-seat") },
+    roomChat: { update: () => calls.push("room-chat") },
+    syncRoomChat: () => calls.push("chat-source"),
     orbit: { apply: () => calls.push("camera") },
     player: { getLocalPosition: () => ({ x: 0, y: 1.15, z: 0 }) },
     character: { eyeHeight: 1.6 }, calls
@@ -26,7 +30,7 @@ test("main update holds all local gameplay consumers while only rendering the tr
   frame(.016);
   assert.deepEqual(calls, ["audio", "audio-reset", "camera"], "no source-room pose, campus place update, auto movement or furniture refresh");
   busy = false; calls.length = 0; frame(.016);
-  assert.deepEqual(calls, ["audio", "room-pose", "remaining-gameplay"]);
+  assert.deepEqual(calls, ["audio", "room-pose", "club-pose", "club-seat", "chat-source", "room-chat", "remaining-gameplay"]);
   regionBusy = true; calls.length = 0; frame(.016);
   assert.deepEqual(calls, ["audio", "audio-reset", "camera"], "regional handoff has the same frame isolation");
 });

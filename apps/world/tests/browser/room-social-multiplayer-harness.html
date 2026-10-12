@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>방 소통 · 합성 서버 QA</title>
+<script type="importmap">{"imports":{"playcanvas":"https://cdn.jsdelivr.net/npm/playcanvas@2.22.4/build/playcanvas.mjs"}}</script>
+<link rel="stylesheet" href="/styles.css">
+<style>
+#stage{position:fixed;inset:0;width:100%;height:100%}
+#qa-panel{position:fixed;z-index:70;right:12px;top:12px;max-width:300px;padding:12px;background:#173049ed;color:white;border-radius:10px;font:12px system-ui}
+#qa-panel button{min-height:40px;padding:6px 10px;margin:3px}#qa-status{white-space:pre-wrap;margin:8px 0 0}
+#joystick{display:block!important}
+</style></head><body><canvas id="stage"></canvas>
+<section id="qa-panel">방 소통 · 실제 렌더러 + 합성 서버 (운영 DB 검증 아님)
+<div><button id="qa-seat">앉기 / 일어서기</button><button id="qa-wave">손인사</button><button id="qa-leave">퇴장</button></div>
+<p id="qa-status"></p></section>
+<div id="local-chat-bubble" class="chat-bubble" hidden></div>
+<div class="social-cluster"><button id="chat-toggle" type="button" aria-controls="chat-form" aria-expanded="false">채팅</button></div>
+<section id="chat" class="chat" aria-label="방 채팅"><ol id="chat-feed" class="chat-feed" aria-live="polite" hidden></ol>
+<form id="chat-form" class="chat-form" hidden><label for="chat-input" class="visually-hidden">방 채팅</label><input id="chat-input" type="text" maxlength="240" autocomplete="off" placeholder="이 방 참가자에게 말하기"><button type="submit">보내기</button></form><p id="chat-hint" class="chat-hint" role="status"></p></section>
+<div id="joystick"><div id="joystick-knob"></div></div><button id="jump">점프</button><button id="run">달리기</button>
+<script type="module" src="./room-social-multiplayer-fixture.mjs"></script></body></html>

@@ -1,0 +1,83 @@
+name: Room social candidate browser and SQL QA
+on:
+  pull_request:
+    paths:
+      - 'apps/world/src/rooms/**'
+      - 'apps/world/src/main.js'
+      - 'apps/world/src/online/chat-panel.js'
+      - 'apps/world/tests/room-chat.test.mjs'
+      - 'apps/world/tests/club-room-session.test.mjs'
+      - 'apps/world/tests/browser/room-social-*'
+      - 'apps/world/tests/support/room-social-*'
+      - 'apps/world/tests/support/club-server-fixture.mjs'
+      - 'supabase/migrations/*world_room_chat*'
+      - 'supabase/migrations/*world_club_room*'
+      - 'supabase/tests/room-chat-sql-candidate.mjs'
+      - 'supabase/tests/room-social-runner/**'
+      - '.github/workflows/room-social-browser.yml'
+permissions:
+  contents: read
+concurrency:
+  group: room-social-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - name: Install readable Korean fonts
+        run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+      - name: Install pinned browser dependencies
+        working-directory: apps/world/tests/browser
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Focused production client tests
+        run: node --test apps/world/tests/room-chat.test.mjs apps/world/tests/club-room-session.test.mjs apps/world/tests/room-session.test.mjs apps/world/tests/room-transition-main-wiring.test.mjs
+      - name: Two isolated browser contexts in desktop, portrait and landscape
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+          EXPECTED_ROOM_HEAD: ${{ github.event.pull_request.head.sha }}
+          ROOM_SOCIAL_QA_OUTPUT: test-results/room-social
+        run: timeout --signal=TERM --kill-after=10s 900s node apps/world/tests/browser/room-social-multiplayer-smoke.mjs
+      - name: Save exact-head client evidence (synthetic transport, not live Supabase)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: room-social-browser-${{ github.event.pull_request.head.sha }}
+          path: test-results/room-social/
+          if-no-files-found: error
+          retention-days: 7
+  sql-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - name: Install pinned in-memory PostgreSQL test runner
+        working-directory: supabase/tests/room-social-runner
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Execute real candidate SQL and production protocol roundtrips
+        run: |
+          mkdir -p test-results/room-social-sql
+          git rev-parse HEAD > test-results/room-social-sql/head.txt
+          set -o pipefail
+          npm test --prefix supabase/tests/room-social-runner | tee test-results/room-social-sql/sql.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: room-social-sql-${{ github.event.pull_request.head.sha }}
+          path: test-results/room-social-sql/
+          if-no-files-found: error
+          retention-days: 7

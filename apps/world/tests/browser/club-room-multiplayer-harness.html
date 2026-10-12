@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>공용 동아리방 · 합성 서버 QA</title>
+<script type="importmap">{"imports":{"playcanvas":"https://cdn.jsdelivr.net/npm/playcanvas@2.22.4/build/playcanvas.mjs"}}</script>
+<link rel="stylesheet" href="/styles.css">
+<style>
+#stage{position:fixed;inset:0;width:100%;height:100%}
+#qa-panel{position:fixed;z-index:70;left:12px;top:12px;max-width:560px;padding:12px;background:#173049ed;color:white;border-radius:10px;font:14px system-ui}
+#qa-panel button{min-height:40px;padding:6px 10px;margin:3px}#qa-status{white-space:pre-wrap;margin:8px 0 0}
+#joystick{display:block!important}
+</style></head><body><canvas id="stage"></canvas>
+<section id="qa-panel">공용 동아리방 · 실제 렌더러 + 합성 서버 (운영 DB 검증 아님)
+<div><button id="qa-seat">앉기 / 일어서기</button><button id="qa-wave">손인사</button><button id="qa-leave">퇴장</button></div>
+<p id="qa-status"></p></section>
+<div id="joystick"><div id="joystick-knob"></div></div><button id="jump">점프</button><button id="run">달리기</button>
+<script type="module" src="./club-room-multiplayer-fixture.mjs"></script></body></html>

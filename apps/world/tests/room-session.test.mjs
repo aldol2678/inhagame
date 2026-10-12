@@ -627,7 +627,7 @@ test("Player Card and Friends panel offer 🏠 방 방문 only for friends and r
 
 test("main.js wiring: room session follows room metadata, emotes route to the room, identity stops the session", () => {
   const main = code("../src/main.js");
-  assert.match(main, /send: \(id\) => roomSession\?\.active \? roomSession\.reportEmote\(id\) : online\?\.reportEmote\(id\) === true/);
+  assert.match(main, /send: \(id\) => clubRoomSession\?\.active \? clubRoomSession\.reportEmote\(id\)\s*: roomSession\?\.active \? roomSession\.reportEmote\(id\) : online\?\.reportEmote\(id\) === true/);
   assert.match(main, /roomSession\?\.update\(dt\)/);
   assert.match(main, /if \(!identity \|\| roomIdentityChanged\) roomSession\?\.stop\(\);/);
   assert.match(main, /social\.onRelationshipChange\(\(\) => \{ void roomSession\?\.revalidateNow\(\); \}\)/);
