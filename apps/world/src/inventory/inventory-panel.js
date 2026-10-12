@@ -1,13 +1,16 @@
 // INHA WORLD · Inventory panel P0 (read-only presentation).
-// Shows exactly the items the server says the player owns, in the server's order. Names,
+// Shows server-owned items only; search and sort change presentation, never ownership. Names,
 // descriptions, category and rarity come from the code catalog (presentation only). The catalog never
 // decides ownership: an owned item the catalog cannot describe is still shown, with its itemId. The
 // server's catalogStatus is shown as served; a non-ACTIVE item stays in the list. No RPC here.
 
+import { resolveItemAcquisition } from "../collection/item-acquisition-guide.js";
+import { renderItemAcquisitionGuide } from "../collection/item-acquisition-guide-view.js";
 import { renderCollectionBook } from "../collection/collection-book-view.js";
 import { createItemIcon } from "../collection/item-icon.js";
 import { getItemDefinition } from "../collection/item-catalog.js";
 import { filterItemsForInventoryTab, INVENTORY_TAB, INVENTORY_TABS } from "./inventory-category-registry.js";
+import { INVENTORY_SORTS, queryInventoryItems } from "./inventory-display-query.js";
 import { INVENTORY_STATE } from "./inventory-client.js";
 
 const CATEGORY_TEXT = Object.freeze({
@@ -58,6 +61,10 @@ export function createInventoryPanel({
   inventory,
   collectionBook = null,
   describe = getItemDefinition,
+  renderAcquisition = null,
+  acquisition = null,
+  getKnownPois = () => [],
+  onShowAcquisitionLocation = null,
   onOpenChange = () => {},
   doc = globalThis.document
 } = {}) {
@@ -80,6 +87,14 @@ export function createInventoryPanel({
   let renderedBookState = null;
   let viewButtons = new Map();
   let tabButtons = new Map();
+  let query = "";
+  let sort = "server";
+  let searchInput = null;
+  let sortSelect = null;
+  let resultsElement = null;
+  let composing = false;
+  let pendingRender = false;
+  let acquisitionButtons = new Map();
 
   function renderItem(item) {
     const view = itemView(item, { describe });
@@ -97,6 +112,20 @@ export function createInventoryPanel({
     meta.append(el("span", "inventory-item-source", view.sourceText));
     if (view.statusText) meta.append(el("span", "inventory-item-status", view.statusText));
     copy.append(meta);
+    const context = acquisition?.context?.() ?? {};
+    const guide = resolveItemAcquisition(item.itemId, {
+      ...(context.accountId === inventory.accountId ? context : {}),
+      definition: describe(item.itemId), catalogStatus: item.catalogStatus, knownPois: getKnownPois()
+    });
+    const acquisitionView = renderItemAcquisitionGuide({ doc, guide, onShowLocation: onShowAcquisitionLocation });
+    if (acquisitionView.locationButton) {
+      acquisitionView.locationButton.dataset.focusKey = `acquisition:${item.itemId}`;
+      acquisitionButtons.set(item.itemId, acquisitionView.locationButton);
+    }
+    const acquisitionElement = renderAcquisition
+      ? renderAcquisition({ doc, item, definition: describe(item.itemId) })
+      : acquisitionView.element;
+    if (acquisitionElement) copy.append(acquisitionElement);
     return card;
   }
 
@@ -130,11 +159,76 @@ export function createInventoryPanel({
     return tabs;
   }
 
+  function renderResults({ resetScroll = false } = {}) {
+    if (!resultsElement || inventory.state !== INVENTORY_STATE.READY) return;
+    acquisitionButtons = new Map();
+    const items = inventory.snapshot.items;
+    const visibleItems = queryInventoryItems(items, { tab: activeTab, query, sort, describe });
+    const count = el("p", "inventory-search-count", `표시 ${formatCount(visibleItems.length)}종 · 전체 보유 ${formatCount(items.length)}종`);
+    count.setAttribute("role", "status");
+    count.setAttribute("aria-live", "polite");
+    resultsElement.replaceChildren(count);
+    if (!items.length) resultsElement.append(el("p", "shop-empty", "아직 보유한 아이템이 없어요."));
+    else if (!visibleItems.length) resultsElement.append(el("p", "shop-empty", query.trim()
+      ? "검색 결과가 없어요. 검색어나 분류를 바꿔 보세요." : "이 분류에 보유한 아이템이 없어요."));
+    else {
+      const list = el("ul", "inventory-items");
+      list.id = "inventory-item-list";
+      list.append(...visibleItems.map(renderItem));
+      resultsElement.append(list);
+    }
+    if (resetScroll && bodyElement) { bodyElement.scrollTop = 0; bodyElement.scrollLeft = 0; }
+  }
+
+  function renderControls() {
+    const controls = el("div", "inventory-query-controls");
+    const searchLabel = el("label", "inventory-query-label", "아이템 검색");
+    searchInput = el("input", "inventory-query-input");
+    searchInput.type = "search";
+    searchInput.value = query;
+    searchInput.placeholder = "이름 또는 아이템 ID";
+    searchInput.dataset.focusKey = "search";
+    searchInput.setAttribute("aria-label", "보유 아이템 검색");
+    searchInput.addEventListener("compositionstart", () => { composing = true; });
+    searchInput.addEventListener("input", (event) => {
+      query = searchInput.value;
+      if (!composing && !event.isComposing) renderResults({ resetScroll: true });
+    });
+    searchInput.addEventListener("compositionend", () => {
+      composing = false;
+      query = searchInput.value;
+      if (pendingRender) { pendingRender = false; render(); }
+      renderResults({ resetScroll: true });
+    });
+    searchLabel.append(searchInput);
+    const sortLabel = el("label", "inventory-query-label", "정렬");
+    sortSelect = el("select", "inventory-query-select");
+    sortSelect.dataset.focusKey = "sort";
+    sortSelect.setAttribute("aria-label", "보유 아이템 정렬");
+    for (const option of INVENTORY_SORTS) {
+      const node = el("option", "", option.label);
+      node.value = option.id;
+      sortSelect.append(node);
+    }
+    sortSelect.value = sort;
+    sortSelect.addEventListener("change", () => {
+      sort = sortSelect.value;
+      renderResults({ resetScroll: true });
+    });
+    sortLabel.append(sortSelect);
+    controls.append(searchLabel, sortLabel);
+    return controls;
+  }
+
   function render() {
     if (!open) return;
+    // A same-account refresh must not interrupt an in-progress Korean IME composition.
+    // Account boundaries always win: the old account's DOM is removed immediately.
+    if (composing && renderedAccount === inventory.accountId) { pendingRender = true; return; }
     const hadFocus = panel.contains(doc.activeElement);
     const accountChanged = renderedAccount !== inventory.accountId;
     const focusKey = !accountChanged && hadFocus ? doc.activeElement?.dataset?.focusKey : null;
+    const selection = focusKey === "search" ? [searchInput?.selectionStart, searchInput?.selectionEnd] : null;
     const bookState = activeView === "book" ? collectionBook?.state ?? null : null;
     const bookStateChanged = bookState !== renderedBookState;
     renderedBookState = bookState;
@@ -143,7 +237,10 @@ export function createInventoryPanel({
     const scrollTop = accountChanged || bookStateChanged ? 0 : bodyElement?.scrollTop ?? 0;
     const scrollLeft = accountChanged ? 0 : bodyElement?.scrollLeft ?? 0;
     renderedAccount = inventory.accountId;
-    if (accountChanged) { activeTab = INVENTORY_TAB.ALL; activeView = "inventory"; }
+    if (accountChanged) {
+      activeTab = INVENTORY_TAB.ALL; activeView = "inventory"; query = ""; sort = "server";
+      composing = false; pendingRender = false;
+    }
     let retryButton = null;
     let bookRetryButton = null;
     const snapshot = inventory.state === INVENTORY_STATE.READY ? inventory.snapshot : null;
@@ -186,6 +283,7 @@ export function createInventoryPanel({
     }
     // Drop references to tab buttons from the previous DOM before rebuilding state-specific content.
     tabButtons = new Map();
+    resultsElement = null; searchInput = null; sortSelect = null;
     if (activeView === "book" && collectionBook) {
       const bookView = renderCollectionBook({ doc, book: collectionBook, inventory,
         retry: () => void collectionBook.refresh() });
@@ -204,18 +302,10 @@ export function createInventoryPanel({
       retry.addEventListener("click", () => void inventory.refresh("retry"));
       body.append(retry);
     } else {
-      const visibleItems = filterItemsForInventoryTab(snapshot.items, activeTab, describe);
-      body.append(renderTabs(snapshot.items));
-      if (!snapshot.items.length) {
-        body.append(el("p", "shop-empty", "아직 보유한 아이템이 없어요."));
-      } else if (!visibleItems.length) {
-        body.append(el("p", "shop-empty", "이 분류에 보유한 아이템이 없어요."));
-      } else {
-        const list = el("ul", "inventory-items");
-        list.id = "inventory-item-list";
-        list.append(...visibleItems.map(renderItem));
-        body.append(list);
-      }
+      body.append(renderTabs(snapshot.items), renderControls());
+      resultsElement = el("div", "inventory-query-results");
+      body.append(resultsElement);
+      renderResults();
     }
     panel.dataset.state = inventory.state;
     panel.dataset.inventoryTab = activeTab;
@@ -224,11 +314,17 @@ export function createInventoryPanel({
     bodyElement = body;
     if (hadFocus) {
       let nextFocus = closeButton;
-      if (focusKey === "book-retry") nextFocus = bookRetryButton?.disabled ? closeButton : bookRetryButton ?? closeButton;
+      if (focusKey === "search") nextFocus = searchInput ?? closeButton;
+      else if (focusKey?.startsWith("acquisition:")) nextFocus = acquisitionButtons.get(focusKey.slice(12)) ?? closeButton;
+      else if (focusKey === "sort") nextFocus = sortSelect ?? closeButton;
+      else if (focusKey === "book-retry") nextFocus = bookRetryButton?.disabled ? closeButton : bookRetryButton ?? closeButton;
       else if (focusKey?.startsWith("view:")) nextFocus = viewButtons.get(focusKey.slice(5)) ?? closeButton;
       else if (focusKey === "retry") nextFocus = retryButton ?? closeButton;
       else if (focusKey?.startsWith("tab:")) nextFocus = tabButtons.get(focusKey.slice(4)) ?? closeButton;
       nextFocus?.focus?.({ preventScroll: true });
+      if (nextFocus === searchInput && selection && Number.isInteger(selection[0])) {
+        searchInput.setSelectionRange?.(...selection);
+      }
     }
     body.scrollTop = scrollTop;
     body.scrollLeft = scrollLeft;
@@ -244,7 +340,8 @@ export function createInventoryPanel({
     panel.hidden = !open;
     if (!open) {
       panel.replaceChildren();
-      bodyElement = null;
+      bodyElement = null; resultsElement = null; searchInput = null; sortSelect = null;
+      composing = false; pendingRender = false;
       onOpenChange(false);
       // A close callback may already have focused a different panel. Never override that handoff.
       if (restoreOpener && (!doc.activeElement || doc.activeElement === doc.body || doc.activeElement === focused)
@@ -257,18 +354,26 @@ export function createInventoryPanel({
     render();
     onOpenChange(true);
     closeButton?.focus?.();
-    if (inventory.accountId) void inventory.refresh("open");
+    if (inventory.accountId) { void inventory.refresh("open"); void acquisition?.refresh?.(); }
     if (activeView === "book") void collectionBook?.refresh();
     return true;
   }
 
   // Any state change re-renders; an account change shows LOADING / SIGNED_OUT at once, so the
   // previous account's items never stay on screen.
-  inventory.onChange(() => render());
+  inventory.onChange(() => {
+    if (!open && renderedAccount !== inventory.accountId) {
+      renderedAccount = inventory.accountId;
+      activeTab = INVENTORY_TAB.ALL; activeView = "inventory"; query = ""; sort = "server";
+      renderedBookState = null; composing = false; pendingRender = false;
+    }
+    render();
+  });
   collectionBook?.onChange(() => { if (activeView === "book") render(); });
+  acquisition?.onChange(() => { if (activeView === "inventory") render(); });
   panel.addEventListener("pointerdown", (event) => event.stopPropagation());
   doc.addEventListener("keydown", (event) => {
-    if (open && event.code === "Escape") setOpen(false);
+    if (open && event.code === "Escape" && !event.isComposing && !composing && event.keyCode !== 229) setOpen(false);
   });
 
   return {
