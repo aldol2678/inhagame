@@ -1,5 +1,6 @@
 import { menuReturnFocus } from './campus-hud.js';
 import { readViewDistance, saveViewDistance, viewDistancePreset } from './view-distance.js';
+import { GRAPHICS_QUALITY_LABELS } from './graphics-presets.js';
 
 export function createViewDistanceSettings(streaming,camera,graphics,{onOpenChange=()=>{}}={}) {
   const open=document.getElementById('open-settings'), panel=document.getElementById('view-settings');
@@ -43,9 +44,10 @@ export function createViewDistanceSettings(streaming,camera,graphics,{onOpenChan
   apply(current);
   graphicsSelect.value=graphics.preference;
   const showGraphics=()=>{
+    const applied=GRAPHICS_QUALITY_LABELS[graphics.tier] ?? GRAPHICS_QUALITY_LABELS.medium;
     graphicsHint.textContent=graphics.preference==='auto'
-      ? `자동으로 ${graphics.tier==='low'?'낮음':graphics.tier==='medium'?'보통':'높음'} 품질을 사용 중입니다.`
-      : `${graphicsSelect.selectedOptions[0].textContent} 품질을 사용 중입니다.`;
+      ? `자동으로 ${applied} 품질을 사용 중입니다.`
+      : `${GRAPHICS_QUALITY_LABELS[graphics.preference] ?? applied} 품질을 사용 중입니다.`;
   };
   showGraphics();
   let panelOpen=panel.hidden===false;
