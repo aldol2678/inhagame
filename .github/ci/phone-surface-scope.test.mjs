@@ -63,12 +63,12 @@ test('shared Phone code and styling must match reviewed change lines', () => {
   const css='apps/world/phone.css';
   for(const path of [smartphone,prefs,css])
     assert.equal(scopedPhoneMessagesOnly(['apps/world/src/phone/phone-messages.js',path]),false,path);
-  const cssPatch='diff --git a/'+css+' b/'+css+'\\n'+'+.phone-messages { display:grid; }\\n';
+  const cssPatch='diff --git a/'+css+' b/'+css+'\n'+'+.phone-messages { display:grid; }\n';
   assert.equal(scopedPhoneMessagesOnly(['apps/world/src/phone/phone-messages.js',css],'',{[css]:cssPatch}),true);
   assert.equal(scopedPhoneMessagesOnly(['apps/world/src/phone/phone-messages.js',css],'',{
     [css]:cssPatch.replace('.phone-messages','body')}),false);
   assert.equal(scopedPhoneMessagesOnly(['apps/world/src/phone/phone-messages.js',smartphone],'',{
-    [smartphone]:'diff --git a/'+smartphone+' b/'+smartphone+'\\n+  shell.close();\\n'}),false);
+    [smartphone]:'diff --git a/'+smartphone+' b/'+smartphone+'\n+  shell.close();\n'}),false);
 });
 
 test('missing CI refs cannot opt out of tests', () => {
