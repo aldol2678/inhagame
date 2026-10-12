@@ -48,8 +48,9 @@ Unrelated north lanes retain their centres/widths; only their overlapping joins
 are partitioned. Existing side-gate geometry is unchanged.
 
 The 5th footprint, 60th footprint, original four side-gate paths, existing
-perimeter centreline data, clock core, tower, all old ground/elevated colliders,
-and geoToWorld source files are pinned by tests. The live navigation geometry
+perimeter centreline data, tower, all old ground colliders,
+and geoToWorld source files are pinned by tests. The user subsequently authorized
+relocating the existing clock core; its elevated collider follows the same owner. The live navigation geometry
 still hashes to `9959b3a7ad148200c2c338d9e1f7ecbd2d6d142683c705668723d1e9bd3be78c`:
 187 nodes / 212 edges. Virtual junction count falls from 9 to 7.
 
@@ -105,3 +106,19 @@ emulations. Physical mobile GPU/thermal/memory behavior remains unmeasured.
 The original broad podium silhouette and lighting/material system constrain
 photo fidelity. Roof reconstruction, full reflection matching, physical curb
 levels and unverified southern road branches remain outside this bounded fit.
+
+## Clock-location correction (2026-10-12 follow-up)
+
+The user explicitly requested that the clock location match the real site.
+Direct review of the existing `five-sixty-oblique` and `five-2025-spring` sources
+shows the attached clock between the two south arch runs. Move the single
+existing core from the midpoint of edge 6 to its end, the join with edge 7.
+`FIVE_CLOCK_PLACEMENT` drives upper mass/collider and lower facade glazing;
+clock face, height, width, model count, material and ground footprint stay unchanged.
+The former upper position becomes empty; no second clock is created. The close
+browser camera follows the actual relocated mass. This is a DERIVED_BLOCKOUT
+frontage alignment, with surveyed position still null. No source photo is shipped.
+
+The branch was rebased onto current main `b6e08b22337d014f760b9866b9738fc4f0e1f0e5`
+before this edit, including the upstream Messages test previously absent from
+its exact head. Original walkway performance HOLD is not waived by relocation.

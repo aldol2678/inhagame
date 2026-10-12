@@ -4,6 +4,7 @@ import {FIVE,ANNIVERSARY,exteriorFrame,NORTH_APPROACHES} from './north-campus-la
 import { WALKWAY_ENTRANCE } from './north-walkway-layout.js';
 import { fillWalkwayEntrance, fillWalkwayProps } from './north-walkway-geometry.js';
 import {FACILITIES,towerParts} from './campus-facilities.js';
+import {FIVE_CLOCK_PLACEMENT} from './north-landmark-massing.js';
 export const NORTH_PHOTO_COLORS=Object.freeze({stone:'#e4e2d8',trim:'#f0eee4',glass:'#467e89',
  darkGlass:'#29494f',metal:'#777f80',ribbon:'#727674',joint:'#aeb8b4'});
 const point=(f,u,y,out=.09)=>{const p=f.at(u,out);return [p.x,y,p.z];};
@@ -123,7 +124,7 @@ export function fillAnniversaryPhotoFacade(b,tier='NEAR'){
 export function fillNorthPhotoTower(b,f,tier='NEAR'){
  const c=NORTH_PHOTO_COLORS;
  if(f.id==='bldg_05'&&tier==='NEAR'){
-  const front=exteriorFrame(f.rings[0],6),u=front.length/2;
+  const front=exteriorFrame(f.rings[0],FIVE_CLOCK_PLACEMENT.edge),u=front.length*FIVE_CLOCK_PLACEMENT.along;
   // Continue the relocated attached dark stair glazing down the same south face.
   // This is a thin face on the already-solid building, not a second ground body.
   box(b,front,c.stone,u,f.height/2,4.02,f.height,.225,.10);

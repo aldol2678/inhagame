@@ -39,10 +39,11 @@ test('existing north surfaces own the restoration; base pieces are finite, disjo
  assert.deepEqual(capture(fillWalkwayPaving),calls,'re-entry determinism');
 });
 
-test('preserved four gate paths, lane centres, footprint and clock have unchanged source owners',()=>{
+test('four gate paths, lane centres and footprint remain pinned; relocated clock still has one owner',()=>{
  assert.deepEqual(SIDE_GATE_PATHS.map(s=>s.id),['side_gate_entry','side_gate_anniversary','side_gate_five','side_gate_five_north']);
  const digest=p=>createHash('sha256').update(readFileSync(new URL(p,import.meta.url))).digest('hex');
- // File-level preservation protects coordinates and every original collider,
+ // File-level preservation protects ground coordinates and original colliders,
+ // with the user-authorized elevated clock relocation tested independently.
  // in addition to the historical hashes in north-landmark-restoration.test.
  for(const [file,hash]of Object.entries(JSON.parse(readFileSync(new URL('./fixtures/north-walkway-owners.json',import.meta.url),'utf8'))))assert.equal(digest(file),hash,file);
  assert.equal(towerParts(FIVE).filter(t=>t.id==='bldg_05_clock_core').length,1);

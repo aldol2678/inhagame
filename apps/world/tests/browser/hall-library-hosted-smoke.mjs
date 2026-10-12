@@ -129,12 +129,12 @@ function hallIntegrationScopePaths(manifest,extension) {
   const walkway=[
     'campus-material-profile.js','minimap/minimap-data.js','navigation/campus-navigation.js',
     'north-campus-geometry.js','north-campus-photo-geometry.js','north-walkway-geometry.js',
-    'north-walkway-layout.js','north-walkway-surface.js','render-chunk-registry.js'
+    'north-walkway-layout.js','north-walkway-surface.js','render-chunk-registry.js','north-landmark-massing.js'
   ];
   return [...manifest.allowedRuntimeChanges,...manifest.allowedMetadataChanges,...contactPilot.map(p=>'apps/world/src/'+p),
     ...(extension==='surroundings'?surroundings.map(p=>'apps/world/src/'+p):[]),
     ...(extension==='graphics'?graphics.map(p=>'apps/world/src/'+p):[]),
-    ...(extension==='walkway'?[...walkway.map(p=>'apps/world/src/'+p),'apps/world/data/reality/north-walkway.provenance.json']:[])];
+    ...(extension==='walkway'?[...walkway.map(p=>'apps/world/src/'+p),'apps/world/data/reality/north-walkway.provenance.json','apps/world/data/reality/north-landmark-restoration.provenance.json']:[])];
 }
 try {
   const {stdout:head}=await run('git',['rev-parse','HEAD'],{cwd:repo,timeout:5000,encoding:'utf8'});

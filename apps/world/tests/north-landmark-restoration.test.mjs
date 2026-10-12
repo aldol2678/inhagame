@@ -16,6 +16,7 @@ import {CAMPUS_ROADS,CAMPUS_PATH_WIDTHS} from '../src/campus-road-layout.js';
 import {OBSTACLES} from '../src/campus-layout.js';
 import {inferCampusMaterialProfile} from '../src/campus-material-profile.js';
 import {NORTH_PHOTO_COLORS,fillNorthPhotoTower} from '../src/north-campus-photo-geometry.js';
+import {FIVE_CLOCK_PLACEMENT} from '../src/north-landmark-massing.js';
 const url=new URL('../src/agora-photo-geometry.js',import.meta.url);
 const agora=existsSync(url)?await import(url.href):{};
 const capture=fn=>{const calls=[];const b=Object.fromEntries(['box','tube','crown','quad','triangle'].map(kind=>[kind,(color,...args)=>calls.push({kind,color,args})]));fn(b);return calls;};
@@ -83,10 +84,16 @@ test('60th Anniversary regains a tall slab inside the original footprint, shared
  }
 });
 
-test('field-photo fit anchors the clock on the stadium-visible south wing toward 60th and keeps the high slab slender',()=>{
- const clock=towerParts(FIVE)[0],front=exteriorFrame(FIVE.rings[0],6),anchor=front.at(front.length/2,-2.19);
+test('clock sits between the two photographed south arch runs; 60th massing stays unchanged',()=>{
+ const clock=towerParts(FIVE)[0],front=exteriorFrame(FIVE.rings[0],6),anchor=front.at(front.length,-2.19);
  const center=clock.vertices.reduce((p,q)=>({x:p.x+q.x/4,z:p.z+q.z/4}),{x:0,z:0});
- assert.ok(Math.hypot(center.x-anchor.x,center.z-anchor.z)<.01,'clock follows the 2026-10-07 edge-6 field-photo fit');
+ assert.ok(Math.hypot(center.x-anchor.x,center.z-anchor.z)<.01,'shared south-front join, not the midpoint of one arch run');
+ assert.equal(FIVE_CLOCK_PLACEMENT.status,'DERIVED_BLOCKOUT');assert.equal(FIVE_CLOCK_PLACEMENT.surveyPosition,null);
+ assert.ok(clock.vertices.every(p=>polygonOverlap(p.x,p.z,FIVE.rings[0],0)),'relocated core stays inside the existing building');
+ assert.equal(digest(towerParts(ANNIVERSARY)),'9568424ff7917b6b168128f0542f8ff63073ea7f1f44b8515369eb18fa620cda');
+ const lower=capture(b=>fillNorthPhotoTower(b,FIVE)).find(c=>c.kind==='box'&&c.color===NORTH_PHOTO_COLORS.stone);
+ const local=front.local({x:lower.args[0][0],z:lower.args[0][2]});
+ assert.ok(Math.abs(local.u-front.length)<1e-8,'lower glazing and upper mass share the moved axis');
  const slab=towerParts(ANNIVERSARY)[0],length=Math.hypot(slab.vertices[1].x-slab.vertices[0].x,slab.vertices[1].z-slab.vertices[0].z);
  assert.ok(length>=24&&length<=27,'bounded slimmer photographic fit; not a surveyed dimension');
  assert.ok(length/(slab.height-ANNIVERSARY.height)<1.15,'exposed slab reads near-square/tall instead of a 2:1 panel');
