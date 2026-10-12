@@ -7,6 +7,18 @@ import { registerHooks } from "node:module";
 const pcStub = `
 export class Color { constructor(r=0,g=0,b=0,a=1){Object.assign(this,{r,g,b,a});} clone(){return new Color(this.r,this.g,this.b,this.a);} }
 export class StandardMaterial { update(){} }
+export class Entity {
+  constructor(name){this.name=name;this.children=[];this.enabled=true;this.angles={x:0,y:0,z:0};this.events={};}
+  addChild(child){this.children.push(child);}
+  addComponent(type,config){this[type]={...config};}
+  setLocalPosition(){} setLocalScale(){}
+  setLocalEulerAngles(x,y,z){this.angles={x,y,z};} getLocalEulerAngles(){return this.angles;}
+  on(event,fn){this.events[event]=fn;}
+  destroy(){for(const child of this.children)child.destroy();this.events.destroy?.();}
+}
+export class MeshInstance {}
+export const Application={getApplication:()=>({graphicsDevice:{}})};
+export const createMesh=()=>({destroy(){}});
 export const FRESNEL_SCHLICK = 2, BLEND_NORMAL = 2, CULLFACE_NONE = 0;
 `;
 registerHooks({ resolve(specifier, context, next) {
@@ -28,12 +40,12 @@ const {
   JEONGSEOK_CAMPUS_RETURN, JEONGSEOK_ENTRANCE, JEONGSEOK_LAYOUTS, JEONGSEOK_ROOM_IDS,
   JEONGSEOK_LOBBY_ROOM_ID: LOBBY, JEONGSEOK_B1_READING_ROOM_ID: READING, JEONGSEOK_B1_CREATIVE_ROOM_ID: CREATIVE
 } = await import("../src/jeongseok/interior-rooms.js");
-const { JEONGSEOK_LOBBY_GATE_SLOT, gateRow } = await import("../src/jeongseok/lobby-layout.js");
+const { JEONGSEOK_LOBBY_GATE_SLOT, JEONGSEOK_PUBLIC_RETURN, JEONGSEOK_CLOSED_GATE, jeongseokLobbyObstacles, createJeongseokLobbyCollision, gateRow } = await import("../src/jeongseok/lobby-layout.js");
 const { JEONGSEOK_B1_READING } = await import("../src/jeongseok/b1-reading-layout.js");
 const { GROUP_STUDY_ROOM_SLOTS, JEONGSEOK_B1_CREATIVE } = await import("../src/jeongseok/b1-creative-layout.js");
-const { createJeongseokEntryPolicy, resolveJeongseokEntryMode, JEONGSEOK_ENTRY_MODE, JEONGSEOK_ACCESS_POLICY_KEY, JEONGSEOK_GRANT_TTL_MS } = await import("../src/jeongseok/entry-policy.js");
+const { createJeongseokEntryPolicy, resolveJeongseokEntryMode, JEONGSEOK_ENTRY_MODE, JEONGSEOK_ACCESS_POLICY_KEY, JEONGSEOK_LOBBY_POLICY_KEY, JEONGSEOK_GRANT_TTL_MS } = await import("../src/jeongseok/entry-policy.js");
 const { createJeongseokInterior } = await import("../src/jeongseok/interior-feature.js");
-const { buildRoomGeometry, interiorDetailForTier } = await import("../src/jeongseok/interior-renderer.js");
+const { buildRoomGeometry, interiorDetailForTier, createJeongseokInteriorScenes } = await import("../src/jeongseok/interior-renderer.js");
 const { createStaticBatch } = await import("../src/jeongseok/static-batch.js");
 
 const flat = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -124,7 +136,7 @@ test("Creative Space separates study and lecture zones; structural columns are n
 // ------------------------------------------------------------------ registry and campus anchors
 test("Jeongseok rooms are ROOM_* spaces gated by a policy; the exterior is not rebuilt", async () => {
   for (const id of JEONGSEOK_ROOM_IDS) {
-    assert.ok(ROOMS[id]); assert.equal(ROOMS[id].access, JEONGSEOK_ACCESS_POLICY_KEY);
+    assert.ok(ROOMS[id]); assert.equal(ROOMS[id].access, id === LOBBY ? JEONGSEOK_LOBBY_POLICY_KEY : JEONGSEOK_ACCESS_POLICY_KEY);
     assert.ok(!new PlaceZoneRegistry().zones.some(zone => zone.id === id));
   }
   assert.ok(ROOM_ENTRANCES.includes(JEONGSEOK_ENTRANCE));
@@ -181,7 +193,7 @@ const targets = layout => [
 
 test("spawn, exits, transfers and arrivals are free, inside bounds and connected for the player", () => {
   for (const layout of LAYOUTS) {
-    const reach = reachable(layout, layout.spawn.position);
+    const reach = reachable(layout, layout.spawn.position, layout.roomId === LOBBY ? jeongseokLobbyObstacles(true) : layout.obstacles);
     assert.ok(free(layout, layout.spawn.position), `${layout.roomId} spawn free`);
     assert.ok(flat(layout.spawn.position, layout.exit.position) > layout.exit.radius, "arrival never sits on the exit");
     for (const [id, p] of targets(layout)) {
@@ -207,11 +219,52 @@ test("spawn, exits, transfers and arrivals are free, inside bounds and connected
 test("lobby gates are the only way from the entry vestibule to the inner lobby", () => {
   const layout = JEONGSEOK_LAYOUTS[LOBBY];
   const inner = layout.portals[0].position;
-  assert.ok(reachable(layout, layout.spawn.position)(inner), "open lanes connect");
+  assert.ok(reachable(layout, layout.spawn.position, jeongseokLobbyObstacles(true))(inner), "open runtime lanes connect");
   for (const lane of layout.gateLanes) assert.ok(lane.width >= 0.9 && lane.width > 2 * WALK_SHAPE.radius + 0.3);
-  const closed = [...layout.obstacles, ...layout.gateLanes.map((lane, i) => ({ id: `closed_${i}`, minX: lane.x - lane.width / 2,
-    maxX: lane.x + lane.width / 2, minZ: lane.z - 0.05, maxZ: lane.z + 0.05, minY: 0, maxY: 1 }))];
-  assert.equal(reachable(layout, layout.spawn.position, closed)(inner), false, "no bypass around the gate row");
+  assert.ok(layout.obstacles.includes(JEONGSEOK_CLOSED_GATE), "closed barrier belongs to actual runtime layout");
+  assert.equal(reachable(layout, layout.spawn.position)(inner), false, "actual closed runtime has no side bypass");
+  for (const y of [PLAYER_ORIGIN_Y, 2.0, 3.0]) {
+    assert.equal(canOccupy({ x: 0, y, z: -3.2 }, WALK_SHAPE, layout.obstacles), false, "jump cannot clear closed gate");
+  }
+  assert.ok(reachable(layout, layout.spawn.position)({ x: -3.6, z: -4.8 }), "guide approach reachable while gate closed");
+});
+
+test("the actual scene collision factory preserves shared identity through close/open/reclose", () => {
+  const live = createJeongseokLobbyCollision();
+  const reference = live.obstacles;
+  const lane = JEONGSEOK_LAYOUTS[LOBBY].gateLanes[1];
+  const pose = { x: lane.x, y: PLAYER_ORIGIN_Y, z: lane.z };
+  assert.equal(canOccupy(pose, WALK_SHAPE, reference), false);
+  live.setGateAccess(true);
+  assert.equal(reference, live.obstacles);
+  assert.equal(canOccupy(pose, WALK_SHAPE, reference), true);
+  live.setGateAccess(false); live.setGateAccess(false);
+  assert.equal(canOccupy(pose, WALK_SHAPE, reference), false);
+  assert.equal(reference.filter(box => box.id === JEONGSEOK_CLOSED_GATE.id).length, 1);
+  assert.equal(JEONGSEOK_LAYOUTS[LOBBY].obstacles.includes(JEONGSEOK_CLOSED_GATE), true, "shared layout never mutated");
+});
+
+test("scene-manager gate changes touch only built scenes, including an inactive cached lobby", () => {
+  const scenes = createJeongseokInteriorScenes({ root: { addChild() {} } }, { isGateOpen: () => true });
+  scenes.setGateAccess(false); scenes.setGateAccess(true);
+  assert.deepEqual(scenes.status().built, [], "account and gate updates never lazily build a room");
+  assert.deepEqual(scenes.status().history, []);
+  const lobby = scenes.get(LOBBY), reference = lobby.obstacles;
+  const reading = scenes.get(READING), readingObstacles = [...reading.obstacles];
+  reading.root.enabled = true;
+  assert.equal(scenes.activeScene(), reading);
+  assert.equal(reference.includes(JEONGSEOK_CLOSED_GATE), false);
+  for (const open of [false, true, false]) {
+    scenes.setGateAccess(open);
+    assert.equal(lobby.obstacles, reference, "controller/camera keep the same shared collision array");
+    assert.equal(reference.includes(JEONGSEOK_CLOSED_GATE), !open);
+    assert.deepEqual(reference.filter(box => box !== JEONGSEOK_CLOSED_GATE), jeongseokLobbyObstacles(true));
+    assert.deepEqual(reading.obstacles, readingObstacles, "B1 collision remains unchanged");
+    assert.deepEqual(scenes.status().built, [LOBBY, READING], "the other B1 room remains unbuilt");
+  }
+  reading.root.enabled = false; scenes.releaseAll();
+  scenes.setGateAccess(false);
+  assert.deepEqual(scenes.status().built, [], "revocation after release never recreates scenes");
 });
 
 test("declared NPC aisles keep their full width clear of furniture and walls", () => {
@@ -258,7 +311,7 @@ test("third-person camera stays inside the walls and under the ceiling at every 
 });
 
 // ------------------------------------------------------------------ entry policy
-test("entry mode is CLOSED unless a preview host asks for the local visual review; server mode is JSL-A only", () => {
+test("entry mode resolver selects explicit server integration or preview; unconfigured mode stays CLOSED", () => {
   assert.equal(resolveJeongseokEntryMode({}), JEONGSEOK_ENTRY_MODE.CLOSED);
   assert.equal(resolveJeongseokEntryMode({ previewHost: false, params: new URLSearchParams("jeongseok=jsl-b") }), JEONGSEOK_ENTRY_MODE.CLOSED);
   assert.equal(resolveJeongseokEntryMode({ previewHost: true, params: new URLSearchParams("jeongseok=jsl-a") }), JEONGSEOK_ENTRY_MODE.CLOSED);
@@ -268,6 +321,61 @@ test("entry mode is CLOSED unless a preview host asks for the local visual revie
   assert.equal(closed.allowsEntry(), false); assert.equal(closed.allowsStay(), false);
   assert.equal(closed.acceptServerGrant({ granted: true, decision: "GRANTED", userId: "a" }), false);
   assert.throws(() => createJeongseokEntryPolicy({ mode: "OPEN" }));
+});
+
+test("shipped main keeps rollout CLOSED; server integration is loopback-only test constructor DI", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const { installJeongseokServerMode } = await import("./browser/jeongseok-synthetic-access.mjs");
+  const source = await readFile(new URL("../src/main.js", import.meta.url), "utf8");
+  const needle = "const jeongseokEntryMode = resolveJeongseokEntryMode({ previewHost, params: startupParams });";
+  assert.equal(source.split(needle).length, 2);
+  assert.doesNotMatch(source, /serverAccessAvailable:\s*true/);
+  let routeHandler;
+  const evidence = await installJeongseokServerMode({ route: async (pattern, handler) => {
+    assert.equal(pattern, "**/src/main.js"); routeHandler = handler;
+  } });
+  assert.equal(evidence.mode, "TEST_ONLY_ROLLOUT_CONSTRUCTOR");
+  assert.match(evidence.shippedMainSha256, /^[a-f0-9]{64}$/);
+  assert.notEqual(evidence.shippedMainSha256, evidence.servedMainSha256);
+  let served;
+  await routeHandler({ request: () => ({ url: () => "http://127.0.0.1:8000/src/main.js" }), fulfill: value => { served = value.body; } });
+  assert.equal(served, source.replace(needle, needle.replace("startupParams }", "startupParams, serverAccessAvailable: true }")));
+  assert.throws(() => routeHandler({ request: () => ({ url: () => "https://production.example/src/main.js" }) }), /loopback-only/);
+  assert.equal(await readFile(new URL("../src/main.js", import.meta.url), "utf8"), source, "fixture never edits shipped source");
+});
+
+test("guide browser QA waits for Phone opening animation before unchanged viewport bounds", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const smoke = await readFile(new URL("./browser/jeongseok-interior-smoke.mjs", import.meta.url), "utf8");
+  const wait = smoke.indexOf('getAnimations().every(animation => animation.playState === "finished")');
+  const measure = smoke.indexOf('const phoneBounds = await ctx.page.locator(".smartphone-frame").boundingBox()');
+  const record = smoke.indexOf('result.checks.publicGuideBounds =');
+  const check = smoke.indexOf('assert.ok(phoneBounds.x >= 0 && phoneBounds.y >= 0');
+  assert.ok(wait > 0 && wait < measure && measure < record && record < check);
+  assert.ok(smoke.includes('phoneBounds.x + phoneBounds.width <= viewport.width + 1 && phoneBounds.y + phoneBounds.height <= viewport.height + 1'));
+  assert.ok(smoke.includes('{ timeout: 5000 }'), "animation condition remains bounded");
+});
+
+test("native movement QA requires held-input frames as well as time and preserves aggregate failures", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const { runInNewContext } = await import("node:vm");
+  const smoke = await readFile(new URL("./browser/jeongseok-interior-smoke.mjs", import.meta.url), "utf8");
+  const start = smoke.indexOf("function nativeMovementObserved(");
+  const end = smoke.indexOf("\n// Native movement:", start);
+  assert.ok(start >= 0 && end > start);
+  const d = { app: { frame: 10 } }; let now = 0;
+  const predicate = runInNewContext(`${smoke.slice(start, end)}; nativeMovementObserved`, {
+    window: { __INHAGAME_P0__: d }, performance: { now: () => now }
+  });
+  const observation = { startFrame: 10, startedAt: 0, minimumMs: 1100, minimumFrames: 6 };
+  now = 2000; assert.equal(predicate(observation), false, "elapsed wall time without frames is insufficient");
+  d.app.frame = 15; assert.equal(predicate(observation), false, "all six held-input frames are required");
+  d.app.frame = 16; now = 1099; assert.equal(predicate(observation), false, "frames do not shorten the original observation");
+  now = 1100; assert.equal(predicate(observation), true);
+  assert.ok(smoke.includes('minimumMs: ms, minimumFrames: 6 }, { timeout: 10000, polling: 50 }'));
+  assert.ok(smoke.includes('if (failures.length) throw new Error('));
+  assert.ok(smoke.includes('process.exitCode = 1'));
+  assert.ok(smoke.includes('assert.equal(s.closedGateCollider, true)'), "immediate B1 return assertion is unchanged");
 });
 
 const userA = "00000000-0000-4000-8000-00000000000a", userB = "00000000-0000-4000-8000-00000000000b";
@@ -305,6 +413,7 @@ function rig({ mode = JEONGSEOK_ENTRY_MODE.VISUAL_PREVIEW, failStep = null, asyn
   const clock = { t: 0, now() { return this.t; } };
   const calls = [];
   let fail = failStep;
+  let position = { ...JEONGSEOK_ENTRANCE.position };
   const world = {
     getPlaceZoneId: () => "AREA_JUNGSEOK_WOONAM",
     createCheckpoint: () => () => calls.push(["restore"]),
@@ -312,22 +421,35 @@ function rig({ mode = JEONGSEOK_ENTRY_MODE.VISUAL_PREVIEW, failStep = null, asyn
     showRoom: room => { if (fail === "showRoom") { fail = null; throw new Error("injected"); } calls.push(["showRoom", room.id]); },
     showCampus: room => calls.push(["showCampus", room.id]),
     resumeCampus: () => calls.push(["resumeCampus"]),
-    placePlayer: (position, yaw) => calls.push(["placePlayer", { x: position.x, z: position.z }, yaw])
+    placePlayer: (next, yaw) => { position = { ...next }; calls.push(["placePlayer", { x: next.x, z: next.z }, yaw]); }
   };
   let release = null;
   const fade = asyncFade ? run => new Promise(resolve => { release = () => resolve(run()); }) : run => run();
   const errors = [];
   let interior = null;
   const rooms = createRoomTransition({ world, clock, fade, onError: info => errors.push(info),
-    accessPolicies: { [JEONGSEOK_ACCESS_POLICY_KEY]: (entrance, room) => interior?.accessPredicate(entrance, room) === true } });
+    accessPolicies: { [JEONGSEOK_ACCESS_POLICY_KEY]: (entrance, room) => interior?.accessPredicate(entrance, room) === true,
+      [JEONGSEOK_LOBBY_POLICY_KEY]: (entrance, room) => interior?.accessPredicate(entrance, room) === true } });
   const policy = createJeongseokEntryPolicy({ mode, clock: { now: () => 5_000_000 + clock.t } });
+  const collision = createJeongseokLobbyCollision(policy.allowsStay());
   const released = [];
   const statuses = [];
-  interior = createJeongseokInterior({ rooms, policy, scenes: { releaseAll: () => released.push(true) }, onStatus: text => statuses.push(text) });
+  interior = createJeongseokInterior({ rooms, policy, getPosition: () => position,
+    placePublic: anchor => { world.placePlayer(anchor.position, anchor.yaw); return true; },
+    scenes: { setGateAccess: open => collision.setGateAccess(open), releaseAll: () => released.push(true) }, onStatus: text => statuses.push(text) });
   const tick = () => { clock.t += ROOM_TRANSITION_COOLDOWN_MS + 1; };
-  return { rooms, interior, policy, calls, clock, tick, released, errors, statuses, finishFade: () => release?.() };
+  const setPosition = next => { position = { ...next }; };
+  interior.testPosition = setPosition;
+  return { rooms, interior, policy, collision, calls, clock, tick, released, errors, statuses, setPosition, getPosition: () => position, failNext: step => { fail = step; }, finishFade: () => release?.() };
 }
-const action = (interior, position, extra = {}) => interior.contextAction({ position, grounded: true, mounted: false, ...extra });
+const action = (interior, position, extra = {}) => { interior.testPosition(position); return interior.contextAction({ position, grounded: true, mounted: false, ...extra }); };
+const assertGateAccess = (r, open) => {
+  const lane = JEONGSEOK_LAYOUTS[LOBBY].gateLanes[1];
+  assert.equal(r.policy.allowsStay(), open);
+  assert.equal(r.collision.obstacles.includes(JEONGSEOK_CLOSED_GATE), !open, "shared runtime collider matches policy immediately");
+  assert.equal(canOccupy(pointAt(lane), WALK_SHAPE, r.collision.obstacles), open);
+  assert.deepEqual(r.collision.obstacles.filter(box => box !== JEONGSEOK_CLOSED_GATE), jeongseokLobbyObstacles(true));
+};
 
 test("campus → lobby → B1 reading → B1 creative → lobby → campus closes one loop at the safe anchors", () => {
   const { rooms, interior, calls, tick, released } = rig();
@@ -353,8 +475,8 @@ test("campus → lobby → B1 reading → B1 creative → lobby → campus close
   tick();
   assert.equal(rooms.contextAction({ position: JEONGSEOK_LAYOUTS[CREATIVE].exit.position }).trigger(), true);
   assert.equal(rooms.currentSpace, LOBBY);
-  assert.deepEqual(calls.at(-1), ["placePlayer", { x: toCreative.returnAnchor.position.x, z: toCreative.returnAnchor.position.z }, 180],
-    "returning lands at the Creative Space transfer, not the one first used");
+  assert.deepEqual(calls.at(-1), ["placePlayer", { x: toCreative.returnAnchor.position.x, z: toCreative.returnAnchor.position.z }, JEONGSEOK_PUBLIC_RETURN.yaw],
+    "B1 always returns to a safe public anchor");
   tick();
   assert.equal(released.length, 0);
   assert.equal(rooms.contextAction({ position: lobby.exit.position }).trigger(), true);
@@ -365,7 +487,7 @@ test("campus → lobby → B1 reading → B1 creative → lobby → campus close
   assert.equal(rooms.stats.nestedSwitches, 1);
 });
 
-test("CLOSED mode (every production host until JSL-A) exposes no door and refuses every path in", () => {
+test("explicit CLOSED mode exposes no door and refuses every path in", () => {
   const { rooms, interior } = rig({ mode: JEONGSEOK_ENTRY_MODE.CLOSED });
   assert.equal(action(interior, JEONGSEOK_ENTRANCE.position), null);
   assert.equal(rooms.contextAction({ position: JEONGSEOK_ENTRANCE.position }), null);
@@ -380,34 +502,133 @@ test("CLOSED mode (every production host until JSL-A) exposes no door and refuse
   assert.equal(bare.enter(LOBBY), false);
 });
 
-test("SERVER_GRANT: only the JSL-A hand-off enters; account switch or expiry leaves straight to campus", () => {
-  const { rooms, interior, policy, calls, tick, statuses } = rig({ mode: JEONGSEOK_ENTRY_MODE.SERVER_GRANT });
+test("SERVER_GRANT: guest lobby, inner grant, B1 and account revocation return to public", () => {
+  const { rooms, interior, policy, tick, statuses, setPosition, getPosition } = rig({ mode: JEONGSEOK_ENTRY_MODE.SERVER_GRANT });
+  assert.ok(action(interior, JEONGSEOK_ENTRANCE.position), "guest sees public door");
+  assert.equal(interior.enter().status, "ENTERING");
+  assert.equal(rooms.currentSpace, LOBBY);
+  tick();
+  const portal = JEONGSEOK_LAYOUTS[LOBBY].portals[0];
+  assert.equal(action(interior, portal.position), null, "guest has no B1 portal");
+  assert.equal(interior.usePortal(portal), false);
+  assert.equal(rooms.enterNested(READING, { returnPosition: { x: 0, z: 0 } }), false, "direct protected route fails closed");
+  assert.equal(interior.update(), true, "unauthorized teleport behind gate is corrected");
+  assert.deepEqual(getPosition(), JEONGSEOK_PUBLIC_RETURN.position);
   interior.setAccount(userA);
-  assert.equal(action(interior, JEONGSEOK_ENTRANCE.position), null, "no free door without a fresh grant");
+  setPosition({ x: 0, z: -4.0 });
   assert.equal(interior.enterFromServerGrant(granted(userB)).status, "REFUSED");
   assert.equal(interior.enterFromServerGrant(granted(userA), { mounted: true }).status, "MOUNTED");
-  assert.equal(policy.status().pendingGrant, false, "a refused entry drops its grant");
-  assert.equal(interior.enterFromServerGrant(granted(userA)).status, "ENTERING");
-  assert.equal(rooms.currentSpace, LOBBY); assert.equal(policy.status().session, true);
-  tick();
-  action(interior, JEONGSEOK_LAYOUTS[LOBBY].portals[0].position).trigger();
+  assert.equal(interior.enterFromServerGrant(granted(userA)).status, "INNER_ACCESS_GRANTED");
+  assert.equal(policy.status().session, true);
+  assert.equal(rooms.enterNested(READING, { returnPosition: { x: 0, z: 0 } }), false, "pending crossing cannot skip straight to B1");
+  setPosition({ x: 0, z: -2.0 }); interior.update();
+  assert.equal(policy.status().crossed, true);
+  assert.equal(action(interior, portal.position).trigger(), true);
   assert.equal(rooms.currentSpace, READING);
   tick();
   interior.setAccount(userB);
-  assert.equal(rooms.currentSpace, CAMPUS_SPACE, "forced exit skips the lobby");
-  assert.deepEqual(calls.at(-2)[1], { x: JEONGSEOK_CAMPUS_RETURN.position.x, z: JEONGSEOK_CAMPUS_RETURN.position.z });
+  assert.equal(rooms.currentSpace, LOBBY, "revocation stays in public lobby");
+  assert.deepEqual(getPosition(), JEONGSEOK_PUBLIC_RETURN.position);
   assert.match(statuses.at(-1), /계정/);
+  assert.equal(policy.allowsStay(), false);
   assert.equal(rooms.status().parentRoomId, null);
-  tick();
-  // Expiry while inside: update() notices and leaves.
-  interior.setAccount(userA);
-  assert.equal(interior.enterFromServerGrant(granted(userA, { via: "VISITOR_PASS",
-    pass: { expiresAt: new Date(5_000_000 + 10_000_000).toISOString() } })).status, "ENTERING");
-  assert.equal(rooms.currentSpace, LOBBY);
-  assert.equal(interior.update(), false, "still valid");
-  assert.equal(interior.revalidate({ ...granted(userA), granted: false, decision: "EXPIRED" }), false);
-  assert.equal(rooms.currentSpace, CAMPUS_SPACE);
-  assert.equal(interior.status().stats.forcedExits, 2);
+});
+
+test("expiry, server denial and resume revoke only protected access; public lobby remains usable", () => {
+  const r = rig({ mode: JEONGSEOK_ENTRY_MODE.SERVER_GRANT });
+  r.interior.setAccount(userA); r.interior.enter(); r.tick();
+  r.setPosition({ x: 0, z: -4.0 });
+  r.interior.enterFromServerGrant(granted(userA, { via: "VISITOR_PASS", pass: { expiresAt: new Date(5_000_000 + r.clock.t + 1000).toISOString() } }));
+  r.setPosition({ x: 0, z: -2 }); r.interior.update();
+  r.clock.t += 1001;
+  assert.equal(r.interior.update(), true);
+  assert.equal(r.rooms.currentSpace, LOBBY);
+  assert.deepEqual(r.getPosition(), JEONGSEOK_PUBLIC_RETURN.position);
+  for (const snapshot of [null, { ...granted(userA), granted: false, decision: "ACCOUNT_BLOCKED" }, { ...granted(userA), decision: "EXPIRED" }]) {
+    r.setPosition({ x: 0, z: -4.0 }); r.interior.enterFromServerGrant(granted(userA));
+    r.setPosition({ x: 0, z: -2 }); r.interior.update();
+    assert.equal(r.interior.revalidate(snapshot), false);
+    assert.deepEqual(r.getPosition(), JEONGSEOK_PUBLIC_RETURN.position);
+  }
+  r.setPosition({ x: 0, z: -4.0 }); r.interior.enterFromServerGrant(granted(userA));
+  r.setPosition({ x: 0, z: -2 }); r.interior.update(); r.interior.suspend();
+  assert.equal(r.policy.allowsStay(), false); assert.equal(r.rooms.currentSpace, LOBBY);
+});
+
+test("normal B1 returns close the shared lobby gate before another feature or scene frame", () => {
+  for (const route of [[READING], [CREATIVE], [READING, CREATIVE], [CREATIVE, READING]]) {
+    const r = rig({ mode: JEONGSEOK_ENTRY_MODE.SERVER_GRANT }), reference = r.collision.obstacles;
+    r.interior.setAccount(userA); r.interior.enter(); r.tick(); r.setPosition({ x: 0, z: -4 });
+    assert.equal(r.interior.enterFromServerGrant(granted(userA)).status, "INNER_ACCESS_GRANTED");
+    assertGateAccess(r, true);
+    r.setPosition({ x: 0, z: -2 }); r.interior.update();
+    for (const target of route) {
+      const portal = JEONGSEOK_LAYOUTS[r.rooms.currentSpace].portals.find(portal => portal.target === target);
+      assert.equal(action(r.interior, portal.position).trigger(), true); r.tick();
+      assertGateAccess(r, true);
+    }
+    assert.equal(r.rooms.exit(), true);
+    assert.equal(r.rooms.currentSpace, LOBBY);
+    assert.equal(r.rooms.status().busy, false);
+    assert.deepEqual(r.getPosition(), JEONGSEOK_PUBLIC_RETURN.position);
+    assert.equal(r.policy.status().session, false);
+    assert.equal(r.policy.status().lastRevocation, "RETURNED_TO_PUBLIC");
+    assertGateAccess(r, false);
+    assert.equal(r.collision.obstacles, reference);
+  }
+});
+
+test("account, suspension and denied revalidation close pending, crossed and cached lobby gates synchronously", () => {
+  for (const location of ["public", "inner", "B1"]) for (const revoke of ["account", "suspend", "revalidate"]) {
+    const r = rig({ mode: JEONGSEOK_ENTRY_MODE.SERVER_GRANT });
+    r.interior.setAccount(userA); r.interior.enter(); r.tick(); r.setPosition({ x: 0, z: -4 });
+    r.interior.enterFromServerGrant(granted(userA));
+    if (location !== "public") { r.setPosition({ x: 0, z: -2 }); r.interior.update(); }
+    if (location === "B1") { action(r.interior, JEONGSEOK_LAYOUTS[LOBBY].portals[0].position).trigger(); r.tick(); }
+    assertGateAccess(r, true);
+    if (revoke === "account") r.interior.setAccount(userB);
+    else if (revoke === "suspend") r.interior.suspend();
+    else assert.equal(r.interior.revalidate({ ...granted(userA), granted: false, decision: "ACCOUNT_BLOCKED" }), false);
+    assertGateAccess(r, false);
+    assert.equal(r.rooms.currentSpace, LOBBY);
+    assert.equal(r.interior.enterFromServerGrant(granted(revoke === "account" ? userA : userB)).status, "REFUSED", "revoked or stale handoff cannot reopen the gate");
+    assertGateAccess(r, false);
+  }
+});
+
+test("unused crossing expires, exiting inner zone consumes session, and stale grants cannot commit", () => {
+  const r = rig({ mode: JEONGSEOK_ENTRY_MODE.SERVER_GRANT });
+  r.interior.setAccount(userA); r.interior.enter(); r.tick(); r.setPosition({ x: 0, z: -4.0 });
+  r.interior.enterFromServerGrant(granted(userA)); r.clock.t += JEONGSEOK_GRANT_TTL_MS + 1;
+  assert.equal(r.policy.allowsStay(), false);
+  r.interior.update(); assertGateAccess(r, false);
+  r.interior.enterFromServerGrant(granted(userA)); r.setPosition({ x: 0, z: -2 }); r.interior.update();
+  r.setPosition({ x: 0, z: -4 }); r.interior.update();
+  assertGateAccess(r, false);
+  r.policy.acceptServerGrant(granted(userA)); r.clock.t += JEONGSEOK_GRANT_TTL_MS + 1;
+  assert.equal(r.policy.commitEntry(), false);
+});
+
+test("B1 required return failure retains the lock and account changes during transfer cannot commit", async () => {
+  const r = rig({ mode: JEONGSEOK_ENTRY_MODE.SERVER_GRANT });
+  r.interior.setAccount(userA); r.interior.enter(); r.tick(); r.setPosition({ x: 0, z: -4 });
+  r.interior.enterFromServerGrant(granted(userA)); r.setPosition({ x: 0, z: -2 }); r.interior.update();
+  action(r.interior, JEONGSEOK_LAYOUTS[LOBBY].portals[0].position).trigger(); r.tick();
+  r.failNext("showRoom"); r.interior.setAccount(userB);
+  assert.equal(r.rooms.currentSpace, READING);
+  assert.equal(r.rooms.status().busy, true, "failed mandatory recovery remains locked");
+  assert.equal(r.errors.at(-1).recovered, false);
+  assertGateAccess(r, false);
+
+  const a = rig({ mode: JEONGSEOK_ENTRY_MODE.SERVER_GRANT, asyncFade: true });
+  a.interior.setAccount(userA); a.interior.enter(); await a.finishFade(); await new Promise(resolve => setImmediate(resolve)); a.tick();
+  a.setPosition({ x: 0, z: -4 }); a.interior.enterFromServerGrant(granted(userA));
+  a.setPosition({ x: 0, z: -2 }); a.interior.update();
+  action(a.interior, JEONGSEOK_LAYOUTS[LOBBY].portals[0].position).trigger();
+  a.interior.setAccount(userB); assertGateAccess(a, false);
+  await a.finishFade(); await new Promise(resolve => setImmediate(resolve));
+  assert.equal(a.rooms.currentSpace, LOBBY); assert.equal(a.policy.allowsStay(), false);
+  a.interior.update(); assert.deepEqual(a.getPosition(), JEONGSEOK_PUBLIC_RETURN.position);
 });
 
 test("a failed scene switch rolls back to campus without committing a stay, and retry works", () => {

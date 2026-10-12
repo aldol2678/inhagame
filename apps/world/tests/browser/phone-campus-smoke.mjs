@@ -10,7 +10,7 @@ assert.equal(head,process.env.PHONE_HEAD_SHA,'PHONE_HEAD_SHA must be this exact 
 const output='test-results/phone-campus';await mkdir(output,{recursive:true});
 const files=['src/main.js','campus/index.html','phone.css','src/phone/smartphone.js','src/phone/phone-shell.js',
   'src/phone/phone-album.js','src/phone/phone-preferences.js','src/phone/student-id.js','src/phone/phone-surfaces.js',
-  'src/photo/photo-mode.js','src/photo/photo-mode-panel.js','src/minimap/full-map-controller.js'];
+  'src/photo/photo-capture.js','src/photo/photo-mode.js','src/photo/photo-mode-panel.js','src/minimap/full-map-controller.js'];
 const hashes=Object.fromEntries(await Promise.all(files.map(async p=>[p,createHash('sha256').update(await readFile(new URL(`../../${p}`,import.meta.url))).digest('hex')])));
 const report={head,status:'RUNNING',sourceHashes:hashes,cases:[],limits:['Offline guest campus: live signed-in server profile/EXP/Badge integration not verified.',
   'Chromium mobile viewport/touch emulation is not physical Android/iOS gallery, safe-area or WebGPU acceptance.']};

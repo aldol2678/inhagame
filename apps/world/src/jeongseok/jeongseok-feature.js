@@ -1,73 +1,90 @@
 import { createJeongseokAccessClient } from "./access-client.js";
 import { createJeongseokGateController, GATE_STATE } from "./gate-controller.js";
 import { createJeongseokGatePanel, createGateCues, gateContextAction } from "./gate-panel.js";
-import { JEONGSEOK_GATE, nearJeongseokGate } from "./gate-layout.js";
+import { JEONGSEOK_GATE, JEONGSEOK_GUIDE, nearJeongseokGate } from "./gate-layout.js";
 
-// JSL-A integration. Closed unless the caller enables it; even then the server gate policy and pass
-// product decide everything (they ship COMING_SOON). The interior is JSL-B: an entry attempt is
-// re-verified by the server and then reported as PENDING_JSL_B. No room, teleport or Realtime
-// channel is opened here, so nothing can be reached by skipping the gate.
-export const JEONGSEOK_INTERIOR_STATUS = "PENDING_JSL_B";
+// Everyone can reach the public lobby. The guide sells the server's pass; the separate reader
+// freshly verifies a grant before the interior receives it. Proximity is UI safety, not a right.
 const TAG_STATES = new Set([GATE_STATE.SCANNING, GATE_STATE.GRANTED, GATE_STATE.OPENING]);
-const GUIDE_STATES = new Set([GATE_STATE.NEEDS_PASS, GATE_STATE.EXPIRED, GATE_STATE.INSUFFICIENT_FUNDS]);
-// An unresolved purchase keeps the guidance open so "same request" recovery stays reachable.
-const isGuide = view => GUIDE_STATES.has(view.state) || (view.state === GATE_STATE.UNKNOWN && view.purchaseRecovery);
 
 export function createJeongseokFeature({ getClient, isEnabled = () => false, audio = null, getPhone = () => null,
-  storage = () => null, doc = document, gate: gateLayout = JEONGSEOK_GATE, timings } = {}) {
+  getContext = null, onEnter = () => ({ status: "UNAVAILABLE" }), storage = () => null,
+  doc = document, gate: gateLayout = JEONGSEOK_GATE, guide: guideLayout = JEONGSEOK_GUIDE, timings } = {}) {
   const access = createJeongseokAccessClient({ getClient, storage });
   const panel = createJeongseokGatePanel({ doc });
-  let near = false, phoneOwned = false, previous = GATE_STATE.IDLE;
+  let near = false, nearGuide = false, phoneOwned = false, phoneMode = null, lastContext = null;
+  // Main supplies a live getter. The last context is only a fallback for engine-free consumers.
+  const context = () => { try { return getContext ? getContext() : lastContext; } catch { return null; } };
+  function distanceAt(anchor, value = context()) {
+    if (!isEnabled() || !value || value.space !== anchor.space || value.mounted || value.busy || value.grounded === false) return null;
+    return nearJeongseokGate(value.position, anchor);
+  }
+  const atReader = () => distanceAt(gateLayout) !== null;
+  const atGuide = () => distanceAt(guideLayout) !== null;
   const gate = createJeongseokGateController({
-    access, isEnabled, onCue: createGateCues({ audio }), timings,
-    onEnter: () => ({ status: JEONGSEOK_INTERIOR_STATUS }),
+    access, isEnabled, canTag: atReader, canGuide: atGuide, canPurchase: atGuide,
+    onCue: createGateCues({ audio }), timings,
+    onEnter: snapshot => atReader() ? onEnter(snapshot) : ({ status: "CONTEXT_CHANGED" }),
     onChange: view => {
       panel.render(view);
       const phone = getPhone();
-      // Tag on the Student ID screen, then return to where the player was.
-      if (TAG_STATES.has(view.state) && !phoneOwned && phone?.openJeongseok({ tag: true })) phoneOwned = true;
-      // A fresh check that needs a pass opens the guidance once; later refusals reuse the open view.
-      if (isGuide(view) && previous === GATE_STATE.CHECKING && !phoneOwned && phone?.openJeongseok({ tag: false })) phoneOwned = true;
-      previous = view.state;
-      if (view.state === GATE_STATE.READY_TO_ENTER || (!TAG_STATES.has(view.state) && !isGuide(view) &&
-          view.state !== GATE_STATE.PURCHASING && view.state !== GATE_STATE.CHECKING)) {
-        if (phoneOwned) { phoneOwned = false; phone?.endJeongseok(); }
+      if (TAG_STATES.has(view.state) && !phoneOwned && phone?.openJeongseok({ tag: true })) {
+        phoneOwned = true; phoneMode = "tag";
+      }
+      // Guidance stays open after issue/recovery. Only reader-owned animations return the Phone.
+      if (phoneOwned && phoneMode === "tag" && (view.state === GATE_STATE.READY_TO_ENTER ||
+          (!TAG_STATES.has(view.state) && view.state !== GATE_STATE.CHECKING))) {
+        phoneOwned = false; phoneMode = null; phone?.endJeongseok();
       }
       phone?.refresh();
     }
   });
-  access.onChange(() => getPhone()?.refresh());
+  const unsubscribeAccess = access.onChange(() => getPhone()?.refresh());
 
-  function trigger() {
-    const view = gate.snapshot();
-    if (view.state === GATE_STATE.READY_TO_ENTER) return void gate.enter();
-    if (isGuide(view)) {
-      // Guidance and confirmation are Phone UI; the purchase itself is gated on this reader.
-      if (getPhone()?.openJeongseok({ tag: false })) phoneOwned = true;
-      return;
-    }
-    void gate.start();
+  function triggerReader() {
+    if (!atReader()) return false;
+    return gate.snapshot().state === GATE_STATE.READY_TO_ENTER ? gate.enter() : gate.start();
+  }
+  function triggerGuide() {
+    if (!atGuide()) return false;
+    // Guests can read login guidance here. Only the server decides account eligibility to buy.
+    if (!getPhone()?.openJeongseok({ tag: false })) return false;
+    phoneOwned = true; phoneMode = "guide";
+    return gate.guide();
+  }
+  function remember(value) {
+    lastContext = value ? { ...value, position: value.position ? { x: value.position.x, z: value.position.z } : null } : null;
   }
 
-  return { access, gate, panel, layout: gateLayout,
-    isEnabled,
-    /** Context Action slot for the reader, or null away from it / while closed on the client. */
-    contextAction({ position, grounded = true, mounted = false, inside = false }) {
-      const distance = isEnabled() && !inside && !mounted && grounded ? nearJeongseokGate(position, gateLayout) : null;
-      const isNear = distance !== null;
+  return { access, gate, panel, layout: gateLayout, guideLayout, isEnabled,
+    contextAction(options = {}) {
+      remember(options);
+      const distance = distanceAt(gateLayout, options), isNear = distance !== null;
       if (isNear !== near) {
         near = isNear; panel.setNear(near, gate.snapshot());
-        if (!near) gate.reset();
+        if (!near && phoneMode !== "guide") gate.reset();
+        getPhone()?.refresh();
       }
-      return isNear ? gateContextAction(gate.snapshot(), { distance, trigger }) : null;
+      return isNear ? gateContextAction(gate.snapshot(), { distance, trigger: triggerReader }) : null;
     },
-    /** Phone Student ID view model: server snapshot + gate state; never a local right. */
-    phoneView: () => ({ enabled: isEnabled(), access: access.view(), gate: gate.snapshot(), atReader: near }),
+    npcContextAction(options = {}) {
+      remember(options);
+      const distance = distanceAt(guideLayout, options), isNear = distance !== null;
+      if (isNear !== nearGuide) {
+        nearGuide = isNear;
+        if (!nearGuide && phoneMode === "guide") gate.reset();
+        getPhone()?.refresh();
+      }
+      return isNear ? { id: "jeongseok-guide", icon: "💬", label: "로비 안내 · 방문증", priority: 300,
+        distance, pressed: gate.snapshot().busy, trigger: triggerGuide } : null;
+    },
+    /** Server snapshot + presentation only; Phone cannot turn these flags into a grant. */
+    phoneView: () => ({ enabled: isEnabled(), access: access.view(), gate: gate.snapshot(), atReader: atReader(), atGuide: atGuide() }),
     purchase: () => gate.purchase(),
-    refresh: () => access.refresh("phone"),
-    cancel() { gate.reset(); if (phoneOwned) { phoneOwned = false; getPhone()?.endJeongseok(); } },
-    phoneClosed() { phoneOwned = false; },
-    setAccount(userId) { gate.accountChanged(); phoneOwned = false; return access.setAccount(isEnabled() ? userId : null); },
-    destroy() { gate.destroy(); panel.destroy(); }
+    refresh: () => atGuide() ? gate.guide() : access.refresh("phone"),
+    cancel() { gate.reset(); if (phoneOwned) { phoneOwned = false; phoneMode = null; getPhone()?.endJeongseok(); } },
+    phoneClosed() { phoneOwned = false; phoneMode = null; },
+    setAccount(userId) { gate.accountChanged(); phoneOwned = false; phoneMode = null; return access.setAccount(isEnabled() ? userId : null); },
+    destroy() { unsubscribeAccess(); gate.destroy(); panel.destroy(); }
   };
 }

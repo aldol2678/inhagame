@@ -9,6 +9,7 @@
 import { LIBRARY_FRONT } from "../basic-campus.js";
 import { LIBRARY_ENTRY_HEIGHT } from "../library-route-layout.js";
 import { PLAYER_ORIGIN_Y } from "../player-dimensions.js";
+import { JEONGSEOK_ACCESS_POLICY_KEY, JEONGSEOK_LOBBY_POLICY_KEY } from "./entry-policy.js";
 import { GAME_ADAPTATION } from "./interior-evidence.js";
 import { JEONGSEOK_LOBBY, JEONGSEOK_LOBBY_LAYOUT, JEONGSEOK_LOBBY_ROOM_ID } from "./lobby-layout.js";
 import { JEONGSEOK_B1_READING, JEONGSEOK_B1_READING_LAYOUT, JEONGSEOK_B1_READING_ROOM_ID } from "./b1-reading-layout.js";
@@ -22,7 +23,7 @@ const front = (u, v) => LIBRARY_FRONT.at(u, v);
 const outward = (() => { const a = front(0, 0), b = front(0, 1); return { x: b.x - a.x, z: b.z - a.z }; })();
 const facing = (x, z) => Math.atan2(x, z) * 180 / Math.PI;
 
-// Under the existing entry canopy, between the facade and the JSL-A temporary reader (v 1.0).
+// Under the unchanged exterior canopy, leading only to the public lobby.
 export const JEONGSEOK_ENTRANCE = Object.freeze({
   id: "JEONGSEOK_ENTRANCE",
   roomId: JEONGSEOK_LOBBY_ROOM_ID,
@@ -32,11 +33,11 @@ export const JEONGSEOK_ENTRANCE = Object.freeze({
   facingYaw: facing(-outward.x, -outward.z),
   radius: 1.0,
   returnAnchor: "JEONGSEOK_CAMPUS_RETURN",
-  access: "jeongseok-policy",
+  access: JEONGSEOK_LOBBY_POLICY_KEY,
   trace: GAME_ADAPTATION("door slot derived from LIBRARY_FRONT; real 2026 doors/gates UNKNOWN")
 });
 
-// On the same landing beside the doors, outside the entrance radius and the JSL-A reader radius,
+// On the same landing beside the doors, outside the entrance radius,
 // facing away from the building, so leaving never bounces straight back in.
 export const JEONGSEOK_CAMPUS_RETURN = Object.freeze({
   id: "JEONGSEOK_CAMPUS_RETURN",
@@ -46,11 +47,12 @@ export const JEONGSEOK_CAMPUS_RETURN = Object.freeze({
   trace: GAME_ADAPTATION("safe campus return on the front landing")
 });
 
-const room = (id, label, fields) => Object.freeze({ id, label, type: "public_library", access: "jeongseok-policy", ...fields });
+const room = (id, label, fields) => Object.freeze({ id, label, type: "public_library", access: JEONGSEOK_ACCESS_POLICY_KEY, ...fields });
 
 export const JEONGSEOK_ROOMS = Object.freeze({
   [JEONGSEOK_LOBBY_ROOM_ID]: room(JEONGSEOK_LOBBY_ROOM_ID, "정석학술정보관 1층 로비", {
-    enterLabel: "정석학술정보관 들어가기",
+    access: JEONGSEOK_LOBBY_POLICY_KEY,
+    enterLabel: "정석 공개 로비 들어가기",
     exitLabel: "캠퍼스로 나가기",
     locationLabel: "📚 정석학술정보관 · 1층 로비",
     spawn: JEONGSEOK_LOBBY_LAYOUT.spawn,

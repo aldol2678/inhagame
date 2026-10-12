@@ -7,10 +7,28 @@ const cancelled = () => Object.assign(failure('cancelled'), { name: 'AbortError'
 // texture need to be read before the browser presents/discards the frame. Encoding may
 // finish later, so it uses an isolated 2D snapshot and revalidates the photo session.
 export function createPhotoCapture({ app, canvas, mode, doc = globalThis.document,
-  setTimer = globalThis.setTimeout, clearTimer = globalThis.clearTimeout, timeoutMs = 10_000 } = {}) {
+  setTimer = globalThis.setTimeout, clearTimer = globalThis.clearTimeout, timeoutMs = 10_000,
+  now = () => globalThis.performance?.now?.() ?? Date.now() } = {}) {
   let pending = null, destroyed = false;
+  const number = value => Number.isFinite(value) ? value : null;
+  const frame = () => number(app.frame);
+  // One bounded, image-free observation of the latest accepted request. These timestamps
+  // never schedule work or change the existing shared capture deadline.
+  let lastStatus = Object.freeze({ state: 'idle', stage: 'idle', errorCode: null,
+    elapsedMs: 0, frameWaitMs: 0, readbackMs: 0, encodingMs: 0,
+    requestedFrame: null, capturedFrame: null, settledFrame: null, width: null, height: null });
+  function sample(job, at = now()) {
+    const elapsed = start => Math.max(0, at - start);
+    return { ...job.diagnostic, elapsedMs: elapsed(job.startedAt),
+      frameWaitMs: Math.max(0, (job.frameAt ?? at) - job.startedAt),
+      readbackMs: job.frameAt === null ? 0 : Math.max(0, (job.encodingAt ?? at) - job.frameAt),
+      encodingMs: job.encodingAt === null ? 0 : elapsed(job.encodingAt) };
+  }
   function finish(request, error, value) {
     if (pending !== request) return;
+    lastStatus = Object.freeze({ ...sample(request),
+      state: error ? error.name === 'AbortError' ? 'cancelled' : 'failed' : 'succeeded',
+      stage: error ? request.diagnostic.stage : 'complete', errorCode: error?.code ?? null, settledFrame: frame() });
     pending = null;
     app.off('frameend', request.frame);
     clearTimer(request.timer);
@@ -25,14 +43,20 @@ export function createPhotoCapture({ app, canvas, mode, doc = globalThis.documen
     if (destroyed || !mode.update()) return Promise.reject(cancelled());
     if (pending) return Promise.reject(failure('busy'));
     return new Promise((resolve, reject) => {
-      const job = { resolve, reject, snapshot: null, frame: null, timer: null };
+      const job = { resolve, reject, snapshot: null, frame: null, timer: null,
+        startedAt: now(), frameAt: null, encodingAt: null,
+        diagnostic: { state: 'pending', stage: 'waiting-frame', errorCode: null,
+          requestedFrame: frame(), capturedFrame: null, settledFrame: null,
+          width: number(canvas.width), height: number(canvas.height) } };
       pending = job;
       job.frame = () => {
         app.off('frameend', job.frame);
         if (pending !== job) return;
         if (!mode.update()) { cancel(); return; }
         try {
+          job.frameAt = now(); job.diagnostic.stage = 'readback'; job.diagnostic.capturedFrame = frame();
           const { width, height } = canvas;
+          job.diagnostic.width = number(width); job.diagnostic.height = number(height);
           if (app.graphicsDevice?.contextLost || !Number.isInteger(width) || !Number.isInteger(height) || width <= 0 || height <= 0)
             throw failure('unavailable');
           const snapshot = job.snapshot = doc.createElement('canvas');
@@ -44,6 +68,7 @@ export function createPhotoCapture({ app, canvas, mode, doc = globalThis.documen
           let visible = false;
           for (let i = 3; i < pixels.length; i += 4) if (pixels[i]) { visible = true; break; }
           if (!visible) throw failure('unavailable');
+          job.encodingAt = now(); job.diagnostic.stage = 'encoding';
           snapshot.toBlob(blob => {
             if (pending !== job) return;
             if (!mode.update()) { cancel(); return; }
@@ -59,6 +84,7 @@ export function createPhotoCapture({ app, canvas, mode, doc = globalThis.documen
   }
   return Object.freeze({ request, cancel,
     get busy() { return !!pending; },
+    status: () => pending ? Object.freeze(sample(pending)) : lastStatus,
     destroy() { if (destroyed) return; destroyed = true; cancel(); unsubscribe(); offClosing?.(); }
   });
 }

@@ -103,7 +103,7 @@ import { DORM_1_LOBBY_MY_ROOM_RETURN } from "./rooms/dorm1-lobby-layout.js";
 import { createRoomWorldAdapter } from "./rooms/room-world-adapter.js";
 import { createDorm1LobbyScene } from "./rooms/dorm1-lobby-renderer.js";
 import { createJeongseokInteriorScenes } from "./jeongseok/interior-renderer.js";
-import { createJeongseokEntryPolicy, resolveJeongseokEntryMode, JEONGSEOK_ACCESS_POLICY_KEY, JEONGSEOK_ENTRY_MODE } from "./jeongseok/entry-policy.js";
+import { createJeongseokEntryPolicy, resolveJeongseokEntryMode, JEONGSEOK_ACCESS_POLICY_KEY, JEONGSEOK_LOBBY_POLICY_KEY, JEONGSEOK_ENTRY_MODE } from "./jeongseok/entry-policy.js";
 import { createJeongseokInterior } from "./jeongseok/interior-feature.js";
 import { createPersonalRoomEnvironment } from "./rooms/personal-room-environment.js";
 import { createPersonalRoomScene } from "./rooms/personal-room-renderer.js";
@@ -269,11 +269,9 @@ const npcSocialProductionMode = npcProductionMode;
 const npcSocialMode = npcSocialProductionMode || npcSocialPreviewMode || npcObservedConversationMode;
 const npcEnabled = npcSharedScheduleMode || npcTestMode || npcProductionMode || npcPreviewMode || npcRosterPreviewMode || npcSocialMode;
 const campusLifePreview = previewHost && startupParams.get('campusLife') === 'p0a';
-// JSL-A Jeongseok gate: preview-only client entry. The server gate policy and pass product (both
-// COMING_SOON by default) still decide every grant and purchase.
-const jeongseokGatePreview = previewHost && startupParams.get('jeongseok') === 'jsl-a';
-// JSL-B Jeongseok interior: CLOSED pending JSL-A server access everywhere. A preview host with
-// ?jeongseok=jsl-b opens a local-only visual review; it is not server-protected access.
+// Public-lobby/inner-gate wiring is ready, but rollout remains CLOSED until separately
+// approved activation. Browser QA injects only the existing serverAccessAvailable argument;
+// no Production query parameter grants access. The local jsl-b visual preview is unchanged.
 const jeongseokEntryMode = resolveJeongseokEntryMode({ previewHost, params: startupParams });
 const biryongVisualStage = previewHost ? startupParams.get('biryongVisual') : null;
 const biryongVisualLabP0A = ['p0a', 'p0b', 'p0c', 'p0d', 'p0e'].includes(biryongVisualStage);
@@ -2030,8 +2028,13 @@ const dorm1Lobby = createDorm1LobbyScene(app, { player, camera });
 const personalRoomScene = createPersonalRoomScene(app);
 const mcmRoomScene = createMcm2026RoomScene(app);
 // JSL-B: Jeongseok interiors are built on first entry and released back on campus.
-const jeongseokScenes = createJeongseokInteriorScenes(app, { getGraphicsTier: () => graphics.tier });
 const jeongseokPolicy = createJeongseokEntryPolicy({ mode: jeongseokEntryMode });
+const jeongseokScenes = createJeongseokInteriorScenes(app, { getGraphicsTier: () => graphics.tier,
+  isGateOpen: () => jeongseokPolicy.allowsStay() });
+let roomWorldAdapter = null;
+const jeongseokRecoveryInput = createInputFocusOwner({
+  manager: inputFocus, ownerId: "jeongseok-recovery", policy: INPUT_FOCUS_POLICY.SYSTEM_LOCK
+});
 let jeongseokInterior = null;
 const roomScenes = new Map([
   ["ROOM_CLUBHOUSE_01", clubRoom],
@@ -2055,8 +2058,11 @@ rooms = createRoomTransition({
   canEnter: (_entrance, room) => room?.id !== MCM_2026_ROOM_ID ||
     (mcmEventPreviewMode && mcmEvent.state?.eventState === "ACTIVE") || mcm2026CanEnterVenue(mcmEvent.state),
   // Fail closed: without this predicate (or before the Jeongseok flow exists) no Jeongseok room opens.
-  accessPolicies: { [JEONGSEOK_ACCESS_POLICY_KEY]: (entrance, room) => jeongseokInterior?.accessPredicate(entrance, room) === true },
-  world: createRoomWorldAdapter({
+  accessPolicies: {
+    [JEONGSEOK_LOBBY_POLICY_KEY]: (entrance, room) => jeongseokInterior?.accessPredicate(entrance, room) === true,
+    [JEONGSEOK_ACCESS_POLICY_KEY]: (entrance, room) => jeongseokInterior?.accessPredicate(entrance, room) === true
+  },
+  world: roomWorldAdapter = createRoomWorldAdapter({
     player, controller, orbit, campusRoot, getRoomScene: (room) => roomScenes.get(room.id) ?? jeongseokScenes.get(room) ?? null, sun: light,
     lighting: {
       save: () => ({ ambient: app.scene.ambientLight.clone(), clearColor: camera.camera.clearColor.clone() }),
@@ -2086,7 +2092,11 @@ rooms = createRoomTransition({
     markSpace: (id) => { if (id) document.body.dataset.space = id; else delete document.body.dataset.space; }
   })
 });
-jeongseokInterior = createJeongseokInterior({ rooms, policy: jeongseokPolicy, scenes: jeongseokScenes, onStatus: showWorldStatus });
+jeongseokInterior = createJeongseokInterior({ rooms, policy: jeongseokPolicy, scenes: jeongseokScenes,
+  getPosition: () => player.getLocalPosition(),
+  placePublic: anchor => { roomWorldAdapter.placePlayer(anchor.position, anchor.yaw); return true; },
+  onRecoveryError: () => { jeongseokRecoveryInput.acquire(); showWorldStatus("공개 로비로 이동하지 못했어요. 새로고침해 주세요."); },
+  onStatus: showWorldStatus });
 window.__INHAGAME_JEONGSEOK_INTERIOR__ = Object.freeze({
   status: () => ({ ...jeongseokInterior.status(), scenes: jeongseokScenes.status() }),
   activeFlapAngles: () => jeongseokScenes.activeScene()?.flapAngles ?? null,
@@ -3159,15 +3169,45 @@ try {
   console.warn("INHAGAME Campus map layer unavailable; continuing without it:", error);
 }
 
-// JSL-A: access read, visitor pass and the temporary tag reader. No room or channel is opened here.
+// Inner reader and public-side fictional guide; RPCs retain sole eligibility/economy authority.
 const jeongseok = createJeongseokFeature({
-  getClient: () => online?.supabase ?? null, isEnabled: () => jeongseokGatePreview, audio: worldAudio,
+  getClient: () => online?.supabase ?? null, isEnabled: () => jeongseokEntryMode !== JEONGSEOK_ENTRY_MODE.CLOSED, audio: worldAudio,
+  getContext: () => ({ space: rooms.currentSpace, position: player.getLocalPosition(),
+    grounded: controller.grounded, mounted: controller.mounted, busy: rooms.status().busy }),
+  onEnter: snapshot => jeongseokInterior.enterFromServerGrant(snapshot, { mounted: controller.mounted }),
   getPhone: () => smartphone, storage: () => { try { return window.localStorage; } catch { return null; } }
 });
 jeongseok.access.onChange(change => {
   // A paid pass moved coins on the server: re-read the Wallet authority, never subtract locally.
   if (change.reason === "purchase" && change.lastPurchase) void wallet.refresh("jeongseok-pass");
+  if (change.state === "READY" || change.state === "UNKNOWN" || change.state === "SIGNED_OUT")
+    jeongseokInterior.revalidate(change.snapshot);
 });
+// Protected stays recheck every 30s; a slow/failed read ends the stay after 8s. Late reads
+// cannot restore a revoked session. Returning from background requires a new gate check.
+let jeongseokCheckAt = 0, jeongseokCheckPending = false;
+function refreshJeongseokStay() {
+  const before = jeongseokInterior.status();
+  if (!before.policy.session || jeongseokCheckPending) return;
+  jeongseokCheckPending = true;
+  jeongseokCheckAt = performance.now();
+  let timeout;
+  const apply = snapshot => {
+    const after = jeongseokInterior.status();
+    if (before.accountGeneration === after.accountGeneration && before.stats.protectedEntries === after.stats.protectedEntries)
+      jeongseokInterior.revalidate(snapshot);
+  };
+  void Promise.race([jeongseok.access.verifyEntry(), new Promise(resolve => { timeout = setTimeout(() => resolve(null), 8000); })])
+    .then(apply, () => apply(null))
+    .finally(() => { clearTimeout(timeout); jeongseokCheckPending = false; });
+}
+function resumeJeongseokAccess() {
+  jeongseokInterior.suspend();
+  if (jeongseokInterior.status().inside) void jeongseok.refresh();
+}
+document.addEventListener("visibilitychange", () => { if (document.hidden) jeongseokInterior.suspend(); else resumeJeongseokAccess(); });
+window.addEventListener("pageshow", event => { if (event.persisted) resumeJeongseokAccess(); });
+window.addEventListener("focus", resumeJeongseokAccess);
 // PHONE-MVP-01: presentation/integration only. Existing Photo/Map/Progression own their data.
 smartphone = createSmartphone({
   inputFocus, photoMode, getMap: () => fullMap, getSettings: () => viewSettings,
@@ -3598,6 +3638,10 @@ app.on("update", (dt) => {
   // neither system writes transforms, so PlayerController keeps all collision and existing motion.
   follow.update();
   playerAutoMove?.update(navigation?.getSnapshot() ?? null, player.getLocalPosition());
+  // Correct restored/teleported unauthorized positions and refresh collision before locomotion.
+  jeongseokInterior.update();
+  jeongseokScenes.activeScene()?.setGateAccess(jeongseokPolicy.allowsStay());
+  if (performance.now() - jeongseokCheckAt > 30_000) refreshJeongseokStay();
   const footstepFrom = player.getLocalPosition().clone();
   const footstepGroundedBefore = controller.grounded;
   if (!seating.beforeController()) controller.update(Math.min(dt, 0.05), orbit.yaw);
@@ -3713,7 +3757,7 @@ app.on("update", (dt) => {
     icon: "👣", label: "친구 따라가기 중지", priority: FOLLOW_CONTEXT_PRIORITY, pressed: true,
     trigger: () => follow.stop(FollowStopReason.EXPLICIT)
   } : null);
-  // JSL-B: Jeongseok door (policy-gated) and temporary floor transfers; gate flaps are visual only.
+  // Public lobby door, protected B1 transfers, inner reader and public-side guide.
   contextActions.set("jeongseok-interior", inBiryong ? null : jeongseokInterior.contextAction({
     position: pos, grounded: controller.grounded, mounted: controller.mounted
   }));
@@ -3721,7 +3765,10 @@ app.on("update", (dt) => {
   jeongseokScenes.activeScene()?.update(pos, dt);
   // Club Room P0 door: 🚪 동아리방 들어가기 outside, 🚪 본관으로 나가기 inside.
   contextActions.set("jeongseok-gate", inBiryong ? null : jeongseok.contextAction({
-    position: pos, grounded: controller.grounded, mounted: controller.mounted, inside
+    position: pos, grounded: controller.grounded, mounted: controller.mounted, space: rooms.currentSpace, busy: rooms.status().busy
+  }));
+  contextActions.set("jeongseok-guide", inBiryong ? null : jeongseok.npcContextAction({
+    position: pos, grounded: controller.grounded, mounted: controller.mounted, space: rooms.currentSpace, busy: rooms.status().busy
   }));
   if (inBiryong) {
     contextActions.set("room-door", null);
@@ -3745,7 +3792,7 @@ app.on("update", (dt) => {
     for (const key of [
       "seat", "room-furniture", "personal-room-environment", "guestbook", "student-center-shop", "student-center-vendors", "dorm-furniture-shop", "backgate-transit", "biryong-station-transit",
       "biryong-npc", "inkyung-duck", "inkyung-fishing", "biryong", "mcm-event", "mcm-minigame", "follow",
-      "room-door", "personal-room-door", "npc", "jeongseok-gate", "jeongseok-interior"
+      "room-door", "personal-room-door", "npc", "jeongseok-gate", "jeongseok-guide", "jeongseok-interior"
     ]) contextActions.set(key, null);
     transportActions.set("mount", null);
   }
