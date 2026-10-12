@@ -62,6 +62,14 @@
       "path": "apps/classic/assets/annyongi.png",
       "provenance": "Independent axis-aligned QA box or teal-square sprite; no original geometry/pixels/textures read.",
       "sha256": "dfd676c3c9e2159be5e526f6475ccf990729655314f0edeb461804276f7a96fa"
+    },
+    {
+      "path": "apps/world/assets/furniture/dorm-single-sofa-v1.glb",
+      "sha256": "858615e44a6d2e8896d42c713be027b39b78e6061dcd96088e3c1a446240f7c0",
+      "provenance": "Project-authored Blender low-poly sofa; no private mascot assets, third-party meshes or textures used. Existing repository license applies.",
+      "geometrySource": "scripts/assets/build-dorm-single-sofa.py",
+      "textureUsage": "none",
+      "approvalStatus": "independent-draft-pilot; no production approval"
     }
   ],
   "generator": "Mixed per-asset provenance; see each asset",
