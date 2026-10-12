@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync, existsSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
-import {jeongseokExteriorRegions,projectedConvexHull,insideProjectedRegion,projectJeongseokExteriorRegions,photoLandmarkView} from './browser/hall-library-hosted-views.js';
+import {jeongseokExteriorRegions,projectedConvexHull,insideProjectedRegion,projectJeongseokExteriorRegions,photoLandmarkView,jeongseokEntryView} from './browser/hall-library-hosted-views.js';
 const read = name => readFileSync(new URL(name, import.meta.url), 'utf8');
 
 test('hosted integration evidence covers real consumers and entrance pixel repair', () => {
@@ -220,7 +220,7 @@ test('bounded exterior gate rejects upper, west, silhouette and mismatched-state
   for(const name of ['upper-building','west-facade'])assert.throws(()=>check({...valid,exterior:{...valid.exterior,protected:valid.exterior.protected.map(r=>({...r,exactChanged:r.name===name?1:0}))}}),/preserved/);
   assert.throws(()=>check({...valid,exterior:{...valid.exterior,protected:[{...region('west-facade'),foreground:0}]}},{protectedRegion:'west-facade'}),/visible preserved/);
   assert.match(runner,/checkJeongseokExterior\(pixels,\{requireChanges:true,protectedRegion:'upper-building'\}\)/);
-  assert.ok(runner.includes("for(const mode of ['entry','canopy','west'])"));
+  assert.ok(runner.includes("for(const mode of ['entry-front','entry-left45','entry-right45','entry-walk','canopy','west'])"));
 });
 
 test('Jeongseok eye-level entrance camera fits only the reviewed entrance',()=>{
@@ -283,7 +283,37 @@ test('failed assertions retain captured source pair, camera and depth metadata w
   for(const key of ['nearClip:','farClip:','projectionMatrix:','viewMatrix:','depthBits:','samples:'])assert.ok(harness.includes(key),key);
   assert.match(harness,/previousCaptureState\?\.presentation==='preexterior'&&lastCapture.sameRenderState/);
   assert.match(runner,/catch\(error\) \{[\s\S]*report.status='FAIL'[\s\S]*failure framebuffer diagnostics[\s\S]*report.diagnosticScreenshots.push\(filename\)/);
-  assert.match(runner,/assert.equal\(report.screenshots.length,26\)/,'passing screenshot contract stays unchanged');
+  assert.match(runner,/assert.equal\(report.screenshots.length,44\)/,'all exact 44 requested view screenshots remain mandatory');
   assert.match(runner,/assert.equal\(exterior.outsideExactChanged,0/);assert.match(runner,/assert.equal\(exterior.padding,2/);
   assert.match(runner,/catch\(diagnosticError\)\{report.diagnosticError=/,'diagnostic failures cannot replace the original failure');
+});
+
+
+test('entrance views preserve exact azimuth and fixed or canonical-ground-relative eye height',()=>{
+ const expectedBearings={'entry-front':0,'entry-left45':-45,'entry-right45':45,'entry-walk':0};
+ for(const aspect of [1280/635,390/720,844/300])for(const [mode,bearing]of Object.entries(expectedBearings)){
+  const view=jeongseokEntryView(aspect,mode),camera=view.entryCamera;
+  assert.equal(camera.bearingDegrees,bearing);assert.ok(Math.abs(Math.atan2(camera.local.u,camera.local.v-.85)*180/Math.PI-bearing)<1e-8);
+  assert.ok(Math.abs(view.position[1]-camera.groundHeight-camera.eyeHeight)<1e-9,'fit distance cannot raise the eye');
+  assert.equal(camera.eyeHeight,.805);assert.ok(camera.minPreservationDepth>.25,'every original ROI remains in front without changing its projection policy');
+  if(mode!=='entry-walk')assert.equal(view.position[1],2.455);else assert.ok(camera.groundHeight>=0&&camera.groundHeight<=1.65);
+  assert.ok(view.points.every(point=>point[1]>=1.65&&point[1]<=4.5),'only doorway, columns, landing contact and canopy frame the closeup');
+  assert.ok(camera.framing.minX>=.079&&camera.framing.maxX<=.921&&camera.framing.minY>=.079&&camera.framing.maxY<=.921);
+  assert.ok(camera.horizontalDistance<24,'closeup never fits the full building');
+ }
+ assert.throws(()=>jeongseokEntryView(0,'entry-front'),/Unsupported/);assert.throws(()=>jeongseokEntryView(2,'unreviewed'),/Unsupported/);
+});
+
+test('real rendered entrance camera rejects raised eyes and wrong-side reflection',()=>{
+ const runner=read('./browser/hall-library-hosted-smoke.mjs');
+ const source=runner.match(/function checkJeongseokCloseupCamera\(pixels,expected\)\{[\s\S]*?\n\}/)?.[0];assert.ok(source);
+ const check=runInNewContext(`(${source})`,{assert},{timeout:1000});
+ for(const reflected of [false,true])for(const mode of ['entry-front','entry-left45','entry-right45','entry-walk']){
+  const expected=jeongseokEntryView(1280/635,mode),position=expected.position.map((n,i)=>i===2&&reflected?-n:n),pixels={camera:{position,reflected}};
+  assert.doesNotThrow(()=>check(pixels,expected));
+  assert.throws(()=>check({camera:{...pixels.camera,position:position.map((n,i)=>i===1?n+.01:n)}},expected),/eye height/);
+  assert.throws(()=>check({camera:{...pixels.camera,position:position.map((n,i)=>i===2?-n:n)}},expected),/exact entrance view/);
+ }
+ assert.match(runner,/await shot\(`desktop-bldg_jungseok-\$\{presentation\}-\$\{mode\}-\$\{reflected\?'reflected':'control'\}`\)/,'both reflections retain actual image evidence');
+ assert.match(runner,/assert.equal\(report.screenshots.length,44\)/);
 });

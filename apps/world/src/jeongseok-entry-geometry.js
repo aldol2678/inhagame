@@ -12,10 +12,10 @@ export const JEONGSEOK_ENTRY_EVIDENCE = Object.freeze({
 });
 
 export const JEONGSEOK_ENTRY_LAYOUT = Object.freeze({
-  floor: LIBRARY_ENTRY_HEIGHT, doorHeight: 1.24, facadeTop: 3.32,
-  openingHalfWidth: 2.70, facadeV: .12,
-  revolvingCenters: Object.freeze([-.86, .86]), revolvingRadius: .51, revolvingV: .14,
-  ordinaryCenters: Object.freeze([-2.06, 2.06]), ordinaryWidth: .88,
+  floor: LIBRARY_ENTRY_HEIGHT, doorHeight: 1.24,
+  openingHalfWidth: 2.70, facadeV: .725, facadeDepth: .04,
+  revolvingCenters: Object.freeze([-.86, .86]), revolvingRadius: .51, revolvingV: .69,
+  ordinaryCenters: Object.freeze([-2.0, 2.0]), ordinaryWidth: .80, ordinaryV: .80, ordinaryFrameV: .85,
   pierCenters: Object.freeze([-3.32, 3.32]), pierWidth: .50, pierV: .36,
   // Existing return at (-2.6,1.05), entry at (0,.45) and reader at (0,1)
   // retain their clear landing. No collider, trigger or authority is created.
@@ -46,18 +46,20 @@ export function fillJeongseokEntry(batch,tier='BASE'){
   if(!['BASE','NEAR','DETAIL'].includes(tier))return batch;
   const l=JEONGSEOK_ENTRY_LAYOUT,c=JEONGSEOK_ENTRY_COLORS,y=l.floor,h=l.doorHeight;
   if(tier==='BASE'){
-    // Recessed dark glazing hides the unchanged solid building shell; entry is a room transition.
-    box(batch,c.glass,0,y+.78,l.facadeV,5.40,1.56,.07);
-    box(batch,c.metal,0,y+h+.09,.22,5.42,.17,.18);
+    // Closed glazed vestibule: opaque game glass, not a new traversable portal.
+    // The original curtain-wall triangles remain untouched behind this separate depth.
+    // Keep a real gap from that wall and both canonical entry/reader capsule positions.
+    box(batch,c.glass,0,y+.78,l.facadeV,5.40,1.56,l.facadeDepth);
+    box(batch,c.metal,0,y+h+.09,.80,5.42,.17,.18);
     for(const u of l.pierCenters){
       box(batch,c.stone,u,y+1.03,l.pierV,l.pierWidth,2.06,.52);
       box(batch,c.stone,u,y+2.34,l.pierV,.20,.56,.20);
     }
     for(const u of l.ordinaryCenters){
-      box(batch,c.lightGlass,u,y+h/2,.30,l.ordinaryWidth,h,.05);
-      for(const side of [-1,1])box(batch,c.metal,u+side*l.ordinaryWidth/2,y+h/2,.36,.035,h,.055);
-      box(batch,c.metal,u,y+h,.36,l.ordinaryWidth,.035,.055);
-      box(batch,c.metal,u,y+.025,.36,l.ordinaryWidth,.035,.055);
+      box(batch,c.lightGlass,u,y+h/2,l.ordinaryV,l.ordinaryWidth,h,.05);
+      for(const side of [-1,1])box(batch,c.metal,u+side*l.ordinaryWidth/2,y+h/2,l.ordinaryFrameV,.035,h,.055);
+      box(batch,c.metal,u,y+h,l.ordinaryFrameV,l.ordinaryWidth,.035,.055);
+      box(batch,c.metal,u,y+.025,l.ordinaryFrameV,l.ordinaryWidth,.035,.055);
     }
     for(const u of l.revolvingCenters){
       ring(batch,c.metal,u,y+.045,l.revolvingV,l.revolvingRadius,.055,.055);
@@ -71,8 +73,8 @@ export function fillJeongseokEntry(batch,tier='BASE'){
   }
   if(tier==='NEAR'){
     for(const u of l.ordinaryCenters){
-      box(batch,c.metal,u+.12,y+.60,.405,.025,.35,.03);
-      for(const yy of [.44,.76])box(batch,c.darkMetal,u+.12,y+yy,.38,.04,.025,.06);
+      box(batch,c.metal,u+.12,y+.60,.905,.025,.35,.03);
+      for(const yy of [.44,.76])box(batch,c.darkMetal,u+.12,y+yy,.88,.04,.025,.06);
     }
     for(const u of l.revolvingCenters)for(const angle of [-45,45]){
       box(batch,c.metal,u,y+.56,l.revolvingV,l.revolvingRadius*1.83,.025,.03,angle);
@@ -88,7 +90,7 @@ export function fillJeongseokEntry(batch,tier='BASE'){
       box(batch,c.joint,u,y+yy,l.pierV+.263,l.pierWidth,.009,.004);
     // Abstract gold letter strokes evoke the observed sign band without copying a photograph,
     // a school logo or the foreground sculpture. They create no information/interaction UI.
-    for(let i=0;i<27;i++)box(batch,c.tactile,(i-13)*.105,y+h+.10,.317,.045,.070,.007);
+    for(let i=0;i<27;i++)box(batch,c.tactile,(i-13)*.105,y+h+.10,.912,.045,.070,.007);
   }
   return batch;
 }

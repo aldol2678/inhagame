@@ -8,6 +8,7 @@ import {writeFileSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import path from 'node:path';
 import {startSmoke} from './harness.mjs';
+import {photoLandmarkView} from './hall-library-hosted-views.js';
 
 const BASELINE = '316c8ff95f7a12618ec8db61342d153f3cbb29ea';
 const CURRENT_MAIN = '1c6f43b36962f65f75cddd55b8661bb3aa4a268d';
@@ -124,6 +125,14 @@ function checkJeongseokExterior(pixels,options={}) {
     const region=exterior.protected.find(region=>region.name===options.protectedRegion);
     assert.ok(region?.foreground>10,options.protectedRegion+' has visible preserved foreground evidence');
   }
+}
+function checkJeongseokCloseupCamera(pixels,expected){
+  assert.ok(expected.entryCamera,'entrance camera has an explicit eye-height contract');
+  assert.ok(Math.abs(pixels.camera.position[1]-expected.position[1])<1e-4,'actual camera keeps its fitted ground-relative eye height');
+  for(let axis=0;axis<3;axis++)assert.ok(Math.abs(pixels.camera.position[axis]-(axis===2&&pixels.camera.reflected?-expected.position[axis]:expected.position[axis]))<1e-4,'actual camera follows the exact entrance view');
+  assert.ok(Math.abs(expected.position[1]-expected.entryCamera.groundHeight-expected.entryCamera.eyeHeight)<1e-9,'fitting never lifts the eye');
+  const frame=expected.entryCamera.framing;
+  assert.ok(frame.minDepth>0&&frame.minX>=.079&&frame.maxX<=.921&&frame.minY>=.079&&frame.maxY<=.921,'bounded entrance, columns and canopy fit the closeup');
 }
 function hallIntegrationScopePaths(manifest,extension) {
   if(extension && !['surroundings','graphics'].includes(extension))throw Error('Unsupported hall integration scope extension');
@@ -361,17 +370,21 @@ try {
   }
   // Independent eye-level entrance, underside and stadium-facing views retain
   // the same source comparison and state-projected preservation mask.
-  for(const reflected of [true,false])for(const mode of ['entry','canopy','west']){
+  for(const reflected of [true,false])for(const mode of ['entry-front','entry-left45','entry-right45','entry-walk','canopy','west']){
     const cell={id:'bldg_jungseok',mode,reflected,source:PRE_EXTERIOR};
     await progress(`Jeongseok ${mode}: pre-exterior / candidate ${reflected?'reflected':'control'}`);
     for(const presentation of ['preexterior','candidate']){
       checkStats(await view({id:'bldg_jungseok',presentation,reflected,detail:'all',mode}));
       const pixels=await capture();checkPixels(pixels);cell[presentation]=pixels;
+      if(mode.startsWith('entry-')){
+        const expected=photoLandmarkView('bldg_jungseok',pixels.width/pixels.height,{mode});
+        checkJeongseokCloseupCamera({...pixels,camera:{...pixels.camera,reflected}},expected);cell.entryCamera=expected.entryCamera;
+      }
       if(presentation==='candidate'){
         checkJeongseokExterior(pixels,{requireChanges:mode!=='west',protectedRegion:mode==='west'?'west-facade':null});
         const stable=await capture();checkPixels(stable);assert.equal(stable.exactChanged,0,'Jeongseok closeup stationary pixels');cell.stable=stable;
       }
-      if(reflected)await shot(`desktop-bldg_jungseok-${presentation}-${mode}-reflected`);
+      await shot(`desktop-bldg_jungseok-${presentation}-${mode}-${reflected?'reflected':'control'}`);
     }
     report.closeups.push(cell);await flush();
   }
@@ -402,13 +415,13 @@ try {
   await progress('Actual /editor/music/ route: open, landmark public targets, close and reopen');
   await verifyPreviewRoute();
   assert.deepEqual(smoke.problems,[]); assert.deepEqual(report.requests.unexpectedRequests,[]);
-  assert.equal(report.cases.length,12); assert.equal(report.screenshots.length,26);
-  report.status='PASS'; await progress('12 comparison cells, real campus lifecycle, real preview route, and 26 screenshots complete');
+  assert.equal(report.cases.length,12); assert.equal(report.screenshots.length,44);
+  report.status='PASS'; await progress('12 comparison cells, real campus lifecycle, real preview route, and 44 screenshots complete');
 } catch(error) {
   report.status='FAIL'; report.error=String(error.stack||error); process.exitCode=1;
   console.error(report.error);
   // Preserve the already-read source frame pair even when an assertion aborts
-  // before normal screenshots. Diagnostic files never count toward the 26-shot gate.
+  // before normal screenshots. Diagnostic files never count toward the 44-shot gate.
   if(page){
     try{
       const evidence=await withDeadline('failure framebuffer diagnostics',()=>page.evaluate(()=>window.__HALL_LIBRARY_HOSTED_QA__?.diagnosticEvidence?.()),12000);

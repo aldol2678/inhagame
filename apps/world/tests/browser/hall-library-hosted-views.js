@@ -1,5 +1,6 @@
 import {BUILDINGS,HALL_FRONT,LIBRARY_FRONT,LIBRARY_ROOF_PARTS} from '../../src/basic-campus.js';
-import {LIBRARY_APPROACHES} from '../../src/roadview-layout.js';
+import {LIBRARY_APPROACHES,libraryStairHeight} from '../../src/roadview-layout.js';
+import {HUMAN_HEIGHT} from '../../src/player-dimensions.js';
 
 const dot=(a,b)=>a.reduce((sum,x,i)=>sum+x*b[i],0);
 export function landmarkDiagnosticCaption(state) {
@@ -23,7 +24,41 @@ function sourcePoints(id){
  const points=(b.rings?b.rings.flat():b.vertices).flatMap(p=>[0,b.height].map(y=>[p.x,y,p.z]));
  return id==='bldg_jungseok'?points.concat(LIBRARY_ROOF_PARTS.flatMap(roofPoints)):points;
 }
+// Closeups never fit the full building or raise the eye to make it fit. The
+// inspection views retain the landing-level eye; the walking view follows the
+// unchanged physical stair height under the camera as horizontal distance changes.
+export function jeongseokEntryView(aspect=1,mode='entry-front'){
+ const bearings={'entry':0,'entry-front':0,'entry-left45':-45,'entry-right45':45,'entry-walk':0};
+ if(!Object.hasOwn(bearings,mode)||!Number.isFinite(aspect)||aspect<=0)throw Error('Unsupported entrance diagnostic view');
+ const approach=LIBRARY_APPROACHES.find(t=>t.id==='library_front'),eyeHeight=HUMAN_HEIGHT*.92;
+ const bearingDegrees=bearings[mode],angle=bearingDegrees*Math.PI/180,walking=mode==='entry-walk';
+ const targetPoint=LIBRARY_FRONT.at(0,.85),target=[targetPoint.x,approach.height+1.00,targetPoint.z];
+ const regions=jeongseokExteriorRegions(),points=regions.allowed.filter(region=>['entry-doors','entry-canopy'].includes(region.name)).flatMap(region=>region.points);
+ const preservationPoints=[...regions.allowed,...regions.protected].flatMap(region=>region.points);
+ const tan=Math.tan(48*Math.PI/360),margin=.84;
+ const atDistance=distance=>{
+  const u=Math.sin(angle)*distance,v=.85+Math.cos(angle)*distance;
+  const groundHeight=walking?libraryStairHeight(approach,v):approach.height;
+  const p=LIBRARY_FRONT.at(u,v),position=[p.x,groundHeight+eyeHeight,p.z];
+  const offset=position.map((n,i)=>n-target[i]),back=offset.map(n=>n/Math.hypot(...offset));
+  const side=[back[2],0,-back[0]],right=side.map(n=>n/Math.hypot(...side));
+  const up=[back[1]*right[2],back[2]*right[0]-back[0]*right[2],-back[1]*right[0]];
+  const projected=points.map(point=>{const delta=point.map((n,i)=>n-position[i]),depth=-dot(delta,back);return {x:dot(delta,right)/(depth*tan*aspect),y:dot(delta,up)/(depth*tan),depth};});
+  // The unchanged ROI projection rejects volumes behind the camera. Keep their
+  // nearest corner ahead without widening or clipping that preservation mask.
+  const minPreservationDepth=Math.min(...preservationPoints.map(point=>-dot(point.map((n,i)=>n-position[i]),back)));
+  const fit=minPreservationDepth>.25&&projected.every(p=>p.depth>0&&Math.abs(p.x)<=margin&&Math.abs(p.y)<=margin);
+  return {position,target,points,mode,fit,entryCamera:{bearingDegrees,walking,eyeHeight,groundHeight,minPreservationDepth,local:{u,v},horizontalDistance:distance,fitPolicy:walking?'canonical-ground-plus-eye':'fixed-landing-eye',
+    framing:{minX:Math.min(...projected.map(p=>(p.x+1)/2)),maxX:Math.max(...projected.map(p=>(p.x+1)/2)),minY:Math.min(...projected.map(p=>(1-p.y)/2)),maxY:Math.max(...projected.map(p=>(1-p.y)/2)),minDepth:Math.min(...projected.map(p=>p.depth))}}};
+ };
+ let lower=4,upper=4;
+ while(!atDistance(upper).fit){lower=upper;upper*=1.25;if(upper>256)throw Error('Entrance diagnostic fit is unbounded');}
+ if(upper>4)for(let i=0;i<48;i++){const middle=(lower+upper)/2;if(atDistance(middle).fit)upper=middle;else lower=middle;}
+ return atDistance(upper+1e-6);
+}
+
 export function photoLandmarkView(id,aspect=1,{points,mode='full'}={}){
+ if(id==='bldg_jungseok'&&(mode==='entry'||mode.startsWith('entry-')))return jeongseokEntryView(aspect,mode);
  let position,target;
  if(mode==='canopy'&&id==='bldg_jungseok'){
   const p=LIBRARY_FRONT.at(8,14),t=LIBRARY_FRONT.at(0,1.1);
@@ -33,9 +68,6 @@ export function photoLandmarkView(id,aspect=1,{points,mode='full'}={}){
   const ring=BUILDINGS.find(b=>b.id===id).vertices,area=ring.reduce((sum,p,i)=>sum+p.x*ring[(i+1)%ring.length].z-ring[(i+1)%ring.length].x*p.z,0);
   const sign=area>0?1:-1;target=[(a.x+b.x)/2,8.5,(a.z+b.z)/2];
   position=[target[0]+sign*dz/length*42,12,target[2]-sign*dx/length*42];
- }else if(mode==='entry'&&id==='bldg_jungseok'){
-  const p=LIBRARY_FRONT.at(4,11),t=LIBRARY_FRONT.at(0,.8);position=[p.x,3.4,p.z];target=[t.x,2.8,t.z];
-  points=jeongseokExteriorRegions().allowed.filter(region=>['lower-glazing','entry-doors','entry-canopy'].includes(region.name)).flatMap(region=>region.points);
  }else if(id==='bldg_01'){const h=HALL_FRONT,x=(h.a.x+h.b.x)/2,z=(h.a.z+h.b.z)/2;position=[x-h.inward.x*48,14,z-h.inward.z*48];target=[x,5,z];}
  else if(id==='bldg_jungseok'){const p=LIBRARY_FRONT.at(0,40),t=LIBRARY_FRONT.at(0,-4);position=[p.x,21,p.z];target=[t.x,9,t.z];}
  else throw new Error('Unscoped photo landmark '+id);

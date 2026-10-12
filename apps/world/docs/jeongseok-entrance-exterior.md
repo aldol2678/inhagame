@@ -25,11 +25,11 @@ This is a historically informed game exterior, not a surveyed reconstruction of 
 
 `jeongseok-entry-geometry.js` contains the evidence record and replaceable pure geometry modules. BASE keeps the paired revolving casings, ordinary glazing and piers visible. NEAR adds handles and landing details; DETAIL adds narrow stone joints and abstract sign strokes. Static faces share the existing campus material producer and per-material batch ownership.
 
-Only three central lower curtain-wall bays are shortened to avoid layering the old glazing over the new entrances. The established canopy volume is retained, with its underside retiled in grey.
+The complete pre-exterior curtain-wall triangles, including their lower vertices, are retained byte-for-byte. Shortening long glass and mullion quads changed 61 upper-facade MSAA pixels despite identical normals and surface depths, so the entrance is instead a separate closed glazed vestibule in front of that wall, with a positive depth gap. Stylized opaque glazing and static rotors are consistent with the existing solid exterior shell; there is no physical passage through the doors. The existing room-transition anchors remain clear. The established canopy volume is retained, with its underside retiled in grey.
 
 ## Acceptance
 
-- Geometry tests verify deterministic finite bounds, two revolving modules, ordinary doors on both flanks, preserved landing/anchor clearance, and rendered stair top/ground-height agreement.
+- Geometry tests verify deterministic finite bounds, two revolving modules, ordinary doors on both flanks, preserved full walking-capsule clearance around the landing anchors, exact pre-exterior curtain-wall triangle hashes, and rendered stair top/ground-height agreement.
 - Existing approach movement and navigation tests remain applicable.
 - Hosted QA compares the fixed pre-exterior main tree with the candidate. Changed pixels are confined to independently specified projected entrance/canopy/stair regions; the remaining facade and Main Hall remain protected. It retains real CampusChunkRenderer/PlaceScenePreview consumers, reflected coordinates, lifecycle cleanup and stationary-pixel checks.
 - Hardware/mobile GPU performance and contemporary real-world dimensional fidelity are not implied by software-rendered QA.

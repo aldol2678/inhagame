@@ -1,12 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
+import {createHash} from 'node:crypto';
 import {LIBRARY_FRONT,BUILDINGS,LIBRARY_ROOF_PARTS} from '../src/basic-campus.js';
 import {LIBRARY_APPROACHES,ROADVIEW_OBSTACLES,libraryStairHeight,roadviewGroundHeight} from '../src/roadview-layout.js';
 import {fillLibraryApproaches,fillJeongseokEntry,JEONGSEOK_ENTRY_LAYOUT as L,JEONGSEOK_ENTRY_EVIDENCE as E,JEONGSEOK_ENTRY_COLORS as C} from '../src/jeongseok-entry-geometry.js';
 import {fillPhotoLibraryFront} from '../src/photo-hall-library-geometry.js';
 import {canOccupy} from '../src/world-collision.js';
-import {WALK_SHAPE,PLAYER_ORIGIN_Y} from '../src/player-dimensions.js';
+import {WALK_SHAPE,PLAYER_ORIGIN_Y,HUMAN_HEIGHT} from '../src/player-dimensions.js';
 
 const capture=fn=>{const boxes=[],quads=[],tubes=[];fn({box:(...args)=>boxes.push(args),quad:(...args)=>quads.push(args),tube:(...args)=>tubes.push(args)});return {boxes,quads,tubes};};
 const close=(a,b)=>assert.ok(Math.abs(a-b)<1e-8,`${a} != ${b}`);
@@ -44,18 +45,25 @@ test('entry geometry remains finite and inside the unchanged front canopy presen
     }
     for(const [, ...points] of quads)for(const p of points){
       const q=local(p);assert.ok(p.every(Number.isFinite));
-      assert.ok(Math.abs(q.u)<1.5&&q.v>-.4&&q.v<.7&&q.y>=L.floor&&q.y<3.0);
+      assert.ok(Math.abs(q.u)<1.5&&q.v>.17&&q.v<1.21&&q.y>=L.floor&&q.y<3.0);
     }
   }
 });
 
-test('existing reader, door and safe return retain physical and visual clearance',()=>{
+test('existing reader, door and safe return retain full walking-capsule clearance',()=>{
   const fixed=[{u:0,v:1},{u:0,v:.45},{u:-2.6,v:1.05}];
   for(const p of fixed){
     const q=LIBRARY_FRONT.at(p.u,p.v);close(roadviewGroundHeight(q.x,q.z),L.floor);
     assert.ok(canOccupy({...q,y:PLAYER_ORIGIN_Y+L.floor}));
     for(const u of L.revolvingCenters)assert.ok(Math.hypot(p.u-u,p.v-L.revolvingV)>L.revolvingRadius+WALK_SHAPE.radius);
     for(const u of L.pierCenters)assert.ok(Math.abs(p.u-u)>L.pierWidth/2+WALK_SHAPE.radius || Math.abs(p.v-L.pierV)>.26+WALK_SHAPE.radius);
+    for(const tier of ['BASE','NEAR','DETAIL'])for(const [,center,size,yaw]of capture(b=>fillJeongseokEntry(b,tier)).boxes){
+      if(center[1]-size[1]/2>=L.floor+HUMAN_HEIGHT||center[1]+size[1]/2<=L.floor+.04)continue;
+      const angle=yaw*Math.PI/180,dx=q.x-center[0],dz=q.z-center[2];
+      const x=dx*Math.cos(angle)-dz*Math.sin(angle),z=dx*Math.sin(angle)+dz*Math.cos(angle);
+      const gap=Math.hypot(Math.max(0,Math.abs(x)-size[0]/2),Math.max(0,Math.abs(z)-size[2]/2));
+      assert.ok(gap>WALK_SHAPE.radius,`${tier} box intersects anchor capsule ${JSON.stringify({p,gap,center,size})}`);
+    }
   }
   assert.ok(Math.hypot(-2.6,1.05-1)>2.2,'return remains outside reader radius');
   assert.ok(Math.hypot(-2.6,1.05-.45)>2,'return remains outside entrance radius with margin');
@@ -76,16 +84,24 @@ test('canonical landing, each step and parapet render exactly at the existing gr
   }
 });
 
-test('low central curtain bays are replaced rather than layered over entry modules',()=>{
-  const base=capture(b=>fillPhotoLibraryFront(b,'BASE'));
-  for(const [, ...points]of base.quads){
-    const ps=points.map(local);
-    if(ps.every(p=>Math.abs(p.u)<L.openingHalfWidth))assert.ok(ps.every(p=>p.y>=L.facadeTop));
+test('complete curtain-wall quad streams remain exact to pre-exterior main, including upper triangles',()=>{
+  // SHA256 of the pure quad streams from immutable tree 96155632b0301631744bae69b9dd6f02e9d990b5.
+  const expected={BASE:'3508c45e261a3bc6111fc297afc150f4996f21cb0150f0dfaf43eab02e156215',DETAIL:'2ba0df24b4946499ee7e0e58b58c6abac5e3243ded9aed310a3dae4c545d911c'};
+  for(const tier of ['BASE','DETAIL'])assert.equal(createHash('sha256').update(JSON.stringify(capture(b=>fillPhotoLibraryFront(b,tier)).quads)).digest('hex'),expected[tier]);
+});
+
+test('closed entrance glazing has independent depth, seated doors and no coincident old facade',()=>{
+  const oldFront=Math.max(...['BASE','DETAIL'].flatMap(tier=>capture(b=>fillPhotoLibraryFront(b,tier)).quads.flatMap(([, ...points])=>points.map(p=>local(p).v))));
+  assert.ok(L.facadeV-L.facadeDepth/2-oldFront>.08,'positive depth gap from untouched curtain wall');
+  assert.ok(L.ordinaryV-.025-(L.facadeV+L.facadeDepth/2)>.025,'ordinary doors have a distinct front depth');
+  const boxes=capture(b=>fillJeongseokEntry(b,'BASE')).boxes;
+  for(const u of L.ordinaryCenters){
+    const door=boxes.find(([c,p,size])=>c===C.lightGlass&&Math.abs(local(p).u-u)<1e-8&&size[0]===L.ordinaryWidth);
+    close(door[1][1]-door[2][1]/2,L.floor);
   }
-  const details=capture(b=>fillPhotoLibraryFront(b,'DETAIL'));
-  for(const [, ...points]of details.quads){
-    const ps=points.map(local);
-    if(ps.every(p=>Math.abs(p.u)<L.openingHalfWidth))assert.ok(ps.every(p=>p.y>=L.facadeTop));
+  for(const u of L.pierCenters){
+    const pier=boxes.find(([c,p,size])=>c===C.stone&&Math.abs(local(p).u-u)<1e-8&&size[0]===L.pierWidth);
+    close(pier[1][1]-pier[2][1]/2,L.floor);
   }
 });
 
