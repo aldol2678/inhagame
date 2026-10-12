@@ -171,6 +171,7 @@ import { createShopFurnitureHandoff } from "./shop/shop-furniture-handoff.js";
 import { createWalletClient } from "./wallet/wallet-client.js";
 import { createInventoryClient } from "./inventory/inventory-client.js";
 import { createCollectionBookClient } from "./collection/collection-book-client.js";
+import { createInventoryAcquisitionClient } from "./inventory/inventory-acquisition-client.js";
 import { createInventoryPanel } from "./inventory/inventory-panel.js";
 import { createDailyQuizClient } from "./daily-quiz/daily-quiz-client.js";
 import { createDailyQuizPanel } from "./daily-quiz/daily-quiz-panel.js";
@@ -1342,10 +1343,30 @@ const collectionBook = createCollectionBookClient({
       ? session.access_token : null;
   }
 });
+const inventoryAcquisition = createInventoryAcquisitionClient({ getClient: () => online?.supabase ?? null });
 const inventoryPanel = createInventoryPanel({
   panel: document.getElementById("inventory-panel"),
   inventory,
   collectionBook,
+  acquisition: inventoryAcquisition,
+  getKnownPois: () => rooms?.insideRoom || biryongRealm?.inBiryong || lobbyWorld.active || lobbyTransition.active
+    ? [] : campusMapDataSource?.poiRegistry?.().list({ surface: "FULL_MAP" }) ?? [],
+  onShowAcquisitionLocation: ({ poiId }) => {
+    // Revalidate discovery at click time. Only show the existing campus map: no teleport,
+    // purchase or automatic movement. Other regions retain their current map provider.
+    const poi = campusMapDataSource?.poiRegistry?.().get(poiId);
+    if (!fullMap || rooms?.insideRoom || biryongRealm?.inBiryong || lobbyWorld.active || lobbyTransition.active ||
+        !poi?.visible || !poi.validPosition || poi.discoveryState !== "DISCOVERED" ||
+        !["AVAILABLE", "NEW"].includes(poi.gateState)) {
+      showWorldStatus("캠퍼스에서 발견한 판매처의 지도 위치를 확인할 수 있어요.");
+      return false;
+    }
+    inventoryPanel.setOpen(false);
+    fullMap.open();
+    fullMap.selectPoi(poi);
+    fullMap.centerOnPoint(poi);
+    return true;
+  },
   onOpenChange: (open) => {
     inventoryButton?.setAttribute("aria-expanded", String(open));
     if (open) {
@@ -1364,6 +1385,11 @@ const inventoryPanel = createInventoryPanel({
     }
     inventoryInput.release();
   }
+});
+shop.onChange(() => {
+  const changed = inventoryAcquisition.setScope({ accountId: shop.accountId,
+    capabilityMode: shop.mode, capabilityChecking: shop.capabilityChecking });
+  if (changed && inventoryPanel.open) void inventoryAcquisition.refresh();
 });
 inventoryButton?.addEventListener("click", () => inventoryPanel.setOpen(true));
 const shopButton = document.getElementById("open-shop");

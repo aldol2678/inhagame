@@ -4,7 +4,10 @@ on:
     paths:
       - 'apps/world/src/appearance/wardrobe-panel.js'
       - 'apps/world/src/appearance/loadout-client.js'
-      - 'apps/world/src/inventory/inventory-client.js'
+      - 'apps/world/src/inventory/**'
+      - 'apps/world/src/collection/item-acquisition-guide*'
+      - 'apps/world/tests/inventory-*.test.mjs'
+      - 'apps/world/tests/item-acquisition-guide.test.mjs'
       - 'apps/world/styles.css'
       - 'apps/world/tests/wardrobe-panel.test.mjs'
       - 'apps/world/tests/panel-keyboard-focus.test.mjs'
@@ -37,7 +40,7 @@ jobs:
           npx --no-install playwright install --with-deps chromium
           sudo apt-get install -y fonts-noto-cjk
       - name: Verify wardrobe retry and account/focus contracts
-        run: node --test apps/world/tests/wardrobe-panel.test.mjs apps/world/tests/panel-keyboard-focus.test.mjs apps/world/tests/inventory-client.test.mjs apps/world/tests/loadout-client.test.mjs
+        run: node --test apps/world/tests/wardrobe-panel.test.mjs apps/world/tests/panel-keyboard-focus.test.mjs apps/world/tests/inventory-*.test.mjs apps/world/tests/item-acquisition-guide.test.mjs apps/world/tests/loadout-client.test.mjs
       - name: Exercise native keyboard and touch with synthetic reads only
         env:
           WARDROBE_RETRY_HEAD: ${{ github.event.pull_request.head.sha }}
