@@ -1,7 +1,8 @@
 # Room social draft: remote verification contract
 
 This draft contains friend-room chat and shared-club multiplayer only. Mobile boot recovery is
-maintained separately. The base was verified at `af532a53c433479e12354f88a5a1c234075de5e7`.
+maintained separately. Final compatibility verification is frozen against
+`7967c6ea6d71a45746c996bc57ff8e26309385ba` (Phone menu integration and retired venue preserved).
 Production activation, hosted database changes, merge and deployment are not authorized.
 `vercel.json` remains main-only; this PR must not create a Vercel Preview deployment.
 
@@ -26,6 +27,24 @@ The browser report records the exact commit SHA and every scenario's checks/snap
 screenshots for both participants. Failure screenshots/report are uploaded too. Review the
 actual pixels and report, not merely the green workflow indicator. Artifacts expire after 7 days.
 A new head invalidates earlier green evidence until the affected tests rerun on that head.
+
+### Four-second bubbles and screenshot API latency
+
+Capture receipts bind the synthetic server message ID, production feed ID/text/time, rendered
+bubble text, bounds and QA-panel non-overlap. Both participants must capture the same message.
+Immediately before capture the bubble must be visible. After capture the message/feed identity
+must be unchanged; the bubble must either still be visible or have expired only after its normal
+four-second deadline. The saved PNG must separately show the full expected text without overlap;
+the automated receipt alone is not final visual acceptance.
+
+An earlier, overly strict postcondition required the bubble to survive until screenshot bytes
+returned. At head `033e85c`, Chromium's API returned after 5.2–5.6 seconds: the PNG contained the
+correct bubble, while the later UI observation correctly showed expiration. That is screenshot
+latency, not broken lifetime. This correction does not accept missing/wrong pixels, changed
+message identity, early disappearance, or longer production lifetime. Both original failures
+remain preserved. Direct Chromium capture with fast PNG encoding and a shared browser/GPU process
+reduce harness overhead; the two BrowserContexts still have isolated accounts, cookies and storage.
+No production clock, UI, animation or four-second timer is frozen or changed.
 
 ## Commands
 

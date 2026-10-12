@@ -115,7 +115,7 @@ try {
     const bubble = [...document.querySelectorAll(".chat-bubble")].find(e => !e.hidden && e.textContent === modelBubble);
     const rect = bubble?.getBoundingClientRect(), q = document.querySelector("#qa-panel").getBoundingClientRect();
     const visible = !!rect && rect.width > 0 && rect.height > 0 && getComputedStyle(bubble).visibility !== "hidden";
-    return { messageId:receipt?.id ?? null,feedId:entry?.id ?? null,text:entry?.text ?? null,modelBubble,
+    return { messageId:receipt?.id ?? null,feedId:entry?.id ?? null,feedAt:entry?.at ?? null,text:entry?.text ?? null,modelBubble,
       visible,insideViewport:visible && rect.left>=0 && rect.right<=innerWidth && rect.top>=0 && rect.bottom<=innerHeight,
       annotationClear:visible && (rect.right<=q.left || rect.left>=q.right || rect.bottom<=q.top || rect.top>=q.bottom),
       activeInput:document.activeElement?.id,inputValue:document.querySelector("#chat-input").value,at:Date.now() };
