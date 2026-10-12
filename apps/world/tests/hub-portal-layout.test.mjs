@@ -34,6 +34,6 @@ test('all illustrative SVG files are lightweight, local and declared as concept 
     const image = await load('../assets/hub/' + suffix);
     assert.match(image, /<svg\b/);
     assert.match(image, /<\/svg>/);
-    assert.doesNotMatch(image, /<script\\b|(?:href|src)=["']https?:\/\/|<foreignObject/i);
+    assert.doesNotMatch(image, /<script\b|(?:href|src)=["']https?:\/\/|<foreignObject/i);
   }
 });
