@@ -1,27 +1,43 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
+import { isJeongseokVisualPreviewHost } from '../../src/jeongseok/entry-policy.js';
 
-// Test-only rollout dependency injection, following the existing campus smoke fixtures.
-// This code is never shipped/imported by the app. It does not replace access policies, RPCs,
-// collision, positions or expiry; only a loopback-served main constructor argument is enabled.
-export async function installJeongseokServerMode(context) {
+const SHIPPED_CONSTRUCTOR = 'const jeongseokEntryMode = resolveJeongseokEntryMode({ previewHost: isJeongseokVisualPreviewHost(location.hostname), params: startupParams, serverAccessAvailable: true });';
+const sha256 = value => createHash('sha256').update(value).digest('hex');
+async function shippedMain() {
   const source = await readFile(new URL('../../src/main.js', import.meta.url), 'utf8');
-  const needle = 'const jeongseokEntryMode = resolveJeongseokEntryMode({ previewHost, params: startupParams });';
-  assert.equal(source.split(needle).length, 2, 'shipped main retains one CLOSED-by-default rollout constructor');
-  const candidate = source.replace(needle,
-    'const jeongseokEntryMode = resolveJeongseokEntryMode({ previewHost, params: startupParams, serverAccessAvailable: true });');
-  await context.route('**/src/main.js', route => {
-    assert.ok(['127.0.0.1', 'localhost'].includes(new URL(route.request().url()).hostname), 'rollout fixture is loopback-only');
+  assert.equal(source.split(SHIPPED_CONSTRUCTOR).length, 2, 'shipped main explicitly selects server-grant access once');
+  return source;
+}
+
+// Observe the actual browser-loaded main response. Active cases never rewrite the constructor,
+// access policies, RPCs, collision, positions or expiry; a changed served byte fails the test.
+export async function verifyJeongseokShippedMain(response) {
+  const source = await shippedMain();
+  assert.equal(response.status(), 200, 'browser loaded shipped main successfully');
+  const served = await response.text();
+  assert.equal(sha256(served), sha256(source), 'browser must execute the exact shipped main');
+  return { mode: 'SHIPPED_SERVER_GRANT', shippedMainSha256: sha256(source), servedMainSha256: sha256(served) };
+}
+
+// Explicit CLOSED regression only. This fixture is never shipped/imported by the app and
+// cannot intercept remote hosts. Restore the route before exercising normal shipped source.
+export async function installJeongseokClosedMode(context) {
+  const source = await shippedMain();
+  const candidate = source.replace(SHIPPED_CONSTRUCTOR, SHIPPED_CONSTRUCTOR.replace('serverAccessAvailable: true', 'serverAccessAvailable: false'));
+  const handler = route => {
+    assert.ok(isJeongseokVisualPreviewHost(new URL(route.request().url()).hostname), 'closed fixture is loopback-only');
     return route.fulfill({ status: 200, contentType: 'text/javascript; charset=utf-8', body: candidate });
-  });
-  const sha256 = value => createHash('sha256').update(value).digest('hex');
-  return { mode: 'TEST_ONLY_ROLLOUT_CONSTRUCTOR', shippedMainSha256: sha256(source), servedMainSha256: sha256(candidate) };
+  };
+  await context.route('**/src/main.js', handler);
+  return { mode: 'TEST_ONLY_CLOSED_CONSTRUCTOR', shippedMainSha256: sha256(source), servedMainSha256: sha256(candidate),
+    restore: () => context.unroute('**/src/main.js', handler) };
 }
 
 // Browser-only dependency fixture: synthetic Auth identity and Supabase RPC replies.
-// Apart from the explicitly injected rollout constructor argument below, online identity,
-// access parser, guide/reader, policy, Room Transition, collision and renderer are unchanged. No credentials, network calls or real economy.
+// The shipped main, online identity, access parser, guide/reader, policy, Room Transition,
+// collision and renderer are unchanged. No credentials, network calls or real economy.
 // The shared harness still blocks every off-origin request. This is NOT server-authority QA.
 export async function installSyntheticJeongseokAccess(context) {
   await context.addInitScript(() => {

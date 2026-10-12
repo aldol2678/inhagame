@@ -1,7 +1,8 @@
 // Jeongseok public lobby + 1F/B1 browser QA: real /campus/ boot, Room Transition, PlayCanvas,
 // native keyboard / touch input and actual runtime collision. Offline (harness.mjs): supabase-js
-// is stubbed, so no account, database or production call exists. Shipped mode remains CLOSED; test-only constructor DI
-// enables SERVER_GRANT for guest/public behavior. ?jeongseok=jsl-b is a LOCAL VISUAL_PREVIEW of all rooms,
+// is stubbed, so no account, database or production call exists. Unmodified shipped SERVER_GRANT
+// is verified for guest/public behavior; an explicit CLOSED fixture retains the rollback regression.
+// ?jeongseok=jsl-b is a LOCAL VISUAL_PREVIEW of all rooms,
 // NOT a server-grant/authorization claim. Emulated mobile viewports are NOT physical devices.
 //
 //   npm ci --prefix apps/world/tests/browser
@@ -13,7 +14,7 @@ import { execFileSync } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { startSmoke, TIMEOUT_MS } from "./harness.mjs";
-import { installJeongseokServerMode, installSyntheticJeongseokAccess } from "./jeongseok-synthetic-access.mjs";
+import { verifyJeongseokShippedMain, installJeongseokClosedMode, installSyntheticJeongseokAccess } from "./jeongseok-synthetic-access.mjs";
 
 const output = path.resolve(process.env.JSL_B_QA_OUTPUT || "test-results/jeongseok-interior");
 await mkdir(output, { recursive: true });
@@ -21,7 +22,7 @@ const head = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).tr
 if (process.env.EXPECTED_JSL_B_HEAD) assert.equal(head, process.env.EXPECTED_JSL_B_HEAD, "browser must test the exact candidate head");
 const STEP_TIMEOUT_MS = 45_000;
 const LOBBY = "ROOM_JEONGSEOK_LOBBY", READING = "ROOM_JEONGSEOK_B1_READING", CREATIVE = "ROOM_JEONGSEOK_B1_CREATIVE";
-const report = { head, scope: "Offline Chromium: shipped CLOSED proof, test-only SERVER_GRANT rollout DI guest/public checks, synthetic Auth/RPC integration, VISUAL_PREVIEW_LOCAL_ONLY tour; emulated mobile, no real server-authority or physical-device claim",
+const report = { head, scope: "Offline Chromium: exact shipped SERVER_GRANT guest/public checks, explicit CLOSED regression, synthetic Auth/RPC integration, VISUAL_PREVIEW_LOCAL_ONLY tour; emulated mobile, no real server-authority or physical-device claim",
   startedAt: new Date().toISOString(), environment: {}, publicLobby: [], syntheticAuthority: [], viewports: [], screenshots: [], status: "RUNNING" };
 const viewports = [
   { label: "desktop", width: 1280, height: 720, mobile: false },
@@ -33,15 +34,19 @@ report.selectedModes = ["public", "synthetic", "preview"].filter(modeEnabled);
 report.selectedViewports = viewports.map(v => v.label);
 assert.ok(viewports.length && report.selectedModes.length, "select at least one known viewport and mode");
 
-async function boot(smoke, query) {
+async function boot(smoke, query, { verifyShipped = true } = {}) {
   const page = await smoke.context.newPage();
   const fatal = smoke.watch(page);
-  await page.goto(`${smoke.origin}/campus/${query}`, { waitUntil: "domcontentloaded", timeout: TIMEOUT_MS });
+  const [mainResponse] = await Promise.all([
+    page.waitForResponse(response => response.url() === `${smoke.origin}/src/main.js`, { timeout: TIMEOUT_MS }),
+    page.goto(`${smoke.origin}/campus/${query}`, { waitUntil: "domcontentloaded", timeout: TIMEOUT_MS })
+  ]);
+  const shippedMain = verifyShipped ? await verifyJeongseokShippedMain(mainResponse) : null;
   await Promise.race([page.waitForFunction(() => window.__INHAGAME_P0__?.getStatus?.().loading?.finished === true
     || window.__INHAGAME_P0__?.getStatus?.().renderer === "UNAVAILABLE", null, { timeout: TIMEOUT_MS, polling: 100 }), fatal]);
   const renderer = await page.evaluate(() => window.__INHAGAME_P0__.getStatus().renderer);
   assert.notEqual(renderer, "UNAVAILABLE", "campus boot");
-  return { page, fatal, renderer };
+  return { page, fatal, renderer, shippedMain };
 }
 const waitFor = async (ctx, fn, arg, label) => Promise.race([
   ctx.page.waitForFunction(fn, arg, { timeout: STEP_TIMEOUT_MS, polling: 50 }).catch(error => { throw new Error(`${label}: ${error.message}`); }),
@@ -148,7 +153,7 @@ const SHELLS = {
 };
 
 try {
-  // 1. Shipped mode is CLOSED. Constructor-only rollout DI then verifies the future public lobby.
+  // 1. Explicit CLOSED rollback regression, followed by the unmodified shipped public lobby.
   for (const viewport of modeEnabled("public") ? viewports : []) {
     const smoke = await startSmoke({ viewport: { width: viewport.width, height: viewport.height },
       contextOptions: { isMobile: viewport.mobile, hasTouch: viewport.mobile } });
@@ -156,17 +161,20 @@ try {
     report.publicLobby.push(result);
     try {
       if (viewport === viewports[0]) {
-        const closed = await boot(smoke, "?jeongseok=jsl-a");
-        const shipped = await state(closed.page);
-        assert.equal(shipped.interior.policy.mode, "CLOSED_PENDING_JSL_A", "unmodified main remains CLOSED, even with the old gate QA query");
-        assert.equal(await closed.page.evaluate(() => window.__INHAGAME_P0__.rooms.enter("ROOM_JEONGSEOK_LOBBY")), false);
-        assert.equal(await closed.page.evaluate(() => window.__INHAGAME_P0__.rooms.enter("ROOM_JEONGSEOK_B1_READING")), false);
-        assert.deepEqual(shipped.interior.scenes.built, []);
-        report.productionClosed = { status: "PASS", mode: shipped.interior.policy.mode, queryDoesNotActivate: true };
-        await closed.page.close();
+        const { restore, ...fixture } = await installJeongseokClosedMode(smoke.context);
+        try {
+          const closed = await boot(smoke, "?jeongseok=jsl-a", { verifyShipped: false });
+          const snapshot = await state(closed.page);
+          assert.equal(snapshot.interior.policy.mode, "CLOSED_PENDING_JSL_A", "explicit CLOSED mode cannot be activated by the old gate QA query");
+          assert.equal(await closed.page.evaluate(() => window.__INHAGAME_P0__.rooms.enter("ROOM_JEONGSEOK_LOBBY")), false);
+          assert.equal(await closed.page.evaluate(() => window.__INHAGAME_P0__.rooms.enter("ROOM_JEONGSEOK_B1_READING")), false);
+          assert.deepEqual(snapshot.interior.scenes.built, []);
+          report.closedRegression = { status: "PASS", mode: snapshot.interior.policy.mode, queryDoesNotActivate: true, fixture };
+          await closed.page.close();
+        } finally { await restore(); }
       }
-      result.rolloutFixture = await installJeongseokServerMode(smoke.context);
       const ctx = await boot(smoke, "");
+      result.shippedMain = ctx.shippedMain;
       const anchors = await ctx.page.evaluate(async () => {
         const rooms = await import("/src/jeongseok/interior-rooms.js");
         const lobby = await import("/src/jeongseok/lobby-layout.js");
@@ -267,15 +275,15 @@ try {
   }
 
   // 2. The normal main/auth/RPC parsing/gate/room/collision path with SYNTHETIC replies only.
-  // Constructor-only rollout DI; no access-policy replacement or injected collider. Not real server-authority QA.
+  // Exact shipped main; no access-policy replacement or injected collider. Not real server-authority QA.
   for (const viewport of modeEnabled("synthetic") ? viewports.filter(v => !v.mobile) : []) {
     const smoke = await startSmoke({ viewport: { width: viewport.width, height: viewport.height } });
     const result = { viewport: viewport.label, status: "RUNNING", authority: "SYNTHETIC_SUPABASE_REPLIES_NO_SERVER_CLAIM", checks: {} };
     report.syntheticAuthority.push(result);
     try {
-      result.rolloutFixture = await installJeongseokServerMode(smoke.context);
       await installSyntheticJeongseokAccess(smoke.context);
       const ctx = await boot(smoke, "");
+      result.shippedMain = ctx.shippedMain;
       await waitFor(ctx, () => { const d = window.__INHAGAME_P0__; return d.jeongseok.access.state === "READY" &&
         d.jeongseok.access.accountId === window.__JSL_SYNTHETIC__.first; }, null, "synthetic account through real online identity");
       const a = await ctx.page.evaluate(async () => {

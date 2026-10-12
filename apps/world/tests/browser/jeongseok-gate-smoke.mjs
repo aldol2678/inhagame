@@ -8,7 +8,7 @@
 // Scope: Chromium desktop + mobile touch emulation (not physical devices). Public lobby is free;
 // the public-side guide sells passes, and the inner reader re-verifies before opening real collision.
 import assert from 'node:assert/strict';
-import { installJeongseokServerMode } from './jeongseok-synthetic-access.mjs';
+import { verifyJeongseokShippedMain } from './jeongseok-synthetic-access.mjs';
 import { execFileSync, spawn } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
@@ -26,7 +26,7 @@ const output = 'test-results/jeongseok-gate'; await mkdir(output, { recursive: t
 const report = { head, status: 'RUNNING', cases: [], limits: [
   'Chromium (SwiftShader WebGL2) desktop and mobile touch emulation only; not physical Android/iOS.',
   'Local Supabase fixture only: no Production authorization, price or wallet claim.',
-  'Shipped rollout is CLOSED. Loopback-only constructor DI enables SERVER_GRANT; all access RPCs, policy and runtime collision remain real.',
+  'Exact shipped main selects SERVER_GRANT without constructor overrides; all local access RPCs, policy and runtime collision remain real.',
     'Inner reader and guide use GAME_ADAPTATION lobby anchors, not surveyed real-world positions.'] };
 const save = () => writeFile(`${output}/report.json`, JSON.stringify(report, null, 2));
 
@@ -85,13 +85,17 @@ async function openWorld(entry, { viewport, mobile = false, account = null }) {
       return route.fulfill({ status: 200, contentType: 'text/javascript; charset=utf-8', body: supabaseJs });
     return route.abort('blockedbyclient');
   });
-  entry.rolloutFixture = await installJeongseokServerMode(context);
   const page = await context.newPage(); page.setDefaultTimeout(60000); currentPage = page;
   page.on('pageerror', e => problems.push(`pageerror: ${e.message}`));
-  await page.goto(`${origin}/campus/?jeongseok=jsl-a&envTime=day&envWeather=clear`, { waitUntil: 'domcontentloaded' });
+  const [mainResponse] = await Promise.all([
+    page.waitForResponse(response => response.url() === `${origin}/src/main.js`, { timeout: 60000 }),
+    page.goto(`${origin}/campus/?envTime=day&envWeather=clear`, { waitUntil: 'domcontentloaded' })
+  ]);
+  entry.shippedMain = await verifyJeongseokShippedMain(mainResponse);
   await page.waitForFunction(() => window.__INHAGAME_P0__?.getStatus().loading?.finished, null, { timeout: 180000 });
   if (account) await page.waitForFunction(id => window.__INHAGAME_P0__.jeongseok.access.accountId === id &&
     window.__INHAGAME_P0__.jeongseok.access.state === 'READY', account.id, { timeout: 60000 });
+  assert.equal(await page.evaluate(() => window.__INHAGAME_JEONGSEOK_INTERIOR__.status().policy.mode), 'SERVER_GRANT_JSL_A');
   entry.renderer = await page.evaluate(() => window.__INHAGAME_P0__.getStatus().renderer);
   let closed = false;
   const close = async () => { if (closed) return; closed = true; await context.close().catch(() => {}); await browser.close().catch(() => {}); };
