@@ -2,6 +2,7 @@ name: NPC shop routing browser checks
 on:
   pull_request:
     paths:
+      - '.github/ci/phone-surface-scope*.mjs'
       - 'apps/world/src/shop/**'
       - 'apps/world/src/main.js'
       - 'apps/world/npc-factory/dev-runtime.mjs'
@@ -32,26 +33,38 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
+          fetch-depth: 20
+      - name: Conservative scope gate for isolated Phone Messages change
+        id: phone_scope
+        env:
+          CI_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CI_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node .github/ci/phone-surface-scope.mjs >> "$GITHUB_OUTPUT"
       - uses: actions/setup-node@v4
+        if: steps.phone_scope.outputs.skip != 'true'
         with:
           node-version: '24.19.0'
       - run: npm ci --prefix apps/world/tests/browser --ignore-scripts --no-audit --no-fund
+        if: steps.phone_scope.outputs.skip != 'true'
       - name: Install pinned Chromium
+        if: steps.phone_scope.outputs.skip != 'true'
         working-directory: apps/world/tests/browser
         run: npx playwright install --with-deps chromium
       - name: Shop route and geometry contracts
+        if: steps.phone_scope.outputs.skip != 'true'
         run: node --test apps/world/tests/shop-router.test.mjs apps/world/tests/shop-routes.test.mjs apps/world/tests/student-center-vendors.test.mjs apps/world/tests/dorm-shop-interaction.test.mjs
       - name: Real DOM routing and race recovery with synthetic RPC
+        if: steps.phone_scope.outputs.skip != 'true'
         run: node apps/world/tests/browser/npc-shop-routing-smoke.mjs
       - name: Furniture ownership and room handoff with synthetic RPC
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.phone_scope.outputs.skip != 'true' }}
         run: node apps/world/tests/browser/shop-furniture-smoke.mjs
       - name: Actual full-campus NPC placement and signed-out HUD gate
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.phone_scope.outputs.skip != 'true' }}
         timeout-minutes: 10
         run: timeout --signal=TERM --kill-after=10s 570s node apps/world/tests/browser/npc-shop-campus-smoke.mjs
       - name: Upload exact-head browser evidence
-        if: always()
+        if: always() && steps.phone_scope.outputs.skip != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: npc-shop-routing-${{ github.event.pull_request.head.sha }}
