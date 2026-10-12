@@ -146,7 +146,8 @@ export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, g
       tag.append(el('span','smartphone-jeongseok-tag-card',g.via==='VISITOR_PASS'?'🪪':'🎓'),el('span','smartphone-jeongseok-tag-reader',''));
       card.append(tag);
     }
-    if(g.state!=='IDLE'){const live=el('strong','smartphone-jeongseok-gate',gateMessage(g));live.setAttribute('role','status');card.append(live);}
+    // Refusals are explained by the server lines below; the gate line covers progress only.
+    if(['CHECKING','SCANNING','GRANTED','OPENING','READY_TO_ENTER','PURCHASING','UNKNOWN'].includes(g.state)){const live=el('strong','smartphone-jeongseok-gate',gateMessage(g));live.setAttribute('role','status');card.append(live);}
     const line=(text,cls='')=>card.append(el('p',cls,text));
     // An unresolved request is recovered with its own key before anything else, whatever the read says.
     if(a.pendingKey&&v.atReader&&a.accountId){

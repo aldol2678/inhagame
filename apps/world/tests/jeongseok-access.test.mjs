@@ -270,3 +270,10 @@ test('integration stays closed by default and never computes balances or rights'
   assert.doesNotMatch(feature + client, /rooms\.enter|enterNested|teleport\(|\.channel\(|'world:room:|"world:room:/);
   assert.doesNotMatch(client, /balance\s*-\s*|-\s*price|\+\s*86400|Date\.now\(\)\s*\+\s*\d/);
 });
+
+test('gate copy joins notices readably and never invents a shortfall', () => {
+  assert.equal(gateMessage({ state: 'GRANTED', via: 'VISITOR_PASS', notice: 'RECOVERED' }), '가상 정석 방문증 · 출입 승인 · 이전에 발급된 방문증을 확인했어요.');
+  assert.match(gateMessage({ state: 'READY_TO_ENTER', notice: 'PENDING_JSL_B' }), /^게이트가 열렸어요\. 출입 자격이 서버에서 다시 확인됐어요/);
+  assert.equal(gateMessage({ state: 'INSUFFICIENT_FUNDS', offer: null }), '인덕코인이 부족해 방문증을 발급할 수 없어요.');
+  assert.equal(gateMessage({ state: 'DISABLED', decision: 'COMING_SOON' }), '정석학술정보관 출입은 준비 중이에요.');
+});

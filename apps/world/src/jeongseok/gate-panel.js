@@ -44,7 +44,8 @@ export function gateMessage(view) {
   if (view.state === GATE_STATE.GRANTED || view.state === GATE_STATE.OPENING)
     text = view.via === "INHA_MAIL" ? "인하대 이메일 인증 학생증 · 무료 출입 승인" : "가상 정석 방문증 · 출입 승인";
   const notice = ENTRY_NOTICES[view.notice] ?? (view.notice && PURCHASE_ERRORS[view.notice]);
-  return notice && view.state !== GATE_STATE.INSUFFICIENT_FUNDS ? `${text} ${notice}` : text;
+  if (!notice || view.state === GATE_STATE.INSUFFICIENT_FUNDS) return text;
+  return /[.!?]$/.test(text) ? `${text} ${notice}` : `${text} · ${notice}`;
 }
 
 export function createJeongseokGatePanel({ doc = document } = {}) {
