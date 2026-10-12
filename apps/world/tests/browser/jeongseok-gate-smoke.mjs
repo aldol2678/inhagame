@@ -207,8 +207,29 @@ try {
     assert.equal(dropped, 2, 'recovery reused the stored key through the same RPC');
     entry.checks.push('Lost reply → same-key recovery (ALREADY_PROCESSED) → tag → green → READY; duplicate click → one debit');
     const before = await page.evaluate(() => window.__INHAGAME_P0__.jeongseok.access.view());
+    // Screenshots and SQL readback above can outlast the real 20-second READY window on SwiftShader.
+    // Prove that expiry closes entry, then use real input to acquire a fresh tag; never extend the timer.
+    await page.waitForFunction(() => window.__INHAGAME_P0__.jeongseok.gate.snapshot().state === 'IDLE',
+      null, { timeout: 30000 });
+    assert.equal((await gateState(page)).canEnter, false, 'expired READY never remains an entry grant');
+    const checksBeforeRetag = await page.evaluate(() =>
+      window.__jslLog.filter(value => value === 'access:verify-entry:READY').length);
+    await press(page, false);
+    await page.waitForFunction(() => {
+      const d = window.__INHAGAME_P0__;
+      return d.jeongseok.gate.snapshot().state === 'READY_TO_ENTER' && d.smartphone.shell.state === 'CLOSED';
+    }, null, { timeout: 15000 });
+    const checksBeforeEntry = await page.evaluate(() =>
+      window.__jslLog.filter(value => value === 'access:verify-entry:READY').length);
+    assert.ok(checksBeforeEntry > checksBeforeRetag, 'retag requires a new server verification');
+    // No screenshots or SQL work between fresh READY and this actual entry keypress.
     await press(page, false);
     await page.waitForFunction(() => window.__INHAGAME_P0__.jeongseok.gate.snapshot().notice === 'PENDING_JSL_B');
+    assert.ok(await page.evaluate(() =>
+      window.__jslLog.filter(value => value === 'access:verify-entry:READY').length) > checksBeforeEntry,
+      'entry re-verifies on the server separately from the fresh tag');
+    assert.deepEqual([debits(general.id), coins(general.id)], [1, 150], 'expiry, retag and entry never debit again');
+    entry.checks.push('Real READY expiry closes entry; native retag and entry each re-verify, with one total debit');
     assert.equal((await worldRestored(page)).space, 'campus', 'no interior exists before JSL-B');
     assert.match(await page.locator('#jeongseok-gate .jeongseok-gate-status').innerText(), /서버에서 다시 확인/);
     entry.checks.push('READY_TO_ENTER → F re-verifies on the server → PENDING_JSL_B, player stays on campus');
