@@ -1,43 +1,16 @@
-import { MARKET_BUILDINGS, MARKET_EXISTING_SHOPS, GEONMULJU_BUILDING } from './back-market-layout.js';
+import { MARKET_BUILDINGS, MARKET_EXISTING_SHOPS } from './back-market-layout.js';
 import { fillInfillBase, fillInfillNear, fillInfillDetail } from './backgate-infill-geometry.js';
 
 const light='#d6d1bf',dark='#555c5d',metal='#aeb5b1';
 const point=(f,u,v,y)=>{const p=f.at(u,v);return [p.x,y,p.z];};
 const box=(b,q,c,u,v,y,w,h,d)=>b.box(c,point(q.frame,u,v,y),[w,h,d],q.frame.yaw);
 
-function fillGeonmuljuBase(b,q) {
-  box(b,q,'#7f6660',0,q.d/2,q.h/2,q.w,q.h,q.d);
-  box(b,q,'#343b40',0,q.d/2,q.h+.08,q.w+.12,.16,q.d+.12);
-  box(b,q,'#343b40',0,-.055,1.25,q.w-.18,2.5,.11);
-  box(b,q,'#426b70',0,-.13,1.02,q.w-.36,1.67,.045);
-  const doorU=q.w/2-.85;
-  box(b,q,'#aeb5b1',doorU,-.19,1.03,.84,1.78,.055);
-  box(b,q,'#426b70',doorU,-.224,1.03,.68,1.64,.022);
-  box(b,q,'#9e7160',0,-.065,3.66,q.w-.12,2.24,.12);
-  box(b,q,'#426b70',0,-.14,3.78,q.w-.55,1.43,.048);
-  box(b,q,'#657f70',0,-.075,5.56,q.w-.12,1.25,.06);
-  return b;
-}
-function fillGeonmuljuNear(b,q) {
-  const doorU=q.w/2-.85;
-  for(const u of [-q.w/2+.12,-1.35,-.3,.75,doorU-.45,doorU+.45,q.w/2-.12])
-    box(b,q,'#aeb5b1',u,-.188,1.05,.055,1.82,.075);
-  box(b,q,'#d6d1bf',doorU+.20,-.258,1.03,.025,.25,.03);
-  box(b,q,'#657f70',doorU,-.52,.035,1.02,.045,.52);
-  return b;
-}
-function fillGeonmuljuDetail(b,q) {
-  for(let u=-q.w/2+.12;u<q.w/2;u+=.39)box(b,q,'#7f6660',u,-.137,2.69,.025,.29,.035);
-  return b;
-}
 export function fillMarketBase(b) {
-  for(const q of MARKET_BUILDINGS.filter(q=>q.id!==GEONMULJU_BUILDING.id))fillInfillBase(b,q,'market');
-  fillGeonmuljuBase(b,GEONMULJU_BUILDING);
+  for(const q of MARKET_BUILDINGS)fillInfillBase(b,q,'market');
   return b;
 }
 export function fillMarketNear(b,ids) {
-  for(const q of MARKET_BUILDINGS.filter(q=>q.id!==GEONMULJU_BUILDING.id&&ids.includes(q.id)))fillInfillNear(b,q,'market');
-  if(ids.includes(GEONMULJU_BUILDING.id))fillGeonmuljuNear(b,GEONMULJU_BUILDING);
+  for(const q of MARKET_BUILDINGS.filter(q=>ids.includes(q.id)))fillInfillNear(b,q,'market');
   for(const q of MARKET_EXISTING_SHOPS.filter(q=>ids.includes(q.id))) {
     const w=Math.min(q.w-.55,6),front=q.signZ+.03;
     if(q.treatment==='awning') {
@@ -64,8 +37,7 @@ export function fillMarketNear(b,ids) {
   return b;
 }
 export function fillMarketDetail(b,ids) {
-  for(const q of MARKET_BUILDINGS.filter(q=>q.id!==GEONMULJU_BUILDING.id&&ids.includes(q.id)))fillInfillDetail(b,q,'market');
-  if(ids.includes(GEONMULJU_BUILDING.id))fillGeonmuljuDetail(b,GEONMULJU_BUILDING);
+  for(const q of MARKET_BUILDINGS.filter(q=>ids.includes(q.id)))fillInfillDetail(b,q,'market');
   for(const q of MARKET_EXISTING_SHOPS.filter(q=>ids.includes(q.id))) {
     const w=Math.min(q.w-.55,6);
     for(const side of [-1,1])box(b,q,light,side*w*.35,q.signZ-.15,2.315,.2,.018,.12);

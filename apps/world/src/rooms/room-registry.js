@@ -67,7 +67,8 @@ export const RETURN_ANCHORS = Object.freeze({
   })
 });
 
-export const ROOM_ENTRANCES = Object.freeze([CLUB_ROOM_ENTRANCE, DORM_1_LOBBY_ENTRANCE, MCM_2026_VENUE_ENTRANCE]);
+// The former event doorway remains a historical coordinate, not an active entrance.
+export const ROOM_ENTRANCES = Object.freeze([CLUB_ROOM_ENTRANCE, DORM_1_LOBBY_ENTRANCE]);
 
 export const ROOMS = Object.freeze({
   ROOM_CLUBHOUSE_01: Object.freeze({
@@ -124,7 +125,8 @@ export const ROOMS = Object.freeze({
     obstacles: MCM_2026_ROOM_OBSTACLES,
     bounds: MCM_2026_ROOM_BOUNDS,
     cameraLimits: MCM_2026_ROOM.camera,
-    entranceId: MCM_2026_VENUE_ENTRANCE.id
+    access: "closed",
+    entranceId: null
   })
 });
 

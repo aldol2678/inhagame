@@ -46,6 +46,9 @@ for(const viewport of viewports)for(const kind of ['personal','club']){
       for(const page of pages)await page.evaluate(()=>window.__SOCIAL_QA__.revalidate());
       row.checks.push('simultaneous browser seat intent, unique winner and second separate chair');
     }
+    // Warm the browser's screenshot/font pipeline before the real four-second bubble starts.
+    // Never extend/freeze production bubble lifetime to make visual evidence pass.
+    await Promise.all(pages.map(page=>page.screenshot()));
     await a.locator('#chat-toggle').click();
     await a.locator('#chat-input').fill('안녕, 같은 방 친구!');
     await a.locator('#chat-input').dispatchEvent('keydown',{key:'Enter',code:'Enter',isComposing:true,bubbles:true});
@@ -55,19 +58,27 @@ for(const viewport of viewports)for(const kind of ['personal','club']){
     assert.deepEqual(await a.evaluate(()=>window.__SOCIAL_QA__.snapshot().position),before,'typing does not move player');
     await a.locator('#chat-input').fill('안녕, 같은 방 친구!');
     await a.locator('#chat-input').press('Enter');
-    await b.waitForFunction(()=>window.__SOCIAL_QA__.snapshot().feed.some(e=>e.text==='안녕, 같은 방 친구!'));
-    await b.waitForFunction(()=>[...document.querySelectorAll('.chat-bubble')].some(e=>!e.hidden&&e.textContent==='방주인: 안녕, 같은 방 친구!'));
-    for(const page of pages)assert.equal(await page.evaluate(()=>[...document.querySelectorAll('.chat-bubble')].filter(e=>!e.hidden).every(e=>{const r=e.getBoundingClientRect();return r.left>=0&&r.right<=innerWidth&&r.top>=0&&r.bottom<=innerHeight;})),true,'speech bubbles fit the viewport');
-    for(const page of pages)assert.equal(await page.evaluate(()=>{
-      const q=document.querySelector('#qa-panel').getBoundingClientRect();
-      return [...document.querySelectorAll('.chat-bubble')].filter(e=>!e.hidden).every(e=>{
-        const r=e.getBoundingClientRect();return r.right<=q.left||r.left>=q.right||r.bottom<=q.top||r.top>=q.bottom;
-      });
-    }),true,'QA-only annotation must not obscure a production speech bubble');
-    assert.equal(await a.locator('#chat-input').inputValue(),'');
-    assert.notEqual(await a.evaluate(()=>document.activeElement?.id),'chat-input');
+    row.captures=await Promise.all(pages.map(async(page,i)=>{
+      const text='안녕, 같은 방 친구!',expected=i===0?text:`방주인: ${text}`;
+      await page.waitForFunction(text=>window.__SOCIAL_QA__.captureChat(text).visible,text);
+      const before=await page.evaluate(text=>window.__SOCIAL_QA__.captureChat(text),text);
+      const file=`${viewport.name}-${kind}-${i+1}-chat.png`;
+      await page.screenshot({path:path.join(output,file)});
+      const after=await page.evaluate(text=>window.__SOCIAL_QA__.captureChat(text),text);
+      for(const receipt of [before,after]){
+        assert.match(receipt.messageId,/^[0-9a-f-]{36}$/i,'server message ID is captured');
+        assert.ok(receipt.feedId>0);assert.equal(receipt.text,text);assert.equal(receipt.modelBubble,expected);
+        assert.equal(receipt.visible,true,'same production bubble is visible before AND after screenshot');
+        assert.equal(receipt.insideViewport,true,'speech bubble fits viewport');
+        assert.equal(receipt.annotationClear,true,'QA annotation does not cover speech bubble');
+        assert.equal(receipt.inputValue,'');assert.notEqual(receipt.activeInput,'chat-input');
+      }
+      assert.equal(after.messageId,before.messageId);assert.equal(after.feedId,before.feedId);
+      return {file,before,after};
+    }));
+    assert.equal(row.captures[0].before.messageId,row.captures[1].before.messageId,'both contexts captured the same server message');
     row.checks.push('real input IME/Enter, no movement while typing, server-named feed + rendered remote bubble, focus released');
-    await Promise.all(pages.map((page,i)=>page.screenshot({path:path.join(output,`${viewport.name}-${kind}-${i+1}-chat.png`)})));
+    row.checks.push('same message ID and visible production bubble verified before and after both screenshots');
     await b.locator('#chat-toggle').click();await b.locator('#chat-input').fill('<img src=x onerror=window.__xss=1>');await b.locator('#chat-input').press('Enter');
     await a.waitForFunction(()=>window.__SOCIAL_QA__.snapshot().feed.some(e=>e.text.startsWith('<img')));
     assert.equal(await a.locator('#chat-feed img').count(),0);assert.equal(await a.evaluate(()=>window.__xss??null),null);

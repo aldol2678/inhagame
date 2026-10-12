@@ -21,10 +21,12 @@ test('infill keeps all source streets and narrow west passages walkable in both 
   }
 });
 
-test('MCM Geonmulju venue owns a dedicated Culture Street frontage and door',()=>{
+test('former MCM Geonmulju venue remains an ordinary commercial building with intact collision',()=>{
   assert.equal(GEONMULJU_BUILDING.id,'back_market_geonmulju');
   assert.equal(GEONMULJU_BUILDING.roadId,'culture_67_link');
   assert.equal(GEONMULJU_BUILDING.w,5.35);
+  assert.equal(GEONMULJU_BUILDING.style,'brick');
+  assert.equal(GEONMULJU_BUILDING.label,'건물酒');
   assert.ok(MARKET_BUILDINGS.includes(GEONMULJU_BUILDING));
   assert.ok(Number.isFinite(GEONMULJU_BUILDING.door.x)&&Number.isFinite(GEONMULJU_BUILDING.door.z));
 });

@@ -24,14 +24,23 @@ try {
   const n = Number(new URL(location.href).searchParams.get("member") ?? 1);
   const userId = `10000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
   let identity = { userId, displayName: `인덕${n}` }, inside = true, remoteCount = 0, remoteEmote = null;
+  // QA-only receipts never include recipient capabilities. Actual acceptance is checked below
+  // against the production feed and bubble, not inferred from this synthetic delivery alone.
+  let chatReceipt = null;
+  const rememberMessage = m => { if(m?.id) chatReceipt = { id:m.id,userId:m.userId,sessionId:m.sessionId,name:m.name,text:m.text }; };
   const channels = new Map();
   window.__socialDeliver = ({ id, kind, event, payload, state }) => {
     const channel = channels.get(id); if (!channel) return;
     if (state) channel.state = state;
+    if(event === "room_chat_v1") rememberMessage(payload);
     for (const l of channel.listeners) if(l.kind === kind && l.event === event) l.fn({ payload });
   };
   const client = {
-    rpc: (name, args) => window.__socialRpc(name, args),
+    rpc: async (name, args) => {
+      const result = await window.__socialRpc(name, args);
+      if(name === "send_world_room_chat_v1" && result?.data?.ok) rememberMessage(result.data.message);
+      return result;
+    },
     auth: { getSession: async () => ({ data: { session: { user: { id: userId, is_anonymous: false }, access_token: "synthetic-fixture" } } }) },
     realtime: { setAuth: async () => {} },
     channel(topic, options) {
@@ -98,6 +107,19 @@ try {
   qa.reconnectChat = () => { for(const channel of channels.values())if(channel.topic.startsWith("world:room-chat:"))channel.status("CHANNEL_ERROR"); };
   qa.reenterChat = () => chat.enter({kind,roomId,sessionId:session.status().sessionId});
   qa.chat = chat; qa.panel = panel;
+  qa.captureChat = text => {
+    const entry = chat.feed.entries.findLast(e => e.text === text);
+    const receipt = chatReceipt?.text === text ? chatReceipt : null;
+    const self = receipt?.userId === userId;
+    const modelBubble = receipt ? (self ? chat.ownBubble() : chat.bubbleFor(receipt.sessionId, receipt.userId)) : null;
+    const bubble = [...document.querySelectorAll(".chat-bubble")].find(e => !e.hidden && e.textContent === modelBubble);
+    const rect = bubble?.getBoundingClientRect(), q = document.querySelector("#qa-panel").getBoundingClientRect();
+    const visible = !!rect && rect.width > 0 && rect.height > 0 && getComputedStyle(bubble).visibility !== "hidden";
+    return { messageId:receipt?.id ?? null,feedId:entry?.id ?? null,text:entry?.text ?? null,modelBubble,
+      visible,insideViewport:visible && rect.left>=0 && rect.right<=innerWidth && rect.top>=0 && rect.bottom<=innerHeight,
+      annotationClear:visible && (rect.right<=q.left || rect.left>=q.right || rect.bottom<=q.top || rect.top>=q.bottom),
+      activeInput:document.activeElement?.id,inputValue:document.querySelector("#chat-input").value,at:Date.now() };
+  };
   qa.switchRoom = async () => { chat.stop(); panel.reset(); return chat.enter({kind:"personal",roomId:"20000000-0000-4000-8000-000000000002",sessionId:crypto.randomUUID()}); };
   qa.snapshot = () => ({ kind,chat:chat.status(),feed:chat.feed.entries,ownBubble:chat.ownBubble(),channels:channels.size,
     activeInput:document.activeElement?.id,
