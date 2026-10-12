@@ -134,7 +134,11 @@ test("five graphics tiers survive storage, legacy mirror and migration", () => {
     })
   });
   assert.equal(readSettings(v2Only).graphics.quality, "ultra");
-  assert.equal(v2Only.data.get(LEGACY_SETTINGS_KEYS.graphicsQuality), "ultra");
+  assert.equal(v2Only.data.get(LEGACY_SETTINGS_KEYS.graphicsQuality), undefined,
+    "an unchanged v2 read does not manufacture missing legacy mirrors");
+  assert.equal(setSetting(v2Only, "graphics.quality", "ultra"), true);
+  assert.equal(v2Only.data.get(LEGACY_SETTINGS_KEYS.graphicsQuality), "ultra",
+    "a real settings write mirrors the legacy graphics key");
   assert.equal(normalizeSettings({ graphics: { quality: "invalid" } }).graphics.quality, "auto");
 });
 

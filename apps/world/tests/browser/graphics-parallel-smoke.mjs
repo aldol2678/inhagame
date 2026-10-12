@@ -197,6 +197,47 @@ try {
   assert.ok(['WebGPU', 'WebGL2'].includes(receipt.renderer));
   await openSettings();
   const initialView = await page.locator('#view-distance').inputValue();
+  // P0 five-tier readback uses the production settings UI, live renderer and scene.
+  // The LOW/MEDIUM/HIGH baseline values and separate view-distance policy must remain stable.
+  const expectedTiers = [
+    ['very_low', '최저', .65, false, 512],
+    ['low', '낮음', .8, false, 512],
+    ['medium', '보통', 1.25, true, 1024],
+    ['high', '높음', 2, true, 2048],
+    ['ultra', '울트라', 2, true, 3072]
+  ];
+  const fiveTierReadings = {};
+  for (const [tier, label, ratio, castShadows, shadowResolution] of expectedTiers) {
+    await page.locator('#graphics-quality').selectOption(tier);
+    await page.waitForFunction(value => window.__INHAGAME_P0__.getStatus().graphics.tier === value,
+      tier, { timeout: TIMEOUT_MS });
+    const sample = await page.evaluate(() => {
+      const d=window.__INHAGAME_P0__,g=d.getStatus().graphics;
+      return { preference:g.preference, tier:g.tier, maxPixelRatio:g.maxPixelRatio,
+        castShadows:g.castShadows, shadowResolution:g.shadowResolution,
+        renderScale:g.renderScale, viewDistance:d.viewSettings.current.id,
+        canvasWidth:document.getElementById('application').width,
+        detailEnter:d.streaming.policy.detailEnter,
+        label:document.getElementById('graphics-quality-hint').textContent };
+    });
+    assert.equal(sample.preference,tier,'selected preference');
+    assert.equal(sample.tier,tier,'effective tier');
+    assert.equal(sample.maxPixelRatio,ratio,'pixel ratio cap');
+    assert.equal(sample.castShadows,castShadows,'shadows enabled');
+    assert.equal(sample.shadowResolution,shadowResolution,'shadow map resolution');
+    assert.equal(sample.renderScale,'auto','manual detail overrides remain unchanged');
+    assert.equal(sample.viewDistance,initialView,'view distance remains independent');
+    assert.equal(sample.label,`${label} 품질을 사용 중입니다.`,'Korean UI hint');
+    fiveTierReadings[tier]=sample;
+  }
+  assert.ok(fiveTierReadings.very_low.canvasWidth < fiveTierReadings.low.canvasWidth,
+    'VERY LOW produces fewer physical canvas pixels than LOW');
+  assert.ok(fiveTierReadings.low.canvasWidth < fiveTierReadings.medium.canvasWidth,
+    'LOW produces fewer physical canvas pixels than MEDIUM');
+  assert.ok(fiveTierReadings.very_low.detailEnter < fiveTierReadings.low.detailEnter);
+  assert.ok(fiveTierReadings.high.detailEnter < fiveTierReadings.ultra.detailEnter);
+  receipt.checks.fiveTiers = { settings:fiveTierReadings };
+  await shot('graphics-five-tier-ultra');
   await page.locator('#graphics-quality').selectOption('high');
   await page.locator('#graphics-render-scale').selectOption('0.7');
   await page.locator('#graphics-shadows').selectOption('off');
@@ -226,9 +267,14 @@ try {
   assert.ok(pacing.renderedFps <= 34, '30 FPS ceiling with scheduling tolerance');
   receipt.checks.framePacing = pacing;
 
-  // Test actual persisted UI details, then clear only this disposable context's graphics settings.
+  // Prove a newly added manual tier persists through a full application reload.
+  assert.equal(await page.evaluate(() => window.__INHAGAME_P0__.graphics.setPreference('ultra')), true);
   await page.reload({ waitUntil: 'domcontentloaded', timeout: TIMEOUT_MS });
   await wait(() => window.__INHAGAME_P0__?.getStatus?.().loading?.finished);
+  assert.equal((await graphics()).preference, 'ultra', 'new ULTRA preference survives reload');
+  assert.equal((await graphics()).tier, 'ultra');
+  assert.equal(await page.locator('#graphics-quality').inputValue(), 'ultra');
+  receipt.checks.fiveTiers.persistedUltra = true;
   assert.equal((await graphics()).frameLimit, 30); assert.equal((await graphics()).renderScale, 1);
   assert.equal((await graphics()).showFps, true);
   await openSettings(); await page.locator('#graphics-reset').click();
