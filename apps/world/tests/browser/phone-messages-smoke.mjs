@@ -45,6 +45,27 @@ async function check(name,viewport,mobile) {
   const sent=(await calls(page)).filter(c=>c.name==='send_hub_message_v1');
   assert.equal(sent.length,1);assert.equal(sent[0].args.p_recipient,'33333333-3333-4333-8333-333333333333');
   await page.screenshot({path:output+'/'+name+'-thread.png'});entry.screenshots.push(name+'-thread.png');
+  // The real Hub client receives a lost reply after the synthetic server commits.
+  await page.evaluate(()=>window.fixture.loseNextSend());
+  await page.getByRole('textbox',{name:'메시지 내용'}).fill('전송 결과 유실 테스트');
+  await page.getByRole('button',{name:'보내기',exact:true}).click();
+  await page.getByText('전송 상태를 확인하지 못했어요. 최신 대화를 확인해 주세요.').waitFor();
+  assert.equal(await page.getByRole('button',{name:'보내기',exact:true}).isDisabled(),true);
+  await page.evaluate(()=>window.fixture.failReadback(true));
+  await page.getByRole('button',{name:'최신 대화 확인',exact:true}).click();
+  await page.getByText('최신 대화를 확인하지 못했어요. 재전송 잠금을 유지해요.').waitFor();
+  assert.equal(await page.getByRole('button',{name:'중복 가능성 확인 · 재시도 허용',exact:true}).count(),0);
+  await page.evaluate(()=>{window.fixture.failReadback(false);window.fixture.close();window.fixture.open();});
+  await page.getByRole('button',{name:/검증 플레이어/}).first().click();
+  await page.waitForFunction(()=>!window.fixture.snapshot.busy);
+  assert.equal(await page.getByRole('button',{name:'보내기',exact:true}).isDisabled(),true);
+  await page.getByRole('button',{name:'최신 대화 확인',exact:true}).click();
+  await page.getByText('새 쪽지를 대화에서 확인해 주세요. 자동 재전송은 하지 않았어요.').waitFor();
+  await page.getByText('전송 결과 유실 테스트',{exact:true}).waitFor();
+  assert.equal(await page.getByRole('button',{name:'보내기',exact:true}).isDisabled(),true);
+  assert.equal((await calls(page)).filter(x=>x.name==='send_hub_message_v1').length,2);
+  await page.screenshot({path:output+'/'+name+'-uncertain-send.png'});entry.screenshots.push(name+'-uncertain-send.png');
+  entry.checks.push('lost send reply: no automatic duplicate, failed readback locks, close/reopen retains lock, matching server message suppresses retry');
   await page.getByRole('button',{name:'사용자 차단',exact:true}).click();
   await page.getByRole('button',{name:'차단 확정',exact:true}).click();
   await page.getByText('사용자를 차단했어요.').waitFor();

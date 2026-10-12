@@ -18,7 +18,7 @@ const B='22222222-2222-4222-8222-222222222222';
 const TARGET='33333333-3333-4333-8333-333333333333';
 const CONVERSATION='44444444-4444-4444-8444-444444444444';
 const DATE='2026-10-12T03:00:00.000Z';
-let active=A, held=null, delayList=false, counter=0;
+let active=A, held=null, delayList=false, counter=0, loseSend=false, failReadback=false;
 const calls=[];
 const other={userId:TARGET,nickname:'검증 플레이어',available:true,inhaVerified:true,title:'캠퍼스 회원',avatar:null};
 const state={
@@ -37,8 +37,8 @@ function payload(account,name,args={}) {
  if(name==='get_world_public_profile')return {...other,relationship:record.blocked?'blocked_by_me':'friends'};
  if(name==='send_hub_message_v1'){
   if(record.blocked)return {__error:'NOT_ALLOWED'};
-  record.messages.push({id:'sent-'+(++counter),senderId:account,body:args.p_body,deleted:false,createdAt:DATE});
-  record.archived=false;return {ok:true};
+  record.messages.push({id:'sent-'+(++counter),senderId:account,body:args.p_body,deleted:false,createdAt:new Date().toISOString()});
+  record.archived=false;const sent=record.messages.at(-1);return {conversationId:CONVERSATION,messageId:sent.id,senderId:account,body:sent.body,createdAt:sent.createdAt,newConversation:record.messages.length===1};
  }
  if(name==='report_hub_message_v1')return {ok:true};
  if(name==='block_world_user'){record.blocked=true;return {ok:true};}
@@ -51,7 +51,9 @@ const rpc=async(name,args)=>{
   delayList=false;
   return new Promise(resolve=>{held=()=>resolve({data:payload(account,name,args)});});
  }
+ if(failReadback && (name==='get_my_hub_conversations_v1'||name==='get_hub_messages_v1'))return {error:{message:'OFFLINE'}};
  const data=payload(account,name,args);
+ if(loseSend && name==='send_hub_message_v1'){loseSend=false;return {error:{message:'NETWORK_LOST_AFTER_COMMIT'}};}
  return data?.__error ? {error:{message:data.__error}} : {data};
 };
 const instance=createPhoneMessages({getClient:()=>({rpc}),onUnread:count=>{document.body.dataset.unread=String(count);}});
@@ -63,6 +65,8 @@ window.fixture=Object.freeze({
  close(){instance.close();host.replaceChildren();},
  switchAccount(id){active=id;instance.setAccount(id);},
  deferNextList(){delayList=true;},
+ loseNextSend(){loseSend=true;},
+ failReadback(value){failReadback=value;},
  release(){held?.();held=null;},
  get holding(){return Boolean(held);},
  get calls(){return [...calls];},

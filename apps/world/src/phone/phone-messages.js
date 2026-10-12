@@ -33,6 +33,12 @@ export function createPhoneMessages({ getClient, getFactory = loadHubMessagesFac
   let accountId = null, client = null, loading = null, host = null, active = false;
   let epoch = 0, view = 'inbox', current = null, thread = [], draft = '';
   let inbox = [], unread = 0, busy = false, notice = '', pendingRecipient = null;
+  // Keep unresolved writes across Close and A→B→A. No storage, RPC replay or account leakage.
+  const sends = new Map();
+  const sendKey = (owner, recipient) => owner + ':' + recipient;
+  const currentSend = () => current && sends.get(sendKey(accountId, current.other.userId));
+  const sendBlocked = body => {const held=currentSend();return held &&
+    (held.state!=='observed' || !String(body||'').trim() || String(body).trim()===held.body);};
   const el = (tag,cls='',value='') => {
     const node=doc.createElement(tag); node.className=cls; node.textContent=value; return node;
   };
@@ -111,10 +117,28 @@ export function createPhoneMessages({ getClient, getFactory = loadHubMessagesFac
     if(!current.blockedByMe && current.other.available!==false) {
       const form=el('form','phone-messages-composer');
       const field=el('textarea');field.maxLength=1000;field.rows=3;field.value=draft;field.placeholder='메시지를 입력하세요';field.setAttribute('aria-label','메시지 내용');
-      field.addEventListener('input',()=>{draft=field.value;});
-      const submit=button(busy?'처리 중…':'보내기',()=>{});submit.type='submit';submit.disabled=busy;
+      field.addEventListener('input',()=>{draft=field.value;submit.disabled=busy||Boolean(sendBlocked(draft));});
+      const held=currentSend();
+      const submit=button(busy?'처리 중…':'보내기',()=>{});submit.type='submit';submit.disabled=busy||Boolean(sendBlocked(draft));
       form.addEventListener('submit',event=>{event.preventDefault();if(!busy)void sendMessage(field.value);});
       form.append(field,submit);root.append(form);
+      if(held) {
+        const text=held.state==='pending'?'이전 전송 결과를 기다리고 있어요. 자동으로 다시 보내지 않아요.':
+          held.state==='observed'?'같은 내용의 새 쪽지가 확인됐어요. 같은 내용 재전송은 잠갔어요. 다른 내용의 새 쪽지는 보낼 수 있어요.':
+          '전송됐을 수도 있어요. 최신 대화를 확인하기 전에는 다시 보낼 수 없어요.';
+        root.append(el('p','phone-messages-notice',text));
+        if(held.state!=='pending' && held.state!=='observed') {
+          const check=button('최신 대화 확인',()=>{if(!busy)void checkUncertainSend();});check.disabled=busy;root.append(check);
+          if(held.state==='checked') {
+            root.append(el('p','phone-messages-notice','조회만으로 미전송을 확정할 수 없어요. 다시 보내면 중복될 수 있어요.'));
+            const retry=button('중복 가능성 확인 · 재시도 허용',()=>{
+              if(busy||currentSend()!==held||held.state!=='checked')return;
+              sends.delete(sendKey(accountId,current.other.userId));draft=held.body;
+              notice='내용을 확인한 뒤 보내기를 눌러 주세요.';render();
+            });root.append(retry);
+          }
+        }
+      }
     }
     const actions=el('div','phone-messages-controls');
     if(current.conversationId) actions.append(button('대화 보관',()=>{if(!busy)void archiveConversation();}));
@@ -160,7 +184,7 @@ export function createPhoneMessages({ getClient, getFactory = loadHubMessagesFac
   }
   async function openConversation(item) {
     if(!active || !accountId || busy)return;
-    const ticket=++epoch;view='thread';current=item;thread=[];draft='';notice='대화 불러오는 중…';render();
+    const ticket=++epoch;view='thread';current=item;thread=[];draft='';busy=true;notice='대화 불러오는 중…';render();
     try {
       const model=await getModel();if(!safe(ticket))return;
       const result=await model.thread(item.conversationId,100,null);if(!safe(ticket))return;
@@ -170,19 +194,63 @@ export function createPhoneMessages({ getClient, getFactory = loadHubMessagesFac
       if(read.outcome==='SUCCESS')notify(model.unreadCount);
       else if(read.outcome!=='STALE')notice='읽음 처리를 완료하지 못했어요.';
     } catch {if(safe(ticket))notice='대화를 불러오지 못했어요.';}
-    finally{if(safe(ticket))render();}
+    finally{if(safe(ticket)){busy=false;render();}}
   }
   async function sendMessage(body) {
-    if(!active || !accountId || busy || !current)return;
+    if(!active || !accountId || busy || !current || sendBlocked(body))return;
     draft=String(body).trim();
     if(!draft || draft.length>1000){notice=phoneMessageErrorText('INVALID_MESSAGE');render();return;}
-    const ticket=++epoch,target=current.other.userId;busy=true;notice='전송 중…';render();
+    const ticket=++epoch,target=current.other.userId,owner=accountId,key=sendKey(owner,target);
+    const attempt={state:'pending',body:draft,owner,target,startedAt:Date.now(),
+      conversationId:current.conversationId,knownIds:new Set(thread.map(message=>message.id))};
+    sends.set(key,attempt);busy=true;notice='전송 중…';render();
+    try {
+      const model=await getModel();if(!safe(ticket)){attempt.state='uncertain';return;}
+      const result=await model.send(target,attempt.body);
+      // Even a hidden or previous-account request must settle its own lock.
+      const receipt=result.data;
+      const confirmed=result.outcome==='SUCCESS' && typeof receipt?.messageId==='string' && receipt.messageId.length>0 &&
+        typeof receipt.conversationId==='string' && receipt.conversationId.length>0 &&
+        (!attempt.conversationId || receipt.conversationId===attempt.conversationId) &&
+        receipt.senderId===owner && receipt.body===attempt.body && Number.isFinite(Date.parse(receipt.createdAt));
+      if(confirmed)sends.delete(key);
+      else if(result.outcome==='FAILED' && result.code && result.code!=='FAILED')sends.delete(key);
+      else attempt.state='uncertain';
+      if(!safe(ticket))return;
+      if(!confirmed){
+        notice=sends.has(key)?'전송 상태를 확인하지 못했어요. 최신 대화를 확인해 주세요.':phoneMessageErrorText(result.code);return;
+      }
+      draft='';busy=false;await loadInbox({selectUserId:target});
+    } catch {attempt.state='uncertain';if(safe(ticket))notice='전송 결과를 확인하지 못했어요. 최신 대화를 확인해 주세요.';}
+    finally{if(safe(ticket)){busy=false;render();}else if(active && accountId===owner && current?.other.userId===target)render();}
+  }
+  async function checkUncertainSend() {
+    const attempt=currentSend();
+    if(!active||!attempt||busy||attempt.state==='pending'||attempt.state==='observed')return;
+    const ticket=++epoch;busy=true;attempt.state='uncertain';notice='최신 대화 확인 중…';render();
     try {
       const model=await getModel();if(!safe(ticket))return;
-      const result=await model.send(target,draft);if(!safe(ticket))return;
-      if(result.outcome!=='SUCCESS'){notice=result.code==='FAILED'?'전송 상태를 확인하지 못했어요. 재전송 전 쪽지함을 새로고침해 주세요.':phoneMessageErrorText(result.code);return;}
-      draft='';busy=false;await loadInbox({selectUserId:target});
-    } catch {if(safe(ticket))notice='전송 결과를 확인하지 못했어요. 재전송 전에 쪽지함을 확인해 주세요.';}
+      const listing=await model.list(100);if(!safe(ticket))return;
+      if(listing.outcome!=='READY')throw Error('Readback unavailable');
+      const item=listing.conversations.find(value=>value.other.userId===attempt.target);
+      const conversationId=item?.conversationId||attempt.conversationId;
+      let messages=[];
+      if(conversationId) {
+        const result=await model.thread(conversationId,100,null);if(!safe(ticket))return;
+        if(result.outcome!=='READY')throw Error('Readback unavailable');
+        messages=result.thread.messages;
+      }
+      if(item){current=item;view='thread';thread=messages;}
+      // A new server ID, sender, target thread, time and body are evidence, not an idempotency receipt.
+      // A second device could send identical text; conservatively suppress replay instead of claiming exact success.
+      const observed=messages.some(message=>!message.deleted && message.senderId===attempt.owner &&
+        !attempt.knownIds.has(message.id) && message.body===attempt.body &&
+        Number.isFinite(Date.parse(message.createdAt)) && Date.parse(message.createdAt)>=attempt.startedAt-5000 &&
+        Date.parse(message.createdAt)<=Date.now()+5000);
+      attempt.state=observed?'observed':'checked';
+      notice=observed?'새 쪽지를 대화에서 확인해 주세요. 자동 재전송은 하지 않았어요.':
+        '최신 대화를 불러왔어요. 전송 여부를 확인한 뒤 재시도를 결정해 주세요.';
+    } catch {if(safe(ticket))notice='최신 대화를 확인하지 못했어요. 재전송 잠금을 유지해요.';}
     finally{if(safe(ticket)){busy=false;render();}}
   }
   async function mutation(kind,id,other=null) {

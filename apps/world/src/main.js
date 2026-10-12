@@ -162,6 +162,7 @@ import { createProgressionHud, formatProgression, levelUpMessage } from "./progr
 import { createShopRouter } from "./shop/shop-router.js";
 import { SHOP_ROUTE_IDS } from "./shop/shop-routes.js";
 import { createShopEntryCompatibility } from "./shop/shop-entry-compat.js";
+import { createDormShopDialogue } from "./shop/dorm-shop-dialogue.js";
 import { createDormShopInteraction } from "./shop/dorm-shop-interaction.js";
 import { createStudentVendorInteraction } from "./shop/student-center-vendors.js";
 import { createShopPanel } from "./shop/shop-panel.js";
@@ -612,6 +613,9 @@ const fullMapInput = createInputFocusOwner({
 });
 const shopInput = createInputFocusOwner({
   manager: inputFocus, ownerId: "shop", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
+});
+const dormShopDialogueInput = createInputFocusOwner({
+  manager: inputFocus, ownerId: "dorm-shop-dialogue", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
 });
 const backgateTransitInput = createInputFocusOwner({
   manager: inputFocus, ownerId: "backgate-transit", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
@@ -1414,6 +1418,7 @@ const shopPanel = createShopPanel({
     activeShopAccess = null;
     shopEntry?.cancel();
     shopInput.release();
+    if (shop.shopId === "shop.dorm_furniture") refreshDormShopAction();
   }
 });
 const shopEntryBlocked = () => (!inputFocus.can("WORLD_ACTION") && !shopPanel.open) || rooms?.insideRoom === true || controller.mounted || combatRuntime.active ||
@@ -1431,15 +1436,38 @@ shopButton?.addEventListener("click", () => {
   void shopEntry.enter();
 });
 window.addEventListener("keydown", event => { if (event.code === "Escape") shopEntry.cancel(); });
+const dormShopDialogue = createDormShopDialogue({
+  onOpenChange: open => {
+    if (open) dormShopDialogueInput.acquire();
+    else {
+      dormShopDialogueInput.release();
+      // The shared HUD slot was hidden while dialogue owned input. Revalidate it synchronously
+      // before the greeting/shop restore focus, rather than focusing a hidden previous trigger.
+      refreshDormShopAction();
+    }
+  }
+});
 const dormShop = createDormShopInteraction({
+  dialogue: dormShopDialogue,
   getMode: () => shop.mode,
   getState: () => ({
     space: rooms?.currentSpace, position: player.getLocalPosition(), grounded: controller.grounded,
+    accountId: shop.accountId,
     available: shop.accountId !== null && online?.supabase != null,
-    blocked: shopPanel.open || controller.mounted || seats.isSeated || combatRuntime.active || rooms?.status().busy ||
-      lobbyWorld.active || lobbyTransition.active || !inputFocus.can("WORLD_ACTION")
+    invalid: controller.mounted || seats.isSeated || combatRuntime.active || rooms?.status().busy ||
+      lobbyWorld.active || lobbyTransition.active,
+    blocked: shopPanel.open || !inputFocus.can("WORLD_ACTION")
   }),
   openShop: shopId => openWorldShop(shopId, () => dormShop.canAccess())
+});
+function refreshDormShopAction() {
+  contextActions.set("dorm-furniture-shop", dormShop.contextAction());
+  contextActions.setSuspended(!inputFocus.can("WORLD_ACTION"));
+  contextActions.refresh();
+}
+const unbindDormShopAccount = shop.onChange(change => { if (change.reason === "account") dormShop.invalidate(); });
+const unbindDormShopFocus = inputFocus.subscribe(snapshot => {
+  if (dormShop.open && snapshot.topOwners.some(owner => owner !== "dorm-shop-dialogue")) dormShop.cancel();
 });
 function openWorldShop(shopId, canAccess) {
   if (!canAccess()) return false;
@@ -1959,7 +1987,7 @@ inkyungLivingMoment?.setZone(places.getCurrentPlaceZone?.()?.id ?? null);
 // Club Room P0: the main-hall entrance leads to a separate interior scene in this same app.
 // Only one space is active; the room is local-only (no Realtime) and nothing is stored.
 const clubRoom = createClubRoomScene(app);
-const dorm1Lobby = createDorm1LobbyScene(app);
+const dorm1Lobby = createDorm1LobbyScene(app, { player, camera });
 const personalRoomScene = createPersonalRoomScene(app);
 const mcmRoomScene = createMcm2026RoomScene(app);
 const roomScenes = new Map([
@@ -1992,6 +2020,7 @@ rooms = createRoomTransition({
     follow, stopFollowReason: FollowStopReason.ROOM, seating, seats, emotes,
     getOnline: () => online, places, streaming: { update: (dt, p) => streaming.update(dt, p) },
     closePanels: () => {
+      dormShop.cancel();
       cookingFeature?.reset();
       trophyDisplayPanel?.close({ restoreFocus: false });
       furnitureEditor?.forceClose();
@@ -2231,6 +2260,14 @@ window.addEventListener("pagehide", event => {
     biryongRealm?.dispose();
     biryongVillageDialogue?.destroy();
     biryongVillageNpcs?.destroy();
+  }
+});
+
+window.addEventListener("pagehide", event => {
+  dormShop.cancel();
+  if (!event.persisted) {
+    unbindDormShopAccount(); unbindDormShopFocus();
+    dormShop.destroy(); dorm1Lobby.shopVendor.destroy();
   }
 });
 
@@ -3382,6 +3419,7 @@ let lobbyHudSettledKey = null;
 app.on("update", (dt) => {
   syncAudio();
   photoMode.update();
+  dormShop.update();
   if (shopPanel.open && activeShopAccess && (rooms.status().busy || biryongRealm?.busy ||
       lobbyWorld.active || lobbyTransition.active || controller.mounted || combatRuntime.active || !activeShopAccess())) {
     shopPanel.setOpen(false);
@@ -3809,7 +3847,7 @@ window.addEventListener("pagehide", event => {
 });
 
 streaming.update(1, player.getLocalPosition());
-worldLoading?.setEssentialReady(true);
+// Essential readiness is granted only after the required character models settle.
 minimapReady = true;
 minimap?.update({ force: true });
 if (roomPreviewStart) rooms.enter("ROOM_CLUBHOUSE_01");
@@ -3843,11 +3881,17 @@ worldLoading?.setPhase("ASSETS");
 await waitForWorldRender({
   app,
   ready: character.ready.then(() => {
+    if (character.modelState !== "glb" || character.dragonModelState !== "glb") {
+      throw Object.assign(new Error("Required character model unavailable"), { code: "ASSET_LOAD_FAILED" });
+    }
+    worldLoading?.setEssentialReady(true);
     worldLoading?.setPhase("RENDERING");
     // The model swap changes eye height; apply the camera before counting rendered frames.
     if (lobbyWorld.active) lobbyWorld.update(0);
     else orbit.apply(player.getLocalPosition(), character.eyeHeight);
   }),
+  signal: globalThis.__INHA_WORLD_BOOT_RECOVERY__?.signal,
+  onProgress: () => globalThis.__INHA_WORLD_BOOT_RECOVERY__?.progress("RENDERING"),
   isSceneReady: () => streaming.pending.length === 0
 });
 worldLoading?.setRenderReady(true);
@@ -4041,6 +4085,7 @@ window.__INHAGAME_P0__ = {
       error: editorWorldStatus.error ?? null
     },
     loading: worldLoading?.status?.() ?? null,
+    bootRecovery: globalThis.__INHA_WORLD_BOOT_RECOVERY__?.status() ?? null,
     lobby: lobbyWorld.status(),
     resume: resumeStore.read(),
     backGateLock: { open: backGateLock.open, ...backGateLock.definition },
@@ -4187,7 +4232,11 @@ window.__INHAGAME_P0__ = {
 }
 
 boot().catch((error) => {
-  const unsupported = error instanceof GraphicsUnavailableError;
+  if (error?.code === "BOOT_CANCELLED") return; // Manual retry owns the next document.
+  const unsupported = error instanceof GraphicsUnavailableError && error.code !== "GRAPHICS_INIT_TIMEOUT";
+  globalThis.__INHA_WORLD_BOOT_RECOVERY__?.fail(["ASSET_LOAD_FAILED", "ASSET_LOADING_TIMEOUT", "INITIAL_RENDER_TIMEOUT", "GRAPHICS_INIT_TIMEOUT"].includes(error?.code) ? error.code
+    : unsupported || worldLoading?.status().phase === "RENDERER" ? "GRAPHICS_INIT_FAILED"
+    : worldLoading?.status().phase === "RENDERING" ? "INITIAL_RENDER_FAILED" : "BOOT_INIT_FAILED");
   worldLoading?.fail(
     unsupported ? "이 환경에서는 INHA WORLD 3D 렌더링을 사용할 수 없습니다." : "월드를 시작하지 못했습니다.",
     unsupported ? "브라우저와 그래픽 드라이버를 최신 상태로 업데이트한 뒤 다시 시도해 주세요." : undefined
@@ -4211,6 +4260,8 @@ boot().catch((error) => {
       activeZone: null,
       zones: null,
       position: null,
+      loading: worldLoading?.status?.() ?? null,
+      bootRecovery: globalThis.__INHA_WORLD_BOOT_RECOVERY__?.status() ?? null,
       error: String(error)
     })
   };

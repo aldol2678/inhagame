@@ -22,13 +22,15 @@ test('signout, account switch, cancel, newer entry, lost proximity and new modal
  const guest=harness();guest.state.available=false;assert.equal(await guest.entry.enter(),false);assert.deepEqual(guest.calls,[]);assert.match(guest.messages[0],/로그인/);
  const latest=harness(),first=deferred();let n=0;latest.shop.refresh=()=>++n===1?first.promise:Promise.resolve();const old=latest.entry.enter();assert.equal(await latest.entry.enter(),true);first.resolve();assert.equal(await old,false);assert.deepEqual(latest.calls,['legacy']);
 });
-test('split actor and dorm callbacks fail closed on every later capability downgrade',()=>{
+test('split campus actors fail closed in legacy; dorm greeting supports legacy and split only',()=>{
  let mode='split';let calls=0;const v=STUDENT_CENTER_VENDORS[0];
  const vendor=createStudentVendorInteraction({getMode:()=>mode,getPosition:()=>({...v.position,y:v.position.y+WALK_SHAPE.footOffset}),getBlocked:()=>false,getNpcReady:()=>true,getAvailable:()=>true,openShop:()=>{calls++;return true}});
- const dorm=createDormShopInteraction({getMode:()=>mode,getState:()=>({space:'ROOM_DORM1_LOBBY',position:{x:0,z:.85},grounded:true,available:true}),openShop:()=>{calls++;return true}});
+ const dialogue={show(view){this.view=view;return true},close(){}};
+ const dorm=createDormShopInteraction({dialogue,getMode:()=>mode,getState:()=>({space:'ROOM_DORM1_LOBBY',position:{x:0,z:.85},grounded:true,available:true,accountId:'a'}),openShop:()=>{calls++;return true}});
  const a=vendor.observe(),b=dorm.contextAction();assert.ok(a&&b);
- for(mode of ['legacy','checking','unavailable']){assert.equal(vendor.observe(),null);assert.equal(dorm.contextAction(),null);assert.equal(a.trigger(),false);assert.equal(b.trigger(),false);assert.equal(vendor.canAccess(v.shopId),false);assert.equal(dorm.canAccess(),false);}
- assert.equal(calls,0);mode='split';assert.equal(a.trigger(),true);assert.equal(b.trigger(),true);
+ for(mode of ['checking','unavailable']){assert.equal(vendor.observe(),null);assert.equal(dorm.contextAction(),null);assert.equal(a.trigger(),false);assert.equal(b.trigger(),false);assert.equal(vendor.canAccess(v.shopId),false);assert.equal(dorm.canAccess(),false);}
+ assert.equal(calls,0);mode='legacy';assert.equal(vendor.observe(),null);assert.equal(a.trigger(),false);assert.equal(b.trigger(),true);assert.equal(calls,0);assert.equal(dialogue.view.onBrowse(),true);
+ mode='split';assert.equal(a.trigger(),true);assert.equal(b.trigger(),true);assert.equal(dialogue.view.onBrowse(),true);assert.equal(calls,3);
 });
 test('capability outage admits only existing receipt recovery, never a new legacy purchase',async()=>{
  let recovered=0,legacy=0;const shop={mode:'unavailable',accountId:'a',unresolvedOffers:[{listingId:'dorm.uncertain'}],refresh:async()=>false};

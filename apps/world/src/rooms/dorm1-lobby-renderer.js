@@ -2,6 +2,7 @@
 // Built once and toggled through the generic Room transition adapter.
 
 import * as pc from "playcanvas";
+import { createDormShopVendorRenderer } from "./dorm-shop-vendor-renderer.js";
 import { box, surface } from "../campus-render-kit.js";
 import { DORM_1_LOBBY, DORM_1_LOBBY_FURNITURE } from "./dorm1-lobby-layout.js";
 
@@ -48,7 +49,7 @@ function furniture(root, item) {
   }
 }
 
-export function createDorm1LobbyScene(app) {
+export function createDorm1LobbyScene(app, { player, camera } = {}) {
   const root = new pc.Entity("Room_ROOM_DORM1_LOBBY");
   root.setLocalScale(1, 1, -1);
 
@@ -106,7 +107,9 @@ export function createDorm1LobbyScene(app) {
 
   root.enabled = false;
   app.root.addChild(root);
+  const shopVendor = createDormShopVendorRenderer({ app, root, player, camera });
   return {
+    shopVendor,
     root,
     lights,
     ambient: new pc.Color(0.42, 0.41, 0.39),
