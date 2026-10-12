@@ -162,8 +162,14 @@ export function createShopPanel({
 
   async function showDetailPreview(itemId) {
     const epoch = previewEpoch;
+    if (thumbnailsBusy) return; // Never rotate the renderer during a capture.
     const engine = await ensurePreview();
-    if (!engine || epoch !== previewEpoch || !open || !detailListingId) return;
+    if (!engine) {
+      const fallback = panel.querySelector?.(".shop-showroom-preview-fallback");
+      if (fallback) fallback.textContent = "이 기기에서는 3D 미리보기를 사용할 수 없어요.";
+      return;
+    }
+    if (epoch !== previewEpoch || !open || !detailListingId) return;
     const selected = shop.snapshot?.offers.find(offer => offer.listingId === detailListingId);
     if (selected?.itemId !== itemId) return;
     const stage = panel.querySelector?.(".shop-showroom-stage");
