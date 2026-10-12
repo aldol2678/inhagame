@@ -4,12 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { ACCESS_STATE, createJeongseokAccessClient, parseAccessSnapshot, parsePurchaseResult } from '../src/jeongseok/access-client.js';
 import { createJeongseokGateController, GATE_STATE } from '../src/jeongseok/gate-controller.js';
 import { gateContextAction, gateMessage } from '../src/jeongseok/gate-panel.js';
-import { JEONGSEOK_FOOTPRINT, JEONGSEOK_GATE, nearJeongseokGate } from '../src/jeongseok/gate-layout.js';
-import { polygonOverlap } from '../src/polygon-collision.js';
-import { getPlaceZoneAt } from '../src/place-zone-registry.js';
-import { isRoomId, ROOM_ENTRANCES, ROOMS } from '../src/rooms/room-registry.js';
-import { createRoomTransition } from '../src/rooms/room-transition.js';
-import { createJeongseokEntryPolicy, JEONGSEOK_ACCESS_POLICY_KEY } from '../src/jeongseok/entry-policy.js';
+import { JEONGSEOK_GATE, JEONGSEOK_GUIDE, nearJeongseokGate } from '../src/jeongseok/gate-layout.js';
 
 const A = '0a000000-0000-4000-8000-00000000000a', B = '0b000000-0000-4000-8000-00000000000b';
 const NOW = '2026-10-12T03:00:00.000Z', LATER = '2026-10-13T03:00:00.000Z';
@@ -114,6 +109,35 @@ test('lost purchase reply is recovered with the same key; a definitive refusal f
   assert.deepEqual([client2.view().purchaseError, client2.view().pendingKey], ['INSUFFICIENT_FUNDS', false]);
 });
 
+for (const switchBack of [false, true]) test(`purchase account boundary is checked before dispatch${switchBack ? ' even after A → B → A' : ''}`, async () => {
+  const storage = memoryStorage(), calls = [];
+  let session = A;
+  const access = createJeongseokAccessClient({ storage: () => storage, newKey: () => 'jsl:a-before-dispatch',
+    getClient: () => {
+      const dispatchedAccount = session;
+      return { rpc: async (name, args) => {
+        calls.push({ name, args, account: dispatchedAccount });
+        return name === 'get_jeongseok_access_v1' ? { data: read({ userId: dispatchedAccount }) }
+          : { data: receipt(args.p_idempotency_key, dispatchedAccount) };
+      } };
+    }
+  });
+  await access.setAccount(A);
+  const pending = access.purchase();
+  session = B;
+  const toB = access.setAccount(B);
+  let toA;
+  if (switchBack) { session = A; toA = access.setAccount(A); }
+  assert.equal(await pending, null);
+  await toB; await toA;
+  assert.equal(calls.filter(call => call.name === 'purchase_jeongseok_pass_v1').length, 0,
+    'the original purchase cannot use a changed live client session');
+  assert.equal(storage.getItem(`inha-world:jeongseok-pass-key:${A}`), 'jsl:a-before-dispatch', 'A recovery key stays scoped to A');
+  assert.equal(access.view().purchasing, false);
+  assert.equal(access.accountId, switchBack ? A : B);
+  assert.equal(access.view().pendingKey, switchBack, 'B never sees A pending key');
+});
+
 test('gate reload: a stored unresolved key can be replayed from IDLE, with no new charge key', async () => {
   const storage = memoryStorage();
   storage.setItem(`inha-world:jeongseok-pass-key:${A}`, 'jsl:pre-reload');
@@ -135,7 +159,7 @@ test('gate reload: a stored unresolved key can be replayed from IDLE, with no ne
   assert.equal(purchases.length, 1, 'one replay only');
   assert.equal(purchases[0].args.p_idempotency_key, 'jsl:pre-reload');
   assert.equal(access.view().pendingKey, false, 'successful replay clears saved key');
-  assert.equal(gate.state, GATE_STATE.SCANNING, 'fresh server grant drives the animation');
+  assert.equal(gate.state, GATE_STATE.IDLE, 'recovery at the guide never tags or opens the gate');
 });
 
 test('pending key is account scoped: B never replays A\'s request', async () => {
@@ -173,12 +197,12 @@ test('gate: READY_TO_ENTER re-verifies; a pass that expired meanwhile is refused
   const timers = [];
   let entered = 0;
   const gate = createJeongseokGateController({ access, setTimer: fn => { timers.push(fn); return timers.length; }, clearTimer: () => {},
-    onEnter: () => { entered++; return { status: 'PENDING_JSL_B' }; } });
+    onEnter: () => { entered++; return { status: 'INNER_ACCESS_GRANTED' }; } });
   await gate.start();
   timers.shift()(); timers.shift()(); timers.shift()();
   assert.equal(gate.state, GATE_STATE.READY_TO_ENTER);
   const outcome = await gate.enter();
-  assert.deepEqual([outcome.status, entered, gate.snapshot().notice], ['PENDING_JSL_B', 1, 'PENDING_JSL_B']);
+  assert.deepEqual([outcome.status, entered, gate.snapshot().notice], ['INNER_ACCESS_GRANTED', 1, 'INNER_ACCESS_GRANTED']);
   current = read({ decision: 'EXPIRED', pass: pass(false) });
   const calls = server.calls.length;
   assert.equal(await gate.enter(), null);
@@ -214,7 +238,7 @@ test('gate: refusals map to their states and never reach onEnter', async () => {
   assert.equal(guest.state, GATE_STATE.AUTH_REQUIRED);
 });
 
-test('gate: purchase → fresh read → tag; double click buys once; cancel is blocked while paying', async () => {
+test('guide: purchase → fresh read without tag; double click buys once; cancel is blocked while paying', async () => {
   let after = read(), release;
   const server = fakeServer({
     get_jeongseok_access_v1: async () => ({ data: after }),
@@ -234,7 +258,7 @@ test('gate: purchase → fresh read → tag; double click buys once; cancel is b
   assert.equal(await second, false);
   await first;
   assert.equal(server.calls.filter(c => c.name === 'purchase_jeongseok_pass_v1').length, 1, 'one purchase RPC');
-  assert.equal(gate.state, GATE_STATE.SCANNING, 'tag starts only after the fresh server read');
+  assert.equal(gate.state, GATE_STATE.IDLE, 'the reader must be tagged separately after guide purchase');
   assert.equal(gate.snapshot().notice, 'ISSUED');
 });
 
@@ -267,52 +291,50 @@ test('gate: cancel before paying makes no purchase call; account switch resets',
 test('context action labels follow the gate state', () => {
   const base = { busy: false };
   assert.equal(gateContextAction({ ...base, state: 'IDLE' }, { distance: 1 }).label, '학생증 태그');
-  assert.equal(gateContextAction({ ...base, state: 'NEEDS_PASS' }, { distance: 1 }).label, '방문증 안내');
-  assert.equal(gateContextAction({ ...base, state: 'READY_TO_ENTER' }, { distance: 1 }).label, '정석 입장');
+  assert.equal(gateContextAction({ ...base, state: 'NEEDS_PASS' }, { distance: 1 }).label, '출입 다시 확인');
+  assert.equal(gateContextAction({ ...base, state: 'READY_TO_ENTER' }, { distance: 1 }).label, '내부 게이트 통과');
   assert.equal(gateContextAction({ ...base, state: 'IDLE' }, { distance: 1 }).priority, 155);
 });
 
-test('temporary reader derives from canonical bldg_jungseok geometry and opens no room', () => {
+test('reader and fictional guide are separate public-lobby anchors', () => {
   assert.equal(JEONGSEOK_GATE.classification, 'GAME_ADAPTATION');
   assert.equal(JEONGSEOK_GATE.status, 'TEMPORARY');
-  assert.equal(JEONGSEOK_GATE.interiorLink, 'PENDING_JSL_B');
-  assert.equal(polygonOverlap(JEONGSEOK_GATE.position.x, JEONGSEOK_GATE.position.z, JEONGSEOK_FOOTPRINT), false, 'reader is outside the facade');
-  assert.equal(getPlaceZoneAt(JEONGSEOK_GATE.position).id, 'AREA_JUNGSEOK_WOONAM');
+  assert.equal(JEONGSEOK_GATE.interiorLink, 'PUBLIC_LOBBY_INTERNAL_GATE');
+  assert.equal(JEONGSEOK_GATE.space, 'ROOM_JEONGSEOK_LOBBY');
+  assert.deepEqual(JEONGSEOK_GATE.position, { x: 0, y: 0, z: -4 });
+  assert.equal(JEONGSEOK_GATE.radius, 1.1);
   assert.equal(nearJeongseokGate(JEONGSEOK_GATE.position), 0);
-  assert.equal(nearJeongseokGate({ x: JEONGSEOK_GATE.position.x + 5, z: JEONGSEOK_GATE.position.z }), null);
-  // JSL-B can register a room without authorizing entry: missing and default CLOSED policies refuse it.
-  const roomId = 'ROOM_JEONGSEOK_LOBBY';
-  assert.equal(isRoomId(roomId), true);
-  assert.equal(ROOMS[roomId].access, JEONGSEOK_ACCESS_POLICY_KEY);
-  assert.ok(ROOM_ENTRANCES.some(e => e.roomId === roomId));
-  const closed = createJeongseokEntryPolicy();
-  assert.equal(closed.allowsEntry(), false);
-  assert.equal(closed.acceptServerGrant(granted()), false);
-  for (const accessPolicies of [{}, { [JEONGSEOK_ACCESS_POLICY_KEY]: closed.predicate }]) {
-    const rooms = createRoomTransition({ world: {}, accessPolicies });
-    assert.equal(rooms.enter(roomId), false);
-    assert.equal(rooms.currentSpace, 'campus');
-  }
+  assert.equal(nearJeongseokGate({ x: 0, z: -3.0 }), null, 'reader cannot be triggered behind the gate');
+  assert.equal(JEONGSEOK_GUIDE.space, JEONGSEOK_GATE.space);
+  assert.deepEqual(JEONGSEOK_GUIDE.position, { x: -4.5, y: 0, z: -4.8 });
+  assert.equal(JEONGSEOK_GUIDE.radius, 1.2);
+  assert.equal(JEONGSEOK_GUIDE.fictional, true);
+  assert.equal(nearJeongseokGate(JEONGSEOK_GUIDE.position), null, 'guide is outside reader radius');
+  assert.equal(nearJeongseokGate(JEONGSEOK_GATE.position, JEONGSEOK_GUIDE), null);
+  assert.equal(nearJeongseokGate(JEONGSEOK_GUIDE.position, JEONGSEOK_GUIDE), 0);
 });
 
-test('integration stays closed by default and never computes balances or rights', async () => {
-  const main = await readFile(new URL('../src/main.js', import.meta.url), 'utf8');
+test('feature separates live guide proximity from reader entry and never computes rights', async () => {
   const feature = await readFile(new URL('../src/jeongseok/jeongseok-feature.js', import.meta.url), 'utf8');
   const client = await readFile(new URL('../src/jeongseok/access-client.js', import.meta.url), 'utf8');
-  assert.match(main, /const jeongseokGatePreview = previewHost && startupParams\.get\('jeongseok'\) === 'jsl-a';/);
-  assert.match(main, /isEnabled: \(\) => jeongseokGatePreview/);
-  assert.match(main, /void jeongseok\.setAccount\(identity \? online\?\.userId \?\? null : null\);/);
-  assert.match(main, /void wallet\.refresh\("jeongseok-pass"\)/);
-  assert.match(feature, /onEnter: \(\) => \(\{ status: JEONGSEOK_INTERIOR_STATUS \}\)/);
-  assert.match(feature, /JEONGSEOK_INTERIOR_STATUS = "PENDING_JSL_B"/);
-  assert.match(main, /resolveJeongseokEntryMode\(\{ previewHost, params: startupParams \}\)/);
+  const phone = await readFile(new URL('../src/phone/smartphone.js', import.meta.url), 'utf8');
+  assert.match(feature, /canTag: atReader, canGuide: atGuide, canPurchase: atGuide/);
+  assert.match(feature, /onEnter: snapshot => atReader\(\) \? onEnter\(snapshot\)/);
+  assert.match(feature, /getContext \? getContext\(\) : lastContext/);
   assert.doesNotMatch(feature + client, /rooms\.enter|enterNested|teleport\(|\.channel\(|'world:room:|"world:room:/);
   assert.doesNotMatch(client, /balance\s*-\s*|-\s*price|\+\s*86400|Date\.now\(\)\s*\+\s*\d/);
+  assert.match(phone, /pendingKey.*v\.atGuide/);
+  assert.match(phone, /if\(!v\.atGuide\)/);
+  assert.match(phone, /passDuration\(o\.durationSeconds\)/);
+  assert.doesNotMatch(phone, /방문증은 정석학술정보관 앞 가상 리더기/);
 });
 
 test('gate copy joins notices readably and never invents a shortfall', () => {
   assert.equal(gateMessage({ state: 'GRANTED', via: 'VISITOR_PASS', notice: 'RECOVERED' }), '가상 정석 방문증 · 출입 승인 · 이전에 발급된 방문증을 확인했어요.');
-  assert.match(gateMessage({ state: 'READY_TO_ENTER', notice: 'PENDING_JSL_B' }), /^게이트가 열렸어요\. 출입 자격이 서버에서 다시 확인됐어요/);
+  assert.match(gateMessage({ state: 'READY_TO_ENTER', notice: 'ENTERING' }), /^태그를 확인했어요/);
+  assert.doesNotMatch(gateMessage({ state: 'READY_TO_ENTER' }), /열렸|열리고/);
+  assert.doesNotMatch(gateMessage({ state: 'OPENING' }), /열렸|열리고/);
+  assert.match(gateMessage({ state: 'READY_TO_ENTER', notice: 'INNER_ACCESS_GRANTED' }), /다시 확인됐어요.*통과/);
   assert.equal(gateMessage({ state: 'INSUFFICIENT_FUNDS', offer: null }), '인덕코인이 부족해 방문증을 발급할 수 없어요.');
-  assert.equal(gateMessage({ state: 'DISABLED', decision: 'COMING_SOON' }), '정석학술정보관 출입은 준비 중이에요.');
+  assert.equal(gateMessage({ state: 'DISABLED', decision: 'COMING_SOON' }), '정석학술정보관 내부 게이트는 준비 중이에요.');
 });

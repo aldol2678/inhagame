@@ -2,8 +2,8 @@
 // Players call the Data API (PostgREST) with minted JWTs exactly as the browser does, so racing
 // purchases use real pooled connections. Fixtures, seed credits and readback use psql.
 //
-// The gate policy and pass product ship COMING_SOON. This file opens both on the local stack only
-// and restores the shipped state afterwards.
+// The gate policy and confirmed 100-coin / 24h pass product ship COMING_SOON. This file opens
+// both on the local stack only and restores their original rollout statuses afterwards.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile, execFileSync } from 'node:child_process';
@@ -90,15 +90,33 @@ async function buy(token, key, passType = PASS, extra = {}) {
   return r.status === 200 ? { ok: true, value: r.body } : { ok: false, status: r.status, error: r.body?.message ?? r.body };
 }
 
-test.before(() => {
+let rolloutBefore = null;
+test.before(async () => {
+  rolloutBefore = JSON.parse(sqlSync(`select json_build_object(
+    'gateStatus', (select status from private.world_jeongseok_gate_policy where singleton),
+    'product', (select row_to_json(c) from private.world_jeongseok_pass_catalog c where pass_type = ${lit(PASS)}))`));
+  assert.deepEqual(rolloutBefore, {
+    gateStatus: 'COMING_SOON',
+    product: { pass_type: PASS, duration_seconds: 86400, currency_id: COIN, price: 100,
+      price_basis: 'CONFIRMED', status: 'COMING_SOON' },
+  }, 'policy confirmation preserves the closed rollout');
+  const dormantUser = createUser();
+  const dormantAccess = await access(jwt(dormantUser));
+  assert.deepEqual([dormantAccess.decision, dormantAccess.granted, dormantAccess.offer], ['COMING_SOON', false, null]);
+  assert.equal((await buy(jwt(dormantUser), `jsl:${randomUUID()}`)).error, 'JEONGSEOK_GATE_UNAVAILABLE');
+  assert.equal(debits(dormantUser), 0, 'confirmed terms alone never charge a player');
   sqlSync(`update private.world_jeongseok_gate_policy set status = 'ACTIVE'`);
-  // Local fixture only. Production/migration default stays CANDIDATE + COMING_SOON.
-  sqlSync(`update private.world_jeongseok_pass_catalog set price_basis = 'CONFIRMED', status = 'ACTIVE' where pass_type = ${lit(PASS)}`);
+  // Local fixture activation only. The migration default remains CONFIRMED + COMING_SOON.
+  sqlSync(`update private.world_jeongseok_pass_catalog set status = 'ACTIVE' where pass_type = ${lit(PASS)}`);
 });
 test.after(() => {
   if (users.length) sqlSync(`delete from auth.users where id in (${users.map(lit).join(', ')})`);
-  sqlSync(`update private.world_jeongseok_gate_policy set status = 'COMING_SOON'`);
-  sqlSync(`update private.world_jeongseok_pass_catalog set status = 'COMING_SOON', price_basis = 'CANDIDATE' where pass_type = ${lit(PASS)}`);
+  if (rolloutBefore) {
+    sqlSync(`update private.world_jeongseok_gate_policy set status = ${lit(rolloutBefore.gateStatus)} where singleton`);
+    sqlSync(`update private.world_jeongseok_pass_catalog set status = ${lit(rolloutBefore.product.status)} where pass_type = ${lit(PASS)}`);
+    const restored = JSON.parse(sqlSync(`select row_to_json(c) from private.world_jeongseok_pass_catalog c where pass_type = ${lit(PASS)}`));
+    assert.deepEqual(restored, rolloutBefore.product, 'integration cleanup preserves the confirmed catalog');
+  }
 });
 
 test('verified account enters free; general account buys once, a fresh session reads the same right', async () => {

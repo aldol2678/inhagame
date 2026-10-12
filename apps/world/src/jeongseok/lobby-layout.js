@@ -7,7 +7,7 @@
 // slots that can be moved without touching the shell. 1 world unit ≈ 2 m.
 
 import { GAME_ADAPTATION, SOURCE_CLASS, traced } from "./interior-evidence.js";
-import { PORTAL_WALL_INSET, anchor, freezeLayout, item, itemObstacle, shellBounds, shellObstacles } from "./interior-kit.js";
+import { PORTAL_WALL_INSET, anchor, boxOf, freezeLayout, item, itemObstacle, shellBounds, shellObstacles } from "./interior-kit.js";
 
 export const JEONGSEOK_LOBBY_ROOM_ID = "ROOM_JEONGSEOK_LOBBY";
 
@@ -44,7 +44,7 @@ export const JEONGSEOK_LOBBY_GATE_SLOT = Object.freeze({
   placement: GAME_ADAPTATION("lane count, widths and position are replaceable")
 });
 
-/** Gate cabinets, flaps and side barriers for a slot. Flaps are visual only. */
+/** Gate modules. A separate full-height runtime barrier below guards the closed row. */
 export function gateRow(slot = JEONGSEOK_LOBBY_GATE_SLOT) {
   const { center, lanes, cabinet } = slot;
   const total = lanes.reduce((sum, lane) => sum + lane, 0) + cabinet.width * (lanes.length + 1);
@@ -79,11 +79,13 @@ const plantTrace = traced(SOURCE_CLASS.HISTORICAL, LOBBY_2015, "indoor planting;
 
 const items = [
   ...gate.items,
+  item("public_guide_npc", "guide_npc", [-4.5, 0, -4.8], [0.44, 0.95, 0.44],
+    GAME_ADAPTATION("fictional game guide beside the public-side gate; not a real employee")),
   // Side planters close the gap between the barriers and the walls (no bypass around the lanes).
   item("planter_gate_w", "planter", [-(gate.halfSpan + (8.0 - gate.halfSpan)) - 1.5, 0, -3.2], [3.0, 0.5, 1.1], plantTrace),
   item("planter_gate_e", "planter", [8.0 + 1.5, 0, -3.2], [3.0, 0.5, 1.1], plantTrace),
-  item("info_desk", "info_desk", [-6.0, 0, -0.2], [3.2, 0.55, 1.0],
-    traced(SOURCE_CLASS.HISTORICAL, LOBBY_2015, "information counter near the gates; replaceable slot")),
+  item("info_desk", "info_desk", [-6.8, 0, -4.8], [3.2, 0.55, 1.0],
+    traced(SOURCE_CLASS.HISTORICAL, LOBBY_2015, "information counter; public-side placement is GAME_ADAPTATION")),
   item("search_kiosk_1", "search_kiosk", [6.2, 0, -0.4], [0.55, 0.75, 0.45],
     GAME_ADAPTATION("generic book search terminal; screen shows no real catalogue UI")),
   item("search_kiosk_2", "search_kiosk", [7.4, 0, -0.4], [0.55, 0.75, 0.45],
@@ -105,6 +107,26 @@ const items = [
 const portalTrace = GAME_ADAPTATION("temporary floor transfer; does NOT claim a real stair or elevator here");
 
 export const JEONGSEOK_LOBBY_SPAWN = anchor(0, -5.6, 0, GAME_ADAPTATION("arrival just inside the entry doors"));
+// Safe destination for every B1 return, revocation and unauthorized restored position.
+export const JEONGSEOK_PUBLIC_RETURN = JEONGSEOK_LOBBY_SPAWN;
+export const JEONGSEOK_INNER_BOUNDARY_Z = JEONGSEOK_LOBBY_GATE_SLOT.center.z;
+export const isJeongseokProtectedPosition = p => !!p && Number.isFinite(p.z) && p.z > JEONGSEOK_INNER_BOUNDARY_Z;
+// Invisible full-height safety collision closes the actual runtime row, including jump/side
+// routes. It is removed only by the local account-bound gate session, never by proximity.
+export const JEONGSEOK_CLOSED_GATE = boxOf("jsl_lobby_closed_gate", -W, W,
+  JEONGSEOK_INNER_BOUNDARY_Z - 0.08, JEONGSEOK_INNER_BOUNDARY_Z + 0.08, 0, JEONGSEOK_LOBBY.ceiling);
+export function jeongseokLobbyObstacles(open = false) {
+  return JEONGSEOK_LOBBY_LAYOUT.obstacles.filter(box => open && box.id === JEONGSEOK_CLOSED_GATE.id ? false : true);
+}
+// Mutable instance per live scene; the shared array is consumed by player and camera collision.
+export function createJeongseokLobbyCollision(open = false) {
+  const obstacles = jeongseokLobbyObstacles(open);
+  return { obstacles, setGateAccess(allowed) {
+    const index = obstacles.findIndex(box => box.id === JEONGSEOK_CLOSED_GATE.id);
+    if (allowed === true && index >= 0) obstacles.splice(index, 1);
+    else if (allowed !== true && index < 0) obstacles.push(JEONGSEOK_CLOSED_GATE);
+  } };
+}
 export const JEONGSEOK_LOBBY_EXIT = Object.freeze({
   id: "JEONGSEOK_LOBBY_CAMPUS_DOOR", position: Object.freeze({ x: 0, z: -D + PORTAL_WALL_INSET }), radius: 1.1,
   trace: GAME_ADAPTATION("front door slot; real door count/position UNKNOWN")
@@ -115,11 +137,11 @@ export const JEONGSEOK_LOBBY_PORTALS = Object.freeze([
   Object.freeze({ id: "JEONGSEOK_LOBBY_TO_B1_READING", target: "ROOM_JEONGSEOK_B1_READING", kind: "nested",
     icon: "⬇️", label: "B1 제2열람실로 이동 (임시 층간 이동)",
     position: Object.freeze({ x: -5.5, z: D - PORTAL_WALL_INSET }), radius: 1.1,
-    returnAnchor: anchor(-5.5, D - 2.0, 180, portalTrace), trace: portalTrace }),
+    returnAnchor: JEONGSEOK_PUBLIC_RETURN, trace: portalTrace }),
   Object.freeze({ id: "JEONGSEOK_LOBBY_TO_B1_CREATIVE", target: "ROOM_JEONGSEOK_B1_CREATIVE", kind: "nested",
     icon: "⬇️", label: "B1 Creative Space로 이동 (임시 층간 이동)",
     position: Object.freeze({ x: 5.5, z: D - PORTAL_WALL_INSET }), radius: 1.1,
-    returnAnchor: anchor(5.5, D - 2.0, 180, portalTrace), trace: portalTrace })
+    returnAnchor: JEONGSEOK_PUBLIC_RETURN, trace: portalTrace })
 ]);
 
 export const JEONGSEOK_LOBBY_LAYOUT = freezeLayout({
@@ -129,6 +151,7 @@ export const JEONGSEOK_LOBBY_LAYOUT = freezeLayout({
   gateLanes: gate.laneCenters,
   obstacles: [
     ...shellObstacles("jsl_lobby", JEONGSEOK_LOBBY),
+    JEONGSEOK_CLOSED_GATE,
     ...items.filter(entry => entry.collide).map(entry => itemObstacle("jsl_lobby", entry))
   ],
   bounds: shellBounds(JEONGSEOK_LOBBY),

@@ -1,13 +1,14 @@
 // JSL-A Jeongseok gate browser QA against the disposable LOCAL Supabase stack only.
 // Real /campus/ + production controllers, real local Auth/PostgREST, signed-in permanent accounts.
-// It opens the gate policy and pass product on the local stack and restores COMING_SOON afterwards.
+// It opens the gate policy and pass product on the local stack and restores their prior states afterwards.
 //
 //   eval "$(supabase status -o env)"; export API_URL ANON_KEY DB_URL SERVICE_ROLE_KEY
 //   JSL_HEAD_SHA=$(git rev-parse HEAD) WORLD_SMOKE_DISABLE_WEBGPU=1 node apps/world/tests/browser/jeongseok-gate-smoke.mjs
 //
-// Scope: Chromium desktop + mobile touch emulation (not physical devices). The interior is JSL-B:
-// entry is expected to re-verify on the server and stay on campus (PENDING_JSL_B).
+// Scope: Chromium desktop + mobile touch emulation (not physical devices). Public lobby is free;
+// the public-side guide sells passes, and the inner reader re-verifies before opening real collision.
 import assert from 'node:assert/strict';
+import { installJeongseokServerMode } from './jeongseok-synthetic-access.mjs';
 import { execFileSync, spawn } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
@@ -24,8 +25,9 @@ if (process.env.JSL_HEAD_SHA) assert.equal(head, process.env.JSL_HEAD_SHA, 'JSL_
 const output = 'test-results/jeongseok-gate'; await mkdir(output, { recursive: true });
 const report = { head, status: 'RUNNING', cases: [], limits: [
   'Chromium (SwiftShader WebGL2) desktop and mobile touch emulation only; not physical Android/iOS.',
-  'Interior entry is PENDING_JSL_B: only server re-verification and staying on campus are checked.',
-  'Reader position is the TEMPORARY GAME_ADAPTATION anchor, not a surveyed gate.'] };
+  'Local Supabase fixture only: no Production authorization, price or wallet claim.',
+  'Shipped rollout is CLOSED. Loopback-only constructor DI enables SERVER_GRANT; all access RPCs, policy and runtime collision remain real.',
+    'Inner reader and guide use GAME_ADAPTATION lobby anchors, not surveyed real-world positions.'] };
 const save = () => writeFile(`${output}/report.json`, JSON.stringify(report, null, 2));
 
 const sql = q => execFileSync('psql', [DB_URL, '-v', 'ON_ERROR_STOP=1', '-Atq', '-c', q], { encoding: 'utf8' }).trim();
@@ -83,6 +85,7 @@ async function openWorld(entry, { viewport, mobile = false, account = null }) {
       return route.fulfill({ status: 200, contentType: 'text/javascript; charset=utf-8', body: supabaseJs });
     return route.abort('blockedbyclient');
   });
+  entry.rolloutFixture = await installJeongseokServerMode(context);
   const page = await context.newPage(); page.setDefaultTimeout(60000); currentPage = page;
   page.on('pageerror', e => problems.push(`pageerror: ${e.message}`));
   await page.goto(`${origin}/campus/?jeongseok=jsl-a&envTime=day&envWeather=clear`, { waitUntil: 'domcontentloaded' });
@@ -95,27 +98,46 @@ async function openWorld(entry, { viewport, mobile = false, account = null }) {
   currentClose = close;
   return { context, page, problems, close };
 }
-const P0 = 'window.__INHAGAME_P0__';
+const LOBBY = 'ROOM_JEONGSEOK_LOBBY';
 const gateState = page => page.evaluate(() => window.__INHAGAME_P0__.jeongseok.gate.snapshot());
 const phone = page => page.evaluate(() => window.__INHAGAME_P0__.smartphone.status());
 async function frames(page, count = 3) {
   const at = await page.evaluate(() => window.__INHAGAME_P0__.app.frame);
   await page.waitForFunction(({ at, count }) => window.__INHAGAME_P0__.app.frame >= at + count, { at, count }, { timeout: 60000 });
 }
-async function goToReader(page) {
+async function pressAction(page, mobile, id) {
+  await page.waitForFunction(id => { const c = window.__INHAGAME_P0__.contextActions; return !c.suspended && c.active?.id === id; }, id);
+  if (mobile) await page.locator('#context-action').tap(); else await page.keyboard.press('KeyF');
+}
+async function enterPublicLobby(page, mobile = false) {
+  if (await page.evaluate(() => window.__INHAGAME_P0__.rooms.currentSpace === 'ROOM_JEONGSEOK_LOBBY')) return;
+  await page.evaluate(async () => { const d = window.__INHAGAME_P0__;
+    const { JEONGSEOK_ENTRANCE } = await import('/src/jeongseok/interior-rooms.js');
+    const p = JEONGSEOK_ENTRANCE.position; d.controller.velocityY = 0; d.player.setLocalPosition(p.x, p.y ?? 2.8, p.z);
+  });
+  await pressAction(page, mobile, 'jeongseok-door');
+  await page.waitForFunction(() => window.__INHAGAME_P0__.rooms.currentSpace === 'ROOM_JEONGSEOK_LOBBY' && !window.__INHAGAME_P0__.rooms.status().busy);
+}
+async function goToAnchor(page, kind, mobile = false) {
+  await enterPublicLobby(page, mobile);
   await page.evaluate(() => { const d = window.__INHAGAME_P0__; if (window.__jslLog) return; window.__jslLog = [];
     d.jeongseok.gate.onChange(v => window.__jslLog.push(`gate:${v.state}`));
     d.jeongseok.access.onChange(v => window.__jslLog.push(`access:${v.reason}:${v.state}`));
     window.addEventListener('keydown', e => { if (e.code === 'KeyF') window.__jslLog.push(`keyF:${d.contextActions.active?.id}:${d.contextActions.suspended}`); }, true); });
-  await page.evaluate(() => { const d = window.__INHAGAME_P0__, g = d.jeongseok.layout.position, c = d.controller;
-    c.velocityY = 0; d.player.setLocalPosition(g.x, g.y + .4, g.z); });
-  await page.waitForFunction(() => window.__INHAGAME_P0__.contextActions.active?.id === 'jeongseok-gate', null, { timeout: 30000 });
+  await page.evaluate(kind => { const d = window.__INHAGAME_P0__, g = d.jeongseok[kind === 'guide' ? 'guideLayout' : 'layout'].position;
+    d.controller.velocityY = 0; d.player.setLocalPosition(g.x + (kind === 'guide' ? 0.85 : 0.39), 1.15, g.z);
+    d.player.setLocalEulerAngles(0, 0, 0); d.orbit.yaw = 0;
+  }, kind);
+  await page.waitForFunction(id => window.__INHAGAME_P0__.contextActions.active?.id === id, `jeongseok-${kind}`, { timeout: 30000 });
 }
-async function press(page, mobile) {
-  // The shared slot is re-enabled on the next World frame after a blocking UI closes.
-  await page.waitForFunction(() => { const c = window.__INHAGAME_P0__.contextActions; return !c.suspended && c.active?.id === 'jeongseok-gate'; });
-  if (mobile) await page.locator('#context-action').tap(); else await page.keyboard.press('KeyF');
-}
+const goToReader = (page, mobile = false) => goToAnchor(page, 'gate', mobile);
+const goToGuide = (page, mobile = false) => goToAnchor(page, 'guide', mobile);
+const press = (page, mobile) => pressAction(page, mobile, 'jeongseok-gate');
+const pressGuide = (page, mobile) => pressAction(page, mobile, 'jeongseok-guide');
+const closePhone = async page => {
+  await page.evaluate(() => window.__INHAGAME_P0__.smartphone.close());
+  await page.waitForFunction(() => window.__INHAGAME_P0__.smartphone.shell.state === 'CLOSED');
+};
 const shot = async (page, entry, name) => { await page.screenshot({ path: `${output}/${entry.name}-${name}.png` }); entry.screenshots.push(`${entry.name}-${name}.png`); };
 async function layout(page) {
   return page.evaluate(() => { const root = document.querySelector('.smartphone'), frame = root.querySelector('.smartphone-frame'),
@@ -140,7 +162,10 @@ async function runCase(name, fn) {
     try { entry.diagnostic = await currentPage?.evaluate(() => { const d = window.__INHAGAME_P0__; return { gate: d.jeongseok.gate.snapshot(),
       access: { state: d.jeongseok.access.state, decision: d.jeongseok.access.snapshot?.decision }, phone: d.smartphone.status().state,
       route: d.smartphone.status().current, action: d.contextActions.active?.id ?? null, focus: d.getStatus().inputFocus.topOwners,
-      activeElement: document.activeElement?.id || document.activeElement?.tagName, log: window.__jslLog }; }); } catch { /* page gone */ }
+      activeElement: document.activeElement?.id || document.activeElement?.tagName,
+      position: { ...d.player.getLocalPosition() }, frame: d.app.frame, inputEnabled: d.controller.inputEnabled,
+      closedGateCollider: d.controller.space.obstacles.some(box => box.id === 'jsl_lobby_closed_gate'),
+      interior: window.__INHAGAME_JEONGSEOK_INTERIOR__.status(), log: window.__jslLog }; }); } catch { /* page gone */ }
     try { await currentPage?.screenshot({ path: `${output}/${name}-failure.png` }); } catch { /* page gone */ }
   }
   await currentClose?.(); currentClose = null;
@@ -148,8 +173,10 @@ async function runCase(name, fn) {
   return entry.status === 'PASS';
 }
 
+const originalGate = sql(`select status from private.world_jeongseok_gate_policy where singleton`);
+const originalProduct = JSON.parse(sql(`select json_build_object('status', status, 'price_basis', price_basis) from private.world_jeongseok_pass_catalog where pass_type='jeongseok.visitor.day'`));
 sql(`update private.world_jeongseok_gate_policy set status='ACTIVE'`);
-// Disposable browser QA only: confirmation never changes the shipped candidate price.
+// Disposable browser QA only: enable the confirmed product locally, then restore its exact state.
 sql(`update private.world_jeongseok_pass_catalog set price_basis='CONFIRMED', status='ACTIVE' where pass_type='jeongseok.visitor.day'`);
 let ok = true;
 try {
@@ -164,19 +191,21 @@ try {
     assert.match(await page.locator('#context-action').innerText(), /학생증 태그/, 'reader action label');
     await press(page, false);
     await page.waitForFunction(() => window.__INHAGAME_P0__.jeongseok.gate.snapshot().state === 'NEEDS_PASS');
+    assert.equal((await phone(page)).state, 'CLOSED', 'reader does not sell passes');
+    await goToGuide(page); await pressGuide(page, false);
     await page.waitForFunction(() => window.__INHAGAME_P0__.smartphone.status().current?.view === 'jeongseok');
     const card = await page.locator('.smartphone-content').innerText();
     assert.match(card, /100 인덕코인/); assert.match(card, /250 인덕코인/); assert.match(card, /150 인덕코인/); assert.match(card, /양도·거래 불가/);
     const desk = await layout(page);
     assert.ok(desk.phoneInViewport && !desk.horizontalClip && desk.focusInside && desk.hudInViewport && !desk.pageHorizontalScroll, JSON.stringify(desk));
     await shot(page, entry, 'needs-pass');
-    entry.checks.push('F at the temporary reader → server NEEDS_PASS → Student ID guidance with server price/balance/after');
+    entry.checks.push('Public lobby → inner reader NEEDS_PASS → nearby guide with server price/balance/after');
     // Cancel at confirmation: no RPC, Phone returns to World.
     await page.getByRole('button', { name: '방문증 발급하기 · 100 인덕코인' }).click();
     await page.getByRole('button', { name: '구매 취소' }).click();
     await page.getByRole('button', { name: '정석 출입 취소' }).click();
     await page.waitForFunction(() => window.__INHAGAME_P0__.smartphone.shell.state === 'CLOSED');
-    assert.deepEqual(await worldRestored(page), { phone: 'CLOSED', input: true, canWorld: true, inert: false, space: 'campus' });
+    assert.deepEqual(await worldRestored(page), { phone: 'CLOSED', input: true, canWorld: true, inert: false, space: LOBBY });
     assert.equal(debits(general.id), 0);
     entry.checks.push('Purchase cancel + gate cancel: no debit, Phone closed, World input/focus restored');
     // Lost reply: the server commits, the browser never sees the response.
@@ -185,7 +214,7 @@ try {
       if (dropped++ === 0) { await route.fetch(); return route.abort('connectionreset'); }
       return route.continue();
     });
-    await press(page, false);
+    await pressGuide(page, false);
     await page.waitForFunction(() => window.__INHAGAME_P0__.smartphone.status().current?.view === 'jeongseok');
     await page.getByRole('button', { name: '방문증 발급하기 · 100 인덕코인' }).click();
     // Duplicate activation of the confirm button in the same tick.
@@ -196,6 +225,9 @@ try {
     assert.equal(debits(general.id), 1, 'server committed exactly once although the reply was lost');
     await shot(page, entry, 'lost-reply');
     await page.getByRole('button', { name: '같은 요청 다시 확인' }).click();
+    await page.waitForFunction(() => window.__INHAGAME_P0__.jeongseok.gate.snapshot().notice === 'RECOVERED' && window.__INHAGAME_P0__.jeongseok.gate.snapshot().state === 'IDLE');
+    assert.equal(await page.evaluate(() => window.__INHAGAME_JEONGSEOK_INTERIOR__.status().policy.session), false, 'purchase/recovery never opens inner access');
+    await closePhone(page); await goToReader(page); await press(page, false);
     await page.waitForFunction(() => ['SCANNING', 'GRANTED', 'OPENING'].includes(window.__INHAGAME_P0__.jeongseok.gate.snapshot().state));
     await shot(page, entry, 'tag');
     await page.waitForFunction(() => window.__INHAGAME_P0__.jeongseok.gate.snapshot().state === 'READY_TO_ENTER', null, { timeout: 15000 });
@@ -205,7 +237,7 @@ try {
     await shot(page, entry, 'granted-hud');
     assert.deepEqual([debits(general.id), coins(general.id)], [1, 150], 'one debit after recovery');
     assert.equal(dropped, 2, 'recovery reused the stored key through the same RPC');
-    entry.checks.push('Lost reply → same-key recovery (ALREADY_PROCESSED) → tag → green → READY; duplicate click → one debit');
+    entry.checks.push('Guide lost reply → same-key recovery without inner grant → separate reader tag → green → READY; duplicate click → one debit');
     const before = await page.evaluate(() => window.__INHAGAME_P0__.jeongseok.access.view());
     // Screenshots and SQL readback above can outlast the real 20-second READY window on SwiftShader.
     // Prove that expiry closes entry, then use real input to acquire a fresh tag; never extend the timer.
@@ -224,15 +256,35 @@ try {
     assert.ok(checksBeforeEntry > checksBeforeRetag, 'retag requires a new server verification');
     // No screenshots or SQL work between fresh READY and this actual entry keypress.
     await press(page, false);
-    await page.waitForFunction(() => window.__INHAGAME_P0__.jeongseok.gate.snapshot().notice === 'PENDING_JSL_B');
+    await page.waitForFunction(() => window.__INHAGAME_P0__.jeongseok.gate.snapshot().notice === 'INNER_ACCESS_GRANTED');
     assert.ok(await page.evaluate(() =>
       window.__jslLog.filter(value => value === 'access:verify-entry:READY').length) > checksBeforeEntry,
       'entry re-verifies on the server separately from the fresh tag');
+    assert.equal((await worldRestored(page)).space, LOBBY);
+    await page.waitForFunction(() => !window.__INHAGAME_P0__.controller.space.obstacles.some(box => box.id === 'jsl_lobby_closed_gate'), null, { timeout: 10000 });
+    assert.equal(await page.evaluate(() => window.__INHAGAME_P0__.controller.space.obstacles.some(box => box.id === 'jsl_lobby_closed_gate')), false, 'fresh inner grant removes actual collision');
+    // Physics dt is capped per frame. A fixed wall-clock press does not guarantee enough
+    // rendered frames on SwiftShader; hold real input until crossing, within the real grant TTL.
+    await page.keyboard.down('KeyW');
+    try {
+      await page.waitForFunction(() => window.__INHAGAME_P0__.player.getLocalPosition().z > -3.2, null, { timeout: 10000, polling: 50 });
+    } finally { await page.keyboard.up('KeyW'); }
+    assert.ok(await page.evaluate(() => window.__INHAGAME_P0__.player.getLocalPosition().z > -3.2), 'native movement crosses the open inner gate');
+    assert.equal(await page.evaluate(() => window.__INHAGAME_JEONGSEOK_INTERIOR__.status().policy.crossed), true);
+    // Slow SQL readback must not consume the 15-second unused crossing opportunity.
     assert.deepEqual([debits(general.id), coins(general.id)], [1, 150], 'expiry, retag and entry never debit again');
     entry.checks.push('Real READY expiry closes entry; native retag and entry each re-verify, with one total debit');
-    assert.equal((await worldRestored(page)).space, 'campus', 'no interior exists before JSL-B');
-    assert.match(await page.locator('#jeongseok-gate .jeongseok-gate-status').innerText(), /서버에서 다시 확인/);
-    entry.checks.push('READY_TO_ENTER → F re-verifies on the server → PENDING_JSL_B, player stays on campus');
+    // Real B1 entry and return consume the inner stay and land safely on the public side.
+    await page.evaluate(async () => { const d = window.__INHAGAME_P0__, m = await import('/src/jeongseok/lobby-layout.js');
+      const p = m.JEONGSEOK_LOBBY_PORTALS[0].position; d.player.setLocalPosition(p.x, 1.15, p.z - 0.3); });
+    await pressAction(page, false, 'jeongseok-portal');
+    await page.waitForFunction(() => window.__INHAGAME_P0__.rooms.currentSpace === 'ROOM_JEONGSEOK_B1_READING' && !window.__INHAGAME_P0__.rooms.status().busy);
+    await page.evaluate(async () => { const d = window.__INHAGAME_P0__, m = await import('/src/jeongseok/interior-rooms.js');
+      const p = m.JEONGSEOK_LAYOUTS.ROOM_JEONGSEOK_B1_READING.exit.position; d.player.setLocalPosition(p.x, 1.15, p.z); });
+    await pressAction(page, false, 'room-door');
+    await page.waitForFunction(() => window.__INHAGAME_P0__.rooms.currentSpace === 'ROOM_JEONGSEOK_LOBBY' && !window.__INHAGAME_P0__.rooms.status().busy);
+    assert.ok(await page.evaluate(() => { const d = window.__INHAGAME_P0__, p = d.player.getLocalPosition(); return Math.hypot(p.x, p.z + 5.6) < 0.2 && !window.__INHAGAME_JEONGSEOK_INTERIOR__.status().policy.session; }));
+    entry.checks.push('Fresh server entry check → actual inner collider opens → native crossing → B1 → public return + session closed');
     // Student ID shows the pass and expiry, and the back stack returns to the card.
     await page.keyboard.press('KeyN'); await page.locator('.smartphone-app[data-app-id="student-id"]').click();
     await page.getByRole('button', { name: '🏛️ 정석학술정보관 출입' }).click();
@@ -250,7 +302,7 @@ try {
 
   ok &= await runCase('desktop-reload-purchase-recovery', async entry => {
     const { page, problems, close } = await openWorld(entry, { viewport: { width: 1280, height: 800 }, account: reloader });
-    await goToReader(page); await press(page, false);
+    await goToGuide(page); await pressGuide(page, false);
     await page.waitForFunction(() => window.__INHAGAME_P0__.jeongseok.gate.snapshot().state === 'NEEDS_PASS');
     await page.waitForFunction(() => window.__INHAGAME_P0__.smartphone.status().current?.view === 'jeongseok');
     let requests = 0;
@@ -268,15 +320,15 @@ try {
     await page.waitForFunction(() => window.__INHAGAME_P0__?.getStatus().loading?.finished, null, { timeout: 180000 });
     await page.waitForFunction(id => window.__INHAGAME_P0__.jeongseok.access.accountId === id &&
       window.__INHAGAME_P0__.jeongseok.access.state === 'READY', reloader.id, { timeout: 60000 });
-    await goToReader(page);
+    await goToGuide(page);
     await page.keyboard.press('KeyN');
     await page.locator('.smartphone-app[data-app-id="student-id"]').click();
     await page.getByRole('button', { name: '🏛️ 정석학술정보관 출입' }).click();
     await page.getByRole('button', { name: '같은 요청 다시 확인' }).click();
-    await page.waitForFunction(() => window.__INHAGAME_P0__.jeongseok.gate.snapshot().state === 'READY_TO_ENTER', null, { timeout: 15000 });
+    await page.waitForFunction(() => window.__INHAGAME_P0__.jeongseok.gate.snapshot().notice === 'RECOVERED' && window.__INHAGAME_P0__.jeongseok.gate.snapshot().state === 'IDLE', null, { timeout: 15000 });
     assert.deepEqual([requests, debits(reloader.id), coins(reloader.id)], [2, 1, 100], 'same-key replay after full reload never debits again');
     assert.equal(await page.evaluate(id => localStorage.getItem(`inha-world:jeongseok-pass-key:${id}`), reloader.id), null);
-    entry.checks.push('Full page reload restores the unresolved key; Student ID retry from new IDLE controller replays receipt once');
+    entry.checks.push('Full reload restores unresolved key; Student ID recovery beside guide replays once without opening inner gate');
     assert.deepEqual(problems, []);
     await close();
   });
@@ -291,7 +343,7 @@ try {
     assert.equal((await gateState(page)).via, 'INHA_MAIL');
     assert.equal(debits(verified.id), 0);
     await page.waitForFunction(() => window.__INHAGAME_P0__.smartphone.shell.state === 'CLOSED');
-    assert.deepEqual(await worldRestored(page), { phone: 'CLOSED', input: true, canWorld: true, inert: false, space: 'campus' });
+    assert.deepEqual(await worldRestored(page), { phone: 'CLOSED', input: true, canWorld: true, inert: false, space: LOBBY });
     entry.checks.push('Verified mail badge shown on Student ID; free tag sequence via INHA_MAIL; no debit; Phone returns to World');
     // Verification removed on the server → next check needs a pass (state change reflected).
     sql(`update auth.users set email=${lit(`jsl-v-${randomUUID().slice(0, 8)}@example.test`)} where id=${lit(verified.id)}`);
@@ -306,7 +358,7 @@ try {
   for (const [name, viewport] of [['mobile-portrait', { width: 390, height: 844 }], ['mobile-landscape', { width: 844, height: 390 }]]) {
     ok &= await runCase(`${name}-insufficient`, async entry => {
       const { page, problems, close } = await openWorld(entry, { viewport, mobile: true, account: poor });
-      await goToReader(page); await press(page, true);
+      await goToGuide(page, true); await pressGuide(page, true);
       await page.waitForFunction(() => window.__INHAGAME_P0__.smartphone.status().current?.view === 'jeongseok');
       const text = await page.locator('.smartphone-content').innerText();
       assert.match(text, /1개 부족/);
@@ -318,7 +370,7 @@ try {
       await page.waitForFunction(() => window.__INHAGAME_P0__.smartphone.shell.state === 'CLOSED');
       await page.locator('#context-action').waitFor({ state: 'visible' });
       assert.equal(debits(poor.id), 0);
-      entry.checks.push('Touch Context Action → server shortfall (1) → purchase disabled; Phone in viewport/no clip; cancel restores HUD');
+      entry.checks.push('Public lobby guide touch action → server shortfall (1) → purchase disabled; Phone in viewport/no clip; cancel restores HUD');
       assert.deepEqual(problems, []);
       await close();
     });
@@ -347,10 +399,10 @@ try {
     await goToReader(page); await press(page, false);
     await page.waitForFunction(() => window.__INHAGAME_P0__.jeongseok.gate.snapshot().state === 'AUTH_REQUIRED');
     assert.equal((await phone(page)).state, 'CLOSED', 'no purchase UI for guests');
-    assert.match(await page.locator('#jeongseok-gate').innerText(), /정식 계정으로 로그인/);
+    assert.match(await page.locator('#jeongseok-gate').innerText(), /로비는 자유롭게 이용.*안내 NPC/);
     assert.equal(await page.locator('#jeongseok-gate').getAttribute('data-light'), 'red');
     await shot(page, entry, 'guest');
-    entry.checks.push('Guest: AUTH_REQUIRED with login guidance, red light, no purchase UI, campus play continues');
+    entry.checks.push('Guest: AUTH_REQUIRED with public-guide direction, red light, no purchase UI, public lobby play continues');
     await close();
   });
 
@@ -371,8 +423,8 @@ try {
     await close();
   });
 } finally {
-  sql(`update private.world_jeongseok_gate_policy set status='COMING_SOON'`);
-  sql(`update private.world_jeongseok_pass_catalog set status='COMING_SOON', price_basis='CANDIDATE' where pass_type='jeongseok.visitor.day'`);
+  sql(`update private.world_jeongseok_gate_policy set status=${lit(originalGate)}`);
+  sql(`update private.world_jeongseok_pass_catalog set status=${lit(originalProduct.status)}, price_basis=${lit(originalProduct.price_basis)} where pass_type='jeongseok.visitor.day'`);
   if (users.length) sql(`delete from auth.users where id in (${users.map(lit).join(',')})`);
   server.kill();
   report.status = ok ? 'PASS' : 'FAIL'; await save();

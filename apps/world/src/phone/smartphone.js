@@ -161,11 +161,12 @@ export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, g
     if(p.state==='UNAVAILABLE')content.append(el('p','','프로필을 불러오지 못했어요.'),btn('다시 불러오기',()=>{void student.refresh();}));
   }
   const passTime=iso=>new Date(iso).toLocaleString('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
+  const passDuration=seconds=>seconds%3600===0?`${seconds/3600}시간`:seconds%60===0?`${seconds/60}분`:`${seconds}초`;
   function renderJeongseok() {
     const v=jeongseok?.phoneView(); title.textContent='정석 출입';
     const card=el('article','smartphone-jeongseok-card');content.append(card);
     card.append(el('p','smartphone-eyebrow','INHA WORLD · 정석학술정보관 출입 (게임 전용)'));
-    if(!v?.enabled){card.append(el('p','','정석학술정보관 출입은 준비 중이에요.'));return;}
+    if(!v?.enabled){card.append(el('p','','정석학술정보관 내부 게이트는 준비 중이에요.'));return;}
     const a=v.access,s=a.snapshot,g=v.gate;card.dataset.gate=g.state;
     if(['SCANNING','GRANTED','OPENING','READY_TO_ENTER'].includes(g.state)){
       const tag=el('div','smartphone-jeongseok-tag');tag.dataset.state=g.state;tag.setAttribute('role','img');
@@ -176,30 +177,36 @@ export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, g
     // Refusals are explained by the server lines below; the gate line covers progress only.
     if(['CHECKING','SCANNING','GRANTED','OPENING','READY_TO_ENTER','PURCHASING','UNKNOWN'].includes(g.state)){const live=el('strong','smartphone-jeongseok-gate',gateMessage(g));live.setAttribute('role','status');card.append(live);}
     const line=(text,cls='')=>card.append(el('p',cls,text));
+    line('로비는 로그인 없이 자유롭게 이용할 수 있어요. 내부 게이트는 인하대 이메일 인증 계정은 무료, 그 외 계정은 방문증이 필요해요.');
+    if(v.atGuide)line('로비 안내 NPC · 게임 속 가상 안내원이에요. 방문증을 구입한 뒤 리더기에서 따로 태그해 주세요.','smartphone-hint');
     // An unresolved request is recovered with its own key before anything else, whatever the read says.
     // Only after the request ended without a definitive answer; an in-flight request is not "unresolved".
-    if(a.pendingKey&&!a.purchasing&&g.state!=='PURCHASING'&&v.atReader&&a.accountId){
+    if(a.pendingKey&&!a.purchasing&&g.state!=='PURCHASING'&&v.atGuide&&a.accountId){
       line('이전 방문증 발급 요청의 결과를 확인하지 못했어요. 같은 요청으로 다시 확인하면 중복 결제 없이 결과를 받아요.','smartphone-jeongseok-error');
-      content.append(btn('같은 요청 다시 확인',()=>{void jeongseok.purchase();}));
+      const epoch=uiEpoch, account=a.accountId;
+      content.append(btn('같은 요청 다시 확인',()=>{
+        if(epoch===uiEpoch&&jeongseok.phoneView().access.accountId===account)void jeongseok.purchase();
+      }));
     }
-    if(a.state==='SIGNED_OUT')line('로그인하지 않았어요. 정식 계정으로 로그인하면 출입할 수 있어요. 캠퍼스 탐험은 그대로 즐길 수 있어요.');
+    if(a.pendingKey&&!v.atGuide)line('이전 방문증 발급 결과는 로비 안내 NPC 곁에서 같은 요청으로 다시 확인할 수 있어요.');
+    if(a.state==='SIGNED_OUT')line('방문증 구매에는 정식 계정 로그인이 필요해요. 로그인 메뉴에서 계정을 연결한 뒤 안내 NPC에게 돌아오세요.');
     else if(!s&&a.state==='LOADING')line('출입 자격을 서버에서 확인하고 있어요…');
-    else if(a.state==='UNKNOWN'||!s){line('출입 자격을 확인하지 못했어요. 새 입장은 막혀 있어요.');content.append(btn('다시 확인',()=>{void jeongseok.refresh();}));}
+    else if(a.state==='UNKNOWN'||!s){line('내부 출입 자격을 확인하지 못했어요. 로비는 계속 이용할 수 있어요.');content.append(btn('다시 확인',()=>{void jeongseok.refresh();}));}
     else{
       // The last server answer for this account stays visible while a newer read is in flight.
       if(a.state==='LOADING')line('최신 상태를 다시 확인하고 있어요…','smartphone-hint');
       if(s.inhaMailVerified!==null)line(s.inhaMailVerified?'✉️ 인하대 이메일 인증 회원':'인하대 이메일 미인증 계정','smartphone-student-mail');
-      if(s.decision==='DISABLED'||s.decision==='COMING_SOON')line(s.decision==='COMING_SOON'?'정석학술정보관 출입은 준비 중이에요.':'정석학술정보관 출입이 지금은 닫혀 있어요.');
-      else if(s.decision==='AUTH_REQUIRED')line('정식 계정으로 로그인하면 출입할 수 있어요.');
+      if(s.decision==='DISABLED'||s.decision==='COMING_SOON')line(s.decision==='COMING_SOON'?'정석학술정보관 내부 게이트는 준비 중이에요.':'정석학술정보관 내부 게이트가 지금은 닫혀 있어요.');
+      else if(s.decision==='AUTH_REQUIRED')line('방문증 구매에는 정식 계정 로그인이 필요해요. 로그인 메뉴에서 계정을 연결해 주세요.');
       else if(s.decision==='ACCOUNT_BLOCKED')line('현재 계정 상태로는 출입할 수 없어요.');
-      else if(s.via==='INHA_MAIL')line('무료 출입 가능 · 방문증이 필요하지 않아요.','smartphone-jeongseok-ok');
+      else if(s.via==='INHA_MAIL')line('무료 내부 출입 가능 · 방문증 없이 리더기에 학생증을 태그하세요.','smartphone-jeongseok-ok');
       else if(s.via==='VISITOR_PASS'){
         line('🪪 가상 정석 방문증 보유','smartphone-jeongseok-ok');
         const left=Math.max(0,Date.parse(s.pass.expiresAt)-(Date.now()+s.clockOffsetMs));
         line(`만료 ${passTime(s.pass.expiresAt)} · 약 ${Math.floor(left/3600000)}시간 ${Math.floor(left%3600000/60000)}분 남음 (서버 시각 기준)`);
       }else renderJeongseokOffer(v,line);
     }
-    if(v.atReader&&g.state!=='IDLE'){const cancel=btn('출입 취소',()=>{jeongseokConfirm=false;jeongseok.cancel();},'정석 출입 취소');cancel.disabled=!g.canCancel;content.append(cancel);}
+    if((v.atReader||v.atGuide)&&g.state!=='IDLE'){const cancel=btn('출입 취소',()=>{jeongseokConfirm=false;jeongseok.cancel();},'정석 출입 취소');cancel.disabled=!g.canCancel;content.append(cancel);}
     card.append(el('small','','가상 학생증·방문증은 게임 속 표현이에요. 실제 학교 출입·학생 신분을 증명하지 않으며 QR·바코드를 사용하지 않아요.'));
   }
   function renderJeongseokOffer(v,line) {
@@ -207,17 +214,22 @@ export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, g
     line(s.decision==='EXPIRED'?`방문증이 ${passTime(s.pass.expiresAt)}에 만료됐어요.`:'방문증이 필요해요.');
     if(!o||o.status!=='ACTIVE'){line('방문증 발급은 아직 준비 중이에요.');return;}
     const facts=el('dl','smartphone-jeongseok-offer');
-    for(const [k,val] of [['상품','정석 24시간 방문증 (게임 전용)'],['가격',`${o.price} 인덕코인`],['보유',`${o.balance} 인덕코인`],
-      ...(o.canPurchase?[['결제 후',`${o.balance-o.price} 인덕코인`]]:[]),['유효기간','발급 시각부터 현실 시간 24시간']])facts.append(el('dt','',k),el('dd','',val));
+    for(const [k,val] of [['상품',`정석 ${passDuration(o.durationSeconds)} 방문증 (게임 전용)`],['가격',`${o.price} 인덕코인`],['보유',`${o.balance} 인덕코인`],
+      ...(o.canPurchase?[['결제 후',`${o.balance-o.price} 인덕코인`]]:[]),['유효기간',`발급 시각부터 현실 시간 ${passDuration(o.durationSeconds)}`]])facts.append(el('dt','',k),el('dd','',val));
     content.append(facts,el('p','smartphone-hint','계정 귀속 · 양도·거래 불가 · 유효기간 중 중복 구매 불가'));
     if(!o.canPurchase)content.append(el('p','',`인덕코인이 ${o.shortfall}개 부족해요.`));
     if(a.purchaseError)content.append(el('p','smartphone-jeongseok-error',PURCHASE_ERRORS[a.purchaseError]??PURCHASE_ERRORS.UNKNOWN));
-    if(!v.atReader){content.append(el('p','','방문증은 정석학술정보관 앞 가상 리더기에서 발급할 수 있어요.'));return;}
+    if(!v.atGuide){jeongseokConfirm=false;content.append(el('p','','방문증은 로비 내부 게이트 옆 안내 NPC에게 구입할 수 있어요.'));return;}
     if(g.state==='PURCHASING'||a.purchasing){const wait=btn('발급 확인 중…',()=>{});wait.disabled=true;content.append(wait);return;}
     if(a.pendingKey)return;
-    if(!jeongseokConfirm){const buy=btn(`방문증 발급하기 · ${o.price} 인덕코인`,()=>{jeongseokConfirm=true;render(true);});buy.disabled=!g.canPurchase;content.append(buy);return;}
-    content.append(btn(`결제 확인 · ${o.price} 인덕코인 사용`,()=>{jeongseokConfirm=false;void jeongseok.purchase();}),
-      btn('구매 취소',()=>{jeongseokConfirm=false;render(true);}));
+    if(!jeongseokConfirm){const buy=btn(`방문증 발급하기 · ${o.price} 인덕코인`,()=>{jeongseokConfirm=true;render(true);});buy.disabled=!g.canPurchase||a.state!=='READY';content.append(buy);return;}
+    const epoch=uiEpoch, account=a.accountId;
+    const confirm=btn(`결제 확인 · ${o.price} 인덕코인 사용`,()=>{
+      if(epoch!==uiEpoch||jeongseok.phoneView().access.accountId!==account)return;
+      jeongseokConfirm=false;void jeongseok.purchase();
+    });
+    confirm.disabled=!g.canPurchase||a.state!=='READY';
+    content.append(confirm,btn('구매 취소',()=>{jeongseokConfirm=false;render(true);}));
   }
   async function renderAlbum(params,at) {
     content.append(el('p','smartphone-hint','사진은 이 브라우저·계정에 저장돼요. 다른 기기와 동기화되지 않아요.'));
@@ -393,7 +405,7 @@ export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, g
     settingsChanged(open){if(!open&&!suppressClose&&shell.snapshot().current?.appId==='settings')shell.back();},
     navigationStarted(destination){if(shell.snapshot().current?.appId!=='maps')return;history.remember(destination,getMap()?.status().mapSourceId);shell.close();},
     refresh(){if(shell.snapshot().current?.appId==='student-id')render(true);},
-    // JSL-A: the gate shows its tag / guidance on the Student ID screen, then returns the player.
+    // The internal reader tags; the separate public-lobby guide shows pass guidance in Student ID.
     openJeongseok({tag=false}={}){
       if(!jeongseok?.phoneView().enabled||destroyed)return false;
       const s=shell.snapshot();

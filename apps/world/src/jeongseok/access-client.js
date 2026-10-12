@@ -170,6 +170,9 @@ export function createJeongseokAccessClient({ getClient, storage = () => null,
     purchaseError = null;
     const run = (async () => {
       await null; // `purchasing` is assigned before any outcome can be handled.
+      // The live client may now carry another session. Never dispatch an old account request
+      // through it; the old key remains account-scoped and can be recovered after switching back.
+      if (gen !== generation || account !== accountId) return null;
       let result = null, code = null;
       try {
         const client = getClient();
