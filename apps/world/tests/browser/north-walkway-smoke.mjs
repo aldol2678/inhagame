@@ -15,7 +15,7 @@ const [north,south]=WALKWAY_SPANS;
 const xyz=(p,y)=>[p.x,y,-p.z]; // Production reflection, no alternate handedness.
 const view=(id,from,to,photo,grade)=>({id,from,to,photo,grade});
 const cameras=[
-  view('CAM-A',xyz(south.frame.at(south.frame.length+16,7),9),xyz(north.frame.at(north.frame.length*.65,3),10),'P-01','HISTORICAL_REFERENCE_ONLY'),
+  view('CAM-A',xyz({x:0,z:25},18),xyz({x:13,z:88},15),'P-01','HISTORICAL_REFERENCE_ONLY'),
   view('CAM-B',xyz(south.frame.at(south.frame.length+2,5),2.4),xyz(north.frame.at(5,5),4),'P-02','HISTORICAL_REFERENCE_ONLY'),
   view('CAM-C',xyz(north.frame.at(5,6),2.4),xyz(south.frame.at(south.frame.length,5),3),'P-06','OBSERVED+INFERRED'),
   view('CAM-D',xyz(E.frame.at(E.u,8.5),3.6),xyz(E.frame.at(E.u,0),3.6),'P-07','OBSERVED+INFERRED'),
@@ -61,7 +61,7 @@ try{
      const c=app.root.findByName('Camera');c.camera.fov=58;c.camera.nearClip=.6;c.camera.farClip=800;
      // Narrow portrait framing pulls back only for front elevations.
      const portrait=app.graphicsDevice.clientRect.width/app.graphicsDevice.clientRect.height<.8;
-     const k=1;if(portrait&&camera.id==='CAM-D')c.camera.fov=78;
+     const k=1;if(portrait&&['CAM-A','CAM-D'].includes(camera.id))c.camera.fov=104;
      c.setPosition(...camera.from.map((v,i)=>camera.to[i]+(v-camera.to[i])*k));c.lookAt(...camera.to);
      const device=app.graphicsDevice,draw=device.draw;
      let drawCalls=0,triangles=0;
