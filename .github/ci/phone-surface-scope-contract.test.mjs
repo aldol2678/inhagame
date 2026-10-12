@@ -32,6 +32,7 @@ test('all 11 unrelated suites preserve jobs and check names, guard EVERY costly 
     assert.match(text,/id: phone_scope/,file);
     assert.match(text,/CI_BASE_SHA: \$\{\{ github\.event\.pull_request\.base\.sha \}\}/,file);
     assert.match(text,/CI_HEAD_SHA: \$\{\{ github\.event\.pull_request\.head\.sha \}\}/,file);
+    assert.match(text,/CI_PR_TITLE: \$\{\{ github\.event\.pull_request\.title \}\}/,file);
     assert.match(text,/node \.github\/ci\/phone-surface-scope\.mjs >> "\$GITHUB_OUTPUT"/,file);
     const steps = [...text.matchAll(/^      - (?:uses|name|run):.*$/gm)];
     assert.ok(steps.length>=5,file+' must keep original job');
