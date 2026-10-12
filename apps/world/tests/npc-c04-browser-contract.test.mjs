@@ -44,6 +44,8 @@ test('C04 inspection camera runs on the actual PlayCanvas pre-render event',()=>
   const smoke=read('./browser/npc-c04-living-smoke.mjs');
   assert.match(smoke,/d\.app\.on\('prerender',window\.__C04_CAMERA__\)/);
   assert.doesNotMatch(smoke,/['"]postupdate['"]/);
+  assert.match(smoke,/assert.equal\(afterScreenshot.actor.phase,phase/);
+  assert.match(smoke,/arrivalById\[id\]-20/);
 });
 
 test('C04 seat triangle SAT distinguishes penetration from surface contact',()=>{

@@ -26,7 +26,7 @@ const watchdog=setTimeout(()=>{report.result='FAIL';report.error='C04 overall 18
 const read=async file=>JSON.parse(await readFile(new URL('../../npc-factory/data/'+file,import.meta.url),'utf8'));
 const {batch}=mergeCampusPopulation(await read('repaired/INKYUNG-20-A-R1.json'),await read('fixtures/public-roster.json'),await read('expansion/CAMPUS-28-P2A.json'));
 const navigator=createNpcNavigator(batch),roster=bindSharedSchedule(createPurposefulRoster(batch,navigator),navigator,()=>E+2*P);
-function arrival(id){let lo=0,hi=899;for(let i=0;i<30;i++){const mid=(lo+hi)/2;if(roster.get(id).controller.sample(E+2*P+mid*1000).phase==='MOVING')lo=mid;else hi=mid}assert.ok(hi>8);return hi}
+function arrival(id){let lo=0,hi=899;for(let i=0;i<30;i++){const mid=(lo+hi)/2;if(roster.get(id).controller.sample(E+2*P+mid*1000).phase==='MOVING')lo=mid;else hi=mid}assert.ok(hi>25);return hi}
 const ids=['INKYUNG-NPC-009','INKYUNG-NPC-010'];
 const arrivalById=Object.fromEntries(ids.map(id=>[id,arrival(id)]));report.lunchArrivalSeconds=arrivalById;
 let smoke,page;let serverTime=E+2*P+799000,cycle=0;
@@ -105,13 +105,15 @@ try {
     },id);
     const screenshot=`${name}-${id.slice(-3)}-${label}.png`;
     await page.screenshot({path:path.join(output,screenshot)});
-    report.scenes.push({label,id,screenshot,...frame});await flush();
+    const afterScreenshot=await page.evaluate(id=>{const n=window.__INHAGAME_P0__.getStatus().npcTest;return {actor:n.purposeful[id],time:n.shared_schedule.frameServerNowMs}},id);
+    report.scenes.push({label,id,screenshot,...frame,afterScreenshot});await flush();
+    assert.equal(afterScreenshot.actor.phase,phase,'screenshot is bracketed by the same real activity phase');
     assertC04Frame(frame,{id,phase});
     assert.ok(frame.nearest.every(x=>x.distance>=.6),'sampled scene has no target-NPC overlap');
     return frame;
   }
   for(const id of ids)await capture(id,'ACTING','lunch');
-  for(const id of ids){await syncTo(2,arrivalById[id]-6);const a=await capture(id,'MOVING','approach');await page.waitForTimeout(250);const b=await page.evaluate(id=>{const n=window.__INHAGAME_P0__.getStatus().npcTest;return {state:n.purposeful[id],time:n.shared_schedule.frameServerNowMs}},id);const dt=(b.time-a.clock.frameServerNowMs)/1000;assert.ok(dt>=0&&Math.hypot(b.state.position.x-a.actor.position.x,b.state.position.z-a.actor.position.z)<=2*dt+.05,'approach is continuous');await page.waitForFunction(id=>window.__INHAGAME_P0__.getStatus().npcTest.purposeful[id]?.phase==='ACTING',id,{timeout:30000});await capture(id,'ACTING','arrived');}
+  for(const id of ids){await syncTo(2,arrivalById[id]-20);const a=await capture(id,'MOVING','approach');await page.waitForTimeout(250);const b=await page.evaluate(id=>{const n=window.__INHAGAME_P0__.getStatus().npcTest;return {state:n.purposeful[id],time:n.shared_schedule.frameServerNowMs}},id);const dt=(b.time-a.clock.frameServerNowMs)/1000;assert.ok(dt>=0&&Math.hypot(b.state.position.x-a.actor.position.x,b.state.position.z-a.actor.position.z)<=2*dt+.05,'approach is continuous');await page.waitForFunction(id=>window.__INHAGAME_P0__.getStatus().npcTest.purposeful[id]?.phase==='ACTING',id,{timeout:45000});await capture(id,'ACTING','arrived');}
   for(const id of ids){await syncTo(2,880);await capture(id,'ACTING','before-departure');await page.waitForFunction(id=>{const n=window.__INHAGAME_P0__.getStatus().npcTest;return n.period==='evening'&&n.purposeful[id]?.phase==='MOVING'},id,{timeout:45000});const a=await capture(id,'MOVING','departure');await page.waitForTimeout(250);const b=await page.evaluate(id=>{const n=window.__INHAGAME_P0__.getStatus().npcTest;return {state:n.purposeful[id],time:n.shared_schedule.frameServerNowMs}},id);const dt=(b.time-a.clock.frameServerNowMs)/1000;assert.ok(dt>=0&&Math.hypot(b.state.position.x-a.actor.position.x,b.state.position.z-a.actor.position.z)<=2*dt+.05,'departure is continuous');}
   assert.deepEqual(smoke.problems,[]);report.result='PASS';report.problems=smoke.problems;await flush();
   const hashes=[];for(const scene of report.scenes){const bytes=await readFile(path.join(output,scene.screenshot));hashes.push(createHash('sha256').update(bytes).digest('hex')+'  '+scene.screenshot)}await writeFile(path.join(output,'SHA256SUMS'),hashes.join('\n')+'\n');
