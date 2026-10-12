@@ -92,12 +92,13 @@ async function buy(token, key, passType = PASS, extra = {}) {
 
 test.before(() => {
   sqlSync(`update private.world_jeongseok_gate_policy set status = 'ACTIVE'`);
-  sqlSync(`update private.world_jeongseok_pass_catalog set status = 'ACTIVE' where pass_type = ${lit(PASS)}`);
+  // Local fixture only. Production/migration default stays CANDIDATE + COMING_SOON.
+  sqlSync(`update private.world_jeongseok_pass_catalog set price_basis = 'CONFIRMED', status = 'ACTIVE' where pass_type = ${lit(PASS)}`);
 });
 test.after(() => {
   if (users.length) sqlSync(`delete from auth.users where id in (${users.map(lit).join(', ')})`);
   sqlSync(`update private.world_jeongseok_gate_policy set status = 'COMING_SOON'`);
-  sqlSync(`update private.world_jeongseok_pass_catalog set status = 'COMING_SOON' where pass_type = ${lit(PASS)}`);
+  sqlSync(`update private.world_jeongseok_pass_catalog set status = 'COMING_SOON', price_basis = 'CANDIDATE' where pass_type = ${lit(PASS)}`);
 });
 
 test('verified account enters free; general account buys once, a fresh session reads the same right', async () => {

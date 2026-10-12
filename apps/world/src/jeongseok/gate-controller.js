@@ -89,8 +89,11 @@ export function createJeongseokGateController({ access, isEnabled = () => true, 
   }
 
   async function purchase() {
-    if (!(PURCHASABLE.has(state) || purchaseRecovery) || state === GATE_STATE.PURCHASING) return false;
-    if (!purchaseRecovery && !snapshot().canPurchase) return false;
+    // A reload recreates the controller but the access client restores an unresolved purchase key.
+    // Replay that exact key even when this controller is still IDLE, never mint a second charge.
+    const hasPendingKey = access.view().pendingKey === true;
+    if (state === GATE_STATE.PURCHASING || (!PURCHASABLE.has(state) && !hasPendingKey)) return false;
+    if (!hasPendingKey && !snapshot().canPurchase) return false;
     const gen = ++epoch;
     clear();
     set(GATE_STATE.PURCHASING, { notice: null });

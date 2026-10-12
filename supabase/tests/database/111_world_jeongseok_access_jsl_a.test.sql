@@ -86,8 +86,17 @@ select throws_ok($$select public.purchase_jeongseok_pass_v1('jeongseok.visitor.d
   'P0001','PASS_UNAVAILABLE','closed product cannot be bought');
 reset role;
 
--- ---- product open: balance and price come from the server ----
-update private.world_jeongseok_pass_catalog set status='ACTIVE' where pass_type='jeongseok.visitor.day';
+-- ---- candidate price is not publishable, including by an accidental ops update ----
+select throws_ok($update private.world_jeongseok_pass_catalog set status='ACTIVE'
+ where pass_type='jeongseok.visitor.day'$,
+  '23514','new row for relation "world_jeongseok_pass_catalog" violates check constraint "world_jeongseok_pass_catalog_confirmed_active"',
+  'candidate price cannot be activated');
+select is((select status from private.world_jeongseok_pass_catalog where pass_type='jeongseok.visitor.day'),
+  'COMING_SOON','failed activation keeps the product closed');
+
+-- ---- confirmed test-only product open: balance and price come from the server ----
+update private.world_jeongseok_pass_catalog
+  set price_basis='CONFIRMED', status='ACTIVE' where pass_type='jeongseok.visitor.day';
 select private.world_wallet_apply_v1('a1110000-0000-4000-8000-00000000000a','currency.induck_coin',99,'REWARD','test','jsl-seed','jsl-test:seed:a',null);
 set local role authenticated;
 select pg_temp.as_user('a1110000-0000-4000-8000-00000000000a');

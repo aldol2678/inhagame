@@ -112,6 +112,30 @@ test('lost purchase reply is recovered with the same key; a definitive refusal f
   assert.deepEqual([client2.view().purchaseError, client2.view().pendingKey], ['INSUFFICIENT_FUNDS', false]);
 });
 
+test('gate reload: a stored unresolved key can be replayed from IDLE, with no new charge key', async () => {
+  const storage = memoryStorage();
+  storage.setItem(`inha-world:jeongseok-pass-key:${A}`, 'jsl:pre-reload');
+  const server = fakeServer({
+    // The first purchase committed before reload, so the fresh server already sees a grant.
+    get_jeongseok_access_v1: async () => ({ data: granted() }),
+    purchase_jeongseok_pass_v1: async args => ({ data: receipt(args.p_idempotency_key, A, 'ALREADY_PROCESSED') })
+  });
+  const access = createJeongseokAccessClient({
+    getClient: () => server.client, storage: () => storage,
+    newKey: () => { throw Error('must reuse the saved key'); }
+  });
+  await access.setAccount(A);
+  const gate = createJeongseokGateController({ access, setTimer: () => 1, clearTimer: () => {} });
+  assert.equal(gate.state, GATE_STATE.IDLE, 'fresh controller does not inherit old gate state');
+  assert.equal(access.view().pendingKey, true, 'the purchase key survived reload');
+  assert.equal(await gate.purchase(), true, 'saved-key recovery is accepted from IDLE');
+  const purchases = server.calls.filter(c => c.name === 'purchase_jeongseok_pass_v1');
+  assert.equal(purchases.length, 1, 'one replay only');
+  assert.equal(purchases[0].args.p_idempotency_key, 'jsl:pre-reload');
+  assert.equal(access.view().pendingKey, false, 'successful replay clears saved key');
+  assert.equal(gate.state, GATE_STATE.SCANNING, 'fresh server grant drives the animation');
+});
+
 test('pending key is account scoped: B never replays A\'s request', async () => {
   const storage = memoryStorage();
   storage.setItem(`inha-world:jeongseok-pass-key:${A}`, 'jsl:a-only');

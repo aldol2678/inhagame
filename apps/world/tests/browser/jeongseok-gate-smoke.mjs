@@ -149,12 +149,14 @@ async function runCase(name, fn) {
 }
 
 sql(`update private.world_jeongseok_gate_policy set status='ACTIVE'`);
-sql(`update private.world_jeongseok_pass_catalog set status='ACTIVE' where pass_type='jeongseok.visitor.day'`);
+// Disposable browser QA only: confirmation never changes the shipped candidate price.
+sql(`update private.world_jeongseok_pass_catalog set price_basis='CONFIRMED', status='ACTIVE' where pass_type='jeongseok.visitor.day'`);
 let ok = true;
 try {
   const general = await createUser('A', { credit: 250 });
   const verified = await createUser('V', { email: `jsl-v-${randomUUID().slice(0, 8)}@inha.edu` });
   const poor = await createUser('P', { credit: 99 });
+  const reloader = await createUser('R', { credit: 200 });
 
   ok &= await runCase('desktop-general-purchase', async entry => {
     const { page, problems, close } = await openWorld(entry, { viewport: { width: 1280, height: 800 }, account: general });
@@ -219,6 +221,39 @@ try {
     assert.equal((await phone(page)).state, 'CLOSED');
     entry.checks.push('Student ID → 정석 출입 screen (pass + expiry) → Back to card → Esc to World');
     assert.equal(before.accountId, general.id);
+    assert.deepEqual(problems, []);
+    await close();
+  });
+
+  ok &= await runCase('desktop-reload-purchase-recovery', async entry => {
+    const { page, problems, close } = await openWorld(entry, { viewport: { width: 1280, height: 800 }, account: reloader });
+    await goToReader(page); await press(page, false);
+    await page.waitForFunction(() => window.__INHAGAME_P0__.jeongseok.gate.snapshot().state === 'NEEDS_PASS');
+    await page.waitForFunction(() => window.__INHAGAME_P0__.smartphone.status().current?.view === 'jeongseok');
+    let requests = 0;
+    await page.route(`${API_URL}/rest/v1/rpc/purchase_jeongseok_pass_v1`, async route => {
+      if (requests++ === 0) { await route.fetch(); return route.abort('connectionreset'); }
+      return route.continue();
+    });
+    await page.getByRole('button', { name: '방문증 발급하기 · 100 인덕코인' }).click();
+    await page.getByRole('button', { name: '결제 확인 · 100 인덕코인 사용' }).click();
+    await page.getByRole('button', { name: '같은 요청 다시 확인' }).waitFor();
+    assert.equal(debits(reloader.id), 1, 'server committed before the browser reload');
+    const saved = await page.evaluate(id => localStorage.getItem(`inha-world:jeongseok-pass-key:${id}`), reloader.id);
+    assert.ok(saved?.startsWith('jsl:'), 'the unresolved key is persisted');
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(() => window.__INHAGAME_P0__?.getStatus().loading?.finished, null, { timeout: 180000 });
+    await page.waitForFunction(id => window.__INHAGAME_P0__.jeongseok.access.accountId === id &&
+      window.__INHAGAME_P0__.jeongseok.access.state === 'READY', reloader.id, { timeout: 60000 });
+    await goToReader(page);
+    await page.keyboard.press('KeyN');
+    await page.locator('.smartphone-app[data-app-id="student-id"]').click();
+    await page.getByRole('button', { name: '🏛️ 정석학술정보관 출입' }).click();
+    await page.getByRole('button', { name: '같은 요청 다시 확인' }).click();
+    await page.waitForFunction(() => window.__INHAGAME_P0__.jeongseok.gate.snapshot().state === 'READY_TO_ENTER', null, { timeout: 15000 });
+    assert.deepEqual([requests, debits(reloader.id), coins(reloader.id)], [2, 1, 100], 'same-key replay after full reload never debits again');
+    assert.equal(await page.evaluate(id => localStorage.getItem(`inha-world:jeongseok-pass-key:${id}`), reloader.id), null);
+    entry.checks.push('Full page reload restores the unresolved key; Student ID retry from new IDLE controller replays receipt once');
     assert.deepEqual(problems, []);
     await close();
   });
@@ -314,7 +349,7 @@ try {
   });
 } finally {
   sql(`update private.world_jeongseok_gate_policy set status='COMING_SOON'`);
-  sql(`update private.world_jeongseok_pass_catalog set status='COMING_SOON' where pass_type='jeongseok.visitor.day'`);
+  sql(`update private.world_jeongseok_pass_catalog set status='COMING_SOON', price_basis='CANDIDATE' where pass_type='jeongseok.visitor.day'`);
   if (users.length) sql(`delete from auth.users where id in (${users.map(lit).join(',')})`);
   server.kill();
   report.status = ok ? 'PASS' : 'FAIL'; await save();

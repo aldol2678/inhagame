@@ -27,7 +27,9 @@ create table private.world_jeongseok_pass_catalog (
   currency_id text not null references private.world_currencies(currency_id),
   price bigint not null check (price > 0),
   price_basis text not null check (price_basis in ('CANDIDATE','CONFIRMED')),
-  status text not null check (status in ('COMING_SOON','ACTIVE','DISABLED'))
+  status text not null check (status in ('COMING_SOON','ACTIVE','DISABLED')),
+  constraint world_jeongseok_pass_catalog_confirmed_active
+    check (status <> 'ACTIVE' or price_basis = 'CONFIRMED')
 );
 alter table private.world_jeongseok_pass_catalog enable row level security;
 revoke all on private.world_jeongseok_pass_catalog from public,anon,authenticated,service_role;
@@ -217,7 +219,10 @@ begin
   if p_pass_type is null then raise exception 'INVALID_PASS_TYPE' using errcode = '22023'; end if;
   select * into v_product from private.world_jeongseok_pass_catalog c where c.pass_type = p_pass_type for share;
   if not found then raise exception 'INVALID_PASS_TYPE' using errcode = '22023'; end if;
-  if v_product.status <> 'ACTIVE' then raise exception 'PASS_UNAVAILABLE' using errcode = 'P0001'; end if;
+  -- Defense in depth: a candidate price must never be charged, even if catalog policy changes.
+  if v_product.status <> 'ACTIVE' or v_product.price_basis <> 'CONFIRMED' then
+    raise exception 'PASS_UNAVAILABLE' using errcode = 'P0001';
+  end if;
   if public.my_inha_mail_badge() then
     raise exception 'FREE_ACCESS_ELIGIBLE' using errcode = 'P0001';
   end if;
