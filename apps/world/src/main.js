@@ -103,7 +103,7 @@ import { DORM_1_LOBBY_MY_ROOM_RETURN } from "./rooms/dorm1-lobby-layout.js";
 import { createRoomWorldAdapter } from "./rooms/room-world-adapter.js";
 import { createDorm1LobbyScene } from "./rooms/dorm1-lobby-renderer.js";
 import { createJeongseokInteriorScenes } from "./jeongseok/interior-renderer.js";
-import { createJeongseokEntryPolicy, resolveJeongseokEntryMode, JEONGSEOK_ACCESS_POLICY_KEY, JEONGSEOK_LOBBY_POLICY_KEY, JEONGSEOK_ENTRY_MODE } from "./jeongseok/entry-policy.js";
+import { createJeongseokEntryPolicy, resolveJeongseokEntryMode, isJeongseokVisualPreviewHost, JEONGSEOK_ACCESS_POLICY_KEY, JEONGSEOK_LOBBY_POLICY_KEY, JEONGSEOK_ENTRY_MODE } from "./jeongseok/entry-policy.js";
 import { createJeongseokInterior } from "./jeongseok/interior-feature.js";
 import { createPersonalRoomEnvironment } from "./rooms/personal-room-environment.js";
 import { createPersonalRoomScene } from "./rooms/personal-room-renderer.js";
@@ -269,10 +269,10 @@ const npcSocialProductionMode = npcProductionMode;
 const npcSocialMode = npcSocialProductionMode || npcSocialPreviewMode || npcObservedConversationMode;
 const npcEnabled = npcSharedScheduleMode || npcTestMode || npcProductionMode || npcPreviewMode || npcRosterPreviewMode || npcSocialMode;
 const campusLifePreview = previewHost && startupParams.get('campusLife') === 'p0a';
-// Public-lobby/inner-gate wiring is ready, but rollout remains CLOSED until separately
-// approved activation. Browser QA injects only the existing serverAccessAvailable argument;
-// no Production query parameter grants access. The local jsl-b visual preview is unchanged.
-const jeongseokEntryMode = resolveJeongseokEntryMode({ previewHost, params: startupParams });
+// Approved public-lobby activation. The inner gate still requires a fresh server grant;
+// no Production query parameter grants access. The resolver stays fail-closed when unconfigured,
+// and jsl-b visual preview is restricted to exact loopback hostnames, never deployment aliases.
+const jeongseokEntryMode = resolveJeongseokEntryMode({ previewHost: isJeongseokVisualPreviewHost(location.hostname), params: startupParams, serverAccessAvailable: true });
 const biryongVisualStage = previewHost ? startupParams.get('biryongVisual') : null;
 const biryongVisualLabP0A = ['p0a', 'p0b', 'p0c', 'p0d', 'p0e'].includes(biryongVisualStage);
 const biryongVisualLabP0B = ['p0b', 'p0c', 'p0d', 'p0e'].includes(biryongVisualStage);

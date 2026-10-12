@@ -24,6 +24,13 @@ function localAccessExpiry(snapshot) {
   return Number.isFinite(end) ? end - (Number.isFinite(skew) ? skew : 0) : Number.NaN;
 }
 
+// This receives browser location.hostname, not a URL or host:port. Browsers normalize
+// DNS casing and bracket IPv6 hosts. Only these exact loopback hostnames may bypass
+// the inner policy for visual QA; shared/public deployment aliases are never previews.
+export function isJeongseokVisualPreviewHost(hostname) {
+  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]";
+}
+
 export function resolveJeongseokEntryMode({ previewHost = false, params = new URLSearchParams(), serverAccessAvailable = false } = {}) {
   if (previewHost === true && params.get("jeongseok") === "jsl-b") return JEONGSEOK_ENTRY_MODE.VISUAL_PREVIEW;
   if (serverAccessAvailable) return JEONGSEOK_ENTRY_MODE.SERVER_GRANT;
