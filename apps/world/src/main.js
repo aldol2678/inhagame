@@ -1779,7 +1779,7 @@ const shopWorldLabel = createShopWorldLabel({
   canvas,
   getWorldPosition: () => shopWorldMarker.getPosition()
 });
-// Informational back-gate stop. The shared F/touch slot opens one static panel; F1 stays disabled.
+// Back-gate stop remains visible with real-route information; Biryong boarding obeys its access hold.
 const backgateTransitPanel = createBackgateTransitPanel({
   panel: document.getElementById("backgate-transit-panel"),
   fallbackFocus: canvas,
