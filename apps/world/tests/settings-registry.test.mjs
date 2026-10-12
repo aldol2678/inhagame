@@ -117,6 +117,27 @@ test("registry setters update v2 atomically and mirror current v1 adapters", () 
   assert.equal(JSON.parse(storage.data.get(LEGACY_SETTINGS_KEYS.campusControls)).side, "right");
 });
 
+test("five graphics tiers survive storage, legacy mirror and migration", () => {
+  const storage = storageWith();
+  for (const tier of ["very_low", "low", "medium", "high", "ultra"]) {
+    assert.equal(setSetting(storage, "graphics.quality", tier), true);
+    assert.equal(readSettings(storage).graphics.quality, tier);
+    assert.equal(storage.data.get(LEGACY_SETTINGS_KEYS.graphicsQuality), tier);
+    assert.equal(JSON.parse(storage.data.get(SETTINGS_STORAGE_KEY)).graphics.quality, tier);
+  }
+  const legacyOnly = storageWith({ [LEGACY_SETTINGS_KEYS.graphicsQuality]: "very_low" });
+  assert.equal(readSettings(legacyOnly).graphics.quality, "very_low");
+  const v2Only = storageWith({
+    [SETTINGS_STORAGE_KEY]: JSON.stringify({
+      ...SETTINGS_DEFAULTS,
+      graphics: { ...SETTINGS_DEFAULTS.graphics, quality: "ultra" }
+    })
+  });
+  assert.equal(readSettings(v2Only).graphics.quality, "ultra");
+  assert.equal(v2Only.data.get(LEGACY_SETTINGS_KEYS.graphicsQuality), "ultra");
+  assert.equal(normalizeSettings({ graphics: { quality: "invalid" } }).graphics.quality, "auto");
+});
+
 test("normalization rejects unknown values, clamps numeric ranges and drops unknown structure", () => {
   const settings = normalizeSettings({
     schemaVersion: 999,
