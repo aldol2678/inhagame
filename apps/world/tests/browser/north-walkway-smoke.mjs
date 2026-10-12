@@ -9,6 +9,8 @@ import {NORTH_APPROACHES,FIVE_SOUTH_ENTRY_APPROACH} from '../../src/north-campus
 import {SIDE_GATE_PATHS} from '../../src/north-side-gate-layout.js';
 const output=process.env.WALKWAY_OUTPUT||'test-results/north-walkway';
 const root=process.env.WALKWAY_WORLD_ROOT;
+const samples=Number(process.env.WALKWAY_SAMPLES||60);
+assert.ok(Number.isInteger(samples)&&samples>=60,'at least 60 measured completed frames per view');
 const head=execFileSync('git',['-C',root||process.cwd(),'rev-parse','HEAD'],{encoding:'utf8'}).trim();
 if(process.env.EXPECTED_WALKWAY_HEAD)assert.equal(head,process.env.EXPECTED_WALKWAY_HEAD);
 await mkdir(output,{recursive:true});
@@ -26,7 +28,7 @@ const cameras=[
   view('CAM-G',xyz(WALKWAY_SOUTH_ANCHOR,4),[-18,12,-81],'P-05','TEXT_ONLY_NO_PHOTO_MATCH'),
   view('FIVE-SOUTH-ENTRY',xyz(fiveEntry.frame.at(fiveEntry.u,34),12),xyz(fiveEntry.frame.at(fiveEntry.u,0),11),'USER-CORRECTION','USER_CONFIRMED_RELATIVE_ALIGNMENT_SURVEY_TBD')
 ];
-const report={head,sourceRoot:root||'candidate',renderer:null,scope:'Offline Chromium software GPU, viewport emulation; not physical mobile performance',measurement:'requestAnimationFrame intervals around explicit app.render + gl.finish; frozen simulation; submission wall time reported separately; draw/triangle counts include all passes',cameras,views:[]};
+const report={head,sourceRoot:root||'candidate',renderer:null,scope:'Offline Chromium software GPU, viewport emulation; not physical mobile performance',measurement:'requestAnimationFrame intervals around explicit app.render + synchronous 1px framebuffer readback; frozen engine tick; completed-frame wall time and raw samples retained; draw/triangle counts include all passes',cameras,views:[]};
 try{
  for(const [name,viewport]of [['desktop',{width:1280,height:720}],['portrait',{width:390,height:844}],['landscape',{width:844,height:390}]]){
   const smoke=await startSmoke({worldRoot:root,viewport,contextOptions:{deviceScaleFactor:1,isMobile:name!=='desktop',hasTouch:name!=='desktop'}});
@@ -37,7 +39,7 @@ try{
    await page.waitForFunction(()=>window.__INHAGAME_ENVIRONMENT__?.status?.().settled&&window.__INHAGAME_ENVIRONMENT__?.status?.().weatherSettled,null,{timeout:TIMEOUT_MS});
    report.renderer=await page.evaluate(()=>window.__INHAGAME_P0__.getStatus().renderer);assert.equal(report.renderer,'WebGL2');
    await page.addStyleTag({content:'body > :not(#application):not(script):not(style){visibility:hidden!important}'});
-   await page.evaluate(()=>{const d=window.__INHAGAME_P0__;d.app.off('update');d.app.autoRender=false;});
+   await page.evaluate(()=>{const d=window.__INHAGAME_P0__;d.app.off('update');d.app.autoRender=false;d.app.renderNextFrame=false;cancelAnimationFrame(d.app.frameRequestId);d.app.frameRequestId=null;});
    const traversal=await page.evaluate(({north,south,entry})=>{
     const d=window.__INHAGAME_P0__,results=[];
     for(const [from,to]of [[north,south],[south,north],[north,entry],[south,entry]]){
@@ -73,23 +75,30 @@ try{
       triangles+=(primitive.type===4?count/3:primitive.type===5||primitive.type===6?Math.max(0,count-2):0)*Math.max(1,instances??1);
       return draw.call(this,primitive,indexBuffer,instances,...args);
      };
-     let previous=null;
+     let previous=null;const completionPixel=new Uint8Array(4);
      const frame=()=>new Promise(resolve=>requestAnimationFrame(timestamp=>{
-      drawCalls=0;triangles=0;const t=performance.now();app.render();device.gl.finish();
+      drawCalls=0;triangles=0;const t=performance.now();app.render();
+      // Chromium can enqueue gl.finish() without waiting for the GPU process.
+      // A synchronous framebuffer read forces this frame to finish before the
+      // next sample, avoiding artificial fast frames followed by queue stalls.
+      const gl=device.gl,binding=gl.getParameter(gl.READ_FRAMEBUFFER_BINDING);
+      try{gl.bindFramebuffer(gl.READ_FRAMEBUFFER,null);gl.readPixels(0,0,1,1,gl.RGBA,gl.UNSIGNED_BYTE,completionPixel);}
+      finally{gl.bindFramebuffer(gl.READ_FRAMEBUFFER,binding);}
       const interval=previous===null?0:timestamp-previous;previous=timestamp;resolve({interval,wall:performance.now()-t});
      }));
      const times=[],wallTimes=[];
-     try{for(let i=0;i<8;i++)await frame();for(let i=0;i<samples;i++){const t=await frame();times.push(t.interval);wallTimes.push(t.wall);}}
+     try{for(let i=0;i<12;i++)await frame();for(let i=0;i<samples;i++){const t=await frame();times.push(t.interval);wallTimes.push(t.wall);}}
      finally{device.draw=draw;}
+     const rawIntervals=[...times],rawCompletedFrameMs=[...wallTimes];
      times.sort((a,b)=>a-b);
      const gl=app.graphicsDevice.gl,pixels=new Uint8Array(64*64*4),binding=gl.getParameter(gl.READ_FRAMEBUFFER_BINDING);
      gl.bindFramebuffer(gl.READ_FRAMEBUFFER,null);gl.readPixels(Math.floor(gl.drawingBufferWidth/2)-32,Math.floor(gl.drawingBufferHeight/2)-32,64,64,gl.RGBA,gl.UNSIGNED_BYTE,pixels);gl.bindFramebuffer(gl.READ_FRAMEBUFFER,binding);
      const colors=new Set();for(let i=0;i<pixels.length;i+=4)colors.add(`${pixels[i]},${pixels[i+1]},${pixels[i+2]}`);
      return {camera:c.getPosition().toArray(),p50Ms:times[Math.floor(times.length*.5)],p95Ms:times[Math.floor(times.length*.95)],
-      submissionP50Ms:wallTimes.sort((a,b)=>a-b)[Math.floor(wallTimes.length*.5)],fps:1000/(times.reduce((s,t)=>s+t,0)/times.length),samples:times.length,drawCalls,triangles,
+      completedFrameP50Ms:wallTimes.sort((a,b)=>a-b)[Math.floor(wallTimes.length*.5)],completedFrameP95Ms:wallTimes[Math.floor(wallTimes.length*.95)],rawIntervals,rawCompletedFrameMs,fps:1000/(times.reduce((s,t)=>s+t,0)/times.length),samples:times.length,drawCalls,triangles,
       vramBytes:app.stats.vram.totalUsed,heapBytes:performance.memory?.usedJSHeapSize??null,glError:gl.getError(),centerColors:colors.size,
       framebuffer:[gl.drawingBufferWidth,gl.drawingBufferHeight],clock:!!app.root.findByName('bldg_05_clock_core'),tower:!!app.root.findByName('bldg_60th_tower')};
-    },{camera,samples:Number(process.env.WALKWAY_SAMPLES||30)});
+    },{camera,samples});
     assert.equal(receipt.glError,0);assert.ok(receipt.clock&&receipt.tower);assert.ok(receipt.centerColors>1,'nonblank rendered view');
     await page.locator('#application').screenshot({path:`${output}/${name}-${camera.id}.png`,animations:'disabled',timeout:TIMEOUT_MS});
     report.views.push({viewport:name,id:camera.id,photoMatch:camera.grade,...receipt});

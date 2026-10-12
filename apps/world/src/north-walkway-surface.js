@@ -32,10 +32,11 @@ export const cutSurfaces=(rings,masks)=>masks.reduce((pieces,mask)=>pieces.flatM
 export const surfaceRect=(frame,u0,u1,v0,v1)=>[[u0,v0],[u1,v0],[u1,v1],[u0,v1]].map(p=>frame.at(...p));
 export function emitSurface(batch,color,ring,y){
   const p=surfaceArea(ring)>0?[...ring].reverse():ring;
-  // Nondegenerate quads keep the existing CPU recorders and GPU batch API.
+  // Each convex fan face is already a triangle. Inserting a midpoint and
+  // emitting a quad doubled vertex/index work without changing its surface.
   for(let i=1;i<p.length-1;i++){
     const [a,b,c]=[p[0],p[i],p[i+1]];
     if(Math.abs(cross(a,b,c))<1e-8)continue;
-    batch.quad(color,[a.x,y,a.z],[b.x,y,b.z],[(b.x+c.x)/2,y,(b.z+c.z)/2],[c.x,y,c.z]);
+    batch.triangle(color,[a.x,y,a.z],[b.x,y,b.z],[c.x,y,c.z]);
   }
 }

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {readFileSync} from 'node:fs';
 import {WALKWAY_EVIDENCE,WALKWAY_SURFACES,WALKWAY_EXTERNAL_MASKS,WALKWAY_PROPS,WALKWAY_WALL_PROPS,WALKWAY_LINKS,WALKWAY_SOUTH_ANCHOR,WALKWAY_ENTRANCE,walkwayTreeClear} from '../src/north-walkway-layout.js';
-import {intersectSurface,surfaceArea} from '../src/north-walkway-surface.js';
+import {intersectSurface,surfaceArea,emitSurface} from '../src/north-walkway-surface.js';
 import {fillWalkwayPaving,fillWalkwayProps,fillWalkwayEntrance} from '../src/north-walkway-geometry.js';
 import {SIDE_GATE_PATHS} from '../src/north-side-gate-layout.js';
 import {NORTH_LANES,FIVE,ANNIVERSARY,FIVE_FRONT_TREES,NORTH_APPROACHES,ANNIVERSARY_BACK_GATE_LINKS,FIVE_FRONTAGES} from '../src/north-campus-layout.js';
@@ -23,6 +23,16 @@ const capture=fn=>{const calls=[];fn(Object.fromEntries(['box','quad','triangle'
 const allRings=WALKWAY_SURFACES.flatMap(s=>s.rings);
 const onWalk=p=>[...allRings,...WALKWAY_EXTERNAL_MASKS].some(r=>polygonOverlap(p.x,p.z,r,.015));
 
+test('minimal surface fans preserve area and upward winding without midpoint subdivision',()=>{
+ for(const surface of WALKWAY_SURFACES)for(const ring of surface.rings)for(const points of [ring,[...ring].reverse()]){
+  const calls=capture(b=>emitSurface(b,'#ffffff',points,G.SURFACE));
+  assert.ok(calls.length<=points.length-2,'at most n-2 GPU triangles per convex polygon');
+  let area=0;
+  for(const c of calls){assert.equal(c.kind,'triangle');const a=surfaceArea(c.args.map(p=>({x:p[0],z:p[2]})));assert.ok(a<0,'upward winding');area-=a;}
+  assert.ok(Math.abs(area-Math.abs(surfaceArea(points)))<1e-7,'identical covered surface');
+ }
+});
+
 test('existing north surfaces own the restoration; base pieces are finite, disjoint, mapped exactly',()=>{
  const map=createMiniMapDataSource().geometry();
  assert.equal(WALKWAY_SURFACES.length,NORTH_LANES.length+2+WALKWAY_LINKS.length);
@@ -35,7 +45,7 @@ test('existing north surfaces own the restoration; base pieces are finite, disjo
   assert.ok(Math.abs(surfaceArea(intersectSurface(allRings[i],r)))<1e-7,'no positive-area duplicated surface or asphalt overlap');
  }
  const calls=capture(fillWalkwayPaving);assert.ok(calls.length>200&&calls.length<2500);
- for(const q of calls){assert.equal(q.kind,'quad');const y=q.args[0][1];assert.ok(y>=G.SURFACE&&y<=FLAT_GROUND_MAX_Y);assert.ok(q.args.every(p=>p[1]===y&&p.every(Number.isFinite)));}
+ for(const q of calls){assert.equal(q.kind,'triangle');const y=q.args[0][1];assert.ok(y>=G.SURFACE&&y<=FLAT_GROUND_MAX_Y);assert.ok(q.args.every(p=>p[1]===y&&p.every(Number.isFinite)));}
  assert.deepEqual(capture(fillWalkwayPaving),calls,'re-entry determinism');
 });
 

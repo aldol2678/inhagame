@@ -10,7 +10,7 @@ import { roadviewGroundHeight } from '../src/roadview-layout.js';
 import { FLAT_GROUND_Y, FLAT_GROUND_MAX_Y } from '../src/flat-ground-surface.js';
 
 const surfaces=[];
-fillNorthRoads({quad(color,...vertices){surfaces.push({color,vertices});}});
+fillNorthRoads({triangle(color,...vertices){surfaces.push({color,vertices});}});
 fillFiveGardenPaths({quad(color,...vertices){surfaces.push({color,vertices});}});
 const bodies=[...FACILITY_COLLIDERS.filter(b=>b.minY===0),...BUILDINGS.map(b=>({id:b.id,polygon:b.vertices}))];
 test('new north pavements stay flat, face up and never cover a building or courtyard wall',()=>{
@@ -19,7 +19,7 @@ test('new north pavements stay flat, face up and never cover a building or court
     assert.ok((b[2]-a[2])*(c[0]-a[0])-(b[0]-a[0])*(c[2]-a[2])>0);
     // Clip fans are triangles, not necessarily parallelograms. Sample the two
     // actual GPU triangles, including edges, rather than the enclosing rhombus.
-    for(const [v0,v1,v2]of [[a,b,c],[a,c,d]])for(let i=0;i<=10;i++)for(let j=0;j<=10-i;j++){
+    for(const [v0,v1,v2]of (d?[[a,b,c],[a,c,d]]:[[a,b,c]]))for(let i=0;i<=10;i++)for(let j=0;j<=10-i;j++){
       const x=v0[0]+(v1[0]-v0[0])*i/10+(v2[0]-v0[0])*j/10;
       const z=v0[2]+(v1[2]-v0[2])*i/10+(v2[2]-v0[2])*j/10;
       for(const body of bodies){

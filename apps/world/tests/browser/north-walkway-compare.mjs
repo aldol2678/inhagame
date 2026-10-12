@@ -4,6 +4,8 @@ const [beforePath,afterPath,output]=process.argv.slice(2);
 assert.ok(beforePath&&afterPath&&output,'usage: before/report.json after/report.json comparison.json');
 const before=JSON.parse(await readFile(beforePath,'utf8')),after=JSON.parse(await readFile(afterPath,'utf8'));
 assert.ok(!before.error&&!after.error);assert.equal(before.renderer,after.renderer);
+assert.equal(before.measurement,after.measurement,'baseline and candidate must use identical completion protocol');
+assert.ok(before.measurement.includes('synchronous 1px framebuffer readback'),'GPU completion must be measured');
 assert.deepEqual(before.cameras,after.cameras);
 const expectedViews=['desktop','portrait','landscape'].flatMap(viewport=>
  ['CAM-A','CAM-B','CAM-C','CAM-D','CAM-E','CAM-F','CAM-G','FIVE-SOUTH-ENTRY'].map(id=>`${viewport}/${id}`)).sort();
@@ -14,10 +16,15 @@ const budgets={p95Ratio:1.15,p95SlackMs:2,drawCallDelta:16,triangleRatio:1.05,vr
 const views=after.views.map(a=>{
  const b=before.views.find(b=>b.viewport===a.viewport&&b.id===a.id);assert.ok(b);
  assert.deepEqual(a.framebuffer,b.framebuffer);assert.deepEqual(a.camera,b.camera);assert.equal(a.samples,b.samples);
- for(const key of ['p50Ms','p95Ms','fps','drawCalls','triangles','vramBytes','heapBytes'])assert.ok(Number.isFinite(a[key])&&a[key]>0&&Number.isFinite(b[key])&&b[key]>0,`${a.viewport}/${a.id}: ${key}`);
+ for(const report of [a,b]){
+  assert.ok(report.samples>=60);
+  for(const key of ['rawIntervals','rawCompletedFrameMs'])assert.ok(report[key]?.length===report.samples&&report[key].every(t=>Number.isFinite(t)&&t>0),'retain every measured frame');
+ }
+ for(const key of ['p50Ms','p95Ms','completedFrameP95Ms','fps','drawCalls','triangles','vramBytes','heapBytes'])assert.ok(Number.isFinite(a[key])&&a[key]>0&&Number.isFinite(b[key])&&b[key]>0,`${a.viewport}/${a.id}: ${key}`);
  const delta=Object.fromEntries(['p50Ms','p95Ms','fps','drawCalls','triangles','vramBytes','heapBytes'].map(k=>[k,a[k]-b[k]]));
  const holds=[];
  if(a.p95Ms>b.p95Ms*budgets.p95Ratio+budgets.p95SlackMs)holds.push('p95');
+ if(a.completedFrameP95Ms>b.completedFrameP95Ms*budgets.p95Ratio+budgets.p95SlackMs)holds.push('completedFrameP95');
  if(delta.drawCalls>budgets.drawCallDelta)holds.push('drawCalls');
  if(a.triangles>b.triangles*budgets.triangleRatio)holds.push('triangles');
  if(a.vramBytes>b.vramBytes*budgets.vramRatio)holds.push('vram');

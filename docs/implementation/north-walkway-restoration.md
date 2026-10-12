@@ -83,9 +83,9 @@ against pinned main and candidate sequentially, captures 24 views each (CAM-A–
 twelve runtime Auto Move traversals, and uploads the receipts. No online services,
 login, operating DB, deployment or account data are used.
 
-Performance samples use eight warm-up frames and thirty measured rAF intervals
-per camera; simulation is frozen and each frame explicitly renders. Submission
-wall time, FPS, actual draw/triangle submissions, engine VRAM and JS heap are
+Performance samples use twelve warm-up frames and sixty measured rAF intervals
+per camera; simulation is frozen and each frame explicitly renders. Each frame synchronously reads one framebuffer pixel to confirm GPU completion.
+Completed-frame wall time, raw samples, FPS, actual draw/triangle submissions, engine VRAM and JS heap are
 recorded. Same engine/browser/viewport/cameras and NORMAL streaming policy apply.
 Budgets: p95 ≤ baseline × 1.15 + 2 ms; draws ≤ baseline + 16; triangles ≤ +5%;
 VRAM ≤ +10%; heap ≤ +15%. These are declared mission QA budgets, not surveyed
@@ -147,3 +147,24 @@ the walkway owner. Other active library, furniture, UI and commission candidates
 were not copied. The browser sampler adds an entrance/clock alignment view on all
 three viewports and two entrance Auto Move traversals per viewport. Survey and
 physical-device limits, CAM-F/G uncertainty and performance HOLD policy persist.
+
+
+## Performance correction
+
+`emitSurface` now emits each convex fan triangle directly. The former midpoint
+quad split every face into two triangles without changing area or silhouette.
+Paving drops from 758 to 379 triangles, with identical coverage, winding, heights,
+material colours and ownership. No P0/P1 element or entrance alignment is removed.
+
+The original Chromium sampler's `gl.finish()` did not wait for completed GPU work:
+a controlled portrait CAM-C probe returned ~1.5 ms CPU wall time while synchronous
+pixel readback measured ~84 ms. Queued frames produced alternating short intervals
+and delayed stalls. The sampler now stops the engine's autonomous tick and reads
+one framebuffer pixel after every explicit render, restoring its framebuffer
+binding. Both main and candidate run this same completion protocol, cameras and
+60-frame window. Raw intervals and completed-frame wall times remain in receipts.
+
+All previous p95/draw/triangle/VRAM/heap budgets remain unchanged. Completed-frame
+p95 additionally receives the same 1.15× + 2 ms cap. The comparator rejects protocol
+mismatches, incomplete 24-view sets and missing raw samples. This correction does
+not reclassify historical failures; new exact-head evidence is required.
