@@ -81,7 +81,7 @@ async function openWorld(entry, { viewport, mobile = false, account = null }) {
       return route.fulfill({ status: 200, contentType: 'text/javascript; charset=utf-8', body: supabaseJs });
     return route.abort('blockedbyclient');
   });
-  const page = await context.newPage(); page.setDefaultTimeout(60000);
+  const page = await context.newPage(); page.setDefaultTimeout(60000); currentPage = page;
   page.on('pageerror', e => problems.push(`pageerror: ${e.message}`));
   await page.goto(`${origin}/campus/?jeongseok=jsl-a&envTime=day&envWeather=clear`, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => window.__INHAGAME_P0__?.getStatus().loading?.finished, null, { timeout: 180000 });
@@ -98,11 +98,17 @@ async function frames(page, count = 3) {
   await page.waitForFunction(({ at, count }) => window.__INHAGAME_P0__.app.frame >= at + count, { at, count }, { timeout: 60000 });
 }
 async function goToReader(page) {
+  await page.evaluate(() => { const d = window.__INHAGAME_P0__; if (window.__jslLog) return; window.__jslLog = [];
+    d.jeongseok.gate.onChange(v => window.__jslLog.push(`gate:${v.state}`));
+    d.jeongseok.access.onChange(v => window.__jslLog.push(`access:${v.reason}:${v.state}`));
+    window.addEventListener('keydown', e => { if (e.code === 'KeyF') window.__jslLog.push(`keyF:${d.contextActions.active?.id}:${d.contextActions.suspended}`); }, true); });
   await page.evaluate(() => { const d = window.__INHAGAME_P0__, g = d.jeongseok.layout.position, c = d.controller;
     c.velocityY = 0; d.player.setLocalPosition(g.x, g.y + .4, g.z); });
   await page.waitForFunction(() => window.__INHAGAME_P0__.contextActions.active?.id === 'jeongseok-gate', null, { timeout: 30000 });
 }
 async function press(page, mobile) {
+  // The shared slot is re-enabled on the next World frame after a blocking UI closes.
+  await page.waitForFunction(() => { const c = window.__INHAGAME_P0__.contextActions; return !c.suspended && c.active?.id === 'jeongseok-gate'; });
   if (mobile) await page.locator('#context-action').tap(); else await page.keyboard.press('KeyF');
 }
 const shot = async (page, entry, name) => { await page.screenshot({ path: `${output}/${entry.name}-${name}.png` }); entry.screenshots.push(`${entry.name}-${name}.png`); };
@@ -115,15 +121,23 @@ async function layout(page) {
 }
 async function worldRestored(page) {
   return page.evaluate(() => { const d = window.__INHAGAME_P0__; return { phone: d.smartphone.shell.state, input: d.controller.inputEnabled,
-    canWorld: d.inputFocus.can('WORLD_ACTION'), inert: document.getElementById('application').inert, space: d.rooms.currentSpace }; });
+    canWorld: (d.getStatus().inputFocus.topOwners ?? []).length === 0, inert: document.getElementById('application').inert, space: d.rooms.currentSpace }; });
 }
 
+let currentPage = null;
 const only = process.env.JSL_CASES ? new Set(process.env.JSL_CASES.split(',')) : null;
 async function runCase(name, fn) {
   if (only && !only.has(name)) return true;
   const entry = { name, status: 'RUNNING', checks: [], screenshots: [] }; report.cases.push(entry); await save();
   try { await fn(entry); entry.status = 'PASS'; }
-  catch (error) { entry.status = 'FAIL'; entry.error = String(error.stack ?? error); }
+  catch (error) {
+    entry.status = 'FAIL'; entry.error = String(error.stack ?? error);
+    try { entry.diagnostic = await currentPage?.evaluate(() => { const d = window.__INHAGAME_P0__; return { gate: d.jeongseok.gate.snapshot(),
+      access: { state: d.jeongseok.access.state, decision: d.jeongseok.access.snapshot?.decision }, phone: d.smartphone.status().state,
+      route: d.smartphone.status().current, action: d.contextActions.active?.id ?? null, focus: d.getStatus().inputFocus.topOwners,
+      activeElement: document.activeElement?.id || document.activeElement?.tagName, log: window.__jslLog }; }); } catch { /* page gone */ }
+    try { await currentPage?.screenshot({ path: `${output}/${name}-failure.png` }); } catch { /* page gone */ }
+  }
   await save();
   return entry.status === 'PASS';
 }

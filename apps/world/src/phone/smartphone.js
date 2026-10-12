@@ -148,10 +148,17 @@ export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, g
     }
     if(g.state!=='IDLE'){const live=el('strong','smartphone-jeongseok-gate',gateMessage(g));live.setAttribute('role','status');card.append(live);}
     const line=(text,cls='')=>card.append(el('p',cls,text));
+    // An unresolved request is recovered with its own key before anything else, whatever the read says.
+    if(a.pendingKey&&v.atReader&&a.accountId){
+      line('이전 방문증 발급 요청의 결과를 확인하지 못했어요. 같은 요청으로 다시 확인하면 중복 결제 없이 결과를 받아요.','smartphone-jeongseok-error');
+      const retry=btn('같은 요청 다시 확인',()=>{void jeongseok.purchase();});retry.disabled=g.state==='PURCHASING'||a.purchasing;content.append(retry);
+    }
     if(a.state==='SIGNED_OUT')line('로그인하지 않았어요. 정식 계정으로 로그인하면 출입할 수 있어요. 캠퍼스 탐험은 그대로 즐길 수 있어요.');
-    else if(a.state==='LOADING'||(a.state!=='READY'&&a.state!=='UNKNOWN'))line('출입 자격을 서버에서 확인하고 있어요…');
+    else if(!s&&a.state==='LOADING')line('출입 자격을 서버에서 확인하고 있어요…');
     else if(a.state==='UNKNOWN'||!s){line('출입 자격을 확인하지 못했어요. 새 입장은 막혀 있어요.');content.append(btn('다시 확인',()=>{void jeongseok.refresh();}));}
     else{
+      // The last server answer for this account stays visible while a newer read is in flight.
+      if(a.state==='LOADING')line('최신 상태를 다시 확인하고 있어요…','smartphone-hint');
       if(s.inhaMailVerified!==null)line(s.inhaMailVerified?'✉️ 인하대 이메일 인증 회원':'인하대 이메일 미인증 계정','smartphone-student-mail');
       if(s.decision==='DISABLED'||s.decision==='COMING_SOON')line(s.decision==='COMING_SOON'?'정석학술정보관 출입은 준비 중이에요.':'정석학술정보관 출입이 지금은 닫혀 있어요.');
       else if(s.decision==='AUTH_REQUIRED')line('정식 계정으로 로그인하면 출입할 수 있어요.');
@@ -178,7 +185,7 @@ export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, g
     if(a.purchaseError)content.append(el('p','smartphone-jeongseok-error',PURCHASE_ERRORS[a.purchaseError]??PURCHASE_ERRORS.UNKNOWN));
     if(!v.atReader){content.append(el('p','','방문증은 정석학술정보관 앞 가상 리더기에서 발급할 수 있어요.'));return;}
     if(g.state==='PURCHASING'||a.purchasing){const wait=btn('발급 확인 중…',()=>{});wait.disabled=true;content.append(wait);return;}
-    if(a.pendingKey){content.append(btn('같은 요청 다시 확인',()=>{void jeongseok.purchase();}));return;}
+    if(a.pendingKey)return;
     if(!jeongseokConfirm){const buy=btn(`방문증 발급하기 · ${o.price} 인덕코인`,()=>{jeongseokConfirm=true;render(true);});buy.disabled=!g.canPurchase;content.append(buy);return;}
     content.append(btn(`결제 확인 · ${o.price} 인덕코인 사용`,()=>{jeongseokConfirm=false;void jeongseok.purchase();}),
       btn('구매 취소',()=>{jeongseokConfirm=false;render(true);}));
