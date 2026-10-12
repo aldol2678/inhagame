@@ -89,7 +89,10 @@ test('cleanup, renew and friend CARE have serial outcomes without deadlock; unhe
  lease=await join();
  const results=await Promise.all([sql('select private.world_room_cleanup_v1()'),call(friend,`select public.renew_world_room_chat_v1(${lit(lease)})`),care(token,lease)]);
  assert.equal(results[1].ok,true);assert.equal(results[1].data.allowed,true);assert.equal(results[2].error,'PLANT_CONFLICT');
- await sql("update cron.job set active=false where jobname='world-room-social-cleanup-v1'");
+ // Use pg_cron's owner management API; cron.job intentionally has no direct UPDATE grant.
+ assert.equal(await sql("select active from cron.job where jobname='world-room-social-cleanup-v1'"),'t');
+ await sql("select cron.alter_job(jobid,active:=false) from cron.job where jobname='world-room-social-cleanup-v1'");
+ assert.equal(await sql("select active from cron.job where jobname='world-room-social-cleanup-v1'"),'f');
  try{assert.equal((await care(token,lease)).error,'PLANT_ACCESS_DENIED');assert.equal((await mine(3)).error,'PLANT_NOT_READY','owner reaches growth rules without chat cleanup authority');}
- finally{await sql("update cron.job set active=true where jobname='world-room-social-cleanup-v1';select private.world_room_cleanup_v1()");}
+ finally{await sql("select cron.alter_job(jobid,active:=true) from cron.job where jobname='world-room-social-cleanup-v1';select private.world_room_cleanup_v1()");}
 });

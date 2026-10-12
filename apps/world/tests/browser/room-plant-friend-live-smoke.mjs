@@ -24,7 +24,19 @@ try{
  const frozen=await friend.evaluate(()=>{const q=window.plantFixture,p=q.feature.client.state().snapshot.plants[0];return{token:p.careToken,object:p.objectId,lease:q.chat.personalVisitLease(q.furniture.state().roomId)};});
  await friend.evaluate(()=>window.plantFixture.leaveChat());await friend.waitForFunction(()=>!window.plantFixture.feature.client.state().visitorCareAvailable);assert.equal(await friend.evaluate(()=>window.plantFixture.feature.client.care(window.plantFixture.furniture.state().objects[0].id)),false);
  const ids=await friend.evaluate(()=>window.plantFixture.ids);const denied=await db.rpc(ids.b,'care_visited_room_plant_v1',{p_room:ids.roomA,p_object:frozen.object,p_care_token:frozen.token,p_request_id:crypto.randomUUID(),p_visit_session:frozen.lease.sessionId,p_visit_lease:frozen.lease.leaseId});assert.equal(denied.error.message,'PLANT_ACCESS_DENIED');assert.equal(db.evidence().revision,2);
- await ready(friend);await friend.waitForFunction(()=>window.plantFixture.feature.client.state().visitorCareAvailable);db.block();await friend.locator('#plant-open').click();await vp.getByRole('button',{name:'친구 꽃 물주기',exact:true}).click();await vp.getByText('지금은 이 방의 화분을 확인할 수 없어요.').waitFor();assert.equal(db.evidence().revision,2);
+ await ready(friend);await friend.waitForFunction(()=>window.plantFixture.feature.client.state().visitorCareAvailable);
+ await friend.locator('#plant-open').click();await vp.getByRole('button',{name:'친구 꽃 물주기',exact:true}).waitFor();
+ await friend.waitForFunction(()=>!window.plantFixture.feature.client.state().reading);
+ const beforeBlock=await friend.evaluate(()=>{const q=window.plantFixture,p=q.feature.client.state().snapshot.plants[0];return{token:p.careToken,object:p.objectId,lease:q.chat.personalVisitLease(q.furniture.state().roomId)};});
+ db.block();
+ // Freeze a previously valid capability, then prove the committed block is rechecked by SQL.
+ // Opening the UI after blocking correctly removes the button, so it cannot be our mutation driver.
+ const blocked=await db.rpc(ids.b,'care_visited_room_plant_v1',{p_room:ids.roomA,p_object:beforeBlock.object,p_care_token:beforeBlock.token,p_request_id:crypto.randomUUID(),p_visit_session:beforeBlock.lease.sessionId,p_visit_lease:beforeBlock.lease.leaseId});
+ assert.equal(blocked.error.message,'PLANT_ACCESS_DENIED');assert.equal(db.evidence().revision,2);
+ await friend.evaluate(()=>window.plantFixture.feature.client.refresh());
+ await friend.waitForFunction(()=>{const s=window.plantFixture.feature.client.state();return !s.ready&&!s.snapshot&&(s.error==='PLANT_ACCESS_DENIED'||!s.visitorCareAvailable);});
+ assert.equal(await friend.locator('#room-plant-panel:not([hidden]) button:enabled').filter({hasText:/^친구 꽃 물주기$/}).count(),0,'revoked room cannot present an enabled care action');
+ await friend.screenshot({path:path.join(output,'real-friend-blocked-care-denied.png')});
  db.disableChat();await ready(owner);await owner.locator('#plant-open').click();await panel.getByRole('button',{name:'물주기',exact:true}).click();await panel.getByText('다음 변화까지 약 20시간. 서두르지 않아도 괜찮아요.').waitFor();
  report.db=db.evidence();assert.equal(report.db.revision,3);assert.equal(report.db.receipts,3);assert.equal(report.db.money,0);assert.equal(report.db.xp,0);assert.equal(report.db.lifeXp,0);assert.equal(report.db.chatMessages,0);
  report.checks.push('leave revokes exact lease before CARE; committed block rejects current lease; owner care stays independent of disabled chat; money/XP/message counters unchanged');
