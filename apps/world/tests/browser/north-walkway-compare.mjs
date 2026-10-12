@@ -4,7 +4,10 @@ const [beforePath,afterPath,output]=process.argv.slice(2);
 assert.ok(beforePath&&afterPath&&output,'usage: before/report.json after/report.json comparison.json');
 const before=JSON.parse(await readFile(beforePath,'utf8')),after=JSON.parse(await readFile(afterPath,'utf8'));
 assert.ok(!before.error&&!after.error);assert.equal(before.renderer,after.renderer);
-assert.deepEqual(before.cameras,after.cameras);assert.equal(before.views.length,21);assert.equal(after.views.length,21);
+assert.deepEqual(before.cameras,after.cameras);
+const expectedViews=['desktop','portrait','landscape'].flatMap(viewport=>
+ ['CAM-A','CAM-B','CAM-C','CAM-D','CAM-E','CAM-F','CAM-G','FIVE-SOUTH-ENTRY'].map(id=>`${viewport}/${id}`)).sort();
+for(const report of [before,after])assert.deepEqual(report.views.map(v=>`${v.viewport}/${v.id}`).sort(),expectedViews,'all 24 views must be measured exactly once');
 // Mission-specific surrogate budgets declared before measurement. They are
 // not a project-wide/mobile-device performance guarantee.
 const budgets={p95Ratio:1.15,p95SlackMs:2,drawCallDelta:16,triangleRatio:1.05,vramRatio:1.10,heapRatio:1.15};
