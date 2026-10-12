@@ -162,7 +162,7 @@ function deferredCapture() {
   let resolve, reject, calls = 0, cancelled = 0, destroyed = 0;
   return { request() { calls++; return new Promise((yes, no) => { resolve = yes; reject = no; }); },
     resolve() { resolve({ blob: new Blob(['image'], { type: 'image/png' }), width: 640, height: 360 }); },
-    reject() { reject(new Error('capture failed')); }, cancel() { cancelled++; }, destroy() { destroyed++; },
+    reject(error = new Error('capture failed')) { reject(error); }, cancel() { cancelled++; }, destroy() { destroyed++; },
     get calls() { return calls; }, get cancelled() { return cancelled; }, get destroyed() { return destroyed; } };
 }
 const flush = () => new Promise(resolve => setImmediate(resolve));
@@ -287,4 +287,23 @@ test('HUD entry stays focusable, explains why it is blocked, and opens when allo
   assert.equal(button.getAttribute('aria-disabled'), 'false'); assert.equal(button.title, '사진 모드 열기 (P)');
   button.click(); assert.equal(opened, 1); assert.equal(button.getAttribute('aria-disabled'), 'false', 'active is not a blocked state');
   for (const code of Object.keys(PHOTO_ENTRY_BLOCK_MESSAGES)) assert.ok(PHOTO_ENTRY_BLOCK_MESSAGES[code].length > 0);
+});
+
+test('capture failure diagnostics survive the UI message and clear on retry and a new session', async () => {
+  const capture = deferredCapture(), h = fixture({ capture }); h.mode.open(); h.control('capture').click();
+  const details = { code: 'timeout', phase: 'encoding', reason: null, elapsedMs: 10002 };
+  capture.reject(Object.assign(new Error('raw text must not escape'), details)); await flush();
+  assert.deepEqual(h.ui.status().captureFailure, details);
+  assert.ok(Object.isFrozen(h.ui.status().captureFailure));
+  h.control('capture').click(); assert.equal(h.ui.status().captureFailure, null);
+  capture.reject(Object.assign(new Error('failed'), details)); await flush();
+  h.mode.close(); h.mode.open(); assert.equal(h.ui.status().captureFailure, null);
+});
+
+test('unknown failure fields and non-finite durations do not leak into status diagnostics', async () => {
+  const capture = deferredCapture(), h = fixture({ capture }); h.mode.open(); h.control('capture').click();
+  capture.reject(Object.assign(new Error('raw browser message'), {
+    code: 'private code', phase: 'private phase', reason: 'private reason', elapsedMs: NaN
+  })); await flush();
+  assert.deepEqual(h.ui.status().captureFailure, { code: 'unknown', phase: null, reason: null, elapsedMs: null });
 });

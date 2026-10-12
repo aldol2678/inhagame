@@ -20,6 +20,9 @@ export function createAssetCanaryRemoteControl({
   let state = FLAG_UNAVAILABLE;
   let started = false;
   let stopped = false;
+  let paused = false;
+  let generation = 0;
+  let pending = null;
   let timer = null;
   const listeners = new Set();
 
@@ -32,31 +35,56 @@ export function createAssetCanaryRemoteControl({
   }
 
   async function check() {
-    if (stopped) return state;
-    const next = await probeFeatureFlag(url, {
-      fetcher,
-      timeoutMs,
-      setTimer,
-      clearTimer
-    });
-    return publish(next);
+    if (stopped || paused) return state;
+    if (pending) return pending;
+    const currentGeneration = generation;
+    pending = (async () => {
+      try {
+        const next = await probeFeatureFlag(url, {
+          fetcher,
+          timeoutMs,
+          setTimer,
+          clearTimer
+        });
+        // A read started before pagehide must not publish into a restored or disposed page.
+        if (currentGeneration !== generation || stopped || paused) return state;
+        return publish(next);
+      } finally {
+        if (currentGeneration === generation) pending = null;
+      }
+    })();
+    return pending;
   }
 
-  function schedule() {
-    if (stopped || !Number.isFinite(pollMs) || pollMs <= 0) return;
+  function schedule(currentGeneration) {
+    if (currentGeneration !== generation || !started || stopped || paused || timer !== null ||
+        !Number.isFinite(pollMs) || pollMs <= 0) return;
     timer = setTimer(async () => {
+      if (currentGeneration !== generation || stopped || paused) return;
       timer = null;
       await check();
-      schedule();
+      schedule(currentGeneration);
     }, pollMs);
   }
 
   async function start() {
-    if (started) return state;
+    if (stopped) return state;
+    if (started) return pending ?? state;
     started = true;
+    paused = false;
+    const currentGeneration = generation;
     const initial = await check();
-    schedule();
+    schedule(currentGeneration);
     return initial;
+  }
+
+  function pause() {
+    paused = true;
+    started = false;
+    generation += 1;
+    pending = null;
+    if (timer !== null) clearTimer(timer);
+    timer = null;
   }
 
   function subscribe(listener, { emitCurrent = false } = {}) {
@@ -67,14 +95,14 @@ export function createAssetCanaryRemoteControl({
   }
 
   function stop() {
+    pause();
     stopped = true;
-    if (timer !== null) clearTimer(timer);
-    timer = null;
     listeners.clear();
   }
 
   return Object.freeze({
     start,
+    pause,
     check,
     subscribe,
     stop,
