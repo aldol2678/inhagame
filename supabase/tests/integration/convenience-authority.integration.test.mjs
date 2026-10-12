@@ -52,9 +52,30 @@ before(async()=>{
 after(async()=>{if(server)await new Promise(resolve=>server.close(resolve));
  if(previous)await query(`drop table if exists private.${gateTable};update private.world_income_runtime set enabled=${previous.income.enabled};update private.world_convenience_runtime set enabled=${previous.convenience.enabled};update private.world_income_definitions set status=${lit(previous.definition.status)} where kind='SHIFT';update private.world_reward_definitions set status=${lit(previous.reward.status)} where reward_id='reward.income.convenience_help';${actors.length?`delete from auth.users where id in (${actors.map(a=>lit(a.user)).join(',')});`:''}`);
 });
-async function actor(){const a={user:randomUUID(),auth:randomUUID(),connection:randomUUID(),record:null};actors.push(a);
- await query(`insert into auth.users(id,aud,role,email,email_confirmed_at,is_anonymous) values(${lit(a.user)},'authenticated','authenticated',${lit(`convenience-${a.user}@example.test`)},now(),false);insert into public.profiles(user_id,nickname,is_banned) values(${lit(a.user)},${lit('c'+a.user.slice(0,8))},false);insert into auth.sessions(id,user_id,created_at,updated_at) values(${lit(a.auth)},${lit(a.user)},now(),now());insert into private.world_quest_progress_v1(user_id,quest_id,stage) values(${lit(a.user)},'campus_navigation_intro_v1',9);`);
- a.token=jwt({sub:a.user,role:'authenticated',session_id:a.auth,is_anonymous:false,aal:'aal1'});return a;}
+async function authRequest(path, body, key=ANON_KEY) {
+ const response=await fetch(`${API_URL}/auth/v1/${path}`,{method:'POST',redirect:'error',
+   headers:{apikey:key,Authorization:`Bearer ${key}`,'Content-Type':'application/json'},body:JSON.stringify(body)});
+ const value=await response.json();
+ // Report only status/error code, never fixture passwords, access tokens or response bodies.
+ assert.ok(response.ok,`local Auth ${path.split('?')[0]} failed: ${response.status} ${value.error_code??value.code??'unknown'}`);
+ return value;
+}
+async function actor(){
+ const email=`convenience-${randomUUID()}@example.test`,password=`Fixture-only-${randomUUID()}!`;
+ // GoTrue owns the user/session/token lifecycle. Handwritten JWTs + SQL auth rows are
+ // insufficient evidence that the real /auth/v1/user verifier accepts a login.
+ const user=await authRequest('admin/users',{email,password,email_confirm:true},env.WORLD_INCOME_CANDIDATE_SERVICE_ROLE_KEY);
+ const a={user:user.id,auth:null,connection:randomUUID(),record:null};actors.push(a);
+ const login=await authRequest('token?grant_type=password',{email,password});
+ a.token=login.access_token;
+ const claims=JSON.parse(Buffer.from(a.token.split('.')[1],'base64url').toString());
+ assert.equal(claims.sub,a.user);assert.match(claims.session_id,/^[0-9a-f-]{36}$/i);a.auth=claims.session_id;
+ const verified=await fetch(`${API_URL}/auth/v1/user`,{headers:{apikey:ANON_KEY,Authorization:`Bearer ${a.token}`}});
+ assert.equal(verified.status,200,'real Auth must accept the fixture session before testing authority');
+ assert.equal((await verified.json()).is_anonymous,false);
+ await query(`insert into public.profiles(user_id,nickname,is_banned) values(${lit(a.user)},${lit('c'+a.user.slice(0,8))},false) on conflict(user_id) do update set is_banned=false;insert into private.world_quest_progress_v1(user_id,quest_id,stage) values(${lit(a.user)},'campus_navigation_intro_v1',9);`);
+ return a;
+}
 const scope=a=>({connectionId:a.connection,authoritySessionId:a.record?.sessionId,fence:a.record?.fence});
 async function call(a,body){const response=await fetch(origin,{method:'POST',headers:{Authorization:`Bearer ${a.token}`,'Content-Type':'application/json'},body:JSON.stringify(body)});const value=await response.json();if(!response.ok)throw Object.assign(Error(value.error),{status:response.status});return value;}
 async function open(a){a.record=await call(a,{op:'open',connectionId:a.connection});return a.record;}
