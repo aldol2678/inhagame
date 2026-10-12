@@ -4,7 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { createPgHarness, lit, ROOM_ID } from '../../../scripts/room-social-pg-harness.mjs';
+import { createPgHarness, lit, ROOM_ID, waitUntil } from '../../../scripts/room-social-pg-harness.mjs';
 import { encodeAction, validateAction, validatePresence, EMOTE_IDS } from '../../../apps/world/src/network/protocol.js';
 
 const db = createPgHarness();
@@ -159,6 +159,62 @@ test('chat rate limit serializes actual transactions and survives fresh chat lea
     assert.equal((await rpc(user, 'renew_world_room_chat_v1', [next.leaseId])).allowed, false);
     t.diagnostic(JSON.stringify({ case: 'chat-rate', independentBackends: contention.length, allObservedLockWaiting: true }));
   } finally { await db.query('update private.world_room_chat_config set enabled=false where singleton'); }
+});
+
+test('chat send waiting on its lease row rejects expiry before writing rate state or provider rows', async t => {
+  const sender = users[0], recipient = users[1];
+  const senderSession = await join(sender), recipientSession = await join(recipient);
+  await db.query('update private.world_room_chat_config set enabled=true where singleton');
+  let gate, sending;
+  try {
+    const lease = await chatJoin(sender, senderSession), target = await chatJoin(recipient, recipientSession);
+    assert.equal(lease.allowed, true); assert.equal(target.allowed, true);
+    const suffix = randomUUID().slice(0, 8), gateName = `room-social-expiry-gate-${suffix}`;
+    const senderName = `room-social-expiry-send-${suffix}`;
+    // Only the chat lease expires. The separate 20-second club admissions and recipient's
+    // 30-second chat lease remain live, so unrelated permission checks cannot mask this bug.
+    await db.query(`update private.world_room_chat_sessions set lease_expires_at=clock_timestamp()+interval '5 seconds'
+      where id=${lit(lease.leaseId)}`);
+    gate = db.query(`begin; set local statement_timeout='15s';
+      set local application_name=${lit(gateName)};
+      select id from private.world_room_chat_sessions where id=${lit(lease.leaseId)} for update;
+      select pg_sleep(7); rollback;`).then(() => ({}), error => ({ error }));
+    await waitUntil(() => db.json(`select exists(select 1 from pg_stat_activity
+      where application_name=${lit(gateName)} and wait_event='PgSleep')`),
+    { description: 'independent expiry gate holds the exact sender lease row' });
+    sending = db.asUser(sender, `select jsonb_build_object('backendPid',pg_backend_pid(),'result',
+      public.send_world_room_chat_v1(${lit(lease.leaseId)},'잠금 대기 중 만료'))`, senderName)
+      .then(value => ({ value }), error => ({ error }));
+    const evidence = await waitUntil(async () => {
+      const rows = await db.json(`select coalesce(jsonb_agg(jsonb_build_object('pid',pid,
+        'name',application_name,'waiting',wait_event_type='Lock',
+        'beforeExpiry',clock_timestamp() < (select lease_expires_at from private.world_room_chat_sessions
+          where id=${lit(lease.leaseId)}))),'[]'::jsonb)
+        from pg_stat_activity where application_name in (${lit(gateName)},${lit(senderName)})`);
+      const blocked = rows.find(row => row.name === senderName);
+      if (!blocked?.waiting) return false;
+      assert.equal(blocked.beforeExpiry, true, 'send must be observed waiting before its original chat lease expires');
+      assert.equal(rows.length, 2); assert.equal(new Set(rows.map(row => row.pid)).size, 2);
+      return rows;
+    }, { description: 'authenticated sender really waits on a held row before expiry' });
+    const gateResult = await gate; if (gateResult.error) throw gateResult.error;
+    const completed = await sending; if (completed.error) throw completed.error;
+    assert.equal(completed.value.backendPid, evidence.find(row => row.name === senderName).pid);
+    assert.equal(completed.value.result.ok, false, 'time must be re-read after acquiring the row lock');
+    assert.equal(completed.value.result.reason, 'denied');
+    assert.equal(await db.json(`select count(*)::int from private.world_room_chat_limits where user_id=${lit(sender)}`), 0,
+      'expired waiting send neither creates nor advances rate state');
+    assert.equal(await db.json(`select count(*)::int from realtime.messages where topic=${lit(target.topic)}`), 0,
+      'expired waiting send inserts no recipient provider row');
+    assert.equal((await rpc(sender, 'heartbeat_world_club_room_v1', [ROOM_ID, senderSession])).allowed, true,
+      'separate club admission remains valid and did not cause the denial');
+    t.diagnostic(JSON.stringify({ case: 'chat-lock-wait-expiry', independentBackends: evidence.length,
+      senderObservedLockWaitingBeforeExpiry: true, providerRows: 0, rateRows: 0 }));
+  } finally {
+    // Settle both independent transactions before restoring the closed fixture state.
+    await Promise.all([gate, sending].filter(Boolean));
+    await db.query('update private.world_room_chat_config set enabled=false where singleton');
+  }
 });
 
 test('production numeric actions survive actual provider SQL insertion and client decoding', async () => {

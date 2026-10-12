@@ -122,6 +122,8 @@ declare
 begin
   -- Authentication supplies every identity. No name, sender ID, room, recipient or topic argument.
   select * into v_session from private.world_room_chat_sessions s where s.id = p_lease and s.user_id = v_user for update;
+  -- Lock waits must never preserve the function-entry clock for lease/rate authority.
+  v_now := clock_timestamp();
   if not found or v_session.lease_expires_at <= v_now or not
     private.world_room_chat_access_v1(v_user, v_session.kind, v_session.room_id, v_session.session_id)
     then return jsonb_build_object('ok', false, 'reason', 'denied'); end if;
@@ -134,8 +136,13 @@ begin
   if char_length(v_normal) > 120 then return jsonb_build_object('ok', false, 'reason', 'too_long'); end if;
   if v_normal <> p_text then return jsonb_build_object('ok', false, 'reason', 'malformed'); end if;
   insert into private.world_room_chat_limits(user_id) values (v_user) on conflict (user_id) do nothing;
+  perform 1 from private.world_room_chat_limits where user_id = v_user for update;
+  v_now := clock_timestamp();
+  if v_session.lease_expires_at <= v_now or not
+    private.world_room_chat_access_v1(v_user, v_session.kind, v_session.room_id, v_session.session_id)
+    then return jsonb_build_object('ok', false, 'reason', 'denied'); end if;
   select coalesce(array_agg(t), '{}'::timestamptz[]) into v_sent from unnest((
-    select sent_at from private.world_room_chat_limits where user_id = v_user for update
+    select sent_at from private.world_room_chat_limits where user_id = v_user
   )) as t where t > v_now - interval '5 seconds';
   if cardinality(v_sent) >= 3 then return jsonb_build_object('ok', false, 'reason', 'rate_limited'); end if;
   update private.world_room_chat_limits set sent_at = array_append(v_sent, v_now) where user_id = v_user;
