@@ -3,16 +3,17 @@
 <title>Main Hall and Jeongseok hosted exterior QA</title>
 <script type="importmap">{"imports":{"playcanvas":"https://cdn.jsdelivr.net/npm/playcanvas@2.22.4/build/playcanvas.mjs"}}</script>
 <style>html,body{margin:0;height:100%;overflow:hidden;background:#c9d6e3;font:12px system-ui;color:#233038}body{display:grid;grid-template-rows:auto minmax(0,1fr)}aside{padding:8px 12px;background:#fffffff2}h1{font-size:14px;line-height:1.2;white-space:pre;margin:0 0 3px}p{margin:2px 0}canvas{display:block;width:100%;height:100%;min-height:0}</style></head>
-<body><aside><h1 id="label">Hosted exterior comparison</h1><p>Illustrative exterior only. No interior inferred. Four window rows are NOT a measured floor count.</p><p>Canonical footprint, height and collision authority retained. Jeongseok reuses the recovered #108 model.</p></aside><canvas id="stage"></canvas>
+<body><aside><h1 id="label">Hosted exterior comparison</h1><p>Illustrative exterior only. No interior inferred. Four window rows are NOT a measured floor count.</p><p>Canonical footprint, height and collision authority retained. Jeongseok changes only bounded entrance and canonical stair surfaces.</p></aside><canvas id="stage"></canvas>
 <script type="module">
 import * as pc from 'playcanvas';
 import {selectCampusLandmark} from '/src/campus-landmark-candidate-selector.js';
 import {buildMainHallBlockout as buildBaseline} from '/__hall_library_baseline__/src/main-hall-blockout.js';
-import {photoLandmarkView,waitForDiagnosticFrame,landmarkDiagnosticCaption} from './hall-library-hosted-views.js';
+import {photoLandmarkView,waitForDiagnosticFrame,landmarkDiagnosticCaption,projectJeongseokExteriorRegions,insideProjectedRegion} from './hall-library-hosted-views.js';
 import {buildMainHallBlockout as buildCurrentMain} from '/__hall_library_current_main__/src/main-hall-blockout.js';
 import {selectCampusLandmark as selectPrevious} from '/__hall_library_previous__/src/campus-landmark-candidate-selector.js';
 import {buildMainHallBlockout as buildBaselineMaterials} from '/__hall_library_baseline_current_materials__/src/main-hall-blockout.js';
 import {selectCampusLandmark as selectPreviousMaterials} from '/__hall_library_previous_current_materials__/src/campus-landmark-candidate-selector.js';
+import {selectCampusLandmark as selectPreExterior} from '/__hall_library_pre_exterior__/src/campus-landmark-candidate-selector.js';
 import {CampusChunkRenderer} from '/src/campus-chunk-renderer.js';
 import {RenderChunkRegistry} from '/src/render-chunk-registry.js';
 import {HALL_FRONT} from '/src/basic-campus.js';
@@ -26,8 +27,8 @@ try {
   app.scene.ambientLight = new pc.Color(.62, .62, .62);
   const world = new pc.Entity('HostedLandmarkQA'); app.root.addChild(world);
   const ids = ['bldg_01', 'bldg_jungseok'], tiers = ['BASE', 'NEAR', 'DETAIL'];
-  const originals = {}, previousCandidate = {}, currentMain = {}, baselineMaterials = {}, previousMaterials = {}, selected = {}, fitPoints = {};
-  const presentations={baseline108:originals,previous144:previousCandidate,currentmain:currentMain,baseline108materials:baselineMaterials,previous144materials:previousMaterials,candidate:selected};
+  const originals = {}, previousCandidate = {}, currentMain = {}, baselineMaterials = {}, previousMaterials = {}, preExterior = {}, selected = {}, fitPoints = {};
+  const presentations={baseline108:originals,previous144:previousCandidate,currentmain:currentMain,baseline108materials:baselineMaterials,previous144materials:previousMaterials,preexterior:preExterior,candidate:selected};
   const meshes = root => root.findComponents('render').flatMap(r => r.meshInstances);
   const corners = root => meshes(root).flatMap(m => {
     const min = m.aabb.getMin(), max = m.aabb.getMax();
@@ -40,6 +41,7 @@ try {
     currentMain[id] = new pc.Entity(id+'_currentmain'); world.addChild(currentMain[id]);
     baselineMaterials[id] = new pc.Entity(id+'_baseline108_current_materials'); world.addChild(baselineMaterials[id]);
     previousMaterials[id] = new pc.Entity(id+'_previous144_current_materials'); world.addChild(previousMaterials[id]);
+    preExterior[id] = new pc.Entity(id+'_pre_exterior'); world.addChild(preExterior[id]);
     for (const tier of tiers) {
       const root = new pc.Entity(id+'_baseline_'+tier); originals[id].addChild(root);
       buildBaseline(root, [id], tier);
@@ -48,6 +50,7 @@ try {
       selectCampusLandmark(selected[id], id, tier, {mode:'candidate'});
       const materialRoot=new pc.Entity(id+'_baseline_materials_'+tier);baselineMaterials[id].addChild(materialRoot);buildBaselineMaterials(materialRoot,[id],tier);
       selectPreviousMaterials(previousMaterials[id],id,tier,{mode:'candidate'});
+      selectPreExterior(preExterior[id],id,tier,{mode:'candidate'});
     }
     fitPoints[id] = Object.values(presentations).flatMap(collection=>corners(collection[id]));
   }
@@ -55,7 +58,7 @@ try {
   sun.setLocalEulerAngles(40,35,0); app.root.addChild(sun);
   const camera = new pc.Entity('Camera'); camera.addComponent('camera', {fov:48, farClip:1500, clearColor:new pc.Color(.79,.84,.89)}); app.root.addChild(camera);
   let state = {id:'bldg_01', presentation:'candidate', reflected:true, detail:'all', mode:'full'};
-  let previous = null, pending = false, contextLost = false;
+  let previous = null, previousViewKey = null, regionCache = null, pending = false, contextLost = false;
   canvas.addEventListener('webglcontextlost', () => { contextLost = true; qa.error = 'WebGL context lost'; });
   const fail = message => { throw new Error(message); };
   function view(options = {}) {
@@ -111,6 +114,23 @@ try {
       minY:Math.min(...points.map(p=>p.y/canvas.height)), maxY:Math.max(...points.map(p=>p.y/canvas.height)),
       minDepth:Math.min(...points.map(p=>p.z)), captionOverlapsCanvas:a.bottom>c.top+.5};
   }
+  // Project only after postrender has consumed the camera, reflection and viewport.
+  // Pixel masks are cached by actual render state, never by a fixed screen rectangle.
+  function exteriorPixelRegions(width,height,viewKey) {
+    if(campus||state.id!=='bldg_jungseok')return null;
+    if(regionCache?.viewKey===viewKey)return regionCache;
+    const projected=projectJeongseokExteriorRegions(([x,y,z])=>camera.camera.worldToScreen(new pc.Vec3(x,y,z)),state.reflected);
+    const allowed=new Uint8Array(width*height),protectedMask=new Uint8Array(width*height);
+    const regions=projected.allowed.map(region=>({...region,pixels:0})),protectedRegions=projected.protected.map(region=>({...region,pixels:0}));
+    let roiPixels=0;
+    for(let y=0;y<height;y++)for(let x=0;x<width;x++){
+      const i=(height-1-y)*width+x;
+      for(let k=0;k<regions.length;k++)if(insideProjectedRegion(x+.5,y+.5,regions[k].polygon,projected.padding)){allowed[i]|=1<<k;regions[k].pixels++;}
+      if(allowed[i])roiPixels++;
+      else for(let k=0;k<protectedRegions.length;k++)if(insideProjectedRegion(x+.5,y+.5,protectedRegions[k].polygon)){protectedMask[i]|=1<<k;protectedRegions[k].pixels++;}
+    }
+    regionCache={viewKey,allowed,protectedMask,regions,protectedRegions,roiPixels,padding:projected.padding};return regionCache;
+  }
   function pixels() {
     if (pending) return Promise.reject(new Error('Concurrent pixel capture'));
     if (contextLost || device.gl.isContextLost()) return Promise.reject(new Error('WebGL context lost'));
@@ -124,6 +144,9 @@ try {
           const data = new Uint8Array(width*height*4), old = gl.getParameter(gl.READ_FRAMEBUFFER_BINDING);
           try { gl.bindFramebuffer(gl.READ_FRAMEBUFFER,null); gl.readPixels(0,0,width,height,gl.RGBA,gl.UNSIGNED_BYTE,data); }
           finally { gl.bindFramebuffer(gl.READ_FRAMEBUFFER,old); }
+          const viewKey=JSON.stringify({id:state.id,reflected:state.reflected,mode:state.mode,detail:state.detail,width,height,position:camera.getPosition().toArray(),rotation:camera.getRotation().toArray()});
+          const roi=exteriorPixelRegions(width,height,viewKey);
+          const exterior=roi?{compared:!!previous&&previousViewKey===viewKey,padding:roi.padding,roiPixels:roi.roiPixels,outsidePixels:width*height-roi.roiPixels,outsideExactChanged:0,outsideMaskChanged:0,insideExactChanged:0,insideSignificantChanged:0,regions:roi.regions.map(region=>({...region,exactChanged:0})),protected:roi.protectedRegions.map(region=>({...region,exactChanged:0,foreground:0}))}:null;
           let changed = 0, exactChanged = 0, foreground = 0, maskChanged = 0, entryChanged = 0, hash = 2166136261;
           const {a,b,along,inward} = HALL_FRONT;
           const entryPoints = [-1.75,1.75].flatMap(u=>[.80,1.02].map(y=>camera.camera.worldToScreen(new pc.Vec3((a.x+b.x)/2+along.x*u-inward.x*.23,y,((a.z+b.z)/2+along.z*u-inward.z*.23)*(state.reflected?-1:1)))));
@@ -133,16 +156,29 @@ try {
             if (previous && Math.abs(data[i]-previous[i])+Math.abs(data[i+1]-previous[i+1])+Math.abs(data[i+2]-previous[i+2])>15) changed++;
             const fg = Math.abs(data[i]-data[0])+Math.abs(data[i+1]-data[1])+Math.abs(data[i+2]-data[2])>15;
             if (fg) foreground++;
+            if(exterior)for(let k=0;k<exterior.protected.length;k++)if((roi.protectedMask[i/4]&(1<<k))&&fg)exterior.protected[k].foreground++;
             if (previous) {
               const oldFg = Math.abs(previous[i]-previous[0])+Math.abs(previous[i+1]-previous[1])+Math.abs(previous[i+2]-previous[2])>15;
               if (fg !== oldFg) maskChanged++;
+              if(exterior?.compared){
+                const exact=data[i]!==previous[i]||data[i+1]!==previous[i+1]||data[i+2]!==previous[i+2];
+                if(roi.allowed[i/4]){
+                  if(exact)exterior.insideExactChanged++;
+                  if(Math.abs(data[i]-previous[i])+Math.abs(data[i+1]-previous[i+1])+Math.abs(data[i+2]-previous[i+2])>15)exterior.insideSignificantChanged++;
+                  if(exact)for(let k=0;k<exterior.regions.length;k++)if(roi.allowed[i/4]&(1<<k))exterior.regions[k].exactChanged++;
+                }else{
+                  if(exact)exterior.outsideExactChanged++;
+                  if(fg!==oldFg)exterior.outsideMaskChanged++;
+                  if(exact)for(let k=0;k<exterior.protected.length;k++)if(roi.protectedMask[i/4]&(1<<k))exterior.protected[k].exactChanged++;
+                }
+              }
               const x=(i/4)%width, y=height-1-Math.floor(i/4/width);
               if(x>=entryBounds.minX&&x<=entryBounds.maxX&&y>=entryBounds.minY&&y<=entryBounds.maxY&&Math.abs(data[i]-previous[i])+Math.abs(data[i+1]-previous[i+1])+Math.abs(data[i+2]-previous[i+2])>15) entryChanged++;
             }
             for (let k=0;k<3;k++) hash = Math.imul((hash^data[i+k])>>>0,16777619);
           }
-          previous = data;
-          resolve({width,height,hash:hash>>>0,changed,exactChanged,foreground,maskChanged,maskReferenceRgb:Array.from(data.subarray(0,3)),entryChanged,entryBounds,glError:gl.getError(),contextLost:false});
+          previous = data;previousViewKey=viewKey;
+          resolve({width,height,hash:hash>>>0,changed,exactChanged,foreground,maskChanged,maskReferenceRgb:Array.from(data.subarray(0,3)),entryChanged,entryBounds,exterior,glError:gl.getError(),contextLost:false});
         } catch (error) { reject(error); }
       };
       const timer = setTimeout(() => { app.off('postrender',finish); pending=false; reject(new Error('Pixel frame deadline exceeded (6000ms)')); },6000);

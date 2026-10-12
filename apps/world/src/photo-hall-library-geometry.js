@@ -1,6 +1,7 @@
 // Fresh procedural dressing from field-photo observations. Photos establish only
 // the visible rhythm and palette; the public frames and roof bounds remain authority.
 import {BUILDINGS,HALL_FRONT,LIBRARY_FRONT} from './basic-campus.js';
+import {JEONGSEOK_ENTRY_LAYOUT,JEONGSEOK_ENTRY_COLORS} from './jeongseok-entry-geometry.js';
 
 export const PHOTO_HALL_LIBRARY_COLORS=Object.freeze({
   trim:'#eeece2',glass:'#548d99',darkGlass:'#3d626b',litGlass:'#c8c8a4',
@@ -86,8 +87,11 @@ export function fillPhotoLibraryFront(batch,tier='BASE'){
   const c=PHOTO_HALL_LIBRARY_COLORS;
   for(let bay=0;bay<7;bay++){
     const u=(bay-3)*1.8,bulge=.1+.45*(1-(u/6.4)**2),left=u-.89,right=u+.89;
+    // Three low bays are replaced by the entry glazing/door modules, not layered
+    // over them. Upper curtain wall and every unobserved side keep their source form.
+    const bottom=Math.abs(u)<JEONGSEOK_ENTRY_LAYOUT.openingHalfWidth ? JEONGSEOK_ENTRY_LAYOUT.facadeTop : 1;
     if(tier==='BASE'){
-      librarySlab(batch,c.glass,left,right,bulge-.06,bulge+.06,1,15);
+      librarySlab(batch,c.glass,left,right,bulge-.06,bulge+.06,bottom,15);
       continue;
     }
     const panel=(u0,u1,y0,y1)=>batch.quad(c.mullion,
@@ -96,8 +100,9 @@ export function fillPhotoLibraryFront(batch,tier='BASE'){
     // Three narrow lights across each existing bay, fourteen courses vertically.
     // Horizontal strips stop at vertical strips to avoid coplanar self-overlap.
     const splits=[left,left+(right-left)/3,left+2*(right-left)/3,right];
-    for(let col=1;col<3;col++)panel(splits[col]-.022,splits[col]+.022,1,15);
+    for(let col=1;col<3;col++)panel(splits[col]-.022,splits[col]+.022,bottom,15);
     for(let row=1;row<14;row++)for(let col=0;col<3;col++){
+      if(1+row-.025<bottom)continue;
       panel(splits[col]+(col?.022:0),splits[col+1]-(col<2?.022:0),1+row-.025,1+row+.025);
     }
   }
@@ -166,8 +171,8 @@ export function fillPhotoLibraryRoof(batch,part,tier='BASE'){
     batch.quad(c.trim,p(u1,maxY-thickness,v0),p(u1,maxY,v0),p(u1,maxY,v1),p(u1,maxY-thickness,v1));
   }else if(part.id==='library_entry_canopy'){
     librarySlab(batch,c.trim,u0,u1,v0,v1,minY,maxY,{openBottom:true});
-    // Only the already-established front canopy receives the photographed warm
-    // soffit. Alternating joint/panel intervals tile one surface without overlays.
+    // The historical close-up shows grey soffit panels. Fit them within the
+    // unchanged canopy volume, with each interval owned by exactly one surface.
     const cuts=(start,end,count)=>{
       const result=[start];
       for(let i=1;i<count;i++)result.push(start+(end-start)*i/count-.012,start+(end-start)*i/count+.012);
@@ -175,7 +180,7 @@ export function fillPhotoLibraryRoof(batch,part,tier='BASE'){
     };
     const us=cuts(u0,u1,8),vs=cuts(v0,v1,3);
     for(let i=0;i<us.length-1;i++)for(let j=0;j<vs.length-1;j++){
-      const color=i%2||j%2?c.soffitJoint:c.soffit;
+      const color=i%2||j%2?JEONGSEOK_ENTRY_COLORS.joint:JEONGSEOK_ENTRY_COLORS.panel;
       batch.quad(color,p(us[i],minY,vs[j]),p(us[i+1],minY,vs[j]),p(us[i+1],minY,vs[j+1]),p(us[i],minY,vs[j+1]));
     }
   }

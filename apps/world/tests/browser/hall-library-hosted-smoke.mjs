@@ -12,7 +12,10 @@ import {startSmoke} from './harness.mjs';
 const BASELINE = '316c8ff95f7a12618ec8db61342d153f3cbb29ea';
 const CURRENT_MAIN = '1c6f43b36962f65f75cddd55b8661bb3aa4a268d';
 const PREVIOUS = '68d64e7466a2971256485b74e76c89a31e91547a';
+const PRE_EXTERIOR = '2b9a09615f7986e3d5e5b93d731fba21f33afbdd';
+const PRE_EXTERIOR_TREE = '96155632b0301631744bae69b9dd6f02e9d990b5';
 const SOURCES = {
+  '/__hall_library_pre_exterior__/':{commit:PRE_EXTERIOR},
   '/__hall_library_baseline__/':{commit:BASELINE},
   '/__hall_library_current_main__/':{commit:CURRENT_MAIN},
   '/__hall_library_previous__/':{commit:PREVIOUS},
@@ -29,9 +32,9 @@ const began = Date.now();
 await mkdir(output, {recursive:true});
 const reportPath = path.join(output,'report.json');
 const report = {
-  status:'RUNNING', startedAt:new Date().toISOString(), baselineCommit:BASELINE,currentMainCommit:CURRENT_MAIN,previousCandidateCommit:PREVIOUS,
+  status:'RUNNING', startedAt:new Date().toISOString(), baselineCommit:BASELINE,currentMainCommit:CURRENT_MAIN,previousCandidateCommit:PREVIOUS,preExteriorCommit:PRE_EXTERIOR,preExteriorTree:PRE_EXTERIOR_TREE,
   scope:'Current-main integration, literal #108/#144 history plus separately labeled current-material geometry controls, actual chunk lifecycle and actual music editor PlaceScenePreview route. No interior or measured floor-count claim.',
-  approximation:'Main Hall retains illustrative four-row/nine-pier estimates; Jeongseok reuses the #108 exterior.',
+  approximation:'Main Hall retains illustrative four-row/nine-pier estimates; Jeongseok retains the #108 upper/west exterior with a bounded historical-reference entrance and existing canonical stair surfaces; basement location is not inferred.',
   entranceRepair:{previousCoplanarCrossings:4,currentCrossings:0,clipU:[-1.75,1.75],belowY:2.85},
   limits:{operationMs:12000,pixelFrameMs:6000,overallMs:420000,cleanupMs:8000},
   comparisonSources:SOURCES,resolvedSources:[],baselineFiles:[], requests:{unexpectedRequests:[],api:[],offOrigin:[]}, cases:[], closeups:[], screenshots:[], progress:[]
@@ -54,7 +57,7 @@ const watchdog=setTimeout(()=>{
   writeFileSync(reportPath,JSON.stringify(report,null,2)+'\n'); process.exit(1);
 },420000);
 let smoke, page, fatal;
-const baselineCache=new Map();
+const baselineCache=new Map(),sourceObjects=new Map();
 function isBaselinePath(relative) {
   // The pinned renderer's transitive main-gate-production dependency reads this
   // one public editor document. Do not permit arbitrary editor or repository data.
@@ -66,9 +69,9 @@ async function sourceAtBaseline(relative,commit=BASELINE) {
   if (!isBaselinePath(relative)) throw new Error('Unscoped baseline path: '+relative);
   const key=commit+':'+relative;
   if (!baselineCache.has(key)) {
-    const {stdout}=await run('git',['show',`${commit}:apps/world/${relative}`],{cwd:repo,timeout:5000,maxBuffer:10*1024*1024,encoding:'buffer'});
+    const {stdout}=await run('git',['show',`${sourceObjects.get(commit)||commit}:apps/world/${relative}`],{cwd:repo,timeout:5000,maxBuffer:10*1024*1024,encoding:'buffer'});
     baselineCache.set(key,stdout);
-    report.baselineFiles.push({commit,path:`apps/world/${relative}`,sha256:createHash('sha256').update(stdout).digest('hex')});
+    report.baselineFiles.push({commit,sourceObject:sourceObjects.get(commit)||commit,path:`apps/world/${relative}`,sha256:createHash('sha256').update(stdout).digest('hex')});
   }
   return baselineCache.get(key);
 }
@@ -104,6 +107,24 @@ function checkEntranceCrop(pixels) {
   // A cropped control view starts on the apron, not clear sky. Its corner-color
   // mask is a material diagnostic; only the fitted full-view gate proves silhouette.
 }
+function checkJeongseokExterior(pixels,options={}) {
+  const exterior=pixels.exterior;
+  assert.ok(exterior?.compared,'exterior comparison requires the same actual camera, reflection, detail and viewport');
+  assert.equal(exterior.padding,2,'only a two-pixel rasterization boundary is allowed');
+  assert.ok(exterior.roiPixels>0&&exterior.outsidePixels>0,'both approved and preserved pixels must be sampled');
+  assert.equal(exterior.outsideExactChanged,0,'Jeongseok RGB pixels outside entrance/stair ROI remain exact');
+  assert.equal(exterior.outsideMaskChanged,0,'Jeongseok silhouette outside entrance/stair ROI remains exact');
+  assert.equal(exterior.insideExactChanged,pixels.exactChanged,'every changed pixel belongs to an approved exterior surface');
+  for(const region of [...exterior.regions,...exterior.protected]){
+    assert.ok(region.polygon.length>=3&&region.polygon.every(p=>Number.isFinite(p.x)&&Number.isFinite(p.y))&&region.minDepth>0,'finite renderer-state projected ROI');
+  }
+  for(const region of exterior.protected)assert.equal(region.exactChanged,0,region.name+' is preserved');
+  if(options.requireChanges)assert.ok(exterior.insideSignificantChanged>10,'approved entrance/stair pixels actually change');
+  if(options.protectedRegion){
+    const region=exterior.protected.find(region=>region.name===options.protectedRegion);
+    assert.ok(region?.foreground>10,options.protectedRegion+' has visible preserved foreground evidence');
+  }
+}
 function hallIntegrationScopePaths(manifest,extension) {
   if(extension && !['surroundings','graphics'].includes(extension))throw Error('Unsupported hall integration scope extension');
   const surroundings=['campus-grounds.js','main-hall-walkway-layout.js','main-hall-walkway-geometry.js',
@@ -132,6 +153,9 @@ try {
   const {stdout:head}=await run('git',['rev-parse','HEAD'],{cwd:repo,timeout:5000,encoding:'utf8'});
   report.candidateCommit=head.trim(); assert.match(report.candidateCommit,/^[0-9a-f]{40}$/);
   if (process.env.EXPECTED_HALL_HEAD) assert.equal(report.candidateCommit,process.env.EXPECTED_HALL_HEAD,'exact pull request head');
+  const {stdout:worktree}=await run('git',['status','--porcelain'],{cwd:repo,timeout:5000,encoding:'utf8'});
+  report.worktreeDirty=!!worktree.trim();
+  if(process.env.EXPECTED_HALL_HEAD)assert.equal(report.worktreeDirty,false,'exact-head CI source must have a clean worktree');
   if (process.env.GITHUB_RUN_ID) report.githubRunId=process.env.GITHUB_RUN_ID;
   const manifest=JSON.parse(await readFile(new URL('../fixtures/hall-library-candidate-source-manifest.json',import.meta.url),'utf8'));
   // Historical SHA controls remain immutable. Change scope belongs to this PR,
@@ -144,6 +168,16 @@ try {
   const allowed=hallIntegrationScopePaths(manifest,process.env.WORLD_HALL_LIBRARY_SCOPE_EXTENSION||'');
   for(const changed of changedPaths)assert.ok(allowed.includes(changed),changed+' outside approved integration scope');
   report.preservation={baseline:mergeBase.trim(),requestedBase:scopeBase,historicalComparison:CURRENT_MAIN,extension:process.env.WORLD_HALL_LIBRARY_SCOPE_EXTENSION||'',changedPaths,status:'PASS'};
+  // CI fetches the immutable commit. A local source snapshot may possess its exact
+  // Git tree before commit history arrives; record that fallback, never invent a SHA.
+  let exteriorObject=PRE_EXTERIOR;
+  try { await run('git',['cat-file','-e',PRE_EXTERIOR+'^{commit}'],{cwd:repo,timeout:5000}); }
+  catch { exteriorObject=PRE_EXTERIOR_TREE; }
+  const {stdout:exteriorTree}=await run('git',['rev-parse',exteriorObject+'^{tree}'],{cwd:repo,timeout:5000,encoding:'utf8'});
+  assert.equal(exteriorTree.trim(),PRE_EXTERIOR_TREE,'immutable pre-exterior tree matches its declared commit snapshot');
+  sourceObjects.set(PRE_EXTERIOR,exteriorObject);
+  report.preExteriorSource={commit:PRE_EXTERIOR,tree:PRE_EXTERIOR_TREE,sourceObject:exteriorObject,localTreeFallback:exteriorObject!==PRE_EXTERIOR};
+  if(process.env.GITHUB_RUN_ID)assert.equal(exteriorObject,PRE_EXTERIOR,'CI must resolve the fetched immutable commit');
   await progress('Validate pinned baseline and start offline real-engine browser');
   for(const commit of new Set(Object.values(SOURCES).map(source=>source.commit))) await sourceAtBaseline('src/main-hall-blockout.js',commit);
   smoke=await withDeadline('browser startup',()=>startSmoke({viewport:{width:1280,height:720},contextOptions:{deviceScaleFactor:1}}),30000);
@@ -161,7 +195,7 @@ try {
       assert.equal(url.origin,smoke.origin);
       const relative=url.pathname.slice(PREFIX.length);
       const commit=comparisonSource(relative,source),body=await sourceAtBaseline(relative,commit);
-      report.resolvedSources.push({namespace:PREFIX,path:relative,historicalCommit:source.commit,resolvedCommit:commit,sha256:createHash('sha256').update(body).digest('hex')});
+      report.resolvedSources.push({namespace:PREFIX,path:relative,historicalCommit:source.commit,resolvedCommit:commit,sourceObject:sourceObjects.get(commit)||commit,sha256:createHash('sha256').update(body).digest('hex')});
       await route.fulfill({status:200,contentType:relative.endsWith('.json')?'application/json':'text/javascript; charset=utf-8',body});
     } catch(error) {
       const pathname=new URL(route.request().url()).pathname;
@@ -273,8 +307,8 @@ try {
     await withDeadline('viewport resize',()=>page.setViewportSize(viewport));
     for (const id of ['bldg_01','bldg_jungseok']) for (const reflected of [true,false]) {
       const cell={name,viewport,id,reflected,status:'RUNNING'}; report.cases.push(cell);
-      await progress(`${name} ${id} ${reflected?'reflected':'control'}: current main / literal #108 / literal #144 / current-material #108 / current-material #144 / candidate`);
-      for (const presentation of ['currentmain','baseline108','previous144','baseline108materials','previous144materials','candidate']) {
+      await progress(`${name} ${id} ${reflected?'reflected':'control'}: current main / literal #108 / literal #144 / current-material #108 / current-material #144 / pre-exterior main / candidate`);
+      for (const presentation of ['currentmain','baseline108','previous144','baseline108materials','previous144materials','preexterior','candidate']) {
         const stats=await view({id,presentation,reflected,detail:'all',mode:'full'}); checkStats(stats);
         const pixels=await capture(); checkPixels(pixels); cell[presentation]={stats,pixels};
         assert.equal(pixels.width,viewport.width,'drawing buffer follows each viewport');
@@ -282,11 +316,15 @@ try {
         assert.equal(pixels.width<pixels.height,name==='portrait','actual framebuffer orientation');
         assert.ok(pixels.height>viewport.height*.65 && pixels.height<viewport.height,'caption remains outside canvas');
         if(presentation==='previous144'&&id==='bldg_jungseok')assert.equal(pixels.hash,cell.baseline108.pixels.hash,'literal historical Jeongseok parity remains exact');
+        if(presentation==='previous144materials'&&id==='bldg_jungseok')assert.equal(pixels.hash,cell.baseline108materials.pixels.hash,'controlled historical Jeongseok parity remains exact');
+        if(presentation==='preexterior'&&id==='bldg_01')assert.equal(pixels.maskChanged,0,'pre-exterior main retains the #144 Main Hall silhouette');
+        if(presentation==='preexterior'&&id==='bldg_jungseok')assert.equal(pixels.hash,cell.baseline108materials.pixels.hash,'pre-exterior upper/west source retains the recovered geometry and unchanged material producer');
         if (presentation==='candidate') {
           if (id==='bldg_jungseok') {
-            assert.equal(pixels.exactChanged,0,'Jeongseok previous candidate parity under current-main materials');
-            assert.equal(pixels.hash,cell.baseline108materials.pixels.hash,'Jeongseok exact #108 geometry pixels under current-main materials');
+            checkJeongseokExterior(pixels,{requireChanges:true,protectedRegion:'upper-building'});
           } else {
+            assert.equal(pixels.exactChanged,0,'Main Hall remains exactly equal to pre-exterior main');
+            assert.equal(pixels.hash,cell.preexterior.pixels.hash,'Main Hall full RGB preservation');
             assert.equal(pixels.maskChanged,0,'entry repair preserves the pre-fix Main Hall silhouette');
             assert.notEqual(pixels.hash,cell.currentmain.pixels.hash,'activated Main Hall changes current-main pixels');
           }
@@ -321,6 +359,22 @@ try {
     report.closeups.push({id:'bldg_01',presentation,reflected,mode:'entry',scope:presentation==='previous144'?'Literal historical #144 entrance crop':'Entrance crop under the current-main material producer, not full-building framing',maskInterpretation:'Corner-color diagnostic only; full-building silhouette is checked in fitted views',pixels,stable});
     await shot(`desktop-bldg_01-${presentation}-entrance-${reflected?'reflected':'control'}`); await flush();
   }
+  // Independent eye-level entrance, underside and stadium-facing views retain
+  // the same source comparison and state-projected preservation mask.
+  for(const reflected of [true,false])for(const mode of ['entry','canopy','west']){
+    const cell={id:'bldg_jungseok',mode,reflected,source:PRE_EXTERIOR};
+    await progress(`Jeongseok ${mode}: pre-exterior / candidate ${reflected?'reflected':'control'}`);
+    for(const presentation of ['preexterior','candidate']){
+      checkStats(await view({id:'bldg_jungseok',presentation,reflected,detail:'all',mode}));
+      const pixels=await capture();checkPixels(pixels);cell[presentation]=pixels;
+      if(presentation==='candidate'){
+        checkJeongseokExterior(pixels,{requireChanges:mode!=='west',protectedRegion:mode==='west'?'west-facade':null});
+        const stable=await capture();checkPixels(stable);assert.equal(stable.exactChanged,0,'Jeongseok closeup stationary pixels');cell.stable=stable;
+      }
+      if(reflected)await shot(`desktop-bldg_jungseok-${presentation}-${mode}-reflected`);
+    }
+    report.closeups.push(cell);await flush();
+  }
   await progress('Actual CampusChunkRenderer: ACTIVE / FAR / ACTIVE ownership and pixels');
   report.campus=await evaluate('actual campus lifecycle',()=>window.__HALL_LIBRARY_HOSTED_QA__.campusLifecycle());
   for(const cell of report.campus.receipt)for(const key of ['hidden','reused','restored','reflection'])assert.equal(cell[key],true,`${cell.id} campus ${key}`);
@@ -348,8 +402,8 @@ try {
   await progress('Actual /editor/music/ route: open, landmark public targets, close and reopen');
   await verifyPreviewRoute();
   assert.deepEqual(smoke.problems,[]); assert.deepEqual(report.requests.unexpectedRequests,[]);
-  assert.equal(report.cases.length,12); assert.equal(report.screenshots.length,20);
-  report.status='PASS'; await progress('12 comparison cells, real campus lifecycle, real preview route, and 20 screenshots complete');
+  assert.equal(report.cases.length,12); assert.equal(report.screenshots.length,26);
+  report.status='PASS'; await progress('12 comparison cells, real campus lifecycle, real preview route, and 26 screenshots complete');
 } catch(error) {
   report.status='FAIL'; report.error=String(error.stack||error); process.exitCode=1;
   console.error(report.error);
