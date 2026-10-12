@@ -2,6 +2,7 @@
 // The lobby is a Housing Hub interior, not a campus AREA_* Place Zone and not a personal room.
 // D1.2 keeps it local-only; Room Presence/Reatime arrives in D2 proper.
 
+import { DORM_SHOP_VENDOR } from "../shop/dorm-shop-vendor.js";
 import { PLAYER_ORIGIN_Y, WALK_SHAPE } from "../player-dimensions.js";
 
 export const DORM_1_LOBBY = Object.freeze({
@@ -80,6 +81,11 @@ export const DORM_1_LOBBY_OBSTACLES = Object.freeze([
   boxOf("dorm1_lobby_wall_west", -W - T, -W, -D - T, D + T, 0, H + 0.4),
   boxOf("dorm1_lobby_wall_east", W, W + T, -D - T, D + T, 0, H + 0.4),
   boxOf("dorm1_lobby_ceiling", -W - T, W + T, -D - T, D + T, H, H + 0.3),
+  // A solid body behind the counter; never claims or obstructs a player seat.
+  boxOf("dorm1_lobby_shop_vendor", DORM_SHOP_VENDOR.position.x - DORM_SHOP_VENDOR.bodyRadius,
+    DORM_SHOP_VENDOR.position.x + DORM_SHOP_VENDOR.bodyRadius,
+    DORM_SHOP_VENDOR.position.z - DORM_SHOP_VENDOR.bodyRadius,
+    DORM_SHOP_VENDOR.position.z + DORM_SHOP_VENDOR.bodyRadius, 0, 0.9),
   ...DORM_1_LOBBY_FURNITURE.filter(item => item.collide).map(item => {
     const p = footprint(item);
     return boxOf("dorm1_lobby_" + item.id, p.minX, p.maxX, p.minZ, p.maxZ, 0, item.at[1] + item.size[1]);

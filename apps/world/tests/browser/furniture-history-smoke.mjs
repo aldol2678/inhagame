@@ -10,8 +10,30 @@ const output = process.env.FURNITURE_HISTORY_OUTPUT || 'test-results/furniture-h
 await mkdir(output,{ recursive:true });
 const paths = ['src/rooms/furniture-editor.js','src/rooms/furniture-client.js','src/rooms/furniture-layout.js','src/rooms/furniture-recommendations.js',
   'src/rooms/personal-room-layout.js','src/player-dimensions.js','src/collection/item-catalog.js',
-  'tests/browser/furniture-history-harness.html','styles.css'];
-const sources = new Map(await Promise.all(paths.map(async name=>[`/${name}`,await readFile(new URL(`../../${name}`,import.meta.url))])));
+  'tests/browser/furniture-history-harness.html','styles.css',
+  'data/reality/campus-landmarks.json','data/reality/campus-facilities.json',
+  'data/reality/campus-buildings.json','data/reality/campus-site.json'];
+// Serve the exact transitive production module graph, including the editor's seat-availability
+// dependency. Keep off-origin and non-source requests blocked instead of replacing seat logic.
+const sources = new Map();
+const sourceRoot = new URL('../../', import.meta.url);
+async function addSource(name) {
+  const url = new URL(name, sourceRoot);
+  assert.ok(url.href.startsWith(sourceRoot.href), 'fixture source stays inside apps/world');
+  const path = '/' + url.href.slice(sourceRoot.href.length);
+  if (sources.has(path)) return;
+  const bytes = await readFile(url); sources.set(path, bytes);
+  if (!path.endsWith('.js')) return;
+  for (const match of bytes.toString().matchAll(/from\s+["'](\.[^"']+)["']/g)) {
+    await addSource(new URL(match[1], url).href.slice(sourceRoot.href.length));
+  }
+  // Layout dependencies fetch canonical JSON through import.meta.url at module startup.
+  // Include only literal in-repository JSON dependencies; all other requests remain blocked.
+  for (const match of bytes.toString().matchAll(/new URL\(\s*["'](\.[^"']+\.json)["']\s*,\s*import\.meta\.url\s*\)/g)) {
+    await addSource(new URL(match[1], url).href.slice(sourceRoot.href.length));
+  }
+}
+for (const path of paths) await addSource(path);
 const report = { status:'RUNNING', scope:'Offline source integration; synthetic RPCs only; no backend or production changes',
   sourceHashes:Object.fromEntries([...sources].map(([path,bytes])=>[path,createHash('sha256').update(bytes).digest('hex')])), viewports:[] };
 let browser, server;
@@ -19,7 +41,7 @@ try {
   server=createServer((request,response)=>{
     const path=new URL(request.url,'http://localhost').pathname, body=sources.get(path);
     if (!body) { response.writeHead(404).end(); return; }
-    response.writeHead(200,{'Content-Type':path.endsWith('.html')?'text/html; charset=utf-8':path.endsWith('.css')?'text/css':'text/javascript; charset=utf-8'}).end(body);
+    response.writeHead(200,{'Content-Type':path.endsWith('.html')?'text/html; charset=utf-8':path.endsWith('.css')?'text/css':path.endsWith('.json')?'application/json':'text/javascript; charset=utf-8'}).end(body);
   });
   await new Promise((resolve,reject)=>server.once('error',reject).listen(0,'127.0.0.1',resolve));
   const origin=`http://127.0.0.1:${server.address().port}`;
@@ -88,7 +110,7 @@ try {
       assert.equal(item.calls.filter(call=>call.name==='save_my_room_furniture_v1').length,2);
       assert.ok(await page.evaluate(()=>window.__FURNITURE_HISTORY__.inventory.snapshot.items.every(item=>item.quantity===1)));
       assert.deepEqual(errors,[]);assert.deepEqual(blocked,[]);item.status='PASS';
-    } finally {await context.close();}
+    } finally {item.pageErrors=errors;item.blockedRequests=blocked;await context.close();}
   }
   report.status='PASS';console.log('PASS: furniture undo/redo on desktop, 360px touch and landscape; failed-save retry, save checkpoint, focus and close boundaries.');
 } catch(error) {report.status=browser?'FAIL':'BLOCKED';report.error=error.stack;throw error;}
