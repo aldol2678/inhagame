@@ -1,0 +1,200 @@
+{
+  "asset": "apps/world/assets/furniture/dorm-single-sofa-v1.glb",
+  "generator": "Blender 4.3.2",
+  "sourceScript": "scripts/assets/build-dorm-single-sofa.py",
+  "sha256": "858615e44a6d2e8896d42c713be027b39b78e6061dcd96088e3c1a446240f7c0",
+  "bytes": 35492,
+  "budgetBytes": 150000,
+  "triangles": 1784,
+  "budgetTriangles": 2000,
+  "exportedVertices": 912,
+  "materials": 3,
+  "meshes": 1,
+  "drawPrimitives": 3,
+  "textures": 0,
+  "animations": 0,
+  "doubleSidedMaterials": 0,
+  "compression": "none; no decoder required",
+  "coordinateSystem": "glTF / PlayCanvas right-handed, Y up, front -Z; meters",
+  "bounds": {
+    "min": [
+      -0.550000011920929,
+      0,
+      -0.38999998569488525
+    ],
+    "max": [
+      0.550000011920929,
+      0.7200000286102295,
+      0.39000001549720764
+    ],
+    "size": [
+      1.100000023841858,
+      0.7200000286102295,
+      0.7800000011920929
+    ]
+  },
+  "origin": [
+    0,
+    0,
+    0
+  ],
+  "originDescription": "Floor center, identity node transform",
+  "seatTopY": 0.36,
+  "seatAnchorBehavior": "Unchanged by visual-only replacement",
+  "roundTrip": {
+    "importer": "Blender 4.3.2 glTF importer",
+    "boundsMin": [
+      -0.550000011920929,
+      0.0,
+      -0.38999998569488525
+    ],
+    "boundsMax": [
+      0.550000011920929,
+      0.7200000286102295,
+      0.39000001549720764
+    ],
+    "degenerateTriangles": 0,
+    "nonManifoldEdgesAfterPositionWeld": 0,
+    "signedVolume": 0.30499877738910053,
+    "normalLengthMin": 0.9999999451895508,
+    "normalLengthMax": 1.0000001226629505,
+    "minimumVertexNormalFaceNormalDot": 0.7945052050054073,
+    "watertightOutwardComponents": 10,
+    "verifiedSeatCushionTopY": 0.36000001430511475
+  },
+  "materialsDetails": [
+    {
+      "name": "Sofa / muted blue fabric",
+      "baseColorFactor": [
+        0.12743768095970154,
+        0.22322796285152435,
+        0.31854677200317383,
+        1
+      ],
+      "metallicFactor": 0,
+      "roughnessFactor": 0.9100000262260437
+    },
+    {
+      "name": "Sofa / soft blue linen",
+      "baseColorFactor": [
+        0.28314873576164246,
+        0.3915724754333496,
+        0.47353148460388184,
+        1
+      ],
+      "metallicFactor": 0,
+      "roughnessFactor": 0.9399999976158142
+    },
+    {
+      "name": "Sofa / natural oak",
+      "baseColorFactor": [
+        0.42869049310684204,
+        0.2158605009317398,
+        0.08650045841932297,
+        1
+      ],
+      "metallicFactor": 0,
+      "roughnessFactor": 0.7200000286102295
+    }
+  ],
+  "partDefinitions": [
+    {
+      "name": "01 upholstered lower deck",
+      "centerPlayCanvas": [
+        0,
+        0.204,
+        -0.012
+      ],
+      "unrotatedSize": [
+        0.98,
+        0.108,
+        0.69
+      ],
+      "bevelRadius": 0.03,
+      "bevelSegments": 3,
+      "backLeanDegrees": 0
+    },
+    {
+      "name": "02 arm left",
+      "centerPlayCanvas": [
+        -0.4725,
+        0.375,
+        -0.02
+      ],
+      "unrotatedSize": [
+        0.155,
+        0.33,
+        0.74
+      ],
+      "bevelRadius": 0.057,
+      "bevelSegments": 3,
+      "backLeanDegrees": 0
+    },
+    {
+      "name": "03 arm right",
+      "centerPlayCanvas": [
+        0.4725,
+        0.375,
+        -0.02
+      ],
+      "unrotatedSize": [
+        0.155,
+        0.33,
+        0.74
+      ],
+      "bevelRadius": 0.057,
+      "bevelSegments": 3,
+      "backLeanDegrees": 0
+    },
+    {
+      "name": "04 upholstered rear shell",
+      "centerPlayCanvas": [
+        0,
+        0.479,
+        0.301
+      ],
+      "unrotatedSize": [
+        1.02,
+        0.482,
+        0.178
+      ],
+      "bevelRadius": 0.056,
+      "bevelSegments": 3,
+      "backLeanDegrees": 0
+    },
+    {
+      "name": "05 separate seat cushion",
+      "centerPlayCanvas": [
+        0,
+        0.303,
+        -0.071
+      ],
+      "unrotatedSize": [
+        0.8,
+        0.114,
+        0.566
+      ],
+      "bevelRadius": 0.037,
+      "bevelSegments": 4,
+      "backLeanDegrees": 0
+    },
+    {
+      "name": "06 separate back cushion",
+      "centerPlayCanvas": [
+        0,
+        0.528,
+        0.187
+      ],
+      "unrotatedSize": [
+        0.8,
+        0.328,
+        0.125
+      ],
+      "bevelRadius": 0.044,
+      "bevelSegments": 4,
+      "backLeanDegrees": 8
+    }
+  ],
+  "originalWork": "Procedurally modeled for this project from primitives. No downloaded or private-brand model inputs.",
+  "checksPassed": true
+}
