@@ -1,77 +1,117 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { scopedPhoneMessagesOnly, inspect } from './phone-surface-scope.mjs';
+import { readFileSync } from 'node:fs';
+import { classify, declaredPaths, GUARDED_WORKFLOWS, inspect, matchPath,
+  safeMainHandoff, safeModularPath } from './phone-surface-scope.mjs';
 
-const main = 'apps/world/src/main.js';
-const files = [
-  'apps/world/src/phone/phone-messages.js',
-  'apps/world/src/phone/smartphone.js',
-  'apps/world/src/phone/phone-preferences.js',
-  'apps/world/phone.css',
-  'apps/world/tests/browser/phone-messages-harness.html',
-  'apps/world/tests/browser/phone-messages-smoke.mjs',
-  'apps/world/tests/browser/phone-campus-smoke.mjs',
-  'apps/world/tests/phone-preferences.test.mjs',
-  main
-];
-const patch = [
-  'diff --git a/apps/world/src/main.js b/apps/world/src/main.js',
-  'index aaaa..bbbb 100644',
-  '--- a/apps/world/src/main.js',
-  '+++ b/apps/world/src/main.js',
-  '@@ -1060,0 +1061,2 @@',
-  '+    playerCard.close();',
-  '+    if (smartphone?.openMessages?.(userId)) return true;',
-  ''
+const workflow = name => readFileSync(new URL('../workflows/'+GUARDED_WORKFLOWS[name],import.meta.url),'utf8');
+const graphics='Graphics integration browser QA';
+const quest='Quest journal controls browser checks';
+const shop='NPC shop routing browser checks';
+const phone='apps/world/src/phone/phone-messages.js';
+const main='apps/world/src/main.js';
+const authCode='    try { sessionStorage.setItem("inhagame-hub-message-draft-v1","target"); window.location.assign("/#messages"); } catch {}';
+const baseMain=[
+ 'const playerCard = createPlayerCard({',
+ '  onMessage: (userId) => {',
+ authCode,
+ '  },',
+ '  accompany: { canFollow:()=>true }',
+ '});',
+ 'const gameState = true;',
+ ''
 ].join('\n');
-test('Phone Messages UI and reviewed player-card additions may skip unrelated heavy suites', () => {
-  const minimal=['apps/world/src/phone/phone-messages.js',main];
-  assert.equal(scopedPhoneMessagesOnly(minimal,patch),true);
-  assert.equal(scopedPhoneMessagesOnly(minimal.filter(p=>p!==main)),true);
-  assert.equal(scopedPhoneMessagesOnly(files,patch),false,'name-only trust of shared Phone UI files is forbidden');
+const phoneMain=baseMain.replace(authCode,[
+ '    playerCard.close();',
+ '    if (smartphone?.openMessages?.(userId)) return true;',
+ authCode
+].join('\n'));
+const decide=(files,name,opts={})=>classify(files,{
+ workflowName:name,workflowYaml:workflow(name),prTitle:'feat(world): modular app',
+ ...opts
 });
-test('fail closed for missing main diff, unknown paths, other functionality, or unknown changes', () => {
-  assert.equal(scopedPhoneMessagesOnly(files,''),false);
-  for(const path of [
-    '.github/workflows/phone-browser.yml',
-    '.github/workflows/graphics-integration-browser.yml',
-    '.github/ci/phone-surface-scope.mjs',
-    'apps/world/src/rooms/room-session.js',
-    'apps/world/src/phone/phone-shell.js',
-    'apps/world/src/photo/photo-mode.js',
-    'supabase/migrations/20261012.sql'
-  ]) assert.equal(scopedPhoneMessagesOnly([...files,path],patch),false,path);
-  assert.equal(scopedPhoneMessagesOnly([],patch),false);
-  assert.equal(scopedPhoneMessagesOnly(null,patch),false);
-  assert.equal(scopedPhoneMessagesOnly(files,patch+'+other functionality\n'),false);
-  assert.equal(scopedPhoneMessagesOnly(files,patch.replace('+    playerCard.close();','-    playerCard.close();')),false);
-  assert.equal(scopedPhoneMessagesOnly(files,patch.replace('openMessages','openAlbum')),false);
-  assert.equal(scopedPhoneMessagesOnly(files,[...patch.split('\n')].reverse().join('\n')),false);
+test('all eleven guarded workflows have declarative direct paths',()=>{
+ assert.equal(Object.keys(GUARDED_WORKFLOWS).length,11);
+ for(const name of Object.keys(GUARDED_WORKFLOWS)){
+  const paths=declaredPaths(workflow(name),name);
+  assert.ok(paths?.includes('apps/world/src/main.js'),name);
+  assert.ok(paths?.some(p=>p.startsWith('.github/workflows/')),name);
+ }
 });
-test('release, hotfix and explicit full-ci never opt out', () => {
-  for (const title of ['release(world): menu update', 'hotfix: save regression',
-    '[full-ci] feat(phone): messages', '릴리스 통합', '출시 준비']) {
-    const decision=inspect({CI_PR_TITLE:title,
-      CI_BASE_SHA:'a'.repeat(40),CI_HEAD_SHA:'b'.repeat(40)});
-    assert.deepEqual({skip:decision.skip,reason:decision.reason},{skip:false,reason:'release-or-unknown-pr'});
-  }
+test('glob matcher understands the existing source and browser fixture patterns',()=>{
+ assert.equal(matchPath('apps/world/src/shop/**','apps/world/src/shop/shop-panel.js'),true);
+ assert.equal(matchPath('apps/world/tests/browser/phone-messages-*','apps/world/tests/browser/phone-messages-smoke.mjs'),true);
+ assert.equal(matchPath('apps/world/src/main.js','apps/world/src/main.js'),true);
+ assert.equal(matchPath('apps/world/src/shop/**','apps/world/src/phone/phone-messages.js'),false);
+ assert.equal(matchPath('apps/world/src/shop/*.js','apps/world/src/shop/nested/thing.js'),false);
 });
-
-test('shared Phone code and styling must match reviewed change lines', () => {
-  const smartphone='apps/world/src/phone/smartphone.js';
-  const prefs='apps/world/src/phone/phone-preferences.js';
-  const css='apps/world/phone.css';
-  for(const path of [smartphone,prefs,css])
-    assert.equal(scopedPhoneMessagesOnly(['apps/world/src/phone/phone-messages.js',path]),false,path);
-  const cssPatch='diff --git a/'+css+' b/'+css+'\n'+'+.phone-messages { display:grid; }\n';
-  assert.equal(scopedPhoneMessagesOnly(['apps/world/src/phone/phone-messages.js',css],'',{[css]:cssPatch}),false,'partial or unreviewed CSS cannot suppress browser QA');
-  assert.equal(scopedPhoneMessagesOnly(['apps/world/src/phone/phone-messages.js',css],'',{
-    [css]:cssPatch.replace('.phone-messages','body')}),false);
-  assert.equal(scopedPhoneMessagesOnly(['apps/world/src/phone/phone-messages.js',smartphone],'',{
-    [smartphone]:'diff --git a/'+smartphone+' b/'+smartphone+'\n+  shell.close();\n'}),false);
+test('module change skips a suite that has no direct impact, but keeps the affected one',()=>{
+ assert.deepEqual(decide([phone],graphics),{skip:true,reason:'unrelated-modular-feature',paths:[phone]});
+ assert.equal(decide(['apps/world/src/quest/journal-panel.js'],quest).reason,'suite-direct-impact');
+ assert.equal(decide(['apps/world/src/quest/journal-panel.js'],graphics).skip,true);
+ assert.equal(decide(['apps/world/src/shop/shop-panel.js'],shop).reason,'suite-direct-impact');
 });
-
-test('missing CI refs cannot opt out of tests', () => {
-  assert.equal(inspect({}).skip,false);
-  assert.equal(inspect({CI_BASE_SHA:'x',CI_HEAD_SHA:'y'}).skip,false);
+test('shared and security-sensitive changes fail closed',()=>{
+ for(const file of [
+  'apps/world/src/phone/phone-shell.js','apps/world/src/phone/phone-album.js',
+  'apps/world/src/input/input-focus-manager.js','apps/world/src/network/transport.js',
+  'apps/world/src/rooms/room-transition.js',
+  'apps/world/src/online/world-online.js',
+  'apps/world/src/config/supabase-public-config.js',
+  'apps/world/campus/index.html','apps/world/styles.css','apps/world/qa.mjs',
+  'supabase/migrations/20261012.sql',
+  '.github/workflows/phone-browser.yml','.github/ci/phone-surface-scope.mjs',
+  'apps/world/tests/browser/harness.mjs',
+  'unknown-file.js'
+ ]) assert.equal(decide([file],graphics).skip,false,file);
+});
+test('partial safe set combined with unknown path also forces full suite',()=>{
+ assert.equal(decide([phone,'apps/world/src/online/world-online.js'],graphics).skip,false);
+ assert.equal(decide([phone,phone],graphics).skip,false);
+ assert.equal(decide([],graphics).skip,false);
+ assert.equal(decide(null,graphics).skip,false);
+ assert.equal(decide([main],graphics).skip,false);
+});
+test('only player-card presentation handoff is permitted in shared main',()=>{
+ assert.equal(safeMainHandoff(baseMain,phoneMain),true);
+ assert.equal(decide([phone,main],graphics,{mainBefore:baseMain,mainAfter:phoneMain}).skip,true);
+ assert.equal(decide([phone,main],graphics,{mainBefore:baseMain,mainAfter:phoneMain+'\nconst newGameState = true;'}).skip,false);
+ assert.equal(decide([phone,main],graphics,{mainBefore:baseMain,mainAfter:phoneMain.replace('window.location.assign','window.location.reload')}).skip,false);
+ assert.equal(safeMainHandoff(baseMain,baseMain),false);
+});
+test('PR release/hotfix/full-ci titles and unknown workflows force full',()=>{
+ for(const title of ['release(world): publish','hotfix: urgent','[full-ci] feat: app','릴리스 통합','출시 준비']){
+  assert.equal(decide([phone],graphics,{prTitle:title}).reason,'release-or-unknown-pr');
+ }
+ assert.equal(classify([phone],{workflowName:'Unknown',prTitle:'feat: okay',workflowYaml:workflow(graphics)}).skip,false);
+ assert.equal(classify([phone],{workflowName:graphics,prTitle:'feat: okay',workflowYaml:'not yaml'}).skip,false);
+});
+test('inspect simulates real shallow-checkout diff with exact commit, status and workflow route',()=>{
+ const base='a'.repeat(40),head='b'.repeat(40);
+ const call=[];
+ const mock=(...args)=>{
+  call.push(args);
+  if(args[0]==='rev-parse')return head+'\n';
+  if(args[0]==='cat-file'||args[0]==='merge-base')return '';
+  if(args[0]==='diff')return 'M\0'+phone+'\0';
+  throw Error('unexpected Git call');
+ };
+ const run=inspect({CI_HEAD_SHA:head,CI_BASE_SHA:base,CI_PR_TITLE:'feat(phone): inbox',
+   CI_WORKFLOW_NAME:graphics},mock,()=>workflow(graphics));
+ assert.equal(run.skip,true);
+ assert.equal(run.reason,'unrelated-modular-feature');
+ assert.ok(call.some(x=>x[0]==='merge-base'));
+});
+test('inspect refuses malformed history, missing refs, releases and unknown workflow',()=>{
+ const a='a'.repeat(40),b='b'.repeat(40);
+ assert.equal(inspect({}).skip,false);
+ assert.equal(inspect({CI_HEAD_SHA:b,CI_BASE_SHA:a,CI_WORKFLOW_NAME:graphics}).skip,false);
+ assert.equal(inspect({CI_HEAD_SHA:b,CI_BASE_SHA:a,CI_WORKFLOW_NAME:'nonexistent',CI_PR_TITLE:'feat'}).skip,false);
+ assert.equal(inspect({CI_HEAD_SHA:b,CI_BASE_SHA:a,CI_WORKFLOW_NAME:graphics,CI_PR_TITLE:'[full-ci] release'}).skip,false);
+ const missingBase=(...args)=>{
+  if(args[0]==='rev-parse')return b+'\n';
+  if(args[0]==='cat-file')throw Error('base unavailable');
+  return '';
+ };
+ assert.equal(inspect({CI_HEAD_SHA:b,CI_BASE_SHA:a,CI_WORKFLOW_NAME:graphics,CI_PR_TITLE:'feat'},missingBase).reason,'missing-history-or-diff-error');
 });
