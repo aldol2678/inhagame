@@ -25,12 +25,13 @@ jobs:
         with:
           node-version: '24.19.0'
       - name: Test scope detection
-        run: node --test .github/ci/public-ci-scope.test.mjs
+        run: node --test .github/ci/public-ci-scope.test.mjs .github/ci/seo-only-scope.test.mjs .github/ci/phone-surface-scope.test.mjs .github/ci/phone-surface-scope-contract.test.mjs
       - name: Detect verification scope
         id: scope
         env:
           CI_EVENT: ${{ github.event_name }}
           CI_BEFORE: ${{ github.event.before }}
+          CI_PR_TITLE: ${{ github.event.pull_request.title }}
         run: node .github/ci/public-ci-scope.mjs >> "$GITHUB_OUTPUT"
 
   source:
@@ -48,6 +49,19 @@ jobs:
             apps/world/tests/recast-runtime/package-lock.json
             apps/induckup/package-lock.json
       - run: bash scripts/public-ci.sh
+
+  seo:
+    needs: scope
+    if: needs.scope.outputs.mode == 'seo'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - name: Verify SEO metadata, canonical, robots and sitemap
+        run: node --test apps/world/tests/seo-metadata.test.mjs
 
   database:
     needs: scope
@@ -67,7 +81,7 @@ jobs:
   # Keep the historical required status context "verify" while the expensive
   # source and database checks execute in parallel.
   verify:
-    needs: [scope, source, database]
+    needs: [scope, source, database, seo]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -77,6 +91,7 @@ jobs:
           SCOPE_RESULT: ${{ needs.scope.result }}
           SOURCE_RESULT: ${{ needs.source.result }}
           DATABASE_RESULT: ${{ needs.database.result }}
+          SEO_RESULT: ${{ needs.seo.result }}
           MODE: ${{ needs.scope.outputs.mode }}
           DB_REQUIRED: ${{ needs.scope.outputs.db }}
         run: |
@@ -102,6 +117,13 @@ jobs:
                 echo "Database-independent change: local Supabase startup and integration DB suite were not required."
                 echo "Public source/unit/static verification ran in full." >> "$GITHUB_STEP_SUMMARY"
               fi
+              ;;
+            seo)
+              if [[ "$SEO_RESULT" != "success" ]]; then
+                echo "SEO-only verification failed: $SEO_RESULT"
+                exit 1
+              fi
+              echo "Verified SEO-only change: metadata checks passed; full source and DB suites not required." >> "$GITHUB_STEP_SUMMARY"
               ;;
             docs)
               echo "Documentation-only change: full verification not required."
