@@ -3445,6 +3445,7 @@ let lobbyHudSettledKey = null;
       import('./income/convenience-authority-runtime.mjs').then(({ mountConvenienceAuthorityRuntime }) => {
         const authorityInput = createInputFocusOwner({ manager: inputFocus, ownerId: 'convenience-authority', policy: INPUT_FOCUS_POLICY.BLOCKING_UI });
         const localRuntime = mountConvenienceAuthorityRuntime({ controller, host: convenienceHost,
+          onCommitted: () => { void wallet.refresh("reward"); },
           acquireInput: () => { authorityInput.acquire(); return () => authorityInput.release(); },
           readScene: ({ ownsInput = false } = {}) => ({ accountId: online?.userId ?? null,
             sceneId: biryongRealm?.inBiryong || rooms.insideRoom ? 'other' : 'campus',

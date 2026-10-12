@@ -43,13 +43,14 @@ Only a ledger-proven pre-existing SETTLED receipt bypasses new presence. Termina
 ## Verification and cost limits
 
 - Pure reducer: 21 focused tests including a canonical back-gate-to-store walk.
-- New service/client/runtime/reducer focused tests: 121 passed locally. They include actual PlayerController and the actual main mount block, but fake HTTP/DOM cases do not prove browser pixels or PostgreSQL.
-- Final local World aggregate: 4,523/4,523 passed. The stale unassigned-employer assertion was updated for the explicit 도유진 mapping. The later documented-refusal classification change also passed its 39 focused job-client/service regressions.
+- New service/client/runtime/reducer focused tests: 123 passed locally. They include actual PlayerController and the actual main mount block, but fake HTTP/DOM cases do not prove browser pixels or PostgreSQL.
+- Final local World aggregate: 4,525/4,525 passed. The stale unassigned-employer assertion was updated for the explicit 도유진 mapping. The later documented-refusal classification change also passed its 39 focused job-client/service regressions.
 - World QA, 53 edge/migration guard tests, migration ordering and contract lint passed locally.
 - `115_world_convenience_authority.test.sql` and `convenience-authority.integration.test.mjs` are new disposable tests. The latter uses real HTTP, local Auth, the actual reducer and PostgREST/PostgreSQL, including independent workers, real-clock canonical walking, work ordering, duplicate settlement, lock waits, logout/runtime/target races and rollback. It has **not run locally** because this executor lacks PostgreSQL/Docker/Supabase. Exact-head hosted results are required.
 - Existing income database regressions use explicit synthetic server observations for their SHIFT cases; they are economy regression evidence, not movement proof.
-- Browser module rendering could not launch locally: Chromium was denied an OS socket before loading any page, including one approved escalation retry. No renderer/touch PASS is claimed. The existing browser CI now includes this module fixture.
+- Browser module rendering could not launch locally: Chromium was denied an OS socket before loading any page, including one approved escalation retry. No local renderer/touch PASS is claimed. The existing browser CI includes this module fixture; exact-head hosted results are recorded in Draft #368.
 - Browser module rendering is separate from whole-main startup. Neither a module render fixture nor the Node main-mount test is claimed as a full authenticated whole-campus boot.
+- A separate desktop full-campus test reuses the existing starter-furniture workflow's disposable DB and Chromium. It performs actual SDK password login, unchanged `/campus/` boot, trusted toolbar/W/work interactions, real server walk/settlement, linked Reward/Wallet readback, wallet refresh and cancel/reopen receipt recovery. It passes through real local Auth/authority/DB responses. Launch gates and pre-existing intro progression are the only SQL setup; positions, work answers, timestamps and balances are not injected. Only the hash-verified public avatar substitute may be pictured. This added test is not claimed PASS until its exact-head hosted result is verified.
 
 Local pure-code measurement (1,000 stationary reductions; this executor): geometry factory 17.4 ms after module import, mean reducer 0.625 ms, p95 0.967 ms. It excludes module cold import, Auth, HTTP, DB and game rendering. It does not establish deployed latency or cost.
 

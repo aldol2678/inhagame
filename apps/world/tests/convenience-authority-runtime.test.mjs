@@ -295,7 +295,7 @@ async function mainMount(hostname = 'localhost', optedIn = true) {
   const env = { globalThis: { INCOME_CANDIDATE_LOCAL_AUTH: { accountId: 'account-a', convenienceAuthority: optedIn } },
     location: { hostname }, window, controller, online: { userId: 'account-a' }, rooms, seats: { isSeated: false },
     biryongRealm: {}, combatRuntime: {}, lobbyWorld: {}, lobbyTransition: {}, npcTest: { isConversationOpen: () => conversationOpen },
-    inputFocus, createInputFocusOwner, INPUT_FOCUS_POLICY, incomeGameCandidate,
+    inputFocus, createInputFocusOwner, INPUT_FOCUS_POLICY, incomeGameCandidate, wallet: { refresh(reason) { calls.push(`wallet-${reason}`); } },
     mountConvenienceAuthorityRuntime(value) { options = value; calls.push('mount'); return localRuntime; }
   };
   new Function(...Object.keys(env), block)(...Object.values(env)); await flush();
@@ -331,4 +331,22 @@ test('actual main calls runtime scene validation each discovery frame and dispos
   assert.deepEqual(h.calls, ['mount', 'discovery-update', 'authority-update']);
   h.window.dispatch('pagehide', { persisted: true }); assert.equal(h.calls.includes('authority-dispose'), false);
   h.window.dispatch('pagehide', { persisted: false }); assert.equal(h.calls.at(-1), 'authority-dispose');
+});
+
+test('actual main stylesheet exposes local authority controls above the campus canvas', () => {
+  const css = fs.readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
+  const toolbar = css.match(/\.convenience-authority-candidate\s*\{([^}]+)\}/)?.[1] ?? '';
+  assert.match(toolbar, /position:\s*fixed/);
+  assert.match(toolbar, /z-index:\s*1000/);
+  assert.match(toolbar, /pointer-events:\s*auto/);
+  assert.match(toolbar, /100vw\s*-\s*24px/);
+  assert.match(css, /\.convenience-authority-candidate button\s*\{[^}]*min-height:\s*44px/);
+});
+
+
+test('actual main refreshes the existing wallet readback after a confirmed convenience receipt', async () => {
+  const h = await mainMount();
+  assert.equal(typeof h.options.onCommitted, 'function');
+  h.options.onCommitted({ committed: true });
+  assert.equal(h.calls.at(-1), 'wallet-reward');
 });

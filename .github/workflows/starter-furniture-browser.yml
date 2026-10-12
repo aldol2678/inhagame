@@ -12,6 +12,11 @@ on:
       - 'docs/ops/sql/20261012_starter_furniture_open.sql'
       - 'apps/world/tests/browser/dorm-shop-vendor-*'
       - 'scripts/starter-furniture-browser-local.mjs'
+      - 'scripts/convenience-campus-browser-local.mjs'
+      - 'apps/world/tests/browser/convenience-campus-*'
+      - 'apps/world/src/income/**'
+      - 'apps/world/server/convenience-authority-service.mjs'
+      - 'apps/world/server/presence/**'
       - '.github/workflows/starter-furniture-browser.yml'
 permissions:
   contents: read
@@ -64,6 +69,14 @@ jobs:
         run: |
           set -o pipefail
           node scripts/starter-furniture-browser-local.mjs 2>&1 | tee test-results/starter-furniture/browser.log
+      - name: Full campus convenience with disposable real Auth and database
+        if: ${{ !cancelled() && steps.database.outcome == 'success' }}
+        env:
+          CONVENIENCE_CAMPUS_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          CONVENIENCE_CAMPUS_OUTPUT: test-results/starter-furniture/convenience-campus
+        run: |
+          set -o pipefail
+          node scripts/convenience-campus-browser-local.mjs 2>&1 | tee test-results/starter-furniture/convenience-campus.log
       - name: Actual Induck geometry and seating metadata only
         if: ${{ !cancelled() && steps.database.outcome == 'success' }}
         env:
@@ -100,5 +113,7 @@ jobs:
             test-results/starter-furniture/dorm-vendor/*.json
             test-results/starter-furniture/dorm-vendor/*.png
             test-results/starter-furniture/private-metadata/*.json
+            test-results/starter-furniture/convenience-campus/*.json
+            test-results/starter-furniture/convenience-campus/*.png
           if-no-files-found: error
           retention-days: 14

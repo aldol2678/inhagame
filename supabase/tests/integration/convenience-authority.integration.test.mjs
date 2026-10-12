@@ -69,7 +69,7 @@ async function actor(){
  assert.equal(claims.sub,a.user);assert.match(claims.session_id,/^[0-9a-f-]{36}$/i);a.auth=claims.session_id;
  const verified=await fetch(`${API_URL}/auth/v1/user`,{headers:{apikey:ANON_KEY,Authorization:`Bearer ${a.token}`}});
  assert.equal(verified.status,200,'real Auth must accept the fixture session before testing authority');
- assert.equal((await verified.json()).is_anonymous,false);
+ const verifiedUser=await verified.json();assert.equal(verifiedUser.id,a.user);assert.equal(verifiedUser.is_anonymous,false);
  await query(`insert into public.profiles(user_id,nickname,is_banned) values(${lit(a.user)},${lit('c'+a.user.slice(0,8))},false) on conflict(user_id) do update set is_banned=false;insert into private.world_quest_progress_v1(user_id,quest_id,stage) values(${lit(a.user)},'campus_navigation_intro_v1',9);`);
  return a;
 }
@@ -114,8 +114,10 @@ test('two worker commits race on durable CAS; duplicate acknowledgement cannot r
  const results=await Promise.allSettled([call(a,{op:'move',...scope(a),command}),call(a,{op:'move',...scope(a),command})]);
  const accepted=results.filter(r=>r.status==='fulfilled');assert.ok(accepted.length>=1);
  for(const rejected of results.filter(r=>r.status==='rejected'))assert.match(rejected.reason.message,/CAS_CONFLICT/);
- a.record=accepted[0].value;const old=a.record.state;await delay(20);
+ a.record=accepted[0].value;const old=a.record.state;
+ const oldLease=await query(`select lease_until from private.world_convenience_authority where user_id=${lit(a.user)};`);await delay(20);
  const replay=await call(a,{op:'move',...scope(a),command});assert.deepEqual(replay.state,old);
+ assert.equal(await query(`select lease_until from private.world_convenience_authority where user_id=${lit(a.user)};`),oldLease,'duplicate must not extend durable lease');
  await assert.rejects(call(a,{op:'move',...scope(a),command:{...command,moveX:1}}),/SEQUENCE_CONFLICT/);
  await call(a,{op:'revoke',...scope(a)});await assert.rejects(move(a),/SESSION_EXPIRED/);
 });
@@ -126,7 +128,8 @@ test('Wallet lock wait then revocation rolls back first settlement, ledger and r
  const lockName='convenience-'+randomUUID();const held=query(`begin;set local application_name=${lit(lockName)};select balance from private.world_wallets where user_id=${lit(a.user)} for update;select pg_sleep(2);commit;`).then(value=>({value}),error=>({error}));
  let ready=false;for(let i=0;i<100;i++){if(await query(`select exists(select 1 from pg_stat_activity where application_name=${lit(lockName)} and wait_event='PgSleep');`)==='t'){ready=true;break;}await delay(10);}assert.ok(ready);
  const pending=income(a,'complete',{sessionId:session.sessionId,requestId:randomUUID()}).then(value=>({value}),error=>({error}));
- await delay(100);await call(a,{op:'revoke',...scope(a)});const result=await pending;const holder=await held;if(holder.error)throw holder.error;
+ let waiting=false;for(let i=0;i<50;i++){if(await query(`select exists(select 1 from pg_stat_activity where wait_event_type='Lock' and query like '%world_convenience_income_v2%');`)==='t'){waiting=true;break;}await delay(10);}assert.ok(waiting,'actual economic lock wait must precede revocation');
+ await call(a,{op:'revoke',...scope(a)});const result=await pending;const holder=await held;if(holder.error)throw holder.error;
  assert.match(result.error?.message??'',/PRESENCE_REQUIRED/);assert.deepEqual(await accountState(a),{balance:100,rewards:0,settled:0});
  assert.equal(await query(`select count(*) from private.world_income_requests where user_id=${lit(a.user)} and payload->>'op'='FINISH';`),'0');
 });

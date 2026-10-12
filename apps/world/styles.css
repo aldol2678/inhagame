@@ -5560,6 +5560,39 @@ body[data-photo-mode="active"] > :not(#application):not(.photo-mode):not(script)
 .trophy-display-choices button[aria-pressed="true"] { border-color:#2868a4; background:#deedf9; }
 @media(max-width:600px) { .trophy-display-panel { width:auto; max-height:calc(100dvh - 16px); } }
 
+/* Explicit loopback-only convenience QA mount. Keep real main controls clickable above
+   the fixed campus canvas, below blocking dialogs; this class is never mounted on hosted builds. */
+.convenience-authority-candidate {
+  position: fixed;
+  right: max(12px, env(safe-area-inset-right));
+  bottom: max(96px, calc(env(safe-area-inset-bottom) + 76px));
+  z-index: 1000;
+  width: min(360px, calc(100vw - 24px));
+  box-sizing: border-box;
+  padding: 12px;
+  border: 1px solid #b8c9d8;
+  border-radius: 12px;
+  background: #f8fbfff2;
+  color: #24394d;
+  box-shadow: 0 8px 28px #091b3c33;
+  font: 13px/1.5 sans-serif;
+  pointer-events: auto;
+}
+.convenience-authority-candidate p { margin: 0 0 8px; }
+.convenience-authority-candidate button {
+  min-height: 44px;
+  margin: 3px;
+  padding: 7px 10px;
+  border: 1px solid #a9bed2;
+  border-radius: 7px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.convenience-authority-candidate button:focus-visible { outline: 3px solid #287bc1; outline-offset: 2px; }
+.convenience-authority-candidate button:disabled { opacity: .55; cursor: default; }
+
 /* LANDSCAPE-HUD:start
    Mobile landscape HUD · phones held sideways (touch + landscape + short viewport).
    The portrait phone HUD keys off max-width, so a rotated phone (740–932px wide) used to fall through to the
