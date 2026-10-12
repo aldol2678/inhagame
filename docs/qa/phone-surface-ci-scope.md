@@ -50,6 +50,9 @@ necessarily fewer workflow names.
 - PR title is known and is not a release, hotfix or `[full-ci]` override.
 - Every changed path is one of the explicitly reviewed Phone member-Messages
   implementation, styling or test files.
+- The shared `smartphone.js` app registration and `phone-preferences.js` app ID
+  must match the reviewed exact changed-line signatures; CSS changes must be
+  additions to the specific Phone Messages styles, never general Phone styles.
 - If `src/main.js` changed, its **entire** diff must consist of exactly the
   reviewed two *additions* in player-card message handoff:
   `playerCard.close();` and
