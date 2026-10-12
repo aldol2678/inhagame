@@ -85,6 +85,8 @@ insert into authority_allowed_call values
   -- Wallet: only Reward, Shop and the service-role server wrappers move balances.
   ('private.world_reward_grant_v1',            'private.world_wallet_apply_v1', 'Reward orchestrator CURRENCY grant'),
   ('public.purchase_world_shop_listing_v1',    'private.world_wallet_apply_v1', 'Shop purchase debit (price from listing, buyer = auth.uid())'),
+  ('public.purchase_jeongseok_pass_v1',        'private.world_wallet_apply_v1',
+     'JSL-A visitor pass debit: buyer = auth.uid(); price/duration from the server catalog; receipt and right in the same transaction'),
   ('public.world_wallet_credit_v1',            'private.world_wallet_apply_v1', 'service_role server API wrapper'),
   ('public.world_wallet_debit_v1',             'private.world_wallet_apply_v1', 'service_role server API wrapper'),
   -- Character EXP
@@ -202,6 +204,7 @@ select set_eq(
     'public.cook_my_world_recipe_v1',                     -- self-only cooking, server recipe and owned/saved station
     'public.purchase_world_shop_listing_v1',              -- price and item come from the server listing
     'public.purchase_world_shop_listing_v2',              -- validates shop binding, delegates unchanged v1
+    'public.purchase_jeongseok_pass_v1',                  -- caller = auth.uid(); price, duration and eligibility decided on the server
     'public.answer_my_world_daily_quiz_v1',               -- correctness judged by the server, one PASS per day
     'public.claim_my_world_attendance_v1',                -- day from the DB clock, one claim per day
     'public.claim_my_mcm_2026_main_reward_v1',            -- requires server-recorded event completion
@@ -238,6 +241,7 @@ insert into authority_table values
   ('world_campus_npc_relationship_events','STATE'), ('world_player_campus_npc_relationships','STATE'),
   ('world_quest_progress_v1','STATE'), ('world_event_progress','STATE'),
   ('world_player_appearance_loadout','STATE'), ('world_purchase_transactions','STATE'),
+  ('world_jeongseok_pass_purchases','STATE'), ('world_jeongseok_pass_entitlements','STATE'),
   ('world_staff_assignments','STATE'), ('world_staff_role_permissions','STATE'),
   -- Definitions: written only by migrations (top-level statements), never by a function.
   ('world_currencies','CATALOG'), ('world_item_catalog','CATALOG'), ('world_level_thresholds','CATALOG'),
@@ -253,7 +257,8 @@ insert into authority_table values
   ('world_combat_creature_bridge_catalog','CATALOG'),
   ('world_creature_acquisition_rule_catalog','CATALOG'), ('world_inkyung_duck_observation_subjects','CATALOG'),
   ('world_biryong_npc_relationship_npc_catalog','CATALOG'), ('world_biryong_npc_relationship_fact_catalog','CATALOG'),
-  ('world_campus_npc_relationship_npc_catalog','CATALOG');
+  ('world_campus_npc_relationship_npc_catalog','CATALOG'),
+  ('world_jeongseok_gate_policy','CATALOG'), ('world_jeongseok_pass_catalog','CATALOG');
 
 select ok(to_regclass('private.' || tbl) is not null, format('protected table private.%s exists', tbl))
 from authority_table;
@@ -324,7 +329,9 @@ insert into authority_allowed_write values
   ('world_event_progress', 'private.world_mcm_try_complete_v1'),
   ('world_player_appearance_loadout', 'public.equip_my_world_item_v1'),
   ('world_player_appearance_loadout', 'public.unequip_my_world_item_v1'),
-  ('world_purchase_transactions', 'public.purchase_world_shop_listing_v1');
+  ('world_purchase_transactions', 'public.purchase_world_shop_listing_v1'),
+  ('world_jeongseok_pass_purchases', 'public.purchase_jeongseok_pass_v1'),
+  ('world_jeongseok_pass_entitlements', 'public.purchase_jeongseok_pass_v1');
 -- world_staff_assignments / world_staff_role_permissions: no function writes them (ops only).
 
 select set_eq(

@@ -43,7 +43,8 @@ nothing is ACTIVE / no settlement path · **planned** = no backing schema yet ·
 | Profile | Profile (public) | `public.profiles` (nickname, department_id, title, avatar_key, is_banned) | `get_my_profile()`, `get_world_public_profile(uuid)` | RLS self insert/update on the column grants `nickname, department_id, title, avatar_key` | the profile owner; `is_banned` only via ops (`service_role`) | **yes**: listed columns only | production |
 | Character EXP | Progression | `private.world_player_progression`, `private.world_exp_transactions` (append-only) | `get_my_world_progression_v1()` | `private.world_exp_apply_v1` | Reward orchestrator; `public.world_exp_grant_v1` (service_role) | no | production |
 | Character Level | Progression (derived) | `private.world_level_thresholds` (immutable, append-only) × `total_exp` | `get_my_world_progression_v1()`; client never computes it (`progression-client.js`) | none, derived | — | no | production |
-| Wallet | Economy | `private.world_wallets`, `private.world_currency_transactions`, `private.world_currencies` | `get_my_world_wallet_v1()` | `private.world_wallet_apply_v1` | Reward orchestrator; Shop purchase; `world_wallet_credit/debit_v1` (service_role) | no (purchase RPC prices from the server listing) | production |
+| Wallet | Economy | `private.world_wallets`, `private.world_currency_transactions`, `private.world_currencies` | `get_my_world_wallet_v1()` | `private.world_wallet_apply_v1` | Reward orchestrator; Shop purchase; Jeongseok visitor pass purchase; `world_wallet_credit/debit_v1` (service_role) | no (purchase RPC prices from the server listing) | production |
+| Jeongseok access / visitor pass | JSL-A Access | `private.world_jeongseok_pass_entitlements` (current right, one row per account), `world_jeongseok_pass_purchases` (append-only receipts, each linked to one Wallet ledger debit); migration-owned `world_jeongseok_gate_policy`, `world_jeongseok_pass_catalog` | `get_jeongseok_access_v1()` (self-only; server clock, Inha mail badge via `my_inha_mail_badge()`, pass, server price) | `purchase_jeongseok_pass_v1(pass_type, idempotency_key)` → `private.world_wallet_apply_v1`, receipt and right in one transaction | authenticated owner, permanent non-banned account; never a verified account (free) or an already-active pass | narrow command only, no price/user/expiry | candidate; gate and product ship COMING_SOON, 100 coins is a CANDIDATE price |
 | Inventory | Inventory | `private.world_player_items` (UNIQUE user,item), `world_item_grants`, `world_item_consumptions`, `world_inventory_mutations(_entries)`, `world_item_catalog` | `get_my_world_inventory_v1()` | `private.world_inventory_grant_v1` (only increase), `world_inventory_consume_v1`, `world_inventory_mutate_v1` (atomic N-consume / M-grant) | Reward; Shop; Inventory-internal mutate; service_role wrappers | no | production (cosmetics / collectibles); MATERIAL rows foundation |
 | Cooking recipe | Recipe / Cooking | `private.world_recipe_catalog`, `world_recipe_receipts` | historical receipt returned by the self-only command | `cook_my_world_recipe_v1(recipe_id,request_id)` → Inventory mutation | authenticated owner, permanent non-banned account; own saved and owned station | narrow command only, no amounts/plan/user/room | B2 candidate CLOSED; no acquisition, Life XP or food-use/combat consumer |
 | Cosmetic equipment | Appearance | `private.world_player_appearance_loadout` (9 slots), `world_appearance_transactions` | `get_my_world_appearance_loadout_v1()` | `equip_my_world_item_v1`, `unequip_my_world_item_v1` (ownership checked) | the owner (authenticated, self-only) | via self-only RPC | production |
@@ -92,7 +93,7 @@ Protected primitives, all in schema `private`:
 
 Allowed callers on `8b7bf39`. The exact list with a reason per row is in test 93.
 
-- **Wallet**: Reward orchestrator; `purchase_world_shop_listing_v1`; service_role `world_wallet_credit/debit_v1`.
+- **Wallet**: Reward orchestrator; `purchase_world_shop_listing_v1`; `purchase_jeongseok_pass_v1` (JSL-A visitor pass: buyer = `auth.uid()`, price/duration from the server catalog, receipt and right in the same transaction); service_role `world_wallet_credit/debit_v1`.
 - **EXP**: Reward orchestrator; service_role `world_exp_grant_v1`.
 - **Inventory grant**: Reward; Inventory mutate; Shop purchase; Activity settlement; service_role `world_inventory_grant_item_v1` and `world_inventory_ensure_default_items_v1`. **Consume**: Inventory mutate only. **Mutate**: `cook_my_world_recipe_v1` only; server recipe, owned/saved station and self-only actor.
 - **Collection discover**: service_role wrapper; Activity settlement.
@@ -114,7 +115,7 @@ Allowed callers on `8b7bf39`. The exact list with a reason per row is in test 93
 - **Recipe / Cooking**: `world_inventory_mutate_v1` ← `public.cook_my_world_recipe_v1` (B2 candidate; server recipe, self-only actor and owned/saved station, no client quantities).
 
 Client reachability: the only functions `anon` / `authenticated` can execute that reach any
-primitive, at any depth, are `purchase_world_shop_listing_v1`, `answer_my_world_daily_quiz_v1`,
+primitive, at any depth, are `purchase_world_shop_listing_v1`, `purchase_world_shop_listing_v2`, `purchase_jeongseok_pass_v1`, `answer_my_world_daily_quiz_v1`,
 `claim_my_world_attendance_v1`, `claim_my_mcm_2026_main_reward_v1`,
 `claim_my_mcm_landlord_first_clear_reward_v1`, `bond_my_duck_companion_v1`,
 `unlock_my_world_life_node_v1`, `reset_my_world_life_tree_v1` and `cook_my_world_recipe_v1`. Each decides its outcome on the server.
@@ -155,6 +156,9 @@ if it never calls the primitive.
 - Quest: `world_quest_progress_v1` ← the three `advance_world_*_quest_v1` (Main 1, Main 2, Main 3 M3.1 first style; M3.1 grants no reward);
   `world_event_progress` ← `advance_mcm_2026_event_v1`, `world_mcm_try_complete_v1`
 - Appearance: `world_player_appearance_loadout` ← equip / unequip. Shop ledger: `world_purchase_transactions` ← purchase
+- Jeongseok access (JSL-A): `world_jeongseok_pass_purchases` (append-only, account deletion cascade only) and
+  `world_jeongseok_pass_entitlements` ← `purchase_jeongseok_pass_v1`; `world_jeongseok_gate_policy` and
+  `world_jeongseok_pass_catalog` are migration-owned catalogs
 - Staff: `world_staff_assignments`, `world_staff_role_permissions` ← no function (ops DML only)
 
 Definition catalogs (currencies, items, level / life curves, reward definitions and grants, shops,
@@ -190,7 +194,7 @@ Fixtures: `.github/ci/fixtures/migration-contract/pr91-collision` must fail;
 | Role | Intended authority | Enforced by |
 |---|---|---|
 | `anon` | Public read aggregates, guest telemetry, presence touch. No World progression or state mutation. | `01_grants_contract` exact anon EXECUTE surface; no `private` usage; no `private` function |
-| `authenticated` | Self-only RPCs where the caller is `auth.uid()` and the server decides the outcome (purchase, quiz, attendance, MCM claims, equip, social, housing, Life Skill Book). Never passes another user id. Never reaches a primitive except through the eight RPCs in section 3. | exact authenticated EXECUTE surface; no `private` usage; no `private` function; transitive reach check in test 93 |
+| `authenticated` | Self-only RPCs where the caller is `auth.uid()` and the server decides the outcome (purchase, quiz, attendance, MCM claims, equip, social, housing, Life Skill Book). Never passes another user id. Never reaches a primitive except through the reviewed self-only RPCs listed in section 3. | exact authenticated EXECUTE surface; no `private` usage; no `private` function; transitive reach check in test 93 |
 | `service_role` | Trusted server code (Cloud Run quest / NPC services, future resolvers) calling `public.*_v1(p_user, …)` wrappers. Most wrappers also re-check `auth.role() = 'service_role'` in the body; four rely on the GRANT alone (section 8). Cannot execute private primitives directly. | service-role-only lists in `01_grants_contract` (economy, quest, activity, collection, combat, creature, Biryong relationship, bridges, NPC ticks); private EXECUTE surface = the two staff helpers; private table DML surface recorded exactly |
 
 ## 7. Target contracts and implemented boundaries

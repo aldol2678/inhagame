@@ -102,6 +102,9 @@ import { createSpaceFade } from "./rooms/space-fade.js";
 import { DORM_1_LOBBY_MY_ROOM_RETURN } from "./rooms/dorm1-lobby-layout.js";
 import { createRoomWorldAdapter } from "./rooms/room-world-adapter.js";
 import { createDorm1LobbyScene } from "./rooms/dorm1-lobby-renderer.js";
+import { createJeongseokInteriorScenes } from "./jeongseok/interior-renderer.js";
+import { createJeongseokEntryPolicy, resolveJeongseokEntryMode, JEONGSEOK_ACCESS_POLICY_KEY, JEONGSEOK_ENTRY_MODE } from "./jeongseok/entry-policy.js";
+import { createJeongseokInterior } from "./jeongseok/interior-feature.js";
 import { createPersonalRoomEnvironment } from "./rooms/personal-room-environment.js";
 import { createPersonalRoomScene } from "./rooms/personal-room-renderer.js";
 import { PersonalRoomClient } from "./rooms/personal-room-client.js";
@@ -169,6 +172,7 @@ import { createStudentVendorInteraction } from "./shop/student-center-vendors.js
 import { createShopPanel } from "./shop/shop-panel.js";
 import { createShopFurnitureHandoff } from "./shop/shop-furniture-handoff.js";
 import { createWalletClient } from "./wallet/wallet-client.js";
+import { createJeongseokFeature } from "./jeongseok/jeongseok-feature.js";
 import { createInventoryClient } from "./inventory/inventory-client.js";
 import { createCollectionBookClient } from "./collection/collection-book-client.js";
 import { createInventoryAcquisitionClient } from "./inventory/inventory-acquisition-client.js";
@@ -265,6 +269,12 @@ const npcSocialProductionMode = npcProductionMode;
 const npcSocialMode = npcSocialProductionMode || npcSocialPreviewMode || npcObservedConversationMode;
 const npcEnabled = npcSharedScheduleMode || npcTestMode || npcProductionMode || npcPreviewMode || npcRosterPreviewMode || npcSocialMode;
 const campusLifePreview = previewHost && startupParams.get('campusLife') === 'p0a';
+// JSL-A Jeongseok gate: preview-only client entry. The server gate policy and pass product (both
+// COMING_SOON by default) still decide every grant and purchase.
+const jeongseokGatePreview = previewHost && startupParams.get('jeongseok') === 'jsl-a';
+// JSL-B Jeongseok interior: CLOSED pending JSL-A server access everywhere. A preview host with
+// ?jeongseok=jsl-b opens a local-only visual review; it is not server-protected access.
+const jeongseokEntryMode = resolveJeongseokEntryMode({ previewHost, params: startupParams });
 const biryongVisualStage = previewHost ? startupParams.get('biryongVisual') : null;
 const biryongVisualLabP0A = ['p0a', 'p0b', 'p0c', 'p0d', 'p0e'].includes(biryongVisualStage);
 const biryongVisualLabP0B = ['p0b', 'p0c', 'p0d', 'p0e'].includes(biryongVisualStage);
@@ -2019,6 +2029,10 @@ const clubRoom = createClubRoomScene(app);
 const dorm1Lobby = createDorm1LobbyScene(app, { player, camera });
 const personalRoomScene = createPersonalRoomScene(app);
 const mcmRoomScene = createMcm2026RoomScene(app);
+// JSL-B: Jeongseok interiors are built on first entry and released back on campus.
+const jeongseokScenes = createJeongseokInteriorScenes(app, { getGraphicsTier: () => graphics.tier });
+const jeongseokPolicy = createJeongseokEntryPolicy({ mode: jeongseokEntryMode });
+let jeongseokInterior = null;
 const roomScenes = new Map([
   ["ROOM_CLUBHOUSE_01", clubRoom],
   ["ROOM_DORM1_LOBBY", dorm1Lobby],
@@ -2040,8 +2054,10 @@ rooms = createRoomTransition({
   },
   canEnter: (_entrance, room) => room?.id !== MCM_2026_ROOM_ID ||
     (mcmEventPreviewMode && mcmEvent.state?.eventState === "ACTIVE") || mcm2026CanEnterVenue(mcmEvent.state),
+  // Fail closed: without this predicate (or before the Jeongseok flow exists) no Jeongseok room opens.
+  accessPolicies: { [JEONGSEOK_ACCESS_POLICY_KEY]: (entrance, room) => jeongseokInterior?.accessPredicate(entrance, room) === true },
   world: createRoomWorldAdapter({
-    player, controller, orbit, campusRoot, getRoomScene: (room) => roomScenes.get(room.id) ?? null, sun: light,
+    player, controller, orbit, campusRoot, getRoomScene: (room) => roomScenes.get(room.id) ?? jeongseokScenes.get(room) ?? null, sun: light,
     lighting: {
       save: () => ({ ambient: app.scene.ambientLight.clone(), clearColor: camera.camera.clearColor.clone() }),
       apply: ({ ambient, clearColor }) => { app.scene.ambientLight.copy(ambient); camera.camera.clearColor.copy(clearColor); }
@@ -2069,6 +2085,16 @@ rooms = createRoomTransition({
     setLocationLabel: (text) => { zoneEl.textContent = text; },
     markSpace: (id) => { if (id) document.body.dataset.space = id; else delete document.body.dataset.space; }
   })
+});
+jeongseokInterior = createJeongseokInterior({ rooms, policy: jeongseokPolicy, scenes: jeongseokScenes, onStatus: showWorldStatus });
+window.__INHAGAME_JEONGSEOK_INTERIOR__ = Object.freeze({
+  status: () => ({ ...jeongseokInterior.status(), scenes: jeongseokScenes.status() }),
+  activeFlapAngles: () => jeongseokScenes.activeScene()?.flapAngles ?? null,
+  // Visual-review fault injection exists only in the local preview mode.
+  ...(jeongseokEntryMode === JEONGSEOK_ENTRY_MODE.VISUAL_PREVIEW ? {
+    failNextBuild: () => jeongseokScenes.failNextBuild(),
+    simulateAccountChange: id => jeongseokInterior.setAccount(id)
+  } : {})
 });
 // The shared world director stays authoritative outdoors. Room-local visuals read
 // its projection after the time update and never write to that director or its clock.
@@ -3133,6 +3159,15 @@ try {
   console.warn("INHAGAME Campus map layer unavailable; continuing without it:", error);
 }
 
+// JSL-A: access read, visitor pass and the temporary tag reader. No room or channel is opened here.
+const jeongseok = createJeongseokFeature({
+  getClient: () => online?.supabase ?? null, isEnabled: () => jeongseokGatePreview, audio: worldAudio,
+  getPhone: () => smartphone, storage: () => { try { return window.localStorage; } catch { return null; } }
+});
+jeongseok.access.onChange(change => {
+  // A paid pass moved coins on the server: re-read the Wallet authority, never subtract locally.
+  if (change.reason === "purchase" && change.lastPurchase) void wallet.refresh("jeongseok-pass");
+});
 // PHONE-MVP-01: presentation/integration only. Existing Photo/Map/Progression own their data.
 smartphone = createSmartphone({
   inputFocus, photoMode, getMap: () => fullMap, getSettings: () => viewSettings,
@@ -3159,7 +3194,7 @@ smartphone = createSmartphone({
   settingsElement: document.getElementById("view-settings"),
   dailyQuizElement: document.getElementById("daily-quiz-panel"), attendanceElement: document.getElementById("attendance-panel"),
   getDailyQuizPanel: () => dailyQuizPanel, getAttendancePanel: () => attendancePanel,
-  onWarning: showWorldStatus
+  onWarning: showWorldStatus, jeongseok
 });
 // Controller's existing destination handler runs first; Phone returns to World only on a solved route.
 document.getElementById("full-map-set-destination")?.addEventListener("click", () => {
@@ -3678,7 +3713,16 @@ app.on("update", (dt) => {
     icon: "👣", label: "친구 따라가기 중지", priority: FOLLOW_CONTEXT_PRIORITY, pressed: true,
     trigger: () => follow.stop(FollowStopReason.EXPLICIT)
   } : null);
+  // JSL-B: Jeongseok door (policy-gated) and temporary floor transfers; gate flaps are visual only.
+  contextActions.set("jeongseok-interior", inBiryong ? null : jeongseokInterior.contextAction({
+    position: pos, grounded: controller.grounded, mounted: controller.mounted
+  }));
+  jeongseokInterior.update();
+  jeongseokScenes.activeScene()?.update(pos, dt);
   // Club Room P0 door: 🚪 동아리방 들어가기 outside, 🚪 본관으로 나가기 inside.
+  contextActions.set("jeongseok-gate", inBiryong ? null : jeongseok.contextAction({
+    position: pos, grounded: controller.grounded, mounted: controller.mounted, inside
+  }));
   if (inBiryong) {
     contextActions.set("room-door", null);
     contextActions.set("personal-room-door", null);
@@ -3701,7 +3745,7 @@ app.on("update", (dt) => {
     for (const key of [
       "seat", "room-furniture", "personal-room-environment", "guestbook", "student-center-shop", "student-center-vendors", "dorm-furniture-shop", "backgate-transit", "biryong-station-transit",
       "biryong-npc", "inkyung-duck", "inkyung-fishing", "biryong", "mcm-event", "mcm-minigame", "follow",
-      "room-door", "personal-room-door", "npc"
+      "room-door", "personal-room-door", "npc", "jeongseok-gate", "jeongseok-interior"
     ]) contextActions.set(key, null);
     transportActions.set("mount", null);
   }
@@ -3800,6 +3844,8 @@ try {
     shop.setAccount(identity ? online?.userId ?? null : null);
     if (shop.accountId) void shop.refresh("account-capability");
     void wallet.setAccount(identity ? online?.userId ?? null : null);
+    void jeongseok.setAccount(identity ? online?.userId ?? null : null);
+    jeongseokInterior.setAccount(identity ? online?.userId ?? null : null);
     collectionBook.setAccount(identity?.userId ?? null);
     void inventory.setAccount(identity ? online?.userId ?? null : null);
     void dailyQuiz.setAccount(identity ? online?.userId ?? null : null);
@@ -4037,6 +4083,7 @@ window.__INHAGAME_P0__ = {
   emoteMenu,
   photoMode,
   smartphone,
+  jeongseok,
   photoCamera,
   photoInput,
   photoModePanel,
