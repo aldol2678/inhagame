@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - '.github/ci/phone-surface-scope*.mjs'
+      - '.github/ci/seo-only-scope*.mjs'
       - 'apps/world/src/rooms/room-transition.js'
       - 'apps/world/src/rooms/room-world-adapter.js'
       - 'apps/world/src/rooms/space-fade.js'

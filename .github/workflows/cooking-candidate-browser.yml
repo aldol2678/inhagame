@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - '.github/ci/phone-surface-scope*.mjs'
+      - '.github/ci/seo-only-scope*.mjs'
       - 'apps/world/src/rooms/cooking-*.js'
       - 'apps/world/src/rooms/furniture-*.js'
       - 'apps/world/src/rooms/personal-room-layout.js'

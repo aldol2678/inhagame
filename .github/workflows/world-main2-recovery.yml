@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - '.github/ci/phone-surface-scope*.mjs'
+      - '.github/ci/seo-only-scope*.mjs'
       - 'apps/world/npc-factory/main2-quest-client.mjs'
       - 'apps/world/npc-factory/dev-runtime.mjs'
       - 'apps/world/src/main.js'
