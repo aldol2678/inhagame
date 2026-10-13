@@ -647,7 +647,6 @@ body[data-space] #tour { display: none; }
   display: flex;
   gap: 8px;
 }
-.social-cluster #photo-mode-toggle,
 .social-cluster #nearby-toggle,
 .social-cluster #emote-toggle,
 .social-cluster #chat-toggle {
@@ -663,10 +662,7 @@ body[data-space] #tour { display: none; }
   font-size: 18px;
   background: rgba(25,54,80,.88);
 }
-.social-cluster #photo-mode-toggle span,
-.social-cluster #nearby-toggle span,
-.social-cluster #emote-toggle span,
-.social-cluster #chat-toggle span {
+.social-cluster > button > span:not(.world-ui-icon) {
   display: none;
 }
 body.joystick-right .social-cluster {
@@ -699,7 +695,6 @@ body.joystick-right .emote-status {
     bottom: max(154px, calc(env(safe-area-inset-bottom) + 126px));
     gap: 6px;
   }
-  .social-cluster #photo-mode-toggle,
   .social-cluster #nearby-toggle,
   .social-cluster #emote-toggle,
   .social-cluster #chat-toggle {
@@ -912,7 +907,6 @@ body.joystick-right .emote-status {
     bottom: 20px;
     gap: 6px;
   }
-  .social-cluster #photo-mode-toggle,
   .social-cluster #nearby-toggle,
   .social-cluster #emote-toggle,
   .social-cluster #chat-toggle {
@@ -4595,7 +4589,6 @@ body[data-space]:not([data-space="campus"]) > .inkyung-living-moment {
     box-shadow: 0 7px 22px rgba(0,0,0,.34), 0 0 0 1px rgba(255,255,255,.06) inset;
   }
 
-  body[data-hud-mode="EXPLORE"][data-hud-overlay="NONE"] .social-cluster #photo-mode-toggle,
   body[data-hud-mode="EXPLORE"][data-hud-overlay="NONE"] .social-cluster #nearby-toggle,
   body[data-hud-mode="EXPLORE"][data-hud-overlay="NONE"] .social-cluster #emote-toggle {
     opacity: .84;
@@ -5407,7 +5400,6 @@ body[data-photo-mode="active"] > :not(#application):not(.photo-mode):not(script)
   visibility: hidden !important;
   pointer-events: none !important;
 }
-#photo-mode-toggle[aria-disabled="true"] { opacity: .5; }
 .photo-mode[hidden] { display: none; }
 .photo-mode {
   --photo-edge-t: max(12px, env(safe-area-inset-top));
@@ -5686,7 +5678,6 @@ body[data-photo-mode="active"] > :not(#application):not(.photo-mode):not(script)
     bottom: calc(var(--ls-bottom) + var(--ls-pad) + 8px);
     gap: 6px;
   }
-  body .social-cluster #photo-mode-toggle,
   body .social-cluster #nearby-toggle,
   body .social-cluster #emote-toggle,
   body .social-cluster #chat-toggle { width: 44px; height: 44px; font-size: 17px; }

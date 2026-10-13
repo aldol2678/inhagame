@@ -37,3 +37,11 @@ test('decorative images cannot initiate native dragging and retain error fallbac
  const css=await readFile(new URL('../ui-icon-runtime.css',import.meta.url),'utf8');
  assert.match(css,/\.world-ui-icon, \.world-ui-icon \*\s*\{\s*pointer-events:none;/);
 });
+
+test('social HUD icon wrappers are not hidden and Phone retains camera',async()=>{
+ const css=await readFile(new URL('../styles.css',import.meta.url),'utf8');
+ assert.match(css,/\.social-cluster > button > span:not\(\.world-ui-icon\) \{\s*display: none;\s*\}/);
+ assert.doesNotMatch(css,/\.social-cluster #nearby-toggle span\s*\{/);
+ assert.ok(UI_ICON_TARGETS.some(([selector,name])=>selector.includes('smartphone-app[data-app-id="camera"]')&&name==='camera'));
+ assert.ok(!UI_ICON_TARGETS.some(([selector])=>selector==='#photo-mode-toggle'));
+});
