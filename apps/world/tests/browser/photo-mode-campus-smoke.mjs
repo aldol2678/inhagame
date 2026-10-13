@@ -49,7 +49,8 @@ const snapshot = page => page.evaluate(() => {
     orbit: { yaw: d.orbit.yaw, pitch: d.orbit.pitch, distance: d.orbit.distance, firstPerson: d.orbit.firstPerson },
     photo: s.photoMode, focus: s.inputFocus, pointerLock: s.pointerLock, hud: document.body.dataset.photoMode ?? null,
     hudVisibility: getComputedStyle(document.querySelector('.campus-topbar')).visibility, space: s.space,
-    bodyVisible: d.character.equipmentVisible, emote: s.emote?.id ?? null, frame: d.app.frame, touch: { ...d.controller.touchVector } };
+    bodyVisible: d.character.equipmentVisible, emote: s.emote?.id ?? null, frame: d.app.frame, touch: { ...d.controller.touchVector },
+    phone: d.smartphone?.shell.state ?? null };
 });
 async function frames(page, count = 3) {
   const at = await page.evaluate(() => window.__INHAGAME_P0__.app.frame);
@@ -390,13 +391,40 @@ async function touchCase(startSmoke, TIMEOUT_MS, name, viewport) {
     await page.locator('[data-photo-control="restore"]').tap();
     await page.locator('[data-photo-control="close"]').tap();
     await page.waitForFunction(() => !window.__INHAGAME_P0__.photoMode.active); await frames(page, 2);
+    // Phone-origin contract (phone-shell cameraChanged): ✕ returns to Phone HOME, which owns input and covers the HUD.
+    const home = await snapshot(page);
+    assert.equal(home.active, false, `${name}: photo closed`);
+    assert.deepEqual(home.pose, play.pose, `${name}: exact camera transform/lens restoration`);
+    assert.deepEqual(home.orbit, play.orbit, `${name}: orbit untouched`);
+    assert.equal(home.phone, 'HOME', `${name}: Phone-origin close returns to Phone Home`);
+    assert.deepEqual(home.focus.topOwners, ['smartphone'], `${name}: Phone owns input after close`);
+    assert.equal(home.input, false, `${name}: gameplay movement stays blocked behind the Phone`);
+    assert.equal(home.hud, null, `${name}: Photo Mode attribute cleared`);
+    await page.locator('[aria-label="스마트폰 닫기"]').tap();
+    await page.waitForFunction(() => window.__INHAGAME_P0__.smartphone.shell.state === 'CLOSED'); await frames(page, 2);
     restored(await snapshot(page), play, `${name} close`);
     const stick = await center('#joystick');
     await touch('touchStart', [{ x: stick.x, y: stick.y, id: 5 }]); await touch('touchMove', [{ x: stick.x, y: stick.y - 30, id: 5 }]);
     await frames(page, 3);
     const walking = await snapshot(page); await touch('touchEnd', []);
     assert.ok(walking.touch.y !== 0 || Math.hypot(walking.position[0] - play.position[0], walking.position[2] - play.position[2]) > .02, `${name}: joystick works after exit`);
-    entry.checks.push('shutter tap PNG (camera unchanged), 👁 hide/restore, ✕ exact restore, gameplay joystick works again');
+    // Re-entry through the Phone must behave identically (no leaked claim/hold from the first round trip).
+    await frames(page, 2);
+    const again = await snapshot(page);
+    await page.locator('#phone-toggle').tap();
+    await page.locator('.smartphone-app[data-app-id="camera"]').tap();
+    await page.waitForFunction(() => window.__INHAGAME_P0__.photoMode.active, null, { timeout: 30_000 });
+    assert.equal((await snapshot(page)).hudVisibility, 'hidden', `${name}: re-entry hides the play HUD`);
+    await page.locator('[data-photo-control="close"]').tap();
+    await page.waitForFunction(() => !window.__INHAGAME_P0__.photoMode.active); await frames(page, 2);
+    assert.equal((await snapshot(page)).phone, 'HOME', `${name}: re-entry close returns to Phone Home`);
+    await page.locator('[aria-label="스마트폰 닫기"]').tap();
+    await page.waitForFunction(() => window.__INHAGAME_P0__.smartphone.shell.state === 'CLOSED'); await frames(page, 2);
+    const reclosed = await snapshot(page);
+    assert.equal(reclosed.hudVisibility, again.hudVisibility, `${name}: re-entry HUD visibility restored`);
+    assert.equal(reclosed.focus.activeClaimCount, again.focus.activeClaimCount, `${name}: re-entry leaves no claim`);
+    assert.equal(reclosed.input, again.input, `${name}: re-entry movement restored`);
+    entry.checks.push('shutter tap PNG (camera unchanged), 👁 hide/restore, ✕ returns to Phone Home with exact camera restore, closing the Phone restores HUD/input, gameplay joystick works again, Phone re-entry round trip leaves no leaked claim');
     assert.deepEqual(smoke.problems, []);
     entry.status = 'PASS';
   } catch (error) {
