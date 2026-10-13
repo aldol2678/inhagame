@@ -55,7 +55,11 @@ module.exports = async function handler(req, res) {
     });
     if (!upstream.ok) return res.status(502).end();
     const accepted = await upstream.json();
-    return res.status(accepted === true ? 204 : 400).end();
+    if (accepted === true) return res.status(204).end();
+    // The RPC returns false when the per-session hourly cap is reached (or a row is refused).
+    // The payload itself already passed validation above, so this is throttling, not a bad request.
+    res.setHeader('Retry-After', '600');
+    return res.status(429).end();
   } catch {
     return res.status(503).end();
   }

@@ -110,7 +110,7 @@ test('public config route emits only the browser-safe Supabase config from env',
     const res = responseRecorder();
     handler({ method: 'GET' }, res);
     assert.equal(res.statusCode, 200);
-    assert.equal(res.headers['cache-control'], 'no-store, max-age=0');
+    assert.equal(res.headers['cache-control'], 'public, max-age=60, s-maxage=300, stale-while-revalidate=86400');
     assert.match(res.headers['content-type'], /application\/javascript/);
     assert.match(res.body, /example-project\.supabase\.co/);
     assert.match(res.body, /sb_publishable_example/);
@@ -133,6 +133,7 @@ test('public config route fails closed when production config is unavailable', (
     const res = responseRecorder();
     handler({ method: 'GET' }, res);
     assert.equal(res.statusCode, 503);
+    assert.equal(res.headers['cache-control'], 'no-store, max-age=0');
     assert.match(res.body, /config is unavailable/);
   } finally {
     if (beforeUrl === undefined) delete process.env.SUPABASE_URL; else process.env.SUPABASE_URL = beforeUrl;

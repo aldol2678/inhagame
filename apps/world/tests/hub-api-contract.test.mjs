@@ -287,16 +287,25 @@ test('hub-event: malformed requests never reach Supabase', async () => {
   }
 });
 
-test('hub-event: the RPC verdict maps to 204 / 400 and failures to 502 / 503', async () => {
+test('hub-event: the RPC verdict maps to 204 / 429 and failures to 502 / 503', async () => {
   for (const [reply, status] of [
     [() => new Response('true'), 204],
-    [() => new Response('false'), 400],
+    [() => new Response('false'), 429],
     [() => new Response('{}', { status: 503 }), 502],
     [() => { throw new TypeError('fetch failed'); }, 503],
   ]) {
     stubUpstream(reply);
-    assert.equal((await event()).statusCode, status);
+    const res = await event();
+    assert.equal(res.statusCode, status);
+    if (status === 429) assert.equal(res.headers['retry-after'], '600');
   }
+});
+
+test('main.js wiring: campus_zone_enter is throttled per zone', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const main = await readFile(new URL('../src/main.js', import.meta.url), 'utf8');
+  assert.match(main, /ZONE_ENTER_RESEND_MS = 10000/);
+  assert.match(main, /zoneEnterSentAt\.set\(legacy,nowMs\)/);
 });
 
 test('hub-event: account fields are neither needed nor forwarded', async () => {
