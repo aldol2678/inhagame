@@ -7,15 +7,25 @@ const smoke = readFileSync(new URL('./browser/shop-panel-focus-smoke.mjs', impor
 
 test('shop hosted browser workflow checks out the exact PR head with read-only permission', () => {
   assert.ok(existsSync(workflowUrl), 'shop native keyboard acceptance has a hosted gate');
-  const workflow = readFileSync(workflowUrl, 'utf8');
+  const workflow = readFileSync(workflowUrl, 'utf8').replace(/\r\n/g, '\n');
   assert.match(workflow, /pull_request:/);
-  assert.match(workflow, /contents: read/);
+  assert.match(workflow, /^permissions:\n  contents: read\n(?=\S)/m);
   assert.match(workflow, /ref: \$\{\{ github\.event\.pull_request\.head\.sha \}\}/);
   assert.match(workflow, /SHOP_FOCUS_HEAD_SHA: \$\{\{ github\.event\.pull_request\.head\.sha \}\}/);
+  assert.match(workflow, /FURNITURE_SHOWROOM_HEAD_SHA: \$\{\{ github\.event\.pull_request\.head\.sha \}\}/);
   assert.match(workflow, /playwright install --with-deps chromium/);
   assert.match(workflow, /node apps\/world\/tests\/browser\/shop-panel-focus-smoke\.mjs/);
+  assert.match(workflow, /node apps\/world\/tests\/browser\/furniture-showroom-smoke\.mjs/);
   assert.match(workflow, /if: always\(\)/);
-  assert.match(workflow, /path: test-results\/shop-panel-focus/);
+  assert.match(workflow, /name: shop-panel-focus-\$\{\{ github\.event\.pull_request\.head\.sha \}\}/);
+  const artifactPaths = workflow.match(/^          path: \|\n((?:            [^\n]+\n)+)/m)?.[1];
+  assert.ok(artifactPaths, 'browser evidence uses a multiline artifact path');
+  assert.deepEqual(artifactPaths.trim().split('\n').map(path => path.trim()), [
+    'test-results/shop-panel-focus',
+    'test-results/furniture-showroom',
+  ]);
+  assert.match(workflow, /^          if-no-files-found: error$/m);
+  assert.match(workflow, /^          retention-days: 14$/m);
 });
 
 test('shop browser evidence verifies the expected head and trusted keyboard events', () => {

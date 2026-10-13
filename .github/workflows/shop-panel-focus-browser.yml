@@ -3,10 +3,17 @@ on:
   pull_request:
     paths:
       - 'apps/world/src/shop/**'
+      - 'apps/world/src/rooms/furniture*.js'
+      - 'apps/world/src/campus-render-kit.js'
+      - 'apps/world/assets/furniture/**'
       - 'apps/world/src/collection/item-catalog.js'
       - 'apps/world/styles.css'
       - 'apps/world/tests/shop-panel*.test.mjs'
       - 'apps/world/tests/browser/shop-panel-focus-*'
+      - 'apps/world/tests/browser/furniture-showroom-*'
+      - 'apps/world/tests/furniture-shop-showroom.test.mjs'
+      - 'apps/world/tests/furniture-shop-preview-lifecycle.test.mjs'
+      - 'apps/world/tests/browser/furniture-preview-ownership.test.mjs'
       - '.github/workflows/shop-panel-focus-browser.yml'
 permissions:
   contents: read
@@ -32,11 +39,22 @@ jobs:
         env:
           SHOP_FOCUS_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: node apps/world/tests/browser/shop-panel-focus-smoke.mjs
+      - name: Furniture showroom 3D browser QA (desktop / portrait / landscape)
+        env:
+          FURNITURE_SHOWROOM_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+        run: |
+          node --test apps/world/tests/browser/furniture-preview-ownership.test.mjs
+          node apps/world/tests/browser/furniture-showroom-smoke.mjs
+          node apps/world/tests/browser/furniture-showroom-lifecycle-smoke.mjs
+          node apps/world/tests/browser/furniture-showroom-world-smoke.mjs
       - name: Upload exact-head browser evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: shop-panel-focus-${{ github.event.pull_request.head.sha }}
-          path: test-results/shop-panel-focus
+          path: |
+            test-results/shop-panel-focus
+            test-results/furniture-showroom
           if-no-files-found: error
           retention-days: 14
