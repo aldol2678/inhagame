@@ -8,3 +8,10 @@
 - Only the campus entry point and campus-scoped manifest are changed; no service worker, offline caching, 3D runtime, account data, or backend logic changes.
 
 QA required before merge: manifest HTTP 200 + JSON MIME + icon PNG 200; Android Chrome install/launch; Safari iPhone/iPad Add to Home Screen, account restore, WebGPU start and 6% loader behavior. Device/runtime outcomes remain UNKNOWN until measured.
+
+## R1 correction · 2026-10-13
+
+- Original installed-icon export FAILED visual QA: an Int16 squared RGB-distance overflow mapped bright/white pixels into the dark palette. The resulting icon was committed without visual review.
+- Regenerated all six files using Int32 arithmetic, full-resolution palette matching, and a plain sky-blue background. White body, dark face outline and yellow beak/feet rechecked against the official 2D reference.
+- Added apps/world/tests/pwa-visual-guard.test.mjs. It decodes PNG pixels and checks center-white, corner-blue and low overall dark coverage. It passes with the corrected icons and fails with the previous black icon.
+- Not a new institutional approval or Production sign-off. Draft and device QA gates remain.
