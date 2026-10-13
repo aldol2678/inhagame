@@ -82,7 +82,8 @@ try {
       ownBubble() { return null; },
       submit(input) { return { result: "sent", text: String(input ?? "").trim() }; }
     };
-    d.chatPanel.refreshAvailability();
+    // The fixture is an explicitly synthetic signed-in chat account; production guests remain blocked.
+    d.chatPanel.refreshAvailability("a0000000-0000-4000-8000-000000000001");
     d.chatPanel.renderFeed(Array.from({ length: 15 }, (_, index) => ({
       name: index % 2 ? "밥" : "앨리스",
       text: `모바일 채팅 ${index + 1}`,
