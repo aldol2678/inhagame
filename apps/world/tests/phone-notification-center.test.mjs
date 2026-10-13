@@ -68,7 +68,7 @@ test('Phone Notification UI filters, mutes, and deep-links without claiming dail
  f.center.close();f.center.destroy();
 });
 test('old Phone layout gains one notification app without resetting existing apps',()=>{
- const p=defaultPhonePreferences();p.pages[0][11]='album';
+ const p=defaultPhonePreferences();p.pages[0][1]=null;p.pages[0][11]='album';
  const next=normalizePhonePreferences(p);const ids=[...next.pages.flat(),...next.dock].filter(Boolean);
  assert.equal(ids.filter(x=>x==='notifications').length,1);assert.equal(ids.filter(x=>x==='messages').length,1);
  assert.deepEqual(next.dock,['maps','camera',null,null]);assert.equal(next.pages[0][11],'album');
