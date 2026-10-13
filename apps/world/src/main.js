@@ -71,7 +71,7 @@ import { createContextActionController } from "./context-action.js";
 import { createRoomPhotoStory } from "./rooms/room-photo-story.js";
 import { createPhotoMode } from "./photo/photo-mode.js";
 import { createPhotoCapture } from "./photo/photo-capture.js";
-import { bindPhotoModeEntry, createPhotoModePanel } from "./photo/photo-mode-panel.js";
+import { createPhotoModePanel } from "./photo/photo-mode-panel.js";
 import { createPhotoCameraController } from "./photo/photo-camera-controller.js";
 import { createPhotoInput } from "./photo/photo-input.js";
 import { overPondWater } from "./landmark-detail-layout.js";
@@ -1940,10 +1940,9 @@ const photoModePanel = createPhotoModePanel({ mode: photoMode, rig: photoCamera,
   },
   getAlbumLatest: () => smartphone?.latestPhoto() ?? null,
   onOpenAlbum: record => smartphone?.openAlbum(record) === true });
-const photoModeEntry = bindPhotoModeEntry({ button: document.getElementById("photo-mode-toggle"), mode: photoMode });
 window.addEventListener("pagehide", event => {
   photoMode.close("lifecycle");
-  if (!event.persisted) { photoModeEntry.destroy(); photoModePanel.destroy(); photoInput.destroy(); photoMode.destroy(); }
+  if (!event.persisted) { photoModePanel.destroy(); photoInput.destroy(); photoMode.destroy(); }
 });
 // Single input authority: migrated owners resolve WORLD_ACTION through InputFocusManager.
 const worldActionsSuspended = () => !inputFocus.can("WORLD_ACTION");
@@ -3803,7 +3802,6 @@ app.on("update", (dt) => {
     ]) contextActions.set(key, null);
     transportActions.set("mount", null);
   }
-  photoModeEntry.refresh();
   const suspended = worldActionsSuspended();
   contextActions.setSuspended(suspended);
   transportActions.setSuspended(suspended);

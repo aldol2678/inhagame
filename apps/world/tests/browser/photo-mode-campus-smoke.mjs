@@ -305,26 +305,38 @@ async function touchCase(startSmoke, TIMEOUT_MS, name, viewport) {
     ({ smoke, page } = await boot(startSmoke, TIMEOUT_MS, entry, viewport, true));
     cdp = await smoke.context.newCDPSession(page);
     stage = 'hud-entry';
-    // The 📷 entry lives in the existing social row and must clear the mobile HUD (incl. landscape override).
+    // Camera is now Phone-only. Remaining social controls must render their icon wrappers.
     const hud = await page.evaluate(() => {
       const rect = id => { const n = document.querySelector(id); if (!n || n.hidden || !n.getClientRects().length) return null;
         const b = n.getBoundingClientRect(); return { x: b.x, y: b.y, width: b.width, height: b.height }; };
-      return { photo: rect('#photo-mode-toggle'), social: rect('.social-cluster'), joystick: rect('#joystick'), run: rect('#run'),
-        jump: rect('#jump'), minimap: rect('#minimap'), context: rect('#context-action'), transport: rect('#transport-action'),
-        topbar: rect('.campus-topbar'), coarse: matchMedia('(pointer: coarse)').matches };
+      const icon = id => { const n = document.querySelector(id + ' .world-ui-icon');
+        return !!n && getComputedStyle(n).display !== 'none' && getComputedStyle(n).visibility !== 'hidden'; };
+      return { photo: rect('#photo-mode-toggle'), nearby: rect('#nearby-toggle'), emote: rect('#emote-toggle'),
+        chat: rect('#chat-toggle'), icons: { nearby: icon('#nearby-toggle'), chat: icon('#chat-toggle') },
+        social: rect('.social-cluster'), joystick: rect('#joystick'), run: rect('#run'),
+        jump: rect('#jump'), minimap: rect('#minimap'), context: rect('#context-action'),
+        transport: rect('#transport-action'), topbar: rect('.campus-topbar'),
+        coarse: matchMedia('(pointer: coarse)').matches };
     });
     entry.hud = hud;
     assert.equal(hud.coarse, true);
-    assert.ok(hud.photo && hud.photo.width >= 40 && hud.photo.height >= 40, `${name}: 📷 visible as a touch target`);
-    assert.ok(hud.photo.x >= 0 && hud.photo.y >= 0 && hud.photo.x + hud.photo.width <= viewport.width && hud.photo.y + hud.photo.height <= viewport.height);
-    for (const key of ['joystick', 'run', 'jump', 'minimap', 'context', 'transport', 'topbar'])
-      if (hud[key]) assert.equal(overlaps(hud.photo, hud[key]), false, `${name}: 📷 clears ${key}`);
-    await screenshot(page, entry, `${name}-hud-entry`, 'Play HUD with the 📷 entry in the social row');
-    entry.checks.push('📷 entry visible in the social row, inside the viewport and clear of joystick/RUN/JUMP/minimap/actions/top bar');
+    assert.equal(hud.photo, null, `${name}: camera HUD absent`);
+    assert.equal(hud.icons.nearby, true, `${name}: nearby icon visible`);
+    assert.equal(hud.icons.chat, true, `${name}: chat icon visible`);
+    for (const key of ['nearby', 'emote', 'chat']) {
+      const target = hud[key];
+      assert.ok(target && target.width >= 40 && target.height >= 40, `${name}: ${key} is a touch target`);
+      assert.ok(target.x >= 0 && target.y >= 0 && target.x + target.width <= viewport.width && target.y + target.height <= viewport.height);
+      for (const other of ['joystick', 'run', 'jump', 'minimap', 'context', 'transport', 'topbar'])
+        if (hud[other]) assert.equal(overlaps(target, hud[other]), false, `${name}: ${key} clears ${other}`);
+    }
+    await screenshot(page, entry, `${name}-hud-entry`, 'Three visible social controls; camera is in Phone');
+    entry.checks.push('nearby/emote/chat buttons visible, clear and on-screen; no camera HUD button');
 
     stage = 'entry';
     const play = await snapshot(page);
-    await page.locator('#photo-mode-toggle').tap();
+    await page.locator('#phone-toggle').tap();
+    await page.locator('.smartphone-app[data-app-id="camera"]').tap();
     await page.waitForFunction(() => window.__INHAGAME_P0__.photoMode.active, null, { timeout: 30_000 });
     const opened = await snapshot(page);
     assert.deepEqual(opened.pose, play.pose, `${name}: entry frame is the play frame`);
@@ -335,7 +347,7 @@ async function touchCase(startSmoke, TIMEOUT_MS, name, viewport) {
       assert.ok(b && b.x >= 0 && b.y >= 0 && b.x + b.width <= viewport.width && b.y + b.height <= viewport.height, `${name}: ${selector} on screen`);
     }
     await screenshot(page, entry, `${name}-default`, 'Photo Mode touch overlay at the unchanged play composition');
-    entry.checks.push('tap entry keeps the exact play frame; close/shutter/pad/▲▼ on screen; play HUD hidden');
+    entry.checks.push('Phone camera entry keeps the exact play frame; close/shutter/pad/▲▼ on screen; play HUD hidden');
 
     stage = 'gestures';
     const free = { x: viewport.width * .5, y: viewport.height * .42 };
