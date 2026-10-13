@@ -3237,6 +3237,7 @@ smartphone = createSmartphone({
   settingsElement: document.getElementById("view-settings"),
   dailyQuizElement: document.getElementById("daily-quiz-panel"), attendanceElement: document.getElementById("attendance-panel"),
   getDailyQuizPanel: () => dailyQuizPanel, getAttendancePanel: () => attendancePanel,
+  getDailyQuiz: () => dailyQuiz, getAttendance: () => attendance,
   onWarning: showWorldStatus, jeongseok
 });
 // Controller's existing destination handler runs first; Phone returns to World only on a solved route.

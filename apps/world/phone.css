@@ -151,3 +151,21 @@ body[data-phone-open="true"] > :not(#application):not(.smartphone) { visibility:
 .phone-messages-report select { width:auto; min-width:0; flex:1; }
 .phone-messages-notice { margin:0; padding:8px; border-radius:8px; background:#15394e; }
 @media(max-width:380px) { .phone-messages-new { grid-template-columns:1fr; } }
+
+/* PHONE-NOTI-01A: local presentation over existing authoritative clients. */
+.phone-notifications { display:grid; gap:12px; padding:4px 2px 18px; min-width:0; }
+.phone-notifications h3 { margin:0; font-size:19px; }
+.phone-notifications-hint { margin:0; color:#e7f1fb; font-size:12px; line-height:1.5; }
+.phone-notifications-filters, .phone-notifications-settings, .phone-notifications-footer { display:flex; gap:7px; flex-wrap:wrap; }
+.phone-notifications-filters button { min-height:44px; font-size:13px; }
+.phone-notifications-filters button[aria-pressed="true"] { background:#f3dba4; border-color:#ffe8a4; color:#1b2934; font-weight:700; }
+.phone-notifications-setting { display:flex; align-items:center; justify-content:space-between; gap:6px; padding:6px 9px; border:1px solid #ffffff35; border-radius:9px; background:#132d45b0; font-size:12px; flex:1 1 110px; }
+.phone-notifications-setting input { width:20px; height:20px; accent-color:#ffd680; }
+.phone-notifications-list { display:grid; gap:8px; }
+.phone-notification-item { display:grid; gap:8px; padding:12px; border:1px solid #ffffff35; border-radius:14px; background:#112c47db; min-width:0; }
+.phone-notification-item[data-unread="true"] { border-left:4px solid #ffe29e; }
+.phone-notification-copy { overflow-wrap:anywhere; }
+.phone-notification-copy strong { display:block; font-size:14px; }
+.phone-notification-copy p { margin:5px 0 0; font-size:12px; line-height:1.5; }
+.phone-notification-action { justify-self:start; min-height:44px; }
+.phone-notifications-error { color:#ffe4ad; margin:0; font-size:12px; }
