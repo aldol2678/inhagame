@@ -23,9 +23,12 @@ This change does not approve merge or deployment.
 ## Validation
 - Existing registry, life-engine and UI/session suites are retained.
 - New Node tests cover 24 scenes/72 choices, all 27 story paths for each of 12 majors, deterministic replay, legacy 17-choice compatibility, exact-once paused choices, reload at every transition, invalid saves and epilogue preservation.
-- Development-only in-memory JavaScript evaluation (imports injected and JSON clone/assert shims) passed 9 added tests and compared 180 legacy runs against the original engine byte-for-byte. This is not Node or browser QA.
+- Development-only in-memory JavaScript evaluation (imports injected and JSON clone/assert shims) passed 12 added tests and compared 180 legacy runs against the original engine byte-for-byte. This is not Node or browser QA.
 - Exact-head repository CI and browser QA must be recorded separately. Desktop/mobile rendering of long scene and epilogue text has not yet been verified.
 - Release requires comparison on desktop/portrait/landscape, continuing an actual old save, starting a new expanded game, follow-up modal reload, all 3 chapters at graduation, and console/network checks.
 
 ## Known follow-ups
 The earlier #376 low-severity Escape dismissal, graduation focus restoration and synthetic duplicate-click UX remain separate. Real mobile browser visibility behavior and non-Chromium coverage are not established by this change.
+
+## Review correction
+Read-only review identified malformed-save boundary cases. Expanded saves now require coherent signature/follow-up slot, pending event, completion, memory and outcome flag records at years 1–3. Follow-up namespace validation is independent of the saved type field; completed follow-ups are not scheduled again. Three additional regression tests cover missing/repeated slots, missing/duplicated signature prerequisites and injected event types. Original raw saves remain untouched on rejection.

@@ -128,7 +128,8 @@ function scheduleEvent(life) {
       title:event.title,year:life.year,term:life.term,week:life.week,
       choices:event.choices.map(choice=>({id:choice.id,label:choice.label}))};
   } else if (contentVersion(life)===FOLLOWUP_CONTENT_VERSION && [2,3].includes(life.year) && life.term===1 && life.week===6) {
-    pending=buildFollowupEvent(life);
+    const candidate=buildFollowupEvent(life);
+    if(!life.completedEventInstances.includes(candidate.instanceId))pending=candidate;
   } else if (life.week===5 || life.week===10) {
     const event=generalCandidate(life);
     const instanceId='grow2.event.general.'+event.id+'.'+slot;

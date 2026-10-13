@@ -144,3 +144,60 @@ test('UI opts new games into stories and renders narrative using safe text nodes
   assert.match(ui,/for\(const chapter of epilogue\.chapters\)/);
   assert.doesNotMatch(ui,/innerHTML/);
 });
+
+test('corrupt cursor slots are rejected before a followup can be lost or requeued',()=>{
+  for(const year of [1,2,3]) {
+    let pending=createLife(options('cse'));
+    while(!(pending.pendingEvent && pending.year===year && pending.term===1 && pending.week===6)){
+      pending=pending.pendingEvent?chooseLifeEvent(pending,pending.pendingEvent.choices[0].id):advanceLife(pending);
+    }
+    const resolved=chooseLifeEvent(pending,pending.pendingEvent.choices[0].id);
+    const broken=[
+      {...structuredClone(pending),pendingEvent:null},
+      {...structuredClone(resolved),shownEventSlots:resolved.shownEventSlots.filter(x=>x!==year+':1:6')},
+      {...structuredClone(pending),shownEventSlots:[...pending.shownEventSlots,year+':1:6']},
+    ];
+    for(const life of broken) {
+      const raw=JSON.stringify({schema:V2_LOCAL_SAVE_SCHEMA,life}),store=storage();
+      store.setItem(V2_LOCAL_SAVE_KEY,raw);
+      assert.equal(createLifeSession({storage:store}).load(),false);
+      assert.equal(store.getItem(V2_LOCAL_SAVE_KEY),raw);
+      assert.throws(()=>advanceLife(life));
+    }
+  }
+});
+
+test('declared event type cannot bypass canonical followup validation',()=>{
+  let life=createLife(options('cse'));
+  while(life.pendingEvent?.type!=='followup')life=life.pendingEvent?chooseLifeEvent(life,life.pendingEvent.choices[0].id):advanceLife(life);
+  for(const mutate of [
+    x=>{x.pendingEvent.type='general';},
+    x=>{x.pendingEvent.type='general';x.pendingEvent.eventId='grow2.event.general.friend';x.pendingEvent.choices=[{id:'join',label:'join'}];},
+    x=>{x.pendingEvent.instanceId='foreign';x.pendingEvent.type='general';}
+  ]){
+    const bad=structuredClone(life);mutate(bad);
+    const store=storage(),raw=JSON.stringify({schema:V2_LOCAL_SAVE_SCHEMA,life:bad});
+    store.setItem(V2_LOCAL_SAVE_KEY,raw);
+    assert.equal(createLifeSession({storage:store}).load(),false);
+    assert.equal(store.getItem(V2_LOCAL_SAVE_KEY),raw);
+    assert.throws(()=>chooseLifeEvent(bad,bad.pendingEvent.choices[0].id));
+  }
+});
+test('expanded saves retain exactly one signature prerequisite after year2',()=>{
+  let life=createLife(options('culture'));
+  while(life.pendingEvent?.type!=='followup')life=life.pendingEvent?chooseLifeEvent(life,life.pendingEvent.choices[0].id):advanceLife(life);
+  life=chooseLifeEvent(life,life.pendingEvent.choices[0].id);
+  const id=findMajor('culture').signatureEvent.id;
+  for(const mutate of [
+    x=>{x.memories=x.memories.filter(m=>m.eventId!==id);},
+    x=>{x.memories.push(structuredClone(x.memories.find(m=>m.eventId===id)));},
+    x=>{x.completedEventInstances=x.completedEventInstances.filter(e=>e!==id);},
+    x=>{delete x.flags[findMajor('culture').signatureEvent.choices[0].outcomeFlag];}
+  ]){
+    const bad=structuredClone(life);mutate(bad);
+    const raw=JSON.stringify({schema:V2_LOCAL_SAVE_SCHEMA,life:bad}),store=storage();
+    store.setItem(V2_LOCAL_SAVE_KEY,raw);
+    assert.equal(createLifeSession({storage:store}).load(),false);
+    assert.equal(store.getItem(V2_LOCAL_SAVE_KEY),raw);
+  }
+});

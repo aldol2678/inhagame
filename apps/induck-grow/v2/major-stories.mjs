@@ -720,22 +720,41 @@ export function validateStoryState(life) {
   if(contentVersion(life)!==FOLLOWUP_CONTENT_VERSION)return;
   if(!FOUNDATION_MAJOR_IDS.includes(life.majorId) || !life.flags || typeof life.flags!=='object' || Array.isArray(life.flags))
     throw new Error('Invalid story state');
-  for(const year of [2,3]) {
-    const id=eventId(life.majorId,year),cursor=(year-1)*30+5;
+  const major=findMajor(life.majorId);
+  for(const year of [1,2,3]) {
+    const id=year===1?major.signatureEvent.id:eventId(life.majorId,year),cursor=(year-1)*30+5;
     const completed=life.completedEventInstances.filter(x=>x===id);
     const memories=life.memories.filter(m=>m.eventId===id);
-    const flagPrefix='grow2.outcome.followup.'+life.majorId+'.year'+year+'.';
+    const flagPrefix=year===1?'grow2.outcome.'+life.majorId+'.':'grow2.outcome.followup.'+life.majorId+'.year'+year+'.';
     const flags=Object.keys(life.flags).filter(k=>k.startsWith(flagPrefix));
     if(completed.length>1 || memories.length!==completed.length ||
        flags.length!==completed.length || (life.weeksCompleted<cursor && completed.length) ||
        (life.weeksCompleted>cursor && !completed.length))throw new Error('Invalid story progress');
+    const slot=year+':1:6',slots=life.shownEventSlots.filter(x=>x===slot);
+    const pending=life.pendingEvent?.instanceId===id;
+    if(slots.length>1 || (life.weeksCompleted<cursor && (slots.length||pending)) ||
+       (completed.length && (!slots.length||pending)) ||
+       (!completed.length && slots.length && !pending) ||
+       (pending && (!slots.length||life.weeksCompleted!==cursor)) ||
+       (life.weeksCompleted===cursor && life.pendingEvent && !pending))
+      throw new Error('Invalid story slot');
     if(completed.length) {
-      const index=DATA[life.majorId][year-2][3].findIndex((_,i)=>choiceId(life.majorId,year,i)===memories[0].choiceId);
-      if(index<0 || life.flags[flagId(life.majorId,year,index)]!==true || typeof memories[0].text!=='string')
+      const options=year===1?major.signatureEvent.choices:
+        DATA[life.majorId][year-2][3].map((c,i)=>({id:choiceId(life.majorId,year,i),outcomeFlag:flagId(life.majorId,year,i)}));
+      const index=options.findIndex(c=>c.id===memories[0].choiceId);
+      if(index<0 || life.flags[options[index].outcomeFlag]!==true || typeof memories[0].text!=='string')
         throw new Error('Invalid story record');
     }
+    if(pending && year===1) {
+      const event=major.signatureEvent;
+      const expected={instanceId:event.id,eventId:event.id,type:'signature',title:event.title,
+        year:1,term:1,week:6,choices:event.choices.map(c=>({id:c.id,label:c.label}))};
+      if(JSON.stringify(expected)!==JSON.stringify(life.pendingEvent))throw new Error('Invalid pending signature');
+    }
   }
-  if(life.pendingEvent?.type==='followup') {
+  if(life.pendingEvent?.type==='followup' ||
+     life.pendingEvent?.instanceId?.startsWith('grow2.event.followup.') ||
+     life.pendingEvent?.eventId?.startsWith('grow2.event.followup.')) {
     const expected=buildFollowupEvent(life);
     if(!expected || JSON.stringify(expected)!==JSON.stringify(life.pendingEvent) ||
        life.completedEventInstances.includes(expected.instanceId))throw new Error('Invalid pending story');
