@@ -52,6 +52,9 @@ jobs:
         run: node apps/world/tests/browser/north-walkway-smoke.mjs
       - name: Performance regression gate
         run: node apps/world/tests/browser/north-walkway-compare.mjs test-results/north-walkway/before/report.json test-results/north-walkway/after/report.json test-results/north-walkway/comparison.json
+      - name: Exact original-versus-batched paving pixel parity
+        if: ${{ !cancelled() }}
+        run: node apps/world/tests/browser/north-walkway-pixel-parity.mjs test-results/north-walkway/after/report.json test-results/north-walkway/pixel-parity.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:

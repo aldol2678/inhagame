@@ -162,7 +162,7 @@ function hallIntegrationScopePaths(manifest,extension) {
     'north-walkway-layout.js','north-walkway-surface.js','render-chunk-registry.js','north-landmark-massing.js','north-campus-layout.js'
   ];
   // This one release admits only the exact runtime/data paths reviewed in
-  // #340 and #365. No directory prefix, wildcard, or general release exemption.
+  // #340, #365 and the explicitly approved photo-save repair. No broad exemption.
   if(extension==='release-2026-10-13')return [
     ...walkway.map(p=>'apps/world/src/'+p),
     'apps/world/data/reality/north-walkway.provenance.json',
@@ -171,7 +171,12 @@ function hallIntegrationScopePaths(manifest,extension) {
     'apps/world/src/diagnostics/build-id.js',
     'apps/world/src/diagnostics/diagnostics-panel.js',
     'apps/world/src/diagnostics/runtime-diagnostics-runtime.js',
-    'apps/world/src/diagnostics/runtime-diagnostics.js'
+    'apps/world/src/diagnostics/runtime-diagnostics.js',
+    'apps/world/src/photo/photo-capture.js',
+    'apps/world/src/photo/photo-mode-panel.js',
+    'apps/world/src/campus-road-blockout.js',
+    'apps/world/src/north-walkway-batching.js',
+    'apps/world/src/north-walkway-renderer.js'
   ];
   return [...manifest.allowedRuntimeChanges,...manifest.allowedMetadataChanges,...contactPilot.map(p=>'apps/world/src/'+p),
     ...(extension==='surroundings'?surroundings.map(p=>'apps/world/src/'+p):[]),

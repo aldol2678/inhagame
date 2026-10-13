@@ -19,6 +19,36 @@ const ids=['bldg_05','bldg_60th','fac_agora_courtyard','bldg_06','bldg_09'];
 const report={device:'NullGraphicsDevice: no pixels',engine:pc.version,cycles:[]};
 const stage=(label)=>console.error(JSON.stringify({stage:label,rssMiB:Math.round(process.memoryUsage().rss/1048576)}));
 try{
+ const {fillNorthRoads}=await import('../../src/north-campus-geometry.js');
+ const {FacilityMeshBatch}=await import('../../src/facility-mesh-batch.js');
+ const {surface}=await import('../../src/campus-render-kit.js');
+ const {walkwayLinearColor}=await import('../../src/north-walkway-batching.js');
+ const {inferCampusMaterialProfile}=await import('../../src/campus-material-profile.js');
+ const {buildNorthWalkwayRoads}=await import('../../src/north-walkway-renderer.js');
+ const sourceBatch=fillNorthRoads(new FacilityMeshBatch());
+ for(const color of sourceBatch.groups.keys())assert.deepEqual(walkwayLinearColor(color).slice(0,3),[...surface(color).getUniform('diffuse')],'float32 vertex values match actual pinned engine uniform');
+ const batchRoot=new pc.Entity('PavingBatchContract');app.root.addChild(batchRoot);buildNorthWalkwayRoads(batchRoot);
+ const batched=meshes(batchRoot);assert.equal(batched.length,3);assert.equal(sourceBatch.groups.size,5);
+ assert.equal(batched.reduce((n,mi)=>n+mi.mesh.primitive[0].count/3,0),[...sourceBatch.groups.values()].reduce((n,g)=>n+g.indices.length/3,0));
+ for(const mi of batched){
+  const attribute=mi.mesh.vertexBuffer.format.elements.find(e=>e.name===pc.SEMANTIC_COLOR);
+  assert.equal(attribute.dataType,pc.TYPE_FLOAT32);assert.equal(attribute.normalize,false);
+  assert.equal(mi.node.render.castShadows,false);assert.equal(mi.material.diffuseMapVertexColor,true);
+  const profile=mi.material.name.replace('north-walkway-vertex-','');
+  const reference=surface('#ffffff',profile);
+  const originals=[...sourceBatch.groups].filter(([color])=>inferCampusMaterialProfile(color)===profile);
+  const positions=[],normals=[],colors=[],indices=[];mi.mesh.getPositions(positions);mi.mesh.getNormals(normals);mi.mesh.getColors(colors);mi.mesh.getIndices(indices);
+  assert.deepEqual(positions,[...new Float32Array(originals.flatMap(([,g])=>g.positions))]);
+  assert.deepEqual(normals,[...new Float32Array(originals.flatMap(([,g])=>g.normals))]);
+  const expectedColors=[],expectedIndices=[];let offset=0;
+  for(const [color,g]of originals){for(let v=0;v<g.positions.length/3;v++)expectedColors.push(...walkwayLinearColor(color));expectedIndices.push(...g.indices.map(i=>i+offset));offset+=g.positions.length/3;}
+  assert.deepEqual(colors,expectedColors);assert.deepEqual(indices,expectedIndices);
+
+  for(const property of ['gloss','reflectivity','fresnelModel','metalness','useMetalness','opacity','blendType','cull','depthWrite','depthTest'])assert.equal(mi.material[property],reference[property],property+' preserved');
+  assert.ok(mi.material.specular.equals(reference.specular));assert.ok(mi.material.diffuse.equals(new pc.Color(1,1,1)));
+ }
+ const ownMeshes=batched.map(mi=>mi.mesh);batchRoot.destroy();for(const mesh of ownMeshes)assert.equal(mesh.vertexBuffer,null);
+ report.pavingBatch={sourceMeshes:5,profileMeshes:3,exactFloat32UniformColors:true,geometryAndMaterialPreserved:true};
  const source=readFileSync(new URL('./north-landmark-smoke.mjs',import.meta.url),'utf8');
  const entryCameras=JSON.parse(source.match(/export const NORTH_ENTRY_CAMERA = (\{[^\n]+\});/)[1]);
  report.entryFraming=[];

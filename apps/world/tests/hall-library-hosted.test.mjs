@@ -395,7 +395,7 @@ test('walkway scope extension is exact, branch-bound, and preserves historical h
 });
 
 
-test('one release scope accepts exactly the reviewed diagnostics and walkway paths',()=>{
+test('one release scope accepts exactly the reviewed diagnostics, walkway and photo repair paths',()=>{
  const runner=read('./browser/hall-library-hosted-smoke.mjs');
  const helper=runner.match(/function hallIntegrationScopePaths\(manifest,extension\) \{[\s\S]*?\n\}/)?.[0];
  const allow=runInNewContext(`(${helper})`,{}, {timeout:1000});
@@ -406,18 +406,20 @@ test('one release scope accepts exactly the reviewed diagnostics and walkway pat
   'north-campus-geometry.js','north-campus-photo-geometry.js','north-walkway-geometry.js',
   'north-walkway-layout.js','north-walkway-surface.js','render-chunk-registry.js','north-landmark-massing.js','north-campus-layout.js',
   'main.js','diagnostics/build-id.js','diagnostics/diagnostics-panel.js',
-  'diagnostics/runtime-diagnostics-runtime.js','diagnostics/runtime-diagnostics.js'
+  'diagnostics/runtime-diagnostics-runtime.js','diagnostics/runtime-diagnostics.js',
+  'photo/photo-capture.js','photo/photo-mode-panel.js',
+  'campus-road-blockout.js','north-walkway-batching.js','north-walkway-renderer.js'
  ].map(p=>'apps/world/src/'+p).concat([
   'apps/world/data/reality/north-walkway.provenance.json',
   'apps/world/data/reality/north-landmark-restoration.provenance.json'
  ]).sort();
- assert.deepEqual(release,expected);assert.equal(new Set(release).size,18);
- for(const path of ['diagnostics/unreviewed.js','campus-facilities.js','campus-render-kit.js','main-hall-blockout.js'])assert.ok(!release.includes('apps/world/src/'+path));
+ assert.deepEqual(release,expected);assert.equal(new Set(release).size,23);
+ for(const path of ['diagnostics/unreviewed.js','photo/unreviewed.js','campus-facilities.js','campus-render-kit.js','main-hall-blockout.js'])assert.ok(!release.includes('apps/world/src/'+path));
  assert.throws(()=>allow(manifest,'release'),/scope/);
  assert.throws(()=>allow(manifest,'release-2026-10-14'),/scope/);
  const workflow=read('../../../.github/workflows/hall-library-candidate-browser.yml');
  assert.ok(workflow.includes("head.ref == 'release/2026-10-13-ci-runtime-diagnostics' && 'release-2026-10-13'"));
- for(const contract of ['north-walkway.test.mjs','north-landmark-restoration.test.mjs','campus-material-profile.test.mjs','runtime-diagnostics.test.mjs'])assert.ok(workflow.includes(contract));
+ for(const contract of ['north-walkway.test.mjs','north-landmark-restoration.test.mjs','campus-material-profile.test.mjs','north-walkway-batching.test.mjs','runtime-diagnostics.test.mjs','photo-capture.test.mjs','photo-mode-panel.test.mjs'])assert.ok(workflow.includes(contract));
  for(const gate of ['material-profile-smoke.mjs','hall-library-hosted-smoke.mjs','hall-library-integration-null-smoke.mjs'])assert.ok(workflow.includes(gate));
  assert.ok(runner.includes("assert.equal(pixels.hash,cell.preexterior.pixels.hash,'Main Hall full RGB preservation')"));
 });
