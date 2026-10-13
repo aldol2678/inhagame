@@ -196,6 +196,9 @@ select set_eq($$select unnest(pg_temp.exec_surface('authenticated', 'anon'))$$, 
   'get_world_shop_capabilities_v1()',
   'purchase_world_shop_listing_v1(text,text)',
   'purchase_world_shop_listing_v2(text,text,text)',
+  -- JSL-A (20261012100000): own Jeongseok access read and visitor pass purchase; caller = auth.uid(), server price.
+  'get_jeongseok_access_v1()',
+  'purchase_jeongseok_pass_v1(text,text)',
   -- MCM 2026 P0-E0 (20260927150000): own event state + server-judged landlord runs; caller = auth.uid().
   'get_my_mcm_2026_event_v1()',
   'start_mcm_landlord_run_v1()',

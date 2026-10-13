@@ -299,6 +299,13 @@ test('hub-event: the RPC verdict maps to 204 / 400 and failures to 502 / 503', a
   }
 });
 
+test('main.js wiring: campus_zone_enter is throttled per zone', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const main = await readFile(new URL('../src/main.js', import.meta.url), 'utf8');
+  assert.match(main, /ZONE_ENTER_RESEND_MS = 10000/);
+  assert.match(main, /zoneEnterSentAt\.set\(legacy,nowMs\)/);
+});
+
 test('hub-event: account fields are neither needed nor forwarded', async () => {
   stubUpstream();
   await event({ ...eventBody(), email: 'duck@inha.edu', nickname: 'duck', user_id: ID.entry, access_token: 'jwt' });

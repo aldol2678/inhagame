@@ -1,11 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { classify, needsDatabase } from './public-ci-scope.mjs';
+import { inspect as inspectBrowser } from './phone-surface-scope.mjs';
+
+test('only verified SEO classifications opt into lightweight checks', () => {
+  const files = ['apps/world/index.html', 'apps/world/sitemap.xml'];
+  assert.equal(classify(files), 'full');
+  assert.equal(classify(files, { seoOnly: true }), 'seo');
+  assert.equal(classify(['.github/workflows/public-ci.yml']), 'full');
+});
 
 const cli = fileURLToPath(new URL('./public-ci-scope.mjs', import.meta.url));
 const cases = [
@@ -23,6 +31,8 @@ const cases = [
   ['TML design Markdown', ['apps/world/tml/design/P5_VERIFIED_WRITE_RUNTIME.md'], 'full'],
   ['arbitrary docs script', ['docs/tool.mjs'], 'full'],
   ['arbitrary docs Markdown', ['docs/design.md'], 'full'],
+  ['photo diagnostic notes still require source tests', ['apps/world/docs/photo-capture-diagnostics.md'], 'full'],
+  ['photo diagnostics mixed with runtime still require source tests', ['apps/world/docs/photo-capture-diagnostics.md', 'apps/world/src/photo/photo-capture.js'], 'full'],
   ['whitespace is preserved', [' README.md'], 'full'],
   ['newline path is not a template', ['.github/ISSUE_TEMPLATE/a\nb.md'], 'full'],
   ['nested issue source', ['.github/ISSUE_TEMPLATE/tool/main.md'], 'full'],
@@ -39,6 +49,17 @@ const databaseCases = [
   ['world loading runtime can skip the local database', ['apps/world/src/world-loading-gate.js'], false],
   ['visual geometry can skip the local database', ['apps/world/src/north-landmark-geometry.js'], false],
   ['browser QA can skip the local database', ['apps/world/tests/browser/photo-mode-campus-smoke.mjs'], false],
+  ['photo QA diagnostics notes alone cannot require a database', ['apps/world/docs/photo-capture-diagnostics.md'], false],
+  ['photo QA PR runtime, diagnostics, browser, and workflow stay database independent', [
+    'apps/world/docs/photo-capture-diagnostics.md',
+    'apps/world/src/main.js',
+    'apps/world/src/photo/photo-capture.js',
+    'apps/world/tests/photo-capture.test.mjs',
+    '.github/workflows/biryong-render-trace.yml',
+  ], false],
+  ['unrelated world documentation remains fail closed', ['apps/world/docs/server-migration.md'], true],
+  ['nested fake diagnostics path remains fail closed', ['apps/world/docs/photo-capture-diagnostics.md/nested.js'], true],
+  ['photo diagnostics notes plus SQL require database', ['apps/world/docs/photo-capture-diagnostics.md', 'supabase/migrations/20261007000000_test.sql'], true],
   ['other public games can skip the local database', ['apps/classic/src/game.js'], false],
   ['specialized browser workflow can skip the local database', ['.github/workflows/photo-mode-browser.yml'], false],
   ['database migration requires the local database', ['supabase/migrations/20261007000000_test.sql'], true],
@@ -71,14 +92,14 @@ function repo(t) {
   const base = commit('baseline');
   return { dir, git, write, commit, base };
 }
-function runScope(dir, event, before) {
+function runScope(dir, event, before, prTitle = 'test: scoped change') {
   const result = spawnSync(process.execPath, [cli], {
     cwd: dir,
-    env: { ...process.env, CI_EVENT: event, CI_BEFORE: before ?? '' },
+    env: { ...process.env, CI_EVENT: event, CI_BEFORE: before ?? '', CI_PR_TITLE: prTitle ?? '' },
     encoding: 'utf8',
   });
   assert.equal(result.status, 0, result.stderr);
-  assert.match(result.stdout, /^mode=(docs|full)\ndb=(true|false)\n$/);
+  assert.match(result.stdout, /^mode=(docs|seo|full)\ndb=(true|false)\n$/);
   return Object.fromEntries(result.stdout.trim().split('\n').map(line => line.split('=')));
 }
 
@@ -162,4 +183,54 @@ test('Git command failure chooses full', (t) => {
   const dir = mkdtempSync(join(tmpdir(), 'public-ci-no-git-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   assert.equal(run(dir, 'pull_request'), 'full');
+});
+
+const fullTitles = [
+  'release: metadata', 'Release/v1', 'hotfix: metadata', 'HOTFIX metadata',
+  'feat: metadata [full-ci]', 'feat: metadata [FULL-CI]',
+  '릴리스 메타데이터', '출시 메타데이터', '', null,
+];
+const oldCampus = '<html><head><title>Old campus</title></head><body>PLAY</body></html>\n';
+const newCampus = oldCampus.replace('<title>Old campus</title>',
+  '<title>INHA WORLD</title>\n  <meta name="description" content="Virtual campus">\n' +
+  '  <link rel="canonical" href="https://inhagame.app/campus/">\n' +
+  '  <meta property="og:url" content="https://inhagame.app/campus/">');
+const overrideCases = [
+  ['verified SEO-only', 'apps/world/campus/index.html', oldCampus, newCampus, { mode: 'seo', db: 'false' }],
+  ['documentation-only', 'README.md', 'fixture docs\n', 'updated docs\n', { mode: 'docs', db: 'false' }],
+  ['database-independent source', 'apps/world/src/main.js', 'const value = 1;\n', 'const value = 2;\n', { mode: 'full', db: 'false' }],
+];
+for (const [name, path, before, after, normalScope] of overrideCases) {
+  test('PR title override requires source and database for ' + name, (t) => {
+    const r = repo(t);
+    r.write(path, before); r.commit('fixture baseline');
+    r.git('checkout', '--quiet', '-b', 'scoped-pr');
+    r.write(path, after); r.commit('scoped change');
+    r.git('checkout', '--quiet', 'main');
+    r.git('merge', '--quiet', '--no-ff', 'scoped-pr', '-m', 'synthetic PR merge');
+    assert.deepEqual(runScope(r.dir, 'pull_request'), normalScope);
+    for (const title of fullTitles) {
+      assert.deepEqual(runScope(r.dir, 'pull_request', undefined, title),
+        { mode: 'full', db: 'true' }, String(title));
+      assert.equal(inspectBrowser({ CI_PR_TITLE: title,
+        CI_WORKFLOW_NAME: 'Graphics integration browser QA' }).reason,
+      'release-or-unknown-pr', String(title));
+    }
+  });
+}
+
+test('push routing is unchanged by absent or release-like PR titles', (t) => {
+  const r = repo(t); r.write('README.md', 'updated\n'); r.commit('docs');
+  for (const title of fullTitles) {
+    assert.deepEqual(runScope(r.dir, 'push', r.base, title), { mode: 'docs', db: 'false' });
+  }
+});
+
+test('Public workflow passes the PR title and preserves existing required gates', () => {
+  const workflow = readFileSync(new URL('../workflows/public-ci.yml', import.meta.url), 'utf8');
+  assert.match(workflow, /CI_PR_TITLE: \$\{\{ github\.event\.pull_request\.title \}\}/);
+  assert.match(workflow, /source:\n    needs: scope\n    if: needs\.scope\.outputs\.mode == 'full'/);
+  assert.match(workflow, /database:\n    needs: scope\n    if: needs\.scope\.outputs\.mode == 'full' && needs\.scope\.outputs\.db == 'true'/);
+  assert.match(workflow, /verify:\n    needs: \[scope, source, database, seo\]\n    if: \$\{\{ always\(\) \}\}/);
+  assert.match(workflow, /permissions:\n  contents: read/);
 });

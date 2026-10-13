@@ -23,6 +23,8 @@ module.exports = function handler(req, res) {
     );
   }
 
+  // Only browser-safe values (URL + publishable key); cache at the edge. 405/503 stay no-store.
+  res.setHeader('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=86400');
   return res.status(200).send(
     'globalThis.__INHAGAME_PUBLIC_SUPABASE__ = Object.freeze(' +
       JSON.stringify(config) +

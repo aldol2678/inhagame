@@ -219,6 +219,161 @@ export type Database = {
         }
         Relationships: []
       }
+      world_jeongseok_gate_policy: {
+        Row: {
+          singleton: boolean
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          singleton?: boolean
+          status: string
+          updated_at?: string
+        }
+        Update: {
+          singleton?: boolean
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      world_jeongseok_pass_catalog: {
+        Row: {
+          currency_id: string
+          duration_seconds: number
+          pass_type: string
+          price: number
+          price_basis: string
+          status: string
+        }
+        Insert: {
+          currency_id: string
+          duration_seconds: number
+          pass_type: string
+          price: number
+          price_basis: string
+          status: string
+        }
+        Update: {
+          currency_id?: string
+          duration_seconds?: number
+          pass_type?: string
+          price?: number
+          price_basis?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "world_jeongseok_pass_catalog_currency_id_fkey"
+            columns: ["currency_id"]
+            isOneToOne: false
+            referencedRelation: "world_currencies"
+            referencedColumns: ["currency_id"]
+          },
+        ]
+      }
+      world_jeongseok_pass_entitlements: {
+        Row: {
+          expires_at: string
+          issued_at: string
+          last_purchase_id: string
+          pass_type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          expires_at: string
+          issued_at: string
+          last_purchase_id: string
+          pass_type: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          expires_at?: string
+          issued_at?: string
+          last_purchase_id?: string
+          pass_type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "world_jeongseok_pass_entitlements_last_purchase_id_fkey"
+            columns: ["last_purchase_id"]
+            isOneToOne: true
+            referencedRelation: "world_jeongseok_pass_purchases"
+            referencedColumns: ["purchase_id"]
+          },
+          {
+            foreignKeyName: "world_jeongseok_pass_entitlements_pass_type_fkey"
+            columns: ["pass_type"]
+            isOneToOne: false
+            referencedRelation: "world_jeongseok_pass_catalog"
+            referencedColumns: ["pass_type"]
+          },
+        ]
+      }
+      world_jeongseok_pass_purchases: {
+        Row: {
+          balance_after: number
+          balance_before: number
+          created_at: string
+          currency_id: string
+          expires_at: string
+          idempotency_key: string
+          issued_at: string
+          pass_type: string
+          price: number
+          purchase_id: string
+          user_id: string
+          wallet_transaction_id: string
+        }
+        Insert: {
+          balance_after: number
+          balance_before: number
+          created_at?: string
+          currency_id: string
+          expires_at: string
+          idempotency_key: string
+          issued_at: string
+          pass_type: string
+          price: number
+          purchase_id?: string
+          user_id: string
+          wallet_transaction_id: string
+        }
+        Update: {
+          balance_after?: number
+          balance_before?: number
+          created_at?: string
+          currency_id?: string
+          expires_at?: string
+          idempotency_key?: string
+          issued_at?: string
+          pass_type?: string
+          price?: number
+          purchase_id?: string
+          user_id?: string
+          wallet_transaction_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "world_jeongseok_pass_purchases_pass_type_fkey"
+            columns: ["pass_type"]
+            isOneToOne: false
+            referencedRelation: "world_jeongseok_pass_catalog"
+            referencedColumns: ["pass_type"]
+          },
+          {
+            foreignKeyName: "world_jeongseok_pass_purchases_wallet_transaction_id_fkey"
+            columns: ["wallet_transaction_id"]
+            isOneToOne: true
+            referencedRelation: "world_currency_transactions"
+            referencedColumns: ["transaction_id"]
+          },
+        ]
+      }
       inhagame_member_activity_daily: {
         Row: {
           activity_date_kst: string
@@ -5275,6 +5430,11 @@ export type Database = {
       }
       cook_my_world_recipe_v1: {
         Args: { p_recipe_id: string; p_request_id: string }
+        Returns: Json
+      }
+      get_jeongseok_access_v1: { Args: never; Returns: Json }
+      purchase_jeongseok_pass_v1: {
+        Args: { p_idempotency_key: string; p_pass_type: string }
         Returns: Json
       }
       save_my_room_furniture_v1: {

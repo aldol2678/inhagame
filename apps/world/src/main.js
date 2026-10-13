@@ -10,7 +10,8 @@ import { createCampusKickboard } from "./mounts/campus-kickboard-render.js";
 import * as pc from "playcanvas";
 import { PlayerController } from "./player-controller.js";
 import { OrbitCameraController } from "./orbit-camera-controller.js";
-import { PlaceZoneRegistry } from './place-zone-registry.js';
+import { installRuntimeDiagnostics } from './diagnostics/runtime-diagnostics-runtime.js';
+import { PlaceZoneRegistry, PLACE_ZONES } from './place-zone-registry.js';
 import { createWorldAudio } from './audio/world-audio.js';
 import { createPlayerActivityAudio } from './audio/player-activity-audio.js';
 import { bindAudioVolumeSettings } from './audio/audio-volume-settings.js';
@@ -102,6 +103,9 @@ import { createSpaceFade } from "./rooms/space-fade.js";
 import { DORM_1_LOBBY_MY_ROOM_RETURN } from "./rooms/dorm1-lobby-layout.js";
 import { createRoomWorldAdapter } from "./rooms/room-world-adapter.js";
 import { createDorm1LobbyScene } from "./rooms/dorm1-lobby-renderer.js";
+import { createJeongseokInteriorScenes } from "./jeongseok/interior-renderer.js";
+import { createJeongseokEntryPolicy, resolveJeongseokEntryMode, isJeongseokVisualPreviewHost, JEONGSEOK_ACCESS_POLICY_KEY, JEONGSEOK_LOBBY_POLICY_KEY, JEONGSEOK_ENTRY_MODE } from "./jeongseok/entry-policy.js";
+import { createJeongseokInterior } from "./jeongseok/interior-feature.js";
 import { createPersonalRoomEnvironment } from "./rooms/personal-room-environment.js";
 import { createPersonalRoomScene } from "./rooms/personal-room-renderer.js";
 import { PersonalRoomClient } from "./rooms/personal-room-client.js";
@@ -115,6 +119,7 @@ import { createKnockPrompt } from "./rooms/knock-prompt.js";
 import { createFurnitureClient } from "./rooms/furniture-client.js";
 import { createFurnitureEditor } from "./rooms/furniture-editor.js";
 import { createFurnitureFunctionProvider } from "./rooms/furniture-functions.js";
+import { createCommissionTrialFeature, createCommissionTrialEntry } from "./commissions/commission-trial-feature.js";
 import { createCookingFeature } from "./rooms/cooking-feature.js";
 import { createTrophyDisplay } from "./rooms/trophy-display.js";
 import { createTrophyDisplayPanel } from "./rooms/trophy-display-panel.js";
@@ -168,8 +173,10 @@ import { createStudentVendorInteraction } from "./shop/student-center-vendors.js
 import { createShopPanel } from "./shop/shop-panel.js";
 import { createShopFurnitureHandoff } from "./shop/shop-furniture-handoff.js";
 import { createWalletClient } from "./wallet/wallet-client.js";
+import { createJeongseokFeature } from "./jeongseok/jeongseok-feature.js";
 import { createInventoryClient } from "./inventory/inventory-client.js";
 import { createCollectionBookClient } from "./collection/collection-book-client.js";
+import { createInventoryAcquisitionClient } from "./inventory/inventory-acquisition-client.js";
 import { createInventoryPanel } from "./inventory/inventory-panel.js";
 import { createDailyQuizClient } from "./daily-quiz/daily-quiz-client.js";
 import { createDailyQuizPanel } from "./daily-quiz/daily-quiz-panel.js";
@@ -198,7 +205,7 @@ import { createBiryongRealmTransition } from "./biryong/biryong-realm-transition
 import { createBiryongStationTransitInteraction } from "./biryong/biryong-station-transit-interaction.js";
 import { createBiryongMapDataSource } from "./biryong/biryong-map-data.js";
 import { createBiryongNavigation } from "./biryong/biryong-navigation.js";
-import { getBiryongRealmPlaceZone } from "./biryong/biryong-village-layout.js";
+import { getBiryongRealmPlaceZone, BIRYONG_REALM_PLACE_ZONES } from "./biryong/biryong-village-layout.js";
 import { createBiryongVillageNpcRuntime } from "./biryong/biryong-village-npc-runtime.js";
 import { createBiryongVillageDialogueRuntime } from "./biryong/biryong-village-dialogue-runtime.js";
 import { createBiryongRelationshipClient } from "./biryong/biryong-village-relationship-client.js";
@@ -263,6 +270,10 @@ const npcSocialProductionMode = npcProductionMode;
 const npcSocialMode = npcSocialProductionMode || npcSocialPreviewMode || npcObservedConversationMode;
 const npcEnabled = npcSharedScheduleMode || npcTestMode || npcProductionMode || npcPreviewMode || npcRosterPreviewMode || npcSocialMode;
 const campusLifePreview = previewHost && startupParams.get('campusLife') === 'p0a';
+// Approved public-lobby activation. The inner gate still requires a fresh server grant;
+// no Production query parameter grants access. The resolver stays fail-closed when unconfigured,
+// and jsl-b visual preview is restricted to exact loopback hostnames, never deployment aliases.
+const jeongseokEntryMode = resolveJeongseokEntryMode({ previewHost: isJeongseokVisualPreviewHost(location.hostname), params: startupParams, serverAccessAvailable: true });
 const biryongVisualStage = previewHost ? startupParams.get('biryongVisual') : null;
 const biryongVisualLabP0A = ['p0a', 'p0b', 'p0c', 'p0d', 'p0e'].includes(biryongVisualStage);
 const biryongVisualLabP0B = ['p0b', 'p0c', 'p0d', 'p0e'].includes(biryongVisualStage);
@@ -270,6 +281,9 @@ const biryongVisualLabP0C = ['p0c', 'p0d', 'p0e'].includes(biryongVisualStage);
 const biryongVisualLabP0D = ['p0d', 'p0e'].includes(biryongVisualStage);
 const biryongVisualLabP0E = biryongVisualStage === 'p0e';
 let lastTrackedZone = null;
+// Zone-boundary oscillation (A→B→A…) burned the 120 events/hour session cap; resend a zone at most every 10s.
+const ZONE_ENTER_RESEND_MS = 10000;
+const zoneEnterSentAt = new Map();
 
 async function boot() {
 globalThis.__INHA_WORLD_BOOT_DIAGNOSTICS__?.markBootEntered?.();
@@ -839,6 +853,8 @@ let npcTest = null;
 const npcQuestStatus = () => npcTest?.getQuestStatus?.() ?? npcTest?.getStatus?.() ?? null;
 const questRuntime = createQuestRuntime();
 let questJournal = null;
+let commissionTrials = null, commissionTrialOpening = false;
+const commissionTrialInput = createInputFocusOwner({ manager: inputFocus, ownerId: "commission-trial", policy: INPUT_FOCUS_POLICY.BLOCKING_UI });
 let questHud = null;
 let nextDiscovery = null;
 // 비룡탑 · 울림돌 · BR01 (created once the audio layer exists; read lazily by earlier hooks).
@@ -1339,10 +1355,30 @@ const collectionBook = createCollectionBookClient({
       ? session.access_token : null;
   }
 });
+const inventoryAcquisition = createInventoryAcquisitionClient({ getClient: () => online?.supabase ?? null });
 const inventoryPanel = createInventoryPanel({
   panel: document.getElementById("inventory-panel"),
   inventory,
   collectionBook,
+  acquisition: inventoryAcquisition,
+  getKnownPois: () => rooms?.insideRoom || biryongRealm?.inBiryong || lobbyWorld.active || lobbyTransition.active
+    ? [] : campusMapDataSource?.poiRegistry?.().list({ surface: "FULL_MAP" }) ?? [],
+  onShowAcquisitionLocation: ({ poiId }) => {
+    // Revalidate discovery at click time. Only show the existing campus map: no teleport,
+    // purchase or automatic movement. Other regions retain their current map provider.
+    const poi = campusMapDataSource?.poiRegistry?.().get(poiId);
+    if (!fullMap || rooms?.insideRoom || biryongRealm?.inBiryong || lobbyWorld.active || lobbyTransition.active ||
+        !poi?.visible || !poi.validPosition || poi.discoveryState !== "DISCOVERED" ||
+        !["AVAILABLE", "NEW"].includes(poi.gateState)) {
+      showWorldStatus("캠퍼스에서 발견한 판매처의 지도 위치를 확인할 수 있어요.");
+      return false;
+    }
+    inventoryPanel.setOpen(false);
+    fullMap.open();
+    fullMap.selectPoi(poi);
+    fullMap.centerOnPoint(poi);
+    return true;
+  },
   onOpenChange: (open) => {
     inventoryButton?.setAttribute("aria-expanded", String(open));
     if (open) {
@@ -1361,6 +1397,11 @@ const inventoryPanel = createInventoryPanel({
     }
     inventoryInput.release();
   }
+});
+shop.onChange(() => {
+  const changed = inventoryAcquisition.setScope({ accountId: shop.accountId,
+    capabilityMode: shop.mode, capabilityChecking: shop.capabilityChecking });
+  if (changed && inventoryPanel.open) void inventoryAcquisition.refresh();
 });
 inventoryButton?.addEventListener("click", () => inventoryPanel.setOpen(true));
 const shopButton = document.getElementById("open-shop");
@@ -1990,6 +2031,15 @@ const clubRoom = createClubRoomScene(app);
 const dorm1Lobby = createDorm1LobbyScene(app, { player, camera });
 const personalRoomScene = createPersonalRoomScene(app);
 const mcmRoomScene = createMcm2026RoomScene(app);
+// JSL-B: Jeongseok interiors are built on first entry and released back on campus.
+const jeongseokPolicy = createJeongseokEntryPolicy({ mode: jeongseokEntryMode });
+const jeongseokScenes = createJeongseokInteriorScenes(app, { getGraphicsTier: () => graphics.tier,
+  isGateOpen: () => jeongseokPolicy.allowsStay() });
+let roomWorldAdapter = null;
+const jeongseokRecoveryInput = createInputFocusOwner({
+  manager: inputFocus, ownerId: "jeongseok-recovery", policy: INPUT_FOCUS_POLICY.SYSTEM_LOCK
+});
+let jeongseokInterior = null;
 const roomScenes = new Map([
   ["ROOM_CLUBHOUSE_01", clubRoom],
   ["ROOM_DORM1_LOBBY", dorm1Lobby],
@@ -2011,8 +2061,13 @@ rooms = createRoomTransition({
   },
   canEnter: (_entrance, room) => room?.id !== MCM_2026_ROOM_ID ||
     (mcmEventPreviewMode && mcmEvent.state?.eventState === "ACTIVE") || mcm2026CanEnterVenue(mcmEvent.state),
-  world: createRoomWorldAdapter({
-    player, controller, orbit, campusRoot, getRoomScene: (room) => roomScenes.get(room.id) ?? null, sun: light,
+  // Fail closed: without this predicate (or before the Jeongseok flow exists) no Jeongseok room opens.
+  accessPolicies: {
+    [JEONGSEOK_LOBBY_POLICY_KEY]: (entrance, room) => jeongseokInterior?.accessPredicate(entrance, room) === true,
+    [JEONGSEOK_ACCESS_POLICY_KEY]: (entrance, room) => jeongseokInterior?.accessPredicate(entrance, room) === true
+  },
+  world: roomWorldAdapter = createRoomWorldAdapter({
+    player, controller, orbit, campusRoot, getRoomScene: (room) => roomScenes.get(room.id) ?? jeongseokScenes.get(room) ?? null, sun: light,
     lighting: {
       save: () => ({ ambient: app.scene.ambientLight.clone(), clearColor: camera.camera.clearColor.clone() }),
       apply: ({ ambient, clearColor }) => { app.scene.ambientLight.copy(ambient); camera.camera.clearColor.copy(clearColor); }
@@ -2040,6 +2095,20 @@ rooms = createRoomTransition({
     setLocationLabel: (text) => { zoneEl.textContent = text; },
     markSpace: (id) => { if (id) document.body.dataset.space = id; else delete document.body.dataset.space; }
   })
+});
+jeongseokInterior = createJeongseokInterior({ rooms, policy: jeongseokPolicy, scenes: jeongseokScenes,
+  getPosition: () => player.getLocalPosition(),
+  placePublic: anchor => { roomWorldAdapter.placePlayer(anchor.position, anchor.yaw); return true; },
+  onRecoveryError: () => { jeongseokRecoveryInput.acquire(); showWorldStatus("공개 로비로 이동하지 못했어요. 새로고침해 주세요."); },
+  onStatus: showWorldStatus });
+window.__INHAGAME_JEONGSEOK_INTERIOR__ = Object.freeze({
+  status: () => ({ ...jeongseokInterior.status(), scenes: jeongseokScenes.status() }),
+  activeFlapAngles: () => jeongseokScenes.activeScene()?.flapAngles ?? null,
+  // Visual-review fault injection exists only in the local preview mode.
+  ...(jeongseokEntryMode === JEONGSEOK_ENTRY_MODE.VISUAL_PREVIEW ? {
+    failNextBuild: () => jeongseokScenes.failNextBuild(),
+    simulateAccountChange: id => jeongseokInterior.setAccount(id)
+  } : {})
 });
 // The shared world director stays authoritative outdoors. Room-local visuals read
 // its projection after the time update and never write to that director or its clock.
@@ -3104,6 +3173,45 @@ try {
   console.warn("INHAGAME Campus map layer unavailable; continuing without it:", error);
 }
 
+// Inner reader and public-side fictional guide; RPCs retain sole eligibility/economy authority.
+const jeongseok = createJeongseokFeature({
+  getClient: () => online?.supabase ?? null, isEnabled: () => jeongseokEntryMode !== JEONGSEOK_ENTRY_MODE.CLOSED, audio: worldAudio,
+  getContext: () => ({ space: rooms.currentSpace, position: player.getLocalPosition(),
+    grounded: controller.grounded, mounted: controller.mounted, busy: rooms.status().busy }),
+  onEnter: snapshot => jeongseokInterior.enterFromServerGrant(snapshot, { mounted: controller.mounted }),
+  getPhone: () => smartphone, storage: () => { try { return window.localStorage; } catch { return null; } }
+});
+jeongseok.access.onChange(change => {
+  // A paid pass moved coins on the server: re-read the Wallet authority, never subtract locally.
+  if (change.reason === "purchase" && change.lastPurchase) void wallet.refresh("jeongseok-pass");
+  if (change.state === "READY" || change.state === "UNKNOWN" || change.state === "SIGNED_OUT")
+    jeongseokInterior.revalidate(change.snapshot);
+});
+// Protected stays recheck every 30s; a slow/failed read ends the stay after 8s. Late reads
+// cannot restore a revoked session. Returning from background requires a new gate check.
+let jeongseokCheckAt = 0, jeongseokCheckPending = false;
+function refreshJeongseokStay() {
+  const before = jeongseokInterior.status();
+  if (!before.policy.session || jeongseokCheckPending) return;
+  jeongseokCheckPending = true;
+  jeongseokCheckAt = performance.now();
+  let timeout;
+  const apply = snapshot => {
+    const after = jeongseokInterior.status();
+    if (before.accountGeneration === after.accountGeneration && before.stats.protectedEntries === after.stats.protectedEntries)
+      jeongseokInterior.revalidate(snapshot);
+  };
+  void Promise.race([jeongseok.access.verifyEntry(), new Promise(resolve => { timeout = setTimeout(() => resolve(null), 8000); })])
+    .then(apply, () => apply(null))
+    .finally(() => { clearTimeout(timeout); jeongseokCheckPending = false; });
+}
+function resumeJeongseokAccess() {
+  jeongseokInterior.suspend();
+  if (jeongseokInterior.status().inside) void jeongseok.refresh();
+}
+document.addEventListener("visibilitychange", () => { if (document.hidden) jeongseokInterior.suspend(); else resumeJeongseokAccess(); });
+window.addEventListener("pageshow", event => { if (event.persisted) resumeJeongseokAccess(); });
+window.addEventListener("focus", resumeJeongseokAccess);
 // PHONE-MVP-01: presentation/integration only. Existing Photo/Map/Progression own their data.
 smartphone = createSmartphone({
   inputFocus, photoMode, getMap: () => fullMap, getSettings: () => viewSettings,
@@ -3130,7 +3238,7 @@ smartphone = createSmartphone({
   settingsElement: document.getElementById("view-settings"),
   dailyQuizElement: document.getElementById("daily-quiz-panel"), attendanceElement: document.getElementById("attendance-panel"),
   getDailyQuizPanel: () => dailyQuizPanel, getAttendancePanel: () => attendancePanel,
-  onWarning: showWorldStatus
+  onWarning: showWorldStatus, jeongseok
 });
 // Controller's existing destination handler runs first; Phone returns to World only on a solved route.
 document.getElementById("full-map-set-destination")?.addEventListener("click", () => {
@@ -3155,7 +3263,26 @@ const navigateQuestObjective = (navigationTarget, quest) => {
   showWorldStatus(`${quest?.title ?? "퀘스트"} 목표까지 길을 표시했어요.`);
   return true;
 };
+commissionTrials = createCommissionTrialFeature({
+  getAccountId: () => roomFunctionAccountId,
+  onOpenChange: open => {
+    if (!open) { commissionTrialInput.release(); return; }
+    commissionTrialOpening = true;
+    try {
+      questJournal?.setOpen(false); smartphone?.close();
+      playerAutoMove?.pause(AUTO_MOVE_CANCEL_REASON.INTERACTION);
+      commissionTrialInput.acquire();
+    } finally { commissionTrialOpening = false; }
+  }
+});
+inputFocus.subscribe(snapshot => {
+  if (!commissionTrialOpening && commissionTrialInput.active && snapshot.topOwners.some(id => id !== "commission-trial"))
+    commissionTrials.close();
+});
+window.addEventListener("popstate", () => commissionTrials.close());
+window.addEventListener("pagehide", () => commissionTrials.close());
 questJournal = createQuestJournal({
+  createSideEntry: () => createCommissionTrialEntry({ feature: commissionTrials }),
   panel: document.getElementById("quest-journal-panel"),
   runtime: questRuntime,
   onNavigate: navigateQuestObjective,
@@ -3405,6 +3532,9 @@ places.onPlaceZoneChanged((previous,next)=>{
   const legacy=legacyTelemetryTarget(next);
   if(!npcTestMode&&legacy&&legacy!==lastTrackedZone){
     lastTrackedZone=legacy;
+    const nowMs=Date.now();
+    if(nowMs-(zoneEnterSentAt.get(legacy)??-Infinity)<ZONE_ENTER_RESEND_MS) return;
+    zoneEnterSentAt.set(legacy,nowMs);
     window.InhaHubTelemetry?.track('campus_zone_enter','campus',legacy);
   }
 });
@@ -3515,6 +3645,10 @@ app.on("update", (dt) => {
   // neither system writes transforms, so PlayerController keeps all collision and existing motion.
   follow.update();
   playerAutoMove?.update(navigation?.getSnapshot() ?? null, player.getLocalPosition());
+  // Correct restored/teleported unauthorized positions and refresh collision before locomotion.
+  jeongseokInterior.update();
+  jeongseokScenes.activeScene()?.setGateAccess(jeongseokPolicy.allowsStay());
+  if (performance.now() - jeongseokCheckAt > 30_000) refreshJeongseokStay();
   const footstepFrom = player.getLocalPosition().clone();
   const footstepGroundedBefore = controller.grounded;
   if (!seating.beforeController()) controller.update(Math.min(dt, 0.05), orbit.yaw);
@@ -3584,6 +3718,7 @@ app.on("update", (dt) => {
     pressed: false, trigger: () => toggleSeat()
   } : null);
   contextActions.set("guestbook", guestbookAction);
+  commissionTrials?.update();
   cookingFeature.update();
   contextActions.set("room-furniture", roomFurnitureFunctions.contextAction());
   contextActions.set("personal-room-environment", personalRoomEnvironment.contextAction());
@@ -3629,7 +3764,19 @@ app.on("update", (dt) => {
     icon: "👣", label: "친구 따라가기 중지", priority: FOLLOW_CONTEXT_PRIORITY, pressed: true,
     trigger: () => follow.stop(FollowStopReason.EXPLICIT)
   } : null);
+  // Public lobby door, protected B1 transfers, inner reader and public-side guide.
+  contextActions.set("jeongseok-interior", inBiryong ? null : jeongseokInterior.contextAction({
+    position: pos, grounded: controller.grounded, mounted: controller.mounted
+  }));
+  jeongseokInterior.update();
+  jeongseokScenes.activeScene()?.update(pos, dt);
   // Club Room P0 door: 🚪 동아리방 들어가기 outside, 🚪 본관으로 나가기 inside.
+  contextActions.set("jeongseok-gate", inBiryong ? null : jeongseok.contextAction({
+    position: pos, grounded: controller.grounded, mounted: controller.mounted, space: rooms.currentSpace, busy: rooms.status().busy
+  }));
+  contextActions.set("jeongseok-guide", inBiryong ? null : jeongseok.npcContextAction({
+    position: pos, grounded: controller.grounded, mounted: controller.mounted, space: rooms.currentSpace, busy: rooms.status().busy
+  }));
   if (inBiryong) {
     contextActions.set("room-door", null);
     contextActions.set("personal-room-door", null);
@@ -3652,7 +3799,7 @@ app.on("update", (dt) => {
     for (const key of [
       "seat", "room-furniture", "personal-room-environment", "guestbook", "student-center-shop", "student-center-vendors", "dorm-furniture-shop", "backgate-transit", "biryong-station-transit",
       "biryong-npc", "inkyung-duck", "inkyung-fishing", "biryong", "mcm-event", "mcm-minigame", "follow",
-      "room-door", "personal-room-door", "npc"
+      "room-door", "personal-room-door", "npc", "jeongseok-gate", "jeongseok-guide", "jeongseok-interior"
     ]) contextActions.set(key, null);
     transportActions.set("mount", null);
   }
@@ -3751,6 +3898,8 @@ try {
     shop.setAccount(identity ? online?.userId ?? null : null);
     if (shop.accountId) void shop.refresh("account-capability");
     void wallet.setAccount(identity ? online?.userId ?? null : null);
+    void jeongseok.setAccount(identity ? online?.userId ?? null : null);
+    jeongseokInterior.setAccount(identity ? online?.userId ?? null : null);
     collectionBook.setAccount(identity?.userId ?? null);
     void inventory.setAccount(identity ? online?.userId ?? null : null);
     void dailyQuiz.setAccount(identity ? online?.userId ?? null : null);
@@ -3773,6 +3922,7 @@ try {
     npcTest?.setAiSignedIn(npcAiSignedIn);
     profile.setIdentity(identity);
     smartphone?.setAccount(identity?.userId ?? null);
+    if (roomFunctionIdentityChanged) commissionTrials?.close();
     lobbyPlayerSummary.render();
     lobbyQuestHighlight.update();
     chatPanel.refreshAvailability();
@@ -3987,6 +4137,7 @@ window.__INHAGAME_P0__ = {
   emoteMenu,
   photoMode,
   smartphone,
+  jeongseok,
   photoCamera,
   photoInput,
   photoModePanel,
@@ -4049,6 +4200,7 @@ window.__INHAGAME_P0__ = {
   trophyDisplayPanel,
   roomFurnitureFunctions,
   cookingFeature,
+  commissionTrials,
   worldAudio,
   clubRoom,
   mcmEvent,
@@ -4228,6 +4380,31 @@ window.__INHAGAME_P0__ = {
     camera: { yaw: orbit.yaw, pitch: orbit.pitch, distance: orbit.distance, firstPerson: orbit.firstPerson, zoomLimits: orbit.zoomLimits }
   })
 };
+
+// Player-facing runtime diagnostics use narrow existing readers, never getStatus()/online.status().
+// Installed after boot so the separate boot-recovery system keeps its existing ownership.
+const runtimeDiagnostics = installRuntimeDiagnostics({
+  app, device, online, inputFocus,
+  opener: document.getElementById("open-runtime-diagnostics"),
+  publicZoneIds: [...PLACE_ZONES, ...BIRYONG_REALM_PLACE_ZONES].map(zone => zone.id),
+  readState: () => ({
+    renderer: rendererName,
+    quality: graphics.tier,
+    qualityPreference: graphics.preference,
+    worldId: rooms.insideRoom ? "INTERIOR" : biryongRealm?.inBiryong ? "BIRYONG"
+      : editorWorldStatus?.state?.startsWith("ready") ? "EDITOR" : lobbyWorld.active ? "LOBBY" : "CAMPUS",
+    zoneId: rooms.insideRoom ? null : (biryongRealm?.inBiryong
+      ? getBiryongRealmPlaceZone(player.getLocalPosition()) : places.getCurrentPlaceZone())?.id ?? null,
+    network: navigator.onLine === false ? "OFFLINE" : online?.network?.state ?? "OFFLINE"
+  }),
+  beforeOpen: () => {
+    viewSettings.setOpen(false, { focus: false });
+    hudMenu.setOpen(false, { focus: false });
+    lobbyMenu.setOpen(false, { focus: false });
+  },
+  returnFocus: () => document.getElementById(lobbyWorld.active ? "lobby-menu-toggle" : "hud-menu-toggle")
+});
+window.__INHA_WORLD_RUNTIME_DIAGNOSTICS__ = Object.freeze({ status: runtimeDiagnostics.status });
 
 }
 

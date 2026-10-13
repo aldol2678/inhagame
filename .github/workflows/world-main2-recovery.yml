@@ -3,6 +3,8 @@ name: World Main 2 recovery
 on:
   pull_request:
     paths:
+      - '.github/ci/phone-surface-scope*.mjs'
+      - '.github/ci/seo-only-scope*.mjs'
       - 'apps/world/npc-factory/main2-quest-client.mjs'
       - 'apps/world/npc-factory/dev-runtime.mjs'
       - 'apps/world/src/main.js'
@@ -32,20 +34,34 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          fetch-depth: 128
+      - name: Select affected browser suite (fail-closed)
+        id: phone_scope
+        env:
+          CI_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CI_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          CI_PR_TITLE: ${{ github.event.pull_request.title }}
+        run: node .github/ci/phone-surface-scope.mjs >> "$GITHUB_OUTPUT"
       - uses: actions/setup-node@v4
+        if: steps.phone_scope.outputs.skip != 'true'
         with:
           node-version: '24.19.0'
           cache: npm
           cache-dependency-path: apps/world/tests/browser/package-lock.json
       - name: Install locked browser dependencies
+        if: steps.phone_scope.outputs.skip != 'true'
         working-directory: apps/world/tests/browser
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Install Chromium headless shell
+        if: steps.phone_scope.outputs.skip != 'true'
         working-directory: apps/world/tests/browser
         run: npx --no-install playwright install --with-deps --only-shell chromium
       - name: Run Main 2 status regressions
+        if: steps.phone_scope.outputs.skip != 'true'
         run: node --test apps/world/tests/main2-status-recovery.test.mjs apps/world/tests/next-discovery.test.mjs apps/world/tests/quest-hud.test.mjs apps/world/tests/quest-runtime.test.mjs
       - name: Run isolated Main 2 recovery browser smoke
+        if: steps.phone_scope.outputs.skip != 'true'
         env:
           WORLD_SMOKE_EVIDENCE_DIR: ${{ runner.temp }}/main2-recovery-evidence
         run: |
@@ -55,7 +71,7 @@ jobs:
           node apps/world/tests/browser/main2-status-recovery-smoke.mjs | tee "$WORLD_SMOKE_EVIDENCE_DIR/browser.log"
           node apps/world/tests/browser/next-discovery-smoke.mjs | tee "$WORLD_SMOKE_EVIDENCE_DIR/existing-next-discovery.log"
       - name: Upload synthetic recovery evidence
-        if: always()
+        if: always() && steps.phone_scope.outputs.skip != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: main2-recovery-evidence-${{ github.event.pull_request.head.sha }}

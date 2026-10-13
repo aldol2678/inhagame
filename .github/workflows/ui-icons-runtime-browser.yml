@@ -1,0 +1,50 @@
+name: World UI icon runtime browser QA
+on:
+  pull_request:
+    paths:
+      - 'apps/world/src/ui/ui-icon-runtime.js'
+      - 'apps/world/ui-icon-runtime.css'
+      - 'apps/world/campus/index.html'
+      - 'apps/world/tests/ui-icon-runtime.test.mjs'
+      - 'apps/world/tests/browser/ui-icon-runtime-smoke.mjs'
+      - '.github/workflows/ui-icons-runtime-browser.yml'
+permissions:
+  contents: read
+concurrency:
+  group: ui-icons-runtime-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  chromium:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - name: Install Korean glyphs
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+      - name: Install pinned existing browser dependencies
+        working-directory: apps/world/tests/browser
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Verify all approved icon sources and mappings
+        run: node --test apps/world/tests/ui-icon-runtime.test.mjs
+      - name: Verify actual Campus on desktop and both mobile orientations
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+          UI_ICON_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: timeout --signal=TERM --kill-after=10s 1300s node apps/world/tests/browser/ui-icon-runtime-smoke.mjs
+      - name: Save browser screenshots and acceptance report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-icon-runtime-evidence
+          path: test-results/ui-icon-runtime/
+          if-no-files-found: warn
+          retention-days: 7
