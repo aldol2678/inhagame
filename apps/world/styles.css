@@ -5477,6 +5477,21 @@ body[data-photo-mode="active"] > :not(#application):not(.photo-mode):not(script)
   background: rgba(13, 28, 40, .7); font-size: 12px; line-height: 1.45; text-align: center; pointer-events: none;
 }
 .photo-mode-status:empty { display: none; }
+/* Indeterminate activity only: canvas encoding exposes no percentage progress. */
+.photo-mode[aria-busy="true"] .photo-mode-status::before {
+  content: ""; display: inline-block; width: 12px; height: 12px; margin-right: 6px;
+  border: 2px solid rgba(246, 251, 255, .35); border-top-color: #f6fbff;
+  border-radius: 50%; vertical-align: -3px; animation: photo-save-spin .8s linear infinite;
+}
+@keyframes photo-save-spin { to { transform: rotate(360deg); } }
+.photo-mode-cancel {
+  min-height: 44px; padding: 6px 10px; border-radius: 12px; border: 1px solid var(--photo-line);
+  background: var(--photo-glass); font-size: 12px; white-space: nowrap;
+}
+.photo-mode[aria-busy="true"] .photo-mode-top-actions { flex-wrap: wrap; justify-content: flex-end; }
+@media (prefers-reduced-motion: reduce) {
+  .photo-mode[aria-busy="true"] .photo-mode-status::before { animation: none; }
+}
 /* Touch move controls: small, photo-only (not the gameplay joystick), on the bottom corners. */
 .photo-mode-pad, .photo-mode-vertical { display: none; }
 @media (pointer: coarse) {

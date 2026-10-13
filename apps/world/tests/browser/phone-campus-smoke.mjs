@@ -84,6 +84,9 @@ async function run(name,viewport,mobile){
     downloadReady.catch(()=>{});
     await page.locator('[data-photo-control="capture"]').click();
     await page.waitForFunction(()=>window.__INHAGAME_P0__?.photoModePanel.status().busy===false,null,{timeout:120000});
+    // Keep success timings too: a product deadline change must not hide 10-second overruns.
+    entry.captureDiagnostic = await page.evaluate(() => window.__INHAGAME_P0__.photoModePanel.status().capture);
+    await save();
     assert.doesNotMatch(await page.locator('[data-photo-control="status"]').innerText(),/PNG를 만들지 못/,'Production shutter succeeds');
     const download=await downloadReady;
     await download.saveAs(`${output}/${name}-capture.png`);const bytes=await readFile(`${output}/${name}-capture.png`);assert.deepEqual([...bytes.subarray(0,8)],[137,80,78,71,13,10,26,10]);
