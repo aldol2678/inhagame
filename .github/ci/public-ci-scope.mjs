@@ -17,6 +17,8 @@ const DB_INDEPENDENT_FILES = new Set([
   'apps/world/styles.css',
   'apps/world/dev-server.mjs',
   'apps/world/src/main.js',
+  // Strictly DOM-only decorative SVG/emoji mappings; not Phone account or RPC state.
+  'apps/world/src/ui/ui-icon-runtime.js',
   'apps/world/src/player-controller.js',
   'apps/world/src/player-dimensions.js',
   'apps/world/src/orbit-camera-controller.js',

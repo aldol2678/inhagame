@@ -2,7 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { classify, declaredPaths, GUARDED_WORKFLOWS, inspect, matchPath,
-  safeMainHandoff, safeModularPath } from './phone-surface-scope.mjs';
+  safeMainHandoff, safeModularPath, REVIEWED_SOCIAL_HUD_EDITS,
+  verifiedSocialHudCleanup } from './phone-surface-scope.mjs';
 
 const workflow = name => readFileSync(new URL('../workflows/'+GUARDED_WORKFLOWS[name],import.meta.url),'utf8');
 const graphics='Graphics integration browser QA';
@@ -142,4 +143,45 @@ test('inspect refuses malformed history, missing refs, releases and unknown work
   return '';
  };
  assert.equal(inspect({CI_HEAD_SHA:b,CI_BASE_SHA:a,CI_WORKFLOW_NAME:graphics,CI_PR_TITLE:'feat'},missingBase).reason,'missing-history-or-diff-error');
+});
+
+
+test('R1A verifies complete, byte-exact social HUD migration; unreviewed edits fail closed', () => {
+ const files=Object.keys(REVIEWED_SOCIAL_HUD_EDITS);
+ const qa=['apps/world/tests/photo-mode-wiring.test.mjs',
+   'apps/world/tests/ui-icon-runtime.test.mjs',
+   'apps/world/tests/browser/photo-mode-campus-smoke.mjs',
+   'apps/world/tests/browser/mounted-photo-maps-smoke.mjs'];
+ const before={},after={};
+ for(const file of files){
+   // Stable fixtures don't depend on whether production has already merged the HUD cleanup.
+   let old=REVIEWED_SOCIAL_HUD_EDITS[file].flatMap(([from,,count])=>Array(count).fill(from)).join('\nR1A-FIXTURE-SEPARATOR\n');
+   let updated=old;
+   for(const [from,to,count] of REVIEWED_SOCIAL_HUD_EDITS[file]){
+     assert.equal(updated.split(from).length-1,count,file);
+     updated=updated.split(from).join(to);
+   }
+   before[file]=old;after[file]=updated;
+ }
+ const readBefore=file=>before[file]??null,readAfter=file=>after[file]??null;
+ assert.equal(verifiedSocialHudCleanup([...files,...qa],readBefore,readAfter),true);
+ assert.equal(verifiedSocialHudCleanup([...files],readBefore,readAfter),true);
+ assert.equal(verifiedSocialHudCleanup([...files,'supabase/migrations/new.sql'],readBefore,readAfter),false);
+ assert.equal(verifiedSocialHudCleanup([...files,'apps/world/src/online/world-online.js'],readBefore,readAfter),false);
+ assert.equal(verifiedSocialHudCleanup([...files,files[0]],readBefore,readAfter),false);
+ assert.equal(verifiedSocialHudCleanup(files.slice(1),readBefore,readAfter),false);
+ assert.equal(verifiedSocialHudCleanup([...files],()=>null,readAfter),false);
+ for(const file of files){
+   const mutated={...after,[file]:after[file]+'\nchangeWorldState();'};
+   assert.equal(verifiedSocialHudCleanup(files,readBefore,path=>mutated[path]),false,file);
+ }
+ for(const file of files){
+   const mutated={...before,[file]:before[file].replace(REVIEWED_SOCIAL_HUD_EDITS[file][0][0],'')};
+   assert.equal(verifiedSocialHudCleanup(files,path=>mutated[path],readAfter),false,file);
+ }
+});
+test('R1A route still preserves full verification for policy files and mixed changes',()=>{
+ assert.equal(decide(['.github/ci/phone-surface-scope.mjs'],graphics).skip,false);
+ assert.equal(decide(['apps/world/src/main.js','apps/world/styles.css'],graphics).skip,false);
+ assert.equal(decide(['apps/world/src/online/world-online.js'],graphics).skip,false);
 });

@@ -85,6 +85,113 @@ export function safeMainHandoff(before, after) {
   return after === expected;
 }
 
+
+/**
+ * CI-SCOPE-R1A: reviewed social-HUD cleanup only. This is intentionally NOT
+ * a general "UI-only" label. Each file must match the exact known presentation
+ * transformation against the PR base, byte for byte, with no extra runtime edits.
+ * The four optional paths are test files; Photo/Phone/Icon QA remain ungated.
+ */
+export const REVIEWED_SOCIAL_HUD_EDITS = Object.freeze({
+  "apps/world/src/main.js": [
+    [
+      "import { bindPhotoModeEntry, createPhotoModePanel } from \"./photo/photo-mode-panel.js\";",
+      "import { createPhotoModePanel } from \"./photo/photo-mode-panel.js\";",
+      1
+    ],
+    [
+      "const photoModeEntry = bindPhotoModeEntry({ button: document.getElementById(\"photo-mode-toggle\"), mode: photoMode });\n",
+      "",
+      1
+    ],
+    [
+      "photoModeEntry.destroy(); photoModePanel.destroy(); photoInput.destroy(); photoMode.destroy();",
+      "photoModePanel.destroy(); photoInput.destroy(); photoMode.destroy();",
+      1
+    ],
+    [
+      "  photoModeEntry.refresh();\n",
+      "",
+      1
+    ]
+  ],
+  "apps/world/campus/index.html": [
+    [
+      "    <button id=\"photo-mode-toggle\" type=\"button\" aria-label=\"사진 모드 열기 (P)\" aria-keyshortcuts=\"P\" title=\"사진 모드 (P)\">📷<span>사진</span></button>\n",
+      "",
+      1
+    ]
+  ],
+  "apps/world/styles.css": [
+    [
+      "\n.social-cluster #photo-mode-toggle,\n",
+      "\n",
+      1
+    ],
+    [
+      "\n.social-cluster #photo-mode-toggle span,\n",
+      "\n",
+      1
+    ],
+    [
+      "\n  .social-cluster #photo-mode-toggle,\n",
+      "\n",
+      2
+    ],
+    [
+      "\n  body[data-hud-mode=\"EXPLORE\"][data-hud-overlay=\"NONE\"] .social-cluster #photo-mode-toggle,\n",
+      "\n",
+      1
+    ],
+    [
+      "\n  body .social-cluster #photo-mode-toggle,\n",
+      "\n",
+      1
+    ],
+    [
+      "\n#photo-mode-toggle[aria-disabled=\"true\"] { opacity: .5; }\n",
+      "\n",
+      1
+    ],
+    [
+      ".social-cluster #nearby-toggle span,\n.social-cluster #emote-toggle span,\n.social-cluster #chat-toggle span {\n  display: none;\n}",
+      ".social-cluster > button > span:not(.world-ui-icon) {\n  display: none;\n}",
+      1
+    ]
+  ],
+  "apps/world/src/ui/ui-icon-runtime.js": [
+    [
+      " ['#photo-mode-toggle','camera','label'],\n",
+      "",
+      1
+    ]
+  ]
+});
+const SOCIAL_HUD_QA = new Set([
+  "apps/world/tests/photo-mode-wiring.test.mjs",
+  "apps/world/tests/ui-icon-runtime.test.mjs",
+  "apps/world/tests/browser/photo-mode-campus-smoke.mjs",
+  "apps/world/tests/browser/mounted-photo-maps-smoke.mjs"
+]);
+export function verifiedSocialHudCleanup(files, oldBlob, newBlob) {
+  const sourceFiles = Object.keys(REVIEWED_SOCIAL_HUD_EDITS);
+  if (!Array.isArray(files) || files.length === 0 ||
+      files.length !== new Set(files).size ||
+      typeof oldBlob !== 'function' || typeof newBlob !== 'function' ||
+      !sourceFiles.every(path => files.includes(path)) ||
+      !files.every(path => sourceFiles.includes(path) || SOCIAL_HUD_QA.has(path))) return false;
+  for (const path of sourceFiles) {
+    let before = oldBlob(path), after = newBlob(path);
+    if (typeof before !== 'string' || typeof after !== 'string') return false;
+    for (const [from, to, count] of REVIEWED_SOCIAL_HUD_EDITS[path]) {
+      if (before.split(from).length - 1 !== count) return false;
+      before = before.split(from).join(to);
+    }
+    if (before !== after) return false;
+  }
+  return true;
+}
+
 // Read existing paths for the CURRENT workflow instead of maintaining a
 // second fragile per-suite path list. Unknown YAML structure -> full QA.
 export function declaredPaths(workflowYaml, expectedName) {
@@ -172,6 +279,8 @@ export function inspect(env = process.env, runGit = git, loadWorkflow = (file) =
     const newBlob = (path) => { try { return runGit('show', head+':'+path); } catch { return null; } };
     if (isSeoOnly(files, oldBlob, newBlob))
       return { skip: true, reason: 'verified-seo-only', paths: files };
+    if (verifiedSocialHudCleanup(files, oldBlob, newBlob))
+      return { skip: true, reason: 'verified-social-hud-only', paths: files };
     return classify(files, {
       workflowName, workflowYaml: loadWorkflow(filename),
       mainBefore: before, mainAfter: after, prTitle: env.CI_PR_TITLE
