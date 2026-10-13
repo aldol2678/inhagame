@@ -179,7 +179,7 @@ function hallIntegrationScopePaths(manifest,extension) {
     ...(extension==='walkway'?[...walkway.map(p=>'apps/world/src/'+p),'apps/world/data/reality/north-walkway.provenance.json','apps/world/data/reality/north-landmark-restoration.provenance.json']:[])];
 }
 function validateReviewedReleaseScope(changedPaths,allowed,scopeBase,releaseManifest) {
-  assert.equal(scopeBase,'ea88ceaf1c813a0a9ea3f7056290bd5110e5552a','release scope uses its reviewed immutable base');
+  assert.equal(scopeBase,'bfa08ad78f92fba51eb1a3978dd97a12182fc82c','release scope uses its reviewed immutable base');
   assert.deepEqual([...changedPaths].sort(),[...allowed].sort(),'release runtime/data diff exactly matches its reviewed paths');
   for(const sha of [scopeBase,'d436d8f5db161875930db53b7c589c1dab91fc7d','1dcd85d9370b82a32ea29a0992c45618e5a82f5e','912a6d354464e6536029b631a587ab5f64c0ac5c','8f00074c8736a100bd229a1bd29a74e8bfd9698d']){
     assert.ok(releaseManifest.includes('`'+sha+'`'),'release manifest records exact reviewed source '+sha);

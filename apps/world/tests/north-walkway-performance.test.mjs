@@ -24,3 +24,29 @@ test('completed-frame comparison retains every old budget and adds a GPU complet
 test('comparison rejects missing or duplicate views, mismatched protocols and lost raw samples',()=>{
  for(const change of [a=>a.views.pop(),a=>a.views[0]=a.views[1],a=>a.measurement='gl.finish only',a=>a.views[0].rawIntervals.pop(),a=>a.views[0].rawCompletedFrameMs[0]=null,a=>a.views[0].samples=30])assert.notEqual(compare(change).status,0);
 });
+
+
+// Release integration must compare its delta against the already shipped base,
+// never erase the independent candidate's original baseline or relax budgets.
+import {selectWalkwayBaseline, STANDALONE_BASELINE, REVIEWED_RELEASE_BRANCH, REVIEWED_RELEASE_BASE} from './browser/north-walkway-baseline.mjs';
+test('standalone walkway retains its original immutable performance baseline',()=>{
+ assert.equal(STANDALONE_BASELINE,'2b9a09615f7986e3d5e5b93d731fba21f33afbdd');
+ assert.equal(REVIEWED_RELEASE_BASE,'bfa08ad78f92fba51eb1a3978dd97a12182fc82c');
+ assert.equal(selectWalkwayBaseline({headRef:'feat/60th-five-walkway-20261012',baseSha:REVIEWED_RELEASE_BASE}),STANDALONE_BASELINE);
+ assert.equal(selectWalkwayBaseline(),STANDALONE_BASELINE);
+});
+test('only the reviewed release and exact main base select the release comparison',()=>{
+ assert.equal(selectWalkwayBaseline({headRef:REVIEWED_RELEASE_BRANCH,baseSha:REVIEWED_RELEASE_BASE}),REVIEWED_RELEASE_BASE);
+ for(const baseSha of ['',STANDALONE_BASELINE,'0'.repeat(40),REVIEWED_RELEASE_BASE.slice(0,7)])assert.throws(()=>selectWalkwayBaseline({headRef:REVIEWED_RELEASE_BRANCH,baseSha}),/fail closed/);
+ for(const headRef of ['release/other','release/2026-10-13-ci-runtime-diagnostics-extra'])assert.throws(()=>selectWalkwayBaseline({headRef,baseSha:REVIEWED_RELEASE_BASE}),/fail closed/);
+});
+test('workflow samples the selected immutable baseline and triggers for selector changes',()=>{
+ const workflow=readFileSync(new URL('../../../.github/workflows/north-walkway-browser.yml',import.meta.url),'utf8');
+ assert.ok(workflow.includes("'apps/world/tests/browser/north-walkway-*'"));
+ assert.ok(workflow.includes('WALKWAY_HEAD_REF: ${{ github.event.pull_request.head.ref }}'));
+ assert.ok(workflow.includes('WALKWAY_PR_BASE: ${{ github.event.pull_request.base.sha }}'));
+ assert.ok(workflow.includes('baseline=$(node apps/world/tests/browser/north-walkway-baseline.mjs)'));
+ assert.ok(workflow.includes('git worktree add --detach /tmp/walkway-main "$baseline"'));
+ assert.ok(workflow.includes('EXPECTED_WALKWAY_HEAD="$baseline"'));
+ assert.ok(workflow.includes('EXPECTED_WALKWAY_HEAD: ${{ github.event.pull_request.head.sha }}'));
+});

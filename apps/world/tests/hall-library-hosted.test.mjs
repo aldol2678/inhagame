@@ -427,7 +427,7 @@ test('release branch name cannot bypass exact diff, base, manifest or source anc
  const runner=read('./browser/hall-library-hosted-smoke.mjs');
  const helper=runner.match(/function validateReviewedReleaseScope\(changedPaths,allowed,scopeBase,releaseManifest\) \{[\s\S]*?\n\}/)?.[0];assert.ok(helper);
  const validate=runInNewContext(`(${helper})`,{assert},{timeout:1000});
- const base='ea88ceaf1c813a0a9ea3f7056290bd5110e5552a';
+ const base='bfa08ad78f92fba51eb1a3978dd97a12182fc82c';
  const heads=['d436d8f5db161875930db53b7c589c1dab91fc7d','1dcd85d9370b82a32ea29a0992c45618e5a82f5e','912a6d354464e6536029b631a587ab5f64c0ac5c','8f00074c8736a100bd229a1bd29a74e8bfd9698d'];
  const manifest=[base,...heads].map(s=>'`'+s+'`').join(' '),allowed=['reviewed-a','reviewed-b'];
  assert.doesNotThrow(()=>validate(['reviewed-b','reviewed-a'],allowed,base,manifest));
