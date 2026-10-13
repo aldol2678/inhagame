@@ -1,5 +1,6 @@
 import { findMajor } from './major-registry.mjs';
 import { applySignatureChoice } from './signature-choice.mjs';
+import {contentVersion, LEGACY_CONTENT_VERSION, FOLLOWUP_CONTENT_VERSION, buildFollowupEvent, applyFollowupChoice, buildMajorEpilogue, validateStoryState} from './major-stories.mjs';
 
 // Headless, deterministic prototype. No timers, storage, account, wallet, or WORLD calls.
 export const LIFE_ENGINE_VERSION = 'grow2-life-engine-0.1';
@@ -73,14 +74,17 @@ function ensureLife(life) {
       !Array.isArray(life.weeklyHistory) || !Array.isArray(life.semesters)) throw new TypeError('Invalid life history');
   if (!life.stats || COMPETENCIES.some(k=>!Number.isFinite(life.stats[k]) || life.stats[k]<0 || life.stats[k]>100) ||
       !Number.isFinite(life.money) || !Number.isFinite(life.stress) || !Number.isFinite(life.stamina)) throw new TypeError('Invalid life resources');
+  validateStoryState(life);
 }
 
-export function createLife({majorId,seed=1,policy='balanced'}={}) {
+export function createLife({majorId,seed=1,policy='balanced',contentVersion:requestedContent=LEGACY_CONTENT_VERSION}={}) {
   const major = findMajor(majorId);
   if (!major || major.playability !== 'foundation' || major.calendarTemplate !== 'four_year_8_terms') throw new Error('Unsupported V2 foundation major');
   if (!SUPPORTED_POLICIES.includes(policy)) throw new RangeError('Unsupported life policy');
   if (!Number.isSafeInteger(seed) || seed<0 || seed>0xffffffff) throw new RangeError('Seed must be uint32');
+  contentVersion({contentVersion:requestedContent});
   return {
+    ...(requestedContent===FOLLOWUP_CONTENT_VERSION?{contentVersion:requestedContent}:{}),
     version:LIFE_ENGINE_VERSION, majorId, seed, rngState:seed || 0x6d2b79f5,
     policy,year:1,term:1,week:1,weeksCompleted:0,status:'running',
     stats:{analysis:20,creative:20,expression:20,collaboration:20,execution:20,recovery:20},
@@ -123,6 +127,8 @@ function scheduleEvent(life) {
     pending={instanceId:event.id,eventId:event.id,type:'signature',
       title:event.title,year:life.year,term:life.term,week:life.week,
       choices:event.choices.map(choice=>({id:choice.id,label:choice.label}))};
+  } else if (contentVersion(life)===FOLLOWUP_CONTENT_VERSION && [2,3].includes(life.year) && life.term===1 && life.week===6) {
+    pending=buildFollowupEvent(life);
   } else if (life.week===5 || life.week===10) {
     const event=generalCandidate(life);
     const instanceId='grow2.event.general.'+event.id+'.'+slot;
@@ -154,6 +160,7 @@ function finishSemester(life) {
     life.ending={id:'grow2.ending.'+best,title:endingName+' 인덕이',years:YEARS,
       semesters:life.semesters.length,totalWeeks:life.weeksCompleted,
       gpa:life.gpa,memories:life.memories.length};
+    if(contentVersion(life)===FOLLOWUP_CONTENT_VERSION)life.ending.epilogue=buildMajorEpilogue(life);
     life.timeline.push({type:'ending',year:YEARS,term:TERMS_PER_YEAR,
       title:life.ending.title,text:'네 해의 선택이 하나의 이야기가 되었다.'});
   } else {
@@ -200,6 +207,8 @@ export function chooseLifeEvent(input,choiceId) {
     if (!result.applied) throw new Error('Event was already applied');
     Object.assign(life,result.state);
     summary=life.memories.at(-1).text;
+  } else if(event.type==='followup') {
+    summary=applyFollowupChoice(life,choiceId);
   } else {
     const template=GENERAL_EVENTS.find(item=>'grow2.event.general.'+item.id===event.eventId);
     if (!template) throw new Error('Unknown event template');

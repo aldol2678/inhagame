@@ -94,8 +94,8 @@ export function createLifeSession({storage=null, onUpdate=()=>{}}={}) {
     current=copy(snapshot.life);loadError=null;saveError=null;writesBlocked=false;
     publish();return true;
   }
-  function start({majorId,seed=1,policy='balanced',replaceExisting=false}={}) {
-    const fresh=createLife({majorId,seed,policy}),existing=readSave();
+  function start({majorId,seed=1,policy='balanced',replaceExisting=false,contentVersion}={}) {
+    const fresh=createLife({majorId,seed,policy,contentVersion}),existing=readSave();
     if(existing.exists===true && !replaceExisting)
       throw new Error('기존 v2 기록을 교체하려면 먼저 확인해 주세요.');
     writesBlocked=existing.exists===null;

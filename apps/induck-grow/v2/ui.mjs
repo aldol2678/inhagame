@@ -1,6 +1,7 @@
 import {FOUNDATION_MAJOR_IDS, findMajor} from './major-registry.mjs';
 import {TOTAL_WEEKS} from './life-engine.mjs';
 import {createLifeSession} from './session.mjs';
+import {FOLLOWUP_CONTENT_VERSION} from './major-stories.mjs';
 
 // Standalone preview only. No v1 account/storage, INHA WORLD, wallet, network or rewards.
 const $ = id => document.getElementById(id);
@@ -88,7 +89,7 @@ function startGame() {
   }
   stop(null,false);
   closeDialog(eventDialog);closeDialog(semesterDialog);
-  session.start({majorId:$('major-select').value,seed:seedNumber,policy:$('start-policy').value,replaceExisting:existing.exists===true});
+  session.start({majorId:$('major-select').value,seed:seedNumber,policy:$('start-policy').value,replaceExisting:existing.exists===true,contentVersion:FOLLOWUP_CONTENT_VERSION});
   tab='story';showGame();
   announce('입학을 축하해! 생활 방침을 고르고 시작 버튼을 눌러 줘.');
 }
@@ -117,7 +118,7 @@ function showEvent(life) {
   const ev=life.pendingEvent;
   put('event-time',life.year+'학년 '+life.term+'학기 · '+life.week+'주차');
   put('event-title',ev.title);
-  put('event-description','인덕이의 이야기가 달라지는 순간이야. 어떻게 할까?');
+  put('event-description',ev.description ? ev.recall+' · '+ev.description : '인덕이의 이야기가 달라지는 순간이야. 어떻게 할까?');
   const options=$('event-options');options.replaceChildren();
   for(const item of ev.choices) {
     const button=document.createElement('button');
@@ -209,6 +210,11 @@ function renderJournal() {
       line(parent,{label:'🎓 '+life.ending.years+'년 · '+life.ending.semesters+'학기',
         title:life.ending.title,description:'졸업 평점 '+life.ending.gpa.toFixed(2)+
           '/4.50 · '+life.ending.memories+'개 추억 · '+life.ending.totalWeeks+'주 완료'});
+      if(life.ending.epilogue) {
+        const epilogue=life.ending.epilogue;
+        line(parent,{label:'전공 이야기',title:epilogue.title,description:epilogue.text});
+        for(const chapter of epilogue.chapters)line(parent,{label:chapter.year+'학년의 선택',title:'그때의 인덕이',description:chapter.text});
+      }
       line(parent,{label:'기록',title:'또 다른 인생을 시작할 수 있어!',
         description:'같은 인덕이에게도 전공과 선택에 따라 서로 다른 이야기가 생겨.'});
     } else empty(parent,'4학년 2학기를 끝내면 졸업앨범이 열려.');
