@@ -40,8 +40,9 @@ export function createQuestRuntime() {
     lastLegacy = legacy;
     const main1 = legacy?.quest ?? null;
     const main2 = legacy?.main2Quest ?? null;
-    const signedIn = main1?.signedIn === true || main2?.signedIn === true || sideQuests.size > 0;
-    const loading = signedIn && !(
+    const legacySignedIn = main1?.signedIn === true || main2?.signedIn === true;
+    const signedIn = legacySignedIn || sideQuests.size > 0;
+    const loading = legacySignedIn && !(
       main1?.ready === true || main2?.ready === true
     );
     const quests = [...sideQuests.values()];

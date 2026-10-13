@@ -168,6 +168,6 @@ export function createJeongseokBookQuest({ getClient, getContext, inputFocus, on
       return accountId ? refresh() : Promise.resolve(false);
     },
     status: () => ({ accountId, stage, state: status, open, busy }),
-    destroy() { ++epoch; close(); owner.release(); doc.removeEventListener('keydown', onKey); panel.remove(); publish(); }
+    destroy() { ++epoch; close(); owner.release(); doc.removeEventListener('keydown', onKey); panel.remove(); stage = null; status = 'SIGNED_OUT'; onProgress(null); }
   };
 }
