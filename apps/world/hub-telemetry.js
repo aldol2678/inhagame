@@ -2,6 +2,13 @@
   const visitorKey = 'inhagame-hub-visitor-v1';
   const sessionKey = 'inhagame-hub-session-v1';
   const attributionKey = 'inhagame-hub-attribution-v1';
+  const zoneBudgetKey = 'inhagame-hub-zone-budget-v1';
+  const zoneTargets = new Set(['C01_GATE', 'C02_MAIN_HALL', 'C03_CENTRAL']);
+  const zoneWindowMs = 60 * 60 * 1000;
+  const zoneResendMs = 10000;
+  // Zones may use at most 24 of the RPC's 120 events/session/hour. Other funnel
+  // events keep the remaining allowance; this is sampling, not server authority.
+  const zoneBudget = 24;
   const valid = id => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
   const uuid = () => {
     if (crypto.randomUUID) return crypto.randomUUID();
@@ -68,6 +75,31 @@
     // A restricted browser can still show the hub without analytics.
   }
   const acquisition = readAttribution();
+  function reserveZoneEvent(surface, target) {
+    if (surface !== 'campus' || !zoneTargets.has(target)) return false;
+    const now = Date.now();
+    if (!Number.isFinite(now) || now < 0) return false;
+    try {
+      const raw = sessionStorage.getItem(zoneBudgetKey);
+      const saved = raw === null ? null : JSON.parse(raw);
+      if (raw !== null && (!saved || !valid(saved.sessionId) || !Array.isArray(saved.events) ||
+          saved.events.length > zoneBudget || saved.events.some(event =>
+            !event || !zoneTargets.has(event.target) || !Number.isFinite(event.at) || event.at < 0))) return false;
+      // The RPC counts by pseudonymous session, not account. Keep the budget on
+      // reload/account switch; never store account IDs or rotate the session here.
+      const events = saved?.sessionId === sessionId
+        ? saved.events.filter(event => event.at > now - zoneWindowMs) : [];
+      // A clock rollback must not create fresh allowance from future timestamps.
+      if (events.some(event => event.at > now) || events.length >= zoneBudget ||
+          events.some(event => event.target === target && event.at > now - zoneResendMs)) return false;
+      events.push({ target, at: now });
+      sessionStorage.setItem(zoneBudgetKey, JSON.stringify({ sessionId, events }));
+      return true;
+    } catch {
+      // Without durable budget state, suppress optional zone samples only.
+      return false;
+    }
+  }
   function eventBody(eventId, eventType, surface, target) {
     return JSON.stringify({
       event_id: eventId, session_id: sessionId, visitor_id: visitorId,
@@ -77,6 +109,7 @@
   }
   function track(eventType, surface, target = null) {
     if (!visitorId || !sessionId) return null;
+    if (eventType === 'campus_zone_enter' && !reserveZoneEvent(surface, target)) return null;
     const eventId = uuid();
     const body = eventBody(eventId, eventType, surface, target);
     const url = '/api/hub-event';
@@ -90,6 +123,7 @@
     retryDelays = [1000, 3000, 8000]
   } = {}) {
     if (!visitorId || !sessionId) return null;
+    if (eventType === 'campus_zone_enter' && !reserveZoneEvent(surface, target)) return null;
     const stableEventId = valid(eventId) ? eventId : uuid();
     const body = eventBody(stableEventId, eventType, surface, target);
     const url = '/api/hub-event';

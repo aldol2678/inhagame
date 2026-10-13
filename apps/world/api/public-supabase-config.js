@@ -23,6 +23,9 @@ module.exports = function handler(req, res) {
     );
   }
 
+  // Public URL + publishable key only. Revalidate after at most five minutes;
+  // stale responses must not extend a key rotation. 405/503 stay no-store.
+  res.setHeader('Cache-Control', 'public, max-age=60, s-maxage=300, must-revalidate');
   return res.status(200).send(
     'globalThis.__INHAGAME_PUBLIC_SUPABASE__ = Object.freeze(' +
       JSON.stringify(config) +
