@@ -1,0 +1,44 @@
+.runtime-diagnostics {
+  box-sizing: border-box;
+  width: min(620px, calc(100vw - 24px));
+  max-height: calc(100dvh - 24px);
+  padding: 0;
+  border: 1px solid #55738a;
+  border-radius: 16px;
+  background: #102436;
+  color: #f0f6fb;
+  font: 14px/1.55 system-ui, sans-serif;
+  overflow: auto;
+}
+.runtime-diagnostics::backdrop { background: #030c16bf; }
+.runtime-diagnostics header {
+  position: sticky; top: 0; z-index: 1;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 12px 18px; background: #173349; border-bottom: 1px solid #55738a;
+}
+.runtime-diagnostics h2 { margin: 0; font-size: 19px; }
+.runtime-diagnostics h3 { margin: 18px 0 8px; font-size: 16px; }
+.runtime-diagnostics-body { padding: 0 18px 20px; }
+.runtime-diagnostics dl { margin: 0; }
+.runtime-diagnostics dt { color: #b7d6ec; margin-top: 8px; }
+.runtime-diagnostics dd { margin: 0; overflow-wrap: anywhere; }
+.runtime-diagnostics label { display: block; margin-top: 12px; font-weight: 700; }
+.runtime-diagnostics textarea {
+  box-sizing: border-box; display: block; width: 100%; margin: 6px 0 12px; padding: 10px;
+  background: #071a29; color: #f0f6fb; border: 1px solid #7390a5; border-radius: 8px;
+  resize: vertical; font: inherit; font-size: 16px; min-height: 64px;
+}
+.runtime-diagnostics button, #open-runtime-diagnostics {
+  min-height: 44px; padding: 9px 14px; cursor: pointer; font: inherit;
+  background: #264e6b; color: #fff; border: 1px solid #81aac8; border-radius: 8px;
+}
+.runtime-diagnostics button:disabled { opacity: .5; cursor: default; }
+.runtime-diagnostics :focus-visible { outline: 3px solid #ffdc82; outline-offset: 2px; }
+.runtime-diagnostics-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.runtime-diagnostics [data-notice], .runtime-diagnostics [data-health] { color: #ffe6a6; }
+.runtime-diagnostics ul { padding-left: 20px; overflow-wrap: anywhere; }
+@media (max-width: 400px) {
+  .runtime-diagnostics { width: calc(100vw - 16px); max-height: calc(100dvh - 16px); }
+  .runtime-diagnostics header { padding: 10px 12px; }
+  .runtime-diagnostics-body { padding: 0 12px 16px; }
+}

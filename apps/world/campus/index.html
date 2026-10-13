@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="/src/inventory/inventory-query.css" />
   <link rel="stylesheet" href="/cinematic.css" />
   <link rel="stylesheet" href="/phone.css" />
+  <link rel="stylesheet" href="/runtime-diagnostics.css" />
   <link rel="stylesheet" href="/src/commissions/commission-trial.css" />
   <link rel="stylesheet" href="/ui-icon-runtime.css" />
   <!-- Auth config must execute before module imports snapshot the shared account config. -->
@@ -374,6 +375,7 @@
       <option value="0.7" selected>보통</option>
       <option value="1">크게</option>
     </select>
+    <button id="open-runtime-diagnostics" type="button" aria-controls="runtime-diagnostics-panel" aria-expanded="false">진단 · 버그 보고</button>
     <p id="view-settings-status" role="status">이 기기에 저장됩니다.</p>
   </section>
   <section id="keyboard-shortcuts-panel" class="keyboard-shortcuts-panel" aria-labelledby="keyboard-shortcuts-title" hidden>
