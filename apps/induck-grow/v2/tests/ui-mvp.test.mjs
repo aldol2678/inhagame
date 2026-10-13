@@ -133,3 +133,99 @@ test('static v2 screen includes referenced DOM ids, controls and mobile/reduced-
   assert(css.includes('focus-visible'));
   assert(html.includes('aria-valuemax="120"'));
 });
+
+test('existing malformed, empty and foreign records require explicit replacement',()=>{
+  for(const raw of ['{bad','',JSON.stringify({schema:'foreign'})]) {
+    const store=storage();store.setItem(V2_LOCAL_SAVE_KEY,raw);
+    const session=createLifeSession({storage:store});
+    assert.equal(session.inspectSave().exists,true);
+    assert.equal(session.inspectSave().available,false);
+    assert.throws(()=>session.start({majorId:'culture'}),/확인/);
+    assert.equal(store.getItem(V2_LOCAL_SAVE_KEY),raw);
+    assert.equal(session.life(),null);
+    session.start({majorId:'culture',replaceExisting:true});
+    assert.equal(session.inspectSave().available,true);
+  }
+});
+test('unreadable storage remains write-blocked for the temporary session',()=>{
+  let unreadable=true,writes=0;
+  const store={getItem(){if(unreadable)throw Error('blocked');return 'old-record';},
+    setItem(){writes++;}};
+  const session=createLifeSession({storage:store});
+  assert.equal(session.inspectSave().exists,null);
+  session.start({majorId:'culture',replaceExisting:true});
+  unreadable=false;
+  session.nextWeek();session.setPolicy('work');
+  assert.equal(writes,0);
+  assert.equal(session.life().weeksCompleted,1);
+  assert.match(session.status().saveError,/임시/);
+});
+test('load uses a single validated storage snapshot',()=>{
+  const store=storage(),original=createLifeSession({storage:store});
+  original.start({majorId:'culture',seed:42});
+  const valid=store.getItem(V2_LOCAL_SAVE_KEY);let reads=0;
+  const changing={getItem(){return ++reads===1?valid:'{bad';},setItem(){}};
+  const session=createLifeSession({storage:changing});
+  assert.equal(session.load(),true);assert.equal(reads,1);
+  assert.deepEqual(session.life(),original.life());
+});
+test('inconsistent stored progress is rejected without replacing current life or raw save',()=>{
+  const store=storage(),session=createLifeSession({storage:store});
+  session.start({majorId:'culture',seed:42});
+  const current=session.life();
+  const mutations=[
+    x=>{x.status='complete';},x=>{x.majorId='missing';},x=>{x.majorId='premed';},
+    x=>{x.week=15;},x=>{x.semesters.push({});},x=>{x.gpa='4';},
+    x=>{x.ending={title:'too early'};},x=>{x.gradePoints=18;},
+    x=>{x.seed=-1;},x=>{x.rngState=4294967296;}
+  ];
+  for(const mutate of mutations){
+    const life=structuredClone(current);mutate(life);
+    const raw=JSON.stringify({schema:V2_LOCAL_SAVE_SCHEMA,life});
+    store.setItem(V2_LOCAL_SAVE_KEY,raw);
+    assert.equal(session.inspectSave().available,false);
+    assert.equal(session.load(),false);
+    assert.deepEqual(session.life(),current);
+    assert.equal(store.getItem(V2_LOCAL_SAVE_KEY),raw);
+  }
+});
+test('all 12 majors reload at every week, event pause and semester including graduation',()=>{
+  for(const majorId of FOUNDATION_MAJOR_IDS){
+    const store=storage(),session=createLifeSession({storage:store});
+    session.start({majorId,seed:4261});
+    for(let i=0;i<320;i++){
+      const life=session.life(),loaded=createLifeSession({storage:store});
+      assert.equal(loaded.load(),true,majorId+' at '+life.weeksCompleted);
+      assert.deepEqual(loaded.life(),life);
+      if(life.status==='complete') {
+        life.ending=null;
+        const raw=JSON.stringify({schema:V2_LOCAL_SAVE_SCHEMA,life});
+        store.setItem(V2_LOCAL_SAVE_KEY,raw);
+        assert.equal(createLifeSession({storage:store}).load(),false);
+        assert.equal(store.getItem(V2_LOCAL_SAVE_KEY),raw);
+        break;
+      }
+      if(life.pendingEvent)session.choose(life.pendingEvent.choices[0].id);
+      else session.nextWeek();
+      if(i===319)throw Error('Not completed');
+    }
+  }
+});
+test('new game UI asks before replacing an unreadable record and respects cancellation',()=>{
+  const js=read('ui.mjs');
+  const body=js.slice(js.indexOf('function startGame()'),js.indexOf('function showGame()'));
+  for(const accepted of [false,true]){
+    const store=storage();store.setItem(V2_LOCAL_SAVE_KEY,'{bad');
+    const session=createLifeSession({storage:store});let confirms=0;
+    const window={confirm(){confirms++;return accepted;}};
+    const controls={'seed-input':{value:'42'},'major-select':{value:'culture'},
+      'start-policy':{value:'balanced'}};
+    const run=new Function('session','window','$',
+      'let tab; const eventDialog={},semesterDialog={}; const stop=()=>{},closeDialog=()=>{},showGame=()=>{},announce=()=>{};'+body+';return startGame;')
+      (session,window,id=>controls[id]);
+    run();
+    assert.equal(confirms,1);
+    if(accepted)assert.equal(session.inspectSave().available,true);
+    else {assert.equal(store.getItem(V2_LOCAL_SAVE_KEY),'{bad');assert.equal(session.life(),null);}
+  }
+});

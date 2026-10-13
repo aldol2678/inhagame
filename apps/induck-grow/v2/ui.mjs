@@ -77,7 +77,7 @@ function updateContinue() {
 }
 function startGame() {
   const existing=session.inspectSave();
-  if((session.life()||existing.available) &&
+  if((session.life()||existing.exists===true) &&
      !window.confirm('기존 v2 인생 기록을 새 게임으로 교체할까? 현재 로컬 기록은 덮어써져.'))return;
   const seedNumber=Number($('seed-input').value);
   if($('seed-input').value.trim()==='' || !Number.isSafeInteger(seedNumber) ||
@@ -88,7 +88,7 @@ function startGame() {
   }
   stop(null,false);
   closeDialog(eventDialog);closeDialog(semesterDialog);
-  session.start({majorId:$('major-select').value,seed:seedNumber,policy:$('start-policy').value});
+  session.start({majorId:$('major-select').value,seed:seedNumber,policy:$('start-policy').value,replaceExisting:existing.exists===true});
   tab='story';showGame();
   announce('입학을 축하해! 생활 방침을 고르고 시작 버튼을 눌러 줘.');
 }
