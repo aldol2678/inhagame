@@ -281,6 +281,9 @@ const biryongVisualLabP0C = ['p0c', 'p0d', 'p0e'].includes(biryongVisualStage);
 const biryongVisualLabP0D = ['p0d', 'p0e'].includes(biryongVisualStage);
 const biryongVisualLabP0E = biryongVisualStage === 'p0e';
 let lastTrackedZone = null;
+// Zone-boundary oscillation (A→B→A…) burned the 120 events/hour session cap; resend a zone at most every 10s.
+const ZONE_ENTER_RESEND_MS = 10000;
+const zoneEnterSentAt = new Map();
 
 async function boot() {
 globalThis.__INHA_WORLD_BOOT_DIAGNOSTICS__?.markBootEntered?.();
@@ -3529,6 +3532,9 @@ places.onPlaceZoneChanged((previous,next)=>{
   const legacy=legacyTelemetryTarget(next);
   if(!npcTestMode&&legacy&&legacy!==lastTrackedZone){
     lastTrackedZone=legacy;
+    const nowMs=Date.now();
+    if(nowMs-(zoneEnterSentAt.get(legacy)??-Infinity)<ZONE_ENTER_RESEND_MS) return;
+    zoneEnterSentAt.set(legacy,nowMs);
     window.InhaHubTelemetry?.track('campus_zone_enter','campus',legacy);
   }
 });
