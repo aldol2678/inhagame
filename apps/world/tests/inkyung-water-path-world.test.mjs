@@ -8,7 +8,8 @@ import {findSeat} from '../src/seat-anchors.js';
 import {FISHING_SPOTS,FISHING_SPOT_RADIUS,FISHING_CONTEXT_PRIORITY} from '../src/activity/fishing-spots.js';
 import {canObserveInkyungDucksFromShore,MECHANICAL_DUCK_CONTEXT_PRIORITY} from '../src/ambient-ducks-state.js';
 import {INKYUNG_DOCK} from '../src/mounts/duck-boat-motion.js';
-import {createWaterPathDefinition,validateWaterPath} from '../src/minigames/games/water-path.js';
+import {createWaterPathDefinition,validateWaterPath,waterPathMask} from '../src/minigames/games/water-path.js';
+import {waterPathFlow} from '../src/minigames/games/water-path-view.js';
 import {
   createInkyungWaterPathInteraction,inkyungWaterPathAnchor,isInkyungWaterPathAnchorWalkable,
   waterPathBlockReason,WATER_PATH_BLOCK,INKYUNG_WATER_PATH_PRIORITY,INKYUNG_WATER_PATH_RADIUS,
@@ -406,4 +407,67 @@ test('adapter and view carry no account, economy, storage or network surface',as
   assert.match(main,/addEventListener\("pageshow", event => \{ inkyungWaterPath\.handlePageShow\(\{ persisted: event\.persisted \}\)/);
   assert.match(main,/"inkyung-fishing", "inkyung-water-path", "biryong"/,'cleared while combat owns the slot');
   assert.match(main,/ownerId: INKYUNG_WATER_PATH_OWNER_ID, policy: INPUT_FOCUS_POLICY\.BLOCKING_UI/);
+});
+
+// ---- Visual layer ----
+test('display flow trace always agrees with the rules for many boards and rotations',()=>{
+  let boards=0;
+  for(const size of [3,4])for(let n=0;n<60;n++){
+    const {tiles}=createWaterPathDefinition({size,seed:'qa.visual.'+n}).initialState;
+    for(let r=0;r<8;r++){
+      const trial={size,tiles:tiles.map((t,i)=>t.kind==='BLOCK'?{...t}:{kind:t.kind,rotation:(t.rotation+((n*7+r*i)%4))&3})};
+      const rules=validateWaterPath(trial),flow=waterPathFlow(trial);
+      assert.equal(flow.active.size,rules.activeTiles);
+      assert.equal(flow.leaks.size,rules.leaks);
+      assert.equal(flow.active.has(size*size-1),rules.goalConnected);
+      boards++;
+    }
+  }
+  assert.ok(boards>=960);
+});
+test('tiles draw pipes from the rules: one arm per open port, water on active tiles, red on leaks',()=>{
+  const h=harness();h.world.open();
+  keyed(h.panel(),'ctl-start').click();
+  const state=h.world.status().panel&&createWaterPathDefinition({size:3,seed:INKYUNG_WATER_PATH_SEED}).initialState;
+  const flow=waterPathFlow(state);
+  const tileButtons=h.panel().querySelectorAll('button').filter(b=>b.getAttribute('data-focus-key').startsWith('tile-'));
+  assert.equal(tileButtons.length,9);
+  const spans=n=>{const out=[];const walk=x=>{for(const c of x.children){out.push(c);walk(c);}};walk(n);return out;};
+  tileButtons.forEach((button,index)=>{
+    const tile=state.tiles[index],all=spans(button);
+    const arms=all.filter(x=>/\bwp-arm\b/.test(x.className));
+    const ports=tile.kind==='BLOCK'?0:waterPathMask(tile.kind,tile.rotation).toString(2).split('1').length-1;
+    assert.equal(arms.length,ports,'arms == open ports for tile '+index);
+    assert.equal(/\bwp-on\b/.test(button.className),flow.active.has(index),'water only where the flow reaches');
+    assert.equal(arms.filter(x=>/\bwp-leak\b/.test(x.className)).length,[0,1,2,3].filter(d=>flow.leaks.has(index+':'+d)).length);
+    assert.equal(/\bwp-block\b/.test(button.className),tile.kind==='BLOCK');
+    assert.equal(button.textContent,'','visual tiles carry no glyph text');
+    assert.ok(button.attributes['aria-label'].includes((Math.floor(index/3)+1)+'행 '+(index%3+1)+'열'));
+  });
+  assert.match(tileButtons[0].attributes['aria-label'],/물이 흐름/);
+  assert.equal(spans(tileButtons[0]).some(x=>x.textContent==='💧'&&x.attributes['aria-hidden']==='true'),true,'source badge');
+  assert.equal(spans(tileButtons[8]).some(x=>x.textContent==='⛲'),true,'goal badge');
+  // The rotation animation class lands on the tile just turned, once.
+  tileButtons[0].click();
+  const after=h.panel().querySelectorAll('button').filter(b=>b.getAttribute('data-focus-key').startsWith('tile-'));
+  assert.match(after[0].className,/\bwp-turn\b/);
+  after[1].click();
+  const next=h.panel().querySelectorAll('button').filter(b=>b.getAttribute('data-focus-key').startsWith('tile-'));
+  assert.doesNotMatch(next[0].className,/wp-turn/);
+  assert.match(next[1].className,/wp-turn/);
+  // The injected stylesheet honours reduced motion and lives beside (not inside) the panel root.
+  const style=h.panel().children[1].children.find(n=>n.tag==='style');
+  assert.match(style.textContent,/prefers-reduced-motion:reduce/);
+  assert.equal(h.panel().children[1].children[0].tag,'section');
+  h.world.close();assertReleased(h);
+  assert.equal(h.panel(),null,'stylesheet removed with the panel');
+});
+test('success marks the board cleared for the celebration styling',()=>{
+  const h=harness();h.world.open();
+  keyed(h.panel(),'ctl-start').click();
+  for(const {cell,n} of solveClicks())for(let i=0;i<n;i++)keyed(h.panel(),'tile-'+Math.floor(cell/3)+'-'+(cell%3)).click();
+  const root=h.panel().children[1].children[0];
+  assert.equal(root.attributes['data-state'],'CLEARED');
+  assert.equal(root.children[1].attributes['data-cleared'],'true');
+  h.world.close();assertReleased(h);
 });
