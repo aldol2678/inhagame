@@ -82,8 +82,10 @@ export function createFriendPanel({ toggle, panel, social, onRelationshipChange 
           const verdict = roomVisit.canVisit(person.userId) ?? { ok: false };
           if (!verdict.ok) { visit.disabled = true; visit.title = roomVisit.reasonText?.(verdict.reason) ?? ""; }
           visit.addEventListener("click", async () => {
+            const generation = lifecycle;
             visit.disabled = true;
             const result = await roomVisit.onVisit(person.userId, person.nickname ?? null);
+            if (!open || generation !== lifecycle) return;
             if (result?.ok) { setOpen(false); return; }
             hint = roomVisit.reasonText?.(result?.reason) ?? "";
             if (open) render();

@@ -130,6 +130,25 @@ try {
     const found = await page.evaluate(() => window.InhaHubAccountClient.auth.getUser().then(x => x.data.user?.id));
     assert.equal(found, account.id);
   }
+  async function signOutCurrentAccount(page) {
+    // Hub bootstrap is asynchronous: a hidden button is not proof of sign-out.
+    await page.goto(`${origin}/#account`, { waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(() => !!window.InhaHubAccountClient);
+    const id = await page.evaluate(() => window.InhaHubAccountClient.auth.getUser().then(x => {
+      if (x.error && x.error.name !== 'AuthSessionMissingError') throw Error('Hub auth read failed');
+      return x.data.user?.id || null;
+    }));
+    if (id) {
+      await page.locator('#hub-sign-out').waitFor({ state: 'visible' });
+      await page.locator('#hub-sign-out').click();
+    }
+    await page.locator('[data-auth-mode="login"]').waitFor({ state: 'visible' });
+    const after = await page.evaluate(() => window.InhaHubAccountClient.auth.getUser().then(x => {
+      if (x.error && x.error.name !== 'AuthSessionMissingError') throw Error('Hub auth read failed');
+      return x.data.user?.id || null;
+    }));
+    assert.equal(after, null, 'account switch must complete logout before the next login');
+  }
   const withPage = async action => { const c = await pageCase(); try { await action(c); } finally { await c.close(); } };
 
   await scenario('AUTH-01', 'wrong password and retry', () => withPage(async ({ page }) => {
@@ -153,6 +172,11 @@ try {
 
   await scenario('AUTH-03', 'signed-out profile back navigation and real BFCache', () => withPage(async ({ page, context }) => {
     const cdp = await context.newCDPSession(page); await cdp.send('Page.enable');
+    report.bfcache = { restored: false, notRestoredReasons: [] };
+    cdp.on('Page.backForwardCacheNotUsed', event => {
+      report.bfcache.notRestoredReasons = (event.notRestoredExplanations || [])
+        .map(({ type, reason }) => ({ type, reason }));
+    });
     await login(page, A);
     await page.goto(`${origin}/profile/`);
     await page.locator('#profile-content').waitFor({ state: 'visible' });
@@ -168,6 +192,7 @@ try {
     await page.waitForURL('**/profile/');
     await sleep(350);
     const restores = await page.evaluate(() => window.__authQAPageshow);
+    report.bfcache.restored = restores.includes(true);
     assert.ok(restores.includes(true), 'BFCache was not restored');
     assert.equal(await page.locator('#profile-content').isVisible(), false, 'stale profile shown after logout');
     assert.equal(await page.locator('#profile-edit').isVisible(), false);
@@ -248,15 +273,11 @@ try {
 
   await scenario('AUTH-08', 'A-B-A browser switching does not expose other profile', () => withPage(async ({ page }) => {
     for (const account of [A, B, A]) {
-      if (await page.locator('#hub-sign-out').isVisible()) {
-        await page.locator('#hub-sign-out').click();
-        await page.getByText('회원가입하거나 기존 계정으로 로그인하세요.').waitFor();
-      }
+      await signOutCurrentAccount(page);
       await login(page, account);
       await page.goto(`${origin}/profile/`);
       await page.locator('#profile-content').waitFor({ state: 'visible' });
       assert.equal(await page.locator('#profile-nickname').textContent(), account.nickname);
-      await page.goto(`${origin}/#account`);
     }
   }));
 
