@@ -125,7 +125,7 @@ test("production identity callback passes explicit identity even when online.use
   const body = source.match(/online\.onIdentity\(\(identity\) => \{([\s\S]*?)\n  \}\);\n  online\.chat\.feed/)?.[1];
   assert.ok(body);
   const context = createContext({ online, photoMode: { close: noop }, guestbookPanel, syncBiryongAccount: noop, progression: client,
-    biryongRelationships: client, shop: client, wallet: client, inventory: client, collectionBook: { setAccount: id => collectionAccounts.push(id) }, dailyQuiz: client,
+    biryongRelationships: client, shop: client, wallet: client, jeongseok: client, jeongseokInterior: client, inventory: client, collectionBook: { setAccount: id => collectionAccounts.push(id) }, dailyQuiz: client,
     attendance: client, lifeSkillBook: client, fishing: client, loadout: client, inkyungSideEvent: { setScope: noop }, duckCompanion: { refresh: noop, reset: noop },
     lastPersonalRoomUserId: null, roomSession: { stop: noop }, roomFurniture: { reset: noop },
     roomPhotoStory: { reset: () => storyResets.push(true) },
@@ -133,7 +133,7 @@ test("production identity callback passes explicit identity even when online.use
     trophyDisplayPanel: { close: noop }, trophyDisplay: { reset: () => trophyResets.push(true) },
     rooms: { currentSpace: "CAMPUS" }, personalRoom: { reset: noop }, npcAiSignedIn: false,
     mcmEvent: { setSignedIn: noop }, mcmEventPreviewMode: false, npcTest: { setAiSignedIn: noop },
-    profile: { setIdentity: noop }, smartphone: { setAccount: noop }, lobbyPlayerSummary: { render: noop }, chatPanel: { refreshAvailability: noop },
+    profile: { setIdentity: noop }, commissionTrials: { close: noop }, smartphone: { setAccount: noop }, lobbyPlayerSummary: { render: noop }, chatPanel: { refreshAvailability: noop },
     friendPanel: { setAvailable: noop }, nearbyPanel: { render: noop, setOpen: noop },
     accompany: { refresh: noop, reset: noop }, social: { mine: async () => ({ friends: [] }), reset: noop },
     socialAccountSession: { setAccount: noop }, lobbyPresenceSummary: { setFriends: noop, update: noop },

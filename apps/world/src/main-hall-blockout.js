@@ -6,6 +6,7 @@ import { MAIN_HALL_APPROACH } from './roadview-layout.js';
 import { FacilityMeshBatch } from './facility-mesh-batch.js';
 import { fillPhotoMainHallFacade,fillPhotoLibraryFront,fillPhotoLibraryRoof } from './photo-hall-library-geometry.js';
 import { fillMainHallCandidate } from './main-hall-candidate-geometry.js';
+import { fillJeongseokEntry } from './jeongseok-entry-geometry.js';
 
 // Photo-based simplified facade. Heights and details are estimates; body footprints are source geometry.
 export function buildMainHallBlockout(root,ids,tier='BASE',{mainHallDetail='existing'}={}) {
@@ -81,9 +82,10 @@ export function buildMainHallBlockout(root,ids,tier='BASE',{mainHallDetail='exis
   if(tier==='BASE'||tier==='DETAIL')buildLibraryWest(root,tier);
   const libraryDetails=new FacilityMeshBatch();
   fillPhotoLibraryFront(libraryDetails,tier);
+  fillJeongseokEntry(libraryDetails,tier);
   for(const part of LIBRARY_ROOF_PARTS){
     if(tier==='BASE'&&part.id==='library_upper_pavilion')polygon(root,part.id,part.vertices,glass,{height:part.height,y:part.y-part.height/2});
     else fillPhotoLibraryRoof(libraryDetails,part,tier);
   }
-  if(tier==='BASE'||tier==='DETAIL')libraryDetails.finish(root,'library_photo_'+tier.toLowerCase());
+  if(['BASE','NEAR','DETAIL'].includes(tier))libraryDetails.finish(root,'library_photo_'+tier.toLowerCase());
 }

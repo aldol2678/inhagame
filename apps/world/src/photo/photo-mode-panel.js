@@ -57,7 +57,8 @@ export function createPhotoModePanel({ mode, rig, input, doc = globalThis.docume
   settingsToggle.setAttribute('aria-expanded', 'false'); settingsToggle.setAttribute('aria-controls', 'photo-mode-settings');
   const close = button('photo-mode-icon', 'close', '✕', '사진 모드 나가기 (Esc)');
   close.setAttribute('aria-keyshortcuts', 'Escape');
-  const topActions = el('div', 'photo-mode-top-actions'); topActions.append(uiToggle, settingsToggle, close);
+  const cancelCapture = button('photo-mode-cancel', 'cancel-capture', '촬영 취소', 'PNG 생성 취소'); cancelCapture.hidden = true;
+  const topActions = el('div', 'photo-mode-top-actions'); topActions.append(cancelCapture, uiToggle, settingsToggle, close);
   top.append(badge, topActions);
 
   // CAMERA settings: secondary, collapsed by default, never over the centre of the frame.
@@ -108,13 +109,13 @@ export function createPhotoModePanel({ mode, rig, input, doc = globalThis.docume
   input?.bindHoldButton(down, -1);
 
   let savedHud, savedFocus = null, destroyed = false, session = 0, busy = false, imageUrl = null, statusTimer = null;
-  let albumUrl = null, albumRecord = null, previewEpoch = 0;
+  let albumUrl = null, albumRecord = null, previewEpoch = 0, capturePhase = null;
   const initialStatus = () => !capture ? '기기의 화면 캡처로 남겨 보세요 · Esc로 나가기'
     : coarsePointer() ? '촬영 버튼을 누르면 HUD 없는 PNG를 저장해요' : '촬영 버튼이나 Space로 HUD 없는 PNG를 저장해요';
   const visible = node => !node.hidden && !node.disabled && (node.getClientRects ? node.getClientRects().length > 0 : true);
   function controls() {
     if (root.dataset.ui === 'hidden') return [restore];
-    return [uiToggle, settingsToggle, close, ...(settings.hidden ? [] : [fov, precision, collision, gridSelect, reset]),
+    return [cancelCapture, uiToggle, settingsToggle, close, ...(settings.hidden ? [] : [fov, precision, collision, gridSelect, reset]),
       up, down, pose, shutter, preview].filter(visible);
   }
   function say(text, { sticky = false } = {}) {
@@ -127,7 +128,18 @@ export function createPhotoModePanel({ mode, rig, input, doc = globalThis.docume
     // aria-disabled keeps keyboard focus on the shutter while a frame encodes.
     shutter.setAttribute('aria-disabled', String(value || !capture));
     root.setAttribute('aria-busy', String(value));
+    if (!value) { capturePhase = null; cancelCapture.hidden = true; root.dataset.captureStage = 'idle'; }
   }
+  function captureProgress(value) {
+    if (!busy || capturePhase !== 'png' || value?.state !== 'pending') return;
+    const encoding = value.stage === 'encoding';
+    root.dataset.captureStage = encoding ? 'encoding' : 'preparing';
+    const text = encoding ? 'PNG 생성 중…' : '사진 준비 중…';
+    say(value.elapsedMs >= value.softLimitMs
+      ? `${text} 조금 오래 걸리고 있어요. 기다리거나 취소할 수 있어요 · PNG 생성은 최대 30초`
+      : `${text} PNG 생성은 최대 30초 · 촬영 취소 가능`, { sticky: true });
+  }
+  const offCaptureProgress = capture?.subscribe?.(captureProgress);
   function hidePreview() {
     imageBox.hidden = true; preview.setAttribute('aria-expanded', 'false');
   }
@@ -195,10 +207,12 @@ export function createPhotoModePanel({ mode, rig, input, doc = globalThis.docume
     if (!capture || busy || destroyed || !mode.update()) return;
     const current = session;
     let context = {}; try { context = getCaptureContext(); } catch { /* Location metadata is optional; PNG capture remains available. */ }
-    clearImage(); setBusy(true); say('HUD 없는 PNG를 만들고 있어요…', { sticky: true });
+    clearImage(); setBusy(true); capturePhase = 'png'; cancelCapture.hidden = false; root.dataset.captureStage = 'preparing';
+    say('사진 준비 중… PNG 생성은 최대 30초 · 촬영 취소 가능', { sticky: true });
     try {
       const result = await capture.request();
       if (destroyed || current !== session || !mode.update()) return;
+      capturePhase = 'download'; cancelCapture.hidden = true; root.dataset.captureStage = 'download';
       flashShutter();
       imageUrl = urlApi.createObjectURL(result.blob); image.src = imageUrl; thumb.src = imageUrl; preview.hidden = false;
       const link = el('a', '');
@@ -215,6 +229,8 @@ export function createPhotoModePanel({ mode, rig, input, doc = globalThis.docume
         } finally { link.remove(); }
       }
       if (onCaptured) {
+        capturePhase = 'album'; root.dataset.captureStage = 'album';
+        say('앨범 저장 중… PNG 생성은 끝났어요. 이미 요청한 다운로드는 취소되지 않아요', { sticky: true });
         const stored = await onCaptured(result, context);
         if (destroyed || current !== session || !mode.active) return;
         if (!stored) say('앨범 저장은 실패했어요. 찍은 사진을 눌러 원본 PNG를 직접 저장해 주세요', { sticky: true });
@@ -222,7 +238,9 @@ export function createPhotoModePanel({ mode, rig, input, doc = globalThis.docume
       }
     } catch (error) {
       if (current === session && !destroyed && mode.active && error?.name !== 'AbortError')
-        say('PNG를 만들지 못했어요. 다시 시도하거나 UI를 숨기고 기기의 화면 캡처를 이용해 주세요', { sticky: true });
+        say(error?.code === 'timeout'
+          ? 'PNG를 만들지 못했어요. PNG 생성 제한 시간(30초)을 넘겼어요. 다시 시도하거나 기기의 화면 캡처를 이용해 주세요'
+          : 'PNG를 만들지 못했어요. 다시 시도하거나 UI를 숨기고 기기의 화면 캡처를 이용해 주세요', { sticky: true });
     } finally { if (current === session && !destroyed) setBusy(false); }
   }
   function escape() {
@@ -245,6 +263,12 @@ export function createPhotoModePanel({ mode, rig, input, doc = globalThis.docume
     precision: active => { precisionBadge.hidden = !active; precision.checked = input.latched; }
   });
 
+  cancelCapture.addEventListener('click', () => {
+    if (!busy || capturePhase !== 'png') return;
+    resetCapture();
+    say('촬영을 취소했어요. 다시 촬영할 수 있어요', { sticky: true });
+    shutter.focus?.({ preventScroll: true });
+  });
   shutter.addEventListener('click', () => { void shoot(); });
   preview.addEventListener('click', () => {
     if (albumRecord && onOpenAlbum) { onOpenAlbum(albumRecord); return; }
@@ -309,10 +333,10 @@ export function createPhotoModePanel({ mode, rig, input, doc = globalThis.docume
   return Object.freeze({ root, setUiHidden, setGrid,
     status() {
       return Object.freeze({ ui: root.dataset.ui, grid: root.dataset.grid, settings: !settings.hidden, busy,
-        preview: !imageBox.hidden, status: status.textContent });
+        preview: !imageBox.hidden, status: status.textContent, capture: capture?.status?.() ?? null });
     },
     destroy() {
-      if (destroyed) return; destroyed = true; mode.close('destroy'); resetCapture(); capture?.destroy(); unsubscribe(); offClosing?.();
+      if (destroyed) return; destroyed = true; mode.close('destroy'); resetCapture(); capture?.destroy(); offCaptureProgress?.(); unsubscribe(); offClosing?.();
       if (statusTimer !== null) clearTimer(statusTimer);
       doc.removeEventListener('visibilitychange', visibility); win?.removeEventListener('pagehide', leave);
       root.removeEventListener('pointerdown', stop); root.remove();

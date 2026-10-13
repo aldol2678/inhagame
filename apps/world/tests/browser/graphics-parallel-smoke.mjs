@@ -158,19 +158,47 @@ async function clockAt(minute) {
 async function renderedSample() {
   return page.evaluate(() => new Promise(resolve => {
     const app = window.__INHAGAME_P0__.app;
+    const minimumDurationMs = 2500, maximumDurationMs = 10000, minimumRenders = 3;
     const intervals = []; let previous = null, updates = 0, renders = 0;
+    let settled = false, minimumTimer, deadlineTimer;
     const start = performance.now();
-    const update = () => { updates++; };
-    const render = () => { const now = performance.now(); renders++;
-      if (previous !== null) intervals.push(now - previous); previous = now; };
-    app.on('update', update); app.on('postrender', render);
-    setTimeout(() => { app.off('update', update); app.off('postrender', render);
+    const finish = endReason => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(minimumTimer); clearTimeout(deadlineTimer);
+      app.off('update', update); app.off('postrender', render);
       const elapsedMs = performance.now() - start;
       const sorted = [...intervals].sort((a,b) => a-b);
-      resolve({ updates, renders, elapsedMs, renderedFps: renders * 1000 / elapsedMs,
+      resolve({ updates, renders, elapsedMs, renderedFps: renders * 1000 / elapsedMs, endReason,
+        minimumDurationMs, maximumDurationMs, minimumRenders,
         intervals, p50Ms: sorted[Math.floor(sorted.length * .5)] ?? null,
         p95Ms: sorted[Math.min(sorted.length-1, Math.ceil(sorted.length * .95)-1)] ?? null });
-    }, 2500);
+    };
+    const maybeFinish = () => {
+      const elapsedMs = performance.now() - start;
+      if (elapsedMs >= maximumDurationMs) finish('deadline');
+      else if (elapsedMs >= minimumDurationMs && renders >= minimumRenders) finish('sample-complete');
+    };
+    const update = () => {
+      if (settled) return;
+      if (performance.now() - start >= maximumDurationMs) { finish('deadline'); return; }
+      updates++;
+    };
+    const render = () => {
+      if (settled) return;
+      const now = performance.now();
+      // A delayed deadline callback must not admit frames outside the bounded sample.
+      if (now - start >= maximumDurationMs) { finish('deadline'); return; }
+      renders++;
+      if (previous !== null) intervals.push(now - previous);
+      previous = now;
+      maybeFinish();
+    };
+    app.on('update', update); app.on('postrender', render);
+    // Keep the original observation window on normal runners, but let slow software
+    // renderers supply three real frames before the explicit, non-retrying deadline.
+    minimumTimer = setTimeout(maybeFinish, minimumDurationMs);
+    deadlineTimer = setTimeout(() => finish('deadline'), maximumDurationMs);
   }));
 }
 try {
@@ -197,6 +225,47 @@ try {
   assert.ok(['WebGPU', 'WebGL2'].includes(receipt.renderer));
   await openSettings();
   const initialView = await page.locator('#view-distance').inputValue();
+  // P0 five-tier readback uses the production settings UI, live renderer and scene.
+  // The LOW/MEDIUM/HIGH baseline values and separate view-distance policy must remain stable.
+  const expectedTiers = [
+    ['very_low', '최저', .65, false, 512],
+    ['low', '낮음', .8, false, 512],
+    ['medium', '보통', 1.25, true, 1024],
+    ['high', '높음', 2, true, 2048],
+    ['ultra', '울트라', 2, true, 3072]
+  ];
+  const fiveTierReadings = {};
+  for (const [tier, label, ratio, castShadows, shadowResolution] of expectedTiers) {
+    await page.locator('#graphics-quality').selectOption(tier);
+    await page.waitForFunction(value => window.__INHAGAME_P0__.getStatus().graphics.tier === value,
+      tier, { timeout: TIMEOUT_MS });
+    const sample = await page.evaluate(() => {
+      const d=window.__INHAGAME_P0__,g=d.getStatus().graphics;
+      return { preference:g.preference, tier:g.tier, maxPixelRatio:g.maxPixelRatio,
+        castShadows:g.castShadows, shadowResolution:g.shadowResolution,
+        renderScale:g.renderScale, viewDistance:d.viewSettings.current.id,
+        canvasWidth:document.getElementById('application').width,
+        detailEnter:d.streaming.policy.detailEnter,
+        label:document.getElementById('graphics-quality-hint').textContent };
+    });
+    assert.equal(sample.preference,tier,'selected preference');
+    assert.equal(sample.tier,tier,'effective tier');
+    assert.equal(sample.maxPixelRatio,ratio,'pixel ratio cap');
+    assert.equal(sample.castShadows,castShadows,'shadows enabled');
+    assert.equal(sample.shadowResolution,shadowResolution,'shadow map resolution');
+    assert.equal(sample.renderScale,'auto','manual detail overrides remain unchanged');
+    assert.equal(sample.viewDistance,initialView,'view distance remains independent');
+    assert.equal(sample.label,`${label} 품질을 사용 중입니다.`,'Korean UI hint');
+    fiveTierReadings[tier]=sample;
+  }
+  assert.ok(fiveTierReadings.very_low.canvasWidth < fiveTierReadings.low.canvasWidth,
+    'VERY LOW produces fewer physical canvas pixels than LOW');
+  assert.ok(fiveTierReadings.low.canvasWidth < fiveTierReadings.medium.canvasWidth,
+    'LOW produces fewer physical canvas pixels than MEDIUM');
+  assert.ok(fiveTierReadings.very_low.detailEnter < fiveTierReadings.low.detailEnter);
+  assert.ok(fiveTierReadings.high.detailEnter < fiveTierReadings.ultra.detailEnter);
+  receipt.checks.fiveTiers = { settings:fiveTierReadings };
+  await shot('graphics-five-tier-ultra');
   await page.locator('#graphics-quality').selectOption('high');
   await page.locator('#graphics-render-scale').selectOption('0.7');
   await page.locator('#graphics-shadows').selectOption('off');
@@ -221,14 +290,19 @@ try {
   await page.locator('#close-settings').click();
   await verifyMovementRestored('after-detail-controls');
   const pacing = await renderedSample();
+  receipt.checks.framePacing = pacing;
   assert.ok(pacing.renders > 2, 'need actual rendered frames');
   assert.ok(pacing.updates >= pacing.renders, 'pacing must not stop simulation updates');
   assert.ok(pacing.renderedFps <= 34, '30 FPS ceiling with scheduling tolerance');
-  receipt.checks.framePacing = pacing;
 
-  // Test actual persisted UI details, then clear only this disposable context's graphics settings.
+  // Prove a newly added manual tier persists through a full application reload.
+  assert.equal(await page.evaluate(() => window.__INHAGAME_P0__.graphics.setPreference('ultra')), true);
   await page.reload({ waitUntil: 'domcontentloaded', timeout: TIMEOUT_MS });
   await wait(() => window.__INHAGAME_P0__?.getStatus?.().loading?.finished);
+  assert.equal((await graphics()).preference, 'ultra', 'new ULTRA preference survives reload');
+  assert.equal((await graphics()).tier, 'ultra');
+  assert.equal(await page.locator('#graphics-quality').inputValue(), 'ultra');
+  receipt.checks.fiveTiers.persistedUltra = true;
   assert.equal((await graphics()).frameLimit, 30); assert.equal((await graphics()).renderScale, 1);
   assert.equal((await graphics()).showFps, true);
   await openSettings(); await page.locator('#graphics-reset').click();

@@ -2,6 +2,8 @@ name: Room transition recovery browser QA
 on:
   pull_request:
     paths:
+      - '.github/ci/phone-surface-scope*.mjs'
+      - '.github/ci/seo-only-scope*.mjs'
       - 'apps/world/src/rooms/room-transition.js'
       - 'apps/world/src/rooms/room-world-adapter.js'
       - 'apps/world/src/rooms/space-fade.js'
@@ -24,21 +26,34 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
+          fetch-depth: 128
+      - name: Select affected browser suite (fail-closed)
+        id: phone_scope
+        env:
+          CI_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CI_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          CI_PR_TITLE: ${{ github.event.pull_request.title }}
+        run: node .github/ci/phone-surface-scope.mjs >> "$GITHUB_OUTPUT"
       - uses: actions/setup-node@v4
+        if: steps.phone_scope.outputs.skip != 'true'
         with:
           node-version: '24.19.0'
       - name: Install Korean glyph coverage for readable error screenshots
+        if: steps.phone_scope.outputs.skip != 'true'
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends fonts-noto-cjk
           fc-match 'Noto Sans CJK KR'
           dpkg-query -W fonts-noto-cjk
       - name: Install existing pinned browser dependencies
+        if: steps.phone_scope.outputs.skip != 'true'
         working-directory: apps/world/tests/browser
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Verify recovery, ownership and latest loading contracts
+        if: steps.phone_scope.outputs.skip != 'true'
         run: node --test apps/world/tests/room-transition-*.test.mjs apps/world/tests/space-fade.test.mjs apps/world/tests/club-room.test.mjs apps/world/tests/personal-room.test.mjs apps/world/tests/room-session.test.mjs apps/world/tests/world-loading-render.test.mjs
       - name: Render real-module offline failure and retry flows
+        if: steps.phone_scope.outputs.skip != 'true'
         env:
           WORLD_SMOKE_DISABLE_WEBGPU: '1'
           WORLD_SMOKE_BROWSER: chrome
@@ -46,7 +61,7 @@ jobs:
           EXPECTED_ROOM_HEAD: ${{ github.event.pull_request.head.sha }}
         run: timeout --signal=TERM --kill-after=10s 540s node apps/world/tests/browser/room-transition-recovery-smoke.mjs
       - name: Save exact-head browser evidence
-        if: always()
+        if: always() && steps.phone_scope.outputs.skip != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: room-transition-recovery-browser-evidence

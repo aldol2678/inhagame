@@ -9,3 +9,6 @@ npm run build:artifact --prefix tests/recast-runtime
 npm ci --prefix ../../tools/world-assets --ignore-scripts --no-audit --no-fund
 node ../../tools/world-assets/optimize-world-assets.mjs --strict
 node assets/check_characters.mjs
+
+# Bind the in-game diagnostic report to this deployed source build (no runtime request).
+node scripts/write-runtime-build-id.mjs

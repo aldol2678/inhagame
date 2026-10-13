@@ -2,6 +2,8 @@ name: Biryong map and NPC guidance browser QA
 on:
   pull_request:
     paths:
+      - '.github/ci/phone-surface-scope*.mjs'
+      - '.github/ci/seo-only-scope*.mjs'
       - 'apps/world/src/biryong/**'
       - 'apps/world/src/lobby/**'
       - 'apps/world/src/minimap/**'
@@ -36,19 +38,31 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
+          fetch-depth: 128
+      - name: Select affected browser suite (fail-closed)
+        id: phone_scope
+        env:
+          CI_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CI_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          CI_PR_TITLE: ${{ github.event.pull_request.title }}
+        run: node .github/ci/phone-surface-scope.mjs >> "$GITHUB_OUTPUT"
       - uses: actions/setup-node@v4
+        if: steps.phone_scope.outputs.skip != 'true'
         with:
           node-version: '24.19.0'
       - name: Install existing pinned offline browser dependencies
+        if: steps.phone_scope.outputs.skip != 'true'
         working-directory: apps/world/tests/browser
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Ensure readable Korean screenshot glyphs
+        if: steps.phone_scope.outputs.skip != 'true'
         run: |
           mkdir -p test-results/biryong-map-guidance
           sudo apt-get update -qq
           sudo apt-get install -y fonts-noto-cjk
           fc-match 'sans-serif:lang=ko' > test-results/biryong-map-guidance/korean-font.txt
       - name: Verify Biryong and preserved Campus contracts
+        if: steps.phone_scope.outputs.skip != 'true'
         run: >-
           node --test apps/world/tests/biryong-*.test.mjs
           apps/world/tests/full-map*.test.mjs apps/world/tests/mobile-full-map-portrait.test.mjs
@@ -56,8 +70,10 @@ jobs:
           apps/world/tests/world-loading-render.test.mjs apps/world/tests/npc-campus-life-diversity.test.mjs
           apps/world/tests/player-touch-ownership.test.mjs apps/world/tests/input-focus-biryong-wiring.test.mjs
       - name: Verify regional camera with the pinned engine (no pixels)
+        if: steps.phone_scope.outputs.skip != 'true'
         run: node apps/world/tests/browser/biryong-camera-null-smoke.mjs
       - name: Render exact-head offline Campus and Biryong at three sizes
+        if: steps.phone_scope.outputs.skip != 'true'
         timeout-minutes: 13
         env:
           WORLD_SMOKE_DISABLE_WEBGPU: '1'
@@ -66,6 +82,7 @@ jobs:
           EXPECTED_BIRYONG_HEAD: ${{ github.event.pull_request.head.sha }}
         run: timeout --signal=TERM --kill-after=10s 740s node apps/world/tests/browser/biryong-map-guidance-smoke.mjs
       - name: Verify regional last-location resume and reload
+        if: steps.phone_scope.outputs.skip != 'true'
         timeout-minutes: 5
         env:
           WORLD_SMOKE_DISABLE_WEBGPU: '1'
@@ -74,7 +91,7 @@ jobs:
           EXPECTED_BIRYONG_HEAD: ${{ github.event.pull_request.head.sha }}
         run: timeout --signal=TERM --kill-after=10s 280s node apps/world/tests/browser/biryong-resume-smoke.mjs
       - name: Preserve exact-head screenshots and receipts for independent pixel review
-        if: always()
+        if: always() && steps.phone_scope.outputs.skip != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: biryong-map-guidance-browser-evidence

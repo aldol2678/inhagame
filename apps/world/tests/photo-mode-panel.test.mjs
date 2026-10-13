@@ -288,3 +288,44 @@ test('HUD entry stays focusable, explains why it is blocked, and opens when allo
   button.click(); assert.equal(opened, 1); assert.equal(button.getAttribute('aria-disabled'), 'false', 'active is not a blocked state');
   for (const code of Object.keys(PHOTO_ENTRY_BLOCK_MESSAGES)) assert.ok(PHOTO_ENTRY_BLOCK_MESSAGES[code].length > 0);
 });
+
+
+test('PNG preparation, encoding and soft warning are indeterminate; explicit cancel drops late success and permits retry', async () => {
+  const jobs = [], observers = new Set();
+  const capture = { request: () => new Promise((resolve, reject) => jobs.push({ resolve, reject })),
+    cancel() {}, destroy() {}, subscribe(fn) { observers.add(fn); return () => observers.delete(fn); } };
+  const h = fixture({ capture }); h.mode.open(); h.control('capture').click();
+  assert.match(h.control('status').textContent, /사진 준비 중.*PNG 생성은 최대 30초/);
+  assert.equal(h.control('cancel-capture').hidden, false);
+  for (const fn of observers) fn({ state: 'pending', stage: 'encoding', elapsedMs: 10_000, softLimitMs: 10_000 });
+  assert.match(h.control('status').textContent, /PNG 생성 중.*조금 오래/);
+  assert.doesNotMatch(h.control('status').textContent, /%/);
+  h.control('cancel-capture').click();
+  assert.equal(h.mode.active, true); assert.equal(h.ui.root.getAttribute('aria-busy'), 'false');
+  assert.equal(h.doc.activeElement, h.control('capture')); assert.equal(h.control('cancel-capture').hidden, true);
+  h.control('capture').click();
+  const result = { blob: new Blob(['image'], { type: 'image/png' }), width: 640, height: 360 };
+  jobs[0].resolve(result); await flush();
+  assert.equal(h.downloads.length, 0); assert.equal(h.ui.status().busy, true);
+  jobs[1].resolve(result); await flush();
+  assert.equal(h.downloads.length, 1); assert.equal(h.ui.status().busy, false);
+  h.ui.destroy(); assert.equal(observers.size, 0);
+});
+
+test('album stage cannot claim PNG cancellation or a 30-second album deadline; failed album preserves original', async () => {
+  let finishAlbum;
+  const capture = deferredCapture(), h = fixture({ capture,
+    onCaptured: () => new Promise(resolve => { finishAlbum = resolve; }) });
+  h.mode.open(); h.control('capture').click(); capture.resolve(); await flush();
+  assert.equal(h.downloads.length, 1);
+  assert.equal(h.ui.root.dataset.captureStage, 'album');
+  assert.match(h.control('status').textContent, /앨범 저장 중.*이미 요청한 다운로드는 취소되지/);
+  assert.doesNotMatch(h.control('status').textContent, /최대 30초/);
+  assert.equal(h.control('cancel-capture').hidden, true);
+  const before = capture.cancelled; h.control('cancel-capture').click();
+  assert.equal(capture.cancelled, before, 'even synthetic clicks cannot cancel album work');
+  finishAlbum(null); await flush();
+  assert.match(h.control('status').textContent, /앨범 저장은 실패/);
+  assert.equal(h.control('preview').hidden, false); assert.equal(h.ui.status().busy, false);
+  h.ui.destroy(); assert.deepEqual(h.revoked, h.urls.map(x => x.url));
+});

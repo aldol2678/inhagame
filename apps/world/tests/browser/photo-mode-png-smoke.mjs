@@ -86,7 +86,8 @@ try {
     assert.equal(decoded.visible, width * height); assert.ok(decoded.colors > 3, 'actual rendered scene has varied pixels');
     assert.equal(await page.evaluate(() => window.__PNG_QA__.encoded), count + 1);
     assert.match(await page.locator('[data-photo-control="status"]').textContent(), /다운로드.*요청/);
-    report.downloads.push({ filename, bytes: bytes.length, width, height, sha256: createHash('sha256').update(bytes).digest('hex'), rgbaSha256: decoded.hash, colors: decoded.colors });
+    const captureDiagnostic = await page.evaluate(() => window.__PHOTO_QA__.panel.status().capture);
+    report.downloads.push({ captureDiagnostic, filename, bytes: bytes.length, width, height, sha256: createHash('sha256').update(bytes).digest('hex'), rgbaSha256: decoded.hash, colors: decoded.colors });
     await page.locator('[data-photo-control="preview"]').click();
     assert.equal(await page.locator('[data-photo-control="image"]').isVisible(), true);
     for (const selector of ['.photo-mode-shutter', '[data-photo-control="close"]', '.photo-mode-preview']) {
@@ -102,6 +103,32 @@ try {
   assert.equal(await page.evaluate(() => window.__PNG_QA__.urls.size), 0);
   await page.evaluate(() => { window.__PNG_QA__.fail = false; });
   report.checks.push('null encoding surfaces retry/screenshot fallback and drops prior image URL');
+  // Hold only the completed native callback to inspect the pending production UI deterministically.
+  for (const [width, height] of [[1280, 720], [360, 800], [844, 390]]) {
+    await page.setViewportSize({ width, height });
+    await page.evaluate(() => { window.__PNG_QA__.hold = true; });
+    await page.locator('[data-photo-control="capture"]').click();
+    await page.waitForFunction(() => window.__PNG_QA__.callbacks.length === 1);
+    const cancel = page.locator('[data-photo-control="cancel-capture"]');
+    assert.equal(await cancel.isVisible(), true);
+    assert.equal(await page.locator('.photo-mode').getAttribute('aria-busy'), 'true');
+    const text = await page.locator('[data-photo-control="status"]').innerText();
+    assert.match(text, /PNG 생성 중/); assert.doesNotMatch(text, /%/);
+    for (const selector of ['[data-photo-control="cancel-capture"]', '[data-photo-control="status"]']) {
+      const box = await page.locator(selector).boundingBox();
+      assert.ok(box && box.x >= 0 && box.y >= 0 && box.x + box.width <= width + 1 && box.y + box.height <= height + 1);
+    }
+    const screenshot = `pending-${backend}-${width}x${height}.png`;
+    await page.screenshot({ path: `${output}/${screenshot}` }); report.screenshots.push(screenshot);
+    const before = downloadEvents;
+    await cancel.click();
+    assert.equal(await page.evaluate(() => window.__PHOTO_QA__.mode.active), true);
+    assert.equal(await page.locator('.photo-mode').getAttribute('aria-busy'), 'false');
+    await page.evaluate(() => { window.__PNG_QA__.hold = false; window.__PNG_QA__.callbacks.splice(0).forEach(fn => fn()); });
+    assert.equal(downloadEvents, before, 'cancelled callback cannot download');
+    assert.equal(await cancel.isVisible(), false);
+  }
+  report.checks.push('indeterminate PNG progress and cancel fit all three viewports; cancel keeps camera open and discards late native callbacks');
   for (const reason of ['escape', 'account', 'pagehide', 'takeover']) {
     await page.evaluate(() => { window.__PNG_QA__.hold = true; });
     await page.locator('[data-photo-control="capture"]').click();

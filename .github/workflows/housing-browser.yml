@@ -4,6 +4,9 @@ on:
     paths:
       - 'apps/world/src/phone/smartphone.js'
       - 'apps/world/src/rooms/**'
+      - 'apps/world/src/commissions/**'
+      - 'apps/world/tests/sample-room-trial*.test.mjs'
+      - 'apps/world/tests/browser/sample-room-trial-*'
       - 'apps/world/src/collection/item-catalog.js'
       - 'apps/world/tests/furniture-*.test.mjs'
       - 'apps/world/tests/personal-room*.test.mjs'
@@ -54,6 +57,23 @@ jobs:
           node apps/world/tests/browser/personal-room-environment-null-smoke.mjs
           node apps/world/tests/browser/personal-room-chair-container-null-smoke.mjs
           node apps/world/tests/browser/housing-sofa-glb-null.mjs
+      - name: Verify ephemeral sample-room trial and actual room renderer
+        if: ${{ !cancelled() }}
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          SAMPLE_ROOM_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          node --test apps/world/tests/sample-room-trial*.test.mjs
+          node apps/world/tests/browser/sample-room-trial-null.mjs
+          node apps/world/tests/browser/sample-room-trial-smoke.mjs
+      - name: Save sample-room trial evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sample-room-trial-${{ github.event.pull_request.head.sha }}
+          path: test-results/sample-room-trial/
+          if-no-files-found: warn
+          retention-days: 7
       - name: Exercise room loaded assets and intentional loader fallback
         env:
           WORLD_SMOKE_DISABLE_WEBGPU: '1'
