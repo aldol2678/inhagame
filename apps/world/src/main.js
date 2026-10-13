@@ -10,7 +10,8 @@ import { createCampusKickboard } from "./mounts/campus-kickboard-render.js";
 import * as pc from "playcanvas";
 import { PlayerController } from "./player-controller.js";
 import { OrbitCameraController } from "./orbit-camera-controller.js";
-import { PlaceZoneRegistry } from './place-zone-registry.js';
+import { installRuntimeDiagnostics } from './diagnostics/runtime-diagnostics-runtime.js';
+import { PlaceZoneRegistry, PLACE_ZONES } from './place-zone-registry.js';
 import { createWorldAudio } from './audio/world-audio.js';
 import { createPlayerActivityAudio } from './audio/player-activity-audio.js';
 import { bindAudioVolumeSettings } from './audio/audio-volume-settings.js';
@@ -206,7 +207,7 @@ import { createBiryongRealmTransition } from "./biryong/biryong-realm-transition
 import { createBiryongStationTransitInteraction } from "./biryong/biryong-station-transit-interaction.js";
 import { createBiryongMapDataSource } from "./biryong/biryong-map-data.js";
 import { createBiryongNavigation } from "./biryong/biryong-navigation.js";
-import { getBiryongRealmPlaceZone } from "./biryong/biryong-village-layout.js";
+import { getBiryongRealmPlaceZone, BIRYONG_REALM_PLACE_ZONES } from "./biryong/biryong-village-layout.js";
 import { createBiryongVillageNpcRuntime } from "./biryong/biryong-village-npc-runtime.js";
 import { createBiryongVillageDialogueRuntime } from "./biryong/biryong-village-dialogue-runtime.js";
 import { createBiryongRelationshipClient } from "./biryong/biryong-village-relationship-client.js";
@@ -4411,6 +4412,31 @@ window.__INHAGAME_P0__ = {
     camera: { yaw: orbit.yaw, pitch: orbit.pitch, distance: orbit.distance, firstPerson: orbit.firstPerson, zoomLimits: orbit.zoomLimits }
   })
 };
+
+// Player-facing runtime diagnostics use narrow existing readers, never getStatus()/online.status().
+// Installed after boot so the separate boot-recovery system keeps its existing ownership.
+const runtimeDiagnostics = installRuntimeDiagnostics({
+  app, device, online, inputFocus,
+  opener: document.getElementById("open-runtime-diagnostics"),
+  publicZoneIds: [...PLACE_ZONES, ...BIRYONG_REALM_PLACE_ZONES].map(zone => zone.id),
+  readState: () => ({
+    renderer: rendererName,
+    quality: graphics.tier,
+    qualityPreference: graphics.preference,
+    worldId: rooms.insideRoom ? "INTERIOR" : biryongRealm?.inBiryong ? "BIRYONG"
+      : editorWorldStatus?.state?.startsWith("ready") ? "EDITOR" : lobbyWorld.active ? "LOBBY" : "CAMPUS",
+    zoneId: rooms.insideRoom ? null : (biryongRealm?.inBiryong
+      ? getBiryongRealmPlaceZone(player.getLocalPosition()) : places.getCurrentPlaceZone())?.id ?? null,
+    network: navigator.onLine === false ? "OFFLINE" : online?.network?.state ?? "OFFLINE"
+  }),
+  beforeOpen: () => {
+    viewSettings.setOpen(false, { focus: false });
+    hudMenu.setOpen(false, { focus: false });
+    lobbyMenu.setOpen(false, { focus: false });
+  },
+  returnFocus: () => document.getElementById(lobbyWorld.active ? "lobby-menu-toggle" : "hud-menu-toggle")
+});
+window.__INHA_WORLD_RUNTIME_DIAGNOSTICS__ = Object.freeze({ status: runtimeDiagnostics.status });
 
 }
 
