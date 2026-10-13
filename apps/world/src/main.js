@@ -188,6 +188,7 @@ import { createFishingPanel } from "./activity/fishing-panel.js";
 import { createFishingRenderer } from "./activity/fishing-renderer.js";
 import { fishingContextAction, findNearbyFishingSpot } from "./activity/fishing-spots.js";
 import { createInkyungWaterPathInteraction, INKYUNG_WATER_PATH_OWNER_ID } from "./minigames/world/inkyung-water-path-interaction.js";
+import { createWaterPathSfx } from "./minigames/world/water-path-sfx.js";
 import { createLoadoutClient } from "./appearance/loadout-client.js";
 import { createEquipmentProjection } from "./appearance/equipment-projection.js";
 import { createEquipmentModelLoader } from "./appearance/equipment-asset-loader.js";
@@ -1788,8 +1789,11 @@ fishingPanel = createFishingPanel({
 const waterPathInput = createInputFocusOwner({
   manager: inputFocus, ownerId: INKYUNG_WATER_PATH_OWNER_ID, policy: INPUT_FOCUS_POLICY.BLOCKING_UI
 });
+// worldAudio is created later in this module; the lazy hop keeps the cue silent until it exists and is unlocked.
+const waterPathSfx = createWaterPathSfx({ audio: { playCue: render => worldAudio?.playCue(render) ?? false } });
 const inkyungWaterPath = createInkyungWaterPathInteraction({
   focus: waterPathInput,
+  playCue: name => waterPathSfx.play(name),
   subscribeFocus: listener => inputFocus.subscribe(listener),
   pauseAutoMove: () => { if (playerAutoMove?.active) playerAutoMove.pause(AUTO_MOVE_CANCEL_REASON.INTERACTION); },
   onStatus: message => showWorldStatus(message),

@@ -10,11 +10,21 @@ const PIPE_CSS = `
 .water-path-t0{display:grid;gap:12px;justify-items:center}
 .water-path-t0 [role=status]{margin:0;font-size:14px;font-weight:800;text-align:center;color:#cfeaf7;transition:color .2s}
 .water-path-t0[data-state=CLEARED] [role=status]{color:#9ff0d6}
-.wp-board{padding:10px;border-radius:18px;width:100%;box-sizing:border-box;
+.wp-board{position:relative;overflow:hidden;padding:10px;border-radius:18px;width:100%;box-sizing:border-box;
   background:radial-gradient(circle at 30% 20%,#14566f,#0a2a3c);box-shadow:inset 0 0 0 1px #4a9bb9,0 6px 20px #0006}
+/* Pond surface: two slow ripples drift behind the tiles. */
+.wp-board::before,.wp-board::after{content:'';position:absolute;width:46%;aspect-ratio:1;border-radius:50%;
+  border:2px solid #9be7ff44;pointer-events:none;opacity:0;animation:wp-ripple 6s ease-out infinite}
+.wp-tile{z-index:1}
+.wp-board::before,.wp-board::after{z-index:0}
+.wp-board::before{left:-8%;top:-12%}
+.wp-board::after{right:-10%;bottom:-14%;animation-delay:3s}
+.wp-drop{position:absolute;bottom:6%;width:9px;height:13px;margin-left:-4px;border-radius:50% 50% 50% 50%/62% 62% 38% 38%;
+  background:linear-gradient(#d9f6ff,#49c4ff);box-shadow:0 0 8px #7fe1ffcc;opacity:0;pointer-events:none;z-index:2;
+  animation:wp-rise 1.4s ease-out infinite}
 .wp-board[data-cleared=true]{animation:wp-glow 1.1s ease-in-out infinite alternate}
 .wp-tile{position:relative;aspect-ratio:1;padding:0;border:0;border-radius:12px;overflow:hidden;cursor:pointer;
-  background:linear-gradient(145deg,#1d4f66,#143b4f);box-shadow:inset 0 0 0 1px #2c6a85;
+  background:linear-gradient(145deg,#1d4f66ee,#143b4fee);box-shadow:inset 0 0 0 1px #2c6a85;
   transition:transform .12s,box-shadow .12s}
 .wp-tile:disabled{cursor:default}
 .wp-tile:hover:not(:disabled){transform:translateY(-2px);box-shadow:inset 0 0 0 1px #7fd3f0,0 4px 10px #0007}
@@ -36,6 +46,7 @@ const PIPE_CSS = `
   color:#eef8ff;background:#2a5f78;box-shadow:inset 0 0 0 1px #4a9bb9}
 .wp-btn:hover:not(:disabled){background:#347a99}
 .wp-btn:disabled{opacity:.5;cursor:default}
+.wp-btn[aria-pressed=true]{background:#e9fbff;color:#06324a;box-shadow:inset 0 0 0 2px #49c4ff}
 .wp-btn:focus-visible{outline:3px solid #ffde86;outline-offset:2px}
 .wp-primary{background:linear-gradient(#35b6f0,#1f86c4);color:#04202f}
 @keyframes wp-flow{to{background-position:-220% 0}}
@@ -43,6 +54,8 @@ const PIPE_CSS = `
 @keyframes wp-leak{from{opacity:.55}to{opacity:1}}
 @keyframes wp-glow{from{box-shadow:inset 0 0 0 1px #4a9bb9,0 0 8px #49c4ff55}to{box-shadow:inset 0 0 0 1px #9ff0d6,0 0 24px #9ff0d6aa}}
 @keyframes wp-bob{to{transform:translateY(-3px)}}
+@keyframes wp-ripple{0%{transform:scale(.4);opacity:.9}100%{transform:scale(1.5);opacity:0}}
+@keyframes wp-rise{0%{transform:translateY(0) scale(.6);opacity:0}20%{opacity:1}100%{transform:translateY(-130px) scale(1);opacity:0}}
 /* Font-independent endpoint markers: a spring cap on START, a drain ring on END. */
 .wp-start .wp-hub{left:28%;top:28%;width:44%;height:44%;background:#e9fbff;box-shadow:0 0 0 3px #49c4ff,0 0 14px #49c4ffcc}
 .wp-end .wp-hub{left:28%;top:28%;width:44%;height:44%;background:#0a2a3c;box-shadow:0 0 0 4px #9aa9b3}
@@ -52,6 +65,7 @@ const PIPE_CSS = `
   .water-path-t0{grid-template-columns:auto 1fr;grid-template-areas:'board status' 'board controls';align-items:center;column-gap:16px}
   .water-path-t0>[role=status]{grid-area:status}
   .water-path-t0>.wp-board{grid-area:board;width:auto;max-width:200px!important;padding:8px}
+  .water-path-t0>.wp-board[data-size="4"]{max-width:236px!important}
   .water-path-t0>[role=group]:last-child{grid-area:controls;justify-content:center}
 }
 @media (prefers-reduced-motion:reduce){.water-path-t0 *{animation:none!important;transition:none!important}}
@@ -87,12 +101,16 @@ export const WATER_PATH_EXIT = Object.freeze({
 export function mountWaterPathPanel(container, options = {}) {
   if (!container || typeof container.append !== 'function' ||
       !container.ownerDocument?.createElement) throw new TypeError('Expected a DOM mount container');
-  const {onExit = null, onResult = null, onError = null} = options;
+  const {onExit = null, onResult = null, onError = null, onCue = null, sizes = null} = options;
   if ((onExit && typeof onExit !== 'function') || (onResult && typeof onResult !== 'function') ||
-      (onError && typeof onError !== 'function')) throw new TypeError('Water path callbacks must be functions');
+      (onError && typeof onError !== 'function') || (onCue && typeof onCue !== 'function')) {
+    throw new TypeError('Water path callbacks must be functions');
+  }
+  const choices = Array.isArray(sizes) ? [...new Set(sizes)].filter(n => n === 3 || n === 4) : [];
   const modal = typeof onExit === 'function';
   const doc = container.ownerDocument;
-  const runtime = createPuzzleRuntime(createWaterPathDefinition(options));
+  const makeRuntime = size => createPuzzleRuntime(createWaterPathDefinition({...options, size}));
+  let runtime = makeRuntime(options.size ?? 3);
   const root = doc.createElement('section');
   root.className = 'water-path-t0';
   root.setAttribute('aria-label', '인경호 물길 퍼즐 연습');
@@ -100,6 +118,8 @@ export function mountWaterPathPanel(container, options = {}) {
   const style = doc.createElement('style');
   style.textContent = PIPE_CSS;
   container.append(style);        // after the root: root stays the container's first child
+  // Sound is optional feedback: a failing cue never breaks the puzzle.
+  const cue = name => { try { onCue?.(name); } catch { /* optional feedback */ } };
   let destroyed = false, exiting = false, reportedResult = null, lastFocusKey = null, turned = -1;
 
   function makeButton(text, label, key, action, className = 'wp-btn') {
@@ -134,6 +154,7 @@ export function mountWaterPathPanel(container, options = {}) {
   function focusByKey(key) {
     const list = enabledButtons();
     const target = list.find(button => keyOf(button) === key) ??
+      list.find(button => keyOf(button) === 'ctl-start') ??
       list.find(button => keyOf(button)?.startsWith('tile-')) ?? list[0];
     if (!target) return false;
     target.focus?.();
@@ -162,6 +183,7 @@ export function mountWaterPathPanel(container, options = {}) {
     board.setAttribute('role', 'group');
     board.setAttribute('aria-label', '물길 타일 판');
     board.setAttribute('data-cleared', String(snapshot.status === 'CLEARED'));
+    board.setAttribute('data-size', String(snapshot.state.size));
     board.style.display = 'grid';
     board.style.gridTemplateColumns = 'repeat(' + snapshot.state.size + ', minmax(44px, 1fr))';
     board.style.gap = '6px';
@@ -181,7 +203,10 @@ export function mountWaterPathPanel(container, options = {}) {
         'tile-' + row + '-' + col,
         () => {
           turned = index;
-          runtime.dispatch({type: 'ROTATE_TILE', row, col});
+          const before = waterPathFlow(runtime.snapshot().state).active.size;
+          const after = runtime.dispatch({type: 'ROTATE_TILE', row, col});
+          cue(after.status === 'CLEARED' ? 'clear'
+            : waterPathFlow(after.state).active.size > before ? 'flow' : 'rotate');
           render();
         },
         'wp-tile' + (tile.kind === 'BLOCK' ? ' wp-block' : '') + (tile.kind === 'END' ? ' wp-end' : '') + (tile.kind === 'START' ? ' wp-start' : '') +
@@ -210,6 +235,17 @@ export function mountWaterPathPanel(container, options = {}) {
       button.disabled = snapshot.status !== 'PLAYING' || tile.kind === 'BLOCK';
       board.append(button);
     }
+    if (snapshot.status === 'CLEARED') {
+      // Celebration droplets: fixed positions, pure CSS motion (disabled by prefers-reduced-motion).
+      for (let i = 0; i < 8; i++) {
+        const drop = doc.createElement('span');
+        drop.className = 'wp-drop';
+        drop.setAttribute('aria-hidden', 'true');
+        drop.style.left = (8 + i * 12) + '%';
+        drop.style.animationDelay = (i % 4) * 0.12 + 's';
+        board.append(drop);
+      }
+    }
     turned = -1;
 
     const controls = doc.createElement('div');
@@ -219,10 +255,24 @@ export function mountWaterPathPanel(container, options = {}) {
     controls.style.flexWrap = 'wrap';
     controls.style.gap = '8px';
     if (snapshot.status === 'READY') {
-      controls.append(makeButton('시작', '퍼즐 시작', 'ctl-start', () => {runtime.start(); render();}, 'wp-btn wp-primary'));
+      if (choices.length > 1) {
+        for (const n of choices) {
+          const pick = makeButton(n + '×' + n, n + '×' + n + ' 난이도', 'size-' + n, () => {
+            if (n === snapshot.state.size) return;
+            runtime.destroy();
+            runtime = makeRuntime(n);
+            reportedResult = null;
+            cue('rotate');
+            render();
+          });
+          pick.setAttribute('aria-pressed', String(n === snapshot.state.size));
+          controls.append(pick);
+        }
+      }
+      controls.append(makeButton('시작', '퍼즐 시작', 'ctl-start', () => {runtime.start(); cue('start'); render();}, 'wp-btn wp-primary'));
     }
     if (snapshot.status === 'PLAYING') {
-      const undo = makeButton('되돌리기', '이전 회전 되돌리기', 'ctl-undo', () => {runtime.undo();render();});
+      const undo = makeButton('되돌리기', '이전 회전 되돌리기', 'ctl-undo', () => {runtime.undo();cue('rotate');render();});
       undo.disabled = !snapshot.canUndo;
       controls.append(undo, makeButton('일시정지', '퍼즐 일시정지', 'ctl-pause', () => {runtime.pause();render();}));
     }
@@ -238,6 +288,7 @@ export function mountWaterPathPanel(container, options = {}) {
     }
     controls.append(makeButton('처음부터', '같은 문제 다시 시작', 'ctl-restart', () => {
       runtime.restart();
+      cue('rotate');
       reportedResult = null;
       render();
     }));

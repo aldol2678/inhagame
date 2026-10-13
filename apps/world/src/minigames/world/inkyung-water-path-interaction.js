@@ -80,7 +80,7 @@ export function createInkyungWaterPathInteraction({
   focus, subscribeFocus = null, getContext, pauseAutoMove = null, onStatus = null,
   mountPanel = mountWaterPathPanel, anchor = inkyungWaterPathAnchor(),
   isAnchorWalkable = isInkyungWaterPathAnchorWalkable, enabled = true,
-  seed = INKYUNG_WATER_PATH_SEED, size = 3
+  seed = INKYUNG_WATER_PATH_SEED, size = 3, sizes = [3, 4], playCue = null
 } = {}) {
   if (!doc?.createElement) throw new TypeError('Water path interaction requires a document');
   if (!focus || typeof focus.acquire !== 'function' || typeof focus.release !== 'function') {
@@ -172,7 +172,8 @@ export function createInkyungWaterPathInteraction({
       const current = { shell, panel: null, result: null };
       session = current;
       current.panel = mountPanel(shell.body, {
-        size, seed,
+        size, seed, sizes,
+        onCue: name => { try { playCue?.(name); } catch { /* optional sound */ } },
         onExit: ({ reason: code }) => end(code),
         onResult: ({ status }) => { current.result = status; },
         onError: error => end('ERROR', error)

@@ -139,6 +139,16 @@ for (const [name, viewport, mobile] of cases) {
     assert.equal(held.panel.focusInside, true, 'a click on the dimmed World hands focus back to the dialog');
     ok(`Opened via ${mobile ? 'mobile Context button tap' : 'F key'}; BLOCKING_UI claimed; movement and camera blocked; layout inside viewport`);
 
+    // ---- 2b. 4x4 difficulty fits every viewport with 44px targets, then back to 3x3 ----
+    await page.locator('#water-path-panel [data-focus-key="size-4"]').click();
+    assert.equal(await page.locator('#water-path-panel [data-focus-key^="tile-"]').count(), 16);
+    await layout('4x4');
+    await shot('size4');
+    await page.locator('#water-path-panel [data-focus-key="size-3"]').click();
+    assert.equal(await page.locator('#water-path-panel [data-focus-key^="tile-"]').count(), 9);
+    await page.locator('#water-path-panel [data-focus-key="ctl-start"]').focus();
+    ok('4x4 difficulty selectable before start; layout and 44px targets hold; 3x3 default restored');
+
     // ---- 3. Keyboard play, focus kept across rotations ----
     await page.keyboard.press('Enter');                       // focused 시작
     s = await state();

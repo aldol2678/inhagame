@@ -10,6 +10,7 @@ import {canObserveInkyungDucksFromShore,MECHANICAL_DUCK_CONTEXT_PRIORITY} from '
 import {INKYUNG_DOCK} from '../src/mounts/duck-boat-motion.js';
 import {createWaterPathDefinition,validateWaterPath,waterPathMask} from '../src/minigames/games/water-path.js';
 import {waterPathFlow} from '../src/minigames/games/water-path-view.js';
+import {createWaterPathSfx,WATER_PATH_CUES} from '../src/minigames/world/water-path-sfx.js';
 import {
   createInkyungWaterPathInteraction,inkyungWaterPathAnchor,isInkyungWaterPathAnchorWalkable,
   waterPathBlockReason,WATER_PATH_BLOCK,INKYUNG_WATER_PATH_PRIORITY,INKYUNG_WATER_PATH_RADIUS,
@@ -470,4 +471,110 @@ test('success marks the board cleared for the celebration styling',()=>{
   assert.equal(root.attributes['data-state'],'CLEARED');
   assert.equal(root.children[1].attributes['data-cleared'],'true');
   h.world.close();assertReleased(h);
+});
+
+// ---- Expansion: difficulty, droplets, cues, sound ----
+function fakeAudio({running=true}={}){
+  const log={oscillators:[],connected:0};
+  const context={currentTime:1,createOscillator(){
+    const o={type:'',starts:[],stops:[],frequency:{set:[],ramps:[],setValueAtTime(v,t){o.frequency.set.push([v,t]);},exponentialRampToValueAtTime(v,t){o.frequency.ramps.push([v,t]);}},
+      connect(){log.connected++;},disconnect(){},start(t){o.starts.push(t);},stop(t){o.stops.push(t);}};
+    log.oscillators.push(o);return o;},
+    createGain(){return {gain:{setValueAtTime(){},exponentialRampToValueAtTime(){}},connect(){log.connected++;},disconnect(){}};}};
+  return {log,context,audio:{playCue(render){if(!running)return false;render(context,{});return true;}}};
+}
+test('sound effects synthesise through the shared audio layer and respect lock, budget and failures',()=>{
+  const a=fakeAudio();
+  const sfx=createWaterPathSfx({audio:a.audio});
+  assert.deepEqual([...WATER_PATH_CUES],['start','rotate','flow','clear']);
+  for(const name of WATER_PATH_CUES){
+    const before=a.log.oscillators.length;
+    assert.equal(sfx.play(name),true,name);
+    assert.ok(a.log.oscillators.length>before);
+    for(const o of a.log.oscillators.slice(before)){assert.equal(o.starts.length,1);assert.ok(o.stops[0]>o.starts[0]);}
+    a.log.oscillators.slice(before).forEach(o=>o.onended?.());   // voices finish
+  }
+  assert.equal(sfx.status().voices,0);
+  assert.equal(sfx.play('unknown'),false);
+  // A fully-played budget refuses extra voices instead of piling up.
+  assert.equal(sfx.play('clear'),true);assert.equal(sfx.play('clear'),false,'voice budget');
+  // Locked audio / missing layer / a throwing context never throw.
+  assert.equal(createWaterPathSfx({audio:fakeAudio({running:false}).audio}).play('flow'),false);
+  assert.equal(createWaterPathSfx({}).play('flow'),false);
+  const broken={playCue(render){render({currentTime:0,createOscillator(){throw new Error('no audio');},createGain(){return {};}},{});return true;}};
+  assert.equal(createWaterPathSfx({audio:broken}).play('rotate'),false);
+  const off=createWaterPathSfx({audio:a.audio});off.dispose();assert.equal(off.play('flow'),false);
+});
+test('the view emits start, rotate, flow and clear cues at the right moments and survives a failing sound',()=>{
+  const cues=[];
+  const h=harness({playCue:name=>cues.push(name)});h.world.open();
+  keyed(h.panel(),'ctl-start').click();
+  assert.deepEqual(cues,['start']);
+  // Rotating the START tile changes which neighbours it feeds: every rotation yields flow or rotate, never both silent.
+  keyed(h.panel(),'tile-0-0').click();
+  assert.ok(['rotate','flow'].includes(cues.at(-1)));
+  for(let i=0;i<3;i++)keyed(h.panel(),'tile-0-0').click();
+  keyed(h.panel(),'ctl-restart').click();
+  assert.equal(cues.at(-1),'rotate');
+  keyed(h.panel(),'ctl-start').click();
+  for(const {cell,n} of solveClicks())for(let i=0;i<n;i++)keyed(h.panel(),'tile-'+Math.floor(cell/3)+'-'+(cell%3)).click();
+  assert.equal(cues.filter(c=>c==='clear').length,1,'one fanfare per clear');
+  assert.equal(cues.at(-1),'clear');
+  assert.ok(cues.includes('flow'),'connecting more pipes plays the flow cue');
+  h.world.close();assertReleased(h);
+  const bad=harness({playCue:()=>{throw new Error('sound boom');}});bad.world.open();
+  keyed(bad.panel(),'ctl-start').click();keyed(bad.panel(),'tile-0-0').click();
+  assert.equal(bad.world.active,true,'a failing cue never ends the session');
+  bad.world.close();assertReleased(bad);
+});
+test('difficulty chooser: 3x3 default, 4x4 on request, only before starting, solvable and independent per run',()=>{
+  const h=harness();h.world.open();
+  const tiles=()=>h.panel().querySelectorAll('button').filter(b=>b.getAttribute('data-focus-key').startsWith('tile-'));
+  const board=()=>h.panel().children[1].children[0].children[1];
+  assert.equal(tiles().length,9);
+  assert.equal(keyed(h.panel(),'size-3').attributes['aria-pressed'],'true');
+  assert.equal(keyed(h.panel(),'size-4').attributes['aria-pressed'],'false');
+  assert.equal(h.doc.activeElement?.getAttribute('data-focus-key'),'ctl-start','start still gets the first focus');
+  keyed(h.panel(),'size-4').click();
+  assert.equal(tiles().length,16);assert.equal(board().attributes['data-size'],'4');
+  assert.equal(keyed(h.panel(),'size-4').attributes['aria-pressed'],'true');
+  assert.equal(h.world.status().panel.status,'READY');
+  // Brute-force-free solve: undo path is not needed, search rotations of the 4x4 initial board via the rules.
+  keyed(h.panel(),'ctl-start').click();
+  assert.equal(keyed(h.panel(),'size-3'),undefined,'no difficulty switch while playing');
+  const def=createWaterPathDefinition({size:4,seed:INKYUNG_WATER_PATH_SEED}).initialState;
+  const order=def.tiles.map((t,i)=>t.kind==='BLOCK'?-1:i).filter(i=>i>=0);
+  // Depth-first solve over the active-network tiles only (the rest cannot matter for clearing).
+  const flowCells=[];let found=null;
+  const trial=def.tiles.map(t=>({...t}));
+  (function dfs(k){
+    if(found)return;
+    if(k===order.length){if(validateWaterPath({size:4,tiles:trial}).cleared)found=trial.map(t=>t.rotation);return;}
+    const cell=order[k],base=def.tiles[cell].rotation;
+    for(let r=0;r<4&&!found;r++){trial[cell].rotation=(base+r)&3;dfs(k+1);}
+  })(0);
+  assert.ok(found,'4x4 level has a solution');
+  order.forEach(cell=>{const n=(found[cell]-def.tiles[cell].rotation+4)&3;for(let i=0;i<n;i++)keyed(h.panel(),'tile-'+Math.floor(cell/4)+'-'+(cell%4)).click();});
+  assert.match(h.panel().children[1].children[0].children[0].textContent,/물길 연결 성공/);
+  keyed(h.panel(),'ctl-close').click();assertReleased(h);
+  // Back to 3x3 for the next session: nothing is remembered.
+  h.world.open();assert.equal(tiles().length,9);h.world.close();
+});
+test('success adds celebration droplets and a cleared marker, and nothing remains after closing',()=>{
+  const h=harness();h.world.open();
+  keyed(h.panel(),'ctl-start').click();
+  const drops=()=>h.panel().children[1].children[0].children[1].children.filter(n=>/\bwp-drop\b/.test(n.className));
+  assert.equal(drops().length,0);
+  for(const {cell,n} of solveClicks())for(let i=0;i<n;i++)keyed(h.panel(),'tile-'+Math.floor(cell/3)+'-'+(cell%3)).click();
+  assert.equal(drops().length,8);
+  assert.ok(drops().every(d=>d.attributes['aria-hidden']==='true'));
+  keyed(h.panel(),'ctl-restart').click();assert.equal(drops().length,0,'restart clears the celebration');
+  h.world.close();assertReleased(h);
+});
+test('main wires the sound effect lazily through worldAudio.playCue',async()=>{
+  const main=await readFile(new URL('../src/main.js',import.meta.url),'utf8');
+  assert.match(main,/createWaterPathSfx\(\{ audio: \{ playCue: render => worldAudio\?\.playCue\(render\) \?\? false \} \}\)/);
+  assert.match(main,/playCue: name => waterPathSfx\.play\(name\)/);
+  const sfx=await readFile(new URL('../src/minigames/world/water-path-sfx.js',import.meta.url),'utf8');
+  assert.doesNotMatch(sfx.split('\n').filter(l=>!l.trim().startsWith('//')).join('\n'),/\bfetch\s*\(|Audio\s*\(|\.mp3|\.wav|\.ogg|decodeAudioData|localStorage/);
 });
