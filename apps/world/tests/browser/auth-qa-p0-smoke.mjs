@@ -85,7 +85,8 @@ try {
     server.stdout.on('data', d => { if (String(d).includes('listening')) { clearTimeout(timer); resolve(); } });
     server.once('exit', code => { clearTimeout(timer); reject(new Error(`site exited: ${code}`)); });
   });
-  browser = await chromium.launch({ headless: true, ignoreDefaultArgs: ['--disable-back-forward-cache'] });
+  // Full Chromium supports BFCache; the default headless shell disables it at the delegate.
+  browser = await chromium.launch({ headless: true, channel: 'chromium', ignoreDefaultArgs: ['--disable-back-forward-cache'] });
   const A = await createUser('A'); const B = await createUser('B');
   async function pageCase() {
     const context = await browser.newContext({ viewport: { width: 1280, height: 800 }, serviceWorkers: 'block' });
