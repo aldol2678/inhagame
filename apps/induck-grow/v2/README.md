@@ -23,3 +23,15 @@ Run locally: `node --test apps/induck-grow/v2/tests/registry.test.mjs`. The exis
 ## Validation boundaries
 
 The validator checks only data for this V2 registry; it does not certify existing academic curricula, V1 CI, browser UX, WORLD readiness, or backend rewards. The choice executor is an isolated deterministic unit, not a secure authority for cross-game grants.
+
+
+## LIFE-ENGINE-01 (stacked successor Draft)
+- \`life-engine.mjs\` is a pure deterministic, no-storage simulator for **12 foundation majors only** using the preceding \`major-registry.mjs\` and \`signature-choice.mjs\`. This is **not** a replacement for the existing production game.
+- Play duration is exactly 4 years, 8 academic terms, 15 weeks each, 120 academic weeks. Vacations are narrative transitions, not extra simulated academic weeks. Medical/pre-med and planned wave-2/3 majors remain unsupported until their own curriculum/scheduler contracts are approved.
+- \`createLife({majorId,seed,policy})\` returns an independent state; \`advanceLife(state)\` advances a single week, or stages a choice and pauses **before** that week's advancement; \`chooseLifeEvent(state,id)\` resolves offered choices and clears the pause. \`setLifePolicy(state,policy)\` selects auto-activity direction. \`advanceLifeBatch(state,{maxWeeks:1|2|4|8|16|120})\` models manual speed controls, but no real-time timers/UI are installed. \`simulateCompleteLife\` completes a deterministic headless playthrough for tests only.
+- Each term contains 2 state-weighted general events (week 5 and 10), and the first term additionally has one unique major signature event (week 6): **17 choices per full run**. Outcomes change competencies, in-game KRW, stress or stamina. Seed and state are serializable and reproduce the same story, including branches when the exact offered choice ID is replayed.
+- Each semester records a **prototype abstract** GPA/credits result and inserts a semester chronicle entry. This is a game balance estimate, not a real university transcript, assessment, diploma or employment qualification. Eight terms generate an ending and a timeline.
+- No \`Date\`, \`Math.random\`, network, browser storage, Supabase, real currency or WORLD wallet calls. The engine must never authorize currency/achievement grants from client state; separate signed/verified backend integration is a later gate.
+- \`node --test v2/tests/registry.test.mjs v2/tests/life-engine.test.mjs\` covers 12 majors x multiple seeded 120-week full runs, replay, immutable input, pause/resume, alternative choices, credit and resource bounds and fail-closed paths. Existing v1 tests stay in \`npm test\`.
+
+**Future independent gates:** UI prototype and accessibility/speed controls, gameplay balancing and much deeper content, v2 versioned save/account sync, 36-major expansion, official 2026 course verification, and read-only INHA WORLD memory bridge. Nothing has been merged/deployed by this PR.
