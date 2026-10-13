@@ -55,6 +55,12 @@ jobs:
           apps/world/tests/graphics-settings-panel.test.mjs
           apps/world/tests/graphics-parallel-smoke-contract.test.mjs
           apps/world/tests/campus-contact-shading.test.mjs
+      - name: Verify bounded walkway integration contracts
+        if: github.event.pull_request.head.ref == 'feat/60th-five-walkway-20261012' || github.event.pull_request.head.ref == 'release/2026-10-13-ci-runtime-diagnostics'
+        run: node --test apps/world/tests/north-walkway.test.mjs apps/world/tests/north-landmark-restoration.test.mjs apps/world/tests/campus-material-profile.test.mjs
+      - name: Verify bounded release diagnostics contracts
+        if: github.event.pull_request.head.ref == 'release/2026-10-13-ci-runtime-diagnostics'
+        run: node --test apps/world/tests/runtime-diagnostics.test.mjs
       - name: Verify real-engine chunk, preview and environment ownership
         run: node apps/world/tests/browser/hall-library-integration-null-smoke.mjs
       - name: Verify unchanged current-main material producer in actual campus
@@ -69,7 +75,7 @@ jobs:
           WORLD_HALL_LIBRARY_QA_OUTPUT: test-results/hall-library-candidate
           EXPECTED_HALL_HEAD: ${{ github.event.pull_request.head.sha }}
           WORLD_HALL_LIBRARY_SCOPE_BASE: ${{ github.event.pull_request.base.sha }}
-          WORLD_HALL_LIBRARY_SCOPE_EXTENSION: ${{ github.event.pull_request.head.ref == 'fix/campus-surroundings-parity-20261004' && 'surroundings' || github.event.pull_request.head.ref == 'graphics/parallel-integration-20261008' && 'graphics' || '' }}
+          WORLD_HALL_LIBRARY_SCOPE_EXTENSION: ${{ github.event.pull_request.head.ref == 'fix/campus-surroundings-parity-20261004' && 'surroundings' || github.event.pull_request.head.ref == 'graphics/parallel-integration-20261008' && 'graphics' || github.event.pull_request.head.ref == 'feat/60th-five-walkway-20261012' && 'walkway' || github.event.pull_request.head.ref == 'release/2026-10-13-ci-runtime-diagnostics' && 'release-2026-10-13' || '' }}
         run: node apps/world/tests/browser/hall-library-hosted-smoke.mjs
       - name: Save exact-commit browser evidence
         if: always()

@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - '.github/ci/phone-surface-scope*.mjs'
+      - '.github/ci/seo-only-scope*.mjs'
       - 'apps/world/src/biryong/biryong-cloud-*.js'
       - 'apps/world/src/biryong/biryong-system.js'
       - 'apps/world/src/biryong/biryong-state.js'

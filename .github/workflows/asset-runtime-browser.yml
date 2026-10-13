@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - '.github/ci/phone-surface-scope*.mjs'
+      - '.github/ci/seo-only-scope*.mjs'
       - 'apps/world/assets/fishing-v1/**'
       - 'apps/world/assets/life-props-v1/**'
       - 'apps/world/src/activity/fishing-*.js'

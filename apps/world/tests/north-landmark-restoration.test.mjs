@@ -9,16 +9,26 @@ import {fillFiveFacade,fillAnniversaryFacade} from '../src/north-campus-geometry
 import {polygonOverlap} from '../src/polygon-collision.js';
 import {canOccupy,resolveHeight,cameraSafeFraction} from '../src/world-collision.js';
 import {AGORA,ROADVIEW_OBSTACLES,roadviewGroundHeight} from '../src/roadview-layout.js';
-import {campusNavGraphData} from '../src/navigation/campus-navigation.js';
+import {campusNavGraphData,campusNavPolylines,CAMPUS_NAV_TOLERANCE,canConnectCampusJunction} from '../src/navigation/campus-navigation.js';
+import {buildNavGraph,largestNavComponent} from '../src/navigation/nav-graph.js';
 import {SITE_FEATURES} from '../src/basic-campus.js';
 import {CAMPUS_ROADS,CAMPUS_PATH_WIDTHS} from '../src/campus-road-layout.js';
 import {OBSTACLES} from '../src/campus-layout.js';
 import {inferCampusMaterialProfile} from '../src/campus-material-profile.js';
-import {NORTH_PHOTO_COLORS,fillNorthPhotoTower} from '../src/north-campus-photo-geometry.js';
+import {NORTH_PHOTO_COLORS,fillNorthPhotoTower,fillFivePhotoEntry} from '../src/north-campus-photo-geometry.js';
+import {FIVE_CLOCK_PLACEMENT} from '../src/north-landmark-massing.js';
 const url=new URL('../src/agora-photo-geometry.js',import.meta.url);
 const agora=existsSync(url)?await import(url.href):{};
 const capture=fn=>{const calls=[];const b=Object.fromEntries(['box','tube','crown','quad','triangle'].map(kind=>[kind,(color,...args)=>calls.push({kind,color,args})]));fn(b);return calls;};
 const digest=value=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
+// The walkway mission adds exactly two physical south-corner links. Keep the
+// original golden hashes for ALL previous polylines, instead of replacing them
+// with a new unreviewable snapshot. The live superset is tested separately.
+const originalGraph=()=>largestNavComponent(buildNavGraph({
+ polylines:campusNavPolylines().filter(l=>l.source!=='WALKWAY_LINKS'),
+ mergeTolerance:CAMPUS_NAV_TOLERANCE.merge,junctionTolerance:CAMPUS_NAV_TOLERANCE.junction,
+ canConnect:canConnectCampusJunction
+}));
 
 test('restored glass, stone and frame palettes retain the current semantic optical profiles',()=>{
  for(const key of ['glass','darkGlass'])assert.equal(inferCampusMaterialProfile(NORTH_PHOTO_COLORS[key]),'glass');
@@ -43,7 +53,7 @@ test('pinned ground facilities, previous colliders and approved navigation metad
   '7de36ac06fe915500ba8bf761ce6a0b5bef4793a125bb8ced291c8861fb4b0b7');
  // #201 explicitly promotes two existing geometric connectors to authored PATHs.
  // Geometry/collision stay pinned independently below; this hash includes metadata.
- assert.equal(digest(campusNavGraphData()),'ae73226173d2113c9446f22ea2903efb56bca1ba1d2c8e027d7ff3f264a96e80');
+ assert.equal(digest(originalGraph()),'ae73226173d2113c9446f22ea2903efb56bca1ba1d2c8e027d7ff3f264a96e80');
 });
 
 test('surroundings integration preserves exact-main path shape and all ground collision',()=>{
@@ -74,10 +84,16 @@ test('60th Anniversary regains a tall slab inside the original footprint, shared
  }
 });
 
-test('field-photo fit anchors the clock on the stadium-visible south wing toward 60th and keeps the high slab slender',()=>{
- const clock=towerParts(FIVE)[0],front=exteriorFrame(FIVE.rings[0],6),anchor=front.at(front.length/2,-2.19);
+test('clock sits between the two photographed south arch runs; 60th massing stays unchanged',()=>{
+ const clock=towerParts(FIVE)[0],front=exteriorFrame(FIVE.rings[0],6),anchor=front.at(front.length,-2.19);
  const center=clock.vertices.reduce((p,q)=>({x:p.x+q.x/4,z:p.z+q.z/4}),{x:0,z:0});
- assert.ok(Math.hypot(center.x-anchor.x,center.z-anchor.z)<.01,'clock follows the 2026-10-07 edge-6 field-photo fit');
+ assert.ok(Math.hypot(center.x-anchor.x,center.z-anchor.z)<.01,'shared south-front join, not the midpoint of one arch run');
+ assert.equal(FIVE_CLOCK_PLACEMENT.status,'DERIVED_BLOCKOUT');assert.equal(FIVE_CLOCK_PLACEMENT.surveyPosition,null);
+ assert.ok(clock.vertices.every(p=>polygonOverlap(p.x,p.z,FIVE.rings[0],0)),'relocated core stays inside the existing building');
+ assert.equal(digest(towerParts(ANNIVERSARY)),'9568424ff7917b6b168128f0542f8ff63073ea7f1f44b8515369eb18fa620cda');
+ const lower=capture(b=>fillNorthPhotoTower(b,FIVE)).find(c=>c.kind==='box'&&c.color===NORTH_PHOTO_COLORS.stone);
+ const local=front.local({x:lower.args[0][0],z:lower.args[0][2]});
+ assert.ok(Math.abs(local.u-front.length)<1e-8,'lower glazing and upper mass share the moved axis');
  const slab=towerParts(ANNIVERSARY)[0],length=Math.hypot(slab.vertices[1].x-slab.vertices[0].x,slab.vertices[1].z-slab.vertices[0].z);
  assert.ok(length>=24&&length<=27,'bounded slimmer photographic fit; not a surveyed dimension');
  assert.ok(length/(slab.height-ANNIVERSARY.height)<1.15,'exposed slab reads near-square/tall instead of a 2:1 panel');
@@ -107,8 +123,12 @@ test('5th-building restores verified south arches without inventing arched court
 });
 
 test('5th clock core visually continues into its facade rather than floating as a rooftop box',()=>{
- const boxes=capture(b=>fillNorthPhotoTower(b,FIVE)).filter(c=>c.kind==='box'&&c.color===NORTH_PHOTO_COLORS.darkGlass);
- assert.ok(boxes.some(c=>c.args[0][1]-c.args[1][1]/2<1&&c.args[0][1]+c.args[1][1]/2>=FIVE.height));
+ const glass=fn=>capture(fn).filter(c=>c.kind==='box'&&c.color===NORTH_PHOTO_COLORS.darkGlass);
+ const shaft=glass(b=>fillNorthPhotoTower(b,FIVE))[0],door=glass(fillFivePhotoEntry)[0];
+ assert.ok(Math.abs(door.args[0][1]-door.args[1][1]/2-.3)<1e-8);
+ assert.ok(Math.abs((door.args[0][1]+door.args[1][1]/2)-(shaft.args[0][1]-shaft.args[1][1]/2))<1e-8,'door and shaft glazing meet without overlapping');
+ assert.equal(shaft.args[0][1]+shaft.args[1][1]/2,FIVE.height);
+ assert.deepEqual([door.args[0][0],door.args[0][2]],[shaft.args[0][0],shaft.args[0][2]]);
 });
 
 test('60th podium has a continuous glass grid and bounded curved facade-ribbon segments',()=>{

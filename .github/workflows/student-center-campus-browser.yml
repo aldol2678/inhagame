@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - '.github/ci/phone-surface-scope*.mjs'
+      - '.github/ci/seo-only-scope*.mjs'
       - 'apps/world/src/student-center-*.js'
       - 'apps/world/src/facility-blockout.js'
       - 'apps/world/src/campus-chunk-renderer.js'

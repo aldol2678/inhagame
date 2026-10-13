@@ -77,3 +77,10 @@ PR #357의 이미 수집된 메시지함 QA는 수정하지 않으며, 이 정�
 - Required `verify` stays named and must see a successful focused `seo` job. The Public source and local DB suites may be skipped **only** for a verified SEO-only PR merge diff. On unknown history, CI/config edits, scripts, body changes or release/hotfix, fail closed to the full suite.
 - Eleven module-guarded browser jobs may skip expensive steps after their own exact SHA and ancestry check. The nine unmodified protected workflows remain unconditional by previous policy; no claim that all workflow jobs stop running.
 - This CI policy PR changes CI files itself, so requires its ordinary full exact-head verification. Later check SEO-P0 PR #370 after the policy is merged and #370 is rebased; until then SEO-P0 still runs the original CI.
+
+
+## SEO classifier dependency triggers (local patch, 2026-10-13)
+
+- All eleven guarded browser workflows include `.github/ci/seo-only-scope*.mjs` in their pull-request path triggers. This covers the imported classifier and its regression tests; a helper-only policy change triggers its browser callers and follows full routing.
+- The workflow contract checks both helper paths against every caller's actual declared triggers. Existing costly-step guards, check/job names, permissions and core unscoped workflow policies are unchanged by this patch.
+- Public release/hotfix/full-ci/missing-title overrides already exist at PR #360 head `798cbf45cafdf734bdf5e764f17ad81f9d35c438` and are preserved. This patch makes no duplicate Public changes. Full CI-policy validation remains required when a later authorized remote update applies this patch; local policy test success is not a remote exact-head PASS.

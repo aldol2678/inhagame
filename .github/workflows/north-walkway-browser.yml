@@ -1,0 +1,57 @@
+name: North walkway exact-head QA
+on:
+  pull_request:
+    paths:
+      - 'apps/world/src/north-walkway-*'
+      - 'apps/world/src/north-campus-*'
+      - 'apps/world/src/navigation/campus-navigation.js'
+      - 'apps/world/src/minimap/minimap-data.js'
+      - 'apps/world/src/render-chunk-registry.js'
+      - 'apps/world/tests/*north-walkway*'
+      - 'apps/world/tests/browser/north-walkway-*'
+      - '.github/workflows/north-walkway-browser.yml'
+permissions:
+  contents: read
+concurrency:
+  group: north-walkway-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  walkway:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      WORLD_SMOKE_DISABLE_WEBGPU: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - run: npm ci --prefix apps/world/tests/browser --ignore-scripts --no-audit --no-fund
+      - run: cd apps/world/tests/browser && npx playwright install --with-deps chromium
+      - name: Full World regression and actual engine disposal
+        run: |
+          node --test apps/world/tests/*.test.mjs
+          node apps/world/qa.mjs
+          node apps/world/tests/browser/north-landmark-null-smoke.mjs
+      - name: Pinned main, identical offline camera and performance sampler
+        run: |
+          git worktree add --detach /tmp/walkway-main 2b9a09615f7986e3d5e5b93d731fba21f33afbdd
+          WALKWAY_WORLD_ROOT=/tmp/walkway-main/apps/world WALKWAY_OUTPUT=test-results/north-walkway/before EXPECTED_WALKWAY_HEAD=2b9a09615f7986e3d5e5b93d731fba21f33afbdd node apps/world/tests/browser/north-walkway-smoke.mjs
+      - name: Exact head, 24 views and twelve real runtime Auto Move traversals
+        env:
+          EXPECTED_WALKWAY_HEAD: ${{ github.event.pull_request.head.sha }}
+          WALKWAY_OUTPUT: test-results/north-walkway/after
+        run: node apps/world/tests/browser/north-walkway-smoke.mjs
+      - name: Performance regression gate
+        run: node apps/world/tests/browser/north-walkway-compare.mjs test-results/north-walkway/before/report.json test-results/north-walkway/after/report.json test-results/north-walkway/comparison.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: north-walkway-exact-head-evidence
+          path: test-results/north-walkway/
+          if-no-files-found: error
+          retention-days: 14

@@ -135,7 +135,7 @@ function checkJeongseokCloseupCamera(pixels,expected){
   assert.ok(frame.minDepth>0&&frame.minX>=.079&&frame.maxX<=.921&&frame.minY>=.079&&frame.maxY<=.921,'bounded entrance, columns and canopy fit the closeup');
 }
 function hallIntegrationScopePaths(manifest,extension) {
-  if(extension && !['surroundings','graphics'].includes(extension))throw Error('Unsupported hall integration scope extension');
+  if(extension && !['surroundings','graphics','walkway','release-2026-10-13'].includes(extension))throw Error('Unsupported hall integration scope extension');
   const surroundings=['campus-grounds.js','main-hall-walkway-layout.js','main-hall-walkway-geometry.js',
     'pond-surroundings-geometry.js','minimap/minimap-data.js','navigation/campus-navigation.js'];
   const contactPilot=['main.js','campus-contact-shading.js','campus-contact-shading-layout.js','campus-contact-shading-geometry.js'];
@@ -154,9 +154,36 @@ function hallIntegrationScopePaths(manifest,extension) {
     'environment/environment-presets.js','environment/environment-world-time.js',
     'graphics-presets.js','view-distance-settings.js'
   ];
+  // The walkway mission changes only these shared campus presentation owners.
+  // All historical hall/library pixel/material/collision gates still run.
+  const walkway=[
+    'campus-material-profile.js','minimap/minimap-data.js','navigation/campus-navigation.js',
+    'north-campus-geometry.js','north-campus-photo-geometry.js','north-walkway-geometry.js',
+    'north-walkway-layout.js','north-walkway-surface.js','render-chunk-registry.js','north-landmark-massing.js','north-campus-layout.js'
+  ];
+  // This one release admits only the exact runtime/data paths reviewed in
+  // #340 and #365. No directory prefix, wildcard, or general release exemption.
+  if(extension==='release-2026-10-13')return [
+    ...walkway.map(p=>'apps/world/src/'+p),
+    'apps/world/data/reality/north-walkway.provenance.json',
+    'apps/world/data/reality/north-landmark-restoration.provenance.json',
+    'apps/world/src/main.js',
+    'apps/world/src/diagnostics/build-id.js',
+    'apps/world/src/diagnostics/diagnostics-panel.js',
+    'apps/world/src/diagnostics/runtime-diagnostics-runtime.js',
+    'apps/world/src/diagnostics/runtime-diagnostics.js'
+  ];
   return [...manifest.allowedRuntimeChanges,...manifest.allowedMetadataChanges,...contactPilot.map(p=>'apps/world/src/'+p),
     ...(extension==='surroundings'?surroundings.map(p=>'apps/world/src/'+p):[]),
-    ...(extension==='graphics'?graphics.map(p=>'apps/world/src/'+p):[])];
+    ...(extension==='graphics'?graphics.map(p=>'apps/world/src/'+p):[]),
+    ...(extension==='walkway'?[...walkway.map(p=>'apps/world/src/'+p),'apps/world/data/reality/north-walkway.provenance.json','apps/world/data/reality/north-landmark-restoration.provenance.json']:[])];
+}
+function validateReviewedReleaseScope(changedPaths,allowed,scopeBase,releaseManifest) {
+  assert.equal(scopeBase,'ea88ceaf1c813a0a9ea3f7056290bd5110e5552a','release scope uses its reviewed immutable base');
+  assert.deepEqual([...changedPaths].sort(),[...allowed].sort(),'release runtime/data diff exactly matches its reviewed paths');
+  for(const sha of [scopeBase,'d436d8f5db161875930db53b7c589c1dab91fc7d','1dcd85d9370b82a32ea29a0992c45618e5a82f5e','912a6d354464e6536029b631a587ab5f64c0ac5c','8f00074c8736a100bd229a1bd29a74e8bfd9698d']){
+    assert.ok(releaseManifest.includes('`'+sha+'`'),'release manifest records exact reviewed source '+sha);
+  }
 }
 try {
   const {stdout:head}=await run('git',['rev-parse','HEAD'],{cwd:repo,timeout:5000,encoding:'utf8'});
@@ -176,6 +203,14 @@ try {
   const changedPaths=diff.trim().split('\n').filter(Boolean);
   const allowed=hallIntegrationScopePaths(manifest,process.env.WORLD_HALL_LIBRARY_SCOPE_EXTENSION||'');
   for(const changed of changedPaths)assert.ok(allowed.includes(changed),changed+' outside approved integration scope');
+  if(process.env.WORLD_HALL_LIBRARY_SCOPE_EXTENSION==='release-2026-10-13'){
+    const releaseManifest=await readFile(new URL('../../../../docs/ops/releases/2026-10-13-ci-runtime-diagnostics.md',import.meta.url),'utf8');
+    validateReviewedReleaseScope(changedPaths,allowed,scopeBase,releaseManifest);
+    for(const sha of ['d436d8f5db161875930db53b7c589c1dab91fc7d','1dcd85d9370b82a32ea29a0992c45618e5a82f5e','912a6d354464e6536029b631a587ab5f64c0ac5c','8f00074c8736a100bd229a1bd29a74e8bfd9698d']){
+      await run('git',['merge-base','--is-ancestor',sha,'HEAD'],{cwd:repo,timeout:5000});
+    }
+  }
+
   report.preservation={baseline:mergeBase.trim(),requestedBase:scopeBase,historicalComparison:CURRENT_MAIN,extension:process.env.WORLD_HALL_LIBRARY_SCOPE_EXTENSION||'',changedPaths,status:'PASS'};
   // CI fetches the immutable commit. A local source snapshot may possess its exact
   // Git tree before commit history arrives; record that fallback, never invent a SHA.

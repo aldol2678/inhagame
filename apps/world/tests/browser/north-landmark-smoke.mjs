@@ -4,6 +4,9 @@ import assert from 'node:assert/strict';
 import {mkdir,writeFile} from 'node:fs/promises';
 import {execFileSync} from 'node:child_process';
 import {startSmoke,TIMEOUT_MS} from './harness.mjs';
+// Fixed from the edge-6/7 clock fit. Keep identical framing in the historical
+// tree, which predates the clock mass and cannot import its placement helper.
+const clockCenter=[-6.8178065081296415,17,74.48212137043453];
 // Parsed by the actual-engine null fixture to project every stair/rail corner.
 export const NORTH_ENTRY_CAMERA = {"wide":{"out":16,"y":12},"portrait":{"out":30,"y":20}};
 const out=process.env.NORTH_LANDMARK_OUTPUT||'test-results/north-landmarks/candidate';
@@ -16,7 +19,7 @@ const views=[
  {id:'five-south',owner:'bldg_05',center:[-5,12,108],half:[54,13,49],back:[-.47,.50,-.88]},
  {id:'sixty-east',owner:'bldg_60th',center:[51,18,87],half:[25,19,33],back:[.88,.36,-.48]},
  {id:'agora-open',owner:'fac_agora_courtyard',center:[106,6,-80],half:[28,7,33],back:[-.88,.50,.47]},
- {id:'five-clock-close',owner:'bldg_05',center:[-28,17,89],half:[7,8,5],back:[-.47,.16,-.88],close:true},
+ {id:'five-clock-close',owner:'bldg_05',center:clockCenter,half:[7,8,5],back:[-.47,.16,-.88],close:true},
  {id:'sixty-ribbon-close',owner:'bldg_60th',center:[56,8,81],half:[19,8,17],back:[.88,.24,-.48],close:true},
  {id:'sixty-end-close',owner:'bldg_60th',center:[42.3,24,69.5],half:[5,13,5],back:[-.496,.15,-.868],close:true},
  {id:'agora-entry-close',owner:'fac_agora_courtyard',center:[96.8,1.2,-73.8],half:[8,3,7],back:[-.88,.25,.47],close:true,entry:true}

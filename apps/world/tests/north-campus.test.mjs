@@ -10,17 +10,23 @@ import { roadviewGroundHeight } from '../src/roadview-layout.js';
 import { FLAT_GROUND_Y, FLAT_GROUND_MAX_Y } from '../src/flat-ground-surface.js';
 
 const surfaces=[];
-fillNorthRoads({quad(color,...vertices){surfaces.push({color,vertices});}});
+fillNorthRoads({triangle(color,...vertices){surfaces.push({color,vertices});}});
 fillFiveGardenPaths({quad(color,...vertices){surfaces.push({color,vertices});}});
 const bodies=[...FACILITY_COLLIDERS.filter(b=>b.minY===0),...BUILDINGS.map(b=>({id:b.id,polygon:b.vertices}))];
 test('new north pavements stay flat, face up and never cover a building or courtyard wall',()=>{
   for(const {vertices:p} of surfaces){const [a,b,c,d]=p;
     assert.ok(p.every(q=>q.every(Number.isFinite)&&q[1]===a[1]&&q[1]>=FLAT_GROUND_Y.UNDERLAY&&q[1]<=FLAT_GROUND_MAX_Y));
     assert.ok((b[2]-a[2])*(c[0]-a[0])-(b[0]-a[0])*(c[2]-a[2])>0);
-    const n=Math.ceil(Math.hypot(d[0]-a[0],d[2]-a[2])*4);
-    for(let i=0;i<=n;i++)for(let j=0;j<=8;j++){
-      const x=a[0]+(d[0]-a[0])*i/n+(b[0]-a[0])*j/8,z=a[2]+(d[2]-a[2])*i/n+(b[2]-a[2])*j/8;
-      for(const body of bodies)assert.ok(!polygonOverlap(x,z,body.polygon),`${body.id} overlaps at ${x},${z}`);
+    // Clip fans are triangles, not necessarily parallelograms. Sample the two
+    // actual GPU triangles, including edges, rather than the enclosing rhombus.
+    for(const [v0,v1,v2]of (d?[[a,b,c],[a,c,d]]:[[a,b,c]]))for(let i=0;i<=10;i++)for(let j=0;j<=10-i;j++){
+      const x=v0[0]+(v1[0]-v0[0])*i/10+(v2[0]-v0[0])*j/10;
+      const z=v0[2]+(v1[2]-v0[2])*i/10+(v2[2]-v0[2])*j/10;
+      for(const body of bodies){
+        // Boundary points belong to the shared edge, not the building interior.
+        const cx=(v0[0]+v1[0]+v2[0])/3,cz=(v0[2]+v1[2]+v2[2])/3;
+        assert.ok(!polygonOverlap(x+(cx-x)*1e-6,z+(cz-z)*1e-6,body.polygon),`${body.id} overlaps at ${x},${z}`);
+      }
     }
   }
 });
