@@ -1,0 +1,12 @@
+{
+  "id": "/campus/",
+  "name": "INHA WORLD",
+  "short_name": "INHA WORLD",
+  "description": "인덕이와 함께하는 캠퍼스 월드",
+  "lang": "ko",
+  "start_url": "/campus/?lobby=1",
+  "scope": "/campus/",
+  "display": "standalone",
+  "background_color": "#101722",
+  "theme_color": "#101722"
+}
