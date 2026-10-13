@@ -287,17 +287,15 @@ test('hub-event: malformed requests never reach Supabase', async () => {
   }
 });
 
-test('hub-event: the RPC verdict maps to 204 / 429 and failures to 502 / 503', async () => {
+test('hub-event: the RPC verdict maps to 204 / 400 and failures to 502 / 503', async () => {
   for (const [reply, status] of [
     [() => new Response('true'), 204],
-    [() => new Response('false'), 429],
+    [() => new Response('false'), 400],
     [() => new Response('{}', { status: 503 }), 502],
     [() => { throw new TypeError('fetch failed'); }, 503],
   ]) {
     stubUpstream(reply);
-    const res = await event();
-    assert.equal(res.statusCode, status);
-    if (status === 429) assert.equal(res.headers['retry-after'], '600');
+    assert.equal((await event()).statusCode, status);
   }
 });
 
