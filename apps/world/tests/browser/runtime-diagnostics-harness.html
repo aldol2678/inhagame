@@ -1,0 +1,45 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/runtime-diagnostics.css"></head>
+<body><button id="opener" type="button">진단 · 버그 보고</button><button id="other" type="button">다른 메뉴</button>
+<script type="module">
+import { installRuntimeDiagnostics } from '/src/diagnostics/runtime-diagnostics-runtime.js';
+import { createInputFocusManager } from '/src/input/input-focus-manager.js';
+import { bindInputFocusRuntime } from '/src/input/input-focus-runtime.js';
+const emitter = () => { const handlers = new Map(); return {
+  on(type, fn) { if (!handlers.has(type)) handlers.set(type, new Set()); handlers.get(type).add(fn); },
+  off(type, fn) { handlers.get(type)?.delete(fn); },
+  fire(type, event) { for (const fn of handlers.get(type) || []) fn(event); },
+  count() { return [...handlers.values()].reduce((sum, list) => sum + list.size, 0); }
+}; };
+const app = emitter(), device = emitter(), focus = createInputFocusManager();
+let identityCallback, state = { renderer: 'WebGPU', quality: 'medium', qualityPreference: 'auto',
+  worldId: 'CAMPUS', zoneId: 'AREA_MAIN_GATE', network: 'ONLINE' };
+let copies = [], copyFailure = false, pendingCopy = null, gameTicks = 0, movement = true, camera = true;
+const unbind = bindInputFocusRuntime({ manager: focus,
+  controller: { setInputEnabled(value) { movement = value; } }, orbit: { setInputEnabled(value) { camera = value; } } });
+const runtime = installRuntimeDiagnostics({ app, device, inputFocus: focus,
+  opener: document.getElementById('opener'), publicZoneIds: ['AREA_MAIN_GATE'], readState: () => state,
+  online: { onIdentity(callback) { identityCallback = callback; callback(null); return () => { identityCallback = null; }; } },
+  panelOptions: { clipboard: { writeText(text) {
+    if (copyFailure) return Promise.reject(new Error('synthetic clipboard unavailable'));
+    copies.push(text); if (pendingCopy) return pendingCopy.promise;
+    return Promise.resolve();
+  } } }
+});
+const timer = setInterval(() => { gameTicks++; app.fire('postrender'); }, 16);
+let shortcutCount = 0;
+window.addEventListener('keydown', event => { if (focus.can('GAMEPLAY_SHORTCUT') && event.code === 'KeyM') shortcutCount++; });
+window.__RUNTIME_FIXTURE__ = {
+  runtime, device,
+  snapshot: () => ({ diagnostics: runtime.status(), focus: focus.snapshot(), copies: [...copies], gameTicks, movement, camera, shortcutCount }),
+  setNetwork(value) { state.network = value; },
+  setIdentity() {
+    // Privacy tripwire: subscribing diagnostics must not read even a single identity field.
+    identityCallback?.(new Proxy({}, { get() { throw new Error('identity must not be inspected'); } }));
+  },
+  signOut() { identityCallback?.(null); },
+  copyFailure(value) { copyFailure = value; },
+  deferCopy() { let resolve; const promise = new Promise(done => { resolve = done; }); pendingCopy = { promise, resolve }; },
+  settleCopy() { pendingCopy?.resolve(); pendingCopy = null; },
+  dispose() { runtime.destroy(); clearInterval(timer); unbind.destroy(); return { app: app.count(), device: device.count() }; }
+};
+</script></body></html>

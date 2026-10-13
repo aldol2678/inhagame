@@ -118,7 +118,8 @@ jobs:
         run: node apps/world/tests/browser/asset-canary-remote-kill-smoke.mjs
 
   verify:
-    # Keep the existing required context and fail closed on every safety result.
+    name: asset-optimizer-verify
+    # Distinct from public-ci required 'verify'; preserve fail-closed safety aggregation.
     needs: [canary-safety]
     if: ${{ always() && !cancelled() }}
     runs-on: ubuntu-latest

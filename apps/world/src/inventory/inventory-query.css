@@ -1,0 +1,8 @@
+/* Inventory-local search controls: stack cleanly in the narrow phone panel. */
+.inventory-query-controls { display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0; }
+.inventory-query-label { display: flex; flex: 1 1 120px; min-width: 0; flex-direction: column; gap: 5px; color: #cbd9e8; font-size: 12px; }
+.inventory-query-label:first-child { flex-basis: 180px; }
+.inventory-query-input, .inventory-query-select { width: 100%; min-width: 0; min-height: 44px; padding: 8px 10px; border: 1px solid #53677e; border-radius: 8px; background: #172334; color: #f2f6fb; font: inherit; font-size: 16px; }
+.inventory-query-input:focus-visible, .inventory-query-select:focus-visible { outline: 2px solid #ffde86; outline-offset: 2px; }
+.inventory-search-count { margin: 8px 0 12px; color: #b8cadd; font-size: 12px; }
+.inventory-query-results { min-width: 0; }

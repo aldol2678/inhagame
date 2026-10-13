@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {BUILDINGS,HALL_FRONT,LIBRARY_FRONT,LIBRARY_ROOF_PARTS} from '../src/basic-campus.js';
 import {ROADVIEW_OBSTACLES,LIBRARY_APPROACHES,MAIN_HALL_APPROACH} from '../src/roadview-layout.js';
+import {JEONGSEOK_ENTRY_COLORS} from '../src/jeongseok-entry-geometry.js';
 
 const api=await import('../src/photo-hall-library-geometry.js').catch(error=>{
   if(error.code==='ERR_MODULE_NOT_FOUND')return {};throw error;
@@ -137,13 +138,13 @@ test('curved library roof replaces its box within the exact source roof volume',
   for(const tier of ['NEAR','DETAIL'])assert.deepEqual(capture(b=>api.fillPhotoLibraryRoof(b,part,tier)),[]);
 });
 
-test('warm canopy soffit is a tiled replacement inside the existing canopy, not an inferred side', {skip:!ready},()=>{
+test('historical grey canopy soffit tiles the unchanged canopy volume without overlap', {skip:!ready},()=>{
   const part=LIBRARY_ROOF_PARTS.find(p=>p.id==='library_entry_canopy');
   const faces=capture(b=>api.fillPhotoLibraryRoof(b,part,'BASE'));
   const underside=faces.filter(f=>normal(f.vertices)[1]<-1e-8);
-  assert.ok(underside.length>=16,'warm panel grid');
-  assert.ok(underside.some(f=>f.color===api.PHOTO_HALL_LIBRARY_COLORS.soffit));
-  assert.ok(underside.some(f=>f.color===api.PHOTO_HALL_LIBRARY_COLORS.soffitJoint));
+  assert.ok(underside.length>=16,'grey panel grid');
+  assert.ok(underside.some(f=>f.color===JEONGSEOK_ENTRY_COLORS.panel));
+  assert.ok(underside.some(f=>f.color===JEONGSEOK_ENTRY_COLORS.joint));
   close(underside.reduce((s,f)=>s-normal(f.vertices)[1],0),part.width*part.depth,'soffit has no overlapping panels or gaps');
   for(const face of faces)for(const p of face.vertices){
     const [u,y,v]=libraryLocal(p);
