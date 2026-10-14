@@ -1,12 +1,21 @@
 import * as pc from "playcanvas";
 import { attachSofaVisual, furnitureAssetStatus } from "./furniture-glb-visual.js";
-import { box, surface } from "../campus-render-kit.js";
+import { box as renderBox, surface as sharedSurface } from "../campus-render-kit.js";
 import { FURNITURE_BY_ID, furnitureBox } from "./furniture-layout.js";
 import { trophyDisplayVisual } from "./trophy-display-visual.js";
 import { PERSONAL_ROOM_BASIC_OBSTACLES } from "./personal-room-layout.js";
 
-export function createFurnitureLayer(app, root, { modelMode = "glb" } = {}) {
-  const layer = new pc.Entity("personal_owned_furniture"); root.addChild(layer);
+export function createFurnitureLayer(app, root, { modelMode = "glb", isolatedMaterials = false } = {}) {
+  const layer = new pc.Entity("personal_owned_furniture", app); root.addChild(layer);
+  // A showroom uses another app/device; DOM callbacks need not run during its frame.
+  const box = (parent, name, at, size, material, yaw = 0, type = "box") => renderBox(parent, name, at, size, material, yaw, type, app);
+  const ownedMaterials = new Map();
+  const surface = (hex, profileName) => {
+    const shared = sharedSurface(hex, profileName);
+    if (!isolatedMaterials) return shared;
+    if (!ownedMaterials.has(shared)) ownedMaterials.set(shared, shared.clone());
+    return ownedMaterials.get(shared);
+  };
   const obstacles = [...PERSONAL_ROOM_BASIC_OBSTACLES];
   let generation = 0, revision = 0, destroyed = false, suspended = false;
   let visuals = [];
@@ -17,6 +26,8 @@ export function createFurnitureLayer(app, root, { modelMode = "glb" } = {}) {
     visuals = [];
     for (const material of posters.values()) { material.diffuseMap?.destroy(); material.destroy(); }
     posters.clear();
+    for (const material of ownedMaterials.values()) material.destroy();
+    ownedMaterials.clear();
   });
   const paintPoster = item => {
     if (posters.has(item.itemId)) return posters.get(item.itemId);
@@ -59,7 +70,7 @@ export function createFurnitureLayer(app, root, { modelMode = "glb" } = {}) {
   }
   function renderObject(object) {
     const item = FURNITURE_BY_ID.get(object.itemId), bounds = furnitureBox(object); if (!item || !bounds) return;
-    const entity = new pc.Entity(`placed_${object.id}`); entity.setLocalPosition(object.x,bounds.minY,object.z); entity.setLocalEulerAngles(0,object.yaw,0); layer.addChild(entity);
+    const entity = new pc.Entity(`placed_${object.id}`, app); entity.setLocalPosition(object.x,bounds.minY,object.z); entity.setLocalEulerAngles(0,object.yaw,0); layer.addChild(entity);
     const id = item.itemId;
     if (item.surfaces.includes("north")) {
       box(entity,"frame",[0,item.height/2,0],[item.width+.03,item.height+.03,item.depth],surface("#75654e"));
@@ -86,7 +97,7 @@ export function createFurnitureLayer(app, root, { modelMode = "glb" } = {}) {
       box(entity,"cushion",[0,.07,0],[.45,.14,.4],surface("#5ac9d1"),0,"sphere");
       box(entity,"beak",[0,.12,-.12],[.14,.025,.08],surface("#fac34e"));
     } else if (id.includes("single_sofa")) {
-      const fallback = new pc.Entity("sofa_procedural_fallback"); entity.addChild(fallback);
+      const fallback = new pc.Entity("sofa_procedural_fallback", app); entity.addChild(fallback);
       const fabric=surface("#718da3"), dark=surface("#536b7c");
       box(fallback,"seat",[0,.25,0],[item.width,.22,item.depth*.72],fabric);
       box(fallback,"back",[0,.53,item.depth*.34],[item.width,.38,.16],fabric);
@@ -130,7 +141,7 @@ export function createFurnitureLayer(app, root, { modelMode = "glb" } = {}) {
       box(entity,"notebook",[.03,.17,0],[item.width*.82,.025,item.depth*.9],surface("#e6dfcc"));
     } else {
       box(entity,"base",[0,.025,0],[item.width,.05,item.depth],surface("#977449"));
-      const duckRoot = new pc.Entity("duck"); duckRoot.setLocalPosition(0,.04,0); entity.addChild(duckRoot);
+      const duckRoot = new pc.Entity("duck", app); duckRoot.setLocalPosition(0,.04,0); entity.addChild(duckRoot);
       duck(duckRoot,(item.height-.04)/.335);
       if (id.includes("landlord")) box(entity,"building",[.08,.11,.075],[.1,.2,.08],surface("#b7c7dd"));
     }

@@ -92,8 +92,16 @@ test('two starter listings remain server-locked, with no invented inventory, off
 
 test('books and sofa use shop → fresh inventory → lobby guide → owned editor → saved placement → real seat controller', async () => {
   const h = await rig();
-  assert.match(text(h.card(BOOKS)), /책상 위.*책 다섯 권과 노트/);
-  assert.match(text(h.card(SOFA)), /바닥.*소파 앞에서 ‘앉기’/);
+  // The R2 showroom places placement/use guidance in item details rather than card-size prose.
+  for (const [id, expected] of [[BOOKS, /책상 위.*책 다섯 권과 노트/], [SOFA, /바닥.*소파 앞에서 ‘앉기’/]]) {
+    const view = walk(h.card(id)).find(n => n.className.split(' ').includes('shop-showroom-view'));
+    assert.ok(view); view.click();
+    const detail = walk(h.panel).find(n => n.className.split(' ').includes('shop-showroom-detail'));
+    assert.ok(detail);
+    assert.match(text(detail), expected);
+    const back = walk(detail).find(n => n.className.split(' ').includes('shop-showroom-back'));
+    assert.ok(back); back.click();
+  }
   // Each real panel click waits for fresh ownership. Retained and duplicate clicks cannot buy again.
   for (const id of [BOOKS, SOFA]) {
     if (!h.ui.open) { h.ui.setOpen(true); await flush(); }
