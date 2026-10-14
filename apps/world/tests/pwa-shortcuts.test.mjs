@@ -5,7 +5,7 @@ import { CAMPUS_SHORTCUT_APPS,resolveCampusShortcut,createCampusShortcutDispatch
 
 const manifest=JSON.parse(readFileSync(new URL('../campus/manifest.webmanifest',import.meta.url),'utf8'));
 test('PWA shortcut manifest is scoped, unique and keeps existing install identity',()=>{
-  assert.equal(manifest.id,'/campus/');assert.equal(manifest.scope,'/campus/');
+  assert.equal(manifest.id,'/campus/');assert.equal(manifest.scope,'/');
   assert.equal(manifest.start_url,'/campus/?lobby=1');
   assert.equal(manifest.shortcuts.length,4);
   assert.deepEqual(manifest.shortcuts.map(x=>x.short_name),['캠퍼스','알림','퀴즈','앨범']);

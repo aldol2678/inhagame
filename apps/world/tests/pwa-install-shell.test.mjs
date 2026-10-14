@@ -7,9 +7,9 @@ const read = (name) => readFileSync(new URL(name, campus));
 const manifest = JSON.parse(read('manifest.webmanifest').toString('utf8'));
 const html = read('index.html').toString('utf8');
 
-test('campus PWA stays isolated from INHAGAME hub', () => {
+test('integrated PWA preserves campus identity and launch while extending portal scope', () => {
   assert.equal(manifest.id, '/campus/');
-  assert.equal(manifest.scope, '/campus/');
+  assert.equal(manifest.scope, '/');
   assert.equal(manifest.start_url, '/campus/?lobby=1');
   assert.equal(manifest.display, 'standalone');
   assert.match(html, /rel="manifest" href="\/campus\/manifest\.webmanifest"/);

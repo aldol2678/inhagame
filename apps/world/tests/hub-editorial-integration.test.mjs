@@ -8,7 +8,8 @@ test("editorial portal adds R2 visual/navigation without replacing live account 
  for(const id of ["hub-login-form","hub-signup-form","hub-delete-account-confirm","hub-message-composer","hub-friends-list","game-cards"])assert.ok(html.includes('id="'+id+'"'));
  for(const game of ["classic","induckup","survival","induck-grow"])assert.ok(html.includes('data-game-id="'+game+'"'));
  assert.match(html,/href="\/campus\/\?lobby=1"/);
- assert.match(html,/INHA WORLD · Campus Éditorial/);
+ assert.match(html,/body class="editorial-portal"/);
+ assert.match(html,/<title>인하월드 \| 캠퍼스 탐험과 인덕 게임 · INHA WORLD<\/title>/);
  assert.match(html,/hub-editorial\.css/);
  assert.match(html,/hub-editorial\.js/);
  assert.match(css,/prefers-reduced-motion/);

@@ -1,0 +1,6 @@
+# INHA WORLD: crawl guidance, not access control.
+User-agent: *
+Allow: /
+Disallow: /api/
+
+Sitemap: https://inhagame.app/sitemap.xml
