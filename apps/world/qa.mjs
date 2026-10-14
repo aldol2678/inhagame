@@ -408,6 +408,18 @@ assert.match(m3MainSource, /navigation\?\.update\(\{ position: pos, yaw: orbit\.
 console.log("M3 route/compass guidance static contracts PASS");
 
 assert.match(campusHtml, /class="campus-topbar"/, "compact top bar replaces the large always-on HUD card");
+
+// OSM HOTFIX: both entry surfaces must expose a direct, readable attribution link,
+// not require opening the hidden diagnostics <details> inside the hidden HUD menu.
+assert.match(campusHtml, /class="world-lobby-map-credit"[^>]*>위치 자료 © <a href="https:\/\/www\.openstreetmap\.org\/copyright"/,
+  "the lobby shows OSM attribution without opening its menu");
+assert.match(campusHtml, /<\/header>\s*<p id="campus-map-credit" class="campus-map-credit">위치 자료 © <a href="https:\/\/www\.openstreetmap\.org\/copyright"/,
+  "the campus has OSM attribution outside the hidden HUD menu");
+assert.match(campusCss, /\.campus-map-credit\s*\{[^}]*position:\s*fixed[^}]*pointer-events:\s*auto/s,
+  "the campus attribution is visible and its link remains actionable");
+assert.match(campusCss, /\.world-lobby-map-credit\s*\{[^}]*pointer-events:\s*auto/s,
+  "the lobby attribution can be tapped");
+
 assert.match(campusHtml, /id="world-lobby"[^>]*data-p0-stage="shell"[^>]*hidden/,
   "P0.1 lobby shell exists but remains opt-in on the production campus route");
 assert.match(campusHtml, /src="\/src\/lobby\/lobby-shell\.js"/,
