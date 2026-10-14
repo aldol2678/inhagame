@@ -33,3 +33,35 @@ No CI scope/workflow changes, no Work/Codex executor, no Production/DB changes.
 - Current in-memory or saved graduation cannot be deleted until a new game starts; this prevents auto-archival resurrecting a deleted current record. With50 full records, delete a past record, retry graduation archival, then start a new game.
 - Concurrent-tab atomicity is still not guaranteed by localStorage; guards are best effort. Unknown write/readback outcomes are reported as unconfirmed, not retried automatically.
 - Actual download, confirmation-dialog touch/keyboard/focus and mobile layout still require browser QA.
+
+
+## 생활 활동 / 재화 소비 (grow2-life-spending-1)
+
+신규 브라우저 게임만 opt-in. 기존 저장·기존 성장 기록은 그대로 유지한다.
+주차별 여가 슬롯 하나: 선택/변경은 결제하지 않으며 completeWeek에서만 정산하고 none으로 초기화한다.
+사건 대기 중에는 변경/결제하지 않는다. 사건 후 돈이 부족하면 자동 취소하고 기본 생활 방침으로 진행한다.
+실제 화폐·월드 인덕코인·DB·계정·온라인 랭킹과 연결하지 않는다.
+
+- 생활 방침 집중: 무료, 기존 주간 처리 그대로.
+- 산책: 무료, 체력+5 스트레스-5 회복역량+1.
+- 식사: 6,000원, 체력+14 스트레스-3.
+- 휴식/생각 정리: 무료, 체력+10 스트레스-7.
+- 전시/감상 정리: 10,000원, 체력-3 스트레스-8 창의+1.
+- 친구와 식사/대화: 8,000원, 체력+3 스트레스-8 협업+1.
+- 전공 작품: 15,000원, 체력-8 스트레스+4 실행+2.
+  분석/창의/협업 평균50이상일 때 +3. 학과별 대표 활동과 함께 이용한다.
+
+시간 비용은 같은 주 생활 방침의 기본 역량 성장을 50%로 줄이는 방식이다.
+수입/생활비/기본 피로와 전공 5/10/15주 보상은 유지한다.
+최근2주 같은 활동 횟수에 따라 효과100/75/50%, 비용은 그대로.
+체력30미만 또는스트레스75이상이면 관람/친구/제작 역량보상 절반.
+산책/휴식은 회복역량25마다 체력+1 추가. 모든 수치0~100.
+학점 직접구매 없음; 기존 분석/실행/스트레스 학점 계산식에 간접 반영.
+관계 NPC/개별친밀도는 이번 범위에 추가하지 않았다. 친구 활동은 기존 협업 역량 사용.
+각 활동 첫 경험만 기억카드(최대6장), 전체120주 ledger 검증.
+졸업 요약 economy 버전으로 기존 기록과 순위그룹 분리. 이전 summary는 그대로 읽는다.
+
+가격/효과는 초기 튜닝값. 최적전략/장기 경제 밸런스는 확정하지 않는다.
+신규8개 테스트: opt-in, 주간원자처리, 사건/재로드/잔액부족, 무료/반복/회복,
+프로젝트/피로/상한, 손상저장, 12학과120주 재로드, 기록실 버전격리.
+메모리 JS 실행과 실제 Node CI를 구분한다. 실제 브라우저/모바일 QA는 별도 미검증.

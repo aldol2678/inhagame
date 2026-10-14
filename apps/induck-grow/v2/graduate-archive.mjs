@@ -1,3 +1,4 @@
+import {ECONOMY_VERSION,spendingCards} from './life-spending.mjs';
 import {growthCards,earnedTraits,GROWTH_VERSION} from './campus-growth.mjs';
 export const GRADUATE_ARCHIVE_KEY='induck-grow-v2-graduates-1';
 export const GRADUATE_ARCHIVE_SCHEMA='grow2-graduates-1';
@@ -5,15 +6,15 @@ const LIMIT=50,MAX_BYTES=2*1024*1024;
 export function graduateSummary(life) {
   if(life?.status!=='complete'||life.weeksCompleted!==120||life.semesters?.length!==8||!life.ending)
     throw new Error('Only completed lives can be archived');
-  return {engine:life.version,content:life.contentVersion||'grow2-content-0.1',
+  return {...(life.spending?{economy:life.spending.version}:{}),engine:life.version,content:life.contentVersion||'grow2-content-0.1',
     growth:life.growth?.version||'legacy',majorId:life.majorId,seed:life.seed,
     gpa:life.gpa,title:life.ending.title,
     semesters:life.semesters.map(s=>({gpa:s.gpa})),
-    cards:growthCards(life),traits:earnedTraits(life),
+    cards:[...growthCards(life),...spendingCards(life)],traits:earnedTraits(life),
     epilogue:life.ending.epilogue?.chapters.map(x=>x.text)||[]};
 }
 function validRecord(x) {
-  return x&&x.engine==='grow2-life-engine-0.1'&&
+  return x&&(x.economy===undefined||x.economy===ECONOMY_VERSION)&&x.engine==='grow2-life-engine-0.1'&&
     ['grow2-content-0.1','grow2-content-major-stories-1'].includes(x.content)&&
     ['legacy',GROWTH_VERSION].includes(x.growth)&&typeof x.majorId==='string'&&x.majorId.length<50&&
     Number.isInteger(x.seed)&&x.seed>=0&&x.seed<=0xffffffff&&Number.isFinite(x.gpa)&&x.gpa>=0&&x.gpa<=4.5&&
@@ -27,7 +28,7 @@ function validRecord(x) {
 export function rankGraduates(records) {
   const groups=new Map();
   records.forEach((record,index)=>{
-    const group=[record.engine,record.content,record.growth,record.majorId].join('|');
+    const group=[record.engine,record.content,record.growth,record.economy||'legacy',record.majorId].join('|');
     if(!groups.has(group))groups.set(group,[]);
     groups.get(group).push({record,index,group});
   });

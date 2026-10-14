@@ -1,3 +1,4 @@
+import {selectSpending} from './life-spending.mjs';
 import {selectMajorActivity} from './campus-growth.mjs';
 import {createGraduateArchive,graduateSummary} from './graduate-archive.mjs';
 import {
@@ -100,8 +101,8 @@ export function createLifeSession({storage=null, onUpdate=()=>{}}={}) {
     current=copy(snapshot.life);loadError=null;saveError=null;writesBlocked=false;
     archiveCompleted();publish();return true;
   }
-  function start({majorId,seed=1,policy='balanced',replaceExisting=false,contentVersion,growthVersion}={}) {
-    const fresh=createLife({majorId,seed,policy,contentVersion,growthVersion}),existing=readSave();
+  function start({majorId,seed=1,policy='balanced',replaceExisting=false,contentVersion,growthVersion,economyVersion}={}) {
+    const fresh=createLife({majorId,seed,policy,contentVersion,growthVersion,economyVersion}),existing=readSave();
     if(existing.exists===true && !replaceExisting)
       throw new Error('기존 v2 기록을 교체하려면 먼저 확인해 주세요.');
     // Preserve both an in-memory completion and an existing completed snapshot.
@@ -154,6 +155,10 @@ export function createLifeSession({storage=null, onUpdate=()=>{}}={}) {
     if(!current)throw new Error('시작된 게임이 없어요.');
     current=selectMajorActivity(current,style);persist();return copy(current);
   }
+  function setSpending(id) {
+    if(!current)throw Error('시작된 게임이 없어요.');
+    current=selectSpending(current,id);persist();return copy(current);
+  }
   function removeGraduate(recordKey) {
     const saved=readSave();
     if(saved.exists===null || (saved.exists===true&&!saved.available))
@@ -163,7 +168,7 @@ export function createLifeSession({storage=null, onUpdate=()=>{}}={}) {
       return {ok:false,error:'현재 졸업 기록은 새 게임을 시작한 뒤 정리할 수 있어요. 다른 과거 기록을 선택해 주세요.'};
     return archive.remove(recordKey,()=>{const latest=readSave();return latest.exists===saved.exists&&latest.available===saved.available&&latest.raw===saved.raw;});
   }
-  return Object.freeze({start,load,life,inspectSave,setActivity,removeGraduate,
+  return Object.freeze({start,load,life,inspectSave,setActivity,setSpending,removeGraduate,
     exportGraduates:()=>archive.exportSnapshot(),
     graduateArchive:()=>archive.read(),retryArchive:()=>{archiveCompleted();return archiveError;},
     nextWeek:()=>transition('week'),choose,setPolicy,
