@@ -6378,3 +6378,23 @@ body[data-photo-mode="active"] > :not(#application):not(.photo-mode):not(script)
   .identity-actions .hud-menu-grid > button { min-height: 54px; }
   .identity-actions .hud-menu-grid > button span { font-size: 10px; }
 }
+
+/* Short mobile landscape has a more-specific legacy 3-column HUD layout.
+   The new nested grid owns those columns instead, keeping the drawer coherent. */
+@media (pointer: coarse) and (orientation: landscape) and (max-height: 500px) {
+  body .identity-actions {
+    display: block; grid-template-columns: none;
+    top: auto; bottom: max(6px, env(safe-area-inset-bottom));
+    left: max(8px, env(safe-area-inset-left));
+    right: max(8px, env(safe-area-inset-right));
+    width: auto; max-height: calc(100dvh - 54px - env(safe-area-inset-bottom));
+    padding: 8px 12px;
+  }
+  body .identity-actions .hud-menu-grid > button { padding: 7px 4px; }
+  body .view-settings:not([data-phone-hosted="true"]) {
+    top: max(50px, env(safe-area-inset-top));
+    right: max(8px, env(safe-area-inset-right));
+    width: min(380px, calc(100vw - 16px));
+    max-height: calc(100dvh - 58px - env(safe-area-inset-bottom));
+  }
+}
