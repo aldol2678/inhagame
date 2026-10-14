@@ -17,6 +17,28 @@ function fakeButton() {
   };
 }
 
+test("context button owns native activation keys without replacing their default clicks", () => {
+  const button = fakeButton();
+  let triggered = 0;
+  const slot = createContextActionController({ button });
+  slot.set("puzzle", { label: "Open", trigger: () => { triggered++; } });
+  slot.refresh();
+  for (const [index, code] of ["Enter", "NumpadEnter", "Space"].entries()) {
+    let stopped = false;
+    button.listeners.get("keydown")({ code, key: code === "Space" ? " " : "Enter", repeat: true,
+      stopPropagation() { stopped = true; },
+      preventDefault() { assert.fail("must preserve the browser's native button click"); } });
+    assert.equal(stopped, true, `${code} cannot reach the World keyboard handler`);
+    assert.equal(triggered, index, "keydown does not synthesize a duplicate click");
+    button.listeners.get("click")();
+  }
+  assert.equal(triggered, 3);
+  for (const code of ["KeyF", "KeyM", "Tab", "Escape"]) {
+    button.listeners.get("keydown")({ code,
+      stopPropagation() { assert.fail(`${code} keeps its existing route`); } });
+  }
+});
+
 test("context action observer sees only successful triggered actions", () => {
   const button = fakeButton();
   const observed = [];

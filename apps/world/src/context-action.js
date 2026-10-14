@@ -82,6 +82,11 @@ export function createContextActionController({
 
   button.addEventListener('click', trigger);
   button.addEventListener('pointerdown', event => event.stopPropagation());
+  // Native button activation owns these keys. In particular, the World movement
+  // handler must not prevent Space's default click or queue a jump behind the HUD.
+  button.addEventListener('keydown', event => {
+    if (event.key === 'Enter' || event.key === ' ') event.stopPropagation();
+  });
 
   return {
     set(id, action) {
