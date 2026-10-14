@@ -594,24 +594,24 @@ body[data-space] #tour { display: none; }
 }
 .hud-diagnostics .map-credit a { pointer-events: auto; }
 
-/* OSM HOTFIX: credits remain discoverable without opening nested diagnostic menus.
-   Keep the campus chip below the quest rail and to the left of the mini-map;
-   Photo Mode's existing body-level HUD visibility contract still hides it. */
+/* OSM credit: unobtrusive, readable attribution below mobile touch controls.
+   Keep it visible during Campus play; Photo Mode's HUD visibility rule still hides it. */
 .campus-map-credit {
   position: fixed;
   z-index: 10;
-  top: max(122px, calc(env(safe-area-inset-top) + 112px));
-  left: max(12px, env(safe-area-inset-left));
+  bottom: max(8px, env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%);
   margin: 0;
-  max-width: min(228px, calc(100vw - var(--world-right-rail-map-size, 112px) - 38px));
-  padding: 6px 9px;
-  border: 1px solid rgba(178,220,239,.35);
-  border-radius: 10px;
-  background: rgba(10,22,34,.86);
+  max-width: calc(100vw - 16px);
+  padding: 1px 2px;
+  border: 0;
+  background: transparent;
   color: #e4edf3;
-  font-size: 11px;
-  line-height: 1.4;
-  overflow-wrap: break-word;
+  font-size: 10px;
+  line-height: 1.35;
+  white-space: nowrap;
+  text-shadow: 0 1px 3px rgba(0,0,0,.95);
   pointer-events: auto;
 }
 .campus-map-credit a,
