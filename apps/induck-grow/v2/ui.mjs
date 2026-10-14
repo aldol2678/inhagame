@@ -1,3 +1,4 @@
+import {getPlayStyle} from './play-style.mjs';
 import {ECONOMY_VERSION,LIFE_OPTIONS,spendingPreview,spendingCards} from './life-spending.mjs';
 import {GROWTH_VERSION,STAT_LABELS,ACTIVITY_STYLES,activityProgress,growthCards,earnedTraits,traitProgress,nextGrowthReward,competencyChanges} from './campus-growth.mjs';
 import {rankGraduates} from './graduate-archive.mjs';
@@ -93,7 +94,7 @@ function startGame() {
   }
   stop(null,false);
   closeDialog(eventDialog);closeDialog(semesterDialog);
-  session.start({majorId:$('major-select').value,seed:seedNumber,policy:$('start-policy').value,replaceExisting:existing.exists===true,contentVersion:FOLLOWUP_CONTENT_VERSION,growthVersion:GROWTH_VERSION,economyVersion:ECONOMY_VERSION});
+  session.start({majorId:$('major-select').value,seed:seedNumber,policy:$('start-policy').value,replaceExisting:existing.exists===true,contentVersion:FOLLOWUP_CONTENT_VERSION,growthVersion:GROWTH_VERSION,economyVersion:ECONOMY_VERSION,playStyle:$('start-play-style').value,autoBudget:0});
   tab='story';showGame();renderArchive();
   announce('입학을 축하해! 생활 방침을 고르고 시작 버튼을 눌러 줘.');
 }
@@ -266,6 +267,7 @@ function render() {
   lastRenderedStats={stats:{...life.stats}};
   renderGrowth(life);
   renderSpending(life);
+  renderPlayStyle(life);
   renderJournal();
   if(life.status==='complete')renderArchive();
   document.querySelectorAll('[data-tab]').forEach(button=>
@@ -321,6 +323,43 @@ function renderSpending(life) {
  ' · 사건 후 잔액 부족 시 결제 없이 취소';
 }
 
+const POLICY_LABELS={balanced:'균형 잡힌 생활',academic:'학업 중심',social:'친구·동아리 중심',work:'아르바이트 중심',creative:'창작·도전 중심'};
+const spendingLabel=id=>LIFE_OPTIONS.find(x=>x.id===id)?.label||'기존 소비 규칙 유지';
+function planText(plan){
+ if(!plan)return '이번 인생의 운영을 마쳤어요.';
+ return plan.week+'주차 · '+POLICY_LABELS[plan.policy]+
+  (plan.activity?' · '+(ACTIVITY_STYLES[plan.activity]?.label||plan.activity):'')+
+  ' · '+spendingLabel(plan.spending)+' · 활동비 '+currency.format(plan.cost)+'원'+
+  (plan.locked?' · 사건 전에 정한 이번 주 계획 유지':'');
+}
+function renderPlayStyle(life){
+ const settings=getPlayStyle(life),plan=session.playStylePlan(),simple=settings.mode==='simple';
+ const completed=life.status==='complete';
+ $('play-style-select').value=settings.mode;$('play-style-select').disabled=completed;
+ $('simple-goal').value=settings.goal;$('simple-budget').value=String(settings.budget);
+ $('simple-goal').disabled=completed;$('simple-budget').disabled=completed;
+ $('simple-controls').hidden=!simple;
+ for(const id of ['manual-policy','manual-activity','manual-spending'])$(id).hidden=simple;
+ if(simple||plan?.locked||life.pendingEvent||completed)for(const id of ['policy-select','activity-select','spending-select'])$(id).disabled=true;
+ const history=life.playStyle?.history||[],simpleWeeks=history.filter(x=>x.mode==='simple').length;
+ put('play-style-status',(simple?'간편: 현재 상태와 목표로 계획을 준비해요.':'기본: 생활 방침과 활동을 직접 선택해요.')+
+  (plan?.locked?' 이번 주는 '+(plan.mode==='simple'?'간편':'기본')+'으로 준비한 계획을 유지하고 설정 변경은 다음 주부터 반영해요.':'')+
+  ' · 간편 운영 완료 '+simpleWeeks+'주 · 모드 자체의 추가 보상 없음');
+ $('simple-plan').hidden=!simple&&!plan?.locked;
+ put('simple-plan',planText(plan));
+ const detail=$('play-style-explanation');detail.replaceChildren();
+ if(plan){
+  line(detail,{label:'이번 주 실행 전 계획',title:planText(plan),description:(plan.reasons||[]).join(' · ')});
+  line(detail,{label:'결제 범위',title:'이번 주 자동 생활 활동 한도 '+currency.format(plan.budget)+'원',
+   description:'주간 활동비 한도이며 기본 생활비와 사건 지출은 별도예요. 미사용 예산은 다음 주 한도에 더하지 않아요. 사건 후 잔액이 부족하면 기존 규칙대로 활동을 취소해요.'});
+ }
+ if(!life.spending||!life.growth)line(detail,{label:'이전 저장 호환',title:'기존 성장·소비 규칙 유지',description:'플레이 스타일을 바꿔도 없던 성장 보상이나 소비 기능을 새로 붙이지 않아요.'});
+ const latest=history.slice(-8).reverse();
+ for(const h of latest)line(detail,{label:h.week+'주차 · '+(h.mode==='simple'?'간편 운영':'직접 운영'),
+  title:POLICY_LABELS[h.policy]+' · '+spendingLabel(h.spending),description:'완료 시 활동비 '+currency.format(h.cost)+'원 · 설정 예산 '+currency.format(h.budget)+'원'});
+ if(!latest.length)empty(detail,'아직 이 운영 기록이 없어요. 주차가 실제로 완료되면 남아요.');
+}
+
 function renderArchive() {
   const result=session.graduateArchive(),list=$('archive-list');list.replaceChildren();
   put('archive-status',session.status().archiveError||result.error||(result.records.length+' / 50개 기록 · 남은 공간 '+(50-result.records.length)+'건 · 같은 완료 요약은 중복 보관하지 않아.'));
@@ -332,7 +371,7 @@ function renderArchive() {
     summary.textContent=item.rank+'위 · '+(findMajor(r.majorId)?.displayName||r.majorId)+' · '+r.gpa.toFixed(2)+' / 4.50 · '+r.title;
     details.append(summary);
     line(details,{label:'비교 그룹',title:r.growth==='legacy'?'기존 성장 규칙':'전공 활동 성장 규칙',
-      description:(r.economy||'기존 소비 규칙')+' · '+r.content+' · '+r.engine+' · 시드 '+r.seed+' · 이 기록실의 같은 전공·버전끼리 비교'});
+      description:(r.economy||'기존 소비 규칙')+' · '+r.content+' · '+r.engine+' · 시드 '+r.seed+' · '+(r.playStyle?.simpleWeeks>0?'간편 운영 '+r.playStyle.simpleWeeks+'주 포함':'간편 운영 기록 없음')+' · 같은 전공·버전·운영 분류끼리 비교'});
     line(details,{label:'8학기 성적',title:r.semesters.map(s=>s.gpa.toFixed(2)).join(' → '),
       description:r.traits.map(t=>t.title).join(' · ')||'나만의 첫 걸음'});
     r.epilogue.forEach((text,i)=>line(details,{label:(i+1)+'학년의 선택',title:'전공 이야기',description:text}));
@@ -371,6 +410,15 @@ function safely(action) {
   }
 }
 $('spending-select').addEventListener('change',e=>safely(()=>{stop(null,false);session.setSpending(e.target.value);render();announce('이번 주 생활 활동을 예약했어. 진행을 누르면 주차 완료 시 한 번 실행돼.');}));
+
+function updatePlayStyle(config){
+ stop(null,false);session.setPlayStyle(config);render();
+ announce('운영 설정을 바꿨어. 주차나 보상은 진행되지 않았어. 이번 주 계획을 확인해 줘.');
+}
+$('play-style-select').addEventListener('change',e=>safely(()=>updatePlayStyle({mode:e.target.value})));
+$('simple-goal').addEventListener('change',e=>safely(()=>updatePlayStyle({goal:e.target.value})));
+$('simple-budget').addEventListener('change',e=>safely(()=>updatePlayStyle({budget:Number(e.target.value)})));
+
 renderMajorPicker();
 updateContinue();
 renderArchive();

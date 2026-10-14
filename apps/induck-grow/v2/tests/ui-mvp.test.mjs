@@ -219,7 +219,7 @@ test('new game UI asks before replacing an unreadable record and respects cancel
     const session=createLifeSession({storage:store});let confirms=0;
     const window={confirm(){confirms++;return accepted;}};
     const controls={'seed-input':{value:'42'},'major-select':{value:'culture'},
-      'start-policy':{value:'balanced'}};
+      'start-policy':{value:'balanced'},'start-play-style':{value:'basic'}};
     const run=new Function('session','window','$',
       "const FOLLOWUP_CONTENT_VERSION='grow2-content-major-stories-1';const GROWTH_VERSION='grow2-campus-growth-1';const ECONOMY_VERSION='grow2-life-spending-1';"+'let tab; const eventDialog={},semesterDialog={}; const stop=()=>{},closeDialog=()=>{},showGame=()=>{},renderArchive=()=>{},announce=()=>{};'+body+';return startGame;')
       (session,window,id=>controls[id]);
