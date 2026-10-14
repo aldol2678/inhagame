@@ -40,8 +40,8 @@ export function campusMaterialCacheStatus() {
   });
 }
 
-export function box(root,name,p,size,material,yaw=0,type='box') {
-  const e=new pc.Entity(name);e.addComponent('render',{type});e.render.material=material;
+export function box(root,name,p,size,material,yaw=0,type='box',app) {
+  const e=new pc.Entity(name,app);e.addComponent('render',{type});e.render.material=material;
   e.setLocalPosition(...p);e.setLocalScale(...size);e.setLocalEulerAngles(0,yaw,0);root.addChild(e);return e;
 }
 export function polygon(root,name,vertices,material,{height=0,y=0}={}) {

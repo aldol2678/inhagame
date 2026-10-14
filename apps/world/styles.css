@@ -594,24 +594,24 @@ body[data-space] #tour { display: none; }
 }
 .hud-diagnostics .map-credit a { pointer-events: auto; }
 
-/* OSM HOTFIX: credits remain discoverable without opening nested diagnostic menus.
-   Keep the campus chip below the quest rail and to the left of the mini-map;
-   Photo Mode's existing body-level HUD visibility contract still hides it. */
+/* OSM credit: unobtrusive, readable attribution below mobile touch controls.
+   Keep it visible during Campus play; Photo Mode's HUD visibility rule still hides it. */
 .campus-map-credit {
   position: fixed;
   z-index: 10;
-  top: max(122px, calc(env(safe-area-inset-top) + 112px));
-  left: max(12px, env(safe-area-inset-left));
+  bottom: max(8px, env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%);
   margin: 0;
-  max-width: min(228px, calc(100vw - var(--world-right-rail-map-size, 112px) - 38px));
-  padding: 6px 9px;
-  border: 1px solid rgba(178,220,239,.35);
-  border-radius: 10px;
-  background: rgba(10,22,34,.86);
+  max-width: calc(100vw - 16px);
+  padding: 1px 2px;
+  border: 0;
+  background: transparent;
   color: #e4edf3;
-  font-size: 11px;
-  line-height: 1.4;
-  overflow-wrap: break-word;
+  font-size: 10px;
+  line-height: 1.35;
+  white-space: nowrap;
+  text-shadow: 0 1px 3px rgba(0,0,0,.95);
   pointer-events: auto;
 }
 .campus-map-credit a,
@@ -5637,6 +5637,203 @@ body[data-photo-mode="active"] > :not(#application):not(.photo-mode):not(script)
 .jeongseok-gate small { font-size: 10px; opacity: .75; }
 @keyframes jeongseok-blink { 50% { opacity: .35; } }
 @media (prefers-reduced-motion: reduce) { .jeongseok-gate-light { animation: none !important; } }
+
+/* Dorm showroom: isolated visual treatment. Other RPC shop panels keep their existing layout. */
+.shop-panel[data-presentation="furniture-showroom"] {
+  width: min(600px, calc(100vw - 24px));
+  max-height: calc(100dvh - 24px);
+  padding: 0;
+  overflow: hidden;
+  color: #20384f;
+  background: #f7f9fc;
+  border: 1px solid #c2d7eb;
+  border-radius: 24px;
+  box-shadow: 0 20px 65px #071d3470;
+}
+.shop-panel[data-presentation="furniture-showroom"] .shop-panel-head {
+  position: relative;
+  padding: 23px 54px 22px 22px;
+  background: linear-gradient(120deg, #123a71 0%, #1761a8 65%, #3395c6 100%);
+  color: #fff;
+}
+.shop-panel[data-presentation="furniture-showroom"] .shop-panel-titles h2 {
+  font-size: clamp(20px, 4.5vw, 27px);
+  font-weight: 900;
+  letter-spacing: -.04em;
+}
+.shop-panel[data-presentation="furniture-showroom"] .shop-panel-titles h2::before {
+  content: "INHA WORLD · ROOM STORE";
+  display: block;
+  margin-bottom: 10px;
+  color: #b1e6ff;
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: .15em;
+}
+.shop-panel[data-presentation="furniture-showroom"] .shop-panel-level { color: #c8ecff; }
+.shop-panel[data-presentation="furniture-showroom"] .shop-panel-wallet {
+  display: inline-block;
+  margin-top: 9px;
+  padding: 7px 10px;
+  border: 1px solid #ffffff32;
+  border-radius: 40px;
+  color: #fff5ca;
+  background: #ffffff1d;
+}
+.shop-panel[data-presentation="furniture-showroom"] .shop-panel-wallet[hidden] { display: none; }
+.shop-panel[data-presentation="furniture-showroom"] .profile-close {
+  top: 13px; right: 12px; width: 44px; height: 44px;
+  display: grid; place-items: center;
+  border-radius: 12px; color: #fff; background: #ffffff24;
+}
+.shop-panel[data-presentation="furniture-showroom"] .shop-hint {
+  margin: 9px 17px 0; color: #855300; background: #fff0ca;
+}
+.shop-panel[data-presentation="furniture-showroom"] .shop-panel-body {
+  flex: 1 1 auto; min-height: 0; max-height: 100%;
+  overflow-y: auto; overscroll-behavior: contain;
+  margin: 0; padding: 18px 17px 23px;
+  color: #23394f; scrollbar-width: thin;
+}
+.shop-showroom-tabs {
+  display: flex; gap: 7px;
+  margin: 0 -3px 13px; padding: 3px 3px 9px;
+  overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin;
+}
+.shop-showroom-tab {
+  flex: none; min-height: 44px; padding: 0 13px;
+  border: 1px solid #e0e8f0; border-radius: 999px;
+  color: #617a93; background: #fff;
+  font-size: 12px; font-weight: 800; cursor: pointer;
+  touch-action: manipulation;
+}
+.shop-showroom-tab[aria-pressed="true"] {
+  color: white; background: #1760a2; border-color: #1760a2;
+  box-shadow: 0 3px 10px #124c832a;
+}
+.shop-showroom-count { margin: 0 2px 11px; color: #728ba0; font-size: 12px; font-weight: 700; }
+.shop-panel[data-presentation="furniture-showroom"] .shop-showroom-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 11px;
+}
+.shop-panel[data-presentation="furniture-showroom"] .shop-showroom-card {
+  overflow: hidden; padding: 0;
+  border: 1px solid #e3ebf2; border-radius: 18px;
+  background: #fff; box-shadow: 0 4px 13px #1c4b7410;
+}
+.shop-panel[data-presentation="furniture-showroom"] .shop-showroom-card.shop-offer-locked {
+  border-style: solid; opacity: 1;
+}
+.shop-showroom-view {
+  display: block; position: relative; width: 100%; padding: 0;
+  overflow: hidden; border: 0; cursor: pointer;
+  background: transparent; color: #406888; touch-action: manipulation;
+}
+.shop-showroom-picture {
+  position: relative; display: grid; place-items: center;
+  width: 100%; height: clamp(105px, 23vw, 164px);
+  background: linear-gradient(140deg, #e0efff, #c9e0f7);
+}
+.shop-showroom-picture-light { background: linear-gradient(140deg, #fff2dd, #ffdfb7); }
+.shop-showroom-picture-floor { background: linear-gradient(140deg, #e7ecff, #cfdcf5); }
+.shop-showroom-picture-seating { background: linear-gradient(140deg, #dbf3ef, #b9e8df); }
+.shop-showroom-picture-decor { background: linear-gradient(140deg, #ffe9ed, #ffdce8); }
+.shop-showroom-picture-wall { background: linear-gradient(140deg, #eee8fd, #dcd7f1); }
+.shop-showroom-picture-storage { background: linear-gradient(140deg, #f7efdf, #ecd9bb); }
+.shop-showroom-picture-kitchen { background: linear-gradient(140deg, #e0f4da, #c9e9c4); }
+.shop-showroom-thumbnail {
+  display: block; width: 100%; height: 100%; object-fit: contain;
+  position: absolute; inset: 0; z-index: 1;
+}
+.shop-showroom-thumbnail[hidden] { display: none; }
+.shop-showroom-picture-fallback {
+  font-size: 46px; font-weight: 900; color: #588ab57a; line-height: 1;
+}
+.shop-showroom-thumbnail:not([hidden]) + .shop-showroom-picture-fallback { display: none; }
+.shop-showroom-view-label {
+  display: block; padding: 6px 10px;
+  color: #497aa6; background: #eef5fb;
+  font-size: 11px; font-weight: 800; text-align: right;
+}
+.shop-showroom-copy { padding: 12px 11px; }
+.shop-panel[data-presentation="furniture-showroom"] .shop-showroom-copy .shop-offer-head {
+  flex-wrap: wrap; gap: 4px;
+}
+.shop-panel[data-presentation="furniture-showroom"] .shop-showroom-copy .shop-offer-name {
+  color: #243c51; font-size: 13px; font-weight: 900;
+}
+.shop-panel[data-presentation="furniture-showroom"] .shop-showroom-copy .shop-offer-price {
+  color: #24659f; font-size: 13px;
+}
+.shop-panel[data-presentation="furniture-showroom"] .shop-showroom-copy .shop-offer-foot {
+  flex-wrap: wrap; align-items: stretch; margin-top: 10px;
+}
+.shop-panel[data-presentation="furniture-showroom"] .shop-showroom-copy .shop-offer-meta {
+  width: 100%; font-size: 11px;
+}
+.shop-panel[data-presentation="furniture-showroom"] .shop-offer-level { color: #55738a; }
+.shop-panel[data-presentation="furniture-showroom"] .shop-offer-status { color: #1b855e; }
+.shop-panel[data-presentation="furniture-showroom"] .shop-offer-locked .shop-offer-status { color: #ad673a; }
+.shop-panel[data-presentation="furniture-showroom"] .shop-offer-unavailable .shop-offer-status { color: #8b929d; }
+.shop-panel[data-presentation="furniture-showroom"] .shop-showroom-copy .shop-offer-buy {
+  width: 100%; background: #1c796e; border-color: #1c796e;
+}
+.shop-panel[data-presentation="furniture-showroom"] .shop-offer-buy:disabled {
+  background: #e4ecf2; border-color: #d4e0e7; color: #768999;
+}
+.shop-panel[data-presentation="furniture-showroom"] .shop-furniture-receipt {
+  border-top: 1px solid #d4e3ed; color: #446279;
+}
+.shop-panel[data-presentation="furniture-showroom"] .shop-furniture-note { color: #3d6078; }
+.shop-showroom-detail { padding: 1px 2px 8px; }
+.shop-showroom-back, .shop-showroom-rotate {
+  min-height: 44px; border: 1px solid #d7e5f1;
+  border-radius: 12px; padding: 0 12px; background: white;
+  color: #276398; font-size: 12px; font-weight: 850;
+  cursor: pointer; touch-action: manipulation;
+}
+.shop-showroom-back { margin-bottom: 12px; }
+.shop-showroom-stage {
+  position: relative; display: grid; place-items: center;
+  height: clamp(172px, 39vw, 280px);
+  border: 1px solid #dce9f3; border-radius: 16px;
+  background: linear-gradient(135deg, #e3f1fc, #c9e3f7);
+  overflow: hidden;
+}
+.shop-showroom-preview-fallback { padding: 20px; color: #6387a3; font-size: 12px; text-align: center; }
+.shop-showroom-canvas { position: absolute; inset: 0; display: block; width: 100%; height: 100%; object-fit: contain; }
+.shop-showroom-canvas-offscreen {
+  position: fixed !important; left: -9999px !important; top: -9999px !important;
+  width: 256px; height: 192px; pointer-events: none !important;
+}
+.shop-showroom-rotation { display: flex; gap: 8px; justify-content: center; margin: 10px 0 14px; }
+.shop-showroom-detail-name { margin: 0; font-size: 21px; letter-spacing: -.03em; }
+.shop-showroom-detail-description { margin: 8px 0; color: #59748b; font-size: 13px; line-height: 1.5; }
+.shop-showroom-placement { color: #466985; font-size: 12px; font-weight: 750; }
+.shop-showroom-detail-bottom {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+  padding: 13px; border-radius: 14px; background: #edf4f9;
+}
+.shop-showroom-detail-price { color: #2464a0; font-size: 16px; }
+.shop-showroom-detail-level, .shop-showroom-detail-status { color: #56748d; font-size: 12px; }
+.shop-showroom-detail-bottom .shop-offer-buy { margin-left: auto; }
+.shop-panel[data-presentation="furniture-showroom"] button:focus-visible {
+  outline: 3px solid #f5b83f; outline-offset: 2px;
+}
+@media (max-width: 360px) {
+  .shop-panel[data-presentation="furniture-showroom"] .shop-panel-body { padding: 13px 10px 19px; }
+  .shop-panel[data-presentation="furniture-showroom"] .shop-showroom-grid { gap: 8px; }
+  .shop-showroom-copy { padding: 10px 8px; }
+}
+/* SHOWROOM-SHORT-LANDSCAPE:start */
+@media (max-height: 440px) and (orientation: landscape) {
+  .shop-panel[data-presentation="furniture-showroom"] .shop-panel-head { padding-top: 10px; padding-bottom: 10px; }
+  .shop-panel[data-presentation="furniture-showroom"] .shop-panel-body { padding-top: 10px; }
+}
+/* SHOWROOM-SHORT-LANDSCAPE:end */
+@media (prefers-reduced-motion: reduce) {
+  .shop-panel[data-presentation="furniture-showroom"] * { scroll-behavior: auto !important; transition: none !important; }
+}
 
 /* LANDSCAPE-HUD:start
    Mobile landscape HUD · phones held sideways (touch + landscape + short viewport).

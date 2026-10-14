@@ -7,6 +7,7 @@ import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { startSmoke, TIMEOUT_MS } from './harness.mjs';
+import { inspectStarterPurchaseButton, trackStarterPurchaseRpc } from './starter-furniture-input-probe.mjs';
 import { canonicalFurniture } from '../../src/rooms/furniture-layout.js';
 import { createStarterFurnitureBrowserDatabase } from '../../../../supabase/tests/support/starter-furniture-browser-db.mjs';
 
@@ -48,6 +49,7 @@ const sources = [...await sourceFiles('apps/world/src'), ...await sourceFiles('a
 for (const file of ['apps/world/styles.css', 'apps/world/assets/induck-v3.glb', 'apps/world/assets/annyongi-flight-v1.glb', 'apps/world/tests/browser/starter-furniture-harness.html',
   'apps/world/tests/browser/starter-furniture-fixture.mjs', 'apps/world/tests/browser/starter-furniture-smoke.mjs',
   'apps/world/tests/browser/starter-furniture-visual-probe.mjs',
+  'apps/world/tests/browser/starter-furniture-input-probe.mjs',
   'supabase/tests/support/starter-furniture-browser-db.mjs']) sources.push({path:file,sha256:sha(await readFile(path.join(repo,file)))});
 const commit = execFileSync('git',['rev-parse','HEAD'],{cwd:repo,encoding:'utf8'}).trim();
 if (process.env.STARTER_FURNITURE_HEAD_SHA) assert.equal(commit,process.env.STARTER_FURNITURE_HEAD_SHA,'CI must test the requested exact head');
@@ -58,7 +60,7 @@ await writeFile(path.join(output,'source-manifest.json'),JSON.stringify(provenan
 const report = { result:'running', commit, sourceHash:provenance.sourceHash,
   scope:'Production UI, renderers, Character/SeatController and disposable PostgREST/SQL; character visual identity is explicitly scoped below',characterEvidence,
   exclusions:['Production database/deployment','Private room Realtime presence/channel','Actual Induck rendered pixels: UNKNOWN'],
-  evidence:[], checks:[], db:[], transportControls:[] };
+  evidence:[], checks:[], db:[], transportControls:[], legacyPurchases:[] };
 let activePage, smoke, db, releasePurchase;
 let activeStage='starting';
 async function stage(name,details={}) {
@@ -319,12 +321,19 @@ try {
     // Only preflight capability discovery is fault-injected. Legacy reads, purchases,
     // wallet and inventory still execute the actual server v1 functions and are read back in SQL.
     await stage(`${view.label}: legacy-v1-browser`);
+    // Every first-page assertion and screenshot is complete. Do not leave its World
+    // renderer competing with the independent legacy account's new World + showroom.
+    await page.close(); activePage=null;
+    assert.equal(smoke.context.pages().length,0,'completed first-page renderer must be retired before legacy QA');
     const legacy=await db.createAccount({balance:600});
+    const legacyPurchaseInvocations=[];
     const legacyPage=activePage=await smoke.context.newPage(),legacyFatal=smoke.watch(legacyPage);
     await legacyPage.exposeFunction('__STARTER_RPC__',(name,args)=>name==='get_world_shop_capabilities_v1'
       ? {data:null,error:{code:'PGRST202',message:'Could not find the function public.get_world_shop_capabilities_v1() in the schema cache'}}
-      : legacy.rpc(name,args));
-    report.transportControls.push(`${view.label}: exact missing-capability response selects legacy UI; every economic RPC remains real v1`);
+      : name.startsWith('purchase_world_shop_listing_')
+        ? trackStarterPurchaseRpc(legacyPurchaseInvocations,name,args,()=>legacy.rpc(name,args))
+        : legacy.rpc(name,args));
+    report.transportControls.push(`${view.label}: exact missing-capability response selects legacy v1 transport in the same showroom UI; every economic RPC remains real v1`);
     await legacyPage.addInitScript(identity=>{window.__STARTER_IDENTITY__=identity;},{userId:legacy.userId,roomId:legacy.roomId,renderMode:characterEvidence.mode});
     await legacyPage.goto(`${smoke.origin}/tests/browser/starter-furniture-harness.html`,{waitUntil:'domcontentloaded'});
     await Promise.race([legacyFatal,legacyPage.waitForFunction(()=>window.__STARTER_FURNITURE__?.ready||window.__STARTER_FURNITURE__?.error,null,{timeout:TIMEOUT_MS})]);
@@ -333,8 +342,26 @@ try {
     await openShop(legacyPage,view.mobile);
     for(let index=0;index<items.length;index++) {
       const buy=legacyPage.locator(`[data-listing-id="${listings[index]}"] .shop-offer-buy`);
-      if(view.mobile)await buy.tap();else await buy.click();
+      const attempt={view:view.label,listingId:listings[index],input:view.mobile?'tap':'click',
+        pageCount:smoke.context.pages().length,status:'PENDING',pageRpcInvocations:legacyPurchaseInvocations};
+      report.legacyPurchases.push(attempt);
+      const probe=()=>buy.evaluate(inspectStarterPurchaseButton,undefined,{timeout:3000})
+        .catch(error=>({unavailable:String(error.message)}));
+      const saveAttempt=()=>writeFile(path.join(output,`${view.label}-legacy-purchase-${index}.json`),JSON.stringify(attempt,null,2));
+      attempt.before=await probe(); await saveAttempt();
+      try {
+        if(view.mobile)await buy.tap();else await buy.click();
+        attempt.status='INPUT_COMPLETED';
+      } catch(error) {
+        attempt.status='INPUT_FAILED'; attempt.error=String(error.message); throw error;
+      } finally {
+        // Persist even when the real action fails; diagnostics never force input or
+        // replace the actionability, inventory, wallet, ledger or geometry checks.
+        attempt.after=await probe();
+        await saveAttempt();
+      }
       await legacyPage.waitForFunction(item=>window.__STARTER_FURNITURE__.snapshot().inventory?.items.some(row=>row.itemId===item),items[index]);
+      await saveAttempt(); // Refresh pending binding entries after confirmed inventory delivery.
     }
     await legacyPage.waitForFunction(()=>window.__STARTER_FURNITURE__.snapshot().wallet?.balances['currency.induck_coin']===0);
     assertEconomic(await legacy.readback(),2,0);
@@ -342,7 +369,7 @@ try {
     assert.equal(legacy.calls.filter(call=>call.name==='purchase_world_shop_listing_v2').length,0);
     await capture(legacyPage,`${view.label}-legacy-v1-purchases`);
     report.db.push({view:view.label,phase:'legacy-v1-browser',readback:await legacy.readback()});
-    check(`${view.label}: exact missing-capability legacy UI still purchases two products through real v1 server authority`);
+    check(`${view.label}: exact missing-capability legacy v1 transport in the same showroom UI purchases two products through real v1 server authority`);
     assert.deepEqual(smoke.problems,[]);
     await writeFile(path.join(output,`${view.label}-rpc.json`),JSON.stringify({calls:db.calls,guestCalls:db.guestCalls,poor:poor.calls,anonymous:anonymous.calls,concurrent:concurrent.calls,legacy:legacy.calls},null,2));
     await stage(`${view.label}: close-browser-and-restore-fixture`);
