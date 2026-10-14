@@ -120,6 +120,7 @@ test("region transition owns Campus -> Biryong -> Campus handoff and cooldown", 
   const transition = createBiryongRealmTransition({
     world,
     campusReturnAnchor,
+    accessEnabled: true, // Exercise the transition internals independently of the public release hold.
     clock: { now: () => now },
     onBusyChange: value => busy.push(value)
   });

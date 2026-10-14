@@ -1,4 +1,5 @@
 import { WORLD_REGION_ID } from "../regions/world-region-registry.js";
+import { BIRYONG_PUBLIC_ACCESS_ENABLED } from "../biryong/biryong-access-policy.js";
 import { setLobbyShellVisible } from "./lobby-shell.js";
 import { requestLobbyFullscreen } from "./lobby-fullscreen.js";
 
@@ -22,11 +23,13 @@ export function enterResume({
   documentLike = globalThis.document,
   transition = null,
   regionTransition = null,
-  isCurrent = () => true
+  isCurrent = () => true,
+  allowBiryongResume = BIRYONG_PUBLIC_ACCESS_ENABLED
 } = {}) {
   if (!isCurrent() || transition?.active || !player || !orbit || !lobbyWorld?.active || !record) return false;
 
   if (record.regionId === WORLD_REGION_ID.BIRYONG_REALM) {
+    if (!allowBiryongResume) return false;
     // Keep the lobby intact until the regional transaction has settled. A failed or
     // invalidated fade restores its Campus checkpoint instead of teleporting local coordinates.
     return regionTransition?.resume?.(record, {
@@ -72,12 +75,13 @@ export function bindResumeEntry({
   documentLike = globalThis.document,
   transition = null,
   getRegionTransition = () => null,
-  requestFullscreen = requestLobbyFullscreen
+  requestFullscreen = requestLobbyFullscreen,
+  allowBiryongResume = BIRYONG_PUBLIC_ACCESS_ENABLED
 } = {}) {
   let destroyed = false;
   let pendingRegion = null;
   const record = resume?.state === "VALID" ? resume.record : null;
-  if (!button || !record) {
+  if (!button || !record || (record.regionId === WORLD_REGION_ID.BIRYONG_REALM && !allowBiryongResume)) {
     if (button) button.hidden = true;
     return { available: false, start: () => false, destroy() {} };
   }
@@ -91,7 +95,7 @@ export function bindResumeEntry({
     const regionTransition = getRegionTransition();
     if (record.regionId === WORLD_REGION_ID.BIRYONG_REALM) pendingRegion = regionTransition;
     return enterResume({ player, orbit, lobbyWorld, record, documentLike, transition, regionTransition,
-      isCurrent: () => !destroyed });
+      allowBiryongResume, isCurrent: () => !destroyed });
   };
   button.addEventListener("click", start);
   return {

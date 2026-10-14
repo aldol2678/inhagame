@@ -3,6 +3,7 @@
 import { WORLD_REGION_ID } from "../regions/world-region-registry.js";
 import { validateResumeRecord } from "../lobby/world-resume.js";
 import { BIRYONG_STATION_SPAWN } from "./biryong-realm-layout.js";
+import { BIRYONG_PUBLIC_ACCESS_ENABLED } from "./biryong-access-policy.js";
 
 export const BIRYONG_REGION_TRANSITION_COOLDOWN_MS = 800;
 
@@ -12,7 +13,8 @@ export function createBiryongRealmTransition({
   clock = { now: () => Date.now() },
   fade = run => run(),
   onBusyChange = () => {},
-  onError = () => {}
+  onError = () => {},
+  accessEnabled = BIRYONG_PUBLIC_ACCESS_ENABLED
 } = {}) {
   if (!world || !campusReturnAnchor) throw new TypeError("Biryong realm transition dependencies required");
 
@@ -158,7 +160,7 @@ export function createBiryongRealmTransition({
   }
 
   function enter() {
-    if (regionId !== WORLD_REGION_ID.CAMPUS || !ready()) return false;
+    if (!accessEnabled || regionId !== WORLD_REGION_ID.CAMPUS || !ready()) return false;
     return travel({ target: WORLD_REGION_ID.BIRYONG_REALM, event: "enter", counter: "enters", run: () => {
       world.leaveCampus();
       world.showBiryong();
@@ -168,7 +170,7 @@ export function createBiryongRealmTransition({
 
   // Resume is a one-session handoff, never a permanent spawn unlock or an F1 reward.
   function resume(raw, { isCurrent = () => true, onComplete = null } = {}) {
-    if (regionId !== WORLD_REGION_ID.CAMPUS || !ready() || !isCurrent()) return false;
+    if (!accessEnabled || regionId !== WORLD_REGION_ID.CAMPUS || !ready() || !isCurrent()) return false;
     const checked = validateResumeRecord(raw, { expectedRegionId: WORLD_REGION_ID.BIRYONG_REALM });
     if (checked.state !== "VALID") return false;
     const record = checked.record;

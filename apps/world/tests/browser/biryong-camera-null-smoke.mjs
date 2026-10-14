@@ -31,7 +31,7 @@ try {
   const controller = { setMovementSpace(space) { this.space = space; }, groundY: 1.15 };
   const world = createBiryongRealmWorldAdapter({ player, controller, orbit, campusRoot, biryongRoot });
   let now = 0;
-  const transition = createBiryongRealmTransition({ world, clock: { now: () => now }, campusReturnAnchor: { x: .5, y: 1.15, z: -92.6 } });
+  const transition = createBiryongRealmTransition({ world, clock: { now: () => now }, accessEnabled: true, campusReturnAnchor: { x: .5, y: 1.15, z: -92.6 } });
   const points = [{ x: -4.7, z: 19.93 }, { x: -1.2164960827128801, z: 29.446387731183304 }, ...BIRYONG_MAP_DESTINATIONS.map(p => p.position),
     ...BIRYONG_VILLAGE_BUILDINGS.map(b => ({ x: b.x, z: b.z - b.depth / 2 - .6 }))];
   const stationMesh = biryongRoot.findByName('biryong_station_building').render.meshInstances[0];

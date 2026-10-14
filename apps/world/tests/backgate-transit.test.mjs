@@ -28,7 +28,7 @@ test('source stays separate from the physical pole; actual grounding and full wo
   assert.ok(Math.abs(BACKGATE_TRANSIT_SOURCE_ANCHOR.x-111.798063)<1e-5);
   assert.ok(Math.abs(BACKGATE_TRANSIT_SOURCE_ANCHOR.z-113.042070)<1e-5);
   assert.equal(A.interactionRadius,1.75);
-  assert.equal(A.gameStatus,'AVAILABLE');
+  assert.equal(A.gameStatus,'COMING_SOON');
   assert.equal(A.destinationSpawnId,'BIRYONG_STATION');
   assert.equal(A.destinationRegionId,'BIRYONG_REALM');
   for(const p of [A.wait,A.boarding,A.busCenter]) {
@@ -91,7 +91,7 @@ test('PC shared trigger and touch click open the same Biryong boarding panel; fo
   button.removeAttribute=k=>delete button.attributes[k];
   const manager=createInputFocusManager(),owner=createInputFocusOwner({manager,ownerId:'backgate-transit',policy:INPUT_FOCUS_POLICY.BLOCKING_UI});
   let player=at(A.wait),boards=0;
-  const ui=createBackgateTransitPanel({panel,doc,onBoard:()=>{boards++;return true;},onOpenChange:open=>open?owner.acquire():owner.release()});
+  const ui=createBackgateTransitPanel({panel,doc,boardingEnabled:true,onBoard:()=>{boards++;return true;},onOpenChange:open=>open?owner.acquire():owner.release()});
   const world=createBackgateTransitInteraction({getPosition:()=>player,getState:()=>({grounded:true,blocked:!manager.can('WORLD_ACTION')}),getGroundHeight:roadviewGroundHeight,openPanel:()=>ui.setOpen(true)});
   for(const coarsePointer of [false,true]) {
     const slot=createContextActionController({button,shortcut:'F',coarsePointer});

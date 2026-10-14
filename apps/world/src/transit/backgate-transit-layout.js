@@ -6,6 +6,7 @@ import { BACK_GATE, BACK_SEGMENTS } from '../back-gate-layout.js';
 import { BACK_APPROACH_SEGMENTS } from '../back-approach-layout.js';
 import { BACK_ROADSIDE_COLLIDERS } from '../back-roadside-layout.js';
 import { WALK_SHAPE } from '../player-dimensions.js';
+import { BIRYONG_PUBLIC_ACCESS_ENABLED } from '../biryong/biryong-access-policy.js';
 
 const point = p => Object.freeze({ x: p.x, z: p.z });
 export const BACKGATE_TRANSIT_SOURCE = Object.freeze({
@@ -29,7 +30,7 @@ export const BACKGATE_TRANSIT = Object.freeze({
   boarding: point(segment.frame.at(U-1.3, -3.85)),
   busCenter: point(segment.frame.at(U, -2.4)),
   // F1 is a game-world region handoff. No live timetable or physical bus simulation is implied.
-  gameMobilityId: 'transit.biryong_bus.f1', gameStatus: 'AVAILABLE',
+  gameMobilityId: 'transit.biryong_bus.f1', gameStatus: BIRYONG_PUBLIC_ACCESS_ENABLED ? 'AVAILABLE' : 'COMING_SOON',
   destinationSpawnId: 'BIRYONG_STATION', destinationRegionId: 'BIRYONG_REALM',
   interactionRadius: metersToWorld(3.5), u: U,
   sidewalk: Object.freeze({ minU: U-3, maxU: U+1.5, minV: -4.9, maxV: -3.6 })
