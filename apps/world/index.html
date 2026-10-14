@@ -4,12 +4,14 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#0d2739">
-  <title>INHAGAME · 인하오리 게임 허브</title>
+  <title>INHA WORLD · Campus Éditorial</title>
   <link rel="stylesheet" href="/hub.css">
   <link rel="stylesheet" href="/hub-world-sessions.css">
+  <link rel="stylesheet" href="/hub-editorial.css">
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script defer src="/hub-telemetry.js"></script>
   <script defer src="/hub.js"></script>
+  <script defer src="/hub-editorial.js"></script>
   <script defer src="/api/public-supabase-config"></script>
   <script defer src="/hub-account.js"></script>
   <script type="module" src="/hub-world-sessions.mjs"></script>
@@ -18,12 +20,16 @@
   <script defer src="/hub-messages-client.js"></script>
   <script defer src="/hub-messages.js"></script>
 </head>
-<body>
+<body class="editorial-portal">
+  <div class="editorial-masthead"><span>INHA WORLD / CAMPUS ÉDITORIAL</span><span>DISCOVER · PLAY · CONNECT</span></div>
   <header class="header">
     <div class="header-inner">
-      <a class="brand" href="/" aria-label="INHAGAME 홈">INHA<span>GAME</span> 🦆</a>
+      <a class="brand" href="/" aria-label="INHA WORLD 홈">INHA<span>WORLD</span><small>ONE WORLD · MANY STORIES</small></a>
       <nav class="top-nav" aria-label="주 메뉴">
         <button type="button" data-panel="home" aria-current="page">홈</button>
+        <a class="editorial-nav-link" href="/#portal-games">ARCADE</a>
+        <a class="editorial-nav-link" href="/updates.html">소식</a>
+        <a class="editorial-nav-link" href="/support.html">도움말</a>
         <button type="button" data-panel="ranking">랭킹</button>
         <button type="button" data-panel="friends">친구 <span class="nav-unread friend-request-badge" data-friend-request-count hidden>0</span></button>
         <button type="button" data-panel="messages">쪽지 <span class="nav-unread" data-message-unread hidden>0</span></button>
@@ -37,13 +43,13 @@
 
   <main class="main" id="content">
     <section class="view portal-home" data-view="home">
-      <div class="portal-topline"><span>INHAGAME · PLAY YOUR WORLD</span><span>게임을 고르고, 새로운 이야기를 시작하세요.</span></div>
+      <div class="portal-topline"><span>THE INHA WORLD EXPERIENCE · 2026</span><span>ONE WORLD · MANY STORIES</span></div>
       <section class="portal-hero" aria-labelledby="portal-hero-heading">
         <div class="portal-hero-art" aria-hidden="true"><img src="/assets/hub/campus-concept.svg" alt="" fetchpriority="high"></div>
         <div class="portal-hero-copy">
           <span class="portal-pill"><span class="portal-live-dot"></span> FEATURED WORLD · INHA WORLD</span>
-          <h1 id="portal-hero-heading">캠퍼스의 오늘이<br><em>모험이 된다.</em></h1>
-          <p>익숙한 캠퍼스가 새로운 세계로. 탐험하고 퀘스트를 즐기며 친구와 함께 특별한 대학생활을 시작하세요.</p>
+          <h1 id="portal-hero-heading">Every campus<br><em>has a story.</em><span class="editorial-ko">익숙한 캠퍼스에서,<br>새로운 세계를 발견하다.</span></h1>
+          <p>인덕이의 3D 캠퍼스, 네 개의 인덕 게임, 대학생활 이야기까지. 모든 경험이 INHA WORLD라는 하나의 입구에서 시작됩니다.</p>
           <div class="feature-tags" aria-label="캠퍼스 주요 기능">
             <span>✦ 캠퍼스 탐험</span><span>✦ 퀘스트</span><span>✦ 친구·채팅</span>
           </div>
@@ -65,9 +71,14 @@
       </section>
 
       <div class="section-heading portal-section-heading" id="portal-games">
-        <div><span class="portal-section-eyebrow">GAME LIBRARY</span><h2>게임 <span>라이브러리</span></h2><p>아케이드부터 나만의 캠퍼스 이야기까지, 골라서 플레이하세요.</p></div>
+        <div><span class="portal-section-eyebrow">THE INDUCK ARCADE · PLAY COLLECTION</span><h2>One world.<br><em>Many games.</em></h2><p>인덕 아케이드 · 네 개의 게임, 하나의 입구. 기록과 실행 환경은 각 게임에서 유지합니다.</p></div>
         <span class="portal-section-meta">4개 게임 · 카탈로그 기준</span>
       </div>
+      <div class="editorial-arcade-tools" aria-label="게임 탐색">
+        <div class="editorial-filters" role="group" aria-label="게임 유형"><button type="button" data-arcade-filter="all" aria-pressed="true">전체</button><button type="button" data-arcade-filter="arcade" aria-pressed="false">아케이드</button><button type="button" data-arcade-filter="simulation" aria-pressed="false">시뮬레이션</button></div>
+        <label class="editorial-search"><span class="visually-hidden">게임 검색</span><input id="editorial-game-search" type="search" autocomplete="off" placeholder="게임 이름으로 찾기"></label>
+      </div>
+      <p id="editorial-arcade-empty" class="editorial-empty" role="status" hidden>조건에 맞는 게임이 없습니다. 필터나 검색어를 변경해 보세요.</p>
       <div class="cards portal-games" id="game-cards">
         <section class="card game-card portal-game" data-game-id="classic">
           <div class="portal-poster" aria-hidden="true"><img src="/assets/hub/classic-concept.svg" alt="" loading="lazy"><span class="portal-poster-label">CLASSIC</span></div>
@@ -118,8 +129,12 @@
           </div>
         </section>
       </div>
+      <section class="editorial-discover-more" aria-label="캠퍼스 라이프와 안내">
+        <div><span class="portal-section-eyebrow">CAMPUS LIFE</span><h2>게임 밖에서도<br><em>이어지는 대학생활.</em></h2><p>탐방과 학교생활 안내, 기록과 소식을 하나의 사이트에서 연결합니다. 실제 학교 정보는 공식 출처와 함께 확인해 주세요.</p><a href="/support.html#faq">처음 오셨나요? 안내 보기 ↗</a></div>
+        <div class="editorial-info-grid"><a href="/#portal-games"><span>01 / PLAY</span><strong>인덕 아케이드</strong><small>네 개의 독립 게임 둘러보기 ↗</small></a><a href="/updates.html"><span>02 / NEWS</span><strong>공지·업데이트</strong><small>확인된 출시 소식과 안내 ↗</small></a><a href="/support.html"><span>03 / HELP</span><strong>고객지원</strong><small>FAQ와 문의 경로 ↗</small></a><button type="button" data-panel="account"><span>04 / MY SPACE</span><strong>내 계정</strong><small>로그인 · 진행도 · 프로필 ↗</small></button></div>
+      </section>
       <section class="portal-info" aria-label="INHAGAME 안내">
-        <div><span class="portal-section-eyebrow">DEVELOPMENT NEWS</span><h2>새로운 게임 소식</h2><p>업데이트 공지 기능을 준비하고 있습니다. 실제 소식이 등록되면 이곳에 표시됩니다.</p></div>
+        <div><span class="portal-section-eyebrow">DEVELOPMENT NEWS</span><h2>새로운 게임 소식</h2><p>실제 배포가 확인된 업데이트만 안내합니다. 개발 중 기능은 출시된 것처럼 표시하지 않습니다.</p><a class="editorial-text-link" href="/updates.html">공지·업데이트 보기 ↗</a></div>
         <div><span class="portal-section-eyebrow">INHAGAME ACCOUNT</span><h2>게임 기록을 이어가세요</h2><p>계정 연결을 지원하는 게임의 진행 상황을 관리할 수 있습니다.</p><button type="button" class="portal-info-action" data-panel="account">내 계정 보기 →</button></div>
       </section>
     </section>
@@ -404,7 +419,7 @@
     </section>
   </main>
 
-  <footer class="footer">INHAGAME · INHA WORLD는 인하대학교가 공식적으로 제작·운영·후원하는 서비스가 아닌 학생 창작 프로젝트입니다. · <a href="https://duck.inhagame.app/privacy.html">개인정보 처리방침</a></footer>
+  <footer class="footer editorial-footer"><div class="editorial-footer-brand"><strong>INHA WORLD</strong><span>ONE WORLD · MANY STORIES</span></div><nav aria-label="서비스 안내"><a href="/updates.html">공지·업데이트</a><a href="/support.html#faq">FAQ·Q&amp;A</a><a href="/support.html#contact">문의·신고</a><a href="/terms.html">이용약관(검토안)</a><a href="/privacy.html">개인정보 처리방침</a></nav><p>INHAGAME · INHA WORLD는 인하대학교가 공식적으로 제작·운영·후원하는 서비스가 아닌 학생 창작 프로젝트입니다.</p></footer>
   <nav class="bottom-nav" aria-label="모바일 메뉴">
     <button type="button" data-panel="home" aria-current="page">⌂ 홈</button>
     <button type="button" data-panel="ranking">🏆 랭킹</button>
