@@ -5,6 +5,7 @@ export function createPhoneNotificationCenter({
   onOpenApp = () => false, onChange = () => {}, doc = globalThis.document
 } = {}) {
   let accountId = null, host = null, filter = 'all', messageUnread = 0;
+  let settingsOpen = false, openError = false;
   let seen = new Set(), muted = new Set(), storageError = false;
   const groups = Object.freeze({all:'전체',messages:'메시지',daily:'오늘 할 일'});
   const key = () => 'inha-world-phone-notifications-v1:' + accountId;
@@ -28,6 +29,7 @@ export function createPhoneNotificationCenter({
     const next=typeof id==='string'&&/^[0-9a-f-]{36}$/i.test(id)?id:null;
     if(next===accountId)return;
     accountId=next;messageUnread=0;seen=new Set();muted=new Set();filter='all';storageError=false;
+    settingsOpen=false;openError=false;
     if(accountId) {
       try {
         const raw=JSON.parse(getStorage()?.getItem(key())||'null');
@@ -68,7 +70,9 @@ export function createPhoneNotificationCenter({
   function snapshot() {
     const rows=entries();
     const visible=rows.filter(x=>!muted.has(x.group));
-    return {accountId,rows,visible,filter,muted:[...muted],storageError,
+    return {accountId,rows,visible,filter,muted:[...muted],storageError,settingsOpen,openError,
+      counts:{all:visible.length,messages:visible.filter(x=>x.group==='messages').length,
+        daily:visible.filter(x=>x.group==='daily').length},
       unreadCount:visible.reduce((n,x)=>n+(x.unread?(x.serverUnread?Math.min(messageUnread,99):1):0),0)};
   }
   function changed() {const state=snapshot();render(state);onChange(state);return state;}
@@ -92,46 +96,122 @@ export function createPhoneNotificationCenter({
     save();changed();
   }
   function openEntry(entry) {
-    // Messages are marked read only by their existing server-backed Messages flow.
-    if(!entry.serverUnread)markRead(entry.id);
-    onOpenApp(entry.appId);
+    // The existing Shell returns a synchronous boolean: mark local daily cards only after successful navigation.
+    // Messages must still be read through the existing server-backed Messages app.
+    const owner = accountId;
+    let opened = false;
+    try { opened = onOpenApp(entry.appId) === true; } catch { /* existing Phone remains usable */ }
+    if (!opened) {
+      if (owner === accountId) { openError = true; changed(); }
+      return false;
+    }
+    if (owner === accountId && !entry.serverUnread) markRead(entry.id);
+    return true;
   }
   function render(state=snapshot()) {
     if(!host)return;
+    // Re-render without losing focus after filter, switch and details actions.
+    const focusedControl=host.contains?.(doc.activeElement) ? doc.activeElement?.dataset?.notificationFocus : null;
     host.replaceChildren();
-    const root=node('section','phone-notifications');root.setAttribute('aria-label','알림센터');host.append(root);
-    root.append(node('h3','','🔔 알림센터'));
-    root.append(node('p','phone-notifications-hint',
-      '서버에서 확인된 메시지·출석·퀴즈 상태만 보여줘요. 읽음 표시는 이 기기의 알림 표시 설정이에요.'));
-    if(!accountId){root.append(node('p','smartphone-empty-state','로그인하면 알림을 확인할 수 있어요.'));return;}
+    const root=node('section','phone-notifications');
+    root.setAttribute('aria-label','알림센터');host.append(root);
+
+    const hero=node('div','phone-notifications-hero');
+    const heroCopy=node('div','phone-notifications-hero-copy');
+    heroCopy.append(node('h3','','오늘의 알림'));
+    heroCopy.append(node('p','phone-notifications-summary',!accountId?'로그인 후 확인할 수 있어요.'
+      :state.unreadCount>0?'확인할 새 알림 '+state.unreadCount+'건':'새로운 알림이 없어요'));
+    const heroIcon=node('span','phone-notifications-hero-icon','🔔');
+    heroIcon.setAttribute('aria-hidden','true');
+    hero.append(heroCopy,heroIcon);root.append(hero);
+    if(!accountId) {
+      root.append(node('p','smartphone-empty-state','로그인하면 메시지·출석·퀴즈 알림을 확인할 수 있어요.'));
+      return;
+    }
+
     const controls=node('div','phone-notifications-filters');
+    controls.setAttribute('role','group');controls.setAttribute('aria-label','알림 종류');
     for(const [id,name] of Object.entries(groups)){
-      const b=button(name,()=>{filter=id;changed();});b.setAttribute('aria-pressed',String(filter===id));controls.append(b);
+      const b=button(name,()=>{filter=id;openError=false;changed();},'phone-notifications-filter');
+      b.setAttribute('aria-pressed',String(filter===id));
+      b.setAttribute('aria-label',name+' '+state.counts[id]+'개');
+      b.dataset.notificationFocus='filter-'+id;
+      const number=node('span','phone-notifications-count',String(state.counts[id]));
+      b.append(number);controls.append(b);
     }
     root.append(controls);
-    const mute=node('div','phone-notifications-settings');
-    for(const [id,name] of [['messages','메시지 표시'],['daily','출석·퀴즈 표시']]){
-      const label=node('label','phone-notifications-setting',name),box=node('input');
-      box.type='checkbox';box.checked=!muted.has(id);
-      box.addEventListener('change',()=>setMuted(id,!box.checked));label.append(box);mute.append(label);
-    }
-    root.append(mute);
+
     const list=node('div','phone-notifications-list');
     const visible=state.visible.filter(x=>filter==='all'||x.group===filter);
-    if(!visible.length)list.append(node('p','smartphone-empty-state','표시할 알림이 없어요.'));
+    if(!visible.length) {
+      const empty=node('div','phone-notifications-empty');
+      const icon=node('span','phone-notifications-empty-icon','🔕');icon.setAttribute('aria-hidden','true');
+      empty.append(icon,node('strong','',state.rows.length===0?'지금은 새로운 알림이 없어요':
+        state.visible.length===0?'표시 설정에서 모든 알림을 껐어요':'이 종류의 알림은 없어요'));
+      empty.append(node('p','','새로운 메시지나 오늘 할 일이 생기면 여기에 표시돼요.'));
+      list.append(empty);
+    }
     for(const item of visible) {
-      const card=node('article','phone-notification-item');card.dataset.category=item.group;
-      card.dataset.unread=String(item.unread);
-      const label=node('div','phone-notification-copy');
-      label.append(node('strong','',item.icon+' '+item.title),node('p','',item.detail));
+      const card=node('article','phone-notification-item');
+      card.dataset.category=item.group;card.dataset.unread=String(item.unread);
+      const itemIcon=node('span','phone-notification-icon',item.icon);
+      itemIcon.setAttribute('aria-hidden','true');
+      const copy=node('div','phone-notification-copy');
+      const top=node('div','phone-notification-heading');
+      top.append(node('strong','',item.title));
+      if(item.unread){
+        const dot=node('span','phone-notification-unread','미확인');
+        dot.setAttribute('aria-label','미확인 알림');
+        top.append(dot);
+      }
+      copy.append(top,node('p','',item.detail));
       const action=button(item.action,()=>openEntry(item),'phone-notification-action');
-      card.append(label,action);list.append(card);
+      action.setAttribute('aria-label',item.title+' · '+item.action);
+      action.dataset.notificationFocus='entry-'+item.id;
+      card.append(itemIcon,copy,action);list.append(card);
     }
     root.append(list);
+    if(state.openError) {
+      const error=node('p','phone-notifications-error','앱을 열 수 없어요. 다시 시도해 주세요.');
+      error.setAttribute('role','status');root.append(error);
+    }
+
     const footer=node('div','phone-notifications-footer');
-    footer.append(button('확인한 알림 표시 정리',markAllRead));
-    if(state.storageError)footer.append(node('p','phone-notifications-error','읽음 설정을 저장하지 못했어요. 현재 화면에만 적용돼요.'));
-    root.append(footer);
+    const unreadDaily=state.visible.some(x=>x.group==='daily'&&x.unread);
+    if(unreadDaily) {
+      const all=button('할 일 알림 모두 확인',markAllRead,'phone-notifications-mark-all');
+      all.dataset.notificationFocus='mark-all';footer.append(all);
+    }
+    const settingsButton=button('표시 설정',()=>{settingsOpen=!settingsOpen;openError=false;changed();},'phone-notifications-settings-button');
+    settingsButton.setAttribute('aria-expanded',String(settingsOpen));
+    settingsButton.setAttribute('aria-controls','phone-notifications-preferences');
+    settingsButton.dataset.notificationFocus='settings';
+    footer.append(settingsButton);root.append(footer);
+
+    const preferences=node('div','phone-notifications-preferences');
+    preferences.id='phone-notifications-preferences';preferences.hidden=!settingsOpen;
+    for(const [id,name] of [['messages','메시지 알림'],['daily','출석·퀴즈 알림']]){
+      const setting=node('div','phone-notifications-setting');
+      const title=node('span','',name);
+      const enabled=!muted.has(id);
+      const toggle=button(enabled?'켜짐':'꺼짐',()=>setMuted(id,enabled),'phone-notifications-switch');
+      toggle.setAttribute('role','switch');toggle.setAttribute('aria-checked',String(enabled));
+      toggle.setAttribute('aria-label',name);
+      toggle.dataset.notificationFocus='mute-'+id;
+      setting.append(title,toggle);preferences.append(setting);
+    }
+    preferences.append(node('p','phone-notifications-hint',
+      '이 기기에서 표시할 알림만 선택해요. OS 푸시 권한은 변경하지 않아요.'));
+    root.append(preferences);
+    root.append(node('p','phone-notifications-footnote','읽음 표시는 이 기기에만 저장돼요. 메시지 읽음은 메시지함에서 처리해요.'));
+    if(state.storageError) {
+      const error=node('p','phone-notifications-error','설정을 저장하지 못했어요. 현재 화면에만 적용돼요.');
+      error.setAttribute('role','status');root.append(error);
+    }
+    if(focusedControl) {
+      const selector='[data-notification-focus="'+focusedControl+'"]';
+      (root.querySelector?.(selector) || root.querySelector?.('[data-notification-focus="settings"]'))?.focus?.({preventScroll:true});
+    }
   }
   const offAttendance=getAttendance()?.onChange?.(()=>changed());
   const offQuiz=getQuiz()?.onChange?.(()=>changed());
