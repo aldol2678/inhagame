@@ -26,7 +26,7 @@
         else button.removeAttribute("aria-current");
       }
     });
-    document.title = current === "home" ? "INHA WORLD · Campus Éditorial" :
+    document.title = current === "home" ? "인하월드 | 캠퍼스 탐험과 인덕 게임 · INHA WORLD" :
       `${{ ranking: "랭킹", friends: "친구", messages: "쪽지", account: "계정", settings: "설정" }[current]} · INHAGAME`;
   }
 
