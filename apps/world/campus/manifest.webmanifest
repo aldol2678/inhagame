@@ -28,5 +28,31 @@
       "type": "image/png",
       "purpose": "maskable"
     }
+  ],
+  "shortcuts": [
+    {
+      "name": "캠퍼스 입장",
+      "short_name": "캠퍼스",
+      "description": "인하월드 캠퍼스 로비로 들어가기",
+      "url": "/campus/?lobby=1&shortcut=campus"
+    },
+    {
+      "name": "알림센터",
+      "short_name": "알림",
+      "description": "캠퍼스 입장 후 스마트폰 알림센터 열기",
+      "url": "/campus/?lobby=1&shortcut=notifications"
+    },
+    {
+      "name": "오늘의 퀴즈",
+      "short_name": "퀴즈",
+      "description": "캠퍼스 입장 후 오늘의 퀴즈 열기",
+      "url": "/campus/?lobby=1&shortcut=daily-quiz"
+    },
+    {
+      "name": "사진 앨범",
+      "short_name": "앨범",
+      "description": "캠퍼스 입장 후 스마트폰 앨범 열기",
+      "url": "/campus/?lobby=1&shortcut=album"
+    }
   ]
 }
