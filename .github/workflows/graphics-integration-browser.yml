@@ -5,6 +5,14 @@ on:
       - '.github/ci/phone-surface-scope*.mjs'
       - '.github/ci/seo-only-scope*.mjs'
       - 'apps/world/src/main.js'
+      - 'apps/world/src/minigames/**'
+      - 'apps/world/src/context-action.js'
+      - 'apps/world/tests/inkyung-water-path-world.test.mjs'
+      - 'apps/world/tests/water-path.test.mjs'
+      - 'apps/world/tests/puzzle-core*.test.mjs'
+      - 'apps/world/tests/context-action-observer.test.mjs'
+      - 'apps/world/tests/guestbook-account-panel.test.mjs'
+      - 'apps/world/tests/browser/inkyung-water-path-smoke.mjs'
       - 'apps/world/src/campus-contact-shading*.js'
       - 'apps/world/src/campus-chunk-renderer.js'
       - 'apps/world/src/graphics-presets.js'
@@ -58,7 +66,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends fonts-noto-cjk
       - name: Verify graphics integration contracts
         if: steps.phone_scope.outputs.skip != 'true'
-        run: node --test apps/world/tests/graphics-parallel-smoke-contract.test.mjs
+        run: node --test apps/world/tests/graphics-parallel-smoke-contract.test.mjs apps/world/tests/inkyung-water-path-world.test.mjs apps/world/tests/water-path.test.mjs apps/world/tests/puzzle-core.test.mjs apps/world/tests/puzzle-core-safety.test.mjs apps/world/tests/context-action-observer.test.mjs apps/world/tests/guestbook-account-panel.test.mjs
       - name: Run integrated graphics browser smoke
         if: steps.phone_scope.outputs.skip != 'true'
         env:
@@ -66,6 +74,22 @@ jobs:
           EXPECTED_GRAPHICS_HEAD: ${{ github.event.pull_request.head.sha }}
           WORLD_GRAPHICS_QA_OUTPUT: test-results/graphics-parallel
         run: node apps/world/tests/browser/graphics-parallel-smoke.mjs
+      - name: Run Inkyung water-path metadata-only browser QA
+        if: steps.phone_scope.outputs.skip != 'true'
+        timeout-minutes: 6
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          EXPECTED_WATER_PATH_HEAD: ${{ github.event.pull_request.head.sha }}
+          WATER_PATH_QA_OUTPUT: test-results/inkyung-water-path
+        run: node apps/world/tests/browser/inkyung-water-path-smoke.mjs
+      - name: Preserve water-path metadata only
+        if: always() && steps.phone_scope.outputs.skip != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: world-water-path-metadata-${{ github.event.pull_request.head.sha }}
+          path: test-results/inkyung-water-path/report.json
+          if-no-files-found: error
+          retention-days: 7
       - name: Preserve exact-head browser evidence
         if: always() && steps.phone_scope.outputs.skip != 'true'
         uses: actions/upload-artifact@v4

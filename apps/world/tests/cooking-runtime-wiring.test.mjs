@@ -14,7 +14,9 @@ test('cooking acquires blocking focus and closes on takeover, account reset, tra
   assert.match(main, /ownerId: "room-cooking", policy: INPUT_FOCUS_POLICY.BLOCKING_UI/);
   assert.match(main, /if \(!open\) \{ cookingInput.release\(\)/);
   assert.match(main, /snapshot.topOwners.some\(owner => owner !== "room-cooking"\)/);
-  assert.match(main, /const nextRoomFunctionAccountId = identity\?\.userId \?\? null;\s*const roomFunctionIdentityChanged = nextRoomFunctionAccountId !== roomFunctionAccountId;\s*roomFunctionAccountId = nextRoomFunctionAccountId;\s*if \(roomFunctionIdentityChanged\) \{\s*cookingFeature\?\.reset\(\)/);
+  const accountReset = main.match(/const nextRoomFunctionAccountId = identity\?\.userId \?\? null;\s*const roomFunctionIdentityChanged = nextRoomFunctionAccountId !== roomFunctionAccountId;\s*roomFunctionAccountId = nextRoomFunctionAccountId;\s*if \(roomFunctionIdentityChanged\) \{([^}]+)\}/);
+  assert.ok(accountReset, 'account-dependent features reset only when the emitted account changes');
+  assert.match(accountReset[1], /cookingFeature\?\.reset\(\);/, 'cooking still resets inside the identity-change guard alongside other features');
   assert.match(main, /accountId: roomFunctionAccountId && roomFunctionAccountId === online\?\.userId \? roomFunctionAccountId : null/);
   assert.match(main, /pagehide", \(\) => \{ cookingFeature.reset\(\)/);
   assert.match(main, /cookingFeature\?\.reset\(\);\n\s+trophyDisplayPanel\?\.close/);
