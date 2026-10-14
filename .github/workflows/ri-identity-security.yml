@@ -1,0 +1,60 @@
+name: RI F10-F11 isolated Realtime security (DRAFT)
+
+on:
+  pull_request:
+    paths:
+      - 'tools/security/ri-identity/**'
+      - '.github/workflows/ri-identity-security.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ri-security-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  isolated-realtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - uses: supabase/setup-cli@v3
+        with:
+          version: 2.117.0
+      - name: Validate isolated candidate (offline, no credentials)
+        working-directory: tools/security/ri-identity
+        run: |
+          npm run check
+          npm test
+      - name: Check PostgreSQL client
+        shell: bash
+        run: |
+          if ! command -v psql >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq postgresql-client
+          fi
+      - name: Start disposable local Supabase stack
+        env:
+          SUPABASE_ACCESS_TOKEN: ''
+          SUPABASE_DB_PASSWORD: ''
+        run: |
+          supabase start
+          supabase status -o json > /dev/null
+      - name: Real local Realtime WebSocket and RLS smoke
+        env:
+          SUPABASE_ACCESS_TOKEN: ''
+          SUPABASE_DB_PASSWORD: ''
+          RI_REQUIRE_LOCAL_ONLY: '1'
+        run: node tools/security/ri-identity/tests/local-realtime-ci.mjs
+      - name: Stop disposable database (no backup)
+        if: always()
+        env:
+          SUPABASE_ACCESS_TOKEN: ''
+          SUPABASE_DB_PASSWORD: ''
+        shell: bash
+        run: supabase stop --no-backup || true
