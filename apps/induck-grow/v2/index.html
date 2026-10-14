@@ -128,18 +128,38 @@
               </select>
             </div>
           </section>
+          <section class="card growth-card" aria-labelledby="growth-title">
+            <h2 id="growth-title">전공 활동과 성장</h2>
+            <p id="activity-summary" class="hint"></p>
+            <label for="activity-select">이번 학기 대표 활동의 접근법</label>
+            <select id="activity-select">
+              <option value="explore">탐구하고 정리하기</option>
+              <option value="build">직접 만들어 보기</option>
+              <option value="team">함께 완성하기</option>
+            </select>
+            <p class="hint">첫 주 진행 전 선택 · 미선택 시 탐구 · 5·10·15주마다 해당 역량 +1</p>
+            <details><summary>역량 6개와 획득 특성 보기</summary><div id="growth-stats"></div><p id="growth-traits" class="hint"></p></details>
+          </section>
           <section class="journal card" aria-labelledby="journal-title">
             <div class="section-head"><h2 id="journal-title">대학생활 수첩</h2></div>
             <nav class="tabs" aria-label="기록 보기">
               <button type="button" data-tab="story" aria-pressed="true">최근 기록</button>
               <button type="button" data-tab="semesters" aria-pressed="false">성적표</button>
-              <button type="button" data-tab="memories" aria-pressed="false">추억</button>
+              <button type="button" data-tab="memories" aria-pressed="false">기억카드</button>
               <button type="button" data-tab="ending" aria-pressed="false">졸업앨범</button>
             </nav>
             <div id="journal-list" class="journal-body" aria-live="off"></div>
           </section>
         </div>
       </div>
+    </section>
+    <section class="card archive-card" aria-labelledby="archive-title">
+      <details id="archive-details"><summary id="archive-title">🎓 졸업생 기록실 · 내 최고 학점</summary>
+        <p class="hint">이 브라우저에 보관한 완료 기록 최대 50건. 전공·엔진·콘텐츠·성장 버전별 공동 순위. 시드와 선택은 다를 수 있으며, 온라인 랭킹이 아닙니다.</p>
+        <p id="archive-status" role="status"></p>
+        <button id="archive-retry" type="button" class="secondary">보관 다시 시도 · 새로고침</button>
+        <div id="archive-list"></div>
+      </details>
     </section>
   </main>
   <footer class="site-footer">인덕이 키우기 2.0 개발용 프리뷰 · 기기 저장만 지원 · INHA WORLD 재화/계정 연동 없음</footer>

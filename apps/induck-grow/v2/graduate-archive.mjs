@@ -1,0 +1,69 @@
+import {growthCards,earnedTraits,GROWTH_VERSION} from './campus-growth.mjs';
+export const GRADUATE_ARCHIVE_KEY='induck-grow-v2-graduates-1';
+export const GRADUATE_ARCHIVE_SCHEMA='grow2-graduates-1';
+const LIMIT=50,MAX_BYTES=2*1024*1024;
+export function graduateSummary(life) {
+  if(life?.status!=='complete'||life.weeksCompleted!==120||life.semesters?.length!==8||!life.ending)
+    throw new Error('Only completed lives can be archived');
+  return {engine:life.version,content:life.contentVersion||'grow2-content-0.1',
+    growth:life.growth?.version||'legacy',majorId:life.majorId,seed:life.seed,
+    gpa:life.gpa,title:life.ending.title,
+    semesters:life.semesters.map(s=>({gpa:s.gpa})),
+    cards:growthCards(life),traits:earnedTraits(life),
+    epilogue:life.ending.epilogue?.chapters.map(x=>x.text)||[]};
+}
+function validRecord(x) {
+  return x&&x.engine==='grow2-life-engine-0.1'&&
+    ['grow2-content-0.1','grow2-content-major-stories-1'].includes(x.content)&&
+    ['legacy',GROWTH_VERSION].includes(x.growth)&&typeof x.majorId==='string'&&x.majorId.length<50&&
+    Number.isInteger(x.seed)&&x.seed>=0&&x.seed<=0xffffffff&&Number.isFinite(x.gpa)&&x.gpa>=0&&x.gpa<=4.5&&
+    typeof x.title==='string'&&x.title.length<300&&Array.isArray(x.semesters)&&x.semesters.length===8&&
+    x.semesters.every(s=>Number.isFinite(s?.gpa)&&s.gpa>=0&&s.gpa<=4.5)&&
+    x.gpa===Number((x.semesters.reduce((a,s)=>a+s.gpa*18,0)/144).toFixed(2))&&
+    Array.isArray(x.cards)&&x.cards.length<=100&&x.cards.every(c=>['id','kind','title','text'].every(k=>typeof c?.[k]==='string'&&c[k].length<2000))&&
+    Array.isArray(x.traits)&&x.traits.length<=20&&x.traits.every(t=>typeof t?.id==='string'&&typeof t.title==='string'&&t.title.length<100)&&
+    Array.isArray(x.epilogue)&&x.epilogue.length<=3&&x.epilogue.every(t=>typeof t==='string'&&t.length<3000);
+}
+export function rankGraduates(records) {
+  const groups=new Map();
+  records.forEach((record,index)=>{
+    const group=[record.engine,record.content,record.growth,record.majorId].join('|');
+    if(!groups.has(group))groups.set(group,[]);
+    groups.get(group).push({record,index,group});
+  });
+  return [...groups.values()].flatMap(list=>{
+    list.sort((a,b)=>b.record.gpa-a.record.gpa||a.index-b.index);
+    let previous=null,rank=0;
+    return list.map((x,i)=>{if(x.record.gpa!==previous)rank=i+1;previous=x.record.gpa;return {...x,rank};});
+  });
+}
+export function createGraduateArchive(storage) {
+  function read() {
+    if(!storage)return {ok:false,records:[],error:'졸업 기록실 저장소를 사용할 수 없어요.'};
+    try {
+      const raw=storage.getItem(GRADUATE_ARCHIVE_KEY);
+      if(raw===null)return {ok:true,records:[],raw};
+      if(raw.length>MAX_BYTES)throw Error('size');
+      const p=JSON.parse(raw);
+      if(p?.schema!==GRADUATE_ARCHIVE_SCHEMA||!Array.isArray(p.records)||p.records.length>LIMIT||!p.records.every(validRecord))throw Error('invalid');
+      return {ok:true,records:p.records,raw};
+    }catch{return {ok:false,records:[],error:'졸업 기록실을 읽을 수 없어요. 원본은 보존했어요.'};}
+  }
+  function add(life) {
+    const snapshot=read();if(!snapshot.ok)return snapshot;
+    try {
+      const record=graduateSummary(life);
+      if(!validRecord(record))throw Error('invalid summary');
+      const key=JSON.stringify(record);
+      if(snapshot.records.some(r=>JSON.stringify(r)===key))return {...snapshot,duplicate:true};
+      if(snapshot.records.length>=LIMIT)return {ok:false,error:'졸업 기록실 50건이 가득 찼어요. 기존 기록은 보존했어요.'};
+      const raw=JSON.stringify({schema:GRADUATE_ARCHIVE_SCHEMA,records:[...snapshot.records,record]});
+      if(raw.length>MAX_BYTES)throw Error('size');
+      if(storage.getItem(GRADUATE_ARCHIVE_KEY)!==snapshot.raw)throw Error('changed');
+      storage.setItem(GRADUATE_ARCHIVE_KEY,raw);
+      if(storage.getItem(GRADUATE_ARCHIVE_KEY)!==raw)throw Error('readback');
+      return {ok:true,records:[...snapshot.records,record]};
+    }catch{return {ok:false,error:'졸업 기록 보관에 실패했어요. 새 게임으로 교체하지 말고 다시 시도해 주세요.'};}
+  }
+  return Object.freeze({read,add});
+}

@@ -115,3 +115,14 @@ a{color:#176e65}
 @media(max-width:800px){.game-columns{grid-template-columns:1fr}.app-shell{max-width:670px}.campus-art{height:255px}.journal-body{max-height:400px}}
 @media(max-width:530px){.app-shell{padding-left:10px;padding-right:10px}.site-header{gap:7px}.brand{font-size:.89rem}.back-link{font-size:.8rem}.preview-tag{font-size:.63rem;padding:5px 6px}.setup-grid{grid-template-columns:1fr}.card{padding:14px;border-radius:20px}.game-header{padding:16px}.campus-art{height:238px}.setup-card{margin:10px auto}.resource{padding:9px}.tabs button{font-size:.69rem}.setup-actions button{width:100%}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+
+/* Campus growth and local graduate history: no fixed overlays. */
+.growth-card,.archive-card{padding:1rem;min-width:0}
+.growth-card select{width:100%;margin-top:.5rem}
+.growth-card summary,.archive-card summary{cursor:pointer;padding:.75rem 0;overflow-wrap:anywhere}
+.stat-row{display:grid;grid-template-columns:7rem minmax(0,1fr);align-items:center;gap:.5rem;margin:.5rem 0}
+.stat-row progress{width:100%;accent-color:#367aad}
+.archive-card{margin-top:1rem}
+.graduate-record{border-top:1px solid #dae0e6;padding:.5rem 0}
+.archive-card .journal-entry,.growth-card p{overflow-wrap:anywhere}
+@media(max-width:480px){.stat-row{grid-template-columns:6rem minmax(0,1fr)}}
