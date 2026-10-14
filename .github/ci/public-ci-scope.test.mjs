@@ -43,6 +43,14 @@ for (const [name, files, expected] of cases) {
 }
 
 const databaseCases = [
+  ['decorative HUD icon runtime skips DB', ['apps/world/src/ui/ui-icon-runtime.js'], false],
+  ['HUD icon plus existing browser QA skips DB', ['apps/world/src/ui/ui-icon-runtime.js', 'apps/world/tests/ui-icon-runtime.test.mjs'], false],
+  ['HUD icon mixed with SQL requires DB', ['apps/world/src/ui/ui-icon-runtime.js', 'supabase/migrations/new.sql'], true],
+  ['HUD icon mixed with auth requires DB', ['apps/world/src/ui/ui-icon-runtime.js', 'apps/world/hub-account.js'], true],
+  ['HUD icon mixed with unknown UI requires DB', ['apps/world/src/ui/ui-icon-runtime.js', 'apps/world/src/ui/unknown-runtime.js'], true],
+  ['unknown UI alone requires DB', ['apps/world/src/ui/unknown-runtime.js'], true],
+  ['nested fake HUD icon path requires DB', ['apps/world/src/ui/ui-icon-runtime.js/nested.js'], true],
+  ['HUD icon mixed with CI policy requires DB', ['apps/world/src/ui/ui-icon-runtime.js', '.github/ci/public-ci-scope.mjs'], true],
   ['unknown scope keeps database verification', null, true],
   ['empty scope keeps database verification', [], true],
   ['world main runtime can skip the local database', ['apps/world/src/main.js'], false],
@@ -196,6 +204,7 @@ const newCampus = oldCampus.replace('<title>Old campus</title>',
   '  <link rel="canonical" href="https://inhagame.app/campus/">\n' +
   '  <meta property="og:url" content="https://inhagame.app/campus/">');
 const overrideCases = [
+  ['HUD icon-only source', 'apps/world/src/ui/ui-icon-runtime.js', 'const icon = 1;\n', 'const icon = 2;\n', { mode: 'full', db: 'false' }],
   ['verified SEO-only', 'apps/world/campus/index.html', oldCampus, newCampus, { mode: 'seo', db: 'false' }],
   ['documentation-only', 'README.md', 'fixture docs\n', 'updated docs\n', { mode: 'docs', db: 'false' }],
   ['database-independent source', 'apps/world/src/main.js', 'const value = 1;\n', 'const value = 2;\n', { mode: 'full', db: 'false' }],
