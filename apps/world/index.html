@@ -160,6 +160,8 @@
         <p>허브에서 바로 가입하거나 기존 INHAGAME 계정으로 로그인할 수 있습니다.</p>
         <p id="hub-account-status" role="status">계정 상태를 확인하는 중…</p>
         <div id="hub-social-auth" class="social-auth" hidden>
+          <label class="hub-age-confirmation" for="hub-google-age-confirm"><input id="hub-google-age-confirm" type="checkbox" required autocomplete="off" aria-describedby="hub-google-age-note"><span>[필수] 만 14세 이상입니다.</span></label>
+          <p id="hub-google-age-note" class="quiet">회원가입은 만 14세 이상만 가능합니다. Google로 계속하려면 기존 회원도 확인해 주세요. 본인의 확인을 받는 절차이며 실제 나이를 인증하지 않습니다.</p>
           <button id="hub-google-auth" class="google-auth-button" type="button">
             <span>Google로 로그인</span>
           </button>
@@ -175,6 +177,8 @@
           <label class="profile-field">이메일<input type="email" name="email" autocomplete="email" required></label>
           <label class="profile-field">비밀번호<input type="password" name="password" autocomplete="new-password" minlength="8" required></label>
           <label class="profile-field">비밀번호 확인<input type="password" name="passwordConfirm" autocomplete="new-password" minlength="8" required></label>
+          <label class="hub-age-confirmation" for="hub-signup-age-confirm"><input id="hub-signup-age-confirm" type="checkbox" required autocomplete="off" aria-describedby="hub-signup-age-note"><span>[필수] 만 14세 이상입니다.</span></label>
+          <p id="hub-signup-age-note" class="quiet">회원가입은 만 14세 이상만 가능합니다. 본인의 확인을 받는 절차이며 실제 나이를 인증하지 않습니다.</p>
           <button class="primary" type="submit">회원가입</button>
           <p class="quiet">가입 후 이메일 인증을 완료하면 INHAGAME 계정을 사용할 수 있습니다.</p>
         </form>

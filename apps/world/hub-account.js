@@ -5,6 +5,30 @@
   const signupForm = document.getElementById('hub-signup-form');
   const socialAuth = document.getElementById('hub-social-auth');
   const googleButton = document.getElementById('hub-google-auth');
+  const signupAgeConfirm = document.getElementById('hub-signup-age-confirm');
+  const googleAgeConfirm = document.getElementById('hub-google-age-confirm');
+
+  // UI-only self-declaration, not age verification or a server eligibility gate.
+  // Never persist this checkbox state or transfer it between accounts.
+  function resetAgeConfirmations() {
+    for (const input of [signupAgeConfirm, googleAgeConfirm]) {
+      if (input) input.checked = false;
+    }
+  }
+
+  function requireAgeConfirmation(input) {
+    if (input?.checked === true) return true;
+    status.textContent = '만 14세 이상인 경우에만 확인란을 선택하고 계속해 주세요.';
+    input?.focus();
+    input?.reportValidity();
+    return false;
+  }
+
+  resetAgeConfirmations();
+  window.addEventListener('pageshow', () => {
+    resetAgeConfirmations();
+    if (googleButton) googleButton.disabled = false;
+  });
   const profileSetup = document.getElementById('hub-profile-setup');
   const tabs = document.getElementById('hub-auth-tabs');
   const actions = document.getElementById('hub-account-actions');
@@ -244,6 +268,7 @@
   client.auth.onAuthStateChange(() => {
     epoch++;
     loginAttempt++;
+    resetAgeConfirmations();
     setTimeout(() => void refresh(), 0);
   });
 
@@ -252,7 +277,9 @@
   }
 
   googleButton?.addEventListener('click', async () => {
+    if (googleButton.disabled || !requireAgeConfirmation(googleAgeConfirm)) return;
     googleButton.disabled = true;
+    googleAgeConfirm.checked = false;
     status.textContent = 'Google 로그인으로 이동하는 중…';
     try {
       const redirectTo = new URL('/?panel=account', location.origin).href;
@@ -322,8 +349,9 @@
 
   signupForm.addEventListener('submit', async event => {
     event.preventDefault();
-    if (!signupForm.reportValidity()) return;
     const button = signupForm.querySelector('button[type="submit"]');
+    if (button.disabled || !requireAgeConfirmation(signupAgeConfirm)) return;
+    if (!signupForm.reportValidity()) return;
     const nickname = signupForm.elements.nickname.value.trim();
     const email = signupForm.elements.email.value.trim().toLowerCase();
     const password = signupForm.elements.password.value;
@@ -354,6 +382,7 @@
         }
       });
       if (error) throw error;
+      signupAgeConfirm.checked = false;
       signupForm.elements.password.value = '';
       signupForm.elements.passwordConfirm.value = '';
       if (data?.session?.user) {
