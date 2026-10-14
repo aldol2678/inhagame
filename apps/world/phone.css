@@ -77,7 +77,18 @@ body[data-phone-open="true"] > :not(#application):not(.smartphone) { visibility:
 .smartphone .full-map-search-panel { z-index:2; }
 .smartphone .full-map-info { width:100%; box-sizing:border-box; max-height:none; overflow:visible; }
 .smartphone .full-map-controls { position:static; display:flex; flex-wrap:wrap; margin-top:8px; }
-.smartphone .view-settings[data-phone-hosted="true"] { position:relative; inset:auto; transform:none; width:100%; max-width:none; max-height:none; box-sizing:border-box; background:#142d46ed; border-radius:16px; }
+/* The Phone content is the single vertical scroller. A nested auto-scroller with
+   overscroll-behavior:contain swallows Android swipe gestures when unbounded. */
+.smartphone-content { overflow-x:hidden; overflow-y:auto; touch-action:pan-y; -webkit-overflow-scrolling:touch; }
+.smartphone .view-settings[data-phone-hosted="true"] {
+  display:block; position:relative; inset:auto; transform:none;
+  width:100%; max-width:none; max-height:none; min-height:0; box-sizing:border-box;
+  margin:0; padding:0 0 14px; border:0; border-radius:0; box-shadow:none;
+  background:transparent; overflow:visible; overscroll-behavior:auto; touch-action:pan-y;
+}
+.smartphone .view-settings[data-phone-hosted="true"] .settings2-header {
+  top:-10px; padding-inline:2px; border-radius:12px 12px 0 0;
+}
 /* Existing Quiz / Attendance DOM and server-bound controllers stay unchanged.
    Only their standalone modal chrome is neutralized inside the Phone surface. */
 .smartphone .daily-quiz-panel[data-phone-hosted="true"],
