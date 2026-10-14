@@ -289,6 +289,21 @@ export function createPhoneMessages({ getClient, getFactory = loadHubMessagesFac
       notify(result.unreadCount);return true;
     } catch{return false;}
   }
+  // NOTI-01C: reuse the existing server-validated conversation list for an on-demand read-only activity snapshot.
+  // This is NOT a durable notification ledger. Never persist messages or infer unread/read receipts.
+  async function readActivity(limit=20) {
+    const owner=accountId, ticket=epoch;
+    if(!owner)return {outcome:'SIGNED_OUT'};
+    try {
+      const model=await getModel();
+      if(ticket!==epoch||accountId!==owner)return {outcome:'STALE'};
+      const result=await model.list(Math.max(1,Math.min(20,Number(limit)||20)));
+      if(ticket!==epoch||accountId!==owner)return {outcome:'STALE'};
+      if(result.outcome!=='READY')return {outcome:'FAILED'};
+      // This 20-conversation projection is partial: never overwrite the full server unread badge.
+      return {outcome:'READY',accountId:owner,conversations:result.conversations};
+    } catch {return ticket===epoch&&accountId===owner?{outcome:'FAILED'}:{outcome:'STALE'};}
+  }
   function activate(params={}) {
     active=true;epoch++;view='inbox';current=null;thread=[];draft='';notice='';pendingRecipient=null;
     if(typeof params.recipientId==='string')pendingRecipient=params.recipientId;
@@ -299,7 +314,7 @@ export function createPhoneMessages({ getClient, getFactory = loadHubMessagesFac
     pendingRecipient=null;
   }
   function close() {epoch++;active=false;busy=false;current=null;thread=[];draft='';host=null;pendingRecipient=null;}
-  return Object.freeze({activate,mount,close,setAccount,refreshUnread,
+  return Object.freeze({activate,mount,close,setAccount,refreshUnread,readActivity,
     get available(){return true;},
     status:()=>({active,view,accountId,busy,unreadCount:unread,conversationCount:inbox.length})
   });
