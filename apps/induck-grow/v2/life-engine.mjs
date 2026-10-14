@@ -187,7 +187,7 @@ function completeWeek(life) {
   if (noise>0) life.stats.recovery=clamp(life.stats.recovery+1,0,100);
   life.stamina=clamp(life.stamina+routine.stamina+4,0,100);
   life.stress=clamp(life.stress+routine.stress-2+(life.week===8||life.week===15?3:0),0,100);
-  life.money=Math.max(0,life.money+routine.money-4000+noise*500);
+  life.money=Math.max(0,life.money+(routine.money>0?routine.money*routineScale:routine.money)-4000+noise*500);
   life.weeksCompleted++;
   life.weeklyHistory.push({year:life.year,term:life.term,week:life.week,policy:life.policy,
     stamina:life.stamina,stress:life.stress,money:life.money});

@@ -314,7 +314,7 @@ function renderSpending(life) {
  p.id==='none'?'이번 주 생활 방침에 집중해. 선택은 주차 완료 시 한 번 실행되고 자동으로 초기화돼.':
  '주차 완료 시 '+currency.format(p.cost)+'원 · 체력 '+(p.stamina>=0?'+':'')+p.stamina+
  ' · 스트레스 '+(p.stress>=0?'+':'')+p.stress+(p.stat?' · '+STAT_LABELS[p.stat]+' 최대 +'+p.gain:'')+
- ' · 기본 역량 성장 50% (여가 시간 사용)'+(p.factor<1?' · 최근 반복으로 효과 감소':'')+
+ ' · 기본 역량 성장·양수 수입 50% (여가 시간 사용)'+(p.factor<1?' · 최근 반복으로 효과 감소':'')+
  (p.effort<1?' · 피로로 활동 효과 감소':'')+
  (p.id==='project'?' · 분석·창의·협업 평균 50 이상이면 제작 성장 증가':'')+
  (p.id==='walk'||p.id==='rest'?' · 회복 역량에 따라 체력 회복 증가':'')+

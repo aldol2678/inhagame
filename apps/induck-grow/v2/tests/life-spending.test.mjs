@@ -23,7 +23,7 @@ test('selection charges nothing, completes once, resets and consumes half routin
  let changed=selectSpending(selectSpending(selected,'walk'),'meal');
  assert.deepEqual(changed,selected);
  const normal=advanceLife(initial),paid=advanceLife(selected);
- assert.equal(normal.money-paid.money,6000);assert.equal(paid.weeksCompleted,1);
+ assert.equal(normal.money-paid.money,7000);assert.equal(paid.weeksCompleted,1);
  assert.equal(paid.stats.analysis,20.5);assert.equal(paid.spending.selected,'none');
  assert.equal(paid.spending.history.length,1);assert.equal(paid.spending.history[0].cost,6000);
  assert.equal(advanceLife(paid).spending.history[1].cost,0);
@@ -80,4 +80,26 @@ test('economy versions are separated in graduate rankings with old record compat
  const legacy=graduateSummary(simulateCompleteLife({...opts,economyVersion:undefined}));
  assert.equal(modern.economy,ECONOMY_VERSION);assert.equal(legacy.economy,undefined);
  assert.deepEqual(rankGraduates([modern,legacy]).map(x=>x.rank),[1,1]);
+});
+
+test('weekly leisure halves positive work income; repetition never discounts fatigue costs',()=>{
+ const x=createLife({...opts,policy:'work'});
+ const full=advanceLife(x),rest=advanceLife(selectSpending(x,'rest'));
+ assert.equal(full.money-rest.money,9000);
+ let p=advanceLife(selectSpending(x,'project'));
+ const repeated=spendingPreview(p,'project');assert.equal(repeated.stamina,-8);assert.equal(repeated.stress,4);assert.equal(repeated.factor,.75);
+});
+
+test('none weeks clear repetition and fractional fatigue rewards survive reload',()=>{
+ let x=createLife(opts);x.stress=80;x=selectSpending(x,'culture');
+ assert.equal(spendingPreview(x).gain,.5);x=advanceLife(x);
+ assert.equal(x.stats.creative,20.5);
+ x=advanceLife(x);x=advanceLife(x);assert.equal(spendingPreview(x,'culture').factor,1);
+ const store=memory();store.setItem(V2_LOCAL_SAVE_KEY,JSON.stringify({schema:V2_LOCAL_SAVE_SCHEMA,life:x}));
+ const session=createLifeSession({storage:store});assert.equal(session.load(),true);assert.equal(session.life().stats.creative,20.5);
+});
+test('activity caps apply before routine and invalid ledger cursors reject',()=>{
+ let x=createLife({...opts,policy:'academic'});x.stamina=95;
+ assert.equal(advanceLife(selectSpending(x,'meal')).stamina,99);
+ x=advanceLife(x);x.spending.history[0].week=2;assert.throws(()=>advanceLife(x));
 });

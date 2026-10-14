@@ -38,7 +38,7 @@ export function spendingPreview(life,id=life.spending?.selected) {
  const recoveryBonus=id==='walk'||id==='rest'?Math.floor(life.stats.recovery/25):0;
  const skill=id==='project'?(life.stats.analysis+life.stats.creative+life.stats.collaboration)/3:0;
  const gain=o.stat?Number(((id==='project'?(skill>=50?3:2):1)*factor*effort).toFixed(2)):0;
- return {...o,factor,effort,gain,stamina:Number((o.stamina*factor+recoveryBonus).toFixed(2)),stress:Number((o.stress*factor).toFixed(2)),
+ return {...o,factor,effort,gain,stamina:Number(((o.stamina>0?o.stamina*factor:o.stamina)+recoveryBonus).toFixed(2)),stress:Number((o.stress<0?o.stress*factor:o.stress).toFixed(2)),
  affordable:life.money>=o.cost,routineScale:id==='none'?1:0.5};
 }
 export function selectSpending(input,id) {
@@ -61,7 +61,7 @@ export function applySpending(life) {
  life.spending.history.push({week:life.weeksCompleted+1,id:p.id,cost:p.cost});
  life.spending.selected='none';
  if(p.id!=='none')life.timeline.push({type:'spending',year:life.year,term:life.term,week:life.week,
- title:p.label,text:p.cost+'원 · 체력 '+p.stamina+' · 스트레스 '+p.stress+' · '+(p.stat?p.stat+' +'+p.gain:'회복')+' · 이번 주 기본 역량 성장 50% (시간 사용)'});
+ title:p.label,text:p.cost+'원 · 체력 '+p.stamina+' · 스트레스 '+p.stress+' · '+(p.stat?p.stat+' +'+p.gain:'회복')+' · 이번 주 기본 역량 성장·양수 수입 50% (시간 사용)'});
  return p.routineScale;
 }
 export function spendingCards(life) {
