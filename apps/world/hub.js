@@ -26,7 +26,7 @@
         else button.removeAttribute("aria-current");
       }
     });
-    document.title = current === "home" ? "INHAGAME · 인하오리 게임 허브" :
+    document.title = current === "home" ? "인하대 게임 · 인하월드 | INHAGAME" :
       `${{ ranking: "랭킹", friends: "친구", messages: "쪽지", account: "계정", settings: "설정" }[current]} · INHAGAME`;
   }
 
@@ -175,30 +175,57 @@
     }).sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
   }
 
+  // Design-only artwork map. Catalog controls visibility/URLs; unknown entries have no invented art.
+  const portalArt = Object.freeze({
+    classic: ["classic", "CLASSIC"],
+    induckup: ["induckup", "INDUCK UP"],
+    survival: ["survival", "SURVIVAL"],
+    "induck-grow": ["induck-grow", "LIFE SIM"]
+  });
+
   function makeGameCard(game) {
     const card = document.createElement("section");
-    card.className = "card game-card";
+    card.className = "card game-card portal-game";
     card.dataset.gameId = game.id;
-    const heading = document.createElement("div");
-    heading.className = "card-heading";
-    const title = document.createElement("h2");
+
+    const poster = document.createElement("div");
+    poster.className = "portal-poster";
+    poster.setAttribute("aria-hidden", "true");
+    const art = portalArt[game.id];
+    if (art) {
+      const image = document.createElement("img");
+      image.src = "/assets/hub/" + art[0] + "-concept.svg";
+      image.alt = "";
+      image.loading = "lazy";
+      const artLabel = document.createElement("span");
+      artLabel.className = "portal-poster-label";
+      artLabel.textContent = art[1];
+      poster.append(image, artLabel);
+    }
+
+    const body = document.createElement("div");
+    body.className = "portal-card-body";
+    const title = document.createElement("h3");
     title.textContent = game.title;
-    const badge = document.createElement("span");
-    badge.className = "badge";
-    badge.textContent = game.status === "playable" ? "플레이 가능" : "준비 중";
-    heading.append(title, badge);
     const description = document.createElement("p");
     description.textContent = game.description;
-    card.append(heading, description);
+    const actions = document.createElement("div");
+    actions.className = "portal-card-actions";
+    const badge = document.createElement("span");
+    badge.className = "portal-status";
+    badge.dataset.state = game.status;
+    badge.textContent = game.status === "playable" ? "플레이 가능" : "준비 중";
+    actions.append(badge);
     if (game.playUrl) {
       const link = document.createElement("a");
-      link.className = "secondary";
+      link.className = "secondary portal-game-link";
       link.href = game.playUrl;
-      const external = game.playUrl.startsWith("https://");
-      link.textContent = game.title + (external ? " 플레이 ↗" : " 플레이 →");
-      if (external) link.rel = "noopener noreferrer";
-      card.append(link);
+      link.textContent = "플레이 ↗";
+      if (game.playUrl.startsWith("https://")) link.rel = "noopener noreferrer";
+      actions.append(link);
     }
+    body.append(title, description, actions);
+    card.append(poster, body);
     return card;
   }
 
@@ -219,10 +246,9 @@
           ?.querySelectorAll("[data-card-extra]");
         const link = card.querySelector("a");
         if (extras?.length && link) {
-          const row = document.createElement("div");
-          row.className = "classic-action-row";
-          link.replaceWith(row);
-          row.append(link, ...extras);
+          // Preserve special event badge and its existing ID when catalog replaces fallback cards.
+          const row = card.querySelector(".portal-card-actions");
+          row?.append(...extras);
         }
         fragment.append(card);
       });
@@ -234,6 +260,15 @@
       console.warn("Using fallback game cards:", error);
     }
   }
+
+  // Portal-local scroll: preserve hash-based panel navigation and avoid inline scripts.
+  document.querySelector("[data-portal-games-link]")?.addEventListener("click", event => {
+    event.preventDefault();
+    document.getElementById("portal-games")?.scrollIntoView({
+      behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+      block: "start"
+    });
+  });
 
   render();
   void loadGameCatalog();

@@ -43,7 +43,7 @@ const {
 const { JEONGSEOK_LOBBY_GATE_SLOT, JEONGSEOK_PUBLIC_RETURN, JEONGSEOK_CLOSED_GATE, jeongseokLobbyObstacles, createJeongseokLobbyCollision, gateRow } = await import("../src/jeongseok/lobby-layout.js");
 const { JEONGSEOK_B1_READING } = await import("../src/jeongseok/b1-reading-layout.js");
 const { GROUP_STUDY_ROOM_SLOTS, JEONGSEOK_B1_CREATIVE } = await import("../src/jeongseok/b1-creative-layout.js");
-const { createJeongseokEntryPolicy, resolveJeongseokEntryMode, JEONGSEOK_ENTRY_MODE, JEONGSEOK_ACCESS_POLICY_KEY, JEONGSEOK_LOBBY_POLICY_KEY, JEONGSEOK_GRANT_TTL_MS } = await import("../src/jeongseok/entry-policy.js");
+const { createJeongseokEntryPolicy, resolveJeongseokEntryMode, isJeongseokVisualPreviewHost, JEONGSEOK_ENTRY_MODE, JEONGSEOK_ACCESS_POLICY_KEY, JEONGSEOK_LOBBY_POLICY_KEY, JEONGSEOK_GRANT_TTL_MS } = await import("../src/jeongseok/entry-policy.js");
 const { createJeongseokInterior } = await import("../src/jeongseok/interior-feature.js");
 const { buildRoomGeometry, interiorDetailForTier, createJeongseokInteriorScenes } = await import("../src/jeongseok/interior-renderer.js");
 const { createStaticBatch } = await import("../src/jeongseok/static-batch.js");
@@ -311,36 +311,110 @@ test("third-person camera stays inside the walls and under the ceiling at every 
 });
 
 // ------------------------------------------------------------------ entry policy
+const loopbackHostnames = ["localhost", "127.0.0.1", "[::1]"];
+const remoteOrInvalidHostnames = [
+  "localhost.evil", "evil-localhost", "localhost.vercel.app", "project-production.vercel.app",
+  "deployment-preview.vercel.app", "vercel.app", "inhagame.app", "www.inhagame.app",
+  "LOCALHOST", "LocalHost", "localhost.", " localhost", "localhost ",
+  "127.0.0.1.evil", "127.0.0.2", "127.1", "::1", "[::2]", "[::ffff:127.0.0.1]",
+  "[0:0:0:0:0:0:0:1]", "localhost:8080", "127.0.0.1:8080", "[::1]:8080",
+  "http://localhost", "http://127.0.0.1/campus/", "http://[::1]", "", null, undefined, true,
+  { hostname: "localhost" }, new String("localhost")
+];
+
+test("visual preview accepts only exact browser loopback hostnames, never remote aliases or URL/host input", () => {
+  for (const hostname of loopbackHostnames) assert.equal(isJeongseokVisualPreviewHost(hostname), true, String(hostname));
+  for (const hostname of remoteOrInvalidHostnames) assert.equal(isJeongseokVisualPreviewHost(hostname), false, String(hostname));
+  // location.hostname is already normalized; the helper does not parse or loosen raw input.
+  for (const url of ["http://LOCALHOST:8080/campus/", "http://127.0.0.1:8080/campus/", "http://[::1]:8080/campus/",
+    "http://[0:0:0:0:0:0:0:1]:8080/campus/"]) {
+    assert.equal(isJeongseokVisualPreviewHost(new URL(url).hostname), true, url);
+    assert.equal(isJeongseokVisualPreviewHost(url), false, "URLs are not hostnames");
+  }
+});
+
 test("entry mode resolver selects explicit server integration or preview; unconfigured mode stays CLOSED", () => {
   assert.equal(resolveJeongseokEntryMode({}), JEONGSEOK_ENTRY_MODE.CLOSED);
   assert.equal(resolveJeongseokEntryMode({ previewHost: false, params: new URLSearchParams("jeongseok=jsl-b") }), JEONGSEOK_ENTRY_MODE.CLOSED);
   assert.equal(resolveJeongseokEntryMode({ previewHost: true, params: new URLSearchParams("jeongseok=jsl-a") }), JEONGSEOK_ENTRY_MODE.CLOSED);
   assert.equal(resolveJeongseokEntryMode({ previewHost: true, params: new URLSearchParams("jeongseok=jsl-b") }), JEONGSEOK_ENTRY_MODE.VISUAL_PREVIEW);
   assert.equal(resolveJeongseokEntryMode({ serverAccessAvailable: true }), JEONGSEOK_ENTRY_MODE.SERVER_GRANT);
+  for (const query of ["", "jeongseok=jsl-a", "jeongseok=jsl-b", "serverAccessAvailable=true"]) {
+    assert.equal(resolveJeongseokEntryMode({ previewHost: false, params: new URLSearchParams(query), serverAccessAvailable: true }), JEONGSEOK_ENTRY_MODE.SERVER_GRANT,
+      "production query cannot bypass the server-grant policy");
+    assert.equal(resolveJeongseokEntryMode({ previewHost: false, params: new URLSearchParams(query), serverAccessAvailable: false }), JEONGSEOK_ENTRY_MODE.CLOSED,
+      "production query cannot activate an explicitly closed constructor");
+  }
+  assert.equal(resolveJeongseokEntryMode({ previewHost: true, params: new URLSearchParams("jeongseok=jsl-b"), serverAccessAvailable: true }), JEONGSEOK_ENTRY_MODE.VISUAL_PREVIEW);
+  assert.equal(resolveJeongseokEntryMode({ previewHost: true, params: new URLSearchParams("jeongseok=jsl-a"), serverAccessAvailable: true }), JEONGSEOK_ENTRY_MODE.SERVER_GRANT);
   const closed = createJeongseokEntryPolicy();
+  assert.equal(closed.allowsLobby(), false);
   assert.equal(closed.allowsEntry(), false); assert.equal(closed.allowsStay(), false);
   assert.equal(closed.acceptServerGrant({ granted: true, decision: "GRANTED", userId: "a" }), false);
   assert.throws(() => createJeongseokEntryPolicy({ mode: "OPEN" }));
 });
 
-test("shipped main keeps rollout CLOSED; server integration is loopback-only test constructor DI", async () => {
+test("shipped main enables server access and browser QA verifies exact served bytes", async () => {
   const { readFile } = await import("node:fs/promises");
-  const { installJeongseokServerMode } = await import("./browser/jeongseok-synthetic-access.mjs");
+  const { verifyJeongseokShippedMain } = await import("./browser/jeongseok-synthetic-access.mjs");
   const source = await readFile(new URL("../src/main.js", import.meta.url), "utf8");
-  const needle = "const jeongseokEntryMode = resolveJeongseokEntryMode({ previewHost, params: startupParams });";
+  const needle = "const jeongseokEntryMode = resolveJeongseokEntryMode({ previewHost: isJeongseokVisualPreviewHost(location.hostname), params: startupParams, serverAccessAvailable: true });";
   assert.equal(source.split(needle).length, 2);
-  assert.doesNotMatch(source, /serverAccessAvailable:\s*true/);
-  let routeHandler;
-  const evidence = await installJeongseokServerMode({ route: async (pattern, handler) => {
-    assert.equal(pattern, "**/src/main.js"); routeHandler = handler;
-  } });
-  assert.equal(evidence.mode, "TEST_ONLY_ROLLOUT_CONSTRUCTOR");
+  const evidence = await verifyJeongseokShippedMain({ status: () => 200, text: async () => source });
+  assert.equal(evidence.mode, "SHIPPED_SERVER_GRANT");
   assert.match(evidence.shippedMainSha256, /^[a-f0-9]{64}$/);
+  assert.equal(evidence.shippedMainSha256, evidence.servedMainSha256);
+  await assert.rejects(verifyJeongseokShippedMain({ status: () => 404, text: async () => source }), /loaded shipped main/);
+  await assert.rejects(verifyJeongseokShippedMain({ status: () => 200, text: async () => `${source}\n` }), /exact shipped main/);
+  const { runInNewContext } = await import("node:vm");
+  assert.ok(source.includes("const previewHost = location.hostname.endsWith('.vercel.app') || ['localhost','127.0.0.1'].includes(location.hostname);"),
+    "unrelated global previewHost remains unchanged");
+  assert.match(source, /import \{[^}]*isJeongseokVisualPreviewHost[^}]*\} from "\.\/jeongseok\/entry-policy\.js"/);
+  const shippedMode = (hostname, query, active = true) => runInNewContext(
+    `${active ? needle : needle.replace("serverAccessAvailable: true", "serverAccessAvailable: false")}; jeongseokEntryMode`, {
+      resolveJeongseokEntryMode, isJeongseokVisualPreviewHost, location: { hostname },
+      previewHost: true, startupParams: new URLSearchParams(query)
+    });
+  for (const hostname of remoteOrInvalidHostnames) {
+    for (const query of ["", "jeongseok=jsl-a", "jeongseok=jsl-b", "jeongseok=jsl-b&previewHost=true", "serverAccessAvailable=true"]) {
+      assert.equal(shippedMode(hostname, query), JEONGSEOK_ENTRY_MODE.SERVER_GRANT, `${String(hostname)}: ${query}`);
+      assert.equal(shippedMode(hostname, query, false), JEONGSEOK_ENTRY_MODE.CLOSED, "query cannot activate a closed deployment");
+    }
+  }
+  for (const hostname of loopbackHostnames) {
+    assert.equal(shippedMode(hostname, "jeongseok=jsl-b"), JEONGSEOK_ENTRY_MODE.VISUAL_PREVIEW);
+    assert.equal(shippedMode(hostname, "jeongseok=jsl-b", false), JEONGSEOK_ENTRY_MODE.VISUAL_PREVIEW);
+    for (const query of ["", "jeongseok=jsl-a"]) {
+      assert.equal(shippedMode(hostname, query), JEONGSEOK_ENTRY_MODE.SERVER_GRANT);
+      assert.equal(shippedMode(hostname, query, false), JEONGSEOK_ENTRY_MODE.CLOSED);
+    }
+  }
+  const policy = createJeongseokEntryPolicy({ mode: shippedMode("inhagame.app", "jeongseok=jsl-b") });
+  assert.equal(policy.allowsLobby(), true, "shipped guest public lobby is open");
+  assert.equal(policy.allowsEntry(), false, "shipped inner gate still needs a fresh account grant");
+  assert.equal(policy.allowsProtectedRoom(), false, "shipped guest cannot enter B1");
+});
+
+test("explicit CLOSED browser regression changes only the loopback constructor and restores its route", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const { installJeongseokClosedMode } = await import("./browser/jeongseok-synthetic-access.mjs");
+  const source = await readFile(new URL("../src/main.js", import.meta.url), "utf8");
+  let routeHandler, restored = false;
+  const { restore, ...evidence } = await installJeongseokClosedMode({
+    route: async (pattern, handler) => { assert.equal(pattern, "**/src/main.js"); routeHandler = handler; },
+    unroute: async (pattern, handler) => { assert.equal(pattern, "**/src/main.js"); assert.equal(handler, routeHandler); restored = true; }
+  });
+  assert.equal(evidence.mode, "TEST_ONLY_CLOSED_CONSTRUCTOR");
   assert.notEqual(evidence.shippedMainSha256, evidence.servedMainSha256);
   let served;
-  await routeHandler({ request: () => ({ url: () => "http://127.0.0.1:8000/src/main.js" }), fulfill: value => { served = value.body; } });
-  assert.equal(served, source.replace(needle, needle.replace("startupParams }", "startupParams, serverAccessAvailable: true }")));
-  assert.throws(() => routeHandler({ request: () => ({ url: () => "https://production.example/src/main.js" }) }), /loopback-only/);
+  for (const hostname of loopbackHostnames) {
+    await routeHandler({ request: () => ({ url: () => `http://${hostname}:8000/src/main.js` }), fulfill: value => { served = value.body; } });
+    assert.equal(served, source.replace("serverAccessAvailable: true", "serverAccessAvailable: false"));
+  }
+  for (const hostname of ["production.example", "project-production.vercel.app", "inhagame.app", "localhost.evil", "evil-localhost", "[::2]"]) {
+    assert.throws(() => routeHandler({ request: () => ({ url: () => `https://${hostname}/src/main.js` }) }), /loopback-only/);
+  }
+  await restore(); assert.equal(restored, true);
   assert.equal(await readFile(new URL("../src/main.js", import.meta.url), "utf8"), source, "fixture never edits shipped source");
 });
 

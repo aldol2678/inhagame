@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - '.github/ci/phone-surface-scope*.mjs'
+      - '.github/ci/seo-only-scope*.mjs'
       - 'apps/world/src/shop/**'
       - 'apps/world/src/main.js'
       - 'apps/world/npc-factory/dev-runtime.mjs'

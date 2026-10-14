@@ -1,5 +1,6 @@
 import { createPhoneShell, PHONE_STATE } from './phone-shell.js';
 import { createPhoneMessages } from './phone-messages.js';
+import { createPhoneNotificationCenter } from './phone-notification-center.js';
 import { createStudentId } from './student-id.js';
 import { createAlbumManager } from './phone-album-manager.js';
 import { formatPhotoBytes } from './phone-album-export.js';
@@ -14,6 +15,7 @@ export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, g
   getProgression, getCaptureContext, canOpen, beforeOpen, getClock = () => '', onAlbumViewed = () => {},
   toggle, mapElement, settingsElement, dailyQuizElement, attendanceElement,
   getDailyQuizPanel = () => null, getAttendancePanel = () => null,
+  getDailyQuiz = () => null, getAttendance = () => null,
   onWarning = () => {}, jeongseok = null, doc = globalThis.document, win = globalThis.window }) {
   const el = (tag, cls = '', text = '') => { const n=doc.createElement(tag); n.className=cls; n.textContent=text; return n; };
   const btn = (text, action, label = text) => { const n=el('button','',text); n.type='button'; n.setAttribute('aria-label',label); n.addEventListener('click',action); return n; };
@@ -52,12 +54,18 @@ export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, g
     dailySurfaces[kind].mount(content);
     panel.setOpen(true);
   }
-  let messageUnread=0;
+  let messageUnread=0, notifications;
   const messages=createPhoneMessages({getClient,onUnread:count=>{
     messageUnread=count;
     const badge=root.querySelector('.smartphone-app[data-app-id="messages"] .smartphone-notification-badge');
     if(badge){badge.hidden=!count;badge.textContent=count>99?'99+':String(count);}
+    notifications?.setMessageUnread(count);
   }});
+  notifications=createPhoneNotificationCenter({getStorage:storage,getAttendance,getQuiz:getDailyQuiz,
+    onOpenApp:id=>launch(id),onChange:state=>{
+      const badge=root.querySelector('.smartphone-app[data-app-id="notifications"] .smartphone-notification-badge');
+      if(badge){badge.hidden=!state.unreadCount;badge.textContent=state.unreadCount>99?'99+':String(state.unreadCount);}
+    },doc});
   const student=createStudentId({getClient,getIdentity,getProgression,onChange:()=>{if(shell?.snapshot().current?.appId==='student-id')render(true);}});
   function revokeImages() {for (const url of objectUrls) win.URL.revokeObjectURL(url); objectUrls.clear();}
   function attachImage(node,blob) {const url=win.URL.createObjectURL(blob);objectUrls.add(url);node.src=url;}
@@ -98,7 +106,8 @@ export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, g
     {id:'settings',name:'설정',icon:'⚙️',available:()=>!!getSettings(),open(){},close:()=>closeSurface('settings')},
     {id:'daily-quiz',name:'오늘의 퀴즈',icon:'📚',available:()=>!!getDailyQuizPanel(),open(){},close:()=>closeDailySurface('daily-quiz')},
     {id:'attendance',name:'출석부',icon:'📅',available:()=>!!getAttendancePanel(),open(){},close:()=>closeDailySurface('attendance')},
-    {id:'messages',name:'메시지',icon:'💬',available:()=>true,open:params=>messages.activate(params),close:()=>messages.close()}
+    {id:'messages',name:'메시지',icon:'💬',available:()=>true,open:params=>messages.activate(params),close:()=>messages.close()},
+    {id:'notifications',name:'알림센터',icon:'🔔',available:()=>true,open:()=>notifications.refresh(),close:()=>notifications.close()}
   ];
   function launch(id,params={}) {
     if(id==='camera'){
@@ -116,7 +125,11 @@ export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, g
     n.className='smartphone-app';n.dataset.area=area;n.dataset.slot=slot;n.dataset.page=page;
     if(id){n.dataset.appId=id;if(selectedApp===id)n.dataset.selected='true';}
     if(app?.available()){n.append(el('span','smartphone-app-icon',app.icon),el('span','smartphone-app-name',app.name));
-      if(id==='messages'){const badge=el('b','smartphone-notification-badge',messageUnread>99?'99+':String(messageUnread));badge.hidden=!messageUnread;badge.setAttribute('aria-label','읽지 않은 메시지');n.append(badge);}
+      if(id==='messages'||id==='notifications'){
+        const count=id==='messages'?messageUnread:notifications.snapshot().unreadCount;
+        const badge=el('b','smartphone-notification-badge',count>99?'99+':String(count));
+        badge.hidden=!count;badge.setAttribute('aria-label',id==='messages'?'읽지 않은 메시지':'확인할 알림');n.append(badge);
+      }
     }
     else {n.disabled=!editing;n.classList.add('smartphone-empty');if(editing)n.textContent='＋';}
     return n;
@@ -323,6 +336,7 @@ export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, g
       else if(app.appId==='maps')renderMaps(app);else if(app.appId==='settings'){settingsSurface.mount(content);getSettings()?.setOpen(true,{focus:false});}
       else if(app.appId==='daily-quiz'||app.appId==='attendance')renderDailySurface(app.appId);
       else if(app.appId==='messages')messages.mount(content);
+      else if(app.appId==='notifications')notifications.mount(content);
     }
     if(shell.ownsInput && !['daily-quiz','attendance'].includes(s.current?.appId)){
       const same=keepFocus&&[...content.querySelectorAll('button')].find(n=>n.textContent===keepFocus&&!n.disabled);
@@ -394,7 +408,7 @@ export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, g
   doc.addEventListener('click',legacyDaily,true);
   const clockTimer=win.setInterval(()=>{const n=content.querySelector('.smartphone-clock');if(n)n.textContent=getClock()||new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'});},1000);
   return Object.freeze({root,album,shell,registry,open,close:()=>shell.close(),launch,
-    setAccount(userId){albumManager.reset();shell.close();messages.setAccount(userId);student.invalidate();album.setScope(userId);warning='';preferences.load();history.load();wallpaperKey='';void setWallpaper();},
+    setAccount(userId){albumManager.reset();shell.close();notifications.setAccount(userId);messages.setAccount(userId);student.invalidate();album.setScope(userId);warning='';preferences.load();history.load();wallpaperKey='';void setWallpaper();},
     openMessages(recipientId){if(shell.state==='CLOSED'&&!open())return false;return shell.ownsInput && launch('messages',{recipientId});},
     capture:async(result,context)=>album.save(result,context),
     captureContext:()=>({...getCaptureContext(),scope:album.scope,capturedAtReal:new Date().toISOString()}),
@@ -404,7 +418,7 @@ export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, g
     dailyPanelClosed(kind){if(suppressClose||shell.snapshot().current?.appId!==kind)return false;return shell.back();},
     settingsChanged(open){if(!open&&!suppressClose&&shell.snapshot().current?.appId==='settings')shell.back();},
     navigationStarted(destination){if(shell.snapshot().current?.appId!=='maps')return;history.remember(destination,getMap()?.status().mapSourceId);shell.close();},
-    refresh(){if(shell.snapshot().current?.appId==='student-id')render(true);},
+    refresh(){if(shell.snapshot().current?.appId==='student-id')render(true);else if(shell.snapshot().current?.appId==='notifications')notifications.refresh();},
     // The internal reader tags; the separate public-lobby guide shows pass guidance in Student ID.
     openJeongseok({tag=false}={}){
       if(!jeongseok?.phoneView().enabled||destroyed)return false;
@@ -420,8 +434,8 @@ export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, g
       if(s.current?.appId!=='student-id'||s.current.view!=='jeongseok'||s.current.origin!=='gate')return false;
       return how==='CLOSE'?shell.close():how==='BACK'?shell.back():false;
     },
-    status:()=>({...shell.snapshot(),scope:album.scope,preferences:preferences.snapshot(),albumError:album.error,messages:messages.status()}),
-    destroy(){albumManager.reset();shell.close();messages.setAccount(null);destroyed=true;clearHold();win.clearInterval(clockTimer);shell.destroy();album.destroy();unsubscribePhoto();
+    status:()=>({...shell.snapshot(),scope:album.scope,preferences:preferences.snapshot(),albumError:album.error,messages:messages.status(),notifications:notifications.snapshot()}),
+    destroy(){albumManager.reset();shell.close();notifications.destroy();messages.setAccount(null);destroyed=true;clearHold();win.clearInterval(clockTimer);shell.destroy();album.destroy();unsubscribePhoto();
       toggle?.removeEventListener('click',toggleClick);doc.removeEventListener('keydown',keyboard,true);doc.removeEventListener('click',legacyProfile,true);doc.removeEventListener('click',legacyDaily,true);doc.removeEventListener('visibilitychange',visibility);win.removeEventListener('pagehide',pagehide);
       revokeImages();if(wallpaperUrl)win.URL.revokeObjectURL(wallpaperUrl);worldVisibility(false);root.remove();}
   });

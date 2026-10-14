@@ -10,7 +10,8 @@ import { createCampusKickboard } from "./mounts/campus-kickboard-render.js";
 import * as pc from "playcanvas";
 import { PlayerController } from "./player-controller.js";
 import { OrbitCameraController } from "./orbit-camera-controller.js";
-import { PlaceZoneRegistry } from './place-zone-registry.js';
+import { installRuntimeDiagnostics } from './diagnostics/runtime-diagnostics-runtime.js';
+import { PlaceZoneRegistry, PLACE_ZONES } from './place-zone-registry.js';
 import { createWorldAudio } from './audio/world-audio.js';
 import { createPlayerActivityAudio } from './audio/player-activity-audio.js';
 import { bindAudioVolumeSettings } from './audio/audio-volume-settings.js';
@@ -70,7 +71,7 @@ import { createContextActionController } from "./context-action.js";
 import { createRoomPhotoStory } from "./rooms/room-photo-story.js";
 import { createPhotoMode } from "./photo/photo-mode.js";
 import { createPhotoCapture } from "./photo/photo-capture.js";
-import { bindPhotoModeEntry, createPhotoModePanel } from "./photo/photo-mode-panel.js";
+import { createPhotoModePanel } from "./photo/photo-mode-panel.js";
 import { createPhotoCameraController } from "./photo/photo-camera-controller.js";
 import { createPhotoInput } from "./photo/photo-input.js";
 import { overPondWater } from "./landmark-detail-layout.js";
@@ -103,7 +104,7 @@ import { DORM_1_LOBBY_MY_ROOM_RETURN } from "./rooms/dorm1-lobby-layout.js";
 import { createRoomWorldAdapter } from "./rooms/room-world-adapter.js";
 import { createDorm1LobbyScene } from "./rooms/dorm1-lobby-renderer.js";
 import { createJeongseokInteriorScenes } from "./jeongseok/interior-renderer.js";
-import { createJeongseokEntryPolicy, resolveJeongseokEntryMode, JEONGSEOK_ACCESS_POLICY_KEY, JEONGSEOK_LOBBY_POLICY_KEY, JEONGSEOK_ENTRY_MODE } from "./jeongseok/entry-policy.js";
+import { createJeongseokEntryPolicy, resolveJeongseokEntryMode, isJeongseokVisualPreviewHost, JEONGSEOK_ACCESS_POLICY_KEY, JEONGSEOK_LOBBY_POLICY_KEY, JEONGSEOK_ENTRY_MODE } from "./jeongseok/entry-policy.js";
 import { createJeongseokInterior } from "./jeongseok/interior-feature.js";
 import { createPersonalRoomEnvironment } from "./rooms/personal-room-environment.js";
 import { createPersonalRoomScene } from "./rooms/personal-room-renderer.js";
@@ -204,7 +205,7 @@ import { createBiryongRealmTransition } from "./biryong/biryong-realm-transition
 import { createBiryongStationTransitInteraction } from "./biryong/biryong-station-transit-interaction.js";
 import { createBiryongMapDataSource } from "./biryong/biryong-map-data.js";
 import { createBiryongNavigation } from "./biryong/biryong-navigation.js";
-import { getBiryongRealmPlaceZone } from "./biryong/biryong-village-layout.js";
+import { getBiryongRealmPlaceZone, BIRYONG_REALM_PLACE_ZONES } from "./biryong/biryong-village-layout.js";
 import { createBiryongVillageNpcRuntime } from "./biryong/biryong-village-npc-runtime.js";
 import { createBiryongVillageDialogueRuntime } from "./biryong/biryong-village-dialogue-runtime.js";
 import { createBiryongRelationshipClient } from "./biryong/biryong-village-relationship-client.js";
@@ -269,10 +270,10 @@ const npcSocialProductionMode = npcProductionMode;
 const npcSocialMode = npcSocialProductionMode || npcSocialPreviewMode || npcObservedConversationMode;
 const npcEnabled = npcSharedScheduleMode || npcTestMode || npcProductionMode || npcPreviewMode || npcRosterPreviewMode || npcSocialMode;
 const campusLifePreview = previewHost && startupParams.get('campusLife') === 'p0a';
-// Public-lobby/inner-gate wiring is ready, but rollout remains CLOSED until separately
-// approved activation. Browser QA injects only the existing serverAccessAvailable argument;
-// no Production query parameter grants access. The local jsl-b visual preview is unchanged.
-const jeongseokEntryMode = resolveJeongseokEntryMode({ previewHost, params: startupParams });
+// Approved public-lobby activation. The inner gate still requires a fresh server grant;
+// no Production query parameter grants access. The resolver stays fail-closed when unconfigured,
+// and jsl-b visual preview is restricted to exact loopback hostnames, never deployment aliases.
+const jeongseokEntryMode = resolveJeongseokEntryMode({ previewHost: isJeongseokVisualPreviewHost(location.hostname), params: startupParams, serverAccessAvailable: true });
 const biryongVisualStage = previewHost ? startupParams.get('biryongVisual') : null;
 const biryongVisualLabP0A = ['p0a', 'p0b', 'p0c', 'p0d', 'p0e'].includes(biryongVisualStage);
 const biryongVisualLabP0B = ['p0b', 'p0c', 'p0d', 'p0e'].includes(biryongVisualStage);
@@ -280,6 +281,9 @@ const biryongVisualLabP0C = ['p0c', 'p0d', 'p0e'].includes(biryongVisualStage);
 const biryongVisualLabP0D = ['p0d', 'p0e'].includes(biryongVisualStage);
 const biryongVisualLabP0E = biryongVisualStage === 'p0e';
 let lastTrackedZone = null;
+// Zone-boundary oscillation (A→B→A…) burned the 120 events/hour session cap; resend a zone at most every 10s.
+const ZONE_ENTER_RESEND_MS = 10000;
+const zoneEnterSentAt = new Map();
 
 async function boot() {
 globalThis.__INHA_WORLD_BOOT_DIAGNOSTICS__?.markBootEntered?.();
@@ -1936,10 +1940,9 @@ const photoModePanel = createPhotoModePanel({ mode: photoMode, rig: photoCamera,
   },
   getAlbumLatest: () => smartphone?.latestPhoto() ?? null,
   onOpenAlbum: record => smartphone?.openAlbum(record) === true });
-const photoModeEntry = bindPhotoModeEntry({ button: document.getElementById("photo-mode-toggle"), mode: photoMode });
 window.addEventListener("pagehide", event => {
   photoMode.close("lifecycle");
-  if (!event.persisted) { photoModeEntry.destroy(); photoModePanel.destroy(); photoInput.destroy(); photoMode.destroy(); }
+  if (!event.persisted) { photoModePanel.destroy(); photoInput.destroy(); photoMode.destroy(); }
 });
 // Single input authority: migrated owners resolve WORLD_ACTION through InputFocusManager.
 const worldActionsSuspended = () => !inputFocus.can("WORLD_ACTION");
@@ -3234,6 +3237,7 @@ smartphone = createSmartphone({
   settingsElement: document.getElementById("view-settings"),
   dailyQuizElement: document.getElementById("daily-quiz-panel"), attendanceElement: document.getElementById("attendance-panel"),
   getDailyQuizPanel: () => dailyQuizPanel, getAttendancePanel: () => attendancePanel,
+  getDailyQuiz: () => dailyQuiz, getAttendance: () => attendance,
   onWarning: showWorldStatus, jeongseok
 });
 // Controller's existing destination handler runs first; Phone returns to World only on a solved route.
@@ -3528,6 +3532,9 @@ places.onPlaceZoneChanged((previous,next)=>{
   const legacy=legacyTelemetryTarget(next);
   if(!npcTestMode&&legacy&&legacy!==lastTrackedZone){
     lastTrackedZone=legacy;
+    const nowMs=Date.now();
+    if(nowMs-(zoneEnterSentAt.get(legacy)??-Infinity)<ZONE_ENTER_RESEND_MS) return;
+    zoneEnterSentAt.set(legacy,nowMs);
     window.InhaHubTelemetry?.track('campus_zone_enter','campus',legacy);
   }
 });
@@ -3796,7 +3803,6 @@ app.on("update", (dt) => {
     ]) contextActions.set(key, null);
     transportActions.set("mount", null);
   }
-  photoModeEntry.refresh();
   const suspended = worldActionsSuspended();
   contextActions.setSuspended(suspended);
   transportActions.setSuspended(suspended);
@@ -4373,6 +4379,31 @@ window.__INHAGAME_P0__ = {
     camera: { yaw: orbit.yaw, pitch: orbit.pitch, distance: orbit.distance, firstPerson: orbit.firstPerson, zoomLimits: orbit.zoomLimits }
   })
 };
+
+// Player-facing runtime diagnostics use narrow existing readers, never getStatus()/online.status().
+// Installed after boot so the separate boot-recovery system keeps its existing ownership.
+const runtimeDiagnostics = installRuntimeDiagnostics({
+  app, device, online, inputFocus,
+  opener: document.getElementById("open-runtime-diagnostics"),
+  publicZoneIds: [...PLACE_ZONES, ...BIRYONG_REALM_PLACE_ZONES].map(zone => zone.id),
+  readState: () => ({
+    renderer: rendererName,
+    quality: graphics.tier,
+    qualityPreference: graphics.preference,
+    worldId: rooms.insideRoom ? "INTERIOR" : biryongRealm?.inBiryong ? "BIRYONG"
+      : editorWorldStatus?.state?.startsWith("ready") ? "EDITOR" : lobbyWorld.active ? "LOBBY" : "CAMPUS",
+    zoneId: rooms.insideRoom ? null : (biryongRealm?.inBiryong
+      ? getBiryongRealmPlaceZone(player.getLocalPosition()) : places.getCurrentPlaceZone())?.id ?? null,
+    network: navigator.onLine === false ? "OFFLINE" : online?.network?.state ?? "OFFLINE"
+  }),
+  beforeOpen: () => {
+    viewSettings.setOpen(false, { focus: false });
+    hudMenu.setOpen(false, { focus: false });
+    lobbyMenu.setOpen(false, { focus: false });
+  },
+  returnFocus: () => document.getElementById(lobbyWorld.active ? "lobby-menu-toggle" : "hud-menu-toggle")
+});
+window.__INHA_WORLD_RUNTIME_DIAGNOSTICS__ = Object.freeze({ status: runtimeDiagnostics.status });
 
 }
 

@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#fff9e9">
+  <meta name="description" content="인덕이 키우기 2.0: 독립 로컬 대학생활 시뮬레이션 프로토타입">
+  <title>인덕이 키우기 2.0 · 대학생활 시뮬레이션 (개발용)</title>
+  <link rel="stylesheet" href="./ui.css">
+  <script type="module" src="./ui.mjs"></script>
+</head>
+<body>
+<div class="app-shell">
+  <header class="site-header">
+    <a class="back-link" href="https://inhagame.app/" aria-label="INHAGAME 허브로 돌아가기">← 허브</a>
+    <span class="brand"><span aria-hidden="true">🐤</span> 인덕이 키우기 <span class="version">2.0</span></span>
+    <span class="preview-tag">로컬 미리보기</span>
+  </header>
+  <main id="main" tabindex="-1">
+    <section id="setup-screen" class="setup-card" aria-labelledby="setup-title">
+      <div class="hero-emoji" aria-hidden="true">🎓🐤</div>
+      <p class="eyebrow">하나의 캠퍼스, 무수한 대학생활</p>
+      <h1 id="setup-title">인덕이의 새로운 4년을 시작해!</h1>
+      <p class="lead">전공을 고르고, 인덕이가 살아가는 시간을 지켜봐. 중요한 순간엔 네 선택이 이야기를 바꿔.</p>
+      <div class="setup-grid">
+        <div class="form-field">
+          <label for="major-select">입학 학과</label>
+          <select id="major-select" required></select>
+          <p id="major-description" class="hint"></p>
+        </div>
+        <div class="form-field">
+          <label for="seed-input">인생 시드 (0~4294967295)</label>
+          <div class="seed-row">
+            <input id="seed-input" type="number" min="0" max="4294967295" step="1" inputmode="numeric" value="2026">
+            <button id="random-seed" class="secondary" type="button">다시 뽑기</button>
+          </div>
+          <p class="hint">같은 시드와 같은 선택이면 같은 결과가 나와.</p>
+        </div>
+        <div class="form-field full">
+          <label for="start-policy">처음 생활 방침</label>
+          <select id="start-policy">
+            <option value="balanced">⚖️ 균형 잡힌 생활</option>
+            <option value="academic">📚 학업 중심</option>
+            <option value="social">🫶 친구·동아리 중심</option>
+            <option value="work">💼 아르바이트 중심</option>
+            <option value="creative">🎨 창작·도전 중심</option>
+          </select>
+        </div>
+      </div>
+      <div class="setup-actions">
+        <button id="start-button" class="primary" type="button">입학하기 →</button>
+        <button id="continue-button" class="secondary" type="button" disabled>기존 기록 이어하기</button>
+      </div>
+      <p id="save-preview" class="hint" role="status"></p>
+      <p class="scope-note">36개 학과는 기획 카탈로그에 등록됐으며, 현재 실제 선택 가능한 학과는 12개야. 대학 교과과정·성적은 게임용 모형이며 실제 학적과 관계없어.</p>
+    </section>
+    <section id="game-screen" hidden aria-label="인덕이의 대학생활 게임">
+      <div class="game-header card">
+        <div>
+          <p class="eyebrow" id="school-year">1학년 · 1학기</p>
+          <h1 id="game-title">인덕이의 대학생활</h1>
+          <p class="hint" id="major-label"></p>
+        </div>
+        <button id="new-life-button" class="secondary compact" type="button">새 인생</button>
+      </div>
+      <div class="game-columns">
+        <div class="left-column">
+          <section class="scene card" aria-labelledby="scene-title">
+            <div class="scene-top">
+              <span id="scene-title">오늘의 인덕이</span>
+              <span id="scene-caption" class="tiny">학교에 왔어!</span>
+            </div>
+            <div class="campus-art" role="img" aria-label="노란 오리 모양의 임시 플레이스홀더. 인덕이는 캠퍼스에 있어요.">
+              <div class="sky-cloud cloud-1" aria-hidden="true"></div>
+              <div class="sky-cloud cloud-2" aria-hidden="true"></div>
+              <div class="campus-building building-1" aria-hidden="true"></div>
+              <div class="campus-building building-2" aria-hidden="true"></div>
+              <div id="duck" class="duck" aria-hidden="true">
+                <div class="duck-head"><i class="eye eye-left"></i><i class="eye eye-right"></i><i class="beak"></i></div>
+                <div class="duck-body"><i class="duck-wing"></i></div>
+                <div class="duck-feet"></div>
+              </div>
+            </div>
+            <p id="scene-message" class="scene-message">입학을 축하해, 인덕아!</p>
+            <p class="tiny subtle">임시 캐릭터 도형 · 공식 마스코트 아트가 아님</p>
+          </section>
+          <section class="timeline-card card" aria-labelledby="timeline-title">
+            <div class="section-head">
+              <h2 id="timeline-title">대학생활 타임라인</h2>
+              <span id="week-display">1주차 / 120주</span>
+            </div>
+            <div id="life-progress" class="track" role="progressbar" aria-label="전체 학업 진행도" aria-valuemin="0" aria-valuemax="120" aria-valuenow="0">
+              <div id="progress-fill" class="track-fill"></div>
+            </div>
+            <div class="timeline-marks"><span>입학</span><span>2학년</span><span>3학년</span><span>4학년</span><span>졸업</span></div>
+            <div class="controls" role="group" aria-label="시간 제어">
+              <button id="play-button" class="primary" type="button" aria-pressed="false">▶ 진행</button>
+              <button id="step-button" class="secondary" type="button">다음 주</button>
+            </div>
+            <fieldset class="speed-control">
+              <legend>진행 속도</legend>
+              <label><input type="radio" name="speed" value="1" checked><span>1×</span></label>
+              <label><input type="radio" name="speed" value="2"><span>2×</span></label>
+              <label><input type="radio" name="speed" value="4"><span>4×</span></label>
+              <label><input type="radio" name="speed" value="8"><span>8×</span></label>
+            </fieldset>
+            <p class="hint" id="play-hint">플레이를 누르면 자동으로 진행해. 중요한 사건이 나타나면 멈춰!</p>
+          </section>
+        </div>
+        <div class="right-column">
+          <section class="resource-card card" aria-label="인덕이 상태">
+            <div class="section-head"><h2>인덕이 상태</h2><span id="save-indicator" class="tiny">기기 저장</span></div>
+            <div class="resources">
+              <div class="resource"><span>💪 체력</span><strong id="stamina-value">75 / 100</strong><div class="mini-track"><i id="stamina-fill"></i></div></div>
+              <div class="resource"><span>🌦️ 스트레스</span><strong id="stress-value">20 / 100</strong><div class="mini-track"><i id="stress-fill"></i></div></div>
+              <div class="resource"><span>💰 생활비</span><strong id="money-value">70,000원</strong></div>
+              <div class="resource"><span>📚 누적 평점</span><strong id="gpa-value">미산정</strong></div>
+            </div>
+            <div class="form-field policy-select">
+              <label for="policy-select">이번 학기 생활 방침</label>
+              <select id="policy-select">
+                <option value="balanced">⚖️ 균형 잡힌 생활</option>
+                <option value="academic">📚 학업 중심</option>
+                <option value="social">🫶 친구·동아리 중심</option>
+                <option value="work">💼 아르바이트 중심</option>
+                <option value="creative">🎨 창작·도전 중심</option>
+              </select>
+            </div>
+          </section>
+          <section class="card growth-card" aria-labelledby="growth-title">
+            <h2 id="growth-title">전공 활동과 성장</h2>
+            <p id="activity-summary" class="hint"></p>
+            <p id="next-growth-reward" class="hint"></p>
+            <p id="competency-change" class="hint" role="status"></p>
+            <label for="activity-select">이번 학기 대표 활동의 접근법</label>
+            <select id="activity-select">
+              <option value="explore">탐구하고 정리하기</option>
+              <option value="build">직접 만들어 보기</option>
+              <option value="team">함께 완성하기</option>
+            </select>
+            <p class="hint">첫 주 진행 전 선택 · 미선택 시 탐구 · 5·10·15주마다 해당 역량 +1</p>
+            <div class="form-field"><label for="spending-select">이번 주 생활 활동</label><select id="spending-select" aria-describedby="spending-note"></select><p id="spending-note" class="hint" role="status"></p><p class="hint">게임 속 생활비만 사용해. 무료 활동도 시간을 사용하며, 최근 2주에 같은 활동을 반복하면 효과가 75%·50%로 줄어들어. 활동한 주는 기본 역량 성장과 양수 수입이 절반이 돼. 표시 효과는 활동 단독 최대치야. 현재 잔액으로 결제하고 활동 → 기본 방침 순서로 적용돼. 기본 생활비는 그대로이며 피로·스트레스 비용은 반복해도 줄지 않아.</p></div>
+          <details><summary>역량 6개와 획득 특성 보기</summary><div id="growth-stats"></div><p id="growth-traits" class="hint"></p><div id="trait-progress"></div></details>
+          </section>
+          <section class="journal card" aria-labelledby="journal-title">
+            <div class="section-head"><h2 id="journal-title">대학생활 수첩</h2></div>
+            <nav class="tabs" aria-label="기록 보기">
+              <button type="button" data-tab="story" aria-pressed="true">최근 기록</button>
+              <button type="button" data-tab="semesters" aria-pressed="false">성적표</button>
+              <button type="button" data-tab="memories" aria-pressed="false">기억카드</button>
+              <button type="button" data-tab="ending" aria-pressed="false">졸업앨범</button>
+            </nav>
+            <div id="journal-list" class="journal-body" aria-live="off"></div>
+          </section>
+        </div>
+      </div>
+    </section>
+    <section class="card archive-card" aria-labelledby="archive-title">
+      <details id="archive-details"><summary id="archive-title">🎓 졸업생 기록실 · 내 최고 학점</summary>
+        <p class="hint">이 브라우저에 보관한 완료 기록 최대 50건. 전공·엔진·콘텐츠·성장 버전별 공동 순위. 시드와 선택은 다를 수 있으며, 온라인 랭킹이 아닙니다.</p>
+        <p id="archive-status" role="status"></p>
+        <p class="hint">기록을 삭제하기 전에 백업을 내려받아 보관해 주세요. 현재 졸업 기록은 새 게임을 시작한 뒤 정리할 수 있어요. JSON 가져오기는 아직 지원하지 않습니다.</p>
+        <button id="archive-export" type="button" class="secondary">졸업 기록 JSON 백업</button>
+        <button id="archive-retry" type="button" class="secondary">보관 다시 시도 · 새로고침</button>
+        <div id="archive-list"></div>
+      </details>
+    </section>
+  </main>
+  <footer class="site-footer">인덕이 키우기 2.0 개발용 프리뷰 · 기기 저장만 지원 · INHA WORLD 재화/계정 연동 없음</footer>
+</div>
+<dialog id="event-dialog" class="game-dialog" aria-labelledby="event-title" aria-describedby="event-description">
+  <div class="dialog-eyebrow" id="event-time">새로운 사건</div>
+  <h2 id="event-title">선택의 순간</h2>
+  <p id="event-description">인덕이의 선택을 도와줘.</p>
+  <div id="event-options" class="dialog-options"></div>
+  <p class="hint">선택할 때까지 시간은 멈춰 있어. 이 선택은 되돌릴 수 없어.</p>
+</dialog>
+<dialog id="semester-dialog" class="game-dialog" aria-labelledby="semester-title">
+  <p class="dialog-eyebrow">학기 종료</p>
+  <h2 id="semester-title">이번 학기의 성적표</h2>
+  <p id="semester-summary"></p>
+  <button id="semester-close" class="primary" type="button">다음 학기 준비하기</button>
+</dialog>
+<noscript><p class="noscript">이 게임을 실행하려면 브라우저에서 JavaScript를 활성화해 줘.</p></noscript>
+<div id="status-message" role="status" aria-live="polite" class="sr-only"></div>
+</body>
+</html>

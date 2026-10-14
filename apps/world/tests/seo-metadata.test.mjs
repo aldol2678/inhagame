@@ -58,3 +58,33 @@ test('robots and sitemap agree on public, same-origin canonical URLs', () => {
     assert.ok(!sitemap.includes(page.split('/').slice(2, -1).join('/')));
   }
 });
+
+test('Inha-specific titles and hub SPA title agree with search metadata', () => {
+  const hub = read('apps/world/index.html');
+  const campus = read('apps/world/campus/index.html');
+  const hubTitle = '인하대 게임 · 인하월드 | INHAGAME';
+  const campusTitle = '인하월드 | 인하대 캠퍼스 탐험 게임 · INHA WORLD';
+  assert.ok(hub.includes('<title>' + hubTitle + '</title>'));
+  assert.ok(campus.includes('<title>' + campusTitle + '</title>'));
+  assert.ok(read('apps/world/hub.js').includes('document.title = current === "home" ? "' + hubTitle + '"'));
+  for (const [html, title] of [[hub, hubTitle], [campus, campusTitle]]) {
+    assert.ok(html.includes('<meta property="og:title" content="' + title + '">'));
+    assert.match(html, /<meta name="description" content="[^"]*인하대[^"]*">|<meta name="description" content="[^"]*인하대학교[^"]*">/);
+  }
+});
+
+test('verified existing PWA icon is used for search favicon and social preview', () => {
+  const hub = read('apps/world/index.html');
+  const campus = read('apps/world/campus/index.html');
+  const url = 'https://inhagame.app/campus/icons/icon-512.png';
+  for (const html of [hub, campus]) {
+    assert.ok(html.includes('<meta property="og:image" content="' + url + '">'));
+    assert.match(html, /<meta property="og:image:alt" content="[^"]+">/);
+    assert.match(html, /<meta name="twitter:card" content="summary">/);
+  }
+  assert.ok(hub.includes('href="/campus/icons/favicon-32.png"'));
+  for (const image of ['apps/world/campus/icons/icon-512.png', 'apps/world/campus/icons/favicon-32.png']) {
+    const buf = readFileSync(resolve(root, image));
+    assert.equal(buf.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
+  }
+});

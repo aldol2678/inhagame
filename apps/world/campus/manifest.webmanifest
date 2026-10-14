@@ -1,0 +1,32 @@
+{
+  "id": "/campus/",
+  "name": "INHA WORLD",
+  "short_name": "INHA WORLD",
+  "description": "인덕이와 함께하는 캠퍼스 월드",
+  "lang": "ko",
+  "start_url": "/campus/?lobby=1",
+  "scope": "/campus/",
+  "display": "standalone",
+  "background_color": "#101722",
+  "theme_color": "#101722",
+  "icons": [
+    {
+      "src": "/campus/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/campus/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/campus/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
