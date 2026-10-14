@@ -152,20 +152,52 @@ body[data-phone-open="true"] > :not(#application):not(.smartphone) { visibility:
 .phone-messages-notice { margin:0; padding:8px; border-radius:8px; background:#15394e; }
 @media(max-width:380px) { .phone-messages-new { grid-template-columns:1fr; } }
 
-/* PHONE-NOTI-01A: local presentation over existing authoritative clients. */
-.phone-notifications { display:grid; gap:12px; padding:4px 2px 18px; min-width:0; }
-.phone-notifications h3 { margin:0; font-size:19px; }
-.phone-notifications-hint { margin:0; color:#e7f1fb; font-size:12px; line-height:1.5; }
-.phone-notifications-filters, .phone-notifications-settings, .phone-notifications-footer { display:flex; gap:7px; flex-wrap:wrap; }
-.phone-notifications-filters button { min-height:44px; font-size:13px; }
-.phone-notifications-filters button[aria-pressed="true"] { background:#f3dba4; border-color:#ffe8a4; color:#1b2934; font-weight:700; }
-.phone-notifications-setting { display:flex; align-items:center; justify-content:space-between; gap:6px; padding:6px 9px; border:1px solid #ffffff35; border-radius:9px; background:#132d45b0; font-size:12px; flex:1 1 110px; }
-.phone-notifications-setting input { width:20px; height:20px; accent-color:#ffd680; }
+/* PHONE-NOTI-01B: compact and accessible mobile notification inbox. */
+.phone-notifications { display:grid; gap:14px; padding:6px 2px max(24px,env(safe-area-inset-bottom)); min-width:0; }
+.phone-notifications-hero { display:flex; justify-content:space-between; align-items:center; gap:14px; min-width:0; }
+.phone-notifications-hero-copy { min-width:0; }
+.phone-notifications h3 { margin:0; font-size:19px; line-height:1.3; }
+.phone-notifications-summary { margin:5px 0 0; font-size:13px; color:#d8eaf5; }
+.phone-notifications-hero-icon { display:grid; place-items:center; min-width:42px; height:42px; border-radius:14px; background:#13334b9e; font-size:24px; }
+.phone-notifications-filters { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; }
+.smartphone .phone-notifications-filter { min-width:0; min-height:44px; padding:7px 6px; font-size:12px; display:flex; justify-content:center; align-items:center; flex-wrap:wrap; gap:4px; white-space:nowrap; }
+.smartphone .phone-notifications-filter[aria-pressed="true"] { background:#f3dba4; border-color:#ffe8a4; color:#1b2934; font-weight:700; }
+.phone-notifications-count { min-width:16px; border-radius:10px; padding:1px 5px; background:#ffffff27; font-size:11px; font-variant-numeric:tabular-nums; }
+.smartphone .phone-notifications-filter[aria-pressed="true"] .phone-notifications-count { background:#132b4222; }
 .phone-notifications-list { display:grid; gap:8px; }
-.phone-notification-item { display:grid; gap:8px; padding:12px; border:1px solid #ffffff35; border-radius:14px; background:#112c47db; min-width:0; }
-.phone-notification-item[data-unread="true"] { border-left:4px solid #ffe29e; }
-.phone-notification-copy { overflow-wrap:anywhere; }
-.phone-notification-copy strong { display:block; font-size:14px; }
-.phone-notification-copy p { margin:5px 0 0; font-size:12px; line-height:1.5; }
-.phone-notification-action { justify-self:start; min-height:44px; }
+.phone-notification-item { display:grid; grid-template-columns:40px minmax(0,1fr); gap:8px 10px; padding:12px; border:1px solid #ffffff29; border-radius:16px; background:#102c46d9; min-width:0; }
+.phone-notification-item[data-unread="true"] { border-left:3px solid #ffe19e; background:#143851ed; }
+.phone-notification-item[data-unread="false"] { opacity:.85; }
+.phone-notification-icon { display:grid; place-items:center; border-radius:13px; width:40px; height:40px; background:#ffffff1e; font-size:22px; grid-row:1; }
+.phone-notification-copy { min-width:0; grid-column:2; overflow-wrap:anywhere; }
+.phone-notification-heading { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
+.phone-notification-heading strong { font-size:14px; line-height:1.35; }
+.phone-notification-unread { display:inline-flex; align-items:center; gap:4px; color:#ffe39c; font-size:11px; font-weight:600; }
+.phone-notification-unread:before { content:""; width:6px; height:6px; border-radius:50%; background:currentColor; }
+.phone-notification-copy p { margin:5px 0 0; font-size:12px; line-height:1.5; color:#dbe9f2; }
+.smartphone .phone-notification-action { grid-column:2; justify-self:end; min-height:44px; padding:8px 12px; font-size:13px; background:#235273d9; }
+.phone-notifications-empty { display:grid; justify-items:center; text-align:center; gap:8px; padding:24px 12px; border-radius:16px; border:1px dashed #ffffff48; background:#122e4777; }
+.phone-notifications-empty-icon { font-size:28px; }
+.phone-notifications-empty strong { font-size:14px; }
+.phone-notifications-empty p { font-size:12px; line-height:1.5; color:#d6e7f2; margin:0; }
+.phone-notifications-footer { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:8px; }
+.smartphone .phone-notifications-footer button { min-height:44px; font-size:12px; }
+.smartphone .phone-notifications-settings-button { margin-left:auto; }
+.phone-notifications-preferences { display:grid; gap:8px; padding:12px; border:1px solid #ffffff33; border-radius:14px; background:#102c46da; }
+.phone-notifications-preferences[hidden] { display:none; }
+.phone-notifications-setting { display:flex; justify-content:space-between; align-items:center; gap:12px; font-size:13px; }
+.smartphone .phone-notifications-switch { position:relative; min-height:44px; min-width:74px; padding:8px 10px; border:1px solid #ffffff44; border-radius:30px; font-size:12px; background:#394b5b; }
+.smartphone .phone-notifications-switch[aria-checked="true"] { background:#226b5f; border-color:#88f5c9; }
+.phone-notifications-hint,.phone-notifications-footnote { margin:0; color:#c6dfed; font-size:11px; line-height:1.5; }
 .phone-notifications-error { color:#ffe4ad; margin:0; font-size:12px; }
+@media (max-width:365px) {
+  .smartphone .phone-notifications-filter { white-space:normal; font-size:11px; }
+  .phone-notification-item { padding:10px; }
+}
+@media (prefers-reduced-motion:reduce) { .phone-notification-item { transition:none; } }
+
+/* NOTI-01B switch affordance and keyboard focus retention. */
+.smartphone .phone-notifications-switch { width:82px; text-align:right; padding:8px 11px 8px 31px; }
+.smartphone .phone-notifications-switch::before { content:""; position:absolute; top:50%; left:6px; width:18px; height:18px; border-radius:50%; background:#edf5fa; transform:translateY(-50%); box-shadow:0 1px 3px #0005; }
+.smartphone .phone-notifications-switch[aria-checked="true"] { text-align:left; padding:8px 29px 8px 11px; }
+.smartphone .phone-notifications-switch[aria-checked="true"]::before { left:calc(100% - 24px); background:#dcffe8; }
