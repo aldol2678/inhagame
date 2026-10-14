@@ -188,6 +188,8 @@ import { FISHING_CLIENT_STATE, createFishingClient } from "./activity/fishing-cl
 import { createFishingPanel } from "./activity/fishing-panel.js";
 import { createFishingRenderer } from "./activity/fishing-renderer.js";
 import { fishingContextAction, findNearbyFishingSpot } from "./activity/fishing-spots.js";
+import { createInkyungWaterPathInteraction, INKYUNG_WATER_PATH_OWNER_ID } from "./minigames/world/inkyung-water-path-interaction.js";
+import { createWaterPathSfx } from "./minigames/world/water-path-sfx.js";
 import { createLoadoutClient } from "./appearance/loadout-client.js";
 import { createEquipmentProjection } from "./appearance/equipment-projection.js";
 import { createEquipmentModelLoader } from "./appearance/equipment-asset-loader.js";
@@ -1786,6 +1788,40 @@ fishingPanel = createFishingPanel({
     void inventory.refresh("fishing");
   }
 });
+// PA-G2B-R1 · Inkyung promenade water-path puzzle (T0, local only): the F slot opens the merged panel as a
+// BLOCKING_UI session; every end path (success, cancel, Esc, error, interruption, pagehide) releases input.
+const waterPathInput = createInputFocusOwner({
+  manager: inputFocus, ownerId: INKYUNG_WATER_PATH_OWNER_ID, policy: INPUT_FOCUS_POLICY.BLOCKING_UI
+});
+// worldAudio is created later in this module; the lazy hop keeps the cue silent until it exists and is unlocked.
+const waterPathSfx = createWaterPathSfx({ audio: { playCue: render => worldAudio?.playCue(render) ?? false } });
+const inkyungWaterPath = createInkyungWaterPathInteraction({
+  focus: waterPathInput,
+  playCue: name => waterPathSfx.play(name),
+  subscribeFocus: listener => inputFocus.subscribe(listener),
+  pauseAutoMove: () => { if (playerAutoMove?.active) playerAutoMove.pause(AUTO_MOVE_CANCEL_REASON.INTERACTION); },
+  onStatus: message => showWorldStatus(message),
+  getContext: () => ({
+    position: player.getLocalPosition(),
+    insideRoom: rooms?.insideRoom === true,
+    inBiryong: biryongRealm?.inBiryong === true,
+    lobbyActive: lobbyWorld.active === true,
+    lobbyTransition: lobbyTransition.active === true,
+    mounted: controller.mounted === true,
+    seated: seats.isSeated === true,
+    swimming: controller.swimming === true,
+    grounded: controller.grounded === true,
+    combat: combatRuntime.active === true,
+    photoMode: photoMode.active === true,
+    roomTransition: rooms?.status().busy === true || biryongRealm?.busy === true,
+    cinematic: cinematic.active === true,
+    worldAction: inputFocus.can("WORLD_ACTION")
+  })
+});
+// Its own listener: it also runs on frames that return early (room/region transition, lobby, cinematic).
+app.on("update", () => inkyungWaterPath.update());
+window.addEventListener("pagehide", () => inkyungWaterPath.handlePageHide());
+window.addEventListener("pageshow", event => { inkyungWaterPath.handlePageShow({ persisted: event.persisted }); });
 // Main Lobby P2 "오늘의 캠퍼스": a read-only summary of the two clients above. It re-renders on their own change
 // events (account switches included) and only opens the existing panels; the panels keep the explicit claim / start.
 const lobbyDailyLoop = createLobbyDailyLoop({
@@ -3756,6 +3792,7 @@ app.on("update", (dt) => {
     available: fishing.available, blocked: fishingBlocked,
     onOpen: (spot) => fishingPanel?.setOpen(true, spot)
   }));
+  contextActions.set("inkyung-water-path", inside ? null : inkyungWaterPath.contextAction(pos));
   contextActions.set("biryong", inside ? null : biryong?.getContextAction(pos, { blocked: controller.mounted || seats.isSeated }) ?? null);
   contextActions.set("mcm-event", inside ? null : mcmEventRuntime.contextAction());
   contextActions.set("mcm-minigame", rooms.currentSpace === MCM_2026_ROOM_ID ? mcmMinigame.contextAction() : null);
@@ -3798,7 +3835,7 @@ app.on("update", (dt) => {
   if (combatRuntime.active) {
     for (const key of [
       "seat", "room-furniture", "personal-room-environment", "guestbook", "student-center-shop", "student-center-vendors", "dorm-furniture-shop", "backgate-transit", "biryong-station-transit",
-      "biryong-npc", "inkyung-duck", "inkyung-fishing", "biryong", "mcm-event", "mcm-minigame", "follow",
+      "biryong-npc", "inkyung-duck", "inkyung-fishing", "inkyung-water-path", "biryong", "mcm-event", "mcm-minigame", "follow",
       "room-door", "personal-room-door", "npc", "jeongseok-gate", "jeongseok-guide", "jeongseok-interior"
     ]) contextActions.set(key, null);
     transportActions.set("mount", null);
@@ -4209,6 +4246,7 @@ window.__INHAGAME_P0__ = {
   mcmMinigame,
   contextActions,
   transportActions,
+  inkyungWaterPath,
   interactionAction,
   transportAction,
   character,
