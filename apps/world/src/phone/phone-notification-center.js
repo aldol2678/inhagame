@@ -1,11 +1,16 @@
+import { projectServerActivity } from './phone-notification-activity.js';
+
 // PHONE-NOTI-01A: read-only activity hub over existing Messages, Attendance and Daily Quiz.
 // No RPC, reward, delivery queue or OS push. Seen/muted state is local presentation only.
 export function createPhoneNotificationCenter({
   getStorage = () => null, getAttendance = () => null, getQuiz = () => null,
+  getSocial = () => null, getMessageActivity = async () => ({outcome:'FAILED'}),
   onOpenApp = () => false, onChange = () => {}, doc = globalThis.document
 } = {}) {
   let accountId = null, host = null, filter = 'all', messageUnread = 0;
   let settingsOpen = false, openError = false;
+  let screen = 'current', activityEpoch = 0, activityState='idle', activity=[],
+    activityNotice='', historyFilter='all';
   let seen = new Set(), muted = new Set(), storageError = false;
   const groups = Object.freeze({all:'전체',messages:'메시지',daily:'오늘 할 일'});
   const key = () => 'inha-world-phone-notifications-v1:' + accountId;
@@ -30,6 +35,7 @@ export function createPhoneNotificationCenter({
     if(next===accountId)return;
     accountId=next;messageUnread=0;seen=new Set();muted=new Set();filter='all';storageError=false;
     settingsOpen=false;openError=false;
+    activityEpoch++;screen='current';activityState='idle';activity=[];activityNotice='';historyFilter='all';
     if(accountId) {
       try {
         const raw=JSON.parse(getStorage()?.getItem(key())||'null');
@@ -71,6 +77,7 @@ export function createPhoneNotificationCenter({
     const rows=entries();
     const visible=rows.filter(x=>!muted.has(x.group));
     return {accountId,rows,visible,filter,muted:[...muted],storageError,settingsOpen,openError,
+      screen,activityState,activity,activityNotice,historyFilter,
       counts:{all:visible.length,messages:visible.filter(x=>x.group==='messages').length,
         daily:visible.filter(x=>x.group==='daily').length},
       unreadCount:visible.reduce((n,x)=>n+(x.unread?(x.serverUnread?Math.min(messageUnread,99):1):0),0)};
@@ -94,6 +101,45 @@ export function createPhoneNotificationCenter({
     if(!accountId||!['messages','daily'].includes(group))return;
     if(value)muted.add(group);else muted.delete(group);
     save();changed();
+  }
+  async function refreshActivity() {
+    const owner=accountId, ticket=++activityEpoch;
+    if(!owner)return false;
+    activityState='loading';activityNotice='';changed();
+    const social=getSocial();
+    const socialAllowed=social?.available===true&&social?.getSelfUserId?.()===owner;
+    const results=await Promise.allSettled([
+      Promise.resolve().then(()=>getMessageActivity()),
+      socialAllowed?Promise.resolve().then(()=>social.mine()):Promise.resolve(null)
+    ]);
+    if(ticket!==activityEpoch||accountId!==owner)return false;
+    const msg=results[0].status==='fulfilled'?results[0].value:null;
+    const soc=results[1].status==='fulfilled'?results[1].value:null;
+    const messageOK=msg?.outcome==='READY'&&msg?.accountId===owner&&Array.isArray(msg.conversations);
+    const socialOK=socialAllowed&&soc&&Array.isArray(soc.incoming)&&social?.getSelfUserId?.()===owner;
+    if(!messageOK&&!socialOK) {
+      activity=[];activityState='error';activityNotice='최근 활동을 확인하지 못했어요. 다시 시도해 주세요.';
+    } else {
+      activity=projectServerActivity({accountId:owner,conversations:messageOK?msg.conversations:[],
+        incoming:socialOK?soc.incoming:[]});
+      activityState='ready';
+      activityNotice=messageOK&&socialOK?'':'일부 서버 기록을 불러오지 못했어요.';
+    }
+    changed();
+    return activityState==='ready';
+  }
+  function setScreen(value) {
+    if(value!=='activity'&&value!=='current')return;
+    screen=value;openError=false;changed();
+    if(screen==='activity'&&(activityState==='idle'||activityState==='error'))void refreshActivity();
+  }
+  function openRecent(item) {
+    const owner=accountId;
+    if(!owner||!activity.some(x=>x.id===item.id))return false;
+    let result=false;
+    try {result=onOpenApp(item.appId,item.params)===true;} catch {result=false;}
+    if(!result&&accountId===owner){openError=true;changed();}
+    return result;
   }
   function openEntry(entry) {
     // The existing Shell returns a synchronous boolean: mark local daily cards only after successful navigation.
@@ -129,6 +175,14 @@ export function createPhoneNotificationCenter({
       return;
     }
 
+    const screenNav=node('div','phone-notifications-screen-nav');
+    for(const [id,name] of [['current','현재 알림'],['activity','최근 활동']]) {
+      const tab=button(name,()=>setScreen(id),'phone-notifications-screen-tab');
+      tab.setAttribute('aria-pressed',String(screen===id));
+      tab.dataset.notificationFocus='screen-'+id;screenNav.append(tab);
+    }
+    root.append(screenNav);
+
     const controls=node('div','phone-notifications-filters');
     controls.setAttribute('role','group');controls.setAttribute('aria-label','알림 종류');
     for(const [id,name] of Object.entries(groups)){
@@ -139,7 +193,48 @@ export function createPhoneNotificationCenter({
       const number=node('span','phone-notifications-count',String(state.counts[id]));
       b.append(number);controls.append(b);
     }
-    root.append(controls);
+    if(screen==='current')root.append(controls);
+    else controls.replaceChildren();
+
+    if(screen==='activity') {
+      const info=node('p','phone-notifications-history-note',
+        '현재 서버에서 확인된 최근 대화와 받은 친구 요청이에요. 전체 과거 알림의 영구 보관함은 아니에요.');
+      root.append(info);
+      const toolbar=node('div','phone-notifications-history-controls');
+      for(const [id,name] of [['all','전체'],['messages','최근 대화'],['friends','친구 요청']]) {
+        const tab=button(name,()=>{historyFilter=id;changed();},'phone-notifications-history-filter');
+        tab.setAttribute('aria-pressed',String(historyFilter===id));
+        tab.dataset.notificationFocus='history-'+id;toolbar.append(tab);
+      }
+      const reload=button('새로고침',()=>{void refreshActivity();},'phone-notifications-history-refresh');
+      reload.dataset.notificationFocus='history-refresh';toolbar.append(reload);root.append(toolbar);
+      const list=node('div','phone-notifications-list');
+      const filtered=activity.filter(item=>historyFilter==='all'||item.group===historyFilter);
+      if(activityState==='loading')list.append(node('p','phone-notifications-history-note','서버에서 최근 활동을 불러오는 중…'));
+      else if(activityState==='error')list.append(node('p','phone-notifications-error',activityNotice));
+      else if(!filtered.length)list.append(node('p','smartphone-empty-state','현재 확인 가능한 활동이 없어요.'));
+      for(const item of filtered) {
+        const card=node('article','phone-notification-item');
+        card.dataset.category=item.group;card.dataset.unread=String(item.unread);
+        const icon=node('span','phone-notification-icon',item.icon);icon.setAttribute('aria-hidden','true');
+        const copy=node('div','phone-notification-copy');
+        const top=node('div','phone-notification-heading');
+        top.append(node('strong','',item.title));copy.append(top,node('p','',item.detail));
+        if(item.createdAt) {
+          const date=new Date(item.createdAt).toLocaleString('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
+          copy.append(node('small','phone-notifications-history-time',date));
+        }
+        const action=button(item.action,()=>openRecent(item),'phone-notification-action');
+        action.dataset.notificationFocus='history-entry-'+item.id;
+        card.append(icon,copy,action);list.append(card);
+      }
+      root.append(list);
+      if(activityNotice&&activityState==='ready')root.append(node('p','phone-notifications-history-note',activityNotice));
+      if(state.openError)root.append(node('p','phone-notifications-error','앱을 열 수 없어요. 다시 시도해 주세요.'));
+      if(focusedControl)(root.querySelector?.('[data-notification-focus="'+focusedControl+'"]') ||
+        root.querySelector?.('[data-notification-focus="history-refresh"]'))?.focus?.({preventScroll:true});
+      return;
+    }
 
     const list=node('div','phone-notifications-list');
     const visible=state.visible.filter(x=>filter==='all'||x.group===filter);
@@ -216,8 +311,8 @@ export function createPhoneNotificationCenter({
   const offAttendance=getAttendance()?.onChange?.(()=>changed());
   const offQuiz=getQuiz()?.onChange?.(()=>changed());
   function mount(container){host=container;changed();}
-  function close(){host=null;}
+  function close(){host=null;activityEpoch++;activityState='idle';activity=[];screen='current';historyFilter='all';}
   function destroy(){close();offAttendance?.();offQuiz?.();accountId=null;seen.clear();muted.clear();messageUnread=0;}
   return Object.freeze({setAccount,setMessageUnread,mount,close,destroy,markRead,markAllRead,setMuted,
-    snapshot,refresh:changed});
+    snapshot,refresh:changed,refreshActivity,setScreen});
 }

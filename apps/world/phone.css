@@ -201,3 +201,16 @@ body[data-phone-open="true"] > :not(#application):not(.smartphone) { visibility:
 .smartphone .phone-notifications-switch::before { content:""; position:absolute; top:50%; left:6px; width:18px; height:18px; border-radius:50%; background:#edf5fa; transform:translateY(-50%); box-shadow:0 1px 3px #0005; }
 .smartphone .phone-notifications-switch[aria-checked="true"] { text-align:left; padding:8px 29px 8px 11px; }
 .smartphone .phone-notifications-switch[aria-checked="true"]::before { left:calc(100% - 24px); background:#dcffe8; }
+
+/* NOTI-01C-A: compact server-verified current activity (not a durable event ledger). */
+.phone-notifications-screen-nav { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; background:#102c46a8; border-radius:13px; padding:4px; }
+.smartphone .phone-notifications-screen-tab { min-width:0; min-height:44px; border-radius:10px; font-size:13px; }
+.smartphone .phone-notifications-screen-tab[aria-pressed="true"] { background:#e9d9b1; color:#172d3c; font-weight:700; }
+.phone-notifications-history-controls { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:5px; }
+.smartphone .phone-notifications-history-filter,.smartphone .phone-notifications-history-refresh { padding:6px 4px; font-size:11px; min-width:0; min-height:44px; }
+.smartphone .phone-notifications-history-filter[aria-pressed="true"] { background:#f3dba4; color:#1b2934; font-weight:700; }
+.phone-notifications-history-note { font-size:12px; margin:0; line-height:1.5; color:#d6e7f2; }
+.phone-notifications-history-time { display:block; margin-top:6px; font-size:11px; color:#cde0ef; }
+@media (max-width:350px) {
+  .phone-notifications-history-controls { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}

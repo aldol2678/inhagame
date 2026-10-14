@@ -16,6 +16,7 @@ export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, g
   toggle, mapElement, settingsElement, dailyQuizElement, attendanceElement,
   getDailyQuizPanel = () => null, getAttendancePanel = () => null,
   getDailyQuiz = () => null, getAttendance = () => null,
+  getSocial = () => null, onOpenFriends = () => false,
   onWarning = () => {}, jeongseok = null, doc = globalThis.document, win = globalThis.window }) {
   const el = (tag, cls = '', text = '') => { const n=doc.createElement(tag); n.className=cls; n.textContent=text; return n; };
   const btn = (text, action, label = text) => { const n=el('button','',text); n.type='button'; n.setAttribute('aria-label',label); n.addEventListener('click',action); return n; };
@@ -62,7 +63,8 @@ export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, g
     notifications?.setMessageUnread(count);
   }});
   notifications=createPhoneNotificationCenter({getStorage:storage,getAttendance,getQuiz:getDailyQuiz,
-    onOpenApp:id=>launch(id),onChange:state=>{
+    getSocial,getMessageActivity:()=>messages.readActivity(),
+    onOpenApp:(id,params={})=>id==='friends'?openFriendsFromNotifications():launch(id,params),onChange:state=>{
       const badge=root.querySelector('.smartphone-app[data-app-id="notifications"] .smartphone-notification-badge');
       if(badge){badge.hidden=!state.unreadCount;badge.textContent=state.unreadCount>99?'99+':String(state.unreadCount);}
     },doc});
@@ -109,6 +111,12 @@ export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, g
     {id:'messages',name:'메시지',icon:'💬',available:()=>true,open:params=>messages.activate(params),close:()=>messages.close()},
     {id:'notifications',name:'알림센터',icon:'🔔',available:()=>true,open:()=>notifications.refresh(),close:()=>notifications.close()}
   ];
+  function openFriendsFromNotifications() {
+    if(!getSocial()?.available)return false;
+    shell.close();
+    try {return onOpenFriends()===true;}
+    catch {return false;}
+  }
   function launch(id,params={}) {
     if(id==='camera'){
       if(!shell.camera(photoMode)){say(PHOTO_ENTRY_BLOCK_MESSAGES[photoMode.blockedReason({entryOwner:'smartphone'})]||'지금은 카메라를 열 수 없어요.');}
