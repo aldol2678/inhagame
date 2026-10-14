@@ -1,0 +1,38 @@
+# SEC-01 Stage A — environment capture
+capturedAt: 2026-10-14T02:13:55Z
+## commits (re-queried at run start)
+main_default_head: 0dcae7b4825c12e1ec03b6879d3bc0d27f9ad46e
+pr353_head_actual: 83cb427f81384087e759e0e0f158d1629b1e9f63
+pr353_head_prior_record: 83cb427f81384087e759e0e0f158d1629b1e9f63
+pr353_body_claimed_head: 8bde3d4b11b8e8acca7b201618cbb3bdd421d6de  # superseded
+pr353_api_base_sha: 3aaec7999c8d7a52bc73c0749c1af83586e8a558  # older main; rebased onto current main for the lab
+lab_base_main: 0dcae7b4825c12e1ec03b6879d3bc0d27f9ad46e
+prior_review_baseline_f574864: commit
+## stack
+node: v22.22.0  icu: 77.1  unicode: 16.0
+postgres:  PostgreSQL 17.11 on x86_64-pc-linux-gnu, compiled by gcc (GCC) 15.2.0, 64-bit
+pg_locale: en_US.UTF-8 / en_US.UTF-8 / provider=i / en-US
+pg_icu_unicode:  15.1  pg_unicode:  15.1
+image: supabase_rest_p2-public-local -> postgrest/postgrest:v16.4
+image: supabase_realtime_p2-public-local -> supabase/realtime:v2.140.10
+image: supabase_auth_p2-public-local -> supabase/gotrue:v2.197.0
+image: supabase_kong_p2-public-local -> kong:2.8.1
+image: supabase_db_p2-public-local -> supabase/postgres:17.11.0.004
+## migrations applied (main + PR353)
+ 53 migrations; last=20261012143000
+
+pr353_migrations_present:
+ 20261012023000
+ 20261012023100
+ 20261012025000
+
+## chat feature flags (must be CLOSED by default)
+ room_chat_config.enabled=false
+
+ club_rooms.enabled=false
+
+## roles
+ anon super=false bypassrls=false
+ authenticated super=false bypassrls=false
+ service_role super=false bypassrls=true
+

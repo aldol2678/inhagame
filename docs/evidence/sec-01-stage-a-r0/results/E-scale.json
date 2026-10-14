@@ -1,0 +1,782 @@
+{
+  "suite": "E-scale",
+  "ranAt": "2026-10-14T02:05:14.492Z",
+  "results": [
+    {
+      "id": "E-table",
+      "title": "규모별 성능 측정표",
+      "verdict": "PASS",
+      "level": "real PostgreSQL 17 + PostgREST + Supabase Realtime (local Docker, single host)",
+      "observed": {
+        "messagesPerScenario": 40,
+        "scenarios": [
+          {
+            "sessions": 2,
+            "subscribed": 2,
+            "approvalRpcMs": {
+              "n": 40,
+              "p50": 8.26,
+              "p95": 10.84,
+              "max": 12.33
+            },
+            "publishDbFunctionMs": {
+              "n": 2,
+              "p50": 1.81,
+              "p95": 10.21,
+              "max": 10.21
+            },
+            "realtimeDeliveryMs": {
+              "n": 29,
+              "p50": 9.11,
+              "p95": 12.6,
+              "max": 12.86
+            },
+            "fanoutPerMessage": 1,
+            "framesExpected": 29,
+            "framesReceived": 29,
+            "failureRate": 0.275,
+            "failures": [
+              "denied"
+            ],
+            "dbPerMessage": {
+              "inserts": {
+                "approvals": 0.725,
+                "deliveries": 0.725,
+                "realtimeMessages": 0.75
+              },
+              "sessionsTableScans": 6.5,
+              "functionCalls": null,
+              "functionTotalMs": null
+            },
+            "pgssTopStatements": [
+              {
+                "q": "WITH pgrst_source AS (SELECT pgrst_call.pgrst_scalar FROM (SELECT $1 AS json_data) pgrst_p",
+                "calls": 40,
+                "rows": "40",
+                "ms": "114.04",
+                "hit": "4876",
+                "rd": "0"
+              },
+              {
+                "q": "select coalesce(array_agg(s.id order by s.id), '{}') from sec01_lab.sessions s where s.id ",
+                "calls": 29,
+                "rows": "29",
+                "ms": "13.93",
+                "hit": "730",
+                "rd": "0"
+              },
+              {
+                "q": "select p_user is not null and exists (select $3 from auth.users u join public.profiles p o",
+                "calls": 58,
+                "rows": "58",
+                "ms": "3.88",
+                "hit": "928",
+                "rd": "0"
+              },
+              {
+                "q": "SELECT pg_advisory_xact_lock_shared(sec01_lab.authority_key(r.u))",
+                "calls": 80,
+                "rows": "80",
+                "ms": "2.77",
+                "hit": "0",
+                "rd": "0"
+              },
+              {
+                "q": "insert into realtime.messages(id, topic, extension, payload, event, private) values (v_msg",
+                "calls": 29,
+                "rows": "29",
+                "ms": "2.52",
+                "hit": "265",
+                "rd": "0"
+              },
+              {
+                "q": "select sec01_lab.pair_key(v_user, u) from unnest(v_users) u where u <> v_user order by 1",
+                "calls": 40,
+                "rows": "40",
+                "ms": "2.04",
+                "hit": "0",
+                "rd": "0"
+              },
+              {
+                "q": "insert into sec01_lab.deliveries(sender_id, request_id, recipient_session_id, recipient_us",
+                "calls": 29,
+                "rows": "29",
+                "ms": "2.01",
+                "hit": "248",
+                "rd": "0"
+              },
+              {
+                "q": "SELECT sec01_lab.hook_sleep('pause_before_locks')",
+                "calls": 109,
+                "rows": "109",
+                "ms": "1.70",
+                "hit": "0",
+                "rd": "0"
+              },
+              {
+                "q": "SELECT 1 from sec01_lab.sessions s where s.id = any(v_candidates || v_sender.id) order by ",
+                "calls": 40,
+                "rows": "80",
+                "ms": "1.30",
+                "hit": "200",
+                "rd": "0"
+              },
+              {
+                "q": "select coalesce(array_agg(s.id order by s.id), '{}') from sec01_lab.sessions s where s.are",
+                "calls": 40,
+                "rows": "40",
+                "ms": "0.86",
+                "hit": "120",
+                "rd": "0"
+              },
+              {
+                "q": "insert into sec01_lab.rate(user_id) values (v_user) on conflict (user_id) do nothing",
+                "calls": 40,
+                "rows": "2",
+                "ms": "0.83",
+                "hit": "100",
+                "rd": "0"
+              },
+              {
+                "q": "select * from sec01_lab.config",
+                "calls": 40,
+                "rows": "40",
+                "ms": "0.79",
+                "hit": "40",
+                "rd": "0"
+              }
+            ],
+            "lockWait": {
+              "samples": 3731,
+              "samplesWithWaiter": 0,
+              "maxConcurrentWaiters": 0
+            },
+            "burst": {
+              "senders": 2,
+              "wallMs": 9,
+              "approvalRpcMs": {
+                "n": 2,
+                "p50": 8.19,
+                "p95": 8.72,
+                "max": 8.72
+              },
+              "ok": 0,
+              "rejected": [
+                "denied"
+              ],
+              "deliveryMs": {
+                "n": 0,
+                "p50": null,
+                "p95": null,
+                "max": null
+              },
+              "framesExpected": 0,
+              "framesReceived": 0
+            },
+            "renewRpcMs": {
+              "n": 2,
+              "p50": 6.56,
+              "p95": 6.77,
+              "max": 6.77
+            },
+            "cpuSecondsDuringPacedLoad": {
+              "db": 2.904,
+              "realtime": 0.407,
+              "postgrest": 0.11,
+              "wallSeconds": 42.5,
+              "dbCpuMsPerMessage": 72.61
+            },
+            "realtimeMemoryMB": {
+              "beforeClients": 198.4,
+              "afterSubscribe": 198.5,
+              "afterLoad": 198.9
+            },
+            "storageBytes": {
+              "approvalsPerMessage": 0,
+              "deliveriesPerMessage": 1229,
+              "realtimeMessagesPerMessage": 1843,
+              "sessionsTableTotal": 131072
+            },
+            "joinRpcMs": {
+              "n": 2,
+              "p50": 23.39,
+              "p95": 23.73,
+              "max": 23.73
+            }
+          },
+          {
+            "sessions": 10,
+            "subscribed": 10,
+            "approvalRpcMs": {
+              "n": 40,
+              "p50": 8.54,
+              "p95": 12.93,
+              "max": 16.06
+            },
+            "publishDbFunctionMs": {
+              "n": 10,
+              "p50": 3.42,
+              "p95": 7.47,
+              "max": 7.47
+            },
+            "realtimeDeliveryMs": {
+              "n": 360,
+              "p50": 9.44,
+              "p95": 15.15,
+              "max": 17.52
+            },
+            "fanoutPerMessage": 9,
+            "framesExpected": 360,
+            "framesReceived": 360,
+            "failureRate": 0,
+            "failures": [],
+            "dbPerMessage": {
+              "inserts": {
+                "approvals": 1,
+                "deliveries": 9,
+                "realtimeMessages": 9.225
+              },
+              "sessionsTableScans": 7.5,
+              "functionCalls": null,
+              "functionTotalMs": null
+            },
+            "pgssTopStatements": [
+              {
+                "q": "WITH pgrst_source AS (SELECT pgrst_call.pgrst_scalar FROM (SELECT $1 AS json_data) pgrst_p",
+                "calls": 40,
+                "rows": "40",
+                "ms": "166.25",
+                "hit": "14630",
+                "rd": "0"
+              },
+              {
+                "q": "select coalesce(array_agg(s.id order by s.id), '{}') from sec01_lab.sessions s where s.id ",
+                "calls": 40,
+                "rows": "40",
+                "ms": "39.53",
+                "hit": "7080",
+                "rd": "0"
+              },
+              {
+                "q": "select p_user is not null and exists (select $3 from auth.users u join public.profiles p o",
+                "calls": 400,
+                "rows": "400",
+                "ms": "17.58",
+                "hit": "6400",
+                "rd": "0"
+              },
+              {
+                "q": "insert into realtime.messages(id, topic, extension, payload, event, private) values (v_msg",
+                "calls": 360,
+                "rows": "360",
+                "ms": "10.62",
+                "hit": "2130",
+                "rd": "0"
+              },
+              {
+                "q": "select sec01_lab.pair_key(v_user, u) from unnest(v_users) u where u <> v_user order by 1",
+                "calls": 40,
+                "rows": "360",
+                "ms": "9.81",
+                "hit": "0",
+                "rd": "0"
+              },
+              {
+                "q": "insert into sec01_lab.deliveries(sender_id, request_id, recipient_session_id, recipient_us",
+                "calls": 360,
+                "rows": "360",
+                "ms": "8.47",
+                "hit": "2627",
+                "rd": "0"
+              },
+              {
+                "q": "SELECT pg_advisory_xact_lock_shared(sec01_lab.authority_key(r.u))",
+                "calls": 400,
+                "rows": "400",
+                "ms": "7.58",
+                "hit": "0",
+                "rd": "0"
+              },
+              {
+                "q": "select exists (select $3 from public.world_user_blocks b where (b.blocker_id = p_a and b.b",
+                "calls": 360,
+                "rows": "360",
+                "ms": "4.22",
+                "hit": "720",
+                "rd": "0"
+              },
+              {
+                "q": "SELECT 1 from sec01_lab.sessions s where s.id = any(v_candidates || v_sender.id) order by ",
+                "calls": 40,
+                "rows": "400",
+                "ms": "2.50",
+                "hit": "520",
+                "rd": "0"
+              },
+              {
+                "q": "SELECT sec01_lab.hook_sleep('pause_before_locks')",
+                "calls": 120,
+                "rows": "120",
+                "ms": "1.75",
+                "hit": "0",
+                "rd": "0"
+              },
+              {
+                "q": "insert into sec01_lab.rate(user_id) values (v_user) on conflict (user_id) do nothing",
+                "calls": 40,
+                "rows": "10",
+                "ms": "1.11",
+                "hit": "130",
+                "rd": "0"
+              },
+              {
+                "q": "insert into sec01_lab.approvals(sender_id, request_id, body_sha256, envelope, session_id, ",
+                "calls": 40,
+                "rows": "40",
+                "ms": "1.09",
+                "hit": "147",
+                "rd": "0"
+              }
+            ],
+            "lockWait": {
+              "samples": 931,
+              "samplesWithWaiter": 0,
+              "maxConcurrentWaiters": 0
+            },
+            "burst": {
+              "senders": 10,
+              "wallMs": 30,
+              "approvalRpcMs": {
+                "n": 10,
+                "p50": 22.95,
+                "p95": 29.86,
+                "max": 29.86
+              },
+              "ok": 10,
+              "rejected": [],
+              "deliveryMs": {
+                "n": 90,
+                "p50": 27.99,
+                "p95": 30.17,
+                "max": 30.3
+              },
+              "framesExpected": 90,
+              "framesReceived": 90
+            },
+            "renewRpcMs": {
+              "n": 10,
+              "p50": 13.98,
+              "p95": 17.55,
+              "max": 17.55
+            },
+            "cpuSecondsDuringPacedLoad": {
+              "db": 0.862,
+              "realtime": 0.171,
+              "postgrest": 0.071,
+              "wallSeconds": 10.5,
+              "dbCpuMsPerMessage": 21.54
+            },
+            "realtimeMemoryMB": {
+              "beforeClients": 198.9,
+              "afterSubscribe": 199.2,
+              "afterLoad": 200
+            },
+            "storageBytes": {
+              "approvalsPerMessage": 0,
+              "deliveriesPerMessage": 3072,
+              "realtimeMessagesPerMessage": 9421,
+              "sessionsTableTotal": 131072
+            },
+            "joinRpcMs": {
+              "n": 10,
+              "p50": 19.86,
+              "p95": 20.99,
+              "max": 20.99
+            }
+          },
+          {
+            "sessions": 30,
+            "subscribed": 30,
+            "approvalRpcMs": {
+              "n": 40,
+              "p50": 11.16,
+              "p95": 16.07,
+              "max": 21.83
+            },
+            "publishDbFunctionMs": {
+              "n": 20,
+              "p50": 6.15,
+              "p95": 9.56,
+              "max": 11.88
+            },
+            "realtimeDeliveryMs": {
+              "n": 1160,
+              "p50": 13.23,
+              "p95": 19.95,
+              "max": 24.49
+            },
+            "fanoutPerMessage": 29,
+            "framesExpected": 1160,
+            "framesReceived": 1160,
+            "failureRate": 0,
+            "failures": [],
+            "dbPerMessage": {
+              "inserts": {
+                "approvals": 0.95,
+                "deliveries": 27.55,
+                "realtimeMessages": 27.55
+              },
+              "sessionsTableScans": 7.2,
+              "functionCalls": null,
+              "functionTotalMs": null
+            },
+            "pgssTopStatements": [
+              {
+                "q": "WITH pgrst_source AS (SELECT pgrst_call.pgrst_scalar FROM (SELECT $1 AS json_data) pgrst_p",
+                "calls": 40,
+                "rows": "40",
+                "ms": "282.39",
+                "hit": "42662",
+                "rd": "0"
+              },
+              {
+                "q": "select coalesce(array_agg(s.id order by s.id), $37) from sec01_lab.sessions s where s.id =",
+                "calls": 40,
+                "rows": "40",
+                "ms": "85.47",
+                "hit": "22240",
+                "rd": "0"
+              },
+              {
+                "q": "select p_user is not null and exists (select $3 from auth.users u join public.profiles p o",
+                "calls": 1200,
+                "rows": "1200",
+                "ms": "53.61",
+                "hit": "19200",
+                "rd": "0"
+              },
+              {
+                "q": "insert into realtime.messages(id, topic, extension, payload, event, private) values (v_msg",
+                "calls": 1160,
+                "rows": "1160",
+                "ms": "28.67",
+                "hit": "6439",
+                "rd": "0"
+              },
+              {
+                "q": "insert into sec01_lab.deliveries(sender_id, request_id, recipient_session_id, recipient_us",
+                "calls": 1160,
+                "rows": "1160",
+                "ms": "23.05",
+                "hit": "8309",
+                "rd": "0"
+              },
+              {
+                "q": "SELECT pg_advisory_xact_lock_shared(sec01_lab.authority_key(r.u))",
+                "calls": 1200,
+                "rows": "1200",
+                "ms": "18.87",
+                "hit": "0",
+                "rd": "0"
+              },
+              {
+                "q": "select sec01_lab.pair_key(v_user, u) from unnest(v_users) u where u <> v_user order by 1",
+                "calls": 40,
+                "rows": "1160",
+                "ms": "6.59",
+                "hit": "0",
+                "rd": "0"
+              },
+              {
+                "q": "SELECT $3 FROM ONLY \"sec01_lab\".\"approvals\" x WHERE \"sender_id\" OPERATOR(pg_catalog.=) $1 ",
+                "calls": 1160,
+                "rows": "1160",
+                "ms": "4.87",
+                "hit": "3480",
+                "rd": "0"
+              },
+              {
+                "q": "SELECT $38 from sec01_lab.sessions s where s.id = any(v_candidates || v_sender.id) order b",
+                "calls": 40,
+                "rows": "1200",
+                "ms": "4.31",
+                "hit": "1320",
+                "rd": "0"
+              },
+              {
+                "q": "select exists (select $3 from public.world_user_blocks b where (b.blocker_id = p_a and b.b",
+                "calls": 1160,
+                "rows": "1160",
+                "ms": "2.85",
+                "hit": "2320",
+                "rd": "0"
+              },
+              {
+                "q": "SELECT sec01_lab.hook_sleep('pause_before_locks')",
+                "calls": 120,
+                "rows": "120",
+                "ms": "1.88",
+                "hit": "0",
+                "rd": "0"
+              },
+              {
+                "q": "insert into sec01_lab.approvals(sender_id, request_id, body_sha256, envelope, session_id, ",
+                "calls": 40,
+                "rows": "40",
+                "ms": "1.82",
+                "hit": "150",
+                "rd": "0"
+              }
+            ],
+            "lockWait": {
+              "samples": 580,
+              "samplesWithWaiter": 0,
+              "maxConcurrentWaiters": 0
+            },
+            "burst": {
+              "senders": 30,
+              "wallMs": 212,
+              "approvalRpcMs": {
+                "n": 30,
+                "p50": 148.05,
+                "p95": 202.34,
+                "max": 210.76
+              },
+              "ok": 30,
+              "rejected": [],
+              "deliveryMs": {
+                "n": 870,
+                "p50": 195.22,
+                "p95": 249.79,
+                "max": 251.9
+              },
+              "framesExpected": 870,
+              "framesReceived": 870
+            },
+            "renewRpcMs": {
+              "n": 30,
+              "p50": 32.12,
+              "p95": 39.35,
+              "max": 39.55
+            },
+            "cpuSecondsDuringPacedLoad": {
+              "db": 0.659,
+              "realtime": 0.242,
+              "postgrest": 0.058,
+              "wallSeconds": 6.5,
+              "dbCpuMsPerMessage": 16.47
+            },
+            "realtimeMemoryMB": {
+              "beforeClients": 200.2,
+              "afterSubscribe": 202,
+              "afterLoad": 204.7
+            },
+            "storageBytes": {
+              "approvalsPerMessage": 2048,
+              "deliveriesPerMessage": 8192,
+              "realtimeMessagesPerMessage": 30720,
+              "sessionsTableTotal": 131072
+            },
+            "joinRpcMs": {
+              "n": 30,
+              "p50": 18.53,
+              "p95": 25.93,
+              "max": 26.97
+            }
+          },
+          {
+            "sessions": 100,
+            "subscribed": 100,
+            "approvalRpcMs": {
+              "n": 40,
+              "p50": 21.72,
+              "p95": 29.58,
+              "max": 36.03
+            },
+            "publishDbFunctionMs": {
+              "n": 20,
+              "p50": 16.38,
+              "p95": 21.11,
+              "max": 22.25
+            },
+            "realtimeDeliveryMs": {
+              "n": 1584,
+              "p50": 29.95,
+              "p95": 37.88,
+              "max": 41.7
+            },
+            "fanoutPerMessage": 99,
+            "framesExpected": 3960,
+            "framesReceived": 1584,
+            "failureRate": 0,
+            "failures": [],
+            "dbPerMessage": {
+              "inserts": {
+                "approvals": 0.95,
+                "deliveries": 94.05,
+                "realtimeMessages": 94.05
+              },
+              "sessionsTableScans": 7.4,
+              "functionCalls": null,
+              "functionTotalMs": null
+            },
+            "pgssTopStatements": [
+              {
+                "q": "WITH pgrst_source AS (SELECT pgrst_call.pgrst_scalar FROM (SELECT $1 AS json_data) pgrst_p",
+                "calls": 40,
+                "rows": "40",
+                "ms": "713.20",
+                "hit": "145342",
+                "rd": "0"
+              },
+              {
+                "q": "select coalesce(array_agg(s.id order by s.id), '{}') from sec01_lab.sessions s where s.id ",
+                "calls": 40,
+                "rows": "40",
+                "ms": "262.63",
+                "hit": "83080",
+                "rd": "0"
+              },
+              {
+                "q": "select p_user is not null and exists (select $3 from auth.users u join public.profiles p o",
+                "calls": 4000,
+                "rows": "4000",
+                "ms": "169.88",
+                "hit": "72000",
+                "rd": "0"
+              },
+              {
+                "q": "insert into realtime.messages(id, topic, extension, payload, event, private) values (v_msg",
+                "calls": 3960,
+                "rows": "3960",
+                "ms": "106.93",
+                "hit": "20790",
+                "rd": "0"
+              },
+              {
+                "q": "SELECT pg_advisory_xact_lock_shared(sec01_lab.authority_key(r.u))",
+                "calls": 4000,
+                "rows": "4000",
+                "ms": "60.76",
+                "hit": "0",
+                "rd": "0"
+              },
+              {
+                "q": "insert into sec01_lab.deliveries(sender_id, request_id, recipient_session_id, recipient_us",
+                "calls": 3960,
+                "rows": "3960",
+                "ms": "59.63",
+                "hit": "31954",
+                "rd": "0"
+              },
+              {
+                "q": "select sec01_lab.pair_key(v_user, u) from unnest(v_users) u where u <> v_user order by 1",
+                "calls": 40,
+                "rows": "3960",
+                "ms": "19.64",
+                "hit": "0",
+                "rd": "0"
+              },
+              {
+                "q": "SELECT 1 from sec01_lab.sessions s where s.id = any(v_candidates || v_sender.id) order by ",
+                "calls": 40,
+                "rows": "4000",
+                "ms": "17.48",
+                "hit": "4520",
+                "rd": "0"
+              },
+              {
+                "q": "select exists (select $3 from public.world_user_blocks b where (b.blocker_id = p_a and b.b",
+                "calls": 3960,
+                "rows": "3960",
+                "ms": "9.53",
+                "hit": "7920",
+                "rd": "0"
+              },
+              {
+                "q": "SELECT 1 FROM ONLY \"sec01_lab\".\"approvals\" x WHERE \"sender_id\" OPERATOR(pg_catalog.=) $1 A",
+                "calls": 3960,
+                "rows": "3960",
+                "ms": "9.42",
+                "hit": "15840",
+                "rd": "0"
+              },
+              {
+                "q": "select coalesce(array_agg(distinct u order by u), '{}') from ( select v_user as u union al",
+                "calls": 40,
+                "rows": "40",
+                "ms": "4.01",
+                "hit": "520",
+                "rd": "0"
+              },
+              {
+                "q": "select s.* from sec01_lab.sessions s where s.id = any(v_candidates) order by s.id",
+                "calls": 40,
+                "rows": "3960",
+                "ms": "3.72",
+                "hit": "520",
+                "rd": "0"
+              }
+            ],
+            "lockWait": {
+              "samples": 584,
+              "samplesWithWaiter": 0,
+              "maxConcurrentWaiters": 0
+            },
+            "burst": {
+              "senders": 100,
+              "wallMs": 1062,
+              "approvalRpcMs": {
+                "n": 100,
+                "p50": 632.04,
+                "p95": 1046.16,
+                "max": 1061.3
+              },
+              "ok": 100,
+              "rejected": [],
+              "deliveryMs": {
+                "n": 0,
+                "p50": null,
+                "p95": null,
+                "max": null
+              },
+              "framesExpected": 9900,
+              "framesReceived": 0
+            },
+            "renewRpcMs": {
+              "n": 100,
+              "p50": 122.49,
+              "p95": 166.94,
+              "max": 169.39
+            },
+            "cpuSecondsDuringPacedLoad": {
+              "db": 1.201,
+              "realtime": 0.533,
+              "postgrest": 0.059,
+              "wallSeconds": 6.5,
+              "dbCpuMsPerMessage": 30.02
+            },
+            "realtimeMemoryMB": {
+              "beforeClients": 204.7,
+              "afterSubscribe": 209.2,
+              "afterLoad": 217.2
+            },
+            "storageBytes": {
+              "approvalsPerMessage": 205,
+              "deliveriesPerMessage": 28058,
+              "realtimeMessagesPerMessage": 101376,
+              "sessionsTableTotal": 237568
+            },
+            "joinRpcMs": {
+              "n": 100,
+              "p50": 18.21,
+              "p95": 24.63,
+              "max": 26.14
+            }
+          }
+        ]
+      },
+      "expected": "(measurement)"
+    }
+  ]
+}

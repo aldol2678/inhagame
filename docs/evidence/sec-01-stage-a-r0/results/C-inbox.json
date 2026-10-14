@@ -1,0 +1,280 @@
+{
+  "suite": "C-inbox",
+  "ranAt": "2026-10-14T01:58:16.524Z",
+  "results": [
+    {
+      "id": "C1",
+      "title": "정상 인증 수신자 접근",
+      "verdict": "PASS",
+      "level": "real Supabase Realtime",
+      "observed": {
+        "join": "SUBSCRIBED",
+        "serverPublished": 1,
+        "delivered": 1,
+        "rpcOk": true
+      },
+      "expected": "joins and receives exactly one frame"
+    },
+    {
+      "id": "C2",
+      "title": "비인가 사용자 토픽 구독",
+      "verdict": "PASS",
+      "level": "real Supabase Realtime",
+      "observed": {
+        "otherUser": {
+          "join": "CHANNEL_ERROR",
+          "error": "\"Unauthorized: You do not have permissions to read from this Channel topic: world:campus-chat:30375fdd-f066-42c0-9041-cf7892b9a360\"",
+          "delivered": 0
+        },
+        "anonymousKey": {
+          "join": "CHANNEL_ERROR",
+          "error": "\"Unauthorized: You do not have permissions to read from this Channel topic: world:campus-chat:30375fdd-f066-42c0-9041-cf7892b9a360\"",
+          "delivered": 0
+        },
+        "serverPublishedToA": 1,
+        "deliveredToA": 1
+      },
+      "expected": "private join refused by RLS for any non-owner; zero frames"
+    },
+    {
+      "id": "C3",
+      "title": "공개·private 동명 토픽 발행",
+      "verdict": "PASS",
+      "level": "real Supabase Realtime",
+      "observed": {
+        "attackerPublicJoin": "SUBSCRIBED",
+        "attackerReceivedServerMessage": 0,
+        "attackerForgedWsSend": "ok",
+        "httpBroadcastPublicStatus": 202,
+        "httpBroadcastPrivateStatus": 202,
+        "victimPrivateReceivedForged": 0,
+        "forgedRowsInRealtimeMessages": 0
+      },
+      "expected": "private DB broadcast never reaches the public twin; public-twin broadcasts never reach the private inbox"
+    },
+    {
+      "id": "C4",
+      "title": "Provider 함수 직접 호출",
+      "verdict": "PASS",
+      "level": "real PostgREST + PostgreSQL + Realtime",
+      "observed": {
+        "postgrestRealtimeSchema": "Invalid schema: realtime",
+        "sqlRealtimeSend": "returned",
+        "sqlWarnings": [
+          "WarnSendingBroadcastMessage: new row violates row-level security policy for table \"messages\""
+        ],
+        "rowsDelta": 0,
+        "sqlDirectInsert": "new row violates row-level security policy for table \"messages\"",
+        "ownInboxJoin": "SUBSCRIBED",
+        "ownInboxWsSendAck": "error",
+        "ownInboxEchoOnTwoSockets": 0
+      },
+      "note": "realtime.send returns normally (warning only) for a forged topic — success-looking provider calls are checked by actual row count.",
+      "expected": "no client path writes a frame into any campus inbox"
+    },
+    {
+      "id": "C5",
+      "title": "다른 수신자의 capability 재사용",
+      "verdict": "PASS",
+      "level": "real PostgREST + Realtime",
+      "observed": {
+        "renew": {
+          "reason": "denied",
+          "allowed": false
+        },
+        "send": {
+          "ok": false,
+          "reason": "denied"
+        },
+        "leave": false,
+        "move": {
+          "reason": "denied",
+          "allowed": false
+        },
+        "subscribe": "CHANNEL_ERROR",
+        "victimLeaseUntouched": true
+      },
+      "expected": "all denied; victim lease unchanged"
+    },
+    {
+      "id": "C6",
+      "title": "이전 generation 토픽 재구독",
+      "verdict": "PASS",
+      "level": "real Supabase Realtime",
+      "observed": {
+        "move": {
+          "topic": "world:campus-chat:bf370e4d-b069-4083-9526-16b252e218fd",
+          "areaId": "AREA_C_214ED9",
+          "allowed": true,
+          "leaseId": "cf816c6d-ddf5-48fd-ad70-063be0ffb0a8",
+          "generation": 2
+        },
+        "oldTopicResubscribe": "CHANNEL_ERROR",
+        "oldTopicError": "\"Unauthorized: You do not have permissions to read from this Channel topic: world:campus-chat:30375fdd-f066-42c0-9041-cf7892b9a360\"",
+        "newTopicError": null,
+        "stillOpenOldSubscriptionDelivered": 0,
+        "serverPublishedOldTopic": 0,
+        "newTopic": {
+          "join": "SUBSCRIBED",
+          "delivered": 1
+        }
+      },
+      "note": "The pre-rotation subscription stays SUBSCRIBED (Realtime does not re-authorise a joined channel); safety comes from the server never writing to the old topic.",
+      "expected": "old topic join refused; new topic receives; nothing written to old topic"
+    },
+    {
+      "id": "C7",
+      "title": "늦은 lease 갱신 응답",
+      "verdict": "PASS",
+      "level": "real PostgreSQL (2 backends) + PostgREST",
+      "observed": {
+        "renewWaitingOnRotation": {
+          "reason": "denied",
+          "allowed": false
+        },
+        "lateRenewOldGeneration": {
+          "reason": "denied",
+          "allowed": false
+        },
+        "renewAfterExpiry": {
+          "reason": "denied",
+          "allowed": false
+        }
+      },
+      "note": "Client-side handling of a late successful renew (compare generation before applying) is a client contract; no campus client exists yet -> NOT MEASURED at the client layer.",
+      "expected": "server denies renew for a rotated generation and for an expired lease"
+    },
+    {
+      "id": "C8",
+      "title": "로그아웃 요청이 서버에 도착하지 않은 경우",
+      "verdict": "PASS",
+      "level": "real PostgREST + Realtime (TTL 6 s lab setting)",
+      "observed": {
+        "ttlMs": 6000,
+        "timeline": [
+          {
+            "tMs": 6,
+            "requestId": "01a13821-5576-7d20-825d-80f369b8c342",
+            "published": true,
+            "rpc": "ok",
+            "delivered": true
+          },
+          {
+            "tMs": 1827,
+            "requestId": "01a13821-5c8f-7a6e-bed4-5161eed79fe7",
+            "published": true,
+            "rpc": "ok",
+            "delivered": true
+          },
+          {
+            "tMs": 3643,
+            "requestId": "01a13821-63aa-71fe-b830-32d9c1248567",
+            "published": true,
+            "rpc": "ok",
+            "delivered": true
+          },
+          {
+            "tMs": 5456,
+            "requestId": "01a13821-6ac0-7295-8f74-5e29616f13c8",
+            "published": true,
+            "rpc": "ok",
+            "delivered": true
+          },
+          {
+            "tMs": 7273,
+            "requestId": "01a13821-71d7-730a-a69c-8d0028d45c8f",
+            "published": false,
+            "rpc": "ok",
+            "delivered": false
+          },
+          {
+            "tMs": 9090,
+            "requestId": "01a13821-78ee-7e72-b2c5-f8d63b2adc8d",
+            "published": false,
+            "rpc": "ok",
+            "delivered": false
+          },
+          {
+            "tMs": 10904,
+            "requestId": "01a13821-8008-7bec-826d-18c01d2d3cf6",
+            "published": false,
+            "rpc": "ok",
+            "delivered": false
+          },
+          {
+            "tMs": 12723,
+            "requestId": "01a13821-8723-75a2-bb68-d5fa7ca2b236",
+            "published": false,
+            "rpc": "ok",
+            "delivered": false
+          }
+        ],
+        "lastDeliveredAfterLogoutMs": 5456,
+        "firstServerRefusalMs": 7273,
+        "logoutReachedAuthButNotLeave": {
+          "gotrueSignOutError": null,
+          "channelStillReceived": 1,
+          "serverPublished": 1
+        }
+      },
+      "note": "Residual exposure is bounded by the lease TTL, not by logout. A GoTrue sign-out does not close an already-joined Realtime channel (the JWT stays valid until exp); the app MUST call leave on logout and the lease TTL bounds the failure case.",
+      "expected": "deliveries stop no later than lease expiry (+ one send interval)"
+    },
+    {
+      "id": "C9",
+      "title": "Realtime 연결 상태에서 제재 발생",
+      "verdict": "PASS",
+      "level": "real Supabase Realtime",
+      "observed": {
+        "beforeSanction": {
+          "delivered": 1
+        },
+        "afterSanction": {
+          "rpc": true,
+          "recipientCount": 3,
+          "serverPublished": 0,
+          "delivered": 0
+        },
+        "channelStillJoined": "joined",
+        "controlUnfilteredPublisherDelivered": 1,
+        "rejoinWhileSanctioned": "CHANNEL_ERROR"
+      },
+      "note": "The control row shows Realtime keeps delivering to an already-joined channel after the sanction: the server-side refusal to publish is the ONLY delivery boundary.",
+      "expected": "server refuses to publish to the sanctioned recipient; nothing delivered; re-join refused"
+    },
+    {
+      "id": "C10",
+      "title": "RPC 승인 응답의 capability 정보 누출 여부",
+      "verdict": "PASS",
+      "level": "real PostgREST",
+      "observed": {
+        "recipientsChecked": 6,
+        "leakedValues": 0,
+        "responseKeys": [
+          "approvedAt",
+          "areaId",
+          "envelope",
+          "generation",
+          "kind",
+          "messageId",
+          "ok",
+          "pos",
+          "recipientCount",
+          "replayed",
+          "requestId",
+          "senderClientSessionId",
+          "senderLeaseId",
+          "senderName",
+          "senderUserId",
+          "text",
+          "v",
+          "x",
+          "y",
+          "z"
+        ]
+      },
+      "note": "senderClientSessionId (the sender's own declared presence id) is present by design for Stage B avatar binding; it is not a recipient capability.",
+      "expected": "no recipient lease id, inbox id or topic in any sender-facing response"
+    }
+  ]
+}

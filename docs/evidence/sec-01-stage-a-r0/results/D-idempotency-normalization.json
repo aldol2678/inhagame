@@ -1,0 +1,1344 @@
+{
+  "suite": "D-idempotency-normalization",
+  "ranAt": "2026-10-14T02:00:17.804Z",
+  "results": [
+    {
+      "id": "D1-server",
+      "title": "requestId 형식·최초 도착 시각 검증(UUIDv7 내장 시각)",
+      "verdict": "PASS",
+      "level": "real PostgREST + PostgreSQL",
+      "observed": {
+        "uuidV4": {
+          "ok": false,
+          "reason": "request_id_invalid"
+        },
+        "v7_11minOld": {
+          "ok": false,
+          "reason": "request_expired"
+        },
+        "v7_5minFuture": {
+          "ok": false,
+          "reason": "request_expired"
+        },
+        "v7_9minOld": {
+          "ok": true
+        }
+      },
+      "note": "Server can bound first arrival only because UUIDv7 embeds the submit time; with UUIDv4 a delayed first attempt cannot be aged. This is a proposed contract clarification (v0.4 text unavailable).",
+      "expected": "v4 rejected; v7 older than 10 min or >30 s in the future rejected; inside the window accepted"
+    },
+    {
+      "id": "D1-client",
+      "title": "requestId는 사용자가 전송을 제출할 때 생성(클라이언트)",
+      "verdict": "NOT MEASURED",
+      "level": "static inspection",
+      "observed": {
+        "localChatHasRequestId": false
+      },
+      "note": "No campus client implementation of requestId exists at main 0dcae7b (ChatComposer.submit sends over Realtime broadcast directly). Must be implemented and tested in Stage B.",
+      "expected": "one UUIDv7 per user submit, reused verbatim on every retry of that submit"
+    },
+    {
+      "id": "D2-D4",
+      "title": "최초 승인·재조회 동일 Envelope / 세션·generation·구역 변경 후 재조회",
+      "verdict": "PASS",
+      "level": "real PostgREST + PostgreSQL + Realtime",
+      "observed": {
+        "originalArea": "AREA_D2A_54204F",
+        "originalGeneration": 1,
+        "afterMoveReplayed": true,
+        "afterRejoinReplayed": true,
+        "replayedEnvelopeArea": "AREA_D2A_54204F",
+        "envelopesIdentical": true,
+        "rowsBefore": {
+          "approvals": 1,
+          "deliveries": 1,
+          "realtime_rows": 1
+        },
+        "rowsAfter": {
+          "approvals": 1,
+          "deliveries": 1,
+          "realtime_rows": 1
+        },
+        "deliveredToNewAreaRecipient": 0,
+        "deliveredToOriginalRecipient": 1
+      },
+      "expected": "byte-identical original envelope (original area/generation); no new rows; nothing published into the new area"
+    },
+    {
+      "id": "D5-D6",
+      "title": "10분 재시도 제한 · 승인 후 30분 조회 제한 · 기간 초과 거부",
+      "verdict": "PASS",
+      "level": "real PostgREST + PostgreSQL (windows scaled to 2 s / 4 s; defaults restored to 00:10:00 / 00:30:00)",
+      "observed": {
+        "timeline": [
+          {
+            "tMs": 1001,
+            "retry": {
+              "ok": true,
+              "envelope": {
+                "v": 1,
+                "pos": {
+                  "x": 1,
+                  "y": 0,
+                  "z": 2
+                },
+                "kind": "campus_chat",
+                "text": "D5 기간",
+                "areaId": "AREA_D5_9F3224",
+                "messageId": "01a0cee0-4728-492b-871b-d88393f85093",
+                "requestId": "01a13823-7a55-7b11-a670-144baaab88d6",
+                "approvedAt": "2026-10-14T02:00:11.608985Z",
+                "generation": 1,
+                "senderName": "labd55",
+                "senderUserId": "9979d602-65ca-4c64-9416-5e99bbfd0bcb",
+                "senderLeaseId": "9483072a-ee70-439f-9b11-057a12b17544",
+                "senderClientSessionId": "75f4f1d2-4a25-4d59-99ba-9cf36921444f"
+              },
+              "replayed": true
+            }
+          },
+          {
+            "tMs": 2602,
+            "retry": {
+              "ok": false,
+              "reason": "retry_expired"
+            }
+          },
+          {
+            "tMs": 3001,
+            "lookup": {
+              "ok": true,
+              "envelope": {
+                "v": 1,
+                "pos": {
+                  "x": 1,
+                  "y": 0,
+                  "z": 2
+                },
+                "kind": "campus_chat",
+                "text": "D5 기간",
+                "areaId": "AREA_D5_9F3224",
+                "messageId": "01a0cee0-4728-492b-871b-d88393f85093",
+                "requestId": "01a13823-7a55-7b11-a670-144baaab88d6",
+                "approvedAt": "2026-10-14T02:00:11.608985Z",
+                "generation": 1,
+                "senderName": "labd55",
+                "senderUserId": "9979d602-65ca-4c64-9416-5e99bbfd0bcb",
+                "senderLeaseId": "9483072a-ee70-439f-9b11-057a12b17544",
+                "senderClientSessionId": "75f4f1d2-4a25-4d59-99ba-9cf36921444f"
+              }
+            }
+          },
+          {
+            "tMs": 4601,
+            "lookup": {
+              "ok": false,
+              "reason": "lookup_expired"
+            }
+          }
+        ],
+        "cleanup": {
+          "afterCleanup": {
+            "approvals": 0,
+            "deliveries": 0,
+            "realtime_rows": 0
+          }
+        }
+      },
+      "note": "Retry after the retry window returns retry_expired WITHOUT re-publishing; the envelope remains readable by lookup until the lookup window. Wall-clock 10/30 min windows were not waited out (scaled).",
+      "expected": "replay ≤ retry window; retry_expired after; lookup ok ≤ lookup window; lookup_expired after; cleanup removes the approval"
+    },
+    {
+      "id": "D7-canon",
+      "title": "Unicode 공통 벡터 — 정규화(NFC·제어문자·공백·길이) JS↔PostgreSQL",
+      "verdict": "FAIL",
+      "level": "real PostgreSQL 17.11 (Unicode 15.1, ICU en-US) vs Node 22.22 (ICU 77.1, Unicode 16.0) running the repo's protocol.js",
+      "observed": {
+        "vectors": 28,
+        "mismatches": [
+          {
+            "name": "unicode16-kirat-rai-nfc",
+            "input": "U+16D67 U+16D67",
+            "js": {
+              "status": "ok",
+              "text": "𖵨",
+              "cps": "U+16D68",
+              "lowerKo": "U+16D68"
+            },
+            "pg": {
+              "status": "ok",
+              "text": "𖵨",
+              "cps": "U+16D67 U+16D67",
+              "lowerDefaultIcuEnUS": "U+16D67 U+16D67",
+              "lowerKoIcu": "U+16D67 U+16D67",
+              "lowerC": "U+16D67 U+16D67"
+            }
+          }
+        ],
+        "e2eThroughPostgREST": [
+          {
+            "name": "hangul-conjoining-jamo(NFD)",
+            "envelopeText": "각한",
+            "envelopeCps": "U+AC01 U+D55C",
+            "jsText": "각한",
+            "equal": true
+          },
+          {
+            "name": "turkish-dotted-I",
+            "envelopeText": "İSTANBUL",
+            "envelopeCps": "U+0130 U+0053 U+0054 U+0041 U+004E U+0042 U+0055 U+004C",
+            "jsText": "İSTANBUL",
+            "equal": true
+          },
+          {
+            "name": "emoji-zwj-family",
+            "envelopeText": "👨‍👩‍👧‍👦",
+            "envelopeCps": "U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466",
+            "jsText": "👨‍👩‍👧‍👦",
+            "equal": true
+          },
+          {
+            "name": "zwsp-bom-wj",
+            "envelopeText": "abcd",
+            "envelopeCps": "U+0061 U+0062 U+0063 U+0064",
+            "jsText": "abcd",
+            "equal": true
+          },
+          {
+            "name": "whitespace-mixed",
+            "envelopeText": "a b c d e",
+            "envelopeCps": "U+0061 U+0020 U+0062 U+0020 U+0063 U+0020 U+0064 U+0020 U+0065",
+            "jsText": "a b c d e",
+            "equal": true
+          },
+          {
+            "name": "combining-acute(NFD)",
+            "envelopeText": "é Å",
+            "envelopeCps": "U+00E9 U+0020 U+00C5",
+            "jsText": "é Å",
+            "equal": true
+          }
+        ],
+        "transportOnly": [
+          {
+            "name": "nul",
+            "input": "U+0061 U+0000 U+0062",
+            "js": {
+              "ok": true,
+              "text": "ab"
+            },
+            "pg": "ERROR: invalid byte sequence for encoding \"UTF8\": 0x00"
+          },
+          {
+            "name": "lone-surrogate",
+            "input": "U+0061 U+D800 U+0062",
+            "js": {
+              "ok": true,
+              "text": "a\ud800b"
+            },
+            "pg": "a�b"
+          }
+        ]
+      },
+      "expected": "identical canonical text and status for every vector"
+    },
+    {
+      "id": "D7-lower",
+      "title": "한글 로케일 소문자 변환(toLocaleLowerCase('ko') ↔ lower())",
+      "verdict": "FAIL",
+      "level": "real PostgreSQL vs Node",
+      "observed": {
+        "mismatchKoIcu": [
+          {
+            "name": "unicode16-garay-case",
+            "js": "U+10D70 U+10D71",
+            "pg": "U+10D50 U+10D51"
+          },
+          {
+            "name": "unicode16-kirat-rai-nfc",
+            "js": "U+16D68",
+            "pg": "U+16D67 U+16D67"
+          }
+        ],
+        "mismatchDefaultCollation": [
+          {
+            "name": "unicode16-garay-case",
+            "js": "U+10D70 U+10D71",
+            "pg": "U+10D50 U+10D51"
+          },
+          {
+            "name": "unicode16-kirat-rai-nfc",
+            "js": "U+16D68",
+            "pg": "U+16D67 U+16D67"
+          }
+        ],
+        "mismatchCollateC": [
+          {
+            "name": "turkish-dotted-I",
+            "js": "U+0069 U+0307 U+0073 U+0074 U+0061 U+006E U+0062 U+0075 U+006C",
+            "pg": "U+0130 U+0073 U+0074 U+0061 U+006E U+0062 U+0075 U+006C"
+          },
+          {
+            "name": "turkish-dotless-i",
+            "js": "U+0131 U+0069 U+0069 U+0069 U+0307",
+            "pg": "U+0131 U+0069 U+0069 U+0130"
+          },
+          {
+            "name": "greek-final-sigma",
+            "js": "U+03BF U+03B4 U+03BF U+03C2 U+0020 U+03C3 U+03BF U+03C6 U+03BF U+03C2",
+            "pg": "U+039F U+0394 U+039F U+03A3 U+0020 U+03A3 U+039F U+03A6 U+039F U+03A3"
+          },
+          {
+            "name": "combining-acute(NFD)",
+            "js": "U+00E9 U+0020 U+00E5",
+            "pg": "U+00E9 U+0020 U+00C5"
+          },
+          {
+            "name": "unicode16-garay-case",
+            "js": "U+10D70 U+10D71",
+            "pg": "U+10D50 U+10D51"
+          },
+          {
+            "name": "unicode16-kirat-rai-nfc",
+            "js": "U+16D68",
+            "pg": "U+16D67 U+16D67"
+          }
+        ]
+      },
+      "note": "Only relevant if the server ever reproduces the client's repeat-suppression key. Production DB collation/ICU version was NOT inspected (Production access prohibited).",
+      "expected": "identical lower-case keys"
+    },
+    {
+      "id": "D7-table",
+      "title": "Unicode 벡터 전체 표",
+      "verdict": "PASS",
+      "level": "data",
+      "observed": {
+        "rows": [
+          {
+            "name": "hangul-precomposed",
+            "input": "U+C548 U+B155 U+D558 U+C138 U+C694",
+            "js": {
+              "status": "ok",
+              "text": "안녕하세요",
+              "cps": "U+C548 U+B155 U+D558 U+C138 U+C694",
+              "lowerKo": "U+C548 U+B155 U+D558 U+C138 U+C694"
+            },
+            "pg": {
+              "status": "ok",
+              "text": "안녕하세요",
+              "cps": "U+C548 U+B155 U+D558 U+C138 U+C694",
+              "lowerDefaultIcuEnUS": "U+C548 U+B155 U+D558 U+C138 U+C694",
+              "lowerKoIcu": "U+C548 U+B155 U+D558 U+C138 U+C694",
+              "lowerC": "U+C548 U+B155 U+D558 U+C138 U+C694"
+            },
+            "canonMatch": true,
+            "lowerMatchKoIcu": true,
+            "lowerMatchDefault": true,
+            "lowerMatchC": true
+          },
+          {
+            "name": "hangul-conjoining-jamo(NFD)",
+            "input": "U+1100 U+1161 U+11A8 U+1112 U+1161 U+11AB",
+            "js": {
+              "status": "ok",
+              "text": "각한",
+              "cps": "U+AC01 U+D55C",
+              "lowerKo": "U+AC01 U+D55C"
+            },
+            "pg": {
+              "status": "ok",
+              "text": "각한",
+              "cps": "U+AC01 U+D55C",
+              "lowerDefaultIcuEnUS": "U+AC01 U+D55C",
+              "lowerKoIcu": "U+AC01 U+D55C",
+              "lowerC": "U+AC01 U+D55C"
+            },
+            "canonMatch": true,
+            "lowerMatchKoIcu": true,
+            "lowerMatchDefault": true,
+            "lowerMatchC": true
+          },
+          {
+            "name": "hangul-compat-jamo",
+            "input": "U+3131 U+314F U+314E",
+            "js": {
+              "status": "ok",
+              "text": "ㄱㅏㅎ",
+              "cps": "U+3131 U+314F U+314E",
+              "lowerKo": "U+3131 U+314F U+314E"
+            },
+            "pg": {
+              "status": "ok",
+              "text": "ㄱㅏㅎ",
+              "cps": "U+3131 U+314F U+314E",
+              "lowerDefaultIcuEnUS": "U+3131 U+314F U+314E",
+              "lowerKoIcu": "U+3131 U+314F U+314E",
+              "lowerC": "U+3131 U+314F U+314E"
+            },
+            "canonMatch": true,
+            "lowerMatchKoIcu": true,
+            "lowerMatchDefault": true,
+            "lowerMatchC": true
+          },
+          {
+            "name": "hangul-mixed-nfd-nfc",
+            "input": "U+D55C U+1100 U+1161 U+AE00",
+            "js": {
+              "status": "ok",
+              "text": "한가글",
+              "cps": "U+D55C U+AC00 U+AE00",
+              "lowerKo": "U+D55C U+AC00 U+AE00"
+            },
+            "pg": {
+              "status": "ok",
+              "text": "한가글",
+              "cps": "U+D55C U+AC00 U+AE00",
+              "lowerDefaultIcuEnUS": "U+D55C U+AC00 U+AE00",
+              "lowerKoIcu": "U+D55C U+AC00 U+AE00",
+              "lowerC": "U+D55C U+AC00 U+AE00"
+            },
+            "canonMatch": true,
+            "lowerMatchKoIcu": true,
+            "lowerMatchDefault": true,
+            "lowerMatchC": true
+          },
+          {
+            "name": "latin-case",
+            "input": "U+0048 U+0065 U+006C U+006C U+006F U+0020 U+0057 U+004F U+0052 U+004C U+0044",
+            "js": {
+              "status": "ok",
+              "text": "Hello WORLD",
+              "cps": "U+0048 U+0065 U+006C U+006C U+006F U+0020 U+0057 U+004F U+0052 U+004C U+0044",
+              "lowerKo": "U+0068 U+0065 U+006C U+006C U+006F U+0020 U+0077 U+006F U+0072 U+006C U+0064"
+            },
+            "pg": {
+              "status": "ok",
+              "text": "Hello WORLD",
+              "cps": "U+0048 U+0065 U+006C U+006C U+006F U+0020 U+0057 U+004F U+0052 U+004C U+0044",
+              "lowerDefaultIcuEnUS": "U+0068 U+0065 U+006C U+006C U+006F U+0020 U+0077 U+006F U+0072 U+006C U+0064",
+              "lowerKoIcu": "U+0068 U+0065 U+006C U+006C U+006F U+0020 U+0077 U+006F U+0072 U+006C U+0064",
+              "lowerC": "U+0068 U+0065 U+006C U+006C U+006F U+0020 U+0077 U+006F U+0072 U+006C U+0064"
+            },
+            "canonMatch": true,
+            "lowerMatchKoIcu": true,
+            "lowerMatchDefault": true,
+            "lowerMatchC": true
+          },
+          {
+            "name": "latin-sharp-s",
+            "input": "U+0053 U+0054 U+0052 U+0041 U+0053 U+0053 U+0045 U+0020 U+0053 U+0074 U+0072 U+0061 U+00DF U+0065",
+            "js": {
+              "status": "ok",
+              "text": "STRASSE Straße",
+              "cps": "U+0053 U+0054 U+0052 U+0041 U+0053 U+0053 U+0045 U+0020 U+0053 U+0074 U+0072 U+0061 U+00DF U+0065",
+              "lowerKo": "U+0073 U+0074 U+0072 U+0061 U+0073 U+0073 U+0065 U+0020 U+0073 U+0074 U+0072 U+0061 U+00DF U+0065"
+            },
+            "pg": {
+              "status": "ok",
+              "text": "STRASSE Straße",
+              "cps": "U+0053 U+0054 U+0052 U+0041 U+0053 U+0053 U+0045 U+0020 U+0053 U+0074 U+0072 U+0061 U+00DF U+0065",
+              "lowerDefaultIcuEnUS": "U+0073 U+0074 U+0072 U+0061 U+0073 U+0073 U+0065 U+0020 U+0073 U+0074 U+0072 U+0061 U+00DF U+0065",
+              "lowerKoIcu": "U+0073 U+0074 U+0072 U+0061 U+0073 U+0073 U+0065 U+0020 U+0073 U+0074 U+0072 U+0061 U+00DF U+0065",
+              "lowerC": "U+0073 U+0074 U+0072 U+0061 U+0073 U+0073 U+0065 U+0020 U+0073 U+0074 U+0072 U+0061 U+00DF U+0065"
+            },
+            "canonMatch": true,
+            "lowerMatchKoIcu": true,
+            "lowerMatchDefault": true,
+            "lowerMatchC": true
+          },
+          {
+            "name": "turkish-dotted-I",
+            "input": "U+0130 U+0053 U+0054 U+0041 U+004E U+0042 U+0055 U+004C",
+            "js": {
+              "status": "ok",
+              "text": "İSTANBUL",
+              "cps": "U+0130 U+0053 U+0054 U+0041 U+004E U+0042 U+0055 U+004C",
+              "lowerKo": "U+0069 U+0307 U+0073 U+0074 U+0061 U+006E U+0062 U+0075 U+006C"
+            },
+            "pg": {
+              "status": "ok",
+              "text": "İSTANBUL",
+              "cps": "U+0130 U+0053 U+0054 U+0041 U+004E U+0042 U+0055 U+004C",
+              "lowerDefaultIcuEnUS": "U+0069 U+0307 U+0073 U+0074 U+0061 U+006E U+0062 U+0075 U+006C",
+              "lowerKoIcu": "U+0069 U+0307 U+0073 U+0074 U+0061 U+006E U+0062 U+0075 U+006C",
+              "lowerC": "U+0130 U+0073 U+0074 U+0061 U+006E U+0062 U+0075 U+006C"
+            },
+            "canonMatch": true,
+            "lowerMatchKoIcu": true,
+            "lowerMatchDefault": true,
+            "lowerMatchC": false
+          },
+          {
+            "name": "turkish-dotless-i",
+            "input": "U+0131 U+0049 U+0069 U+0130",
+            "js": {
+              "status": "ok",
+              "text": "ıIiİ",
+              "cps": "U+0131 U+0049 U+0069 U+0130",
+              "lowerKo": "U+0131 U+0069 U+0069 U+0069 U+0307"
+            },
+            "pg": {
+              "status": "ok",
+              "text": "ıIiİ",
+              "cps": "U+0131 U+0049 U+0069 U+0130",
+              "lowerDefaultIcuEnUS": "U+0131 U+0069 U+0069 U+0069 U+0307",
+              "lowerKoIcu": "U+0131 U+0069 U+0069 U+0069 U+0307",
+              "lowerC": "U+0131 U+0069 U+0069 U+0130"
+            },
+            "canonMatch": true,
+            "lowerMatchKoIcu": true,
+            "lowerMatchDefault": true,
+            "lowerMatchC": false
+          },
+          {
+            "name": "greek-final-sigma",
+            "input": "U+039F U+0394 U+039F U+03A3 U+0020 U+03A3 U+039F U+03A6 U+039F U+03A3",
+            "js": {
+              "status": "ok",
+              "text": "ΟΔΟΣ ΣΟΦΟΣ",
+              "cps": "U+039F U+0394 U+039F U+03A3 U+0020 U+03A3 U+039F U+03A6 U+039F U+03A3",
+              "lowerKo": "U+03BF U+03B4 U+03BF U+03C2 U+0020 U+03C3 U+03BF U+03C6 U+03BF U+03C2"
+            },
+            "pg": {
+              "status": "ok",
+              "text": "ΟΔΟΣ ΣΟΦΟΣ",
+              "cps": "U+039F U+0394 U+039F U+03A3 U+0020 U+03A3 U+039F U+03A6 U+039F U+03A3",
+              "lowerDefaultIcuEnUS": "U+03BF U+03B4 U+03BF U+03C2 U+0020 U+03C3 U+03BF U+03C6 U+03BF U+03C2",
+              "lowerKoIcu": "U+03BF U+03B4 U+03BF U+03C2 U+0020 U+03C3 U+03BF U+03C6 U+03BF U+03C2",
+              "lowerC": "U+039F U+0394 U+039F U+03A3 U+0020 U+03A3 U+039F U+03A6 U+039F U+03A3"
+            },
+            "canonMatch": true,
+            "lowerMatchKoIcu": true,
+            "lowerMatchDefault": true,
+            "lowerMatchC": false
+          },
+          {
+            "name": "combining-acute(NFD)",
+            "input": "U+0065 U+0301 U+0020 U+0041 U+030A",
+            "js": {
+              "status": "ok",
+              "text": "é Å",
+              "cps": "U+00E9 U+0020 U+00C5",
+              "lowerKo": "U+00E9 U+0020 U+00E5"
+            },
+            "pg": {
+              "status": "ok",
+              "text": "é Å",
+              "cps": "U+00E9 U+0020 U+00C5",
+              "lowerDefaultIcuEnUS": "U+00E9 U+0020 U+00E5",
+              "lowerKoIcu": "U+00E9 U+0020 U+00E5",
+              "lowerC": "U+00E9 U+0020 U+00C5"
+            },
+            "canonMatch": true,
+            "lowerMatchKoIcu": true,
+            "lowerMatchDefault": true,
+            "lowerMatchC": false
+          },
+          {
+            "name": "combining-stack",
+            "input": "U+0061 U+0301 U+0323",
+            "js": {
+              "status": "ok",
+              "text": "ạ́",
+              "cps": "U+1EA1 U+0301",
+              "lowerKo": "U+1EA1 U+0301"
+            },
+            "pg": {
+              "status": "ok",
+              "text": "ạ́",
+              "cps": "U+1EA1 U+0301",
+              "lowerDefaultIcuEnUS": "U+1EA1 U+0301",
+              "lowerKoIcu": "U+1EA1 U+0301",
+              "lowerC": "U+1EA1 U+0301"
+            },
+            "canonMatch": true,
+            "lowerMatchKoIcu": true,
+            "lowerMatchDefault": true,
+            "lowerMatchC": true
+          },
+          {
+            "name": "emoji-zwj-family",
+            "input": "U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466",
+            "js": {
+              "status": "ok",
+              "text": "👨‍👩‍👧‍👦",
+              "cps": "U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466",
+              "lowerKo": "U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466"
+            },
+            "pg": {
+              "status": "ok",
+              "text": "👨‍👩‍👧‍👦",
+              "cps": "U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466",
+              "lowerDefaultIcuEnUS": "U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466",
+              "lowerKoIcu": "U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466",
+              "lowerC": "U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466"
+            },
+            "canonMatch": true,
+            "lowerMatchKoIcu": true,
+            "lowerMatchDefault": true,
+            "lowerMatchC": true
+          },
+          {
+            "name": "emoji-flag-zwj",
+            "input": "U+1F3F3 U+FE0F U+200D U+1F308",
+            "js": {
+              "status": "ok",
+              "text": "🏳️‍🌈",
+              "cps": "U+1F3F3 U+FE0F U+200D U+1F308",
+              "lowerKo": "U+1F3F3 U+FE0F U+200D U+1F308"
+            },
+            "pg": {
+              "status": "ok",
+              "text": "🏳️‍🌈",
+              "cps": "U+1F3F3 U+FE0F U+200D U+1F308",
+              "lowerDefaultIcuEnUS": "U+1F3F3 U+FE0F U+200D U+1F308",
+              "lowerKoIcu": "U+1F3F3 U+FE0F U+200D U+1F308",
+              "lowerC": "U+1F3F3 U+FE0F U+200D U+1F308"
+            },
+            "canonMatch": true,
+            "lowerMatchKoIcu": true,
+            "lowerMatchDefault": true,
+            "lowerMatchC": true
+          },
+          {
+            "name": "emoji-skin-keycap",
+            "input": "U+1F44D U+1F3FD U+0020 U+0031 U+FE0F U+20E3",
+            "js": {
+              "status": "ok",
+              "text": "👍🏽 1️⃣",
+              "cps": "U+1F44D U+1F3FD U+0020 U+0031 U+FE0F U+20E3",
+              "lowerKo": "U+1F44D U+1F3FD U+0020 U+0031 U+FE0F U+20E3"
+            },
+            "pg": {
+              "status": "ok",
+              "text": "👍🏽 1️⃣",
+              "cps": "U+1F44D U+1F3FD U+0020 U+0031 U+FE0F U+20E3",
+              "lowerDefaultIcuEnUS": "U+1F44D U+1F3FD U+0020 U+0031 U+FE0F U+20E3",
+              "lowerKoIcu": "U+1F44D U+1F3FD U+0020 U+0031 U+FE0F U+20E3",
+              "lowerC": "U+1F44D U+1F3FD U+0020 U+0031 U+FE0F U+20E3"
+            },
+            "canonMatch": true,
+            "lowerMatchKoIcu": true,
+            "lowerMatchDefault": true,
+            "lowerMatchC": true
+          },
+          {
+            "name": "control-bell",
+            "input": "U+0061 U+0007 U+0062",
+            "js": {
+              "status": "ok",
+              "text": "ab",
+              "cps": "U+0061 U+0062",
+              "lowerKo": "U+0061 U+0062"
+            },
+            "pg": {
+              "status": "ok",
+              "text": "ab",
+              "cps": "U+0061 U+0062",
+              "lowerDefaultIcuEnUS": "U+0061 U+0062",
+              "lowerKoIcu": "U+0061 U+0062",
+              "lowerC": "U+0061 U+0062"
+            },
+            "canonMatch": true,
+            "lowerMatchKoIcu": true,
+            "lowerMatchDefault": true,
+            "lowerMatchC": true
+          },
+          {
+            "name": "control-c1-nel",
+            "input": "U+0061 U+0085 U+0062",
+            "js": {
+              "status": "ok",
+              "text": "ab",
+              "cps": "U+0061 U+0062",
+              "lowerKo": "U+0061 U+0062"
+            },
+            "pg": {
+              "status": "ok",
+              "text": "ab",
+              "cps": "U+0061 U+0062",
+              "lowerDefaultIcuEnUS": "U+0061 U+0062",
+              "lowerKoIcu": "U+0061 U+0062",
+              "lowerC": "U+0061 U+0062"
+            },
+            "canonMatch": true,
+            "lowerMatchKoIcu": true,
+            "lowerMatchDefault": true,
+            "lowerMatchC": true
+          },
+          {
+            "name": "zwsp-bom-wj",
+            "input": "U+0061 U+200B U+0062 U+FEFF U+0063 U+2060 U+0064",
+            "js": {
+              "status": "ok",
+              "text": "abcd",
+              "cps": "U+0061 U+0062 U+0063 U+0064",
+              "lowerKo": "U+0061 U+0062 U+0063 U+0064"
+            },
+            "pg": {
+              "status": "ok",
+              "text": "abcd",
+              "cps": "U+0061 U+0062 U+0063 U+0064",
+              "lowerDefaultIcuEnUS": "U+0061 U+0062 U+0063 U+0064",
+              "lowerKoIcu": "U+0061 U+0062 U+0063 U+0064",
+              "lowerC": "U+0061 U+0062 U+0063 U+0064"
+            },
+            "canonMatch": true,
+            "lowerMatchKoIcu": true,
+            "lowerMatchDefault": true,
+            "lowerMatchC": true
+          },
+          {
+            "name": "bidi-override",
+            "input": "U+0061 U+202E U+0062 U+2066 U+0063 U+2069",
+            "js": {
+              "status": "ok",
+              "text": "abc",
+              "cps": "U+0061 U+0062 U+0063",
+              "lowerKo": "U+0061 U+0062 U+0063"
+            },
+            "pg": {
+              "status": "ok",
+              "text": "abc",
+              "cps": "U+0061 U+0062 U+0063",
+              "lowerDefaultIcuEnUS": "U+0061 U+0062 U+0063",
+              "lowerKoIcu": "U+0061 U+0062 U+0063",
+              "lowerC": "U+0061 U+0062 U+0063"
+            },
+            "canonMatch": true,
+            "lowerMatchKoIcu": true,
+            "lowerMatchDefault": true,
+            "lowerMatchC": true
+          },
+          {
+            "name": "whitespace-mixed",
+            "input": "U+0020 U+0020 U+0061 U+0020 U+0009 U+000A U+000D U+0020 U+0062 U+00A0 U+0063 U+3000 U+0064 U+2028 U+0065 U+0020 U+0020",
+            "js": {
+              "status": "ok",
+              "text": "a b c d e",
+              "cps": "U+0061 U+0020 U+0062 U+0020 U+0063 U+0020 U+0064 U+0020 U+0065",
+              "lowerKo": "U+0061 U+0020 U+0062 U+0020 U+0063 U+0020 U+0064 U+0020 U+0065"
+            },
+            "pg": {
+              "status": "ok",
+              "text": "a b c d e",
+              "cps": "U+0061 U+0020 U+0062 U+0020 U+0063 U+0020 U+0064 U+0020 U+0065",
+              "lowerDefaultIcuEnUS": "U+0061 U+0020 U+0062 U+0020 U+0063 U+0020 U+0064 U+0020 U+0065",
+              "lowerKoIcu": "U+0061 U+0020 U+0062 U+0020 U+0063 U+0020 U+0064 U+0020 U+0065",
+              "lowerC": "U+0061 U+0020 U+0062 U+0020 U+0063 U+0020 U+0064 U+0020 U+0065"
+            },
+            "canonMatch": true,
+            "lowerMatchKoIcu": true,
+            "lowerMatchDefault": true,
+            "lowerMatchC": true
+          },
+          {
+            "name": "em-space-kept",
+            "input": "U+0061 U+2003 U+0062",
+            "js": {
+              "status": "ok",
+              "text": "a b",
+              "cps": "U+0061 U+2003 U+0062",
+              "lowerKo": "U+0061 U+2003 U+0062"
+            },
+            "pg": {
+              "status": "ok",
+              "text": "a b",
+              "cps": "U+0061 U+2003 U+0062",
+              "lowerDefaultIcuEnUS": "U+0061 U+2003 U+0062",
+              "lowerKoIcu": "U+0061 U+2003 U+0062",
+              "lowerC": "U+0061 U+2003 U+0062"
+            },
+            "canonMatch": true,
+            "lowerMatchKoIcu": true,
+            "lowerMatchDefault": true,
+            "lowerMatchC": true
+          },
+          {
+            "name": "only-spaces",
+            "input": "U+0020 U+0009 U+3000 U+0020",
+            "js": {
+              "status": "empty",
+              "text": "",
+              "cps": "",
+              "lowerKo": ""
+            },
+            "pg": {
+              "status": "empty",
+              "text": "",
+              "cps": "",
+              "lowerDefaultIcuEnUS": "",
+              "lowerKoIcu": "",
+              "lowerC": ""
+            },
+            "canonMatch": true,
+            "lowerMatchKoIcu": true,
+            "lowerMatchDefault": true,
+            "lowerMatchC": true
+          },
+          {
+            "name": "only-controls",
+            "input": "U+0007 U+200B",
+            "js": {
+              "status": "empty",
+              "text": "",
+              "cps": "",
+              "lowerKo": ""
+            },
+            "pg": {
+              "status": "empty",
+              "text": "",
+              "cps": "",
+              "lowerDefaultIcuEnUS": "",
+              "lowerKoIcu": "",
+              "lowerC": ""
+            },
+            "canonMatch": true,
+            "lowerMatchKoIcu": true,
+            "lowerMatchDefault": true,
+            "lowerMatchC": true
+          },
+          {
+            "name": "len-120",
+            "input": "U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00",
+            "js": {
+              "status": "ok",
+              "text": "가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가",
+              "cps": "U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00",
+              "lowerKo": "U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00"
+            },
+            "pg": {
+              "status": "ok",
+              "text": "가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가",
+              "cps": "U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00",
+              "lowerDefaultIcuEnUS": "U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00",
+              "lowerKoIcu": "U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00",
+              "lowerC": "U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00"
+            },
+            "canonMatch": true,
+            "lowerMatchKoIcu": true,
+            "lowerMatchDefault": true,
+            "lowerMatchC": true
+          },
+          {
+            "name": "len-121",
+            "input": "U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00",
+            "js": {
+              "status": "too_long",
+              "text": "가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가",
+              "cps": "U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00",
+              "lowerKo": "U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00"
+            },
+            "pg": {
+              "status": "too_long",
+              "text": "가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가가",
+              "cps": "U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00",
+              "lowerDefaultIcuEnUS": "U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00",
+              "lowerKoIcu": "U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00",
+              "lowerC": "U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00 U+AC00"
+            },
+            "canonMatch": true,
+            "lowerMatchKoIcu": true,
+            "lowerMatchDefault": true,
+            "lowerMatchC": true
+          },
+          {
+            "name": "len-120-after-nfc",
+            "input": "U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0065 U+0301",
+            "js": {
+              "status": "ok",
+              "text": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaé",
+              "cps": "U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+00E9",
+              "lowerKo": "U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+00E9"
+            },
+            "pg": {
+              "status": "ok",
+              "text": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaé",
+              "cps": "U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+00E9",
+              "lowerDefaultIcuEnUS": "U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+00E9",
+              "lowerKoIcu": "U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+00E9",
+              "lowerC": "U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+0061 U+00E9"
+            },
+            "canonMatch": true,
+            "lowerMatchKoIcu": true,
+            "lowerMatchDefault": true,
+            "lowerMatchC": true
+          },
+          {
+            "name": "len-emoji-zwj-18",
+            "input": "U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466",
+            "js": {
+              "status": "too_long",
+              "text": "👨‍👩‍👧‍👦👨‍👩‍👧‍👦👨‍👩‍👧‍👦👨‍👩‍👧‍👦👨‍👩‍👧‍👦👨‍👩‍👧‍👦👨‍👩‍👧‍👦👨‍👩‍👧‍👦👨‍👩‍👧‍👦👨‍👩‍👧‍👦👨‍👩‍👧‍👦👨‍👩‍👧‍👦👨‍👩‍👧‍👦👨‍👩‍👧‍👦👨‍👩‍👧‍👦👨‍👩‍👧‍👦👨‍👩‍👧‍👦👨‍👩‍👧‍👦",
+              "cps": "U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466",
+              "lowerKo": "U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466"
+            },
+            "pg": {
+              "status": "too_long",
+              "text": "👨‍👩‍👧‍👦👨‍👩‍👧‍👦👨‍👩‍👧‍👦👨‍👩‍👧‍👦👨‍👩‍👧‍👦👨‍👩‍👧‍👦👨‍👩‍👧‍👦👨‍👩‍👧‍👦👨‍👩‍👧‍👦👨‍👩‍👧‍👦👨‍👩‍👧‍👦👨‍👩‍👧‍👦👨‍👩‍👧‍👦👨‍👩‍👧‍👦👨‍👩‍👧‍👦👨‍👩‍👧‍👦👨‍👩‍👧‍👦👨‍👩‍👧‍👦",
+              "cps": "U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466",
+              "lowerDefaultIcuEnUS": "U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466",
+              "lowerKoIcu": "U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466",
+              "lowerC": "U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466 U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466"
+            },
+            "canonMatch": true,
+            "lowerMatchKoIcu": true,
+            "lowerMatchDefault": true,
+            "lowerMatchC": true
+          },
+          {
+            "name": "unicode16-garay-case",
+            "input": "U+10D50 U+10D51",
+            "js": {
+              "status": "ok",
+              "text": "𐵐𐵑",
+              "cps": "U+10D50 U+10D51",
+              "lowerKo": "U+10D70 U+10D71"
+            },
+            "pg": {
+              "status": "ok",
+              "text": "𐵐𐵑",
+              "cps": "U+10D50 U+10D51",
+              "lowerDefaultIcuEnUS": "U+10D50 U+10D51",
+              "lowerKoIcu": "U+10D50 U+10D51",
+              "lowerC": "U+10D50 U+10D51"
+            },
+            "canonMatch": true,
+            "lowerMatchKoIcu": false,
+            "lowerMatchDefault": false,
+            "lowerMatchC": false
+          },
+          {
+            "name": "unicode16-kirat-rai-nfc",
+            "input": "U+16D67 U+16D67",
+            "js": {
+              "status": "ok",
+              "text": "𖵨",
+              "cps": "U+16D68",
+              "lowerKo": "U+16D68"
+            },
+            "pg": {
+              "status": "ok",
+              "text": "𖵨",
+              "cps": "U+16D67 U+16D67",
+              "lowerDefaultIcuEnUS": "U+16D67 U+16D67",
+              "lowerKoIcu": "U+16D67 U+16D67",
+              "lowerC": "U+16D67 U+16D67"
+            },
+            "canonMatch": false,
+            "lowerMatchKoIcu": false,
+            "lowerMatchDefault": false,
+            "lowerMatchC": false
+          }
+        ]
+      },
+      "expected": "(data only)"
+    },
+    {
+      "id": "D8-coords",
+      "title": "좌표 소수 둘째 자리 반올림 · 음수 0 · 경계값 JS↔PostgreSQL",
+      "verdict": "FAIL",
+      "level": "real PostgreSQL numeric vs repo protocol.js encodeAction/validateAction",
+      "observed": {
+        "mismatches": [
+          {
+            "input": "-0.005",
+            "wire": "-0.005",
+            "js": {
+              "rounded": "0",
+              "accepted": true
+            },
+            "pg": {
+              "rounded": "-0.01",
+              "accepted": true
+            },
+            "match": false
+          },
+          {
+            "input": "-0.125",
+            "wire": "-0.125",
+            "js": {
+              "rounded": "-0.12",
+              "accepted": true
+            },
+            "pg": {
+              "rounded": "-0.13",
+              "accepted": true
+            },
+            "match": false
+          },
+          {
+            "input": "1.005",
+            "wire": "1.005",
+            "js": {
+              "rounded": "1",
+              "accepted": true
+            },
+            "pg": {
+              "rounded": "1.01",
+              "accepted": true
+            },
+            "match": false
+          },
+          {
+            "input": "-1.005",
+            "wire": "-1.005",
+            "js": {
+              "rounded": "-1",
+              "accepted": true
+            },
+            "pg": {
+              "rounded": "-1.01",
+              "accepted": true
+            },
+            "match": false
+          },
+          {
+            "input": "1.015",
+            "wire": "1.015",
+            "js": {
+              "rounded": "1.01",
+              "accepted": true
+            },
+            "pg": {
+              "rounded": "1.02",
+              "accepted": true
+            },
+            "match": false
+          },
+          {
+            "input": "1.255",
+            "wire": "1.255",
+            "js": {
+              "rounded": "1.25",
+              "accepted": true
+            },
+            "pg": {
+              "rounded": "1.26",
+              "accepted": true
+            },
+            "match": false
+          },
+          {
+            "input": "100000.004",
+            "wire": "100000.004",
+            "js": {
+              "rounded": "100000",
+              "accepted": true
+            },
+            "pg": {
+              "rounded": null,
+              "accepted": false
+            },
+            "match": false
+          },
+          {
+            "input": "-100000.004",
+            "wire": "-100000.004",
+            "js": {
+              "rounded": "-100000",
+              "accepted": true
+            },
+            "pg": {
+              "rounded": null,
+              "accepted": false
+            },
+            "match": false
+          }
+        ],
+        "all": [
+          {
+            "input": "0",
+            "wire": "0",
+            "js": {
+              "rounded": "0",
+              "accepted": true
+            },
+            "pg": {
+              "rounded": "0.00",
+              "accepted": true
+            },
+            "match": true
+          },
+          {
+            "input": "-0",
+            "wire": "0",
+            "js": {
+              "rounded": "0",
+              "accepted": true
+            },
+            "pg": {
+              "rounded": "0.00",
+              "accepted": true
+            },
+            "match": true
+          },
+          {
+            "input": "0.004",
+            "wire": "0.004",
+            "js": {
+              "rounded": "0",
+              "accepted": true
+            },
+            "pg": {
+              "rounded": "0.00",
+              "accepted": true
+            },
+            "match": true
+          },
+          {
+            "input": "-0.004",
+            "wire": "-0.004",
+            "js": {
+              "rounded": "0",
+              "accepted": true
+            },
+            "pg": {
+              "rounded": "0.00",
+              "accepted": true
+            },
+            "match": true
+          },
+          {
+            "input": "0.005",
+            "wire": "0.005",
+            "js": {
+              "rounded": "0.01",
+              "accepted": true
+            },
+            "pg": {
+              "rounded": "0.01",
+              "accepted": true
+            },
+            "match": true
+          },
+          {
+            "input": "-0.005",
+            "wire": "-0.005",
+            "js": {
+              "rounded": "0",
+              "accepted": true
+            },
+            "pg": {
+              "rounded": "-0.01",
+              "accepted": true
+            },
+            "match": false
+          },
+          {
+            "input": "0.125",
+            "wire": "0.125",
+            "js": {
+              "rounded": "0.13",
+              "accepted": true
+            },
+            "pg": {
+              "rounded": "0.13",
+              "accepted": true
+            },
+            "match": true
+          },
+          {
+            "input": "-0.125",
+            "wire": "-0.125",
+            "js": {
+              "rounded": "-0.12",
+              "accepted": true
+            },
+            "pg": {
+              "rounded": "-0.13",
+              "accepted": true
+            },
+            "match": false
+          },
+          {
+            "input": "1.005",
+            "wire": "1.005",
+            "js": {
+              "rounded": "1",
+              "accepted": true
+            },
+            "pg": {
+              "rounded": "1.01",
+              "accepted": true
+            },
+            "match": false
+          },
+          {
+            "input": "-1.005",
+            "wire": "-1.005",
+            "js": {
+              "rounded": "-1",
+              "accepted": true
+            },
+            "pg": {
+              "rounded": "-1.01",
+              "accepted": true
+            },
+            "match": false
+          },
+          {
+            "input": "1.015",
+            "wire": "1.015",
+            "js": {
+              "rounded": "1.01",
+              "accepted": true
+            },
+            "pg": {
+              "rounded": "1.02",
+              "accepted": true
+            },
+            "match": false
+          },
+          {
+            "input": "2.675",
+            "wire": "2.675",
+            "js": {
+              "rounded": "2.68",
+              "accepted": true
+            },
+            "pg": {
+              "rounded": "2.68",
+              "accepted": true
+            },
+            "match": true
+          },
+          {
+            "input": "1.255",
+            "wire": "1.255",
+            "js": {
+              "rounded": "1.25",
+              "accepted": true
+            },
+            "pg": {
+              "rounded": "1.26",
+              "accepted": true
+            },
+            "match": false
+          },
+          {
+            "input": "123.456789",
+            "wire": "123.456789",
+            "js": {
+              "rounded": "123.46",
+              "accepted": true
+            },
+            "pg": {
+              "rounded": "123.46",
+              "accepted": true
+            },
+            "match": true
+          },
+          {
+            "input": "1e-7",
+            "wire": "1e-7",
+            "js": {
+              "rounded": "0",
+              "accepted": true
+            },
+            "pg": {
+              "rounded": "0.00",
+              "accepted": true
+            },
+            "match": true
+          },
+          {
+            "input": "-1e-7",
+            "wire": "-1e-7",
+            "js": {
+              "rounded": "0",
+              "accepted": true
+            },
+            "pg": {
+              "rounded": "0.00",
+              "accepted": true
+            },
+            "match": true
+          },
+          {
+            "input": "99999.995",
+            "wire": "99999.995",
+            "js": {
+              "rounded": "100000",
+              "accepted": true
+            },
+            "pg": {
+              "rounded": "100000.00",
+              "accepted": true
+            },
+            "match": true
+          },
+          {
+            "input": "100000",
+            "wire": "100000",
+            "js": {
+              "rounded": "100000",
+              "accepted": true
+            },
+            "pg": {
+              "rounded": "100000.00",
+              "accepted": true
+            },
+            "match": true
+          },
+          {
+            "input": "-100000",
+            "wire": "-100000",
+            "js": {
+              "rounded": "-100000",
+              "accepted": true
+            },
+            "pg": {
+              "rounded": "-100000.00",
+              "accepted": true
+            },
+            "match": true
+          },
+          {
+            "input": "100000.004",
+            "wire": "100000.004",
+            "js": {
+              "rounded": "100000",
+              "accepted": true
+            },
+            "pg": {
+              "rounded": null,
+              "accepted": false
+            },
+            "match": false
+          },
+          {
+            "input": "-100000.004",
+            "wire": "-100000.004",
+            "js": {
+              "rounded": "-100000",
+              "accepted": true
+            },
+            "pg": {
+              "rounded": null,
+              "accepted": false
+            },
+            "match": false
+          },
+          {
+            "input": "100000.005",
+            "wire": "100000.005",
+            "js": {
+              "rounded": "100000.01",
+              "accepted": false
+            },
+            "pg": {
+              "rounded": null,
+              "accepted": false
+            },
+            "match": true
+          }
+        ]
+      },
+      "note": "JS rounds binary doubles with Math.round(v*100)/100 (half toward +∞, binary representation error) and range-checks AFTER rounding; numeric round() is half away from zero on the decimal literal and the lab range-checks BEFORE rounding. JSON.stringify(-0) is \"0\" so negative zero never reaches the server.",
+      "expected": "identical rounded values and identical accept/reject"
+    }
+  ]
+}

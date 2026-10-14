@@ -1,0 +1,76 @@
+{
+  "suite": "F-avatar-binding",
+  "ranAt": "2026-10-14T02:20:31.958Z",
+  "results": [
+    {
+      "id": "F2-F3",
+      "title": "타인의 userId/sessionId를 사용한 아바타 사칭 가능 여부(기존 전송)",
+      "verdict": "FAIL",
+      "level": "real Supabase Realtime + real client RemotePlayerManager (unmodified transport)",
+      "observed": {
+        "secondAccountJoinedCampusTopic": "SUBSCRIBED",
+        "secondAccountPresenceTrackResult": "ok",
+        "presenceClaimForU1SessionAccepted": true,
+        "duplicateIdentityNewSessionVisible": true,
+        "realU1StillVisible": false,
+        "note": "Supabase private-channel RLS authorizes the SOCKET (any authenticated account) but does not bind Presence key/meta to auth.uid(); validatePresence() trusts packet.userId/sessionId."
+      },
+      "expected": "presence/pose carrying another account's identity is rejected or never attributed to that account"
+    },
+    {
+      "id": "F1",
+      "title": "서버 인증 채팅 세션과 시각적 아바타의 안전한 대응",
+      "verdict": "FAIL",
+      "level": "real Realtime + real ChatFeed/RemotePlayerManager",
+      "observed": {
+        "bubbleRenderedOverU1FromSecondAccount": null,
+        "bubbleViaDuplicateIdentity": "F 사칭 2",
+        "note": "The campus chat path derives the bubble's name from client-declared Presence, which a modified client sets freely; there is no server-authenticated chat session bound to the avatar on the campus transport."
+      },
+      "expected": "a speech bubble appears over an avatar only for a server-authenticated message from that account"
+    },
+    {
+      "id": "F4",
+      "title": "아바타 연결 미인증 시 피드 전용 안전 경로 동작",
+      "verdict": "PASS",
+      "level": "real PostgREST + real Supabase Realtime (SEC-01 lab inbox)",
+      "observed": {
+        "serverEnvelopeSenderUserId": "bd8c5b91-38b7-401f-b458-ef33b9eb4d0c",
+        "matchesAuthUser": true,
+        "serverEnvelopeSenderName": "labf1",
+        "senderNameServerDerived": true,
+        "carriesNoAvatarSessionBinding": true
+      },
+      "expected": "server-authenticated envelope carries server-derived senderUserId/senderName usable for a feed line without trusting any client presence"
+    },
+    {
+      "id": "F5",
+      "title": "기존 전송 변경 없이 정상 말풍선 보존",
+      "verdict": "PASS",
+      "level": "static (repo protocol.js at main 0dcae7b)",
+      "observed": {
+        "poseFieldsUnchanged": [
+          "v",
+          "seq",
+          "x",
+          "y",
+          "z",
+          "yaw",
+          "vx",
+          "vz",
+          "anim"
+        ],
+        "presenceFields": [
+          "v",
+          "sessionId",
+          "userId",
+          "displayName",
+          "placeZoneId",
+          "joinedAt"
+        ],
+        "note": "Stage A adds a separate server inbox path (SEC-01 lab RPC) and does not alter encodePose/buildPresence; a safe bubble needs a presence→chat-session binding that does not yet exist."
+      },
+      "expected": "pose/presence packet shapes identical to main; bubble preservation requires a new binding, not a transport change"
+    }
+  ]
+}

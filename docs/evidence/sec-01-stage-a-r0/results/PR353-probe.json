@@ -1,0 +1,56 @@
+{
+  "suite": "PR353-probe",
+  "ranAt": "2026-10-14T01:49:38.627Z",
+  "results": [
+    {
+      "id": "PR353-A3",
+      "title": "PR #353 send_world_room_chat_v1 — provider 경고성 실패 시 성공 응답",
+      "verdict": "FAIL",
+      "level": "real PostgreSQL 17 (PR #353 SQL unmodified; fault injected in isolated DB)",
+      "observed": {
+        "publisherSafe": {
+          "s": true,
+          "h": true
+        },
+        "joins": [
+          {
+            "admission": true,
+            "chat": true
+          },
+          {
+            "admission": true,
+            "chat": true
+          },
+          {
+            "admission": true,
+            "chat": true
+          }
+        ],
+        "normal": {
+          "rpc": true,
+          "realtimeRowsAdded": 2
+        },
+        "fault": {
+          "rpcOk": true,
+          "messageIdReturned": "128d1401-b57f-49f9-995d-cdd1eb24d0fd",
+          "realtimeRowsAdded": 0
+        }
+      },
+      "expected": "send must not report ok:true when zero recipient rows were written"
+    },
+    {
+      "id": "PR353-B-block",
+      "title": "PR #353 send — 차단 RPC와 공유 잠금 사용 여부",
+      "verdict": "FAIL",
+      "level": "real PostgreSQL 17, two backends",
+      "observed": {
+        "sendCompletedWhileBlockUncommitted": true,
+        "sendFinishedMs": 27,
+        "sendOk": true,
+        "rowsToBlockerInbox": 1
+      },
+      "note": "send finishing while block_world_user is still uncommitted means no shared lock; the block commits AFTER a publish that read pre-block state.",
+      "expected": "send waits for the in-flight block (shared pair lock) and then excludes the blocker"
+    }
+  ]
+}

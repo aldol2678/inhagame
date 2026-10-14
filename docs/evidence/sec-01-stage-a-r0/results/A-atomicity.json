@@ -1,0 +1,313 @@
+{
+  "suite": "A-atomicity",
+  "ranAt": "2026-10-14T01:48:51.773Z",
+  "target": {
+    "main": "0dcae7b4825c12e1ec03b6879d3bc0d27f9ad46e",
+    "pr353": "83cb427f81384087e759e0e0f158d1629b1e9f63"
+  },
+  "results": [
+    {
+      "id": "A1",
+      "title": "정상 승인 및 발행",
+      "verdict": "PASS",
+      "level": "real PostgreSQL + real Supabase Realtime",
+      "input": {
+        "recipients": 2,
+        "text": "A1 정상 발행"
+      },
+      "observed": {
+        "rpc": true,
+        "rows": {
+          "approvals": 1,
+          "deliveries": 2,
+          "realtime_rows": 2
+        },
+        "receivedPerRecipient": [
+          1,
+          1
+        ],
+        "envelopeIdenticalToRpcResponse": true,
+        "rpcMs": 9.344787000096403
+      },
+      "expected": "approvals=1, deliveries=2, realtime rows=2, each recipient receives exactly 1 identical envelope"
+    },
+    {
+      "id": "A2",
+      "title": "DB 커밋 직전 강제 롤백",
+      "verdict": "PASS",
+      "level": "real PostgreSQL + real Supabase Realtime",
+      "input": {
+        "variantA": "sec01.fail_before_commit=on (exception after all inserts)",
+        "variantB": "function returns ok, ROLLBACK instead of COMMIT"
+      },
+      "observed": {
+        "A": {
+          "error": "SEC01_INJECTED_FAILURE_BEFORE_COMMIT",
+          "rowsAfter": {
+            "approvals": 0,
+            "deliveries": 0,
+            "realtime_rows": 0
+          },
+          "received": [
+            0,
+            0
+          ]
+        },
+        "B": {
+          "rpcInsideTx": true,
+          "realtimeRowsVisibleInsideTx": 2,
+          "rowsAfter": {
+            "approvals": 0,
+            "deliveries": 0,
+            "realtime_rows": 0
+          },
+          "received": [
+            0,
+            0
+          ]
+        }
+      },
+      "expected": "zero approval/delivery/realtime rows after rollback, zero Realtime deliveries (logical replication only ships committed rows)"
+    },
+    {
+      "id": "A3-provider",
+      "title": "Provider(realtime.send) 경고성 실패 — 공급자 동작",
+      "verdict": "FAIL",
+      "note": "FAIL = the provider reports success (void return + WARNING) while writing zero rows; a caller cannot detect the failure from the return value.",
+      "level": "real PostgreSQL (fault: today's realtime.messages partition detached in the isolated DB)",
+      "observed": {
+        "returned": "",
+        "warnings": [
+          "WarnSendingBroadcastMessage: no partition of relation \"messages\" found for row"
+        ],
+        "rowsDelta": 0
+      },
+      "expected": "a failed publication must surface as an error, not a warning"
+    },
+    {
+      "id": "A3-send-mode",
+      "title": "Provider 경고성 실패 — realtime.send 기반 발행(PR #353 방식)",
+      "verdict": "FAIL",
+      "level": "real PostgreSQL + real Supabase Realtime",
+      "observed": {
+        "rpc": {
+          "ok": true,
+          "envelope": {
+            "v": 1,
+            "pos": {
+              "x": 1,
+              "y": 0,
+              "z": 2
+            },
+            "kind": "campus_chat",
+            "text": "A3 realtime.send 경로",
+            "areaId": "AREA_A3_95E93B",
+            "messageId": "7ef48219-a671-4cbd-b1eb-29413a1bc5f1",
+            "requestId": "01a13818-dcdc-771a-a98e-56d5bfdbfc25",
+            "approvedAt": "2026-10-14T01:48:35.952195Z",
+            "generation": 1,
+            "senderName": "laba37",
+            "senderUserId": "c2f1f0cf-42d8-482d-bcc9-f376e8f8e4c7",
+            "senderLeaseId": "9ce6e5ec-ac4a-450a-9c76-3d0be58225bf",
+            "senderClientSessionId": "2ef84ea4-ca70-4cce-873f-baeb73a86e4c"
+          },
+          "replayed": false,
+          "recipientCount": 2
+        },
+        "reqId": "01a13818-dcdc-771a-a98e-56d5bfdbfc25",
+        "rows": {
+          "approvals": 1,
+          "deliveries": 2,
+          "realtime_rows": 0
+        },
+        "received": [
+          0,
+          0
+        ]
+      },
+      "expected": "approval and publication rows commit or roll back together"
+    },
+    {
+      "id": "A3-insert-mode",
+      "title": "Provider 경고성 실패 — 직접 INSERT + 행수 검증(SEC-01 lab 대체안)",
+      "verdict": "PASS",
+      "level": "real PostgreSQL + real Supabase Realtime",
+      "observed": {
+        "rpc": "no partition of relation \"messages\" found for row",
+        "reqId": "01a13818-dcf8-71a4-a306-2555ad7d5435",
+        "rows": {
+          "approvals": 0,
+          "deliveries": 0,
+          "realtime_rows": 0
+        },
+        "received": [
+          0,
+          0
+        ]
+      },
+      "expected": "RPC fails, zero approval/delivery/realtime rows, nothing delivered"
+    },
+    {
+      "id": "A4",
+      "title": "발행 성공 후 RPC 응답 유실",
+      "verdict": "PASS",
+      "level": "real PostgREST + PostgreSQL + Realtime",
+      "input": "abort HTTP request 3 ms after dispatch, then retry same requestId/body",
+      "observed": {
+        "firstResponse": "AbortError: This operation was aborted",
+        "rowsAfterLoss": {
+          "approvals": 1,
+          "deliveries": 2,
+          "realtime_rows": 2
+        },
+        "retry": {
+          "ok": true,
+          "replayed": true
+        },
+        "retryEnvelopeEqualsDelivered": true,
+        "rows": {
+          "approvals": 1,
+          "deliveries": 2,
+          "realtime_rows": 2
+        },
+        "received": [
+          1,
+          1
+        ]
+      },
+      "expected": "server committed once; retry replays the identical envelope; recipients still have exactly one message"
+    },
+    {
+      "id": "A5",
+      "title": "동일 requestId 동시 요청",
+      "verdict": "PASS",
+      "level": "real PostgREST + PostgreSQL (separate backends) + Realtime",
+      "observed": {
+        "http12": {
+          "distinctMessageIds": 1,
+          "freshApprovals": 1,
+          "rows": {
+            "approvals": 1,
+            "deliveries": 2,
+            "realtime_rows": 2
+          },
+          "received": [
+            1,
+            1
+          ]
+        },
+        "lockObserved": {
+          "first": {
+            "replayed": false,
+            "finishedMs": 1507
+          },
+          "second": {
+            "replayed": true,
+            "finishedMs": 1509,
+            "waitedForFirstCommit": true
+          },
+          "rows": {
+            "approvals": 1,
+            "deliveries": 2,
+            "realtime_rows": 2
+          }
+        }
+      },
+      "expected": "exactly one approval; all other callers get the identical envelope as replay"
+    },
+    {
+      "id": "A6",
+      "title": "동일 requestId · 서로 다른 본문",
+      "verdict": "PASS",
+      "level": "real PostgREST + PostgreSQL",
+      "observed": {
+        "sequential": [
+          {
+            "variant": {
+              "p_text": "A6 변조"
+            },
+            "ok": false,
+            "reason": "request_conflict"
+          },
+          {
+            "variant": {
+              "p_x": 1.01
+            },
+            "ok": false,
+            "reason": "request_conflict"
+          },
+          {
+            "variant": {
+              "p_text": "A6 원문 "
+            },
+            "ok": true,
+            "replayed": true
+          },
+          {
+            "variant": {
+              "p_text": "A6 원문​"
+            },
+            "ok": true,
+            "replayed": true
+          }
+        ],
+        "rows": {
+          "approvals": 1,
+          "deliveries": 2,
+          "realtime_rows": 2
+        },
+        "concurrent": [
+          "approved",
+          "request_conflict"
+        ],
+        "rowsConcurrent": {
+          "approvals": 1,
+          "deliveries": 2,
+          "realtime_rows": 2
+        }
+      },
+      "expected": "different canonical body -> request_conflict with no rows; canonically identical body -> replay"
+    },
+    {
+      "id": "A8",
+      "title": "중복 재조회 시 발행 행 증가 여부",
+      "verdict": "PASS",
+      "level": "real PostgREST + PostgreSQL + Realtime",
+      "observed": {
+        "retries": 20,
+        "lookups": 20,
+        "rowsBefore": {
+          "approvals": 1,
+          "deliveries": 2,
+          "realtime_rows": 2
+        },
+        "rowsAfter": {
+          "approvals": 1,
+          "deliveries": 2,
+          "realtime_rows": 2
+        },
+        "received": [
+          1,
+          1
+        ]
+      },
+      "expected": "rows unchanged, one delivery per recipient"
+    },
+    {
+      "id": "A7",
+      "title": "승인 기록과 발행 행의 일치 여부(전수 대조)",
+      "verdict": "PASS",
+      "level": "real PostgreSQL",
+      "observed": {
+        "approvals": 12,
+        "count_mismatch": 0,
+        "deliveries": 24,
+        "delivery_without_realtime_row": 2,
+        "payload_or_topic_mismatch": 0,
+        "realtime_rows_without_delivery": 0
+      },
+      "note": "delivery_without_realtime_row > 0 is expected ONLY from the A3 realtime.send fault run (that run is the FAIL evidence).",
+      "expected": "every approval has recipient_count delivery rows; every delivery row's realtime row carries the identical envelope and topic; no orphan realtime rows"
+    }
+  ]
+}

@@ -1,0 +1,299 @@
+{
+  "suite": "B-concurrency",
+  "ranAt": "2026-10-14T01:53:38.674Z",
+  "results": [
+    {
+      "id": "B1a",
+      "title": "수신자가 발신자 차단 — 발행 잠금 대기 중 차단 확정",
+      "verdict": "PASS",
+      "level": "real PostgreSQL (2 backends) + real Realtime",
+      "observed": {
+        "publisherWaitEvent": "advisory",
+        "publish": {
+          "ok": true,
+          "recipientCount": 1,
+          "ms": 320
+        },
+        "receivedBlockedSide": 0,
+        "receivedOther": 1
+      },
+      "expected": "publisher waits on the shared pair lock, re-reads after the block commits, and does not publish to the blocked pair"
+    },
+    {
+      "id": "B1b",
+      "title": "수신자가 발신자 차단 — 발행이 잠금 선점 시 차단 대기",
+      "verdict": "PASS",
+      "level": "real PostgreSQL (2 backends) + real Realtime",
+      "observed": {
+        "blockWaitEvent": "advisory",
+        "blockWaitedMs": 911,
+        "publishCommit": "2026-10-14T01:53:05.317Z",
+        "blockCommit": "2026-10-14T01:53:05.319Z",
+        "received": [
+          1,
+          1
+        ]
+      },
+      "expected": "existing block_world_user (exclusive pair lock) waits for the in-flight publish; publish commit precedes block commit"
+    },
+    {
+      "id": "B2a",
+      "title": "발신자가 수신자 차단 — 발행 잠금 대기 중 차단 확정",
+      "verdict": "PASS",
+      "level": "real PostgreSQL (2 backends) + real Realtime",
+      "observed": {
+        "publisherWaitEvent": "advisory",
+        "publish": {
+          "ok": true,
+          "recipientCount": 1,
+          "ms": 329
+        },
+        "receivedBlockedSide": 0,
+        "receivedOther": 1
+      },
+      "expected": "publisher waits on the shared pair lock, re-reads after the block commits, and does not publish to the blocked pair"
+    },
+    {
+      "id": "B2b",
+      "title": "발신자가 수신자 차단 — 발행이 잠금 선점 시 차단 대기",
+      "verdict": "PASS",
+      "level": "real PostgreSQL (2 backends) + real Realtime",
+      "observed": {
+        "blockWaitEvent": "advisory",
+        "blockWaitedMs": 908,
+        "publishCommit": "2026-10-14T01:53:10.684Z",
+        "blockCommit": "2026-10-14T01:53:10.686Z",
+        "received": [
+          1,
+          1
+        ]
+      },
+      "expected": "existing block_world_user (exclusive pair lock) waits for the in-flight publish; publish commit precedes block commit"
+    },
+    {
+      "id": "B3-existing",
+      "title": "운영자 제재(기존 admin_review RPC) — 제재 확정 후 발행 커밋 여부",
+      "verdict": "FAIL",
+      "level": "real PostgreSQL (2 backends) + real Realtime",
+      "observed": {
+        "sanctionRpcWaitedMs": 4,
+        "sanctionCommit": "2026-10-14T01:53:13.409Z",
+        "publishCommit": "2026-10-14T01:53:14.514Z",
+        "publishOk": true,
+        "received": [
+          1,
+          1
+        ]
+      },
+      "note": "The existing moderation RPC locks only the report row, so it never waits for an in-flight publish: a message checked before the sanction commits AFTER the sanction is confirmed and is delivered.",
+      "expected": "no publication from the sanctioned sender commits after the sanction commit"
+    },
+    {
+      "id": "B3-locked",
+      "title": "운영자 제재 — 권한 잠금 공유 시(lab wrapper)",
+      "verdict": "PASS",
+      "level": "real PostgreSQL (2 backends) + real Realtime",
+      "observed": {
+        "sanctionFirst": {
+          "publisherWaitEvent": "advisory",
+          "publish": {
+            "ok": false,
+            "reason": "denied"
+          },
+          "received": [
+            0,
+            0
+          ]
+        },
+        "publishFirst": {
+          "sanctionWaitEvent": "advisory",
+          "publishCommit": "2026-10-14T01:53:17.568Z",
+          "sanctionCommit": "2026-10-14T01:53:17.570Z"
+        }
+      },
+      "expected": "with a shared authority lock the two orders serialise: denied after a confirmed sanction, or published strictly before it"
+    },
+    {
+      "id": "B3-recipient",
+      "title": "운영자 제재(수신자) — 잠금 대기 후 제외",
+      "verdict": "PASS",
+      "level": "real PostgreSQL + real Realtime",
+      "observed": {
+        "publisherWaitEvent": "advisory",
+        "recipientCount": 1,
+        "receivedSanctioned": 0,
+        "receivedOther": 1
+      },
+      "expected": "sanctioned recipient receives nothing"
+    },
+    {
+      "id": "B4",
+      "title": "제재 해제 — 공유 잠금 계약 여부",
+      "verdict": "BLOCKED",
+      "level": "real PostgreSQL",
+      "observed": {
+        "whileRestricted": {
+          "ok": false,
+          "reason": "denied"
+        },
+        "liftPath": "no lift RPC exists in main/PR #353; lab used a direct UPDATE of ends_at",
+        "publisherWaitedOnLift": null,
+        "publishAfterLift": {
+          "ok": false,
+          "reason": "denied"
+        }
+      },
+      "note": "No sanction-lift RPC exists, so no lock contract can be bound to it. The direct-UPDATE path does not share the authority lock (publisher did not wait); the consequence of this race is a false DENY only, never an unauthorised publish.",
+      "expected": "a lift RPC that takes the target authority lock exclusively"
+    },
+    {
+      "id": "B5",
+      "title": "generation 변경 — 이전 토픽 신규 발행 금지",
+      "verdict": "PASS",
+      "level": "real PostgreSQL (2 backends) + real Realtime (old subscriptions kept open)",
+      "observed": {
+        "a": {
+          "waitEvent": "transactionid",
+          "recipientCount": 1,
+          "rowsOldTopic": 0,
+          "rowsNewTopic": 0,
+          "receivedOldSubscription": 0
+        },
+        "b": {
+          "waitEvent": "transactionid",
+          "recipientCount": 1,
+          "rowsOldTopic": 0,
+          "rowsNewTopic": 1,
+          "receivedOldSubscription": 0
+        },
+        "c": {
+          "waitEvent": "transactionid",
+          "publish": {
+            "ok": false,
+            "reason": "denied"
+          },
+          "senderNewGeneration": 2
+        }
+      },
+      "expected": "after a committed generation change nothing is written to, or delivered on, the previous topic; a stale sender generation is denied"
+    },
+    {
+      "id": "B6-clock",
+      "title": "lease 만료 — 잠금 대기 중 만료 (재검사 시각=clock_timestamp())",
+      "verdict": "PASS",
+      "level": "real PostgreSQL + real Realtime",
+      "observed": {
+        "waitEvent": "transactionid",
+        "publish": {
+          "ok": true,
+          "recipientCount": 1
+        },
+        "deliveryRowsToExpiredLease": 0,
+        "receivedByExpiredSubscriber": 0
+      },
+      "expected": "no publication to a lease that expired before the post-wait re-check"
+    },
+    {
+      "id": "B6-txn",
+      "title": "lease 만료 — 잠금 대기 중 만료 (재검사 시각=now() 부정 대조군)",
+      "verdict": "FAIL",
+      "level": "real PostgreSQL + real Realtime",
+      "observed": {
+        "waitEvent": "transactionid",
+        "publish": {
+          "ok": true,
+          "recipientCount": 2
+        },
+        "deliveryRowsToExpiredLease": 1,
+        "receivedByExpiredSubscriber": 1
+      },
+      "note": "Negative control: re-checking with transaction-start now() publishes to a lease that expired during the wait — proves the clock_timestamp() requirement.",
+      "expected": "no publication to a lease that expired before the post-wait re-check"
+    },
+    {
+      "id": "B7",
+      "title": "세션 종료 — 잠금 대기 중 종료 확정",
+      "verdict": "PASS",
+      "level": "real PostgreSQL + real Realtime",
+      "observed": {
+        "recipientLeave": {
+          "waitEvent": "transactionid",
+          "recipientCount": 1,
+          "receivedByEnded": 0
+        },
+        "senderLeave": {
+          "waitEvent": "transactionid",
+          "publish": {
+            "ok": false,
+            "reason": "denied"
+          }
+        }
+      },
+      "expected": "ended recipient excluded; ended sender denied"
+    },
+    {
+      "id": "B8",
+      "title": "교착상태·경쟁 조건(무작위 연산 · 16 동시 연결)",
+      "verdict": "PASS",
+      "level": "real PostgreSQL (16 concurrent backends)",
+      "observed": {
+        "ops": 2000,
+        "committed": {
+          "renew": 223,
+          "sanction": 213,
+          "move": 193,
+          "send": 899,
+          "block": 8,
+          "unblock": 5
+        },
+        "expectedDomainRefusals": 459,
+        "unexpectedErrors": [],
+        "deadlocks": 0,
+        "elapsedMs": 2026,
+        "blockOrderViolations": 0,
+        "sanctionOrderViolations": 0
+      },
+      "note": "Sanction in B8 uses the lab authority lock (contract candidate). Invariants use pg_xact_commit_timestamp (track_commit_timestamp=on in the isolated DB). Blocks removed by unblock are not visible to invariant 1.",
+      "expected": "zero deadlocks and zero ordering violations"
+    },
+    {
+      "id": "B9",
+      "title": "기존 변경 RPC의 잠금 계약 정적 점검",
+      "verdict": "FAIL",
+      "level": "catalog inspection (real PostgreSQL)",
+      "observed": {
+        "rpcs": [
+          {
+            "fn": "admin_review_world_user_report_v1(bigint,text)",
+            "pair_lock": false,
+            "authority_lock": false
+          },
+          {
+            "fn": "block_world_user(uuid)",
+            "pair_lock": true,
+            "authority_lock": false
+          },
+          {
+            "fn": "report_world_user(uuid,text,text)",
+            "pair_lock": false,
+            "authority_lock": false
+          },
+          {
+            "fn": "review_world_user_report_ops_v1(text,bigint,text)",
+            "pair_lock": false,
+            "authority_lock": false
+          },
+          {
+            "fn": "unblock_world_user(uuid)",
+            "pair_lock": true,
+            "authority_lock": false
+          }
+        ],
+        "banSetterFunctions": 0,
+        "sanctionLiftFunctions": 0
+      },
+      "note": "block/unblock use world_lock_pair (compatible with the publisher's shared pair lock). Sanction RPCs lock only the report row; ban and sanction-lift have no RPC at all. Shared-lock contract is therefore NOT satisfied by existing moderation paths.",
+      "expected": "every authority mutation takes the same lock the publisher shares"
+    }
+  ]
+}
