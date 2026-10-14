@@ -28,6 +28,8 @@ function preferredTrack(quests) {
 export function createQuestRuntime() {
   let listeners = new Set();
   let trackedQuestId = null;
+  let sideQuests = new Map();
+  let lastLegacy = null;
   let snapshot = frozenSnapshot({ signedIn: false, loading: false, quests: [], trackedQuestId: null });
 
   const publish = () => {
@@ -35,13 +37,15 @@ export function createQuestRuntime() {
   };
 
   const update = (legacy = null) => {
+    lastLegacy = legacy;
     const main1 = legacy?.quest ?? null;
     const main2 = legacy?.main2Quest ?? null;
-    const signedIn = main1?.signedIn === true || main2?.signedIn === true;
-    const loading = signedIn && !(
+    const legacySignedIn = main1?.signedIn === true || main2?.signedIn === true;
+    const signedIn = legacySignedIn || sideQuests.size > 0;
+    const loading = legacySignedIn && !(
       main1?.ready === true || main2?.ready === true
     );
-    const quests = [];
+    const quests = [...sideQuests.values()];
 
     if (main1?.signedIn === true && main1?.ready === true) {
       quests.push(adaptMain1QuestStatus({
@@ -100,6 +104,13 @@ export function createQuestRuntime() {
 
   return {
     update,
+    setSideQuest(questId, quest = null) {
+      if (typeof questId !== 'string' || (quest && (quest.questId !== questId || quest.type !== QUEST_TYPE.SIDE))) return false;
+      if (quest) sideQuests.set(questId, quest);
+      else sideQuests.delete(questId);
+      update(lastLegacy);
+      return true;
+    },
     setTrackedQuestId,
     get snapshot() { return snapshot; },
     get trackedQuestId() { return trackedQuestId; },
@@ -115,6 +126,8 @@ export function createQuestRuntime() {
     },
     reset() {
       trackedQuestId = null;
+      sideQuests.clear();
+      lastLegacy = null;
       snapshot = frozenSnapshot({ signedIn: false, loading: false, quests: [], trackedQuestId: null });
       publish();
     }

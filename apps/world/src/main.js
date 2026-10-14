@@ -174,6 +174,7 @@ import { createShopPanel } from "./shop/shop-panel.js";
 import { createShopFurnitureHandoff } from "./shop/shop-furniture-handoff.js";
 import { createWalletClient } from "./wallet/wallet-client.js";
 import { createJeongseokFeature } from "./jeongseok/jeongseok-feature.js";
+import { createJeongseokBookQuest, JSL_BOOK_QUEST_ID } from "./jeongseok/book-quest.js";
 import { createInventoryClient } from "./inventory/inventory-client.js";
 import { createCollectionBookClient } from "./collection/collection-book-client.js";
 import { createInventoryAcquisitionClient } from "./inventory/inventory-acquisition-client.js";
@@ -3180,6 +3181,14 @@ const jeongseok = createJeongseokFeature({
   onEnter: snapshot => jeongseokInterior.enterFromServerGrant(snapshot, { mounted: controller.mounted }),
   getPhone: () => smartphone, storage: () => { try { return window.localStorage; } catch { return null; } }
 });
+const jeongseokBookQuest = createJeongseokBookQuest({
+  getClient: () => online?.supabase ?? null,
+  getContext: () => ({ space: rooms.currentSpace, position: player.getLocalPosition(),
+    grounded: controller.grounded, mounted: controller.mounted, busy: rooms.status().busy }),
+  inputFocus, onProgress: quest => questRuntime.setSideQuest(JSL_BOOK_QUEST_ID, quest)
+});
+rooms.onChange(status => { if (status.roomId !== 'ROOM_JEONGSEOK_LOBBY') jeongseokBookQuest.close(); });
+window.addEventListener('pagehide', event => { if (!event.persisted) jeongseokBookQuest.destroy(); });
 jeongseok.access.onChange(change => {
   // A paid pass moved coins on the server: re-read the Wallet authority, never subtract locally.
   if (change.reason === "purchase" && change.lastPurchase) void wallet.refresh("jeongseok-pass");
@@ -3777,6 +3786,8 @@ app.on("update", (dt) => {
   contextActions.set("jeongseok-guide", inBiryong ? null : jeongseok.npcContextAction({
     position: pos, grounded: controller.grounded, mounted: controller.mounted, space: rooms.currentSpace, busy: rooms.status().busy
   }));
+  contextActions.set("jsl-c1-librarian", inBiryong ? null : jeongseokBookQuest.observe("librarian"));
+  contextActions.set("jsl-c1-kiosk", inBiryong ? null : jeongseokBookQuest.observe("kiosk"));
   if (inBiryong) {
     contextActions.set("room-door", null);
     contextActions.set("personal-room-door", null);
@@ -3799,7 +3810,7 @@ app.on("update", (dt) => {
     for (const key of [
       "seat", "room-furniture", "personal-room-environment", "guestbook", "student-center-shop", "student-center-vendors", "dorm-furniture-shop", "backgate-transit", "biryong-station-transit",
       "biryong-npc", "inkyung-duck", "inkyung-fishing", "biryong", "mcm-event", "mcm-minigame", "follow",
-      "room-door", "personal-room-door", "npc", "jeongseok-gate", "jeongseok-guide", "jeongseok-interior"
+      "room-door", "personal-room-door", "npc", "jeongseok-gate", "jeongseok-guide", "jeongseok-interior", "jsl-c1-librarian", "jsl-c1-kiosk"
     ]) contextActions.set(key, null);
     transportActions.set("mount", null);
   }
@@ -3899,6 +3910,7 @@ try {
     void wallet.setAccount(identity ? online?.userId ?? null : null);
     void jeongseok.setAccount(identity ? online?.userId ?? null : null);
     jeongseokInterior.setAccount(identity ? online?.userId ?? null : null);
+    void jeongseokBookQuest.setAccount(identity ? online?.userId ?? null : null);
     collectionBook.setAccount(identity?.userId ?? null);
     void inventory.setAccount(identity ? online?.userId ?? null : null);
     void dailyQuiz.setAccount(identity ? online?.userId ?? null : null);
