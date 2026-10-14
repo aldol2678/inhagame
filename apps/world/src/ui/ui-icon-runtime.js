@@ -34,7 +34,6 @@ export const UI_ICON_TARGETS=Object.freeze([
  ['#hud-menu #open-settings','settings','label'],
  ['#nearby-toggle','friends','label'],
  ['#chat-toggle','chat','label'],
- ['#photo-mode-toggle','camera','label'],
  ['#lobby-open-profile','profile','label'],
  ['#lobby-open-settings','settings','label'],
  ['#lobby-daily-attendance .world-lobby-daily-row-label','attendance','label'],

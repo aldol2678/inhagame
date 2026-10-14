@@ -395,7 +395,7 @@ test('walkway scope extension is exact, branch-bound, and preserves historical h
 });
 
 
-test('one release scope accepts exactly the reviewed diagnostics, walkway and photo repair paths',()=>{
+test('refreshed release scope admits only remaining walkway paths',()=>{
  const runner=read('./browser/hall-library-hosted-smoke.mjs');
  const helper=runner.match(/function hallIntegrationScopePaths\(manifest,extension\) \{[\s\S]*?\n\}/)?.[0];
  const allow=runInNewContext(`(${helper})`,{}, {timeout:1000});
@@ -405,16 +405,13 @@ test('one release scope accepts exactly the reviewed diagnostics, walkway and ph
   'campus-material-profile.js','minimap/minimap-data.js','navigation/campus-navigation.js',
   'north-campus-geometry.js','north-campus-photo-geometry.js','north-walkway-geometry.js',
   'north-walkway-layout.js','north-walkway-surface.js','render-chunk-registry.js','north-landmark-massing.js','north-campus-layout.js',
-  'main.js','diagnostics/build-id.js','diagnostics/diagnostics-panel.js',
-  'diagnostics/runtime-diagnostics-runtime.js','diagnostics/runtime-diagnostics.js',
-  'photo/photo-capture.js','photo/photo-mode-panel.js',
   'campus-road-blockout.js','north-walkway-batching.js','north-walkway-renderer.js'
  ].map(p=>'apps/world/src/'+p).concat([
   'apps/world/data/reality/north-walkway.provenance.json',
   'apps/world/data/reality/north-landmark-restoration.provenance.json'
  ]).sort();
- assert.deepEqual(release,expected);assert.equal(new Set(release).size,23);
- for(const path of ['diagnostics/unreviewed.js','photo/unreviewed.js','campus-facilities.js','campus-render-kit.js','main-hall-blockout.js'])assert.ok(!release.includes('apps/world/src/'+path));
+ assert.deepEqual(release,expected);assert.equal(new Set(release).size,16);
+ for(const path of ['main.js','diagnostics/build-id.js','photo/photo-capture.js','diagnostics/unreviewed.js','photo/unreviewed.js','campus-facilities.js','campus-render-kit.js','main-hall-blockout.js'])assert.ok(!release.includes('apps/world/src/'+path));
  assert.throws(()=>allow(manifest,'release'),/scope/);
  assert.throws(()=>allow(manifest,'release-2026-10-14'),/scope/);
  const workflow=read('../../../.github/workflows/hall-library-candidate-browser.yml');
@@ -429,13 +426,14 @@ test('release branch name cannot bypass exact diff, base, manifest or source anc
  const runner=read('./browser/hall-library-hosted-smoke.mjs');
  const helper=runner.match(/function validateReviewedReleaseScope\(changedPaths,allowed,scopeBase,releaseManifest\) \{[\s\S]*?\n\}/)?.[0];assert.ok(helper);
  const validate=runInNewContext(`(${helper})`,{assert},{timeout:1000});
- const base='bfa08ad78f92fba51eb1a3978dd97a12182fc82c';
+ const base='0dcae7b4825c12e1ec03b6879d3bc0d27f9ad46e';
  const heads=['d436d8f5db161875930db53b7c589c1dab91fc7d','1dcd85d9370b82a32ea29a0992c45618e5a82f5e','912a6d354464e6536029b631a587ab5f64c0ac5c','8f00074c8736a100bd229a1bd29a74e8bfd9698d'];
  const manifest=[base,...heads].map(s=>'`'+s+'`').join(' '),allowed=['reviewed-a','reviewed-b'];
  assert.doesNotThrow(()=>validate(['reviewed-b','reviewed-a'],allowed,base,manifest));
  assert.throws(()=>validate([...allowed,'unreviewed'],allowed,base,manifest),/diff exactly/);
  assert.throws(()=>validate(['reviewed-a'],allowed,base,manifest),/diff exactly/);
  assert.throws(()=>validate(allowed,allowed,'0'.repeat(40),manifest),/immutable base/);
+ assert.throws(()=>validate(allowed,allowed,'bfa08ad78f92fba51eb1a3978dd97a12182fc82c',manifest),/immutable base/);
  for(const sha of [base,...heads])assert.throws(()=>validate(allowed,allowed,base,manifest.replace(sha,'')),/manifest/);
  assert.ok(runner.includes("['merge-base','--is-ancestor',sha,'HEAD']"));
 });

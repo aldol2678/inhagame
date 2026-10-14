@@ -104,6 +104,19 @@ try{
     report.views.push({viewport:name,id:camera.id,photoMatch:camera.grade,...receipt});
     console.log(`${name} ${camera.id}: ${receipt.p50Ms.toFixed(1)}/${receipt.p95Ms.toFixed(1)}ms, ${receipt.drawCalls} draws`);
    }
+   // Supplemental only: after all eight timed views, never used to override
+   // the original raw heap/performance admission. Fresh browser per viewport.
+   let cdp;
+   try{
+    cdp=await smoke.context.newCDPSession(page);
+    const beforeGC=await cdp.send('Runtime.getHeapUsage');
+    const retained=[];
+    for(let i=0;i<3;i++){await cdp.send('HeapProfiler.collectGarbage');retained.push(await cdp.send('Runtime.getHeapUsage'));}
+    const dom=await cdp.send('Memory.getDOMCounters');
+    (report.heapDiagnostics??=[]).push({viewport:name,status:'OBSERVED_NOT_LEAK_PROOF',beforeGC,retained,dom});
+    console.log('heap diagnostic',name,JSON.stringify({beforeGC,retained,dom}));
+   }catch(error){(report.heapDiagnostics??=[]).push({viewport:name,status:'UNKNOWN',error:String(error.message||error)});}
+   finally{if(cdp)await cdp.detach();}
    assert.deepEqual(smoke.problems,[]);
   }finally{await smoke.close();}
  }

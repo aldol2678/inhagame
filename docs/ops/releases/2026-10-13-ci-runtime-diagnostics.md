@@ -61,3 +61,25 @@ Status: CANDIDATE / FINAL EXACT-HEAD CI AND PRODUCTION READBACK PENDING
 - Local geometry/shader-uniform/profile/disposal checks establish structural equivalence only. Actual pixel parity and whether the draw reduction is sufficient for both timing limits remain unverified until the new exact-head hosted gates pass.
 
 - Final combined local validation after the approved photo repair and bounded paving experiment: World 4569/4569, combined policy/hosted/performance/photo contracts 166/166, static QA and whitespace checks PASS. Paving retains all 379 triangles and 1137 vertices, adding 18192 bytes of float32 color data while reducing five meshes to three. Hosted Smartphone/PNG, all 24 pixel-equivalence views and the unchanged performance gate are still required; no remote success is claimed here.
+
+
+## 2026-10-14 repair candidate (not a PASS)
+
+Head4e63d81 failed run38337042790: portrait CAM-C rAF p95 and completedFrameP95, all8 landscape heap budgets, strict pixel equivalence. Preserve those failed raw artifacts.
+Backgate run38337042622 failed preflight before any40 screenshots/20pairs: inherited reality/README.md was compared against historical995364fa instead of actualreleasebasebfa08ad. Its blob is unchanged between releasebase and4e63d81.
+
+- Withdraw production profile-color batching after pixel failure. Production north roads again use5shared per-color FacilityMeshBatch owners. Grouping experiment remains isolated but does not render. No claim of3meshes or runtime optimization.
+- Preserve all379triangles, sourcegeometry, sharedmaterialproducer, camera protocol and performancebudgets.
+- Strict 24view RGBA gate now expects restored5owners and independentlegacy5reference. Add A/A and repeatedB controls, actualproduction/reference/differencePNG buffers, up to100 mismatchcoordinates. Zero differences still required.
+- Raw timing/heap measurements and comparator unchanged. Only afterall8timedviews perviewport, collect supplementalCDP heap beforeGC/threeafterGC observations andDOMcounters. These are diagnostics, not leak proof and never substitute for originalheapadmission; failure to collect isUNKNOWN.
+- Backgate release-onlyscope separates historicalvisualbaseline from actualPRbase; exactreviewedbranch/base16paths/sourceancestry/manifestrequired. Legacy7pathmode and allvisual/controllercriteria preserved.
+- Existing finalperformancefailure is not relabeled noise. Follow the new exacthead reports to decide furtherproductoptimization or measurement-rootcause work. No softeningofthresholds or manualCIrerun.
+- Actualbrowserexecution remains pending. This candidate makes no physicalmobileFPS claim.
+
+### Reviewed integration refresh
+Current reviewed baseline: `0dcae7b4825c12e1ec03b6879d3bc0d27f9ad46e`.
+Main already contains #387 diagnostics/photo/CI fixes, #393 Phone camera/mobile icons, #395 PWA, #396 notifications and #398 independentgrow. Preserve current main.js, campus/index.html and styles.css in full: former candidate hunks are already present there, with additional approved main changes. All other already-identical blobs stay main unchanged.
+Build the integration tree from exact current main; apply only remaining walkway files plus boundedQA repairs, with both previouscandidate4e63d81 and currentmain asparents.
+The live runtime/data admission now has16paths (previous23 minus main.js, fourdiagnosticmodules andtwophotomodules alreadyinmain). Older23path/oldbaseline sectionsabove are historicalevidence, not currentadmission.
+Hall/Backgate/baseline selector and their regression tests bind newimmutablebase and exact16paths. All four originalsourceheads retained in ancestry.
+This changes baseline explicitly because main moved; baseline/candidate use identical current sampler. Do not mix previous absolute times or call them performancegains.

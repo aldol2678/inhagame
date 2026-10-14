@@ -26,21 +26,31 @@ test('float vertex colors use exactly the pinned engine diffuse-uniform transfer
  assert.notEqual(walkwayLinearColor('#808080')[0],128/255);assert.throws(()=>walkwayLinearColor('gray'));
  const source=capture();source.set('#548d99',source.values().next().value);assert.throws(()=>groupWalkwayPavingByProfile(source),/Unreviewed/);
 });
-test('optimized paving stays scoped, opaque and shadow-free with owned resource cleanup',()=>{
+test('production paving restores five shared per-color material owners without profile clones',()=>{
  const renderer=readFileSync(new URL('../src/north-walkway-renderer.js',import.meta.url),'utf8');
- assert.ok(renderer.includes('surface(g.referenceColor).clone()'));
- assert.ok(renderer.includes('mesh.setColors(g.colors,4)'));assert.ok(!renderer.includes('mesh.setColors32('));
- assert.ok(renderer.includes('castShadows:false'));assert.ok(renderer.includes('mesh.destroy();material.destroy()'));
- assert.ok(!/collider|new .*Light|fetch\(/.test(renderer));
+ assert.ok(renderer.includes("fillNorthRoads(new FacilityMeshBatch()).finish(root,'north_campus_roads',{castShadows:false})"));
+ for(const forbidden of ['groupWalkwayPavingByProfile','mesh.setColors','surface(','material.clone','new pc.Mesh'])assert.ok(!renderer.includes(forbidden),forbidden);
  const wiring=readFileSync(new URL('../src/campus-road-blockout.js',import.meta.url),'utf8');assert.ok(wiring.includes('buildNorthWalkwayRoads(root)'));
 });
-
 
 test('added exact-pixel gate runs independently after the unchanged performance comparison',()=>{
  const workflow=readFileSync(new URL('../../../.github/workflows/north-walkway-browser.yml',import.meta.url),'utf8');
  assert.ok(workflow.indexOf('Performance regression gate')<workflow.indexOf('Exact original-versus-batched paving pixel parity'));
  assert.ok(workflow.includes('north-walkway-pixel-parity.mjs test-results/north-walkway/after/report.json'));
  const parity=readFileSync(new URL('./browser/north-walkway-pixel-parity.mjs',import.meta.url),'utf8');
- for(const contract of ['assert.equal(measured.head,head','optimized.length!==3','length!==5','v.changedPixels===0&&v.unstablePixels===0','assert.equal(report.views.length,24)','castShadows:false'])assert.ok(parity.includes(contract),contract);
+ for(const contract of ['assert.equal(measured.head,head','optimized.length!==5','length!==5','v.changedPixels===0&&v.unstablePixels===0','assert.equal(report.views.length,24)','castShadows:false'])assert.ok(parity.includes(contract),contract);
  assert.ok(!parity.includes('continue-on-error'));assert.ok(!workflow.includes('continue-on-error'));
+});
+
+test('pixel evidence retains real A/B/difference captures and A/A plus reversed B/A controls',()=>{
+ const p=readFileSync(new URL('./browser/north-walkway-pixel-parity.mjs',import.meta.url),'utf8');
+ for(const s of ['production:png(before)','reference:png(legacy)','difference:png(delta)','v.controlPixels===0','v.reversePixels===0','coordinates'])assert.ok(p.includes(s),s);
+});
+
+test('heap diagnostics are supplemental after timed views and cannot change comparator budgets',()=>{
+ const smoke=readFileSync(new URL('./browser/north-walkway-smoke.mjs',import.meta.url),'utf8');
+ assert.ok(smoke.indexOf('HeapProfiler.collectGarbage')>smoke.indexOf('report.views.push'));
+ assert.ok(smoke.includes('OBSERVED_NOT_LEAK_PROOF'));
+ const compare=readFileSync(new URL('./browser/north-walkway-compare.mjs',import.meta.url),'utf8');
+ assert.ok(!compare.includes('heapDiagnostics'));assert.ok(compare.includes('heapRatio:1.15'));assert.ok(compare.includes('p95Ratio:1.15,p95SlackMs:2'));
 });

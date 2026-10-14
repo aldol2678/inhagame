@@ -71,7 +71,7 @@ import { createContextActionController } from "./context-action.js";
 import { createRoomPhotoStory } from "./rooms/room-photo-story.js";
 import { createPhotoMode } from "./photo/photo-mode.js";
 import { createPhotoCapture } from "./photo/photo-capture.js";
-import { bindPhotoModeEntry, createPhotoModePanel } from "./photo/photo-mode-panel.js";
+import { createPhotoModePanel } from "./photo/photo-mode-panel.js";
 import { createPhotoCameraController } from "./photo/photo-camera-controller.js";
 import { createPhotoInput } from "./photo/photo-input.js";
 import { overPondWater } from "./landmark-detail-layout.js";
@@ -281,6 +281,9 @@ const biryongVisualLabP0C = ['p0c', 'p0d', 'p0e'].includes(biryongVisualStage);
 const biryongVisualLabP0D = ['p0d', 'p0e'].includes(biryongVisualStage);
 const biryongVisualLabP0E = biryongVisualStage === 'p0e';
 let lastTrackedZone = null;
+// Zone-boundary oscillation (A→B→A…) burned the 120 events/hour session cap; resend a zone at most every 10s.
+const ZONE_ENTER_RESEND_MS = 10000;
+const zoneEnterSentAt = new Map();
 
 async function boot() {
 globalThis.__INHA_WORLD_BOOT_DIAGNOSTICS__?.markBootEntered?.();
@@ -1937,10 +1940,9 @@ const photoModePanel = createPhotoModePanel({ mode: photoMode, rig: photoCamera,
   },
   getAlbumLatest: () => smartphone?.latestPhoto() ?? null,
   onOpenAlbum: record => smartphone?.openAlbum(record) === true });
-const photoModeEntry = bindPhotoModeEntry({ button: document.getElementById("photo-mode-toggle"), mode: photoMode });
 window.addEventListener("pagehide", event => {
   photoMode.close("lifecycle");
-  if (!event.persisted) { photoModeEntry.destroy(); photoModePanel.destroy(); photoInput.destroy(); photoMode.destroy(); }
+  if (!event.persisted) { photoModePanel.destroy(); photoInput.destroy(); photoMode.destroy(); }
 });
 // Single input authority: migrated owners resolve WORLD_ACTION through InputFocusManager.
 const worldActionsSuspended = () => !inputFocus.can("WORLD_ACTION");
@@ -3235,6 +3237,7 @@ smartphone = createSmartphone({
   settingsElement: document.getElementById("view-settings"),
   dailyQuizElement: document.getElementById("daily-quiz-panel"), attendanceElement: document.getElementById("attendance-panel"),
   getDailyQuizPanel: () => dailyQuizPanel, getAttendancePanel: () => attendancePanel,
+  getDailyQuiz: () => dailyQuiz, getAttendance: () => attendance,
   onWarning: showWorldStatus, jeongseok
 });
 // Controller's existing destination handler runs first; Phone returns to World only on a solved route.
@@ -3529,6 +3532,9 @@ places.onPlaceZoneChanged((previous,next)=>{
   const legacy=legacyTelemetryTarget(next);
   if(!npcTestMode&&legacy&&legacy!==lastTrackedZone){
     lastTrackedZone=legacy;
+    const nowMs=Date.now();
+    if(nowMs-(zoneEnterSentAt.get(legacy)??-Infinity)<ZONE_ENTER_RESEND_MS) return;
+    zoneEnterSentAt.set(legacy,nowMs);
     window.InhaHubTelemetry?.track('campus_zone_enter','campus',legacy);
   }
 });
@@ -3797,7 +3803,6 @@ app.on("update", (dt) => {
     ]) contextActions.set(key, null);
     transportActions.set("mount", null);
   }
-  photoModeEntry.refresh();
   const suspended = worldActionsSuspended();
   contextActions.setSuspended(suspended);
   transportActions.setSuspended(suspended);

@@ -39,7 +39,7 @@ async function photoCase(smoke,entry,kind,mobile){let page=await boot(smoke,entr
   assert.equal(await setupMount(page,kind),true,`${kind} real boarding`);await frames(page,3);
   if(kind==='air'){await move(page,'Space',20);assert.equal(await page.evaluate(()=>window.__INHAGAME_P0__.controller.grounded),false);}
   const at=await snapshot(page);await move(page,'KeyW',8);const moving=await snapshot(page);assert.ok(Math.hypot(...moving.position.map((n,i)=>n-at.position[i]))>.001,`${kind} moves before photo`);
-  const phoneOrigin=kind==='water';if(phoneOrigin){await page.locator('#phone-toggle').click();await page.locator('.smartphone-app[data-app-id="camera"]').click();}else{await page.locator('#photo-mode-toggle').click();}
+  const phoneOrigin=kind==='water';if(phoneOrigin){await page.locator('#phone-toggle').click();await page.locator('.smartphone-app[data-app-id="camera"]').click();}else{await page.locator('#application').focus();await page.keyboard.press('p');}
   await page.waitForFunction(()=>window.__INHAGAME_P0__.photoMode.active);const opened=await snapshot(page),saved=opened.rig;
   assert.equal(opened.held,true);assert.equal(opened.input,false);assert.equal(opened.orbitInput,false);assert.deepEqual(opened.focus.topOwners,['photo-mode']);
   await frames(page,10);const holding=await snapshot(page);assert.deepEqual(holding.position,opened.position,`${kind} exact stationary hold including altitude`);

@@ -31,13 +31,13 @@ test('comparison rejects missing or duplicate views, mismatched protocols and lo
 import {selectWalkwayBaseline, STANDALONE_BASELINE, REVIEWED_RELEASE_BRANCH, REVIEWED_RELEASE_BASE} from './browser/north-walkway-baseline.mjs';
 test('standalone walkway retains its original immutable performance baseline',()=>{
  assert.equal(STANDALONE_BASELINE,'2b9a09615f7986e3d5e5b93d731fba21f33afbdd');
- assert.equal(REVIEWED_RELEASE_BASE,'bfa08ad78f92fba51eb1a3978dd97a12182fc82c');
+ assert.equal(REVIEWED_RELEASE_BASE,'0dcae7b4825c12e1ec03b6879d3bc0d27f9ad46e');
  assert.equal(selectWalkwayBaseline({headRef:'feat/60th-five-walkway-20261012',baseSha:REVIEWED_RELEASE_BASE}),STANDALONE_BASELINE);
  assert.equal(selectWalkwayBaseline(),STANDALONE_BASELINE);
 });
 test('only the reviewed release and exact main base select the release comparison',()=>{
  assert.equal(selectWalkwayBaseline({headRef:REVIEWED_RELEASE_BRANCH,baseSha:REVIEWED_RELEASE_BASE}),REVIEWED_RELEASE_BASE);
- for(const baseSha of ['',STANDALONE_BASELINE,'0'.repeat(40),REVIEWED_RELEASE_BASE.slice(0,7)])assert.throws(()=>selectWalkwayBaseline({headRef:REVIEWED_RELEASE_BRANCH,baseSha}),/fail closed/);
+ for(const baseSha of ['','bfa08ad78f92fba51eb1a3978dd97a12182fc82c',STANDALONE_BASELINE,'0'.repeat(40),REVIEWED_RELEASE_BASE.slice(0,7)])assert.throws(()=>selectWalkwayBaseline({headRef:REVIEWED_RELEASE_BRANCH,baseSha}),/fail closed/);
  for(const headRef of ['release/other','release/2026-10-13-ci-runtime-diagnostics-extra'])assert.throws(()=>selectWalkwayBaseline({headRef,baseSha:REVIEWED_RELEASE_BASE}),/fail closed/);
 });
 test('workflow samples the selected immutable baseline and triggers for selector changes',()=>{

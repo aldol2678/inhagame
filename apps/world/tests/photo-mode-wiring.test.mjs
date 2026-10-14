@@ -6,12 +6,17 @@ const css = await readFile(new URL('../styles.css', import.meta.url), 'utf8');
 const html = await readFile(new URL('../campus/index.html', import.meta.url), 'utf8');
 const update = main.slice(main.indexOf('app.on("update", (dt) => {\n  syncAudio();'));
 
-test('main wires one global HUD entry, never a place-bound context action', () => {
-  assert.match(main, /bindPhotoModeEntry\(\{ button: document\.getElementById\("photo-mode-toggle"\), mode: photoMode \}\)/);
+test('HUD camera is removed while Phone camera and P shortcut remain', async () => {
+  const phone = await readFile(new URL('../src/phone/smartphone.js', import.meta.url), 'utf8');
+  const input = await readFile(new URL('../src/photo/photo-input.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(main, /bindPhotoModeEntry|photoModeEntry|photo-mode-toggle/);
   assert.doesNotMatch(main, /inkyung-photo|photoMode\.contextAction/);
-  assert.match(update, /photoModeEntry\.refresh\(\);/);
-  assert.match(html, /<div class="social-cluster"[^>]*>[\s\S]*?<button id="photo-mode-toggle" type="button" aria-label="사진 모드 열기 \(P\)" aria-keyshortcuts="P"[^>]*>📷<span>사진<\/span><\/button>\s*<\/div>/);
+  assert.doesNotMatch(html, /id="photo-mode-toggle"/);
+  assert.match(html, /id="nearby-toggle"[\s\S]*id="emote-toggle"[\s\S]*id="chat-toggle"/);
   assert.match(html, /<kbd>P<\/kbd><\/span><strong>사진 모드<\/strong>/);
+  assert.match(phone, /id:'camera',name:'카메라'/);
+  assert.match(phone, /if\(id==='camera'\)/);
+  assert.match(input, /open: 'KeyP'/);
 });
 
 test('one camera-transform owner per frame: the photo rig replaces the orbit and every scripted override', () => {
@@ -39,7 +44,7 @@ test('the rig reuses the gameplay camera collision authority and the existing ex
   assert.match(main, /region: biryongRealm\?\.inBiryong === true \? "biryong" : "campus"/);
   assert.match(main, /getMouseLook: \(\) => \(\{ sensitivity: orbit\.mouseSensitivity, invertY: orbit\.invertMouseY \}\)/);
   assert.match(main, /online\.onIdentity\(\(identity\) => \{\s*photoMode\.close\("lifecycle"\)/);
-  assert.match(main, /photoModeEntry\.destroy\(\); photoModePanel\.destroy\(\); photoInput\.destroy\(\); photoMode\.destroy\(\);/);
+  assert.match(main, /photoModePanel\.destroy\(\); photoInput\.destroy\(\); photoMode\.destroy\(\);/);
 });
 
 test('photo export uses the existing app canvas and the panel owns its capture lifecycle', async () => {
@@ -71,7 +76,7 @@ test('photo CSS keeps the frame clear: HUD hidden in place, edge-anchored contro
   for (const selector of ['.photo-mode-icon', '.photo-mode-restore', '.photo-mode-side', '.photo-mode-lift'])
     assert.ok(css.includes(selector), `${selector} styled`);
   assert.match(css, /\.photo-mode-icon, \.photo-mode-restore, \.photo-mode-side, \.photo-mode-lift \{\s*width: 44px; height: 44px;/, '44px minimum targets');
-  assert.match(css, /\.social-cluster #photo-mode-toggle,\n\.social-cluster #nearby-toggle,/);
+  assert.match(css, /\.social-cluster > button > span:not\(\.world-ui-icon\) \{\s*display: none;\s*\}/);
 });
 
 test('campus canvas is a programmatic focus-return anchor without an extra Tab stop', () => {

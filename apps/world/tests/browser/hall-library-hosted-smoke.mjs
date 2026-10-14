@@ -162,18 +162,11 @@ function hallIntegrationScopePaths(manifest,extension) {
     'north-walkway-layout.js','north-walkway-surface.js','render-chunk-registry.js','north-landmark-massing.js','north-campus-layout.js'
   ];
   // This one release admits only the exact runtime/data paths reviewed in
-  // #340, #365 and the explicitly approved photo-save repair. No broad exemption.
+  // #365 remaining after diagnostics/photo shipped in main. No broad exemption.
   if(extension==='release-2026-10-13')return [
     ...walkway.map(p=>'apps/world/src/'+p),
     'apps/world/data/reality/north-walkway.provenance.json',
     'apps/world/data/reality/north-landmark-restoration.provenance.json',
-    'apps/world/src/main.js',
-    'apps/world/src/diagnostics/build-id.js',
-    'apps/world/src/diagnostics/diagnostics-panel.js',
-    'apps/world/src/diagnostics/runtime-diagnostics-runtime.js',
-    'apps/world/src/diagnostics/runtime-diagnostics.js',
-    'apps/world/src/photo/photo-capture.js',
-    'apps/world/src/photo/photo-mode-panel.js',
     'apps/world/src/campus-road-blockout.js',
     'apps/world/src/north-walkway-batching.js',
     'apps/world/src/north-walkway-renderer.js'
@@ -184,7 +177,7 @@ function hallIntegrationScopePaths(manifest,extension) {
     ...(extension==='walkway'?[...walkway.map(p=>'apps/world/src/'+p),'apps/world/data/reality/north-walkway.provenance.json','apps/world/data/reality/north-landmark-restoration.provenance.json']:[])];
 }
 function validateReviewedReleaseScope(changedPaths,allowed,scopeBase,releaseManifest) {
-  assert.equal(scopeBase,'bfa08ad78f92fba51eb1a3978dd97a12182fc82c','release scope uses its reviewed immutable base');
+  assert.equal(scopeBase,'0dcae7b4825c12e1ec03b6879d3bc0d27f9ad46e','release scope uses its reviewed immutable base');
   assert.deepEqual([...changedPaths].sort(),[...allowed].sort(),'release runtime/data diff exactly matches its reviewed paths');
   for(const sha of [scopeBase,'d436d8f5db161875930db53b7c589c1dab91fc7d','1dcd85d9370b82a32ea29a0992c45618e5a82f5e','912a6d354464e6536029b631a587ab5f64c0ac5c','8f00074c8736a100bd229a1bd29a74e8bfd9698d']){
     assert.ok(releaseManifest.includes('`'+sha+'`'),'release manifest records exact reviewed source '+sha);
