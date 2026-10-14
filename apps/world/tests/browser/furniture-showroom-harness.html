@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Furniture showroom · exact production panel and renderer</title>
+<script type="importmap">{"imports":{"playcanvas":"https://cdn.jsdelivr.net/npm/playcanvas@2.22.4/build/playcanvas.mjs"}}</script>
+<link rel="stylesheet" href="/styles.css">
+<style>
+body{margin:0;background:#21354a;color:#e7f5ff;font:14px system-ui,sans-serif}
+#qa-open{position:fixed;top:6px;left:6px;z-index:110;min-height:44px;padding:8px}
+#shop{z-index:110}
+</style>
+</head>
+<body>
+<button id="qa-open">생활관 가구점 열기</button>
+<section id="shop" class="profile-panel shop-panel" role="dialog" aria-modal="true" aria-labelledby="shop-panel-title" hidden></section>
+<script type="module">
+import {createShopClient,SHOP_READ_RPC,SHOP_PURCHASE_RPC} from '/src/shop/shop-client.js';
+import {createShopPanel} from '/src/shop/shop-panel.js';
+const DORM='shop.dorm_furniture';
+const specs=[
+ ['furniture.induck_cushion',220,1,true],
+ ['furniture.dorm_desk_lamp',280,2,false],
+ ['furniture.campus_rug_blue',360,3,true],
+ ['furniture.induck_chair',420,3,true],
+ ['furniture.mini_induck',650,5,true],
+ ['furniture.campus_map_poster',280,2,true],
+ ['furniture.study_books_set',120,1,true],
+ ['furniture.dorm_single_sofa',480,1,true]
+];
+const offer=([itemId,price,requiredLevel,purchasable])=>({
+ listingId:'qa.'+itemId, itemId, price, requiredLevel, purchasable,
+ unavailableReason:purchasable?null:'LEVEL_REQUIRED',
+ currencyId:'currency.induck_coin', quantity:1, purchaseLimit:null,
+ status:'ACTIVE', startAt:null, endAt:null
+});
+const offers=specs.map(offer);
+const calls=[],notices=[];
+const previews=[];
+let balance=4000,account='qa-account-A';
+const client={rpc(name,args){
+ calls.push({name,args});
+ if(name===SHOP_READ_RPC)return Promise.resolve({data:{
+   shopId:DORM,displayName:'생활관 가구점',status:'ACTIVE',playerLevel:3,offers
+ },error:null});
+ if(name===SHOP_PURCHASE_RPC)return Promise.resolve({data:{status:'SUCCESS'},error:null});
+ throw Error('Unexpected QA RPC: '+name);
+}};
+const shop=createShopClient({getClient:()=>client,shopId:DORM,createKey:()=>`qa:purchase-${calls.length}`});
+shop.select=id=>id===DORM;
+shop.setAccount(account);
+const panel=createShopPanel({panel:document.getElementById('shop'),shop,onStatus:s=>notices.push(s),
+ async createPreview(canvas){
+   const {createFurnitureShopPreview}=await import('/src/shop/furniture-shop-preview.js');
+   const engine=await createFurnitureShopPreview(canvas);
+   const gl=canvas.getContext('webgl2'),debug=gl?.getExtension('WEBGL_debug_renderer_info');
+   const record={captures:[],disposed:false,status:()=>engine.visualStatus(),
+     renderer:debug?gl.getParameter(debug.UNMASKED_RENDERER_WEBGL):gl?.getParameter(gl.RENDERER)};
+   previews.push(record);
+   return {show:(...args)=>engine.show(...args),async capture(id){
+     const result=await engine.capture(id);
+     record.captures.push({id,...result});return result;
+   },dispose(){engine.dispose();record.disposed=true;}};
+ }});
+document.getElementById('qa-open').onclick=()=>panel.setOpen(true);
+window.__FURNITURE_SHOWROOM_QA__={
+ ready:true,shop,panel,calls,notices,offers,previews,
+ open:()=>panel.setOpen(true),
+ buyCount:()=>calls.filter(c=>c.name===SHOP_PURCHASE_RPC).length,
+ async resetAccount(id='qa-account-B'){account=id;shop.setAccount(account);await shop.refresh('qa-account');},
+ status:()=>({state:shop.state,shopId:shop.shopId,open:panel.open,offerCount:shop.snapshot?.offers.length,
+  purchaseCount:calls.filter(c=>c.name===SHOP_PURCHASE_RPC).length})
+};
+</script>
+</body>
+</html>

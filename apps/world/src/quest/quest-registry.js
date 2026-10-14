@@ -19,6 +19,7 @@ export const QUEST_STATE = Object.freeze({
 export const QUEST_ID_MAIN_FIRST_CAMPUS = 'quest.main.first_campus';
 export const QUEST_ID_MAIN_NAVIGATION_INTRO = 'quest.main.navigation_intro';
 export const QUEST_CAMPAIGN_ONBOARDING = 'campaign.onboarding';
+export const QUEST_ID_JSL_FIRST_BOOK = 'quest.side.jeongseok_first_book';
 
 function freezeDefinition(definition) {
   return Object.freeze({
@@ -75,6 +76,25 @@ const DEFINITIONS = Object.freeze([
       { id: 'visit_back_gate', type: 'VISIT', text: MAIN2_QUEST_OBJECTIVES[8], navigationTarget: 'poi.back-gate' }
     ],
     rewardRefs: ['reward.quest.navigation_intro'],
+    repeatPolicy: 'ONCE'
+  }),
+  freezeDefinition({
+    questId: QUEST_ID_JSL_FIRST_BOOK,
+    legacyProgressId: 'jsl_first_book_search_v1',
+    type: QUEST_TYPE.SIDE,
+    campaignId: 'campaign.jeongseok',
+    sequence: 1,
+    title: '정석의 첫 도서 탐색',
+    description: '가상 사서와 함께 도서 검색을 연습합니다. 실물 도서 소장·대출 정보와는 무관합니다.',
+    tags: ['LIBRARY', 'TUTORIAL'],
+    requirements: [],
+    objectives: [
+      { id: 'jsl_librarian', type: 'TALK', text: '공개 로비에서 가상 사서 만나기' },
+      { id: 'jsl_kiosk', type: 'INTERACT', text: '공개 로비 도서 검색 단말 사용하기' },
+      { id: 'jsl_book', type: 'INTERACT', text: '제인 오스틴의 책 고르기' },
+      { id: 'jsl_report', type: 'TALK', text: '가상 사서에게 검색 결과 보고하기' }
+    ],
+    rewardRefs: [],
     repeatPolicy: 'ONCE'
   })
 ]);

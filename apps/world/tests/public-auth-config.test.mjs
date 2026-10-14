@@ -110,7 +110,7 @@ test('public config route emits only the browser-safe Supabase config from env',
     const res = responseRecorder();
     handler({ method: 'GET' }, res);
     assert.equal(res.statusCode, 200);
-    assert.equal(res.headers['cache-control'], 'public, max-age=60, s-maxage=300, stale-while-revalidate=86400');
+    assert.equal(res.headers['cache-control'], 'public, max-age=60, s-maxage=300, must-revalidate');
     assert.match(res.headers['content-type'], /application\/javascript/);
     assert.match(res.body, /example-project\.supabase\.co/);
     assert.match(res.body, /sb_publishable_example/);
@@ -135,6 +135,34 @@ test('public config route fails closed when production config is unavailable', (
     assert.equal(res.statusCode, 503);
     assert.equal(res.headers['cache-control'], 'no-store, max-age=0');
     assert.match(res.body, /config is unavailable/);
+  } finally {
+    if (beforeUrl === undefined) delete process.env.SUPABASE_URL; else process.env.SUPABASE_URL = beforeUrl;
+    if (beforeKey === undefined) delete process.env.SUPABASE_PUBLISHABLE_KEY; else process.env.SUPABASE_PUBLISHABLE_KEY = beforeKey;
+  }
+});
+
+test('public config revalidation reads current configuration; unsupported methods stay uncacheable', () => {
+  const beforeUrl = process.env.SUPABASE_URL;
+  const beforeKey = process.env.SUPABASE_PUBLISHABLE_KEY;
+  try {
+    process.env.SUPABASE_URL = 'https://example-project.supabase.co';
+    process.env.SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_before_rotation';
+    const handler = require(routePath);
+    const before = responseRecorder();
+    handler({ method: 'GET' }, before);
+    process.env.SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_after_rotation';
+    const after = responseRecorder();
+    handler({ method: 'GET' }, after);
+    assert.match(before.body, /sb_publishable_before_rotation/);
+    assert.match(after.body, /sb_publishable_after_rotation/);
+    assert.doesNotMatch(after.body, /sb_publishable_before_rotation/);
+    assert.equal(after.headers['cache-control'], 'public, max-age=60, s-maxage=300, must-revalidate');
+    const denied = responseRecorder();
+    handler({ method: 'POST' }, denied);
+    assert.equal(denied.statusCode, 405);
+    assert.equal(denied.headers['cache-control'], 'no-store, max-age=0');
+    assert.equal(denied.headers.allow, 'GET');
+    assert.equal(denied.body, '');
   } finally {
     if (beforeUrl === undefined) delete process.env.SUPABASE_URL; else process.env.SUPABASE_URL = beforeUrl;
     if (beforeKey === undefined) delete process.env.SUPABASE_PUBLISHABLE_KEY; else process.env.SUPABASE_PUBLISHABLE_KEY = beforeKey;

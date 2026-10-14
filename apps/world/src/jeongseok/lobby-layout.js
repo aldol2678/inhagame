@@ -81,6 +81,11 @@ const items = [
   ...gate.items,
   item("public_guide_npc", "guide_npc", [-4.5, 0, -4.8], [0.44, 0.95, 0.44],
     GAME_ADAPTATION("fictional game guide beside the public-side gate; not a real employee")),
+  // JSL-C1: two distinct fictional actions in the unrestricted public side. No real staff data.
+  item("public_book_librarian", "guide_npc", [-1.9, 0, -5.8], [0.44, 0.95, 0.44],
+    GAME_ADAPTATION("fictional study helper in public lobby, not a real librarian")),
+  item("search_kiosk_public", "search_kiosk", [4.5, 0, -5.8], [0.55, 0.75, 0.45],
+    GAME_ADAPTATION("public sample book finder, not connected to actual loan data")),
   // Side planters close the gap between the barriers and the walls (no bypass around the lanes).
   item("planter_gate_w", "planter", [-(gate.halfSpan + (8.0 - gate.halfSpan)) - 1.5, 0, -3.2], [3.0, 0.5, 1.1], plantTrace),
   item("planter_gate_e", "planter", [8.0 + 1.5, 0, -3.2], [3.0, 0.5, 1.1], plantTrace),

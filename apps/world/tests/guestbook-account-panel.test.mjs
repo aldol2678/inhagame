@@ -119,17 +119,19 @@ test("production identity callback passes explicit identity even when online.use
   const guestbook = new GuestbookClient({ getSelfUserId: () => getter,
     getClient: () => ({ rpc: async () => { calls.push(true); return { data: board(getter), error: null }; } }) });
   const guestbookPanel = createGuestbookPanel({ panel, guestbook, doc });
-  const collectionAccounts = [], cookingResets = [], trophyResets = [], storyResets = [];
+  const collectionAccounts = [], bookQuestAccounts = [], cookingResets = [], trophyResets = [], storyResets = [], puzzleCloses = [];
   const noop = () => {}, client = { setAccount: noop }, online = { get userId() { return getter; } };
   const source = readFileSync(new URL("../src/main.js", import.meta.url), "utf8");
   const body = source.match(/online\.onIdentity\(\(identity\) => \{([\s\S]*?)\n  \}\);\n  online\.chat\.feed/)?.[1];
   assert.ok(body);
   const context = createContext({ online, photoMode: { close: noop }, guestbookPanel, syncBiryongAccount: noop, progression: client,
     biryongRelationships: client, shop: client, wallet: client, jeongseok: client, jeongseokInterior: client, inventory: client, collectionBook: { setAccount: id => collectionAccounts.push(id) }, dailyQuiz: client,
+    jeongseokBookQuest: { setAccount: id => bookQuestAccounts.push(id) },
     attendance: client, lifeSkillBook: client, fishing: client, loadout: client, inkyungSideEvent: { setScope: noop }, duckCompanion: { refresh: noop, reset: noop },
     lastPersonalRoomUserId: null, roomSession: { stop: noop }, roomFurniture: { reset: noop },
     roomPhotoStory: { reset: () => storyResets.push(true) },
     roomFunctionAccountId: null, cookingFeature: { reset: () => cookingResets.push(true) },
+    inkyungWaterPath: { close: reason => puzzleCloses.push(reason) },
     trophyDisplayPanel: { close: noop }, trophyDisplay: { reset: () => trophyResets.push(true) },
     rooms: { currentSpace: "CAMPUS" }, personalRoom: { reset: noop }, npcAiSignedIn: false,
     mcmEvent: { setSignedIn: noop }, mcmEventPreviewMode: false, npcTest: { setAiSignedIn: noop },
@@ -154,7 +156,10 @@ test("production identity callback passes explicit identity even when online.use
   assert.equal(cookingResets.length, 3, "a duplicate identity event preserves a pending cooking retry ID");
   assert.equal(trophyResets.length, 3, "private displays reset on identity changes but not duplicate events");
   assert.equal(storyResets.length, 3, "guide resets on account changes, not duplicate identity events");
+  assert.deepEqual(puzzleCloses, ['ACCOUNT_CHANGE', 'ACCOUNT_CHANGE', 'ACCOUNT_CHANGE'],
+    "puzzle sessions end on identity changes with a stale getter, not duplicate identity events");
   assert.deepEqual(collectionAccounts, [A, null, B, B], "Collection uses the identity event, not the stale online getter");
+  assert.deepEqual(bookQuestAccounts, [A, null, B, B], "Book quest uses the identity event, not the stale online getter");
   await guestbookPanel.setOpen(true);
   assert.equal(guestbookPanel.data.entries[0].userId, B);
   assert.equal(calls.length, 2);

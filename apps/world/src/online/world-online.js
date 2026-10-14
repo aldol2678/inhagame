@@ -72,6 +72,10 @@ export function startWorldOnline({
     }
   };
   let startEpoch = 0;
+  let lifecycleGeneration = 0;
+  let permanentlyStopped = false;
+  let pageSuspended = false;
+  const isCurrentStart = epoch => !permanentlyStopped && !pageSuspended && epoch === startEpoch;
   let client = null;
   let guestClient = null;
   let memberActivityLastAt = 0;
@@ -166,13 +170,13 @@ export function startWorldOnline({
     }
   }
 
-  async function startFor(user) {
-    const epoch = ++startEpoch;
+  async function startFor(user, epoch) {
+    if (!isCurrentStart(epoch)) return;
     if (!isPermanent(user)) { await startGuest(epoch); return; }
     if (session?.userId === user.id && !session.guest) return;
     stopSession();
     const displayName = await displayNameFor(user.id);
-    if (epoch !== startEpoch) return;
+    if (!isCurrentStart(epoch)) return;
     openSession({ userId: user.id, displayName, guest: false, transportClient: client });
     void touchMemberActivity(true);
     // Exactly what other players see (presence applies the same nickname rule).
@@ -183,6 +187,7 @@ export function startWorldOnline({
   // No permanent account: an anonymous guest session on its own client. A member sign-in later
   // bumps startEpoch and replaces it.
   async function startGuest(epoch) {
+    if (!isCurrentStart(epoch)) return;
     if (!allowGuests) { stopSession(); return; }
     if (session?.guest) return;
     stopSession();
@@ -190,18 +195,20 @@ export function startWorldOnline({
       guestClient ??= supabaseLib ? createGuestClient(supabaseLib) : null;
       if (!guestClient?.auth) return;
       const { data } = await guestClient.auth.getSession();
+      if (!isCurrentStart(epoch)) return;
       let user = data?.session?.user ?? null;
       if (!user?.id) {
-        if (epoch !== startEpoch) return;
+        if (!isCurrentStart(epoch)) return;
         const result = await guestClient.auth.signInAnonymously();
         if (result?.error) throw result.error;
         user = result?.data?.user ?? result?.data?.session?.user ?? null;
       }
-      if (epoch !== startEpoch || !user?.id || session) return;
+      if (!isCurrentStart(epoch) || !user?.id || session) return;
       openSession({ userId: user.id, displayName: null, guest: true, transportClient: guestClient });
       session.net.start();
     } catch (error) {
-      // Anonymous sign-ins disabled or rate limited: stay offline until the next auth event.
+      // Old requests must not publish failures into a newer or terminated session.
+      if (!isCurrentStart(epoch)) return;
       record("guest", error);
     }
   }
@@ -238,10 +245,17 @@ export function startWorldOnline({
   }
 
   async function refreshAuth() {
+    if (permanentlyStopped || pageSuspended || !client?.auth) return;
+    // Capture before the first await. A terminated/older read cannot recreate a session
+    // or stop a newer account's connection in its catch path.
+    const epoch = ++startEpoch;
     try {
-      const { data } = await client.auth.getSession();
-      await startFor(data?.session?.user ?? null);
+      const { data, error } = await client.auth.getSession();
+      if (!isCurrentStart(epoch)) return;
+      if (error) throw error;
+      await startFor(data?.session?.user ?? null, epoch);
     } catch (error) {
+      if (!isCurrentStart(epoch)) return;
       record("auth", error);
       stopSession();
     }
@@ -275,10 +289,20 @@ export function startWorldOnline({
   };
   app.on("update", onUpdate);
 
-  // Best effort only: Presence removes a closed tab by itself when its socket drops.
-  const onPageHide = () => stopSession();
-  // A page restored from the back/forward cache starts a fresh session.
-  const onPageShow = (event) => { if (event?.persisted) void refreshAuth(); };
+  // Suspension invalidates every pending Auth/guest read. BFCache may resume this same instance;
+  // stop() below is permanent and must never allow a later pageshow to resurrect it.
+  const onPageHide = () => {
+    if (permanentlyStopped) return;
+    pageSuspended = true;
+    lifecycleGeneration++;
+    startEpoch++;
+    stopSession();
+  };
+  const onPageShow = (event) => {
+    if (!event?.persisted || permanentlyStopped || !pageSuspended) return;
+    pageSuspended = false;
+    void refreshAuth();
+  };
   windowTarget?.addEventListener?.("pagehide", onPageHide);
   windowTarget?.addEventListener?.("pageshow", onPageShow);
 
@@ -291,8 +315,11 @@ export function startWorldOnline({
   if (client) {
     try {
       const { data } = client.auth.onAuthStateChange((event) => {
+        // A callback scheduled before pagehide/stop must not run after suspension or disposal.
         // Supabase advises not awaiting client calls inside this callback.
+        const scheduledGeneration = lifecycleGeneration;
         setTimeout(() => {
+          if (permanentlyStopped || pageSuspended || scheduledGeneration !== lifecycleGeneration) return;
           if (event === "SIGNED_OUT") { startEpoch += 1; stopSession(); void refreshAuth(); return; }
           if (event === "SIGNED_IN" || event === "INITIAL_SESSION" || event === "USER_UPDATED") void refreshAuth();
         }, 0);
@@ -451,7 +478,11 @@ export function startWorldOnline({
       return () => identityListeners.delete(handler);
     },
     stop() {
-      startEpoch += 1;
+      if (permanentlyStopped) return;
+      permanentlyStopped = true;
+      pageSuspended = true;
+      lifecycleGeneration++;
+      startEpoch++;
       stopSession();
       offPlace?.();
       offAuth?.unsubscribe?.();

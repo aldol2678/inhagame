@@ -82,6 +82,7 @@ import { createCore15FunnelTelemetry } from "./core15-funnel-telemetry.js";
 import { createCampusHudMenu } from "./campus-hud.js";
 import { createKeyboardShortcutsPanel } from "./keyboard-shortcuts-panel.js";
 import { SocialClient } from "./social/social-client.js";
+import { createSocialAccountSession } from "./social/social-account-session.js";
 import { createPlayerCard } from "./social/player-card.js";
 import { createFriendPanel } from "./social/friend-panel.js";
 import { createNearbyPanel } from "./social/nearby-panel.js";
@@ -174,6 +175,7 @@ import { createShopPanel } from "./shop/shop-panel.js";
 import { createShopFurnitureHandoff } from "./shop/shop-furniture-handoff.js";
 import { createWalletClient } from "./wallet/wallet-client.js";
 import { createJeongseokFeature } from "./jeongseok/jeongseok-feature.js";
+import { createJeongseokBookQuest, JSL_BOOK_QUEST_ID } from "./jeongseok/book-quest.js";
 import { createInventoryClient } from "./inventory/inventory-client.js";
 import { createCollectionBookClient } from "./collection/collection-book-client.js";
 import { createInventoryAcquisitionClient } from "./inventory/inventory-acquisition-client.js";
@@ -188,6 +190,8 @@ import { FISHING_CLIENT_STATE, createFishingClient } from "./activity/fishing-cl
 import { createFishingPanel } from "./activity/fishing-panel.js";
 import { createFishingRenderer } from "./activity/fishing-renderer.js";
 import { fishingContextAction, findNearbyFishingSpot } from "./activity/fishing-spots.js";
+import { createInkyungWaterPathInteraction, INKYUNG_WATER_PATH_OWNER_ID } from "./minigames/world/inkyung-water-path-interaction.js";
+import { createWaterPathSfx } from "./minigames/world/water-path-sfx.js";
 import { createLoadoutClient } from "./appearance/loadout-client.js";
 import { createEquipmentProjection } from "./appearance/equipment-projection.js";
 import { createEquipmentModelLoader } from "./appearance/equipment-asset-loader.js";
@@ -281,9 +285,6 @@ const biryongVisualLabP0C = ['p0c', 'p0d', 'p0e'].includes(biryongVisualStage);
 const biryongVisualLabP0D = ['p0d', 'p0e'].includes(biryongVisualStage);
 const biryongVisualLabP0E = biryongVisualStage === 'p0e';
 let lastTrackedZone = null;
-// Zone-boundary oscillation (A→B→A…) burned the 120 events/hour session cap; resend a zone at most every 10s.
-const ZONE_ENTER_RESEND_MS = 10000;
-const zoneEnterSentAt = new Map();
 
 async function boot() {
 globalThis.__INHA_WORLD_BOOT_DIAGNOSTICS__?.markBootEntered?.();
@@ -1051,6 +1052,15 @@ const chatPanel = createChatPanel({
 // Social S1-C1: Player Inspect, friends, block and report. The database is authoritative;
 // targets are user ids from Presence, never nicknames. Guests have no social layer.
 const social = new SocialClient({ getClient: () => online?.supabase ?? null, getSelfUserId: () => online?.userId ?? null });
+const socialAccountSession = createSocialAccountSession({
+  social,
+  onAccountChange: () => {
+    playerCard.close();
+    if (friendPanel.open) void friendPanel.setOpen(false);
+  },
+  onFriends: friends => lobbyPresenceSummary.setFriends(friends)
+});
+window.addEventListener("pagehide", event => { if (!event.persisted) socialAccountSession.dispose(); });
 const friendRoomVisitClient = new FriendRoomVisitClient({
   getClient: () => online?.supabase ?? null,
   getSelfUserId: () => online?.userId ?? null
@@ -1786,6 +1796,40 @@ fishingPanel = createFishingPanel({
     void inventory.refresh("fishing");
   }
 });
+// PA-G2B-R1 · Inkyung promenade water-path puzzle (T0, local only): the F slot opens the merged panel as a
+// BLOCKING_UI session; every end path (success, cancel, Esc, error, interruption, pagehide) releases input.
+const waterPathInput = createInputFocusOwner({
+  manager: inputFocus, ownerId: INKYUNG_WATER_PATH_OWNER_ID, policy: INPUT_FOCUS_POLICY.BLOCKING_UI
+});
+// worldAudio is created later in this module; the lazy hop keeps the cue silent until it exists and is unlocked.
+const waterPathSfx = createWaterPathSfx({ audio: { playCue: render => worldAudio?.playCue(render) ?? false } });
+const inkyungWaterPath = createInkyungWaterPathInteraction({
+  focus: waterPathInput,
+  playCue: name => waterPathSfx.play(name),
+  subscribeFocus: listener => inputFocus.subscribe(listener),
+  pauseAutoMove: () => { if (playerAutoMove?.active) playerAutoMove.pause(AUTO_MOVE_CANCEL_REASON.INTERACTION); },
+  onStatus: message => showWorldStatus(message),
+  getContext: () => ({
+    position: player.getLocalPosition(),
+    insideRoom: rooms?.insideRoom === true,
+    inBiryong: biryongRealm?.inBiryong === true,
+    lobbyActive: lobbyWorld.active === true,
+    lobbyTransition: lobbyTransition.active === true,
+    mounted: controller.mounted === true,
+    seated: seats.isSeated === true,
+    swimming: controller.swimming === true,
+    grounded: controller.grounded === true,
+    combat: combatRuntime.active === true,
+    photoMode: photoMode.active === true,
+    roomTransition: rooms?.status().busy === true || biryongRealm?.busy === true,
+    cinematic: cinematic.active === true,
+    worldAction: inputFocus.can("WORLD_ACTION")
+  })
+});
+// Its own listener: it also runs on frames that return early (room/region transition, lobby, cinematic).
+app.on("update", () => inkyungWaterPath.update());
+window.addEventListener("pagehide", () => inkyungWaterPath.handlePageHide());
+window.addEventListener("pageshow", event => { inkyungWaterPath.handlePageShow({ persisted: event.persisted }); });
 // Main Lobby P2 "오늘의 캠퍼스": a read-only summary of the two clients above. It re-renders on their own change
 // events (account switches included) and only opens the existing panels; the panels keep the explicit claim / start.
 const lobbyDailyLoop = createLobbyDailyLoop({
@@ -3180,6 +3224,17 @@ const jeongseok = createJeongseokFeature({
   onEnter: snapshot => jeongseokInterior.enterFromServerGrant(snapshot, { mounted: controller.mounted }),
   getPhone: () => smartphone, storage: () => { try { return window.localStorage; } catch { return null; } }
 });
+const jeongseokBookQuest = createJeongseokBookQuest({
+  getClient: () => online?.supabase ?? null,
+  getContext: () => ({ space: rooms.currentSpace, position: player.getLocalPosition(),
+    grounded: controller.grounded, mounted: controller.mounted, busy: rooms.status().busy }),
+  inputFocus, onProgress: quest => questRuntime.setSideQuest(JSL_BOOK_QUEST_ID, quest)
+});
+rooms.onChange(status => { if (status.roomId !== 'ROOM_JEONGSEOK_LOBBY') jeongseokBookQuest.close(); });
+window.addEventListener('pagehide', event => {
+  if (event.persisted) jeongseokBookQuest.close();
+  else jeongseokBookQuest.destroy();
+});
 jeongseok.access.onChange(change => {
   // A paid pass moved coins on the server: re-read the Wallet authority, never subtract locally.
   if (change.reason === "purchase" && change.lastPurchase) void wallet.refresh("jeongseok-pass");
@@ -3532,9 +3587,6 @@ places.onPlaceZoneChanged((previous,next)=>{
   const legacy=legacyTelemetryTarget(next);
   if(!npcTestMode&&legacy&&legacy!==lastTrackedZone){
     lastTrackedZone=legacy;
-    const nowMs=Date.now();
-    if(nowMs-(zoneEnterSentAt.get(legacy)??-Infinity)<ZONE_ENTER_RESEND_MS) return;
-    zoneEnterSentAt.set(legacy,nowMs);
     window.InhaHubTelemetry?.track('campus_zone_enter','campus',legacy);
   }
 });
@@ -3756,6 +3808,7 @@ app.on("update", (dt) => {
     available: fishing.available, blocked: fishingBlocked,
     onOpen: (spot) => fishingPanel?.setOpen(true, spot)
   }));
+  contextActions.set("inkyung-water-path", inside ? null : inkyungWaterPath.contextAction(pos));
   contextActions.set("biryong", inside ? null : biryong?.getContextAction(pos, { blocked: controller.mounted || seats.isSeated }) ?? null);
   contextActions.set("mcm-event", inside ? null : mcmEventRuntime.contextAction());
   contextActions.set("mcm-minigame", rooms.currentSpace === MCM_2026_ROOM_ID ? mcmMinigame.contextAction() : null);
@@ -3777,6 +3830,8 @@ app.on("update", (dt) => {
   contextActions.set("jeongseok-guide", inBiryong ? null : jeongseok.npcContextAction({
     position: pos, grounded: controller.grounded, mounted: controller.mounted, space: rooms.currentSpace, busy: rooms.status().busy
   }));
+  contextActions.set("jsl-c1-librarian", inBiryong ? null : jeongseokBookQuest.observe("librarian"));
+  contextActions.set("jsl-c1-kiosk", inBiryong ? null : jeongseokBookQuest.observe("kiosk"));
   if (inBiryong) {
     contextActions.set("room-door", null);
     contextActions.set("personal-room-door", null);
@@ -3798,8 +3853,8 @@ app.on("update", (dt) => {
   if (combatRuntime.active) {
     for (const key of [
       "seat", "room-furniture", "personal-room-environment", "guestbook", "student-center-shop", "student-center-vendors", "dorm-furniture-shop", "backgate-transit", "biryong-station-transit",
-      "biryong-npc", "inkyung-duck", "inkyung-fishing", "biryong", "mcm-event", "mcm-minigame", "follow",
-      "room-door", "personal-room-door", "npc", "jeongseok-gate", "jeongseok-guide", "jeongseok-interior"
+      "biryong-npc", "inkyung-duck", "inkyung-fishing", "inkyung-water-path", "biryong", "mcm-event", "mcm-minigame", "follow",
+      "room-door", "personal-room-door", "npc", "jeongseok-gate", "jeongseok-guide", "jeongseok-interior", "jsl-c1-librarian", "jsl-c1-kiosk"
     ]) contextActions.set(key, null);
     transportActions.set("mount", null);
   }
@@ -3886,6 +3941,7 @@ try {
     const roomFunctionIdentityChanged = nextRoomFunctionAccountId !== roomFunctionAccountId;
     roomFunctionAccountId = nextRoomFunctionAccountId;
     if (roomFunctionIdentityChanged) {
+      inkyungWaterPath.close("ACCOUNT_CHANGE");
       cookingFeature?.reset();
       roomPhotoStory?.reset();
       trophyDisplayPanel?.close({ restoreFocus: false });
@@ -3899,6 +3955,7 @@ try {
     void wallet.setAccount(identity ? online?.userId ?? null : null);
     void jeongseok.setAccount(identity ? online?.userId ?? null : null);
     jeongseokInterior.setAccount(identity ? online?.userId ?? null : null);
+    void jeongseokBookQuest.setAccount(identity?.userId ?? null);
     collectionBook.setAccount(identity?.userId ?? null);
     void inventory.setAccount(identity ? online?.userId ?? null : null);
     void dailyQuiz.setAccount(identity ? online?.userId ?? null : null);
@@ -3924,23 +3981,21 @@ try {
     if (roomFunctionIdentityChanged) commissionTrials?.close();
     lobbyPlayerSummary.render();
     lobbyQuestHighlight.update();
-    chatPanel.refreshAvailability();
+    chatPanel.refreshAvailability(identity?.userId ?? null);
     friendPanel.setAvailable(!!identity);
     nearbyPanel.render();
     guestbookPanel.setAvailable(!!identity, identity?.userId ?? null);
     if (identity) {
       void accompany.refresh();
-      void social.mine()
-        .then(data => lobbyPresenceSummary.setFriends(data.friends))
-        .catch(() => lobbyPresenceSummary.setFriends(null));
     } else {
       accompany.reset();
       nearbyPanel.setOpen(false);
       lobbyPresenceSummary.setFriends(null);
       follow.stop(FollowStopReason.OFFLINE);
-      social.reset();
       playerCard.close();
     }
+    // #118: invalidate old-account reads before any new social summary can be published.
+    void socialAccountSession.setAccount(identity?.userId ?? null);
     lobbyPresenceSummary.update();
   });
   online.chat.feed.onChange((entries) => chatPanel.renderFeed(entries));
@@ -4209,6 +4264,7 @@ window.__INHAGAME_P0__ = {
   mcmMinigame,
   contextActions,
   transportActions,
+  inkyungWaterPath,
   interactionAction,
   transportAction,
   character,
