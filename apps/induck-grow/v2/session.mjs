@@ -1,8 +1,9 @@
+import {configurePlayStyle,validatePlayStyle,advanceStyledLife,playStylePlan as previewPlayStylePlan} from './play-style.mjs';
 import {selectSpending} from './life-spending.mjs';
 import {selectMajorActivity} from './campus-growth.mjs';
 import {createGraduateArchive,graduateSummary} from './graduate-archive.mjs';
 import {
-  LIFE_ENGINE_VERSION, createLife, advanceLife, advanceLifeBatch,
+  LIFE_ENGINE_VERSION, createLife, advanceLifeBatch,
   chooseLifeEvent, setLifePolicy
 } from './life-engine.mjs';
 
@@ -49,6 +50,7 @@ function validateSaveLife(life) {
        e.memories!==life.memories?.length||life.pendingEvent!==null)
       throw new Error('INVALID_ENDING');
   } else if(life.ending!==null)throw new Error('EARLY_ENDING');
+  validatePlayStyle(life);
   // Retain the engine's own resource/history checks on a copy.
   advanceLifeBatch(life,{maxWeeks:1});
 }
@@ -101,8 +103,9 @@ export function createLifeSession({storage=null, onUpdate=()=>{}}={}) {
     current=copy(snapshot.life);loadError=null;saveError=null;writesBlocked=false;
     archiveCompleted();publish();return true;
   }
-  function start({majorId,seed=1,policy='balanced',replaceExisting=false,contentVersion,growthVersion,economyVersion}={}) {
-    const fresh=createLife({majorId,seed,policy,contentVersion,growthVersion,economyVersion}),existing=readSave();
+  function start({majorId,seed=1,policy='balanced',replaceExisting=false,contentVersion,growthVersion,economyVersion,playStyle='basic',autoBudget=0}={}) {
+    const fresh=configurePlayStyle(createLife({majorId,seed,policy,contentVersion,growthVersion,economyVersion}),
+      {mode:playStyle,budget:autoBudget,goal:policy}),existing=readSave();
     if(existing.exists===true && !replaceExisting)
       throw new Error('기존 v2 기록을 교체하려면 먼저 확인해 주세요.');
     // Preserve both an in-memory completion and an existing completed snapshot.
@@ -132,7 +135,7 @@ export function createLifeSession({storage=null, onUpdate=()=>{}}={}) {
     if(current.pendingEvent)return {kind:'choice',life:copy(current)};
     const priorSemesters=current.semesters.length;
     const priorWeeks=current.weeksCompleted;
-    current=advanceLife(current);
+    current=advanceStyledLife(current);
     persist();
     archiveCompleted();
     if(current.pendingEvent)return {kind:'choice',life:copy(current)};
@@ -148,16 +151,27 @@ export function createLifeSession({storage=null, onUpdate=()=>{}}={}) {
   }
   function setPolicy(policy) {
     if(!current)throw new Error('시작된 게임이 없어요.');
-    current=setLifePolicy(current,policy);
+    if(current.status==='complete')return copy(current);
+    if(current.playStyle?.prepared)current=configurePlayStyle(current,{goal:policy});
+    else {
+      const next=setLifePolicy(current,policy);
+      current=next.playStyle?configurePlayStyle(next,{goal:policy}):next;
+    }
     persist();return copy(current);
   }
   function setActivity(style) {
     if(!current)throw new Error('시작된 게임이 없어요.');
+    if(current.playStyle?.prepared)throw Error('준비한 이번 주 계획을 완료한 뒤 전공 활동을 바꿀 수 있어요.');
     current=selectMajorActivity(current,style);persist();return copy(current);
   }
   function setSpending(id) {
     if(!current)throw Error('시작된 게임이 없어요.');
+    if(current.playStyle?.prepared)throw Error('준비한 이번 주 계획을 완료한 뒤 생활 활동을 바꿀 수 있어요.');
     current=selectSpending(current,id);persist();return copy(current);
+  }
+  function setPlayStyle(changes) {
+    if(!current)throw Error('시작된 게임이 없어요.');
+    current=configurePlayStyle(current,changes);persist();return copy(current);
   }
   function removeGraduate(recordKey) {
     const saved=readSave();
@@ -168,7 +182,9 @@ export function createLifeSession({storage=null, onUpdate=()=>{}}={}) {
       return {ok:false,error:'현재 졸업 기록은 새 게임을 시작한 뒤 정리할 수 있어요. 다른 과거 기록을 선택해 주세요.'};
     return archive.remove(recordKey,()=>{const latest=readSave();return latest.exists===saved.exists&&latest.available===saved.available&&latest.raw===saved.raw;});
   }
-  return Object.freeze({start,load,life,inspectSave,setActivity,setSpending,removeGraduate,
+  return Object.freeze({start,load,life,inspectSave,setActivity,setSpending,removeGraduate,setPlayStyle,
+    setAutoBudget:budget=>setPlayStyle({budget}),
+    playStylePlan:()=>current?previewPlayStylePlan(current):null,
     exportGraduates:()=>archive.exportSnapshot(),
     graduateArchive:()=>archive.read(),retryArchive:()=>{archiveCompleted();return archiveError;},
     nextWeek:()=>transition('week'),choose,setPolicy,

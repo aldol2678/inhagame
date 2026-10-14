@@ -38,6 +38,11 @@
           <p class="hint">같은 시드와 같은 선택이면 같은 결과가 나와.</p>
         </div>
         <div class="form-field full">
+          <label for="start-play-style">플레이 스타일</label>
+          <select id="start-play-style"><option value="basic">기본 · 중요한 선택을 직접</option><option value="simple">간편 · 목표에 맞춰 운영 도움</option></select>
+          <p class="hint">같은 행동이면 같은 결과예요. 스타일 자체의 능력치·보상 보너스는 없어요. 사건 선택은 직접 해요.</p>
+        </div>
+        <div class="form-field full">
           <label for="start-policy">처음 생활 방침</label>
           <select id="start-policy">
             <option value="balanced">⚖️ 균형 잡힌 생활</option>
@@ -109,6 +114,19 @@
           </section>
         </div>
         <div class="right-column">
+          <section class="card" aria-labelledby="play-style-title">
+            <h2 id="play-style-title">플레이 스타일</h2>
+            <div class="form-field"><label for="play-style-select">운영 방식</label><select id="play-style-select"><option value="basic">기본 · 직접 선택</option><option value="simple">간편 · 운영 도움</option></select></div>
+            <p id="play-style-status" class="hint" role="status"></p>
+            <div id="simple-controls" hidden>
+              <div class="form-field"><label for="simple-goal">생활 목표</label><select id="simple-goal"><option value="balanced">균형</option><option value="academic">학업</option><option value="social">교류</option><option value="creative">창작</option><option value="work">생활비</option></select></div>
+              <div class="form-field"><label for="simple-budget">주간 자동 생활 활동 한도</label><select id="simple-budget"><option value="0">0원 · 무료 활동만</option><option value="6000">6,000원 이내</option><option value="10000">10,000원 이내</option><option value="15000">15,000원 이내</option></select></div>
+              <p class="hint">기본 생활비와 사건 지출은 별도예요. 진행하기 전 이번 주 계획을 확인해 주세요.</p>
+            </div>
+            <p id="simple-plan" class="hint" role="status"></p>
+            <details id="play-style-details"><summary>상세 · 이번 주 운영 근거와 내역</summary><div id="play-style-explanation"></div></details>
+            <p class="hint">정밀 운영은 후속 단계예요. 현재는 간편·기본과 상세 정보 보기를 지원해요.</p>
+          </section>
           <section class="resource-card card" aria-label="인덕이 상태">
             <div class="section-head"><h2>인덕이 상태</h2><span id="save-indicator" class="tiny">기기 저장</span></div>
             <div class="resources">
@@ -117,7 +135,7 @@
               <div class="resource"><span>💰 생활비</span><strong id="money-value">70,000원</strong></div>
               <div class="resource"><span>📚 누적 평점</span><strong id="gpa-value">미산정</strong></div>
             </div>
-            <div class="form-field policy-select">
+            <div id="manual-policy" class="form-field policy-select">
               <label for="policy-select">이번 학기 생활 방침</label>
               <select id="policy-select">
                 <option value="balanced">⚖️ 균형 잡힌 생활</option>
@@ -133,14 +151,14 @@
             <p id="activity-summary" class="hint"></p>
             <p id="next-growth-reward" class="hint"></p>
             <p id="competency-change" class="hint" role="status"></p>
-            <label for="activity-select">이번 학기 대표 활동의 접근법</label>
+            <div id="manual-activity"><label for="activity-select">이번 학기 대표 활동의 접근법</label>
             <select id="activity-select">
               <option value="explore">탐구하고 정리하기</option>
               <option value="build">직접 만들어 보기</option>
               <option value="team">함께 완성하기</option>
             </select>
-            <p class="hint">첫 주 진행 전 선택 · 미선택 시 탐구 · 5·10·15주마다 해당 역량 +1</p>
-            <div class="form-field"><label for="spending-select">이번 주 생활 활동</label><select id="spending-select" aria-describedby="spending-note"></select><p id="spending-note" class="hint" role="status"></p><p class="hint">게임 속 생활비만 사용해. 무료 활동도 시간을 사용하며, 최근 2주에 같은 활동을 반복하면 효과가 75%·50%로 줄어들어. 활동한 주는 기본 역량 성장과 양수 수입이 절반이 돼. 표시 효과는 활동 단독 최대치야. 현재 잔액으로 결제하고 활동 → 기본 방침 순서로 적용돼. 기본 생활비는 그대로이며 피로·스트레스 비용은 반복해도 줄지 않아.</p></div>
+            <p class="hint">첫 주 진행 전 선택 · 미선택 시 탐구 · 5·10·15주마다 해당 역량 +1</p></div>
+            <div id="manual-spending" class="form-field"><label for="spending-select">이번 주 생활 활동</label><select id="spending-select" aria-describedby="spending-note"></select><p id="spending-note" class="hint" role="status"></p><p class="hint">게임 속 생활비만 사용해. 무료 활동도 시간을 사용하며, 최근 2주에 같은 활동을 반복하면 효과가 75%·50%로 줄어들어. 활동한 주는 기본 역량 성장과 양수 수입이 절반이 돼. 표시 효과는 활동 단독 최대치야. 현재 잔액으로 결제하고 활동 → 기본 방침 순서로 적용돼. 기본 생활비는 그대로이며 피로·스트레스 비용은 반복해도 줄지 않아.</p></div>
           <details><summary>역량 6개와 획득 특성 보기</summary><div id="growth-stats"></div><p id="growth-traits" class="hint"></p><div id="trait-progress"></div></details>
           </section>
           <section class="journal card" aria-labelledby="journal-title">
@@ -158,7 +176,7 @@
     </section>
     <section class="card archive-card" aria-labelledby="archive-title">
       <details id="archive-details"><summary id="archive-title">🎓 졸업생 기록실 · 내 최고 학점</summary>
-        <p class="hint">이 브라우저에 보관한 완료 기록 최대 50건. 전공·엔진·콘텐츠·성장 버전별 공동 순위. 시드와 선택은 다를 수 있으며, 온라인 랭킹이 아닙니다.</p>
+        <p class="hint">이 브라우저에 보관한 완료 기록 최대 50건. 전공·엔진·콘텐츠·성장·소비 버전 및 간편 운영 사용 여부별 공동 순위. 시드와 선택은 다를 수 있으며, 온라인 랭킹이 아닙니다.</p>
         <p id="archive-status" role="status"></p>
         <p class="hint">기록을 삭제하기 전에 백업을 내려받아 보관해 주세요. 현재 졸업 기록은 새 게임을 시작한 뒤 정리할 수 있어요. JSON 가져오기는 아직 지원하지 않습니다.</p>
         <button id="archive-export" type="button" class="secondary">졸업 기록 JSON 백업</button>
