@@ -1,0 +1,129 @@
+/* INHA WORLD Campus Editorial R3. Visual overlay only; existing hub identity and backend remain authoritative. */
+.editorial-portal{--paper:#f5f2ec;--ink:#242321;--navy:#30476b;--sand:#e6dfd4;--accent:#f06c4e;--lime:#dbf170;background:var(--paper);color:var(--ink)}
+.editorial-portal a:focus-visible,.editorial-portal button:focus-visible,.editorial-portal input:focus-visible{outline:3px solid #30476b;outline-offset:3px}
+.editorial-masthead{display:flex;justify-content:space-between;align-items:center;gap:12px;background:#e8e1d6;color:#4c493f;padding:7px max(22px,calc((100vw - 1200px)/2));font-size:10px;letter-spacing:.15em;font-weight:750}
+.editorial-portal .header{background:rgba(245,242,236,.98);color:#242321;border-bottom:1px solid #dcd4c7;position:sticky;top:0;z-index:20;backdrop-filter:blur(10px)}
+.editorial-portal .header-inner,.editorial-portal .main,.editorial-portal .footer{max-width:1200px}
+.editorial-portal .header-inner{padding:16px 26px;gap:24px}
+.editorial-portal .brand{font-family:Georgia,"Noto Serif KR",serif;font-size:23px;font-weight:900;letter-spacing:-.06em;white-space:nowrap;line-height:1}
+.editorial-portal .brand span{color:#30476b}
+.editorial-portal .brand small{display:block;font-family:Inter,Pretendard,system-ui,sans-serif;font-size:8px;letter-spacing:.18em;color:#857b6d;font-weight:700;margin-top:7px}
+.editorial-portal .top-nav{padding:0;align-items:center;flex-wrap:wrap;gap:2px}
+.editorial-portal .top-nav button,.editorial-portal .top-nav a,.editorial-portal .header-actions button{display:inline-flex;align-items:center;justify-content:center;border:0;background:transparent;color:#34332f;padding:10px 12px;border-radius:4px;font-size:12px;font-weight:750;min-height:42px}
+.editorial-portal .top-nav button:hover,.editorial-portal .top-nav a:hover,.editorial-portal .header-actions button:hover{background:#e8e1d6;color:#242321}
+.editorial-portal .top-nav button[aria-current=page]{background:#30476b;color:white;border-color:transparent}
+.editorial-portal .header-actions button{border:1px solid #cfc6b8}
+.editorial-portal .main{padding-top:26px;padding-bottom:80px}
+.editorial-portal .portal-topline{color:#776e61;font-size:11px;letter-spacing:.12em;padding:10px 0 14px;border-bottom:1px solid #d8cebf}
+.editorial-portal .portal-hero{display:grid;margin-top:24px;border-radius:2px;overflow:hidden;background:#eeebe5;color:#242321;box-shadow:none;grid-template-columns:minmax(0,1fr) minmax(0,1.02fr);border:1px solid #ddd4c8}
+.editorial-portal .portal-hero-art{inset:auto;opacity:1;grid-column:2;grid-row:1;position:relative;min-height:465px;overflow:hidden;background:#d9d0c4}
+.editorial-portal .portal-hero::before{content:none}
+.editorial-portal .portal-hero-art img{width:100%;height:100%;object-fit:cover;min-height:465px;filter:saturate(.75)}
+.editorial-portal .portal-hero-copy{grid-column:1;grid-row:1;padding:48px clamp(22px,4vw,65px);position:relative;z-index:1;align-self:center}
+.editorial-portal .portal-pill{background:transparent;color:#625849;border:0;padding:0;letter-spacing:.13em;font-size:10px}
+.editorial-portal .portal-live-dot{background:#f06c4e}
+.editorial-portal .portal-hero-copy h1{font-family:Georgia,"Noto Serif KR",serif;font-size:clamp(41px,5.4vw,81px);letter-spacing:-.075em;font-weight:600;line-height:1.01;margin:28px 0 24px;color:#242321}
+.editorial-portal .portal-hero-copy h1 em{font-weight:400;color:#30476b}
+.editorial-portal .portal-hero-copy h1 .editorial-ko{display:block;font-family:"Noto Serif KR",serif;font-size:clamp(18px,2.1vw,27px);line-height:1.5;letter-spacing:-.04em;margin-top:22px;color:#2f302c;font-style:normal}
+.editorial-portal .portal-hero-copy p{font-size:14px;line-height:1.85;color:#615d54;max-width:410px}
+.editorial-portal .feature-tags{color:#656357}
+.editorial-portal .portal-hero-cta,.editorial-portal .primary{background:#30476b;color:white;border-color:#30476b}
+.editorial-portal .portal-hero-cta:hover,.editorial-portal .primary:hover{background:#243552}
+.editorial-portal .portal-secondary-link{color:#30476b;text-decoration:underline;text-underline-offset:5px}
+.editorial-portal .portal-art-note{background:rgba(36,35,33,.78);color:#fff;font-size:10px;letter-spacing:.02em}
+.editorial-portal .portal-section-heading{margin:65px 0 18px;align-items:end;justify-content:space-between;border-top:1px solid #c8c0b4;padding-top:18px}
+.editorial-portal .portal-section-eyebrow{font-size:11px;letter-spacing:.15em;color:#6a665f}
+.editorial-portal .portal-section-heading h2{font-family:Georgia,"Noto Serif KR",serif;color:#242321;font-size:clamp(36px,5vw,68px);font-weight:550;line-height:1.04;letter-spacing:-.06em;margin:15px 0}
+.editorial-portal .portal-section-heading h2 em{color:#30476b;font-style:italic}
+.editorial-portal .portal-section-heading p{color:#666057}
+.editorial-portal .portal-section-meta{font-size:12px;color:#72695d}
+.editorial-arcade-tools{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:24px 0 5px}
+.editorial-filters{display:flex;flex-wrap:wrap;gap:7px}
+.editorial-filters button{border:1px solid #cfc4b2;border-radius:100px;background:transparent;color:#514b43;padding:10px 18px;font-weight:700;font-size:12px;min-height:42px}
+.editorial-filters button[aria-pressed=true]{background:#242321;color:white;border-color:#242321}
+.editorial-search input{background:#fffdf8;border:1px solid #cfc4b2;border-radius:100px;padding:12px 17px;width:min(300px,100%);font:inherit;min-height:43px}
+.editorial-portal .portal-games{grid-template-columns:repeat(4,minmax(0,1fr));gap:15px;margin-top:15px}
+.editorial-portal .portal-game{padding:0;border:1px solid #d4c7b4;border-radius:3px;background:#fffdf8;overflow:hidden}
+.editorial-portal .portal-poster{border-radius:0}
+.editorial-portal .portal-card-body{padding:17px 15px 19px}
+.editorial-portal .portal-card-body h3{font-size:17px;color:#242321}
+.editorial-portal .portal-card-body p{color:#6f695e;font-size:12px}
+.editorial-portal .portal-game .secondary{border-radius:100px;background:#dbf170;border:0;color:#1b2522;font-size:12px}
+.editorial-portal .portal-game .secondary:hover{background:#c8e55f}
+.editorial-empty{background:#e9e3d8;padding:20px;border-radius:6px}
+.editorial-discover-more{display:grid;grid-template-columns:1fr 1.3fr;gap:28px;background:#30476b;color:#f9f7f3;padding:clamp(24px,4.2vw,50px);margin-top:64px;border-radius:3px}
+.editorial-discover-more .portal-section-eyebrow{color:#dfebbc}
+.editorial-discover-more h2{font-family:Georgia,"Noto Serif KR",serif;font-size:clamp(28px,3vw,45px);line-height:1.22;margin:18px 0}
+.editorial-discover-more h2 em{color:#dbf170}
+.editorial-discover-more p{color:#e1e5e7;font-size:14px;line-height:1.8}
+.editorial-discover-more a{color:inherit}
+.editorial-discover-more>div>a{display:inline-block;margin-top:8px;font-weight:750;text-decoration:underline;text-underline-offset:5px}
+.editorial-info-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.editorial-info-grid a,.editorial-info-grid button{display:flex;flex-direction:column;text-align:left;align-items:flex-start;justify-content:space-between;min-height:145px;padding:16px;color:#242321;background:#f1ede4;border:0;border-radius:2px;cursor:pointer;font:inherit}
+.editorial-info-grid a:nth-child(2){background:#f06c4e}
+.editorial-info-grid a:nth-child(3){background:#dbf170}
+.editorial-info-grid span{font-size:10px;letter-spacing:.12em}
+.editorial-info-grid strong{font-family:"Noto Serif KR",serif;font-size:18px}
+.editorial-info-grid small{font-size:11px}
+.editorial-info-grid a:hover,.editorial-info-grid button:hover{transform:translateY(-2px)}
+.editorial-portal .portal-info{margin-top:35px}
+.editorial-text-link{display:inline-block;margin-top:8px;font-size:13px;font-weight:700;text-decoration:underline;text-underline-offset:4px}
+.editorial-portal .card{border-color:#d8cebf}
+.editorial-portal .view:not(.portal-home)>.card{border-radius:5px;background:#fffcf5}
+.editorial-portal .view:not(.portal-home)>h1{font-family:"Noto Serif KR",Georgia,serif;font-size:clamp(29px,4vw,50px)}
+.editorial-portal .footer{max-width:1200px;display:grid;gap:16px;border-top:1px solid #d7cebf;color:#5a554c;background:var(--paper);margin:auto;padding-top:35px}
+.editorial-footer-brand{display:flex;align-items:baseline;gap:14px}
+.editorial-footer-brand strong{font-family:Georgia,serif;font-size:28px;color:#252321}
+.editorial-footer-brand span{font-size:10px;letter-spacing:.14em}
+.editorial-footer nav{display:flex;flex-wrap:wrap;gap:12px 20px;font-size:12px}
+.editorial-footer nav a:hover{text-decoration:underline}
+.editorial-footer p{max-width:740px;line-height:1.6;margin:0}
+.editorial-portal .bottom-nav{background:#fcf8f0;color:#34332d;border-top:1px solid #d3c8b9;box-shadow:0 -2px 14px #15130c12}
+.editorial-portal .bottom-nav button[aria-current=page]{background:#30476b;color:#fff;border-color:#30476b}
+.editorial-portal .bottom-nav button{min-height:46px}
+@media(max-width:1100px){
+ .editorial-portal .portal-games{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .editorial-portal .top-nav{gap:0}
+ .editorial-portal .top-nav button,.editorial-portal .top-nav a{padding:8px}
+}
+@media(max-width:700px){
+ .editorial-masthead{padding:6px 16px;font-size:9px}.editorial-masthead span:last-child{display:none}
+ .editorial-portal .header-inner{padding:11px 16px}
+ .editorial-portal .brand{font-size:18px}
+ .editorial-portal .brand small{font-size:7px}
+ .editorial-portal .main{padding:14px 14px 90px}
+ .editorial-portal .portal-topline{font-size:9px}
+ .editorial-portal .portal-topline span:last-child{display:none}
+ .editorial-portal .portal-hero{display:flex;flex-direction:column;padding:0}
+ .editorial-portal .portal-hero-art{width:100%;min-height:225px;height:225px;order:1}
+ .editorial-portal .portal-hero-art img{min-height:225px;height:225px}
+ .editorial-portal .portal-hero-copy{order:3;padding:23px 19px 30px;width:100%}
+ .editorial-portal .portal-hero-copy h1{font-size:clamp(39px,11vw,60px);margin:19px 0}
+ .editorial-portal .portal-hero-copy h1 .editorial-ko{font-size:18px}
+ .editorial-portal .portal-art-note{position:static;inset:auto;order:2;align-self:stretch;border-radius:0;font-size:9px}
+ .editorial-portal .portal-section-heading{margin-top:42px;align-items:flex-start;gap:8px}
+ .editorial-portal .portal-section-heading h2{font-size:39px}
+ .editorial-portal .portal-section-meta{display:none}
+ .editorial-portal .portal-games{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+ .editorial-portal .portal-card-body{padding:11px}
+ .editorial-portal .portal-card-body h3{font-size:14px}
+ .editorial-portal .portal-card-body p{font-size:11px}
+ .editorial-arcade-tools{flex-direction:column;align-items:stretch}
+ .editorial-filters button{flex:1;padding:9px 11px}
+ .editorial-filters{display:flex}
+ .editorial-search input{width:100%}
+ .editorial-discover-more{grid-template-columns:1fr;padding:22px 16px;margin-top:40px}
+ .editorial-info-grid a,.editorial-info-grid button{min-height:124px;padding:13px}
+ .editorial-info-grid strong{font-size:15px}
+ .editorial-portal .footer{padding-bottom:96px}
+}
+@media(max-width:370px){.editorial-portal .portal-games{grid-template-columns:1fr}.editorial-filters button{padding:9px 8px;font-size:11px}}
+@media(prefers-reduced-motion:reduce){.editorial-info-grid a,.editorial-info-grid button{transition:none!important;transform:none!important}}
+
+/* Match the legacy visible-home selector without changing any other hub view. */
+body.editorial-portal:has(.portal-home:not([hidden])){background:var(--paper);color:var(--ink)}
+body.editorial-portal:has(.portal-home:not([hidden])) .header{background:rgba(245,242,236,.98);border-bottom-color:#dcd4c7}
+body.editorial-portal:has(.portal-home:not([hidden])) .footer{border-color:#d7cebf;color:#5a554c}
+body.editorial-portal:has(.portal-home:not([hidden])) .footer a{color:inherit}
+body.editorial-portal:has(.portal-home:not([hidden])) .main{max-width:1200px;padding-top:26px;padding-bottom:80px}
+@media(max-width:700px){body.editorial-portal:has(.portal-home:not([hidden])) .main{padding:14px 14px 90px}}

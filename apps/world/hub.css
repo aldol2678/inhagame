@@ -819,3 +819,8 @@ body:has(.portal-home:not([hidden])) .main{max-width:1300px;padding:30px 30px 65
 }
 @media(max-width:350px){.portal-home .portal-games{grid-template-columns:1fr}.portal-card-body h3{min-height:auto}.portal-card-body>p{min-height:auto}}
 @media(prefers-reduced-motion:reduce){.portal-game{transition:none!important}.portal-game:hover{transform:none}}
+
+/* Explicit age self-declaration controls, isolated from profile text inputs. */
+.hub-age-confirmation{display:flex;align-items:flex-start;gap:10px;margin:14px 0 8px;line-height:1.6;cursor:pointer}
+.hub-age-confirmation input[type="checkbox"]{width:20px;height:20px;min-width:20px;margin:3px 0 0;accent-color:var(--accent,#30476b)}
+.hub-age-confirmation input:focus-visible{outline:3px solid #30476b;outline-offset:3px}
