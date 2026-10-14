@@ -39,10 +39,17 @@
   <script defer src="/hub-friends.js"></script>
   <script defer src="/hub-messages-client.js"></script>
   <script defer src="/hub-messages.js"></script>
+
   <script>
-    window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
+    // Vercel owns this endpoint; do not request it from local browser QA servers.
+    if (/(^|\.)inhagame\.app$|\.vercel\.app$/.test(window.location.hostname)) {
+      window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
+      const analyticsScript = document.createElement('script');
+      analyticsScript.src = '/_vercel/insights/script.js';
+      analyticsScript.async = true;
+      document.head.appendChild(analyticsScript);
+    }
   </script>
-  <script defer src="/_vercel/insights/script.js"></script>
 </head>
 <body class="editorial-portal">
   <div class="editorial-masthead"><span>INHA WORLD / CAMPUS ÉDITORIAL</span><span>DISCOVER · PLAY · CONNECT</span></div>
@@ -189,7 +196,7 @@
           <button id="hub-google-auth" class="google-auth-button" type="button">
             <span>Google로 로그인</span>
           </button>
-          <p class="quiet social-auth-disclosure">Google 로그인 시 계정 생성·연결을 위해 Google 계정 식별자, 이메일, 이메일 확인 여부와 Google이 인증 과정에서 제공하는 이름·프로필 이미지 등의 기본 프로필 정보가 처리될 수 있습니다. 이름과 프로필 이미지는 INHAGAME 공개 프로필에 자동 표시하지 않습니다. <a href="https://duck.inhagame.app/privacy.html#google-login">개인정보 처리���침</a></p>
+          <p class="quiet social-auth-disclosure">Google 로그인 시 계정 생성·연결을 위해 Google 계정 식별자, 이메일, 이메일 확인 여부와 Google이 인증 과정에서 제공하는 이름·프로필 이미지 등의 기본 프로필 정보가 처리될 수 있습니다. 이름과 프로필 이미지는 INHAGAME 공개 프로필에 자동 표시하지 않습니다. <a href="https://duck.inhagame.app/privacy.html#google-login">개인정보 처리방침</a></p>
           <div class="auth-divider" aria-hidden="true"><span>또는</span></div>
         </div>
         <div id="hub-auth-tabs" class="auth-tabs" hidden>

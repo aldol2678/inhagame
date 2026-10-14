@@ -6,13 +6,20 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#111820">
   <title>INHA WORLD · World Editor</title>
-  <script>
-    window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
-  </script>
-  <script defer src="/_vercel/insights/script.js"></script>
   <link rel="stylesheet" href="/editor/editor.css">
   <script type="importmap">
     { "imports": { "playcanvas": "https://cdn.jsdelivr.net/npm/playcanvas@2.22.4/build/playcanvas.mjs" } }
+  </script>
+
+  <script>
+    // Vercel owns this endpoint; do not request it from local browser QA servers.
+    if (/(^|\.)inhagame\.app$|\.vercel\.app$/.test(window.location.hostname)) {
+      window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
+      const analyticsScript = document.createElement('script');
+      analyticsScript.src = '/_vercel/insights/script.js';
+      analyticsScript.async = true;
+      document.head.appendChild(analyticsScript);
+    }
   </script>
 </head>
 <body>
