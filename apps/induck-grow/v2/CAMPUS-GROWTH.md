@@ -12,6 +12,7 @@ Base: 25783ea1958385dc133bce99b18d6cc5e7685ed0. Implementation candidate; no mer
 - Separate key induck-grow-v2-graduates-1 / schema grow2-graduates-1. Stores completed summaries, semester GPAs, cards, traits, epilogue; never account/World/economy.
 - Maximum 50 distinct summaries, 2 MiB encoded string guard. Identical summaries deduplicate; this is not a distinct-run counter.
 - Completion and completed-save load attempt archival. Retry/refresh UI is available. Completed snapshots must be archived successfully before replacement.
+- Primary malformed saves retain the existing explicit replacement-confirmation contract. A read-permission failure remains write-blocked temporary play. Malformed archives are always preserved.
 - Archive is written and read back before a new game replaces the primary save. Existing valid save replacement writes and reads back before changing in-memory current. Failures show a warning; malformed archives are not repaired, filtered, deleted or overwritten.
 - Re-read/compare guards reduce stale-tab loss but localStorage has no multi-key transactions or full simultaneous-tab concurrency guarantee. Use one active playing tab. Browser clearing/uninstalling storage still loses local records; no cloud backup/export implemented.
 - 50-record cap preserves all existing records and blocks unarchived completed-life replacement; no automatic eviction.

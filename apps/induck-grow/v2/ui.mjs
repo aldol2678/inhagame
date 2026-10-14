@@ -146,7 +146,7 @@ function showSemester(life) {
   const last=life.semesters.at(-1);
   put('semester-title',finished?'🎓 인덕이가 졸업했어!':last.year+'학년 '+last.term+'학기 성적표');
   put('semester-summary','이번 학기 '+last.gpa.toFixed(2)+'/4.50 · 누적 '+life.gpa.toFixed(2)+
-    '/4.50 · 총 '+life.credits+'학점 (게임 내 가상 성적)');
+    '/4.50 · 총 '+life.credits+'학점 (게임 내 가상 성적)'+(session.status().archiveError?' · ⚠ '+session.status().archiveError:''));
   put('semester-close',finished?'졸업앨범 열기':'다음 학기 준비하기');
   openDialog(semesterDialog);
   $('semester-close').focus();
@@ -254,7 +254,7 @@ function render() {
         work:'오늘도 차곡차곡 생활비를 모으고 있어.',
         creative:'새로운 아이디어가 떠오르는 것 같아!'
       })[life.policy]);
-  put('save-indicator',session.status().saveError?'⚠ 저장 실패':'💾 v2 기기 저장');
+  put('save-indicator',session.status().archiveError?'⚠ 졸업기록 보관 실패':session.status().saveError?'⚠ 저장 실패':'💾 v2 기기 저장');
   $('step-button').disabled=life.status==='complete';
   $('play-button').disabled=life.status==='complete';
   $('policy-select').disabled=life.status==='complete';
@@ -314,7 +314,7 @@ function safely(action) {
 renderMajorPicker();
 updateContinue();
 renderArchive();
-$('archive-retry').addEventListener('click',()=>safely(()=>{session.retryArchive();renderArchive();}));
+$('archive-retry').addEventListener('click',()=>safely(()=>{session.retryArchive();if(session.life())render();renderArchive();}));
 $('archive-details').addEventListener('toggle',()=>{if($('archive-details').open)renderArchive();});
 $('activity-select').addEventListener('change',e=>safely(()=>{session.setActivity(e.target.value);render();announce('이번 학기 전공 활동을 선택했어. 첫 주 진행 전까지 바꿀 수 있어.');}));
 $('major-select').addEventListener('change',describeMajor);

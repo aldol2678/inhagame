@@ -119,6 +119,8 @@ export function createLifeSession({storage=null, onUpdate=()=>{}}={}) {
       } catch {throw new Error('새 게임 저장에 실패했어요. 현재 게임은 유지돼요.');}
       current=fresh;loadError=null;saveError=null;archiveError=null;writesBlocked=false;publish();return copy(current);
     }
+    // Unreadable storage is temporary. A malformed existing primary save may
+    // still be replaced after explicit replaceExisting confirmation (legacy contract).
     writesBlocked=existing.exists===null;
     current=fresh;loadError=null;archiveError=null;persist();return copy(current);
   }

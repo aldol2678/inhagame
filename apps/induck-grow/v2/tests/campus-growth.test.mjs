@@ -107,3 +107,13 @@ test('derived memories and traits do not mutate, award, consume RNG or lose orig
   assert.equal(growthCards(life).length,43);assert(earnedTraits(life).some(x=>x.id==='steady'));
   growthCards(life);earnedTraits(life);validateGrowth(life);assert.equal(JSON.stringify(life),before);
 });
+
+test('unreadable primary storage is temporary, explicitly confirmed malformed primary may be replaced',()=>{
+  const blocked={getItem(){throw Error('blocked')},setItem(){throw Error('must not write')}};
+  const temp=createLifeSession({storage:blocked});temp.start(opts);temp.nextWeek();
+  assert.match(temp.status().saveError,/임시/);
+  const store=memory();store.setItem(V2_LOCAL_SAVE_KEY,'{bad');
+  const s=createLifeSession({storage:store});
+  assert.throws(()=>s.start(opts));assert.equal(store.getItem(V2_LOCAL_SAVE_KEY),'{bad');
+  s.start({...opts,replaceExisting:true});assert.equal(s.inspectSave().available,true);
+});
