@@ -1,0 +1,159 @@
+# A diagnostic-only, exact-source comparison for PR #312. This must never
+# replace the required Biryong performance checks or waive their budgets.
+name: Biryong PR312 exact-head parity diagnostic
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/biryong-pr312-exact-head-parity.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  compare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      CONTROL_SHA: '718cdf33b74287e8312f2b36fde04ec693c3f4c8'
+      CANDIDATE_SHA: '77330a7014ea44a45643707f8853533bd2eb8b31'
+      SAMPLER_SHA: '0ef0f4ca0e959acec1ef200e4cb9f1e94450c136'
+      WORLD_SMOKE_DISABLE_WEBGPU: '1'
+      WORLD_SMOKE_BROWSER: chromium
+      BIRYONG_PERF_MODE: baseline-only
+      BIRYONG_PERF_TIERS: low
+    steps:
+      - name: Checkout pinned PR310 measurement implementation
+        uses: actions/checkout@v4
+        with:
+          ref: '0ef0f4ca0e959acec1ef200e4cb9f1e94450c136'
+          path: qa-sampler
+          persist-credentials: false
+      - name: Checkout exact current-main control source
+        uses: actions/checkout@v4
+        with:
+          ref: '718cdf33b74287e8312f2b36fde04ec693c3f4c8'
+          path: qa-control
+          persist-credentials: false
+      - name: Checkout exact PR312 optimized source
+        uses: actions/checkout@v4
+        with:
+          ref: '77330a7014ea44a45643707f8853533bd2eb8b31'
+          path: qa-candidate
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - name: Verify the three immutable commits
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C qa-sampler rev-parse HEAD)" = "$SAMPLER_SHA"
+          test "$(git -C qa-control rev-parse HEAD)" = "$CONTROL_SHA"
+          test "$(git -C qa-candidate rev-parse HEAD)" = "$CANDIDATE_SHA"
+          echo "CONTROL_TREE=$(git -C qa-control rev-parse HEAD^{tree})" >> "$GITHUB_ENV"
+          echo "CANDIDATE_TREE=$(git -C qa-candidate rev-parse HEAD^{tree})" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/biryong-pr312-exact-head"
+      - name: Install PR310 locked sampler dependencies
+        working-directory: qa-sampler/apps/world/tests/browser
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Install identical pinned Chromium
+        working-directory: qa-sampler/apps/world/tests/browser
+        run: npx --no-install playwright install --with-deps chromium
+      - name: Measure pre-optimization main LOW Visual OFF
+        id: main
+        continue-on-error: true
+        working-directory: qa-sampler
+        shell: bash
+        run: |
+          set -o pipefail
+          GITHUB_SHA="$SAMPLER_SHA" \
+          BIRYONG_PERF_SOURCE_SHA="$CONTROL_SHA" \
+          BIRYONG_PERF_SOURCE_TREE="$CONTROL_TREE" \
+          BIRYONG_PERF_WORLD_ROOT="$GITHUB_WORKSPACE/qa-control/apps/world" \
+          BIRYONG_PERF_RECEIPT="$RUNNER_TEMP/biryong-pr312-exact-head/main.json" \
+          node apps/world/tests/browser/biryong-performance-smoke.mjs \
+            2>&1 | tee "$RUNNER_TEMP/biryong-pr312-exact-head/main.log"
+      - name: Measure PR312 original head LOW Visual OFF
+        id: candidate
+        if: always() && steps.main.outcome != 'skipped'
+        continue-on-error: true
+        working-directory: qa-sampler
+        shell: bash
+        run: |
+          set -o pipefail
+          GITHUB_SHA="$SAMPLER_SHA" \
+          BIRYONG_PERF_SOURCE_SHA="$CANDIDATE_SHA" \
+          BIRYONG_PERF_SOURCE_TREE="$CANDIDATE_TREE" \
+          BIRYONG_PERF_WORLD_ROOT="$GITHUB_WORKSPACE/qa-candidate/apps/world" \
+          BIRYONG_PERF_RECEIPT="$RUNNER_TEMP/biryong-pr312-exact-head/candidate.json" \
+          node apps/world/tests/browser/biryong-performance-smoke.mjs \
+            2>&1 | tee "$RUNNER_TEMP/biryong-pr312-exact-head/candidate.log"
+      - name: Compare exact-source receipts with unchanged performance limits
+        if: always()
+        working-directory: qa-sampler
+        shell: bash
+        env:
+          MAIN_OUTCOME: ${{ steps.main.outcome }}
+          CANDIDATE_OUTCOME: ${{ steps.candidate.outcome }}
+        run: |
+          node --input-type=module <<'NODE'
+          import {readFile,writeFile} from 'node:fs/promises';
+          import {isDeepStrictEqual} from 'node:util';
+          import {classifyBiryongSamples} from './apps/world/tests/browser/biryong-performance-diagnostics.mjs';
+          import {biryongEnvironmentErrors} from './apps/world/tests/browser/biryong-measurement-environment.mjs';
+          const {RUNNER_TEMP,CONTROL_SHA,CANDIDATE_SHA,SAMPLER_SHA,CONTROL_TREE,CANDIDATE_TREE,MAIN_OUTCOME,CANDIDATE_OUTCOME}=process.env;
+          const dir=RUNNER_TEMP+'/biryong-pr312-exact-head/';
+          const errors=[];
+          async function read(label) {
+            try {return JSON.parse(await readFile(dir+label+'.json','utf8'));}
+            catch(error) {errors.push(label+': missing or malformed receipt: '+String(error));return null;}
+          }
+          const main=await read('main'),candidate=await read('candidate');
+          for(const [label,r,sha,tree,outcome] of [
+            ['main',main,CONTROL_SHA,CONTROL_TREE,MAIN_OUTCOME],
+            ['candidate',candidate,CANDIDATE_SHA,CANDIDATE_TREE,CANDIDATE_OUTCOME]
+          ]) {
+            if(outcome!=='success')errors.push(label+': sample command '+(outcome||'missing'));
+            if(!r)continue;
+            if(r.exactHead!==sha||r.sourceTree!==tree)errors.push(label+': source identity mismatch');
+            if(r.samplerHead!==SAMPLER_SHA)errors.push(label+': sampler provenance mismatch');
+            if(r.mode!=='baseline-only'||r.frameMeasurement!=='browser-animation-frame-interval')errors.push(label+': measurement mode differs');
+            if(!['PASS','INCONCLUSIVE'].includes(r.status))errors.push(label+': collection failed');
+            if(r.problems?.length||r.error||r.cleanupError)errors.push(label+': browser/cleanup error');
+            errors.push(...biryongEnvironmentErrors(r.environment).map(e=>label+': '+e));
+            if(!r.baseline?.low?.scene)errors.push(label+': LOW scene absent');
+          }
+          const a=main?.baseline?.low,b=candidate?.baseline?.low;
+          if(main&&candidate&&!isDeepStrictEqual(main.environment,candidate.environment))errors.push('different measurement environments');
+          if(a?.scene&&b?.scene){
+            for(const k of ['viewport','drawingBuffer','renderer','driver','visible','inBiryong','camera','environment','graphics']){
+              if(!isDeepStrictEqual(a.scene[k],b.scene[k]))errors.push(k+': unequal scenes');
+            }
+            if(!a.scene.position?.every((n,i)=>Math.abs(n-b.scene.position?.[i])<.01))errors.push('player position mismatch');
+            if(a.scene.visible!=='visible'||a.scene.inBiryong!==true)errors.push('inactive scene');
+          }
+          const assessment=a&&b?classifyBiryongSamples({tier:'low',baseline:a,visual:b}):null;
+          const outcome=!errors.length&&assessment?assessment.outcome:'INCONCLUSIVE';
+          const report={
+            schema:'biryong-pr312-exact-head-parity-v1',kind:'CI_BROWSER_SURROGATE_DIAGNOSTIC',
+            controlSha:CONTROL_SHA,candidateSha:CANDIDATE_SHA,samplerSha:SAMPLER_SHA,
+            mainOutcome:MAIN_OUTCOME,candidateOutcome:CANDIDATE_OUTCOME,
+            mainP95Ms:a?.p95Ms??null,candidateP95Ms:b?.p95Ms??null,
+            sameEnvironment:!!(main&&candidate&&isDeepStrictEqual(main.environment,candidate.environment)),
+            sceneComparable:!!(a?.scene&&b?.scene&&!errors.some(e=>e.includes('scene')||e.includes('position')||e.includes('inactive'))),
+            unchangedLowP95BudgetMs:85,assessment,errors,outcome,passed:outcome==='PASS',
+            note:'Exact PR312 source A/B only. Invalid main is INCONCLUSIVE, never PASS. Not a physical-device measurement or a replacement for PR312 required checks.'
+          };
+          await writeFile(dir+'comparison.json',JSON.stringify(report,null,2));
+          console.log('BIRYONG_PR312_EXACT_HEAD_REPORT',JSON.stringify(report));
+          if(!report.passed)process.exitCode=1;
+          NODE
+      - name: Preserve both measurements and comparison
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: biryong-pr312-exact-head-parity
+          path: ${{ runner.temp }}/biryong-pr312-exact-head/**
+          if-no-files-found: warn
+          retention-days: 7
