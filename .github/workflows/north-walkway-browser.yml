@@ -55,6 +55,12 @@ jobs:
       - name: Exact original-versus-batched paving pixel parity
         if: ${{ !cancelled() }}
         run: node apps/world/tests/browser/north-walkway-pixel-parity.mjs test-results/north-walkway/after/report.json test-results/north-walkway/pixel-parity.json
+      - name: Diagnostic-only portrait component ablation
+        timeout-minutes: 5
+        if: ${{ !cancelled() }}
+        env:
+          EXPECTED_WALKWAY_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: node apps/world/tests/browser/north-walkway-ablation.mjs test-results/north-walkway/after/report.json test-results/north-walkway/ablation/report.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:

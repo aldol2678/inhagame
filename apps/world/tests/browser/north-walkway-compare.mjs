@@ -34,5 +34,10 @@ const views=after.views.map(a=>{
 const report={baselineHead:before.head,candidateHead:after.head,measurement:after.measurement,budgets,
  status:views.some(v=>v.holds.length)?'HOLD':'PASS_SURROGATE_ONLY',physicalMobile:'NOT_MEASURED',views};
 await writeFile(output,JSON.stringify(report,null,2)+'\n');
-console.log(report.status);for(const v of views)console.log(`${v.viewport} ${v.id}: p95 ${v.before.p95Ms.toFixed(1)} -> ${v.after.p95Ms.toFixed(1)}; draws ${v.delta.drawCalls>=0?'+':''}${v.delta.drawCalls}; ${v.holds.join(',')||'within budget'}`);
+console.log(report.status);
+for(const v of views){
+ const limit=v.before.completedFrameP95Ms*budgets.p95Ratio+budgets.p95SlackMs;
+ console.log(`${v.viewport} ${v.id}: rAF P95 ${v.before.p95Ms.toFixed(1)} -> ${v.after.p95Ms.toFixed(1)}; completed-frame P95 ${v.before.completedFrameP95Ms.toFixed(3)} -> ${v.after.completedFrameP95Ms.toFixed(3)}; limit ${limit.toFixed(3)}; margin ${(limit-v.after.completedFrameP95Ms).toFixed(3)}; draws ${v.delta.drawCalls>=0?'+':''}${v.delta.drawCalls}; ${v.holds.join(',')||'within budget'}`);
+ if(v.holds.length)console.log('failed-frame-distribution',JSON.stringify({viewport:v.viewport,id:v.id,before:v.before.rawCompletedFrameMs,after:v.after.rawCompletedFrameMs}));
+}
 if(report.status==='HOLD')process.exitCode=1;
