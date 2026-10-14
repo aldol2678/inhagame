@@ -594,6 +594,53 @@ body[data-space] #tour { display: none; }
 }
 .hud-diagnostics .map-credit a { pointer-events: auto; }
 
+/* OSM HOTFIX: credits remain discoverable without opening nested diagnostic menus.
+   Keep the campus chip below the quest rail and to the left of the mini-map;
+   Photo Mode's existing body-level HUD visibility contract still hides it. */
+.campus-map-credit {
+  position: fixed;
+  z-index: 10;
+  top: max(122px, calc(env(safe-area-inset-top) + 112px));
+  left: max(12px, env(safe-area-inset-left));
+  margin: 0;
+  max-width: min(228px, calc(100vw - var(--world-right-rail-map-size, 112px) - 38px));
+  padding: 6px 9px;
+  border: 1px solid rgba(178,220,239,.35);
+  border-radius: 10px;
+  background: rgba(10,22,34,.86);
+  color: #e4edf3;
+  font-size: 11px;
+  line-height: 1.4;
+  overflow-wrap: break-word;
+  pointer-events: auto;
+}
+.campus-map-credit a,
+.world-lobby-map-credit a {
+  color: #ffdf90;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  pointer-events: auto;
+}
+.campus-map-credit a:focus-visible,
+.world-lobby-map-credit a:focus-visible {
+  outline: 2px solid #ffdf90;
+  outline-offset: 3px;
+}
+body[data-lobby-shell="true"] > .campus-map-credit,
+body[data-space]:not([data-space="campus"]) > .campus-map-credit {
+  display: none !important;
+}
+.world-lobby-map-credit {
+  margin: 1px auto 0;
+  padding: 4px 8px;
+  max-width: 100%;
+  color: #e4edf3;
+  font-size: 11px;
+  line-height: 1.45;
+  text-align: center;
+  pointer-events: auto;
+}
+
 .tour {
   position: fixed;
   z-index: 11;
