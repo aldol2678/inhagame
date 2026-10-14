@@ -125,6 +125,7 @@ import { createTrophyDisplay } from "./rooms/trophy-display.js";
 import { createTrophyDisplayPanel } from "./rooms/trophy-display-panel.js";
 import { PERSONAL_ROOM_BASIC_SPAWN } from "./rooms/personal-room-layout.js";
 import { isLobbyShellRequested } from "./lobby/lobby-shell.js";
+import { createCampusShortcutDispatcher } from "./lobby/pwa-shortcuts.js";
 import { createLobbyWorldMode } from "./lobby/lobby-world.js";
 import { bindMainGateEntry, enterMainGate } from "./lobby/lobby-main-gate.js";
 import { createWorldResumeStore } from "./lobby/world-resume.js";
@@ -3281,6 +3282,32 @@ smartphone = createSmartphone({
   },
   onWarning: showWorldStatus, jeongseok
 });
+// PWA-SHORTCUT-01: shortcut intents wait for the *normal* lobby, cinematic and Phone gates.
+// No direct world teleport or authentication bypass. No background timers or service worker.
+const pwaShortcut=createCampusShortcutDispatcher({
+  search: location.search,
+  isReady: () => !lobbyWorld.active && !lobbyTransition.active && !cinematic.active &&
+    !document.hidden && inputFocus.can("WORLD_ACTION") && !rooms?.status().busy,
+  openApp: appId => {
+    if(!smartphone?.open())return false;
+    const launched=smartphone.launch(appId)===true;
+    if(!launched)smartphone.close();
+    return launched;
+  },
+  onConsumed: () => {
+    const url=new URL(location.href);
+    url.searchParams.delete("shortcut");
+    window.history?.replaceState?.(window.history.state,"",url.pathname+url.search+url.hash);
+  }
+});
+if(pwaShortcut.pending){
+  const openPwaShortcut=()=>{
+    pwaShortcut.tryOpen();
+    if(!pwaShortcut.pending)app.off("update",openPwaShortcut);
+  };
+  app.on("update",openPwaShortcut);
+  window.addEventListener("pagehide",()=>app.off("update",openPwaShortcut),{once:true});
+}
 // Controller's existing destination handler runs first; Phone returns to World only on a solved route.
 document.getElementById("full-map-set-destination")?.addEventListener("click", () => {
   const snapshot = navigation?.getSnapshot();
