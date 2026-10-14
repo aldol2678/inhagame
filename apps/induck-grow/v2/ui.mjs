@@ -1,3 +1,6 @@
+import {ECONOMY_VERSION,LIFE_OPTIONS,spendingPreview,spendingCards} from './life-spending.mjs';
+import {GROWTH_VERSION,STAT_LABELS,ACTIVITY_STYLES,activityProgress,growthCards,earnedTraits,traitProgress,nextGrowthReward,competencyChanges} from './campus-growth.mjs';
+import {rankGraduates} from './graduate-archive.mjs';
 import {FOUNDATION_MAJOR_IDS, findMajor} from './major-registry.mjs';
 import {TOTAL_WEEKS} from './life-engine.mjs';
 import {createLifeSession} from './session.mjs';
@@ -8,6 +11,7 @@ const $ = id => document.getElementById(id);
 const session=createLifeSession({storage:(()=>{try{return window.localStorage}catch{return null}})()});
 const SPEED_MS=Object.freeze({1:650,2:330,4:165,8:85});
 let speed=1,playing=false,timer=null,tab='story',autoResumeAfterChoice=false;
+let lastRenderedStats=null;
 const currency=new Intl.NumberFormat('ko-KR');
 const setup=$('setup-screen'),game=$('game-screen');
 const eventDialog=$('event-dialog'),semesterDialog=$('semester-dialog');
@@ -89,11 +93,12 @@ function startGame() {
   }
   stop(null,false);
   closeDialog(eventDialog);closeDialog(semesterDialog);
-  session.start({majorId:$('major-select').value,seed:seedNumber,policy:$('start-policy').value,replaceExisting:existing.exists===true,contentVersion:FOLLOWUP_CONTENT_VERSION});
-  tab='story';showGame();
+  session.start({majorId:$('major-select').value,seed:seedNumber,policy:$('start-policy').value,replaceExisting:existing.exists===true,contentVersion:FOLLOWUP_CONTENT_VERSION,growthVersion:GROWTH_VERSION,economyVersion:ECONOMY_VERSION});
+  tab='story';showGame();renderArchive();
   announce('입학을 축하해! 생활 방침을 고르고 시작 버튼을 눌러 줘.');
 }
 function showGame() {
+  lastRenderedStats=null;
   setup.hidden=true;game.hidden=false;
   render();
   if(session.life()?.pendingEvent)showEvent(session.life());
@@ -109,7 +114,7 @@ function showSetup() {
   stop(null,false);
   closeDialog(eventDialog);closeDialog(semesterDialog);
   setup.hidden=false;game.hidden=true;
-  updateContinue();
+  updateContinue();renderArchive();
   $('setup-title').focus?.();
 }
 function showEvent(life) {
@@ -144,7 +149,7 @@ function showSemester(life) {
   const last=life.semesters.at(-1);
   put('semester-title',finished?'🎓 인덕이가 졸업했어!':last.year+'학년 '+last.term+'학기 성적표');
   put('semester-summary','이번 학기 '+last.gpa.toFixed(2)+'/4.50 · 누적 '+life.gpa.toFixed(2)+
-    '/4.50 · 총 '+life.credits+'학점 (게임 내 가상 성적)');
+    '/4.50 · 총 '+life.credits+'학점 (게임 내 가상 성적)'+(session.status().archiveError?' · ⚠ '+session.status().archiveError:''));
   put('semester-close',finished?'졸업앨범 열기':'다음 학기 준비하기');
   openDialog(semesterDialog);
   $('semester-close').focus();
@@ -202,9 +207,9 @@ function renderJournal() {
       description:x.credits+'학점 · 학기 말 생활비 '+currency.format(x.money)+'원'}));
     if(!life.semesters.length)empty(parent,'첫 학기가 끝나면 가상 성적표가 나타나.');
   } else if(tab==='memories') {
-    [...life.memories].reverse().slice(0,40).forEach((m,i)=>line(parent,{
-      label:'추억 '+(life.memories.length-i),title:m.text,description:m.memoryTag}));
-    if(!life.memories.length)empty(parent,'사건에서 선택하면 특별한 추억이 기록돼.');
+    const cards=[...growthCards(life),...spendingCards(life)];
+    [...cards].reverse().forEach(card=>line(parent,{label:card.kind,title:card.title,description:card.text}));
+    if(!cards.length)empty(parent,'전공 활동과 사건 선택이 기억카드로 남아.');
   } else if(tab==='ending') {
     if(life.ending) {
       line(parent,{label:'🎓 '+life.ending.years+'년 · '+life.ending.semesters+'학기',
@@ -215,6 +220,7 @@ function renderJournal() {
         line(parent,{label:'전공 이야기',title:epilogue.title,description:epilogue.text});
         for(const chapter of epilogue.chapters)line(parent,{label:chapter.year+'학년의 선택',title:'그때의 인덕이',description:chapter.text});
       }
+      line(parent,{label:'획득 특성',title:earnedTraits(life).map(t=>t.title).join(' · ')||'나만의 첫 걸음',description:'활동과 생활 방침의 기록에서 얻은 특성이야.'});
       line(parent,{label:'기록',title:'또 다른 인생을 시작할 수 있어!',
         description:'같은 인덕이에게도 전공과 선택에 따라 서로 다른 이야기가 생겨.'});
     } else empty(parent,'4학년 2학기를 끝내면 졸업앨범이 열려.');
@@ -251,14 +257,110 @@ function render() {
         work:'오늘도 차곡차곡 생활비를 모으고 있어.',
         creative:'새로운 아이디어가 떠오르는 것 같아!'
       })[life.policy]);
-  put('save-indicator',session.status().saveError?'⚠ 저장 실패':'💾 v2 기기 저장');
+  put('save-indicator',session.status().archiveError?'⚠ 졸업기록 보관 실패':session.status().saveError?'⚠ 저장 실패':'💾 v2 기기 저장');
   $('step-button').disabled=life.status==='complete';
   $('play-button').disabled=life.status==='complete';
   $('policy-select').disabled=life.status==='complete';
+  const changes=competencyChanges(lastRenderedStats,life);
+  put('competency-change',changes.length?'직전 변화: '+changes.map(x=>x.label+' '+(x.delta>0?'+':'')+x.delta).join(' · '):'직전 표시 이후 역량 변화 없음');
+  lastRenderedStats={stats:{...life.stats}};
+  renderGrowth(life);
+  renderSpending(life);
   renderJournal();
+  if(life.status==='complete')renderArchive();
   document.querySelectorAll('[data-tab]').forEach(button=>
     button.setAttribute('aria-pressed',String(button.dataset.tab===tab)));
   if(session.status().saveError)announce(session.status().saveError);
+}
+
+function renderGrowth(life) {
+  const stats=$('growth-stats');stats.replaceChildren();
+  for(const [key,label] of Object.entries(STAT_LABELS)) {
+    const row=document.createElement('div');row.className='stat-row';
+    const text=document.createElement('span');text.textContent=label+' '+life.stats[key]+'/100';
+    const bar=document.createElement('progress');bar.max=100;bar.value=life.stats[key];bar.setAttribute('aria-label',label);
+    row.append(text,bar);stats.append(row);
+  }
+  const active=activityProgress(life).at(-1),termIndex=Math.min(8,Math.floor(life.weeksCompleted/15)+1);
+  const thisTerm=active?.term===termIndex?active:null;
+  $('activity-select').disabled=!life.growth||life.status==='complete'||life.pendingEvent!==null||life.weeksCompleted%15!==0;
+  $('activity-select').value=thisTerm?.style||'explore';
+  put('activity-summary',!life.growth?'이전 저장은 기존 진행 방식을 유지해. 새 게임부터 전공 활동을 선택할 수 있어.':
+    (findMajor(life.majorId)?.majorAction.label||'전공 활동')+' · '+termIndex+'번째 학기 · '+(thisTerm?.weeks||0)+'/15주');
+  put('growth-traits',earnedTraits(life).map(t=>t.title).join(' · ')||'아래 조건을 채워 나만의 특성을 얻어 봐.');
+  const reward=nextGrowthReward(life);
+  put('next-growth-reward',reward?'다음 '+reward.title+'까지 '+reward.remaining+'주 · '+reward.label+(reward.capped?' 100 상한 도달 (카드는 획득)':' 최대 +1 (100 상한)'):life.growth?'이번 인생의 전공 활동을 모두 마쳤어.':'이전 저장에는 추가 성장 보상이 없어.');
+  const traits=$('trait-progress');traits.replaceChildren();
+  for(const t of traitProgress(life)) {
+    const row=document.createElement('div');row.className='trait-row';
+    const label=document.createElement('p');label.textContent=(t.earned?'✓ ':'○ ')+t.title+' · '+t.condition+' '+Math.min(t.current,t.goal)+'/'+t.goal+(t.available?'':' · 새 게임부터 가능');
+    const bar=document.createElement('progress');bar.max=t.goal;bar.value=Math.min(t.current,t.goal);bar.setAttribute('aria-label',t.title+' 진행률');
+    row.append(label,bar);traits.append(row);
+  }
+}
+
+function renderSpending(life) {
+ const select=$('spending-select'),note=$('spending-note');
+ select.replaceChildren();
+ for(const o of LIFE_OPTIONS) {
+  const element=document.createElement('option');element.value=o.id;
+  element.textContent=o.label+' · '+currency.format(o.cost)+'원';
+  element.disabled=!!life.spending&&life.money<o.cost;select.append(element);
+ }
+ select.value=life.spending?.selected||'none';
+ select.disabled=!life.spending||life.status==='complete'||!!life.pendingEvent;
+ const p=spendingPreview(life);
+ note.textContent=!p?'이전 저장은 기존 규칙을 유지해. 새 게임부터 생활 활동을 이용할 수 있어.':
+ p.id==='none'?'이번 주 생활 방침에 집중해. 선택은 주차 완료 시 한 번 실행되고 자동으로 초기화돼.':
+ '주차 완료 시 '+currency.format(p.cost)+'원 · 체력 '+(p.stamina>=0?'+':'')+p.stamina+
+ ' · 스트레스 '+(p.stress>=0?'+':'')+p.stress+(p.stat?' · '+STAT_LABELS[p.stat]+' 최대 +'+p.gain:'')+
+ ' · 기본 역량 성장·양수 수입 50% (여가 시간 사용)'+(p.factor<1?' · 최근 반복으로 효과 감소':'')+
+ (p.effort<1?' · 피로로 활동 효과 감소':'')+
+ (p.id==='project'?' · 분석·창의·협업 평균 50 이상이면 제작 성장 증가':'')+
+ (p.id==='walk'||p.id==='rest'?' · 회복 역량에 따라 체력 회복 증가':'')+
+ ' · 사건 후 잔액 부족 시 결제 없이 취소';
+}
+
+function renderArchive() {
+  const result=session.graduateArchive(),list=$('archive-list');list.replaceChildren();
+  put('archive-status',session.status().archiveError||result.error||(result.records.length+' / 50개 기록 · 남은 공간 '+(50-result.records.length)+'건 · 같은 완료 요약은 중복 보관하지 않아.'));
+  if(!result.ok)return;
+  if(!result.records.length){empty(list,'졸업하면 기록이 자동으로 보관돼. 저장된 기록은 새 게임을 시작해도 남아.');return;}
+  for(const item of rankGraduates(result.records)) {
+    const r=item.record,details=document.createElement('details');details.className='graduate-record';
+    const summary=document.createElement('summary');
+    summary.textContent=item.rank+'위 · '+(findMajor(r.majorId)?.displayName||r.majorId)+' · '+r.gpa.toFixed(2)+' / 4.50 · '+r.title;
+    details.append(summary);
+    line(details,{label:'비교 그룹',title:r.growth==='legacy'?'기존 성장 규칙':'전공 활동 성장 규칙',
+      description:(r.economy||'기존 소비 규칙')+' · '+r.content+' · '+r.engine+' · 시드 '+r.seed+' · 이 기록실의 같은 전공·버전끼리 비교'});
+    line(details,{label:'8학기 성적',title:r.semesters.map(s=>s.gpa.toFixed(2)).join(' → '),
+      description:r.traits.map(t=>t.title).join(' · ')||'나만의 첫 걸음'});
+    r.epilogue.forEach((text,i)=>line(details,{label:(i+1)+'학년의 선택',title:'전공 이야기',description:text}));
+    const cards=document.createElement('details'),caption=document.createElement('summary');
+    caption.textContent='기억카드 '+r.cards.length+'장';cards.append(caption);
+    r.cards.forEach(c=>line(cards,{label:c.kind,title:c.title,description:c.text}));details.append(cards);
+    const remove=document.createElement('button');remove.type='button';remove.className='secondary';remove.textContent='이 졸업 기록 삭제';
+    const recordKey=JSON.stringify(r);
+    remove.addEventListener('click',()=>safely(()=>{
+      if(!window.confirm('선택한 졸업 기록 1건을 삭제할까? 되돌릴 수 없어. 필요하면 먼저 JSON 백업을 내려받아 보관해 줘. 현재 게임 저장은 삭제하지 않아.'))return;
+      const result=session.removeGraduate(recordKey);renderArchive();
+      put('archive-status',result.ok?'선택한 졸업 기록 1건을 삭제했어.':result.error);
+    }));
+    details.append(remove);list.append(details);
+  }
+}
+
+function exportGraduateBackup() {
+  const result=session.exportGraduates();
+  if(!result.ok){put('archive-status',result.error);return;}
+  const blob=new Blob([result.json],{type:'application/json;charset=utf-8'});
+  const url=URL.createObjectURL(blob),link=document.createElement('a');
+  try {
+    link.href=url;link.download='induck-grow-graduates.json';document.body.append(link);link.click();
+    put('archive-status',result.count+'건의 졸업 기록 백업 다운로드를 요청했어. 기기의 다운로드 목록을 확인해 줘.');
+  } finally {
+    link.remove();window.setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }
 }
 function safely(action) {
   try {action();}
@@ -268,8 +370,14 @@ function safely(action) {
     announce('작업을 처리하지 못했어. 현재 기록은 유지돼. '+(error?.message||'다시 시도해 줘.'));
   }
 }
+$('spending-select').addEventListener('change',e=>safely(()=>{stop(null,false);session.setSpending(e.target.value);render();announce('이번 주 생활 활동을 예약했어. 진행을 누르면 주차 완료 시 한 번 실행돼.');}));
 renderMajorPicker();
 updateContinue();
+renderArchive();
+$('archive-export').addEventListener('click',()=>safely(exportGraduateBackup));
+$('archive-retry').addEventListener('click',()=>safely(()=>{session.retryArchive();if(session.life())render();renderArchive();}));
+$('archive-details').addEventListener('toggle',()=>{if($('archive-details').open)renderArchive();});
+$('activity-select').addEventListener('change',e=>safely(()=>{session.setActivity(e.target.value);render();announce('이번 학기 전공 활동을 선택했어. 첫 주 진행 전까지 바꿀 수 있어.');}));
 $('major-select').addEventListener('change',describeMajor);
 $('random-seed').addEventListener('click',()=>{
   let seed;

@@ -1,3 +1,6 @@
+import {selectSpending} from './life-spending.mjs';
+import {selectMajorActivity} from './campus-growth.mjs';
+import {createGraduateArchive,graduateSummary} from './graduate-archive.mjs';
 import {
   LIFE_ENGINE_VERSION, createLife, advanceLife, advanceLifeBatch,
   chooseLifeEvent, setLifePolicy
@@ -51,7 +54,11 @@ function validateSaveLife(life) {
 }
 
 export function createLifeSession({storage=null, onUpdate=()=>{}}={}) {
-  let current=null,saveError=null,loadError=null,writesBlocked=false;
+  let current=null,saveError=null,loadError=null,writesBlocked=false,archiveError=null;
+  const archive=createGraduateArchive(storage);
+  function archiveCompleted() {
+    if(current?.status==='complete') {const r=archive.add(current);archiveError=r.ok?null:r.error;}
+  }
   function publish() { onUpdate({life:current?copy(current):null,saveError,loadError}); }
   function persist() {
     if (!storage || writesBlocked) { saveError='저장소를 사용할 수 없어서 이번 게임은 임시로 진행돼요.'; publish(); return false; }
@@ -77,14 +84,14 @@ export function createLifeSession({storage=null, onUpdate=()=>{}}={}) {
       if(parsed?.schema!==V2_LOCAL_SAVE_SCHEMA || life?.version!==LIFE_ENGINE_VERSION)
         throw new Error('VERSION_MISMATCH');
       validateSaveLife(life);
-      return {exists:true,available:true,error:null,life,
+      return {exists:true,available:true,error:null,life,raw,
         summary:{majorId:life.majorId,weeksCompleted:life.weeksCompleted,year:life.year,term:life.term}};
     } catch {
       return {exists:true,available:false,error:'이전 v2 기록을 읽을 수 없어요. 원본은 삭제하지 않았어요.'};
     }
   }
   function inspectSave() {
-    const {life:ignored,...preview}=readSave();
+    const {life:ignored,raw:ignoredRaw,...preview}=readSave();
     return preview;
   }
   function load() {
@@ -92,14 +99,31 @@ export function createLifeSession({storage=null, onUpdate=()=>{}}={}) {
     if(!snapshot.available) {loadError=snapshot.error||'이어할 기록이 없어요.';publish();return false;}
     // Apply exactly the validated read; a second read could return another value.
     current=copy(snapshot.life);loadError=null;saveError=null;writesBlocked=false;
-    publish();return true;
+    archiveCompleted();publish();return true;
   }
-  function start({majorId,seed=1,policy='balanced',replaceExisting=false,contentVersion}={}) {
-    const fresh=createLife({majorId,seed,policy,contentVersion}),existing=readSave();
+  function start({majorId,seed=1,policy='balanced',replaceExisting=false,contentVersion,growthVersion,economyVersion}={}) {
+    const fresh=createLife({majorId,seed,policy,contentVersion,growthVersion,economyVersion}),existing=readSave();
     if(existing.exists===true && !replaceExisting)
       throw new Error('기존 v2 기록을 교체하려면 먼저 확인해 주세요.');
+    // Preserve both an in-memory completion and an existing completed snapshot.
+    for(const completed of [current,existing.available?existing.life:null])
+      if(completed?.status==='complete') {
+        const result=archive.add(completed);
+        if(!result.ok){archiveError=result.error;throw new Error(result.error);}
+      }
+    if(existing.available) {
+      const raw=JSON.stringify({schema:V2_LOCAL_SAVE_SCHEMA,life:fresh});
+      try {
+        if(storage.getItem(V2_LOCAL_SAVE_KEY)!==existing.raw)throw Error('changed');
+        storage.setItem(V2_LOCAL_SAVE_KEY,raw);
+        if(storage.getItem(V2_LOCAL_SAVE_KEY)!==raw)throw Error('readback');
+      } catch {throw new Error('새 게임 저장에 실패했어요. 현재 게임은 유지돼요.');}
+      current=fresh;loadError=null;saveError=null;archiveError=null;writesBlocked=false;publish();return copy(current);
+    }
+    // Unreadable storage is temporary. A malformed existing primary save may
+    // still be replaced after explicit replaceExisting confirmation (legacy contract).
     writesBlocked=existing.exists===null;
-    current=fresh;loadError=null;persist();return copy(current);
+    current=fresh;loadError=null;archiveError=null;persist();return copy(current);
   }
   function life() {return current?copy(current):null;}
   function transition(kind) {
@@ -110,6 +134,7 @@ export function createLifeSession({storage=null, onUpdate=()=>{}}={}) {
     const priorWeeks=current.weeksCompleted;
     current=advanceLife(current);
     persist();
+    archiveCompleted();
     if(current.pendingEvent)return {kind:'choice',life:copy(current)};
     if(current.status==='complete')return {kind:'complete',life:copy(current)};
     if(current.semesters.length>priorSemesters)return {kind:'semester',life:copy(current)};
@@ -126,7 +151,26 @@ export function createLifeSession({storage=null, onUpdate=()=>{}}={}) {
     current=setLifePolicy(current,policy);
     persist();return copy(current);
   }
-  return Object.freeze({start,load,life,inspectSave,
+  function setActivity(style) {
+    if(!current)throw new Error('시작된 게임이 없어요.');
+    current=selectMajorActivity(current,style);persist();return copy(current);
+  }
+  function setSpending(id) {
+    if(!current)throw Error('시작된 게임이 없어요.');
+    current=selectSpending(current,id);persist();return copy(current);
+  }
+  function removeGraduate(recordKey) {
+    const saved=readSave();
+    if(saved.exists===null || (saved.exists===true&&!saved.available))
+      return {ok:false,error:'현재 저장을 확인할 수 없어 기록 삭제를 중단했어요.'};
+    const active=[current,saved.available?saved.life:null];
+    if(active.some(l=>l?.status==='complete'&&JSON.stringify(graduateSummary(l))===recordKey))
+      return {ok:false,error:'현재 졸업 기록은 새 게임을 시작한 뒤 정리할 수 있어요. 다른 과거 기록을 선택해 주세요.'};
+    return archive.remove(recordKey,()=>{const latest=readSave();return latest.exists===saved.exists&&latest.available===saved.available&&latest.raw===saved.raw;});
+  }
+  return Object.freeze({start,load,life,inspectSave,setActivity,setSpending,removeGraduate,
+    exportGraduates:()=>archive.exportSnapshot(),
+    graduateArchive:()=>archive.read(),retryArchive:()=>{archiveCompleted();return archiveError;},
     nextWeek:()=>transition('week'),choose,setPolicy,
-    status:()=>({saveError,loadError})});
+    status:()=>({saveError,loadError,archiveError})});
 }

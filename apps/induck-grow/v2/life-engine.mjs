@@ -1,3 +1,5 @@
+import {initializeSpending,validateSpending,applySpending} from './life-spending.mjs';
+import {initializeGrowth,validateGrowth,advanceGrowth} from './campus-growth.mjs';
 import { findMajor } from './major-registry.mjs';
 import { applySignatureChoice } from './signature-choice.mjs';
 import {contentVersion, LEGACY_CONTENT_VERSION, FOLLOWUP_CONTENT_VERSION, buildFollowupEvent, applyFollowupChoice, buildMajorEpilogue, validateStoryState} from './major-stories.mjs';
@@ -75,15 +77,17 @@ function ensureLife(life) {
   if (!life.stats || COMPETENCIES.some(k=>!Number.isFinite(life.stats[k]) || life.stats[k]<0 || life.stats[k]>100) ||
       !Number.isFinite(life.money) || !Number.isFinite(life.stress) || !Number.isFinite(life.stamina)) throw new TypeError('Invalid life resources');
   validateStoryState(life);
+  validateGrowth(life);
+  validateSpending(life);
 }
 
-export function createLife({majorId,seed=1,policy='balanced',contentVersion:requestedContent=LEGACY_CONTENT_VERSION}={}) {
+export function createLife({majorId,seed=1,policy='balanced',contentVersion:requestedContent=LEGACY_CONTENT_VERSION,growthVersion,economyVersion}={}) {
   const major = findMajor(majorId);
   if (!major || major.playability !== 'foundation' || major.calendarTemplate !== 'four_year_8_terms') throw new Error('Unsupported V2 foundation major');
   if (!SUPPORTED_POLICIES.includes(policy)) throw new RangeError('Unsupported life policy');
   if (!Number.isSafeInteger(seed) || seed<0 || seed>0xffffffff) throw new RangeError('Seed must be uint32');
   contentVersion({contentVersion:requestedContent});
-  return {
+  return initializeSpending(initializeGrowth({
     ...(requestedContent===FOLLOWUP_CONTENT_VERSION?{contentVersion:requestedContent}:{}),
     version:LIFE_ENGINE_VERSION, majorId, seed, rngState:seed || 0x6d2b79f5,
     policy,year:1,term:1,week:1,weeksCompleted:0,status:'running',
@@ -92,7 +96,7 @@ export function createLife({majorId,seed=1,policy='balanced',contentVersion:requ
     gpa:0,credits:0,gradePoints:0,semesters:[],ending:null,
     pendingEvent:null,shownEventSlots:[],completedEventInstances:[],flags:{},memories:[],
     timeline:[],weeklyHistory:[]
-  };
+  },growthVersion),economyVersion);
 }
 export function setLifePolicy(input,policy) {
   ensureLife(input);
@@ -175,13 +179,15 @@ function finishSemester(life) {
   }
 }
 function completeWeek(life) {
+  advanceGrowth(life);
+  const routineScale=applySpending(life);
   const routine=ROUTINES[life.policy];
   const noise=Math.floor(rng(life)*3)-1;
-  for (const [competency,value] of Object.entries(routine.gains)) life.stats[competency]=clamp(life.stats[competency]+value,0,100);
+  for (const [competency,value] of Object.entries(routine.gains)) life.stats[competency]=clamp(life.stats[competency]+value*routineScale,0,100);
   if (noise>0) life.stats.recovery=clamp(life.stats.recovery+1,0,100);
   life.stamina=clamp(life.stamina+routine.stamina+4,0,100);
   life.stress=clamp(life.stress+routine.stress-2+(life.week===8||life.week===15?3:0),0,100);
-  life.money=Math.max(0,life.money+routine.money-4000+noise*500);
+  life.money=Math.max(0,life.money+(routine.money>0?routine.money*routineScale:routine.money)-4000+noise*500);
   life.weeksCompleted++;
   life.weeklyHistory.push({year:life.year,term:life.term,week:life.week,policy:life.policy,
     stamina:life.stamina,stress:life.stress,money:life.money});

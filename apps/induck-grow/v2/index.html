@@ -128,18 +128,43 @@
               </select>
             </div>
           </section>
+          <section class="card growth-card" aria-labelledby="growth-title">
+            <h2 id="growth-title">전공 활동과 성장</h2>
+            <p id="activity-summary" class="hint"></p>
+            <p id="next-growth-reward" class="hint"></p>
+            <p id="competency-change" class="hint" role="status"></p>
+            <label for="activity-select">이번 학기 대표 활동의 접근법</label>
+            <select id="activity-select">
+              <option value="explore">탐구하고 정리하기</option>
+              <option value="build">직접 만들어 보기</option>
+              <option value="team">함께 완성하기</option>
+            </select>
+            <p class="hint">첫 주 진행 전 선택 · 미선택 시 탐구 · 5·10·15주마다 해당 역량 +1</p>
+            <div class="form-field"><label for="spending-select">이번 주 생활 활동</label><select id="spending-select" aria-describedby="spending-note"></select><p id="spending-note" class="hint" role="status"></p><p class="hint">게임 속 생활비만 사용해. 무료 활동도 시간을 사용하며, 최근 2주에 같은 활동을 반복하면 효과가 75%·50%로 줄어들어. 활동한 주는 기본 역량 성장과 양수 수입이 절반이 돼. 표시 효과는 활동 단독 최대치야. 현재 잔액으로 결제하고 활동 → 기본 방침 순서로 적용돼. 기본 생활비는 그대로이며 피로·스트레스 비용은 반복해도 줄지 않아.</p></div>
+          <details><summary>역량 6개와 획득 특성 보기</summary><div id="growth-stats"></div><p id="growth-traits" class="hint"></p><div id="trait-progress"></div></details>
+          </section>
           <section class="journal card" aria-labelledby="journal-title">
             <div class="section-head"><h2 id="journal-title">대학생활 수첩</h2></div>
             <nav class="tabs" aria-label="기록 보기">
               <button type="button" data-tab="story" aria-pressed="true">최근 기록</button>
               <button type="button" data-tab="semesters" aria-pressed="false">성적표</button>
-              <button type="button" data-tab="memories" aria-pressed="false">추억</button>
+              <button type="button" data-tab="memories" aria-pressed="false">기억카드</button>
               <button type="button" data-tab="ending" aria-pressed="false">졸업앨범</button>
             </nav>
             <div id="journal-list" class="journal-body" aria-live="off"></div>
           </section>
         </div>
       </div>
+    </section>
+    <section class="card archive-card" aria-labelledby="archive-title">
+      <details id="archive-details"><summary id="archive-title">🎓 졸업생 기록실 · 내 최고 학점</summary>
+        <p class="hint">이 브라우저에 보관한 완료 기록 최대 50건. 전공·엔진·콘텐츠·성장 버전별 공동 순위. 시드와 선택은 다를 수 있으며, 온라인 랭킹이 아닙니다.</p>
+        <p id="archive-status" role="status"></p>
+        <p class="hint">기록을 삭제하기 전에 백업을 내려받아 보관해 주세요. 현재 졸업 기록은 새 게임을 시작한 뒤 정리할 수 있어요. JSON 가져오기는 아직 지원하지 않습니다.</p>
+        <button id="archive-export" type="button" class="secondary">졸업 기록 JSON 백업</button>
+        <button id="archive-retry" type="button" class="secondary">보관 다시 시도 · 새로고침</button>
+        <div id="archive-list"></div>
+      </details>
     </section>
   </main>
   <footer class="site-footer">인덕이 키우기 2.0 개발용 프리뷰 · 기기 저장만 지원 · INHA WORLD 재화/계정 연동 없음</footer>
