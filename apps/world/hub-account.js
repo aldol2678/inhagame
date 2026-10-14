@@ -40,6 +40,7 @@
   window.InhaHubAccountClient = client;
 
   let epoch = 0;
+  let loginAttempt = 0;
   let mode = 'signup';
   let memberActivityLastAt = 0;
   let memberActivityPending = false;
@@ -131,7 +132,7 @@
     return search.get('identity_linked') === 'google';
   }
 
-  async function refreshLinkedIdentities(signedIn) {
+  async function refreshLinkedIdentities(signedIn, expectedEpoch = epoch) {
     if (!linkedIdentities || !googleLinkButton || !googleLinkBadge || !googleLinkStatus) return;
     linkedIdentities.hidden = !signedIn;
     googleLinkStatus.textContent = '';
@@ -142,6 +143,7 @@
     try {
       const { data, error } = await client.auth.getUserIdentities();
       if (error) throw error;
+      if (expectedEpoch !== epoch) return;
       const identities = Array.isArray(data?.identities) ? data.identities : [];
       const googleLinked = identities.some(identity => identity?.provider === 'google');
       googleLinkBadge.textContent = googleLinked ? 'Google 연동됨' : '미연동';
@@ -152,6 +154,7 @@
         history.replaceState(null, '', '/?panel=account');
       }
     } catch (error) {
+      if (expectedEpoch !== epoch) return;
       console.warn('Hub identity read failed', error);
       googleLinkBadge.textContent = '확인 실패';
       googleLinkButton.textContent = 'Google 계정 연동';
@@ -162,7 +165,15 @@
 
   async function refresh() {
     const current = ++epoch;
-    const { data, error } = await client.auth.getUser();
+    let auth;
+    try { auth = await client.auth.getUser(); }
+    catch {
+      if (current !== epoch) return;
+      status.textContent = '계정 상태를 확인할 수 없습니다. 잠시 후 다시 시도해 주세요.';
+      loginForm.hidden = signupForm.hidden = tabs.hidden = actions.hidden = true;
+      return;
+    }
+    const { data, error } = auth ?? {};
     if (current !== epoch) return;
     if (error && error.name !== 'AuthSessionMissingError') {
       status.textContent = '계정 상태를 확인할 수 없습니다. 잠시 후 다시 시도해 주세요.';
@@ -219,16 +230,22 @@
       actions.hidden = false;
       profileSetup.hidden = true;
       renderInhaVerification(true, badge === true);
-      await refreshLinkedIdentities(true);
+      await refreshLinkedIdentities(true, current);
+      if (current !== epoch) return;
       status.textContent = (profileState.profile?.nickname || 'INHAGAME 사용자') +
         (badge === true ? ' · 인하대 인증 완료' : ' · 로그인됨');
     } catch (profileError) {
+      if (current !== epoch) return;
       console.warn('Hub profile bootstrap failed', profileError);
       status.textContent = '로그인됐지만 프로필을 준비하지 못했습니다. 내 프로필에서 다시 확인해 주세요.';
     }
   }
 
-  client.auth.onAuthStateChange(() => { setTimeout(() => void refresh(), 0); });
+  client.auth.onAuthStateChange(() => {
+    epoch++;
+    loginAttempt++;
+    setTimeout(() => void refresh(), 0);
+  });
 
   for (const button of modeButtons) {
     button.addEventListener('click', () => setMode(button.dataset.authMode));
@@ -364,21 +381,31 @@
   loginForm.addEventListener('submit', async event => {
     event.preventDefault();
     const button = loginForm.querySelector('button[type="submit"]');
+    if (button.disabled) return;
+    const attempt = ++loginAttempt;
+    const currentEpoch = epoch;
     button.disabled = true;
     status.textContent = '로그인하는 중…';
-    const { error } = await client.auth.signInWithPassword({
-      email: loginForm.elements.email.value.trim().toLowerCase(),
-      password: loginForm.elements.password.value
-    });
-    loginForm.elements.password.value = '';
-    button.disabled = false;
-    if (error) {
-      status.textContent = /email not confirmed/i.test(String(error.message || ''))
-        ? '이메일 인증을 먼저 완료해 주세요.'
-        : '로그인에 실패했습니다. 계정 정보를 확인해 주세요.';
-      return;
+    try {
+      const { error } = await client.auth.signInWithPassword({
+        email: loginForm.elements.email.value.trim().toLowerCase(),
+        password: loginForm.elements.password.value
+      });
+      if (attempt !== loginAttempt || currentEpoch !== epoch) return;
+      if (error) {
+        status.textContent = /email not confirmed/i.test(String(error.message || ''))
+          ? '이메일 인증을 먼저 완료해 주세요.'
+          : '로그인에 실패했습니다. 계정 정보를 확인해 주세요.';
+        return;
+      }
+      void refresh();
+    } catch {
+      if (attempt !== loginAttempt || currentEpoch !== epoch) return;
+      status.textContent = '로그인 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.';
+    } finally {
+      loginForm.elements.password.value = '';
+      button.disabled = false;
     }
-    void refresh();
   });
 
   async function getPermanentSession() {
@@ -524,6 +551,7 @@
     const { error } = await client.auth.signOut({ scope: 'local' });
     if (error) { status.textContent = '로그아웃하지 못했습니다. 다시 시도해 주세요.'; return; }
     epoch++;
+    loginAttempt++;
     setMode('signup');
     void refresh();
   });
