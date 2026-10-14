@@ -1,4 +1,4 @@
-import {GROWTH_VERSION,STAT_LABELS,ACTIVITY_STYLES,activityProgress,growthCards,earnedTraits} from './campus-growth.mjs';
+import {GROWTH_VERSION,STAT_LABELS,ACTIVITY_STYLES,activityProgress,growthCards,earnedTraits,traitProgress,nextGrowthReward,competencyChanges} from './campus-growth.mjs';
 import {rankGraduates} from './graduate-archive.mjs';
 import {FOUNDATION_MAJOR_IDS, findMajor} from './major-registry.mjs';
 import {TOTAL_WEEKS} from './life-engine.mjs';
@@ -10,6 +10,7 @@ const $ = id => document.getElementById(id);
 const session=createLifeSession({storage:(()=>{try{return window.localStorage}catch{return null}})()});
 const SPEED_MS=Object.freeze({1:650,2:330,4:165,8:85});
 let speed=1,playing=false,timer=null,tab='story',autoResumeAfterChoice=false;
+let lastRenderedStats=null;
 const currency=new Intl.NumberFormat('ko-KR');
 const setup=$('setup-screen'),game=$('game-screen');
 const eventDialog=$('event-dialog'),semesterDialog=$('semester-dialog');
@@ -96,6 +97,7 @@ function startGame() {
   announce('입학을 축하해! 생활 방침을 고르고 시작 버튼을 눌러 줘.');
 }
 function showGame() {
+  lastRenderedStats=null;
   setup.hidden=true;game.hidden=false;
   render();
   if(session.life()?.pendingEvent)showEvent(session.life());
@@ -258,6 +260,9 @@ function render() {
   $('step-button').disabled=life.status==='complete';
   $('play-button').disabled=life.status==='complete';
   $('policy-select').disabled=life.status==='complete';
+  const changes=competencyChanges(lastRenderedStats,life);
+  put('competency-change',changes.length?'직전 변화: '+changes.map(x=>x.label+' '+(x.delta>0?'+':'')+x.delta).join(' · '):'직전 표시 이후 역량 변화 없음');
+  lastRenderedStats={stats:{...life.stats}};
   renderGrowth(life);
   renderJournal();
   if(life.status==='complete')renderArchive();
@@ -280,11 +285,20 @@ function renderGrowth(life) {
   $('activity-select').value=thisTerm?.style||'explore';
   put('activity-summary',!life.growth?'이전 저장은 기존 진행 방식을 유지해. 새 게임부터 전공 활동을 선택할 수 있어.':
     (findMajor(life.majorId)?.majorAction.label||'전공 활동')+' · '+termIndex+'번째 학기 · '+(thisTerm?.weeks||0)+'/15주');
-  put('growth-traits',earnedTraits(life).map(t=>t.title).join(' · ')||'특성 힌트: 활동 4학기 완성, 같은 접근법 2학기 완성, 알바 방침 30주, 생활 방침 4종 경험');
+  put('growth-traits',earnedTraits(life).map(t=>t.title).join(' · ')||'아래 조건을 채워 나만의 특성을 얻어 봐.');
+  const reward=nextGrowthReward(life);
+  put('next-growth-reward',reward?'다음 '+reward.title+'까지 '+reward.remaining+'주 · '+reward.label+(reward.capped?' 100 상한 도달 (카드는 획득)':' 최대 +1 (100 상한)'):life.growth?'이번 인생의 전공 활동을 모두 마쳤어.':'이전 저장에는 추가 성장 보상이 없어.');
+  const traits=$('trait-progress');traits.replaceChildren();
+  for(const t of traitProgress(life)) {
+    const row=document.createElement('div');row.className='trait-row';
+    const label=document.createElement('p');label.textContent=(t.earned?'✓ ':'○ ')+t.title+' · '+t.condition+' '+Math.min(t.current,t.goal)+'/'+t.goal+(t.available?'':' · 새 게임부터 가능');
+    const bar=document.createElement('progress');bar.max=t.goal;bar.value=Math.min(t.current,t.goal);bar.setAttribute('aria-label',t.title+' 진행률');
+    row.append(label,bar);traits.append(row);
+  }
 }
 function renderArchive() {
   const result=session.graduateArchive(),list=$('archive-list');list.replaceChildren();
-  put('archive-status',session.status().archiveError||result.error||(result.records.length+' / 50개 기록 · 같은 완료 요약은 중복 보관하지 않아.'));
+  put('archive-status',session.status().archiveError||result.error||(result.records.length+' / 50개 기록 · 남은 공간 '+(50-result.records.length)+'건 · 같은 완료 요약은 중복 보관하지 않아.'));
   if(!result.ok)return;
   if(!result.records.length){empty(list,'졸업하면 기록이 자동으로 보관돼. 저장된 기록은 새 게임을 시작해도 남아.');return;}
   for(const item of rankGraduates(result.records)) {
@@ -299,10 +313,30 @@ function renderArchive() {
     r.epilogue.forEach((text,i)=>line(details,{label:(i+1)+'학년의 선택',title:'전공 이야기',description:text}));
     const cards=document.createElement('details'),caption=document.createElement('summary');
     caption.textContent='기억카드 '+r.cards.length+'장';cards.append(caption);
-    r.cards.forEach(c=>line(cards,{label:c.kind,title:c.title,description:c.text}));details.append(cards);list.append(details);
+    r.cards.forEach(c=>line(cards,{label:c.kind,title:c.title,description:c.text}));details.append(cards);
+    const remove=document.createElement('button');remove.type='button';remove.className='secondary';remove.textContent='이 졸업 기록 삭제';
+    const recordKey=JSON.stringify(r);
+    remove.addEventListener('click',()=>safely(()=>{
+      if(!window.confirm('선택한 졸업 기록 1건을 삭제할까? 되돌릴 수 없어. 필요하면 먼저 JSON 백업을 내려받아 보관해 줘. 현재 게임 저장은 삭제하지 않아.'))return;
+      const result=session.removeGraduate(recordKey);renderArchive();
+      put('archive-status',result.ok?'선택한 졸업 기록 1건을 삭제했어.':result.error);
+    }));
+    details.append(remove);list.append(details);
   }
 }
 
+function exportGraduateBackup() {
+  const result=session.exportGraduates();
+  if(!result.ok){put('archive-status',result.error);return;}
+  const blob=new Blob([result.json],{type:'application/json;charset=utf-8'});
+  const url=URL.createObjectURL(blob),link=document.createElement('a');
+  try {
+    link.href=url;link.download='induck-grow-graduates.json';document.body.append(link);link.click();
+    put('archive-status',result.count+'건의 졸업 기록 백업 다운로드를 요청했어. 기기의 다운로드 목록을 확인해 줘.');
+  } finally {
+    link.remove();window.setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }
+}
 function safely(action) {
   try {action();}
   catch(error) {
@@ -314,6 +348,7 @@ function safely(action) {
 renderMajorPicker();
 updateContinue();
 renderArchive();
+$('archive-export').addEventListener('click',()=>safely(exportGraduateBackup));
 $('archive-retry').addEventListener('click',()=>safely(()=>{session.retryArchive();if(session.life())render();renderArchive();}));
 $('archive-details').addEventListener('toggle',()=>{if($('archive-details').open)renderArchive();});
 $('activity-select').addEventListener('change',e=>safely(()=>{session.setActivity(e.target.value);render();announce('이번 학기 전공 활동을 선택했어. 첫 주 진행 전까지 바꿀 수 있어.');}));

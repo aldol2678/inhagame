@@ -14,8 +14,8 @@ Base: 25783ea1958385dc133bce99b18d6cc5e7685ed0. Implementation candidate; no mer
 - Completion and completed-save load attempt archival. Retry/refresh UI is available. Completed snapshots must be archived successfully before replacement.
 - Primary malformed saves retain the existing explicit replacement-confirmation contract. A read-permission failure remains write-blocked temporary play. Malformed archives are always preserved.
 - Archive is written and read back before a new game replaces the primary save. Existing valid save replacement writes and reads back before changing in-memory current. Failures show a warning; malformed archives are not repaired, filtered, deleted or overwritten.
-- Re-read/compare guards reduce stale-tab loss but localStorage has no multi-key transactions or full simultaneous-tab concurrency guarantee. Use one active playing tab. Browser clearing/uninstalling storage still loses local records; no cloud backup/export implemented.
-- 50-record cap preserves all existing records and blocks unarchived completed-life replacement; no automatic eviction.
+- Re-read/compare guards reduce stale-tab loss but localStorage has no multi-key transactions or full simultaneous-tab concurrency guarantee. Use one active playing tab. Browser clearing/uninstalling storage still loses local records; no cloud backup. JSON export is a user-triggered browser download request; download completion is not observable and JSON import is not included.
+- 50-record cap preserves all existing records and blocks unarchived completed-life replacement; no automatic eviction. User-triggered JSON backup and confirmed selective deletion allow freeing a past-record slot, then retrying current graduation archival.
 - Ranking is ONLY locally stored completed records, grouped by engine/content/growth version and major. Equal displayed GPA ties at ranks 1,1,3. Different seeds/policies are not equal-difficulty proof. No online leaderboard or authority claim.
 
 ## Validation boundary
@@ -23,3 +23,13 @@ Development checks use an in-memory JS loader, structuredClone/assert shims, not
 Node tests are included in the existing Grow test command; existing public CI runs them.
 Required browser QA remains: desktop/mobile portrait/landscape, activity selector keyboard/touch, card overflow, archive details/ranks, storage denial warnings, reload, new-game cancellation and retention.
 No CI scope/workflow changes, no Work/Codex executor, no Production/DB changes.
+
+## Pre-merge refinements
+- Next milestone countdown uses completed weeks, so pending week5/week10 events do not skip a reward. Shows maximum +1 and the100 cap.
+- Recent competency deltas compare rendered snapshots; no stats/RNG changes. First game display resets the delta baseline.
+- Six trait conditions/current progress use the same pure derivation as earnedTraits; legacy-only unavailability is explicit.
+- JSON backup validates the whole archive, never silently exports only valid rows. No external uploads.
+- Delete is initiated by the user and requires an explicit window.confirm warning about irreversibility and backup. Uses exact serialized record identity, rejects duplicate matches and stale reads, reads primary again before writing. Never deletes the primary save.
+- Current in-memory or saved graduation cannot be deleted until a new game starts; this prevents auto-archival resurrecting a deleted current record. With50 full records, delete a past record, retry graduation archival, then start a new game.
+- Concurrent-tab atomicity is still not guaranteed by localStorage; guards are best effort. Unknown write/readback outcomes are reported as unconfirmed, not retried automatically.
+- Actual download, confirmation-dialog touch/keyboard/focus and mobile layout still require browser QA.

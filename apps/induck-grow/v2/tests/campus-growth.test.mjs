@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createLife,advanceLife,chooseLifeEvent,simulateCompleteLife} from '../life-engine.mjs';
-import {GROWTH_VERSION,selectMajorActivity,growthCards,earnedTraits,validateGrowth} from '../campus-growth.mjs';
+import {GROWTH_VERSION,selectMajorActivity,growthCards,earnedTraits,validateGrowth,traitProgress,nextGrowthReward,competencyChanges} from '../campus-growth.mjs';
 import {FOLLOWUP_CONTENT_VERSION} from '../major-stories.mjs';
 import {FOUNDATION_MAJOR_IDS} from '../major-registry.mjs';
 import {GRADUATE_ARCHIVE_KEY,GRADUATE_ARCHIVE_SCHEMA,createGraduateArchive,graduateSummary,rankGraduates} from '../graduate-archive.mjs';
@@ -116,4 +116,70 @@ test('unreadable primary storage is temporary, explicitly confirmed malformed pr
   const s=createLifeSession({storage:store});
   assert.throws(()=>s.start(opts));assert.equal(store.getItem(V2_LOCAL_SAVE_KEY),'{bad');
   s.start({...opts,replaceExisting:true});assert.equal(s.inspectSave().available,true);
+});
+
+test('next reward countdown follows completed weeks and selected approach, never grants a reward',()=>{
+  let life=createLife(opts);life=selectMajorActivity(life,'build');
+  const raw=JSON.stringify(life);assert.equal(nextGrowthReward(life).remaining,5);
+  assert.equal(nextGrowthReward(life).stat,'creative');assert.equal(JSON.stringify(life),raw);
+  for(let i=0;i<4;i++)life=advanceLife(life);
+  assert.equal(nextGrowthReward(life).remaining,1);
+  life=advanceLife(life);assert.equal(nextGrowthReward(life).remaining,1);
+  life=chooseLifeEvent(life,life.pendingEvent.choices[0].id);life=advanceLife(life);
+  assert.equal(nextGrowthReward(life).atWeek,10);assert.equal(nextGrowthReward(life).remaining,5);
+  life.stats.creative=100;assert.equal(nextGrowthReward(life).capped,true);
+  assert.equal(nextGrowthReward(simulateCompleteLife(opts)),null);
+  assert.equal(nextGrowthReward(createLife({majorId:'culture'})),null);
+});
+test('trait catalog matches earned traits, explains unavailable legacy growth and calculates exact deltas',()=>{
+  const fresh=createLife(opts),done=simulateCompleteLife(opts);
+  assert.equal(traitProgress(fresh).length,6);
+  assert.deepEqual(traitProgress(done).filter(t=>t.earned).map(({id,title})=>({id,title})),earnedTraits(done));
+  const legacy=createLife({majorId:'culture'});
+  assert.equal(traitProgress(legacy).filter(t=>!t.available).length,4);
+  const after=structuredClone(fresh);after.stats.analysis+=2;after.stats.creative-=1;
+  assert.deepEqual(competencyChanges(fresh,after).map(x=>x.delta),[2,-1]);
+  assert.deepEqual(competencyChanges(null,after),[]);
+});
+test('backup exports all valid records without mutation and malformed archive never exports partial data',()=>{
+  const store=memory(),a=createGraduateArchive(store);a.add(simulateCompleteLife(opts));
+  const raw=store.getItem(GRADUATE_ARCHIVE_KEY),backup=a.exportSnapshot();
+  assert.equal(backup.ok,true);assert.equal(backup.count,1);assert.deepEqual(JSON.parse(backup.json),JSON.parse(raw));
+  assert.equal(store.getItem(GRADUATE_ARCHIVE_KEY),raw);
+  const bad=JSON.stringify({schema:GRADUATE_ARCHIVE_SCHEMA,records:[JSON.parse(raw).records[0],{gpa:99}]});store.setItem(GRADUATE_ARCHIVE_KEY,bad);
+  assert.equal(a.exportSnapshot().ok,false);assert.equal(a.remove('invalid').ok,false);assert.equal(store.getItem(GRADUATE_ARCHIVE_KEY),bad);
+});
+test('selective cleanup uses record identity and preserves other records and primary',()=>{
+  const store=memory(),s=createLifeSession({storage:store});s.start(opts);finish(s);
+  const first=s.graduateArchive().records[0],key=JSON.stringify(first),save=store.getItem(V2_LOCAL_SAVE_KEY);
+  assert.equal(s.removeGraduate(key).ok,false);assert.equal(store.getItem(V2_LOCAL_SAVE_KEY),save);
+  s.start({...opts,seed:43,replaceExisting:true});finish(s);
+  const latest=store.getItem(V2_LOCAL_SAVE_KEY);assert.equal(s.graduateArchive().records.length,2);
+  assert.equal(s.removeGraduate(key).ok,true);assert.equal(s.graduateArchive().records.length,1);
+  assert.equal(s.graduateArchive().records[0].seed,43);assert.equal(store.getItem(V2_LOCAL_SAVE_KEY),latest);
+  assert.equal(s.removeGraduate(key).ok,false);
+});
+test('cleanup detects duplicate identities, stale primary, damaged primary and failed writes',()=>{
+  const store=memory(),s=createLifeSession({storage:store}),a=createGraduateArchive(store);
+  s.start(opts);const done=simulateCompleteLife(opts),record=graduateSummary(done),key=JSON.stringify(record);
+  const duplicates=JSON.stringify({schema:GRADUATE_ARCHIVE_SCHEMA,records:[record,record]});store.setItem(GRADUATE_ARCHIVE_KEY,duplicates);
+  assert.equal(a.remove(key).ok,false);assert.equal(store.getItem(GRADUATE_ARCHIVE_KEY),duplicates);
+  store.setItem(GRADUATE_ARCHIVE_KEY,JSON.stringify({schema:GRADUATE_ARCHIVE_SCHEMA,records:[record]}));
+  const original=store.getItem(GRADUATE_ARCHIVE_KEY),validPrimary=store.getItem(V2_LOCAL_SAVE_KEY),getter=store.getItem;
+  let primaryReads=0;store.getItem=k=>k===V2_LOCAL_SAVE_KEY?(++primaryReads===1?validPrimary:'{changed'):getter(k);
+  assert.equal(s.removeGraduate(key).ok,false);assert.equal(store.getItem(GRADUATE_ARCHIVE_KEY),original);
+  store.getItem=getter;store.setItem(V2_LOCAL_SAVE_KEY,'{bad');
+  assert.equal(s.removeGraduate(key).ok,false);assert.equal(store.getItem(GRADUATE_ARCHIVE_KEY),original);
+  store.setItem(V2_LOCAL_SAVE_KEY,validPrimary);const setter=store.setItem;store.setItem=()=>{throw Error('quota')};
+  assert.equal(s.removeGraduate(key).ok,false);assert.equal(store.getItem(GRADUATE_ARCHIVE_KEY),original);store.setItem=setter;
+});
+test('full50 archive is recoverable by removing a past record then retrying unarchived graduation',()=>{
+  const store=memory(),a=createGraduateArchive(store),done=simulateCompleteLife(opts);
+  for(let seed=0;seed<50;seed++)a.add({...done,seed});
+  const s=createLifeSession({storage:store});s.start({...opts,seed:100});finish(s);
+  assert(s.status().archiveError);
+  const oldKey=JSON.stringify(s.graduateArchive().records[0]);assert.equal(s.removeGraduate(oldKey).ok,true);
+  assert.equal(s.retryArchive(),null);assert.equal(s.graduateArchive().records.length,50);
+  assert(s.graduateArchive().records.some(r=>r.seed===100));
+  s.start({...opts,seed:101,replaceExisting:true});assert.equal(s.life().weeksCompleted,0);
 });

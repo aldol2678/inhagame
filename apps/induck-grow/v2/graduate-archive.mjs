@@ -65,5 +65,24 @@ export function createGraduateArchive(storage) {
       return {ok:true,records:[...snapshot.records,record]};
     }catch{return {ok:false,error:'졸업 기록 보관에 실패했어요. 새 게임으로 교체하지 말고 다시 시도해 주세요.'};}
   }
-  return Object.freeze({read,add});
+  function exportSnapshot() {
+    const snapshot=read();
+    if(!snapshot.ok)return snapshot;
+    return {ok:true,count:snapshot.records.length,json:JSON.stringify({schema:GRADUATE_ARCHIVE_SCHEMA,records:snapshot.records},null,2)};
+  }
+  function remove(recordKey,guard=()=>true) {
+    const snapshot=read();if(!snapshot.ok)return snapshot;
+    const matches=snapshot.records.map((r,i)=>JSON.stringify(r)===recordKey?i:-1).filter(i=>i>=0);
+    const index=matches[0];
+    if(matches.length!==1)return {ok:false,error:'선택한 기록이 변경되었어요. 목록을 새로고침해 주세요.'};
+    const records=snapshot.records.filter((_,i)=>i!==index);
+    const raw=JSON.stringify({schema:GRADUATE_ARCHIVE_SCHEMA,records});
+    try {
+      if(storage.getItem(GRADUATE_ARCHIVE_KEY)!==snapshot.raw || !guard())throw Error('changed');
+      storage.setItem(GRADUATE_ARCHIVE_KEY,raw);
+      if(storage.getItem(GRADUATE_ARCHIVE_KEY)!==raw)throw Error('readback');
+      return {ok:true,records};
+    }catch{return {ok:false,error:'기록 정리를 확인하지 못했어요. 목록을 다시 읽어 확인해 주세요.'};}
+  }
+  return Object.freeze({read,add,exportSnapshot,remove});
 }

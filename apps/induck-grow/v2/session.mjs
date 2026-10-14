@@ -1,5 +1,5 @@
 import {selectMajorActivity} from './campus-growth.mjs';
-import {createGraduateArchive} from './graduate-archive.mjs';
+import {createGraduateArchive,graduateSummary} from './graduate-archive.mjs';
 import {
   LIFE_ENGINE_VERSION, createLife, advanceLife, advanceLifeBatch,
   chooseLifeEvent, setLifePolicy
@@ -154,7 +154,17 @@ export function createLifeSession({storage=null, onUpdate=()=>{}}={}) {
     if(!current)throw new Error('시작된 게임이 없어요.');
     current=selectMajorActivity(current,style);persist();return copy(current);
   }
-  return Object.freeze({start,load,life,inspectSave,setActivity,
+  function removeGraduate(recordKey) {
+    const saved=readSave();
+    if(saved.exists===null || (saved.exists===true&&!saved.available))
+      return {ok:false,error:'현재 저장을 확인할 수 없어 기록 삭제를 중단했어요.'};
+    const active=[current,saved.available?saved.life:null];
+    if(active.some(l=>l?.status==='complete'&&JSON.stringify(graduateSummary(l))===recordKey))
+      return {ok:false,error:'현재 졸업 기록은 새 게임을 시작한 뒤 정리할 수 있어요. 다른 과거 기록을 선택해 주세요.'};
+    return archive.remove(recordKey,()=>{const latest=readSave();return latest.exists===saved.exists&&latest.available===saved.available&&latest.raw===saved.raw;});
+  }
+  return Object.freeze({start,load,life,inspectSave,setActivity,removeGraduate,
+    exportGraduates:()=>archive.exportSnapshot(),
     graduateArchive:()=>archive.read(),retryArchive:()=>{archiveCompleted();return archiveError;},
     nextWeek:()=>transition('week'),choose,setPolicy,
     status:()=>({saveError,loadError,archiveError})});

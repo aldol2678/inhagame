@@ -126,3 +126,5 @@ a{color:#176e65}
 .graduate-record{border-top:1px solid #dae0e6;padding:.5rem 0}
 .archive-card .journal-entry,.growth-card p{overflow-wrap:anywhere}
 @media(max-width:480px){.stat-row{grid-template-columns:6rem minmax(0,1fr)}}
+
+.trait-row{border-top:1px solid #dae0e6;padding:.5rem 0}.trait-row p{font-size:.85rem;margin:.25rem 0}.trait-row progress{width:100%;accent-color:#367aad}#competency-change{min-height:1.5em;color:#226542;font-weight:600}

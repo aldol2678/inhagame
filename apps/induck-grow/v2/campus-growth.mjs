@@ -53,19 +53,34 @@ export function growthCards(life) {
   const cards=[];
   for(const p of activityProgress(life))for(const [weeks,label] of [[5,'탐색 노트'],[10,'중간 결과물'],[15,'학기 포트폴리오']])
     if(p.weeks>=weeks)cards.push({id:'activity.'+p.term+'.'+weeks,kind:'전공 성장',
-      title:p.label+' · '+label,text:p.term+'번째 학기 · '+ACTIVITY_STYLES[p.style].label+' · '+STAT_LABELS[ACTIVITY_STYLES[p.style].stat]+' +1'});
+      title:p.label+' · '+label,text:p.term+'번째 학기 · '+ACTIVITY_STYLES[p.style].label+' · '+STAT_LABELS[ACTIVITY_STYLES[p.style].stat]+' 보상 (최대 +1, 100 상한)'});
   for(const m of life.memories)cards.push({id:'memory.'+m.eventId,kind:'선택의 기억',title:m.text,text:'선택 기록 · '+m.choiceId});
   return cards;
 }
-export function earnedTraits(life) {
+export function traitProgress(life) {
   const policies=life.weeklyHistory.map(x=>x.policy),completed=activityProgress(life).filter(p=>p.weeks===15);
-  const traits=[];
-  const add=(id,title,condition)=>{if(condition)traits.push({id,title});};
-  add('steady','꾸준한 완성가',completed.length>=4);
-  add('explorer','깊이 파는 탐구자',completed.filter(p=>p.style==='explore').length>=2);
-  add('maker','아이디어 제작자',completed.filter(p=>p.style==='build').length>=2);
-  add('team','함께하는 동료',completed.filter(p=>p.style==='team').length>=2);
-  add('work','성실한 생활인',policies.filter(x=>x==='work').length>=30);
-  add('balanced','여러 길을 걸은 인덕이',new Set(policies).size>=4);
-  return traits;
+  return [
+    ['steady','꾸준한 완성가',completed.length,4,'전공 활동 학기 완성',!!life.growth],
+    ['explorer','깊이 파는 탐구자',completed.filter(p=>p.style==='explore').length,2,'탐구 활동 학기 완성',!!life.growth],
+    ['maker','아이디어 제작자',completed.filter(p=>p.style==='build').length,2,'제작 활동 학기 완성',!!life.growth],
+    ['team','함께하는 동료',completed.filter(p=>p.style==='team').length,2,'협업 활동 학기 완성',!!life.growth],
+    ['work','성실한 생활인',policies.filter(x=>x==='work').length,30,'알바 방침 주차',true],
+    ['balanced','여러 길을 걸은 인덕이',new Set(policies).size,4,'서로 다른 생활 방침',true]
+  ].map(([id,title,current,goal,condition,available])=>({id,title,current,goal,condition,available,earned:available&&current>=goal}));
+}
+export function earnedTraits(life) {
+  return traitProgress(life).filter(t=>t.earned).map(({id,title})=>({id,title}));
+}
+export function nextGrowthReward(life) {
+  validateGrowth(life);
+  if(!life.growth||life.status==='complete')return null;
+  const term=Math.floor(life.weeksCompleted/15)+1,done=life.weeksCompleted%15;
+  const atWeek=[5,10,15].find(w=>w>done),style=life.growth.plans.find(p=>p.term===term)?.style||'explore';
+  const stat=ACTIVITY_STYLES[style].stat;
+  return {term,atWeek,remaining:atWeek-done,stat,label:STAT_LABELS[stat],
+    title:({5:'탐색 노트',10:'중간 결과물',15:'학기 포트폴리오'})[atWeek],capped:life.stats[stat]>=100};
+}
+export function competencyChanges(before,after) {
+  if(!before||!after)return [];
+  return Object.keys(STAT_LABELS).map(key=>({key,label:STAT_LABELS[key],delta:after.stats[key]-before.stats[key]})).filter(x=>x.delta!==0);
 }
