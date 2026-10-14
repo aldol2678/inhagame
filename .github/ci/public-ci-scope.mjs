@@ -70,6 +70,19 @@ export function needsDatabase(files) {
   return !files.every(isDatabaseIndependent);
 }
 
+// Additive browser routing only: never relax source/database/SEO classification.
+export function needsPortalBrowser(files, { forceFull = false } = {}) {
+  if (forceFull || !Array.isArray(files) || files.length === 0) return true;
+  return files.some(file => typeof file !== 'string' ||
+    file === 'apps/world/index.html' ||
+    /^apps\/world\/hub[^/]*\.(?:css|js|mjs)$/.test(file) ||
+    file.startsWith('apps/world/assets/hub/') ||
+    /^apps\/world\/tests\/(?:browser\/)?hub[^/]*\.mjs$/.test(file) ||
+    /^apps\/world\/tests\/browser\/package(?:-lock)?\.json$/.test(file) ||
+    /^\.github\/ci\/(?:public-ci-scope|seo-only-scope)(?:\.test)?\.mjs$/.test(file) ||
+    file === '.github/workflows/public-ci.yml');
+}
+
 const git = (...args) => execFileSync('git', args, {
   encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
 });
@@ -119,6 +132,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   const db = mode === 'full' && (forceFull || needsDatabase(files));
   console.log('mode=' + mode);
   console.log('db=' + (db ? 'true' : 'false'));
+  console.log('portal_browser=' + (needsPortalBrowser(files, { forceFull }) ? 'true' : 'false'));
   console.error('public-ci-scope: ' + mode + ', db=' + (db ? 'required' : 'skip') + ' (' +
     (files === null ? 'unknown or empty change set' : files.length + ' changed file(s)') + ')');
 }

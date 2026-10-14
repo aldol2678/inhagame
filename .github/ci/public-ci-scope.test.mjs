@@ -5,7 +5,7 @@ import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { classify, needsDatabase } from './public-ci-scope.mjs';
+import { classify, needsDatabase, needsPortalBrowser } from './public-ci-scope.mjs';
 import { inspect as inspectBrowser } from './phone-surface-scope.mjs';
 
 test('only verified SEO classifications opt into lightweight checks', () => {
@@ -16,6 +16,46 @@ test('only verified SEO classifications opt into lightweight checks', () => {
 });
 
 const cli = fileURLToPath(new URL('./public-ci-scope.mjs', import.meta.url));
+test('portal browser routing covers its inputs without changing existing gates', () => {
+  const affected = ['apps/world/index.html', 'apps/world/hub.css',
+    'apps/world/hub-world-sessions.css', 'apps/world/hub-editorial.css',
+    'apps/world/hub.js', 'apps/world/hub-editorial.js', 'apps/world/hub-account.js',
+    'apps/world/assets/hub/campus-concept.svg',
+    'apps/world/tests/hub-editorial-css-regression.test.mjs',
+    'apps/world/tests/browser/hub-editorial-layout-smoke.mjs',
+    'apps/world/tests/browser/package.json', 'apps/world/tests/browser/package-lock.json',
+    '.github/ci/public-ci-scope.mjs', '.github/ci/public-ci-scope.test.mjs',
+    '.github/ci/seo-only-scope.mjs', '.github/workflows/public-ci.yml'];
+  for (const file of affected) {
+    assert.equal(needsPortalBrowser([file]), true, file);
+    assert.equal(needsPortalBrowser(['README.md', file]), true, file);
+  }
+  for (const files of [null, [], ['README.md', null]]) assert.equal(needsPortalBrowser(files), true);
+  for (const file of ['README.md', 'apps/world/src/main.js', 'apps/world/campus/index.html',
+    'apps/induck-grow/src/game.js', 'apps/world/tests/browser/campus-terrain-smoke.mjs']) {
+    assert.equal(needsPortalBrowser([file]), false, file);
+    assert.equal(needsPortalBrowser([file], { forceFull: true }), true, file);
+  }
+  assert.equal(classify(['apps/world/hub-editorial.css']), 'full');
+  assert.equal(needsDatabase(['apps/world/hub-editorial.css']), true);
+});
+
+test('required verify rejects failed, skipped, cancelled or unknown portal QA', () => {
+  const workflow = readFileSync(new URL('../workflows/public-ci.yml', import.meta.url), 'utf8');
+  const script = workflow.split('      - name: Aggregate verification result')[1]
+    .split('        run: |\n')[1].split('\n').map(line => line.replace(/^          /, '')).join('\n');
+  for (const required of ['true', 'false', '']) {
+    for (const result of ['success', 'failure', 'skipped', 'cancelled', '']) {
+      const run = spawnSync('bash', ['-c', script], { encoding: 'utf8', env: {
+        ...process.env, SCOPE_RESULT: 'success', MODE: 'docs',
+        PORTAL_BROWSER_REQUIRED: required, PORTAL_BROWSER_RESULT: result,
+        GITHUB_STEP_SUMMARY: '/dev/null',
+      } });
+      assert.equal(run.status === 0, required === 'false' || (required === 'true' && result === 'success'), `${required}/${result}`);
+    }
+  }
+});
+
 const cases = [
   ['unknown', null, 'full'],
   ['empty', [], 'full'],
@@ -107,7 +147,7 @@ function runScope(dir, event, before, prTitle = 'test: scoped change') {
     encoding: 'utf8',
   });
   assert.equal(result.status, 0, result.stderr);
-  assert.match(result.stdout, /^mode=(docs|seo|full)\ndb=(true|false)\n$/);
+  assert.match(result.stdout, /^mode=(docs|seo|full)\ndb=(true|false)\nportal_browser=(true|false)\n$/);
   return Object.fromEntries(result.stdout.trim().split('\n').map(line => line.split('=')));
 }
 
@@ -120,6 +160,14 @@ test('push with only README changes chooses docs', (t) => {
   const scope = runScope(r.dir, 'push', r.base);
   assert.equal(scope.mode, 'docs');
   assert.equal(scope.db, 'false');
+});
+test('hub additions, deletions and renames emit required portal QA', (t) => {
+  const r = repo(t);
+  r.write('apps/world/hub-editorial.css', 'body {}\n'); r.commit('add hub');
+  assert.equal(runScope(r.dir, 'push', r.base).portal_browser, 'true');
+  const beforeRename = r.git('rev-parse', 'HEAD');
+  r.git('mv', 'apps/world/hub-editorial.css', 'apps/world/old-theme.css'); r.commit('rename hub');
+  assert.equal(runScope(r.dir, 'push', beforeRename).portal_browser, 'true');
 });
 test('mixed docs and code push chooses full', (t) => {
   const r = repo(t); r.write('README.md', 'updated\n'); r.write('apps/world/src/example.js', 'export const value = 2;\n'); r.commit('mixed');
@@ -217,10 +265,10 @@ for (const [name, path, before, after, normalScope] of overrideCases) {
     r.write(path, after); r.commit('scoped change');
     r.git('checkout', '--quiet', 'main');
     r.git('merge', '--quiet', '--no-ff', 'scoped-pr', '-m', 'synthetic PR merge');
-    assert.deepEqual(runScope(r.dir, 'pull_request'), normalScope);
+    assert.deepEqual(runScope(r.dir, 'pull_request'), { ...normalScope, portal_browser: 'false' });
     for (const title of fullTitles) {
       assert.deepEqual(runScope(r.dir, 'pull_request', undefined, title),
-        { mode: 'full', db: 'true' }, String(title));
+        { mode: 'full', db: 'true', portal_browser: 'true' }, String(title));
       assert.equal(inspectBrowser({ CI_PR_TITLE: title,
         CI_WORKFLOW_NAME: 'Graphics integration browser QA' }).reason,
       'release-or-unknown-pr', String(title));
@@ -231,7 +279,7 @@ for (const [name, path, before, after, normalScope] of overrideCases) {
 test('push routing is unchanged by absent or release-like PR titles', (t) => {
   const r = repo(t); r.write('README.md', 'updated\n'); r.commit('docs');
   for (const title of fullTitles) {
-    assert.deepEqual(runScope(r.dir, 'push', r.base, title), { mode: 'docs', db: 'false' });
+    assert.deepEqual(runScope(r.dir, 'push', r.base, title), { mode: 'docs', db: 'false', portal_browser: 'false' });
   }
 });
 
@@ -240,6 +288,6 @@ test('Public workflow passes the PR title and preserves existing required gates'
   assert.match(workflow, /CI_PR_TITLE: \$\{\{ github\.event\.pull_request\.title \}\}/);
   assert.match(workflow, /source:\n    needs: scope\n    if: needs\.scope\.outputs\.mode == 'full'/);
   assert.match(workflow, /database:\n    needs: scope\n    if: needs\.scope\.outputs\.mode == 'full' && needs\.scope\.outputs\.db == 'true'/);
-  assert.match(workflow, /verify:\n    needs: \[scope, source, database, seo\]\n    if: \$\{\{ always\(\) \}\}/);
+  assert.match(workflow, /verify:\n    needs: \[scope, source, database, seo, portal-browser\]\n    if: \$\{\{ always\(\) \}\}/);
   assert.match(workflow, /permissions:\n  contents: read/);
 });

@@ -17,6 +17,7 @@ jobs:
     outputs:
       mode: ${{ steps.scope.outputs.mode }}
       db: ${{ steps.scope.outputs.db }}
+      portal_browser: ${{ steps.scope.outputs.portal_browser }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -78,10 +79,50 @@ jobs:
           version: 2.117.0
       - run: bash scripts/public-db.sh
 
+  portal-browser:
+    needs: scope
+    if: needs.scope.outputs.portal_browser == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - name: Record exact portal source
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          mkdir -p test-results/portal-layout
+          git rev-parse HEAD > test-results/portal-layout/head-sha.txt
+          sha256sum apps/world/index.html apps/world/hub*.css apps/world/hub.js apps/world/hub-editorial.js apps/world/tests/browser/hub-editorial-layout-smoke.mjs > test-results/portal-layout/source-sha256.txt
+      - name: Install pinned browser and Korean glyphs
+        working-directory: apps/world/tests/browser
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npx --no-install playwright install --with-deps chromium
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+      - name: Verify offline portal layout at mobile and desktop sizes
+        env:
+          EVIDENCE_DIR: test-results/portal-layout
+        run: node apps/world/tests/browser/hub-editorial-layout-smoke.mjs
+      - name: Preserve exact-head portal screenshots and assertions
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: portal-layout-${{ github.event.pull_request.head.sha || github.sha }}
+          path: test-results/portal-layout/
+          if-no-files-found: error
+          retention-days: 14
+
   # Keep the historical required status context "verify" while the expensive
   # source and database checks execute in parallel.
   verify:
-    needs: [scope, source, database, seo]
+    needs: [scope, source, database, seo, portal-browser]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -93,10 +134,21 @@ jobs:
           DATABASE_RESULT: ${{ needs.database.result }}
           SEO_RESULT: ${{ needs.seo.result }}
           MODE: ${{ needs.scope.outputs.mode }}
+          PORTAL_BROWSER_REQUIRED: ${{ needs.scope.outputs.portal_browser }}
+          PORTAL_BROWSER_RESULT: ${{ needs.portal-browser.result }}
           DB_REQUIRED: ${{ needs.scope.outputs.db }}
         run: |
           if [[ "$SCOPE_RESULT" != "success" ]]; then
             echo "Scope detection failed: $SCOPE_RESULT"
+            exit 1
+          fi
+
+          if [[ "$PORTAL_BROWSER_REQUIRED" != "true" && "$PORTAL_BROWSER_REQUIRED" != "false" ]]; then
+            echo "Invalid portal browser scope: $PORTAL_BROWSER_REQUIRED"
+            exit 1
+          fi
+          if [[ "$PORTAL_BROWSER_REQUIRED" == "true" && "$PORTAL_BROWSER_RESULT" != "success" ]]; then
+            echo "Portal browser verification failed: $PORTAL_BROWSER_RESULT"
             exit 1
           fi
 

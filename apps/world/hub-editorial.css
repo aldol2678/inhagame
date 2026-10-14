@@ -15,8 +15,9 @@
 .editorial-portal .header-actions button{border:1px solid #cfc6b8}
 .editorial-portal .main{padding-top:26px;padding-bottom:80px}
 .editorial-portal .portal-topline{color:#776e61;font-size:11px;letter-spacing:.12em;padding:10px 0 14px;border-bottom:1px solid #d8cebf}
-.editorial-portal .portal-hero{margin-top:24px;border-radius:2px;overflow:hidden;background:#eeebe5;color:#242321;box-shadow:none;grid-template-columns:minmax(0,1fr) minmax(0,1.02fr);border:1px solid #ddd4c8}
-.editorial-portal .portal-hero-art{grid-column:2;grid-row:1;position:relative;min-height:465px;overflow:hidden;background:#d9d0c4}
+.editorial-portal .portal-hero{display:grid;margin-top:24px;border-radius:2px;overflow:hidden;background:#eeebe5;color:#242321;box-shadow:none;grid-template-columns:minmax(0,1fr) minmax(0,1.02fr);border:1px solid #ddd4c8}
+.editorial-portal .portal-hero-art{inset:auto;opacity:1;grid-column:2;grid-row:1;position:relative;min-height:465px;overflow:hidden;background:#d9d0c4}
+.editorial-portal .portal-hero::before{content:none}
 .editorial-portal .portal-hero-art img{width:100%;height:100%;object-fit:cover;min-height:465px;filter:saturate(.75)}
 .editorial-portal .portal-hero-copy{grid-column:1;grid-row:1;padding:48px clamp(22px,4vw,65px);position:relative;z-index:1;align-self:center}
 .editorial-portal .portal-pill{background:transparent;color:#625849;border:0;padding:0;letter-spacing:.13em;font-size:10px}
@@ -96,10 +97,10 @@
  .editorial-portal .portal-hero{display:flex;flex-direction:column;padding:0}
  .editorial-portal .portal-hero-art{width:100%;min-height:225px;height:225px;order:1}
  .editorial-portal .portal-hero-art img{min-height:225px;height:225px}
- .editorial-portal .portal-hero-copy{order:2;padding:23px 19px 30px;width:100%}
+ .editorial-portal .portal-hero-copy{order:3;padding:23px 19px 30px;width:100%}
  .editorial-portal .portal-hero-copy h1{font-size:clamp(39px,11vw,60px);margin:19px 0}
  .editorial-portal .portal-hero-copy h1 .editorial-ko{font-size:18px}
- .editorial-portal .portal-art-note{position:absolute;top:207px;left:0;font-size:9px}
+ .editorial-portal .portal-art-note{position:static;inset:auto;order:2;align-self:stretch;border-radius:0;font-size:9px}
  .editorial-portal .portal-section-heading{margin-top:42px;align-items:flex-start;gap:8px}
  .editorial-portal .portal-section-heading h2{font-size:39px}
  .editorial-portal .portal-section-meta{display:none}
@@ -118,3 +119,11 @@
 }
 @media(max-width:370px){.editorial-portal .portal-games{grid-template-columns:1fr}.editorial-filters button{padding:9px 8px;font-size:11px}}
 @media(prefers-reduced-motion:reduce){.editorial-info-grid a,.editorial-info-grid button{transition:none!important;transform:none!important}}
+
+/* Match the legacy visible-home selector without changing any other hub view. */
+body.editorial-portal:has(.portal-home:not([hidden])){background:var(--paper);color:var(--ink)}
+body.editorial-portal:has(.portal-home:not([hidden])) .header{background:rgba(245,242,236,.98);border-bottom-color:#dcd4c7}
+body.editorial-portal:has(.portal-home:not([hidden])) .footer{border-color:#d7cebf;color:#5a554c}
+body.editorial-portal:has(.portal-home:not([hidden])) .footer a{color:inherit}
+body.editorial-portal:has(.portal-home:not([hidden])) .main{max-width:1200px;padding-top:26px;padding-bottom:80px}
+@media(max-width:700px){body.editorial-portal:has(.portal-home:not([hidden])) .main{padding:14px 14px 90px}}
