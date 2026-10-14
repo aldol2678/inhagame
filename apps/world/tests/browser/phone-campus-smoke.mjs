@@ -137,7 +137,31 @@ async function run(name,viewport,mobile){
     await page.waitForFunction(()=>window.__INHAGAME_P0__.smartphone.status().preferences.wallpaper.type==='default');
     assert.equal((await page.evaluate(async()=>window.__INHAGAME_P0__.smartphone.album.list())).length,0);await page.getByRole('button',{name:'카메라 열기',exact:true}).waitFor();
     entry.checks.push('Home pointer drag/Dock dedup + reload persistence; photo delete confirmation/three-entry cleanup/deleted wallpaper fallback/empty state');await save();
-    await page.locator('.smartphone-home-button').click();await clickApp(page,'settings');assert.equal(await page.locator('#view-settings').getAttribute('data-phone-hosted'),'true');await page.keyboard.press('Escape');assert.equal((await phoneState(page)).state,'HOME');
+    await page.locator('.smartphone-home-button').click();await clickApp(page,'settings');
+    assert.equal(await page.locator('#view-settings').getAttribute('data-phone-hosted'),'true');
+    assert.ok(await page.locator('#settings-category-home').isVisible(), 'categorized Settings home opens');
+    await page.locator('[data-settings-target="graphics"]').click();
+    assert.ok(await page.locator('#settings-page-graphics').isVisible());
+    const scroll=await page.evaluate(()=>{
+      const n=document.querySelector('.smartphone-content'),panel=document.querySelector('#view-settings');
+      const outer=getComputedStyle(n),inner=getComputedStyle(panel);
+      const oldMax=n.style.maxHeight,oldFlex=n.style.flex;
+      n.style.maxHeight='200px';n.style.flex='0 0 auto';
+      n.scrollTop=n.scrollHeight;
+      const result={outerOverflow:outer.overflowY,innerOverflow:inner.overflowY,
+        scrollTop:n.scrollTop,scrollHeight:n.scrollHeight,clientHeight:n.clientHeight};
+      n.style.maxHeight=oldMax;n.style.flex=oldFlex;n.scrollTop=0;
+      return result;
+    });
+    assert.equal(scroll.outerOverflow,'auto');
+    assert.equal(scroll.innerOverflow,'visible');
+    assert.ok(scroll.scrollHeight>scroll.clientHeight && scroll.scrollTop>0, JSON.stringify(scroll));
+    await page.locator('#settings-section-back').click();
+    assert.ok(await page.locator('#settings-category-home').isVisible(), 'back restores categories');
+    await page.locator('[data-settings-target="audio"]').click();
+    assert.ok(await page.locator('#audio-volume').isVisible(), 'existing audio control survives grouping');
+    await page.keyboard.press('Escape');assert.equal((await phoneState(page)).state,'HOME');
+    entry.checks.push('Settings 2.0 category/back, existing controls, inner overflow visible and Phone-owned scrolling');await save();
     await page.getByRole('button',{name:'홈 화면 편집',exact:true}).click();
     await page.locator('.smartphone-app[data-app-id="settings"]').click();await page.getByLabel('앱 이동할 칸',{exact:true}).selectOption('dock:3');await page.getByRole('button',{name:'선택한 앱 이동',exact:true}).click();assert.equal((await phoneState(page)).preferences.dock[3],'settings');
     await page.getByRole('button',{name:'기본 배치 복구',exact:true}).click();assert.deepEqual((await phoneState(page)).preferences.dock,['maps','camera',null,null]);
