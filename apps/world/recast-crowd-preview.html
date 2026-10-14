@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#09131d">
+  <title>INHA Native P0-C · Device Crowd Benchmark</title>
+  <style>
+    :root{color-scheme:dark;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#09131d;color:#f3f8fa}
+    *{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 20% -10%,#16334a 0,#09131d 38%,#071018 100%);min-height:100vh}
+    main{width:min(900px,100%);margin:auto;padding:max(24px,env(safe-area-inset-top)) 16px max(48px,env(safe-area-inset-bottom))}
+    .hero{padding:24px 0 18px}.eyebrow{font-size:12px;font-weight:800;letter-spacing:.12em;color:#7de2c8}.tag{display:inline-flex;align-items:center;gap:6px;border:1px solid #3e766d;border-radius:999px;padding:5px 10px;color:#a6f1df;background:#10231f80;font-size:12px;font-weight:800}
+    h1{font-size:clamp(30px,8vw,48px);line-height:1.04;letter-spacing:-.04em;margin:14px 0 10px}p{color:#adc2cc;margin:8px 0}.lead{font-size:16px;max-width:720px}
+    .panel{background:#0d1c28e8;border:1px solid #254052;border-radius:18px;padding:16px;margin:14px 0;box-shadow:0 18px 50px #0005}.status-row{display:flex;justify-content:space-between;gap:12px;align-items:center}.status{font-size:13px;font-weight:900;border-radius:999px;padding:6px 10px;background:#213341;color:#cde0e8}.status[data-kind=ready]{background:#123b32;color:#8ff0d2}.status[data-kind=running]{background:#3b3214;color:#ffe196}.status[data-kind=error]{background:#421e23;color:#ffb3bb}
+    .device-grid,.main-grid,.metric-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:12px}.device-grid>div,.main-grid>div,.metric-grid>div{padding:11px;border-radius:12px;background:#102635;border:1px solid #223d4c;min-width:0}.device-grid strong,.device-grid span{display:block}.device-grid strong{font-size:11px;color:#87a4b1;margin-bottom:4px}.device-grid span{font-size:13px;overflow-wrap:anywhere}.device-grid .wide{grid-column:1/-1}
+    .controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-top:12px}button{appearance:none;border:1px solid #31546a;background:#173043;color:#f6fbfd;border-radius:13px;min-height:48px;padding:10px 12px;font:inherit;font-weight:800;cursor:pointer}button.primary{background:#1b6e60;border-color:#50b9a5}button:disabled{opacity:.45;cursor:default}button:active:not(:disabled){transform:translateY(1px)}
+    .note{font-size:12px;color:#839eaa}.result-card{border:1px solid #294756;background:#0c202c;border-radius:16px;padding:14px;margin:10px 0}.result-card header{display:flex;justify-content:space-between;gap:8px;align-items:baseline}.result-card header strong{font-size:20px}.result-card header span{font-size:11px;color:#7de2c8}.metric-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.metric-grid b,.main-grid b{display:block;font-size:17px}.metric-grid small,.main-grid small{display:block;color:#88a2ae;margin-top:3px}.detail{font-size:12px;margin-top:10px}.loading-card,.error-card{padding:18px;border-radius:14px;background:#112836;color:#bed0d8}.error-card{border:1px solid #72313a;background:#32171c;color:#ffc7cc}
+    pre{margin:12px 0 0;white-space:pre-wrap;word-break:break-word;background:#071018;border:1px solid #203847;border-radius:14px;padding:13px;max-height:360px;overflow:auto;font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:#bdd0d8}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.actions button{min-height:42px;font-size:13px}.footer{margin-top:20px;font-size:12px;color:#718b97}
+    @media(min-width:680px){.controls{grid-template-columns:repeat(4,minmax(0,1fr))}.device-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.device-grid .wide{grid-column:1/-1}.main-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+  </style>
+</head>
+<body>
+<main>
+  <section class="hero">
+    <div class="tag">P0-C · MANUAL DEVICE PREVIEW · NO PRODUCTION MUTATION</div>
+    <h1>DetourCrowd<br>실기기 벤치마크</h1>
+    <p class="lead">이 페이지는 현재 INHA WORLD의 48 NPC 데이터와 검증된 prebuilt NavMesh를 읽고, 별도 Web Worker에서 C++ Recast/Detour WASM Crowd를 실행합니다. 본 게임 NPC 이동 권한은 바꾸지 않습니다.</p>
+  </section>
+
+  <section class="panel">
+    <div class="status-row"><strong>준비 상태</strong><span id="preview-status" class="status">INITIALIZING</span></div>
+    <p id="preview-phase" role="status">수동 벤치마크를 초기화하는 중…</p>
+    <div id="preview-device" class="device-grid"></div>
+  </section>
+
+  <section class="panel">
+    <strong>실행</strong>
+    <p class="note">각 tier는 180 step(가상 3초)을 가능한 빠르게 계산합니다. 실제 게임 3초를 기다리는 테스트가 아니라 CPU/WASM 처리량 테스트입니다.</p>
+    <div class="controls">
+      <button data-tier="48">48 NPC</button>
+      <button data-tier="100">100 NPC</button>
+      <button data-tier="200">200 NPC</button>
+      <button class="primary" data-tier="all">48 → 100 → 200</button>
+    </div>
+  </section>
+
+  <section class="panel">
+    <strong>Worker 결과</strong>
+    <div id="preview-results"><div class="loading-card">READY가 되면 원하는 tier를 눌러 주세요.</div></div>
+  </section>
+
+  <section class="panel">
+    <strong>메인 스레드 반응성</strong>
+    <div id="preview-main-metrics" class="main-grid"><p class="note">실행 중 rAF, 16ms timer, Long Task를 함께 측정합니다.</p></div>
+    <div class="actions">
+      <button id="preview-copy" type="button">결과 JSON 복사</button>
+      <button id="preview-toggle-raw" type="button">Raw JSON 보기/숨기기</button>
+    </div>
+    <pre id="preview-raw" tabindex="0" hidden>아직 결과가 없습니다.</pre>
+  </section>
+
+  <p class="footer">판정용 핵심 값: Worker 평균/p95/max, invalidAgents, overlapPairs, main-thread max frame gap, Long Task. 모바일 성능은 기기·발열·배터리 절전·브라우저 상태에 따라 달라집니다.</p>
+</main>
+<script type="module" src="/recast-crowd-preview.mjs"></script>
+</body>
+</html>
