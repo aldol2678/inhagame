@@ -89,4 +89,5 @@ test('NOTI-01C existing Hub Messages client lists recent conversations with acco
  resolveList({outcome:'READY',conversations:[message],unreadCount:2});
  const now=await fresh;assert.equal(now.outcome,'READY');assert.equal(now.accountId,B);
  assert.equal(now.conversations[0].conversationId,message.conversationId);
+ assert.equal(m.status().unreadCount,0,'history projection must not overwrite authoritative total unread');
 });

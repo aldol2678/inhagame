@@ -300,7 +300,7 @@ export function createPhoneMessages({ getClient, getFactory = loadHubMessagesFac
       const result=await model.list(Math.max(1,Math.min(20,Number(limit)||20)));
       if(ticket!==epoch||accountId!==owner)return {outcome:'STALE'};
       if(result.outcome!=='READY')return {outcome:'FAILED'};
-      notify(result.unreadCount);
+      // This 20-conversation projection is partial: never overwrite the full server unread badge.
       return {outcome:'READY',accountId:owner,conversations:result.conversations};
     } catch {return ticket===epoch&&accountId===owner?{outcome:'FAILED'}:{outcome:'STALE'};}
   }
