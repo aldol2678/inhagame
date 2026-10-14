@@ -19,6 +19,11 @@ test('triangle selection rejects shared owners and preserves unrelated geometry'
  assert.match(source,/Malformed source geometry/);
  assert.match(source,/verifySource\(r,g,true\)/);
  assert.match(source,/verifySource\(r,g,false\)/);
+ assert.ok(source.includes("r.positions[r.indices[i]*3+axis]"));
+ assert.ok(source.includes("g.positions[g.indices[i]*3+axis]"));
+ assert.ok(source.includes("seamIndices.push(...r.indices.slice(i,i+3))"));
+ assert.ok(source.includes("r.sourceVertices=g.positions.length/3;return"));
+ assert.ok(source.includes("Original paving bounds mismatch"));
  assert.match(source,/color===C\.joint/);
  assert.match(source,/g\.positions\[index\*3\+1\]===G\.PAINT/);
  assert.match(source,/r\.primitive\.base=count/);

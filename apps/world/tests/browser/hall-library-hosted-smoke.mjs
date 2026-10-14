@@ -169,7 +169,7 @@ function hallIntegrationScopePaths(manifest,extension) {
     'apps/world/data/reality/north-landmark-restoration.provenance.json',
     'apps/world/src/campus-road-blockout.js',
     'apps/world/src/north-walkway-batching.js',
-    'apps/world/src/north-walkway-renderer.js'
+    'apps/world/src/north-walkway-renderer.js','apps/world/src/north-walkway-indexing.js'
   ];
   return [...manifest.allowedRuntimeChanges,...manifest.allowedMetadataChanges,...contactPilot.map(p=>'apps/world/src/'+p),
     ...(extension==='surroundings'?surroundings.map(p=>'apps/world/src/'+p):[]),
@@ -177,7 +177,7 @@ function hallIntegrationScopePaths(manifest,extension) {
     ...(extension==='walkway'?[...walkway.map(p=>'apps/world/src/'+p),'apps/world/data/reality/north-walkway.provenance.json','apps/world/data/reality/north-landmark-restoration.provenance.json']:[])];
 }
 function validateReviewedReleaseScope(changedPaths,allowed,scopeBase,releaseManifest) {
-  assert.equal(scopeBase,'0dcae7b4825c12e1ec03b6879d3bc0d27f9ad46e','release scope uses its reviewed immutable base');
+  assert.equal(scopeBase,'2ceb251c11538c80dcfc020c4af4b91948e2caf2','release scope uses its reviewed immutable base');
   assert.deepEqual([...changedPaths].sort(),[...allowed].sort(),'release runtime/data diff exactly matches its reviewed paths');
   for(const sha of [scopeBase,'d436d8f5db161875930db53b7c589c1dab91fc7d','1dcd85d9370b82a32ea29a0992c45618e5a82f5e','912a6d354464e6536029b631a587ab5f64c0ac5c','8f00074c8736a100bd229a1bd29a74e8bfd9698d']){
     assert.ok(releaseManifest.includes('`'+sha+'`'),'release manifest records exact reviewed source '+sha);

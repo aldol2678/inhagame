@@ -4,7 +4,7 @@ import {pathToFileURL} from 'node:url';
 // uses its actual main base, which already includes the shipped Jeongseok entry.
 export const STANDALONE_BASELINE = '2b9a09615f7986e3d5e5b93d731fba21f33afbdd';
 export const REVIEWED_RELEASE_BRANCH = 'release/2026-10-13-ci-runtime-diagnostics';
-export const REVIEWED_RELEASE_BASE = '0dcae7b4825c12e1ec03b6879d3bc0d27f9ad46e';
+export const REVIEWED_RELEASE_BASE = '2ceb251c11538c80dcfc020c4af4b91948e2caf2';
 export function selectWalkwayBaseline({headRef = '', baseSha = ''} = {}) {
   if (headRef === REVIEWED_RELEASE_BRANCH) {
     if (baseSha !== REVIEWED_RELEASE_BASE) throw new Error('Unreviewed release base: fail closed');

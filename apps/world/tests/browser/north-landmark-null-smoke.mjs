@@ -26,17 +26,30 @@ try{
  const sourceBatch=fillNorthRoads(new FacilityMeshBatch());
  const batchRoot=new pc.Entity('PavingPerColorContract');app.root.addChild(batchRoot);buildNorthWalkwayRoads(batchRoot);
  const pavingOwners=meshes(batchRoot);assert.equal(pavingOwners.length,5);assert.equal(sourceBatch.groups.size,5);
+ assert.deepEqual(pavingOwners.map(mi=>mi.node.name),[...sourceBatch.groups.keys()].map(color=>'north_campus_roads_'+color.slice(1)),'original owner creation order');
+ const sourceVertices=[...sourceBatch.groups.values()].reduce((n,g)=>n+g.positions.length/3,0),indexedGroups=[];let indexedVertices=0;
  assert.equal(pavingOwners.reduce((n,mi)=>n+mi.mesh.primitive[0].count/3,0),[...sourceBatch.groups.values()].reduce((n,g)=>n+g.indices.length/3,0));
  for(const [color,g]of sourceBatch.groups){
   const mi=pavingOwners.find(mi=>mi.node.name==='north_campus_roads_'+color.slice(1));assert.ok(mi);
   const positions=[],normals=[],indices=[];mi.mesh.getPositions(positions);mi.mesh.getNormals(normals);mi.mesh.getIndices(indices);
-  assert.deepEqual(positions,[...new Float32Array(g.positions)]);assert.deepEqual(normals,[...new Float32Array(g.normals)]);assert.deepEqual(indices,g.indices);
+  assert.equal(indices.length,g.indices.length,'original triangle count and order');
+  assert.equal(positions.length,normals.length);assert.equal(positions.length%3,0);
+  assert.ok(indices.every(i=>Number.isInteger(i)&&i>=0&&i<positions.length/3));
+  for(let i=0;i<indices.length;i++)for(let axis=0;axis<3;axis++){
+   assert.ok(Object.is(positions[indices[i]*3+axis],Math.fround(g.positions[g.indices[i]*3+axis])),'expanded float32 position bits');
+   assert.ok(Object.is(normals[indices[i]*3+axis],Math.fround(g.normals[g.indices[i]*3+axis])),'expanded float32 normal bits');
+  }
+  const expectedBounds=new pc.BoundingBox();expectedBounds.compute(g.positions);
+  assert.deepEqual(mi.mesh.aabb.center,expectedBounds.center,'original source-space bounds center');
+  assert.deepEqual(mi.mesh.aabb.halfExtents,expectedBounds.halfExtents,'original source-space bounds extents');
+  indexedVertices+=positions.length/3;indexedGroups.push({color,sourceVertices:g.positions.length/3,indexedVertices:positions.length/3,triangles:indices.length/3});
   assert.equal(mi.material,surface(color),'original cached material identity preserved');
   assert.equal(mi.node.render.castShadows,false);
   assert.ok(!mi.mesh.vertexBuffer.format.elements.some(e=>e.name===pc.SEMANTIC_COLOR),'no interpolated color path');
  }
  const ownedPaving=pavingOwners.map(mi=>mi.mesh);batchRoot.destroy();for(const mesh of ownedPaving)assert.equal(mesh.vertexBuffer,null);
- report.pavingBatch={sourceMeshes:5,productionMeshes:5,originalSharedMaterials:true,geometryAndMaterialPreserved:true};
+ assert.ok(indexedVertices<sourceVertices,'actual paving vertex storage decreases');
+ report.pavingBatch={sourceMeshes:5,productionMeshes:5,sourceVertices,indexedVertices,groups:indexedGroups,originalSharedMaterials:true,expandedFloat32TriangleStreamPreserved:true,originalBoundsPreserved:true,geometryAndMaterialPreserved:true};
  const source=readFileSync(new URL('./north-landmark-smoke.mjs',import.meta.url),'utf8');
  const entryCameras=JSON.parse(source.match(/export const NORTH_ENTRY_CAMERA = (\{[^\n]+\});/)[1]);
  report.entryFraming=[];

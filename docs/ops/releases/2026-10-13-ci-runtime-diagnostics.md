@@ -83,3 +83,12 @@ Build the integration tree from exact current main; apply only remaining walkway
 The live runtime/data admission now has16paths (previous23 minus main.js, fourdiagnosticmodules andtwophotomodules alreadyinmain). Older23path/oldbaseline sectionsabove are historicalevidence, not currentadmission.
 Hall/Backgate/baseline selector and their regression tests bind newimmutablebase and exact16paths. All four originalsourceheads retained in ancestry.
 This changes baseline explicitly because main moved; baseline/candidate use identical current sampler. Do not mix previous absolute times or call them performancegains.
+
+
+## 2026-10-14 paving index reuse candidate (supersedes current-base section only)
+
+Reviewed current base: `2ceb251c11538c80dcfc020c4af4b91948e2caf2` (#399 mobile notification polish). The four inherited phone CSS, notification center, notification test, and NOTI-01A document blobs are preserved unchanged. They are not admitted as new release runtime changes.
+
+The release source diff is exactly 17 runtime/data paths: the preceding 16-path reviewed scope plus `apps/world/src/north-walkway-indexing.js`. The four original source ancestries remain mandatory. Prior bases and failed measurements above remain historical evidence.
+
+Only identical uploaded float32 position/normal vertices inside each paving color group may share an index. Original triangle stream, winding, five shared materials, owner order and source bounds must remain unchanged. Global facility batching, gameplay, collision and navigation contracts are unchanged. The 24-view zero-pixel and original performance budgets remain required; this is an unproven optimization candidate, not a PASS or deployment decision.

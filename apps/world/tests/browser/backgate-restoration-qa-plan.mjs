@@ -20,13 +20,13 @@ const BACKGATE_LEGACY_SCOPE=Object.freeze({
 const BACKGATE_RELEASE_SCOPE=Object.freeze({
   extension:'release-2026-10-13',
   branch:'release/2026-10-13-ci-runtime-diagnostics',
-  base:'0dcae7b4825c12e1ec03b6879d3bc0d27f9ad46e',
+  base:'2ceb251c11538c80dcfc020c4af4b91948e2caf2',
   allowedRuntimeChanges:Object.freeze([
     'campus-material-profile.js','minimap/minimap-data.js','navigation/campus-navigation.js',
     'north-campus-geometry.js','north-campus-photo-geometry.js','north-walkway-geometry.js',
     'north-walkway-layout.js','north-walkway-surface.js','render-chunk-registry.js',
     'north-landmark-massing.js','north-campus-layout.js',
-    'campus-road-blockout.js','north-walkway-batching.js','north-walkway-renderer.js'
+    'campus-road-blockout.js','north-walkway-batching.js','north-walkway-renderer.js','north-walkway-indexing.js'
   ].map(p=>'apps/world/src/'+p).concat([
     'apps/world/data/reality/north-walkway.provenance.json',
     'apps/world/data/reality/north-landmark-restoration.provenance.json'

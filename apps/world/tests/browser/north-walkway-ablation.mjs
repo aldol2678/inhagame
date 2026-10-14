@@ -79,9 +79,19 @@ try{
     records.set(render,r);return r;
    }
    function verifySource(r,g,exact){
-    check([...g.positions,...g.normals].every(Number.isFinite)&&g.indices.every(i=>Number.isInteger(i)&&i>=0&&i<g.positions.length/3)&&g.indices.length%3===0,'Malformed source geometry');
+    check(g.positions.length%3===0&&g.positions.length===g.normals.length&&[...g.positions,...g.normals].every(v=>Number.isFinite(v)&&Number.isFinite(Math.fround(v)))&&g.indices.every(i=>Number.isInteger(i)&&i>=0&&i<g.positions.length/3)&&g.indices.length%3===0,'Malformed source geometry');
+    check(r.positions.length%3===0&&r.positions.length===r.normals.length&&[...r.positions,...r.normals].every(Number.isFinite)&&r.indices.every(i=>Number.isInteger(i)&&i>=0&&i<r.positions.length/3)&&r.indices.length%3===0,'Malformed live geometry');
+    if(exact){
+     check(r.indices.length===g.indices.length,'Paving triangle count mismatch');
+     for(let i=0;i<g.indices.length;i++)for(let axis=0;axis<3;axis++){
+      check(Object.is(r.positions[r.indices[i]*3+axis],Math.fround(g.positions[g.indices[i]*3+axis])),'Expanded paving position mismatch');
+      check(Object.is(r.normals[r.indices[i]*3+axis],Math.fround(g.normals[g.indices[i]*3+axis])),'Expanded paving normal mismatch');
+     }
+     const bounds=new pc.BoundingBox();bounds.compute(g.positions);
+     check(['x','y','z'].every(axis=>Object.is(r.mesh.aabb.center[axis],bounds.center[axis])&&Object.is(r.mesh.aabb.halfExtents[axis],bounds.halfExtents[axis])),'Original paving bounds mismatch');
+     r.sourceVertices=g.positions.length/3;return;
+    }
     check(r.positions.length>=g.positions.length&&r.normals.length>=g.normals.length&&r.indices.length>=g.indices.length,'Source larger than live owner');
-    if(exact)check(r.positions.length===g.positions.length&&r.normals.length===g.normals.length&&r.indices.length===g.indices.length,'Paving ownership mismatch');
     for(let i=0;i<g.positions.length;i++)check(Object.is(r.positions[i],Math.fround(g.positions[i])),'Position prefix mismatch');
     for(let i=0;i<g.normals.length;i++)check(Object.is(r.normals[i],Math.fround(g.normals[i])),'Normal prefix mismatch');
     for(let i=0;i<g.indices.length;i++)check(r.indices[i]===g.indices[i],'Index prefix mismatch');
@@ -120,7 +130,7 @@ try{
     for(const [color,g]of source.groups){
      const owners=paving.filter(r=>r.entity.name==='north_campus_roads_'+color.slice(1));check(owners.length===1,'Ambiguous paving color owner');
      const r=record(owners[0]);verifySource(r,g,true);check(r.render.castShadows===false,'Unexpected paving shadow policy');pavingRecords.push(r);
-     if(color===C.joint){seamRecord=r;seamIndices=[];for(let i=0;i<g.indices.length;i+=3){const tri=g.indices.slice(i,i+3);if(!tri.every(index=>g.positions[index*3+1]===G.PAINT))seamIndices.push(...tri);}}
+     if(color===C.joint){seamRecord=r;seamIndices=[];for(let i=0;i<g.indices.length;i+=3){const tri=g.indices.slice(i,i+3);if(!tri.every(index=>g.positions[index*3+1]===G.PAINT))seamIndices.push(...r.indices.slice(i,i+3));}}
     }
     check(seamRecord&&seamIndices.length>0&&seamIndices.length<seamRecord.indices.length,'Seam partition is empty/ambiguous');
     const nearOwners=app.root.find(node=>node.name==='bldg_60th_NEAR');check(nearOwners.length===1&&nearOwners[0].enabled,'Exactly one enabled Anniversary NEAR owner required');
@@ -132,7 +142,7 @@ try{
      const r=record(owners[0]);verifySource(r,g,false);check(r.render.castShadows===false,'Unexpected Anniversary shadow policy');propPrefixes.push({r,count:g.indices.length});
     }
     check(propPrefixes.length>0,'No verified prop prefixes');
-    out.ownership={pavingOwners:pavingRecords.map(r=>({name:r.render.entity.name,meshId:r.mesh.id,materialId:r.material.id,triangles:r.indices.length/3})),seamTriangles:(seamRecord.indices.length-seamIndices.length)/3,propPrefixes:propPrefixes.map(({r,count})=>({name:r.render.entity.name,meshId:r.mesh.id,materialId:r.material.id,removedTriangles:count/3,retainedTriangles:(r.indices.length-count)/3}))};
+    out.ownership={pavingOwners:pavingRecords.map(r=>({name:r.render.entity.name,meshId:r.mesh.id,materialId:r.material.id,sourceVertices:r.sourceVertices,indexedVertices:r.positions.length/3,triangles:r.indices.length/3})),seamTriangles:(seamRecord.indices.length-seamIndices.length)/3,propPrefixes:propPrefixes.map(({r,count})=>({name:r.render.entity.name,meshId:r.mesh.id,materialId:r.material.id,removedTriangles:count/3,retainedTriangles:(r.indices.length-count)/3}))};
     device.draw=function(primitive,indexBuffer,instances,...args){draws++;const count=primitive.count;triangles+=(primitive.type===4?count/3:primitive.type===5||primitive.type===6?Math.max(0,count-2):0)*Math.max(1,instances??1);return originalDraw.call(this,primitive,indexBuffer,instances,...args);};
     const sequence=['full','no_paving','full','no_seams','full','no_props','full'];
     for(const [windowIndex,mode]of sequence.entries()){

@@ -18,3 +18,12 @@ Status: implemented on Draft PR for review; **not merged/deployed**. Scope is an
 - A future NOTI-01B server history or NOTI-02 real push requires a separately approved contract and subscription/abuse guards.
 
 Reference: [PWA/noti Roadmap](https://app.notion.com/p/3f827155213b8112b0c1e7d3edec811b) and [Smartphone Canonical](https://app.notion.com/p/3f227155213b8145a2cdd19833e7d62f).
+
+## NOTI-01B · Compact mobile UI follow-up (2026-10-14)
+- Existing Phone navigation, message unread authority, attendance/quiz KST server date, local per-account seen/mute format and badges are unchanged.
+- One visible in-app heading, contextual unread summary, tab counts, compact cards, yellow unread dot, single 44px action per card, collapsed display-only settings with accessible on/off switches, clear empty-state illustrations and accurate "할 일 알림 모두 확인" semantics.
+- New openEntry() sequence calls existing Phone Shell navigation first. **Only a confirmed synchronous true return** marks local daily reminders as read. Failed/throwing navigation preserves read state and exposes a retry message; server message unread state is never locally acknowledged.
+- Filter counts represent visible cards, including acknowledged daily cards. Unread summary is existing server message unread units + local active daily reminders, and can differ from the number of cards. Muted groups are excluded only from display, never deleted or read on the server.
+- Rendering preserves keyboard focus on filters, display switches and settings toggle when possible; reduced-motion is respected. Layout keeps at least 44px interactive targets, including 360px and safe-area.
+- Focused Node regressions added for filters/counts, collapsed settings, switch semantics, successful/failing deep links and daily-only mark-all. A real-device installed PWA round-trip remains a separate acceptance gate.
+- No Web Push, VAPID, Service Worker, schema/RPC, rewards, auto-navigation or source event inventions. The work stays behind Draft PR and does not auto-merge or manually deploy.

@@ -82,3 +82,50 @@ test('integration keeps pre-existing Phone state/authority while wiring notifier
  assert.match(m,/getDailyQuiz: \(\) => dailyQuiz, getAttendance: \(\) => attendance/);
  assert.doesNotMatch(readFileSync(new URL('../src/phone/phone-notification-center.js',import.meta.url),'utf8'),/\.rpc\(|serviceWorker|PushManager/);
 });
+
+test('NOTI-01B summary, filter counts, collapsed settings and compact cards',()=>{
+ const f=fixture();f.center.setAccount(A);f.center.setMessageUnread(3);f.center.mount(f.host);
+ const all=descendants(f.host);
+ assert.ok(all.some(n=>n.className==='phone-notifications-summary' && n.textContent.includes('5건')));
+ assert.equal(all.filter(n=>n.tagName==='H3').length,1,'one in-app heading, no repeated 알림센터');
+ const tab=f.findButton('전체');
+ assert.equal(tab.getAttribute('aria-pressed'),'true');
+ assert.ok(tab.children.some(n=>n.textContent==='3'),'three source cards visible, not five invented records');
+ const settings=all.find(n=>n.className==='phone-notifications-preferences');
+ assert.equal(settings.hidden,true,'preferences are initially collapsed');
+ f.findButton('표시 설정').click();
+ const opened=descendants(f.host).find(n=>n.className==='phone-notifications-preferences');
+ assert.equal(opened.hidden,false);
+ assert.equal(f.findButton('표시 설정').getAttribute('aria-expanded'),'true');
+ const toggles=descendants(f.host).filter(n=>n.attributes.role==='switch');
+ assert.equal(toggles.length,2);
+ toggles[0].click();
+ assert.equal(f.center.snapshot().counts.messages,0,'category can be muted without changing server unread');
+ assert.equal(f.center.snapshot().rows[0].unread,true);
+ f.center.destroy();
+});
+test('NOTI-01B only marks daily read after an app actually opens',()=>{
+ const doc=createFakeDocument(),host=doc.createElement('main'),seen=new Map(),account=A;
+ const attendance={accountId:account,state:'READY',snapshot:{rewardDate:'2026-10-14',claimedToday:false}};
+ let success=false,attempts=0;
+ const c=createPhoneNotificationCenter({doc,getAttendance:()=>attendance,getQuiz:()=>null,
+  getStorage:()=>({getItem:k=>seen.get(k)||null,setItem:(k,v)=>seen.set(k,v)}),
+  onOpenApp:()=>{attempts++;return success;}});
+ c.setAccount(account);c.mount(host);
+ const action=()=>descendants(host).find(n=>n.tagName==='BUTTON'&&n.textContent==='출석부 열기');
+ action().click();
+ assert.equal(attempts,1);
+ assert.equal(c.snapshot().unreadCount,1,'failed routing must not mark read');
+ assert.ok(descendants(host).some(n=>n.className==='phone-notifications-error'));
+ success=true;action().click();
+ assert.equal(c.snapshot().unreadCount,0,'successful routing marks local task seen');
+ c.destroy();
+});
+test('NOTI-01B all-daily-read is explicit and cannot mutate message unread',()=>{
+ const f=fixture();f.center.setAccount(A);f.center.setMessageUnread(2);f.center.mount(f.host);
+ assert.ok(f.findButton('할 일 알림 모두 확인'));
+ f.findButton('할 일 알림 모두 확인').click();
+ assert.equal(f.center.snapshot().unreadCount,2);
+ assert.equal(f.findButton('할 일 알림 모두 확인'),undefined,'button disappears when nothing remains to mark');
+ f.center.destroy();
+});

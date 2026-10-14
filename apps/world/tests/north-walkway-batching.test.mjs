@@ -26,9 +26,12 @@ test('float vertex colors use exactly the pinned engine diffuse-uniform transfer
  assert.notEqual(walkwayLinearColor('#808080')[0],128/255);assert.throws(()=>walkwayLinearColor('gray'));
  const source=capture();source.set('#548d99',source.values().next().value);assert.throws(()=>groupWalkwayPavingByProfile(source),/Unreviewed/);
 });
-test('production paving restores five shared per-color material owners without profile clones',()=>{
+test('production paving indexes vertices within five shared per-color owners without profile clones',()=>{
  const renderer=readFileSync(new URL('../src/north-walkway-renderer.js',import.meta.url),'utf8');
- assert.ok(renderer.includes("fillNorthRoads(new FacilityMeshBatch()).finish(root,'north_campus_roads',{castShadows:false})"));
+ assert.ok(renderer.includes("batch.groups=indexWalkwayPavingGroups(source)"));
+ assert.ok(renderer.includes("batch.finish(root,'north_campus_roads',{castShadows:false})"));
+ assert.ok(renderer.includes("bounds.compute(g.positions);mesh.aabb=bounds"));
+ assert.ok(renderer.includes("for(const owner of root.children.slice(first))owner.destroy()"));
  for(const forbidden of ['groupWalkwayPavingByProfile','mesh.setColors','surface(','material.clone','new pc.Mesh'])assert.ok(!renderer.includes(forbidden),forbidden);
  const wiring=readFileSync(new URL('../src/campus-road-blockout.js',import.meta.url),'utf8');assert.ok(wiring.includes('buildNorthWalkwayRoads(root)'));
 });
