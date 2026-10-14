@@ -3,6 +3,7 @@ import { FACILITIES } from './campus-facilities.js';
 import { polygonOverlap } from './polygon-collision.js';
 import { roadTreeClear, roadFrame } from './campus-road-layout.js';
 import { BACK_ROADS } from './back-gate-layout.js';
+import { FIVE_CLOCK_PLACEMENT } from './north-landmark-massing.js';
 export const FIVE = FACILITIES.find(f=>f.id==='bldg_05');
 export const ANNIVERSARY = FACILITIES.find(f=>f.id==='bldg_60th');
 export function exteriorFrame(ring,index,hole=false) {
@@ -12,8 +13,11 @@ export function exteriorFrame(ring,index,hole=false) {
   return {length:f.length,yaw:-Math.atan2(tz,tx)*180/Math.PI,
     at:(u,out)=>f.at(u,out*sign),local:p=>({u:(p.x-a.x)*tx+(p.z-a.z)*tz,out:((p.x-a.x)*-tz+(p.z-a.z)*tx)*sign})};
 }
+// User-confirmed south entrance directly below the clock. Reuse its reversible
+// footprint-derived axis; existing stair dimensions remain unsurveyed blockout.
+const fiveEntryFrame=exteriorFrame(FIVE.rings[0],FIVE_CLOCK_PLACEMENT.edge);
 export const NORTH_APPROACHES=[
-  {id:'five_south_entry',owner:FIVE.id,frame:exteriorFrame(FIVE.rings[0],7),u:10,width:4,height:.3,landing:.8,run:1.2,steps:3},
+  {id:'five_south_entry',owner:FIVE.id,frame:fiveEntryFrame,u:fiveEntryFrame.length*FIVE_CLOCK_PLACEMENT.along,width:4,height:.3,landing:.8,run:1.2,steps:3},
   {id:'anniversary_east_entry',owner:ANNIVERSARY.id,frame:exteriorFrame(ANNIVERSARY.rings[0],0),u:22,width:5,height:.65,landing:.75,run:.85,steps:7}
 ];
 const FIVE_SOUTH_APPROACH = NORTH_APPROACHES.find(entry=>entry.id==='five_south_entry');

@@ -1,13 +1,14 @@
 // Existing neutral roads/approaches keep their exact support and clearance.
 // Photo-informed building presentation is isolated in the imported module.
-import { NORTH_LANES, ANNIVERSARY_BACK_GATE_LINKS, NORTH_APPROACHES, FIVE, ANNIVERSARY, exteriorFrame, FIVE_FRONT_TREES } from './north-campus-layout.js';
+import { NORTH_APPROACHES, FIVE, ANNIVERSARY, exteriorFrame, FIVE_FRONT_TREES } from './north-campus-layout.js';
 import { FACILITY_COLLIDERS } from './campus-facilities.js';
 import { BUILDINGS } from './basic-campus.js';
 import { QA, corridor, rect, box } from './public-qa-geometry.js';
+import { fillWalkwayPaving, fillWalkwayProps } from './north-walkway-geometry.js';
 import { fillFivePhotoFacade,fillAnniversaryPhotoFacade } from './north-campus-photo-geometry.js';
 const bodies=[...FACILITY_COLLIDERS.filter(q=>q.minY===0).map(q=>q.polygon),...BUILDINGS.map(q=>q.vertices)];
 export const northSurface=rect;
-export function fillNorthRoads(b){for(const s of [...NORTH_LANES,...ANNIVERSARY_BACK_GATE_LINKS])corridor(b,s.frame,s.width,bodies);return b;}
+export function fillNorthRoads(b){return fillWalkwayPaving(b);}
 export function fillFiveGardenPaths(b){
   const ring=FIVE.rings[1];
   for(let i=0;i<ring.length;i++){
@@ -28,6 +29,7 @@ export function fillNorthEntrances(b,owner){
   }return b;
 }
 export function fillNorthFurniture(b,owner){
+  if(owner===ANNIVERSARY.id)fillWalkwayProps(b);
   if(owner===FIVE.id)for(const p of FIVE_FRONT_TREES){
     b.box(QA.body,[p.x,.5,p.z],[.15,1,.15],0);
     b.crown(QA.edge,[p.x,1.5,p.z],[1,1,1]);

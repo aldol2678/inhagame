@@ -74,7 +74,7 @@ test("M0 geometry includes runtime-aligned roads, authored paths, green and wate
     + (LIBRARY_ROUTE_LINES.find(line => line.id === "garden_library_north_link")?.nodes.length ?? 1) - 1;
   assert.equal(geometry.filter(item => item.kind === MINIMAP_GEOMETRY_KIND.ROAD).length, expectedRoadSegments + 1, 'curb-derived gate forecourt is an additional road polygon');
   assert.deepEqual(geometry.find(item => item.id === 'maproad.main_gate_forecourt').rings, [MAIN_GATE_FORECOURT_RING]);
-  assert.equal(geometry.filter(item => item.kind === MINIMAP_GEOMETRY_KIND.PATH).length, expectedPathSegments - 3, 'three fully covered legacy gate path segments are suppressed');
+  assert.equal(geometry.filter(item => item.kind === MINIMAP_GEOMETRY_KIND.PATH).length, expectedPathSegments - 3 + 11, 'three legacy gate segments suppressed; five north lanes, four side-gate paths and two physical joins added');
   assert.ok(ids.has("mappath.garden_library_road_link.0"), "J05 physical walkway is visible on the map");
   assert.ok(ids.has("mappath.garden_library_north_link.0"), "J10 physical walkway is visible on the map");
   assert.ok(ids.has("maproad.anniversary_back_gate_link.0"), "J12/J15 physical bypass is visible on the map");

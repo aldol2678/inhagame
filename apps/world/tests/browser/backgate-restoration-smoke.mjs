@@ -6,7 +6,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { assertHosted, BASELINE, CURRENT_MAIN, BASELINE_PATHS, VIEWPORTS, VIEWS, expectedRaster, tiersFor, EXPECTED_SCREENSHOTS, EXPECTED_PAIRS, expectedContribution } from './backgate-restoration-qa-plan.mjs';
+import { assertHosted, BASELINE, CURRENT_MAIN, BASELINE_PATHS, VIEWPORTS, VIEWS, expectedRaster, tiersFor, EXPECTED_SCREENSHOTS, EXPECTED_PAIRS, expectedContribution, backgateScope, validateBackgateScope } from './backgate-restoration-qa-plan.mjs';
 
 assertHosted(process.env); // Before importing the browser harness or starting any server.
 const { startSmoke } = await import('./harness.mjs');
@@ -56,10 +56,18 @@ try {
     const sourcePath = `apps/world/src/${name}`;
     report.currentSharedFiles.push({ path: sourcePath, sha256: hash(await readFile(path.join(repo, sourcePath))) });
   }
-  report.runtimeChangedPaths = git(['diff', '--name-only', CURRENT_MAIN, 'HEAD', '--', 'apps/world/src', 'apps/world/data'])
+  // Change admission is separate from immutable historical render controls.
+  const scope = backgateScope(process.env);
+  const mergeBase = scope.extension ? git(['merge-base', scope.base, 'HEAD']).toString().trim() : CURRENT_MAIN;
+  const diffRefs = scope.extension ? [`${scope.base}...HEAD`] : [scope.base, 'HEAD'];
+  report.runtimeChangedPaths = git(['diff', '--name-only', ...diffRefs, '--', 'apps/world/src', 'apps/world/data'])
     .toString().trim().split('\n').filter(Boolean);
-  const allowed = [...BASELINE_PATHS.map(p => `apps/world${p}`), 'apps/world/src/backgate-infill-geometry.js'];
-  for (const changed of report.runtimeChangedPaths) assert.ok(allowed.includes(changed), `unrelated runtime change: ${changed}`);
+  const manifest = scope.extension ? await readFile(new URL('../../../../docs/ops/releases/2026-10-13-ci-runtime-diagnostics.md', import.meta.url), 'utf8') : '';
+  validateBackgateScope(scope, report.runtimeChangedPaths, { mergeBase, manifest });
+  for (const sha of scope.requiredSourceHeads) git(['merge-base', '--is-ancestor', sha, 'HEAD']);
+  report.preservation = { baseline: mergeBase, requestedBase: scope.base, historicalComparison: CURRENT_MAIN,
+    extension: scope.extension, changedPaths: report.runtimeChangedPaths, sourceHeads: scope.requiredSourceHeads, status: 'PASS' };
+
   await flush();
 
   for (const viewport of VIEWPORTS) {

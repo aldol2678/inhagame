@@ -41,6 +41,9 @@ jobs:
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Verify restored geometry and unchanged navigation
         run: node --test apps/world/tests/backgate-infill*.test.mjs apps/world/tests/backgate-road*.test.mjs apps/world/tests/backgate-restoration*.test.mjs apps/world/tests/back-market.test.mjs apps/world/tests/backgate-shopfronts.test.mjs
+      - name: Verify bounded release integration contracts
+        if: github.event.pull_request.head.ref == 'release/2026-10-13-ci-runtime-diagnostics'
+        run: node --test apps/world/tests/north-walkway.test.mjs apps/world/tests/north-walkway-batching.test.mjs apps/world/tests/north-landmark-restoration.test.mjs apps/world/tests/campus-material-profile.test.mjs apps/world/tests/runtime-diagnostics.test.mjs apps/world/tests/photo-capture.test.mjs apps/world/tests/photo-mode-panel.test.mjs
       - name: Verify pinned engine ownership and framing
         run: |
           node apps/world/tests/browser/backgate-infill-null-smoke.mjs
@@ -53,6 +56,8 @@ jobs:
           WORLD_SMOKE_TIMEOUT_MS: '60000'
           WORLD_BACKGATE_QA_OUTPUT: test-results/backgate-restoration
           EXPECTED_BACKGATE_HEAD: ${{ github.event.pull_request.head.sha }}
+          WORLD_BACKGATE_SCOPE_BASE: ${{ github.event.pull_request.head.ref == 'release/2026-10-13-ci-runtime-diagnostics' && github.event.pull_request.base.sha || '' }}
+          WORLD_BACKGATE_SCOPE_EXTENSION: ${{ github.event.pull_request.head.ref == 'release/2026-10-13-ci-runtime-diagnostics' && 'release-2026-10-13' || '' }}
         run: timeout --signal=TERM --kill-after=15s 18m node apps/world/tests/browser/backgate-restoration-smoke.mjs
       - name: Save screenshots and hashed report
         if: always()

@@ -153,7 +153,7 @@ test('parallel graphics extension is an exact allowlist, never a src or Biryong 
 
 test('graphics exception is branch-bound and keeps environmental and visual contracts mandatory', () => {
   const workflow=read('../../../.github/workflows/hall-library-candidate-browser.yml');
-  assert.match(workflow,/WORLD_HALL_LIBRARY_SCOPE_EXTENSION:.*head\.ref == 'fix\/campus-surroundings-parity-20261004' && 'surroundings' \|\| github\.event\.pull_request\.head\.ref == 'graphics\/parallel-integration-20261008' && 'graphics' \|\| ''/);
+  assert.match(workflow,/WORLD_HALL_LIBRARY_SCOPE_EXTENSION:.*head\.ref == 'fix\/campus-surroundings-parity-20261004' && 'surroundings' \|\| github\.event\.pull_request\.head\.ref == 'graphics\/parallel-integration-20261008' && 'graphics' \|\| github\.event\.pull_request\.head\.ref == 'feat\/60th-five-walkway-20261012' && 'walkway' \|\| github\.event\.pull_request\.head\.ref == 'release\/2026-10-13-ci-runtime-diagnostics' && 'release-2026-10-13' \|\| ''/);
   const contracts=workflow.slice(workflow.indexOf('      - name: Verify bounded graphics integration contracts'),workflow.indexOf('      - name: Verify real-engine chunk'));
   assert.match(contracts,/if: github.event.pull_request.head.ref == 'graphics\/parallel-integration-20261008'/);
   for(const name of ['biryong-*.test.mjs','environment-continuous-daylight.test.mjs',
@@ -377,4 +377,64 @@ test('real rendered entrance camera rejects raised eyes and wrong-side reflectio
  }
  assert.match(runner,/await shot\(`desktop-bldg_jungseok-\$\{presentation\}-\$\{mode\}-\$\{reflected\?'reflected':'control'\}`\)/,'both reflections retain actual image evidence');
  assert.match(runner,/assert.equal\(report.screenshots.length,44\)/);
+});
+
+test('walkway scope extension is exact, branch-bound, and preserves historical hall gates',()=>{
+ const runner=read('./browser/hall-library-hosted-smoke.mjs');
+ const helper=runner.match(/function hallIntegrationScopePaths\(manifest,extension\) \{[\s\S]*?\n\}/)?.[0];
+ const allow=runInNewContext(`(${helper})`,{}, {timeout:1000});
+ const manifest=JSON.parse(read('./fixtures/hall-library-candidate-source-manifest.json'));
+ const original=allow(manifest,''),walkway=allow(manifest,'walkway');
+ assert.equal(walkway.length,original.length+13);
+ for(const path of ['north-walkway-layout.js','north-walkway-geometry.js','north-walkway-surface.js','campus-material-profile.js','north-landmark-massing.js','north-campus-layout.js'])assert.ok(walkway.includes('apps/world/src/'+path));
+ for(const path of ['campus-layout.js','campus-facilities.js','north-side-gate-layout.js','environment/night-street-lights.js','biryong/biryong-realm-transition.js'])assert.ok(!walkway.includes('apps/world/src/'+path));
+ assert.ok(walkway.includes('apps/world/data/reality/north-walkway.provenance.json'));
+ const workflow=read('../../../.github/workflows/hall-library-candidate-browser.yml');
+ assert.ok(workflow.includes("head.ref == 'feat/60th-five-walkway-20261012' && 'walkway'"));
+ for(const step of ['north-walkway.test.mjs','material-profile-smoke.mjs','hall-library-hosted-smoke.mjs','hall-library-integration-null-smoke.mjs'])assert.ok(workflow.includes(step));
+});
+
+
+test('refreshed release scope admits only remaining walkway paths',()=>{
+ const runner=read('./browser/hall-library-hosted-smoke.mjs');
+ const helper=runner.match(/function hallIntegrationScopePaths\(manifest,extension\) \{[\s\S]*?\n\}/)?.[0];
+ const allow=runInNewContext(`(${helper})`,{}, {timeout:1000});
+ const manifest=JSON.parse(read('./fixtures/hall-library-candidate-source-manifest.json'));
+ const release=[...allow(manifest,'release-2026-10-13')].sort();
+ const expected=[
+  'campus-material-profile.js','minimap/minimap-data.js','navigation/campus-navigation.js',
+  'north-campus-geometry.js','north-campus-photo-geometry.js','north-walkway-geometry.js',
+  'north-walkway-layout.js','north-walkway-surface.js','render-chunk-registry.js','north-landmark-massing.js','north-campus-layout.js',
+  'campus-road-blockout.js','north-walkway-batching.js','north-walkway-renderer.js','north-walkway-indexing.js'
+ ].map(p=>'apps/world/src/'+p).concat([
+  'apps/world/data/reality/north-walkway.provenance.json',
+  'apps/world/data/reality/north-landmark-restoration.provenance.json'
+ ]).sort();
+ assert.deepEqual(release,expected);assert.equal(new Set(release).size,17);
+ for(const path of ['phone/phone-notification-center.js','main.js','diagnostics/build-id.js','photo/photo-capture.js','diagnostics/unreviewed.js','photo/unreviewed.js','campus-facilities.js','campus-render-kit.js','main-hall-blockout.js'])assert.ok(!release.includes('apps/world/src/'+path));
+ assert.throws(()=>allow(manifest,'release'),/scope/);
+ assert.throws(()=>allow(manifest,'release-2026-10-14'),/scope/);
+ const workflow=read('../../../.github/workflows/hall-library-candidate-browser.yml');
+ assert.ok(workflow.includes("head.ref == 'release/2026-10-13-ci-runtime-diagnostics' && 'release-2026-10-13'"));
+ for(const contract of ['north-walkway.test.mjs','north-landmark-restoration.test.mjs','campus-material-profile.test.mjs','north-walkway-batching.test.mjs','runtime-diagnostics.test.mjs','photo-capture.test.mjs','photo-mode-panel.test.mjs'])assert.ok(workflow.includes(contract));
+ for(const gate of ['material-profile-smoke.mjs','hall-library-hosted-smoke.mjs','hall-library-integration-null-smoke.mjs'])assert.ok(workflow.includes(gate));
+ assert.ok(runner.includes("assert.equal(pixels.hash,cell.preexterior.pixels.hash,'Main Hall full RGB preservation')"));
+});
+
+
+test('release branch name cannot bypass exact diff, base, manifest or source ancestry',()=>{
+ const runner=read('./browser/hall-library-hosted-smoke.mjs');
+ const helper=runner.match(/function validateReviewedReleaseScope\(changedPaths,allowed,scopeBase,releaseManifest\) \{[\s\S]*?\n\}/)?.[0];assert.ok(helper);
+ const validate=runInNewContext(`(${helper})`,{assert},{timeout:1000});
+ const base='2ceb251c11538c80dcfc020c4af4b91948e2caf2';
+ const heads=['d436d8f5db161875930db53b7c589c1dab91fc7d','1dcd85d9370b82a32ea29a0992c45618e5a82f5e','912a6d354464e6536029b631a587ab5f64c0ac5c','8f00074c8736a100bd229a1bd29a74e8bfd9698d'];
+ const manifest=[base,...heads].map(s=>'`'+s+'`').join(' '),allowed=['reviewed-a','reviewed-b'];
+ assert.doesNotThrow(()=>validate(['reviewed-b','reviewed-a'],allowed,base,manifest));
+ assert.throws(()=>validate([...allowed,'unreviewed'],allowed,base,manifest),/diff exactly/);
+ assert.throws(()=>validate(['reviewed-a'],allowed,base,manifest),/diff exactly/);
+ assert.throws(()=>validate(allowed,allowed,'0'.repeat(40),manifest),/immutable base/);
+ assert.throws(()=>validate(allowed,allowed,'0dcae7b4825c12e1ec03b6879d3bc0d27f9ad46e',manifest),/immutable base/);
+ assert.throws(()=>validate(allowed,allowed,'bfa08ad78f92fba51eb1a3978dd97a12182fc82c',manifest),/immutable base/);
+ for(const sha of [base,...heads])assert.throws(()=>validate(allowed,allowed,base,manifest.replace(sha,'')),/manifest/);
+ assert.ok(runner.includes("['merge-base','--is-ancestor',sha,'HEAD']"));
 });

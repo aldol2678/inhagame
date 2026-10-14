@@ -1,3 +1,5 @@
+import { WALKWAY_SURFACES } from '../north-walkway-layout.js';
+import { SIDE_GATE_PATHS } from '../north-side-gate-layout.js';
 import { clipLegacyGateGround } from '../main-gate-surface-ownership.js';
 // INHA WORLD Mini-map M0 runtime data adapter.
 // This is the only Mini-map module that knows current Campus data owners.
@@ -161,16 +163,14 @@ function buildGeometry() {
     source: "LIBRARY_ROUTE_LINES",
     style: "path"
   });
-  for (const link of ANNIVERSARY_BACK_GATE_LINKS) {
-    addCorridorSegments(add, {
-      id: link.id,
-      vertices: [link.frame.at(0), link.frame.at(link.frame.length)],
-      width: link.width,
-      kind: MINIMAP_GEOMETRY_KIND.ROAD,
-      source: "ANNIVERSARY_BACK_GATE_LINKS",
-      style: "road"
-    });
+  for (const s of WALKWAY_SURFACES) {
+    const road=ANNIVERSARY_BACK_GATE_LINKS.some(link=>link.id===s.id);
+    if(s.rings.length)add(geometryRecord(`${road?'maproad':'mappath'}.${s.id}.0`,road?MINIMAP_GEOMETRY_KIND.ROAD:MINIMAP_GEOMETRY_KIND.PATH,'WALKWAY_SURFACES',s.rings,road?'road':'path'));
   }
+  for(const s of SIDE_GATE_PATHS)addCorridorSegments(add,{
+    id:s.id,vertices:[s.frame.at(0),s.frame.at(s.frame.length)],width:s.width,
+    kind:MINIMAP_GEOMETRY_KIND.PATH,source:'SIDE_GATE_PATHS',style:'path'
+  });
 
   for (const road of [...BACK_APPROACH_ROADS,...INTERIOR_PATHS]) {
     addCorridorSegments(add, {id:road.id,vertices:road.vertices,width:road.width,

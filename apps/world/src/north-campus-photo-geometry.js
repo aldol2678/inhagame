@@ -1,7 +1,10 @@
 // Newly authored procedural interpretation of photographed architecture.
 // Source photos/brands/textures are never embedded. See the provenance record.
 import {FIVE,ANNIVERSARY,exteriorFrame,NORTH_APPROACHES} from './north-campus-layout.js';
+import { WALKWAY_ENTRANCE } from './north-walkway-layout.js';
+import { fillWalkwayEntrance, fillWalkwayProps } from './north-walkway-geometry.js';
 import {FACILITIES,towerParts} from './campus-facilities.js';
+import {FIVE_CLOCK_PLACEMENT} from './north-landmark-massing.js';
 export const NORTH_PHOTO_COLORS=Object.freeze({stone:'#e4e2d8',trim:'#f0eee4',glass:'#467e89',
  darkGlass:'#29494f',metal:'#777f80',ribbon:'#727674',joint:'#aeb8b4'});
 const point=(f,u,y,out=.09)=>{const p=f.at(u,out);return [p.x,y,p.z];};
@@ -64,26 +67,52 @@ export function fillAgoraEnclosingFacade(b,id,tier='NEAR'){
  return archedBays(b,f.rings[0],indices,f.height,{fullGlass:true,tier});
 }
 export function fillAnniversaryPhotoFacade(b,tier='NEAR'){
+ if(tier==='NEAR')fillWalkwayEntrance(b,NORTH_PHOTO_COLORS);
+ if(tier==='DETAIL')fillWalkwayProps(b,tier);
  const c=NORTH_PHOTO_COLORS,ring=ANNIVERSARY.rings[0];
  for(let i=0;i<ring.length;i++){
   const f=exteriorFrame(ring,i),len=f.length;
   if(tier==='NEAR'){
    box(b,f,c.glass,len/2,8.0,len-.16,9.7,.095,.12);
-   box(b,f,c.darkGlass,len/2,1.58,len-.16,3.16,.095,.12);
-   for(let u=.5;u<len-.3;u+=1.35)box(b,f,c.metal,u,6.4,.045,12.6,.18,.045);
-   for(let y=.8;y<13;y+=.78)box(b,f,c.metal,len/2,y,len-.15,.045,.18,.045);
+   if(i===3){
+    const lo=WALKWAY_ENTRANCE.u-WALKWAY_ENTRANCE.width/2,hi=WALKWAY_ENTRANCE.u+WALKWAY_ENTRANCE.width/2;
+    box(b,f,c.darkGlass,lo/2,1.58,lo-.16,3.16,.095,.12);
+    box(b,f,c.darkGlass,(hi+len)/2,1.58,len-hi-.16,3.16,.095,.12);
+   }else box(b,f,c.darkGlass,len/2,1.58,len-.16,3.16,.095,.12);
+   for(let u=.5;u<len-.3;u+=1.35){
+    const doorway=i===3&&Math.abs(u-WALKWAY_ENTRANCE.u)<WALKWAY_ENTRANCE.width/2;
+    box(b,f,c.metal,u,doorway?7.9:6.4,.045,doorway?9.6:12.6,.18,.045);
+   }
+   for(let y=.8;y<13;y+=.78){
+    if(i===3&&y<3){
+     const lo=WALKWAY_ENTRANCE.u-WALKWAY_ENTRANCE.width/2,hi=WALKWAY_ENTRANCE.u+WALKWAY_ENTRANCE.width/2;
+     box(b,f,c.metal,lo/2,y,lo-.15,.045,.18,.045);box(b,f,c.metal,(hi+len)/2,y,len-hi-.15,.045,.18,.045);
+    }else box(b,f,c.metal,len/2,y,len-.15,.045,.18,.045);
+   }
    // The observed S-shaped dark/silver ribbon is a facade frame, not a
    // surveyed roof section. Keep the existing podium envelope and roof.
    if([0,2,3].includes(i)){
     const reverse=i===0;
     const profile=[[.01,12.55],[.46,12.55],[.49,12.48],[.515,12.20],[.54,11.55],
-      [.575,8.0],[.60,5.05],[.625,4.40],[.65,4.20],[.98,4.20]];
-    for(let j=1;j<profile.length;j++){
-     const a=profile[j-1],p=profile[j],u=q=>(reverse?1-q:q)*len;
-     const x0=u(a[0]),x1=u(p[0]),dx=x1-x0,dy=p[1]-a[1],length=Math.hypot(dx,dy),nx=-dy/length*.40,ny=dx/length*.40;
-     const face=[point(f,x0+nx,a[1]+ny,.29),point(f,x1+nx,p[1]+ny,.29),point(f,x1-nx,p[1]-ny,.29),point(f,x0-nx,a[1]-ny,.29)];
+      [.575,8.0],[.60,5.05],[.625,4.40],[.65,4.20],
+      ...(i===3?[[.84,4.20],[.86,4.15],[.88,3.95],[.90,3.60],[.94,1.85],[.98,.15]]:[[.98,4.20]])];
+    const centers=profile.map(([u,y])=>({x:(reverse?1-u:u)*len,y}));
+    const normals=centers.slice(1).map((p,j)=>{
+     const a=centers[j],dx=p.x-a.x,dy=p.y-a.y,length=Math.hypot(dx,dy);
+     return {x:-dy/length,y:dx/length};
+    });
+    // Shared miter vertices close the old wedge gaps between ribbon segments.
+    // Both adjacent faces consume the SAME joint, preserving the original axis.
+    const joints=centers.map((p,j)=>{
+     const a=normals[Math.max(0,j-1)],d=normals[Math.min(j,normals.length-1)];
+     const x=a.x+d.x,y=a.y+d.y,scale=.40/(x*a.x+y*a.y);
+     return {left:point(f,p.x+x*scale,p.y+y*scale,.29),right:point(f,p.x-x*scale,p.y-y*scale,.29),
+       edge:point(f,p.x+x*scale,p.y+y*scale,.31)};
+    });
+    for(let j=1;j<joints.length;j++){
+     const a=joints[j-1],p=joints[j],face=[a.left,p.left,p.right,a.right];
      b.quad(c.ribbon,...face);b.quad(c.ribbon,...[...face].reverse());
-     b.tube(c.joint,point(f,x0+nx,a[1]+ny,.31),point(f,x1+nx,p[1]+ny,.31),.045,4);
+     b.tube(c.joint,a.edge,p.edge,.045,4);
     }
    }
   }else if(tier==='DETAIL'){
@@ -95,12 +124,14 @@ export function fillAnniversaryPhotoFacade(b,tier='NEAR'){
 export function fillNorthPhotoTower(b,f,tier='NEAR'){
  const c=NORTH_PHOTO_COLORS;
  if(f.id==='bldg_05'&&tier==='NEAR'){
-  const front=exteriorFrame(f.rings[0],6),u=front.length/2;
+  const front=exteriorFrame(f.rings[0],FIVE_CLOCK_PLACEMENT.edge),u=front.length*FIVE_CLOCK_PLACEMENT.along;
   // Continue the relocated attached dark stair glazing down the same south face.
   // This is a thin face on the already-solid building, not a second ground body.
   box(b,front,c.stone,u,f.height/2,4.02,f.height,.225,.10);
-  box(b,front,c.darkGlass,u,(f.height+.45)/2,2.16,f.height-.45,.29,.04);
-  for(let y=1;y<f.height;y+=1.0)box(b,front,c.joint,u,y,2.16,.035,.325,.025);
+  // The moved doorway owns the lower glazing; stop shaft glazing/divisions at
+  // its head instead of hiding the door behind a second glass panel.
+  box(b,front,c.darkGlass,u,(f.height+2.4)/2,2.16,f.height-2.4,.29,.04);
+  for(let y=3;y<f.height;y+=1.0)box(b,front,c.joint,u,y,2.16,.035,.325,.025);
  }
  for(const tower of towerParts(f)){
   const ring=tower.vertices;
@@ -140,7 +171,7 @@ export function fillFivePhotoEntry(b){
  // Existing landing and opening remain authoritative. Thin canopy is above the
  // standing/jumping player envelope; columns hug existing wall footprint.
  box(b,e.frame,c.trim,e.u,3.50,e.width+1,.18,.62,1.45);
- box(b,e.frame,c.darkGlass,e.u,1.35,e.width*.66,2.1,.09,.10);
+ box(b,e.frame,c.darkGlass,e.u,1.35,e.width*.66,2.1,.29,.04);
  for(const side of [-1,1])box(b,e.frame,c.trim,e.u+side*(e.width/2+.25),1.7,.18,3.4,.12,.20);
  return b;
 }
