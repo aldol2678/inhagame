@@ -75,6 +75,15 @@ try {
       const b=a.getBoundingClientRect(),cta=a.querySelector('.portal-game-link').getBoundingClientRect(),mascot=a.querySelector('.portal-official-mascot');
       return {width:b.width,height:b.height,x:b.x,ctaHeight:cta.height,bodyFont:parseFloat(getComputedStyle(a.querySelector('.portal-card-body p')).fontSize),mascotSrc:mascot?.getAttribute('src'),mascotLoaded:!!mascot?.naturalWidth};
     }));
+    // Exercise the editorial filter after the catalog has replaced fallback cards.
+    await page.locator('[data-arcade-filter="simulation"]').click();
+    metrics.filteredMascots=await page.locator('.portal-game:not([hidden]) .portal-official-mascot').count();
+    await page.locator('[data-arcade-filter="all"]').click();
+    metrics.restoredMascots=await page.locator('.portal-game:not([hidden]) .portal-official-mascot').count();
+    for(const card of await page.locator('.portal-game').all()) {
+      await card.scrollIntoViewIfNeeded();
+      await page.screenshot({path:resolve(output,`game-${await card.getAttribute('data-game-id')}-${width}.png`)});
+    }
     // Scroll each CTA into view and check real pointer targeting without following external links.
     metrics.ctaClickable=[];
     for (const selector of ['.portal-hero-cta','.portal-secondary-link']) {
@@ -112,6 +121,8 @@ try {
       for(let i=1;i<card.children.length;i++) assert.ok(card.children[i].top>=card.children[i-1].bottom,'shortcut text rows remain separate');
     }
     assert.equal(r.gameCards.length,4);
+    assert.equal(r.filteredMascots,1,'simulation filter retains official mascot');
+    assert.equal(r.restoredMascots,4,'all filter restores all official mascots');
     assert.equal(r.gameCtaClickable.length,4);
     assert.ok(r.gameCtaClickable.every(Boolean),'all four game links accept pointer clicks');
     for(const card of r.gameCards){
