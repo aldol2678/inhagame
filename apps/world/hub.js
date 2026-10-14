@@ -26,7 +26,7 @@
         else button.removeAttribute("aria-current");
       }
     });
-    document.title = current === "home" ? "INHAGAME · 인하오리 게임 허브" :
+    document.title = current === "home" ? "인하대 게임 · 인하월드 | INHAGAME" :
       `${{ ranking: "랭킹", friends: "친구", messages: "쪽지", account: "계정", settings: "설정" }[current]} · INHAGAME`;
   }
 

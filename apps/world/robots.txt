@@ -1,0 +1,6 @@
+# INHAGAME public web hub: indexing guidance, not an access-control mechanism.
+User-agent: *
+Allow: /
+Disallow: /api/
+
+Sitemap: https://inhagame.app/sitemap.xml
