@@ -200,7 +200,14 @@
       const artLabel = document.createElement("span");
       artLabel.className = "portal-poster-label";
       artLabel.textContent = art[1];
-      poster.append(image, artLabel);
+      const mascot = document.createElement("img");
+      mascot.className = "portal-official-mascot";
+      mascot.src = "/campus/icons/icon-512.png";
+      mascot.alt = "";
+      mascot.loading = "lazy";
+      mascot.width = 512;
+      mascot.height = 512;
+      poster.append(image, mascot, artLabel);
     }
 
     const body = document.createElement("div");

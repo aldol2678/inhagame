@@ -16,12 +16,13 @@ test("editorial portal adds R2 visual/navigation without replacing live account 
  assert.match(hub,/hub_game_click/);
  assert.match(hub,/hub_panel_view/);
 });
-test("support pages are reachable and do not invent service state or replace existing privacy policy",async()=>{
+test("support pages publish public-facing help, terms and the privacy policy without invented service history",async()=>{
  const [html,updates,support,terms,privacy]=await Promise.all([read("../index.html"),read("../updates.html"),read("../support.html"),read("../terms.html"),read("../privacy.html")]);
  for(const p of ["updates.html","support.html","terms.html","privacy.html"])assert.ok(html.includes('/'+p));
- assert.match(updates,/정식 배포 확인을 기다리고 있습니다/);
+ assert.match(updates,/등록된 업데이트 소식이 없습니다/);
+ assert.doesNotMatch(updates,/개발 브랜치·PR|정식 배포 확인을 기다리고 있습니다/);
  assert.match(support,/mailto:aldol@inha\.edu/);
- assert.match(support,/현재 웹 문의 접수 폼과 티켓 추적 기능은 제공하지 않습니다/);
+ assert.match(support,/메일 앱에서 전송을 완료해 주세요/);
  assert.match(html, /href="\/terms\.html">이용약관<\/a>/);
  assert.doesNotMatch(html, /이용약관\(검토안\)/);
  for (let article = 1; article <= 15; article++) {
@@ -37,5 +38,7 @@ test("support pages are reachable and do not invent service state or replace exi
  assert.match(terms, /약관 게시, 계정 보유, 침묵 또는 계속 이용만으로 동의한 것으로 처리하지 않습니다/);
  assert.match(terms, /연령 자기확인은 약관 동의나 법정대리인 동의를 대신하지 않습니다/);
  assert.doesNotMatch(terms, /아직 시행되지 않은 검토 문서|이용약관\(검토안\)/);
- assert.match(privacy,/https:\/\/duck\.inhagame\.app\/privacy\.html/);
+ assert.match(privacy, /<h2>1\. 처리 목적 및 항목<\/h2>/);
+ assert.match(privacy, /<h2>8\. 변경 안내<\/h2>/);
+ assert.doesNotMatch(privacy, /통합 전 점검|새로 작성하는 동안/);
 });

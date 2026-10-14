@@ -37,3 +37,18 @@ test('theme overrides match legacy specificity only for editorial visible home',
   // No unscoped replacement of the existing dark/non-editorial home theme.
   assert.equal(rules('body:has(.portal-home:not([hidden]))').length, 0);
 });
+
+
+test('shortcut copy link selector excludes the card grid', () => {
+  assert.equal(rules('.editorial-discover-more>div>a').length, 0);
+  has(rules('.editorial-discover-more>div:not(.editorial-info-grid)>a')[0], 'display', 'inline-block');
+  const cards = rules('.editorial-info-grid a,.editorial-info-grid button')[0];
+  has(cards, 'display', 'flex');
+  has(cards, 'text-decoration', 'none');
+});
+
+test('mobile arcade uses full-width cards and touch-sized play links', () => {
+  has(rules('.editorial-portal .portal-games')[2], 'grid-template-columns', '1fr');
+  has(rules('.editorial-portal .portal-game .secondary')[0], 'min-height', '44px');
+  has(rules('.editorial-portal .portal-card-body p').at(-1), 'font-size', '14px');
+});
