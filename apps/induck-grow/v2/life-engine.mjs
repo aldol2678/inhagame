@@ -1,3 +1,4 @@
+import {initializeCampusStories,validateCampusStories,buildCampusEvent,applyCampusChoice} from './campus-stories.mjs';
 import {initializeSpending,validateSpending,applySpending} from './life-spending.mjs';
 import {initializeGrowth,validateGrowth,advanceGrowth} from './campus-growth.mjs';
 import { findMajor } from './major-registry.mjs';
@@ -79,15 +80,16 @@ function ensureLife(life) {
   validateStoryState(life);
   validateGrowth(life);
   validateSpending(life);
+  validateCampusStories(life);
 }
 
-export function createLife({majorId,seed=1,policy='balanced',contentVersion:requestedContent=LEGACY_CONTENT_VERSION,growthVersion,economyVersion}={}) {
+export function createLife({majorId,seed=1,policy='balanced',contentVersion:requestedContent=LEGACY_CONTENT_VERSION,growthVersion,economyVersion,campusStoryVersion}={}) {
   const major = findMajor(majorId);
   if (!major || major.playability !== 'foundation' || major.calendarTemplate !== 'four_year_8_terms') throw new Error('Unsupported V2 foundation major');
   if (!SUPPORTED_POLICIES.includes(policy)) throw new RangeError('Unsupported life policy');
   if (!Number.isSafeInteger(seed) || seed<0 || seed>0xffffffff) throw new RangeError('Seed must be uint32');
   contentVersion({contentVersion:requestedContent});
-  return initializeSpending(initializeGrowth({
+  return initializeCampusStories(initializeSpending(initializeGrowth({
     ...(requestedContent===FOLLOWUP_CONTENT_VERSION?{contentVersion:requestedContent}:{}),
     version:LIFE_ENGINE_VERSION, majorId, seed, rngState:seed || 0x6d2b79f5,
     policy,year:1,term:1,week:1,weeksCompleted:0,status:'running',
@@ -96,7 +98,7 @@ export function createLife({majorId,seed=1,policy='balanced',contentVersion:requ
     gpa:0,credits:0,gradePoints:0,semesters:[],ending:null,
     pendingEvent:null,shownEventSlots:[],completedEventInstances:[],flags:{},memories:[],
     timeline:[],weeklyHistory:[]
-  },growthVersion),economyVersion);
+  },growthVersion),economyVersion),campusStoryVersion);
 }
 export function setLifePolicy(input,policy) {
   ensureLife(input);
@@ -124,17 +126,17 @@ function scheduleEvent(life) {
   const slot=cursorKey(life);
   if (life.shownEventSlots.includes(slot)) return;
   const major=findMajor(life.majorId);
-  let pending=null;
-  if (life.year===1 && life.term===1 && life.week===6 && major.signatureEvent &&
+  let pending=buildCampusEvent(life);
+  if (!pending && life.year===1 && life.term===1 && life.week===6 && major.signatureEvent &&
       !life.completedEventInstances.includes(major.signatureEvent.id)) {
     const event=major.signatureEvent;
     pending={instanceId:event.id,eventId:event.id,type:'signature',
       title:event.title,year:life.year,term:life.term,week:life.week,
       choices:event.choices.map(choice=>({id:choice.id,label:choice.label}))};
-  } else if (contentVersion(life)===FOLLOWUP_CONTENT_VERSION && [2,3].includes(life.year) && life.term===1 && life.week===6) {
+  } else if (!pending && contentVersion(life)===FOLLOWUP_CONTENT_VERSION && [2,3].includes(life.year) && life.term===1 && life.week===6) {
     const candidate=buildFollowupEvent(life);
     if(!life.completedEventInstances.includes(candidate.instanceId))pending=candidate;
-  } else if (life.week===5 || life.week===10) {
+  } else if (!pending && (life.week===5 || life.week===10)) {
     const event=generalCandidate(life);
     const instanceId='grow2.event.general.'+event.id+'.'+slot;
     pending={instanceId,eventId:'grow2.event.general.'+event.id,type:'general',
@@ -214,6 +216,8 @@ export function chooseLifeEvent(input,choiceId) {
     if (!result.applied) throw new Error('Event was already applied');
     Object.assign(life,result.state);
     summary=life.memories.at(-1).text;
+  } else if(event.type==='campus') {
+    summary=applyCampusChoice(life,choiceId);
   } else if(event.type==='followup') {
     summary=applyFollowupChoice(life,choiceId);
   } else {

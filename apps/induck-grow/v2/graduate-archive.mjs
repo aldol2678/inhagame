@@ -1,3 +1,4 @@
+import {CAMPUS_STORY_VERSION,buildTurningPoints} from './campus-stories.mjs';
 import {PLAY_STYLE_VERSION,playStyleSummary} from './play-style.mjs';
 import {ECONOMY_VERSION,spendingCards} from './life-spending.mjs';
 import {growthCards,earnedTraits,GROWTH_VERSION} from './campus-growth.mjs';
@@ -8,15 +9,24 @@ export function graduateSummary(life) {
   if(life?.status!=='complete'||life.weeksCompleted!==120||life.semesters?.length!==8||!life.ending)
     throw new Error('Only completed lives can be archived');
   const playStyle=playStyleSummary(life);
-  return {...(playStyle?{playStyle}:{}),...(life.spending?{economy:life.spending.version}:{}),engine:life.version,content:life.contentVersion||'grow2-content-0.1',
+  return {...(life.campusStories?{campusStoryVersion:CAMPUS_STORY_VERSION,turningPoints:buildTurningPoints(life)}:{}),...(playStyle?{playStyle}:{}),...(life.spending?{economy:life.spending.version}:{}),engine:life.version,content:life.contentVersion||'grow2-content-0.1',
     growth:life.growth?.version||'legacy',majorId:life.majorId,seed:life.seed,
     gpa:life.gpa,title:life.ending.title,
     semesters:life.semesters.map(s=>({gpa:s.gpa})),
     cards:[...growthCards(life),...spendingCards(life)],traits:earnedTraits(life),
     epilogue:life.ending.epilogue?.chapters.map(x=>x.text)||[]};
 }
+function validTurningPoints(x) {
+  if(x.campusStoryVersion===undefined)return x.turningPoints===undefined;
+  return x.campusStoryVersion===CAMPUS_STORY_VERSION&&Array.isArray(x.turningPoints)&&
+    x.turningPoints.length===2&&x.turningPoints[0]?.id==='campus.friend'&&
+    ['campus.retry','campus.project'].includes(x.turningPoints[1]?.id)&&
+    new Set(x.turningPoints.map(c=>c?.id)).size===x.turningPoints.length&&
+    x.turningPoints.every(c=>c&&Object.keys(c).sort().join(',')==='id,kind,text,title'&&
+      ['id','kind','title','text'].every(k=>typeof c[k]==='string'&&c[k].length>0&&c[k].length<2000));
+}
 function validRecord(x) {
-  return x&&(x.playStyle===undefined||(
+  return x&&validTurningPoints(x)&&(x.playStyle===undefined||(
     x.playStyle&&Object.keys(x.playStyle).sort().join(',')==='basicWeeks,simpleWeeks,version'&&
     x.playStyle.version===PLAY_STYLE_VERSION&&Number.isInteger(x.playStyle.simpleWeeks)&&
     x.playStyle.simpleWeeks>=0&&x.playStyle.simpleWeeks<=120&&Number.isInteger(x.playStyle.basicWeeks)&&
@@ -34,7 +44,7 @@ function validRecord(x) {
 export function rankGraduates(records) {
   const groups=new Map();
   records.forEach((record,index)=>{
-    const group=[record.engine,record.content,record.growth,record.economy||'legacy',record.majorId,record.playStyle?.simpleWeeks>0?'simple-used':'basic-only'].join('|');
+    const group=[record.engine,record.content,record.growth,record.economy||'legacy',record.majorId,record.playStyle?.simpleWeeks>0?'simple-used':'basic-only',...(record.campusStoryVersion?[record.campusStoryVersion]:[])].join('|');
     if(!groups.has(group))groups.set(group,[]);
     groups.get(group).push({record,index,group});
   });

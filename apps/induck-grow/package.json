@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "test": "node tests/release.cjs && node tests/account.cjs && node tests/analytics.cjs && node tests/analytics-decisions.cjs && node --test v2/tests/registry.test.mjs v2/tests/life-engine.test.mjs v2/tests/ui-mvp.test.mjs v2/tests/major-stories.test.mjs v2/tests/campus-growth.test.mjs v2/tests/life-spending.test.mjs v2/tests/play-style.test.mjs v2/tests/play-style-ui.test.mjs",
+    "test": "node tests/release.cjs && node tests/account.cjs && node tests/analytics.cjs && node tests/analytics-decisions.cjs && node --test v2/tests/registry.test.mjs v2/tests/life-engine.test.mjs v2/tests/ui-mvp.test.mjs v2/tests/major-stories.test.mjs v2/tests/campus-growth.test.mjs v2/tests/life-spending.test.mjs v2/tests/play-style.test.mjs v2/tests/play-style-ui.test.mjs v2/tests/campus-stories.test.mjs v2/tests/campus-stories-integration.test.mjs",
     "test:e2e": "playwright test"
   },
   "devDependencies": {
