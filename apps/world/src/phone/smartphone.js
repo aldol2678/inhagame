@@ -387,7 +387,7 @@ export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, g
   function render(force=false) {
     if(!shell||destroyed)return;const s=shell.snapshot(), route=JSON.stringify([s.state,s.stack]);
     root.hidden=!shell.ownsInput;root.dataset.state=s.state;toggle?.setAttribute('aria-expanded',String(s.open));
-    content.classList.toggle('phone-store-host',s.state==='APP'&&s.current?.appId==='induck-store');
+    content.className=s.state==='APP'&&s.current?.appId==='induck-store'?'smartphone-content phone-store-host':'smartphone-content';
     worldVisibility(shell.ownsInput);if(!shell.ownsInput){preferences.save();if(s.state==='CLOSED'&&inputFocus.can('WORLD_ACTION')){
       const focus=savedFocus?.isConnected&&savedFocus.getClientRects().length?savedFocus:toggle;focus?.focus?.({preventScroll:true});savedFocus=null;
     }}
