@@ -72,7 +72,9 @@ test('exact shop migrations preserve business fields and historical economy whil
       select ${economySnapshot(user)} as economy, ${businessSnapshot} as business,
         (select jsonb_object_agg(listing_id, position) from private.world_shop_listings
           where listing_id <> 'offer.student_center.campus_map_poster') as positions,
-        (select to_jsonb(s) from private.world_shops s where shop_id = 'shop.dorm_furniture') as dorm;
+        (select to_jsonb(s) from private.world_shops s where shop_id = 'shop.dorm_furniture') as dorm,
+        (select coalesce(max(position), -1) + 1 from private.world_shop_listings
+          where shop_id = 'shop.dorm_furniture') as next_dorm_position;
 
     -- Execute the actual checked-in migration SQL verbatim, not a reimplementation.
     ${moveFurniture}
@@ -91,7 +93,7 @@ test('exact shop migrations preserve business fields and historical economy whil
       'fashionStatus', (select status from private.world_shops where shop_id = 'shop.student_center_fashion'),
       'fashionCount', (select count(*) from private.world_shop_listings where shop_id = 'shop.student_center_fashion'),
       'posterShop', (select shop_id from private.world_shop_listings where listing_id = 'offer.student_center.campus_map_poster'),
-      'posterPosition', (select position from private.world_shop_listings where listing_id = 'offer.student_center.campus_map_poster'),
+      'posterAppendedAfterExistingStock', b.next_dorm_position = (select position from private.world_shop_listings where listing_id = 'offer.student_center.campus_map_poster'),
       'remainingSouvenirs', (select jsonb_agg(listing_id order by listing_id) from private.world_shop_listings where shop_id = 'shop.student_center'),
       'receiptCount', (select count(*) from private.world_purchase_transactions where user_id = '${user}'),
       'originalReceiptShops', (select jsonb_agg(shop_id order by listing_id) from private.world_purchase_transactions where user_id = '${user}'),
@@ -103,7 +105,7 @@ test('exact shop migrations preserve business fields and historical economy whil
   const result = JSON.parse(lines.at(-1));
   assert.deepEqual(result, {
     economyUnchanged: true, businessUnchanged: true, otherPositionsUnchanged: true, dormUnchanged: true,
-    fashionStatus: 'DISABLED', fashionCount: 4, posterShop: 'shop.dorm_furniture', posterPosition: 8, // after unchanged starter candidate positions 6 and 7
+    fashionStatus: 'DISABLED', fashionCount: 4, posterShop: 'shop.dorm_furniture', posterAppendedAfterExistingStock: true, // includes later append-only stock, without moving it
     remainingSouvenirs: ['offer.student_center.campus_mug'], receiptCount: 2,
     originalReceiptShops: ['shop.student_center', 'shop.student_center'], balance: 570,
   });
