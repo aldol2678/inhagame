@@ -1,5 +1,6 @@
 import { createPhoneShell, PHONE_STATE } from './phone-shell.js';
-import { createPhoneAppRegistry, PHONE_EXTERNAL_APPS, PHONE_SYSTEM_APPS, phoneExternalApp } from './phone-app-catalog.js';
+import { createPhoneAppRegistry, phoneExternalApp } from './phone-app-catalog.js';
+import { phoneStoreSnapshot, phoneStoreMutate, phoneStoreCanOpen, phoneIdForStore } from './phone-store-integration.js';
 import { createPhoneMessages } from './phone-messages.js';
 import { createPhoneNotificationCenter } from './phone-notification-center.js';
 import { createStudentId } from './student-id.js';
@@ -329,42 +330,39 @@ export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, g
       for(const place of records)details.append(btn(place.title,()=>pickMapPlace(place)));list.append(details);
     }
   }
-  // INDUCK STORE 0.2.1 runs as the original mobile UI inside Phone.
-  // A scoped, allowlisted bridge is the only integration with the Phone launcher.
+  // INHA OS live storefront: Phone preferences, never the iframe, own installed Home apps.
   let storeFrame=null;
-  const storeGameIds=Object.freeze({
-    'induck-pet':'induck-grow','induck-classic':'induck-classic',
-    'induckup':'induckup','induck-survival':'induck-survival'
-  });
-  const storeNativeIds=Object.freeze({
-    'map':'maps','camera':'camera','album':'album','student-id':'student-id','settings':'settings'
-  });
-  function sendStoreSync() {
+  const storeMessage=(action,data={})=>{
     const target=storeFrame?.contentWindow;
     if(!storeFrame?.isConnected||!target||!win.location?.origin)return;
-    target.postMessage({channel:'INHA_OS_STORE_021',action:'sync',
-      installedApps:preferences.snapshot().installedApps},win.location.origin);
-  }
+    target.postMessage({channel:'INHA_OS_STORE_021',action,...data},win.location.origin);
+  };
+  const sendStoreSync=()=>storeMessage('sync',{snapshot:phoneStoreSnapshot(preferences,registry)});
   function receiveStoreMessage(event) {
     if(!storeFrame?.isConnected||event.source!==storeFrame.contentWindow||
-      event.origin!==win.location?.origin||event.data?.channel!=='INHA_OS_STORE_021')return;
-    const {action,id}=event.data;
+      event.origin!==win.location?.origin||event.data?.channel!=='INHA_OS_STORE_021'||
+      shell?.snapshot().current?.appId!=='induck-store')return;
+    const {action,id,requestId}=event.data;
     if(action==='ready'){sendStoreSync();return;}
+    if(action==='back'){shell.back();return;}
+    if(!Number.isSafeInteger(requestId)||requestId<1||requestId>1000000000)return;
+    if(!['install','uninstall','pin','open','home'].includes(action))return;
+    if(action==='home'){shell.home();return;}
     if(action==='open'){
-      const appId=storeNativeIds[id]||storeGameIds[id];
-      if(appId&&(storeNativeIds[id]||preferences.snapshot().installedApps.includes(appId)))launch(appId);
+      const ok=phoneStoreCanOpen(registry,preferences,id)&&launch(phoneIdForStore(id));
+      if(!ok)storeMessage('result',{requestId,ok:false,snapshot:phoneStoreSnapshot(preferences,registry)});
       return;
     }
-    const appId=storeGameIds[id];
-    if(!appId||!['install','uninstall'].includes(action))return;
-    const ok=action==='install'?preferences.install(appId):preferences.uninstall(appId);
-    if(ok&&!preferences.save())warn('스토어 설치 설정을 기기에 저장하지 못했어요.');
-    sendStoreSync();
+    // Denied, non-existent, or failed writes cannot claim installation in the Store.
+    const changed=phoneStoreMutate(preferences,action,id);
+    let ok=changed&&preferences.save();
+    if(changed&&!ok){preferences.load();warn('앱 설정 저장 실패 · 이전 배치를 유지했어요.');}
+    storeMessage('result',{requestId,ok,snapshot:phoneStoreSnapshot(preferences,registry)});
   }
   win.addEventListener('message',receiveStoreMessage);
   function renderStore() {
     const frame=el('iframe','phone-store-iframe');
-    frame.title='인덕스토어 v0.2.1';
+    frame.title='인덕스토어 v0.2.1 · INHA OS 앱 관리';
     frame.loading='eager';
     frame.referrerPolicy='same-origin';
     frame.src='/campus/induck-store-v0.2.1.html?phone=1&scope='+encodeURIComponent(album.scope);
