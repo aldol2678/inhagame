@@ -28,6 +28,7 @@
   <link rel="stylesheet" href="/hub.css">
   <link rel="stylesheet" href="/hub-world-sessions.css">
   <link rel="stylesheet" href="/hub-editorial.css">
+  <link rel="stylesheet" href="/hub-auth-refresh.css">
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script defer src="/hub-telemetry.js"></script>
   <script defer src="/hub.js"></script>
@@ -182,42 +183,59 @@
       <p class="quiet">다른 게임의 순위는 검증된 기록이 준비되면 추가합니다.</p>
     </section>
 
-    <section class="view" data-view="account" hidden>
-      <span class="tag">계정</span>
-      <h1>내 계정</h1>
-      <p class="lead">캠퍼스는 로그인 없이 둘러볼 수 있습니다.</p>
-      <div class="card">
-        <h2>INHAGAME 계정</h2>
-        <p>허브에서 바로 가입하거나 기존 INHAGAME 계정으로 로그인할 수 있습니다.</p>
+    <section class="view hub-account-view" data-view="account" hidden>
+      <div class="hub-auth-hero">
+        <div class="hub-auth-hero-copy">
+          <span class="hub-auth-eyebrow"><span aria-hidden="true">✦</span> INHA WORLD · MEMBER PASS</span>
+          <h1>캠퍼스의 이야기를<br><em>이어서 플레이해요.</em></h1>
+          <p class="lead">한 번의 로그인으로 인하월드와 연결된 게임의 기록을 이어가세요. 계정 없이 둘러보는 것도 가능해요.</p>
+        </div>
+        <div class="hub-auth-hero-art" aria-hidden="true"><img src="/assets/hub/campus-concept.svg" alt="" loading="lazy"></div>
+      </div>
+      <div class="card hub-auth-card">
+        <div class="hub-auth-card-heading">
+          <span class="hub-auth-card-emblem" aria-hidden="true">I<span>W</span></span>
+          <div><span class="hub-auth-label">YOUR CAMPUS, YOUR STORY</span><h2>인하월드 계정</h2><p>기존 계정으로 로그인하거나 새로운 이야기를 시작하세요.</p></div>
+        </div>
         <p id="hub-account-status" role="status">계정 상태를 확인하는 중…</p>
+        <div id="hub-auth-tabs" class="auth-tabs" role="group" aria-label="계정 이용 방식" hidden>
+          <button class="secondary" type="button" data-auth-mode="login" aria-pressed="true">로그인</button>
+          <button class="secondary" type="button" data-auth-mode="signup" aria-pressed="false">회원가입</button>
+        </div>
+        <form id="hub-signup-form" hidden>
+          <p class="hub-auth-form-intro">처음 오셨나요? 닉네임을 정하고 새로운 계정을 만들어요.</p>
+          <label class="profile-field">닉네임<input type="text" name="nickname" autocomplete="nickname" placeholder="게임에서 사용할 이름 · 2~12자" minlength="2" maxlength="12" pattern="[0-9A-Za-z가-힣_ ]{2,12}" required></label>
+          <label class="profile-field">이메일<input type="email" name="email" autocomplete="email" placeholder="name@example.com" inputmode="email" required></label>
+          <label class="profile-field">비밀번호
+            <span class="hub-auth-input-wrap"><input type="password" name="password" autocomplete="new-password" placeholder="8자 이상 입력" minlength="8" aria-describedby="hub-signup-password-help" required><button class="hub-auth-reveal" type="button" data-auth-password-toggle aria-label="비밀번호 표시" aria-pressed="false">보기</button></span>
+          </label>
+          <p id="hub-signup-password-help" class="hub-auth-field-help">8자 이상, 다른 서비스와 사용하지 않는 비밀번호를 권장해요.</p>
+          <label class="profile-field">비밀번호 확인
+            <span class="hub-auth-input-wrap"><input type="password" name="passwordConfirm" autocomplete="new-password" placeholder="비밀번호를 다시 입력" minlength="8" required><button class="hub-auth-reveal" type="button" data-auth-password-toggle aria-label="비밀번호 확인 표시" aria-pressed="false">보기</button></span>
+          </label>
+          <label class="hub-age-confirmation" for="hub-signup-age-confirm"><input id="hub-signup-age-confirm" type="checkbox" required autocomplete="off" aria-describedby="hub-signup-age-note"><span><strong>[필수]</strong> 만 14세 이상입니다.</span></label>
+          <p id="hub-signup-age-note" class="quiet">가입 연령은 본인이 확인하며 별도의 실명·연령 인증을 의미하지 않습니다.</p>
+          <p class="hub-auth-terms">가입 전에 <a href="/terms.html" target="_blank" rel="noopener">이용약관</a>과 <a href="/privacy.html" target="_blank" rel="noopener">개인정보 처리방침</a>을 확인해 주세요.</p>
+          <button class="primary" type="submit">계정 만들기 <span aria-hidden="true">→</span></button>
+          <p class="hub-auth-footnote">이메일 인증을 완료하면 인하월드 계정으로 접속할 수 있어요.</p>
+        </form>
+        <form id="hub-login-form" hidden>
+          <p class="hub-auth-form-intro">다시 만나서 반가워요. 이어서 플레이할 준비가 됐나요?</p>
+          <label class="profile-field">이메일<input type="email" name="email" autocomplete="username" inputmode="email" placeholder="name@example.com" required></label>
+          <label class="profile-field">비밀번호
+            <span class="hub-auth-input-wrap"><input type="password" name="password" autocomplete="current-password" placeholder="비밀번호 입력" required><button class="hub-auth-reveal" type="button" data-auth-password-toggle aria-label="비밀번호 표시" aria-pressed="false">보기</button></span>
+          </label>
+          <button class="primary" type="submit">인하월드 로그인 <span aria-hidden="true">→</span></button>
+        </form>
         <div id="hub-social-auth" class="social-auth" hidden>
+          <div class="auth-divider" aria-hidden="true"><span>또는 Google 계정</span></div>
           <label class="hub-age-confirmation" for="hub-google-age-confirm"><input id="hub-google-age-confirm" type="checkbox" required autocomplete="off" aria-describedby="hub-google-age-note"><span>[필수] 만 14세 이상입니다.</span></label>
           <p id="hub-google-age-note" class="quiet">회원가입은 만 14세 이상만 가능합니다. Google로 계속하려면 기존 회원도 확인해 주세요. 본인의 확인을 받는 절차이며 실제 나이를 인증하지 않습니다.</p>
           <button id="hub-google-auth" class="google-auth-button" type="button">
-            <span>Google로 로그인</span>
+            <span class="hub-google-mark" aria-hidden="true">G</span><span>Google로 계속하기</span>
           </button>
-          <p class="quiet social-auth-disclosure">Google 로그인 시 계정 생성·연결을 위해 Google 계정 식별자, 이메일, 이메일 확인 여부와 Google이 인증 과정에서 제공하는 이름·프로필 이미지 등의 기본 프로필 정보가 처리될 수 있습니다. 이름과 프로필 이미지는 INHAGAME 공개 프로필에 자동 표시하지 않습니다. <a href="https://duck.inhagame.app/privacy.html#google-login">개인정보 처리방침</a></p>
-          <div class="auth-divider" aria-hidden="true"><span>또는</span></div>
+          <details class="hub-auth-disclosure"><summary>Google 로그인에 사용되는 정보 안내</summary><p class="quiet social-auth-disclosure">Google 로그인 시 계정 생성·연결을 위해 Google 계정 식별자, 이메일, 이메일 확인 여부와 Google이 인증 과정에서 제공하는 이름·프로필 이미지 등의 기본 프로필 정보가 처리될 수 있습니다. 이름과 프로필 이미지는 INHAGAME 공개 프로필에 자동 표시하지 않습니다. <a href="https://duck.inhagame.app/privacy.html#google-login">개인정보 처리방침</a></p></details>
         </div>
-        <div id="hub-auth-tabs" class="auth-tabs" hidden>
-          <button class="secondary" type="button" data-auth-mode="signup" aria-pressed="true">회원가입</button>
-          <button class="secondary" type="button" data-auth-mode="login" aria-pressed="false">로그인</button>
-        </div>
-        <form id="hub-signup-form" hidden>
-          <label class="profile-field">닉네임<input type="text" name="nickname" autocomplete="nickname" minlength="2" maxlength="12" pattern="[0-9A-Za-z가-힣_ ]{2,12}" required></label>
-          <label class="profile-field">이메일<input type="email" name="email" autocomplete="email" required></label>
-          <label class="profile-field">비밀번호<input type="password" name="password" autocomplete="new-password" minlength="8" required></label>
-          <label class="profile-field">비밀번호 확인<input type="password" name="passwordConfirm" autocomplete="new-password" minlength="8" required></label>
-          <label class="hub-age-confirmation" for="hub-signup-age-confirm"><input id="hub-signup-age-confirm" type="checkbox" required autocomplete="off" aria-describedby="hub-signup-age-note"><span>[필수] 만 14세 이상입니다.</span></label>
-          <p id="hub-signup-age-note" class="quiet">회원가입은 만 14세 이상만 가능합니다. 본인의 확인을 받는 절차이며 실제 나이를 인증하지 않습니다.</p>
-          <button class="primary" type="submit">회원가입</button>
-          <p class="quiet">가입 후 이메일 인증을 완료하면 INHAGAME 계정을 사용할 수 있습니다.</p>
-        </form>
-        <form id="hub-login-form" hidden>
-          <label class="profile-field">이메일<input type="email" name="email" autocomplete="username" required></label>
-          <label class="profile-field">비밀번호<input type="password" name="password" autocomplete="current-password" required></label>
-          <button class="primary" type="submit">로그인</button>
-        </form>
         <form id="hub-profile-setup" class="profile-setup" hidden>
           <h3>닉네임 설정</h3>
           <p>Google 로그인은 완료됐습니다. INHAGAME에서 사용할 닉네임을 정해 주세요.</p>
