@@ -2,7 +2,19 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { UI_ICON_NAMES, UI_ICON_TARGETS, uiIconSource, refreshUiIcons } from '../src/ui/ui-icon-runtime.js';
+import { PHONE_SYSTEM_APPS } from '../src/phone/phone-app-catalog.js';
 const root=new URL('../assets/ui-icons/p0-v1/',import.meta.url);
+test('every actual native Phone app has exactly its approved glyph mapping',()=>{
+ const expected={
+   'student-id':'student-id',maps:'map',camera:'camera',album:'album',settings:'settings',
+   'daily-quiz':'quiz',attendance:'attendance',messages:'chat',notifications:'notification','induck-store':'shop'
+ };
+ assert.deepEqual(Object.keys(expected).sort(),PHONE_SYSTEM_APPS.map(app=>app.id).sort());
+ for(const app of PHONE_SYSTEM_APPS){
+   const selector=`.smartphone-app[data-app-id="${app.id}"] .smartphone-app-icon`;
+   assert.deepEqual(UI_ICON_TARGETS.filter(([target])=>target===selector),[[selector,expected[app.id],'glyph']],app.id);
+ }
+});
 test('all 19 approved SVG files are mapped to existing presentation',async()=>{
  const manifest=JSON.parse(await readFile(new URL('manifest.json',root),'utf8'));
  assert.equal(manifest.count,19);

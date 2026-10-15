@@ -21,6 +21,7 @@ export const UI_ICON_TARGETS=Object.freeze([
  ['.smartphone-app[data-app-id="attendance"] .smartphone-app-icon','attendance','glyph'],
  ['.smartphone-app[data-app-id="messages"] .smartphone-app-icon','chat','glyph'],
  ['.smartphone-app[data-app-id="notifications"] .smartphone-app-icon','notification','glyph'],
+ ['.smartphone-app[data-app-id="induck-store"] .smartphone-app-icon','shop','glyph'],
  ['.smartphone-message:not(:empty)','notification','label'],
  ['#hud-menu #open-profile','profile','label'],
  ['#hud-menu #open-quest-journal','quest','label'],
