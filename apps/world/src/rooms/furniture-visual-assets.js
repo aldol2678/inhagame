@@ -12,8 +12,8 @@ export const SOFA_VISUAL = Object.freeze({
 
 // Only code-reviewed immutable descriptors can reach transport. Layout/RPC values
 // select item IDs, never URLs or caller-created manifest objects.
-// Staged replacement metadata only. Private canonical publication and user approval
-// are required before enabling. Never publish the source GLBs, PNGs or PDF here.
+// Verified rug/bed replacements are enabled; retired sticker candidates stay disabled.
+// Never publish the source GLBs, PNGs or PDF here.
 export const OFFICIAL_FURNITURE_CANDIDATES = Object.freeze([
   Object.freeze({
     itemId: "furniture.induck_chair", version: 'official-chair-replacement-r1',
@@ -30,7 +30,7 @@ export const OFFICIAL_FURNITURE_CANDIDATES = Object.freeze([
     sha256: 'f4ca31569bdf7e2a1220d290bd00f2d0e32fb99cbb0617aca963fc3834e83828', byteLength: 214924, triangles: 512, primitives: 2, materials: 2,
     min: Object.freeze([-1, 0, -0.75]), max: Object.freeze([1, 0.012, 0.75]),
     transform: Object.freeze({ yaw: 0, scale: Object.freeze([1, 1, 1]) }),
-    frontAxis: '-Z', textureBytesEstimate: 8388604, enabled: false
+    frontAxis: '-Z', textureBytesEstimate: 8388604, enabled: true
   }),
   Object.freeze({
     itemId: "fixture.personal_bed", version: 'official-bed-replacement-r2',
@@ -38,7 +38,7 @@ export const OFFICIAL_FURNITURE_CANDIDATES = Object.freeze([
     sha256: '44d3cdc7870cce0b7bce5e1904308e2989eaca242b8800a5c8b2125efffc9d0c', byteLength: 187592, triangles: 1708, primitives: 9, materials: 3,
     min: Object.freeze([-0.8, 0, -1.35]), max: Object.freeze([0.8, 0.51, 1.35]),
     transform: Object.freeze({ yaw: 180, scale: Object.freeze([1, 1, 1]) }),
-    frontAxis: '+Z-foot', placementHeadAxis: '+Z', textureBytesEstimate: 4699528, enabled: false
+    frontAxis: '+Z-foot', placementHeadAxis: '+Z', textureBytesEstimate: 4699528, enabled: true
   }),
   Object.freeze({
     itemId: "furniture.dorm_side_table_low", version: 'official-nightstand-replacement-r1',

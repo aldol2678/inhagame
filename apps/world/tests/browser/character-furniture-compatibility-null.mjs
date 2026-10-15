@@ -8,7 +8,8 @@ const directory=process.env.CHARACTER_FURNITURE_DIR;
 if(!directory)throw Error('CHARACTER_FURNITURE_DIR required; never copy private GLBs into checkout');
 const engine=new URL('./node_modules/playcanvas/build/playcanvas.mjs',import.meta.url).href;
 const metadata=new URL('../../src/rooms/character-furniture-assets.js',import.meta.url).href;
-registerHooks({resolve(s,c,n){return n(s==='playcanvas'?engine:s,c)},load(url,c,n){const r=n(url,c);return url===metadata?{...r,source:String(r.source).replaceAll('enabled: false','enabled: true')}:r}});
+// Exercise the shipped activation descriptors without rewriting module source.
+registerHooks({resolve(s,c,n){return n(s==='playcanvas'?engine:s,c)}});
 const pc=await import('playcanvas');
 const {CHARACTER_FURNITURE_CANDIDATES:visuals}=await import(metadata);
 const {createFurnitureLayer}=await import('../../src/rooms/furniture-renderer.js');

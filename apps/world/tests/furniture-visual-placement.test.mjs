@@ -36,7 +36,7 @@ test('expanded-only conflicts resolve by UUID independently of snapshot ordering
 });
 test('disabled and procedural profiles cannot change saved collision or activate a candidate',()=>{
  const object=obj(1);
- for(const config of [{visualForItem:id=>CHARACTER_FURNITURE_CANDIDATES.find(v=>v.itemId===id)},{...options,modelMode:'procedural'}]){
+ for(const config of [{visualForItem:id=>{ const visual=CHARACTER_FURNITURE_CANDIDATES.find(v=>v.itemId===id); return visual ? {...visual,enabled:false} : null; }},{...options,modelMode:'procedural'}]){
   const entry=planFurnitureVisualPlacements([object],config).get(object.id);
   assert.equal(entry.eligible,false);assert.equal(entry.reason,'DISABLED');assert.deepEqual(entry.box,furnitureBox(object));
  }

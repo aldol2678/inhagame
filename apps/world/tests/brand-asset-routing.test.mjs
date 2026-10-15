@@ -116,7 +116,7 @@ test("Annyongi alone receives a fixed upstream asset revision", async () => {
   }
 });
 
-test('staged immutable furniture uses canonical allowlist only; unknown and optimized never fetch', async () => {
+test('verified immutable furniture uses canonical allowlist only; unknown and optimized never fetch', async () => {
   const vm = await import('node:vm');
   const { OFFICIAL_FURNITURE_CANDIDATES } = await import('../src/rooms/furniture-visual-assets.js');
   const { CHARACTER_FURNITURE_CANDIDATES } = await import('../src/rooms/character-furniture-assets.js');
@@ -139,7 +139,7 @@ test('staged immutable furniture uses canonical allowlist only; unknown and opti
         assert.equal(upstream.searchParams.get('asset'),asset);
       }
     }
-    assert.equal(visual.enabled,false,'routing is not runtime activation');
+    assert.equal(visual.enabled,true,'only verified current delivery is activated');
   }
   for(const retired of OFFICIAL_FURNITURE_CANDIDATES.filter(v=>!current.includes(v))) {
     const before=urls.length;

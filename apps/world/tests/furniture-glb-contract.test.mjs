@@ -41,9 +41,16 @@ test('manifest transport rejects arbitrary URLs, copied descriptors and disabled
   assert.equal(furnitureVisualForUrl('https://invalid.example/asset.glb'), null);
   assert.equal(OFFICIAL_FURNITURE_CANDIDATES.length, 5);
   for (const visual of OFFICIAL_FURNITURE_CANDIDATES) {
-    assert.equal(visual.enabled, false);
-    assert.equal(furnitureVisualForItem(visual.itemId), null);
-    assert.throws(() => requireFurnitureVisual(visual), /UNTRUSTED/);
+    if (['furniture.campus_rug_blue','fixture.personal_bed'].includes(visual.itemId)) {
+      assert.equal(visual.enabled, true);
+      assert.equal(furnitureVisualForItem(visual.itemId), visual);
+      assert.equal(requireFurnitureVisual(visual), visual);
+    } else {
+      assert.equal(visual.enabled, false, 'retired sticker candidates remain disabled');
+      assert.notEqual(furnitureVisualForItem(visual.itemId), visual);
+      assert.throws(() => requireFurnitureVisual(visual), /UNTRUSTED/);
+    }
+    assert.throws(() => requireFurnitureVisual({ ...visual }), /UNTRUSTED/);
     assert.deepEqual(visual.transform.scale, [1,1,1]);
   }
 });

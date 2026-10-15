@@ -1,5 +1,5 @@
-// Disabled, code-owned metadata for locally validated character-form candidates.
-// These immutable canonical names do not grant transport or publication authority.
+// Code-owned character-form visuals; immutable delivery SHA/size verified on 2026-10-15.
+// Placement compatibility and procedural fallback remain authoritative.
 // Source GLBs and textures must remain outside the public checkout.
 export const CHARACTER_FURNITURE_CANDIDATES = Object.freeze([
   Object.freeze({
@@ -12,7 +12,7 @@ export const CHARACTER_FURNITURE_CANDIDATES = Object.freeze([
     transform: Object.freeze({ yaw: 0, scale: Object.freeze([1, 1, 1]) }),
     frontAxis: '-Z', geometryPolicy: 'character-r1',
     seat: Object.freeze({ position: Object.freeze([0, .34, -.155]) }),
-    allowedExtensions: Object.freeze([]), textureBytesEstimate: 0, enabled: false
+    allowedExtensions: Object.freeze([]), textureBytesEstimate: 0, enabled: true
   }),
   Object.freeze({
     itemId: 'furniture.dorm_side_table_low', version: 'induck-character-nightstand-r1',
@@ -24,7 +24,7 @@ export const CHARACTER_FURNITURE_CANDIDATES = Object.freeze([
     transform: Object.freeze({ yaw: 0, scale: Object.freeze([1, 1, 1]) }),
     frontAxis: '-Z', geometryPolicy: 'character-r1',
     // One embedded 1024 x 1024 image, RGBA8 including the complete mip chain.
-    allowedExtensions: Object.freeze([]), textureBytesEstimate: 5592404, enabled: false
+    allowedExtensions: Object.freeze([]), textureBytesEstimate: 5592404, enabled: true
   }),
   Object.freeze({
     itemId: 'furniture.dorm_bookshelf_slim', version: 'annyongi-character-bookshelf-r3',
@@ -35,6 +35,6 @@ export const CHARACTER_FURNITURE_CANDIDATES = Object.freeze([
     max: Object.freeze([0.6036725044250488, 1.894493818283081, 0.24646763503551483]),
     transform: Object.freeze({ yaw: 0, scale: Object.freeze([1, 1, 1]) }),
     frontAxis: '-Z', geometryPolicy: 'character-r1',
-    allowedExtensions: Object.freeze([]), textureBytesEstimate: 0, enabled: false
+    allowedExtensions: Object.freeze([]), textureBytesEstimate: 0, enabled: true
   })
 ]);

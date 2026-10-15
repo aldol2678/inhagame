@@ -17,7 +17,7 @@ function rig(visual, override={}) {
 }
 test('five immutable GET/HEAD redirects are manual, bounded, exact and never buffered/cached',async()=>{
  for(const visual of visuals) for(const method of ['GET','HEAD']){
-  const r=rig(visual),out=await r.request(method);assert.equal(out.status,307);assert.equal(out.headers.location,r.location);assert.equal(out.headers['cache-control'],'no-store');assert.equal(out.headers['cdn-cache-control'],'no-store');assert.equal(out.headers['vercel-cdn-cache-control'],'no-store');assert.equal(out.headers['referrer-policy'],'no-referrer');assert.equal(out.headers['x-inhagame-asset-sha256'],visual.sha256);assert.equal(out.headers['x-inhagame-output-bytes'],String(visual.byteLength));assert.equal(r.calls[0].options.redirect,'manual');assert.equal(r.calls[0].options.method,method);assert.ok(r.calls[0].options.signal);assert.equal(r.bodyReads(),0);assert.equal(visual.enabled,false);
+  const r=rig(visual),out=await r.request(method);assert.equal(out.status,307);assert.equal(out.headers.location,r.location);assert.equal(out.headers['cache-control'],'no-store');assert.equal(out.headers['cdn-cache-control'],'no-store');assert.equal(out.headers['vercel-cdn-cache-control'],'no-store');assert.equal(out.headers['referrer-policy'],'no-referrer');assert.equal(out.headers['x-inhagame-asset-sha256'],visual.sha256);assert.equal(out.headers['x-inhagame-output-bytes'],String(visual.byteLength));assert.equal(r.calls[0].options.redirect,'manual');assert.equal(r.calls[0].options.method,method);assert.ok(r.calls[0].options.signal);assert.equal(r.bodyReads(),0);assert.equal(visual.enabled,true);
  }
 });
 test('wrong host, scheme, bucket, object, credentials, extra query, hash and ambiguous tokens fail closed',async()=>{

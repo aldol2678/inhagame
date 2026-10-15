@@ -14,8 +14,8 @@ registerHooks({
   resolve(specifier, context, next) { return next(specifier === 'playcanvas' ? engine : specifier, context); },
   load(url, context, next) {
     const result = next(url, context);
-    // Test-process-only activation of existing pinned candidates. Production file
-    // remains disabled; no URL/manifest injection API is added to runtime.
+    // Test-process-only activation also covers retired pinned candidates.
+    // Production keeps those disabled; no runtime manifest injection API exists.
     return url === manifestUrl ? {...result, source: String(result.source).replaceAll('enabled: false','enabled: true')} : result;
   }
 });
@@ -107,8 +107,11 @@ try {
   const originalLoadFromUrl=app.assets.loadFromUrl;
   app.assets.loadFromUrl=(_url,_type,callback)=>callback(Error('fixed-chair intentionally offline'));
   const fixtures=createPersonalRoomFixtures({app,root:fixtureRoot,materials});
-  const pending=fixtures.ensureVisualAssets();assert.strictEqual(fixtures.ensureVisualAssets(),pending);
-  for(let i=0;i<30;i++){await tick();app.fire('postrender');}await pending;
+  const beforeBedLoads=loads;
+  const pending=fixtures.ensureVisualAssets(), concurrent=fixtures.ensureVisualAssets();
+  for(let i=0;i<30;i++){await tick();app.fire('postrender');}
+  assert.deepEqual(await concurrent,await pending,'concurrent readiness retains the same fixed-chair result');
+  assert.equal(loads,beforeBedLoads+1,'concurrent readiness loads the fixed bed only once');
   assert.equal(fixtureRoot.findByName('bed_procedural_fallback').enabled,false);
   fixtures.deactivate();await tick();assert.deepEqual(furnitureAssetStatus(app),[]);assert.equal(app.assets.list().length,0,'container and texture assets released');
   assert.equal(fixtureRoot.findByName('bed_procedural_fallback').enabled,true);

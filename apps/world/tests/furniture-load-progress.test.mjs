@@ -32,7 +32,7 @@ function watchdog(policy=FURNITURE_LARGE_LOAD_POLICY) {
 test('trusted enabled small manifests keep eight-second cap; large candidate deadlines are safety limits, not performance acceptance',()=>{
   assert.equal(furnitureLoadPolicy(SOFA_VISUAL).overallMs,8000);
   for(const visual of CHARACTER_FURNITURE_CANDIDATES) {
-    assert.equal(visual.enabled,false,'deadline changes must not activate assets');
+    assert.equal(visual.enabled,true,'verified delivery activation preserves the existing safety deadline');
     assert.deepEqual(furnitureLoadPolicy(visual),{inactivityMs:15000,overallMs:180000,processingMs:30000,renderMs:8000});
   }
   assert.equal(furnitureLoadPolicy(SOFA_VISUAL,12).overallMs,12);
