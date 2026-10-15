@@ -38,11 +38,12 @@ const approachIsClear = (position, stand, obstacles, ownId) => {
   return true;
 };
 
-export function personalRoomSeatAnchors({ roomId, objects = [], obstacles = null, position = null } = {}) {
+export function personalRoomSeatAnchors({ roomId, objects = [], obstacles = null, position = null, placementGeometry = null } = {}) {
   const placeZoneId = personalRoomSeatZone(roomId);
   if (!placeZoneId) return [];
   const blockers = obstacles ?? [...PERSONAL_ROOM_BASIC_OBSTACLES,
-    ...objects.filter(object => object.surface === "floor" && FURNITURE_BY_ID.get(object.itemId)?.solid).map(furnitureBox)];
+    ...objects.filter(object => object.surface === "floor" && FURNITURE_BY_ID.get(object.itemId)?.solid)
+      .map(object => placementGeometry?.get(object.id)?.box ?? furnitureBox(object))];
   const chair = PERSONAL_ROOM_BASIC_FURNITURE.find(item => item.id === "chair");
   const sources = [{ id: "fixed-chair", obstacleId: "personal_chair", x: chair.at[0], z: chair.at[2],
     yaw: PERSONAL_ROOM_FIXED_CHAIR_YAW, depth: chair.size[2], top: chair.at[1] + PERSONAL_ROOM_SEAT_TOP.fixed }];
@@ -50,23 +51,32 @@ export function personalRoomSeatAnchors({ roomId, objects = [], obstacles = null
     const item = FURNITURE_BY_ID.get(object.itemId), top = PERSONAL_ROOM_SEAT_TOP[object.itemId];
     if (top === undefined || !item || object.surface !== "floor" || !FURNITURE_UUID.test(object.id ?? "") ||
       ![object.x, object.z, object.yaw].every(Number.isFinite) || object.yaw < 0 || object.yaw >= 360 || object.yaw % 45) continue;
-    const bounds = furnitureBox(object);
-    sources.push({ ...object, obstacleId: object.id, depth: item.depth, bounds, top: bounds.minY + top });
+    const legacyBounds = furnitureBox(object), geometry = placementGeometry?.get(object.id);
+    const bounds = geometry?.box ?? legacyBounds;
+    sources.push({ ...object, obstacleId: object.id, depth: item.depth, bounds,
+      top: legacyBounds.minY + (geometry?.seatPosition?.[1] ?? top),
+      seatOffset: geometry?.seatPosition, sourceKey: geometry?.sourceKey });
   }
   return sources.flatMap(source => {
-    if (position && Math.hypot(position.x - source.x, position.z - source.z) > SEAT_INTERACT_RANGE) return [];
+    const placementRad = source.yaw * Math.PI / 180;
+    const seatX = source.x + (source.seatOffset ? Math.cos(placementRad) * source.seatOffset[0] + Math.sin(placementRad) * source.seatOffset[2] : 0);
+    const seatZ = source.z + (source.seatOffset ? -Math.sin(placementRad) * source.seatOffset[0] + Math.cos(placementRad) * source.seatOffset[2] : 0);
+    if (position && Math.hypot(position.x - seatX, position.z - seatZ) > SEAT_INTERACT_RANGE) return [];
     // Both rendered chairs and the sofa have their backrest at local +Z (face local -Z).
     const yaw = (source.yaw + 180) % 360, rad = yaw * Math.PI / 180;
     const front = { x: Math.sin(rad), z: Math.cos(rad) };
     // Movement uses conservative world-axis boxes even for 45° placements. Step beyond that
     // expanded box, not merely the rotated visual cushion, before resuming collision physics.
-    const distance = source.bounds ? Math.min(
+    const distance = source.seatOffset && source.bounds ? Math.min(
+      Math.abs(front.x) > 1e-6 ? ((front.x > 0 ? source.bounds.maxX + CLEARANCE : source.bounds.minX - CLEARANCE) - seatX) / front.x : Infinity,
+      Math.abs(front.z) > 1e-6 ? ((front.z > 0 ? source.bounds.maxZ + CLEARANCE : source.bounds.minZ - CLEARANCE) - seatZ) / front.z : Infinity
+    ) : source.bounds ? Math.min(
       Math.abs(front.x) > 1e-6 ? ((source.bounds.maxX - source.bounds.minX) / 2 + CLEARANCE) / Math.abs(front.x) : Infinity,
       Math.abs(front.z) > 1e-6 ? ((source.bounds.maxZ - source.bounds.minZ) / 2 + CLEARANCE) / Math.abs(front.z) : Infinity
     ) : source.depth / 2 + CLEARANCE;
-    const frontPoint = { x: source.x + front.x * distance, y: GROUND_ORIGIN_Y,
-      z: source.z + front.z * distance };
-    const seatPosition = { x: source.x, y: GROUND_ORIGIN_Y + source.top - SIT_HIP_HEIGHT, z: source.z };
+    const frontPoint = { x: seatX + front.x * distance, y: GROUND_ORIGIN_Y,
+      z: seatZ + front.z * distance };
+    const seatPosition = { x: seatX, y: GROUND_ORIGIN_Y + source.top - SIT_HIP_HEIGHT, z: seatZ };
     // The fixed chair faces its desk, whose collision box blocks a front landing. Use the
     // same local stand candidates as stand-up, without making the entrance an interaction
     // point. Owned chairs/sofas retain their existing front-only approach at all rotations.
@@ -79,7 +89,9 @@ export function personalRoomSeatAnchors({ roomId, objects = [], obstacles = null
       x: (standPoint.x - source.x) / approachDistance, z: (standPoint.z - source.z) / approachDistance
     } : front;
     return [Object.freeze({
+      // A visual-source transition invalidates an occupied anchor before physics resumes.
       id: `SEAT_${placeZoneId}_${source.id}`, interactableId: source.id, type: "seat", placeZoneId,
+      ...(source.sourceKey ? { geometryKey: source.sourceKey } : {}),
       roomId: roomId.toLowerCase(), obstacleId: source.obstacleId, yaw, approachDirection: Object.freeze(approachDirection),
       position: Object.freeze(seatPosition),
       standPoint: Object.freeze(standPoint)

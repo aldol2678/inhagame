@@ -100,6 +100,8 @@ import { locomotionIntent } from "./seat-anchors.js";
 import { createClubRoomScene } from "./rooms/club-room-renderer.js";
 import { createRoomTransition, ROOM_TRANSITION_COOLDOWN_MS } from "./rooms/room-transition.js";
 import { createSpaceFade } from "./rooms/space-fade.js";
+import { createRoomLoadingOverlay } from "./rooms/room-loading-overlay.js";
+import { createPersonalRoomPreparation } from "./rooms/personal-room-preparation.js";
 import { DORM_1_LOBBY_MY_ROOM_RETURN } from "./rooms/dorm1-lobby-layout.js";
 import { createRoomWorldAdapter } from "./rooms/room-world-adapter.js";
 import { createDorm1LobbyScene } from "./rooms/dorm1-lobby-renderer.js";
@@ -982,7 +984,8 @@ const seating = createSeatInteraction({
     !biryongRealm?.inBiryong && (!rooms?.insideRoom || !!personalSeatRoomId()),
   getAnchors: () => rooms?.insideRoom
     ? personalRoomSeatAnchors({ roomId: personalSeatRoomId(), objects: roomFurniture?.state().objects ?? [],
-      obstacles: personalRoomScene.obstacles, position: player.getLocalPosition() })
+      obstacles: personalRoomScene.obstacles, position: player.getLocalPosition(),
+      placementGeometry: personalRoomScene.ownedFurniture.placementGeometry })
     : biryongRealm?.inBiryong ? [] : undefined,
   resolveStandPoint: anchor => anchor.roomId
     ? resolveRoomSeatStandPoint(anchor, personalRoomScene.obstacles) : anchor.standPoint
@@ -2086,14 +2089,37 @@ const spaceFade = document.getElementById("space-fade");
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 // 150 ms to black, switch, then fade back in; instant with reduced motion.
 const fadeSwitch = createSpaceFade({ overlay: spaceFade, reducedMotion });
+const roomLoadingOverlay = createRoomLoadingOverlay();
+const preparePersonalRoom = createPersonalRoomPreparation({
+  getFurniture: () => roomFurniture, getScene: () => personalRoomScene,
+  getUserId: () => online?.userId ?? null
+});
+window.addEventListener("pagehide", () => {
+  personalRoomInteraction?.cancelOpen?.();
+  rooms?.cancelPending?.();
+});
 rooms = createRoomTransition({
-  fade: fadeSwitch,
+  // The lobby doors are static meshes. This is a UI door-opening illustration, with no
+  // animation timer gating readiness or delaying a fast room load.
+  fade: (run, context) => context?.prepared ? run() : fadeSwitch(run),
+  prepareRoom: context => context.roomId === "ROOM_PERSONAL_BASIC"
+    ? preparePersonalRoom.prepare(context) : undefined,
+  onPreparationChange: ({ active, text }) => {
+    if (!active) { roomLoadingOverlay.hide(); return; }
+    if (!roomLoadingOverlay.isVisible()) roomLoadingOverlay.show({ onCancel: () => rooms.cancelPending() });
+    if (text) roomLoadingOverlay.stage(text === "furniture" ? "저장된 가구 배치 확인 중" :
+      text === "visuals" ? "방과 가구 모습 준비 중" : text);
+  },
   onError: ({ recovered }) => showWorldStatus(recovered
     ? "방을 전환하지 못했어요. 이전 위치에서 다시 시도해 주세요."
     : "방 전환을 복구하지 못했어요. 새로고침해 주세요."),
   onBusyChange: (busy) => {
-    if (busy) roomTransitionInput.acquire();
-    else roomTransitionInput.release();
+    if (busy) {
+      // A programmatic/forced transition supersedes any door authority lookup before
+      // claiming the shared owner, so late lookup cleanup cannot unlock this transition.
+      personalRoomInteraction?.cancelOpen?.();
+      roomTransitionInput.acquire();
+    } else roomTransitionInput.release();
   },
   canEnter: (_entrance, room) => room?.id !== MCM_2026_ROOM_ID ||
     (mcmEventPreviewMode && mcmEvent.state?.eventState === "ACTIVE") || mcm2026CanEnterVenue(mcmEvent.state),
@@ -2445,7 +2471,22 @@ let lastAudioDebugAt = 0;
 personalRoomInteraction = createPersonalRoomInteraction({
   client: personalRoom,
   rooms,
-  onStatus: showWorldStatus
+  onStatus: showWorldStatus,
+  onOpeningChange: ({ active, onCancel }) => {
+    if (active) {
+      roomTransitionInput.acquire();
+      roomLoadingOverlay.show({ onCancel });
+      roomLoadingOverlay.stage("내 방 입장 권한 확인 중");
+    } else {
+      roomLoadingOverlay.hide();
+      try { roomTransitionInput.release(); }
+      catch (error) {
+        // A focus subscriber may throw after release. Reassert the lock until reload.
+        try { roomTransitionInput.acquire(); } catch { /* retain fail-closed state */ }
+        throw error;
+      }
+    }
+  }
 });
 // Social S1-D2 · Room Session. Remote room avatars live under the shared personal room scene;
 // tapping one opens the same Player Card (friends, block, report) as on the campus.
@@ -2554,6 +2595,24 @@ const moveOutOfFurniture = () => {
   }
 };
 let furnitureSceneSignature = "";
+let furnitureCompatibilityNoticeKey = "";
+function announceFurnitureCompatibility() {
+  const notices=personalRoomScene.ownedFurniture.placementNotices();
+  const key=JSON.stringify(notices);
+  if(!notices.length) { furnitureCompatibilityNoticeKey=""; return; }
+  if(rooms.status().busy || rooms.currentSpace!=="ROOM_PERSONAL_BASIC" || key===furnitureCompatibilityNoticeKey)return;
+  furnitureCompatibilityNoticeKey=key;
+  showWorldStatus(notices[0].notice);
+}
+personalRoomScene.ownedFurniture.root.on("visualchange", () => {
+  // Parsing can finish during live editing. Match physical state to the displayed model
+  // before another frame, safely standing an occupied changing seat and clearing overlap.
+  if(rooms.status().busy || rooms.currentSpace!=="ROOM_PERSONAL_BASIC")return;
+  seating.beforeController();
+  if(!seats.isSeated)moveOutOfFurniture();
+  announceFurnitureCompatibility();
+  if(roomFurniture)furnitureEditor?.update(roomFurniture.state());
+});
 roomFurniture = createFurnitureClient({
   getClient: () => online?.supabase ?? null,
   getUserId: () => online?.userId ?? null,
@@ -2572,6 +2631,7 @@ roomFurniture = createFurnitureClient({
         if (!state.editing && !seats.isSeated) moveOutOfFurniture();
       }
     }
+    announceFurnitureCompatibility();
     furnitureEditor?.update(state);
     shopPanel.render();
     trophyDisplay?.update();
@@ -2580,6 +2640,8 @@ roomFurniture = createFurnitureClient({
 });
 furnitureEditor = createFurnitureEditor({
   client:roomFurniture, inventory,
+  getPlacementGeometry: () => personalRoomScene.ownedFurniture.placementGeometry,
+  getPlacementNotices: () => personalRoomScene.ownedFurniture.placementNotices(),
   onOpenChange: open => {
     if (open) {
       cookingFeature?.panel.close({ restoreFocus: false });
@@ -2689,6 +2751,7 @@ window.addEventListener("beforeunload", event => {
 rooms.onChange((status) => {
   const meta = status.roomId === "ROOM_PERSONAL_BASIC" ? status.metadata : null;
   if (!meta?.personalRoomId || !meta?.ownerUserId) { cookingFeature.reset(); roomSession.stop(); roomFurniture.reset(); return; }
+  announceFurnitureCompatibility();
   cookingFeature.update();
   void roomFurniture.bind(meta.personalRoomId.toLowerCase());
   const current = roomSession.status();
@@ -3622,10 +3685,10 @@ app.on("update", (dt) => {
       lobbyWorld.active || lobbyTransition.active || controller.mounted || combatRuntime.active || !activeShopAccess())) {
     shopPanel.setOpen(false);
   }
-  if (rooms.status().busy || biryongRealm?.busy || lobbyWorld.active || lobbyTransition.active) playerActivityAudio.reset();
+  if (rooms.status().busy || personalRoomInteraction?.opening || biryongRealm?.busy || lobbyWorld.active || lobbyTransition.active) playerActivityAudio.reset();
   // Only render the camera while a room/region transaction owns the coordinate frame.
   // Campus observers, resume writes and local motion must not consume an intermediate pose.
-  if (rooms.status().busy || biryongRealm?.busy) {
+  if (rooms.status().busy || personalRoomInteraction?.opening || biryongRealm?.busy) {
     orbit.apply(player.getLocalPosition(), character.eyeHeight);
     return;
   }
@@ -3955,6 +4018,8 @@ try {
     const roomFunctionIdentityChanged = nextRoomFunctionAccountId !== roomFunctionAccountId;
     roomFunctionAccountId = nextRoomFunctionAccountId;
     if (roomFunctionIdentityChanged) {
+      personalRoomInteraction?.cancelOpen?.();
+      rooms?.cancelPending?.();
       inkyungWaterPath.close("ACCOUNT_CHANGE");
       cookingFeature?.reset();
       roomPhotoStory?.reset();

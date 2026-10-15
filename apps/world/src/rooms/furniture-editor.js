@@ -6,7 +6,7 @@ import { personalRoomSeatAnchors } from "./personal-room-seats.js";
 
 // DOM-only editor: tap the plan or use the same movement buttons on desktop and mobile.
 // The client keeps the draft; closing a dirty draft always offers keep editing / discard.
-export function createFurnitureEditor({ client, inventory, onOpenChange = () => {}, doc = document }) {
+export function createFurnitureEditor({ client, inventory, onOpenChange = () => {}, getPlacementGeometry = () => null, getPlacementNotices = () => [], doc = document }) {
   const panel = doc.createElement("section"); panel.id = "furniture-editor"; panel.hidden = true;
   panel.className = "furniture-editor"; panel.tabIndex = -1; panel.setAttribute("role", "dialog"); panel.setAttribute("aria-modal", "true");
   panel.setAttribute("aria-label", "내 방 꾸미기"); doc.body.append(panel);
@@ -182,8 +182,10 @@ export function createFurnitureEditor({ client, inventory, onOpenChange = () => 
     }
     for (const row of state.objects) {
       const item = FURNITURE_BY_ID.get(row.itemId); if (!item) continue;
-      const rect = svgNode("rect", { x: row.x-item.width/2, y: -row.z-item.depth/2, width: item.width, height: Math.max(item.depth,.12),
-        transform: `rotate(${row.yaw} ${row.x} ${-row.z})`, fill: row.id === selected ? validation ? "#c94d4d" : "#377ab7" : "#559e78", stroke: "#18324a", "stroke-width": .025, "data-object-id": row.id });
+      const visualBox=getPlacementGeometry()?.get(row.id)?.box;
+      const rect = svgNode("rect", { x: visualBox?.minX ?? row.x-item.width/2, y: visualBox ? -visualBox.maxZ : -row.z-item.depth/2,
+        width: visualBox ? visualBox.maxX-visualBox.minX : item.width, height: visualBox ? visualBox.maxZ-visualBox.minZ : Math.max(item.depth,.12),
+        transform: visualBox ? "" : `rotate(${row.yaw} ${row.x} ${-row.z})`, fill: row.id === selected ? validation ? "#c94d4d" : "#377ab7" : "#559e78", stroke: "#18324a", "stroke-width": .025, "data-object-id": row.id });
       const title = svgNode("title"); title.textContent = item.name; rect.append(title); map.append(rect);
     }
     const north = svgNode("text", { x: .5, y: -mapD+.5, "text-anchor": "middle", "font-size": .26, "pointer-events": "none" }); north.textContent = "창문"; map.append(north);
@@ -236,7 +238,8 @@ export function createFurnitureEditor({ client, inventory, onOpenChange = () => 
       controls.append(button(`회전 ${object.yaw}°`, () => changeObject(positionOnSurface(object.surface,object.x,object.z,object.yaw+45)), locked || !["floor","desk","bed"].includes(object.surface), "rotation"));
       controls.append(button("회수", () => edit(client.state().objects.filter(row => row.id !== object.id), null), locked)); panel.append(controls);
     }
-    const note = node("p", FURNITURE_ERRORS[state.error] ?? (validation ? FURNITURE_ERRORS[validation] : message || (state.dirty ? "변경한 배치를 저장해 주세요." : "저장된 배치예요.")), "furniture-note");
+    const compatibilityNotice=getPlacementNotices().find(entry=>entry.id===selected)?.notice;
+    const note = node("p", FURNITURE_ERRORS[state.error] ?? (validation ? FURNITURE_ERRORS[validation] : message || compatibilityNotice || (state.dirty ? "변경한 배치를 저장해 주세요." : "저장된 배치예요.")), "furniture-note");
     note.setAttribute("role", "status"); note.setAttribute("aria-live", "polite"); panel.append(note);
     if (closing) {
       const confirmation = node("div", undefined, "furniture-confirm"); confirmation.append(node("p", "저장하지 않은 배치를 버리고 닫을까요?"));

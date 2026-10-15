@@ -119,6 +119,7 @@ test("production identity callback passes explicit identity even when online.use
   const guestbook = new GuestbookClient({ getSelfUserId: () => getter,
     getClient: () => ({ rpc: async () => { calls.push(true); return { data: board(getter), error: null }; } }) });
   const guestbookPanel = createGuestbookPanel({ panel, guestbook, doc });
+  const roomPreparationCancels = [], roomAuthorityCancels = [];
   const collectionAccounts = [], cookingResets = [], trophyResets = [], storyResets = [], puzzleCloses = [];
   const noop = () => {}, client = { setAccount: noop }, online = { get userId() { return getter; } };
   const source = readFileSync(new URL("../src/main.js", import.meta.url), "utf8");
@@ -132,7 +133,8 @@ test("production identity callback passes explicit identity even when online.use
     roomFunctionAccountId: null, cookingFeature: { reset: () => cookingResets.push(true) },
     inkyungWaterPath: { close: reason => puzzleCloses.push(reason) },
     trophyDisplayPanel: { close: noop }, trophyDisplay: { reset: () => trophyResets.push(true) },
-    rooms: { currentSpace: "CAMPUS" }, personalRoom: { reset: noop }, npcAiSignedIn: false,
+    rooms: { currentSpace: "CAMPUS", cancelPending: () => roomPreparationCancels.push(true) },
+    personalRoomInteraction: { cancelOpen: () => roomAuthorityCancels.push(true) }, personalRoom: { reset: noop }, npcAiSignedIn: false,
     mcmEvent: { setSignedIn: noop }, mcmEventPreviewMode: false, npcTest: { setAiSignedIn: noop },
     profile: { setIdentity: noop }, commissionTrials: { close: noop }, smartphone: { setAccount: noop }, lobbyPlayerSummary: { render: noop }, chatPanel: { refreshAvailability: noop },
     friendPanel: { setAvailable: noop }, nearbyPanel: { render: noop, setOpen: noop },
@@ -157,6 +159,8 @@ test("production identity callback passes explicit identity even when online.use
   assert.equal(storyResets.length, 3, "guide resets on account changes, not duplicate identity events");
   assert.deepEqual(puzzleCloses, ['ACCOUNT_CHANGE', 'ACCOUNT_CHANGE', 'ACCOUNT_CHANGE'],
     "puzzle sessions end on identity changes with a stale getter, not duplicate identity events");
+  assert.equal(roomPreparationCancels.length, 3);
+  assert.equal(roomAuthorityCancels.length, 3);
   assert.deepEqual(collectionAccounts, [A, null, B, B], "Collection uses the identity event, not the stale online getter");
   await guestbookPanel.setOpen(true);
   assert.equal(guestbookPanel.data.entries[0].userId, B);

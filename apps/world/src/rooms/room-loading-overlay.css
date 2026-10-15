@@ -1,0 +1,65 @@
+.room-loading-overlay {
+  box-sizing: border-box;
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: grid;
+  place-items: center;
+  padding: max(20px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+  background: rgba(8, 17, 27, .52);
+  overscroll-behavior: contain;
+  touch-action: none;
+}
+.room-loading-overlay[hidden] { display: none !important; }
+.room-loading-panel {
+  box-sizing: border-box;
+  width: min(100%, 360px);
+  max-height: 100%;
+  overflow: auto;
+  padding: 24px;
+  border: 1px solid #69899a;
+  border-radius: 20px;
+  background: #142b38;
+  color: #f3f7fa;
+  text-align: center;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, .3);
+  touch-action: pan-y;
+}
+.room-loading-title { margin: 20px 0 10px; font-size: 20px; }
+.room-loading-stage { min-height: 1.5em; margin: 0; color: #d5f1ff; font-size: 16px; }
+.room-loading-hint { margin: 10px 0 20px; color: #bccdd7; font-size: 14px; }
+.room-loading-cancel {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 10px 18px;
+  border: 1px solid #9fc0cf;
+  border-radius: 10px;
+  background: #244456;
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+.room-loading-cancel:focus-visible, .room-loading-panel:focus-visible { outline: 3px solid #ffdb8a; outline-offset: 4px; }
+.room-loading-cancel:disabled { cursor: default; opacity: .65; }
+.room-loading-door {
+  width: 58px;
+  height: 76px;
+  margin: 0 auto;
+  border: 3px solid #adc6d1;
+  border-bottom: 0;
+  background: #cce5e8;
+  perspective: 180px;
+}
+.room-loading-door-leaf {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: #5b8497;
+  border: 1px solid #adc6d1;
+  transform-origin: left center;
+  transform: rotateY(-62deg);
+  animation: room-loading-door-open 340ms ease-out both;
+}
+.room-loading-door-leaf::after { content: ''; position: absolute; right: 7px; top: 50%; width: 5px; height: 5px; border-radius: 50%; background: #ffdb8a; }
+@keyframes room-loading-door-open { from { transform: rotateY(0); } to { transform: rotateY(-62deg); } }
+@media (prefers-reduced-motion: reduce) { .room-loading-door-leaf { animation: none; } }

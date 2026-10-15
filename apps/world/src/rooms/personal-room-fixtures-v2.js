@@ -1,6 +1,9 @@
+import { waitForFurnitureVisuals } from './furniture-load-progress.js';
 // PERSONAL-ROOM-V2: authored visual geometry only. The six canonical anchors and
 // gameplay footprints are still owned by personal-room-layout.js, never these meshes.
 import * as pc from "playcanvas";
+import { attachFurnitureVisual } from "./furniture-glb-visual.js";
+import { furnitureVisualForItem } from "./furniture-visual-assets.js";
 import { box } from "../campus-render-kit.js";
 import { PERSONAL_ROOM_BASIC_FURNITURE } from "./personal-room-layout.js";
 import { createPersonalRoomChairModel } from "./personal-room-chair-model.js";
@@ -82,8 +85,8 @@ export function buildPersonalRoomLeafGeometry() {
 }
 
 export function createPersonalRoomFixtures({ app, root, materials }) {
-  const meshes = new Map(), loaders = [];
-  let disposed = false, pending = null;
+  const meshes = new Map(), loaders = [], optionalVisuals = [];
+  let disposed = false, pending = null, optionalPending = null;
   const group = (parent, name, at = [0, 0, 0]) => {
     const entity = new pc.Entity(name);
     entity.setLocalPosition(...at); parent.addChild(entity); return entity;
@@ -237,16 +240,32 @@ export function createPersonalRoomFixtures({ app, root, materials }) {
   }
 
   const builders = { bed, desk, chair, bookshelf: storage, rug, plant };
-  for (const item of PERSONAL_ROOM_BASIC_FURNITURE) builders[item.kind](group(root, `personal_${item.id}`, item.at), item.size);
+  for (const item of PERSONAL_ROOM_BASIC_FURNITURE) {
+    const anchor = group(root, `personal_${item.id}`, item.at);
+    const visual = item.kind === 'bed' ? furnitureVisualForItem('fixture.personal_bed') : null;
+    const fallback = visual ? group(anchor, 'bed_procedural_fallback') : anchor;
+    builders[item.kind](fallback, item.size);
+    if (visual) optionalVisuals.push({ anchor, fallback, visual, handle: null });
+  }
+  const deactivate = () => {
+    optionalPending = null;
+    for (const entry of optionalVisuals) { entry.handle?.destroy(); entry.handle = null; }
+  };
   root.once("destroy", () => {
     disposed = true;
+    deactivate();
     for (const mesh of meshes.values()) mesh?.destroy();
     meshes.clear();
   });
-  const ensureVisualAssets = () => {
+  const ensureVisualAssets = (options = {}) => {
     if (disposed) return Promise.resolve(false);
     if (!pending) pending = Promise.all(loaders.map(ensure => ensure()));
-    return pending;
+    for (const entry of optionalVisuals) {
+      if (!entry.handle) entry.handle = attachFurnitureVisual({ app, anchor: entry.anchor, fallback: entry.fallback, visual: entry.visual });
+    }
+    if (!optionalVisuals.length) return pending;
+    if (!optionalPending) optionalPending = Promise.all([pending, ...optionalVisuals.map(entry => entry.handle.ready)]).then(([existing]) => existing);
+    return Promise.all([optionalPending, waitForFurnitureVisuals(optionalVisuals.map(entry => entry.handle), options)]).then(([existing]) => existing);
   };
-  return { ensureVisualAssets };
+  return { ensureVisualAssets, deactivate, visualAssets: () => optionalVisuals.map(entry => entry.visual) };
 }

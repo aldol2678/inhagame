@@ -20,6 +20,11 @@ import { CAMPUS_SPACE, RETURN_ANCHORS, ROOMS, ROOM_ENTRANCES, isRoomId } from ".
 export const ROOM_CONTEXT_PRIORITY = 150;
 // After arriving on either side the door action waits this long (no double-tap bounce).
 export const ROOM_TRANSITION_COOLDOWN_MS = 800;
+// Safety deadlines, not asset performance acceptance targets. Layout work keeps
+// its old 15-second bound. Visuals allow bounded processing after byte transfer.
+export const ROOM_PREPARATION_STAGE_TIMEOUT_MS = 15000;
+export const ROOM_PREPARATION_VISUAL_INACTIVITY_MS = 45000;
+export const ROOM_PREPARATION_OVERALL_TIMEOUT_MS = 210000;
 
 const flat = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 
@@ -27,7 +32,11 @@ export function createRoomTransition({
   world, clock = { now: () => Date.now() }, fade = (run) => run(),
   rooms = ROOMS, entrances = ROOM_ENTRANCES, anchors = RETURN_ANCHORS,
   canEnter = () => true, accessPolicies = {},
-  onBusyChange = () => {}, onError = () => {}
+  onBusyChange = () => {}, onError = () => {},
+  prepareRoom = null, onPreparationChange = () => {}, preparationTimeoutMs = ROOM_PREPARATION_STAGE_TIMEOUT_MS,
+  preparationVisualTimeoutMs = ROOM_PREPARATION_VISUAL_INACTIVITY_MS,
+  preparationOverallTimeoutMs = ROOM_PREPARATION_OVERALL_TIMEOUT_MS,
+  setTimer = setTimeout, clearTimer = clearTimeout
 }) {
   let space = CAMPUS_SPACE;
   let busy = false;
@@ -35,6 +44,8 @@ export function createRoomTransition({
   let returnContext = null;
   let nestedReturn = null;
   let forcedExitFrom = null;
+  let cancelPending = null;
+  let preparationPending = false;
   const listeners = new Set();
   const stats = { enters: 0, exits: 0, nestedEnters: 0, nestedExits: 0, directNestedEnters: 0, nestedSwitches: 0 };
   const accessAllowed = (entrance, room) => {
@@ -93,7 +104,7 @@ export function createRoomTransition({
     if (source?.space === space && !busy) exit({ force: true, toCampus: source.toCampus });
   };
 
-  function transition({ roomId, steps, commit, event, counter, isValid = () => true, prepare = () => {}, requireDeparture = false }) {
+  function transition({ roomId, steps, commit, event, counter, isValid = () => true, prepare = () => {}, requireDeparture = false, metadata = null }) {
     const fromSpace = space;
     let restore = null;
     let touchedWorld = false;
@@ -106,6 +117,30 @@ export function createRoomTransition({
     let recoveryDone = false;
     let recoveryError = null;
     let settled = false;
+    const controller = new AbortController();
+    let preparationTimer = null;
+    let lease = null;
+    let preparing = false;
+    let preparationStage = null;
+    let deadlineGeneration = 0;
+    let preparationOverallAt = null;
+    const receivedBytes = new Map();
+    const notifyPreparation = state => {
+      try { onPreparationChange(state); } catch { /* feedback cannot block recovery */ }
+    };
+    const stopPreparation = committed => {
+      clearTimer(preparationTimer);
+      deadlineGeneration++;
+      preparationTimer = null;
+      if (!committed) {
+        try { controller.abort(); lease?.cancel?.(); }
+        catch (error) { recoveryError ??= error; }
+      }
+      if (preparing) notifyPreparation({ active: false, committed });
+      preparing = false;
+      preparationPending = false;
+      cancelPending = null;
+    };
 
     const report = info => {
       try { onError({ fromSpace, roomId, ...info }); }
@@ -127,7 +162,12 @@ export function createRoomTransition({
         try { if (!isValid()) { fail(cancelled); return; } }
         catch (error) { fail(error); return; }
       }
+      if (!failure) {
+        try { lease?.commit?.(); }
+        catch (error) { fail(error); return; }
+      }
       settled = true;
+      stopPreparation(!failure);
       if (failure) {
         // Forced exits follow lost access/identity. A restored private source is no longer an
         // authorized playable fallback, so keep it locked instead of reopening that room.
@@ -151,7 +191,7 @@ export function createRoomTransition({
     const recover = () => {
       if (recovering) return;
       recovering = true;
-      const done = error => { recoveryError = error ?? null; recoveryDone = true; finish(); };
+      const done = error => { recoveryError ??= error ?? null; recoveryDone = true; finish(); };
       try {
         if (touchedWorld && !restore) throw new Error("Room transition rollback unavailable");
         const result = touchedWorld ? restore() : undefined;
@@ -161,6 +201,7 @@ export function createRoomTransition({
     };
     const fail = error => {
       failure ??= error || new Error("Room transition failed");
+      controller.abort();
       // A fade can reject while a world step is in flight. Wait for it to settle before restoring;
       // each subsequent step sees failure and cannot write over the restored scene later.
       if (!pending) return recover();
@@ -197,16 +238,82 @@ export function createRoomTransition({
       report({ error, recoveryError: error, recovered: false, phase: "input" });
       return true;
     }
-    try {
+    const armPreparationDeadline = () => {
+      clearTimer(preparationTimer);
+      preparationOverallAt ??= clock.now() + preparationOverallTimeoutMs;
+      const inactivityMs = preparationStage === 'visuals' ? preparationVisualTimeoutMs : preparationTimeoutMs;
+      const generation = ++deadlineGeneration;
+      preparationTimer = setTimer(() => {
+        if (settled || !preparationPending || generation !== deadlineGeneration) return;
+        fadeDone = true;
+        fail(new Error(clock.now() >= preparationOverallAt ? 'Room preparation overall timed out' : 'Room preparation stage timed out'));
+      }, Math.max(0, Math.min(inactivityMs, preparationOverallAt - clock.now())));
+    };
+    const beginSwitch = () => {
+      preparationPending = false;
+      if (settled || failure) return;
+      if (!isValid()) { fadeDone = true; fail(cancelled); return; }
       restore = world.createCheckpoint?.() ?? null;
       prepare();
-      const result = fade(run);
+      const result = fade(run, { roomId, prepared: preparing });
       if (result?.then) {
         void Promise.resolve(result).then(
           () => { fadeDone = true; finish(); },
           error => { fadeDone = true; return fail(error); }
         );
       } else { fadeDone = true; finish(); }
+    };
+    cancelPending = () => {
+      if (settled) return false;
+      // Preparation never mutates the active world. It can release immediately, even when
+      // network/engine callbacks ignore abort; their generation guard owns late cleanup.
+      if (!started) fadeDone = true;
+      fail(cancelled);
+      return true;
+    };
+    try {
+      const preparation = prepareRoom?.({ roomId, metadata, signal: controller.signal,
+        isValid: () => !controller.signal.aborted && isValid(),
+        onCleanupError: error => { recoveryError ??= error; },
+        onProgress: progress => {
+          if (settled || controller.signal.aborted || preparationStage !== 'visuals') return;
+          const { sourceKey, loadedBytes, totalBytes } = progress ?? {};
+          if (typeof sourceKey !== 'string' || !sourceKey || !Number.isSafeInteger(loadedBytes)
+            || !Number.isSafeInteger(totalBytes) || totalBytes <= 0 || loadedBytes < 0 || loadedBytes > totalBytes) return;
+          const previous = receivedBytes.get(sourceKey);
+          if (previous && (totalBytes !== previous.totalBytes || loadedBytes <= previous.loadedBytes)) return;
+          receivedBytes.set(sourceKey, { loadedBytes, totalBytes });
+          if (loadedBytes > (previous?.loadedBytes ?? 0) && preparationPending) armPreparationDeadline();
+          const values = [...receivedBytes.values()];
+          notifyPreparation({ active: true, text: 'visuals', progress: {
+            loadedBytes: values.reduce((sum, value) => sum + value.loadedBytes, 0),
+            totalBytes: values.reduce((sum, value) => sum + value.totalBytes, 0)
+          } });
+        },
+        stage: text => {
+          if (settled || controller.signal.aborted) return;
+          const changed = text !== preparationStage;
+          preparationStage = text;
+          if (preparing && changed) armPreparationDeadline();
+          notifyPreparation({ active: true, text });
+        }
+      });
+      if (preparation?.then) {
+        preparing = true;
+        preparationPending = true;
+        notifyPreparation({ active: true });
+        armPreparationDeadline();
+        void Promise.resolve(preparation).then(value => {
+          if (settled || failure) {
+            try { value?.cancel?.(); } catch (error) { report({ error, recoveryError: error, recovered: false, phase: "cleanup" }); }
+            return;
+          }
+          lease = value;
+          clearTimer(preparationTimer);
+          preparationTimer = null;
+          try { beginSwitch(); } catch (error) { fadeDone = true; fail(error); }
+        }, error => { if (!settled) { fadeDone = true; fail(error); } });
+      } else { lease = preparation; beginSwitch(); }
     } catch (error) { fadeDone = true; fail(error); }
     return true;
   }
@@ -243,7 +350,7 @@ export function createRoomTransition({
     const room = rooms[roomId];
     if (!accessAllowed(null, room)) return false;
     const target = nestedContext(space, returnPosition, returnYaw, metadata);
-    return transition({ roomId, event: "enter-nested", counter: "nestedEnters", isValid,
+    return transition({ roomId, event: "enter-nested", counter: "nestedEnters", isValid, metadata,
       steps: [() => world.showRoom(room), () => world.placePlayer(room.spawn.position, room.spawn.yaw)],
       commit: () => { nestedReturn = target; space = roomId; }
     });
@@ -261,7 +368,7 @@ export function createRoomTransition({
     if (!entrance || !anchors[entrance.returnAnchor]) return false;
     let context;
     const target = nestedContext(parentRoomId, returnPosition, returnYaw, metadata);
-    return transition({ roomId, event: "enter-nested", counter: "directNestedEnters", isValid,
+    return transition({ roomId, event: "enter-nested", counter: "directNestedEnters", isValid, metadata,
       prepare: () => { context = campusContext(entrance); },
       steps: [() => world.leaveCampus(room), () => world.showRoom(room),
         () => world.placePlayer(room.spawn.position, room.spawn.yaw)],
@@ -294,6 +401,11 @@ export function createRoomTransition({
   // anchor of the outermost room instead of stopping in the parent room.
   function exit({ force = false, toCampus = false } = {}) {
     // Forced access-loss exits bypass only cooldown, never an in-flight switch or recovery.
+    if (busy && preparationPending && cancelPending) {
+      if (force && space !== CAMPUS_SPACE) forcedExitFrom = { space, toCampus: toCampus || forcedExitFrom?.toCampus === true };
+      cancelPending();
+      return false;
+    }
     if (space === CAMPUS_SPACE) return false;
     if (busy) {
       if (force) forcedExitFrom = { space, toCampus: toCampus || forcedExitFrom?.toCampus === true };
@@ -339,6 +451,7 @@ export function createRoomTransition({
   }
 
   return {
+    cancelPending: () => cancelPending?.() ?? false,
     enter,
     enterNested,
     enterNestedFromCampus,

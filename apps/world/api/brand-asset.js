@@ -12,6 +12,16 @@ const ALLOWED = new Set([
   'induck-hoodie-v1.glb'
 ]);
 
+// Immutable furniture payloads use canonical bytes only; runtime activation is
+// separately gated in the code-owned furniture manifest. No private asset bytes here.
+const CANONICAL_FURNITURE = new Set([
+  'annyongi-character-chair-r2-70ec784f8796.glb',
+  'official-rug-replacement-r1-f4ca31569bdf.glb',
+  'official-bed-replacement-r2-44d3cdc7870c.glb',
+  'induck-character-nightstand-r1-01a2764ecb9c.glb',
+  'annyongi-character-bookshelf-r3-05b6fa9c384e.glb'
+]);
+
 module.exports = async function handler(req, res) {
   res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=86400, stale-while-revalidate=604800');
   if (req.method !== 'GET' && req.method !== 'HEAD') {
@@ -25,7 +35,7 @@ module.exports = async function handler(req, res) {
   const requestUrl = new URL(req.url || '/', 'https://inhagame.invalid');
   const asset = String(requestUrl.searchParams.get('asset') || '');
   const variant = String(requestUrl.searchParams.get('variant') || 'canonical');
-  if (!ALLOWED.has(asset) || !['canonical', 'optimized'].includes(variant)) return res.status(404).end();
+  if ((!ALLOWED.has(asset) && !CANONICAL_FURNITURE.has(asset)) || !['canonical', 'optimized'].includes(variant) || (CANONICAL_FURNITURE.has(asset) && variant !== 'canonical')) return res.status(404).end();
   const functionName = variant === 'optimized' ? OPTIMIZED_FUNCTION : CANONICAL_FUNCTION;
 
   try {

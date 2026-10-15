@@ -132,3 +132,19 @@ test('three preview reopen cycles release only owned clones exactly once and lea
     t.diagnostic(JSON.stringify({ cycle, disposedClones: counts.size, mainMeshesRemaining: mainMeshCount, previewMeshesRemaining: 0 }));
   }
 });
+
+test('disabled official replacements retain procedural previews and never fetch', async t => {
+  const previousFetch=globalThis.fetch;let fetches=0;
+  globalThis.fetch=async()=>{fetches++;throw Error('disabled candidate must not fetch');};
+  try {
+    const app=makeApp(t,'disabled-candidates');
+    const layer=createFurnitureLayer(app,app.root,{isolatedMaterials:true});
+    for(const itemId of ['furniture.induck_chair','furniture.campus_rug_blue','furniture.dorm_side_table_low','furniture.dorm_bookshelf_slim']) {
+      layer.setObjects([{...sofa,itemId}]);await layer.whenVisualsReady();
+      assert.equal(layer.visualStatus().objects.length,0);
+      assert.ok(layer.root.findComponents('render').length>0);
+    }
+    assert.equal(fetches,0);
+    layer.root.destroy();
+  } finally {globalThis.fetch=previousFetch;}
+});
