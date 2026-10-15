@@ -2,14 +2,15 @@
 //
 // Campus → 제1생활관 entrance → Dorm Lobby → '내 방' door (guest boundary) → Personal Room scene →
 // Dorm Lobby return anchor → Campus return anchor, repeated, on desktop and a 360 px phone.
-// Offline (harness.mjs): supabase-js is stubbed, so the guest boundary is exercised for real and the
-// signed-in owner path enters the same nested transition main.js uses after the room authority
-// resolves. No production, login or secret.
+// Offline (harness.mjs): synthetic Auth/RPC dependencies exercise the shipped online identity,
+// guest refusal, owner mismatch rejection and native owner door. Shipped main bytes are verified.
+// No production, login, token or real Realtime; this is not server-authority QA.
 //
 //   npm ci --prefix apps/world/tests/browser
 //   WORLD_SMOKE_DISABLE_WEBGPU=1 node apps/world/tests/browser/housing-smoke.mjs
 import assert from "node:assert/strict";
 import { startSmoke, TIMEOUT_MS } from "./harness.mjs";
+import { installSyntheticHousingAuthority, verifyHousingShippedMain } from "./housing-synthetic-authority.mjs";
 
 const CYCLES = 3;
 // Slow GPU-less CI runners render a frame every few hundred ms, so each step gets generous time.
@@ -23,7 +24,11 @@ async function boot(smoke, viewport) {
   // Optional: HOUSING_SMOKE_CPU_THROTTLE=<rate> emulates a slow CI runner (few frames per second).
   const throttle = Number(process.env.HOUSING_SMOKE_CPU_THROTTLE || 0);
   if (throttle > 1) await (await smoke.context.newCDPSession(page)).send("Emulation.setCPUThrottlingRate", { rate: throttle });
-  await page.goto(`${smoke.origin}/campus/`, { waitUntil: "domcontentloaded", timeout: TIMEOUT_MS });
+  const [mainResponse] = await Promise.all([
+    page.waitForResponse(response => response.url() === `${smoke.origin}/src/main.js`, { timeout: TIMEOUT_MS }),
+    page.goto(`${smoke.origin}/campus/`, { waitUntil: "domcontentloaded", timeout: TIMEOUT_MS })
+  ]);
+  const shippedMain = await verifyHousingShippedMain(mainResponse);
   await Promise.race([
     page.waitForFunction(() => window.__INHAGAME_P0__?.getStatus?.().loading?.finished === true
       || window.__INHAGAME_P0__?.getStatus?.().renderer === "UNAVAILABLE", null, { timeout: TIMEOUT_MS, polling: 100 }),
@@ -31,7 +36,7 @@ async function boot(smoke, viewport) {
   ]);
   const renderer = await page.evaluate(() => window.__INHAGAME_P0__.getStatus().renderer);
   assert.notEqual(renderer, "UNAVAILABLE", "campus boot");
-  return { page, fatalError };
+  return { page, fatalError, shippedMain };
 }
 
 // Teleport onto an anchor (canonical frame; the player entity lives under the space root).
@@ -281,6 +286,13 @@ async function runLoop(smoke, { page, fatalError }, viewport, label) {
   let hud = null;
 
   for (let cycle = 0; cycle < CYCLES; cycle++) {
+    // Reset Auth on campus every cycle; a previous owner cannot satisfy the guest check.
+    assert.equal((await status(page)).space, "campus");
+    await page.evaluate(() => window.__HOUSING_SYNTHETIC__.switchAccount(null));
+    await waitFor(page, fatalError, () => {
+      const d = window.__INHAGAME_P0__;
+      return d.online.userId === null && d.online.identity === null && !d.personalRoom.available;
+    }, null, `${label}#${cycle} guest identity`);
     // 1. Campus → 제1생활관 entrance.
     await standAt(page, { ...anchors.entrance, y: 1.6 });
     // 2. Entrance → Dorm Lobby.
@@ -291,26 +303,61 @@ async function runLoop(smoke, { page, fatalError }, viewport, label) {
     assert.match(lobby.zoneLabel, /제1생활관 로비/);
     assert.equal(lobby.placeZone === null || typeof lobby.placeZone === "string", true);
 
-    // 3. Lobby '내 방' door: guest stays in the lobby with a login hint (no authority offline).
+    // 3. Lobby '내 방' door: guest stays in the lobby with a login hint.
     await page.waitForTimeout(900);
     await standAt(page, { ...anchors.myRoom, y: 1.15 });
     await waitFor(page, fatalError, () => {
       const active = window.__INHAGAME_P0__.contextActions.active;
       return active?.id === "personal-room-door" && /내 방 들어가기/.test(active.label ?? "");
     }, null, `${label}#${cycle} my-room door action`);
+    const guestCalls = await page.evaluate(() => window.__HOUSING_SYNTHETIC__.status().calls.length);
     await pressF(page);
     await waitFor(page, fatalError, () => !document.getElementById("follow-status")?.hidden
       && /로그인/.test(document.getElementById("follow-status")?.textContent ?? ""), null, `${label}#${cycle} guest hint`);
     assert.equal((await status(page)).space, "ROOM_DORM1_LOBBY", "guest never enters a personal room");
+    assert.equal(await page.evaluate(() => window.__HOUSING_SYNTHETIC__.status().calls.length), guestCalls,
+      "guest refusal does not request room authority");
 
-    // 4. Owner path (authority resolved): the same nested transition main.js performs.
-    const entered = await page.evaluate(ret => window.__INHAGAME_P0__.rooms.enterNested("ROOM_PERSONAL_BASIC", {
-      fromRoomId: "ROOM_DORM1_LOBBY", returnPosition: ret.position, returnYaw: ret.yaw,
-      metadata: { personalRoomId: "00000000-0000-4000-8000-000000000000" }
-    }), anchors.myRoomReturn);
-    assert.equal(entered, true, "nested personal room transition accepted");
+    // 4. Real shipped identity + native door: first reject a malformed owner response.
+    await page.evaluate(() => {
+      const f = window.__HOUSING_SYNTHETIC__;
+      f.switchAccount(f.owner); f.setOwnerMismatch(true);
+    });
+    await waitFor(page, fatalError, () => {
+      const d = window.__INHAGAME_P0__, f = window.__HOUSING_SYNTHETIC__;
+      return d.online.userId === f.owner && d.online.identity?.userId === f.owner && d.personalRoom.available;
+    }, null, `${label}#${cycle} synthetic owner identity`);
+    await page.waitForTimeout(900);
+    await pressF(page);
+    await waitFor(page, fatalError, () => !window.__INHAGAME_P0__.personalRoomInteraction.opening
+      && !document.getElementById("follow-status")?.hidden
+      && /개인방을 불러오지 못했어요/.test(document.getElementById("follow-status")?.textContent ?? ""), null,
+    `${label}#${cycle} mismatched owner refusal`);
+    assert.equal((await status(page)).space, "ROOM_DORM1_LOBBY", "mismatched owner never enters a personal room");
+    const deniedCalls = await page.evaluate(start => window.__HOUSING_SYNTHETIC__.status().calls.slice(start), guestCalls);
+    assert.equal(deniedCalls.length, 1, "owner mismatch is rejected before furniture/access reads");
+    assert.equal(deniedCalls[0].name, "get_or_create_my_personal_room_v1");
+    assert.equal(deniedCalls[0].ownerMismatch, true);
+    await page.evaluate(() => window.__HOUSING_SYNTHETIC__.setOwnerMismatch(false));
+    await page.waitForTimeout(900);
+    await useDoor(page, fatalError, { id: "personal-room-door", label: /내 방 들어가기/, space: "ROOM_PERSONAL_BASIC",
+      name: `${label}#${cycle} authorized my-room door` });
     await waitFor(page, fatalError, () => window.__INHAGAME_P0__.getStatus().space === "ROOM_PERSONAL_BASIC", null,
       `${label}#${cycle} personal room entered`);
+    await waitFor(page, fatalError, () => {
+      const d = window.__INHAGAME_P0__, f = window.__HOUSING_SYNTHETIC__;
+      const layout = d.roomFurniture.state(), session = d.roomSession.status();
+      return layout.ready && !layout.reading && layout.error === null && layout.roomId === f.roomId
+        && layout.role === "owner" && layout.revision === 0 && session.active && session.roomId === f.roomId
+        && session.ownerUserId === f.owner && session.role === "owner" && session.phase === "DEGRADED";
+    }, null, `${label}#${cycle} owner furniture and offline room session`);
+    const authority = await page.evaluate(() => {
+      const d = window.__INHAGAME_P0__, f = window.__HOUSING_SYNTHETIC__;
+      return { metadata: d.rooms.status().metadata, owner: f.owner, roomId: f.roomId, channelCalls: f.status().channelCalls };
+    });
+    assert.deepEqual(authority.metadata, { personalRoomId: authority.roomId, ownerUserId: authority.owner,
+      visitRole: "owner", visibility: "private" }, "native door carries verified owner metadata");
+    assert.equal(authority.channelCalls, 0, "token-free fixture never opens Realtime channels");
     const room = await status(page);
     assert.equal(room.roomStatus.parentRoomId, "ROOM_DORM1_LOBBY");
     assert.match(room.zoneLabel, /내 방/);
@@ -354,13 +401,14 @@ async function runLoop(smoke, { page, fatalError }, viewport, label) {
 
 const smoke = await startSmoke();
 try {
+  await installSyntheticHousingAuthority(smoke.context);
   // One boot for both viewports: the GPU-less CI lane pays ~7 min for the first campus boot.
   const booted = await boot(smoke, { width: 1280, height: 720 });
   const desktop = await runLoop(smoke, booted, { width: 1280, height: 720 }, "desktop");
   const phone = await runLoop(smoke, booted, { width: 360, height: 740 }, "phone360");
   const landscape = await runLoop(smoke, booted, { width: 844, height: 390 }, "phone-landscape");
   await booted.page.close();
-  console.log(JSON.stringify({ desktop, phone, landscape }, null, 2));
+  console.log(JSON.stringify({ shippedMain: booted.shippedMain, desktop, phone, landscape }, null, 2));
   console.log(`world housing smoke: PASS in ${((Date.now() - started) / 1000).toFixed(1)}s (${CYCLES} cycles × 3 viewports)`);
 } finally {
   await smoke.close();

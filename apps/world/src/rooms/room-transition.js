@@ -264,7 +264,10 @@ export function createRoomTransition({
       } else { fadeDone = true; finish(); }
     };
     cancelPending = () => {
-      if (settled) return false;
+      // Account observers can race: an access observer may already be evacuating
+      // a revoked room when another cancels optional entry preparation. A required
+      // departure must finish (or fail closed), never roll back due to that cancel.
+      if (settled || requireDeparture) return false;
       // Preparation never mutates the active world. It can release immediately, even when
       // network/engine callbacks ignore abort; their generation guard owns late cleanup.
       if (!started) fadeDone = true;

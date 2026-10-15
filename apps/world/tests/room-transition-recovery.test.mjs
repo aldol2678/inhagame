@@ -396,3 +396,26 @@ test("rollback rejecting without a reason still fails closed", async () => {
   assert.equal(r.input.active, true);
   assert.equal(r.errors[0].recovered, false);
 });
+
+for (const toCampus of [false,true]) test(`identity cancellation cannot revoke an accepted required departure (${toCampus?'campus':'parent'})`, async () => {
+  let delay=false,run,finishFade;
+  const r=rig({fade:callback=>{
+    if(!delay)return callback();
+    run=callback;return new Promise(resolve=>{finishFade=resolve});
+  }});
+  r.rooms.enter(LOBBY);r.tick();
+  r.rooms.enterNested(PERSONAL,{...nestedOptions,fromRoomId:LOBBY});r.tick();
+  delay=true;
+  assert.equal(r.rooms.exit({force:true,toCampus}),true);
+  assert.equal(r.rooms.status().busy,true);assert.equal(r.input.active,true);
+  // An earlier access observer may start forced departure before main's identity
+  // observer cancels optional room preparation. That cancellation must not undo it.
+  assert.equal(r.rooms.cancelPending(),false);
+  assert.equal(r.rooms.status().busy,true);assert.equal(r.input.active,true);
+  await run();
+  assert.equal(r.rooms.cancelPending(),false,'also protected while fade completion is pending');
+  finishFade();await flush();
+  assert.equal(r.rooms.currentSpace,toCampus?'campus':LOBBY);
+  assert.equal(r.rooms.status().busy,false);assert.equal(r.input.active,false);
+  assert.equal(r.errors.length,0);
+});
