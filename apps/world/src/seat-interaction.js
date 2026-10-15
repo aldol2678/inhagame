@@ -17,7 +17,7 @@ export function createSeatInteraction({
   const currentAnchor = anchor => {
     const anchors = getAnchors();
     return anchors === undefined ? anchor : anchors.find(candidate => candidate.id === anchor?.id &&
-      candidate.yaw === anchor.yaw && ["x", "y", "z"].every(axis => candidate.position[axis] === anchor.position[axis]));
+      candidate.geometryKey === anchor.geometryKey && candidate.yaw === anchor.yaw && ["x", "y", "z"].every(axis => candidate.position[axis] === anchor.position[axis]));
   };
 
   function sitDown(anchor) {

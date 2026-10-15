@@ -1,12 +1,25 @@
-import test from "node:test";
+import test, { beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { registerHooks } from "node:module";
 import { PERSONAL_ROOM_BASIC_FURNITURE, PERSONAL_ROOM_BASIC_OBSTACLES } from "../src/rooms/personal-room-layout.js";
 import { furnitureBox, validateFurniture } from "../src/rooms/furniture-layout.js";
+import { furnitureVisualForItem } from "../src/rooms/furniture-visual-assets.js";
 
-// Substitute only GPU allocation. Production scene construction, geometry,
-// transforms, material lookups and the real chair asset loader all run unchanged.
+// Active optional bed transport fails locally and immediately; no external request is made.
+const originalFetch = globalThis.fetch, bedVisual = furnitureVisualForItem("fixture.personal_bed");
+let fetchCalls;
+beforeEach(() => {
+  fetchCalls = [];
+  globalThis.fetch = async (url, options) => {
+    fetchCalls.push({ url, options });
+    throw new Error("offline optional GLB fixture");
+  };
+});
+afterEach(() => { globalThis.fetch = originalFetch; });
+
+// Substitute GPU allocation and offline transport responses. Production scene
+// construction, geometry, transforms, material lookups and lazy loaders run unchanged.
 const mock = `
 export class Entity {
   constructor(name){this.name=name;this.children=[];this.handlers=new Map();this.enabled=true;this.position=[0,0,0];this.scale=[1,1,1];this.angles=[0,0,0];}
@@ -16,6 +29,7 @@ export class Entity {
   setLocalScale(...value){this.scale=value;}
   setLocalEulerAngles(...value){this.angles=value;}
   once(event,fn){const fns=this.handlers.get(event)||[];fns.push(fn);this.handlers.set(event,fns);}
+  off(event,fn){this.handlers.set(event,(this.handlers.get(event)||[]).filter(handler=>handler!==fn));}
   destroy(){if(this.destroyed)return;this.destroyed=true;for(const c of this.children)c.destroy();this.children=[];for(const fn of this.handlers.get('destroy')||[])fn();this.handlers.clear();}
 }
 export class MeshInstance {constructor(mesh,material){Object.assign(this,{mesh,material});}}
@@ -36,9 +50,17 @@ const { PERSONAL_ROOM_MATERIAL_PROFILES } = await import("../src/rooms/personal-
 const source = readFileSync(new URL("../src/rooms/personal-room-fixtures-v2.js", import.meta.url), "utf8");
 const flatten = entity => [entity, ...entity.children.flatMap(flatten)];
 const find = (entity, name) => flatten(entity).find(child => child.name === name);
+const events = () => {
+  const handlers = new Map();
+  return {
+    on(event, fn) { const callbacks = handlers.get(event) ?? new Set(); callbacks.add(fn); handlers.set(event, callbacks); },
+    once(event, fn) { this.on(event, fn); },
+    off(event, fn) { handlers.get(event)?.delete(fn); }
+  };
+};
 function rig({ failMesh = false, noDevice = false, loadError = true } = {}) {
-  const root = new Entity("Room_ROOM_PERSONAL_BASIC"), calls = [], materialKeys = new Set(), device = { meshes: [], failMesh };
-  const app = { graphicsDevice: noDevice ? null : device, assets: { loadFromUrl(url, type, callback) {
+  const root = new Entity("Room_ROOM_PERSONAL_BASIC"), calls = [], materialKeys = new Set(), device = { ...events(), meshes: [], failMesh };
+  const app = { ...events(), graphicsDevice: noDevice ? null : device, assets: { loadFromUrl(url, type, callback) {
     calls.push({ url, type, callback });
     if (loadError) callback(new Error("offline"));
   } } };
@@ -158,6 +180,8 @@ for (const options of [{ failMesh: true }, { noDevice: true }]) test(`missing op
   assert.ok(find(r.root, "wardrobe_door_0"));
   assert.deepEqual(await r.ensureVisualAssets(), [false]);
   assert.equal(find(r.root, "chair_fallback").enabled, true);
+  assert.equal(find(r.root, "bed_procedural_fallback").enabled, true);
+  assert.deepEqual(fetchCalls.map(call => call.url), [bedVisual.url]);
 });
 
 test("fixed chair seat contract and real lazy model loader remain intact and idempotent", async () => {
@@ -168,10 +192,15 @@ test("fixed chair seat contract and real lazy model loader remain intact and ide
   assert.equal(find(find(r.root, "chair_fallback"), "leg_0_0").render.meshInstances[0].material.name, "woodOak");
   assert.deepEqual(find(r.root, "personal_chair").angles, [0, 180, 0], "fixed chair faces its desk without changing owned chairs");
   assert.equal(r.calls.length, 0);
-  const first = r.ensureVisualAssets(); assert.strictEqual(r.ensureVisualAssets(), first);
-  assert.deepEqual(await first, [false]); assert.strictEqual(r.ensureVisualAssets(), first);
+  const first = r.ensureVisualAssets(), concurrent = r.ensureVisualAssets();
+  assert.deepEqual(await Promise.all([first, concurrent]), [[false], [false]]);
+  assert.deepEqual(await r.ensureVisualAssets(), [false]);
   assert.equal(r.calls.length, 1); assert.match(r.calls[0].url, /fixed-chair-oak-linen\.glb$/);
   assert.equal(find(r.root, "chair_fallback").enabled, true);
+  assert.equal(find(r.root, "bed_procedural_fallback").enabled, true);
+  assert.deepEqual(fetchCalls.map(call => call.url), [bedVisual.url], "concurrent and repeated readiness reuse one optional bed load");
+  assert.equal(fetchCalls[0].options.credentials, "same-origin");
+  assert.ok(fetchCalls[0].options.signal instanceof AbortSignal);
 });
 
 test("generated meshes are shared per profile, bounded in cost and disposed once with root", async () => {
@@ -181,6 +210,7 @@ test("generated meshes are shared per profile, bounded in cost and disposed once
   assert.ok(visibleTriangles < 20000, `mobile-safe authored geometry: ${visibleTriangles} triangles`);
   for (let i = 0; i < 20; i++) { r.root.enabled = !r.root.enabled; await r.ensureVisualAssets(); }
   assert.equal(r.root.children.length, 6); assert.equal(r.device.meshes.length, meshes.length); assert.equal(r.calls.length, 1);
+  assert.deepEqual(fetchCalls.map(call => call.url), [bedVisual.url], "repeated readiness never refetches the active bed");
   r.root.destroy(); r.root.destroy();
   assert.ok(meshes.every(mesh => mesh.destroyCalls === 1)); assert.equal(r.root.children.length, 0);
   assert.equal(await r.ensureVisualAssets(), false);

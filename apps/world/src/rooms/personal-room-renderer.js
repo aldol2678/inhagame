@@ -28,10 +28,14 @@ export function createPersonalRoomScene(app){
     decor.update(objects);
   };
   decor.update([]);
-  const ensureVisualAssets = async () => {
+  const ensureVisualAssets = async (options = {}) => {
     ownedFurniture.activate();
-    const existing = await Promise.all([fixtures.ensureVisualAssets(),decor.ensureVisualAssets(),floorMaterial.ensureVisual()]);
-    await ownedFurniture.whenVisualsReady();
+    // Start every observer before awaiting fixed fixtures; owned loads may already
+    // have started in bind(), and snapshots must renew only this preparation.
+    const [existing] = await Promise.all([
+      Promise.all([fixtures.ensureVisualAssets(options),decor.ensureVisualAssets(),floorMaterial.ensureVisual()]),
+      ownedFurniture.whenVisualsReady(options)
+    ]);
     return existing; // Preserve the established three-part room asset readback contract.
   };
   const ambient = new pc.Color(.43,.41,.39), clearColor = new pc.Color(.17,.16,.15);
@@ -50,6 +54,7 @@ export function createPersonalRoomScene(app){
       materials.updateVisual('practicalDiffuser', { emissiveIntensity: frame.diffuser });
     }
   }
-  return {root,lights,ownedFurniture,ensureVisualAssets,onDeactivate:() => { floorMaterial.deactivate(); ownedFurniture.deactivate(); },
+  return {root,lights,ownedFurniture,ensureVisualAssets,onDeactivate:() => { floorMaterial.deactivate(); ownedFurniture.deactivate(); fixtures.deactivate(); },
+    assetDiagnostics: options => ownedFurniture.assetDiagnostics({ ...options, fixedVisuals: fixtures.visualAssets() }),
     obstacles:ownedFurniture.obstacles,ambient,clearColor,applyEnvironment,setCurtainOpen:window.setOpenness};
 }

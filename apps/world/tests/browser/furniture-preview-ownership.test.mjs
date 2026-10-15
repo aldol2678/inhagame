@@ -1,4 +1,4 @@
-// Real pinned entities/components and NullGraphicsDevice; no GPU, browser, fetch or purchases.
+// Real pinned entities/components and NullGraphicsDevice; no GPU, browser, external fetch or purchases.
 // Run after installing the existing browser dependencies:
 // node --test apps/world/tests/browser/furniture-preview-ownership.test.mjs
 import test from 'node:test';
@@ -14,6 +14,10 @@ const hook = registerHooks({ resolve(specifier, context, nextResolve) {
     : nextResolve(specifier, context);
 } });
 const { createFurnitureLayer } = await import('../../src/rooms/furniture-renderer.js');
+const { attachFurnitureVisual } = await import('../../src/rooms/furniture-glb-visual.js');
+const { FURNITURE_VISUALS, OFFICIAL_FURNITURE_CANDIDATES, furnitureVisualForItem, furnitureVisualForUrl, requireFurnitureVisual } = await import('../../src/rooms/furniture-visual-assets.js');
+const { createPersonalRoomFixtures } = await import('../../src/rooms/personal-room-fixtures-v2.js');
+const { PERSONAL_ROOM_MATERIAL_PROFILES } = await import('../../src/rooms/personal-room-materials.js');
 const { surface } = await import('../../src/campus-render-kit.js');
 hook.deregister();
 
@@ -131,4 +135,81 @@ test('three preview reopen cycles release only owned clones exactly once and lea
     preview.destroy();
     t.diagnostic(JSON.stringify({ cycle, disposedClones: counts.size, mainMeshesRemaining: mainMeshCount, previewMeshesRemaining: 0 }));
   }
+});
+
+test('all five active replacements keep visible procedural fallbacks on bounded offline failure', async t => {
+  const previousFetch=globalThis.fetch, fetches=[];
+  globalThis.fetch=async(url,options)=>{fetches.push({url,options});throw Error('offline optional GLB fixture');};
+  try {
+    const app=makeApp(t,'active-replacements');
+    makeCurrent(app);
+    const layer=createFurnitureLayer(app,app.root,{isolatedMaterials:true});
+    const active=FURNITURE_VISUALS.filter(visual=>visual.enabled&&visual.itemId!=='furniture.dorm_single_sofa');
+    assert.equal(active.length,5);
+    for(const visual of active.filter(visual=>visual.itemId!=='fixture.personal_bed')) {
+      layer.setObjects([{...sofa,itemId:visual.itemId}]);await layer.whenVisualsReady();
+      const status=layer.visualStatus().objects;
+      assert.equal(status.length,1,`${visual.itemId} actually attempted its active model`);
+      assert.equal(status[0].state,'FALLBACK');
+      assert.equal(status[0].modelVisible,false);
+      assert.equal(status[0].detail,'offline optional GLB fixture');
+      assert.equal(status[0].sourceKey,`${visual.url}@${visual.sha256}`);
+      assert.equal(layer.root.findByName('furniture_procedural_fallback').enabled,true);
+      assert.ok(layer.root.findComponents('render').length>0);
+    }
+    const fixedRoot=new pc.Entity('fixed-fixtures',app);app.root.addChild(fixedRoot);
+    const fixedChairRequests=[];
+    app.assets.loadFromUrl=(url,type,callback)=>{fixedChairRequests.push({url,type});callback(Error('offline fixed chair fixture'));};
+    const fixed=createPersonalRoomFixtures({app,root:fixedRoot,
+      materials:{get:key=>surface(PERSONAL_ROOM_MATERIAL_PROFILES[key].color)}});
+    assert.deepEqual(await fixed.ensureVisualAssets(),[false]);
+    const bedFallback=fixedRoot.findByName('bed_procedural_fallback');
+    assert.equal(bedFallback.enabled,true);assert.ok(bedFallback.findComponents('render').length>0);
+    assert.equal(fixedRoot.findByName('chair_fallback').enabled,true);
+    assert.equal(fixedChairRequests.length,1);assert.match(fixedChairRequests[0].url,/fixed-chair-oak-linen\.glb$/);
+    assert.deepEqual(fetches.map(call=>call.url).sort(),active.map(visual=>visual.url).sort(), 'only the five active code-owned URLs are attempted once');
+    assert.ok(fetches.every(call=>call.options.credentials==='same-origin'&&call.options.signal instanceof AbortSignal));
+    assert.deepEqual(fixed.visualAssets().map(visual=>visual.itemId),['fixture.personal_bed']);
+    layer.root.destroy();fixedRoot.destroy();
+  } finally {globalThis.fetch=previousFetch;}
+});
+
+test('three retired official descriptors cannot load while procedural previews stay available', async t => {
+  const previousFetch=globalThis.fetch;let fetches=0;
+  globalThis.fetch=async()=>{fetches++;throw Error('disabled candidate must not fetch');};
+  try {
+    const app=makeApp(t,'disabled-candidates');
+    const layer=createFurnitureLayer(app,app.root,{modelMode:'procedural',isolatedMaterials:true});
+    const retired=OFFICIAL_FURNITURE_CANDIDATES.filter(visual=>!visual.enabled);
+    assert.equal(retired.length,3);
+    for(const visual of retired) {
+      layer.setObjects([{...sofa,itemId:visual.itemId}]);await layer.whenVisualsReady();
+      assert.equal(layer.visualStatus().objects.length,0);
+      assert.ok(layer.root.findComponents('render').length>0);
+      assert.equal(furnitureVisualForUrl(visual.url),null);
+      assert.notEqual(furnitureVisualForItem(visual.itemId),visual,'the active successor never resolves to its retired descriptor');
+      assert.throws(()=>requireFurnitureVisual(visual),/FURNITURE_UNTRUSTED_MANIFEST/);
+      assert.throws(()=>attachFurnitureVisual({app,anchor:layer.root,fallback:layer.root,visual}),/FURNITURE_UNTRUSTED_MANIFEST/);
+    }
+    assert.equal(fetches,0);
+    layer.root.destroy();
+  } finally {globalThis.fetch=previousFetch;}
+});
+
+test('display, placement and activation refresh replace only layer-owned collision objects', t => {
+  const app=makeApp(t,'collision-ownership');
+  const layer=createFurnitureLayer(app,app.root,{modelMode:'procedural'});
+  layer.setObjects([chair]);
+  const shared=layer.obstacles;
+  // No naming contract: even a coincident ID belongs to its caller by object identity.
+  const external={id:chair.id,minX:5,maxX:6,minZ:2,maxZ:3};
+  const unnamed={minX:6,maxX:7,minZ:0,maxZ:1};
+  shared.push(external,unnamed);
+  const assertExternal=()=>{assert.equal(layer.obstacles,shared);assert.equal(shared.filter(o=>o===external).length,1);assert.equal(shared.filter(o=>o===unnamed).length,1);assert.deepEqual(shared.slice(-2),[external,unnamed]);};
+  const oldOwned=shared.find(o=>o.id===chair.id&&o!==external);
+  layer.setDisplays([{objectId:chair.id,itemId:'badge.main_gate',category:'BADGE',name:'badge'}]);assertExternal();
+  layer.setObjects([{...chair,x:2}]);assertExternal();assert.equal(shared.includes(oldOwned),false);
+  layer.deactivate();assertExternal();layer.activate();assertExternal();
+  layer.setObjects([]);assertExternal();assert.equal(shared.filter(o=>o.id===chair.id).length,1);
+  layer.root.destroy();
 });

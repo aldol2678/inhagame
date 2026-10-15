@@ -21,13 +21,18 @@ try{
  for(const view of [{label:'desktop',width:1280,height:800,touch:false},{label:'portrait',width:390,height:844,touch:true},{label:'landscape',width:844,height:390,touch:true}]){
   smoke=await startSmoke({viewport:{width:view.width,height:view.height},contextOptions:{hasTouch:view.touch,isMobile:view.touch}});
   const page=await smoke.context.newPage();smoke.watch(page);
-  let pendingRoute,requestCount=0;
-  await page.route('**/assets/furniture/dorm-single-sofa-v1.glb',route=>{requestCount++;pendingRoute=route;});
+  let pendingRoute,requestCount=0,resolveRoute;
+  const routeReady=new Promise(resolve=>{resolveRoute=resolve;});
+  await page.route('**/assets/furniture/dorm-single-sofa-v1.glb',route=>{requestCount++;pendingRoute=route;resolveRoute();});
   await page.goto(`${smoke.origin}/tests/browser/furniture-showroom-harness.html`);
   await page.waitForFunction(()=>window.__FURNITURE_SHOWROOM_QA__?.ready);
   await page.evaluate(()=>window.__FURNITURE_SHOWROOM_QA__.open());
-  await page.waitForFunction(()=>window.__FURNITURE_SHOWROOM_QA__.previews.at(-1)?.status().objects.some(o=>o.state==='LOADING'));
+  await page.waitForFunction(()=>window.__FURNITURE_SHOWROOM_QA__.previews.at(-1)?.status().objects.some(o=>o.itemId==='furniture.dorm_single_sofa'&&o.state==='LOADING'));
   assert.equal(await page.locator(`${sofa} img`).getAttribute('src'),null,'loading fallback is never cached');
+  // Entity LOADING precedes the transport microtask; wait for the exact intercepted request too.
+  let routeTimer;
+  try { await Promise.race([routeReady,new Promise((_,reject)=>{routeTimer=setTimeout(()=>reject(Error('sofa route did not arrive')),30000);})]); }
+  finally { clearTimeout(routeTimer); }
   assert.ok(pendingRoute);await pendingRoute.continue();await page.unroute('**/assets/furniture/dorm-single-sofa-v1.glb');
   await waitGlb(page);
   await page.waitForFunction(()=>{const i=document.querySelector('[data-item-id="furniture.dorm_single_sofa"]');return i&&!i.hidden&&i.complete&&i.naturalWidth===256;});
@@ -38,7 +43,7 @@ try{
   await page.locator(sofa).scrollIntoViewIfNeeded();await page.screenshot({path:`${output}/${view.label}-sofa-thumbnail.png`});
   await page.locator(`${sofa} .shop-showroom-view`).click();
   await page.locator('.shop-showroom-stage canvas').waitFor();
-  await page.waitForFunction(()=>window.__FURNITURE_SHOWROOM_QA__.previews.at(-1)?.status().objects.some(o=>o.state==='GLB'));
+  await page.waitForFunction(()=>window.__FURNITURE_SHOWROOM_QA__.previews.at(-1)?.status().objects.some(o=>o.itemId==='furniture.dorm_single_sofa'&&o.state==='GLB'));
   const rect=await page.locator('.shop-showroom-stage canvas').boundingBox();assert.ok(rect.width>100&&rect.height>50);
   const stageRect=await page.locator('.shop-showroom-stage').boundingBox();
   assert.ok(rect.width<=stageRect.width&&rect.height<=stageRect.height,'canvas fits the preview stage without clipping');

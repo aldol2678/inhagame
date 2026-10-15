@@ -1,5 +1,6 @@
 // Shop metadata is presentation only. Ownership comes from a fresh Inventory read, and editing
 // requires the current room's server-owned layout. This helper never buys or places an item.
+import { furnitureVisualForItem } from '../rooms/furniture-visual-assets.js';
 import { FURNITURE_BY_ID, SURFACE_NAMES } from "../rooms/furniture-layout.js";
 
 const WALLS = new Set(["north", "east", "south", "west"]);
@@ -13,8 +14,11 @@ export function furnitureOfferDetails(itemId) {
   const item = FURNITURE_BY_ID.get(itemId);
   if (!item) return null;
   const surfaces = [...new Set(item.surfaces.map(surface => WALLS.has(surface) ? "벽" : SURFACE_NAMES[surface]))];
+  const visual=furnitureVisualForItem(itemId);
+  const character=visual?.geometryPolicy==='character-r1';
+  const visualSize=character?visual.max.map((value,i)=>Number((value-visual.min[i]).toFixed(3))):null;
   return {
-    sizeText: `크기 (월드 단위): 가로 ${item.width} × 높이 ${item.height} × 깊이 ${item.depth}`,
+    sizeText: character ? `새 외형 (월드 단위): 가로 ${visualSize[0]} × 높이 ${visualSize[1]} × 깊이 ${visualSize[2]}. 주변과 겹치면 기존 외형을 유지해요.` : `크기 (월드 단위): 가로 ${item.width} × 높이 ${item.height} × 깊이 ${item.depth}`,
     surfaceText: `놓을 곳: ${surfaces.join(" · ")}`,
     useText: STARTER_USE[itemId] ?? null
   };

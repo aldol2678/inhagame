@@ -51,8 +51,9 @@ test('last pending release aborts and evicts hung transport, allowing fresh retr
 
 import {createSofaCancellationTracker} from './browser/housing-sofa-cancellation-policy.mjs';
 test('browser ignores only observed signal cancellations, including reversed event delivery',()=>{
- const errors=[],page={},other={},tracker=createSofaCancellationTracker(errors);
- assert.equal(tracker.failed(page,'url','net::ERR_FAILED','1'),false);
- tracker.failed(page,'url','net::ERR_ABORTED','1');assert.equal(errors.length,1);tracker.signalled(other,'url','1');assert.equal(errors.length,1,'another page cannot license cancellation');tracker.signalled(page,'url','2');assert.equal(errors.length,1,'another request cannot license cancellation');tracker.signalled(page,'url','1');assert.equal(errors.length,0);
- tracker.signalled(page,'url','3');tracker.failed(page,'url','net::ERR_ABORTED','3');assert.equal(errors.length,0);tracker.failed(page,'url','net::ERR_ABORTED','4');assert.equal(errors.length,1,'no signal means real failure');
+ const origin='http://127.0.0.1:8123',url=`${origin}${SOFA_VISUAL.url}`,id=n=>`11111111-1111-4111-8111-111111111111:${n}`;
+ const errors=[],page={},other={},tracker=createSofaCancellationTracker(errors,{origin});
+ assert.equal(tracker.failed(page,url,'net::ERR_FAILED',id(1)),false);
+ tracker.failed(page,url,'net::ERR_ABORTED',id(1));assert.equal(errors.length,1);tracker.signalled(other,url,id(1));assert.equal(errors.length,1,'another page cannot license cancellation');tracker.signalled(page,url,id(2));assert.equal(errors.length,1,'another request cannot license cancellation');tracker.signalled(page,url,id(1));assert.equal(errors.length,0);
+ tracker.signalled(page,url,id(3));tracker.failed(page,url,'net::ERR_ABORTED',id(3));assert.equal(errors.length,0);tracker.failed(page,url,'net::ERR_ABORTED',id(4));assert.equal(errors.length,1,'no signal means real failure');
 });

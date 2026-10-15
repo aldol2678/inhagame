@@ -1,3 +1,4 @@
+import { furnitureVisualForItem } from '../src/rooms/furniture-visual-assets.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -56,7 +57,11 @@ async function harness() {
 test('furniture offer metadata comes from all actual placement definitions; non-furniture has no invented size', () => {
   for (const item of ROOM_FURNITURE) {
     const details = furnitureOfferDetails(item.itemId);
-    assert.equal(details.sizeText, `크기 (월드 단위): 가로 ${item.width} × 높이 ${item.height} × 깊이 ${item.depth}`);
+    const visual = furnitureVisualForItem(item.itemId);
+    if (visual?.geometryPolicy === 'character-r1') {
+      const size = visual.max.map((value, axis) => Number((value - visual.min[axis]).toFixed(3)));
+      assert.equal(details.sizeText, `새 외형 (월드 단위): 가로 ${size[0]} × 높이 ${size[1]} × 깊이 ${size[2]}. 주변과 겹치면 기존 외형을 유지해요.`);
+    } else assert.equal(details.sizeText, `크기 (월드 단위): 가로 ${item.width} × 높이 ${item.height} × 깊이 ${item.depth}`);
   }
   assert.equal(furnitureOfferDetails('furniture.campus_map_poster').surfaceText, '놓을 곳: 벽');
   assert.equal(furnitureOfferDetails(ITEM).surfaceText, '놓을 곳: 바닥 · 침대 위');

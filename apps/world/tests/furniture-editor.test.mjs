@@ -21,7 +21,7 @@ FakeElement.prototype.closest=function(selector){return selector==="[data-object
 const originalAttr=FakeElement.prototype.setAttribute;
 FakeElement.prototype.setAttribute=function(key,value){originalAttr.call(this,key,value);if(key==="data-object-id")this.dataset.objectId=String(value);};
 
-async function rig({role="owner",objects=[],items=ROOM_FURNITURE.map(item=>({itemId:item.itemId,quantity:1}))}={}) {
+async function rig({role="owner",objects=[],getPlacementGeometry,getPlacementNotices,items=ROOM_FURNITURE.map(item=>({itemId:item.itemId,quantity:1}))}={}) {
   const doc=createFakeDocument(); doc.body=doc.createElement("body");doc.createElementNS=(_namespace,tag)=>doc.createElement(tag);
   let ui,revision=0,user=USER;const calls=[],openChanges=[],queue=[],listeners=[];
   const client=createFurnitureClient({getUserId:()=>user,getClient:()=>({rpc:async(name,args)=>{
@@ -29,7 +29,7 @@ async function rig({role="owner",objects=[],items=ROOM_FURNITURE.map(item=>({ite
     return {data:{roomId:args.p_room,role,revision: name.startsWith("save")? ++revision :revision,objects:name.startsWith("save")?args.p_objects:objects},error:null};
   }}),onChange:state=>ui?.update(state)});
   const inventory={state:"READY",snapshot:{items},refresh:async()=>true,onChange:fn=>{listeners.push(fn);return ()=>{};}};
-  ui=createFurnitureEditor({doc,client,inventory,onOpenChange:open=>openChanges.push(open)});await client.bind(ROOM);
+  ui=createFurnitureEditor({doc,client,inventory,getPlacementGeometry,getPlacementNotices,onOpenChange:open=>openChanges.push(open)});await client.bind(ROOM);
   const panel=doc.body.children.find(row=>row.id==="furniture-editor");
   const byText=text=>walk(panel).find(row=>row.tagName==="BUTTON"&&row.textContent===text);
   return {ui,client,doc,panel,inventory,calls,openChanges,byText,queue,switchUser:()=>{user="bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";client.reset();},notify:()=>listeners.forEach(fn=>fn())};
@@ -345,4 +345,18 @@ test('BFCache guide detachment keeps pending save alive and still blocks close u
   assert.equal(h.client.state().pending,true);assert.equal(h.ui.requestClose(),false);assert.equal(h.ui.open,true);
   resolve({data:{roomId:ROOM,role:'owner',revision:1,objects:draft},error:null});await flush();
   assert.equal(h.client.state().dirty,false);h.byText('완료').click();assert.equal(done,0);
+});
+
+test('active character bounds update the plan without changing saved data and fallback explains rearrangement',async()=>{
+ const object={id:'cccccccc-cccc-4ccc-8ccc-cccccccccccc',itemId:'furniture.induck_chair',surface:'floor',x:-2,z:-1,yaw:45};
+ const geometry=new Map([[object.id,{box:{minX:-2.77,maxX:-1.23,minZ:-1.77,maxZ:-.23,minY:.025,maxY:1.252}}]]);
+ let notices=[];const h=await rig({objects:[object],getPlacementGeometry:()=>geometry,getPlacementNotices:()=>notices});
+ h.ui.openEditor();let rect=walk(h.panel).find(node=>node.dataset?.objectId===object.id);
+ assert.equal(Number(rect.getAttribute('width')),1.54);assert.equal(rect.getAttribute('transform'),'');
+ const map=walk(h.panel).find(node=>node.tagName==='SVG');map.dispatch('click',{target:rect});
+ geometry.clear();notices=[{id:object.id,notice:'새 가구가 주변과 겹쳐 기존 외형을 유지해요. 꾸미기에서 여유 공간으로 옮겨 주세요.'}];
+ h.ui.update(h.client.state());rect=walk(h.panel).find(node=>node.dataset?.objectId===object.id);
+ assert.equal(Number(rect.getAttribute('width')),.6);assert.equal(rect.getAttribute('transform'),'rotate(45 -2 1)');
+ assert.ok(walk(h.panel).some(node=>node.textContent===notices[0].notice));
+ assert.deepEqual(h.client.state().objects,[object]);assert.equal(h.calls.filter(call=>call.name.startsWith('save')).length,0);
 });
