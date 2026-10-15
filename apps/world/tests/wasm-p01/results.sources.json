@@ -1,0 +1,16 @@
+{
+  "base": "07e18ef418c7f987dc45a144ffd0fa240d9fd417",
+  "note": "Measured semantic/runtime sources, recorded alongside results; documentation and later extra tests do not change these bytes.",
+  "files": {
+    "apps/world/npc-factory/dev-navigation.mjs": "b7fb64341871d885c4f658a84be8e73a360155e12ab55f20e4399d48c2823efd",
+    "apps/world/npc-factory/dev-runtime.mjs": "a6131bee42a4f33f6f324cbf065b34109b09ed7ea8ebdcdf5e1916224b5a27f9",
+    "apps/world/npc-factory/wasm-walkability-p01.mjs": "cac16f550b5e4bbca6e0d97ad5e4110b1e26f3564ed1a52eec22b1cd08cf3300",
+    "apps/world/npc-factory/wasm/walkability-p01.cpp": "2ecac0636cb56dbae70a763897425b294f0411bccc6e4e6be0e567c266096b40",
+    "apps/world/npc-factory/wasm/walkability-p01.wasm": "92db411ff5d6a1968ccbbb4b6e4a11207b9130317b4e3c106a1435f6518449cf",
+    "apps/world/npc-factory/wasm/build-walkability-p01.sh": "4642498f43188036f41c18c3cebe0857c8629da925530c0a6dea0079b93b2c81",
+    "apps/world/tests/wasm-p01/workloads.mjs": "0651bf603cd506b80b14e5b493b73f5b0f04d0f45508d6cb07d596a67a148791",
+    "apps/world/tests/wasm-p01/benchmark.mjs": "5b5a284d1a9cd51649151057c902bddc17c6531a1cb3bada8be9bdf30eb3e837",
+    "apps/world/tests/wasm-p01/cold.mjs": "48b3b02208f910aa2b4660d1325bd1b4f2d0ea44876e19adb6534d4a938e2a7f",
+    "apps/world/tests/wasm-p01/cached-js-control.mjs": "a254176458ba4055b2f368c81d1bf2b175f8196136ee0b92e6ee0f9f60545b39"
+  }
+}

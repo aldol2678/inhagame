@@ -1,0 +1,11 @@
+{
+  "scope": "Task-local unpack only; no global installation or persistent environment change",
+  "target": "wasm32 freestanding C++17, no WASI/sysroot/Emscripten/libc imports",
+  "smoke": { "result": "PASS", "function": "add(20, 22)", "value": 42, "imports": [], "bytes": 242 },
+  "packages": [
+    { "name": "clang-19", "version": "1:19.1.7-3+b1", "url": "https://deb.debian.org/debian/pool/main/l/llvm-toolchain-19/clang-19_19.1.7-3+b1_amd64.deb", "sha256": "bbb74458d782b7792b61b0eed92746df5e6d033778c045cf8c2b3835b7c4efc4" },
+    { "name": "lld-19", "version": "1:19.1.7-3+b1", "url": "https://deb.debian.org/debian/pool/main/l/llvm-toolchain-19/lld-19_19.1.7-3+b1_amd64.deb", "sha256": "756a805e8811d527dd2b5417f016c9342b8631fa9c1ddcd56265c13ae33bf3a4" },
+    { "name": "libclang-cpp19", "version": "1:19.1.7-3+b1", "url": "https://deb.debian.org/debian/pool/main/l/llvm-toolchain-19/libclang-cpp19_19.1.7-3+b1_amd64.deb", "sha256": "a7d2b6df51050834f6ea5c0d5e34869c2298b0bcdaa91eff17ba3db2cd545c47" }
+  ],
+  "hostDependencies": "Existing Debian13 libLLVM19, libc6, libstdc++6 and other host libraries were reused; only the three listed packages were downloaded"
+}
