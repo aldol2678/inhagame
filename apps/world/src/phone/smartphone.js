@@ -329,43 +329,48 @@ export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, g
       for(const place of records)details.append(btn(place.title,()=>pickMapPlace(place)));list.append(details);
     }
   }
-  // Only Home shortcuts are installed/removed; no server/game data is touched.
+  // INDUCK STORE 0.2.1 runs as the original mobile UI inside Phone.
+  // A scoped, allowlisted bridge is the only integration with the Phone launcher.
+  let storeFrame=null;
+  const storeGameIds=Object.freeze({
+    'induck-pet':'induck-grow','induck-classic':'induck-classic',
+    'induckup':'induckup','induck-survival':'induck-survival'
+  });
+  const storeNativeIds=Object.freeze({
+    'map':'maps','camera':'camera','album':'album','student-id':'student-id','settings':'settings'
+  });
+  function sendStoreSync() {
+    const target=storeFrame?.contentWindow;
+    if(!storeFrame?.isConnected||!target||!win.location?.origin)return;
+    target.postMessage({channel:'INHA_OS_STORE_021',action:'sync',
+      installedApps:preferences.snapshot().installedApps},win.location.origin);
+  }
+  function receiveStoreMessage(event) {
+    if(!storeFrame?.isConnected||event.source!==storeFrame.contentWindow||
+      event.origin!==win.location?.origin||event.data?.channel!=='INHA_OS_STORE_021')return;
+    const {action,id}=event.data;
+    if(action==='ready'){sendStoreSync();return;}
+    if(action==='open'){
+      const appId=storeNativeIds[id]||storeGameIds[id];
+      if(appId&&(storeNativeIds[id]||preferences.snapshot().installedApps.includes(appId)))launch(appId);
+      return;
+    }
+    const appId=storeGameIds[id];
+    if(!appId||!['install','uninstall'].includes(action))return;
+    const ok=action==='install'?preferences.install(appId):preferences.uninstall(appId);
+    if(ok&&!preferences.save())warn('스토어 설치 설정을 기기에 저장하지 못했어요.');
+    sendStoreSync();
+  }
+  win.addEventListener('message',receiveStoreMessage);
   function renderStore() {
-    const prefs=preferences.snapshot();
-    content.append(el('h3','','인덕스토어'),el('p','smartphone-hint',
-      '모든 앱 무료 · 설치는 스마트폰 바로가기 추가예요. 게임 세이브나 계정은 삭제되지 않아요.'));
-    const builtIn=el('section','phone-store-section');
-    builtIn.append(el('h4','','기본 앱'));
-    for(const app of PHONE_SYSTEM_APPS) {
-      if(app.id==='induck-store')continue;
-      const hidden=prefs.hiddenApps.includes(app.id),line=el('div','phone-store-item'),detail=el('div','phone-store-details');
-      detail.append(el('strong','',app.icon+' '+app.name),el('small','',hidden?'홈에서 숨김':'기본 제공'));
-      line.append(detail);
-      if(hidden)line.append(btn('홈에 표시',()=>{if(preferences.show(app.id)){preferences.save();render(true);}}));
-      builtIn.append(line);
-    }
-    content.append(builtIn);
-    const games=el('section','phone-store-section');games.append(el('h4','','게임 앱'));
-    for(const app of PHONE_EXTERNAL_APPS) {
-      const installed=prefs.installedApps.includes(app.id),hidden=prefs.hiddenApps.includes(app.id);
-      const line=el('div','phone-store-item'),detail=el('div','phone-store-details');
-      detail.append(el('strong','',app.icon+' '+app.name),
-        el('small','',installed?(hidden?'설치됨 · 홈에서 숨김':'설치됨 · 외부 게임 바로가기'):'무료 · 별도 사이트에서 실행'));
-      line.append(detail);const actions=el('div','phone-store-actions');
-      actions.append(btn(installed?'바로가기 제거':'무료 설치',()=>{
-        const ok=installed?preferences.uninstall(app.id):preferences.install(app.id);
-        if(ok){if(!preferences.save())warn('바로가기 설정을 저장하지 못했어요.');render(true);}
-      }));
-      if(installed){
-        actions.append(btn(hidden?'홈에 표시':'홈에서 숨김',()=>{
-          const ok=hidden?preferences.show(app.id):preferences.hide(app.id);
-          if(ok){if(!preferences.save())warn('바로가기 설정을 저장하지 못했어요.');render(true);}
-        }));
-        actions.append(btn('열기',()=>launch(app.id)));
-      }
-      line.append(actions);games.append(line);
-    }
-    content.append(games);
+    const frame=el('iframe','phone-store-iframe');
+    frame.title='인덕스토어 v0.2.1';
+    frame.loading='eager';
+    frame.referrerPolicy='same-origin';
+    frame.src='/campus/induck-store-v0.2.1.html?phone=1&scope='+encodeURIComponent(album.scope);
+    frame.addEventListener('load',()=>{if(storeFrame===frame)sendStoreSync();});
+    storeFrame=frame;
+    content.append(frame);
   }
   function renderExternalGame(id) {
     const app=phoneExternalApp(id);
@@ -388,7 +393,7 @@ export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, g
     const gateView=s.current?.appId==='student-id'&&s.current.view==='jeongseok'&&s.current.origin==='gate';
     if(jeongseokReturn&&(!shell.ownsInput||!gateView)){jeongseokReturn=null;jeongseok?.phoneClosed();}
     if(!force&&route===lastRoute)return;const routeChanged=route!==lastRoute;lastRoute=route;if(routeChanged)jeongseokConfirm=false;
-    const keepFocus=!routeChanged&&root.contains(doc.activeElement)?doc.activeElement.textContent:null;uiEpoch++;albumManager.leave();revokeImages();content.replaceChildren();if(routeChanged)content.scrollTop=0;say(warning);void setWallpaper();
+    const keepFocus=!routeChanged&&root.contains(doc.activeElement)?doc.activeElement.textContent:null;uiEpoch++;storeFrame=null;albumManager.leave();revokeImages();content.replaceChildren();if(routeChanged)content.scrollTop=0;say(warning);void setWallpaper();
     if(s.state==='HOME'||s.state==='HOME_EDIT')renderHome();
     else if(s.state==='APP'){
       const app=s.current;title.textContent=registry.find(x=>x.id===app.appId)?.name||'스마트폰';
@@ -498,7 +503,7 @@ export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, g
     },
     status:()=>({...shell.snapshot(),scope:album.scope,preferences:preferences.snapshot(),albumError:album.error,messages:messages.status(),notifications:notifications.snapshot()}),
     destroy(){albumManager.reset();shell.close();notifications.destroy();messages.setAccount(null);destroyed=true;clearHold();win.clearInterval(clockTimer);shell.destroy();album.destroy();unsubscribePhoto();
-      toggle?.removeEventListener('click',toggleClick);doc.removeEventListener('keydown',keyboard,true);doc.removeEventListener('click',legacyProfile,true);doc.removeEventListener('click',legacyDaily,true);doc.removeEventListener('visibilitychange',visibility);win.removeEventListener('pagehide',pagehide);
+      toggle?.removeEventListener('click',toggleClick);doc.removeEventListener('keydown',keyboard,true);doc.removeEventListener('click',legacyProfile,true);doc.removeEventListener('click',legacyDaily,true);doc.removeEventListener('visibilitychange',visibility);win.removeEventListener('pagehide',pagehide);win.removeEventListener('message',receiveStoreMessage);
       revokeImages();if(wallpaperUrl)win.URL.revokeObjectURL(wallpaperUrl);worldVisibility(false);root.remove();}
   });
 }
