@@ -5,6 +5,7 @@ import vm from 'node:vm';
 import {CHARACTER_FURNITURE_CANDIDATES} from '../src/rooms/character-furniture-assets.js';
 import {OFFICIAL_FURNITURE_CANDIDATES} from '../src/rooms/furniture-visual-assets.js';
 const visuals=[...CHARACTER_FURNITURE_CANDIDATES,...OFFICIAL_FURNITURE_CANDIDATES.filter(v=>['furniture.campus_rug_blue','fixture.personal_bed'].includes(v.itemId))];
+import {RIDING_FIGURINE_VISUAL} from '../src/rooms/riding-figurine-assets.js';
 const source=readFileSync(new URL('../api/brand-asset.js',import.meta.url),'utf8');
 function rig(visual, override={}) {
  const asset=new URL(visual.url,'https://local.invalid').searchParams.get('asset');
@@ -38,4 +39,10 @@ test('legacy five canonical and optimized deliveries retain their original buffe
   await context.module.exports({method:'GET',url:`/api/brand-asset?asset=${asset}&variant=${variant}`},{setHeader(k,v){headers[k.toLowerCase()]=v},status(v){status=v;return this},send(bytes){sent=bytes},end(){}});
   assert.equal(status,200);assert.deepEqual(sent,payload);assert.equal(calls.at(-1).options.redirect,undefined);assert.match(headers['cache-control'],/^public, max-age=300/);assert.equal(headers.location,undefined);
  }
+});
+
+test('pending R5 proxy accepts only pinned signed delivery without activating the model',async()=>{
+ const v=RIDING_FIGURINE_VISUAL;assert.equal(v.enabled,false);
+ for(const method of ['GET','HEAD']){const r=rig(v),out=await r.request(method);assert.equal(out.status,307);assert.equal(out.headers.location,r.location);assert.equal(out.headers['cache-control'],'no-store');assert.equal(r.bodyReads(),0);}
+ for(const override of [{sha:'0'.repeat(64)},{bytes:'1'},{status:200}])assert.equal((await rig(v,override).request()).status,502);
 });

@@ -15,6 +15,7 @@ const ALLOWED = new Set([
 // Immutable furniture payloads use canonical bytes only; runtime activation is
 // separately gated in the code-owned furniture manifest. No private asset bytes here.
 const CANONICAL_FURNITURE = new Set([
+  'dual-mascot-riding-figurine-r5-52f2746b48ee.glb',
   'annyongi-character-chair-r2-70ec784f8796.glb',
   'official-rug-replacement-r1-f4ca31569bdf.glb',
   'official-bed-replacement-r2-44d3cdc7870c.glb',
@@ -23,6 +24,7 @@ const CANONICAL_FURNITURE = new Set([
 ]);
 
 const FURNITURE_DELIVERY = Object.freeze({
+  "dual-mascot-riding-figurine-r5-52f2746b48ee.glb": { "sha256": "52f2746b48eeffb02e35e468a7fef65a847543c9be3f7cf8b22c9e192e6a77c6", "bytes": 2508836 },
   "annyongi-character-chair-r2-70ec784f8796.glb": {
     "sha256": "70ec784f87966d43ef80ce4a742e9ce43a1a7d40312be00b9a569843edf190b8",
     "bytes": 3243832
