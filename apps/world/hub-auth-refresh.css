@@ -65,3 +65,27 @@
 }
 @media(max-width:360px){.hub-account-view .hub-auth-card{padding:18px 14px}.hub-account-view .hub-auth-hero{padding:20px 15px}.hub-account-view .hub-auth-hero h1{font-size:25px}}
 @media(prefers-reduced-motion:reduce){.hub-account-view :is(button,input){transition:none!important}}
+
+/* Keep the primary sign-in action above the fixed mobile navigation on 844px screens. */
+@media(max-width:680px){
+  .hub-account-view .hub-auth-hero{padding:15px 18px 16px;margin-bottom:12px}
+  .hub-account-view .hub-auth-eyebrow{margin-bottom:6px;font-size:10px}
+  .hub-account-view .hub-auth-hero h1{font-size:clamp(23px,6vw,27px);line-height:1.22;margin:0 0 6px}
+  .hub-account-view .hub-auth-hero .lead{font-size:11px;line-height:1.48}
+  .hub-account-view .hub-auth-card{padding:17px 18px}
+  .hub-account-view .hub-auth-card-heading{margin-bottom:9px}
+  .hub-account-view .hub-auth-card-heading p{display:none}
+  .hub-account-view .hub-auth-card-heading h2{margin-bottom:0;font-size:19px}
+  .hub-account-view #hub-account-status{margin:0 0 7px;min-height:0;line-height:1.4}
+  .hub-account-view .auth-tabs{min-height:0;margin:8px 0 12px;padding:4px}
+  .hub-account-view .auth-tabs .secondary{min-height:40px;padding:8px}
+  .hub-account-view .hub-auth-form-intro{margin:0 0 8px;font-size:12px}
+  .hub-account-view #hub-login-form .profile-field{margin:11px 0 5px;gap:5px}
+  .hub-account-view #hub-login-form .primary{margin-top:13px}
+}
+@media(max-width:360px){
+  .hub-account-view .hub-auth-hero{padding:14px}
+  .hub-account-view .hub-auth-hero h1{font-size:22px}
+  .hub-account-view .hub-auth-card{padding:15px 14px}
+  .hub-account-view .hub-auth-card-heading{gap:8px}
+}
