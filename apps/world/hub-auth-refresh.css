@@ -1,0 +1,67 @@
+/* AUTH-UI-01: visual-only refresh for INHA WORLD hub account panel. */
+.hub-account-view{--hub-auth-ink:#17372e;--hub-auth-green:#1b604a;--hub-auth-muted:#61756d;--hub-auth-border:#d9e4d7;max-width:100%}
+.hub-account-view .hub-auth-hero{position:relative;isolation:isolate;overflow:hidden;display:grid;grid-template-columns:minmax(0,1.25fr) minmax(220px,.75fr);gap:20px;align-items:center;min-height:228px;margin:0 0 24px;padding:34px clamp(22px,4vw,48px);border-radius:24px;border:1px solid #d4e3ce;background:linear-gradient(110deg,#f8f5e9 0%,#eaf2de 53%,#d9e9d1 100%);color:var(--hub-auth-ink)}
+.hub-account-view .hub-auth-hero::before{content:"";position:absolute;inset:auto -70px -158px auto;width:340px;height:340px;border-radius:50%;background:#b7d6bb70;z-index:-1}
+.hub-account-view .hub-auth-eyebrow{display:inline-flex;align-items:center;gap:7px;margin-bottom:14px;font-size:11px;letter-spacing:.14em;font-weight:850;color:#43745a}
+.hub-account-view .hub-auth-hero h1{margin:0 0 12px;font-size:clamp(28px,3.5vw,43px);line-height:1.28;letter-spacing:-.045em;font-weight:900}
+.hub-account-view .hub-auth-hero h1 em{font-style:normal;color:#257553}
+.hub-account-view .hub-auth-hero .lead{max-width:500px;margin:0;color:#4d6b59;font-size:14px;line-height:1.75}
+.hub-account-view .hub-auth-hero-art{position:relative;width:100%;min-height:145px;align-self:stretch}
+.hub-account-view .hub-auth-hero-art img{position:absolute;width:122%;max-width:none;height:100%;object-fit:cover;object-position:center;filter:drop-shadow(0 10px 12px #285d3c17);border-radius:19px}
+.hub-account-view .hub-auth-card{width:min(100%,620px);margin:0 auto 22px;padding:clamp(22px,5vw,40px);border:1px solid #dfebdc;border-radius:26px;background:#fffdf9;box-shadow:0 18px 50px #204b3014}
+.hub-account-view .hub-auth-card-heading{display:flex;align-items:center;gap:14px;margin:0 0 18px}
+.hub-account-view .hub-auth-card-emblem{display:grid;place-items:center;flex:0 0 53px;width:53px;height:53px;border-radius:17px;background:#1e674e;color:#fff9e9;font-size:21px;font-weight:950;letter-spacing:-.12em;box-shadow:0 5px 0 #aacbb3}
+.hub-account-view .hub-auth-card-emblem span{color:#e9c46d}
+.hub-account-view .hub-auth-label{font-size:10px;letter-spacing:.13em;font-weight:900;color:#6a9781}
+.hub-account-view .hub-auth-card-heading h2{margin:3px 0 4px;font-size:22px;letter-spacing:-.035em;color:#193d2e}
+.hub-account-view .hub-auth-card-heading p{margin:0;font-size:12px;line-height:1.5;color:#627a6c}
+.hub-account-view #hub-account-status{min-height:22px;margin:0 0 12px;font-size:12px;line-height:1.6;color:#557362}
+.hub-account-view .auth-tabs{display:grid;grid-template-columns:1fr 1fr;gap:5px;width:100%;max-width:none;margin:14px 0 22px;padding:5px;border:1px solid #e1eadf;border-radius:14px;background:#f0f4eb}
+.hub-account-view .auth-tabs .secondary{min-height:45px;padding:10px;border:0;border-radius:10px;background:transparent;color:#6c7f70;font-weight:800}
+.hub-account-view .auth-tabs .secondary[aria-pressed="true"]{background:#fff;color:#22583f;box-shadow:0 2px 9px #1d593019}
+.hub-account-view #hub-signup-form,.hub-account-view #hub-login-form,.hub-account-view .social-auth,.hub-account-view .profile-setup{max-width:none;width:100%}
+.hub-account-view .hub-auth-form-intro{margin:0 0 20px;font-size:13px;color:#667b70}
+.hub-account-view #hub-signup-form .profile-field,.hub-account-view #hub-login-form .profile-field,.hub-account-view .profile-setup .profile-field{margin:17px 0 6px;gap:8px;font-size:13px;font-weight:800;color:#2b4f3e}
+.hub-account-view #hub-signup-form .profile-field>input,.hub-account-view #hub-login-form .profile-field>input,.hub-account-view .hub-auth-input-wrap input{width:100%;min-width:0;min-height:51px;padding:13px 16px;border:1.5px solid #d7e4d7;border-radius:13px;background:#fff;color:#213f32;font-size:16px;font-weight:500;outline:none;transition:border-color .17s,box-shadow .17s}
+.hub-account-view .profile-field input::placeholder{color:#9baaa0;font-weight:400}
+.hub-account-view #hub-signup-form .profile-field input:focus,.hub-account-view #hub-login-form .profile-field input:focus{border-color:#2d9167;box-shadow:0 0 0 4px #28926018}
+.hub-account-view .hub-auth-input-wrap{display:flex;position:relative;width:100%;align-items:center}
+.hub-account-view .hub-auth-input-wrap input{padding-right:72px}
+.hub-account-view .hub-auth-reveal{position:absolute;right:9px;top:50%;transform:translateY(-50%);min-width:52px;min-height:35px;padding:4px 9px;border:0;border-radius:8px;background:#eaf2eb;color:#2b6750;font-size:12px;font-weight:800}
+.hub-account-view .hub-auth-reveal:hover{background:#d9ecdf}
+.hub-account-view .hub-auth-field-help{margin:5px 0 10px;font-size:11px;color:#778c7c}
+.hub-account-view .hub-age-confirmation{align-items:center;gap:10px;margin:19px 0 3px;font-size:12px;color:#3c5546}
+.hub-account-view .hub-age-confirmation input[type="checkbox"]{accent-color:#207850;flex:0 0 20px}
+.hub-account-view #hub-signup-age-note,.hub-account-view #hub-google-age-note{margin:4px 0 8px 30px;font-size:11px;color:#788b7c;line-height:1.5}
+.hub-account-view .hub-auth-terms{margin:13px 0 20px;font-size:12px;color:#63796b;line-height:1.65}
+.hub-account-view .hub-auth-terms a,.hub-account-view .social-auth-disclosure a{color:#1e7151;text-decoration:underline;text-underline-offset:3px}
+.hub-account-view #hub-login-form .primary,.hub-account-view #hub-signup-form .primary{display:flex;align-items:center;justify-content:center;gap:9px;width:100%;min-height:52px;margin:22px 0 0;border:0;border-radius:13px;background:#1e674e;color:white;font-size:15px;font-weight:900;transition:background .17s,transform .17s}
+.hub-account-view #hub-login-form .primary:hover,.hub-account-view #hub-signup-form .primary:hover{background:#124f3b;transform:translateY(-1px)}
+.hub-account-view #hub-login-form .primary:disabled,.hub-account-view #hub-signup-form .primary:disabled{cursor:wait;opacity:.6;transform:none}
+.hub-account-view .hub-auth-footnote{margin:12px 0 0;text-align:center;font-size:12px;color:#7c907e}
+.hub-account-view .social-auth{margin:13px 0 0}
+.hub-account-view .auth-divider{margin:20px 0 16px;color:#91a296;font-size:11px}
+.hub-account-view .auth-divider::before,.hub-account-view .auth-divider::after{background:#dfe9de}
+.hub-account-view .google-auth-button{min-height:51px;border-radius:13px;border:1.5px solid #cad9ce;background:#fff;color:#344a3a;font-size:14px;font-weight:850;transition:background .18s}
+.hub-account-view .google-auth-button:hover{background:#f2f7f2}
+.hub-account-view .hub-google-mark{display:grid;place-items:center;width:25px;height:25px;border-radius:50%;background:#fff;border:1px solid #e5e5e5;color:#4285f4;font-family:Arial,sans-serif;font-weight:900;font-size:20px;line-height:1}
+.hub-account-view .hub-auth-disclosure{margin-top:13px;color:#7d9080;font-size:11px;line-height:1.6}
+.hub-account-view .hub-auth-disclosure summary{cursor:pointer;text-align:center;text-decoration:underline;text-underline-offset:3px;list-style-position:inside}
+.hub-account-view .hub-auth-disclosure .social-auth-disclosure{margin:8px 0 0;padding:11px;border-radius:9px;background:#f4f7f2;font-size:11px;line-height:1.6}
+.hub-account-view .profile-setup{background:#f2f7ed;border-color:#d5e3d2}
+.hub-account-view #hub-account-actions{margin:15px 0}
+.hub-account-view #hub-inha-verification-card{margin-top:18px}
+.hub-account-view :is(button,a,input):focus-visible{outline:3px solid #d2a947;outline-offset:3px}
+@media(max-width:680px){
+ .hub-account-view .hub-auth-hero{grid-template-columns:1fr;min-height:auto;gap:0;margin-bottom:16px;padding:24px 21px;border-radius:18px}
+ .hub-account-view .hub-auth-hero h1{font-size:clamp(26px,7vw,34px)}
+ .hub-account-view .hub-auth-hero .lead{font-size:12px}
+ .hub-account-view .hub-auth-hero-art{position:absolute;inset:auto -26px -55px auto;width:120px;height:120px;min-height:0;opacity:.16;pointer-events:none}
+ .hub-account-view .hub-auth-hero-art img{width:100%;height:100%}
+ .hub-account-view .hub-auth-card{padding:23px 19px;border-radius:20px;box-shadow:0 8px 25px #204b3011}
+ .hub-account-view .hub-auth-card-heading{gap:10px}
+ .hub-account-view .hub-auth-card-heading h2{font-size:20px}
+ .hub-account-view .hub-auth-card-emblem{flex-basis:45px;width:45px;height:45px;font-size:17px}
+}
+@media(max-width:360px){.hub-account-view .hub-auth-card{padding:18px 14px}.hub-account-view .hub-auth-hero{padding:20px 15px}.hub-account-view .hub-auth-hero h1{font-size:25px}}
+@media(prefers-reduced-motion:reduce){.hub-account-view :is(button,input){transition:none!important}}
