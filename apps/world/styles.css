@@ -6248,3 +6248,153 @@ body[data-photo-mode="active"] > :not(#application):not(.photo-mode):not(script)
 
 }
 /* LANDSCAPE-HUD:end */
+
+/* MOBILE-UX-20261015: usable World drawer without disturbing the existing HUD contracts. */
+.identity-actions {
+  box-sizing: border-box;
+  width: min(344px, calc(100vw - 24px));
+  max-height: calc(100dvh - max(80px, calc(env(safe-area-inset-top) + 65px)) - 12px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  padding: 14px;
+  scrollbar-width: thin;
+}
+.hud-menu-grabber { display: none; }
+.hud-menu-group-label {
+  margin: 12px 2px 8px;
+  font-size: 11px;
+  font-weight: 850;
+  letter-spacing: .04em;
+  color: #a9c3d2;
+}
+.hud-menu-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.identity-actions .hud-menu-grid > button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-width: 0;
+  width: 100%;
+  min-height: 72px;
+  padding: 10px 5px;
+  text-align: center;
+  border: 1px solid rgba(178,220,239,.28);
+  background: rgba(32,72,98,.6);
+  font-size: 19px;
+  line-height: 1.2;
+}
+.identity-actions .hud-menu-grid > button span {
+  font-size: 11px; font-weight: 800; overflow-wrap: anywhere;
+}
+.identity-actions button[hidden] { display: none !important; }
+.identity-actions .hud-menu-phone {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; margin-top: 12px; padding: 10px 12px;
+  background: rgba(24, 89, 105, .73); border-color: rgba(143,226,211,.48);
+  font-weight: 800; font-size: 12px;
+}
+.identity-actions .hud-menu-phone span:first-of-type { flex: 1; min-width: 0; }
+.identity-actions .hud-menu-tools { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; margin-top: 8px; }
+.identity-actions .hud-menu-tools > button {
+  min-width: 0; min-height: 44px; padding: 8px 7px; font-size: 11px;
+  text-align: center; border-color: rgba(178,220,239,.34);
+}
+.identity-actions .hud-diagnostics { margin-top: 10px; }
+
+/* SETTINGS-2: category navigation shares unchanged controls and preferences. */
+.view-settings {
+  box-sizing: border-box;
+  width: min(380px, calc(100vw - 24px));
+  top: max(72px, calc(env(safe-area-inset-top) + 64px));
+  right: max(12px, env(safe-area-inset-right));
+  max-height: calc(100dvh - max(82px, calc(env(safe-area-inset-top) + 74px)) - 12px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+}
+.view-settings .settings2-header {
+  display: grid; grid-template-columns: 44px minmax(0,1fr) 44px; align-items: center;
+  gap: 4px; position: sticky; top: -16px; z-index: 2;
+  padding: 8px 0 12px; margin-bottom: 4px;
+  background: #142d46f5; border-bottom: 1px solid rgba(178,220,239,.2);
+}
+.view-settings .settings2-header h2 {
+  margin: 0; text-align: center; font-size: 16px;
+}
+.view-settings .settings2-header #close-settings,
+.view-settings .settings2-header #settings-section-back {
+  position: static; display: grid; place-items: center;
+  box-sizing: border-box; width: 44px; height: 44px;
+  padding: 0; margin: 0; border-radius: 12px;
+  border: 1px solid rgba(178,220,239,.3); color: #f5fbff;
+  background: rgba(28,67,91,.9); font-size: 24px;
+}
+.view-settings .settings2-header #settings-section-back[hidden] { visibility: hidden; display: block; pointer-events: none; }
+.view-settings .settings2-header #close-settings { grid-column: 3; }
+.view-settings .settings2-home { display: grid; gap: 9px; padding: 4px 0 12px; }
+.view-settings .settings2-intro { margin: 0 0 6px; font-size: 12px; color: #c8dfeb; }
+.view-settings .settings2-category {
+  display: grid; grid-template-columns: 36px minmax(0,1fr) 16px;
+  align-items: center; gap: 10px; width: 100%; min-height: 70px;
+  padding: 10px 12px; border: 1px solid rgba(178,220,239,.35);
+  border-radius: 14px; background: rgba(37,76,101,.76);
+  color: #effaff; text-align: left; cursor: pointer;
+}
+.view-settings .settings2-category > span:first-child { font-size: 24px; text-align: center; }
+.view-settings .settings2-category strong { display: block; font-size: 14px; }
+.view-settings .settings2-category small { display: block; font-size: 11px; margin-top: 4px; color: #b7d1e0; }
+.view-settings .settings2-page { display: grid; gap: 7px; padding: 4px 0 12px; }
+.view-settings .settings2-page h3 { font-size: 16px; margin: 2px 0 12px; }
+.view-settings .settings2-page label { margin: 8px 0 0; }
+.view-settings .settings2-page p { margin: 0 0 7px; }
+.view-settings .settings2-page select { margin: 0 0 2px; }
+.view-settings .settings2-page #graphics-reset { width: 100%; margin: 8px 0; }
+.view-settings .settings2-page .desktop-camera-settings { margin: 0; }
+.view-settings .settings2-status { margin: 10px 0 0; padding: 10px 12px; border-radius: 10px; background: rgba(4,19,34,.36); }
+.view-settings .settings2-home[hidden],
+.view-settings .settings2-page[hidden] { display: none !important; }
+@media (max-width: 600px) {
+  .identity-actions {
+    position: fixed;
+    top: auto; bottom: max(6px, env(safe-area-inset-bottom));
+    left: max(8px, env(safe-area-inset-left));
+    right: max(8px, env(safe-area-inset-right));
+    width: auto;
+    max-height: calc(100dvh - max(75px, calc(env(safe-area-inset-top) + 60px)) - max(6px, env(safe-area-inset-bottom)));
+    border-radius: 22px 22px 16px 16px; padding: 8px 14px max(14px, env(safe-area-inset-bottom));
+  }
+  .hud-menu-grabber { display: block; width: 40px; height: 4px; margin: 3px auto 12px; border-radius: 5px; background: #99b8c8a8; }
+  .view-settings:not([data-phone-hosted="true"]) {
+    top: max(60px, calc(env(safe-area-inset-top) + 48px));
+    max-height: calc(100dvh - max(70px, calc(env(safe-area-inset-top) + 60px)) - 10px);
+    right: max(8px, env(safe-area-inset-right));
+    width: min(380px, calc(100vw - 16px));
+  }
+}
+@media (max-height: 520px) {
+  .identity-actions .hud-menu-grid > button { min-height: 54px; }
+  .identity-actions .hud-menu-grid > button span { font-size: 10px; }
+}
+
+/* Short mobile landscape has a more-specific legacy 3-column HUD layout.
+   The new nested grid owns those columns instead, keeping the drawer coherent. */
+@media (pointer: coarse) and (orientation: landscape) and (max-height: 500px) {
+  body .identity-actions {
+    display: block; grid-template-columns: none;
+    top: auto; bottom: max(6px, env(safe-area-inset-bottom));
+    left: max(8px, env(safe-area-inset-left));
+    right: max(8px, env(safe-area-inset-right));
+    width: auto; max-height: calc(100dvh - 54px - env(safe-area-inset-bottom));
+    padding: 8px 12px;
+  }
+  body .identity-actions .hud-menu-grid > button { padding: 7px 4px; }
+  body .view-settings:not([data-phone-hosted="true"]) {
+    top: max(50px, env(safe-area-inset-top));
+    right: max(8px, env(safe-area-inset-right));
+    width: min(380px, calc(100vw - 16px));
+    max-height: calc(100dvh - 58px - env(safe-area-inset-bottom));
+  }
+}

@@ -15,6 +15,12 @@ test('PWA shortcut manifest is scoped, unique and keeps existing install identit
     assert.equal(url.pathname,'/campus/');
     assert.equal(url.searchParams.get('lobby'),'1');
     assert.equal(url.searchParams.getAll('shortcut').length,1);
+    assert.ok(Array.isArray(row.icons) && row.icons.length > 0, 'launcher entry needs an icon');
+    for (const icon of row.icons) {
+      assert.match(icon.src, /^\/campus\/icons\/icon-(192|512)\.png$/);
+      assert.equal(icon.type, 'image/png');
+      assert.equal(icon.sizes, '192x192');
+    }
   }
   assert.equal(new Set(manifest.shortcuts.map(x=>x.url)).size,4);
   assert.deepEqual(Object.keys(CAMPUS_SHORTCUT_APPS),['notifications','daily-quiz','album']);
