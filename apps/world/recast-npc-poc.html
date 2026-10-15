@@ -14,6 +14,17 @@
     pre{white-space:pre-wrap;word-break:break-word;background:#0a1118;border:1px solid #34515c;border-radius:12px;padding:16px;overflow:auto}
     .tag{display:inline-block;padding:3px 8px;border:1px solid #6ba49b;border-radius:999px;color:#bff2dd;font-size:12px}
   </style>
+
+  <script>
+    // Vercel owns this endpoint; do not request it from local browser QA servers.
+    if (/(^|\.)inhagame\.app$|\.vercel\.app$/.test(window.location.hostname)) {
+      window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
+      const analyticsScript = document.createElement('script');
+      analyticsScript.src = '/_vercel/insights/script.js';
+      analyticsScript.async = true;
+      document.head.appendChild(analyticsScript);
+    }
+  </script>
 </head>
 <body>
   <main>

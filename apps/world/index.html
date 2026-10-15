@@ -39,6 +39,17 @@
   <script defer src="/hub-friends.js"></script>
   <script defer src="/hub-messages-client.js"></script>
   <script defer src="/hub-messages.js"></script>
+
+  <script>
+    // Vercel owns this endpoint; do not request it from local browser QA servers.
+    if (/(^|\.)inhagame\.app$|\.vercel\.app$/.test(window.location.hostname)) {
+      window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
+      const analyticsScript = document.createElement('script');
+      analyticsScript.src = '/_vercel/insights/script.js';
+      analyticsScript.async = true;
+      document.head.appendChild(analyticsScript);
+    }
+  </script>
 </head>
 <body class="editorial-portal">
   <div class="editorial-masthead"><span>INHA WORLD / CAMPUS ÉDITORIAL</span><span>DISCOVER · PLAY · CONNECT</span></div>

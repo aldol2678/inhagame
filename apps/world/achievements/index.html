@@ -11,6 +11,17 @@
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script defer src="/api/public-supabase-config"></script>
   <script defer src="/achievements/achievements.js"></script>
+
+  <script>
+    // Vercel owns this endpoint; do not request it from local browser QA servers.
+    if (/(^|\.)inhagame\.app$|\.vercel\.app$/.test(window.location.hostname)) {
+      window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
+      const analyticsScript = document.createElement('script');
+      analyticsScript.src = '/_vercel/insights/script.js';
+      analyticsScript.async = true;
+      document.head.appendChild(analyticsScript);
+    }
+  </script>
 </head>
 <body>
   <header class="header">

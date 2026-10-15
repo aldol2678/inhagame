@@ -43,6 +43,17 @@
       }
     }
   </script>
+
+  <script>
+    // Vercel owns this endpoint; do not request it from local browser QA servers.
+    if (/(^|\.)inhagame\.app$|\.vercel\.app$/.test(window.location.hostname)) {
+      window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
+      const analyticsScript = document.createElement('script');
+      analyticsScript.src = '/_vercel/insights/script.js';
+      analyticsScript.async = true;
+      document.head.appendChild(analyticsScript);
+    }
+  </script>
 </head>
 <body>
   <section id="world-loading" tabindex="-1" class="world-loading" aria-label="INHA WORLD 로딩" aria-live="polite">
