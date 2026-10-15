@@ -83,11 +83,28 @@ const KEY_SUFFIX = PHONE_EMBEDDED?':phone:'+PHONE_SCOPE:'';
 const STORE_KEY='induck-store-v02'+KEY_SUFFIX;
 const OLD_STORE_KEY='induck-store-v01'+KEY_SUFFIX;
 const RECOVERY_KEY='induck-store-v02-recovery'+KEY_SUFFIX;
-const PHONE_GAME_IDS=Object.freeze({'induck-pet':'induck-grow','induck-classic':'induck-classic','induckup':'induckup','induck-survival':'induck-survival'});
-const PHONE_NATIVE_IDS=Object.freeze({'map':'maps','camera':'camera','album':'album','student-id':'student-id','settings':'settings'});
-function phoneBridge(action,id) {
-  if(PHONE_EMBEDDED)window.parent.postMessage({channel:'INHA_OS_STORE_021',action,id},location.origin);
+const PHONE_MANAGED=Object.freeze({
+  store:'induck-store',map:'maps',camera:'camera',album:'album','student-id':'student-id',
+  settings:'settings','daily-quiz':'daily-quiz',attendance:'attendance',messages:'messages',
+  notifications:'notifications','induck-grow':'induck-grow','induck-classic':'induck-classic',
+  induckup:'induckup','induck-survival':'induck-survival'
+});
+let phoneState=null,phonePending=null,phoneRequestSeq=0;
+const phoneManaged=id=>PHONE_EMBEDDED&&Object.hasOwn(PHONE_MANAGED,id);
+const phoneInstalled=id=>phoneState&&(phoneState.systemIds.includes(id)||phoneState.installedApps.includes(id));
+const phoneVisible=id=>phoneState&&!phoneState.hiddenApps.includes(id)&&
+  (phoneState.homeIds.includes(id)||phoneState.dockIds.includes(id));
+function phoneBridge(action,id,requestId) {
+  if(PHONE_EMBEDDED)window.parent.postMessage({channel:'INHA_OS_STORE_021',action,id,requestId},location.origin);
 }
+function phoneRequest(action,id) {
+  if(!phoneState){toast('스마트폰 연결을 확인 중이에요.');return;}
+  if(phonePending){toast('이전 요청의 결과를 확인 중이에요.');return;}
+  const requestId=++phoneRequestSeq;
+  phonePending={requestId,action,id};
+  phoneBridge(action,id,requestId);
+}
+
 if(PHONE_EMBEDDED)document.documentElement.classList.add('inha-os-embedded');
 const BACKUP_MAX_BYTES=262144;
 const BUILTIN_APPS=[
@@ -113,7 +130,12 @@ const BUILTIN_APPS=[
 {id:'delivery',name:'인덕배달',subtitle:'후문 상권을 내 손안에',category:'life',dist:'planned',version:'0.0.0',icon:'🥡',accent:'#f9d2b5',desc:'INHA WORLD 후문 상권과 연결하는 가상 배달앱. 현재 기획 단계입니다.',tags:['배달','후문','음식','상점','경제'],permissions:['미정'],notes:'기획 중',shots:['후문 메뉴','주문 콘셉트','배송 현황']},
 {id:'induck-classic',name:'인하오리 Classic',subtitle:'오리와 함께하는 클래식 게임',category:'games',dist:'available',version:'1.0.0',icon:'🦆',accent:'#d4e8c9',desc:'독립 웹게임 바로가기입니다. 게임 저장·로그인은 인하월드와 자동 연동되지 않아요.',tags:['인하오리','클래식','게임'],permissions:['외부 게임 링크 열기'],notes:'독립 게임 실행 링크',shots:['클래식 게임','독립 도메인','바로가기']},
 {id:'induckup',name:'인덕업',subtitle:'함께 키우는 성장 게임',category:'games',dist:'available',version:'1.0.0',icon:'📈',accent:'#c8dff6',desc:'독립 웹게임 바로가기입니다. 게임 저장·로그인은 인하월드와 자동 연동되지 않아요.',tags:['인덕업','게임'],permissions:['외부 게임 링크 열기'],notes:'독립 게임 실행 링크',shots:['성장 게임','독립 도메인','바로가기']},
-{id:'induck-survival',name:'인덕 서바이벌',subtitle:'인덕 생존 게임',category:'games',dist:'available',version:'1.0.0',icon:'🛡️',accent:'#efd7e5',desc:'독립 웹게임 바로가기입니다. 게임 저장·로그인은 인하월드와 자동 연동되지 않아요.',tags:['서바이벌','게임'],permissions:['외부 게임 링크 열기'],notes:'독립 게임 실행 링크',shots:['생존 게임','독립 도메인','바로가기']}
+{id:'induck-survival',name:'인덕 서바이벌',subtitle:'인덕 생존 게임',category:'games',dist:'available',version:'1.0.0',icon:'🛡️',accent:'#efd7e5',desc:'독립 웹게임 바로가기입니다. 게임 저장·로그인은 인하월드와 자동 연동되지 않아요.',tags:['서바이벌','게임'],permissions:['외부 게임 링크 열기'],notes:'독립 게임 실행 링크',shots:['생존 게임','독립 도메인','바로가기']},
+{id:'induck-grow',name:'인덕이 키우기',subtitle:'독립 웹게임',category:'games',dist:'available',version:'1.0.0',icon:'🐣',accent:'#d6e6b9',desc:'별도 웹게임인 인덕이 키우기를 스마트폰 바로가기로 실행해요. 인덕이 키우기 시연 앱과는 달라요.',tags:['인덕이 키우기','게임','성장'],permissions:['외부 게임 바로가기'],notes:'실제 바로가기 연결',shots:['인덕이 키우기','웹게임 실행','독립 세이브']},
+{id:'daily-quiz',name:'오늘의 퀴즈',subtitle:'매일 참여하는 퀴즈',category:'study',dist:'core',version:'1.0.0',icon:'📚',accent:'#d5eae7',desc:'INHA WORLD에서 현재 제공되는 일일 퀴즈 앱으로 이동해요.',tags:['퀴즈','학습'],permissions:['게임 내 퀴즈 상태'],notes:'기본 스마트폰 앱',shots:['오늘의 퀴즈','일일 학습','진행도']},
+{id:'attendance',name:'출석부',subtitle:'캠퍼스 출석 기록',category:'study',dist:'core',version:'1.0.0',icon:'📅',accent:'#dfebee',desc:'INHA WORLD의 출석부 앱을 열어요.',tags:['출석','매일'],permissions:['게임 내 출석 상태'],notes:'기본 스마트폰 앱',shots:['출석부','매일 출석','기록']},
+{id:'messages',name:'메시지',subtitle:'현재 연결된 유저 메시지',category:'social',dist:'core',version:'1.0.0',icon:'💬',accent:'#cfebe2',desc:'실제 유저 메시지함입니다. 인덕톡 전체 기획 앱은 별도 개발 중이에요.',tags:['메시지','유저','친구'],permissions:['기존 메시지 접근'],notes:'인덕톡 프로토타입과 구분',shots:['메시지함','대화 확인','친구']},
+{id:'notifications',name:'알림센터',subtitle:'현재 활동과 알림',category:'campus',dist:'core',version:'1.0.0',icon:'🔔',accent:'#e9e2cf',desc:'INHA WORLD의 실제 스마트폰 알림센터를 열어요.',tags:['알림','활동'],permissions:['기존 알림 읽기'],notes:'기본 스마트폰 앱',shots:['알림센터','최근 활동','메시지 알림']}
 ];
 const ICON_CHOICES=['📚','☕','📌','🧭','💻','🎨','💬','🌱','🎮','🚌','📝','🧩','🏫','📱'];
 const ACCENT_CHOICES=['#d2ece0','#f8dfc4','#e3d9f7','#dbeafa','#ffe9a9'];
@@ -200,13 +222,24 @@ function save(){
 if(migratedFromV1)save();
 let page='discover',selectedCategory='all',myTab='installed',phoneTab='home',manageEditId=null,searchQuery='',detailId=null,detailFrom='discover',modalType='',toastTimer=null;
 const root=document.getElementById('root'),scroll=document.getElementById('scrollArea'),modalLayer=document.getElementById('modalLayer');
-function installed(a){return state.installedIds.includes(a.id)}
-function hasUpdate(a){return installed(a)&&a.dist==='available'&&versionCmp(state.installedVersions[a.id],a.version)===-1}
+function installed(a){if(phoneManaged(a.id))return !!phoneInstalled(a.id);return state.installedIds.includes(a.id)}
+function hasUpdate(a){return !phoneManaged(a.id)&&installed(a)&&a.dist==='available'&&versionCmp(state.installedVersions[a.id],a.version)===-1}
 function updates(){return APPS.filter(hasUpdate)}
 function icon(a){return `<div class="app-icon" style="--accent:${a.accent}"><span>${escapeHTML(a.icon)}</span></div>`}
-function buttonLabel(a){return a.dist==='planned'?(state.watched.includes(a.id)?'찜 완료':'준비 중'):installed(a)?(hasUpdate(a)?'업데이트':'열기'):'받기'}
-function iconButton(a){return `<button class="mini-btn ${a.dist==='planned'?'planned':installed(a)?'neutral':'dark'}" data-action="${a.dist==='planned'?'watch':installed(a)?hasUpdate(a)?'update':'open':'install'}" data-id="${a.id}">${buttonLabel(a)}</button>`}
-function appRow(a,detail='',manage=false){return `<div class="app-row tap-row"><button class="app-row-main" data-action="detail" data-id="${a.id}" aria-label="${escapeHTML(a.name)} 상세 보기">${icon(a)}<span class="app-copy"><span class="app-name">${escapeHTML(a.name)}</span><span class="app-sub">${escapeHTML(a.subtitle)}</span>${detail?`<span class="badge-tiny">${escapeHTML(detail)}</span>`:''}</span></button>${iconButton(a)}${manage&&installed(a)&&a.dist==='available'?`<button class="row-remove" data-action="uninstall" data-id="${a.id}" aria-label="${escapeHTML(a.name)} 설치 제거" title="앱 설치 제거">✕</button>`:''}</div>`}
+function buttonLabel(a){
+  if(phoneManaged(a.id)){
+    if(!phoneState)return '연결 중';
+    if(!phoneInstalled(a.id))return '설치';
+    return phoneState.availableIds.includes(a.id)?'열기':'이용 불가';
+  }
+  return a.dist==='planned'?(state.watched.includes(a.id)?'찜 완료':'준비 중'):installed(a)?(hasUpdate(a)?'시연 업데이트':'시연 열기'):'시연 설치';
+}
+function iconButton(a){
+  const action=a.dist==='planned'?'watch':installed(a)?hasUpdate(a)?'update':'open':'install';
+  const unavailable=phoneManaged(a.id)&&(!phoneState||!!phonePending||(installed(a)&&!phoneState.availableIds.includes(a.id)));
+  return `<button class="mini-btn ${a.dist==='planned'?'planned':installed(a)?'neutral':'dark'}" data-action="${action}" data-id="${a.id}" ${unavailable?'disabled':''}>${buttonLabel(a)}</button>`;
+}
+function appRow(a,detail='',manage=false){if(PHONE_EMBEDDED)detail=phoneManaged(a.id)?(a.dist==='core'?'실제 기본 앱 · 삭제 불가':'실제 스마트폰 바로가기'):(a.dist==='planned'?'기획 중':'로컬 시연 · 실제 앱 미연동');return `<div class="app-row tap-row"><button class="app-row-main" data-action="detail" data-id="${a.id}" aria-label="${escapeHTML(a.name)} 상세 보기">${icon(a)}<span class="app-copy"><span class="app-name">${escapeHTML(a.name)}</span><span class="app-sub">${escapeHTML(a.subtitle)}</span>${detail?`<span class="badge-tiny">${escapeHTML(detail)}</span>`:''}</span></button>${iconButton(a)}${manage&&installed(a)&&a.dist==='available'?`<button class="row-remove" data-action="uninstall" data-id="${a.id}" aria-label="${escapeHTML(a.name)} 설치 제거" title="앱 설치 제거">✕</button>`:''}</div>`}
 function bannerTitle(t,more=''){return `<div class="section-heading"><h2>${t}</h2>${more}</div>`}
 function pageHead(eyebrow,title,desc=''){return `<div class="eyebrow">${eyebrow}</div><h1 class="page-title">${title}</h1>${desc?`<p class="page-desc">${desc}</p>`:''}`}
 function discover(){const mood=MOODS.find(m=>m.id===state.interest);return `<div class="eyebrow">YOUR CAMPUS, YOUR APPS</div><h1 class="page-title">오늘은 뭘 해볼까? <span>✳</span></h1><p class="page-desc">학교생활에 필요한 앱을 발견하는 작은 시작.</p>
@@ -235,14 +268,14 @@ ${bannerTitle('업데이트 기록')}${state.updateHistory.length?`<div class="c
 function searchPage(){return `${pageHead('FIND YOUR WAY','어떤 앱이 필요해?','이름 또는 필요한 기능을 검색해보세요.')}
 <div class="field" style="margin-top:24px">${svg('search')}<input id="searchInput" type="search" autocomplete="off" placeholder="예: 친구, 도서관, 생활비" aria-label="앱 검색"></div><div class="chips"><button class="chip" data-action="query" data-id="새내기">새내기</button><button class="chip" data-action="query" data-id="친구">친구</button><button class="chip" data-action="query" data-id="투자">투자</button><button class="chip" data-action="query" data-id="게임">게임</button></div><div id="searchResults"></div>`}
 function renderSearchResults(){const box=document.getElementById('searchResults');if(!box)return;const q=searchQuery.trim().toLocaleLowerCase('ko');const arr=!q?APPS.filter(a=>a.dist!=='core').slice(0,7):APPS.filter(a=>[a.name,a.subtitle,a.desc,a.category,...a.tags].join(' ').toLocaleLowerCase('ko').includes(q));box.innerHTML=`<div class="res-heading">${q?`검색 결과 ${arr.length}개`:'추천 검색 앱'}</div>${arr.length?`<div class="card-list">${arr.map(a=>appRow(a,a.dist==='planned'?'기획 중':a.dist==='core'?'기본 탑재':'시연 가능')).join('')}</div>`:`<div class="empty"><div class="pic">🔎</div><h3>검색 결과가 없어요</h3><p>앱 이름 대신 '친구', '학교', '경제'처럼 필요한 활동으로 찾아보세요.</p><button class="outline-btn" data-action="query" data-id="">검색 초기화</button></div>`}`;}
-function detail(){const a=byId[detailId];if(!a)return discover();const status=a.dist==='core'?'스마트폰 기본 앱':a.dist==='planned'?'기획 중 · 설치 불가':a.custom?'직접 등록 · 로컬 시연 앱':'무료 · 시연 설치 가능';const primary=a.dist==='planned'?`<button class="main-btn" disabled>개발 준비 중</button>`:installed(a)?`<button class="main-btn" data-action="${hasUpdate(a)?'update':'open'}" data-id="${a.id}">${hasUpdate(a)?'시연 업데이트':'시연 화면 열기'} ↗</button>`:`<button class="main-btn" data-action="install" data-id="${a.id}">무료로 받기 ↗</button>`;
+function detail(){const a=byId[detailId];if(!a)return discover();const status=phoneManaged(a.id)?(a.dist==='core'?'실제 스마트폰 기본 앱':'실제 외부 웹게임 바로가기'):PHONE_EMBEDDED&&a.dist==='available'?'로컬 시연 · 실제 미연동':a.dist==='core'?'스마트폰 기본 앱':a.dist==='planned'?'기획 중 · 설치 불가':a.custom?'직접 등록 · 로컬 시연 앱':'무료 · 시연 설치 가능';const primary=a.dist==='planned'?`<button class="main-btn" disabled>개발 준비 중</button>`:installed(a)?`<button class="main-btn" data-action="${hasUpdate(a)?'update':'open'}" data-id="${a.id}" ${phoneManaged(a.id)&&(!phoneState||!phoneState.availableIds.includes(a.id))?'disabled':''}>${phoneManaged(a.id)?'실제 앱 열기':hasUpdate(a)?'시연 업데이트':'시연 화면 열기'} ↗</button>`:`<button class="main-btn" data-action="install" data-id="${a.id}" ${phoneManaged(a.id)&&!phoneState?'disabled':''}>${phoneManaged(a.id)?'실제 폰에 설치':'로컬 시연 설치'} ↗</button>`;
 return `<div class="detail-bar"><button class="back-btn" data-action="back">${svg('arrow')} 뒤로</button><span class="eyebrow">APP DETAILS</span></div><div class="detail-head">${icon(a)}<div><div class="detail-title">${escapeHTML(a.name)}</div><p class="detail-sub">${escapeHTML(a.subtitle)}</p><span class="detail-category">${status}</span></div></div>
 <div class="detail-actions">${primary}<button class="outline-btn" data-action="favorite" data-id="${a.id}" aria-label="찜하기">${state.favorites.includes(a.id)?'♥ 찜함':'♡ 찜하기'}</button></div>
-${installed(a)?`<div class="actionbar" style="margin:10px 0 16px"><button class="outline-btn" data-action="pin" data-id="${a.id}">${state.homePins.includes(a.id)?'✓ 홈에 고정됨':'＋ 홈에 고정'}</button>${a.dist==='available'?`<button class="linkbtn" style="color:#aa6d5b" data-action="uninstall" data-id="${a.id}">앱 제거</button>`:'<span class="small-label">시스템 앱 · 제거 불가</span>'}</div>`:a.dist==='planned'?`<div class="mutedbox">⏳ 아직 개발·통합이 완료되지 않은 앱입니다. 앱 찜을 해둘 수 있지만 출시 알림이 실제로 전송되지는 않아요.</div>`:''}
+${installed(a)?`<div class="actionbar" style="margin:10px 0 16px"><button class="outline-btn" data-action="pin" data-id="${a.id}">${(phoneManaged(a.id)?phoneVisible(a.id):state.homePins.includes(a.id))?'✓ 홈에 표시됨':'＋ 홈에 표시'}</button>${a.dist==='available'?`<button class="linkbtn" style="color:#aa6d5b" data-action="uninstall" data-id="${a.id}">${phoneManaged(a.id)?'바로가기 제거':'시연 앱 제거'}</button>`:'<span class="small-label">시스템 앱 · 제거 불가</span>'}</div>`:a.dist==='planned'?`<div class="mutedbox">⏳ 아직 개발·통합이 완료되지 않은 앱입니다. 앱 찜을 해둘 수 있지만 출시 알림이 실제로 전송되지는 않아요.</div>`:''}
 <div class="hr"></div><p class="detail-story">${escapeHTML(a.desc)}</p>${bannerTitle('미리 보는 앱 경험','<span class="subtle">콘셉트 스크린</span>')}
 <div class="shot-row">${a.shots.map((s,i)=>`<div class="shot" style="--shade:${[a.accent,'#e3eee9','#f3e7d8'][i%3]}"><span class="shot-icon">${a.icon}</span><b>${escapeHTML(s)}</b><small>${escapeHTML(a.name)} 시연용 화면 콘셉트</small></div>`).join('')}</div>
 ${a.custom?`<div class="actionbar" style="margin:15px 0"><button class="outline-btn" data-action="edit-custom" data-id="${a.id}">✎ 앱 정보 수정</button><button class="linkbtn danger-text" data-action="delete-custom" data-id="${a.id}">보관함으로 이동</button></div>`:''}
-${bannerTitle('알아두면 좋아요')}<div class="detail-box"><b>접근 정보 및 권한 안내</b><p>아래는 실제 권한 요청이 아닌 향후 연동을 위한 설계 항목입니다.</p><ul>${a.permissions.map(x=>`<li>${escapeHTML(x)}</li>`).join('')}</ul></div><div class="detail-box"><b>시연 버전 · 변경 내역</b><p>${a.dist==='planned'?'개발 일정 미확정':`카탈로그 ${a.version} ${installed(a)?'· 내 설치 버전 '+escapeHTML(state.installedVersions[a.id]):''}`}</p><p>${escapeHTML(a.notes)}</p></div><div class="detail-box"><b>출시·운영 상태</b><p>${a.dist==='core'?'기본 탑재 앱을 설명하는 UI 시연입니다.':a.dist==='planned'?'기획 단계이므로 설치할 수 없습니다.':'이 마켓에서는 설치 상태만 시뮬레이션합니다. 독립 앱과의 실제 연결은 후속 통합 작업이 필요합니다.'}</p></div>${notice()}`}
+${bannerTitle('알아두면 좋아요')}<div class="detail-box"><b>접근 정보 및 권한 안내</b><p>아래는 실제 권한 요청이 아닌 향후 연동을 위한 설계 항목입니다.</p><ul>${a.permissions.map(x=>`<li>${escapeHTML(x)}</li>`).join('')}</ul></div><div class="detail-box"><b>시연 버전 · 변경 내역</b><p>${a.dist==='planned'?'개발 일정 미확정':`카탈로그 ${a.version} ${installed(a)?'· 내 설치 버전 '+escapeHTML(state.installedVersions[a.id]):''}`}</p><p>${escapeHTML(a.notes)}</p></div><div class="detail-box"><b>출시·운영 상태</b><p>${a.dist==='core'?'기본 탑재 앱을 설명하는 UI 시연입니다.':a.dist==='planned'?'기획 단계이므로 설치할 수 없습니다.':phoneManaged(a.id)?'기존 INHA WORLD 스마트폰에서 실제 실행됩니다. 외부 게임은 새 탭으로 이동하며 세이브가 자동 연결되지는 않습니다.':'이 앱은 이 마켓 내부의 로컬 시연 상태만 제공합니다. 실제 INHA WORLD 스마트폰에 설치되지 않습니다.'}</p></div>${notice()}`}
 function notificationPage(){return `<div class="detail-bar"><button class="back-btn" data-action="back">${svg('arrow')} 뒤로</button><span class="eyebrow">NOTIFICATIONS</span></div>${pageHead('','새로운 소식','실제 푸시가 아닌 시연 안내 메시지예요.')}
 <div class="actionbar"><span class="small-label">읽지 않음 ${NOTIFICATIONS.filter(n=>!state.readNotificationIds.includes(n.id)).length}개</span><button class="linkbtn" data-action="read-all">모두 읽음 처리</button></div>
 ${NOTIFICATIONS.map(n=>`<button class="notification-row ${state.readNotificationIds.includes(n.id)?'':'unread'}" data-action="read-notice" data-id="${n.id}"><span class="notif-dot" style="${state.readNotificationIds.includes(n.id)?'background:#e3e8e2':''}"></span><span><b>${n.title}</b><p>${n.desc}</p></span></button>`).join('')}<div class="devnote">🔔 실제 운영에서는 앱 알림 허용·읽음·이벤트 발생을 별도 시스템으로 관리해야 합니다.</div>`}
@@ -335,10 +368,10 @@ function closeModal(){
   const target=modalReturnFocus;modalReturnFocus=null;
   setTimeout(()=>{if(target?.isConnected)target.focus();else document.querySelector('.appheader [data-action="search"]')?.focus();},0);
 }
-function install(id){const a=byId[id];if(!a||a.dist==='planned'){toast('이 앱은 아직 설치할 수 없어요.');return false;}if(installed(a)){toast('이미 설치된 앱이에요.');return false;}state.installedIds.push(id);state.installedVersions[id]=a.version;if(!state.homePins.includes(id))state.homePins.push(id);save();if(PHONE_GAME_IDS[id])phoneBridge('install',id);toast(`${a.name} 설치 완료! 홈에 추가됐어요.`);return true;}
+function install(id){if(phoneManaged(id)){phoneRequest('install',id);return false;}const a=byId[id];if(!a||a.dist==='planned'){toast('이 앱은 아직 설치할 수 없어요.');return false;}if(installed(a)){toast('이미 설치된 앱이에요.');return false;}state.installedIds.push(id);state.installedVersions[id]=a.version;if(!state.homePins.includes(id))state.homePins.push(id);save();toast(`${a.name} 설치 완료! 홈에 추가됐어요.`);return true;}
 function update(id){const a=byId[id];if(!a||!hasUpdate(a)){toast('최신 버전이거나 설치되지 않은 앱이에요.');return;}state.installedVersions[id]=a.version;state.updateHistory.unshift({appId:id,version:a.version,at:new Date().toISOString()});state.updateHistory=state.updateHistory.slice(0,30);save();toast(`${a.name} 시연 업데이트 완료`);render();}
 function showApp(id){const a=byId[id];if(!a||!installed(a)){toast('먼저 앱을 설치해 주세요.');return;}
-if(PHONE_EMBEDDED && (PHONE_NATIVE_IDS[id]||PHONE_GAME_IDS[id])){phoneBridge('open',id);return;}
+if(phoneManaged(id)){phoneRequest('open',id);return;}
 modal(`<div class="sheet-top"><h2>앱 실행 시연</h2><button class="iconbtn" data-action="close" aria-label="닫기">✕</button></div>${icon(a)}<h2 style="text-align:center;font-size:22px;letter-spacing:-1px">${escapeHTML(a.name)}</h2><p class="center" style="margin:9px 0 17px">${escapeHTML(a.subtitle)}</p><div class="detail-box" style="background:${a.accent}"><div style="font-size:32px">${escapeHTML(a.icon)}</div><b style="display:block;margin-top:9px">${escapeHTML(a.shots[0])}</b><p>${escapeHTML(a.desc)}</p></div><div class="demo-note"><label for="demoNote">📝 이 앱의 시연 메모 (500자 이내)</label><textarea id="demoNote" maxlength="500" rows="3" placeholder="직접 메모를 적고 저장해보세요.">${escapeHTML(state.appNotes[id]||'')}</textarea><button class="outline-btn" data-action="save-note" data-id="${id}">메모 저장</button></div><p class="center" style="margin-top:13px">실제 앱은 실행되지 않으며, 메모는 이 프로토타입 안에만 저장됩니다.</p><div class="sheet-actions"><button class="main-btn" data-action="close">스토어로 돌아가기</button></div>`, 'app');}
 function uninstallConfirm(id){const a=byId[id];if(!a||a.dist!=='available'||!installed(a))return;modal(`<div class="sheet-top"><h2>앱을 제거할까요?</h2><button class="iconbtn" data-action="close" aria-label="닫기">✕</button></div>${icon(a)}<p><b>${escapeHTML(a.name)}</b>의 설치 상태와 홈 바로가기를 제거합니다. 시연 메모는 기본적으로 보존돼요. 실제 게임 데이터는 삭제하지 않습니다.</p><label class="wipe-option"><input type="checkbox" id="wipe-note"><span>이 앱에 작성한 로컬 시연 메모도 삭제</span></label><div class="sheet-actions"><button class="outline-btn" data-action="close">취소</button><button class="main-btn" style="background:#a74e45" data-action="confirm-uninstall" data-id="${id}">제거하기</button></div>`, 'confirm');}
 function deleteCustomConfirm(id){const a=byId[id];if(!a?.custom)return;modal(`<div class="sheet-top"><h2>등록한 앱을 보관함으로 이동할까요?</h2><button class="iconbtn" data-action="close" aria-label="닫기">✕</button></div>${icon(a)}<p><b>${escapeHTML(a.name)}</b>을(를) 로컬 카탈로그에서 삭제합니다. 설치·홈 고정도 해제하지만 시연 메모와 앱 정보는 보관함에 남아 복원할 수 있어요. 보관함은 최대 5개이며, 초과하면 가장 오래된 항목이 정리돼요. 실제 게임 데이터와는 무관해요.</p><div class="sheet-actions"><button class="outline-btn" data-action="close">취소</button><button class="main-btn danger-btn" data-action="confirm-delete-custom" data-id="${id}">보관함으로 이동</button></div>`, 'delete-custom');}
@@ -355,11 +388,13 @@ function createOrEditCustom(form){
   }
   manageEditId=null;save();render(false);toast(a.name+(form.dataset.editing==='true'?' 정보가 수정됐어요.':' 추가 완료! 홈에 설치했어요.'));
 }
-function handleAction(act,id){if(act==='nav'){navigate(id);return;}if(act==='search'){navigate('search');setTimeout(()=>document.getElementById('searchInput')?.focus(),0);return;}if(['notifications','home','collection'].includes(act)){navigate(act);return;}if(act==='manage'){manageEditId=null;navigate('manage');return;}if(act==='phone-tab'){phoneTab=id==='drawer'?'drawer':'home';render(false);return;}if(act==='back'){navigate(detailFrom==='detail'?'discover':detailFrom);return;}
+function handleAction(act,id){if(act==='nav'){navigate(id);return;}if(act==='search'){navigate('search');setTimeout(()=>document.getElementById('searchInput')?.focus(),0);return;}if(act==='home'&&PHONE_EMBEDDED){phoneRequest('home','store');return;}
+if(['notifications','home','collection'].includes(act)){navigate(act);return;}if(act==='manage'){manageEditId=null;navigate('manage');return;}if(act==='phone-tab'){phoneTab=id==='drawer'?'drawer':'home';render(false);return;}if(act==='back'){navigate(detailFrom==='detail'?'discover':detailFrom);return;}
 if(act==='detail'){detailId=id;navigate('detail');return;}
 if(act==='mood'){if(MOODS.some(m=>m.id===id)){state.interest=id;save();render();}return;}
 if(act==='category'){selectedCategory=id;render();return;}
 if(act==='my-tab'){myTab=id;render();return;}
+if(act==='move-pin'&&PHONE_EMBEDDED){toast('실제 홈 배열 순서는 스마트폰 홈 편집에서 변경해 주세요.');return;}
 if(act==='move-pin'){const [key,raw]=String(id).split('|');const delta=Number(raw);const idx=state.homePins.indexOf(key);const dest=idx+delta;if(idx<0||![-1,1].includes(delta)||dest<0||dest>=state.homePins.length)return;[state.homePins[idx],state.homePins[dest]]=[state.homePins[dest],state.homePins[idx]];save();render();return;}
 if(act==='edit-custom'){if(!byId[id]?.custom)return;manageEditId=id;navigate('manage');return;}
 if(act==='cancel-edit'){manageEditId=null;render();return;}
@@ -388,16 +423,18 @@ if(act==='repair-storage'){repairStorage();return;}
 if(act==='confirm-repair'){confirmRepair();return;}
 
 if(act==='save-note'){const a=byId[id];if(!a||!installed(a))return;const note=document.getElementById('demoNote');if(note){state.appNotes[id]=note.value.slice(0,500);save();toast('로컬 시연 메모를 저장했어요.');}return;}
-if(act==='install'){if(install(id))render();return;}
+if(act==='install'){if(phoneManaged(id)){phoneRequest('install',id);return;}if(install(id))render();return;}
 if(act==='install-pack'){const ids=['campus-guide','campus-events','timetable','club'];let n=0;ids.forEach(x=>{if(!installed(byId[x])){state.installedIds.push(x);state.installedVersions[x]=byId[x].version;if(!state.homePins.includes(x))state.homePins.push(x);n++;}});save();render();toast(n?`${n}개 앱을 설치했어요. 폰 홈을 확인해보세요!`:'이미 모든 앱이 설치됐어요.');return;}
 if(act==='update'){update(id);return;}if(act==='update-all'){const list=updates();list.forEach(a=>{state.installedVersions[a.id]=a.version;state.updateHistory.unshift({appId:a.id,version:a.version,at:new Date().toISOString()});});state.updateHistory=state.updateHistory.slice(0,30);save();render();toast(`${list.length}개 앱의 시연 업데이트가 완료됐어요.`);return;}
 if(act==='open'){showApp(id);return;}
 if(act==='uninstall'){uninstallConfirm(id);return;}
 if(act==='reset'){modal(`<div class="sheet-top"><h2>시연 상태를 초기화할까요?</h2><button class="iconbtn" data-action="close" aria-label="닫기">✕</button></div><p>앱 설치·홈 고정·찜·알림 읽음·업데이트 이력뿐 아니라 직접 만든 테스트 앱과 모든 시연 메모도 이 브라우저에서 영구 삭제됩니다. 실제 INHA WORLD 데이터에는 접근하지 않습니다.</p><div class="sheet-actions"><button class="outline-btn" data-action="close">취소</button><button class="main-btn" data-action="confirm-reset">초기화</button></div>`, 'reset');return;}
 if(act==='confirm-reset'){state=freshState();save();phoneBridge('ready');closeModal();render();toast('시연 상태를 초기화했어요.');return;}
-if(act==='confirm-uninstall'){const a=byId[id];if(a&&a.dist==='available'){const wipe=!!document.getElementById('wipe-note')?.checked;state.installedIds=state.installedIds.filter(x=>x!==id);state.homePins=state.homePins.filter(x=>x!==id);delete state.installedVersions[id];if(wipe)delete state.appNotes[id];save();if(PHONE_GAME_IDS[id])phoneBridge('uninstall',id);closeModal();render();toast(`${a.name} 설치를 제거했어요.${wipe?' 시연 메모도 삭제했어요.':''}`);}return;}
+if(act==='confirm-uninstall'&&phoneManaged(id)){closeModal();phoneRequest('uninstall',id);return;}
+if(act==='confirm-uninstall'){const a=byId[id];if(a&&a.dist==='available'){const wipe=!!document.getElementById('wipe-note')?.checked;state.installedIds=state.installedIds.filter(x=>x!==id);state.homePins=state.homePins.filter(x=>x!==id);delete state.installedVersions[id];if(wipe)delete state.appNotes[id];save();closeModal();render();toast(`${a.name} 설치를 제거했어요.${wipe?' 시연 메모도 삭제했어요.':''}`);}return;}
 if(act==='favorite'){const arr=state.favorites;state.favorites=arr.includes(id)?arr.filter(x=>x!==id):[...arr,id];save();render();toast(state.favorites.includes(id)?'찜 목록에 추가했어요.':'찜 목록에서 제외했어요.');return;}
 if(act==='watch'){const arr=state.watched;state.watched=arr.includes(id)?arr.filter(x=>x!==id):[...arr,id];save();render();toast(state.watched.includes(id)?'관심 앱으로 저장했어요. 실제 알림은 발송되지 않아요.':'관심 목록에서 제외했어요.');return;}
+if(act==='pin'&&phoneManaged(id)){phoneRequest('pin',id);return;}
 if(act==='pin'){if(!installed(byId[id]))return;state.homePins=state.homePins.includes(id)?state.homePins.filter(x=>x!==id):[...state.homePins,id];save();render();toast(state.homePins.includes(id)?'폰 홈에 고정했어요.':'폰 홈에서 숨겼어요.');return;}
 if(act==='read-all'){state.readNotificationIds=NOTIFICATIONS.map(n=>n.id);save();render();toast('모든 알림을 읽음 처리했어요.');return;}
 if(act==='read-notice'){state.readNotificationIds=[...new Set([...state.readNotificationIds,id])];save();const n=NOTIFICATIONS.find(n=>n.id===id);if(n){detailId=n.appId;detailFrom='notifications';navigate('detail');}else render();return;}
