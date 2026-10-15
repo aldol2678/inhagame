@@ -24,10 +24,10 @@ select has_table('private', 'world_item_grants', 'grant log exists');
 select col_is_pk('private', 'world_item_catalog', array['item_id'], 'item ids are unique');
 select col_is_unique('private', 'world_player_items', array['user_id', 'item_id'], 'one ownership row per (user, item)');
 select col_is_pk('private', 'world_item_grants', array['grant_id'], 'a grant key is used once');
-select is((select count(*) from private.world_item_catalog), 42::bigint, '36 existing catalog entries + 2 closed Cooking B2 candidates + 4 closed room finishes');
+select is((select count(*) from private.world_item_catalog), 43::bigint, '36 existing catalog entries + 2 closed Cooking B2 candidates + 4 closed room finishes + 1 closed R5 figurine');
 select is(
   array(select item_id from private.world_item_catalog
-    where item_id not in ('furniture.cooking_station', 'consumable.grilled_carp',
+    where item_id not in ('furniture.cooking_station', 'consumable.grilled_carp', 'furniture.dual_mascot_riding_figurine',
       'finish.wall_basic', 'finish.wall_white_plaster_02', 'finish.floor_basic', 'finish.floor_wood_051')
     order by item_id collate "C"),
   array[

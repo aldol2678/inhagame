@@ -13,6 +13,7 @@ export const ROOM_FURNITURE = Object.freeze([
   definition("furniture.dorm_desk_lamp", .22, .45, .22, ["desk", "floor"]),
   definition("furniture.induck_chair", .6, .65, .65, ["floor"]),
   definition("furniture.mini_induck", .22, .28, .22, ["desk", "floor"]),
+  definition("furniture.dual_mascot_riding_figurine", .32, .42, .34, ["desk", "floor"]),
   definition("furniture.campus_rug_blue", 2, .02, 1.5, ["floor"], false, true),
   definition("furniture.dorm_resident_plate", .6, .22, .04, ["north", "east", "south", "west"], false),
   definition("furniture.mcm_2026_landlord_figure", .32, .35, .32, ["desk", "floor"]),
