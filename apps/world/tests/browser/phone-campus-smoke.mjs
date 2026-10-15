@@ -9,7 +9,7 @@ const head=execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();
 assert.equal(head,process.env.PHONE_HEAD_SHA,'PHONE_HEAD_SHA must be this exact candidate');
 const output='test-results/phone-campus';await mkdir(output,{recursive:true});
 const files=['src/main.js','campus/index.html','phone.css','src/phone/smartphone.js','src/phone/phone-shell.js',
-  'src/phone/phone-album.js','src/phone/phone-preferences.js','src/phone/student-id.js','src/phone/phone-surfaces.js',
+  'src/phone/phone-album.js','src/phone/phone-preferences.js','src/phone/phone-app-catalog.js','src/phone/student-id.js','src/phone/phone-surfaces.js',
   'src/photo/photo-capture.js','src/photo/photo-mode.js','src/photo/photo-mode-panel.js','src/minimap/full-map-controller.js'];
 const hashes=Object.fromEntries(await Promise.all(files.map(async p=>[p,createHash('sha256').update(await readFile(new URL(`../../${p}`,import.meta.url))).digest('hex')])));
 const report={head,status:'RUNNING',sourceHashes:hashes,cases:[],limits:['Offline guest campus: live signed-in server profile/EXP/Badge integration not verified.',
@@ -79,6 +79,27 @@ async function run(name,viewport,mobile){
     await page.keyboard.press('Escape');
     assert.equal((await phoneState(page)).state,'HOME');
     entry.checks.push('MENU-02A: guest messages sign-in view, no private RPC, Back/Home and world lock');await save();
+    // INHA-OS P0: store is a built-in Phone app. External games are explicit user links, not embeds.
+    await clickApp(page,'induck-store');
+    assert.equal((await phoneState(page)).current.appId,'induck-store');
+    await page.getByRole('button',{name:'무료 설치',exact:true}).first().click();
+    assert.deepEqual((await phoneState(page)).preferences.installedApps,['induck-classic']);
+    await page.getByRole('button',{name:'열기',exact:true}).first().click();
+    assert.equal((await phoneState(page)).current.appId,'induck-classic');
+    const external=page.getByRole('link',{name:'인하오리 Classic 새 탭에서 열기'});
+    assert.equal(await external.getAttribute('href'),'https://duck.inhagame.app/');
+    assert.equal(await external.getAttribute('rel'),'noopener noreferrer');
+    await page.keyboard.press('Escape');
+    assert.equal((await phoneState(page)).current.appId,'induck-store');
+    await page.getByRole('button',{name:'홈에서 숨김',exact:true}).click();
+    assert.equal((await phoneState(page)).preferences.hiddenApps.includes('induck-classic'),true);
+    await page.getByRole('button',{name:'홈에 표시',exact:true}).last().click();
+    assert.equal((await phoneState(page)).preferences.hiddenApps.includes('induck-classic'),false);
+    await page.getByRole('button',{name:'바로가기 제거',exact:true}).click();
+    assert.deepEqual((await phoneState(page)).preferences.installedApps,[]);
+    await page.locator('.smartphone-home-button').click();
+    assert.equal(await page.locator('.smartphone-app[data-app-id="induck-store"]').count(),1);
+    entry.checks.push('INHA OS store: install -> trusted link -> back -> hide -> restore -> uninstall; no external navigation');await save();
     const beforeCamera=await snapshot(page);await clickApp(page,'camera');assert.equal((await phoneState(page)).state,'CAMERA');assert.equal(await page.locator('.smartphone').isVisible(),false);assert.equal((await snapshot(page)).photo,true);
     const downloadReady=page.waitForEvent('download',{timeout:120000});
     downloadReady.catch(()=>{});
