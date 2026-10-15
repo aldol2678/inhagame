@@ -1,4 +1,5 @@
 import { createPhoneShell, PHONE_STATE } from './phone-shell.js';
+import { createPhoneAppRegistry, PHONE_EXTERNAL_APPS, PHONE_SYSTEM_APPS, phoneExternalApp } from './phone-app-catalog.js';
 import { createPhoneMessages } from './phone-messages.js';
 import { createPhoneNotificationCenter } from './phone-notification-center.js';
 import { createStudentId } from './student-id.js';
@@ -100,7 +101,7 @@ export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, g
     try {if(kind==='maps'){offMapSelection?.();offMapSelection=null;getMap()?.close();mapSurface.restore();}else{getSettings()?.setOpen(false,{focus:false});settingsSurface.restore();}}
     finally{suppressClose--;}
   }
-  const registry=[
+  const nativeRegistry=[
     {id:'student-id',name:'학생증',icon:'🎓',available:()=>true,open:params=>{if(params?.view==='jeongseok'){if(jeongseok?.phoneView().enabled)void jeongseok.refresh();}else void student.refresh();},close(){}},
     {id:'maps',name:'지도',icon:'🗺️',available:()=>!!getMap(),open(){},close:()=>closeSurface('maps')},
     {id:'camera',name:'카메라',icon:'📷',available:()=>true,open(){},close(){}},
@@ -111,6 +112,7 @@ export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, g
     {id:'messages',name:'메시지',icon:'💬',available:()=>true,open:params=>messages.activate(params),close:()=>messages.close()},
     {id:'notifications',name:'알림센터',icon:'🔔',available:()=>true,open:()=>notifications.refresh(),close:()=>notifications.close()}
   ];
+  const registry=createPhoneAppRegistry(nativeRegistry,()=>preferences.snapshot().installedApps);
   function openFriendsFromNotifications() {
     if(!getSocial()?.available)return false;
     shell.close();
@@ -327,6 +329,56 @@ export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, g
       for(const place of records)details.append(btn(place.title,()=>pickMapPlace(place)));list.append(details);
     }
   }
+  // Only Home shortcuts are installed/removed; no server/game data is touched.
+  function renderStore() {
+    const prefs=preferences.snapshot();
+    content.append(el('h3','','인덕스토어'),el('p','smartphone-hint',
+      '모든 앱 무료 · 설치는 스마트폰 바로가기 추가예요. 게임 세이브나 계정은 삭제되지 않아요.'));
+    const builtIn=el('section','phone-store-section');
+    builtIn.append(el('h4','','기본 앱'));
+    for(const app of PHONE_SYSTEM_APPS) {
+      if(app.id==='induck-store')continue;
+      const hidden=prefs.hiddenApps.includes(app.id),line=el('div','phone-store-item'),detail=el('div','phone-store-details');
+      detail.append(el('strong','',app.icon+' '+app.name),el('small','',hidden?'홈에서 숨김':'기본 제공'));
+      line.append(detail);
+      if(hidden)line.append(btn('홈에 표시',()=>{if(preferences.show(app.id)){preferences.save();render(true);}}));
+      builtIn.append(line);
+    }
+    content.append(builtIn);
+    const games=el('section','phone-store-section');games.append(el('h4','','게임 앱'));
+    for(const app of PHONE_EXTERNAL_APPS) {
+      const installed=prefs.installedApps.includes(app.id),hidden=prefs.hiddenApps.includes(app.id);
+      const line=el('div','phone-store-item'),detail=el('div','phone-store-details');
+      detail.append(el('strong','',app.icon+' '+app.name),
+        el('small','',installed?(hidden?'설치됨 · 홈에서 숨김':'설치됨 · 외부 게임 바로가기'):'무료 · 별도 사이트에서 실행'));
+      line.append(detail);const actions=el('div','phone-store-actions');
+      actions.append(btn(installed?'바로가기 제거':'무료 설치',()=>{
+        const ok=installed?preferences.uninstall(app.id):preferences.install(app.id);
+        if(ok){if(!preferences.save())warn('바로가기 설정을 저장하지 못했어요.');render(true);}
+      }));
+      if(installed){
+        actions.append(btn(hidden?'홈에 표시':'홈에서 숨김',()=>{
+          const ok=hidden?preferences.show(app.id):preferences.hide(app.id);
+          if(ok){if(!preferences.save())warn('바로가기 설정을 저장하지 못했어요.');render(true);}
+        }));
+        actions.append(btn('열기',()=>launch(app.id)));
+      }
+      line.append(actions);games.append(line);
+    }
+    content.append(games);
+  }
+  function renderExternalGame(id) {
+    const app=phoneExternalApp(id);
+    if(!app||!preferences.snapshot().installedApps.includes(id)) {
+      content.append(el('p','smartphone-empty-state','설치된 게임 바로가기가 아니에요.'));return;
+    }
+    content.append(el('h3','',app.icon+' '+app.name),
+      el('p','smartphone-hint','별도 웹게임을 새 탭으로 열어요. 인하월드의 로그인·세이브·보상과 자동 연동되지 않아요.'));
+    const link=el('a','phone-store-external','외부 게임 열기 ↗');
+    link.href=app.url;link.target='_blank';link.rel='noopener noreferrer';
+    link.setAttribute('aria-label',app.name+' 새 탭에서 열기');
+    content.append(link,btn('인덕스토어로 돌아가기',()=>launch('induck-store')));
+  }
   function render(force=false) {
     if(!shell||destroyed)return;const s=shell.snapshot(), route=JSON.stringify([s.state,s.stack]);
     root.hidden=!shell.ownsInput;root.dataset.state=s.state;toggle?.setAttribute('aria-expanded',String(s.open));
@@ -345,6 +397,8 @@ export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, g
       else if(app.appId==='daily-quiz'||app.appId==='attendance')renderDailySurface(app.appId);
       else if(app.appId==='messages')messages.mount(content);
       else if(app.appId==='notifications')notifications.mount(content);
+      else if(app.appId==='induck-store')renderStore();
+      else if(phoneExternalApp(app.appId))renderExternalGame(app.appId);
     }
     if(shell.ownsInput && !['daily-quiz','attendance'].includes(s.current?.appId)){
       const same=keepFocus&&[...content.querySelectorAll('button')].find(n=>n.textContent===keepFocus&&!n.disabled);
