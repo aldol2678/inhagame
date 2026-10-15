@@ -124,16 +124,16 @@ test('staged immutable furniture uses canonical allowlist only; unknown and opti
   const source = readFileSync(new URL('../api/brand-asset.js', import.meta.url), 'utf8');
   const urls = [];
   const context = { module: {exports:{}}, process: {env:{SUPABASE_URL:'https://example.supabase.co',SUPABASE_PUBLISHABLE_KEY:'sb_publishable_test'}}, URL, AbortSignal, Buffer,
-    fetch: async url => { urls.push(url); return {ok:true,headers:new Headers()}; } };
+    fetch: async (url, options) => { urls.push(url); assert.equal(options.redirect,'manual'); const asset=new URL(url).searchParams.get('asset'); const visual=current.find(v=>new URL(v.url,'https://local.invalid').searchParams.get('asset')===asset); return {status:307,headers:new Headers({Location:`https://example.supabase.co/storage/v1/object/sign/inhagame-furniture-private/${asset}?token=test.signature`, 'X-INHAGAME-Asset-SHA256':visual.sha256,'X-INHAGAME-Output-Bytes':String(visual.byteLength)})}; } };
   vm.runInNewContext(source, context);
   for (const visual of current) {
     const asset = new URL(visual.url, 'https://local.invalid').searchParams.get('asset');
-    for (const [variant, expected] of [['canonical',200],['optimized',404],['other',404]]) {
+    for (const [variant, expected] of [['canonical',307],['optimized',404],['other',404]]) {
       const before = urls.length;
       const res = {setHeader(){},status(code){assert.equal(code,expected);return this;},end(){}};
       await context.module.exports({method:'HEAD',url:`${visual.url}&variant=${variant}`},res);
-      assert.equal(urls.length-before, expected===200 ? 1 : 0);
-      if (expected===200) {
+      assert.equal(urls.length-before, expected===307 ? 1 : 0);
+      if (expected===307) {
         const upstream = new URL(urls.at(-1));
         assert.equal(upstream.pathname,'/functions/v1/inhagame-world-brand-assets-v1');
         assert.equal(upstream.searchParams.get('asset'),asset);

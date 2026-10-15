@@ -148,3 +148,21 @@ test('disabled official replacements retain procedural previews and never fetch'
     layer.root.destroy();
   } finally {globalThis.fetch=previousFetch;}
 });
+
+test('display, placement and activation refresh replace only layer-owned collision objects', t => {
+  const app=makeApp(t,'collision-ownership');
+  const layer=createFurnitureLayer(app,app.root,{modelMode:'procedural'});
+  layer.setObjects([chair]);
+  const shared=layer.obstacles;
+  // No naming contract: even a coincident ID belongs to its caller by object identity.
+  const external={id:chair.id,minX:5,maxX:6,minZ:2,maxZ:3};
+  const unnamed={minX:6,maxX:7,minZ:0,maxZ:1};
+  shared.push(external,unnamed);
+  const assertExternal=()=>{assert.equal(layer.obstacles,shared);assert.equal(shared.filter(o=>o===external).length,1);assert.equal(shared.filter(o=>o===unnamed).length,1);assert.deepEqual(shared.slice(-2),[external,unnamed]);};
+  const oldOwned=shared.find(o=>o.id===chair.id&&o!==external);
+  layer.setDisplays([{objectId:chair.id,itemId:'badge.main_gate',category:'BADGE',name:'badge'}]);assertExternal();
+  layer.setObjects([{...chair,x:2}]);assertExternal();assert.equal(shared.includes(oldOwned),false);
+  layer.deactivate();assertExternal();layer.activate();assertExternal();
+  layer.setObjects([]);assertExternal();assert.equal(shared.filter(o=>o.id===chair.id).length,1);
+  layer.root.destroy();
+});

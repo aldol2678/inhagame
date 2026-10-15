@@ -36,3 +36,27 @@ The independent local compatibility result preserves old saved placements and
 falls back per object when the enlarged silhouette cannot fit. It does not prove
 arbitrary room route connectivity. No production asset delivery or activation is
 claimed by this code-only candidate.
+
+## Signed redirect follow-up (still inactive)
+
+The code-only API candidate now requests new furniture with `redirect: manual`
+and accepts only HTTP 307 carrying the exact manifest SHA and byte length. Its
+Location must be HTTPS on the configured Supabase project, bucket
+`inhagame-furniture-private`, and the exact immutable filename at the bucket root.
+Only a single nonempty token query is accepted; other origins, paths, credentials,
+fragments and extra queries fail closed. Every admitted furniture response,
+including upstream failure, uses `Cache-Control: no-store`. The Vercel function
+never downloads or buffers these furniture payloads. Existing five brand asset
+canonical/optimized response behavior is preserved.
+
+The separately retained private canonical source preserves the five original
+inline assets, and may use the existing server-injected Supabase service role to
+request a 300-second signed object URL for the five fixed filenames only. No
+credential was read or copied, no upload/admin endpoint was added, and no new
+persistent credential is required by this design. Signed capabilities must never
+be logged or committed. The public client still validates full SHA, byte count,
+structure and bounds after receiving the actual object bytes.
+
+This local contract test does not establish that the bucket or objects exist,
+that a canonical function has been deployed, or that real CORS/redirect transport
+works. Asset upload/readback and operational verification remain activation gates.

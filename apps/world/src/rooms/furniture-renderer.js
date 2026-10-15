@@ -21,6 +21,7 @@ export function createFurnitureLayer(app, root, { modelMode = "glb", isolatedMat
     return ownedMaterials.get(shared);
   };
   const obstacles = [...PERSONAL_ROOM_BASIC_OBSTACLES];
+  let ownedObstacles = new Set(obstacles);
   let generation = 0, revision = 0, destroyed = false, suspended = false;
   let visuals = [];
   let placementPlan = new Map();
@@ -184,10 +185,14 @@ export function createFurnitureLayer(app, root, { modelMode = "glb", isolatedMat
         box:entry.box,seatPosition:entry.visual.seat?.position??null,sourceKey:status.sourceKey
       }));
     }
-    const decor=obstacles.filter(box=>box.id.startsWith('personal_decor_'));
-    obstacles.splice(0,obstacles.length,...PERSONAL_ROOM_BASIC_OBSTACLES,
+    // Other room systems append to this shared array. Update only this layer's
+    // previous collider objects; never infer another owner's identity from an ID prefix.
+    const external=obstacles.filter(box=>!ownedObstacles.has(box));
+    const owned=[...PERSONAL_ROOM_BASIC_OBSTACLES,
       ...objects.filter(object=>object.surface==='floor'&&FURNITURE_BY_ID.get(object.itemId)?.solid)
-        .map(object=>placementGeometry.get(object.id)?.box??furnitureBox(object)),...decor);
+        .map(object=>placementGeometry.get(object.id)?.box??furnitureBox(object))];
+    ownedObstacles=new Set(owned);
+    obstacles.splice(0,obstacles.length,...owned,...external);
   }
   return {
     root: layer,
