@@ -37,6 +37,7 @@
 @media(max-width:375px){.page{padding-left:15px;padding-right:15px}.app-row{gap:5px}.app-row-main{gap:8px}.mini-btn{padding-left:9px;padding-right:9px}.app-icon{width:47px;height:47px;font-size:24px}}
 html.inha-os-embedded .statusbar{display:none}
 html.inha-os-embedded .phone{height:100dvh;min-height:0}
+.phone-live-connection{font-size:10px;line-height:1.4;text-align:center;padding:7px 9px;background:#e1f4e9;color:#1e685b;font-weight:800;border-bottom:1px solid #c8e8d7}
 </style>
 </head>
 <body>
@@ -89,7 +90,7 @@ const PHONE_MANAGED=Object.freeze({
   notifications:'notifications','induck-grow':'induck-grow','induck-classic':'induck-classic',
   induckup:'induckup','induck-survival':'induck-survival'
 });
-let phoneState=null,phonePending=null,phoneRequestSeq=0;
+let phoneState=null,phonePending=null,phonePendingTimer=null,phoneRequestSeq=0;
 const phoneManaged=id=>PHONE_EMBEDDED&&Object.hasOwn(PHONE_MANAGED,id);
 const phoneInstalled=id=>phoneState&&(phoneState.systemIds.includes(id)||phoneState.installedApps.includes(id));
 const phoneVisible=id=>phoneState&&!phoneState.hiddenApps.includes(id)&&
@@ -103,6 +104,9 @@ function phoneRequest(action,id) {
   const requestId=++phoneRequestSeq;
   phonePending={requestId,action,id};
   phoneBridge(action,id,requestId);
+  phonePendingTimer=setTimeout(()=>{
+    if(phonePending?.requestId===requestId){phoneBridge('ready');toast('처리 결과를 다시 확인하고 있어요.');}
+  },5000);
 }
 
 if(PHONE_EMBEDDED)document.documentElement.classList.add('inha-os-embedded');
@@ -383,7 +387,7 @@ function confirmImport(){if(!pendingImport)return;const candidate=pendingImport,
   }catch(e){state=original;normalize();closeModal();render();toast('복원 저장 실패. 원래 상태를 유지했어요.');}
 }
 function renderNav(){const tabs=[['discover','발견'],['categories','카테고리'],['mine','내 앱'],['updates','업데이트']];document.getElementById('bottomNav').innerHTML=tabs.map(([id,label])=>`<button class="nav-item ${page===id?'active':''}" data-action="nav" data-id="${id}" aria-current="${page===id?'page':'false'}"><span class="navico">${svg(id)}</span>${label}${id==='updates'&&updates().length?`<span class="count">${updates().length}</span>`:''}</button>`).join('');}
-function render(preserve=true){renderStorageBanner();const t=scroll.scrollTop;const html={discover,categories,mine:myApps,updates:updatePage,search:searchPage,detail,notifications:notificationPage,collection:collectionPage,home:homePage,manage:managePage}[page];root.innerHTML=html?html():discover();if(page==='search'){const inp=document.getElementById('searchInput');inp.value=searchQuery;renderSearchResults();}renderNav();document.getElementById('unreadDot').classList.toggle('hidden',NOTIFICATIONS.every(n=>state.readNotificationIds.includes(n.id)));scroll.scrollTop=preserve?t:0;}
+function render(preserve=true){renderStorageBanner();const t=scroll.scrollTop;const html={discover,categories,mine:myApps,updates:updatePage,search:searchPage,detail,notifications:notificationPage,collection:collectionPage,home:homePage,manage:managePage}[page];root.innerHTML=(PHONE_EMBEDDED?`<div class="phone-live-connection" role="status">${phoneState?'📱 실제 INHA WORLD 스마트폰 연결됨 · 시연 앱은 별도':'📱 실제 스마트폰 연결 확인 중'}</div>`:'')+(html?html():discover());if(page==='search'){const inp=document.getElementById('searchInput');inp.value=searchQuery;renderSearchResults();}renderNav();document.getElementById('unreadDot').classList.toggle('hidden',NOTIFICATIONS.every(n=>state.readNotificationIds.includes(n.id)));scroll.scrollTop=preserve?t:0;}
 function navigate(p,keep=false){if(p==='detail'&&page!=='detail')detailFrom=page;if(['collection','notifications','home','manage'].includes(p)&&!['collection','notifications','home','manage'].includes(page))detailFrom=page;page=p;render(keep);}
 function toast(msg){const el=document.getElementById('toast');clearTimeout(toastTimer);el.textContent=msg;el.classList.add('show');toastTimer=setTimeout(()=>el.classList.remove('show'),2300);}
 let modalReturnFocus=null;
@@ -502,9 +506,16 @@ if(PHONE_EMBEDDED) {
   window.addEventListener('message',event=>{
     if(event.source!==window.parent||event.origin!==location.origin||event.data?.channel!=='INHA_OS_STORE_021')return;
     const {action,snapshot,requestId,ok}=event.data;
-    if(action==='sync'){if(acceptSnapshot(snapshot))render(false);return;}
+    if(action==='sync'){
+      if(acceptSnapshot(snapshot)){
+        if(phonePending){clearTimeout(phonePendingTimer);phonePendingTimer=null;phonePending=null;
+          toast('스마트폰의 현재 상태를 다시 확인했어요.');}
+        render(false);
+      }
+      return;
+    }
     if(action!=='result'||!phonePending||requestId!==phonePending.requestId||!acceptSnapshot(snapshot))return;
-    const previous=phonePending;phonePending=null;
+    const previous=phonePending;phonePending=null;clearTimeout(phonePendingTimer);phonePendingTimer=null;
     render(false);
     toast(ok===true?(previous.action==='install'?'실제 스마트폰 홈에 설치했어요.':
       previous.action==='uninstall'?'스마트폰 바로가기를 제거했어요.':'실제 스마트폰 설정에 반영했어요.'):
