@@ -93,6 +93,14 @@ try {
     assert.ok(sizes.login.height >= 44 && sizes.google.height >= 44, 'Primary actions have touch-friendly sizes');
     assert.ok(sizes.account.left >= -1 && sizes.account.right <= width+1, 'Auth card stays in viewport');
     assert.ok(sizes.toggle.width >= 44, 'Password reveal target is at least 44px wide');
+    if (width <= 390) {
+      const fold = await page.evaluate(() => ({
+        loginBottom: document.querySelector('#hub-login-form button[type="submit"]').getBoundingClientRect().bottom,
+        navTop: document.querySelector('.bottom-nav').getBoundingClientRect().top
+      }));
+      assert.ok(fold.loginBottom <= fold.navTop - 6,
+        'Login CTA must not be hidden by fixed mobile navigation at '+width+'px: '+JSON.stringify(fold));
+    }
 
     await page.screenshot({path:resolve(output,'login-'+width+'.png'),fullPage:true});
     const loginPass=page.locator('#hub-login-form input[name="password"]');
