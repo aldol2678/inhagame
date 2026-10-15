@@ -58,7 +58,22 @@ export function createPhonePreferences({ getStorage, getScope, onError = () => {
     } catch { onError('홈 배치를 저장하지 못했어요. 현재 화면에만 적용했어요.'); return false; }
   }
   load();
-  return Object.freeze({load,save,snapshot:()=>normalizePhonePreferences(value),
+  function commit(change) {
+    const previous = JSON.parse(JSON.stringify(value)), wasDirty = dirty;
+    if (!change()) return false;
+    if (save()) return true;
+    value = previous; dirty = wasDirty;
+    // A storage implementation may write but fail readback. Restore best-effort.
+    try { getStorage()?.setItem(key(), JSON.stringify(previous)); } catch {}
+    return false;
+  }
+  return Object.freeze({load,save,commit,
+    unpin(id) {
+      if (!value.dock.includes(id)) return false;
+      let page = value.pages.findIndex(slots=>slots.includes(null));
+      if (page < 0) { page=value.pages.length; value.pages.push(Array(PHONE_PAGE_SLOTS).fill(null)); }
+      value=movePhoneApp(value,id,{area:'home',page,slot:value.pages[page].indexOf(null)});dirty=true;return true;
+    },snapshot:()=>normalizePhonePreferences(value),
     move(id,target) {value=movePhoneApp(value,id,target);dirty=true;},
     wallpaper(wallpaper) {value=normalizePhonePreferences({...value,wallpaper});dirty=true;},
     reset() {value=defaultPhonePreferences();dirty=true;},

@@ -210,8 +210,10 @@ test('event, guidance and objective UI become compact chips beside the Mini-map,
 });
 
 test('menu and settings drawers fit a short screen (3-column menu, scrollable settings)', () => {
-  assert.match(block, /body \.identity-actions \{[^}]*max-height: calc\(100dvh - var\(--world-right-rail-top\) - 8px\);[^}]*overflow-y: auto;[^}]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);/);
-  assert.match(block, /body \.view-settings \{[^}]*max-height: calc\(100dvh - var\(--world-right-rail-top\) - 8px\);[^}]*overflow-y: auto;/);
+  assert.match(block, /body \.identity-actions \{[^}]*display: block;[^}]*max-height: calc\(100dvh - 54px - env\(safe-area-inset-bottom\)\);[^}]*overflow-y: auto;/);
+  assert.match(block, /body \.view-settings:not\(\[data-phone-hosted="true"\]\) \{[^}]*max-height: calc\(100dvh - 58px - env\(safe-area-inset-bottom\)\);[^}]*overflow-y: auto;/);
+  assert.match(block, /body \.identity-actions \.hud-menu-grid \{ grid-template-columns: repeat\(3, minmax\(0, 1fr\)\); \}/);
+  assert.doesNotMatch(block, /body \.view-settings \{/, 'hosted Phone settings must not inherit standalone drawer positioning');
   assert.match(block, /body \.quest-journal-body \{ min-height: 0;/);
   // Menu rows keep the 44px touch target set by the base touch rule.
   assert.match(before, /\.identity-actions button \{\s*width: 100%;\s*\/\* Touch devices keep the 44px target[^*]*\*\/\s*min-height: 44px;/);

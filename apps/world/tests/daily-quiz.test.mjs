@@ -234,7 +234,7 @@ test("panel: AVAILABLE → start → question with 4 options → PASSED card", a
 test("main.js wiring: HUD menu entry, own input owner, account binding, toast + authority re-reads only", async () => {
   const main = await readFile(new URL("../src/main.js", import.meta.url), "utf8");
   const html = await readFile(new URL("../campus/index.html", import.meta.url), "utf8");
-  assert.match(html, /id="hud-menu"[\s\S]*id="open-daily-quiz"[^>]*>📚 오늘의 퀴즈<\/button>/);
+  assert.match(html, /id="hud-menu"[\s\S]*id="open-daily-quiz"[^>]*>📚 <span>오늘의 퀴즈<\/span><\/button>/);
   assert.match(html, /id="daily-quiz-panel"[^>]*role="dialog"/);
   assert.match(main, /ownerId: "daily-quiz".*policy: INPUT_FOCUS_POLICY\.BLOCKING_UI/s);
   assert.match(main, /void dailyQuiz\.setAccount\(identity \? online\?\.userId \?\? null : null\)/);

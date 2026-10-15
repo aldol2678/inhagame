@@ -14,6 +14,25 @@ export function createViewDistanceSettings(streaming,camera,graphics,{onOpenChan
     shadows: document.getElementById('graphics-shadows'),
     showFps: document.getElementById('graphics-show-fps')
   };
+  const home=document.getElementById('settings-category-home');
+  const back=document.getElementById('settings-section-back');
+  const title=document.getElementById('view-settings-title');
+  const pages=[...(panel.querySelectorAll?.('[data-settings-page]') ?? [])];
+  const categories=[...(panel.querySelectorAll?.('[data-settings-target]') ?? [])];
+  const sectionLabels={home:'설정',graphics:'화면 및 그래픽',audio:'소리',controls:'조작 및 카메라',diagnostics:'진단 및 정보'};
+  let section='home';
+  function showSection(next,{focus=false}={}){
+    if(!home)return; // Legacy isolated DOM fixtures have no categorized shell.
+    section=next==='home'||pages.some(page=>page.dataset.settingsPage===next)?next:'home';
+    home.hidden=section!=='home';
+    for(const page of pages)page.hidden=page.dataset.settingsPage!==section;
+    if(back)back.hidden=section==='home';
+    if(title)title.textContent=sectionLabels[section];
+    // The embedded Phone owns the scroll. Reset only the active scroller on navigation.
+    const scroller=panel.closest?.('.smartphone-content') ?? panel;
+    scroller.scrollTop=0;
+    if(focus)(section==='home'?categories[0]:pages.find(page=>page.dataset.settingsPage===section)?.querySelector?.('select,button'))?.focus?.({preventScroll:true});
+  }
   const cleanups=[];
   let destroyed=false;
   const listen=(target,type,handler)=>{
@@ -60,7 +79,8 @@ export function createViewDistanceSettings(streaming,camera,graphics,{onOpenChan
     open.setAttribute('aria-expanded',String(panelOpen));
     onOpenChange(panelOpen);
     if(panelOpen){
-      if(focus)select.focus?.();
+      showSection('home');
+      if(focus)(categories[0]??select).focus?.({preventScroll:true});
     }else if(focus){
       menuReturnFocus(open,document.body?.dataset?.lobbyShell==='true'
         ? document.getElementById('lobby-menu-toggle')
@@ -68,6 +88,8 @@ export function createViewDistanceSettings(streaming,camera,graphics,{onOpenChan
     }
     return panelOpen;
   }
+  for(const category of categories)listen(category,'click',()=>showSection(category.dataset.settingsTarget,{focus:true}));
+  listen(back,'click',()=>showSection('home',{focus:true}));
   listen(open,'click',()=>setOpen(!panelOpen));
   listen(close,'click',()=>setOpen(false));
   listen(document,'keydown',event=>{if(event.code==='Escape'&&panelOpen)setOpen(false);});

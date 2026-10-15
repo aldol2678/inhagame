@@ -31,7 +31,15 @@ export function createCampusHudMenu({
   panel.addEventListener("click", (event) => {
     const button = event.target?.closest?.("button");
     if (!button) return;
-    if (["open-profile", "open-shop", "open-inventory", "open-wardrobe", "open-friends", "toggle-first-person", "open-keyboard-help", "open-settings"].includes(button.id)) {
+    if (button.id === "open-phone-menu") {
+      setOpen(false, { focus: false });
+      doc.getElementById?.("phone-toggle")?.click?.();
+      return;
+    }
+    if (["open-profile", "open-quest-journal", "open-shop", "open-inventory",
+      "open-mobility-book", "open-wardrobe", "open-life-skills", "open-friends",
+      "open-daily-quiz", "open-attendance", "toggle-first-person",
+      "open-keyboard-help", "open-settings"].includes(button.id)) {
       setOpen(false, { focus: false });
     }
   });

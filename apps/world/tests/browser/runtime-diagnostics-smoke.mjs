@@ -1,3 +1,4 @@
+import { openSettingsCategory } from './settings-navigation.mjs';
 import assert from 'node:assert/strict';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
@@ -100,6 +101,7 @@ try {
   await Promise.race([page.waitForFunction(() => !!window.__INHA_WORLD_RUNTIME_DIAGNOSTICS__, null, { timeout: TIMEOUT_MS }), fatal]);
   await page.locator('#world-loading').waitFor({ state: 'hidden' });
   await page.locator('#lobby-menu-toggle').tap(); await page.locator('#lobby-open-settings').tap();
+  await openSettingsCategory(page, 'diagnostics', { touch: true });
   await page.locator('#open-runtime-diagnostics').tap();
   assert.equal(await page.locator('#runtime-diagnostics-panel').isVisible(), true);
   assert.equal(await page.locator('#view-settings').isVisible(), false);
@@ -117,6 +119,7 @@ try {
     const d = window.__INHAGAME_P0__; return !d.lobbyWorld.active && !d.getStatus().cinematic?.active && d.controller.inputEnabled;
   }, null, { timeout: TIMEOUT_MS });
   await page.locator('#hud-menu-toggle').tap(); await page.locator('#open-settings').tap();
+  await openSettingsCategory(page, 'diagnostics', { touch: true });
   await page.locator('#open-runtime-diagnostics').tap();
   assert.equal(await page.evaluate(() => window.__INHAGAME_P0__.controller.inputEnabled), false);
   await action(page, 'close').tap();

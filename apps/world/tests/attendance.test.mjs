@@ -187,7 +187,7 @@ test("panel: unclaimed → 오늘 출석하기 → ✅ 오늘 출석 완료 and 
 test("main.js wiring: ☰ 📅 출석부, own BLOCKING_UI owner, account binding, wallet-only re-read", async () => {
   const main = await readFile(new URL("../src/main.js", import.meta.url), "utf8");
   const html = await readFile(new URL("../campus/index.html", import.meta.url), "utf8");
-  assert.match(html, /id="hud-menu"[\s\S]*id="open-attendance"[^>]*>📅 출석부<\/button>/);
+  assert.match(html, /id="hud-menu"[\s\S]*id="open-attendance"[^>]*>📅 <span>출석부<\/span><\/button>/);
   assert.match(html, /id="attendance-panel"[^>]*role="dialog"/);
   assert.match(main, /ownerId: "attendance".*policy: INPUT_FOCUS_POLICY\.BLOCKING_UI/s);
   assert.match(main, /void attendance\.setAccount\(identity \? online\?\.userId \?\? null : null\)/);
