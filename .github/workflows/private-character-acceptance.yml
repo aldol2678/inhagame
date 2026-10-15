@@ -2,8 +2,18 @@ name: Private character acceptance
 on:
   workflow_dispatch:
   pull_request:
+    types: [opened, synchronize, reopened, edited]
     paths:
       - '.github/workflows/private-character-acceptance.yml'
+      - '.github/ci/private-character-scope.mjs'
+      - 'apps/world/campus/index.html'
+      - 'apps/world/editor/index.html'
+      - 'apps/world/styles.css'
+      - 'apps/world/dev-server.mjs'
+      - 'apps/world/npc-factory/**'
+      - 'apps/world/model-converter/**'
+      - 'apps/world/data/**'
+      - 'apps/world/assets/**'
       - '.github/workflows/world-asset-optimizer.yml'
       - 'apps/world/src/**'
       - 'apps/world/api/brand-asset.js'
@@ -22,6 +32,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+          fetch-depth: 0
       - name: Verify exact acceptance source revision
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -29,6 +40,24 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24.19.0'
+      - name: Classify full facial impact (unknown means full)
+        id: face-scope
+        env:
+          CI_EVENT: ${{ github.event_name }}
+          CI_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CI_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          CI_PR_TITLE: ${{ github.event.pull_request.title }}
+        run: node .github/ci/private-character-scope.mjs >> "$GITHUB_OUTPUT"
+      - name: Verify facial scope routing contracts
+        run: node --test apps/world/tests/private-character-ci-scope.test.mjs
+      - name: Record facial scope decision (not a test pass)
+        env:
+          FACE_FULL: ${{ steps.face-scope.outputs.full }}
+          FACE_REASON: ${{ steps.face-scope.outputs.reason }}
+          ACCEPTANCE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          mkdir -p test-results/annyongi
+          node -e 'const fs=require("node:fs");fs.writeFileSync("test-results/annyongi/face-scope.json",JSON.stringify({head:process.env.ACCEPTANCE_HEAD_SHA,facial:process.env.FACE_FULL==="false"?"NOT_RUN_SCOPE":"SCHEDULED",reason:process.env.FACE_REASON,commonSuites:"REQUIRED"},null,2));'
       - run: npm ci --prefix apps/world/tests/browser --ignore-scripts
       - name: Download approved private assets and verify exact bytes
         env:
@@ -59,6 +88,7 @@ jobs:
         working-directory: apps/world/tests/browser
         run: npx playwright install --with-deps chromium
       - name: Full facial contrast and measured-continuity regression
+        if: steps.face-scope.outputs.full != 'false'
         timeout-minutes: 35
         env:
           WORLD_SMOKE_DISABLE_WEBGPU: '1'
@@ -71,6 +101,7 @@ jobs:
         with:
           name: private-face-acceptance-${{ github.event.pull_request.head.sha || github.sha }}
           path: |
+            test-results/annyongi/face-scope.json
             test-results/annyongi/face-diagnostic.json
             test-results/annyongi/face-source-geometry.json
             test-results/annyongi/face-optimized-geometry.json
@@ -107,6 +138,7 @@ jobs:
             test-results/annyongi/private-asset-provenance.json
             test-results/annyongi/result.json
             test-results/annyongi/color-results.json
+            test-results/annyongi/face-scope.json
             test-results/annyongi/face-diagnostic.json
             test-results/annyongi/face-source-geometry.json
             test-results/annyongi/face-optimized-geometry.json
