@@ -9,7 +9,7 @@ const head=execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();
 assert.equal(head,process.env.PHONE_HEAD_SHA,'PHONE_HEAD_SHA must be this exact candidate');
 const output='test-results/phone-campus';await mkdir(output,{recursive:true});
 const files=['src/main.js','campus/index.html','campus/induck-store-v0.2.1.html','phone.css','src/phone/smartphone.js','src/phone/phone-shell.js',
-  'src/phone/phone-album.js','src/phone/phone-preferences.js','src/phone/phone-app-catalog.js','src/phone/student-id.js','src/phone/phone-surfaces.js',
+  'src/phone/phone-album.js','src/phone/phone-preferences.js','src/phone/phone-app-catalog.js','src/phone/phone-store-integration.js','src/phone/student-id.js','src/phone/phone-surfaces.js',
   'src/photo/photo-capture.js','src/photo/photo-mode.js','src/photo/photo-mode-panel.js','src/minimap/full-map-controller.js'];
 const hashes=Object.fromEntries(await Promise.all(files.map(async p=>[p,createHash('sha256').update(await readFile(new URL(`../../${p}`,import.meta.url))).digest('hex')])));
 const report={head,status:'RUNNING',sourceHashes:hashes,cases:[],limits:['Offline guest campus: live signed-in server profile/EXP/Badge integration not verified.',
@@ -97,6 +97,18 @@ async function run(name,viewport,mobile){
     await page.keyboard.press('Escape');
     assert.equal((await phoneState(page)).current.appId,'induck-store');
     const nextStore=page.frameLocator('.phone-store-iframe');
+    await nextStore.locator('[data-action="nav"][data-id="mine"]').first().click();
+    await nextStore.getByText('실제 연결된 앱',{exact:true}).waitFor();
+    await nextStore.getByText('시연 앱 · 실제 설치 아님',{exact:true}).waitFor();
+    assert.equal(await page.evaluate(()=>window.__INHAGAME_P0__.smartphone.status().preferences.installedApps.includes('induck-pet')),false);
+    await nextStore.locator('[data-action="phone-preview"]').click();
+    await nextStore.getByText('실제 스마트폰 홈',{exact:true}).waitFor();
+    await nextStore.locator('[data-action="pin"][data-id="induck-classic"]').click();
+    await page.waitForFunction(()=>window.__INHAGAME_P0__.smartphone.status().preferences.hiddenApps.includes('induck-classic'));
+    await nextStore.getByText('홈에서 숨김',{exact:true}).first().waitFor();
+    await nextStore.locator('[data-action="pin"][data-id="induck-classic"]').click();
+    await page.waitForFunction(()=>!window.__INHAGAME_P0__.smartphone.status().preferences.hiddenApps.includes('induck-classic'));
+    await nextStore.getByText('홈에 표시 중',{exact:true}).first().waitFor();
     await nextStore.locator('[data-action="search"]').first().click();
     await nextStore.locator('#searchInput').fill('인하오리 Classic');
     await nextStore.locator('[data-action="detail"][data-id="induck-classic"]').first().click();
@@ -105,7 +117,7 @@ async function run(name,viewport,mobile){
     await page.waitForFunction(()=>!window.__INHAGAME_P0__.smartphone.status().preferences.installedApps.includes('induck-classic'));
     await page.locator('.smartphone-home-button').click();
     assert.equal(await page.locator('.smartphone-app[data-app-id="induck-store"]').count(),1);
-    entry.checks.push('INHA OS 0.2.1: original store iframe, installation bridge, safe game route, back, uninstall');await save();    const beforeCamera=await snapshot(page);await clickApp(page,'camera');assert.equal((await phoneState(page)).state,'CAMERA');assert.equal(await page.locator('.smartphone').isVisible(),false);assert.equal((await snapshot(page)).photo,true);
+    entry.checks.push('INHA OS live bridge: authoritative install, app separation, actual Home snapshot, pin/hide restore, safe game route and uninstall');await save();    const beforeCamera=await snapshot(page);await clickApp(page,'camera');assert.equal((await phoneState(page)).state,'CAMERA');assert.equal(await page.locator('.smartphone').isVisible(),false);assert.equal((await snapshot(page)).photo,true);
     const downloadReady=page.waitForEvent('download',{timeout:120000});
     downloadReady.catch(()=>{});
     await page.locator('[data-photo-control="capture"]').click();
