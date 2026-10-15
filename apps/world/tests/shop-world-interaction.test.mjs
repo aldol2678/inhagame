@@ -196,7 +196,7 @@ test("priority 190: never hides NPC talk, events, seats, guestbook, Biryong, duc
 test("menu entry kept; both entries open the one existing shop panel", () => {
   const main = source("../src/main.js");
   const html = source("../campus/index.html");
-  assert.match(html, /id="open-shop"[^>]*>🛍 상점</, "☰ → 🛍 상점 stays");
+  assert.match(html, /id="open-shop"[^>]*>🛍 <span>상점<\/span><\/button>/, "☰ → 🛍 상점 stays");
   assert.equal((main.match(/createShopPanel\(/g) ?? []).length, 1, "one panel");
   assert.equal((main.match(/createShopRouter\(/g) ?? []).length, 1, "one shop router");
   assert.match(main, /shopButton\?\.addEventListener\("click",[\s\S]*?shopEntry\.enter\(\)/);

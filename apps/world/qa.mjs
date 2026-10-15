@@ -640,7 +640,7 @@ assert.doesNotMatch(m3MainSource, /createClient\([^)]*\)[^\n]*progression|progre
   "progression never creates its own Supabase client");
 console.log("P0-F3a progression HUD static contracts PASS");
 // P0-F3b: Student Center shop panel. One menu entry, one modal section, server-rendered offers.
-assert.match(campusHtml, /id="hud-menu"[\s\S]*?id="open-shop"[^>]*aria-controls="shop-panel"[^>]*>🛍 상점</,
+assert.match(campusHtml, /id="hud-menu"[\s\S]*?id="open-shop"[^>]*aria-controls="shop-panel"[^>]*>🛍 <span>상점<\/span><\/button>/,
   "the HUD menu carries the single shop entry point");
 assert.equal((campusHtml.match(/id="shop-panel"/g) ?? []).length, 1, "shop panel is a single DOM target");
 assert.match(campusHtml, /id="shop-panel"[^>]*role="dialog"[^>]*aria-modal="true"[^>]*hidden/, "the shop panel is a modal that starts hidden");
@@ -687,7 +687,7 @@ console.log("Student Center shop world entry static contracts PASS");
   const mobilityBookSource = readFileSync(new URL("./src/mobility/mobility-book.js", import.meta.url), "utf8");
   const mobilityRegistrySource = readFileSync(new URL("./src/mobility/mobility-registry.js", import.meta.url), "utf8");
   const mobilityMainSource = readFileSync(new URL("./src/main.js", import.meta.url), "utf8");
-  assert.match(campusHtml, /id="hud-menu"[\s\S]*?id="open-mobility-book"[^>]*aria-controls="mobility-book-panel"[^>]*>🛞 탈것</,
+  assert.match(campusHtml, /id="hud-menu"[\s\S]*?id="open-mobility-book"[^>]*aria-controls="mobility-book-panel"[^>]*>🛞 <span>탈것<\/span><\/button>/,
     "HUD menu carries the Mobility Book entry");
   assert.equal((campusHtml.match(/id="mobility-book-panel"/g) ?? []).length, 1,
     "Mobility Book panel is a single DOM target");
@@ -716,7 +716,7 @@ console.log("Mobility Book P0.8 static contracts PASS");
 // Inventory P0: read-only owned items from get_my_world_inventory_v1 on the member client.
 {
   const inventoryClientSource = readFileSync(new URL("./src/inventory/inventory-client.js", import.meta.url), "utf8");
-  assert.match(campusHtml, /id="hud-menu"[\s\S]*?id="open-inventory"[^>]*aria-controls="inventory-panel"[^>]*>🎒 인벤토리</,
+  assert.match(campusHtml, /id="hud-menu"[\s\S]*?id="open-inventory"[^>]*aria-controls="inventory-panel"[^>]*>🎒 <span>인벤토리<\/span><\/button>/,
     "the HUD menu carries the inventory entry");
   assert.equal((campusHtml.match(/id="inventory-panel"/g) ?? []).length, 1, "inventory panel is a single DOM target");
   assert.match(m3MainSource, /createInventoryClient\(\{ getClient: \(\) => online\?\.supabase \?\? null \}\)/,
@@ -732,7 +732,7 @@ console.log("Inventory P0 static contracts PASS");
 // Wardrobe UI P0: server loadout + owned wearables; equip / unequip through the loadout authority only.
 {
   const loadoutClientSource = readFileSync(new URL("./src/appearance/loadout-client.js", import.meta.url), "utf8");
-  assert.match(campusHtml, /id="hud-menu"[\s\S]*?id="open-wardrobe"[^>]*aria-controls="wardrobe-panel"[^>]*>👕 옷장</,
+  assert.match(campusHtml, /id="hud-menu"[\s\S]*?id="open-wardrobe"[^>]*aria-controls="wardrobe-panel"[^>]*>👕 <span>옷장<\/span><\/button>/,
     "the HUD menu carries the wardrobe entry");
   assert.equal((campusHtml.match(/id="wardrobe-panel"/g) ?? []).length, 1, "wardrobe panel is a single DOM target");
   assert.match(m3MainSource, /createLoadoutClient\(\{ getClient: \(\) => online\?\.supabase \?\? null \}\)/,
@@ -798,7 +798,7 @@ assert.match(campusCss, /#context-action \{[\s\S]*bottom:\s*20px[\s\S]*min-heigh
   "desktop keeps context interaction compact near the bottom edge");
 assert.match(campusHtml, /id="emote-toggle"[^>]*title="감정표현 \(E\)"/);
 assert.match(campusHtml, /id="chat-toggle"[^>]*title="채팅 \(Enter\)"/);
-assert.match(campusHtml, /id="open-keyboard-help"[^>]*>⌨ 키보드 조작<\/button>/,
+assert.match(campusHtml, /id="open-keyboard-help"[^>]*aria-controls="keyboard-shortcuts-panel"[^>]*>⌨ 조작 도움말<\/button>/,
   "desktop HUD menu exposes a dedicated keyboard reference");
 assert.match(campusHtml, /id="keyboard-shortcuts-panel"[^>]*hidden/,
   "keyboard reference starts closed");

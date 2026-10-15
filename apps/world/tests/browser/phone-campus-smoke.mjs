@@ -9,7 +9,7 @@ const head=execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();
 assert.equal(head,process.env.PHONE_HEAD_SHA,'PHONE_HEAD_SHA must be this exact candidate');
 const output='test-results/phone-campus';await mkdir(output,{recursive:true});
 const files=['src/main.js','campus/index.html','campus/induck-store-v0.2.1.html','phone.css','src/phone/smartphone.js','src/phone/phone-shell.js',
-  'src/phone/phone-album.js','src/phone/phone-preferences.js','src/phone/phone-app-catalog.js','src/phone/student-id.js','src/phone/phone-surfaces.js',
+  'src/phone/phone-album.js','src/phone/phone-preferences.js','src/phone/phone-motion.js','src/phone/phone-app-catalog.js','src/phone/phone-store-integration.js','src/phone/student-id.js','src/phone/phone-surfaces.js',
   'src/photo/photo-capture.js','src/photo/photo-mode.js','src/photo/photo-mode-panel.js','src/minimap/full-map-controller.js'];
 const hashes=Object.fromEntries(await Promise.all(files.map(async p=>[p,createHash('sha256').update(await readFile(new URL(`../../${p}`,import.meta.url))).digest('hex')])));
 const report={head,status:'RUNNING',sourceHashes:hashes,cases:[],limits:['Offline guest campus: live signed-in server profile/EXP/Badge integration not verified.',
@@ -42,6 +42,44 @@ async function run(name,viewport,mobile){
     if(mobile){const cdp=await smoke.context.newCDPSession(page);await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:blank.x+blank.width/2,y:blank.y+blank.height/2,id:1}]});await new Promise(r=>setTimeout(r,650));await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await cdp.detach();}
     else{await page.mouse.move(blank.x+blank.width/2,blank.y+blank.height/2);await page.mouse.down();await new Promise(r=>setTimeout(r,650));await page.mouse.up();}
     assert.equal((await phoneState(page)).state,'HOME_EDIT');await page.getByRole('button',{name:'편집 완료',exact:true}).click();
+    // Phase 1 uses real preferences, not the standalone prototype's mock catalog.
+    await page.getByRole('button',{name:'홈 화면 편집',exact:true}).click();
+    await page.getByRole('button',{name:'학생증 홈에서 숨기기',exact:true}).click();
+    assert.equal((await phoneState(page)).preferences.hiddenApps.includes('student-id'),false,'prompt does not mutate preferences');
+    await page.keyboard.press('Escape');
+    assert.equal(await page.getByRole('alertdialog').count(),0,'Escape cancels only the hide prompt');
+    assert.equal((await phoneState(page)).state,'HOME_EDIT');
+    await page.getByRole('button',{name:'학생증 홈에서 숨기기',exact:true}).click();
+    await page.getByRole('button',{name:'숨기기 확인',exact:true}).click();
+    await page.waitForFunction(()=>!document.querySelector('.smartphone-app[data-app-id="student-id"]'));
+    const hiddenPersisted=await page.evaluate(()=>{
+      const s=window.__INHAGAME_P0__.smartphone.status();
+      return JSON.parse(localStorage.getItem('inha-world-phone-home-v1:'+s.scope)).hiddenApps;
+    });
+    assert.ok(hiddenPersisted.includes('student-id'),'hide success has persisted readback');
+    await page.locator('.smartphone-hidden-apps summary').click();
+    await page.getByRole('button',{name:/학생증 다시 표시/}).click();
+    assert.equal((await phoneState(page)).preferences.hiddenApps.includes('student-id'),false);
+    const beforeFailedHide=(await phoneState(page)).preferences;
+    await page.evaluate(()=>{window.__restoreStorageSet=Storage.prototype.setItem;Storage.prototype.setItem=()=>{throw Error('QA quota');};});
+    await page.getByRole('button',{name:'앨범 홈에서 숨기기',exact:true}).click();
+    await page.getByRole('button',{name:'숨기기 확인',exact:true}).click();
+    assert.deepEqual((await phoneState(page)).preferences,beforeFailedHide,'failed hide retains exact layout');
+    assert.equal(await page.locator('.smartphone-app[data-app-id="album"]').count(),1);
+    await page.evaluate(()=>{Storage.prototype.setItem=window.__restoreStorageSet;});
+    await page.getByRole('button',{name:'지도 Dock에서 홈으로 이동',exact:true}).click();
+    const unpinned=(await phoneState(page)).preferences;
+    assert.equal(unpinned.dock.includes('maps'),false);
+    assert.equal(unpinned.hiddenApps.includes('maps'),false);
+    assert.equal(unpinned.pages.flat().filter(id=>id==='maps').length,1);
+    await page.getByRole('button',{name:'기본 배치 복구',exact:true}).click();
+    await page.locator('.smartphone-clock').click();
+    assert.equal((await phoneState(page)).state,'HOME','free home space exits edit mode');
+    await page.getByRole('button',{name:'알림센터 열기',exact:true}).click();
+    assert.equal((await phoneState(page)).current.appId,'notifications');
+    await page.getByRole('button',{name:'알림센터 닫기',exact:true}).click();
+    assert.equal((await phoneState(page)).state,'HOME');
+    entry.checks.push('Phase 1: cancelable hide confirmation, persisted hide/restore, storage rollback, Dock move-not-hide, free-space exit and bounded notification handles');await save();
     entry.checks.push('Phone key/mobile button, frame bounds, focus isolation and inert World');await save();
     await page.keyboard.down('KeyW');await frames(page,3);await page.keyboard.up('KeyW');
     const blocked=await snapshot(page);assert.deepEqual(blocked.position.slice(0,1).concat(blocked.position.slice(2)),initial.position.slice(0,1).concat(initial.position.slice(2)));assert.equal(blocked.yaw,initial.yaw);
@@ -97,6 +135,18 @@ async function run(name,viewport,mobile){
     await page.keyboard.press('Escape');
     assert.equal((await phoneState(page)).current.appId,'induck-store');
     const nextStore=page.frameLocator('.phone-store-iframe');
+    await nextStore.locator('[data-action="nav"][data-id="mine"]').first().click();
+    await nextStore.getByText('실제 연결된 앱',{exact:true}).waitFor();
+    await nextStore.getByText('시연 앱 · 실제 설치 아님',{exact:true}).waitFor();
+    assert.equal(await page.evaluate(()=>window.__INHAGAME_P0__.smartphone.status().preferences.installedApps.includes('induck-pet')),false);
+    await nextStore.locator('[data-action="phone-preview"]').click();
+    await nextStore.getByText('실제 스마트폰 홈',{exact:true}).waitFor();
+    await nextStore.locator('[data-action="pin"][data-id="induck-classic"]').click();
+    await page.waitForFunction(()=>window.__INHAGAME_P0__.smartphone.status().preferences.hiddenApps.includes('induck-classic'));
+    await nextStore.getByText('홈에서 숨김',{exact:true}).first().waitFor();
+    await nextStore.locator('[data-action="pin"][data-id="induck-classic"]').click();
+    await page.waitForFunction(()=>!window.__INHAGAME_P0__.smartphone.status().preferences.hiddenApps.includes('induck-classic'));
+    await nextStore.getByText('홈에 표시 중',{exact:true}).first().waitFor();
     await nextStore.locator('[data-action="search"]').first().click();
     await nextStore.locator('#searchInput').fill('인하오리 Classic');
     await nextStore.locator('[data-action="detail"][data-id="induck-classic"]').first().click();
@@ -105,7 +155,7 @@ async function run(name,viewport,mobile){
     await page.waitForFunction(()=>!window.__INHAGAME_P0__.smartphone.status().preferences.installedApps.includes('induck-classic'));
     await page.locator('.smartphone-home-button').click();
     assert.equal(await page.locator('.smartphone-app[data-app-id="induck-store"]').count(),1);
-    entry.checks.push('INHA OS 0.2.1: original store iframe, installation bridge, safe game route, back, uninstall');await save();    const beforeCamera=await snapshot(page);await clickApp(page,'camera');assert.equal((await phoneState(page)).state,'CAMERA');assert.equal(await page.locator('.smartphone').isVisible(),false);assert.equal((await snapshot(page)).photo,true);
+    entry.checks.push('INHA OS live bridge: authoritative install, app separation, actual Home snapshot, pin/hide restore, safe game route and uninstall');await save();    const beforeCamera=await snapshot(page);await clickApp(page,'camera');assert.equal((await phoneState(page)).state,'CAMERA');assert.equal(await page.locator('.smartphone').isVisible(),false);assert.equal((await snapshot(page)).photo,true);
     const downloadReady=page.waitForEvent('download',{timeout:120000});
     downloadReady.catch(()=>{});
     await page.locator('[data-photo-control="capture"]').click();
@@ -163,7 +213,31 @@ async function run(name,viewport,mobile){
     await page.waitForFunction(()=>window.__INHAGAME_P0__.smartphone.status().preferences.wallpaper.type==='default');
     assert.equal((await page.evaluate(async()=>window.__INHAGAME_P0__.smartphone.album.list())).length,0);await page.getByRole('button',{name:'카메라 열기',exact:true}).waitFor();
     entry.checks.push('Home pointer drag/Dock dedup + reload persistence; photo delete confirmation/three-entry cleanup/deleted wallpaper fallback/empty state');await save();
-    await page.locator('.smartphone-home-button').click();await clickApp(page,'settings');assert.equal(await page.locator('#view-settings').getAttribute('data-phone-hosted'),'true');await page.keyboard.press('Escape');assert.equal((await phoneState(page)).state,'HOME');
+    await page.locator('.smartphone-home-button').click();await clickApp(page,'settings');
+    assert.equal(await page.locator('#view-settings').getAttribute('data-phone-hosted'),'true');
+    assert.ok(await page.locator('#settings-category-home').isVisible(), 'categorized Settings home opens');
+    await page.locator('[data-settings-target="graphics"]').click();
+    assert.ok(await page.locator('#settings-page-graphics').isVisible());
+    const scroll=await page.evaluate(()=>{
+      const n=document.querySelector('.smartphone-content'),panel=document.querySelector('#view-settings');
+      const outer=getComputedStyle(n),inner=getComputedStyle(panel);
+      const oldMax=n.style.maxHeight,oldFlex=n.style.flex;
+      n.style.maxHeight='200px';n.style.flex='0 0 auto';
+      n.scrollTop=n.scrollHeight;
+      const result={outerOverflow:outer.overflowY,innerOverflow:inner.overflowY,
+        scrollTop:n.scrollTop,scrollHeight:n.scrollHeight,clientHeight:n.clientHeight};
+      n.style.maxHeight=oldMax;n.style.flex=oldFlex;n.scrollTop=0;
+      return result;
+    });
+    assert.equal(scroll.outerOverflow,'auto');
+    assert.equal(scroll.innerOverflow,'visible');
+    assert.ok(scroll.scrollHeight>scroll.clientHeight && scroll.scrollTop>0, JSON.stringify(scroll));
+    await page.locator('#settings-section-back').click();
+    assert.ok(await page.locator('#settings-category-home').isVisible(), 'back restores categories');
+    await page.locator('[data-settings-target="audio"]').click();
+    assert.ok(await page.locator('#audio-volume').isVisible(), 'existing audio control survives grouping');
+    await page.keyboard.press('Escape');assert.equal((await phoneState(page)).state,'HOME');
+    entry.checks.push('Settings 2.0 category/back, existing controls, inner overflow visible and Phone-owned scrolling');await save();
     await page.getByRole('button',{name:'홈 화면 편집',exact:true}).click();
     await page.locator('.smartphone-app[data-app-id="settings"]').click();await page.getByLabel('앱 이동할 칸',{exact:true}).selectOption('dock:3');await page.getByRole('button',{name:'선택한 앱 이동',exact:true}).click();assert.equal((await phoneState(page)).preferences.dock[3],'settings');
     await page.getByRole('button',{name:'기본 배치 복구',exact:true}).click();assert.deepEqual((await phoneState(page)).preferences.dock,['maps','camera',null,null]);

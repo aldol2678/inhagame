@@ -26,10 +26,6 @@ body[data-phone-open="true"] > :not(#application):not(.smartphone) { visibility:
 .smartphone .full-map-poi:focus-visible { outline:2px solid #fff2b2; outline-offset:1px; }
 .smartphone-header button { font-size:26px; width:44px; padding:0; background:transparent; border:0; }
 .smartphone-content { flex:1; min-height:0; overflow:auto; padding:10px 16px; overscroll-behavior:contain; }
-.smartphone:not([hidden]) .smartphone-frame { animation:phone-open .15s ease-out; }
-.smartphone-content > :not(.full-map-panel):not(.view-settings) { animation:phone-app .12s ease-out; }
-@keyframes phone-open { from { opacity:0; transform:translateY(12px) scale(.98); } to { opacity:1; transform:none; } }
-@keyframes phone-app { from { opacity:.5; transform:translateY(4px); } to { opacity:1; transform:none; } }
 @media (prefers-reduced-motion:reduce) { .smartphone *, .smartphone-frame { animation:none !important; transition:none !important; scroll-behavior:auto !important; } }
 .smartphone-content h3 { font-size:16px; }
 .smartphone-content p { line-height:1.5; font-size:13px; }
@@ -77,7 +73,18 @@ body[data-phone-open="true"] > :not(#application):not(.smartphone) { visibility:
 .smartphone .full-map-search-panel { z-index:2; }
 .smartphone .full-map-info { width:100%; box-sizing:border-box; max-height:none; overflow:visible; }
 .smartphone .full-map-controls { position:static; display:flex; flex-wrap:wrap; margin-top:8px; }
-.smartphone .view-settings[data-phone-hosted="true"] { position:relative; inset:auto; transform:none; width:100%; max-width:none; max-height:none; box-sizing:border-box; background:#142d46ed; border-radius:16px; }
+/* The Phone content is the single vertical scroller. A nested auto-scroller with
+   overscroll-behavior:contain swallows Android swipe gestures when unbounded. */
+.smartphone-content { overflow-x:hidden; overflow-y:auto; touch-action:pan-y; -webkit-overflow-scrolling:touch; }
+.smartphone .view-settings[data-phone-hosted="true"] {
+  display:block; position:relative; inset:auto; transform:none;
+  width:100%; max-width:none; max-height:none; min-height:0; box-sizing:border-box;
+  margin:0; padding:0 0 14px; border:0; border-radius:0; box-shadow:none;
+  background:transparent; overflow:visible; overscroll-behavior:auto; touch-action:pan-y;
+}
+.smartphone .view-settings[data-phone-hosted="true"] .settings2-header {
+  top:-10px; padding-inline:2px; border-radius:12px 12px 0 0;
+}
 /* Existing Quiz / Attendance DOM and server-bound controllers stay unchanged.
    Only their standalone modal chrome is neutralized inside the Phone surface. */
 .smartphone .daily-quiz-panel[data-phone-hosted="true"],
@@ -226,3 +233,26 @@ body[data-phone-open="true"] > :not(#application):not(.smartphone) { visibility:
 .smartphone .phone-store-iframe:focus-visible { outline:3px solid #7bd7bc;outline-offset:-3px; }
 .smartphone .phone-store-external { display:inline-flex;min-height:44px;align-items:center;justify-content:center;padding:10px 16px;border-radius:12px;background:#d9e7f3;color:#193346;font-weight:700;text-decoration:none; }
 .smartphone .phone-store-external:focus-visible { outline:3px solid #f8d77b;outline-offset:3px; }
+
+/* PHONE-MOTION-02 phase 1. JS animates only the newly active surface; shell teardown is synchronous. */
+.smartphone-frame::before { content:""; position:absolute; inset:0; z-index:-1; pointer-events:none; background:transparent; transition:backdrop-filter .18s,background .18s; }
+.smartphone[data-state="HOME_EDIT"] .smartphone-frame::before { backdrop-filter:blur(10px); background:#10283a4d; }
+.smartphone[data-state="HOME_EDIT"] .smartphone-wallpaper { filter:brightness(.58) blur(9px); transform:scale(1.05); }
+.smartphone-app-cell { position:relative; min-width:0; }
+.smartphone-app-cell > .smartphone-app { width:100%; }
+.smartphone[data-state="HOME_EDIT"] .smartphone-app-icon { animation:phone-edit-wiggle .28s ease-in-out infinite alternate; transform-origin:50% 70%; }
+.smartphone[data-state="HOME_EDIT"] .smartphone-app-cell:nth-child(even) .smartphone-app-icon { animation-delay:-.16s; animation-direction:alternate-reverse; }
+@keyframes phone-edit-wiggle { from { transform:rotate(-3deg) translateY(-1px); } to { transform:rotate(3deg) translateY(1px); } }
+.smartphone .smartphone-remove { position:absolute; z-index:3; top:-13px; left:-5px; width:44px; height:44px; min-height:44px; padding:0; border:0; background:transparent; font-size:0; }
+.smartphone .smartphone-remove::before { content:'−'; display:grid; place-items:center; width:24px; height:24px; margin:auto; background:#edf3f8; color:#263647; border:1px solid #fff; border-radius:50%; font-size:21px; box-shadow:0 2px 7px #0006; }
+.smartphone-hide-confirm { position:sticky; top:0; z-index:5; padding:14px; margin-bottom:14px; border:1px solid #f9dea5; border-radius:16px; background:#153447; box-shadow:0 8px 24px #0007; }
+.smartphone-hide-confirm button { margin-right:8px; }
+.smartphone-hidden-apps { margin:12px 0; padding:8px; border-radius:12px; background:#142d4688; }
+.smartphone-hidden-apps summary { min-height:44px; display:flex; align-items:center; cursor:pointer; }
+.smartphone-hidden-apps button { margin:4px; }
+.smartphone .smartphone-notification-handle { display:block; min-height:44px; touch-action:none; font-size:12px; }
+.smartphone .smartphone-notification-handle[hidden] { display:none; }
+.smartphone-statusbar { position:relative; }
+.smartphone-statusbar .smartphone-notification-handle { position:absolute; left:50%; top:0; transform:translateX(-50%); width:110px; background:transparent; border:0; padding:13px 0 0; z-index:2; }
+.smartphone-content > .smartphone-notification-handle { width:100%; margin:0 0 8px; }
+@media (prefers-reduced-motion:reduce) { .smartphone[data-state="HOME_EDIT"] .smartphone-app-icon { animation:none !important; } .smartphone-frame::before { transition:none; } }

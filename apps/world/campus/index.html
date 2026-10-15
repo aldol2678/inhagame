@@ -326,22 +326,32 @@
   </aside>
   <div id="nameplate" class="nameplate" aria-label="내 캐릭터 닉네임">인덕이</div>
   <output id="graphics-fps" class="graphics-fps" aria-label="현재 렌더링 FPS" hidden>— FPS</output>
-  <div id="hud-menu" class="identity-actions" hidden>
-    <div class="hud-menu-title">INHAGAME CAMPUS <span>인덕이와 안뇽이</span></div>
+  <div id="hud-menu" class="identity-actions" aria-label="월드 메뉴" hidden>
+    <div class="hud-menu-grabber" aria-hidden="true"></div>
+    <div class="hud-menu-title">INHA WORLD <span>인덕이와 안뇽이 · 캠퍼스 탐험</span></div>
     <p id="progression-menu-line" class="progression-menu-line" hidden></p>
-    <button id="open-profile" type="button">🦆 프로필</button>
-    <button id="open-quest-journal" type="button" aria-controls="quest-journal-panel" aria-expanded="false" aria-keyshortcuts="Q">📜 퀘스트</button>
-    <button id="open-shop" type="button" aria-controls="shop-panel" aria-expanded="false">🛍 상점</button>
-    <button id="open-inventory" type="button" aria-controls="inventory-panel" aria-expanded="false">🎒 인벤토리</button>
-    <button id="open-mobility-book" type="button" aria-controls="mobility-book-panel" aria-expanded="false">🛞 탈것</button>
-    <button id="open-wardrobe" type="button" aria-controls="wardrobe-panel" aria-expanded="false">👕 옷장</button>
-    <button id="open-daily-quiz" type="button" aria-controls="daily-quiz-panel" aria-expanded="false">📚 오늘의 퀴즈</button>
-    <button id="open-attendance" type="button" aria-controls="attendance-panel" aria-expanded="false">📅 출석부</button>
-    <button id="open-life-skills" type="button" aria-controls="life-skill-book-panel" aria-expanded="false" hidden>📘 생활 스킬</button>
-    <button id="open-friends" type="button" aria-controls="friend-panel" aria-expanded="false" hidden>👥 친구</button>
-    <button id="toggle-first-person" type="button" aria-pressed="false" aria-label="1인칭 시점" aria-keyshortcuts="V">👁 1인칭으로</button>
-    <button id="open-keyboard-help" class="desktop-only" type="button" aria-controls="keyboard-shortcuts-panel" aria-expanded="false">⌨ 키보드 조작</button>
-    <button id="open-settings" type="button" aria-controls="view-settings" aria-expanded="false">⚙ 설정 · 보통</button>
+    <div class="hud-menu-group-label">빠른 메뉴</div>
+    <div class="hud-menu-grid">
+      <button id="open-profile" type="button">🦆 <span>프로필</span></button>
+      <button id="open-quest-journal" type="button" aria-controls="quest-journal-panel" aria-expanded="false" aria-keyshortcuts="Q">📜 <span>퀘스트</span></button>
+      <button id="open-inventory" type="button" aria-controls="inventory-panel" aria-expanded="false">🎒 <span>인벤토리</span></button>
+      <button id="open-mobility-book" type="button" aria-controls="mobility-book-panel" aria-expanded="false">🛞 <span>탈것</span></button>
+      <button id="open-wardrobe" type="button" aria-controls="wardrobe-panel" aria-expanded="false">👕 <span>옷장</span></button>
+      <button id="open-shop" type="button" aria-controls="shop-panel" aria-expanded="false">🛍 <span>상점</span></button>
+      <button id="open-life-skills" type="button" aria-controls="life-skill-book-panel" aria-expanded="false" hidden>📘 <span>생활 스킬</span></button>
+      <button id="open-friends" type="button" aria-controls="friend-panel" aria-expanded="false" hidden>👥 <span>친구</span></button>
+    </div>
+    <div class="hud-menu-group-label">캠퍼스 생활</div>
+    <div class="hud-menu-grid hud-menu-grid-secondary">
+      <button id="open-daily-quiz" type="button" aria-controls="daily-quiz-panel" aria-expanded="false">📚 <span>오늘의 퀴즈</span></button>
+      <button id="open-attendance" type="button" aria-controls="attendance-panel" aria-expanded="false">📅 <span>출석부</span></button>
+    </div>
+    <button id="open-phone-menu" class="hud-menu-phone" type="button">📱 <span>스마트폰 앱 · 지도, 앨범, 알림, 메시지</span> <span aria-hidden="true">›</span></button>
+    <div class="hud-menu-tools">
+      <button id="toggle-first-person" type="button" aria-pressed="false" aria-label="1인칭 시점" aria-keyshortcuts="V">👁 시점 변경</button>
+      <button id="open-keyboard-help" class="desktop-only" type="button" aria-controls="keyboard-shortcuts-panel" aria-expanded="false">⌨ 조작 도움말</button>
+      <button id="open-settings" type="button" aria-controls="view-settings" aria-expanded="false">⚙ 설정 · 보통</button>
+    </div>
     <details id="hud" class="hud-diagnostics">
       <summary>상태 정보</summary>
       <div class="status">
@@ -353,65 +363,89 @@
     </details>
   </div>
   <section id="view-settings" class="view-settings" aria-labelledby="view-settings-title" hidden>
-    <button id="close-settings" type="button" class="profile-close" aria-label="설정 닫기">×</button>
-    <h2 id="view-settings-title">화면·소리·조작 설정</h2>
-    <label for="graphics-quality">그래픽 품질</label>
-    <select id="graphics-quality" aria-describedby="graphics-quality-hint">
-      <option value="auto" selected>자동</option><option value="very_low">최저</option>
-      <option value="low">낮음</option><option value="medium">보통</option>
-      <option value="high">높음</option><option value="ultra">울트라</option>
-    </select>
-    <p id="graphics-quality-hint">기기에 맞는 품질을 선택합니다.</p>
-    <label for="graphics-frame-limit">최대 프레임</label>
-    <select id="graphics-frame-limit">
-      <option value="auto">자동 (화면 주사율)</option><option value="30">30 FPS</option>
-      <option value="45">45 FPS</option><option value="60">60 FPS</option>
-      <option value="90">90 FPS</option><option value="120">120 FPS</option>
-    </select>
-    <label for="graphics-render-scale">렌더 해상도</label>
-    <select id="graphics-render-scale" aria-describedby="graphics-detail-hint">
-      <option value="auto">자동 (품질에 맞춤)</option><option value="0.7">70%</option>
-      <option value="0.85">85%</option><option value="1">100%</option>
-    </select>
-    <label for="graphics-shadows">그림자</label>
-    <select id="graphics-shadows">
-      <option value="auto">자동 (품질에 맞춤)</option><option value="off">끄기</option>
-      <option value="low">낮음</option><option value="medium">보통</option><option value="high">높음</option>
-    </select>
-    <label for="graphics-show-fps"><input id="graphics-show-fps" type="checkbox"> FPS 표시</label>
-    <p id="graphics-detail-hint">직접 고른 세부 값은 품질보다 우선합니다. 해상도 100%는 기기 픽셀 비율 최대 2배 기준입니다.</p>
-    <button id="graphics-reset" type="button">그래픽 자동 설정으로 초기화</button>
-    <label for="view-distance">시야 거리</label>
-    <select id="view-distance" aria-describedby="view-distance-hint">
-      <option value="SHORT">짧게</option><option value="NORMAL" selected>보통</option>
-      <option value="FAR">멀리</option><option value="MAX">최대</option>
-    </select>
-    <p id="view-distance-hint">멀리 선택할수록 세부 모습이 더 멀리까지 보여요. 주요 건물은 항상 보입니다.</p>
-    <div class="desktop-camera-settings">
-      <label for="mouse-sensitivity">마우스 시점 감도</label>
-      <select id="mouse-sensitivity" aria-describedby="mouse-look-hint">
-        <option value="0.5">매우 낮음</option>
-        <option value="0.75">낮음</option>
-        <option value="1" selected>보통</option>
-        <option value="1.25">높음</option>
-        <option value="1.5">매우 높음</option>
-        <option value="2">최대</option>
-      </select>
-      <label class="camera-invert-option" for="invert-mouse-y">
-        <input id="invert-mouse-y" type="checkbox">
-        <span>마우스 Y축 반전</span>
-      </label>
-      <p id="mouse-look-hint">게임 화면을 클릭하면 마우스가 고정됩니다. Esc로 해제하고, 다시 클릭하면 재고정됩니다.</p>
+    <header class="settings2-header">
+      <button id="settings-section-back" type="button" aria-label="설정 목록으로 돌아가기" hidden>‹</button>
+      <h2 id="view-settings-title">설정</h2>
+      <button id="close-settings" type="button" class="profile-close" aria-label="설정 닫기">×</button>
+    </header>
+    <div id="settings-category-home" class="settings2-home">
+      <p class="settings2-intro">화면과 소리, 조작 환경을 기기에 맞게 설정하세요.</p>
+      <button type="button" class="settings2-category" data-settings-target="graphics" aria-controls="settings-page-graphics"><span aria-hidden="true">🖥️</span><span><strong>화면 및 그래픽</strong><small>화질 · 프레임 · 해상도 · 시야 거리</small></span><span aria-hidden="true">›</span></button>
+      <button type="button" class="settings2-category" data-settings-target="audio" aria-controls="settings-page-audio"><span aria-hidden="true">🔊</span><span><strong>소리</strong><small>환경음 음량</small></span><span aria-hidden="true">›</span></button>
+      <button type="button" class="settings2-category" data-settings-target="controls" aria-controls="settings-page-controls"><span aria-hidden="true">🎮</span><span><strong>조작 및 카메라</strong><small>시점 조작 · PC 카메라 감도</small></span><span aria-hidden="true">›</span></button>
+      <button type="button" class="settings2-category" data-settings-target="diagnostics" aria-controls="settings-page-diagnostics"><span aria-hidden="true">🛠️</span><span><strong>진단 및 정보</strong><small>문제 확인 · 버그 보고</small></span><span aria-hidden="true">›</span></button>
     </div>
-    <label for="audio-volume">환경음 음량</label>
-    <select id="audio-volume" aria-label="환경음 음량">
-      <option value="0">끔</option>
-      <option value="0.35">작게</option>
-      <option value="0.7" selected>보통</option>
-      <option value="1">크게</option>
-    </select>
-    <button id="open-runtime-diagnostics" type="button" aria-controls="runtime-diagnostics-panel" aria-expanded="false">진단 · 버그 보고</button>
-    <p id="view-settings-status" role="status">이 기기에 저장됩니다.</p>
+    <div id="settings-page-graphics" class="settings2-page" data-settings-page="graphics" hidden>
+      <h3>화면 및 그래픽</h3>
+      <label for="graphics-quality">그래픽 품질</label>
+      <select id="graphics-quality" aria-describedby="graphics-quality-hint">
+        <option value="auto" selected>자동</option><option value="very_low">최저</option>
+        <option value="low">낮음</option><option value="medium">보통</option>
+        <option value="high">높음</option><option value="ultra">울트라</option>
+      </select>
+      <p id="graphics-quality-hint">기기에 맞는 품질을 선택합니다.</p>
+      <label for="graphics-frame-limit">최대 프레임</label>
+      <select id="graphics-frame-limit">
+        <option value="auto">자동 (화면 주사율)</option><option value="30">30 FPS</option>
+        <option value="45">45 FPS</option><option value="60">60 FPS</option>
+        <option value="90">90 FPS</option><option value="120">120 FPS</option>
+      </select>
+      <label for="graphics-render-scale">렌더 해상도</label>
+      <select id="graphics-render-scale" aria-describedby="graphics-detail-hint">
+        <option value="auto">자동 (품질에 맞춤)</option><option value="0.7">70%</option>
+        <option value="0.85">85%</option><option value="1">100%</option>
+      </select>
+      <label for="graphics-shadows">그림자</label>
+      <select id="graphics-shadows">
+        <option value="auto">자동 (품질에 맞춤)</option><option value="off">끄기</option>
+        <option value="low">낮음</option><option value="medium">보통</option><option value="high">높음</option>
+      </select>
+      <label for="graphics-show-fps"><input id="graphics-show-fps" type="checkbox"> FPS 표시</label>
+      <p id="graphics-detail-hint">직접 고른 세부 값은 품질보다 우선합니다. 해상도 100%는 기기 픽셀 비율 최대 2배 기준입니다.</p>
+      <button id="graphics-reset" type="button">그래픽 자동 설정으로 초기화</button>
+      <label for="view-distance">시야 거리</label>
+      <select id="view-distance" aria-describedby="view-distance-hint">
+        <option value="SHORT">짧게</option><option value="NORMAL" selected>보통</option>
+        <option value="FAR">멀리</option><option value="MAX">최대</option>
+      </select>
+      <p id="view-distance-hint">멀리 선택할수록 세부 모습이 더 멀리까지 보여요. 주요 건물은 항상 보입니다.</p>
+    </div>
+    <div id="settings-page-controls" class="settings2-page" data-settings-page="controls" hidden>
+      <h3>조작 및 카메라</h3>
+      <p class="settings2-intro">터치 조작은 게임 화면의 조이스틱과 카메라를 사용합니다. PC에서는 아래 마우스 옵션을 변경할 수 있습니다.</p>
+      <div class="desktop-camera-settings">
+        <label for="mouse-sensitivity">마우스 시점 감도</label>
+        <select id="mouse-sensitivity" aria-describedby="mouse-look-hint">
+          <option value="0.5">매우 낮음</option>
+          <option value="0.75">낮음</option>
+          <option value="1" selected>보통</option>
+          <option value="1.25">높음</option>
+          <option value="1.5">매우 높음</option>
+          <option value="2">최대</option>
+        </select>
+        <label class="camera-invert-option" for="invert-mouse-y">
+          <input id="invert-mouse-y" type="checkbox">
+          <span>마우스 Y축 반전</span>
+        </label>
+        <p id="mouse-look-hint">게임 화면을 클릭하면 마우스가 고정됩니다. Esc로 해제하고, 다시 클릭하면 재고정됩니다.</p>
+      </div>
+    </div>
+    <div id="settings-page-audio" class="settings2-page" data-settings-page="audio" hidden>
+      <h3>소리</h3>
+      <label for="audio-volume">환경음 음량</label>
+      <select id="audio-volume" aria-label="환경음 음량">
+        <option value="0">끔</option>
+        <option value="0.35">작게</option>
+        <option value="0.7" selected>보통</option>
+        <option value="1">크게</option>
+      </select>
+    </div>
+    <div id="settings-page-diagnostics" class="settings2-page" data-settings-page="diagnostics" hidden>
+      <h3>진단 및 정보</h3>
+      <p class="settings2-intro">화면이 느리거나 게임에 문제가 생겼다면 진단 정보를 확인해 보세요.</p>
+      <button id="open-runtime-diagnostics" type="button" aria-controls="runtime-diagnostics-panel" aria-expanded="false">진단 · 버그 보고</button>
+    </div>
+    <p id="view-settings-status" class="settings2-status" role="status">이 기기에 저장됩니다.</p>
   </section>
   <section id="keyboard-shortcuts-panel" class="keyboard-shortcuts-panel" aria-labelledby="keyboard-shortcuts-title" hidden>
     <button id="close-keyboard-help" type="button" class="profile-close" aria-label="키보드 조작 닫기">×</button>

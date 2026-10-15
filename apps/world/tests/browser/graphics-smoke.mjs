@@ -1,3 +1,4 @@
+import { openSettingsCategory } from './settings-navigation.mjs';
 // Offline graphics settings plus WebGPU-to-WebGL2 fallback smoke.
 // Run with WORLD_SMOKE_BROWSER=msedge WORLD_SMOKE_HEADED=1 on a GPU-enabled desktop.
 import assert from 'node:assert/strict';
@@ -12,6 +13,7 @@ try {
   assert.equal((await page.evaluate(() => window.__INHAGAME_P0__.getStatus())).renderer, 'WebGPU');
   await page.locator('#hud-menu-toggle').click();
   await page.locator('#open-settings').click();
+  await openSettingsCategory(page, 'graphics');
   assert.equal(await page.locator('#graphics-quality').inputValue(), 'auto');
   const measure = () => page.evaluate(() => {
     const runtime = window.__INHAGAME_P0__;
@@ -49,6 +51,7 @@ try {
   assert.equal((await measure()).graphics.preference, 'ultra', 'manual choice survives reload');
   await page.locator('#hud-menu-toggle').click();
   await page.locator('#open-settings').click();
+  await openSettingsCategory(page, 'graphics');
   await page.locator('#graphics-quality').selectOption('auto');
   assert.equal((await measure()).graphics.preference, 'auto');
   await page.reload({ waitUntil: 'domcontentloaded' });
@@ -72,6 +75,7 @@ try {
   await mobile.waitForFunction(() => window.__INHAGAME_P0__?.getStatus?.().loading?.finished, null, { timeout: TIMEOUT_MS });
   await mobile.locator('#lobby-menu-toggle').click();
   await mobile.locator('#lobby-open-settings').click();
+  await openSettingsCategory(mobile, 'graphics');
   assert.equal(await mobile.locator('#view-settings').isVisible(), true);
   await mobile.locator('#graphics-quality').selectOption('very_low');
   assert.equal((await mobile.evaluate(() => window.__INHAGAME_P0__.getStatus())).graphics.tier, 'very_low');

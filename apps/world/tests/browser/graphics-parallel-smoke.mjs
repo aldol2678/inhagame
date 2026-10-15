@@ -1,3 +1,4 @@
+import { openSettingsCategory } from './settings-navigation.mjs';
 // Offline, real-renderer integration smoke. No accounts, rewards, production or uploads.
 // Uses the committed offline harness; only the main.js clock-construction expression
 // is replaced in the test response so localhost exercises the production clock consumer.
@@ -52,6 +53,7 @@ async function openSettings() {
   if (!(await page.locator('#view-settings').isVisible())) {
     await page.locator('#hud-menu-toggle').click();
     await page.locator('#open-settings').click();
+    await openSettingsCategory(page, 'graphics');
   }
 }
 async function verifyMovementRestored(label) {

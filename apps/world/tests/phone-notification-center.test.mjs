@@ -78,7 +78,8 @@ test('integration keeps pre-existing Phone state/authority while wiring notifier
  const s=readFileSync(new URL('../src/phone/smartphone.js',import.meta.url),'utf8');
  const m=readFileSync(new URL('../src/main.js',import.meta.url),'utf8');
  assert.match(s,/notifications\.setAccount\(userId\);messages\.setAccount\(userId\)/);
- assert.match(s,/app\.appId==='notifications'\)notifications\.mount\(content\)/);
+ assert.match(s,/app\.appId==='notifications'\)\{/);
+ assert.match(s,/content\.append\(handle,host\);notifications\.mount\(host\)/);
  assert.match(m,/getDailyQuiz: \(\) => dailyQuiz, getAttendance: \(\) => attendance/);
  assert.doesNotMatch(readFileSync(new URL('../src/phone/phone-notification-center.js',import.meta.url),'utf8'),/\.rpc\(|serviceWorker|PushManager/);
 });

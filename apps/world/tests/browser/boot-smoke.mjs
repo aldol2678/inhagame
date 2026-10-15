@@ -1,3 +1,4 @@
+import { openSettingsCategory } from './settings-navigation.mjs';
 // World browser boot smoke. One load of /campus/ proves the
 // real boot path runs: every module imports, boot() finishes, the renderer and scene exist, the
 // render loop and player controller run, and the core HUD mounts, with no page error, console
@@ -427,6 +428,7 @@ try {
     }, null, { timeout: 10_000, polling: 50 }),
     fatalError
   ]);
+  await openSettingsCategory(page, 'graphics');
   const menuToSettings = await page.evaluate(() => {
     const d = window.__INHAGAME_P0__;
     const status = d.getStatus();
