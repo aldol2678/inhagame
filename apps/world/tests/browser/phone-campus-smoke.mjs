@@ -8,8 +8,8 @@ import { startSmoke, TIMEOUT_MS } from './harness.mjs';
 const head=execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();
 assert.equal(head,process.env.PHONE_HEAD_SHA,'PHONE_HEAD_SHA must be this exact candidate');
 const output='test-results/phone-campus';await mkdir(output,{recursive:true});
-const files=['src/main.js','campus/index.html','phone.css','src/phone/smartphone.js','src/phone/phone-shell.js',
-  'src/phone/phone-album.js','src/phone/phone-preferences.js','src/phone/student-id.js','src/phone/phone-surfaces.js',
+const files=['src/main.js','campus/index.html','campus/induck-store-v0.2.1.html','phone.css','src/phone/smartphone.js','src/phone/phone-shell.js',
+  'src/phone/phone-album.js','src/phone/phone-preferences.js','src/phone/phone-app-catalog.js','src/phone/student-id.js','src/phone/phone-surfaces.js',
   'src/photo/photo-capture.js','src/photo/photo-mode.js','src/photo/photo-mode-panel.js','src/minimap/full-map-controller.js'];
 const hashes=Object.fromEntries(await Promise.all(files.map(async p=>[p,createHash('sha256').update(await readFile(new URL(`../../${p}`,import.meta.url))).digest('hex')])));
 const report={head,status:'RUNNING',sourceHashes:hashes,cases:[],limits:['Offline guest campus: live signed-in server profile/EXP/Badge integration not verified.',
@@ -79,7 +79,33 @@ async function run(name,viewport,mobile){
     await page.keyboard.press('Escape');
     assert.equal((await phoneState(page)).state,'HOME');
     entry.checks.push('MENU-02A: guest messages sign-in view, no private RPC, Back/Home and world lock');await save();
-    const beforeCamera=await snapshot(page);await clickApp(page,'camera');assert.equal((await phoneState(page)).state,'CAMERA');assert.equal(await page.locator('.smartphone').isVisible(),false);assert.equal((await snapshot(page)).photo,true);
+    // INHA OS v0.2.1: embedded original storefront; real Phone installs use a scoped bridge.
+    await clickApp(page,'induck-store');
+    assert.equal((await phoneState(page)).current.appId,'induck-store');
+    const store=page.frameLocator('.phone-store-iframe');
+    await store.locator('#root').waitFor();
+    assert.match(await store.locator('.brand-title').innerText(),/인덕스토어/);
+    await store.locator('[data-action="search"]').first().click();
+    await store.locator('#searchInput').fill('인하오리 Classic');
+    await store.locator('[data-action="install"][data-id="induck-classic"]').first().click();
+    await page.waitForFunction(()=>window.__INHAGAME_P0__.smartphone.status().preferences.installedApps.includes('induck-classic'));
+    await store.locator('[data-action="open"][data-id="induck-classic"]').first().click();
+    await page.waitForFunction(()=>window.__INHAGAME_P0__.smartphone.status().current.appId==='induck-classic');
+    const external=page.getByRole('link',{name:'인하오리 Classic 새 탭에서 열기'});
+    assert.equal(await external.getAttribute('href'),'https://duck.inhagame.app/');
+    assert.equal(await external.getAttribute('rel'),'noopener noreferrer');
+    await page.keyboard.press('Escape');
+    assert.equal((await phoneState(page)).current.appId,'induck-store');
+    const nextStore=page.frameLocator('.phone-store-iframe');
+    await nextStore.locator('[data-action="search"]').first().click();
+    await nextStore.locator('#searchInput').fill('인하오리 Classic');
+    await nextStore.locator('[data-action="detail"][data-id="induck-classic"]').first().click();
+    await nextStore.locator('[data-action="uninstall"][data-id="induck-classic"]').first().click();
+    await nextStore.locator('[data-action="confirm-uninstall"][data-id="induck-classic"]').first().click();
+    await page.waitForFunction(()=>!window.__INHAGAME_P0__.smartphone.status().preferences.installedApps.includes('induck-classic'));
+    await page.locator('.smartphone-home-button').click();
+    assert.equal(await page.locator('.smartphone-app[data-app-id="induck-store"]').count(),1);
+    entry.checks.push('INHA OS 0.2.1: original store iframe, installation bridge, safe game route, back, uninstall');await save();    const beforeCamera=await snapshot(page);await clickApp(page,'camera');assert.equal((await phoneState(page)).state,'CAMERA');assert.equal(await page.locator('.smartphone').isVisible(),false);assert.equal((await snapshot(page)).photo,true);
     const downloadReady=page.waitForEvent('download',{timeout:120000});
     downloadReady.catch(()=>{});
     await page.locator('[data-photo-control="capture"]').click();

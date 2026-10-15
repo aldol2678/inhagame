@@ -1,0 +1,446 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f6f7f3">
+<meta name="description" content="인덕스토어 v0.2.1: INHA WORLD 캠퍼스 생활 앱마켓 독립 시연 프로토타입">
+<title>인덕스토어 v0.2.1 | INDUCK STORE</title>
+<style>
+:root{--ink:#202c31;--muted:#78878a;--line:#e8ebe6;--paper:#fafaf7;--white:#fff;--mint:#c9ede2;--green:#1d806a;--navy:#153f45;--coral:#f7aa88;--butter:#ffdb82;--lilac:#e9dbff;--shadow:0 20px 60px #234e4420;--radius:22px}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;font-family:Pretendard,"Apple SD Gothic Neo","Noto Sans KR",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--ink)}body{background:radial-gradient(circle at 14% 10%,#d6ebe6 0,transparent 28%),radial-gradient(circle at 87% 85%,#f7e7d7 0,transparent 32%),#f0f2ed;-webkit-font-smoothing:antialiased}button,input{font:inherit}button{cursor:pointer}button:disabled{cursor:not-allowed;opacity:.55}button:focus-visible,input:focus-visible{outline:3px solid #41bda3;outline-offset:3px}button{-webkit-tap-highlight-color:transparent}svg{display:block}h1,h2,h3,p{margin:0}.workspace{max-width:1260px;min-height:100dvh;margin:auto;display:grid;grid-template-columns:minmax(205px,1fr) 420px minmax(205px,1fr);gap:36px;align-items:center;padding:34px}.aside{max-width:310px}.aside.left{justify-self:end}.aside.right{justify-self:start}.brandword{display:flex;align-items:center;gap:10px;font-weight:900;font-size:18px;letter-spacing:-.6px}.logo-mark{width:42px;height:42px;display:grid;place-items:center;border-radius:16px;background:var(--navy);color:#f8e9ae;font-size:24px;box-shadow:0 7px 18px #123b3635}.super{font-weight:750;font-size:11px;letter-spacing:2.6px;color:var(--green);margin:38px 0 14px}.aside h1{font-size:clamp(29px,2.8vw,43px);line-height:1.29;letter-spacing:-2.1px;font-weight:850}.aside p{font-size:14px;line-height:1.9;color:#667476;margin-top:18px}.note-card{border:1px solid #dee7e0;background:#fff9;padding:18px;border-radius:18px;margin-top:22px}.note-card b{font-size:13px}.note-card p{margin-top:8px;font-size:12px;line-height:1.8}.tiny-outline{margin-top:26px;font-size:11px;line-height:2;color:#8a9592}.checkline{display:flex;align-items:start;gap:10px;margin:16px 0;font-size:13px;font-weight:650;color:#445c5d;line-height:1.6}.checkline::before{content:'✓';flex-shrink:0;display:grid;place-items:center;width:20px;height:20px;background:#d7ece4;color:#18705a;border-radius:50%;font-weight:900}.phone{width:420px;max-width:100%;height:min(860px,calc(100dvh - 42px));min-height:640px;background:var(--paper);border:9px solid #202e33;border-radius:43px;box-shadow:0 35px 78px #263f3e35,0 2px 0 #4d6060 inset;position:relative;overflow:hidden;display:flex;flex-direction:column}.phone:before{content:"";position:absolute;top:0;left:50%;transform:translateX(-50%);height:14px;width:110px;background:#202e33;border-radius:0 0 15px 15px;z-index:5}.statusbar{height:33px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:8px 25px 0;background:var(--paper);font-size:11px;font-weight:850;position:relative;z-index:4}.status-right{display:flex;align-items:center;gap:5px}.signal{font-size:12px}.appheader{padding:16px 21px 15px;flex:none;background:var(--paper);display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #eeefeb}.headerbrand{display:flex;align-items:center;gap:10px}.brand-icon{width:39px;height:39px;display:grid;place-items:center;border-radius:13px;background:#e1f4ea;font-size:22px}.brand-title{font-size:18px;letter-spacing:-.9px;font-weight:900}.brand-sub{color:#9ba3a0;font-size:10px;letter-spacing:.8px;font-weight:800;margin-top:2px}.header-actions{display:flex;gap:4px}.iconbtn{border:0;background:transparent;color:#2a4043;width:37px;height:37px;border-radius:12px;display:grid;place-items:center;position:relative}.iconbtn:hover{background:#eaf0eb}.iconbtn svg{width:21px;height:21px}.dot{width:7px;height:7px;background:#f07a5f;position:absolute;right:7px;top:6px;border-radius:50%;border:1px solid var(--paper)}.scroll{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;scrollbar-width:none}.scroll::-webkit-scrollbar{display:none}.page{padding:22px 21px 35px;min-height:100%}.eyebrow{font-weight:850;color:#63837d;font-size:10px;letter-spacing:2.1px;text-transform:uppercase}.page-title{font-size:27px;line-height:1.25;letter-spacing:-1.35px;font-weight:900;margin-top:6px}.page-desc{font-size:12px;color:#81908d;margin-top:8px;line-height:1.75}.section-heading{display:flex;align-items:center;justify-content:space-between;margin:25px 0 13px;gap:12px}.section-heading h2{font-size:16px;letter-spacing:-.6px;font-weight:850}.section-heading .subtle{font-size:11px;color:#8a9996}.linkbtn{background:none;border:none;font-size:11px;color:#177b67;font-weight:800;padding:6px 0}.hero{margin-top:18px;min-height:214px;border-radius:25px;background:linear-gradient(129deg,#bde8d8 0%,#e2f2d4 70%,#f8e8bd 100%);position:relative;overflow:hidden;padding:22px;display:flex;isolation:isolate}.hero:before{content:"";position:absolute;width:245px;height:245px;border-radius:50%;background:#ffffffe0;right:-100px;top:-81px;z-index:-1}.hero:after{content:"";position:absolute;width:180px;height:180px;border-radius:50%;border:25px solid #a1d8c740;right:-55px;bottom:-95px;z-index:-1}.hero-content{width:65%;position:relative;z-index:2}.pill{display:inline-flex;align-items:center;gap:5px;border-radius:100px;padding:6px 10px;font-size:10px;font-weight:800;background:#fff9;color:#267865}.hero h2{font-size:23px;letter-spacing:-1.2px;line-height:1.3;margin:17px 0 8px}.hero p{font-size:11px;line-height:1.7;color:#547b70}.hero-link{border:0;border-radius:20px;padding:10px 14px;background:#174c49;color:white;font-weight:850;font-size:11px;margin-top:16px}.duck-art{position:absolute;right:-3px;bottom:2px;width:168px;height:165px;transform:rotate(-10deg)}.duck-body{position:absolute;bottom:1px;right:12px;width:122px;height:118px;background:#f8db7e;border-radius:50% 50% 45% 45%;box-shadow:inset -10px -7px 0 #efc963}.duck-face{position:absolute;right:29px;top:14px;width:109px;height:104px;background:#ffeaa1;border-radius:52% 50% 45% 45%;box-shadow:inset -7px -4px 0 #f4d57d}.duck-eye{position:absolute;top:46px;width:8px;height:10px;border-radius:50%;background:#244641}.duck-eye.e1{right:105px}.duck-eye.e2{right:57px}.duck-beak{position:absolute;top:63px;right:68px;width:26px;height:16px;background:#eb995e;border-radius:6px 6px 13px 13px;transform:rotate(4deg)}.duck-cheek{position:absolute;top:65px;right:31px;width:15px;height:8px;background:#eb9d7f99;border-radius:50%}.duck-wing{position:absolute;width:56px;height:44px;right:9px;bottom:29px;background:#f3ca69;border-radius:65% 28% 60% 50%;transform:rotate(-32deg)}.duck-spark{position:absolute;font-size:30px;left:4px;top:18px;color:#fff}.micro-banner{background:#fff;border:1px solid #ecf0e9;border-radius:13px;font-size:11px;color:#657976;padding:10px 12px;margin-top:13px;display:flex;gap:7px;align-items:center}.mood-row{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}.mood{border:1px solid #e9efea;background:white;min-width:0;border-radius:15px;padding:11px 3px;text-align:center;display:flex;flex-direction:column;gap:5px;align-items:center;color:#516561}.mood span{font-size:21px}.mood b{font-size:10px;white-space:nowrap}.mood.active{border:1.5px solid #1d806a;background:#e4f4eb;color:#1c695a;box-shadow:0 3px 0 #b9ddcd}.app-row{display:flex;align-items:center;gap:11px;min-width:0;background:transparent;padding:9px 0}.app-icon{width:53px;height:53px;border-radius:17px;flex-shrink:0;background:var(--accent,#e6efea);display:grid;place-items:center;font-size:28px;box-shadow:inset 0 -5px 0 #00000008;position:relative;overflow:hidden}.app-icon:before{content:"";width:30px;height:30px;position:absolute;border-radius:50%;background:#ffffff70;right:-9px;top:-11px}.app-icon span{z-index:1;filter:drop-shadow(0 1px 1px #0001)}.app-copy{flex:1;min-width:0}.app-name{font-size:13px;font-weight:850;letter-spacing:-.4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.app-sub{font-size:10.5px;color:#8a9792;margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.badge-tiny{font-size:9px;color:#63837b;margin-top:5px;font-weight:700}.mini-btn{border:0;padding:8px 12px;border-radius:30px;background:#e7f3ed;color:#26745f;font-size:11px;font-weight:900;min-width:55px;flex-shrink:0}.mini-btn:hover{background:#d8eee4}.mini-btn.dark{background:#174a47;color:white}.mini-btn.planned{background:#eff0ed;color:#82908c}.mini-btn.neutral{background:#f0f1ef;color:#536765}.card-list{border-radius:20px;background:#fff;border:1px solid #ebefea;padding:6px 14px}.card-list .app-row+.app-row{border-top:1px solid #f1f3ef}.tap-row{cursor:pointer}.tap-row:hover .app-name{color:#137967}.collection{background:#172e33;border-radius:23px;padding:18px;color:white;position:relative;overflow:hidden}.collection:after{content:"";position:absolute;width:152px;height:152px;right:-75px;top:-55px;border-radius:50%;background:#31595d}.collection-tag{font-size:10px;font-weight:800;letter-spacing:1px;color:#acdbca}.collection h3{margin-top:9px;font-size:18px;letter-spacing:-.7px;position:relative;z-index:1}.collection p{font-size:11px;margin-top:7px;line-height:1.6;color:#b1cac7;max-width:75%;position:relative;z-index:1}.collection-icons{display:flex;margin:15px 0}.collection-icons span{font-size:20px;width:35px;height:35px;border-radius:12px;border:2px solid #172e33;display:grid;place-items:center;background:#fff;color:#173f3d;margin-left:-5px}.collection button{border:0;border-radius:30px;background:#e5f7c5;color:#233b28;padding:10px 13px;font-size:11px;font-weight:850}.editorial{border-radius:20px;background:#f5e8ef;padding:16px;display:flex;gap:14px;align-items:center}.editorial-art{width:73px;height:73px;border-radius:21px;background:linear-gradient(150deg,#e6b8c9,#ffdabc);display:grid;place-items:center;font-size:36px;flex-shrink:0}.editorial h3{font-size:14px}.editorial p{font-size:11px;color:#7e717a;line-height:1.6;margin-top:6px}.editorial button{border:0;background:none;padding:8px 0 0;color:#985c79;font-size:11px;font-weight:800}.footer-note{font-size:10px;color:#9ca7a1;line-height:1.7;margin-top:24px;text-align:center}.navbar{flex:none;height:70px;display:grid;grid-template-columns:repeat(4,1fr);align-items:center;background:#fff;border-top:1px solid #edf0ec;padding:3px 8px calc(4px + env(safe-area-inset-bottom,0px));position:relative;z-index:2}.nav-item{display:flex;align-items:center;justify-content:center;flex-direction:column;gap:5px;background:transparent;border:0;height:52px;color:#9ba6a2;font-size:10px;font-weight:800;border-radius:12px}.nav-item.active{color:#1b7965}.nav-item .navico{width:24px;height:24px;display:grid;place-items:center}.nav-item svg{width:23px;height:23px;stroke-width:2}.nav-item.active .navico{background:#e2f4e9;border-radius:9px;width:35px;height:31px}.nav-item .count{background:#e7b685;color:#472b20;border-radius:10px;padding:0 4px;font-size:9px;position:absolute;margin-left:25px;margin-top:-31px}.category-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin:23px 0}.cat-tile{background:white;border:1px solid #e9ede7;border-radius:18px;padding:16px 6px 12px;display:grid;justify-items:center;gap:9px;color:#354c4b}.cat-tile.selected{border:1.5px solid #21866e;background:#e7f5ed}.cat-tile .cat-emoji{font-size:27px}.cat-tile span:last-child{font-size:12px;font-weight:800}.chips{display:flex;gap:7px;overflow:auto;scrollbar-width:none;margin-top:14px;padding-bottom:2px}.chips::-webkit-scrollbar{display:none}.chip{border:1px solid #e9eeea;background:#fff;white-space:nowrap;padding:8px 12px;border-radius:25px;color:#60716b;font-size:11px;font-weight:800}.chip.active{background:#184f48;color:#fff;border-color:#184f48}.empty{text-align:center;padding:35px 20px;background:#fff;border:1px dashed #dce6df;border-radius:20px;margin-top:20px}.empty .pic{font-size:34px}.empty h3{font-size:15px;margin-top:12px}.empty p{font-size:11px;color:#87958e;line-height:1.7;margin:9px 0 16px}.actionbar{display:flex;align-items:center;justify-content:space-between;gap:7px;margin:18px 0}.field{border:1px solid #e3ebe4;border-radius:17px;background:#fff;display:flex;align-items:center;gap:10px;padding:0 12px;height:47px}.field svg{width:19px;height:19px;color:#66857d;flex-shrink:0}.field input{border:0;outline:none;flex:1;min-width:0;background:transparent;font-size:14px;color:#243f3a}.field input::placeholder{color:#afbab2}.mutedbox{background:#e9f2ed;padding:12px;border-radius:13px;color:#607a72;font-size:11px;line-height:1.65;margin:17px 0}.stat-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:18px 0}.stat{background:#fff;border:1px solid #edf0ec;border-radius:17px;padding:14px 10px}.stat b{font-size:22px;display:block;letter-spacing:-1px}.stat span{font-size:10px;color:#82938b;margin-top:5px;display:block}.main-btn{background:#154f46;color:white;border:0;border-radius:15px;font-weight:850;padding:12px 17px;font-size:12px}.outline-btn{background:#fff;color:#28665c;border:1px solid #dbeae2;border-radius:14px;font-weight:800;padding:10px 13px;font-size:12px}.row-end{margin-left:auto}.notification-row{background:#fff;border:1px solid #e9eee8;border-radius:18px;padding:14px;display:flex;gap:11px;margin-bottom:9px;text-align:left;width:100%}.notification-row.unread{border-color:#badfcc;background:#f1faf4}.notif-dot{width:9px;height:9px;border-radius:50%;background:#2b9875;flex-shrink:0;margin-top:6px}.notification-row b{font-size:12px}.notification-row p{font-size:11px;color:#7b8d86;line-height:1.7;margin-top:5px}.update-box{border-radius:20px;background:#dff2e8;padding:19px;margin:17px 0}.update-box h3{font-size:17px}.update-box p{font-size:11px;color:#5c8070;margin-top:7px;line-height:1.6}.update-box button{margin-top:13px}.version-line{font-size:10px;margin-top:6px;color:#87958e}.home-preview{background:linear-gradient(155deg,#d1eee7,#dce5f4 60%,#ffeed6);border-radius:26px;padding:21px 14px 29px;min-height:450px;position:relative;overflow:hidden}.home-preview:before{content:"";position:absolute;background:#fff5;width:250px;height:250px;border-radius:50%;right:-105px;top:-85px}.home-label{text-align:center;font-size:12px;font-weight:900;position:relative;margin-bottom:25px}.home-grid{position:relative;display:grid;grid-template-columns:repeat(4,1fr);gap:24px 6px}.homeapp{border:0;background:transparent;display:flex;align-items:center;flex-direction:column;gap:6px;min-width:0;color:#32535a}.homeapp .app-icon{width:53px;height:53px;border-radius:17px;box-shadow:0 5px 11px #46655d22}.homeapp span.caption{font-size:10px;font-weight:750;white-space:nowrap;max-width:75px;overflow:hidden;text-overflow:ellipsis}.home-dock{margin-top:80px;border-radius:21px;background:#ffffff82;padding:12px;display:flex;justify-content:space-evenly}.detail-head{display:flex;gap:16px;margin-top:20px;align-items:center}.detail-head .app-icon{width:82px;height:82px;border-radius:23px;font-size:43px}.detail-title{font-size:22px;font-weight:900;letter-spacing:-1px}.detail-sub{color:#82908b;margin-top:7px;font-size:12px;line-height:1.5}.detail-category{display:inline-flex;background:#ebf4ec;padding:5px 9px;border-radius:20px;font-size:10px;color:#397565;font-weight:850;margin-top:8px}.detail-actions{display:flex;gap:8px;margin:20px 0}.detail-actions .main-btn{flex:1}.detail-actions .outline-btn{flex:0 0 auto}.detail-story{font-size:12px;line-height:1.85;color:#60736e}.shot-row{display:flex;gap:9px;overflow:auto;margin-top:13px;padding-bottom:4px;scrollbar-width:none}.shot{flex:0 0 122px;height:195px;border-radius:15px;padding:14px 11px;display:flex;flex-direction:column;position:relative;overflow:hidden;background:var(--shade,#e1f1e8);color:#2a4b46}.shot:after{content:"";position:absolute;right:-15px;bottom:-25px;width:90px;height:90px;border:18px solid #ffffff44;border-radius:50%}.shot b{font-size:15px;letter-spacing:-.5px;margin-top:16px;line-height:1.35;z-index:1}.shot small{font-size:10px;color:#58756c;margin-top:8px;line-height:1.6;z-index:1}.shot-icon{font-size:37px;z-index:1}.detail-box{border-radius:16px;background:#fff;border:1px solid #eaf0e9;padding:16px;margin-top:11px}.detail-box b{font-size:12px}.detail-box p{font-size:11px;color:#84938a;margin-top:8px;line-height:1.7}.detail-box ul{padding-left:18px;font-size:11px;color:#70837b;line-height:1.9;margin:9px 0 0}.detail-bar{display:flex;align-items:center;justify-content:space-between;margin-bottom:7px}.back-btn{border:0;background:#eaf2eb;border-radius:10px;padding:8px;display:flex;align-items:center;gap:5px;font-size:11px;font-weight:800;color:#4c695d}.back-btn svg{width:16px;height:16px}.hr{height:1px;background:#edf0eb;margin:15px 0}.sheet-layer{position:absolute;inset:0;z-index:8;display:none;align-items:flex-end}.sheet-layer.active{display:flex}.scrim{position:absolute;inset:0;background:#122b2c8e;backdrop-filter:blur(3px)}.sheet{position:relative;z-index:1;width:100%;max-height:90%;overflow:auto;background:#fafcf9;border-radius:29px 29px 0 0;box-shadow:0 -15px 50px #0002;padding:22px 20px 29px;animation:rise .22s ease-out}.sheet-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}.sheet-top h2{font-size:18px;letter-spacing:-.7px}.sheet p{font-size:12px;line-height:1.8;color:#677c75}.sheet .app-icon{margin:14px auto}.sheet-actions{display:flex;gap:9px;margin-top:18px}.sheet-actions button{flex:1}.pill-muted{background:#f0f2ef;border-radius:20px;font-size:10px;color:#788981;padding:7px 10px;display:inline-flex;margin-top:9px}.toast{position:absolute;bottom:83px;left:50%;transform:translate(-50%,10px);background:#173d3b;color:#fff;padding:11px 15px;border-radius:14px;font-size:11px;box-shadow:0 10px 30px #0003;opacity:0;pointer-events:none;max-width:90%;white-space:normal;text-align:center;z-index:12;transition:opacity .18s,transform .18s}.toast.show{opacity:1;transform:translate(-50%,0)}.devnote{font-size:11px;color:#8ca09a;background:#eff5ee;padding:13px;border-radius:14px;line-height:1.7;margin-top:17px}.shortcut{background:#fff;border:1px solid #ebf1e9;padding:15px;border-radius:18px;display:flex;gap:11px;align-items:center}.shortcut h3{font-size:12px}.shortcut p{font-size:10px;color:#889890;line-height:1.7;margin-top:5px}.shortcut button{flex-shrink:0}.subpill{padding:5px 9px;border-radius:12px;font-size:10px;background:#e6eee8;color:#487266;font-weight:800}.heart{font-size:19px}.center{text-align:center}.arrow{font-size:13px}.res-heading{font-weight:850;font-size:12px;margin:20px 0 7px}.small-label{font-size:11px;color:#7e938a}.faq{background:#fff;border:1px solid #e9eee8;border-radius:14px;padding:12px;font-size:11px;line-height:1.8;color:#6c8279;margin-top:15px}.desktop-tag{margin-top:18px;font-size:10px;letter-spacing:1px;color:#9baba3}.hidden{display:none!important}@keyframes rise{from{transform:translateY(30px);opacity:.6}to{transform:translateY(0);opacity:1}}
+@media(max-width:1040px){.workspace{grid-template-columns:1fr 420px;gap:25px;max-width:850px}.aside.right{display:none}}@media(max-width:750px){body{background:var(--paper)}.workspace{display:block;padding:0;min-height:100dvh}.aside{display:none}.phone{border:0;box-shadow:none;border-radius:0;width:100%;height:100dvh;height:100dvh;min-height:0}.phone:before{display:none}.statusbar{height:29px;padding:5px 24px 0}.appheader{padding:14px 21px 12px}.navbar{height:calc(67px + env(safe-area-inset-bottom,0px))}}@media(max-width:360px){.page{padding:17px 15px 28px}.appheader{padding-left:15px;padding-right:15px}.hero{padding:18px}.hero h2{font-size:20px}.duck-art{transform:scale(.87) rotate(-10deg);transform-origin:bottom right}.hero-content{width:69%}.app-icon{width:48px;height:48px}.app-row{gap:8px}.mini-btn{min-width:47px;padding:7px 9px}.home-grid{gap:19px 0}}@media(prefers-reduced-motion:reduce){*{animation-duration:.001ms!important;transition-duration:.001ms!important}}
+
+/* v0.2 App Lab, safer touch controls and dual phone surface */
+.discovery-action{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:20px;padding:14px;border:1px solid #dcece4;background:#eef8ef;border-radius:17px}.discovery-action b{font-size:12px}.discovery-action p{font-size:10px;color:#6d857b;margin-top:5px;line-height:1.5}.discovery-action .mini-btn{white-space:nowrap}
+.manage-cta{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:14px 0 10px}.manage-cta span{font-size:10px;color:#7d9188}
+.row-remove{height:33px;width:30px;border:1px solid #f1ddd8;background:#fff4f0;color:#ad5d55;border-radius:10px;font-weight:900;flex:none}
+.seg-tabs{display:flex;gap:6px;padding:5px;background:#edf1ec;border-radius:15px;margin-top:18px}.seg-tabs button{border:0;border-radius:11px;background:transparent;flex:1;font-size:12px;font-weight:800;color:#789087;padding:12px 8px}.seg-tabs button.selected{background:#fff;color:#256e5c;box-shadow:0 2px 8px #244c3919}
+.home-manage{display:grid;gap:7px}.pin-item,.drawer-row{display:flex;align-items:center;gap:8px;padding:9px 0;min-width:0}.pin-item{padding:8px 10px;border:1px solid #e8eee7;background:#fff;border-radius:14px}.pin-item .app-icon,.drawer-row .app-icon{width:43px;height:43px;border-radius:13px;font-size:22px}.pin-copy,.drawer-copy{flex:1;min-width:0}.pin-copy b,.drawer-copy b{display:block;font-size:12px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.pin-copy small,.drawer-copy small{font-size:10px;display:block;margin-top:3px;color:#82958c}.drawer-row+.drawer-row{border-top:1px solid #edf1ec}.square-btn{width:31px;height:34px;border:1px solid #e3ebe3;border-radius:10px;background:#f4f7f2;color:#536e62;font-size:16px;flex-shrink:0}.danger-text{color:#b5534c!important}.danger-btn{background:#ad5146!important}
+.app-form{border:1px solid #e2ece2;border-radius:20px;background:#fff;padding:16px;margin-top:17px;display:flex;flex-direction:column;gap:7px}.form-heading{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px}.form-heading h2{font-size:16px;letter-spacing:-.4px}.app-form label:not(.color-choice){font-size:11px;font-weight:800;margin-top:9px;color:#60766a}.app-form label span{color:#c66d5f}.app-form input:not([type=radio]),.app-form select,.app-form textarea,.demo-note textarea{width:100%;font-size:16px;border:1px solid #e0e8df;border-radius:11px;background:#fbfdfa;padding:11px;color:#263b31;outline-color:#2a9576;min-width:0}.app-form textarea,.demo-note textarea{resize:vertical;line-height:1.5}.form-columns{display:grid;grid-template-columns:1fr 1fr;gap:10px}.form-columns>div{min-width:0;display:flex;flex-direction:column;gap:7px}.form-columns label{display:block}.color-options{display:flex;gap:12px;align-items:center;padding:6px 0}.color-choice{cursor:pointer}.color-choice input{position:absolute;opacity:0;width:1px;height:1px}.color-choice span{display:block;width:31px;height:31px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px #e2eae4}.color-choice input:checked+span{box-shadow:0 0 0 3px #2c9979}.color-choice input:focus-visible+span{outline:3px solid #41bda3}.form-footer{display:flex;gap:8px;margin-top:11px}.form-footer .main-btn{flex:1}.demo-note{margin-top:14px;padding:14px;background:#f0f6f0;border-radius:15px}.demo-note label{display:block;font-size:11px;font-weight:800;color:#446657;margin-bottom:7px}.demo-note textarea{font-size:14px}.demo-note button{margin-top:8px}.wipe-option{display:flex;gap:9px;align-items:center;margin-top:13px;background:#fff1ee;padding:12px;border-radius:12px;color:#925e55;font-size:11px;font-weight:750}.wipe-option input{width:18px;height:18px;accent-color:#ad5146;flex:none}
+@media(max-width:360px){.app-form{padding:12px}.drawer-row{gap:5px}.drawer-row .mini-btn{min-width:42px}.square-btn{width:29px}.pin-item{gap:5px}.discovery-action{padding:10px}}
+
+/* v0.2.1 안정화: 접근성 / 데이터 보존 표시 */
+:root{--muted:#50615e}
+.brand-sub{color:#52625e;font-size:11px}.page-desc{font-size:13px;color:#4f625e}
+.app-sub{font-size:12px;color:#536460}.badge-tiny{font-size:11px;color:#47655d;display:block}
+.section-heading .subtle,.tiny-outline,.footer-note,.micro-banner,.devnote{color:#536661;font-size:12px}
+.eyebrow{font-size:11px;color:#41655d}.app-row-main{flex:1;min-width:0;display:flex;align-items:center;gap:11px;background:transparent;border:0;padding:0;color:inherit;text-align:left;cursor:pointer}
+.app-row-main .app-copy{display:block}.app-row-main .app-name,.app-row-main .app-sub{display:block}
+.app-row-main:focus-visible{outline:3px solid #137f72;outline-offset:2px;border-radius:9px}
+.iconbtn,.square-btn{min-width:44px;min-height:44px}.mini-btn{min-height:42px}.back-btn,.linkbtn{min-height:40px}.appheader{padding-left:16px;padding-right:12px}
+.sr-only{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.color-choice input:focus-visible+span{outline:3px solid #136b61;outline-offset:3px}.color-choice:has(input:checked)::after{content:'✓';font-size:13px;position:absolute;right:-3px;bottom:-3px;display:grid;place-items:center;color:#fff;background:#145d54;border-radius:50%;width:19px;height:19px}.color-choice{position:relative}
+.storage-banner{padding:12px 17px;background:#fff3d4;color:#573b1b;font-size:12px;line-height:1.6;border-bottom:1px solid #e9d7ae;flex:none;max-height:165px;overflow:auto}
+.storage-banner[hidden]{display:none}.storage-banner b{display:block;font-size:13px}.storage-banner p{margin:4px 0 8px}.storage-banner div{display:flex;gap:6px;flex-wrap:wrap}.storage-banner button{border:1px solid #be9252;background:#fff;border-radius:8px;color:#614018;padding:7px 9px;font-size:12px;font-weight:750}
+.backup-actions{margin:16px 0;border:1px solid #cfdfd8;border-radius:16px;background:#eef6f1;padding:15px;color:#344b42}.backup-actions b{font-size:14px}.backup-actions p{font-size:12px;line-height:1.7;margin:7px 0 11px}.backup-buttons{display:flex;flex-wrap:wrap;gap:8px}.backup-buttons button{min-height:42px}
+@media(max-width:375px){.page{padding-left:15px;padding-right:15px}.app-row{gap:5px}.app-row-main{gap:8px}.mini-btn{padding-left:9px;padding-right:9px}.app-icon{width:47px;height:47px;font-size:24px}}
+html.inha-os-embedded .statusbar{display:none}
+html.inha-os-embedded .phone{height:100dvh;min-height:0}
+</style>
+</head>
+<body>
+<div class="workspace">
+  <aside class="aside left" aria-label="프로토타입 정보">
+    <div class="brandword"><span class="logo-mark">◕</span> INHA WORLD</div>
+    <div class="super">THE CAMPUS IN YOUR POCKET</div>
+    <h1>학교생활,<br>필요한 것부터<br>하나씩.</h1>
+    <p>인덕스토어는 INHA WORLD 속 스마트폰의 가상 앱마켓입니다. 앱을 고르는 경험을 캠퍼스 생활을 발견하는 경험으로 바꿉니다.</p>
+    <div class="note-card"><b>✳ 인덕스토어 v0.2.1</b><p>이 HTML은 독립 실행 시연입니다. 기존 설치 상태를 이어받고 앱을 직접 등록·삭제할 수 있어요. 변경 내용은 이 브라우저에만 저장됩니다.</p></div>
+    <div class="tiny-outline">DESIGN PRINCIPLES<br>Free to install · Campus first · Explainable discovery</div>
+  </aside>
+  <main class="phone" aria-label="인덕스토어 모바일 프로토타입">
+    <div class="statusbar"><span>9:41</span><div class="status-right"><span class="signal">▂▄▆</span><span>◕</span><span>▰</span></div></div>
+    <header class="appheader">
+      <div class="headerbrand"><span class="brand-icon">🐥</span><div><div class="brand-title">인덕스토어<span style="color:#61a08b;font-size:10px;margin-left:5px">v0.2.1</span></div><div class="brand-sub">CAMPUS APP MARKET</div></div></div>
+      <div class="header-actions">
+        <button class="iconbtn" data-action="search" aria-label="앱 검색" title="앱 검색"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="10.8" cy="10.8" r="6.9"/><path d="m16 16 5 5"/></svg></button>
+        <button class="iconbtn" data-action="notifications" aria-label="알림" title="알림"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9ZM10 21h4"/></svg><i class="dot" id="unreadDot"></i></button>
+        <button class="iconbtn" data-action="home" aria-label="가상 폰 홈" title="가상 폰 홈"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="3"/><path d="M11 18h2"/></svg></button>
+      </div>
+    </header>
+    <div class="storage-banner" id="storageBanner" role="alert" hidden></div>
+    <div class="scroll" id="scrollArea" tabindex="-1"><div id="root" class="page"></div></div>
+    <nav class="navbar" id="bottomNav" aria-label="스토어 하단 메뉴"></nav>
+    <div class="sheet-layer" id="modalLayer" aria-hidden="true"><div class="scrim" data-action="close"></div><div class="sheet" role="dialog" aria-modal="true" aria-label="대화상자" id="sheetBody"></div></div>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <input type="file" id="backupInput" accept="application/json,.json" class="sr-only" aria-label="인덕스토어 백업 JSON 불러오기">
+  </main>
+  <aside class="aside right" aria-label="시연 가이드">
+    <div class="eyebrow">TRY IT OUT</div><h2 style="font-size:24px;letter-spacing:-1px;line-height:1.5;margin:12px 0 18px">구경만 하는<br>스토어는 아니지. 🐥</h2>
+    <div class="checkline">상황을 바꾸면 추천 앱도 바뀝니다</div><div class="checkline">앱 설치·제거와 홈·앱 서랍을 관리합니다</div><div class="checkline">테스트 앱을 직접 추가·수정·삭제할 수 있습니다</div><div class="checkline">업데이트와 알림 읽음 상태가 남습니다</div><div class="checkline">기획 중 앱은 설치되지 않습니다</div>
+    <div class="note-card"><b>개발 범위의 경계</b><p>아직 인덕톡·인덕로그 등 실제 구현물과 연결하지 않았습니다. 신규 앱 등록도 실행 코드를 업로드하거나 배포하는 기능이 아닌 로컬 카탈로그 시연입니다.</p></div>
+    <div class="desktop-tag">INHA WORLD / PHONE ECOSYSTEM / STABLE 02.1</div>
+  </aside>
+</div>
+<script>
+(()=>{'use strict';
+// Optional INHA OS embedded mode; standalone v0.2.1 keys stay unchanged.
+const PHONE_EMBEDDED = new URLSearchParams(location.search).get('phone')==='1' && window.parent!==window;
+const requestedScope = new URLSearchParams(location.search).get('scope')||'guest';
+const PHONE_SCOPE = /^[0-9a-z-]{1,64}$/i.test(requestedScope)?requestedScope:'guest';
+const KEY_SUFFIX = PHONE_EMBEDDED?':phone:'+PHONE_SCOPE:'';
+const STORE_KEY='induck-store-v02'+KEY_SUFFIX;
+const OLD_STORE_KEY='induck-store-v01'+KEY_SUFFIX;
+const RECOVERY_KEY='induck-store-v02-recovery'+KEY_SUFFIX;
+const PHONE_GAME_IDS=Object.freeze({'induck-pet':'induck-grow','induck-classic':'induck-classic','induckup':'induckup','induck-survival':'induck-survival'});
+const PHONE_NATIVE_IDS=Object.freeze({'map':'maps','camera':'camera','album':'album','student-id':'student-id','settings':'settings'});
+function phoneBridge(action,id) {
+  if(PHONE_EMBEDDED)window.parent.postMessage({channel:'INHA_OS_STORE_021',action,id},location.origin);
+}
+if(PHONE_EMBEDDED)document.documentElement.classList.add('inha-os-embedded');
+const BACKUP_MAX_BYTES=262144;
+const BUILTIN_APPS=[
+{id:'store',name:'인덕스토어',subtitle:'앱을 발견하는 공간',category:'campus',dist:'core',version:'1.0.0',icon:'🐥',accent:'#e5efd8',desc:'캠퍼스 생활에 필요한 앱을 찾고 관리하는 기본 앱이에요.',tags:['앱마켓','스토어','설치'],permissions:['앱 설치 상태(시연용)'],notes:'캠퍼스 생활 앱마켓이 열렸어요.',shots:['오늘의 발견','생활 맞춤 추천','내 앱 관리']},
+{id:'map',name:'캠퍼스 지도',subtitle:'길 잃을 틈 없는 캠퍼스',category:'campus',dist:'core',version:'1.0.0',icon:'🗺️',accent:'#cce9db',desc:'INHA WORLD의 공간과 목적지를 찾아보는 기본 지도 앱.',tags:['지도','길찾기','건물','시설','도서관'],permissions:['게임 내 현재 위치(통합 시)'],notes:'지도 앱 안내 개선.',shots:['캠퍼스 한눈에','건물 찾아보기','즐겨찾는 장소']},
+{id:'camera',name:'카메라',subtitle:'캠퍼스의 순간을 촬영',category:'life',dist:'core',version:'1.0.0',icon:'📸',accent:'#f0dfd5',desc:'게임 속 장면을 기록하는 기본 카메라 앱.',tags:['사진','촬영','포토모드'],permissions:['게임 내 촬영 기능(통합 시)'],notes:'기본 카메라 앱.',shots:['오늘의 사진','장면 남기기','사진 모드']},
+{id:'album',name:'앨범',subtitle:'사진을 모아보는 곳',category:'life',dist:'core',version:'1.0.0',icon:'🖼️',accent:'#e3d8f4',desc:'게임 속에서 촬영한 기록을 살펴보는 기본 앱.',tags:['사진','기록','갤러리'],permissions:['인게임 사진 목록(통합 시)'],notes:'기본 앨범 앱.',shots:['나의 기록','즐겨찾기','사진 정리']},
+{id:'student-id',name:'학생증',subtitle:'나를 소개하는 프로필',category:'campus',dist:'core',version:'1.0.0',icon:'🎓',accent:'#e2e7f2',desc:'가상 캠퍼스에서 자신의 프로필을 확인하는 기본 앱.',tags:['신분증','프로필','학생'],permissions:['게임 내 공개 프로필(통합 시)'],notes:'학생증 프로필 안내.',shots:['나의 학생증','캠퍼스 기록','프로필']},
+{id:'settings',name:'설정',subtitle:'스마트폰 이용 환경',category:'life',dist:'core',version:'1.0.0',icon:'⚙️',accent:'#e3e9e5',desc:'가상 스마트폰의 표시와 앱 설정을 관리하는 기본 앱.',tags:['설정','알림','권한'],permissions:['가상 스마트폰 환경설정(통합 시)'],notes:'기본 설정 앱.',shots:['기기 설정','앱 관리','알림 설정']},
+{id:'campus-guide',name:'캠퍼스 길잡이',subtitle:'학교생활 첫걸음',category:'campus',dist:'available',version:'1.0.0',icon:'🧭',accent:'#c3eadf',desc:'처음 온 학생을 위해 시설, 생활 팁, 어디서 무엇을 해야 하는지 정리한 캠퍼스 생존 가이드.',tags:['새내기','안내','학교','시설','도서관','첫걸음'],permissions:['선택한 관심 주제(시연용)'],notes:'학교시설 길잡이 카드와 안내 항목을 보완했어요.',shots:['어디부터 갈까?','학교생활 꿀팁','시설 안내']},
+{id:'campus-events',name:'캠퍼스 소식',subtitle:'행사와 프로그램 모아보기',category:'campus',dist:'available',version:'1.0.0',icon:'📣',accent:'#ffd7b8',desc:'학내 프로그램과 행사를 발견하는 안내 창구. 현재 목록은 기획용이며 실제 행사 일정을 제공하지 않아요.',tags:['행사','축제','프로그램','공지','캠퍼스'],permissions:['관심 카테고리(시연용)'],notes:'관심 행사 모아보기 항목을 추가했어요.',shots:['학교에서 뭐하지?','관심 행사','참여하기']},
+{id:'timetable',name:'나의 시간표',subtitle:'수업과 하루 일정 정리',category:'study',dist:'available',version:'1.0.0',icon:'📅',accent:'#deebf8',desc:'수업과 캠퍼스 생활을 하루 단위로 정리하는 가상 시간표 앱.',tags:['시간표','수업','학습','일정','강의'],permissions:['직접 입력한 시연 일정'],notes:'일정 카드 가독성을 개선했어요.',shots:['나의 한 주','강의 시작 전','빈 시간 활용']},
+{id:'induck-talk',name:'인덕톡',subtitle:'친구와 NPC 대화',category:'social',dist:'available',version:'0.9.0',icon:'💬',accent:'#bfebdc',desc:'실제 플레이어 친구와 NPC 친구를 하나의 메시지 앱에서 만나는 소셜 공간. 현재 마켓 연동은 시연이에요.',tags:['친구','채팅','메시지','NPC','이모티콘'],permissions:['게임 내 친구 목록(통합 시)','채팅 기록(통합 시)'],notes:'대화방 목록과 알림 진입 흐름을 정돈했어요.',shots:['친구와 이야기','NPC 친구','이모티콘']},
+{id:'induck-log',name:'인덕로그',subtitle:'나만의 캠퍼스 생활기록',category:'social',dist:'available',version:'0.9.0',icon:'📒',accent:'#e5d1f5',desc:'캠퍼스에서 발견한 장면과 기분, 활동을 기록하는 생활 아카이브.',tags:['기록','친구','사진','일상','SNS','추억'],permissions:['선택한 사진(통합 시)','게시물 데이터(통합 시)'],notes:'기록 카드 분류를 보강했어요.',shots:['하루 한 장','생활 기록','추억 모아보기']},
+{id:'club',name:'동아리 탐색',subtitle:'내 취향의 모임 찾기',category:'social',dist:'available',version:'1.0.0',icon:'🎨',accent:'#f8dcd1',desc:'취향과 관심사로 캠퍼스 안의 모임을 발견하는 탐색 앱. 모임 정보는 시연용 샘플입니다.',tags:['동아리','친구','모임','관계','활동'],permissions:['선택한 관심 분야'],notes:'모임 찾기 카테고리를 정리했어요.',shots:['어떤 모임이 좋을까','활동 둘러보기','관심 목록']},
+{id:'induck-stock',name:'인덕증권',subtitle:'게임 속 모의 투자',category:'economy',dist:'available',version:'0.9.0',icon:'📈',accent:'#c8dff6',desc:'가상 시장에서 투자와 자산 관리를 연습하는 모의투자 앱. 실제 금융 거래는 불가능합니다.',tags:['주식','모의투자','경제','투자','증권','인덕코인'],permissions:['게임 내 가상 자산 정보(통합 시)'],notes:'자산 요약 정보와 거래 진입을 정리했어요.',shots:['가상 투자 시작','나의 포트폴리오','시장 학습']},
+{id:'budget',name:'인덕 가계부',subtitle:'생활비를 가볍게 관리',category:'economy',dist:'available',version:'1.0.0',icon:'🧾',accent:'#f9e3af',desc:'게임 속 생활비 사용을 기록하고 지출 패턴을 돌아보는 가계부 콘셉트.',tags:['가계부','생활비','경제','지출','관리'],permissions:['게임 내 가상 거래 내역(통합 시)'],notes:'기본 수입·지출 분류를 추가했어요.',shots:['오늘의 지출','주간 생활비','소비 돌아보기']},
+{id:'jelly-lab',name:'젤리 연구실',subtitle:'말랑말랑 유전 실험',category:'games',dist:'available',version:'1.0.0',icon:'🧪',accent:'#d4e8c9',desc:'나만의 젤리를 교배하고 혈통과 특성을 관찰하는 육성 미니게임.',tags:['젤리','교배','유전','게임','수집'],permissions:['미니게임 진행 기록(통합 시)'],notes:'젤리 특성 카드가 추가되었어요.',shots:['젤리 발견','교배 실험','혈통 살펴보기']},
+{id:'induck-defense',name:'인덕 디펜스',subtitle:'조합으로 막는 웨이브',category:'games',dist:'available',version:'1.0.0',icon:'🛡️',accent:'#eacdf0',desc:'랜덤 소환과 유닛 조합으로 적의 웨이브를 막는 전략 미니게임 콘셉트.',tags:['디펜스','전략','게임','소환','웨이브'],permissions:['미니게임 진행 기록(통합 시)'],notes:'맵과 경로별 방어 콘셉트를 반영했어요.',shots:['영웅 소환','맵마다 다른 길','조합 전략']},
+{id:'induck-pet',name:'인덕이 키우기',subtitle:'하루 한 번 성장 기록',category:'games',dist:'available',version:'1.0.0',icon:'🥚',accent:'#f3e2a6',desc:'인덕이와 함께 성장하는 캐주얼 육성 게임.',tags:['육성','인덕이','게임','성장','펫'],permissions:['미니게임 진행 기록(통합 시)'],notes:'육성 성장 카드가 추가되었어요.',shots:['인덕이 만나기','함께 성장','나의 성장 기록']},
+{id:'campus-work',name:'캠퍼스 알바',subtitle:'생활 경제활동 찾기',category:'economy',dist:'planned',version:'0.0.0',icon:'🧰',accent:'#f5d4bb',desc:'게임 내 아르바이트와 경제활동을 연결할 예정인 앱. 현재 기획 단계입니다.',tags:['알바','아르바이트','돈','경제','생활비'],permissions:['미정'],notes:'기획 중',shots:['알바 찾기','근무 체험','수입 기록']},
+{id:'housing',name:'인덕하우스',subtitle:'생활관부터 나만의 집까지',category:'life',dist:'planned',version:'0.0.0',icon:'🏠',accent:'#d0dfcb',desc:'생활관에서 자취방·오피스텔·아파트로 이어지는 주거 생활 앱. 현재 기획 단계입니다.',tags:['주거','집','생활관','부동산','자취'],permissions:['미정'],notes:'기획 중',shots:['나의 방','집 알아보기','생활 꾸미기']},
+{id:'delivery',name:'인덕배달',subtitle:'후문 상권을 내 손안에',category:'life',dist:'planned',version:'0.0.0',icon:'🥡',accent:'#f9d2b5',desc:'INHA WORLD 후문 상권과 연결하는 가상 배달앱. 현재 기획 단계입니다.',tags:['배달','후문','음식','상점','경제'],permissions:['미정'],notes:'기획 중',shots:['후문 메뉴','주문 콘셉트','배송 현황']},
+{id:'induck-classic',name:'인하오리 Classic',subtitle:'오리와 함께하는 클래식 게임',category:'games',dist:'available',version:'1.0.0',icon:'🦆',accent:'#d4e8c9',desc:'독립 웹게임 바로가기입니다. 게임 저장·로그인은 인하월드와 자동 연동되지 않아요.',tags:['인하오리','클래식','게임'],permissions:['외부 게임 링크 열기'],notes:'독립 게임 실행 링크',shots:['클래식 게임','독립 도메인','바로가기']},
+{id:'induckup',name:'인덕업',subtitle:'함께 키우는 성장 게임',category:'games',dist:'available',version:'1.0.0',icon:'📈',accent:'#c8dff6',desc:'독립 웹게임 바로가기입니다. 게임 저장·로그인은 인하월드와 자동 연동되지 않아요.',tags:['인덕업','게임'],permissions:['외부 게임 링크 열기'],notes:'독립 게임 실행 링크',shots:['성장 게임','독립 도메인','바로가기']},
+{id:'induck-survival',name:'인덕 서바이벌',subtitle:'인덕 생존 게임',category:'games',dist:'available',version:'1.0.0',icon:'🛡️',accent:'#efd7e5',desc:'독립 웹게임 바로가기입니다. 게임 저장·로그인은 인하월드와 자동 연동되지 않아요.',tags:['서바이벌','게임'],permissions:['외부 게임 링크 열기'],notes:'독립 게임 실행 링크',shots:['생존 게임','독립 도메인','바로가기']}
+];
+const ICON_CHOICES=['📚','☕','📌','🧭','💻','🎨','💬','🌱','🎮','🚌','📝','🧩','🏫','📱'];
+const ACCENT_CHOICES=['#d2ece0','#f8dfc4','#e3d9f7','#dbeafa','#ffe9a9'];
+const ACCENT_NAMES=['민트','살구','라벤더','하늘','버터'];
+const CAT_IDS=['campus','life','social','economy','games','study'];
+const removeUnsafe=v=>String(v??'').replace(/[<>&\"'`]/g,'').replace(/[\u0000-\u001f\u007f]/g,' ').trim();
+const cleanText=(v,max)=>removeUnsafe(v).slice(0,max);
+const escapeHTML=v=>String(v??'').replace(/[&<>'\"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','\"':'&quot;'}[ch]));
+function cleanCustom(raw){
+  if(!raw||typeof raw!=='object'||!/^local-[a-z0-9-]{1,60}$/.test(raw.id)||BUILTIN_APPS.some(a=>a.id===raw.id))return null;
+  const name=cleanText(raw.name,32);if(!name)return null;
+  const subtitle=cleanText(raw.subtitle,60)||'나만의 캠퍼스 앱';
+  const category=CAT_IDS.includes(raw.category)?raw.category:'campus';
+  const icon=ICON_CHOICES.includes(raw.icon)?raw.icon:'📱';
+  const accent=ACCENT_CHOICES.includes(raw.accent)?raw.accent:ACCENT_CHOICES[0];
+  const desc=cleanText(raw.desc,240)||'내가 직접 등록한 로컬 시연 앱입니다.';
+  return {id:raw.id,name,subtitle,category,dist:'available',version:'1.0.0',icon,accent,desc,tags:[name,subtitle,'내 앱','직접 추가'],permissions:['프로토타입 내부 시연 메모'],notes:'사용자가 직접 등록한 로컬 전용 앱. 실제 서비스 또는 실행 코드는 연결되지 않음.',shots:['앱 미리보기','나의 캠퍼스','시연 메모'],custom:true};
+}
+let APPS=[...BUILTIN_APPS];
+let byId=Object.fromEntries(APPS.map(a=>[a.id,a]));
+function rebuildCatalog(){const ids=new Set();const cleaned=[];for(const raw of Array.isArray(state.customApps)?state.customApps:[]){const a=cleanCustom(raw);if(a&&!ids.has(a.id)&&cleaned.length<30){cleaned.push(a);ids.add(a.id)}}state.customApps=cleaned;APPS=[...BUILTIN_APPS,...cleaned];byId=Object.fromEntries(APPS.map(a=>[a.id,a]));}
+
+const CATEGORIES=[{id:'campus',label:'캠퍼스',icon:'🏫'},{id:'life',label:'생활',icon:'🌿'},{id:'social',label:'소셜',icon:'💞'},{id:'economy',label:'경제',icon:'💰'},{id:'games',label:'게임',icon:'🎮'},{id:'study',label:'학습',icon:'📚'}];
+const MOODS=[{id:'freshman',label:'새내기',emoji:'🌱',desc:'학교생활이 처음이라면',ids:['campus-guide','campus-events','timetable','club'],why:'캠퍼스 첫걸음에 도움돼요'},{id:'friends',label:'친구',emoji:'💬',desc:'새로운 관계를 만들고 싶다면',ids:['induck-talk','induck-log','club','campus-events'],why:'사람과 이야기를 이어줘요'},{id:'money',label:'생활비',emoji:'🪙',desc:'게임 속 경제활동을 시작한다면',ids:['budget','induck-stock','campus-work','housing'],why:'가상 자산과 생활을 관리해요'},{id:'break',label:'휴식',emoji:'🎮',desc:'수업 사이에 쉬고 싶다면',ids:['jelly-lab','induck-defense','induck-pet','induck-log'],why:'쉬는 시간을 즐겁게 채워요'}];
+const NOTIFICATIONS=[{id:'n-talk',title:'인덕톡의 새 시연 업데이트',desc:'대화방과 진입 흐름 개선 버전을 만나보세요.',appId:'induck-talk'},{id:'n-guide',title:'새내기 앱 모음이 준비됐어요',desc:'캠퍼스 길잡이부터 시간표까지 한번에 둘러볼 수 있어요.',appId:'campus-guide'},{id:'n-market',title:'인덕스토어 v0.2.1 안정화 시연',desc:'이곳의 설치와 앱 실행은 실제 게임과 연결되지 않는 로컬 체험입니다.',appId:'store'}];
+const ICONS={discover:'<path d="m3 11 9-8 9 8v9a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/>',categories:'<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',mine:'<rect x="3" y="4" width="18" height="17" rx="3"/><path d="M3 10h18M8 4v6M16 4v6"/>',updates:'<path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/>',arrow:'<path d="m15 18-6-6 6-6"/>',search:'<circle cx="11" cy="11" r="7"/><path d="m16 16 5 5"/>'};
+function svg(name){return `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]||''}</svg>`;}
+const core=APPS.filter(a=>a.dist==='core').map(a=>a.id);
+const semver=/^(0|[1-9]\d{0,6})\.(0|[1-9]\d{0,6})\.(0|[1-9]\d{0,6})$/;
+function versionCmp(x,y){if(!semver.test(String(x))||!semver.test(String(y)))return null;const a=x.split('.').map(Number),b=y.split('.').map(Number);for(let i=0;i<3;i++){if(a[i]>b[i])return 1;if(a[i]<b[i])return -1;}return 0;}
+const validDate=x=>typeof x==='string'&&x.length<50&&/^\d{4}-\d{2}-\d{2}T/.test(x)&&Number.isFinite(Date.parse(x));
+const plainObject=x=>x&&typeof x==='object'&&!Array.isArray(x);
+function freshState(){return {schemaVersion:2,installedIds:[...core,'campus-guide','induck-talk'],installedVersions:{'campus-guide':'0.9.0','induck-talk':'0.8.0'},homePins:[...core,'campus-guide','induck-talk'],favorites:[],watched:[],interest:'freshman',readNotificationIds:[],updateHistory:[],customApps:[],appNotes:{},recycleBin:[]};}
+let memoryOnly=false,storageIssue='',corruptRaw=null,migratedFromV1=false;
+let state=freshState();
+try{
+  const savedV2=localStorage.getItem(STORE_KEY),savedV1=!savedV2&&localStorage.getItem(OLD_STORE_KEY);
+  const raw=savedV2||savedV1;
+  if(raw){
+    try{
+      if(raw.length>BACKUP_MAX_BYTES)throw Error('size');
+      const parsed=JSON.parse(raw);
+      if(!plainObject(parsed)||!((savedV2&&parsed.schemaVersion===2)||(savedV1&&parsed.schemaVersion===1)))throw Error('schema');
+      state={...freshState(),...parsed,schemaVersion:2};migratedFromV1=!!savedV1;
+    }catch(e){storageIssue='corrupt';corruptRaw=raw;state=freshState();}
+  }
+}catch(e){memoryOnly=true;storageIssue='blocked';}
+function sanitizeHistory(h,valid){return h&&valid(h.appId)&&semver.test(h.version||'')&&validDate(h.at)?{appId:h.appId,version:h.version,at:h.at}:null;}
+function cleanTrashEntry(t){
+  if(!plainObject(t))return null;
+  const app=cleanCustom(t.app);if(!app)return null;
+  const note=typeof t.note==='string'?t.note.slice(0,500):'';
+  return {app,installed:t.installed===true,pinIndex:Number.isInteger(t.pinIndex)&&t.pinIndex>=0&&t.pinIndex<100?t.pinIndex:-1,favorite:t.favorite===true,watched:t.watched===true,note,version:semver.test(t.version||'')?t.version:app.version,history:Array.isArray(t.history)?t.history.filter(h=>h&&h.appId===app.id&&semver.test(h.version||'')&&validDate(h.at)).slice(0,30):[]};
+}
+function normalize(){
+  rebuildCatalog();state.schemaVersion=2;
+  const valid=x=>typeof x==='string'&&Object.prototype.hasOwnProperty.call(byId,x);
+  const unique=a=>Array.isArray(a)?[...new Set(a.filter(valid))]:[];
+  state.installedIds=[...new Set([...core,...unique(state.installedIds).filter(id=>byId[id].dist==='available')])];
+  state.homePins=unique(state.homePins).filter(id=>state.installedIds.includes(id));
+  state.favorites=unique(state.favorites);state.watched=unique(state.watched).filter(id=>byId[id].dist==='planned');
+  if(!plainObject(state.installedVersions))state.installedVersions={};
+  for(const id of Object.keys(state.installedVersions)){
+    if(!state.installedIds.includes(id)||!semver.test(state.installedVersions[id]||''))delete state.installedVersions[id];
+  }
+  for(const id of state.installedIds)if(!Object.prototype.hasOwnProperty.call(state.installedVersions,id))state.installedVersions[id]=byId[id].version;
+  if(!MOODS.some(m=>m.id===state.interest))state.interest='freshman';
+  state.readNotificationIds=Array.isArray(state.readNotificationIds)?[...new Set(state.readNotificationIds.filter(id=>NOTIFICATIONS.some(n=>n.id===id)))]:[];
+  state.updateHistory=Array.isArray(state.updateHistory)?state.updateHistory.map(h=>sanitizeHistory(h,valid)).filter(Boolean).slice(0,30):[];
+  if(!plainObject(state.appNotes))state.appNotes={};
+  for(const id of Object.keys(state.appNotes)){
+    if(!valid(id)||typeof state.appNotes[id]!=='string'){delete state.appNotes[id];continue;}
+    state.appNotes[id]=state.appNotes[id].slice(0,500);
+  }
+  state.recycleBin=Array.isArray(state.recycleBin)?state.recycleBin.map(cleanTrashEntry).filter(t=>t&&!valid(t.app.id)).slice(0,5):[];
+}
+
+normalize();
+function save(){
+  normalize();if(memoryOnly||storageIssue==='corrupt'){renderStorageBanner();return false;}
+  try{localStorage.setItem(STORE_KEY,JSON.stringify(state));return true;}
+  catch(e){memoryOnly=true;storageIssue='blocked';renderStorageBanner();return false;}
+}
+if(migratedFromV1)save();
+let page='discover',selectedCategory='all',myTab='installed',phoneTab='home',manageEditId=null,searchQuery='',detailId=null,detailFrom='discover',modalType='',toastTimer=null;
+const root=document.getElementById('root'),scroll=document.getElementById('scrollArea'),modalLayer=document.getElementById('modalLayer');
+function installed(a){return state.installedIds.includes(a.id)}
+function hasUpdate(a){return installed(a)&&a.dist==='available'&&versionCmp(state.installedVersions[a.id],a.version)===-1}
+function updates(){return APPS.filter(hasUpdate)}
+function icon(a){return `<div class="app-icon" style="--accent:${a.accent}"><span>${escapeHTML(a.icon)}</span></div>`}
+function buttonLabel(a){return a.dist==='planned'?(state.watched.includes(a.id)?'찜 완료':'준비 중'):installed(a)?(hasUpdate(a)?'업데이트':'열기'):'받기'}
+function iconButton(a){return `<button class="mini-btn ${a.dist==='planned'?'planned':installed(a)?'neutral':'dark'}" data-action="${a.dist==='planned'?'watch':installed(a)?hasUpdate(a)?'update':'open':'install'}" data-id="${a.id}">${buttonLabel(a)}</button>`}
+function appRow(a,detail='',manage=false){return `<div class="app-row tap-row"><button class="app-row-main" data-action="detail" data-id="${a.id}" aria-label="${escapeHTML(a.name)} 상세 보기">${icon(a)}<span class="app-copy"><span class="app-name">${escapeHTML(a.name)}</span><span class="app-sub">${escapeHTML(a.subtitle)}</span>${detail?`<span class="badge-tiny">${escapeHTML(detail)}</span>`:''}</span></button>${iconButton(a)}${manage&&installed(a)&&a.dist==='available'?`<button class="row-remove" data-action="uninstall" data-id="${a.id}" aria-label="${escapeHTML(a.name)} 설치 제거" title="앱 설치 제거">✕</button>`:''}</div>`}
+function bannerTitle(t,more=''){return `<div class="section-heading"><h2>${t}</h2>${more}</div>`}
+function pageHead(eyebrow,title,desc=''){return `<div class="eyebrow">${eyebrow}</div><h1 class="page-title">${title}</h1>${desc?`<p class="page-desc">${desc}</p>`:''}`}
+function discover(){const mood=MOODS.find(m=>m.id===state.interest);return `<div class="eyebrow">YOUR CAMPUS, YOUR APPS</div><h1 class="page-title">오늘은 뭘 해볼까? <span>✳</span></h1><p class="page-desc">학교생활에 필요한 앱을 발견하는 작은 시작.</p>
+<section class="hero" aria-label="오늘의 캠퍼스 추천"><div class="hero-content"><span class="pill">✦ 캠퍼스 생활 가이드</span><h2>낯선 캠퍼스도<br>조금씩 익숙하게.</h2><p>새내기를 위한 첫 앱 모음부터 시작해보자.</p><button class="hero-link" data-action="collection">시작팩 둘러보기 ↗</button></div><div class="duck-art" aria-hidden="true"><div class="duck-body"></div><div class="duck-face"></div><div class="duck-eye e1"></div><div class="duck-eye e2"></div><div class="duck-beak"></div><div class="duck-cheek"></div><div class="duck-wing"></div><div class="duck-spark">✦</div></div></section>
+<div class="micro-banner"><span>🔒</span> 모두 무료 · 설치는 이 프로토타입 안에서만 적용돼요.</div>
+${bannerTitle('지금 어떤 하루를 보내고 있어?','<span class="subtle">선택에 따라 추천이 바뀌어요</span>')}<div class="mood-row">${MOODS.map(m=>`<button class="mood ${state.interest===m.id?'active':''}" data-action="mood" data-id="${m.id}" aria-pressed="${state.interest===m.id}"><span>${m.emoji}</span><b>${m.label}</b></button>`).join('')}</div>
+${bannerTitle(`${mood.emoji} ${mood.label}에게 추천`, `<span class="subtle">${mood.why}</span>`)}<div class="card-list">${mood.ids.map(id=>appRow(byId[id],byId[id].dist==='planned'?'기획 중':mood.why)).join('')}</div>
+<div class="discovery-action"><div><b>로컬 앱 실험실</b><p>앱 등록은 개인 브라우저 안에서만 가능한 테스트 기능이에요.</p></div><button class="mini-btn dark" data-action="manage">실험실 열기</button></div>
+${bannerTitle('이달의 앱 모음')}<div class="collection"><div class="collection-tag">WELCOME PACK · 01</div><h3>새내기 시작팩 🌱</h3><p>길잡이부터 시간표까지. 캠퍼스 첫 주를 채우는 앱을 한 번에.</p><div class="collection-icons"><span>🧭</span><span>📣</span><span>📅</span><span>🎨</span></div><button data-action="collection">앱 4개 확인하기 ↗</button></div>
+${bannerTitle('캠퍼스에서 발견하기')}<div class="editorial"><div class="editorial-art">🎪</div><div><h3>우리 학교에서 뭐 하지?</h3><p>행사와 프로그램을 찾아보는 새로운 방법.</p><button data-action="detail" data-id="campus-events">캠퍼스 소식 살펴보기 ↗</button></div></div><div class="footer-note">INDUCK STORE · INHA WORLD 스마트폰 시연용<br>학교 공식 프로그램과 앱 서비스가 연결된 상태는 아닙니다.</div>`}
+function categories(){const filtered=selectedCategory==='all'?APPS:APPS.filter(a=>a.category===selectedCategory);return `${pageHead('EXPLORE CATEGORIES','필요한 것을 찾아봐.','생활의 목적에 따라 앱을 골라보세요.')}
+<div class="category-grid">${CATEGORIES.map(c=>`<button class="cat-tile ${selectedCategory===c.id?'selected':''}" data-action="category" data-id="${c.id}"><span class="cat-emoji">${c.icon}</span><span>${c.label}</span></button>`).join('')}</div><div class="chips"><button class="chip ${selectedCategory==='all'?'active':''}" data-action="category" data-id="all">전체 ${APPS.length}</button>${CATEGORIES.map(c=>`<button class="chip ${selectedCategory===c.id?'active':''}" data-action="category" data-id="${c.id}">${c.label} ${APPS.filter(a=>a.category===c.id).length}</button>`).join('')}</div>${bannerTitle(`앱 ${filtered.length}개`, '<span class="subtle">기본 앱 · 시연 앱 · 기획 중</span>')}<div class="card-list">${filtered.map(a=>appRow(a,a.dist==='core'?'기본 탑재':a.dist==='planned'?'기획 중':'시연 설치 가능')).join('')}</div>${notice()}`}
+function notice(){return `<div class="footer-note">여기의 '받기'는 실제 게임이나 기기에 설치하는 것이 아닙니다.</div>`}
+function myApps(){const arr=myTab==='installed'?APPS.filter(installed):APPS.filter(a=>state.favorites.includes(a.id)||state.watched.includes(a.id));return `${pageHead('MY PHONE','나만의 앱 서랍','설치 상태와 홈 화면을 한곳에서 관리해요.')}
+<div class="stat-row"><div class="stat"><b>${state.installedIds.length}</b><span>설치한 앱</span></div><div class="stat"><b>${state.homePins.length}</b><span>홈에 고정</span></div><div class="stat"><b>${new Set([...state.favorites,...state.watched]).size}</b><span>찜한 앱</span></div></div>
+<div class="shortcut"><span style="font-size:28px">📱</span><div style="flex:1"><h3>나의 가상 폰 홈</h3><p>앱을 홈에 고정하고, 실행을 시연해보세요.</p></div><button class="mini-btn dark" data-action="home">홈 열기</button></div>
+<div class="manage-cta"><button class="outline-btn" data-action="manage">＋ 로컬 앱 실험실</button><span>공식 앱은 설치·제거만 가능해요.</span></div>
+<div class="backup-actions"><b>🗃️ 데이터 안전함</b><p>설치 상태·직접 추가한 앱·시연 메모를 JSON으로 백업하거나 복원할 수 있어요.</p><div class="backup-buttons"><button class="outline-btn" data-action="export-backup">JSON 백업 저장</button><button class="outline-btn" data-action="import-backup">백업 복원</button></div></div>
+<div class="chips"><button class="chip ${myTab==='installed'?'active':''}" data-action="my-tab" data-id="installed">설치됨</button><button class="chip ${myTab==='favorites'?'active':''}" data-action="my-tab" data-id="favorites">찜한 앱</button></div>
+${bannerTitle(myTab==='installed'?`설치한 앱 ${arr.length}개`:`찜한 앱 ${arr.length}개`)}${arr.length?`<div class="card-list">${arr.map(a=>appRow(a,a.dist==='core'?'기본 앱 · 제거 불가':a.dist==='planned'?'기획 중':a.custom?'직접 추가한 앱':state.homePins.includes(a.id)?'홈에 고정됨':'앱 서랍에서 실행 가능',myTab==='installed')).join('')}</div>`:`<div class="empty"><div class="pic">📚</div><h3>아직 찜한 앱이 없어요</h3><p>눈여겨본 앱을 상세 화면에서 찜해보세요.</p><button class="outline-btn" data-action="nav" data-id="categories">앱 둘러보기</button></div>`}
+<div class="devnote">💡 앱 제거는 설치 해제입니다. 직접 등록한 앱의 카탈로그 삭제는 ‘앱 추가·관리’에서 별도로 진행해요. 어떤 작업도 실제 게임 데이터에 접근하지 않습니다.</div><div style="text-align:right;margin-top:12px"><button class="linkbtn" data-action="reset">시연 상태 초기화</button></div>`}
+function updatePage(){const list=updates();return `${pageHead('RELEASE NOTES','앱을 새롭게.','업데이트 가능한 앱과 시연용 변경 내역을 확인하세요.')}
+<div class="update-box"><div style="font-size:30px">${list.length?'🔄':'✨'}</div><h3>${list.length?`${list.length}개 앱을 업데이트할 수 있어요`:'모든 앱이 최신 상태예요'}</h3><p>시연 버전 업데이트이며 실제 서버나 앱 파일은 교체하지 않습니다.</p>${list.length?'<button class="main-btn" data-action="update-all">모두 업데이트하기 ↗</button>':''}</div>
+${bannerTitle('업데이트 대기 중')} ${list.length?`<div class="card-list">${list.map(a=>appRow(a,`시연 버전 ${escapeHTML(state.installedVersions[a.id])} → ${a.version}`)).join('')}</div>`:`<div class="empty"><div class="pic">🎉</div><h3>모두 최신이에요!</h3><p>설치된 시연 앱에 대기 중인 업데이트가 없습니다.</p><button class="outline-btn" data-action="nav" data-id="categories">앱 둘러보기</button></div>`}
+${bannerTitle('업데이트 기록')}${state.updateHistory.length?`<div class="card-list">${state.updateHistory.slice(0,10).map(h=>`<div class="app-row">${icon(byId[h.appId])}<div class="app-copy"><div class="app-name">${escapeHTML(byId[h.appId].name)}</div><div class="app-sub">${escapeHTML(h.version)} · ${new Date(h.at).toLocaleDateString('ko-KR')}</div></div><span class="subpill">완료</span></div>`).join('')}</div>`:'<div class="mutedbox">아직 업데이트 기록이 없어요. 대기 중인 앱을 업데이트하면 여기에 남아요.</div>'}${notice()}`}
+function searchPage(){return `${pageHead('FIND YOUR WAY','어떤 앱이 필요해?','이름 또는 필요한 기능을 검색해보세요.')}
+<div class="field" style="margin-top:24px">${svg('search')}<input id="searchInput" type="search" autocomplete="off" placeholder="예: 친구, 도서관, 생활비" aria-label="앱 검색"></div><div class="chips"><button class="chip" data-action="query" data-id="새내기">새내기</button><button class="chip" data-action="query" data-id="친구">친구</button><button class="chip" data-action="query" data-id="투자">투자</button><button class="chip" data-action="query" data-id="게임">게임</button></div><div id="searchResults"></div>`}
+function renderSearchResults(){const box=document.getElementById('searchResults');if(!box)return;const q=searchQuery.trim().toLocaleLowerCase('ko');const arr=!q?APPS.filter(a=>a.dist!=='core').slice(0,7):APPS.filter(a=>[a.name,a.subtitle,a.desc,a.category,...a.tags].join(' ').toLocaleLowerCase('ko').includes(q));box.innerHTML=`<div class="res-heading">${q?`검색 결과 ${arr.length}개`:'추천 검색 앱'}</div>${arr.length?`<div class="card-list">${arr.map(a=>appRow(a,a.dist==='planned'?'기획 중':a.dist==='core'?'기본 탑재':'시연 가능')).join('')}</div>`:`<div class="empty"><div class="pic">🔎</div><h3>검색 결과가 없어요</h3><p>앱 이름 대신 '친구', '학교', '경제'처럼 필요한 활동으로 찾아보세요.</p><button class="outline-btn" data-action="query" data-id="">검색 초기화</button></div>`}`;}
+function detail(){const a=byId[detailId];if(!a)return discover();const status=a.dist==='core'?'스마트폰 기본 앱':a.dist==='planned'?'기획 중 · 설치 불가':a.custom?'직접 등록 · 로컬 시연 앱':'무료 · 시연 설치 가능';const primary=a.dist==='planned'?`<button class="main-btn" disabled>개발 준비 중</button>`:installed(a)?`<button class="main-btn" data-action="${hasUpdate(a)?'update':'open'}" data-id="${a.id}">${hasUpdate(a)?'시연 업데이트':'시연 화면 열기'} ↗</button>`:`<button class="main-btn" data-action="install" data-id="${a.id}">무료로 받기 ↗</button>`;
+return `<div class="detail-bar"><button class="back-btn" data-action="back">${svg('arrow')} 뒤로</button><span class="eyebrow">APP DETAILS</span></div><div class="detail-head">${icon(a)}<div><div class="detail-title">${escapeHTML(a.name)}</div><p class="detail-sub">${escapeHTML(a.subtitle)}</p><span class="detail-category">${status}</span></div></div>
+<div class="detail-actions">${primary}<button class="outline-btn" data-action="favorite" data-id="${a.id}" aria-label="찜하기">${state.favorites.includes(a.id)?'♥ 찜함':'♡ 찜하기'}</button></div>
+${installed(a)?`<div class="actionbar" style="margin:10px 0 16px"><button class="outline-btn" data-action="pin" data-id="${a.id}">${state.homePins.includes(a.id)?'✓ 홈에 고정됨':'＋ 홈에 고정'}</button>${a.dist==='available'?`<button class="linkbtn" style="color:#aa6d5b" data-action="uninstall" data-id="${a.id}">앱 제거</button>`:'<span class="small-label">시스템 앱 · 제거 불가</span>'}</div>`:a.dist==='planned'?`<div class="mutedbox">⏳ 아직 개발·통합이 완료되지 않은 앱입니다. 앱 찜을 해둘 수 있지만 출시 알림이 실제로 전송되지는 않아요.</div>`:''}
+<div class="hr"></div><p class="detail-story">${escapeHTML(a.desc)}</p>${bannerTitle('미리 보는 앱 경험','<span class="subtle">콘셉트 스크린</span>')}
+<div class="shot-row">${a.shots.map((s,i)=>`<div class="shot" style="--shade:${[a.accent,'#e3eee9','#f3e7d8'][i%3]}"><span class="shot-icon">${a.icon}</span><b>${escapeHTML(s)}</b><small>${escapeHTML(a.name)} 시연용 화면 콘셉트</small></div>`).join('')}</div>
+${a.custom?`<div class="actionbar" style="margin:15px 0"><button class="outline-btn" data-action="edit-custom" data-id="${a.id}">✎ 앱 정보 수정</button><button class="linkbtn danger-text" data-action="delete-custom" data-id="${a.id}">보관함으로 이동</button></div>`:''}
+${bannerTitle('알아두면 좋아요')}<div class="detail-box"><b>접근 정보 및 권한 안내</b><p>아래는 실제 권한 요청이 아닌 향후 연동을 위한 설계 항목입니다.</p><ul>${a.permissions.map(x=>`<li>${escapeHTML(x)}</li>`).join('')}</ul></div><div class="detail-box"><b>시연 버전 · 변경 내역</b><p>${a.dist==='planned'?'개발 일정 미확정':`카탈로그 ${a.version} ${installed(a)?'· 내 설치 버전 '+escapeHTML(state.installedVersions[a.id]):''}`}</p><p>${escapeHTML(a.notes)}</p></div><div class="detail-box"><b>출시·운영 상태</b><p>${a.dist==='core'?'기본 탑재 앱을 설명하는 UI 시연입니다.':a.dist==='planned'?'기획 단계이므로 설치할 수 없습니다.':'이 마켓에서는 설치 상태만 시뮬레이션합니다. 독립 앱과의 실제 연결은 후속 통합 작업이 필요합니다.'}</p></div>${notice()}`}
+function notificationPage(){return `<div class="detail-bar"><button class="back-btn" data-action="back">${svg('arrow')} 뒤로</button><span class="eyebrow">NOTIFICATIONS</span></div>${pageHead('','새로운 소식','실제 푸시가 아닌 시연 안내 메시지예요.')}
+<div class="actionbar"><span class="small-label">읽지 않음 ${NOTIFICATIONS.filter(n=>!state.readNotificationIds.includes(n.id)).length}개</span><button class="linkbtn" data-action="read-all">모두 읽음 처리</button></div>
+${NOTIFICATIONS.map(n=>`<button class="notification-row ${state.readNotificationIds.includes(n.id)?'':'unread'}" data-action="read-notice" data-id="${n.id}"><span class="notif-dot" style="${state.readNotificationIds.includes(n.id)?'background:#e3e8e2':''}"></span><span><b>${n.title}</b><p>${n.desc}</p></span></button>`).join('')}<div class="devnote">🔔 실제 운영에서는 앱 알림 허용·읽음·이벤트 발생을 별도 시스템으로 관리해야 합니다.</div>`}
+function collectionPage(){const ids=['campus-guide','campus-events','timetable','club'];const needed=ids.filter(id=>!state.installedIds.includes(id));return `<div class="detail-bar"><button class="back-btn" data-action="back">${svg('arrow')} 뒤로</button><span class="eyebrow">CURATED COLLECTION</span></div><div class="collection" style="margin-top:18px"><div class="collection-tag">WELCOME PACK / FREE</div><h3 style="font-size:23px">새내기 시작팩 🌱</h3><p>학교에 잘 적응하고 싶은 학생을 위한 첫 네 가지 앱.</p><div class="collection-icons"><span>🧭</span><span>📣</span><span>📅</span><span>🎨</span></div></div>
+<div class="update-box" style="background:#eef2e8"><h3>앱 4개 모두 무료</h3><p>이미 설치한 앱은 그대로 두고 나머지 ${needed.length}개만 설치합니다.</p><button class="main-btn" data-action="install-pack" ${needed.length?'':'disabled'}>${needed.length?`남은 ${needed.length}개 설치하기`:'모두 설치했어요 ✓'}</button></div>
+${bannerTitle('이 팩에 포함된 앱')}<div class="card-list">${ids.map(id=>appRow(byId[id],installed(byId[id])?'이미 설치됨':'무료 설치 가능')).join('')}</div><div class="devnote">새내기 팩 설치는 로컬 상태만 변경하며, 실제 게임 퀘스트 보상이나 앱 데이터에 영향을 주지 않습니다.</div>`}
+function homePage(){const pinned=state.homePins.map(id=>byId[id]).filter(Boolean);const drawer=APPS.filter(installed);return `<div class="detail-bar"><button class="back-btn" data-action="back">${svg('arrow')} 스토어</button><span class="eyebrow">PHONE PREVIEW · v0.2.1</span></div>${pageHead('','나의 스마트폰','홈 화면과 앱 서랍을 함께 관리해요.')}
+<div class="seg-tabs" role="group" aria-label="스마트폰 화면 선택"><button class="${phoneTab==='home'?'selected':''}" data-action="phone-tab" data-id="home">⌂ 홈 화면</button><button class="${phoneTab==='drawer'?'selected':''}" data-action="phone-tab" data-id="drawer">▦ 앱 서랍 ${drawer.length}</button></div>
+${phoneTab==='home'?`<div class="home-preview"><div class="home-label">☀️ 오늘도 좋은 캠퍼스 하루</div><div class="home-grid">${pinned.map(a=>`<button class="homeapp" data-action="open" data-id="${a.id}">${icon(a)}<span class="caption">${escapeHTML(a.name)}</span></button>`).join('')}</div><div class="home-dock"><button class="homeapp" data-action="nav" data-id="discover">${icon(byId.store)}<span class="caption">스토어</span></button><button class="homeapp" data-action="phone-tab" data-id="drawer"><span style="font-size:27px">🗂️</span><span class="caption">앱 서랍</span></button></div></div>
+${bannerTitle('홈 배치 순서')}<div class="home-manage">${pinned.map((a,i)=>`<div class="pin-item">${icon(a)}<div class="pin-copy"><b>${escapeHTML(a.name)}</b><small>${i+1}번째</small></div><button class="square-btn" data-action="move-pin" data-id="${a.id}|-1" aria-label="${escapeHTML(a.name)} 앞으로 이동" ${i===0?'disabled':''}>←</button><button class="square-btn" data-action="move-pin" data-id="${a.id}|1" aria-label="${escapeHTML(a.name)} 뒤로 이동" ${i===pinned.length-1?'disabled':''}>→</button><button class="square-btn" data-action="pin" data-id="${a.id}" aria-label="${escapeHTML(a.name)} 홈에서 숨기기">×</button></div>`).join('')}</div>`:`<div class="card-list" style="margin-top:16px">${drawer.map(a=>`<div class="drawer-row">${icon(a)}<div class="drawer-copy"><b>${escapeHTML(a.name)}</b><small>${a.dist==='core'?'기본 앱':a.custom?'내가 추가한 앱':'시연 설치됨'}</small></div><button class="mini-btn" data-action="open" data-id="${a.id}">열기</button><button class="square-btn" data-action="pin" data-id="${a.id}" aria-label="${escapeHTML(a.name)} 홈 고정 전환">${state.homePins.includes(a.id)?'★':'☆'}</button>${a.dist==='available'?`<button class="square-btn danger-text" data-action="uninstall" data-id="${a.id}" aria-label="${escapeHTML(a.name)} 설치 제거">×</button>`:''}</div>`).join('')}</div><div class="manage-cta"><button class="outline-btn" data-action="manage">＋ 테스트 앱 만들기</button></div>`}
+<div class="devnote">📌 ★ 표시는 홈 고정, ×는 설치 제거 또는 홈에서 숨기기입니다. 실제 INHA WORLD 스마트폰과는 아직 연결되지 않았어요.</div>`}
+function managePage(){const owned=state.customApps;const editing=owned.find(a=>a.id===manageEditId);return `<div class="detail-bar"><button class="back-btn" data-action="back">${svg('arrow')} 뒤로</button><span class="eyebrow">LOCAL APP LAB</span></div>${pageHead('','앱 추가 · 관리','내 스마트폰에 둘 테스트 앱을 직접 만들어보세요.')}
+<div class="devnote" style="margin-top:15px">🔒 이 기능은 <b>내 브라우저 안에서만 작동하는 시연용 앱 등록</b>입니다. 학생 제작 앱 입점·코드 업로드·실제 서비스 배포는 지원하지 않아요.</div>
+<form id="catalogForm" class="app-form" data-editing="${!!editing}" autocomplete="off">
+<div class="form-heading"><h2>${editing?'앱 정보 수정':'새 테스트 앱 추가'}</h2><span class="subpill">${owned.length} / 30개</span></div>
+<label for="appName">앱 이름 <span>*</span></label><input id="appName" name="name" required minlength="1" maxlength="32" placeholder="예: 후문 카페 지도" value="${escapeHTML(editing?.name||'')}">
+<label for="appSub">한 줄 설명</label><input id="appSub" name="subtitle" maxlength="60" placeholder="예: 나만의 단골 가게 기록" value="${escapeHTML(editing?.subtitle||'')}">
+<div class="form-columns"><div><label for="appCategory">분류</label><select id="appCategory" name="category">${CATEGORIES.map(c=>`<option value="${c.id}" ${editing?.category===c.id?'selected':''}>${c.label}</option>`).join('')}</select></div><div><label for="appIcon">아이콘</label><select id="appIcon" name="icon">${ICON_CHOICES.map(i=>`<option value="${i}" ${editing?.icon===i?'selected':''}>${i}</option>`).join('')}</select></div></div>
+<label for="appAccent">아이콘 배경색</label><div class="color-options">${ACCENT_CHOICES.map((c,i)=>`<label class="color-choice"><input type="radio" aria-label="${ACCENT_NAMES[i]} 색상" name="accent" value="${c}" ${editing?(editing.accent===c?'checked':''):(i===0?'checked':'')}><span style="background:${c}"></span></label>`).join('')}</div>
+<label for="appDesc">상세 소개</label><textarea id="appDesc" name="desc" maxlength="240" rows="3" placeholder="이 앱으로 어떤 캠퍼스 생활을 돕고 싶나요?">${escapeHTML(editing?.desc||'')}</textarea>
+<div class="form-footer"><button type="submit" class="main-btn" ${!editing&&owned.length>=30?'disabled':''}>${editing?'변경 저장':'＋ 앱 추가하고 설치'}</button>${editing?'<button type="button" class="outline-btn" data-action="cancel-edit">취소</button>':''}</div></form>
+${bannerTitle(`내가 추가한 앱 ${owned.length}개`)}${owned.length?`<div class="card-list">${owned.map(a=>`<div class="drawer-row">${icon(a)}<div class="drawer-copy"><b>${escapeHTML(a.name)}</b><small>${installed(a)?'설치됨':'미설치'} · ${CATEGORIES.find(c=>c.id===a.category)?.label}</small></div><button class="square-btn" data-action="edit-custom" data-id="${a.id}" aria-label="${escapeHTML(a.name)} 수정">✎</button><button class="square-btn danger-text" data-action="delete-custom" data-id="${a.id}" aria-label="${escapeHTML(a.name)} 완전 삭제">×</button></div>`).join('')}</div>`:'<div class="mutedbox">아직 직접 추가한 앱이 없어요. 위 입력창에서 첫 번째 테스트 앱을 만들어보세요!</div>'}
+${state.recycleBin.length?`${bannerTitle(`최근 삭제한 앱 ${state.recycleBin.length}개`)}<div class="card-list">${state.recycleBin.map(t=>`<div class="drawer-row">${icon(t.app)}<div class="drawer-copy"><b>${escapeHTML(t.app.name)}</b><small>복원 시 앱 정보·메모·설치 상태 복구</small></div><button class="mini-btn" data-action="restore-custom" data-id="${t.app.id}">복원</button></div>`).join('')}</div><button class="linkbtn danger-text" data-action="empty-trash">보관함 비우기</button>`:''}
+<div class="backup-actions"><b>🗃️ 내 앱 데이터 백업</b><p>완전 삭제·초기화 전에 백업하세요.</p><div class="backup-buttons"><button class="outline-btn" data-action="export-backup">JSON 내보내기</button><button class="outline-btn" data-action="import-backup">JSON 복원</button></div></div>
+<div class="devnote">공식 카탈로그 앱은 여기서 삭제할 수 없어요. 삭제한 개인 테스트 앱은 보관함에서 복원할 수 있습니다.</div>`}
+function downloadText(name,content,mime='application/json'){
+  const url=URL.createObjectURL(new Blob([content],{type:mime}));const link=document.createElement('a');link.href=url;link.download=name;
+  document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);
+}
+function exportBackup(){normalize();downloadText('INDUCK_STORE_v0.2.1_backup.json',JSON.stringify({kind:'induck-store-backup',formatVersion:1,exportedAt:new Date().toISOString(),state},null,2));toast('백업 JSON을 내보냈어요. 파일을 안전하게 보관하세요.');}
+function validateBackup(text){
+  if(text.length>BACKUP_MAX_BYTES)throw Error('파일이 256KB 제한을 초과했어요.');
+  const env=JSON.parse(text);
+  if(!plainObject(env)||env.kind!=='induck-store-backup'||env.formatVersion!==1||!plainObject(env.state)||env.state.schemaVersion!==2)throw Error('인덕스토어 백업 파일이 아니에요.');
+  const s=env.state;
+  if(!Array.isArray(s.customApps)||s.customApps.length>30||s.customApps.some(a=>!cleanCustom(a)))throw Error('앱 등록 정보가 잘못됐어요.');
+  if(!Array.isArray(s.installedIds)||!Array.isArray(s.homePins)||!Array.isArray(s.favorites)||!Array.isArray(s.watched)||!Array.isArray(s.updateHistory)||!Array.isArray(s.readNotificationIds)||!plainObject(s.installedVersions)||!plainObject(s.appNotes))throw Error('저장 데이터 구조가 손상됐어요.');
+  const ids=new Set([...BUILTIN_APPS.map(a=>a.id),...s.customApps.map(a=>a.id)]);
+  if(ids.size!==BUILTIN_APPS.length+s.customApps.length)throw Error('앱 ID가 중복돼요.');
+  for(const key of ['installedIds','homePins','favorites','watched'])if(s[key].length>100||s[key].some(id=>typeof id!=='string'||!ids.has(id)))throw Error('등록되지 않은 앱이 포함돼 있어요.');
+  if(Object.entries(s.installedVersions).some(([id,v])=>!ids.has(id)||!semver.test(v)))throw Error('설치 버전이 잘못됐어요.');
+  if(Object.entries(s.appNotes).some(([id,v])=>!ids.has(id)||typeof v!=='string'||v.length>500))throw Error('시연 메모가 잘못됐어요.');
+  if(s.updateHistory.length>30||s.updateHistory.some(h=>!h||!ids.has(h.appId)||!semver.test(h.version||'')||!validDate(h.at)))throw Error('업데이트 기록이 잘못됐어요.');
+  if(s.recycleBin!==undefined&&(!Array.isArray(s.recycleBin)||s.recycleBin.length>5||s.recycleBin.some(t=>!cleanTrashEntry(t))))throw Error('보관함 데이터가 잘못됐어요.');
+  return s;
+}
+let pendingImport=null;
+async function readBackupFile(file){
+  if(!file)return;
+  try{
+    if(file.size>BACKUP_MAX_BYTES)throw Error('파일이 256KB 제한을 초과했어요.');
+    const incoming=validateBackup(await file.text());pendingImport=incoming;
+    modal(`<div class="sheet-top"><h2>백업으로 복원할까요?</h2><button class="iconbtn" data-action="close" aria-label="닫기">✕</button></div><p>현재 이 브라우저의 시연 데이터를 백업 내용으로 바꿉니다. 기존 데이터는 자동 복구용 임시 원본으로 보관을 시도해요.</p><div class="detail-box"><b>백업 내용</b><p>직접 추가한 앱 ${incoming.customApps.length}개 · 설치 항목 ${incoming.installedIds.length}개</p></div><div class="sheet-actions"><button class="outline-btn" data-action="close">취소</button><button class="main-btn" data-action="confirm-import">복원하기</button></div>`,'import');
+  }catch(e){pendingImport=null;toast('복원 실패: '+(e instanceof SyntaxError?'JSON 파일 형식을 확인하세요.':e.message));}
+  document.getElementById('backupInput').value='';
+}
+function renderStorageBanner(){
+  const b=document.getElementById('storageBanner');if(!b)return;
+  b.hidden=!storageIssue;
+  if(storageIssue==='corrupt')b.innerHTML='<b>⚠ 저장 데이터 손상 감지</b><p>기존 파일을 덮어쓰지 않고 임시 상태로 열었어요. 우선 원본을 내려받고 복구를 선택하세요. 현재 변경은 저장되지 않습니다.</p><div><button data-action="export-corrupt">원본 내려받기</button><button data-action="repair-storage">저장 복구</button><button data-action="import-backup">JSON 복원</button></div>';
+  else if(storageIssue==='blocked')b.innerHTML='<b>⚠ 브라우저 저장 불가</b><p>변경 내용은 현재 화면에서만 유지됩니다. 다른 곳에서 사용하려면 JSON 백업을 내려받으세요.</p><div><button data-action="export-backup">JSON 백업 저장</button></div>';
+}
+function repairStorage(){modal('<div class="sheet-top"><h2>손상된 저장값을 복구할까요?</h2><button class="iconbtn" data-action="close" aria-label="닫기">✕</button></div><p>손상된 원본을 복구용 저장소에 따로 보관한 뒤 현재 임시 상태를 새 저장 데이터로 사용합니다. 먼저 원본을 파일로 백업하는 것도 권장해요.</p><div class="sheet-actions"><button class="outline-btn" data-action="close">취소</button><button class="main-btn" data-action="confirm-repair">복구하기</button></div>','repair');}
+function confirmRepair(){
+  try{if(corruptRaw!==null)localStorage.setItem(RECOVERY_KEY,corruptRaw);
+    localStorage.setItem(STORE_KEY,JSON.stringify(state));storageIssue='';corruptRaw=null;memoryOnly=false;closeModal();render();toast('저장 복구 완료. 기존 원본은 별도 보관했어요.');}
+  catch(e){closeModal();toast('복구를 저장하지 못했어요. 원본을 파일로 내보내세요.');}
+}
+function confirmImport(){if(!pendingImport)return;const candidate=pendingImport,original=state;
+  try{
+    const stored=localStorage.getItem(STORE_KEY);if(stored!==null)localStorage.setItem(RECOVERY_KEY,stored);
+    state={...freshState(),...candidate,schemaVersion:2};normalize();localStorage.setItem(STORE_KEY,JSON.stringify(state));storageIssue='';corruptRaw=null;memoryOnly=false;pendingImport=null;manageEditId=null;closeModal();page='mine';render(false);toast('백업을 성공적으로 복원했어요.');
+  }catch(e){state=original;normalize();closeModal();render();toast('복원 저장 실패. 원래 상태를 유지했어요.');}
+}
+function renderNav(){const tabs=[['discover','발견'],['categories','카테고리'],['mine','내 앱'],['updates','업데이트']];document.getElementById('bottomNav').innerHTML=tabs.map(([id,label])=>`<button class="nav-item ${page===id?'active':''}" data-action="nav" data-id="${id}" aria-current="${page===id?'page':'false'}"><span class="navico">${svg(id)}</span>${label}${id==='updates'&&updates().length?`<span class="count">${updates().length}</span>`:''}</button>`).join('');}
+function render(preserve=true){renderStorageBanner();const t=scroll.scrollTop;const html={discover,categories,mine:myApps,updates:updatePage,search:searchPage,detail,notifications:notificationPage,collection:collectionPage,home:homePage,manage:managePage}[page];root.innerHTML=html?html():discover();if(page==='search'){const inp=document.getElementById('searchInput');inp.value=searchQuery;renderSearchResults();}renderNav();document.getElementById('unreadDot').classList.toggle('hidden',NOTIFICATIONS.every(n=>state.readNotificationIds.includes(n.id)));scroll.scrollTop=preserve?t:0;}
+function navigate(p,keep=false){if(p==='detail'&&page!=='detail')detailFrom=page;if(['collection','notifications','home','manage'].includes(p)&&!['collection','notifications','home','manage'].includes(page))detailFrom=page;page=p;render(keep);}
+function toast(msg){const el=document.getElementById('toast');clearTimeout(toastTimer);el.textContent=msg;el.classList.add('show');toastTimer=setTimeout(()=>el.classList.remove('show'),2300);}
+let modalReturnFocus=null;
+function modal(html,type){
+  if(!modalLayer.classList.contains('active'))modalReturnFocus=document.activeElement;
+  modalType=type;const sheet=document.getElementById('sheetBody');sheet.innerHTML=html;const title=sheet.querySelector('h2');if(title){title.id='sheetTitle';sheet.setAttribute('aria-labelledby','sheetTitle');sheet.removeAttribute('aria-label');}
+  modalLayer.classList.add('active');modalLayer.setAttribute('aria-hidden','false');
+  for(const el of [scroll,document.querySelector('.appheader'),document.getElementById('bottomNav'),document.getElementById('storageBanner')])if(el)el.inert=true;
+  const first=modalLayer.querySelector('.sheet button');if(first)first.focus();
+}
+function closeModal(){
+  modalLayer.classList.remove('active');modalLayer.setAttribute('aria-hidden','true');modalType='';
+  for(const el of [scroll,document.querySelector('.appheader'),document.getElementById('bottomNav'),document.getElementById('storageBanner')])if(el)el.inert=false;
+  const target=modalReturnFocus;modalReturnFocus=null;
+  setTimeout(()=>{if(target?.isConnected)target.focus();else document.querySelector('.appheader [data-action="search"]')?.focus();},0);
+}
+function install(id){const a=byId[id];if(!a||a.dist==='planned'){toast('이 앱은 아직 설치할 수 없어요.');return false;}if(installed(a)){toast('이미 설치된 앱이에요.');return false;}state.installedIds.push(id);state.installedVersions[id]=a.version;if(!state.homePins.includes(id))state.homePins.push(id);save();if(PHONE_GAME_IDS[id])phoneBridge('install',id);toast(`${a.name} 설치 완료! 홈에 추가됐어요.`);return true;}
+function update(id){const a=byId[id];if(!a||!hasUpdate(a)){toast('최신 버전이거나 설치되지 않은 앱이에요.');return;}state.installedVersions[id]=a.version;state.updateHistory.unshift({appId:id,version:a.version,at:new Date().toISOString()});state.updateHistory=state.updateHistory.slice(0,30);save();toast(`${a.name} 시연 업데이트 완료`);render();}
+function showApp(id){const a=byId[id];if(!a||!installed(a)){toast('먼저 앱을 설치해 주세요.');return;}
+if(PHONE_EMBEDDED && (PHONE_NATIVE_IDS[id]||PHONE_GAME_IDS[id])){phoneBridge('open',id);return;}
+modal(`<div class="sheet-top"><h2>앱 실행 시연</h2><button class="iconbtn" data-action="close" aria-label="닫기">✕</button></div>${icon(a)}<h2 style="text-align:center;font-size:22px;letter-spacing:-1px">${escapeHTML(a.name)}</h2><p class="center" style="margin:9px 0 17px">${escapeHTML(a.subtitle)}</p><div class="detail-box" style="background:${a.accent}"><div style="font-size:32px">${escapeHTML(a.icon)}</div><b style="display:block;margin-top:9px">${escapeHTML(a.shots[0])}</b><p>${escapeHTML(a.desc)}</p></div><div class="demo-note"><label for="demoNote">📝 이 앱의 시연 메모 (500자 이내)</label><textarea id="demoNote" maxlength="500" rows="3" placeholder="직접 메모를 적고 저장해보세요.">${escapeHTML(state.appNotes[id]||'')}</textarea><button class="outline-btn" data-action="save-note" data-id="${id}">메모 저장</button></div><p class="center" style="margin-top:13px">실제 앱은 실행되지 않으며, 메모는 이 프로토타입 안에만 저장됩니다.</p><div class="sheet-actions"><button class="main-btn" data-action="close">스토어로 돌아가기</button></div>`, 'app');}
+function uninstallConfirm(id){const a=byId[id];if(!a||a.dist!=='available'||!installed(a))return;modal(`<div class="sheet-top"><h2>앱을 제거할까요?</h2><button class="iconbtn" data-action="close" aria-label="닫기">✕</button></div>${icon(a)}<p><b>${escapeHTML(a.name)}</b>의 설치 상태와 홈 바로가기를 제거합니다. 시연 메모는 기본적으로 보존돼요. 실제 게임 데이터는 삭제하지 않습니다.</p><label class="wipe-option"><input type="checkbox" id="wipe-note"><span>이 앱에 작성한 로컬 시연 메모도 삭제</span></label><div class="sheet-actions"><button class="outline-btn" data-action="close">취소</button><button class="main-btn" style="background:#a74e45" data-action="confirm-uninstall" data-id="${id}">제거하기</button></div>`, 'confirm');}
+function deleteCustomConfirm(id){const a=byId[id];if(!a?.custom)return;modal(`<div class="sheet-top"><h2>등록한 앱을 보관함으로 이동할까요?</h2><button class="iconbtn" data-action="close" aria-label="닫기">✕</button></div>${icon(a)}<p><b>${escapeHTML(a.name)}</b>을(를) 로컬 카탈로그에서 삭제합니다. 설치·홈 고정도 해제하지만 시연 메모와 앱 정보는 보관함에 남아 복원할 수 있어요. 보관함은 최대 5개이며, 초과하면 가장 오래된 항목이 정리돼요. 실제 게임 데이터와는 무관해요.</p><div class="sheet-actions"><button class="outline-btn" data-action="close">취소</button><button class="main-btn danger-btn" data-action="confirm-delete-custom" data-id="${id}">보관함으로 이동</button></div>`, 'delete-custom');}
+function createOrEditCustom(form){
+  const data=new FormData(form);const name=cleanText(data.get('name'),32);
+  if(!name){toast('앱 이름을 입력해 주세요.');document.getElementById('appName')?.focus();return;}
+  if(!manageEditId&&state.customApps.length>=30){toast('테스트 앱은 최대 30개까지 등록할 수 있어요.');return;}
+  let id=manageEditId;
+  if(!id){do{id='local-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,9);}while(byId[id]);}
+  const a=cleanCustom({id,name,subtitle:data.get('subtitle'),category:data.get('category'),icon:data.get('icon'),accent:data.get('accent'),desc:data.get('desc')});
+  if(!a){toast('앱 정보를 확인해 주세요.');return;}
+  if(manageEditId){if(!byId[manageEditId]?.custom){toast('수정할 수 없는 앱이에요.');return;}state.customApps=state.customApps.map(x=>x.id===id?a:x);}else{
+    state.customApps.push(a);state.installedIds.push(id);state.installedVersions[id]=a.version;state.homePins.push(id);
+  }
+  manageEditId=null;save();render(false);toast(a.name+(form.dataset.editing==='true'?' 정보가 수정됐어요.':' 추가 완료! 홈에 설치했어요.'));
+}
+function handleAction(act,id){if(act==='nav'){navigate(id);return;}if(act==='search'){navigate('search');setTimeout(()=>document.getElementById('searchInput')?.focus(),0);return;}if(['notifications','home','collection'].includes(act)){navigate(act);return;}if(act==='manage'){manageEditId=null;navigate('manage');return;}if(act==='phone-tab'){phoneTab=id==='drawer'?'drawer':'home';render(false);return;}if(act==='back'){navigate(detailFrom==='detail'?'discover':detailFrom);return;}
+if(act==='detail'){detailId=id;navigate('detail');return;}
+if(act==='mood'){if(MOODS.some(m=>m.id===id)){state.interest=id;save();render();}return;}
+if(act==='category'){selectedCategory=id;render();return;}
+if(act==='my-tab'){myTab=id;render();return;}
+if(act==='move-pin'){const [key,raw]=String(id).split('|');const delta=Number(raw);const idx=state.homePins.indexOf(key);const dest=idx+delta;if(idx<0||![-1,1].includes(delta)||dest<0||dest>=state.homePins.length)return;[state.homePins[idx],state.homePins[dest]]=[state.homePins[dest],state.homePins[idx]];save();render();return;}
+if(act==='edit-custom'){if(!byId[id]?.custom)return;manageEditId=id;navigate('manage');return;}
+if(act==='cancel-edit'){manageEditId=null;render();return;}
+if(act==='delete-custom'){deleteCustomConfirm(id);return;}
+if(act==='confirm-delete-custom'){
+  const a=byId[id];if(!a?.custom)return;
+  const entry={app:{...a},installed:state.installedIds.includes(id),pinIndex:state.homePins.indexOf(id),favorite:state.favorites.includes(id),watched:state.watched.includes(id),note:state.appNotes[id]||'',version:state.installedVersions[id]||a.version,history:state.updateHistory.filter(h=>h.appId===id)};
+  state.recycleBin=[cleanTrashEntry(entry),...state.recycleBin.filter(t=>t.app.id!==id)].filter(Boolean).slice(0,5);
+  const name=a.name;state.customApps=state.customApps.filter(x=>x.id!==id);state.installedIds=state.installedIds.filter(x=>x!==id);state.homePins=state.homePins.filter(x=>x!==id);state.favorites=state.favorites.filter(x=>x!==id);state.watched=state.watched.filter(x=>x!==id);state.updateHistory=state.updateHistory.filter(x=>x.appId!==id);delete state.installedVersions[id];delete state.appNotes[id];if(manageEditId===id)manageEditId=null;if(detailId===id)page='manage';save();closeModal();render();toast(name+' 앱을 보관함으로 이동했어요.');return;
+}
+if(act==='restore-custom'){
+  const item=state.recycleBin.find(t=>t.app.id===id);if(!item||state.customApps.length>=30||byId[id])return;
+  state.customApps.push(item.app);if(item.installed)state.installedIds.push(id);if(item.pinIndex>=0&&item.installed)state.homePins.splice(Math.min(item.pinIndex,state.homePins.length),0,id);
+  if(item.favorite)state.favorites.push(id);if(item.watched)state.watched.push(id);if(item.note)state.appNotes[id]=item.note;
+  if(item.installed)state.installedVersions[id]=item.version;
+  state.updateHistory=[...item.history,...state.updateHistory].slice(0,30);
+  state.recycleBin=state.recycleBin.filter(t=>t.app.id!==id);save();render();toast(item.app.name+' 복원 완료!');return;
+}
+if(act==='empty-trash'){modal('<div class="sheet-top"><h2>보관함을 비울까요?</h2><button class="iconbtn" data-action="close" aria-label="닫기">✕</button></div><p>보관함의 삭제 앱 정보와 메모가 완전히 사라집니다. 먼저 JSON을 내보내 두세요.</p><div class="sheet-actions"><button class="outline-btn" data-action="export-backup">백업 저장</button><button class="outline-btn" data-action="close">취소</button><button class="main-btn danger-btn" data-action="confirm-empty-trash">영구 삭제</button></div>','trash');return;}
+if(act==='confirm-empty-trash'){state.recycleBin=[];save();closeModal();render();toast('보관함을 비웠어요.');return;}
+if(act==='export-backup'){exportBackup();return;}
+if(act==='import-backup'){document.getElementById('backupInput').click();return;}
+if(act==='confirm-import'){confirmImport();return;}
+if(act==='export-corrupt'){if(corruptRaw!==null){downloadText('INDUCK_STORE_damaged_original.txt',corruptRaw,'text/plain');toast('원본을 내려받았어요.');}return;}
+if(act==='repair-storage'){repairStorage();return;}
+if(act==='confirm-repair'){confirmRepair();return;}
+
+if(act==='save-note'){const a=byId[id];if(!a||!installed(a))return;const note=document.getElementById('demoNote');if(note){state.appNotes[id]=note.value.slice(0,500);save();toast('로컬 시연 메모를 저장했어요.');}return;}
+if(act==='install'){if(install(id))render();return;}
+if(act==='install-pack'){const ids=['campus-guide','campus-events','timetable','club'];let n=0;ids.forEach(x=>{if(!installed(byId[x])){state.installedIds.push(x);state.installedVersions[x]=byId[x].version;if(!state.homePins.includes(x))state.homePins.push(x);n++;}});save();render();toast(n?`${n}개 앱을 설치했어요. 폰 홈을 확인해보세요!`:'이미 모든 앱이 설치됐어요.');return;}
+if(act==='update'){update(id);return;}if(act==='update-all'){const list=updates();list.forEach(a=>{state.installedVersions[a.id]=a.version;state.updateHistory.unshift({appId:a.id,version:a.version,at:new Date().toISOString()});});state.updateHistory=state.updateHistory.slice(0,30);save();render();toast(`${list.length}개 앱의 시연 업데이트가 완료됐어요.`);return;}
+if(act==='open'){showApp(id);return;}
+if(act==='uninstall'){uninstallConfirm(id);return;}
+if(act==='reset'){modal(`<div class="sheet-top"><h2>시연 상태를 초기화할까요?</h2><button class="iconbtn" data-action="close" aria-label="닫기">✕</button></div><p>앱 설치·홈 고정·찜·알림 읽음·업데이트 이력뿐 아니라 직접 만든 테스트 앱과 모든 시연 메모도 이 브라우저에서 영구 삭제됩니다. 실제 INHA WORLD 데이터에는 접근하지 않습니다.</p><div class="sheet-actions"><button class="outline-btn" data-action="close">취소</button><button class="main-btn" data-action="confirm-reset">초기화</button></div>`, 'reset');return;}
+if(act==='confirm-reset'){state=freshState();save();phoneBridge('ready');closeModal();render();toast('시연 상태를 초기화했어요.');return;}
+if(act==='confirm-uninstall'){const a=byId[id];if(a&&a.dist==='available'){const wipe=!!document.getElementById('wipe-note')?.checked;state.installedIds=state.installedIds.filter(x=>x!==id);state.homePins=state.homePins.filter(x=>x!==id);delete state.installedVersions[id];if(wipe)delete state.appNotes[id];save();if(PHONE_GAME_IDS[id])phoneBridge('uninstall',id);closeModal();render();toast(`${a.name} 설치를 제거했어요.${wipe?' 시연 메모도 삭제했어요.':''}`);}return;}
+if(act==='favorite'){const arr=state.favorites;state.favorites=arr.includes(id)?arr.filter(x=>x!==id):[...arr,id];save();render();toast(state.favorites.includes(id)?'찜 목록에 추가했어요.':'찜 목록에서 제외했어요.');return;}
+if(act==='watch'){const arr=state.watched;state.watched=arr.includes(id)?arr.filter(x=>x!==id):[...arr,id];save();render();toast(state.watched.includes(id)?'관심 앱으로 저장했어요. 실제 알림은 발송되지 않아요.':'관심 목록에서 제외했어요.');return;}
+if(act==='pin'){if(!installed(byId[id]))return;state.homePins=state.homePins.includes(id)?state.homePins.filter(x=>x!==id):[...state.homePins,id];save();render();toast(state.homePins.includes(id)?'폰 홈에 고정했어요.':'폰 홈에서 숨겼어요.');return;}
+if(act==='read-all'){state.readNotificationIds=NOTIFICATIONS.map(n=>n.id);save();render();toast('모든 알림을 읽음 처리했어요.');return;}
+if(act==='read-notice'){state.readNotificationIds=[...new Set([...state.readNotificationIds,id])];save();const n=NOTIFICATIONS.find(n=>n.id===id);if(n){detailId=n.appId;detailFrom='notifications';navigate('detail');}else render();return;}
+if(act==='query'){searchQuery=id||'';const inp=document.getElementById('searchInput');if(inp){inp.value=searchQuery;renderSearchResults();inp.focus();}return;}
+if(act==='close'){closeModal();return;}}
+document.addEventListener('click',e=>{const button=e.target.closest('[data-action]');if(button){e.preventDefault();e.stopPropagation();handleAction(button.dataset.action,button.dataset.id);return;}const row=e.target.closest('[data-open-detail]');if(row){detailId=row.dataset.openDetail;navigate('detail');}});
+document.addEventListener('input',e=>{if(e.target.id==='searchInput'){searchQuery=e.target.value;renderSearchResults();}});
+document.addEventListener('submit',e=>{if(e.target.id==='catalogForm'){e.preventDefault();createOrEditCustom(e.target);}});
+document.getElementById('backupInput').addEventListener('change',e=>readBackupFile(e.target.files?.[0]));
+document.addEventListener('keydown',e=>{
+  if(!modalLayer.classList.contains('active'))return;
+  if(e.key==='Escape'){e.preventDefault();closeModal();return;}
+  if(e.key==='Tab'){
+    const focusable=[...modalLayer.querySelectorAll('.sheet button:not([disabled]),.sheet input:not([disabled]),.sheet textarea:not([disabled]),.sheet select:not([disabled]),.sheet a[href]')].filter(el=>el.getClientRects().length);
+    if(!focusable.length){e.preventDefault();return;}
+    const first=focusable[0],last=focusable[focusable.length-1];
+    if(e.shiftKey&&(document.activeElement===first||!modalLayer.contains(document.activeElement))){e.preventDefault();last.focus();}
+    else if(!e.shiftKey&&(document.activeElement===last||!modalLayer.contains(document.activeElement))){e.preventDefault();first.focus();}
+  }
+});
+if(storageIssue==='blocked')setTimeout(()=>toast('저장할 수 없어요. JSON 백업을 사용하세요.'),400);else if(storageIssue==='corrupt')setTimeout(()=>toast('저장 데이터 손상: 원본 백업 후 복구해 주세요.'),400);else if(migratedFromV1)setTimeout(()=>toast('v0.1 설치·찜·알림 상태를 그대로 이어받았어요.'),400);
+if(PHONE_EMBEDDED) {
+  window.addEventListener('message',event=>{
+    if(event.source!==window.parent||event.origin!==location.origin||event.data?.channel!=='INHA_OS_STORE_021'||event.data?.action!=='sync')return;
+    const ids=Array.isArray(event.data.installedApps)?event.data.installedApps:[];
+    for(const [storeId,phoneId] of Object.entries(PHONE_GAME_IDS)){
+      const valid=ids.includes(phoneId);
+      if(valid&&!state.installedIds.includes(storeId)){
+        state.installedIds.push(storeId);
+        state.installedVersions[storeId]=byId[storeId]?.version||'1.0.0';
+        if(!state.homePins.includes(storeId))state.homePins.push(storeId);
+      }else if(!valid&&state.installedIds.includes(storeId)){
+        state.installedIds=state.installedIds.filter(x=>x!==storeId);
+        state.homePins=state.homePins.filter(x=>x!==storeId);
+        delete state.installedVersions[storeId];
+      }
+    }
+    save();render(false);
+  });
+}
+render(false);
+if(PHONE_EMBEDDED)phoneBridge('ready');
+})();
+</script>
+</body>
+</html>

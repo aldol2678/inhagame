@@ -1,31 +1,37 @@
+import { PHONE_SYSTEM_APP_IDS, PHONE_INSTALLABLE_APP_IDS } from './phone-app-catalog.js';
+
 export const PHONE_PAGE_SLOTS = 12;
 export const PHONE_DOCK_SLOTS = 4;
 export const PHONE_WALLPAPERS = Object.freeze(['campus', 'night', 'mint']);
-export const PHONE_APP_IDS = Object.freeze(['student-id','maps','camera','album','settings','daily-quiz','attendance','messages','notifications']);
+export const PHONE_APP_IDS = PHONE_SYSTEM_APP_IDS;
 export function defaultPhonePreferences() {
   const page = Array(PHONE_PAGE_SLOTS).fill(null); ['student-id','album','settings'].forEach((id,i)=>{page[i]=id;});
-  return { version:1, pages:[page], dock:['maps','camera',null,null], hiddenApps:[], widgets:['clock'], wallpaper:{type:'default',id:'campus'} };
+  return { version:1, pages:[page], dock:['maps','camera',null,null], hiddenApps:[], installedApps:[], widgets:['clock'], wallpaper:{type:'default',id:'campus'} };
 }
 export function normalizePhonePreferences(value, appIds = PHONE_APP_IDS) {
   if (!value || value.version !== 1) value = defaultPhonePreferences();
-  const seen = new Set(), valid = new Set(appIds), take = id => { if (!valid.has(id) || seen.has(id)) return null; seen.add(id); return id; };
+  // v1 layouts remain readable. Only explicitly installed external shortcuts join the grid.
+  const installedApps = [...new Set((Array.isArray(value.installedApps) ? value.installedApps : [])
+    .filter(id=>PHONE_INSTALLABLE_APP_IDS.includes(id)))];
+  const activeIds = [...new Set([...appIds,...installedApps])];
+  const seen = new Set(), valid = new Set(activeIds), take = id => { if (!valid.has(id) || seen.has(id)) return null; seen.add(id); return id; };
   const slots = (items,count) => Array.from({length:count},(_,i)=>take(items?.[i]));
   const dock = slots(value.dock,PHONE_DOCK_SLOTS);
   const pages = (Array.isArray(value.pages) && value.pages.length ? value.pages : [[]]).map(page=>slots(page,PHONE_PAGE_SLOTS));
   const hiddenApps = [...new Set(Array.isArray(value.hiddenApps) ? value.hiddenApps.filter(id=>valid.has(id)&&!seen.has(id)) : [])];
-  for (const id of appIds) {
+  for (const id of activeIds) {
     if (seen.has(id)||hiddenApps.includes(id)) continue;
     let page = pages.find(x=>x.includes(null)); if (!page) { page=Array(PHONE_PAGE_SLOTS).fill(null); pages.push(page); }
     page[page.indexOf(null)] = id;
   }
   const wallpaper = value.wallpaper?.type === 'photo' && typeof value.wallpaper.id === 'string' ? {type:'photo',id:value.wallpaper.id}
     : {type:'default',id:PHONE_WALLPAPERS.includes(value.wallpaper?.id) ? value.wallpaper.id : 'campus'};
-  return {version:1,pages,dock,hiddenApps,widgets:value.widgets?.includes('clock') ? ['clock'] : [],wallpaper,
+  return {version:1,pages,dock,hiddenApps,installedApps,widgets:value.widgets?.includes('clock') ? ['clock'] : [],wallpaper,
     studentIdFace:value.studentIdFace === 'back' ? 'back' : 'front'};
 }
 export function movePhoneApp(preferences, id, target, appIds = PHONE_APP_IDS) {
   const next = normalizePhonePreferences(preferences,appIds);
-  if (!appIds.includes(id)) return next;
+  if (![...appIds,...next.installedApps].includes(id)) return next;
   const destination = target.area === 'dock' ? next.dock : next.pages[target.page];
   if (!destination || !Number.isInteger(target.slot) || target.slot < 0 || target.slot >= destination.length) return next;
   const all = [...next.pages,next.dock];
@@ -57,6 +63,32 @@ export function createPhonePreferences({ getStorage, getScope, onError = () => {
     wallpaper(wallpaper) {value=normalizePhonePreferences({...value,wallpaper});dirty=true;},
     reset() {value=defaultPhonePreferences();dirty=true;},
     clock(show) {value.widgets=show ? ['clock'] : [];dirty=true;},
-    face(side) {value.studentIdFace=side==='back'?'back':'front';dirty=true;}
+    face(side) {value.studentIdFace=side==='back'?'back':'front';dirty=true;},
+    install(id) {
+      if(!PHONE_INSTALLABLE_APP_IDS.includes(id))return false;
+      if(value.installedApps.includes(id))return true;
+      value=normalizePhonePreferences({...value,installedApps:[...value.installedApps,id]});dirty=true;return true;
+    },
+    uninstall(id) {
+      if(!PHONE_INSTALLABLE_APP_IDS.includes(id)||!value.installedApps.includes(id))return false;
+      value=normalizePhonePreferences({...value,
+        installedApps:value.installedApps.filter(x=>x!==id),
+        hiddenApps:value.hiddenApps.filter(x=>x!==id),
+        dock:value.dock.map(x=>x===id?null:x),
+        pages:value.pages.map(page=>page.map(x=>x===id?null:x))
+      });dirty=true;return true;
+    },
+    hide(id) {
+      if(id==='induck-store'||![...PHONE_APP_IDS,...value.installedApps].includes(id)||value.hiddenApps.includes(id))return false;
+      value=normalizePhonePreferences({...value,hiddenApps:[...value.hiddenApps,id],
+        dock:value.dock.map(x=>x===id?null:x),
+        pages:value.pages.map(page=>page.map(x=>x===id?null:x))
+      });dirty=true;return true;
+    },
+    show(id) {
+      if(!value.hiddenApps.includes(id))return false;
+      value=normalizePhonePreferences({...value,hiddenApps:value.hiddenApps.filter(x=>x!==id)});
+      dirty=true;return true;
+    }
   });
 }

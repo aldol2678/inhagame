@@ -214,3 +214,15 @@ body[data-phone-open="true"] > :not(#application):not(.smartphone) { visibility:
 @media (max-width:350px) {
   .phone-notifications-history-controls { grid-template-columns:repeat(2,minmax(0,1fr)); }
 }
+
+
+/* INHA OS 0.2.1: original appmarket viewport stays inside Phone's input owner. */
+.smartphone .smartphone-content.phone-store-host {
+  display:flex;flex-direction:column;min-height:0;overflow:hidden;padding:0;
+}
+.smartphone .phone-store-iframe {
+  display:block;width:100%;min-width:0;min-height:0;flex:1;border:0;background:#fafaf7;
+}
+.smartphone .phone-store-iframe:focus-visible { outline:3px solid #7bd7bc;outline-offset:-3px; }
+.smartphone .phone-store-external { display:inline-flex;min-height:44px;align-items:center;justify-content:center;padding:10px 16px;border-radius:12px;background:#d9e7f3;color:#193346;font-weight:700;text-decoration:none; }
+.smartphone .phone-store-external:focus-visible { outline:3px solid #f8d77b;outline-offset:3px; }

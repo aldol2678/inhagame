@@ -1,4 +1,5 @@
 import { createPhoneShell, PHONE_STATE } from './phone-shell.js';
+import { createPhoneAppRegistry, PHONE_EXTERNAL_APPS, PHONE_SYSTEM_APPS, phoneExternalApp } from './phone-app-catalog.js';
 import { createPhoneMessages } from './phone-messages.js';
 import { createPhoneNotificationCenter } from './phone-notification-center.js';
 import { createStudentId } from './student-id.js';
@@ -100,7 +101,7 @@ export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, g
     try {if(kind==='maps'){offMapSelection?.();offMapSelection=null;getMap()?.close();mapSurface.restore();}else{getSettings()?.setOpen(false,{focus:false});settingsSurface.restore();}}
     finally{suppressClose--;}
   }
-  const registry=[
+  const nativeRegistry=[
     {id:'student-id',name:'학생증',icon:'🎓',available:()=>true,open:params=>{if(params?.view==='jeongseok'){if(jeongseok?.phoneView().enabled)void jeongseok.refresh();}else void student.refresh();},close(){}},
     {id:'maps',name:'지도',icon:'🗺️',available:()=>!!getMap(),open(){},close:()=>closeSurface('maps')},
     {id:'camera',name:'카메라',icon:'📷',available:()=>true,open(){},close(){}},
@@ -111,6 +112,7 @@ export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, g
     {id:'messages',name:'메시지',icon:'💬',available:()=>true,open:params=>messages.activate(params),close:()=>messages.close()},
     {id:'notifications',name:'알림센터',icon:'🔔',available:()=>true,open:()=>notifications.refresh(),close:()=>notifications.close()}
   ];
+  const registry=createPhoneAppRegistry(nativeRegistry,()=>preferences.snapshot().installedApps);
   function openFriendsFromNotifications() {
     if(!getSocial()?.available)return false;
     shell.close();
@@ -327,16 +329,72 @@ export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, g
       for(const place of records)details.append(btn(place.title,()=>pickMapPlace(place)));list.append(details);
     }
   }
+  // INDUCK STORE 0.2.1 runs as the original mobile UI inside Phone.
+  // A scoped, allowlisted bridge is the only integration with the Phone launcher.
+  let storeFrame=null;
+  const storeGameIds=Object.freeze({
+    'induck-pet':'induck-grow','induck-classic':'induck-classic',
+    'induckup':'induckup','induck-survival':'induck-survival'
+  });
+  const storeNativeIds=Object.freeze({
+    'map':'maps','camera':'camera','album':'album','student-id':'student-id','settings':'settings'
+  });
+  function sendStoreSync() {
+    const target=storeFrame?.contentWindow;
+    if(!storeFrame?.isConnected||!target||!win.location?.origin)return;
+    target.postMessage({channel:'INHA_OS_STORE_021',action:'sync',
+      installedApps:preferences.snapshot().installedApps},win.location.origin);
+  }
+  function receiveStoreMessage(event) {
+    if(!storeFrame?.isConnected||event.source!==storeFrame.contentWindow||
+      event.origin!==win.location?.origin||event.data?.channel!=='INHA_OS_STORE_021')return;
+    const {action,id}=event.data;
+    if(action==='ready'){sendStoreSync();return;}
+    if(action==='open'){
+      const appId=storeNativeIds[id]||storeGameIds[id];
+      if(appId&&(storeNativeIds[id]||preferences.snapshot().installedApps.includes(appId)))launch(appId);
+      return;
+    }
+    const appId=storeGameIds[id];
+    if(!appId||!['install','uninstall'].includes(action))return;
+    const ok=action==='install'?preferences.install(appId):preferences.uninstall(appId);
+    if(ok&&!preferences.save())warn('스토어 설치 설정을 기기에 저장하지 못했어요.');
+    sendStoreSync();
+  }
+  win.addEventListener('message',receiveStoreMessage);
+  function renderStore() {
+    const frame=el('iframe','phone-store-iframe');
+    frame.title='인덕스토어 v0.2.1';
+    frame.loading='eager';
+    frame.referrerPolicy='same-origin';
+    frame.src='/campus/induck-store-v0.2.1.html?phone=1&scope='+encodeURIComponent(album.scope);
+    frame.addEventListener('load',()=>{if(storeFrame===frame)sendStoreSync();});
+    storeFrame=frame;
+    content.append(frame);
+  }
+  function renderExternalGame(id) {
+    const app=phoneExternalApp(id);
+    if(!app||!preferences.snapshot().installedApps.includes(id)) {
+      content.append(el('p','smartphone-empty-state','설치된 게임 바로가기가 아니에요.'));return;
+    }
+    content.append(el('h3','',app.icon+' '+app.name),
+      el('p','smartphone-hint','별도 웹게임을 새 탭으로 열어요. 인하월드의 로그인·세이브·보상과 자동 연동되지 않아요.'));
+    const link=el('a','phone-store-external','외부 게임 열기 ↗');
+    link.href=app.url;link.target='_blank';link.rel='noopener noreferrer';
+    link.setAttribute('aria-label',app.name+' 새 탭에서 열기');
+    content.append(link,btn('인덕스토어로 돌아가기',()=>launch('induck-store')));
+  }
   function render(force=false) {
     if(!shell||destroyed)return;const s=shell.snapshot(), route=JSON.stringify([s.state,s.stack]);
     root.hidden=!shell.ownsInput;root.dataset.state=s.state;toggle?.setAttribute('aria-expanded',String(s.open));
+    content.className=s.state==='APP'&&s.current?.appId==='induck-store'?'smartphone-content phone-store-host':'smartphone-content';
     worldVisibility(shell.ownsInput);if(!shell.ownsInput){preferences.save();if(s.state==='CLOSED'&&inputFocus.can('WORLD_ACTION')){
       const focus=savedFocus?.isConnected&&savedFocus.getClientRects().length?savedFocus:toggle;focus?.focus?.({preventScroll:true});savedFocus=null;
     }}
     const gateView=s.current?.appId==='student-id'&&s.current.view==='jeongseok'&&s.current.origin==='gate';
     if(jeongseokReturn&&(!shell.ownsInput||!gateView)){jeongseokReturn=null;jeongseok?.phoneClosed();}
     if(!force&&route===lastRoute)return;const routeChanged=route!==lastRoute;lastRoute=route;if(routeChanged)jeongseokConfirm=false;
-    const keepFocus=!routeChanged&&root.contains(doc.activeElement)?doc.activeElement.textContent:null;uiEpoch++;albumManager.leave();revokeImages();content.replaceChildren();if(routeChanged)content.scrollTop=0;say(warning);void setWallpaper();
+    const keepFocus=!routeChanged&&root.contains(doc.activeElement)?doc.activeElement.textContent:null;uiEpoch++;storeFrame=null;albumManager.leave();revokeImages();content.replaceChildren();if(routeChanged)content.scrollTop=0;say(warning);void setWallpaper();
     if(s.state==='HOME'||s.state==='HOME_EDIT')renderHome();
     else if(s.state==='APP'){
       const app=s.current;title.textContent=registry.find(x=>x.id===app.appId)?.name||'스마트폰';
@@ -345,6 +403,8 @@ export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, g
       else if(app.appId==='daily-quiz'||app.appId==='attendance')renderDailySurface(app.appId);
       else if(app.appId==='messages')messages.mount(content);
       else if(app.appId==='notifications')notifications.mount(content);
+      else if(app.appId==='induck-store')renderStore();
+      else if(phoneExternalApp(app.appId))renderExternalGame(app.appId);
     }
     if(shell.ownsInput && !['daily-quiz','attendance'].includes(s.current?.appId)){
       const same=keepFocus&&[...content.querySelectorAll('button')].find(n=>n.textContent===keepFocus&&!n.disabled);
@@ -444,7 +504,7 @@ export function createSmartphone({ inputFocus, photoMode, getMap, getSettings, g
     },
     status:()=>({...shell.snapshot(),scope:album.scope,preferences:preferences.snapshot(),albumError:album.error,messages:messages.status(),notifications:notifications.snapshot()}),
     destroy(){albumManager.reset();shell.close();notifications.destroy();messages.setAccount(null);destroyed=true;clearHold();win.clearInterval(clockTimer);shell.destroy();album.destroy();unsubscribePhoto();
-      toggle?.removeEventListener('click',toggleClick);doc.removeEventListener('keydown',keyboard,true);doc.removeEventListener('click',legacyProfile,true);doc.removeEventListener('click',legacyDaily,true);doc.removeEventListener('visibilitychange',visibility);win.removeEventListener('pagehide',pagehide);
+      toggle?.removeEventListener('click',toggleClick);doc.removeEventListener('keydown',keyboard,true);doc.removeEventListener('click',legacyProfile,true);doc.removeEventListener('click',legacyDaily,true);doc.removeEventListener('visibilitychange',visibility);win.removeEventListener('pagehide',pagehide);win.removeEventListener('message',receiveStoreMessage);
       revokeImages();if(wallpaperUrl)win.URL.revokeObjectURL(wallpaperUrl);worldVisibility(false);root.remove();}
   });
 }
