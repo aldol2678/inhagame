@@ -31,10 +31,32 @@ async function setupMount(page,kind){return page.evaluate(async kind=>{
   d.player.setLocalPosition(a.x,c.groundY+(c.space.groundHeight?.(a.x,a.z)||0),a.z);c.grounded=true;return c.boardHelicopter();
 },kind);}
 async function move(page,code,n=6){await page.locator('#application').focus();await page.keyboard.down(code);await frames(page,n);await page.keyboard.up(code);await frames(page,2);}
-async function capture(page,entry,kind){const promise=page.waitForEvent('download',{timeout:120000});promise.catch(()=>{});await page.locator('[data-photo-control="capture"]').click();await page.waitForFunction(()=>!window.__INHAGAME_P0__.photoModePanel.status().busy,null,{timeout:30000});assert.doesNotMatch(await page.locator('[data-photo-control="status"]').innerText(),/PNG를 만들지 못/);const download=await promise;const path=`${entry.name}-${kind}-capture.png`;await download.saveAs(`${output}/${path}`);const bytes=await readFile(`${output}/${path}`);assert.deepEqual([...bytes.subarray(0,8)],[137,80,78,71,13,10,26,10]);assert.ok(bytes.length>5000);
+async function capture(page,entry,kind){
+  try {
+const promise=page.waitForEvent('download',{timeout:120000});promise.catch(()=>{});await page.locator('[data-photo-control="capture"]').click();await page.waitForFunction(()=>!window.__INHAGAME_P0__.photoModePanel.status().busy,null,{timeout:30000});assert.doesNotMatch(await page.locator('[data-photo-control="status"]').innerText(),/PNG를 만들지 못/);const download=await promise;const path=`${entry.name}-${kind}-capture.png`;await download.saveAs(`${output}/${path}`);const bytes=await readFile(`${output}/${path}`);assert.deepEqual([...bytes.subarray(0,8)],[137,80,78,71,13,10,26,10]);assert.ok(bytes.length>5000);
   await page.waitForFunction(()=>!window.__INHAGAME_P0__.photoModePanel.status().busy,null,{timeout:120000});
   const albums=await page.evaluate(async()=>{const a=window.__INHAGAME_P0__.smartphone.album,records=await a.list(),r=records[0],blob=await a.image(r.id),bitmap=await createImageBitmap(blob);const result={record:r,size:[bitmap.width,bitmap.height],type:blob.type};bitmap.close();return result;});
-  assert.ok(albums.record);assert.notEqual(albums.record.imageRef,albums.record.thumbnailRef);assert.equal(albums.type,'image/png');assert.ok(Math.max(...albums.size)>256);entry.captures.push({kind,path,...albums});}
+  assert.ok(albums.record);assert.notEqual(albums.record.imageRef,albums.record.thumbnailRef);assert.equal(albums.type,'image/png');assert.ok(Math.max(...albums.size)>256);entry.captures.push({kind,path,...albums});
+  } catch (error) {
+    // Observe the existing runtime's image-free status. Never weaken or retry the failing QA.
+    let captureStatus = null;
+    try {
+      captureStatus = await page.evaluate(() => {
+        const value = window.__INHAGAME_P0__?.photoModePanel?.status?.()?.capture;
+        if (!value) return null;
+        const keys = ['state', 'stage', 'errorCode', 'elapsedMs', 'frameWaitMs',
+          'readbackMs', 'encodingMs', 'requestedFrame', 'capturedFrame',
+          'settledFrame', 'width', 'height'];
+        return Object.fromEntries(keys.map(key => [key, value[key] ?? null]));
+      });
+    } catch { /* The original test failure remains authoritative. */ }
+    const diagnostic = { kind, capture: captureStatus };
+    (entry.captureDiagnostics ??= []).push(diagnostic);
+    console.error(`mounted-photo-maps: ${entry.name}/${kind} capture diagnostics ${JSON.stringify(diagnostic)}`);
+    try { await save(); } catch { /* Retain the original failure even if artifact writing fails. */ }
+    throw error;
+  }
+}
 async function photoCase(smoke,entry,kind,mobile){let page=await boot(smoke,entry);try{
   assert.equal(await setupMount(page,kind),true,`${kind} real boarding`);await frames(page,3);
   if(kind==='air'){await move(page,'Space',20);assert.equal(await page.evaluate(()=>window.__INHAGAME_P0__.controller.grounded),false);}
