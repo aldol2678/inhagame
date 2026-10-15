@@ -4,19 +4,29 @@ import {mkdir,writeFile,readFile} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import {execFileSync} from 'node:child_process';
 import {startSmoke,TIMEOUT_MS} from './harness.mjs';
+import {observeWorldTimeRequests} from './world-time-request-evidence.mjs';
 const output=process.env.FURNITURE_SHOWROOM_OUTPUT||'test-results/furniture-showroom/world';
 await mkdir(output,{recursive:true});
 const report={head:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),startedAtUtc:new Date().toISOString(),result:'running',cycles:[],scope:'real offline campus + showroom; no purchases/accounts; no performance acceptance'};
 if(process.env.FURNITURE_SHOWROOM_HEAD_SHA)assert.equal(report.head,process.env.FURNITURE_SHOWROOM_HEAD_SHA);
 report.hashes=Object.fromEntries(await Promise.all(['src/main.js','src/campus-render-kit.js','src/rooms/furniture-renderer.js','src/shop/furniture-shop-preview.js'].map(async p=>[p,createHash('sha256').update(await readFile(new URL('../../'+p,import.meta.url))).digest('hex')])));
-let smoke;
+let smoke,page;
+let phase='startup';
+const worldTimeFailures=[];
 try{
- smoke=await startSmoke({viewport:{width:1000,height:650}});const page=await smoke.context.newPage();const fatal=smoke.watch(page);
+ smoke=await startSmoke({viewport:{width:1000,height:650}});
+ await smoke.context.addInitScript(observeWorldTimeRequests,{origin:smoke.origin});
+ page=await smoke.context.newPage();const fatal=smoke.watch(page);
+ page.on('requestfailed',request=>{
+  if(request.url()===smoke.origin+'/api/world-time')worldTimeFailures.push({phase,atUtc:new Date().toISOString(),
+   error:request.failure()?.errorText,timing:request.timing()});
+ });
  await page.goto(`${smoke.origin}/campus/`,{waitUntil:'domcontentloaded',timeout:TIMEOUT_MS});
  await Promise.race([page.waitForFunction(()=>window.__INHAGAME_P0__?.getStatus().loading?.finished,null,{timeout:TIMEOUT_MS}),fatal]);
  report.worldRenderer=await page.evaluate(()=>window.__INHAGAME_P0__.getStatus().renderer);assert.equal(report.worldRenderer,'WebGL2');
  await page.evaluate(()=>{window.__QA_MAIN_RENDERS__=0;window.__INHAGAME_P0__.app.on('postrender',()=>window.__QA_MAIN_RENDERS__++);});
  for(let cycle=0;cycle<3;cycle++){
+  phase=`preview-cycle-${cycle}`;
   const start=await page.evaluate(async()=>{
    const pc=await import('playcanvas');const {createFurnitureShopPreview}=await import('/src/shop/furniture-shop-preview.js');
    const main=window.__INHAGAME_P0__.app;
@@ -43,6 +53,7 @@ try{
  }
 
  // Build a previously unbuilt public room using native input after preview disposal.
+ phase='post-preview-public-lobby';
  // This exercises generic renderer consumers, not only the existing campus frame loop.
  const lobbyBefore=await page.evaluate(()=>window.__INHAGAME_JEONGSEOK_INTERIOR__.status());
  assert.equal(lobbyBefore.policy.mode,'SERVER_GRANT_JSL_A');
@@ -79,6 +90,20 @@ try{
  await page.waitForFunction(n=>window.__QA_MAIN_RENDERS__>n+2,lobbyAfter.mainFrame,{timeout:30000});
  report.postPreviewPublicLobby={before:lobbyBefore,after:lobbyAfter};
  await page.screenshot({path:`${output}/public-lobby-after-preview.png`});
+ phase='final-request-guard';
  assert.deepEqual(smoke.problems,[]);await page.screenshot({path:`${output}/campus-after-close.png`});report.result='pass';console.log('PASS: real campus continues rendering across 3 preview GLB open/close cycles, correct app/device ownership, one final canvas; post-preview public lobby built with native F');
 }catch(e){report.result='fail';report.error=e.stack;throw e;}
-finally{if(smoke)await smoke.close();report.finishedAtUtc=new Date().toISOString();await writeFile(`${output}/result.json`,JSON.stringify(report,null,2)+'\n');}
+finally{
+ // Snapshot BEFORE teardown so genuine in-test aborts cannot be confused with page close.
+ report.worldTimeDiagnostics={phase};
+ if(page&&!page.isClosed()){
+  try{Object.assign(report.worldTimeDiagnostics,await page.evaluate(()=>({
+   requests:globalThis.__WORLD_TIME_REQUEST_EVIDENCE__?.snapshot()??null,
+   clock:globalThis.__INHAGAME_WORLD_TIME__?.status()??null,
+   visibility:document.visibilityState
+  })));}catch(error){report.worldTimeDiagnostics.snapshotError=error.message;}
+ }
+ // Events can arrive while the page snapshot is awaited; copy only afterwards.
+ report.worldTimeDiagnostics.failures=worldTimeFailures.slice();
+ if(smoke)await smoke.close();report.finishedAtUtc=new Date().toISOString();await writeFile(`${output}/result.json`,JSON.stringify(report,null,2)+'\n');
+}
