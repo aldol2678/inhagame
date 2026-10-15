@@ -253,7 +253,24 @@ ${bannerTitle('캠퍼스에서 발견하기')}<div class="editorial"><div class=
 function categories(){const filtered=selectedCategory==='all'?APPS:APPS.filter(a=>a.category===selectedCategory);return `${pageHead('EXPLORE CATEGORIES','필요한 것을 찾아봐.','생활의 목적에 따라 앱을 골라보세요.')}
 <div class="category-grid">${CATEGORIES.map(c=>`<button class="cat-tile ${selectedCategory===c.id?'selected':''}" data-action="category" data-id="${c.id}"><span class="cat-emoji">${c.icon}</span><span>${c.label}</span></button>`).join('')}</div><div class="chips"><button class="chip ${selectedCategory==='all'?'active':''}" data-action="category" data-id="all">전체 ${APPS.length}</button>${CATEGORIES.map(c=>`<button class="chip ${selectedCategory===c.id?'active':''}" data-action="category" data-id="${c.id}">${c.label} ${APPS.filter(a=>a.category===c.id).length}</button>`).join('')}</div>${bannerTitle(`앱 ${filtered.length}개`, '<span class="subtle">기본 앱 · 시연 앱 · 기획 중</span>')}<div class="card-list">${filtered.map(a=>appRow(a,a.dist==='core'?'기본 탑재':a.dist==='planned'?'기획 중':'시연 설치 가능')).join('')}</div>${notice()}`}
 function notice(){return `<div class="footer-note">여기의 '받기'는 실제 게임이나 기기에 설치하는 것이 아닙니다.</div>`}
-function myApps(){const arr=myTab==='installed'?APPS.filter(installed):APPS.filter(a=>state.favorites.includes(a.id)||state.watched.includes(a.id));return `${pageHead('MY PHONE','나만의 앱 서랍','설치 상태와 홈 화면을 한곳에서 관리해요.')}
+function myApps(){
+if(PHONE_EMBEDDED){
+  const actual=APPS.filter(a=>phoneManaged(a.id)&&installed(a));
+  const demo=APPS.filter(a=>!phoneManaged(a.id)&&installed(a));
+  const hidden=phoneState?.hiddenApps?.length||0;
+  return `${pageHead('INHA OS / MY APPS','실제 스마트폰 앱 관리','실제 폰 상태를 읽어서 보여줘요. 연결되지 않은 앱은 시연으로 분리했어요.')}
+  <div class="stat-row"><div class="stat"><b>${actual.length}</b><span>실제 연결 앱</span></div><div class="stat"><b>${hidden}</b><span>홈에서 숨김</span></div><div class="stat"><b>${demo.length}</b><span>로컬 시연 앱</span></div></div>
+  <div class="shortcut"><span style="font-size:27px">📱</span><div style="flex:1"><h3>실제 INHA WORLD 스마트폰</h3><p>홈 배치와 앱 실행 상태를 직접 관리해요.</p></div><button class="mini-btn dark" data-action="phone-preview">배치 보기</button></div>
+  ${bannerTitle('실제 연결된 앱')}
+  ${phoneState?`<div class="card-list">${actual.map(a=>appRow(a,'실제 스마트폰 연동',true)).join('')}</div>`:'<div class="mutedbox">스마트폰 상태를 확인 중이에요.</div>'}
+  ${bannerTitle('시연 앱 · 실제 설치 아님')}
+  <p class="page-desc">이 목록은 v0.2.1의 기획·시연 데이터예요. 게임의 앱 홈에는 설치되지 않아요.</p>
+  ${demo.length?`<div class="card-list">${demo.map(a=>appRow(a,'로컬 시연 전용',true)).join('')}</div>`:'<div class="mutedbox">시연 설치 항목이 없어요.</div>'}
+  <div class="manage-cta"><button class="outline-btn" data-action="manage">＋ 로컬 시연 앱 실험실</button></div>
+  <div class="backup-actions"><b>🗃️ 시연 데이터 백업</b><p>백업은 스토어 시연 정보·메모만 포함해요. 실제 스마트폰 앱 설치 및 홈 배치는 포함하지 않아요.</p><div class="backup-buttons"><button class="outline-btn" data-action="export-backup">JSON 백업 저장</button><button class="outline-btn" data-action="import-backup">시연 백업 복원</button></div></div>
+  <div class="devnote">인덕스토어의 실제 설치/숨김은 스마트폰 저장소에 즉시 검증 후 반영돼요. 게임 세이브와 인덕코인은 변경하지 않아요.</div>`;
+}
+const arr=myTab==='installed'?APPS.filter(installed):APPS.filter(a=>state.favorites.includes(a.id)||state.watched.includes(a.id));return `${pageHead('MY PHONE','나만의 앱 서랍','설치 상태와 홈 화면을 한곳에서 관리해요.')}
 <div class="stat-row"><div class="stat"><b>${state.installedIds.length}</b><span>설치한 앱</span></div><div class="stat"><b>${state.homePins.length}</b><span>홈에 고정</span></div><div class="stat"><b>${new Set([...state.favorites,...state.watched]).size}</b><span>찜한 앱</span></div></div>
 <div class="shortcut"><span style="font-size:28px">📱</span><div style="flex:1"><h3>나의 가상 폰 홈</h3><p>앱을 홈에 고정하고, 실행을 시연해보세요.</p></div><button class="mini-btn dark" data-action="home">홈 열기</button></div>
 <div class="manage-cta"><button class="outline-btn" data-action="manage">＋ 로컬 앱 실험실</button><span>공식 앱은 설치·제거만 가능해요.</span></div>
@@ -282,7 +299,22 @@ ${NOTIFICATIONS.map(n=>`<button class="notification-row ${state.readNotification
 function collectionPage(){const ids=['campus-guide','campus-events','timetable','club'];const needed=ids.filter(id=>!state.installedIds.includes(id));return `<div class="detail-bar"><button class="back-btn" data-action="back">${svg('arrow')} 뒤로</button><span class="eyebrow">CURATED COLLECTION</span></div><div class="collection" style="margin-top:18px"><div class="collection-tag">WELCOME PACK / FREE</div><h3 style="font-size:23px">새내기 시작팩 🌱</h3><p>학교에 잘 적응하고 싶은 학생을 위한 첫 네 가지 앱.</p><div class="collection-icons"><span>🧭</span><span>📣</span><span>📅</span><span>🎨</span></div></div>
 <div class="update-box" style="background:#eef2e8"><h3>앱 4개 모두 무료</h3><p>이미 설치한 앱은 그대로 두고 나머지 ${needed.length}개만 설치합니다.</p><button class="main-btn" data-action="install-pack" ${needed.length?'':'disabled'}>${needed.length?`남은 ${needed.length}개 설치하기`:'모두 설치했어요 ✓'}</button></div>
 ${bannerTitle('이 팩에 포함된 앱')}<div class="card-list">${ids.map(id=>appRow(byId[id],installed(byId[id])?'이미 설치됨':'무료 설치 가능')).join('')}</div><div class="devnote">새내기 팩 설치는 로컬 상태만 변경하며, 실제 게임 퀘스트 보상이나 앱 데이터에 영향을 주지 않습니다.</div>`}
-function homePage(){const pinned=state.homePins.map(id=>byId[id]).filter(Boolean);const drawer=APPS.filter(installed);return `<div class="detail-bar"><button class="back-btn" data-action="back">${svg('arrow')} 스토어</button><span class="eyebrow">PHONE PREVIEW · v0.2.1</span></div>${pageHead('','나의 스마트폰','홈 화면과 앱 서랍을 함께 관리해요.')}
+function homePage(){
+if(PHONE_EMBEDDED){
+  if(!phoneState)return '<div class="mutedbox">실제 스마트폰 연결을 확인 중이에요.</div>';
+  const names=ids=>ids.map(id=>byId[id]).filter(Boolean);
+  const dock=names(phoneState.dockIds),home=names(phoneState.homeIds);
+  const apps=APPS.filter(a=>phoneManaged(a.id)&&installed(a));
+  return `<div class="detail-bar"><button class="back-btn" data-action="back">${svg('arrow')} 내 앱</button><span class="eyebrow">INHA OS · 실제 스마트폰</span></div>
+  ${pageHead('LIVE PHONE','실제 스마트폰 홈','현재 홈과 Dock 배치를 스마트폰에서 직접 가져왔어요.')}
+  <div class="home-preview"><div class="home-label">INHA WORLD</div><div class="home-grid">
+  ${home.map(a=>`<button class="homeapp" data-action="open" data-id="${a.id}">${icon(a)}<span class="caption">${escapeHTML(a.name)}</span></button>`).join('')}</div>
+  <div class="home-dock">${dock.map(a=>`<button class="homeapp" data-action="open" data-id="${a.id}">${icon(a)}<span class="caption">${escapeHTML(a.name)}</span></button>`).join('')}</div></div>
+  <div class="actionbar"><button class="main-btn" data-action="home">실제 스마트폰 홈 열기</button><button class="outline-btn" data-action="nav" data-id="mine">내 앱</button></div>
+  ${bannerTitle('실제 앱 표시 관리')}<div class="card-list">${apps.map(a=>`<div class="drawer-row">${icon(a)}<div class="drawer-copy"><b>${escapeHTML(a.name)}</b><small>${phoneVisible(a.id)?'홈에 표시 중':'홈에서 숨김'}</small></div><button class="mini-btn" data-action="open" data-id="${a.id}">열기</button>${a.id==='store'?'':`<button class="mini-btn" data-action="pin" data-id="${a.id}">${phoneVisible(a.id)?'숨기기':'표시'}</button>`}</div>`).join('')}</div>
+  <div class="devnote">앱 순서 변경과 Dock 이동은 위 버튼으로 실제 스마트폰 홈에 돌아간 뒤 홈 편집을 사용해 주세요. 이 화면은 별도 가상 홈이 아니에요.</div>`;
+}
+const pinned=state.homePins.map(id=>byId[id]).filter(Boolean);const drawer=APPS.filter(installed);return `<div class="detail-bar"><button class="back-btn" data-action="back">${svg('arrow')} 스토어</button><span class="eyebrow">PHONE PREVIEW · v0.2.1</span></div>${pageHead('','나의 스마트폰','홈 화면과 앱 서랍을 함께 관리해요.')}
 <div class="seg-tabs" role="group" aria-label="스마트폰 화면 선택"><button class="${phoneTab==='home'?'selected':''}" data-action="phone-tab" data-id="home">⌂ 홈 화면</button><button class="${phoneTab==='drawer'?'selected':''}" data-action="phone-tab" data-id="drawer">▦ 앱 서랍 ${drawer.length}</button></div>
 ${phoneTab==='home'?`<div class="home-preview"><div class="home-label">☀️ 오늘도 좋은 캠퍼스 하루</div><div class="home-grid">${pinned.map(a=>`<button class="homeapp" data-action="open" data-id="${a.id}">${icon(a)}<span class="caption">${escapeHTML(a.name)}</span></button>`).join('')}</div><div class="home-dock"><button class="homeapp" data-action="nav" data-id="discover">${icon(byId.store)}<span class="caption">스토어</span></button><button class="homeapp" data-action="phone-tab" data-id="drawer"><span style="font-size:27px">🗂️</span><span class="caption">앱 서랍</span></button></div></div>
 ${bannerTitle('홈 배치 순서')}<div class="home-manage">${pinned.map((a,i)=>`<div class="pin-item">${icon(a)}<div class="pin-copy"><b>${escapeHTML(a.name)}</b><small>${i+1}번째</small></div><button class="square-btn" data-action="move-pin" data-id="${a.id}|-1" aria-label="${escapeHTML(a.name)} 앞으로 이동" ${i===0?'disabled':''}>←</button><button class="square-btn" data-action="move-pin" data-id="${a.id}|1" aria-label="${escapeHTML(a.name)} 뒤로 이동" ${i===pinned.length-1?'disabled':''}>→</button><button class="square-btn" data-action="pin" data-id="${a.id}" aria-label="${escapeHTML(a.name)} 홈에서 숨기기">×</button></div>`).join('')}</div>`:`<div class="card-list" style="margin-top:16px">${drawer.map(a=>`<div class="drawer-row">${icon(a)}<div class="drawer-copy"><b>${escapeHTML(a.name)}</b><small>${a.dist==='core'?'기본 앱':a.custom?'내가 추가한 앱':'시연 설치됨'}</small></div><button class="mini-btn" data-action="open" data-id="${a.id}">열기</button><button class="square-btn" data-action="pin" data-id="${a.id}" aria-label="${escapeHTML(a.name)} 홈 고정 전환">${state.homePins.includes(a.id)?'★':'☆'}</button>${a.dist==='available'?`<button class="square-btn danger-text" data-action="uninstall" data-id="${a.id}" aria-label="${escapeHTML(a.name)} 설치 제거">×</button>`:''}</div>`).join('')}</div><div class="manage-cta"><button class="outline-btn" data-action="manage">＋ 테스트 앱 만들기</button></div>`}
@@ -389,7 +421,8 @@ function createOrEditCustom(form){
   manageEditId=null;save();render(false);toast(a.name+(form.dataset.editing==='true'?' 정보가 수정됐어요.':' 추가 완료! 홈에 설치했어요.'));
 }
 function handleAction(act,id){if(act==='nav'){navigate(id);return;}if(act==='search'){navigate('search');setTimeout(()=>document.getElementById('searchInput')?.focus(),0);return;}if(act==='home'&&PHONE_EMBEDDED){phoneRequest('home','store');return;}
-if(['notifications','home','collection'].includes(act)){navigate(act);return;}if(act==='manage'){manageEditId=null;navigate('manage');return;}if(act==='phone-tab'){phoneTab=id==='drawer'?'drawer':'home';render(false);return;}if(act==='back'){navigate(detailFrom==='detail'?'discover':detailFrom);return;}
+if(['notifications','home','collection'].includes(act)){navigate(act);return;}if(act==='manage'){manageEditId=null;navigate('manage');return;}if(act==='phone-preview'&&PHONE_EMBEDDED){navigate('home');return;}
+if(act==='phone-tab'){phoneTab=id==='drawer'?'drawer':'home';render(false);return;}if(act==='back'){navigate(detailFrom==='detail'?'discover':detailFrom);return;}
 if(act==='detail'){detailId=id;navigate('detail');return;}
 if(act==='mood'){if(MOODS.some(m=>m.id===id)){state.interest=id;save();render();}return;}
 if(act==='category'){selectedCategory=id;render();return;}
@@ -457,24 +490,33 @@ document.addEventListener('keydown',e=>{
 });
 if(storageIssue==='blocked')setTimeout(()=>toast('저장할 수 없어요. JSON 백업을 사용하세요.'),400);else if(storageIssue==='corrupt')setTimeout(()=>toast('저장 데이터 손상: 원본 백업 후 복구해 주세요.'),400);else if(migratedFromV1)setTimeout(()=>toast('v0.1 설치·찜·알림 상태를 그대로 이어받았어요.'),400);
 if(PHONE_EMBEDDED) {
+  const managedKeys=new Set(Object.keys(PHONE_MANAGED));
+  const safeIds=list=>Array.isArray(list)&&list.length<=100&&list.every(id=>typeof id==='string'&&managedKeys.has(id));
+  const acceptSnapshot=snapshot=>{
+    if(!snapshot||typeof snapshot!=='object')return false;
+    const fields=['systemIds','installedApps','hiddenApps','availableIds','homeIds','dockIds'];
+    if(!fields.every(key=>safeIds(snapshot[key])))return false;
+    phoneState=Object.fromEntries(fields.map(key=>[key,[...snapshot[key]]]));
+    return true;
+  };
   window.addEventListener('message',event=>{
-    if(event.source!==window.parent||event.origin!==location.origin||event.data?.channel!=='INHA_OS_STORE_021'||event.data?.action!=='sync')return;
-    const ids=Array.isArray(event.data.installedApps)?event.data.installedApps:[];
-    for(const [storeId,phoneId] of Object.entries(PHONE_GAME_IDS)){
-      const valid=ids.includes(phoneId);
-      if(valid&&!state.installedIds.includes(storeId)){
-        state.installedIds.push(storeId);
-        state.installedVersions[storeId]=byId[storeId]?.version||'1.0.0';
-        if(!state.homePins.includes(storeId))state.homePins.push(storeId);
-      }else if(!valid&&state.installedIds.includes(storeId)){
-        state.installedIds=state.installedIds.filter(x=>x!==storeId);
-        state.homePins=state.homePins.filter(x=>x!==storeId);
-        delete state.installedVersions[storeId];
-      }
+    if(event.source!==window.parent||event.origin!==location.origin||event.data?.channel!=='INHA_OS_STORE_021')return;
+    const {action,snapshot,requestId,ok}=event.data;
+    if(action==='sync'){if(acceptSnapshot(snapshot))render(false);return;}
+    if(action!=='result'||!phonePending||requestId!==phonePending.requestId||!acceptSnapshot(snapshot))return;
+    const previous=phonePending;phonePending=null;
+    render(false);
+    toast(ok===true?(previous.action==='install'?'실제 스마트폰 홈에 설치했어요.':
+      previous.action==='uninstall'?'스마트폰 바로가기를 제거했어요.':'실제 스마트폰 설정에 반영했어요.'):
+      '변경하지 못했어요. 스마트폰 저장 상태를 확인해 주세요.');
+  });
+  document.addEventListener('keydown',event=>{
+    if(event.key==='Escape'&&!modalLayer.classList.contains('active')){
+      event.preventDefault();phoneBridge('back');
     }
-    save();render(false);
   });
 }
+
 render(false);
 if(PHONE_EMBEDDED)phoneBridge('ready');
 })();
