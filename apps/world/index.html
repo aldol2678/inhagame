@@ -207,13 +207,13 @@
           <p class="hub-auth-form-intro">처음 오셨나요? 닉네임을 정하고 새로운 계정을 만들어요.</p>
           <label class="profile-field">닉네임<input type="text" name="nickname" autocomplete="nickname" placeholder="게임에서 사용할 이름 · 2~12자" minlength="2" maxlength="12" pattern="[0-9A-Za-z가-힣_ ]{2,12}" required></label>
           <label class="profile-field">이메일<input type="email" name="email" autocomplete="email" placeholder="name@example.com" inputmode="email" required></label>
-          <label class="profile-field">비밀번호
-            <span class="hub-auth-input-wrap"><input type="password" name="password" autocomplete="new-password" placeholder="8자 이상 입력" minlength="8" aria-describedby="hub-signup-password-help" required><button class="hub-auth-reveal" type="button" data-auth-password-toggle aria-label="비밀번호 표시" aria-pressed="false">보기</button></span>
-          </label>
+          <div class="profile-field"><label for="hub-signup-password">비밀번호</label>
+            <span class="hub-auth-input-wrap"><input id="hub-signup-password" type="password" name="password" autocomplete="new-password" placeholder="8자 이상 입력" minlength="8" aria-describedby="hub-signup-password-help" required><button class="hub-auth-reveal" type="button" data-auth-password-toggle aria-label="비밀번호 표시" aria-pressed="false">보기</button></span>
+          </div>
           <p id="hub-signup-password-help" class="hub-auth-field-help">8자 이상, 다른 서비스와 사용하지 않는 비밀번호를 권장해요.</p>
-          <label class="profile-field">비밀번호 확인
-            <span class="hub-auth-input-wrap"><input type="password" name="passwordConfirm" autocomplete="new-password" placeholder="비밀번호를 다시 입력" minlength="8" required><button class="hub-auth-reveal" type="button" data-auth-password-toggle aria-label="비밀번호 확인 표시" aria-pressed="false">보기</button></span>
-          </label>
+          <div class="profile-field"><label for="hub-signup-password-confirm">비밀번호 확인</label>
+            <span class="hub-auth-input-wrap"><input id="hub-signup-password-confirm" type="password" name="passwordConfirm" autocomplete="new-password" placeholder="비밀번호를 다시 입력" minlength="8" required><button class="hub-auth-reveal" type="button" data-auth-password-toggle aria-label="비밀번호 확인 표시" aria-pressed="false">보기</button></span>
+          </div>
           <label class="hub-age-confirmation" for="hub-signup-age-confirm"><input id="hub-signup-age-confirm" type="checkbox" required autocomplete="off" aria-describedby="hub-signup-age-note"><span><strong>[필수]</strong> 만 14세 이상입니다.</span></label>
           <p id="hub-signup-age-note" class="quiet">가입 연령은 본인이 확인하며 별도의 실명·연령 인증을 의미하지 않습니다.</p>
           <p class="hub-auth-terms">가입 전에 <a href="/terms.html" target="_blank" rel="noopener">이용약관</a>과 <a href="/privacy.html" target="_blank" rel="noopener">개인정보 처리방침</a>을 확인해 주세요.</p>
@@ -223,9 +223,9 @@
         <form id="hub-login-form" hidden>
           <p class="hub-auth-form-intro">다시 만나서 반가워요. 이어서 플레이할 준비가 됐나요?</p>
           <label class="profile-field">이메일<input type="email" name="email" autocomplete="username" inputmode="email" placeholder="name@example.com" required></label>
-          <label class="profile-field">비밀번호
-            <span class="hub-auth-input-wrap"><input type="password" name="password" autocomplete="current-password" placeholder="비밀번호 입력" required><button class="hub-auth-reveal" type="button" data-auth-password-toggle aria-label="비밀번호 표시" aria-pressed="false">보기</button></span>
-          </label>
+          <div class="profile-field"><label for="hub-login-password">비밀번호</label>
+            <span class="hub-auth-input-wrap"><input id="hub-login-password" type="password" name="password" autocomplete="current-password" placeholder="비밀번호 입력" required><button class="hub-auth-reveal" type="button" data-auth-password-toggle aria-label="비밀번호 표시" aria-pressed="false">보기</button></span>
+          </div>
           <button class="primary" type="submit">인하월드 로그인 <span aria-hidden="true">→</span></button>
         </form>
         <div id="hub-social-auth" class="social-auth" hidden>
