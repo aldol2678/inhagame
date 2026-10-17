@@ -22,6 +22,9 @@ function git(...args) {
 
 function isSkipSafe(file) {
   // Only changes with no runtime/build impact are safe to skip.
+  // Grow is deployed independently; World links to grow.inhagame.app and does
+  // not build from its sources. Keep this boundary narrow, not all sibling apps.
+  if (file.startsWith('apps/induck-grow/')) return true;
   if (file.startsWith('.github/')) return true;
   if (file.startsWith('docs/')) return true;
   if (file.startsWith('apps/world/docs/')) return true;
@@ -48,5 +51,5 @@ if (changed.error || changed.status !== 0 || !changed.stdout) {
 const paths = changed.stdout.toString('utf8').split('\0').filter(Boolean);
 const unsafe = paths.find((file) => !isSkipSafe(file));
 if (unsafe) build("relevant change: " + unsafe);
-console.log("[vercel-ignore] Skip safe: " + paths.length + " documentation/CI/test-only changes");
+console.log("[vercel-ignore] Skip safe: " + paths.length + " documentation/CI/test/induck-grow-only changes");
 process.exit(0);

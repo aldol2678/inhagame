@@ -23,9 +23,11 @@ function fixture(path) {
   run(dir, ['commit', '-qm', 'baseline']);
   const base = run(dir, ['rev-parse', 'HEAD']);
   if (path) {
-    const target = join(dir, path);
-    mkdirSync(dirname(target), { recursive: true });
-    writeFileSync(target, "changed: " + path + "\n");
+    for (const changedPath of Array.isArray(path) ? path : [path]) {
+      const target = join(dir, changedPath);
+      mkdirSync(dirname(target), { recursive: true });
+      writeFileSync(target, "changed: " + changedPath + "\n");
+    }
     run(dir, ['add', '.']);
     run(dir, ['commit', '-qm', 'change']);
   }
@@ -44,6 +46,18 @@ const scenarios = [
   ['README.md', 0],
   ['apps/world/docs/notes.json', 0],
   ['apps/world/tests/graphics.test.mjs', 0],
+  ['apps/induck-grow/package.json', 0],
+  ['apps/induck-grow/v2/life-engine.mjs', 0],
+  ['apps/induck-grow/v2/tests/life-engine.test.mjs', 0],
+  [['apps/induck-grow/v2/session.mjs', 'docs/world/notes.md'], 0],
+  [['apps/induck-grow/v2/session.mjs', 'apps/world/src/main.js'], 1],
+  [['apps/induck-grow/package.json', 'tools/world-assets/package-lock.json'], 1],
+  [['apps/induck-grow/package.json', 'apps/world/tests/recast-runtime/build-artifact.mjs'], 1],
+  [['apps/induck-grow/package.json', 'apps/world/data/game-catalog.json'], 1],
+  ['apps/induck-grow-extra/index.html', 1],
+  ['apps/induck-grow', 1],
+  ['apps/classic/index.html', 1],
+  ['scripts/public-ci.sh', 1],
   ['apps/world/src/main.js', 1],
   ['apps/world/assets/induck-v3.glb', 1],
   ['apps/world/tests/recast-runtime/build-artifact.mjs', 1],
@@ -71,7 +85,7 @@ for (const [label, sha] of [
   ['missing previous commit', 'f'.repeat(40)],
 ]) {
   test(label + " => build", () => {
-    const f = fixture();
+    const f = fixture('apps/induck-grow/v2/session.mjs');
     try { assert.equal(result(f.world, sha).status, 1); }
     finally { rmSync(f.dir, { recursive: true, force: true }); }
   });
@@ -81,3 +95,30 @@ test('no changes since the previous deployment => skip', () => {
   try { assert.equal(result(f.world, f.base).status, 0); }
   finally { rmSync(f.dir, { recursive: true, force: true }); }
 });
+
+test('deleting a grow-only source file => skip', () => {
+  const f = fixture('apps/induck-grow/v2/obsolete.mjs');
+  try {
+    const base = run(f.dir, ['rev-parse', 'HEAD']);
+    run(f.dir, ['rm', 'apps/induck-grow/v2/obsolete.mjs']);
+    run(f.dir, ['commit', '-qm', 'delete grow source']);
+    assert.equal(result(f.world, base).status, 0);
+  } finally { rmSync(f.dir, { recursive: true, force: true }); }
+});
+
+for (const [from, to, expected] of [
+  ['apps/induck-grow/v2/before.mjs', 'apps/induck-grow/v2/after.mjs', 0],
+  ['apps/induck-grow/v2/source.mjs', 'apps/world/src/source.mjs', 1],
+  ['apps/world/src/source.mjs', 'apps/induck-grow/v2/source.mjs', 1],
+]) {
+  test('rename ' + from + ' to ' + to + ' => ' + (expected === 0 ? 'skip' : 'build'), () => {
+    const f = fixture(from);
+    try {
+      const base = run(f.dir, ['rev-parse', 'HEAD']);
+      mkdirSync(dirname(join(f.dir, to)), { recursive: true });
+      run(f.dir, ['mv', from, to]);
+      run(f.dir, ['commit', '-qm', 'move source']);
+      assert.equal(result(f.world, base).status, expected);
+    } finally { rmSync(f.dir, { recursive: true, force: true }); }
+  });
+}
