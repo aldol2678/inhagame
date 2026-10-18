@@ -15,6 +15,13 @@
 - The conversion proxy makes a fail-closed quota claim before calling Cloud Run. A new **unapplied** SQL migration implements an atomic rolling 1-hour cap: at most **3 conversions per operator** and **20 conversions globally**. The claim table holds only user UUID and timestamp, retained for up to 2 days.
 - Activation additionally requires `SUPABASE_SERVICE_ROLE_KEY` stored server-side only. Never expose it, the operator allowlist, or `MODEL_CONVERT_PROXY_SECRET` in browser code.
 
+## Zero-cloud-cost isolated HTTP integration gate (2026-10-19)
+- `scripts/public-db.sh` starts a **disposable local Supabase** stack, applies the committed migrations, runs pgTAP and HTTP integration tests, then uses the shell `EXIT` trap to run `supabase stop --no-backup`. It is not connected to the GAMES production Supabase project or any GCP Cloud Run deployment.
+- `supabase/tests/integration/model-convert-gate.integration.test.mjs` is auto-discovered by `scripts/local-integration.mjs`. It **rejects non-loopback** API/DB endpoints before touching data, injects only **synthetic user IDs and locally signed JWTs**, and restricts actual HTTP to the disposable PostgREST API. Auth identity and Cloud Run FBX→GLB responses are simulated, so this is **not** proof of live Auth or remote Cloud Run end-to-end success.
+- Checks: anonymous/authenticated roles cannot invoke service-role quota RPC; absent Bearer → 401; valid but unlisted actor → 403; three successful operator claims / fourth 429; global 20 claims / 21st 429; quota outage → 503. All denied requests avoid converter work.
+- The fixture deletes only its synthetic claim records after tests. The local Supabase stack is then stopped and discarded by the shell trap, including failure runs. No Cloud Run, Artifact Registry, Supabase cloud branch/project, Vercel Preview, or production environment variable is created.
+- CI green is required but not sufficient: full GCP + Vercel Preview + isolated Supabase Auth E2E and cloud-resource cleanup readback remain separate blocked gates.
+
 ## Remaining blockers: do not enable yet
 1. **Apply and validate the new SQL migration to the actual production-bound Supabase instance, after approval**, and verify a service-role RPC call succeeds while `anon` and `authenticated` cannot invoke it. No database migration was executed in this PR.
 2. **Cloud Run cost controls**: independently verify ingress/IAM, secret authorization, concurrency and instance caps. A DB job-count budget limits calls but not per-job CPU cost, request floods before authentication, or cloud infrastructure billing.
