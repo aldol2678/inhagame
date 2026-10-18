@@ -33,6 +33,8 @@ begin
   -- DB-wide fixed advisory key, held until this transaction commits or rolls back.
   -- Lock first: concurrent Vercel instances cannot race through the global budget.
   perform pg_catalog.pg_advisory_xact_lock(20515, 20261019);
+  -- Bounded retention of claim metadata. No uploaded file bytes are retained.
+  delete from private.world_model_convert_claims where claimed_at < now() - interval '2 days';
   select count(*) into v_global_count from private.world_model_convert_claims
     where claimed_at >= v_since;
   if v_global_count >= 20 then return false; end if;
