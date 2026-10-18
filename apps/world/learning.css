@@ -1,4 +1,4 @@
-.learning-app { color:#182943; font:14px/1.55 system-ui,sans-serif; padding:8px; min-width:0; overflow-wrap:anywhere; }
+.learning-app { color:#182943; font:14px/1.55 system-ui,sans-serif; padding:12px; border-radius:16px; background:#f2f7ff; min-width:0; overflow-wrap:anywhere; }
 .learning-app * { box-sizing:border-box; }
 .learning-app h2 { font-size:20px; margin:12px 0; }
 .learning-app h3 { font-size:17px; margin:0 0 12px; }
