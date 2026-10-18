@@ -5,7 +5,7 @@ import { PHONE_SYSTEM_APP_IDS, PHONE_INSTALLABLE_APP_IDS } from './phone-app-cat
 export const STORE_PHONE_IDS=Object.freeze({
   store:'induck-store',map:'maps',camera:'camera',album:'album',
   'student-id':'student-id',settings:'settings',
-  'daily-quiz':'daily-quiz',attendance:'attendance',
+  'daily-quiz':'daily-quiz',attendance:'attendance',learning:'learning',
   messages:'messages',notifications:'notifications',
   'induck-classic':'induck-classic',induckup:'induckup',
   'induck-survival':'induck-survival','induck-grow':'induck-grow'

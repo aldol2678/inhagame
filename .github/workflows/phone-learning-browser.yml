@@ -1,0 +1,61 @@
+name: Phone Learning R1-A QA
+on:
+  pull_request:
+    paths:
+      - 'apps/world/src/learning/**'
+      - 'apps/world/src/phone/**'
+      - 'apps/world/src/main.js'
+      - 'apps/world/campus/index.html'
+      - 'apps/world/learning.css'
+      - 'apps/world/tests/phone-learning.test.mjs'
+      - 'apps/world/tests/support/learning-fixture.mjs'
+      - 'apps/world/tests/browser/phone-learning-*'
+      - '.github/workflows/phone-learning-browser.yml'
+permissions:
+  contents: read
+concurrency:
+  group: phone-learning-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  learning:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - name: Exact head and targeted regressions
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          node --test apps/world/tests/phone-*.test.mjs apps/world/tests/daily-quiz.test.mjs apps/world/tests/daily-panel-focus.test.mjs apps/world/tests/daily-reward-readback.test.mjs apps/world/tests/pwa-shortcuts.test.mjs
+      - name: Install pinned browser
+        working-directory: apps/world/tests/browser
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npx --no-install playwright install --with-deps chromium
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+      - name: Learning persistence and account matrix (synthetic content only)
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          PHONE_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node apps/world/tests/browser/phone-learning-smoke.mjs
+      - name: Actual campus learning and Phone regressions (offline)
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          PHONE_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: timeout --signal=TERM --kill-after=10s 600s node apps/world/tests/browser/phone-learning-campus-smoke.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: phone-learning-${{ github.event.pull_request.head.sha }}
+          path: |
+            test-results/phone-learning/
+            test-results/phone-learning-campus/
+          if-no-files-found: warn
+          retention-days: 7

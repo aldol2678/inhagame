@@ -3,7 +3,8 @@ import { PHONE_SYSTEM_APP_IDS, PHONE_INSTALLABLE_APP_IDS } from './phone-app-cat
 export const PHONE_PAGE_SLOTS = 12;
 export const PHONE_DOCK_SLOTS = 4;
 export const PHONE_WALLPAPERS = Object.freeze(['campus', 'night', 'mint']);
-export const PHONE_APP_IDS = PHONE_SYSTEM_APP_IDS;
+// Optional learning joins empty slots only once its controller is ready. Saved slots survive gating.
+export const PHONE_APP_IDS = Object.freeze(PHONE_SYSTEM_APP_IDS.filter(id=>id!=='learning'));
 export function defaultPhonePreferences() {
   const page = Array(PHONE_PAGE_SLOTS).fill(null); ['student-id','album','settings'].forEach((id,i)=>{page[i]=id;});
   return { version:1, pages:[page], dock:['maps','camera',null,null], hiddenApps:[], installedApps:[], widgets:['clock'], wallpaper:{type:'default',id:'campus'} };
@@ -14,7 +15,7 @@ export function normalizePhonePreferences(value, appIds = PHONE_APP_IDS) {
   const installedApps = [...new Set((Array.isArray(value.installedApps) ? value.installedApps : [])
     .filter(id=>PHONE_INSTALLABLE_APP_IDS.includes(id)))];
   const activeIds = [...new Set([...appIds,...installedApps])];
-  const seen = new Set(), valid = new Set(activeIds), take = id => { if (!valid.has(id) || seen.has(id)) return null; seen.add(id); return id; };
+  const seen = new Set(), valid = new Set([...activeIds,'learning']), take = id => { if (!valid.has(id) || seen.has(id)) return null; seen.add(id); return id; };
   const slots = (items,count) => Array.from({length:count},(_,i)=>take(items?.[i]));
   const dock = slots(value.dock,PHONE_DOCK_SLOTS);
   const pages = (Array.isArray(value.pages) && value.pages.length ? value.pages : [[]]).map(page=>slots(page,PHONE_PAGE_SLOTS));
@@ -31,7 +32,7 @@ export function normalizePhonePreferences(value, appIds = PHONE_APP_IDS) {
 }
 export function movePhoneApp(preferences, id, target, appIds = PHONE_APP_IDS) {
   const next = normalizePhonePreferences(preferences,appIds);
-  if (![...appIds,...next.installedApps].includes(id)) return next;
+  if (![...appIds,...next.installedApps,...next.pages.flat(),...next.dock,...next.hiddenApps].includes(id)) return next;
   const destination = target.area === 'dock' ? next.dock : next.pages[target.page];
   if (!destination || !Number.isInteger(target.slot) || target.slot < 0 || target.slot >= destination.length) return next;
   const all = [...next.pages,next.dock];
@@ -41,12 +42,14 @@ export function movePhoneApp(preferences, id, target, appIds = PHONE_APP_IDS) {
   destination[target.slot] = id; next.hiddenApps = next.hiddenApps.filter(x=>x!==id);
   return normalizePhonePreferences(next,appIds);
 }
-export function createPhonePreferences({ getStorage, getScope, onError = () => {} }) {
+export function createPhonePreferences({ getStorage, getScope, getAppIds = () => PHONE_APP_IDS, onError = () => {} }) {
+  const normalize=value=>normalizePhonePreferences(value,getAppIds());
+  const move=(value,id,target)=>movePhoneApp(value,id,target,getAppIds());
   let value = defaultPhonePreferences(), dirty = false;
   const key = () => `inha-world-phone-home-v1:${getScope()}`;
   function load() {
     dirty=false;
-    try { value = normalizePhonePreferences(JSON.parse(getStorage()?.getItem(key()) || 'null')); }
+    try { value = normalize(JSON.parse(getStorage()?.getItem(key()) || 'null')); }
     catch { value=defaultPhonePreferences(); onError('홈 배치를 불러오지 못했어요. 기본 배치를 표시해요.'); }
     return value;
   }
@@ -72,21 +75,21 @@ export function createPhonePreferences({ getStorage, getScope, onError = () => {
       if (!value.dock.includes(id)) return false;
       let page = value.pages.findIndex(slots=>slots.includes(null));
       if (page < 0) { page=value.pages.length; value.pages.push(Array(PHONE_PAGE_SLOTS).fill(null)); }
-      value=movePhoneApp(value,id,{area:'home',page,slot:value.pages[page].indexOf(null)});dirty=true;return true;
-    },snapshot:()=>normalizePhonePreferences(value),
-    move(id,target) {value=movePhoneApp(value,id,target);dirty=true;},
-    wallpaper(wallpaper) {value=normalizePhonePreferences({...value,wallpaper});dirty=true;},
+      value=move(value,id,{area:'home',page,slot:value.pages[page].indexOf(null)});dirty=true;return true;
+    },snapshot:()=>normalize(value),
+    move(id,target) {value=move(value,id,target);dirty=true;},
+    wallpaper(wallpaper) {value=normalize({...value,wallpaper});dirty=true;},
     reset() {value=defaultPhonePreferences();dirty=true;},
     clock(show) {value.widgets=show ? ['clock'] : [];dirty=true;},
     face(side) {value.studentIdFace=side==='back'?'back':'front';dirty=true;},
     install(id) {
       if(!PHONE_INSTALLABLE_APP_IDS.includes(id))return false;
       if(value.installedApps.includes(id))return true;
-      value=normalizePhonePreferences({...value,installedApps:[...value.installedApps,id]});dirty=true;return true;
+      value=normalize({...value,installedApps:[...value.installedApps,id]});dirty=true;return true;
     },
     uninstall(id) {
       if(!PHONE_INSTALLABLE_APP_IDS.includes(id)||!value.installedApps.includes(id))return false;
-      value=normalizePhonePreferences({...value,
+      value=normalize({...value,
         installedApps:value.installedApps.filter(x=>x!==id),
         hiddenApps:value.hiddenApps.filter(x=>x!==id),
         dock:value.dock.map(x=>x===id?null:x),
@@ -94,15 +97,15 @@ export function createPhonePreferences({ getStorage, getScope, onError = () => {
       });dirty=true;return true;
     },
     hide(id) {
-      if(id==='induck-store'||![...PHONE_APP_IDS,...value.installedApps].includes(id)||value.hiddenApps.includes(id))return false;
-      value=normalizePhonePreferences({...value,hiddenApps:[...value.hiddenApps,id],
+      if(id==='induck-store'||![...PHONE_SYSTEM_APP_IDS,...value.installedApps].includes(id)||value.hiddenApps.includes(id))return false;
+      value=normalize({...value,hiddenApps:[...value.hiddenApps,id],
         dock:value.dock.map(x=>x===id?null:x),
         pages:value.pages.map(page=>page.map(x=>x===id?null:x))
       });dirty=true;return true;
     },
     show(id) {
       if(!value.hiddenApps.includes(id))return false;
-      value=normalizePhonePreferences({...value,hiddenApps:value.hiddenApps.filter(x=>x!==id)});
+      value=normalize({...value,hiddenApps:value.hiddenApps.filter(x=>x!==id)});
       dirty=true;return true;
     }
   });
