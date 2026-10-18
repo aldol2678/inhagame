@@ -46,7 +46,7 @@ async function glbBlob(blob, code = "E_MODEL_GLB_INVALID") {
   return blob.type === "model/gltf-binary" ? blob : blob.slice(0, blob.size, "model/gltf-binary");
 }
 
-export async function importEditorModel({ file, worldId, assetId, store, fetcher = fetch }) {
+export async function importEditorModel({ file, worldId, assetId, store, fetcher = fetch, getAccessToken = async () => null }) {
   if (!(file instanceof Blob) || typeof file.name !== "string" || !file.name.trim()) throw new Error("E_MODEL_FILE_REQUIRED");
   if (typeof store?.writeAsset !== "function" || typeof worldId !== "string" || !worldId.trim() || !assetId) {
     throw new Error("E_MODEL_IMPORT_CONTEXT_REQUIRED");
@@ -60,10 +60,12 @@ export async function importEditorModel({ file, worldId, assetId, store, fetcher
     blob = await glbBlob(file);
     sourceFormat = "glb";
   } else if (lower.endsWith(".fbx")) {
-    if (typeof fetcher !== "function") throw new Error("E_MODEL_IMPORT_CONTEXT_REQUIRED");
+    if (typeof fetcher !== "function" || typeof getAccessToken !== "function") throw new Error("E_MODEL_IMPORT_CONTEXT_REQUIRED");
+    const token = await getAccessToken();
+    if (typeof token !== "string" || !/^[A-Za-z0-9._~-]{20,4096}$/u.test(token)) throw new Error("E_MODEL_CONVERT_LOGIN_REQUIRED");
     const response = await fetcher(`/api/model-convert?filename=${encodeURIComponent(file.name)}`, {
       method: "POST",
-      headers: { "Content-Type": "application/octet-stream", "X-Model-Filename": file.name },
+      headers: { "Content-Type": "application/octet-stream", "X-Model-Filename": file.name, Authorization: `Bearer ${token}` },
       body: file
     });
     if (!response.ok) {
