@@ -67,6 +67,15 @@ async function check(name,viewport,mobile){
   await page.evaluate(()=>window.dispatchEvent(new Event('pagehide')));assert.equal((await snap()).world,true);assert.equal((await snap()).learning.mounted,false);
   await open();await page.screenshot({path:output+'/'+name+'-home.png'});
   assert.equal(await page.evaluate(()=>{const n=document.querySelector('.smartphone-content');return n.scrollWidth>n.clientWidth+2;}),false);
+  // A new native ID must not poison the existing Store's strict sync envelope.
+  await page.evaluate(()=>{window.fixture.phone.shell.home();window.fixture.phone.launch('induck-store');});
+  const store=page.frameLocator('.phone-store-iframe');
+  await store.locator('[data-action="search"]').first().click();
+  await store.locator('#searchInput').fill('인하오리 Classic');
+  await store.locator('[data-action="install"][data-id="induck-classic"]').first().click();
+  await page.waitForFunction(()=>window.fixture.phone.status().preferences.installedApps.includes('induck-classic'));
+  await button('홈 화면으로').click();assert.equal((await snap()).phone.preferences.installedApps.includes('induck-classic'),true);
+  entry.checks.push('real embedded Store accepts learning ID and installs an existing game without stuck connection');
   assert.deepEqual(errors,[]);entry.checks.push('speech text fallback, manual export/import, render exception recovery, pagehide teardown, no horizontal overflow or page errors');entry.status='PASS';
  }catch(e){entry.status='FAIL';entry.error=String(e.stack);throw e;}
  finally{await smoke.close();await writeFile(output+'/report.json',JSON.stringify(report,null,2));}
