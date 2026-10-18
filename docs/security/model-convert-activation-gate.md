@@ -10,14 +10,21 @@
 - The proxy fails closed unless all required settings exist: `MODEL_CONVERT_ENABLED=1`, HTTPS `MODEL_CONVERT_CLOUD_RUN_URL`, a strong `MODEL_CONVERT_PROXY_SECRET`, `MODEL_CONVERT_ALLOWED_USER_IDS` (comma-separated Supabase Auth UUIDs), `SUPABASE_URL`, and `SUPABASE_PUBLISHABLE_KEY`.
 - Binary/ASCII FBX signatures, strict content type and filename, maximum 25 MiB input and output, and GLB version/length are checked. The proxy never exposes arbitrary upstream error messages.
 
+## Implemented on Draft PR #428 (not deployed)
+- The World Editor FBX path now obtains the already-signed-in user's public Supabase session access token and forwards it as a Bearer token. The server verifies that user and its explicit operator UUID allowlist. GLB import remains browser-local and unaffected.
+- The conversion proxy makes a fail-closed quota claim before calling Cloud Run. A new **unapplied** SQL migration implements an atomic rolling 1-hour cap: at most **3 conversions per operator** and **20 conversions globally**. The claim table holds only user UUID and timestamp, retained for up to 2 days.
+- Activation additionally requires `SUPABASE_SERVICE_ROLE_KEY` stored server-side only. Never expose it, the operator allowlist, or `MODEL_CONVERT_PROXY_SECRET` in browser code.
+
 ## Remaining blockers: do not enable yet
-1. The current browser World Editor FBX importer does **not** send the required `Authorization: Bearer ...` header. Integrate the user's authenticated Supabase session into the editor only after staff/operator access control is specified. Do not embed a privileged token, service-role key, or converter secret in browser code.
-2. Add **durable per-operator rate limits and global conversion budgets** (e.g., server-side atomic quota + Cloud Run concurrency / instance caps). In-process counters are not sufficient on Vercel serverless. This PR does not claim rate limiting is complete.
-3. Confirm Cloud Run ingress/IAM and the converter secret independently; rotate any inadvertently exposed credentials.
-4. Run targeted tests and staging smoke/abuse-budget checks before changing production flags. Keep production disabled unless every gate passes.
+1. **Apply and validate the new SQL migration to the actual production-bound Supabase instance, after approval**, and verify a service-role RPC call succeeds while `anon` and `authenticated` cannot invoke it. No database migration was executed in this PR.
+2. **Cloud Run cost controls**: independently verify ingress/IAM, secret authorization, concurrency and instance caps. A DB job-count budget limits calls but not per-job CPU cost, request floods before authentication, or cloud infrastructure billing.
+3. **Editor experience**: verified logged-in operator access requires a signed-in Supabase session in the same origin. Staff must sign in on the hub first. Invalid/guest sessions fail closed; perform staging end-to-end login and FBX conversion tests.
+4. **CI/staging and rollout**: run targeted tests, migration lint and staging security smoke before setting any production conversion variables. Confirm the rollback path and keep the feature disabled until signoff.
 
 ## Checks
 ```sh
 node --test apps/world/tests/model-convert-api-security.test.mjs
-node --test apps/world/tests/model-converter.test.mjs apps/world/tests/editor-model-import.test.mjs
+node --test apps/world/tests/model-converter.test.mjs apps/world/tests/editor-model-import.test.mjs apps/world/tests/editor-model-convert-auth.test.mjs
+node .github/ci/migration-lint.mjs
+node .github/ci/migration-contract-lint.mjs
 ```
