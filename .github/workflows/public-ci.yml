@@ -99,7 +99,7 @@ jobs:
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           mkdir -p test-results/portal-layout
           git rev-parse HEAD > test-results/portal-layout/head-sha.txt
-          sha256sum apps/world/index.html apps/world/hub*.css apps/world/hub.js apps/world/hub-editorial.js apps/world/tests/browser/hub-editorial-layout-smoke.mjs > test-results/portal-layout/source-sha256.txt
+          sha256sum apps/world/index.html apps/world/hub*.css apps/world/hub.js apps/world/hub-editorial.js apps/world/hub-account.js apps/world/hub-auth-ux.js apps/world/tests/browser/hub-editorial-layout-smoke.mjs apps/world/tests/browser/hub-auth-ui-smoke.mjs > test-results/portal-layout/source-sha256.txt
       - name: Install pinned browser and Korean glyphs
         working-directory: apps/world/tests/browser
         run: |
@@ -110,6 +110,10 @@ jobs:
         env:
           EVIDENCE_DIR: test-results/portal-layout
         run: node apps/world/tests/browser/hub-editorial-layout-smoke.mjs
+      - name: Verify hub auth UI with offline synthetic identities
+        env:
+          EVIDENCE_DIR: test-results/portal-layout
+        run: node apps/world/tests/browser/hub-auth-ui-smoke.mjs
       - name: Preserve exact-head portal screenshots and assertions
         if: always()
         uses: actions/upload-artifact@v4
