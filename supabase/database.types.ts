@@ -157,6 +157,24 @@ export type Database = {
   }
   private: {
     Tables: {
+      world_model_convert_claims: {
+        Row: {
+          claimed_at: string
+          id: number
+          user_id: string
+        }
+        Insert: {
+          claimed_at?: string
+          id?: number
+          user_id: string
+        }
+        Update: {
+          claimed_at?: string
+          id?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       world_recipe_catalog: {
         Row: {
           definition_version: number
@@ -4540,6 +4558,7 @@ export type Database = {
         Returns: Json
       }
       claim_my_world_attendance_v1: { Args: never; Returns: Json }
+      claim_world_model_convert_quota_v1: { Args: { p_user_id: string }; Returns: boolean }
       claim_world_npc_ai_call_v1: { Args: { p_user: string }; Returns: string }
       claim_world_npc_shared_tick_v1: {
         Args: { p_period: string; p_tick: number }
