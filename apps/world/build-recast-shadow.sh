@@ -11,4 +11,5 @@ node ../../tools/world-assets/optimize-world-assets.mjs --strict
 node assets/check_characters.mjs
 
 # Bind the in-game diagnostic report to this deployed source build (no runtime request).
+node scripts/generate-arcade-pages.mjs
 node scripts/write-runtime-build-id.mjs

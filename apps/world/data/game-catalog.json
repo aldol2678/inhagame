@@ -15,7 +15,12 @@
       "description": "인하오리 원작 게임을 즐겨 보세요.",
       "playUrl": "https://duck.inhagame.app/",
       "status": "playable",
-      "sortOrder": 20
+      "sortOrder": 20,
+      "platform": {
+        "genre": "아케이드",
+        "label": "원작 아케이드",
+        "coverImage": "/assets/hub/classic-concept.svg"
+      }
     },
     {
       "id": "induckup",
@@ -23,7 +28,12 @@
       "description": "오리 패들로 벽돌을 깨고 성장시키는 게임입니다.",
       "playUrl": "https://induckup.inhagame.app/",
       "status": "playable",
-      "sortOrder": 30
+      "sortOrder": 30,
+      "platform": {
+        "genre": "아케이드",
+        "label": "벽돌깨기",
+        "coverImage": "/assets/hub/induckup-concept.svg"
+      }
     },
     {
       "id": "survival",
@@ -31,7 +41,12 @@
       "description": "인경호에서 적을 상대하며 살아남는 게임입니다.",
       "playUrl": "https://survival.inhagame.app/",
       "status": "playable",
-      "sortOrder": 40
+      "sortOrder": 40,
+      "platform": {
+        "genre": "액션",
+        "label": "서바이벌",
+        "coverImage": "/assets/hub/survival-concept.svg"
+      }
     },
     {
       "id": "induck-grow",
@@ -39,7 +54,12 @@
       "description": "학과를 고르고 수업·관계·활동·알바를 관리하며 나만의 인덕이를 키워 보세요.",
       "playUrl": "https://grow.inhagame.app/",
       "status": "playable",
-      "sortOrder": 50
+      "sortOrder": 50,
+      "platform": {
+        "genre": "시뮬레이션",
+        "label": "생활 시뮬레이션",
+        "coverImage": "/assets/hub/induck-grow-concept.svg"
+      }
     }
   ]
 }
