@@ -40,6 +40,11 @@ async function check(name,viewport,mobile){
   assert.equal(Object.keys((await snap()).learning.progress.wrong).length,1);
   await page.screenshot({path:output+'/'+name+'-result.png'});
   await button('홈 화면으로').click();await button('스마트폰 닫기').click();assert.equal((await snap()).world,true);
+  const wrongKey=Object.keys((await snap()).learning.progress.wrong)[0];
+  assert.match(wrongKey,/^qv:.+@[1-9]\d*$/);
+  await page.reload();await page.waitForFunction(()=>window.fixture);
+  assert.equal((await snap()).learning.progress.wrong[wrongKey],true);
+  assert.ok((await snap()).learning.progress.masteries[wrongKey]);
   await open();await button('오답 복습').click();await page.locator('.learning-app').getByRole('button',{name:/^오답 ·/}).click();await answer();
   assert.equal(Object.keys((await snap()).learning.progress.wrong).length,0);
   await button('학습 홈').click();await button('오늘의 퀴즈').click();assert.equal((await snap()).phone.current.appId,'daily-quiz');
