@@ -7,9 +7,10 @@ const allowedUsers = new Set(String(process.env.MODEL_CONVERT_ALLOWED_USER_IDS |
 const supabaseUrl = String(process.env.SUPABASE_URL || '').replace(/\/$/u, '');
 const supabaseKey = String(process.env.SUPABASE_PUBLISHABLE_KEY || '');
 const proxySecret = String(process.env.MODEL_CONVERT_PROXY_SECRET || '');
+const serviceKey = String(process.env.SUPABASE_SERVICE_ROLE_KEY || '');
 const enabled = process.env.MODEL_CONVERT_ENABLED === '1' && /^https:\/\//u.test(configuredUrl ?? '') &&
   /^https:\/\/[a-z0-9-]+\.supabase\.co$/iu.test(supabaseUrl) && supabaseKey.startsWith('sb_publishable_') &&
-  proxySecret.length >= 20 && allowedUsers.size > 0;
+  proxySecret.length >= 20 && serviceKey.length >= 40 && allowedUsers.size > 0;
 
 async function readBody(req) {
   if (Buffer.isBuffer(req.body)) return req.body;
@@ -65,7 +66,20 @@ async function authenticateOperator(authorization) {
   if (!response.ok) throw new Error('E_MODEL_AUTH_UNAVAILABLE');
   const user = await response.json();
   if (!UUID.test(user?.id || '') || user.is_anonymous !== false) return { status: 401 };
-  return allowedUsers.has(user.id.toLowerCase()) ? { status: 200 } : { status: 403 };
+  return allowedUsers.has(user.id.toLowerCase()) ? { status: 200, userId: user.id.toLowerCase() } : { status: 403 };
+}
+
+async function claimQuota(userId) {
+  const response = await fetch(supabaseUrl + '/rest/v1/rpc/claim_world_model_convert_quota_v1', {
+    method: 'POST',
+    headers: { apikey: serviceKey, Authorization: 'Bearer ' + serviceKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ p_user_id: userId }),
+    signal: AbortSignal.timeout(5000)
+  });
+  if (!response.ok) throw new Error('E_MODEL_QUOTA_UNAVAILABLE');
+  const accepted = await response.json();
+  if (typeof accepted !== 'boolean') throw new Error('E_MODEL_QUOTA_UNAVAILABLE');
+  return accepted;
 }
 
 module.exports = async function handler(req, res) {
@@ -97,6 +111,9 @@ module.exports = async function handler(req, res) {
     if (!body.length) return res.status(400).json({ error: 'E_MODEL_FILE_REQUIRED' });
     if (body.length > MAX_BYTES) return res.status(413).json({ error: 'E_MODEL_FILE_TOO_LARGE' });
     if (!isFbx(body)) return res.status(415).json({ error: 'E_MODEL_FBX_INVALID' });
+    // Atomic quota must be claimed before any paid converter request.
+    const accepted = await claimQuota(access.userId);
+    if (!accepted) return res.status(429).json({ error: 'E_MODEL_CONVERT_RATE_LIMITED' });
     const response = await fetch(configuredUrl, {
       method: 'POST', signal: AbortSignal.timeout(55000),
       headers: { 'Content-Type': 'application/octet-stream', 'X-Model-Filename': filename, 'X-Converter-Key': proxySecret },
@@ -112,6 +129,7 @@ module.exports = async function handler(req, res) {
     res.setHeader('Content-Disposition', "attachment; filename*=UTF-8''" + encodeURIComponent(filename.replace(/\.fbx$/iu, '.glb')));
     return res.status(200).send(result);
   } catch (error) {
+    if (error.message === 'E_MODEL_QUOTA_UNAVAILABLE') return res.status(503).json({ error: error.message });
     if (error.message === 'E_MODEL_FILE_TOO_LARGE') return res.status(413).json({ error: error.message });
     if (error.message === 'E_MODEL_CONVERT_TOO_LARGE') return res.status(502).json({ error: error.message });
     if (error.message === 'E_MODEL_CONVERT_INVALID_GLB') return res.status(502).json({ error: error.message });
