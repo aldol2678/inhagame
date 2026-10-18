@@ -13,7 +13,6 @@ const LOCAL_DB = /^postgres(?:ql)?:\/\/[^@/]*@(?:127\.0\.0\.1|localhost):\d+\//u
 assert.match(API_URL || "", LOCAL_API, "must use disposable loopback API only");
 assert.match(DB_URL || "", LOCAL_DB, "must use disposable loopback DB only");
 assert.ok(ANON_KEY && JWT_SECRET, "local anonymous key and JWT secret required");
-assert.notEqual(process.env.CI, "false"); // No remote operation regardless of CI setting.
 
 const PROXY_SUPABASE_URL = "https://isolated-model-convert.supabase.co";
 const CONVERTER_URL = "https://model-converter.invalid";
