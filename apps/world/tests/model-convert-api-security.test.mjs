@@ -5,7 +5,7 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const target = '../api/model-convert.js';
 const keys = ['MODEL_CONVERT_ENABLED', 'MODEL_CONVERT_CLOUD_RUN_URL', 'MODEL_CONVERT_PROXY_SECRET',
-  'MODEL_CONVERT_ALLOWED_USER_IDS', 'SUPABASE_URL', 'SUPABASE_PUBLISHABLE_KEY'];
+  'MODEL_CONVERT_ALLOWED_USER_IDS', 'SUPABASE_URL', 'SUPABASE_PUBLISHABLE_KEY', 'SUPABASE_SERVICE_ROLE_KEY'];
 const original = Object.fromEntries(keys.map(key => [key, process.env[key]]));
 const originalFetch = globalThis.fetch;
 const allowed = '11111111-2222-4333-8444-555555555555';
@@ -25,7 +25,8 @@ function configure(overrides = {}) {
     MODEL_CONVERT_PROXY_SECRET: 's'.repeat(32),
     MODEL_CONVERT_ALLOWED_USER_IDS: allowed,
     SUPABASE_URL: 'https://example.supabase.co',
-    SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_example'
+    SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_example',
+    SUPABASE_SERVICE_ROLE_KEY: 's'.repeat(48)
   }, overrides);
   delete require.cache[require.resolve(target)];
   return require(target);
@@ -50,12 +51,15 @@ async function invoke(handler, opts = {}) {
   }, response);
   return response;
 }
-function stub({ id = allowed, authStatus = 200, glbBody = glb } = {}) {
+function stub({ id = allowed, authStatus = 200, glbBody = glb, quotaAllowed = true, quotaStatus = 200 } = {}) {
   const requests = [];
   globalThis.fetch = async (url, init) => {
     requests.push({ url: String(url), init });
     if (String(url).endsWith('/auth/v1/user')) {
       return Response.json({ id, is_anonymous: false }, { status: authStatus });
+    }
+    if (String(url).endsWith('/rpc/claim_world_model_convert_quota_v1')) {
+      return Response.json(quotaAllowed, { status: quotaStatus });
     }
     return new Response(glbBody, { status: 200, headers: { 'content-type': 'model/gltf-binary' } });
   };
@@ -69,6 +73,8 @@ test('feature is fail-closed without activation, secret or operator allowlist', 
   handler = configure({ MODEL_CONVERT_ALLOWED_USER_IDS: '' });
   assert.deepEqual((await invoke(handler, { method: 'GET' })).body, { enabled: false });
   handler = configure({ MODEL_CONVERT_PROXY_SECRET: '' });
+  assert.deepEqual((await invoke(handler, { method: 'GET' })).body, { enabled: false });
+  handler = configure({ SUPABASE_SERVICE_ROLE_KEY: '' });
   assert.deepEqual((await invoke(handler, { method: 'GET' })).body, { enabled: false });
 });
 
@@ -87,9 +93,10 @@ test('only allowlisted, verified, non-anonymous Supabase users reach Cloud Run',
   requests = stub();
   const response = await invoke(handler);
   assert.equal(response.statusCode, 200);
-  assert.equal(requests.length, 2);
+  assert.equal(requests.length, 3);
   assert.match(requests[0].url, /auth\/v1\/user$/u);
-  assert.equal(requests[1].url, 'https://example-converter.run.app');
+  assert.match(requests[1].url, /rpc\/claim_world_model_convert_quota_v1$/u);
+  assert.equal(requests[2].url, 'https://example-converter.run.app');
   assert.deepEqual(response.body, glb);
 });
 
@@ -113,6 +120,25 @@ test('auth outage fails closed, oversized converter result fails bounded', async
   assert.equal(requests.length, 1);
   requests = stub({ glbBody: Buffer.alloc(25 * 1024 * 1024 + 1) });
   assert.equal((await invoke(handler)).statusCode, 502);
+  assert.equal(requests.length, 3);
+});
+
+test('quota limit returns 429 without contacting converter', async () => {
+  const handler = configure();
+  const requests = stub({ quotaAllowed: false });
+  const response = await invoke(handler);
+  assert.equal(response.statusCode, 429);
+  assert.deepEqual(response.body, { error: 'E_MODEL_CONVERT_RATE_LIMITED' });
+  assert.equal(requests.length, 2);
+  assert.match(requests[1].url, /claim_world_model_convert_quota_v1$/u);
+});
+
+test('quota service failure stops conversion and fails closed', async () => {
+  const handler = configure();
+  const requests = stub({ quotaStatus: 503 });
+  const response = await invoke(handler);
+  assert.equal(response.statusCode, 503);
+  assert.deepEqual(response.body, { error: 'E_MODEL_QUOTA_UNAVAILABLE' });
   assert.equal(requests.length, 2);
 });
 
