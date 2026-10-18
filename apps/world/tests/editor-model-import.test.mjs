@@ -64,6 +64,7 @@ test("FBX import sends raw source to converter and stores returned GLB", async (
     worldId: "world.test",
     assetId: "asset.model.002",
     store: db,
+    getAccessToken: async () => "a".repeat(40),
     fetcher: async (url, init) => {
       request = { url, init };
       return new Response(new Blob([glbBytes()], { type: "model/gltf-binary" }), { status: 200 });
@@ -72,6 +73,7 @@ test("FBX import sends raw source to converter and stores returned GLB", async (
   assert.equal(result.sourceFormat, "fbx");
   assert.match(request.url, /^\/api\/model-convert\?filename=student\.fbx$/);
   assert.equal(request.init.headers["X-Model-Filename"], "student.fbx");
+  assert.equal(request.init.headers.Authorization, "Bearer " + "a".repeat(40));
   assert.equal(db.records.get("world.test::asset.model.002").sourceFormat, "fbx");
 });
 
@@ -101,6 +103,7 @@ function importHarness(overrides = {}) {
   const options = {
     file: namedBlob("model.glb", glbBytes()), worldId: "world.test", assetId: "asset.test",
     store: { async writeAsset() { calls.write++; } },
+    getAccessToken: async () => "a".repeat(40),
     fetcher: async () => { calls.fetch++; return new Response(glbBytes()); },
     ...overrides
   };
@@ -234,4 +237,18 @@ test("allows converted GLB exactly at the size limit", async () => {
   const result = await importEditorModel(options);
   assert.equal(result.size, MAX_BYTES);
   assert.deepEqual(calls, { fetch: 1, write: 1 });
+});
+
+
+test("FBX import without a valid signed-in access token never fetches or writes", async () => {
+  const calls = { fetch: 0, write: 0 };
+  const options = {
+    file: namedBlob("example.fbx", new Uint8Array([1, 2, 3])),
+    worldId: "world.test", assetId: "asset.model.auth",
+    store: { async writeAsset() { calls.write++; } },
+    fetcher: async () => { calls.fetch++; return new Response("unexpected"); }
+  };
+  await assert.rejects(importEditorModel(options), /E_MODEL_CONVERT_LOGIN_REQUIRED/);
+  await assert.rejects(importEditorModel({ ...options, getAccessToken: async () => "short" }), /E_MODEL_CONVERT_LOGIN_REQUIRED/);
+  assert.deepEqual(calls, { fetch: 0, write: 0 });
 });
