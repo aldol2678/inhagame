@@ -1,5 +1,5 @@
 import http from "node:http";
-import { convertFbxBuffer } from "./convert-model.mjs";
+import { conversionErrorResponse, convertFbxBuffer } from "./convert-model.mjs";
 
 const PORT = Number(process.env.PORT || 8080);
 const MAX_BYTES = 25 * 1024 * 1024;
@@ -39,13 +39,9 @@ const server = http.createServer(async (req, res) => {
     });
     res.end(output);
   } catch (error) {
-    const code = String(error?.message || "E_MODEL_CONVERT_FAILED").split(":")[0];
-    const status = code === "E_MODEL_FILE_TOO_LARGE" ? 413
-      : code === "E_MODEL_FILE_REQUIRED" ? 400
-      : code === "E_MODEL_CONVERTER_NOT_INSTALLED" ? 503
-      : 422;
-    console.warn("model conversion failed", code);
-    json(res, status, { error: code });
+    const { status, body } = conversionErrorResponse(error);
+    console.warn("model conversion failed", body.error, body.detail || "");
+    json(res, status, body);
   }
 });
 
