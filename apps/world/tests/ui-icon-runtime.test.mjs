@@ -7,7 +7,7 @@ const root=new URL('../assets/ui-icons/p0-v1/',import.meta.url);
 test('every actual native Phone app has exactly its approved glyph mapping',()=>{
  const expected={
    'student-id':'student-id',maps:'map',camera:'camera',album:'album',settings:'settings',
-   'daily-quiz':'quiz',attendance:'attendance',messages:'chat',notifications:'notification','induck-store':'shop'
+   'daily-quiz':'quiz',attendance:'attendance',messages:'chat',notifications:'notification','induck-store':'shop',learning:'profile'
  };
  assert.deepEqual(Object.keys(expected).sort(),PHONE_SYSTEM_APPS.map(app=>app.id).sort());
  for(const app of PHONE_SYSTEM_APPS){
