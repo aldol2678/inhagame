@@ -47,6 +47,27 @@ test('existing public icon is accurately labelled, reachable in the source tree 
   }
 });
 
+test('all public documents provide a large branded icon and image-preview permission', () => {
+  for (const [file] of publicPages) {
+    const html = read(file);
+    assert.ok(head(html).includes('<link rel="icon" type="image/png" sizes="192x192" href="/campus/icons/icon-192.png">'), file);
+    assert.deepEqual(meta(html, 'robots'), ['max-image-preview:large'], file);
+  }
+  const icon = readFileSync(new URL('../campus/icons/icon-192.png', import.meta.url));
+  assert.equal(icon.subarray(0,8).toString('hex'), '89504e470d0a1a0a');
+  assert.equal(icon.readUInt32BE(16), 192);
+  assert.equal(icon.readUInt32BE(20), 192);
+});
+
+test('public navigation links to the independent campus page and identifies concept imagery', () => {
+  const home = read('index.html');
+  assert.ok(home.includes('<a class="editorial-nav-link" href="/campus/">캠퍼스</a>'));
+  assert.ok(home.includes('<img src="/assets/hub/campus-concept.svg" alt="인하월드 캠퍼스 콘셉트 일러스트"'));
+  for (const file of ['support.html', 'updates.html', 'privacy.html', 'terms.html']) {
+    assert.ok(read(file).includes('<a href="/campus/">캠퍼스</a>'), file);
+  }
+});
+
 test('homepage WebSite JSON-LD uses the public brand without invented university affiliation',()=>{
   const scripts=[...read('index.html').matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)];
   assert.equal(scripts.length,1);
