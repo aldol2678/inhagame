@@ -1,0 +1,17 @@
+{
+  "name": "worldforge-cat-example",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "check:dist": "node scripts/check-dist.mjs"
+  },
+  "dependencies": {
+    "playcanvas": "2.22.4"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0"
+  },
+  "license": "UNLICENSED"
+}

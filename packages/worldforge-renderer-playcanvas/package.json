@@ -1,0 +1,9 @@
+{
+  "name": "@worldforge/renderer-playcanvas",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.js" },
+  "peerDependencies": { "playcanvas": "^2.22.4" },
+  "license": "UNLICENSED"
+}
