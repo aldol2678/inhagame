@@ -91,3 +91,6 @@
 @media(prefers-reduced-motion:reduce){
   .learn-page .learning-app *{transition:none!important;animation:none!important}
 }
+
+.learn-page .learn-jump{display:inline-flex;gap:8px;align-items:center;margin:8px 0 4px;font-weight:750;color:#17584b;text-decoration:underline;text-underline-offset:4px}
+.learn-page .learn-jump span{font-size:18px}
