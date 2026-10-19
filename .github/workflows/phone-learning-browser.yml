@@ -3,6 +3,14 @@ on:
   pull_request:
     paths:
       - 'apps/world/src/learning/**'
+      - 'apps/world/src/learning-web/**'
+      - 'apps/world/learn/**'
+      - 'apps/world/learn.css'
+      - 'apps/world/phone.css'
+      - 'apps/world/dev-server.mjs'
+      - 'apps/world/vercel.json'
+      - 'apps/world/tests/learning-web.test.mjs'
+      - 'apps/world/tests/browser/learning-web-*'
       - 'apps/world/src/phone/**'
       - 'apps/world/src/main.js'
       - 'apps/world/campus/index.html'
@@ -38,7 +46,7 @@ jobs:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          node --test apps/world/tests/phone-*.test.mjs apps/world/tests/daily-quiz.test.mjs apps/world/tests/daily-panel-focus.test.mjs apps/world/tests/daily-reward-readback.test.mjs apps/world/tests/pwa-shortcuts.test.mjs
+          node --test apps/world/tests/learning-web.test.mjs apps/world/tests/phone-*.test.mjs apps/world/tests/daily-quiz.test.mjs apps/world/tests/daily-panel-focus.test.mjs apps/world/tests/daily-reward-readback.test.mjs apps/world/tests/pwa-shortcuts.test.mjs
       - name: Install pinned browser
         working-directory: apps/world/tests/browser
         run: |
@@ -57,6 +65,13 @@ jobs:
           WORLD_SMOKE_DISABLE_WEBGPU: '1'
           PHONE_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: timeout --signal=TERM --kill-after=10s 600s node apps/world/tests/browser/phone-learning-campus-smoke.mjs
+      - name: Standalone web route, auth isolation and actual World launcher
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          PHONE_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          node apps/world/tests/browser/learning-web-smoke.mjs
+          timeout --signal=TERM --kill-after=10s 600s node apps/world/tests/browser/learning-web-campus-smoke.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -65,6 +80,8 @@ jobs:
             test-results/phone-learning/
             test-results/phone-learning-remediation/
             test-results/phone-learning-campus/
+            test-results/learning-web/
+            test-results/learning-web-campus/
           if-no-files-found: warn
           retention-days: 7
 
@@ -101,7 +118,9 @@ jobs:
       - name: Real local Auth and cloud browser matrix
         env:
           PHONE_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: node scripts/learning-cloud-local.mjs --browser
+        run: |
+          node scripts/learning-cloud-local.mjs --browser
+          node scripts/learning-cloud-local.mjs --web-browser
       - name: Stop disposable database
         if: always()
         run: supabase stop --no-backup
@@ -109,6 +128,8 @@ jobs:
         if: always()
         with:
           name: phone-learning-cloud-${{ github.event.pull_request.head.sha }}
-          path: test-results/phone-learning-cloud/
+          path: |
+            test-results/phone-learning-cloud/
+            test-results/learning-web-cloud/
           if-no-files-found: warn
           retention-days: 7
