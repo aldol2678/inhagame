@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { supabaseSecretKey } from "../_shared/supabase-keys.ts";
 
 const headers = {
   "Access-Control-Allow-Origin": "*",
@@ -20,7 +21,7 @@ Deno.serve(async (request) => {
       return reply(400, { error: "MISSING_TOKENS" });
     }
     const url = Deno.env.get("SUPABASE_URL")!;
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const serviceKey = supabaseSecretKey();
     const admin = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
     const [primaryResult, schoolResult] = await Promise.all([
       admin.auth.getUser(primaryToken), admin.auth.getUser(schoolToken),

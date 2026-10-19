@@ -10,6 +10,10 @@ register('./loader.mjs', import.meta.url);
 export const SUPABASE_URL = 'http://supabase.edge-test.invalid';
 export const ANON_KEY = 'anon-key-fixture';
 export const SERVICE_ROLE_KEY = 'service-role-key-fixture';
+// New-style key fixtures (not real keys). The hosted runtime injects these as JSON dictionaries
+// in SUPABASE_SECRET_KEYS / SUPABASE_PUBLISHABLE_KEYS; tests opt in via resetEnv().
+export const SECRET_KEY = 'sb_secret_edge-fixture';
+export const PUBLISHABLE_KEY = 'sb_publishable_edge-fixture';
 
 const env = new Map();
 export function resetEnv(values = {}) {
@@ -105,7 +109,9 @@ class FakeClient {
   constructor(backend, url, key, options) {
     if (url !== SUPABASE_URL) throw new Error(`edge harness: client created for unexpected URL ${url}`);
     this.backend = backend;
-    this.role = key === SERVICE_ROLE_KEY ? 'service_role' : key === ANON_KEY ? 'anon' : `unknown-key:${key}`;
+    this.key = key;
+    this.role = key === SERVICE_ROLE_KEY || key === SECRET_KEY ? 'service_role'
+      : key === ANON_KEY || key === PUBLISHABLE_KEY ? 'anon' : `unknown-key:${key}`;
     this.bearer = String(options?.global?.headers?.Authorization ?? '').replace(/^Bearer /i, '');
     this.auth = { getUser: (token) => backend.getUser(token ?? this.bearer) };
   }

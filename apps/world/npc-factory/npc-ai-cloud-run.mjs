@@ -7,11 +7,15 @@ import { createQuestCloudHandler } from './quest-cloud-handler.mjs';
 import { createSupabaseQuestStore } from './quest-store.mjs';
 import { createNpcRelationshipCloudHandler } from './npc-player-relationship-cloud-handler.mjs';
 import { createSupabaseNpcRelationshipStore } from './npc-player-relationship-store.mjs';
+import { readSupabaseServerKey } from './supabase-server-key.mjs';
 
 // Container entrypoint for apps/world/Dockerfile. The deployment supplies the project and the
 // server-only credential; nothing here names a specific cloud project.
+// Credential: SUPABASE_SECRET_KEY (sb_secret_) first, legacy SUPABASE_SERVICE_ROLE_KEY fallback.
+let serverKey = null;
+try { serverKey = readSupabaseServerKey(process.env)?.key ?? null; } catch { serverKey = null; }
 if (process.env.NPC_AI_ENABLED !== '1' || !/^[a-z][a-z0-9-]{4,61}[a-z0-9]$/.test(process.env.NPC_AI_PROJECT ?? '')
-    || !process.env.SUPABASE_SERVICE_ROLE_KEY)
+    || !serverKey)
   throw Error('NPC_AI_PRODUCTION_CONFIG_REQUIRED');
 
 // The shared public config silently falls back to a localhost placeholder when env is absent.
@@ -41,15 +45,15 @@ async function cloudRunAccessToken() {
 
 const pilot = createNpcAiPilot({
   mode: 'grounded', maxCalls: 50, cooldownMs: 0,
-  beforeGenerate: createNpcAiQuota({ serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY }),
+  beforeGenerate: createNpcAiQuota({ serviceRoleKey: serverKey }),
   generate: createVertexNpcGenerator({ project: process.env.NPC_AI_PROJECT,
     tokenProvider: cloudRunAccessToken })
 });
 const aiHandler = createNpcAiCloudHandler({ pilot });
 const questHandler = createQuestCloudHandler({ store: createSupabaseQuestStore({
-  serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY }) });
+  serviceRoleKey: serverKey }) });
 const relationshipHandler = createNpcRelationshipCloudHandler({ store: createSupabaseNpcRelationshipStore({
-  serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY }) });
+  serviceRoleKey: serverKey }) });
 http.createServer((req, res) => {
   const path = req.url?.split('?')[0];
   if (path === '/quest') return questHandler(req, res);
