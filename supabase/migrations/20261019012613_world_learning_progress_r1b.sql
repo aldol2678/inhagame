@@ -73,10 +73,11 @@ exception when others then return false;
 end $$;
 revoke all on function private.learning_validate_progress(jsonb) from public,anon,authenticated;
 
--- Definer code is private, not an exposed RPC. It is needed to enforce CAS while
--- denying direct INSERT/UPDATE even to the owner. Identity comes only from Auth.
+-- Preserve the repository contract: clients have no private schema/function access.
+-- A narrowly granted, pinned public wrapper follows the existing account API pattern;
+-- this private invoker helper runs with the wrapper privileges and checks Auth itself.
 create function private.learning_save(p_request_id uuid,p_expected_revision bigint,p_progress jsonb) returns jsonb
-language plpgsql volatile security definer set search_path = '' as $$
+language plpgsql volatile security invoker set search_path = '' as $$
 declare u uuid:=auth.uid(); r bigint; prior private.world_learning_requests%rowtype;
 begin
  if u is null or not exists(select 1 from auth.users where id=u and is_anonymous=false) or (auth.jwt()->>'is_anonymous') is distinct from 'false' then raise exception 'permanent account required' using errcode='42501'; end if;
@@ -97,11 +98,9 @@ begin
  return jsonb_build_object('owner',u,'requestId',p_request_id,'revision',r+1,'duplicate',false);
 end $$;
 revoke all on function private.learning_save(uuid,bigint,jsonb) from public,anon,authenticated;
-grant usage on schema private to authenticated;
-grant execute on function private.learning_save(uuid,bigint,jsonb) to authenticated;
 
 create function public.world_learning_save_v1(p_request_id uuid,p_expected_revision bigint,p_progress jsonb) returns jsonb
-language sql volatile security invoker set search_path = '' as $$
+language sql volatile security definer set search_path = '' as $$
  select private.learning_save(p_request_id,p_expected_revision,p_progress);
 $$;
 create function public.world_learning_read_v1() returns jsonb
@@ -115,3 +114,6 @@ end $$;
 revoke all on function public.world_learning_save_v1(uuid,bigint,jsonb),public.world_learning_read_v1() from public,anon,authenticated;
 grant execute on function public.world_learning_save_v1(uuid,bigint,jsonb),public.world_learning_read_v1() to authenticated;
 comment on table public.world_learning_progress is 'Private, non-economic learning progress. No prompts, answers, coins, EXP or league scores. R1-B rollout gated.';
+
+-- PostgREST must refresh signatures/privileges after this candidate is applied.
+notify pgrst, 'reload schema';

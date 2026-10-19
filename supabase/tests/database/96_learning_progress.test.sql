@@ -10,6 +10,8 @@ create function pg_temp.learning_fixture() returns jsonb language sql as $$
 $$;
 select ok((select relrowsecurity from pg_class where oid='public.world_learning_progress'::regclass),'progress RLS enabled');
 select ok((select relrowsecurity from pg_class where oid='private.world_learning_requests'::regclass),'receipts RLS enabled');
+select ok(not has_schema_privilege('authenticated','private','USAGE'),'private schema remains inaccessible to clients');
+select ok(not has_function_privilege('authenticated','private.learning_save(uuid,bigint,jsonb)','EXECUTE'),'private helper remains inaccessible to clients');
 select ok(not has_table_privilege('authenticated','public.world_learning_progress','UPDATE'),'direct owner update denied: cannot bypass CAS');
 select ok(not has_table_privilege('anon','public.world_learning_progress','SELECT'),'anon select denied');
 select ok(not has_function_privilege('anon','public.world_learning_save_v1(uuid,bigint,jsonb)','EXECUTE'),'anon RPC denied');
