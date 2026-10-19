@@ -9,6 +9,7 @@ import { validateWorld } from "./world-schema.js";
 import { InhaToolSession, groundFromViewport, projectGround } from "./inha-tools.js";
 import { samplePathCenterline } from "./path-spline.js";
 import { createEditorAssetResolver, importEditorModel, revokeEditorAssetUrls } from "./editor-model-import.js";
+import { getEditorModelConvertToken } from "./editor-model-convert-auth.js";
 import {
   eulerFromQuaternion,
   quaternionFromEuler,
@@ -1217,7 +1218,7 @@ els.modelFile.addEventListener("change", () => runDocumentAction(async () => {
   els.modelImportButton.disabled = true;
   els.modelImportStatus.textContent = /\.fbx$/iu.test(file.name) ? "FBX → GLB 변환 중…" : "GLB 가져오는 중…";
   try {
-    const imported = await importEditorModel({ file, worldId: targetWorldId, assetId, store });
+    const imported = await importEditorModel({ file, worldId: targetWorldId, assetId, store, getAccessToken: getEditorModelConvertToken });
     if (world.worldId !== targetWorldId) throw new Error("E_MODEL_IMPORT_WORLD_CHANGED");
     const asset = runEdit(() => commands.addAsset({
       id: assetId,
