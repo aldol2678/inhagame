@@ -1,7 +1,7 @@
 // All UI is inside a caller-owned host. textContent/DOM APIs keep content inert.
 export function renderLearningView({host,doc,model,act,input,guard}) {
   const {catalog,progress,engine,screen,lang,notice,speechIndex,speechText,speechSupport,backup,importReady,importText,cloudState,saveState,exportedRecovery,recoveryChoices=[]}=model;
-  const root=doc.createElement('section');root.className='learning-app';root.setAttribute('aria-label','인덕캠퍼스 학습');
+  const root=doc.createElement('section');root.className=`learning-app learning-app--${screen}`;root.setAttribute('aria-label','인덕캠퍼스 학습');
   const el=(tag,text='',cls='')=>{const n=doc.createElement(tag);n.textContent=text;n.className=cls;return n;};
   const button=(label,action,value,disabled=false)=>{
     const b=el('button',label);b.type='button';b.disabled=disabled;
@@ -12,7 +12,10 @@ export function renderLearningView({host,doc,model,act,input,guard}) {
   const available=Object.keys(languages).filter(l=>catalog.lessons.some(x=>x.lang===l));
   const ls=catalog.lessons.filter(l=>l.lang===lang),done=ls.filter(l=>progress.completed[l.id]).length;
   const nav=el('nav','','learning-nav');nav.setAttribute('aria-label','학습 메뉴');
-  for(const [label,to] of [['학습 홈','home'],['전체 레슨','lessons'],['오답 복습','review'],['학습 기록','stats']])nav.append(button(label,'screen',to));
+  const activeTab=screen==='backup'?'stats':['question','result','speech'].includes(screen)?'home':screen;
+  for(const [label,to] of [['학습 홈','home'],['전체 레슨','lessons'],['오답 복습','review'],['학습 기록','stats']]){
+    const tab=button(label,'screen',to);if(to===activeTab)tab.setAttribute('aria-current','page');nav.append(tab);
+  }
   root.append(nav);
   if(saveState?.status==='unsaved'){
     const warning=box('이 기기에 저장되지 않은 결과');warning.setAttribute('role','alert');
@@ -22,7 +25,8 @@ export function renderLearningView({host,doc,model,act,input,guard}) {
   const languagePicker=()=>{const n=el('div','','learning-languages');for(const l of available){const b=button(languages[l],'language',l);b.setAttribute('aria-pressed',String(l===lang));n.append(b);}root.append(n);};
   if(screen==='home'){
     const hero=box('오늘은 어떤 실력을 키워 볼까? 🦆');hero.append(el('p',`${languages[lang]} · ${done} / ${ls.length} 레슨 완료`));languagePicker();
-    root.append(button('이어서 배우기','lesson',(ls.find(l=>!progress.completed[l.id])||ls[0]).id));
+    const continueLesson=ls.find(l=>!progress.completed[l.id])||ls[0];
+    if(continueLesson){const start=button('이어서 배우기','lesson',continueLesson.id);start.className='learning-primary-action';root.append(start);}
     root.append(button('듣기 · 말하기 연습','screen','speech'),button('오늘의 퀴즈','daily'));
     root.append(el('p','학습 기록은 계정별로 보관합니다. 원본 로컬 기록과 백업을 유지하세요.','learning-note'));
   } else if(screen==='lessons') {
@@ -34,7 +38,11 @@ export function renderLearningView({host,doc,model,act,input,guard}) {
     }
   } else if(screen==='question'&&engine.run) {
     const run=engine.run,q=run.questions[run.index],a=run.attempt;
-    root.append(el('p',`${run.index+1} / ${run.questions.length} · ${run.combo}콤보${run.combo>=3?' 🔥':''}`));
+    const meta=el('div','','learning-question-meta');
+    meta.append(el('p',`${run.index+1} / ${run.questions.length} · ${run.combo}콤보`));
+    const meter=doc.createElement('progress');meter.className='learning-question-progress';
+    meter.max=run.questions.length;meter.value=run.index+1;
+    meter.setAttribute('aria-label','학습 진행률');meta.append(meter);root.append(meta);
     const card=box(q.prompt);if(q.passage)card.append(el('p',q.passage));
     const answers=el('div','','learning-answers');answers.setAttribute('aria-label','문제 선택지');
     if(q.type==='order'){
@@ -50,7 +58,8 @@ export function renderLearningView({host,doc,model,act,input,guard}) {
     card.append(answers);
     if(a.checked){const feedback=el('div','','learning-feedback');feedback.setAttribute('role','status');feedback.append(el('strong',a.isCorrect?'정답! 잘했어 ✨':'아쉬워! 해설 확인 📘'),el('p',q.why));card.append(feedback);}
     const checkable=q.type==='match'?a.matched.length===q.pairs.length:q.type==='order'?a.selection.length>0:a.selection!==null;
-    root.append(button(a.checked?(run.index+1===run.questions.length?'결과 확인하기':'다음 문제'):'정답 확인하기',a.checked?'next':'submit',null,!a.checked&&!checkable));
+    const primary=button(a.checked?(run.index+1===run.questions.length?'결과 확인하기':'다음 문제'):'정답 확인하기',a.checked?'next':'submit',null,!a.checked&&!checkable);
+    primary.className='learning-primary-action';root.append(primary);
   } else if(screen==='result'&&engine.run){
     const r=engine.run,card=box(saveState?.status==='unsaved'?'풀이 종료 · 기록 미저장':r.kind==='boss'?(r.correct>=4?'보스 합격! 🏆':'다시 도전해 보세요'):'학습 완료! 🌱');
     card.append(el('p',`${r.correct} / ${r.questions.length} 정답 · 최고 ${r.maxCombo}콤보`));
