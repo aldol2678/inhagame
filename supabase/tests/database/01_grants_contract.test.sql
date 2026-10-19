@@ -78,6 +78,9 @@ select set_eq($$select unnest(pg_temp.exec_surface('anon'))$$, array[
 
 select set_eq($$select unnest(pg_temp.exec_surface('authenticated', 'anon'))$$, array[
   'abandon_ranked_session_v1(uuid)',
+  -- PHONE-LEARN-01 R1-B: own progress only; CAS write has no target user argument.
+  'world_learning_read_v1()',
+  'world_learning_save_v1(uuid,bigint,jsonb)',
   -- World Social S1-C1 (20260926030000): card, relationships, blocks, reports; caller = auth.uid().
   'block_world_user(uuid)',
   'end_world_accompany(uuid)',
@@ -219,7 +222,8 @@ select set_eq($$select unnest(pg_temp.table_surface('anon'))$$, array[
 ], 'anon table privileges');
 select set_eq($$select unnest(pg_temp.table_surface('authenticated'))$$, array[
   'departments:S,T,R,G', 'inha_duck_ops_refresh:S', 'profiles:S,ci,cu',
-  'user_achievements:S', 'user_game_progress:S,I,U', 'world_runtime_flags:S'
+  'user_achievements:S', 'user_game_progress:S,I,U', 'world_runtime_flags:S',
+  'world_learning_progress:S' -- owner-only RLS; no direct mutation grants
 ], 'authenticated table privileges');
 
 -- Endless runs have no verified submission path; no Data API role can record a best.

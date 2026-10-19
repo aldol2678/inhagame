@@ -105,9 +105,9 @@ test('Phone learning exception and repeated Daily Quiz navigation release world 
   const shell=createPhoneShell({inputFocus:focus,registry,onError:()=>errors++});shell.open();shell.launch('learning');assert.equal(focus.can('WORLD_ACTION'),false);
   shell.launch('daily-quiz');shell.back();shell.home();shell.close();assert.equal(focus.size,0);assert.ok(closed>=2&&errors>=2);shell.destroy();
 });
-test('learning modules have no wallet, ranking, RPC, iframe or global event authority',async()=>{
+test('learning modules have no wallet, ranking, iframe or document event authority',async()=>{
   const dir=new URL('../src/learning/',import.meta.url);const files=await readdir(dir);const source=(await Promise.all(files.map(f=>readFile(new URL(f,dir),'utf8')))).join('\n');
-  assert.doesNotMatch(source,/\.rpc\(|supabase\.from\(|state\.coins|state\.campusXp|dailyBank|rankBank|<iframe|document\.addEventListener|innerHTML/);
+  assert.doesNotMatch(source,/supabase\.from\(|state\.coins|state\.campusXp|dailyBank|rankBank|<iframe|document\.addEventListener|innerHTML/);
   assert.doesNotMatch(await readFile(new URL('../learning.css',import.meta.url),'utf8'),/(^|\n)(body|html|:root|\*)\s*\{/);
 });
 

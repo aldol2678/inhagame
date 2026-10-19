@@ -2,7 +2,8 @@
 // Exhaustion stops writes. Cleanup requires an exported, explicitly acknowledged set.
 export const RECOVERY_LIMIT=Object.freeze({count:8,bytes:2*1024*1024});
 export const recoveryPrefixes=account=>[
-  `inha-world-learning-v1:${account===null?'guest':`user:${encodeURIComponent(account)}`}:recovery:`
+  `inha-world-learning-v1:${account===null?'guest':`user:${encodeURIComponent(account)}`}:recovery:`,
+  ...(account===null?[]:[`inha-world-learning-sync-v1:user:${encodeURIComponent(account)}:recovery:`])
 ];
 export function recoveryEntries(store,account){
   if(!store)throw Error('LOCAL_STORAGE_FAILED');
@@ -20,9 +21,9 @@ export function cleanupRecovery(store,account,exported,{confirmed=false}={}){
   if(!confirmed)throw Error('BACKUP_CONFIRMATION_REQUIRED');
   const prefixes=recoveryPrefixes(account);let removed=0;
   for(const {key,raw} of exported){
-    // New local snapshots are immutable. Pre-remediation
+    // New local snapshots and all cloud archives are immutable. Pre-remediation
     // rolling keys may still be written by an old tab: export, but never delete them.
-    if(key.includes(':snapshot:')&&prefixes.some(p=>key.startsWith(p))&&store.getItem(key)===raw){store.removeItem(key);if(store.getItem(key)===null)removed++;}
+    if((key.includes(':snapshot:')||key.startsWith('inha-world-learning-sync-v1:'))&&prefixes.some(p=>key.startsWith(p))&&store.getItem(key)===raw){store.removeItem(key);if(store.getItem(key)===null)removed++;}
   }
   return removed;
 }
