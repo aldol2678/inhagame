@@ -20,9 +20,11 @@ for(const [name,viewport,mobile] of [['desktop',{width:1280,height:900},false],[
   assert.equal(await page.evaluate(()=>window.__INHAGAME_P0__.smartphone.launch('learning')),false);await button('스마트폰 닫기').click();
   entry.checks.push('unmodified main defaults OFF; no Learning icon or launch');
   const original=await readFile(new URL('../../src/main.js',import.meta.url),'utf8');
-  const needle='const learning = createLearningController({';assert.ok(original.includes(needle));
-  const instrumented=`import {createLearningCatalog} from './learning/learning-content.js';\nimport {learningFixture} from '/tests/support/learning-fixture.mjs';\n`+original.replace(needle,needle+'\n  content:createLearningCatalog(learningFixture()),');
-  await smoke.context.route('**/src/main.js*',r=>r.fulfill({contentType:'text/javascript',body:instrumented}));await boot();
+  const needle='const learning = createLearningLauncher({';assert.ok(original.includes(needle));
+  // Preserve the historical native-host matrix as an explicit test-only adapter.
+  // Production World now imports only the launcher; the new web-campus suite tests that route.
+  const instrumented=`import {createLearningController} from './learning/learning-controller.js';\nimport {createLearningCatalog} from './learning/learning-content.js';\nimport {learningFixture} from '/tests/support/learning-fixture.mjs';\n`+original.replace(needle,'const learning = createLearningController({\n  content:createLearningCatalog(learningFixture()),onDailyQuiz:()=>smartphone?.launch("daily-quiz")===true,');
+  await smoke.context.route('**/src/main.js*',r=>r.fulfill({contentType:'text/javascript',body:instrumented}));await boot();await page.addStyleTag({url:smoke.origin+'/learning.css'});
   await page.locator('#phone-toggle').click();await page.locator('.smartphone-app[data-app-id="learning"]').click();assert.deepEqual(await world(),{input:false,orbit:false});
   await button('이어서 배우기').click();
   await button('A. test-correct').click();await button('정답 확인하기').click();await button('다음 문제').click();

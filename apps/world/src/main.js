@@ -54,8 +54,7 @@ import { createAssetCanaryTelemetry } from './asset-canary-telemetry.js';
 import { createWorldGraphicsDevice, GraphicsUnavailableError } from './webgpu-device.js';
 import { createCharacter } from "./character-model.js";
 import { createCampusProfile } from "./campus-profile.js";
-import { createLearningCloudTransport } from "./learning/learning-cloud.js";
-import { createLearningController } from "./learning/learning-controller.js";
+import { createLearningLauncher } from "./phone/learning-launcher.js";
 import { createSmartphone } from "./phone/smartphone.js";
 import { createCampusTour } from "./campus-tour.js";
 import { LANDMARKS, TOUR_STOPS } from "./campus-layout.js";
@@ -3314,9 +3313,8 @@ document.addEventListener("visibilitychange", () => { if (document.hidden) jeong
 window.addEventListener("pageshow", event => { if (event.persisted) resumeJeongseokAccess(); });
 window.addEventListener("focus", resumeJeongseokAccess);
 // PHONE-MVP-01: presentation/integration only. Existing Photo/Map/Progression own their data.
-const learning = createLearningController({
-  cloudTransport: createLearningCloudTransport({getClient: () => online?.supabase ?? null}),
-  onDailyQuiz: () => smartphone?.launch("daily-quiz") === true
+const learning = createLearningLauncher({
+  onReturn: () => smartphone?.close()
 });
 smartphone = createSmartphone({
   learning,

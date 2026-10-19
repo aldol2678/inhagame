@@ -23,7 +23,7 @@ export function createLearningController({loadContent=options=>loadApprovedLearn
   const ready=content?Promise.resolve(true):Promise.resolve().then(()=>loadContent({signal:abort.signal})).then(value=>{
     if(disposed)return false;catalog=value;setup();return !!catalog;
   }).catch(()=>{if(!disposed){catalog=null;notice='승인된 학습 콘텐츠를 불러오지 못했어요.';}return false;});
-  function guard(action){try{return action();}catch{speech.stop();notice='학습 화면을 복구했어요. 홈 또는 스마트폰 닫기를 이용해 주세요.';screen='home';engine?.reset();try{render();}catch{host?.replaceChildren();}onError();return false;}}
+  function guard(action){try{return action();}catch{speech.stop();notice='학습 화면을 복구했어요. 학습 홈으로 이동하거나 화면을 닫아 주세요.';screen='home';engine?.reset();try{render();}catch{host?.replaceChildren();}onError();return false;}}
   function render(){if(!host||disposed||!catalog)return;renderLearningView({host,doc,model:{catalog,progress:progress.state,engine,screen,lang,notice,speechIndex,speechText,speechSupport:speech.support(),backup,importReady,importText,cloudState,saveState:progress.saveState,exportedRecovery:!!exportedRecovery,recoveryChoices},act,input,guard});}
   function input(kind,value){if(kind==='speech')speechText=value;else{importText=value;importReady=false;}}
   function recordSpeech(text,method){
