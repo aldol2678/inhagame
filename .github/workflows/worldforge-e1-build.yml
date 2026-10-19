@@ -1,0 +1,43 @@
+name: WorldForge E1 Standalone Build
+
+on:
+  pull_request:
+    paths:
+      - "packages/worldforge-runtime-core/**"
+      - "packages/worldforge-renderer-playcanvas/**"
+      - "packages/worldforge-schema/**"
+      - "examples/worldforge-cat/**"
+      - ".github/workflows/worldforge-e1-build.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  standalone-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install existing schema package (locked)
+        run: npm ci --prefix packages/worldforge-schema --no-audit --no-fund
+      - name: Install standalone example dependencies
+        run: npm install --prefix examples/worldforge-cat --package-lock=false --no-audit --no-fund
+      - name: Test independent runtime
+        run: npm test --prefix packages/worldforge-runtime-core
+      - name: Build static HTML game
+        run: npm run build --prefix examples/worldforge-cat
+      - name: Verify static bundle hashes and isolation
+        run: npm run check:dist --prefix examples/worldforge-cat
+      - name: Upload un-deployed candidate artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: worldforge-e1-cat-static
+          path: examples/worldforge-cat/dist/
+          if-no-files-found: error
+          retention-days: 7

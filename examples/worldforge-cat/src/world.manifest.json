@@ -1,0 +1,404 @@
+{
+  "schemaVersion": "worldforge/0.1",
+  "project": {
+    "id": "worldforge-cat",
+    "name": "WorldForge Cat",
+    "template": "sandbox"
+  },
+  "world": {
+    "id": "cat-lawn",
+    "name": "Cat Lawn",
+    "units": "meter",
+    "upAxis": "Y",
+    "handedness": "right"
+  },
+  "assets": [],
+  "zones": [],
+  "places": [],
+  "paths": [],
+  "entities": [
+    {
+      "id": "ground",
+      "name": "Grass field",
+      "type": "core.terrain",
+      "parentId": null,
+      "enabled": true,
+      "transform": {
+        "position": [
+          0,
+          -0.15,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          36,
+          0.3,
+          36
+        ]
+      },
+      "tags": [],
+      "components": {
+        "core.primitive": {
+          "shape": "box",
+          "color": "#80b96e"
+        }
+      }
+    },
+    {
+      "id": "cat",
+      "name": "Mochi",
+      "type": "game.cat",
+      "parentId": null,
+      "enabled": true,
+      "transform": {
+        "position": [
+          0,
+          0.72,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "tags": [],
+      "components": {}
+    },
+    {
+      "id": "cat.body",
+      "name": "Body",
+      "type": "core.prop",
+      "parentId": "cat",
+      "enabled": true,
+      "transform": {
+        "position": [
+          0,
+          0,
+          -0.17
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          0.7,
+          0.55,
+          0.95
+        ]
+      },
+      "tags": [],
+      "components": {
+        "core.primitive": {
+          "shape": "sphere",
+          "color": "#eea44b"
+        }
+      }
+    },
+    {
+      "id": "cat.head",
+      "name": "Head",
+      "type": "core.prop",
+      "parentId": "cat",
+      "enabled": true,
+      "transform": {
+        "position": [
+          0,
+          0.38,
+          0.51
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          0.63,
+          0.6,
+          0.58
+        ]
+      },
+      "tags": [],
+      "components": {
+        "core.primitive": {
+          "shape": "sphere",
+          "color": "#f1b062"
+        }
+      }
+    },
+    {
+      "id": "cat.ear.left",
+      "name": "Left ear",
+      "type": "core.prop",
+      "parentId": "cat",
+      "enabled": true,
+      "transform": {
+        "position": [
+          -0.37,
+          0.87,
+          0.51
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          0.29,
+          0.48,
+          0.28
+        ]
+      },
+      "tags": [],
+      "components": {
+        "core.primitive": {
+          "shape": "cone",
+          "color": "#d78942"
+        }
+      }
+    },
+    {
+      "id": "cat.ear.right",
+      "name": "Right ear",
+      "type": "core.prop",
+      "parentId": "cat",
+      "enabled": true,
+      "transform": {
+        "position": [
+          0.37,
+          0.87,
+          0.51
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          0.29,
+          0.48,
+          0.28
+        ]
+      },
+      "tags": [],
+      "components": {
+        "core.primitive": {
+          "shape": "cone",
+          "color": "#d78942"
+        }
+      }
+    },
+    {
+      "id": "cat.eye.left",
+      "name": "Left eye",
+      "type": "core.prop",
+      "parentId": "cat",
+      "enabled": true,
+      "transform": {
+        "position": [
+          -0.22,
+          0.47,
+          1.01
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          0.1,
+          0.15,
+          0.075
+        ]
+      },
+      "tags": [],
+      "components": {
+        "core.primitive": {
+          "shape": "sphere",
+          "color": "#192332"
+        }
+      }
+    },
+    {
+      "id": "cat.eye.right",
+      "name": "Right eye",
+      "type": "core.prop",
+      "parentId": "cat",
+      "enabled": true,
+      "transform": {
+        "position": [
+          0.22,
+          0.47,
+          1.01
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          0.1,
+          0.15,
+          0.075
+        ]
+      },
+      "tags": [],
+      "components": {
+        "core.primitive": {
+          "shape": "sphere",
+          "color": "#192332"
+        }
+      }
+    },
+    {
+      "id": "cat.nose",
+      "name": "Nose",
+      "type": "core.prop",
+      "parentId": "cat",
+      "enabled": true,
+      "transform": {
+        "position": [
+          0,
+          0.25,
+          1.08
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          0.1,
+          0.07,
+          0.09
+        ]
+      },
+      "tags": [],
+      "components": {
+        "core.primitive": {
+          "shape": "sphere",
+          "color": "#e7808c"
+        }
+      }
+    },
+    {
+      "id": "cat.tail",
+      "name": "Tail",
+      "type": "core.prop",
+      "parentId": "cat",
+      "enabled": true,
+      "transform": {
+        "position": [
+          0,
+          0.31,
+          -0.94
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          0.18,
+          0.18,
+          0.65
+        ]
+      },
+      "tags": [],
+      "components": {
+        "core.primitive": {
+          "shape": "sphere",
+          "color": "#d7883d"
+        }
+      }
+    },
+    {
+      "id": "cat.paw.fl",
+      "name": "Front left paw",
+      "type": "core.prop",
+      "parentId": "cat",
+      "enabled": true,
+      "transform": {
+        "position": [
+          -0.3,
+          -0.34,
+          0.37
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          0.21,
+          0.22,
+          0.3
+        ]
+      },
+      "tags": [],
+      "components": {
+        "core.primitive": {
+          "shape": "sphere",
+          "color": "#eda44b"
+        }
+      }
+    },
+    {
+      "id": "cat.paw.fr",
+      "name": "Front right paw",
+      "type": "core.prop",
+      "parentId": "cat",
+      "enabled": true,
+      "transform": {
+        "position": [
+          0.3,
+          -0.34,
+          0.37
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          0.21,
+          0.22,
+          0.3
+        ]
+      },
+      "tags": [],
+      "components": {
+        "core.primitive": {
+          "shape": "sphere",
+          "color": "#eda44b"
+        }
+      }
+    }
+  ],
+  "npcs": [],
+  "quests": [],
+  "events": [],
+  "rules": []
+}
