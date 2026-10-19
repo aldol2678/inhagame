@@ -1,6 +1,6 @@
 // All UI is inside a caller-owned host. textContent/DOM APIs keep content inert.
 export function renderLearningView({host,doc,model,act,input,guard}) {
-  const {catalog,progress,engine,screen,lang,notice,speechIndex,speechText,speechSupport,backup,importReady}=model;
+  const {catalog,progress,engine,screen,lang,notice,speechIndex,speechText,speechSupport,backup,importReady,importText,saveState,exportedRecovery,recoveryChoices=[]}=model;
   const root=doc.createElement('section');root.className='learning-app';root.setAttribute('aria-label','인덕캠퍼스 학습');
   const el=(tag,text='',cls='')=>{const n=doc.createElement(tag);n.textContent=text;n.className=cls;return n;};
   const button=(label,action,value,disabled=false)=>{
@@ -14,6 +14,10 @@ export function renderLearningView({host,doc,model,act,input,guard}) {
   const nav=el('nav','','learning-nav');nav.setAttribute('aria-label','학습 메뉴');
   for(const [label,to] of [['학습 홈','home'],['전체 레슨','lessons'],['오답 복습','review'],['학습 기록','stats']])nav.append(button(label,'screen',to));
   root.append(nav);
+  if(saveState?.status==='unsaved'){
+    const warning=box('이 기기에 저장되지 않은 결과');warning.setAttribute('role','alert');
+    warning.append(el('p','현재 화면의 풀이와 완료 기록은 메모리에만 남아 있을 수 있어요. 닫기·새로고침·계정 전환 전에 백업하세요. 다른 탭과 충돌했다면 백업 후 최신 기록에 가져오세요.'),button('저장 다시 시도','retry-save'),button('현재 결과 백업하기','screen','backup'));
+  }
   const status=el('p',notice,'learning-status');status.setAttribute('role','status');root.append(status);
   const languagePicker=()=>{const n=el('div','','learning-languages');for(const l of available){const b=button(languages[l],'language',l);b.setAttribute('aria-pressed',String(l===lang));n.append(b);}root.append(n);};
   if(screen==='home'){
@@ -48,7 +52,7 @@ export function renderLearningView({host,doc,model,act,input,guard}) {
     const checkable=q.type==='match'?a.matched.length===q.pairs.length:q.type==='order'?a.selection.length>0:a.selection!==null;
     root.append(button(a.checked?(run.index+1===run.questions.length?'결과 확인하기':'다음 문제'):'정답 확인하기',a.checked?'next':'submit',null,!a.checked&&!checkable));
   } else if(screen==='result'&&engine.run){
-    const r=engine.run,card=box(r.kind==='boss'?(r.correct>=4?'보스 합격! 🏆':'다시 도전해 보세요'):'학습 완료! 🌱');
+    const r=engine.run,card=box(saveState?.status==='unsaved'?'풀이 종료 · 기록 미저장':r.kind==='boss'?(r.correct>=4?'보스 합격! 🏆':'다시 도전해 보세요'):'학습 완료! 🌱');
     card.append(el('p',`${r.correct} / ${r.questions.length} 정답 · 최고 ${r.maxCombo}콤보`));
     root.append(button('오답 복습하기','screen','review'),button('전체 레슨 보기','screen','lessons'));
   } else if(screen==='review') {
@@ -72,10 +76,13 @@ export function renderLearningView({host,doc,model,act,input,guard}) {
     }
   } else if(screen==='backup') {
     root.append(el('h2','학습 기록 백업'),el('p','다른 주소의 로컬 기록은 자동으로 읽을 수 없습니다. 원본에서 내보낸 JSON을 붙여 넣고 현재 계정에 병합하세요. 원본 백업 파일을 보관하세요.'));
-    root.append(button('백업 JSON 만들기','export'));
+    root.append(button('백업 JSON 만들기','export'),button('충돌 복구 사본 내보내기','recovery-export'));
+    if(exportedRecovery)root.append(el('p','아래 JSON을 파일로 보관한 뒤 정리하세요. 사본은 자동으로 삭제되지 않습니다.'),button('백업 파일 보관 확인 · 사본 정리','recovery-cleanup'));
+    recoveryChoices.forEach((p,i)=>root.append(button(`복구 사본 ${i+1} · ${Object.keys(p.completed||{}).length}레슨 선택`,'recovery-pick',i)));
     if(backup){const area=el('textarea');area.readOnly=true;area.value=backup;area.setAttribute('aria-label','백업 JSON');root.append(area);}
-    const area=el('textarea');area.setAttribute('aria-label','가져올 기록 JSON');area.addEventListener('input',()=>input('import',area.value));root.append(area,button('가져오기 검토','import-preview'));
+    const area=el('textarea');area.setAttribute('aria-label','가져올 기록 JSON');area.value=importText||'';area.addEventListener('input',()=>input('import',area.value));root.append(area,button('가져오기 검토','import-preview'));
     if(importReady)root.append(el('p','이 브라우저의 현재 계정에 학습 기록만 병합합니다. 기존 충돌 기록은 유지하고 코인·EXP·순위·문항 원문은 제외합니다.'),button('현재 계정에 병합 확인','import-confirm'));
   }
+  const localNote=el('p',saveState?.status==='saved'?'이 기기에 저장 확인 완료':saveState?.status==='unsaved'?'이 기기에 저장하지 못함':'저장할 학습 기록 없음','learning-local-status');localNote.setAttribute('role','status');root.append(localNote);
   host.replaceChildren(root);
 }

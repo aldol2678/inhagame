@@ -20,7 +20,7 @@ export function learningFixture() {
   }
   return {lessons,questions};
 }
-export function memoryStorage(){const rows=new Map();return {rows,getItem:k=>rows.get(k)||null,setItem:(k,v)=>rows.set(k,v)};}
+export function memoryStorage(){const rows=new Map();return {rows,get length(){return rows.size;},key:i=>[...rows.keys()][i]??null,getItem:k=>rows.get(k)||null,setItem:(k,v)=>rows.set(k,v),removeItem:k=>rows.delete(k)};}
 export function answerCorrect(engine){
   const r=engine.run,q=r.questions[r.index];
   if(q.type==='order')for(const part of q.parts){const i=r.attempt.tokens.findIndex((t,i)=>t===part&&!r.attempt.selection.includes(i));engine.choose('token',i);}

@@ -41,7 +41,7 @@ export function createLearningEngine({catalog,progress,today=learningDay}) {
       if(l.lang==='en')s.skillScores[l.unit]=Math.max(0,Math.min(100,s.skillScores[l.unit]+delta));
       else s.languageSkills[l.lang]=Math.max(0,Math.min(100,s.languageSkills[l.lang]+delta));
     }
-    progress.save();return true;
+    return progress.save();
   }
   function next() {
     if(!run||run.finished||!run.attempt.checked)return false;
@@ -53,7 +53,7 @@ export function createLearningEngine({catalog,progress,today=learningDay}) {
       const before=records[key]||{count:0,best:0,passed:false};
       records[key]={count:before.count+1,best:Math.max(before.best,run.correct),passed:before.passed||run.correct>=4,lastDate:today()};
     }
-    progress.save();return true;
+    return progress.save();
   }
   reconcileVersions(state(),catalog,today());
   return {level,reviewKeys,bossReady,submit,next,
