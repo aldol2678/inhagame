@@ -1,0 +1,135 @@
+name: Phone Learning QA
+on:
+  pull_request:
+    paths:
+      - 'apps/world/src/learning/**'
+      - 'apps/world/src/learning-web/**'
+      - 'apps/world/learn/**'
+      - 'apps/world/learn.css'
+      - 'apps/world/phone.css'
+      - 'apps/world/dev-server.mjs'
+      - 'apps/world/vercel.json'
+      - 'apps/world/tests/learning-web.test.mjs'
+      - 'apps/world/tests/browser/learning-web-*'
+      - 'apps/world/src/phone/**'
+      - 'apps/world/src/main.js'
+      - 'apps/world/campus/index.html'
+      - 'apps/world/campus/induck-store-v0.2.1.html'
+      - 'apps/world/learning.css'
+      - 'apps/world/tests/phone-*.test.mjs'
+      - 'apps/world/tests/support/learning-*.mjs'
+      - 'apps/world/tests/browser/phone-learning-*'
+      - '.github/workflows/phone-learning-browser.yml'
+      - 'supabase/migrations/*learning*'
+      - 'supabase/tests/**/*learning*'
+      - 'scripts/learning-cloud-local.mjs'
+      - 'apps/world/tests/browser/package*.json'
+permissions:
+  contents: read
+concurrency:
+  group: phone-learning-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  learning:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - name: Exact head and targeted regressions
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          node --test apps/world/tests/learning-web.test.mjs apps/world/tests/phone-*.test.mjs apps/world/tests/daily-quiz.test.mjs apps/world/tests/daily-panel-focus.test.mjs apps/world/tests/daily-reward-readback.test.mjs apps/world/tests/pwa-shortcuts.test.mjs
+      - name: Install pinned browser
+        working-directory: apps/world/tests/browser
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npx --no-install playwright install --with-deps chromium
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+      - name: Learning persistence and account matrix (synthetic content only)
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          PHONE_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          node apps/world/tests/browser/phone-learning-smoke.mjs
+          node apps/world/tests/browser/phone-learning-remediation-smoke.mjs
+      - name: Actual campus learning and Phone regressions (offline)
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          PHONE_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: timeout --signal=TERM --kill-after=10s 600s node apps/world/tests/browser/phone-learning-campus-smoke.mjs
+      - name: Standalone web route, auth isolation and actual World launcher
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          PHONE_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          node apps/world/tests/browser/learning-web-smoke.mjs
+          timeout --signal=TERM --kill-after=10s 600s node apps/world/tests/browser/learning-web-campus-smoke.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: phone-learning-${{ github.event.pull_request.head.sha }}
+          path: |
+            test-results/phone-learning/
+            test-results/phone-learning-remediation/
+            test-results/phone-learning-campus/
+            test-results/learning-web/
+            test-results/learning-web-campus/
+          if-no-files-found: warn
+          retention-days: 7
+
+  cloud:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - uses: supabase/setup-cli@v3
+        with:
+          version: 2.117.0
+      - name: Exact head
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+      - name: Start disposable full-lineage database and Auth API
+        run: supabase start -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
+      - name: SQL RLS and Auth/PostgREST concurrency and economy guards
+        run: |
+          supabase test db supabase/tests/database/96_learning_progress.test.sql supabase/tests/database/97_learning_remediation.test.sql
+          node scripts/learning-cloud-local.mjs
+      - name: Install pinned browser and Supabase SDK test client
+        working-directory: apps/world/tests/browser
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npx --no-install playwright install --with-deps chromium
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+      - name: Real local Auth and cloud browser matrix
+        env:
+          PHONE_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          node scripts/learning-cloud-local.mjs --browser
+          node scripts/learning-cloud-local.mjs --web-browser
+      - name: Stop disposable database
+        if: always()
+        run: supabase stop --no-backup
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: phone-learning-cloud-${{ github.event.pull_request.head.sha }}
+          path: |
+            test-results/phone-learning-cloud/
+            test-results/learning-web-cloud/
+          if-no-files-found: warn
+          retention-days: 7

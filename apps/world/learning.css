@@ -1,0 +1,20 @@
+.learning-app { color:#182943; font:14px/1.55 system-ui,sans-serif; padding:12px; border-radius:16px; background:#f2f7ff; min-width:0; overflow-wrap:anywhere; }
+.learning-app * { box-sizing:border-box; }
+.learning-app h2 { font-size:20px; margin:12px 0; }
+.learning-app h3 { font-size:17px; margin:0 0 12px; }
+.learning-app p { margin:10px 0; }
+.learning-app button { font:inherit; min-height:44px; border:1px solid #c9d7e8; border-radius:12px; background:#fff; color:#16355b; padding:10px 12px; cursor:pointer; margin:3px; max-width:100%; white-space:normal; overflow-wrap:anywhere; }
+.learning-app button:disabled { opacity:.5; cursor:default; }
+.learning-app button[aria-pressed="true"] { background:#dceaff; border-color:#2766c8; }
+.learning-app button:focus-visible,.learning-app textarea:focus-visible { outline:3px solid #2766c8; outline-offset:2px; }
+.learning-app .learning-nav { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:4px; }
+.learning-app .learning-nav button { margin:0; }
+.learning-app .learning-card { border:1px solid #d9e3ee; border-radius:18px; padding:16px; background:#f8fbff; margin:12px 0; }
+.learning-app .learning-card>button,.learning-app .learning-answers>button { display:block; width:100%; margin:6px 0; text-align:left; }
+.learning-app .learning-word-slot { border:1px dashed #829cbd; min-height:50px; padding:6px; border-radius:10px; }
+.learning-app .learning-match { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+.learning-app .learning-match button { width:100%; margin:4px 0; }
+.learning-app .learning-note { color:#526783; font-size:12px; }
+.learning-app .learning-feedback { padding:12px; border-radius:12px; background:#e7f3e9; }
+.learning-app .learning-status { color:#8a4100; }
+.learning-app textarea { display:block; width:100%; min-height:110px; font:inherit; margin:10px 0; border:1px solid #829cbd; border-radius:10px; padding:10px; resize:vertical; color:#182943; background:white; }

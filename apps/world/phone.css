@@ -256,3 +256,8 @@ body[data-phone-open="true"] > :not(#application):not(.smartphone) { visibility:
 .smartphone-statusbar .smartphone-notification-handle { position:absolute; left:50%; top:0; transform:translateX(-50%); width:110px; background:transparent; border:0; padding:13px 0 0; z-index:2; }
 .smartphone-content > .smartphone-notification-handle { width:100%; margin:0 0 8px; }
 @media (prefers-reduced-motion:reduce) { .smartphone[data-state="HOME_EDIT"] .smartphone-app-icon { animation:none !important; } .smartphone-frame::before { transition:none; } }
+
+/* Learning is a same-origin launcher, never an embedded question surface. */
+.smartphone-learning-launcher{padding:18px;border-radius:18px;background:#f5f8f2;color:#183a32;overflow-wrap:anywhere}
+.smartphone-learning-launcher a,.smartphone-learning-launcher button{display:flex;align-items:center;justify-content:center;min-height:44px;padding:10px 14px;margin:12px 0;border:1px solid #a5bcae;border-radius:12px;background:#fff;color:#17584b;font:inherit}
+.smartphone-learning-launcher a:focus-visible,.smartphone-learning-launcher button:focus-visible{outline:3px solid #267c68;outline-offset:2px}

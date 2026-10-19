@@ -10,6 +10,7 @@ export const PHONE_SYSTEM_APPS = Object.freeze([
   {id:'attendance',name:'출석부',icon:'📅',category:'campus'},
   {id:'messages',name:'메시지',icon:'💬',category:'social'},
   {id:'notifications',name:'알림센터',icon:'🔔',category:'system'},
+  {id:'learning',name:'인덕캠퍼스',icon:'🦆',category:'campus'},
   {id:'induck-store',name:'인덕스토어',icon:'🛍️',category:'system'}
 ].map(app=>Object.freeze({...app,kind:'native',system:true,installable:false})));
 
@@ -31,7 +32,7 @@ export function createPhoneAppRegistry(nativeApps, installedApps = () => []) {
   return Object.freeze([
     ...PHONE_SYSTEM_APPS.map(meta=>Object.freeze({
       ...meta,...(native.get(meta.id)||{}),
-      available:native.get(meta.id)?.available || (()=>true),
+      available:native.get(meta.id)?.available || (()=>meta.id!=='learning'),
       open:native.get(meta.id)?.open || (()=>{}),
       close:native.get(meta.id)?.close || (()=>{})
     })),

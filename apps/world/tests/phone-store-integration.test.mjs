@@ -1,5 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import {runInNewContext} from 'node:vm';
 import {createPhonePreferences,defaultPhonePreferences} from '../src/phone/phone-preferences.js';
 import {STORE_PHONE_IDS,phoneIdForStore,storeIdForPhone,phoneStoreSnapshot,phoneStoreMutate,phoneStoreCanOpen} from '../src/phone/phone-store-integration.js';
 import {PHONE_SYSTEM_APP_IDS,PHONE_INSTALLABLE_APP_IDS} from '../src/phone/phone-app-catalog.js';
@@ -76,4 +78,18 @@ test('storage failure can be rolled back by owner without phantom install',()=>{
   block=false;assert.equal(phoneStoreMutate(prefs,'install','induckup'),true);
   assert.equal(prefs.save(),true);
   prefs.load();assert.deepEqual(prefs.snapshot().installedApps,['induckup']);
+});
+
+// The child rejects the entire sync envelope when even an unavailable native ID is unknown.
+test('embedded Store receiver accepts the complete parent ID map, including gated learning',async()=>{
+  const html=await readFile(new URL('../campus/induck-store-v0.2.1.html',import.meta.url),'utf8');
+  const body=html.match(/const PHONE_MANAGED=Object\.freeze\((\{[\s\S]*?\})\);/)[1];
+  const child=JSON.parse(JSON.stringify(runInNewContext('('+body+')')));
+  assert.deepEqual(child,STORE_PHONE_IDS);
+  const {prefs}=state();
+  for(const enabled of [false,true]){
+    const snapshot=phoneStoreSnapshot(prefs,registry.map(a=>a.id==='learning'?{...a,available:()=>enabled}:a));
+    for(const values of Object.values(snapshot))assert.ok(values.every(id=>Object.hasOwn(child,id)));
+    assert.equal(snapshot.availableIds.includes('learning'),enabled);
+  }
 });
