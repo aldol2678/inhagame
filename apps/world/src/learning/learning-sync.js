@@ -15,7 +15,7 @@ export function createLearningSync({progress,transport,getStorage=()=>globalThis
   function persist(){const store=getStorage(),raw=JSON.stringify(meta);if(!store||store.getItem(key())!==metaRaw)throw Error('LOCAL_CONFLICT');store.setItem(key(),raw);if(store.getItem(key())!==raw)throw Error('LOCAL_STORAGE_FAILED');metaRaw=raw;}
   function archive(reason,cloud=null){
     const store=getStorage(),k=`${key()}:recovery:${uuid()}`,raw=JSON.stringify({format:'induck.learning.recovery',version:1,reason,local:sanitizeProgress(progress.state),cloud,metadata:meta});
-    if(!store)throw Error('LOCAL_STORAGE_FAILED');store.setItem(k,raw);if(store.getItem(k)!==raw)throw Error('LOCAL_STORAGE_FAILED');
+    try{if(!store)throw Error();store.setItem(k,raw);if(store.getItem(k)!==raw)throw Error();}catch{throw Error('LOCAL_STORAGE_FAILED');}
   }
   function validate(row){if(row?.owner!==account||!revision(row.revision)||(row.revision===0?row.progress!==null:!clean(row.progress)))throw Error('INVALID_PROGRESS');return row;}
   function replace(value){if(isBusy()){notify('deferred');return false;}archive('before-cloud-restore',remote);suppress=true;try{if(!progress.replace(value))throw Error('LOCAL_CONFLICT');}finally{suppress=false;}onRestore();return true;}
@@ -26,6 +26,7 @@ export function createLearningSync({progress,transport,getStorage=()=>globalThis
     check();if(!progress.writable)throw Error('LOCAL_STORAGE_FAILED');
     if(choice){
       const expected=remote?.revision,latest=await read();
+      if(meta.base&&latest.revision<meta.base.revision)throw Error('INVALID_PROGRESS');
       if(expected===undefined||latest.revision!==expected){remote=latest;notify('conflict');return;}
       remote=latest;archive('explicit-conflict-resolution',remote);
       if(choice==='cloud'&&!replace(remote.progress??emptyProgress()))return;
@@ -43,6 +44,7 @@ export function createLearningSync({progress,transport,getStorage=()=>globalThis
       if(same(sanitizeProgress(progress.state),remote.progress)){notify('synced');return;}
     }
     remote=await read();const local=sanitizeProgress(progress.state),base=meta.base;
+    if(base&&remote.revision<base.revision)throw Error('INVALID_PROGRESS');
     if(same(local,remote.progress??emptyProgress())){
       meta.base={revision:remote.revision,progress:local};persist();notify('synced');retries=0;return;
     }

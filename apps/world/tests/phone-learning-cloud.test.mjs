@@ -88,3 +88,12 @@ test('active question defers remote restore; metadata race and archive failure n
  let busy=true;const b=setup(server,{isBusy:()=>busy});await settled(b);assert.equal(b.sync.snapshot().status,'deferred');assert.deepEqual(b.progress.state.completed,{});busy=false;await settled(b);assert.equal(b.progress.state.completed.e01,true);
  b.storage.setItem(`inha-world-learning-sync-v1:user:${A}`,'other tab');complete(b,'e02');await settled(b);assert.equal(b.sync.snapshot().status,'blocked');assert.equal(server.rows.get(A).revision,1);a.sync.dispose();b.sync.dispose();
 });
+test('remote revision rollback or deleted row cannot erase a verified newer local record',async()=>{
+ const server=backend(),a=setup(server);await settled(a);complete(a);await settled(a);server.rows.delete(A);
+ await settled(a);assert.equal(a.sync.snapshot().status,'blocked');assert.equal(a.progress.state.completed.e01,true);assert.equal(a.sync.snapshot().revision,1);a.sync.dispose();
+});
+test('recovery archive quota failure prevents remote replacement',async()=>{
+ const server=backend(),a=setup(server);await settled(a);complete(a);await settled(a);
+ const storage=memoryStorage(),set=storage.setItem.bind(storage);storage.setItem=(k,v)=>{if(k.includes(':recovery:'))throw Error('QUOTA');set(k,v);};
+ const b=setup(server,{storage});await settled(b);assert.notEqual(b.sync.snapshot().status,'synced');assert.deepEqual(b.progress.state.completed,{});assert.equal(server.rows.get(A).revision,1);a.sync.dispose();b.sync.dispose();
+});
