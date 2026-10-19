@@ -1,5 +1,6 @@
 import { SUPABASE_URL } from '../src/online/world-online.js';
 import { isQuestRewardResult } from './quest-reward-shape.mjs';
+import { supabaseServerHeaders } from './supabase-server-key.mjs';
 import { QUEST_ID, QUEST_EVENTS, nextQuestStage } from './quest-contract.mjs';
 import { MAIN2_QUEST_ID, MAIN2_QUEST_EVENTS, nextMain2QuestStage } from './main2-quest-contract.mjs';
 import { MAIN3_QUEST_ID, MAIN3_QUEST_EVENTS, nextMain3QuestStage } from './main3-quest-contract.mjs';
@@ -63,8 +64,7 @@ export function createSupabaseQuestStore({ serviceRoleKey, fetcher = fetch, supa
         : main3 ? 'advance_world_first_style_quest_v1' : 'advance_mcm_2026_event_v1';
     const response = await fetcher(`${supabaseUrl}/rest/v1/rpc/${rpc}`, {
       method: 'POST', signal: AbortSignal.timeout(5000),
-      headers: { apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}`,
-        'Content-Type': 'application/json' },
+      headers: supabaseServerHeaders(serviceRoleKey, { 'Content-Type': 'application/json' }),
       body: JSON.stringify({ p_user: userId, p_event: event })
     });
     if (!response.ok) throw Error('QUEST_STORE_UNAVAILABLE');
@@ -93,8 +93,7 @@ export function createSupabaseQuestStore({ serviceRoleKey, fetcher = fetch, supa
       try {
         const receiptResponse = await fetcher(`${supabaseUrl}/rest/v1/rpc/world_reward_get_result_v1`, {
           method: 'POST', signal: AbortSignal.timeout(2000),
-          headers: { apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}`,
-            'Content-Type': 'application/json' },
+          headers: supabaseServerHeaders(serviceRoleKey, { 'Content-Type': 'application/json' }),
           body: JSON.stringify({ p_idempotency_key: key })
         });
         const receipt = receiptResponse.ok ? await receiptResponse.json() : null;

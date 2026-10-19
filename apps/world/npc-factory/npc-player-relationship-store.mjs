@@ -5,6 +5,7 @@ import {
   resolveNpcAffinityDelta
 } from './npc-player-relationship-registry.mjs';
 import { NPC_RELATIONSHIP_DIALOGUE_EVENT } from './npc-player-relationship-client.mjs';
+import { supabaseServerHeaders } from './supabase-server-key.mjs';
 
 const RESPONSE_STATUS = new Set(['APPLIED','ALREADY_PROCESSED','ALREADY_MET']);
 
@@ -57,11 +58,7 @@ export function createSupabaseNpcRelationshipStore({
     const response = await fetcher(`${supabaseUrl}/rest/v1/rpc/world_campus_npc_relationship_apply_v1`, {
       method: 'POST',
       signal: AbortSignal.timeout(5000),
-      headers: {
-        apikey: serviceRoleKey,
-        Authorization: `Bearer ${serviceRoleKey}`,
-        'Content-Type': 'application/json'
-      },
+      headers: supabaseServerHeaders(serviceRoleKey, { 'Content-Type': 'application/json' }),
       body: JSON.stringify({
         p_user: userId,
         p_npc_id: npcId,

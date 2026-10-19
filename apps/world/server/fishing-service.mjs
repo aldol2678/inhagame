@@ -1,5 +1,6 @@
 import { validateFishingStartRequest, validateFishingInputRequest } from '../src/activity/fishing-core.js';
 import { ACTIVITY_CLIENT_ATTEMPT_KEY_PATTERN } from '../src/activity/activity-contract.js';
+import { supabaseServerHeaders } from '../npc-factory/supabase-server-key.mjs';
 
 const ERRORS = new Map([
   ...['FISHING_POSITION_UNAVAILABLE','FISHING_POSITION_STALE','FISHING_POSITION_INELIGIBLE',
@@ -61,7 +62,7 @@ export function createFishingRpc({ url, serviceKey, fetcher = fetch }) {
     try {
       const response = await fetcher(`${url.replace(/\/$/u, '')}/rest/v1/rpc/${name}`, {
         method: 'POST', signal: AbortSignal.timeout(10000),
-        headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, 'Content-Type': 'application/json' },
+        headers: supabaseServerHeaders(serviceKey, { 'Content-Type': 'application/json' }),
         body: JSON.stringify(args)
       });
       const payload = await response.json();

@@ -1,5 +1,6 @@
 // Self-only C3 read adapter. No discovery, reward, inventory or owner-state writes.
 import { COLLECTION_ENTRY_REGISTRY } from '../src/collection/collection-discovery-contract.mjs';
+import { supabaseServerHeaders } from '../npc-factory/supabase-server-key.mjs';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const READ_RPC = 'world_collection_list_v1';
@@ -74,7 +75,7 @@ export function createCollectionBookRpc({ url, serviceKey, fetcher = fetch }) {
     try {
       const response = await fetcher(`${url.replace(/\/$/, '')}/rest/v1/rpc/${READ_RPC}`, {
         method: 'POST', signal: AbortSignal.timeout(10000),
-        headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, 'Content-Type': 'application/json' },
+        headers: supabaseServerHeaders(serviceKey, { 'Content-Type': 'application/json' }),
         body: JSON.stringify(args)
       });
       const data = await response.json();
