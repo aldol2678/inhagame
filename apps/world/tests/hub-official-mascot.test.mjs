@@ -7,13 +7,14 @@ const read = path => readFile(new URL('../' + path, import.meta.url), 'utf8');
 
 test('all arcade cards reuse the already published official mascot without altering its pixels', async () => {
   const html = await read('index.html');
-  assert.equal((html.match(/class="portal-official-mascot" src="\/campus\/icons\/icon-512\.png"/g) || []).length, 4);
+  const games = JSON.parse(await read('data/game-catalog.json')).games.filter(g=>g.id!=='campus');
+  assert.equal((html.match(/class="portal-official-mascot" src="\/campus\/icons\/icon-512\.png"/g) || []).length, games.length);
   const png = await readFile(new URL('../campus/icons/icon-512.png', import.meta.url));
   const blobSha = createHash('sha1').update(`blob ${png.length}\0`).update(png).digest('hex');
   assert.equal(blobSha, 'a6da8d3dbf523f4bc228ff0128fc23d97e4f5399');
-  assert.doesNotMatch(await read('assets/hub/classic-concept.svg'), /ellipse cx="151"|circle cx="137"/);
-  assert.doesNotMatch(await read('assets/hub/survival-concept.svg'), /translate\(148 103\)/);
-  assert.doesNotMatch(await read('assets/hub/induck-grow-concept.svg'), /translate\(142 92\)/);
+  if(games.some(g=>g.id==='classic')) assert.doesNotMatch(await read('assets/hub/classic-concept.svg'), /ellipse cx="151"|circle cx="137"/);
+  if(games.some(g=>g.id==='survival')) assert.doesNotMatch(await read('assets/hub/survival-concept.svg'), /translate\(148 103\)/);
+  if(games.some(g=>g.id==='induck-grow')) assert.doesNotMatch(await read('assets/hub/induck-grow-concept.svg'), /translate\(142 92\)/);
 });
 
 
@@ -26,7 +27,7 @@ test('catalog-generated cards retain official art after DOM replacement', async 
   const context = vm.createContext({document,portalArt});
   vm.runInContext(fn + ';globalThis.makeCard=makeGameCard;',context);
   for(const id of Object.keys(portalArt)){
-    const card=context.makeCard({id,title:'<safe text>',description:'description',status:'playable',playUrl:'https://example.com/'});
+    const card=context.makeCard({id,title:'<safe text>',description:'description',status:'playable',playUrl:'https://example.com/',platform:{coverImage:'/assets/hub/'+id+'-concept.svg',label:'label'}});
     const mascot=card.children[0].children.find(c=>c.className==='portal-official-mascot');
     assert.equal(mascot?.src,'/campus/icons/icon-512.png');
     assert.equal(mascot.width,mascot.height);

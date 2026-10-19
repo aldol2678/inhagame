@@ -75,6 +75,12 @@ export function needsPortalBrowser(files, { forceFull = false } = {}) {
   if (forceFull || !Array.isArray(files) || files.length === 0) return true;
   return files.some(file => typeof file !== 'string' ||
     file === 'apps/world/index.html' ||
+    file === 'apps/world/game-catalog.js' ||
+    file === 'apps/world/data/game-catalog.json' ||
+    file === 'apps/world/scripts/generate-arcade-pages.mjs' ||
+    file.startsWith('apps/world/arcade/') ||
+    file.startsWith('apps/world/tests/arcade-') ||
+    file === 'apps/world/tests/browser/arcade-layout-smoke.mjs' ||
     /^apps\/world\/hub[^/]*\.(?:css|js|mjs)$/.test(file) ||
     file.startsWith('apps/world/assets/hub/') ||
     /^apps\/world\/tests\/(?:browser\/)?hub[^/]*\.mjs$/.test(file) ||

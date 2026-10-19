@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import gameCatalog from "./game-catalog.js";
 import { BUILDINGS, MAIN_ENTRANCE, HALL_FRONT } from "./src/basic-campus.js";
 import { LANDMARKS, OBSTACLES, TOUR_STOPS } from "./src/campus-layout.js";
 import { ZoneRegistry } from "./src/zone-registry.js";
@@ -973,7 +974,7 @@ assert.equal((hubHtml.match(/href="\/campus\/\?lobby=1"/g) ?? []).length, 1,
   "Hub exposes one primary Campus entry and routes it through Main Lobby");
 assert.equal(hubCatalog.games.find(game => game.id === "campus")?.playUrl, "/campus/?lobby=1",
   "Campus catalog route remains Main Lobby for non-home consumers");
-assert.match(hubSource, /value === "\/campus\/\?lobby=1"/,
+assert.equal(gameCatalog.checkedPlayUrl('/campus/?lobby=1', 'campus'), '/campus/?lobby=1',
   "Hub catalog URL allowlist accepts the Main Lobby campus route");
 assert.match(hubSource, /filter\(\(game\) => game\.id !== "campus"\)/,
   "Home game cards exclude Campus because the hero owns Campus entry");

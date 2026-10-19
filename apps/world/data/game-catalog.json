@@ -19,7 +19,8 @@
       "platform": {
         "genre": "아케이드",
         "label": "원작 아케이드",
-        "coverImage": "/assets/hub/classic-concept.svg"
+        "coverImage": "/assets/hub/classic-concept.svg",
+        "posterLabel": "CLASSIC"
       }
     },
     {
@@ -32,7 +33,8 @@
       "platform": {
         "genre": "아케이드",
         "label": "벽돌깨기",
-        "coverImage": "/assets/hub/induckup-concept.svg"
+        "coverImage": "/assets/hub/induckup-concept.svg",
+        "posterLabel": "INDUCK UP"
       }
     },
     {
@@ -45,7 +47,8 @@
       "platform": {
         "genre": "액션",
         "label": "서바이벌",
-        "coverImage": "/assets/hub/survival-concept.svg"
+        "coverImage": "/assets/hub/survival-concept.svg",
+        "posterLabel": "SURVIVAL"
       }
     },
     {
@@ -58,7 +61,8 @@
       "platform": {
         "genre": "시뮬레이션",
         "label": "생활 시뮬레이션",
-        "coverImage": "/assets/hub/induck-grow-concept.svg"
+        "coverImage": "/assets/hub/induck-grow-concept.svg",
+        "posterLabel": "LIFE SIM"
       }
     }
   ]

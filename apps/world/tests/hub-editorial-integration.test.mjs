@@ -6,7 +6,7 @@ test("editorial portal adds R2 visual/navigation without replacing live account 
  const [html,hub,css,arcade]=await Promise.all([read("../index.html"),read("../hub.js"),read("../hub-editorial.css"),read("../hub-editorial.js")]);
  for(const id of ["ranking","friends","messages","account","settings"])assert.ok(html.includes('data-view="'+id+'"'));
  for(const id of ["hub-login-form","hub-signup-form","hub-delete-account-confirm","hub-message-composer","hub-friends-list","game-cards"])assert.ok(html.includes('id="'+id+'"'));
- for(const game of ["classic","induckup","survival","induck-grow"])assert.ok(html.includes('data-game-id="'+game+'"'));
+ for(const game of JSON.parse(await read("../data/game-catalog.json")).games.filter(g=>g.id!=="campus").map(g=>g.id))assert.ok(html.includes('data-game-id="'+game+'"'));
  assert.match(html,/href="\/campus\/\?lobby=1"/);
  assert.match(html,/body class="editorial-portal"/);
  assert.match(html,/<title>인하월드 \| 캠퍼스 탐험과 인덕 게임 · INHA WORLD<\/title>/);

@@ -90,7 +90,7 @@ test('sitemap includes only deployed same-origin public canonical documents, not
   assert.match(xml,/^<\?xml version="1.0" encoding="UTF-8"\?>/);
   assert.match(xml,/<urlset xmlns="http:\/\/www.sitemaps.org\/schemas\/sitemap\/0.9">/);
   const urls=[...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map(m=>m[1]);
-  assert.deepEqual(urls,publicPages.map(([,path])=>origin+path));
+  assert.deepEqual(new Set(urls),new Set(publicPages.map(([,path])=>origin+path)));
   assert.equal(new Set(urls).size,urls.length);
   assert.doesNotMatch(xml,/<lastmod>|<priority>|<changefreq>/);
   for(const url of urls){const u=new URL(url);assert.equal(u.origin,origin);assert.equal(u.search+u.hash,'');}

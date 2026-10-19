@@ -16,12 +16,7 @@ test('hub production links use inhagame.app domains', async () => {
   const combined = [index, hub, entry, api, catalog].join('\n');
   assert.doesNotMatch(combined, /(?:^|\.)inhagame\.example/);
 
-  for (const url of [
-    'https://duck.inhagame.app/',
-    'https://induckup.inhagame.app/',
-    'https://survival.inhagame.app/',
-    'https://grow.inhagame.app/',
-  ]) {
+  for (const url of JSON.parse(catalog).games.filter(g=>g.id!=='campus'&&g.status==='playable').map(g=>g.playUrl)) {
     assert.ok(index.includes(url), `hub index must link to ${url}`);
     assert.ok(catalog.includes(url), `game catalog must link to ${url}`);
   }
