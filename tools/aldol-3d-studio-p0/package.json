@@ -1,0 +1,13 @@
+{
+  "name": "@aldol/3d-studio-scene-p0",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "check": "node --check src/command-schema.js && node --check src/world-scene-adapter.js && node --check tests/contract.test.mjs",
+    "test:real": "node scripts/test-real.mjs"
+  },
+  "engines": { "node": ">=20" },
+  "types": "./src/index.d.ts"
+}
