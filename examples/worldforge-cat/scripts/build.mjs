@@ -20,6 +20,21 @@ await build({
   target: ['es2022'],
   minify: false,
   nodePaths: [path.join(example, 'node_modules')],
+  // PlayCanvas browser workers use self; their Node fallback must not
+  // introduce a node:worker_threads import into the browser bundle.
+  plugins: [{
+    name: 'worldforge-browser-worker-shim',
+    setup(bundler) {
+      bundler.onResolve({ filter: /^node:worker_threads$/ }, () => ({
+        path: 'node:worker_threads',
+        namespace: 'worldforge-browser-shim'
+      }));
+      bundler.onLoad({ filter: /.*/, namespace: 'worldforge-browser-shim' }, () => ({
+        contents: 'export const parentPort = null;\n',
+        loader: 'js'
+      }));
+    }
+  }],
   logLevel: 'info'
 });
 await copyFile(path.join(example, 'index.html'), path.join(outDir, 'index.html'));
