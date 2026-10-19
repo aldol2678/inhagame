@@ -1,0 +1,19 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Learning cloud isolated QA</title><link rel="stylesheet" href="/phone.css"><link rel="stylesheet" href="/learning.css"></head><body><button id="phone-toggle">Phone</button>
+<script src="/tests/browser/learning-test-sdk.js"></script><script type="module">
+import {createSmartphone} from '/src/phone/smartphone.js';
+import {createInputFocusManager} from '/src/input/input-focus-manager.js';
+import {createLearningCatalog} from '/src/learning/learning-content.js';
+import {createLearningController} from '/src/learning/learning-controller.js';
+import {createLearningCloudTransport} from '/src/learning/learning-cloud.js';
+import {learningFixture} from '/tests/support/learning-fixture.mjs';
+// QA config is injected by Playwright into this test page only, never into main.js.
+const cfg=window.learningTestConfig;
+if(!/^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(cfg.url))throw Error('LOOPBACK_ONLY');
+const client=window.supabase.createClient(cfg.url,cfg.key,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
+await client.auth.setSession(cfg.session);
+const focus=createInputFocusManager();
+const learning=createLearningController({content:createLearningCatalog(learningFixture()),cloudTransport:createLearningCloudTransport({getClient:()=>client,enabled:true})});
+const phone=createSmartphone({inputFocus:focus,learning,photoMode:{subscribe:()=>()=>{}},getMap:()=>null,getSettings:()=>null,getClient:()=>null,getIdentity:()=>null,getProgression:()=>null,toggle:document.getElementById('phone-toggle')});
+phone.setAccount(cfg.session.user.id);
+window.fixture={phone,learning,focus,async switchAccount(session){phone.setAccount(null);if(session)await client.auth.setSession(session);else await client.auth.signOut({scope:'local'});phone.setAccount(session?.user.id??null);},snapshot(){return {learning:learning.snapshot(),world:focus.can('WORLD_ACTION')};}};
+</script></body></html>

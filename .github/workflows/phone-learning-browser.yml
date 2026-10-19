@@ -1,4 +1,4 @@
-name: Phone Learning R1-A QA
+name: Phone Learning QA
 on:
   pull_request:
     paths:
@@ -12,6 +12,10 @@ on:
       - 'apps/world/tests/support/learning-*.mjs'
       - 'apps/world/tests/browser/phone-learning-*'
       - '.github/workflows/phone-learning-browser.yml'
+      - 'supabase/migrations/*learning*'
+      - 'supabase/tests/**/*learning*'
+      - 'scripts/learning-cloud-local.mjs'
+      - 'apps/world/tests/browser/package*.json'
 permissions:
   contents: read
 concurrency:
@@ -61,5 +65,50 @@ jobs:
             test-results/phone-learning/
             test-results/phone-learning-remediation/
             test-results/phone-learning-campus/
+          if-no-files-found: warn
+          retention-days: 7
+
+  cloud:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - uses: supabase/setup-cli@v3
+        with:
+          version: 2.117.0
+      - name: Exact head
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+      - name: Start disposable full-lineage database and Auth API
+        run: supabase start -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
+      - name: SQL RLS and Auth/PostgREST concurrency and economy guards
+        run: |
+          supabase test db supabase/tests/database/96_learning_progress.test.sql
+          node scripts/learning-cloud-local.mjs
+      - name: Install pinned browser and Supabase SDK test client
+        working-directory: apps/world/tests/browser
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npx --no-install playwright install --with-deps chromium
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+      - name: Real local Auth and cloud browser matrix
+        env:
+          PHONE_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node scripts/learning-cloud-local.mjs --browser
+      - name: Stop disposable database
+        if: always()
+        run: supabase stop --no-backup
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: phone-learning-cloud-${{ github.event.pull_request.head.sha }}
+          path: test-results/phone-learning-cloud/
           if-no-files-found: warn
           retention-days: 7

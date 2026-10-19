@@ -1,6 +1,6 @@
 // All UI is inside a caller-owned host. textContent/DOM APIs keep content inert.
 export function renderLearningView({host,doc,model,act,input,guard}) {
-  const {catalog,progress,engine,screen,lang,notice,speechIndex,speechText,speechSupport,backup,importReady,importText,saveState,exportedRecovery,recoveryChoices=[]}=model;
+  const {catalog,progress,engine,screen,lang,notice,speechIndex,speechText,speechSupport,backup,importReady,importText,cloudState,saveState,exportedRecovery,recoveryChoices=[]}=model;
   const root=doc.createElement('section');root.className='learning-app';root.setAttribute('aria-label','인덕캠퍼스 학습');
   const el=(tag,text='',cls='')=>{const n=doc.createElement(tag);n.textContent=text;n.className=cls;return n;};
   const button=(label,action,value,disabled=false)=>{
@@ -24,7 +24,7 @@ export function renderLearningView({host,doc,model,act,input,guard}) {
     const hero=box('오늘은 어떤 실력을 키워 볼까? 🦆');hero.append(el('p',`${languages[lang]} · ${done} / ${ls.length} 레슨 완료`));languagePicker();
     root.append(button('이어서 배우기','lesson',(ls.find(l=>!progress.completed[l.id])||ls[0]).id));
     root.append(button('듣기 · 말하기 연습','screen','speech'),button('오늘의 퀴즈','daily'));
-    root.append(el('p','학습 기록은 이 브라우저에 계정별로 저장됩니다. 서버 저장은 준비 중입니다.','learning-note'));
+    root.append(el('p','학습 기록은 계정별로 보관합니다. 원본 로컬 기록과 백업을 유지하세요.','learning-note'));
   } else if(screen==='lessons') {
     root.append(el('h2','단원별 학습 코스'));languagePicker();
     for(const unit of [...new Set(ls.map(l=>l.unit))]){
@@ -65,6 +65,11 @@ export function renderLearningView({host,doc,model,act,input,guard}) {
     root.append(el('p',`현재 문항 숙달 ${mastered} / ${catalog.questions.length}`));
     for(const [day,record] of Object.entries(progress.learningHistory).sort().reverse().slice(0,30))root.append(el('p',`${day} · ${record.correct} / ${record.answered} 정답`));
     root.append(button('기록 백업 · 가져오기','screen','backup'));
+    if(cloudState.status!=='local')root.append(button('클라우드 다시 확인','sync'));
+    if(cloudState.status==='conflict'){
+      root.append(el('p',`서버 기록 revision ${cloudState.remoteRevision} (${cloudState.remoteCompleted}레슨 완료)과 이 기기 (${cloudState.localCompleted}레슨 완료)의 기록이 달라요. 자동 병합하지 않았습니다. 선택한 쪽의 전체 기록이 적용됩니다. 선택 전 백업하세요. 양쪽 복구 사본도 보관합니다.`));
+      root.append(button('이 기기 기록을 서버에 적용 확인','resolve-local'),button('서버 기록을 이 기기에 적용 확인','resolve-cloud'));
+    }
   } else if(screen==='speech') {
     const qs=catalog.questions.filter(q=>q.language===lang&&q.type==='order'),q=qs[speechIndex%qs.length];
     root.append(el('h2','듣기 · 말하기 연습'));languagePicker();
@@ -83,6 +88,8 @@ export function renderLearningView({host,doc,model,act,input,guard}) {
     const area=el('textarea');area.setAttribute('aria-label','가져올 기록 JSON');area.value=importText||'';area.addEventListener('input',()=>input('import',area.value));root.append(area,button('가져오기 검토','import-preview'));
     if(importReady)root.append(el('p','이 브라우저의 현재 계정에 학습 기록만 병합합니다. 기존 충돌 기록은 유지하고 코인·EXP·순위·문항 원문은 제외합니다.'),button('현재 계정에 병합 확인','import-confirm'));
   }
+  const cloudMessages={'local-unsaved':'이 기기 저장 실패 · 백업 후 다시 시도하세요',limited:'서버 저장 한도 도달 · 기록과 요청을 보관합니다. 나중에 다시 확인하세요',local:'클라우드 연결 꺼짐 또는 게스트',checking:'클라우드 기록 확인 중',pending:'이 기기에 저장 · 클라우드 반영 대기',saving:'클라우드 저장 요청 중',acknowledged:'서버 접수 완료 · 실제 기록 재조회 중',synced:'클라우드 기록 재조회 확인 완료',offline:'오프라인 · 이 기기에 기록 보관',retry:'클라우드 확인 실패 · 기록 보관 후 재시도',conflict:'기록 충돌 · 학습 기록에서 적용할 기록을 선택하세요',blocked:'저장 확인 중단 · 현재 기록을 백업하고 다시 접속하세요',deferred:'서버 기록 복원 대기 · 현재 학습을 마친 뒤 다시 확인하세요'};
   const localNote=el('p',saveState?.status==='saved'?'이 기기에 저장 확인 완료':saveState?.status==='unsaved'?'이 기기에 저장하지 못함':'저장할 학습 기록 없음','learning-local-status');localNote.setAttribute('role','status');root.append(localNote);
+  const cloudNote=el('p',saveState?.status==='unsaved'?'현재 결과 미저장 · 이전 클라우드 확인과 구분됩니다':cloudMessages[cloudState?.status]||cloudMessages.local,'learning-cloud-status');cloudNote.setAttribute('role','status');root.append(cloudNote);
   host.replaceChildren(root);
 }

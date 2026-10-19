@@ -7,6 +7,7 @@
     "smoke": "node boot-smoke.mjs"
   },
   "devDependencies": {
+    "@supabase/supabase-js": "2.118.0",
     "playcanvas": "2.22.4",
     "playwright": "1.63.0"
   }

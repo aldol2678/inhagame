@@ -2,15 +2,20 @@ import {loadApprovedLearningContent,questionKey} from './learning-content.js';
 import {createLearningProgress,learningDay} from './learning-progress.js';
 import {createLearningEngine,normalizeSpoken} from './learning-engine.js';
 import {createLearningSpeech} from './learning-speech.js';
+import {createLearningSync} from './learning-sync.js';
 import {renderLearningView} from './learning-view.js';
 
 export function createLearningController({loadContent=options=>loadApprovedLearningContent(undefined,options),content=null,
   getStorage=()=>globalThis.localStorage,doc=globalThis.document,win=globalThis.window,
-  onDailyQuiz=()=>false,onError=()=>{}}={}) {
+  onDailyQuiz=()=>false,onError=()=>{},cloudTransport=null}={}) {
   let host=null,catalog=content,engine=null,disposed=false,epoch=0,screen='home',lang='en',notice='',
-    speechIndex=0,speechText='',backup='',importText='',importReady=false,exportedRecovery=null,recoveryChoices=[];
+    speechIndex=0,speechText='',backup='',importText='',importReady=false,exportedRecovery=null,recoveryChoices=[],cloudState={status:'local'};
   const abort=new AbortController();
   const progress=createLearningProgress({getStorage,onWarning:text=>{notice=text;}});
+  const sync=createLearningSync({progress,transport:cloudTransport,getStorage,win,
+    isBusy:()=>!!engine?.run&&!engine.run.finished,
+    onRestore:()=>{engine?.reset();screen='home';guard(render);},
+    onStatus:value=>{cloudState=value;if(['home','stats','result'].includes(screen))guard(render);}});
   function speechQuestion(){const qs=catalog?.questions.filter(q=>q.language===lang&&q.type==='order')||[];return qs[speechIndex%qs.length];}
   const speech=createLearningSpeech({win,onStatus:text=>guard(()=>{notice=text;render();}),onText:text=>guard(()=>recordSpeech(text,'mic'))});
   function setup(){if(catalog)engine=createLearningEngine({catalog,progress});}
@@ -19,7 +24,7 @@ export function createLearningController({loadContent=options=>loadApprovedLearn
     if(disposed)return false;catalog=value;setup();return !!catalog;
   }).catch(()=>{if(!disposed){catalog=null;notice='승인된 학습 콘텐츠를 불러오지 못했어요.';}return false;});
   function guard(action){try{return action();}catch{speech.stop();notice='학습 화면을 복구했어요. 홈 또는 스마트폰 닫기를 이용해 주세요.';screen='home';engine?.reset();try{render();}catch{host?.replaceChildren();}onError();return false;}}
-  function render(){if(!host||disposed||!catalog)return;renderLearningView({host,doc,model:{catalog,progress:progress.state,engine,screen,lang,notice,speechIndex,speechText,speechSupport:speech.support(),backup,importReady,importText,saveState:progress.saveState,exportedRecovery:!!exportedRecovery,recoveryChoices},act,input,guard});}
+  function render(){if(!host||disposed||!catalog)return;renderLearningView({host,doc,model:{catalog,progress:progress.state,engine,screen,lang,notice,speechIndex,speechText,speechSupport:speech.support(),backup,importReady,importText,cloudState,saveState:progress.saveState,exportedRecovery:!!exportedRecovery,recoveryChoices},act,input,guard});}
   function input(kind,value){if(kind==='speech')speechText=value;else{importText=value;importReady=false;}}
   function recordSpeech(text,method){
     if(!host||screen!=='speech'||!text.trim())return;
@@ -44,7 +49,9 @@ export function createLearningController({loadContent=options=>loadApprovedLearn
     else if(action==='listen')speech.listen(lang);
     else if(action==='typed')recordSpeech(speechText,'typed');
     else if(action==='speech-next')speechIndex++;
-    else if(action==='retry-save'){outcome=progress.save();if(outcome)notice='이 기기에 저장 확인을 마쳤어요.';}
+    else if(action==='retry-save'){if(progress.save()){notice='이 기기에 저장했어요. 클라우드 상태는 아래에서 확인하세요.';void sync.retry();}}
+    else if(action==='sync')void sync.retry();
+    else if(action==='resolve-local'||action==='resolve-cloud')void sync.resolve(action==='resolve-local'?'local':'cloud');
     else if(action==='recovery-export'){
       exportedRecovery=progress.recoveryBackup();
       backup=JSON.stringify({format:'induck.learning.recovery.bundle',version:1,current:JSON.parse(progress.export()),originalStored:progress.originalBackup(),records:exportedRecovery},null,2);
@@ -59,8 +66,9 @@ export function createLearningController({loadContent=options=>loadApprovedLearn
       if(importText.length>4_500_000)throw Error();const parsed=JSON.parse(importText);recoveryChoices=[];
       if(parsed?.format==='induck.learning.recovery.bundle'&&parsed.version===1){
         if(parsed.current?.progress)recoveryChoices.push(parsed.current.progress);
-        for(const entry of parsed.records||[]){const v=typeof entry.raw==='string'?JSON.parse(entry.raw):entry;if(v.version===1&&v.completed)recoveryChoices.push(v);}
+        for(const entry of parsed.records||[]){const v=typeof entry.raw==='string'?JSON.parse(entry.raw):entry;for(const p of [v.version===1&&v.completed?v:null,v.local,v.cloud?.progress])if(p)recoveryChoices.push(p);}
         for(const p of parsed.localCopies||[])recoveryChoices.push(p);
+        for(const v of parsed.cloudCopies?.records||[])for(const p of [v.local,v.cloud?.progress])if(p)recoveryChoices.push(p);
         importReady=false;notice='복원할 사본을 선택한 뒤 현재 계정으로 가져오기를 확인하세요.';
       }else importReady=true;
     } else if(action==='import-confirm'&&importReady){
@@ -76,8 +84,8 @@ export function createLearningController({loadContent=options=>loadApprovedLearn
   return Object.freeze({ready,available:()=>!disposed&&!!engine,
     mount(target){if(disposed||!engine)return false;if(host!==target)unmount();host=target;return guard(()=>{render();return true;});},
     unmount,
-    setAccount(id){if(disposed)return;unmount();screen='home';lang='en';notice='';speechIndex=0;progress.setAccount(id);engine?.reset();},
-    snapshot:()=>({available:!disposed&&!!engine,mounted:!!host,scope:progress.scope,screen,epoch,run:engine?.snapshot(),progress:JSON.parse(JSON.stringify(progress.state)),save:progress.saveState}),
-    dispose(){if(disposed)return;disposed=true;win?.removeEventListener?.('beforeunload',beforeUnload);abort.abort();unmount();engine=null;catalog=null;progress.clearMemory();}
+    setAccount(id){if(disposed)return;unmount();screen='home';lang='en';notice='';speechIndex=0;sync.setAccount(null);progress.setAccount(id);engine?.reset();sync.setAccount(id);},
+    snapshot:()=>({available:!disposed&&!!engine,mounted:!!host,scope:progress.scope,screen,epoch,run:engine?.snapshot(),progress:JSON.parse(JSON.stringify(progress.state)),cloud:sync.snapshot(),save:progress.saveState}),
+    dispose(){if(disposed)return;disposed=true;win?.removeEventListener?.('beforeunload',beforeUnload);abort.abort();sync.dispose();unmount();engine=null;catalog=null;progress.clearMemory();}
   });
 }
