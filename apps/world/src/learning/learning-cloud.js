@@ -10,7 +10,7 @@ export function createLearningCloudTransport({getClient,enabled=LEARNING_CLOUD_R
     // between getSession and fetch; an explicit Authorization header prevents relabelling.
     const query=client.rpc(name,args).setHeader('Authorization',`Bearer ${data.session.access_token}`).abortSignal(signal);
     const result=await query;if(signal?.aborted)throw Error('ACCOUNT_CHANGED');
-    if(result.error)throw Error(result.error.code==='PT409'?'CONFLICT':result.error.code==='22023'?'INVALID_PROGRESS':'CLOUD_REQUEST_FAILED');
+    if(result.error)throw Error(result.error.code==='PT409'?'CONFLICT':result.error.code==='22023'?'INVALID_PROGRESS':['PT429','PT413'].includes(result.error.code)?'REQUEST_LIMIT':'CLOUD_REQUEST_FAILED');
     if(result.data?.owner!==account)throw Error('ACCOUNT_CHANGED');
     return result.data;
   }

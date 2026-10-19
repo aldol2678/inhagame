@@ -97,3 +97,32 @@ test('recovery archive quota failure prevents remote replacement',async()=>{
  const storage=memoryStorage(),set=storage.setItem.bind(storage);storage.setItem=(k,v)=>{if(k.includes(':recovery:'))throw Error('QUOTA');set(k,v);};
  const b=setup(server,{storage});await settled(b);assert.notEqual(b.sync.snapshot().status,'synced');assert.deepEqual(b.progress.state.completed,{});assert.equal(server.rows.get(A).revision,1);a.sync.dispose();b.sync.dispose();
 });
+
+test('F-02: rapid consecutive saves debounce to one snapshot; repeated offline/online does not add receipts',async()=>{
+ const server=backend(),storage=memoryStorage(),progress=createLearningProgress({getStorage:()=>storage});progress.setAccount(A);
+ const win=new EventTarget();win.navigator={onLine:true};
+ const sync=createLearningSync({progress,transport:server,getStorage:()=>storage,win,retryMs:20});sync.setAccount(A);await sync.sync();
+ for(let i=1;i<=15;i++){progress.state.completed[`e${String(i).padStart(2,'0')}`]=true;progress.save();}
+ await new Promise(r=>setTimeout(r,80));assert.equal(server.writes,1);assert.equal(server.requests.size,1);
+ for(let i=0;i<10;i++){win.navigator.onLine=false;win.dispatchEvent(new Event('offline'));win.navigator.onLine=true;win.dispatchEvent(new Event('online'));await sync.sync();}
+ assert.equal(server.requests.size,1);sync.dispose();
+});
+test('F-02: throttled outbox survives restart with exact UUID and payload, then latest local record follows',async()=>{
+ const server=backend(),a=setup(server);await settled(a);complete(a);const write=server.write;server.write=async()=>{throw Error('REQUEST_LIMIT');};
+ await settled(a);assert.equal(a.sync.snapshot().status,'limited');const metaKey=`inha-world-learning-sync-v1:user:${A}`,pending=JSON.parse(a.storage.getItem(metaKey)).pending;
+ complete(a,'e02');assert.equal(a.sync.snapshot().status,'limited');a.sync.dispose();
+ const b=setup(server,{storage:a.storage});await settled(b);assert.deepEqual(JSON.parse(a.storage.getItem(metaKey)).pending,pending);
+ server.write=write;await settled(b);assert.equal(server.requests.size,2);assert.equal(server.requests.get(A+pending.id).pending.progress.completed.e02,undefined);
+ assert.deepEqual(server.rows.get(A).progress.completed,{e01:true,e02:true});b.sync.dispose();
+});
+test('F-01: local write failure is never announced as durable/cloud synced and can retry without resetting results',async()=>{
+ const server=backend(),a=setup(server);await settled(a);const set=a.storage.setItem;a.storage.setItem=()=>{throw new DOMException('quota','QuotaExceededError');};
+ a.progress.state.completed.e01=true;assert.equal(a.progress.save(),false);await settled(a);assert.equal(a.sync.snapshot().status,'local-unsaved');assert.equal(server.writes,0);
+ a.storage.setItem=set;assert.equal(a.progress.save(),true);await settled(a);assert.equal(a.sync.snapshot().status,'synced');assert.equal(server.rows.get(A).revision,1);a.sync.dispose();
+});
+test('F-02: full recovery archive blocks restore until exported cleanup and explicit retry',async()=>{
+ const server=backend(),a=setup(server);await settled(a);complete(a);await settled(a);
+ const storage=memoryStorage();for(let i=0;i<8;i++)storage.setItem(`inha-world-learning-v1:user:${A}:recovery:old:snapshot:${i}`,JSON.stringify(emptyProgress()));
+ const b=setup(server,{storage});await settled(b);assert.equal(b.sync.snapshot().status,'blocked');assert.deepEqual(b.progress.state.completed,{});
+ const backup=b.progress.recoveryBackup();assert.equal(backup.length,8);b.progress.cleanupRecovery(backup,{confirmed:true});await b.sync.retry();assert.equal(b.sync.snapshot().status,'synced');assert.equal(b.progress.state.completed.e01,true);a.sync.dispose();b.sync.dispose();
+});

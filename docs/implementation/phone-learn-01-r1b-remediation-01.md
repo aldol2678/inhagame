@@ -1,0 +1,68 @@
+# PHONE-LEARN-01 / R1-B-REMEDIATION-01 — review evidence
+
+Review baseline and start-of-task #430 HEAD: `9cf163e58729c47f7ba0cadc6d16714f3f0c0be6`. Rechecked `main`: `1a8466a2bb715dcc44aad3dece83e358ec442ca1`; #429 remains open Draft at `c773b137ec9252573e519dd025c670774c086bbc`. #430 remains a Draft based on `codex/phone-learn-01-r1a`. Final commit and exact-head CI URLs/results are recorded in the PR body, avoiding a self-referential commit hash in this file.
+
+## Findings and changes
+
+| Finding | Cause, implementation and reviewer entry points |
+| --- | --- |
+| F-01 / P1 | `learning-engine.js` discarded the Boolean from `progress.save()` after updating answers/completion. `submit()`/terminal `next()` now propagate it through the controller. `learning-progress.js` exposes `saveState` with saved/unsaved/empty and reason; memory/checked answers/boss result survive failure, retry does not recount. `learning-view.js` shows a persistent unsaved warning and a different result title, separates local persistence from cloud pending, accepted response and verified readback, and offers retry/export. Controller preserves failed import input, warns before unload, and releases its listener on dispose. |
+| F-02 / P1 | Every new UUID retained a full JSON forever; every restoration could add a new browser archive. New migration `20261019022755_world_learning_remediation_limits_contract.sql` enforces request weight, account lifetime and rolling rate limits **after** exact replay lookup. `learning-sync.js` debounces fresh successful saves for five seconds, keeps uncertain outbox UUID/payload immutable, stops automatic retry on a server cap and only commits in-memory metadata after verified local persistence. `learning-recovery.js` bounds combined local/cloud archives and never silently evicts originals. Export/explicit acknowledgement/unchanged-byte cleanup and selectable bundle import live in controller/view. |
+| F-03 / P2 | Server string extraction accepted `"1"`; history dates had regex-only checks; browser sanitization coerced/dropped malformed values. `learning-contract.js` and the new SQL validator enforce exact numeric version, actual Gregorian dates, exact field sets/types/ranges and one shared structural size budget. `sanitizeProgress()` validates and copies; it never repairs native data. Engine emits complete canonical mastery records. Only confirmed versionless legacy imports fill **absent** historic fields and map known static identities; present bad values are validated before version conversion. |
+
+No new framework, runtime dependency, RPC, public permission, content release switch, Wallet/EXP/Daily Quiz/ranking mutation or R2 feature was introduced. Both learning release flags remain OFF.
+
+## F-01 reproduction and recovery semantics
+
+Before changes, the new regression file failed all three baseline cases: final-answer write failure returned `true`; malformed native version/date/field did not throw; 20 new browser writers all created recovery entries without a cap. Isolated original SQL also returned true for a JSON string version `"1"`. After fixes those same assertions pass.
+
+Node tests cover generic write failure, quota, last answer/completion, boss completion, duplicate submit/next, stale-tab refusal, retry, export/reentry, scoped cleanup, recovery bytes, legacy validation and all shared contract vectors. Browser QA fills **actual isolated localStorage to quota** on desktop and 360px, finishes the sixth answer, sees “풀이 종료 · 기록 미저장”, exports, frees only test padding, retries and reloads. It separately injects a storage SecurityError after the final boss answer, closes/reopens Phone, retries without duplicate boss counts, exercises two real stale tabs, exports/cleans/imports recovery bundles and verifies World input restoration.
+
+A stale writer is never allowed to force-overwrite the newer primary. Recovery is export current memory, reopen the latest record, explicitly import the chosen backup. Existing map conflicts use the documented **existing-record-wins** import policy, not fabricated counter addition. Both source backups must be retained when choosing between incompatible counters/snapshots. Full local/cloud conflict selection still rereads the remote revision and archives both alternatives before applying the explicitly chosen snapshot.
+
+Storage failure cannot guarantee survival of process termination, cleared browser data or logout when no durable space exists. The unsaved warning and beforeunload prompt are best effort; save/export before closing or changing accounts. Account changes still clear memory immediately to protect A/B isolation. LocalStorage cannot provide atomic cross-process CAS: per-writer recovery and stale-byte detection remain the safeguard, while server revision CAS is transactional.
+
+## F-02 bounded retention policy and cost
+
+Candidate server limits (not operationally applied):
+
+- Per snapshot: **262,144 conservative JSON weight bytes**. Every accepted string is ASCII; a shared recursive formula reserves at least 32 bytes per number (SQL additionally charges longer alternate numeric spellings), 5 per Boolean, delimiters, keys and string bytes. This upper-bounds the serialized accepted JSON; maximum maps are 5,000 entries each. Browser and SQL use the same formula for client-serialized numeric values; real RPC tests compare calculated weights.
+- Per authenticated owner: **2,048 receipts OR 16,777,216 cumulative weight bytes**, whichever arrives first. One current progress row remains in addition. A new request at capacity returns HTTP 413 / `PT413`; it does not modify revision/progress/receipts. Client retains local progress and the same outbox for explicit retry. Raising limits or migrating receipt storage requires a separately reviewed operational plan.
+- Rolling rate: **12 new receipts/minute, 240/24 hours**. Excess returns HTTP 429 / `PT429`. Duplicate same-ID/same-payload requests return their original acknowledgement even at either cap; same-ID/different-payload is rejected. Five-second trailing debounce coalesces frequent local saves before allocating a new outbox. Unknown requests are never coalesced away.
+- **No automatic TTL deletion.** Receipts live for the account lifetime; normal account deletion cascades. A receipt from a year ago remains replayable. Day/minute expiry restores rate capacity, not lifetime capacity. No cleanup job or production migration is installed. Digest tombstones, epochs and client-confirmed retirement are future design candidates only; deleting payloads/UUIDs on age alone is forbidden under the current v1 replay contract.
+- Existing rows are not silently normalized or deleted. The progress CHECK is `NOT VALID` for historical rows and enforces new writes; validating historical rows and reviewing exceptional data are release gates. Existing over-cap owners stop new writes; old UUID replay is preserved before the new validation/cap checks.
+
+Measured locally through **100 successful real Auth/PostgREST RPC writes**, each with synthetic 200-question mastery: total weight **6,528,000**; compressed JSON storage **173,900 bytes**; isolated copy of the receipt table **including indexes/TOAST: 270,336 bytes**. Rate-limit refusals between batches preserved revision and row count. This compressible test data is a measurement, not a Production cost forecast. The hard per-account logical ceiling is about 16 MiB plus the current snapshot, row/index/WAL/backup overhead. 10,000 saturated accounts alone allow roughly 156.25 GiB of logical receipt payload; operational capacity/alerts and storage budget approval remain mandatory. Limits may interrupt long-lived learners: do not enable cloud until a support/export/capacity policy is approved.
+
+Browser policy: combined local and cloud archives per scope target **8 entries / 2 MiB UTF-16 key+value bytes**. Each save creates an immutable per-writer snapshot key, then retires that writer's previous immutable copy only after primary/readback success. Cleanup therefore cannot race an in-place edit to a snapshot. Pre-remediation mutable rolling keys are exported but excluded from automatic cleanup; close old tabs and retain/export them for separately reviewed legacy cleanup. No age eviction. A full archive stops the attempted save/restore and offers export. Cleanup is available only after exporting and explicitly confirming that the backup file was kept; only the exported keys whose exact bytes are unchanged are removed. Primary progress/outbox and other accounts are excluded. A newer snapshot has a different key and survives cleanup of an exported older key. Replacing a verified writer snapshot briefly needs space for both copies, and different browser processes can race the advisory count/byte check; do not claim a transactional browser quota. Such a race retains extra originals and subsequent writes stop until explicit cleanup. Browser-global quota can fail earlier. Backup bundles include current memory, original stored bytes and scoped recovery records; the UI selects a copy for reviewed import. Previous R1-B bundle fields remain readable.
+
+## F-03 exact data contract
+
+Version is JSON number `1` (numeric `1.0` is equivalent); `"1"`, 2 and missing native versions fail. Dates are `YYYY-MM-DD`, years 0001–9999, with Gregorian month/day and leap-year validation; nullable date fields accept JSON null only. All ten top-level fields and nested allowed fields are exact. Counter values are integers 0–1,000,000, mastery level 0–2, interval 1–14, boss best 0–5, correct <= answered. Unit/language skills are finite numbers 0–100 with at most six decimal places (native engine increments remain integral). Question references use stable ID/version syntax. Unknown fields, answers, coin/EXP/rank fields, wrong types, negative/fractional counters and overlarge values fail closed.
+
+Versionless legacy import is an explicit confirmed conversion: fill missing old mastery/boss/speech fields, preserve valid numeric/date values, map only known static slots, retain unresolved originals in the external backup. Historic wrong-question objects become membership only, discarding their embedded content. Top-level non-learning fields are excluded with a conversion notice. Native v1 objects never enter that path, even inside a backup envelope. Unknown future versions and malformed native local/server/outbox payloads block writes; originals remain available for review/export.
+
+## Verification and reproducible commands
+
+```sh
+node --test apps/world/tests/phone-*.test.mjs apps/world/tests/daily-quiz.test.mjs apps/world/tests/daily-panel-focus.test.mjs apps/world/tests/daily-reward-readback.test.mjs apps/world/tests/pwa-shortcuts.test.mjs
+WORLD_SMOKE_DISABLE_WEBGPU=1 node apps/world/tests/browser/phone-learning-remediation-smoke.mjs
+WORLD_SMOKE_DISABLE_WEBGPU=1 node apps/world/tests/browser/phone-learning-smoke.mjs
+WORLD_SMOKE_DISABLE_WEBGPU=1 node apps/world/tests/browser/phone-learning-campus-smoke.mjs
+# Isolated, disposable local stack; never link/push to Production:
+supabase start -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
+supabase test db supabase/tests/database/96_learning_progress.test.sql supabase/tests/database/97_learning_remediation.test.sql
+node scripts/learning-cloud-local.mjs
+node scripts/learning-cloud-local.mjs --browser
+supabase stop --no-backup
+```
+
+Local evidence before final commit: 100 learning Node tests; SQL **61/61**; real API **3 PASS / 1 SKIP** (minimal local DB has no economy schema, so that result is UNKNOWN locally). Shared browser/server contract matrix, measured repeated writes, A/B/RLS, JWT forgery, public/private direct-write denial, owner/empty definer search path, CAS, immutable replay, old receipts, rate/byte limits and readback pass. Local security advisors: no issues. Native regression, new remediation UI and real-cloud browser matrices pass at PC/360px. Full-lineage cloud CI must pass the economy-delta test without skipping; its exact-head job also runs both SQL files. Required final-head CI results belong in the PR evidence, not inferred from these local runs.
+
+Security/content audit compares every public change against the private 180-item bank using 574 literal/structured fingerprints; evidence remains outside Git. Public fixtures/questions are synthetic. No private bank, answer key or browser service-role credential is added. Final audit result is recorded in the PR body.
+
+## Merge/deployment HOLD and independent review
+
+These fixes include defects inherited from #429. **Do not merge #429 alone at its current SHA merely because #430 fixes them.** Preserve #430 → #429 while reviewing. Before any eventual approved merge, either backport the relevant F-01/F-03/local-retention fixes into #429, rebase #430 and rerun both final-head suites, then merge reviewed parent followed by reviewed child; or prepare a separately reviewed combined integration change. This task performs neither option and authorizes no merge. Any changed parent/head invalidates these CI proofs.
+
+Ark/another independent reviewer must re-review the files above and final CI artifacts; this author's tests and review are **not independent approval**. Production migration/deployment remains HOLD pending lineage validation, historical-contract inspection, retention/capacity/support policy approval, content approval/digest manifest, explicit deployment authorization and real-account rollout review. Physical Android/iOS, real microphone behavior and Production E2E are UNKNOWN. R2 leagues/rewards remain out of scope; personal editable progress is never authoritative economy or league score.

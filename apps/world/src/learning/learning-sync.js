@@ -1,21 +1,23 @@
 import {emptyProgress,sanitizeProgress} from './learning-progress.js';
+import {validProgress} from './learning-contract.js';
+import {writeRecovery} from './learning-recovery.js';
 const copy=v=>JSON.parse(JSON.stringify(v));
 // Stable key ordering makes JSONB readback comparable to local JSON.
 export const stableProgress=v=>JSON.stringify(v,(_k,x)=>x&&typeof x==='object'&&!Array.isArray(x)?Object.fromEntries(Object.keys(x).sort().map(k=>[k,x[k]])):x);
 const same=(a,b)=>stableProgress(a)===stableProgress(b);
-const clean=v=>v?.version===1&&same(v,sanitizeProgress(v));
+const clean=validProgress;
 const revision=n=>Number.isSafeInteger(n)&&n>=0;
 export function createLearningSync({progress,transport,getStorage=()=>globalThis.localStorage,win=globalThis.window,
-  uuid=()=>globalThis.crypto.randomUUID(),onStatus=()=>{},onRestore=()=>{},isBusy=()=>false,timeoutMs=15000,retryMs=1000}) {
+  uuid=()=>globalThis.crypto.randomUUID(),onStatus=()=>{},onRestore=()=>{},isBusy=()=>false,timeoutMs=15000,retryMs=5000}) {
   let account=null,epoch=0,abort=null,job=null,timer=null,retries=0,disposed=false,suppress=false;
-  let meta={version:1,base:null,pending:null},metaRaw=null,remote=null,status='local';
+  let meta={version:1,base:null,pending:null},metaRaw=null,remote=null,status='local',blockedReason=null;
   const key=()=>`inha-world-learning-sync-v1:user:${encodeURIComponent(account)}`;
   function notify(value){status=value;onStatus(snapshot());}
   function snapshot(){return {status,revision:meta.base?.revision??0,pending:!!meta.pending,remoteRevision:remote?.revision??null,localCompleted:Object.keys(progress.state.completed).length,remoteCompleted:Object.keys(remote?.progress?.completed??{}).length};}
-  function persist(){const store=getStorage(),raw=JSON.stringify(meta);if(!store||store.getItem(key())!==metaRaw)throw Error('LOCAL_CONFLICT');store.setItem(key(),raw);if(store.getItem(key())!==raw)throw Error('LOCAL_STORAGE_FAILED');metaRaw=raw;}
+  function persist(next){const store=getStorage(),raw=JSON.stringify(next);if(!store||store.getItem(key())!==metaRaw)throw Error('LOCAL_CONFLICT');store.setItem(key(),raw);if(store.getItem(key())!==raw)throw Error('LOCAL_STORAGE_FAILED');meta=next;metaRaw=raw;}
   function archive(reason,cloud=null){
     const store=getStorage(),k=`${key()}:recovery:${uuid()}`,raw=JSON.stringify({format:'induck.learning.recovery',version:1,reason,local:sanitizeProgress(progress.state),cloud,metadata:meta});
-    try{if(!store)throw Error();store.setItem(k,raw);if(store.getItem(k)!==raw)throw Error();}catch{throw Error('LOCAL_STORAGE_FAILED');}
+    writeRecovery(store,account,k,raw);
   }
   function validate(row){if(row?.owner!==account||!revision(row.revision)||(row.revision===0?row.progress!==null:!clean(row.progress)))throw Error('INVALID_PROGRESS');return row;}
   function replace(value){if(isBusy()){notify('deferred');return false;}archive('before-cloud-restore',remote);suppress=true;try{if(!progress.replace(value))throw Error('LOCAL_CONFLICT');}finally{suppress=false;}onRestore();return true;}
@@ -30,7 +32,7 @@ export function createLearningSync({progress,transport,getStorage=()=>globalThis
       if(expected===undefined||latest.revision!==expected){remote=latest;notify('conflict');return;}
       remote=latest;archive('explicit-conflict-resolution',remote);
       if(choice==='cloud'&&!replace(remote.progress??emptyProgress()))return;
-      meta={version:1,base:{revision:remote.revision,progress:remote.progress??emptyProgress()},pending:null};persist();
+      persist({version:1,base:{revision:remote.revision,progress:remote.progress??emptyProgress()},pending:null});
     }
     // An uncertain request is immutable and retried with the same ID, even after reload.
     if(meta.pending){
@@ -40,33 +42,33 @@ export function createLearningSync({progress,transport,getStorage=()=>globalThis
       notify('acknowledged'); // Accepted response is NOT a verified cloud save.
       remote=await read();
       if(remote.revision!==ack.revision||!same(remote.progress,pending.progress)){notify('conflict');return;}
-      meta.base={revision:remote.revision,progress:remote.progress};meta.pending=null;persist();retries=0;
+      persist({...meta,base:{revision:remote.revision,progress:remote.progress},pending:null});retries=0;
       if(same(sanitizeProgress(progress.state),remote.progress)){notify('synced');return;}
     }
     remote=await read();const local=sanitizeProgress(progress.state),base=meta.base;
     if(base&&remote.revision<base.revision)throw Error('INVALID_PROGRESS');
     if(same(local,remote.progress??emptyProgress())){
-      meta.base={revision:remote.revision,progress:local};persist();notify('synced');retries=0;return;
+      persist({...meta,base:{revision:remote.revision,progress:local}});notify('synced');retries=0;return;
     }
     if(remote.revision!==(base?.revision??0)){
       if(same(local,base?.progress??emptyProgress())){
         if(!replace(remote.progress))return;
-        meta.base={revision:remote.revision,progress:remote.progress};persist();notify('synced');retries=0;return;
+        persist({...meta,base:{revision:remote.revision,progress:remote.progress}});notify('synced');retries=0;return;
       }
       notify('conflict');return;
     }
     // Also require exact base content: revision alone cannot authorize a malformed response.
     if(base&&remote.revision>0&&!same(base.progress,remote.progress))throw Error('INVALID_PROGRESS');
     // Flush/check local bytes before creating a durable outbox; never upload stale-tab state.
-    suppress=true;try{if(!progress.save())throw Error('LOCAL_CONFLICT');}finally{suppress=false;}
-    meta.pending={id:uuid(),revision:remote.revision,progress:local};persist();
+    suppress=true;try{if(!progress.save())throw Error('LOCAL_SAVE_FAILED');}finally{suppress=false;}
+    persist({...meta,pending:{id:uuid(),revision:remote.revision,progress:local}});
     await perform(at,signal);
   }
   function sync(choice){
     if(disposed||!account||!transport?.enabled)return Promise.resolve(false);
     if(job)return job;
     if(status==='blocked'||(status==='conflict'&&!choice))return Promise.resolve(false);
-    if(win?.navigator?.onLine===false){notify('offline');return Promise.resolve(false);}
+    if(win?.navigator?.onLine===false){if(status!=='limited')notify('offline');return Promise.resolve(false);}
     const at=epoch,controller=new AbortController();abort=controller;
     const deadline=setTimeout(()=>controller.abort(),timeoutMs);deadline.unref?.();
     const work=async()=>{
@@ -76,7 +78,9 @@ export function createLearningSync({progress,transport,getStorage=()=>globalThis
         if(at!==epoch||disposed)return false;
         if(error.message==='CONFLICT'){
           try{const latest=await transport.read(account,controller.signal);if(at!==epoch||controller.signal.aborted)return false;remote=validate(latest);notify('conflict');}catch{if(at===epoch){notify('retry');later();}}
-        }else if(['LOCAL_CONFLICT','LOCAL_STORAGE_FAILED','INVALID_PROGRESS'].includes(error.message))notify('blocked');
+        }else if(error.message==='LOCAL_SAVE_FAILED')notify('local-unsaved');
+        else if(error.message==='REQUEST_LIMIT')notify('limited');
+        else if(['LOCAL_CONFLICT','LOCAL_STORAGE_FAILED','INVALID_PROGRESS','RECOVERY_LIMIT'].includes(error.message)){blockedReason=error.message;notify('blocked');}
         else{notify('retry');later();}
         return false;
       }finally{clearTimeout(deadline);if(at===epoch){job=null;abort=null;}}
@@ -88,7 +92,7 @@ export function createLearningSync({progress,transport,getStorage=()=>globalThis
   }
   function stop(){epoch++;abort?.abort();abort=null;job=null;clearTimeout(timer);timer=null;retries=0;remote=null;}
   function setAccount(id){
-    stop();account=typeof id==='string'&&id?id:null;meta={version:1,base:null,pending:null};metaRaw=null;
+    stop();blockedReason=null;account=typeof id==='string'&&id?id:null;meta={version:1,base:null,pending:null};metaRaw=null;
     if(!account||!transport?.enabled){notify('local');return;}
     try{
       metaRaw=getStorage()?.getItem(key())??null;
@@ -99,11 +103,15 @@ export function createLearningSync({progress,transport,getStorage=()=>globalThis
       notify('checking');void sync();
     }catch{notify('blocked');}
   }
-  const unsubscribe=progress.subscribe(()=>{if(suppress||!account||!transport?.enabled)return;if(status!=='conflict'&&status!=='blocked'){notify('pending');retries=0;later();}});
-  const online=()=>{retries=0;void sync();},offline=()=>{abort?.abort();if(account&&transport?.enabled)notify('offline');};
+  const unsubscribe=progress.subscribe(saved=>{
+    if(suppress||!account||!transport?.enabled)return;
+    if(saved.status==='unsaved'){if(!['conflict','blocked','limited'].includes(status))notify('local-unsaved');return;}
+    if(!['conflict','blocked','limited'].includes(status)){notify('pending');retries=0;clearTimeout(timer);timer=null;later();}
+  });
+  const online=()=>{if(status==='limited')return;retries=0;void sync();},offline=()=>{abort?.abort();if(account&&transport?.enabled&&!['limited','blocked','conflict'].includes(status))notify('offline');};
   win?.addEventListener?.('online',online);win?.addEventListener?.('offline',offline);
-  return {snapshot,sync,setAccount,resolve:choice=>['local','cloud'].includes(choice)?sync(choice):Promise.resolve(false),
+  return {snapshot,sync,setAccount,retry(){if(status==='blocked'&&['RECOVERY_LIMIT','LOCAL_STORAGE_FAILED'].includes(blockedReason))notify('pending');return sync();},resolve:choice=>['local','cloud'].includes(choice)?sync(choice):Promise.resolve(false),
     exportRecovery(){const store=getStorage(),rows=[];if(account&&store)for(let i=0;i<store.length;i++){const k=store.key(i);if(k?.startsWith(`${key()}:recovery:`))rows.push(JSON.parse(store.getItem(k)));}return JSON.stringify({format:'induck.learning.recovery.bundle',version:1,records:rows},null,2);},
-    dispose(){disposed=true;stop();account=null;meta={version:1,base:null,pending:null};unsubscribe();win?.removeEventListener?.('online',online);win?.removeEventListener?.('offline',offline);}
+    dispose(){disposed=true;stop();blockedReason=null;account=null;meta={version:1,base:null,pending:null};unsubscribe();win?.removeEventListener?.('online',online);win?.removeEventListener?.('offline',offline);}
   };
 }

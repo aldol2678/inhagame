@@ -64,7 +64,7 @@ try{for(const [name,viewport,mobile] of [['desktop',{width:1280,height:900},fals
   const resolved=await backend.rpc(a,'world_learning_read_v1');assert.equal(resolved.data.progress.completed.e03,true);assert.equal(resolved.data.progress.completed.e04,undefined);
   await button('기록 백업 · 가져오기').click();await button('충돌 복구 사본 내보내기').click();
   const recovery=JSON.parse(await page.getByRole('textbox',{name:'백업 JSON'}).inputValue());
-  assert.ok(recovery.cloudCopies.records.some(r=>r.local.completed.e03&&r.cloud.progress.completed.e04));
+  assert.ok(recovery.records.map(r=>JSON.parse(r.raw)).some(r=>r.local?.completed.e03&&r.cloud?.progress.completed.e04));
   await fresh.close();entry.checks.push('two live browser contexts conflict; explicit choice verifies revision and retains both recovery copies');
   await page.screenshot({path:output+'/'+name+'.png'});assert.deepEqual(errors,[]);assert.equal(await page.evaluate(()=>{const n=document.querySelector('.smartphone-content');return n.scrollWidth>n.clientWidth+2;}),false);
   await button('스마트폰 닫기').click();assert.equal((await snap()).world,true);entry.status='PASS';

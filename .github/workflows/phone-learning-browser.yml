@@ -90,7 +90,7 @@ jobs:
         run: supabase start -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
       - name: SQL RLS and Auth/PostgREST concurrency and economy guards
         run: |
-          supabase test db supabase/tests/database/96_learning_progress.test.sql
+          supabase test db supabase/tests/database/96_learning_progress.test.sql supabase/tests/database/97_learning_remediation.test.sql
           node scripts/learning-cloud-local.mjs
       - name: Install pinned browser and Supabase SDK test client
         working-directory: apps/world/tests/browser
