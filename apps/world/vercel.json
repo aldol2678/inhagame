@@ -50,6 +50,10 @@
       "dest": "/studio/index.html"
     },
     {
+      "src": "/learn/?",
+      "dest": "/learn/index.html"
+    },
+    {
       "handle": "filesystem"
     }
   ],

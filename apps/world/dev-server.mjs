@@ -164,6 +164,8 @@ const server = http.createServer((req, res) => {
   }
   if (reqPath === "/campus" || reqPath === "/campus/") {
     reqPath = "/campus/index.html";
+  } else if (reqPath === "/learn" || reqPath === "/learn/") {
+    reqPath = "/learn/index.html";
   } else if (reqPath === "/profile" || reqPath === "/profile/") {
     reqPath = "/profile/index.html";
   } else if (reqPath === "/editor" || reqPath === "/editor/") {
