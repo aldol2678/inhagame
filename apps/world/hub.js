@@ -85,12 +85,7 @@
     const link = event.target instanceof Element ? event.target.closest("a[href]") : null;
     if (!link) return;
     const destination = new URL(link.href, location.href);
-    const target = {
-      "duck.inhagame.app": "classic",
-      "induckup.inhagame.app": "induckup",
-      "survival.inhagame.app": "survival",
-      "grow.inhagame.app": "induck-grow"
-    }[destination.hostname];
+    const target = window.InhaGameCatalog?.gameIdForUrl(destination.href);
     const campus = destination.origin === location.origin && destination.pathname === "/campus/";
     if (!target && !campus) return;
     const entryId = target
@@ -132,74 +127,28 @@
   observeCards();
   telemetry?.track("hub_panel_view", pages.has(location.hash.slice(1)) ? location.hash.slice(1) : "home");
   // A checked-in manifest is the source of truth; the HTML cards remain usable if loading fails.
-  const gameOrigins = new Set([
-    "https://duck.inhagame.app",
-    "https://induckup.inhagame.app",
-    "https://survival.inhagame.app",
-    "https://grow.inhagame.app"
-  ]);
-
-  function checkedPlayUrl(value) {
-    if (value === "/campus/?lobby=1") return value;
-    if (typeof value !== "string") return null;
-    try {
-      const url = new URL(value);
-      return gameOrigins.has(url.origin) && !url.username && !url.password &&
-        !url.search && !url.hash ? url.href : null;
-    } catch {
-      return null;
-    }
-  }
-
   function readCatalog(payload) {
-    if (payload?.schemaVersion !== 1 || !Array.isArray(payload.games) ||
-        payload.games.length === 0) throw new Error("Unknown game catalog format");
-    const seen = new Set();
-    return payload.games.map((game) => {
-      if (!game || typeof game.id !== "string" || !/^[a-z0-9-]+$/.test(game.id) ||
-          seen.has(game.id) || typeof game.title !== "string" ||
-          !game.title.trim() || game.title.length > 60 ||
-          typeof game.description !== "string" || game.description.length > 160 ||
-          !Number.isInteger(game.sortOrder) || game.sortOrder < 0 ||
-          game.status !== "playable" && game.status !== "planned") {
-        throw new Error("Invalid game catalog entry");
-      }
-      seen.add(game.id);
-      const playUrl = game.status === "playable" ? checkedPlayUrl(game.playUrl) : null;
-      if ((game.status === "playable" && !playUrl) ||
-          (game.status === "planned" && game.playUrl != null)) {
-        throw new Error("Invalid game link or status");
-      }
-      return { id: game.id, title: game.title, description: game.description,
-        status: game.status, sortOrder: game.sortOrder, playUrl };
-    }).sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
+    return window.InhaGameCatalog.readCatalog(payload);
   }
-
-  // Design-only artwork map. Catalog controls visibility/URLs; unknown entries have no invented art.
-  const portalArt = Object.freeze({
-    classic: ["classic", "CLASSIC"],
-    induckup: ["induckup", "INDUCK UP"],
-    survival: ["survival", "SURVIVAL"],
-    "induck-grow": ["induck-grow", "LIFE SIM"]
-  });
 
   function makeGameCard(game) {
     const card = document.createElement("section");
     card.className = "card game-card portal-game";
     card.dataset.gameId = game.id;
+    card.dataset.genre = game.platform?.genre || "기타";
 
     const poster = document.createElement("div");
     poster.className = "portal-poster";
     poster.setAttribute("aria-hidden", "true");
-    const art = portalArt[game.id];
+    const art = game.platform;
     if (art) {
       const image = document.createElement("img");
-      image.src = "/assets/hub/" + art[0] + "-concept.svg";
+      image.src = art.coverImage;
       image.alt = "";
       image.loading = "lazy";
       const artLabel = document.createElement("span");
       artLabel.className = "portal-poster-label";
-      artLabel.textContent = art[1];
+      artLabel.textContent = art.posterLabel || art.label;
       const mascot = document.createElement("img");
       mascot.className = "portal-official-mascot";
       mascot.src = "/campus/icons/icon-512.png";

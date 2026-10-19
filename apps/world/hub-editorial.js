@@ -7,15 +7,15 @@
   const buttons = [...document.querySelectorAll("[data-arcade-filter]")];
   if (!input || !host || !empty || !buttons.length) return;
   let filter = "all";
-  const matchesCategory = (id) => filter === "all" || (filter === "simulation" ? id === "induck-grow" : id !== "induck-grow");
+  const matchesCategory = (genre) => filter === "all" || (filter === "simulation" ? genre === "시뮬레이션" : genre !== "시뮬레이션");
   function update() {
     const term = input.value.trim().toLocaleLowerCase("ko-KR");
     let visible = 0;
     for (const card of host.querySelectorAll(".game-card[data-game-id]")) {
-      const id = card.dataset.gameId || "";
+      const genre = card.dataset.genre || "기타";
       const title = card.querySelector("h3")?.textContent || "";
       const description = card.querySelector("p")?.textContent || "";
-      const show = matchesCategory(id) && (!term || (title + " " + description).toLocaleLowerCase("ko-KR").includes(term));
+      const show = matchesCategory(genre) && (!term || (title + " " + description).toLocaleLowerCase("ko-KR").includes(term));
       card.hidden = !show;
       if (show) visible++;
     }

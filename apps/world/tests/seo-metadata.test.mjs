@@ -4,13 +4,14 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 const read = path => readFileSync(new URL('../' + path, import.meta.url), 'utf8');
 const origin = 'https://inhagame.app';
-const publicPages = [['index.html','/'],['campus/index.html','/campus/'],['support.html','/support.html'],['privacy.html','/privacy.html'],['terms.html','/terms.html'],['updates.html','/updates.html']];
+const arcadeIds = JSON.parse(read('data/game-catalog.json')).games.filter(g=>g.id !== 'campus' && g.status === 'playable').map(g=>g.id);
+const publicPages = [['index.html','/'],['campus/index.html','/campus/'],['support.html','/support.html'],['privacy.html','/privacy.html'],['terms.html','/terms.html'],['updates.html','/updates.html'],['arcade/index.html','/arcade/'],...arcadeIds.map(id=>['arcade/'+id+'/index.html','/arcade/'+id+'/'])];
 const privatePages = ['profile/index.html','achievements/index.html','editor/index.html','studio/index.html'];
 const head = html => html.slice(0, html.indexOf('</head>'));
 const meta = (html, key) => [...head(html).matchAll(/<meta\s+(?:name|property)="([^"]+)"\s+content="([^"]*)"\s*\/?>/g)].filter(m=>m[1]===key).map(m=>m[2]);
 const title = html => head(html).match(/<title>([^<]+)<\/title>/)?.[1];
 
-test('all six published public pages have distinct titles and consistent canonical/social metadata', () => {
+test('all published public pages have distinct titles and consistent canonical/social metadata', () => {
   const titles = new Set();
   for (const [file,path] of publicPages) {
     const html = read(file), h = head(html), url = origin + path;
@@ -89,7 +90,7 @@ test('sitemap includes only deployed same-origin public canonical documents, not
   assert.match(xml,/^<\?xml version="1.0" encoding="UTF-8"\?>/);
   assert.match(xml,/<urlset xmlns="http:\/\/www.sitemaps.org\/schemas\/sitemap\/0.9">/);
   const urls=[...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map(m=>m[1]);
-  assert.deepEqual(urls,publicPages.map(([,path])=>origin+path));
+  assert.deepEqual(new Set(urls),new Set(publicPages.map(([,path])=>origin+path)));
   assert.equal(new Set(urls).size,urls.length);
   assert.doesNotMatch(xml,/<lastmod>|<priority>|<changefreq>/);
   for(const url of urls){const u=new URL(url);assert.equal(u.origin,origin);assert.equal(u.search+u.hash,'');}

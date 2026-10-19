@@ -8,7 +8,10 @@ import { readFile, mkdir, writeFile } from 'node:fs/promises';
 import { resolve, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
-const root = fileURLToPath(new URL('../../', import.meta.url));
+const root = process.env.WORLD_ROOT || fileURLToPath(new URL('../../', import.meta.url));
+const games=JSON.parse(await readFile(resolve(root,'data/game-catalog.json'),'utf8')).games.filter(g=>g.id!=='campus');
+const playable=games.filter(g=>g.status==='playable');
+const simulations=games.filter(g=>g.platform.genre==='시뮬레이션');
 const output = resolve(process.env.EVIDENCE_DIR || 'hub-editorial-layout-evidence');
 await mkdir(output, { recursive: true });
 const server = createServer(async (req, res) => {
@@ -35,7 +38,7 @@ try {
     await page.route('**/*', route => {
       const request = route.request(), url = new URL(request.url());
       if (url.origin !== origin) return route.abort();
-      if (request.resourceType() === 'script' && !['/hub.js','/hub-editorial.js'].includes(url.pathname)) return route.fulfill({ contentType:'text/javascript',body:'' });
+      if (request.resourceType() === 'script' && !['/game-catalog.js','/hub.js','/hub-editorial.js'].includes(url.pathname)) return route.fulfill({ contentType:'text/javascript',body:'' });
       return route.continue();
     });
     await page.goto(origin, {waitUntil:'networkidle'});
@@ -56,15 +59,16 @@ try {
           decoration:getComputedStyle(a).textDecorationLine,
           children:[...a.children].map(c=>{const b=c.getBoundingClientRect();return {top:b.top,bottom:b.bottom};})})),
         gameCards:[...document.querySelectorAll('.portal-game')].map(a=>{
-          const b=a.getBoundingClientRect(),cta=a.querySelector('.portal-game-link').getBoundingClientRect();
+          const b=a.getBoundingClientRect(),cta=a.querySelector('.portal-game-link')?.getBoundingClientRect();
           const mascot=a.querySelector('.portal-official-mascot');
-          return {width:b.width, height:b.height, x:b.x, ctaHeight:cta.height,
+          return {width:b.width, height:b.height, x:b.x, ctaHeight:cta?.height ?? null,
             bodyFont:parseFloat(getComputedStyle(a.querySelector('.portal-card-body p')).fontSize),
             mascotSrc:mascot?.getAttribute('src'), mascotLoaded:!!mascot?.naturalWidth};}),
         controls:[...document.querySelectorAll('.portal-cta-row a')].map(a=>{const b=a.getBoundingClientRect();const hit=document.elementFromPoint(b.x+b.width/2,b.y+b.height/2);return {text:a.textContent.trim(),hit:hit===a || a.contains(hit)};}) };
     });
     // Capture the previously missed lower-page sections after scrolling and loading lazy art.
     for(const [name,selector] of [['arcade','#game-cards'],['discover','.editorial-discover-more'],['news','.portal-info']]) {
+      if(name==='arcade' && games.length===0) continue;
       const section=page.locator(selector); await section.scrollIntoViewIfNeeded();
       await page.waitForFunction(()=>[...document.querySelectorAll('.portal-poster img')].filter(i=>{
         const r=i.getBoundingClientRect();return r.top<innerHeight && r.bottom>0;
@@ -72,8 +76,8 @@ try {
       await section.screenshot({path:resolve(output,`${name}-${width}.png`)});
     }
     metrics.gameCards=await page.locator('.portal-game').evaluateAll(cards=>cards.map(a=>{
-      const b=a.getBoundingClientRect(),cta=a.querySelector('.portal-game-link').getBoundingClientRect(),mascot=a.querySelector('.portal-official-mascot');
-      return {width:b.width,height:b.height,x:b.x,ctaHeight:cta.height,bodyFont:parseFloat(getComputedStyle(a.querySelector('.portal-card-body p')).fontSize),mascotSrc:mascot?.getAttribute('src'),mascotLoaded:!!mascot?.naturalWidth};
+      const b=a.getBoundingClientRect(),cta=a.querySelector('.portal-game-link')?.getBoundingClientRect(),mascot=a.querySelector('.portal-official-mascot');
+      return {width:b.width,height:b.height,x:b.x,ctaHeight:cta?.height ?? null,bodyFont:parseFloat(getComputedStyle(a.querySelector('.portal-card-body p')).fontSize),mascotSrc:mascot?.getAttribute('src'),mascotLoaded:!!mascot?.naturalWidth};
     }));
     // Exercise the editorial filter after the catalog has replaced fallback cards.
     await page.locator('[data-arcade-filter="simulation"]').click();
@@ -120,19 +124,19 @@ try {
       assert.equal(card.decoration,'none','cards are not styled as inline text links');
       for(let i=1;i<card.children.length;i++) assert.ok(card.children[i].top>=card.children[i-1].bottom,'shortcut text rows remain separate');
     }
-    assert.equal(r.gameCards.length,4);
-    assert.equal(r.filteredMascots,1,'simulation filter retains official mascot');
-    assert.equal(r.restoredMascots,4,'all filter restores all official mascots');
-    assert.equal(r.gameCtaClickable.length,4);
+    assert.equal(r.gameCards.length,games.length);
+    assert.equal(r.filteredMascots,simulations.length,'simulation filter follows genre');
+    assert.equal(r.restoredMascots,games.length,'all filter restores all official mascots');
+    assert.equal(r.gameCtaClickable.length,playable.length);
     assert.ok(r.gameCtaClickable.every(Boolean),'all four game links accept pointer clicks');
     for(const card of r.gameCards){
-      assert.ok(card.ctaHeight>=44,'play CTA has a comfortable touch target');
+      if(card.ctaHeight!==null) assert.ok(card.ctaHeight>=44,'play CTA has a comfortable touch target');
       assert.equal(card.mascotSrc,'/campus/icons/icon-512.png');
       assert.equal(card.mascotLoaded,true,'official public mascot loads');
       if(r.viewport<=700){assert.ok(card.width>=r.viewport-32,'mobile game card fills available width');assert.ok(card.bodyFont>=14);}
     }
-    if(r.viewport<=700) assert.ok(r.gameCards.every(c=>c.x===r.gameCards[0].x),'mobile games use one column');
-    else assert.ok(r.gameCards[1].x>r.gameCards[0].x,'larger screens retain multiple columns');
+    if(r.viewport<=700) assert.ok(r.gameCards.every(c=>c.x===r.gameCards[0]?.x),'mobile games use one column');
+    else if(r.gameCards.length>1) assert.ok(r.gameCards[1].x>r.gameCards[0].x,'larger screens retain multiple columns');
     assert.equal(r.bodyBackground,'rgb(245, 242, 236)','paper theme wins base home rules');
     assert.equal(r.headerBackground,'rgba(245, 242, 236, 0.98)','paper header wins base home rules');
     assert.equal(r.overlay,'none','legacy gradient removed');

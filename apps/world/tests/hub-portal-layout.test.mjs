@@ -16,19 +16,19 @@ test('portal homepage retains catalog fallback, game navigation and all non-home
   const games = JSON.parse(catalog).games.filter(g => g.id !== 'campus');
   for (const game of games) {
     assert.ok(html.includes('data-game-id="' + game.id + '"'), game.id);
-    assert.ok(html.includes('href="' + game.playUrl + '"'), game.id);
-    assert.ok(js.includes('portalArt'), 'catalog renderer retains concept art allowlist');
+    if (game.status === 'playable') assert.ok(html.includes('href="' + game.playUrl + '"'), game.id);
+    assert.ok(js.includes('art.coverImage'), 'catalog renderer uses validated art');
   }
-  assert.ok(html.includes('id="classicEventBadge"'));
+  if (games.some(g=>g.id==='classic'&&g.status==='playable')) assert.ok(html.includes('id="classicEventBadge"'));
   assert.match(js, /querySelectorAll\("#game-cards \.game-card\[data-game-id\]"\)/);
   assert.match(js, /hub_card_impression/);
   assert.match(js, /hub_game_click/);
-  assert.match(js, /checkedPlayUrl/);
+  assert.match(js, /InhaGameCatalog.readCatalog/);
   assert.match(js, /existing\.forEach\(\(card\)/);
 });
 
 test('all illustrative SVG files are lightweight, local and declared as concept art', async () => {
-  const names = ['campus','classic','induckup','survival','induck-grow'];
+  const names = JSON.parse(await load('../data/game-catalog.json')).games.map(g=>g.id);
   for (const name of names) {
     const suffix = name === 'campus' ? 'campus-concept.svg' : name + '-concept.svg';
     const image = await load('../assets/hub/' + suffix);
