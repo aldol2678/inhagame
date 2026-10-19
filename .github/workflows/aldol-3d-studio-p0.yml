@@ -1,0 +1,30 @@
+name: ALDOL 3D Studio P0 integration
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'tools/aldol-3d-studio-p0/**'
+      - 'apps/world/src/editor/**'
+      - '.github/workflows/aldol-3d-studio-p0.yml'
+permissions:
+  contents: read
+jobs:
+  scene-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax check
+        working-directory: tools/aldol-3d-studio-p0
+        run: npm run check
+      - name: Contract tests
+        working-directory: tools/aldol-3d-studio-p0
+        run: node --test tests/contract.test.mjs
+      - name: Real INHA WORLD integration gate
+        working-directory: tools/aldol-3d-studio-p0
+        env:
+          INHA_WORLD_EDITOR_DIR: ${{ github.workspace }}/apps/world/src/editor
+        run: npm run test:real
