@@ -35,3 +35,12 @@ test('HTTP origin restricted and default is readonly',async()=>{
   assert.equal(r.status,403);assert.equal((await r.json()).error,'E_ORIGIN_DENIED');
  });
 });
+
+test('ES module .mjs is served with JavaScript MIME, never HTML',async()=>{
+ await runServer(['--allow-write'],async base=>{
+  const r=await fetch(base+'/interaction.mjs');
+  assert.equal(r.status,200);
+  assert.match(r.headers.get('content-type'),/^text\/javascript/);
+  assert.match(await r.text(),/export (const|function)/);
+ });
+});
