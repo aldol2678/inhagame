@@ -20,3 +20,29 @@ export function makeStudioAssetZip(worldText,records){
   const dir=Buffer.concat(directory),end=Buffer.alloc(22);end.writeUInt32LE(0x06054b50,0);end.writeUInt16LE(input.length,8);end.writeUInt16LE(input.length,10);end.writeUInt32LE(dir.length,12);end.writeUInt32LE(offset,16);
   return Buffer.concat([...parts,dir,end]);
 }
+
+// Read only our uncompressed ZIP profile. Never extract paths onto a filesystem.
+export function readStudioAssetZip(bytes) {
+  const bad = () => { throw Error('E_ARCHIVE_INVALID'); };
+  if (!Buffer.isBuffer(bytes) || bytes.length < 22 || bytes.length > 82*1024*1024) bad();
+  const end = bytes.length - 22;
+  if (bytes.readUInt32LE(end) !== 0x06054b50 || bytes.readUInt16LE(end+4) || bytes.readUInt16LE(end+6) || bytes.readUInt16LE(end+20)) bad();
+  const count = bytes.readUInt16LE(end+10), dirSize = bytes.readUInt32LE(end+12), dirStart = bytes.readUInt32LE(end+16);
+  if (!count || count > 501 || bytes.readUInt16LE(end+8) !== count || dirStart+dirSize !== end) bad();
+  const files = new Map(); let cursor = dirStart, localEnd = 0;
+  for (let i = 0; i < count; i++) {
+    if (cursor+46 > end || bytes.readUInt32LE(cursor) !== 0x02014b50) bad();
+    const nameLen=bytes.readUInt16LE(cursor+28), size=bytes.readUInt32LE(cursor+24), offset=bytes.readUInt32LE(cursor+42), crc=bytes.readUInt32LE(cursor+16);
+    if (bytes.readUInt16LE(cursor+8) || bytes.readUInt16LE(cursor+10) || bytes.readUInt16LE(cursor+30) || bytes.readUInt16LE(cursor+32) || bytes.readUInt16LE(cursor+34) || bytes.readUInt32LE(cursor+20)!==size || cursor+46+nameLen>end) bad();
+    const name=bytes.toString('utf8',cursor+46,cursor+46+nameLen);
+    if (name!=='world.json' && !/^assets\/[a-f0-9]{64}\.(glb|png)$/.test(name)) throw Error('E_ARCHIVE_PATH');
+    if (files.has(name)) throw Error('E_ARCHIVE_DUP');
+    if (size > (name==='world.json'?1024*1024:20*1024*1024) || offset!==localEnd || offset+30+nameLen+size>dirStart || bytes.readUInt32LE(offset)!==0x04034b50) bad();
+    if (bytes.readUInt16LE(offset+6) || bytes.readUInt16LE(offset+8) || bytes.readUInt32LE(offset+14)!==crc || bytes.readUInt32LE(offset+18)!==size || bytes.readUInt32LE(offset+22)!==size || bytes.readUInt16LE(offset+26)!==nameLen || bytes.readUInt16LE(offset+28) || bytes.toString('utf8',offset+30,offset+30+nameLen)!==name) bad();
+    const data=bytes.subarray(offset+30+nameLen,offset+30+nameLen+size);
+    if(crc32(data)!==crc) throw Error('E_ARCHIVE_CRC');
+    files.set(name,data); localEnd=offset+30+nameLen+size; cursor+=46+nameLen;
+  }
+  if (cursor!==end || localEnd!==dirStart || !files.has('world.json')) bad();
+  return files;
+}

@@ -10,9 +10,9 @@ async function list(){
   for(const item of assets){
    const line=document.createElement('div');line.className='factory-asset';
    const name=document.createElement('span');text(name,item.file+' · '+item.structure.format.toUpperCase());
-   const place=document.createElement('button');text(place,'프록시 배치');place.type='button';
+   const place=document.createElement('button');text(place,'모델 배치');place.type='button';
    place.disabled=item.structure.format!=='glb'||!canWrite;
-   place.title='이 버튼은 모델 메시가 아닌 위치·참조 노드를 배치합니다. 게임 내 GLB 렌더링은 별도 검증이 필요합니다.';
+   place.title='검증된 GLB를 PlayCanvas 장면에 배치합니다. 지원하지 않는 모델은 오류로 표시합니다.';
    place.addEventListener('click',async()=>{
     place.disabled=true;
     try{
@@ -26,7 +26,7 @@ async function list(){
      };
      const r=await json('/api/command',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({commandId:'factory.place.'+Date.now()+'.'+Math.random(),expectedRevision:snapshot.revisionToken,operation:'node.create',payload})});
      if(r.status!=='applied')throw Error(r.diagnosticCode||r.status);
-     text(el('status'),'Factory 참조 프록시 배치됨 · GLB 실제 렌더링은 미검증');
+     text(el('status'),'Factory 모델 배치됨 · GLB 로딩 상태를 확인하세요');
      window.dispatchEvent(new Event('studio:external-change'));
     }catch(e){text(el('status'),'에셋 배치 거부: '+e.message);}
     finally{place.disabled=false;}
@@ -57,3 +57,5 @@ button.addEventListener('click',async()=>{
  finally{update();}
 });
 (async()=>{try{const h=await json('/api/health');canWrite=h.allowWrite;update();await list();}catch(e){text(root,'에셋 서비스 연결 오류: '+e.message);}})();
+
+window.addEventListener('studio:external-change',list);

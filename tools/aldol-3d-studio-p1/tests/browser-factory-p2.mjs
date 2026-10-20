@@ -29,7 +29,7 @@ try{
  await page.waitForFunction(()=>document.querySelectorAll('.factory-asset').length===1);
  assert.match(await page.locator('#status').textContent(),/검증|등록/);
  const row=page.locator('.factory-asset');assert.match(await row.textContent(),/sample.glb/);
- await row.getByText('프록시 배치').click();
+ await row.getByText('모델 배치').click();
  await page.waitForFunction(()=>document.querySelectorAll('.node-row').length===1);
  const r=await page.request.get(host+'/api/assets/package');
  assert.equal(r.status(),200);const zip=await r.body();assert.ok(zip.includes(bytes));

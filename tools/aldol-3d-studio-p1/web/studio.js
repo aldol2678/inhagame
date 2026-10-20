@@ -1,17 +1,35 @@
+import {createModelViewport} from './model-viewport.mjs';
 import {dragTransform,projectedAxis,sceneHierarchy,canReparent,screenToGround} from './interaction.mjs';
 const $=id=>document.getElementById(id);
 const canvas=$('canvas');
-// The editor is deliberately standalone WebGL, not a PlayCanvas runtime.
+// Primitive scenes use the original viewport; GLB scenes use pinned PlayCanvas.
 // If a GPU context is lost after creation, a second canvas is required for 2D fallback.
 const gl=canvas.getContext('webgl2',{antialias:true})||canvas.getContext('webgl',{antialias:true});
 let ctx2d=gl?null:canvas.getContext('2d');
 let paintCanvas=canvas;
 let renderMode=gl?'webgl':ctx2d?'canvas':'unavailable';
 let renderFailure='';
+let modelViewport=null,modelStarting=false,modelGeneration=0,modelActive=false;
+const modelStatus=document.createElement('div');modelStatus.id='model-status';modelStatus.className='model-status';modelStatus.hidden=true;canvas.parentElement.append(modelStatus);
+function reportModels(result){modelStatus.hidden=result.state==='ready';modelStatus.dataset.state=result.state;modelStatus.textContent=result.state==='ready'?'GLB · PlayCanvas 2.22.4':result.state==='loading'?'GLB 로딩 중':`GLB 표시 제한: ${result.diagnostics.join('; ')}`;}
+async function syncModels(){
+ const generation=++modelGeneration;
+ if(!scene.nodes.some(n=>n.renderAssetId)){modelViewport?.dispose();modelViewport=null;modelActive=false;modelStatus.hidden=true;showRenderer();return;}
+ if(!modelViewport&&modelStarting)return;
+ try{
+  if(!modelViewport){modelStarting=true;reportModels({state:'loading'});const created=await createModelViewport(canvas,reportModels);modelStarting=false;
+   if(!scene.nodes.some(n=>n.renderAssetId)){created.dispose();modelStatus.hidden=true;return;}modelViewport=created;}
+  const records=await api('/api/assets');
+  if(generation!==modelGeneration){return syncModels();}
+  modelActive=true;showRenderer();await modelViewport.sync(scene.nodes,records.assets);
+ }catch(error){modelStarting=false;reportModels({state:'limited',diagnostics:[error.message]});}
+}
+
 function showRenderer(){
  const badge=document.getElementById('renderer-status');
  badge.textContent=renderMode==='webgl'?'WebGL 장면':renderMode==='canvas'?'Canvas 대체 장면':'렌더링 사용 불가';
- badge.dataset.mode=renderMode;
+ badge.dataset.mode=modelActive?'playcanvas':renderMode;
+ if(modelActive)badge.textContent='PlayCanvas GLB 장면';
  if(renderFailure)badge.title=renderFailure;
 }
 function fallbackRenderer(reason){
@@ -35,7 +53,7 @@ const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 const status=(msg)=>{$('status').textContent=msg;};
 const api=async(path,opts={})=>{const r=await fetch(path,{cache:'no-store',...opts});const x=await r.json();if(!r.ok)throw Error(x.error||'Request failed');return x;};
 window.addEventListener('studio:external-change',()=>refresh().catch(error=>status('새로고침 실패: '+error.message)));
-async function refresh(){scene=await api('/api/scene');$('node-count').textContent=scene.nodes.length;$('revision').textContent=scene.revisionToken.split(':').slice(0,2).join(' ').toUpperCase();if(!scene.nodes.some(n=>n.id===selectedId))selectedId=null;paintNodes();paintInspector();$('empty-hint').hidden=scene.nodes.length!==0;}
+async function refresh(){scene=await api('/api/scene');$('node-count').textContent=scene.nodes.length;$('revision').textContent=scene.revisionToken.split(':').slice(0,2).join(' ').toUpperCase();if(!scene.nodes.some(n=>n.id===selectedId))selectedId=null;paintNodes();paintInspector();$('empty-hint').hidden=scene.nodes.length!==0;void syncModels();}
 function chooseNode(id){selectedId=id;liveTransform=null;paintNodes();paintInspector();}
 function reparentNode(id,parentId){
  if(!health.allowWrite||!canReparent(scene.nodes,id,parentId)){status('부모 변경 불가: 순환 또는 권한 제한');return;}
@@ -170,7 +188,7 @@ function drawCanvasFallback(){
  const corner=[[-.5,-.5,-.5],[.5,-.5,-.5],[.5,.5,-.5],[-.5,.5,-.5],[-.5,-.5,.5],[.5,-.5,.5],[.5,.5,.5],[-.5,.5,.5]];
  const faces=[[4,5,6,7],[1,0,3,2],[0,4,7,3],[5,1,2,6],[7,6,2,3],[0,1,5,4]];
  const drawables=[];
- for(const n of visualNodes()){if(!n.enabled)continue;const m=n.ghost?modelMatrix(n.transform.position,n.transform.rotation,n.transform.scale):nodeModelMatrix(n);
+ for(const n of visualNodes()){if(!nodeVisible(n)||n.renderAssetId)continue;const m=n.ghost?modelMatrix(n.transform.position,n.transform.rotation,n.transform.scale):nodeModelMatrix(n);
   const transformed=corner.map(v=>{const p=[];for(let row=0;row<3;row++)p[row]=m[12+row]+m[row]*v[0]+m[4+row]*v[1]+m[8+row]*v[2];return p;});
   faces.forEach((f,i)=>{const pts=f.map(j=>projected(transformed[j]));const depth=pts.reduce((s,p)=>s+p[2],0)/4;drawables.push({pts,depth,i,selected:n.id===selectedId});});
  }
@@ -180,10 +198,12 @@ function drawCanvasFallback(){
 }
 function frame(){if(renderMode==='webgl'&&gl.isContextLost()){fallbackRenderer('WebGL context lost');}
  if(renderMode==='webgl'&&prog){try{const w=canvas.clientWidth,h=canvas.clientHeight,dpr=Math.min(window.devicePixelRatio||1,2);if(canvas.width!==Math.floor(w*dpr)||canvas.height!==Math.floor(h*dpr)){canvas.width=Math.max(1,Math.floor(w*dpr));canvas.height=Math.max(1,Math.floor(h*dpr));}gl.viewport(0,0,canvas.width,canvas.height);gl.clearColor(.075,.106,.145,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);proj=perspective(45*Math.PI/180,w/Math.max(h,1),.1,150);const eye=[Math.sin(yawCam)*Math.cos(pitchCam)*distance,Math.sin(pitchCam)*distance,Math.cos(yawCam)*Math.cos(pitchCam)*distance];view=lookAt(eye,[0,0,0]);pv=mat4mul(proj,view);gl.useProgram(prog);draw(bufGrid,grid,pv,[.17,.23,.31],gl.LINES);draw(bufAxes,axis,pv,[.32,.43,.56],gl.LINES);
- for(const n of visualNodes()){if(!n.enabled)continue;const model=n.ghost?modelMatrix(n.transform.position,n.transform.rotation,n.transform.scale):nodeModelMatrix(n),mat=mat4mul(pv,model);const color=n.id===selectedId?[.93,.74,.4]:n.ghost?[.92,.57,.26]:[.57,.71,.79];draw(bufCube,cube,mat,color,gl.TRIANGLES);}}catch(error){fallbackRenderer('WebGL draw failure: '+error.message);}}
+ for(const n of visualNodes()){if(!nodeVisible(n)||n.renderAssetId)continue;const model=n.ghost?modelMatrix(n.transform.position,n.transform.rotation,n.transform.scale):nodeModelMatrix(n),mat=mat4mul(pv,model);const color=n.id===selectedId?[.93,.74,.4]:n.ghost?[.92,.57,.26]:[.57,.71,.79];draw(bufCube,cube,mat,color,gl.TRIANGLES);}}catch(error){fallbackRenderer('WebGL draw failure: '+error.message);}}
  if(renderMode==='canvas'&&ctx2d)drawCanvasFallback();
+ if(modelViewport){try{modelViewport.frame(visualNodes(),[Math.sin(yawCam)*Math.cos(pitchCam)*distance,Math.sin(pitchCam)*distance,Math.cos(yawCam)*Math.cos(pitchCam)*distance],selectedId);}catch(error){reportModels({state:'limited',diagnostics:[error.message]});}}
  syncGizmo();requestAnimationFrame(frame);}
 requestAnimationFrame(frame);
+function nodeVisible(n,seen=new Set()){if(n.enabled===false||seen.has(n.id))return false;seen.add(n.id);const parent=scene.nodes.find(x=>x.id===n.parentId);return !parent||nodeVisible(parent,seen);}
 function visualNodes(){
  const nodes=scene.nodes.map(n=>n.id===selectedId&&liveTransform?{...n,transform:liveTransform}:n);
  if(pendingKind&&placementPoint){const p=presets[pendingKind];nodes.push({id:'~placement',name:'배치 미리보기',enabled:true,ghost:true,transform:{position:[placementPoint[0],p.y,placementPoint[2]],rotation:[0,0,0,1],scale:p.scale}});}
@@ -245,7 +265,7 @@ const touches=new Map();
 let gestureHadMultiple=false,gestureMoved=false,lastPinchDistance=null;
 function canvasPoint(e){const b=canvas.getBoundingClientRect();return [e.clientX-b.left,e.clientY-b.top];}
 function getGround(e){const [x,y]=canvasPoint(e);return screenToGround(x,y,canvas.clientWidth,canvas.clientHeight,yawCam,pitchCam,distance);}
-function pickNode(e){if(!scene.nodes.length||!pv)return;const [px,py]=canvasPoint(e);let nearest=null,best=50;for(const n of scene.nodes){const p=projected(worldPoint(n,n.transform.position));const d=Math.hypot(p[0]-px,p[1]-py);if(d<best&&p[2]>-1&&p[2]<1){best=d;nearest=n.id;}}if(nearest)chooseNode(nearest);else chooseNode(null);}
+function pickNode(e){if(!scene.nodes.length||!pv)return;const [px,py]=canvasPoint(e);let nearest=null,best=50;for(const n of scene.nodes){if(!nodeVisible(n))continue;const p=projected(worldPoint(n,n.transform.position));const d=Math.hypot(p[0]-px,p[1]-py);if(d<best&&p[2]>-1&&p[2]<1){best=d;nearest=n.id;}}if(nearest)chooseNode(nearest);else chooseNode(null);}
 function clearPointer(e){touches.delete(e.pointerId);if(touches.size<2)lastPinchDistance=null;if(!touches.size){gestureMoved=false;gestureHadMultiple=false;}}
 canvas.addEventListener('pointerdown',e=>{
  if(!touches.size){gestureMoved=false;gestureHadMultiple=false;lastPinchDistance=null;}
