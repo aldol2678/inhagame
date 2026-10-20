@@ -1,0 +1,12 @@
+✔ Runtime Adapter preserves IDs, hierarchy, local transforms and component registrations (4.326982ms)
+✔ world.structure is a first-class Runtime Adapter component (2.305048ms)
+✔ same model is loaded once; failed model becomes an isolated placeholder (6.069757ms)
+✔ missing soft ref disables only that registration; invalid schema is fatal before scene creation (1.528974ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 120.451754

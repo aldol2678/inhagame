@@ -1,0 +1,17 @@
+PASS placement cancellation leaves scene empty
+PASS pointercancel prevents placement; following single touch creates/selects one real entity
+PASS touch move gizmo commits once; undo/redo restore real transforms
+PASS touch rotate gizmo commits once; undo/redo restore real transforms
+PASS touch scale gizmo commits once; undo/redo restore real transforms
+PASS gizmo pointercancel preserves committed revision and transform
+PASS second finger cancels an active gizmo without accidental commit
+PASS single finger camera orbit changes projection without mutating scene
+PASS two-finger pinch changes camera projection without ghost edits
+PASS pinch while placement armed does not create a ghost object
+PASS touch blank canvas deselects; touch object selects
+PASS orientation change cancels active gizmo without saving stale drag coordinates
+PASS viewport/orientation 320x568: canvas/panels/footer/actions fit
+PASS viewport/orientation 740x360: canvas/panels/footer/actions fit
+PASS viewport/orientation 844x390: canvas/panels/footer/actions fit
+PASS viewport/orientation 390x844: canvas/panels/footer/actions fit
+PASS mobile JavaScript and console errors absent

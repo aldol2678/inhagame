@@ -206,9 +206,21 @@ function syncGizmo(){
  }
 }
 function cancelGizmo(){if(activeGizmo){activeGizmo=null;liveTransform=null;paintInspector();status('조작 취소');}}
+// Track touches across both canvas and handles so crossing their boundary cannot
+// turn a two-finger gesture into a committed transform.
+const viewportTouches=new Set();
+const viewport=document.querySelector('.viewport');
+viewport.addEventListener('pointerdown',e=>{
+ if(e.pointerType!=='touch')return;
+ viewportTouches.add(e.pointerId);
+ if(viewportTouches.size>1)cancelGizmo();
+},true);
+for(const event of ['pointerup','pointercancel','lostpointercapture']){
+ viewport.addEventListener(event,e=>viewportTouches.delete(e.pointerId),true);
+}
 for(const handle of handles){
  handle.addEventListener('pointerdown',e=>{
-  const n=scene.nodes.find(x=>x.id===selectedId);if(!n||!health.allowWrite||busy||pendingKind)return;
+  const n=scene.nodes.find(x=>x.id===selectedId);if(!n||!health.allowWrite||busy||pendingKind||viewportTouches.size>1)return;
   e.preventDefault();e.stopPropagation();handle.setPointerCapture(e.pointerId);
   activeGizmo={pointerId:e.pointerId,axis:handle.dataset.gizmoAxis,mode:toolMode,startX:e.clientX,startY:e.clientY,startTransform:structuredClone(n.transform),screenAxis:screenAxis(n,handle.dataset.gizmoAxis),selectedId};
  });
@@ -238,7 +250,7 @@ canvas.addEventListener('pointerdown',e=>{
  if(!touches.size){gestureMoved=false;gestureHadMultiple=false;lastPinchDistance=null;}
  canvas.setPointerCapture(e.pointerId);
  touches.set(e.pointerId,{x:e.clientX,y:e.clientY,startX:e.clientX,startY:e.clientY});
- if(touches.size>1){gestureHadMultiple=true;gestureMoved=true;}
+ if(touches.size>1||viewportTouches.size>1){gestureHadMultiple=true;gestureMoved=true;}
 });
 canvas.addEventListener('pointermove',e=>{
  if(!touches.has(e.pointerId)){if(pendingKind)placementPoint=getGround(e);return;}
@@ -261,6 +273,10 @@ canvas.addEventListener('pointerup',async e=>{
 });
 canvas.addEventListener('pointercancel',clearPointer);
 canvas.addEventListener('lostpointercapture',clearPointer);
+window.addEventListener('resize',()=>{
+ cancelGizmo();touches.clear();viewportTouches.clear();
+ gestureMoved=false;gestureHadMultiple=false;lastPinchDistance=null;
+});
 canvas.addEventListener('wheel',e=>{e.preventDefault();distance=clamp(distance*(e.deltaY>0?1.12:.89),3,60);},{passive:false});
 canvas.addEventListener('dragover',e=>{if(health.allowWrite&&e.dataTransfer.types.includes('application/x-aldol-prefab')){e.preventDefault();e.dataTransfer.dropEffect='copy';placementPoint=getGround(e);}});
 canvas.addEventListener('drop',async e=>{e.preventDefault();const kind=e.dataTransfer.getData('application/x-aldol-prefab');if(presets[kind]&&health.allowWrite){const p=getGround(e);if(p)await create(kind,p);else status('바닥 배치 지점이 유효하지 않음');}});

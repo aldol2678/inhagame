@@ -12,7 +12,9 @@
     "test": "node --test tests/adapter.test.mjs tests/mcp.test.mjs tests/http.test.mjs tests/interaction.test.mjs",
     "test:real": "node tests/real-integration.mjs",
     "test:mcp": "node --test tests/mcp.test.mjs",
-    "studio": "node bin/dev-server.mjs"
+    "studio": "node bin/dev-server.mjs",
+    "test:runtime": "cd ../.. && node tools/aldol-3d-studio-p1/tests/browser-runtime-p12.mjs",
+    "test:mobile": "cd ../.. && node tools/aldol-3d-studio-p1/tests/browser-mobile-p12.mjs"
   },
   "bin": {
     "aldol-3d-mcp": "./bin/mcp-stdio.mjs"

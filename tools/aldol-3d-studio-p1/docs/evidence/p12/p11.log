@@ -1,0 +1,3 @@
+P11_RENDER_PIXELS_PASS renderer=webgl changedPixels=13702
+P11_MOBILE_EMULATION_PASS pinchNoGhostPlacement=true touchPlacement=true overflow=false
+REMAINING_NOT_VERIFIED PlayCanvas runtime, physical touch devices, production hosting

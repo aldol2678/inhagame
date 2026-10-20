@@ -53,14 +53,14 @@ Local MCP defaults to **read-only**. Explicit `--allow-write` is required for sc
 
 ```bash
 npm run check           # Node syntax validation
-npm test                # 30 mock, command, geometry, HTTP, MCP regression tests
+npm test                # 31 mock, command, geometry, HTTP, MCP regression tests
 INHA_WORLD_EDITOR_DIR=/path/to/inhagame/apps/world/src/editor npm run test:real
                        # Exactly 8 PASS, 2 SKIP and 0 FAIL required
 ```
 
 `.github/workflows/aldol-3d-studio-p1.yml` runs these commands against the **tracked, readable source**, not archived transport. A separate one-time GitHub Actions migration verified archive parity and ran the same tests **before** committing the readable files and later retiring the compressed archive.
 
-The two real-source SKIPs are **C13 PlayCanvas runtime** and **C14 full browser regression**. The existing browser emulation QA did not prove full hosted PlayCanvas, real-device touch or production HTTP behavior.
+The Node class suite retains two SKIPs: C13 runs in the separate P1.2 browser gate; physical Android/iOS C14 is still blocked. [P1.2 runtime/mobile evidence and reproduction](docs/P12-qa.md) covers the actual offline `/campus/?editorWorld=1` PlayCanvas loader and Chromium touch emulation. This does not certify production hosting, hardware GPU behavior or physical mobile devices.
 
 ## Security and release constraints
 
