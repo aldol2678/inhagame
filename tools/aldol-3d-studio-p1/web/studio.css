@@ -62,3 +62,15 @@
  .viewport-bottom{justify-content:flex-end}
  .placement-banner{white-space:normal;width:max-content}
 }
+
+.factory-panel{border-top:1px solid #334454;padding:14px 12px;display:flex;flex-direction:column;gap:8px}
+.factory-title{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:11px;letter-spacing:.07em;color:#c5d7e6}
+.factory-title small{font-size:9px;color:#9bb8cc}
+.factory-panel label{font-size:11px;color:#c5d7e6}
+.factory-panel input{display:block;width:100%;min-width:0;font-size:11px;color:#c7d9e8;background:#1d2b39;border:1px solid #425568;padding:6px;border-radius:5px}
+.factory-panel button{border:1px solid #617f9e;border-radius:5px;background:#213b51;color:#f1f7fc;min-height:40px;padding:7px;cursor:pointer}
+.factory-panel button:disabled{opacity:.48;cursor:not-allowed}
+.factory-note{font-size:10px;line-height:1.5;color:#99acbf}
+.factory-asset{display:flex;flex-direction:column;gap:5px;border:1px solid #354b5f;padding:7px;border-radius:5px;font-size:11px;word-break:break-all}
+.factory-export{display:inline-flex;align-items:center;justify-content:center;text-decoration:none}
+@media(max-width:740px){.factory-panel{padding:10px}.factory-panel button{min-height:44px}.factory-export{font-size:11px}}
