@@ -56,8 +56,9 @@ export function inspectPng(bytes){
 }
 export class FactoryAssetBridge{
   constructor(port){this.port=port;this.files=new Map();this.totalBytes=0;}
-  list(){return [...this.files.values()].map(({bytes,...details})=>({...details}));}
-  get(assetId){return this.files.get(assetId)||null;}
+  active(assetId){return this.port.world.snapshot().assets.some(a=>a.id===assetId);}
+  list(){return [...this.files.values()].filter(x=>this.active(x.assetId)).map(({bytes,...details})=>({...details}));}
+  get(assetId){return this.active(assetId)?this.files.get(assetId)||null:null;}
   import({file,contentsBase64,manifest}){
     if(typeof file!=='string'||!safeName(file)||!['glb','png'].includes(ext(file)))err('E_IMPORT_TYPE');
     if(typeof contentsBase64!=='string'||contentsBase64.length>(MAX_ASSET_BYTES*4/3+8)||!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(contentsBase64))err('E_IMPORT_BASE64');
@@ -75,6 +76,11 @@ export class FactoryAssetBridge{
     if(this.files.has(id)){
       const old=this.files.get(id);
       if(old.sha256!==digest)err('E_ASSET_ID_COLLISION');
+      if(!this.active(id)){
+        if(this.port.world.snapshot().assets.some(a=>a.id===id))err('E_ASSET_ID_COLLISION');
+        this.port.commands.addAsset(old.asset);this.port.read();
+        return {...this.public(old),alreadyImported:false,recoveredAfterUndo:true};
+      }
       return {...this.public(old),alreadyImported:true};
     }
     if(this.totalBytes+bytes.length>MAX_TOTAL_BYTES)err('E_FACTORY_TOO_LARGE');
@@ -83,9 +89,9 @@ export class FactoryAssetBridge{
     if(this.port.world.snapshot().assets.some(a=>a.id===id||a.uri===asset.uri))err('E_ASSET_EXISTS');
     this.port.commands.addAsset(asset);
     this.port.read();
-    const record={assetId:id,file,projectId:inventory.project_id,sha256:digest,byteSize:bytes.length,structure,uri:asset.uri,content_integrity:'PASS',engine_import_qa:'UNKNOWN',rights_qa:'UNKNOWN',visual_qa:'UNKNOWN',bytes};
+    const record={assetId:id,file,projectId:inventory.project_id,sha256:digest,byteSize:bytes.length,structure,uri:asset.uri,content_integrity:'PASS',engine_import_qa:'UNKNOWN',rights_qa:'UNKNOWN',visual_qa:'UNKNOWN',asset,bytes};
     this.files.set(id,record);this.totalBytes+=bytes.length;
     return this.public(record);
   }
-  public({bytes,...record}){return {...record};}
+  public({bytes,asset,...record}){return {...record};}
 }
