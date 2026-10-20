@@ -38,7 +38,9 @@ jobs:
         working-directory: tools/aldol-3d-studio-p1
         env:
           INHA_WORLD_EDITOR_DIR: ${{ github.workspace }}/apps/world/src/editor
-        run: npm run test:real
+        run: |
+          npm run test:real
+          node --test tests/factory-real-p2.mjs
   browser-local-import:
     runs-on: ubuntu-latest
     timeout-minutes: 15
