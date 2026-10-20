@@ -34,3 +34,8 @@
  .viewport-bottom .help{max-width:65%;line-height:1.45}
  .prop-block select{padding:8px;font-size:11px}
 }
+
+.fallback-canvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1}
+.renderer-status{display:inline-block;margin-left:9px;padding:4px 6px;border:1px solid #4b6278;border-radius:4px;background:#152332;color:#c3dbef;font-size:10px;letter-spacing:0}
+.renderer-status[data-mode="canvas"]{border-color:#706048;color:#ecd097}
+.renderer-status[data-mode="unavailable"]{border-color:#90565e;color:#f0a7ad}
