@@ -1,0 +1,55 @@
+
+> @aldol/3d-studio-p0@0.4.0-dev test
+> node --test tests/adapter.test.mjs tests/mcp.test.mjs tests/http.test.mjs tests/interaction.test.mjs tests/asset-factory-v51.test.mjs tests/glb-render.test.mjs
+
+✔ C01: canonical serializer round-trip (2.030792ms)
+✔ C02: unknown component preserved after unrelated rename (2.626016ms)
+✔ C03: create transform undo redo (1.400405ms)
+✔ C04: invalid parent and cycle are rejected without history change (1.136327ms)
+✔ C05: parent with children cannot delete (0.952221ms)
+✔ C06: illegal scale and nonfinite rejected, valid quaternion normalized (0.782817ms)
+✔ C07: preview cancel restores scene and history, token unchanged (0.904549ms)
+✔ C08: preview commit adds one history item (0.761004ms)
+✔ C09: stale revision rejected with unchanged scene (0.628224ms)
+✔ C10: idempotency and reuse mismatch (0.58553ms)
+✔ C11: unknown native top-level fields rejected by legacy serializer (0.503346ms)
+✔ no-op rename does not add history (0.407011ms)
+✔ external legacy changes change token (0.284037ms)
+✔ strict allowlist rejects arbitrary function execute (0.232409ms)
+✔ v5.1 metadata path contract and duplicate rejection (2.406035ms)
+✔ verified GLB import registers world asset and preserves exact original bytes (3.756574ms)
+✔ tampered hash/size, missing inventory, FAIL, unsafe SVG and external URI reject atomically (0.868505ms)
+✔ Archive rejects user path and duplicate, no path traversal (0.396816ms)
+✔ Local HTTP import guards, Factory verification and portable ZIP export (217.600002ms)
+✔ actual indexed geometry, embedded texture, materials and hierarchy satisfy render profile (5.548807ms)
+✔ corrupt BIN, accessor bounds, index range and nonfinite vertices rejected before engine parsing (5.482779ms)
+✔ external resources, optional extensions, animated/compressed and pathological graphs fail closed (4.374002ms)
+✔ render rejection leaves world history and verified byte cache unchanged (1.295327ms)
+✔ portable ZIP parses in memory, preserves bytes, and restores verified cache into a new world (2.56247ms)
+✔ ZIP CRC corruption, traversal, missing/extra entries and compressed formats rejected (1.293083ms)
+✔ aliased accessor work and instanced geometry have independent resource budgets (19.280161ms)
+✔ HTTP studio demo create/rename/undo/redo/export (163.045248ms)
+✔ HTTP origin restricted and default is readonly (134.846421ms)
+✔ ES module .mjs is served with JavaScript MIME, never HTML (68.780181ms)
+✔ gizmo move projects pointer delta to world meters (1.012261ms)
+✔ gizmo move axis parallel to view cannot produce huge deltas (0.646461ms)
+✔ gizmo move snap rounds to grid (0.178739ms)
+✔ gizmo scale maintains positivity and affects one axis only (0.315764ms)
+✔ gizmo rotation preserves normalized quaternion, original unchanged (0.261303ms)
+✔ 90-degree quaternion axis rotation (0.115304ms)
+✔ projection axis direction from supplied projection (0.168272ms)
+✔ hierarchy preserves nesting and tolerates orphan nodes (0.288163ms)
+✔ hierarchy cyclic data terminates safely (0.19952ms)
+✔ reparent forbids self and descendant cycles (0.337838ms)
+✔ ground ray resolves to floor below center camera (0.296586ms)
+✔ ground ray rejects invalid dimensions or rays above horizon (0.082755ms)
+✔ MCP local stdio handshake, tools/list, read-only default, nonwrite invocation (50.675845ms)
+✔ MCP --allow-write executes typed command, then reads new scene (83.798807ms)
+ℹ tests 43
+ℹ suites 0
+ℹ pass 43
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 8259.922435
