@@ -1,4 +1,4 @@
-name: ALDOL 3D Studio P1 Interaction and P0 Real Source
+name: ALDOL 3D Studio P1 Full Source Integration
 
 on:
   push:
@@ -16,40 +16,49 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  p1-interaction-and-p0-integration:
+  p1-full-source:
     runs-on: ubuntu-latest
-    timeout-minutes: 7
+    timeout-minutes: 10
     steps:
-      - name: Checkout exact branch HEAD
+      - name: Checkout exact P1 branch
         uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Configure Node
+      - name: Set up Node 22
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: P1 pure interaction geometry and hierarchy (12 tests)
-        run: |
-          set -euo pipefail
-          node --check tools/aldol-3d-studio-p1/web/interaction.mjs
-          node --test tools/aldol-3d-studio-p1/tests/interaction.test.mjs
-      - name: Verify immutable P0 candidate source
+      - name: Reconstruct version-locked source from seven pieces
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/aldol-p0"
-          base64 --decode tools/aldol-3d-studio-p0/ci-source.tar.gz.b64 > "$RUNNER_TEMP/aldol-p0-source.tar.gz"
-          echo "5ab2d1a5825c5457799e87fe65e34ebb47fef59077d2a9aef2dcf7e30405213c  $RUNNER_TEMP/aldol-p0-source.tar.gz" | sha256sum --check -
-          tar -xzf "$RUNNER_TEMP/aldol-p0-source.tar.gz" -C "$RUNNER_TEMP/aldol-p0"
-      - name: P0 actual INHA WORLD editor source integration (8 PASS 2 SKIP)
+          mkdir -p "$RUNNER_TEMP/aldol-p1"
+          cat tools/aldol-3d-studio-p1/transport/chunk-{00..06}.b64 | base64 --decode > "$RUNNER_TEMP/p1-core.tar.br"
+          echo "9c18dd09f6310c37402fb694cb560b78dbce429ee9abf6022dc57c51f8bef5f9  $RUNNER_TEMP/p1-core.tar.br" | sha256sum --check -
+          node -e "const fs=require('node:fs'),z=require('node:zlib');fs.writeFileSync(process.env.RUNNER_TEMP+'/p1-core.tar',z.brotliDecompressSync(fs.readFileSync(process.env.RUNNER_TEMP+'/p1-core.tar.br')))"
+          tar -xf "$RUNNER_TEMP/p1-core.tar" -C "$RUNNER_TEMP/aldol-p1"
+          cmp "$RUNNER_TEMP/aldol-p1/web/interaction.mjs" tools/aldol-3d-studio-p1/web/interaction.mjs
+          cmp "$RUNNER_TEMP/aldol-p1/tests/interaction.test.mjs" tools/aldol-3d-studio-p1/tests/interaction.test.mjs
+      - name: Static syntax validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/aldol-p1"
+          npm run check
+      - name: P1 candidate full mock MCP HTTP geometry regression 30 tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/aldol-p1"
+          npm test
+      - name: P1 WorldSceneAdapter actual INHA WORLD editor classes
         shell: bash
         env:
           INHA_WORLD_EDITOR_DIR: ${{ github.workspace }}/apps/world/src/editor
         run: |
           set -euo pipefail
-          cd "$RUNNER_TEMP/aldol-p0"
-          node tests/real-integration.mjs
-      - name: CI scope declaration
+          cd "$RUNNER_TEMP/aldol-p1"
+          npm run test:real
+      - name: Explicit limitations
         run: |
-          echo "This workflow proves P1 pure interaction tests and P0 real-source adapter integration."
-          echo "It does NOT prove full P1 UI, P1 server, WebGL/browser E2E or official MCP SDK compliance."
+          echo "No deployment, INHA WORLD modifications, external MCP registration, PlayCanvas runtime browser E2E or official MCP SDK compliance is asserted by this CI."
