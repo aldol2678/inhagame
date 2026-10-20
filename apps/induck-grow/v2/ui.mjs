@@ -1,3 +1,4 @@
+import {CAMPUS_STORY_VERSION,buildTurningPoints} from './campus-stories.mjs';
 import {getPlayStyle} from './play-style.mjs';
 import {ECONOMY_VERSION,LIFE_OPTIONS,spendingPreview,spendingCards} from './life-spending.mjs';
 import {GROWTH_VERSION,STAT_LABELS,ACTIVITY_STYLES,activityProgress,growthCards,earnedTraits,traitProgress,nextGrowthReward,competencyChanges} from './campus-growth.mjs';
@@ -94,7 +95,7 @@ function startGame() {
   }
   stop(null,false);
   closeDialog(eventDialog);closeDialog(semesterDialog);
-  session.start({majorId:$('major-select').value,seed:seedNumber,policy:$('start-policy').value,replaceExisting:existing.exists===true,contentVersion:FOLLOWUP_CONTENT_VERSION,growthVersion:GROWTH_VERSION,economyVersion:ECONOMY_VERSION,playStyle:$('start-play-style').value,autoBudget:0});
+  session.start({majorId:$('major-select').value,seed:seedNumber,policy:$('start-policy').value,replaceExisting:existing.exists===true,contentVersion:FOLLOWUP_CONTENT_VERSION,growthVersion:GROWTH_VERSION,economyVersion:ECONOMY_VERSION,campusStoryVersion:CAMPUS_STORY_VERSION,playStyle:$('start-play-style').value,autoBudget:0});
   tab='story';showGame();renderArchive();
   announce('입학을 축하해! 생활 방침을 고르고 시작 버튼을 눌러 줘.');
 }
@@ -124,7 +125,7 @@ function showEvent(life) {
   const ev=life.pendingEvent;
   put('event-time',life.year+'학년 '+life.term+'학기 · '+life.week+'주차');
   put('event-title',ev.title);
-  put('event-description',ev.description ? ev.recall+' · '+ev.description : '인덕이의 이야기가 달라지는 순간이야. 어떻게 할까?');
+  put('event-description',ev.description ? [ev.recall,ev.description].filter(Boolean).join(' · ') : '인덕이의 이야기가 달라지는 순간이야. 어떻게 할까?');
   const options=$('event-options');options.replaceChildren();
   for(const item of ev.choices) {
     const button=document.createElement('button');
@@ -213,6 +214,7 @@ function renderJournal() {
     if(!cards.length)empty(parent,'전공 활동과 사건 선택이 기억카드로 남아.');
   } else if(tab==='ending') {
     if(life.ending) {
+      for(const point of buildTurningPoints(life))line(parent,{label:'나를 바꾼 순간 · '+point.kind,title:point.title,description:point.text});
       line(parent,{label:'🎓 '+life.ending.years+'년 · '+life.ending.semesters+'학기',
         title:life.ending.title,description:'졸업 평점 '+life.ending.gpa.toFixed(2)+
           '/4.50 · '+life.ending.memories+'개 추억 · '+life.ending.totalWeeks+'주 완료'});
@@ -268,6 +270,7 @@ function render() {
   renderGrowth(life);
   renderSpending(life);
   renderPlayStyle(life);
+  renderCampusStories(life);
   renderJournal();
   if(life.status==='complete')renderArchive();
   document.querySelectorAll('[data-tab]').forEach(button=>
@@ -360,6 +363,20 @@ function renderPlayStyle(life){
  if(!latest.length)empty(detail,'아직 이 운영 기록이 없어요. 주차가 실제로 완료되면 남아요.');
 }
 
+function renderCampusStories(life) {
+  const list=$('campus-story-list');list.replaceChildren();
+  put('campus-story-note',life.campusStories?
+    '등장인물과 지원 제도는 게임 속 가상 설정이야. 만남과 재도전은 성적과 별개로 기록돼.':
+    '이전 저장의 진행은 그대로 유지해. 새 게임부터 친구와 지원·재도전 이야기가 열려.');
+  const points=buildTurningPoints(life);
+  for(const point of points)line(list,{label:point.kind,title:point.title,description:point.text});
+  if(!points.length) {
+    const memories=life.campusStories?life.memories.filter(m=>m.eventId.startsWith('grow2.event.campus.')):[];
+    for(const memory of memories.slice(-6).reverse())line(list,{label:'이어지는 캠퍼스 이야기',title:'기억에 남은 선택',description:memory.text});
+    if(!memories.length)empty(list,life.campusStories?'사람과의 만남, 도움을 청한 선택이 이곳에 남아.':'기존 기억카드와 전공 이야기는 계속 볼 수 있어.');
+  }
+}
+
 function renderArchive() {
   const result=session.graduateArchive(),list=$('archive-list');list.replaceChildren();
   put('archive-status',session.status().archiveError||result.error||(result.records.length+' / 50개 기록 · 남은 공간 '+(50-result.records.length)+'건 · 같은 완료 요약은 중복 보관하지 않아.'));
@@ -369,9 +386,12 @@ function renderArchive() {
     const r=item.record,details=document.createElement('details');details.className='graduate-record';
     const summary=document.createElement('summary');
     summary.textContent=item.rank+'위 · '+(findMajor(r.majorId)?.displayName||r.majorId)+' · '+r.gpa.toFixed(2)+' / 4.50 · '+r.title;
+    if(r.turningPoints?.length)summary.textContent=r.title+' · '+(findMajor(r.majorId)?.displayName||r.majorId)+' · '+r.turningPoints[0].title;
     details.append(summary);
+    for(const point of r.turningPoints||[])line(details,{label:'나를 바꾼 순간 · '+point.kind,title:point.title,description:point.text});
+    if(r.turningPoints?.length)line(details,{label:'참고 성적',title:'같은 조건 '+item.rank+'위 · '+r.gpa.toFixed(2)+' / 4.50',description:'성적 순위가 대학생활 전체의 가치를 결정하지는 않아.'});
     line(details,{label:'비교 그룹',title:r.growth==='legacy'?'기존 성장 규칙':'전공 활동 성장 규칙',
-      description:(r.economy||'기존 소비 규칙')+' · '+r.content+' · '+r.engine+' · 시드 '+r.seed+' · '+(r.playStyle?.simpleWeeks>0?'간편 운영 '+r.playStyle.simpleWeeks+'주 포함':'간편 운영 기록 없음')+' · 같은 전공·버전·운영 분류끼리 비교'});
+      description:(r.campusStoryVersion||'기존 사건 규칙')+' · '+(r.economy||'기존 소비 규칙')+' · '+r.content+' · '+r.engine+' · 시드 '+r.seed+' · '+(r.playStyle?.simpleWeeks>0?'간편 운영 '+r.playStyle.simpleWeeks+'주 포함':'간편 운영 기록 없음')+' · 같은 전공·버전·운영 분류끼리 비교'});
     line(details,{label:'8학기 성적',title:r.semesters.map(s=>s.gpa.toFixed(2)).join(' → '),
       description:r.traits.map(t=>t.title).join(' · ')||'나만의 첫 걸음'});
     r.epilogue.forEach((text,i)=>line(details,{label:(i+1)+'학년의 선택',title:'전공 이야기',description:text}));

@@ -221,7 +221,7 @@ test('new game UI asks before replacing an unreadable record and respects cancel
     const controls={'seed-input':{value:'42'},'major-select':{value:'culture'},
       'start-policy':{value:'balanced'},'start-play-style':{value:'basic'}};
     const run=new Function('session','window','$',
-      "const FOLLOWUP_CONTENT_VERSION='grow2-content-major-stories-1';const GROWTH_VERSION='grow2-campus-growth-1';const ECONOMY_VERSION='grow2-life-spending-1';"+'let tab; const eventDialog={},semesterDialog={}; const stop=()=>{},closeDialog=()=>{},showGame=()=>{},renderArchive=()=>{},announce=()=>{};'+body+';return startGame;')
+      "const FOLLOWUP_CONTENT_VERSION='grow2-content-major-stories-1';const GROWTH_VERSION='grow2-campus-growth-1';const ECONOMY_VERSION='grow2-life-spending-1';const CAMPUS_STORY_VERSION='grow2-campus-stories-1';"+'let tab; const eventDialog={},semesterDialog={}; const stop=()=>{},closeDialog=()=>{},showGame=()=>{},renderArchive=()=>{},announce=()=>{};'+body+';return startGame;')
       (session,window,id=>controls[id]);
     run();
     assert.equal(confirms,1);

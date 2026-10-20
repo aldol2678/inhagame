@@ -103,8 +103,8 @@ export function createLifeSession({storage=null, onUpdate=()=>{}}={}) {
     current=copy(snapshot.life);loadError=null;saveError=null;writesBlocked=false;
     archiveCompleted();publish();return true;
   }
-  function start({majorId,seed=1,policy='balanced',replaceExisting=false,contentVersion,growthVersion,economyVersion,playStyle='basic',autoBudget=0}={}) {
-    const fresh=configurePlayStyle(createLife({majorId,seed,policy,contentVersion,growthVersion,economyVersion}),
+  function start({majorId,seed=1,policy='balanced',replaceExisting=false,contentVersion,growthVersion,economyVersion,campusStoryVersion,playStyle='basic',autoBudget=0}={}) {
+    const fresh=configurePlayStyle(createLife({majorId,seed,policy,contentVersion,growthVersion,economyVersion,campusStoryVersion}),
       {mode:playStyle,budget:autoBudget,goal:policy}),existing=readSave();
     if(existing.exists===true && !replaceExisting)
       throw new Error('기존 v2 기록을 교체하려면 먼저 확인해 주세요.');
