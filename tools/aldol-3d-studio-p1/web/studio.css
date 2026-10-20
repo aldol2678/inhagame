@@ -39,3 +39,26 @@
 .renderer-status{display:inline-block;margin-left:9px;padding:4px 6px;border:1px solid #4b6278;border-radius:4px;background:#152332;color:#c3dbef;font-size:10px;letter-spacing:0}
 .renderer-status[data-mode="canvas"]{border-color:#706048;color:#ecd097}
 .renderer-status[data-mode="unavailable"]{border-color:#90565e;color:#f0a7ad}
+
+/* Keep the inspector inside short mobile viewports, including landscape. */
+@media (max-width:770px){
+ .left{flex-basis:100px}
+ .right{flex-basis:clamp(100px,25dvh,210px)}
+ .viewport{min-height:160px}
+}
+@media (max-width:990px) and (max-height:500px) and (orientation:landscape){
+ .workspace{display:grid;grid-template-columns:145px minmax(0,1fr) 185px}
+ .left,.right,.viewport{order:initial;min-height:0}
+ .left{border-top:0;border-right:1px solid var(--edge)}
+ .right{border-top:0;border-left:1px solid var(--edge)}
+ .left .toolbar{position:static;padding:0 6px 6px;gap:3px}
+ .left .toolbar button{min-width:35px;padding:0 5px;font-size:10px}
+ .left .node-list{display:block;overflow:auto}
+ .right #properties{display:block;overflow:visible}
+ .prop-block{border-right:0;border-top:1px solid var(--edge)}
+ .viewport-top{left:10px;right:10px}
+ .viewport-top .axis,.viewport-top .vtitle>.muted{display:none}
+ .viewport-bottom .help{display:none}
+ .viewport-bottom{justify-content:flex-end}
+ .placement-banner{white-space:normal;width:max-content}
+}

@@ -1,0 +1,75 @@
+{
+  "environment": "Chromium CDP touch, isMobile/hasTouch; real editor HTTP adapter; emulation only",
+  "physicalAndroid": "BLOCKED",
+  "physicalIOS": "BLOCKED",
+  "checks": [
+    {
+      "name": "placement cancellation leaves scene empty",
+      "status": "PASS"
+    },
+    {
+      "name": "pointercancel prevents placement; following single touch creates/selects one real entity",
+      "status": "PASS"
+    },
+    {
+      "name": "touch move gizmo commits once; undo/redo restore real transforms",
+      "status": "PASS"
+    },
+    {
+      "name": "touch rotate gizmo commits once; undo/redo restore real transforms",
+      "status": "PASS"
+    },
+    {
+      "name": "touch scale gizmo commits once; undo/redo restore real transforms",
+      "status": "PASS"
+    },
+    {
+      "name": "gizmo pointercancel preserves committed revision and transform",
+      "status": "PASS"
+    },
+    {
+      "name": "second finger cancels an active gizmo without accidental commit",
+      "status": "PASS"
+    },
+    {
+      "name": "single finger camera orbit changes projection without mutating scene",
+      "status": "PASS"
+    },
+    {
+      "name": "two-finger pinch changes camera projection without ghost edits",
+      "status": "PASS"
+    },
+    {
+      "name": "pinch while placement armed does not create a ghost object",
+      "status": "PASS"
+    },
+    {
+      "name": "touch blank canvas deselects; touch object selects",
+      "status": "PASS"
+    },
+    {
+      "name": "orientation change cancels active gizmo without saving stale drag coordinates",
+      "status": "PASS"
+    },
+    {
+      "name": "viewport/orientation 320x568: canvas/panels/footer/actions fit",
+      "status": "PASS"
+    },
+    {
+      "name": "viewport/orientation 740x360: canvas/panels/footer/actions fit",
+      "status": "PASS"
+    },
+    {
+      "name": "viewport/orientation 844x390: canvas/panels/footer/actions fit",
+      "status": "PASS"
+    },
+    {
+      "name": "viewport/orientation 390x844: canvas/panels/footer/actions fit",
+      "status": "PASS"
+    },
+    {
+      "name": "mobile JavaScript and console errors absent",
+      "status": "PASS"
+    }
+  ]
+}

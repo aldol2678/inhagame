@@ -1,0 +1,75 @@
+
+> @aldol/3d-studio-p0@0.3.0-dev test:real
+> node tests/real-integration.mjs
+
+TAP version 13
+# Subtest: R01 real WorldDocument roundtrip, unknown namespaced component
+ok 1 - R01 real WorldDocument roundtrip, unknown namespaced component
+  ---
+  duration_ms: 4.751117
+  type: 'test'
+  ...
+# Subtest: R02 real create transform undo redo
+ok 2 - R02 real create transform undo redo
+  ---
+  duration_ms: 4.889024
+  type: 'test'
+  ...
+# Subtest: R03 real cycle, missing parent and parent delete reject atomically
+ok 3 - R03 real cycle, missing parent and parent delete reject atomically
+  ---
+  duration_ms: 4.468664
+  type: 'test'
+  ...
+# Subtest: R04 real scale invalid and quaternion canonical
+ok 4 - R04 real scale invalid and quaternion canonical
+  ---
+  duration_ms: 1.743506
+  type: 'test'
+  ...
+# Subtest: R05 real preview cancel (scene token and history stable)
+ok 5 - R05 real preview cancel (scene token and history stable)
+  ---
+  duration_ms: 2.249405
+  type: 'test'
+  ...
+# Subtest: R06 real preview commit (one history entry)
+ok 6 - R06 real preview commit (one history entry)
+  ---
+  duration_ms: 2.169234
+  type: 'test'
+  ...
+# Subtest: R07 real stale conflict and idempotency
+ok 7 - R07 real stale conflict and idempotency
+  ---
+  duration_ms: 1.517577
+  type: 'test'
+  ...
+# Subtest: R08 real export schema, ids, metadata retain
+ok 8 - R08 real export schema, ids, metadata retain
+  ---
+  duration_ms: 1.102434
+  type: 'test'
+  ...
+# Subtest: C13 runs separately in browser-runtime-p12.mjs, not in this Node class suite
+ok 9 - C13 runs separately in browser-runtime-p12.mjs, not in this Node class suite # SKIP
+  ---
+  duration_ms: 0.123725
+  type: 'test'
+  ...
+# Subtest: C14 physical Android/iOS remains blocked; emulation runs separately in browser-mobile-p12.mjs
+ok 10 - C14 physical Android/iOS remains blocked; emulation runs separately in browser-mobile-p12.mjs # SKIP
+  ---
+  duration_ms: 0.179419
+  type: 'test'
+  ...
+1..10
+# tests 10
+# suites 0
+# pass 8
+# fail 0
+# cancelled 0
+# skipped 2
+# todo 0
+# duration_ms 104.215958
+REAL INTEGRATION GATE: 8 PASS / 2 SKIP (C13 C14 remain separate)

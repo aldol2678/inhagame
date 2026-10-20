@@ -1,0 +1,3 @@
+
+> @aldol/3d-studio-p0@0.3.0-dev check
+> node --check src/world-scene-adapter.mjs && node --check src/bootstrap.mjs && node --check src/command-schema.mjs && node --check bin/mcp-stdio.mjs && node --check bin/dev-server.mjs && node --check web/studio.js && node --check web/interaction.mjs

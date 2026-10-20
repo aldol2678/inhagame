@@ -1,0 +1,54 @@
+name: ALDOL 3D Studio P1.2 PlayCanvas and Mobile
+
+on:
+  pull_request:
+    paths:
+      - tools/aldol-3d-studio-p1/**
+      - apps/world/src/runtime-adapter/**
+      - apps/world/src/editor/**
+      - apps/world/src/main.js
+      - apps/world/tests/browser/harness*.mjs
+      - apps/world/tests/browser/package*.json
+      - .github/workflows/aldol-3d-studio-p1-2.yml
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: studio-p12-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  actual-campus-and-mobile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install existing pinned browser and PlayCanvas
+        working-directory: apps/world/tests/browser
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npx --no-install playwright install --with-deps chromium
+      - name: Actual offline campus saved-world runtime
+        run: |
+          mkdir -p test-results/aldol-studio-p1-2
+          node tools/aldol-3d-studio-p1/tests/browser-runtime-p12.mjs 2>&1 | tee test-results/aldol-studio-p1-2/runtime.log
+      - name: Real editor HTTP mobile touch regression (emulation only)
+        run: node tools/aldol-3d-studio-p1/tests/browser-mobile-p12.mjs 2>&1 | tee test-results/aldol-studio-p1-2/mobile.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: aldol-studio-p12-${{ github.event.pull_request.head.sha }}
+          path: test-results/aldol-studio-p1-2/
+          retention-days: 30
+          if-no-files-found: error

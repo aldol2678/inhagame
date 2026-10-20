@@ -7,7 +7,8 @@ if(!dir||expected.some(file=>!existsSync(join(resolve(dir),file)))){
   console.error(`BLOCKED: provide INHA_WORLD_EDITOR_DIR containing real files: ${expected.join(', ')}`);
   process.exit(2);
 }
-const result=spawnSync(process.execPath,['--test','tests/real.test.mjs'],{cwd:resolve(import.meta.dirname,'..'),env:process.env,encoding:'utf8'});
+// The gate parses TAP totals; Node 24 may otherwise default to the spec reporter.
+const result=spawnSync(process.execPath,['--test','--test-reporter=tap','tests/real.test.mjs'],{cwd:resolve(import.meta.dirname,'..'),env:process.env,encoding:'utf8'});
 process.stdout.write(result.stdout||'');process.stderr.write(result.stderr||'');
 if(result.status!==0)process.exit(result.status??2);
 if(!/# pass 8\b/.test(result.stdout)||!/# skipped 2\b/.test(result.stdout)||!/# fail 0\b/.test(result.stdout)) {

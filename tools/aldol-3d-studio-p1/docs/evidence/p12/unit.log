@@ -1,0 +1,43 @@
+
+> @aldol/3d-studio-p0@0.3.0-dev test
+> node --test tests/adapter.test.mjs tests/mcp.test.mjs tests/http.test.mjs tests/interaction.test.mjs
+
+✔ C01: canonical serializer round-trip (2.53914ms)
+✔ C02: unknown component preserved after unrelated rename (2.90619ms)
+✔ C03: create transform undo redo (1.174652ms)
+✔ C04: invalid parent and cycle are rejected without history change (0.782955ms)
+✔ C05: parent with children cannot delete (0.591518ms)
+✔ C06: illegal scale and nonfinite rejected, valid quaternion normalized (0.96631ms)
+✔ C07: preview cancel restores scene and history, token unchanged (1.003776ms)
+✔ C08: preview commit adds one history item (0.817467ms)
+✔ C09: stale revision rejected with unchanged scene (0.755323ms)
+✔ C10: idempotency and reuse mismatch (0.568753ms)
+✔ C11: unknown native top-level fields rejected by legacy serializer (0.586791ms)
+✔ no-op rename does not add history (0.474733ms)
+✔ external legacy changes change token (0.350075ms)
+✔ strict allowlist rejects arbitrary function execute (0.596715ms)
+✔ HTTP studio demo create/rename/undo/redo/export (170.226466ms)
+✔ HTTP origin restricted and default is readonly (146.247084ms)
+✔ ES module .mjs is served with JavaScript MIME, never HTML (68.580099ms)
+✔ gizmo move projects pointer delta to world meters (1.160271ms)
+✔ gizmo move axis parallel to view cannot produce huge deltas (0.662434ms)
+✔ gizmo move snap rounds to grid (0.206149ms)
+✔ gizmo scale maintains positivity and affects one axis only (0.44648ms)
+✔ gizmo rotation preserves normalized quaternion, original unchanged (0.401242ms)
+✔ 90-degree quaternion axis rotation (0.128763ms)
+✔ projection axis direction from supplied projection (0.188914ms)
+✔ hierarchy preserves nesting and tolerates orphan nodes (0.26005ms)
+✔ hierarchy cyclic data terminates safely (0.402845ms)
+✔ reparent forbids self and descendant cycles (0.291507ms)
+✔ ground ray resolves to floor below center camera (0.313841ms)
+✔ ground ray rejects invalid dimensions or rays above horizon (0.136024ms)
+✔ MCP local stdio handshake, tools/list, read-only default, nonwrite invocation (55.13671ms)
+✔ MCP --allow-write executes typed command, then reads new scene (135.732926ms)
+ℹ tests 31
+ℹ suites 0
+ℹ pass 31
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2885.079685
