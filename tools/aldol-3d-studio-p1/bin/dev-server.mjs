@@ -21,7 +21,7 @@ async function body(req){let s='';for await(const chunk of req){s+=chunk.toStrin
 const server=createServer(async(req,res)=>{
  const url=new URL(req.url,'http://localhost');
  try{
-   if(req.method==='GET'&&url.pathname in allowFile){const f=allowFile[url.pathname];const data=await readFile(join(staticDir,f));res.writeHead(200,{'Content-Type':f.endsWith('.js')?'text/javascript; charset=utf-8':f.endsWith('.css')?'text/css; charset=utf-8':'text/html; charset=utf-8','X-Content-Type-Options':'nosniff'});res.end(data);return;}
+   if(req.method==='GET'&&url.pathname in allowFile){const f=allowFile[url.pathname];const data=await readFile(join(staticDir,f));res.writeHead(200,{'Content-Type':/\.(?:m?js)$/.test(f)?'text/javascript; charset=utf-8':f.endsWith('.css')?'text/css; charset=utf-8':'text/html; charset=utf-8','X-Content-Type-Options':'nosniff'});res.end(data);return;}
    if(req.method==='GET'&&url.pathname==='/api/health')return json(res,200,{status:'ok',mode:demo?'demo-mock':'legacy',allowWrite});
    if(req.method==='GET'&&url.pathname==='/api/scene')return json(res,200,port.read());
    if(req.method==='GET'&&url.pathname==='/api/validate')return json(res,200,port.validate());
