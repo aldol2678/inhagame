@@ -34,7 +34,7 @@ function fixture({ fade, failAt } = {}) {
   const focus = createInputFocusManager();
   const input = createInputFocusOwner({ manager: focus, ownerId: "biryong-region", policy: INPUT_FOCUS_POLICY.SYSTEM_LOCK });
   const transition = createBiryongRealmTransition({ world, campusReturnAnchor: { x: 12, y: 1.15, z: -82 },
-    clock: { now: () => now }, fade, onBusyChange: busy => busy ? input.acquire() : input.release(), onError: error => errors.push(error) });
+    clock: { now: () => now }, fade, accessEnabled: true, onBusyChange: busy => busy ? input.acquire() : input.release(), onError: error => errors.push(error) });
   transition.onChange((status, event) => events.push({ status, event }));
   return { focus, input, events, orbit, camera, world, transition, player, controller, online, campusRoot, biryongRoot, errors,
     advance() { now += 1000; }, failNext(where) { fail = where; } };
