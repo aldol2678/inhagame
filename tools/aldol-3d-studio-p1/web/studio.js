@@ -34,6 +34,7 @@ const collapsedNodes=new Set();
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 const status=(msg)=>{$('status').textContent=msg;};
 const api=async(path,opts={})=>{const r=await fetch(path,{cache:'no-store',...opts});const x=await r.json();if(!r.ok)throw Error(x.error||'Request failed');return x;};
+window.addEventListener('studio:external-change',()=>refresh().catch(error=>status('새로고침 실패: '+error.message)));
 async function refresh(){scene=await api('/api/scene');$('node-count').textContent=scene.nodes.length;$('revision').textContent=scene.revisionToken.split(':').slice(0,2).join(' ').toUpperCase();if(!scene.nodes.some(n=>n.id===selectedId))selectedId=null;paintNodes();paintInspector();$('empty-hint').hidden=scene.nodes.length!==0;}
 function chooseNode(id){selectedId=id;liveTransform=null;paintNodes();paintInspector();}
 function reparentNode(id,parentId){
