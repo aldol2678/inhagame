@@ -1,0 +1,49 @@
+name: ALDOL 3D Studio P0 Real Integration
+
+on:
+  push:
+    branches:
+      - chore/aldol-3d-studio-p0-real-integration-20261020
+    paths:
+      - tools/aldol-3d-studio-p0/**
+      - .github/workflows/aldol-3d-studio-p0-real.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: aldol-3d-studio-p0-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  real-source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - name: Checkout actual INHA WORLD source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Use Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify immutable candidate and unpack outside repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/aldol-3d-studio-p0"
+          base64 --decode tools/aldol-3d-studio-p0/ci-source.tar.gz.b64 > "$RUNNER_TEMP/studio-p0-source.tar.gz"
+          echo "5ab2d1a5825c5457799e87fe65e34ebb47fef59077d2a9aef2dcf7e30405213c  $RUNNER_TEMP/studio-p0-source.tar.gz" | sha256sum --check -
+          tar -xzf "$RUNNER_TEMP/studio-p0-source.tar.gz" -C "$RUNNER_TEMP/aldol-3d-studio-p0"
+          test -f "$RUNNER_TEMP/aldol-3d-studio-p0/src/world-scene-adapter.mjs"
+      - name: Real WorldSceneAdapter plus INHA WORLD editor classes
+        shell: bash
+        env:
+          INHA_WORLD_EDITOR_DIR: ${{ github.workspace }}/apps/world/src/editor
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/aldol-3d-studio-p0"
+          node tests/real-integration.mjs
+      - name: No production write or build
+        run: echo "Isolated integration tests only. C13/C14 remain skipped; no build, deployment or release."
