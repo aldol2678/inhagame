@@ -19,9 +19,12 @@ export function makeMock(){
     replaceEntity(id,e){const data={...this.data,entities:this.data.entities.map(x=>x.id===id?clone(e):x)};const v=validateWorld(data);if(!v.valid)throw Error(v.errors[0].code);this.data=data;this._touch();},
     removeEntity(id){if(this.data.entities.some(x=>x.parentId===id))throw Error('E_ENTITY_HAS_CHILDREN');this.data.entities=this.data.entities.filter(x=>x.id!==id);this._touch();}
   };
+  world.addAsset=function(a){if(this.data.assets.some(x=>x.id===a.id))throw Error('E_DUP_ASSET_ID');this.data.assets.push(clone(a));this._touch();};
+  world.removeAsset=function(id){const before=this.data.assets.length;this.data.assets=this.data.assets.filter(x=>x.id!==id);if(this.data.assets.length!==before){this._touch();return true;}return false;};
   const state={selectedEntityId:null,select(id){this.selectedEntityId=id;},clearSelection(){this.selectedEntityId=null;}};
   const commands={world,state,undoStack:[],redoStack:[],transformDraft:null,_record(redo,undo){this.undoStack.push({redo,undo});this.redoStack=[];},_do(redo,undo){redo();this._record(redo,undo);},addEntity(e){const entity=clone(e);this._do(()=>world.addEntity(entity),()=>world.removeEntity(entity.id));state.select(entity.id);return entity;},
     removeEntity(id){const e=world.getEntity(id);this._do(()=>world.removeEntity(id),()=>world.addEntity(e));},
+    addAsset(asset){const a=clone(asset);this._do(()=>world.addAsset(a),()=>world.removeAsset(a.id));return a;},
     replaceEntity(id,e){const before=world.getEntity(id),after=clone(e);this._do(()=>world.replaceEntity(id,after),()=>world.replaceEntity(id,before));return true;},
     renameEntity(id,name){this.replaceEntity(id,{...world.getEntity(id),name});},
     setTransform(id,t){this.replaceEntity(id,{...world.getEntity(id),transform:t});},
