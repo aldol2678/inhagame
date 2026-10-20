@@ -1,0 +1,65 @@
+name: ALDOL 3D Studio P2 Asset Factory v5.1 Handoff
+on:
+  push:
+    branches:
+      - feat/aldol-3d-studio-p2-asset-factory-v51-20261021
+    paths:
+      - tools/aldol-3d-studio-p1/**
+      - .github/workflows/aldol-3d-studio-p2-factory.yml
+  pull_request:
+    paths:
+      - tools/aldol-3d-studio-p1/**
+      - .github/workflows/aldol-3d-studio-p2-factory.yml
+
+permissions:
+  contents: read
+concurrency:
+  group: studio-p2-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  studio-and-real-editor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - name: Full Studio sources and Factory bridge syntax
+        working-directory: tools/aldol-3d-studio-p1
+        run: npm run check
+      - name: Old and new Studio regressions, including local byte imports
+        working-directory: tools/aldol-3d-studio-p1
+        run: npm test
+      - name: Real INHA WORLD editor adapter still compatible
+        working-directory: tools/aldol-3d-studio-p1
+        env:
+          INHA_WORLD_EDITOR_DIR: ${{ github.workspace }}/apps/world/src/editor
+        run: npm run test:real
+  browser-local-import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - name: Existing pinned browser dependencies
+        working-directory: apps/world/tests/browser
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npx --no-install playwright install --with-deps chromium
+      - name: Factory v5.1 local file handoff browser end-to-end
+        run: node tools/aldol-3d-studio-p1/tests/browser-factory-p2.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: studio-p2-factory-${{ github.sha }}
+          path: test-results/aldol-studio-p2/
+          if-no-files-found: warn
+          retention-days: 7
