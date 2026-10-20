@@ -1,4 +1,4 @@
-name: ALDOL 3D Studio P1 Full Source Integration
+name: ALDOL 3D Studio P1 Readable Source Integration
 
 on:
   push:
@@ -7,58 +7,50 @@ on:
     paths:
       - tools/aldol-3d-studio-p1/**
       - .github/workflows/aldol-3d-studio-p1.yml
+  pull_request:
+    paths:
+      - tools/aldol-3d-studio-p1/**
+      - .github/workflows/aldol-3d-studio-p1.yml
 
 permissions:
   contents: read
 
 concurrency:
-  group: aldol-3d-studio-p1-${{ github.ref }}
+  group: aldol-studio-p1-readable-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  p1-full-source:
+  readable-source:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Checkout exact P1 branch
+      - name: Checkout exact source under test
         uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Set up Node 22
+      - name: Node 22
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Reconstruct version-locked source from seven pieces
-        shell: bash
+      - name: Require source files not just compressed transport
         run: |
           set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/aldol-p1"
-          cat tools/aldol-3d-studio-p1/transport/chunk-{00..06}.b64 | base64 --decode > "$RUNNER_TEMP/p1-core.tar.br"
-          echo "9c18dd09f6310c37402fb694cb560b78dbce429ee9abf6022dc57c51f8bef5f9  $RUNNER_TEMP/p1-core.tar.br" | sha256sum --check -
-          node -e "const fs=require('node:fs'),z=require('node:zlib');fs.writeFileSync(process.env.RUNNER_TEMP+'/p1-core.tar',z.brotliDecompressSync(fs.readFileSync(process.env.RUNNER_TEMP+'/p1-core.tar.br')))"
-          tar -xf "$RUNNER_TEMP/p1-core.tar" -C "$RUNNER_TEMP/aldol-p1"
-          cmp "$RUNNER_TEMP/aldol-p1/web/interaction.mjs" tools/aldol-3d-studio-p1/web/interaction.mjs
-          cmp "$RUNNER_TEMP/aldol-p1/tests/interaction.test.mjs" tools/aldol-3d-studio-p1/tests/interaction.test.mjs
+          test -f tools/aldol-3d-studio-p1/package.json
+          test -f tools/aldol-3d-studio-p1/src/world-scene-adapter.mjs
+          test -f tools/aldol-3d-studio-p1/web/studio.js
+          test -f tools/aldol-3d-studio-p1/tests/real-integration.mjs
       - name: Static syntax validation
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd "$RUNNER_TEMP/aldol-p1"
-          npm run check
-      - name: P1 candidate full mock MCP HTTP geometry regression 30 tests
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd "$RUNNER_TEMP/aldol-p1"
-          npm test
-      - name: P1 WorldSceneAdapter actual INHA WORLD editor classes
-        shell: bash
+        working-directory: tools/aldol-3d-studio-p1
+        run: npm run check
+      - name: Candidate mock, HTTP, MCP, interaction regression (30 tests)
+        working-directory: tools/aldol-3d-studio-p1
+        run: npm test
+      - name: Actual INHA WORLD editor source integration (8 PASS, 2 SKIP)
+        working-directory: tools/aldol-3d-studio-p1
         env:
           INHA_WORLD_EDITOR_DIR: ${{ github.workspace }}/apps/world/src/editor
+        run: npm run test:real
+      - name: Release gate note
         run: |
-          set -euo pipefail
-          cd "$RUNNER_TEMP/aldol-p1"
-          npm run test:real
-      - name: Explicit limitations
-        run: |
-          echo "No deployment, INHA WORLD modifications, external MCP registration, PlayCanvas runtime browser E2E or official MCP SDK compliance is asserted by this CI."
+          echo "C13 PlayCanvas runtime and C14 full browser / mobile regression remain unverified."
+          echo "No production deployment, official MCP SDK compliance or authenticated remote write access is asserted."
