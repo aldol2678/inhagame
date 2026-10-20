@@ -1,0 +1,21 @@
+{
+  "name": "@aldol/3d-studio-p0",
+  "version": "0.3.0-dev",
+  "private": true,
+  "type": "module",
+  "description": "ALDOL 3D Studio P1 object gizmos, scene hierarchy and mobile placement on the P0 ScenePort prototype",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "check": "node --check src/world-scene-adapter.mjs && node --check src/bootstrap.mjs && node --check src/command-schema.mjs && node --check bin/mcp-stdio.mjs && node --check bin/dev-server.mjs && node --check web/studio.js && node --check web/interaction.mjs",
+    "test": "node --test tests/adapter.test.mjs tests/mcp.test.mjs tests/http.test.mjs tests/interaction.test.mjs",
+    "test:real": "node tests/real-integration.mjs",
+    "test:mcp": "node --test tests/mcp.test.mjs",
+    "studio": "node bin/dev-server.mjs"
+  },
+  "bin": {
+    "aldol-3d-mcp": "./bin/mcp-stdio.mjs"
+  },
+  "license": "UNLICENSED"
+}

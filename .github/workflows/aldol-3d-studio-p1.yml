@@ -1,0 +1,56 @@
+name: ALDOL 3D Studio P1 Readable Source Integration
+
+on:
+  push:
+    branches:
+      - feat/aldol-3d-studio-p1-20261020
+    paths:
+      - tools/aldol-3d-studio-p1/**
+      - .github/workflows/aldol-3d-studio-p1.yml
+  pull_request:
+    paths:
+      - tools/aldol-3d-studio-p1/**
+      - .github/workflows/aldol-3d-studio-p1.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: aldol-studio-p1-readable-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  readable-source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact source under test
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Require source files not just compressed transport
+        run: |
+          set -euo pipefail
+          test -f tools/aldol-3d-studio-p1/package.json
+          test -f tools/aldol-3d-studio-p1/src/world-scene-adapter.mjs
+          test -f tools/aldol-3d-studio-p1/web/studio.js
+          test -f tools/aldol-3d-studio-p1/tests/real-integration.mjs
+      - name: Static syntax validation
+        working-directory: tools/aldol-3d-studio-p1
+        run: npm run check
+      - name: Candidate mock, HTTP, MCP, interaction regression (30 tests)
+        working-directory: tools/aldol-3d-studio-p1
+        run: npm test
+      - name: Actual INHA WORLD editor source integration (8 PASS, 2 SKIP)
+        working-directory: tools/aldol-3d-studio-p1
+        env:
+          INHA_WORLD_EDITOR_DIR: ${{ github.workspace }}/apps/world/src/editor
+        run: npm run test:real
+      - name: Release gate note
+        run: |
+          echo "C13 PlayCanvas runtime and C14 full browser / mobile regression remain unverified."
+          echo "No production deployment, official MCP SDK compliance or authenticated remote write access is asserted."
