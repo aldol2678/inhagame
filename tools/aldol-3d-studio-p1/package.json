@@ -1,6 +1,6 @@
 {
   "name": "@aldol/3d-studio-p0",
-  "version": "0.3.0-dev",
+  "version": "0.4.0-dev",
   "private": true,
   "type": "module",
   "description": "ALDOL 3D Studio P1 object gizmos, scene hierarchy and mobile placement on the P0 ScenePort prototype",
@@ -8,13 +8,14 @@
     "node": ">=20"
   },
   "scripts": {
-    "check": "node --check src/world-scene-adapter.mjs && node --check src/bootstrap.mjs && node --check src/command-schema.mjs && node --check bin/mcp-stdio.mjs && node --check bin/dev-server.mjs && node --check web/studio.js && node --check web/interaction.mjs",
-    "test": "node --test tests/adapter.test.mjs tests/mcp.test.mjs tests/http.test.mjs tests/interaction.test.mjs",
+    "check": "node --check src/world-scene-adapter.mjs && node --check src/bootstrap.mjs && node --check src/command-schema.mjs && node --check bin/mcp-stdio.mjs && node --check bin/dev-server.mjs && node --check web/studio.js && node --check web/interaction.mjs && node --check src/asset-factory-bridge.mjs && node --check src/asset-archive.mjs && node --check web/factory-panel.mjs",
+    "test": "node --test tests/adapter.test.mjs tests/mcp.test.mjs tests/http.test.mjs tests/interaction.test.mjs tests/asset-factory-v51.test.mjs",
     "test:real": "node tests/real-integration.mjs",
     "test:mcp": "node --test tests/mcp.test.mjs",
     "studio": "node bin/dev-server.mjs",
     "test:runtime": "cd ../.. && node tools/aldol-3d-studio-p1/tests/browser-runtime-p12.mjs",
-    "test:mobile": "cd ../.. && node tools/aldol-3d-studio-p1/tests/browser-mobile-p12.mjs"
+    "test:mobile": "cd ../.. && node tools/aldol-3d-studio-p1/tests/browser-mobile-p12.mjs",
+    "test:factory": "node --test tests/asset-factory-v51.test.mjs"
   },
   "bin": {
     "aldol-3d-mcp": "./bin/mcp-stdio.mjs"
