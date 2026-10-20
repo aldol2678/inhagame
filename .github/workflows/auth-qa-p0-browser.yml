@@ -1,0 +1,83 @@
+name: AUTH-QA-P0 browser
+on:
+  pull_request:
+    paths:
+      - 'apps/world/hub-account.js'
+      - 'apps/world/profile/profile.js'
+      - 'apps/world/achievements/achievements.js'
+      - 'apps/world/src/online/world-online.js'
+      - 'apps/world/api/public-supabase-config.js'
+      - 'apps/world/tests/auth-qa-p0-contract.test.mjs'
+      - 'apps/world/tests/browser/auth-qa-p0-smoke.mjs'
+      - '.github/workflows/auth-qa-p0-browser.yml'
+permissions:
+  contents: read
+concurrency:
+  group: auth-qa-p0-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  auth-loopback:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      AUTH_QA_P0_HEAD: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - name: Read exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - uses: supabase/setup-cli@v3
+        with:
+          version: 2.117.0
+      - name: Install pinned browser and local SQL client
+        run: |
+          set -euo pipefail
+          npm ci --prefix apps/world/tests/browser --ignore-scripts --no-audit --no-fund
+          (cd apps/world/tests/browser && npx --no-install playwright install --with-deps chromium)
+          sudo apt-get install -y postgresql-client
+      - name: Start disposable Supabase on loopback
+        run: |
+          set -euo pipefail
+          unset SUPABASE_ACCESS_TOKEN SUPABASE_DB_PASSWORD
+          supabase start > "$RUNNER_TEMP/auth-qa-p0-local.log" 2>&1 || { echo 'Local Supabase unavailable'; exit 1; }
+      - name: Import only loopback fixture credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { execFileSync } from 'node:child_process';
+          import { appendFileSync } from 'node:fs';
+          const info = JSON.parse(execFileSync('supabase', ['status', '-o', 'json'], { encoding:'utf8' }));
+          for (const k of ['API_URL', 'DB_URL']) {
+            const value = info[k];
+            if (typeof value !== 'string' || !/^(https?:\/\/|postgres(?:ql)?:\/\/)(?:[^@/]+@)?(127\.0\.0\.1|localhost)(:\d+)?(\/|$)/.test(value)) throw Error('Non-local endpoint: ' + k);
+          }
+          for (const k of ['API_URL', 'DB_URL', 'ANON_KEY', 'SERVICE_ROLE_KEY']) {
+            const value = info[k];
+            if (typeof value !== 'string' || !value || /[\r\n]/.test(value)) throw Error('Missing fixture: ' + k);
+            if (k === 'DB_URL' || k.endsWith('_KEY')) process.stdout.write('::add-mask::' + value + '\n');
+            appendFileSync(process.env.GITHUB_ENV, k + '=' + value + '\n');
+          }
+          NODE
+      - name: Static contract and Chromium Auth QA
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$AUTH_QA_P0_HEAD"
+          node --test apps/world/tests/auth-qa-p0-contract.test.mjs
+          node apps/world/tests/browser/auth-qa-p0-smoke.mjs
+      - name: Discard local Supabase
+        if: always()
+        run: supabase stop --no-backup
+      - name: Preserve redacted QA outcome only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: auth-qa-p0-${{ github.event.pull_request.head.sha }}
+          path: test-results/auth-qa-p0/report.json
+          if-no-files-found: warn
+          retention-days: 7
