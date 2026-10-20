@@ -1,3 +1,4 @@
+import {validateRenderGlb} from '../web/glb-contract.mjs';
 import {createHash} from 'node:crypto';
 
 // Asset Factory v5.1 Sites MCP 0.2.1 accepts metadata only. This bridge verifies
@@ -46,6 +47,9 @@ export function inspectGlb(bytes){
   for(const i of json.images||[])if(i.uri!==undefined&&!/^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(i.uri))err('E_GLB_EXTERNAL_URI');
   if((json.extensionsRequired||[]).length)err('E_GLB_UNSUPPORTED_EXTENSION');
   if(bin===0&&(json.buffers||[]).some(b=>b.byteLength>0))err('E_GLB_BIN_MISSING');
+  // Legacy metadata-only fixtures may be stored, but cannot render. Actual meshes
+  // must satisfy the bounded render profile at the import boundary as well.
+  if((json.meshes||[]).some(m=>m.primitives?.length))validateRenderGlb(bytes);
   return {format:'glb',sceneCount:json.scenes.length,nodeCount:json.nodes.length,meshCount:(json.meshes||[]).length,binBytes:bin};
 }
 export function inspectPng(bytes){
@@ -56,6 +60,20 @@ export function inspectPng(bytes){
 }
 export class FactoryAssetBridge{
   constructor(port){this.port=port;this.files=new Map();this.totalBytes=0;}
+  restore(files){
+    const records=new Map();let total=0;
+    for(const asset of this.port.world.snapshot().assets){
+      if(!/^assets\/[a-f0-9]{64}\.(glb|png)$/.test(asset.uri))throw Error('E_ARCHIVE_PATH');
+      const bytes=files.get(asset.uri),digest=bytes&&hash(bytes);
+      if(!bytes||asset.uri!==`assets/${digest}.${ext(asset.uri)}`||asset.id!=='factory.'+digest.slice(0,24)||asset.metadata?.sha256!==digest||asset.metadata?.byteSize!==bytes.length)throw Error('E_ARCHIVE_ASSET_MISMATCH');
+      const structure=ext(asset.uri)==='glb'?inspectGlb(bytes):inspectPng(bytes);
+      if(records.has(asset.id))throw Error('E_ARCHIVE_DUP');
+      total+=bytes.length;if(total>MAX_TOTAL_BYTES)throw Error('E_FACTORY_TOO_LARGE');
+      records.set(asset.id,{assetId:asset.id,file:asset.metadata.sourceFile||asset.uri.split('/').at(-1),projectId:asset.metadata.projectId,sha256:digest,byteSize:bytes.length,structure,uri:asset.uri,content_integrity:'PASS',engine_import_qa:'UNKNOWN',rights_qa:'UNKNOWN',visual_qa:'UNKNOWN',asset,bytes});
+    }
+    if(files.size!==records.size+1)throw Error('E_ARCHIVE_UNRESOLVED');
+    this.files=records;this.totalBytes=total;
+  }
   active(assetId){return this.port.world.snapshot().assets.some(a=>a.id===assetId);}
   list(){return [...this.files.values()].filter(x=>this.active(x.assetId)).map(({bytes,...details})=>({...details}));}
   get(assetId){return this.active(assetId)?this.files.get(assetId)||null:null;}

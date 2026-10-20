@@ -27,7 +27,7 @@ export class WorldSceneAdapter {
     return {
       sceneId:w.worldId,
       coordinateSystem:clone(w.coordinateSystem),
-      nodes:w.entities.map(e=>({id:e.id,name:e.name,parentId:e.parentId,enabled:e.enabled,transform:clone(e.transform),tags:clone(e.tags),componentKeys:Object.keys(e.components ?? {}),source:'inha-world'})),
+      nodes:w.entities.map(e=>({id:e.id,name:e.name,parentId:e.parentId,enabled:e.enabled,transform:clone(e.transform),tags:clone(e.tags),componentKeys:Object.keys(e.components ?? {}),renderAssetId:e.components?.['core.renderable']?.assetId??null,source:'inha-world'})),
       revisionToken:this.revisionToken,
       previewActive:Boolean(this.commands.transformDraft),
       capabilities:[...CAPS]

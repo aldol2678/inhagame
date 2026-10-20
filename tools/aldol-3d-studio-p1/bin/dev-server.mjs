@@ -1,30 +1,42 @@
 #!/usr/bin/env node
 import {createServer} from 'node:http';
-import {readFile} from 'node:fs/promises';
+import {readFile,stat} from 'node:fs/promises';
 import {join,resolve} from 'node:path';
 import {createLegacyPort} from '../src/bootstrap.mjs';
 import {WorldSceneAdapter} from '../src/world-scene-adapter.mjs';
 import {FactoryAssetBridge} from '../src/asset-factory-bridge.mjs';
-import {makeStudioAssetZip} from '../src/asset-archive.mjs';
+import {makeStudioAssetZip,readStudioAssetZip} from '../src/asset-archive.mjs';
 const flag=k=>{const i=process.argv.indexOf(k);return i>=0?process.argv[i+1]:null;};
 const demo=process.argv.includes('--demo');
 const allowWrite=process.argv.includes('--allow-write');
 const portNum=Number(flag('--port')||4173);
 if(!Number.isInteger(portNum)||portNum<0||portNum>65535)throw Error('E_PORT_INVALID');
-let port;
+let port,packageFiles=null;
 try{
+ if(flag('--package')){
+  if(demo||flag('--world'))throw Error('E_PACKAGE_MODE');
+  if((await stat(resolve(flag('--package')))).size>82*1024*1024)throw Error('E_ARCHIVE_TOO_LARGE');
+  packageFiles=readStudioAssetZip(await readFile(resolve(flag('--package'))));
+ }
  if(demo){const {makeMock}=await import('../tests/fixture.mjs');port=new WorldSceneAdapter(makeMock());}
- else {port=await createLegacyPort(flag('--editor-dir')||process.env.INHA_WORLD_EDITOR_DIR,flag('--world'));}
+ else {port=await createLegacyPort(flag('--editor-dir')||process.env.INHA_WORLD_EDITOR_DIR,flag('--world'),packageFiles?.get('world.json').toString('utf8')??null);}
 }catch(e){console.error(e.stack??e.message);process.exit(2);}
 const assetBridge=new FactoryAssetBridge(port);
+if(packageFiles)assetBridge.restore(packageFiles);
 const staticDir=resolve(import.meta.dirname,'../web');
-const allowFile={'/':'index.html','/studio.js':'studio.js','/studio.css':'studio.css','/interaction.mjs':'interaction.mjs','/factory-panel.mjs':'factory-panel.mjs'};
+const allowFile={'/':'index.html','/studio.js':'studio.js','/studio.css':'studio.css','/interaction.mjs':'interaction.mjs','/factory-panel.mjs':'factory-panel.mjs','/model-viewport.mjs':'model-viewport.mjs','/glb-contract.mjs':'glb-contract.mjs'};
 const json=(res,code,data)=>{res.writeHead(code,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});res.end(JSON.stringify(data));};
 async function body(req,max=100000){let size=0,chunks=[];for await(const chunk of req){size+=chunk.length;if(size>max)throw Error('E_BODY_TOO_LARGE');chunks.push(chunk);}return JSON.parse(Buffer.concat(chunks).toString('utf8'));}
 const sameOrigin=req=>{const origin=req.headers.origin;return !origin||origin===`http://127.0.0.1:${server.address().port}`||origin===`http://localhost:${server.address().port}`;};
 const server=createServer(async(req,res)=>{
  const url=new URL(req.url,'http://localhost');
  try{
+   if(req.method==='GET'&&url.pathname==='/vendor/playcanvas.mjs'){
+     const vendor=resolve(import.meta.dirname,'../../../apps/world/tests/browser/node_modules/playcanvas');
+     try{const pkg=JSON.parse(await readFile(join(vendor,'package.json'),'utf8'));if(pkg.version!=='2.22.4')throw Error('version');
+       const data=await readFile(join(vendor,'build/playcanvas.mjs'));res.writeHead(200,{'Content-Type':'text/javascript; charset=utf-8','X-Content-Type-Options':'nosniff'});res.end(data);
+     }catch{return json(res,503,{error:'E_PLAYCANVAS_INSTALL: npm ci --prefix apps/world/tests/browser --ignore-scripts'});}return;
+   }
    if(req.method==='GET'&&url.pathname in allowFile){const f=allowFile[url.pathname];const data=await readFile(join(staticDir,f));res.writeHead(200,{'Content-Type':/\.(?:m?js)$/.test(f)?'text/javascript; charset=utf-8':f.endsWith('.css')?'text/css; charset=utf-8':'text/html; charset=utf-8','X-Content-Type-Options':'nosniff'});res.end(data);return;}
    if(req.method==='GET'&&url.pathname==='/api/health')return json(res,200,{status:'ok',mode:demo?'demo-mock':'legacy',allowWrite});
    if(req.method==='GET'&&url.pathname==='/api/scene')return json(res,200,port.read());

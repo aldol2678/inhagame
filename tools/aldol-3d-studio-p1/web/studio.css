@@ -74,3 +74,7 @@
 .factory-asset{display:flex;flex-direction:column;gap:5px;border:1px solid #354b5f;padding:7px;border-radius:5px;font-size:11px;word-break:break-all}
 .factory-export{display:inline-flex;align-items:center;justify-content:center;text-decoration:none}
 @media(max-width:740px){.factory-panel{padding:10px}.factory-panel button{min-height:44px}.factory-export{font-size:11px}}
+
+.viewport .model-canvas{position:absolute;inset:0;pointer-events:none;z-index:1}
+.model-status{position:absolute;left:12px;right:12px;top:54px;z-index:2;pointer-events:none;font-size:11px;color:#c3dbef;overflow-wrap:anywhere;max-height:90px;overflow:auto}
+.model-status[data-state="limited"],.model-status[data-state="context-lost"]{color:#ffbd94;background:#241b18e8;padding:6px}

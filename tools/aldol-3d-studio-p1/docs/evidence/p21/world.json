@@ -1,0 +1,164 @@
+{
+  "schemaVersion": "0.1.0",
+  "worldId": "aldol.studio.local",
+  "name": "ALDOL Studio Session",
+  "coordinateSystem": {
+    "handedness": "right",
+    "unit": "meter",
+    "upAxis": "Y"
+  },
+  "assets": [
+    {
+      "id": "factory.08606df88f864f950d43266a",
+      "metadata": {
+        "byteSize": 2264,
+        "contentIntegrity": "PASS",
+        "engineImportQa": "UNKNOWN",
+        "projectId": "p21_fixture",
+        "rightsQa": "UNKNOWN",
+        "sha256": "08606df88f864f950d43266a676742d4f8438e784544d0ee068bc36b8414a51b",
+        "source": "aldol-asset-factory-v5.1-local-export",
+        "sourceFile": "pyramids.glb",
+        "structure": {
+          "binBytes": 696,
+          "format": "glb",
+          "meshCount": 2,
+          "nodeCount": 4,
+          "sceneCount": 1
+        }
+      },
+      "type": "model",
+      "uri": "assets/08606df88f864f950d43266a676742d4f8438e784544d0ee068bc36b8414a51b.glb"
+    }
+  ],
+  "entities": [
+    {
+      "components": {
+        "core.renderable": {
+          "assetId": "factory.08606df88f864f950d43266a"
+        }
+      },
+      "enabled": true,
+      "id": "factory-placement.b91ea7da-8823-4d8c-8e57-be6d4cee9b77",
+      "kind": "prop",
+      "metadata": {
+        "assetFactory": {
+          "engineImportQa": "UNKNOWN",
+          "projectId": "p21_fixture",
+          "rightsQa": "UNKNOWN",
+          "sha256": "08606df88f864f950d43266a676742d4f8438e784544d0ee068bc36b8414a51b"
+        }
+      },
+      "name": "pyramids.glb",
+      "parentId": "p21.parent",
+      "tags": [],
+      "transform": {
+        "position": [
+          -1,
+          0.5,
+          1
+        ],
+        "rotation": [
+          0,
+          0.382683432365,
+          0,
+          0.923879532511
+        ],
+        "scale": [
+          0.8,
+          1.2,
+          0.7
+        ]
+      }
+    },
+    {
+      "components": {},
+      "enabled": false,
+      "id": "p21.hidden",
+      "kind": "prop",
+      "metadata": {},
+      "name": "P21 Disabled",
+      "parentId": null,
+      "tags": [],
+      "transform": {
+        "position": [
+          1,
+          0,
+          -1
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "components": {
+        "core.renderable": {
+          "assetId": "factory.08606df88f864f950d43266a"
+        }
+      },
+      "enabled": true,
+      "id": "p21.hidden-child",
+      "kind": "prop",
+      "metadata": {},
+      "name": "Hidden model",
+      "parentId": "p21.hidden",
+      "tags": [],
+      "transform": {
+        "position": [
+          1,
+          0,
+          -1
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "components": {},
+      "enabled": true,
+      "id": "p21.parent",
+      "kind": "prop",
+      "metadata": {},
+      "name": "P21 Parent",
+      "parentId": null,
+      "tags": [],
+      "transform": {
+        "position": [
+          1,
+          0,
+          -1
+        ],
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      }
+    }
+  ],
+  "metadata": {}
+}
