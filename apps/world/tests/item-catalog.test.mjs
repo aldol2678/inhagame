@@ -24,10 +24,10 @@ test('the committed catalog passes every C0 rule', () => {
   assert.deepEqual(validateCatalog(ITEM_CATALOG), []);
 });
 
-test('catalog preserves all 36 legacy fixtures plus two closed cooking items and four room finishes', () => {
+test('catalog preserves all 36 legacy fixtures plus two closed cooking items and four room finishes plus the separate R5 figurine', () => {
   const ids = ITEM_CATALOG.map(d => d.itemId);
-  assert.deepEqual(ids, [...PILOT_ITEM_IDS, ...STARTER_20, ...HOUSING_F0_NEW_7, "furniture.cooking_station", "consumable.grilled_carp", ...ROOM_FINISH_IDS, ...LIFE_M1_MATERIAL_IDS], 'order and membership are the committed contract');
-  assert.equal(new Set(ids).size, 42);
+  assert.deepEqual(ids, [...PILOT_ITEM_IDS, ...STARTER_20, ...HOUSING_F0_NEW_7, "furniture.cooking_station", "consumable.grilled_carp", ...ROOM_FINISH_IDS, ...LIFE_M1_MATERIAL_IDS, "furniture.dual_mascot_riding_figurine"], 'order and membership are the committed contract');
+  assert.equal(new Set(ids).size, 43);
   for (const id of ids) assert.match(id, ITEM_ID_PATTERN);
   assert.ok(ids.every(id => id === id.toLowerCase()), 'no uppercase COSMETIC_* style ids');
   for (const id of VS_ECONOMY_ITEM_IDS) assert.ok(getItemDefinition(id), `vertical slice item ${id} exists`);

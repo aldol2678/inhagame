@@ -148,6 +148,13 @@ export function createFurnitureLayer(app, root, { modelMode = "glb", isolatedMat
       const display = displays.get(object.id);
       for (const part of trophyDisplayVisual(display)) box(visualParent,part.name,part.at,part.size,surface(part.color),0,part.type ?? "box");
       if (display) box(visualParent,"owned_item_nameplate",[0,.42,-item.depth/2-.006],[.62,.14,.008],displayNameplate(display));
+    } else if (id === "furniture.dual_mascot_riding_figurine") {
+      // A bounded two-character silhouette while the optional private model is unavailable.
+      box(visualParent,"figurine_plinth",[0,.02,0],[.31,.04,.31],surface("#977449"));
+      box(visualParent,"annyongi_body",[0,.14,0],[.20,.21,.24],surface("#68b9ce"),0,"sphere");
+      box(visualParent,"annyongi_head",[0,.22,-.075],[.19,.16,.17],surface("#68b9ce"),0,"sphere");
+      const rider = new pc.Entity("induck_rider", app); rider.setLocalPosition(0,.22,.015); visualParent.addChild(rider);
+      duck(rider,.5);
     } else if (id.includes("study_books_set")) {
       const colors=["#496b8c","#b05f54","#d0a14f","#6f8f62","#7d668e"];
       colors.forEach((color,index)=>box(visualParent,"book",[0,index*.032+.018,(index%2)*.012-.006],

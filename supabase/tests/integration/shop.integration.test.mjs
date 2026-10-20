@@ -130,7 +130,8 @@ test('shop read: server prices and purchasability through the Data API', async (
     ['offer.dorm_furniture.mini_induck', 650, 5, 'ACTIVE', false, 'LEVEL_REQUIRED'],
     ['offer.student_center.campus_map_poster', 250, 2, 'ACTIVE', false, 'LEVEL_REQUIRED'],
     ['offer.dorm_furniture.study_books_set', 120, 1, 'LOCKED', false, 'LISTING_LOCKED'],
-    ['offer.dorm_furniture.dorm_single_sofa', 480, 1, 'LOCKED', false, 'LISTING_LOCKED']]);
+    ['offer.dorm_furniture.dorm_single_sofa', 480, 1, 'LOCKED', false, 'LISTING_LOCKED'],
+    ['offer.dorm_furniture.dual_mascot_riding_figurine', 500, 6, 'LOCKED', false, 'LISTING_LOCKED']]);
   const guest = await rest('/rest/v1/rpc/get_world_shop_v1', { body: { p_shop_id: 'shop.student_center' } });
   assert.ok(guest.status >= 400, 'guests have no shop read');
 });

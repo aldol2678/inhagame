@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { ROOM_FURNITURE, firstFurniturePosition, validateFurniture } from "../src/rooms/furniture-layout.js";
 import { housingFurnitureOrder } from "./browser/housing-fixture.mjs";
 
-test("housing smoke native-add order fits all seventeen candidate items without changing the catalog or inventory", () => {
+test("housing smoke native-add order fits all eighteen candidate items without changing the catalog or inventory", () => {
   const originalIds = ROOM_FURNITURE.map(item => item.itemId);
   const ordered = housingFurnitureOrder(ROOM_FURNITURE);
   assert.deepEqual(ordered.slice(0, 2).map(item => item.itemId), ["furniture.dorm_monitor", "furniture.study_books_set"]);

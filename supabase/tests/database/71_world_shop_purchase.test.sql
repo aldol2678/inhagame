@@ -40,6 +40,7 @@ select results_eq($$select listing_id, shop_id, item_id, currency_id, price, qua
     ('offer.dorm_furniture.campus_rug_blue', 'shop.dorm_furniture', 'furniture.campus_rug_blue', 'currency.induck_coin', 360, 1, 3, 'ACTIVE'),
     ('offer.dorm_furniture.dorm_desk_lamp', 'shop.dorm_furniture', 'furniture.dorm_desk_lamp', 'currency.induck_coin', 280, 1, 2, 'ACTIVE'),
     ('offer.dorm_furniture.dorm_single_sofa', 'shop.dorm_furniture', 'furniture.dorm_single_sofa', 'currency.induck_coin', 480, 1, 1, 'LOCKED'),
+    ('offer.dorm_furniture.dual_mascot_riding_figurine', 'shop.dorm_furniture', 'furniture.dual_mascot_riding_figurine', 'currency.induck_coin', 500, 1, 6, 'LOCKED'),
     ('offer.dorm_furniture.induck_chair', 'shop.dorm_furniture', 'furniture.induck_chair', 'currency.induck_coin', 420, 1, 3, 'ACTIVE'),
     ('offer.dorm_furniture.induck_cushion', 'shop.dorm_furniture', 'furniture.induck_cushion', 'currency.induck_coin', 220, 1, 1, 'ACTIVE'),
     ('offer.dorm_furniture.mini_induck', 'shop.dorm_furniture', 'furniture.mini_induck', 'currency.induck_coin', 650, 1, 5, 'ACTIVE'),
@@ -50,11 +51,11 @@ select results_eq($$select listing_id, shop_id, item_id, currency_id, price, qua
     ('offer.student_center.induck_backpack', 'shop.student_center_fashion', 'back.induck_backpack', 'currency.induck_coin', 420, 1, 3, 'ACTIVE'),
     ('offer.student_center.induck_cap', 'shop.student_center_fashion', 'head.induck_cap', 'currency.induck_coin', 180, 1, 1, 'ACTIVE'),
     ('offer.student_center.induck_hoodie', 'shop.student_center_fashion', 'top.induck_hoodie', 'currency.induck_coin', 320, 1, 2, 'ACTIVE')$$,
-  'the 14 canonical listings: prices, canonical levels (E0–E5 §10.2.1) and statuses');
+  'the 15 canonical listings: existing prices/levels and the separately locked Lv.6 R5 figurine');
 select is(array(select listing_id from private.world_shop_listings where shop_id <> 'shop.room_finishes' and required_level is null order by 1),
-  array['offer.student_center.campus_mug'], 'only the mug has no level gate; the other 13 carry a canonical required level');
+  array['offer.student_center.campus_mug'], 'only the mug has no level gate; the other 14 carry a canonical required level');
 select is((select count(*) from private.world_shop_listings l join private.world_item_catalog c using (item_id)
-  where l.shop_id <> 'shop.room_finishes'), 14::bigint,
+  where l.shop_id <> 'shop.room_finishes'), 15::bigint,
   'every listing points to a real catalog item');
 select hasnt_column('private', 'world_item_catalog', 'price', 'the item catalog carries no price');
 select throws_ok($$insert into private.world_shop_listings(listing_id, shop_id, position, item_id, currency_id, price, status)
@@ -324,7 +325,8 @@ select results_eq($$select o->>'listingId', (o->>'purchasable')::boolean, o->>'u
            ('offer.dorm_furniture.mini_induck', false, 'LEVEL_REQUIRED'),
            ('offer.student_center.campus_map_poster', true, null),
            ('offer.dorm_furniture.study_books_set', false, 'LISTING_LOCKED'),
-           ('offer.dorm_furniture.dorm_single_sofa', false, 'LISTING_LOCKED')$$,
+           ('offer.dorm_furniture.dorm_single_sofa', false, 'LISTING_LOCKED'),
+           ('offer.dorm_furniture.dual_mascot_riding_figurine', false, 'LISTING_LOCKED')$$,
   'Lv.2: the read re-evaluates every offer against the new server level');
 select is((public.get_world_shop_v1('shop.dorm_furniture')->>'playerLevel')::int, 2, 'the read shows Lv.2');
 select is(public.purchase_world_shop_listing_v1(listing_id, 'purchase:f6:' || listing_id)->>'status', 'SUCCESS',

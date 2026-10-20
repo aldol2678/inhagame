@@ -1,3 +1,4 @@
+import { RIDING_FIGURINE_VISUAL } from './riding-figurine-assets.js';
 import { CHARACTER_FURNITURE_CANDIDATES } from './character-furniture-assets.js';
 // Code-owned optional visual. Never take URLs, transforms or authority from layout/RPC data.
 export const SOFA_VISUAL = Object.freeze({
@@ -57,7 +58,7 @@ export const OFFICIAL_FURNITURE_CANDIDATES = Object.freeze([
     frontAxis: '-Z', textureBytesEstimate: 9137996, enabled: false
   })
 ]);
-export const FURNITURE_VISUALS = Object.freeze([SOFA_VISUAL, ...CHARACTER_FURNITURE_CANDIDATES, ...OFFICIAL_FURNITURE_CANDIDATES]);
+export const FURNITURE_VISUALS = Object.freeze([SOFA_VISUAL, ...CHARACTER_FURNITURE_CANDIDATES, ...OFFICIAL_FURNITURE_CANDIDATES, RIDING_FIGURINE_VISUAL]);
 export function furnitureVisualForItem(itemId) {
   return FURNITURE_VISUALS.find(visual => visual.itemId === itemId && visual.enabled) ?? null;
 }

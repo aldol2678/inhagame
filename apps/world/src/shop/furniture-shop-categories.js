@@ -20,6 +20,7 @@ const GROUPS = Object.freeze({
   "furniture.dorm_desk_lamp": "light",
   "furniture.campus_rug_blue": "floor",
   "furniture.mini_induck": "decor",
+  "furniture.dual_mascot_riding_figurine": "decor",
   "furniture.mcm_2026_landlord_figure": "decor",
   "furniture.dorm_plant_medium": "decor",
   "furniture.study_books_set": "decor",

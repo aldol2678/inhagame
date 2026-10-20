@@ -168,7 +168,9 @@ export const ITEM_CATALOG = Object.freeze([
       tags: ['life', 'fishing', 'material'], introducedVersion: 'life.m1' })),
   item('material.artifact_fragment_01', '캠퍼스 유물 조각', '캠퍼스 역사 조사와 발굴에서 얻는 첫 유물 조각.',
     material({ rarity: 'UNCOMMON', status: 'ACTIVE', iconAssetId: 'icon.material.artifact_fragment_01.v1', acquisition: [{ source: 'ACTIVITY', ref: 'activity.archaeology.campus_history' }],
-      tags: ['life', 'archaeology', 'material'], introducedVersion: 'life.m1' }))
+      tags: ['life', 'archaeology', 'material'], introducedVersion: 'life.m1' })),
+  item('furniture.dual_mascot_riding_figurine', '인덕이와 안뇽이 라이딩 피규어', '안뇽이 등에 올라탄 인덕이의 작은 장식 피규어.',
+    furniture('DECOR', { rarity: 'RARE', acquisition: [{ source: 'SHOP' }], tags: ['dorm', 'figurine'], introducedVersion: 'housing.r5' }))
 ]);
 
 export const PILOT_ITEM_IDS = Object.freeze(['head.inha_cap', 'head.inkyung_duck', 'top.inha_basic', 'back.freshman_bag', 'badge.main_gate', 'emote.wave_plus']);
