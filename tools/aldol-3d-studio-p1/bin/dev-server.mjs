@@ -35,7 +35,7 @@ const server=createServer(async(req,res)=>{
      const bin=makeStudioAssetZip(port.exportWorld(),registered.map(x=>({...x,bytes:assetBridge.get(x.assetId).bytes})));
      res.writeHead(200,{'Content-Type':'application/zip','Content-Disposition':'attachment; filename="studio-assets.zip"','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});res.end(bin);return;
    }
-   if(req.method==='GET'&&/^\\/api\\/assets\\/factory\\.[a-f0-9]{24}$/.test(url.pathname)){
+   if(req.method==='GET'&&/^\/api\/assets\/factory\.[a-f0-9]{24}$/.test(url.pathname)){
      const row=assetBridge.get(url.pathname.split('/').at(-1));if(!row)return json(res,404,{error:'E_ASSET_NOT_FOUND'});
      res.writeHead(200,{'Content-Type':row.structure.format==='glb'?'model/gltf-binary':'image/png','Content-Length':row.bytes.length,'Content-Disposition':'attachment; filename="verified-'+row.sha256+'.'+row.structure.format+'"','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});res.end(row.bytes);return;
    }
