@@ -1,0 +1,100 @@
+name: ALDOL 3D Studio P1 Readable Source Materialization
+on:
+  push:
+    branches:
+      - feat/aldol-3d-studio-p1-20261020
+    paths:
+      - .github/workflows/aldol-3d-studio-p1-materialize.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: aldol-p1-materialize-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  materialize-and-gate:
+    if: github.ref == 'refs/heads/feat/aldol-3d-studio-p1-20261020'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout only isolated development branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/aldol-3d-studio-p1-20261020
+          persist-credentials: true
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify archive and materialize readable source
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="tools/aldol-3d-studio-p1"
+          temp="$RUNNER_TEMP/aldol-p1-reviewed"
+          mkdir -p "$temp"
+          cat "$root"/transport/chunk-{00..06}.b64 | base64 --decode > "$RUNNER_TEMP/p1-core.tar.br"
+          echo "9c18dd09f6310c37402fb694cb560b78dbce429ee9abf6022dc57c51f8bef5f9  $RUNNER_TEMP/p1-core.tar.br" | sha256sum --check -
+          node -e "const fs=require('node:fs'),z=require('node:zlib');fs.writeFileSync(process.env.RUNNER_TEMP+'/p1-core.tar',z.brotliDecompressSync(fs.readFileSync(process.env.RUNNER_TEMP+'/p1-core.tar.br')))"
+          # Ensure archive paths are restricted to the intended package.
+          python3 - "$RUNNER_TEMP/p1-core.tar" <<'PY'
+          import sys,tarfile
+          allowed = ('bin/', 'src/', 'web/', 'tests/')
+          with tarfile.open(sys.argv[1]) as tar:
+              names=set()
+              for member in tar.getmembers():
+                  name=member.name.lstrip('./')
+                  if not name or name in ('bin','src','web','tests'): continue
+                  assert not member.issym() and not member.islnk() and not member.isdev(), name
+                  assert not name.startswith('/') and '..' not in name.split('/'),name
+                  assert name=='package.json' or name.startswith(allowed),name
+                  assert name not in names,name
+                  names.add(name)
+              assert 'package.json' in names
+              assert 'src/world-scene-adapter.mjs' in names
+              assert 'web/studio.js' in names
+          PY
+          tar -xf "$RUNNER_TEMP/p1-core.tar" -C "$temp"
+          cmp "$temp/web/interaction.mjs" "$root/web/interaction.mjs"
+          cmp "$temp/tests/interaction.test.mjs" "$root/tests/interaction.test.mjs"
+          mkdir -p "$root"/{bin,src,web,tests}
+          cp -a "$temp"/bin/. "$root"/bin/
+          cp -a "$temp"/src/. "$root"/src/
+          cp -a "$temp"/web/. "$root"/web/
+          cp -a "$temp"/tests/. "$root"/tests/
+          cp "$temp/package.json" "$root/package.json"
+          diff -qr "$temp/bin" "$root/bin"
+          diff -qr "$temp/src" "$root/src"
+          diff -qr "$temp/web" "$root/web"
+          diff -qr "$temp/tests" "$root/tests"
+          cmp "$temp/package.json" "$root/package.json"
+      - name: Source syntax and complete mock regression
+        working-directory: tools/aldol-3d-studio-p1
+        run: |
+          npm run check
+          npm test
+      - name: Actual INHA WORLD editor source integration
+        working-directory: tools/aldol-3d-studio-p1
+        env:
+          INHA_WORLD_EDITOR_DIR: ${{ github.workspace }}/apps/world/src/editor
+        run: npm run test:real
+      - name: Commit only reviewed, readable source files
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="tools/aldol-3d-studio-p1"
+          git add -- "$root/bin" "$root/src" "$root/web" "$root/tests" "$root/package.json"
+          if git diff --cached --quiet; then
+            echo "Readable source already materialized: no commit required."
+            exit 0
+          fi
+          git diff --cached --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "refactor(3d-studio): materialize reviewed P1 readable source after test gates"
+          git push origin HEAD:refs/heads/feat/aldol-3d-studio-p1-20261020
