@@ -18,7 +18,7 @@ try{
 }catch(e){console.error(e.stack??e.message);process.exit(2);}
 const assetBridge=new FactoryAssetBridge(port);
 const staticDir=resolve(import.meta.dirname,'../web');
-const allowFile={'/':'index.html','/studio.js':'studio.js','/studio.css':'studio.css','/interaction.mjs':'interaction.mjs'};
+const allowFile={'/':'index.html','/studio.js':'studio.js','/studio.css':'studio.css','/interaction.mjs':'interaction.mjs','/factory-panel.mjs':'factory-panel.mjs'};
 const json=(res,code,data)=>{res.writeHead(code,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});res.end(JSON.stringify(data));};
 async function body(req,max=100000){let size=0,chunks=[];for await(const chunk of req){size+=chunk.length;if(size>max)throw Error('E_BODY_TOO_LARGE');chunks.push(chunk);}return JSON.parse(Buffer.concat(chunks).toString('utf8'));}
 const sameOrigin=req=>{const origin=req.headers.origin;return !origin||origin===`http://127.0.0.1:${server.address().port}`||origin===`http://localhost:${server.address().port}`;};
