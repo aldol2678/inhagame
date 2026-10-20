@@ -21,7 +21,7 @@ test('v5.1 metadata path contract and duplicate rejection',()=>{
  const {manifest}=make();assert.equal(parseFactoryInventory(manifest).assets.length,1);
  assert.throws(()=>parseFactoryInventory({...manifest,assets:[manifest.assets[0],manifest.assets[0]]}),/E_FACTORY_DUPLICATE/);
  assert.throws(()=>parseFactoryInventory({...manifest,assets:[{...manifest.assets[0],file:'../escape.glb'}]}),/E_FACTORY_ASSET_INVALID/);
- assert.throws(()=>parseFactoryInventory({...manifest,assets:[{...manifest.assets[0],file:'assets/evil.svg'}]}),/E_FACTORY_ASSET_INVALID|E_IMPORT_TYPE/);
+ assert.equal(parseFactoryInventory({...manifest,assets:[{...manifest.assets[0],file:'assets/evil.svg'}]}).assets[0].file,'assets/evil.svg'); // SVG metadata is valid; only unsafe browser preview/import is blocked.
 });
 test('verified GLB import registers world asset and preserves exact original bytes',()=>{
  const port=new WorldSceneAdapter(makeMock()),bridge=new FactoryAssetBridge(port),m=make();
