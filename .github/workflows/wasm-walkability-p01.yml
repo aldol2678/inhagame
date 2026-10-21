@@ -1,0 +1,39 @@
+name: WASM P01 walkability probe
+on:
+  pull_request:
+    paths:
+      - 'apps/world/npc-factory/dev-navigation.mjs'
+      - 'apps/world/npc-factory/dev-runtime.mjs'
+      - 'apps/world/npc-factory/wasm/**'
+      - 'apps/world/npc-factory/wasm-walkability-p01.mjs'
+      - 'apps/world/tests/wasm-p01/**'
+      - 'apps/world/tests/wasm-walkability-p01.test.mjs'
+      - 'apps/world/tests/browser/wasm-walkability-p01-smoke.mjs'
+      - '.github/workflows/wasm-walkability-p01.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: wasm-p01-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  wasm-browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - run: node --test apps/world/tests/wasm-walkability-p01.test.mjs
+      - run: npm ci --ignore-scripts --prefix apps/world/tests/browser
+      - name: Test real WASM in the existing runner Chrome
+        env:
+          WORLD_BROWSER_EXECUTABLE: /usr/bin/google-chrome
+        run: node apps/world/tests/browser/wasm-walkability-p01-smoke.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: wasm-p01-browser-${{ github.sha }}
+          path: test-results/wasm-p01
+          if-no-files-found: warn

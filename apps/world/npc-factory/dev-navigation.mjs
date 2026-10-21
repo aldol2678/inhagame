@@ -46,7 +46,7 @@ function obstacleRecord(box) {
   return { ...box, ...bounds };
 }
 
-export function createNpcNavigator(batch, { additionalAnchors = [] } = {}) {
+export function createNpcNavigator(batch, { additionalAnchors = [], walkabilityBatch = null } = {}) {
   const anchors = [
     ...(batch ? PERIODS.flatMap(period => snapshotForPeriod(batch, period).actors.map(a => a.position).filter(Boolean)) : []),
     ...additionalAnchors
@@ -125,7 +125,18 @@ export function createNpcNavigator(batch, { additionalAnchors = [] } = {}) {
     const deadline = Number.isFinite(budgetMs) ? performance.now() + budgetMs : Infinity;
     while (builtCells < cellCount) {
       const stop = Math.min(cellCount, builtCells + 256);
-      for (; builtCells < stop; builtCells++) openCells[builtCells] = Number(walkable(cellPoint(builtCells)));
+      // P01 is batch-only and opt-in. Missing/loading/trapped kernels return null;
+      // a malformed batch cannot publish partial or stale cells into navigation.
+      let accelerated = null;
+      if (walkabilityBatch) {
+        try {
+          const points = Array.from({ length: stop - builtCells }, (_, i) => cellPoint(builtCells + i));
+          const values = walkabilityBatch(points);
+          if (values instanceof Uint8Array && values.length === points.length && values.every(value => value <= 1)) accelerated = values;
+        } catch { /* Original JS path below owns safe fallback. */ }
+      }
+      if (accelerated) { openCells.set(accelerated, builtCells); builtCells = stop; }
+      else for (; builtCells < stop; builtCells++) openCells[builtCells] = Number(walkable(cellPoint(builtCells)));
       if (performance.now() >= deadline) break;
     }
     return builtCells >= cellCount;
