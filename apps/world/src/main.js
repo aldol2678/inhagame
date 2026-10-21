@@ -83,6 +83,7 @@ import { createCore15FunnelTelemetry } from "./core15-funnel-telemetry.js";
 import { createCampusHudMenu } from "./campus-hud.js";
 import { createKeyboardShortcutsPanel } from "./keyboard-shortcuts-panel.js";
 import { SocialClient } from "./social/social-client.js";
+import { createSocialAccountSession } from "./social/social-account-session.js";
 import { createPlayerCard } from "./social/player-card.js";
 import { createFriendPanel } from "./social/friend-panel.js";
 import { createNearbyPanel } from "./social/nearby-panel.js";
@@ -1058,6 +1059,15 @@ const chatPanel = createChatPanel({
 // Social S1-C1: Player Inspect, friends, block and report. The database is authoritative;
 // targets are user ids from Presence, never nicknames. Guests have no social layer.
 const social = new SocialClient({ getClient: () => online?.supabase ?? null, getSelfUserId: () => online?.userId ?? null });
+const socialAccountSession = createSocialAccountSession({
+  social,
+  onAccountChange: () => {
+    playerCard.close();
+    if (friendPanel.open) void friendPanel.setOpen(false);
+  },
+  onFriends: friends => lobbyPresenceSummary.setFriends(friends)
+});
+window.addEventListener("pagehide", event => { if (!event.persisted) socialAccountSession.dispose(); });
 const friendRoomVisitClient = new FriendRoomVisitClient({
   getClient: () => online?.supabase ?? null,
   getSelfUserId: () => online?.userId ?? null
@@ -4064,23 +4074,21 @@ try {
     if (roomFunctionIdentityChanged) commissionTrials?.close();
     lobbyPlayerSummary.render();
     lobbyQuestHighlight.update();
-    chatPanel.refreshAvailability();
+    chatPanel.refreshAvailability(identity?.userId ?? null);
     friendPanel.setAvailable(!!identity);
     nearbyPanel.render();
     guestbookPanel.setAvailable(!!identity, identity?.userId ?? null);
     if (identity) {
       void accompany.refresh();
-      void social.mine()
-        .then(data => lobbyPresenceSummary.setFriends(data.friends))
-        .catch(() => lobbyPresenceSummary.setFriends(null));
     } else {
       accompany.reset();
       nearbyPanel.setOpen(false);
       lobbyPresenceSummary.setFriends(null);
       follow.stop(FollowStopReason.OFFLINE);
-      social.reset();
       playerCard.close();
     }
+    // #118: invalidate old-account reads before any new social summary can be published.
+    void socialAccountSession.setAccount(identity?.userId ?? null);
     lobbyPresenceSummary.update();
   });
   online.chat.feed.onChange((entries) => chatPanel.renderFeed(entries));
