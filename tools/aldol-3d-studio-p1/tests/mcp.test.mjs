@@ -41,7 +41,7 @@ test('MCP local stdio handshake, tools/list, read-only default, nonwrite invocat
  const dir=fixture();try{
  const r=protocol(dir,[],[call(1,'initialize',{protocolVersion:'2025-06-18'}),{jsonrpc:'2.0',method:'notifications/initialized'},call(2,'tools/list'),call(3,'tools/call',{name:'scene_read'}),call(4,'tools/call',{name:'scene_dispatch',arguments:{}})]);
  assert.equal(r.length,4);assert.equal(r[0].result.serverInfo.name,'aldol-3d-studio-local');
- assert.equal(r[1].result.tools.length,3);assert.equal(JSON.parse(r[2].result.content[0].text).sceneId,'mock.world');assert.equal(r[3].error.code,-32602);
+ assert.equal(r[1].result.tools.length,7);assert.equal(JSON.parse(r[2].result.content[0].text).sceneId,'mock.world');assert.equal(r[3].error.code,-32602);
  }finally{rmSync(dir,{recursive:true,force:true});}
 });
 test('MCP --allow-write executes typed command, then reads new scene',()=>{
@@ -53,5 +53,42 @@ test('MCP --allow-write executes typed command, then reads new scene',()=>{
  const response=protocol(dir,['--allow-write'],inputs);
  assert.equal(JSON.parse(response[0].result.content[0].text).status,'applied');
  assert.equal(JSON.parse(response[1].result.content[0].text).nodes[0].id,'box.1');
+ }finally{rmSync(dir,{recursive:true,force:true});}
+});
+
+test('MCP motion tools: validation readable by default, writes explicitly gated, blended clip remains local',()=>{
+ const dir=fixture();
+ const clip={id:'walk',name:'Walk',duration:1,fps:30,skeleton:['root'],tracks:[{joint:'root',channel:'translation',frames:[{time:0,value:[0,0,0]},{time:1,value:[2,0,0]}]}]};
+ try{
+  const readonly=protocol(dir,[],[
+    call(1,'tools/list'),
+    call(2,'tools/call',{name:'motion_validate',arguments:{clip}}),
+    call(3,'tools/call',{name:'motion_import',arguments:{clip}})
+  ]);
+  const names=readonly[0].result.tools.map(x=>x.name);
+  assert.ok(names.includes('motion_library'));
+  assert.ok(names.includes('motion_validate'));
+  assert.ok(names.includes('motion_blend'));
+  assert.ok(names.includes('motion_export'));
+  assert.ok(!names.includes('motion_import'));
+  assert.ok(!names.includes('motion_retarget'));
+  assert.equal(JSON.parse(readonly[1].result.content[0].text).valid,true);
+  assert.equal(readonly[2].error.code,-32602);
+  const writable=protocol(dir,['--allow-write'],[
+    call(1,'tools/call',{name:'scene_read'}),
+    call(2,'tools/call',{name:'motion_import',arguments:{clip}}),
+    call(3,'tools/call',{name:'motion_library'}),
+    call(4,'tools/call',{name:'motion_retarget',arguments:{sourceId:'walk',id:'walk.copy',targetSkeleton:['root']}}),
+    call(5,'tools/call',{name:'motion_blend',arguments:{aId:'walk',bId:'walk.copy',time:0.5,alpha:0.5}}),
+    call(6,'tools/call',{name:'motion_export',arguments:{id:'walk.copy'}}),
+    call(7,'tools/call',{name:'scene_read'})
+  ]);
+  const unpack=i=>JSON.parse(writable[i].result.content[0].text);
+  assert.equal(unpack(1).status,'imported');
+  assert.equal(unpack(2).clips.length,1);
+  assert.equal(unpack(3).method,'JOINT_NAME_MAPPING_ONLY');
+  assert.equal(unpack(4).tracks[0].value[0],1);
+  assert.equal(unpack(5).glbExportSupported,false);
+  assert.equal(unpack(0).revisionToken,unpack(6).revisionToken);
  }finally{rmSync(dir,{recursive:true,force:true});}
 });
