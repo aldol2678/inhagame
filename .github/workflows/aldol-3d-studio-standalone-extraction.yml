@@ -1,0 +1,59 @@
+name: ALDOL 3D Studio Standalone Extraction
+on:
+  pull_request:
+    paths:
+      - tools/aldol-3d-studio-p1/**
+      - .github/workflows/aldol-3d-studio-standalone-extraction.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: studio-extract-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  export-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - name: Exact source revision
+        run: git rev-parse HEAD
+      - name: Create standalone tree with bundled compatibility editor
+        run: |
+          node --check tools/aldol-3d-studio-p1/scripts/extract-standalone.mjs
+          node tools/aldol-3d-studio-p1/scripts/extract-standalone.mjs --output "$RUNNER_TEMP/aldol-3d-studio"
+      - name: Install standalone dependencies (no inhagame test workspace)
+        working-directory: ${{ runner.temp }}/aldol-3d-studio
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Verify standalone syntax, unit tests and bundled real editor
+        working-directory: ${{ runner.temp }}/aldol-3d-studio
+        run: |
+          npm run check
+          npm test
+          npm run test:real
+      - name: Standalone Chromium Studio and mobile browser emulation
+        working-directory: ${{ runner.temp }}/aldol-3d-studio
+        run: |
+          npx --no-install playwright install --with-deps chromium
+          npm run test:browser
+      - name: Archive standalone source and reproducibility manifest
+        if: success()
+        run: |
+          cd "$RUNNER_TEMP"
+          tar -czf "$GITHUB_WORKSPACE/aldol-3d-studio-standalone.tar.gz" --exclude=node_modules --exclude=test-results aldol-3d-studio
+          sha256sum "$GITHUB_WORKSPACE/aldol-3d-studio-standalone.tar.gz" | tee "$GITHUB_WORKSPACE/aldol-3d-studio-standalone.sha256"
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: aldol-3d-studio-standalone-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            aldol-3d-studio-standalone.tar.gz
+            aldol-3d-studio-standalone.sha256
+          if-no-files-found: error
+          retention-days: 30
