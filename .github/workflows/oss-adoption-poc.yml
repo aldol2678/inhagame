@@ -1,0 +1,52 @@
+name: OSS adoption PoC
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/oss-adoption-poc/**'
+      - '.github/workflows/oss-adoption-poc.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: oss-adoption-poc-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - name: Install isolated PoC dependencies
+        working-directory: experiments/oss-adoption-poc
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Confirm system Chrome
+        run: google-chrome --version
+      - name: Run parity and round-trip tests
+        working-directory: experiments/oss-adoption-poc
+        run: npm test
+      - name: Run benchmark
+        working-directory: experiments/oss-adoption-poc
+        run: npm run benchmark
+      - name: Run renderer-neutral visual regression
+        working-directory: experiments/oss-adoption-poc
+        run: npm run visual
+      - name: Run PlayCanvas compatibility gate
+        working-directory: experiments/oss-adoption-poc
+        run: npm run playcanvas
+      - name: Upload PoC evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: oss-adoption-poc-results
+          path: |
+            experiments/oss-adoption-poc/poc-results.json
+            experiments/oss-adoption-poc/.visual-output/**
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 7
