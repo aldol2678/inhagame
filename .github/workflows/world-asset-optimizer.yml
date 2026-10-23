@@ -91,6 +91,8 @@ jobs:
       - name: Generate shadow-consumer assets
         working-directory: tools/world-assets
         run: npm run verify
+      - name: Isolated fishing-rod geometry and size experiment (never modify canonical GLB)
+        run: node tools/world-assets/fishing-rod-experiment.mjs
       - name: Install World browser smoke dependencies
         id: prepare
         working-directory: apps/world/tests/browser
@@ -149,6 +151,11 @@ jobs:
       - name: Install World browser smoke dependencies
         working-directory: apps/world/tests/browser
         run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Compare fishing-rod source/candidate in offline PlayCanvas WebGL2
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+        run: node apps/world/tests/browser/fishing-rod-experiment-smoke.mjs
       - name: Run asset optimization shadow smoke
         env:
           WORLD_SMOKE_DISABLE_WEBGPU: '1'
@@ -182,6 +189,10 @@ jobs:
           name: world-asset-optimizer-evidence
           path: |
             ${{ runner.temp }}/inhagame-world-assets/optimization-report.json
+            ${{ runner.temp }}/fishing-rod-experiment.json
+            ${{ runner.temp }}/fishing-rod-webgl2.json
+            ${{ runner.temp }}/fishing-rod-source.png
+            ${{ runner.temp }}/fishing-rod-candidate.png
           if-no-files-found: error
           retention-days: 7
       - name: Require independent canary safety success
