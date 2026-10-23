@@ -54,9 +54,22 @@ function verifySemantics(before, after) {
       const x = oldPrims[p], y = newPrims[p];
       assert.equal(y.getMode(), x.getMode(), 'topology');
       assert.equal(y.getMaterial()?.getName(), x.getMaterial()?.getName(), 'material binding');
-      const attributes = x.listSemantics().sort();
-      assert.deepEqual(y.listSemantics().sort(), attributes, 'attribute semantics');
-      for (const semantic of attributes) sameArrays(x.getAttribute(semantic), y.getAttribute(semantic), semantic);
+      const originalSemantics = x.listSemantics().sort(), outputSemantics = y.listSemantics().sort();
+      // prune() may remove an unused UV set from untextured vertex-color fishing materials.
+      // All other vertex/index data must remain bit-for-bit identical.
+      const removedUV = originalSemantics.includes('TEXCOORD_0') && !outputSemantics.includes('TEXCOORD_0');
+      if (removedUV) {
+        assert.deepEqual(originalSemantics.filter(name => name !== 'TEXCOORD_0'), outputSemantics,
+          'only unused TEXCOORD_0 may be removed');
+        const mat = x.getMaterial();
+        assert.ok(mat, 'material required for UV-removal safety');
+        for (const slot of ['getBaseColorTexture', 'getNormalTexture', 'getMetallicRoughnessTexture',
+          'getOcclusionTexture', 'getEmissiveTexture']) {
+          assert.equal(mat[slot](), null, 'UV removal only allowed when '+slot+' is unused');
+        }
+      } else assert.deepEqual(outputSemantics, originalSemantics, 'attribute semantics');
+      for (const semantic of outputSemantics)
+        sameArrays(x.getAttribute(semantic), y.getAttribute(semantic), semantic);
       if (x.getIndices()) sameArrays(x.getIndices(), y.getIndices(), 'indices');
       else assert.equal(y.getIndices(), null);
       assert.equal(y.listTargets().length, x.listTargets().length, 'morph target count');
@@ -90,7 +103,7 @@ try {
     candidateBytes: transformed.length, savedBytes: saved,
     savingsPercent: Math.round(saved / original.length * 100000) / 1000,
     sourceSha256: hash, candidateSha256: sha256(transformed),
-    metadata: proof, worthAdopting: saved > 0,
+    metadata: proof, unusedUV0MayBePruned: true, worthAdopting: saved > 0,
     adoptionGate: 'Do not change source, runtime routing, or hash until independent rendering and usage validation' });
   console.log('FISHING_ROD_EXPERIMENT ' + JSON.stringify(report));
 } catch (error) {

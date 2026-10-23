@@ -91,8 +91,6 @@ jobs:
       - name: Generate shadow-consumer assets
         working-directory: tools/world-assets
         run: npm run verify
-      - name: Isolated fishing-rod geometry and size experiment (never modify canonical GLB)
-        run: node tools/world-assets/fishing-rod-experiment.mjs
       - name: Install World browser smoke dependencies
         id: prepare
         working-directory: apps/world/tests/browser
@@ -148,6 +146,8 @@ jobs:
       - name: Generate shadow-consumer assets
         working-directory: tools/world-assets
         run: npm run verify
+      - name: Isolated fishing-rod geometry and size experiment (never modify canonical GLB)
+        run: node tools/world-assets/fishing-rod-experiment.mjs
       - name: Install World browser smoke dependencies
         working-directory: apps/world/tests/browser
         run: npm ci --ignore-scripts --no-audit --no-fund
