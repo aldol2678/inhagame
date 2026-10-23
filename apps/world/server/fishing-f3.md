@@ -10,6 +10,10 @@ position producer is **not connected**. Current browser `pose-source.js` / Realt
 establish authoritative movement. With `presence_required=true` (the migration default), new
 casts and active HOOK commands fail closed until a trusted producer supplies evidence.
 
+An isolated input-driven producer experiment is documented in
+[`fishing-position-authority-prototype.md`](../../../docs/implementation/fishing-position-authority-prototype.md).
+It exercises this contract against a disposable DB; it is not connected to production movement.
+
 Keep Production `WORLD_FISHING_API_ENABLED` unset. Production SQL application, authoritative
 producer integration and player exposure are separate work. See
 [`fishing-production-migration-plan.md`](../../../docs/implementation/fishing-production-migration-plan.md).
