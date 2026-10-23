@@ -72,6 +72,8 @@ try {
   assert.equal(mobileStatus.pointerLock.awaitingGesture, false,
     "coarse-pointer mobile never waits for a Pointer Lock gesture");
   assert.equal(mobileStatus.pointerLock.locked, false);
+  assert.equal(await page.locator("#chat-toggle").getAttribute("aria-disabled"), "true",
+    "offline boot leaves Chat without an account owner");
 
   await page.evaluate(() => {
     const d = window.__INHAGAME_P0__;
@@ -83,12 +85,22 @@ try {
       submit(input) { return { result: "sent", text: String(input ?? "").trim() }; }
     };
     d.chatPanel.refreshAvailability();
+  });
+  assert.equal(await page.locator("#chat-toggle").getAttribute("aria-disabled"), "true",
+    "a signed-in transport alone cannot override the explicit signed-out account");
+
+  await page.evaluate(() => {
+    const d = window.__INHAGAME_P0__;
+    // Mirror onIdentity's account owner as well as the synthetic chat transport.
+    d.chatPanel.refreshAvailability("a0000000-0000-4000-8000-000000000001");
     d.chatPanel.renderFeed(Array.from({ length: 15 }, (_, index) => ({
       name: index % 2 ? "밥" : "앨리스",
       text: `모바일 채팅 ${index + 1}`,
       self: index % 3 === 0
     })));
   });
+  assert.equal(await page.locator("#chat-toggle").getAttribute("aria-disabled"), "false",
+    "the synthetic account can open Chat through the normal button");
 
   const preview = await rectSnapshot(page);
   assert.ok(preview.feed, "mobile chat preview is visible after activity");
@@ -163,8 +175,10 @@ try {
     d.chatPanel.renderFeed([]);
     d.online.chat = d.__mobileSmokeOriginalChat;
     delete d.__mobileSmokeOriginalChat;
-    d.chatPanel.refreshAvailability();
+    d.chatPanel.refreshAvailability(d.online.userId ?? null);
   });
+  assert.equal(await page.locator("#chat-toggle").getAttribute("aria-disabled"), "true",
+    "cleanup restores the offline account owner");
 
   assert.deepEqual(smoke.problems, [], "mobile HUD smoke has no page/console/request errors");
   console.log("mobile HUD smoke: PASS", JSON.stringify({ initial, preview, expanded, recovered }));
