@@ -27,19 +27,25 @@ export function createFriendPanel({ toggle, panel, social, onRelationshipChange 
   let data = null;
   let hint = "";
   let loads = 0;
+  let lifecycle = 0;
 
   const act = (label, op, userId) => {
     const b = el("button", "", label);
     b.type = "button";
     b.addEventListener("click", async () => {
+      const generation = lifecycle;
+      const current = () => open && generation === lifecycle;
       try {
         const state = await social[op](userId);
+        if (!current()) return;
         onRelationshipChange(userId, state);
+        if (!current()) return;
         hint = "";
       } catch (error) {
+        if (!current() || (error instanceof SocialError && error.code === "STALE")) return;
         hint = error instanceof SocialError && error.code === "SIGNED_OUT" ? "로그인이 필요해요." : "잠시 후 다시 시도해 주세요.";
       }
-      await refresh();
+      if (current()) await refresh();
     });
     return b;
   };
@@ -76,8 +82,10 @@ export function createFriendPanel({ toggle, panel, social, onRelationshipChange 
           const verdict = roomVisit.canVisit(person.userId) ?? { ok: false };
           if (!verdict.ok) { visit.disabled = true; visit.title = roomVisit.reasonText?.(verdict.reason) ?? ""; }
           visit.addEventListener("click", async () => {
+            const generation = lifecycle;
             visit.disabled = true;
             const result = await roomVisit.onVisit(person.userId, person.nickname ?? null);
+            if (!open || generation !== lifecycle) return;
             if (result?.ok) { setOpen(false); return; }
             hint = roomVisit.reasonText?.(result?.reason) ?? "";
             if (open) render();
@@ -113,6 +121,7 @@ export function createFriendPanel({ toggle, panel, social, onRelationshipChange 
   function setOpen(next) {
     const nextOpen = Boolean(next);
     const changed = open !== nextOpen;
+    if (changed) { lifecycle++; hint = ""; }
     open = nextOpen;
     panel.hidden = !open;
     toggle.setAttribute("aria-expanded", String(open));
@@ -124,6 +133,7 @@ export function createFriendPanel({ toggle, panel, social, onRelationshipChange 
       poll = timers.setInterval?.(() => void refresh(), FRIEND_PANEL_POLL_MS) ?? null;
       return refresh();
     }
+    data = null;
     panel.replaceChildren();
     fallbackFocus?.()?.focus?.();
     return Promise.resolve(null);
