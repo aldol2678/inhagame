@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 2,
+  "sourceCommit": "81b3fa793b6155d50e1bb30bb3611732b8c79f9f",
+  "artworkType": "user-supplied actual gameplay screenshot, cropped and resized",
+  "receivedDate": "2026-10-28",
+  "captureDate": null,
+  "captureBuild": null,
+  "sourceFilename": "1000014898.jpg",
+  "sourceDimensions": [
+    1536,
+    706
+  ],
+  "sourceSha256": "7fb59ddc3ef4d4e9630cbacf6adef22e1f1269a6aa6f77dd29f739631d86ccac",
+  "sourceVerification": "User supplied in response to request for actual INHA WORLD gameplay. Exact build, capture date and production/local status not independently verified.",
+  "exportTool": "Adobe image_crop_to_bounds + image_crop_and_resize",
+  "generativeEdits": false,
+  "releaseStatus": "candidate-not-deployed",
+  "sourceCropPixels": {
+    "left": 220,
+    "top": 136,
+    "width": 910,
+    "height": 570
+  },
+  "images": [
+    {
+      "file": "inha-world-share.png",
+      "width": 1200,
+      "height": 630,
+      "bytes": 435617,
+      "sha256": "2f8f0e7f19c62e7ae17b00ff27492c03fd614679c5b04498896615eff4cee0de",
+      "mode": "RGB",
+      "cropWithinScene": [
+        0,
+        6,
+        910,
+        478
+      ],
+      "effectiveScaleX": 1.3187,
+      "effectiveScaleY": 1.318,
+      "visuallyInspected": true,
+      "adobeRequestId": "2d602213-5bc2-44fa-a378-d4888dd9674e"
+    },
+    {
+      "file": "inha-world-square.png",
+      "width": 1080,
+      "height": 1080,
+      "bytes": 601899,
+      "sha256": "263b1b29c38b1dc97e69fab7d2d8c83b7132e8592a1bea801575570d5ca8bcd5",
+      "mode": "RGB",
+      "cropWithinScene": [
+        261,
+        0,
+        570,
+        570
+      ],
+      "effectiveScaleX": 1.8947,
+      "effectiveScaleY": 1.8947,
+      "visuallyInspected": true,
+      "adobeRequestId": "154b203d-8063-410b-b8cc-6a2d7ffdcfee"
+    },
+    {
+      "file": "inha-world-portrait.png",
+      "width": 1080,
+      "height": 1350,
+      "bytes": 722544,
+      "sha256": "54fb1c7fc5590fb5bfeae9c6435b2151633fc4706913d00e919a3588d825ec03",
+      "mode": "RGB",
+      "cropWithinScene": [
+        341,
+        0,
+        456,
+        570
+      ],
+      "effectiveScaleX": 2.3684,
+      "effectiveScaleY": 2.3684,
+      "visuallyInspected": true,
+      "adobeRequestId": "83c30eac-2f03-42c6-b202-ed461db7efce"
+    }
+  ]
+}

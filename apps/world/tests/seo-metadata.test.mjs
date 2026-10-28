@@ -32,18 +32,27 @@ test('all published public pages have distinct titles and consistent canonical/s
   }
 });
 
-test('existing public icon is accurately labelled, reachable in the source tree and not a screenshot claim', () => {
-  for(const [file] of publicPages){
-    const html=read(file);
-    assert.deepEqual(meta(html,'og:image'),[origin+'/campus/icons/icon-512.png']);
-    assert.deepEqual(meta(html,'og:image:alt'),['인하월드 앱 아이콘']);
-    assert.deepEqual(meta(html,'twitter:card'),['summary']);
-    assert.ok(head(html).includes('/campus/icons/favicon-32.png'));
+test('gameplay share metadata matches the committed image and all export dimensions', () => {
+  const alt = 'INHA WORLD 캠퍼스 실제 플레이 화면 — 비룡탑 옆을 비행하는 캐릭터';
+  const image = origin + '/assets/social/20261028/inha-world-share.png';
+  for (const [file] of publicPages) {
+    const html = read(file);
+    assert.deepEqual(meta(html,'og:image'),[image],file);
+    assert.deepEqual(meta(html,'og:image:alt'),[alt],file);
+    assert.deepEqual(meta(html,'og:image:width'),['1200'],file);
+    assert.deepEqual(meta(html,'og:image:height'),['630'],file);
+    assert.deepEqual(meta(html,'og:image:type'),['image/png'],file);
+    assert.deepEqual(meta(html,'twitter:card'),['summary_large_image'],file);
+    assert.deepEqual(meta(html,'twitter:image'),[image],file);
+    assert.deepEqual(meta(html,'twitter:image:alt'),[alt],file);
+    assert.ok(head(html).includes('/campus/icons/favicon-32.png'),file);
   }
-  for(const path of ['campus/icons/icon-512.png','campus/icons/favicon-32.png']){
-    const png=readFileSync(new URL('../'+path,import.meta.url));
-    assert.equal(png.subarray(0,8).toString('hex'),'89504e470d0a1a0a');
-    if(path.includes('icon-512')){assert.equal(png.readUInt32BE(16),512);assert.equal(png.readUInt32BE(20),512);}
+  for (const [name,width,height,budget] of [['share',1200,630,500000],['square',1080,1080,1000000],['portrait',1080,1350,1000000]]) {
+    const png=readFileSync(new URL('../assets/social/20261028/inha-world-'+name+'.png',import.meta.url));
+    assert.equal(png.subarray(0,8).toString('hex'),'89504e470d0a1a0a',name);
+    assert.equal(png.readUInt32BE(16),width,name);
+    assert.equal(png.readUInt32BE(20),height,name);
+    assert.ok(png.length < budget,name);
   }
 });
 
