@@ -11,6 +11,9 @@ import datetime as dt
 import json
 import os
 from pathlib import Path
+from contextlib import contextmanager, nullcontext
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from threading import Thread
 from urllib.parse import urlsplit
 from policy import choose_route, evaluate_probe, is_trusted_local_url
 
@@ -56,7 +59,33 @@ BROWSER_PROBE_JS = r"""async (timeoutMs) => {
 }"""
 
 
-def probe_browser(*, url: str | None, browser_path: str | None, software: bool, timeout_ms: int) -> dict:
+@contextmanager
+def isolated_probe_origin():
+    """Use an ephemeral loopback secure context, not insecure about:blank for WebGPU."""
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            body = b'<!doctype html><meta charset="utf-8"><title>GPU preflight</title>'
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/html; charset=utf-8')
+            self.send_header('Content-Length', str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *_args):
+            pass
+
+    server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
+    worker = Thread(target=server.serve_forever, daemon=True)
+    worker.start()
+    try:
+        yield f'http://127.0.0.1:{server.server_port}/'
+    finally:
+        server.shutdown()
+        worker.join(timeout=3)
+        server.server_close()
+
+
+def probe_browser(* url: str | None, browser_path: str | None, software: bool, timeout_ms: int) -> dict:
     from playwright.sync_api import sync_playwright
 
     result = {'mode': 'software-opt-in' if software else 'default', 'url_origin': None}
@@ -89,9 +118,10 @@ def run(args) -> dict:
         parsed = urlsplit(args.url)
         if parsed.scheme not in ('http', 'https') or not parsed.hostname or parsed.username or parsed.password:
             raise ValueError('URL must be a valid HTTP(S) URL without embedded credentials')
-    runs = [probe_browser(url=args.url, browser_path=args.browser_path, software=False, timeout_ms=args.timeout_ms)]
-    if args.software and runs[0]['gate']['status'] == 'BLOCKED_GPU':
-        runs.append(probe_browser(url=args.url, browser_path=args.browser_path, software=True, timeout_ms=args.timeout_ms))
+    with isolated_probe_origin() if args.url is None else nullcontext(args.url) as target_url:
+        runs = [probe_browser(url=target_url, browser_path=args.browser_path, software=False, timeout_ms=args.timeout_ms)]
+        if args.software and runs[0]['gate']['status'] == 'BLOCKED_GPU':
+            runs.append(probe_browser(url=target_url, browser_path=args.browser_path, software=True, timeout_ms=args.timeout_ms))
     selected = runs[-1]
     return {
         'schema_version': 1,
