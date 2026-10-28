@@ -34,7 +34,9 @@ export function createLearningEngine({catalog,progress,today=learningDay}) {
     a.isCorrect=q.type==='match'?a.mistakes===0:q.type==='order'?JSON.stringify(a.selection.map(i=>a.tokens[i]))===JSON.stringify(q.parts):a.selection===q.a;
     run.combo=a.isCorrect?run.combo+1:0;run.maxCombo=Math.max(run.maxCombo,run.combo);if(a.isCorrect)run.correct++;
     const s=state(),key=questionKey(q),day=today();
-    if(run.kind!=='boss') {recordMastery(s,key,a.isCorrect,day);if(a.isCorrect)delete s.wrong[key];else s.wrong[key]=true;}
+    // A hinted answer is practice, not evidence of independent recall.
+    if(run.kind!=='boss'&&!(a.isCorrect&&a.hinted)) {recordMastery(s,key,a.isCorrect,day);if(a.isCorrect)delete s.wrong[key];else s.wrong[key]=true;}
+    if(run.kind==='daily')run.answers.push({selection:a.selection,hinted:!!a.hinted});
     const h=s.learningHistory[day]??={answered:0,correct:0};h.answered++;if(a.isCorrect)h.correct++;
     if(run.kind==='lesson'){
       const l=run.lesson,delta=a.isCorrect?5:-8;
@@ -45,6 +47,10 @@ export function createLearningEngine({catalog,progress,today=learningDay}) {
   }
   function next() {
     if(!run||run.finished||!run.attempt.checked)return false;
+    if(run.kind==='daily'&&run.index===9&&run.questions.length===10){
+      // One bounded second pass, after all ten first attempts. No infinite retry loop.
+      run.questions.push(...run.questions.filter((q,i)=>run.answers[i].selection!==q.a||run.answers[i].hinted).slice(0,3));
+    }
     if(run.index+1<run.questions.length){run.index++;if(run.kind==='lesson')run.questions[run.index]=adaptive(run.lesson,run.index);run.attempt=makeAttempt(run.questions[run.index]);return true;}
     run.finished=true;
     if(run.kind==='lesson')state().completed[run.lesson.id]=true;
@@ -59,6 +65,40 @@ export function createLearningEngine({catalog,progress,today=learningDay}) {
   return {level,reviewKeys,bossReady,submit,next,
     get run(){return run;},reset(){run=null;reconcileVersions(state(),catalog,today());},
     snapshot:()=>run?clone(run):null,
+    startDaily(){
+      const due=new Set(reviewKeys());
+      const rank=q=>{const key=questionKey(q),m=state().masteries[key];return state().wrong[key]?0:due.has(key)?1:!m?2:3;};
+      const qs=catalog.questions.filter(q=>q.language==='en'&&Array.isArray(q.options))
+        .sort((a,b)=>rank(a)-rank(b)||(state().masteries[questionKey(a)]?.lastCorrectDay||'').localeCompare(state().masteries[questionKey(b)]?.lastCorrectDay||'')||a.position-b.position||a.unit-b.unit).slice(0,10);
+      if(qs.length!==10)return false;
+      begin('daily',qs);run.answers=[];return true;
+    },
+    hint(){if(run?.kind!=='daily'||run.finished||run.attempt.checked)return false;run.attempt.hinted=true;return true;},
+    dailyCheckpoint(){
+      if(run?.kind!=='daily')return null;
+      return {version:1,keys:run.questions.map(questionKey),index:run.index,answers:clone(run.answers),
+        selection:run.attempt.selection,hinted:!!run.attempt.hinted,finished:run.finished};
+    },
+    restoreDaily(c){
+      const fields=(v,ks)=>v&&typeof v==='object'&&!Array.isArray(v)&&Object.keys(v).length===ks.length&&ks.every(k=>Object.hasOwn(v,k));
+      if(!fields(c,['version','keys','index','answers','selection','hinted','finished'])||c.version!==1||!Array.isArray(c.keys)||c.keys.length<10||c.keys.length>13||
+        !Number.isInteger(c.index)||c.index<0||c.index>=c.keys.length||!Array.isArray(c.answers)||![c.index,c.index+1].includes(c.answers.length)||
+        typeof c.hinted!=='boolean'||typeof c.finished!=='boolean'||new Set(c.keys.slice(0,10)).size!==10)return false;
+      const qs=c.keys.map(k=>catalog.get(k));
+      if(qs.some(q=>!q||q.language!=='en'||!Array.isArray(q.options)))return false;
+      const validPick=(p,q)=>Number.isInteger(p)&&p>=0&&p<q.options.length;
+      if(c.answers.some((a,i)=>!fields(a,['selection','hinted'])||typeof a.hinted!=='boolean'||!validPick(a.selection,qs[i]))||
+        !(c.selection===null||validPick(c.selection,qs[c.index])))return false;
+      const checked=c.answers.length===c.index+1;
+      if(checked&&(c.selection!==c.answers[c.index].selection||c.hinted!==c.answers[c.index].hinted))return false;
+      const repeats=c.answers.slice(0,10).flatMap((a,i)=>a.selection!==qs[i].a||a.hinted?[c.keys[i]]:[]).slice(0,3);
+      if(c.keys.length>10&&(c.index<10||JSON.stringify(c.keys.slice(10))!==JSON.stringify(repeats)))return false;
+      if(c.finished&&(!checked||c.index!==c.keys.length-1||c.keys.length!==10+repeats.length))return false;
+      begin('daily',qs);run.index=c.index;run.answers=clone(c.answers);run.finished=c.finished;
+      run.attempt={...makeAttempt(qs[c.index]),selection:c.selection,hinted:c.hinted,checked,isCorrect:checked&&c.selection===qs[c.index].a};
+      for(let i=0;i<c.answers.length;i++){const correct=c.answers[i].selection===qs[i].a;run.combo=correct?run.combo+1:0;run.maxCombo=Math.max(run.maxCombo,run.combo);if(correct)run.correct++;}
+      return true;
+    },
     startLesson(id){const l=catalog.lessons.find(l=>l.id===id);return l?begin('lesson',Array.from({length:6},(_,i)=>adaptive(l,i)),l):false;},
     startReview(key){const q=catalog.get(key);return q&&reviewKeys().includes(key)?begin('review',[q]):false;},
     startBoss(lang,unit){
