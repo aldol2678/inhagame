@@ -58,7 +58,7 @@ function gamesFrom(data) {
 }
 
 function head(title,desc,path,ld){
-let absolute="https://inhagame.app"+path,icon="https://inhagame.app/campus/icons/icon-512.png";
+let absolute="https://inhagame.app"+path,icon="https://inhagame.app/assets/social/20261028/inha-world-share.png";
 return `<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#f5f2ec"><title>${esc(title)}</title>
 <meta name="description" content="${esc(desc)}"><meta name="robots" content="max-image-preview:large">
@@ -66,9 +66,12 @@ return `<meta charset="utf-8"><meta name="viewport" content="width=device-width,
 <meta property="og:type" content="website"><meta property="og:site_name" content="INHA WORLD">
 <meta property="og:locale" content="ko_KR"><meta property="og:title" content="${esc(title)}">
 <meta property="og:description" content="${esc(desc)}"><meta property="og:url" content="${absolute}">
-<meta property="og:image" content="${icon}"><meta property="og:image:alt" content="인하월드 앱 아이콘">
-<meta property="og:image:width" content="512"><meta property="og:image:height" content="512">
-<meta name="twitter:card" content="summary">
+<meta property="og:image" content="${icon}"><meta property="og:image:alt" content="INHA WORLD 캠퍼스 실제 플레이 화면 — 비룡탑 옆을 비행하는 캐릭터">
+<meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
+<meta property="og:image:type" content="image/png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://inhagame.app/assets/social/20261028/inha-world-share.png">
+<meta name="twitter:image:alt" content="INHA WORLD 캠퍼스 실제 플레이 화면 — 비룡탑 옆을 비행하는 캐릭터">
 <link rel="icon" type="image/png" sizes="32x32" href="/campus/icons/favicon-32.png">
 <link rel="icon" type="image/png" sizes="192x192" href="/campus/icons/icon-192.png">
 <link rel="stylesheet" href="/arcade/arcade.css">
