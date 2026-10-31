@@ -30,6 +30,18 @@ Both run in Public CI (`scripts/public-ci.sh`). Browser smokes (`apps/world/test
 - `api/`: serverless handlers used by the hub and the World.
 - `editor/`, `studio/`: World editor and INHA Studio tools.
 - `model-converter/`, `Dockerfile.model-converter`: FBX/OBJ to GLB converter service.
+  `/api/model-convert` stays off unless `MODEL_CONVERT_ENABLED=1` with an https
+  `MODEL_CONVERT_CLOUD_RUN_URL`. When on, it requires a signed-in (non-guest) Supabase member
+  verified server-side, optionally restricted by `MODEL_CONVERT_ALLOWED_USER_IDS`, and applies
+  in-memory sliding-window limits: per user (`MODEL_CONVERT_RATE_USER_MAX`, default 5) and per
+  IP for signed-in traffic (`MODEL_CONVERT_RATE_IP_MAX`, default 60, sized for a shared campus
+  NAT), both per `MODEL_CONVERT_RATE_WINDOW_SEC` (default 3600 s). Rejected logins (401/403) are
+  counted separately per IP (`MODEL_CONVERT_RATE_AUTH_FAIL_IP_MAX` per
+  `MODEL_CONVERT_RATE_AUTH_FAIL_WINDOW_SEC`, defaults 30 / 600 s) and never use members' quota.
+  IPv6 clients are limited per /64. Invalid values fall back to the defaults.
+  These limits are kept in memory per serverless instance and are not shared, so they are not a
+  cost ceiling. The real cap on converter spend is the Cloud Run service's `max-instances` (and
+  concurrency); set it explicitly before enabling.
 
 Legacy zone names `C01` / `C02` / `C03` are place labels. Runtime channels use `AREA_*`. See
 `src/place-zone-registry.js`.

@@ -250,6 +250,9 @@
     <div class="editor-dialog-actions"><button id="editor-project-cancel" type="button">Cancel</button></div>
   </dialog>
 
+  <!-- Public SDK + publishable config only: lets FBX conversion send the member session token. -->
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script defer src="/api/public-supabase-config"></script>
   <script type="module" src="/src/editor/editor-app.js"></script>
 </body>
 </html>

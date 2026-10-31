@@ -75,6 +75,52 @@ test("FBX import sends raw source to converter and stores returned GLB", async (
   assert.equal(db.records.get("world.test::asset.model.002").sourceFormat, "fbx");
 });
 
+test("FBX import sends the member access token as a Bearer header", async () => {
+  let request = null;
+  await importEditorModel({
+    file: namedBlob("student.fbx", new Uint8Array([1, 2, 3])),
+    worldId: "world.test",
+    assetId: "asset.model.003",
+    store: store(),
+    getAccessToken: async () => "placeholder-member-token-0000",
+    fetcher: async (url, init) => {
+      request = { url, init };
+      return new Response(new Blob([glbBytes()], { type: "model/gltf-binary" }), { status: 200 });
+    }
+  });
+  assert.equal(request.init.headers.Authorization, "Bearer placeholder-member-token-0000");
+});
+
+test("FBX import omits Authorization when signed out and maps 401 to a login error", async () => {
+  const db = store();
+  let request = null;
+  await assert.rejects(importEditorModel({
+    file: namedBlob("student.fbx", new Uint8Array([1, 2, 3])),
+    worldId: "world.test",
+    assetId: "asset.model.004",
+    store: db,
+    getAccessToken: async () => { throw new Error("SDK_UNAVAILABLE"); },
+    fetcher: async (url, init) => { request = init; return new Response("{}", { status: 401 }); }
+  }), /^Error: E_MODEL_CONVERT_LOGIN_REQUIRED$/);
+  assert.equal("Authorization" in request.headers, false);
+  assert.equal(db.records.size, 0);
+});
+
+test("FBX import surfaces 429 with the server Retry-After", async () => {
+  for (const [headers, expected] of [[{ "Retry-After": "120" }, /^Error: E_MODEL_CONVERT_RATE_LIMITED:120$/], [{}, /^Error: E_MODEL_CONVERT_RATE_LIMITED$/]]) {
+    const db = store();
+    await assert.rejects(importEditorModel({
+      file: namedBlob("student.fbx", new Uint8Array([1, 2, 3])),
+      worldId: "world.test",
+      assetId: "asset.model.005",
+      store: db,
+      getAccessToken: async () => "placeholder-member-token-0000",
+      fetcher: async () => new Response("{}", { status: 429, headers })
+    }), expected);
+    assert.equal(db.records.size, 0);
+  }
+});
+
 test("async editor URI resolution still deduplicates AssetResolver loads", async () => {
   const db = store();
   await db.writeAsset("world.test", "asset.model.001", {
