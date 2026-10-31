@@ -9,6 +9,7 @@ import { validateWorld } from "./world-schema.js";
 import { InhaToolSession, groundFromViewport, projectGround } from "./inha-tools.js";
 import { samplePathCenterline } from "./path-spline.js";
 import { createEditorAssetResolver, importEditorModel, revokeEditorAssetUrls } from "./editor-model-import.js";
+import { getEditorModelConvertToken } from "./editor-model-convert-auth.js";
 import {
   eulerFromQuaternion,
   quaternionFromEuler,
@@ -1207,6 +1208,15 @@ els.modelForm.addEventListener("submit", event => {
     activatePlacementTool("building");
   });
 });
+function modelImportErrorText(message) {
+  if (message === "E_MODEL_CONVERT_LOGIN_REQUIRED") return "FBX 변환은 로그인한 회원만 사용할 수 있습니다. 로그인 후 다시 시도하세요.";
+  if (message === "E_MODEL_CONVERT_FORBIDDEN") return "이 계정은 FBX 변환 권한이 없습니다.";
+  const limited = /^E_MODEL_CONVERT_RATE_LIMITED(?::(\d+))?$/u.exec(message);
+  if (limited) return limited[1]
+    ? `FBX 변환 요청이 너무 많습니다. 약 ${Math.ceil(Number(limited[1]) / 60)}분 후 다시 시도하세요.`
+    : "FBX 변환 요청이 너무 많습니다. 잠시 후 다시 시도하세요.";
+  return message;
+}
 els.modelImportButton.addEventListener("click", () => els.modelFile.click());
 els.modelFile.addEventListener("change", () => runDocumentAction(async () => {
   const file = els.modelFile.files?.[0];
@@ -1217,7 +1227,7 @@ els.modelFile.addEventListener("change", () => runDocumentAction(async () => {
   els.modelImportButton.disabled = true;
   els.modelImportStatus.textContent = /\.fbx$/iu.test(file.name) ? "FBX → GLB 변환 중…" : "GLB 가져오는 중…";
   try {
-    const imported = await importEditorModel({ file, worldId: targetWorldId, assetId, store });
+    const imported = await importEditorModel({ file, worldId: targetWorldId, assetId, store, getAccessToken: getEditorModelConvertToken });
     if (world.worldId !== targetWorldId) throw new Error("E_MODEL_IMPORT_WORLD_CHANGED");
     const asset = runEdit(() => commands.addAsset({
       id: assetId,
@@ -1235,7 +1245,7 @@ els.modelFile.addEventListener("change", () => runDocumentAction(async () => {
     els.modelImportStatus.textContent = `${imported.label} · 브라우저 프로젝트에 저장됨`;
   } catch (error) {
     await store.deleteAsset(targetWorldId, assetId).catch(() => {});
-    els.modelImportStatus.textContent = error.message;
+    els.modelImportStatus.textContent = modelImportErrorText(error.message);
     throw error;
   } finally {
     els.modelImportButton.disabled = false;
