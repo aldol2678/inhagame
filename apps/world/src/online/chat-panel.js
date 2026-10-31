@@ -132,6 +132,13 @@ export function createChatPanel({
     return result;
   }
 
+  // Account switch: an unsent draft and its feedback belong to the previous account.
+  function clearDraft() {
+    input.value = "";
+    hint.textContent = "";
+    if (open) setOpen(false, { focus: false });
+  }
+
   function refreshAvailability() {
     const chat = getChat();
     const signedIn = !!chat?.signedIn;
@@ -167,6 +174,7 @@ export function createChatPanel({
     setOpen,
     send,
     renderFeed,
-    refreshAvailability
+    refreshAvailability,
+    clearDraft
   };
 }
