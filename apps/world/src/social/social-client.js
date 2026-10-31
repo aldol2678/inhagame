@@ -71,6 +71,8 @@ export class SocialClient {
     this.getClient = getClient;
     this.getSelfUserId = getSelfUserId;
     this.inFlight = new Map();
+    // Bumped by reset(): replies started for an earlier account (or before sign-out) are discarded.
+    this.generation = 0;
     this.blocked = new Set(); // users *I* blocked (never who blocked me)
     this.listeners = new Set();
     // Last database-confirmed relationship per user (S1-C2 Follow gate). Never persisted.
@@ -93,8 +95,11 @@ export class SocialClient {
 
   relationshipOf(userId) { return this.relationships.get(userId) ?? null; }
 
-  // Signed out: forget every cached relationship (listeners see them go).
+  // Signed out / account changed: forget every cached relationship (listeners see them go) and
+  // invalidate pending requests so a late reply can never land in another account's state.
   reset() {
+    this.generation += 1;
+    this.inFlight.clear();
     for (const id of [...this.blocked]) this.#setBlocked(id, false);
     for (const id of [...this.relationships.keys()]) this.#setRelationship(id, null);
   }
@@ -118,8 +123,11 @@ export class SocialClient {
 
   async #rpc(name, args) {
     const client = this.getClient();
-    if (!client || !isUserId(this.getSelfUserId())) throw new SocialError("SIGNED_OUT");
+    const self = this.getSelfUserId();
+    if (!client || !isUserId(self)) throw new SocialError("SIGNED_OUT");
+    const generation = this.generation;
     const { data, error } = await client.rpc(name, args);
+    if (generation !== this.generation || self !== this.getSelfUserId()) throw new SocialError("STALE");
     if (error) {
       const code = String(error.message ?? "").trim();
       throw new SocialError(KNOWN_ERRORS.has(code) ? code : "FAILED");
@@ -127,10 +135,11 @@ export class SocialClient {
     return data;
   }
 
-  // Double clicks and retries of the same operation share one request.
-  #once(key, run) {
+  // Double clicks and retries of the same operation share one request (per account).
+  #once(op, run) {
+    const key = `${this.getSelfUserId()}:${op}`;
     if (this.inFlight.has(key)) return this.inFlight.get(key);
-    const promise = run().finally(() => this.inFlight.delete(key));
+    const promise = run().finally(() => { if (this.inFlight.get(key) === promise) this.inFlight.delete(key); });
     this.inFlight.set(key, promise);
     return promise;
   }

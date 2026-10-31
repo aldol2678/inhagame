@@ -4030,6 +4030,17 @@ try {
       roomPhotoStory?.reset();
       trophyDisplayPanel?.close({ restoreFocus: false });
       trophyDisplay?.reset();
+      // Account switch: nothing social from the previous account (cache, pending replies, open
+      // panels, unsent chat draft, friends summary) may surface for the next one. Accompany and
+      // Follow end first, as OFFLINE: social.reset() announces every relationship as gone, which
+      // would otherwise stop them as RELATIONSHIP and send accompany end() under the next login.
+      accompany.reset();
+      follow.stop(FollowStopReason.OFFLINE);
+      social.reset();
+      chatPanel.clearDraft();
+      playerCard.close();
+      if (friendPanel.open) void friendPanel.setOpen(false);
+      lobbyPresenceSummary.setFriends(null);
     }
     void syncBiryongAccount(identity);
     void progression.setAccount(identity ? online?.userId ?? null : null);
@@ -4070,16 +4081,18 @@ try {
     guestbookPanel.setAvailable(!!identity, identity?.userId ?? null);
     if (identity) {
       void accompany.refresh();
+      const friendsAccountId = identity.userId;
+      // A reply for an earlier account is STALE and must not touch this account's summary.
       void social.mine()
-        .then(data => lobbyPresenceSummary.setFriends(data.friends))
-        .catch(() => lobbyPresenceSummary.setFriends(null));
+        .then(data => { if (online?.userId === friendsAccountId) lobbyPresenceSummary.setFriends(data.friends); })
+        .catch(error => {
+          if (error?.code !== "STALE" && online?.userId === friendsAccountId) lobbyPresenceSummary.setFriends(null);
+        });
     } else {
       accompany.reset();
       nearbyPanel.setOpen(false);
       lobbyPresenceSummary.setFriends(null);
       follow.stop(FollowStopReason.OFFLINE);
-      social.reset();
-      playerCard.close();
     }
     lobbyPresenceSummary.update();
   });

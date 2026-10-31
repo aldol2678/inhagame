@@ -25,7 +25,8 @@ export function createLobbyPresenceSummary({
     if (!userId) return false;
     if (state === Relationship.FRIENDS) friendIds.add(userId);
     else friendIds.delete(userId);
-    friendsKnown = true;
+    // A single relationship event is not a complete list; reset() notifications invalidate it.
+    if (state === null) friendsKnown = false;
     update();
     return true;
   };
