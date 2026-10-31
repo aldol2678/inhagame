@@ -172,6 +172,61 @@ test("allowlist 403s count as failed auth for the pre-auth limiter", async () =>
   assert.equal(auth.calls.length, 3);
 });
 
+test("concurrent bad tokens cannot exceed the pre-auth limit while auth is in flight", async () => {
+  const auth = fakeVerifyUser();
+  let releaseAuth;
+  const pending = new Promise(resolve => { releaseAuth = resolve; });
+  const { call } = harness({ verifyUser: async header => { await pending; return auth.verifyUser(header); } });
+  const inFlight = Array.from({ length: 10 }, () => call({ token: "not-a-real-session-token-000", ip: "203.0.113.40" }));
+  releaseAuth();
+  const statuses = (await Promise.all(inFlight)).map(res => res.statusCode);
+  assert.equal(statuses.filter(code => code === 401).length, 3);
+  assert.equal(statuses.filter(code => code === 429).length, 7);
+  assert.equal(auth.calls.length, 3, "only authFailIpMax attempts reach Supabase Auth");
+});
+
+test("concurrent member logins are released on success and do not count as failures", async () => {
+  const auth = fakeVerifyUser();
+  let releaseAuth;
+  const pending = new Promise(resolve => { releaseAuth = resolve; });
+  const { call } = harness({
+    verifyUser: async header => { await pending; return auth.verifyUser(header); },
+    limits: { userMax: 10, ipMax: 10, windowSec: 60, authFailIpMax: 3, authFailWindowSec: 30, maxKeys: 100 }
+  });
+  const members = Array.from({ length: 3 }, () => call({ token: "fake-token-user-a-000000", ip: "203.0.113.41" }));
+  releaseAuth();
+  assert.deepEqual((await Promise.all(members)).map(res => res.statusCode), [200, 200, 200]);
+  // All three reservations were released, so the full failure budget is still available.
+  for (let i = 0; i < 3; i++) assert.equal((await call({ token: "not-a-real-session-token-000", ip: "203.0.113.41" })).statusCode, 401);
+  assert.equal((await call({ token: "not-a-real-session-token-000", ip: "203.0.113.41" })).statusCode, 429);
+});
+
+test("auth provider errors count toward the pre-auth limit", async () => {
+  let calls = 0;
+  const { call } = harness({ verifyUser: async () => { calls++; throw new Error("AUTH_UNAVAILABLE"); } });
+  for (let i = 0; i < 3; i++) assert.equal((await call({ token: "fake-token-user-a-000000", ip: "203.0.113.42" })).statusCode, 503);
+  assert.equal((await call({ token: "fake-token-user-a-000000", ip: "203.0.113.42" })).statusCode, 429);
+  assert.equal(calls, 3);
+});
+
+test("full failed-login table never blocks a member on a new IP", async () => {
+  const { call, auth } = harness({
+    limits: { userMax: 10, ipMax: 10, windowSec: 60, authFailIpMax: 3, authFailWindowSec: 30, maxKeys: 2 }
+  });
+  // Fill the table with failing IPs (one of them blocked).
+  for (let i = 0; i < 3; i++) await call({ token: "not-a-real-session-token-000", ip: "203.0.113.50" });
+  await call({ token: "not-a-real-session-token-000", ip: "203.0.113.51" });
+  assert.equal((await call({ token: "not-a-real-session-token-000", ip: "203.0.113.51" })).statusCode, 401);
+  // Members on fresh IPs pass the pre-auth check and reach the converter.
+  // (Two IPs: the authenticated per-IP table shares maxKeys: 2 and stays fail-closed.)
+  for (const ip of ["198.51.100.60", "2001:db8:1:2::9"])
+    assert.equal((await call({ token: "fake-token-user-a-000000", ip })).statusCode, 200);
+  // A new failing IP is still counted and limited (the oldest entry makes room for it).
+  for (let i = 0; i < 3; i++) assert.equal((await call({ token: "not-a-real-session-token-000", ip: "203.0.113.52" })).statusCode, 401);
+  assert.equal((await call({ token: "not-a-real-session-token-000", ip: "203.0.113.52" })).statusCode, 429);
+  assert.equal(auth.calls.filter(header => header.includes("not-a-real")).length, 8);
+});
+
 test("authenticated per-IP limit returns 429 across users without consuming user quota", async () => {
   const { call, upstream } = harness({ limits: { userMax: 2, ipMax: 3, windowSec: 60, maxKeys: 100 } });
   assert.equal((await call({ token: "fake-token-user-a-000000", ip: "203.0.113.9" })).statusCode, 200);
@@ -368,6 +423,29 @@ test("full key table evicts expired keys first and refuses only until the soones
   assert.equal(limiter.size(), 1);
   assert.equal(limiter.check("d").ok, true);
   assert.equal(limiter.size(), 1, "check does not record");
+});
+
+test("evictWhenFull limiter passes unknown keys and reserve/release undo a hit", () => {
+  let t = 0;
+  const limiter = createSlidingWindowLimiter({ max: 2, windowMs: 10_000, maxKeys: 2, evictWhenFull: true, now: () => t });
+  assert.equal(limiter.take("a").ok, true);
+  assert.equal(limiter.take("a").ok, true);
+  t = 1000;
+  assert.equal(limiter.take("b").ok, true);
+  assert.equal(limiter.check("a").ok, false);
+  assert.equal(limiter.check("c").ok, true, "unknown key passes while the table is full");
+  const held = limiter.reserve("c");
+  assert.equal(held.ok, true);
+  assert.equal(limiter.size(), 2, "oldest key evicted to stay within maxKeys");
+  assert.equal(limiter.check("a").ok, true);
+  held.release();
+  held.release();
+  assert.equal(limiter.size(), 1, "released hit is removed and the empty key dropped");
+  const first = limiter.reserve("b");
+  assert.equal(first.ok, true);
+  assert.equal(limiter.reserve("b").ok, false, "a pending reservation counts toward max");
+  first.release();
+  assert.equal(limiter.reserve("b").ok, true);
 });
 
 test("editor token helper returns only a member session token", async () => {

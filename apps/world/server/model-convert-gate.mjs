@@ -9,7 +9,7 @@ export const MAX_MODEL_BYTES = 25 * 1024 * 1024;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const UPSTREAM_STATUSES = new Set([400, 413, 415, 422, 503]);
 // ipMax counts authenticated requests per IP (a campus NAT shares one IP, so it sits well above
-// userMax). authFailIpMax counts only rejected logins (401/403) per IP in its own shorter window,
+// userMax). authFailIpMax counts only unsuccessful logins (401/403/auth 503) per IP in its own shorter window,
 // so a guest looping bad tokens neither burns members' IP quota nor hammers Supabase Auth.
 const DEFAULT_LIMITS = Object.freeze({
   userMax: 5, ipMax: 60, windowSec: 3600, authFailIpMax: 30, authFailWindowSec: 600, maxKeys: 10000
@@ -41,7 +41,10 @@ export function modelConvertAllowlistFromEnv(env = process.env) {
   return new Set(raw.split(',').map(value => value.trim().toLowerCase()).filter(value => UUID.test(value)));
 }
 
-export function createSlidingWindowLimiter({ max, windowMs, maxKeys = DEFAULT_LIMITS.maxKeys, now = Date.now }) {
+// evictWhenFull: a key absent from the table has zero hits, so check() always passes it and a
+// full table makes room by dropping the oldest-inserted key instead of refusing. Used for the
+// failed-login limiter, where refusing unknown keys would lock out members on fresh IPs.
+export function createSlidingWindowLimiter({ max, windowMs, maxKeys = DEFAULT_LIMITS.maxKeys, evictWhenFull = false, now = Date.now }) {
   const hits = new Map();
   // While the table is full, the earliest time any key fully expires; avoids rescanning per request.
   let fullUntil = 0;
@@ -56,7 +59,7 @@ export function createSlidingWindowLimiter({ max, windowMs, maxKeys = DEFAULT_LI
   const check = (key, t) => {
     const list = prune(key, t);
     if (list.length >= max) return retry(list[0] + windowMs - t);
-    if (!hits.has(key) && hits.size >= maxKeys) {
+    if (!evictWhenFull && !hits.has(key) && hits.size >= maxKeys) {
       if (t < fullUntil) return retry(fullUntil - t);
       // Evict expired entries first; never drop a key that still has hits in the window.
       let soonest = Infinity;
@@ -71,8 +74,16 @@ export function createSlidingWindowLimiter({ max, windowMs, maxKeys = DEFAULT_LI
   };
   const record = (key, t) => {
     const list = hits.get(key);
-    if (list) list.push(t);
-    else hits.set(key, [t]);
+    if (list) return list.push(t);
+    if (evictWhenFull && hits.size >= maxKeys) hits.delete(hits.keys().next().value);
+    hits.set(key, [t]);
+  };
+  const unrecord = (key, t) => {
+    const list = hits.get(key);
+    const index = list ? list.indexOf(t) : -1;
+    if (index < 0) return;
+    list.splice(index, 1);
+    if (!list.length) hits.delete(key);
   };
   return {
     // Returns { ok: true } or { ok: false, retryAfterSec } without recording anything.
@@ -83,6 +94,16 @@ export function createSlidingWindowLimiter({ max, windowMs, maxKeys = DEFAULT_LI
       const result = check(key, t);
       if (result.ok) record(key, t);
       return result;
+    },
+    // Like take, but the allowed result carries release() to remove that hit again, so a hit
+    // can be counted while an outcome is pending and dropped if it turns out not to count.
+    reserve(key) {
+      const t = now();
+      const result = check(key, t);
+      if (!result.ok) return result;
+      record(key, t);
+      let released = false;
+      return { ok: true, release() { if (!released) { released = true; unrecord(key, t); } } };
     },
     size: () => hits.size
   };
@@ -152,7 +173,7 @@ export function createModelConvertHandler({
   const userLimiter = createSlidingWindowLimiter({ max: limits.userMax, windowMs, maxKeys: limits.maxKeys, now });
   const ipLimiter = createSlidingWindowLimiter({ max: limits.ipMax, windowMs, maxKeys: limits.maxKeys, now });
   const authFailLimiter = createSlidingWindowLimiter({
-    max: limits.authFailIpMax, windowMs: limits.authFailWindowSec * 1000, maxKeys: limits.maxKeys, now
+    max: limits.authFailIpMax, windowMs: limits.authFailWindowSec * 1000, maxKeys: limits.maxKeys, evictWhenFull: true, now
   });
   return async function modelConvertHandler(req, res) {
     res.setHeader('Cache-Control', 'no-store');
@@ -179,22 +200,20 @@ export function createModelConvertHandler({
     // A missing or malformed token costs nothing to reject, so it is not counted against the IP.
     if (!BEARER.test(req.headers.authorization ?? '')) return loginRequired();
     // Pre-auth guard: only IPs with too many rejected logins are stopped before Supabase Auth.
-    const preAuth = authFailLimiter.check(ipKey);
-    if (!preAuth.ok) return limited(res, 'E_MODEL_CONVERT_RATE_LIMITED', preAuth.retryAfterSec);
+    // The attempt is counted before the await, so concurrent bad tokens cannot all slip past the
+    // check, and released only once the login succeeds. Auth errors (503) stay counted: a token
+    // Supabase answers with 400/429/5xx is no evidence of a member, and real outages are short.
+    const attempt = authFailLimiter.reserve(ipKey);
+    if (!attempt.ok) return limited(res, 'E_MODEL_CONVERT_RATE_LIMITED', attempt.retryAfterSec);
 
     // Auth must succeed before reading the upload or calling the paid converter.
     let userId;
     try { userId = await verifyUser(req.headers.authorization); }
     catch { return res.status(503).json({ error: 'E_MODEL_AUTH_UNAVAILABLE' }); }
-    if (typeof userId !== 'string' || !UUID.test(userId)) {
-      authFailLimiter.take(ipKey);
-      return loginRequired();
-    }
+    if (typeof userId !== 'string' || !UUID.test(userId)) return loginRequired();
     userId = userId.toLowerCase();
-    if (allowedUserIds && !allowedUserIds.has(userId)) {
-      authFailLimiter.take(ipKey);
-      return res.status(403).json({ error: 'E_MODEL_CONVERT_FORBIDDEN' });
-    }
+    if (allowedUserIds && !allowedUserIds.has(userId)) return res.status(403).json({ error: 'E_MODEL_CONVERT_FORBIDDEN' });
+    attempt.release();
 
     // Authenticated traffic: per-user limit plus a higher per-IP ceiling. Check both before
     // recording either, so a request refused by one does not consume the other's quota.
