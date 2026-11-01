@@ -8,14 +8,26 @@ export class GraphicsUnavailableError extends Error {
 
 export async function createWorldGraphicsDevice(pc, canvas, { timeoutMs = 10_000 } = {}) {
   let timer;
+  let timedOut = false;
   try {
+    const pendingDevice = Promise.resolve(pc.createGraphicsDevice(canvas, {
+      deviceTypes: [pc.DEVICETYPE_WEBGPU, pc.DEVICETYPE_WEBGL2],
+      powerPreference: 'high-performance'
+    })).then(device => {
+      // Promise.race cannot cancel GPU initialization. Release a device that
+      // completes after the watchdog has already rejected the startup.
+      if (timedOut) {
+        try { device?.destroy?.(); } catch { /* best-effort late cleanup */ }
+      }
+      return device;
+    });
     const device = await Promise.race([
-      pc.createGraphicsDevice(canvas, {
-        deviceTypes: [pc.DEVICETYPE_WEBGPU, pc.DEVICETYPE_WEBGL2],
-        powerPreference: 'high-performance'
-      }),
+      pendingDevice,
       new Promise((_, reject) => {
-        timer = setTimeout(() => reject(Object.assign(new Error('Graphics device initialization timed out'), { code: 'GRAPHICS_INIT_TIMEOUT' })), timeoutMs);
+        timer = setTimeout(() => {
+          timedOut = true;
+          reject(Object.assign(new Error('Graphics device initialization timed out'), { code: 'GRAPHICS_INIT_TIMEOUT' }));
+        }, timeoutMs);
       })
     ]);
     if (!device?.isWebGPU && !device?.isWebGL2)
