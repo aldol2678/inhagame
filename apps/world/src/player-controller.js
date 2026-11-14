@@ -1,4 +1,5 @@
 import {studentCampusStep,studentCampusGroundHeight} from './student-center-runtime.js';
+import { normalizeGroundInput, touchToGroundInput, cameraRelativeGroundDirection } from './input/world-control-standard.js';
 import {CAMPUS_BALLOON_ID,getCampusBalloonParkedPose,parkCampusBalloonAt,setCampusBalloonPropVisible} from "./mounts/campus-balloon-world.js";
 import {createBalloonState,stepBalloon,BALLOON_LIMITS} from "./mounts/balloon-flight.js";
 import {CAMPUS_SHUTTLE_ID,syncCampusShuttleProp} from "./mounts/campus-shuttle-world.js";
@@ -1024,17 +1025,17 @@ export class PlayerController {
       if (this.keys.has("KeyS") || this.keys.has("ArrowDown")) z -= 1;
     }
 
-    x += this.touchVector.x;
-    z += -this.touchVector.y;
+    const touchIntent = touchToGroundInput(this.touchVector.x, this.touchVector.y);
+    x += touchIntent.right;
+    z += touchIntent.forward;
 
     const groundMovementLocked = !this.mounted && this.groundMovementLocks.size > 0;
     if (groundMovementLocked) { x = 0; z = 0; }
 
-    const mag = Math.hypot(x, z);
-    if (mag > 1) {
-      x /= mag;
-      z /= mag;
-    }
+    const groundIntent = normalizeGroundInput(x, z);
+    x = groundIntent.right;
+    z = groundIntent.forward;
+    const cameraMovement = cameraRelativeGroundDirection(x, z, cameraYaw);
 
     if(this.onDuckBoat) {
       dt=Math.max(0,Math.min(Number.isFinite(dt)?dt:0,.1));
@@ -1050,10 +1051,10 @@ export class PlayerController {
     }
     if(this.onBalloon){
       dt=Math.max(0,Math.min(Number.isFinite(dt)?dt:0,.1));
-      const p=this.entity.getLocalPosition(),sin=Math.sin(cameraYaw),cos=Math.cos(cameraYaw);
+      const p=this.entity.getLocalPosition();
       const ascend=this.ascendHeld||this.keys.has("Space");
       const descend=this.descendHeld||this.keys.has("KeyC")||this.keys.has("ControlLeft")||this.keys.has("ControlRight");
-      const flight=stepBalloon(this.balloonFlight,{x:x*cos-z*sin,z:x*sin+z*cos,lift:ascend?1:descend?-1:0},dt);
+      const flight=stepBalloon(this.balloonFlight,{x:cameraMovement.x,z:cameraMovement.z,lift:ascend?1:descend?-1:0},dt);
       const d=getMobilityByMountId(CAMPUS_BALLOON_ID),shape={radius:d.summonClearance.radius,footOffset:this.groundY,headOffset:d.summonClearance.height-this.groundY};
       const next=moveAroundObstacles(p,flight.vx*dt,flight.vz*dt,this.space.obstacles,shape);
       next.x=Math.max(this.bounds.minX+shape.radius,Math.min(this.bounds.maxX-shape.radius,next.x));
@@ -1136,10 +1137,8 @@ export class PlayerController {
 
     this.moving = manual || assisted;
     const pos = this.entity.getLocalPosition();
-    const sin = Math.sin(cameraYaw);
-    const cos = Math.cos(cameraYaw);
-    let velocityX = assisted ? this.assist.x * speed : (x * cos - z * sin) * speed;
-    let velocityZ = assisted ? this.assist.z * speed : (x * sin + z * cos) * speed;
+    let velocityX = assisted ? this.assist.x * speed : cameraMovement.x * speed;
+    let velocityZ = assisted ? this.assist.z * speed : cameraMovement.z * speed;
     if (this.moving && !this.mounted) {
       const moveLength = Math.hypot(velocityX, velocityZ);
       if (moveLength > 0.05) this.lastGroundMove = { x: velocityX / moveLength, z: velocityZ / moveLength };
@@ -1147,7 +1146,7 @@ export class PlayerController {
     if (this.onKickboard) {
       const profile = GROUND_MOTION_PROFILES[getMobilityByMountId(this.mountId).physicsProfile];
       this.groundMotion = stepGroundMount(this.groundMotion, {
-        x: assisted ? this.assist.x : x*cos-z*sin, z: assisted ? this.assist.z : x*sin+z*cos, boost:sprint
+        x: assisted ? this.assist.x : cameraMovement.x, z: assisted ? this.assist.z : cameraMovement.z, boost:sprint
       }, dt, profile);
       velocityX=this.groundMotion.vx; velocityZ=this.groundMotion.vz;
       this.moving=this.groundMotion.speed > 0.01;
