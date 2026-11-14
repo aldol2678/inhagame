@@ -1,6 +1,7 @@
 import {inStudentCampusRegion} from './student-center-frame.js';
 import {WALK_SHAPE} from './player-dimensions.js';
 import { cameraSafeFraction } from "./world-collision.js";
+import { applyCameraLook } from './input/world-control-standard.js';
 import { CAMPUS_BIKE_ID } from "./mounts/campus-bike-world.js";
 import { inMainGateCameraArea } from './main-gate-camera-collision.js';
 
@@ -139,13 +140,16 @@ export class OrbitCameraController {
   pointerLook(deltaX = 0, deltaY = 0) {
     if (!this.inputEnabled || !this.pointerLockActive) return false;
     if (!Number.isFinite(deltaX) || !Number.isFinite(deltaY)) return false;
-    const vertical = this.invertMouseY ? -deltaY : deltaY;
-    this.yaw -= deltaX * POINTER_LOCK_LOOK.yaw * this.mouseSensitivity;
-    this.pitch = clamp(
-      this.pitch + vertical * POINTER_LOCK_LOOK.pitch * this.mouseSensitivity,
-      this.firstPerson ? FIRST_PERSON_PITCH.min : THIRD_PERSON_PITCH.min,
-      this.firstPerson ? FIRST_PERSON_PITCH.max : THIRD_PERSON_PITCH.max
-    );
+    const look = applyCameraLook({
+      yaw: this.yaw, pitch: this.pitch, deltaX, deltaY,
+      yawScale: POINTER_LOCK_LOOK.yaw * this.mouseSensitivity,
+      pitchScale: POINTER_LOCK_LOOK.pitch * this.mouseSensitivity,
+      minPitch: this.firstPerson ? FIRST_PERSON_PITCH.min : THIRD_PERSON_PITCH.min,
+      maxPitch: this.firstPerson ? FIRST_PERSON_PITCH.max : THIRD_PERSON_PITCH.max,
+      invertY: this.invertMouseY
+    });
+    this.yaw = look.yaw;
+    this.pitch = look.pitch;
     return true;
   }
 
@@ -173,13 +177,17 @@ export class OrbitCameraController {
       if (this.pointers.size === 1) {
         const mouse = event.pointerType === "mouse";
         const sensitivity = mouse ? this.mouseSensitivity : 1;
-        const vertical = (point.y - previous.y) * (mouse && this.invertMouseY ? -1 : 1);
-        this.yaw -= (point.x - previous.x) * MOUSE_DRAG_LOOK.yaw * sensitivity;
-        this.pitch = clamp(
-          this.pitch + vertical * MOUSE_DRAG_LOOK.pitch * sensitivity,
-          this.firstPerson ? FIRST_PERSON_PITCH.min : THIRD_PERSON_PITCH.min,
-          this.firstPerson ? FIRST_PERSON_PITCH.max : THIRD_PERSON_PITCH.max
-        );
+        const look = applyCameraLook({
+          yaw: this.yaw, pitch: this.pitch,
+          deltaX: point.x - previous.x, deltaY: point.y - previous.y,
+          yawScale: MOUSE_DRAG_LOOK.yaw * sensitivity,
+          pitchScale: MOUSE_DRAG_LOOK.pitch * sensitivity,
+          minPitch: this.firstPerson ? FIRST_PERSON_PITCH.min : THIRD_PERSON_PITCH.min,
+          maxPitch: this.firstPerson ? FIRST_PERSON_PITCH.max : THIRD_PERSON_PITCH.max,
+          invertY: mouse && this.invertMouseY
+        });
+        this.yaw = look.yaw;
+        this.pitch = look.pitch;
       } else if (this.pointers.size === 2) {
         const other = [...this.pointers.entries()].find(([id]) => id !== event.pointerId)?.[1];
         if (other) {
