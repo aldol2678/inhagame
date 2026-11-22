@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>INHA WORLD v0.1 — 새로 짓는 캠퍼스</title>
+<style>
+  body { margin: 0; font-family: system-ui, -apple-system, sans-serif; background: #101820; color: #eef2f5; }
+  header { padding: 12px 16px; background: #1a2a3a; }
+  header h1 { margin: 0; font-size: 20px; }
+  header p { margin: 4px 0 0; color: #b8c8d8; font-size: 13px; }
+  #hud { display: flex; flex-wrap: wrap; gap: 8px 16px; padding: 8px 16px; background: #22374a; font-size: 14px; }
+  #hud b { color: #ffd97a; }
+  main { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 0; }
+  #scene-wrap { position: relative; min-height: 480px; }
+  #scene { width: 100%; height: 70vh; min-height: 480px; display: block; touch-action: none; }
+  #joy-base { display: none; position: fixed; z-index: 2; width: 120px; height: 120px; border: 2px solid rgba(255,255,255,.6); border-radius: 50%; background: rgba(255,255,255,.08); pointer-events: none; }
+  #joy-knob { position: absolute; left: 35px; top: 35px; width: 50px; height: 50px; border-radius: 50%; background: rgba(255,255,255,.7); }
+  #panel { padding: 12px 16px; background: #16222e; }
+  #panel h2 { font-size: 16px; margin: 14px 0 6px; }
+  #panel h2:first-child { margin-top: 0; }
+  #panel ul { margin: 0; padding-left: 18px; }
+  #panel li { margin: 6px 0; line-height: 1.5; }
+  #panel button { margin: 2px; padding: 6px 10px; cursor: pointer; }
+  #panel input, #panel select, #panel textarea { padding: 6px; margin: 2px; max-width: 100%; }
+  #panel textarea { width: 95%; height: 56px; }
+  #status-line { padding: 8px 16px; background: #0c141c; color: #ffd97a; font-size: 13px; min-height: 18px; }
+  footer { padding: 12px 16px; text-align: center; color: #9fb2c2; font-size: 13px; background: #101820; }
+  @media (max-width: 950px) {
+    main { grid-template-columns: minmax(0, 1fr); }
+    #scene-wrap, #scene { min-height: 0; }
+    #scene { height: 56svh; }
+    #panel { min-width: 0; }
+    #panel input, #panel textarea, #panel select { box-sizing: border-box; }
+  }
+  @media (max-height: 480px) and (orientation: landscape) {
+    header, #hud { padding: 4px 12px; }
+    #scene { height: 70svh; }
+  }
+</style>
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.module.js" } }
+</script>
+</head>
+<body>
+<header>
+  <h1>INHA WORLD v0.1</h1>
+  <p>새로 짓는 최소 playable 캠퍼스 — 걷기 · 방명록 · 퀘스트 3개. 정적 파일 + 선택적 로컬 서버.</p>
+</header>
+<div id="hud">
+  <span>현재 방: <b id="hud-room">—</b></span>
+  <span>위치: <b id="hud-pos">—</b></span>
+  <span>퀘스트: <b id="hud-quest">—</b></span>
+  <span>연결: <b id="hud-mode">확인 중…</b></span>
+</div>
+<main>
+  <div id="scene-wrap">
+    <canvas id="scene"></canvas>
+    <div id="joy-base"><div id="joy-knob"></div></div>
+  </div>
+  <section id="panel">
+    <h2>로그인 (선택)</h2>
+    <p id="auth-status" style="font-size:13px;color:#ffd97a">로그인하지 않음 — 게스트로 플레이 중입니다.</p>
+    <input id="auth-email" type="email" placeholder="이메일" autocomplete="email">
+    <input id="auth-password" type="password" placeholder="비밀번호 (6자 이상)" autocomplete="current-password"><br>
+    <button id="auth-email-login">이메일 로그인</button>
+    <button id="auth-email-signup">이메일 가입</button>
+    <button id="auth-google">Google 로그인</button>
+    <button id="auth-anon">게스트(익명) 로그인</button>
+    <button id="auth-logout">로그아웃</button>
+    <div id="auth-profile-row" style="display:none">
+      <p style="font-size:13px;color:#b8c8d8">로그인됨 — 프로필이 아직 없습니다. 위 닉네임(2~12자)으로 프로필을 만드세요.</p>
+      <button id="auth-create-profile">프로필 만들기</button>
+    </div>
+    <p style="font-size:13px;color:#b8c8d8">로그인하면 계정이 만들어지고 프로필이 연결됩니다. v0.1 게임 진행 저장은 아직 닉네임 세션 방식 그대로입니다.</p>
+
+    <h2>닉네임 (게스트)</h2>
+    <input id="nickname" placeholder="닉네임 (최대 20자)" maxlength="20">
+    <button id="save-nickname">닉네임 저장</button>
+    <p style="font-size:13px;color:#b8c8d8">이메일·로그인 없음. 진행 저장은 닉네임 세션만 사용합니다.</p>
+
+    <h2>방 목록</h2>
+    <ul id="room-list"><li>불러오는 중…</li></ul>
+
+    <h2>퀘스트</h2>
+    <ul id="quest-list"><li>불러오는 중…</li></ul>
+
+    <h2>방명록</h2>
+    <select id="guest-room"></select>
+    <button id="refresh-guestbook">새로고침</button>
+    <ul id="guestbook-list"><li>불러오는 중…</li></ul>
+    <textarea id="guest-message" placeholder="방명록 메시지 (최대 200자)" maxlength="200"></textarea><br>
+    <button id="guest-submit">방명록 남기기</button>
+
+    <h2>조작법</h2>
+    <p style="font-size:13px;line-height:1.6">PC: WASD 이동 · 클릭 후 마우스 시점 · 드래그 시점<br>
+    모바일: 왼쪽 가상 조이스틱 이동 · 오른쪽 드래그 시점<br>
+    건물에 부딪히면 멈춥니다. 방 중심에 들어가면 방문 퀘스트가 완료됩니다.</p>
+  </section>
+</main>
+<div id="status-line">시작 중…</div>
+<footer>공식 제작·운영·후원 서비스가 아닌 학생 창작 프로젝트 · INHA WORLD v0.1 · <a style="color:inherit" href="https://www.openstreetmap.org/copyright">© OpenStreetMap contributors · ODbL</a></footer>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
