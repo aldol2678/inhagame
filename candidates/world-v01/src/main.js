@@ -127,9 +127,10 @@ async function onEnterRoom(room) {
 }
 
 async function completeQuest(quest, evidence, silent) {
-  if (!progressLoaded || completing.has(quest.id) || progress[quest.id]?.status === 'done') return false;
+  if (!progressLoaded || (mode !== 'local' && store.nickname() !== adapter.nickname) || completing.has(quest.id) || progress[quest.id]?.status === 'done') return false;
   completing.add(quest.id);
   const nickname = store.nickname();
+  const request = progressRequest;
   try {
     if (mode !== 'local') {
       if (!nickname) {
@@ -138,6 +139,7 @@ async function completeQuest(quest, evidence, silent) {
       }
       await adapter.ensureSession(nickname);
       const done = await adapter.completeQuest(quest.id, evidence);
+      if (request !== progressRequest) return false;
       progress[quest.id] = { status: done.status, updatedAt: done.updatedAt };
     } else {
       // Local mode: guest visit quests complete locally; guestbook
@@ -228,7 +230,11 @@ async function renderGuestbook() {
 }
 
 // ---- Input: keyboard, mouse, touch ----
-window.addEventListener('keydown', (e) => { keys.add(e.key.toLowerCase()); });
+window.addEventListener('keydown', e => {
+  if (e.target.closest?.('input, textarea, select, [contenteditable=true]')) return;
+  if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)) e.preventDefault();
+  keys.add(e.key.toLowerCase());
+});
 window.addEventListener('keyup', (e) => { keys.delete(e.key.toLowerCase()); });
 
 canvas.addEventListener('click', () => {
@@ -249,7 +255,8 @@ window.addEventListener('mouseup', () => { dragging = false; });
 
 canvas.addEventListener('touchstart', (e) => {
   for (const t of e.changedTouches) {
-    if (t.clientX < window.innerWidth / 2 && !joy.active) {
+    const rect = canvas.getBoundingClientRect();
+    if (t.clientX < rect.left + rect.width / 2 && !joy.active) {
       joy.active = true; joy.id = t.identifier; joy.dx = 0; joy.dy = 0;
       joyBase.style.display = 'block';
       joyBase.style.left = (t.clientX - 60) + 'px';
@@ -274,7 +281,7 @@ canvas.addEventListener('touchmove', (e) => {
   }
   e.preventDefault();
 }, { passive: false });
-canvas.addEventListener('touchend', (e) => {
+function endTouch(e) {
   for (const t of e.changedTouches) {
     if (joy.active && t.identifier === joy.id) {
       joy.active = false; joy.dx = 0; joy.dy = 0;
@@ -283,14 +290,55 @@ canvas.addEventListener('touchend', (e) => {
     }
     if (lastPointer && t.identifier === lastPointer.id) lastPointer = null;
   }
-});
+}
+canvas.addEventListener('touchend', endTouch);
+canvas.addEventListener('touchcancel', endTouch);
+function releaseInput() {
+  keys.clear();
+  dragging = false;
+  lastPointer = null;
+  joy.active = false;
+  joy.dx = joy.dy = 0;
+  joyBase.style.display = 'none';
+  joyKnob.style.transform = 'translate(0,0)';
+}
+window.addEventListener('blur', releaseInput);
+window.addEventListener('resize', releaseInput);
 
 // ---- Buttons ----
-$('save-nickname').addEventListener('click', () => {
+let progressRequest = 0;
+let pendingRestore = Promise.resolve();
+function restoreOnlineProgress(name) {
+  const request = ++progressRequest;
+  progressLoaded = false;
+  // ensureSession persists its session ID. Order nickname switches so a late
+  // response cannot replace the newer device session in localStorage.
+  const restored = pendingRestore.then(async () => {
+    if (request !== progressRequest) return false;
+    await adapter.ensureSession(name);
+    const saved = await adapter.getProgress();
+    if (request !== progressRequest) return false;
+    progress = saved;
+    progressLoaded = true;
+    currentRoomId = null;
+    renderQuests();
+    refreshHud();
+    return true;
+  });
+  pendingRestore = restored.catch(() => {});
+  return restored;
+}
+$('save-nickname').addEventListener('click', async () => {
   const name = nicknameInput.value.trim();
   if (!name) { statusLine.textContent = '닉네임을 입력해 주세요.'; return; }
-  store.setNickname(name);
-  statusLine.textContent = `닉네임 저장됨: ${name}`;
+  try {
+    if (!adapter) return;
+    if (mode !== 'local' && !await restoreOnlineProgress(name)) return;
+    store.setNickname(name);
+    statusLine.textContent = `닉네임 저장됨: ${name}`;
+  } catch {
+    statusLine.textContent = '서버 진행도를 불러오지 못했습니다. 연결 후 닉네임 저장을 다시 눌러 주세요.';
+  }
 });
 guestRoomSelect.addEventListener('change', renderGuestbook);
 $('guest-submit').addEventListener('click', async () => {
@@ -360,10 +408,6 @@ function firebaseAuth() {
 }
 
 async function refreshAuthState() {
-  try { await firebaseAuth(); } catch {
-    setAuthStatus('로그인 SDK를 불러오지 못했습니다. 게임은 게스트로 계속할 수 있습니다.');
-    return;
-  }
   const sessionId = tier4.getSessionId();
   if (!sessionId) {
     setAuthStatus('로그인하지 않음 — 게스트로 플레이 중입니다.');
@@ -461,10 +505,20 @@ $('auth-anon').addEventListener('click', () => withAuthError(async () => {
 }, '게스트 로그인'));
 
 $('auth-logout').addEventListener('click', () => withAuthError(async () => {
-  try { await tier4.logout(); } catch { /* server row may already be gone */ }
-  const auth = await firebaseAuth();
-  if (auth) await auth.signOut().catch(() => {});
+  try { await tier4.logout(); } catch (error) {
+    if (error.status !== 401) throw error;
+    window.localStorage.removeItem(tier4.SESSION_KEY);
+  }
   authProfileRow.style.display = 'none';
+  try {
+    const auth = await firebaseAuth();
+    await auth.signOut();
+  } catch {
+    const notice = '서버 세션이 종료되었습니다. Firebase 기기 로그아웃은 연결 후 다시 시도해 주세요.';
+    setAuthStatus(notice);
+    statusLine.textContent = notice;
+    return;
+  }
   setAuthStatus('로그아웃됨 — 게스트로 플레이 중입니다.');
   statusLine.textContent = '로그아웃했습니다.';
 }, '로그아웃'));
@@ -537,14 +591,10 @@ async function boot() {
   }
   if (mode !== 'local' && store.nickname()) {
     try {
-      await adapter.ensureSession(store.nickname());
-      progress = await adapter.getProgress();
-      progressLoaded = true;
+      await restoreOnlineProgress(store.nickname());
     } catch { progress = {}; }
   } else if (mode === 'local') {
     progress = store.progress();
-    progressLoaded = true;
-  } else {
     progressLoaded = true;
   }
   currentRoomId = null;
