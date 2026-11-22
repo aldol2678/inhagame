@@ -28,6 +28,16 @@ async function fetchJson(url, options) {
   return data;
 }
 
+async function writeServerGuestbook(adapter, url, roomId, nickname, message) {
+  const sessionId = await adapter.ensureSession(nickname);
+  const data = await fetchJson(url, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-session-id': sessionId },
+    body: JSON.stringify({ roomId, nickname, message }),
+  });
+  return data.entry;
+}
+
 export class ServerAdapter {
   constructor() {
     this.kind = 'server';
@@ -58,12 +68,7 @@ export class ServerAdapter {
     return data.entries;
   }
   async addGuestbook(roomId, nickname, message) {
-    const data = await fetchJson('/api/guestbook', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ roomId, nickname, message }),
-    });
-    return data.entry;
+    return writeServerGuestbook(this, '/api/guestbook', roomId, nickname, message);
   }
   async getProgress() {
     const data = await fetchJson('/api/progress', { headers: { 'x-session-id': this.sessionId } });
@@ -148,12 +153,7 @@ export class FutureSyncAdapter {
     return data.entries;
   }
   async addGuestbook(roomId, nickname, message) {
-    const data = await fetchJson(`${this.base}/api/guestbook`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ roomId, nickname, message }),
-    });
-    return data.entry;
+    return writeServerGuestbook(this, `${this.base}/api/guestbook`, roomId, nickname, message);
   }
   async getProgress() {
     const data = await fetchJson(`${this.base}/api/progress`, { headers: { 'x-session-id': this.sessionId } });

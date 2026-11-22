@@ -347,8 +347,12 @@ $('guest-submit').addEventListener('click', async () => {
   const message = messageInput.value.trim();
   if (!nickname) { statusLine.textContent = '닉네임을 먼저 입력해 주세요.'; return; }
   if (!message) { statusLine.textContent = '메시지를 입력해 주세요.'; return; }
-  store.setNickname(nickname);
   try {
+    if (mode === 'local') {
+      store.setNickname(nickname);
+    } else if (!progressLoaded || nickname !== adapter.nickname) {
+      if (!await restoreOnlineProgress(nickname)) return;
+    }
     await adapter.addGuestbook(roomId, nickname, message);
     messageInput.value = '';
     statusLine.textContent = `방명록 저장됨 (${mode === 'local' ? '이 기기 로컬' : '서버'})`;
