@@ -1,0 +1,56 @@
+{
+  "license": "© OpenStreetMap contributors, ODbL 1.0",
+  "retrieved": "2026-11-22",
+  "ways": [
+    {
+      "id": 481241663,
+      "version": 3,
+      "timestamp": "2022-05-24T13:06:22Z",
+      "source": "https://www.openstreetmap.org/way/481241663/history/3",
+      "highway": "service",
+      "coverage": "First three source nodes, from way 481241696 to the north end of the pond approach.",
+      "nodes": [
+        [
+          4741759444,
+          37.4491737,
+          126.6558984
+        ],
+        [
+          9767122971,
+          37.4497847,
+          126.6562594
+        ],
+        [
+          4741759449,
+          37.4501252,
+          126.6564605
+        ]
+      ],
+      "surveyedWidthM": null
+    },
+    {
+      "id": 1063267429,
+      "version": 2,
+      "timestamp": "2022-05-25T10:48:31Z",
+      "source": "https://www.openstreetmap.org/way/1063267429/history/2",
+      "highway": "footway",
+      "footway": "sidewalk",
+      "coverage": "Complete two-node sidewalk branching from the middle node of way 481241663.",
+      "nodes": [
+        [
+          9767122971,
+          37.4497847,
+          126.6562594
+        ],
+        [
+          9767122969,
+          37.4496712,
+          126.6563688
+        ]
+      ],
+      "surveyedWidthM": null
+    }
+  ],
+  "integrationNote": "Candidate source only: PlayCanvas retains existing fac_agora_courtyard, pond collision, navigation and quest authority. No automatic canonical promotion.",
+  "promoteToCanonical": false
+}

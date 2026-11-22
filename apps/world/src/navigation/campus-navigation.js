@@ -4,6 +4,7 @@
 // and resolves map destinations to reachable approach points. It owns no coordinates itself.
 
 import { WALKWAY_LINKS } from '../north-walkway-layout.js';
+import { P1A_EAST_ROUTES, isP1AEastQaEnabled } from '../pond-east-access-p1a.js';
 import { CAMPUS_ROADS } from "../campus-road-layout.js";
 import { SITE_FEATURES, MAIN_ENTRANCE } from "../basic-campus.js";
 import { BACK_ROADS } from "../back-gate-layout.js";
@@ -72,6 +73,11 @@ export function campusNavPolylines() {
   for (const path of BIRYONG_PLAZA_PATHS) {
     lines.push({ id: path.id, kind: NAV_EDGE_KIND.PATH, source: "BIRYONG_PLAZA_PATHS", points: path.points });
   }
+  // Deliberately QA-only. Existing PlayCanvas routes and gameplay authority remain primary.
+  if (isP1AEastQaEnabled()) for (const route of P1A_EAST_ROUTES) lines.push({
+    id: route.id, kind: route.highway === 'footway' ? NAV_EDGE_KIND.PATH : NAV_EDGE_KIND.ROAD,
+    source: 'OSM_P1A_EAST_QA', points: route.vertices
+  });
   return lines;
 }
 
