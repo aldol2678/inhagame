@@ -1,6 +1,6 @@
 // INHA WORLD rebuild v0.1 — main loop, movement, HUD, rooms, guestbook, quests.
 import * as THREE from '../vendor/three.module.js';
-import { createCampus, collide } from './campus.js';
+import { createCampus } from './campus.js';
 import { pickAdapter } from './api.js';
 import { store } from './store.js';
 import { createFirebaseAuthClient } from './firebase-auth-client.js';
@@ -48,20 +48,27 @@ nicknameInput.value = store.nickname() || '';
 const canvas = $('scene');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-renderer.shadowMap.enabled = true;
+renderer.shadowMap.enabled = false;
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x9fc3e8);
-scene.fog = new THREE.Fog(0x9fc3e8, 40, 90);
-const camera = new THREE.PerspectiveCamera(70, 1, 0.1, 200);
+scene.fog = new THREE.Fog(0x9fc3e8, 85, 240);
+const camera = new THREE.PerspectiveCamera(70, 1, 0.08, 310);
 const sun = new THREE.DirectionalLight(0xffffff, 1.6);
 sun.position.set(20, 30, 10);
-sun.castShadow = true;
+
 scene.add(sun);
-scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-const { colliders, roomCenters } = createCampus(scene);
+scene.add(new THREE.HemisphereLight(0xe9f2ff, 0xb5ac8c, 1.35));
+let campus;
+try {
+  campus = await createCampus(scene);
+} catch (error) {
+  statusLine.textContent = '캠퍼스 로딩 실패: ' + error.message;
+  throw error;
+}
+const roomCenters = campus.rooms;
 
 // Player state
-const player = { x: 0, z: 14, yaw: Math.PI, speed: 8 };
+const player = { ...campus.spawn, yaw: Math.PI, speed: 8 };
 const keys = new Set();
 let dragging = false;
 let lastPointer = null;
@@ -81,7 +88,7 @@ function resize() {
 window.addEventListener('resize', resize);
 
 function updateCamera() {
-  camera.position.set(player.x, 2.2, player.z);
+  camera.position.set(player.x, campus.groundHeight(player.x, player.z) + 2.2, player.z);
   camera.rotation.order = 'YXZ';
   camera.rotation.y = player.yaw;
   camera.rotation.x = 0;
@@ -159,7 +166,7 @@ function renderRooms() {
     b.textContent = `${r.name} — ${r.description}`;
     b.addEventListener('click', () => {
       const c = roomCenters[r.id];
-      if (c) { player.x = c.x; player.z = c.z + 4; player.yaw = Math.PI; updateCamera(); refreshHud(); }
+      if (c && campus.canStand(c.x,c.z)) { player.x = c.x; player.z = c.z; player.yaw = c.viewYaw ?? Math.PI; updateCamera(); refreshHud(); }
       guestRoomSelect.value = r.id;
       renderGuestbook();
     });
@@ -500,14 +507,15 @@ function tick(now) {
     fz /= Math.max(1, len);
     const sin = Math.sin(player.yaw);
     const cos = Math.cos(player.yaw);
-    const dx = (fx * cos - fz * sin) * player.speed * dt;
-    const dz = (fx * sin + fz * cos) * player.speed * dt;
-    const next = collide(player.x, player.z, player.x + dx, player.z + dz, colliders);
+    const dx = (fx * cos + fz * sin) * player.speed * dt;
+    const dz = (-fx * sin + fz * cos) * player.speed * dt;
+    const next = campus.move(player.x, player.z, dx, dz);
     player.x = next.x;
     player.z = next.z;
   }
   updateCamera();
   refreshHud();
+  campus.updateVisibility(player.x,player.z);
   renderer.render(scene, camera);
   requestAnimationFrame(tick);
 }
