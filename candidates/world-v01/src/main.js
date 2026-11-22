@@ -18,7 +18,7 @@ const FIREBASE_CONFIG = {
   appId: '1:511172871683:web:2be56b2cefee311b20f036',
 };
 // Same-host /api/* (Cloudflare Worker route -> inha-world-tier04).
-const tier4 = createFirebaseAuthClient({ baseUrl: '', storage: window.localStorage });
+const tier4 = createFirebaseAuthClient({ baseUrl: window.location.origin, storage: window.localStorage });
 
 const $ = (id) => document.getElementById(id);
 const hudRoom = $('hud-room');
@@ -39,6 +39,8 @@ let rooms = [];
 let quests = [];
 let progress = {};
 let currentRoomId = null;
+let progressLoaded = false;
+const completing = new Set();
 
 nicknameInput.value = store.nickname() || '';
 
@@ -102,7 +104,7 @@ function refreshHud() {
   const newRoom = room ? room.id : null;
   if (newRoom !== currentRoomId) {
     currentRoomId = newRoom;
-    if (room) onEnterRoom(room);
+    if (room && progressLoaded) onEnterRoom(room);
   }
   hudRoom.textContent = room ? room.name : '캠퍼스 길';
   hudPos.textContent = `x ${player.x.toFixed(1)} · z ${player.z.toFixed(1)}`;
@@ -118,6 +120,8 @@ async function onEnterRoom(room) {
 }
 
 async function completeQuest(quest, evidence, silent) {
+  if (!progressLoaded || completing.has(quest.id) || progress[quest.id]?.status === 'done') return false;
+  completing.add(quest.id);
   const nickname = store.nickname();
   try {
     if (mode !== 'local') {
@@ -141,6 +145,8 @@ async function completeQuest(quest, evidence, silent) {
   } catch (e) {
     if (!silent) statusLine.textContent = '진행 저장 실패: ' + e.message + ' (로컬에는 저장되지 않았습니다)';
     return false;
+  } finally {
+    completing.delete(quest.id);
   }
 }
 
@@ -320,16 +326,34 @@ function setAuthStatus(text) {
   if (authStatusEl) authStatusEl.textContent = text;
 }
 
+// The optional SDK must never block parsing or the first world frame.
+function loadSdkScript(name) {
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = 'https://www.gstatic.com/firebasejs/10.12.2/' + name + '-compat.js';
+    script.onload = resolve;
+    script.onerror = () => reject(new Error('로그인 SDK를 불러오지 못했습니다.'));
+    document.head.appendChild(script);
+  });
+}
+let authReady;
 function firebaseAuth() {
-  if (typeof firebase === 'undefined' || !firebase.auth) return null;
-  if (!firebase.apps || firebase.apps.length === 0) {
-    firebase.initializeApp(FIREBASE_CONFIG);
+  if (!authReady) {
+    authReady = (async () => {
+      if (!window.firebase?.apps) await loadSdkScript('firebase-app');
+      if (!window.firebase?.auth) await loadSdkScript('firebase-auth');
+      if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+      return firebase.auth();
+    })().catch(error => {
+      authReady = undefined;
+      throw error;
+    });
   }
-  return firebase.auth();
+  return authReady;
 }
 
 async function refreshAuthState() {
-  if (!firebaseAuth()) {
+  try { await firebaseAuth(); } catch {
     setAuthStatus('로그인 SDK를 불러오지 못했습니다. 게임은 게스트로 계속할 수 있습니다.');
     return;
   }
@@ -348,6 +372,11 @@ async function refreshAuthState() {
     // Dead session (logged out elsewhere, or a pre-revamp session after
     // the epoch bump): drop the stored id locally; the game keeps
     // working as a guest.
+    if (e.status !== 401) {
+      setAuthStatus('로그인 서버에 연결할 수 없습니다. 게스트로 계속할 수 있습니다.');
+      authProfileRow.style.display = 'none';
+      return;
+    }
     window.localStorage.removeItem(tier4.SESSION_KEY);
     setAuthStatus('이전 로그인 세션이 만료되었습니다. 다시 로그인해 주세요.');
     authProfileRow.style.display = 'none';
@@ -389,7 +418,7 @@ async function withAuthError(fn, label) {
 }
 
 $('auth-email-login').addEventListener('click', () => withAuthError(async () => {
-  const auth = firebaseAuth();
+  const auth = await firebaseAuth();
   if (!auth) return;
   const email = authEmailInput.value.trim();
   const password = authPasswordInput.value;
@@ -399,7 +428,7 @@ $('auth-email-login').addEventListener('click', () => withAuthError(async () => 
 }, '이메일 로그인'));
 
 $('auth-email-signup').addEventListener('click', () => withAuthError(async () => {
-  const auth = firebaseAuth();
+  const auth = await firebaseAuth();
   if (!auth) return;
   const email = authEmailInput.value.trim();
   const password = authPasswordInput.value;
@@ -411,14 +440,14 @@ $('auth-email-signup').addEventListener('click', () => withAuthError(async () =>
 }, '이메일 가입'));
 
 $('auth-google').addEventListener('click', () => withAuthError(async () => {
-  const auth = firebaseAuth();
+  const auth = await firebaseAuth();
   if (!auth) return;
   const cred = await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
   await exchangeIdToken(cred.user);
 }, 'Google 로그인'));
 
 $('auth-anon').addEventListener('click', () => withAuthError(async () => {
-  const auth = firebaseAuth();
+  const auth = await firebaseAuth();
   if (!auth) return;
   const cred = await auth.signInAnonymously();
   await exchangeIdToken(cred.user);
@@ -426,7 +455,7 @@ $('auth-anon').addEventListener('click', () => withAuthError(async () => {
 
 $('auth-logout').addEventListener('click', () => withAuthError(async () => {
   try { await tier4.logout(); } catch { /* server row may already be gone */ }
-  const auth = firebaseAuth();
+  const auth = await firebaseAuth();
   if (auth) await auth.signOut().catch(() => {});
   authProfileRow.style.display = 'none';
   setAuthStatus('로그아웃됨 — 게스트로 플레이 중입니다.');
@@ -486,6 +515,7 @@ function tick(now) {
 // ---- Boot ----
 async function boot() {
   resize();
+  requestAnimationFrame(tick);
   const picked = await pickAdapter();
   adapter = picked.adapter;
   mode = picked.mode;
@@ -501,10 +531,15 @@ async function boot() {
     try {
       await adapter.ensureSession(store.nickname());
       progress = await adapter.getProgress();
+      progressLoaded = true;
     } catch { progress = {}; }
   } else if (mode === 'local') {
     progress = store.progress();
+    progressLoaded = true;
+  } else {
+    progressLoaded = true;
   }
+  currentRoomId = null;
   renderRooms();
   renderQuests();
   await renderGuestbook();
@@ -515,6 +550,5 @@ async function boot() {
     : mode === 'online'
       ? '서버에 연결되었습니다. 닉네임 세션으로 진행도가 저장됩니다.'
       : '로컬 모드입니다. 서버가 꺼져 있어도 이 기기에서 방명록과 퀘스트가 동작합니다.';
-  requestAnimationFrame(tick);
 }
 boot();

@@ -173,7 +173,7 @@ export class FutureSyncAdapter {
 }
 
 export async function pickAdapter() {
-  if (SYNC_WORKER_URL) {
+  if (globalThis.location?.origin === 'https://inhagame.app' && SYNC_WORKER_URL) {
     const sync = new FutureSyncAdapter();
     try {
       const controller = new AbortController();
@@ -192,7 +192,7 @@ export async function pickAdapter() {
     const t = setTimeout(() => controller.abort(), 1500);
     const res = await fetch('/api/health', { signal: controller.signal });
     clearTimeout(t);
-    if (res.ok) return { adapter: server, mode: 'online' };
+    if (res.ok && (await res.json()).ok === true) return { adapter: server, mode: 'online' };
   } catch { /* server off -> local mode */ }
   return { adapter: new LocalAdapter(), mode: 'local' };
 }
