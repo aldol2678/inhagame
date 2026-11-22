@@ -5,7 +5,6 @@
 import { geoToWorld } from './geo-coordinates.js';
 import { projectPolygon, getCanonicalLandmark, triangulatePolygon } from './reality-adapter.js';
 import { roadFrame } from './campus-road-layout.js';
-import { FacilityMeshBatch } from './facility-mesh-batch.js';
 import { FLAT_GROUND_Y as Y } from './flat-ground-surface.js';
 
 const url = new URL('../data/reality/evidence/roads/inkyung-east-p1a.json', import.meta.url);
@@ -121,9 +120,4 @@ export function fillP1AEastQaSurface(batch) {
       batch.triangle(color, [a.x, height, a.z], [b.x, height, b.z], [c.x, height, c.z]);
     }
   }
-}
-export function buildP1AEastQaSurface(root) {
-  const batch = new FacilityMeshBatch();
-  fillP1AEastQaSurface(batch);
-  batch.finish(root, 'p1a_east_access_qa', { castShadows: false });
 }

@@ -13,7 +13,8 @@ import { buildStadiumStands } from './stadium-stands-geometry.js';
 import { buildLibraryRoute } from './library-route-geometry.js';
 import { buildCampusHelicopter } from './mounts/campus-helicopter-render.js';
 import { buildPondSurroundingsBase } from './pond-surroundings-geometry.js';
-import { buildP1AEastQaSurface, isP1AEastQaEnabled } from './pond-east-access-p1a.js';
+import { isP1AEastQaEnabled } from './pond-east-access-p1a.js';
+import { buildP1AEastQaSurface } from './pond-east-access-p1a-render.js';
 import { buildMainHallWalkways } from './main-hall-walkway-geometry.js';
 import { createCampusContactShading } from './campus-contact-shading.js';
 
