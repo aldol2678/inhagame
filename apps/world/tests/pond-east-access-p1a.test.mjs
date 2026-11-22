@@ -3,10 +3,18 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { geoToWorld } from '../src/geo-coordinates.js';
 import { polygonOverlap } from '../src/polygon-collision.js';
-import {
+import { registerHooks } from 'node:module';
+// World source imports the rendering batch; replace only the GPU module.
+const gpu = 'export class Entity {} export class StandardMaterial {} export class Color {} export class MeshInstance {} export const Application = { getApplication: () => ({ graphicsDevice: {} }) }; export function createMesh() { return {}; }';
+registerHooks({ resolve(specifier, context, next) {
+  return specifier === 'playcanvas'
+    ? { url: 'data:text/javascript,' + encodeURIComponent(gpu), shortCircuit: true }
+    : next(specifier, context);
+} });
+const {
   P1A_EAST_ROUTES, P1A_POND_RING, isP1AEastQaEnabled,
   p1aEastRoadSurfacePieces
-} from '../src/pond-east-access-p1a.js';
+} = await import('../src/pond-east-access-p1a.js');
 const data = JSON.parse(readFileSync(new URL('../data/reality/evidence/roads/inkyung-east-p1a.json', import.meta.url)));
 const area = ring => Math.abs(ring.reduce((s,p,i) => {
   const q = ring[(i+1)%ring.length]; return s + p.x*q.z - q.x*p.z;
