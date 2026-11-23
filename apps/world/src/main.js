@@ -2851,7 +2851,10 @@ inkyungDailyNpcs = createInkyungDailyNpcs({
 window.__INHAGAME_INKYUNG_DAILY__ = Object.freeze({ status: () => inkyungDailyNpcs.status() });
 window.addEventListener("pagehide", event => {
   inkyungDailyNpcs.closeConversation();
-  if (!event.persisted) inkyungDailyNpcs.destroy();
+  if (!event.persisted) {
+    app.off("update", updateInkyungDailyNpcs);
+    inkyungDailyNpcs.destroy();
+  }
 });
 const biryongCloudSync = createBiryongCloudSync({
   getClient: () => online?.supabase ?? null,
@@ -3710,9 +3713,12 @@ let lobbySummaryElapsed = LOBBY_SUMMARY_INTERVAL_S;
 // The lobby camera and player are static, so the map/zone/HUD readbacks only need to settle once
 // per lobby position instead of every frame. Reset outside the lobby so re-entry settles again.
 let lobbyHudSettledKey = null;
-app.on("update", (dt) => {
-  // Re-evaluate before early returns so lobby/room transitions cannot retain a talk lock.
+// Run independently of campus early returns so lobby/room transitions release dialogue input.
+function updateInkyungDailyNpcs(dt) {
   inkyungDailyNpcs.update(dt, { visible: dailyCampusVisible(), blocked: dailyInteractionBlocked() });
+}
+app.on("update", updateInkyungDailyNpcs);
+app.on("update", (dt) => {
   syncAudio();
   photoMode.update();
   dormShop.update();
