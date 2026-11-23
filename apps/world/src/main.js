@@ -42,6 +42,7 @@ import { createMeltwaterEffects } from './environment/meltwater-effects.js';
 import { winterPerformanceSnapshot } from './environment/winter-performance-budget.js';
 import { createSkyVisuals } from './environment/sky-visuals.js';
 import { createInkyungDuckSystem } from './ambient-ducks.js';
+import { createInkyungDailyNpcs } from './inkyung-daily-npcs.mjs';
 import { createInkyungMechanicalDuckEvent } from './inkyung-mechanical-duck-event.js';
 import { createBiryongSystem } from './biryong/biryong-system.js';
 import { createBiryongCloudSync } from './biryong/biryong-cloud-sync.js';
@@ -679,6 +680,9 @@ let fishingPanel = null;
 const questJournalInput = createInputFocusOwner({
   manager: inputFocus, ownerId: "quest-journal", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
 });
+const inkyungDailyInput = createInputFocusOwner({
+  manager: inputFocus, ownerId: "inkyung-daily-dialogue", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
+});
 const npcDialogueInput = createInputFocusOwner({
   manager: inputFocus, ownerId: "npc-dialogue", policy: INPUT_FOCUS_POLICY.BLOCKING_UI
 });
@@ -855,6 +859,7 @@ window.addEventListener("pagehide", event => {
   if (!event.persisted) cinematic.destroy();
 });
 let npcTest = null;
+let inkyungDailyNpcs = null;
 // Lobby readers only need the quest slice; the full getStatus() snapshot walks every NPC.
 const npcQuestStatus = () => npcTest?.getQuestStatus?.() ?? npcTest?.getStatus?.() ?? null;
 const questRuntime = createQuestRuntime();
@@ -1993,6 +1998,7 @@ const interactionAction = () => {
   if (playerAutoMove?.active) playerAutoMove.pause(AUTO_MOVE_CANCEL_REASON.INTERACTION);
   if (mcmEventRuntime.isDialogueOpen() === true) return mcmEventRuntime.closeDialogue() !== false;
   if (npcTest?.isConversationOpen?.() === true) return npcTest.closeConversation?.() !== false;
+  if (inkyungDailyNpcs?.isConversationOpen()) return inkyungDailyNpcs.closeConversation();
   if (!inputFocus.can("WORLD_ACTION")) return false;
   return contextActions.trigger();
 };
@@ -2825,6 +2831,31 @@ inkyungSideEvent.onChange(status => {
 });
 if (inkyungSideEvent.requiresMechanicalDuck()) inkyungDucks.ensureMechanicalDuck();
 window.addEventListener("pagehide", event => { if (!event.persisted) inkyungDucks.destroy(); });
+// Accepted daily actors are an isolated ambient layer, never the quest/schedule roster.
+const dailyCampusVisible = () => !rooms.insideRoom && !rooms.status().busy &&
+  !personalRoomInteraction?.opening && !biryongRealm?.inBiryong && !biryongRealm?.busy &&
+  !lobbyWorld.active && !lobbyTransition.active && !cinematic.active;
+const dailyInteractionBlocked = () => controller.mounted || seats.isSeated || combatRuntime.active ||
+  (!inputFocus.can("WORLD_ACTION") && !inputFocus.snapshot().topOwners.every(id => id === "inkyung-daily-dialogue"));
+inkyungDailyNpcs = createInkyungDailyNpcs({
+  app, root: campusRoot,
+  getPlayerPosition: () => player.getLocalPosition(),
+  canInteract: () => dailyCampusVisible() && !dailyInteractionBlocked() && inputFocus.can("WORLD_ACTION"),
+  onConversationChange: open => {
+    if (open) {
+      playerAutoMove?.pause(AUTO_MOVE_CANCEL_REASON.INTERACTION);
+      inkyungDailyInput.acquire();
+    } else inkyungDailyInput.release();
+  }
+});
+window.__INHAGAME_INKYUNG_DAILY__ = Object.freeze({ status: () => inkyungDailyNpcs.status() });
+window.addEventListener("pagehide", event => {
+  inkyungDailyNpcs.closeConversation();
+  if (!event.persisted) {
+    app.off("update", updateInkyungDailyNpcs);
+    inkyungDailyNpcs.destroy();
+  }
+});
 const biryongCloudSync = createBiryongCloudSync({
   getClient: () => online?.supabase ?? null,
   progress: {
@@ -3682,6 +3713,11 @@ let lobbySummaryElapsed = LOBBY_SUMMARY_INTERVAL_S;
 // The lobby camera and player are static, so the map/zone/HUD readbacks only need to settle once
 // per lobby position instead of every frame. Reset outside the lobby so re-entry settles again.
 let lobbyHudSettledKey = null;
+// Run independently of campus early returns so lobby/room transitions release dialogue input.
+function updateInkyungDailyNpcs(dt) {
+  inkyungDailyNpcs.update(dt, { visible: dailyCampusVisible(), blocked: dailyInteractionBlocked() });
+}
+app.on("update", updateInkyungDailyNpcs);
 app.on("update", (dt) => {
   syncAudio();
   photoMode.update();
@@ -3928,6 +3964,7 @@ app.on("update", (dt) => {
     }) ?? null);
   }
   contextActions.set("npc", inside ? null : npcTest?.getContextAction?.() ?? null);
+  contextActions.set("inkyung-daily", inside ? null : inkyungDailyNpcs.getContextAction());
   // Transport has its own slot: a nearby NPC and the bike are offered together (F and M).
   const mountContextAction = controller.getMountContextAction();
   // Recheck the live gate/locks and mount offer at activation, even for a retained button callback.
@@ -3935,7 +3972,7 @@ app.on("update", (dt) => {
   if (combatRuntime.active) {
     for (const key of [
       "seat", "room-furniture", "personal-room-environment", "guestbook", "student-center-shop", "student-center-vendors", "dorm-furniture-shop", "backgate-transit", "biryong-station-transit",
-      "biryong-npc", "inkyung-duck", "inkyung-fishing", "inkyung-water-path", "biryong", "mcm-event", "mcm-minigame", "follow",
+      "biryong-npc", "inkyung-duck", "inkyung-daily", "inkyung-fishing", "inkyung-water-path", "biryong", "mcm-event", "mcm-minigame", "follow",
       "room-door", "personal-room-door", "npc", "jeongseok-gate", "jeongseok-guide", "jeongseok-interior"
     ]) contextActions.set(key, null);
     transportActions.set("mount", null);

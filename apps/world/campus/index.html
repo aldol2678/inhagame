@@ -48,7 +48,7 @@
 
   <script>
     // Vercel owns this endpoint; do not request it from local browser QA servers.
-    if (/(^|\.)inhagame\.app$|\.vercel\.app$/.test(window.location.hostname)) {
+    if (/\.vercel\.app$/.test(window.location.hostname)) {
       window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
       const analyticsScript = document.createElement('script');
       analyticsScript.src = '/_vercel/insights/script.js';
@@ -57,12 +57,18 @@
     }
   </script>
   <link rel="stylesheet" href="/src/rooms/room-loading-overlay.css" />
+  <link rel="stylesheet" href="/src/lobby/induck-loading-scene.css" />
+  <link rel="stylesheet" href="/src/lobby/lobby-entry.css" />
 </head>
 <body>
   <section id="world-loading" tabindex="-1" class="world-loading" aria-label="INHA WORLD 로딩" aria-live="polite">
     <div class="world-loading-card">
       <span class="world-loading-brand">INHA WORLD</span>
-      <div class="world-loading-duck" aria-hidden="true">🦆</div>
+      <div class="world-loading-scene" data-loading-scene="induck-footsteps" aria-hidden="true">
+        <div class="world-loading-ripples"><i></i><i></i></div>
+        <div class="world-loading-tracks"><i></i><i></i><i></i><i></i><i></i></div>
+        <div class="world-loading-stepper"><span></span></div>
+      </div>
       <h1>인하월드를 불러오는 중</h1>
       <p id="world-loading-message" class="world-loading-message">인하월드를 여는 중…</p>
       <div class="world-loading-progress" role="progressbar" aria-label="월드 준비 진행률" aria-valuemin="0" aria-valuemax="100">
@@ -83,9 +89,21 @@
   <button id="cinematic-skip" class="cinematic-skip" type="button" aria-label="연출 건너뛰기" hidden>건너뛰기</button>
   <p id="pointer-lock-hint" class="pointer-lock-hint" role="status" aria-live="polite" hidden></p>
   <div id="lobby-transition-fade" class="lobby-transition-fade" aria-hidden="true" hidden></div>
-  <section id="world-lobby" inert tabindex="-1" class="world-lobby" aria-label="INHA WORLD 메인 로비" data-p0-stage="shell" hidden>
+  <section id="world-lobby" inert tabindex="-1" class="world-lobby" aria-label="INHA WORLD 메인 로비" data-p0-stage="shell" data-guest-launch hidden>
     <header class="world-lobby-topbar">
-      <div class="world-lobby-brand" aria-label="INHA WORLD">INHA WORLD</div>
+      <div class="world-lobby-header-identity">
+        <div class="world-lobby-brand" aria-label="INHA WORLD">INHA WORLD</div>
+        <aside id="lobby-player-summary" class="world-lobby-player-summary" aria-label="내 캐릭터 요약">
+          <span class="world-lobby-player-eyebrow">내 캐릭터</span>
+          <strong id="lobby-player-name">인덕이</strong>
+          <span id="lobby-player-look">기본 인덕이 · 기본 외형</span>
+          <span class="world-lobby-player-stats" aria-label="성장 정보">
+            <span id="lobby-player-progression" hidden></span>
+            <span id="lobby-player-wallet" hidden></span>
+          </span>
+          <span id="lobby-player-account">게스트</span>
+        </aside>
+      </div>
       <button id="lobby-menu-toggle" class="world-lobby-menu-button" type="button"
         aria-controls="lobby-menu" aria-expanded="false" aria-label="메뉴 열기">☰</button>
     </header>
@@ -96,27 +114,35 @@
         로그인하면 친구 상태 확인
       </button>
     </aside>
-    <aside id="lobby-player-summary" class="world-lobby-player-summary" aria-label="내 캐릭터 요약">
-      <span class="world-lobby-player-eyebrow">내 캐릭터</span>
-      <strong id="lobby-player-name">인덕이</strong>
-      <span id="lobby-player-look">기본 인덕이 · 기본 외형</span>
-      <span class="world-lobby-player-stats" aria-label="성장 정보">
-        <span id="lobby-player-progression" hidden></span>
-        <span id="lobby-player-wallet" hidden></span>
-      </span>
-      <span id="lobby-player-account">게스트</span>
-    </aside>
     <nav id="lobby-menu" class="world-lobby-menu" aria-label="메인 로비 메뉴" hidden>
-      <div class="world-lobby-menu-title">INHA WORLD</div>
       <button id="lobby-open-profile" type="button">🦆 프로필</button>
       <button id="lobby-open-settings" type="button">⚙ 화면 설정</button>
       <a href="/" class="world-lobby-menu-link">↩ 인하게임 허브로</a>
+      <p id="offline-launch-notice" role="status">게스트 탐험판입니다. 계정 로그인과 온라인 저장은 현재 이용할 수 없습니다.</p>
     </nav>
     <div class="world-lobby-frame">
       <div class="world-lobby-stage-slot" aria-hidden="true">
         <div class="world-lobby-avatar-slot"></div>
       </div>
       <div class="world-lobby-entry-slot">
+        <button id="resume-last-location" class="world-lobby-secondary-slot world-lobby-resume" type="button" hidden>
+          <span>
+            <strong>마지막 위치에서 계속</strong>
+            <small id="resume-location">최근 위치</small>
+          </span>
+          <span id="resume-age" class="world-lobby-resume-age"></span>
+        </button>
+        <button id="main-gate-start" class="world-lobby-primary-slot world-lobby-main-gate" type="button" data-spawn-id="MAIN_GATE">
+          <strong>정문에서 시작</strong>
+        </button>
+        <button id="back-gate-locked" class="world-lobby-secondary-slot world-lobby-locked-gate" type="button" data-spawn-id="BACK_GATE"
+          aria-haspopup="dialog" aria-controls="back-gate-lock-dialog" aria-expanded="false">
+          <span class="world-lobby-lock-icon" aria-hidden="true">🔒</span>
+          <span>
+            <strong>후문</strong>
+            <small>첫 캠퍼스 탐방 완료 후 개방</small>
+          </span>
+        </button>
         <aside id="lobby-quest-highlight" class="world-lobby-quest-highlight" aria-label="퀘스트" hidden>
           <span id="lobby-quest-kicker" class="world-lobby-quest-kicker">퀘스트</span>
           <span id="lobby-quest-state" class="world-lobby-quest-state"></span>
@@ -124,11 +150,6 @@
           <span id="lobby-quest-objective"></span>
           <span id="lobby-quest-progress" class="world-lobby-quest-progress"></span>
         </aside>
-        <button id="main-gate-start" class="world-lobby-primary-slot world-lobby-main-gate" type="button" data-spawn-id="MAIN_GATE">
-          <span class="world-lobby-card-kicker">정문</span>
-          <strong>인하월드의 시작점</strong>
-          <span class="world-lobby-card-action">시작하기 <span aria-hidden="true">→</span></span>
-        </button>
         <aside id="lobby-daily-loop" class="world-lobby-daily-loop" aria-label="오늘의 캠퍼스" hidden>
           <div class="world-lobby-daily-loop-head">
             <span class="world-lobby-daily-loop-kicker">오늘의 캠퍼스</span>
@@ -145,21 +166,6 @@
             </button>
           </div>
         </aside>
-        <button id="resume-last-location" class="world-lobby-secondary-slot world-lobby-resume" type="button" hidden>
-          <span>
-            <strong>마지막 위치에서 계속</strong>
-            <small id="resume-location">최근 위치</small>
-          </span>
-          <span id="resume-age" class="world-lobby-resume-age"></span>
-        </button>
-        <button id="back-gate-locked" class="world-lobby-secondary-slot world-lobby-locked-gate" type="button" data-spawn-id="BACK_GATE"
-          aria-haspopup="dialog" aria-controls="back-gate-lock-dialog" aria-expanded="false">
-          <span class="world-lobby-lock-icon" aria-hidden="true">🔒</span>
-          <span>
-            <strong>후문</strong>
-            <small>첫 캠퍼스 탐방 완료 후 개방</small>
-          </span>
-        </button>
         <p class="world-lobby-map-credit">위치 자료 © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a></p>
       </div>
     </div>
