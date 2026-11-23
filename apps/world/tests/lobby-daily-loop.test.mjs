@@ -223,8 +223,9 @@ test("HTML + main.js wiring: reuses the two clients and panels, no new client / 
   assert.match(slot, /<button id="lobby-daily-attendance"[^>]*type="button"[^>]*aria-controls="attendance-panel"[^>]*aria-expanded="false"/);
   assert.match(slot, /<button id="lobby-daily-quiz"[^>]*type="button"[^>]*aria-controls="daily-quiz-panel"[^>]*aria-expanded="false"/);
   assert.ok(slot.indexOf('id="main-gate-start"') < slot.indexOf('id="lobby-daily-loop"'), "under the Main Gate CTA");
-  assert.ok(slot.indexOf('id="lobby-quest-highlight"') < slot.indexOf('id="main-gate-start"'), "quest highlight stays above the CTA");
-  assert.ok(slot.indexOf('id="lobby-daily-loop"') < slot.indexOf('id="resume-last-location"'));
+  assert.ok(slot.indexOf('id="resume-last-location"') < slot.indexOf('id="main-gate-start"'), "a valid resume action is first in visual and keyboard order");
+  assert.ok(slot.indexOf('id="main-gate-start"') < slot.indexOf('id="lobby-quest-highlight"'), "spawn actions come before quest details");
+  assert.ok(slot.indexOf('id="lobby-quest-highlight"') < slot.indexOf('id="lobby-daily-loop"'));
   const wiring = main.slice(main.indexOf("const lobbyDailyLoop = createLobbyDailyLoop({"));
   const block = wiring.slice(0, wiring.indexOf("});") + 3);
   assert.match(block, /attendance,\s*quiz: dailyQuiz,/);
