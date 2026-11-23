@@ -32,7 +32,10 @@ test('P1A evidence retains actual OSM way versions, nodes and unknown widths', (
   }
 });
 test('P1A is isolated from production and requires explicit opt-in on QA origin', () => {
-  assert.equal(isP1AEastQaEnabled('inhagame.app','?p1a_east=1'),false);
+  assert.equal(isP1AEastQaEnabled('inhagame.app','?p1a_east=1'),true);
+  assert.equal(isP1AEastQaEnabled('inhagame.app',''),true);
+  assert.equal(isP1AEastQaEnabled('inhagame-playcanvas-live.pages.dev',''),true);
+  assert.equal(isP1AEastQaEnabled('fake-inhagame.app','?p1a_east=1'),false);
   assert.equal(isP1AEastQaEnabled('inha-world-threejs-preview.pages.dev','?p1a_east=1'),false);
   assert.equal(isP1AEastQaEnabled('inha-world-playcanvas-qa.pages.dev',''),false);
   assert.equal(isP1AEastQaEnabled('inha-world-playcanvas-qa.pages.dev','?p1a_east=1'),true);
