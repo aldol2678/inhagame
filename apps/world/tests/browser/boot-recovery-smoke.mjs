@@ -99,6 +99,7 @@ try {
   }
   {
     const page = await smoke.context.newPage();
+    const fatal = smoke.watch(page);
     await page.addInitScript(() => {
       Object.defineProperty(navigator, 'gpu', { value: undefined });
       const original = HTMLCanvasElement.prototype.getContext;
@@ -107,7 +108,9 @@ try {
       };
     });
     await page.goto(url, { waitUntil: 'domcontentloaded' });
-    await waitCode(page, 'GRAPHICS_INIT_FAILED'); await checkRetry(page);
+    await Promise.race([waitCode(page, 'GRAPHICS_INIT_FAILED'), fatal]);
+    assert.equal(await page.locator('#world-loading-percent').isVisible(), false);
+    await checkRetry(page);
     await page.setViewportSize({ width: 800, height: 360 }); await checkRetry(page);
     console.log('PASS graphics initialization failure + landscape'); await page.close();
   }
