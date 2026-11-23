@@ -9,6 +9,8 @@
   const detail = doc.getElementById('world-loading-detail');
   const retry = doc.getElementById('world-loading-retry');
   if (!message || !detail || !retry) return;
+  const meter = root.querySelector?.('.world-loading-progress');
+  const percent = doc.getElementById('world-loading-percent');
   const delayMs = 15000;
   const controller = new target.AbortController();
   let loading, timer, entered = false, phase = 'BOOT', state = 'LOADING', code = null;
@@ -24,12 +26,20 @@
     root.dataset.state = state;
     root.dataset.diagnostic = code;
     retry.hidden = false;
+    if (state === 'ERROR') {
+      if (meter) meter.hidden = true;
+      if (percent) percent.hidden = true;
+    }
+    const graphicsTimeout = code === 'GRAPHICS_INIT_TIMEOUT';
+    const graphicsUnavailable = code === 'GRAPHICS_INIT_FAILED';
     const timedOut = code?.endsWith('_TIMEOUT');
-    message.textContent = timedOut ? '월드 준비 시간이 초과됐어요.' : code === 'GRAPHICS_INIT_FAILED'
+    message.textContent = graphicsTimeout ? '그래픽 장치 준비 시간이 초과됐어요.'
+      : timedOut ? '월드 준비 시간이 초과됐어요.' : graphicsUnavailable
       ? '이 환경에서는 INHA WORLD 3D 렌더링을 사용할 수 없습니다.'
       : state === 'ERROR' ? '월드를 시작하지 못했습니다.' : '월드 준비가 지연되고 있어요.';
-    const advice = timedOut ? '준비를 완료하지 못했습니다. 연결 상태를 확인하고 다시 시도해 주세요.' : code === 'GRAPHICS_INIT_FAILED'
-      ? '브라우저와 그래픽 드라이버를 최신 상태로 업데이트한 뒤 다시 시도해 주세요.'
+    const advice = graphicsTimeout || graphicsUnavailable
+      ? '브라우저의 그래픽 가속 설정을 확인해 주세요. 계속 문제가 생기면 브라우저를 업데이트하거나 다른 브라우저에서 열어 주세요.'
+      : timedOut ? '준비를 완료하지 못했습니다. 연결 상태를 확인하고 다시 시도해 주세요.'
       : state === 'ERROR' ? '네트워크 연결을 확인한 뒤 다시 시도해 주세요.'
       : '로딩은 계속 진행 중입니다. 기다리거나 다시 시도할 수 있어요.';
     detail.textContent = `${advice} 진단: ${code}`;

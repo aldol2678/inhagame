@@ -99,17 +99,20 @@ try {
   }
   {
     const page = await smoke.context.newPage();
+    const fatal = smoke.watch(page);
     await page.addInitScript(() => {
-      Object.defineProperty(navigator, 'gpu', { value: undefined });
+      Object.defineProperty(navigator, 'gpu', { value: { async requestAdapter() { return null; } } });
       const original = HTMLCanvasElement.prototype.getContext;
       HTMLCanvasElement.prototype.getContext = function(type, ...args) {
         return /webgl/.test(type) ? null : original.call(this, type, ...args);
       };
     });
     await page.goto(url, { waitUntil: 'domcontentloaded' });
-    await waitCode(page, 'GRAPHICS_INIT_FAILED'); await checkRetry(page);
+    await Promise.race([waitCode(page, 'GRAPHICS_INIT_FAILED'), fatal]);
+    assert.equal(await page.locator('#world-loading-percent').isVisible(), false);
+    await checkRetry(page);
     await page.setViewportSize({ width: 800, height: 360 }); await checkRetry(page);
-    console.log('PASS graphics initialization failure + landscape'); await page.close();
+    console.log('PASS unavailable WebGPU adapter + WebGL2 failure + landscape'); await page.close();
   }
   {
     const page = await smoke.context.newPage();

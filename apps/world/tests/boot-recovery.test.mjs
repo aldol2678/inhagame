@@ -11,7 +11,9 @@ function fixture() {
     setAttribute() {}, classList: { add() {} }, addEventListener(type, fn) { this[type] = fn; },
     removeEventListener(type) { this[type] = () => {}; } });
   const elements = Object.fromEntries(['world-loading', 'world-loading-message', 'world-loading-detail',
-    'world-loading-retry', 'world-lobby'].map(id => [id, element()]));
+    'world-loading-retry', 'world-loading-percent', 'world-lobby'].map(id => [id, element()]));
+  const meter = element();
+  elements['world-loading'].querySelector = selector => selector === '.world-loading-progress' ? meter : null;
   let sequence = 0, reloads = 0;
   const doc = { hidden: false, getElementById: id => elements[id],
     addEventListener(type, fn) { listeners.set(type, fn); }, removeEventListener(type) { listeners.delete(type); } };
@@ -28,7 +30,7 @@ function fixture() {
     recovery.attach(loading);
     return loading;
   };
-  return { recovery, elements, listeners, timers, doc, win, tick, attach, reloads: () => reloads };
+  return { recovery, elements, meter, listeners, timers, doc, win, tick, attach, reloads: () => reloads };
 }
 test('independent watchdog detects entry delay without modules and only retries on click', () => {
   const f = fixture(); f.tick();
@@ -99,10 +101,37 @@ for (const code of ['ASSET_LOAD_FAILED', 'GRAPHICS_INIT_FAILED', 'INITIAL_RENDER
 
 test('graphics initialization preserves its default 10s protection with a distinct timeout code', async t => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
-  const pending = createWorldGraphicsDevice({ createGraphicsDevice: () => new Promise(() => {}) }, {});
+  t.mock.getter(globalThis, 'navigator', () => ({ gpu: {} }));
+  const pending = createWorldGraphicsDevice({ WebgpuGraphicsDevice: class {
+    initWebGpu() { return new Promise(() => {}); }
+  } }, {});
   const rejected = assert.rejects(pending, error => error.code === 'GRAPHICS_INIT_TIMEOUT');
   t.mock.timers.tick(10000);
   await rejected;
+});
+
+test('graphics failure replaces 18% loading with guidance and retries once', async t => {
+  const f = fixture(), loading = f.attach(); f.recovery.markBootEntered();
+  loading.setPhase('RENDERER');
+  t.mock.getter(globalThis, 'navigator', () => ({ gpu: {} }));
+  const pc = {
+    WebgpuGraphicsDevice: class { async initWebGpu() { throw new Error('no GPU adapter'); } },
+    WebglGraphicsDevice: class { constructor() { throw new Error('WebGL not supported'); } }
+  };
+  await assert.rejects(createWorldGraphicsDevice(pc, {}), error => {
+    f.recovery.fail(error.code);
+    return error.code === 'GRAPHICS_INIT_FAILED';
+  });
+  f.tick();
+  assert.equal(f.elements['world-loading'].dataset.state, 'ERROR');
+  assert.match(f.elements['world-loading-detail'].textContent, /그래픽 가속 설정.*GRAPHICS_INIT_FAILED/);
+  assert.equal(f.elements['world-loading-retry'].hidden, false);
+  assert.equal(f.elements['world-loading-percent'].hidden, true);
+  assert.equal(f.meter.hidden, true);
+  assert.equal(f.elements['world-lobby'].inert, true);
+  assert.equal(f.reloads(), 0);
+  f.elements['world-loading-retry'].click(); f.elements['world-loading-retry'].click();
+  assert.equal(f.reloads(), 1);
 });
 
 test('retry cancels the old document gate and late readiness cannot reveal the lobby', () => {

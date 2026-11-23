@@ -6,19 +6,39 @@ export class GraphicsUnavailableError extends Error {
   }
 }
 
+function destroyDevice(device) {
+  try { device?.destroy?.(); } catch { /* Best-effort cleanup of a partial or late device. */ }
+}
+
+async function initializeDevice(pc, canvas, didTimeOut) {
+  const options = { powerPreference: 'high-performance' };
+  if (globalThis.navigator?.gpu) {
+    let webgpu;
+    try {
+      webgpu = new pc.WebgpuGraphicsDevice(canvas, options);
+      const device = await webgpu.initWebGpu();
+      if (device?.isWebGPU) return device;
+    } catch {
+      // Try WebGL2 when the adapter, device or WebGPU context is unavailable.
+    }
+    destroyDevice(webgpu);
+  }
+
+  // PlayCanvas 2.22.4's combined factory can leave its promise pending when
+  // the synchronous WebGL2 constructor throws after an async WebGPU failure.
+  // Run the constructor inside this async function so the rejection is observed.
+  if (didTimeOut()) return null;
+  return new pc.WebglGraphicsDevice(canvas, options);
+}
+
 export async function createWorldGraphicsDevice(pc, canvas, { timeoutMs = 10_000 } = {}) {
   let timer;
   let timedOut = false;
   try {
-    const pendingDevice = Promise.resolve(pc.createGraphicsDevice(canvas, {
-      deviceTypes: [pc.DEVICETYPE_WEBGPU, pc.DEVICETYPE_WEBGL2],
-      powerPreference: 'high-performance'
-    })).then(device => {
+    const pendingDevice = initializeDevice(pc, canvas, () => timedOut).then(device => {
       // Promise.race cannot cancel GPU initialization. Release a device that
       // completes after the watchdog has already rejected the startup.
-      if (timedOut) {
-        try { device?.destroy?.(); } catch { /* best-effort late cleanup */ }
-      }
+      if (timedOut) destroyDevice(device);
       return device;
     });
     const device = await Promise.race([
@@ -30,8 +50,10 @@ export async function createWorldGraphicsDevice(pc, canvas, { timeoutMs = 10_000
         }, timeoutMs);
       })
     ]);
-    if (!device?.isWebGPU && !device?.isWebGL2)
+    if (!device?.isWebGPU && !device?.isWebGL2) {
+      destroyDevice(device);
       throw new Error('Graphics device is neither WebGPU nor WebGL2');
+    }
     return device;
   } catch (cause) {
     throw new GraphicsUnavailableError(cause);

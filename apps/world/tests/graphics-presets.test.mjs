@@ -73,32 +73,33 @@ test('AUTO chooses a tier from capability without overriding a saved manual tier
   } finally { console.info = originalInfo; }
 });
 
-test('graphics device prefers WebGPU, accepts WebGL2 fallback, and rejects total failure', async () => {
+test('graphics device prefers WebGPU, accepts WebGL2 fallback, and rejects total failure', async t => {
+  t.mock.getter(globalThis, 'navigator', () => ({ gpu: {} }));
   const pc = {
-    DEVICETYPE_WEBGPU: 'webgpu',
-    DEVICETYPE_WEBGL2: 'webgl2',
-    async createGraphicsDevice(_canvas, options) {
-      assert.deepEqual(options.deviceTypes, ['webgpu', 'webgl2']);
-      return { isWebGPU: true, isWebGL2: false };
-    }
+    WebgpuGraphicsDevice: class {
+      async initWebGpu() { return { isWebGPU: true }; }
+    },
+    WebglGraphicsDevice: class { isWebGL2 = true; }
   };
   assert.equal((await createWorldGraphicsDevice(pc, {}, { timeoutMs: 100 })).isWebGPU, true);
 
-  const webgl2 = await createWorldGraphicsDevice({
+  const fallback = {
     ...pc,
-    async createGraphicsDevice(_canvas, options) {
-      assert.deepEqual(options.deviceTypes, ['webgpu', 'webgl2']);
-      return { isWebGPU: false, isWebGL2: true };
+    WebgpuGraphicsDevice: class {
+      async initWebGpu() { return null; }
     }
-  }, {}, { timeoutMs: 100 });
+  };
+  const webgl2 = await createWorldGraphicsDevice(fallback, {}, { timeoutMs: 100 });
   assert.equal(webgl2.isWebGL2, true);
 
   await assert.rejects(
-    createWorldGraphicsDevice({ ...pc, async createGraphicsDevice() { return { isWebGPU: false, isWebGL2: false }; } }, {}, { timeoutMs: 100 }),
+    createWorldGraphicsDevice({ ...fallback, WebglGraphicsDevice: class {} }, {}, { timeoutMs: 100 }),
     GraphicsUnavailableError
   );
   await assert.rejects(
-    createWorldGraphicsDevice({ ...pc, async createGraphicsDevice() { throw Error('all graphics backends failed'); } }, {}, { timeoutMs: 100 }),
+    createWorldGraphicsDevice({ ...fallback, WebglGraphicsDevice: class {
+      constructor() { throw Error('all graphics backends failed'); }
+    } }, {}, { timeoutMs: 100 }),
     GraphicsUnavailableError
   );
 });
