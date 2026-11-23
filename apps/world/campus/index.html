@@ -48,7 +48,7 @@
 
   <script>
     // Vercel owns this endpoint; do not request it from local browser QA servers.
-    if (/(^|\.)inhagame\.app$|\.vercel\.app$/.test(window.location.hostname)) {
+    if (/\.vercel\.app$/.test(window.location.hostname)) {
       window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
       const analyticsScript = document.createElement('script');
       analyticsScript.src = '/_vercel/insights/script.js';
@@ -89,6 +89,7 @@
       <button id="lobby-menu-toggle" class="world-lobby-menu-button" type="button"
         aria-controls="lobby-menu" aria-expanded="false" aria-label="메뉴 열기">☰</button>
     </header>
+    <p id="offline-launch-notice" role="status" style="margin:0.25rem 1rem;padding:0.5rem 0.7rem;border:1px solid #5b6676;border-radius:0.5rem;color:#f0f4fa;background:rgba(15,24,39,.82);font-size:.83rem;line-height:1.35;">게스트 캠퍼스 탐험판입니다. 계정 로그인과 온라인 저장 기능은 현재 연결되지 않았습니다.</p>
     <aside id="lobby-presence-summary" class="world-lobby-presence-summary" aria-label="전체 접속자와 친구 상태">
       <span class="world-lobby-presence-eyebrow">LIVE</span>
       <strong id="lobby-zone-presence">전체 접속 —</strong>
