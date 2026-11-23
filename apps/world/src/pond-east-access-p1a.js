@@ -15,8 +15,11 @@ const record = url.protocol === 'file:'
 // Isolate the experiment: neither main's public domain nor the ordinary legacy QA
 // experience opts into new navigation or surfaces without an explicit query param.
 export function isP1AEastQaEnabled(host = globalThis.location?.hostname ?? '', search = globalThis.location?.search ?? '') {
-  return /(^|\.)inha-world-playcanvas-qa\.pages\.dev$/i.test(host) &&
-    new URLSearchParams(search).get('p1a_east') === '1';
+  // The PlayCanvas release opts the evidence-backed east shore path in by default.
+  // Draft QA on the original project continues to require ?p1a_east=1.
+  const qaHost = /(^|\.)inha-world-playcanvas-qa\.pages\.dev$/i.test(host);
+  const liveHost = host === 'inhagame.app' || /(^|\.)inhagame-playcanvas-live\.pages\.dev$/i.test(host);
+  return liveHost || (qaHost && new URLSearchParams(search).get('p1a_east') === '1');
 }
 
 export const P1A_EAST_ROUTES = Object.freeze(record.ways.map(way => Object.freeze({
