@@ -19,13 +19,14 @@ export class NeonAuthBridgeError extends Error {
     this.status = status;
   }
 }
-export function createNeonAuthReadBridge({fetchImpl = globalThis.fetch, storage, baseUrl} = {}) {
+export function createNeonAuthReadBridge({fetchImpl = globalThis.fetch, storage, baseUrl, apiPrefix = ""} = {}) {
   if (typeof fetchImpl !== 'function') throw new TypeError('fetch required');
   if (!storage?.getItem || !storage?.setItem || !storage?.removeItem) throw new TypeError('storage required');
   if (!baseUrl) throw new TypeError('baseUrl required');
   const base = new URL(baseUrl);
   if (base.protocol !== 'https:' && base.hostname !== 'localhost') throw new TypeError('HTTPS_REQUIRED');
   const sameOrigin = base.origin;
+  if (apiPrefix !== "" && apiPrefix !== "/neon-qa") throw new TypeError("INVALID_API_PREFIX");
   let epoch = 0;
   function getSessionId() {
     const value = storage.getItem(SESSION_KEY);
@@ -46,7 +47,7 @@ export function createNeonAuthReadBridge({fetchImpl = globalThis.fetch, storage,
     if (session) headers['X-Session-Id'] = session;
     let response;
     try {
-      response = await fetchImpl(new URL(path, sameOrigin).href, {
+      response = await fetchImpl(new URL(apiPrefix + path, sameOrigin).href, {
         method, headers, body: body === undefined ? undefined : JSON.stringify(body),
         cache: 'no-store', credentials: 'omit', redirect: 'error',
       });
@@ -64,8 +65,10 @@ export function createNeonAuthReadBridge({fetchImpl = globalThis.fetch, storage,
   async function me() {
     const sid = getSessionId();
     if (!sid) throw new NeonAuthBridgeError('AUTH_REQUIRED', 401);
+    const callEpoch = epoch;
     try {
       const result = await request('/api/auth/firebase/me', {session:sid});
+      if (callEpoch !== epoch || getSessionId() !== sid) throw new NeonAuthBridgeError('STALE_AUTH_RESPONSE');
       if (typeof result?.profileUserId === 'string' && UUID.test(result.profileUserId)) {
         storage.setItem(PROFILE_KEY, result.profileUserId);
       } else {
@@ -110,11 +113,14 @@ export function createNeonAuthReadBridge({fetchImpl = globalThis.fetch, storage,
     // Server identity readback comes first. No write methods in this bridge.
     const identity = await me();
     const session = getSessionId();
+    const readEpoch = epoch;
     if (!session) throw new NeonAuthBridgeError('AUTH_REQUIRED',401);
     const rows = {};
     for (const [key,path] of Object.entries(READ_ROUTES)) {
+      if (readEpoch !== epoch || getSessionId() !== session) throw new NeonAuthBridgeError('STALE_AUTH_RESPONSE');
       try { rows[key] = {ok:true,data:await request(path,{session})}; }
       catch (error) {
+        if (readEpoch !== epoch || getSessionId() !== session) throw new NeonAuthBridgeError('STALE_AUTH_RESPONSE');
         rows[key] = {ok:false,status:error.status||0,error:error.code||'READ_FAILED'};
         if (error.status === 401) { forgetSession(); break; }
       }
