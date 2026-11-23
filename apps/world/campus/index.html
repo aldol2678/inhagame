@@ -57,12 +57,17 @@
     }
   </script>
   <link rel="stylesheet" href="/src/rooms/room-loading-overlay.css" />
+  <link rel="stylesheet" href="/src/lobby/induck-loading-scene.css" />
 </head>
 <body>
   <section id="world-loading" tabindex="-1" class="world-loading" aria-label="INHA WORLD 로딩" aria-live="polite">
     <div class="world-loading-card">
       <span class="world-loading-brand">INHA WORLD</span>
-      <div class="world-loading-duck" aria-hidden="true">🦆</div>
+      <div class="world-loading-scene" data-loading-scene="induck-footsteps" aria-hidden="true">
+        <div class="world-loading-ripples"><i></i><i></i></div>
+        <div class="world-loading-tracks"><i></i><i></i><i></i><i></i><i></i></div>
+        <div class="world-loading-stepper"><span></span></div>
+      </div>
       <h1>인하월드를 불러오는 중</h1>
       <p id="world-loading-message" class="world-loading-message">인하월드를 여는 중…</p>
       <div class="world-loading-progress" role="progressbar" aria-label="월드 준비 진행률" aria-valuemin="0" aria-valuemax="100">
