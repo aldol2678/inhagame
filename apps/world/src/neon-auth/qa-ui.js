@@ -17,7 +17,7 @@ function mountAuthQa() {
   let bridge;
   try { bridge = createNeonAuthReadBridge({
     storage: window.localStorage, fetchImpl: window.fetch.bind(window),
-    baseUrl: window.location.origin
+    baseUrl: window.location.origin, apiPrefix: '/neon-qa'
   }); } catch { return; }
   const style=createNode('style');
   style.textContent=`
