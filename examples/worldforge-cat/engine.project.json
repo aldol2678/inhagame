@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "worldforge-engine/project/0.1",
+  "id": "worldforge-cat",
+  "title": "WorldForge Cat",
+  "entryWorld": "./src/world.manifest.json",
+  "rendering": {
+    "backend": "auto",
+    "fallback": "webgl2"
+  },
+  "build": {
+    "target": "web-static",
+    "outDir": "dist"
+  }
+}
