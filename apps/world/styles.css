@@ -6378,3 +6378,12 @@ body[data-photo-mode="active"] > :not(#application):not(.photo-mode):not(script)
 
 }
 /* LANDSCAPE-HUD:end */
+
+/* Players can consult the quest journal and map while exploring. */
+body > #tour,
+body > #quest-hud,
+body > #inkyung-living-moment,
+#biryong-ui > .biryong-objective,
+#biryong-ui > .biryong-toast {
+  display: none !important;
+}

@@ -1,8 +1,8 @@
 // Routing/presentation only. Product identity, prices and availability remain server-owned.
 // Fishing/photo have no approved listings yet and must never create a purchase client.
 export const SHOP_ROUTES = Object.freeze([
-  Object.freeze({ id: 'student_souvenirs', region: 'student_center', regionLabel: '학생회관', label: '기념품', shopId: 'shop.student_center', status: 'READY' }),
-  Object.freeze({ id: 'student_fashion', region: 'student_center', regionLabel: '학생회관', label: '패션', shopId: 'shop.student_center_fashion', status: 'READY' }),
+  Object.freeze({ id: 'student_souvenirs', region: 'student_center', regionLabel: '학생회관', label: '기념품', shopId: 'shop.student_center', status: 'RETIRED' }),
+  Object.freeze({ id: 'student_fashion', region: 'student_center', regionLabel: '학생회관', label: '패션', shopId: 'shop.student_center_fashion', status: 'RETIRED' }),
   Object.freeze({ id: 'dorm_furniture', region: 'dorm', regionLabel: '생활관', label: '가구', shopId: 'shop.dorm_furniture', status: 'READY' }),
   Object.freeze({ id: 'inkyung_fishing', region: 'inkyung', regionLabel: '인경호', label: '낚시용품 · 준비 중', shopId: null, status: 'PLANNED' }),
   Object.freeze({ id: 'library_photo', region: 'library', regionLabel: '정석권역', label: '사진용품 · 준비 중', shopId: null, status: 'PLANNED' }),
