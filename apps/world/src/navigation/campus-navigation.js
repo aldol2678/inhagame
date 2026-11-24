@@ -13,7 +13,7 @@ import { INTERIOR_PATHS } from "../market-interior-plan.js";
 import { SIDE_GATE_PATHS } from "../north-side-gate-layout.js";
 import { FIVE_SOUTH_ENTRY_APPROACH, NORTH_LANES, ANNIVERSARY_BACK_GATE_LINKS } from "../north-campus-layout.js";
 import { LIBRARY_ROUTE_LINES } from "../library-route-layout.js";
-import { MAIN_HALL_WALKWAYS } from "../main-hall-walkway-layout.js";
+import { HALL_ENTRY_WALK, MAIN_HALL_WALKWAYS } from "../main-hall-walkway-layout.js";
 import { GARDEN_LIBRARY_PATHS } from "../library-garden-layout.js";
 import { DORM_1_CAMPUS_RETURN } from "../dorm1-layout.js";
 import { studentCenterFrontPoint } from "../student-center-front.js";
@@ -50,6 +50,7 @@ export function campusNavPolylines() {
   for (const path of MAIN_HALL_WALKWAYS) {
     lines.push({id:path.id,kind:NAV_EDGE_KIND.PATH,source:'MAIN_HALL_WALKWAYS',points:path.points});
   }
+  lines.push({id:'main_hall_entry_walk',kind:NAV_EDGE_KIND.PATH,source:'MAIN_HALL_APPROACH',points:HALL_ENTRY_WALK});
   for (const road of BACK_ROADS) {
     lines.push({ id: `back_gate_${road.osmWayId}`, kind: NAV_EDGE_KIND.ROAD, source: "BACK_ROADS", points: road.vertices });
   }
@@ -109,6 +110,10 @@ const BLOCKED_JUNCTION_PAIRS = new Set([
 export function canConnectCampusJunction(a, b, context = {}) {
   if (!isCampusSegmentClear(a, b)) return false;
   const { fromLineId = "", toLineId = "", distance = 0 } = context;
+  // The top landing is a dead end at the facade. Only the exact junction
+  // at the foot touches the cross-lane; do not route players across the banks.
+  if ((fromLineId === 'main_hall_entry_walk' || toLineId === 'main_hall_entry_walk') &&
+      distance > CAMPUS_NAV_TOLERANCE.merge) return false;
   const pair = [fromLineId, toLineId].sort().join("|");
   if (BLOCKED_JUNCTION_PAIRS.has(pair)) return false;
   // library_front_link still needs its 2.5 WU road-edge join; only the longer

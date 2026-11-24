@@ -1,6 +1,9 @@
+import { stairTreadHeight } from './stair-profile.js';
 // Public QA: OSM footprint/centerline facts and existing game navigation anchors only. Neutral generated presentation; no image-derived facades or measured visual dressing.
 import { FACILITIES } from './campus-facilities.js';
-import { HALL_FRONT, BUILDINGS } from './basic-campus.js';
+import { hallApproachHeight, MAIN_HALL_APPROACH } from './main-hall-approach.js';
+import { campusReliefHeight } from './campus-relief.js';
+import { BUILDINGS } from './basic-campus.js';
 import { GATE_FRAME } from './main-gate-frame.js';
 import { mainGateProductionStructure } from './editor/main-gate-production.js';
 import { northApproachHeight } from './north-campus-layout.js';
@@ -63,7 +66,7 @@ export function pondPromenadeCells(){
   return cells;
 }
 export const rectInFrame=(frame,u0,u1,v0,v1)=>[frame.at(u0,v0),frame.at(u1,v0),frame.at(u1,v1),frame.at(u0,v1)];
-export const MAIN_HALL_APPROACH={frame:edgeFrame(BUILDINGS.find(b=>b.id==='bldg_01').vertices,5),height:.28,landing:.55,run:1.4,steps:4};
+export { MAIN_HALL_APPROACH };
 const agora=FACILITIES.find(f=>f.id==='fac_agora_courtyard');
 export const AGORA={ring:agora.rings[0],frame:edgeFrame(agora.rings[0],3),height:1.6,run:4.8,steps:12};
 AGORA.stairStart=AGORA.frame.length*.30;AGORA.stairEnd=AGORA.frame.length*.66;
@@ -88,8 +91,7 @@ export const LIBRARY_APPROACHES=[
   {id:'library_rear',frame:edgeFrame(libraryRing,13),height:.30,landing:1.1,run:1.2,steps:3,inset:.55}
 ];
 export function libraryStairHeight(t,out){
-  const step=Math.max(0,Math.min(t.steps,Math.floor((out-t.landing)/t.run*t.steps+1e-8)));
-  return t.height*(1-step/t.steps);
+  return stairTreadHeight(t,out);
 }
 export const librarySideRailStart=(t,side)=>t.id==='library_front'?(side===0?4:t.landing):0;
 export function libraryApproachHeight(x,z){
@@ -105,15 +107,12 @@ export function roadviewGroundHeight(x,z) {
   if(sportsHeight!==null)return sportsHeight;
   const gardenHeight=libraryGardenGroundHeight(x,z);
   if(gardenHeight!==null)return gardenHeight;
-  const p={x,z};let height=Math.max(libraryRouteGroundHeight(x,z)??0,libraryApproachHeight(x,z),northApproachHeight(x,z),gazeboGroundHeight(x,z),biryongGroundHeight(x,z));
+  const p={x,z};let height=Math.max(campusReliefHeight(x,z),hallApproachHeight(x,z),libraryRouteGroundHeight(x,z)??0,libraryApproachHeight(x,z),northApproachHeight(x,z),gazeboGroundHeight(x,z),biryongGroundHeight(x,z));
   if(polygonOverlap(x,z,AGORA.ring,0))height=AGORA.height;
   const a=AGORA.frame.local(p);
   if(a.u>=AGORA.stairStart&&a.u<=AGORA.stairEnd&&a.out>=0&&a.out<=AGORA.run)
-    height=Math.max(height,AGORA.height*(1-a.out/AGORA.run));
+    height=Math.max(height,stairTreadHeight(AGORA,a.out));
   // Legacy terrace frames remain anchor metadata; the connected model owns student support.
-  const t=MAIN_HALL_APPROACH,q=t.frame.local(p);
-  if(q.u>=0&&q.u<=t.frame.length&&q.out>=0&&q.out<=t.landing+t.run)
-    height=Math.max(height,t.height*Math.min(1,(t.landing+t.run-q.out)/t.run));
   return height;
 }
 

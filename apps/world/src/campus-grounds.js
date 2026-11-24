@@ -3,6 +3,7 @@ import { SITE_FEATURES } from './basic-campus.js';
 import { polygon,segment,surface } from './campus-render-kit.js';
 import { pondWaterMaterial } from './pond-water.js';
 import { CAMPUS_PATH_WIDTHS, roadFrame } from './campus-road-layout.js';
+import { campusReliefHeight, forEachReliefTriangle } from './campus-relief.js';
 import { FacilityMeshBatch } from './facility-mesh-batch.js';
 import { roadSurface } from './campus-road-geometry.js';
 import { MAIN_GATE_CAMPUS_LINK_IDS, MAIN_GATE_CAMPUS_LINK_LEVELS as L, MAIN_GATE_CENTRAL_POOL_ID, gateCentralPoolRimFaces } from './main-gate-terrain-layout.js';
@@ -66,6 +67,17 @@ export function buildCampusGrounds(root) {
   gateBatch.finish(root,'main_gate_campus_ground_links',{castShadows:false});
 }
 
+export function buildCampusLandforms(root){
+  // All relief vertices are interior to the corresponding receiver. Draw only
+  // triangles with a raised corner. Each boundary meets its existing flat base.
+  const relief=new FacilityMeshBatch();
+  forEachReliefTriangle((way,...tri)=>{
+    const lawn=lawnColors['site_'+way], baseY=lawn ? .018 : 0;
+    relief.triangle(lawn??'#8b9274',...tri.map(([x,y,z])=>[x,y+baseY,z]));
+  });
+  relief.finish(root,'campus_landform',{castShadows:false});
+}
+
 // Rounded broadleaf silhouettes built in the same chunk batches as the trunks.
 function addCanopy(batch, color, x, y, z, width, height, depth, phase) {
   const profiles = [[-.72, .66], [-.2, .98], [.43, .91], [.8, .6]];
@@ -91,14 +103,15 @@ export function buildCampusTrees(root, trees) {
   const greens = ['#617d4b', '#75894f', '#698653', '#8a935b'];
   for (const { x, z, index, bankRow } of trees) {
     const scale = .93 + .11 * Math.sin(x * .7 + z);
+    const baseY=campusReliefHeight(x,z);
     const leaf = greens[index % greens.length];
     const lean = index % 2 ? .46 : -.46;
-    batch.tube('#756650', [x, 0, z], [x, 2.6 * scale, z], .14, 6);
-    addCanopy(batch, leaf, x + lean * .3, 3.12 * scale, z,
+    batch.tube('#756650', [x, baseY, z], [x, baseY + 2.6 * scale, z], .14, 6);
+    addCanopy(batch, leaf, x + lean * .3, baseY + 3.12 * scale, z,
       1.84 * scale, 1.57 * scale, 1.7 * scale, index * .61);
     if (!bankRow && index % 2 === 0) {
-      batch.crown('#70874b', [x + .76, .24, z - .45], [1.6, .64, 1.18]);
-      batch.crown('#70874b', [x + 1.2, .17, z - .16], [1, .46, .94]);
+      batch.crown('#70874b', [x + .76, campusReliefHeight(x+.76,z-.45)+.24, z - .45], [1.6, .64, 1.18]);
+      batch.crown('#70874b', [x + 1.2, campusReliefHeight(x+1.2,z-.16)+.17, z - .16], [1, .46, .94]);
     }
   }
   batch.finish(root, 'central_lawn_planting');

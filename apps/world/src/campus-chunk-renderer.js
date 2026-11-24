@@ -1,7 +1,7 @@
 import * as pc from 'playcanvas';
 import { buildCampusFacilities } from './facility-blockout.js';
 import { buildCampusLandmarks } from './campus-landmark-candidate-selector.js';
-import { buildCampusGrounds, buildCampusTrees } from './campus-grounds.js';
+import { buildCampusGrounds, buildCampusLandforms, buildCampusTrees } from './campus-grounds.js';
 import { buildGateBlockout } from './gate-blockout.js';
 import { buildCentralBlockout } from './central-blockout.js';
 import { WORLD_BOUNDS } from './campus-layout.js';
@@ -26,7 +26,7 @@ export class CampusChunkRenderer {
     // Small campus P0: persistent terrain/roads/silhouettes avoid holes and invisible walls.
     const base=new pc.Entity('CampusBase');parent.addChild(base);this.base=base;
     buildCampusTerrain(base,WORLD_BOUNDS);
-    buildCampusGrounds(base);buildCampusRoads(base);buildGateBlockout(base);this.pondWeather=buildCentralBlockout(base,app,environmentSignals);buildPondShore(base);
+    buildCampusGrounds(base);buildCampusLandforms(base);buildCampusRoads(base);buildGateBlockout(base);this.pondWeather=buildCentralBlockout(base,app,environmentSignals);buildPondShore(base);
     buildPondSurroundingsBase(base);buildMainHallWalkways(base);
     // QA-only extension from the independent P1A road evidence. Never replace existing pond/seats/Agora.
     if (isP1AEastQaEnabled()) buildP1AEastQaSurface(base);

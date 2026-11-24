@@ -129,7 +129,7 @@ export function nightWindowLayout(buildings, tier = 'medium') {
             result.push(Object.freeze({
               buildingId: building.id,
               x: a.x + dx * u + nx * 0.125,
-              y,
+              y: y+(source.baseY??0),
               z: a.z + dz * u + nz * 0.125,
               tx,
               tz,

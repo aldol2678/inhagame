@@ -1,3 +1,4 @@
+import { campusReliefHeight } from './campus-relief.js';
 import { BUILDINGS,SITE_FEATURES } from './basic-campus.js';
 import { FACILITIES } from './campus-facilities.js';
 import { WORLD_BOUNDS,OBSTACLES } from './campus-layout.js';
@@ -67,5 +68,8 @@ export function campusTreeContactGeometry(chunk) {
   if(!CONTACT_CHUNK_IDS.includes(chunk.id))return null;
   const patches=chunk.trees.map(q=>({id:q.id,kind:'tree',pieces:contactEllipse(q,
     (u,v)=>({x:q.x+u,z:q.z+v}),.48,.48,.15)}));
-  return buildContactGeometry(patches,receivers(),{maxTriangles:CONTACT_BUDGET.nearTriangles[chunk.id]});
+  const data=buildContactGeometry(patches,receivers(),{maxTriangles:CONTACT_BUDGET.nearTriangles[chunk.id]});
+  for(let i=0;i<data.positions.length;i+=3)
+    data.positions[i+1]+=campusReliefHeight(data.positions[i],data.positions[i+2]);
+  return data;
 }
