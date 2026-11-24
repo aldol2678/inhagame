@@ -10,8 +10,10 @@ import { sideGateTreeClear } from './north-side-gate-layout.js';
 import { backApproachClear } from './back-approach-layout.js';
 import { FACILITIES } from './campus-facilities.js';
 import { BUILDINGS, SITE_FEATURES } from './basic-campus.js';
+import { polygonOverlap } from './polygon-collision.js';
+import { aircraftTreeClear } from './landmark-detail-layout.js';
 import { lawnTreePositions } from './facility-ground-layout.js';
-import { roadTreeClear, forestRoadTrees } from './campus-road-layout.js';
+import { roadFrame, roadTreeClear, forestRoadTrees } from './campus-road-layout.js';
 import { POND_RING, pondBankTrees } from './roadview-layout.js';
 import { LIBRARY_GREENS, libraryGardenTreeClear } from './library-garden-layout.js';
 import { libraryRouteTreeClear } from './library-route-layout.js';
@@ -49,8 +51,22 @@ for(const q of BACK_WEST_BUILDINGS)add('streetscape',q.id,q.center,q.bounds,1);
 for(const q of BACK_FURNITURE)add('streetscape',q.id,q.center,[q.center],2);
 for(const q of LIBRARY_GREENS)add('streetscape',q.id,center(q.polygon),q.polygon,3);
 const aircraft=FACILITIES.filter(f=>f.style==='aircraft').map(f=>f.center);
-for(const f of SITE_FEATURES.filter(f=>f.kind==='lawn')){
-  lawnTreePositions(f.vertices,aircraft).filter(p=>walkwayTreeClear(p)&&gateDormRoadTreeClear(p)&&interiorTreeClear(p)&&marketTreeClear(p)&&cultureTreeClear(p)&&libraryRouteTreeClear(p)&&libraryGardenTreeClear(p)&&roadTreeClear(p)&&northRoadTreeClear(p)&&backRoadTreeClear(p)&&backApproachClear(p,1.9)&&sideGateTreeClear(p)&&backFurnitureTreeClear(p)&&backRoadsideTreeClear(p)).forEach((p,i)=>add('trees',{...p,id:`${f.id}_tree_${i}`,index:i},p,[p],2));
+// Photos 4, 5 and 19 show planting parallel to the two OSM bank walks.
+const bankRows = [];
+for (const [id, side] of [['site_481241657', 1], ['site_258995842', -1]]) {
+  const { vertices } = SITE_FEATURES.find(feature => feature.id === id);
+  const axis = roadFrame(vertices[1], vertices.at(-1));
+  for (let along = 6; along < axis.length - 3; along += 6) {
+    bankRows.push(axis.at(along, side * 6.5));
+  }
+}
+const treeClear = p => walkwayTreeClear(p)&&gateDormRoadTreeClear(p)&&interiorTreeClear(p)&&marketTreeClear(p)&&cultureTreeClear(p)&&libraryRouteTreeClear(p)&&libraryGardenTreeClear(p)&&roadTreeClear(p)&&northRoadTreeClear(p)&&backRoadTreeClear(p)&&backApproachClear(p,1.9)&&sideGateTreeClear(p)&&backFurnitureTreeClear(p)&&backRoadsideTreeClear(p);
+for (const lawn of SITE_FEATURES.filter(feature => feature.kind === 'lawn')) {
+  const rows = bankRows.filter(p => polygonOverlap(p.x, p.z, lawn.vertices)
+    && aircraft.every(center => aircraftTreeClear(center, p)) && treeClear(p));
+  const interior = lawnTreePositions(lawn.vertices, aircraft).filter(treeClear);
+  const trees = [...rows, ...interior.filter(p => rows.every(q => Math.hypot(q.x-p.x, q.z-p.z) >= 4.2))];
+  trees.forEach((p, index) => add('trees', { ...p, id: lawn.id + '_tree_' + index, index, bankRow: index < rows.length }, p, [p], 2.4));
 }
 export const RENDER_CHUNKS=[...chunks.values()];
 export class RenderChunkRegistry {

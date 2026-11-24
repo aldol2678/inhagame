@@ -1,6 +1,6 @@
 import * as pc from 'playcanvas';
 import { SITE_FEATURES } from './basic-campus.js';
-import { polygon,segment,surface,box } from './campus-render-kit.js';
+import { polygon,segment,surface } from './campus-render-kit.js';
 import { pondWaterMaterial } from './pond-water.js';
 import { CAMPUS_PATH_WIDTHS, roadFrame } from './campus-road-layout.js';
 import { FacilityMeshBatch } from './facility-mesh-batch.js';
@@ -9,6 +9,24 @@ import { MAIN_GATE_CAMPUS_LINK_IDS, MAIN_GATE_CAMPUS_LINK_LEVELS as L, MAIN_GATE
 
 import { gateGroundOverlaps, fillLegacyGateGround } from './main-gate-surface-ownership.js';
 import { MAIN_HALL_WALKWAY_SOURCE_IDS } from './main-hall-walkway-layout.js';
+
+// Muted variations keep the four mapped lawn outlines readable from ground level.
+const lawnColors = {
+  site_218215618: '#86995b', site_218220046: '#829558',
+  site_218221011: '#78915a', site_258995412: '#869b64'
+};
+
+function addPoolRim(batch, points) {
+  for (const face of gateCentralPoolRimFaces(points)) batch.quad('#c8c7b4', ...face);
+  for (let i = 0; i < points.length; i++) {
+    const frame = roadFrame(points[i], points[(i + 1) % points.length]);
+    const count = Math.round(frame.length / 1.7);
+    for (let j = 1; j < count; j++) {
+      roadSurface(batch, '#928e7d', frame, j * frame.length/count - .028,
+        j * frame.length/count + .028, -.146, .146, .085);
+    }
+  }
+}
 
 export function buildCampusGrounds(root) {
   const gateBatch=new FacilityMeshBatch();
@@ -39,18 +57,49 @@ export function buildCampusGrounds(root) {
     } else if(feature.kind==='reflecting_pool') {
       polygon(root,feature.id,points,pondWaterMaterial(pc.Application.getApplication().graphicsDevice),{y:.025});
       if(feature.id===MAIN_GATE_CENTRAL_POOL_ID){
-        for(const face of gateCentralPoolRimFaces(points))gateBatch.quad('#c8c7b4',...face);
+        addPoolRim(gateBatch, points);
       }else for(let i=0;i<points.length;i++)segment(root,`${feature.id}_rim_${i}`,points[i],points[(i+1)%points.length],.3,surface('#c8c7b4'),.04,.08);
     } else {
-      polygon(root,feature.id,points,surface('#729451'),{y:.018});
+      polygon(root,feature.id,points,surface(lawnColors[feature.id] ?? '#729451'),{y:.018});
     }
   }
   gateBatch.finish(root,'main_gate_campus_ground_links',{castShadows:false});
 }
 
-export function buildCampusTrees(root,trees) {
-  for(const {id,x,z,index} of trees){
-    box(root,`${id}_trunk`,[x,1.2,z],[.28,2.4,.28],surface('#776750'));
-    box(root,`${id}_crown`,[x,2.9,z],[3.8,2.5,3.8],surface(index%2?'#64854a':'#527745'),0,'sphere');
+// Rounded broadleaf silhouettes built in the same chunk batches as the trunks.
+function addCanopy(batch, color, x, y, z, width, height, depth, phase) {
+  const profiles = [[-.72, .66], [-.2, .98], [.43, .91], [.8, .6]];
+  const rings = profiles.map(([level, radius], layer) => Array.from({ length: 8 }, (_, i) => {
+    const angle = i * Math.PI / 4 + phase + (layer % 2) * .16;
+    const lobe = radius * (1 + .075 * Math.cos(3 * angle + phase));
+    return [x + width * lobe * Math.cos(angle), y + level * height,
+      z + depth * lobe * Math.sin(angle)];
+  }));
+  for (let i = 0; i < 8; i++) {
+    const j = (i + 1) % 8;
+    batch.triangle(color, [x, y - height, z], rings[0][i], rings[0][j]);
+    for (let layer = 1; layer < rings.length; layer++) {
+      const low = rings[layer - 1], high = rings[layer];
+      batch.quad(color, low[i], high[i], high[j], low[j]);
+    }
+    batch.triangle(color, [x, y + height, z], rings[3][j], rings[3][i]);
   }
+}
+
+export function buildCampusTrees(root, trees) {
+  const batch = new FacilityMeshBatch();
+  const greens = ['#617d4b', '#75894f', '#698653', '#8a935b'];
+  for (const { x, z, index, bankRow } of trees) {
+    const scale = .93 + .11 * Math.sin(x * .7 + z);
+    const leaf = greens[index % greens.length];
+    const lean = index % 2 ? .46 : -.46;
+    batch.tube('#756650', [x, 0, z], [x, 2.6 * scale, z], .14, 6);
+    addCanopy(batch, leaf, x + lean * .3, 3.12 * scale, z,
+      1.84 * scale, 1.57 * scale, 1.7 * scale, index * .61);
+    if (!bankRow && index % 2 === 0) {
+      batch.crown('#70874b', [x + .76, .24, z - .45], [1.6, .64, 1.18]);
+      batch.crown('#70874b', [x + 1.2, .17, z - .16], [1, .46, .94]);
+    }
+  }
+  batch.finish(root, 'central_lawn_planting');
 }

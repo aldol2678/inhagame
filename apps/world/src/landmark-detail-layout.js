@@ -1,3 +1,4 @@
+import { SITE_FEATURES } from './basic-campus.js';
 import { FACILITIES } from './campus-facilities.js';
 import { polygonOverlap } from './polygon-collision.js';
 import { getCanonicalLandmark, projectPolygon } from './reality-adapter.js';
@@ -53,12 +54,23 @@ export function gazeboGroundHeight(x,z){
 export function overPondWater(x,z){
   return polygonOverlap(x,z,pond,.3)&&!polygonOverlap(x,z,GAZEBO.ring)&&!entry(x,z);
 }
+const canal = SITE_FEATURES.find(feature => feature.id === 'site_218220690').vertices;
+const canalBounds = { minX: Math.min(...canal.map(p => p.x)), maxX: Math.max(...canal.map(p => p.x)),
+  minZ: Math.min(...canal.map(p => p.z)), maxZ: Math.max(...canal.map(p => p.z)) };
+function insideCanal(x, z) {
+  return x >= canalBounds.minX && x <= canalBounds.maxX && z >= canalBounds.minZ && z <= canalBounds.maxZ
+    && polygonOverlap(x, z, canal);
+}
 // Sample the whole movement, including large dt/sprints, not just its endpoint.
 export function constrainPondWalk(from,to){
   const count=Math.max(1,Math.ceil(Math.hypot(to.x-from.x,to.z-from.z)/.15));let safe={x:from.x,z:from.z};
+  // A player restored inside the old walkable water can still leave it.
+  let wasInside = insideCanal(from.x, from.z);
   for(let i=1;i<=count;i++){
     const p={x:from.x+(to.x-from.x)*i/count,z:from.z+(to.z-from.z)*i/count};
-    if(overPondWater(p.x,p.z))return safe;
+    const inside = insideCanal(p.x, p.z);
+    if(overPondWater(p.x,p.z) || (inside && !wasInside))return safe;
+    wasInside = inside;
     safe=p;
   }
   return safe;
