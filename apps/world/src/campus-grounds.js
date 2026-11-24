@@ -66,6 +66,26 @@ export function buildCampusGrounds(root) {
   gateBatch.finish(root,'main_gate_campus_ground_links',{castShadows:false});
 }
 
+// Rounded broadleaf silhouettes built in the same chunk batches as the trunks.
+function addCanopy(batch, color, x, y, z, width, height, depth, phase) {
+  const profiles = [[-.72, .66], [-.2, .98], [.43, .91], [.8, .6]];
+  const rings = profiles.map(([level, radius], layer) => Array.from({ length: 8 }, (_, i) => {
+    const angle = i * Math.PI / 4 + phase + (layer % 2) * .16;
+    const lobe = radius * (1 + .075 * Math.cos(3 * angle + phase));
+    return [x + width * lobe * Math.cos(angle), y + level * height,
+      z + depth * lobe * Math.sin(angle)];
+  }));
+  for (let i = 0; i < 8; i++) {
+    const j = (i + 1) % 8;
+    batch.triangle(color, [x, y - height, z], rings[0][i], rings[0][j]);
+    for (let layer = 1; layer < rings.length; layer++) {
+      const low = rings[layer - 1], high = rings[layer];
+      batch.quad(color, low[i], high[i], high[j], low[j]);
+    }
+    batch.triangle(color, [x, y + height, z], rings[3][j], rings[3][i]);
+  }
+}
+
 export function buildCampusTrees(root, trees) {
   const batch = new FacilityMeshBatch();
   const greens = ['#617d4b', '#75894f', '#698653', '#8a935b'];
@@ -74,8 +94,8 @@ export function buildCampusTrees(root, trees) {
     const leaf = greens[index % greens.length];
     const lean = index % 2 ? .46 : -.46;
     batch.tube('#756650', [x, 0, z], [x, 2.6 * scale, z], .14, 6);
-    batch.crown(leaf, [x, 2.95 * scale, z], [3.45 * scale, 3.1 * scale, 3.25 * scale]);
-    batch.crown(leaf, [x + lean, 3.48 * scale, z + .24], [2.5 * scale, 2.3 * scale, 2.6 * scale]);
+    addCanopy(batch, leaf, x + lean * .3, 3.12 * scale, z,
+      1.84 * scale, 1.57 * scale, 1.7 * scale, index * .61);
     if (!bankRow && index % 2 === 0) {
       batch.crown('#70874b', [x + .76, .24, z - .45], [1.6, .64, 1.18]);
       batch.crown('#70874b', [x + 1.2, .17, z - .16], [1, .46, .94]);
