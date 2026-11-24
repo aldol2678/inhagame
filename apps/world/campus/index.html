@@ -28,7 +28,7 @@
   <meta property="og:image:height" content="512">
   <meta name="twitter:card" content="summary">
 
-  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/styles.css?v=73314c091265" />
   <link rel="stylesheet" href="/src/collection/item-acquisition-guide.css" />
   <link rel="stylesheet" href="/src/inventory/inventory-query.css" />
   <link rel="stylesheet" href="/cinematic.css" />
@@ -345,7 +345,6 @@
       <button id="open-inventory" type="button" aria-controls="inventory-panel" aria-expanded="false">🎒 <span>인벤토리</span></button>
       <button id="open-mobility-book" type="button" aria-controls="mobility-book-panel" aria-expanded="false">🛞 <span>탈것</span></button>
       <button id="open-wardrobe" type="button" aria-controls="wardrobe-panel" aria-expanded="false">👕 <span>옷장</span></button>
-      <button id="open-shop" type="button" aria-controls="shop-panel" aria-expanded="false">🛍 <span>상점</span></button>
       <button id="open-life-skills" type="button" aria-controls="life-skill-book-panel" aria-expanded="false" hidden>📘 <span>생활 스킬</span></button>
       <button id="open-friends" type="button" aria-controls="friend-panel" aria-expanded="false" hidden>👥 <span>친구</span></button>
     </div>
@@ -522,15 +521,6 @@
     </span>
     <span class="guestbook-world-marker-pointer" aria-hidden="true">▼</span>
   </div>
-  <!-- Student Center shop world entry marker (discovery only; F / #context-action opens the shop). -->
-  <div id="shop-world-label" class="guestbook-world-label shop-world-label" aria-hidden="true" hidden>
-    <span class="guestbook-world-marker-icon" data-shop-marker-icon>🛍</span>
-    <span class="guestbook-world-marker-copy">
-      <strong data-shop-marker-title>학생회관 상점</strong>
-      <small data-shop-marker-hint>굿즈를 둘러보세요</small>
-    </span>
-    <span class="guestbook-world-marker-pointer" aria-hidden="true">▼</span>
-  </div>
   <section id="profile-panel" class="profile-panel" aria-labelledby="profile-title" hidden>
     <button id="close-profile" type="button" class="profile-close" aria-label="프로필 닫기">×</button>
     <h2 id="profile-title">🦆 인덕이 프로필</h2>
@@ -614,7 +604,7 @@
   <script defer src="/game-entry.js" data-game="campus"></script>
   <script type="module" src="/src/lobby/lobby-shell.js"></script>
   <script type="module" src="/src/ui/ui-icon-runtime.js"></script>
-  <script type="module" data-world-boot src="/src/main.js"></script>
+  <script type="module" data-world-boot src="/src/main.js?v=43ae4891e297"></script>
 </body>
 </html>
 
