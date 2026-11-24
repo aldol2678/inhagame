@@ -1,0 +1,517 @@
+--- a/campus/index.html
++++ b/campus/index.html
+@@ -37,26 +37,21 @@
+   <link rel="stylesheet" href="/src/commissions/commission-trial.css" />
+   <link rel="stylesheet" href="/ui-icon-runtime.css" />
+   <!-- Auth config must execute before module imports snapshot the shared account config. -->
+-  <script src="/api/public-supabase-config"></script>
++<!-- Supabase removed in 2026-11-23 restore (guest/local mode only) -->
+   <script type="importmap">
+     {
+       "imports": {
+-        "playcanvas": "https://cdn.jsdelivr.net/npm/playcanvas@2.22.4/build/playcanvas.mjs"
++        "playcanvas": "https://cdn.jsdelivr.net/npm/playcanvas@2.22.4/build/playcanvas.mjs",
++        "firebase/app": "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js",
++        "firebase/auth": "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js"
+       }
+     }
+   </script>
++  <!-- Firebase SDK importmap: 허브(hub-account.js)가 Firebase 초기화를 소유한다.
++       캠퍼스는 여기서 초기화하지 않는다. 매핑만 두고 실제 import는 허브와
++       공유 모듈이 필요할 때 한다. --> 
+ 
+-  <script>
+-    // Vercel owns this endpoint; do not request it from local browser QA servers.
+-    if (/\.vercel\.app$/.test(window.location.hostname)) {
+-      window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
+-      const analyticsScript = document.createElement('script');
+-      analyticsScript.src = '/_vercel/insights/script.js';
+-      analyticsScript.async = true;
+-      document.head.appendChild(analyticsScript);
+-    }
+-  </script>
+-  <link rel="stylesheet" href="/src/rooms/room-loading-overlay.css" />
++    <link rel="stylesheet" href="/src/rooms/room-loading-overlay.css" />
+   <link rel="stylesheet" href="/src/lobby/induck-loading-scene.css" />
+   <link rel="stylesheet" href="/src/lobby/lobby-entry.css" />
+ </head>
+@@ -118,7 +113,7 @@
+       <button id="lobby-open-profile" type="button">🦆 프로필</button>
+       <button id="lobby-open-settings" type="button">⚙ 화면 설정</button>
+       <a href="/" class="world-lobby-menu-link">↩ 인하게임 허브로</a>
+-      <p id="offline-launch-notice" role="status">게스트 탐험판입니다. 계정 로그인과 온라인 저장은 현재 이용할 수 없습니다.</p>
++      <p id="offline-launch-notice" role="status">게스트 탐험판입니다. 계정으로 로그인하면 온라인 저장을 이용할 수 있습니다.</p>
+     </nav>
+     <div class="world-lobby-frame">
+       <div class="world-lobby-stage-slot" aria-hidden="true">
+@@ -599,12 +594,12 @@
+       if (side === 'right') document.body.classList.add('joystick-right');
+     } catch { /* Use default controls when local storage is unavailable. */ }
+   </script>
+-  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
++<!-- Supabase removed in 2026-11-23 restore (guest/local mode only) -->
+   <script defer src="/hub-telemetry.js"></script>
+   <script defer src="/game-entry.js" data-game="campus"></script>
+   <script type="module" src="/src/lobby/lobby-shell.js"></script>
+   <script type="module" src="/src/ui/ui-icon-runtime.js"></script>
+-  <script type="module" data-world-boot src="/src/main.js?v=43ae4891e297"></script>
++  <script type="module" data-world-boot src="/src/main.js?v=11e038047a99"></script>
+ </body>
+ </html>
+ 
+--- a/src/main.js
++++ b/src/main.js
+@@ -60,12 +60,13 @@
+ import { createCampusTour } from "./campus-tour.js";
+ import { LANDMARKS, TOUR_STOPS } from "./campus-layout.js";
+ import { worldToMeters } from "./world-scale.js";
+-import { startWorldOnline, SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from "./online/world-online.js";
++import { startWorldOnline } from "./online/world-online.js";
+ import { startWorldPopulationCount, startWorldPopulationHeartbeat } from "./online/world-population-heartbeat.js";
+ import { createRemoteAvatarFactory } from "./online/remote-avatar.js";
+ import { EmoteController } from "./online/emotes.js";
+ import { createEmoteMenu } from "./online/emote-menu.js";
+ import { createChatPanel } from "./online/chat-panel.js";
++import { chatModeration } from "./online/chat-moderation.js";
+ import { createSeatInteraction } from "./seat-interaction.js";
+ import { personalRoomSeatAnchors, personalRoomSeatZone, resolveRoomSeatStandPoint } from "./rooms/personal-room-seats.js";
+ import { campusSpawn } from './campus-spawn.js';
+@@ -188,6 +189,7 @@
+ import { LIFE_SKILL_BOOK_STATE, createLifeSkillBookClient } from "./life-skills/life-skill-book-client.js";
+ import { createLifeSkillBookPanel } from "./life-skills/life-skill-book-panel.js";
+ import { FISHING_CLIENT_STATE, createFishingClient } from "./activity/fishing-client.js";
++import { readSnapshotSessionId } from "./activity/session-id.js";
+ import { createFishingPanel } from "./activity/fishing-panel.js";
+ import { createFishingRenderer } from "./activity/fishing-renderer.js";
+ import { fishingContextAction, findNearbyFishingSpot } from "./activity/fishing-spots.js";
+@@ -926,9 +928,13 @@
+ const tour = createCampusTour();
+ // Social S1-B1: local expression plays at once; members also broadcast it (guests stay local).
+ let online = null;
++// AUTH (Tier 4 guest-open): the relationships read authenticates with the snapshot
++// session id (X-Session-Id, ./activity/session-id.js readSnapshotSessionId()).
++// The account bound by setAccount IS that session id: refresh() only proceeds while
++// getUserId() === accountId, so both must read the same id.
+ const biryongRelationships = createBiryongRelationshipClient({
+-  getClient: () => online?.supabase ?? null,
+-  getUserId: () => online?.userId ?? null
++  getSessionId: () => readSnapshotSessionId(),
++  getUserId: () => readSnapshotSessionId()
+ });
+ // Pet companion runtime is intentionally deferred until the world is stable enough to reintroduce it.
+ let accompany = null;
+@@ -1059,15 +1065,23 @@
+ });
+ // Social S1-C1: Player Inspect, friends, block and report. The database is authoritative;
+ // targets are user ids from Presence, never nicknames. Guests have no social layer.
+-const social = new SocialClient({ getClient: () => online?.supabase ?? null, getSelfUserId: () => online?.userId ?? null });
++const social = new SocialClient({ getSessionId: () => readSnapshotSessionId(), getSelfUserId: () => readSnapshotSessionId() });
++// NOTE (계정 재구축): FriendRoomVisitClient has no Tier 4 migrated version, so it keeps
++// the old getClient shape with a null client (visits stay unavailable) instead of
++// receiving a session id it cannot use. Migrate the client first, then rebind here.
+ const friendRoomVisitClient = new FriendRoomVisitClient({
+-  getClient: () => online?.supabase ?? null,
++  getClient: () => null,
+   getSelfUserId: () => online?.userId ?? null
+ });
+ // Housing H3: visitors knock at the Dorm Lobby corridor door; owners answer from inside their room.
++// AUTH (A-2 writes, Tier 4 guest-open): the write clients below authenticate with the
++// snapshot session id (X-Session-Id). The id is read lazily from localStorage
++// (./activity/session-id.js readSnapshotSessionId(); null when absent — never
++// fabricated). No legacy token header is sent anywhere on these paths. setAccount binds
++// the session id; a null id leaves the client SIGNED_OUT.
+ const roomKnockClient = new RoomKnockClient({
+-  getClient: () => online?.supabase ?? null,
+-  getSelfUserId: () => online?.userId ?? null
++  getSessionId: () => readSnapshotSessionId(),
++  getSelfUserId: () => readSnapshotSessionId()
+ });
+ // Player Card and Friends panel share one visit entry; the controller exists once rooms do.
+ const roomVisitEntry = Object.freeze({
+@@ -1150,8 +1164,15 @@
+   remainingMs: () => rewardToastRemainingMs(),
+   show: showWorldStatus
+ });
+-// P0-F3a: read-only server progression on the signed-in member client (never a new client).
+-const progression = createProgressionClient({ getClient: () => online?.supabase ?? null });
++// AUTH (migrated 2026-11-23, Tier 4 guest-open): the A-1 read clients below authenticate with
++// the snapshot session id (X-Session-Id). The id is read lazily from localStorage
++// (./activity/session-id.js readSnapshotSessionId(): 'inhaworld-firebase-session-v1', fallback
++// 'inhaworld-guest-session-v1'; null when absent — never fabricated). No legacy token header is
++// sent anywhere on these paths. setAccount binds the session id; a null id leaves the client
++// SIGNED_OUT. Loadout reads and shop reads are migrated; equip/unequip and purchase use the
++// migrated Tier 4 clients now (A-2).
++// P0-F3a: read-only server progression on the guest session (never a new client).
++const progression = createProgressionClient({ getSessionId: () => readSnapshotSessionId() });
+ const progressionHud = createProgressionHud({
+   pill: document.getElementById("progression-hud"),
+   pillLevel: document.getElementById("progression-level"),
+@@ -1178,8 +1199,8 @@
+     totalExp: change.snapshot?.totalExp ?? progression.snapshot?.totalExp ?? null
+   });
+ });
+-// Read-only server wallet balance on the same member client (never a new client, never computed).
+-const wallet = createWalletClient({ getClient: () => online?.supabase ?? null });
++// Read-only server wallet balance on the same guest session (never a new client, never computed).
++const wallet = createWalletClient({ getSessionId: () => readSnapshotSessionId() });
+ wallet.onChange(() => {
+   lobbyPlayerSummary.setWalletBalance(wallet.balance());
+   npcTest?.observeTmlShadowEconomicState?.({
+@@ -1187,13 +1208,13 @@
+     totalExp: progression.snapshot?.totalExp ?? null
+   });
+ });
+-// Inventory P0: read-only owned items on the same member client (never a new client, never inferred).
+-const inventory = createInventoryClient({ getClient: () => online?.supabase ?? null });
++// Inventory P0: read-only owned items on the same guest session (never a new client, never inferred).
++const inventory = createInventoryClient({ getSessionId: () => readSnapshotSessionId() });
+ // P1e: Campus Daily Quiz on the same member client. The server owns the day (Asia/Seoul), the run, the
+ // answers and the reward; a PASSED answer's reward is shown through the existing reward toast lane and
+ // the authorities it touched are re-read (never computed here). LEVEL UP follows the toast.
+ const dailyQuiz = createDailyQuizClient({
+-  getClient: () => online?.supabase ?? null,
++  getSessionId: () => readSnapshotSessionId(),
+   onRecoveryReadback: () => {
+     void progression.refresh("daily-reward-recovery");
+     void wallet.refresh("daily-reward-recovery");
+@@ -1209,7 +1230,7 @@
+ // paid shows its server rewards through the existing toast lane (daily first, then the monthly
+ // milestone), then only the Wallet is re-read (coin only: no EXP, no items).
+ const attendance = createAttendanceClient({
+-  getClient: () => online?.supabase ?? null,
++  getSessionId: () => readSnapshotSessionId(),
+   onRecoveryReadback: () => { void wallet.refresh("daily-reward-recovery"); },
+   onRewards: (rewards) => {
+     const [daily, ...milestones] = rewards;
+@@ -1222,8 +1243,9 @@
+   }
+ });
+ 
+-// Wardrobe P0: the server appearance loadout on the same member client (never a new client, never inferred).
+-const loadout = createLoadoutClient({ getClient: () => online?.supabase ?? null });
++// Wardrobe P0: the server appearance loadout on the same guest session (never a new client, never inferred).
++// Reads and equip/unequip both use the guest session (Tier 4 A-1+A-2 client).
++const loadout = createLoadoutClient({ getSessionId: () => readSnapshotSessionId() });
+ // Local Equipment Projection P0: the loadout snapshot (via onChange) is the only equipped authority; the
+ // catalog modelAssetId is the asset binding (only the models in EQUIPMENT_MODEL_REGISTRY load and render).
+ const equipmentProjection = createEquipmentProjection({
+@@ -1238,7 +1260,9 @@
+ loadout.onChange((change) => online?.setLocalEquipment(change.accountId, publicEquipmentFor(change, change.accountId)));
+ // Personal Room Session carries the same public equipment on the room channel.
+ loadout.onChange((change) => {
+-  if (change.accountId && change.accountId === online?.userId) roomSession?.setEquipment(publicEquipmentFor(change, change.accountId));
++  // A-2: the loadout account is now the snapshot session id, not the host login id,
++  // so the room equipment is set when the change belongs to the current session.
++  if (change.accountId && change.accountId === readSnapshotSessionId()) roomSession?.setEquipment(publicEquipmentFor(change, change.accountId));
+ });
+ // A page restored from the back/forward cache may have missed progression / wallet / inventory changes.
+ window.addEventListener("pageshow", (event) => {
+@@ -1254,15 +1278,11 @@
+   preview: mcmEventPreviewMode,
+   previewTimed: mcmPreviewStartMs !== null,
+   clock: { now: () => Date.now() + mcmPreviewClockOffsetMs },
+-  getClient: () => online?.supabase ?? null,
+-  getSessionToken: async () => {
+-    const client = online?.supabase;
+-    if (!client || !online?.userId) return null;
+-    const { data, error } = await client.auth.getSession();
+-    const session = data?.session;
+-    return !error && session?.user?.id === online.userId && session.user.is_anonymous !== true
+-      ? session.access_token : null;
+-  }
++  getSessionId: () => readSnapshotSessionId(),
++  // AUTH (계정 재구축): the Tier 4 event client takes no session token — advance() is
++  // server-only outside preview — so the legacy Bearer fetch is a null stub
++  // (전송 방식 이관 대기). Never send the session id as a Bearer token.
++  getSessionToken: async () => null
+ });
+ let mcmEventRuntime = null;
+ const mcmEventUi = createMcm2026EventUi({
+@@ -1313,12 +1333,12 @@
+ // Unfriend / block from any panel: a live room visit re-asks the server at once (not in 15 s).
+ social.onRelationshipChange(() => { void roomSession?.revalidateNow(); });
+ const guestbook = new GuestbookClient({
+-  getClient: () => online?.supabase ?? null,
+-  getSelfUserId: () => online?.userId ?? null
++  getSessionId: () => readSnapshotSessionId(),
++  getSelfUserId: () => readSnapshotSessionId()
+ });
+ const personalRoom = new PersonalRoomClient({
+-  getClient: () => online?.supabase ?? null,
+-  getSelfUserId: () => online?.userId ?? null
++  getSessionId: () => readSnapshotSessionId(),
++  getSelfUserId: () => readSnapshotSessionId()
+ });
+ const guestbookPanel = createGuestbookPanel({
+   panel: document.getElementById("guestbook-panel"),
+@@ -1346,25 +1366,22 @@
+   social,
+   friendPanel
+ });
+-// P0-F3b: Student Center shop on the signed-in member client (never a new client). The server decides
++// P0-F3b: Student Center shop on the guest session (never a new client). The server decides
+ // price, Level lock and purchasability; the panel only shows them and forwards purchases.
+ const shop = createShopRouter({
+-  getClient: () => online?.supabase ?? null,
++  getSessionId: () => readSnapshotSessionId(),
+   shopIds: SHOP_ROUTE_IDS
+ });
+ // Inventory panel (☰ → 🎒 인벤토리). One modal at a time with the shop; same input gate as the shop.
+ const inventoryButton = document.getElementById("open-inventory");
+ const collectionBook = createCollectionBookClient({
+-  getToken: async (accountId) => {
+-    const client = online?.supabase;
+-    if (!client || online?.userId !== accountId) return null;
+-    const { data, error } = await client.auth.getSession();
+-    const session = data?.session;
+-    return !error && online?.userId === accountId && session?.user?.id === accountId && session.user.is_anonymous === false
+-      ? session.access_token : null;
+-  }
+-});
+-const inventoryAcquisition = createInventoryAcquisitionClient({ getClient: () => online?.supabase ?? null });
++  // AUTH (계정 재구축): no migrated collection client exists yet, so the legacy
++  // Bearer fetch is replaced with a null token (전송 방식 이관 대기). The snapshot
++  // already returned null here without a session, so this preserves current behavior.
++  // Never send the session id as a Bearer token.
++  getToken: async () => null
++});
++const inventoryAcquisition = createInventoryAcquisitionClient({ getSessionId: () => readSnapshotSessionId() });
+ const inventoryPanel = createInventoryPanel({
+   panel: document.getElementById("inventory-panel"),
+   inventory,
+@@ -1412,7 +1429,7 @@
+     capabilityMode: shop.mode, capabilityChecking: shop.capabilityChecking });
+   if (changed && inventoryPanel.open) void inventoryAcquisition.refresh();
+ });
+-inventoryButton?.addEventListener("click", () => inventoryPanel.setOpen(true));
++inventoryButton?.addEventListener("click", () => { collectionBook.setAccount(readSnapshotSessionId()); inventoryPanel.setOpen(true); });
+ const shopFurnitureHandoff = createShopFurnitureHandoff({
+   inventory,
+   getAccountId: () => online?.userId ?? null,
+@@ -1484,7 +1501,7 @@
+   getState: () => ({
+     space: rooms?.currentSpace, position: player.getLocalPosition(), grounded: controller.grounded,
+     accountId: shop.accountId,
+-    available: shop.accountId !== null && online?.supabase != null,
++    available: shop.accountId !== null && readSnapshotSessionId() != null,
+     invalid: controller.mounted || seats.isSeated || combatRuntime.active || rooms?.status().busy ||
+       lobbyWorld.active || lobbyTransition.active,
+     blocked: shopPanel.open || !inputFocus.can("WORLD_ACTION")
+@@ -1668,7 +1685,7 @@
+ attendanceButton?.addEventListener("click", () => attendancePanel.setOpen(true));
+ // Life Skill Book P0 (☰ → 📘 생활 스킬): server-owned self views and actions. The menu entry is shown only
+ // while the server lists at least one visible (ACTIVE) skill for this account; nothing else decides it.
+-const lifeSkillBook = createLifeSkillBookClient({ getClient: () => online?.supabase ?? null });
++const lifeSkillBook = createLifeSkillBookClient({ getSessionId: () => readSnapshotSessionId() });
+ const lifeSkillBookButton = document.getElementById("open-life-skills");
+ lifeSkillBookPanel = createLifeSkillBookPanel({
+   panel: document.getElementById("life-skill-book-panel"),
+@@ -1705,14 +1722,13 @@
+ // Inkyung fishing (first ACTIVE Life Skill): 🎣 at the two pond spots. The server owns availability, timing,
+ // the result and rewards; the action is offered only while the endpoint answers for this permanent account.
+ const fishing = createFishingClient({
+-  getToken: async () => {
+-    const client = online?.supabase;
+-    if (!client || !online?.userId) return null;
+-    const { data, error } = await client.auth.getSession();
+-    const session = data?.session;
+-    return !error && session?.user?.id === online.userId && session.user.is_anonymous !== true
+-      ? session.access_token : null;
+-  }
++  // AUTH (계정 재구축): the fishing client is not migrated this round, so the legacy
++  // Bearer fetch is replaced with a null token (전송 방식 이관 대기). The snapshot
++  // already returned null here without a session, so this preserves current behavior.
++  // Never send the session id as a Bearer token. (Tier 4/combined fishing migration
++  // incl. the position reporter is out of scope — it needs fishing-reporter-wiring.js,
++  // which must not be created in the snapshot.)
++  getToken: async () => null
+ });
+ const fishingVisuals = createFishingRenderer({
+   pc, app, parent: campusRoot, player, character, camera, fishing, assetShadow: assetOptimizationShadow
+@@ -2297,14 +2313,10 @@
+       placeZoneId: getBiryongRealmPlaceZone(player.getLocalPosition())?.id ?? null
+     };
+   },
+-  getSession: async () => {
+-    const client = online?.supabase;
+-    if (!client || !online?.userId) return null;
+-    const { data, error } = await client.auth.getSession();
+-    const session = data?.session;
+-    return !error && session?.user?.id === online.userId && session.user.is_anonymous !== true
+-      ? session.access_token : null;
+-  },
++  // AUTH (계정 재구축): no migrated biryong-realm session getter exists yet, so the
++  // legacy Bearer fetch is replaced with a null token (전송 방식 이관 대기).
++  // Never send the session id as a Bearer token.
++  getSession: async () => null,
+   getRelationshipStage: npcId => biryongRelationships.stage(npcId),
+   getUnlockedFacts: npcId => biryongRelationships.facts(npcId),
+   onNavigate: poiId => {
+@@ -2501,9 +2513,13 @@
+       const remote = roomSession?.remotePlayer(sessionId);
+       if (remote && !chatPanel.open) void playerCard.openUser(remote.userId, remote.displayName);
+     } }),
+-  getClient: () => online?.supabase ?? null,
++  // NOTE (계정 재구축): room-session checkAccess용 RPC에 대응하는 Worker 엔드포인트가
++  // 없어 이관 클라이언트가 없다. null 클라이언트로 둔다 (방문자는 거부, 소유자는
++  // 로컬 방 폴백이 기존 코드에 있다). 엔드포인트가 생기면 세션 기반으로 교체할 것.
++  getClient: () => null,
+   getIdentity: () => online?.userId ? { userId: online.userId, displayName: online.identity?.displayName ?? null } : null,
+-  getEquipment: () => publicEquipmentFor(loadout, online?.userId ?? null),
++  // A-2: the loadout account is the snapshot session id now.
++  getEquipment: () => publicEquipmentFor(loadout, readSnapshotSessionId()),
+   onAccessLost: ({ role, reason }) => {
+     if (rooms.currentSpace !== "ROOM_PERSONAL_BASIC") return;
+     rooms.exit({ force: true });
+@@ -2563,8 +2579,8 @@
+   if(roomFurniture)furnitureEditor?.update(roomFurniture.state());
+ });
+ roomFurniture = createFurnitureClient({
+-  getClient: () => online?.supabase ?? null,
+-  getUserId: () => online?.userId ?? null,
++  getSessionId: () => readSnapshotSessionId(),
++  getUserId: () => readSnapshotSessionId(),
+   onChange: state => {
+     const signature = JSON.stringify(state.objects);
+     if (signature !== furnitureSceneSignature) {
+@@ -2659,7 +2675,7 @@
+ // B2 candidate stays closed by default. Tests inject availability into the module fixture only;
+ // no URL/local-storage/player toggle may turn a COMING_SOON recipe into an enabled consumer.
+ cookingFeature = createCookingFeature({
+-  getClient: () => online?.supabase ?? null,
++  getSessionId: () => readSnapshotSessionId(),
+   getUserId: () => roomFunctionAccountId,
+   getRoomState: getRoomFunctionState,
+   inventory,
+@@ -2799,7 +2815,7 @@
+   }
+ });
+ const biryongCloudSync = createBiryongCloudSync({
+-  getClient: () => online?.supabase ?? null,
++  getSessionId: () => readSnapshotSessionId(),
+   progress: {
+     snapshot: () => biryong?.progressSnapshot() ?? {},
+     setScope: (scope, options) => biryong?.setLocalScope(scope, options),
+@@ -3236,7 +3252,7 @@
+ 
+ // Inner reader and public-side fictional guide; RPCs retain sole eligibility/economy authority.
+ const jeongseok = createJeongseokFeature({
+-  getClient: () => online?.supabase ?? null, isEnabled: () => jeongseokEntryMode !== JEONGSEOK_ENTRY_MODE.CLOSED, audio: worldAudio,
++  getSessionId: () => readSnapshotSessionId(), isEnabled: () => jeongseokEntryMode !== JEONGSEOK_ENTRY_MODE.CLOSED, audio: worldAudio,
+   getContext: () => ({ space: rooms.currentSpace, position: player.getLocalPosition(),
+     grounded: controller.grounded, mounted: controller.mounted, busy: rooms.status().busy }),
+   onEnter: snapshot => jeongseokInterior.enterFromServerGrant(snapshot, { mounted: controller.mounted }),
+@@ -3280,7 +3296,7 @@
+ smartphone = createSmartphone({
+   learning,
+   inputFocus, photoMode, getMap: () => fullMap, getSettings: () => viewSettings,
+-  getIdentity: () => online?.identity ?? null, getClient: () => online?.supabase ?? null,
++  getIdentity: () => online?.identity ?? null, getClient: () => null, // NOTE (계정 재구축): 학생증/메시지용 레거시 클라이언트 이관 대기 — null이면 학생증 UNAVAILABLE·메시지 ACCOUNT_UNAVAILABLE (세션 없던 스냅샷 현행과 동일). smartphone.js 이관 시 교체할 것.
+   getProgression: () => ({ state: progression.state, snapshot: progression.snapshot }),
+   getClock: () => worldTimeHud.status().clock,
+   onAlbumViewed: record => roomPhotoStory?.albumViewed(record),
+@@ -3435,7 +3451,7 @@
+ });
+ 
+ const accompanyClient = new AccompanyClient({
+-  getClient: () => online?.supabase ?? null, getSelfUserId: () => online?.userId ?? null
++  getSessionId: () => readSnapshotSessionId(), getSelfUserId: () => readSnapshotSessionId()
+ });
+ accompany = new AccompanyController({
+   client: accompanyClient,
+@@ -3573,14 +3589,10 @@
+         // emitted by core15-funnel-telemetry only after reward + growth + next-goal presentation.
+         if (freshFirstCampusReward) core15Funnel?.coreLoopComplete();
+       },
+-      getAiSession: async () => {
+-        const client = online?.supabase;
+-        if (!client || !online?.userId) return null;
+-        const { data, error } = await client.auth.getSession();
+-        const session = data?.session;
+-        return !error && session?.user?.id === online.userId && session.user.is_anonymous !== true
+-          ? session.access_token : null;
+-      },
++      // AUTH (계정 재구축): no migrated NPC-AI session getter exists yet, so the
++      // legacy Bearer fetch is replaced with a null token (전송 방식 이관 대기).
++      // Never send the session id as a Bearer token.
++      getAiSession: async () => null,
+       onConversationOpen: () => {
+         npcDialogueInput.acquire();
+         emoteMenu.setOpen(false);
+@@ -3963,7 +3975,7 @@
+     createAvatar: createRemoteAvatarFactory({ app, parent: campusRoot, camera, canvas,
+       // Tapping a nameplate inspects that player; never while typing a chat message.
+       onInspect: (sessionId) => { if (!chatPanel.open) void playerCard.open(sessionId); } }),
+-    moderation: { check: () => ({ ok: true }), isBlocked: (userId) => social.isBlocked(userId) },
++    moderation: { check: chatModeration.check, isBlocked: (userId) => social.isBlocked(userId) },
+     hudElement: document.getElementById("online-status"),
+     isSeated: () => seats.isSeated
+   });
+@@ -3995,20 +4007,27 @@
+       lobbyPresenceSummary.setFriends(null);
+     }
+     void syncBiryongAccount(identity);
+-    void progression.setAccount(identity ? online?.userId ?? null : null);
+-    void biryongRelationships.setAccount(identity ? online?.userId ?? null : null);
+-    shop.setAccount(identity ? online?.userId ?? null : null);
++    // AUTH (Tier 4 guest-open): A-1 reads (progression/shop/wallet/inventory/loadout/
++    // collectionBook) and A-2 writes (jeongseok/attendance/guestbook) bind the snapshot
++    // session id (X-Session-Id), not the host login identity. biryongRelationships also
++    // binds the session id: its refresh() only proceeds while getUserId() === accountId.
++    // dailyQuiz/lifeSkillBook/fishing keep the login-identity binding — their clients
++    // are not migrated in this round, so those setAccount calls stay unchanged.
++    void progression.setAccount(readSnapshotSessionId());
++    void biryongRelationships.setAccount(readSnapshotSessionId());
++    shop.setAccount(readSnapshotSessionId());
+     if (shop.accountId) void shop.refresh("account-capability");
+-    void wallet.setAccount(identity ? online?.userId ?? null : null);
+-    void jeongseok.setAccount(identity ? online?.userId ?? null : null);
++    void wallet.setAccount(readSnapshotSessionId());
++    void jeongseok.setAccount(readSnapshotSessionId());
+     jeongseokInterior.setAccount(identity ? online?.userId ?? null : null);
+-    collectionBook.setAccount(identity?.userId ?? null);
+-    void inventory.setAccount(identity ? online?.userId ?? null : null);
++    collectionBook.setAccount(readSnapshotSessionId());
++    void inventory.setAccount(readSnapshotSessionId());
+     void dailyQuiz.setAccount(identity ? online?.userId ?? null : null);
+-    void attendance.setAccount(identity ? online?.userId ?? null : null);
++    void attendance.setAccount(readSnapshotSessionId());
++    void guestbook.setAccount(readSnapshotSessionId());
+     void lifeSkillBook.setAccount(identity ? online?.userId ?? null : null);
+     void fishing.setAccount(identity ? online?.userId ?? null : null);
+-    void loadout.setAccount(identity ? online?.userId ?? null : null);
++    void loadout.setAccount(readSnapshotSessionId());
+     const nextRoomUserId = online?.userId ?? null;
+     inkyungSideEvent.setScope(nextRoomUserId ?? "guest");
+     const roomIdentityChanged = lastPersonalRoomUserId !== null && nextRoomUserId !== lastPersonalRoomUserId;
+@@ -4060,9 +4079,8 @@
+ // World-wide population telemetry is independent from signed-in Realtime Presence so guests count too.
+ // It never affects gameplay; if telemetry is unavailable the World continues normally.
+ try {
+-  const populationClient = window.supabase?.createClient?.(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+   populationHeartbeat = startWorldPopulationHeartbeat({
+-    client: populationClient,
++    getSessionId: () => readSnapshotSessionId(),
+     onRevoked: () => {
+       // A world-only operator kick does not delete the account or character.
+       // Stop Realtime immediately; the server rejects further heartbeats until expiry.
+@@ -4082,7 +4100,6 @@
+   const startPopulationCount = () => {
+     if (populationCount) return populationCount;
+     populationCount = startWorldPopulationCount({
+-      client: populationClient,
+       onChange: () => lobbyPresenceSummary.update()
+     });
+     lobbyPresenceSummary.update();
+@@ -4135,7 +4152,10 @@
+ await waitForWorldRender({
+   app,
+   ready: character.ready.then(() => {
+-    if (character.modelState !== "glb" || character.dragonModelState !== "glb") {
++    // Restore patch 2026-11-23: annyongi GLB is withheld (design-review-pending), so the
++    // designed primitive fallback ("fallback") must pass the boot gate like "glb" does.
++    // Only a state that never settled still blocks boot.
++    if (!["glb", "fallback"].includes(character.modelState) || !["glb", "fallback"].includes(character.dragonModelState)) {
+       throw Object.assign(new Error("Required character model unavailable"), { code: "ASSET_LOAD_FAILED" });
+     }
+     worldLoading?.setEssentialReady(true);
