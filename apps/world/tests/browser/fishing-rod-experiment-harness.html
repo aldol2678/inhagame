@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=512,height=512,initial-scale=1">
+<script type="importmap">{"imports":{"playcanvas":"https://cdn.jsdelivr.net/npm/playcanvas@2.22.4/build/playcanvas.mjs"}}</script></head>
+<body style="margin:0;background:#20252e"><canvas id="stage" width="512" height="512" style="display:block"></canvas>
+<script type="module">
+import * as pc from 'playcanvas';
+try {
+  const canvas = document.getElementById('stage');
+  const device = await pc.createGraphicsDevice(canvas, { deviceTypes:[pc.DEVICETYPE_WEBGL2], antialias:false });
+  const options = new pc.AppOptions();
+  options.graphicsDevice = device;
+  options.componentSystems = [pc.RenderComponentSystem, pc.CameraComponentSystem, pc.LightComponentSystem];
+  options.resourceHandlers = [pc.ContainerHandler, pc.TextureHandler];
+  const app = new pc.AppBase(canvas);
+  app.init(options);
+  const camera = new pc.Entity('Camera');
+  camera.addComponent('camera',{ clearColor:new pc.Color(0.10,0.13,0.18), fov:40, farClip:50 });
+  camera.setPosition(3.6, 2.6, 5.1);
+  camera.lookAt(0, 0.75, 0);
+  app.root.addChild(camera);
+  const light = new pc.Entity('Light');
+  light.addComponent('light',{ type:'directional', color:new pc.Color(1,1,1), intensity:2.3 });
+  light.setEulerAngles(45, 20, 0);
+  app.root.addChild(light);
+  const url = new URLSearchParams(location.search).get('variant') === 'candidate'
+    ? '/.generated/experiments/fishing-rod-v1.glb'
+    : '/assets/fishing-v1/fishing_rod_v1.glb';
+  const asset = await new Promise((resolve, reject) =>
+    app.assets.loadFromUrl(url, 'container', (err, value) => err ? reject(err) : resolve(value)));
+  const rod = asset.resource.instantiateRenderEntity({ castShadows:false, receiveShadows:false });
+  app.root.addChild(rod);
+  const sockets = ['Grip_L','Grip_R','Line_Tip','Reel_CrankSocket'];
+  if (sockets.some(name => !rod.findByName(name))) throw new Error('missing required fishing socket');
+  const instances = rod.findComponents('render').flatMap(c => c.meshInstances);
+  if (instances.length !== 3) throw new Error('unexpected mesh surface count: ' + instances.length);
+  for (const instance of instances) {
+    const mat = instance.material.clone();
+    mat.diffuseVertexColor = true;
+    mat.update();
+    instance.material = mat;
+  }
+  app.start();
+  await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  window.__FISHING_ROD_RENDER__ = { ready:true, renderer:device.isWebGL2?'WebGL2':'UNKNOWN',
+    surfaces:instances.length, sockets:sockets.map(name => Boolean(rod.findByName(name))),
+    url, width:canvas.width, height:canvas.height };
+} catch (e) {
+  window.__FISHING_ROD_RENDER__ = { ready:false, error:String(e?.stack || e) };
+}
+</script></body></html>
