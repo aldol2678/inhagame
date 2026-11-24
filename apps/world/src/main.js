@@ -303,7 +303,8 @@ options.graphicsDevice = device;
 options.componentSystems = [
   pc.RenderComponentSystem,
   pc.CameraComponentSystem,
-  pc.LightComponentSystem
+  pc.LightComponentSystem,
+  pc.AnimComponentSystem
 ];
 // AppBase has no model loaders unless the relevant handlers are registered.
 options.resourceHandlers = [pc.TextureHandler, pc.ContainerHandler];
