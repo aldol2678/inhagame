@@ -13,6 +13,8 @@ import { buildStadiumStands } from './stadium-stands-geometry.js';
 import { buildLibraryRoute } from './library-route-geometry.js';
 import { buildCampusHelicopter } from './mounts/campus-helicopter-render.js';
 import { buildPondSurroundingsBase } from './pond-surroundings-geometry.js';
+import { isP1AEastQaEnabled } from './pond-east-access-p1a.js';
+import { buildP1AEastQaSurface } from './pond-east-access-p1a-render.js';
 import { buildMainHallWalkways } from './main-hall-walkway-geometry.js';
 import { createCampusContactShading } from './campus-contact-shading.js';
 
@@ -26,6 +28,8 @@ export class CampusChunkRenderer {
     buildCampusTerrain(base,WORLD_BOUNDS);
     buildCampusGrounds(base);buildCampusRoads(base);buildGateBlockout(base);this.pondWeather=buildCentralBlockout(base,app,environmentSignals);buildPondShore(base);
     buildPondSurroundingsBase(base);buildMainHallWalkways(base);
+    // QA-only extension from the independent P1A road evidence. Never replace existing pond/seats/Agora.
+    if (isP1AEastQaEnabled()) buildP1AEastQaSurface(base);
     buildLibraryGardenBase(base);
     buildStadiumStands(base);
     buildCampusHelicopter(base);

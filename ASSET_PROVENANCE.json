@@ -70,6 +70,30 @@
       "geometrySource": "scripts/assets/build-dorm-single-sofa.py",
       "textureUsage": "none",
       "approvalStatus": "independent-draft-pilot; no production approval"
+    },
+    {
+      "path": "apps/world/assets/npcs/inkyung-daily-v031/phone-walk.glb",
+      "sha256": "ed631866de85b6f8a51bc9a36a1bddb2858ded676acaa8baf068a7d1d223b6cb",
+      "provenance": "Project-authored Blender student mesh, modular varsity jacket and animated rig; reused unchanged from the Inkyung Daily NPC v03.1 package. The jacket palette and silhouette referenced a published garment photo; no source photo, official crest, department logo or original embroidery file is embedded.",
+      "visualReference": "https://m.hycoop.co.kr/article/review/5/79",
+      "textureUsage": "None; procedural phone and flat-color materials.",
+      "approvalStatus": "owner-approved for official Inkyung campus placement; independent student project, not an official university endorsement"
+    },
+    {
+      "path": "apps/world/assets/npcs/inkyung-daily-v031/phone-call.glb",
+      "sha256": "173b96d0da016df522303c911277ba39ecc3852dd1537a518fb19dcde4dcf504",
+      "provenance": "Project-authored Blender student mesh, modular varsity jacket and animated rig; reused unchanged from the Inkyung Daily NPC v03.1 package. The jacket palette and silhouette referenced a published garment photo; no source photo, official crest, department logo or original embroidery file is embedded.",
+      "visualReference": "https://m.hycoop.co.kr/article/review/5/79",
+      "textureUsage": "None; procedural phone and flat-color materials.",
+      "approvalStatus": "owner-approved for official Inkyung campus placement; independent student project, not an official university endorsement"
+    },
+    {
+      "path": "apps/world/assets/npcs/inkyung-daily-v031/bench-sit.glb",
+      "sha256": "3893995f26a7f9b1d91a5aa44084f4bd846b5f9a9695ea0f02e0f605488d3a12",
+      "provenance": "Project-authored Blender student mesh, modular varsity jacket and animated rig; reused unchanged from the Inkyung Daily NPC v03.1 package. The jacket palette and silhouette referenced a published garment photo; no source photo, official crest, department logo or original embroidery file is embedded.",
+      "visualReference": "https://m.hycoop.co.kr/article/review/5/79",
+      "textureUsage": "One project-authored procedural wood texture, with a PNG fallback.",
+      "approvalStatus": "owner-approved for official Inkyung campus placement; independent student project, not an official university endorsement"
     }
   ],
   "generator": "Mixed per-asset provenance; see each asset",

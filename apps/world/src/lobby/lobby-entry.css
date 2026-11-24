@@ -1,0 +1,176 @@
+#world-lobby {
+  --lobby-ink: #142b22;
+  --lobby-ivory: #fff8e6;
+  --lobby-gold: #ffda91;
+  --lobby-panel: #142b23eb;
+  --lobby-line: #e3ebcf4d;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+#world-lobby::before {
+  background: linear-gradient(180deg, #0919129c 0%, transparent 24%, transparent 62%, #081610a8 100%);
+}
+
+#world-lobby .world-lobby-header-identity {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: clamp(8px, 2vw, 16px);
+}
+
+#world-lobby .world-lobby-brand { flex: none; white-space: nowrap; }
+
+#world-lobby .world-lobby-player-summary {
+  position: static;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  width: auto;
+  max-width: 100%;
+  padding: 5px 7px 5px 9px;
+  border: 1px solid var(--lobby-line);
+  border-radius: 999px;
+  background: var(--lobby-panel);
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+#world-lobby .world-lobby-player-summary strong {
+  font-size: 12px;
+  margin: 0;
+}
+
+#world-lobby .world-lobby-player-eyebrow,
+#world-lobby #lobby-player-look,
+#world-lobby[data-guest-launch] .world-lobby-player-stats,
+#world-lobby .world-lobby-player-stats:not(:has(> span:not([hidden]))),
+#world-lobby[data-guest-launch] .world-lobby-presence-summary { display: none; }
+
+#world-lobby #lobby-player-account {
+  margin: 0;
+  padding: 2px 5px;
+  flex: none;
+  color: var(--lobby-gold);
+  font-size: 10px;
+}
+
+#world-lobby .world-lobby-menu-button {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-color: var(--lobby-line);
+  background: var(--lobby-panel);
+}
+
+#world-lobby .world-lobby-menu {
+  width: min(245px, calc(100vw - 28px));
+  border-color: var(--lobby-line);
+  background: #152b23fa;
+}
+
+#world-lobby .world-lobby-menu button,
+#world-lobby .world-lobby-menu-link { min-height: 44px; }
+
+#world-lobby #offline-launch-notice {
+  margin: 3px 5px 1px;
+  padding: 9px 4px 0;
+  border-top: 1px solid var(--lobby-line);
+  color: #e5e9d2;
+  font-size: 12px;
+  line-height: 1.5;
+  word-break: keep-all;
+}
+
+#world-lobby:not([data-guest-launch]) #offline-launch-notice { display: none; }
+
+body[data-lobby-shell="true"] > #graphics-fps {
+  top: calc(max(10px, env(safe-area-inset-top)) + 48px);
+  right: max(12px, env(safe-area-inset-right));
+}
+
+#world-lobby .world-lobby-entry-slot {
+  width: min(350px, 100%);
+  max-height: calc(100dvh - 72px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  margin: 0;
+  gap: 6px;
+  padding: 4px;
+  overflow: auto;
+  scrollbar-width: thin;
+  pointer-events: auto;
+}
+
+#world-lobby .world-lobby-main-gate,
+#world-lobby .world-lobby-resume,
+#world-lobby .world-lobby-locked-gate {
+  width: 100%;
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 13px;
+  border-radius: 11px;
+  border-color: transparent;
+  background: var(--lobby-gold);
+  color: var(--lobby-ink);
+  box-shadow: none;
+  backdrop-filter: none;
+  opacity: 1;
+  transform: none;
+}
+
+#world-lobby .world-lobby-main-gate strong,
+#world-lobby .world-lobby-resume strong { font-size: 15px; line-height: 1.25; }
+
+#world-lobby .world-lobby-main-gate:hover,
+#world-lobby .world-lobby-resume:hover { background: #ffe8b5; }
+#world-lobby .world-lobby-main-gate:is(:active,.is-activating) { background: #efd08d; }
+
+#world-lobby .world-lobby-resume small,
+#world-lobby .world-lobby-resume-age { color: #344a3f; font-size: 11px; }
+
+#world-lobby .world-lobby-resume:not([hidden]) + .world-lobby-main-gate,
+#world-lobby .world-lobby-locked-gate {
+  min-height: 44px;
+  border-color: var(--lobby-line);
+  background: var(--lobby-panel);
+  color: var(--lobby-ivory);
+}
+
+#world-lobby .world-lobby-resume:not([hidden]) + .world-lobby-main-gate:hover,
+#world-lobby .world-lobby-locked-gate:hover { background: #2e4b3bee; }
+
+#world-lobby .world-lobby-locked-gate { justify-content: flex-start; }
+#world-lobby .world-lobby-locked-gate:not(.is-unlocked) { display: none; }
+#world-lobby .world-lobby-locked-gate small { color: #d7e4d6; }
+
+#world-lobby .world-lobby-quest-highlight,
+#world-lobby .world-lobby-daily-loop {
+  width: 100%;
+  border-color: var(--lobby-line);
+  background: var(--lobby-panel);
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+#world-lobby .world-lobby-map-credit {
+  width: 100%;
+  margin: 0;
+  padding: 4px 0 0;
+  font-size: 10px;
+  color: var(--lobby-ivory);
+  text-shadow: 0 1px 4px #000, 0 1px 6px #000;
+}
+
+@media (min-aspect-ratio: 1/1) {
+  #world-lobby .world-lobby-entry-slot { width: min(350px, 43vw); }
+  #world-lobby .world-lobby-map-credit { text-align: left; }
+}
+
+@media (max-aspect-ratio: 1/1) {
+  #world-lobby .world-lobby-entry-slot { justify-self: center; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #world-lobby .world-lobby-main-gate { transition: none; }
+}
