@@ -1,4 +1,5 @@
 // Public QA: OSM footprint/centerline facts and existing game navigation anchors only. Neutral generated presentation; no image-derived facades or measured visual dressing.
+import { stairTreadHeight } from './stair-profile.js';
 import { FACILITIES } from './campus-facilities.js';
 import { polygonOverlap } from './polygon-collision.js';
 import { roadTreeClear, roadFrame } from './campus-road-layout.js';
@@ -31,7 +32,7 @@ export function northApproachHeight(x,z) {
   let height=0;
   for(const t of NORTH_APPROACHES){const q=t.frame.local({x,z});
     if(Math.abs(q.u-t.u)<=t.width/2&&q.out>=0&&q.out<=t.landing+t.run)
-      height=Math.max(height,t.height*Math.min(1,(t.landing+t.run-q.out)/t.run));
+      height=Math.max(height,stairTreadHeight(t,q.out));
   }
   return height;
 }

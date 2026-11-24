@@ -4,6 +4,7 @@ export { geoToWorld, GEO_ORIGIN } from "./geo-coordinates.js";
 import { BUILDINGS, MAIN_ENTRANCE, LIBRARY_ROOF_PARTS } from "./basic-campus.js";
 import { mainGateProductionStructure } from './editor/main-gate-production.js';
 import { FACILITY_COLLIDERS } from './campus-facilities.js';
+import { HALL_FOUNDATION_HEIGHT } from './main-hall-approach.js';
 import { ROADVIEW_OBSTACLES } from './roadview-layout.js';
 import { BACK_GATE_COLLIDERS } from './back-gate-layout.js';
 import { BACK_STREET_COLLIDERS } from './back-street-layout.js';
@@ -62,7 +63,7 @@ export const OBSTACLES = Object.freeze([
   ...BACK_ROADSIDE_COLLIDERS,
   ...FACILITY_COLLIDERS.filter(o=>o.id!=='bldg_07_0'),
   ...STUDENT_WORLD_COLLIDERS,
-  ...BUILDINGS.map(b => ({ id:b.id, polygon:b.vertices, minY:0, maxY:b.height })),
+  ...BUILDINGS.map(b => ({ id:b.id, polygon:b.vertices, minY:0, maxY:b.height+(b.id==='bldg_01'?HALL_FOUNDATION_HEIGHT:0) })),
   ...LIBRARY_ROOF_PARTS.map(b => ({ id:b.id, polygon:b.vertices, minY:b.y-b.height/2, maxY:b.y+b.height/2 })),
   ...MAIN_GATE_WALL_COLLIDERS
 ]);

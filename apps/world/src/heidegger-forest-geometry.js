@@ -1,3 +1,4 @@
+import { campusReliefHeight } from './campus-relief.js';
 import { forestRoadTrees, roadSegment } from './campus-road-layout.js';
 import { FLAT_GROUND_Y } from './flat-ground-surface.js';
 
@@ -43,13 +44,14 @@ export function fillHeideggerForest(batch,center) {
   for(let i=1;i<ring.length-1;i++)batch.triangle(FOREST_COLORS.soil,
     ...[ring[0],ring[i+1],ring[i]].map(p=>[p.x,FLAT_GROUND_Y.UNDERLAY,p.z]));
   for(const t of forestTreeProfiles(center)){
-    batch.tube(FOREST_COLORS.trunk,[t.x,0,t.z],[t.x,t.trunkHeight,t.z],t.radius,6);
+    const y=campusReliefHeight(t.x,t.z);
+    batch.tube(FOREST_COLORS.trunk,[t.x,y,t.z],[t.x,y+t.trunkHeight,t.z],t.radius,6);
     for(const crown of t.crowns){
       // Tall visible trunks and open irregular branch forks distinguish the
       // grove from the old equal-height single crowns, including at far LOD.
-      batch.tube(FOREST_COLORS.trunk,[t.x,t.trunkHeight-1.35,t.z],
-        [t.x+crown.dx,crown.y,t.z+crown.dz],t.radius*.48,4);
-      batch.crown(FOREST_COLORS[t.kind],[t.x+crown.dx,crown.y,t.z+crown.dz],crown.size);
+      batch.tube(FOREST_COLORS.trunk,[t.x,y+t.trunkHeight-1.35,t.z],
+        [t.x+crown.dx,y+crown.y,t.z+crown.dz],t.radius*.48,4);
+      batch.crown(FOREST_COLORS[t.kind],[t.x+crown.dx,y+crown.y,t.z+crown.dz],crown.size);
     }
   }
   return batch;

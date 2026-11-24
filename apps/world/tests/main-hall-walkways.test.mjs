@@ -33,7 +33,9 @@ test('navigation consumes the same approaches instead of recreating virtual shor
   const lines=campusNavPolylines();for(const id of ids)assert.ok(lines.some(l=>l.id===id),'missing authored navigation approach '+id);
   // Two former north-perimeter junctions now have explicit rendered walkway links.
   const audit=buildRoadNetworkAudit();assert.equal(audit.nav.virtualJunctionCount,7);assert.equal(audit.nav.droppedLineIds.length,0);
-  assert.equal(audit.nav.nodeCount,187);assert.equal(audit.nav.edgeCount,212);
+  // The hall spur adds the cross-lane split, the preserved POI anchor and the landing.
+  assert.equal(audit.nav.nodeCount,190);assert.equal(audit.nav.edgeCount,215);
+  assert.ok(!audit.nav.virtualJunctions.some(j=>j.lineId==='junction.main_hall_entry_walk'));
   assert.ok(!audit.nav.virtualJunctions.some(j=>['junction.site_481241657','junction.site_258995842'].includes(j.lineId)));
   assert.ok(campusNavGraphData().edges.some(e=>e.lineId===ids[0]));
 });

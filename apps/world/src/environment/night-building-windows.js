@@ -1,6 +1,7 @@
 import {studentNightWindows} from '../student-center-night-windows.js';
 import * as pc from 'playcanvas';
 import { FACILITIES } from '../campus-facilities.js';
+import { HALL_FOUNDATION_HEIGHT } from '../main-hall-approach.js';
 import { BUILDINGS } from '../basic-campus.js';
 import {
   NIGHT_WINDOW_COLORS,
@@ -25,6 +26,7 @@ function windowSources() {
     map.set(building.id, {
       id: building.id,
       rings: [building.vertices],
+      baseY: building.id==='bldg_01'?HALL_FOUNDATION_HEIGHT:0,
       height: building.height
     });
   }

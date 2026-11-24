@@ -1,4 +1,5 @@
-import { SITE_FEATURES } from './basic-campus.js';
+import { MAIN_HALL_APPROACH } from './main-hall-approach.js';
+import { MAIN_ENTRANCE, SITE_FEATURES } from './basic-campus.js';
 import { CAMPUS_PATH_WIDTHS, roadFrame } from './campus-road-layout.js';
 import { nearestPolylinePoint } from './library-garden-layout.js';
 
@@ -15,3 +16,11 @@ export const MAIN_HALL_WALKWAYS=Object.freeze(MAIN_HALL_WALKWAY_SOURCE_IDS.slice
   return Object.freeze({id:`main_hall_walkway_${i===0?'west':'east'}`,sourceId,
     points,width:CAMPUS_PATH_WIDTHS[sourceId]||3.5,frame:roadFrame(...points)});
 }));
+
+// Keep the existing quest/POI anchor on the climb. Extend the walk network from
+// the transverse OSM lane through that anchor onto the level, walkable landing.
+const {frame,landing}=MAIN_HALL_APPROACH;
+export const HALL_ENTRY_WALK = Object.freeze([
+  nearestPolylinePoint(MAIN_ENTRANCE,across.vertices),
+  {x:MAIN_ENTRANCE.x,z:MAIN_ENTRANCE.z},frame.at(frame.length/2,landing*.75)
+]);
