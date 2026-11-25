@@ -1,0 +1,35 @@
+// WebGL context loss / restore probe. Usage: node ctxloss.cjs <port> <outdir> <label>
+const fs = require('fs'), path = require('path'), crypto = require('crypto');
+const { open, status, boot } = require('./lib.cjs');
+const [port = '8021', outDir = '.', label = 'pc'] = process.argv.slice(2);
+(async () => {
+  fs.mkdirSync(outDir, { recursive: true });
+  const { browser, ctx, page, log, origin } = await open({ port: +port, context: { viewport: { width: 1280, height: 720 } } });
+  await ctx.addInitScript(() => { try { if (!localStorage.getItem('__qa_q')) { localStorage.setItem('__qa_q', '1'); localStorage.setItem('inha-world-graphics-quality-v1', 'very_low'); } } catch {} });
+  await boot(page, origin);
+  await page.locator('#world-loading').waitFor({ state: 'hidden' });
+  await page.locator('#main-gate-start').click();
+  await page.locator('#world-lobby').waitFor({ state: 'hidden' });
+  await page.waitForFunction(() => window.__INHAGAME_P0__.controller.inputEnabled);
+  await page.waitForTimeout(3000);
+  const clip = { x: 200, y: 120, width: 800, height: 420 };
+  const shot = async name => { const b = await page.screenshot({ path: path.join(outDir, label + '-ctx-' + name + '.png'), clip }); return { bytes: b.length, sha: crypto.createHash('sha256').update(b).digest('hex').slice(0, 12) }; };
+  const turn = () => page.evaluate(() => { window.__INHAGAME_P0__.orbit.yaw += 1.2; });
+  const diag = () => page.evaluate(() => ({ lost: window.__INHAGAME_P0__.app.graphicsDevice.gl.isContextLost(), contextLost: window.__INHAGAME_P0__.app.graphicsDevice.contextLost, diagnostics: window.__INHA_WORLD_RUNTIME_DIAGNOSTICS__.status(), recovery: window.__INHA_WORLD_BOOT_RECOVERY__.status(), hint: document.querySelector('#hud .hint')?.textContent?.slice(0, 80), visibleAlerts: [...document.querySelectorAll('[role=alert],[role=status]')].filter(e => e.offsetParent && e.textContent.trim()).map(e => e.id + ':' + e.textContent.trim().slice(0, 80)) }));
+  const out = {};
+  out.before = await shot('1-before'); await turn(); await page.waitForTimeout(1500); out.beforeTurned = await shot('2-before-turned');
+  await page.evaluate(() => { window.__qaExt = window.__INHAGAME_P0__.app.graphicsDevice.gl.getExtension('WEBGL_lose_context'); window.__qaExt.loseContext(); });
+  await page.waitForTimeout(2500);
+  out.lostDiag = await diag(); out.lost = await shot('3-lost');
+  await page.evaluate(() => window.__qaExt.restoreContext());
+  await page.waitForTimeout(6000);
+  out.restoredDiag = await diag(); out.restored = await shot('4-restored');
+  await turn(); await page.waitForTimeout(2500); out.restoredTurned = await shot('5-restored-turned');
+  await page.keyboard.down('KeyW'); await page.waitForTimeout(3000); await page.keyboard.up('KeyW');
+  out.afterWalk = await shot('6-restored-walk');
+  out.verdict = { rendersAfterRestore: out.restoredTurned.bytes > 0.4 * out.beforeTurned.bytes && out.restoredTurned.sha !== out.restored.sha, frozen: out.restored.sha === out.restoredTurned.sha && out.restoredTurned.sha === out.afterWalk.sha };
+  out.log = log;
+  fs.writeFileSync(path.join(outDir, label + '-ctxloss.json'), JSON.stringify(out, null, 1));
+  console.log(JSON.stringify(out, null, 1).slice(0, 5000));
+  await browser.close();
+})();

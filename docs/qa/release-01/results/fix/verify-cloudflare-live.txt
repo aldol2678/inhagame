@@ -1,0 +1,1 @@
+PASS: exact reference, identical rebuild, isolated changes, versioned geometry, external-engine and async-geometry rejection

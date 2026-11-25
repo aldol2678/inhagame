@@ -1,0 +1,90 @@
+[
+ {
+  "name": "pc",
+  "ms": 23590,
+  "state": "READY",
+  "renderer": "WebGL2",
+  "tier": "high",
+  "reason": "moderate native viewport and GPU texture limit",
+  "model": "glb",
+  "requests": 607,
+  "failed": [],
+  "errors": [],
+  "startButton": {
+   "x": 97,
+   "y": 600.40625,
+   "width": 342,
+   "height": 52
+  },
+  "viewport": {
+   "width": 1366,
+   "height": 768
+  }
+ },
+ {
+  "name": "android",
+  "ms": 9042,
+  "state": "READY",
+  "renderer": "WebGL2",
+  "tier": "low",
+  "reason": "mobile/coarse pointer",
+  "model": "glb",
+  "requests": 602,
+  "failed": [],
+  "errors": [],
+  "startButton": {
+   "x": 35,
+   "y": 695.109375,
+   "width": 342,
+   "height": 52
+  },
+  "viewport": {
+   "width": 412,
+   "height": 839
+  }
+ },
+ {
+  "name": "ipad",
+  "ms": 13825,
+  "state": "READY",
+  "renderer": "WebGL2",
+  "tier": "low",
+  "reason": "mobile/coarse pointer",
+  "model": "glb",
+  "requests": 603,
+  "failed": [],
+  "errors": [],
+  "startButton": {
+   "x": 20,
+   "y": 666.40625,
+   "width": 342,
+   "height": 52
+  },
+  "viewport": {
+   "width": 1194,
+   "height": 834
+  }
+ },
+ {
+  "name": "ipad-portrait",
+  "ms": 10079,
+  "state": "READY",
+  "renderer": "WebGL2",
+  "tier": "low",
+  "reason": "mobile/coarse pointer",
+  "model": "glb",
+  "requests": 602,
+  "failed": [],
+  "errors": [],
+  "startButton": {
+   "x": 246,
+   "y": 1026.40625,
+   "width": 342,
+   "height": 52
+  },
+  "viewport": {
+   "width": 834,
+   "height": 1194
+  }
+ }
+]

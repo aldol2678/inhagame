@@ -1,0 +1,26 @@
+{
+ "total": 942,
+ "match": 939,
+ "mismatch": [
+  {
+   "name": "privacy.html",
+   "expected": "cd6437d4c8a8",
+   "actual": "3c01e83b1401",
+   "bytes": 17778
+  },
+  {
+   "name": "support.html",
+   "expected": "ef7133c51ba0",
+   "actual": "a2c8eb146729",
+   "bytes": 7501
+  },
+  {
+   "name": "terms.html",
+   "expected": "8ff03a1c0398",
+   "actual": "4c37215338bd",
+   "bytes": 27105
+  }
+ ],
+ "error": [],
+ "note": "HTML paths answer with a redirect to the clean URL; they were re-read following redirects."
+}
