@@ -28,6 +28,9 @@ export function createGraphicsLossNotice({ doc = globalThis.document, timers = g
       node.append(title, text, button); doc.body.appendChild(node);
     }
     node.hidden = false;
+    // Desktop play holds the pointer; release it so the button can be reached.
+    doc.exitPointerLock?.();
+    button.focus?.({ preventScroll: true });
   };
   const arm = () => { stop(); if (lost && !doc.hidden) timer = timers.setTimeout(show, graceMs); };
   return Object.freeze({

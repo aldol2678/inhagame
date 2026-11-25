@@ -114,7 +114,8 @@ function lossFixture() {
   const el = () => ({ hidden: false, children: [], attrs: {}, listeners: {},
     setAttribute(k, v) { this.attrs[k] = v; }, append(...nodes) { this.children.push(...nodes); },
     addEventListener(type, fn) { this.listeners[type] = fn; }, remove() { this.removed = true; } });
-  const doc = { hidden: false, body: { nodes: [], appendChild(node) { this.nodes.push(node); } }, createElement: el };
+  const doc = { hidden: false, unlocked: 0, exitPointerLock() { this.unlocked++; },
+    body: { nodes: [], appendChild(node) { this.nodes.push(node); } }, createElement: el };
   let pending = null, reloads = 0;
   const timers = { setTimeout(fn, ms) { pending = { fn, ms }; return pending; }, clearTimeout(id) { if (pending === id) pending = null; } };
   const notice = createGraphicsLossNotice({ doc, timers, reload: () => { reloads++; }, graceMs: 4000 });
@@ -128,6 +129,7 @@ test('a short renderer loss stays silent; a sustained one offers a reload and cl
   const node = f.doc.body.nodes[0];
   assert.equal(f.notice.visible, true); assert.equal(node.id, 'graphics-recovery-notice'); assert.equal(node.attrs.role, 'alert');
   const button = node.children[2];
+  assert.equal(f.doc.unlocked, 1, 'a held pointer is released so the button can be used');
   button.listeners.click(); button.listeners.click();
   assert.equal(f.reloads(), 1, 'reload is requested once'); assert.equal(button.disabled, true);
   f.notice.restored(); assert.equal(f.notice.visible, false);
