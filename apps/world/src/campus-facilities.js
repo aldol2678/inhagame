@@ -2,10 +2,7 @@ import { geoToWorld } from './geo-coordinates.js';
 import { projectPolygon } from './reality-adapter.js';
 import { photoNorthTowerParts } from './north-landmark-massing.js';
 
-const url = new URL('../data/reality/campus-facilities.json', import.meta.url);
-const data = url.protocol === 'file:'
-  ? JSON.parse((await import('node:fs')).readFileSync(url, 'utf8'))
-  : await (async () => { const r = await fetch(url); if (!r.ok) throw Error(`Facilities load failed: ${r.status}`); return r.json(); })();
+import data from '../data/reality/campus-facilities.json' with { type: 'json' };
 
 // Vertical slabs partition an outer ring and its holes without filling the courtyard.
 // Every cut is at a source vertex; the even/odd rule works regardless of ring winding.

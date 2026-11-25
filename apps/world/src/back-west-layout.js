@@ -2,12 +2,7 @@ import { projectPolygon } from './reality-adapter.js';
 import { BACK_APPROACH_SEGMENTS } from './back-approach-layout.js';
 import { polygonOverlap } from './polygon-collision.js';
 
-const url=new URL('../data/reality/evidence/roads/back-west-buildings.json',import.meta.url);
-// Node (tests, QA) reads file: URLs from disk; browsers fetch over HTTP. Deciding by protocol,
-// not by `window`, keeps tests that shim `window` working.
-const data=url.protocol==='file:'
-  ? JSON.parse((await import('node:fs')).readFileSync(url,'utf8'))
-  : await (async()=>{const r=await fetch(url);if(!r.ok)throw Error(`West buildings load failed: ${r.status}`);return r.json();})();
+import data from '../data/reality/evidence/roads/back-west-buildings.json' with { type: 'json' };
 
 const buildings=data.buildings.map((q,index)=>{
   const polygon=projectPolygon(q.ring),center={x:polygon.reduce((s,p)=>s+p.x,0)/polygon.length,z:polygon.reduce((s,p)=>s+p.z,0)/polygon.length};

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, posix, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const world = fileURLToPath(new URL('../', import.meta.url));
@@ -47,8 +47,33 @@ try {
   });
   const entry = join(stage, 'campus/index.html');
   let html = readFileSync(entry, 'utf8');
+  // Publish ordinary ES modules so reading immutable geometry never suspends module evaluation.
+  // The source JSON imports also work directly in Node. Only release-listed data is embedded.
+  const revisions = {};
+  for (const name of files.filter(path => path.startsWith('src/') && path.endsWith('.js'))) {
+    const path = join(stage, name);
+    const source = readFileSync(path, 'utf8');
+    const compiled = source.replace(
+      /^import (\w+) from '([^']+\.json)' with \{ type: 'json' \};$/gm,
+      (_, binding, specifier) => {
+        const dataPath = posix.normalize(posix.join(posix.dirname(name), specifier));
+        assert.ok(dataPath.startsWith('data/') && files.includes(dataPath), 'Unexpected data import: ' + dataPath);
+        const data = JSON.parse(readFileSync(join(stage, dataPath), 'utf8'));
+        return 'const ' + binding + ' = JSON.parse(' + JSON.stringify(JSON.stringify(data)) + ');';
+      }
+    );
+    if (compiled === source) continue;
+    writeFileSync(path, compiled);
+    revisions['/' + name] = '/' + name + '?v=' + sha256(compiled).slice(0, 12);
+  }
+  html = html.replace(/(<script type="importmap">)([\s\S]*?)(<\/script>)/, (_, start, body, end) => {
+    const map = JSON.parse(body);
+    Object.assign(map.imports, revisions);
+    return start + '\n' + JSON.stringify(map, null, 2) + '\n  ' + end;
+  });
   for (const [asset, pattern] of [
     ['src/main.js', /src="\/src\/main\.js(?:\?v=[a-zA-Z0-9_-]+)?"/g],
+    ['src/lobby/boot-recovery.js', /src="\/src\/lobby\/boot-recovery\.js(?:\?v=[a-zA-Z0-9_-]+)?"/g],
     ['styles.css', /href="\/styles\.css(?:\?v=[a-zA-Z0-9_-]+)?"/g]
   ]) {
     assert.equal([...html.matchAll(pattern)].length, 1, 'Expected one campus reference to ' + asset);

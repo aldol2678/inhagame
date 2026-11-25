@@ -15,6 +15,14 @@
   let retrying = false, destroyed = false;
   const inactive = () => destroyed || retrying || state === 'ERROR' || state === 'READY';
   let sawEarlyRejection = false;
+  let earlyReason = '', failureReason = '';
+  // Display a bounded local diagnostic, without URL parameters or stack traces.
+  const describe = error => {
+    const message = typeof error === 'string' ? error : error?.message;
+    if (typeof message !== 'string') return '';
+    const kind = typeof error?.name === 'string' ? error.name + ' · ' : '';
+    return (kind + message).replace(/[?#]\S+/g, '').replace(/\s+/g, ' ').slice(0, 180);
+  };
   const delayCode = () => !entered ? (sawEarlyRejection ? 'BOOT_ENTRY_DELAY_AFTER_REJECTION' : 'BOOT_ENTRY_DELAY')
     : phase === 'ASSETS' ? 'ASSET_LOADING_DELAY'
     : phase === 'RENDERING' ? 'INITIAL_RENDER_DELAY'
@@ -33,7 +41,8 @@
       ? '브라우저와 그래픽 드라이버를 최신 상태로 업데이트한 뒤 다시 시도해 주세요.'
       : state === 'ERROR' ? '네트워크 연결을 확인한 뒤 다시 시도해 주세요.'
       : '로딩은 계속 진행 중입니다. 기다리거나 다시 시도할 수 있어요.';
-    detail.textContent = `${advice} 진단: ${code}`;
+    const reason = state === 'ERROR' ? failureReason : !entered ? earlyReason : '';
+    detail.textContent = `${advice} 진단: ${code}${reason ? ' · ' + reason : ''}`;
   };
   const arm = () => {
     stop();
@@ -58,8 +67,9 @@
     }
     arm();
   };
-  const fail = (kind = 'BOOT_INIT_FAILED') => {
+  const fail = (kind = 'BOOT_INIT_FAILED', error) => {
     if (inactive()) return false;
+    failureReason = describe(error);
     state = 'ERROR'; code = kind; stop();
     loading?.fail();
     display();
@@ -72,11 +82,15 @@
       if (source.matches?.('script[data-world-boot]')) fail('BOOT_MODULE_ERROR');
       return; // unrelated images, optional scripts and styles are not boot failures
     }
-    fail('BOOT_SCRIPT_ERROR');
+    fail('BOOT_SCRIPT_ERROR', event.error ?? event.message);
   };
   // A window-wide rejection can belong to another script while the entry module is loading.
   // Let the watchdog offer a retry if entry stalls, and let boot() report its own failures.
-  const onRejection = () => { if (!entered) sawEarlyRejection = true; };
+  const onRejection = event => {
+    if (entered) return;
+    sawEarlyRejection = true;
+    earlyReason ||= describe(event?.reason);
+  };
   const onVisibility = () => { if (!doc.hidden) progress(); else stop(); };
   const cleanup = () => {
     stop();

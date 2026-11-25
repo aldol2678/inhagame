@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { appendFileSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { appendFileSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -48,6 +48,13 @@ try {
   assert.deepEqual(paths.filter(p => campus[p] !== changed[p]), ['campus/index.html', changedMain]);
   const html = readFileSync(join(scratch, 'campus-change/campus/index.html'), 'utf8');
   assert.ok(html.includes('/src/main.js?v=' + campus[changedMain].slice(0, 12)));
+  const geometry = 'data/reality/campus-buildings.json';
+  const input = join(clean, source(geometry));
+  const data = JSON.parse(readFileSync(input, 'utf8'));
+  data.buildVerification = true;
+  writeFileSync(input, JSON.stringify(data));
+  const updated = build('geometry-change');
+  assert.deepEqual(paths.filter(p => updated[p] !== campus[p]), ['campus/index.html', geometry, 'src/basic-campus.js']);
   console.log('PASS: exact reference, identical rebuild, isolated hub edit and fresh campus entry revision');
 } finally {
   rmSync(scratch, { recursive: true, force: true });

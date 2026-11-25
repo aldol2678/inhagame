@@ -10,7 +10,7 @@
      {
        "imports": {
 -        "playcanvas": "https://cdn.jsdelivr.net/npm/playcanvas@2.22.4/build/playcanvas.mjs"
-+        "playcanvas": "https://cdn.jsdelivr.net/npm/playcanvas@2.22.4/build/playcanvas.mjs",
++        "playcanvas": "/vendor/playcanvas/2.22.4/playcanvas.min.mjs",
 +        "firebase/app": "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js",
 +        "firebase/auth": "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js"
        }
@@ -44,7 +44,7 @@
      </nav>
      <div class="world-lobby-frame">
        <div class="world-lobby-stage-slot" aria-hidden="true">
-@@ -599,12 +594,12 @@
+@@ -599,12 +594,17 @@
        if (side === 'right') document.body.classList.add('joystick-right');
      } catch { /* Use default controls when local storage is unavailable. */ }
    </script>
@@ -55,7 +55,12 @@
    <script type="module" src="/src/lobby/lobby-shell.js"></script>
    <script type="module" src="/src/ui/ui-icon-runtime.js"></script>
 -  <script type="module" data-world-boot src="/src/main.js?v=43ae4891e297"></script>
-+  <script type="module" data-world-boot src="/src/main.js?v=11e038047a99"></script>
++  <script type="module" data-world-boot data-world-entry data-src="/src/main.js?v=11e038047a99">
++    const entry = document.querySelector('script[data-world-entry]');
++    import(entry.dataset.src).catch(error => {
++      globalThis.__INHA_WORLD_BOOT_RECOVERY__?.fail('BOOT_ENTRY_IMPORT_FAILED', error);
++    });
++  </script>
  </body>
  </html>
  

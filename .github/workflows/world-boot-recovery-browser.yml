@@ -53,6 +53,7 @@ jobs:
           npx playwright install --with-deps chromium webkit
       - name: Exercise early rejection in the Cloudflare build with tablet WebKit
         run: |
+          node apps/world/scripts/verify-cloudflare-live.mjs
           node apps/world/scripts/build-cloudflare-live.mjs "$RUNNER_TEMP/campus-webkit"
           python3 -m http.server 8021 --bind 127.0.0.1 --directory "$RUNNER_TEMP/campus-webkit" > "$RUNNER_TEMP/campus-http.log" 2>&1 &
           server_pid=$!
