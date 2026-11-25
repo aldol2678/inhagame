@@ -1,19 +1,11 @@
 import { GATE_FRAME } from '../main-gate-frame.js';
 
-const url=new URL('../../data/editor/main-gate.world.json',import.meta.url);
+import gateWorld from '../../data/editor/main-gate.world.json' with { type: 'json' };
 
-// Keep boot-critical state out of top-level lexical TDZs. Physical iPad Safari has
-// been observed re-entering this async module graph while a dependency/fetch is
-// still settling, so exported entry points must fail explicitly rather than touch
-// an uninitialised lexical binding.
-export var MAIN_GATE_EDITOR_WORLD;
-export var MAIN_GATE_EDITOR_PRODUCTION_IDS=Object.freeze([]);
-var METERS_PER_WORLD_UNIT=2;
-var productionIndex=null;
-
-MAIN_GATE_EDITOR_WORLD=url.protocol==='file:'
-  ? JSON.parse((await import('node:fs')).readFileSync(url,'utf8'))
-  : await (async()=>{const r=await fetch(url);if(!r.ok)throw Error(`Main gate editor world load failed: ${r.status}`);return r.json();})();
+export var MAIN_GATE_EDITOR_WORLD = gateWorld;
+export var MAIN_GATE_EDITOR_PRODUCTION_IDS = Object.freeze([]);
+var METERS_PER_WORLD_UNIT = 2;
+var productionIndex = null;
 
 if(MAIN_GATE_EDITOR_WORLD.metadata?.productionAdapter!=='main-gate-v1')
   throw Error('E_MAIN_GATE_EDITOR_ADAPTER_MISMATCH');

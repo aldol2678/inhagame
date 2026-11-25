@@ -7,10 +7,7 @@ import { projectPolygon, getCanonicalLandmark, triangulatePolygon } from './real
 import { roadFrame } from './campus-road-layout.js';
 import { FLAT_GROUND_Y as Y } from './flat-ground-surface.js';
 
-const url = new URL('../data/reality/evidence/roads/inkyung-east-p1a.json', import.meta.url);
-const record = url.protocol === 'file:'
-  ? JSON.parse((await import('node:fs')).readFileSync(url, 'utf8'))
-  : await (async () => { const response = await fetch(url); if (!response.ok) throw Error('Missing P1A evidence'); return response.json(); })();
+import record from '../data/reality/evidence/roads/inkyung-east-p1a.json' with { type: 'json' };
 
 // Isolate the experiment: neither main's public domain nor the ordinary legacy QA
 // experience opts into new navigation or surfaces without an explicit query param.

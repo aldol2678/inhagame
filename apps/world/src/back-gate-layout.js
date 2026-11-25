@@ -3,12 +3,7 @@ import { roadFrame, distanceToRoad } from './campus-road-layout.js';
 import { FACILITY_COLLIDERS } from './campus-facilities.js';
 import { polygonOverlap } from './polygon-collision.js';
 
-const url=new URL('../data/reality/evidence/roads/back-gate.json',import.meta.url);
-// Node (tests, QA) reads file: URLs from disk; browsers fetch over HTTP. Deciding by protocol,
-// not by `window`, keeps tests that shim `window` working.
-const data=url.protocol==='file:'
-  ? JSON.parse((await import('node:fs')).readFileSync(url,'utf8'))
-  : await (async()=>{const r=await fetch(url);if(!r.ok)throw Error(`Back gate source load failed: ${r.status}`);return r.json();})();
+import data from '../data/reality/evidence/roads/back-gate.json' with { type: 'json' };
 export const BACK_GATE=geoToWorld(data.gate.lat,data.gate.lon);
 export const BACK_ROADS=data.roads.map(r=>{
   let vertices=r.line.map(ll=>geoToWorld(...ll));

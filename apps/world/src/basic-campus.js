@@ -2,17 +2,9 @@
 import { geoToWorld } from './geo-coordinates.js';
 import { projectPolygon } from './reality-adapter.js';
 
-async function read(name) {
-  const url = new URL(`../data/reality/${name}.json`, import.meta.url);
-  if (url.protocol !== 'file:') {
-    const response = await fetch(url);
-    if (!response.ok) throw Error(`Campus geometry load failed: ${name} ${response.status}`);
-    return response.json();
-  }
-  const { readFileSync } = await import('node:fs');
-  return JSON.parse(readFileSync(url, 'utf8'));
-}
-const [buildings, site] = await Promise.all([read('campus-buildings'), read('campus-site')]);
+import buildings from '../data/reality/campus-buildings.json' with { type: 'json' };
+import site from '../data/reality/campus-site.json' with { type: 'json' };
+
 export const BUILDINGS = ['bldg_01', 'bldg_jungseok'].map(id => {
   const b = buildings.buildings.find(b => b.id === id);
   return { id, sourceId:b.provenance.polygon.sourceId, vertices:projectPolygon(b.polygon), height:id === 'bldg_01' ? 10.5 : 17 };

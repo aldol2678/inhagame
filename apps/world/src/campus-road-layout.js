@@ -3,10 +3,7 @@ import { geoToWorld } from './geo-coordinates.js';
 import { FACILITY_COLLIDERS } from './campus-facilities.js';
 import { BUILDINGS, SITE_FEATURES } from './basic-campus.js';
 import { polygonOverlap } from './polygon-collision.js';
-const url=new URL('../data/reality/evidence/roads/source.json',import.meta.url);
-const data=url.protocol==='file:'
-  ? JSON.parse((await import('node:fs')).readFileSync(url,'utf8'))
-  : await (async()=>{const r=await fetch(url);if(!r.ok)throw Error(`Road source load failed: ${r.status}`);return r.json();})();
+import data from '../data/reality/evidence/roads/source.json' with { type: 'json' };
 // OSM way 1098491074 is a narrow service link between the tennis/sports road and Soseong-ro.
 // Keep its source centerline, but use a bounded one-lane presentation width so the pavement
 // stays outside the canonical Law School footprint. Widths are game-scale estimates, not survey data.
