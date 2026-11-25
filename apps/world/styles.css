@@ -5965,6 +5965,15 @@ body[data-photo-mode="active"] > :not(#application):not(.photo-mode):not(script)
   .identity-actions .hud-menu-grid > button span { font-size: 10px; }
 }
 
+/* Players can consult the quest journal and map while exploring. */
+body > #tour,
+body > #quest-hud,
+body > #inkyung-living-moment,
+#biryong-ui > .biryong-objective,
+#biryong-ui > .biryong-toast {
+  display: none !important;
+}
+
 /* LANDSCAPE-HUD:start
    Mobile landscape HUD · phones held sideways (touch + landscape + short viewport).
    The portrait phone HUD keys off max-width, so a rotated phone (740–932px wide) used to fall through to the
@@ -6378,12 +6387,3 @@ body[data-photo-mode="active"] > :not(#application):not(.photo-mode):not(script)
 
 }
 /* LANDSCAPE-HUD:end */
-
-/* Players can consult the quest journal and map while exploring. */
-body > #tour,
-body > #quest-hud,
-body > #inkyung-living-moment,
-#biryong-ui > .biryong-objective,
-#biryong-ui > .biryong-toast {
-  display: none !important;
-}

@@ -5,6 +5,7 @@
 // Session (S1-D) attaches to this id with its own channel, never world:campus:*.
 
 import { HALL_FRONT } from "../basic-campus.js";
+import { MAIN_HALL_APPROACH } from "../main-hall-approach.js";
 import { CLUB_ROOM_BOUNDS, CLUB_ROOM_EXIT, CLUB_ROOM_OBSTACLES, CLUB_ROOM_SPAWN } from "./club-room-layout.js";
 import { DORM_1_ENTRANCE as DORM_1_WORLD_ENTRANCE, DORM_1_CAMPUS_RETURN } from "../dorm1-layout.js";
 import { DORM_1_LOBBY, DORM_1_LOBBY_BOUNDS, DORM_1_LOBBY_EXIT, DORM_1_LOBBY_OBSTACLES, DORM_1_LOBBY_SPAWN } from "./dorm1-lobby-layout.js";
@@ -57,7 +58,8 @@ export const MCM_2026_VENUE_ENTRANCE = Object.freeze({
 export const RETURN_ANCHORS = Object.freeze({
   MAIN_HALL_ROOM_EXIT_RETURN: Object.freeze({
     id: "MAIN_HALL_ROOM_EXIT_RETURN",
-    position: Object.freeze({ ...hallFront(0, -3.2), y: 1.15 }),
+    // Level ground past the foot of the grand stair; the former point is now a mid-flight tread.
+    position: Object.freeze({ ...hallFront(0, -(MAIN_HALL_APPROACH.landing + MAIN_HALL_APPROACH.run + 1.2)), y: 1.15 }),
     yaw: facing(-HALL_FRONT.inward.x, -HALL_FRONT.inward.z)
   }),
   [DORM_1_CAMPUS_RETURN.id]: DORM_1_CAMPUS_RETURN,

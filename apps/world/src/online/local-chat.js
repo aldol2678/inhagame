@@ -37,8 +37,10 @@ export function withinChatRadius(receiver, sender, radiusM = LOCAL_CHAT_RADIUS_M
   return distanceMeters(receiver, sender) <= radiusM;
 }
 
-// Moderation hook. No project-owned word list exists yet, so the default passes everything;
-// a future approved filter (and block/report) plugs in here without touching the transport.
+// Moderation hook. The default passes everything; the shipped filter lives in
+// chat-moderation.js (same 47-word list as private.world_profile_banned_words)
+// and is wired in by main.js. A future block/report plugs in here the same way
+// without touching the transport.
 export const passThroughModeration = Object.freeze({
   check: () => ({ ok: true }),
   isBlocked: () => false
@@ -95,7 +97,7 @@ export class ChatFeed {
     this.placeZoneId = null;
     this.nextId = 1;
     this.listeners = new Set();
-    this.stats = { shown: 0, outOfRange: 0, unknownSender: 0, otherZone: 0, blocked: 0 };
+    this.stats = { shown: 0, outOfRange: 0, unknownSender: 0, otherZone: 0, blocked: 0, moderated: 0 };
   }
 
   onChange(handler) {
@@ -141,6 +143,11 @@ export class ChatFeed {
     if (!sender) { this.stats.unknownSender += 1; return "unknown_sender"; }
     if (placeZoneId !== this.placeZoneId || sender.placeZoneId !== placeZoneId) { this.stats.otherZone += 1; return "other_zone"; }
     if (this.moderation.isBlocked(sender.userId)) { this.stats.blocked += 1; return "blocked"; }
+    // Text verdict: a stock client never sends a banned word (ChatComposer
+    // gates it), but a modified client can — receivers drop it here so it is
+    // never displayed. The default moderation passes everything.
+    const verdict = this.moderation.check?.(text);
+    if (verdict && !verdict.ok) { this.stats.moderated += 1; return "moderated"; }
     if (!receiverPosition || !withinChatRadius(receiverPosition, position)) { this.stats.outOfRange += 1; return "out_of_range"; }
     this.#add({ sessionId: sender.sessionId, userId: sender.userId, name: sender.displayName, text, self: false });
     return "shown";
