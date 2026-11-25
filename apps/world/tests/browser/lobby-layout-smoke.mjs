@@ -16,18 +16,17 @@ async function assertLobbyLayout(page, { width, height, label }) {
     if (wallet) wallet.hidden = true;
   });
 
-  for (const selector of [
-    "#lobby-player-summary",
-    "#lobby-presence-summary",
-    "#lobby-quest-highlight",
-    "#main-gate-start",
-    "#back-gate-locked"
-  ]) {
+  // The guest launch lobby shows who you are, the current quest and the entry button. The
+  // population card, account figures and the still-locked Back Gate teaser are withheld.
+  assert.equal(await page.locator("#world-lobby").getAttribute("data-guest-launch"), "", `${label}: guest launch lobby`);
+  for (const selector of ["#lobby-player-summary", "#lobby-quest-highlight", "#main-gate-start"]) {
     assert.equal(await page.locator(selector).isVisible(), true, `${label}: ${selector} visible`);
   }
-
-  assert.match(await page.locator("#lobby-zone-presence").innerText(), /^전체 접속/,
-    `${label}: global population copy is active`);
+  for (const selector of ["#lobby-presence-summary", "#back-gate-locked"]) {
+    assert.equal(await page.locator(selector).isVisible(), false, `${label}: ${selector} withheld`);
+  }
+  assert.equal(await page.locator("#back-gate-locked").evaluate(el => el.classList.contains("is-unlocked")), false,
+    `${label}: the Back Gate is withheld because it is locked, not removed`);
   assert.equal(await page.locator("#lobby-player-look").isVisible(), false,
     `${label}: default appearance line is hidden on mobile`);
   assert.equal(await page.locator("#lobby-player-progression").isVisible(), false,
@@ -76,24 +75,23 @@ async function assertLobbyLayout(page, { width, height, label }) {
     };
   });
 
-  assert.ok(boxes.player && boxes.presence && boxes.presence.x - boxes.player.right >= 4,
-    `${label}: top summary cards keep a visible gap`);
-  assert.ok(boxes.player && boxes.player.height <= 120,
-    `${label}: player card stays compact with EXP + wallet`);
-  assert.ok(boxes.stats && boxes.player && boxes.stats.x >= boxes.player.x && boxes.stats.right <= boxes.player.right,
-    `${label}: EXP + wallet stay inside the player card`);
-  assert.ok(boxes.stage && boxes.quest && boxes.quest.y >= boxes.stage.bottom - 1,
-    `${label}: quest card stays below the reserved 3D character stage`);
-  assert.ok(boxes.quest && boxes.main && boxes.quest.bottom <= boxes.main.y,
-    `${label}: quest card does not overlap MAIN_GATE`);
+  assert.equal(await page.locator(".world-lobby-player-stats").isVisible(), false,
+    `${label}: account EXP + wallet never appear for a guest, even when populated`);
+  assert.ok(boxes.player && boxes.player.right <= width && boxes.player.height <= 120,
+    `${label}: player card stays compact and on screen with a long nickname`);
+  // The entry button now leads the column directly under the character stage; the quest card follows it.
+  assert.ok(boxes.stage && boxes.main && boxes.main.y >= boxes.stage.bottom - 1,
+    `${label}: MAIN_GATE stays below the reserved 3D character stage`);
+  assert.ok(boxes.quest && boxes.main && boxes.quest.y >= boxes.main.bottom,
+    `${label}: quest card follows MAIN_GATE without overlapping it`);
+  assert.ok(boxes.quest && boxes.quest.y >= 0 && boxes.quest.bottom <= height,
+    `${label}: quest card stays in first viewport`);
   assert.ok(boxes.quest && boxes.quest.height <= (height <= 720 ? 40 : 48),
     `${label}: quest highlight stays compact in its two-row mobile layout`);
   assert.ok(boxes.main && boxes.main.y >= 0 && boxes.main.bottom <= height,
     `${label}: MAIN_GATE stays in first viewport`);
-  assert.ok(boxes.locked && boxes.locked.height <= 46,
-    `${label}: Back Gate teaser stays visually subordinate`);
-  assert.ok(boxes.locked && boxes.locked.bottom <= height,
-    `${label}: Back Gate teaser stays in first viewport`);
+  assert.ok(boxes.locked && boxes.locked.height === 0,
+    `${label}: the withheld Back Gate teaser reserves no space`);
   assert.ok(boxes.scrollWidth <= width && boxes.scrollHeight <= height,
     `${label}: lobby has no viewport overflow`);
 }
