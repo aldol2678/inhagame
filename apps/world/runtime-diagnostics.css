@@ -42,3 +42,19 @@
   .runtime-diagnostics header { padding: 10px 12px; }
   .runtime-diagnostics-body { padding: 0 12px 16px; }
 }
+/* Shown only while the renderer stays lost; sits above the canvas and HUD, below boot loading. */
+.graphics-recovery-notice {
+  position: fixed; z-index: 90; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  box-sizing: border-box; width: min(360px, calc(100vw - 32px)); padding: 18px;
+  background: #102a3d; color: #f0f6fb; border: 1px solid #81aac8; border-radius: 14px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, .45); text-align: center; font-size: 15px; line-height: 1.5;
+}
+.graphics-recovery-notice[hidden] { display: none; }
+.graphics-recovery-notice strong { display: block; font-size: 17px; }
+.graphics-recovery-notice p { margin: 8px 0 14px; }
+.graphics-recovery-notice button {
+  min-height: 44px; padding: 9px 18px; cursor: pointer; font: inherit; font-weight: 700;
+  background: #264e6b; color: #fff; border: 1px solid #81aac8; border-radius: 8px;
+}
+.graphics-recovery-notice button:disabled { opacity: .6; cursor: default; }
+.graphics-recovery-notice button:focus-visible { outline: 3px solid #ffdc82; outline-offset: 2px; }

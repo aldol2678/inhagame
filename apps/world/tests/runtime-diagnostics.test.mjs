@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createRuntimeDiagnostics, createBugReport, formatBugReport, sanitizeReportText,
   MAX_RUNTIME_ERRORS, normalizeBuildId } from '../src/diagnostics/runtime-diagnostics.js';
+import { createGraphicsLossNotice } from '../src/diagnostics/runtime-diagnostics-runtime.js';
 import { resolveRuntimeBuildId, writeRuntimeBuildId } from '../scripts/write-runtime-build-id.mjs';
 
 const base = { renderer: 'WebGPU', quality: 'high', qualityPreference: 'auto',
@@ -107,4 +108,37 @@ test('production composition uses narrow readers and existing settings/input/ide
   assert.doesNotMatch(runtime, /\.message|\.stack|fetch\(|sendBeacon|localStorage|sessionStorage|\.cookie/);
   const html = await readFile(new URL('../campus/index.html', import.meta.url), 'utf8');
   assert.match(html, /id="view-settings"[\s\S]*id="open-runtime-diagnostics"[\s\S]*id="view-settings-status"/);
+});
+
+function lossFixture() {
+  const el = () => ({ hidden: false, children: [], attrs: {}, listeners: {},
+    setAttribute(k, v) { this.attrs[k] = v; }, append(...nodes) { this.children.push(...nodes); },
+    addEventListener(type, fn) { this.listeners[type] = fn; }, remove() { this.removed = true; } });
+  const doc = { hidden: false, body: { nodes: [], appendChild(node) { this.nodes.push(node); } }, createElement: el };
+  let pending = null, reloads = 0;
+  const timers = { setTimeout(fn, ms) { pending = { fn, ms }; return pending; }, clearTimeout(id) { if (pending === id) pending = null; } };
+  const notice = createGraphicsLossNotice({ doc, timers, reload: () => { reloads++; }, graceMs: 4000 });
+  return { doc, notice, fire: () => { const p = pending; pending = null; p?.fn(); }, pending: () => pending, reloads: () => reloads };
+}
+test('a short renderer loss stays silent; a sustained one offers a reload and clears on restore', () => {
+  const f = lossFixture();
+  f.notice.lost(); assert.equal(f.pending().ms, 4000); assert.equal(f.notice.visible, false);
+  f.notice.restored(); assert.equal(f.pending(), null); assert.equal(f.doc.body.nodes.length, 0);
+  f.notice.lost(); f.fire();
+  const node = f.doc.body.nodes[0];
+  assert.equal(f.notice.visible, true); assert.equal(node.id, 'graphics-recovery-notice'); assert.equal(node.attrs.role, 'alert');
+  const button = node.children[2];
+  button.listeners.click(); button.listeners.click();
+  assert.equal(f.reloads(), 1, 'reload is requested once'); assert.equal(button.disabled, true);
+  f.notice.restored(); assert.equal(f.notice.visible, false);
+  f.notice.lost(); f.fire(); assert.equal(f.doc.body.nodes.length, 1, 'the notice element is reused');
+  f.notice.destroy(); assert.equal(node.removed, true);
+});
+test('a renderer lost in a background tab waits for the page to return before counting', () => {
+  const f = lossFixture();
+  f.doc.hidden = true; f.notice.lost(); assert.equal(f.pending(), null);
+  f.doc.hidden = false; f.notice.visibilityChanged(); assert.equal(f.pending().ms, 4000);
+  f.doc.hidden = true; f.fire(); assert.equal(f.notice.visible, false, 'never appears while hidden');
+  f.doc.hidden = false; f.notice.visibilityChanged(); f.notice.restored();
+  assert.equal(f.pending(), null); assert.equal(f.doc.body.nodes.length, 0);
 });
