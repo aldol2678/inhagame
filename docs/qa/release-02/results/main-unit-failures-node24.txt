@@ -1,0 +1,25 @@
+28. the return anchor: walkable, flat, outside every collider, in AREA_MAIN_HALL, facing away
+ChatFeed with the filter: banned incoming is dropped, clean is shown
+Shop, Inventory and Wardrobe use BLOCKING_UI owners before closing sibling panels
+all existing menu actions and settings persistence IDs remain unique
+apps/world/tests/campus-relief.test.mjs
+balloon kind roundtrips distinctly and landscape CSS authority remains last
+blocked (mounted, inside a room, shop open, lobby) → no action
+chunk ownership contains whole assets exactly once and collision is independent of residency
+current frozen server snapshot establishes exact seller and allows only verified POI
+fishing banks remain clear and base geometry is finite and bounded
+five regions, split Student Center departments, no fabricated fishing/photo sale routes
+landscape HUD remains last while Full Map owns an isolated earlier media block
+legacy/split capability gates and capability transient errors never imply purchase
+main keeps direct NPC purchases separate from HUD/entrance guidance and closes invalid access
+menu entry kept; both entries open the one existing shop panel
+mobile layout authority is unchanged and remains last
+mobile layout authority is unchanged and remains last
+pinned ground facilities, previous colliders and approved navigation metadata remain identical
+proximity publishes F/mobile candidate only and rechecks account, gates, readiness and position on trigger
+server refusal controls guidance without locally recalculating level, price or status
+shuttle presence is distinct and CSS end authority remains untouched
+split campus actors fail closed in legacy; dorm greeting supports legacy and split only
+surroundings integration preserves exact-main path shape and all ground collision
+view distinguishes acquisition guidance, escapes text and invokes only explicit map callback
+water mount presence remains distinct and dismount does not write ownership

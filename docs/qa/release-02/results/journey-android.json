@@ -1,0 +1,461 @@
+{
+ "profile": "android",
+ "quality": "very_low",
+ "rows": [
+  {
+   "step": "A1 boot READY",
+   "ok": true,
+   "data": {
+    "ms": 6758,
+    "renderer": "WebGL2",
+    "tier": "very_low",
+    "pref": "very_low",
+    "reason": null,
+    "lobby": true,
+    "model": "glb"
+   }
+  },
+  {
+   "step": "A2 lobby quest card",
+   "ok": true,
+   "data": {
+    "source": "FIRST_TOUR",
+    "title": "첫 캠퍼스 탐방",
+    "objective": "정문 통과",
+    "state": "둘러보기",
+    "progress": "0 / 2",
+    "cta": "정문에서 시작하기"
+   }
+  },
+  {
+   "step": "B1 main gate entry",
+   "ok": true,
+   "data": {
+    "p0": {
+     "x": 0,
+     "y": 1.15,
+     "z": -98
+    },
+    "zone": "AREA_MAIN_GATE",
+    "tour": 0,
+    "hud": "WALK"
+   }
+  },
+  {
+   "step": "B2 touch controls visible",
+   "ok": true,
+   "data": {
+    "joystick": {
+     "x": 24,
+     "y": 695,
+     "width": 116,
+     "height": 116
+    },
+    "jump": {
+     "x": 324,
+     "y": 737,
+     "width": 68,
+     "height": 68
+    },
+    "viewport": {
+     "width": 412,
+     "height": 839
+    }
+   }
+  },
+  {
+   "step": "C1 walk through main gate → tour 1/2",
+   "ok": true,
+   "data": {
+    "ms": 6974,
+    "first": {
+     "x": 0,
+     "y": 1.15,
+     "z": -94.156
+    },
+    "last": {
+     "x": 0,
+     "y": 1.15,
+     "z": -80.156
+    },
+    "speed": 2.01
+   }
+  },
+  {
+   "step": "D1 climb main hall stairs",
+   "ok": true,
+   "data": {
+    "foot": {
+     "x": 47.257,
+     "y": 1.15,
+     "z": -8.684
+    },
+    "last": {
+     "x": 51.878,
+     "y": 2.5,
+     "z": -0.601
+    },
+    "expectedTopY": 2.5,
+    "maxDrop": 0,
+    "ys": [
+     1.24,
+     1.87,
+     2.5
+    ],
+    "ms": 6184
+   }
+  },
+  {
+   "step": "D2 quest tour complete 2/2",
+   "ok": true,
+   "data": {
+    "tour": 2,
+    "zone": "AREA_MAIN_HALL",
+    "hud": "\n    \n      📜\n      \n      \n      \n    \n    \n      길 안내\n    \n  "
+   }
+  },
+  {
+   "step": "D3 descend stairs to ground",
+   "ok": true,
+   "data": {
+    "last": {
+     "x": 47.189,
+     "y": 1.15,
+     "z": -8.795
+    },
+    "ms": 4219
+   }
+  },
+  {
+   "step": "F1 NPC assets load near Inkyung pond",
+   "ok": true,
+   "data": {
+    "ready": true,
+    "failed": false,
+    "visible": true,
+    "at": {
+     "x": 144.894,
+     "y": 1.15,
+     "z": 34.496
+    }
+   }
+  },
+  {
+   "step": "F2 talk prompt offered",
+   "ok": true,
+   "data": {
+    "contextAction": "inkyung-daily-call",
+    "button": "💬 통화 · 대화"
+   }
+  },
+  {
+   "step": "F3 dialogue opens with line",
+   "ok": true,
+   "data": {
+    "activeTalk": "call",
+    "pendingTalk": null,
+    "panelText": "통화 중인 학생\n\n잠깐만, 다시 전화할게. 네, 무슨 일이세요?\n\n대화 끝내기"
+   }
+  },
+  {
+   "step": "F4 movement locked while talking",
+   "ok": true,
+   "data": {
+    "before": {
+     "x": 144.894,
+     "y": 1.15,
+     "z": 34.496
+    },
+    "during": {
+     "x": 144.894,
+     "y": 1.15,
+     "z": 34.496
+    }
+   }
+  },
+  {
+   "step": "F5 dialogue closes and input returns",
+   "ok": true,
+   "data": {
+    "activeTalk": null,
+    "inputFocus": {
+     "focusClass": "GAMEPLAY",
+     "priority": 0,
+     "movement": true,
+     "camera": true,
+     "worldAction": true,
+     "gameplayShortcut": true,
+     "textInput": false,
+     "cursor": "HIDDEN",
+     "pointerLockDesired": true,
+     "miniMap": "ACTIVE",
+     "topOwners": [],
+     "activeClaimCount": 0,
+     "version": 6,
+     "owners": {
+      "chat": false,
+      "hudMenu": false,
+      "keyboardHelp": false,
+      "fullMap": false,
+      "shop": false,
+      "backgateTransit": false,
+      "biryongRegionTransition": false,
+      "inventory": false,
+      "wardrobe": false,
+      "cooking": false,
+      "dailyQuiz": false,
+      "attendance": false,
+      "lifeSkillBook": false,
+      "fishing": false,
+      "npcDialogue": false,
+      "mcmDialogue": false,
+      "biryongScripted": false,
+      "lobbyWorld": false,
+      "lobbyTransition": false,
+      "profile": false,
+      "viewSettings": false,
+      "friendPanel": false,
+      "nearbyPanel": false,
+      "playerCard": false,
+      "guestbook": false,
+      "roomTransition": false,
+      "backGateArrival": false,
+      "mcmEventInfo": false
+     }
+    }
+   }
+  },
+  {
+   "step": "G0 mount offered on open ground",
+   "ok": true,
+   "data": {
+    "transportAction": "mount",
+    "button": "🐉 탑승"
+   }
+  },
+  {
+   "step": "G1 Annyongi mounted",
+   "ok": true,
+   "data": {
+    "mounted": true,
+    "mountId": "annyongi",
+    "grounded": true,
+    "landing": false,
+    "inputEnabled": true,
+    "hud": "MOUNT_GROUND",
+    "body": {
+     "movementState": "MOUNT_GROUND",
+     "hudMode": "EXPLORE",
+     "hudLifeMode": "NONE",
+     "hudPetContext": "NONE",
+     "hudOverlay": "NONE",
+     "hudInputFocus": "GAMEPLAY",
+     "mountId": "annyongi"
+    }
+   }
+  },
+  {
+   "step": "G1b ground dismount",
+   "ok": true,
+   "data": {
+    "mounted": false,
+    "mountId": null,
+    "grounded": true,
+    "landing": false,
+    "inputEnabled": true,
+    "hud": "WALK"
+   }
+  },
+  {
+   "step": "G2 flight ascends and travels",
+   "ok": true,
+   "data": {
+    "g0": {
+     "x": 0,
+     "y": 1.15,
+     "z": -70
+    },
+    "g1": {
+     "x": 0,
+     "y": 24,
+     "z": -32.059
+    },
+    "mounted": true,
+    "mountId": "annyongi",
+    "grounded": false,
+    "landing": false,
+    "inputEnabled": true,
+    "hud": "MOUNT_FLIGHT",
+    "descendVisible": true
+   }
+  },
+  {
+   "step": "G3 landing from flight ends on the ground, dismounted",
+   "ok": true,
+   "data": {
+    "landingState": {
+     "mounted": true,
+     "mountId": "annyongi",
+     "grounded": false,
+     "landing": true,
+     "inputEnabled": true,
+     "hud": "MOUNT_FLIGHT"
+    },
+    "g3": {
+     "x": 0,
+     "y": 1.15,
+     "z": -32.059
+    },
+    "ground": 0,
+    "mounted": false,
+    "mountId": null,
+    "grounded": true,
+    "landing": false,
+    "inputEnabled": true,
+    "hud": "WALK"
+   }
+  },
+  {
+   "step": "G5 walking works after dismount",
+   "ok": true,
+   "data": {
+    "last": {
+     "x": 0,
+     "y": 1.15,
+     "z": -27.165
+    },
+    "ms": 2503
+   }
+  },
+  {
+   "step": "H1 position saved locally",
+   "ok": true,
+   "data": {
+    "saved": {
+     "inhagame-campus-tour-v1": "2",
+     "inhagame-world-resume-v1:guest": "{\"version\":2,\"regionId\":\"CAMPUS\",\"x\":0,\"y\":1.329074323381688,\"z\":-24.015427943638535,\"yawDeg\":0,\"cameraYaw\":0,\"savedAt\":1795606281269,\"zoneId\":\"AREA_CENTRAL_LAWN\",\"displayName\":\"중앙 잔디광장\"}"
+    },
+    "here": {
+     "x": 0,
+     "y": 1.329,
+     "z": -24.015
+    }
+   }
+  },
+  {
+   "step": "H2 reconnect shows resume and keeps quest/session",
+   "ok": true,
+   "data": {
+    "ms": 6463,
+    "resume": {
+     "state": "VALID",
+     "record": {
+      "version": 2,
+      "regionId": "CAMPUS",
+      "x": 0,
+      "y": 1.329074323381688,
+      "z": -24.015427943638535,
+      "yawDeg": 0,
+      "cameraYaw": 0,
+      "savedAt": 1795606283292,
+      "zoneId": "AREA_CENTRAL_LAWN",
+      "displayName": "중앙 잔디광장"
+     }
+    },
+    "tour": 2,
+    "lobbyQuest": null,
+    "resumeText": "마지막 위치에서 계속\n중앙 잔디광장\n방금 전"
+   }
+  },
+  {
+   "step": "H2b [auth] guest session id survives reload",
+   "ok": false,
+   "data": {
+    "sessionBefore": "53f414bf-7848-4cec-808f-efade71c67a7",
+    "sessionAfter": "a57de0ad-74df-4a66-9ccf-77cdc5d0ee18"
+   }
+  },
+  {
+   "step": "H3 resume restores saved position",
+   "ok": true,
+   "data": {
+    "back": {
+     "x": 0,
+     "y": 1.329,
+     "z": -24.015
+    },
+    "record": {
+     "version": 2,
+     "regionId": "CAMPUS",
+     "x": 0,
+     "y": 1.329074323381688,
+     "z": -24.015427943638535,
+     "yawDeg": 0,
+     "cameraYaw": 0,
+     "savedAt": 1795606281269,
+     "zoneId": "AREA_CENTRAL_LAWN",
+     "displayName": "중앙 잔디광장"
+    }
+   }
+  },
+  {
+   "step": "H4 controls work after resume",
+   "ok": true,
+   "data": {
+    "last": {
+     "x": 0,
+     "y": 1.368,
+     "z": -19.471
+    }
+   }
+  },
+  {
+   "step": "I1 player is told when graphics are lost",
+   "ok": false,
+   "data": {
+    "notice": null,
+    "lostBytes": 245367,
+    "beforeBytes": 399723,
+    "diagnostics": [
+     {
+      "code": "NETWORK_RECONNECTING"
+     },
+     {
+      "code": "RENDERER_DEVICE_LOST"
+     }
+    ]
+   }
+  },
+  {
+   "step": "I2 context restore resumes rendering and play",
+   "ok": true,
+   "data": {
+    "restoredBytes": 443465,
+    "lostBytes": 245367,
+    "walked": true,
+    "noticeAfter": null,
+    "lost": false
+   }
+  }
+ ],
+ "log": {
+  "errors": [],
+  "warnings": [
+   "No available adapters.",
+   "World progression unavailable: Failed to execute 'json' on 'Response': Unexpected end of JSON input",
+   "World wallet unavailable: Failed to execute 'json' on 'Response': Unexpected end of JSON input",
+   "World inventory unavailable: Failed to execute 'json' on 'Response': Unexpected end of JSON input",
+   "World loadout unavailable: FAILED",
+   "World shop unavailable: FAILED",
+   "No available adapters.",
+   "World progression unavailable: Failed to execute 'json' on 'Response': Unexpected end of JSON input",
+   "World wallet unavailable: Failed to execute 'json' on 'Response': Unexpected end of JSON input",
+   "World inventory unavailable: Failed to execute 'json' on 'Response': Unexpected end of JSON input",
+   "World loadout unavailable: FAILED",
+   "World shop unavailable: FAILED"
+  ],
+  "failed": [],
+  "requests": 1248,
+  "bytes": 0
+ }
+}

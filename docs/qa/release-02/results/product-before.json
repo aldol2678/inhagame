@@ -1,0 +1,38 @@
+{
+ "pc": {
+  "css": {
+   "#tour": "none",
+   "#quest-hud": "none",
+   "#inkyung-living-moment": "none"
+  },
+  "landscapeQuery": false,
+  "clubRoom": {
+   "entered": true,
+   "inside": true,
+   "exited": true,
+   "returnPosition": {
+    "x": 50.36026459322409,
+    "y": 2.05,
+    "z": -3.143584236416201
+   },
+   "groundAtReturn": 0.9,
+   "feetBelowSurface": 0,
+   "settled": {
+    "x": 50.36026459322409,
+    "y": 2.05,
+    "z": -3.143584236416201
+   },
+   "grounded": true
+  },
+  "errors": []
+ },
+ "phone-landscape": {
+  "css": {
+   "#tour": "none",
+   "#quest-hud": "none",
+   "#inkyung-living-moment": "none"
+  },
+  "landscapeQuery": true,
+  "errors": []
+ }
+}
