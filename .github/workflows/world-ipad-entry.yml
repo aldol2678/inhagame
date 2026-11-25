@@ -1,0 +1,74 @@
+name: iPad campus entry
+on:
+  pull_request:
+    paths:
+      - 'apps/world/src/**'
+      - 'apps/world/data/**'
+      - 'apps/world/campus/**'
+      - 'apps/world/vendor/**'
+      - 'apps/world/assets/**'
+      - 'apps/world/private-qa/induck-legacy-production-202610.glb.base64'
+      - 'apps/world/npc-factory/**'
+      - 'apps/world/*.css'
+      - 'apps/world/*.js'
+      - 'apps/world/*.mjs'
+      - 'apps/world/release/cloudflare-live/**'
+      - 'apps/world/scripts/*cloudflare-live.mjs'
+      - 'apps/world/scripts/campus-boot-assets.mjs'
+      - 'apps/world/tests/browser/ipad-boot-recovery.mjs'
+      - 'apps/world/tests/browser/package*.json'
+      - '.github/workflows/world-ipad-entry.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'apps/world/**'
+      - '!apps/world/docs/**'
+      - '.github/workflows/world-ipad-entry.yml'
+permissions:
+  contents: read
+concurrency:
+  group: ipad-entry-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  webkit:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - name: Verify release bytes and build rejection cases
+        run: node apps/world/scripts/verify-cloudflare-live.mjs
+      - name: Install pinned WebKit
+        working-directory: apps/world/tests/browser
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npx playwright install --with-deps webkit
+      - name: Tap into the compiled campus with external requests blocked
+        run: |
+          node apps/world/scripts/build-cloudflare-live.mjs "$RUNNER_TEMP/campus-webkit"
+          python3 -m http.server 8021 --bind 127.0.0.1 --directory "$RUNNER_TEMP/campus-webkit" > "$RUNNER_TEMP/campus-http.log" 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid"' EXIT
+          curl --retry 5 --retry-connrefused --fail --silent http://127.0.0.1:8021/campus/ -o /dev/null
+          xvfb-run -a node apps/world/tests/browser/ipad-boot-recovery.mjs
+
+  production-delivery:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - name: Check player-facing campus against the release manifest
+        run: node apps/world/scripts/check-campus-delivery.mjs --wait
