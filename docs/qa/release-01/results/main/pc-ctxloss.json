@@ -1,0 +1,109 @@
+{
+ "before": {
+  "bytes": 142191,
+  "sha": "4d4ca49099e1"
+ },
+ "beforeTurned": {
+  "bytes": 80604,
+  "sha": "8df2c026c3ab"
+ },
+ "lostDiag": {
+  "lost": true,
+  "contextLost": true,
+  "diagnostics": {
+   "buildId": "development",
+   "renderer": "WebGL2",
+   "rendererState": "LOST",
+   "quality": "UNKNOWN",
+   "qualityPreference": "UNKNOWN",
+   "worldId": "CAMPUS",
+   "zoneId": "AREA_MAIN_GATE",
+   "network": "RECONNECTING",
+   "fps": null,
+   "frameTimeMs": null,
+   "recentErrors": [
+    {
+     "code": "RENDERER_DEVICE_LOST"
+    }
+   ]
+  },
+  "recovery": {
+   "state": "READY",
+   "code": null,
+   "phase": "READY",
+   "bootEntered": true,
+   "retrying": false,
+   "destroyed": false
+  },
+  "hint": "WASD 이동 · Shift 달리기 · Space 점프 · E 감정표현 · F 상호작용 · M 탈것 · V 시점 전환",
+  "visibleAlerts": []
+ },
+ "lost": {
+  "bytes": 9540,
+  "sha": "8c324775eea4"
+ },
+ "restoredDiag": {
+  "lost": false,
+  "contextLost": false,
+  "diagnostics": {
+   "buildId": "development",
+   "renderer": "WebGL2",
+   "rendererState": "AVAILABLE",
+   "quality": "UNKNOWN",
+   "qualityPreference": "UNKNOWN",
+   "worldId": "CAMPUS",
+   "zoneId": "AREA_MAIN_GATE",
+   "network": "OFFLINE",
+   "fps": 9.2,
+   "frameTimeMs": 108.9,
+   "recentErrors": [
+    {
+     "code": "RENDERER_DEVICE_LOST"
+    },
+    {
+     "code": "NETWORK_OFFLINE"
+    }
+   ]
+  },
+  "recovery": {
+   "state": "READY",
+   "code": null,
+   "phase": "READY",
+   "bootEntered": true,
+   "retrying": false,
+   "destroyed": false
+  },
+  "hint": "WASD 이동 · Shift 달리기 · Space 점프 · E 감정표현 · F 상호작용 · M 탈것 · V 시점 전환",
+  "visibleAlerts": []
+ },
+ "restored": {
+  "bytes": 80722,
+  "sha": "97bf08248961"
+ },
+ "restoredTurned": {
+  "bytes": 44155,
+  "sha": "619cd1830f22"
+ },
+ "afterWalk": {
+  "bytes": 41608,
+  "sha": "672088c9b8f4"
+ },
+ "verdict": {
+  "rendersAfterRestore": true,
+  "frozen": false
+ },
+ "log": {
+  "errors": [],
+  "warnings": [
+   "No available adapters.",
+   "World progression unavailable: Failed to execute 'json' on 'Response': Unexpected end of JSON input",
+   "World wallet unavailable: Failed to execute 'json' on 'Response': Unexpected end of JSON input",
+   "World inventory unavailable: Failed to execute 'json' on 'Response': Unexpected end of JSON input",
+   "World loadout unavailable: FAILED",
+   "World shop unavailable: FAILED"
+  ],
+  "failed": [],
+  "requests": 615,
+  "bytes": 0
+ }
+}
