@@ -12,6 +12,8 @@ on:
       - 'apps/world/tests/world-boot-diagnostics.test.mjs'
       - 'apps/world/tests/world-loading-render.test.mjs'
       - 'apps/world/tests/browser/boot-recovery-smoke.mjs'
+      - 'apps/world/tests/browser/ipad-boot-recovery.mjs'
+      - 'apps/world/release/cloudflare-live/overrides/src/lobby/boot-recovery.js'
       - 'apps/world/tests/browser/loading-render-smoke.mjs'
       - 'apps/world/tests/browser/mobile-boot-smoke.mjs'
       - 'apps/world/tests/browser/unsupported-smoke.mjs'
@@ -48,7 +50,15 @@ jobs:
         working-directory: apps/world/tests/browser
         run: |
           npm ci --ignore-scripts --no-audit --no-fund
-          npx playwright install --with-deps chromium
+          npx playwright install --with-deps chromium webkit
+      - name: Exercise early rejection in the Cloudflare build with tablet WebKit
+        run: |
+          node apps/world/scripts/build-cloudflare-live.mjs "$RUNNER_TEMP/campus-webkit"
+          python3 -m http.server 8021 --bind 127.0.0.1 --directory "$RUNNER_TEMP/campus-webkit" > "$RUNNER_TEMP/campus-http.log" 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid"' EXIT
+          curl --retry 5 --retry-connrefused --fail --silent http://127.0.0.1:8021/campus/ -o /dev/null
+          xvfb-run -a node apps/world/tests/browser/ipad-boot-recovery.mjs
       - name: Unit and static boot contracts
         run: |
           node --test apps/world/tests/boot-recovery.test.mjs apps/world/tests/world-boot-diagnostics.test.mjs apps/world/tests/world-loading-render.test.mjs apps/world/tests/graphics-presets.test.mjs

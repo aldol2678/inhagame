@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { createWorldGraphicsDevice } from '../src/webgpu-device.js';
 import { createWorldLoading } from '../src/lobby/lobby-loading.js';
 const source = readFileSync(new URL('../src/lobby/boot-recovery.js', import.meta.url), 'utf8');
-function fixture() {
+function fixture(script = source) {
   const listeners = new Map(), timers = new Map();
   const element = () => ({ dataset: {}, style: {}, hidden: false, textContent: '', disabled: false,
     setAttribute() {}, classList: { add() {} }, addEventListener(type, fn) { this[type] = fn; },
@@ -18,7 +18,7 @@ function fixture() {
   const win = { AbortController, document: doc, location: { reload() { reloads++; } },
     setTimeout(fn) { const id = ++sequence; timers.set(id, fn); return id; }, clearTimeout(id) { timers.delete(id); },
     addEventListener(type, fn) { listeners.set(type, fn); }, removeEventListener(type) { listeners.delete(type); } };
-  vm.runInNewContext(source, win);
+  vm.runInNewContext(script, win);
   const recovery = win.__INHA_WORLD_BOOT_RECOVERY__;
   const tick = () => { const callbacks = [...timers.values()]; timers.clear(); callbacks.forEach(fn => fn()); };
   const attach = () => {
@@ -50,15 +50,42 @@ test('module resource failure remains sticky through late loader attachment and 
   f.tick();
   assert.equal(f.elements['world-loading'].dataset.state, 'ERROR');
 });
-test('unrelated resource failures are ignored; syntax and promise failures are diagnosed', () => {
+test('unrelated resource failures are ignored and script errors are diagnosed', () => {
   const f = fixture();
   f.listeners.get('error')({ target: { matches: () => false } });
   assert.equal(f.recovery.status().state, 'LOADING');
   f.listeners.get('error')({ message: 'SyntaxError' });
   assert.equal(f.recovery.status().code, 'BOOT_SCRIPT_ERROR');
-  const g = fixture(); g.listeners.get('unhandledrejection')({});
-  assert.equal(g.recovery.status().code, 'BOOT_PROMISE_REJECTION');
 });
+const liveSource = readFileSync(new URL('../release/cloudflare-live/overrides/src/lobby/boot-recovery.js', import.meta.url), 'utf8');
+for (const [variant, script] of [['shared', source], ['Cloudflare', liveSource]]) {
+  test(variant + ': an unrelated rejection before entry cannot lock the lobby', () => {
+    const f = fixture(script);
+    f.listeners.get('unhandledrejection')({ reason: new TypeError('optional task') });
+    assert.equal(f.recovery.status().state, 'LOADING');
+    f.tick();
+    assert.equal(f.recovery.status().state, 'DELAYED');
+    assert.equal(f.recovery.status().code, 'BOOT_ENTRY_DELAY_AFTER_REJECTION');
+    assert.equal(f.elements['world-loading-retry'].hidden, false);
+    const loading = f.attach();
+    f.recovery.markBootEntered();
+    assert.equal(f.recovery.status().code, null);
+    assert.equal(loading.finish(), false);
+    loading.setEssentialReady();
+    loading.setRenderReady();
+    assert.equal(loading.finish(), true);
+    assert.equal(f.recovery.status().state, 'READY');
+    assert.equal(f.elements['world-lobby'].inert, false);
+    assert.equal(f.reloads(), 0);
+  });
+  test(variant + ': module failure takes precedence over an unrelated rejection', () => {
+    const f = fixture(script);
+    f.listeners.get('unhandledrejection')({});
+    f.listeners.get('error')({ target: { matches: () => true } });
+    assert.equal(f.recovery.status().code, 'BOOT_MODULE_ERROR');
+    assert.equal(f.recovery.status().state, 'ERROR');
+  });
+}
 test('slow assets and render waits recover naturally and cannot force READY', () => {
   const f = fixture(), loading = f.attach(); f.recovery.markBootEntered();
   loading.setPhase('ASSETS'); f.tick();
