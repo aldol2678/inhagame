@@ -1,16 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { fillHallStairs } from '../src/main-hall-stairs.js';
-import { FacilityMeshBatch } from '../src/facility-mesh-batch.js';
-import { HALL_FOUNDATION_HEIGHT, MAIN_HALL_APPROACH as hall } from '../src/main-hall-approach.js';
-import { campusReliefHeight, forEachReliefTriangle } from '../src/campus-relief.js';
-import { HALL_ENTRY_WALK } from '../src/main-hall-walkway-layout.js';
-import { AGORA, roadviewGroundHeight as ground } from '../src/roadview-layout.js';
-import { NORTH_APPROACHES } from '../src/north-campus-layout.js';
-import { campusNavPolylines, isCampusSegmentClear } from '../src/navigation/campus-navigation.js';
-import { PlayerController } from '../src/player-controller.js';
-import { SPORTS_FLOOR, SPORTS_SIDE_ENTRIES } from '../src/stadium-stands-layout.js';
-import { GARDEN_ENTRANCES, GARDEN_FLOOR } from '../src/library-garden-layout.js';
+import { registerHooks } from 'node:module';
+// The stair mesh batch imports the renderer only to build GPU meshes; these checks read its plain arrays.
+registerHooks({resolve(s,c,next){return s==='playcanvas'?{url:'data:text/javascript,export const unused=1',shortCircuit:true}:next(s,c)}});
+const { fillHallStairs } = await import('../src/main-hall-stairs.js');
+const { FacilityMeshBatch } = await import('../src/facility-mesh-batch.js');
+const { HALL_FOUNDATION_HEIGHT, MAIN_HALL_APPROACH: hall } = await import('../src/main-hall-approach.js');
+const { campusReliefHeight, forEachReliefTriangle } = await import('../src/campus-relief.js');
+const { HALL_ENTRY_WALK } = await import('../src/main-hall-walkway-layout.js');
+const { AGORA, roadviewGroundHeight: ground } = await import('../src/roadview-layout.js');
+const { NORTH_APPROACHES } = await import('../src/north-campus-layout.js');
+const { campusNavPolylines, isCampusSegmentClear } = await import('../src/navigation/campus-navigation.js');
+const { PlayerController } = await import('../src/player-controller.js');
+const { SPORTS_FLOOR, SPORTS_SIDE_ENTRIES } = await import('../src/stadium-stands-layout.js');
+const { GARDEN_ENTRANCES, GARDEN_FLOOR } = await import('../src/library-garden-layout.js');
 
 const close=(a,b,msg)=>assert.ok(Math.abs(a-b)<1e-6,msg??(a+' vs '+b));
 const at=(side,out)=>hall.frame.at(hall.frame.length/2+side,out);

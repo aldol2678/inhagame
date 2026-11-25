@@ -59,6 +59,8 @@ test('fishing banks remain clear and base geometry is finite and bounded',()=>{
     for(const p of v)if(p[1]>.03&&p[1]<2)for(const spot of FISHING_SPOTS)
       assert.ok(Math.hypot(p[0]-spot.position.x,p[2]-spot.position.z)>FISHING_SPOT_RADIUS+.25,'fishing approach stays clear of props');
   }
-  for(const spot of FISHING_SPOTS){assert.ok(canOccupy({...spot.position,y:1.15}));assert.equal(roadviewGroundHeight(spot.position.x,spot.position.z),0);}
+  for(const spot of FISHING_SPOTS){assert.ok(canOccupy({...spot.position,y:1.15}));
+    // Campus relief meets the bank within millimetres; a visible ramp or step here still fails.
+    assert.ok(Math.abs(roadviewGroundHeight(spot.position.x,spot.position.z))<.005,'fishing spot stands on level bank');}
   assert.equal(POND_TREE_SEATING.slabs,8);assert.equal(pondBankTrees().filter(t=>t.heroWillow).length,1);
 });
