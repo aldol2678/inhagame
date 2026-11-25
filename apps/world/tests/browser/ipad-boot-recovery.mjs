@@ -21,9 +21,10 @@ try {
       ? route.fulfill({ status: 204 }) : route.continue();
     return route.abort();
   });
+  const isMain = url => url.pathname === '/src/main.js';
   let release;
   const hold = new Promise(resolve => { release = resolve; });
-  await page.route(url => url.pathname === '/src/main.js', async route => {
+  await page.route(isMain, async route => {
     await hold;
     await route.continue();
   });
@@ -42,14 +43,27 @@ try {
   await page.locator('#world-loading').waitFor({ state: 'hidden' });
   assert.equal(await page.locator('#world-lobby').evaluate(el => el.inert), false);
   assert.equal(engineLoaded, true);
-  console.log('PASS WebKit tablet: rendered campus and interactive lobby after early rejection');
-  await page.route(url => url.pathname === '/src/main.js', route => route.fulfill({
+  await page.locator('#main-gate-start').tap();
+  await page.locator('#world-lobby').waitFor({ state: 'hidden' });
+  assert.equal(await page.locator('#application').isVisible(), true);
+  console.log('PASS WebKit tablet: rendered campus and entered through the main gate after early rejection');
+  await page.route(isMain, route => route.fulfill({
     contentType: 'text/javascript', body: "throw new ReferenceError('test entry failure')"
   }));
   await page.reload({ waitUntil: 'commit' });
   await page.waitForFunction(() => window.__INHA_WORLD_BOOT_RECOVERY__?.status().code === 'BOOT_ENTRY_IMPORT_FAILED');
   assert.match(await page.locator('#world-loading-detail').innerText(), /ReferenceError.*test entry failure/);
-  console.log('PASS WebKit tablet: actual entry exception reaches the retry screen');
+  assert.equal(await page.locator('#world-loading-retry').isVisible(), true);
+  await page.unroute(isMain);
+  await Promise.all([
+    page.waitForEvent('framenavigated', { predicate: frame => frame === page.mainFrame() }),
+    page.locator('#world-loading-retry').tap()
+  ]);
+  await page.waitForFunction(() => window.__INHA_WORLD_BOOT_RECOVERY__?.status().state === 'READY',
+    null, { timeout: 90000 });
+  await page.locator('#main-gate-start').tap();
+  await page.locator('#world-lobby').waitFor({ state: 'hidden' });
+  console.log('PASS WebKit tablet: entry exception displayed and manual retry reached campus');
 } finally {
   await browser.close();
 }

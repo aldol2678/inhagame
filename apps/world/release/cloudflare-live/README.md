@@ -14,3 +14,11 @@ reference.json의 files는 공개 경로와 리뷰한 SHA-256을 담는다. 비�
 수정한 공개 파일은 빌드 후 실제 차이를 검토해 reference.json의 해당 해시를 갱신한다. 새 파일이 필요할 때만 공개 경로를 늘린다. verify는 두 번의 빌드, 허브 단독 변경, 캠퍼스 시작 코드 변경을 임시 폴더에서 시험한다. 출력물의 SNAPSHOT-MANIFEST.json은 이전 복원 당시 기록이다. 현재 인수 기준은 reference.json이다.
 
 캠퍼스 운영판은 PlayCanvas 2.22.4의 npm 배포본과 MIT 라이선스를 vendor/playcanvas/2.22.4에서 제공한다. 빌드는 src의 정적 JSON import를 공개 목록에 있는 원본 JSON에서 동기식 모듈 상수로 변환한다. 지도와 로더의 수정 버전은 캠퍼스 HTML이 참조하는 URL에 반영된다.
+
+## 아이패드 캠퍼스 입장 회귀 검사
+
+2026년 11월 25일 수정판에서 사용자가 아이패드 Chrome 입장을 확인했다. 재현 당시 화면에는 `BOOT_ENTRY_DELAY_AFTER_REJECTION`이 표시됐다. 이 코드는 시작 지연을 나타내며 최초 예외의 원인은 특정되지 않았다.
+
+- 운영 빌드는 엔진의 동일 출처 주소와 해시, 시작 스크립트·지도 모듈의 버전 URL을 검사한다. 초기 지도 모듈과 의존성이 동기적으로 초기화돼야 출력 폴더가 만들어진다.
+- `iPad campus entry / webkit`은 PR의 운영 빌드에서 외부 요청과 원본 지도 JSON 요청을 차단한 채 실패 이벤트를 발생시킨다. 첫 렌더와 로비 해제 뒤 ‘정문에서 시작’을 터치해 입장하고, 별도의 모듈 실패에서는 원래 오류가 보이고 다시 시도 버튼으로 입장되는지 검사한다. 아이패드 실기기 제보는 별도로 확인한다.
+- `production-delivery`는 main 반영 후 공식 주소의 캠퍼스 HTML과 시작 파일을 배포 명세의 SHA-256과 비교한다. 같은 검사는 `node apps/world/scripts/check-campus-delivery.mjs`로 실행할 수 있다. 불일치하면 출력에 표시된 URL의 Pages 응답과 공식 도메인 응답을 비교하고 해당 URL에 매칭되는 Worker 경로부터 확인한다.

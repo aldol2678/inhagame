@@ -30,7 +30,7 @@ function build(name) {
   return Object.fromEntries(paths.map(p => [p, sha(join(out, p))]));
 }
 try {
-  const inputs = new Set([...paths.map(source), buildScript, release + '/reference.json', release + '/campus.patch']);
+  const inputs = new Set([...paths.map(source), buildScript, 'scripts/campus-boot-assets.mjs', release + '/reference.json', release + '/campus.patch']);
   for (const name of inputs) {
     mkdirSync(dirname(join(clean, name)), { recursive: true });
     copyFileSync(join(world, name), join(clean, name));
@@ -55,7 +55,19 @@ try {
   writeFileSync(input, JSON.stringify(data));
   const updated = build('geometry-change');
   assert.deepEqual(paths.filter(p => updated[p] !== campus[p]), ['campus/index.html', geometry, 'src/basic-campus.js']);
-  console.log('PASS: exact reference, identical rebuild, isolated hub edit and fresh campus entry revision');
+  const mustRejectBuild = (name, pattern) => {
+    const out = join(scratch, name);
+    assert.throws(() => execFileSync(process.execPath, [join(clean, buildScript), out], { stdio: 'pipe' }), pattern);
+    assert.ok(!readdirSync(scratch).includes(name), 'Rejected build created a release');
+  };
+  const patch = join(clean, release, 'campus.patch');
+  const savedPatch = readFileSync(patch, 'utf8');
+  writeFileSync(patch, savedPatch.replace(/(\+ *"playcanvas": ")\/vendor\//, '$1https://cdn.invalid/vendor/'));
+  mustRejectBuild('external-engine', /Campus engine must load from the site itself/);
+  writeFileSync(patch, savedPatch);
+  appendFileSync(join(clean, source('src/basic-campus.js')), '\nawait Promise.resolve();\n');
+  mustRejectBuild('async-geometry', /ERR_REQUIRE_ASYNC_MODULE/);
+  console.log('PASS: exact reference, identical rebuild, isolated changes, versioned geometry, external-engine and async-geometry rejection');
 } finally {
   rmSync(scratch, { recursive: true, force: true });
 }

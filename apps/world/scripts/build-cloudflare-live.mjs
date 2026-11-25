@@ -1,6 +1,7 @@
 // Build the public PlayCanvas site from the reviewed paths in this checkout.
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
+import { createRequire } from 'node:module';
+import { campusBootAssets, digest as sha256 } from './campus-boot-assets.mjs';
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { dirname, join, posix, resolve } from 'node:path';
@@ -14,7 +15,6 @@ const reference = JSON.parse(readFileSync(join(release, 'reference.json'), 'utf8
 const files = Object.keys(reference.files);
 const overrides = new Set(reference.overrides);
 for (const name of overrides) assert.ok(files.includes(name), 'Override is outside the public file list: ' + name);
-const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 const duckPath = 'assets/induck-v3.glb';
 const dragonPath = 'assets/annyongi-flight-v1.glb';
 const pins = {
@@ -80,6 +80,18 @@ try {
     const revision = sha256(readFileSync(join(stage, asset))).slice(0, 12);
     html = html.replace(pattern, match => match.slice(0, match.indexOf('"')) + '"/' + asset + '?v=' + revision + '"');
   }
+  const { engine, geometry, urls } = campusBootAssets(html);
+  for (const url of urls) {
+    const [path, version] = url.slice(1).split('?');
+    assert.ok(files.includes(path), 'Missing campus boot asset: ' + path);
+    const hash = sha256(readFileSync(join(stage, path)));
+    if (version) assert.equal(version, 'v=' + hash.slice(0, 12), 'Stale campus boot URL: ' + url);
+    if (url === engine) assert.equal(hash, reference.files[path], 'Unreviewed campus engine bytes');
+  }
+  // Node rejects require() for ESM graphs containing top-level await, including in dependencies.
+  const requireGeometry = createRequire(entry);
+  for (const path of geometry) requireGeometry(join(stage, path.slice(1)));
+
   writeFileSync(entry, html);
   renameSync(stage, output);
   console.log('Built ' + files.length + ' static files at ' + output);
