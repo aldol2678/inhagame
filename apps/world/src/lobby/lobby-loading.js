@@ -233,14 +233,11 @@ export function installWorldBootDiagnostics({ target = globalThis, loading = get
     );
   };
   const onError = event => report("BOOT_SCRIPT_ERROR", event?.error ?? event?.message);
-  const onRejection = event => report("BOOT_PROMISE_REJECTION", event);
   target.addEventListener("error", onError);
-  target.addEventListener("unhandledrejection", onRejection);
   return {
     markBootEntered() { bootEntered = true; },
     destroy() {
       target.removeEventListener("error", onError);
-      target.removeEventListener("unhandledrejection", onRejection);
     }
   };
 }

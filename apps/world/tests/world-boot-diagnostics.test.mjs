@@ -33,6 +33,8 @@ const loading2 = createWorldLoading({
 });
 const win2 = target();
 const diagnostics2 = installWorldBootDiagnostics({ target: win2, loading: loading2 });
+win2.dispatch("unhandledrejection", { reason: new TypeError("optional task") });
+assert.equal(root2.dataset.state, "LOADING");
 diagnostics2.markBootEntered();
 win2.dispatch("error", { message: "late error" });
 assert.equal(root2.dataset.state, "LOADING", "post-boot errors remain owned by boot().catch/runtime handling");

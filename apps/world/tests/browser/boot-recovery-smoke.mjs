@@ -37,7 +37,8 @@ try {
   for (const path of ['/src/lobby/lobby-loading.js', '/src/main.js', '/src/player-controller.js']) {
     const page = await smoke.context.newPage();
     const dependency = path;
-    await page.route(`**${dependency}`, route => route.abort('failed'));
+    const request = url => url.pathname === dependency;
+    await page.route(request, route => route.abort('failed'));
     await page.goto(url, { waitUntil: 'commit' });
     await waitCode(page, 'BOOT_MODULE_ERROR');
     await checkRetry(page);
@@ -51,7 +52,7 @@ try {
         localStorage.setItem('boot-recovery-test', JSON.stringify({ scope: 'synthetic-user-a', value: 17 }));
         sessionStorage.setItem('boot-recovery-session-test', 'preserve');
       });
-      await page.unroute(`**${dependency}`);
+      await page.unroute(request);
       await Promise.all([page.waitForURL(url, { waitUntil: 'domcontentloaded' }), page.locator('#world-loading-retry').tap()]);
       await ready(page);
       const recovered = await status(page);
@@ -69,7 +70,7 @@ try {
   }
   {
     const page = await smoke.context.newPage();
-    await page.route('**/src/main.js', route => route.fulfill({ contentType: 'text/javascript', body: 'invalid syntax @' }));
+    await page.route(url => url.pathname === '/src/main.js', route => route.fulfill({ contentType: 'text/javascript', body: 'invalid syntax @' }));
     await page.goto(url, { waitUntil: 'domcontentloaded' });
     await waitCode(page, 'BOOT_SCRIPT_ERROR'); await checkRetry(page);
     console.log('PASS module parse failure'); await page.close();
@@ -78,15 +79,17 @@ try {
     const page = await smoke.context.newPage();
     let release;
     const hold = new Promise(resolve => { release = resolve; });
-    await page.route('**/src/main.js', async route => { await hold; await route.continue(); });
+    await page.route(url => url.pathname === '/src/main.js', async route => { await hold; await route.continue(); });
     await page.goto(url, { waitUntil: 'commit' });
-    await waitCode(page, 'BOOT_ENTRY_DELAY'); await checkRetry(page);
+    await page.waitForFunction(() => !!globalThis.__INHA_WORLD_BOOT_RECOVERY__);
+    await page.evaluate(() => { void Promise.reject(new Error('optional initialization')); });
+    await waitCode(page, 'BOOT_ENTRY_DELAY_AFTER_REJECTION'); await checkRetry(page);
     assert.equal((await status(page)).recovery.state, 'DELAYED');
     await page.locator('#world-loading-retry').focus();
     release(); await ready(page);
     assert.equal(await page.locator('#world-loading-retry').isVisible(), false);
     assert.equal((await status(page)).focus, 'world-lobby', 'natural recovery transfers loader-owned focus to the lobby');
-    console.log('PASS entry stall warning + natural recovery'); await page.close();
+    console.log('PASS early rejection + entry stall + natural recovery'); await page.close();
   }
   for (const model of ['induck-v3.glb', 'annyongi-flight-v1.glb']) {
     const page = await smoke.context.newPage();

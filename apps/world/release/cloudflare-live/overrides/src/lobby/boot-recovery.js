@@ -16,7 +16,8 @@
   let loading, timer, entered = false, phase = 'BOOT', state = 'LOADING', code = null;
   let retrying = false, destroyed = false;
   const inactive = () => destroyed || retrying || state === 'ERROR' || state === 'READY';
-  const delayCode = () => !entered ? 'BOOT_ENTRY_DELAY'
+  let sawEarlyRejection = false;
+  const delayCode = () => !entered ? (sawEarlyRejection ? 'BOOT_ENTRY_DELAY_AFTER_REJECTION' : 'BOOT_ENTRY_DELAY')
     : phase === 'ASSETS' ? 'ASSET_LOADING_DELAY'
     : phase === 'RENDERING' ? 'INITIAL_RENDER_DELAY'
     : phase === 'RENDERER' ? 'GRAPHICS_INIT_DELAY' : 'BOOT_PROGRESS_DELAY';
@@ -83,7 +84,9 @@
     }
     fail('BOOT_SCRIPT_ERROR');
   };
-  const onRejection = () => { if (!entered) fail('BOOT_PROMISE_REJECTION'); };
+  // A window-wide rejection can belong to another script while the entry module is loading.
+  // Let the watchdog offer a retry if entry stalls, and let boot() report its own failures.
+  const onRejection = () => { if (!entered) sawEarlyRejection = true; };
   const onVisibility = () => { if (!doc.hidden) progress(); else stop(); };
   const cleanup = () => {
     stop();
