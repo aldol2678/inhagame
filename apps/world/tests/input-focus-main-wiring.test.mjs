@@ -83,7 +83,9 @@ test("Shop, Inventory and Wardrobe use BLOCKING_UI owners before closing sibling
   }
 
   const inventory = main.match(/const inventoryPanel = createInventoryPanel\(\{[\s\S]*?inventoryButton\?\.addEventListener/)?.[0] ?? "";
-  const shop = main.match(/const shopPanel = createShopPanel\(\{[\s\S]*?shopButton\?\.addEventListener/)?.[0] ?? "";
+  // The ☰ shop button is withdrawn; the panel block now ends where the dormitory dialogue begins.
+  const shop = main.match(/const shopPanel = createShopPanel\(\{[\s\S]*?const dormShopDialogue = /)?.[0] ?? "";
+  assert.ok(shop.length > 0, "shop panel block found");
   const wardrobe = main.match(/const wardrobePanel = createWardrobePanel\(\{[\s\S]*?wardrobeButton\?\.addEventListener/)?.[0] ?? "";
 
   assert.ok(inventory.indexOf("inventoryInput.acquire()") < inventory.indexOf("shopPanel.setOpen(false)"));

@@ -8,10 +8,12 @@ import { createFakeDocument } from './support/fake-dom.mjs';
 const ITEM = 'head.induck_cap';
 const offer = (extra = {}) => ({ listingId: 'cap', itemId: ITEM, currencyId: 'coin', price: 10, quantity: 1,
   requiredLevel: null, purchaseLimit: null, startAt: null, endAt: null, status: 'ACTIVE', purchasable: true, unavailableReason: null, ...extra });
-const snapshot = (shopId = 'shop.student_center', extra = {}) => parseShopSnapshot({shopId, status: 'ACTIVE', playerLevel: 1, offers: [offer(extra)]}, shopId);
+// Fixtures use the dormitory counter, a READY route that also exists in legacy mode. The Student
+// Center counters are RETIRED and are asserted separately below.
+const snapshot = (shopId = 'shop.dorm_furniture', extra = {}) => parseShopSnapshot({shopId, status: 'ACTIVE', playerLevel: 1, offers: [offer(extra)]}, shopId);
 const context = (extra = {}) => ({accountId: 'A', accountEpoch: 1, capabilityMode: 'split', shopSnapshots: [
   Object.freeze({accountId: 'A', accountEpoch: 1, state: 'READY', snapshot: snapshot()})], ...extra});
-const poi = (extra = {}) => Object.freeze({poiId: 'poi.student-center', title: '학생회관', visible: true, validPosition: true,
+const poi = (extra = {}) => Object.freeze({poiId: 'poi.dorm-1', title: '제1생활관', visible: true, validPosition: true,
   discoveryState: 'DISCOVERED', gateState: 'AVAILABLE', ...extra});
 
 test('static catalog ACTIVE and READY routes never establish a seller or availability', () => {
@@ -24,8 +26,8 @@ test('current frozen server snapshot establishes exact seller and allows only ve
   const input = Object.freeze(context({knownPois: Object.freeze([poi()])}));
   const before = JSON.stringify(input);
   const guide = resolveItemAcquisition(ITEM, input);
-  assert.equal(guide.availability, 'AVAILABLE'); assert.equal(guide.shopId, 'shop.student_center');
-  assert.equal(guide.location.poiId, 'poi.student-center'); assert.equal(JSON.stringify(input), before);
+  assert.equal(guide.availability, 'AVAILABLE'); assert.equal(guide.shopId, 'shop.dorm_furniture');
+  assert.equal(guide.location.poiId, 'poi.dorm-1'); assert.equal(JSON.stringify(input), before);
   assert.ok(Object.isFrozen(guide)); assert.ok(Object.isFrozen(guide.location));
 });
 test('account mismatch, A-B-A epoch, logout, loading, failed and absent reads fail closed', () => {
@@ -36,7 +38,8 @@ test('account mismatch, A-B-A epoch, logout, loading, failed and absent reads fa
   }
 });
 test('legacy/split capability gates and capability transient errors never imply purchase', () => {
-  const fashion = Object.freeze({accountId:'A',accountEpoch:1,state:'READY',snapshot:snapshot('shop.student_center_fashion')});
+  // A split-only shop: the department counter is not part of the legacy unified shop.
+  const fashion = Object.freeze({accountId:'A',accountEpoch:1,state:'READY',snapshot:snapshot('shop.department_mcm')});
   assert.equal(resolveItemAcquisition(ITEM,context({shopSnapshots:[fashion]})).availability,'AVAILABLE');
   assert.equal(resolveItemAcquisition(ITEM,context({shopSnapshots:[fashion],capabilityMode:'legacy'})).availability,'UNKNOWN');
   assert.equal(resolveItemAcquisition(ITEM,context({capabilityMode:'legacy'})).availability,'AVAILABLE');
@@ -44,9 +47,9 @@ test('legacy/split capability gates and capability transient errors never imply 
   assert.equal(resolveItemAcquisition(ITEM,context({capabilityChecking:true})).availability,'UNKNOWN');
 });
 test('server refusal controls guidance without locally recalculating level, price or status', () => {
-  const c = context(); c.shopSnapshots = [{accountId:'A',accountEpoch:1,state:'READY',snapshot:snapshot('shop.student_center',{purchasable:false,unavailableReason:'LEVEL_REQUIRED',requiredLevel:2})}];
+  const c = context(); c.shopSnapshots = [{accountId:'A',accountEpoch:1,state:'READY',snapshot:snapshot('shop.dorm_furniture',{purchasable:false,unavailableReason:'LEVEL_REQUIRED',requiredLevel:2})}];
   assert.equal(resolveItemAcquisition(ITEM,c).availability,'UNAVAILABLE'); assert.match(resolveItemAcquisition(ITEM,c).detail,/레벨/);
-  c.shopSnapshots[0].snapshot = snapshot('shop.student_center',{purchasable:true,unavailableReason:'LEVEL_REQUIRED'});
+  c.shopSnapshots[0].snapshot = snapshot('shop.dorm_furniture',{purchasable:true,unavailableReason:'LEVEL_REQUIRED'});
   assert.equal(resolveItemAcquisition(ITEM,c).availability,'UNKNOWN');
 });
 test('hidden catalog/server rows and unrevealed discovery do not expose a shop or POI', () => {
@@ -54,13 +57,20 @@ test('hidden catalog/server rows and unrevealed discovery do not expose a shop o
     {definition:{...getItemDefinition(ITEM),status:'HIDDEN'}}]) {
     const g = resolveItemAcquisition(ITEM,context({...extra,knownPois:[poi()]}));
     assert.equal(g.availability,'HIDDEN'); assert.equal(g.shopId,null); assert.equal(g.location,null);
-    assert.doesNotMatch(JSON.stringify(g),/student|인경호|학생회관/);
+    assert.doesNotMatch(JSON.stringify(g),/student|dorm|인경호|학생회관|생활관/);
   }
 });
 test('missing, hidden, undiscovered, invalid, unknown POIs never expose a location', () => {
   for (const p of [poi({visible:false}),poi({validPosition:false}),poi({discoveryState:'UNDISCOVERED'}),
     poi({gateState:'HIDDEN'}),poi({poiId:'guessed.vendor'}),poi({gateState:'UNKNOWN'})]) {
     assert.equal(resolveItemAcquisition(ITEM,context({knownPois:[p]})).location,null);
+  }
+});
+test('retired Student Center counters are not sellers even with a current purchasable snapshot', () => {
+  for (const shopId of ['shop.student_center','shop.student_center_fashion']) for (const capabilityMode of ['split','legacy']) {
+    const guide = resolveItemAcquisition(ITEM,context({capabilityMode,knownPois:[poi({poiId:'poi.student-center',title:'학생회관'})],
+      shopSnapshots:[{accountId:'A',accountEpoch:1,state:'READY',snapshot:snapshot(shopId)}]}));
+    assert.equal(guide.availability,'UNKNOWN'); assert.equal(guide.shopId,null); assert.equal(guide.location,null);
   }
 });
 test('planned/unregistered shops and missing product are not sellers', () => {
@@ -89,7 +99,7 @@ test('view distinguishes acquisition guidance, escapes text and invokes only exp
 });
 
 test('contradictory shop or offer status never produces available guidance', () => {
-  for (const snap of [{...snapshot(),status:'DISABLED'},snapshot('shop.student_center',{status:'LOCKED'})]) {
+  for (const snap of [{...snapshot(),status:'DISABLED'},snapshot('shop.dorm_furniture',{status:'LOCKED'})]) {
     const guide=resolveItemAcquisition(ITEM,context({shopSnapshots:[{accountId:'A',accountEpoch:1,state:'READY',snapshot:snap}]}));
     assert.equal(guide.availability,'UNKNOWN'); assert.equal(guide.shopId,null);
   }

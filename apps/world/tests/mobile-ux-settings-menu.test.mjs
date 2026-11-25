@@ -10,13 +10,15 @@ const hudSource = readFileSync(new URL('../src/campus-hud.js', import.meta.url),
 
 test('all existing menu actions and settings persistence IDs remain unique', () => {
   const ids = ['hud-menu','open-profile','open-quest-journal','open-inventory',
-    'open-mobility-book','open-wardrobe','open-shop','open-life-skills','open-friends',
+    'open-mobility-book','open-wardrobe','open-life-skills','open-friends',
     'open-daily-quiz','open-attendance','toggle-first-person','open-keyboard-help',
     'open-settings','view-settings','graphics-quality','graphics-frame-limit',
     'graphics-render-scale','graphics-shadows','graphics-show-fps','graphics-reset',
     'view-distance','mouse-sensitivity','invert-mouse-y','audio-volume',
     'open-runtime-diagnostics','view-settings-status'];
   for (const id of ids) assert.equal(html.split('id="'+id+'"').length-1, 1, id);
+  // The Student Center shop shortcut was withdrawn from the menu.
+  assert.equal(html.split('id="open-shop"').length-1, 0, 'open-shop');
 });
 test('mobile HUD drawer and embedded Phone settings have independent bounded scrolling', () => {
   assert.match(html, /class="hud-menu-grid"/);

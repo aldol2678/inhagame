@@ -160,12 +160,11 @@ test("blocked (mounted, inside a room, shop open, lobby) → no action", () => {
   assert.equal(world.observe(at(0.1), { placeZoneId: ZONE, blocked: true }), null);
   assert.equal(world.nearby, false);
   assert.equal(world.blocked, true);
+  // The campus no longer wires this entry at all, so there is no state in which it can appear.
   const main = source("../src/main.js");
-  assert.match(main,
-    /shopWorld\.observe\(pos, \{\s*blocked: inside \|\| controller\.mounted \|\| shopPanel\.open \|\| lobbyWorld\.active \|\| lobbyTransition\.active,\s*placeZoneId: place\?\.id \?\? null\s*\}\)/,
-    "main.js blocks the entry inside rooms, while mounted, while the shop is open and in the lobby");
-  assert.match(main, /lobbyTransition\.active\) \{\s*inkyungLivingMoment\?\.setSuppressed\(true\);\s*guestbookWorldLabel\.hide\(\);\s*shopWorldLabel\.hide\(\);\s*contextActions\.set\("student-center-shop", null\);/,
-    "the lobby suppresses the living guide and still clears the shop entry action and label");
+  assert.doesNotMatch(main, /createShopWorldInteraction|createShopWorldLabel|shopWorld\b|shopWorldLabel|contextActions\.set\("student-center-shop"/,
+    "main.js has no Student Center world entry, label or context action");
+  assert.doesNotMatch(source("../campus/index.html"), /id="shop-world-label"/, "the world marker element is gone");
 });
 
 test("another Place Zone (or no zone, e.g. inside a room) → no action even at the same point", () => {
@@ -193,16 +192,14 @@ test("priority 190: never hides NPC talk, events, seats, guestbook, Biryong, duc
   assert.ok(STUDENT_CENTER_SHOP_CONTEXT_PRIORITY < FOLLOW_CONTEXT_PRIORITY && STUDENT_CENTER_SHOP_CONTEXT_PRIORITY > ROOM_CONTEXT_PRIORITY);
 });
 
-test("menu entry kept; both entries open the one existing shop panel", () => {
+test("menu and world entries retired; the one shop panel and router remain for other shops", () => {
   const main = source("../src/main.js");
   const html = source("../campus/index.html");
-  assert.match(html, /id="open-shop"[^>]*>🛍 <span>상점<\/span><\/button>/, "☰ → 🛍 상점 stays");
+  assert.doesNotMatch(html, /id="open-shop"/, "☰ → 🛍 상점 is withdrawn");
   assert.equal((main.match(/createShopPanel\(/g) ?? []).length, 1, "one panel");
   assert.equal((main.match(/createShopRouter\(/g) ?? []).length, 1, "one shop router");
-  assert.match(main, /shopButton\?\.addEventListener\("click",[\s\S]*?shopEntry\.enter\(\)/);
-  assert.match(main, /openPanel: \(\) => shopEntry\.enter\(/);
-  assert.match(main, /openLegacy: \(\) => openWorldShop\(SHOP_STUDENT_CENTER/);
-  assert.match(main, /contextActions\.set\("student-center-shop", shopWorldAction\)/);
+  assert.doesNotMatch(main, /shopButton|shopEntry|openLegacy|openRecovery/);
+  assert.match(main, /contextActions\.set\("dorm-furniture-shop", dormShop\.contextAction\(\)\)/, "the dormitory counter is unaffected");
   const world = source("../src/shop/shop-world-interaction.js");
   assert.doesNotMatch(world, /\.rpc\(|createClient|document\.|localStorage|addEventListener/, "no RPC, DOM or key handling in the interaction");
 });
