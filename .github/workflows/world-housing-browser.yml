@@ -1,0 +1,502 @@
+name: World housing browser QA
+# Personal room, furniture, cooking and wardrobe browser suites in one workflow. The
+# `select` job decides which suites a pull request touches (.github/ci/group-filter.mjs);
+# a suite runs unless that job positively reports `false` for it.
+on:
+  pull_request:
+    paths:
+      - 'apps/world/src/phone/smartphone.js'
+      - 'apps/world/src/rooms/**'
+      - 'apps/world/src/commissions/**'
+      - 'apps/world/tests/sample-room-trial*.test.mjs'
+      - 'apps/world/tests/browser/sample-room-trial-*'
+      - 'apps/world/src/collection/item-catalog.js'
+      - 'apps/world/tests/furniture-*.test.mjs'
+      - 'apps/world/tests/personal-room*.test.mjs'
+      - 'apps/world/assets/rooms/**'
+      - 'apps/world/assets/furniture/**'
+      - 'scripts/assets/build-dorm-single-sofa.py'
+      - 'apps/world/assets/kaykit/furniture-bits/**'
+      - 'apps/world/dev-server.mjs'
+      - 'apps/world/src/campus-render-kit.js'
+      - 'apps/world/src/player-dimensions.js'
+      - 'apps/world/src/campus-material-profile.js'
+      - 'tools/world-assets/generate-personal-room-chair.mjs'
+      - 'apps/world/tests/item-catalog.test.mjs'
+      - 'apps/world/tests/browser/housing-*.mjs'
+      - 'apps/world/tests/browser/personal-room-*'
+      - 'apps/world/tests/browser/harness-source.mjs'
+      - 'apps/world/src/phone/**'
+      - 'apps/world/src/photo/**'
+      - 'apps/world/src/seat-interaction.js'
+      - 'apps/world/src/seat-anchors.js'
+      - 'apps/world/src/context-action.js'
+      - 'apps/world/src/life-skills/**'
+      - 'apps/world/src/shop/**'
+      - 'apps/world/src/inventory/**'
+      - 'apps/world/src/collection/**'
+      - 'apps/world/src/main.js'
+      - 'apps/world/tests/browser/*seating*'
+      - 'apps/world/tests/browser/personal-room-environment*'
+      - 'apps/world/tests/personal-room-environment.test.mjs'
+      - 'apps/world/tests/browser/*furniture*'
+      - 'apps/world/tests/browser/room-photo-story-*'
+      - 'apps/world/tests/room-photo-story.test.mjs'
+      - 'apps/world/tests/browser/*trophy*'
+      - 'apps/world/tests/browser/*fishing-skill-effects*'
+      - 'apps/world/tests/personal-room-seating.test.mjs'
+      - 'apps/world/tests/trophy-display.test.mjs'
+      - 'apps/world/tests/shop-furniture-handoff.test.mjs'
+      - 'apps/world/tests/fishing-skill-effect-labels.test.mjs'
+      - 'apps/world/qa.mjs'
+      - 'apps/world/styles.css'
+      - 'apps/world/phone.css'
+      - 'apps/world/campus/index.html'
+      - 'apps/world/tests/starter-furniture-*.test.mjs'
+      - 'apps/world/tests/browser/starter-furniture-*'
+      - 'supabase/migrations/**'
+      - 'supabase/tests/**'
+      - 'docs/ops/sql/20261012_starter_furniture_open.sql'
+      - 'apps/world/tests/browser/dorm-shop-vendor-*'
+      - 'scripts/starter-furniture-browser-local.mjs'
+      - '.github/ci/phone-surface-scope*.mjs'
+      - '.github/ci/seo-only-scope*.mjs'
+      - 'apps/world/src/rooms/room-transition.js'
+      - 'apps/world/src/rooms/room-world-adapter.js'
+      - 'apps/world/src/rooms/space-fade.js'
+      - 'apps/world/tests/room-transition-*.test.mjs'
+      - 'apps/world/tests/space-fade.test.mjs'
+      - 'apps/world/tests/browser/room-transition-recovery-*'
+      - 'apps/world/src/rooms/cooking-*.js'
+      - 'apps/world/src/rooms/furniture-*.js'
+      - 'apps/world/src/rooms/personal-room-layout.js'
+      - 'apps/world/src/rooms/room-session.js'
+      - 'apps/world/editor/index.html'
+      - 'apps/world/tests/cooking-*.test.mjs'
+      - 'apps/world/tests/support/fake-dom.mjs'
+      - 'apps/world/tests/browser/cooking-candidate-*'
+      - 'apps/world/tests/browser/harness*.mjs'
+      - 'supabase/migrations/*cooking*'
+      - 'apps/world/src/appearance/wardrobe-panel.js'
+      - 'apps/world/src/appearance/loadout-client.js'
+      - 'apps/world/src/collection/item-acquisition-guide*'
+      - 'apps/world/tests/inventory-*.test.mjs'
+      - 'apps/world/tests/item-acquisition-guide.test.mjs'
+      - 'apps/world/tests/wardrobe-panel.test.mjs'
+      - 'apps/world/tests/panel-keyboard-focus.test.mjs'
+      - 'apps/world/tests/browser/wardrobe-inventory-retry-*'
+      - 'apps/world/tests/browser/package*.json'
+      - 'apps/world/tests/browser/harness.mjs'
+      - '.github/ci/group-filter.mjs'
+      - '.github/ci/group-filter.test.mjs'
+      - '.github/ci/phone-surface-scope.mjs'
+      - '.github/actions/setup-world-browser/**'
+      - '.github/workflows/world-housing-browser.yml'
+permissions:
+  contents: read
+concurrency:
+  group: world-housing-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  select:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      housing: ${{ steps.filter.outputs.housing }}
+      life_housing: ${{ steps.filter.outputs.life_housing }}
+      starter_furniture: ${{ steps.filter.outputs.starter_furniture }}
+      room_transition_recovery: ${{ steps.filter.outputs.room_transition_recovery }}
+      cooking_candidate: ${{ steps.filter.outputs.cooking_candidate }}
+      wardrobe_inventory_retry: ${{ steps.filter.outputs.wardrobe_inventory_retry }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - name: Test suite selection
+        run: node --test .github/ci/group-filter.test.mjs
+      - name: Select suites touched by this pull request
+        id: filter
+        env:
+          CI_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CI_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node .github/ci/group-filter.mjs housing >> "$GITHUB_OUTPUT"
+
+  housing:
+    needs: select
+    if: ${{ !cancelled() && needs.select.outputs.housing != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: ./.github/actions/setup-world-browser
+        with:
+          playwright-browser: chromium
+      - name: Verify furniture persistence and account isolation contracts
+        run: node --test apps/world/tests/furniture-*.test.mjs apps/world/tests/personal-room*.test.mjs apps/world/tests/item-catalog.test.mjs
+      - name: Verify room lifecycle and real chair container parsing
+        run: |
+          node apps/world/tests/browser/personal-room-v2-null-smoke.mjs
+          node apps/world/tests/browser/personal-room-environment-null-smoke.mjs
+          node apps/world/tests/browser/personal-room-chair-container-null-smoke.mjs
+          node apps/world/tests/browser/housing-sofa-glb-null.mjs
+      - name: Verify ephemeral sample-room trial and actual room renderer
+        if: ${{ !cancelled() }}
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          SAMPLE_ROOM_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          node --test apps/world/tests/sample-room-trial*.test.mjs
+          node apps/world/tests/browser/sample-room-trial-null.mjs
+          node apps/world/tests/browser/sample-room-trial-smoke.mjs
+      - name: Save sample-room trial evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sample-room-trial-${{ github.event.pull_request.head.sha }}
+          path: test-results/sample-room-trial/
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Exercise room loaded assets and intentional loader fallback
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          ROOM_VISUAL_QA_OUTPUT: test-results/personal-room-visual-foundation
+          WORLD_SMOKE_TIMEOUT_MS: '90000'
+        run: |
+          mkdir -p test-results/personal-room-visual-foundation
+          git rev-parse HEAD > test-results/personal-room-visual-foundation/head-sha.txt
+          set -o pipefail
+          timeout --signal=TERM --kill-after=10s 480s node apps/world/tests/browser/personal-room-visual-foundation-smoke.mjs 2>&1 | tee test-results/personal-room-visual-foundation/smoke.log
+      - name: Save exact-head room visual evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: personal-room-visual-foundation-${{ github.event.pull_request.head.sha }}
+          path: test-results/personal-room-visual-foundation/
+          if-no-files-found: error
+          retention-days: 7
+      - name: Exercise offline housing save and reload
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+          WORLD_SMOKE_TIMEOUT_MS: '540000'
+          HOUSING_SMOKE_SHOTS: test-results/housing
+        run: |
+          mkdir -p test-results/housing
+          git rev-parse HEAD > test-results/housing/head-sha.txt
+          set -o pipefail
+          timeout --signal=TERM --kill-after=10s 960s node apps/world/tests/browser/housing-smoke.mjs 2>&1 | tee test-results/housing/smoke.log
+      - name: Save exact-head offline browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: housing-browser-evidence
+          path: test-results/housing/
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Compare optional sofa GLB against exact procedural fallback
+        if: ${{ !cancelled() }}
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_TIMEOUT_MS: '90000'
+        run: node apps/world/tests/browser/housing-sofa-glb-smoke.mjs
+      - name: Save sofa A/B and lifecycle evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sofa-glb-pilot-${{ github.event.pull_request.head.sha }}
+          path: test-results/sofa-glb-pilot/
+          if-no-files-found: warn
+          retention-days: 7
+
+  life-housing:
+    needs: select
+    if: ${{ !cancelled() && needs.select.outputs.life_housing != 'false' }}
+    name: life-housing-${{ matrix.smoke }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        smoke:
+          - personal-room-seating
+          - furniture-history
+          - furniture-recommendations
+          - personal-room-environment
+          - room-photo-story
+          - trophy-display
+          - trophy-display-null
+          - shop-furniture
+          - fishing-skill-effects
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Install pinned dependencies, plus Chromium and Korean glyphs for browser smokes
+        uses: ./.github/actions/setup-world-browser
+        with:
+          playwright-browser: ${{ matrix.smoke != 'trophy-display-null' && 'chromium' || '' }}
+          korean-fonts: ${{ matrix.smoke != 'trophy-display-null' && 'true' || 'false' }}
+      - name: Record exact head and fixture source hashes
+        env:
+          SMOKE: ${{ matrix.smoke }}
+        run: |
+          mkdir -p test-results
+          git rev-parse HEAD > test-results/head-sha.txt
+          find apps/world/src apps/world/tests/browser -type f -not -path '*/node_modules/*' -print0 | sort -z | xargs -0 sha256sum > test-results/source-hashes.txt
+          sha256sum apps/world/styles.css apps/world/phone.css >> test-results/source-hashes.txt
+      - name: Exercise offline candidate flow
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_TIMEOUT_MS: '120000'
+          SMOKE: ${{ matrix.smoke }}
+          TROPHY_DISPLAY_QA_OUTPUT: test-results/trophy-display
+          ROOM_PHOTO_STORY_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -o pipefail
+          timeout --signal=TERM --kill-after=10s 840s node "apps/world/tests/browser/${SMOKE}-smoke.mjs" 2>&1 | tee "test-results/${SMOKE}.log"
+      - name: Save exact-head browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: life-housing-${{ matrix.smoke }}-evidence
+          path: test-results/
+          if-no-files-found: error
+          retention-days: 7
+
+  starter-furniture:
+    needs: select
+    if: ${{ !cancelled() && needs.select.outputs.starter_furniture != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      WORLD_SMOKE_DISABLE_WEBGPU: '1'
+      STARTER_FURNITURE_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Install pinned browser and Korean glyphs
+        uses: ./.github/actions/setup-world-browser
+        with:
+          playwright-browser: chromium
+          korean-fonts: 'true'
+      - uses: supabase/setup-cli@v3
+        with:
+          version: 2.117.0
+      - name: Install local PostgreSQL client
+        run: sudo apt-get install -y postgresql-client
+      - name: Record exact source
+        run: |
+          mkdir -p test-results/starter-furniture
+          test "$(git rev-parse HEAD)" = "$STARTER_FURNITURE_HEAD_SHA"
+          git rev-parse HEAD > test-results/starter-furniture/head-sha.txt
+          find apps/world/src apps/world/tests/browser supabase/migrations supabase/tests/support -type f -not -path '*/node_modules/*' -print0 | sort -z | xargs -0 sha256sum > test-results/starter-furniture/source-hashes.txt
+      - name: Full disposable Supabase replay and transactions
+        id: database
+        run: |
+          set -o pipefail
+          unset SUPABASE_ACCESS_TOKEN SUPABASE_DB_PASSWORD
+          supabase start > /tmp/starter-supabase-start.log 2>&1 || { cat /tmp/starter-supabase-start.log; exit 1; }
+          supabase test db 2>&1 | tee test-results/starter-furniture/pgtap.log
+          node scripts/local-integration.mjs 2>&1 | tee test-results/starter-furniture/integration.log
+      - name: Room-local vendor greeting and lifecycle on three viewports
+        env:
+          DORM_VENDOR_OUTPUT: test-results/starter-furniture/dorm-vendor
+        run: node apps/world/tests/browser/dorm-shop-vendor-smoke.mjs
+      - name: Actual purchases, inventory, placement and sitting on three viewports
+        if: ${{ !cancelled() && steps.database.outcome == 'success' }}
+        run: |
+          set -o pipefail
+          node scripts/starter-furniture-browser-local.mjs 2>&1 | tee test-results/starter-furniture/browser.log
+      - name: Actual Induck geometry and seating metadata only
+        if: ${{ !cancelled() && steps.database.outcome == 'success' }}
+        env:
+          STARTER_FURNITURE_PRIVATE_GEOMETRY_ONLY: '1'
+          STARTER_FURNITURE_OUTPUT: test-results/starter-furniture/private-metadata
+          STARTER_FURNITURE_PRIVATE_SHA: 8aede8fd595dd84fda5460e375a18df49f6a91ba813ab7a952f75e768e8964eb
+        run: |
+          set -euo pipefail
+          # Existing approved read-only brand-asset route; no private bytes or renders in artifacts.
+          curl --fail --silent --show-error --retry 2 'https://inhagame.app/api/brand-asset?asset=induck-v3.glb&variant=canonical' -o "$RUNNER_TEMP/starter-private-induck.glb"
+          printf '%s  %s\n' "$STARTER_FURNITURE_PRIVATE_SHA" "$RUNNER_TEMP/starter-private-induck.glb" | sha256sum --check
+          cp "$RUNNER_TEMP/starter-private-induck.glb" apps/world/assets/induck-v3.glb
+          node scripts/starter-furniture-browser-local.mjs
+      - name: Enforce private metadata-only artifact boundary
+        id: artifact_boundary
+        if: always()
+        run: |
+          if [ -d test-results/starter-furniture/private-metadata ]; then
+            test -z "$(find test-results/starter-furniture/private-metadata -type f ! -name '*.json' -print)"
+          fi
+      - name: Stop disposable stack
+        if: always()
+        run: supabase stop --no-backup
+      - name: Upload exact-head receipts and public-model pixels
+        if: ${{ always() && steps.artifact_boundary.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: starter-furniture-${{ github.event.pull_request.head.sha }}
+          path: |
+            test-results/starter-furniture/*.json
+            test-results/starter-furniture/*.png
+            test-results/starter-furniture/*.txt
+            test-results/starter-furniture/*.log
+            test-results/starter-furniture/dorm-vendor/*.json
+            test-results/starter-furniture/dorm-vendor/*.png
+            test-results/starter-furniture/private-metadata/*.json
+          if-no-files-found: error
+          retention-days: 14
+
+  room-transition-recovery:
+    needs: select
+    if: ${{ !cancelled() && needs.select.outputs.room_transition_recovery != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          fetch-depth: 128
+      - name: Select affected browser suite (fail-closed)
+        id: phone_scope
+        env:
+          CI_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CI_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          CI_PR_TITLE: ${{ github.event.pull_request.title }}
+          # The scope gate is keyed by the original workflow name and reads its paths.
+          CI_WORKFLOW_NAME: Room transition recovery browser QA
+        run: node .github/ci/phone-surface-scope.mjs >> "$GITHUB_OUTPUT"
+      - name: Install Korean glyph coverage for readable error screenshots
+        if: steps.phone_scope.outputs.skip != 'true'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+          fc-match 'Noto Sans CJK KR'
+          dpkg-query -W fonts-noto-cjk
+      - name: Install pinned Node and browser dependencies
+        if: steps.phone_scope.outputs.skip != 'true'
+        uses: ./.github/actions/setup-world-browser
+      - name: Verify recovery, ownership and latest loading contracts
+        if: steps.phone_scope.outputs.skip != 'true'
+        run: node --test apps/world/tests/room-transition-*.test.mjs apps/world/tests/space-fade.test.mjs apps/world/tests/club-room.test.mjs apps/world/tests/personal-room.test.mjs apps/world/tests/room-session.test.mjs apps/world/tests/world-loading-render.test.mjs
+      - name: Render real-module offline failure and retry flows
+        if: steps.phone_scope.outputs.skip != 'true'
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+          ROOM_RECOVERY_QA_OUTPUT: test-results/room-transition-recovery
+          EXPECTED_ROOM_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: timeout --signal=TERM --kill-after=10s 540s node apps/world/tests/browser/room-transition-recovery-smoke.mjs
+      - name: Save exact-head browser evidence
+        if: always() && steps.phone_scope.outputs.skip != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: room-transition-recovery-browser-evidence
+          path: test-results/room-transition-recovery/
+          if-no-files-found: error
+          retention-days: 7
+
+  cooking-candidate:
+    needs: select
+    if: ${{ !cancelled() && needs.select.outputs.cooking_candidate != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          fetch-depth: 128
+      - name: Select affected browser suite (fail-closed)
+        id: phone_scope
+        env:
+          CI_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CI_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          CI_PR_TITLE: ${{ github.event.pull_request.title }}
+          # The scope gate is keyed by the original workflow name and reads its paths.
+          CI_WORKFLOW_NAME: Cooking candidate browser QA
+        run: node .github/ci/phone-surface-scope.mjs >> "$GITHUB_OUTPUT"
+      - name: Capture immutable candidate identity
+        if: steps.phone_scope.outputs.skip != 'true'
+        env:
+          EXPECTED_COOKING_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          mkdir -p test-results/cooking-candidate
+          git rev-parse HEAD | tee test-results/cooking-candidate/head.txt
+          test "$(git rev-parse HEAD)" = "$EXPECTED_COOKING_HEAD"
+      - name: Install pinned Node, browser dependencies and Chromium
+        if: steps.phone_scope.outputs.skip != 'true'
+        uses: ./.github/actions/setup-world-browser
+        with:
+          playwright-browser: chromium
+      - name: Install Korean glyph coverage
+        if: steps.phone_scope.outputs.skip != 'true'
+        run: sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+      - name: Check production cooking regressions and fixture syntax
+        if: steps.phone_scope.outputs.skip != 'true'
+        shell: bash
+        run: |
+          set -o pipefail
+          node --check apps/world/tests/browser/cooking-candidate-fixture.mjs
+          node --check apps/world/tests/browser/cooking-candidate-smoke.mjs
+          node --test apps/world/tests/cooking-client.test.mjs apps/world/tests/cooking-feature.test.mjs apps/world/tests/cooking-panel.test.mjs apps/world/tests/cooking-runtime-wiring.test.mjs 2>&1 | tee test-results/cooking-candidate/node-tests.log
+      - name: Exercise real DOM with synthetic local cooking and Inventory only
+        if: steps.phone_scope.outputs.skip != 'true'
+        shell: bash
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          EXPECTED_COOKING_HEAD: ${{ github.event.pull_request.head.sha }}
+          COOKING_QA_OUTPUT: test-results/cooking-candidate
+        run: |
+          set -o pipefail
+          node apps/world/tests/browser/cooking-candidate-smoke.mjs 2>&1 | tee test-results/cooking-candidate/browser.log
+      - name: Save exact-head logs, screenshots and source hashes
+        if: always() && steps.phone_scope.outputs.skip != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: cooking-candidate-browser-${{ github.event.pull_request.head.sha }}
+          path: test-results/cooking-candidate/
+          if-no-files-found: error
+          retention-days: 14
+
+  wardrobe-inventory-retry:
+    needs: select
+    if: ${{ !cancelled() && needs.select.outputs.wardrobe_inventory_retry != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: ./.github/actions/setup-world-browser
+        with:
+          playwright-browser: chromium
+          korean-fonts: 'true'
+      - name: Verify wardrobe retry and account/focus contracts
+        run: node --test apps/world/tests/wardrobe-panel.test.mjs apps/world/tests/panel-keyboard-focus.test.mjs apps/world/tests/inventory-*.test.mjs apps/world/tests/item-acquisition-guide.test.mjs apps/world/tests/loadout-client.test.mjs
+      - name: Exercise native keyboard and touch with synthetic reads only
+        env:
+          WARDROBE_RETRY_HEAD: ${{ github.event.pull_request.head.sha }}
+          WARDROBE_RETRY_OUTPUT: test-results/wardrobe-inventory-retry
+        run: node apps/world/tests/browser/wardrobe-inventory-retry-smoke.mjs
+      - name: Preserve exact-head screenshots and read-only receipts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wardrobe-inventory-retry-browser-evidence
+          path: test-results/wardrobe-inventory-retry/
+          if-no-files-found: error
+          retention-days: 14
