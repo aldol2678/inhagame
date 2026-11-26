@@ -38,9 +38,11 @@ export async function installJeongseokClosedMode(context) {
     assert.ok(isJeongseokVisualPreviewHost(new URL(route.request().url()).hostname), 'closed fixture is loopback-only');
     return route.fulfill({ status: 200, contentType: 'text/javascript; charset=utf-8', body: candidate });
   };
-  await context.route('**/src/main.js', handler);
+  // Path match, not a URL glob: the page requests the entry module with a cache key.
+  const matcher = url => url.pathname === '/src/main.js';
+  await context.route(matcher, handler);
   return { mode: 'TEST_ONLY_CLOSED_CONSTRUCTOR', shippedMainSha256: sha256(source), servedMainSha256: sha256(candidate),
-    restore: () => context.unroute('**/src/main.js', handler) };
+    restore: () => context.unroute(matcher, handler) };
 }
 
 // Browser-only dependency fixture: synthetic Auth identity and Supabase RPC replies.

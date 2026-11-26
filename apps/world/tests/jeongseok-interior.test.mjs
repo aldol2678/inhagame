@@ -399,11 +399,16 @@ test("explicit CLOSED browser regression changes only the loopback constructor a
   const { readFile } = await import("node:fs/promises");
   const { installJeongseokClosedMode } = await import("./browser/jeongseok-synthetic-access.mjs");
   const source = await readFile(new URL("../src/main.js", import.meta.url), "utf8");
-  let routeHandler, restored = false;
+  let routeHandler, routeMatcher, restored = false;
   const { restore, ...evidence } = await installJeongseokClosedMode({
-    route: async (pattern, handler) => { assert.equal(pattern, "**/src/main.js"); routeHandler = handler; },
-    unroute: async (pattern, handler) => { assert.equal(pattern, "**/src/main.js"); assert.equal(handler, routeHandler); restored = true; }
+    route: async (matcher, handler) => { routeMatcher = matcher; routeHandler = handler; },
+    unroute: async (matcher, handler) => { assert.equal(matcher, routeMatcher); assert.equal(handler, routeHandler); restored = true; }
   });
+  // The page requests the entry module with a cache key; only that exact path is replaced.
+  for (const url of ["http://127.0.0.1:8000/src/main.js", "http://127.0.0.1:8000/src/main.js?v=43ae4891e297"])
+    assert.equal(routeMatcher(new URL(url)), true, url);
+  for (const url of ["http://127.0.0.1:8000/src/main.js.map", "http://127.0.0.1:8000/src/phone/main.js", "http://127.0.0.1:8000/src/main-gate-frame.js"])
+    assert.equal(routeMatcher(new URL(url)), false, url);
   assert.equal(evidence.mode, "TEST_ONLY_CLOSED_CONSTRUCTOR");
   assert.notEqual(evidence.shippedMainSha256, evidence.servedMainSha256);
   let served;
