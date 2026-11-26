@@ -1,0 +1,84 @@
+name: Reusable World browser QA
+# One World browser QA suite: exact-head checkout, shared setup, optional unit contracts,
+# browser smoke, then evidence upload. Callers own the trigger paths and the PR-numbered
+# concurrency group. The check appears as "<caller job> / qa".
+on:
+  workflow_call:
+    inputs:
+      suite:
+        description: Short suite id used in step names.
+        required: true
+        type: string
+      test-command:
+        description: Unit/contract command run before the smoke. Empty skips it.
+        required: false
+        type: string
+        default: ''
+      smoke-command:
+        description: Browser smoke command. QA_HEAD_SHA holds the PR head commit.
+        required: true
+        type: string
+      timeout:
+        description: Job timeout in minutes. Keep each suite's existing value.
+        required: true
+        type: number
+      artifact-name:
+        description: Evidence artifact name. Must be unique per suite.
+        required: true
+        type: string
+      artifact-path:
+        description: Directory uploaded as evidence.
+        required: true
+        type: string
+      artifact-retention-days:
+        required: false
+        type: number
+        default: 7
+      playwright-browser:
+        description: Playwright browser to install. Empty uses the runner's own browser.
+        required: false
+        type: string
+        default: chromium
+      playwright-install-args:
+        required: false
+        type: string
+        default: '--with-deps'
+      korean-fonts:
+        required: false
+        type: boolean
+        default: false
+permissions:
+  contents: read
+jobs:
+  qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ inputs.timeout }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: ./.github/actions/setup-world-browser
+        with:
+          playwright-browser: ${{ inputs.playwright-browser }}
+          playwright-install-args: ${{ inputs.playwright-install-args }}
+          korean-fonts: ${{ inputs.korean-fonts }}
+      - name: Verify ${{ inputs.suite }} contracts
+        if: inputs.test-command != ''
+        env:
+          QA_COMMAND: ${{ inputs.test-command }}
+          QA_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: bash -euo pipefail -c "$QA_COMMAND"
+      - name: Run ${{ inputs.suite }} browser smoke
+        env:
+          QA_COMMAND: ${{ inputs.smoke-command }}
+          QA_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: bash -euo pipefail -c "$QA_COMMAND"
+      - name: Preserve ${{ inputs.suite }} evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: ${{ inputs.artifact-path }}
+          if-no-files-found: error
+          retention-days: ${{ inputs.artifact-retention-days }}
