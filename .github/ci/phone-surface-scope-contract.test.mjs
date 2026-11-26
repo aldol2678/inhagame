@@ -70,3 +70,16 @@ test('all scoped browser workflows trigger for the imported SEO policy and regre
   }
   assert.deepEqual(missing, [], 'imported classification changes must run their browser callers');
 });
+
+
+test('only scoped suites receive explicit draft routing and ready-for-review trigger', () => {
+ for (const file of scoped) {
+  const text = readFileSync(new URL('../workflows/'+file,import.meta.url),'utf8');
+  assert.ok(text.includes('types: [opened, synchronize, reopened, ready_for_review]'),file);
+  assert.ok(text.includes('CI_PR_DRAFT: ${{ github.event.pull_request.draft }}'),file);
+ }
+ for (const file of requiredUnmodified) {
+  const text = readFileSync(new URL('../workflows/'+file,import.meta.url),'utf8');
+  assert.ok(!text.includes('CI_PR_DRAFT:'),file);
+ }
+});

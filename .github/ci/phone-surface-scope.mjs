@@ -118,7 +118,7 @@ export function matchPath(glob, path) {
   }
   return new RegExp(re + '$').test(path);
 }
-export function classify(files, { workflowName, workflowYaml, mainBefore, mainAfter, prTitle } = {}) {
+export function classify(files, { workflowName, workflowYaml, mainBefore, mainAfter, prTitle, prDraft = false } = {}) {
   if (!Array.isArray(files) || files.length === 0 || new Set(files).size !== files.length)
     return { skip: false, reason: 'empty-or-invalid-changes' };
   if (!prTitle || NO_FAST_TITLE.test(prTitle))
@@ -133,8 +133,13 @@ export function classify(files, { workflowName, workflowYaml, mainBefore, mainAf
   if (!triggers) return { skip: false, reason: 'unknown-workflow-triggers' };
   const direct = triggers.filter(pattern => pattern !== MAIN);
   // A suite must still run whenever it explicitly claims any changed source/test.
-  if (files.some(path => direct.some(pattern => matchPath(pattern, path))))
+  if (files.some(path => direct.some(pattern => matchPath(pattern, path)))) {
+    // Explicit draft opt-in only after the existing exact-history and safe-module checks.
+    // Ready-for-review re-triggers the original suite; required workflows never use this classifier.
+    if (prDraft === true && /^\[local-ci\](?:\s|$)/i.test(prTitle))
+      return { skip: true, reason: 'draft-local-ci-deferred', paths: files };
     return { skip: false, reason: 'suite-direct-impact' };
+  }
   return { skip: true, reason: 'unrelated-modular-feature', paths: files };
 }
 const git = (...args) => execFileSync('git', args, {
@@ -174,7 +179,8 @@ export function inspect(env = process.env, runGit = git, loadWorkflow = (file) =
       return { skip: true, reason: 'verified-seo-only', paths: files };
     return classify(files, {
       workflowName, workflowYaml: loadWorkflow(filename),
-      mainBefore: before, mainAfter: after, prTitle: env.CI_PR_TITLE
+      mainBefore: before, mainAfter: after, prTitle: env.CI_PR_TITLE,
+      prDraft: env.CI_PR_DRAFT === 'true'
     });
   } catch {
     // Missing merge ancestry, shallow history, malformed diff, bad workflow:
@@ -185,6 +191,6 @@ export function inspect(env = process.env, runGit = git, loadWorkflow = (file) =
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   const result=inspect();
   process.stdout.write('skip='+String(result.skip)+'\n');
-  console.error('ci-impact: '+(result.skip?'SKIP costly unrelated steps':'RUN full suite')+
+  console.error('ci-impact: '+(result.reason === 'draft-local-ci-deferred' ? 'DEFER optional draft QA (not a test PASS)' : result.skip ? 'SKIP costly unrelated steps' : 'RUN full suite')+
     ' ('+result.reason+', '+(result.paths?.length??'?')+' files; '+(process.env.GITHUB_WORKFLOW||'unknown workflow')+')');
 }

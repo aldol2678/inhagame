@@ -143,3 +143,20 @@ test('inspect refuses malformed history, missing refs, releases and unknown work
  };
  assert.equal(inspect({CI_HEAD_SHA:b,CI_BASE_SHA:a,CI_WORKFLOW_NAME:graphics,CI_PR_TITLE:'feat'},missingBase).reason,'missing-history-or-diff-error');
 });
+
+
+test('draft local-ci defers only explicitly opted-in, directly affected safe modular suites', () => {
+ const files = ['apps/world/src/quest/journal-panel.js'];
+ const opt = {prTitle:'[local-ci] feat(world): journal',prDraft:true};
+ assert.equal(decide(files,quest,opt).reason,'draft-local-ci-deferred');
+ assert.equal(decide(files,quest,{...opt,prDraft:false}).reason,'suite-direct-impact');
+ assert.equal(decide(files,quest,{...opt,prDraft:undefined}).skip,false);
+ assert.equal(decide(files,quest,{...opt,prDraft:'true'}).skip,false);
+ assert.equal(decide(files,quest,{...opt,prTitle:'feat(world): journal'}).skip,false);
+ for (const title of ['[local-ci] release: candidate','[local-ci] hotfix: urgent','[local-ci] [full-ci] journal','[local-ci] 출시 준비','[local-ci] 릴리스'])
+  assert.equal(decide(files,quest,{...opt,prTitle:title}).skip,false,title);
+ for (const path of ['apps/world/src/main.js','apps/world/src/input/input-focus-manager.js','supabase/migrations/20261126.sql','.github/workflows/quest-journal-controls-browser.yml','.github/ci/phone-surface-scope.mjs','apps/world/tests/browser/harness.mjs'])
+  assert.equal(decide([...files,path],quest,opt).skip,false,path);
+ assert.equal(decide(files,quest,{...opt,workflowYaml:'invalid yaml'}).skip,false);
+ assert.equal(decide([],quest,opt).skip,false);
+});

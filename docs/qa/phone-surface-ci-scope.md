@@ -84,3 +84,11 @@ PR #357의 이미 수집된 메시지함 QA는 수정하지 않으며, 이 정�
 - All eleven guarded browser workflows include `.github/ci/seo-only-scope*.mjs` in their pull-request path triggers. This covers the imported classifier and its regression tests; a helper-only policy change triggers its browser callers and follows full routing.
 - The workflow contract checks both helper paths against every caller's actual declared triggers. Existing costly-step guards, check/job names, permissions and core unscoped workflow policies are unchanged by this patch.
 - Public release/hotfix/full-ci/missing-title overrides already exist at PR #360 head `798cbf45cafdf734bdf5e764f17ad81f9d35c438` and are preserved. This patch makes no duplicate Public changes. Full CI-policy validation remains required when a later authorized remote update applies this patch; local policy test success is not a remote exact-head PASS.
+
+
+## Emergency budget mode (candidate, 2026-11-26)
+
+- Work locally first. For a narrow safe modular change, a Draft PR whose title begins with `[local-ci]` may defer the directly affected costly steps in the existing 11 scoped browser workflows. All 9 protected workflows remain unchanged. Unrelated steps retain their existing routing.
+- The classifier must still establish exact head, valid ancestry, safe modular paths and valid workflow paths. Unknown/shared changes, CI edits and release/hotfix/full-ci intent keep the existing fail-closed execution. The opt-in does not authorize a release or bypass any required check.
+- Mark the PR ready for review to automatically execute its affected browser QA on the current head; merely editing the title is not a substitute. If the base/head changes, revalidate. A deferred or skipped check is not evidence of a browser test PASS; require actual exact-head evidence before release admission. Do not merge the CI policy candidate without the existing full CI policy acceptance gates.
+- This mode reduces expensive draft steps, not necessarily workflow counts. It is not a billing measurement. Avoid creating remote PRs until local checks and the intended change are ready; never blindly rerun failed suites.
