@@ -1,0 +1,391 @@
+name: World places browser QA
+# Backgate, Jeongseok and north-campus browser suites in one workflow. The `select` job
+# decides which suites a pull request touches (.github/ci/group-filter.mjs); a suite
+# runs unless that job positively reports `false` for it.
+on:
+  pull_request:
+    paths:
+      - 'apps/world/src/backgate-shopfront-geometry.js'
+      - 'apps/world/src/back-street-geometry.js'
+      - 'apps/world/src/culture-street-geometry.js'
+      - 'apps/world/src/culture-street-signs.js'
+      - 'apps/world/tests/backgate-shopfront*.test.mjs'
+      - 'apps/world/tests/browser/backgate-shopfront-*'
+      - 'apps/world/src/backgate-infill-geometry.js'
+      - 'apps/world/src/back-alley-geometry.js'
+      - 'apps/world/src/back-market-geometry.js'
+      - 'apps/world/src/north-side-gate-geometry.js'
+      - 'apps/world/src/campus-road-blockout.js'
+      - 'apps/world/tests/backgate-infill*.test.mjs'
+      - 'apps/world/tests/backgate-road*.test.mjs'
+      - 'apps/world/tests/backgate-restoration*.test.mjs'
+      - 'apps/world/tests/browser/backgate-infill-*'
+      - 'apps/world/tests/browser/backgate-road-*'
+      - 'apps/world/tests/browser/backgate-restoration-*'
+      - 'apps/world/src/jeongseok/**'
+      - 'apps/world/tests/jeongseok-access.test.mjs'
+      - 'apps/world/tests/browser/jeongseok-gate-smoke.mjs'
+      - 'supabase/migrations/20261012100000_world_jeongseok_access_jsl_a.sql'
+      - 'supabase/tests/database/111_world_jeongseok_access_jsl_a.test.sql'
+      - 'apps/world/src/rooms/room-registry.js'
+      - 'apps/world/src/rooms/room-transition.js'
+      - 'apps/world/src/rooms/room-world-adapter.js'
+      - 'apps/world/tests/jeongseok-interior.test.mjs'
+      - 'apps/world/tests/browser/jeongseok-interior-smoke.mjs'
+      - 'apps/world/src/north-*'
+      - 'apps/world/src/agora-photo-geometry.js'
+      - 'apps/world/src/campus-facilities.js'
+      - 'apps/world/src/campus-material-profile.js'
+      - 'apps/world/src/facility-blockout.js'
+      - 'apps/world/src/roadview-details.js'
+      - 'apps/world/data/reality/north-landmark-restoration.provenance.json'
+      - 'apps/world/tests/*north-landmark*'
+      - 'apps/world/tests/browser/north-landmark-*'
+      - 'apps/world/src/north-walkway-*'
+      - 'apps/world/src/north-campus-*'
+      - 'apps/world/src/navigation/campus-navigation.js'
+      - 'apps/world/src/minimap/minimap-data.js'
+      - 'apps/world/src/render-chunk-registry.js'
+      - 'apps/world/tests/*north-walkway*'
+      - 'apps/world/tests/browser/north-walkway-*'
+      - 'apps/world/src/main.js'
+      - 'apps/world/styles.css'
+      - 'apps/world/tests/browser/package*.json'
+      - 'apps/world/tests/browser/harness.mjs'
+      - '.github/ci/group-filter.mjs'
+      - '.github/ci/group-filter.test.mjs'
+      - '.github/ci/phone-surface-scope.mjs'
+      - '.github/actions/setup-world-browser/**'
+      - '.github/workflows/world-places-browser.yml'
+permissions:
+  contents: read
+concurrency:
+  group: world-places-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  select:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      backgate_shopfront: ${{ steps.filter.outputs.backgate_shopfront }}
+      backgate_restoration: ${{ steps.filter.outputs.backgate_restoration }}
+      jeongseok_gate: ${{ steps.filter.outputs.jeongseok_gate }}
+      jeongseok_interior: ${{ steps.filter.outputs.jeongseok_interior }}
+      north_landmark: ${{ steps.filter.outputs.north_landmark }}
+      north_walkway: ${{ steps.filter.outputs.north_walkway }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - name: Test suite selection
+        run: node --test .github/ci/group-filter.test.mjs
+      - name: Select suites touched by this pull request
+        id: filter
+        env:
+          CI_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CI_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node .github/ci/group-filter.mjs places >> "$GITHUB_OUTPUT"
+
+  backgate-shopfront:
+    needs: select
+    if: ${{ !cancelled() && needs.select.outputs.backgate_shopfront != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify pinned comparison commit is present
+        run: git cat-file -e d9cbd3948e4e5acf359313824387dc8695c3e672^{commit}
+      - uses: ./.github/actions/setup-world-browser
+      - name: Verify facade, fixture and actual controller contracts
+        run: node --test apps/world/tests/backgate-shopfront*.test.mjs
+      - name: Verify actual renderer lifecycle without a browser
+        run: |
+          node apps/world/tests/browser/backgate-shopfront-null-smoke.mjs
+          node apps/world/tests/browser/backgate-shopfront-fixture-null-smoke.mjs
+      - name: Render exact-head old and new same-camera facade frames
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+          WORLD_SMOKE_TIMEOUT_MS: '60000'
+          WORLD_SHOPFRONT_QA_OUTPUT: test-results/backgate-shopfronts
+          EXPECTED_SHOPFRONT_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: timeout --signal=TERM --kill-after=15s 12m node apps/world/tests/browser/backgate-shopfront-smoke.mjs
+      - name: Save exact-head screenshots and hashed report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backgate-shopfront-browser-${{ github.event.pull_request.head.sha }}
+          path: test-results/backgate-shopfronts/
+          if-no-files-found: error
+          retention-days: 7
+
+  backgate-restoration:
+    needs: select
+    if: ${{ !cancelled() && needs.select.outputs.backgate_restoration != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify pinned public baseline exists
+        run: git cat-file -e 3b95e37f3dec477ebe7e06456907176bb81a63a2^{commit}
+      - uses: ./.github/actions/setup-world-browser
+      - name: Verify restored geometry and unchanged navigation
+        run: node --test apps/world/tests/backgate-infill*.test.mjs apps/world/tests/backgate-road*.test.mjs apps/world/tests/backgate-restoration*.test.mjs apps/world/tests/back-market.test.mjs apps/world/tests/backgate-shopfronts.test.mjs
+      - name: Verify bounded release integration contracts
+        if: github.event.pull_request.head.ref == 'release/2026-10-13-ci-runtime-diagnostics'
+        run: node --test apps/world/tests/north-walkway.test.mjs apps/world/tests/north-walkway-batching.test.mjs apps/world/tests/north-landmark-restoration.test.mjs apps/world/tests/campus-material-profile.test.mjs apps/world/tests/runtime-diagnostics.test.mjs apps/world/tests/photo-capture.test.mjs apps/world/tests/photo-mode-panel.test.mjs
+      - name: Verify pinned engine ownership and framing
+        run: |
+          node apps/world/tests/browser/backgate-infill-null-smoke.mjs
+          node apps/world/tests/browser/backgate-road-null-smoke.mjs
+          node apps/world/tests/browser/backgate-restoration-fixture-null-smoke.mjs
+      - name: Render exact-head same-camera baseline and restored campus
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+          WORLD_SMOKE_TIMEOUT_MS: '60000'
+          WORLD_BACKGATE_QA_OUTPUT: test-results/backgate-restoration
+          EXPECTED_BACKGATE_HEAD: ${{ github.event.pull_request.head.sha }}
+          WORLD_BACKGATE_SCOPE_BASE: ${{ github.event.pull_request.head.ref == 'release/2026-10-13-ci-runtime-diagnostics' && github.event.pull_request.base.sha || '' }}
+          WORLD_BACKGATE_SCOPE_EXTENSION: ${{ github.event.pull_request.head.ref == 'release/2026-10-13-ci-runtime-diagnostics' && 'release-2026-10-13' || '' }}
+        run: timeout --signal=TERM --kill-after=15s 18m node apps/world/tests/browser/backgate-restoration-smoke.mjs
+      - name: Save screenshots and hashed report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backgate-restoration-browser-${{ github.event.pull_request.head.sha }}
+          path: test-results/backgate-restoration/
+          if-no-files-found: error
+          retention-days: 7
+
+  jeongseok-gate:
+    needs: select
+    if: ${{ !cancelled() && needs.select.outputs.jeongseok_gate != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    env:
+      WORLD_SMOKE_DISABLE_WEBGPU: '1'
+      JSL_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - name: Checkout exact PR head with read-only history
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Integrate latest main in ephemeral runner only
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$JSL_HEAD_SHA"
+          base="$(git rev-parse refs/remotes/origin/main)"
+          git config user.name "JSL QA Runner"
+          git config user.email "jsl-qa@users.noreply.github.com"
+          git merge --no-commit --no-ff "$base"
+          git diff --cached --check
+          mkdir -p test-results/jeongseok-gate
+          printf 'PR_HEAD=%s\nMAIN_HEAD=%s\n' "$JSL_HEAD_SHA" "$base" > test-results/jeongseok-gate/integration-heads.txt
+      - name: Install pinned test prerequisites, Chromium and Korean glyphs
+        uses: ./.github/actions/setup-world-browser
+        with:
+          playwright-browser: chromium
+          korean-fonts: 'true'
+      - name: Install local Supabase CLI
+        uses: supabase/setup-cli@v3
+        with:
+          version: 2.117.0
+      - name: Install local PostgreSQL client
+        run: sudo apt-get install -y postgresql-client
+      - name: Start disposable local database only
+        run: |
+          set -euo pipefail
+          unset SUPABASE_ACCESS_TOKEN SUPABASE_DB_PASSWORD
+          supabase start > "$RUNNER_TEMP/jsl-local-start.log" 2>&1 || { echo 'Disposable local Supabase startup failed'; exit 1; }
+      - name: Verify migrations, pgTAP, integration and JSL unit tests
+        run: |
+          set -euo pipefail
+          supabase test db
+          node scripts/local-integration.mjs
+          node --test apps/world/tests/jeongseok-access.test.mjs
+      - name: Read loopback-only Supabase credentials into runner environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { execFileSync } from 'node:child_process';
+          import { appendFileSync } from 'node:fs';
+          const info = JSON.parse(execFileSync('supabase', ['status', '-o', 'json'], { encoding: 'utf8' }));
+          for (const k of ['API_URL','DB_URL']) {
+            const v = info[k];
+            if (typeof v !== 'string' || !/^(https?:\/\/|postgres(?:ql)?:\/\/)([^@/]+@)?(127\.0\.0\.1|localhost)(:\d+)?(\/|$)/.test(v)) throw Error(k+' is not local loopback');
+          }
+          for (const k of ['API_URL','DB_URL','ANON_KEY','SERVICE_ROLE_KEY']) {
+            const v = info[k];
+            if (typeof v !== 'string' || !v || /[\r\n]/.test(v)) throw Error('Missing or malformed local '+k);
+            if (k.includes('KEY') || k === 'DB_URL') process.stdout.write('::add-mask::'+v+'\n');
+            appendFileSync(process.env.GITHUB_ENV, k+'='+v+'\n');
+          }
+          NODE
+      - name: Signed-in Chromium desktop and mobile JSL-A browser QA
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$JSL_HEAD_SHA"
+          node apps/world/tests/browser/jeongseok-gate-smoke.mjs
+      - name: Stop and discard local stack
+        if: always()
+        run: supabase stop --no-backup
+      - name: Archive synthetic QA report and source refs only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jeongseok-gate-${{ github.event.pull_request.head.sha }}
+          path: |
+            test-results/jeongseok-gate/report.json
+            test-results/jeongseok-gate/integration-heads.txt
+          if-no-files-found: warn
+          retention-days: 7
+
+  jeongseok-interior:
+    needs: select
+    if: ${{ !cancelled() && needs.select.outputs.jeongseok_interior != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Install Korean glyph coverage for readable screenshots
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+      - uses: ./.github/actions/setup-world-browser
+      - name: Interior layout, policy and transition contracts
+        run: node --test apps/world/tests/jeongseok-interior.test.mjs apps/world/tests/room-transition-*.test.mjs apps/world/tests/club-room.test.mjs apps/world/tests/dorm1-lobby.test.mjs apps/world/tests/personal-room.test.mjs
+      - name: Real campus boot, Jeongseok loop on desktop and mobile viewports
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+          JSL_B_QA_OUTPUT: test-results/jeongseok-interior
+          EXPECTED_JSL_B_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: timeout --signal=TERM --kill-after=10s 900s node apps/world/tests/browser/jeongseok-interior-smoke.mjs
+      - name: Save exact-head browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jeongseok-interior-browser-evidence
+          path: test-results/jeongseok-interior/
+          if-no-files-found: error
+          retention-days: 7
+
+  north-landmark:
+    needs: select
+    if: ${{ !cancelled() && needs.select.outputs.north_landmark != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./.github/actions/setup-world-browser
+      - name: Verify geometry and original gameplay contracts
+        run: node --test apps/world/tests/north-landmark-restoration.test.mjs apps/world/tests/north-campus.test.mjs apps/world/tests/roadview-details.test.mjs apps/world/tests/campus-facilities.test.mjs apps/world/tests/student-center-campus.test.mjs
+      - name: Verify real engine ownership
+        run: |
+          node apps/world/tests/browser/north-landmark-null-smoke.mjs
+          node apps/world/tests/browser/hall-library-integration-null-smoke.mjs
+      - name: Capture pinned original public presentation
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+        run: |
+          baseline=9fa74a0b69c85e3a4ba57ceba38fb0d28019706b
+          git worktree add --detach /tmp/north-landmark-before "$baseline"
+          cp apps/world/tests/browser/north-landmark-smoke.mjs /tmp/north-landmark-before/apps/world/tests/browser/
+          ln -s "$PWD/apps/world/tests/browser/node_modules" /tmp/north-landmark-before/apps/world/tests/browser/node_modules
+          output="$PWD/test-results/north-landmarks/before"
+          (cd /tmp/north-landmark-before && NORTH_LANDMARK_MODE=baseline EXPECTED_NORTH_HEAD="$baseline" NORTH_LANDMARK_OUTPUT="$output" node apps/world/tests/browser/north-landmark-smoke.mjs)
+      - name: Capture exact-head candidate with identical cameras
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+          NORTH_LANDMARK_OUTPUT: test-results/north-landmarks/after
+          EXPECTED_NORTH_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: node apps/world/tests/browser/north-landmark-smoke.mjs
+      - name: Save same-camera before and after evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: north-landmark-browser-evidence
+          path: test-results/north-landmarks/
+          if-no-files-found: error
+          retention-days: 7
+
+  north-walkway:
+    needs: select
+    if: ${{ !cancelled() && needs.select.outputs.north_walkway != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      WORLD_SMOKE_DISABLE_WEBGPU: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./.github/actions/setup-world-browser
+        with:
+          playwright-browser: chromium
+      # The full `apps/world/tests/*.test.mjs` run stays in Public local checks (`source`).
+      - name: Walkway contracts, World QA and actual engine disposal
+        run: |
+          node --test apps/world/tests/north-walkway*.test.mjs apps/world/tests/north-campus.test.mjs apps/world/tests/campus-navigation.test.mjs apps/world/tests/minimap-data.test.mjs
+          node apps/world/qa.mjs
+          node apps/world/tests/browser/north-landmark-null-smoke.mjs
+      - name: Pinned main, identical offline camera and performance sampler
+        env:
+          WALKWAY_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          WALKWAY_PR_BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          baseline=$(node apps/world/tests/browser/north-walkway-baseline.mjs)
+          git worktree add --detach /tmp/walkway-main "$baseline"
+          WALKWAY_WORLD_ROOT=/tmp/walkway-main/apps/world WALKWAY_OUTPUT=test-results/north-walkway/before EXPECTED_WALKWAY_HEAD="$baseline" node apps/world/tests/browser/north-walkway-smoke.mjs
+      - name: Exact head, 24 views and twelve real runtime Auto Move traversals
+        env:
+          EXPECTED_WALKWAY_HEAD: ${{ github.event.pull_request.head.sha }}
+          WALKWAY_OUTPUT: test-results/north-walkway/after
+        run: node apps/world/tests/browser/north-walkway-smoke.mjs
+      - name: Performance regression gate
+        run: node apps/world/tests/browser/north-walkway-compare.mjs test-results/north-walkway/before/report.json test-results/north-walkway/after/report.json test-results/north-walkway/comparison.json
+      - name: Exact original-versus-batched paving pixel parity
+        if: ${{ !cancelled() }}
+        run: node apps/world/tests/browser/north-walkway-pixel-parity.mjs test-results/north-walkway/after/report.json test-results/north-walkway/pixel-parity.json
+      - name: Diagnostic-only portrait component ablation
+        timeout-minutes: 5
+        if: ${{ !cancelled() }}
+        env:
+          EXPECTED_WALKWAY_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: node apps/world/tests/browser/north-walkway-ablation.mjs test-results/north-walkway/after/report.json test-results/north-walkway/ablation/report.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: north-walkway-exact-head-evidence
+          path: test-results/north-walkway/
+          if-no-files-found: error
+          retention-days: 14
