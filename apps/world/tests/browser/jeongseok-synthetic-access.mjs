@@ -13,6 +13,14 @@ async function shippedMain() {
 
 // Observe the actual browser-loaded main response. Active cases never rewrite the constructor,
 // access policies, RPCs, collision, positions or expiry; a changed served byte fails the test.
+// The campus page loads its entry module with a cache-busting query (/src/main.js?v=...).
+// Identify it by exact origin and exact path; the query is not part of its identity.
+export function isJeongseokShippedMainUrl(url, origin) {
+  try {
+    const parsed = new URL(url);
+    return parsed.origin === new URL(origin).origin && parsed.pathname === '/src/main.js';
+  } catch { return false; }
+}
 export async function verifyJeongseokShippedMain(response) {
   const source = await shippedMain();
   assert.equal(response.status(), 200, 'browser loaded shipped main successfully');

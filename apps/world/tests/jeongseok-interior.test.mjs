@@ -760,3 +760,19 @@ test("each room renders every module through merged geometry within a mobile-min
   for (const tier of Object.keys(GRAPHICS_PRESETS))
     assert.equal(interiorDetailForTier(tier), ["very_low", "low"].includes(tier) ? "low" : "full", tier);
 });
+
+test("browser smokes identify the shipped entry module by origin and path, ignoring its cache key", async () => {
+  const { isJeongseokShippedMainUrl } = await import("./browser/jeongseok-synthetic-access.mjs");
+  const { readFile } = await import("node:fs/promises");
+  const origin = "http://127.0.0.1:8000";
+  const html = await readFile(new URL("../campus/index.html", import.meta.url), "utf8");
+  const modules = [...html.matchAll(/<script type="module" data-world-boot src="([^"]+)"><\/script>/g)].map(match => match[1]);
+  const entries = modules.filter(src => isJeongseokShippedMainUrl(new URL(src, origin).href, origin));
+  assert.equal(entries.length, 1, "exactly one campus module is recognised as the entry: " + modules.join(", "));
+  assert.equal(isJeongseokShippedMainUrl(`${origin}/src/main.js`, origin), true);
+  assert.equal(isJeongseokShippedMainUrl(`${origin}/src/main.js?v=43ae4891e297`, `${origin}/`), true);
+  for (const other of [`${origin}/src/main.js.map`, `${origin}/src/main-gate-frame.js`, `${origin}/x/src/main.js`,
+    `${origin}/src/phone/main.js`, "http://127.0.0.1:9000/src/main.js", "https://127.0.0.1:8000/src/main.js",
+    "https://example.com/src/main.js?v=1", "not a url", ""])
+    assert.equal(isJeongseokShippedMainUrl(other, origin), false, other);
+});
