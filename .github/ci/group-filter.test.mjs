@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { GROUPS, SHARED_PATHS, select, inspect, triggerPaths, runAllPaths, outputKey } from './group-filter.mjs';
-import { declaredPaths } from './phone-surface-scope.mjs';
+import { declaredPaths, matchPath } from './phone-surface-scope.mjs';
 
 const chosen = result => Object.entries(result.suites).filter(([, run]) => run).map(([suite]) => suite);
 const all = id => Object.keys(GROUPS[id].suites);
@@ -18,9 +18,8 @@ test('a suite-only change selects only the suites that declare the path', () => 
   assert.equal(select('places', ['apps/world/src/culture-street-signs.js']).mode, 'selected');
 });
 
-test('shared files and CI plumbing run the whole group', () => {
-  for (const file of ['apps/world/src/main.js', 'apps/world/styles.css',
-    'apps/world/tests/browser/package.json', 'apps/world/tests/browser/package-lock.json',
+test('shared test infrastructure and CI plumbing run the whole group', () => {
+  for (const file of ['apps/world/tests/browser/package.json', 'apps/world/tests/browser/package-lock.json',
     'apps/world/tests/browser/harness.mjs', '.github/workflows/world-places-browser.yml',
     '.github/ci/group-filter.mjs', '.github/ci/phone-surface-scope.mjs',
     '.github/actions/setup-world-browser/action.yml']) {
@@ -29,11 +28,17 @@ test('shared files and CI plumbing run the whole group', () => {
     assert.deepEqual(chosen(result), all('places'), file);
   }
   // A shared file next to a suite file still runs everything.
-  assert.deepEqual(chosen(select('places', ['apps/world/src/culture-street-signs.js', 'apps/world/src/main.js'])), all('places'));
+  assert.deepEqual(chosen(select('places', ['apps/world/src/culture-street-signs.js', 'apps/world/tests/browser/harness.mjs'])), all('places'));
+});
+
+test('main.js runs only the suites whose original workflow declared it', () => {
+  assert.deepEqual(chosen(select('places', ['apps/world/src/main.js'])), ['jeongseok-interior']);
+  assert.deepEqual(chosen(select('places', ['apps/world/src/main.js', 'apps/world/src/roadview-details.js'])),
+    ['jeongseok-interior', 'north-landmark']);
 });
 
 test('unknown or malformed input never skips a suite', () => {
-  for (const files of [[], null, undefined, [''], [42], ['a\0b'], ['docs/readme.md']])
+  for (const files of [[], null, undefined, [''], [42], ['a\0b'], ['docs/readme.md'], ['apps/world/styles.css']])
     assert.deepEqual(chosen(select('places', files)), all('places'), JSON.stringify(files));
   assert.equal(select('nope', ['x']), null);
   assert.equal(inspect('nope'), null);
@@ -61,12 +66,35 @@ test('inspect compares against the merge base and fails closed', () => {
 });
 
 for (const id of Object.keys(GROUPS)) {
+  // While the original workflows still exist: whatever made one of them run must
+  // still select its suite. Guards against a trigger vanishing from both the new
+  // workflow and the filter at once. Remove a `legacy` entry with its workflow file.
+  test(id + ': no original trigger was dropped', () => {
+    const legacy = GROUPS[id].legacy ?? {};
+    assert.deepEqual(Object.keys(legacy).sort(), all(id).sort());
+    for (const [suite, file] of Object.entries(legacy)) {
+      const text = readFileSync(new URL('../workflows/' + file, import.meta.url), 'utf8');
+      const original = declaredPaths(text, text.split('\n')[0].slice('name: '.length));
+      assert.ok(original, file + ' paths must be parseable');
+      for (const pattern of original) {
+        if (pattern === '.github/workflows/' + file) continue;
+        assert.ok(GROUPS[id].suites[suite].includes(pattern) || runAllPaths(id).includes(pattern),
+          suite + ' lost trigger ' + pattern);
+        // Same pattern text selects the same files; probe one concrete path too.
+        const probe = pattern.replaceAll('**', 'x/y').replaceAll('*', 'x');
+        assert.ok(matchPath(pattern, probe), pattern);
+        assert.equal(select(id, [probe]).suites[suite], true, suite + ' not selected for ' + probe);
+      }
+    }
+  });
+
   test(id + ': workflow triggers match the filter exactly', () => {
     const declared = declaredPaths(workflow(id), GROUPS[id].name);
     assert.ok(declared, 'paths block must be parseable');
     assert.deepEqual([...declared].sort(), [...triggerPaths(id)].sort());
     assert.equal(new Set(declared).size, declared.length);
     for (const shared of SHARED_PATHS) assert.ok(runAllPaths(id).includes(shared));
+    assert.ok(!SHARED_PATHS.includes('apps/world/src/main.js'));
   });
 
   test(id + ': every suite has one fail-closed job and a unique artifact', () => {

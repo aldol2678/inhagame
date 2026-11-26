@@ -7,10 +7,12 @@ import { execFileSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { matchPath } from './phone-surface-scope.mjs';
 
-// A change to any of these runs every suite of every group.
+// Files every World browser suite consumes: each one installs from this lockfile and
+// each smoke imports the shared harness. A change runs every suite of every group.
+// Other widely used files (main.js, styles.css) are NOT listed here: a suite runs for
+// them only if the workflow it replaces already declared them, so a group never fans
+// out wider than its original workflows did.
 export const SHARED_PATHS = Object.freeze([
-  'apps/world/src/main.js',
-  'apps/world/styles.css',
   'apps/world/tests/browser/package*.json',
   'apps/world/tests/browser/harness.mjs'
 ]);
@@ -22,12 +24,21 @@ const COMMON_INFRA = Object.freeze([
   '.github/actions/setup-world-browser/**'
 ]);
 
-// Suite path lists are the trigger paths of the workflows each group replaces,
-// minus the replaced workflow file itself and the shared paths above.
+// Suite path lists are the trigger paths of the workflows each group replaces, minus
+// the replaced workflow file itself. `legacy` names those workflows while they still
+// exist so the tests can prove no original trigger was dropped.
 export const GROUPS = Object.freeze({
   places: Object.freeze({
     workflow: 'world-places-browser.yml',
     name: 'World places browser QA',
+    legacy: Object.freeze({
+      'backgate-shopfront': 'backgate-shopfront-browser.yml',
+      'backgate-restoration': 'backgate-restoration-browser.yml',
+      'jeongseok-gate': 'jeongseok-gate-browser.yml',
+      'jeongseok-interior': 'jeongseok-interior-browser.yml',
+      'north-landmark': 'north-landmark-browser.yml',
+      'north-walkway': 'north-walkway-browser.yml'
+    }),
     suites: Object.freeze({
       'backgate-shopfront': [
         'apps/world/src/backgate-shopfront-geometry.js',
@@ -64,6 +75,7 @@ export const GROUPS = Object.freeze({
         'apps/world/src/rooms/room-registry.js',
         'apps/world/src/rooms/room-transition.js',
         'apps/world/src/rooms/room-world-adapter.js',
+        'apps/world/src/main.js',
         'apps/world/tests/jeongseok-interior.test.mjs',
         'apps/world/tests/browser/jeongseok-interior-smoke.mjs'
       ],

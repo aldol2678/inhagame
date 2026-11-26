@@ -49,7 +49,6 @@ on:
       - 'apps/world/tests/*north-walkway*'
       - 'apps/world/tests/browser/north-walkway-*'
       - 'apps/world/src/main.js'
-      - 'apps/world/styles.css'
       - 'apps/world/tests/browser/package*.json'
       - 'apps/world/tests/browser/harness.mjs'
       - '.github/ci/group-filter.mjs'
