@@ -13,6 +13,14 @@ async function shippedMain() {
 
 // Observe the actual browser-loaded main response. Active cases never rewrite the constructor,
 // access policies, RPCs, collision, positions or expiry; a changed served byte fails the test.
+// The campus page loads its entry module with a cache-busting query (/src/main.js?v=...).
+// Identify it by exact origin and exact path; the query is not part of its identity.
+export function isJeongseokShippedMainUrl(url, origin) {
+  try {
+    const parsed = new URL(url);
+    return parsed.origin === new URL(origin).origin && parsed.pathname === '/src/main.js';
+  } catch { return false; }
+}
 export async function verifyJeongseokShippedMain(response) {
   const source = await shippedMain();
   assert.equal(response.status(), 200, 'browser loaded shipped main successfully');
@@ -30,9 +38,11 @@ export async function installJeongseokClosedMode(context) {
     assert.ok(isJeongseokVisualPreviewHost(new URL(route.request().url()).hostname), 'closed fixture is loopback-only');
     return route.fulfill({ status: 200, contentType: 'text/javascript; charset=utf-8', body: candidate });
   };
-  await context.route('**/src/main.js', handler);
+  // Path match, not a URL glob: the page requests the entry module with a cache key.
+  const matcher = url => url.pathname === '/src/main.js';
+  await context.route(matcher, handler);
   return { mode: 'TEST_ONLY_CLOSED_CONSTRUCTOR', shippedMainSha256: sha256(source), servedMainSha256: sha256(candidate),
-    restore: () => context.unroute('**/src/main.js', handler) };
+    restore: () => context.unroute(matcher, handler) };
 }
 
 // Browser-only dependency fixture: synthetic Auth identity and Supabase RPC replies.

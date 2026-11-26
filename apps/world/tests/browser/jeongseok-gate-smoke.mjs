@@ -8,7 +8,7 @@
 // Scope: Chromium desktop + mobile touch emulation (not physical devices). Public lobby is free;
 // the public-side guide sells passes, and the inner reader re-verifies before opening real collision.
 import assert from 'node:assert/strict';
-import { verifyJeongseokShippedMain } from './jeongseok-synthetic-access.mjs';
+import { verifyJeongseokShippedMain, isJeongseokShippedMainUrl } from './jeongseok-synthetic-access.mjs';
 import { execFileSync, spawn } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
@@ -88,7 +88,7 @@ async function openWorld(entry, { viewport, mobile = false, account = null }) {
   const page = await context.newPage(); page.setDefaultTimeout(60000); currentPage = page;
   page.on('pageerror', e => problems.push(`pageerror: ${e.message}`));
   const [mainResponse] = await Promise.all([
-    page.waitForResponse(response => response.url() === `${origin}/src/main.js`, { timeout: 60000 }),
+    page.waitForResponse(response => isJeongseokShippedMainUrl(response.url(), origin), { timeout: 60000 }),
     page.goto(`${origin}/campus/?envTime=day&envWeather=clear`, { waitUntil: 'domcontentloaded' })
   ]);
   entry.shippedMain = await verifyJeongseokShippedMain(mainResponse);

@@ -14,7 +14,7 @@ import { execFileSync } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { startSmoke, TIMEOUT_MS } from "./harness.mjs";
-import { verifyJeongseokShippedMain, installJeongseokClosedMode, installSyntheticJeongseokAccess } from "./jeongseok-synthetic-access.mjs";
+import { verifyJeongseokShippedMain, isJeongseokShippedMainUrl, installJeongseokClosedMode, installSyntheticJeongseokAccess } from "./jeongseok-synthetic-access.mjs";
 
 const output = path.resolve(process.env.JSL_B_QA_OUTPUT || "test-results/jeongseok-interior");
 await mkdir(output, { recursive: true });
@@ -38,7 +38,7 @@ async function boot(smoke, query, { verifyShipped = true } = {}) {
   const page = await smoke.context.newPage();
   const fatal = smoke.watch(page);
   const [mainResponse] = await Promise.all([
-    page.waitForResponse(response => response.url() === `${smoke.origin}/src/main.js`, { timeout: TIMEOUT_MS }),
+    page.waitForResponse(response => isJeongseokShippedMainUrl(response.url(), smoke.origin), { timeout: TIMEOUT_MS }),
     page.goto(`${smoke.origin}/campus/${query}`, { waitUntil: "domcontentloaded", timeout: TIMEOUT_MS })
   ]);
   const shippedMain = verifyShipped ? await verifyJeongseokShippedMain(mainResponse) : null;
