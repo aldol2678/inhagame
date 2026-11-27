@@ -107,9 +107,9 @@ export const GROUPS = Object.freeze({
     legacy: Object.freeze({
       'housing': 'housing-browser.yml',
       'life-housing': 'life-housing-browser.yml',
+      'life-skill-tree-recovery': 'life-skill-tree-recovery-browser.yml',
       'starter-furniture': 'starter-furniture-browser.yml',
       'room-transition-recovery': 'room-transition-recovery-browser.yml',
-      'cooking-candidate': 'cooking-candidate-browser.yml',
       'wardrobe-inventory-retry': 'wardrobe-inventory-retry-browser.yml'
     }),
     suites: Object.freeze({
@@ -168,6 +168,12 @@ export const GROUPS = Object.freeze({
         'apps/world/campus/index.html',
         'apps/world/dev-server.mjs'
       ],
+      'life-skill-tree-recovery': [
+        'apps/world/src/life-skills/life-skill-book-*.js',
+        'apps/world/tests/life-skill-book.test.mjs',
+        'apps/world/styles.css',
+        'apps/world/tests/browser/life-skill-tree-recovery-*'
+      ],
       'starter-furniture': [
         'apps/world/src/shop/**',
         'apps/world/src/rooms/**',
@@ -190,27 +196,6 @@ export const GROUPS = Object.freeze({
         'apps/world/tests/room-transition-*.test.mjs',
         'apps/world/tests/space-fade.test.mjs',
         'apps/world/tests/browser/room-transition-recovery-*'
-      ],
-      'cooking-candidate': [
-        '.github/ci/phone-surface-scope*.mjs',
-        '.github/ci/seo-only-scope*.mjs',
-        'apps/world/src/rooms/cooking-*.js',
-        'apps/world/src/rooms/furniture-*.js',
-        'apps/world/src/rooms/personal-room-layout.js',
-        'apps/world/src/rooms/room-session.js',
-        'apps/world/src/player-dimensions.js',
-        'apps/world/src/collection/item-catalog.js',
-        'apps/world/src/inventory/**',
-        'apps/world/src/main.js',
-        'apps/world/styles.css',
-        'apps/world/dev-server.mjs',
-        'apps/world/campus/index.html',
-        'apps/world/editor/index.html',
-        'apps/world/tests/cooking-*.test.mjs',
-        'apps/world/tests/support/fake-dom.mjs',
-        'apps/world/tests/browser/cooking-candidate-*',
-        'apps/world/tests/browser/harness*.mjs',
-        'supabase/migrations/*cooking*'
       ],
       'wardrobe-inventory-retry': [
         'apps/world/src/appearance/wardrobe-panel.js',

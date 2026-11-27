@@ -1,5 +1,5 @@
 name: World housing browser QA
-# Personal room, furniture, cooking and wardrobe browser suites in one workflow. The
+# Personal room, furniture, wardrobe and Life Skill browser suites in one workflow. The
 # `select` job decides which suites a pull request touches (.github/ci/group-filter.mjs);
 # a suite runs unless that job positively reports `false` for it.
 on:
@@ -52,6 +52,9 @@ on:
       - 'apps/world/styles.css'
       - 'apps/world/phone.css'
       - 'apps/world/campus/index.html'
+      - 'apps/world/src/life-skills/life-skill-book-*.js'
+      - 'apps/world/tests/life-skill-book.test.mjs'
+      - 'apps/world/tests/browser/life-skill-tree-recovery-*'
       - 'apps/world/tests/starter-furniture-*.test.mjs'
       - 'apps/world/tests/browser/starter-furniture-*'
       - 'supabase/migrations/**'
@@ -67,16 +70,6 @@ on:
       - 'apps/world/tests/room-transition-*.test.mjs'
       - 'apps/world/tests/space-fade.test.mjs'
       - 'apps/world/tests/browser/room-transition-recovery-*'
-      - 'apps/world/src/rooms/cooking-*.js'
-      - 'apps/world/src/rooms/furniture-*.js'
-      - 'apps/world/src/rooms/personal-room-layout.js'
-      - 'apps/world/src/rooms/room-session.js'
-      - 'apps/world/editor/index.html'
-      - 'apps/world/tests/cooking-*.test.mjs'
-      - 'apps/world/tests/support/fake-dom.mjs'
-      - 'apps/world/tests/browser/cooking-candidate-*'
-      - 'apps/world/tests/browser/harness*.mjs'
-      - 'supabase/migrations/*cooking*'
       - 'apps/world/src/appearance/wardrobe-panel.js'
       - 'apps/world/src/appearance/loadout-client.js'
       - 'apps/world/src/collection/item-acquisition-guide*'
@@ -104,9 +97,9 @@ jobs:
     outputs:
       housing: ${{ steps.filter.outputs.housing }}
       life_housing: ${{ steps.filter.outputs.life_housing }}
+      life_skill_tree_recovery: ${{ steps.filter.outputs.life_skill_tree_recovery }}
       starter_furniture: ${{ steps.filter.outputs.starter_furniture }}
       room_transition_recovery: ${{ steps.filter.outputs.room_transition_recovery }}
-      cooking_candidate: ${{ steps.filter.outputs.cooking_candidate }}
       wardrobe_inventory_retry: ${{ steps.filter.outputs.wardrobe_inventory_retry }}
     steps:
       - uses: actions/checkout@v4
@@ -273,6 +266,38 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  life-skill-tree-recovery:
+    needs: select
+    if: ${{ !cancelled() && needs.select.outputs.life_skill_tree_recovery != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: ./.github/actions/setup-world-browser
+        with:
+          playwright-browser: chromium
+      - name: Install Korean glyph coverage
+        run: sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+      - name: Verify read recovery and stale-response regressions
+        run: node --test apps/world/tests/life-skill-book.test.mjs
+      - name: Render offline read failure and retry flows
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          EXPECTED_LIFE_TREE_HEAD: ${{ github.event.pull_request.head.sha }}
+          LIFE_TREE_QA_OUTPUT: test-results/life-skill-tree-recovery
+        run: node apps/world/tests/browser/life-skill-tree-recovery-smoke.mjs
+      - name: Save exact-head browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: life-skill-tree-recovery-${{ github.event.pull_request.head.sha }}
+          path: test-results/life-skill-tree-recovery/
+          if-no-files-found: error
+          retention-days: 14
+
   starter-furniture:
     needs: select
     if: ${{ !cancelled() && needs.select.outputs.starter_furniture != 'false' }}
@@ -407,69 +432,6 @@ jobs:
           path: test-results/room-transition-recovery/
           if-no-files-found: error
           retention-days: 7
-
-  cooking-candidate:
-    needs: select
-    if: ${{ !cancelled() && needs.select.outputs.cooking_candidate != 'false' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          persist-credentials: false
-          fetch-depth: 128
-      - name: Select affected browser suite (fail-closed)
-        id: phone_scope
-        env:
-          CI_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          CI_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          CI_PR_TITLE: ${{ github.event.pull_request.title }}
-          # The scope gate is keyed by the original workflow name and reads its paths.
-          CI_WORKFLOW_NAME: Cooking candidate browser QA
-        run: node .github/ci/phone-surface-scope.mjs >> "$GITHUB_OUTPUT"
-      - name: Capture immutable candidate identity
-        if: steps.phone_scope.outputs.skip != 'true'
-        env:
-          EXPECTED_COOKING_HEAD: ${{ github.event.pull_request.head.sha }}
-        run: |
-          mkdir -p test-results/cooking-candidate
-          git rev-parse HEAD | tee test-results/cooking-candidate/head.txt
-          test "$(git rev-parse HEAD)" = "$EXPECTED_COOKING_HEAD"
-      - name: Install pinned Node, browser dependencies and Chromium
-        if: steps.phone_scope.outputs.skip != 'true'
-        uses: ./.github/actions/setup-world-browser
-        with:
-          playwright-browser: chromium
-      - name: Install Korean glyph coverage
-        if: steps.phone_scope.outputs.skip != 'true'
-        run: sudo apt-get install -y --no-install-recommends fonts-noto-cjk
-      - name: Check production cooking regressions and fixture syntax
-        if: steps.phone_scope.outputs.skip != 'true'
-        shell: bash
-        run: |
-          set -o pipefail
-          node --check apps/world/tests/browser/cooking-candidate-fixture.mjs
-          node --check apps/world/tests/browser/cooking-candidate-smoke.mjs
-          node --test apps/world/tests/cooking-client.test.mjs apps/world/tests/cooking-feature.test.mjs apps/world/tests/cooking-panel.test.mjs apps/world/tests/cooking-runtime-wiring.test.mjs 2>&1 | tee test-results/cooking-candidate/node-tests.log
-      - name: Exercise real DOM with synthetic local cooking and Inventory only
-        if: steps.phone_scope.outputs.skip != 'true'
-        shell: bash
-        env:
-          WORLD_SMOKE_DISABLE_WEBGPU: '1'
-          EXPECTED_COOKING_HEAD: ${{ github.event.pull_request.head.sha }}
-          COOKING_QA_OUTPUT: test-results/cooking-candidate
-        run: |
-          set -o pipefail
-          node apps/world/tests/browser/cooking-candidate-smoke.mjs 2>&1 | tee test-results/cooking-candidate/browser.log
-      - name: Save exact-head logs, screenshots and source hashes
-        if: always() && steps.phone_scope.outputs.skip != 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: cooking-candidate-browser-${{ github.event.pull_request.head.sha }}
-          path: test-results/cooking-candidate/
-          if-no-files-found: error
-          retention-days: 14
 
   wardrobe-inventory-retry:
     needs: select
