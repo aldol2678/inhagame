@@ -39,7 +39,8 @@ for(const [name,viewport,mobile] of cases){
       result.checks.push('Production source defaults CLOSED; no trial entry; direct open denied');
     }
     await smoke.context.addInitScript(() => { globalThis.__COMMISSION_ACCOUNT__ = 'fixture-a'; });
-    await smoke.context.route('**/src/main.js',route=>{
+    // Path match: the campus page requests its entry module with a cache key (/src/main.js?v=...).
+    await smoke.context.route(url=>url.pathname==='/src/main.js',route=>{
       const needle='commissionTrials = createCommissionTrialFeature({\n  getAccountId: () => roomFunctionAccountId,';
       assert.equal(source.split(needle).length,2);
       return route.fulfill({status:200,contentType:'text/javascript',body:source.replace(needle,

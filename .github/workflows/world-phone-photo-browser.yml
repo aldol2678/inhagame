@@ -1,0 +1,372 @@
+name: World phone and photo browser QA
+# Smartphone, Phone Learning and Photo Mode browser suites in one workflow. The `select`
+# job decides which suites a pull request touches (.github/ci/group-filter.mjs); a suite
+# runs unless that job positively reports `false` for it.
+on:
+  pull_request:
+    paths:
+      - 'apps/world/src/phone/**'
+      - 'apps/world/src/commissions/**'
+      - 'apps/world/src/quest/quest-journal.js'
+      - 'apps/world/tests/commission-*.test.mjs'
+      - 'apps/world/tests/cooking-trial.test.mjs'
+      - 'apps/world/tests/sample-room-trial*.test.mjs'
+      - 'apps/world/tests/browser/commission-trial-campus-smoke.mjs'
+      - 'apps/world/src/photo/**'
+      - 'apps/world/src/input/**'
+      - 'apps/world/src/minimap/**'
+      - 'apps/world/src/main.js'
+      - 'apps/world/campus/index.html'
+      - 'apps/world/phone.css'
+      - 'apps/world/tests/phone-*.test.mjs'
+      - 'apps/world/tests/browser/phone-campus-smoke.mjs'
+      - 'apps/world/tests/browser/phone-album-manager-smoke.mjs'
+      - 'apps/world/tests/browser/phone-messages-*'
+      - 'apps/world/src/learning/**'
+      - 'apps/world/src/learning-web/**'
+      - 'apps/world/learn/**'
+      - 'apps/world/learn.css'
+      - 'apps/world/dev-server.mjs'
+      - 'apps/world/vercel.json'
+      - 'apps/world/tests/learning-web.test.mjs'
+      - 'apps/world/tests/browser/learning-web-*'
+      - 'apps/world/campus/induck-store-v0.2.1.html'
+      - 'apps/world/learning.css'
+      - 'apps/world/tests/support/learning-*.mjs'
+      - 'apps/world/tests/browser/phone-learning-*'
+      - 'supabase/migrations/*learning*'
+      - 'supabase/tests/**/*learning*'
+      - 'scripts/learning-cloud-local.mjs'
+      - 'apps/world/src/phone/smartphone.js'
+      - 'apps/world/src/world-collision.js'
+      - 'apps/world/src/player-controller.js'
+      - 'apps/world/src/campus-layout.js'
+      - 'apps/world/src/world-exterior-bounds.js'
+      - 'apps/world/src/main-gate-frame.js'
+      - 'apps/world/src/editor/main-gate-production.js'
+      - 'apps/world/src/student-center-*.js'
+      - 'apps/world/src/orbit-camera-controller.js'
+      - 'apps/world/styles.css'
+      - 'apps/world/npc-factory/dev-runtime-state.mjs'
+      - 'apps/world/tests/photo-*.test.mjs'
+      - 'apps/world/tests/inkyung-photo-point.test.mjs'
+      - 'apps/world/tests/world-bounds-boot-order.test.mjs'
+      - 'apps/world/tests/browser/ipad-webkit-boot-smoke.mjs'
+      - 'apps/world/tests/browser/photo-mode-*'
+      - 'apps/world/tests/browser/package*.json'
+      - 'apps/world/tests/browser/harness.mjs'
+      - '.github/ci/group-filter.mjs'
+      - '.github/ci/group-filter.test.mjs'
+      - '.github/ci/phone-surface-scope.mjs'
+      - '.github/actions/setup-world-browser/**'
+      - '.github/workflows/world-phone-photo-browser.yml'
+permissions:
+  contents: read
+concurrency:
+  group: world-phone-photo-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  select:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      phone: ${{ steps.filter.outputs.phone }}
+      phone_learning: ${{ steps.filter.outputs.phone_learning }}
+      photo_mode: ${{ steps.filter.outputs.photo_mode }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - name: Test suite selection
+        run: node --test .github/ci/group-filter.test.mjs
+      - name: Select suites touched by this pull request
+        id: filter
+        env:
+          CI_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CI_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node .github/ci/group-filter.mjs phone-photo >> "$GITHUB_OUTPUT"
+
+  phone:
+    needs: select
+    if: ${{ !cancelled() && needs.select.outputs.phone != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Install readable Korean glyphs
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+      - uses: ./.github/actions/setup-world-browser
+      - name: Verify Phone ownership, account isolation and persistence
+        run: node --test apps/world/tests/phone-*.test.mjs
+      - name: Verify closed-by-default commission trials in the actual campus
+        if: ${{ !cancelled() }}
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+          COMMISSION_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: timeout --signal=TERM --kill-after=10s 480s node apps/world/tests/browser/commission-trial-campus-smoke.mjs
+      - name: Save commission trial screenshots before legacy Phone regressions
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: commission-trials-${{ github.event.pull_request.head.sha }}
+          path: test-results/commission-trials/
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Exercise actual campus Phone on desktop and both mobile orientations
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+          PHONE_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: timeout --signal=TERM --kill-after=10s 900s node apps/world/tests/browser/phone-campus-smoke.mjs
+      - name: Verify album storage, ZIP bytes, cancellation and account isolation
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+        run: timeout --signal=TERM --kill-after=10s 600s node apps/world/tests/browser/phone-album-manager-smoke.mjs
+      - name: Verify member Messages (synthetic RPC) and account-isolation browser matrix
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+          PHONE_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: timeout --signal=TERM --kill-after=10s 480s node apps/world/tests/browser/phone-messages-smoke.mjs
+      - name: Save source hashes, PNG captures and browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phone-browser-evidence
+          path: |
+            test-results/phone-campus/
+            test-results/phone-album-manager/
+            test-results/phone-messages/
+            test-results/commission-trials/
+          if-no-files-found: error
+          retention-days: 7
+
+  phone-learning:
+    needs: select
+    if: ${{ !cancelled() && needs.select.outputs.phone_learning != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Install pinned Node, browser dependencies and Chromium
+        uses: ./.github/actions/setup-world-browser
+        with:
+          playwright-browser: chromium
+      - name: Install Korean glyph coverage
+        run: sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+      - name: Exact head and targeted regressions
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          node --test apps/world/tests/learning-web.test.mjs apps/world/tests/phone-*.test.mjs apps/world/tests/daily-quiz.test.mjs apps/world/tests/daily-panel-focus.test.mjs apps/world/tests/daily-reward-readback.test.mjs apps/world/tests/pwa-shortcuts.test.mjs
+      - name: Learning persistence and account matrix (synthetic content only)
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          PHONE_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          node apps/world/tests/browser/phone-learning-smoke.mjs
+          node apps/world/tests/browser/phone-learning-remediation-smoke.mjs
+      - name: Actual campus learning and Phone regressions (offline)
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          PHONE_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: timeout --signal=TERM --kill-after=10s 600s node apps/world/tests/browser/phone-learning-campus-smoke.mjs
+      - name: Standalone web route, auth isolation and actual World launcher
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          PHONE_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          node apps/world/tests/browser/learning-web-smoke.mjs
+          timeout --signal=TERM --kill-after=10s 600s node apps/world/tests/browser/learning-web-campus-smoke.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: phone-learning-${{ github.event.pull_request.head.sha }}
+          path: |
+            test-results/phone-learning/
+            test-results/phone-learning-remediation/
+            test-results/phone-learning-campus/
+            test-results/learning-web/
+            test-results/learning-web-campus/
+          if-no-files-found: warn
+          retention-days: 7
+
+  phone-learning-cloud:
+    needs: select
+    if: ${{ !cancelled() && needs.select.outputs.phone_learning != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Install pinned Node, browser, Supabase SDK test client and Chromium
+        uses: ./.github/actions/setup-world-browser
+        with:
+          playwright-browser: chromium
+      - name: Install Korean glyph coverage
+        run: sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+      - uses: supabase/setup-cli@v3
+        with:
+          version: 2.117.0
+      - name: Exact head
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+      - name: Start disposable full-lineage database and Auth API
+        run: supabase start -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
+      - name: SQL RLS and Auth/PostgREST concurrency and economy guards
+        run: |
+          supabase test db supabase/tests/database/96_learning_progress.test.sql supabase/tests/database/97_learning_remediation.test.sql
+          node scripts/learning-cloud-local.mjs
+      - name: Real local Auth and cloud browser matrix
+        env:
+          PHONE_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          node scripts/learning-cloud-local.mjs --browser
+          node scripts/learning-cloud-local.mjs --web-browser
+      - name: Stop disposable database
+        if: always()
+        run: supabase stop --no-backup
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: phone-learning-cloud-${{ github.event.pull_request.head.sha }}
+          path: |
+            test-results/phone-learning-cloud/
+            test-results/learning-web-cloud/
+          if-no-files-found: warn
+          retention-days: 7
+
+  photo-mode:
+    needs: select
+    if: ${{ !cancelled() && needs.select.outputs.photo_mode != 'false' }}
+    name: photo-mode-chromium-${{ matrix.shard }}
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ matrix.timeout }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shard: controls
+            timeout: 15
+            smoke: photo-mode-smoke.mjs
+            smoke-seconds: 420
+            output-variable: PHOTO_MODE_QA_OUTPUT
+          - shard: png
+            timeout: 10
+            smoke: photo-mode-png-smoke.mjs
+            smoke-seconds: 240
+            output-variable: PHOTO_PNG_QA_OUTPUT
+          - shard: campus
+            timeout: 30
+            smoke: photo-mode-campus-smoke.mjs
+            smoke-seconds: 1560
+            output-variable: PHOTO_MODE_QA_OUTPUT
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Install readable Korean glyphs
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+      - uses: ./.github/actions/setup-world-browser
+      - name: Verify photo lifecycle, rig, input and NPC anchor contracts
+        if: matrix.shard == 'controls'
+        run: |
+          node --test apps/world/tests/photo-*.test.mjs apps/world/tests/inkyung-photo-point.test.mjs apps/world/tests/world-boot-diagnostics.test.mjs
+          node apps/world/npc-factory/tests-dev-runtime.mjs
+      - name: Run the ${{ matrix.shard }} Photo Mode smoke
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+          PHOTO_MODE_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          OUTPUT_VARIABLE: ${{ matrix.output-variable }}
+          SHARD: ${{ matrix.shard }}
+          SMOKE: ${{ matrix.smoke }}
+          SMOKE_SECONDS: ${{ matrix.smoke-seconds }}
+        run: |
+          export "${OUTPUT_VARIABLE}=test-results/photo-mode/${SHARD}"
+          timeout --signal=TERM --kill-after=10s "${SMOKE_SECONDS}s" node "apps/world/tests/browser/${SMOKE}"
+      - name: Preserve ${{ matrix.shard }} evidence shard
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: photo-mode-part-${{ matrix.shard }}
+          path: test-results/photo-mode/
+          if-no-files-found: warn
+          retention-days: 1
+
+  photo-mode-evidence:
+    name: photo-mode-chromium
+    runs-on: ubuntu-latest
+    if: ${{ always() && needs.select.outputs.photo_mode != 'false' }}
+    needs:
+      - select
+      - photo-mode
+    timeout-minutes: 5
+    steps:
+      - name: Collect Chromium evidence shards
+        if: ${{ always() }}
+        uses: actions/download-artifact@v4
+        with:
+          pattern: photo-mode-part-*
+          path: test-results/photo-mode
+          merge-multiple: true
+      - name: Save exact-head photo evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: photo-mode-browser-evidence
+          path: test-results/photo-mode/
+          if-no-files-found: error
+          retention-days: 7
+      - name: Require all Chromium shards
+        if: ${{ always() }}
+        env:
+          SHARDS_RESULT: ${{ needs.photo-mode.result }}
+        run: test "$SHARDS_RESULT" = "success"
+
+  photo-mode-ipad-webkit-boot:
+    needs: select
+    if: ${{ !cancelled() && needs.select.outputs.photo_mode != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Cache Playwright WebKit
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-webkit-${{ runner.os }}-${{ hashFiles('apps/world/tests/browser/package-lock.json') }}
+      - uses: ./.github/actions/setup-world-browser
+        with:
+          playwright-browser: webkit
+      - name: Verify boot-order ownership contract
+        run: node --test apps/world/tests/world-bounds-boot-order.test.mjs
+      - name: Verify iPad-class WebKit reaches Main Lobby
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+        run: timeout --signal=TERM --kill-after=10s 180s node apps/world/tests/browser/ipad-webkit-boot-smoke.mjs

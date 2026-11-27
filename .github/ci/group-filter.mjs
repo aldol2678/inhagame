@@ -210,6 +210,80 @@ export const GROUPS = Object.freeze({
         'apps/world/tests/browser/wardrobe-inventory-retry-*'
       ]
     })
+  }),
+  'phone-photo': Object.freeze({
+    workflow: 'world-phone-photo-browser.yml',
+    name: 'World phone and photo browser QA',
+    legacy: Object.freeze({
+      'phone': 'phone-browser.yml',
+      'phone-learning': 'phone-learning-browser.yml',
+      'photo-mode': 'photo-mode-browser.yml'
+    }),
+    suites: Object.freeze({
+      'phone': [
+        'apps/world/src/phone/**',
+        'apps/world/src/commissions/**',
+        'apps/world/src/quest/quest-journal.js',
+        'apps/world/tests/commission-*.test.mjs',
+        'apps/world/tests/cooking-trial.test.mjs',
+        'apps/world/tests/sample-room-trial*.test.mjs',
+        'apps/world/tests/browser/commission-trial-campus-smoke.mjs',
+        'apps/world/src/photo/**',
+        'apps/world/src/input/**',
+        'apps/world/src/minimap/**',
+        'apps/world/src/main.js',
+        'apps/world/campus/index.html',
+        'apps/world/phone.css',
+        'apps/world/tests/phone-*.test.mjs',
+        'apps/world/tests/browser/phone-campus-smoke.mjs',
+        'apps/world/tests/browser/phone-album-manager-smoke.mjs',
+        'apps/world/tests/browser/phone-messages-*'
+      ],
+      'phone-learning': [
+        'apps/world/src/learning/**',
+        'apps/world/src/learning-web/**',
+        'apps/world/learn/**',
+        'apps/world/learn.css',
+        'apps/world/phone.css',
+        'apps/world/dev-server.mjs',
+        'apps/world/vercel.json',
+        'apps/world/tests/learning-web.test.mjs',
+        'apps/world/tests/browser/learning-web-*',
+        'apps/world/src/phone/**',
+        'apps/world/src/main.js',
+        'apps/world/campus/index.html',
+        'apps/world/campus/induck-store-v0.2.1.html',
+        'apps/world/learning.css',
+        'apps/world/tests/phone-*.test.mjs',
+        'apps/world/tests/support/learning-*.mjs',
+        'apps/world/tests/browser/phone-learning-*',
+        'supabase/migrations/*learning*',
+        'supabase/tests/**/*learning*',
+        'scripts/learning-cloud-local.mjs'
+      ],
+      'photo-mode': [
+        'apps/world/src/phone/smartphone.js',
+        'apps/world/src/photo/**',
+        'apps/world/src/main.js',
+        'apps/world/src/world-collision.js',
+        'apps/world/src/player-controller.js',
+        'apps/world/src/campus-layout.js',
+        'apps/world/src/world-exterior-bounds.js',
+        'apps/world/src/main-gate-frame.js',
+        'apps/world/src/editor/main-gate-production.js',
+        'apps/world/src/student-center-*.js',
+        'apps/world/src/orbit-camera-controller.js',
+        'apps/world/src/input/**',
+        'apps/world/campus/index.html',
+        'apps/world/styles.css',
+        'apps/world/npc-factory/dev-runtime-state.mjs',
+        'apps/world/tests/photo-*.test.mjs',
+        'apps/world/tests/inkyung-photo-point.test.mjs',
+        'apps/world/tests/world-bounds-boot-order.test.mjs',
+        'apps/world/tests/browser/ipad-webkit-boot-smoke.mjs',
+        'apps/world/tests/browser/photo-mode-*'
+      ]
+    })
   })
 });
 
