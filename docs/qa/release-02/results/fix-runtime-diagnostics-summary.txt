@@ -1,0 +1,10 @@
+ℹ tests 100
+ℹ pass 100
+ℹ fail 0
+runtime diagnostics fixture: PASS (desktop)
+runtime diagnostics fixture: PASS (portrait)
+runtime diagnostics fixture: PASS (landscape)
+runtime diagnostics campus integration: PASS
+mobile HUD smoke: PASS {"initial":{"viewport":{"width":360,"height":800},"hud":{"mode":"EXPLORE","overlay":"NONE","inputFocus":"GAMEPLAY"},"minimapFilter":"drop
+main lobby responsive layout smoke: PASS
+main lobby-layout-smoke: AssertionError [ERR_ASSERTION]: mobile-390: #lobby-presence-summary visible

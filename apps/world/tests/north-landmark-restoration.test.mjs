@@ -11,7 +11,8 @@ import {canOccupy,resolveHeight,cameraSafeFraction} from '../src/world-collision
 import {AGORA,ROADVIEW_OBSTACLES,roadviewGroundHeight} from '../src/roadview-layout.js';
 import {campusNavGraphData,campusNavPolylines,CAMPUS_NAV_TOLERANCE,canConnectCampusJunction} from '../src/navigation/campus-navigation.js';
 import {buildNavGraph,largestNavComponent} from '../src/navigation/nav-graph.js';
-import {SITE_FEATURES} from '../src/basic-campus.js';
+import {BUILDINGS,SITE_FEATURES} from '../src/basic-campus.js';
+import {HALL_FOUNDATION_HEIGHT} from '../src/main-hall-approach.js';
 import {CAMPUS_ROADS,CAMPUS_PATH_WIDTHS} from '../src/campus-road-layout.js';
 import {OBSTACLES} from '../src/campus-layout.js';
 import {inferCampusMaterialProfile} from '../src/campus-material-profile.js';
@@ -24,8 +25,17 @@ const digest=value=>createHash('sha256').update(JSON.stringify(value)).digest('h
 // The walkway mission adds exactly two physical south-corner links. Keep the
 // original golden hashes for ALL previous polylines, instead of replacing them
 // with a new unreviewable snapshot. The live superset is tested separately.
+// The grand-stair restoration adds one authored walk from the cross-lane, through the
+// existing Main Hall anchor, onto the top landing. It is asserted on its own below and
+// removed here so every earlier polyline keeps its recorded hash.
+const LATER_APPROVED=['MAIN_HALL_APPROACH'];
+const withoutLaterApproved=()=>largestNavComponent(buildNavGraph({
+ polylines:campusNavPolylines().filter(l=>!LATER_APPROVED.includes(l.source)),
+ mergeTolerance:CAMPUS_NAV_TOLERANCE.merge,junctionTolerance:CAMPUS_NAV_TOLERANCE.junction,
+ canConnect:canConnectCampusJunction
+}));
 const originalGraph=()=>largestNavComponent(buildNavGraph({
- polylines:campusNavPolylines().filter(l=>l.source!=='WALKWAY_LINKS'),
+ polylines:campusNavPolylines().filter(l=>!['WALKWAY_LINKS',...LATER_APPROVED].includes(l.source)),
  mergeTolerance:CAMPUS_NAV_TOLERANCE.merge,junctionTolerance:CAMPUS_NAV_TOLERANCE.junction,
  canConnect:canConnectCampusJunction
 }));
@@ -59,7 +69,12 @@ test('pinned ground facilities, previous colliders and approved navigation metad
 test('surroundings integration preserves exact-main path shape and all ground collision',()=>{
  // Independently derived from main 0f875b88 after #196, before #201 integration.
  // Ignore incidental graph IDs but retain each undirected geometric edge to 1e-8 WU.
- const graph=campusNavGraphData(),points=new Map(graph.nodes.map(n=>[n.id,[n.x,n.z].map(x=>x.toFixed(8)).join(',')]));
+ const live=campusNavGraphData(),hallWalk=live.edges.filter(e=>e.lineId==='main_hall_entry_walk');
+ // The live graph is the pinned one plus the stair walk: two edges and one split of the cross-lane.
+ assert.equal(live.nodes.length,190);assert.equal(live.edges.length,215);
+ assert.equal(hallWalk.length,2);assert.ok(hallWalk.every(e=>e.kind==='PATH'&&e.source==='MAIN_HALL_APPROACH'));
+ assert.deepEqual(live.edges.filter(e=>LATER_APPROVED.includes(e.source)),hallWalk);
+ const graph=withoutLaterApproved(),points=new Map(graph.nodes.map(n=>[n.id,[n.x,n.z].map(x=>x.toFixed(8)).join(',')]));
  const edges=graph.edges.map(e=>[points.get(e.a),points.get(e.b)].sort().join('|')).sort();
  assert.equal(graph.nodes.length,187);assert.equal(graph.edges.length,212);
  assert.equal(digest(edges),'9959b3a7ad148200c2c338d9e1f7ecbd2d6d142683c705668723d1e9bd3be78c');
@@ -68,7 +83,10 @@ test('surroundings integration preserves exact-main path shape and all ground co
  assert.equal(digest({paths,roads}),'0c0be0db6814556e0703ee548e6e12e57dff20a9fb2077e761ac063d059d39de');
  const ground=OBSTACLES.filter(c=>(c.minY??0)<=.5);
  assert.equal(ground.length,864);
- assert.equal(digest(ground),'86e9348b1156f4eacd7d86d9b5ef5703b24b81895e04527075e8b2dbd3d21987');
+ // The same restoration lifts only the Main Hall collider by its new foundation.
+ const hall=BUILDINGS.find(b=>b.id==='bldg_01');
+ assert.equal(ground.find(c=>c.id==='bldg_01').maxY,hall.height+HALL_FOUNDATION_HEIGHT);
+ assert.equal(digest(ground.map(c=>c.id==='bldg_01'?{...c,maxY:hall.height}:c)),'86e9348b1156f4eacd7d86d9b5ef5703b24b81895e04527075e8b2dbd3d21987');
  const promoted=graph.edges.filter(e=>e.source==='MAIN_HALL_WALKWAYS');
  assert.deepEqual(promoted.map(e=>e.lineId).sort(),['main_hall_walkway_east','main_hall_walkway_west']);
  assert.ok(promoted.every(e=>e.kind==='PATH'));

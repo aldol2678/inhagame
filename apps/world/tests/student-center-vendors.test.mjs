@@ -4,6 +4,7 @@ import {readFileSync} from 'node:fs';
 import { STUDENT_CENTER_VENDORS as vendors, studentCenterVendor, applyStudentVendorPlacement, createStudentVendorInteraction } from '../src/shop/student-center-vendors.js';
 import { studentConnectedFrame, createStudentConnectedWalk } from '../src/student-center-connected.js';
 import { WALK_SHAPE } from '../src/player-dimensions.js';
+import { routesForNpc } from '../src/shop/shop-routes.js';
 const frame = studentConnectedFrame();
 const pos = vendor => ({...vendor.position,y:vendor.position.y+WALK_SHAPE.footOffset});
 
@@ -35,17 +36,21 @@ test('same actor is repositioned before outdoor schedule, with no clone or quest
  assert.match(source,/!assignedVendor\(actor.id\) && avatars.get/);
  assert.match(source,/visible: !assignedVendor\(id\)/);
 });
-test('proximity publishes F/mobile candidate only and rechecks account, gates, readiness and position on trigger',()=>{
+test('retired counters fail closed on trigger whatever the account, gates, readiness and position say',()=>{
  let p=pos(vendors[0]),blocked=false,available=true,ready=true;const calls=[];
  const ui=createStudentVendorInteraction({getPosition:()=>p,getBlocked:()=>blocked,getAvailable:()=>available,getNpcReady:()=>ready,openShop:id=>{calls.push(id);}});
- const action=ui.observe();assert.equal(action.shortcut,'F');assert.match(action.label,/나수현.*기념품/);assert.deepEqual(calls,[]);
- assert.equal(action.trigger(),true);assert.deepEqual(calls,['shop.student_center']);
- blocked=true;assert.equal(ui.canAccess(vendors[0].shopId),true);assert.equal(ui.canAccess('shop.dorm_furniture'),false);assert.equal(action.trigger(),false);assert.equal(ui.observe(),null);blocked=false;
+ // The module stays for existing roster placement. Its routes are RETIRED, so no path opens a shop.
+ for(const v of vendors)assert.deepEqual(routesForNpc(v.npcId,vendors),[]);
+ const action=ui.observe();assert.equal(action.shortcut,'F');assert.match(action.label,/나수현.*기념품/);
+ assert.equal(action.trigger(),false);assert.equal(ui.open(vendors[0]),false);
+ blocked=true;assert.equal(ui.canAccess('shop.dorm_furniture'),false);assert.equal(action.trigger(),false);assert.equal(ui.observe(),null);blocked=false;
  available=false;assert.equal(ui.observe().disabled,true);assert.equal(action.trigger(),false);available=true;
  ready=false;assert.equal(ui.observe(),null);assert.equal(action.trigger(),false);ready=true;
  p={...p,y:p.y+2};assert.equal(ui.canAccess(vendors[0].shopId),false);assert.equal(ui.observe(),null);assert.equal(action.trigger(),false);
- p=pos(vendors[1]);assert.match(ui.observe().label,/가지안.*패션/);assert.equal(action.trigger(),false);assert.equal(ui.observe().trigger(),true);
- assert.deepEqual(calls,['shop.student_center','shop.student_center_fashion']);
+ p=pos(vendors[1]);assert.match(ui.observe().label,/가지안.*패션/);assert.equal(ui.observe().trigger(),false);
+ assert.deepEqual(calls,[]);
+ // Production no longer asks the NPC runtime to pin the two vendors.
+ assert.match(readFileSync(new URL('../src/main.js',import.meta.url),'utf8'),/studentCenterVendors: false/);
 });
 test('shelves, outside entry, missing height and unsafe defaults fail closed',()=>{
  let p=pos(vendors[0]);const ui=createStudentVendorInteraction({getPosition:()=>p,getBlocked:()=>false,getNpcReady:()=>true,getAvailable:()=>true});

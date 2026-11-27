@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import gameCatalog from "./game-catalog.js";
 import { BUILDINGS, MAIN_ENTRANCE, HALL_FRONT } from "./src/basic-campus.js";
+import { HALL_FOUNDATION_HEIGHT } from "./src/main-hall-approach.js";
 import { LANDMARKS, OBSTACLES, TOUR_STOPS } from "./src/campus-layout.js";
 import { ZoneRegistry } from "./src/zone-registry.js";
 import { getPlaceZoneAt } from './src/place-zone-registry.js';
@@ -640,9 +641,9 @@ assert.match(campusCss, /body\[data-lobby-shell="true"\] > \.progression-hud,\s*
 assert.doesNotMatch(m3MainSource, /createClient\([^)]*\)[^\n]*progression|progression[^\n]*createClient\(/,
   "progression never creates its own Supabase client");
 console.log("P0-F3a progression HUD static contracts PASS");
-// P0-F3b: Student Center shop panel. One menu entry, one modal section, server-rendered offers.
-assert.match(campusHtml, /id="hud-menu"[\s\S]*?id="open-shop"[^>]*aria-controls="shop-panel"[^>]*>🛍 <span>상점<\/span><\/button>/,
-  "the HUD menu carries the single shop entry point");
+// P0-F3b: shop panel. The Student Center menu shortcut is withdrawn; the single modal section
+// stays for the dormitory and department counters with server-rendered offers.
+assert.doesNotMatch(campusHtml, /id="open-shop"/, "the HUD menu no longer carries a Student Center shop shortcut");
 assert.equal((campusHtml.match(/id="shop-panel"/g) ?? []).length, 1, "shop panel is a single DOM target");
 assert.match(campusHtml, /id="shop-panel"[^>]*role="dialog"[^>]*aria-modal="true"[^>]*hidden/, "the shop panel is a modal that starts hidden");
 assert.match(campusCss, /body\[data-lobby-shell="true"\] > #shop-panel,/, "the lobby shell hides the shop panel");
@@ -675,14 +676,14 @@ assert.match(m3MainSource, /createWalletClient\(\{ getClient: \(\) => online\?\.
 assert.match(campusCss, /\.shop-panel-wallet\[hidden\] \{ display: none; \}/, "the wallet line hides without an account");
 assert.match(campusCss, /\.shop-panel-titles \{ min-width: 0; \}/, "the shop header titles can shrink at 360px");
 console.log("Student Center shop wallet balance static contracts PASS");
-// Student Center shop world entry P0: the same panel from the terrace in front of 학생회관.
-assert.match(m3MainSource, /contextActions\.set\("student-center-shop", shopWorldAction\)/,
-  "the world entry competes in the shared interaction slot (F / #context-action)");
-assert.match(m3MainSource, /openPanel: \(\) => shopEntry\.enter\(/, "the world entry opens the existing shop panel");
-assert.equal((campusHtml.match(/id="shop-world-label"/g) ?? []).length, 1, "one shop world marker");
-assert.match(campusHtml, /id="shop-world-label"[^>]*aria-hidden="true"[^>]*hidden/, "the marker is decorative and starts hidden");
-assert.match(campusHtml, /id="open-shop"/, "the HUD menu shop entry stays");
-console.log("Student Center shop world entry static contracts PASS");
+// Student Center shop world entry: withdrawn together with its marker and vendors.
+assert.doesNotMatch(m3MainSource, /contextActions\.set\("student-center-shop"|shopEntry|createShopWorldInteraction|createStudentVendorInteraction/,
+  "no Student Center world entry competes in the shared interaction slot");
+assert.doesNotMatch(campusHtml, /id="shop-world-label"/, "the Student Center world marker is gone");
+assert.match(m3MainSource, /studentCenterVendors: false/, "the NPC runtime does not pin Student Center vendors");
+assert.match(m3MainSource, /contextActions\.set\("dorm-furniture-shop", dormShop\.contextAction\(\)\)/,
+  "the dormitory counter keeps its place in the shared interaction slot");
+console.log("Student Center shop world entry retirement static contracts PASS");
 // Mobility Book P0.8: one HUD entry, one modal, registry-backed panel and safe summon wiring.
 {
   const mobilityBookSource = readFileSync(new URL("./src/mobility/mobility-book.js", import.meta.url), "utf8");
@@ -847,8 +848,10 @@ const main=BUILDINGS[0], entrance=MAIN_ENTRANCE, n=HALL_FRONT.inward;
 const outside={x:entrance.x,y:1.15,z:entrance.z};
 const hit=moveAroundObstacles(outside,n.x*30,n.z*30);
 assert.ok(Math.hypot(hit.x-outside.x,hit.z-outside.z)<5,'cannot tunnel through rotated main facade');
-const inside={x:entrance.x+n.x*8,y:main.height+1.15,z:entrance.z+n.z*8};
-assert.equal(resolveHeight(inside,2),main.height+1.15,'mount lands on actual source footprint roof');
+// The Main Hall roof stands on the foundation raised with the restored grand stair.
+const mainRoof=main.height+HALL_FOUNDATION_HEIGHT;
+const inside={x:entrance.x+n.x*8,y:mainRoof+1.15,z:entrance.z+n.z*8};
+assert.equal(resolveHeight(inside,2),mainRoof+1.15,'mount lands on actual source footprint roof');
 assert.equal(resolveHeight({...inside,x:0,z:-70},1.15),1.15,'landing after clearing roof');
 assert.ok(cameraSafeFraction([outside.x,3,outside.z],[inside.x,3,inside.z])<1,'camera stops at rotated facade');
 assert.equal(resolveHeight({x:0,y:3,z:-90},8),8,'open gate has no fictitious overhead beam');

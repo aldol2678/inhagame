@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {FACILITIES} from '../src/campus-facilities.js';
 import {BUILDINGS,MAIN_ENTRANCE} from '../src/basic-campus.js';
+import {HALL_FOUNDATION_HEIGHT} from '../src/main-hall-approach.js';
 import {PLACE_ZONES,PlaceZoneRegistry,getPlaceZoneAt} from '../src/place-zone-registry.js';
 import {RenderChunkRegistry,RENDER_CHUNKS,distanceToChunkBounds} from '../src/render-chunk-registry.js';
 import {RenderChunkStreaming,STREAMING_POLICY} from '../src/render-chunk-streaming.js';
@@ -104,5 +105,6 @@ test('chunk ownership contains whole assets exactly once and collision is indepe
   const f=fixture();f.at(0);f.at(1000);
   assert.strictEqual(OBSTACLES,before);
   const b=BUILDINGS[0],p={x:MAIN_ENTRANCE.x+MAIN_ENTRANCE.inward.x*8,z:MAIN_ENTRANCE.z+MAIN_ENTRANCE.inward.z*8,y:30};
-  assert.equal(resolveHeight(p,1.15),b.height+1.15);
+  // The Main Hall roof stands on the foundation raised with the restored grand stair.
+  assert.equal(resolveHeight(p,1.15),b.height+HALL_FOUNDATION_HEIGHT+1.15);
 });

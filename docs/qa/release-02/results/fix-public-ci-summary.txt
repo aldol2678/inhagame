@@ -1,0 +1,141 @@
+✓ Strict convexity, deterministic 24-triangle fan, and crisp outward skirt normals verified
+Archived pond-side Agora removed; only visible 6/9 courtyard guards retained PASS
+✔ indoor camera obstacles override the outdoor region and exiting indoors restores the region (0.637115ms)
+✔ real SwiftShader LOW baseline inadequacy stays INCONCLUSIVE, not PASS (2.410257ms)
+✔ initial merge failure retries the merge without losing migration or refetching (0.878156ms)
+✔ missing receipts still produce a comparison JSON and nonzero exit (49.024142ms)
+✔ baseline-only collection cannot retain PASS after browser error assertion (1.103408ms)
+✔ Preview night override leaves canonical environment unchanged and restores on OFF/exit (5.018307ms)
+✔ P0-E timestamp anchors reset on hidden, region exit, tier change and explicit reset (0.566956ms)
+✔ active Building 5 Combat always exposes the explicit local-training exit action (0.296521ms)
+✔ 9th-building / happiness-dorm site exit reaches Soseong-ro from the existing campus road node (0.21213ms)
+✔ later finish migration preserves every cooking category and matches the client union (2.948249ms)
+✔ active character chair uses transformed support and capsule-clear front exits at all eight yaws (3.42647ms)
+✔ 6, 9, 19, 32. enter → room spawn; exit → safe anchor; no bounce-back (1.318818ms)
+✔ 14–18, 30–31, 39. signed in: outside presence leaves at once, no room coordinates or room channel, rejoin on exit (84.602074ms)
+✔ 36–38. social modules still start; nothing persisted; no migration; no room protocol (7.575124ms)
+✔ Combat v0.3 Runtime exits without creating reward or persistent encounter authority (0.158351ms)
+✔ quiz: terminal PASSED removes answers and uses close fallback (0.497754ms)
+✔ correct / wrong feedback, then PASS with exactly one reward callback (0.667683ms)
+✔ malformed responses are rejected: no callback, no fake PASSED (0.872279ms)
+✔ panel: AVAILABLE → start → question with 4 options → PASSED card (6.916199ms)
+✔ greeting closes on logout, room exit, new mount/seat and capability loss (0.423795ms)
+✔ account switch or forced exit cannot resurrect a late saved draft (0.671524ms)
+✔ Undo of a manual recommendation edit retains preview metadata; Undo of recommendation exits preview (8.072713ms)
+✔ rejects exit/spawn corridor (0.201719ms)
+✔ late load cannot resurrect after room exit (2.668967ms)
+✔ legacy-valid wall, exit, fixed chair and visible decor cases preserve fallback without moving (7.36048ms)
+✔ the real panel routes a failing action to a clean exit (80.248917ms)
+✔ ordinary modal exits restore connected opener after releasing ownership (368.644743ms)
+✔ spawn, exits, transfers and arrivals are free, inside bounds and connected for the player (196.760031ms)
+✔ unused crossing expires, exiting inner zone consumes session, and stale grants cannot commit (0.248006ms)
+✔ 7. quiz PASSED → COMPLETE 오늘 완료 (0.36236ms)
+✔ P0.3 MAIN_GATE start exits lobby and places the player at the canonical anchor (0.673494ms)
+✔ real controller summons, ascends without jump, refuses airborne exit and lands safely (393.543691ms)
+✔ prepared dock boat boards/floats/drives and dismounts to the safe shore exit (35.007397ms)
+✔ real passenger boards, ignores driving keys, follows autopilot through input lock and exits only at stop (108.187071ms)
+✔ three optional decorations fit the room without crossing the exit or fixed furniture (2.394142ms)
+✔ nested exit checkpoints stand before reparenting, and rollback stays standing (1.569628ms)
+✔ Phone and Photo Mode hand off both ways without enabling gameplay; direct exit returns World (5.129532ms)
+✔ F-03: legacy migration fills absent fields only and rejects malformed existing values (1.068186ms)
+✔ slot migration deduplicates dock/home and installs new app without resetting placements (1.216312ms)
+✔ real player and Pointer Lock release held keyboard/touch/assist on entry and never resume stale intent on exit (23.293247ms)
+✔ without capture support the shutter is disabled and the exit gets initial focus (0.472256ms)
+✔ Chat/UI release exits lock and the same closing click can reacquire gameplay lock (0.55438ms)
+✔ window blur exits active lock and destroy removes ownership cleanly (0.360265ms)
+✔ gazebo west stairs permit entry and return, deck supports jumping, rails block water-side exit (413.671027ms)
+ROAD_NETWORK_AUDIT_JSON={"schema":"inha.road-network-audit/1","nav":{"nodeCount":190,"edgeCount":215,"droppedLineIds":[],"junctionToleranceWU":9,"junctionToleranceApproxMeters":18,"virtualJunctionCoun
+✔ room exit POI follows the authoritative exit position (0.423461ms)
+✔ housing lobby and personal room maps follow their authoritative bounds and exits (0.442517ms)
+✔ forced exit during preparation cancels before campus pause (0.555688ms)
+✔ club-room exit recovers rejection after showCampus, preserving return context (1.841002ms)
+✔ club-room exit recovers rejection after placePlayer, preserving return context (0.641554ms)
+✔ club-room exit recovers rejection after resumeCampus, preserving return context (1.146627ms)
+✔ personal-room exit recovers rejection after showRoom, preserving return context (3.123675ms)
+✔ personal-room exit recovers rejection after placePlayer, preserving return context (0.681554ms)
+✔ a forced exit requested during recovery is retried once after restoration, not lost (0.846581ms)
+✔ queued force does not exit the parent lobby again after successful personal-room departure (0.666572ms)
+✔ a failed required access-loss exit stays locked instead of reopening the unauthorized room (0.738747ms)
+✔ five graphics tiers survive storage, legacy mirror and migration (4.377506ms)
+✔ invalid v1 numeric values do not overwrite valid v2 settings on migration or reread (1.10631ms)
+✔ Nearby includes only present, unblocked people in 15m; 17m exit hysteresis and duplicate sessions (1.942891ms)
+✔ P15 any mismatch proposes rollback and outranks sample or exit gates (0.364277ms)
+✔ P15 healthy phase still requires explicit exit approval (0.22434ms)
+✔ selection disappears immediately on ownership loss, shelf removal, account switch and room exit (0.732956ms)
+pre-boot diagnostics: PASS
+ℹ tests 5100
+ℹ pass 5091
+ℹ fail 0
+ℹ {"manifest":{"schema":"inha.recast-npc-artifact/1","contract":{"adapterVersion":"p0-shadow-v2","packageVersion":"0.43.1","surface":{"tileSize":1.5,"corridorHalfWidth":0.25,"corridorStep":0.75,"y":
+ℹ tests 3
+ℹ pass 3
+ℹ fail 0
+Purposeful student schedule, POIs, arrival/activity/exit and recovery PASS
+Purposeful roster: 18 NPCs use four behavior profiles, follow five pulse bands and sink/re-enter; quest NPCs protected: PASS
+NPC campus life: department buildings, rear market and dorm routes PASS
+NPC P2-A population: 48 NPCs, 21+ department communities, campus/rear-market/dorm life PASS
+Helicopter flight P0 static + dynamics contracts PASS
+Helicopter Flight Instrument HUD P0.6 contracts PASS
+Mobility Book P0.8 registry / summon contracts PASS
+M3 route/compass guidance static contracts PASS
+P0-F3a progression HUD static contracts PASS
+P0-F3b student center shop static contracts PASS
+Student Center shop wallet balance static contracts PASS
+Student Center shop world entry retirement static contracts PASS
+Mobility Book P0.8 static contracts PASS
+Inventory P0 static contracts PASS
+Wardrobe UI P0 static contracts PASS
+Local Equipment Projection P0 static contracts PASS
+Multiplayer Equipment Projection P0 static contracts PASS
+compact top HUD / one-line objective / social cluster contract PASS
+P2 WALK/MOUNT_GROUND/MOUNT_FLIGHT HUD state contract PASS
+context action priority/distance/visibility PASS
+campus geo, legacy zone compatibility, semantic tour, footprint collision, roof landing, camera occlusion PASS
+walkable gate→hall, tour progress/persistence/restart PASS
+Main Lobby P0.7 static responsive/failure contracts PASS
+Hub Messages P0-M2 static contracts PASS
+Hub Messages P0-M3 profile-to-message static contracts PASS
+Hub Friends P0 static contracts PASS
+ℹ tests 11
+ℹ pass 11
+ℹ fail 0
+Public Classic static checks PASS
+culture 15-week semester and final PASS
+cse 15-week semester and final PASS
+aero 15-week semester and final PASS
+apsl 15-week semester and final PASS
+nursing 15-week semester and final PASS
+theatre 15-week semester and final PASS
+M5.7/M5.8 save migration, local save roundtrip, six departments PASS
+Account import, sync CAS conflict, cloud selection, guest isolation PASS
+grow analytics P1 + P2A client PASS
+grow analytics P2B decision wrappers PASS
+ℹ tests 81
+ℹ pass 81
+ℹ fail 0
+ℹ tests 17
+ℹ pass 17
+ℹ fail 0
+Stage 4 three floors, reciprocal portals, all stair/objective/exit routes, timing and 1–3 clear rules: PASS
+P2.1 contracts PASS · Stage 1-4 progression, skills, water, stairs, Stage 4 defense
+Stage 5 60th anniversary hall contracts PASS
+P2.2 Feel & Audio contracts PASS
+Stage 6 rear-gate finale contracts PASS
+Survival static check: 17 scripts, 1 inline blocks, 5 local references: PASS
+ℹ tests 35
+ℹ pass 35
+ℹ fail 0
+✔ accepts the baseline plus ordered forward migrations (2.415825ms)
+ℹ tests 6
+ℹ pass 6
+ℹ fail 0
+migration-lint: 52 migration(s), append-only vs base (52 files)
+migration-lint: ok
+✔ current supabase/migrations have no contract findings (85.7974ms)
+✔ replay reconstructs real table contracts (baseline pg_dump + later hand-written migrations) (78.61313ms)
+ℹ tests 12
+ℹ pass 12
+ℹ fail 0
+migration-contract-lint: 52 migration(s) in supabase/migrations
+migration-contract-lint: ok
+public-ci exit 0

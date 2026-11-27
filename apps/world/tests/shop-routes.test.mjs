@@ -2,9 +2,16 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { SHOP_ROUTES, SHOP_ROUTE_IDS, routesForNpc, relatedShopRoutes } from '../src/shop/shop-routes.js';
 
-test('five regions, split Student Center departments, no fabricated fishing/photo sale routes', () => {
+test('five regions, retired Student Center departments, no fabricated fishing/photo sale routes', () => {
   assert.equal(new Set(SHOP_ROUTES.map(route => route.region)).size, 5);
-  assert.deepEqual(relatedShopRoutes('shop.student_center').map(route => route.label), ['기념품', '패션']);
+  // The Student Center counters were withdrawn with their campus entry points; the records
+  // stay for existing receipts but offer no department switch and bind no vendor.
+  const student = SHOP_ROUTES.filter(route => route.region === 'student_center');
+  assert.deepEqual(student.map(route => [route.label, route.status]), [['기념품', 'RETIRED'], ['패션', 'RETIRED']]);
+  for (const route of student) {
+    assert.deepEqual(relatedShopRoutes(route.shopId), []);
+    assert.deepEqual(routesForNpc('npc-a', [{ npcId: 'npc-a', vendorId: 'vendor-a', shopId: route.shopId }]), []);
+  }
   assert.equal(SHOP_ROUTE_IDS.length, 4);
   assert.equal(new Set(SHOP_ROUTE_IDS).size, 4);
   for (const region of ['inkyung', 'library']) {
@@ -23,13 +30,12 @@ test('NPC role alone cannot bind trade; exact NPC, vendor and shop are required'
   assert.deepEqual(routesForNpc('npc-a', [{ npcId: 'npc-a', vendorId: 'vendor-a', shopId: 'shop.invented' }]), []);
 });
 
-test('main keeps direct NPC purchases separate from HUD/entrance guidance and closes invalid access', async () => {
+test('main has no Student Center HUD/entrance/vendor entry and still closes invalid shop access', async () => {
   const { readFileSync } = await import('node:fs');
   const { default: vm } = await import('node:vm');
   const source = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
-  assert.match(source, /shopButton\?\.addEventListener\("click",[\s\S]*?shopEntry\.enter\(\)/);
-  assert.match(source, /openPanel: \(\) => shopEntry\.enter\(/);
-  assert.match(source, /studentCenterVendors: true/);
+  assert.doesNotMatch(source, /shopButton|shopEntry|createShopEntryCompatibility|createStudentVendorInteraction|guideStudentCenterShops/);
+  assert.match(source, /studentCenterVendors: false/);
   assert.doesNotMatch(source, /getShopRoutes:/);
   const condition = source.match(/  if \(shopPanel.open && activeShopAccess &&[\s\S]*?shopPanel.setOpen\(false\);\n  \}/)[0];
   for (const cause of ['access', 'room', 'realm', 'lobby', 'transition', 'mount', 'combat']) {

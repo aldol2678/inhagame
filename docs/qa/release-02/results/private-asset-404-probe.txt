@@ -1,0 +1,7 @@
+404 text/plain;charset=UTF-8 bytes=9 sha256=e3ebaa16dd9d9b9fc107c42183fb6cf9d22927e1af03dbbdfa0ccc38e4e4ac31 body=Not found /api/brand-asset?asset=annyongi-flight-v1.glb&variant=canonical
+404 text/plain;charset=UTF-8 bytes=9 sha256=e3ebaa16dd9d9b9fc107c42183fb6cf9d22927e1af03dbbdfa0ccc38e4e4ac31 body=Not found /api/brand-asset?asset=annyongi-flight-v1.glb&variant=optimized
+404 text/plain;charset=UTF-8 bytes=9 sha256=e3ebaa16dd9d9b9fc107c42183fb6cf9d22927e1af03dbbdfa0ccc38e4e4ac31 body=Not found /api/brand-asset?asset=induck-v3.glb&variant=canonical
+404 text/plain;charset=UTF-8 bytes=9 sha256=e3ebaa16dd9d9b9fc107c42183fb6cf9d22927e1af03dbbdfa0ccc38e4e4ac31 body=Not found /api/world-time
+200 model/gltf-binary bytes=394672 sha256=5b53dd9a13e2123bab399f68483c3fa72259b75888edf67b9bab32553a53fc23 body=glTF.........o..JSON /assets/annyongi-flight-v1.glb
+200 text/html; charset=utf-8 bytes=33987 sha256=9af7728caecd5c0eaadc51f63e27f7bc56e5f0be3601f2bac4bd25b291f93f8a body=<!doctype html>.<htm /.generated/assets-optimized/annyongi-flight-v1.glb
+200 model/gltf-binary bytes=87788 sha256=bec8585e3e64f092585c23e353ae833215a25ceffa850d819bce7d34d70f01ea body=glTF.....V.../..JSON /assets/induck-v3.glb
