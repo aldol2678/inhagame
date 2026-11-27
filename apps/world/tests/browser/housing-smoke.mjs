@@ -25,7 +25,8 @@ async function boot(smoke, viewport) {
   const throttle = Number(process.env.HOUSING_SMOKE_CPU_THROTTLE || 0);
   if (throttle > 1) await (await smoke.context.newCDPSession(page)).send("Emulation.setCPUThrottlingRate", { rate: throttle });
   const [mainResponse] = await Promise.all([
-    page.waitForResponse(response => response.url() === `${smoke.origin}/src/main.js`, { timeout: TIMEOUT_MS }),
+    // The campus page requests its entry module with a cache key (/src/main.js?v=...).
+    page.waitForResponse(response => { const url = new URL(response.url()); return url.origin === smoke.origin && url.pathname === "/src/main.js"; }, { timeout: TIMEOUT_MS }),
     page.goto(`${smoke.origin}/campus/`, { waitUntil: "domcontentloaded", timeout: TIMEOUT_MS })
   ]);
   const shippedMain = await verifyHousingShippedMain(mainResponse);
