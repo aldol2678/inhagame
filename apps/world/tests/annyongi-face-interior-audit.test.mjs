@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { auditTriangles } from './browser/annyongi-face-interior-audit.mjs';
+import { readFileSync } from 'node:fs';
+import { auditGlb, auditTriangles } from './browser/annyongi-face-interior-audit.mjs';
 
 // Synthetic data only. The feature's original vertices are in front of the
 // head, but its interior crosses the head's convex center peak.
@@ -47,4 +48,18 @@ test('back-head triangles are excluded by frontmost-height witnesses',()=>{
   assert.equal(result.maxSeparation,baseline.maxSeparation);
   assert.equal(result.overlapPairs,baseline.overlapPairs);
   assert.equal(result.penetratingPairs,baseline.penetratingPairs);
+});
+
+test('flight model audits the curl and mouth inks separately from their fills', () => {
+  const bytes = readFileSync(new URL('../assets/annyongi-flight-v1.glb', import.meta.url));
+  const { features } = auditGlb(bytes);
+  const whole = auditGlb(bytes, { featureNames: ['Forelock', 'Mouth'] }).features;
+  assert.ok(features['Forelock curl'].featureTriangles < whole.Forelock.featureTriangles);
+  assert.equal(features['Mouth outline'].featureTriangles + features['Mouth fill'].featureTriangles,
+    whole.Mouth.featureTriangles);
+  for (const name of ['Forelock curl','Nose','Mouth outline','Mouth fill','Tongue','Cheek_L','Cheek_R','Fang_L','Fang_R']) {
+    assert.ok(features[name].overlapPairs > 0, name);
+  }
+  assert.throws(() => auditGlb(bytes, { featureNames: ['missing face node'] }), /must resolve uniquely/);
+  assert.throws(() => auditGlb(bytes, { expectedSha256: '0'.repeat(64) }), /Asset hash mismatch/);
 });

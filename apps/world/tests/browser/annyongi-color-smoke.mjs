@@ -25,14 +25,25 @@ for (const [device, viewport] of [['desktop', {width:720,height:800}], ['mobile'
         const pc = await import('playcanvas');
         const d = window.__ANNYONGI_REVIEW__;
         const mesh = name => { const node=d.carrier.findByName(name); if (!node?.render?.meshInstances?.length) throw Error(`Missing color target ${name}`); return node.render.meshInstances[0]; };
-        const head=mesh('Head'), eyes=['Dot eye -1','Dot eye 1'].map(mesh);
+        const {faceLayout,VERTEX_FACE}=await import('/tests/browser/annyongi-face-layout.mjs');
+        const layout=faceLayout(name=>d.carrier.findByName(name));
+        const head=mesh('Head'), eyes=layout.eyes.map(mesh);
+        const albedo=mi=>{
+          const {r,g,b}=mi.material.diffuse;
+          if(layout!==VERTEX_FACE)return [r,g,b];
+          const colors=[];mi.mesh.getColors(colors);
+          if(!mi.material.diffuseVertexColor || colors.length<4)throw Error(`Missing vertex color on ${mi.node.name}`);
+          const rgb=colors.slice(0,3);
+          if(!colors.every((v,i)=>i%4===3 || Math.abs(v-rgb[i%4])<1e-5))throw Error(`Expected uniform vertex color on ${mi.node.name}`);
+          return [r,g,b].map((factor,i)=>factor*rgb[i]);
+        };
         // Use front upper-cheek/forehead patches away from the central curl and
         // mouth. Eye samples are the projected center of each semantic eye mesh.
         const point = v => { const p=d.camera.camera.worldToScreen(v); return {x:p.x,y:p.y}; };
         const skin=[-1,1].map(side => point(new pc.Vec3(head.aabb.center.x + side*.35*head.aabb.halfExtents.x,
           head.aabb.center.y + .32*head.aabb.halfExtents.y, head.aabb.center.z + head.aabb.halfExtents.z)));
         const eyePoints=eyes.map(mi => point(mi.aabb.center));
-        return {body:skin,eyes:eyePoints,albedo:{body:[head.material.diffuse.r,head.material.diffuse.g,head.material.diffuse.b],eyes:eyes.map(mi=>[mi.material.diffuse.r,mi.material.diffuse.g,mi.material.diffuse.b])}};
+        return {body:skin,eyes:eyePoints,albedo:{body:albedo(head),eyes:eyes.map(albedo)}};
       });
       const png = await page.screenshot();
       const samples = await page.evaluate(async ({encoded,regions}) => {

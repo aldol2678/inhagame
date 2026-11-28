@@ -6,6 +6,7 @@
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
+import { faceLayout, linearSwatch, matchesSwatch } from './annyongi-face-layout.mjs';
 
 const EPS=1e-10;
 const cross=(a,b,c)=>(b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]);
@@ -79,24 +80,44 @@ function parseGlb(bytes){
   }
   const parents=new Map();g.nodes.forEach((n,i)=>(n.children||[]).forEach(c=>{if(parents.has(c))throw Error('Multiple-parent node unsupported');parents.set(c,i);}));
   const cache=new Map();function world(i,seen=new Set()){if(cache.has(i))return cache.get(i);if(seen.has(i))throw Error('Cyclic node graph');seen.add(i);const m=multiply(parents.has(i)?world(parents.get(i),seen):identity(),matrix(g.nodes[i]));cache.set(i,m);return m;}
-  function triangles(nodeIndex){
+  function triangles(nodeIndex,swatchHex){
     const node=g.nodes[nodeIndex],mesh=g.meshes[node.mesh],out=[],m=world(nodeIndex);
+    const swatch=swatchHex && linearSwatch(swatchHex);
     if(node.skin!==undefined||node.weights?.some(v=>v!==0)||mesh.weights?.some(v=>v!==0))throw Error('Skinned or active morph geometry unsupported');
     for(const p of mesh.primitives){
       if((p.mode??4)!==4||p.extensions?.KHR_draco_mesh_compression)throw Error('Only uncompressed triangle-list primitives supported');
       const positions=accessor(p.attributes.POSITION).map(v=>transform(m,v)),indices=p.indices===undefined?positions.map((_,i)=>i):accessor(p.indices).map(v=>v[0]);
-      if(indices.length%3)throw Error('Invalid triangle index count');for(let k=0;k<indices.length;k+=3)out.push(indices.slice(k,k+3).map(i=>positions[i]));
+      if(swatch && p.attributes.COLOR_0===undefined)throw Error(`Missing vertex palette: ${node.name}`);
+      const colors=swatch && accessor(p.attributes.COLOR_0);
+      if(indices.length%3)throw Error('Invalid triangle index count');
+      for(let k=0;k<indices.length;k+=3){
+        const face=indices.slice(k,k+3);
+        if(swatch) {
+          const selected=face.filter(i=>matchesSwatch(colors[i],0,swatch)).length;
+          if(selected===0)continue;
+          if(selected!==3)throw Error(`Mixed palette triangle in ${node.name}`);
+        }
+        out.push(face.map(i=>positions[i]));
+      }
     }return out;
   }
   return {g,triangles};
 }
 
-export function auditGlb(bytes,{expectedSha256,headName='Head',featureNames=['Forelock curled contour','Nose lobe contour -1','Nose lobe contour 1','Open smile outer contour','Open smile berry inside','Smile upper lip -1','Smile upper lip 1','Lower tongue','Rosy cheek -1','Rosy cheek 1','Tiny fang -1','Tiny fang 1'],tolerance=1e-5}={}){
+export function auditGlb(bytes,{expectedSha256,headName='Head',featureNames,tolerance=1e-5}={}){
   const sha256=createHash('sha256').update(bytes).digest('hex');if(expectedSha256&&sha256!==expectedSha256)throw Error('Asset hash mismatch');
   const {g,triangles}=parseGlb(bytes);const ids=name=>g.nodes.map((n,i)=>n.name===name?i:-1).filter(i=>i>=0);
   const heads=ids(headName);if(heads.length!==1)throw Error('Head name must resolve uniquely');
   const head=triangles(heads[0]);const features={};
-  for(const name of featureNames){const found=ids(name);if(found.length!==1)throw Error(`Feature must resolve uniquely: ${name}`);features[name]=auditTriangles(head,triangles(found[0]),{tolerance});}
+  const layout=featureNames ? null : faceLayout(name=>ids(name).length>0);
+  const targets=layout ? [...layout.lines,...layout.surfaces] : featureNames.map(name=>({name,node:name}));
+  for(const {name,node,swatch} of targets){
+    const found=ids(node);
+    if(found.length!==1)throw Error(`Feature must resolve uniquely: ${node} (${found.length} matches)`);
+    const geometry=triangles(found[0],swatch);
+    if(!geometry.length)throw Error(`Missing authored triangles: ${name}`);
+    features[name]=auditTriangles(head,geometry,{tolerance});
+  }
   return {sha256,bytes:bytes.length,headName,projection:'Authored world +Z; no animation or camera transforms applied',features,
     limitations:['Assumes face-front is world +Z and a single-valued front skin locally.','Checks static mesh triangles, not shadows, transparency, PBR, GPU depth precision or moving poses.','Back-head overlaps are filtered with frontmost-height witnesses. Complex overlapping head shells require separate review.','Positive separation does not establish pixel-level visual quality.']};
 }

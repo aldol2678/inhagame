@@ -1,6 +1,7 @@
 import * as pc from 'playcanvas';
 import { SITE_FEATURES } from './basic-campus.js';
 import { polygon,segment,surface } from './campus-render-kit.js';
+import { CENTRAL_LAWN_CANOPY_COLORS, CENTRAL_LAWN_SHRUB_COLOR } from './campus-material-profile.js';
 import { pondWaterMaterial } from './pond-water.js';
 import { CAMPUS_PATH_WIDTHS, roadFrame } from './campus-road-layout.js';
 import { campusReliefHeight, forEachReliefTriangle } from './campus-relief.js';
@@ -100,18 +101,17 @@ function addCanopy(batch, color, x, y, z, width, height, depth, phase) {
 
 export function buildCampusTrees(root, trees) {
   const batch = new FacilityMeshBatch();
-  const greens = ['#617d4b', '#75894f', '#698653', '#8a935b'];
   for (const { x, z, index, bankRow } of trees) {
     const scale = .93 + .11 * Math.sin(x * .7 + z);
     const baseY=campusReliefHeight(x,z);
-    const leaf = greens[index % greens.length];
+    const leaf = CENTRAL_LAWN_CANOPY_COLORS[index % CENTRAL_LAWN_CANOPY_COLORS.length];
     const lean = index % 2 ? .46 : -.46;
     batch.tube('#756650', [x, baseY, z], [x, baseY + 2.6 * scale, z], .14, 6);
     addCanopy(batch, leaf, x + lean * .3, baseY + 3.12 * scale, z,
       1.84 * scale, 1.57 * scale, 1.7 * scale, index * .61);
     if (!bankRow && index % 2 === 0) {
-      batch.crown('#70874b', [x + .76, campusReliefHeight(x+.76,z-.45)+.24, z - .45], [1.6, .64, 1.18]);
-      batch.crown('#70874b', [x + 1.2, campusReliefHeight(x+1.2,z-.16)+.17, z - .16], [1, .46, .94]);
+      batch.crown(CENTRAL_LAWN_SHRUB_COLOR, [x + .76, campusReliefHeight(x+.76,z-.45)+.24, z - .45], [1.6, .64, 1.18]);
+      batch.crown(CENTRAL_LAWN_SHRUB_COLOR, [x + 1.2, campusReliefHeight(x+1.2,z-.16)+.17, z - .16], [1, .46, .94]);
     }
   }
   batch.finish(root, 'central_lawn_planting');

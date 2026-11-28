@@ -1,5 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {analyzeFaceMasks,faceContrastFailures,FACE_LINE_NAMES} from './browser/annyongi-face-metrics.mjs';
+import { VERTEX_FACE } from './browser/annyongi-face-layout.mjs';
 const line=new Uint8Array(401).fill(1);
 test('one-pixel bridge loss fails even above 99 percent coverage',()=>{const dark=line.slice();dark[200]=0;const r=analyzeFaceMasks(line,line,dark,401,1);assert.ok(r.darkFraction>.99);assert.equal(r.brokenMeasuredComponents,1);});
 test('an endpoint AA pixel does not invent a split',()=>{const dark=line.slice();dark[0]=0;const r=analyzeFaceMasks(line,line,dark,401,1);assert.equal(r.brokenMeasuredComponents,0);assert.equal(r.missing.largest,1);});
@@ -14,3 +15,20 @@ test('missing required line is fail-closed',()=>assert.ok(faceContrastFailures({
 
 test('excluded one-pixel bridge is unresolved even with 99 percent measured coverage',()=>{const measured=line.slice();measured[200]=0;const r=analyzeFaceMasks(line,measured,measured,401,1);assert.ok(r.measuredFraction>.99);assert.equal(r.unresolvedVisibleComponents,1);const x=fixture();x['node:'+FACE_LINE_NAMES[0]].contrast.fixed.connectivity=r;assert.match(faceContrastFailures(x).join(),/excluded pixels interrupt/);});
 test('empty and non-finite old controls fail closed',()=>{for(const value of [null,NaN,Infinity]){const x=fixture();x['node:'+FACE_LINE_NAMES[0]].contrast.white.darkFraction=value;assert.ok(faceContrastFailures(x).length);}});
+
+test('flight palette requires a pale curl and dark nose and mouth on the same face', () => {
+  const sample = fixture()['node:' + FACE_LINE_NAMES[0]];
+  const metrics = Object.fromEntries(VERTEX_FACE.lines.map(({ name }) => ['node:' + name, structuredClone(sample)]));
+  const curl = metrics['node:Forelock curl'].contrast.fixed;
+  curl.medianInkToSkin = .82;
+  assert.deepEqual(faceContrastFailures(metrics, VERTEX_FACE), []);
+  for (const ratio of [1, .15]) {
+    curl.medianInkToSkin = ratio;
+    assert.match(faceContrastFailures(metrics, VERTEX_FACE).join(), /Forelock curl/);
+  }
+  curl.medianInkToSkin = .82;
+  metrics['node:Nose'].contrast.fixed.medianInkToSkin = .82;
+  assert.match(faceContrastFailures(metrics, VERTEX_FACE).join(), /Nose/);
+  delete metrics['node:Mouth outline'];
+  assert.match(faceContrastFailures(metrics, VERTEX_FACE).join(), /Missing required line: Mouth outline/);
+});
