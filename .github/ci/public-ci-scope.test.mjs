@@ -5,7 +5,7 @@ import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { classify, needsDatabase, needsPortalBrowser } from './public-ci-scope.mjs';
+import { classify, needsPortalBrowser } from './public-ci-scope.mjs';
 import { inspect as inspectBrowser } from './phone-surface-scope.mjs';
 
 test('only verified SEO classifications opt into lightweight checks', () => {
@@ -41,7 +41,6 @@ test('portal browser routing covers its inputs without changing existing gates',
     assert.equal(needsPortalBrowser([file], { forceFull: true }), true, file);
   }
   assert.equal(classify(['apps/world/hub-editorial.css']), 'full');
-  assert.equal(needsDatabase(['apps/world/hub-editorial.css']), true);
 });
 
 test('required verify rejects failed, skipped, cancelled or unknown portal QA', () => {
@@ -84,46 +83,6 @@ const cases = [
 ];
 for (const [name, files, expected] of cases) {
   test(name, () => assert.equal(classify(files), expected));
-}
-
-const databaseCases = [
-  ['decorative HUD icon runtime skips DB', ['apps/world/src/ui/ui-icon-runtime.js'], false],
-  ['HUD icon plus existing browser QA skips DB', ['apps/world/src/ui/ui-icon-runtime.js', 'apps/world/tests/ui-icon-runtime.test.mjs'], false],
-  ['HUD icon mixed with SQL requires DB', ['apps/world/src/ui/ui-icon-runtime.js', 'supabase/migrations/new.sql'], true],
-  ['HUD icon mixed with auth requires DB', ['apps/world/src/ui/ui-icon-runtime.js', 'apps/world/hub-account.js'], true],
-  ['HUD icon mixed with unknown UI requires DB', ['apps/world/src/ui/ui-icon-runtime.js', 'apps/world/src/ui/unknown-runtime.js'], true],
-  ['unknown UI alone requires DB', ['apps/world/src/ui/unknown-runtime.js'], true],
-  ['nested fake HUD icon path requires DB', ['apps/world/src/ui/ui-icon-runtime.js/nested.js'], true],
-  ['HUD icon mixed with CI policy requires DB', ['apps/world/src/ui/ui-icon-runtime.js', '.github/ci/public-ci-scope.mjs'], true],
-  ['unknown scope keeps database verification', null, true],
-  ['empty scope keeps database verification', [], true],
-  ['world main runtime can skip the local database', ['apps/world/src/main.js'], false],
-  ['world loading runtime can skip the local database', ['apps/world/src/world-loading-gate.js'], false],
-  ['visual geometry can skip the local database', ['apps/world/src/north-landmark-geometry.js'], false],
-  ['browser QA can skip the local database', ['apps/world/tests/browser/photo-mode-campus-smoke.mjs'], false],
-  ['photo QA diagnostics notes alone cannot require a database', ['apps/world/docs/photo-capture-diagnostics.md'], false],
-  ['photo QA PR runtime, diagnostics, browser, and workflow stay database independent', [
-    'apps/world/docs/photo-capture-diagnostics.md',
-    'apps/world/src/main.js',
-    'apps/world/src/photo/photo-capture.js',
-    'apps/world/tests/photo-capture.test.mjs',
-    '.github/workflows/biryong-render-trace.yml',
-  ], false],
-  ['unrelated world documentation remains fail closed', ['apps/world/docs/server-migration.md'], true],
-  ['nested fake diagnostics path remains fail closed', ['apps/world/docs/photo-capture-diagnostics.md/nested.js'], true],
-  ['photo diagnostics notes plus SQL require database', ['apps/world/docs/photo-capture-diagnostics.md', 'supabase/migrations/20261007000000_test.sql'], true],
-  ['other public games can skip the local database', ['apps/classic/src/game.js'], false],
-  ['specialized browser workflow can skip the local database', ['.github/workflows/photo-mode-browser.yml'], false],
-  ['database migration requires the local database', ['supabase/migrations/20261007000000_test.sql'], true],
-  ['database integration test requires the local database', ['supabase/tests/integration/inventory.integration.test.mjs'], true],
-  ['server code is conservative and requires the local database', ['apps/world/server/fishing-service.mjs'], true],
-  ['database-coupled client code is conservative and requires the local database', ['apps/world/src/activity/fishing-client.js'], true],
-  ['public CI workflow requires the local database', ['.github/workflows/public-ci.yml'], true],
-  ['unknown source remains conservative', ['tools/new-helper.mjs'], true],
-  ['mixed visual and database changes require the local database', ['apps/world/src/main.js', 'supabase/config.toml'], true],
-];
-for (const [name, files, expected] of databaseCases) {
-  test(name, () => assert.equal(needsDatabase(files), expected));
 }
 
 function repo(t) {
@@ -262,7 +221,7 @@ const overrideCases = [
   ['database-independent source', 'apps/world/src/main.js', 'const value = 1;\n', 'const value = 2;\n', { mode: 'full', db: 'false' }],
 ];
 for (const [name, path, before, after, normalScope] of overrideCases) {
-  test('PR title override requires source and database for ' + name, (t) => {
+  test('PR title override forces full source verification for ' + name, (t) => {
     const r = repo(t);
     r.write(path, before); r.commit('fixture baseline');
     r.git('checkout', '--quiet', '-b', 'scoped-pr');
@@ -272,7 +231,7 @@ for (const [name, path, before, after, normalScope] of overrideCases) {
     assert.deepEqual(runScope(r.dir, 'pull_request'), { ...normalScope, portal_browser: 'false' });
     for (const title of fullTitles) {
       assert.deepEqual(runScope(r.dir, 'pull_request', undefined, title),
-        { mode: 'full', db: 'true', portal_browser: 'true' }, String(title));
+        { mode: 'full', db: 'false', portal_browser: 'true' }, String(title));
       assert.equal(inspectBrowser({ CI_PR_TITLE: title,
         CI_WORKFLOW_NAME: 'Graphics integration browser QA' }).reason,
       'release-or-unknown-pr', String(title));
@@ -291,7 +250,6 @@ test('Public workflow passes the PR title and preserves existing required gates'
   const workflow = readFileSync(new URL('../workflows/public-ci.yml', import.meta.url), 'utf8');
   assert.match(workflow, /CI_PR_TITLE: \$\{\{ github\.event\.pull_request\.title \}\}/);
   assert.match(workflow, /source:\n    needs: scope\n    if: needs\.scope\.outputs\.mode == 'full'/);
-  assert.match(workflow, /database:\n    needs: scope\n    if: needs\.scope\.outputs\.mode == 'full' && needs\.scope\.outputs\.db == 'true'/);
-  assert.match(workflow, /verify:\n    needs: \[scope, source, database, seo, portal-browser\]\n    if: \$\{\{ always\(\) \}\}/);
+  assert.match(workflow, /verify:\n    needs: \[scope, source, seo, portal-browser\]\n    if: \$\{\{ always\(\) \}\}/);
   assert.match(workflow, /permissions:\n  contents: read/);
 });
