@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { startSmoke } from './harness.mjs';
 import { faceContrastFailures } from './annyongi-face-metrics.mjs';
+import { MATERIAL_FACE, VERTEX_FACE } from './annyongi-face-layout.mjs';
 const output=process.env.ANNYONGI_OUTPUT||'test-results/annyongi';
 const profile=process.env.ANNYONGI_FACE_PROFILE||'full';
 assert.ok(['full','triage','acceptance'].includes(profile));
@@ -20,15 +21,24 @@ for(const [device,viewport] of [['desktop',{width:1280,height:800}],['mobile',{w
    await page.waitForFunction(()=>window.__ANNYONGI_REVIEW__);
    const setup=await page.evaluate(async ({mobile,night})=>{
     const pc=await import('playcanvas'),d=window.__ANNYONGI_REVIEW__;d.state('ground');d.view('front');d.rider.enabled=false;
-    const groups={forelock:['Forelock curled contour'],mouth:['Nose lobe contour -1','Nose lobe contour 1','Open smile outer contour','Smile upper lip -1','Smile upper lip 1']};
-    const names=new Map(Object.entries(groups).flatMap(([group,names])=>names.map(name=>[name,group])));
+    const {faceLayout,VERTEX_FACE}=await import('/tests/browser/annyongi-face-layout.mjs');
+    const {vertexLineControls}=await import('/tests/browser/annyongi-face-vertex-controls.mjs');
+    const layout=faceLayout(name=>d.carrier.findByName(name)), vertexPalette=layout===VERTEX_FACE;
+    const targets=new Map(layout.lines.map(line=>[line.node,line]));
     const colors=[[1,0,1],[0,1,1],[1,1,0],[1,0,0],[0,1,0],[0,0,1]];
-    const idColors=Object.fromEntries([...names.keys()].map((name,i)=>[name,colors[i]]));
+    const idColors=Object.fromEntries(layout.lines.map(({name},i)=>[name,colors[i]]));
     const all=d.carrier.findComponents('render').flatMap(c=>c.meshInstances);
-    const items=all.map(mi=>({mi,material:mi.material,visible:mi.visible,group:names.get(mi.node.name)||null}));
-    for(const name of names.keys())assertNode(name);
-    function assertNode(name){if(!items.some(i=>i.mi.node.name===name))throw Error(`Missing diagnostic face node: ${name}`);}
+    const items=all.map(mi=>{
+      const line=targets.get(mi.node.name);
+      return {mi,material:mi.material,visible:mi.visible,line,group:line?.group};
+    });
+    for(const node of targets.keys())if(items.filter(i=>i.mi.node.name===node).length!==1)throw Error(`Diagnostic face node must be unique: ${node}`);
     const head=items.find(i=>i.mi.node.name==='Head');if(!head)throw Error('Missing Head');
+    if(vertexPalette){
+      const skin=[];head.mi.mesh.getColors(skin);
+      if(skin.length<4)throw Error('Missing authored head color');
+      for(const i of items)if(i.line)i.controls=vertexLineControls(pc,i.mi,i.line,idColors[i.line.name],skin);
+    }
     const materials=new Map();
     const clone=(source,key,configure)=>{let m=materials.get(key);if(!m){m=source.clone();configure(m);m.update();materials.set(key,m);}return m;};
     const flat=(source,key,color)=>clone(source,key,m=>{m.diffuse.set(0,0,0);m.emissive.set(...color);m.emissiveIntensity=1;m.emissiveMap=null;m.diffuseMap=null;m.diffuseVertexColor=false;m.emissiveVertexColor=false;m.useLighting=false;});
@@ -39,24 +49,48 @@ for(const [device,viewport] of [['desktop',{width:1280,height:800}],['mobile',{w
     d.camera.camera.projection=pc.PROJECTION_PERSPECTIVE;d.camera.camera.fov=35;d.camera.camera.nearClip=.3;d.camera.camera.farClip=700;
     const center=head.mi.aabb.center.clone(),half=head.mi.aabb.halfExtents.clone();
     const distance=Math.max(half.y,half.x/(innerWidth/innerHeight))/Math.tan(35*Math.PI/360)*1.35;
-    window.__FACE_DIAGNOSTIC__={d,pc,items,head,center,distance,key,lightState,idColors,images:{},materials,
+    window.__FACE_DIAGNOSTIC__={d,pc,items,head,center,distance,key,lightState,idColors,lines:layout.lines,vertexPalette,images:{},materials,
      view(yaw){d.camera.setPosition(center.x+Math.sin(yaw)*distance,center.y,center.z+Math.cos(yaw)*distance);d.camera.lookAt(center);},
      mode(mode){
       d.camera.camera.clearColor.copy(clearColor);
-      for(const i of items){i.mi.visible=i.visible;i.mi.material=i.material;}
+      for(const i of items){i.mi.visible=i.visible;i.mi.material=i.material;if(i.controls)i.mi.mesh=i.controls.source;}
       key.castShadows=lightState.castShadows;d.camera.camera.nearClip=.3;d.camera.camera.farClip=700;
-      if(mode.startsWith('white'))for(const i of items)i.mi.material=clone(i.material,`white:${i.material.id}`,m=>{const light=d.app.scene.ambientLight;const n=Math.max(0,Math.min(1,(.43-(light.r+light.g+light.b)/3)/.32));m.diffuse.set(1-n*.15,1-n*.15,1-n*.15);m.emissive.set(1,1,1);m.emissiveMapVertexColor=true;m.emissiveIntensity=.045+n*.025;});
-      if(['skinOnly','whiteSkinOnly','shadowOffSkinOnly'].includes(mode))for(const i of items)if(i.group)i.mi.visible=false;
+      if(mode.startsWith('white'))for(const i of items)i.mi.material=clone(i.material,`white:${i.material.id}`,m=>{
+        const light=d.app.scene.ambientLight;
+        const n=Math.max(0,Math.min(1,(.43-(light.r+light.g+light.b)/3)/.32));
+        m.diffuse.set(1-n*.15,1-n*.15,1-n*.15);
+        m.emissive.set(1,1,1);m.emissiveMapVertexColor=true;m.emissiveIntensity=.045+n*.025;
+        if(vertexPalette){m.diffuseVertexColor=false;m.specularVertexColor=false;m.emissiveVertexColor=false;}
+      });
+      if(['skinOnly','whiteSkinOnly','shadowOffSkinOnly'].includes(mode))for(const i of items)if(i.group){
+        if(i.controls)i.mi.mesh=i.controls.reference;else i.mi.visible=false;
+      }
       if(mode.startsWith('shadowOff'))key.castShadows=false;
       if(mode.startsWith('mask')){
        d.camera.camera.clearColor.set(0,0,0,1);
-       for(const i of items){i.mi.visible=mode==='maskVisible'?i.visible:(!!i.group||(mode!=='maskSolo'&&i===head));if(i.mi.visible){const color=mode==='maskVisible'?(idColors[i.mi.node.name]||[0,0,0]):i.group==='forelock'?[1,0,1]:i.group==='mouth'?[0,1,1]:[0,0,0];i.mi.material=flat(i.material,`mask:${mode==='maskVisible'?i.mi.node.name:i.group||'head'}:${i.material.id}`,color);i.mi.material.cull=mode==='maskNoCull'&&i.group?pc.CULLFACE_NONE:i.material.cull;}}
+       for(const i of items){
+        i.mi.visible=mode==='maskVisible'?i.visible:(!!i.group||(mode!=='maskSolo'&&i===head));
+        if(!i.mi.visible)continue;
+        if(i.controls && mode==='maskVisible'){
+          i.mi.mesh=i.controls.mask;
+          i.mi.material=clone(i.material,'vertex-id-mask',m=>{
+            m.diffuse.set(0,0,0);m.emissive.set(1,1,1);m.useLighting=false;
+            m.diffuseMap=null;m.emissiveMap=null;m.diffuseVertexColor=false;
+            m.emissiveVertexColor=true;m.emissiveIntensity=1;
+          });
+        }else{
+          if(i.controls)i.mi.mesh=i.controls.stroke;
+          const color=mode==='maskVisible'?(idColors[i.line?.name]||[0,0,0]):i.group==='forelock'?[1,0,1]:i.group==='mouth'?[0,1,1]:[0,0,0];
+          i.mi.material=flat(i.material,`mask:${mode==='maskVisible'?i.mi.node.name:i.group||'head'}:${i.material.id}`,color);
+        }
+        i.mi.material.cull=mode==='maskNoCull'&&i.group?pc.CULLFACE_NONE:i.material.cull;
+       }
        key.castShadows=false;
       }
       if(mode==='maskTightDepth')d.camera.camera.farClip=50;
       if(mode==='maskNearLow')d.camera.camera.nearClip=.05;
      }};
-    return {renderer:d.app.graphicsDevice.deviceType,projection:'perspective',near:.3,far:700,lightState,
+    return {renderer:d.app.graphicsDevice.deviceType,vertexPalette,projection:'perspective',near:.3,far:700,lightState,
      faceNodes:items.filter(i=>i.group).map(i=>({name:i.mi.node.name,group:i.group,cull:i.material.cull,opacity:i.material.opacity,depthWrite:i.material.depthWrite,depthTest:i.material.depthTest}))};
    },{mobile:device==='mobile',night});
    for(const [view,yaw] of (profile==='triage'?(device==='mobile'?[['front',0]]:[['right',.8]]):[['front',0],['left',-.8],['right',.8]])) {
@@ -70,11 +104,11 @@ for(const [device,viewport] of [['desktop',{width:1280,height:800}],['mobile',{w
     }
     const metrics=await page.evaluate(async()=>{
      const {analyzeFaceMasks}=await import('/tests/browser/annyongi-face-metrics.mjs');
-     const {images,idColors}=window.__FACE_DIAGNOSTIC__,{w,h}=images.fixed,n=w*h;
+     const {images,idColors,lines}=window.__FACE_DIAGNOSTIC__,{w,h}=images.fixed,n=w*h;
      const luminance=(p,i)=>(.2126*p[i*4]+.7152*p[i*4+1]+.0722*p[i*4+2]);
      const median=a=>a.length?a.sort((a,b)=>a-b)[Math.floor(a.length/2)]:null;
      const mask=(mode,group)=>{const p=images[mode].pixels;
-      if(mode==='maskVisible'){const names=group.startsWith('node:')?[group.slice(5)]:Object.keys(idColors).filter(name=>(name==='Forelock curled contour')===(group==='forelock'));const colors=names.map(name=>idColors[name]);
+      if(mode==='maskVisible'){const names=group.startsWith('node:')?[group.slice(5)]:lines.filter(line=>line.group===group).map(line=>line.name);const colors=names.map(name=>idColors[name]);
        return Uint8Array.from({length:n},(_,i)=>colors.some(color=>color.every((channel,c)=>channel?p[i*4+c]>200:p[i*4+c]<55)));}
       return Uint8Array.from({length:n},(_,i)=>group==='forelock'?(p[i*4]>100&&p[i*4+1]<70&&p[i*4+2]>100):(p[i*4]<70&&p[i*4+1]>100&&p[i*4+2]>100));};
      const components=m=>{const visited=new Uint8Array(n),sizes=[];for(let i=0;i<n;i++)if(m[i]&&!visited[i]){const q=[i];visited[i]=1;let size=0;while(q.length){const a=q.pop();size++;const x=a%w,y=Math.floor(a/w);for(const [dx,dy]of [[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[-1,1],[1,-1],[1,1]]){const nx=x+dx,ny=y+dy,b=ny*w+nx;if(nx>=0&&nx<w&&ny>=0&&ny<h&&m[b]&&!visited[b]){visited[b]=1;q.push(b);}}}if(size>=3)sizes.push(size);}return {count:sizes.length,largest:sizes.length?Math.max(...sizes):0};};
@@ -85,10 +119,12 @@ for(const [device,viewport] of [['desktop',{width:1280,height:800}],['mobile',{w
       const counts=Object.fromEntries(Object.entries(masks).map(([mode,m])=>[mode,m.reduce((a,b)=>a+b,0)]));
       const signatures=Object.fromEntries(Object.entries(masks).map(([name,m])=>{let hash=2166136261;for(const value of m)hash=Math.imul(hash^value,16777619);return [name,(hash>>>0).toString(16)];}));
       const stats={};
+      const line=lines.find(target=>group==='node:'+target.name || group===target.group);
+      const contrastCutoff=line?.pixelRatioLimit ?? .65;
       for(const mode of ['fixed','white','shadowOff'].filter(mode=>images[mode])){
        const measured=new Uint8Array(n),darkMask=new Uint8Array(n);
        const ratios=[];let dark=0,samples=0;
-       for(let i=0;i<n;i++)if(masks.maskVisible[i]){const skin=luminance(images[mode==='white'?'whiteSkinOnly':mode==='shadowOff'?'shadowOffSkinOnly':'skinOnly'].pixels,i),ink=luminance(images[mode].pixels,i);if(skin<20)continue;const r=ink/skin;ratios.push(r);samples++;measured[i]=1;if(r<.65){dark++;darkMask[i]=1;}}
+       for(let i=0;i<n;i++)if(masks.maskVisible[i]){const skin=luminance(images[mode==='white'?'whiteSkinOnly':mode==='shadowOff'?'shadowOffSkinOnly':'skinOnly'].pixels,i),ink=luminance(images[mode].pixels,i);if(skin<20)continue;const r=ink/skin;ratios.push(r);samples++;measured[i]=1;if(r<contrastCutoff){dark++;darkMask[i]=1;}}
        stats[mode]={samples,darkPixels:dark,darkFraction:samples?dark/samples:null,medianInkToSkin:median(ratios),connectivity:analyzeFaceMasks(masks.maskVisible,measured,darkMask,w,h)};
       }
       let lost=0,depthChanged=0,nearChanged=0,cullChanged=0;if(masks.maskSolo)for(let i=0;i<n;i++){if(masks.maskSolo[i]&&!masks.maskHead[i])lost++;if(masks.maskHead[i]!==masks.maskTightDepth[i])depthChanged++;if(masks.maskHead[i]!==masks.maskNearLow[i])nearChanged++;if(masks.maskHead[i]!==masks.maskNoCull[i])cullChanged++;}
@@ -101,7 +137,7 @@ for(const [device,viewport] of [['desktop',{width:1280,height:800}],['mobile',{w
     if(prior)for(const group of Object.keys(metrics))assert.deepEqual(metrics[group].signatures,prior.metrics[group].signatures,`Mask must be independent of day/night: ${device}/${view}/${group}`);
     const otherVariant=results.find(r=>r.device===device&&r.variant!==activeCase.variant&&r.view===view&&r.night===night);
     if(profile==='acceptance'&&otherVariant)assert.deepEqual(metrics,otherVariant.metrics,'Source and optimized face metrics must agree');
-    if(profile==='acceptance')assert.deepEqual(faceContrastFailures(metrics),[],`Face contrast/connectivity regression: ${device}/${activeCase.variant}/${night}/${view}`);
+    if(profile==='acceptance')assert.deepEqual(faceContrastFailures(metrics,setup.vertexPalette?VERTEX_FACE:MATERIAL_FACE),[],`Face contrast/connectivity regression: ${device}/${activeCase.variant}/${night}/${view}`);
     await save('IN_PROGRESS');console.log(`Face diagnostic checkpoint: ${device}/${activeCase.variant}/${night?'night':'day'}/${view}`);
    }
   }

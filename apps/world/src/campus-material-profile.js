@@ -14,6 +14,9 @@ const PROFILE = Object.freeze({
 
 export const CAMPUS_MATERIAL_PROFILES = PROFILE;
 
+export const CENTRAL_LAWN_CANOPY_COLORS = Object.freeze(['#617d4b', '#75894f', '#698653', '#8a935b']);
+export const CENTRAL_LAWN_SHRUB_COLOR = '#70874b';
+
 const PALETTE = Object.freeze({
   ground: new Set(['#8b9274', '#729451', '#607c48', '#b5a187']),
   asphalt: new Set(['#747d7b', '#737b79', '#92968e', '#555f5d']),
@@ -43,7 +46,8 @@ const PALETTE = Object.freeze({
   ]),
   foliage: new Set([
     '#657a47', '#64854a', '#527745', '#527447', '#66866b', '#496443',
-    '#65894b', '#5c8144', '#567f48', '#41694b', '#58784a'
+    '#65894b', '#5c8144', '#567f48', '#41694b', '#58784a',
+    ...CENTRAL_LAWN_CANOPY_COLORS, CENTRAL_LAWN_SHRUB_COLOR
   ]),
   rubber: new Set(['#303735', '#2c2d2d', '#1c2d38'])
 });

@@ -66,9 +66,12 @@ try {
         hasCollision: Boolean(entity?.collision), vertices: positions.length / 3,
         finite: positions.every(Number.isFinite) };
     });
-    const crowns = window.__INHAGAME_P0__.app.root.find(entity =>
-      entity.name?.endsWith('_crown') && entity.render?.meshInstances?.length
-    );
+    const foliageBatches = [...profile.CENTRAL_LAWN_CANOPY_COLORS, profile.CENTRAL_LAWN_SHRUB_COLOR].map(color => {
+      const owner = `central_lawn_planting_${color.slice(1)}`;
+      const instances = window.__INHAGAME_P0__.app.root.find(entity => entity.name === owner)
+        .flatMap(entity => entity.render?.meshInstances ?? []);
+      return { color, materials: instances.map(mi => mi.material.name), vertices: instances.map(mi => mi.mesh.vertexBuffer.numVertices) };
+    });
 
     return {
       materials,
@@ -78,9 +81,7 @@ try {
       overrideUsesSeparateInstance: glassA !== glassNeutral,
       cache: kit.campusMaterialCacheStatus(),
       terrainMaterial: terrain?.render?.meshInstances?.[0]?.material?.name ?? null,
-      foliageMaterialNames: (crowns ?? []).slice(0, 10).map(entity =>
-        entity.render.meshInstances[0].material.name
-      )
+      foliageBatches
     };
   });
 
@@ -101,8 +102,12 @@ try {
   assert.equal(result.sameGlassInstance, true, 'same color/profile must reuse one material');
   assert.equal(result.overrideUsesSeparateInstance, true, 'explicit profile override gets distinct cache entry');
   assert.equal(result.terrainMaterial, 'campus-material-ground:#8b9274');
-  assert.ok(result.foliageMaterialNames.length > 0);
-  assert.ok(result.foliageMaterialNames.every(name => name.startsWith('campus-material-foliage:')));
+  assert.ok(result.foliageBatches.length > 0);
+  for (const { color, materials, vertices } of result.foliageBatches) {
+    assert.ok(materials.length > 0, `missing central lawn foliage batch for ${color}`);
+    assert.ok(vertices.every(count => count > 0), `empty central lawn foliage batch for ${color}`);
+    for (const name of materials) assert.equal(name, `campus-material-foliage:${color}`);
+  }
 
   for (const name of [
     'ground', 'asphalt', 'concrete', 'brick', 'paint',
