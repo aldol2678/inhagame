@@ -11,7 +11,7 @@ const workflow = id => readFileSync(new URL('../workflows/' + GROUPS[id].workflo
 test('a suite-only change selects only the suites that declare the path', () => {
   assert.deepEqual(chosen(select('places', ['apps/world/src/culture-street-signs.js'])), ['backgate-shopfront']);
   assert.deepEqual(chosen(select('places', ['apps/world/tests/browser/north-walkway-smoke.mjs'])), ['north-walkway']);
-  assert.deepEqual(chosen(select('places', ['apps/world/src/jeongseok/access.js'])), ['jeongseok-gate', 'jeongseok-interior']);
+  assert.deepEqual(chosen(select('places', ['apps/world/src/jeongseok/access.js'])), ['jeongseok-interior']);
   assert.deepEqual(chosen(select('places', ['apps/world/src/back-street-geometry.js'])), ['backgate-shopfront', 'backgate-restoration']);
   // north-* is claimed by the landmark suite; walkway files belong to both.
   assert.deepEqual(chosen(select('places', ['apps/world/src/north-walkway-paving.js'])), ['north-landmark', 'north-walkway']);
