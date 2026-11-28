@@ -1,0 +1,361 @@
+name: World campus and map browser QA
+# Campus terrain, visual parity, full map, mounted photo maps and student center suites
+# in one workflow. The `select` job decides which suites a pull request touches
+# (.github/ci/group-filter.mjs); a suite runs unless that job positively reports `false`.
+on:
+  pull_request:
+    paths:
+      - 'apps/world/src/campus-terrain*.js'
+      - 'apps/world/src/campus-chunk-renderer.js'
+      - 'apps/world/tests/campus-terrain.test.mjs'
+      - 'apps/world/tests/campus-terrain-diagnostic.test.mjs'
+      - 'apps/world/tests/browser/campus-terrain-smoke.mjs'
+      - 'apps/world/tests/browser/campus-terrain-baseline-control.mjs'
+      - 'apps/world/src/back-alley-geometry.js'
+      - 'apps/world/src/library-garden-geometry.js'
+      - 'apps/world/src/stadium-stands-geometry.js'
+      - 'apps/world/src/pond-surroundings-geometry.js'
+      - 'apps/world/src/heidegger-forest-geometry.js'
+      - 'apps/world/src/matching-tree-layout.js'
+      - 'apps/world/src/matching-tree-geometry.js'
+      - 'apps/world/src/seat-anchors.js'
+      - 'apps/world/data/reality/campus-facilities.json'
+      - 'apps/world/data/reality/matching-tree-placement.provenance.json'
+      - 'apps/world/tests/matching-tree*.test.mjs'
+      - 'apps/world/tests/browser/matching-tree-*.mjs'
+      - 'apps/world/src/facility-blockout.js'
+      - 'apps/world/src/campus-material-profile.js'
+      - 'apps/world/tests/heidegger-forest*.test.mjs'
+      - 'apps/world/tests/browser/heidegger-forest-*.mjs'
+      - 'apps/world/src/main-hall-walkway-*.js'
+      - 'apps/world/src/campus-grounds.js'
+      - 'apps/world/src/navigation/campus-navigation.js'
+      - 'apps/world/src/minimap/minimap-data.js'
+      - 'apps/world/tests/pond-surroundings.test.mjs'
+      - 'apps/world/tests/main-hall-walkways.test.mjs'
+      - 'apps/world/tests/campus-surroundings-walking.test.mjs'
+      - 'apps/world/tests/browser/campus-surroundings-*.mjs'
+      - 'apps/world/tests/*visual-parity*'
+      - 'apps/world/tests/library-garden-geometry.test.mjs'
+      - 'apps/world/tests/back-alley-geometry-contract.test.mjs'
+      - 'apps/world/tests/browser/campus-visual-parity-*'
+      - 'apps/world/src/minimap/**'
+      - 'apps/world/src/navigation/**'
+      - 'apps/world/campus/index.html'
+      - 'apps/world/styles.css'
+      - 'apps/world/tests/full-map*.test.mjs'
+      - 'apps/world/tests/mobile-full-map-portrait.test.mjs'
+      - 'apps/world/tests/navigation-map-ui.test.mjs'
+      - 'apps/world/tests/browser/full-map-*'
+      - 'apps/world/src/photo/**'
+      - 'apps/world/src/phone/**'
+      - 'apps/world/src/main.js'
+      - 'apps/world/src/player-controller.js'
+      - 'apps/world/src/character-model.js'
+      - 'apps/world/src/orbit-camera-controller.js'
+      - 'apps/world/src/input/**'
+      - 'apps/world/src/world-collision.js'
+      - 'apps/world/src/campus-layout.js'
+      - 'apps/world/src/world-exterior-bounds.js'
+      - 'apps/world/src/main-gate-frame.js'
+      - 'apps/world/src/editor/main-gate-production.js'
+      - 'apps/world/src/student-center-*.js'
+      - 'apps/world/npc-factory/dev-runtime-state.mjs'
+      - 'apps/world/src/mounts/campus-bike-world.js'
+      - 'apps/world/src/mounts/duck-boat-motion.js'
+      - 'apps/world/src/mounts/campus-helicopter-world.js'
+      - 'apps/world/phone.css'
+      - 'apps/world/tests/photo-*.test.mjs'
+      - 'apps/world/tests/inkyung-photo-point.test.mjs'
+      - 'apps/world/tests/world-bounds-boot-order.test.mjs'
+      - 'apps/world/tests/browser/ipad-webkit-boot-smoke.mjs'
+      - 'apps/world/tests/browser/photo-mode-*'
+      - 'apps/world/tests/browser/harness-source.mjs'
+      - 'apps/world/tests/browser/mounted-photo-maps-smoke.mjs'
+      - '.github/ci/phone-surface-scope*.mjs'
+      - '.github/ci/seo-only-scope*.mjs'
+      - 'apps/world/src/campus-facilities.js'
+      - 'apps/world/src/campus-render-kit.js'
+      - 'apps/world/src/player-dimensions.js'
+      - 'apps/world/src/polygon-collision.js'
+      - 'apps/world/src/roadview-layout.js'
+      - 'apps/world/src/lobby/world-resume.js'
+      - 'apps/world/src/environment/night-building-windows.js'
+      - 'apps/world/src/environment/night-window-policy.js'
+      - 'apps/world/tests/student-center-*.test.mjs'
+      - 'apps/world/tests/browser/student-center-*'
+      - 'apps/world/tests/browser/package.json'
+      - 'apps/world/tests/browser/package-lock.json'
+      - 'apps/world/tests/browser/package*.json'
+      - 'apps/world/tests/browser/harness.mjs'
+      - '.github/ci/group-filter.mjs'
+      - '.github/ci/group-filter.test.mjs'
+      - '.github/ci/phone-surface-scope.mjs'
+      - '.github/actions/setup-world-browser/**'
+      - '.github/workflows/world-campus-map-browser.yml'
+permissions:
+  contents: read
+concurrency:
+  group: world-campus-map-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  select:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      campus_terrain: ${{ steps.filter.outputs.campus_terrain }}
+      campus_visual_parity: ${{ steps.filter.outputs.campus_visual_parity }}
+      full_map_readability: ${{ steps.filter.outputs.full_map_readability }}
+      mounted_photo_maps: ${{ steps.filter.outputs.mounted_photo_maps }}
+      student_center_campus: ${{ steps.filter.outputs.student_center_campus }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - name: Test suite selection
+        run: node --test .github/ci/group-filter.test.mjs
+      - name: Select suites touched by this pull request
+        id: filter
+        env:
+          CI_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CI_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node .github/ci/group-filter.mjs campus-map >> "$GITHUB_OUTPUT"
+
+  campus-terrain:
+    needs: select
+    if: ${{ !cancelled() && needs.select.outputs.campus_terrain != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: ./.github/actions/setup-world-browser
+      - name: Verify ground geometry
+        run: node --test apps/world/tests/campus-terrain.test.mjs apps/world/tests/campus-terrain-diagnostic.test.mjs
+      - name: Reproduce original failure and repaired diagnostic on immutable main
+        timeout-minutes: 14
+        run: node apps/world/tests/browser/campus-terrain-baseline-control.mjs
+      - name: Render candidate terrain with isolated diagnostic background
+        timeout-minutes: 5
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+          WORLD_TERRAIN_QA_OUTPUT: test-results/campus-terrain
+        run: timeout --signal=TERM --kill-after=10s 270s node apps/world/tests/browser/campus-terrain-smoke.mjs
+      - name: Save Chromium frames and pixel receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: campus-terrain-browser-evidence
+          path: test-results/campus-terrain/
+          if-no-files-found: error
+          retention-days: 7
+
+  campus-visual-parity:
+    needs: select
+    if: ${{ !cancelled() && needs.select.outputs.campus_visual_parity != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      WORLD_SURROUNDINGS_BASE: ${{ github.event.pull_request.head.ref == 'fix/campus-surroundings-parity-20261004' && '0f875b88cc39a7432253e4cd52b2b489d37a3df2' || '' }}
+      WORLD_FOREST_BASE: ${{ startsWith(github.event.pull_request.head.ref, 'codex/heidegger-greenery-slice-') && github.event.pull_request.base.sha || '' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Fetch explicitly enabled immutable surroundings baseline
+        if: env.WORLD_SURROUNDINGS_BASE != ''
+        run: git fetch --no-tags --depth=1 origin "$WORLD_SURROUNDINGS_BASE"
+      - name: Fetch explicitly enabled immutable forest baseline
+        if: env.WORLD_FOREST_BASE != ''
+        run: git fetch --no-tags --depth=1 origin "$WORLD_FOREST_BASE"
+      - name: Install Korean fonts for readable offline HUD evidence
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+          fc-match 'Noto Sans CJK KR'
+          dpkg-query -W fonts-noto-cjk
+      - uses: ./.github/actions/setup-world-browser
+      - name: Verify geometry and controller contracts
+        run: node --test apps/world/tests/campus-visual-parity-*.test.mjs apps/world/tests/library-garden-geometry.test.mjs apps/world/tests/back-alley-geometry-contract.test.mjs apps/world/tests/pond-surroundings.test.mjs apps/world/tests/main-hall-walkways.test.mjs apps/world/tests/campus-surroundings-walking.test.mjs apps/world/tests/heidegger-forest*.test.mjs apps/world/tests/matching-tree*.test.mjs
+      - name: Verify real-engine lifecycle and unchanged Hall/library integration
+        run: |
+          node apps/world/tests/browser/campus-visual-parity-null-smoke.mjs
+          node apps/world/tests/browser/campus-surroundings-null-smoke.mjs
+          node apps/world/tests/browser/heidegger-forest-null-smoke.mjs
+          node apps/world/tests/browser/matching-tree-null-smoke.mjs
+          node apps/world/tests/browser/hall-library-integration-null-smoke.mjs
+      - name: Verify actual offline campus frames, controller walking and lifecycle
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+          WORLD_VISUAL_PARITY_OUTPUT: test-results/campus-visual-parity
+          EXPECTED_VISUAL_PARITY_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: node apps/world/tests/browser/campus-visual-parity-smoke.mjs
+      - name: Compare isolated forest recipes with identical current matching tree
+        if: env.WORLD_FOREST_BASE != ''
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+          WORLD_FOREST_OUTPUT: test-results/campus-visual-parity/forest
+          EXPECTED_FOREST_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: node apps/world/tests/browser/heidegger-forest-smoke.mjs
+      - name: Verify relocated matching tree and existing seat inputs
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+          WORLD_MATCHING_TREE_OUTPUT: test-results/campus-visual-parity/matching-tree
+          EXPECTED_MATCHING_TREE_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: node apps/world/tests/browser/matching-tree-smoke.mjs
+      - name: Save exact-head Chromium evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: campus-visual-parity-browser-evidence
+          path: test-results/campus-visual-parity/
+          if-no-files-found: error
+          retention-days: 7
+
+  full-map-readability:
+    needs: select
+    if: ${{ !cancelled() && needs.select.outputs.full_map_readability != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: ./.github/actions/setup-world-browser
+      - name: Ensure Korean screenshot glyphs
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y fonts-noto-cjk
+          mkdir -p test-results/full-map-readability
+          fc-match 'sans-serif:lang=ko' > test-results/full-map-readability/korean-font.txt
+      - name: Verify map contracts
+        run: node --test apps/world/tests/full-map*.test.mjs apps/world/tests/mobile-full-map-portrait.test.mjs apps/world/tests/navigation-map-ui.test.mjs apps/world/tests/room-map-data.test.mjs
+      - name: Verify native search and modal input in desktop and mobile Chromium
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+          FULL_MAP_NAVIGATION_OUTPUT: test-results/full-map-navigation
+          EXPECTED_MAP_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: node apps/world/tests/browser/full-map-navigation-smoke.mjs
+      - name: Render Main Gate cinematic in desktop and mobile Chromium
+        if: ${{ success() || failure() }}
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+          WORLD_CINEMATIC_QA_OUTPUT: test-results/main-gate-cinematic
+          EXPECTED_MAP_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: node apps/world/tests/browser/full-map-main-gate-cinematic-smoke.mjs
+      - name: Render real campus map in desktop and mobile Chromium
+        if: ${{ success() || failure() }}
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+          WORLD_FULL_MAP_QA_OUTPUT: test-results/full-map-readability
+          EXPECTED_MAP_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: node apps/world/tests/browser/full-map-readability-smoke.mjs
+      - name: Preserve screenshots and assertion receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-map-browser-${{ github.event.pull_request.head.sha }}
+          path: |
+            test-results/full-map-readability/
+            test-results/full-map-navigation/
+            test-results/main-gate-cinematic/
+          if-no-files-found: error
+          retention-days: 14
+
+  mounted-photo-maps:
+    needs: select
+    if: ${{ !cancelled() && needs.select.outputs.mounted_photo_maps != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        viewport: [desktop, portrait, landscape]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Install readable Korean glyphs
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+      - uses: ./.github/actions/setup-world-browser
+      - name: Verify mounted photo lifecycle and mobile Maps
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+          MOUNTED_PHOTO_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          MOUNTED_PHOTO_QA_CASES: ${{ matrix.viewport }}
+        run: timeout --signal=TERM --kill-after=10s 720s node apps/world/tests/browser/mounted-photo-maps-smoke.mjs
+      - name: Preserve mounted photo and Maps evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mounted-photo-maps-${{ matrix.viewport }}
+          path: test-results/mounted-photo-maps/
+          if-no-files-found: error
+          retention-days: 7
+
+  student-center-campus:
+    needs: select
+    if: ${{ !cancelled() && needs.select.outputs.student_center_campus != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          fetch-depth: 128
+      - name: Select affected browser suite (fail-closed)
+        id: phone_scope
+        env:
+          CI_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CI_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          CI_PR_TITLE: ${{ github.event.pull_request.title }}
+          # The scope gate is keyed by the original workflow name and reads its paths.
+          CI_WORKFLOW_NAME: Student center integrated campus browser QA
+        run: node .github/ci/phone-surface-scope.mjs >> "$GITHUB_OUTPUT"
+      - name: Install pinned Node, Playwright and PlayCanvas dependencies
+        if: steps.phone_scope.outputs.skip != 'true'
+        uses: ./.github/actions/setup-world-browser
+      - name: Verify student geometry and default campus controller contracts
+        if: steps.phone_scope.outputs.skip != 'true'
+        run: node --test apps/world/tests/student-center-candidate.test.mjs apps/world/tests/student-center-connected.test.mjs apps/world/tests/student-center-campus.test.mjs
+      - name: Verify actual engine ownership without claiming rendered pixels
+        if: steps.phone_scope.outputs.skip != 'true'
+        run: node apps/world/tests/browser/student-center-campus-null-smoke.mjs
+      - name: Render exact-head full campus and walk both directions at three sizes
+        if: steps.phone_scope.outputs.skip != 'true'
+        timeout-minutes: 10
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+          WORLD_STUDENT_CAMPUS_QA_OUTPUT: test-results/student-center-campus
+          EXPECTED_STUDENT_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: timeout --signal=TERM --kill-after=10s 570s node apps/world/tests/browser/student-center-campus-smoke.mjs
+      - name: Save exact-commit frames, trusted-input and per-tick support receipts
+        if: always() && steps.phone_scope.outputs.skip != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: student-center-campus-browser-evidence
+          path: test-results/student-center-campus/
+          if-no-files-found: error
+          retention-days: 7
