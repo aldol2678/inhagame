@@ -8,13 +8,12 @@ const npcRuntime = read("../npc-factory/dev-runtime.mjs");
 const main2Guide = read("../npc-factory/main2-guide-runtime.mjs");
 const mcmRuntime = read("../src/events/zombie-university-2026/event-runtime.js");
 
-test("main owns NPC and MCM dialogue input with BLOCKING_UI claims", () => {
-  for (const owner of ["npc-dialogue", "mcm-dialogue"]) {
-    assert.match(main, new RegExp(`ownerId: "${owner}".*policy: INPUT_FOCUS_POLICY\\.BLOCKING_UI`, "s"));
-  }
+test("main owns active NPC dialogue input; archived MCM does not claim focus", () => {
+  assert.match(main, /ownerId: "npc-dialogue".*policy: INPUT_FOCUS_POLICY\.BLOCKING_UI/s);
   assert.match(main, /onConversationOpen:\s*\(\)\s*=>\s*\{\s*npcDialogueInput\.acquire\(\)/s);
   assert.match(main, /onConversationClose:\s*\(\)\s*=>\s*\{ npcDialogueInput\.release\(\); \}/);
-  assert.match(main, /onDialogueChange:\s*\(open\)\s*=>\s*\{[\s\S]*mcmDialogueInput\.acquire\(\)[\s\S]*mcmDialogueInput\.release\(\)/s);
+  assert.match(main, /mcmEventRuntime = Object\.freeze\(\{[\s\S]*?isDialogueOpen: \(\) => false,[\s\S]*?retired: true/);
+  assert.doesNotMatch(main, /mcmDialogueInput\.acquire\(/);
 });
 
 test("NPC runtime emits one unified lifecycle across normal and Main 2 guide conversations", () => {

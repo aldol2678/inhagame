@@ -42,11 +42,13 @@ test("LEVEL UP stays server-derived: 150 → 300 EXP is Lv.2 → Lv.3 only becau
     "a server Level that did not rise shows nothing, whatever the EXP");
 });
 
-test("reward wiring is unchanged: one progression re-read per claim, wallet / inventory / loadout re-reads kept", () => {
+test("daily quiz reward refreshes progression once and only touches applicable inventories", () => {
   const main = read("../src/main.js");
-  const body = main.slice(main.indexOf("onReward: result => {"), main.indexOf("\n  }\n});", main.indexOf("onReward: result => {")));
-  assert.equal(body.match(/progression\.refresh\("reward"\)/g)?.length, 1);
-  for (const client of ["wallet", "inventory", "loadout"]) assert.match(body, new RegExp(`void ${client}\\.refresh\\("reward"\\)`));
+  const part = main.slice(main.indexOf("const dailyQuiz = createDailyQuizClient("), main.indexOf("const attendance ="));
+  assert.equal(part.match(/progression\.refresh\("reward"\)/g)?.length, 1);
+  assert.match(part, /entry\.grantType === "CURRENCY"\)\) void wallet\.refresh\("reward"\)/);
+  assert.match(part, /entry\.grantType === "ITEM"\)\) void inventory\.refresh\("reward"\)/);
+  assert.doesNotMatch(main, /createMcm2026MinigameRuntime\(/);
 });
 
 test("the client holds no production EXP amount or reward table", () => {

@@ -274,12 +274,12 @@ test("panel code: no RPC, no storage, no avatar or Realtime change", () => {
   assert.doesNotMatch(panel, /split\(['"]\.['"]\)/, "never derives a slot from the item id");
 });
 
-test("main.js wiring: member client, identity, open, purchase + reward refresh both, resume, modal gate", () => {
+test("main.js wiring: member client, identity, open, purchase refreshes inventory and loadout, resume, modal gate", () => {
   const main = source("../src/main.js");
   assert.match(main, /createLoadoutClient\(\{ getClient: \(\) => online\?\.supabase \?\? null \}\)/);
   assert.match(main, /void loadout\.setAccount\(identity \? online\?\.userId \?\? null : null\)/);
   assert.match(main, /onPurchase: \(\) => \{\s*const inventoryRead = inventory\.refresh\("purchase"\);\s*void loadout\.refresh\("purchase"\);\s*return inventoryRead;\s*\}/);
-  assert.match(main, /void inventory\.refresh\("reward"\);\s*void loadout\.refresh\("reward"\);/);
+  assert.doesNotMatch(main, /createMcm2026MinigameRuntime\(/, "archived MCM never updates live wardrobe ownership");
   assert.match(main, /addEventListener\("pageshow"[\s\S]*?void loadout\.refresh\("resume"\)/);
   assert.match(main, /ownerId: "wardrobe".*policy: INPUT_FOCUS_POLICY\.BLOCKING_UI/s,
     "an open wardrobe suspends world actions through InputFocusManager");

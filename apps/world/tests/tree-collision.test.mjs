@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import {loadNpcPopulation} from '../npc-factory/npc-population-loader.mjs';
-import {snapshotForPeriod,PULSE_PERIODS,safeDwell} from '../npc-factory/dev-runtime-state.mjs';
+import {snapshotForPeriod,PULSE_PERIODS,positionAt,safeDwell} from '../npc-factory/dev-runtime-state.mjs';
 import {createNpcNavigator} from '../npc-factory/dev-navigation.mjs';
 import {pondBankTrees,pondSeatTrees} from '../src/roadview-layout.js';
 import {moveAroundObstacles} from '../src/world-collision.js';
@@ -39,4 +39,10 @@ test('player stops at trunk but can pass under the crown',()=>{
   assert.ok(far.z<trunk.z-r);
   const side=moveAroundObstacles({...at(.84,-1.4),y:1.15},0,2.8);
   assert.ok(side.z>trunk.z+.9);
+});
+test('trunk displacement cannot occupy a later purposeful photo slot',()=>{
+  const guide=positionAt('inkyung_photo_point',0);
+  const later=positionAt('inkyung_photo_point',3);
+  assert.ok(nav.walkable(guide));
+  assert.ok(Math.hypot(guide.x-later.x,guide.z-later.z)>=1.1);
 });

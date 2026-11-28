@@ -2,7 +2,7 @@
 // These positions are inspection anchors, not new canonical location coordinates.
 import { getCanonicalLandmark, projectPolygon } from '../src/reality-adapter.js';
 import { edgeFrame, hitsPondTrunk } from '../src/roadview-layout.js';
-import { INKYUNG_PHOTO_ANCHOR_SPEC } from '../src/photo/inkyung-photo-point.js';
+import { INKYUNG_PHOTO_ANCHOR_SPEC, inkyungPhotoPosition } from '../src/photo/inkyung-photo-point.js';
 import { polygonOverlap } from '../src/polygon-collision.js';
 import { FACILITIES, FACILITY_COLLIDERS } from '../src/campus-facilities.js';
 import { LANDMARKS, OBSTACLES } from '../src/campus-layout.js';
@@ -178,6 +178,11 @@ export function positionAt(location, slotIndex) {
     }
     if (!slots[slotIndex]) throw new Error(`No separated NPC slot: ${location}/${slotIndex}`);
     return { ...slots[slotIndex] };
+  }
+  if (location === 'inkyung_photo_point') {
+    const point = inkyungPhotoPosition(slotIndex);
+    if (safeDwell(point)) return point;
+    throw new Error(`No trunk-safe NPC photo slot: ${slotIndex}`);
   }
   const spec = anchorSpecs[location];
   if (!spec) throw new Error(`Unknown NPC runtime location: ${location}`);

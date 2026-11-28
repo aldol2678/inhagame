@@ -168,13 +168,14 @@ test("inventory code: one read RPC, no client creation, no storage, no write pat
   assert.doesNotMatch(panel, /\.rpc\(/, "the panel makes no RPC");
 });
 
-test("main.js wiring: member client, identity, open, shop purchase, MCM reward, resume; no polling", () => {
+test("main.js wiring: member client, identity, open, shop purchase, archived MCM, resume; no polling", () => {
   const main = source("../src/main.js");
   assert.match(main, /createInventoryClient\(\{ getClient: \(\) => online\?\.supabase \?\? null \}\)/);
   assert.match(main, /void inventory\.setAccount\(identity \? online\?\.userId \?\? null : null\)/);
   assert.match(main, /onPurchase: \(\) => \{\s*const inventoryRead = inventory\.refresh\("purchase"\);/, "shop purchase success re-reads the inventory");
-  assert.match(main, /void progression\.refresh\("reward"\);\s*void wallet\.refresh\("reward"\);\s*void inventory\.refresh\("reward"\);/,
-    "MCM reward keeps progression + wallet and adds inventory");
+  assert.match(main, /const mcmMinigame = Object\.freeze\(\{[\s\S]*?contextAction: \(\) => null,[\s\S]*?retired: true, active: false/,
+    "archived MCM exposes no launch or new reward path");
+  assert.doesNotMatch(main, /createMcm2026MinigameRuntime\(/);
   assert.match(main, /addEventListener\("pageshow"[\s\S]*?void inventory\.refresh\("resume"\)/);
   assert.match(main, /ownerId: "inventory".*policy: INPUT_FOCUS_POLICY\.BLOCKING_UI/s,
     "an open inventory suspends world actions through InputFocusManager");
