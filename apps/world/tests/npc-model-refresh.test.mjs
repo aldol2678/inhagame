@@ -23,10 +23,10 @@ test('all 63 remaining reviewed generated models match the public bundle and kee
   assert.ok(j.skins?.length>0,r.id);
  }
 });
-test('model generation remains explicit and release excludes Blender tools',()=>{
+test('generated models are default with an explicit legacy escape hatch; release excludes tools',()=>{
  const source=readFileSync(new URL('../npc-factory/npc-model-refresh.mjs',import.meta.url),'utf8');
  const refs=Object.keys(JSON.parse(readFileSync(new URL('../release/cloudflare-live/reference.json',import.meta.url))).files);
- assert.match(source,/npcModels'\)==='generated'/);
+ assert.match(source,/npcModels'\)!=='legacy'/);
  assert.match(source,/count=5/);
  assert.ok(refs.includes('npc-factory/npc-model-refresh.mjs'));
  assert.equal(refs.some(x=>x.endsWith('.blend')||x.includes('inha-npc-generator')),false);

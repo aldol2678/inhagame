@@ -302,7 +302,7 @@
     "npc-factory/npc-expression-controller.mjs": "22d2d305583c75ce3f76d468d569fd579e0da6088c9e0e352cf40d6df2f23a70",
     "npc-factory/npc-jev-router.mjs": "81d92bfd15c04149945521e67a90d57536da959a80d58e143828fe8e13674e17",
     "npc-factory/npc-korean-label.mjs": "04d3cf9272b06b423f716c5b083484113e5bd3349c7c53bc09a9800592e74483",
-    "npc-factory/npc-model-refresh.mjs": "36fe02d89a714694ae8d6e6f00b3d069199152ab89f511abfc96bdae3dfa420e",
+    "npc-factory/npc-model-refresh.mjs": "12721390e11acf6e3c573245773bd993fc7733baf4eb75352b4257098b6299e9",
     "npc-factory/npc-observed-bubble.mjs": "4a7335d8113acc925a2c1ee2d020557af6fda00a168114be7b21b277463e86a4",
     "npc-factory/npc-observed-conversation.mjs": "0cea1b23c56986b1a60da46e1ba2cb0a89b4e1824f646043f61938a3a51de99c",
     "npc-factory/npc-observed-templates.mjs": "398152fdccca3f8d7cf2c798b3b8b2b918796ade6d6be003d0e7f52d25126438",

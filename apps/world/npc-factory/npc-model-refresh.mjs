@@ -1,6 +1,7 @@
 import * as pc from 'playcanvas';
 const settings=new URLSearchParams(globalThis.location?.search??'');
-export const NPC_MODELS_GENERATED=settings.get('npcModels')==='generated';
+// Generated silhouettes are normal; the explicit legacy switch is useful for visual QA.
+export const NPC_MODELS_GENERATED=settings.get('npcModels')!=='legacy';
 const ENABLED=NPC_MODELS_GENERATED;
 const paths='/assets/npcs/refresh-72/';
 const count=5, radius=11, releaseRadius=16;
