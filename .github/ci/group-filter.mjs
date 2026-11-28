@@ -458,6 +458,56 @@ export const GROUPS = Object.freeze({
         'apps/world/tests/browser/biryong-camera-null-smoke.mjs'
       ]
     })
+  }),
+  'npc-shop': Object.freeze({
+    workflow: 'world-npc-shop-browser.yml',
+    name: 'World NPC and shop browser QA',
+    legacy: Object.freeze({
+      'npc-c04-living': 'npc-c04-living-browser.yml',
+      'npc-shop-routing': 'npc-shop-routing-browser.yml',
+      'shop-panel-focus': 'shop-panel-focus-browser.yml'
+    }),
+    suites: Object.freeze({
+      'npc-c04-living': [
+        'apps/world/npc-factory/**',
+        'apps/world/src/seat-anchors.js',
+        'apps/world/src/photo/inkyung-photo-point.js',
+        'apps/world/src/life-props.js',
+        'apps/world/tests/npc-c04*.test.mjs',
+        'apps/world/tests/browser/npc-c04-*.mjs',
+        'apps/world/tests/browser/npc-campus-life-diversity-smoke.mjs',
+        'apps/world/tests/browser/harness*.mjs'
+      ],
+      'npc-shop-routing': [
+        '.github/ci/phone-surface-scope*.mjs',
+        '.github/ci/seo-only-scope*.mjs',
+        'apps/world/src/shop/**',
+        'apps/world/src/main.js',
+        'apps/world/npc-factory/dev-runtime.mjs',
+        'apps/world/src/student-center-*.js',
+        'apps/world/src/rooms/dorm1-lobby-*.js',
+        'apps/world/tests/shop-*.test.mjs',
+        'apps/world/tests/student-center-vendors.test.mjs',
+        'apps/world/tests/browser/npc-shop-*',
+        'apps/world/tests/browser/shop-furniture-*',
+        'apps/world/tests/browser/harness*.mjs',
+        'apps/world/tests/browser/student-center-campus-smoke.mjs'
+      ],
+      'shop-panel-focus': [
+        'apps/world/src/shop/**',
+        'apps/world/src/rooms/furniture*.js',
+        'apps/world/src/campus-render-kit.js',
+        'apps/world/assets/furniture/**',
+        'apps/world/src/collection/item-catalog.js',
+        'apps/world/styles.css',
+        'apps/world/tests/shop-panel*.test.mjs',
+        'apps/world/tests/browser/shop-panel-focus-*',
+        'apps/world/tests/browser/furniture-showroom-*',
+        'apps/world/tests/furniture-shop-showroom.test.mjs',
+        'apps/world/tests/furniture-shop-preview-lifecycle.test.mjs',
+        'apps/world/tests/browser/furniture-preview-ownership.test.mjs'
+      ]
+    })
   })
 });
 
