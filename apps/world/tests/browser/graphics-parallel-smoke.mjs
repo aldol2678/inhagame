@@ -209,7 +209,8 @@ try {
   const main = await readFile(new URL('../../src/main.js', import.meta.url), 'utf8');
   const needle = 'const worldClock = previewHost ? null : createNpcWorldClock();';
   assert.equal(main.split(needle).length, 2, 'test-only clock seam must match exactly once');
-  await smoke.context.route('**/src/main.js', route => route.fulfill({ status: 200,
+  // Path match: the campus page requests its entry module with a cache key (/src/main.js?v=...).
+  await smoke.context.route(url => url.pathname === '/src/main.js', route => route.fulfill({ status: 200,
     contentType: 'text/javascript', body: main.replace(needle, 'const worldClock = window.__GRAPHICS_QA_CLOCK__;') }));
   await smoke.context.addInitScript(({ epoch }) => {
     window.__GRAPHICS_QA_CLOCK__ = {

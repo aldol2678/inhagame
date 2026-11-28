@@ -1,0 +1,948 @@
+name: World browser QA
+# The remaining single-suite World browser checks in one workflow. The `select` job decides
+# which suites a pull request touches (.github/ci/group-filter.mjs); a suite runs unless that
+# job positively reports `false` for it.
+on:
+  pull_request:
+    paths:
+      - '.github/ci/phone-surface-scope*.mjs'
+      - '.github/ci/seo-only-scope*.mjs'
+      - 'apps/world/assets/fishing-v1/**'
+      - 'apps/world/assets/life-props-v1/**'
+      - 'apps/world/src/activity/fishing-*.js'
+      - 'apps/world/src/life-props.js'
+      - 'apps/world/src/rooms/club-room-*.js'
+      - 'apps/world/src/rooms/personal-room-fixture-model.js'
+      - 'apps/world/src/appearance/equipment-*.js'
+      - 'apps/world/src/main.js'
+      - 'apps/world/npc-factory/dev-human-avatar.mjs'
+      - 'apps/world/npc-factory/dev-runtime.mjs'
+      - 'apps/world/npc-factory/purposeful-activity-*.mjs'
+      - 'apps/world/tests/*fishing*.test.mjs'
+      - 'apps/world/tests/life-props*.test.mjs'
+      - 'apps/world/tests/asset-runtime-browser-workflow.test.mjs'
+      - 'apps/world/tests/browser/fishing-*'
+      - 'apps/world/tests/browser/life-props-*'
+      - 'apps/world/src/character-model.js'
+      - 'apps/world/src/orbit-camera-controller.js'
+      - 'apps/world/assets/check_characters.mjs'
+      - 'tools/world-assets/**'
+      - 'apps/world/src/asset-authority-canary.js'
+      - 'apps/world/tests/character-model-loading.test.mjs'
+      - 'apps/world/tests/browser/harness-source.mjs'
+      - 'apps/world/tests/browser/character-model-loading-*'
+      - 'apps/world/tests/browser/annyongi-*'
+      - 'apps/world/assets/induck-v3.glb'
+      - 'apps/world/assets/annyongi-flight-v1.glb'
+      - 'apps/world/api/world-collection-book.js'
+      - 'apps/world/server/collection-book-service.mjs'
+      - 'apps/world/src/collection/collection-book-*.js'
+      - 'apps/world/src/collection/item-catalog.js'
+      - 'apps/world/src/collection/item-icon.js'
+      - 'apps/world/assets/item-icons/**'
+      - 'apps/world/tests/item-icons.test.mjs'
+      - 'apps/world/tests/browser/item-icons-*'
+      - 'apps/world/src/collection/collection-discovery-contract.*'
+      - 'apps/world/src/config/supabase-public-config.*'
+      - 'apps/world/npc-factory/npc-ai-auth.mjs'
+      - 'apps/world/src/inventory/inventory-panel.js'
+      - 'apps/world/styles.css'
+      - 'apps/world/tests/collection-book*.test.mjs'
+      - 'apps/world/tests/browser/collection-book-*'
+      - 'apps/world/src/combat/combat-hud-v03.js'
+      - 'apps/world/tests/combat-hud-activation.test.mjs'
+      - 'apps/world/tests/browser/combat-hud-activation-*'
+      - 'apps/world/src/rooms/cooking-*.js'
+      - 'apps/world/src/rooms/furniture-*.js'
+      - 'apps/world/src/rooms/personal-room-layout.js'
+      - 'apps/world/src/rooms/room-session.js'
+      - 'apps/world/src/player-dimensions.js'
+      - 'apps/world/src/inventory/**'
+      - 'apps/world/dev-server.mjs'
+      - 'apps/world/campus/index.html'
+      - 'apps/world/editor/index.html'
+      - 'apps/world/tests/cooking-*.test.mjs'
+      - 'apps/world/tests/support/fake-dom.mjs'
+      - 'apps/world/tests/browser/cooking-candidate-*'
+      - 'apps/world/tests/browser/harness*.mjs'
+      - 'supabase/migrations/*cooking*'
+      - 'apps/world/src/attendance/**'
+      - 'apps/world/src/daily-quiz/**'
+      - 'apps/world/npc-factory/quest-reward-shape.mjs'
+      - 'apps/world/tests/attendance.test.mjs'
+      - 'apps/world/tests/daily-quiz.test.mjs'
+      - 'apps/world/tests/daily-panel-focus*.test.mjs'
+      - 'apps/world/tests/browser/daily-panel-focus-*'
+      - 'apps/world/src/minigames/**'
+      - 'apps/world/src/context-action.js'
+      - 'apps/world/tests/inkyung-water-path-world.test.mjs'
+      - 'apps/world/tests/water-path.test.mjs'
+      - 'apps/world/tests/puzzle-core*.test.mjs'
+      - 'apps/world/tests/context-action-observer.test.mjs'
+      - 'apps/world/tests/guestbook-account-panel.test.mjs'
+      - 'apps/world/tests/browser/inkyung-water-path-smoke.mjs'
+      - 'apps/world/src/campus-contact-shading*.js'
+      - 'apps/world/src/campus-chunk-renderer.js'
+      - 'apps/world/src/graphics-presets.js'
+      - 'apps/world/src/view-distance-settings.js'
+      - 'apps/world/src/environment/**'
+      - 'apps/world/src/biryong/**'
+      - 'apps/world/tests/browser/graphics-parallel-smoke.mjs'
+      - 'apps/world/tests/browser/biryong-night-pixel-policy.mjs'
+      - 'apps/world/tests/biryong-night-readability.test.mjs'
+      - 'apps/world/tests/graphics-parallel-smoke-contract.test.mjs'
+      - 'apps/world/src/guestbook/**'
+      - 'apps/world/tests/guestbook*.test.mjs'
+      - 'apps/world/tests/browser/guestbook-load-retry-*'
+      - '.github/workflows/reusable-browser-qa.yml'
+      - 'apps/world/src/main-hall-*.js'
+      - 'apps/world/src/photo-hall-library-geometry.js'
+      - 'apps/world/src/library-approaches.js'
+      - 'apps/world/src/jeongseok-entry-geometry.js'
+      - 'apps/world/src/jeongseok-candidate-renderer.js'
+      - 'apps/world/src/campus-landmark-candidate-selector.js'
+      - 'apps/world/src/preview/place-scene-preview.js'
+      - 'apps/world/tests/*hall*.test.mjs'
+      - 'apps/world/tests/jeongseok-entry-geometry.test.mjs'
+      - 'apps/world/tests/fixtures/hall-library-candidate-source-manifest.json'
+      - 'apps/world/tests/browser/hall-library-*'
+      - 'apps/world/data/reality/hall-library-integration.provenance.json'
+      - 'apps/world/src/audio/**'
+      - 'apps/world/src/player-controller.js'
+      - 'apps/world/src/rooms/room-transition.js'
+      - 'apps/world/tests/player-activity-audio*.test.mjs'
+      - 'apps/world/tests/browser/player-activity-audio-*'
+      - 'apps/world/src/quest/**'
+      - 'apps/world/src/input/input-focus-manager.js'
+      - 'apps/world/tests/quest-journal*.test.mjs'
+      - 'apps/world/tests/browser/quest-journal-controls-*'
+      - 'apps/world/src/diagnostics/**'
+      - 'apps/world/runtime-diagnostics.css'
+      - 'apps/world/src/input/**'
+      - 'apps/world/src/campus-hud.js'
+      - 'apps/world/src/online/world-online.js'
+      - 'apps/world/scripts/write-runtime-build-id.mjs'
+      - 'apps/world/build-recast-shadow.sh'
+      - 'apps/world/tests/runtime-diagnostics.test.mjs'
+      - 'apps/world/tests/browser/runtime-diagnostics-*'
+      - 'apps/world/src/ui/ui-icon-runtime.js'
+      - 'apps/world/ui-icon-runtime.css'
+      - 'apps/world/tests/ui-icon-runtime.test.mjs'
+      - 'apps/world/tests/browser/ui-icon-runtime-smoke.mjs'
+      - 'apps/world/src/lobby/**'
+      - 'apps/world/src/webgpu-device.js'
+      - 'apps/world/tests/boot-recovery.test.mjs'
+      - 'apps/world/tests/world-boot-diagnostics.test.mjs'
+      - 'apps/world/tests/world-loading-render.test.mjs'
+      - 'apps/world/tests/browser/boot-recovery-smoke.mjs'
+      - 'apps/world/release/cloudflare-live/overrides/src/lobby/boot-recovery.js'
+      - 'apps/world/tests/browser/loading-render-smoke.mjs'
+      - 'apps/world/tests/browser/mobile-boot-smoke.mjs'
+      - 'apps/world/tests/browser/unsupported-smoke.mjs'
+      - 'apps/world/npc-factory/main2-quest-client.mjs'
+      - 'apps/world/src/next-discovery.js'
+      - 'apps/world/tests/main2-status-recovery.test.mjs'
+      - 'apps/world/tests/next-discovery.test.mjs'
+      - 'apps/world/tests/browser/main2-status-recovery-smoke.mjs'
+      - 'apps/world/tests/browser/next-discovery-smoke.mjs'
+      - 'apps/world/src/online/world-population-heartbeat.js'
+      - 'apps/world/tests/world-population-heartbeat.test.mjs'
+      - 'apps/world/tests/browser/world-population-bfcache-smoke.mjs'
+      - 'apps/world/src/shop/**'
+      - 'apps/world/src/appearance/**'
+      - 'apps/world/src/wallet/**'
+      - 'apps/world/src/progression/**'
+      - 'apps/world/tests/*stability*.test.mjs'
+      - 'apps/world/tests/*readback*.test.mjs'
+      - 'apps/world/tests/*ordering*.test.mjs'
+      - 'apps/world/tests/*ownership*.test.mjs'
+      - 'apps/world/tests/*isolation*.test.mjs'
+      - 'apps/world/tests/browser/world-stability-*'
+      - 'apps/world/tests/browser/package*.json'
+      - 'apps/world/tests/browser/harness.mjs'
+      - '.github/ci/group-filter.mjs'
+      - '.github/ci/group-filter.test.mjs'
+      - '.github/ci/phone-surface-scope.mjs'
+      - '.github/actions/setup-world-browser/**'
+      - '.github/workflows/world-browser-qa.yml'
+permissions:
+  contents: read
+concurrency:
+  group: world-browser-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  select:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      asset_runtime: ${{ steps.filter.outputs.asset_runtime }}
+      character_model: ${{ steps.filter.outputs.character_model }}
+      collection_book: ${{ steps.filter.outputs.collection_book }}
+      combat_input: ${{ steps.filter.outputs.combat_input }}
+      cooking_candidate: ${{ steps.filter.outputs.cooking_candidate }}
+      daily_panel_focus: ${{ steps.filter.outputs.daily_panel_focus }}
+      graphics_integration: ${{ steps.filter.outputs.graphics_integration }}
+      guestbook_load_retry: ${{ steps.filter.outputs.guestbook_load_retry }}
+      hall_library_candidate: ${{ steps.filter.outputs.hall_library_candidate }}
+      player_activity_audio: ${{ steps.filter.outputs.player_activity_audio }}
+      quest_journal_controls: ${{ steps.filter.outputs.quest_journal_controls }}
+      runtime_diagnostics: ${{ steps.filter.outputs.runtime_diagnostics }}
+      ui_icons_runtime: ${{ steps.filter.outputs.ui_icons_runtime }}
+      world_boot_recovery: ${{ steps.filter.outputs.world_boot_recovery }}
+      world_main2_recovery: ${{ steps.filter.outputs.world_main2_recovery }}
+      world_population_bfcache: ${{ steps.filter.outputs.world_population_bfcache }}
+      world_stability: ${{ steps.filter.outputs.world_stability }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - name: Test suite selection
+        run: node --test .github/ci/group-filter.test.mjs
+      - name: Select suites touched by this pull request
+        id: filter
+        env:
+          CI_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CI_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node .github/ci/group-filter.mjs browser >> "$GITHUB_OUTPUT"
+
+  asset-runtime:
+    needs: select
+    if: ${{ !cancelled() && needs.select.outputs.asset_runtime != 'false' }}
+    name: ${{ matrix.lane }} WebGL2 fixture
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        lane: [fishing, life]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          fetch-depth: 128
+      - name: Select affected browser suite (fail-closed)
+        id: phone_scope
+        env:
+          CI_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CI_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          CI_PR_TITLE: ${{ github.event.pull_request.title }}
+          # The scope gate is keyed by the original workflow name and reads its paths.
+          CI_WORKFLOW_NAME: Asset runtime browser QA
+        run: node .github/ci/phone-surface-scope.mjs >> "$GITHUB_OUTPUT"
+      - name: Install pinned Node, browser dependencies and Chromium
+        if: steps.phone_scope.outputs.skip != 'true'
+        uses: ./.github/actions/setup-world-browser
+        with:
+          playwright-browser: chromium
+      - name: Install Korean glyphs
+        if: steps.phone_scope.outputs.skip != 'true'
+        run: |
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+      - name: Check asset and lifecycle contracts
+        if: steps.phone_scope.outputs.skip != 'true'
+        run: |
+          node --test apps/world/tests/*fishing*.test.mjs apps/world/tests/life-props*.test.mjs apps/world/tests/asset-runtime-browser-workflow.test.mjs
+          node apps/world/tests/browser/fishing-engine-contract.mjs
+          node apps/world/tests/browser/life-props-engine.mjs
+      - name: Capture actual WebGL2 fixture pixels and lifecycle evidence
+        if: steps.phone_scope.outputs.skip != 'true'
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          EXPECTED_ASSET_RUNTIME_HEAD: ${{ github.event.pull_request.head.sha }}
+          FISHING_ASSETS_OUTPUT: test-results/asset-runtime/fishing
+          LIFE_PROPS_BROWSER_OUTPUT: test-results/asset-runtime/life
+        run: |
+          if [[ '${{ matrix.lane }}' == 'fishing' ]]; then
+            node apps/world/tests/browser/fishing-assets-smoke.mjs
+          else
+            node apps/world/tests/browser/life-props-browser-smoke.mjs
+          fi
+      - name: Preserve exact-head browser evidence
+        if: always() && steps.phone_scope.outputs.skip != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: asset-runtime-${{ matrix.lane }}-${{ github.event.pull_request.head.sha }}
+          path: test-results/asset-runtime/${{ matrix.lane }}/
+          if-no-files-found: error
+          retention-days: 14
+
+  character-model:
+    needs: select
+    if: ${{ !cancelled() && needs.select.outputs.character_model != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Install pinned Node, browser dependencies and Chromium
+        uses: ./.github/actions/setup-world-browser
+        with:
+          playwright-browser: chromium
+      - name: Reproducible Annyongi asset, provenance and optimization
+        run: |
+          python3 tools/world-assets/build-annyongi.py
+          git diff --exit-code -- apps/world/assets/annyongi-flight-v1.glb
+          node apps/world/assets/check_characters.mjs
+          npm ci --prefix tools/world-assets --ignore-scripts
+          npm test --prefix tools/world-assets
+          node tools/world-assets/optimize-world-assets.mjs --strict
+          node tools/world-assets/validate-annyongi.mjs
+      - name: Real GLB ownership and lifecycle (pinned Null device)
+        run: node --test apps/world/tests/browser/character-model-loading-runtime.test.mjs
+      - name: Actual WebGL2 partial failure and disposal
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          CHARACTER_SMOKE_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node apps/world/tests/browser/character-model-loading-smoke.mjs
+      - name: Annyongi desktop and mobile flight acceptance
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+        run: |
+          node apps/world/tests/browser/annyongi-capture.mjs
+          node apps/world/tests/browser/annyongi-flight-pose-capture.mjs
+          node apps/world/tests/browser/annyongi-campus-smoke.mjs
+      - name: Upload exact-head browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: character-model-browser-${{ github.event.pull_request.head.sha }}
+          path: |
+            test-results/character-model
+            test-results/annyongi
+          if-no-files-found: warn
+          retention-days: 14
+
+  collection-book:
+    needs: select
+    if: ${{ !cancelled() && needs.select.outputs.collection_book != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Install pinned Node, browser dependencies and Chromium
+        uses: ./.github/actions/setup-world-browser
+        with:
+          playwright-browser: chromium
+      - name: Install Korean glyphs
+        run: |
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+      - name: Verify self-only projection and account guards
+        run: node --test apps/world/tests/collection-book*.test.mjs apps/world/tests/inventory*.test.mjs apps/world/tests/guestbook-account-panel.test.mjs apps/world/tests/item-icons.test.mjs
+      - name: Exercise offline keyboard, touch and stale-response recovery
+        env:
+          EXPECTED_COLLECTION_BOOK_HEAD: ${{ github.event.pull_request.head.sha }}
+          COLLECTION_BOOK_OUTPUT: test-results/collection-book
+        run: node apps/world/tests/browser/collection-book-smoke.mjs
+      - name: Verify icon decode, responsive layout and broken-image recovery
+        env:
+          EXPECTED_ITEM_ICONS_HEAD: ${{ github.event.pull_request.head.sha }}
+          ITEM_ICONS_OUTPUT: test-results/collection-book/item-icons
+        run: node apps/world/tests/browser/item-icons-smoke.mjs
+      - name: Preserve immutable browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: collection-book-${{ github.event.pull_request.head.sha }}
+          path: test-results/collection-book/
+          if-no-files-found: error
+          retention-days: 14
+
+  combat-input:
+    needs: select
+    if: ${{ !cancelled() && needs.select.outputs.combat_input != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Install pinned Node and browser dependencies
+        uses: ./.github/actions/setup-world-browser
+      - name: Ensure readable Korean pixels
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y fonts-noto-cjk
+      - name: Verify combat, chat, focus and touch contracts
+        run: node --test apps/world/tests/combat-hud-activation.test.mjs apps/world/tests/combat-input-authority.test.mjs apps/world/tests/input-focus-chat.test.mjs apps/world/tests/player-touch-ownership.test.mjs
+      - name: Verify exact-head native input and desktop/mobile Campus pixels
+        timeout-minutes: 10
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+          EXPECTED_COMBAT_HEAD: ${{ github.event.pull_request.head.sha }}
+          COMBAT_QA_OUTPUT: test-results/combat-input
+        run: timeout --signal=TERM --kill-after=10s 560s node apps/world/tests/browser/combat-hud-activation-smoke.mjs
+      - name: Preserve exact-head input receipts and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: combat-input-${{ github.event.pull_request.head.sha }}
+          path: test-results/combat-input/
+          if-no-files-found: error
+          retention-days: 14
+
+  cooking-candidate:
+    needs: select
+    if: ${{ !cancelled() && needs.select.outputs.cooking_candidate != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          fetch-depth: 128
+      - name: Select affected browser suite (fail-closed)
+        id: phone_scope
+        env:
+          CI_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CI_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          CI_PR_TITLE: ${{ github.event.pull_request.title }}
+          # The scope gate is keyed by the original workflow name and reads its paths.
+          CI_WORKFLOW_NAME: Cooking candidate browser QA
+        run: node .github/ci/phone-surface-scope.mjs >> "$GITHUB_OUTPUT"
+      - name: Capture immutable candidate identity
+        if: steps.phone_scope.outputs.skip != 'true'
+        env:
+          EXPECTED_COOKING_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          mkdir -p test-results/cooking-candidate
+          git rev-parse HEAD | tee test-results/cooking-candidate/head.txt
+          test "$(git rev-parse HEAD)" = "$EXPECTED_COOKING_HEAD"
+      - name: Install pinned Node, browser dependencies and Chromium
+        if: steps.phone_scope.outputs.skip != 'true'
+        uses: ./.github/actions/setup-world-browser
+        with:
+          playwright-browser: chromium
+      - name: Install Korean glyphs
+        if: steps.phone_scope.outputs.skip != 'true'
+        run: |
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+      - name: Check production cooking regressions and fixture syntax
+        if: steps.phone_scope.outputs.skip != 'true'
+        shell: bash
+        run: |
+          set -o pipefail
+          node --check apps/world/tests/browser/cooking-candidate-fixture.mjs
+          node --check apps/world/tests/browser/cooking-candidate-smoke.mjs
+          node --test apps/world/tests/cooking-client.test.mjs apps/world/tests/cooking-feature.test.mjs apps/world/tests/cooking-panel.test.mjs apps/world/tests/cooking-runtime-wiring.test.mjs 2>&1 | tee test-results/cooking-candidate/node-tests.log
+      - name: Exercise real DOM with synthetic local cooking and Inventory only
+        if: steps.phone_scope.outputs.skip != 'true'
+        shell: bash
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          EXPECTED_COOKING_HEAD: ${{ github.event.pull_request.head.sha }}
+          COOKING_QA_OUTPUT: test-results/cooking-candidate
+        run: |
+          set -o pipefail
+          node apps/world/tests/browser/cooking-candidate-smoke.mjs 2>&1 | tee test-results/cooking-candidate/browser.log
+      - name: Save exact-head logs, screenshots and source hashes
+        if: always() && steps.phone_scope.outputs.skip != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: cooking-candidate-browser-${{ github.event.pull_request.head.sha }}
+          path: test-results/cooking-candidate/
+          if-no-files-found: error
+          retention-days: 14
+
+  daily-panel-focus:
+    needs: select
+    if: ${{ !cancelled() && needs.select.outputs.daily_panel_focus != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Install pinned Node, browser dependencies and Chromium
+        uses: ./.github/actions/setup-world-browser
+        with:
+          playwright-browser: chromium
+      - name: Install Korean glyphs
+        run: |
+          sudo apt-get install -y fonts-noto-cjk
+      - name: Verify daily panel focus and account contracts
+        run: node --test apps/world/tests/daily-panel-focus*.test.mjs apps/world/tests/attendance.test.mjs apps/world/tests/daily-quiz.test.mjs
+      - name: Exercise native desktop, portrait and landscape controls with synthetic RPCs
+        env:
+          DAILY_PANEL_FOCUS_HEAD: ${{ github.event.pull_request.head.sha }}
+          DAILY_PANEL_FOCUS_OUTPUT: test-results/daily-panel-focus
+        run: timeout --signal=TERM --kill-after=10s 360s node apps/world/tests/browser/daily-panel-focus-smoke.mjs
+      - name: Preserve exact-head source receipts and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: daily-panel-focus-browser-evidence
+          path: test-results/daily-panel-focus/
+          if-no-files-found: error
+          retention-days: 14
+
+  graphics-integration:
+    needs: select
+    if: ${{ !cancelled() && needs.select.outputs.graphics_integration != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          fetch-depth: 128
+      - name: Select affected browser suite (fail-closed)
+        id: phone_scope
+        env:
+          CI_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CI_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          CI_PR_TITLE: ${{ github.event.pull_request.title }}
+          # The scope gate is keyed by the original workflow name and reads its paths.
+          CI_WORKFLOW_NAME: Graphics integration browser QA
+        run: node .github/ci/phone-surface-scope.mjs >> "$GITHUB_OUTPUT"
+      - name: Install pinned Node, browser dependencies and Chromium
+        if: steps.phone_scope.outputs.skip != 'true'
+        uses: ./.github/actions/setup-world-browser
+        with:
+          playwright-browser: chromium
+      - name: Install Korean glyphs
+        if: steps.phone_scope.outputs.skip != 'true'
+        run: |
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+      - name: Verify graphics integration contracts
+        if: steps.phone_scope.outputs.skip != 'true'
+        run: node --test apps/world/tests/graphics-parallel-smoke-contract.test.mjs apps/world/tests/inkyung-water-path-world.test.mjs apps/world/tests/water-path.test.mjs apps/world/tests/puzzle-core.test.mjs apps/world/tests/puzzle-core-safety.test.mjs apps/world/tests/context-action-observer.test.mjs apps/world/tests/guestbook-account-panel.test.mjs
+      - name: Run integrated graphics browser smoke
+        if: steps.phone_scope.outputs.skip != 'true'
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          EXPECTED_GRAPHICS_HEAD: ${{ github.event.pull_request.head.sha }}
+          WORLD_GRAPHICS_QA_OUTPUT: test-results/graphics-parallel
+        run: node apps/world/tests/browser/graphics-parallel-smoke.mjs
+      - name: Run Inkyung water-path metadata-only browser QA
+        if: steps.phone_scope.outputs.skip != 'true'
+        timeout-minutes: 6
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          EXPECTED_WATER_PATH_HEAD: ${{ github.event.pull_request.head.sha }}
+          WATER_PATH_QA_OUTPUT: test-results/inkyung-water-path
+        run: node apps/world/tests/browser/inkyung-water-path-smoke.mjs
+      - name: Preserve water-path metadata only
+        if: always() && steps.phone_scope.outputs.skip != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: world-water-path-metadata-${{ github.event.pull_request.head.sha }}
+          path: test-results/inkyung-water-path/report.json
+          if-no-files-found: error
+          retention-days: 7
+      - name: Preserve exact-head browser evidence
+        if: always() && steps.phone_scope.outputs.skip != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: world-graphics-integration-${{ github.event.pull_request.head.sha }}
+          path: test-results/graphics-parallel/
+          if-no-files-found: error
+          retention-days: 7
+
+  guestbook-load-retry:
+    needs: select
+    if: ${{ !cancelled() && needs.select.outputs.guestbook_load_retry != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Install pinned Node, browser dependencies and Chromium
+        uses: ./.github/actions/setup-world-browser
+        with:
+          playwright-browser: chromium
+      - name: Install Korean glyphs
+        run: |
+          sudo apt-get install -y fonts-noto-cjk
+      - name: Verify guestbook read and account contracts
+        run: node --test apps/world/tests/guestbook*.test.mjs
+      - name: Exercise native keyboard and touch with synthetic reads only
+        env:
+          GUESTBOOK_RETRY_HEAD: ${{ github.event.pull_request.head.sha }}
+          GUESTBOOK_RETRY_OUTPUT: test-results/guestbook-load-retry
+        run: node apps/world/tests/browser/guestbook-load-retry-smoke.mjs
+      - name: Preserve exact-head source hashes and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: guestbook-load-retry-browser-evidence
+          path: test-results/guestbook-load-retry/
+          if-no-files-found: error
+          retention-days: 14
+
+  hall-library-candidate:
+    needs: select
+    if: ${{ !cancelled() && needs.select.outputs.hall_library_candidate != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Fetch immutable read-only comparison sources
+        run: |
+          git fetch --no-tags origin 1c6f43b36962f65f75cddd55b8661bb3aa4a268d
+          git fetch --no-tags origin 316c8ff95f7a12618ec8db61342d153f3cbb29ea
+          git fetch --no-tags origin 68d64e7466a2971256485b74e76c89a31e91547a
+          git fetch --no-tags origin 2b9a09615f7986e3d5e5b93d731fba21f33afbdd
+      - name: Install pinned Node and browser dependencies
+        uses: ./.github/actions/setup-world-browser
+      - name: Verify geometry and narrow current-main preservation
+        run: node --test apps/world/tests/main-hall-candidate.test.mjs apps/world/tests/photo-hall-library.test.mjs apps/world/tests/hall-library-integration.test.mjs apps/world/tests/hall-library-hosted.test.mjs apps/world/tests/jeongseok-entry-geometry.test.mjs
+      - name: Verify bounded graphics integration contracts
+        if: github.event.pull_request.head.ref == 'graphics/parallel-integration-20261008'
+        run: >-
+          node --test
+          apps/world/tests/biryong-*.test.mjs
+          apps/world/tests/environment-continuous-daylight.test.mjs
+          apps/world/tests/graphics-detail-settings.test.mjs
+          apps/world/tests/graphics-settings-panel.test.mjs
+          apps/world/tests/graphics-parallel-smoke-contract.test.mjs
+          apps/world/tests/campus-contact-shading.test.mjs
+      - name: Verify bounded walkway integration contracts
+        if: github.event.pull_request.head.ref == 'feat/60th-five-walkway-20261012' || github.event.pull_request.head.ref == 'release/2026-10-13-ci-runtime-diagnostics'
+        run: node --test apps/world/tests/north-walkway.test.mjs apps/world/tests/north-walkway-batching.test.mjs apps/world/tests/north-landmark-restoration.test.mjs apps/world/tests/campus-material-profile.test.mjs
+      - name: Verify bounded release diagnostics and photo contracts
+        if: github.event.pull_request.head.ref == 'release/2026-10-13-ci-runtime-diagnostics'
+        run: node --test apps/world/tests/runtime-diagnostics.test.mjs apps/world/tests/photo-capture.test.mjs apps/world/tests/photo-mode-panel.test.mjs
+      - name: Verify real-engine chunk, preview and environment ownership
+        run: node apps/world/tests/browser/hall-library-integration-null-smoke.mjs
+      - name: Verify unchanged current-main material producer in actual campus
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+        run: node apps/world/tests/browser/material-profile-smoke.mjs
+      - name: Render exact-head integrated and historical models offline
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+          WORLD_HALL_LIBRARY_QA_OUTPUT: test-results/hall-library-candidate
+          EXPECTED_HALL_HEAD: ${{ github.event.pull_request.head.sha }}
+          WORLD_HALL_LIBRARY_SCOPE_BASE: ${{ github.event.pull_request.base.sha }}
+          WORLD_HALL_LIBRARY_SCOPE_EXTENSION: ${{ github.event.pull_request.head.ref == 'fix/campus-surroundings-parity-20261004' && 'surroundings' || github.event.pull_request.head.ref == 'graphics/parallel-integration-20261008' && 'graphics' || github.event.pull_request.head.ref == 'feat/60th-five-walkway-20261012' && 'walkway' || github.event.pull_request.head.ref == 'release/2026-10-13-ci-runtime-diagnostics' && 'release-2026-10-13' || '' }}
+        run: node apps/world/tests/browser/hall-library-hosted-smoke.mjs
+      - name: Save exact-commit browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hall-library-candidate-browser-evidence
+          path: test-results/hall-library-candidate/
+          if-no-files-found: error
+          retention-days: 7
+
+  player-activity-audio:
+    needs: select
+    if: ${{ !cancelled() && needs.select.outputs.player_activity_audio != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          fetch-depth: 128
+      - name: Select affected browser suite (fail-closed)
+        id: phone_scope
+        env:
+          CI_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CI_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          CI_PR_TITLE: ${{ github.event.pull_request.title }}
+          # The scope gate is keyed by the original workflow name and reads its paths.
+          CI_WORKFLOW_NAME: Player activity audio browser QA
+        run: node .github/ci/phone-surface-scope.mjs >> "$GITHUB_OUTPUT"
+      - name: Install pinned Node, browser dependencies and Chromium
+        if: steps.phone_scope.outputs.skip != 'true'
+        uses: ./.github/actions/setup-world-browser
+        with:
+          playwright-browser: chromium
+      - name: Verify activity, room and hosted evidence contracts
+        if: steps.phone_scope.outputs.skip != 'true'
+        run: node --test apps/world/tests/player-activity-audio*.test.mjs apps/world/tests/world-audio.test.mjs apps/world/tests/room-transition*.test.mjs
+      - name: Verify real Web Audio scheduling and capture generated output
+        if: steps.phone_scope.outputs.skip != 'true'
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          EXPECTED_ACTIVITY_AUDIO_HEAD: ${{ github.event.pull_request.head.sha }}
+          ACTIVITY_AUDIO_QA_OUTPUT: test-results/player-activity-audio
+        run: node apps/world/tests/browser/player-activity-audio-smoke.mjs
+      - name: Save exact-head browser and generated audio evidence
+        if: always() && steps.phone_scope.outputs.skip != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: player-activity-audio-${{ github.event.pull_request.head.sha }}
+          path: test-results/player-activity-audio/
+          if-no-files-found: error
+          retention-days: 14
+
+  quest-journal-controls:
+    needs: select
+    if: ${{ !cancelled() && needs.select.outputs.quest_journal_controls != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          fetch-depth: 128
+      - name: Select affected browser suite (fail-closed)
+        id: phone_scope
+        env:
+          CI_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CI_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          CI_PR_TITLE: ${{ github.event.pull_request.title }}
+          # The scope gate is keyed by the original workflow name and reads its paths.
+          CI_WORKFLOW_NAME: Quest journal controls browser checks
+        run: node .github/ci/phone-surface-scope.mjs >> "$GITHUB_OUTPUT"
+      - name: Install pinned Node, browser dependencies and Chromium
+        if: steps.phone_scope.outputs.skip != 'true'
+        uses: ./.github/actions/setup-world-browser
+        with:
+          playwright-browser: chromium
+      - name: Actual keyboard and mobile touch journal controls
+        if: steps.phone_scope.outputs.skip != 'true'
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          QUEST_CONTROLS_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node apps/world/tests/browser/quest-journal-controls-smoke.mjs
+      - name: Upload exact-head browser evidence
+        if: always() && steps.phone_scope.outputs.skip != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: quest-journal-controls-${{ github.event.pull_request.head.sha }}
+          path: test-results/quest-journal-controls
+          if-no-files-found: error
+          retention-days: 14
+
+  runtime-diagnostics:
+    needs: select
+    if: ${{ !cancelled() && needs.select.outputs.runtime_diagnostics != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Install pinned Node, browser dependencies and Chromium
+        uses: ./.github/actions/setup-world-browser
+        with:
+          playwright-browser: chromium
+      - name: Privacy, reports, identity lifecycle and HUD/InputFocus regression
+        run: |
+          node --test apps/world/tests/runtime-diagnostics.test.mjs apps/world/tests/input-focus-*.test.mjs apps/world/tests/hud-*.test.mjs apps/world/tests/graphics-settings-panel.test.mjs apps/world/tests/settings-registry.test.mjs
+          node apps/world/qa.mjs
+      - name: Desktop and touch browser integration with no production traffic
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+        run: |
+          node apps/world/tests/browser/runtime-diagnostics-smoke.mjs
+          node apps/world/tests/browser/mobile-hud-smoke.mjs
+          node apps/world/tests/browser/lobby-layout-smoke.mjs
+      - name: Preserve screenshots and scenario receipts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-diagnostics-evidence
+          path: test-results/runtime-diagnostics/
+          if-no-files-found: warn
+          retention-days: 7
+
+  ui-icons-runtime:
+    needs: select
+    if: ${{ !cancelled() && needs.select.outputs.ui_icons_runtime != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Install Korean glyphs
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+      - name: Install pinned Node and browser dependencies
+        uses: ./.github/actions/setup-world-browser
+      - name: Verify all approved icon sources and mappings
+        run: node --test apps/world/tests/ui-icon-runtime.test.mjs
+      - name: Verify actual Campus on desktop and both mobile orientations
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+          UI_ICON_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: timeout --signal=TERM --kill-after=10s 1300s node apps/world/tests/browser/ui-icon-runtime-smoke.mjs
+      - name: Save browser screenshots and acceptance report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-icon-runtime-evidence
+          path: test-results/ui-icon-runtime/
+          if-no-files-found: warn
+          retention-days: 7
+
+  world-boot-recovery:
+    needs: select
+    if: ${{ !cancelled() && needs.select.outputs.world_boot_recovery != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Install readable Korean glyphs
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+      - name: Record exact source for browser evidence
+        run: |
+          mkdir -p test-results/boot-recovery
+          git rev-parse HEAD > test-results/boot-recovery/head-sha.txt
+          sha256sum apps/world/campus/index.html apps/world/src/lobby/boot-recovery.js apps/world/src/lobby/lobby-loading.js apps/world/src/main.js apps/world/src/webgpu-device.js apps/world/styles.css > test-results/boot-recovery/source-sha256.txt
+      - name: Install pinned Node, browser dependencies and Chromium
+        uses: ./.github/actions/setup-world-browser
+        with:
+          playwright-browser: chromium
+      - name: Unit and static boot contracts
+        run: |
+          node --test apps/world/tests/boot-recovery.test.mjs apps/world/tests/world-boot-diagnostics.test.mjs apps/world/tests/world-loading-render.test.mjs apps/world/tests/graphics-presets.test.mjs
+          node apps/world/qa.mjs
+      - name: Offline mobile boot, slow assets, failures and manual retry
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+        run: |
+          node apps/world/tests/browser/mobile-boot-smoke.mjs
+          node apps/world/tests/browser/loading-render-smoke.mjs
+          WORLD_SMOKE_DISABLE_WEBGPU=0 node apps/world/tests/browser/unsupported-smoke.mjs
+          node apps/world/tests/browser/boot-recovery-smoke.mjs
+      - name: Save recovery screenshots and diagnostic states
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: world-boot-recovery-evidence
+          path: test-results/boot-recovery/
+          if-no-files-found: warn
+          retention-days: 7
+
+  world-main2-recovery:
+    needs: select
+    if: ${{ !cancelled() && needs.select.outputs.world_main2_recovery != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          fetch-depth: 128
+      - name: Select affected browser suite (fail-closed)
+        id: phone_scope
+        env:
+          CI_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CI_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          CI_PR_TITLE: ${{ github.event.pull_request.title }}
+          # The scope gate is keyed by the original workflow name and reads its paths.
+          CI_WORKFLOW_NAME: World Main 2 recovery
+        run: node .github/ci/phone-surface-scope.mjs >> "$GITHUB_OUTPUT"
+      - name: Install pinned Node, browser dependencies and Chromium
+        if: steps.phone_scope.outputs.skip != 'true'
+        uses: ./.github/actions/setup-world-browser
+        with:
+          playwright-browser: chromium
+          playwright-install-args: '--with-deps --only-shell'
+      - name: Run Main 2 status regressions
+        if: steps.phone_scope.outputs.skip != 'true'
+        run: node --test apps/world/tests/main2-status-recovery.test.mjs apps/world/tests/next-discovery.test.mjs apps/world/tests/quest-hud.test.mjs apps/world/tests/quest-runtime.test.mjs
+      - name: Run isolated Main 2 recovery browser smoke
+        if: steps.phone_scope.outputs.skip != 'true'
+        env:
+          WORLD_SMOKE_EVIDENCE_DIR: ${{ runner.temp }}/main2-recovery-evidence
+        run: |
+          set -euo pipefail
+          mkdir -p "$WORLD_SMOKE_EVIDENCE_DIR"
+          git rev-parse HEAD > "$WORLD_SMOKE_EVIDENCE_DIR/tested-head.txt"
+          node apps/world/tests/browser/main2-status-recovery-smoke.mjs | tee "$WORLD_SMOKE_EVIDENCE_DIR/browser.log"
+          node apps/world/tests/browser/next-discovery-smoke.mjs | tee "$WORLD_SMOKE_EVIDENCE_DIR/existing-next-discovery.log"
+      - name: Upload synthetic recovery evidence
+        if: always() && steps.phone_scope.outputs.skip != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: main2-recovery-evidence-${{ github.event.pull_request.head.sha }}
+          path: ${{ runner.temp }}/main2-recovery-evidence/**
+          if-no-files-found: ignore
+          retention-days: 7
+
+  world-population-bfcache:
+    needs: select
+    if: ${{ !cancelled() && needs.select.outputs.world_population_bfcache != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Install pinned Node, browser dependencies and Chromium
+        uses: ./.github/actions/setup-world-browser
+        with:
+          playwright-browser: chromium
+          playwright-install-args: '--with-deps --no-shell'
+      - run: node apps/world/tests/browser/world-population-bfcache-smoke.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: world-population-bfcache
+          path: test-results/world-population-bfcache.json
+          if-no-files-found: warn
+          retention-days: 7
+
+  world-stability:
+    needs: select
+    if: ${{ !cancelled() && needs.select.outputs.world_stability != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Install pinned Node and browser dependencies
+        uses: ./.github/actions/setup-world-browser
+      - name: Ensure Korean glyphs
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y fonts-noto-cjk
+      - name: Verify synthetic account and harness contracts
+        run: node --test apps/world/tests/shop-loadout-readback-account.test.mjs apps/world/tests/shop-loadout-retry-isolation.test.mjs apps/world/tests/daily-result-ordering.test.mjs apps/world/tests/player-touch-ownership.test.mjs apps/world/tests/world-stability-browser-contract.test.mjs apps/world/tests/daily-reward-readback.test.mjs apps/world/tests/daily-panel-notice-readback.test.mjs apps/world/tests/world-stability-daily-readback.test.mjs
+      - name: Run native Chromium pointer and synthetic-account QA
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+          WORLD_STABILITY_OUTPUT: test-results/world-stability
+          EXPECTED_STABILITY_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: node apps/world/tests/browser/world-stability-smoke.mjs
+      - name: Preserve screenshots and assertions
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: world-stability-browser-evidence
+          path: test-results/world-stability/
+          if-no-files-found: error
+          retention-days: 14
