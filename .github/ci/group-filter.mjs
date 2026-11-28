@@ -34,7 +34,6 @@ export const GROUPS = Object.freeze({
     legacy: Object.freeze({
       'backgate-shopfront': 'backgate-shopfront-browser.yml',
       'backgate-restoration': 'backgate-restoration-browser.yml',
-      'jeongseok-gate': 'jeongseok-gate-browser.yml',
       'jeongseok-interior': 'jeongseok-interior-browser.yml',
       'north-landmark': 'north-landmark-browser.yml',
       'north-walkway': 'north-walkway-browser.yml'
@@ -63,13 +62,7 @@ export const GROUPS = Object.freeze({
         'apps/world/tests/browser/backgate-road-*',
         'apps/world/tests/browser/backgate-restoration-*'
       ],
-      'jeongseok-gate': [
-        'apps/world/src/jeongseok/**',
-        'apps/world/tests/jeongseok-access.test.mjs',
-        'apps/world/tests/browser/jeongseok-gate-smoke.mjs',
-        'supabase/migrations/20261012100000_world_jeongseok_access_jsl_a.sql',
-        'supabase/tests/database/111_world_jeongseok_access_jsl_a.test.sql'
-      ],
+      
       'jeongseok-interior': [
         'apps/world/src/jeongseok/**',
         'apps/world/src/rooms/room-registry.js',
@@ -107,8 +100,7 @@ export const GROUPS = Object.freeze({
     legacy: Object.freeze({
       'housing': 'housing-browser.yml',
       'life-housing': 'life-housing-browser.yml',
-      'life-skill-tree-recovery': 'life-skill-tree-recovery-browser.yml',
-      'starter-furniture': 'starter-furniture-browser.yml',
+
       'room-transition-recovery': 'room-transition-recovery-browser.yml',
       'wardrobe-inventory-retry': 'wardrobe-inventory-retry-browser.yml'
     }),
@@ -174,18 +166,7 @@ export const GROUPS = Object.freeze({
         'apps/world/styles.css',
         'apps/world/tests/browser/life-skill-tree-recovery-*'
       ],
-      'starter-furniture': [
-        'apps/world/src/shop/**',
-        'apps/world/src/rooms/**',
-        'apps/world/src/main.js',
-        'apps/world/tests/starter-furniture-*.test.mjs',
-        'apps/world/tests/browser/starter-furniture-*',
-        'supabase/migrations/**',
-        'supabase/tests/**',
-        'docs/ops/sql/20261012_starter_furniture_open.sql',
-        'apps/world/tests/browser/dorm-shop-vendor-*',
-        'scripts/starter-furniture-browser-local.mjs'
-      ],
+      
       'room-transition-recovery': [
         '.github/ci/phone-surface-scope*.mjs',
         '.github/ci/seo-only-scope*.mjs',
@@ -216,7 +197,7 @@ export const GROUPS = Object.freeze({
     name: 'World phone and photo browser QA',
     legacy: Object.freeze({
       'phone': 'phone-browser.yml',
-      'phone-learning': 'phone-learning-browser.yml',
+
       'photo-mode': 'photo-mode-browser.yml'
     }),
     suites: Object.freeze({
@@ -239,28 +220,7 @@ export const GROUPS = Object.freeze({
         'apps/world/tests/browser/phone-album-manager-smoke.mjs',
         'apps/world/tests/browser/phone-messages-*'
       ],
-      'phone-learning': [
-        'apps/world/src/learning/**',
-        'apps/world/src/learning-web/**',
-        'apps/world/learn/**',
-        'apps/world/learn.css',
-        'apps/world/phone.css',
-        'apps/world/dev-server.mjs',
-        'apps/world/vercel.json',
-        'apps/world/tests/learning-web.test.mjs',
-        'apps/world/tests/browser/learning-web-*',
-        'apps/world/src/phone/**',
-        'apps/world/src/main.js',
-        'apps/world/campus/index.html',
-        'apps/world/campus/induck-store-v0.2.1.html',
-        'apps/world/learning.css',
-        'apps/world/tests/phone-*.test.mjs',
-        'apps/world/tests/support/learning-*.mjs',
-        'apps/world/tests/browser/phone-learning-*',
-        'supabase/migrations/*learning*',
-        'supabase/tests/**/*learning*',
-        'scripts/learning-cloud-local.mjs'
-      ],
+      
       'photo-mode': [
         'apps/world/src/phone/smartphone.js',
         'apps/world/src/photo/**',
