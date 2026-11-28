@@ -402,6 +402,62 @@ export const GROUPS = Object.freeze({
         'apps/world/tests/browser/package-lock.json'
       ]
     })
+  }),
+  biryong: Object.freeze({
+    workflow: 'world-biryong-browser.yml',
+    name: 'World Biryong browser QA',
+    legacy: Object.freeze({
+      'biryong-cloud-sync': 'biryong-cloud-sync-browser.yml',
+      'biryong-main-control': 'biryong-main-control-browser.yml',
+      'biryong-map-guidance': 'biryong-map-guidance-browser.yml'
+    }),
+    suites: Object.freeze({
+      'biryong-cloud-sync': [
+        '.github/ci/phone-surface-scope*.mjs',
+        '.github/ci/seo-only-scope*.mjs',
+        'apps/world/src/biryong/biryong-cloud-*.js',
+        'apps/world/src/biryong/biryong-system.js',
+        'apps/world/src/biryong/biryong-state.js',
+        'apps/world/src/main.js',
+        'apps/world/styles.css',
+        'apps/world/tests/biryong-cloud-*.test.mjs',
+        'apps/world/tests/browser/biryong-cloud-sync-*'
+      ],
+      'biryong-main-control': [
+        'apps/world/src/biryong/**',
+        'apps/world/src/graphics-presets.js',
+        'apps/world/src/campus-render-kit.js',
+        'apps/world/src/environment/environment-director.js',
+        'apps/world/src/environment/environment-presets.js',
+        'apps/world/tests/browser/biryong-control-*.mjs',
+        'apps/world/tests/browser/biryong-performance-*.mjs',
+        'apps/world/tests/browser/biryong-ci-gate.mjs',
+        'apps/world/tests/biryong-control-diagnostic.test.mjs',
+        'apps/world/tests/biryong-performance-*.test.mjs',
+        'apps/world/tests/browser/harness*.mjs'
+      ],
+      'biryong-map-guidance': [
+        '.github/ci/phone-surface-scope*.mjs',
+        '.github/ci/seo-only-scope*.mjs',
+        'apps/world/src/biryong/**',
+        'apps/world/src/lobby/**',
+        'apps/world/src/minimap/**',
+        'apps/world/src/navigation/**',
+        'apps/world/src/main.js',
+        'apps/world/src/player-controller.js',
+        'apps/world/src/orbit-camera-controller.js',
+        'apps/world/src/input-focus*',
+        'apps/world/src/world-loading*',
+        'apps/world/npc-factory/**',
+        'apps/world/campus/index.html',
+        'apps/world/styles.css',
+        'apps/world/dev-server.mjs',
+        'apps/world/tests/biryong-*.test.mjs',
+        'apps/world/tests/browser/biryong-map-guidance-*',
+        'apps/world/tests/browser/biryong-resume-smoke.mjs',
+        'apps/world/tests/browser/biryong-camera-null-smoke.mjs'
+      ]
+    })
   })
 });
 

@@ -109,13 +109,14 @@ for (const id of Object.keys(GROUPS)) {
       const job = text.slice(start, next < 0 ? undefined : start + 1 + next);
       assert.ok(job.includes("    if: ${{ !cancelled() && needs.select.outputs." + key + " != 'false' }}"), suite + ' gate');
       assert.ok(job.includes('    needs: select\n'), suite + ' needs');
-      assert.ok(job.includes('ref: ${{ github.event.pull_request.head.sha }}'), suite + ' exact head');
+      // A suite that also supports manual runs falls back to the dispatched commit.
+      assert.match(job, /ref: \$\{\{ github\.event\.pull_request\.head\.sha(?: \|\| github\.sha)? \}\}/, suite + ' exact head');
       assert.ok(job.includes('uses: ./.github/actions/setup-world-browser'), suite + ' shared setup');
       const name = job.match(/uses: actions\/upload-artifact@v4[\s\S]*?\n          name: (.+)\n/);
       assert.ok(name, suite + ' artifact');
       artifacts.push(name[1]);
     }
     assert.equal(new Set(artifacts).size, artifacts.length);
-    assert.match(text, /\nconcurrency:\n  group: [a-z-]+-\$\{\{ github\.event\.pull_request\.number \}\}\n  cancel-in-progress: true\n/);
+    assert.match(text, /\nconcurrency:\n  group: [a-z-]+-\$\{\{ github\.event\.pull_request\.number(?: \|\| github\.ref)? \}\}\n  cancel-in-progress: true\n/);
   });
 }
