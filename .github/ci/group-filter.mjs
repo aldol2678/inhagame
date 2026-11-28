@@ -100,7 +100,7 @@ export const GROUPS = Object.freeze({
     legacy: Object.freeze({
       'housing': 'housing-browser.yml',
       'life-housing': 'life-housing-browser.yml',
-
+'life-skill-tree-recovery': 'life-skill-tree-recovery-browser.yml',
       'room-transition-recovery': 'room-transition-recovery-browser.yml',
       'wardrobe-inventory-retry': 'wardrobe-inventory-retry-browser.yml'
     }),
