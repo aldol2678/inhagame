@@ -1,3 +1,4 @@
+import { createDialogueIcon, dialogueIconFor } from './campus-dialogue-icons.mjs';
 import * as pc from 'playcanvas';
 import { WALK_SHAPE } from '../src/player-dimensions.js';
 import { studentCenterVendor, applyStudentVendorPlacement } from '../src/shop/student-center-vendors.js';
@@ -137,16 +138,23 @@ function addPanel(production = false, externalContextAction = false) {
   `;
   panel.innerHTML = production ? `
     <button type="button" id="npc-test-talk" disabled aria-keyshortcuts="F">F · NPC와 대화</button>
-    <section id="npc-test-conversation" role="dialog" aria-label="NPC 대화" hidden>
+    <section id="npc-test-conversation" role="dialog" aria-labelledby="npc-test-speaker" hidden>
       <div class="npc-dialogue-header">
         <span id="npc-test-portrait" class="npc-dialogue-portrait" aria-hidden="true"></span>
-        <div class="npc-dialogue-identity"><strong id="npc-test-speaker"></strong><small id="npc-social-profile"></small></div>
+        <div class="npc-dialogue-identity"><span class="campus-dialogue-kicker">캠퍼스 대화</span><strong id="npc-test-speaker"></strong><small id="npc-social-profile"></small></div>
         <button type="button" id="npc-test-close" aria-label="대화 닫기">×</button>
       </div>
-      <p id="npc-test-player-line" hidden></p>
-      <p id="npc-test-line" aria-live="polite"></p>
-      <p id="npc-ai-login-hint" class="minor" hidden>로그인하면 더 다양한 대화를 이어갈 수 있어요.</p>
-      <div id="npc-test-choices" class="row" aria-label="대답 선택"></div>
+      <div class="campus-dialogue-scroll">
+        <div class="campus-dialogue-turns">
+          <p id="npc-test-player-line" hidden></p>
+          <p id="npc-test-line" aria-live="polite"></p>
+        </div>
+        <p id="npc-ai-login-hint" class="minor" hidden>로그인하면 더 다양한 대화를 이어갈 수 있어요.</p>
+        <div class="campus-dialogue-options" role="group" aria-labelledby="npc-test-choice-title">
+          <h3 id="npc-test-choice-title">어떤 이야기를 할까요?</h3>
+          <div id="npc-test-choices" class="row"></div>
+        </div>
+      </div>
     </section>
   ` : developmentContent;
   document.body.appendChild(panel);
@@ -539,6 +547,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
       main2Guide.getContextAction() || interactionTarget()?.distance <= NPC_TALK_RADIUS);
   }
   function closeConversation(applyAction = true, { sync = true } = {}) {
+    const hadFocus = Boolean(activeConversation && conversation.contains(document.activeElement));
     activeConversation = null;
     dialogueSession = null;
     conversation.hidden = true;
@@ -554,6 +563,10 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
       talkButton.hidden = externalContextAction;
       playerLine.hidden = true;
       panel.hidden = externalContextAction ? true : !(interactionTarget()?.distance <= NPC_TALK_RADIUS);
+      if (hadFocus) queueMicrotask(() => {
+        const opener = externalContextAction ? document.getElementById('context-action') : talkButton;
+        if (opener && !opener.hidden && !opener.disabled) opener.focus({ preventScroll: true });
+      });
     }
   }
 
@@ -614,8 +627,21 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
     const button = document.createElement('button');
     button.type = 'button';
     if (className) button.className = className;
-    button.textContent = label;
-    button.addEventListener('click', onClick);
+    if (production) {
+      const icon = dialogueIconFor(label, className);
+      button.dataset.dialogueChoice = ['exit','back'].includes(icon) ? 'secondary' : icon === 'quest' ? 'featured' : 'topic';
+      const caption = document.createElement('span');
+      caption.textContent = label.replace(/^📌\s*|^←\s*/u, '');
+      button.append(createDialogueIcon(document, icon), caption);
+    } else button.textContent = label;
+    button.addEventListener('click', event => {
+      const byKeyboard = event.detail === 0 && button === document.activeElement;
+      onClick();
+      if (byKeyboard && !button.isConnected && activeConversation && !conversation.hidden) {
+        const first = choices.querySelector('button:not(:disabled)');
+        (first ?? panel.querySelector('#npc-test-close')).focus({ preventScroll: true });
+      }
+    });
     choices.appendChild(button);
     return button;
   }
@@ -895,6 +921,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
     }
     conversation.hidden = false;
     showDialogueHome();
+    if (production) panel.querySelector('#npc-test-close').focus({ preventScroll: true });
     drawDetail();
   }
 
@@ -1320,8 +1347,19 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
       const bob = moving ? Math.abs(Math.sin(phase)) * .035 * motionEnergy :
         Math.sin(elapsed * 2 * animationPace + Number(actor.id.slice(-3))) * .015 * motionEnergy;
       const sitting = Boolean(visual.seat && !moving && !motion.route.length);
-      const purposefulActivity = assignedVendor(actor.id) ? 'SHOP_SERVICE' : purposeful?.controller.status(false).activity;
-      visual.activityProps.update(purposefulActivity, { moving, sitting, visible: visual.avatar.enabled });
+      const purposefulState = purposeful?.controller.status(false);
+      const speaking = activeConversation?.id === actor.id;
+      const purposefulActivity = speaking ? null : assignedVendor(actor.id) ? 'SHOP_SERVICE' : purposefulState?.activity;
+      const seat = sitting && visual.seat.id === 'SEAT_INKYUNG_TREE_1_A' ? visual.seat : null;
+      let seatPoint = null;
+      if (seat) {
+        const yaw = seat.yaw*Math.PI/180, {x,z} = seat.position;
+        seatPoint=new pc.Vec3(x-.08*Math.sin(yaw),roadviewGroundHeight(x,z)+SEAT_TOP_Y,z-.08*Math.cos(yaw));
+      }
+      const generatedSocket=visual.refreshPose?.(moving,
+        sitting || (!moving && ['READING','COFFEE','EATING','PHONE','PHOTO','MUSIC','RESTING'].includes(purposefulActivity)),
+        {activity:purposefulActivity,seatPoint,goal:purposefulState?.currentGoal,speaking,sitting});
+      visual.activityProps.update(purposefulActivity, { moving, sitting, visible: visual.avatar.enabled, generatedSocket });
       const activityPose = purposefulActivityPose(purposefulActivity, { phase, motionEnergy, sitting });
       const c04SeatPosition = sitting && actor.id === 'INKYUNG-NPC-010' && visual.seat.id === 'SEAT_INKYUNG_TREE_1_A'
         ? c04BenchRenderPosition(visual.seat, visual.worldScale,
@@ -1345,7 +1383,8 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
         actor.location === 'c04.inkyung_photo_point.INKYUNG-NPC-009'
         ? purposefulPhotoHeading(purposefulActivity, { position: motion.position,
           target: INKYUNG_PHOTO_POINT.lookAt, heading: motion.heading }) : motion.heading;
-      const facing = sitting ? visual.seat.yaw : moving ? motion.heading : motion.sharedMeeting && activeConversation?.id !== actor.id ? motion.heading : observing ? visual.avatar.getLocalEulerAngles().y : nearSelected || pilotFacing
+      const towardPlayer = Math.atan2(playerPos.x - renderPosition.x, playerPos.z - renderPosition.z) * 180 / Math.PI;
+      const facing = sitting ? visual.seat.yaw : speaking ? towardPlayer : moving ? motion.heading : motion.sharedMeeting && activeConversation?.id !== actor.id ? motion.heading : observing ? visual.avatar.getLocalEulerAngles().y : nearSelected || pilotFacing
         ? Math.atan2(playerPos.x - motion.position.x, playerPos.z - motion.position.z) * 180 / Math.PI : activityHeading;
       visual.avatar.setLocalEulerAngles(0, facing, 0);
     }
@@ -1413,6 +1452,13 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
   }
 
   const api = {
+    dialogueCameraSubject() {
+      if (!activeConversation) return null;
+      const visual = avatars.get(activeConversation.id);
+      if (!visual?.avatar.enabled) return null;
+      const p = visual.avatar.getLocalPosition();
+      return {id: activeConversation.id, x:p.x, y:p.y+npcNameplateOffset(visual.appearance.height)-.10, z:p.z};
+    },
     handlesTalkKey,
     setAiSignedIn,
     setRelationshipEnabled: enabled => playerRelationship.setEnabled(enabled),

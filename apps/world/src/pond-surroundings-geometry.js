@@ -1,5 +1,5 @@
 import { FacilityMeshBatch } from './facility-mesh-batch.js';
-import { POND_RING, POND_TREE_SEATING, edgeFrame, pondSeatTrees, pondBankTrees, pondPromenadeCells } from './roadview-layout.js';
+import { POND_RING, POND_TREE_SEATING, edgeFrame, pondSeatTrees, pondBankTrees, pondTrunkShape, pondPromenadeCells } from './roadview-layout.js';
 import { polygonOverlap } from './polygon-collision.js';
 import { FLAT_GROUND_Y as G } from './flat-ground-surface.js';
 
@@ -54,7 +54,8 @@ function seatRing(batch,center){
 function tree(batch,p,{seat=false}={}){
   const hero=p.heroWillow===true,willow=p.willow===true;
   const height=hero?5.8:seat?3.4:4.3,radius=hero?3.2:seat?1.7:2.1;
-  batch.tube(POND_COLORS.trunk,[p.x,0,p.z],[p.x,height-.6,p.z],seat?.13:.18,6);
+  const trunk=pondTrunkShape(p,seat);
+  batch.tube(POND_COLORS.trunk,[p.x,0,p.z],[p.x,trunk.height,p.z],trunk.radius,6);
   const color=willow?POND_COLORS.willow:POND_COLORS.leaves;
   batch.crown(color,[p.x,height,p.z],[radius*2,willow?2.3:2.5,radius*2]);
   if(willow)for(let i=0;i<8;i++){

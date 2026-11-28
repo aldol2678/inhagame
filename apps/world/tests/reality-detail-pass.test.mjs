@@ -126,6 +126,13 @@ test('gazebo jump has real headroom; blocked mount stays walkable and recovers o
   assert.ok(peak-start>1.1,'standing human can jump freely under the gazebo roof');
   a.controller.toggleMount();assert.equal(a.controller.mounted,false);assert.equal(a.controller.mountBlocked,true);
   walk(a,x-7,z);assert.equal(a.controller.mountBlocked,false);
+  // This dry spot permits walking, but the wider mount intersects the trunk.
+  const besideTrunk=a.entity.getLocalPosition(), trunk=OBSTACLES.find(o=>o.id==='inkyung_trunk_bank_5');
+  assert.ok(trunk);
+  assert.equal(canOccupy(besideTrunk,WALK_SHAPE,[trunk]),true);
+  assert.equal(canOccupy(besideTrunk,MOUNT_SHAPE,[trunk]),false);
+  a.controller.toggleMount();assert.equal(a.controller.mounted,false);
+  walk(a,x-8,z);
   a.controller.toggleMount();assert.equal(a.controller.mounted,true);
   a.controller.ascendHeld=true;
   for(let i=0;i<60;i++)a.controller.update(1/60);

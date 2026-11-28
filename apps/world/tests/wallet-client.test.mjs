@@ -181,8 +181,8 @@ test("main.js wiring: member client, identity, reward, resume; Reward and Shop a
   const main = readFileSync(new URL("../src/main.js", import.meta.url), "utf8");
   assert.match(main, /createWalletClient\(\{ getClient: \(\) => online\?\.supabase \?\? null \}\)/);
   assert.match(main, /void wallet\.setAccount\(identity \? online\?\.userId \?\? null : null\)/);
-  assert.match(main, /onReward: result => \{[\s\S]*?void progression\.refresh\("reward"\);\s*void wallet\.refresh\("reward"\);/,
-    "a finished reward claim re-reads progression (unchanged) and the wallet");
+  assert.match(main, /onReward: reward => \{[\s\S]*?void progression\.refresh\("reward"\);\s*if \(reward\.entries\.some\(entry => entry\.grantType === "CURRENCY"\)\) void wallet\.refresh\("reward"\);/,
+    "a granted currency reward re-reads the wallet");
   assert.match(main, /addEventListener\("pageshow"[\s\S]*?void wallet\.refresh\("resume"\)/);
   assert.match(main, /createShopPanel\(\{[\s\S]*?shop,\s*wallet,/);
   assert.doesNotMatch(main, /setInterval\([^)]*wallet/, "no polling");

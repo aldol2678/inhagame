@@ -56,6 +56,35 @@ export function pondBankTrees(){
   if(hero){hero.p.heroWillow=true;hero.p.willow=true;}
   return result;
 }
+// Shared by the rendered trunk, player collision, and NPC navigation. Leaves
+// and decorative hanging lobes do not participate in collision.
+export const pondTrunkShape = (p, seat = false) => ({
+  radius: seat ? .13 : .18, height: (p.heroWillow ? 5.8 : seat ? 3.4 : 4.3) - .6
+});
+export function pondTrunkCollider(center, seat, index) {
+  const { radius, height } = pondTrunkShape(center, seat);
+  return { id: `inkyung_trunk_${seat ? 'seat' : 'bank'}_${index}`, center, radius, minY: 0, maxY: height,
+    polygon: Array.from({length: 12}, (_, i) => {
+      const angle = i * Math.PI / 6;
+      return { x: center.x + radius * Math.cos(angle), z: center.z + radius * Math.sin(angle) };
+    })
+  };
+}
+export const POND_TRUNK_COLLIDERS = Object.freeze([
+  ...pondSeatTrees().map(({center,index}) => pondTrunkCollider(center,true,index)),
+  ...pondBankTrees().map((center,index) => pondTrunkCollider(center,false,index))
+]);
+// Use continuous segment distance so even short grazing crossings are rejected.
+export function hitsPondTrunk(from, to = from, clearance = 0) {
+  const dx=to.x-from.x, dz=to.z-from.z, lengthSq=dx*dx+dz*dz;
+  return POND_TRUNK_COLLIDERS.some(({center,radius}) => {
+    const reach=radius+clearance;
+    if(center.x<Math.min(from.x,to.x)-reach || center.x>Math.max(from.x,to.x)+reach ||
+       center.z<Math.min(from.z,to.z)-reach || center.z>Math.max(from.z,to.z)+reach) return false;
+    const t=lengthSq ? Math.max(0,Math.min(1,((center.x-from.x)*dx+(center.z-from.z)*dz)/lengthSq)) : 0;
+    return Math.hypot(from.x+t*dx-center.x,from.z+t*dz-center.z)<reach;
+  });
+}
 export function pondPromenadeCells(){
   const f=edgeFrame(POND_RING,1),cells=[];
   for(let u=-.5;u<f.length+1;u+=.5)for(let out=4.4;out<7.4;out+=.5){
@@ -118,6 +147,7 @@ export function roadviewGroundHeight(x,z) {
 
 export const ROADVIEW_OBSTACLES=[
   ...GAZEBO_COLLIDERS,
+  ...POND_TRUNK_COLLIDERS,
   ...LIBRARY_APPROACHES.flatMap(t=>[0,t.frame.length-t.inset].flatMap((u,i)=>[
     {id:`${t.id}_side_${i}`,polygon:rectInFrame(t.frame,u,u+t.inset,0,t.landing+t.run),minY:0,maxY:t.height},
     {id:`${t.id}_side_rail_${i}`,polygon:rectInFrame(t.frame,u,u+t.inset,librarySideRailStart(t,i),t.landing+t.run),minY:t.height,maxY:t.height+.45}

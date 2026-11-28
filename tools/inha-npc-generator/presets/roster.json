@@ -1,0 +1,2782 @@
+[
+  {
+    "id": "INKYUNG-NPC-001",
+    "name": "나나율",
+    "role": "영어영문학과",
+    "kind": "campus",
+    "archetype": "student",
+    "style": {
+      "hair_style": "long",
+      "outfit_style": "coat",
+      "accessory": "badge",
+      "skin_tone": 0,
+      "height": 0.955,
+      "hair_color": "#49362c",
+      "outfit_color": "#4a89b8",
+      "accent_color": "#aee4d2",
+      "presentation": "male",
+      "label": "남성",
+      "profile": {
+        "schema_version": 1,
+        "body": {
+          "type": "slim",
+          "height": 0.955,
+          "shoulder": 0.945,
+          "build": 1.035
+        },
+        "face": {
+          "shape": "soft",
+          "skin_tone": 0,
+          "brow": "soft",
+          "eye": "round"
+        },
+        "hair": {
+          "style": "long",
+          "color": "#49362c"
+        },
+        "outfit": {
+          "style": "coat",
+          "color": "#4a89b8",
+          "accent_color": "#aee4d2"
+        },
+        "accessories": [
+          "badge"
+        ],
+        "motion": {
+          "style": "calm",
+          "walk_speed_scale": 0.9400000000000001,
+          "gesture_level": 0.27
+        },
+        "tier": "resident"
+      }
+    },
+    "source": "npc-factory/data/repaired/INKYUNG-20-A-R1.json"
+  },
+  {
+    "id": "INKYUNG-NPC-002",
+    "name": "가유담",
+    "role": "컴퓨터공학과",
+    "kind": "campus",
+    "archetype": "teaching_assistant",
+    "style": {
+      "hair_style": "sidepart",
+      "outfit_style": "hoodie",
+      "accessory": "headphones",
+      "skin_tone": 1,
+      "height": 0.97,
+      "hair_color": "#242129",
+      "outfit_color": "#b96972",
+      "accent_color": "#efb1aa",
+      "presentation": "female",
+      "label": "여성",
+      "profile": {
+        "schema_version": 1,
+        "body": {
+          "type": "soft",
+          "height": 0.97,
+          "shoulder": 0.97,
+          "build": 0.96
+        },
+        "face": {
+          "shape": "oval",
+          "skin_tone": 1,
+          "brow": "bold",
+          "eye": "default"
+        },
+        "hair": {
+          "style": "sidepart",
+          "color": "#242129"
+        },
+        "outfit": {
+          "style": "hoodie",
+          "color": "#b96972",
+          "accent_color": "#efb1aa"
+        },
+        "accessories": [
+          "headphones"
+        ],
+        "motion": {
+          "style": "steady",
+          "walk_speed_scale": 1.01,
+          "gesture_level": 0.45999999999999996
+        },
+        "tier": "resident"
+      }
+    },
+    "source": "npc-factory/data/repaired/INKYUNG-20-A-R1.json"
+  },
+  {
+    "id": "INKYUNG-NPC-003",
+    "name": "나수현",
+    "role": "shop_worker",
+    "kind": "campus",
+    "archetype": "shop_worker",
+    "style": {
+      "hair_style": "ponytail",
+      "outfit_style": "sweater",
+      "accessory": "messenger",
+      "skin_tone": 2,
+      "height": 0.985,
+      "hair_color": "#5a4038",
+      "outfit_color": "#446481",
+      "accent_color": "#ebad73",
+      "presentation": "male",
+      "label": "남성",
+      "profile": {
+        "schema_version": 1,
+        "body": {
+          "type": "broad",
+          "height": 0.985,
+          "shoulder": 0.995,
+          "build": 1.085
+        },
+        "face": {
+          "shape": "round",
+          "skin_tone": 2,
+          "brow": "arched",
+          "eye": "bright"
+        },
+        "hair": {
+          "style": "ponytail",
+          "color": "#5a4038"
+        },
+        "outfit": {
+          "style": "sweater",
+          "color": "#446481",
+          "accent_color": "#ebad73"
+        },
+        "accessories": [
+          "messenger"
+        ],
+        "motion": {
+          "style": "calm",
+          "walk_speed_scale": 0.92,
+          "gesture_level": 0.37
+        },
+        "tier": "resident"
+      }
+    },
+    "source": "npc-factory/data/repaired/INKYUNG-20-A-R1.json"
+  },
+  {
+    "id": "INKYUNG-NPC-004",
+    "name": "나도윤",
+    "role": "행정학과",
+    "kind": "campus",
+    "archetype": "teaching_assistant",
+    "style": {
+      "hair_style": "medium",
+      "outfit_style": "cardigan",
+      "accessory": "sketchbook",
+      "skin_tone": 3,
+      "height": 1,
+      "hair_color": "#302b37",
+      "outfit_color": "#927653",
+      "accent_color": "#e8ba72",
+      "presentation": "female",
+      "label": "여성",
+      "profile": {
+        "schema_version": 1,
+        "body": {
+          "type": "average",
+          "height": 1,
+          "shoulder": 1.02,
+          "build": 1.01
+        },
+        "face": {
+          "shape": "angular",
+          "skin_tone": 3,
+          "brow": "straight",
+          "eye": "narrow"
+        },
+        "hair": {
+          "style": "medium",
+          "color": "#302b37"
+        },
+        "outfit": {
+          "style": "cardigan",
+          "color": "#927653",
+          "accent_color": "#e8ba72"
+        },
+        "accessories": [
+          "sketchbook"
+        ],
+        "motion": {
+          "style": "lively",
+          "walk_speed_scale": 1.05,
+          "gesture_level": 0.58
+        },
+        "tier": "resident"
+      }
+    },
+    "source": "npc-factory/data/repaired/INKYUNG-20-A-R1.json"
+  },
+  {
+    "id": "INKYUNG-NPC-005",
+    "name": "나민서",
+    "role": "사학과",
+    "kind": "campus",
+    "archetype": "faculty",
+    "style": {
+      "hair_style": "short",
+      "outfit_style": "jacket",
+      "accessory": "apron",
+      "skin_tone": 0,
+      "height": 1.015,
+      "hair_color": "#35252c",
+      "outfit_color": "#8b75af",
+      "accent_color": "#f2d16b",
+      "presentation": "male",
+      "label": "남성",
+      "profile": {
+        "schema_version": 1,
+        "body": {
+          "type": "slim",
+          "height": 1.015,
+          "shoulder": 1.045,
+          "build": 0.935
+        },
+        "face": {
+          "shape": "soft",
+          "skin_tone": 0,
+          "brow": "soft",
+          "eye": "round"
+        },
+        "hair": {
+          "style": "short",
+          "color": "#35252c"
+        },
+        "outfit": {
+          "style": "jacket",
+          "color": "#8b75af",
+          "accent_color": "#f2d16b"
+        },
+        "accessories": [
+          "apron"
+        ],
+        "motion": {
+          "style": "calm",
+          "walk_speed_scale": 0.9600000000000001,
+          "gesture_level": 0.27
+        },
+        "tier": "resident"
+      }
+    },
+    "source": "npc-factory/data/repaired/INKYUNG-20-A-R1.json"
+  },
+  {
+    "id": "INKYUNG-NPC-006",
+    "name": "나보민",
+    "role": "물리학과",
+    "kind": "campus",
+    "archetype": "student",
+    "style": {
+      "hair_style": "bob",
+      "outfit_style": "shirt",
+      "accessory": "backpack",
+      "skin_tone": 1,
+      "height": 1.03,
+      "hair_color": "#2a2630",
+      "outfit_color": "#5a9bb9",
+      "accent_color": "#f0bd55",
+      "presentation": "female",
+      "label": "여성",
+      "profile": {
+        "schema_version": 1,
+        "body": {
+          "type": "soft",
+          "height": 1.03,
+          "shoulder": 1.07,
+          "build": 1.06
+        },
+        "face": {
+          "shape": "oval",
+          "skin_tone": 1,
+          "brow": "bold",
+          "eye": "default"
+        },
+        "hair": {
+          "style": "bob",
+          "color": "#2a2630"
+        },
+        "outfit": {
+          "style": "shirt",
+          "color": "#5a9bb9",
+          "accent_color": "#f0bd55"
+        },
+        "accessories": [
+          "backpack"
+        ],
+        "motion": {
+          "style": "focused",
+          "walk_speed_scale": 0.97,
+          "gesture_level": 0.36000000000000004
+        },
+        "tier": "resident"
+      }
+    },
+    "source": "npc-factory/data/repaired/INKYUNG-20-A-R1.json"
+  },
+  {
+    "id": "INKYUNG-NPC-007",
+    "name": "가이든",
+    "role": "시각디자인학과",
+    "kind": "campus",
+    "archetype": "student",
+    "style": {
+      "hair_style": "curly",
+      "outfit_style": "coat",
+      "accessory": "book",
+      "skin_tone": 2,
+      "height": 1.045,
+      "hair_color": "#634130",
+      "outfit_color": "#507fb4",
+      "accent_color": "#d8e6a9",
+      "presentation": "male",
+      "label": "남성",
+      "profile": {
+        "schema_version": 1,
+        "body": {
+          "type": "broad",
+          "height": 1.045,
+          "shoulder": 0.92,
+          "build": 0.985
+        },
+        "face": {
+          "shape": "round",
+          "skin_tone": 2,
+          "brow": "arched",
+          "eye": "bright"
+        },
+        "hair": {
+          "style": "curly",
+          "color": "#634130"
+        },
+        "outfit": {
+          "style": "coat",
+          "color": "#507fb4",
+          "accent_color": "#d8e6a9"
+        },
+        "accessories": [
+          "book"
+        ],
+        "motion": {
+          "style": "calm",
+          "walk_speed_scale": 0.9400000000000001,
+          "gesture_level": 0.37
+        },
+        "tier": "resident"
+      }
+    },
+    "source": "npc-factory/data/repaired/INKYUNG-20-A-R1.json"
+  },
+  {
+    "id": "INKYUNG-NPC-008",
+    "name": "가하람",
+    "role": "사회학과",
+    "kind": "campus",
+    "archetype": "club_member",
+    "style": {
+      "hair_style": "bun",
+      "outfit_style": "hoodie",
+      "accessory": "scarf",
+      "skin_tone": 3,
+      "height": 1.06,
+      "hair_color": "#473126",
+      "outfit_color": "#795ca3",
+      "accent_color": "#a9d7ca",
+      "presentation": "female",
+      "label": "여성",
+      "profile": {
+        "schema_version": 1,
+        "body": {
+          "type": "average",
+          "height": 1.06,
+          "shoulder": 0.945,
+          "build": 0.91
+        },
+        "face": {
+          "shape": "angular",
+          "skin_tone": 3,
+          "brow": "straight",
+          "eye": "narrow"
+        },
+        "hair": {
+          "style": "bun",
+          "color": "#473126"
+        },
+        "outfit": {
+          "style": "hoodie",
+          "color": "#795ca3",
+          "accent_color": "#a9d7ca"
+        },
+        "accessories": [
+          "scarf"
+        ],
+        "motion": {
+          "style": "lively",
+          "walk_speed_scale": 1.07,
+          "gesture_level": 0.58
+        },
+        "tier": "resident"
+      }
+    },
+    "source": "npc-factory/data/repaired/INKYUNG-20-A-R1.json"
+  },
+  {
+    "id": "INKYUNG-NPC-009",
+    "name": "나유담",
+    "role": "국어국문학과",
+    "kind": "campus",
+    "archetype": "student",
+    "style": {
+      "hair_style": "long",
+      "outfit_style": "sweater",
+      "accessory": "glasses",
+      "skin_tone": 0,
+      "height": 0.94,
+      "hair_color": "#49362c",
+      "outfit_color": "#566b81",
+      "accent_color": "#bfe4f2",
+      "presentation": "male",
+      "label": "남성",
+      "profile": {
+        "schema_version": 1,
+        "body": {
+          "type": "slim",
+          "height": 0.94,
+          "shoulder": 0.97,
+          "build": 1.035
+        },
+        "face": {
+          "shape": "soft",
+          "skin_tone": 0,
+          "brow": "soft",
+          "eye": "round"
+        },
+        "hair": {
+          "style": "long",
+          "color": "#49362c"
+        },
+        "outfit": {
+          "style": "sweater",
+          "color": "#566b81",
+          "accent_color": "#bfe4f2"
+        },
+        "accessories": [
+          "glasses"
+        ],
+        "motion": {
+          "style": "calm",
+          "walk_speed_scale": 0.92,
+          "gesture_level": 0.27
+        },
+        "tier": "resident"
+      }
+    },
+    "source": "npc-factory/data/repaired/INKYUNG-20-A-R1.json"
+  },
+  {
+    "id": "INKYUNG-NPC-010",
+    "name": "가나율",
+    "role": "화학과",
+    "kind": "campus",
+    "archetype": "student",
+    "style": {
+      "hair_style": "sidepart",
+      "outfit_style": "cardigan",
+      "accessory": "badge",
+      "skin_tone": 1,
+      "height": 0.955,
+      "hair_color": "#242129",
+      "outfit_color": "#b85c60",
+      "accent_color": "#f3b36b",
+      "presentation": "female",
+      "label": "여성",
+      "profile": {
+        "schema_version": 1,
+        "body": {
+          "type": "soft",
+          "height": 0.955,
+          "shoulder": 0.995,
+          "build": 0.96
+        },
+        "face": {
+          "shape": "oval",
+          "skin_tone": 1,
+          "brow": "bold",
+          "eye": "default"
+        },
+        "hair": {
+          "style": "sidepart",
+          "color": "#242129"
+        },
+        "outfit": {
+          "style": "cardigan",
+          "color": "#b85c60",
+          "accent_color": "#f3b36b"
+        },
+        "accessories": [
+          "badge",
+          "glasses"
+        ],
+        "motion": {
+          "style": "calm",
+          "walk_speed_scale": 0.9400000000000001,
+          "gesture_level": 0.32
+        },
+        "tier": "resident"
+      }
+    },
+    "source": "npc-factory/data/repaired/INKYUNG-20-A-R1.json"
+  },
+  {
+    "id": "INKYUNG-NPC-011",
+    "name": "가서안",
+    "role": "기계공학과",
+    "kind": "campus",
+    "archetype": "club_member",
+    "style": {
+      "hair_style": "ponytail",
+      "outfit_style": "jacket",
+      "accessory": "headphones",
+      "skin_tone": 2,
+      "height": 0.97,
+      "hair_color": "#5a4038",
+      "outfit_color": "#7d9d6d",
+      "accent_color": "#d8c2ef",
+      "presentation": "male",
+      "label": "남성",
+      "profile": {
+        "schema_version": 1,
+        "body": {
+          "type": "broad",
+          "height": 0.97,
+          "shoulder": 1.02,
+          "build": 1.085
+        },
+        "face": {
+          "shape": "round",
+          "skin_tone": 2,
+          "brow": "arched",
+          "eye": "bright"
+        },
+        "hair": {
+          "style": "ponytail",
+          "color": "#5a4038"
+        },
+        "outfit": {
+          "style": "jacket",
+          "color": "#7d9d6d",
+          "accent_color": "#d8c2ef"
+        },
+        "accessories": [
+          "headphones"
+        ],
+        "motion": {
+          "style": "calm",
+          "walk_speed_scale": 0.9600000000000001,
+          "gesture_level": 0.37
+        },
+        "tier": "resident"
+      }
+    },
+    "source": "npc-factory/data/repaired/INKYUNG-20-A-R1.json"
+  },
+  {
+    "id": "INKYUNG-NPC-012",
+    "name": "가지안",
+    "role": "shop_worker",
+    "kind": "campus",
+    "archetype": "shop_worker",
+    "style": {
+      "hair_style": "medium",
+      "outfit_style": "shirt",
+      "accessory": "messenger",
+      "skin_tone": 3,
+      "height": 0.985,
+      "hair_color": "#302b37",
+      "outfit_color": "#d06f4f",
+      "accent_color": "#edc98e",
+      "presentation": "female",
+      "label": "여성",
+      "profile": {
+        "schema_version": 1,
+        "body": {
+          "type": "average",
+          "height": 0.985,
+          "shoulder": 1.045,
+          "build": 1.01
+        },
+        "face": {
+          "shape": "angular",
+          "skin_tone": 3,
+          "brow": "straight",
+          "eye": "narrow"
+        },
+        "hair": {
+          "style": "medium",
+          "color": "#302b37"
+        },
+        "outfit": {
+          "style": "shirt",
+          "color": "#d06f4f",
+          "accent_color": "#edc98e"
+        },
+        "accessories": [
+          "messenger"
+        ],
+        "motion": {
+          "style": "lively",
+          "walk_speed_scale": 1.03,
+          "gesture_level": 0.58
+        },
+        "tier": "resident"
+      }
+    },
+    "source": "npc-factory/data/repaired/INKYUNG-20-A-R1.json"
+  },
+  {
+    "id": "INKYUNG-NPC-013",
+    "name": "가태린",
+    "role": "생명과학과",
+    "kind": "campus",
+    "archetype": "club_member",
+    "style": {
+      "hair_style": "short",
+      "outfit_style": "coat",
+      "accessory": "sketchbook",
+      "skin_tone": 0,
+      "height": 1,
+      "hair_color": "#35252c",
+      "outfit_color": "#3f8d87",
+      "accent_color": "#b5e6dc",
+      "presentation": "male",
+      "label": "남성",
+      "profile": {
+        "schema_version": 1,
+        "body": {
+          "type": "slim",
+          "height": 1,
+          "shoulder": 1.07,
+          "build": 0.935
+        },
+        "face": {
+          "shape": "soft",
+          "skin_tone": 0,
+          "brow": "soft",
+          "eye": "round"
+        },
+        "hair": {
+          "style": "short",
+          "color": "#35252c"
+        },
+        "outfit": {
+          "style": "coat",
+          "color": "#3f8d87",
+          "accent_color": "#b5e6dc"
+        },
+        "accessories": [
+          "sketchbook"
+        ],
+        "motion": {
+          "style": "lively",
+          "walk_speed_scale": 1.05,
+          "gesture_level": 0.6399999999999999
+        },
+        "tier": "resident"
+      }
+    },
+    "source": "npc-factory/data/repaired/INKYUNG-20-A-R1.json"
+  },
+  {
+    "id": "INKYUNG-NPC-014",
+    "name": "나서안",
+    "role": "staff",
+    "kind": "campus",
+    "archetype": "staff",
+    "style": {
+      "hair_style": "bob",
+      "outfit_style": "hoodie",
+      "accessory": "apron",
+      "skin_tone": 1,
+      "height": 1.015,
+      "hair_color": "#2a2630",
+      "outfit_color": "#865d9e",
+      "accent_color": "#f3cfaa",
+      "presentation": "female",
+      "label": "여성",
+      "profile": {
+        "schema_version": 1,
+        "body": {
+          "type": "soft",
+          "height": 1.015,
+          "shoulder": 0.92,
+          "build": 1.06
+        },
+        "face": {
+          "shape": "oval",
+          "skin_tone": 1,
+          "brow": "bold",
+          "eye": "default"
+        },
+        "hair": {
+          "style": "bob",
+          "color": "#2a2630"
+        },
+        "outfit": {
+          "style": "hoodie",
+          "color": "#865d9e",
+          "accent_color": "#f3cfaa"
+        },
+        "accessories": [
+          "apron"
+        ],
+        "motion": {
+          "style": "steady",
+          "walk_speed_scale": 1.01,
+          "gesture_level": 0.45999999999999996
+        },
+        "tier": "resident"
+      }
+    },
+    "source": "npc-factory/data/repaired/INKYUNG-20-A-R1.json"
+  },
+  {
+    "id": "INKYUNG-NPC-015",
+    "name": "가도윤",
+    "role": "산업디자인학과",
+    "kind": "campus",
+    "archetype": "student",
+    "style": {
+      "hair_style": "curly",
+      "outfit_style": "sweater",
+      "accessory": "backpack",
+      "skin_tone": 2,
+      "height": 1.03,
+      "hair_color": "#634130",
+      "outfit_color": "#4a89b8",
+      "accent_color": "#aee4d2",
+      "presentation": "male",
+      "label": "남성",
+      "profile": {
+        "schema_version": 1,
+        "body": {
+          "type": "broad",
+          "height": 1.03,
+          "shoulder": 0.945,
+          "build": 0.985
+        },
+        "face": {
+          "shape": "round",
+          "skin_tone": 2,
+          "brow": "arched",
+          "eye": "bright"
+        },
+        "hair": {
+          "style": "curly",
+          "color": "#634130"
+        },
+        "outfit": {
+          "style": "sweater",
+          "color": "#4a89b8",
+          "accent_color": "#aee4d2"
+        },
+        "accessories": [
+          "backpack",
+          "sketchbook"
+        ],
+        "motion": {
+          "style": "lively",
+          "walk_speed_scale": 1.03,
+          "gesture_level": 0.76
+        },
+        "tier": "resident"
+      }
+    },
+    "source": "npc-factory/data/repaired/INKYUNG-20-A-R1.json"
+  },
+  {
+    "id": "INKYUNG-NPC-016",
+    "name": "가라온",
+    "role": "수학과",
+    "kind": "campus",
+    "archetype": "student",
+    "style": {
+      "hair_style": "bun",
+      "outfit_style": "cardigan",
+      "accessory": "book",
+      "skin_tone": 3,
+      "height": 1.045,
+      "hair_color": "#473126",
+      "outfit_color": "#b96972",
+      "accent_color": "#efb1aa",
+      "presentation": "female",
+      "label": "여성",
+      "profile": {
+        "schema_version": 1,
+        "body": {
+          "type": "average",
+          "height": 1.045,
+          "shoulder": 0.97,
+          "build": 0.91
+        },
+        "face": {
+          "shape": "angular",
+          "skin_tone": 3,
+          "brow": "straight",
+          "eye": "narrow"
+        },
+        "hair": {
+          "style": "bun",
+          "color": "#473126"
+        },
+        "outfit": {
+          "style": "cardigan",
+          "color": "#b96972",
+          "accent_color": "#efb1aa"
+        },
+        "accessories": [
+          "book"
+        ],
+        "motion": {
+          "style": "calm",
+          "walk_speed_scale": 0.9400000000000001,
+          "gesture_level": 0.22
+        },
+        "tier": "resident"
+      }
+    },
+    "source": "npc-factory/data/repaired/INKYUNG-20-A-R1.json"
+  },
+  {
+    "id": "INKYUNG-NPC-017",
+    "name": "가수현",
+    "role": "행정학과",
+    "kind": "campus",
+    "archetype": "student",
+    "style": {
+      "hair_style": "long",
+      "outfit_style": "jacket",
+      "accessory": "scarf",
+      "skin_tone": 0,
+      "height": 1.06,
+      "hair_color": "#49362c",
+      "outfit_color": "#446481",
+      "accent_color": "#ebad73",
+      "presentation": "male",
+      "label": "남성",
+      "profile": {
+        "schema_version": 1,
+        "body": {
+          "type": "slim",
+          "height": 1.06,
+          "shoulder": 0.995,
+          "build": 1.035
+        },
+        "face": {
+          "shape": "soft",
+          "skin_tone": 0,
+          "brow": "soft",
+          "eye": "round"
+        },
+        "hair": {
+          "style": "long",
+          "color": "#49362c"
+        },
+        "outfit": {
+          "style": "jacket",
+          "color": "#446481",
+          "accent_color": "#ebad73"
+        },
+        "accessories": [
+          "scarf"
+        ],
+        "motion": {
+          "style": "focused",
+          "walk_speed_scale": 1,
+          "gesture_level": 0.32
+        },
+        "tier": "resident"
+      }
+    },
+    "source": "npc-factory/data/repaired/INKYUNG-20-A-R1.json"
+  },
+  {
+    "id": "INKYUNG-NPC-018",
+    "name": "가민서",
+    "role": "staff",
+    "kind": "campus",
+    "archetype": "staff",
+    "style": {
+      "hair_style": "sidepart",
+      "outfit_style": "shirt",
+      "accessory": "glasses",
+      "skin_tone": 1,
+      "height": 0.94,
+      "hair_color": "#242129",
+      "outfit_color": "#927653",
+      "accent_color": "#e8ba72",
+      "presentation": "female",
+      "label": "여성",
+      "profile": {
+        "schema_version": 1,
+        "body": {
+          "type": "soft",
+          "height": 0.94,
+          "shoulder": 1.02,
+          "build": 0.96
+        },
+        "face": {
+          "shape": "oval",
+          "skin_tone": 1,
+          "brow": "bold",
+          "eye": "default"
+        },
+        "hair": {
+          "style": "sidepart",
+          "color": "#242129"
+        },
+        "outfit": {
+          "style": "shirt",
+          "color": "#927653",
+          "accent_color": "#e8ba72"
+        },
+        "accessories": [
+          "glasses"
+        ],
+        "motion": {
+          "style": "focused",
+          "walk_speed_scale": 0.97,
+          "gesture_level": 0.36000000000000004
+        },
+        "tier": "resident"
+      }
+    },
+    "source": "npc-factory/data/repaired/INKYUNG-20-A-R1.json"
+  },
+  {
+    "id": "INKYUNG-NPC-019",
+    "name": "나라온",
+    "role": "전기공학과",
+    "kind": "campus",
+    "archetype": "student",
+    "style": {
+      "hair_style": "ponytail",
+      "outfit_style": "coat",
+      "accessory": "badge",
+      "skin_tone": 2,
+      "height": 0.955,
+      "hair_color": "#5a4038",
+      "outfit_color": "#8b75af",
+      "accent_color": "#f2d16b",
+      "presentation": "male",
+      "label": "남성",
+      "profile": {
+        "schema_version": 1,
+        "body": {
+          "type": "broad",
+          "height": 0.955,
+          "shoulder": 1.045,
+          "build": 1.085
+        },
+        "face": {
+          "shape": "round",
+          "skin_tone": 2,
+          "brow": "arched",
+          "eye": "bright"
+        },
+        "hair": {
+          "style": "ponytail",
+          "color": "#5a4038"
+        },
+        "outfit": {
+          "style": "coat",
+          "color": "#8b75af",
+          "accent_color": "#f2d16b"
+        },
+        "accessories": [
+          "badge"
+        ],
+        "motion": {
+          "style": "calm",
+          "walk_speed_scale": 0.9400000000000001,
+          "gesture_level": 0.37
+        },
+        "tier": "resident"
+      }
+    },
+    "source": "npc-factory/data/repaired/INKYUNG-20-A-R1.json"
+  },
+  {
+    "id": "INKYUNG-NPC-020",
+    "name": "가보민",
+    "role": "사회학과",
+    "kind": "campus",
+    "archetype": "student",
+    "style": {
+      "hair_style": "medium",
+      "outfit_style": "hoodie",
+      "accessory": "headphones",
+      "skin_tone": 3,
+      "height": 0.97,
+      "hair_color": "#302b37",
+      "outfit_color": "#5a9bb9",
+      "accent_color": "#f0bd55",
+      "presentation": "female",
+      "label": "여성",
+      "profile": {
+        "schema_version": 1,
+        "body": {
+          "type": "average",
+          "height": 0.97,
+          "shoulder": 1.07,
+          "build": 1.01
+        },
+        "face": {
+          "shape": "angular",
+          "skin_tone": 3,
+          "brow": "straight",
+          "eye": "narrow"
+        },
+        "hair": {
+          "style": "medium",
+          "color": "#302b37"
+        },
+        "outfit": {
+          "style": "hoodie",
+          "color": "#5a9bb9",
+          "accent_color": "#f0bd55"
+        },
+        "accessories": [
+          "headphones",
+          "scarf"
+        ],
+        "motion": {
+          "style": "lively",
+          "walk_speed_scale": 1.07,
+          "gesture_level": 0.58
+        },
+        "tier": "resident"
+      }
+    },
+    "source": "npc-factory/data/repaired/INKYUNG-20-A-R1.json"
+  },
+  {
+    "id": "INKYUNG-NPC-021",
+    "name": "도하준",
+    "role": "국어국문학과",
+    "kind": "campus",
+    "archetype": "student",
+    "style": {
+      "height": 0.985,
+      "skin_tone": 1,
+      "hair_style": "short",
+      "hair_color": "#35252c",
+      "outfit_style": "sweater",
+      "outfit_color": "#507fb4",
+      "accent_color": "#d8e6a9",
+      "accessory": "messenger",
+      "presentation": "male",
+      "label": "남성",
+      "profile": {
+        "schema_version": 1,
+        "body": {
+          "type": "slim",
+          "height": 0.985,
+          "shoulder": 0.92,
+          "build": 0.935
+        },
+        "face": {
+          "shape": "soft",
+          "skin_tone": 1,
+          "brow": "soft",
+          "eye": "round"
+        },
+        "hair": {
+          "style": "short",
+          "color": "#35252c"
+        },
+        "outfit": {
+          "style": "sweater",
+          "color": "#507fb4",
+          "accent_color": "#d8e6a9"
+        },
+        "accessories": [
+          "messenger"
+        ],
+        "motion": {
+          "style": "calm",
+          "walk_speed_scale": 0.92,
+          "gesture_level": 0.27
+        },
+        "tier": "resident"
+      }
+    },
+    "source": "npc-factory/data/expansion/CAMPUS-28-P2A.json"
+  },
+  {
+    "id": "INKYUNG-NPC-022",
+    "name": "라서윤",
+    "role": "컴퓨터공학과",
+    "kind": "campus",
+    "archetype": "student",
+    "style": {
+      "height": 1,
+      "skin_tone": 2,
+      "hair_style": "bob",
+      "hair_color": "#2a2630",
+      "outfit_style": "cardigan",
+      "outfit_color": "#795ca3",
+      "accent_color": "#a9d7ca",
+      "accessory": "sketchbook",
+      "presentation": "female",
+      "label": "여성",
+      "profile": {
+        "schema_version": 1,
+        "body": {
+          "type": "soft",
+          "height": 1,
+          "shoulder": 0.945,
+          "build": 1.06
+        },
+        "face": {
+          "shape": "oval",
+          "skin_tone": 2,
+          "brow": "bold",
+          "eye": "default"
+        },
+        "hair": {
+          "style": "bob",
+          "color": "#2a2630"
+        },
+        "outfit": {
+          "style": "cardigan",
+          "color": "#795ca3",
+          "accent_color": "#a9d7ca"
+        },
+        "accessories": [
+          "sketchbook"
+        ],
+        "motion": {
+          "style": "focused",
+          "walk_speed_scale": 0.985,
+          "gesture_level": 0.36000000000000004
+        },
+        "tier": "resident"
+      }
+    },
+    "source": "npc-factory/data/expansion/CAMPUS-28-P2A.json"
+  },
+  {
+    "id": "INKYUNG-NPC-023",
+    "name": "마도현",
+    "role": "사학과",
+    "kind": "campus",
+    "archetype": "student",
+    "style": {
+      "height": 1.015,
+      "skin_tone": 3,
+      "hair_style": "curly",
+      "hair_color": "#634130",
+      "outfit_style": "jacket",
+      "outfit_color": "#566b81",
+      "accent_color": "#bfe4f2",
+      "accessory": "apron",
+      "presentation": "male",
+      "label": "남성",
+      "profile": {
+        "schema_version": 1,
+        "body": {
+          "type": "broad",
+          "height": 1.015,
+          "shoulder": 0.97,
+          "build": 0.985
+        },
+        "face": {
+          "shape": "round",
+          "skin_tone": 3,
+          "brow": "arched",
+          "eye": "bright"
+        },
+        "hair": {
+          "style": "curly",
+          "color": "#634130"
+        },
+        "outfit": {
+          "style": "jacket",
+          "color": "#566b81",
+          "accent_color": "#bfe4f2"
+        },
+        "accessories": [
+          "apron"
+        ],
+        "motion": {
+          "style": "calm",
+          "walk_speed_scale": 0.9600000000000001,
+          "gesture_level": 0.37
+        },
+        "tier": "resident"
+      }
+    },
+    "source": "npc-factory/data/expansion/CAMPUS-28-P2A.json"
+  },
+  {
+    "id": "INKYUNG-NPC-024",
+    "name": "바지우",
+    "role": "물리학과",
+    "kind": "campus",
+    "archetype": "student",
+    "style": {
+      "height": 1.03,
+      "skin_tone": 0,
+      "hair_style": "bun",
+      "hair_color": "#473126",
+      "outfit_style": "shirt",
+      "outfit_color": "#b85c60",
+      "accent_color": "#f3b36b",
+      "accessory": "backpack",
+      "presentation": "female",
+      "label": "여성",
+      "profile": {
+        "schema_version": 1,
+        "body": {
+          "type": "average",
+          "height": 1.03,
+          "shoulder": 0.995,
+          "build": 0.91
+        },
+        "face": {
+          "shape": "angular",
+          "skin_tone": 0,
+          "brow": "straight",
+          "eye": "narrow"
+        },
+        "hair": {
+          "style": "bun",
+          "color": "#473126"
+        },
+        "outfit": {
+          "style": "shirt",
+          "color": "#b85c60",
+          "accent_color": "#f3b36b"
+        },
+        "accessories": [
+          "backpack"
+        ],
+        "motion": {
+          "style": "calm",
+          "walk_speed_scale": 0.92,
+          "gesture_level": 0.22
+        },
+        "tier": "resident"
+      }
+    },
+    "source": "npc-factory/data/expansion/CAMPUS-28-P2A.json"
+  },
+  {
+    "id": "INKYUNG-NPC-025",
+    "name": "서예린",
+    "role": "시각디자인학과",
+    "kind": "campus",
+    "archetype": "club_member",
+    "style": {
+      "height": 1.045,
+      "skin_tone": 1,
+      "hair_style": "long",
+      "hair_color": "#49362c",
+      "outfit_style": "coat",
+      "outfit_color": "#7d9d6d",
+      "accent_color": "#d8c2ef",
+      "accessory": "book",
+      "presentation": "female",
+      "label": "여성",
+      "profile": {
+        "schema_version": 1,
+        "body": {
+          "type": "slim",
+          "height": 1.045,
+          "shoulder": 1.02,
+          "build": 1.035
+        },
+        "face": {
+          "shape": "soft",
+          "skin_tone": 1,
+          "brow": "soft",
+          "eye": "round"
+        },
+        "hair": {
+          "style": "long",
+          "color": "#49362c"
+        },
+        "outfit": {
+          "style": "coat",
+          "color": "#7d9d6d",
+          "accent_color": "#d8c2ef"
+        },
+        "accessories": [
+          "book",
+          "messenger"
+        ],
+        "motion": {
+          "style": "lively",
+          "walk_speed_scale": 1.05,
+          "gesture_level": 0.6399999999999999
+        },
+        "tier": "resident"
+      }
+    },
+    "source": "npc-factory/data/expansion/CAMPUS-28-P2A.json"
+  },
+  {
+    "id": "INKYUNG-NPC-026",
+    "name": "우태오",
+    "role": "영어영문학과",
+    "kind": "campus",
+    "archetype": "student",
+    "style": {
+      "height": 1.06,
+      "skin_tone": 2,
+      "hair_style": "sidepart",
+      "hair_color": "#242129",
+      "outfit_style": "hoodie",
+      "outfit_color": "#d06f4f",
+      "accent_color": "#edc98e",
+      "accessory": "scarf",
+      "presentation": "male",
+      "label": "남성",
+      "profile": {
+        "schema_version": 1,
+        "body": {
+          "type": "soft",
+          "height": 1.06,
+          "shoulder": 1.045,
+          "build": 0.96
+        },
+        "face": {
+          "shape": "oval",
+          "skin_tone": 2,
+          "brow": "bold",
+          "eye": "default"
+        },
+        "hair": {
+          "style": "sidepart",
+          "color": "#242129"
+        },
+        "outfit": {
+          "style": "hoodie",
+          "color": "#d06f4f",
+          "accent_color": "#edc98e"
+        },
+        "accessories": [
+          "scarf"
+        ],
+        "motion": {
+          "style": "calm",
+          "walk_speed_scale": 0.9600000000000001,
+          "gesture_level": 0.32
+        },
+        "tier": "resident"
+      }
+    },
+    "source": "npc-factory/data/expansion/CAMPUS-28-P2A.json"
+  },
+  {
+    "id": "INKYUNG-NPC-027",
+    "name": "이하은",
+    "role": "화학과",
+    "kind": "campus",
+    "archetype": "club_member",
+    "style": {
+      "height": 0.94,
+      "skin_tone": 3,
+      "hair_style": "ponytail",
+      "hair_color": "#5a4038",
+      "outfit_style": "sweater",
+      "outfit_color": "#3f8d87",
+      "accent_color": "#b5e6dc",
+      "accessory": "glasses",
+      "presentation": "female",
+      "label": "여성",
+      "profile": {
+        "schema_version": 1,
+        "body": {
+          "type": "broad",
+          "height": 0.94,
+          "shoulder": 1.07,
+          "build": 1.085
+        },
+        "face": {
+          "shape": "round",
+          "skin_tone": 3,
+          "brow": "arched",
+          "eye": "bright"
+        },
+        "hair": {
+          "style": "ponytail",
+          "color": "#5a4038"
+        },
+        "outfit": {
+          "style": "sweater",
+          "color": "#3f8d87",
+          "accent_color": "#b5e6dc"
+        },
+        "accessories": [
+          "glasses"
+        ],
+        "motion": {
+          "style": "focused",
+          "walk_speed_scale": 0.97,
+          "gesture_level": 0.4
+        },
+        "tier": "resident"
+      }
+    },
+    "source": "npc-factory/data/expansion/CAMPUS-28-P2A.json"
+  },
+  {
+    "id": "INKYUNG-NPC-028",
+    "name": "주민재",
+    "role": "기계공학과",
+    "kind": "campus",
+    "archetype": "student",
+    "style": {
+      "height": 0.955,
+      "skin_tone": 0,
+      "hair_style": "medium",
+      "hair_color": "#302b37",
+      "outfit_style": "cardigan",
+      "outfit_color": "#865d9e",
+      "accent_color": "#f3cfaa",
+      "accessory": "badge",
+      "presentation": "male",
+      "label": "남성",
+      "profile": {
+        "schema_version": 1,
+        "body": {
+          "type": "average",
+          "height": 0.955,
+          "shoulder": 0.92,
+          "build": 1.01
+        },
+        "face": {
+          "shape": "angular",
+          "skin_tone": 0,
+          "brow": "straight",
+          "eye": "narrow"
+        },
+        "hair": {
+          "style": "medium",
+          "color": "#302b37"
+        },
+        "outfit": {
+          "style": "cardigan",
+          "color": "#865d9e",
+          "accent_color": "#f3cfaa"
+        },
+        "accessories": [
+          "badge"
+        ],
+        "motion": {
+          "style": "focused",
+          "walk_speed_scale": 0.985,
+          "gesture_level": 0.28
+        },
+        "tier": "resident"
+      }
+    },
+    "source": "npc-factory/data/expansion/CAMPUS-28-P2A.json"
+  },
+  {
+    "id": "INKYUNG-NPC-029",
+    "name": "차서현",
+    "role": "생명과학과",
+    "kind": "campus",
+    "archetype": "student",
+    "style": {
+      "height": 0.97,
+      "skin_tone": 1,
+      "hair_style": "short",
+      "hair_color": "#35252c",
+      "outfit_style": "jacket",
+      "outfit_color": "#4a89b8",
+      "accent_color": "#aee4d2",
+      "accessory": "headphones",
+      "presentation": "female",
+      "label": "여성",
+      "profile": {
+        "schema_version": 1,
+        "body": {
+          "type": "slim",
+          "height": 0.97,
+          "shoulder": 0.945,
+          "build": 0.935
+        },
+        "face": {
+          "shape": "soft",
+          "skin_tone": 1,
+          "brow": "soft",
+          "eye": "round"
+        },
+        "hair": {
+          "style": "short",
+          "color": "#35252c"
+        },
+        "outfit": {
+          "style": "jacket",
+          "color": "#4a89b8",
+          "accent_color": "#aee4d2"
+        },
+        "accessories": [
+          "headphones"
+        ],
+        "motion": {
+          "style": "steady",
+          "walk_speed_scale": 0.995,
+          "gesture_level": 0.41
+        },
+        "tier": "resident"
+      }
+    },
+    "source": "npc-factory/data/expansion/CAMPUS-28-P2A.json"
+  },
+  {
+    "id": "INKYUNG-NPC-030",
+    "name": "하도겸",
+    "role": "산업디자인학과",
+    "kind": "campus",
+    "archetype": "student",
+    "style": {
+      "height": 0.985,
+      "skin_tone": 2,
+      "hair_style": "bob",
+      "hair_color": "#2a2630",
+      "outfit_style": "shirt",
+      "outfit_color": "#b96972",
+      "accent_color": "#efb1aa",
+      "accessory": "messenger",
+      "presentation": "male",
+      "label": "남성",
+      "profile": {
+        "schema_version": 1,
+        "body": {
+          "type": "soft",
+          "height": 0.985,
+          "shoulder": 0.97,
+          "build": 1.06
+        },
+        "face": {
+          "shape": "oval",
+          "skin_tone": 2,
+          "brow": "bold",
+          "eye": "default"
+        },
+        "hair": {
+          "style": "bob",
+          "color": "#2a2630"
+        },
+        "outfit": {
+          "style": "shirt",
+          "color": "#b96972",
+          "accent_color": "#efb1aa"
+        },
+        "accessories": [
+          "messenger",
+          "book"
+        ],
+        "motion": {
+          "style": "focused",
+          "walk_speed_scale": 0.97,
+          "gesture_level": 0.36000000000000004
+        },
+        "tier": "resident"
+      }
+    },
+    "source": "npc-factory/data/expansion/CAMPUS-28-P2A.json"
+  },
+  {
+    "id": "INKYUNG-NPC-031",
+    "name": "도유나",
+    "role": "수학과",
+    "kind": "campus",
+    "archetype": "student",
+    "style": {
+      "height": 1,
+      "skin_tone": 3,
+      "hair_style": "curly",
+      "hair_color": "#634130",
+      "outfit_style": "coat",
+      "outfit_color": "#446481",
+      "accent_color": "#ebad73",
+      "accessory": "sketchbook",
+      "presentation": "female",
+      "label": "여성",
+      "profile": {
+        "schema_version": 1,
+        "body": {
+          "type": "broad",
+          "height": 1,
+          "shoulder": 0.995,
+          "build": 0.985
+        },
+        "face": {
+          "shape": "round",
+          "skin_tone": 3,
+          "brow": "arched",
+          "eye": "bright"
+        },
+        "hair": {
+          "style": "curly",
+          "color": "#634130"
+        },
+        "outfit": {
+          "style": "coat",
+          "color": "#446481",
+          "accent_color": "#ebad73"
+        },
+        "accessories": [
+          "sketchbook"
+        ],
+        "motion": {
+          "style": "calm",
+          "walk_speed_scale": 0.9400000000000001,
+          "gesture_level": 0.37
+        },
+        "tier": "resident"
+      }
+    },
+    "source": "npc-factory/data/expansion/CAMPUS-28-P2A.json"
+  },
+  {
+    "id": "INKYUNG-NPC-032",
+    "name": "라준서",
+    "role": "행정학과",
+    "kind": "campus",
+    "archetype": "club_member",
+    "style": {
+      "height": 1.015,
+      "skin_tone": 0,
+      "hair_style": "bun",
+      "hair_color": "#473126",
+      "outfit_style": "hoodie",
+      "outfit_color": "#927653",
+      "accent_color": "#e8ba72",
+      "accessory": "apron",
+      "presentation": "male",
+      "label": "남성",
+      "profile": {
+        "schema_version": 1,
+        "body": {
+          "type": "average",
+          "height": 1.015,
+          "shoulder": 1.02,
+          "build": 0.91
+        },
+        "face": {
+          "shape": "angular",
+          "skin_tone": 0,
+          "brow": "straight",
+          "eye": "narrow"
+        },
+        "hair": {
+          "style": "bun",
+          "color": "#473126"
+        },
+        "outfit": {
+          "style": "hoodie",
+          "color": "#927653",
+          "accent_color": "#e8ba72"
+        },
+        "accessories": [
+          "apron"
+        ],
+        "motion": {
+          "style": "calm",
+          "walk_speed_scale": 0.9600000000000001,
+          "gesture_level": 0.22
+        },
+        "tier": "resident"
+      }
+    },
+    "source": "npc-factory/data/expansion/CAMPUS-28-P2A.json"
+  },
+  {
+    "id": "INKYUNG-NPC-033",
+    "name": "마채원",
+    "role": "전기공학과",
+    "kind": "campus",
+    "archetype": "student",
+    "style": {
+      "height": 1.03,
+      "skin_tone": 1,
+      "hair_style": "long",
+      "hair_color": "#49362c",
+      "outfit_style": "sweater",
+      "outfit_color": "#8b75af",
+      "accent_color": "#f2d16b",
+      "accessory": "backpack",
+      "presentation": "female",
+      "label": "여성",
+      "profile": {
+        "schema_version": 1,
+        "body": {
+          "type": "slim",
+          "height": 1.03,
+          "shoulder": 1.045,
+          "build": 1.035
+        },
+        "face": {
+          "shape": "soft",
+          "skin_tone": 1,
+          "brow": "soft",
+          "eye": "round"
+        },
+        "hair": {
+          "style": "long",
+          "color": "#49362c"
+        },
+        "outfit": {
+          "style": "sweater",
+          "color": "#8b75af",
+          "accent_color": "#f2d16b"
+        },
+        "accessories": [
+          "backpack"
+        ],
+        "motion": {
+          "style": "calm",
+          "walk_speed_scale": 0.92,
+          "gesture_level": 0.27
+        },
+        "tier": "resident"
+      }
+    },
+    "source": "npc-factory/data/expansion/CAMPUS-28-P2A.json"
+  },
+  {
+    "id": "INKYUNG-NPC-034",
+    "name": "바시온",
+    "role": "문화콘텐츠문화경영학과",
+    "kind": "campus",
+    "archetype": "student",
+    "style": {
+      "height": 1.045,
+      "skin_tone": 2,
+      "hair_style": "sidepart",
+      "hair_color": "#242129",
+      "outfit_style": "cardigan",
+      "outfit_color": "#5a9bb9",
+      "accent_color": "#f0bd55",
+      "accessory": "book",
+      "presentation": "male",
+      "label": "남성",
+      "profile": {
+        "schema_version": 1,
+        "body": {
+          "type": "soft",
+          "height": 1.045,
+          "shoulder": 1.07,
+          "build": 0.96
+        },
+        "face": {
+          "shape": "oval",
+          "skin_tone": 2,
+          "brow": "bold",
+          "eye": "default"
+        },
+        "hair": {
+          "style": "sidepart",
+          "color": "#242129"
+        },
+        "outfit": {
+          "style": "cardigan",
+          "color": "#5a9bb9",
+          "accent_color": "#f0bd55"
+        },
+        "accessories": [
+          "book"
+        ],
+        "motion": {
+          "style": "lively",
+          "walk_speed_scale": 1.05,
+          "gesture_level": 0.7
+        },
+        "tier": "resident"
+      }
+    },
+    "source": "npc-factory/data/expansion/CAMPUS-28-P2A.json"
+  },
+  {
+    "id": "INKYUNG-NPC-035",
+    "name": "서다은",
+    "role": "문화콘텐츠문화경영학과",
+    "kind": "campus",
+    "archetype": "student",
+    "style": {
+      "height": 1.06,
+      "skin_tone": 3,
+      "hair_style": "ponytail",
+      "hair_color": "#5a4038",
+      "outfit_style": "jacket",
+      "outfit_color": "#507fb4",
+      "accent_color": "#d8e6a9",
+      "accessory": "scarf",
+      "presentation": "female",
+      "label": "여성",
+      "profile": {
+        "schema_version": 1,
+        "body": {
+          "type": "broad",
+          "height": 1.06,
+          "shoulder": 0.92,
+          "build": 1.085
+        },
+        "face": {
+          "shape": "round",
+          "skin_tone": 3,
+          "brow": "arched",
+          "eye": "bright"
+        },
+        "hair": {
+          "style": "ponytail",
+          "color": "#5a4038"
+        },
+        "outfit": {
+          "style": "jacket",
+          "color": "#507fb4",
+          "accent_color": "#d8e6a9"
+        },
+        "accessories": [
+          "scarf",
+          "headphones"
+        ],
+        "motion": {
+          "style": "calm",
+          "walk_speed_scale": 0.9600000000000001,
+          "gesture_level": 0.37
+        },
+        "tier": "resident"
+      }
+    },
+    "source": "npc-factory/data/expansion/CAMPUS-28-P2A.json"
+  },
+  {
+    "id": "INKYUNG-NPC-036",
+    "name": "우현우",
+    "role": "경영학과",
+    "kind": "campus",
+    "archetype": "student",
+    "style": {
+      "height": 0.94,
+      "skin_tone": 0,
+      "hair_style": "medium",
+      "hair_color": "#302b37",
+      "outfit_style": "shirt",
+      "outfit_color": "#795ca3",
+      "accent_color": "#a9d7ca",
+      "accessory": "glasses",
+      "presentation": "male",
+      "label": "남성",
+      "profile": {
+        "schema_version": 1,
+        "body": {
+          "type": "average",
+          "height": 0.94,
+          "shoulder": 0.945,
+          "build": 1.01
+        },
+        "face": {
+          "shape": "angular",
+          "skin_tone": 0,
+          "brow": "straight",
+          "eye": "narrow"
+        },
+        "hair": {
+          "style": "medium",
+          "color": "#302b37"
+        },
+        "outfit": {
+          "style": "shirt",
+          "color": "#795ca3",
+          "accent_color": "#a9d7ca"
+        },
+        "accessories": [
+          "glasses"
+        ],
+        "motion": {
+          "style": "focused",
+          "walk_speed_scale": 0.97,
+          "gesture_level": 0.28
+        },
+        "tier": "resident"
+      }
+    },
+    "source": "npc-factory/data/expansion/CAMPUS-28-P2A.json"
+  },
+  {
+    "id": "INKYUNG-NPC-037",
+    "name": "이지민",
+    "role": "경영학과",
+    "kind": "campus",
+    "archetype": "student",
+    "style": {
+      "height": 0.955,
+      "skin_tone": 1,
+      "hair_style": "short",
+      "hair_color": "#35252c",
+      "outfit_style": "coat",
+      "outfit_color": "#566b81",
+      "accent_color": "#bfe4f2",
+      "accessory": "badge",
+      "presentation": "female",
+      "label": "여성",
+      "profile": {
+        "schema_version": 1,
+        "body": {
+          "type": "slim",
+          "height": 0.955,
+          "shoulder": 0.97,
+          "build": 0.935
+        },
+        "face": {
+          "shape": "soft",
+          "skin_tone": 1,
+          "brow": "soft",
+          "eye": "round"
+        },
+        "hair": {
+          "style": "short",
+          "color": "#35252c"
+        },
+        "outfit": {
+          "style": "coat",
+          "color": "#566b81",
+          "accent_color": "#bfe4f2"
+        },
+        "accessories": [
+          "badge"
+        ],
+        "motion": {
+          "style": "focused",
+          "walk_speed_scale": 0.985,
+          "gesture_level": 0.32
+        },
+        "tier": "resident"
+      }
+    },
+    "source": "npc-factory/data/expansion/CAMPUS-28-P2A.json"
+  },
+  {
+    "id": "INKYUNG-NPC-038",
+    "name": "주서진",
+    "role": "경제학과",
+    "kind": "campus",
+    "archetype": "club_member",
+    "style": {
+      "height": 0.97,
+      "skin_tone": 2,
+      "hair_style": "bob",
+      "hair_color": "#2a2630",
+      "outfit_style": "hoodie",
+      "outfit_color": "#b85c60",
+      "accent_color": "#f3b36b",
+      "accessory": "headphones",
+      "presentation": "female",
+      "label": "여성",
+      "profile": {
+        "schema_version": 1,
+        "body": {
+          "type": "soft",
+          "height": 0.97,
+          "shoulder": 0.995,
+          "build": 1.06
+        },
+        "face": {
+          "shape": "oval",
+          "skin_tone": 2,
+          "brow": "bold",
+          "eye": "default"
+        },
+        "hair": {
+          "style": "bob",
+          "color": "#2a2630"
+        },
+        "outfit": {
+          "style": "hoodie",
+          "color": "#b85c60",
+          "accent_color": "#f3b36b"
+        },
+        "accessories": [
+          "headphones"
+        ],
+        "motion": {
+          "style": "focused",
+          "walk_speed_scale": 1,
+          "gesture_level": 0.36000000000000004
+        },
+        "tier": "resident"
+      }
+    },
+    "source": "npc-factory/data/expansion/CAMPUS-28-P2A.json"
+  },
+  {
+    "id": "INKYUNG-NPC-039",
+    "name": "차민준",
+    "role": "경제학과",
+    "kind": "campus",
+    "archetype": "club_member",
+    "style": {
+      "height": 0.985,
+      "skin_tone": 3,
+      "hair_style": "curly",
+      "hair_color": "#634130",
+      "outfit_style": "sweater",
+      "outfit_color": "#7d9d6d",
+      "accent_color": "#d8c2ef",
+      "accessory": "messenger",
+      "presentation": "male",
+      "label": "남성",
+      "profile": {
+        "schema_version": 1,
+        "body": {
+          "type": "broad",
+          "height": 0.985,
+          "shoulder": 1.02,
+          "build": 0.985
+        },
+        "face": {
+          "shape": "round",
+          "skin_tone": 3,
+          "brow": "arched",
+          "eye": "bright"
+        },
+        "hair": {
+          "style": "curly",
+          "color": "#634130"
+        },
+        "outfit": {
+          "style": "sweater",
+          "color": "#7d9d6d",
+          "accent_color": "#d8c2ef"
+        },
+        "accessories": [
+          "messenger"
+        ],
+        "motion": {
+          "style": "calm",
+          "walk_speed_scale": 0.92,
+          "gesture_level": 0.37
+        },
+        "tier": "resident"
+      }
+    },
+    "source": "npc-factory/data/expansion/CAMPUS-28-P2A.json"
+  },
+  {
+    "id": "INKYUNG-NPC-040",
+    "name": "하윤서",
+    "role": "정치외교학과",
+    "kind": "campus",
+    "archetype": "student",
+    "style": {
+      "height": 1,
+      "skin_tone": 0,
+      "hair_style": "bun",
+      "hair_color": "#473126",
+      "outfit_style": "cardigan",
+      "outfit_color": "#d06f4f",
+      "accent_color": "#edc98e",
+      "accessory": "sketchbook",
+      "presentation": "female",
+      "label": "여성",
+      "profile": {
+        "schema_version": 1,
+        "body": {
+          "type": "average",
+          "height": 1,
+          "shoulder": 1.045,
+          "build": 0.91
+        },
+        "face": {
+          "shape": "angular",
+          "skin_tone": 0,
+          "brow": "straight",
+          "eye": "narrow"
+        },
+        "hair": {
+          "style": "bun",
+          "color": "#473126"
+        },
+        "outfit": {
+          "style": "cardigan",
+          "color": "#d06f4f",
+          "accent_color": "#edc98e"
+        },
+        "accessories": [
+          "sketchbook",
+          "backpack"
+        ],
+        "motion": {
+          "style": "calm",
+          "walk_speed_scale": 0.9400000000000001,
+          "gesture_level": 0.22
+        },
+        "tier": "resident"
+      }
+    },
+    "source": "npc-factory/data/expansion/CAMPUS-28-P2A.json"
+  },
+  {
+    "id": "INKYUNG-NPC-041",
+    "name": "도건우",
+    "role": "정치외교학과",
+    "kind": "campus",
+    "archetype": "student",
+    "style": {
+      "height": 1.015,
+      "skin_tone": 1,
+      "hair_style": "long",
+      "hair_color": "#49362c",
+      "outfit_style": "jacket",
+      "outfit_color": "#3f8d87",
+      "accent_color": "#b5e6dc",
+      "accessory": "apron",
+      "presentation": "male",
+      "label": "남성",
+      "profile": {
+        "schema_version": 1,
+        "body": {
+          "type": "slim",
+          "height": 1.015,
+          "shoulder": 1.07,
+          "build": 1.035
+        },
+        "face": {
+          "shape": "soft",
+          "skin_tone": 1,
+          "brow": "soft",
+          "eye": "round"
+        },
+        "hair": {
+          "style": "long",
+          "color": "#49362c"
+        },
+        "outfit": {
+          "style": "jacket",
+          "color": "#3f8d87",
+          "accent_color": "#b5e6dc"
+        },
+        "accessories": [
+          "apron"
+        ],
+        "motion": {
+          "style": "calm",
+          "walk_speed_scale": 0.9600000000000001,
+          "gesture_level": 0.27
+        },
+        "tier": "resident"
+      }
+    },
+    "source": "npc-factory/data/expansion/CAMPUS-28-P2A.json"
+  },
+  {
+    "id": "INKYUNG-NPC-042",
+    "name": "라소민",
+    "role": "미디어커뮤니케이션학과",
+    "kind": "campus",
+    "archetype": "student",
+    "style": {
+      "height": 1.03,
+      "skin_tone": 2,
+      "hair_style": "sidepart",
+      "hair_color": "#242129",
+      "outfit_style": "shirt",
+      "outfit_color": "#865d9e",
+      "accent_color": "#f3cfaa",
+      "accessory": "backpack",
+      "presentation": "female",
+      "label": "여성",
+      "profile": {
+        "schema_version": 1,
+        "body": {
+          "type": "soft",
+          "height": 1.03,
+          "shoulder": 0.92,
+          "build": 0.96
+        },
+        "face": {
+          "shape": "oval",
+          "skin_tone": 2,
+          "brow": "bold",
+          "eye": "default"
+        },
+        "hair": {
+          "style": "sidepart",
+          "color": "#242129"
+        },
+        "outfit": {
+          "style": "shirt",
+          "color": "#865d9e",
+          "accent_color": "#f3cfaa"
+        },
+        "accessories": [
+          "backpack"
+        ],
+        "motion": {
+          "style": "lively",
+          "walk_speed_scale": 1.03,
+          "gesture_level": 0.7
+        },
+        "tier": "resident"
+      }
+    },
+    "source": "npc-factory/data/expansion/CAMPUS-28-P2A.json"
+  },
+  {
+    "id": "INKYUNG-NPC-043",
+    "name": "마지훈",
+    "role": "미디어커뮤니케이션학과",
+    "kind": "campus",
+    "archetype": "student",
+    "style": {
+      "height": 1.045,
+      "skin_tone": 3,
+      "hair_style": "ponytail",
+      "hair_color": "#5a4038",
+      "outfit_style": "coat",
+      "outfit_color": "#4a89b8",
+      "accent_color": "#aee4d2",
+      "accessory": "book",
+      "presentation": "male",
+      "label": "남성",
+      "profile": {
+        "schema_version": 1,
+        "body": {
+          "type": "broad",
+          "height": 1.045,
+          "shoulder": 0.945,
+          "build": 1.085
+        },
+        "face": {
+          "shape": "round",
+          "skin_tone": 3,
+          "brow": "arched",
+          "eye": "bright"
+        },
+        "hair": {
+          "style": "ponytail",
+          "color": "#5a4038"
+        },
+        "outfit": {
+          "style": "coat",
+          "color": "#4a89b8",
+          "accent_color": "#aee4d2"
+        },
+        "accessories": [
+          "book"
+        ],
+        "motion": {
+          "style": "focused",
+          "walk_speed_scale": 0.985,
+          "gesture_level": 0.4
+        },
+        "tier": "resident"
+      }
+    },
+    "source": "npc-factory/data/expansion/CAMPUS-28-P2A.json"
+  },
+  {
+    "id": "INKYUNG-NPC-044",
+    "name": "바연우",
+    "role": "신소재공학과",
+    "kind": "campus",
+    "archetype": "student",
+    "style": {
+      "height": 1.06,
+      "skin_tone": 0,
+      "hair_style": "medium",
+      "hair_color": "#302b37",
+      "outfit_style": "hoodie",
+      "outfit_color": "#b96972",
+      "accent_color": "#efb1aa",
+      "accessory": "scarf",
+      "presentation": "female",
+      "label": "여성",
+      "profile": {
+        "schema_version": 1,
+        "body": {
+          "type": "average",
+          "height": 1.06,
+          "shoulder": 0.97,
+          "build": 1.01
+        },
+        "face": {
+          "shape": "angular",
+          "skin_tone": 0,
+          "brow": "straight",
+          "eye": "narrow"
+        },
+        "hair": {
+          "style": "medium",
+          "color": "#302b37"
+        },
+        "outfit": {
+          "style": "hoodie",
+          "color": "#b96972",
+          "accent_color": "#efb1aa"
+        },
+        "accessories": [
+          "scarf"
+        ],
+        "motion": {
+          "style": "focused",
+          "walk_speed_scale": 1,
+          "gesture_level": 0.28
+        },
+        "tier": "resident"
+      }
+    },
+    "source": "npc-factory/data/expansion/CAMPUS-28-P2A.json"
+  },
+  {
+    "id": "INKYUNG-NPC-045",
+    "name": "서준혁",
+    "role": "신소재공학과",
+    "kind": "campus",
+    "archetype": "student",
+    "style": {
+      "height": 0.94,
+      "skin_tone": 1,
+      "hair_style": "short",
+      "hair_color": "#35252c",
+      "outfit_style": "sweater",
+      "outfit_color": "#446481",
+      "accent_color": "#ebad73",
+      "accessory": "glasses",
+      "presentation": "male",
+      "label": "남성",
+      "profile": {
+        "schema_version": 1,
+        "body": {
+          "type": "slim",
+          "height": 0.94,
+          "shoulder": 0.995,
+          "build": 0.935
+        },
+        "face": {
+          "shape": "soft",
+          "skin_tone": 1,
+          "brow": "soft",
+          "eye": "round"
+        },
+        "hair": {
+          "style": "short",
+          "color": "#35252c"
+        },
+        "outfit": {
+          "style": "sweater",
+          "color": "#446481",
+          "accent_color": "#ebad73"
+        },
+        "accessories": [
+          "glasses",
+          "badge"
+        ],
+        "motion": {
+          "style": "calm",
+          "walk_speed_scale": 0.92,
+          "gesture_level": 0.27
+        },
+        "tier": "resident"
+      }
+    },
+    "source": "npc-factory/data/expansion/CAMPUS-28-P2A.json"
+  },
+  {
+    "id": "INKYUNG-NPC-046",
+    "name": "우나경",
+    "role": "스마트모빌리티공학과",
+    "kind": "campus",
+    "archetype": "club_member",
+    "style": {
+      "height": 0.955,
+      "skin_tone": 2,
+      "hair_style": "bob",
+      "hair_color": "#2a2630",
+      "outfit_style": "cardigan",
+      "outfit_color": "#927653",
+      "accent_color": "#e8ba72",
+      "accessory": "badge",
+      "presentation": "female",
+      "label": "여성",
+      "profile": {
+        "schema_version": 1,
+        "body": {
+          "type": "soft",
+          "height": 0.955,
+          "shoulder": 1.02,
+          "build": 1.06
+        },
+        "face": {
+          "shape": "oval",
+          "skin_tone": 2,
+          "brow": "bold",
+          "eye": "default"
+        },
+        "hair": {
+          "style": "bob",
+          "color": "#2a2630"
+        },
+        "outfit": {
+          "style": "cardigan",
+          "color": "#927653",
+          "accent_color": "#e8ba72"
+        },
+        "accessories": [
+          "badge"
+        ],
+        "motion": {
+          "style": "focused",
+          "walk_speed_scale": 0.985,
+          "gesture_level": 0.36000000000000004
+        },
+        "tier": "resident"
+      }
+    },
+    "source": "npc-factory/data/expansion/CAMPUS-28-P2A.json"
+  },
+  {
+    "id": "INKYUNG-NPC-047",
+    "name": "이재윤",
+    "role": "스마트모빌리티공학과",
+    "kind": "campus",
+    "archetype": "student",
+    "style": {
+      "height": 0.97,
+      "skin_tone": 3,
+      "hair_style": "curly",
+      "hair_color": "#634130",
+      "outfit_style": "jacket",
+      "outfit_color": "#8b75af",
+      "accent_color": "#f2d16b",
+      "accessory": "headphones",
+      "presentation": "male",
+      "label": "남성",
+      "profile": {
+        "schema_version": 1,
+        "body": {
+          "type": "broad",
+          "height": 0.97,
+          "shoulder": 1.045,
+          "build": 0.985
+        },
+        "face": {
+          "shape": "round",
+          "skin_tone": 3,
+          "brow": "arched",
+          "eye": "bright"
+        },
+        "hair": {
+          "style": "curly",
+          "color": "#634130"
+        },
+        "outfit": {
+          "style": "jacket",
+          "color": "#8b75af",
+          "accent_color": "#f2d16b"
+        },
+        "accessories": [
+          "headphones"
+        ],
+        "motion": {
+          "style": "focused",
+          "walk_speed_scale": 1,
+          "gesture_level": 0.4
+        },
+        "tier": "resident"
+      }
+    },
+    "source": "npc-factory/data/expansion/CAMPUS-28-P2A.json"
+  },
+  {
+    "id": "INKYUNG-NPC-048",
+    "name": "주하린",
+    "role": "사회학과",
+    "kind": "campus",
+    "archetype": "student",
+    "style": {
+      "height": 0.985,
+      "skin_tone": 0,
+      "hair_style": "bun",
+      "hair_color": "#473126",
+      "outfit_style": "shirt",
+      "outfit_color": "#5a9bb9",
+      "accent_color": "#f0bd55",
+      "accessory": "messenger",
+      "presentation": "female",
+      "label": "여성",
+      "profile": {
+        "schema_version": 1,
+        "body": {
+          "type": "average",
+          "height": 0.985,
+          "shoulder": 1.07,
+          "build": 0.91
+        },
+        "face": {
+          "shape": "angular",
+          "skin_tone": 0,
+          "brow": "straight",
+          "eye": "narrow"
+        },
+        "hair": {
+          "style": "bun",
+          "color": "#473126"
+        },
+        "outfit": {
+          "style": "shirt",
+          "color": "#5a9bb9",
+          "accent_color": "#f0bd55"
+        },
+        "accessories": [
+          "messenger"
+        ],
+        "motion": {
+          "style": "calm",
+          "walk_speed_scale": 0.92,
+          "gesture_level": 0.22
+        },
+        "tier": "resident"
+      }
+    },
+    "source": "npc-factory/data/expansion/CAMPUS-28-P2A.json"
+  },
+  {
+    "id": "BR_NPC_001",
+    "name": "강소라",
+    "role": "운송·화물 담당",
+    "kind": "biryong",
+    "style": {
+      "presentation": "female",
+      "skin_tone": 1,
+      "hair_style": "ponytail",
+      "hair_color": "#2f2623",
+      "outfit_style": "jacket",
+      "outfit_color": "#b65c43",
+      "accent_color": "#f0c35a",
+      "accessory": "messenger",
+      "height": 1
+    },
+    "source": "src/biryong/biryong-village-npc-contract.js"
+  },
+  {
+    "id": "BR_NPC_002",
+    "name": "한여울",
+    "role": "비룡역 정비사",
+    "kind": "biryong",
+    "style": {
+      "presentation": "male",
+      "skin_tone": 1,
+      "hair_style": "short",
+      "hair_color": "#252b31",
+      "outfit_style": "jacket",
+      "outfit_color": "#48687c",
+      "accent_color": "#e6b84d",
+      "accessory": "badge",
+      "height": 1.02
+    },
+    "source": "src/biryong/biryong-village-npc-contract.js"
+  },
+  {
+    "id": "BR_NPC_003",
+    "name": "남이솔",
+    "role": "찻집 일·지도 제작",
+    "kind": "biryong",
+    "style": {
+      "presentation": "female",
+      "skin_tone": 0,
+      "hair_style": "bob",
+      "hair_color": "#43352e",
+      "outfit_style": "cardigan",
+      "outfit_color": "#6f8b78",
+      "accent_color": "#e7c86d",
+      "accessory": "book",
+      "height": 0.96
+    },
+    "source": "src/biryong/biryong-village-npc-contract.js"
+  },
+  {
+    "id": "BR_NPC_004",
+    "name": "윤하린",
+    "role": "수로기록관 견습",
+    "kind": "biryong",
+    "style": {
+      "presentation": "female",
+      "skin_tone": 1,
+      "hair_style": "long",
+      "hair_color": "#2e2728",
+      "outfit_style": "cardigan",
+      "outfit_color": "#547d88",
+      "accent_color": "#86c7c7",
+      "accessory": "book",
+      "height": 0.98
+    },
+    "source": "src/biryong/biryong-village-npc-contract.js"
+  },
+  {
+    "id": "BR_NPC_005",
+    "name": "오미래",
+    "role": "비룡들판 농부",
+    "kind": "biryong",
+    "style": {
+      "presentation": "female",
+      "skin_tone": 2,
+      "hair_style": "bun",
+      "hair_color": "#332a23",
+      "outfit_style": "shirt",
+      "outfit_color": "#8a704c",
+      "accent_color": "#b8d06b",
+      "accessory": "apron",
+      "height": 1.01
+    },
+    "source": "src/biryong/biryong-village-npc-contract.js"
+  },
+  {
+    "id": "BR_NPC_006",
+    "name": "한세온",
+    "role": "신맥공방 공방장",
+    "kind": "biryong",
+    "style": {
+      "presentation": "female",
+      "skin_tone": 0,
+      "hair_style": "sidepart",
+      "hair_color": "#2d313a",
+      "outfit_style": "coat",
+      "outfit_color": "#3e5d62",
+      "accent_color": "#66c7b0",
+      "accessory": "glasses",
+      "height": 1.03
+    },
+    "source": "src/biryong/biryong-village-npc-contract.js"
+  },
+  {
+    "id": "BR_NPC_007",
+    "name": "류가람",
+    "role": "청림회 숲지기 대표",
+    "kind": "biryong",
+    "style": {
+      "presentation": "male",
+      "skin_tone": 2,
+      "hair_style": "short",
+      "hair_color": "#29251f",
+      "outfit_style": "coat",
+      "outfit_color": "#4c6b4a",
+      "accent_color": "#93bb65",
+      "accessory": "scarf",
+      "height": 1.05
+    },
+    "source": "src/biryong/biryong-village-npc-contract.js"
+  },
+  {
+    "id": "BR_NPC_008",
+    "name": "이담",
+    "role": "여관·식당 주인",
+    "kind": "biryong",
+    "style": {
+      "presentation": "male",
+      "skin_tone": 2,
+      "hair_style": "medium",
+      "hair_color": "#4d4035",
+      "outfit_style": "sweater",
+      "outfit_color": "#7b5a42",
+      "accent_color": "#d9b472",
+      "accessory": "apron",
+      "height": 1
+    },
+    "source": "src/biryong/biryong-village-npc-contract.js"
+  },
+  {
+    "id": "main2_back_gate_guide_001",
+    "name": "후문 안내 학생",
+    "role": "인하대 학생 · 길찾기 안내",
+    "kind": "service",
+    "source": "npc-factory/main2-guide-contract.mjs",
+    "style": {
+      "outfit_color": "#476b7f",
+      "accent_color": "#efc85a",
+      "skin_tone": 1,
+      "hair_color": "#2c2623",
+      "hair_style": "short",
+      "outfit_style": "jacket",
+      "accessory": "backpack",
+      "presentation": "male",
+      "height": 0.99
+    }
+  },
+  {
+    "id": "DORM-SHOP-NPC-001",
+    "name": "윤가온",
+    "role": "생활관 가구점 점원",
+    "kind": "service",
+    "source": "src/shop/dorm-shop-vendor.js",
+    "style": {
+      "height": 1,
+      "presentation": "female",
+      "skin_tone": 0,
+      "hair_color": "#3d3029",
+      "hair_style": "bob",
+      "outfit_color": "#547f76",
+      "accent_color": "#e5ca9e",
+      "outfit_style": "cardigan",
+      "accessory": "apron"
+    }
+  },
+  {
+    "id": "biryong_student_001",
+    "name": "윤하람",
+    "role": "인하대 학생 · 비룡탑 단골",
+    "kind": "service",
+    "source": "src/biryong/biryong-layout.js",
+    "style": {
+      "outfit_style": "jacket",
+      "outfit_color": "#516a86",
+      "accent_color": "#e1bc75"
+    }
+  },
+  {
+    "id": "JEONGSEOK_LOBBY_GUIDE_01",
+    "name": "로비 안내 NPC",
+    "role": "로비 안내 NPC",
+    "kind": "service",
+    "source": "src/jeongseok/gate-layout.js",
+    "style": {
+      "outfit_style": "cardigan",
+      "outfit_color": "#697b88",
+      "accent_color": "#e3c383"
+    }
+  },
+  {
+    "id": "phone-walk",
+    "name": "휴대폰을 보는 학생",
+    "role": "휴대폰을 보는 학생",
+    "kind": "daily",
+    "source": "src/inkyung-daily-npcs.mjs",
+    "asset": "assets/npcs/inkyung-daily-v031/phone-walk.glb"
+  },
+  {
+    "id": "phone-call",
+    "name": "통화 중인 학생",
+    "role": "통화 중인 학생",
+    "kind": "daily",
+    "source": "src/inkyung-daily-npcs.mjs",
+    "asset": "assets/npcs/inkyung-daily-v031/phone-call.glb"
+  },
+  {
+    "id": "bench-sit",
+    "name": "벤치에서 쉬는 학생",
+    "role": "벤치에서 쉬는 학생",
+    "kind": "daily",
+    "source": "src/inkyung-daily-npcs.mjs",
+    "asset": "assets/npcs/inkyung-daily-v031/bench-sit.glb"
+  }
+]

@@ -3,15 +3,22 @@
 // Photo Mode never depends on it: entry is global. A future optional Inkyung composition
 // preset may read this anchor, and without that preset Photo Mode behaves identically.
 import { computePolygonCentroid, getCanonicalLandmark, projectPolygon } from '../reality-adapter.js';
-import { edgeFrame } from '../roadview-layout.js';
+import { edgeFrame, hitsPondTrunk } from '../roadview-layout.js';
 const ring = projectPolygon(getCanonicalLandmark('lmk_inkyung_pond').polygon);
 export const INKYUNG_PHOTO_ANCHOR_SPEC = Object.freeze([10, .5, 4]);
 const [edge, fraction, distance] = INKYUNG_PHOTO_ANCHOR_SPEC;
 const frame = edgeFrame(ring, edge);
 export function inkyungPhotoPosition(slotIndex = 0) {
   const column = slotIndex % 3 - 1, row = Math.floor(slotIndex / 3);
-  const along = Math.max(.35, Math.min(frame.length - .35, frame.length * fraction + column * 1.25));
-  return frame.at(along, distance + row * 1.4);
+  const clamp = value => Math.max(.35, Math.min(frame.length - .35, value));
+  const along = clamp(frame.length * fraction + column * 1.25);
+  const nominal = frame.at(along, distance + row * 1.4);
+  // The first photo slot is the guide, beside a trunk. Slide along the bank
+  // rather than stepping into slot 3, which another NPC can use later.
+  if (slotIndex === 0 && hitsPondTrunk(nominal, nominal, .65)) {
+    return frame.at(clamp(along - 1.25), distance + .9);
+  }
+  return nominal;
 }
 export const INKYUNG_PHOTO_POINT = Object.freeze({
   id: 'inkyung_photo_point', position: Object.freeze(inkyungPhotoPosition(0)), radius: 3,

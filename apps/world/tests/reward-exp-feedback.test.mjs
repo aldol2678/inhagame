@@ -104,15 +104,16 @@ test("12. reward presentation never touches progression state", () => {
   assert.doesNotMatch(ui, /progression\.|totalExp|progression-client/);
 });
 
-test("13. MCM onReward keeps the progression / wallet / inventory / loadout server re-reads", () => {
+test("13. Daily reward preserves the server toast and re-reads only granted authorities", () => {
   const main = read("../src/main.js");
-  const start = main.indexOf("onReward: result => {");
+  const start = main.indexOf("onReward: reward => {", main.indexOf("const dailyQuiz = createDailyQuizClient"));
   assert.ok(start > 0);
   const body = main.slice(start, main.indexOf("\n  }\n});", start));
-  assert.match(body, /mcmEventUi\.showReward\(result\)/);
-  assert.match(body, /result\.status !== "PREVIEW"/);
-  for (const client of ["progression", "wallet", "inventory", "loadout"]) {
-    assert.match(body, new RegExp(`void ${client}\\.refresh\\("reward"\\)`), client);
+  assert.match(body, /mcmEventUi\.showReward\(/);
+  assert.match(body, /entries: reward\.entries/);
+  assert.match(body, /void progression\.refresh\("reward"\)/);
+  for (const [grant, client] of [["CURRENCY", "wallet"], ["ITEM", "inventory"]]) {
+    assert.ok(body.includes(`entry.grantType === "${grant}")) void ${client}.refresh("reward")`), client);
   }
   assert.doesNotMatch(body, /totalExp|\.level\b|rewardExpLine/);
 });
@@ -126,13 +127,13 @@ test("14. LEVEL UP toast still comes only from two READY server snapshots", () =
   assert.match(main, /const message = levelUpMessage\(change\);\s*if \(message\) showWorldStatusAfterReward\(message\);/);
 });
 
-test("16. LEVEL UP and the retry hint wait for the reward toast instead of showing underneath it", () => {
+test("16. LEVEL UP waits for reward toast and the archived MCM retry hint does not reappear", () => {
   const main = code("../src/main.js");
   assert.match(main, /let rewardToastRemainingMs = \(\) => 0;/);
   assert.match(main, /rewardToastRemainingMs = \(\) => mcmEventUi\.toastRemainingMs\(\);/);
   // P1c0: re-checked right before showing (behaviour and the late-enqueue race: tests/reward-toast-queue.test.mjs).
   assert.match(main, /const showWorldStatusAfterReward = createStatusAfterReward\(\{\s*remainingMs: \(\) => rewardToastRemainingMs\(\),\s*show: showWorldStatus\s*\}\);/);
-  assert.match(main, /REWARD_FAILED"\) showWorldStatusAfterReward\("보상 정산을 다시 시도할 수 있어요\."\)/);
+  assert.doesNotMatch(main, /REWARD_FAILED"\) showWorldStatusAfterReward\("보상 정산을 다시 시도할 수 있어요\."\)/);
   const ui = code("../src/events/zombie-university-2026/event-ui.js");
   assert.match(ui, /function toastRemainingMs\(\)\{return toastQueue\.remainingMs\(\);\}/);
   assert.match(ui, /showReward,toastRemainingMs,/);

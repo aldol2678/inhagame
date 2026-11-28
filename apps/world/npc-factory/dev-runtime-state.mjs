@@ -1,8 +1,8 @@
 // Development-only mapping from the frozen NPC contract to the current campus frame.
 // These positions are inspection anchors, not new canonical location coordinates.
 import { getCanonicalLandmark, projectPolygon } from '../src/reality-adapter.js';
-import { edgeFrame } from '../src/roadview-layout.js';
-import { INKYUNG_PHOTO_ANCHOR_SPEC } from '../src/photo/inkyung-photo-point.js';
+import { edgeFrame, hitsPondTrunk } from '../src/roadview-layout.js';
+import { INKYUNG_PHOTO_ANCHOR_SPEC, inkyungPhotoPosition } from '../src/photo/inkyung-photo-point.js';
 import { polygonOverlap } from '../src/polygon-collision.js';
 import { FACILITIES, FACILITY_COLLIDERS } from '../src/campus-facilities.js';
 import { LANDMARKS, OBSTACLES } from '../src/campus-layout.js';
@@ -145,7 +145,7 @@ const withinClearance = (point, { minX, maxX, minZ, maxZ }) => point.x >= minX -
 // polygonOverlap() is true only inside the ring or within the clearance of an edge, both of which lie
 // inside the ring's bounds grown by that clearance, so the bounds test rejects far obstacles exactly.
 export function safeDwell(point) {
-  if (polygonOverlap(point.x, point.z, pondRing, DWELL_CLEARANCE)) return false;
+  if (hitsPondTrunk(point, point, DWELL_CLEARANCE) || polygonOverlap(point.x, point.z, pondRing, DWELL_CLEARANCE)) return false;
   return !dwellObstacles.some(entry => entry.box.polygon
     ? withinClearance(point, entry) && polygonOverlap(point.x, point.z, entry.box.polygon, DWELL_CLEARANCE)
     : withinClearance(point, entry.box));
@@ -179,6 +179,11 @@ export function positionAt(location, slotIndex) {
     if (!slots[slotIndex]) throw new Error(`No separated NPC slot: ${location}/${slotIndex}`);
     return { ...slots[slotIndex] };
   }
+  if (location === 'inkyung_photo_point') {
+    const point = inkyungPhotoPosition(slotIndex);
+    if (safeDwell(point)) return point;
+    throw new Error(`No trunk-safe NPC photo slot: ${slotIndex}`);
+  }
   const spec = anchorSpecs[location];
   if (!spec) throw new Error(`Unknown NPC runtime location: ${location}`);
   const [edge, fraction, distance] = spec;
@@ -186,7 +191,15 @@ export function positionAt(location, slotIndex) {
   const column = slotIndex % 3 - 1;
   const row = Math.floor(slotIndex / 3);
   const along = Math.max(.35, Math.min(frame.length - .35, frame.length * fraction + column * 1.25));
-  return frame.at(along, distance + row * 1.4);
+  const out = distance + row * 1.4;
+  const original = frame.at(along, out);
+  if (!hitsPondTrunk(original, original, DWELL_CLEARANCE)) return original;
+  // Move only blocked slots, away from the water and along the same walkway.
+  for (const extra of [.9, 1.2, 1.6, 2]) {
+    const point = frame.at(along, out + extra);
+    if (safeDwell(point)) return point;
+  }
+  throw new Error(`No trunk-safe NPC slot: ${location}/${slotIndex}`);
 }
 
 export function inspectionPointFor(actor) {

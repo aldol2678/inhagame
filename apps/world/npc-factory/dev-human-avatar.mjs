@@ -1,4 +1,5 @@
 import * as pc from 'playcanvas';
+import {registerNpcRefresh} from './npc-model-refresh.mjs';
 import { npcWorldScale } from './npc-dimensions.mjs';
 
 // Reusable procedural people for the localhost inspection scene. No external model or identity asset.
@@ -143,6 +144,6 @@ export function createHumanAvatar(root, actor, appearance) {
   const marker = part(avatar, 'SelectedMarker', 'cylinder', [0, .035, 0], [1.0, .025, 1.0], '#ffe66a');
   const worldScale = npcWorldScale(appearance.height);
   avatar.setLocalScale(worldScale, worldScale, worldScale);
-  return { avatar, marker, identityMarker, actor, appearance, arms, legs, worldScale,
-    face: Object.freeze({ head, eyes: Object.freeze(eyes), brows: Object.freeze(brows), mouth: mouthNode }) };
+  return registerNpcRefresh({ avatar, marker, identityMarker, actor, appearance, arms, legs, worldScale,
+    face: Object.freeze({ head, eyes: Object.freeze(eyes), brows: Object.freeze(brows), mouth: mouthNode }) });
 }
