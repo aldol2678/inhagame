@@ -1,0 +1,202 @@
+name: World NPC and shop browser QA
+# C04 living NPC, NPC shop routing and shop panel focus suites in one workflow. The `select`
+# job decides which suites a pull request touches (.github/ci/group-filter.mjs); a suite
+# runs unless that job positively reports `false` for it.
+on:
+  pull_request:
+    paths:
+      - 'apps/world/npc-factory/**'
+      - 'apps/world/src/seat-anchors.js'
+      - 'apps/world/src/photo/inkyung-photo-point.js'
+      - 'apps/world/src/life-props.js'
+      - 'apps/world/tests/npc-c04*.test.mjs'
+      - 'apps/world/tests/browser/npc-c04-*.mjs'
+      - 'apps/world/tests/browser/npc-campus-life-diversity-smoke.mjs'
+      - 'apps/world/tests/browser/harness*.mjs'
+      - '.github/ci/phone-surface-scope*.mjs'
+      - '.github/ci/seo-only-scope*.mjs'
+      - 'apps/world/src/shop/**'
+      - 'apps/world/src/main.js'
+      - 'apps/world/npc-factory/dev-runtime.mjs'
+      - 'apps/world/src/student-center-*.js'
+      - 'apps/world/src/rooms/dorm1-lobby-*.js'
+      - 'apps/world/tests/shop-*.test.mjs'
+      - 'apps/world/tests/student-center-vendors.test.mjs'
+      - 'apps/world/tests/browser/npc-shop-*'
+      - 'apps/world/tests/browser/shop-furniture-*'
+      - 'apps/world/tests/browser/student-center-campus-smoke.mjs'
+      - 'apps/world/src/rooms/furniture*.js'
+      - 'apps/world/src/campus-render-kit.js'
+      - 'apps/world/assets/furniture/**'
+      - 'apps/world/src/collection/item-catalog.js'
+      - 'apps/world/styles.css'
+      - 'apps/world/tests/shop-panel*.test.mjs'
+      - 'apps/world/tests/browser/shop-panel-focus-*'
+      - 'apps/world/tests/browser/furniture-showroom-*'
+      - 'apps/world/tests/furniture-shop-showroom.test.mjs'
+      - 'apps/world/tests/furniture-shop-preview-lifecycle.test.mjs'
+      - 'apps/world/tests/browser/furniture-preview-ownership.test.mjs'
+      - 'apps/world/tests/browser/package*.json'
+      - 'apps/world/tests/browser/harness.mjs'
+      - '.github/ci/group-filter.mjs'
+      - '.github/ci/group-filter.test.mjs'
+      - '.github/ci/phone-surface-scope.mjs'
+      - '.github/actions/setup-world-browser/**'
+      - '.github/workflows/world-npc-shop-browser.yml'
+permissions:
+  contents: read
+concurrency:
+  group: world-npc-shop-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  select:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      npc_c04_living: ${{ steps.filter.outputs.npc_c04_living }}
+      npc_shop_routing: ${{ steps.filter.outputs.npc_shop_routing }}
+      shop_panel_focus: ${{ steps.filter.outputs.shop_panel_focus }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - name: Test suite selection
+        run: node --test .github/ci/group-filter.test.mjs
+      - name: Select suites touched by this pull request
+        id: filter
+        env:
+          CI_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CI_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node .github/ci/group-filter.mjs npc-shop >> "$GITHUB_OUTPUT"
+
+  npc-c04-living:
+    needs: select
+    if: ${{ !cancelled() && needs.select.outputs.npc_c04_living != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        viewport: [desktop, portrait, landscape]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: ./.github/actions/setup-world-browser
+      - name: Ensure readable Korean glyphs
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y fonts-noto-cjk
+      - name: Verify C04 acceptance and shared NPC contracts
+        run: node --test apps/world/tests/npc-c04*.test.mjs apps/world/tests/npc-shared-campus.test.mjs apps/world/tests/npc-campus-life-diversity.test.mjs
+      - name: Render exact-head photo, seat, approach, arrival and departure
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+          EXPECTED_C04_HEAD: ${{ github.event.pull_request.head.sha }}
+          C04_VIEWPORT: ${{ matrix.viewport }}
+          C04_OUTPUT: test-results/npc-c04/${{ matrix.viewport }}
+        run: timeout --signal=TERM --kill-after=10s 1120s node apps/world/tests/browser/npc-c04-living-smoke.mjs
+      - name: Preserve source-bound pixels and receipts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: npc-c04-living-${{ matrix.viewport }}
+          path: test-results/npc-c04/${{ matrix.viewport }}/
+          if-no-files-found: error
+          retention-days: 14
+
+  npc-shop-routing:
+    needs: select
+    if: ${{ !cancelled() && needs.select.outputs.npc_shop_routing != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      WORLD_SMOKE_DISABLE_WEBGPU: '1'
+      NPC_SHOP_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          fetch-depth: 128
+      - name: Select affected browser suite (fail-closed)
+        id: phone_scope
+        env:
+          CI_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CI_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          CI_PR_TITLE: ${{ github.event.pull_request.title }}
+          # The scope gate is keyed by the original workflow name and reads its paths.
+          CI_WORKFLOW_NAME: NPC shop routing browser checks
+        run: node .github/ci/phone-surface-scope.mjs >> "$GITHUB_OUTPUT"
+      - name: Install pinned Node, browser dependencies and Chromium
+        if: steps.phone_scope.outputs.skip != 'true'
+        uses: ./.github/actions/setup-world-browser
+        with:
+          playwright-browser: chromium
+      - name: Shop route and geometry contracts
+        if: steps.phone_scope.outputs.skip != 'true'
+        run: node --test apps/world/tests/shop-router.test.mjs apps/world/tests/shop-routes.test.mjs apps/world/tests/student-center-vendors.test.mjs apps/world/tests/dorm-shop-interaction.test.mjs
+      - name: Real DOM routing and race recovery with synthetic RPC
+        if: steps.phone_scope.outputs.skip != 'true'
+        run: node apps/world/tests/browser/npc-shop-routing-smoke.mjs
+      - name: Furniture ownership and room handoff with synthetic RPC
+        if: ${{ !cancelled() && steps.phone_scope.outputs.skip != 'true' }}
+        run: node apps/world/tests/browser/shop-furniture-smoke.mjs
+      - name: Actual full-campus NPC placement and signed-out HUD gate
+        if: ${{ !cancelled() && steps.phone_scope.outputs.skip != 'true' }}
+        timeout-minutes: 10
+        run: timeout --signal=TERM --kill-after=10s 570s node apps/world/tests/browser/npc-shop-campus-smoke.mjs
+      - name: Upload exact-head browser evidence
+        if: always() && steps.phone_scope.outputs.skip != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: npc-shop-routing-${{ github.event.pull_request.head.sha }}
+          path: |
+            test-results/npc-shop-routing/
+            test-results/npc-shop-campus/
+            test-results/shop-furniture/
+          if-no-files-found: error
+          retention-days: 14
+
+  shop-panel-focus:
+    needs: select
+    if: ${{ !cancelled() && needs.select.outputs.shop_panel_focus != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: ./.github/actions/setup-world-browser
+        with:
+          playwright-browser: chromium
+      - name: Native keyboard focus and scroll preservation
+        env:
+          SHOP_FOCUS_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node apps/world/tests/browser/shop-panel-focus-smoke.mjs
+      - name: Furniture showroom 3D browser QA (desktop / portrait / landscape)
+        env:
+          FURNITURE_SHOWROOM_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+        run: |
+          node --test apps/world/tests/browser/furniture-preview-ownership.test.mjs
+          node apps/world/tests/browser/furniture-showroom-smoke.mjs
+          node apps/world/tests/browser/furniture-showroom-lifecycle-smoke.mjs
+          node apps/world/tests/browser/furniture-showroom-world-smoke.mjs
+      - name: Upload exact-head browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: shop-panel-focus-${{ github.event.pull_request.head.sha }}
+          path: |
+            test-results/shop-panel-focus
+            test-results/furniture-showroom
+          if-no-files-found: error
+          retention-days: 14
