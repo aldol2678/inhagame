@@ -1,3 +1,4 @@
+import { createDialogueIcon } from '../npc-factory/campus-dialogue-icons.mjs';
 import * as pc from 'playcanvas';
 import { roadviewGroundHeight } from './roadview-layout.js';
 import { createInkyungDailyLayout } from './inkyung-daily-layout.mjs';
@@ -75,8 +76,13 @@ export function createInkyungDailyNpcs({
     dialog.setAttribute('role', 'dialog'); dialog.setAttribute('aria-modal', 'true'); dialog.setAttribute('aria-labelledby', 'inkyung-daily-speaker'); dialog.setAttribute('aria-describedby', 'inkyung-daily-line');
     title = doc.createElement('h2'); title.id = 'inkyung-daily-speaker';
     line = doc.createElement('p'); line.id = 'inkyung-daily-line'; line.setAttribute('aria-live', 'polite');
-    close = doc.createElement('button'); close.id = 'inkyung-daily-close'; close.type = 'button'; close.textContent = '대화 끝내기'; close.addEventListener('click', closeConversation);
-    dialog.append(title, line, close); panel.appendChild(dialog);
+    close = doc.createElement('button'); close.id = 'inkyung-daily-close'; close.type = 'button'; close.append(createDialogueIcon(doc, 'exit'), doc.createTextNode('대화 끝내기')); close.addEventListener('click', closeConversation);
+    const head = doc.createElement('header');
+    head.className = 'campus-dialogue-daily-heading';
+    const stamp = doc.createElement('span'); stamp.className = 'campus-dialogue-kicker'; stamp.textContent = '인경호 · 캠퍼스 대화';
+    head.append(stamp, title);
+    const bubble = doc.createElement('div'); bubble.id = 'inkyung-daily-bubble'; bubble.appendChild(line);
+    dialog.append(head, bubble, close); panel.appendChild(dialog);
     panel.addEventListener('pointerdown', e => e.stopPropagation());
     panel.addEventListener('keydown', event => { if (event.key === 'Tab') { event.preventDefault(); close.focus(); } });
     doc.body.appendChild(panel); doc.addEventListener('keydown', onKey);
@@ -173,6 +179,12 @@ export function createInkyungDailyNpcs({
           syncTalk(); return true;
         }
       };
+    },
+    dialogueCameraSubject() {
+      const id=simulation.activeTalk, view=views[id];
+      if (!talking || !view) return null;
+      const p=view.entity.getLocalPosition();
+      return {id:'daily-'+id,x:p.x,y:p.y+.80,z:p.z};
     },
     closeConversation,
     isConversationOpen: () => talking,

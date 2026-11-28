@@ -1,6 +1,7 @@
 // Local C04 navigation grid. Routes avoid the pond and the World player's ground colliders.
 import { getCanonicalLandmark, projectPolygon } from '../src/reality-adapter.js';
 import { polygonOverlap } from '../src/polygon-collision.js';
+import { hitsPondTrunk } from '../src/roadview-layout.js';
 import { OBSTACLES } from '../src/campus-layout.js';
 import { campusNavGraph } from '../src/navigation/campus-navigation.js';
 import { createRouteSolver } from '../src/navigation/route-solver.js';
@@ -85,7 +86,7 @@ export function createNpcNavigator(batch, { additionalAnchors = [] } = {}) {
   function walkable(point) {
     const { x, z } = point;
     if (!Number.isFinite(x) || !Number.isFinite(z) || x < bounds.minX || x > bounds.maxX ||
-        z < bounds.minZ || z > bounds.maxZ) return false;
+        z < bounds.minZ || z > bounds.maxZ || hitsPondTrunk(point, point, clearance)) return false;
     if (x >= pondBounds.minX - clearance && x <= pondBounds.maxX + clearance &&
         z >= pondBounds.minZ - clearance && z <= pondBounds.maxZ + clearance &&
         polygonOverlap(x, z, pond, clearance)) return false;
@@ -98,6 +99,7 @@ export function createNpcNavigator(batch, { additionalAnchors = [] } = {}) {
     return !legacyBlocked || Boolean(campusSnap(point));
   }
   function segmentSafe(from, to) {
+    if (hitsPondTrunk(from, to, clearance)) return false;
     const steps = Math.max(1, Math.ceil(pointDistance(from, to) / .45));
     for (let i = 0; i <= steps; i++) {
       const t = i / steps;
@@ -110,7 +112,8 @@ export function createNpcNavigator(batch, { additionalAnchors = [] } = {}) {
     // Only the existing narrow on-network exception can bypass legacy clearance.
     // Dwell spots beside the path must have genuinely safe access/egress segments.
     if (!access || !egress || !segmentSafe(from, access) || !segmentSafe(egress, to)) return null;
-    return campusNetworkRoute(from, to);
+    const points = campusNetworkRoute(from, to);
+    return points?.every((p, i) => !hitsPondTrunk(i ? points[i-1] : from, p, clearance)) ? points : null;
   }
   const cellPoint = index => ({ x: bounds.minX + (index % width) * cellSize,
     z: bounds.minZ + Math.floor(index / width) * cellSize });

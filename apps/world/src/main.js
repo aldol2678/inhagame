@@ -10,6 +10,8 @@ import { createCampusKickboard } from "./mounts/campus-kickboard-render.js";
 import * as pc from "playcanvas";
 import { PlayerController } from "./player-controller.js";
 import { OrbitCameraController } from "./orbit-camera-controller.js";
+import { chooseDialogueShot } from '../npc-factory/dialogue-shot.mjs';
+import { cameraObstaclesNear, cameraSafeFraction } from './world-collision.js';
 import { installRuntimeDiagnostics } from './diagnostics/runtime-diagnostics-runtime.js';
 import { PlaceZoneRegistry, PLACE_ZONES } from './place-zone-registry.js';
 import { createWorldAudio } from './audio/world-audio.js';
@@ -856,6 +858,28 @@ window.addEventListener("pagehide", event => {
   if (!event.persisted) cinematic.destroy();
 });
 let npcTest = null;
+let dialogueShot = null;
+function applyDialogueShot(pos) {
+  const subject = npcTest?.dialogueCameraSubject() ?? inkyungDailyNpcs?.dialogueCameraSubject();
+  if (!subject) { dialogueShot = null; return false; }
+  const lens = camera.camera, aspect = canvas.clientWidth / Math.max(1,canvas.clientHeight);
+  if (!(aspect > 0)) return false;
+  const fov = lens.horizontalFov ? 2*Math.atan(Math.tan(lens.fov*Math.PI/360)/aspect)*180/Math.PI : lens.fov;
+  const key = [subject.id,canvas.clientWidth,canvas.clientHeight,pos.x.toFixed(2),pos.z.toFixed(2)].join(':');
+  if (key !== dialogueShot?.key) {
+    const obstacles = cameraObstaclesNear(subject,8);
+    const shot = chooseDialogueShot({ player:{x:pos.x,y:pos.y+character.eyeHeight,z:pos.z},subject,aspect,fov,
+      visible:(from,to) => cameraSafeFraction(from,to,undefined,obstacles) >= .998 });
+    dialogueShot = {key,shot};
+  }
+  const shot = dialogueShot.shot;
+  if (!shot) return false;
+  camera.setPosition(shot.eye[0],shot.eye[1],-shot.eye[2]);
+  camera.lookAt(shot.target[0],shot.target[1],-shot.target[2]);
+  character.setCameraOccluded(false);
+  return true;
+}
+
 let inkyungDailyNpcs = null;
 // Lobby readers only need the quest slice; the full getStatus() snapshot walks every NPC.
 const npcQuestStatus = () => npcTest?.getQuestStatus?.() ?? npcTest?.getStatus?.() ?? null;
@@ -3934,7 +3958,10 @@ app.on("update", (dt) => {
     if (!inside) {
       biryong?.applyCamera();
       backGateArrival?.applyCamera();
-    }
+      if (!biryongRealm?.inBiryong && !backGateArrivalInput.active && !controller.mounted && !seats.isSeated)
+        applyDialogueShot(pos);
+      else dialogueShot = null;
+    } else dialogueShot = null;
   }
   profile.update(controller.mounted, character.nameplateHeight, orbit.firstPerson);
   try {

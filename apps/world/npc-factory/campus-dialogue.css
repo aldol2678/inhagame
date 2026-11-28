@@ -1,0 +1,206 @@
+/* Private INHA WORLD campus QA skin. Keep original dialogue state and selectors. */
+#npc-test-panel.npc-live-panel.npc-conversation-open,
+#inkyung-daily-overlay #inkyung-daily-dialogue {
+  --campus-paper:#fff8ec;
+  --campus-ink:#172e34;
+  --campus-navy:#132f39;
+  --campus-line:#9fb9b2;
+  --campus-mint:#d9efdf;
+  --campus-accent:#f6d481;
+  box-sizing:border-box;
+  border:1px solid var(--campus-line);
+  border-radius:18px;
+  background:var(--campus-paper);
+  color:var(--campus-ink);
+  box-shadow:0 16px 42px #10212cb0,0 2px 6px #0004;
+  padding:0;
+  overflow:hidden;
+  font:15px/1.5 system-ui,sans-serif;
+}
+#npc-test-panel.npc-live-panel.npc-conversation-open {
+  bottom:max(18px,env(safe-area-inset-bottom));
+  width:min(680px,calc(100vw - max(12px,env(safe-area-inset-left)) - max(12px,env(safe-area-inset-right))));
+  padding:0;
+  max-height:none;
+}
+#npc-test-panel.npc-conversation-open #npc-test-conversation:not([hidden]) {
+  display:flex;
+  flex-direction:column;
+  max-height:min(69dvh,560px);
+}
+#npc-test-panel.npc-conversation-open .npc-dialogue-header,
+#inkyung-daily-overlay .campus-dialogue-daily-heading {
+  flex:none;
+  background:var(--campus-navy);
+  color:#fff8ed;
+  border-bottom:3px solid #97c1ac;
+  padding:10px 14px;
+}
+#npc-test-panel.npc-conversation-open .npc-dialogue-identity strong,
+#inkyung-daily-overlay #inkyung-daily-speaker {
+  font-size:clamp(17px,2.5vw,21px); line-height:1.25; margin:0;
+  overflow-wrap:anywhere; letter-spacing:-.025em;
+}
+#npc-test-panel.npc-conversation-open .npc-dialogue-identity small:empty {display:none}
+.campus-dialogue-kicker {
+  display:block; color:#b8e2d5; font-size:11px; line-height:1.3;
+  font-weight:750; letter-spacing:.07em; margin-bottom:3px;
+}
+#npc-test-panel.npc-conversation-open .npc-dialogue-portrait {
+  width:42px; height:42px;
+  background:linear-gradient(160deg,#fffae9 56%,var(--npc-accent,#a6cbb9));
+  border:1px solid #c6dfd4; border-radius:13px; color:#153a3e;
+  font-size:19px; font-weight:800;
+}
+#npc-test-panel.npc-conversation-open #npc-test-close {
+  align-self:center;
+  min-width:44px; min-height:44px; border:1px solid #74918f;
+  border-radius:12px; background:#244653; color:#fff; font-size:23px;
+}
+#npc-test-panel.npc-conversation-open .campus-dialogue-scroll {
+  min-height:0; overflow:auto; overscroll-behavior:contain; touch-action:pan-y;
+  padding:12px 15px 14px;
+}
+#npc-test-panel.npc-conversation-open #npc-test-line {
+  color:var(--campus-ink); font-size:clamp(16px,2vw,18px);
+  line-height:1.45; margin:0; padding:9px 12px;
+  background:#fffdf8; border-left:3px solid #37866e; border-radius:0 10px 10px 0;
+  overflow-wrap:anywhere; word-break:keep-all;
+}
+#npc-test-panel.npc-conversation-open #npc-test-player-line {
+  margin:0 0 7px auto; background:var(--campus-mint); color:#23463c;
+  font-size:14px; border-radius:10px 10px 0 10px; padding:6px 9px;
+}
+#npc-test-panel.npc-conversation-open #npc-test-player-line:not([hidden])::before {
+  content:"나"; display:inline-block; margin-inline-end:7px; font-size:12px; font-weight:800;
+}
+#npc-test-panel.npc-conversation-open #npc-ai-login-hint {color:#445c5d; margin:5px 0 0; font-size:12px}
+#npc-test-choice-title {font-size:12px; font-weight:750; margin:9px 0 4px; color:#365a55}
+#npc-test-panel.npc-conversation-open #npc-test-choices {
+  display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:5px 8px; margin:0;
+}
+#npc-test-panel.npc-conversation-open #npc-test-choices button,
+#inkyung-daily-overlay #inkyung-daily-close {
+  box-sizing:border-box; min-width:0; min-height:44px; padding:6px 10px;
+  border:1px solid #8fb1a4; border-radius:9px; background:#e2f2e8; color:#173a37;
+  text-align:left; font-weight:680; line-height:1.3; white-space:normal; overflow-wrap:anywhere;
+  cursor:pointer; touch-action:manipulation;
+}
+#npc-test-panel.npc-conversation-open #npc-test-choices button[data-dialogue-choice="featured"] {
+  background:#fff0c4; border-color:#bc9760; color:#513b1e;
+}
+#npc-test-panel.npc-conversation-open #npc-test-choices button[data-dialogue-choice="secondary"] {
+  background:#fffdf8; border-color:#b2bcb2; color:#455655;
+}
+#npc-test-panel.npc-conversation-open button:focus-visible,
+#inkyung-daily-overlay button:focus-visible {outline:2px solid #366956; outline-offset:-4px}
+#npc-test-panel.npc-conversation-open #npc-test-close:focus-visible {outline-color:#f8d57f}
+#inkyung-daily-overlay:has(#inkyung-daily-dialogue) {
+  align-items:end; background:linear-gradient(0deg,#12242f45,transparent 60%);
+  padding-bottom:max(18px,env(safe-area-inset-bottom));
+}
+#inkyung-daily-overlay #inkyung-daily-dialogue {width:min(530px,100%)}
+#inkyung-daily-overlay #inkyung-daily-line {
+  margin:12px 15px; font-size:17px; line-height:1.5;
+  border-left:3px solid #37866e; padding:3px 0 3px 11px;
+  overflow-wrap:anywhere; word-break:keep-all;
+}
+#inkyung-daily-overlay #inkyung-daily-close {align-self:flex-end;margin:0 15px 12px;text-align:center}
+@media (max-width:460px) and (orientation:portrait) {
+  #npc-test-panel.npc-conversation-open #npc-test-choices {grid-template-columns:minmax(0,1fr)}
+  #inkyung-daily-overlay #inkyung-daily-close {align-self:stretch}
+}
+@media (max-height:480px) and (orientation:landscape) {
+  #npc-test-panel.npc-live-panel.npc-conversation-open {bottom:max(9px,env(safe-area-inset-bottom))}
+  #npc-test-panel.npc-conversation-open #npc-test-conversation:not([hidden]) {max-height:69dvh}
+  #npc-test-panel.npc-conversation-open .npc-dialogue-header,
+  #inkyung-daily-overlay .campus-dialogue-daily-heading {padding-block:5px}
+  #npc-test-panel.npc-conversation-open .campus-dialogue-scroll {padding-block:7px 9px}
+}
+@media (hover:hover) {
+  #npc-test-panel.npc-conversation-open #npc-test-choices button:hover,
+  #inkyung-daily-overlay #inkyung-daily-close:hover {box-shadow:inset 0 0 0 2px #253d3554}
+}
+
+/* Offset both speech turns so the tail points back to its speaker edge. */
+#npc-test-panel.npc-conversation-open .campus-dialogue-turns {padding:3px 7px}
+#npc-test-panel.npc-conversation-open #npc-test-player-line,
+#npc-test-panel.npc-conversation-open #npc-test-line,
+#inkyung-daily-overlay #inkyung-daily-bubble {
+  position:relative;
+  border:1px solid var(--campus-bubble-edge);
+  background:var(--campus-bubble);
+  border-radius:13px;
+  isolation:isolate;
+}
+#npc-test-panel.npc-conversation-open #npc-test-player-line {
+  --campus-bubble:#d9efdf;
+  --campus-bubble-edge:#8cb7a3;
+  width:fit-content;
+  margin:0 0 9px auto;
+}
+#npc-test-panel.npc-conversation-open #npc-test-line,
+#inkyung-daily-overlay #inkyung-daily-bubble {
+  --campus-bubble:#fffdf8;
+  --campus-bubble-edge:#adc5b9;
+}
+#npc-test-panel.npc-conversation-open #npc-test-line {width:fit-content;max-width:100%}
+#npc-test-panel.npc-conversation-open #npc-test-player-line:not([hidden])::after,
+#npc-test-panel.npc-conversation-open #npc-test-line::after,
+#inkyung-daily-overlay #inkyung-daily-bubble::after {
+  content:""; position:absolute; top:12px; width:9px; height:9px;
+  background:var(--campus-bubble); border:solid var(--campus-bubble-edge);
+  border-width:0 0 1px 1px; transform:rotate(45deg); inset-inline-start:-5px;
+  z-index:-1; pointer-events:none;
+}
+#npc-test-panel.npc-conversation-open #npc-test-player-line:not([hidden])::after {
+  inset-inline-start:auto; inset-inline-end:-5px; border-width:1px 1px 0 0;
+}
+#inkyung-daily-overlay #inkyung-daily-bubble {min-height:0;display:flex;margin:11px 17px 10px}
+#inkyung-daily-overlay #inkyung-daily-line {border:0;margin:0;padding:8px 11px}
+.campus-dialogue-icon {
+  width:22px; height:22px; flex:0 0 22px; padding:2px;
+  border-radius:6px; color:#215e4e; background:#fffaf0b8;
+  fill:none; stroke:currentColor; stroke-width:1.65;
+  stroke-linecap:round; stroke-linejoin:round;
+}
+#npc-test-panel.npc-conversation-open #npc-test-choices button,
+#inkyung-daily-overlay #inkyung-daily-close {display:flex; align-items:center;gap:7px}
+#inkyung-daily-overlay #inkyung-daily-close {justify-content:center}
+#npc-test-panel.npc-conversation-open #npc-test-choices button span {min-width:0}
+#npc-test-panel.npc-conversation-open button[data-dialogue-choice="featured"] .campus-dialogue-icon {color:#7a531b}
+#npc-test-panel.npc-conversation-open button[data-dialogue-choice="secondary"] .campus-dialogue-icon {color:#425d5d}
+
+/* Keep navigation controls out of the topic hierarchy; only long turns scroll. */
+#npc-test-panel.npc-conversation-open .campus-dialogue-scroll {
+  display:flex; flex-direction:column; overflow:hidden;
+}
+#npc-test-panel.npc-conversation-open .campus-dialogue-turns {
+  min-height:0; overflow-y:auto; overscroll-behavior:contain;
+}
+#npc-test-panel.npc-conversation-open .campus-dialogue-options {flex:none}
+#npc-test-panel.npc-conversation-open .campus-dialogue-options:not(:has(button:not([data-dialogue-choice="secondary"]))) #npc-test-choice-title {
+  display:none;
+}
+#npc-test-panel.npc-conversation-open .campus-dialogue-options:not(:has(button:not([data-dialogue-choice="secondary"]))) #npc-test-choices {
+  display:flex; flex-wrap:wrap; justify-content:flex-end; padding-top:6px; margin-top:5px;
+  border-top:1px solid #c6d9ce;
+}
+#npc-test-panel.npc-conversation-open #npc-test-choices button[data-dialogue-choice="secondary"] {
+  padding:4px 8px; font-size:13px; background:transparent; border-color:transparent;
+}
+#npc-test-panel.npc-conversation-open #npc-test-choices {
+  max-height:min(32dvh,265px); overflow-y:auto; overscroll-behavior:contain;
+}
+@media(max-height:480px) and (orientation:landscape) {
+  #npc-test-panel.npc-live-panel.npc-conversation-open {width:min(580px,calc(100vw - 24px))}
+  #npc-test-panel.npc-conversation-open #npc-test-conversation:not([hidden]) {max-height:57dvh}
+  #npc-test-panel.npc-conversation-open .npc-dialogue-header {padding:2px 9px; gap:7px}
+  #npc-test-panel.npc-conversation-open .npc-dialogue-portrait {width:33px;height:33px;font-size:16px}
+  #npc-test-panel.npc-conversation-open .campus-dialogue-kicker {margin:0;font-size:10px}
+  #npc-test-panel.npc-conversation-open .campus-dialogue-scroll {padding:4px 9px 5px}
+  #npc-test-panel.npc-conversation-open #npc-test-line {padding:5px 8px;font-size:15px}
+  #npc-test-panel.npc-conversation-open #npc-test-player-line {margin-bottom:5px;padding:4px 7px}
+  #npc-test-choice-title {margin:4px 0 2px}
+  #npc-test-panel.npc-conversation-open #npc-test-choices {max-height:27dvh}
+}
