@@ -1,5 +1,5 @@
-// Documentation fast path and conservative local-database routing for Public local checks.
-// Unknown scope always runs full verification, including the local Supabase stack.
+// Documentation fast path for Public local checks.
+// Local Supabase database verification was removed 2026-11-28; no database job remains.
 import { execFileSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { isSeoOnly } from './seo-only-scope.mjs';
@@ -12,62 +12,15 @@ const DOC_FILES = new Set([
   '.github/pull_request_template.md',
 ]);
 
-const DB_INDEPENDENT_FILES = new Set([
-  'apps/world/campus/index.html',
-  'apps/world/styles.css',
-  'apps/world/dev-server.mjs',
-  'apps/world/src/main.js',
-  // Presentation-only DOM icon module; mixed unknown/backend changes still require DB.
-  'apps/world/src/ui/ui-icon-runtime.js',
-  'apps/world/src/player-controller.js',
-  'apps/world/src/player-dimensions.js',
-  'apps/world/src/orbit-camera-controller.js',
-  'apps/world/src/world-collision.js',
-  'apps/world/src/polygon-collision.js',
-  // QA-only photo diagnostics prose; does not use Supabase or change runtime behavior.
-  'apps/world/docs/photo-capture-diagnostics.md',
-]);
-
-const DB_INDEPENDENT_PREFIXES = [
-  'apps/classic/',
-  'apps/induck-grow/',
-  'apps/induckup/',
-  'apps/survival/',
-  'apps/world/assets/',
-  'apps/world/data/reality/',
-  'apps/world/tests/',
-  'apps/world/src/environment/',
-  'apps/world/src/input/',
-  'apps/world/src/minimap/',
-  'apps/world/src/navigation/',
-  'apps/world/src/photo/',
-  'apps/world/src/preview/',
-];
-
 export function isDocs(file) {
   return typeof file === 'string' && (DOC_FILES.has(file)
     || /^\.github\/ISSUE_TEMPLATE\/[^/\r\n]+\.md$/.test(file));
 }
 
-function isDatabaseIndependent(file) {
-  if (typeof file !== 'string') return false;
-  if (isDocs(file)) return true;
-  if (DB_INDEPENDENT_FILES.has(file)) return true;
-  if (DB_INDEPENDENT_PREFIXES.some(prefix => file.startsWith(prefix))) return true;
-  if (/^apps\/world\/src\/world-loading[^/]*\.js$/.test(file)) return true;
-  if (/^apps\/world\/src\/[^/]*(?:geometry|renderer|render-kit|layout|material-profile|roadview-details|grounds|terrain|collision)[^/]*\.js$/.test(file)) return true;
-  if (/^\.github\/workflows\/.+\.ya?ml$/.test(file) && file !== '.github/workflows/public-ci.yml') return true;
-  return false;
-}
 
 export function classify(files, { seoOnly = false } = {}) {
   if (Array.isArray(files) && files.length > 0 && files.every(isDocs)) return 'docs';
   return seoOnly ? 'seo' : 'full';
-}
-
-export function needsDatabase(files) {
-  if (!Array.isArray(files) || files.length === 0) return true;
-  return !files.every(isDatabaseIndependent);
 }
 
 // Additive browser routing only: never relax source/database/SEO classification.
@@ -135,7 +88,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   const seoOnly = !forceFull && process.env.CI_EVENT === 'pull_request' && files !== null &&
     isSeoOnly(files, oldBlob, newBlob);
   const mode = forceFull ? 'full' : classify(files, { seoOnly });
-  const db = mode === 'full' && (forceFull || needsDatabase(files));
+  const db = false; // No database job remains (Supabase CI removed 2026-11-28).
   console.log('mode=' + mode);
   console.log('db=' + (db ? 'true' : 'false'));
   console.log('portal_browser=' + (needsPortalBrowser(files, { forceFull }) ? 'true' : 'false'));
