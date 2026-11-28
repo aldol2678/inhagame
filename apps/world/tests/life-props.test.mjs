@@ -218,3 +218,21 @@ test('runtime wiring updates props alongside existing poses and exposes the room
   assert.match(room, /createClubTableProps\(\{ app, root, table: g, height: h \}\)/);
   assert.match(room, /ensureVisualAssets: \(\) => Promise\.all\(fixtureLoaders\.map\(ensure => ensure\(\)\)\)/);
 });
+
+test('the travelling reader gets one closed book on the forearm, then a fresh two-hand reading prop', async () => {
+  const r=await propRig();
+  const tuck=new Entity('Campus_Book_Tuck_Socket'), read=new Entity('Campus_Book_Socket');
+  r.props.update(null,{moving:true,generatedSocket:tuck});
+  assert.equal(r.requests.length,1);
+  const closed=new Entity('closed');r.requests[0].resolve(closed);await flush();
+  assert.equal(closed.name,'NPC_Activity_stationery_notebook');
+  assert.equal(closed.parent,tuck);
+  assert.deepEqual(closed.scale,[1,1,1]);
+  r.props.update('READING',{generatedSocket:read});
+  assert.equal(closed.destroyed,true);
+  const opened=new Entity('opened');r.requests[1].resolve(opened);await flush();
+  assert.equal(opened.name,'NPC_Activity_open_book');
+  assert.equal(opened.parent,read);
+  r.props.update(null);
+  assert.equal(opened.destroyed,true);
+});

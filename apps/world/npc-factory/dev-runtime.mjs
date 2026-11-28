@@ -1347,7 +1347,9 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
       const bob = moving ? Math.abs(Math.sin(phase)) * .035 * motionEnergy :
         Math.sin(elapsed * 2 * animationPace + Number(actor.id.slice(-3))) * .015 * motionEnergy;
       const sitting = Boolean(visual.seat && !moving && !motion.route.length);
-      const purposefulActivity = assignedVendor(actor.id) ? 'SHOP_SERVICE' : purposeful?.controller.status(false).activity;
+      const purposefulState = purposeful?.controller.status(false);
+      const speaking = activeConversation?.id === actor.id;
+      const purposefulActivity = speaking ? null : assignedVendor(actor.id) ? 'SHOP_SERVICE' : purposefulState?.activity;
       const seat = sitting && visual.seat.id === 'SEAT_INKYUNG_TREE_1_A' ? visual.seat : null;
       let seatPoint = null;
       if (seat) {
@@ -1356,7 +1358,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
       }
       const generatedSocket=visual.refreshPose?.(moving,
         sitting || (!moving && ['READING','COFFEE','EATING','PHONE','PHOTO','MUSIC','RESTING'].includes(purposefulActivity)),
-        {activity:purposefulActivity,seatPoint});
+        {activity:purposefulActivity,seatPoint,goal:purposefulState?.currentGoal,speaking,sitting});
       visual.activityProps.update(purposefulActivity, { moving, sitting, visible: visual.avatar.enabled, generatedSocket });
       const activityPose = purposefulActivityPose(purposefulActivity, { phase, motionEnergy, sitting });
       const c04SeatPosition = sitting && actor.id === 'INKYUNG-NPC-010' && visual.seat.id === 'SEAT_INKYUNG_TREE_1_A'
@@ -1381,7 +1383,6 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
         actor.location === 'c04.inkyung_photo_point.INKYUNG-NPC-009'
         ? purposefulPhotoHeading(purposefulActivity, { position: motion.position,
           target: INKYUNG_PHOTO_POINT.lookAt, heading: motion.heading }) : motion.heading;
-      const speaking = activeConversation?.id === actor.id;
       const towardPlayer = Math.atan2(playerPos.x - renderPosition.x, playerPos.z - renderPosition.z) * 180 / Math.PI;
       const facing = sitting ? visual.seat.yaw : speaking ? towardPlayer : moving ? motion.heading : motion.sharedMeeting && activeConversation?.id !== actor.id ? motion.heading : observing ? visual.avatar.getLocalEulerAngles().y : nearSelected || pilotFacing
         ? Math.atan2(playerPos.x - motion.position.x, playerPos.z - motion.position.z) * 180 / Math.PI : activityHeading;

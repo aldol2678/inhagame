@@ -17,8 +17,8 @@ export function purposefulActivityPropPosition(definition, worldScale) {
     (LIFE_PROP_WORLD_SCALE*contact[i] + NPC_ACTIVITY_CONTACT_OVERLAP_WORLD*normal[i])/worldScale);
 }
 
-// Render-only projection of the existing purposeful activity. The straight-arm rig is
-// unchanged: one primary hand, no claim of two-hand book/camera contact or face-level PHOTO.
+// Render-only projection. Generated sockets receive posed props; other NPCs use
+// the existing straight-arm attachment as a fallback.
 // Like equipment projection, each desire owns a generation; late loads are destroyed.
 export function createPurposefulActivityProps({ visual, loadModel }) {
   const arm = visual.arms[0]; // ArmPivot_-1, never the nonuniformly scaled Hand mesh
@@ -34,15 +34,15 @@ export function createPurposefulActivityProps({ visual, loadModel }) {
   }
   function update(activity, { moving = false, sitting = false, visible = true, generatedSocket = null } = {}) {
     if (disposed) return;
+    const socket = visible && !sitting ? generatedSocket : null;
     const definition = !moving && !sitting && visible && Object.hasOwn(NPC_ACTIVITY_PROPS, activity)
       ? NPC_ACTIVITY_PROPS[activity] : null;
-    const next = definition?.id ?? null;
-    const socket = activity === "PHOTO" ? generatedSocket : null;
+    const next = moving && socket?.name === 'Campus_Book_Tuck_Socket' ? 'stationery_notebook' : definition?.id ?? null;
     if (next === desired && socket === attachment) return; // no requests, retries or allocations for unchanged frames
     desired = next; attachment = socket;
     const token = ++generation;
     clear();
-    if (!definition || !arm || !Number.isFinite(visual.worldScale) || visual.worldScale <= 0) return;
+    if (!next || (!socket && (!definition || !arm || !Number.isFinite(visual.worldScale) || visual.worldScale <= 0))) return;
     let request;
     try { request = Promise.resolve(loadModel(next)); }
     catch { return; } // unavailable optional decoration must not interrupt the NPC loop
@@ -54,7 +54,10 @@ export function createPurposefulActivityProps({ visual, loadModel }) {
         if (socket) {
           model.setLocalPosition(0,0,0);
           model.setLocalRotation(0,0,0,1);
-          const scale=LIFE_PROP_WORLD_SCALE/socket.getWorldTransform().getScale().y;
+          // The original camera uses a fixed world size. The new hand/forearm
+          // sockets already encode the fit and scale of each authored rig.
+          const scale=socket.name==='Campus_Camera_Socket'
+            ? LIFE_PROP_WORLD_SCALE/socket.getWorldTransform().getScale().y : 1;
           model.setLocalScale(scale,scale,scale);
           socket.addChild(model);
         } else {

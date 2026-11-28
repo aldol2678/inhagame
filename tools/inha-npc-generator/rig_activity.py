@@ -37,17 +37,23 @@ def skin_points(g,b,n,w):
   h=np.column_stack([xyz,np.ones(len(xyz))])
   yield ((transforms[index]@h[:,None,:,None])[...,0]*weights[:,:,None]).sum(axis=1)[:,:3]
 def append_pose(g,b,name,pose):
+ append_frames(g,b,name,[0.,1.],[pose,pose])
+def append_frames(g,b,name,times,frames):
  def push(values,kind,bounds=False):
   q=np.asarray(values,dtype='<f4');offset=len(b); payload=q.tobytes();b.extend(payload)
   view=len(g['bufferViews']);g['bufferViews'].append(dict(buffer=0,byteOffset=offset,byteLength=len(payload)))
   a=dict(bufferView=view,componentType=5126,count=len(q),type=kind)
   if bounds:a.update(min=[float(q.min())],max=[float(q.max())])
   i=len(g['accessors']);g['accessors'].append(a);return i
- t=push([0.,1.],'SCALAR',True)
+ t=push(times,'SCALAR',True)
  clip=dict(name=name,samplers=[],channels=[])
- for i,trs in pose.items():
+ for i,trs in frames[0].items():
   for path,value in trs.items():
-   o=push([value,value],'VEC4' if path=='rotation' else 'VEC3')
+   values=np.stack([p[i][path] for p in frames])
+   if path=='rotation':
+    for k in range(1,len(values)):
+     if values[k-1]@values[k]<0:values[k]*=-1
+   o=push(values,'VEC4' if path=='rotation' else 'VEC3')
    clip['channels'].append(dict(sampler=len(clip['samplers']),target=dict(node=i,path=path)))
    clip['samplers'].append(dict(input=t,output=o,interpolation='LINEAR'))
  g['animations'].append(clip)
@@ -68,11 +74,104 @@ def write(p,g,b):
  g['buffers'][0]['byteLength']=len(b)
  j=json.dumps(g,separators=(',',':')).encode();j+=b' '*((-len(j))%4)
  p.write_bytes(struct.pack('<4sIIII',b'glTF',2,28+len(j)+len(b),len(j),0x4e4f534a)+j+struct.pack('<II',len(b),0x004e4942)+b)
+# Generated-model coordinate system: +Y up, +Z forward. Design each wrist
+# target from the prop surface and use a downward/outward elbow pole.
+def aim_arm(g,pose,indices,side,wrist,hand_forward):
+ upper,fore,hand=[indices[name+'.'+side] for name in ('UpperArm','Forearm','Hand')]
+ w=xforms(g,pose)
+ start=w[upper][:3,3]
+ a=np.linalg.norm(w[fore][:3,3]-start)
+ b=np.linalg.norm(w[hand][:3,3]-w[fore][:3,3])
+ vec=np.asarray(wrist)-start
+ d=np.linalg.norm(vec); axis=vec/d
+ d=np.clip(d,abs(a-b)+.003,a+b-.003)
+ pole=np.array([.65 if side=='R' else -.65,-1.,-.35])
+ normal=pole-axis*(pole@axis);normal/=np.linalg.norm(normal)
+ projection=(a*a-b*b+d*d)/(2*d)
+ elbow=start+axis*projection+normal*np.sqrt(max(0,a*a-projection**2))
+ authored_joint(g,pose,w,upper,elbow-start)
+ w=xforms(g,pose)
+ authored_joint(g,pose,w,fore,start+axis*d-w[fore][:3,3])
+ w=xforms(g,pose)
+ authored_joint(g,pose,w,hand,hand_forward)
+
+def anchor_local(g,pose,hand,center,orientation):
+ wrist=xforms(g,pose)[hand]
+ return dict(translation=(np.linalg.inv(wrist)@[*center,1])[:3],
+    rotation=(Rotation.from_matrix(wrist[:3,:3]).inv()*orientation).as_quat())
+
+def author_hand_activity(g,b,by,clip,kind):
+ hand=by['Hand.R']
+ # Relative to the skeleton (not a fixed world-scale prop override).
+ book_scale,cup_scale=.76,.88
+ if kind=='read':
+  times=[0.,1.25,2.5,3.75,5.]
+  weights=[0.,.7,1.,.35,0.]
+  socket_name='Campus_Book_Socket'
+  # Reuse the forearm-authored carry animation; place the closed book between
+  # torso and left forearm in that pose, rigidly attached to the forearm.
+  tuck=poses(g,b,'Carry_Book_Walk',0)
+  fore=by['Forearm.L']; world=xforms(g,tuck)
+  base=world[fore][:3,3]
+  center=[base[0]+.064,base[1]+.053,base[2]+.061]
+  anchor=anchor_local(g,tuck,fore,center,Rotation.from_euler('yxz',[90,0,-90],degrees=True))
+  i=len(g['nodes']);add_marker(g,fore,'Campus_Book_Tuck_Socket',anchor['translation'],anchor['rotation'])
+  g['nodes'][i]['scale']=[.91]*3
+  scale=book_scale
+ else:
+  times=[0.,.8,1.45,1.85,2.25,2.9,4.6]
+  weights=[0.,0.,.77,1.,1.,0.,0.]
+  socket_name='Campus_Cup_Socket'
+  scale=cup_scale
+  neutral=poses(g,b,'Idle_Breathe',0)
+  w=xforms(g,neutral); head=w[by['Head']]
+  face=g['nodes'][by['NPC_HeadFace']]
+  lips=[]
+  for primitive,vertices in zip(g['meshes'][face['mesh']]['primitives'],skin_points(g,b,face,w)):
+   if '/ lip' in g['materials'][primitive['material']]['name']:
+    center=(abs(vertices[:,0]-head[0,3])<.039)&(vertices[:,2]>head[2,3]+.08)
+    lips.extend(vertices[center])
+  if len(lips)<8:raise ValueError('Cannot fit cup without a lip surface')
+  mouth=np.median(lips,axis=0)
+  add_marker(g,by['Head'],'Campus_Cup_Mouth',(np.linalg.inv(head)@[*mouth,1])[:3])
+ socket=len(g['nodes']); frames=[]
+ for weight in weights:
+  pose=poses(g,b,'Idle_Breathe',0)
+  world=xforms(g,pose)
+  chest=world[by['Chest']][:3,3]
+  if kind=='read':
+   center=chest+[0.,-.064+weight*.012,.282]
+   rotation=Rotation.from_euler('x',14+weight*4,degrees=True)
+   for sign,side in ((1,'R'),(-1,'L')):
+    # Palms sit on the lower outside edges, not through the page surface.
+    palm=center+rotation.apply([sign*.136*scale,-.008*scale,.020])
+    direction=np.array([-sign*.70,.18,.69])
+    aim_arm(g,pose,by,side,palm-direction*.032,direction)
+   below=Rotation.from_euler('x',17+weight*5,degrees=True)
+   pose[by['Head']]['rotation']=(Rotation.from_quat(pose[by['Head']]['rotation'])*below).as_quat()
+  else:
+   rotation=Rotation.from_euler('x',-13*weight,degrees=True)
+   # Grip-centered asset: drinking opening is offset left and above its origin.
+   opening=np.array([-.043,.0825,.024])*scale
+   rest=chest+[.215,-.185,.258]
+   at_mouth=mouth+[.012,-.006,.024]-rotation.apply(opening)
+   center=rest*(1-weight)+at_mouth*weight
+   direction=np.array([-.69,.24+.27*weight,.65-.15*weight])
+   aim_arm(g,pose,by,'R',center-direction*.034,direction)
+  frames.append({**pose,socket:anchor_local(g,pose,hand,center,rotation)})
+ add_marker(g,hand,socket_name,frames[0][socket]['translation'],frames[0][socket]['rotation'])
+ g['nodes'][socket]['scale']=[scale]*3
+ append_frames(g,b,clip,times,frames)
+
 def run(source,reference,output,kind):
  g,b=read(source)
- clip={'seat':'Campus_Seat','photo':'Campus_Photo'}[kind]
+ clip={'seat':'Campus_Seat','photo':'Campus_Photo','read':'Campus_Read','coffee':'Campus_Coffee'}[kind]
  if any(a['name']==clip for a in g['animations']):raise ValueError('Start with the original generated model')
  by={n['name']:i for i,n in enumerate(g['nodes'])}
+ if kind in ('read','coffee'):
+  author_hand_activity(g,b,by,clip,kind)
+  write(output,g,b)
+  return
  if kind=='seat':
   rg,rb=read(reference)
   orig=poses(rg,rb,'Bench_Sit_Stand',1.8)
@@ -107,7 +206,7 @@ def run(source,reference,output,kind):
 if __name__=='__main__':
  import argparse
  p=argparse.ArgumentParser(description='Add campus bench or photography to a compatible generated humanoid GLB.')
- p.add_argument('kind',choices=['seat','photo'])
+ p.add_argument('kind',choices=['seat','photo','read','coffee'])
  p.add_argument('input',type=Path);p.add_argument('reference',type=Path);p.add_argument('output',type=Path)
  a=p.parse_args()
  if a.input.resolve()==a.output.resolve():p.error('Use a different output path.')

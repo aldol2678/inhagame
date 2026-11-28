@@ -14,13 +14,20 @@ export function registerNpcRefresh(visual){
  const record={id:actor.id,visual,primitives,asset:null,node:null,clip:null,pending:false,fallback:false,failed:false,last:null};
  entries.set(avatar,record);
  avatar.once('destroy',()=>{entries.delete(avatar);restore(record);});
- visual.refreshPose=(moving,legacyPose=false,{activity,seatPoint}={})=>{
+ visual.refreshPose=(moving,legacyPose=false,{activity,seatPoint,goal,speaking,sitting}={})=>{
   record.moving=moving;
   record.seatPoint=seatPoint??null;
-  record.special=record.keep && record.node ?
-   (seatPoint && record.seatContact ? 'Campus_Seat' : !moving && activity==='PHOTO' && record.photoSocket ? 'Campus_Photo' : null) : null;
+  record.special=null;
+  if(record.keep && record.node){
+   if(seatPoint && record.seatContact)record.special='Campus_Seat';
+   else if(!speaking && !sitting){
+    if(moving && goal==='READ' && record.sockets.Carry_Book_Walk)record.special='Carry_Book_Walk';
+    if(!moving)record.special=({PHOTO:'Campus_Photo',READING:'Campus_Read',COFFEE:'Campus_Coffee'})[activity]??null;
+    if(record.special && !record.sockets[record.special])record.special=null;
+   }
+  }
   record.fallback=Boolean(legacyPose&&!record.special);
-  return record.special==='Campus_Photo' ? record.photoSocket : null;
+  return record.special ? record.sockets?.[record.special]??null : null;
  };
  return visual;
 }
@@ -32,7 +39,7 @@ function hide(record,active){
 }
 function restore(record){
  hide(record,false);
- record.node?.destroy();record.node=null;record.clip=null;record.photoSocket=null;record.seatContact=null;
+ record.node?.destroy();record.node=null;record.clip=null;record.sockets=null;record.seatContact=null;
  if(record.asset){deleteAsset(runtime.app,record.asset);record.asset=null;}
 }
 async function load(record,file){
@@ -45,9 +52,14 @@ async function load(record,file){
   const names=['Idle_Breathe','Walk_In_Place'];
   const tracks=Object.fromEntries(asset.resource.animations.map(a=>[a.resource.name,a.resource]));
   if(names.some(k=>!tracks[k]))throw Error('missing idle/walk');
-  const photoSocket=tracks.Campus_Photo && node.findByName('Campus_Camera_Socket');
+  const sockets=Object.fromEntries(Object.entries({
+   Campus_Photo:'Campus_Camera_Socket',
+   Campus_Read:'Campus_Book_Socket',
+   Campus_Coffee:'Campus_Cup_Socket',
+   Carry_Book_Walk:'Campus_Book_Tuck_Socket',
+  }).map(([clip,name])=>[clip,tracks[clip] ? node.findByName(name) : null]));
   const seatContact=tracks.Campus_Seat && node.findByName('Campus_Seat_Contact');
-  if(photoSocket)names.push('Campus_Photo');
+  names.push(...Object.keys(sockets).filter(clip=>sockets[clip]));
   if(seatContact)names.push('Campus_Seat');
   node.name='REFRESH_'+record.id;node.setLocalScale(1.37,1.37,1.37);
   node.setLocalEulerAngles(0,record.mirror?180:0,0);
@@ -55,7 +67,7 @@ async function load(record,file){
   node.addComponent('anim',{activate:true});
   node.anim.loadStateGraph(new pc.AnimStateGraph({layers:[{name:'Base',states:[{name:'START'},...names.map(name=>({name,speed:1,loop:true}))],transitions:[{from:'START',to:'Idle_Breathe'}]}],parameters:{}}));
   for(const name of names)node.anim.assignAnimation(name,tracks[name],'Base',1,true);
-  record.asset=asset;record.node=node;record.photoSocket=photoSocket;record.seatContact=seatContact;
+  record.asset=asset;record.node=node;record.sockets=sockets;record.seatContact=seatContact;
  }catch{record.failed=true;newNode?.destroy();deleteAsset(app,asset);}
  finally{record.pending=false;}
 }

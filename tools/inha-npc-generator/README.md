@@ -22,3 +22,13 @@ python rig_activity.py seat models/INKYUNG_NPC_010.glb /저장소/apps/world/ass
 ```
 
 같은 활동을 하는 다른 캐릭터에 전파하기 전에 체형·의상과 벤치 높이에 맞춰 다시 검수합니다. 그 외 미지원 활동 및 로딩·거리·실패 대비 기존 외형은 보존합니다.
+
+003(나수현)과 012(가지안)에는 활동 모드 `read`를 적용합니다. 목적이 독서일 때 이동 중에는 기존 `Carry_Book_Walk`와 새 왼팔꿈치 소켓을 쓰고, 도착하면 펼친 책을 두 손으로 받칩니다. 012에는 `coffee`를 추가 적용합니다. 컵은 오른손에 연결되어 준비 → 한 모금 → 내리기 순으로 반복합니다. 말 걸기 중에는 활동 소품을 비우며, 대화 후 해당 활동이 이어질 때만 다시 표시합니다.
+
+```sh
+python rig_activity.py read models/INKYUNG_NPC_003.glb models/INKYUNG_NPC_003.glb NPC_003_read.glb
+python rig_activity.py read models/INKYUNG_NPC_012.glb models/INKYUNG_NPC_012.glb NPC_012_read.glb
+python rig_activity.py coffee NPC_012_read.glb NPC_012_read.glb NPC_012_read_coffee.glb
+```
+
+`photo`, `read`, `coffee`의 두 번째 경로는 사용하지 않습니다(동일 CLI 형태 유지). 이 두 NPC의 일정이나 상호작용 권한은 바꾸지 않습니다.
