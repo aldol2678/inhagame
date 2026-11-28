@@ -1,0 +1,285 @@
+name: World Biryong browser QA
+# Biryong cloud save, immutable-main control and map guidance suites in one workflow. The
+# `select` job decides which suites a pull request touches (.github/ci/group-filter.mjs);
+# a suite runs unless that job positively reports `false` for it. A manual run measures
+# the immutable-main control only, as the original control workflow did.
+on:
+  pull_request:
+    paths:
+      - '.github/ci/phone-surface-scope*.mjs'
+      - '.github/ci/seo-only-scope*.mjs'
+      - 'apps/world/src/biryong/biryong-cloud-*.js'
+      - 'apps/world/src/biryong/biryong-system.js'
+      - 'apps/world/src/biryong/biryong-state.js'
+      - 'apps/world/src/main.js'
+      - 'apps/world/styles.css'
+      - 'apps/world/tests/biryong-cloud-*.test.mjs'
+      - 'apps/world/tests/browser/biryong-cloud-sync-*'
+      - 'apps/world/src/biryong/**'
+      - 'apps/world/src/graphics-presets.js'
+      - 'apps/world/src/campus-render-kit.js'
+      - 'apps/world/src/environment/environment-director.js'
+      - 'apps/world/src/environment/environment-presets.js'
+      - 'apps/world/tests/browser/biryong-control-*.mjs'
+      - 'apps/world/tests/browser/biryong-performance-*.mjs'
+      - 'apps/world/tests/browser/biryong-ci-gate.mjs'
+      - 'apps/world/tests/biryong-control-diagnostic.test.mjs'
+      - 'apps/world/tests/biryong-performance-*.test.mjs'
+      - 'apps/world/tests/browser/harness*.mjs'
+      - 'apps/world/src/lobby/**'
+      - 'apps/world/src/minimap/**'
+      - 'apps/world/src/navigation/**'
+      - 'apps/world/src/player-controller.js'
+      - 'apps/world/src/orbit-camera-controller.js'
+      - 'apps/world/src/input-focus*'
+      - 'apps/world/src/world-loading*'
+      - 'apps/world/npc-factory/**'
+      - 'apps/world/campus/index.html'
+      - 'apps/world/dev-server.mjs'
+      - 'apps/world/tests/biryong-*.test.mjs'
+      - 'apps/world/tests/browser/biryong-map-guidance-*'
+      - 'apps/world/tests/browser/biryong-resume-smoke.mjs'
+      - 'apps/world/tests/browser/biryong-camera-null-smoke.mjs'
+      - 'apps/world/tests/browser/package*.json'
+      - 'apps/world/tests/browser/harness.mjs'
+      - '.github/ci/group-filter.mjs'
+      - '.github/ci/group-filter.test.mjs'
+      - '.github/ci/phone-surface-scope.mjs'
+      - '.github/actions/setup-world-browser/**'
+      - '.github/workflows/world-biryong-browser.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: world-biryong-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  select:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      biryong_cloud_sync: ${{ steps.filter.outputs.biryong_cloud_sync }}
+      biryong_main_control: ${{ steps.filter.outputs.biryong_main_control }}
+      biryong_map_guidance: ${{ steps.filter.outputs.biryong_map_guidance }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.19.0'
+      - name: Test suite selection
+        run: node --test .github/ci/group-filter.test.mjs
+      - name: Select suites touched by this pull request
+        id: filter
+        env:
+          CI_EVENT: ${{ github.event_name }}
+          CI_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CI_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [[ "$CI_EVENT" == "workflow_dispatch" ]]; then
+            # Only the control suite ever supported manual runs.
+            printf 'biryong_cloud_sync=false\nbiryong_main_control=true\nbiryong_map_guidance=false\nmode=manual\n' >> "$GITHUB_OUTPUT"
+          else
+            node .github/ci/group-filter.mjs biryong >> "$GITHUB_OUTPUT"
+          fi
+
+  biryong-cloud-sync:
+    needs: select
+    if: ${{ !cancelled() && needs.select.outputs.biryong_cloud_sync != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          fetch-depth: 128
+      - name: Select affected browser suite (fail-closed)
+        id: phone_scope
+        env:
+          CI_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CI_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          CI_PR_TITLE: ${{ github.event.pull_request.title }}
+          # The scope gate is keyed by the original workflow name and reads its paths.
+          CI_WORKFLOW_NAME: Biryong cloud-save recovery browser QA
+        run: node .github/ci/phone-surface-scope.mjs >> "$GITHUB_OUTPUT"
+      - name: Install pinned Node, browser dependencies, Chromium and Korean glyphs
+        if: steps.phone_scope.outputs.skip != 'true'
+        uses: ./.github/actions/setup-world-browser
+        with:
+          playwright-browser: chromium
+          korean-fonts: 'true'
+      - name: Verify cloud recovery and status contracts
+        if: steps.phone_scope.outputs.skip != 'true'
+        run: node --test apps/world/tests/biryong-cloud-*.test.mjs
+      - name: Exercise keyboard and touch with synthetic RPCs only
+        if: steps.phone_scope.outputs.skip != 'true'
+        env:
+          BIRYONG_CLOUD_SYNC_HEAD: ${{ github.event.pull_request.head.sha }}
+          BIRYONG_CLOUD_SYNC_OUTPUT: test-results/biryong-cloud-sync
+        run: node apps/world/tests/browser/biryong-cloud-sync-smoke.mjs
+      - name: Preserve exact-head screenshots and receipts
+        if: always() && steps.phone_scope.outputs.skip != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: biryong-cloud-sync-browser-evidence
+          path: test-results/biryong-cloud-sync/
+          if-no-files-found: error
+          retention-days: 14
+
+  biryong-main-control:
+    needs: select
+    if: ${{ !cancelled() && needs.select.outputs.biryong_main_control != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CONTROL_SHA: e49419c39d884515f2402a2f3a23fe4c754b8882
+      WORLD_SMOKE_DISABLE_WEBGPU: '1'
+      WORLD_SMOKE_BROWSER: chrome
+      BIRYONG_PERF_MODE: baseline-only
+      BIRYONG_PERF_TIERS: low
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Checkout immutable main control
+        uses: actions/checkout@v4
+        with:
+          ref: e49419c39d884515f2402a2f3a23fe4c754b8882
+          path: .qa-control-main
+          persist-credentials: false
+      - name: Verify source identity and prepare receipts
+        id: sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C .qa-control-main rev-parse HEAD)" = "$CONTROL_SHA"
+          echo "QA_CANDIDATE_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          echo "QA_CANDIDATE_TREE=$(git rev-parse HEAD^{tree})" >> "$GITHUB_ENV"
+          echo "QA_CONTROL_TREE=$(git -C .qa-control-main rev-parse HEAD^{tree})" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/biryong-main-control"
+      - name: Install pinned Node and the same sampler engine
+        id: dependencies
+        uses: ./.github/actions/setup-world-browser
+      - name: Measure immutable main LOW Visual OFF
+        id: main
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          GITHUB_SHA="$QA_CANDIDATE_SHA" \
+          BIRYONG_PERF_SOURCE_SHA="$CONTROL_SHA" \
+          BIRYONG_PERF_SOURCE_TREE="$QA_CONTROL_TREE" \
+          BIRYONG_PERF_WORLD_ROOT="$GITHUB_WORKSPACE/.qa-control-main/apps/world" \
+          BIRYONG_PERF_RECEIPT="$RUNNER_TEMP/biryong-main-control/main.json" \
+          node apps/world/tests/browser/biryong-performance-smoke.mjs 2>&1 | tee "$RUNNER_TEMP/biryong-main-control/main.log"
+      - name: Measure candidate LOW Visual OFF
+        id: candidate
+        if: always() && steps.dependencies.outcome == 'success' && steps.sources.outcome == 'success'
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          GITHUB_SHA="$QA_CANDIDATE_SHA" \
+          BIRYONG_PERF_SOURCE_SHA="$QA_CANDIDATE_SHA" \
+          BIRYONG_PERF_SOURCE_TREE="$QA_CANDIDATE_TREE" \
+          BIRYONG_PERF_WORLD_ROOT="$GITHUB_WORKSPACE/apps/world" \
+          BIRYONG_PERF_RECEIPT="$RUNNER_TEMP/biryong-main-control/candidate.json" \
+          node apps/world/tests/browser/biryong-performance-smoke.mjs 2>&1 | tee "$RUNNER_TEMP/biryong-main-control/candidate.log"
+      - name: Compare same-runner LOW controls without relaxing budgets
+        if: always()
+        continue-on-error: true
+        env:
+          BIRYONG_CONTROL_MAIN_OUTCOME: ${{ steps.main.outcome }}
+          BIRYONG_CONTROL_CANDIDATE_OUTCOME: ${{ steps.candidate.outcome }}
+        shell: bash
+        run: |
+          node apps/world/tests/browser/biryong-control-report.mjs \
+            "$RUNNER_TEMP/biryong-main-control/main.json" \
+            "$RUNNER_TEMP/biryong-main-control/candidate.json" \
+            "$RUNNER_TEMP/biryong-main-control/comparison.json" \
+            "$CONTROL_SHA" "$QA_CANDIDATE_SHA"
+      - name: Classify software-rendered comparison without treating it as performance PASS
+        if: always()
+        run: node apps/world/tests/browser/biryong-ci-gate.mjs control "$RUNNER_TEMP/biryong-main-control/comparison.json"
+      - name: Upload control receipts and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: biryong-immutable-main-control
+          path: ${{ runner.temp }}/biryong-main-control/**
+          if-no-files-found: warn
+          retention-days: 7
+
+  biryong-map-guidance:
+    needs: select
+    if: ${{ !cancelled() && needs.select.outputs.biryong_map_guidance != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          fetch-depth: 128
+      - name: Select affected browser suite (fail-closed)
+        id: phone_scope
+        env:
+          CI_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CI_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          CI_PR_TITLE: ${{ github.event.pull_request.title }}
+          # The scope gate is keyed by the original workflow name and reads its paths.
+          CI_WORKFLOW_NAME: Biryong map and NPC guidance browser QA
+        run: node .github/ci/phone-surface-scope.mjs >> "$GITHUB_OUTPUT"
+      - name: Install pinned Node and offline browser dependencies
+        if: steps.phone_scope.outputs.skip != 'true'
+        uses: ./.github/actions/setup-world-browser
+      - name: Ensure readable Korean screenshot glyphs
+        if: steps.phone_scope.outputs.skip != 'true'
+        run: |
+          mkdir -p test-results/biryong-map-guidance
+          sudo apt-get update -qq
+          sudo apt-get install -y fonts-noto-cjk
+          fc-match 'sans-serif:lang=ko' > test-results/biryong-map-guidance/korean-font.txt
+      - name: Verify Biryong and preserved Campus contracts
+        if: steps.phone_scope.outputs.skip != 'true'
+        run: >-
+          node --test apps/world/tests/biryong-*.test.mjs
+          apps/world/tests/full-map*.test.mjs apps/world/tests/mobile-full-map-portrait.test.mjs
+          apps/world/tests/navigation-map-ui.test.mjs apps/world/tests/room-map-data.test.mjs
+          apps/world/tests/world-loading-render.test.mjs apps/world/tests/npc-campus-life-diversity.test.mjs
+          apps/world/tests/player-touch-ownership.test.mjs apps/world/tests/input-focus-biryong-wiring.test.mjs
+      - name: Verify regional camera with the pinned engine (no pixels)
+        if: steps.phone_scope.outputs.skip != 'true'
+        run: node apps/world/tests/browser/biryong-camera-null-smoke.mjs
+      - name: Render exact-head offline Campus and Biryong at three sizes
+        if: steps.phone_scope.outputs.skip != 'true'
+        timeout-minutes: 13
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+          WORLD_BIRYONG_QA_OUTPUT: test-results/biryong-map-guidance
+          EXPECTED_BIRYONG_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: timeout --signal=TERM --kill-after=10s 740s node apps/world/tests/browser/biryong-map-guidance-smoke.mjs
+      - name: Verify regional last-location resume and reload
+        if: steps.phone_scope.outputs.skip != 'true'
+        timeout-minutes: 5
+        env:
+          WORLD_SMOKE_DISABLE_WEBGPU: '1'
+          WORLD_SMOKE_BROWSER: chrome
+          WORLD_BIRYONG_QA_OUTPUT: test-results/biryong-map-guidance
+          EXPECTED_BIRYONG_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: timeout --signal=TERM --kill-after=10s 280s node apps/world/tests/browser/biryong-resume-smoke.mjs
+      - name: Preserve exact-head screenshots and receipts for independent pixel review
+        if: always() && steps.phone_scope.outputs.skip != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: biryong-map-guidance-browser-evidence
+          path: test-results/biryong-map-guidance/
+          if-no-files-found: error
+          retention-days: 14
