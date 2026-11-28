@@ -73,7 +73,8 @@ for (const id of Object.keys(GROUPS)) {
     const legacy = GROUPS[id].legacy ?? {};
     assert.deepEqual(Object.keys(legacy).sort(), all(id).sort());
     for (const [suite, file] of Object.entries(legacy)) {
-      const text = readFileSync(new URL('../workflows/' + file, import.meta.url), 'utf8');
+      // Comment lines inside a paths block would end the parse early; drop them first.
+      const text = readFileSync(new URL('../workflows/' + file, import.meta.url), 'utf8').replace(/^\s*#.*\n/gm, '');
       const original = declaredPaths(text, text.split('\n')[0].slice('name: '.length));
       assert.ok(original, file + ' paths must be parseable');
       for (const pattern of original) {
