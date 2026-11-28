@@ -349,7 +349,7 @@ jobs:
         env:
           STARTER_FURNITURE_PRIVATE_GEOMETRY_ONLY: '1'
           STARTER_FURNITURE_OUTPUT: test-results/starter-furniture/private-metadata
-          STARTER_FURNITURE_PRIVATE_SHA: 8aede8fd595dd84fda5460e375a18df49f6a91ba813ab7a952f75e768e8964eb
+          STARTER_FURNITURE_PRIVATE_SHA: bec8585e3e64f092585c23e353ae833215a25ceffa850d819bce7d34d70f01ea
         run: |
           set -euo pipefail
           # Existing approved read-only brand-asset route; no private bytes or renders in artifacts.
