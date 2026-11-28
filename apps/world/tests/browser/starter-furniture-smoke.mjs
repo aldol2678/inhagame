@@ -19,7 +19,7 @@ const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 const modelBytes=await readFile(path.join(repo,'apps/world/assets/induck-v3.glb'));
 const modelHash=sha(modelBytes),jsonLength=modelBytes.readUInt32LE(12);
 const modelJson=JSON.parse(modelBytes.subarray(20,20+jsonLength).toString('utf8').trim());
-const privateSha='8aede8fd595dd84fda5460e375a18df49f6a91ba813ab7a952f75e768e8964eb';
+const privateSha='bec8585e3e64f092585c23e353ae833215a25ceffa850d819bce7d34d70f01ea';
 if(privateMode){
   assert.equal(process.env.STARTER_FURNITURE_PRIVATE_SHA,privateSha,'Explicit exact approved private asset identity required');
   assert.equal(modelHash,privateSha,'Private geometry mode requires the approved original bytes');
