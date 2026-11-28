@@ -13,18 +13,23 @@ async function screenshot(page,path) {
  const evidence=await page.evaluate(async()=>{
   const d=window.__INHAGAME_P0__,carrier=d.player.findByName('Annyongi_GLB_Visual');
   const pc=await import('playcanvas');const points=[];
-  const faceNames=new Set(['Head','Forelock curled contour','Nose lobe contour -1','Nose lobe contour 1','Open smile outer contour','Smile upper lip -1','Smile upper lip 1']);
+  const {faceLayout,linearSwatch,matchesSwatch}=await import('/tests/browser/annyongi-face-layout.mjs');
+  const lines=faceLayout(name=>carrier.findByName(name)).lines;
+  const faceNodes=new Map([{name:'Head',node:'Head'},...lines].map(line=>[line.node,line]));
   const facePoints=new Map();let facing=null;
 
   for(const component of carrier.findComponents('render'))for(const mi of component.meshInstances){
    const v=[];mi.mesh.getPositions(v);
    if(mi.morphInstance)mi.morphInstance.morph.targets.forEach((target,index)=>{const w=mi.morphInstance.getWeight(index);if(w)for(let i=0;i<v.length;i++)v[i]+=target.deltaPositions[i]*w;});
-   const transform=mi.node.getWorldTransform();
+   const transform=mi.node.getWorldTransform(),feature=faceNodes.get(mi.node.name);
+   const swatch=feature?.swatch && linearSwatch(feature.swatch),colors=[];
+   if(swatch)mi.mesh.getColors(colors);
    for(let i=0;i<v.length;i+=3){const world=transform.transformPoint(new pc.Vec3(v[i],v[i+1],v[i+2]));const p=d.orbit.camera.camera.worldToScreen(world);points.push(p);
-    if(faceNames.has(mi.node.name)){if(!facePoints.has(mi.node.name))facePoints.set(mi.node.name,[]);facePoints.get(mi.node.name).push(p);}}
+    if(feature && (!swatch||matchesSwatch(colors,i/3*4,swatch))){if(!facePoints.has(feature.name))facePoints.set(feature.name,[]);facePoints.get(feature.name).push(p);}}
    if(mi.node.name==='Head'){const normal=transform.transformVector(new pc.Vec3(0,0,1)).normalize();const toCamera=d.orbit.camera.getPosition().clone().sub(mi.node.getPosition()).normalize();facing=normal.dot(toCamera);}
 
   }
+  for(const {name} of faceNodes.values())if(!facePoints.has(name))throw Error(`Missing projected face feature: ${name}`);
   const rect=ps=>({left:Math.min(...ps.map(p=>p.x)),right:Math.max(...ps.map(p=>p.x)),top:Math.min(...ps.map(p=>p.y)),bottom:Math.max(...ps.map(p=>p.y))});
   // Transient coordinates only: consumed with the existing PNG, never an ID mask
   // or a new capture. Projection cannot resolve scene occlusion or subpixel lines.

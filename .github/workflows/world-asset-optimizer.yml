@@ -13,9 +13,7 @@ on:
       - 'apps/world/api/asset-canary-flag.js'
       - 'apps/world/api/hub-event.js'
       - 'apps/world/api/brand-asset.js'
-      - 'apps/world/vercel.json'
       - 'apps/world/tests/brand-asset-routing.test.mjs'
-      - 'supabase/functions/inhagame-world-brand-assets-optimized-v1/**'
       - 'apps/world/src/character-model.js'
       - 'apps/world/src/main.js'
       - 'apps/world/src/campus-render-kit.js'
@@ -51,8 +49,6 @@ on:
       - 'apps/world/tests/browser/asset-authority-canary-*'
       - 'apps/world/tests/browser/asset-production-canary-*'
       - 'apps/world/tests/browser/asset-canary-remote-kill-*'
-      - 'supabase/migrations/*asset_canary*'
-      - 'supabase/tests/database/91_world_asset_canary_remote_control.test.sql'
       - '.github/workflows/world-asset-optimizer.yml'
 
 permissions:

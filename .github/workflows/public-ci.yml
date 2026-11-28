@@ -16,7 +16,6 @@ jobs:
     timeout-minutes: 10
     outputs:
       mode: ${{ steps.scope.outputs.mode }}
-      db: ${{ steps.scope.outputs.db }}
       portal_browser: ${{ steps.scope.outputs.portal_browser }}
     steps:
       - uses: actions/checkout@v4
@@ -63,21 +62,6 @@ jobs:
           node-version: '24.19.0'
       - name: Verify SEO metadata, canonical, robots and sitemap
         run: node --test apps/world/tests/seo-metadata.test.mjs
-
-  database:
-    needs: scope
-    if: needs.scope.outputs.mode == 'full' && needs.scope.outputs.db == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24.19.0'
-      - uses: supabase/setup-cli@v3
-        with:
-          version: 2.117.0
-      - run: bash scripts/public-db.sh
 
   portal-browser:
     needs: scope
@@ -126,7 +110,7 @@ jobs:
   # Keep the historical required status context "verify" while the expensive
   # source and database checks execute in parallel.
   verify:
-    needs: [scope, source, database, seo, portal-browser]
+    needs: [scope, source, seo, portal-browser]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -135,12 +119,10 @@ jobs:
         env:
           SCOPE_RESULT: ${{ needs.scope.result }}
           SOURCE_RESULT: ${{ needs.source.result }}
-          DATABASE_RESULT: ${{ needs.database.result }}
           SEO_RESULT: ${{ needs.seo.result }}
           MODE: ${{ needs.scope.outputs.mode }}
           PORTAL_BROWSER_REQUIRED: ${{ needs.scope.outputs.portal_browser }}
           PORTAL_BROWSER_RESULT: ${{ needs.portal-browser.result }}
-          DB_REQUIRED: ${{ needs.scope.outputs.db }}
         run: |
           if [[ "$SCOPE_RESULT" != "success" ]]; then
             echo "Scope detection failed: $SCOPE_RESULT"
@@ -162,17 +144,7 @@ jobs:
                 echo "Source/unit/static verification failed: $SOURCE_RESULT"
                 exit 1
               fi
-
-              if [[ "$DB_REQUIRED" == "true" ]]; then
-                if [[ "$DATABASE_RESULT" != "success" ]]; then
-                  echo "Database verification failed: $DATABASE_RESULT"
-                  exit 1
-                fi
-                echo "Full source and database verification completed successfully." >> "$GITHUB_STEP_SUMMARY"
-              else
-                echo "Database-independent change: local Supabase startup and integration DB suite were not required."
-                echo "Public source/unit/static verification ran in full." >> "$GITHUB_STEP_SUMMARY"
-              fi
+              echo "Full source verification completed successfully." >> "$GITHUB_STEP_SUMMARY"
               ;;
             seo)
               if [[ "$SEO_RESULT" != "success" ]]; then

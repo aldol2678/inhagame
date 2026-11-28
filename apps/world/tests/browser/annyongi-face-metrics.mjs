@@ -1,4 +1,5 @@
 // Pixel masks stay in the browser; only counts, component extents and verdicts leave it.
+import { MATERIAL_FACE } from './annyongi-face-layout.mjs';
 export function analyzeFaceMasks(visible, measured, dark, width, height) {
   if (visible.length !== width * height || measured.length !== visible.length || dark.length !== visible.length) throw Error('Invalid mask dimensions');
   const label = mask => {
@@ -29,17 +30,19 @@ export function analyzeFaceMasks(visible, measured, dark, width, height) {
   const visiblePixels=count(visible), measuredPixels=count(measured), darkPixels=count(dark);
   return {visiblePixels,measuredPixels,darkPixels,measurement:!visiblePixels?'OCCLUDED_OR_SUBPIXEL':!measuredPixels?'UNMEASURABLE':measuredPixels<visiblePixels?'PARTIAL':'FULL',measuredFraction:visiblePixels?measuredPixels/visiblePixels:null,darkFraction:measuredPixels?darkPixels/measuredPixels:null,visible:summarize(v.components),measured:summarize(m.components),dark:summarize(d.components),excluded:summarize(e.components),missing:summarize(g.components),unresolvedVisibleComponents:[...measurableFragments.values()].filter(n=>n>1).length,brokenMeasuredComponents:[...fragments.values()].filter(n=>n>1).length};
 }
-export const FACE_LINE_NAMES=['Forelock curled contour','Nose lobe contour -1','Nose lobe contour 1','Open smile outer contour','Smile upper lip -1','Smile upper lip 1'];
-export function faceContrastFailures(metrics) {
+export const FACE_LINE_NAMES=MATERIAL_FACE.lines.map(line=>line.name);
+export function faceContrastFailures(metrics,layout=MATERIAL_FACE) {
   const failures=[];
-  for(const name of FACE_LINE_NAMES)if(!metrics['node:'+name])failures.push(`Missing required line: ${name}`);
+  for(const {name} of layout.lines)if(!metrics['node:'+name])failures.push(`Missing required line: ${name}`);
   for(const [name,m] of Object.entries(metrics)) {
     if(!name.startsWith('node:'))continue;
     const fixed=m.contrast.fixed,old=m.contrast.white,c=fixed.connectivity;
     if(!Number.isFinite(fixed.darkFraction)||!Number.isFinite(fixed.medianInkToSkin)||!Number.isFinite(old.darkFraction)||!Number.isFinite(old.medianInkToSkin)||!(fixed.samples>0)||!(old.samples>0)){failures.push(`${name}: non-finite or empty contrast control`);continue;}
     if(!c.visiblePixels||!c.measuredPixels){failures.push(`${name}: unmeasurable`);continue;}
     if(c.measuredFraction<.8)failures.push(`${name}: insufficient measurable ROI`);
-    if(fixed.darkFraction<.98||fixed.medianInkToSkin>.3)failures.push(`${name}: authored dark line contrast lost`);
+    const line = layout.lines.find(target => target.name === name.slice(5));
+    const [minRatio, maxRatio] = line?.medianRange ?? [0, .3];
+    if(fixed.darkFraction<.98 || fixed.medianInkToSkin<minRatio || fixed.medianInkToSkin>maxRatio)failures.push(`${name}: authored line contrast lost`);
     if(c.unresolvedVisibleComponents)failures.push(`${name}: excluded pixels interrupt visible line`);
     if(c.brokenMeasuredComponents)failures.push(`${name}: measured line fragmented`);
     if(c.missing.largest>4||c.missing.maxSpan>3)failures.push(`${name}: missing line cluster`);
