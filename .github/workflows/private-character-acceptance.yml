@@ -9,7 +9,6 @@ on:
       - 'apps/world/api/brand-asset.js'
       - 'apps/world/tests/**'
       - 'tools/world-assets/**'
-      
 permissions:
   contents: read
 jobs:
