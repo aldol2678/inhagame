@@ -197,7 +197,6 @@ export const GROUPS = Object.freeze({
     name: 'World phone and photo browser QA',
     legacy: Object.freeze({
       'phone': 'phone-browser.yml',
-
       'photo-mode': 'photo-mode-browser.yml'
     }),
     suites: Object.freeze({
@@ -220,7 +219,6 @@ export const GROUPS = Object.freeze({
         'apps/world/tests/browser/phone-album-manager-smoke.mjs',
         'apps/world/tests/browser/phone-messages-*'
       ],
-      
       'photo-mode': [
         'apps/world/src/phone/smartphone.js',
         'apps/world/src/photo/**',
