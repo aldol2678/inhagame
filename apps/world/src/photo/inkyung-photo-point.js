@@ -16,7 +16,7 @@ export function inkyungPhotoPosition(slotIndex = 0) {
   // The first photo slot is the guide, beside a trunk. Slide along the bank
   // rather than stepping into slot 3, which another NPC can use later.
   if (slotIndex === 0 && hitsPondTrunk(nominal, nominal, .65)) {
-    return frame.at(clamp(along - 1.25), distance + .45);
+    return frame.at(clamp(along - 1.25), distance + .9);
   }
   return nominal;
 }
