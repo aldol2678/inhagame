@@ -1,3 +1,4 @@
+import { NPC_MODELS_GENERATED } from '../npc-factory/npc-model-refresh.mjs';
 import { createDialogueIcon } from '../npc-factory/campus-dialogue-icons.mjs';
 import * as pc from 'playcanvas';
 import { roadviewGroundHeight } from './roadview-layout.js';
@@ -133,7 +134,12 @@ export function createInkyungDailyNpcs({
     loading = true;
     try {
       const loaded = await Promise.all(Object.entries(FILES).map(async ([id, file]) => {
-        const asset = await loadAsset(new URL('../assets/npcs/inkyung-daily-v031/' + file, import.meta.url).href);
+        const original = new URL('../assets/npcs/inkyung-daily-v031/' + file, import.meta.url).href;
+        let asset;
+        if (NPC_MODELS_GENERATED) {
+          const generated = new URL('../assets/npcs/refresh-72/' + file, import.meta.url).href;
+          asset = await loadAsset(generated).catch(() => loadAsset(original));
+        } else asset = await loadAsset(original);
         if (dead || failed) { releaseAsset(asset); return [id, null]; }
         assets.add(asset); return [id, asset];
       }));

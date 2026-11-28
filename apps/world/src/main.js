@@ -10,6 +10,7 @@ import { createCampusKickboard } from "./mounts/campus-kickboard-render.js";
 import * as pc from "playcanvas";
 import { PlayerController } from "./player-controller.js";
 import { OrbitCameraController } from "./orbit-camera-controller.js";
+import { startNpcRefresh } from '../npc-factory/npc-model-refresh.mjs';
 import { chooseDialogueShot } from '../npc-factory/dialogue-shot.mjs';
 import { cameraObstaclesNear, cameraSafeFraction } from './world-collision.js';
 import { installRuntimeDiagnostics } from './diagnostics/runtime-diagnostics-runtime.js';
@@ -453,6 +454,7 @@ let firstPlayerMovement = false;
 const spawn=campusSpawn(location);
 player.setLocalPosition(spawn.x,spawn.y,spawn.z);
 campusRoot.addChild(player);
+startNpcRefresh(app,player);
 
 const nightStreetLights = createNightStreetLights({
   root: campusRoot,

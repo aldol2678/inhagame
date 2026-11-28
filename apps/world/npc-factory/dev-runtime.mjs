@@ -1348,6 +1348,7 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
         Math.sin(elapsed * 2 * animationPace + Number(actor.id.slice(-3))) * .015 * motionEnergy;
       const sitting = Boolean(visual.seat && !moving && !motion.route.length);
       const purposefulActivity = assignedVendor(actor.id) ? 'SHOP_SERVICE' : purposeful?.controller.status(false).activity;
+      visual.refreshPose?.(moving, sitting || (!moving && ['READING','COFFEE','EATING','PHONE','PHOTO','MUSIC','RESTING'].includes(purposefulActivity)));
       visual.activityProps.update(purposefulActivity, { moving, sitting, visible: visual.avatar.enabled });
       const activityPose = purposefulActivityPose(purposefulActivity, { phase, motionEnergy, sitting });
       const c04SeatPosition = sitting && actor.id === 'INKYUNG-NPC-010' && visual.seat.id === 'SEAT_INKYUNG_TREE_1_A'
