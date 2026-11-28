@@ -123,7 +123,7 @@ jobs:
           MODE: ${{ needs.scope.outputs.mode }}
           PORTAL_BROWSER_REQUIRED: ${{ needs.scope.outputs.portal_browser }}
           PORTAL_BROWSER_RESULT: ${{ needs.portal-browser.result }}
-      run: |
+        run: |
           if [[ "$SCOPE_RESULT" != "success" ]]; then
             echo "Scope detection failed: $SCOPE_RESULT"
             exit 1
