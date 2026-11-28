@@ -22,7 +22,7 @@ export function registerNpcRefresh(visual){
    if(seatPoint && record.seatContact)record.special='Campus_Seat';
    else if(!speaking && !sitting){
     if(moving && goal==='READ' && record.sockets.Carry_Book_Walk)record.special='Carry_Book_Walk';
-    if(!moving)record.special=({PHOTO:'Campus_Photo',READING:'Campus_Read',COFFEE:'Campus_Coffee'})[activity]??null;
+    if(!moving)record.special=({PHOTO:'Campus_Photo',READING:'Campus_Read',COFFEE:'Campus_Coffee',PHONE:'Campus_Phone',EATING:'Campus_Snack'})[activity]??null;
     if(record.special && !record.sockets[record.special])record.special=null;
    }
   }
@@ -56,6 +56,8 @@ async function load(record,file){
    Campus_Photo:'Campus_Camera_Socket',
    Campus_Read:'Campus_Book_Socket',
    Campus_Coffee:'Campus_Cup_Socket',
+   Campus_Phone:'Campus_Phone_Socket',
+   Campus_Snack:'Campus_Snack_Socket',
    Carry_Book_Walk:'Campus_Book_Tuck_Socket',
   }).map(([clip,name])=>[clip,tracks[clip] ? node.findByName(name) : null]));
   const seatContact=tracks.Campus_Seat && node.findByName('Campus_Seat_Contact');

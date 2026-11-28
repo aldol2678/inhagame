@@ -4,6 +4,7 @@ D=Path.cwd()
 source=Path(os.environ.get('INHA_GENERATOR_DIR',Path(__file__).resolve().parent)).resolve()
 sys.path.insert(0,str(source/'addon'))
 from inha_npc_generator import core,groom
+from inha_npc_generator.activity import ROSTER_RIGS, check_activity, decorate, read
 from mathutils import Vector
 from mathutils.bvhtree import BVHTree
 from mathutils import Color
@@ -47,7 +48,19 @@ def accessory(r,name,color):
 for i,rec in enumerate(a):
  if i%total!=shard:continue
  npc=rec['id'];stem=npc.replace('-','_');dst=D/'models'/f'{stem}.glb';spec_path=D/'qa'/f'{stem}.json'
- if dst.exists() and spec_path.exists():continue
+ if dst.exists() and spec_path.exists():
+  kinds=ROSTER_RIGS.get(npc,())
+  if kinds:
+   g,_=read(dst)
+   try:
+    for kind in kinds:check_activity(g,kind)
+   except ValueError:
+    tmp=dst.with_suffix('.resume.glb')
+    decorate(dst,tmp,kinds)
+    tmp.replace(dst)
+   spec=json.loads(spec_path.read_text());spec['activityRigs']=list(kinds)
+   spec_path.write_text(json.dumps(spec,ensure_ascii=False,indent=2)+'\n')
+  continue
  seed=int.from_bytes(hashlib.sha256(npc.encode()).digest()[:8],'big')
  style=rec['style'];p=style.get('profile',{})
  female=style.get('presentation')=='female'
@@ -95,7 +108,8 @@ for i,rec in enumerate(a):
  # Legacy chalk will not be shown on an ordinary NPC.
  chalk=bpy.context.scene.objects.get('NPC_Prop_Chalk')
  if chalk:bpy.data.objects.remove(chalk,do_unlink=True)
- core.export(dst)
+ core.export(dst,ROSTER_RIGS.get(npc,()))
+ res['activityRigs']=list(ROSTER_RIGS.get(npc,()))
  res.update(id=npc,template=base,preset={'skin':skin,'hair_color':hp,'outfit':clothing,'outfit_color':coat,'accent':accent,'accessory':primary,'original_hair_style':old_hair,'body_width':width,'height_cm':height,'glasses':glasses,'beard':beard})
  spec_path.write_text(json.dumps(res,ensure_ascii=False,indent=2)+'\n')
  print('GENERATED',npc,flush=True)

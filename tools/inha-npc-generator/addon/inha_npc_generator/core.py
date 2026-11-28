@@ -197,7 +197,7 @@ def update(config):
  lo,hi=bounds(r)
  if abs(hi-lo-config['height_m'])>.0001 or abs(lo)>.0001:raise ValueError('Measured model height does not match the target.')
  return {'face':config['face'],'hair':config['hair'],'measuredHeight_m':hi-lo,'floor_m':lo,'rigScale':[*r.scale],'fitting':style,'groom':hair_report}
-def export(path):
+def export_base(path):
  s=bpy.context.scene;r=rig()
  bpy.ops.object.select_all(action='DESELECT')
  tracked=[(t,t.mute) for t in r.animation_data.nla_tracks]
@@ -212,3 +212,18 @@ def export(path):
  finally:
   for t,m in tracked:t.mute=m
   for o in hidden:o.hide_set(True)
+
+
+def export(path, activities=()):
+ """Write an all-or-nothing GLB; NPC activity sockets live in the GLB."""
+ if not activities:
+  return export_base(path)
+ from pathlib import Path
+ from tempfile import TemporaryDirectory
+ from .activity import decorate
+ path=Path(path)
+ with TemporaryDirectory(prefix='.inha-rig-',dir=path.parent) as stage:
+  base=Path(stage)/'base.glb';result=Path(stage)/'rigged.glb'
+  export_base(base)
+  decorate(base,result,activities)
+  result.replace(path)
