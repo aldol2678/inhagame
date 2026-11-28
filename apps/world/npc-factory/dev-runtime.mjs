@@ -1348,8 +1348,16 @@ export async function createNpcDevRuntime({ app, campusRoot, player, orbit, prod
         Math.sin(elapsed * 2 * animationPace + Number(actor.id.slice(-3))) * .015 * motionEnergy;
       const sitting = Boolean(visual.seat && !moving && !motion.route.length);
       const purposefulActivity = assignedVendor(actor.id) ? 'SHOP_SERVICE' : purposeful?.controller.status(false).activity;
-      visual.refreshPose?.(moving, sitting || (!moving && ['READING','COFFEE','EATING','PHONE','PHOTO','MUSIC','RESTING'].includes(purposefulActivity)));
-      visual.activityProps.update(purposefulActivity, { moving, sitting, visible: visual.avatar.enabled });
+      const seat = sitting && visual.seat.id === 'SEAT_INKYUNG_TREE_1_A' ? visual.seat : null;
+      let seatPoint = null;
+      if (seat) {
+        const yaw = seat.yaw*Math.PI/180, {x,z} = seat.position;
+        seatPoint=new pc.Vec3(x-.08*Math.sin(yaw),roadviewGroundHeight(x,z)+SEAT_TOP_Y,z-.08*Math.cos(yaw));
+      }
+      const generatedSocket=visual.refreshPose?.(moving,
+        sitting || (!moving && ['READING','COFFEE','EATING','PHONE','PHOTO','MUSIC','RESTING'].includes(purposefulActivity)),
+        {activity:purposefulActivity,seatPoint});
+      visual.activityProps.update(purposefulActivity, { moving, sitting, visible: visual.avatar.enabled, generatedSocket });
       const activityPose = purposefulActivityPose(purposefulActivity, { phase, motionEnergy, sitting });
       const c04SeatPosition = sitting && actor.id === 'INKYUNG-NPC-010' && visual.seat.id === 'SEAT_INKYUNG_TREE_1_A'
         ? c04BenchRenderPosition(visual.seat, visual.worldScale,

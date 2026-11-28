@@ -14,7 +14,14 @@ export function registerNpcRefresh(visual){
  const record={id:actor.id,visual,primitives,asset:null,node:null,clip:null,pending:false,fallback:false,failed:false,last:null};
  entries.set(avatar,record);
  avatar.once('destroy',()=>{entries.delete(avatar);restore(record);});
- visual.refreshPose=(moving,legacyPose=false)=>{record.moving=moving;record.fallback=legacyPose;};
+ visual.refreshPose=(moving,legacyPose=false,{activity,seatPoint}={})=>{
+  record.moving=moving;
+  record.seatPoint=seatPoint??null;
+  record.special=record.keep && record.node ?
+   (seatPoint && record.seatContact ? 'Campus_Seat' : !moving && activity==='PHOTO' && record.photoSocket ? 'Campus_Photo' : null) : null;
+  record.fallback=Boolean(legacyPose&&!record.special);
+  return record.special==='Campus_Photo' ? record.photoSocket : null;
+ };
  return visual;
 }
 function deleteAsset(app,asset){if(asset){asset.unload();app.assets.remove(asset);}}
@@ -25,7 +32,7 @@ function hide(record,active){
 }
 function restore(record){
  hide(record,false);
- record.node?.destroy();record.node=null;record.clip=null;
+ record.node?.destroy();record.node=null;record.clip=null;record.photoSocket=null;record.seatContact=null;
  if(record.asset){deleteAsset(runtime.app,record.asset);record.asset=null;}
 }
 async function load(record,file){
@@ -38,13 +45,17 @@ async function load(record,file){
   const names=['Idle_Breathe','Walk_In_Place'];
   const tracks=Object.fromEntries(asset.resource.animations.map(a=>[a.resource.name,a.resource]));
   if(names.some(k=>!tracks[k]))throw Error('missing idle/walk');
+  const photoSocket=tracks.Campus_Photo && node.findByName('Campus_Camera_Socket');
+  const seatContact=tracks.Campus_Seat && node.findByName('Campus_Seat_Contact');
+  if(photoSocket)names.push('Campus_Photo');
+  if(seatContact)names.push('Campus_Seat');
   node.name='REFRESH_'+record.id;node.setLocalScale(1.37,1.37,1.37);
   node.setLocalEulerAngles(0,record.mirror?180:0,0);
   node.enabled=false;record.visual.avatar.addChild(node);
   node.addComponent('anim',{activate:true});
   node.anim.loadStateGraph(new pc.AnimStateGraph({layers:[{name:'Base',states:[{name:'START'},...names.map(name=>({name,speed:1,loop:true}))],transitions:[{from:'START',to:'Idle_Breathe'}]}],parameters:{}}));
   for(const name of names)node.anim.assignAnimation(name,tracks[name],'Base',1,true);
-  record.asset=asset;record.node=node;
+  record.asset=asset;record.node=node;record.photoSocket=photoSocket;record.seatContact=seatContact;
  }catch{record.failed=true;newNode?.destroy();deleteAsset(app,asset);}
  finally{record.pending=false;}
 }
@@ -79,8 +90,17 @@ export function startNpcRefresh(app,player){
    if(!r.node)continue;
    hide(r,!r.fallback);
    if(r.fallback)continue;
-   const clip=(r.moving??r.inferredWalk)?'Walk_In_Place':'Idle_Breathe';
-   if(r.clip!==clip){r.node.anim.baseLayer.transition(clip,.15);r.clip=clip;}
+   const clip=r.special??((r.moving??r.inferredWalk)?'Walk_In_Place':'Idle_Breathe');
+   if(r.clip!==clip){
+    r.node.setLocalPosition(0,0,0);
+    r.node.anim.baseLayer.transition(clip,.15);r.clip=clip;
+   }
+   if(clip==='Campus_Seat' && r.seatPoint && r.seatContact && r.node.anim.baseLayer.activeState===clip && !r.node.anim.baseLayer.transitioning){
+    const parent=r.visual.avatar.getWorldTransform();
+    const aim=r.visual.avatar.parent.getWorldTransform().transformPoint(r.seatPoint);
+    const localCorrection=new pc.Mat4().copy(parent).invert().transformVector(aim.sub(r.seatContact.getPosition()));
+    r.node.setLocalPosition(r.node.getLocalPosition().clone().add(localCorrection));
+   }
   }
  });
  globalThis.__INHA_NPC_REFRESH_QA__=Object.freeze({status:()=>({

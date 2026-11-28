@@ -25,20 +25,21 @@ export function createPurposefulActivityProps({ visual, loadModel }) {
   // createHumanAvatar creates these accessories locally enabled. Do not capture entity.enabled:
   // PlayCanvas includes ancestor visibility in that getter (the campus may start hidden).
   const fallback = ['HeldBook', 'BookSpine'].map(name => visual.avatar.findByName(name)).filter(Boolean);
-  let desired = null, generation = 0, entity = null, disposed = false;
+  let desired = null, attachment = null, generation = 0, entity = null, disposed = false;
   const restoreFallback = () => { for (const accessory of fallback) accessory.enabled = true; };
   function clear() {
     entity?.destroy();
     entity = null;
     restoreFallback();
   }
-  function update(activity, { moving = false, sitting = false, visible = true } = {}) {
+  function update(activity, { moving = false, sitting = false, visible = true, generatedSocket = null } = {}) {
     if (disposed) return;
     const definition = !moving && !sitting && visible && Object.hasOwn(NPC_ACTIVITY_PROPS, activity)
       ? NPC_ACTIVITY_PROPS[activity] : null;
     const next = definition?.id ?? null;
-    if (next === desired) return; // no requests, retries or allocations for unchanged frames
-    desired = next;
+    const socket = activity === "PHOTO" ? generatedSocket : null;
+    if (next === desired && socket === attachment) return; // no requests, retries or allocations for unchanged frames
+    desired = next; attachment = socket;
     const token = ++generation;
     clear();
     if (!definition || !arm || !Number.isFinite(visual.worldScale) || visual.worldScale <= 0) return;
@@ -50,11 +51,19 @@ export function createPurposefulActivityProps({ visual, loadModel }) {
       if (!model) return;
       try {
         model.name = `NPC_Activity_${next}`;
-        model.setLocalPosition(...purposefulActivityPropPosition(definition, visual.worldScale));
-        model.setLocalRotation(...definition.rotation);
-        const scale = LIFE_PROP_WORLD_SCALE / visual.worldScale;
-        model.setLocalScale(scale, scale, scale);
-        arm.addChild(model);
+        if (socket) {
+          model.setLocalPosition(0,0,0);
+          model.setLocalRotation(0,0,0,1);
+          const scale=LIFE_PROP_WORLD_SCALE/socket.getWorldTransform().getScale().y;
+          model.setLocalScale(scale,scale,scale);
+          socket.addChild(model);
+        } else {
+          model.setLocalPosition(...purposefulActivityPropPosition(definition, visual.worldScale));
+          model.setLocalRotation(...definition.rotation);
+          const scale = LIFE_PROP_WORLD_SCALE / visual.worldScale;
+          model.setLocalScale(scale, scale, scale);
+          arm.addChild(model);
+        }
         entity = model;
         for (const accessory of fallback) accessory.enabled = false;
       } catch {

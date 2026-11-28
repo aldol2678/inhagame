@@ -286,8 +286,8 @@
     "kind": "campus",
     "source": "npc-factory/data/repaired/INKYUNG-20-A-R1.json",
     "file": "models/INKYUNG_NPC_009.glb",
-    "bytes": 1271364,
-    "sha256": "ac70fb25d8513a71a564e65acee1a6f95c432abee7ae0737efefac092109bca8",
+    "bytes": 1286536,
+    "sha256": "eabd95ccb334f1dacf38c39ffd4b5dd14d5fba8c6ca5828e4dd9abdaa7e6e405",
     "joints": 20,
     "animations": [
       "Idle_Breathe",
@@ -298,7 +298,8 @@
       "Carry_Cylinder",
       "Cylinder_Explain",
       "Carry_Book_Tuck",
-      "Carry_Book_Walk"
+      "Carry_Book_Walk",
+      "Campus_Photo"
     ],
     "preset": {
       "skin": "e9c7ae",
@@ -321,8 +322,8 @@
     "kind": "campus",
     "source": "npc-factory/data/repaired/INKYUNG-20-A-R1.json",
     "file": "models/INKYUNG_NPC_010.glb",
-    "bytes": 1157856,
-    "sha256": "4e4508bb2f68402467674b132a2c0f8ff6fde1b8cd3d62e444eaf19b5b8cf61f",
+    "bytes": 1172940,
+    "sha256": "26ea792efb473ec4607ce1989d168b37abc675973716f85cdf55807678d2f393",
     "joints": 20,
     "animations": [
       "Idle_Breathe",
@@ -333,7 +334,8 @@
       "Carry_Cylinder",
       "Cylinder_Explain",
       "Carry_Book_Tuck",
-      "Carry_Book_Walk"
+      "Carry_Book_Walk",
+      "Campus_Seat"
     ],
     "preset": {
       "skin": "d1ab8d",

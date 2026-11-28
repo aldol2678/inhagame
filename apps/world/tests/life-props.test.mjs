@@ -212,7 +212,7 @@ test('runtime wiring updates props alongside existing poses and exposes the room
   const runtime = readFileSync(new URL('../npc-factory/dev-runtime.mjs', import.meta.url), 'utf8');
   assert.match(runtime, /createEquipmentModelLoader\(\{ app, registry: LIFE_PROP_MODELS \}\)/);
   assert.match(runtime, /visual\.activityProps = createPurposefulActivityProps\(\{ visual, loadModel: loadLifeProp \}\)/);
-  assert.match(runtime, /visual\.activityProps\.update\(purposefulActivity, \{ moving, sitting, visible: visual\.avatar\.enabled \}\)/);
+  assert.match(runtime, /visual\.activityProps\.update\(purposefulActivity, \{ moving, sitting, visible: visual\.avatar\.enabled, generatedSocket \}\)/);
   assert.match(runtime, /if \(!motion\.position \|\| socialPreviewFastForward\) \{\s*visual\.activityProps\.update\(null\)/);
   const room = readFileSync(new URL('../src/rooms/club-room-renderer.js', import.meta.url), 'utf8');
   assert.match(room, /createClubTableProps\(\{ app, root, table: g, height: h \}\)/);
