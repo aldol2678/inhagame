@@ -14,6 +14,7 @@ export class Entity {
   setLocalPosition(){} setLocalScale(){}
   setLocalEulerAngles(x,y,z){this.angles={x,y,z};} getLocalEulerAngles(){return this.angles;}
   on(event,fn){this.events[event]=fn;}
+  once(event,fn){this.on(event,fn);}
   destroy(){for(const child of this.children)child.destroy();this.events.destroy?.();}
 }
 export class MeshInstance {}

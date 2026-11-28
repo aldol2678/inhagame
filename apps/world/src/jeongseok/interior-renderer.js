@@ -11,6 +11,7 @@ import * as pc from "playcanvas";
 import { box, surface } from "../campus-render-kit.js";
 import { createStaticBatch } from "./static-batch.js";
 import { createJeongseokLobbyCollision } from "./lobby-layout.js";
+import { JEONGSEOK_GUIDE } from "./gate-layout.js";
 import { PORTAL_WALL_INSET } from "./interior-kit.js";
 import { JEONGSEOK_LAYOUTS, JEONGSEOK_LOBBY_ROOM_ID, JEONGSEOK_B1_READING_ROOM_ID, JEONGSEOK_B1_CREATIVE_ROOM_ID } from "./interior-rooms.js";
 
@@ -215,17 +216,6 @@ const MODULES = {
     for (const sx of [-1, 1]) b.box(M.steel(), [x + sx * (w / 2 - 0.3), y + h + 0.6, z], [0.03, 1.2, 0.03]);
     // Abstract arrows only.
     for (const dx of [-1.4, 0, 1.4]) downArrow(b, glow("#e9f1f8", 0.75), [x + dx, y + h / 2 + 0.02, z - d / 2], 0.18, -1);
-  },
-  guide_npc(b, e) {
-    // Original stylized game guide, with no school insignia or real employee likeness.
-    const [x, y, z] = e.at;
-    b.sphere(M.laminate(), [x, y + 0.78, z], 0.16);
-    b.box(M.navy(), [x, y + 0.48, z], [0.34, 0.36, 0.22]);
-    for (const side of [-1, 1]) {
-      b.box(M.darkMetal(), [x + side * 0.10, y + 0.16, z], [0.12, 0.28, 0.15]);
-      b.box(M.navy(), [x + side * 0.23, y + 0.47, z], [0.10, 0.30, 0.12]);
-    }
-    b.box(glow("#a5e4e8", 0.4), [x, y + 0.48, z - 0.12], [0.12, 0.09, 0.02]);
   },
   info_desk(b, e) {
     const [x, , z] = e.at, [w, h, d] = e.size;
@@ -508,7 +498,7 @@ export function buildRoomGeometry(batch, layout, detail = "full") {
   DRESSING[layout.roomId](batch, layout, detail);
   for (const entry of layout.items) {
     if (detail === "low" && entry.detail === "decor") continue;
-    if (entry.module === "gate_flap") continue; // separate animated entities
+    if (entry.module === "gate_flap" || entry.module === "guide_npc") continue; // separate animated entities
     const render = MODULES[entry.module];
     if (!render) throw new Error(`No renderer for module ${entry.module}`);
     render(batch, entry, detail, H);
@@ -533,6 +523,56 @@ function buildGateFlaps(root, layout) {
   return flaps;
 }
 
+// Load this guide only after the actual lobby becomes active, not while on campus.
+function createJeongseokGuideVisual(app, root) {
+  let status = "idle", asset = null, node = null, disposed = false;
+  const release = () => {
+    if (!asset) return;
+    asset.unload();
+    app.assets.remove(asset);
+    asset = null;
+  };
+  root.once("destroy", () => { disposed = true; release(); });
+  return {
+    get status() { return status; },
+    update() {
+      if (disposed || status !== "idle") return;
+      status = "loading";
+      asset = new pc.Asset(JEONGSEOK_GUIDE.id, "container", {
+        url: new URL("../../assets/npcs/refresh-72/JEONGSEOK_LOBBY_GUIDE_01.glb", import.meta.url).href
+      });
+      asset.once("error", () => { if (!disposed) { status = "unavailable"; release(); } });
+      asset.once("load", loaded => {
+        if (disposed || loaded !== asset) { loaded.unload(); return; }
+        try {
+          const clip = loaded.resource.animations.find(a => a.resource?.name === "Idle_Breathe")?.resource;
+          if (!clip) throw Error("Missing Jeongseok guide idle animation");
+          node = loaded.resource.instantiateRenderEntity();
+          node.name = JEONGSEOK_GUIDE.id;
+          const { x, y, z } = JEONGSEOK_GUIDE.position;
+          node.setLocalPosition(x, y, z);
+          node.setLocalScale(.5, .5, .5);
+          node.setLocalEulerAngles(0, 180, 0);
+          root.addChild(node);
+          node.addComponent("anim", { activate: true });
+          node.anim.loadStateGraph(new pc.AnimStateGraph({ layers: [{
+            name: "Base", states: [{ name: "START" }, { name: "Idle_Breathe", speed: 1, loop: true }],
+            transitions: [{ from: "START", to: "Idle_Breathe" }]
+          }], parameters: {} }));
+          node.anim.assignAnimation("Idle_Breathe", clip, "Base", 1, true);
+          node.anim.baseLayer.play("Idle_Breathe");
+          status = "ready";
+        } catch {
+          node?.destroy(); node = null;
+          status = "unavailable"; release();
+        }
+      });
+      app.assets.add(asset);
+      app.assets.load(asset);
+    }
+  };
+}
+
 export function createJeongseokInteriorScenes(app, { getGraphicsTier = () => "medium", now = () => performance.now(), isGateOpen = () => false } = {}) {
   const scenes = new Map();
   let failNext = null;
@@ -553,6 +593,7 @@ export function createJeongseokInteriorScenes(app, { getGraphicsTier = () => "me
       const primitives = batch.primitiveCount, vertices = batch.vertexCount;
       const meshes = batch.build(root, `jsl_static_${roomId}`);
       const flaps = roomId === JEONGSEOK_LOBBY_ROOM_ID ? buildGateFlaps(root, layout) : [];
+      const guide = roomId === JEONGSEOK_LOBBY_ROOM_ID ? createJeongseokGuideVisual(app, root) : null;
       const config = LIGHTING[roomId];
       const lights = config.lights.map(([x, y, z, color, intensity, range], index) => {
         const e = new pc.Entity(`jsl_light_${index}`);
@@ -569,11 +610,12 @@ export function createJeongseokInteriorScenes(app, { getGraphicsTier = () => "me
         obstacles: collision?.obstacles ?? [...layout.obstacles],
         ambient: new pc.Color(...config.ambient),
         clearColor: new pc.Color(...config.clear),
-        stats: Object.freeze({ drawMeshes: meshes.length, primitives, vertices, flaps: flaps.length, lights: lights.length, buildMs }),
+        stats: Object.freeze({ drawMeshes: meshes.length, primitives, vertices, flaps: flaps.length, lights: lights.length, buildMs, get guide() { return guide?.status ?? null; } }),
         /** Stable collision array is shared with PlayerController/Orbit; no test-only barrier. */
         setGateAccess(open) { collision?.setGateAccess(open); },
         /** Proximity may animate only an already-authorized gate, never unlock it. */
         update(position, dt = 0.016) {
+          guide?.update();
           const allowed = isGateOpen() === true;
           this.setGateAccess(allowed);
           for (const flap of flaps) {

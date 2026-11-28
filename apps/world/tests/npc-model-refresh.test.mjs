@@ -5,9 +5,9 @@ import {createHash} from 'node:crypto';
 const root = new URL('../assets/npcs/refresh-72/',import.meta.url);
 const read = f => readFileSync(new URL(f,root));
 const rows = JSON.parse(read('manifest.json'));
-test('all 72 reviewed generated models match the public bundle and keep their animation names',()=>{
- assert.equal(rows.length,72);
- assert.equal(new Set(rows.map(x=>x.id)).size,72);
+test('all 63 remaining reviewed generated models match the public bundle and keep their animation names',()=>{
+ assert.equal(rows.length,63);
+ assert.equal(new Set(rows.map(x=>x.id)).size,63);
  assert.deepEqual(readdirSync(root).filter(f=>f.endsWith('.glb')).sort(),rows.map(r=>r.file).sort());
  const refs=JSON.parse(readFileSync(new URL('../release/cloudflare-live/reference.json',import.meta.url))).files;
  for(const r of rows){

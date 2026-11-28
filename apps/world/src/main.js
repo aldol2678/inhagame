@@ -166,10 +166,8 @@ import { isMcm2026PreviewRequest, mcm2026PreviewStartMs } from "./events/zombie-
 import { mcm2026CanEnterVenue } from "./events/zombie-university-2026/event-phase.js";
 import { createMcm2026EventClient } from "./events/zombie-university-2026/event-client.js";
 import { createMcm2026EventUi, createStatusAfterReward, rewardLine } from "./events/zombie-university-2026/event-ui.js";
-import { createMcm2026EventRuntime } from "./events/zombie-university-2026/event-runtime.js";
 import { createMcm2026RoomScene } from "./events/zombie-university-2026/minigame-room-renderer.js";
 import { MCM_2026_ROOM_ID } from "./events/zombie-university-2026/minigame-room-layout.js";
-import { createMcm2026MinigameRuntime } from "./events/zombie-university-2026/minigame-room-runtime.js";
 import { createProgressionClient, PROGRESSION_STATE } from "./progression/progression-client.js";
 import { createProgressionHud, formatProgression, levelUpMessage } from "./progression/progression-hud.js";
 import { createShopRouter } from "./shop/shop-router.js";
@@ -1300,14 +1298,12 @@ const mcmEventUi = createMcm2026EventUi({
   }
 });
 rewardToastRemainingMs = () => mcmEventUi.toastRemainingMs();
-mcmEventRuntime = createMcm2026EventRuntime({
-  app, campusRoot, player, orbit, client: mcmEvent,
-  onInfo: () => mcmEventUi.openInfo(),
-  onStatus: showWorldStatus,
-  onDialogueChange: (open) => {
-    if (open) mcmDialogueInput.acquire();
-    else mcmDialogueInput.release();
-  }
+// The event is archived: keep records and the room, but do not instantiate retired actors.
+mcmEventRuntime = Object.freeze({
+  update: () => mcmEvent.refreshIfStale(),
+  guidance: () => "", mapTarget: () => null, contextAction: () => null,
+  isDialogueOpen: () => false, closeDialogue: () => false,
+  status: () => ({ retired: true, activeConversation: null, nearest: null })
 });
 if (mcmEventPreviewMode) void mcmEvent.setSignedIn(true);
 follow.onChange((_status, reason) => {
@@ -2737,23 +2733,10 @@ rooms.onChange((status) => {
     ownerDisplayName: meta.ownerDisplayName ?? null
   });
 });
-const mcmMinigame = createMcm2026MinigameRuntime({
-  roomScene: mcmRoomScene,
-  player,
-  client: mcmEvent,
-  getRoomId: () => rooms.currentSpace,
-  onInfo: () => mcmEventUi.openInfo(),
-  onReward: result => {
-    mcmEventUi.showReward(result);
-    // The reward may have granted EXP server-side; re-read the authority (never computed here).
-    if (result && result.status !== "PREVIEW") {
-      void progression.refresh("reward");
-      void wallet.refresh("reward");
-      void inventory.refresh("reward");
-      void loadout.refresh("reward");
-    }
-    if (result?.status === "REWARD_FAILED") showWorldStatusAfterReward("보상 정산을 다시 시도할 수 있어요.");
-  }
+// The archived challenge relied on the five retired NPCs. No new run is exposed.
+const mcmMinigame = Object.freeze({
+  update() {}, contextAction: () => null,
+  status: () => ({ retired: true, active: false, run: null, busy: false })
 });
 const registry = new RenderChunkRegistry();
 const chunkRenderer = new CampusChunkRenderer(app,campusRoot,registry,{

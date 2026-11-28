@@ -51,8 +51,8 @@ export function startNpcRefresh(app,player){
  if(!ENABLED||runtime)return;
  runtime={app,manifest:new Map(),ready:false,error:null};let elapsed=0;
  void fetch(paths+'manifest.json').then(r=>{if(!r.ok)throw Error(r.status);return r.json();}).then(rows=>{
-  if(!Array.isArray(rows)||rows.length!==72)throw Error('invalid generated roster');
-  // Event models can encode visual clues; Jeongseok still has a baked static guide.
+  if(!Array.isArray(rows)||rows.length!==63)throw Error('invalid generated roster');
+  // The retired event is not in the roster; Jeongseok uses its own room-local loader.
   runtime.manifest=new Map(rows.filter(r=>r.kind!=='daily'&&r.kind!=='event'&&r.id!=='JEONGSEOK_LOBBY_GUIDE_01'&&
    typeof r.id==='string'&&/^[A-Za-z0-9_-]+[.]glb$/.test(r.file)).map(r=>[r.id,r.file]));runtime.ready=true;
  }).catch(e=>runtime.error=String(e));
