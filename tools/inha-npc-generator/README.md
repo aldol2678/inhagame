@@ -1,8 +1,8 @@
-# 인하월드 NPC 생성기 v0.3
+# 인하월드 NPC 생성기 v0.4
 
 Blender 4.3+. 프로젝트용 얼굴형·헤어·수염·안경·키(140–200cm)를 조합하고, 20관절과 공통 동작이 포함된 GLB를 내보냅니다. 이미 있는 임의 모델의 자동 리깅 도구는 아닙니다.
 
-- **GUI:** Blender 설정 → Add-ons → Install from Disk에서 `INHA_NPC_Generator_Addon_v03.zip`을 설치한 뒤 활성화합니다. `templates/`의 템플릿을 열고, 3D 뷰의 N 메뉴 → **INHA NPC**에서 외형과 저장 위치를 지정합니다. Templates Folder는 저장소의 `templates/`를 선택합니다.
+- **GUI:** Blender 설정 → Add-ons → Install from Disk에서 `INHA_NPC_Generator_Addon_v04.zip`을 설치한 뒤 활성화합니다. `templates/`의 템플릿을 열고, 3D 뷰의 N 메뉴 → **INHA NPC**에서 외형과 저장 위치를 지정합니다. Templates Folder는 저장소의 `templates/`를 선택합니다.
 - **CLI:** 저장소 루트에서 `blender -b --python-exit-code 5 --python tools/inha-npc-generator/generate.py -- --base botany --height 172 --glasses round --name CampusSample`. 기본 결과 폴더는 현재 위치의 `inha-npc-output/`이고 `--output-dir`로 바꿀 수 있습니다.
 - **63명 재생성:** 새 작업 폴더에서 Blender로 절대 경로의 `build.py -- 0 1`을 실행합니다(Blender 인자: `-b --python-exit-code 9 --python /절대경로/build.py -- 0 1`). 60명이 `models/`에 저장됩니다. 일괄 내보내기가 현재 인경호 6명의 활동 리깅도 자동으로 넣습니다. 기존 생활 NPC 3명은 같은 작업 폴더에서 `python /절대경로/preserve_daily.py /저장소/apps/world`를 실행합니다. 생활 NPC의 소켓·애니메이션·관절 데이터는 보존합니다. 재생성된 GLB의 바이트는 Blender·내보내기 환경에 따라 달라질 수 있습니다. 배포 후보에 커밋된 정본 해시는 게임 쪽 `assets/npcs/refresh-72/manifest.json`입니다.
 
@@ -35,3 +35,13 @@ blender -b --python-exit-code 5 --python tools/inha-npc-generator/generate.py --
 - 이 프리셋은 동일한 INHA 리그에 동작과 소켓을 추가하는 기능입니다. 임의의 외부 모델에 새 뼈대를 자동으로 붙이지 않습니다.
 - 배포용으로 스테이징한 매니페스트와 GLB를 함께 검사하세요:
   `INHA_NPC_ASSETS=/path/to/stage/assets/npcs/refresh-72 node --test apps/world/tests/npc-generated-activity-rig.test.mjs`.
+
+### 기존 NPC GLB에 동작만 추가하기 (v0.4)
+
+1. 아무 Blender 씬에서 **INHA NPC → 기존 GLB에 동작 추가**를 열고, INHA NPC 생성기로 내보낸 원본 GLB를 고릅니다. 새로 템플릿을 열 필요는 없습니다.
+2. **GLB 동작 확인**으로 이미 있는 동작을 보고, 위의 **활동 리깅**에서 원하는 동작을 선택합니다.
+3. **새 GLB 저장 경로**에 아직 없는 파일명을 지정하고 **동작 추가 후 새 GLB 저장**을 누릅니다.
+
+원본은 보존하고 새 동작과 필요한 소켓만 붙입니다. 기존 메시·재질·관절·동작은 그대로 남습니다. 같은 동작을 다시 고르면 중복되지 않으며, 전부 이미 있으면 새 파일을 만들지 않습니다. 외부 모델이나 호환되지 않는 GLB에는 새 뼈대를 붙이지 않습니다. 새 GLB를 게임에 적용하려면 게임 매니페스트의 크기와 SHA-256도 갱신해야 합니다.
+
+검사: `python tools/inha-npc-generator/tests/test_patch_existing.py` (Python 3, NumPy, SciPy)
